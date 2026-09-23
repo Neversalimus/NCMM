@@ -1,0 +1,70 @@
+# NCMM v0.2 architecture
+
+```text
+Any launcher / manual shortcut
+             |
+             v
+    cataclysm-tiles.exe
+       [NCMM Bootstrap]
+             |
+   SHA256(vanilla exe) + VERSION.txt commit
+             |
+       local binding valid?
+       /              \
+     yes               no
+      |                 |
+      |          HTTPS certified feed
+      |                 |
+      |            exact SHA entry?
+      |             /         \
+      |           yes          no/error
+      |            |              |
+      |        download host       |
+      |        verify SHA256       |
+      |            |              |
+      +------------+              |
+             |                    |
+             v                    v
+  cataclysm-tiles.ncmm.exe   vanilla executable
+       [NCMM Host]
+             |
+      Host API v1/capabilities
+             |
+         code_mods/*
+             |
+     AdvancedWorldSettings
+```
+
+## Trust boundaries
+
+1. **Bootstrap** owns executable selection and fallback. It does not inspect CDDA internals.
+2. **Certified host** is built from the exact upstream source tag and is bound to exact official vanilla executable SHA values.
+3. **Host API** is a narrow C ABI. Mods do not receive STL types or raw CDDA object pointers.
+4. **Code mods** can be independently disabled when capabilities are missing.
+5. Native DLLs are trusted code. A bug after successful initialization can still crash the process; NCMM cannot sandbox arbitrary native code. Script/WASM sandboxing is a future layer.
+
+## Host API v1
+
+Capabilities currently exposed:
+
+- `core.v1`
+- `world_options.v1`
+
+`world_options.v1` currently exposes only the minimum primitive needed by AWS:
+
+- preflight: can an existing permanently-hidden world option be exposed?
+- commit: expose it only in world-generation options and assign display name/tooltip.
+
+## Compatibility rule
+
+NCMM does not guess by folder name or launcher version.
+
+A host is usable only when:
+
+- runtime loader API matches;
+- `VERSION.txt` source commit matches feed metadata;
+- vanilla executable SHA is present in the certified feed;
+- downloaded host SHA matches feed metadata;
+- host reaches the ready marker after module initialization.
+
+Failure of any check results in vanilla execution.
