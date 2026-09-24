@@ -38,7 +38,7 @@ Copy-Item $aws.FullName (Join-Path $payload 'code_mods\AdvancedWorldSettings\ncm
 Copy-Item (Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings\mod.json') (Join-Path $payload 'code_mods\AdvancedWorldSettings\mod.json') -Force
 
 @'
-NCMM 0.3.2 Runtime
+NCMM 0.3.3 Runtime
 ===============
 1. Run NCMM_Setup.exe.
 2. Select the CDDA folder containing cataclysm-tiles.exe.
@@ -50,7 +50,7 @@ If no exact certified host exists for the installed CDDA executable, NCMM starts
 '@ | Set-Content (Join-Path $OutputRoot 'README.txt') -Encoding UTF8
 
 Remove-Item $awsBuild -Recurse -Force -ErrorAction SilentlyContinue
-$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.3.2.zip'
+$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.3.3.zip'
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $OutputRoot '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip

@@ -1,4 +1,4 @@
-# NCMM v0.3.2 — Runtime + Certified Host Feed
+# NCMM v0.3.3 — Runtime Diagnostics + Certified Host Feed
 
 NCMM (Neversalimus Code Mod Manager) — экспериментальная платформа для native/code-модов Cataclysm:DDA.
 
@@ -6,7 +6,7 @@ NCMM (Neversalimus Code Mod Manager) — экспериментальная пл
 
 Игрок **не устанавливает** Git, MSYS2, GCC, CMake или Visual Studio.
 
-1. Скачать `NCMM_Runtime_v0.3.2.zip`.
+1. Скачать `NCMM_Runtime_v0.3.3.zip`.
 2. Распаковать.
 3. Запустить `NCMM_Setup.exe`.
 4. Выбрать папку CDDA и нажать `Install / Repair NCMM + AWS`.
@@ -73,6 +73,12 @@ GitHub Actions раз в час смотрит новые `cdda-experimental-*` 
 Для тестового mirror можно создать `ncmm/feed.url` с другим HTTPS URL.
 
 `--ncmm-refresh` принудительно проверяет feed. Для штатного `raw.githubusercontent.com` runtime 0.3.1 добавляет cache-busting token и отключает локальный HTTP cache, поэтому только что опубликованный certified host не должен скрываться за устаревшим CDN/HTTP cache.
+
+## Runtime Diagnostics (v0.3.3)
+
+Bootstrap атомарно обновляет `ncmm/runtime.state.json`. В нём сохраняются версия runtime/loader API, source commit, SHA vanilla/host/binding, состояние certified host, feed, выбранный режим запуска, crash-loop markers и последний exit code.
+
+`--ncmm-diagnose` выполняет read-only локальную диагностику и завершает работу без запуска CDDA, без network refresh и без изменения crash-loop state.
 
 ## Текущий seed
 
