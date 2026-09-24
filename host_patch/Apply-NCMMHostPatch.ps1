@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory=$true)][string]$SourceRoot
 )
 $ErrorActionPreference = 'Stop'
@@ -34,7 +34,9 @@ if (Test-Path $marker) {
         @($h,'ncmm_can_expose_worldgen_option'),
         @($h,'ncmm_expose_worldgen_option'),
         @($c,'case COPT_WORLDGEN_ONLY:'),
-        @($c,'is_hidden( world_options_only )'),
+        @($c,'it.data ).is_hidden( world_options_only )'),
+        @($c,'curr_item.data ).is_hidden( world_options_only )'),
+        @($c,'addOptionToPage( name, "world_default" )'),
         @($sd,'ncmm::initialize();')
     )
     foreach ($x in $checks) { if (-not $x[0].Contains($x[1])) { throw "Existing NCMM marker found but patched contract missing: $($x[1])" } }
@@ -80,6 +82,7 @@ $c = Replace-ExactlyOnce $c @'
             return true;
 '@ 'options.worldgen-hide-case'
 $c = Replace-ExactlyOnce $c '                    && !get_options().get_option( it.data ).is_hidden();' '                    && !get_options().get_option( it.data ).is_hidden( world_options_only );' 'options.worldgen-visibility'
+$c = Replace-ExactlyOnce $c '                    && !get_options().get_option( curr_item.data ).is_hidden();' '                    && !get_options().get_option( curr_item.data ).is_hidden( world_options_only );' 'options.worldgen-selectability'
 $c = Replace-ExactlyOnce $c @'
 bool options_manager::has_option( const std::string &name ) const
 {
@@ -108,6 +111,10 @@ bool options_manager::ncmm_expose_worldgen_option( const std::string &name,
     opt.sMenuText = menu_text;
     opt.sTooltip = tooltip;
     opt.hide = COPT_WORLDGEN_ONLY;
+
+    // CDDA init-time cleanup physically removes COPT_ALWAYS_HIDE PageItems.
+    // Re-add the option after NCMM exposes it so world-generation UI can render it.
+    addOptionToPage( name, "world_default" );
     return true;
 }
 '@ 'options.ncmm-expose-implementation'
@@ -135,7 +142,7 @@ $h2 = Get-Content $optionsH -Raw
 $c2 = Get-Content $optionsCpp -Raw
 $sd2 = Get-Content $sdl -Raw
 foreach ($needle in @('COPT_WORLDGEN_ONLY','ncmm_can_expose_worldgen_option','ncmm_expose_worldgen_option')) { if (-not $h2.Contains($needle)) { throw "Post-check failed: $needle" } }
-foreach ($needle in @('case COPT_WORLDGEN_ONLY:','is_hidden( world_options_only )','options_manager::ncmm_can_expose_worldgen_option','options_manager::ncmm_expose_worldgen_option')) { if (-not $c2.Contains($needle)) { throw "Post-check failed: $needle" } }
+foreach ($needle in @('case COPT_WORLDGEN_ONLY:','it.data ).is_hidden( world_options_only )','curr_item.data ).is_hidden( world_options_only )','options_manager::ncmm_can_expose_worldgen_option','options_manager::ncmm_expose_worldgen_option','addOptionToPage( name, "world_default" )')) { if (-not $c2.Contains($needle)) { throw "Post-check failed: $needle" } }
 if (-not $sd2.Contains('ncmm::initialize();')) { throw 'Post-check failed: ncmm::initialize' }
 Set-Content -Path $marker -Value "NCMM Host API v1`n" -Encoding ASCII
 Write-Host 'NCMM Host API v1 patch applied and post-verified.'
