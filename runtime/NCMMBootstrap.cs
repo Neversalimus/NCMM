@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -310,6 +310,18 @@ internal static class NCMMBootstrap
         NcmmDir = Path.Combine(Root, "ncmm");
         LogPath = Path.Combine(NcmmDir, "bootstrap.log");
         Directory.CreateDirectory(NcmmDir);
+
+        // NCMM TLS 1.2: GitHub RAW/Release endpoints require modern TLS.
+        // Numeric 3072 keeps this source buildable with older .NET Framework reference assemblies.
+        try
+        {
+            ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
+            Log("TLS 1.2 enabled for NCMM network requests.");
+        }
+        catch (Exception ex)
+        {
+            Log("Could not enable TLS 1.2: " + ex.Message);
+        }
 
         string vanilla = Path.Combine(Root, "cataclysm-tiles.vanilla.exe");
         string host = Path.Combine(Root, "cataclysm-tiles.ncmm.exe");
