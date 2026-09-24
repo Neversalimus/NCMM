@@ -10,7 +10,16 @@ $sdl = Join-Path $src 'sdltiles.cpp'
 $marker = Join-Path $SourceRoot '.ncmm_host_v1_patched'
 foreach ($f in @($optionsH,$optionsCpp,$sdl)) { if (-not (Test-Path $f)) { throw "Required source file missing: $f" } }
 
+function Normalize-Lf([string]$Text) {
+    if ($null -eq $Text) { return $Text }
+    return $Text.Replace("`r`n","`n").Replace("`r","`n")
+}
+
 function Replace-ExactlyOnce([string]$Text,[string]$Old,[string]$New,[string]$Contract) {
+    $Text = Normalize-Lf $Text
+    $Old = Normalize-Lf $Old
+    $New = Normalize-Lf $New
+
     $count = ([regex]::Matches($Text, [regex]::Escape($Old))).Count
     if ($count -ne 1) { throw "NCMM contract '$Contract' expected exactly once, found $count. Host patch DISABLED." }
     return $Text.Replace($Old,$New)
@@ -33,9 +42,9 @@ if (Test-Path $marker) {
     exit 0
 }
 
-$h = (Get-Content $optionsH -Raw).Replace("`r`n","`n")
-$c = (Get-Content $optionsCpp -Raw).Replace("`r`n","`n")
-$sd = (Get-Content $sdl -Raw).Replace("`r`n","`n")
+$h = Normalize-Lf (Get-Content $optionsH -Raw)
+$c = Normalize-Lf (Get-Content $optionsCpp -Raw)
+$sd = Normalize-Lf (Get-Content $sdl -Raw)
 
 $h = Replace-ExactlyOnce $h @'
             COPT_NO_SOUND_HIDE,
@@ -103,7 +112,7 @@ bool options_manager::ncmm_expose_worldgen_option( const std::string &name,
 }
 '@ 'options.ncmm-expose-implementation'
 
-$sd = Replace-ExactlyOnce $sd '#include "options.h"' "#include \"options.h\"`n#include \"ncmm_loader.h\"" 'sdl.include-ncmm'
+$sd = Replace-ExactlyOnce $sd '#include "options.h"' "#include ""options.h""`n#include ""ncmm_loader.h""" 'sdl.include-ncmm'
 $sd = Replace-ExactlyOnce $sd @'
     get_options().init();
     get_options().load();
@@ -122,7 +131,6 @@ Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.h') (Join-Path $src 'ncmm_loader
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.cpp') (Join-Path $src 'ncmm_loader.cpp') -Force
 Copy-Item (Join-Path (Split-Path $PSScriptRoot -Parent) 'sdk\ncmm_api.h') (Join-Path $src 'ncmm_api.h') -Force
 
-# Post-conditions. Fail closed before the build stage.
 $h2 = Get-Content $optionsH -Raw
 $c2 = Get-Content $optionsCpp -Raw
 $sd2 = Get-Content $sdl -Raw
