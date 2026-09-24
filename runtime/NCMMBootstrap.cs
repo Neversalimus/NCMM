@@ -74,7 +74,7 @@ internal sealed class RuntimeState
 internal static class NCMMBootstrap
 {
     private const int LoaderApi = 1;
-    private const string RuntimeVersion = "0.5.2";
+    private const string RuntimeVersion = "0.6.0";
     private const string DefaultFeedUrl = "https://raw.githubusercontent.com/Neversalimus/Cataclysm/master/ncmm-platform/feed/index.json";
 
     private static string Root;
@@ -296,7 +296,7 @@ internal static class NCMMBootstrap
         {
             using (TimeoutWebClient wc = new TimeoutWebClient())
             {
-                wc.Headers[HttpRequestHeader.UserAgent] = "NCMM/0.5.2";
+                wc.Headers[HttpRequestHeader.UserAgent] = "NCMM/0.6.0";
                 string feedText = wc.DownloadString(FeedUrlForRequest(forceRefresh));
                 FeedIndex feed = Json.Deserialize<FeedIndex>(feedText);
                 if (feed == null || feed.schema != 1 || feed.loader_api != LoaderApi || feed.hosts == null)

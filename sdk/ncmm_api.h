@@ -73,6 +73,15 @@ typedef struct ncmm_host_api_v1 {
                                           const char *const *value_ids,
                                           const char *const *display_names,
                                           size_t count );
+
+    /*
+     * NCMM 0.6 character modifier tail. Modules must require
+     * character.modifiers.v1 before using these fields.
+     */
+    int ( *character_modifier_set )( const char *module_id,
+                                     const char *modifier_id,
+                                     double value );
+    int ( *character_modifier_clear_module )( const char *module_id );
 } ncmm_host_api_v1;
 
 typedef int ( *ncmm_mod_init_v1 )( const ncmm_host_api_v1 *api );

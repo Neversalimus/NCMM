@@ -105,6 +105,47 @@
           ]
         }
       ]
+    },
+    {
+      "id": "character_modifiers.source.v1",
+      "files": [
+        {
+          "path": "src/character.cpp",
+          "required": [
+            "int Character::get_str() const",
+            "int Character::get_speed() const",
+            "units::mass Character::weight_capacity() const",
+            "float Character::get_hit_base() const",
+            "int Character::run_cost( int base_cost, bool diag ) const"
+          ]
+        },
+        {
+          "path": "src/character_health.cpp",
+          "required": [
+            "int Character::get_stamina_max() const",
+            "float Character::healing_rate( float at_rest_quality ) const"
+          ]
+        },
+        {
+          "path": "src/melee.cpp",
+          "required": [
+            "float Character::get_dodge() const"
+          ]
+        },
+        {
+          "path": "src/character_knowledge.cpp",
+          "required": [
+            "int Character::read_speed() const"
+          ]
+        },
+        {
+          "path": "src/crafting.cpp",
+          "required": [
+            "float Character::mut_crafting_speed_multiplier( const recipe &rec ) const",
+            "float Character::crafting_speed_multiplier( const recipe &rec ) const"
+          ]
+        }
+      ]
     }
   ]
 }

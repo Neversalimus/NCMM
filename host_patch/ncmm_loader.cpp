@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -60,6 +61,14 @@ struct module_state {
 std::vector<module_state> module_states;
 std::set<std::string> module_ids;
 std::map<std::string, size_t> manifest_id_counts;
+std::map<std::string, std::map<std::string, double>> character_modifier_values;
+
+const std::set<std::string> supported_character_modifiers = {
+    "str_flat", "dex_flat", "per_flat", "int_flat",
+    "speed_pct", "move_cost_pct", "stamina_max_pct", "carry_weight_pct",
+    "dodge_flat", "melee_hit_flat", "healing_pct", "read_speed_pct",
+    "craft_speed_pct"
+};
 
 const char *const host_capabilities[] = {
     "core.v1",
@@ -73,7 +82,8 @@ const char *const host_capabilities[] = {
     "ui.basic.v1",
     "module_hotkeys.v1",
     "ingame_manager.v1",
-    "world_options.layout.v1"
+    "world_options.layout.v1",
+    "character.modifiers.v1"
 };
 
 std::filesystem::path game_root()
@@ -132,7 +142,7 @@ int has_capability( const char *capability )
 
 const char *get_host_version()
 {
-    return "0.5.2";
+    return "0.6.0";
 }
 
 uint32_t get_loader_api()
@@ -289,6 +299,26 @@ void ui_message( const char *message )
     }
 }
 
+int character_modifier_set( const char *module_id, const char *modifier_id, double value )
+{
+    if( !safe_state_token( module_id ) || modifier_id == nullptr ||
+        supported_character_modifiers.count( modifier_id ) == 0 ||
+        !std::isfinite( value ) || std::abs( value ) > 500.0 ) {
+        return 0;
+    }
+    character_modifier_values[module_id][modifier_id] = value;
+    return 1;
+}
+
+int character_modifier_clear_module( const char *module_id )
+{
+    if( !safe_state_token( module_id ) ) {
+        return 0;
+    }
+    character_modifier_values.erase( module_id );
+    return 1;
+}
+
 const ncmm_host_api_v1 api = {
     NCMM_ABI_VERSION,
     &log_line,
@@ -307,7 +337,9 @@ const ncmm_host_api_v1 api = {
     &ui_message,
     &worldgen_group_begin,
     &worldgen_group_end,
-    &worldgen_set_string_choices
+    &worldgen_set_string_choices,
+    &character_modifier_set,
+    &character_modifier_clear_module
 };
 
 std::string read_text_file( const std::filesystem::path &path )
@@ -621,7 +653,7 @@ void write_modules_state()
 
     out << "{\n"
         << "  \"schema\": 1,\n"
-        << "  \"host_version\": \"0.5.2\",\n"
+        << "  \"host_version\": \"0.6.0\",\n"
         << "  \"loader_api\": " << NCMM_LOADER_API_VERSION << ",\n"
         << "  \"capabilities\": [";
     for( size_t i = 0; i < get_capability_count(); ++i ) {
@@ -855,6 +887,21 @@ void load_one( const std::filesystem::path &library )
 #endif
 } // namespace
 
+double gameplay_modifier( const char *modifier_id )
+{
+    if( modifier_id == nullptr || supported_character_modifiers.count( modifier_id ) == 0 ) {
+        return 0.0;
+    }
+    double total = 0.0;
+    for( const auto &module : character_modifier_values ) {
+        const auto it = module.second.find( modifier_id );
+        if( it != module.second.end() ) {
+            total += it->second;
+        }
+    }
+    return std::max( -500.0, std::min( 500.0, total ) );
+}
+
 std::string settings_menu_label()
 {
     return tr_ui( "<N|n>CMM / Mod Configuration", "<N|n>CMM / Настройка модов" );
@@ -1051,7 +1098,7 @@ void initialize()
     module_states.clear();
     module_ids.clear();
     manifest_id_counts.clear();
-    log_line( NCMM_LOG_INFO, "NCMM 0.5.2 Host API v1 / Module Contract v1 initializing." );
+    log_line( NCMM_LOG_INFO, "NCMM 0.6.0 Host API v1 / Module Contract v1 initializing." );
     std::atexit( &shutdown );
 
 #ifdef _WIN32
@@ -1117,5 +1164,6 @@ void shutdown()
     module_states.clear();
     module_ids.clear();
     manifest_id_counts.clear();
+    character_modifier_values.clear();
 }
 } // namespace ncmm

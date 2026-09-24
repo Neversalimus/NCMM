@@ -118,3 +118,12 @@ manager. This is necessary because DEFAULTMODE may fall back from keycode to key
 `world_options.layout.v1` adds generic host-owned layout primitives for existing hidden world options:
 collapsible groups and a string-choice adapter. Modules still do not own CDDA world storage; the
 underlying option IDs and WORLD_OPTIONS serialization remain native CDDA state.
+
+## 0.6.0 character.modifiers.v1
+
+Gameplay modifiers are host-owned runtime state. Modules submit a namespaced value through the stable ABI;
+the host validates the modifier id against a fixed allowlist and aggregates values across loaded modules.
+CDDA source hooks only query the aggregate and only alter the avatar path, leaving NPC simulation untouched.
+
+Persistence remains the module's responsibility through `character_state.v1`. This deliberately avoids
+serializing host modifier internals and makes module disable/uninstall behavior clean on restart.

@@ -161,3 +161,12 @@ Bootstrap атомарно обновляет `ncmm/runtime.state.json`. В нё
 - NCMM actions также регистрируются перед открытием штатного меню клавиш из главного меню, поэтому NCMM Manager и UI модулей можно переназначать обычным интерфейсом CDDA.
 - Добавлен `world_options.layout.v1`: сворачиваемые группы world options и безопасный string-select поверх существующего скрытого string option.
 - Compatibility Engine расширен отдельным `world_options_layout.source.v1`; сертификация по-прежнему fail-closed.
+
+## NCMM 0.6.0 — Gameplay Modifier API
+
+- Добавлен `character.modifiers.v1`: ограниченный белым списком runtime API для числовых бонусов персонажа.
+- Модули не патчат Character напрямую и не держат указатели на внутренности CDDA: они регистрируют модификаторы у NCMM host.
+- Host агрегирует бонусы нескольких модулей и применяет их только к avatar через сертифицированные source hooks.
+- Первый набор: STR/DEX/PER/INT, speed, move cost, max stamina, carry weight, dodge, melee hit, healing, reading speed, crafting speed.
+- Добавлен fail-closed `character_modifiers.source.v1` для пяти затронутых подсистем CDDA.
+- Modifier registry очищается при shutdown; модули восстанавливают runtime-бонусы из собственного persistent state после загрузки персонажа.

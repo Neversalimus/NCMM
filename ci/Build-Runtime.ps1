@@ -73,17 +73,17 @@ Copy-Item $sp.FullName (Join-Path $payload 'code_mods\SurvivorProgression\ncmm_m
 Copy-Item (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') (Join-Path $payload 'code_mods\SurvivorProgression\mod.json') -Force
 
 $spManifest = Get-Content (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') -Raw | ConvertFrom-Json
-if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable') {
-    throw 'Survivor Progression manifest contract invalid.'
+if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable' -or $spManifest.version -ne '0.8.0') {
+    throw 'Survivor Progression 0.8.0 manifest contract invalid.'
 }
-foreach ($required in @('core.v1','events.turn.v1','character_state.v1','ui.basic.v1','module_hotkeys.v1')) {
+foreach ($required in @('core.v1','events.turn.v1','character_state.v1','character.modifiers.v1','ui.basic.v1','module_hotkeys.v1')) {
     if (-not ($spManifest.requires -contains $required)) {
         throw "Survivor Progression manifest missing $required"
     }
 }
 
 @'
-NCMM 0.5.2 Runtime
+NCMM 0.6.0 Runtime
 ===============
 1. Run NCMM_Setup.exe.
 2. Select the CDDA folder containing cataclysm-tiles.exe.
@@ -96,7 +96,7 @@ If no exact certified host exists for the installed CDDA executable, NCMM starts
 
 Remove-Item $awsBuild -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $spBuild -Recurse -Force -ErrorAction SilentlyContinue
-$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.5.2.zip'
+$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.6.0.zip'
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $OutputRoot '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip

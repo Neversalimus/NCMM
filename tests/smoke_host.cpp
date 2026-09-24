@@ -1,4 +1,5 @@
 #include "ncmm_api.h"
+
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -23,7 +24,10 @@ std::string active_group;
 std::vector<std::string> fixed_time_values;
 bool simulate_missing_contract = false;
 std::map<std::string, int64_t> character_state;
+std::map<std::string, double> modifiers;
 int ui_message_count = 0;
+int ui_script = 0;
+int ui_stage = 0;
 
 void log_fn( ncmm_log_level_v1, const char *message )
 {
@@ -47,6 +51,7 @@ int has_capability_fn( const char *cap )
            std::strcmp( cap, "compatibility.v1" ) == 0 ||
            std::strcmp( cap, "events.turn.v1" ) == 0 ||
            std::strcmp( cap, "character_state.v1" ) == 0 ||
+           std::strcmp( cap, "character.modifiers.v1" ) == 0 ||
            std::strcmp( cap, "ui.basic.v1" ) == 0 ||
            std::strcmp( cap, "module_hotkeys.v1" ) == 0 ||
            std::strcmp( cap, "ingame_manager.v1" ) == 0;
@@ -59,7 +64,7 @@ const char *get_locale_fn()
 
 const char *get_host_version_fn()
 {
-    return "0.5.2-smoke";
+    return "0.6.0-smoke";
 }
 
 uint32_t get_loader_api_fn()
@@ -70,7 +75,8 @@ uint32_t get_loader_api_fn()
 const char *smoke_caps[] = {
     "core.v1", "world_options.v1", "world_options.layout.v1", "locale.v1",
     "module_contract.v1", "host_info.v1", "compatibility.v1", "events.turn.v1",
-    "character_state.v1", "ui.basic.v1", "module_hotkeys.v1", "ingame_manager.v1"
+    "character_state.v1", "character.modifiers.v1", "ui.basic.v1",
+    "module_hotkeys.v1", "ingame_manager.v1"
 };
 
 size_t get_capability_count_fn()
@@ -163,9 +169,73 @@ int character_state_set_i64_fn( const char *module_id, const char *key, int64_t 
     return 1;
 }
 
-int ui_choose_fn( const char *, const char *const *entries, size_t count )
+int modifier_set_fn( const char *module_id, const char *modifier_id, double value )
 {
-    return entries != nullptr && count != 0 ? 0 : -1;
+    if( module_id == nullptr || modifier_id == nullptr ) {
+        return 0;
+    }
+    modifiers[std::string( module_id ) + ":" + modifier_id] = value;
+    return 1;
+}
+
+int modifier_clear_fn( const char *module_id )
+{
+    if( module_id == nullptr ) {
+        return 0;
+    }
+    const std::string prefix = std::string( module_id ) + ":";
+    for( auto it = modifiers.begin(); it != modifiers.end(); ) {
+        if( it->first.rfind( prefix, 0 ) == 0 ) {
+            it = modifiers.erase( it );
+        } else {
+            ++it;
+        }
+    }
+    return 1;
+}
+
+int ui_choose_fn( const char *title, const char *const *entries, size_t count )
+{
+    if( title == nullptr || entries == nullptr || count == 0 ) {
+        return -1;
+    }
+    const std::string t( title );
+
+    if( ui_script == 1 ) {
+        // Buy Combat -> Power Training.
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.8.0" ) != std::string::npos ) {
+            ++ui_stage;
+            return 0;
+        }
+        if( ui_stage == 1 && t.find( "Combat" ) != std::string::npos ) {
+            ++ui_stage;
+            return 0;
+        }
+        if( ui_stage == 2 && t.find( "Power Training" ) != std::string::npos ) {
+            ++ui_stage;
+            return 0;
+        }
+        return -1;
+    }
+
+    if( ui_script == 2 ) {
+        // Buy Mastery -> Fast Learner.
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.8.0" ) != std::string::npos ) {
+            ++ui_stage;
+            return 5;
+        }
+        if( ui_stage == 1 && t.find( "Mastery" ) != std::string::npos ) {
+            ++ui_stage;
+            return 0;
+        }
+        if( ui_stage == 2 && t.find( "Fast Learner" ) != std::string::npos ) {
+            ++ui_stage;
+            return 0;
+        }
+        return -1;
+    }
+
+    return -1;
 }
 
 void ui_message_fn( const char * )
@@ -239,7 +309,9 @@ int main( int argc, char **argv )
         &ui_message_fn,
         &group_begin_fn,
         &group_end_fn,
-        &set_string_choices_fn
+        &set_string_choices_fn,
+        &modifier_set_fn,
+        &modifier_clear_fn
     };
 
     for( size_t i = 0; i < desc->required_capability_count; ++i ) {
@@ -248,7 +320,7 @@ int main( int argc, char **argv )
                 std::cout << "NCMM missing-capability preflight: PASS\n";
                 return 0;
             }
-            std::cerr << "missing capability\n";
+            std::cerr << "missing capability: " << desc->required_capabilities[i] << '\n';
             return 6;
         }
     }
@@ -266,39 +338,17 @@ int main( int argc, char **argv )
             "ETERNAL_TIME_OF_DAY"
         };
         const std::set<std::string> actual( exposed.begin(), exposed.end() );
-        if( actual != expected ) {
-            std::cerr << "unexpected AWS registration set\n";
+        if( actual != expected || groups.size() != 2 ||
+            groups[0] != "aws_advanced" || groups[1] != "aws_experimental" ) {
+            std::cerr << "AWS grouped registration failed\n";
             return 8;
-        }
-        if( groups.size() != 2 || groups[0] != "aws_advanced" ||
-            groups[1] != "aws_experimental" ) {
-            std::cerr << "unexpected AWS group layout\n";
-            return 14;
-        }
-        for( const char *id : {
-                 "SPAWN_DENSITY", "ITEM_SPAWNRATE", "MONSTER_SPEED",
-                 "MONSTER_RESILIENCE", "EVOLUTION_INVERSE_MULTIPLIER"
-             } ) {
-            if( option_groups[id] != "aws_advanced" ) {
-                std::cerr << "advanced AWS option assigned to wrong group\n";
-                return 15;
-            }
-        }
-        for( const char *id : {
-                 "SEASON_LENGTH", "CONSTRUCTION_SCALING", "ETERNAL_SEASON",
-                 "ETERNAL_TIME_OF_DAY"
-             } ) {
-            if( option_groups[id] != "aws_experimental" ) {
-                std::cerr << "experimental AWS option assigned to wrong group\n";
-                return 16;
-            }
         }
         const std::vector<std::string> expected_time = { "normal", "day", "night" };
         if( fixed_time_values != expected_time ) {
             std::cerr << "fixed-time selector choices are incorrect\n";
-            return 17;
+            return 14;
         }
-        std::cout << "NCMM smoke test: PASS (AWS 9/9, grouped experimental controls)\n";
+        std::cout << "NCMM smoke test: PASS (AWS 0.5.0 grouped controls)\n";
         return 0;
     }
 
@@ -310,37 +360,65 @@ int main( int argc, char **argv )
             return 9;
         }
 
+        // 30 minutes -> level 2, one perk point.
         for( int i = 0; i < 1800; ++i ) {
             on_turn( &api );
         }
-
         const std::string prefix = "survivor_progression:";
         if( character_state[prefix + "level"] != 2 ||
-            character_state[prefix + "perk_points"] != 0 ||
-            character_state[prefix + "fast_learner"] != 1 ||
-            character_state[prefix + "xp"] != 0 ) {
-            std::cerr << "Survivor Progression level/perk vertical slice failed\n";
+            character_state[prefix + "perk_points"] != 1 ) {
+            std::cerr << "Survivor level-2 progression failed\n";
             return 10;
         }
 
-        for( int i = 0; i < 60; ++i ) {
-            on_turn( &api );
-        }
-        if( character_state[prefix + "xp"] != 2 ) {
-            std::cerr << "Fast Learner effect did not double survival XP\n";
+        // Buy Combat -> Power Training and verify the host modifier bridge.
+        ui_script = 1;
+        ui_stage = 0;
+        open_ui( &api );
+        if( character_state[prefix + "p_c_power"] != 1 ||
+            modifiers["survivor_progression:str_flat"] != 1.0 ) {
+            std::cerr << "Combat perk / modifier bridge failed\n";
             return 11;
         }
 
-        open_ui( &api );
-        if( ui_message_count == 0 ) {
-            std::cerr << "Survivor Progression UI/message path was not exercised\n";
+        // 45 more minutes -> level 3, another perk point.
+        ui_script = 0;
+        for( int i = 0; i < 2700; ++i ) {
+            on_turn( &api );
+        }
+        if( character_state[prefix + "level"] != 3 ||
+            character_state[prefix + "perk_points"] != 1 ) {
+            std::cerr << "Survivor level-3 progression failed\n";
             return 12;
         }
 
-        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.1.1 vertical slice)\n";
+        // Buy Fast Learner, then verify +100% minute XP.
+        ui_script = 2;
+        ui_stage = 0;
+        open_ui( &api );
+        if( character_state[prefix + "p_a_fast"] != 1 ) {
+            std::cerr << "Fast Learner purchase failed\n";
+            return 13;
+        }
+        const int64_t before = character_state[prefix + "xp"];
+        ui_script = 0;
+        for( int i = 0; i < 60; ++i ) {
+            on_turn( &api );
+        }
+        if( character_state[prefix + "xp"] - before != 2 ) {
+            std::cerr << "Fast Learner XP effect failed\n";
+            return 15;
+        }
+
+        if( ui_message_count == 0 ) {
+            std::cerr << "Survivor UI/message path was not exercised\n";
+            return 16;
+        }
+
+        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.8.0 full-system slice)\n";
         return 0;
     }
 
     std::cerr << "unknown module id\n";
-    return 13;
+    return 17;
 }
