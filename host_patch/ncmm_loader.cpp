@@ -63,11 +63,20 @@ std::set<std::string> module_ids;
 std::map<std::string, size_t> manifest_id_counts;
 std::map<std::string, std::map<std::string, double>> character_modifier_values;
 
-const std::set<std::string> supported_character_modifiers = {
-    "str_flat", "dex_flat", "per_flat", "int_flat",
-    "speed_pct", "move_cost_pct", "stamina_max_pct", "carry_weight_pct",
-    "dodge_flat", "melee_hit_flat", "healing_pct", "read_speed_pct",
-    "craft_speed_pct"
+const std::map<std::string, std::pair<double, double>> character_modifier_limits = {
+    { "str_flat", { -20.0, 20.0 } },
+    { "dex_flat", { -20.0, 20.0 } },
+    { "per_flat", { -20.0, 20.0 } },
+    { "int_flat", { -20.0, 20.0 } },
+    { "speed_pct", { -75.0, 200.0 } },
+    { "move_cost_pct", { -75.0, 300.0 } },
+    { "stamina_max_pct", { -90.0, 500.0 } },
+    { "carry_weight_pct", { -90.0, 500.0 } },
+    { "dodge_flat", { -20.0, 20.0 } },
+    { "melee_hit_flat", { -20.0, 20.0 } },
+    { "healing_pct", { -100.0, 500.0 } },
+    { "read_speed_pct", { -90.0, 500.0 } },
+    { "craft_speed_pct", { -90.0, 500.0 } }
 };
 
 const char *const host_capabilities[] = {
@@ -142,7 +151,7 @@ int has_capability( const char *capability )
 
 const char *get_host_version()
 {
-    return "0.6.0";
+    return "0.6.1";
 }
 
 uint32_t get_loader_api()
@@ -301,18 +310,24 @@ void ui_message( const char *message )
 
 int character_modifier_set( const char *module_id, const char *modifier_id, double value )
 {
-    if( !safe_state_token( module_id ) || modifier_id == nullptr ||
-        supported_character_modifiers.count( modifier_id ) == 0 ||
-        !std::isfinite( value ) || std::abs( value ) > 500.0 ) {
+    if( !safe_state_token( module_id ) || module_ids.count( module_id ) == 0 ||
+        modifier_id == nullptr || !std::isfinite( value ) ) {
         return 0;
     }
+
+    const auto policy = character_modifier_limits.find( modifier_id );
+    if( policy == character_modifier_limits.end() ||
+        value < policy->second.first || value > policy->second.second ) {
+        return 0;
+    }
+
     character_modifier_values[module_id][modifier_id] = value;
     return 1;
 }
 
 int character_modifier_clear_module( const char *module_id )
 {
-    if( !safe_state_token( module_id ) ) {
+    if( !safe_state_token( module_id ) || module_ids.count( module_id ) == 0 ) {
         return 0;
     }
     character_modifier_values.erase( module_id );
@@ -653,7 +668,7 @@ void write_modules_state()
 
     out << "{\n"
         << "  \"schema\": 1,\n"
-        << "  \"host_version\": \"0.6.0\",\n"
+        << "  \"host_version\": \"0.6.1\",\n"
         << "  \"loader_api\": " << NCMM_LOADER_API_VERSION << ",\n"
         << "  \"capabilities\": [";
     for( size_t i = 0; i < get_capability_count(); ++i ) {
@@ -870,7 +885,10 @@ void load_one( const std::filesystem::path &library )
         return;
     }
 
+    // A retry/reload must never inherit runtime effects from an older failed init.
+    character_modifier_values.erase( manifest.id );
     if( !desc->init( &api ) ) {
+        character_modifier_values.erase( manifest.id );
         record_module_state( directory, manifest, "failed", "init_failed" );
         log_line( NCMM_LOG_WARN, ( std::string( "Module init failed; disabled: " ) + desc->id ).c_str() );
         FreeLibrary( module );
@@ -889,9 +907,10 @@ void load_one( const std::filesystem::path &library )
 
 double gameplay_modifier( const char *modifier_id )
 {
-    if( modifier_id == nullptr || supported_character_modifiers.count( modifier_id ) == 0 ) {
+    if( modifier_id == nullptr || character_modifier_limits.count( modifier_id ) == 0 ) {
         return 0.0;
     }
+
     double total = 0.0;
     for( const auto &module : character_modifier_values ) {
         const auto it = module.second.find( modifier_id );
@@ -899,6 +918,9 @@ double gameplay_modifier( const char *modifier_id )
             total += it->second;
         }
     }
+
+    // Aggregate clamp is intentionally wider than the per-module policy so several
+    // independently validated code-mods can stack without one module bypassing bounds.
     return std::max( -500.0, std::min( 500.0, total ) );
 }
 
@@ -1098,7 +1120,8 @@ void initialize()
     module_states.clear();
     module_ids.clear();
     manifest_id_counts.clear();
-    log_line( NCMM_LOG_INFO, "NCMM 0.6.0 Host API v1 / Module Contract v1 initializing." );
+    character_modifier_values.clear();
+    log_line( NCMM_LOG_INFO, "NCMM 0.6.1 Host API v1 / Module Contract v1 initializing." );
     std::atexit( &shutdown );
 
 #ifdef _WIN32
@@ -1152,8 +1175,18 @@ void shutdown()
 {
 #ifdef _WIN32
     for( auto it = loaded.rbegin(); it != loaded.rend(); ++it ) {
+        const std::string module_id = it->descriptor && it->descriptor->id ?
+                                      it->descriptor->id : std::string();
         if( it->descriptor && it->descriptor->shutdown ) {
-            it->descriptor->shutdown();
+            try {
+                it->descriptor->shutdown();
+            } catch( ... ) {
+                log_line( NCMM_LOG_WARN,
+                          ( "Module shutdown callback failed: " + module_id ).c_str() );
+            }
+        }
+        if( !module_id.empty() ) {
+            character_modifier_values.erase( module_id );
         }
         if( it->handle ) {
             FreeLibrary( it->handle );

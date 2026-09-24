@@ -3,8 +3,11 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
+#include <iomanip>
 #include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -239,6 +242,63 @@ int branch_owned_count( branch_id branch )
     return result;
 }
 
+int owned_count( currency_id currency )
+{
+    int result = 0;
+    for( const perk_def &perk : perks ) {
+        if( perk.currency == currency && owned( perk ) ) {
+            ++result;
+        }
+    }
+    return result;
+}
+
+std::string format_number( double value )
+{
+    std::ostringstream out;
+    const double rounded = std::round( value );
+    if( std::abs( value - rounded ) < 0.0001 ) {
+        out << static_cast<long long>( rounded );
+    } else {
+        out << std::fixed << std::setprecision( 2 ) << value;
+    }
+    return out.str();
+}
+
+std::string effect_label( const std::string &id )
+{
+    if( id == "str_flat" ) return tr( "STR", "СИЛ" );
+    if( id == "dex_flat" ) return tr( "DEX", "ЛОВ" );
+    if( id == "per_flat" ) return tr( "PER", "ВОС" );
+    if( id == "int_flat" ) return tr( "INT", "ИНТ" );
+    if( id == "speed_pct" ) return tr( "Speed %", "Скорость %" );
+    if( id == "move_cost_pct" ) return tr( "Move cost %", "Стоимость движения %" );
+    if( id == "stamina_max_pct" ) return tr( "Max stamina %", "Макс. выносливость %" );
+    if( id == "carry_weight_pct" ) return tr( "Carry %", "Грузоподъёмность %" );
+    if( id == "dodge_flat" ) return tr( "Dodge", "Уклонение" );
+    if( id == "melee_hit_flat" ) return tr( "Melee hit", "Точность ближнего боя" );
+    if( id == "healing_pct" ) return tr( "Healing %", "Лечение %" );
+    if( id == "read_speed_pct" ) return tr( "Reading %", "Чтение %" );
+    if( id == "craft_speed_pct" ) return tr( "Crafting %", "Крафт %" );
+    return id;
+}
+
+std::map<std::string, double> owned_effect_totals()
+{
+    std::map<std::string, double> totals;
+    for( const perk_def &perk : perks ) {
+        if( !owned( perk ) ) {
+            continue;
+        }
+        for( int i = 0; i < perk.effect_count; ++i ) {
+            if( perk.effects[i].id != nullptr ) {
+                totals[perk.effects[i].id] += perk.effects[i].value;
+            }
+        }
+    }
+    return totals;
+}
+
 bool prerequisites_met( const perk_def &perk )
 {
     for( const char *id : { perk.prereq1, perk.prereq2 } ) {
@@ -361,8 +421,12 @@ std::string status_prefix( const perk_def &perk, int level, int64_t perk_points,
     if( owned( perk ) ) {
         return "[✓] ";
     }
-    if( level < perk.required_level || !prerequisites_met( perk ) ) {
-        return russian() ? "[ЗАКРЫТО] " : "[LOCKED] ";
+    if( level < perk.required_level ) {
+        return std::string( russian() ? "[УР " : "[L" ) +
+               std::to_string( perk.required_level ) + ( russian() ? "] " : "] " );
+    }
+    if( !prerequisites_met( perk ) ) {
+        return russian() ? "[ТРЕБ.] " : "[REQ] ";
     }
     const bool enough = perk.currency == currency_id::perk ? perk_points > 0 : major_points > 0;
     if( !enough ) {
@@ -500,37 +564,44 @@ void show_overview()
     const int64_t xp = get_state( "xp", 0 );
     const int64_t perk_points = get_state( "perk_points", 0 );
     const int64_t major_points = get_state( "major_points", 0 );
+    const int normal_owned = owned_count( currency_id::perk );
+    const int major_owned = owned_count( currency_id::major );
 
-    std::string out = "Survivor Progression v0.8.0\n";
+    std::string out = "Survivor Progression v0.8.1\n";
     out += tr( "Level ", "Уровень " ) + std::to_string( level ) + "/" + std::to_string( max_level );
     if( level < max_level ) {
         out += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
     }
     out += "\nP " + std::to_string( perk_points ) + " | M " + std::to_string( major_points );
-    out += "\n" + tr( "Major points: levels 5/10/15/20/25/30.", "Большие очки: уровни 5/10/15/20/25/30." );
-    out += "\n";
+    out += "\n" + tr( "Purchased: ", "Куплено: " ) +
+           std::to_string( normal_owned ) + "P / " + std::to_string( major_owned ) + "M";
+    out += "\n" + tr( "Major points: levels 5/10/15/20/25/30.",
+                       "Большие очки: уровни 5/10/15/20/25/30." );
+
     for( branch_id branch : { branch_id::combat, branch_id::survival, branch_id::mobility,
                               branch_id::crafting, branch_id::scavenging, branch_id::mastery } ) {
         out += "\n" + branch_name( branch ) + ": " + std::to_string( branch_owned_count( branch ) ) + "/10";
     }
-    out += "\n\n" + tr( "Current Survivor XP bonus: +", "Текущий бонус опыта Survivor: +" ) +
-           std::to_string( current_xp_bonus_pct ) + "%";
+
+    out += "\n\n" + tr( "Active effects:", "Активные эффекты:" );
+    const std::map<std::string, double> totals = owned_effect_totals();
+    if( totals.empty() && current_xp_bonus_pct == 0 ) {
+        out += "\n" + tr( "none", "нет" );
+    } else {
+        for( const auto &entry : totals ) {
+            const std::string sign = entry.second > 0.0 ? "+" : "";
+            out += "\n" + effect_label( entry.first ) + ": " + sign + format_number( entry.second );
+        }
+        if( current_xp_bonus_pct != 0 ) {
+            out += "\n" + tr( "Survivor XP: +", "Опыт Survivor: +" ) +
+                   std::to_string( current_xp_bonus_pct ) + "%";
+        }
+    }
     message( out );
 }
 
 void respec()
 {
-    std::string title = tr(
-        "Respec all Survivor perks?\nAll spent perk and major points will be refunded.",
-        "Сбросить все перки Survivor?\nВсе потраченные обычные и большие очки будут возвращены." );
-    std::string yes = tr( "Respec", "Сбросить" );
-    std::string no = tr( "Cancel", "Отмена" );
-    const char *entries[] = { yes.c_str(), no.c_str() };
-    const int choice = host->ui_choose ? host->ui_choose( title.c_str(), entries, 2 ) : -1;
-    if( choice != 0 ) {
-        return;
-    }
-
     int64_t refund_perk = 0;
     int64_t refund_major = 0;
     for( const perk_def &perk : perks ) {
@@ -542,7 +613,32 @@ void respec()
         } else {
             ++refund_major;
         }
-        set_state( perk_key( perk ), 0 );
+    }
+
+    if( refund_perk == 0 && refund_major == 0 ) {
+        message( tr( "No Survivor perks to reset.", "Нет перков Survivor для сброса." ) );
+        return;
+    }
+
+    std::string title = tr(
+        "Respec all Survivor perks?\nRefund: ",
+        "Сбросить все перки Survivor?\nВозврат: " );
+    title += std::to_string( refund_perk ) + "P / " + std::to_string( refund_major ) + "M";
+    title += tr( "\nAll active gameplay modifiers from Survivor Progression will be removed.",
+                 "\nВсе активные игровые модификаторы Survivor Progression будут сняты." );
+
+    std::string yes = tr( "Respec", "Сбросить" );
+    std::string no = tr( "Cancel", "Отмена" );
+    const char *entries[] = { yes.c_str(), no.c_str() };
+    const int choice = host->ui_choose ? host->ui_choose( title.c_str(), entries, 2 ) : -1;
+    if( choice != 0 ) {
+        return;
+    }
+
+    for( const perk_def &perk : perks ) {
+        if( owned( perk ) ) {
+            set_state( perk_key( perk ), 0 );
+        }
     }
 
     set_state( "perk_points", get_state( "perk_points", 0 ) + refund_perk );
@@ -550,7 +646,9 @@ void respec()
     set_state( "fast_learner", 0 );
     effects_dirty = true;
     recalculate_effects();
-    message( tr( "Survivor perks reset.", "Перки Survivor сброшены." ) );
+
+    message( tr( "Survivor perks reset. Refunded: ", "Перки Survivor сброшены. Возвращено: " ) +
+             std::to_string( refund_perk ) + "P / " + std::to_string( refund_major ) + "M" );
 }
 
 void open_progression()
@@ -573,7 +671,7 @@ void open_progression()
         const int64_t perk_points = get_state( "perk_points", 0 );
         const int64_t major_points = get_state( "major_points", 0 );
 
-        std::string title = "Survivor Progression v0.8.0\n";
+        std::string title = "Survivor Progression v0.8.1\n";
         title += tr( "Level ", "Уровень " ) + std::to_string( level );
         if( level < max_level ) {
             title += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
@@ -720,7 +818,7 @@ int init( const ncmm_host_api_v1 *api )
 
     host = api;
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.8.0 initialized: 30 levels / 60 perks / 6 branches." );
+              "Survivor Progression 0.8.1 initialized: 30 levels / 60 perks / 6 branches." );
     return 1;
 }
 
@@ -738,7 +836,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     module_id,
     "Survivor Progression",
-    "0.8.0",
+    "0.8.1",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,

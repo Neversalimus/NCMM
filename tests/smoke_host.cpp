@@ -64,7 +64,7 @@ const char *get_locale_fn()
 
 const char *get_host_version_fn()
 {
-    return "0.6.0-smoke";
+    return "0.6.1-smoke";
 }
 
 uint32_t get_loader_api_fn()
@@ -203,7 +203,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 1 ) {
         // Buy Combat -> Power Training.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.8.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.8.1" ) != std::string::npos ) {
             ++ui_stage;
             return 0;
         }
@@ -220,7 +220,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 2 ) {
         // Buy Mastery -> Fast Learner.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.8.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.8.1" ) != std::string::npos ) {
             ++ui_stage;
             return 5;
         }
@@ -229,6 +229,19 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
             return 0;
         }
         if( ui_stage == 2 && t.find( "Fast Learner" ) != std::string::npos ) {
+            ++ui_stage;
+            return 0;
+        }
+        return -1;
+    }
+
+    if( ui_script == 3 ) {
+        // Root -> Respec all perks -> confirm.
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.8.1" ) != std::string::npos ) {
+            ++ui_stage;
+            return 7;
+        }
+        if( ui_stage == 1 && t.find( "Refund: 2P / 0M" ) != std::string::npos ) {
             ++ui_stage;
             return 0;
         }
@@ -415,7 +428,19 @@ int main( int argc, char **argv )
             return 16;
         }
 
-        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.8.0 full-system slice)\n";
+        // Respec must refund both normal purchases and clear runtime modifiers.
+        ui_script = 3;
+        ui_stage = 0;
+        open_ui( &api );
+        if( character_state[prefix + "p_c_power"] != 0 ||
+            character_state[prefix + "p_a_fast"] != 0 ||
+            character_state[prefix + "perk_points"] != 2 ||
+            modifiers.count( "survivor_progression:str_flat" ) != 0 ) {
+            std::cerr << "Survivor respec/refund/modifier cleanup failed\n";
+            return 18;
+        }
+
+        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.8.1 purchase/effects/respec slice)\n";
         return 0;
     }
 

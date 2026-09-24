@@ -61,8 +61,8 @@ function NonAscii-Signature([string]$Text) {
 
 if (Test-Path $marker) {
     $markerText = [System.IO.File]::ReadAllText($marker)
-    if (-not $markerText.Contains('NCMM 0.6.0')) {
-        throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.6.0.'
+    if (-not $markerText.Contains('NCMM 0.6.1')) {
+        throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.6.1.'
     }
 
     $h = Read-Utf8 $optionsH
@@ -123,8 +123,8 @@ if (-not $me2.Contains('ncmm::gameplay_modifier( "dodge_flat" )')) { throw 'Post
 if (-not $kn2.Contains('ncmm::gameplay_modifier( "read_speed_pct" )')) { throw 'Post-check failed: read_speed_pct' }
 if (-not $cr2.Contains('ncmm::gameplay_modifier( "craft_speed_pct" )')) { throw 'Post-check failed: craft_speed_pct' }
 
-Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.6.0 module contract`n" -Encoding ASCII
-    Write-Host 'Existing NCMM upstream patch verified; v0.6.0 loader/API refreshed.'
+Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.6.1 module contract`n" -Encoding ASCII
+    Write-Host 'Existing NCMM upstream patch verified; v0.6.1 loader/API refreshed.'
     exit 0
 }
 
@@ -499,7 +499,7 @@ $mm = Replace-ExactlyOnce $mm @'
 '@ 'main-menu.ncmm-manager-action'
 
 
-# NCMM 0.6.0 generic character modifier hooks.
+# NCMM 0.6.1 generic character modifier hooks.
 $ch = Replace-ExactlyOnce $ch '#include "npc.h"' ('#include "npc.h"' + "`n" + '#include "ncmm_loader.h"') 'character.include-ncmm'
 $ch = Replace-ExactlyOnce $ch @'
 int Character::get_str() const
@@ -646,7 +646,8 @@ $hh = Replace-ExactlyOnce $hh @'
     // Most common case: awake player with no regenerative abilities
 '@ @'
     float final_rate = awake_rate + asleep_rate;
-    if( is_avatar() ) {
+    // Positive healing perks must not amplify negative/degenerative rates.
+    if( is_avatar() && final_rate > 0.0f ) {
         final_rate *= static_cast<float>( std::max( 0.0, 1.0 + ncmm::gameplay_modifier( "healing_pct" ) / 100.0 ) );
     }
     // Most common case: awake player with no regenerative abilities
@@ -790,5 +791,5 @@ foreach ($needle in @('ncmm::register_gameplay_actions( ctxt );','ncmm::handle_g
     if (-not $ha2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 
-Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.6.0 module contract`n" -Encoding ASCII
-Write-Host 'NCMM 0.6.0 host patch applied and UTF-8 preservation verified.'
+Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.6.1 module contract`n" -Encoding ASCII
+Write-Host 'NCMM 0.6.1 host patch applied and UTF-8 preservation verified.'

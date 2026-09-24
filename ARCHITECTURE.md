@@ -127,3 +127,12 @@ CDDA source hooks only query the aggregate and only alter the avatar path, leavi
 
 Persistence remains the module's responsibility through `character_state.v1`. This deliberately avoids
 serializing host modifier internals and makes module disable/uninstall behavior clean on restart.
+
+## 0.6.1 modifier hardening
+
+`character.modifiers.v1` remains the same ABI capability. The host now applies a per-modifier input policy,
+requires a registered module id, and clears a module namespace around failed initialization/shutdown.
+These are containment rules only; no new CDDA object pointers or module-visible internals are exposed.
+
+Positive healing bonuses are applied only to positive healing rates, so a perk cannot amplify an unrelated
+negative degeneration rate. Survivor 0.8.1 adds UI/diagnostic polish without changing perk balance.

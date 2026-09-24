@@ -170,3 +170,13 @@ Bootstrap атомарно обновляет `ncmm/runtime.state.json`. В нё
 - Первый набор: STR/DEX/PER/INT, speed, move cost, max stamina, carry weight, dodge, melee hit, healing, reading speed, crafting speed.
 - Добавлен fail-closed `character_modifiers.source.v1` для пяти затронутых подсистем CDDA.
 - Modifier registry очищается при shutdown; модули восстанавливают runtime-бонусы из собственного persistent state после загрузки персонажа.
+
+## NCMM 0.6.1 / Survivor Progression 0.8.1 — safe polish
+
+- `character.modifiers.v1` получил per-modifier bounds вместо общего ±500 на входе.
+- Modifier API принимает runtime effects только для зарегистрированного module id.
+- Namespace модификаторов очищается перед init и при init failure, а также перед новым initialize.
+- Shutdown callback каждого native-модуля изолирован catch-all; ошибка одного модуля не мешает очистке остальных.
+- Healing bonus больше не усиливает отрицательный/дегенеративный healing rate.
+- Survivor 0.8.1: overview активных эффектов, более понятные причины lock, точный refund preview при respec.
+- Баланс 60 перков и уровни/стоимости не менялись.

@@ -1,4 +1,4 @@
-# Survivor Progression v0.8.0 — Full Progression System Pass
+# Survivor Progression v0.8.1 — Full Progression System Pass
 
 This replaces the 0.1 technical vertical slice with the first complete playable progression system.
 
@@ -40,3 +40,10 @@ Perks use NCMM `character.modifiers.v1`, not fake UI-only bonuses. Supported eff
 ## Balance state
 This is feature-complete enough for live play, but remains v0.8 rather than 1.0 until the 60-perk balance
 and long-save migration have been tested in real CDDA sessions.
+
+## 0.8.1 safe polish
+- Overview now shows purchased normal/Major counts and aggregated active gameplay effects.
+- Locked perk labels distinguish level gates from missing prerequisites.
+- Respec confirmation shows the exact refund before applying it.
+- Respec smoke coverage now verifies point refund and modifier cleanup.
+- No perk values or progression thresholds were rebalanced in this pass.
