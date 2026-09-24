@@ -1,4 +1,4 @@
-# NCMM v0.3.3 — Runtime Diagnostics + Certified Host Feed
+# NCMM v0.4.0 — Runtime Diagnostics + Module Contract Layer
 
 NCMM (Neversalimus Code Mod Manager) — экспериментальная платформа для native/code-модов Cataclysm:DDA.
 
@@ -6,7 +6,7 @@ NCMM (Neversalimus Code Mod Manager) — экспериментальная пл
 
 Игрок **не устанавливает** Git, MSYS2, GCC, CMake или Visual Studio.
 
-1. Скачать `NCMM_Runtime_v0.3.3.zip`.
+1. Скачать `NCMM_Runtime_v0.4.0.zip`.
 2. Распаковать.
 3. Запустить `NCMM_Setup.exe`.
 4. Выбрать папку CDDA и нажать `Install / Repair NCMM + AWS`.
@@ -49,6 +49,28 @@ Setup автоматически обнаруживает существующи
 - `EVOLUTION_INVERSE_MULTIPLIER`
 
 Перед изменением AWS проверяет все пять контрактов. Если хотя бы один не подходит, мод отключается целиком и не оставляет частично применённое состояние.
+
+## Module Contract Layer (v0.4.0)
+
+`mod.json` теперь является обязательным pre-load контрактом для native code-мода. Host проверяет до `LoadLibrary`:
+
+- `id`, `version` и `loader_api`;
+- все `requires` против capability registry host;
+- отсутствие duplicate module id.
+
+После загрузки DLL host дополнительно проверяет совпадение `id`, `version` и полного набора required capabilities между `mod.json` и `ncmm_mod_descriptor_v1`. Несовпадение отключает только конкретный модуль.
+
+Host публикует `ncmm/modules.state.json` со списком capabilities и состоянием каждого модуля (`loaded`, `disabled`, `rejected`, `failed`) плюс machine-readable reason. MCM показывает rejected/failed state вместо безымянного `not loaded`.
+
+Host API v1 сохранён бинарно совместимым. В v0.4.0 в хвост структуры добавлены `get_host_version`, `get_loader_api`, `get_capability_count`, `get_capability`. Новые модули должны требовать `host_info.v1` перед использованием этих полей.
+
+Capabilities v0.4.0:
+
+- `core.v1`
+- `world_options.v1`
+- `locale.v1`
+- `module_contract.v1`
+- `host_info.v1`
 
 ## Как поддерживаются experimental-сборки
 

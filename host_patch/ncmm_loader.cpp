@@ -6,11 +6,14 @@
 #include "uilist.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <set>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #ifdef _WIN32
@@ -33,6 +36,26 @@ struct loaded_mod {
 std::vector<loaded_mod> loaded;
 std::ofstream log_file;
 std::string locale_cache;
+
+struct module_state {
+    std::filesystem::path directory;
+    std::string id;
+    std::string name;
+    std::string version;
+    std::string state;
+    std::string reason;
+};
+
+std::vector<module_state> module_states;
+std::set<std::string> module_ids;
+
+const char *const host_capabilities[] = {
+    "core.v1",
+    "world_options.v1",
+    "locale.v1",
+    "module_contract.v1",
+    "host_info.v1"
+};
 
 std::filesystem::path game_root()
 {
@@ -80,8 +103,32 @@ int has_capability( const char *capability )
     if( capability == nullptr ) {
         return 0;
     }
-    const std::string cap( capability );
-    return cap == "core.v1" || cap == "world_options.v1" || cap == "locale.v1";
+    for( const char *cap : host_capabilities ) {
+        if( std::string( capability ) == cap ) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+const char *get_host_version()
+{
+    return "0.4.0";
+}
+
+uint32_t get_loader_api()
+{
+    return NCMM_LOADER_API_VERSION;
+}
+
+size_t get_capability_count()
+{
+    return sizeof( host_capabilities ) / sizeof( host_capabilities[0] );
+}
+
+const char *get_capability( size_t index )
+{
+    return index < get_capability_count() ? host_capabilities[index] : nullptr;
 }
 
 int can_expose_worldgen_option( const char *option_id )
@@ -113,7 +160,11 @@ const ncmm_host_api_v1 api = {
     &has_capability,
     &can_expose_worldgen_option,
     &expose_worldgen_option,
-    &get_locale
+    &get_locale,
+    &get_host_version,
+    &get_loader_api,
+    &get_capability_count,
+    &get_capability
 };
 
 std::string read_text_file( const std::filesystem::path &path )
@@ -153,6 +204,214 @@ std::string manifest_string( const std::filesystem::path &directory, const std::
     return text.substr( first_quote + 1, second_quote - first_quote - 1 );
 }
 
+uint32_t manifest_uint( const std::filesystem::path &directory, const std::string &key )
+{
+    const std::string text = read_text_file( directory / "mod.json" );
+    if( text.empty() ) {
+        return 0;
+    }
+    const std::string needle = "\"" + key + "\"";
+    const std::size_t key_pos = text.find( needle );
+    if( key_pos == std::string::npos ) {
+        return 0;
+    }
+    const std::size_t colon = text.find( ':', key_pos + needle.size() );
+    if( colon == std::string::npos ) {
+        return 0;
+    }
+
+    std::size_t pos = colon + 1;
+    while( pos < text.size() && std::isspace( static_cast<unsigned char>( text[pos] ) ) ) {
+        ++pos;
+    }
+    uint32_t value = 0;
+    bool any = false;
+    while( pos < text.size() && std::isdigit( static_cast<unsigned char>( text[pos] ) ) ) {
+        any = true;
+        value = value * 10u + static_cast<uint32_t>( text[pos] - '0' );
+        ++pos;
+    }
+    return any ? value : 0;
+}
+
+std::vector<std::string> manifest_string_array( const std::filesystem::path &directory,
+        const std::string &key )
+{
+    std::vector<std::string> result;
+    const std::string text = read_text_file( directory / "mod.json" );
+    if( text.empty() ) {
+        return result;
+    }
+    const std::string needle = "\"" + key + "\"";
+    const std::size_t key_pos = text.find( needle );
+    if( key_pos == std::string::npos ) {
+        return result;
+    }
+    const std::size_t colon = text.find( ':', key_pos + needle.size() );
+    const std::size_t open = colon == std::string::npos ? std::string::npos : text.find( '[', colon + 1 );
+    const std::size_t close = open == std::string::npos ? std::string::npos : text.find( ']', open + 1 );
+    if( open == std::string::npos || close == std::string::npos ) {
+        return result;
+    }
+
+    std::size_t pos = open + 1;
+    while( pos < close ) {
+        const std::size_t first = text.find( '"', pos );
+        if( first == std::string::npos || first >= close ) {
+            break;
+        }
+        const std::size_t second = text.find( '"', first + 1 );
+        if( second == std::string::npos || second > close ) {
+            break;
+        }
+        result.push_back( text.substr( first + 1, second - first - 1 ) );
+        pos = second + 1;
+    }
+    return result;
+}
+
+struct manifest_contract {
+    std::string id;
+    std::string name;
+    std::string version;
+    uint32_t loader_api = 0;
+    std::vector<std::string> requires;
+};
+
+manifest_contract read_manifest( const std::filesystem::path &directory )
+{
+    manifest_contract result;
+    result.id = manifest_string( directory, "id" );
+    result.name = manifest_string( directory, "name" );
+    result.version = manifest_string( directory, "version" );
+    result.loader_api = manifest_uint( directory, "loader_api" );
+    result.requires = manifest_string_array( directory, "requires" );
+    return result;
+}
+
+bool same_capabilities( const manifest_contract &manifest, const ncmm_mod_descriptor_v1 *desc )
+{
+    if( desc == nullptr ) {
+        return false;
+    }
+    if( desc->required_capability_count != 0 && desc->required_capabilities == nullptr ) {
+        return false;
+    }
+
+    std::set<std::string> manifest_caps( manifest.requires.begin(), manifest.requires.end() );
+    std::set<std::string> descriptor_caps;
+    for( size_t i = 0; i < desc->required_capability_count; ++i ) {
+        if( desc->required_capabilities[i] == nullptr ) {
+            return false;
+        }
+        descriptor_caps.insert( desc->required_capabilities[i] );
+    }
+    return manifest_caps == descriptor_caps;
+}
+
+std::string json_escape( const std::string &value )
+{
+    std::string result;
+    result.reserve( value.size() + 8 );
+    for( unsigned char c : value ) {
+        switch( c ) {
+            case '"':
+                result += "\\\"";
+                break;
+            case '\\':
+                result += "\\\\";
+                break;
+            case '\n':
+                result += "\\n";
+                break;
+            case '\r':
+                result += "\\r";
+                break;
+            case '\t':
+                result += "\\t";
+                break;
+            default:
+                if( c >= 0x20 ) {
+                    result.push_back( static_cast<char>( c ) );
+                }
+                break;
+        }
+    }
+    return result;
+}
+
+void record_module_state( const std::filesystem::path &directory, const manifest_contract &manifest,
+                          const std::string &state, const std::string &reason )
+{
+    module_state entry;
+    entry.directory = directory;
+    entry.id = manifest.id.empty() ? directory.filename().string() : manifest.id;
+    entry.name = manifest.name.empty() ? entry.id : manifest.name;
+    entry.version = manifest.version;
+    entry.state = state;
+    entry.reason = reason;
+    module_states.push_back( std::move( entry ) );
+}
+
+const module_state *find_module_state( const std::filesystem::path &directory )
+{
+    const std::filesystem::path wanted = directory.lexically_normal();
+    for( const module_state &state : module_states ) {
+        if( state.directory.lexically_normal() == wanted ) {
+            return &state;
+        }
+    }
+    return nullptr;
+}
+
+void write_modules_state()
+{
+    std::filesystem::create_directories( game_root() / "ncmm" );
+    const std::filesystem::path path = game_root() / "ncmm" / "modules.state.json";
+    const std::filesystem::path temp = game_root() / "ncmm" / "modules.state.json.tmp";
+
+    std::ofstream out( temp, std::ios::trunc | std::ios::binary );
+    if( !out ) {
+        log_line( NCMM_LOG_WARN, "Could not write modules.state.json." );
+        return;
+    }
+
+    out << "{\n"
+        << "  \"schema\": 1,\n"
+        << "  \"host_version\": \"0.4.0\",\n"
+        << "  \"loader_api\": " << NCMM_LOADER_API_VERSION << ",\n"
+        << "  \"capabilities\": [";
+    for( size_t i = 0; i < get_capability_count(); ++i ) {
+        if( i != 0 ) {
+            out << ", ";
+        }
+        out << "\"" << json_escape( get_capability( i ) ) << "\"";
+    }
+    out << "],\n  \"modules\": [\n";
+    for( size_t i = 0; i < module_states.size(); ++i ) {
+        const module_state &state = module_states[i];
+        out << "    {\"id\":\"" << json_escape( state.id )
+            << "\",\"name\":\"" << json_escape( state.name )
+            << "\",\"version\":\"" << json_escape( state.version )
+            << "\",\"state\":\"" << json_escape( state.state )
+            << "\",\"reason\":\"" << json_escape( state.reason ) << "\"}";
+        if( i + 1 != module_states.size() ) {
+            out << ',';
+        }
+        out << '\n';
+    }
+    out << "  ]\n}\n";
+    out.close();
+
+    std::error_code ec;
+    std::filesystem::remove( path, ec );
+    ec.clear();
+    std::filesystem::rename( temp, path, ec );
+    if( ec ) {
+        log_line( NCMM_LOG_WARN, "Could not publish modules.state.json." );
+    }
+}
+
 const loaded_mod *find_loaded( const std::filesystem::path &directory )
 {
     const std::filesystem::path wanted = directory.lexically_normal();
@@ -168,6 +427,8 @@ struct manager_entry {
     std::filesystem::path directory;
     std::string name;
     std::string version;
+    std::string runtime_state;
+    std::string reason;
     bool disabled = false;
     bool loaded_now = false;
 };
@@ -193,11 +454,19 @@ std::vector<manager_entry> manager_entries()
         entry.directory = dir;
         entry.disabled = std::filesystem::exists( dir / "disabled" );
         const loaded_mod *runtime = find_loaded( dir );
+        const module_state *state = find_module_state( dir );
         entry.loaded_now = runtime != nullptr;
+        if( state ) {
+            entry.runtime_state = state->state;
+            entry.reason = state->reason;
+        }
 
         if( runtime && runtime->descriptor ) {
             entry.name = runtime->descriptor->name ? runtime->descriptor->name : dir.filename().string();
             entry.version = runtime->descriptor->version ? runtime->descriptor->version : "";
+        } else if( state ) {
+            entry.name = state->name;
+            entry.version = state->version;
         } else {
             entry.name = manifest_string( dir, "name" );
             entry.version = manifest_string( dir, "version" );
@@ -213,8 +482,38 @@ std::vector<manager_entry> manager_entries()
 #ifdef _WIN32
 void load_one( const std::filesystem::path &library )
 {
+    const std::filesystem::path directory = library.parent_path();
+    const manifest_contract manifest = read_manifest( directory );
+
+    if( manifest.id.empty() || manifest.version.empty() || manifest.loader_api == 0 ) {
+        record_module_state( directory, manifest, "rejected", "invalid_manifest" );
+        log_line( NCMM_LOG_WARN, ( "Rejected module with incomplete mod.json: " + directory.string() ).c_str() );
+        return;
+    }
+    if( manifest.loader_api != NCMM_LOADER_API_VERSION ) {
+        record_module_state( directory, manifest, "rejected", "loader_api_mismatch" );
+        log_line( NCMM_LOG_WARN, ( "Rejected module due to loader_api mismatch: " + manifest.id ).c_str() );
+        return;
+    }
+    for( const std::string &capability : manifest.requires ) {
+        if( !has_capability( capability.c_str() ) ) {
+            record_module_state( directory, manifest, "rejected", "missing_capability:" + capability );
+            log_line( NCMM_LOG_WARN,
+                      ( "Rejected module due to missing manifest capability: " + manifest.id + " -> " +
+                        capability ).c_str() );
+            return;
+        }
+    }
+    if( module_ids.count( manifest.id ) != 0 ) {
+        record_module_state( directory, manifest, "rejected", "duplicate_module_id" );
+        log_line( NCMM_LOG_WARN, ( "Rejected duplicate module id: " + manifest.id ).c_str() );
+        return;
+    }
+    module_ids.insert( manifest.id );
+
     HMODULE module = LoadLibraryW( library.wstring().c_str() );
     if( module == nullptr ) {
+        record_module_state( directory, manifest, "failed", "load_library_failed" );
         log_line( NCMM_LOG_WARN, ( "Failed to load " + library.string() ).c_str() );
         return;
     }
@@ -222,27 +521,51 @@ void load_one( const std::filesystem::path &library )
     auto get_descriptor = reinterpret_cast<ncmm_get_descriptor_v1_fn>(
                               GetProcAddress( module, NCMM_ENTRYPOINT ) );
     if( get_descriptor == nullptr ) {
+        record_module_state( directory, manifest, "rejected", "entrypoint_missing" );
         log_line( NCMM_LOG_WARN, ( "Missing NCMM v1 entrypoint: " + library.string() ).c_str() );
         FreeLibrary( module );
         return;
     }
 
     const ncmm_mod_descriptor_v1 *desc = get_descriptor();
-    if( desc == nullptr || desc->abi_version != NCMM_ABI_VERSION || desc->init == nullptr ) {
+    if( desc == nullptr || desc->abi_version != NCMM_ABI_VERSION || desc->init == nullptr ||
+        desc->id == nullptr || desc->version == nullptr ) {
+        record_module_state( directory, manifest, "rejected", "descriptor_incompatible" );
         log_line( NCMM_LOG_WARN, ( "Rejected incompatible module: " + library.string() ).c_str() );
         FreeLibrary( module );
         return;
     }
 
+    if( manifest.id != desc->id || manifest.version != desc->version ) {
+        record_module_state( directory, manifest, "rejected", "manifest_descriptor_mismatch" );
+        log_line( NCMM_LOG_WARN,
+                  ( "Rejected module because mod.json and DLL descriptor disagree: " + manifest.id ).c_str() );
+        FreeLibrary( module );
+        return;
+    }
+    if( !same_capabilities( manifest, desc ) ) {
+        record_module_state( directory, manifest, "rejected", "capability_contract_mismatch" );
+        log_line( NCMM_LOG_WARN,
+                  ( "Rejected module because manifest/descriptor capabilities disagree: " + manifest.id ).c_str() );
+        FreeLibrary( module );
+        return;
+    }
+
     for( size_t i = 0; i < desc->required_capability_count; ++i ) {
-        if( !has_capability( desc->required_capabilities[i] ) ) {
-            log_line( NCMM_LOG_WARN, ( std::string( "Disabled module due to missing capability: " ) + desc->id ).c_str() );
+        const char *required = desc->required_capabilities[i];
+        if( required == nullptr || !has_capability( required ) ) {
+            record_module_state( directory, manifest, "rejected",
+                                 required ? std::string( "missing_capability:" ) + required :
+                                 "invalid_required_capability" );
+            log_line( NCMM_LOG_WARN,
+                      ( std::string( "Disabled module due to missing/invalid capability: " ) + desc->id ).c_str() );
             FreeLibrary( module );
             return;
         }
     }
 
     if( !desc->init( &api ) ) {
+        record_module_state( directory, manifest, "failed", "init_failed" );
         log_line( NCMM_LOG_WARN, ( std::string( "Module init failed; disabled: " ) + desc->id ).c_str() );
         FreeLibrary( module );
         return;
@@ -250,7 +573,8 @@ void load_one( const std::filesystem::path &library )
 
     auto locale_changed = reinterpret_cast<ncmm_on_locale_changed_v1_fn>(
                               GetProcAddress( module, NCMM_LOCALE_ENTRYPOINT ) );
-    loaded.push_back( { module, desc, library.parent_path(), locale_changed } );
+    loaded.push_back( { module, desc, directory, locale_changed } );
+    record_module_state( directory, manifest, "loaded", "ok" );
     log_line( NCMM_LOG_INFO, ( std::string( "Loaded module: " ) + desc->id + " " + desc->version ).c_str() );
 }
 #endif
@@ -282,6 +606,10 @@ void show_manager()
                 state = tr_ui( "OFF", "ВЫКЛ" );
             } else if( entry.loaded_now ) {
                 state = tr_ui( "ON / loaded", "ВКЛ / загружен" );
+            } else if( entry.runtime_state == "rejected" ) {
+                state = tr_ui( "ON / rejected", "ВКЛ / отклонён" );
+            } else if( entry.runtime_state == "failed" ) {
+                state = tr_ui( "ON / failed", "ВКЛ / ошибка" );
             } else {
                 state = tr_ui( "ON / not loaded", "ВКЛ / не загружен" );
             }
@@ -289,6 +617,9 @@ void show_manager()
             std::string label = "[" + state + "] " + entry.name;
             if( !entry.version.empty() ) {
                 label += "  " + entry.version;
+            }
+            if( !entry.reason.empty() && !entry.loaded_now && !entry.disabled ) {
+                label += " - " + entry.reason;
             }
             menu.addentry( i, true, MENU_AUTOASSIGN, label );
         }
@@ -344,25 +675,30 @@ void on_language_changed()
 void initialize()
 {
     std::filesystem::create_directories( game_root() / "ncmm" );
-    log_line( NCMM_LOG_INFO, "NCMM 0.3.1 Host API v1 initializing." );
+    loaded.clear();
+    module_states.clear();
+    module_ids.clear();
+    log_line( NCMM_LOG_INFO, "NCMM 0.4.0 Host API v1 / Module Contract v1 initializing." );
     std::atexit( &shutdown );
 
 #ifdef _WIN32
     const std::filesystem::path mods_root = game_root() / "code_mods";
     if( std::filesystem::exists( mods_root ) ) {
-        std::vector<std::filesystem::path> libraries;
+        std::vector<std::filesystem::path> directories;
         for( const auto &entry : std::filesystem::directory_iterator( mods_root ) ) {
-            if( !entry.is_directory() ) {
-                continue;
-            }
-            const auto lib = entry.path() / "ncmm_mod.dll";
-            const auto disabled = entry.path() / "disabled";
-            if( std::filesystem::exists( lib ) && !std::filesystem::exists( disabled ) ) {
-                libraries.push_back( lib );
+            if( entry.is_directory() && std::filesystem::exists( entry.path() / "ncmm_mod.dll" ) ) {
+                directories.push_back( entry.path() );
             }
         }
-        std::sort( libraries.begin(), libraries.end() );
-        for( const auto &lib : libraries ) {
+        std::sort( directories.begin(), directories.end() );
+
+        for( const std::filesystem::path &directory : directories ) {
+            const auto lib = directory / "ncmm_mod.dll";
+            const auto disabled = directory / "disabled";
+            if( std::filesystem::exists( disabled ) ) {
+                record_module_state( directory, read_manifest( directory ), "disabled", "user_disabled" );
+                continue;
+            }
             load_one( lib );
         }
     }
@@ -370,6 +706,7 @@ void initialize()
     log_line( NCMM_LOG_WARN, "NCMM native module loading is Windows-only; host continues without code mods." );
 #endif
 
+    write_modules_state();
     mark_ready();
 }
 
@@ -394,5 +731,7 @@ void shutdown()
     }
 #endif
     loaded.clear();
+    module_states.clear();
+    module_ids.clear();
 }
 } // namespace ncmm

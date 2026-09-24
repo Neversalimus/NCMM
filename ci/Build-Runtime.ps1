@@ -34,11 +34,19 @@ cmake --build $awsBuild --config Release
 if ($LASTEXITCODE -ne 0) { throw 'AWS build failed.' }
 $aws = Get-ChildItem $awsBuild -Filter 'ncmm_mod.dll' -Recurse -File | Select-Object -First 1
 if (-not $aws) { throw 'AWS ncmm_mod.dll not found after build.' }
+
+$smoke = Get-ChildItem $awsBuild -Filter 'ncmm_smoke_host.exe' -Recurse -File | Select-Object -First 1
+if (-not $smoke) { throw 'NCMM smoke host not found after build.' }
+& $smoke.FullName $aws.FullName
+if ($LASTEXITCODE -ne 0) { throw 'NCMM/AWS module contract smoke test failed.' }
+& $smoke.FullName $aws.FullName '--missing-contract'
+if ($LASTEXITCODE -ne 0) { throw 'NCMM/AWS fail-closed smoke test failed.' }
+
 Copy-Item $aws.FullName (Join-Path $payload 'code_mods\AdvancedWorldSettings\ncmm_mod.dll') -Force
 Copy-Item (Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings\mod.json') (Join-Path $payload 'code_mods\AdvancedWorldSettings\mod.json') -Force
 
 @'
-NCMM 0.3.3 Runtime
+NCMM 0.4.0 Runtime
 ===============
 1. Run NCMM_Setup.exe.
 2. Select the CDDA folder containing cataclysm-tiles.exe.
@@ -50,7 +58,7 @@ If no exact certified host exists for the installed CDDA executable, NCMM starts
 '@ | Set-Content (Join-Path $OutputRoot 'README.txt') -Encoding UTF8
 
 Remove-Item $awsBuild -Recurse -Force -ErrorAction SilentlyContinue
-$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.3.3.zip'
+$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.4.0.zip'
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $OutputRoot '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip

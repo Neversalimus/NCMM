@@ -17,6 +17,7 @@ extern "C" {
 #endif
 
 #define NCMM_ABI_VERSION 1u
+#define NCMM_LOADER_API_VERSION 1u
 #define NCMM_ENTRYPOINT "ncmm_get_descriptor_v1"
 #define NCMM_LOCALE_ENTRYPOINT "ncmm_on_locale_changed_v1"
 
@@ -36,6 +37,16 @@ typedef struct ncmm_host_api_v1 {
                                      const char *tooltip );
     /* NCMM 0.3: tail extension; old v1 modules remain binary-compatible. */
     const char *( *get_locale )( void );
+
+    /*
+     * NCMM 0.4 tail extension. Modules that require these fields must declare
+     * "host_info.v1" / "module_contract.v1" in required_capabilities so an
+     * older host rejects them before init. The v1 ABI prefix remains intact.
+     */
+    const char *( *get_host_version )( void );
+    uint32_t ( *get_loader_api )( void );
+    size_t ( *get_capability_count )( void );
+    const char *( *get_capability )( size_t index );
 } ncmm_host_api_v1;
 
 typedef int ( *ncmm_mod_init_v1 )( const ncmm_host_api_v1 *api );

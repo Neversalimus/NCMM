@@ -8,7 +8,8 @@ namespace
 const char *required_caps[] = {
     "core.v1",
     "world_options.v1",
-    "locale.v1"
+    "locale.v1",
+    "module_contract.v1"
 };
 
 struct option_desc {
@@ -92,7 +93,7 @@ int init( const ncmm_host_api_v1 *api )
         return 0;
     }
 
-    api->log( NCMM_LOG_INFO, "Advanced World Settings 0.3 initialized." );
+    api->log( NCMM_LOG_INFO, "Advanced World Settings 0.4 initialized." );
     return 1;
 }
 
@@ -104,7 +105,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     "advanced_world_settings",
     "Advanced World Settings",
-    "0.3.0",
+    "0.4.0",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,

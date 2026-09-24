@@ -228,7 +228,7 @@ internal sealed class MainForm : Form
 
     internal MainForm()
     {
-        Text = "NCMM 0.3.2 Setup";
+        Text = "NCMM 0.4.0 Setup";
         Width = 900;
         Height = 500;
         StartPosition = FormStartPosition.CenterScreen;
@@ -424,7 +424,7 @@ internal sealed class MainForm : Form
                 "Bootstrap SHA256:\n" + result.BootstrapSha256.ToUpperInvariant() + "\n\n" +
                 "You can launch CDDA normally.";
 
-            MessageBox.Show(this, message, "NCMM 0.3.2", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, message, "NCMM 0.4.0", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
@@ -447,7 +447,7 @@ internal sealed class MainForm : Form
 
             MessageBox.Show(this,
                 "Vanilla cataclysm-tiles.exe restored.\n\nTarget:\n" + target.PathValue,
-                "NCMM 0.3.2", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "NCMM 0.4.0", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {

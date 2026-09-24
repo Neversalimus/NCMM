@@ -1,4 +1,4 @@
-# NCMM v0.2 architecture
+# NCMM v0.4.0 architecture
 
 ```text
 Any launcher / manual shortcut
@@ -30,9 +30,15 @@ Any launcher / manual shortcut
              |
       Host API v1/capabilities
              |
+   Module Contract v1 preflight
+   mod.json <-> DLL descriptor
+             |
          code_mods/*
              |
      AdvancedWorldSettings
+
+Runtime writes ncmm/runtime.state.json.
+Host writes ncmm/modules.state.json.
 ```
 
 ## Trust boundaries
@@ -40,8 +46,9 @@ Any launcher / manual shortcut
 1. **Bootstrap** owns executable selection and fallback. It does not inspect CDDA internals.
 2. **Certified host** is built from the exact upstream source tag and is bound to exact official vanilla executable SHA values.
 3. **Host API** is a narrow C ABI. Mods do not receive STL types or raw CDDA object pointers.
-4. **Code mods** can be independently disabled when capabilities are missing.
-5. Native DLLs are trusted code. A bug after successful initialization can still crash the process; NCMM cannot sandbox arbitrary native code. Script/WASM sandboxing is a future layer.
+4. **Code mods** are manifest-preflighted before `LoadLibrary`, then descriptor-cross-checked and independently disabled on contract failure.
+5. **Runtime diagnostics** persist machine-readable bootstrap/host/module state without weakening fail-closed behavior.
+6. Native DLLs are trusted code. A bug after successful initialization can still crash the process; NCMM cannot sandbox arbitrary native code. Script/WASM sandboxing is a future layer.
 
 ## Host API v1
 
@@ -49,6 +56,13 @@ Capabilities currently exposed:
 
 - `core.v1`
 - `world_options.v1`
+- `locale.v1`
+- `module_contract.v1`
+- `host_info.v1`
+
+`module_contract.v1` means the host validates `mod.json` before loading native code and cross-checks the manifest against the DLL descriptor after load.
+
+`host_info.v1` exposes the host version, loader API version and enumerable capability registry through a binary-compatible tail extension of `ncmm_host_api_v1`.
 
 `world_options.v1` currently exposes only the minimum primitive needed by AWS:
 

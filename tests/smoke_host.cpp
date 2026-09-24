@@ -24,7 +24,40 @@ void log_fn( ncmm_log_level_v1, const char *message )
 
 int has_capability_fn( const char *cap )
 {
-    return std::strcmp( cap, "core.v1" ) == 0 || std::strcmp( cap, "world_options.v1" ) == 0;
+    return std::strcmp( cap, "core.v1" ) == 0 ||
+           std::strcmp( cap, "world_options.v1" ) == 0 ||
+           std::strcmp( cap, "locale.v1" ) == 0 ||
+           std::strcmp( cap, "module_contract.v1" ) == 0 ||
+           std::strcmp( cap, "host_info.v1" ) == 0;
+}
+
+const char *get_locale_fn()
+{
+    return "en";
+}
+
+const char *get_host_version_fn()
+{
+    return "0.4.0-smoke";
+}
+
+uint32_t get_loader_api_fn()
+{
+    return NCMM_LOADER_API_VERSION;
+}
+
+const char *smoke_caps[] = {
+    "core.v1", "world_options.v1", "locale.v1", "module_contract.v1", "host_info.v1"
+};
+
+size_t get_capability_count_fn()
+{
+    return sizeof( smoke_caps ) / sizeof( smoke_caps[0] );
+}
+
+const char *get_capability_fn( size_t index )
+{
+    return index < get_capability_count_fn() ? smoke_caps[index] : nullptr;
 }
 
 int can_expose_fn( const char *id )
@@ -85,7 +118,9 @@ int main( int argc, char **argv )
         return 5;
     }
 
-    ncmm_host_api_v1 api{ NCMM_ABI_VERSION, &log_fn, &has_capability_fn, &can_expose_fn, &expose_fn };
+    ncmm_host_api_v1 api{ NCMM_ABI_VERSION, &log_fn, &has_capability_fn, &can_expose_fn, &expose_fn,
+                          &get_locale_fn, &get_host_version_fn, &get_loader_api_fn,
+                          &get_capability_count_fn, &get_capability_fn };
     for( size_t i = 0; i < desc->required_capability_count; ++i ) {
         if( !api.has_capability( desc->required_capabilities[i] ) ) {
             std::cerr << "missing capability\n";
