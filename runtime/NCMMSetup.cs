@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -145,7 +145,7 @@ internal sealed class MainForm : Form
 
     internal MainForm()
     {
-        Text = "NCMM 0.2 Setup";
+        Text = "NCMM 0.3 Setup";
         Width = 760;
         Height = 420;
         StartPosition = FormStartPosition.CenterScreen;

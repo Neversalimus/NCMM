@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory=$true)][string]$RepositoryRoot,
     [Parameter(Mandatory=$true)][string]$UpstreamRoot,
     [Parameter(Mandatory=$true)][string]$UpstreamTag,
@@ -57,7 +57,7 @@ if ($vanillaHashes.Count -eq 0) { throw 'No official vanilla executable hashes w
 $metadata = [ordered]@{
     schema = 1
     loader_api = 1
-    ncmm_version = '0.2.0'
+    ncmm_version = '0.3.0'
     upstream_tag = $UpstreamTag
     source_commit = $commit
     patch_revision = $patchRevision

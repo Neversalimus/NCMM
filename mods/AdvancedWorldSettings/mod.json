@@ -1,8 +1,8 @@
 {
   "id": "advanced_world_settings",
   "name": "Advanced World Settings",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "loader_api": 1,
-  "requires": ["core.v1", "world_options.v1"],
+  "requires": ["core.v1", "world_options.v1", "locale.v1"],
   "failure_policy": "disable"
 }

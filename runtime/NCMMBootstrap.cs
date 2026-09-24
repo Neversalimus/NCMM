@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -24,6 +24,7 @@ internal sealed class FeedHostEntry
     public string upstream_tag { get; set; }
     public string host_url { get; set; }
     public string host_sha256 { get; set; }
+    public string patch_revision { get; set; }
     public string ncmm_version { get; set; }
     public int loader_api { get; set; }
 }
@@ -159,14 +160,39 @@ internal static class NCMMBootstrap
         }
     }
 
-    private static bool TryFetchCertifiedHost(string vanillaSha, string sourceCommit)
+    private static bool ShouldCheckFeed(bool localValid, bool forceRefresh)
+    {
+        if (forceRefresh || !localValid) return true;
+        string stamp = Path.Combine(NcmmDir, "last-feed-check.txt");
+        try
+        {
+            if (!File.Exists(stamp)) return true;
+            DateTime last;
+            if (!DateTime.TryParse(File.ReadAllText(stamp).Trim(), null,
+                System.Globalization.DateTimeStyles.RoundtripKind, out last)) return true;
+            return DateTime.UtcNow - last.ToUniversalTime() >= TimeSpan.FromHours(1);
+        }
+        catch { return true; }
+    }
+
+    private static void StampFeedCheck()
+    {
+        try
+        {
+            File.WriteAllText(Path.Combine(NcmmDir, "last-feed-check.txt"),
+                DateTime.UtcNow.ToString("o") + Environment.NewLine, Encoding.ASCII);
+        }
+        catch { }
+    }
+
+    private static bool TryFetchCertifiedHost(string vanillaSha, string sourceCommit, bool localWasValid)
     {
         string temp = Path.Combine(NcmmDir, "host.download.tmp");
         try
         {
             using (TimeoutWebClient wc = new TimeoutWebClient())
             {
-                wc.Headers[HttpRequestHeader.UserAgent] = "NCMM/0.2";
+                wc.Headers[HttpRequestHeader.UserAgent] = "NCMM/0.3";
                 string feedText = wc.DownloadString(FeedUrl());
                 FeedIndex feed = Json.Deserialize<FeedIndex>(feedText);
                 if (feed == null || feed.schema != 1 || feed.loader_api != LoaderApi || feed.hosts == null)
@@ -200,6 +226,13 @@ internal static class NCMMBootstrap
                     return false;
                 }
 
+                HostBinding current = ReadBinding();
+                if (localWasValid && current != null &&
+                    String.Equals(current.host_sha256, entry.host_sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
                 try { if (File.Exists(temp)) File.Delete(temp); } catch { }
                 wc.DownloadFile(entry.host_url, temp);
                 string downloadedSha = Sha256(temp);
@@ -210,9 +243,18 @@ internal static class NCMMBootstrap
                 }
 
                 string host = Path.Combine(Root, "cataclysm-tiles.ncmm.exe");
-                File.Copy(temp, host, true);
-                string postCopySha = Sha256(host);
-                if (!String.Equals(postCopySha, entry.host_sha256, StringComparison.OrdinalIgnoreCase))
+                string staged = Path.Combine(NcmmDir, "host.staged.exe");
+                try { if (File.Exists(staged)) File.Delete(staged); } catch { }
+                File.Copy(temp, staged, true);
+                if (!String.Equals(Sha256(staged), entry.host_sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    Log("Staged host SHA256 mismatch; rejected.");
+                    return false;
+                }
+
+                if (File.Exists(host)) File.Delete(host);
+                File.Move(staged, host);
+                if (!String.Equals(Sha256(host), entry.host_sha256, StringComparison.OrdinalIgnoreCase))
                 {
                     Log("Host post-install SHA256 mismatch; deleting host.");
                     try { File.Delete(host); } catch { }
@@ -230,22 +272,27 @@ internal static class NCMMBootstrap
                 File.WriteAllText(bindingTmp, Json.Serialize(binding), Encoding.UTF8);
                 if (File.Exists(bindingPath)) File.Delete(bindingPath);
                 File.Move(bindingTmp, bindingPath);
-                Log("Certified host downloaded for " + (entry.upstream_tag ?? entry.source_commit) + ".");
+
+                Log((localWasValid ? "Certified host updated for " : "Certified host downloaded for ") +
+                    (entry.upstream_tag ?? entry.source_commit) + ".");
                 return true;
             }
         }
         catch (WebException ex)
         {
-            Log("Host feed unavailable; vanilla fallback remains active: " + ex.Message);
+            Log("Host feed unavailable; " +
+                (localWasValid ? "keeping current certified host: " : "vanilla fallback remains active: ") + ex.Message);
             return false;
         }
         catch (Exception ex)
         {
-            Log("Host auto-install failed; vanilla fallback remains active: " + ex.Message);
+            Log("Host auto-sync failed; " +
+                (localWasValid ? "keeping current certified host: " : "vanilla fallback remains active: ") + ex.Message);
             return false;
         }
         finally
         {
+            StampFeedCheck();
             try { if (File.Exists(temp)) File.Delete(temp); } catch { }
         }
     }
@@ -311,8 +358,6 @@ internal static class NCMMBootstrap
         LogPath = Path.Combine(NcmmDir, "bootstrap.log");
         Directory.CreateDirectory(NcmmDir);
 
-        // NCMM TLS 1.2: GitHub RAW/Release endpoints require modern TLS.
-        // Numeric 3072 keeps this source buildable with older .NET Framework reference assemblies.
         try
         {
             ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
@@ -333,11 +378,13 @@ internal static class NCMMBootstrap
         bool forceVanilla = false;
         bool reset = false;
         bool offline = false;
+        bool refresh = false;
         foreach (string arg in args)
         {
             if (String.Equals(arg, "--ncmm-vanilla", StringComparison.OrdinalIgnoreCase)) forceVanilla = true;
             else if (String.Equals(arg, "--ncmm-reset", StringComparison.OrdinalIgnoreCase)) reset = true;
             else if (String.Equals(arg, "--ncmm-offline", StringComparison.OrdinalIgnoreCase)) offline = true;
+            else if (String.Equals(arg, "--ncmm-refresh", StringComparison.OrdinalIgnoreCase)) refresh = true;
             else forwarded.Add(arg);
         }
 
@@ -375,9 +422,10 @@ internal static class NCMMBootstrap
             try
             {
                 vanillaSha = Sha256(vanilla).ToLowerInvariant();
-                if (!HasValidLocalHost(vanillaSha, sourceCommit))
+                bool localValid = HasValidLocalHost(vanillaSha, sourceCommit);
+                if (!offline && ShouldCheckFeed(localValid, refresh))
                 {
-                    if (!offline) TryFetchCertifiedHost(vanillaSha, sourceCommit);
+                    TryFetchCertifiedHost(vanillaSha, sourceCommit, localValid);
                 }
                 if (!HasValidLocalHost(vanillaSha, sourceCommit))
                 {

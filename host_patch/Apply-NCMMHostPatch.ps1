@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory=$true)][string]$SourceRoot
 )
 $ErrorActionPreference = 'Stop'
@@ -7,8 +7,11 @@ $src = Join-Path $SourceRoot 'src'
 $optionsH = Join-Path $src 'options.h'
 $optionsCpp = Join-Path $src 'options.cpp'
 $sdl = Join-Path $src 'sdltiles.cpp'
+$mainMenu = Join-Path $src 'main_menu.cpp'
 $marker = Join-Path $SourceRoot '.ncmm_host_v1_patched'
-foreach ($f in @($optionsH,$optionsCpp,$sdl)) { if (-not (Test-Path $f)) { throw "Required source file missing: $f" } }
+foreach ($f in @($optionsH,$optionsCpp,$sdl,$mainMenu)) {
+    if (-not (Test-Path $f)) { throw "Required source file missing: $f" }
+}
 
 function Normalize-Lf([string]$Text) {
     if ($null -eq $Text) { return $Text }
@@ -19,7 +22,6 @@ function Replace-ExactlyOnce([string]$Text,[string]$Old,[string]$New,[string]$Co
     $Text = Normalize-Lf $Text
     $Old = Normalize-Lf $Old
     $New = Normalize-Lf $New
-
     $count = ([regex]::Matches($Text, [regex]::Escape($Old))).Count
     if ($count -ne 1) { throw "NCMM contract '$Contract' expected exactly once, found $count. Host patch DISABLED." }
     return $Text.Replace($Old,$New)
@@ -29,6 +31,7 @@ if (Test-Path $marker) {
     $h = Get-Content $optionsH -Raw
     $c = Get-Content $optionsCpp -Raw
     $sd = Get-Content $sdl -Raw
+    $mm = Get-Content $mainMenu -Raw
     $checks = @(
         @($h,'COPT_WORLDGEN_ONLY'),
         @($h,'ncmm_can_expose_worldgen_option'),
@@ -37,9 +40,16 @@ if (Test-Path $marker) {
         @($c,'it.data ).is_hidden( world_options_only )'),
         @($c,'curr_item.data ).is_hidden( world_options_only )'),
         @($c,'addOptionToPage( name, "world_default" )'),
-        @($sd,'ncmm::initialize();')
+        @($sd,'ncmm::initialize();'),
+        @($mm,'ncmm::settings_menu_label()'),
+        @($mm,'ncmm::show_manager();'),
+        @($mm,'ncmm::on_language_changed();')
     )
-    foreach ($x in $checks) { if (-not $x[0].Contains($x[1])) { throw "Existing NCMM marker found but patched contract missing: $($x[1])" } }
+    foreach ($x in $checks) {
+        if (-not $x[0].Contains($x[1])) {
+            throw "Existing NCMM marker found but patched contract missing: $($x[1])"
+        }
+    }
     Write-Host 'NCMM Host v1 patch already present and verified.'
     exit 0
 }
@@ -47,6 +57,7 @@ if (Test-Path $marker) {
 $h = Normalize-Lf (Get-Content $optionsH -Raw)
 $c = Normalize-Lf (Get-Content $optionsCpp -Raw)
 $sd = Normalize-Lf (Get-Content $sdl -Raw)
+$mm = Normalize-Lf (Get-Content $mainMenu -Raw)
 
 $h = Replace-ExactlyOnce $h @'
             COPT_NO_SOUND_HIDE,
@@ -98,7 +109,7 @@ bool options_manager::ncmm_can_expose_worldgen_option( const std::string &name )
 {
     auto it = options.find( name );
     return it != options.end() && it->second.sPage == "world_default" &&
-           it->second.hide == COPT_ALWAYS_HIDE;
+           ( it->second.hide == COPT_ALWAYS_HIDE || it->second.hide == COPT_WORLDGEN_ONLY );
 }
 
 bool options_manager::ncmm_expose_worldgen_option( const std::string &name,
@@ -108,18 +119,21 @@ bool options_manager::ncmm_expose_worldgen_option( const std::string &name,
         return false;
     }
     cOpt &opt = options.find( name )->second;
+    const bool first_exposure = opt.hide == COPT_ALWAYS_HIDE;
     opt.sMenuText = menu_text;
     opt.sTooltip = tooltip;
     opt.hide = COPT_WORLDGEN_ONLY;
 
     // CDDA init-time cleanup physically removes COPT_ALWAYS_HIDE PageItems.
-    // Re-add the option after NCMM exposes it so world-generation UI can render it.
-    addOptionToPage( name, "world_default" );
+    // Re-add only on first exposure; locale refreshes must not duplicate rows.
+    if( first_exposure ) {
+        addOptionToPage( name, "world_default" );
+    }
     return true;
 }
 '@ 'options.ncmm-expose-implementation'
 
-$sd = Replace-ExactlyOnce $sd '#include "options.h"' "#include ""options.h""`n#include ""ncmm_loader.h""" 'sdl.include-ncmm'
+$sd = Replace-ExactlyOnce $sd '#include "options.h"' "#include \"options.h\"`n#include \"ncmm_loader.h\"" 'sdl.include-ncmm'
 $sd = Replace-ExactlyOnce $sd @'
     get_options().init();
     get_options().load();
@@ -131,9 +145,39 @@ $sd = Replace-ExactlyOnce $sd @'
     ncmm::initialize();
 '@ 'sdl.initialize-ncmm'
 
+$mm = Replace-ExactlyOnce $mm '#include "options.h"' "#include \"options.h\"`n#include \"ncmm_loader.h\"" 'main-menu.include-ncmm'
+$mm = Replace-ExactlyOnce $mm @'
+    vSettingsSubItems.emplace_back( pgettext( "Main Menu|Settings", "<I|i>mGui Demo Screen" ) );
+'@ @'
+    vSettingsSubItems.emplace_back( pgettext( "Main Menu|Settings", "<I|i>mGui Demo Screen" ) );
+    vSettingsSubItems.emplace_back( ncmm::settings_menu_label() );
+'@ 'main-menu.settings-item'
+$mm = Replace-ExactlyOnce $mm @'
+                        // The language may have changed- gracefully handle this.
+                        init_strings();
+'@ @'
+                        // The language may have changed- gracefully handle this.
+                        init_strings();
+                        ncmm::on_language_changed();
+'@ 'main-menu.locale-refresh'
+$mm = Replace-ExactlyOnce $mm @'
+                    } else if( sel2 == 6 ) { /// ImGui demo
+                        imgui_demo_ui demo;
+                        demo.run();
+                    }
+'@ @'
+                    } else if( sel2 == 6 ) { /// ImGui demo
+                        imgui_demo_ui demo;
+                        demo.run();
+                    } else if( sel2 == 7 ) { /// NCMM code-mod manager
+                        ncmm::show_manager();
+                    }
+'@ 'main-menu.ncmm-manager-action'
+
 Set-Content -Path $optionsH -Value $h -NoNewline -Encoding UTF8
 Set-Content -Path $optionsCpp -Value $c -NoNewline -Encoding UTF8
 Set-Content -Path $sdl -Value $sd -NoNewline -Encoding UTF8
+Set-Content -Path $mainMenu -Value $mm -NoNewline -Encoding UTF8
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.h') (Join-Path $src 'ncmm_loader.h') -Force
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.cpp') (Join-Path $src 'ncmm_loader.cpp') -Force
 Copy-Item (Join-Path (Split-Path $PSScriptRoot -Parent) 'sdk\ncmm_api.h') (Join-Path $src 'ncmm_api.h') -Force
@@ -141,8 +185,10 @@ Copy-Item (Join-Path (Split-Path $PSScriptRoot -Parent) 'sdk\ncmm_api.h') (Join-
 $h2 = Get-Content $optionsH -Raw
 $c2 = Get-Content $optionsCpp -Raw
 $sd2 = Get-Content $sdl -Raw
+$mm2 = Get-Content $mainMenu -Raw
 foreach ($needle in @('COPT_WORLDGEN_ONLY','ncmm_can_expose_worldgen_option','ncmm_expose_worldgen_option')) { if (-not $h2.Contains($needle)) { throw "Post-check failed: $needle" } }
-foreach ($needle in @('case COPT_WORLDGEN_ONLY:','it.data ).is_hidden( world_options_only )','curr_item.data ).is_hidden( world_options_only )','options_manager::ncmm_can_expose_worldgen_option','options_manager::ncmm_expose_worldgen_option','addOptionToPage( name, "world_default" )')) { if (-not $c2.Contains($needle)) { throw "Post-check failed: $needle" } }
+foreach ($needle in @('case COPT_WORLDGEN_ONLY:','it.data ).is_hidden( world_options_only )','curr_item.data ).is_hidden( world_options_only )','addOptionToPage( name, "world_default" )','first_exposure')) { if (-not $c2.Contains($needle)) { throw "Post-check failed: $needle" } }
 if (-not $sd2.Contains('ncmm::initialize();')) { throw 'Post-check failed: ncmm::initialize' }
-Set-Content -Path $marker -Value "NCMM Host API v1`n" -Encoding ASCII
-Write-Host 'NCMM Host API v1 patch applied and post-verified.'
+foreach ($needle in @('ncmm::settings_menu_label()','ncmm::show_manager();','ncmm::on_language_changed();')) { if (-not $mm2.Contains($needle)) { throw "Post-check failed: $needle" } }
+Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.3`n" -Encoding ASCII
+Write-Host 'NCMM 0.3 Host API v1 patch applied and post-verified.'
