@@ -1,7 +1,7 @@
-#include "ncmm_loader.h"
+﻿#include "ncmm_loader.h"
 #include "ncmm_api.h"
 #include "options.h"
-#include "popup.h"
+#include "output.h"
 #include "system_locale.h"
 #include "uilist.h"
 
@@ -258,7 +258,7 @@ void load_one( const std::filesystem::path &library )
 
 std::string settings_menu_label()
 {
-    return tr_ui( "<N|n>CMM / Mod Configuration", "<N|n>CMM / Настройка модов" );
+    return tr_ui( "<N|n>CMM / Mod Configuration", "<N|n>CMM / РќР°СЃС‚СЂРѕР№РєР° РјРѕРґРѕРІ" );
 }
 
 void show_manager()
@@ -266,24 +266,24 @@ void show_manager()
     while( true ) {
         const std::vector<manager_entry> entries = manager_entries();
         if( entries.empty() ) {
-            popup( tr_ui( "No NCMM code mods are installed.", "NCMM code-моды не установлены." ) );
+            popup( tr_ui( "No NCMM code mods are installed.", "NCMM code-РјРѕРґС‹ РЅРµ СѓСЃС‚Р°РЅРѕРІР»РµРЅС‹." ) );
             return;
         }
 
         uilist menu;
         menu.text = tr_ui(
-                        "NCMM — Mod Configuration\nEnter: enable/disable selected code mod. Changes apply after restart.",
-                        "NCMM — Настройка модов\nEnter: включить/выключить выбранный code-мод. Изменения применяются после перезапуска." );
+                        "NCMM вЂ” Mod Configuration\nEnter: enable/disable selected code mod. Changes apply after restart.",
+                        "NCMM вЂ” РќР°СЃС‚СЂРѕР№РєР° РјРѕРґРѕРІ\nEnter: РІРєР»СЋС‡РёС‚СЊ/РІС‹РєР»СЋС‡РёС‚СЊ РІС‹Р±СЂР°РЅРЅС‹Р№ code-РјРѕРґ. РР·РјРµРЅРµРЅРёСЏ РїСЂРёРјРµРЅСЏСЋС‚СЃСЏ РїРѕСЃР»Рµ РїРµСЂРµР·Р°РїСѓСЃРєР°." );
 
         for( int i = 0; i < static_cast<int>( entries.size() ); ++i ) {
             const manager_entry &entry = entries[i];
             std::string state;
             if( entry.disabled ) {
-                state = tr_ui( "OFF", "ВЫКЛ" );
+                state = tr_ui( "OFF", "Р’Р«РљР›" );
             } else if( entry.loaded_now ) {
-                state = tr_ui( "ON / loaded", "ВКЛ / загружен" );
+                state = tr_ui( "ON / loaded", "Р’РљР› / Р·Р°РіСЂСѓР¶РµРЅ" );
             } else {
-                state = tr_ui( "ON / not loaded", "ВКЛ / не загружен" );
+                state = tr_ui( "ON / not loaded", "Р’РљР› / РЅРµ Р·Р°РіСЂСѓР¶РµРЅ" );
             }
 
             std::string label = "[" + state + "] " + entry.name;
@@ -305,20 +305,20 @@ void show_manager()
         if( entry.disabled ) {
             std::filesystem::remove( marker, ec );
             if( ec ) {
-                popup( tr_ui( "Could not enable the module.", "Не удалось включить модуль." ) );
+                popup( tr_ui( "Could not enable the module.", "РќРµ СѓРґР°Р»РѕСЃСЊ РІРєР»СЋС‡РёС‚СЊ РјРѕРґСѓР»СЊ." ) );
             } else {
                 popup( tr_ui( "Module enabled. Restart CDDA to apply.",
-                              "Модуль включён. Перезапустите CDDA для применения." ) );
+                              "РњРѕРґСѓР»СЊ РІРєР»СЋС‡С‘РЅ. РџРµСЂРµР·Р°РїСѓСЃС‚РёС‚Рµ CDDA РґР»СЏ РїСЂРёРјРµРЅРµРЅРёСЏ." ) );
             }
         } else {
             std::ofstream out( marker, std::ios::trunc );
             if( !out ) {
-                popup( tr_ui( "Could not disable the module.", "Не удалось выключить модуль." ) );
+                popup( tr_ui( "Could not disable the module.", "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РєР»СЋС‡РёС‚СЊ РјРѕРґСѓР»СЊ." ) );
             } else {
                 out << "Disabled by NCMM Mod Configuration. Restart required.\n";
                 out.close();
                 popup( tr_ui( "Module disabled. Restart CDDA to apply.",
-                              "Модуль выключен. Перезапустите CDDA для применения." ) );
+                              "РњРѕРґСѓР»СЊ РІС‹РєР»СЋС‡РµРЅ. РџРµСЂРµР·Р°РїСѓСЃС‚РёС‚Рµ CDDA РґР»СЏ РїСЂРёРјРµРЅРµРЅРёСЏ." ) );
             }
         }
     }

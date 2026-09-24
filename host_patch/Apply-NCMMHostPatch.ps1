@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory=$true)][string]$SourceRoot
 )
 $ErrorActionPreference = 'Stop'
@@ -133,7 +133,7 @@ bool options_manager::ncmm_expose_worldgen_option( const std::string &name,
 }
 '@ 'options.ncmm-expose-implementation'
 
-$sd = Replace-ExactlyOnce $sd '#include "options.h"' "#include \"options.h\"`n#include \"ncmm_loader.h\"" 'sdl.include-ncmm'
+$sd = Replace-ExactlyOnce $sd '#include "options.h"' ('#include "options.h"' + "`n" + '#include "ncmm_loader.h"') 'sdl.include-ncmm'
 $sd = Replace-ExactlyOnce $sd @'
     get_options().init();
     get_options().load();
@@ -145,7 +145,7 @@ $sd = Replace-ExactlyOnce $sd @'
     ncmm::initialize();
 '@ 'sdl.initialize-ncmm'
 
-$mm = Replace-ExactlyOnce $mm '#include "options.h"' "#include \"options.h\"`n#include \"ncmm_loader.h\"" 'main-menu.include-ncmm'
+$mm = Replace-ExactlyOnce $mm '#include "options.h"' ('#include "options.h"' + "`n" + '#include "ncmm_loader.h"') 'main-menu.include-ncmm'
 $mm = Replace-ExactlyOnce $mm @'
     vSettingsSubItems.emplace_back( pgettext( "Main Menu|Settings", "<I|i>mGui Demo Screen" ) );
 '@ @'
