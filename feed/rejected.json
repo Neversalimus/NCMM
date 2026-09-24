@@ -1,6 +1,19 @@
 {
   "schema": 1,
   "loader_api": 1,
-  "patch_revision": "ac87a2fd51caf45c9454496700dd9c82b86cdf5f5720e283dff401e2afddb06f",
-  "rejected": {}
+  "patch_revision": "a0564d9710cbb5f9842cdfd73a152356849867bc376c9f4aae9bda2a25a497b8",
+  "rejected": {
+    "cdda-experimental-2026-09-24-1634": {
+      "source_commit": "536f5df159725b3c4dc0bca208c153a5ec367329",
+      "recorded_utc": "2026-09-24T21:32:32.8180656Z"
+    },
+    "cdda-experimental-2026-09-23-2123": {
+      "source_commit": "50b75f7113cb47a712aa2d3f33d6fcfa6d8b0ee5",
+      "recorded_utc": "2026-09-24T21:32:28.5299304Z"
+    },
+    "cdda-experimental-2026-09-23-0546": {
+      "source_commit": "e262adb299a7613b4aedc5f12c08fe0413c56a84",
+      "recorded_utc": "2026-09-24T21:32:30.0743623Z"
+    }
+  }
 }
