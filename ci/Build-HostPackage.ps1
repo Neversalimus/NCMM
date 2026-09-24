@@ -26,12 +26,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'MSVC CDDA host build failed.' }
 } finally { Pop-Location }
 
-$host = Get-ChildItem $UpstreamRoot -Filter 'cataclysm-tiles.exe' -Recurse -File |
-    Where-Object { $_.FullName -match 'Release' } |
+$builtHost = Get-ChildItem $UpstreamRoot -Filter 'cataclysm-tiles.exe' -Recurse -File |
+    Where-Object { $_.FullName -match 'Release|upstream\\cataclysm-tiles\.exe$' } |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
-if (-not $host) { throw 'Built cataclysm-tiles.exe not found.' }
+if (-not $builtHost) { throw 'Built cataclysm-tiles.exe not found.' }
+
 $hostDest = Join-Path $OutputRoot 'cataclysm-tiles.ncmm.exe'
-Copy-Item $host.FullName $hostDest -Force
+Copy-Item $builtHost.FullName $hostDest -Force
 $hostSha = (Get-FileHash $hostDest -Algorithm SHA256).Hash.ToLowerInvariant()
 
 $releaseDir = Join-Path $OutputRoot '_official'
