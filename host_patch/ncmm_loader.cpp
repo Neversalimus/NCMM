@@ -344,7 +344,7 @@ void on_language_changed()
 void initialize()
 {
     std::filesystem::create_directories( game_root() / "ncmm" );
-    log_line( NCMM_LOG_INFO, "NCMM 0.3 Host API v1 initializing." );
+    log_line( NCMM_LOG_INFO, "NCMM 0.3.1 Host API v1 initializing." );
     std::atexit( &shutdown );
 
 #ifdef _WIN32

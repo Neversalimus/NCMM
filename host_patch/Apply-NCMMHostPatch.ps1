@@ -7,9 +7,10 @@ $src = Join-Path $SourceRoot 'src'
 $optionsH = Join-Path $src 'options.h'
 $optionsCpp = Join-Path $src 'options.cpp'
 $sdl = Join-Path $src 'sdltiles.cpp'
+$mainMenu = Join-Path $src 'main_menu.cpp'
 $marker = Join-Path $SourceRoot '.ncmm_host_v1_patched'
 
-foreach ($f in @($optionsH,$optionsCpp,$sdl)) {
+foreach ($f in @($optionsH,$optionsCpp,$sdl,$mainMenu)) {
     if (-not (Test-Path $f)) { throw "Required source file missing: $f" }
 }
 
@@ -54,6 +55,7 @@ if (Test-Path $marker) {
     $h = Read-Utf8 $optionsH
     $c = Read-Utf8 $optionsCpp
     $sd = Read-Utf8 $sdl
+    $mm = Read-Utf8 $mainMenu
     $checks = @(
         @($h,'COPT_WORLDGEN_ONLY'),
         @($h,'ncmm_can_expose_worldgen_option'),
@@ -62,14 +64,17 @@ if (Test-Path $marker) {
         @($c,'it.data ).is_hidden( world_options_only )'),
         @($c,'curr_item.data ).is_hidden( world_options_only )'),
         @($c,'addOptionToPage( name, "world_default" )'),
-        @($sd,'ncmm::initialize();')
+        @($sd,'ncmm::initialize();'),
+        @($mm,'ncmm::settings_menu_label()'),
+        @($mm,'ncmm::show_manager();'),
+        @($mm,'ncmm::on_language_changed();')
     )
     foreach ($x in $checks) {
         if (-not $x[0].Contains($x[1])) {
             throw "Existing NCMM marker found but patched contract missing: $($x[1])"
         }
     }
-    Write-Host 'NCMM Host v1 safe-baseline patch already present and verified.'
+    Write-Host 'NCMM Host v1 / NCMM 0.3.1 MCM patch already present and verified.'
     exit 0
 }
 
@@ -78,13 +83,16 @@ if (Test-Path $marker) {
 $hOriginal = Read-Utf8 $optionsH
 $cOriginal = Read-Utf8 $optionsCpp
 $sdOriginal = Read-Utf8 $sdl
+$mmOriginal = Read-Utf8 $mainMenu
 $hSig = NonAscii-Signature $hOriginal
 $cSig = NonAscii-Signature $cOriginal
 $sdSig = NonAscii-Signature $sdOriginal
+$mmSig = NonAscii-Signature $mmOriginal
 
 $h = Normalize-Lf $hOriginal
 $c = Normalize-Lf $cOriginal
 $sd = Normalize-Lf $sdOriginal
+$mm = Normalize-Lf $mmOriginal
 
 $h = Replace-ExactlyOnce $h @'
             COPT_NO_SOUND_HIDE,
@@ -172,9 +180,41 @@ $sd = Replace-ExactlyOnce $sd @'
     ncmm::initialize();
 '@ 'sdl.initialize-ncmm'
 
+# NCMM 0.3.1 MCM restoration. main_menu.cpp is handled by the same strict UTF-8
+# preservation contract as other upstream sources. Every injected byte is ASCII.
+$mm = Replace-ExactlyOnce $mm '#include "options.h"' ('#include "options.h"' + "`n" + '#include "ncmm_loader.h"') 'main-menu.include-ncmm'
+$mm = Replace-ExactlyOnce $mm @'
+    vSettingsSubItems.emplace_back( pgettext( "Main Menu|Settings", "<I|i>mGui Demo Screen" ) );
+'@ @'
+    vSettingsSubItems.emplace_back( pgettext( "Main Menu|Settings", "<I|i>mGui Demo Screen" ) );
+    vSettingsSubItems.emplace_back( ncmm::settings_menu_label() );
+'@ 'main-menu.settings-item'
+$mm = Replace-ExactlyOnce $mm @'
+                        // The language may have changed- gracefully handle this.
+                        init_strings();
+'@ @'
+                        // The language may have changed- gracefully handle this.
+                        init_strings();
+                        ncmm::on_language_changed();
+'@ 'main-menu.locale-refresh'
+$mm = Replace-ExactlyOnce $mm @'
+                    } else if( sel2 == 6 ) { /// ImGui demo
+                        imgui_demo_ui demo;
+                        demo.run();
+                    }
+'@ @'
+                    } else if( sel2 == 6 ) { /// ImGui demo
+                        imgui_demo_ui demo;
+                        demo.run();
+                    } else if( static_cast<std::size_t>( sel2 ) + 1 == vSettingsSubItems.size() ) {
+                        ncmm::show_manager();
+                    }
+'@ 'main-menu.ncmm-manager-action'
+
 Write-Utf8 $optionsH $h
 Write-Utf8 $optionsCpp $c
 Write-Utf8 $sdl $sd
+Write-Utf8 $mainMenu $mm
 
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.h') (Join-Path $src 'ncmm_loader.h') -Force
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.cpp') (Join-Path $src 'ncmm_loader.cpp') -Force
@@ -183,10 +223,12 @@ Copy-Item (Join-Path (Split-Path $PSScriptRoot -Parent) 'sdk\ncmm_api.h') (Join-
 $h2 = Read-Utf8 $optionsH
 $c2 = Read-Utf8 $optionsCpp
 $sd2 = Read-Utf8 $sdl
+$mm2 = Read-Utf8 $mainMenu
 
 if ((NonAscii-Signature $h2) -ne $hSig) { throw 'UTF-8 preservation check failed for options.h' }
 if ((NonAscii-Signature $c2) -ne $cSig) { throw 'UTF-8 preservation check failed for options.cpp' }
 if ((NonAscii-Signature $sd2) -ne $sdSig) { throw 'UTF-8 preservation check failed for sdltiles.cpp' }
+if ((NonAscii-Signature $mm2) -ne $mmSig) { throw 'UTF-8 preservation check failed for main_menu.cpp' }
 
 foreach ($needle in @('COPT_WORLDGEN_ONLY','ncmm_can_expose_worldgen_option','ncmm_expose_worldgen_option')) {
     if (-not $h2.Contains($needle)) { throw "Post-check failed: $needle" }
@@ -195,6 +237,9 @@ foreach ($needle in @('case COPT_WORLDGEN_ONLY:','it.data ).is_hidden( world_opt
     if (-not $c2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 if (-not $sd2.Contains('ncmm::initialize();')) { throw 'Post-check failed: ncmm::initialize' }
+foreach ($needle in @('ncmm::settings_menu_label()','ncmm::show_manager();','ncmm::on_language_changed();')) {
+    if (-not $mm2.Contains($needle)) { throw "Post-check failed: $needle" }
+}
 
-Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.3 Fix8 safe baseline`n" -Encoding ASCII
-Write-Host 'NCMM 0.3 Fix8 safe-baseline host patch applied and UTF-8 preservation verified.'
+Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.3.1 MCM restoration`n" -Encoding ASCII
+Write-Host 'NCMM 0.3.1 MCM restoration patch applied and UTF-8 preservation verified.'
