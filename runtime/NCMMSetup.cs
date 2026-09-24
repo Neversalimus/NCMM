@@ -8,6 +8,40 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Windows.Forms;
 
+internal sealed class DetectedInstallation
+{
+    internal string PathValue { get; private set; }
+    internal string BuildLabel { get; private set; }
+    internal string SourceCommit { get; private set; }
+
+    internal DetectedInstallation(string pathValue, string buildLabel, string sourceCommit)
+    {
+        PathValue = pathValue;
+        BuildLabel = buildLabel;
+        SourceCommit = sourceCommit;
+    }
+
+    internal string ShortCommit()
+    {
+        if (String.IsNullOrEmpty(SourceCommit)) return "commit unknown";
+        return SourceCommit.Length <= 12 ? SourceCommit : SourceCommit.Substring(0, 12);
+    }
+
+    public override string ToString()
+    {
+        return BuildLabel + " | " + ShortCommit() + " | " + PathValue;
+    }
+}
+
+internal sealed class InstallResult
+{
+    internal string GameRoot { get; set; }
+    internal string BuildLabel { get; set; }
+    internal string SourceCommit { get; set; }
+    internal string BootstrapSha256 { get; set; }
+    internal string VanillaSha256 { get; set; }
+}
+
 internal static class SetupCore
 {
     internal static string Sha256(string path)
@@ -22,9 +56,42 @@ internal static class SetupCore
         }
     }
 
-    internal static void Install(string gameRoot, string payloadRoot)
+    internal static string ReadSourceCommit(string gameRoot)
+    {
+        try
+        {
+            string version = Path.Combine(gameRoot, "VERSION.txt");
+            if (!File.Exists(version)) return null;
+            foreach (string line in File.ReadAllLines(version))
+            {
+                const string prefix = "commit sha:";
+                if (line.TrimStart().StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    string value = line.Substring(line.IndexOf(':') + 1).Trim();
+                    if (value.Length >= 7) return value.ToLowerInvariant();
+                }
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    internal static DetectedInstallation DescribeInstallation(string gameRoot)
     {
         gameRoot = Path.GetFullPath(gameRoot.Trim());
+        string exe = Path.Combine(gameRoot, "cataclysm-tiles.exe");
+        if (!File.Exists(exe))
+            throw new InvalidOperationException("cataclysm-tiles.exe not found in selected folder.");
+
+        string buildLabel = new DirectoryInfo(gameRoot).Name;
+        return new DetectedInstallation(gameRoot, buildLabel, ReadSourceCommit(gameRoot));
+    }
+
+    internal static InstallResult Install(string gameRoot, string payloadRoot)
+    {
+        gameRoot = Path.GetFullPath(gameRoot.Trim());
+        DetectedInstallation target = DescribeInstallation(gameRoot);
+
         string exe = Path.Combine(gameRoot, "cataclysm-tiles.exe");
         string vanilla = Path.Combine(gameRoot, "cataclysm-tiles.vanilla.exe");
         string ncmm = Path.Combine(gameRoot, "ncmm");
@@ -33,7 +100,6 @@ internal static class SetupCore
         string awsDll = Path.Combine(payloadRoot, "code_mods", "AdvancedWorldSettings", "ncmm_mod.dll");
         string awsJson = Path.Combine(payloadRoot, "code_mods", "AdvancedWorldSettings", "mod.json");
 
-        if (!File.Exists(exe)) throw new InvalidOperationException("cataclysm-tiles.exe not found in selected folder.");
         if (!File.Exists(bootstrap)) throw new InvalidOperationException("Installer payload is incomplete: bootstrap missing.");
         if (!File.Exists(awsDll)) throw new InvalidOperationException("Installer payload is incomplete: AWS module missing.");
 
@@ -89,8 +155,9 @@ internal static class SetupCore
             throw new InvalidOperationException("Bootstrap post-install SHA256 check failed.");
         if (!File.Exists(vanilla)) throw new InvalidOperationException("Vanilla backup post-install check failed.");
 
+        string vanillaHash = Sha256(vanilla);
         File.WriteAllText(installedHashFile, bootstrapHash.ToLowerInvariant() + Environment.NewLine, Encoding.ASCII);
-        File.WriteAllText(Path.Combine(ncmm, "vanilla.sha256"), Sha256(vanilla).ToLowerInvariant() + Environment.NewLine, Encoding.ASCII);
+        File.WriteAllText(Path.Combine(ncmm, "vanilla.sha256"), vanillaHash.ToLowerInvariant() + Environment.NewLine, Encoding.ASCII);
 
         string awsDir = Path.Combine(mods, "AdvancedWorldSettings");
         Directory.CreateDirectory(awsDir);
@@ -103,6 +170,14 @@ internal static class SetupCore
         string pending = Path.Combine(ncmm, "boot.pending");
         if (File.Exists(autoDisabled)) File.Delete(autoDisabled);
         if (File.Exists(pending)) File.Delete(pending);
+
+        InstallResult result = new InstallResult();
+        result.GameRoot = gameRoot;
+        result.BuildLabel = target.BuildLabel;
+        result.SourceCommit = target.SourceCommit;
+        result.BootstrapSha256 = bootstrapHash;
+        result.VanillaSha256 = vanillaHash;
+        return result;
     }
 
     internal static void RestoreVanilla(string gameRoot)
@@ -114,9 +189,9 @@ internal static class SetupCore
         File.Copy(vanilla, exe, true);
     }
 
-    internal static List<string> DetectInstallations()
+    internal static List<DetectedInstallation> DetectInstallations()
     {
-        List<string> result = new List<string>();
+        List<DetectedInstallation> result = new List<DetectedInstallation>();
         try
         {
             string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -125,31 +200,39 @@ internal static class SetupCore
             {
                 foreach (string dir in Directory.GetDirectories(root))
                 {
-                    if (File.Exists(Path.Combine(dir, "cataclysm-tiles.exe"))) result.Add(dir);
+                    try
+                    {
+                        if (File.Exists(Path.Combine(dir, "cataclysm-tiles.exe")))
+                            result.Add(DescribeInstallation(dir));
+                    }
+                    catch { }
                 }
             }
         }
         catch { }
-        return result.OrderByDescending(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+
+        return result.OrderByDescending(x => x.BuildLabel, StringComparer.OrdinalIgnoreCase).ToList();
     }
 }
 
 internal sealed class MainForm : Form
 {
     private readonly ComboBox pathBox = new ComboBox();
+    private readonly Label targetInfo = new Label();
     private readonly TextBox log = new TextBox();
     private readonly Button installButton = new Button();
     private readonly Button restoreButton = new Button();
     private readonly Button browseButton = new Button();
     private readonly string payloadRoot;
+    private int detectedInstallations;
 
     internal MainForm()
     {
-        Text = "NCMM 0.3.1 Setup";
-        Width = 760;
-        Height = 420;
+        Text = "NCMM 0.3.2 Setup";
+        Width = 900;
+        Height = 500;
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(650, 360);
+        MinimumSize = new Size(760, 430);
 
         payloadRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "payload");
 
@@ -162,34 +245,47 @@ internal sealed class MainForm : Form
         Controls.Add(title);
 
         Label hint = new Label();
-        hint.Text = "Choose a CDDA folder. NCMM keeps the original executable and falls back to vanilla when no certified host is available.";
+        hint.Text = "Choose the exact CDDA installation. NCMM preserves the original executable and falls back to vanilla when no certified host is available.";
         hint.AutoSize = false;
         hint.Left = 20;
         hint.Top = 58;
-        hint.Width = 700;
+        hint.Width = 840;
         hint.Height = 42;
+        hint.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         Controls.Add(hint);
 
         pathBox.Left = 20;
         pathBox.Top = 108;
-        pathBox.Width = 600;
+        pathBox.Width = 730;
         pathBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-        pathBox.DropDownStyle = ComboBoxStyle.DropDown;
-        foreach (string path in SetupCore.DetectInstallations()) pathBox.Items.Add(path);
-        if (pathBox.Items.Count > 0) pathBox.SelectedIndex = 0;
+        pathBox.DropDownStyle = ComboBoxStyle.DropDownList;
+        pathBox.SelectedIndexChanged += delegate { UpdateTargetInfo(); };
+
+        List<DetectedInstallation> detected = SetupCore.DetectInstallations();
+        detectedInstallations = detected.Count;
+        foreach (DetectedInstallation installation in detected) pathBox.Items.Add(installation);
+        if (detected.Count == 1) pathBox.SelectedIndex = 0;
         Controls.Add(pathBox);
 
         browseButton.Text = "Browse...";
-        browseButton.Left = 630;
+        browseButton.Left = 760;
         browseButton.Top = 106;
         browseButton.Width = 100;
         browseButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         browseButton.Click += delegate { Browse(); };
         Controls.Add(browseButton);
 
+        targetInfo.Left = 20;
+        targetInfo.Top = 142;
+        targetInfo.Width = 840;
+        targetInfo.Height = 42;
+        targetInfo.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        targetInfo.AutoEllipsis = true;
+        Controls.Add(targetInfo);
+
         installButton.Text = "Install / Repair NCMM + AWS";
         installButton.Left = 20;
-        installButton.Top = 150;
+        installButton.Top = 192;
         installButton.Width = 220;
         installButton.Height = 34;
         installButton.Click += delegate { Install(); };
@@ -197,16 +293,16 @@ internal sealed class MainForm : Form
 
         restoreButton.Text = "Restore vanilla EXE";
         restoreButton.Left = 250;
-        restoreButton.Top = 150;
+        restoreButton.Top = 192;
         restoreButton.Width = 180;
         restoreButton.Height = 34;
         restoreButton.Click += delegate { Restore(); };
         Controls.Add(restoreButton);
 
         log.Left = 20;
-        log.Top = 200;
-        log.Width = 710;
-        log.Height = 160;
+        log.Top = 242;
+        log.Width = 840;
+        log.Height = 200;
         log.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         log.Multiline = true;
         log.ScrollBars = ScrollBars.Vertical;
@@ -215,6 +311,18 @@ internal sealed class MainForm : Form
 
         Append("NCMM runtime does not require Git, CMake, MSYS2 or a compiler.");
         Append("If a matching certified host is unavailable, CDDA starts vanilla.");
+
+        if (detectedInstallations > 1)
+        {
+            Append("Multiple CDDA installations detected. No target was selected automatically.");
+            Append("Choose the exact build from the list or use Browse.");
+        }
+        else if (detectedInstallations == 0)
+        {
+            Append("No CatLauncher installation was detected automatically. Use Browse.");
+        }
+
+        UpdateTargetInfo();
     }
 
     private void Append(string text)
@@ -222,23 +330,101 @@ internal sealed class MainForm : Form
         log.AppendText(DateTime.Now.ToString("HH:mm:ss") + "  " + text + Environment.NewLine);
     }
 
+    private DetectedInstallation SelectedInstallation()
+    {
+        DetectedInstallation selected = pathBox.SelectedItem as DetectedInstallation;
+        if (selected == null)
+            throw new InvalidOperationException("Choose the exact target CDDA installation first.");
+        return selected;
+    }
+
+    private void UpdateTargetInfo()
+    {
+        DetectedInstallation selected = pathBox.SelectedItem as DetectedInstallation;
+        if (selected == null)
+        {
+            if (detectedInstallations > 1)
+                targetInfo.Text = "Target: none selected — multiple installations detected.";
+            else
+                targetInfo.Text = "Target: none selected — use Browse to choose a CDDA folder.";
+            return;
+        }
+
+        targetInfo.Text = "Target: " + selected.BuildLabel + " | " + selected.ShortCommit() + " | " + selected.PathValue;
+    }
+
+    private void SelectInstallation(DetectedInstallation installation)
+    {
+        for (int i = 0; i < pathBox.Items.Count; i++)
+        {
+            DetectedInstallation existing = pathBox.Items[i] as DetectedInstallation;
+            if (existing != null &&
+                String.Equals(existing.PathValue, installation.PathValue, StringComparison.OrdinalIgnoreCase))
+            {
+                pathBox.SelectedIndex = i;
+                return;
+            }
+        }
+
+        pathBox.Items.Add(installation);
+        pathBox.SelectedIndex = pathBox.Items.Count - 1;
+    }
+
     private void Browse()
     {
         using (FolderBrowserDialog dialog = new FolderBrowserDialog())
         {
-            dialog.Description = "Select the CDDA folder containing cataclysm-tiles.exe";
-            if (dialog.ShowDialog(this) == DialogResult.OK) pathBox.Text = dialog.SelectedPath;
+            dialog.Description = "Select the exact CDDA folder containing cataclysm-tiles.exe";
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+            try
+            {
+                SelectInstallation(SetupCore.DescribeInstallation(dialog.SelectedPath));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, "Invalid CDDA folder", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
+    }
+
+    private bool ConfirmTarget(DetectedInstallation target, string action)
+    {
+        if (pathBox.Items.Count <= 1) return true;
+
+        string message =
+            "Multiple CDDA installations are available.\n\n" +
+            "Action: " + action + "\n" +
+            "Target build: " + target.BuildLabel + "\n" +
+            "Commit: " + target.ShortCommit() + "\n" +
+            "Path: " + target.PathValue + "\n\n" +
+            "Continue with this exact target?";
+
+        return MessageBox.Show(this, message, "Confirm NCMM target",
+            MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes;
     }
 
     private void Install()
     {
         try
         {
-            SetupCore.Install(pathBox.Text, payloadRoot);
+            DetectedInstallation target = SelectedInstallation();
+            if (!ConfirmTarget(target, "Install / Repair NCMM + AWS")) return;
+
+            InstallResult result = SetupCore.Install(target.PathValue, payloadRoot);
             Append("Installed successfully. Advanced World Settings enabled.");
-            Append("Launch CDDA normally from CatLauncher/Catapult/shortcut. Host will be fetched only if exact SHA is certified.");
-            MessageBox.Show(this, "NCMM + Advanced World Settings installed.\n\nYou can launch CDDA normally.", "NCMM", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Append("Target: " + result.BuildLabel + " | " + result.GameRoot);
+            Append("Bootstrap SHA256: " + result.BootstrapSha256.ToUpperInvariant());
+            Append("Vanilla SHA256: " + result.VanillaSha256.ToUpperInvariant());
+
+            string message =
+                "NCMM + Advanced World Settings installed.\n\n" +
+                "Target build: " + result.BuildLabel + "\n" +
+                "Path: " + result.GameRoot + "\n" +
+                "Bootstrap SHA256:\n" + result.BootstrapSha256.ToUpperInvariant() + "\n\n" +
+                "You can launch CDDA normally.";
+
+            MessageBox.Show(this, message, "NCMM 0.3.2", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
@@ -251,9 +437,17 @@ internal sealed class MainForm : Form
     {
         try
         {
-            SetupCore.RestoreVanilla(pathBox.Text);
-            Append("Vanilla executable restored. NCMM files were left on disk for possible repair/reinstall.");
-            MessageBox.Show(this, "Vanilla cataclysm-tiles.exe restored.", "NCMM", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            DetectedInstallation target = SelectedInstallation();
+            if (!ConfirmTarget(target, "Restore vanilla EXE")) return;
+
+            SetupCore.RestoreVanilla(target.PathValue);
+            Append("Vanilla executable restored.");
+            Append("Target: " + target.BuildLabel + " | " + target.PathValue);
+            Append("NCMM files were left on disk for possible repair/reinstall.");
+
+            MessageBox.Show(this,
+                "Vanilla cataclysm-tiles.exe restored.\n\nTarget:\n" + target.PathValue,
+                "NCMM 0.3.2", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {

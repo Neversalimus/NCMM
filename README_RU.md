@@ -1,4 +1,4 @@
-# NCMM v0.3.1 — Runtime + Certified Host Feed
+# NCMM v0.3.2 — Runtime + Certified Host Feed
 
 NCMM (Neversalimus Code Mod Manager) — экспериментальная платформа для native/code-модов Cataclysm:DDA.
 
@@ -6,13 +6,15 @@ NCMM (Neversalimus Code Mod Manager) — экспериментальная пл
 
 Игрок **не устанавливает** Git, MSYS2, GCC, CMake или Visual Studio.
 
-1. Скачать `NCMM_Runtime_v0.3.1.zip`.
+1. Скачать `NCMM_Runtime_v0.3.2.zip`.
 2. Распаковать.
 3. Запустить `NCMM_Setup.exe`.
 4. Выбрать папку CDDA и нажать `Install / Repair NCMM + AWS`.
 5. Запускать игру как обычно — из CatLauncher, Catapult или ярлыка.
 
 Setup автоматически обнаруживает существующие установки CatLauncher как удобство, но NCMM от CatLauncher не зависит.
+
+Начиная с v0.3.2 Setup безопаснее работает с несколькими установками CDDA: если найдено больше одной версии, цель не выбирается автоматически. В списке показываются build, короткий source commit и полный путь; перед установкой/восстановлением в multi-install сценарии требуется подтверждение точной цели. После установки Setup показывает target и SHA-256 установленного bootstrap.
 
 Если в папке уже установлен ранний CML prototype, NCMM Setup распознаёт его по сохранённому SHA bootstrap и мигрирует на NCMM, сохраняя существующий `cataclysm-tiles.vanilla.exe`.
 
