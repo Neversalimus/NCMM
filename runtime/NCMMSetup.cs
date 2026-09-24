@@ -145,7 +145,7 @@ internal sealed class MainForm : Form
 
     internal MainForm()
     {
-        Text = "NCMM 0.3 Setup";
+        Text = "NCMM 0.3.1 Setup";
         Width = 760;
         Height = 420;
         StartPosition = FormStartPosition.CenterScreen;

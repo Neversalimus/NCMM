@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Net.Cache;
 using System.Security.Cryptography;
 using System.Text;
 using System.Web.Script.Serialization;
@@ -14,6 +15,7 @@ internal sealed class TimeoutWebClient : WebClient
     {
         WebRequest request = base.GetWebRequest(address);
         request.Timeout = TimeoutMs;
+        request.CachePolicy = new RequestCachePolicy(RequestCacheLevel.NoCacheNoStore);
         return request;
     }
 }
@@ -118,6 +120,19 @@ internal static class NCMMBootstrap
         return DefaultFeedUrl;
     }
 
+    private static string FeedUrlForRequest(bool forceRefresh)
+    {
+        string url = FeedUrl();
+        if (!forceRefresh ||
+            !url.StartsWith("https://raw.githubusercontent.com/", StringComparison.OrdinalIgnoreCase))
+            return url;
+
+        string separator = url.IndexOf('?') >= 0 ? "&" : "?";
+        string fresh = url + separator + "ncmm_refresh=" + DateTime.UtcNow.Ticks.ToString();
+        Log("Forced feed refresh requested; bypassing raw.githubusercontent.com cache.");
+        return fresh;
+    }
+
     private static HostBinding ReadBinding()
     {
         try
@@ -185,15 +200,15 @@ internal static class NCMMBootstrap
         catch { }
     }
 
-    private static bool TryFetchCertifiedHost(string vanillaSha, string sourceCommit, bool localWasValid)
+    private static bool TryFetchCertifiedHost(string vanillaSha, string sourceCommit, bool localWasValid, bool forceRefresh)
     {
         string temp = Path.Combine(NcmmDir, "host.download.tmp");
         try
         {
             using (TimeoutWebClient wc = new TimeoutWebClient())
             {
-                wc.Headers[HttpRequestHeader.UserAgent] = "NCMM/0.3";
-                string feedText = wc.DownloadString(FeedUrl());
+                wc.Headers[HttpRequestHeader.UserAgent] = "NCMM/0.3.1";
+                string feedText = wc.DownloadString(FeedUrlForRequest(forceRefresh));
                 FeedIndex feed = Json.Deserialize<FeedIndex>(feedText);
                 if (feed == null || feed.schema != 1 || feed.loader_api != LoaderApi || feed.hosts == null)
                 {
@@ -357,6 +372,7 @@ internal static class NCMMBootstrap
         NcmmDir = Path.Combine(Root, "ncmm");
         LogPath = Path.Combine(NcmmDir, "bootstrap.log");
         Directory.CreateDirectory(NcmmDir);
+        Log("NCMM bootstrap 0.3.1 starting.");
 
         try
         {
@@ -425,7 +441,7 @@ internal static class NCMMBootstrap
                 bool localValid = HasValidLocalHost(vanillaSha, sourceCommit);
                 if (!offline && ShouldCheckFeed(localValid, refresh))
                 {
-                    TryFetchCertifiedHost(vanillaSha, sourceCommit, localValid);
+                    TryFetchCertifiedHost(vanillaSha, sourceCommit, localValid, refresh);
                 }
                 if (!HasValidLocalHost(vanillaSha, sourceCommit))
                 {
