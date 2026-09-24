@@ -94,3 +94,17 @@ NCMM capabilities; the first gameplay consumer, Survivor Progression, never incl
 Character persistence is implemented behind `character_state.v1`; the module sees only namespaced
 integer keys while the host adapts that contract to CDDA's serialized character values.
 The turn source hook is isolated behind `events.turn.v1`.
+
+## 0.5.1 gameplay input bridge
+
+NCMM registers namespaced gameplay actions instead of polling raw keys. The host supplies stable defaults
+(`F2` for the NCMM manager and a manifest `ui_hotkey` for module UI), while CDDA's own keybinding system
+owns user overrides and persistence. `handle_action.cpp` dispatches an NCMM action before conversion to
+the native `action_id`, so opening NCMM UI consumes no game turn.
+
+`COPT_WORLDGEN_ONLY` remains hidden from global/default options, but becomes visible in the active
+world's Current World tab. CDDA's existing `options_manager::show(true)` path remains responsible for
+saving `WORLD_OPTIONS` and applying option changes.
+
+The compatibility registry now includes `gameplay_input.source.v1`; host certification therefore fails
+closed before touching input integration points that no longer match the reviewed contract.

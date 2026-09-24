@@ -42,7 +42,9 @@ int has_capability_fn( const char *cap )
            std::strcmp( cap, "compatibility.v1" ) == 0 ||
            std::strcmp( cap, "events.turn.v1" ) == 0 ||
            std::strcmp( cap, "character_state.v1" ) == 0 ||
-           std::strcmp( cap, "ui.basic.v1" ) == 0;
+           std::strcmp( cap, "ui.basic.v1" ) == 0 ||
+           std::strcmp( cap, "module_hotkeys.v1" ) == 0 ||
+           std::strcmp( cap, "ingame_manager.v1" ) == 0;
 }
 
 const char *get_locale_fn()
@@ -52,7 +54,7 @@ const char *get_locale_fn()
 
 const char *get_host_version_fn()
 {
-    return "0.5.0-smoke";
+    return "0.5.1-smoke";
 }
 
 uint32_t get_loader_api_fn()
@@ -62,7 +64,8 @@ uint32_t get_loader_api_fn()
 
 const char *smoke_caps[] = {
     "core.v1", "world_options.v1", "locale.v1", "module_contract.v1", "host_info.v1",
-    "compatibility.v1", "events.turn.v1", "character_state.v1", "ui.basic.v1"
+    "compatibility.v1", "events.turn.v1", "character_state.v1", "ui.basic.v1",
+    "module_hotkeys.v1", "ingame_manager.v1"
 };
 
 size_t get_capability_count_fn()

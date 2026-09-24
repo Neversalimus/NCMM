@@ -2,6 +2,8 @@
 #include "ncmm_api.h"
 #include "avatar.h"
 #include "game.h"
+#include "input.h"
+#include "input_context.h"
 #include "options.h"
 #include "output.h"
 #include "system_locale.h"
@@ -37,6 +39,8 @@ struct loaded_mod {
     ncmm_on_locale_changed_v1_fn locale_changed = nullptr;
     ncmm_on_turn_v1_fn on_turn = nullptr;
     ncmm_open_ui_v1_fn open_ui = nullptr;
+    std::string action_id;
+    std::string default_hotkey;
 };
 
 std::vector<loaded_mod> loaded;
@@ -50,6 +54,7 @@ struct module_state {
     std::string version;
     std::string state;
     std::string reason;
+    std::string default_hotkey;
 };
 
 std::vector<module_state> module_states;
@@ -65,7 +70,9 @@ const char *const host_capabilities[] = {
     "compatibility.v1",
     "events.turn.v1",
     "character_state.v1",
-    "ui.basic.v1"
+    "ui.basic.v1",
+    "module_hotkeys.v1",
+    "ingame_manager.v1"
 };
 
 std::filesystem::path game_root()
@@ -124,7 +131,7 @@ int has_capability( const char *capability )
 
 const char *get_host_version()
 {
-    return "0.5.0";
+    return "0.5.1";
 }
 
 uint32_t get_loader_api()
@@ -384,6 +391,7 @@ struct manifest_contract {
     std::string name;
     std::string version;
     std::string failure_policy;
+    std::string ui_hotkey;
     uint32_t loader_api = 0;
     std::vector<std::string> requires;
 };
@@ -395,6 +403,7 @@ manifest_contract read_manifest( const std::filesystem::path &directory )
     result.name = manifest_string( directory, "name" );
     result.version = manifest_string( directory, "version" );
     result.failure_policy = manifest_string( directory, "failure_policy" );
+    result.ui_hotkey = manifest_string( directory, "ui_hotkey" );
     result.loader_api = manifest_uint( directory, "loader_api" );
     result.requires = manifest_string_array( directory, "requires" );
     return result;
@@ -411,6 +420,37 @@ bool valid_module_id( const std::string &id )
         }
     }
     return true;
+}
+
+bool valid_ui_hotkey( const std::string &value )
+{
+    if( value.empty() ) {
+        return true;
+    }
+    if( value.size() < 2 || value.size() > 3 || value[0] != 'F' ) {
+        return false;
+    }
+    int number = 0;
+    for( std::size_t i = 1; i < value.size(); ++i ) {
+        const unsigned char c = static_cast<unsigned char>( value[i] );
+        if( !std::isdigit( c ) ) {
+            return false;
+        }
+        number = number * 10 + static_cast<int>( c - '0' );
+    }
+    return number >= 1 && number <= 12;
+}
+
+int ui_hotkey_keycode( const std::string &value )
+{
+    if( !valid_ui_hotkey( value ) || value.empty() ) {
+        return 0;
+    }
+    int number = 0;
+    for( std::size_t i = 1; i < value.size(); ++i ) {
+        number = number * 10 + static_cast<int>( value[i] - '0' );
+    }
+    return keycode::f1 + number - 1;
 }
 
 bool validate_manifest( const manifest_contract &manifest, std::string &reason )
@@ -442,6 +482,15 @@ bool validate_manifest( const manifest_contract &manifest, std::string &reason )
     }
     if( !has_core ) {
         reason = "core_capability_required";
+        return false;
+    }
+    if( !valid_ui_hotkey( manifest.ui_hotkey ) ) {
+        reason = "invalid_ui_hotkey";
+        return false;
+    }
+    if( !manifest.ui_hotkey.empty() &&
+        unique.count( "module_hotkeys.v1" ) == 0 ) {
+        reason = "ui_hotkey_capability_required";
         return false;
     }
     return true;
@@ -508,6 +557,7 @@ void record_module_state( const std::filesystem::path &directory, const manifest
     entry.version = manifest.version;
     entry.state = state;
     entry.reason = reason;
+    entry.default_hotkey = manifest.ui_hotkey;
     module_states.push_back( std::move( entry ) );
 }
 
@@ -536,7 +586,7 @@ void write_modules_state()
 
     out << "{\n"
         << "  \"schema\": 1,\n"
-        << "  \"host_version\": \"0.5.0\",\n"
+        << "  \"host_version\": \"0.5.1\",\n"
         << "  \"loader_api\": " << NCMM_LOADER_API_VERSION << ",\n"
         << "  \"capabilities\": [";
     for( size_t i = 0; i < get_capability_count(); ++i ) {
@@ -552,7 +602,8 @@ void write_modules_state()
             << "\",\"name\":\"" << json_escape( state.name )
             << "\",\"version\":\"" << json_escape( state.version )
             << "\",\"state\":\"" << json_escape( state.state )
-            << "\",\"reason\":\"" << json_escape( state.reason ) << "\"}";
+            << "\",\"reason\":\"" << json_escape( state.reason )
+            << "\",\"default_hotkey\":\"" << json_escape( state.default_hotkey ) << "\"}";
         if( i + 1 != module_states.size() ) {
             out << ',';
         }
@@ -737,6 +788,21 @@ void load_one( const std::filesystem::path &library )
         }
     }
 
+    auto locale_changed = reinterpret_cast<ncmm_on_locale_changed_v1_fn>(
+                              GetProcAddress( module, NCMM_LOCALE_ENTRYPOINT ) );
+    auto on_turn = reinterpret_cast<ncmm_on_turn_v1_fn>(
+                       GetProcAddress( module, NCMM_TURN_ENTRYPOINT ) );
+    auto open_ui = reinterpret_cast<ncmm_open_ui_v1_fn>(
+                       GetProcAddress( module, NCMM_OPEN_UI_ENTRYPOINT ) );
+
+    if( !manifest.ui_hotkey.empty() && open_ui == nullptr ) {
+        record_module_state( directory, manifest, "rejected", "ui_hotkey_without_ui" );
+        log_line( NCMM_LOG_WARN,
+                  ( std::string( "Rejected module hotkey without UI callback: " ) + manifest.id ).c_str() );
+        FreeLibrary( module );
+        return;
+    }
+
     if( !desc->init( &api ) ) {
         record_module_state( directory, manifest, "failed", "init_failed" );
         log_line( NCMM_LOG_WARN, ( std::string( "Module init failed; disabled: " ) + desc->id ).c_str() );
@@ -744,13 +810,10 @@ void load_one( const std::filesystem::path &library )
         return;
     }
 
-    auto locale_changed = reinterpret_cast<ncmm_on_locale_changed_v1_fn>(
-                              GetProcAddress( module, NCMM_LOCALE_ENTRYPOINT ) );
-    auto on_turn = reinterpret_cast<ncmm_on_turn_v1_fn>(
-                       GetProcAddress( module, NCMM_TURN_ENTRYPOINT ) );
-    auto open_ui = reinterpret_cast<ncmm_open_ui_v1_fn>(
-                       GetProcAddress( module, NCMM_OPEN_UI_ENTRYPOINT ) );
-    loaded.push_back( { module, desc, directory, locale_changed, on_turn, open_ui } );
+    const std::string action_id = open_ui != nullptr && !manifest.ui_hotkey.empty() ?
+                                  "ncmm.open." + manifest.id : std::string();
+    loaded.push_back( { module, desc, directory, locale_changed, on_turn, open_ui,
+                        action_id, manifest.ui_hotkey } );
     record_module_state( directory, manifest, "loaded", "ok" );
     log_line( NCMM_LOG_INFO, ( std::string( "Loaded module: " ) + desc->id + " " + desc->version ).c_str() );
 }
@@ -760,6 +823,61 @@ void load_one( const std::filesystem::path &library )
 std::string settings_menu_label()
 {
     return tr_ui( "<N|n>CMM / Mod Configuration", "<N|n>CMM / Настройка модов" );
+}
+
+void register_gameplay_actions( input_context &ctxt )
+{
+    const std::string manager_name = tr_ui( "NCMM / Mod Configuration",
+                                           "NCMM / Настройка модов" );
+    inp_mngr.ncmm_register_default_action(
+        "ncmm.manager",
+        no_translation( manager_name ),
+        input_event( keycode::f2, input_event_t::keyboard_code ) );
+    ctxt.register_action( "ncmm.manager", no_translation( manager_name ) );
+
+    for( const loaded_mod &mod : loaded ) {
+        if( mod.open_ui == nullptr || mod.action_id.empty() ) {
+            continue;
+        }
+
+        const int keycode_value = ui_hotkey_keycode( mod.default_hotkey );
+        std::string action_name = mod.descriptor && mod.descriptor->name ?
+                                  mod.descriptor->name : mod.action_id;
+        action_name += tr_ui( " UI", " — интерфейс" );
+
+        if( keycode_value != 0 ) {
+            inp_mngr.ncmm_register_default_action(
+                mod.action_id,
+                no_translation( action_name ),
+                input_event( keycode_value, input_event_t::keyboard_code ) );
+        }
+        ctxt.register_action( mod.action_id, no_translation( action_name ) );
+    }
+}
+
+bool handle_gameplay_action( const std::string &action )
+{
+    if( action == "ncmm.manager" ) {
+        show_manager();
+        return true;
+    }
+
+    for( const loaded_mod &mod : loaded ) {
+        if( mod.action_id.empty() || action != mod.action_id || mod.open_ui == nullptr ) {
+            continue;
+        }
+        try {
+            mod.open_ui( &api );
+        } catch( ... ) {
+            const std::string name = mod.descriptor && mod.descriptor->name ?
+                                     mod.descriptor->name : mod.action_id;
+            log_line( NCMM_LOG_WARN, ( "Module UI callback failed: " + name ).c_str() );
+            popup( tr_ui( "Module UI callback failed.", "Ошибка callback интерфейса мода." ) );
+        }
+        return true;
+    }
+
+    return false;
 }
 
 void show_manager()
@@ -773,8 +891,8 @@ void show_manager()
 
         uilist menu;
         menu.text = tr_ui(
-                        "NCMM — Mod Configuration\nLoaded modules with UI open an action menu; enable/disable changes apply after restart.",
-                        "NCMM — Настройка модов\nДля загруженных модулей с UI открывается меню действий; включение/выключение применяется после перезапуска." );
+                        "NCMM — Mod Configuration\nIn game the manager is a normal remappable keybinding (F2 by default). Modules marked [UI] can be opened with Enter.",
+                        "NCMM — Настройка модов\nВ игре менеджер — обычное переназначаемое действие (по умолчанию F2). Модули с [UI] открываются через Enter." );
 
         for( int i = 0; i < static_cast<int>( entries.size() ); ++i ) {
             const manager_entry &entry = entries[i];
@@ -797,6 +915,10 @@ void show_manager()
             }
             if( !entry.reason.empty() && !entry.loaded_now && !entry.disabled ) {
                 label += " - " + entry.reason;
+            }
+            const loaded_mod *runtime = find_loaded( entry.directory );
+            if( runtime != nullptr && runtime->open_ui != nullptr ) {
+                label += " [UI]";
             }
             menu.addentry( i, true, MENU_AUTOASSIGN, label );
         }
@@ -894,7 +1016,7 @@ void initialize()
     module_states.clear();
     module_ids.clear();
     manifest_id_counts.clear();
-    log_line( NCMM_LOG_INFO, "NCMM 0.5.0 Host API v1 / Module Contract v1 initializing." );
+    log_line( NCMM_LOG_INFO, "NCMM 0.5.1 Host API v1 / Module Contract v1 initializing." );
     std::atexit( &shutdown );
 
 #ifdef _WIN32

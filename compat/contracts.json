@@ -58,6 +58,31 @@
           ]
         }
       ]
+    },
+    {
+      "id": "gameplay_input.source.v1",
+      "files": [
+        {
+          "path": "src/input.h",
+          "required": [
+            "class input_manager",
+            "void save();"
+          ]
+        },
+        {
+          "path": "src/input.cpp",
+          "required": [
+            "void input_manager::check_keybind("
+          ]
+        },
+        {
+          "path": "src/handle_action.cpp",
+          "required": [
+            "ctxt = get_default_mode_input_context();",
+            "if( uquit == QUIT_WATCH && action == \"QUIT\" )"
+          ]
+        }
+      ]
     }
   ]
 }

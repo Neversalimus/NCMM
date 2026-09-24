@@ -26,9 +26,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'MSVC CDDA host build failed.' }
 } finally { Pop-Location }
 
-$builtHost = Get-ChildItem $UpstreamRoot -Filter 'cataclysm-tiles.exe' -Recurse -File |
-    Where-Object { $_.FullName -match 'Release|upstream\\cataclysm-tiles\.exe$' } |
-    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$canonicalBuiltHost = Join-Path $UpstreamRoot 'cataclysm-tiles.exe'
+if (Test-Path $canonicalBuiltHost) {
+    $builtHost = Get-Item $canonicalBuiltHost
+} else {
+    $builtHost = Get-ChildItem $UpstreamRoot -Filter 'cataclysm-tiles.exe' -Recurse -File |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+}
 if (-not $builtHost) { throw 'Built cataclysm-tiles.exe not found.' }
 
 $hostDest = Join-Path $OutputRoot 'cataclysm-tiles.ncmm.exe'
@@ -66,7 +70,7 @@ $metadata = [ordered]@{
     compatibility_schema = 1
     source_contracts = @($contractIds)
     loader_api = 1
-    ncmm_version = '0.5.0'
+    ncmm_version = '0.5.1'
     upstream_tag = $UpstreamTag
     source_commit = $commit
     patch_revision = $patchRevision
