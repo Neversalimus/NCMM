@@ -22,7 +22,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Bootstrap compilation failed.' }
 $setupOut = Join-Path $OutputRoot 'NCMM_Setup.exe'
 $setupSource = Join-Path $RepositoryRoot 'runtime\NCMMSetup.cs'
 & $csc /nologo /target:winexe /optimize+ /platform:x64 `
-    /reference:System.Windows.Forms.dll /reference:System.Drawing.dll `
+    /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll `
     /out:$setupOut `
     $setupSource
 if ($LASTEXITCODE -ne 0) { throw 'Setup compilation failed.' }
@@ -45,8 +45,16 @@ if ($LASTEXITCODE -ne 0) { throw 'NCMM/AWS fail-closed smoke test failed.' }
 Copy-Item $aws.FullName (Join-Path $payload 'code_mods\AdvancedWorldSettings\ncmm_mod.dll') -Force
 Copy-Item (Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings\mod.json') (Join-Path $payload 'code_mods\AdvancedWorldSettings\mod.json') -Force
 
+$manifest = Get-Content (Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings\mod.json') -Raw | ConvertFrom-Json
+if ($manifest.loader_api -ne 1) { throw 'AWS manifest loader_api must be 1.' }
+if ($manifest.failure_policy -ne 'disable') { throw 'AWS manifest failure_policy must be disable.' }
+if (-not ($manifest.requires -contains 'core.v1')) { throw 'AWS manifest must require core.v1.' }
+if (($manifest.requires | Select-Object -Unique).Count -ne $manifest.requires.Count) {
+    throw 'AWS manifest contains duplicate capability requirements.'
+}
+
 @'
-NCMM 0.4.0 Runtime
+NCMM 0.4.1 Runtime
 ===============
 1. Run NCMM_Setup.exe.
 2. Select the CDDA folder containing cataclysm-tiles.exe.
@@ -58,7 +66,7 @@ If no exact certified host exists for the installed CDDA executable, NCMM starts
 '@ | Set-Content (Join-Path $OutputRoot 'README.txt') -Encoding UTF8
 
 Remove-Item $awsBuild -Recurse -Force -ErrorAction SilentlyContinue
-$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.4.0.zip'
+$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.4.1.zip'
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $OutputRoot '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip

@@ -77,7 +77,7 @@ if (Test-Path $marker) {
     Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.h') (Join-Path $src 'ncmm_loader.h') -Force
     Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.cpp') (Join-Path $src 'ncmm_loader.cpp') -Force
     Copy-Item (Join-Path (Split-Path $PSScriptRoot -Parent) 'sdk\ncmm_api.h') (Join-Path $src 'ncmm_api.h') -Force
-    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.4.0 module contract`n" -Encoding ASCII
+    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.4.1 module contract`n" -Encoding ASCII
     Write-Host 'Existing NCMM upstream patch verified; v0.4.0 loader/API refreshed.'
     exit 0
 }
@@ -184,7 +184,7 @@ $sd = Replace-ExactlyOnce $sd @'
     ncmm::initialize();
 '@ 'sdl.initialize-ncmm'
 
-# NCMM 0.4.0 MCM + module-contract host. main_menu.cpp is handled by the same strict UTF-8
+# NCMM 0.4.1 MCM + module-contract host. main_menu.cpp is handled by the same strict UTF-8
 # preservation contract as other upstream sources. Every injected byte is ASCII.
 $mm = Replace-ExactlyOnce $mm '#include "options.h"' ('#include "options.h"' + "`n" + '#include "ncmm_loader.h"') 'main-menu.include-ncmm'
 $mm = Replace-ExactlyOnce $mm @'
@@ -245,5 +245,5 @@ foreach ($needle in @('ncmm::settings_menu_label()','ncmm::show_manager();','ncm
     if (-not $mm2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 
-Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.4.0 module contract`n" -Encoding ASCII
-Write-Host 'NCMM 0.4.0 host patch applied and UTF-8 preservation verified.'
+Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.4.1 module contract`n" -Encoding ASCII
+Write-Host 'NCMM 0.4.1 host patch applied and UTF-8 preservation verified.'

@@ -1,4 +1,4 @@
-# NCMM v0.4.0 architecture
+# NCMM v0.4.1 architecture
 
 ```text
 Any launcher / manual shortcut
@@ -48,7 +48,9 @@ Host writes ncmm/modules.state.json.
 3. **Host API** is a narrow C ABI. Mods do not receive STL types or raw CDDA object pointers.
 4. **Code mods** are manifest-preflighted before `LoadLibrary`, then descriptor-cross-checked and independently disabled on contract failure.
 5. **Runtime diagnostics** persist machine-readable bootstrap/host/module state without weakening fail-closed behavior.
-6. Native DLLs are trusted code. A bug after successful initialization can still crash the process; NCMM cannot sandbox arbitrary native code. Script/WASM sandboxing is a future layer.
+6. **State publication** uses staged/replace semantics; crash-loop markers distinguish a host that actually started from a `Process.Start` failure.
+7. **Manifest hardening** rejects oversized/incomplete manifests, duplicate IDs, duplicate requirements and unsupported failure policy before module initialization.
+8. Native DLLs are trusted code. A bug after successful initialization can still crash the process; NCMM cannot sandbox arbitrary native code. Script/WASM sandboxing is a future layer.
 
 ## Host API v1
 

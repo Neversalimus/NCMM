@@ -74,7 +74,7 @@ internal sealed class RuntimeState
 internal static class NCMMBootstrap
 {
     private const int LoaderApi = 1;
-    private const string RuntimeVersion = "0.4.0";
+    private const string RuntimeVersion = "0.4.1";
     private const string DefaultFeedUrl = "https://raw.githubusercontent.com/Neversalimus/Cataclysm/master/ncmm-platform/feed/index.json";
 
     private static string Root;
@@ -120,6 +120,23 @@ internal static class NCMMBootstrap
         }
     }
 
+    private static void PublishFileAtomic(string staged, string destination)
+    {
+        if (!File.Exists(staged))
+            throw new FileNotFoundException("Staged file is missing.", staged);
+
+        if (File.Exists(destination))
+        {
+            // Same-volume File.Replace is atomic on the supported Windows runtime.
+            // If replacement fails, the existing destination remains untouched.
+            File.Replace(staged, destination, null);
+        }
+        else
+        {
+            File.Move(staged, destination);
+        }
+    }
+
     private static void RefreshStateFiles()
     {
         State.runtime_version = RuntimeVersion;
@@ -142,8 +159,7 @@ internal static class NCMMBootstrap
             string path = Path.Combine(NcmmDir, "runtime.state.json");
             string temp = path + ".tmp";
             File.WriteAllText(temp, Json.Serialize(State), Encoding.UTF8);
-            if (File.Exists(path)) File.Delete(path);
-            File.Move(temp, path);
+            PublishFileAtomic(temp, path);
         }
         catch (Exception ex)
         {
@@ -280,7 +296,7 @@ internal static class NCMMBootstrap
         {
             using (TimeoutWebClient wc = new TimeoutWebClient())
             {
-                wc.Headers[HttpRequestHeader.UserAgent] = "NCMM/0.4.0";
+                wc.Headers[HttpRequestHeader.UserAgent] = "NCMM/0.4.1";
                 string feedText = wc.DownloadString(FeedUrlForRequest(forceRefresh));
                 FeedIndex feed = Json.Deserialize<FeedIndex>(feedText);
                 if (feed == null || feed.schema != 1 || feed.loader_api != LoaderApi || feed.hosts == null)
@@ -346,12 +362,11 @@ internal static class NCMMBootstrap
                     return false;
                 }
 
-                if (File.Exists(host)) File.Delete(host);
-                File.Move(staged, host);
+                PublishFileAtomic(staged, host);
                 if (!String.Equals(Sha256(host), entry.host_sha256, StringComparison.OrdinalIgnoreCase))
                 {
-                    Log("Host post-install SHA256 mismatch; deleting host.");
-                    try { File.Delete(host); } catch { }
+                    FeedStatus = "host_postinstall_hash_mismatch";
+                    Log("Host post-install SHA256 mismatch; host rejected.");
                     return false;
                 }
 
@@ -364,8 +379,7 @@ internal static class NCMMBootstrap
                 string bindingPath = Path.Combine(NcmmDir, "host.binding.json");
                 string bindingTmp = bindingPath + ".tmp";
                 File.WriteAllText(bindingTmp, Json.Serialize(binding), Encoding.UTF8);
-                if (File.Exists(bindingPath)) File.Delete(bindingPath);
-                File.Move(bindingTmp, bindingPath);
+                PublishFileAtomic(bindingTmp, bindingPath);
 
                 FeedStatus = localWasValid ? "updated" : "downloaded";
                 Log((localWasValid ? "Certified host updated for " : "Certified host downloaded for ") +
@@ -476,6 +490,7 @@ internal static class NCMMBootstrap
         string disabled = Path.Combine(NcmmDir, "ncmm.disabled");
         string autoDisabled = Path.Combine(NcmmDir, "ncmm.auto_disabled");
         string pending = Path.Combine(NcmmDir, "boot.pending");
+        string ready = Path.Combine(NcmmDir, "boot.ready");
 
         List<string> forwarded = new List<string>();
         bool forceVanilla = false;
@@ -594,6 +609,8 @@ internal static class NCMMBootstrap
         {
             try
             {
+                // boot.ready belongs to the current host launch, never to an earlier successful session.
+                try { if (File.Exists(ready)) File.Delete(ready); } catch { }
                 File.WriteAllText(pending,
                     "NCMM host launch pending. Host must delete this file after successful module initialization.\r\n");
             }
@@ -619,6 +636,11 @@ internal static class NCMMBootstrap
         }
         catch (Exception ex)
         {
+            if (useHost)
+            {
+                // Process.Start failed before the host could run. This is not a host crash-loop signal.
+                try { if (File.Exists(pending)) File.Delete(pending); } catch { }
+            }
             State.reason = "launch_failed";
             State.last_exit_code = useHost ? 113 : 114;
             WriteRuntimeState();

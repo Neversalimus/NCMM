@@ -1,4 +1,4 @@
-# NCMM v0.4.0 — Runtime Diagnostics + Module Contract Layer
+# NCMM v0.4.1 — Foundation Hardening
 
 NCMM (Neversalimus Code Mod Manager) — экспериментальная платформа для native/code-модов Cataclysm:DDA.
 
@@ -6,7 +6,7 @@ NCMM (Neversalimus Code Mod Manager) — экспериментальная пл
 
 Игрок **не устанавливает** Git, MSYS2, GCC, CMake или Visual Studio.
 
-1. Скачать `NCMM_Runtime_v0.4.0.zip`.
+1. Скачать `NCMM_Runtime_v0.4.1.zip`.
 2. Распаковать.
 3. Запустить `NCMM_Setup.exe`.
 4. Выбрать папку CDDA и нажать `Install / Repair NCMM + AWS`.
@@ -71,6 +71,16 @@ Capabilities v0.4.0:
 - `locale.v1`
 - `module_contract.v1`
 - `host_info.v1`
+
+## Hardening v0.4.1
+
+- Setup получил read-only `Diagnostics` с проверкой bootstrap/vanilla/host SHA, binding, source commit, AWS payload и crash-loop markers.
+- `Repair NCMM State` удаляет только `boot.pending` и `ncmm.auto_disabled`, пишет аудит в `ncmm/repair.log` и не трогает exe/binding/modules/manual disable.
+- bootstrap публикует runtime state, host и binding через безопасную same-volume замену; ошибка замены не требует предварительного удаления рабочего destination.
+- `boot.ready` больше не может остаться ложным маркером для нового host launch; если сам `Process.Start` не состоялся, `boot.pending` очищается и это не считается host crash-loop.
+- manifests ограничены по размеру и валидируются строже (`id`, длины, `failure_policy=disable`, обязательный `core.v1`, уникальные capability requirements).
+- duplicate module IDs определяются до загрузки DLL и отклоняются симметрично.
+- `modules.state.json` публикуется через replace/write-through на Windows.
 
 ## Как поддерживаются experimental-сборки
 

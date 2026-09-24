@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <set>
 #include <sstream>
 #include <string>
@@ -48,6 +49,7 @@ struct module_state {
 
 std::vector<module_state> module_states;
 std::set<std::string> module_ids;
+std::map<std::string, size_t> manifest_id_counts;
 
 const char *const host_capabilities[] = {
     "core.v1",
@@ -113,7 +115,7 @@ int has_capability( const char *capability )
 
 const char *get_host_version()
 {
-    return "0.4.0";
+    return "0.4.1";
 }
 
 uint32_t get_loader_api()
@@ -173,6 +175,14 @@ std::string read_text_file( const std::filesystem::path &path )
     if( !in ) {
         return {};
     }
+
+    in.seekg( 0, std::ios::end );
+    const std::streamoff size = in.tellg();
+    if( size < 0 || size > 64 * 1024 ) {
+        return {};
+    }
+    in.seekg( 0, std::ios::beg );
+
     std::ostringstream ss;
     ss << in.rdbuf();
     return ss.str();
@@ -274,6 +284,7 @@ struct manifest_contract {
     std::string id;
     std::string name;
     std::string version;
+    std::string failure_policy;
     uint32_t loader_api = 0;
     std::vector<std::string> requires;
 };
@@ -284,9 +295,57 @@ manifest_contract read_manifest( const std::filesystem::path &directory )
     result.id = manifest_string( directory, "id" );
     result.name = manifest_string( directory, "name" );
     result.version = manifest_string( directory, "version" );
+    result.failure_policy = manifest_string( directory, "failure_policy" );
     result.loader_api = manifest_uint( directory, "loader_api" );
     result.requires = manifest_string_array( directory, "requires" );
     return result;
+}
+
+bool valid_module_id( const std::string &id )
+{
+    if( id.empty() || id.size() > 64 ) {
+        return false;
+    }
+    for( unsigned char c : id ) {
+        if( !( std::islower( c ) || std::isdigit( c ) || c == '_' || c == '-' || c == '.' ) ) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool validate_manifest( const manifest_contract &manifest, std::string &reason )
+{
+    if( !valid_module_id( manifest.id ) || manifest.name.empty() || manifest.name.size() > 128 ||
+        manifest.version.empty() || manifest.version.size() > 64 || manifest.loader_api == 0 ) {
+        reason = "invalid_manifest";
+        return false;
+    }
+    if( manifest.failure_policy != "disable" ) {
+        reason = "unsupported_failure_policy";
+        return false;
+    }
+    if( manifest.requires.empty() || manifest.requires.size() > 32 ) {
+        reason = "invalid_capability_list";
+        return false;
+    }
+
+    std::set<std::string> unique;
+    bool has_core = false;
+    for( const std::string &capability : manifest.requires ) {
+        if( capability.empty() || capability.size() > 64 || !unique.insert( capability ).second ) {
+            reason = "invalid_capability_list";
+            return false;
+        }
+        if( capability == "core.v1" ) {
+            has_core = true;
+        }
+    }
+    if( !has_core ) {
+        reason = "core_capability_required";
+        return false;
+    }
+    return true;
 }
 
 bool same_capabilities( const manifest_contract &manifest, const ncmm_mod_descriptor_v1 *desc )
@@ -378,7 +437,7 @@ void write_modules_state()
 
     out << "{\n"
         << "  \"schema\": 1,\n"
-        << "  \"host_version\": \"0.4.0\",\n"
+        << "  \"host_version\": \"0.4.1\",\n"
         << "  \"loader_api\": " << NCMM_LOADER_API_VERSION << ",\n"
         << "  \"capabilities\": [";
     for( size_t i = 0; i < get_capability_count(); ++i ) {
@@ -403,6 +462,12 @@ void write_modules_state()
     out << "  ]\n}\n";
     out.close();
 
+#ifdef _WIN32
+    if( !MoveFileExW( temp.wstring().c_str(), path.wstring().c_str(),
+                      MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH ) ) {
+        log_line( NCMM_LOG_WARN, "Could not atomically publish modules.state.json." );
+    }
+#else
     std::error_code ec;
     std::filesystem::remove( path, ec );
     ec.clear();
@@ -410,6 +475,7 @@ void write_modules_state()
     if( ec ) {
         log_line( NCMM_LOG_WARN, "Could not publish modules.state.json." );
     }
+#endif
 }
 
 const loaded_mod *find_loaded( const std::filesystem::path &directory )
@@ -485,9 +551,17 @@ void load_one( const std::filesystem::path &library )
     const std::filesystem::path directory = library.parent_path();
     const manifest_contract manifest = read_manifest( directory );
 
-    if( manifest.id.empty() || manifest.version.empty() || manifest.loader_api == 0 ) {
-        record_module_state( directory, manifest, "rejected", "invalid_manifest" );
-        log_line( NCMM_LOG_WARN, ( "Rejected module with incomplete mod.json: " + directory.string() ).c_str() );
+    std::string manifest_reason;
+    if( !validate_manifest( manifest, manifest_reason ) ) {
+        record_module_state( directory, manifest, "rejected", manifest_reason );
+        log_line( NCMM_LOG_WARN,
+                  ( "Rejected module manifest: " + directory.string() + " -> " + manifest_reason ).c_str() );
+        return;
+    }
+    const auto count_it = manifest_id_counts.find( manifest.id );
+    if( count_it != manifest_id_counts.end() && count_it->second > 1 ) {
+        record_module_state( directory, manifest, "rejected", "duplicate_module_id" );
+        log_line( NCMM_LOG_WARN, ( "Rejected duplicate module id: " + manifest.id ).c_str() );
         return;
     }
     if( manifest.loader_api != NCMM_LOADER_API_VERSION ) {
@@ -505,8 +579,8 @@ void load_one( const std::filesystem::path &library )
         }
     }
     if( module_ids.count( manifest.id ) != 0 ) {
-        record_module_state( directory, manifest, "rejected", "duplicate_module_id" );
-        log_line( NCMM_LOG_WARN, ( "Rejected duplicate module id: " + manifest.id ).c_str() );
+        record_module_state( directory, manifest, "rejected", "duplicate_module_id_runtime" );
+        log_line( NCMM_LOG_WARN, ( "Rejected duplicate module id at runtime: " + manifest.id ).c_str() );
         return;
     }
     module_ids.insert( manifest.id );
@@ -678,7 +752,8 @@ void initialize()
     loaded.clear();
     module_states.clear();
     module_ids.clear();
-    log_line( NCMM_LOG_INFO, "NCMM 0.4.0 Host API v1 / Module Contract v1 initializing." );
+    manifest_id_counts.clear();
+    log_line( NCMM_LOG_INFO, "NCMM 0.4.1 Host API v1 / Module Contract v1 initializing." );
     std::atexit( &shutdown );
 
 #ifdef _WIN32
@@ -692,6 +767,16 @@ void initialize()
         }
         std::sort( directories.begin(), directories.end() );
 
+        // Phase 1: count manifest IDs before any DLL is loaded. Duplicate IDs reject all
+        // conflicting modules instead of silently favoring directory sort order.
+        for( const std::filesystem::path &directory : directories ) {
+            const manifest_contract manifest = read_manifest( directory );
+            if( !manifest.id.empty() ) {
+                ++manifest_id_counts[manifest.id];
+            }
+        }
+
+        // Phase 2: validate contracts and load only unambiguous modules.
         for( const std::filesystem::path &directory : directories ) {
             const auto lib = directory / "ncmm_mod.dll";
             const auto disabled = directory / "disabled";
@@ -733,5 +818,6 @@ void shutdown()
     loaded.clear();
     module_states.clear();
     module_ids.clear();
+    manifest_id_counts.clear();
 }
 } // namespace ncmm

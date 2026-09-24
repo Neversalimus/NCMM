@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
 internal sealed class DetectedInstallation
@@ -40,6 +41,23 @@ internal sealed class InstallResult
     internal string SourceCommit { get; set; }
     internal string BootstrapSha256 { get; set; }
     internal string VanillaSha256 { get; set; }
+}
+
+internal sealed class SetupHostBinding
+{
+    public string vanilla_sha256 { get; set; }
+    public string host_sha256 { get; set; }
+    public string source_commit { get; set; }
+    public string upstream_tag { get; set; }
+    public string installed_utc { get; set; }
+}
+
+internal sealed class DiagnosticsReport
+{
+    internal string Summary { get; set; }
+    internal string Text { get; set; }
+    internal int Errors { get; set; }
+    internal int Warnings { get; set; }
 }
 
 internal static class SetupCore
@@ -189,6 +207,220 @@ internal static class SetupCore
         File.Copy(vanilla, exe, true);
     }
 
+    private static string ReadExpectedSha(string path)
+    {
+        if (!File.Exists(path)) return null;
+        string value = File.ReadAllText(path).Trim().ToLowerInvariant();
+        if (value.Length != 64 || value.Any(c => !Uri.IsHexDigit(c))) return null;
+        return value;
+    }
+
+    private static void AddCheck(StringBuilder sb, ref int errors, ref int warnings,
+        string status, string message)
+    {
+        if (status == "ERROR") errors++;
+        else if (status == "WARN") warnings++;
+        sb.Append('[').Append(status).Append("] ").AppendLine(message);
+    }
+
+    internal static DiagnosticsReport Diagnose(string gameRoot)
+    {
+        gameRoot = Path.GetFullPath(gameRoot.Trim());
+        DetectedInstallation target = DescribeInstallation(gameRoot);
+
+        string exe = Path.Combine(gameRoot, "cataclysm-tiles.exe");
+        string vanilla = Path.Combine(gameRoot, "cataclysm-tiles.vanilla.exe");
+        string host = Path.Combine(gameRoot, "cataclysm-tiles.ncmm.exe");
+        string ncmm = Path.Combine(gameRoot, "ncmm");
+        string bootstrapHashFile = Path.Combine(ncmm, "bootstrap.sha256");
+        string vanillaHashFile = Path.Combine(ncmm, "vanilla.sha256");
+        string bindingPath = Path.Combine(ncmm, "host.binding.json");
+
+        StringBuilder sb = new StringBuilder();
+        int errors = 0;
+        int warnings = 0;
+
+        sb.AppendLine("NCMM v0.4.1 Diagnostics");
+        sb.AppendLine("Target: " + target.BuildLabel);
+        sb.AppendLine("Path: " + target.PathValue);
+        sb.AppendLine("Source commit: " + (target.SourceCommit ?? "unknown"));
+        sb.AppendLine();
+
+        string activeSha = Sha256(exe).ToLowerInvariant();
+        string expectedBootstrap = ReadExpectedSha(bootstrapHashFile);
+        string vanillaSha = File.Exists(vanilla) ? Sha256(vanilla).ToLowerInvariant() : null;
+        string expectedVanilla = ReadExpectedSha(vanillaHashFile);
+
+        if (expectedBootstrap == null)
+        {
+            AddCheck(sb, ref errors, ref warnings, "WARN", "ncmm/bootstrap.sha256 is missing or invalid.");
+        }
+        else if (String.Equals(activeSha, expectedBootstrap, StringComparison.OrdinalIgnoreCase))
+        {
+            AddCheck(sb, ref errors, ref warnings, "OK", "Launch-path cataclysm-tiles.exe matches the installed NCMM bootstrap SHA.");
+        }
+        else if (vanillaSha != null && String.Equals(activeSha, vanillaSha, StringComparison.OrdinalIgnoreCase))
+        {
+            AddCheck(sb, ref errors, ref warnings, "WARN", "Vanilla executable is currently restored in the launch path; NCMM bootstrap is not active.");
+        }
+        else
+        {
+            AddCheck(sb, ref errors, ref warnings, "ERROR", "Launch-path executable matches neither saved bootstrap SHA nor vanilla backup.");
+        }
+
+        if (vanillaSha == null)
+        {
+            AddCheck(sb, ref errors, ref warnings, "ERROR", "cataclysm-tiles.vanilla.exe is missing.");
+        }
+        else if (expectedVanilla == null)
+        {
+            AddCheck(sb, ref errors, ref warnings, "WARN", "ncmm/vanilla.sha256 is missing or invalid.");
+        }
+        else if (!String.Equals(vanillaSha, expectedVanilla, StringComparison.OrdinalIgnoreCase))
+        {
+            AddCheck(sb, ref errors, ref warnings, "ERROR", "Vanilla backup SHA does not match ncmm/vanilla.sha256.");
+        }
+        else
+        {
+            AddCheck(sb, ref errors, ref warnings, "OK", "Vanilla backup SHA matches saved metadata.");
+        }
+
+        SetupHostBinding binding = null;
+        if (!File.Exists(bindingPath))
+        {
+            AddCheck(sb, ref errors, ref warnings, "WARN", "host.binding.json is absent; a certified host may not have been downloaded yet.");
+        }
+        else
+        {
+            try
+            {
+                binding = new JavaScriptSerializer().Deserialize<SetupHostBinding>(File.ReadAllText(bindingPath));
+                if (binding == null || String.IsNullOrEmpty(binding.host_sha256) ||
+                    String.IsNullOrEmpty(binding.vanilla_sha256))
+                {
+                    binding = null;
+                    AddCheck(sb, ref errors, ref warnings, "ERROR", "host.binding.json is incomplete.");
+                }
+                else
+                {
+                    AddCheck(sb, ref errors, ref warnings, "OK", "host.binding.json parsed successfully.");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddCheck(sb, ref errors, ref warnings, "ERROR", "host.binding.json parse failed: " + ex.Message);
+            }
+        }
+
+        if (!File.Exists(host))
+        {
+            AddCheck(sb, ref errors, ref warnings, "WARN", "cataclysm-tiles.ncmm.exe is absent; bootstrap will need a certified host from the feed.");
+        }
+        else
+        {
+            string hostSha = Sha256(host).ToLowerInvariant();
+            if (binding == null)
+            {
+                AddCheck(sb, ref errors, ref warnings, "WARN", "Host executable exists but cannot be validated without a valid binding.");
+            }
+            else if (!String.Equals(hostSha, binding.host_sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                AddCheck(sb, ref errors, ref warnings, "ERROR", "Host executable SHA does not match binding.");
+            }
+            else
+            {
+                AddCheck(sb, ref errors, ref warnings, "OK", "Certified host SHA matches binding.");
+            }
+
+            if (binding != null && vanillaSha != null &&
+                !String.Equals(vanillaSha, binding.vanilla_sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                AddCheck(sb, ref errors, ref warnings, "ERROR", "Binding was created for a different vanilla executable SHA.");
+            }
+
+            if (binding != null && !String.IsNullOrEmpty(target.SourceCommit) &&
+                !String.IsNullOrEmpty(binding.source_commit) &&
+                !String.Equals(target.SourceCommit, binding.source_commit, StringComparison.OrdinalIgnoreCase))
+            {
+                AddCheck(sb, ref errors, ref warnings, "ERROR", "Binding source commit does not match VERSION.txt.");
+            }
+        }
+
+        string awsDir = Path.Combine(gameRoot, "code_mods", "AdvancedWorldSettings");
+        if (File.Exists(Path.Combine(awsDir, "ncmm_mod.dll")) && File.Exists(Path.Combine(awsDir, "mod.json")))
+            AddCheck(sb, ref errors, ref warnings, "OK", "Advanced World Settings payload is present.");
+        else
+            AddCheck(sb, ref errors, ref warnings, "WARN", "Advanced World Settings payload is incomplete or absent.");
+
+        if (File.Exists(Path.Combine(ncmm, "boot.pending")))
+            AddCheck(sb, ref errors, ref warnings, "WARN", "boot.pending exists: previous/current host launch has not reached ready state.");
+        else
+            AddCheck(sb, ref errors, ref warnings, "OK", "boot.pending is clear.");
+
+        if (File.Exists(Path.Combine(ncmm, "ncmm.auto_disabled")))
+            AddCheck(sb, ref errors, ref warnings, "WARN", "ncmm.auto_disabled exists: crash-loop protection is active.");
+        else
+            AddCheck(sb, ref errors, ref warnings, "OK", "Crash-loop auto-disable is clear.");
+
+        if (File.Exists(Path.Combine(ncmm, "ncmm.disabled")))
+            AddCheck(sb, ref errors, ref warnings, "WARN", "ncmm.disabled exists: NCMM is manually disabled.");
+
+        AddCheck(sb, ref errors, ref warnings, "INFO",
+            "boot.ready: " + (File.Exists(Path.Combine(ncmm, "boot.ready")) ? "present" : "absent"));
+        AddCheck(sb, ref errors, ref warnings, "INFO",
+            "runtime.state.json: " + (File.Exists(Path.Combine(ncmm, "runtime.state.json")) ? "present" : "absent"));
+        AddCheck(sb, ref errors, ref warnings, "INFO",
+            "modules.state.json: " + (File.Exists(Path.Combine(ncmm, "modules.state.json")) ? "present" : "absent"));
+        AddCheck(sb, ref errors, ref warnings, "INFO",
+            "bootstrap.log: " + (File.Exists(Path.Combine(ncmm, "bootstrap.log")) ? "present" : "absent"));
+        AddCheck(sb, ref errors, ref warnings, "INFO",
+            "ncmm.log: " + (File.Exists(Path.Combine(ncmm, "ncmm.log")) ? "present" : "absent"));
+
+        DiagnosticsReport report = new DiagnosticsReport();
+        report.Errors = errors;
+        report.Warnings = warnings;
+        report.Summary = errors > 0 ? "ERROR" : warnings > 0 ? "WARNING" : "HEALTHY";
+        sb.AppendLine();
+        sb.AppendLine("Summary: " + report.Summary + " | errors=" + errors + " | warnings=" + warnings);
+        report.Text = sb.ToString();
+        return report;
+    }
+
+    internal static string RepairState(string gameRoot)
+    {
+        gameRoot = Path.GetFullPath(gameRoot.Trim());
+        DescribeInstallation(gameRoot);
+
+        string ncmm = Path.Combine(gameRoot, "ncmm");
+        Directory.CreateDirectory(ncmm);
+        string pending = Path.Combine(ncmm, "boot.pending");
+        string autoDisabled = Path.Combine(ncmm, "ncmm.auto_disabled");
+        StringBuilder result = new StringBuilder();
+
+        result.AppendLine(DateTime.UtcNow.ToString("o") + " NCMM v0.4.1 safe state repair");
+        result.AppendLine("Target: " + gameRoot);
+
+        if (File.Exists(pending))
+        {
+            File.Delete(pending);
+            result.AppendLine("Removed: boot.pending");
+        }
+        else result.AppendLine("Already clear: boot.pending");
+
+        if (File.Exists(autoDisabled))
+        {
+            File.Delete(autoDisabled);
+            result.AppendLine("Removed: ncmm.auto_disabled");
+        }
+        else result.AppendLine("Already clear: ncmm.auto_disabled");
+
+        result.AppendLine("Preserved: ncmm.disabled, executables, binding, modules and feed settings.");
+        result.AppendLine();
+
+        File.AppendAllText(Path.Combine(ncmm, "repair.log"), result.ToString(), Encoding.UTF8);
+        return result.ToString();
+    }
+
     internal static List<DetectedInstallation> DetectInstallations()
     {
         List<DetectedInstallation> result = new List<DetectedInstallation>();
@@ -222,13 +454,15 @@ internal sealed class MainForm : Form
     private readonly TextBox log = new TextBox();
     private readonly Button installButton = new Button();
     private readonly Button restoreButton = new Button();
+    private readonly Button diagnosticsButton = new Button();
+    private readonly Button repairStateButton = new Button();
     private readonly Button browseButton = new Button();
     private readonly string payloadRoot;
     private int detectedInstallations;
 
     internal MainForm()
     {
-        Text = "NCMM 0.4.0 Setup";
+        Text = "NCMM 0.4.1 Setup";
         Width = 900;
         Height = 500;
         StartPosition = FormStartPosition.CenterScreen;
@@ -294,10 +528,26 @@ internal sealed class MainForm : Form
         restoreButton.Text = "Restore vanilla EXE";
         restoreButton.Left = 250;
         restoreButton.Top = 192;
-        restoreButton.Width = 180;
+        restoreButton.Width = 160;
         restoreButton.Height = 34;
         restoreButton.Click += delegate { Restore(); };
         Controls.Add(restoreButton);
+
+        diagnosticsButton.Text = "Diagnostics";
+        diagnosticsButton.Left = 420;
+        diagnosticsButton.Top = 192;
+        diagnosticsButton.Width = 150;
+        diagnosticsButton.Height = 34;
+        diagnosticsButton.Click += delegate { Diagnostics(); };
+        Controls.Add(diagnosticsButton);
+
+        repairStateButton.Text = "Repair NCMM State";
+        repairStateButton.Left = 580;
+        repairStateButton.Top = 192;
+        repairStateButton.Width = 180;
+        repairStateButton.Height = 34;
+        repairStateButton.Click += delegate { RepairState(); };
+        Controls.Add(repairStateButton);
 
         log.Left = 20;
         log.Top = 242;
@@ -424,7 +674,7 @@ internal sealed class MainForm : Form
                 "Bootstrap SHA256:\n" + result.BootstrapSha256.ToUpperInvariant() + "\n\n" +
                 "You can launch CDDA normally.";
 
-            MessageBox.Show(this, message, "NCMM 0.4.0", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, message, "NCMM 0.4.1", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
@@ -447,12 +697,71 @@ internal sealed class MainForm : Form
 
             MessageBox.Show(this,
                 "Vanilla cataclysm-tiles.exe restored.\n\nTarget:\n" + target.PathValue,
-                "NCMM 0.4.0", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "NCMM 0.4.1", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
             Append("RESTORE FAILED: " + ex.Message);
             MessageBox.Show(this, ex.Message, "NCMM restore failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void Diagnostics()
+    {
+        try
+        {
+            DetectedInstallation target = SelectedInstallation();
+            DiagnosticsReport report = SetupCore.Diagnose(target.PathValue);
+            Append("=== NCMM Diagnostics ===");
+            foreach (string line in report.Text.Replace("\r\n", "\n").Split('\n'))
+            {
+                if (line.Length > 0) Append(line);
+            }
+
+            MessageBoxIcon icon = report.Errors > 0 ? MessageBoxIcon.Error :
+                                  report.Warnings > 0 ? MessageBoxIcon.Warning :
+                                  MessageBoxIcon.Information;
+            MessageBox.Show(this,
+                "Diagnostics finished: " + report.Summary + "\n\nFull report is in the Setup log.",
+                "NCMM 0.4.1 Diagnostics", MessageBoxButtons.OK, icon);
+        }
+        catch (Exception ex)
+        {
+            Append("DIAGNOSTICS FAILED: " + ex.Message);
+            MessageBox.Show(this, ex.Message, "NCMM diagnostics failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void RepairState()
+    {
+        try
+        {
+            DetectedInstallation target = SelectedInstallation();
+            if (!ConfirmTarget(target, "Repair NCMM State")) return;
+
+            string warning =
+                "This safe repair removes ONLY:\n" +
+                "  ncmm\\boot.pending\n" +
+                "  ncmm\\ncmm.auto_disabled\n\n" +
+                "It does NOT modify executables, vanilla backup, host binding, modules,\n" +
+                "manual ncmm.disabled state, or feed settings.\n\nContinue?";
+
+            if (MessageBox.Show(this, warning, "Repair NCMM State",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+
+            string result = SetupCore.RepairState(target.PathValue);
+            foreach (string line in result.Replace("\r\n", "\n").Split('\n'))
+            {
+                if (line.Length > 0) Append(line);
+            }
+            MessageBox.Show(this,
+                "Safe runtime state repair completed.\nSee ncmm\\repair.log for the audit trail.",
+                "NCMM 0.4.1", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            Append("STATE REPAIR FAILED: " + ex.Message);
+            MessageBox.Show(this, ex.Message, "NCMM state repair failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 }

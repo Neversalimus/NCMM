@@ -57,7 +57,7 @@ if ($vanillaHashes.Count -eq 0) { throw 'No official vanilla executable hashes w
 $metadata = [ordered]@{
     schema = 1
     loader_api = 1
-    ncmm_version = '0.4.0'
+    ncmm_version = '0.4.1'
     upstream_tag = $UpstreamTag
     source_commit = $commit
     patch_revision = $patchRevision
