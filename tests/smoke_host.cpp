@@ -17,6 +17,10 @@
 namespace
 {
 std::vector<std::string> exposed;
+std::vector<std::string> groups;
+std::map<std::string, std::string> option_groups;
+std::string active_group;
+std::vector<std::string> fixed_time_values;
 bool simulate_missing_contract = false;
 std::map<std::string, int64_t> character_state;
 int ui_message_count = 0;
@@ -36,6 +40,7 @@ int has_capability_fn( const char *cap )
     }
     return std::strcmp( cap, "core.v1" ) == 0 ||
            std::strcmp( cap, "world_options.v1" ) == 0 ||
+           std::strcmp( cap, "world_options.layout.v1" ) == 0 ||
            std::strcmp( cap, "locale.v1" ) == 0 ||
            std::strcmp( cap, "module_contract.v1" ) == 0 ||
            std::strcmp( cap, "host_info.v1" ) == 0 ||
@@ -54,7 +59,7 @@ const char *get_locale_fn()
 
 const char *get_host_version_fn()
 {
-    return "0.5.1-smoke";
+    return "0.5.2-smoke";
 }
 
 uint32_t get_loader_api_fn()
@@ -63,9 +68,9 @@ uint32_t get_loader_api_fn()
 }
 
 const char *smoke_caps[] = {
-    "core.v1", "world_options.v1", "locale.v1", "module_contract.v1", "host_info.v1",
-    "compatibility.v1", "events.turn.v1", "character_state.v1", "ui.basic.v1",
-    "module_hotkeys.v1", "ingame_manager.v1"
+    "core.v1", "world_options.v1", "world_options.layout.v1", "locale.v1",
+    "module_contract.v1", "host_info.v1", "compatibility.v1", "events.turn.v1",
+    "character_state.v1", "ui.basic.v1", "module_hotkeys.v1", "ingame_manager.v1"
 };
 
 size_t get_capability_count_fn()
@@ -82,14 +87,54 @@ int can_expose_fn( const char *id )
 {
     static const std::set<std::string> allowed = {
         "SPAWN_DENSITY", "ITEM_SPAWNRATE", "MONSTER_SPEED",
-        "MONSTER_RESILIENCE", "EVOLUTION_INVERSE_MULTIPLIER"
+        "MONSTER_RESILIENCE", "EVOLUTION_INVERSE_MULTIPLIER",
+        "SEASON_LENGTH", "CONSTRUCTION_SCALING", "ETERNAL_SEASON",
+        "ETERNAL_TIME_OF_DAY"
     };
     return id != nullptr && allowed.count( id ) != 0 ? 1 : 0;
 }
 
 int expose_fn( const char *id, const char *, const char * )
 {
+    if( id == nullptr ) {
+        return 0;
+    }
     exposed.emplace_back( id );
+    if( !active_group.empty() ) {
+        option_groups[id] = active_group;
+    }
+    return 1;
+}
+
+int group_begin_fn( const char *group_id, const char *, const char * )
+{
+    if( group_id == nullptr || *group_id == '\0' || !active_group.empty() ) {
+        return 0;
+    }
+    active_group = group_id;
+    groups.push_back( active_group );
+    return 1;
+}
+
+void group_end_fn()
+{
+    active_group.clear();
+}
+
+int set_string_choices_fn( const char *option_id, const char *const *value_ids,
+                           const char *const *display_names, size_t count )
+{
+    if( option_id == nullptr || value_ids == nullptr || display_names == nullptr ||
+        std::strcmp( option_id, "ETERNAL_TIME_OF_DAY" ) != 0 || count != 3 ) {
+        return 0;
+    }
+    fixed_time_values.clear();
+    for( size_t i = 0; i < count; ++i ) {
+        if( value_ids[i] == nullptr || display_names[i] == nullptr ) {
+            return 0;
+        }
+        fixed_time_values.emplace_back( value_ids[i] );
+    }
     return 1;
 }
 
@@ -191,7 +236,10 @@ int main( int argc, char **argv )
         &character_state_get_i64_fn,
         &character_state_set_i64_fn,
         &ui_choose_fn,
-        &ui_message_fn
+        &ui_message_fn,
+        &group_begin_fn,
+        &group_end_fn,
+        &set_string_choices_fn
     };
 
     for( size_t i = 0; i < desc->required_capability_count; ++i ) {
@@ -213,14 +261,44 @@ int main( int argc, char **argv )
     if( std::strcmp( desc->id, "advanced_world_settings" ) == 0 ) {
         const std::set<std::string> expected = {
             "SPAWN_DENSITY", "ITEM_SPAWNRATE", "MONSTER_SPEED",
-            "MONSTER_RESILIENCE", "EVOLUTION_INVERSE_MULTIPLIER"
+            "MONSTER_RESILIENCE", "EVOLUTION_INVERSE_MULTIPLIER",
+            "SEASON_LENGTH", "CONSTRUCTION_SCALING", "ETERNAL_SEASON",
+            "ETERNAL_TIME_OF_DAY"
         };
         const std::set<std::string> actual( exposed.begin(), exposed.end() );
         if( actual != expected ) {
             std::cerr << "unexpected AWS registration set\n";
             return 8;
         }
-        std::cout << "NCMM smoke test: PASS (AWS 5/5 contracts registered)\n";
+        if( groups.size() != 2 || groups[0] != "aws_advanced" ||
+            groups[1] != "aws_experimental" ) {
+            std::cerr << "unexpected AWS group layout\n";
+            return 14;
+        }
+        for( const char *id : {
+                 "SPAWN_DENSITY", "ITEM_SPAWNRATE", "MONSTER_SPEED",
+                 "MONSTER_RESILIENCE", "EVOLUTION_INVERSE_MULTIPLIER"
+             } ) {
+            if( option_groups[id] != "aws_advanced" ) {
+                std::cerr << "advanced AWS option assigned to wrong group\n";
+                return 15;
+            }
+        }
+        for( const char *id : {
+                 "SEASON_LENGTH", "CONSTRUCTION_SCALING", "ETERNAL_SEASON",
+                 "ETERNAL_TIME_OF_DAY"
+             } ) {
+            if( option_groups[id] != "aws_experimental" ) {
+                std::cerr << "experimental AWS option assigned to wrong group\n";
+                return 16;
+            }
+        }
+        const std::vector<std::string> expected_time = { "normal", "day", "night" };
+        if( fixed_time_values != expected_time ) {
+            std::cerr << "fixed-time selector choices are incorrect\n";
+            return 17;
+        }
+        std::cout << "NCMM smoke test: PASS (AWS 9/9, grouped experimental controls)\n";
         return 0;
     }
 

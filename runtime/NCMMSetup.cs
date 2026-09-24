@@ -249,7 +249,7 @@ internal static class SetupCore
         int errors = 0;
         int warnings = 0;
 
-        sb.AppendLine("NCMM v0.5.1 Diagnostics");
+        sb.AppendLine("NCMM v0.5.2 Diagnostics");
         sb.AppendLine("Target: " + target.BuildLabel);
         sb.AppendLine("Path: " + target.PathValue);
         sb.AppendLine("Source commit: " + (target.SourceCommit ?? "unknown"));
@@ -406,7 +406,7 @@ internal static class SetupCore
         string autoDisabled = Path.Combine(ncmm, "ncmm.auto_disabled");
         StringBuilder result = new StringBuilder();
 
-        result.AppendLine(DateTime.UtcNow.ToString("o") + " NCMM v0.5.1 safe state repair");
+        result.AppendLine(DateTime.UtcNow.ToString("o") + " NCMM v0.5.2 safe state repair");
         result.AppendLine("Target: " + gameRoot);
 
         if (File.Exists(pending))
@@ -471,7 +471,7 @@ internal sealed class MainForm : Form
 
     internal MainForm()
     {
-        Text = "NCMM 0.5.1 Setup";
+        Text = "NCMM 0.5.2 Setup";
         Width = 900;
         Height = 500;
         StartPosition = FormStartPosition.CenterScreen;
@@ -683,7 +683,7 @@ internal sealed class MainForm : Form
                 "Bootstrap SHA256:\n" + result.BootstrapSha256.ToUpperInvariant() + "\n\n" +
                 "You can launch CDDA normally.";
 
-            MessageBox.Show(this, message, "NCMM 0.5.1", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, message, "NCMM 0.5.2", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
@@ -706,7 +706,7 @@ internal sealed class MainForm : Form
 
             MessageBox.Show(this,
                 "Vanilla cataclysm-tiles.exe restored.\n\nTarget:\n" + target.PathValue,
-                "NCMM 0.5.1", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "NCMM 0.5.2", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
@@ -732,7 +732,7 @@ internal sealed class MainForm : Form
                                   MessageBoxIcon.Information;
             MessageBox.Show(this,
                 "Diagnostics finished: " + report.Summary + "\n\nFull report is in the Setup log.",
-                "NCMM 0.5.1 Diagnostics", MessageBoxButtons.OK, icon);
+                "NCMM 0.5.2 Diagnostics", MessageBoxButtons.OK, icon);
         }
         catch (Exception ex)
         {
@@ -765,7 +765,7 @@ internal sealed class MainForm : Form
             }
             MessageBox.Show(this,
                 "Safe runtime state repair completed.\nSee ncmm\\repair.log for the audit trail.",
-                "NCMM 0.5.1", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "NCMM 0.5.2", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {

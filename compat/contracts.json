@@ -23,6 +23,27 @@
       ]
     },
     {
+      "id": "world_options_layout.source.v1",
+      "files": [
+        {
+          "path": "src/options.h",
+          "required": [
+            "class Group",
+            "enum class ItemType",
+            "std::string adding_to_group_"
+          ]
+        },
+        {
+          "path": "src/options.cpp",
+          "required": [
+            "void options_manager::add_empty_line(",
+            "void options_manager::add_option_group(",
+            "ItemType::GroupHeader"
+          ]
+        }
+      ]
+    },
+    {
       "id": "startup_hook.source.v1",
       "files": [
         {
@@ -42,7 +63,8 @@
           "path": "src/main_menu.cpp",
           "required": [
             "<I|i>mGui Demo Screen",
-            "init_strings();"
+            "init_strings();",
+            "input_context ctxt_default = get_default_mode_input_context();"
           ]
         }
       ]

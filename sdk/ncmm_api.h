@@ -60,6 +60,19 @@ typedef struct ncmm_host_api_v1 {
                         const char *const *entries,
                         size_t count );
     void ( *ui_message )( const char *message );
+
+    /*
+     * NCMM 0.5.2 world-options layout tail. Modules must require
+     * world_options.layout.v1 before using these fields.
+     */
+    int ( *worldgen_group_begin )( const char *group_id,
+                                   const char *display_name,
+                                   const char *tooltip );
+    void ( *worldgen_group_end )( void );
+    int ( *worldgen_set_string_choices )( const char *option_id,
+                                          const char *const *value_ids,
+                                          const char *const *display_names,
+                                          size_t count );
 } ncmm_host_api_v1;
 
 typedef int ( *ncmm_mod_init_v1 )( const ncmm_host_api_v1 *api );

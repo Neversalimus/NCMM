@@ -153,3 +153,11 @@ Bootstrap атомарно обновляет `ncmm/runtime.state.json`. В нё
 - Опции Advanced World Settings с контрактом `COPT_WORLDGEN_ONLY` видимы не только при создании мира, но и во вкладке «Текущий мир» уже загруженного мира; сохранение использует штатный механизм world options CDDA.
 - Добавлен `gameplay_input.source.v1`, поэтому сертификация fail-closed проверяет точки интеграции input/handle_action до изменения исходников.
 - Build-HostPackage сначала использует канонический `cataclysm-tiles.exe` в корне upstream — тот же layout, который подтвердил локальный MSVC build.
+
+## NCMM 0.5.2 — input hotfix и layout API для world options
+
+- F1/F2 defaults теперь регистрируются как эквивалент штатного `keyboard_any`: одновременно keycode + keychar. Это исправляет функцию-клавиши в конфигурациях CDDA, где DEFAULTMODE фактически работает в keychar.
+- Пользовательские переназначения не перезаписываются: dual-mode пара применяется только как базовый default.
+- NCMM actions также регистрируются перед открытием штатного меню клавиш из главного меню, поэтому NCMM Manager и UI модулей можно переназначать обычным интерфейсом CDDA.
+- Добавлен `world_options.layout.v1`: сворачиваемые группы world options и безопасный string-select поверх существующего скрытого string option.
+- Compatibility Engine расширен отдельным `world_options_layout.source.v1`; сертификация по-прежнему fail-closed.

@@ -49,7 +49,11 @@ Copy-Item (Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings\mod.json') (Joi
 $manifest = Get-Content (Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings\mod.json') -Raw | ConvertFrom-Json
 if ($manifest.loader_api -ne 1) { throw 'AWS manifest loader_api must be 1.' }
 if ($manifest.failure_policy -ne 'disable') { throw 'AWS manifest failure_policy must be disable.' }
-if (-not ($manifest.requires -contains 'core.v1')) { throw 'AWS manifest must require core.v1.' }
+foreach ($required in @('core.v1','world_options.v1','world_options.layout.v1','locale.v1','module_contract.v1')) {
+    if (-not ($manifest.requires -contains $required)) {
+        throw "AWS manifest missing $required"
+    }
+}
 if (($manifest.requires | Select-Object -Unique).Count -ne $manifest.requires.Count) {
     throw 'AWS manifest contains duplicate capability requirements.'
 }
@@ -79,7 +83,7 @@ foreach ($required in @('core.v1','events.turn.v1','character_state.v1','ui.basi
 }
 
 @'
-NCMM 0.5.1 Runtime
+NCMM 0.5.2 Runtime
 ===============
 1. Run NCMM_Setup.exe.
 2. Select the CDDA folder containing cataclysm-tiles.exe.
@@ -92,7 +96,7 @@ If no exact certified host exists for the installed CDDA executable, NCMM starts
 
 Remove-Item $awsBuild -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $spBuild -Recurse -Force -ErrorAction SilentlyContinue
-$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.5.1.zip'
+$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.5.2.zip'
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $OutputRoot '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip

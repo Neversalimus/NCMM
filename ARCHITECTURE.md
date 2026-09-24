@@ -108,3 +108,13 @@ saving `WORLD_OPTIONS` and applying option changes.
 
 The compatibility registry now includes `gameplay_input.source.v1`; host certification therefore fails
 closed before touching input integration points that no longer match the reviewed contract.
+
+## 0.5.2 dual-mode input + world-options layout
+
+NCMM keyboard defaults now mirror CDDA `keyboard_any`: the same logical default is registered for
+both `keyboard_code` and `keyboard_char`. User overrides remain owned by CDDA's normal keybinding
+manager. This is necessary because DEFAULTMODE may fall back from keycode to keychar at runtime.
+
+`world_options.layout.v1` adds generic host-owned layout primitives for existing hidden world options:
+collapsible groups and a string-choice adapter. Modules still do not own CDDA world storage; the
+underlying option IDs and WORLD_OPTIONS serialization remain native CDDA state.

@@ -72,7 +72,8 @@ const char *const host_capabilities[] = {
     "character_state.v1",
     "ui.basic.v1",
     "module_hotkeys.v1",
-    "ingame_manager.v1"
+    "ingame_manager.v1",
+    "world_options.layout.v1"
 };
 
 std::filesystem::path game_root()
@@ -131,7 +132,7 @@ int has_capability( const char *capability )
 
 const char *get_host_version()
 {
-    return "0.5.1";
+    return "0.5.2";
 }
 
 uint32_t get_loader_api()
@@ -164,6 +165,37 @@ int expose_worldgen_option( const char *option_id, const char *display_name, con
     }
     return get_options().ncmm_expose_worldgen_option( option_id,
             to_translation( display_name ), to_translation( tooltip ) ) ? 1 : 0;
+}
+
+int worldgen_group_begin( const char *group_id, const char *display_name, const char *tooltip )
+{
+    if( !group_id || !display_name || !tooltip ) {
+        return 0;
+    }
+    return get_options().ncmm_begin_worldgen_group(
+               group_id, to_translation( display_name ), to_translation( tooltip ) ) ? 1 : 0;
+}
+
+void worldgen_group_end()
+{
+    get_options().ncmm_end_worldgen_group();
+}
+
+int worldgen_set_string_choices( const char *option_id, const char *const *value_ids,
+                                 const char *const *display_names, size_t count )
+{
+    if( !option_id || !value_ids || !display_names || count == 0 || count > 32 ) {
+        return 0;
+    }
+    std::vector<options_manager::id_and_option> items;
+    items.reserve( count );
+    for( size_t i = 0; i < count; ++i ) {
+        if( !value_ids[i] || !display_names[i] ) {
+            return 0;
+        }
+        items.emplace_back( value_ids[i], to_translation( display_names[i] ) );
+    }
+    return get_options().ncmm_set_worldgen_string_choices( option_id, items ) ? 1 : 0;
 }
 
 const char *get_locale()
@@ -272,7 +304,10 @@ const ncmm_host_api_v1 api = {
     &character_state_get_i64,
     &character_state_set_i64,
     &ui_choose,
-    &ui_message
+    &ui_message,
+    &worldgen_group_begin,
+    &worldgen_group_end,
+    &worldgen_set_string_choices
 };
 
 std::string read_text_file( const std::filesystem::path &path )
@@ -586,7 +621,7 @@ void write_modules_state()
 
     out << "{\n"
         << "  \"schema\": 1,\n"
-        << "  \"host_version\": \"0.5.1\",\n"
+        << "  \"host_version\": \"0.5.2\",\n"
         << "  \"loader_api\": " << NCMM_LOADER_API_VERSION << ",\n"
         << "  \"capabilities\": [";
     for( size_t i = 0; i < get_capability_count(); ++i ) {
@@ -1016,7 +1051,7 @@ void initialize()
     module_states.clear();
     module_ids.clear();
     manifest_id_counts.clear();
-    log_line( NCMM_LOG_INFO, "NCMM 0.5.1 Host API v1 / Module Contract v1 initializing." );
+    log_line( NCMM_LOG_INFO, "NCMM 0.5.2 Host API v1 / Module Contract v1 initializing." );
     std::atexit( &shutdown );
 
 #ifdef _WIN32

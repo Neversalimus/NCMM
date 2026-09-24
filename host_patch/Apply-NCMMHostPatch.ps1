@@ -18,8 +18,6 @@ foreach ($f in @($optionsH,$optionsCpp,$sdl,$mainMenu,$doTurn,$inputH,$inputCpp,
     if (-not (Test-Path $f)) { throw "Required source file missing: $f" }
 }
 
-# Windows PowerShell 5 defaults are unsafe for UTF-8 source files.
-# Always decode strictly as UTF-8 and write UTF-8 without BOM.
 $Utf8Strict = New-Object System.Text.UTF8Encoding($false, $true)
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
@@ -57,8 +55,8 @@ function NonAscii-Signature([string]$Text) {
 
 if (Test-Path $marker) {
     $markerText = [System.IO.File]::ReadAllText($marker)
-    if (-not $markerText.Contains('NCMM 0.5.1')) {
-        throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.5.1.'
+    if (-not $markerText.Contains('NCMM 0.5.2')) {
+        throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.5.2.'
     }
 
     $h = Read-Utf8 $optionsH
@@ -71,18 +69,20 @@ if (Test-Path $marker) {
     $ha = Read-Utf8 $handleAction
     $checks = @(
         @($h,'COPT_WORLDGEN_ONLY'),
-        @($h,'ncmm_can_expose_worldgen_option'),
-        @($h,'ncmm_expose_worldgen_option'),
+        @($h,'ncmm_begin_worldgen_group'),
+        @($h,'ncmm_set_worldgen_string_choices'),
         @($c,'case COPT_WORLDGEN_ONLY:'),
         @($c,'is_hidden( world_options_only || ( ingame && iCurrentPage == iWorldOptPage ) )'),
-        @($c,'addOptionToPage( name, "world_default" )'),
+        @($c,'options_manager::ncmm_begin_worldgen_group'),
+        @($c,'options_manager::ncmm_set_worldgen_string_choices'),
         @($sd,'ncmm::initialize();'),
         @($mm,'ncmm::settings_menu_label()'),
         @($mm,'ncmm::show_manager();'),
         @($mm,'ncmm::on_language_changed();'),
+        @($mm,'ncmm::register_gameplay_actions( ctxt_default );'),
         @($dt,'ncmm::on_turn();'),
         @($ih,'ncmm_register_default_action'),
-        @($ic,'input_manager::ncmm_register_default_action'),
+        @($ic,'alternate_type'),
         @($ha,'ncmm::register_gameplay_actions( ctxt );'),
         @($ha,'ncmm::handle_gameplay_action( action )')
     )
@@ -94,8 +94,8 @@ if (Test-Path $marker) {
     Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.h') (Join-Path $src 'ncmm_loader.h') -Force
     Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.cpp') (Join-Path $src 'ncmm_loader.cpp') -Force
     Copy-Item (Join-Path (Split-Path $PSScriptRoot -Parent) 'sdk\ncmm_api.h') (Join-Path $src 'ncmm_api.h') -Force
-    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.5.1 module contract`n" -Encoding ASCII
-    Write-Host 'Existing NCMM upstream patch verified; v0.5.1 loader/API refreshed.'
+    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.5.2 module contract`n" -Encoding ASCII
+    Write-Host 'Existing NCMM upstream patch verified; v0.5.2 loader/API refreshed.'
     exit 0
 }
 
@@ -103,8 +103,6 @@ $contractScript = Join-Path (Split-Path $PSScriptRoot -Parent) 'ci\Test-SourceCo
 & $contractScript -SourceRoot $SourceRoot
 if ($LASTEXITCODE -ne 0) { throw 'NCMM source-contract preflight failed.' }
 
-# Capture all original non-ASCII code points.  The NCMM patch below only inserts
-# ASCII into upstream files, so these signatures must survive byte-for-byte.
 $hOriginal = Read-Utf8 $optionsH
 $cOriginal = Read-Utf8 $optionsCpp
 $sdOriginal = Read-Utf8 $sdl
@@ -137,7 +135,7 @@ $h = Replace-ExactlyOnce $h @'
             COPT_ALWAYS_HIDE
 '@ @'
             COPT_NO_SOUND_HIDE,
-            /** Hidden in normal/in-game options, visible only in the world-generation options UI. */
+            /** Hidden in normal/in-game options, visible only in the world-generation/current-world options UI. */
             COPT_WORLDGEN_ONLY,
             /** Hide this option always, it should not be changed by user directly through UI. **/
             COPT_ALWAYS_HIDE
@@ -147,10 +145,15 @@ $h = Replace-ExactlyOnce $h '                bool is_hidden() const;' '         
 $h = Replace-ExactlyOnce $h '        void set_world_options( options_container *options );' @'
         void set_world_options( options_container *options );
 
-        /** NCMM: expose an existing, permanently-hidden world option only during world generation. */
+        /** NCMM: expose and lay out existing hidden world options without inventing new world state. */
         bool ncmm_can_expose_worldgen_option( const std::string &name ) const;
         bool ncmm_expose_worldgen_option( const std::string &name, const translation &menu_text,
                                          const translation &tooltip );
+        bool ncmm_begin_worldgen_group( const std::string &group_id, const translation &name,
+                                        const translation &tooltip );
+        void ncmm_end_worldgen_group();
+        bool ncmm_set_worldgen_string_choices( const std::string &name,
+                const std::vector<id_and_option> &items );
 '@ 'options.ncmm-api-declaration'
 
 $c = Replace-ExactlyOnce $c 'bool options_manager::cOpt::is_hidden() const' 'bool options_manager::cOpt::is_hidden( bool worldgen_context ) const' 'options.is-hidden-definition'
@@ -196,14 +199,94 @@ bool options_manager::ncmm_expose_worldgen_option( const std::string &name,
     opt.sTooltip = tooltip;
     opt.hide = COPT_WORLDGEN_ONLY;
 
+    if( world_options.has_value() ) {
+        auto world_it = ( **world_options ).find( name );
+        if( world_it != ( **world_options ).end() ) {
+            world_it->second.sMenuText = menu_text;
+            world_it->second.sTooltip = tooltip;
+            world_it->second.hide = COPT_WORLDGEN_ONLY;
+        }
+    }
+
     // CDDA init-time cleanup physically removes COPT_ALWAYS_HIDE PageItems.
-    // Re-add only on first exposure; repeat exposure is safe.
+    // Re-add only on first exposure; active NCMM group is captured by addOptionToPage.
     if( first_exposure ) {
         addOptionToPage( name, "world_default" );
     }
     return true;
 }
-'@ 'options.ncmm-expose-implementation'
+
+bool options_manager::ncmm_begin_worldgen_group( const std::string &group_id,
+        const translation &name, const translation &tooltip )
+{
+    if( group_id.empty() || !adding_to_group_.empty() ) {
+        return false;
+    }
+
+    for( Group &group : groups_ ) {
+        if( group.id_ == group_id ) {
+            group.name_ = name;
+            group.tooltip_ = tooltip;
+            adding_to_group_ = group_id;
+            return true;
+        }
+    }
+
+    groups_.emplace_back( group_id, name, tooltip );
+    add_empty_line( "world_default" );
+    find_page( "world_default" ).items_.emplace_back(
+        ItemType::GroupHeader, group_id, group_id );
+    adding_to_group_ = group_id;
+    return true;
+}
+
+void options_manager::ncmm_end_worldgen_group()
+{
+    adding_to_group_.clear();
+}
+
+bool options_manager::ncmm_set_worldgen_string_choices( const std::string &name,
+        const std::vector<id_and_option> &items )
+{
+    if( items.empty() ) {
+        return false;
+    }
+
+    auto apply_choices = [&]( cOpt & opt ) {
+        if( opt.sPage != "world_default" || opt.eType != cOpt::CVT_STRING ) {
+            return false;
+        }
+        const std::string current = opt.sSet;
+        const std::string default_value = opt.sDefault;
+        const auto contains = [&]( const std::string & value ) {
+            return std::any_of( items.begin(), items.end(), [&]( const id_and_option & item ) {
+                return item.first == value;
+            } );
+        };
+
+        opt.sType = "string_select";
+        opt.eType = cOpt::CVT_STRING;
+        opt.vItems = items;
+        opt.iMaxLength = 0;
+        opt.sSet = contains( current ) ? current : items.front().first;
+        opt.sDefault = contains( default_value ) ? default_value : items.front().first;
+        return true;
+    };
+
+    auto it = options.find( name );
+    if( it == options.end() || !apply_choices( it->second ) ) {
+        return false;
+    }
+
+    if( world_options.has_value() ) {
+        auto world_it = ( **world_options ).find( name );
+        if( world_it != ( **world_options ).end() ) {
+            apply_choices( world_it->second );
+        }
+    }
+    return true;
+}
+'@ 'options.ncmm-expose-layout-implementation'
 
 $sd = Replace-ExactlyOnce $sd '#include "options.h"' ('#include "options.h"' + "`n" + '#include "ncmm_loader.h"') 'sdl.include-ncmm'
 $sd = Replace-ExactlyOnce $sd @'
@@ -236,7 +319,7 @@ $dt = Replace-ExactlyOnce $dt @'
 $ih = Replace-ExactlyOnce $ih '        void save();' @'
         void save();
 
-        /** NCMM: register a stable default action without overwriting user remaps. */
+        /** NCMM: register a stable keyboard-any default without overwriting user remaps. */
         void ncmm_register_default_action( const std::string &action_descriptor,
                                            const translation &name,
                                            const input_event &default_event );
@@ -254,6 +337,25 @@ void input_manager::ncmm_register_default_action( const std::string &action_desc
     basic.is_user_created = false;
     basic.input_events.clear();
     basic.input_events.push_back( default_event );
+
+    // CDDA may run DEFAULTMODE as keycode or keychar. Native "keyboard_any"
+    // bindings contain both representations; NCMM defaults must do the same.
+    if( default_event.type == input_event_t::keyboard_code ||
+        default_event.type == input_event_t::keyboard_char ) {
+        const input_event_t alternate_type =
+            default_event.type == input_event_t::keyboard_code ?
+            input_event_t::keyboard_char : input_event_t::keyboard_code;
+        const std::string portable_name =
+            get_keyname( default_event.get_first_input(), default_event.type, true );
+        const int alternate_code = get_keycode( alternate_type, portable_name );
+        if( alternate_code != 0 ) {
+            const input_event alternate( default_event.modifiers, alternate_code, alternate_type );
+            if( std::find( basic.input_events.begin(), basic.input_events.end(), alternate ) ==
+                basic.input_events.end() ) {
+                basic.input_events.push_back( alternate );
+            }
+        }
+    }
 
     t_actions &active = action_contexts[default_context_id];
     const auto it = active.find( action_descriptor );
@@ -313,8 +415,6 @@ $ha = Replace-ExactlyOnce $ha @'
         act = look_up_action( action );
 '@ 'gameplay.dispatch-ncmm-actions'
 
-# NCMM 0.5.1 MCM + module-contract host. main_menu.cpp is handled by the same strict UTF-8
-# preservation contract as other upstream sources. Every injected byte is ASCII.
 $mm = Replace-ExactlyOnce $mm '#include "options.h"' ('#include "options.h"' + "`n" + '#include "ncmm_loader.h"') 'main-menu.include-ncmm'
 $mm = Replace-ExactlyOnce $mm @'
     vSettingsSubItems.emplace_back( pgettext( "Main Menu|Settings", "<I|i>mGui Demo Screen" ) );
@@ -330,6 +430,16 @@ $mm = Replace-ExactlyOnce $mm @'
                         init_strings();
                         ncmm::on_language_changed();
 '@ 'main-menu.locale-refresh'
+$mm = Replace-ExactlyOnce $mm @'
+                    } else if( sel2 == 1 ) { /// Keybindings
+                        input_context ctxt_default = get_default_mode_input_context();
+                        ctxt_default.display_menu();
+'@ @'
+                    } else if( sel2 == 1 ) { /// Keybindings
+                        input_context ctxt_default = get_default_mode_input_context();
+                        ncmm::register_gameplay_actions( ctxt_default );
+                        ctxt_default.display_menu();
+'@ 'main-menu.ncmm-keybindings'
 $mm = Replace-ExactlyOnce $mm @'
                     } else if( sel2 == 6 ) { /// ImGui demo
                         imgui_demo_ui demo;
@@ -375,22 +485,24 @@ if ((NonAscii-Signature $ih2) -ne $ihSig) { throw 'UTF-8 preservation check fail
 if ((NonAscii-Signature $ic2) -ne $icSig) { throw 'UTF-8 preservation check failed for input.cpp' }
 if ((NonAscii-Signature $ha2) -ne $haSig) { throw 'UTF-8 preservation check failed for handle_action.cpp' }
 
-foreach ($needle in @('COPT_WORLDGEN_ONLY','ncmm_can_expose_worldgen_option','ncmm_expose_worldgen_option')) {
+foreach ($needle in @('COPT_WORLDGEN_ONLY','ncmm_begin_worldgen_group','ncmm_set_worldgen_string_choices')) {
     if (-not $h2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
-foreach ($needle in @('case COPT_WORLDGEN_ONLY:','is_hidden( world_options_only || ( ingame && iCurrentPage == iWorldOptPage ) )','addOptionToPage( name, "world_default" )','first_exposure')) {
+foreach ($needle in @('case COPT_WORLDGEN_ONLY:','is_hidden( world_options_only || ( ingame && iCurrentPage == iWorldOptPage ) )','options_manager::ncmm_begin_worldgen_group','options_manager::ncmm_set_worldgen_string_choices')) {
     if (-not $c2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 if (-not $sd2.Contains('ncmm::initialize();')) { throw 'Post-check failed: ncmm::initialize' }
-foreach ($needle in @('ncmm::settings_menu_label()','ncmm::show_manager();','ncmm::on_language_changed();')) {
+foreach ($needle in @('ncmm::settings_menu_label()','ncmm::show_manager();','ncmm::on_language_changed();','ncmm::register_gameplay_actions( ctxt_default );')) {
     if (-not $mm2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 if (-not $dt2.Contains('ncmm::on_turn();')) { throw 'Post-check failed: ncmm::on_turn' }
 if (-not $ih2.Contains('ncmm_register_default_action')) { throw 'Post-check failed: input manager NCMM declaration' }
-if (-not $ic2.Contains('input_manager::ncmm_register_default_action')) { throw 'Post-check failed: input manager NCMM implementation' }
+foreach ($needle in @('input_manager::ncmm_register_default_action','alternate_type','portable_name','keyboard_char','keyboard_code')) {
+    if (-not $ic2.Contains($needle)) { throw "Post-check failed: $needle" }
+}
 foreach ($needle in @('ncmm::register_gameplay_actions( ctxt );','ncmm::handle_gameplay_action( action )')) {
     if (-not $ha2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 
-Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.5.1 module contract`n" -Encoding ASCII
-Write-Host 'NCMM 0.5.1 host patch applied and UTF-8 preservation verified.'
+Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.5.2 module contract`n" -Encoding ASCII
+Write-Host 'NCMM 0.5.2 host patch applied and UTF-8 preservation verified.'
