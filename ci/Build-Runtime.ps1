@@ -82,8 +82,25 @@ foreach ($required in @('core.v1','events.turn.v1','character_state.v1','charact
     }
 }
 
+# NCMM 0.6.2 loader hardening is intentionally source-structural: Runtime CI
+# guards the invariants even before the certified-host workflow compiles them.
+$loaderSource = Get-Content (Join-Path $RepositoryRoot 'host_patch\ncmm_loader.cpp') -Raw
+foreach ($requiredLoaderFragment in @(
+    'class module_call_scope',
+    'bool active_module_matches( const char *module_id )',
+    'descriptor_exception',
+    'init_exception',
+    'shutdown_registered',
+    'MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH',
+    'boot.pending preserved'
+)) {
+    if (-not $loaderSource.Contains($requiredLoaderFragment)) {
+        throw "NCMM 0.6.2 loader hardening invariant missing: $requiredLoaderFragment"
+    }
+}
+
 @'
-NCMM 0.6.1 Runtime
+NCMM 0.6.2 Runtime
 ===============
 1. Run NCMM_Setup.exe.
 2. Select the CDDA folder containing cataclysm-tiles.exe.
@@ -96,7 +113,7 @@ If no exact certified host exists for the installed CDDA executable, NCMM starts
 
 Remove-Item $awsBuild -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $spBuild -Recurse -Force -ErrorAction SilentlyContinue
-$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.6.1.zip'
+$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.6.2.zip'
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $OutputRoot '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip

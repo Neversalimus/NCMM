@@ -180,3 +180,13 @@ Bootstrap атомарно обновляет `ncmm/runtime.state.json`. В нё
 - Healing bonus больше не усиливает отрицательный/дегенеративный healing rate.
 - Survivor 0.8.1: overview активных эффектов, более понятные причины lock, точный refund preview при respec.
 - Баланс 60 перков и уровни/стоимости не менялись.
+
+## NCMM 0.6.2 — callback ownership и ready-state hardening
+
+- `character_state.v1` и `character.modifiers.v1` теперь принимают namespaced операции только во время callback того же module id.
+- Каждый init/turn/locale/UI/shutdown callback выполняется в host-owned module scope; другой мод не может штатным API читать/писать чужой character state или регистрировать эффекты под чужим id.
+- Вызовы descriptor/init native DLL получили catch-all containment и machine-readable причины `descriptor_exception` / `init_exception`.
+- Повторный `initialize()` сначала безопасно выгружает старые модули, а `atexit` регистрируется только один раз.
+- `boot.ready` сначала пишется во временный файл и публикуется атомарно; `boot.pending` удаляется только после успешной публикации ready marker.
+- Runtime CI отдельно проверяет наличие этих hardening-инвариантов в loader source до упаковки runtime.
+- ABI Host API v1 и capability-набор не менялись; существующим корректным модулям не требуется миграция.

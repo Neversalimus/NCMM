@@ -136,3 +136,14 @@ These are containment rules only; no new CDDA object pointers or module-visible 
 
 Positive healing bonuses are applied only to positive healing rates, so a perk cannot amplify an unrelated
 negative degeneration rate. Survivor 0.8.1 adds UI/diagnostic polish without changing perk balance.
+
+## 0.6.2 callback-scoped ownership and ready publication
+
+State/modifier namespace ownership is enforced by the host callback boundary rather than trusting the
+module-supplied module_id string. During init, turn, locale, UI and shutdown callbacks the loader binds
+a thread-local active module identity; namespaced state/modifier operations reject any different id and
+reject calls made outside a host callback scope.
+
+Descriptor/init callbacks are exception-contained. `boot.ready` is staged and atomically published before
+`boot.pending` is removed, so a readiness-publication failure remains fail-closed for the next bootstrap.
+The ABI and existing capability names remain unchanged.

@@ -62,6 +62,28 @@ std::vector<module_state> module_states;
 std::set<std::string> module_ids;
 std::map<std::string, size_t> manifest_id_counts;
 std::map<std::string, std::map<std::string, double>> character_modifier_values;
+thread_local std::string active_module_id;
+bool shutdown_registered = false;
+
+class module_call_scope
+{
+    public:
+        explicit module_call_scope( const char *module_id ) : previous_( active_module_id )
+        {
+            active_module_id = module_id ? module_id : "";
+        }
+
+        module_call_scope( const module_call_scope & ) = delete;
+        module_call_scope &operator=( const module_call_scope & ) = delete;
+
+        ~module_call_scope()
+        {
+            active_module_id = previous_;
+        }
+
+    private:
+        std::string previous_;
+};
 
 const std::map<std::string, std::pair<double, double>> character_modifier_limits = {
     { "str_flat", { -20.0, 20.0 } },
@@ -151,7 +173,7 @@ int has_capability( const char *capability )
 
 const char *get_host_version()
 {
-    return "0.6.1";
+    return "0.6.2";
 }
 
 uint32_t get_loader_api()
@@ -240,6 +262,12 @@ bool safe_state_token( const char *value )
     return true;
 }
 
+bool active_module_matches( const char *module_id )
+{
+    return safe_state_token( module_id ) && !active_module_id.empty() &&
+           active_module_id == module_id;
+}
+
 std::string character_state_key( const char *module_id, const char *key )
 {
     return "ncmm." + std::string( module_id ) + "." + std::string( key );
@@ -252,7 +280,8 @@ int character_state_available()
 
 int64_t character_state_get_i64( const char *module_id, const char *key, int64_t fallback )
 {
-    if( !character_state_available() || !safe_state_token( module_id ) || !safe_state_token( key ) ) {
+    if( !character_state_available() || !active_module_matches( module_id ) ||
+        !safe_state_token( key ) ) {
         return fallback;
     }
 
@@ -274,7 +303,8 @@ int64_t character_state_get_i64( const char *module_id, const char *key, int64_t
 
 int character_state_set_i64( const char *module_id, const char *key, int64_t value )
 {
-    if( !character_state_available() || !safe_state_token( module_id ) || !safe_state_token( key ) ) {
+    if( !character_state_available() || !active_module_matches( module_id ) ||
+        !safe_state_token( key ) ) {
         return 0;
     }
 
@@ -310,7 +340,7 @@ void ui_message( const char *message )
 
 int character_modifier_set( const char *module_id, const char *modifier_id, double value )
 {
-    if( !safe_state_token( module_id ) || module_ids.count( module_id ) == 0 ||
+    if( !active_module_matches( module_id ) || module_ids.count( module_id ) == 0 ||
         modifier_id == nullptr || !std::isfinite( value ) ) {
         return 0;
     }
@@ -327,7 +357,7 @@ int character_modifier_set( const char *module_id, const char *modifier_id, doub
 
 int character_modifier_clear_module( const char *module_id )
 {
-    if( !safe_state_token( module_id ) || module_ids.count( module_id ) == 0 ) {
+    if( !active_module_matches( module_id ) || module_ids.count( module_id ) == 0 ) {
         return 0;
     }
     character_modifier_values.erase( module_id );
@@ -668,7 +698,7 @@ void write_modules_state()
 
     out << "{\n"
         << "  \"schema\": 1,\n"
-        << "  \"host_version\": \"0.6.1\",\n"
+        << "  \"host_version\": \"0.6.2\",\n"
         << "  \"loader_api\": " << NCMM_LOADER_API_VERSION << ",\n"
         << "  \"capabilities\": [";
     for( size_t i = 0; i < get_capability_count(); ++i ) {
@@ -833,7 +863,17 @@ void load_one( const std::filesystem::path &library )
         return;
     }
 
-    const ncmm_mod_descriptor_v1 *desc = get_descriptor();
+    const ncmm_mod_descriptor_v1 *desc = nullptr;
+    try {
+        desc = get_descriptor();
+    } catch( ... ) {
+        record_module_state( directory, manifest, "failed", "descriptor_exception" );
+        log_line( NCMM_LOG_WARN,
+                  ( "Module descriptor callback threw; disabled: " + manifest.id ).c_str() );
+        FreeLibrary( module );
+        return;
+    }
+
     if( desc == nullptr || desc->abi_version != NCMM_ABI_VERSION || desc->init == nullptr ||
         desc->id == nullptr || desc->version == nullptr ) {
         record_module_state( directory, manifest, "rejected", "descriptor_incompatible" );
@@ -887,7 +927,19 @@ void load_one( const std::filesystem::path &library )
 
     // A retry/reload must never inherit runtime effects from an older failed init.
     character_modifier_values.erase( manifest.id );
-    if( !desc->init( &api ) ) {
+    bool init_ok = false;
+    try {
+        module_call_scope scope( manifest.id.c_str() );
+        init_ok = desc->init( &api ) != 0;
+    } catch( ... ) {
+        character_modifier_values.erase( manifest.id );
+        record_module_state( directory, manifest, "failed", "init_exception" );
+        log_line( NCMM_LOG_WARN,
+                  ( std::string( "Module init callback threw; disabled: " ) + desc->id ).c_str() );
+        FreeLibrary( module );
+        return;
+    }
+    if( !init_ok ) {
         character_modifier_values.erase( manifest.id );
         record_module_state( directory, manifest, "failed", "init_failed" );
         log_line( NCMM_LOG_WARN, ( std::string( "Module init failed; disabled: " ) + desc->id ).c_str() );
@@ -971,6 +1023,8 @@ bool handle_gameplay_action( const std::string &action )
             continue;
         }
         try {
+            module_call_scope scope( mod.descriptor && mod.descriptor->id ?
+                                     mod.descriptor->id : nullptr );
             mod.open_ui( &api );
         } catch( ... ) {
             const std::string name = mod.descriptor && mod.descriptor->name ?
@@ -1045,6 +1099,8 @@ void show_manager()
             action.query();
             if( action.ret == 0 ) {
                 try {
+                    module_call_scope scope( runtime->descriptor && runtime->descriptor->id ?
+                                             runtime->descriptor->id : nullptr );
                     runtime->open_ui( &api );
                 } catch( ... ) {
                     log_line( NCMM_LOG_WARN, ( "Module UI callback failed: " + entry.name ).c_str() );
@@ -1084,6 +1140,8 @@ void on_turn()
     for( loaded_mod &mod : loaded ) {
         if( mod.on_turn ) {
             try {
+                module_call_scope scope( mod.descriptor && mod.descriptor->id ?
+                                         mod.descriptor->id : nullptr );
                 mod.on_turn( &api );
             } catch( ... ) {
                 if( mod.descriptor && mod.descriptor->id ) {
@@ -1101,6 +1159,8 @@ void on_language_changed()
     for( loaded_mod &mod : loaded ) {
         if( mod.locale_changed ) {
             try {
+                module_call_scope scope( mod.descriptor && mod.descriptor->id ?
+                                         mod.descriptor->id : nullptr );
                 mod.locale_changed( &api );
             } catch( ... ) {
                 if( mod.descriptor && mod.descriptor->id ) {
@@ -1116,13 +1176,23 @@ void on_language_changed()
 void initialize()
 {
     std::filesystem::create_directories( game_root() / "ncmm" );
+
+    // Defensive re-entry: never abandon loaded DLLs or runtime modifier state.
+    if( !loaded.empty() ) {
+        shutdown();
+    }
+    active_module_id.clear();
     loaded.clear();
     module_states.clear();
     module_ids.clear();
     manifest_id_counts.clear();
     character_modifier_values.clear();
-    log_line( NCMM_LOG_INFO, "NCMM 0.6.1 Host API v1 / Module Contract v1 initializing." );
-    std::atexit( &shutdown );
+    log_line( NCMM_LOG_INFO, "NCMM 0.6.2 Host API v1 / Module Contract v1 initializing." );
+
+    if( !shutdown_registered ) {
+        std::atexit( &shutdown );
+        shutdown_registered = true;
+    }
 
 #ifdef _WIN32
     const std::filesystem::path mods_root = game_root() / "code_mods";
@@ -1165,10 +1235,53 @@ void initialize()
 
 void mark_ready()
 {
-    std::error_code ec;
-    std::filesystem::remove( game_root() / "ncmm" / "boot.pending", ec );
-    std::ofstream ready( game_root() / "ncmm" / "boot.ready", std::ios::trunc );
-    ready << "ready\n";
+    const std::filesystem::path directory = game_root() / "ncmm";
+    const std::filesystem::path ready_path = directory / "boot.ready";
+    const std::filesystem::path temp_path = directory / "boot.ready.tmp";
+    const std::filesystem::path pending_path = directory / "boot.pending";
+
+    std::filesystem::create_directories( directory );
+    {
+        std::ofstream out( temp_path, std::ios::trunc | std::ios::binary );
+        if( !out ) {
+            log_line( NCMM_LOG_ERROR, "Could not stage boot.ready; boot.pending preserved." );
+            return;
+        }
+        out << "ready\n";
+        out.flush();
+        if( !out ) {
+            log_line( NCMM_LOG_ERROR, "Could not flush staged boot.ready; boot.pending preserved." );
+            out.close();
+            std::error_code cleanup_ec;
+            std::filesystem::remove( temp_path, cleanup_ec );
+            return;
+        }
+    }
+
+#ifdef _WIN32
+    if( !MoveFileExW( temp_path.wstring().c_str(), ready_path.wstring().c_str(),
+                      MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH ) ) {
+        log_line( NCMM_LOG_ERROR, "Could not atomically publish boot.ready; boot.pending preserved." );
+        std::error_code cleanup_ec;
+        std::filesystem::remove( temp_path, cleanup_ec );
+        return;
+    }
+#else
+    std::error_code publish_ec;
+    std::filesystem::remove( ready_path, publish_ec );
+    publish_ec.clear();
+    std::filesystem::rename( temp_path, ready_path, publish_ec );
+    if( publish_ec ) {
+        log_line( NCMM_LOG_ERROR, "Could not publish boot.ready; boot.pending preserved." );
+        return;
+    }
+#endif
+
+    std::error_code pending_ec;
+    std::filesystem::remove( pending_path, pending_ec );
+    if( pending_ec ) {
+        log_line( NCMM_LOG_WARN, "boot.ready published but boot.pending could not be removed." );
+    }
 }
 
 void shutdown()
@@ -1179,6 +1292,7 @@ void shutdown()
                                       it->descriptor->id : std::string();
         if( it->descriptor && it->descriptor->shutdown ) {
             try {
+                module_call_scope scope( module_id.empty() ? nullptr : module_id.c_str() );
                 it->descriptor->shutdown();
             } catch( ... ) {
                 log_line( NCMM_LOG_WARN,
@@ -1198,5 +1312,6 @@ void shutdown()
     module_ids.clear();
     manifest_id_counts.clear();
     character_modifier_values.clear();
+    active_module_id.clear();
 }
 } // namespace ncmm
