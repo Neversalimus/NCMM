@@ -1,31 +1,19 @@
 {
   "schema": 1,
   "loader_api": 1,
-  "patch_revision": "e02afc7098a1529b0236ca7802906b92ba14545bd9436d8a32f34c6657e95818",
+  "patch_revision": "2fd6e1e8129044aadaf8b27b59de6d1d704248a568e5af73b2a9c7300b248e20",
   "rejected": {
     "cdda-experimental-2026-09-24-1634": {
       "source_commit": "536f5df159725b3c4dc0bca208c153a5ec367329",
-      "recorded_utc": "2026-09-24T22:21:50.7969059Z"
+      "recorded_utc": "2026-09-24T23:03:36.2394678Z"
     },
     "cdda-experimental-2026-09-23-2123": {
       "source_commit": "50b75f7113cb47a712aa2d3f33d6fcfa6d8b0ee5",
-      "recorded_utc": "2026-09-24T22:21:54.4766518Z"
+      "recorded_utc": "2026-09-24T23:03:35.1512158Z"
     },
     "cdda-experimental-2026-09-23-0546": {
       "source_commit": "e262adb299a7613b4aedc5f12c08fe0413c56a84",
-      "recorded_utc": "2026-09-24T22:21:52.6218299Z"
-    },
-    "cdda-experimental-2026-09-23-1914": {
-      "source_commit": "8c69f61ef307cb186b1d09cf10bb43174e253049",
-      "recorded_utc": "2026-09-24T22:33:16.6603685Z"
-    },
-    "cdda-experimental-2026-09-23-1822": {
-      "source_commit": "9e8e3b1c93a0aef992368ad482ffed023c748c9b",
-      "recorded_utc": "2026-09-24T22:33:18.7057503Z"
-    },
-    "cdda-experimental-2026-09-23-2042": {
-      "source_commit": "c3a7fef294f3ddc05b5bb2b99d2ff8f44b13b407",
-      "recorded_utc": "2026-09-24T22:33:10.5428489Z"
+      "recorded_utc": "2026-09-24T23:03:34.4130230Z"
     }
   }
 }
