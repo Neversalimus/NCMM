@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "contracts": [
+    {
+      "id": "world_options.source.v1",
+      "files": [
+        {
+          "path": "src/options.h",
+          "required": [
+            "COPT_NO_SOUND_HIDE",
+            "bool is_hidden() const;",
+            "void set_world_options( options_container *options );"
+          ]
+        },
+        {
+          "path": "src/options.cpp",
+          "required": [
+            "bool options_manager::cOpt::is_hidden() const",
+            "case COPT_ALWAYS_HIDE:",
+            "bool options_manager::has_option( const std::string &name ) const"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "startup_hook.source.v1",
+      "files": [
+        {
+          "path": "src/sdltiles.cpp",
+          "required": [
+            "#include \"options.h\"",
+            "get_options().init();",
+            "set_language_from_options();"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "main_menu_hook.source.v1",
+      "files": [
+        {
+          "path": "src/main_menu.cpp",
+          "required": [
+            "<I|i>mGui Demo Screen",
+            "init_strings();"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "turn_hook.source.v1",
+      "files": [
+        {
+          "path": "src/do_turn.cpp",
+          "required": [
+            "bool game::do_turn()",
+            "calendar::turn += 1_turns;"
+          ]
+        }
+      ]
+    }
+  ]
+}

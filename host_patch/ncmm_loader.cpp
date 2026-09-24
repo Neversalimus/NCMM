@@ -1,9 +1,12 @@
 #include "ncmm_loader.h"
 #include "ncmm_api.h"
+#include "avatar.h"
+#include "game.h"
 #include "options.h"
 #include "output.h"
 #include "system_locale.h"
 #include "uilist.h"
+#include "worldfactory.h"
 
 #include <algorithm>
 #include <cctype>
@@ -32,6 +35,8 @@ struct loaded_mod {
     const ncmm_mod_descriptor_v1 *descriptor = nullptr;
     std::filesystem::path directory;
     ncmm_on_locale_changed_v1_fn locale_changed = nullptr;
+    ncmm_on_turn_v1_fn on_turn = nullptr;
+    ncmm_open_ui_v1_fn open_ui = nullptr;
 };
 
 std::vector<loaded_mod> loaded;
@@ -56,7 +61,11 @@ const char *const host_capabilities[] = {
     "world_options.v1",
     "locale.v1",
     "module_contract.v1",
-    "host_info.v1"
+    "host_info.v1",
+    "compatibility.v1",
+    "events.turn.v1",
+    "character_state.v1",
+    "ui.basic.v1"
 };
 
 std::filesystem::path game_root()
@@ -115,7 +124,7 @@ int has_capability( const char *capability )
 
 const char *get_host_version()
 {
-    return "0.4.1";
+    return "0.5.0";
 }
 
 uint32_t get_loader_api()
@@ -156,6 +165,91 @@ const char *get_locale()
     return locale_cache.c_str();
 }
 
+bool safe_state_token( const char *value )
+{
+    if( value == nullptr ) {
+        return false;
+    }
+    const std::string text( value );
+    if( text.empty() || text.size() > 64 ) {
+        return false;
+    }
+    for( unsigned char c : text ) {
+        if( !( std::islower( c ) || std::isdigit( c ) || c == '_' || c == '-' || c == '.' ) ) {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::string character_state_key( const char *module_id, const char *key )
+{
+    return "ncmm." + std::string( module_id ) + "." + std::string( key );
+}
+
+int character_state_available()
+{
+    return g != nullptr && world_generator != nullptr && world_generator->active_world != nullptr ? 1 : 0;
+}
+
+int64_t character_state_get_i64( const char *module_id, const char *key, int64_t fallback )
+{
+    if( !character_state_available() || !safe_state_token( module_id ) || !safe_state_token( key ) ) {
+        return fallback;
+    }
+
+    const auto &values = get_avatar().get_values();
+    const auto it = values.find( character_state_key( module_id, key ) );
+    if( it == values.end() || !it->second.is_str() ) {
+        return fallback;
+    }
+
+    try {
+        std::size_t consumed = 0;
+        const std::string &raw = it->second.str();
+        const long long parsed = std::stoll( raw, &consumed, 10 );
+        return consumed == raw.size() ? static_cast<int64_t>( parsed ) : fallback;
+    } catch( ... ) {
+        return fallback;
+    }
+}
+
+int character_state_set_i64( const char *module_id, const char *key, int64_t value )
+{
+    if( !character_state_available() || !safe_state_token( module_id ) || !safe_state_token( key ) ) {
+        return 0;
+    }
+
+    get_avatar().get_values()[character_state_key( module_id, key )] =
+        diag_value( std::to_string( value ) );
+    return 1;
+}
+
+int ui_choose( const char *title, const char *const *entries, size_t count )
+{
+    if( title == nullptr || entries == nullptr || count == 0 || count > 64 ) {
+        return -1;
+    }
+
+    uilist menu;
+    menu.text = title;
+    for( size_t i = 0; i < count; ++i ) {
+        if( entries[i] == nullptr ) {
+            return -1;
+        }
+        menu.addentry( static_cast<int>( i ), true, MENU_AUTOASSIGN, entries[i] );
+    }
+    menu.query();
+    return menu.ret >= 0 && static_cast<size_t>( menu.ret ) < count ? menu.ret : -1;
+}
+
+void ui_message( const char *message )
+{
+    if( message != nullptr ) {
+        popup( "%s", message );
+    }
+}
+
 const ncmm_host_api_v1 api = {
     NCMM_ABI_VERSION,
     &log_line,
@@ -166,7 +260,12 @@ const ncmm_host_api_v1 api = {
     &get_host_version,
     &get_loader_api,
     &get_capability_count,
-    &get_capability
+    &get_capability,
+    &character_state_available,
+    &character_state_get_i64,
+    &character_state_set_i64,
+    &ui_choose,
+    &ui_message
 };
 
 std::string read_text_file( const std::filesystem::path &path )
@@ -437,7 +536,7 @@ void write_modules_state()
 
     out << "{\n"
         << "  \"schema\": 1,\n"
-        << "  \"host_version\": \"0.4.1\",\n"
+        << "  \"host_version\": \"0.5.0\",\n"
         << "  \"loader_api\": " << NCMM_LOADER_API_VERSION << ",\n"
         << "  \"capabilities\": [";
     for( size_t i = 0; i < get_capability_count(); ++i ) {
@@ -647,7 +746,11 @@ void load_one( const std::filesystem::path &library )
 
     auto locale_changed = reinterpret_cast<ncmm_on_locale_changed_v1_fn>(
                               GetProcAddress( module, NCMM_LOCALE_ENTRYPOINT ) );
-    loaded.push_back( { module, desc, directory, locale_changed } );
+    auto on_turn = reinterpret_cast<ncmm_on_turn_v1_fn>(
+                       GetProcAddress( module, NCMM_TURN_ENTRYPOINT ) );
+    auto open_ui = reinterpret_cast<ncmm_open_ui_v1_fn>(
+                       GetProcAddress( module, NCMM_OPEN_UI_ENTRYPOINT ) );
+    loaded.push_back( { module, desc, directory, locale_changed, on_turn, open_ui } );
     record_module_state( directory, manifest, "loaded", "ok" );
     log_line( NCMM_LOG_INFO, ( std::string( "Loaded module: " ) + desc->id + " " + desc->version ).c_str() );
 }
@@ -670,8 +773,8 @@ void show_manager()
 
         uilist menu;
         menu.text = tr_ui(
-                        "NCMM — Mod Configuration\nEnter: enable/disable selected code mod. Changes apply after restart.",
-                        "NCMM — Настройка модов\nEnter: включить/выключить выбранный code-мод. Изменения применяются после перезапуска." );
+                        "NCMM — Mod Configuration\nLoaded modules with UI open an action menu; enable/disable changes apply after restart.",
+                        "NCMM — Настройка модов\nДля загруженных модулей с UI открывается меню действий; включение/выключение применяется после перезапуска." );
 
         for( int i = 0; i < static_cast<int>( entries.size() ); ++i ) {
             const manager_entry &entry = entries[i];
@@ -707,6 +810,27 @@ void show_manager()
         const std::filesystem::path marker = entry.directory / "disabled";
         std::error_code ec;
 
+        const loaded_mod *runtime = find_loaded( entry.directory );
+        if( !entry.disabled && runtime != nullptr && runtime->open_ui != nullptr ) {
+            uilist action;
+            action.text = entry.name;
+            action.addentry( 0, true, MENU_AUTOASSIGN, tr_ui( "Open module UI", "Открыть интерфейс мода" ) );
+            action.addentry( 1, true, MENU_AUTOASSIGN, tr_ui( "Disable module", "Выключить модуль" ) );
+            action.query();
+            if( action.ret == 0 ) {
+                try {
+                    runtime->open_ui( &api );
+                } catch( ... ) {
+                    log_line( NCMM_LOG_WARN, ( "Module UI callback failed: " + entry.name ).c_str() );
+                    popup( tr_ui( "Module UI callback failed.", "Ошибка callback интерфейса мода." ) );
+                }
+                continue;
+            }
+            if( action.ret != 1 ) {
+                continue;
+            }
+        }
+
         if( entry.disabled ) {
             std::filesystem::remove( marker, ec );
             if( ec ) {
@@ -724,6 +848,23 @@ void show_manager()
                 out.close();
                 popup( tr_ui( "Module disabled. Restart CDDA to apply.",
                               "Модуль выключен. Перезапустите CDDA для применения." ) );
+            }
+        }
+    }
+}
+
+void on_turn()
+{
+    for( loaded_mod &mod : loaded ) {
+        if( mod.on_turn ) {
+            try {
+                mod.on_turn( &api );
+            } catch( ... ) {
+                if( mod.descriptor && mod.descriptor->id ) {
+                    log_line( NCMM_LOG_WARN,
+                              ( std::string( "Turn callback failed for module: " ) +
+                                mod.descriptor->id ).c_str() );
+                }
             }
         }
     }
@@ -753,7 +894,7 @@ void initialize()
     module_states.clear();
     module_ids.clear();
     manifest_id_counts.clear();
-    log_line( NCMM_LOG_INFO, "NCMM 0.4.1 Host API v1 / Module Contract v1 initializing." );
+    log_line( NCMM_LOG_INFO, "NCMM 0.5.0 Host API v1 / Module Contract v1 initializing." );
     std::atexit( &shutdown );
 
 #ifdef _WIN32

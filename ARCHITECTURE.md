@@ -1,4 +1,4 @@
-# NCMM v0.4.1 architecture
+# NCMM v0.5.0 architecture
 
 ```text
 Any launcher / manual shortcut
@@ -84,3 +84,13 @@ A host is usable only when:
 - host reaches the ready marker after module initialization.
 
 Failure of any check results in vanilla execution.
+
+## v0.5 compatibility boundary
+
+The source-contract registry is checked before source mutation. A certified host therefore carries
+an explicit set of source contracts that passed for its exact upstream tag. Code-mods consume only
+NCMM capabilities; the first gameplay consumer, Survivor Progression, never includes CDDA headers.
+
+Character persistence is implemented behind `character_state.v1`; the module sees only namespaced
+integer keys while the host adapts that contract to CDDA's serialized character values.
+The turn source hook is isolated behind `events.turn.v1`.

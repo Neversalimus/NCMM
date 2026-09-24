@@ -4,7 +4,9 @@ $paths = @(
     'host_patch/Apply-NCMMHostPatch.ps1',
     'sdk/ncmm_api.h',
     'host_patch/ncmm_loader.h',
-    'host_patch/ncmm_loader.cpp'
+    'host_patch/ncmm_loader.cpp',
+    'compat/contracts.json',
+    'ci/Test-SourceContracts.ps1'
 )
 $sha = [System.Security.Cryptography.SHA256]::Create()
 try {

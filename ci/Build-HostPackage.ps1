@@ -54,10 +54,19 @@ foreach ($zip in Get-ChildItem $releaseDir -Filter '*.zip' -File) {
 }
 if ($vanillaHashes.Count -eq 0) { throw 'No official vanilla executable hashes were collected.' }
 
+$contractReportPath = Join-Path $UpstreamRoot '.ncmm_contract_report.json'
+$contractIds = @()
+if (Test-Path $contractReportPath) {
+    $contractReport = Get-Content $contractReportPath -Raw | ConvertFrom-Json
+    $contractIds = @($contractReport.contracts | Where-Object { $_.status -eq 'compatible' } | ForEach-Object { $_.id })
+}
+
 $metadata = [ordered]@{
     schema = 1
+    compatibility_schema = 1
+    source_contracts = @($contractIds)
     loader_api = 1
-    ncmm_version = '0.4.1'
+    ncmm_version = '0.5.0'
     upstream_tag = $UpstreamTag
     source_commit = $commit
     patch_revision = $patchRevision

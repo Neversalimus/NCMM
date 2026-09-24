@@ -1,4 +1,4 @@
-# NCMM v0.4.1 — Foundation Hardening
+# NCMM v0.5.0 — Foundation Hardening
 
 NCMM (Neversalimus Code Mod Manager) — экспериментальная платформа для native/code-модов Cataclysm:DDA.
 
@@ -6,7 +6,7 @@ NCMM (Neversalimus Code Mod Manager) — экспериментальная пл
 
 Игрок **не устанавливает** Git, MSYS2, GCC, CMake или Visual Studio.
 
-1. Скачать `NCMM_Runtime_v0.4.1.zip`.
+1. Скачать `NCMM_Runtime_v0.5.0.zip`.
 2. Распаковать.
 3. Запустить `NCMM_Setup.exe`.
 4. Выбрать папку CDDA и нажать `Install / Repair NCMM + AWS`.
@@ -72,7 +72,7 @@ Capabilities v0.4.0:
 - `module_contract.v1`
 - `host_info.v1`
 
-## Hardening v0.4.1
+## Hardening v0.5.0
 
 - Setup получил read-only `Diagnostics` с проверкой bootstrap/vanilla/host SHA, binding, source commit, AWS payload и crash-loop markers.
 - `Repair NCMM State` удаляет только `boot.pending` и `ncmm.auto_disabled`, пишет аудит в `ncmm/repair.log` и не трогает exe/binding/modules/manual disable.
@@ -119,3 +119,28 @@ Bootstrap атомарно обновляет `ncmm/runtime.state.json`. В нё
 `cdda-experimental-2026-09-23-0546`
 
 Это версия, на которой уже подтверждён bootstrap через реальный CatLauncher.
+
+## Compatibility Engine v0.5.0
+
+`compat/contracts.json` — первый machine-readable реестр source contracts NCMM.
+`ci/Test-SourceContracts.ps1` проверяет upstream до патча и пишет `.ncmm_contract_report.json`.
+Контрактный отчёт включается в metadata certified host. Изменение реестра входит в patch revision,
+поэтому ранее rejected experimental автоматически становятся кандидатами на повторную сертификацию.
+
+Новые стабильные capability-примитивы Host API v1:
+- `events.turn.v1` — optional `ncmm_on_turn_v1` callback один раз за игровой turn;
+- `character_state.v1` — namespaced int64 state в сериализуемых values текущего персонажа;
+- `ui.basic.v1` — host-owned choice menu/message primitives;
+- `compatibility.v1` — host собран через source-contract preflight v1.
+
+## Survivor Progression v0.1.0
+
+Первый gameplay vertical slice для NCMM 0.5:
+- уровень, XP и perk points сохраняются вместе с персонажем;
+- 1 survival XP за игровую минуту;
+- 30 уровней в текущем техническом каркасе;
+- первый рабочий perk `Fast Learner`: стоимость 1 point, удваивает survival XP;
+- при level-up открывается базовое окно выбора;
+- smoke-test автоматически проходит полный цикл level -> point -> perk -> persistence API -> doubled XP.
+
+Баланс и survival-time XP временные: цель v0.1 — доказать стабильный end-to-end code-mod API.

@@ -7,6 +7,7 @@ $RepositoryRoot = (Resolve-Path $RepositoryRoot).Path
 New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 $payload = Join-Path $OutputRoot 'payload'
 New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\AdvancedWorldSettings') | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\SurvivorProgression') | Out-Null
 
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (-not (Test-Path $csc)) { throw "Framework csc.exe not found: $csc" }
@@ -53,12 +54,36 @@ if (($manifest.requires | Select-Object -Unique).Count -ne $manifest.requires.Co
     throw 'AWS manifest contains duplicate capability requirements.'
 }
 
+$spBuild = Join-Path $OutputRoot '_survivor_progression_build'
+cmake -S (Join-Path $RepositoryRoot 'mods\SurvivorProgression') -B $spBuild -A x64
+if ($LASTEXITCODE -ne 0) { throw 'Survivor Progression CMake configure failed.' }
+cmake --build $spBuild --config Release
+if ($LASTEXITCODE -ne 0) { throw 'Survivor Progression build failed.' }
+$sp = Get-ChildItem $spBuild -Filter 'ncmm_mod.dll' -Recurse -File | Select-Object -First 1
+if (-not $sp) { throw 'Survivor Progression ncmm_mod.dll not found after build.' }
+
+& $smoke.FullName $sp.FullName
+if ($LASTEXITCODE -ne 0) { throw 'Survivor Progression vertical-slice smoke test failed.' }
+
+Copy-Item $sp.FullName (Join-Path $payload 'code_mods\SurvivorProgression\ncmm_mod.dll') -Force
+Copy-Item (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') (Join-Path $payload 'code_mods\SurvivorProgression\mod.json') -Force
+
+$spManifest = Get-Content (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') -Raw | ConvertFrom-Json
+if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable') {
+    throw 'Survivor Progression manifest contract invalid.'
+}
+foreach ($required in @('core.v1','events.turn.v1','character_state.v1','ui.basic.v1')) {
+    if (-not ($spManifest.requires -contains $required)) {
+        throw "Survivor Progression manifest missing $required"
+    }
+}
+
 @'
-NCMM 0.4.1 Runtime
+NCMM 0.5.0 Runtime
 ===============
 1. Run NCMM_Setup.exe.
 2. Select the CDDA folder containing cataclysm-tiles.exe.
-3. Click "Install / Repair NCMM + AWS".
+3. Click "Install / Repair NCMM + bundled mods".
 4. Launch CDDA normally from CatLauncher, Catapult, or a shortcut.
 
 No compiler, Git, CMake, or MSYS2 is required on the player's PC.
@@ -66,7 +91,8 @@ If no exact certified host exists for the installed CDDA executable, NCMM starts
 '@ | Set-Content (Join-Path $OutputRoot 'README.txt') -Encoding UTF8
 
 Remove-Item $awsBuild -Recurse -Force -ErrorAction SilentlyContinue
-$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.4.1.zip'
+Remove-Item $spBuild -Recurse -Force -ErrorAction SilentlyContinue
+$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.5.0.zip'
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $OutputRoot '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip

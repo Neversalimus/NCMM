@@ -8,9 +8,10 @@ $optionsH = Join-Path $src 'options.h'
 $optionsCpp = Join-Path $src 'options.cpp'
 $sdl = Join-Path $src 'sdltiles.cpp'
 $mainMenu = Join-Path $src 'main_menu.cpp'
+$doTurn = Join-Path $src 'do_turn.cpp'
 $marker = Join-Path $SourceRoot '.ncmm_host_v1_patched'
 
-foreach ($f in @($optionsH,$optionsCpp,$sdl,$mainMenu)) {
+foreach ($f in @($optionsH,$optionsCpp,$sdl,$mainMenu,$doTurn)) {
     if (-not (Test-Path $f)) { throw "Required source file missing: $f" }
 }
 
@@ -56,6 +57,7 @@ if (Test-Path $marker) {
     $c = Read-Utf8 $optionsCpp
     $sd = Read-Utf8 $sdl
     $mm = Read-Utf8 $mainMenu
+    $dt = Read-Utf8 $doTurn
     $checks = @(
         @($h,'COPT_WORLDGEN_ONLY'),
         @($h,'ncmm_can_expose_worldgen_option'),
@@ -67,7 +69,8 @@ if (Test-Path $marker) {
         @($sd,'ncmm::initialize();'),
         @($mm,'ncmm::settings_menu_label()'),
         @($mm,'ncmm::show_manager();'),
-        @($mm,'ncmm::on_language_changed();')
+        @($mm,'ncmm::on_language_changed();'),
+        @($dt,'ncmm::on_turn();')
     )
     foreach ($x in $checks) {
         if (-not $x[0].Contains($x[1])) {
@@ -77,10 +80,14 @@ if (Test-Path $marker) {
     Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.h') (Join-Path $src 'ncmm_loader.h') -Force
     Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.cpp') (Join-Path $src 'ncmm_loader.cpp') -Force
     Copy-Item (Join-Path (Split-Path $PSScriptRoot -Parent) 'sdk\ncmm_api.h') (Join-Path $src 'ncmm_api.h') -Force
-    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.4.1 module contract`n" -Encoding ASCII
-    Write-Host 'Existing NCMM upstream patch verified; v0.4.0 loader/API refreshed.'
+    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.5.0 module contract`n" -Encoding ASCII
+    Write-Host 'Existing NCMM upstream patch verified; v0.5.0 loader/API refreshed.'
     exit 0
 }
+
+$contractScript = Join-Path (Split-Path $PSScriptRoot -Parent) 'ci\Test-SourceContracts.ps1'
+& $contractScript -SourceRoot $SourceRoot
+if ($LASTEXITCODE -ne 0) { throw 'NCMM source-contract preflight failed.' }
 
 # Capture all original non-ASCII code points.  The NCMM patch below only inserts
 # ASCII into upstream files, so these signatures must survive byte-for-byte.
@@ -88,15 +95,18 @@ $hOriginal = Read-Utf8 $optionsH
 $cOriginal = Read-Utf8 $optionsCpp
 $sdOriginal = Read-Utf8 $sdl
 $mmOriginal = Read-Utf8 $mainMenu
+$dtOriginal = Read-Utf8 $doTurn
 $hSig = NonAscii-Signature $hOriginal
 $cSig = NonAscii-Signature $cOriginal
 $sdSig = NonAscii-Signature $sdOriginal
 $mmSig = NonAscii-Signature $mmOriginal
+$dtSig = NonAscii-Signature $dtOriginal
 
 $h = Normalize-Lf $hOriginal
 $c = Normalize-Lf $cOriginal
 $sd = Normalize-Lf $sdOriginal
 $mm = Normalize-Lf $mmOriginal
+$dt = Normalize-Lf $dtOriginal
 
 $h = Replace-ExactlyOnce $h @'
             COPT_NO_SOUND_HIDE,
@@ -184,7 +194,23 @@ $sd = Replace-ExactlyOnce $sd @'
     ncmm::initialize();
 '@ 'sdl.initialize-ncmm'
 
-# NCMM 0.4.1 MCM + module-contract host. main_menu.cpp is handled by the same strict UTF-8
+$dt = Replace-ExactlyOnce $dt '#include "npc.h"' ('#include "npc.h"' + "`n" + '#include "ncmm_loader.h"') 'turn.include-ncmm'
+$dt = Replace-ExactlyOnce $dt @'
+    } else {
+        gamemode->per_turn();
+        calendar::turn += 1_turns;
+    }
+    //used for dimension swapping
+'@ @'
+    } else {
+        gamemode->per_turn();
+        calendar::turn += 1_turns;
+    }
+    ncmm::on_turn();
+    //used for dimension swapping
+'@ 'turn.dispatch-ncmm'
+
+# NCMM 0.5.0 MCM + module-contract host. main_menu.cpp is handled by the same strict UTF-8
 # preservation contract as other upstream sources. Every injected byte is ASCII.
 $mm = Replace-ExactlyOnce $mm '#include "options.h"' ('#include "options.h"' + "`n" + '#include "ncmm_loader.h"') 'main-menu.include-ncmm'
 $mm = Replace-ExactlyOnce $mm @'
@@ -219,6 +245,7 @@ Write-Utf8 $optionsH $h
 Write-Utf8 $optionsCpp $c
 Write-Utf8 $sdl $sd
 Write-Utf8 $mainMenu $mm
+Write-Utf8 $doTurn $dt
 
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.h') (Join-Path $src 'ncmm_loader.h') -Force
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.cpp') (Join-Path $src 'ncmm_loader.cpp') -Force
@@ -228,11 +255,13 @@ $h2 = Read-Utf8 $optionsH
 $c2 = Read-Utf8 $optionsCpp
 $sd2 = Read-Utf8 $sdl
 $mm2 = Read-Utf8 $mainMenu
+$dt2 = Read-Utf8 $doTurn
 
 if ((NonAscii-Signature $h2) -ne $hSig) { throw 'UTF-8 preservation check failed for options.h' }
 if ((NonAscii-Signature $c2) -ne $cSig) { throw 'UTF-8 preservation check failed for options.cpp' }
 if ((NonAscii-Signature $sd2) -ne $sdSig) { throw 'UTF-8 preservation check failed for sdltiles.cpp' }
 if ((NonAscii-Signature $mm2) -ne $mmSig) { throw 'UTF-8 preservation check failed for main_menu.cpp' }
+if ((NonAscii-Signature $dt2) -ne $dtSig) { throw 'UTF-8 preservation check failed for do_turn.cpp' }
 
 foreach ($needle in @('COPT_WORLDGEN_ONLY','ncmm_can_expose_worldgen_option','ncmm_expose_worldgen_option')) {
     if (-not $h2.Contains($needle)) { throw "Post-check failed: $needle" }
@@ -244,6 +273,7 @@ if (-not $sd2.Contains('ncmm::initialize();')) { throw 'Post-check failed: ncmm:
 foreach ($needle in @('ncmm::settings_menu_label()','ncmm::show_manager();','ncmm::on_language_changed();')) {
     if (-not $mm2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
+if (-not $dt2.Contains('ncmm::on_turn();')) { throw 'Post-check failed: ncmm::on_turn' }
 
-Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.4.1 module contract`n" -Encoding ASCII
-Write-Host 'NCMM 0.4.1 host patch applied and UTF-8 preservation verified.'
+Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.5.0 module contract`n" -Encoding ASCII
+Write-Host 'NCMM 0.5.0 host patch applied and UTF-8 preservation verified.'
