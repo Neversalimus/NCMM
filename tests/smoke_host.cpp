@@ -259,7 +259,7 @@ int main( int argc, char **argv )
             return 12;
         }
 
-        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.1 vertical slice)\n";
+        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.1.1 vertical slice)\n";
         return 0;
     }
 

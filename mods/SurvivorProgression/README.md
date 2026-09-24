@@ -1,4 +1,4 @@
-# Survivor Progression v0.1.0
+# Survivor Progression v0.1.1
 
 First NCMM vertical-slice gameplay mod.
 
@@ -12,3 +12,5 @@ Current slice:
 
 This is intentionally a technical vertical slice, not the final balance model.
 Future versions will replace survival-time-only XP with real gameplay event sources and add the full perk trees.
+
+- NCMM 0.5.1 integration: progression UI is available as a normal remappable gameplay action, F1 by default.

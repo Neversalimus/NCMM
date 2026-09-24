@@ -14,7 +14,8 @@ const char *required_caps[] = {
     "module_contract.v1",
     "events.turn.v1",
     "character_state.v1",
-    "ui.basic.v1"
+    "ui.basic.v1",
+    "module_hotkeys.v1"
 };
 
 const ncmm_host_api_v1 *host = nullptr;
@@ -75,7 +76,7 @@ void open_progression()
     std::string perk;
     std::string close;
     if( russian() ) {
-        title = "Survivor Progression v0.1\nУровень " + std::to_string( level ) +
+        title = "Survivor Progression v0.1.1\nУровень " + std::to_string( level ) +
                 " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) ) +
                 " | Очки перков " + std::to_string( points );
         perk = learner ?
@@ -83,7 +84,7 @@ void open_progression()
                "Быстрый ученик — 1 очко, +1 XP выживания в минуту";
         close = "Закрыть";
     } else {
-        title = "Survivor Progression v0.1\nLevel " + std::to_string( level ) +
+        title = "Survivor Progression v0.1.1\nLevel " + std::to_string( level ) +
                 " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) ) +
                 " | Perk points " + std::to_string( points );
         perk = learner ?
@@ -177,7 +178,7 @@ int init( const ncmm_host_api_v1 *api )
 
     host = api;
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.1 initialized: survival XP vertical slice active." );
+              "Survivor Progression 0.1.1 initialized: survival XP vertical slice active." );
     return 1;
 }
 
@@ -191,7 +192,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     module_id,
     "Survivor Progression",
-    "0.1.0",
+    "0.1.1",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,

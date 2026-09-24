@@ -1,7 +1,7 @@
 {
   "id": "survivor_progression",
   "name": "Survivor Progression",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "loader_api": 1,
   "requires": [
     "core.v1",
@@ -9,7 +9,9 @@
     "module_contract.v1",
     "events.turn.v1",
     "character_state.v1",
-    "ui.basic.v1"
+    "ui.basic.v1",
+    "module_hotkeys.v1"
   ],
+  "ui_hotkey": "F1",
   "failure_policy": "disable"
 }

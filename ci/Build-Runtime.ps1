@@ -72,7 +72,7 @@ $spManifest = Get-Content (Join-Path $RepositoryRoot 'mods\SurvivorProgression\m
 if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable') {
     throw 'Survivor Progression manifest contract invalid.'
 }
-foreach ($required in @('core.v1','events.turn.v1','character_state.v1','ui.basic.v1')) {
+foreach ($required in @('core.v1','events.turn.v1','character_state.v1','ui.basic.v1','module_hotkeys.v1')) {
     if (-not ($spManifest.requires -contains $required)) {
         throw "Survivor Progression manifest missing $required"
     }
