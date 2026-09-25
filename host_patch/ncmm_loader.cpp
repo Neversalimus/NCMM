@@ -173,7 +173,7 @@ int has_capability( const char *capability )
 
 const char *get_host_version()
 {
-    return "0.6.3";
+    return "0.6.4";
 }
 
 uint32_t get_loader_api()
@@ -698,7 +698,7 @@ void write_modules_state()
 
     out << "{\n"
         << "  \"schema\": 1,\n"
-        << "  \"host_version\": \"0.6.3\",\n"
+        << "  \"host_version\": \"0.6.4\",\n"
         << "  \"loader_api\": " << NCMM_LOADER_API_VERSION << ",\n"
         << "  \"capabilities\": [";
     for( size_t i = 0; i < get_capability_count(); ++i ) {
@@ -1187,7 +1187,7 @@ void initialize()
     module_ids.clear();
     manifest_id_counts.clear();
     character_modifier_values.clear();
-    log_line( NCMM_LOG_INFO, "NCMM 0.6.3 Host API v1 / Module Contract v1 initializing." );
+    log_line( NCMM_LOG_INFO, "NCMM 0.6.4 Host API v1 / Module Contract v1 initializing." );
 
     if( !shutdown_registered ) {
         std::atexit( &shutdown );

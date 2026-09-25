@@ -212,3 +212,12 @@ Bootstrap атомарно обновляет `ncmm/runtime.state.json`. В нё
 - Runtime и Certified Hosts запускают guard сразу после checkout; Build-Runtime и Build-HostPackage также вызывают его напрямую.
 - Добавлен `.editorconfig`, фиксирующий UTF-8 без BOM/LF для workflow и NCMM text source.
 - Это CI-only hotfix: runtime/host protocol остаётся 0.6.3, Host API v1, Survivor 0.8.1 и AWS 0.5.0 не меняются.
+
+## NCMM 0.6.4 — Automated Failure Harness
+
+- Runtime CI теперь запускает реальный скомпилированный `NCMMBootstrap` в изолированных временных CDDA-каталогах, а не только проверяет строки/компиляцию.
+- Добавлен synthetic child executable, который имитирует vanilla/host process, успешный `ready`, crash до ready и `ready` без очистки pending.
+- Автоматизировано 14 fail-closed сценариев: missing vanilla, valid offline host, manual/forced vanilla, stale runtime binding, empty patch revision, bad host SHA, corrupt binding, crash-loop auto-disable, reset recovery, pending+ready recovery, failure записи auto-disable marker, failure удаления stale ready и diagnostics-only с pending.
+- Harness проверяет фактический exit code, выбранный child executable, `runtime.state.json` и crash-loop markers.
+- Harness запускается ещё в patch pre-commit на Windows и затем повторно внутри `Build-Runtime.ps1` в GitHub Actions.
+- Это тестовая/инфраструктурная версия: Host API остаётся v1; Survivor Progression 0.8.1 и AWS 0.5.0 не меняются.

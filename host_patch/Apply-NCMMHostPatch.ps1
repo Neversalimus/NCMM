@@ -61,8 +61,8 @@ function NonAscii-Signature([string]$Text) {
 
 if (Test-Path $marker) {
     $markerText = [System.IO.File]::ReadAllText($marker)
-    if (-not $markerText.Contains('NCMM 0.6.3')) {
-        throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.6.3.'
+    if (-not $markerText.Contains('NCMM 0.6.4')) {
+        throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.6.4.'
     }
 
     $h = Read-Utf8 $optionsH
@@ -126,8 +126,8 @@ if (Test-Path $marker) {
     if (-not $kn.Contains('ncmm::gameplay_modifier( "read_speed_pct" )')) { throw 'Post-check failed: read_speed_pct' }
     if (-not $cr.Contains('ncmm::gameplay_modifier( "craft_speed_pct" )')) { throw 'Post-check failed: craft_speed_pct' }
 
-    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.6.3 module contract`n" -Encoding ASCII
-    Write-Host 'Existing NCMM upstream patch verified; v0.6.3 loader/API refreshed.'
+    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.6.4 module contract`n" -Encoding ASCII
+    Write-Host 'Existing NCMM upstream patch verified; v0.6.4 loader/API refreshed.'
     exit 0
 }
 
@@ -504,7 +504,7 @@ $mm = Replace-ExactlyOnce $mm @'
 '@ 'main-menu.ncmm-manager-action'
 
 
-# NCMM 0.6.3 generic character modifier hooks.
+# NCMM 0.6.4 generic character modifier hooks.
 $ch = Replace-ExactlyOnce $ch '#include "npc.h"' ('#include "npc.h"' + "`n" + '#include "ncmm_loader.h"') 'character.include-ncmm'
 $ch = Replace-ExactlyOnce $ch @'
 int Character::get_str() const
@@ -796,5 +796,5 @@ foreach ($needle in @('ncmm::register_gameplay_actions( ctxt );','ncmm::handle_g
     if (-not $ha2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 
-Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.6.3 module contract`n" -Encoding ASCII
-Write-Host 'NCMM 0.6.3 host patch applied and UTF-8 preservation verified.'
+Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.6.4 module contract`n" -Encoding ASCII
+Write-Host 'NCMM 0.6.4 host patch applied and UTF-8 preservation verified.'

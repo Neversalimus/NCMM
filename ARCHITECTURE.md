@@ -171,3 +171,14 @@ UTF-16/UTF-32 and embedded U+FEFF are rejected.
 
 The invariant is enforced in three layers: EditorConfig at edit time, package/pre-commit validation, and
 both runtime/host build entry points. This hotfix intentionally does not change the 0.6.3 runtime/host protocol.
+
+## 0.6.4 executable failure harness
+
+Bootstrap safety is now tested as an executable state machine. CI compiles the production bootstrap and launches
+it inside isolated temporary game roots containing deterministic synthetic vanilla/host child executables.
+The harness asserts process selection, exit propagation, runtime.state.json and crash-loop marker transitions.
+
+The suite is offline by construction and does not depend on GitHub/network availability. Its purpose is to catch
+regressions in fail-closed behavior before runtime packaging: invalid bindings must select vanilla, host crashes
+must become auto-disable on the next launch, successful ready publication must not be treated as a crash, and
+filesystem failures while persisting/cleaning recovery markers must never cause an unsafe host launch.
