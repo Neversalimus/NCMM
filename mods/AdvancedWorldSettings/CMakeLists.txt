@@ -11,7 +11,7 @@ set_target_properties(ncmm_mod PROPERTIES PREFIX "" OUTPUT_NAME "ncmm_mod")
 
 add_executable(ncmm_smoke_host ../../tests/smoke_host.cpp)
 target_compile_features(ncmm_smoke_host PRIVATE cxx_std_17)
-target_include_directories(ncmm_smoke_host PRIVATE ../../sdk)
+target_include_directories(ncmm_smoke_host PRIVATE ../../sdk ../../host_patch)
 if(MSVC)
   set_property(TARGET ncmm_smoke_host PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
   target_compile_options(ncmm_smoke_host PRIVATE /EHsc)

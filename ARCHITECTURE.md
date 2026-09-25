@@ -182,3 +182,17 @@ The suite is offline by construction and does not depend on GitHub/network avail
 regressions in fail-closed behavior before runtime packaging: invalid bindings must select vanilla, host crashes
 must become auto-disable on the next launch, successful ready publication must not be treated as a crash, and
 filesystem failures while persisting/cleaning recovery markers must never cause an unsafe host launch.
+
+## 0.6.5 feed integrity and runtime callback quarantine
+
+Certified-host publication is now guarded by a feed-integrity auditor. Feed entries must be revision-coherent,
+use immutable patch-revision-qualified GitHub release URLs, and match GitHub's published asset digest. The host
+publisher audits the staged feed before committing it, while a separate scheduled/push workflow re-audits the
+published feed online.
+
+Runtime callback failures are isolated per callback. A first C++ exception in turn, locale, or UI execution
+quarantines that callback for the remainder of the process, clears all gameplay modifiers registered by the
+module, and blocks subsequent modifier writes from the quarantined module. The native DLL stays loaded so the
+host never unloads code that may still have live function/static state. `modules.state.json` is atomically
+updated to `runtime_fault` with a machine-readable reason. The pure quarantine state machine lives in
+`ncmm_fault_policy.h` and is exercised by the runtime smoke executable.

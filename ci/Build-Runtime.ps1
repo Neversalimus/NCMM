@@ -88,7 +88,7 @@ foreach ($required in @('core.v1','events.turn.v1','character_state.v1','charact
     }
 }
 
-# NCMM 0.6.4 loader hardening is intentionally source-structural: Runtime CI
+# NCMM 0.6.5 loader hardening is intentionally source-structural: Runtime CI
 # guards the invariants even before the certified-host workflow compiles them.
 $loaderSource = Get-Content (Join-Path $RepositoryRoot 'host_patch\ncmm_loader.cpp') -Raw
 foreach ($requiredLoaderFragment in @(
@@ -98,10 +98,13 @@ foreach ($requiredLoaderFragment in @(
     'init_exception',
     'shutdown_registered',
     'MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH',
-    'boot.pending preserved'
+    'boot.pending preserved',
+    'quarantine_runtime_callback',
+    '"runtime_fault"',
+    'module_modifiers_quarantined'
 )) {
     if (-not $loaderSource.Contains($requiredLoaderFragment)) {
-        throw "NCMM 0.6.4 loader hardening invariant missing: $requiredLoaderFragment"
+        throw "NCMM 0.6.5 loader hardening invariant missing: $requiredLoaderFragment"
     }
 }
 
@@ -116,17 +119,17 @@ foreach ($requiredBootstrapFragment in @(
     'stale boot.pending still exists before host launch'
 )) {
     if (-not $bootstrapSourceText.Contains($requiredBootstrapFragment)) {
-        throw "NCMM 0.6.4 bootstrap hardening invariant missing: $requiredBootstrapFragment"
+        throw "NCMM 0.6.5 bootstrap hardening invariant missing: $requiredBootstrapFragment"
     }
 }
 
 $hostPatchSource = Get-Content (Join-Path $RepositoryRoot 'host_patch\Apply-NCMMHostPatch.ps1') -Raw
 if ($hostPatchSource.Contains("if (`$LASTEXITCODE -ne 0) { throw 'NCMM source-contract preflight failed.' }")) {
-    throw 'NCMM 0.6.4 regression: PowerShell source-contract preflight still inspects stale LASTEXITCODE.'
+    throw 'NCMM 0.6.5 regression: PowerShell source-contract preflight still inspects stale LASTEXITCODE.'
 }
 
 @'
-NCMM 0.6.4 Runtime
+NCMM 0.6.5 Runtime
 ===============
 1. Run NCMM_Setup.exe.
 2. Select the CDDA folder containing cataclysm-tiles.exe.
@@ -139,7 +142,7 @@ If no exact certified host exists for the installed CDDA executable, NCMM starts
 
 Remove-Item $awsBuild -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $spBuild -Recurse -Force -ErrorAction SilentlyContinue
-$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.6.4.zip'
+$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.6.5.zip'
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $OutputRoot '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip

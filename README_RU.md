@@ -221,3 +221,22 @@ Bootstrap атомарно обновляет `ncmm/runtime.state.json`. В нё
 - Harness проверяет фактический exit code, выбранный child executable, `runtime.state.json` и crash-loop markers.
 - Harness запускается ещё в patch pre-commit на Windows и затем повторно внутри `Build-Runtime.ps1` в GitHub Actions.
 - Это тестовая/инфраструктурная версия: Host API остаётся v1; Survivor Progression 0.8.1 и AWS 0.5.0 не меняются.
+
+## NCMM 0.6.5 — Feed Integrity Auditor + Runtime Fault Quarantine
+
+### Feed Integrity Auditor
+- Добавлен отдельный `Test-FeedIntegrity.ps1` с synthetic self-test и online audit через GitHub API.
+- Проверяются schema/Loader API/runtime version/patch revision, vanilla SHA keys, source commit, host SHA, immutable revision-qualified release URL и согласованность всех entries одного upstream tag.
+- Для online audit GitHub release обязан содержать ровно один `cataclysm-tiles.ncmm.exe`; его API `digest` и `browser_download_url` должны точно совпадать с feed.
+- Один CDDA tag не может одновременно находиться в certified feed и `rejected.json` для той же patch revision.
+- Host publisher запускает auditor **до commit feed**. Отдельный workflow повторяет online audit после каждого feed-коммита и каждые 6 часов.
+
+### Runtime Fault Quarantine
+- `on_turn`, locale и UI callbacks теперь quarantine'ятся после первого C++ exception: проблемный callback больше не вызывается до перезапуска.
+- При runtime fault все зарегистрированные gameplay modifiers этого модуля немедленно удаляются; новые modifier writes от него блокируются до следующего процесса.
+- DLL остаётся загруженной, остальные исправные callbacks могут продолжить работу; это изолирует ошибку без опасного unload живого native-кода.
+- `modules.state.json` сразу получает `state="runtime_fault"` и machine-readable reason: `turn_exception`, `locale_exception` или `ui_exception`.
+- Менеджер показывает `ON / quarantined` и причину, а UI callback после exception исчезает из активного пути.
+- Чистая policy-логика вынесена в `ncmm_fault_policy.h` и проверяется тем же `ncmm_smoke_host` в Runtime CI.
+
+Host API остаётся v1. Survivor Progression 0.8.1 и AWS 0.5.0 не меняют баланс/save schema.

@@ -1,5 +1,6 @@
 #include "ncmm_loader.h"
 #include "ncmm_api.h"
+#include "ncmm_fault_policy.h"
 #include "avatar.h"
 #include "game.h"
 #include "input.h"
@@ -42,6 +43,7 @@ struct loaded_mod {
     ncmm_open_ui_v1_fn open_ui = nullptr;
     std::string action_id;
     std::string default_hotkey;
+    runtime_fault_policy fault;
 };
 
 std::vector<loaded_mod> loaded;
@@ -173,7 +175,7 @@ int has_capability( const char *capability )
 
 const char *get_host_version()
 {
-    return "0.6.4";
+    return "0.6.5";
 }
 
 uint32_t get_loader_api()
@@ -268,6 +270,20 @@ bool active_module_matches( const char *module_id )
            active_module_id == module_id;
 }
 
+bool module_modifiers_quarantined( const char *module_id )
+{
+    if( module_id == nullptr ) {
+        return false;
+    }
+    for( const loaded_mod &mod : loaded ) {
+        if( mod.descriptor && mod.descriptor->id &&
+            std::string( mod.descriptor->id ) == module_id ) {
+            return mod.fault.modifiers_quarantined;
+        }
+    }
+    return false;
+}
+
 std::string character_state_key( const char *module_id, const char *key )
 {
     return "ncmm." + std::string( module_id ) + "." + std::string( key );
@@ -341,6 +357,7 @@ void ui_message( const char *message )
 int character_modifier_set( const char *module_id, const char *modifier_id, double value )
 {
     if( !active_module_matches( module_id ) || module_ids.count( module_id ) == 0 ||
+        module_modifiers_quarantined( module_id ) ||
         modifier_id == nullptr || !std::isfinite( value ) ) {
         return 0;
     }
@@ -698,7 +715,7 @@ void write_modules_state()
 
     out << "{\n"
         << "  \"schema\": 1,\n"
-        << "  \"host_version\": \"0.6.4\",\n"
+        << "  \"host_version\": \"0.6.5\",\n"
         << "  \"loader_api\": " << NCMM_LOADER_API_VERSION << ",\n"
         << "  \"capabilities\": [";
     for( size_t i = 0; i < get_capability_count(); ++i ) {
@@ -749,6 +766,59 @@ const loaded_mod *find_loaded( const std::filesystem::path &directory )
         }
     }
     return nullptr;
+}
+
+loaded_mod *find_loaded_mutable( const std::filesystem::path &directory )
+{
+    const std::filesystem::path wanted = directory.lexically_normal();
+    for( loaded_mod &mod : loaded ) {
+        if( mod.directory.lexically_normal() == wanted ) {
+            return &mod;
+        }
+    }
+    return nullptr;
+}
+
+void quarantine_runtime_callback( loaded_mod &mod, runtime_callback_kind kind,
+                                  const char *reason )
+{
+    const std::string module_id = mod.descriptor && mod.descriptor->id ?
+                                  mod.descriptor->id : std::string();
+
+    switch( kind ) {
+        case runtime_callback_kind::turn:
+            mod.on_turn = nullptr;
+            break;
+        case runtime_callback_kind::locale:
+            mod.locale_changed = nullptr;
+            break;
+        case runtime_callback_kind::ui:
+            mod.open_ui = nullptr;
+            mod.action_id.clear();
+            break;
+    }
+
+    if( !module_id.empty() ) {
+        character_modifier_values.erase( module_id );
+    }
+
+    if( !mod.fault.quarantine( kind ) ) {
+        return;
+    }
+
+    for( module_state &state : module_states ) {
+        if( state.directory.lexically_normal() == mod.directory.lexically_normal() ) {
+            state.state = "runtime_fault";
+            state.reason = reason ? reason : "runtime_exception";
+            break;
+        }
+    }
+
+    log_line( NCMM_LOG_WARN,
+              ( "Runtime callback quarantined for module: " +
+                ( module_id.empty() ? mod.directory.filename().string() : module_id ) +
+                " -> " + ( reason ? reason : "runtime_exception" ) ).c_str() );
+    write_modules_state();
 }
 
 struct manager_entry {
@@ -1018,7 +1088,7 @@ bool handle_gameplay_action( const std::string &action )
         return true;
     }
 
-    for( const loaded_mod &mod : loaded ) {
+    for( loaded_mod &mod : loaded ) {
         if( mod.action_id.empty() || action != mod.action_id || mod.open_ui == nullptr ) {
             continue;
         }
@@ -1029,8 +1099,10 @@ bool handle_gameplay_action( const std::string &action )
         } catch( ... ) {
             const std::string name = mod.descriptor && mod.descriptor->name ?
                                      mod.descriptor->name : mod.action_id;
+            quarantine_runtime_callback( mod, runtime_callback_kind::ui, "ui_exception" );
             log_line( NCMM_LOG_WARN, ( "Module UI callback failed: " + name ).c_str() );
-            popup( tr_ui( "Module UI callback failed.", "Ошибка callback интерфейса мода." ) );
+            popup( tr_ui( "Module UI callback failed and was quarantined for this session.",
+                          "Ошибка callback интерфейса мода; callback помещён в карантин до перезапуска." ) );
         }
         return true;
     }
@@ -1057,6 +1129,8 @@ void show_manager()
             std::string state;
             if( entry.disabled ) {
                 state = tr_ui( "OFF", "ВЫКЛ" );
+            } else if( entry.runtime_state == "runtime_fault" ) {
+                state = tr_ui( "ON / quarantined", "ВКЛ / карантин" );
             } else if( entry.loaded_now ) {
                 state = tr_ui( "ON / loaded", "ВКЛ / загружен" );
             } else if( entry.runtime_state == "rejected" ) {
@@ -1071,7 +1145,8 @@ void show_manager()
             if( !entry.version.empty() ) {
                 label += "  " + entry.version;
             }
-            if( !entry.reason.empty() && !entry.loaded_now && !entry.disabled ) {
+            if( !entry.reason.empty() && !entry.disabled &&
+                ( !entry.loaded_now || entry.runtime_state == "runtime_fault" ) ) {
                 label += " - " + entry.reason;
             }
             const loaded_mod *runtime = find_loaded( entry.directory );
@@ -1090,7 +1165,7 @@ void show_manager()
         const std::filesystem::path marker = entry.directory / "disabled";
         std::error_code ec;
 
-        const loaded_mod *runtime = find_loaded( entry.directory );
+        loaded_mod *runtime = find_loaded_mutable( entry.directory );
         if( !entry.disabled && runtime != nullptr && runtime->open_ui != nullptr ) {
             uilist action;
             action.text = entry.name;
@@ -1103,8 +1178,10 @@ void show_manager()
                                              runtime->descriptor->id : nullptr );
                     runtime->open_ui( &api );
                 } catch( ... ) {
+                    quarantine_runtime_callback( *runtime, runtime_callback_kind::ui, "ui_exception" );
                     log_line( NCMM_LOG_WARN, ( "Module UI callback failed: " + entry.name ).c_str() );
-                    popup( tr_ui( "Module UI callback failed.", "Ошибка callback интерфейса мода." ) );
+                    popup( tr_ui( "Module UI callback failed and was quarantined for this session.",
+                                  "Ошибка callback интерфейса мода; callback помещён в карантин до перезапуска." ) );
                 }
                 continue;
             }
@@ -1144,6 +1221,7 @@ void on_turn()
                                          mod.descriptor->id : nullptr );
                 mod.on_turn( &api );
             } catch( ... ) {
+                quarantine_runtime_callback( mod, runtime_callback_kind::turn, "turn_exception" );
                 if( mod.descriptor && mod.descriptor->id ) {
                     log_line( NCMM_LOG_WARN,
                               ( std::string( "Turn callback failed for module: " ) +
@@ -1163,6 +1241,7 @@ void on_language_changed()
                                          mod.descriptor->id : nullptr );
                 mod.locale_changed( &api );
             } catch( ... ) {
+                quarantine_runtime_callback( mod, runtime_callback_kind::locale, "locale_exception" );
                 if( mod.descriptor && mod.descriptor->id ) {
                     log_line( NCMM_LOG_WARN,
                               ( std::string( "Locale refresh failed for module: " ) +
@@ -1187,7 +1266,7 @@ void initialize()
     module_ids.clear();
     manifest_id_counts.clear();
     character_modifier_values.clear();
-    log_line( NCMM_LOG_INFO, "NCMM 0.6.4 Host API v1 / Module Contract v1 initializing." );
+    log_line( NCMM_LOG_INFO, "NCMM 0.6.5 Host API v1 / Module Contract v1 initializing." );
 
     if( !shutdown_registered ) {
         std::atexit( &shutdown );

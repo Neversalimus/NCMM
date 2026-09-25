@@ -256,7 +256,7 @@ internal static class SetupCore
         int errors = 0;
         int warnings = 0;
 
-        sb.AppendLine("NCMM v0.6.4 Diagnostics");
+        sb.AppendLine("NCMM v0.6.5 Diagnostics");
         sb.AppendLine("Target: " + target.BuildLabel);
         sb.AppendLine("Path: " + target.PathValue);
         sb.AppendLine("Source commit: " + (target.SourceCommit ?? "unknown"));
@@ -318,16 +318,16 @@ internal static class SetupCore
                     binding.loader_api != 1)
                 {
                     binding = null;
-                    AddCheck(sb, ref errors, ref warnings, "ERROR", "host.binding.json is incomplete or predates the 0.6.4 certification contract.");
+                    AddCheck(sb, ref errors, ref warnings, "ERROR", "host.binding.json is incomplete or predates the 0.6.5 certification contract.");
                 }
-                else if (!String.Equals(binding.ncmm_version, "0.6.4", StringComparison.OrdinalIgnoreCase))
+                else if (!String.Equals(binding.ncmm_version, "0.6.5", StringComparison.OrdinalIgnoreCase))
                 {
                     binding = null;
                     AddCheck(sb, ref errors, ref warnings, "WARN", "Certified host binding belongs to a different NCMM runtime version and will be refreshed/fallback safely.");
                 }
                 else
                 {
-                    AddCheck(sb, ref errors, ref warnings, "OK", "host.binding.json parsed successfully for NCMM 0.6.4.");
+                    AddCheck(sb, ref errors, ref warnings, "OK", "host.binding.json parsed successfully for NCMM 0.6.5.");
                 }
             }
             catch (Exception ex)
@@ -428,7 +428,7 @@ internal static class SetupCore
         string autoDisabledTmp = autoDisabled + ".tmp";
         StringBuilder result = new StringBuilder();
 
-        result.AppendLine(DateTime.UtcNow.ToString("o") + " NCMM v0.6.4 safe state repair");
+        result.AppendLine(DateTime.UtcNow.ToString("o") + " NCMM v0.6.5 safe state repair");
         result.AppendLine("Target: " + gameRoot);
 
         foreach (string marker in new string[] { pending, ready, readyTmp, autoDisabled, autoDisabledTmp })
@@ -490,7 +490,7 @@ internal sealed class MainForm : Form
 
     internal MainForm()
     {
-        Text = "NCMM 0.6.4 Setup";
+        Text = "NCMM 0.6.5 Setup";
         Width = 900;
         Height = 500;
         StartPosition = FormStartPosition.CenterScreen;
@@ -702,7 +702,7 @@ internal sealed class MainForm : Form
                 "Bootstrap SHA256:\n" + result.BootstrapSha256.ToUpperInvariant() + "\n\n" +
                 "You can launch CDDA normally.";
 
-            MessageBox.Show(this, message, "NCMM 0.6.4", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, message, "NCMM 0.6.5", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
@@ -725,7 +725,7 @@ internal sealed class MainForm : Form
 
             MessageBox.Show(this,
                 "Vanilla cataclysm-tiles.exe restored.\n\nTarget:\n" + target.PathValue,
-                "NCMM 0.6.4", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "NCMM 0.6.5", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
@@ -751,7 +751,7 @@ internal sealed class MainForm : Form
                                   MessageBoxIcon.Information;
             MessageBox.Show(this,
                 "Diagnostics finished: " + report.Summary + "\n\nFull report is in the Setup log.",
-                "NCMM 0.6.4 Diagnostics", MessageBoxButtons.OK, icon);
+                "NCMM 0.6.5 Diagnostics", MessageBoxButtons.OK, icon);
         }
         catch (Exception ex)
         {
@@ -784,7 +784,7 @@ internal sealed class MainForm : Form
             }
             MessageBox.Show(this,
                 "Safe runtime state repair completed.\nSee ncmm\\repair.log for the audit trail.",
-                "NCMM 0.6.4", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "NCMM 0.6.5", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {

@@ -1,4 +1,5 @@
 #include "ncmm_api.h"
+#include "ncmm_fault_policy.h"
 
 #include <cstdint>
 #include <cstdlib>
@@ -17,6 +18,34 @@
 
 namespace
 {
+bool runtime_fault_policy_smoke()
+{
+    ncmm::runtime_fault_policy policy;
+    if( policy.modifiers_quarantined ||
+        policy.callback_quarantined( ncmm::runtime_callback_kind::turn ) ||
+        policy.callback_quarantined( ncmm::runtime_callback_kind::locale ) ||
+        policy.callback_quarantined( ncmm::runtime_callback_kind::ui ) ) {
+        return false;
+    }
+
+    if( !policy.quarantine( ncmm::runtime_callback_kind::turn ) ||
+        !policy.turn_quarantined || !policy.modifiers_quarantined ||
+        policy.locale_quarantined || policy.ui_quarantined ) {
+        return false;
+    }
+
+    if( policy.quarantine( ncmm::runtime_callback_kind::turn ) ) {
+        return false;
+    }
+
+    if( !policy.quarantine( ncmm::runtime_callback_kind::ui ) ||
+        !policy.ui_quarantined ||
+        !policy.callback_quarantined( ncmm::runtime_callback_kind::ui ) ) {
+        return false;
+    }
+    return true;
+}
+
 std::vector<std::string> exposed;
 std::vector<std::string> groups;
 std::map<std::string, std::string> option_groups;
@@ -64,7 +93,7 @@ const char *get_locale_fn()
 
 const char *get_host_version_fn()
 {
-    return "0.6.1-smoke";
+    return "0.6.5-smoke";
 }
 
 uint32_t get_loader_api_fn()
@@ -273,6 +302,12 @@ int main( int argc, char **argv )
         std::cerr << "usage: ncmm_smoke_host <module> [--missing-contract]\n";
         return 2;
     }
+
+    if( !runtime_fault_policy_smoke() ) {
+        std::cerr << "NCMM runtime fault policy smoke test failed\n";
+        return 20;
+    }
+    std::cout << "NCMM runtime fault policy: PASS\n";
     if( argc == 3 && std::strcmp( argv[2], "--missing-contract" ) == 0 ) {
         simulate_missing_contract = true;
     }

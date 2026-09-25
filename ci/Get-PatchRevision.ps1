@@ -5,6 +5,7 @@ $paths = @(
     'sdk/ncmm_api.h',
     'host_patch/ncmm_loader.h',
     'host_patch/ncmm_loader.cpp',
+    'host_patch/ncmm_fault_policy.h',
     'compat/contracts.json',
     'ci/Test-SourceContracts.ps1',
     'ci/Build-HostPackage.ps1',
