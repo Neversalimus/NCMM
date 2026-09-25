@@ -3,7 +3,7 @@ param(
     [string]$RejectedPath,
     [string]$ExpectedRuntimeVersion,
     [string]$ExpectedPatchRevision,
-    [string]$Repository = 'Neversalimus/Cataclysm',
+    [string]$Repository = 'Neversalimus/NCMM',
     [switch]$Online,
     [switch]$SelfTest
 )
@@ -130,7 +130,7 @@ function New-TestFixture {
     $entry = [pscustomobject]@{
         source_commit = ('c' * 40)
         upstream_tag = 'cdda-experimental-2099-01-01-0001'
-        host_url = "https://github.com/Neversalimus/Cataclysm/releases/download/ncmm-host-cdda-experimental-2099-01-01-0001-r$short/cataclysm-tiles.ncmm.exe"
+        host_url = "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-cdda-experimental-2099-01-01-0001-r$short/cataclysm-tiles.ncmm.exe"
         host_sha256 = ('d' * 64)
         patch_revision = $rev
         ncmm_version = '0.7.0'
@@ -166,13 +166,13 @@ function New-TestFixture {
 
 function Invoke-SelfTest {
     $fixture = New-TestFixture
-    [void](Validate-FeedObject $fixture.feed $fixture.rejected '0.7.0' $fixture.rev 'Neversalimus/Cataclysm' $false)
+    [void](Validate-FeedObject $fixture.feed $fixture.rejected '0.7.0' $fixture.rev 'Neversalimus/NCMM' $false)
 
     $fixture = New-TestFixture
     $fixture.entry.PSObject.Properties['patch_revision'].Value = ('e' * 64)
     $failed = $false
     try {
-        [void](Validate-FeedObject $fixture.feed $fixture.rejected '0.7.0' $fixture.rev 'Neversalimus/Cataclysm' $false)
+        [void](Validate-FeedObject $fixture.feed $fixture.rejected '0.7.0' $fixture.rev 'Neversalimus/NCMM' $false)
     } catch {
         $failed = $true
     }
@@ -184,7 +184,7 @@ function Invoke-SelfTest {
         -NotePropertyValue ([pscustomobject]@{})
     $failed = $false
     try {
-        [void](Validate-FeedObject $fixture.feed $fixture.rejected '0.7.0' $fixture.rev 'Neversalimus/Cataclysm' $false)
+        [void](Validate-FeedObject $fixture.feed $fixture.rejected '0.7.0' $fixture.rev 'Neversalimus/NCMM' $false)
     } catch {
         $failed = $true
     }
@@ -194,7 +194,7 @@ function Invoke-SelfTest {
     $fixture.entry.PSObject.Properties['host_url'].Value = 'https://example.invalid/host.exe'
     $failed = $false
     try {
-        [void](Validate-FeedObject $fixture.feed $fixture.rejected '0.7.0' $fixture.rev 'Neversalimus/Cataclysm' $false)
+        [void](Validate-FeedObject $fixture.feed $fixture.rejected '0.7.0' $fixture.rev 'Neversalimus/NCMM' $false)
     } catch {
         $failed = $true
     }

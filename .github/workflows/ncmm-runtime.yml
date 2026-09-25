@@ -1,0 +1,68 @@
+name: NCMM Runtime
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'runtime/**'
+      - 'mods/**'
+      - 'sdk/**'
+      - 'ci/Build-Runtime.ps1'
+      - 'ci/Test-TextEncoding.ps1'
+      - 'ci/Test-BootstrapFailureHarness.ps1'
+      - 'tests/**'
+      - 'host_patch/ncmm_fault_policy.h'
+      - 'host_patch/ncmm_manifest_policy.h'
+      - '.editorconfig'
+      - '.github/workflows/ncmm-runtime.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ncmm-runtime-release
+  cancel-in-progress: false
+
+jobs:
+  build-runtime:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout NCMM repository
+        uses: actions/checkout@v4
+
+      - name: Validate repository text encoding
+        shell: powershell
+        run: |
+          ./ci/Test-TextEncoding.ps1 -RepoRoot "$env:GITHUB_WORKSPACE" -SelfTest
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build runtime + bundled code-mods
+        shell: powershell
+        run: |
+          ./ci/Build-Runtime.ps1 `
+            -RepositoryRoot "$env:GITHUB_WORKSPACE" `
+            -OutputRoot "$env:GITHUB_WORKSPACE/dist/runtime"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NCMM_Runtime_v0.7.0
+          path: dist/NCMM_Runtime_v0.7.0.zip
+          if-no-files-found: error
+
+      - name: Publish runtime release
+        if: github.ref == 'refs/heads/main'
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'ncmm-runtime-v0.7.0'
+          cmd /c "gh release view $tag >nul 2>nul"
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title 'NCMM Runtime v0.7.0' --notes 'Portable NCMM runtime with certified-host and crash-loop hardening. No compiler or build tools are required on player PCs.'
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create runtime release.' }
+          }
+          gh release upload $tag 'dist/NCMM_Runtime_v0.7.0.zip' --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload runtime package.' }

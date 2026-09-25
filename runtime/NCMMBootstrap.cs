@@ -80,7 +80,7 @@ internal static class NCMMBootstrap
 {
     private const int LoaderApi = 1;
     private const string RuntimeVersion = "0.7.0";
-    private const string DefaultFeedUrl = "https://raw.githubusercontent.com/Neversalimus/Cataclysm/master/ncmm-platform/feed/index.json";
+    private const string DefaultFeedUrl = "https://raw.githubusercontent.com/Neversalimus/NCMM/main/feed/index.json";
 
     private static string Root;
     private static string NcmmDir;

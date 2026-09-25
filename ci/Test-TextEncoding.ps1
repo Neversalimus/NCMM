@@ -112,8 +112,7 @@ $extensions = @('.ps1','.cs','.cpp','.h','.json','.md','.txt','.yml','.yaml')
 $workflowRoot = Join-Path (Join-Path $RepoRoot '.github') 'workflows'
 $workflowPrefix = [IO.Path]::GetFullPath($workflowRoot) + [IO.Path]::DirectorySeparatorChar
 $roots = @(
-    $workflowRoot,
-    (Join-Path $RepoRoot 'ncmm-platform')
+    $RepoRoot
 )
 
 $checked = 0

@@ -1,0 +1,44 @@
+name: NCMM Feed Integrity
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+  push:
+    paths:
+      - 'feed/**'
+
+permissions:
+  contents: read
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  audit-feed:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout NCMM repository
+        uses: actions/checkout@v4
+
+      - name: Validate repository text encoding
+        shell: pwsh
+        run: |
+          ./ci/Test-TextEncoding.ps1 -RepoRoot "$env:GITHUB_WORKSPACE"
+
+      - name: Feed auditor self-test
+        shell: pwsh
+        run: |
+          ./ci/Test-FeedIntegrity.ps1 -SelfTest
+
+      - name: Audit published certified-host feed
+        shell: pwsh
+        run: |
+          $revision = (./ci/Get-PatchRevision.ps1 -RepositoryRoot .).Trim()
+          ./ci/Test-FeedIntegrity.ps1 `
+            -FeedPath ./feed/index.json `
+            -RejectedPath ./feed/rejected.json `
+            -ExpectedRuntimeVersion '0.7.0' `
+            -ExpectedPatchRevision $revision `
+            -Repository '${{ github.repository }}' `
+            -Online

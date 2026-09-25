@@ -100,7 +100,7 @@ GitHub Actions раз в час смотрит новые `cdda-experimental-*` 
 
 По умолчанию runtime использует:
 
-`https://raw.githubusercontent.com/Neversalimus/Cataclysm/master/ncmm-platform/feed/index.json`
+`https://raw.githubusercontent.com/Neversalimus/NCMM/main/feed/index.json`
 
 Для тестового mirror можно создать `ncmm/feed.url` с другим HTTPS URL.
 
