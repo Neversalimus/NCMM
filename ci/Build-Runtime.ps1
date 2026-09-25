@@ -82,7 +82,7 @@ foreach ($required in @('core.v1','events.turn.v1','character_state.v1','charact
     }
 }
 
-# NCMM 0.6.2 loader hardening is intentionally source-structural: Runtime CI
+# NCMM 0.6.3 loader hardening is intentionally source-structural: Runtime CI
 # guards the invariants even before the certified-host workflow compiles them.
 $loaderSource = Get-Content (Join-Path $RepositoryRoot 'host_patch\ncmm_loader.cpp') -Raw
 foreach ($requiredLoaderFragment in @(
@@ -95,12 +95,32 @@ foreach ($requiredLoaderFragment in @(
     'boot.pending preserved'
 )) {
     if (-not $loaderSource.Contains($requiredLoaderFragment)) {
-        throw "NCMM 0.6.2 loader hardening invariant missing: $requiredLoaderFragment"
+        throw "NCMM 0.6.3 loader hardening invariant missing: $requiredLoaderFragment"
     }
 }
 
+$bootstrapSourceText = Get-Content (Join-Path $RepositoryRoot 'runtime\NCMMBootstrap.cs') -Raw
+foreach ($requiredBootstrapFragment in @(
+    'public string runtime_version { get; set; }',
+    'public string patch_revision { get; set; }',
+    'binding.loader_api != LoaderApi',
+    'rejected_patch_revision',
+    'recoveryBlockedHost',
+    'boot.ready proves the previous host reached ready state',
+    'stale boot.pending still exists before host launch'
+)) {
+    if (-not $bootstrapSourceText.Contains($requiredBootstrapFragment)) {
+        throw "NCMM 0.6.3 bootstrap hardening invariant missing: $requiredBootstrapFragment"
+    }
+}
+
+$hostPatchSource = Get-Content (Join-Path $RepositoryRoot 'host_patch\Apply-NCMMHostPatch.ps1') -Raw
+if ($hostPatchSource.Contains("if (`$LASTEXITCODE -ne 0) { throw 'NCMM source-contract preflight failed.' }")) {
+    throw 'NCMM 0.6.3 regression: PowerShell source-contract preflight still inspects stale LASTEXITCODE.'
+}
+
 @'
-NCMM 0.6.2 Runtime
+NCMM 0.6.3 Runtime
 ===============
 1. Run NCMM_Setup.exe.
 2. Select the CDDA folder containing cataclysm-tiles.exe.
@@ -113,7 +133,7 @@ If no exact certified host exists for the installed CDDA executable, NCMM starts
 
 Remove-Item $awsBuild -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $spBuild -Recurse -Force -ErrorAction SilentlyContinue
-$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.6.2.zip'
+$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.6.3.zip'
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $OutputRoot '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip

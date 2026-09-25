@@ -12,10 +12,14 @@ New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 $commit = (& git -C $UpstreamRoot rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $commit -notmatch '^[0-9a-f]{40}$') { throw 'Could not resolve upstream commit.' }
 $patchRevision = (& (Join-Path $RepositoryRoot 'ci\Get-PatchRevision.ps1') -RepositoryRoot $RepositoryRoot).Trim()
+if ($patchRevision -notmatch '^[0-9a-f]{64}$') {
+    throw "Invalid NCMM patch revision: $patchRevision"
+}
 
 $patchScript = Join-Path $RepositoryRoot 'host_patch\Apply-NCMMHostPatch.ps1'
+# Apply-NCMMHostPatch.ps1 is a PowerShell script: terminating exceptions are the
+# failure signal. Do not inspect stale $LASTEXITCODE from a previous native command.
 & $patchScript -SourceRoot $UpstreamRoot
-if ($LASTEXITCODE -ne 0) { throw 'NCMM host contract patch failed.' }
 
 Push-Location $UpstreamRoot
 try {
@@ -70,7 +74,7 @@ $metadata = [ordered]@{
     compatibility_schema = 1
     source_contracts = @($contractIds)
     loader_api = 1
-    ncmm_version = '0.6.2'
+    ncmm_version = '0.6.3'
     upstream_tag = $UpstreamTag
     source_commit = $commit
     patch_revision = $patchRevision

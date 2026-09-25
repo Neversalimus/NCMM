@@ -190,3 +190,15 @@ Bootstrap атомарно обновляет `ncmm/runtime.state.json`. В нё
 - `boot.ready` сначала пишется во временный файл и публикуется атомарно; `boot.pending` удаляется только после успешной публикации ready marker.
 - Runtime CI отдельно проверяет наличие этих hardening-инвариантов в loader source до упаковки runtime.
 - ABI Host API v1 и capability-набор не менялись; существующим корректным модулям не требуется миграция.
+
+## NCMM 0.6.3 — Certification & Crash-loop Hardening
+
+- Исправлена ложная ошибка source-contract preflight: вызов PowerShell-скрипта больше не проверяет устаревший `$LASTEXITCODE` от предыдущей native-команды.
+- Исправлен existing-marker путь `Apply-NCMMHostPatch.ps1`, где повторная проверка обращалась к ещё не созданным `$ch2/$hh2/...`.
+- Patch revision теперь включает `Build-HostPackage.ps1` и сам алгоритм `Get-PatchRevision.ps1`, поэтому изменения упаковки/сертификации не переиспользуют старую ревизию.
+- Certified host releases получили immutable release tag с коротким patch-revision suffix; после upload GitHub asset digest сверяется с локальным SHA256 до изменения feed.
+- Новый feed сначала удаляет entries старых patch revisions. Текущий rejection удаляет ранее рекламировавшийся host для того же CDDA tag.
+- Bootstrap 0.6.3 принимает binding только своей runtime-версии/Loader API и требует patch revision metadata. Feed и entry revision должны совпадать.
+- Crash-loop recovery различает `pending без ready` (неуспешная загрузка) и `pending + ready` (host дошёл до ready, но очистка pending не завершилась).
+- Перед новым host launch старые ready/tmp markers удаляются строго; неоднозначное состояние приводит к vanilla fallback, а не к запуску наугад.
+- Seed build `cdda-experimental-2026-09-23-0546` больше не может быть тихо отмечен как unsupported при зелёном pipeline: такой regression делает build job красным.

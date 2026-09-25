@@ -6,7 +6,9 @@ $paths = @(
     'host_patch/ncmm_loader.h',
     'host_patch/ncmm_loader.cpp',
     'compat/contracts.json',
-    'ci/Test-SourceContracts.ps1'
+    'ci/Test-SourceContracts.ps1',
+    'ci/Build-HostPackage.ps1',
+    'ci/Get-PatchRevision.ps1'
 )
 $sha = [System.Security.Cryptography.SHA256]::Create()
 try {

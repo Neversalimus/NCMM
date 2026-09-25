@@ -49,6 +49,9 @@ internal sealed class SetupHostBinding
     public string host_sha256 { get; set; }
     public string source_commit { get; set; }
     public string upstream_tag { get; set; }
+    public string patch_revision { get; set; }
+    public string ncmm_version { get; set; }
+    public int loader_api { get; set; }
     public string installed_utc { get; set; }
 }
 
@@ -195,8 +198,12 @@ internal static class SetupCore
 
         string autoDisabled = Path.Combine(ncmm, "ncmm.auto_disabled");
         string pending = Path.Combine(ncmm, "boot.pending");
+        string ready = Path.Combine(ncmm, "boot.ready");
+        string readyTmp = ready + ".tmp";
         if (File.Exists(autoDisabled)) File.Delete(autoDisabled);
         if (File.Exists(pending)) File.Delete(pending);
+        if (File.Exists(ready)) File.Delete(ready);
+        if (File.Exists(readyTmp)) File.Delete(readyTmp);
 
         InstallResult result = new InstallResult();
         result.GameRoot = gameRoot;
@@ -249,7 +256,7 @@ internal static class SetupCore
         int errors = 0;
         int warnings = 0;
 
-        sb.AppendLine("NCMM v0.6.2 Diagnostics");
+        sb.AppendLine("NCMM v0.6.3 Diagnostics");
         sb.AppendLine("Target: " + target.BuildLabel);
         sb.AppendLine("Path: " + target.PathValue);
         sb.AppendLine("Source commit: " + (target.SourceCommit ?? "unknown"));
@@ -305,14 +312,22 @@ internal static class SetupCore
             {
                 binding = new JavaScriptSerializer().Deserialize<SetupHostBinding>(File.ReadAllText(bindingPath));
                 if (binding == null || String.IsNullOrEmpty(binding.host_sha256) ||
-                    String.IsNullOrEmpty(binding.vanilla_sha256))
+                    String.IsNullOrEmpty(binding.vanilla_sha256) ||
+                    String.IsNullOrEmpty(binding.patch_revision) ||
+                    String.IsNullOrEmpty(binding.ncmm_version) ||
+                    binding.loader_api != 1)
                 {
                     binding = null;
-                    AddCheck(sb, ref errors, ref warnings, "ERROR", "host.binding.json is incomplete.");
+                    AddCheck(sb, ref errors, ref warnings, "ERROR", "host.binding.json is incomplete or predates the 0.6.3 certification contract.");
+                }
+                else if (!String.Equals(binding.ncmm_version, "0.6.3", StringComparison.OrdinalIgnoreCase))
+                {
+                    binding = null;
+                    AddCheck(sb, ref errors, ref warnings, "WARN", "Certified host binding belongs to a different NCMM runtime version and will be refreshed/fallback safely.");
                 }
                 else
                 {
-                    AddCheck(sb, ref errors, ref warnings, "OK", "host.binding.json parsed successfully.");
+                    AddCheck(sb, ref errors, ref warnings, "OK", "host.binding.json parsed successfully for NCMM 0.6.3.");
                 }
             }
             catch (Exception ex)
@@ -361,8 +376,12 @@ internal static class SetupCore
         else
             AddCheck(sb, ref errors, ref warnings, "WARN", "Advanced World Settings payload is incomplete or absent.");
 
-        if (File.Exists(Path.Combine(ncmm, "boot.pending")))
-            AddCheck(sb, ref errors, ref warnings, "WARN", "boot.pending exists: previous/current host launch has not reached ready state.");
+        bool pendingPresent = File.Exists(Path.Combine(ncmm, "boot.pending"));
+        bool readyPresent = File.Exists(Path.Combine(ncmm, "boot.ready"));
+        if (pendingPresent && readyPresent)
+            AddCheck(sb, ref errors, ref warnings, "WARN", "boot.pending and boot.ready both exist: the host reached ready state but pending cleanup did not complete.");
+        else if (pendingPresent)
+            AddCheck(sb, ref errors, ref warnings, "WARN", "boot.pending exists without boot.ready: previous/current host launch has not reached ready state.");
         else
             AddCheck(sb, ref errors, ref warnings, "OK", "boot.pending is clear.");
 
@@ -403,25 +422,25 @@ internal static class SetupCore
         string ncmm = Path.Combine(gameRoot, "ncmm");
         Directory.CreateDirectory(ncmm);
         string pending = Path.Combine(ncmm, "boot.pending");
+        string ready = Path.Combine(ncmm, "boot.ready");
+        string readyTmp = ready + ".tmp";
         string autoDisabled = Path.Combine(ncmm, "ncmm.auto_disabled");
+        string autoDisabledTmp = autoDisabled + ".tmp";
         StringBuilder result = new StringBuilder();
 
-        result.AppendLine(DateTime.UtcNow.ToString("o") + " NCMM v0.6.2 safe state repair");
+        result.AppendLine(DateTime.UtcNow.ToString("o") + " NCMM v0.6.3 safe state repair");
         result.AppendLine("Target: " + gameRoot);
 
-        if (File.Exists(pending))
+        foreach (string marker in new string[] { pending, ready, readyTmp, autoDisabled, autoDisabledTmp })
         {
-            File.Delete(pending);
-            result.AppendLine("Removed: boot.pending");
+            string label = Path.GetFileName(marker);
+            if (File.Exists(marker))
+            {
+                File.Delete(marker);
+                result.AppendLine("Removed: " + label);
+            }
+            else result.AppendLine("Already clear: " + label);
         }
-        else result.AppendLine("Already clear: boot.pending");
-
-        if (File.Exists(autoDisabled))
-        {
-            File.Delete(autoDisabled);
-            result.AppendLine("Removed: ncmm.auto_disabled");
-        }
-        else result.AppendLine("Already clear: ncmm.auto_disabled");
 
         result.AppendLine("Preserved: ncmm.disabled, executables, binding, modules and feed settings.");
         result.AppendLine();
@@ -471,7 +490,7 @@ internal sealed class MainForm : Form
 
     internal MainForm()
     {
-        Text = "NCMM 0.6.2 Setup";
+        Text = "NCMM 0.6.3 Setup";
         Width = 900;
         Height = 500;
         StartPosition = FormStartPosition.CenterScreen;
@@ -683,7 +702,7 @@ internal sealed class MainForm : Form
                 "Bootstrap SHA256:\n" + result.BootstrapSha256.ToUpperInvariant() + "\n\n" +
                 "You can launch CDDA normally.";
 
-            MessageBox.Show(this, message, "NCMM 0.6.2", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, message, "NCMM 0.6.3", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
@@ -706,7 +725,7 @@ internal sealed class MainForm : Form
 
             MessageBox.Show(this,
                 "Vanilla cataclysm-tiles.exe restored.\n\nTarget:\n" + target.PathValue,
-                "NCMM 0.6.2", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "NCMM 0.6.3", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
@@ -732,7 +751,7 @@ internal sealed class MainForm : Form
                                   MessageBoxIcon.Information;
             MessageBox.Show(this,
                 "Diagnostics finished: " + report.Summary + "\n\nFull report is in the Setup log.",
-                "NCMM 0.6.2 Diagnostics", MessageBoxButtons.OK, icon);
+                "NCMM 0.6.3 Diagnostics", MessageBoxButtons.OK, icon);
         }
         catch (Exception ex)
         {
@@ -765,7 +784,7 @@ internal sealed class MainForm : Form
             }
             MessageBox.Show(this,
                 "Safe runtime state repair completed.\nSee ncmm\\repair.log for the audit trail.",
-                "NCMM 0.6.2", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "NCMM 0.6.3", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {

@@ -147,3 +147,17 @@ reject calls made outside a host callback scope.
 Descriptor/init callbacks are exception-contained. `boot.ready` is staged and atomically published before
 `boot.pending` is removed, so a readiness-publication failure remains fail-closed for the next bootstrap.
 The ABI and existing capability names remain unchanged.
+
+## 0.6.3 certification and crash-loop invariants
+
+Certification identity now spans host source patch inputs and host packaging logic. Published host assets use
+a patch-revision-qualified release tag; the publisher verifies GitHub's asset digest before committing a feed
+entry. A current-revision rejection removes older feed entries for the same upstream tag.
+
+Runtime host bindings are versioned with `ncmm_version`, `loader_api`, and `patch_revision`. Bootstrap accepts
+offline local hosts only when the binding matches the current runtime/loader contract, and online feed entries
+must match the feed's current patch revision.
+
+Crash-loop markers form a two-phase state: `boot.pending` means launch in progress, while `boot.ready` proves
+module initialization completed. `pending + ready` is treated as cleanup failure rather than a crash; ambiguous
+marker cleanup fails closed to vanilla for that run.

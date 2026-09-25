@@ -35,6 +35,8 @@ internal sealed class FeedIndex
 {
     public int schema { get; set; }
     public int loader_api { get; set; }
+    public string runtime_version { get; set; }
+    public string patch_revision { get; set; }
     public Dictionary<string, FeedHostEntry> hosts { get; set; }
 }
 
@@ -44,6 +46,9 @@ internal sealed class HostBinding
     public string host_sha256 { get; set; }
     public string source_commit { get; set; }
     public string upstream_tag { get; set; }
+    public string patch_revision { get; set; }
+    public string ncmm_version { get; set; }
+    public int loader_api { get; set; }
     public string installed_utc { get; set; }
 }
 
@@ -74,7 +79,7 @@ internal sealed class RuntimeState
 internal static class NCMMBootstrap
 {
     private const int LoaderApi = 1;
-    private const string RuntimeVersion = "0.6.2";
+    private const string RuntimeVersion = "0.6.3";
     private const string DefaultFeedUrl = "https://raw.githubusercontent.com/Neversalimus/Cataclysm/master/ncmm-platform/feed/index.json";
 
     private static string Root;
@@ -243,6 +248,9 @@ internal static class NCMMBootstrap
         if (!String.Equals(binding.vanilla_sha256, vanillaSha, StringComparison.OrdinalIgnoreCase)) return false;
         if (!String.IsNullOrEmpty(sourceCommit) &&
             !String.Equals(binding.source_commit, sourceCommit, StringComparison.OrdinalIgnoreCase)) return false;
+        if (binding.loader_api != LoaderApi) return false;
+        if (!String.Equals(binding.ncmm_version, RuntimeVersion, StringComparison.OrdinalIgnoreCase)) return false;
+        if (String.IsNullOrEmpty(binding.patch_revision)) return false;
         if (String.IsNullOrEmpty(binding.host_sha256)) return false;
         try
         {
@@ -296,13 +304,15 @@ internal static class NCMMBootstrap
         {
             using (TimeoutWebClient wc = new TimeoutWebClient())
             {
-                wc.Headers[HttpRequestHeader.UserAgent] = "NCMM/0.6.2";
+                wc.Headers[HttpRequestHeader.UserAgent] = "NCMM/0.6.3";
                 string feedText = wc.DownloadString(FeedUrlForRequest(forceRefresh));
                 FeedIndex feed = Json.Deserialize<FeedIndex>(feedText);
-                if (feed == null || feed.schema != 1 || feed.loader_api != LoaderApi || feed.hosts == null)
+                if (feed == null || feed.schema != 1 || feed.loader_api != LoaderApi ||
+                    !String.Equals(feed.runtime_version, RuntimeVersion, StringComparison.OrdinalIgnoreCase) ||
+                    String.IsNullOrEmpty(feed.patch_revision) || feed.hosts == null)
                 {
                     FeedStatus = "rejected_schema_or_api";
-                    Log("Host feed rejected: unsupported schema/API.");
+                    Log("Host feed rejected: unsupported schema/API/runtime revision.");
                     return false;
                 }
 
@@ -317,6 +327,19 @@ internal static class NCMMBootstrap
                 {
                     FeedStatus = "rejected_loader_api";
                     Log("Feed host uses unsupported loader API.");
+                    return false;
+                }
+                if (!String.Equals(entry.ncmm_version, RuntimeVersion, StringComparison.OrdinalIgnoreCase))
+                {
+                    FeedStatus = "rejected_host_version";
+                    Log("Feed host version does not match this NCMM runtime.");
+                    return false;
+                }
+                if (String.IsNullOrEmpty(entry.patch_revision) ||
+                    !String.Equals(entry.patch_revision, feed.patch_revision, StringComparison.OrdinalIgnoreCase))
+                {
+                    FeedStatus = "rejected_patch_revision";
+                    Log("Feed host patch revision does not match the feed revision.");
                     return false;
                 }
                 if (!String.IsNullOrEmpty(sourceCommit) &&
@@ -337,7 +360,10 @@ internal static class NCMMBootstrap
 
                 HostBinding current = ReadBinding();
                 if (localWasValid && current != null &&
-                    String.Equals(current.host_sha256, entry.host_sha256, StringComparison.OrdinalIgnoreCase))
+                    String.Equals(current.host_sha256, entry.host_sha256, StringComparison.OrdinalIgnoreCase) &&
+                    current.loader_api == entry.loader_api &&
+                    String.Equals(current.ncmm_version, entry.ncmm_version, StringComparison.OrdinalIgnoreCase) &&
+                    String.Equals(current.patch_revision, entry.patch_revision, StringComparison.OrdinalIgnoreCase))
                 {
                     FeedStatus = "current";
                     return true;
@@ -375,6 +401,9 @@ internal static class NCMMBootstrap
                 binding.host_sha256 = entry.host_sha256.ToLowerInvariant();
                 binding.source_commit = (entry.source_commit ?? "").ToLowerInvariant();
                 binding.upstream_tag = entry.upstream_tag ?? "";
+                binding.patch_revision = (entry.patch_revision ?? "").ToLowerInvariant();
+                binding.ncmm_version = entry.ncmm_version ?? "";
+                binding.loader_api = entry.loader_api;
                 binding.installed_utc = DateTime.UtcNow.ToString("o");
                 string bindingPath = Path.Combine(NcmmDir, "host.binding.json");
                 string bindingTmp = bindingPath + ".tmp";
@@ -489,8 +518,10 @@ internal static class NCMMBootstrap
         string host = Path.Combine(Root, "cataclysm-tiles.ncmm.exe");
         string disabled = Path.Combine(NcmmDir, "ncmm.disabled");
         string autoDisabled = Path.Combine(NcmmDir, "ncmm.auto_disabled");
+        string autoDisabledTmp = autoDisabled + ".tmp";
         string pending = Path.Combine(NcmmDir, "boot.pending");
         string ready = Path.Combine(NcmmDir, "boot.ready");
+        string readyTmp = ready + ".tmp";
 
         List<string> forwarded = new List<string>();
         bool forceVanilla = false;
@@ -526,7 +557,10 @@ internal static class NCMMBootstrap
         if (reset && !diagnosticsOnly)
         {
             try { if (File.Exists(autoDisabled)) File.Delete(autoDisabled); } catch { }
+            try { if (File.Exists(autoDisabledTmp)) File.Delete(autoDisabledTmp); } catch { }
             try { if (File.Exists(pending)) File.Delete(pending); } catch { }
+            try { if (File.Exists(ready)) File.Delete(ready); } catch { }
+            try { if (File.Exists(readyTmp)) File.Delete(readyTmp); } catch { }
             Log("NCMM crash-loop state reset by command line.");
         }
 
@@ -540,19 +574,55 @@ internal static class NCMMBootstrap
             return 112;
         }
 
+        bool recoveryBlockedHost = false;
         if (!diagnosticsOnly && File.Exists(pending))
         {
-            try
+            if (File.Exists(ready))
             {
-                File.Delete(pending);
-                File.WriteAllText(autoDisabled,
-                    "Previous NCMM host did not reach ready state. Remove this file or launch with --ncmm-reset after repair.\r\n");
+                try
+                {
+                    File.Delete(pending);
+                    Log("Recovered stale boot.pending because boot.ready proves the previous host reached ready state.");
+                }
+                catch (Exception ex)
+                {
+                    recoveryBlockedHost = true;
+                    Log("Previous host reached ready state, but stale boot.pending could not be removed; using vanilla this run: " + ex.Message);
+                }
             }
-            catch { }
-            Log("Previous NCMM boot did not reach ready state; NCMM auto-disabled.");
+            else
+            {
+                recoveryBlockedHost = true;
+                bool markerPersisted = false;
+                try
+                {
+                    File.WriteAllText(autoDisabledTmp,
+                        "Previous NCMM host did not reach ready state. Remove this file or launch with --ncmm-reset after repair.\r\n");
+                    PublishFileAtomic(autoDisabledTmp, autoDisabled);
+                    markerPersisted = true;
+                }
+                catch (Exception ex)
+                {
+                    Log("Could not persist ncmm.auto_disabled; boot.pending is preserved for retry: " + ex.Message);
+                }
+
+                if (markerPersisted)
+                {
+                    try
+                    {
+                        File.Delete(pending);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log("Crash-loop marker persisted but boot.pending could not be removed: " + ex.Message);
+                    }
+                }
+                Log("Previous NCMM boot did not reach ready state; NCMM disabled for this run.");
+            }
         }
 
-        bool useHost = !forceVanilla && !File.Exists(disabled) && !File.Exists(autoDisabled);
+        bool useHost = !recoveryBlockedHost && !forceVanilla &&
+                       !File.Exists(disabled) && !File.Exists(autoDisabled);
         string vanillaSha = State.vanilla_sha256;
         string sourceCommit = State.source_commit;
 
@@ -609,14 +679,17 @@ internal static class NCMMBootstrap
         {
             try
             {
-                // boot.ready belongs to the current host launch, never to an earlier successful session.
-                try { if (File.Exists(ready)) File.Delete(ready); } catch { }
+                if (File.Exists(ready)) File.Delete(ready);
+                if (File.Exists(readyTmp)) File.Delete(readyTmp);
+                if (File.Exists(pending))
+                    throw new IOException("stale boot.pending still exists before host launch");
+
                 File.WriteAllText(pending,
                     "NCMM host launch pending. Host must delete this file after successful module initialization.\r\n");
             }
             catch (Exception ex)
             {
-                Log("Could not create boot.pending; refusing NCMM host: " + ex.Message);
+                Log("Could not establish clean crash-loop markers; refusing NCMM host: " + ex.Message);
                 useHost = false;
             }
         }
