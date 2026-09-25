@@ -42,6 +42,11 @@ int main()
     expect( m.name.find( "\xCE\xA9" ) != std::string::npos, "unicode escape decoded" );
     expect( ncmm::validate_manifest_contract_v1( m, reason ), "valid manifest semantics" );
 
+    const std::string bom_valid = std::string( "\xEF\xBB\xBF" ) + valid;
+    expect( parse_ok( bom_valid, m, reason ) &&
+            ncmm::validate_manifest_contract_v1( m, reason ),
+            "UTF-8 BOM manifest parses" );
+
     const std::string versioned = R"({
       "id":"versioned_mod",
       "name":"Versioned",

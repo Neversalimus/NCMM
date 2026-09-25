@@ -122,6 +122,14 @@ class parser
 
         bool parse( manifest_contract_v1 &out, std::string &reason )
         {
+            // Windows PowerShell 5.1 commonly writes UTF-8 JSON with BOM.
+            // Accept exactly the standard UTF-8 BOM before normal JSON whitespace.
+            if( text_.size() >= 3 &&
+                static_cast<unsigned char>( text_[0] ) == 0xEF &&
+                static_cast<unsigned char>( text_[1] ) == 0xBB &&
+                static_cast<unsigned char>( text_[2] ) == 0xBF ) {
+                pos_ = 3;
+            }
             skip_ws();
             if( !consume( '{' ) ) {
                 return fail( reason, "manifest_json_invalid" );

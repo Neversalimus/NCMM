@@ -92,6 +92,16 @@ typedef struct ncmm_host_api_v1 {
      */
     uint32_t ( *get_api_version_major )( void );
     uint32_t ( *get_api_version_minor )( void );
+
+    /*
+     * NCMM validation tail extension. Modules must require ui.tiles.v1 before
+     * using this field. The ABI v1 prefix remains unchanged.
+     */
+    int ( *ui_tile_choose )( const char *title,
+                             const char *const *labels,
+                             const char *const *details,
+                             size_t count,
+                             size_t columns );
 } ncmm_host_api_v1;
 
 typedef int ( *ncmm_mod_init_v1 )( const ncmm_host_api_v1 *api );

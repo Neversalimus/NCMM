@@ -90,6 +90,7 @@ if (Test-Path $marker) {
         @($mm,'ncmm::settings_menu_label()'),
         @($mm,'ncmm::show_manager();'),
         @($mm,'ncmm::on_language_changed();'),
+        @($mm,'ncmm::arm_hotkeys();'),
         @($mm,'ncmm::register_gameplay_actions( ctxt_default );'),
         @($dt,'ncmm::on_turn();'),
         @($ih,'ncmm_register_default_action'),
@@ -733,6 +734,8 @@ $cr = Replace-ExactlyOnce $cr @'
     return std::max( result, 0.0f );
 '@ 'crafting.recipe-speed'
 
+$mm = Replace-ExactlyOnce $mm '        g->load_core_data();' ('        g->load_core_data();' + "`n" + '        ncmm::arm_hotkeys();') 'main-menu.ncmm-arm-hotkeys'
+
 Write-Utf8 $optionsH $h
 Write-Utf8 $optionsCpp $c
 Write-Utf8 $sdl $sd
@@ -788,7 +791,7 @@ foreach ($needle in @('case COPT_WORLDGEN_ONLY:','is_hidden( world_options_only 
     if (-not $c2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 if (-not $sd2.Contains('ncmm::initialize();')) { throw 'Post-check failed: ncmm::initialize' }
-foreach ($needle in @('ncmm::settings_menu_label()','ncmm::show_manager();','ncmm::on_language_changed();','ncmm::register_gameplay_actions( ctxt_default );')) {
+foreach ($needle in @('ncmm::settings_menu_label()','ncmm::show_manager();','ncmm::on_language_changed();','ncmm::arm_hotkeys();','ncmm::register_gameplay_actions( ctxt_default );')) {
     if (-not $mm2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 if (-not $dt2.Contains('ncmm::on_turn();')) { throw 'Post-check failed: ncmm::on_turn' }

@@ -25,6 +25,7 @@ const char *required_caps[] = {
     "character_state.v1",
     "character.modifiers.v1",
     "ui.basic.v1",
+    "ui.tiles.v1",
     "module_hotkeys.v1",
     "api.versioning.v1",
     "state.migration.v1",
@@ -540,6 +541,17 @@ void show_perk_detail( const perk_def &perk )
     }
 }
 
+int branch_unlocked_count( branch_id branch, int level )
+{
+    int result = 0;
+    for( const perk_def &perk : perks ) {
+        if( perk.branch == branch && !owned( perk ) &&
+            level >= perk.required_level && prerequisites_met( perk ) ) {
+            ++result;
+        }
+    }
+    return result;
+}
 void show_branch( branch_id branch )
 {
     while( true ) {
@@ -692,7 +704,7 @@ void open_progression()
         const int64_t perk_points = get_state( "perk_points", 0 );
         const int64_t major_points = get_state( "major_points", 0 );
 
-        std::string title = "Survivor Progression v0.9.0\n";
+        std::string title = "Survivor Progression v0.9.1\n";
         title += tr( "Level ", "Уровень " ) + std::to_string( level );
         if( level < max_level ) {
             title += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
@@ -701,22 +713,46 @@ void open_progression()
         }
         title += " | P " + std::to_string( perk_points ) + " | M " + std::to_string( major_points );
 
+        const std::array<branch_id, 6> branches = {
+            branch_id::combat, branch_id::survival, branch_id::mobility,
+            branch_id::crafting, branch_id::scavenging, branch_id::mastery
+        };
+
         std::vector<std::string> labels;
-        for( branch_id branch : { branch_id::combat, branch_id::survival, branch_id::mobility,
-                                  branch_id::crafting, branch_id::scavenging, branch_id::mastery } ) {
-            labels.push_back( branch_name( branch ) + "  [" +
-                              std::to_string( branch_owned_count( branch ) ) + "/10]" );
+        std::vector<std::string> details;
+        labels.reserve( 9 );
+        details.reserve( 9 );
+
+        for( branch_id branch : branches ) {
+            labels.push_back( branch_name( branch ) );
+            details.push_back(
+                tr( "Owned ", "Куплено " ) +
+                std::to_string( branch_owned_count( branch ) ) + "/10" +
+                tr( " | unlocked ", " | открыто " ) +
+                std::to_string( branch_unlocked_count( branch, level ) ) );
         }
+
         labels.push_back( tr( "Overview", "Обзор" ) );
-        labels.push_back( tr( "Respec all perks", "Сбросить все перки" ) );
+        details.push_back( tr( "Level, XP and active effects", "Уровень, XP и активные эффекты" ) );
+        labels.push_back( tr( "Respec", "Сброс перков" ) );
+        details.push_back( tr( "Refund all purchased perks", "Вернуть очки за купленные перки" ) );
         labels.push_back( tr( "Close", "Закрыть" ) );
+        details.push_back( tr( "Return to the game", "Вернуться в игру" ) );
 
-        std::vector<const char *> raw;
-        for( const std::string &label : labels ) {
-            raw.push_back( label.c_str() );
+        std::vector<const char *> raw_labels;
+        std::vector<const char *> raw_details;
+        raw_labels.reserve( labels.size() );
+        raw_details.reserve( details.size() );
+        for( size_t i = 0; i < labels.size(); ++i ) {
+            raw_labels.push_back( labels[i].c_str() );
+            raw_details.push_back( details[i].c_str() );
         }
 
-        const int choice = host->ui_choose ? host->ui_choose( title.c_str(), raw.data(), raw.size() ) : -1;
+        const int choice = host->ui_tile_choose ?
+                           host->ui_tile_choose( title.c_str(), raw_labels.data(),
+                                                 raw_details.data(), raw_labels.size(), 3 ) :
+                           host->ui_choose( title.c_str(), raw_labels.data(), raw_labels.size() );
+
         switch( choice ) {
             case 0: show_branch( branch_id::combat ); break;
             case 1: show_branch( branch_id::survival ); break;
@@ -730,8 +766,7 @@ void open_progression()
         }
     }
 }
-
-void award_minute_xp()
+void award_minute_xp()void award_minute_xp()
 {
     if( !character_available() ) {
         return;
@@ -839,13 +874,14 @@ int init( const ncmm_host_api_v1 *api )
     }
     if( !api->character_state_available || !api->character_state_get_i64 ||
         !api->character_state_set_i64 || !api->character_modifier_set ||
-        !api->character_modifier_clear_module || !api->ui_choose || !api->ui_message ) {
+        !api->character_modifier_clear_module || !api->ui_choose || !api->ui_tile_choose ||
+        !api->ui_message ) {
         return 0;
     }
 
     host = api;
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.9.0 initialized: 30 levels / 60 perks / 6 branches." );
+              "Survivor Progression 0.9.1 initialized: 30 levels / 60 perks / 6 branches." );
     return 1;
 }
 
@@ -863,7 +899,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     module_id,
     "Survivor Progression",
-    "0.9.0",
+    "0.9.1",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,

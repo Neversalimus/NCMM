@@ -10,6 +10,7 @@
 #include "output.h"
 #include "system_locale.h"
 #include "uilist.h"
+#include "ui_manager.h"
 #include "worldfactory.h"
 
 #include <algorithm>
@@ -120,6 +121,7 @@ const char *const host_capabilities[] = {
     "events.turn.v1",
     "character_state.v1",
     "ui.basic.v1",
+    "ui.tiles.v1",
     "module_hotkeys.v1",
     "ingame_manager.v1",
     "world_options.layout.v1",
@@ -367,6 +369,127 @@ int ui_choose( const char *title, const char *const *entries, size_t count )
     return menu.ret >= 0 && static_cast<size_t>( menu.ret ) < count ? menu.ret : -1;
 }
 
+int ui_tile_choose( const char *title, const char *const *labels,
+                    const char *const *details, size_t count, size_t requested_columns )
+{
+    if( title == nullptr || labels == nullptr || count == 0 || count > 16 ||
+        requested_columns == 0 || requested_columns > 4 ) {
+        return -1;
+    }
+    for( size_t i = 0; i < count; ++i ) {
+        if( labels[i] == nullptr ) {
+            return -1;
+        }
+    }
+
+    // Very small terminals keep the proven vertical selector instead of clipping tiles.
+    if( TERMX < 60 || TERMY < 18 ) {
+        return ui_choose( title, labels, count );
+    }
+
+    int columns = static_cast<int>( std::min( requested_columns, count ) );
+    constexpr int gap = 1;
+    constexpr int tile_height = 5;
+    constexpr int header_height = 4;
+
+    while( columns > 1 ) {
+        const int candidate = ( TERMX - 4 - gap * ( columns - 1 ) ) / columns;
+        if( candidate >= 18 ) {
+            break;
+        }
+        --columns;
+    }
+
+    const int rows = ( static_cast<int>( count ) + columns - 1 ) / columns;
+    const int tile_width = std::max( 18, std::min( 30,
+                           ( TERMX - 4 - gap * ( columns - 1 ) ) / columns ) );
+    const int frame_width = columns * tile_width + gap * ( columns - 1 ) + 2;
+    const int frame_height = header_height + rows * tile_height + 2;
+
+    if( frame_width > TERMX || frame_height > TERMY ) {
+        return ui_choose( title, labels, count );
+    }
+
+    const point origin( ( TERMX - frame_width ) / 2, ( TERMY - frame_height ) / 2 );
+    catacurses::window frame = catacurses::newwin( frame_height, frame_width, origin );
+
+    std::vector<catacurses::window> tiles;
+    tiles.reserve( count );
+    for( size_t i = 0; i < count; ++i ) {
+        const int col = static_cast<int>( i ) % columns;
+        const int row = static_cast<int>( i ) / columns;
+        const point pos( origin.x + 1 + col * ( tile_width + gap ),
+                         origin.y + header_height + row * tile_height );
+        tiles.push_back( catacurses::newwin( tile_height, tile_width, pos ) );
+    }
+
+    input_context ctxt( "NCMM_TILE_CHOOSE", keyboard_mode::keychar );
+    ctxt.register_cardinal();
+    ctxt.register_action( "CONFIRM" );
+    ctxt.register_action( "QUIT" );
+    ctxt.register_action( "HELP_KEYBINDINGS" );
+
+    int selected = 0;
+    ui_adaptor ui;
+    ui.position_from_window( frame );
+    ui.on_redraw( [&]( const ui_adaptor & ) {
+        werase( frame );
+        draw_border( frame, BORDER_COLOR );
+        fold_and_print( frame, point( 2, 1 ), frame_width - 4, c_light_gray, title );
+        trim_and_print( frame, point( 2, frame_height - 2 ), frame_width - 4, c_dark_gray,
+                        tr_ui( "Arrows: select  Enter: open  Esc: close",
+                               "Стрелки: выбор  Enter: открыть  Esc: закрыть" ) );
+        wnoutrefresh( frame );
+
+        for( size_t i = 0; i < tiles.size(); ++i ) {
+            catacurses::window &tile = tiles[i];
+            werase( tile );
+            const bool active = static_cast<int>( i ) == selected;
+            draw_border( tile, active ? c_light_green : BORDER_COLOR );
+            trim_and_print( tile, point( 2, 1 ), tile_width - 4,
+                            active ? c_white : c_light_gray, labels[i] );
+            if( details != nullptr && details[i] != nullptr && details[i][0] != '\0' ) {
+                trim_and_print( tile, point( 2, 2 ), tile_width - 4,
+                                active ? c_cyan : c_dark_gray, details[i] );
+            }
+            if( active ) {
+                mvwprintz( tile, point( 1, 1 ), c_light_green, ">" );
+            }
+            wnoutrefresh( tile );
+        }
+    } );
+
+    while( true ) {
+        ui_manager::redraw();
+        const std::string action = ctxt.handle_input();
+        const int col = selected % columns;
+        const int row = selected / columns;
+
+        if( action == "LEFT" ) {
+            if( col > 0 ) {
+                --selected;
+            }
+        } else if( action == "RIGHT" ) {
+            if( col + 1 < columns && selected + 1 < static_cast<int>( count ) ) {
+                ++selected;
+            }
+        } else if( action == "UP" ) {
+            if( row > 0 ) {
+                selected -= columns;
+            }
+        } else if( action == "DOWN" ) {
+            const int next = selected + columns;
+            if( next < static_cast<int>( count ) ) {
+                selected = next;
+            }
+        } else if( action == "CONFIRM" ) {
+            return selected;
+        } else if( action == "QUIT" ) {
+            return -1;
+        }
+    }
+}
+
 void ui_message( const char *message )
 {
     if( message != nullptr ) {
@@ -423,7 +546,8 @@ const ncmm_host_api_v1 api = {
     &character_modifier_set,
     &character_modifier_clear_module,
     &get_api_version_major,
-    &get_api_version_minor
+    &get_api_version_minor,
+    &ui_tile_choose
 };
 
 std::string read_text_file( const std::filesystem::path &path )
@@ -1022,8 +1146,9 @@ void load_one( const std::filesystem::path &library )
         return;
     }
 
-    const std::string action_id = open_ui != nullptr && !manifest.ui_hotkey.empty() ?
-                                  "ncmm.open." + manifest.id : std::string();
+    // Do not create a live input action while CDDA is still finalizing core data.
+    // The action is armed by arm_hotkeys() after g->load_core_data() returns.
+    const std::string action_id;
     loaded.push_back( { module, desc, directory, locale_changed, on_turn, open_ui,
                         migrate_state,
                         manifest.state_contract_declared ? manifest.state_schema : 0u,
@@ -1057,6 +1182,24 @@ double gameplay_modifier( const char *modifier_id )
 std::string settings_menu_label()
 {
     return tr_ui( "<N|n>CMM / Mod Configuration", "<N|n>CMM / Настройка модов" );
+}
+
+void arm_hotkeys()
+{
+    size_t armed = 0;
+    for( loaded_mod &mod : loaded ) {
+        if( mod.open_ui == nullptr || mod.default_hotkey.empty() || !mod.action_id.empty() ||
+            mod.descriptor == nullptr || mod.descriptor->id == nullptr ) {
+            continue;
+        }
+        mod.action_id = "ncmm.open." + std::string( mod.descriptor->id );
+        ++armed;
+    }
+    if( armed != 0 ) {
+        log_line( NCMM_LOG_INFO,
+                  ( "Module hotkeys armed after core data finalization: " +
+                    std::to_string( armed ) ).c_str() );
+    }
 }
 
 void register_gameplay_actions( input_context &ctxt )

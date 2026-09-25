@@ -82,6 +82,7 @@ int has_capability_fn( const char *cap )
            std::strcmp( cap, "character_state.v1" ) == 0 ||
            std::strcmp( cap, "character.modifiers.v1" ) == 0 ||
            std::strcmp( cap, "ui.basic.v1" ) == 0 ||
+           std::strcmp( cap, "ui.tiles.v1" ) == 0 ||
            std::strcmp( cap, "module_hotkeys.v1" ) == 0 ||
            std::strcmp( cap, "ingame_manager.v1" ) == 0 ||
            std::strcmp( cap, "api.versioning.v1" ) == 0 ||
@@ -117,7 +118,7 @@ uint32_t get_api_version_minor_fn()
 const char *smoke_caps[] = {
     "core.v1", "world_options.v1", "world_options.layout.v1", "locale.v1",
     "module_contract.v1", "host_info.v1", "compatibility.v1", "events.turn.v1",
-    "character_state.v1", "character.modifiers.v1", "ui.basic.v1",
+    "character_state.v1", "character.modifiers.v1", "ui.basic.v1", "ui.tiles.v1",
     "module_hotkeys.v1", "ingame_manager.v1", "api.versioning.v1",
     "state.migration.v1", "module.lifecycle.v1"
 };
@@ -246,7 +247,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 1 ) {
         // Buy Combat -> Power Training.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.1" ) != std::string::npos ) {
             ++ui_stage;
             return 0;
         }
@@ -263,7 +264,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 2 ) {
         // Buy Mastery -> Fast Learner.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.1" ) != std::string::npos ) {
             ++ui_stage;
             return 5;
         }
@@ -280,7 +281,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 3 ) {
         // Root -> Respec all perks -> confirm.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.1" ) != std::string::npos ) {
             ++ui_stage;
             return 7;
         }
@@ -292,6 +293,13 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
     }
 
     return -1;
+}
+
+int ui_tile_choose_fn( const char *title, const char *const *labels,
+                       const char *const *, size_t count, size_t )
+{
+    // Smoke tests care about logical choice flow; root tiles map 1:1 to indices.
+    return ui_choose_fn( title, labels, count );
 }
 
 void ui_message_fn( const char * )
@@ -375,7 +383,8 @@ int main( int argc, char **argv )
         &modifier_set_fn,
         &modifier_clear_fn,
         &get_api_version_major_fn,
-        &get_api_version_minor_fn
+        &get_api_version_minor_fn,
+        &ui_tile_choose_fn
     };
 
     for( size_t i = 0; i < desc->required_capability_count; ++i ) {
@@ -502,7 +511,7 @@ int main( int argc, char **argv )
             return 18;
         }
 
-        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.9.0 migration/purchase/effects/respec slice)\n";
+        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.9.1 migration/purchase/effects/respec slice)\n";
         return 0;
     }
 

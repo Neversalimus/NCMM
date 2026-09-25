@@ -10,6 +10,8 @@ void shutdown();
 void mark_ready();
 void on_turn();
 void on_language_changed();
+/** Activate module hotkey action IDs only after CDDA core data finalization. */
+void arm_hotkeys();
 void register_gameplay_actions( input_context &ctxt );
 bool handle_gameplay_action( const std::string &action );
 void show_manager();
