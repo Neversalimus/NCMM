@@ -1,63 +1,10 @@
 {
-  "schema": 1,
-  "loader_api": 1,
-  "generated_utc": "2026-09-25T18:35:57Z",
-  "runtime_version": "0.7.1",
-  "patch_revision": "3fc7aa1e9820f1ad3e6b041b2116a6a61d6e263e1a1d76b3a4aa7dc915ae003d",
-  "hosts": {
-    "a38b5b2f7bff753d24e10353b5f6f08660609fc577face9c45fea1c98f72ae41": {
-      "source_commit": "f22c1b6d9644361f0e024bf8df10297e43c1524a",
-      "upstream_tag": "cdda-experimental-2026-09-25-1304",
-      "host_url": "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-cdda-experimental-2026-09-25-1304-r3fc7aa1e9820/cataclysm-tiles.ncmm.exe",
-      "host_sha256": "cd5e61c1a7ba3b0de661923eaf11f31a4719eb9ab7493bd909b86efb3c9fd789",
-      "patch_revision": "3fc7aa1e9820f1ad3e6b041b2116a6a61d6e263e1a1d76b3a4aa7dc915ae003d",
-      "ncmm_version": "0.7.1",
-      "loader_api": 1
-    },
-    "ebbebcaff67f594a689769baf983a1fd667913288e7cd6b29f8799a239b70cad": {
-      "source_commit": "f22c1b6d9644361f0e024bf8df10297e43c1524a",
-      "upstream_tag": "cdda-experimental-2026-09-25-1304",
-      "host_url": "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-cdda-experimental-2026-09-25-1304-r3fc7aa1e9820/cataclysm-tiles.ncmm.exe",
-      "host_sha256": "cd5e61c1a7ba3b0de661923eaf11f31a4719eb9ab7493bd909b86efb3c9fd789",
-      "patch_revision": "3fc7aa1e9820f1ad3e6b041b2116a6a61d6e263e1a1d76b3a4aa7dc915ae003d",
-      "ncmm_version": "0.7.1",
-      "loader_api": 1
-    },
-    "bb03ac98c3e2c8e315cb48b90a932e1f1b70b53cd5d7ef616ce5ba2608220216": {
-      "source_commit": "1cf67c2933776eba0b67e0849dbf6db5c03ff1fb",
-      "upstream_tag": "cdda-experimental-2026-09-25-1218",
-      "host_url": "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-cdda-experimental-2026-09-25-1218-r3fc7aa1e9820/cataclysm-tiles.ncmm.exe",
-      "host_sha256": "e22cfd84f26a569aba27ac3562f9f78d68254aa07dff4dbbc1d2029fc270cba3",
-      "patch_revision": "3fc7aa1e9820f1ad3e6b041b2116a6a61d6e263e1a1d76b3a4aa7dc915ae003d",
-      "ncmm_version": "0.7.1",
-      "loader_api": 1
-    },
-    "1f525793dfb37dfb85b9348f3851673ee59fe652b4f5845ca9c5dbcb346c4536": {
-      "source_commit": "1cf67c2933776eba0b67e0849dbf6db5c03ff1fb",
-      "upstream_tag": "cdda-experimental-2026-09-25-1218",
-      "host_url": "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-cdda-experimental-2026-09-25-1218-r3fc7aa1e9820/cataclysm-tiles.ncmm.exe",
-      "host_sha256": "e22cfd84f26a569aba27ac3562f9f78d68254aa07dff4dbbc1d2029fc270cba3",
-      "patch_revision": "3fc7aa1e9820f1ad3e6b041b2116a6a61d6e263e1a1d76b3a4aa7dc915ae003d",
-      "ncmm_version": "0.7.1",
-      "loader_api": 1
-    },
-    "d88e0c72931ac4a802807cbc31424062d0f8afda6d109ddc4a9bc20404d9f3f1": {
-      "source_commit": "e262adb299a7613b4aedc5f12c08fe0413c56a84",
-      "upstream_tag": "cdda-experimental-2026-09-23-0546",
-      "host_url": "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-cdda-experimental-2026-09-23-0546-r3fc7aa1e9820/cataclysm-tiles.ncmm.exe",
-      "host_sha256": "e6b582241da3b626234e9a2f17989ab39e961038bc2b3d06d957aa2ee91be666",
-      "patch_revision": "3fc7aa1e9820f1ad3e6b041b2116a6a61d6e263e1a1d76b3a4aa7dc915ae003d",
-      "ncmm_version": "0.7.1",
-      "loader_api": 1
-    },
-    "0d2d285cf5443e88f94b44004e091dd6a0aa210aa8fec4b9efa596c1b25617f7": {
-      "source_commit": "e262adb299a7613b4aedc5f12c08fe0413c56a84",
-      "upstream_tag": "cdda-experimental-2026-09-23-0546",
-      "host_url": "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-cdda-experimental-2026-09-23-0546-r3fc7aa1e9820/cataclysm-tiles.ncmm.exe",
-      "host_sha256": "e6b582241da3b626234e9a2f17989ab39e961038bc2b3d06d957aa2ee91be666",
-      "patch_revision": "3fc7aa1e9820f1ad3e6b041b2116a6a61d6e263e1a1d76b3a4aa7dc915ae003d",
-      "ncmm_version": "0.7.1",
-      "loader_api": 1
-    }
-  }
+    "schema":  1,
+    "loader_api":  1,
+    "generated_utc":  "2026-09-25T21:24:49.8257282Z",
+    "runtime_version":  "0.7.2",
+    "patch_revision":  "be63a578f6eb68f1df95996b35188a865a3ef61c0e17cb00601834ed82d705e1",
+    "hosts":  {
+
+              }
 }

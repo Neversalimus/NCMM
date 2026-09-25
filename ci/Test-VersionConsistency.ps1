@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$RepositoryRoot,
-    [string]$ExpectedVersion = '0.7.1'
+    [string]$ExpectedVersion = '0.7.2'
 )
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = (Resolve-Path $RepositoryRoot).Path

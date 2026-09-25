@@ -133,7 +133,7 @@ function New-TestFixture {
         host_url = "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-cdda-experimental-2099-01-01-0001-r$short/cataclysm-tiles.ncmm.exe"
         host_sha256 = ('d' * 64)
         patch_revision = $rev
-        ncmm_version = '0.7.1'
+        ncmm_version = '0.7.2'
         loader_api = 1
     }
 
@@ -144,7 +144,7 @@ function New-TestFixture {
         schema = 1
         loader_api = 1
         generated_utc = [DateTimeOffset]::UtcNow.ToString('o')
-        runtime_version = '0.7.1'
+        runtime_version = '0.7.2'
         patch_revision = $rev
         hosts = $hosts
     }
@@ -166,13 +166,13 @@ function New-TestFixture {
 
 function Invoke-SelfTest {
     $fixture = New-TestFixture
-    [void](Validate-FeedObject $fixture.feed $fixture.rejected '0.7.1' $fixture.rev 'Neversalimus/NCMM' $false)
+    [void](Validate-FeedObject $fixture.feed $fixture.rejected '0.7.2' $fixture.rev 'Neversalimus/NCMM' $false)
 
     $fixture = New-TestFixture
     $fixture.entry.PSObject.Properties['patch_revision'].Value = ('e' * 64)
     $failed = $false
     try {
-        [void](Validate-FeedObject $fixture.feed $fixture.rejected '0.7.1' $fixture.rev 'Neversalimus/NCMM' $false)
+        [void](Validate-FeedObject $fixture.feed $fixture.rejected '0.7.2' $fixture.rev 'Neversalimus/NCMM' $false)
     } catch {
         $failed = $true
     }
@@ -184,7 +184,7 @@ function Invoke-SelfTest {
         -NotePropertyValue ([pscustomobject]@{})
     $failed = $false
     try {
-        [void](Validate-FeedObject $fixture.feed $fixture.rejected '0.7.1' $fixture.rev 'Neversalimus/NCMM' $false)
+        [void](Validate-FeedObject $fixture.feed $fixture.rejected '0.7.2' $fixture.rev 'Neversalimus/NCMM' $false)
     } catch {
         $failed = $true
     }
@@ -194,7 +194,7 @@ function Invoke-SelfTest {
     $fixture.entry.PSObject.Properties['host_url'].Value = 'https://example.invalid/host.exe'
     $failed = $false
     try {
-        [void](Validate-FeedObject $fixture.feed $fixture.rejected '0.7.1' $fixture.rev 'Neversalimus/NCMM' $false)
+        [void](Validate-FeedObject $fixture.feed $fixture.rejected '0.7.2' $fixture.rev 'Neversalimus/NCMM' $false)
     } catch {
         $failed = $true
     }

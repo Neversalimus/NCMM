@@ -51,7 +51,7 @@ jobs:
           ./ci/Test-FeedIntegrity.ps1 `
             -FeedPath ./feed/index.json `
             -RejectedPath ./feed/rejected.json `
-            -ExpectedRuntimeVersion '0.7.1' `
+            -ExpectedRuntimeVersion '0.7.2' `
             -ExpectedPatchRevision $revision `
             -Repository '${{ github.repository }}' `
             -Online

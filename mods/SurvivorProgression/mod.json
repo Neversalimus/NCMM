@@ -1,11 +1,11 @@
 {
   "id": "survivor_progression",
   "name": "Survivor Progression",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "loader_api": 1,
   "api_major": 1,
-  "api_min_minor": 1,
-  "state_schema": 3,
+  "api_min_minor": 2,
+  "state_schema": 4,
   "state_min_supported": 0,
   "requires": [
     "core.v1",
@@ -16,7 +16,9 @@
     "character.modifiers.v1",
     "ui.basic.v1",
     "ui.tiles.v1",
+    "ui.cards.v1",
     "module_hotkeys.v1",
+    "module_hotkeys.context.v1",
     "api.versioning.v1",
     "state.migration.v1",
     "module.lifecycle.v1"

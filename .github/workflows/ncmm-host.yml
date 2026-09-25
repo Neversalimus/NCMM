@@ -84,7 +84,7 @@ jobs:
             cat ci/seed-hosts.txt /tmp/upstream_tags.txt 2>/dev/null | awk 'NF && !seen[$0]++' > /tmp/candidates.txt
 
             jq -r --arg rev "$patch_revision" \
-              '.hosts[]? | select((.patch_revision // "") == $rev and (.ncmm_version // "") == "0.7.1") | .upstream_tag // empty' \
+              '.hosts[]? | select((.patch_revision // "") == $rev and (.ncmm_version // "") == "0.7.2") | .upstream_tag // empty' \
               feed/index.json | sort -u > /tmp/known.txt
 
             : > /tmp/rejected.txt
@@ -180,7 +180,7 @@ jobs:
             upstream_tag = '${{ matrix.tag }}'
             source_commit = '${{ steps.source.outputs.sha }}'
             patch_revision = '${{ needs.discover.outputs.patch_revision }}'
-            ncmm_version = '0.7.1'
+            ncmm_version = '0.7.2'
             recorded_utc = [DateTime]::UtcNow.ToString('o')
           } | ConvertTo-Json | Set-Content result/rejection.json -Encoding UTF8
 
@@ -243,7 +243,7 @@ jobs:
           $seedPath = Join-Path $env:GITHUB_WORKSPACE 'ncmmrepo\ci\seed-hosts.txt'
           $required = @(Get-Content $seedPath | ForEach-Object { $_.Trim() } | Where-Object { $_ })
           if ($required -contains $tag) {
-              throw "Required seed host $tag failed NCMM 0.7.1 certification."
+              throw "Required seed host $tag failed NCMM 0.7.2 certification."
           }
           Write-Host "Non-seed host $tag is unsupported by the current source contracts."
 
@@ -279,9 +279,9 @@ jobs:
           fi
 
           jq --arg rev "$PATCH_REVISION" \
-             '.schema=1 | .loader_api=1 | .runtime_version="0.7.1" | .patch_revision=$rev |
+             '.schema=1 | .loader_api=1 | .runtime_version="0.7.2" | .patch_revision=$rev |
               .hosts=(.hosts // {} | with_entries(select(
-                (.value.patch_revision // "") == $rev and (.value.ncmm_version // "") == "0.7.1"
+                (.value.patch_revision // "") == $rev and (.value.ncmm_version // "") == "0.7.2"
               )))' \
              "$index" > /tmp/index.json
           mv /tmp/index.json "$index"
@@ -305,7 +305,7 @@ jobs:
             host="$dir/cataclysm-tiles.ncmm.exe"
             zip=$(find "$(dirname "$dir")" -maxdepth 1 -type f -name "ncmm-host-win64-${tag}.zip" | head -n1 || true)
 
-            if [ "$meta_rev" != "$PATCH_REVISION" ] || [ "$meta_version" != "0.7.1" ]; then
+            if [ "$meta_rev" != "$PATCH_REVISION" ] || [ "$meta_version" != "0.7.2" ]; then
               echo "Host metadata revision/version mismatch for $tag" >&2
               exit 1
             fi
@@ -318,8 +318,8 @@ jobs:
             short_rev=${PATCH_REVISION:0:12}
             release_tag="ncmm-host-${tag}-r${short_rev}"
             gh release view "$release_tag" >/dev/null 2>&1 || \
-              gh release create "$release_tag" --title "NCMM 0.7.1 host for $tag" \
-                --notes "Certified NCMM 0.7.1 Host API v1 / Module Contract v1 for $tag ($commit), patch revision $PATCH_REVISION."
+              gh release create "$release_tag" --title "NCMM 0.7.2 host for $tag" \
+                --notes "Certified NCMM 0.7.2 Host API v1 / Module Contract v1 for $tag ($commit), patch revision $PATCH_REVISION."
             gh release upload "$release_tag" "$host" --clobber
             if [ -n "$zip" ]; then gh release upload "$release_tag" "$zip" --clobber; fi
 
@@ -345,7 +345,7 @@ jobs:
                  --arg url "$url" \
                  --arg hostsha "$host_sha" \
                  --arg patchrev "$PATCH_REVISION" \
-                 '.hosts[$key] = {source_commit:$commit,upstream_tag:$tag,host_url:$url,host_sha256:$hostsha,patch_revision:$patchrev,ncmm_version:"0.7.1",loader_api:1}' \
+                 '.hosts[$key] = {source_commit:$commit,upstream_tag:$tag,host_url:$url,host_sha256:$hostsha,patch_revision:$patchrev,ncmm_version:"0.7.2",loader_api:1}' \
                  "$index" > /tmp/index.json
               mv /tmp/index.json "$index"
             done < <(jq -r '.vanilla_sha256[]' "$meta")
@@ -374,14 +374,14 @@ jobs:
 
           now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
           jq --arg now "$now" --arg rev "$PATCH_REVISION" \
-             '.generated_utc=$now | .runtime_version="0.7.1" | .patch_revision=$rev' \
+             '.generated_utc=$now | .runtime_version="0.7.2" | .patch_revision=$rev' \
              "$index" > /tmp/index.json
           mv /tmp/index.json "$index"
 
-          pwsh -NoProfile -File ci/Test-FeedIntegrity.ps1             -FeedPath "$index"             -RejectedPath "$rejected"             -ExpectedRuntimeVersion '0.7.1'             -ExpectedPatchRevision "$PATCH_REVISION"             -Repository "$GITHUB_REPOSITORY"             -Online
+          pwsh -NoProfile -File ci/Test-FeedIntegrity.ps1             -FeedPath "$index"             -RejectedPath "$rejected"             -ExpectedRuntimeVersion '0.7.2'             -ExpectedPatchRevision "$PATCH_REVISION"             -Repository "$GITHUB_REPOSITORY"             -Online
 
           {
-            echo "## NCMM 0.7.1 certification"
+            echo "## NCMM 0.7.2 certification"
             echo ""
             echo "- patch revision: \`$PATCH_REVISION\`"
             echo "- certified hosts: $certified"

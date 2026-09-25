@@ -96,16 +96,16 @@ Copy-Item $sp.FullName (Join-Path $payload 'code_mods\SurvivorProgression\ncmm_m
 Copy-Item (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') (Join-Path $payload 'code_mods\SurvivorProgression\mod.json') -Force
 
 $spManifest = Get-Content (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') -Raw | ConvertFrom-Json
-if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable' -or $spManifest.version -ne '0.9.1') {
-    throw 'Survivor Progression 0.9.1 manifest contract invalid.'
+if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable' -or $spManifest.version -ne '0.9.2') {
+    throw 'Survivor Progression 0.9.2 manifest contract invalid.'
 }
-foreach ($required in @('core.v1','events.turn.v1','character_state.v1','character.modifiers.v1','ui.basic.v1','ui.tiles.v1','module_hotkeys.v1','api.versioning.v1','state.migration.v1','module.lifecycle.v1')) {
+foreach ($required in @('core.v1','events.turn.v1','character_state.v1','character.modifiers.v1','ui.basic.v1','ui.tiles.v1','ui.cards.v1','module_hotkeys.v1','module_hotkeys.context.v1','api.versioning.v1','state.migration.v1','module.lifecycle.v1')) {
     if (-not ($spManifest.requires -contains $required)) {
         throw "Survivor Progression manifest missing $required"
     }
 }
 
-# NCMM 0.7.1 loader hardening is intentionally source-structural: Runtime CI
+# NCMM 0.7.2 loader hardening is intentionally source-structural: Runtime CI
 # guards the invariants even before the certified-host workflow compiles them.
 $loaderSource = Get-Content (Join-Path $RepositoryRoot 'host_patch\ncmm_loader.cpp') -Raw
 foreach ($requiredLoaderFragment in @(
@@ -125,11 +125,33 @@ foreach ($requiredLoaderFragment in @(
     'ensure_state_migrated',
     'state_migration_failed',
     'api.versioning.v1',
-    'module.lifecycle.v1'
+    'module.lifecycle.v1',
+    'module_hotkeys.context.v1',
+    'ui.cards.v1',
+    'ncmm_register_context_default_action'
 )) {
     if (-not $loaderSource.Contains($requiredLoaderFragment)) {
-        throw "NCMM 0.7.1 loader hardening invariant missing: $requiredLoaderFragment"
+        throw "NCMM 0.7.2 loader hardening invariant missing: $requiredLoaderFragment"
     }
+}
+if ($loaderSource.Contains('void arm_hotkeys()') -or $loaderSource.Contains('mod.action_id')) {
+    throw 'NCMM 0.7.2 regression: stored/deferred module action identity returned.'
+}
+
+$survivorSource = Get-Content (Join-Path $RepositoryRoot 'mods\SurvivorProgression\src\survivor_progression.cpp') -Raw
+foreach ($requiredSurvivorFragment in @(
+    'Survivor Progression 0.9.2',
+    'ui_card_choose',
+    'perk_kind::effect',
+    'xp_to_next( int64_t level )',
+    'unbounded levels / 120 perks / 6 branches'
+)) {
+    if (-not $survivorSource.Contains($requiredSurvivorFragment)) {
+        throw "Survivor Progression 0.9.2 invariant missing: $requiredSurvivorFragment"
+    }
+}
+if ($survivorSource.Contains('max_level')) {
+    throw 'Survivor Progression 0.9.2 regression: hard level cap returned.'
 }
 
 $manifestPolicySource = Get-Content (Join-Path $RepositoryRoot 'host_patch\ncmm_manifest_policy.h') -Raw
@@ -141,13 +163,13 @@ foreach ($requiredManifestPolicyFragment in @(
     'validate_manifest_contract_v1'
 )) {
     if (-not $manifestPolicySource.Contains($requiredManifestPolicyFragment)) {
-        throw "NCMM 0.7.1 manifest policy invariant missing: $requiredManifestPolicyFragment"
+        throw "NCMM 0.7.2 manifest policy invariant missing: $requiredManifestPolicyFragment"
     }
 }
 
 $setupSourceText = Get-Content (Join-Path $RepositoryRoot 'runtime\NCMMSetup.cs') -Raw
 foreach ($requiredDiagnosticsFragment in @(
-    'NCMM v0.7.1 Diagnostics 2.0',
+    'NCMM v0.7.2 Diagnostics 2.0',
     '=== Manifest / Duplicate-ID Scan ===',
     '=== Bootstrap Runtime State ===',
     '=== Host Module State ===',
@@ -155,7 +177,7 @@ foreach ($requiredDiagnosticsFragment in @(
     'Duplicate active module id'
 )) {
     if (-not $setupSourceText.Contains($requiredDiagnosticsFragment)) {
-        throw "NCMM 0.7.1 Diagnostics 2.0 invariant missing: $requiredDiagnosticsFragment"
+        throw "NCMM 0.7.2 Diagnostics 2.0 invariant missing: $requiredDiagnosticsFragment"
     }
 }
 
@@ -170,17 +192,17 @@ foreach ($requiredBootstrapFragment in @(
     'stale boot.pending still exists before host launch'
 )) {
     if (-not $bootstrapSourceText.Contains($requiredBootstrapFragment)) {
-        throw "NCMM 0.7.1 bootstrap hardening invariant missing: $requiredBootstrapFragment"
+        throw "NCMM 0.7.2 bootstrap hardening invariant missing: $requiredBootstrapFragment"
     }
 }
 
 $hostPatchSource = Get-Content (Join-Path $RepositoryRoot 'host_patch\Apply-NCMMHostPatch.ps1') -Raw
 if ($hostPatchSource.Contains("if (`$LASTEXITCODE -ne 0) { throw 'NCMM source-contract preflight failed.' }")) {
-    throw 'NCMM 0.7.1 regression: PowerShell source-contract preflight still inspects stale LASTEXITCODE.'
+    throw 'NCMM 0.7.2 regression: PowerShell source-contract preflight still inspects stale LASTEXITCODE.'
 }
 
 @'
-NCMM 0.7.1 Runtime
+NCMM 0.7.2 Runtime
 ===============
 1. Run NCMM_Setup.exe.
 2. Select the CDDA folder containing cataclysm-tiles.exe.
@@ -193,7 +215,7 @@ If no exact certified host exists for the installed CDDA executable, NCMM starts
 
 Remove-Item $awsBuild -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $spBuild -Recurse -Force -ErrorAction SilentlyContinue
-$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.7.1.zip'
+$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.7.2.zip'
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $OutputRoot '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip

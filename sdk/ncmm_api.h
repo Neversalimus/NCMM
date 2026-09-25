@@ -19,7 +19,7 @@ extern "C" {
 #define NCMM_ABI_VERSION 1u
 #define NCMM_LOADER_API_VERSION 1u
 #define NCMM_API_VERSION_MAJOR 1u
-#define NCMM_API_VERSION_MINOR 1u
+#define NCMM_API_VERSION_MINOR 2u
 #define NCMM_ENTRYPOINT "ncmm_get_descriptor_v1"
 #define NCMM_LOCALE_ENTRYPOINT "ncmm_on_locale_changed_v1"
 #define NCMM_TURN_ENTRYPOINT "ncmm_on_turn_v1"
@@ -31,6 +31,36 @@ typedef enum ncmm_log_level_v1 {
     NCMM_LOG_WARN = 1,
     NCMM_LOG_ERROR = 2
 } ncmm_log_level_v1;
+
+typedef enum ncmm_ui_card_flags_v1 {
+    NCMM_UI_CARD_NONE = 0u,
+    NCMM_UI_CARD_OWNED = 1u << 0,
+    NCMM_UI_CARD_LOCKED = 1u << 1,
+    NCMM_UI_CARD_MAJOR = 1u << 2,
+    NCMM_UI_CARD_EFFECT = 1u << 3,
+    NCMM_UI_CARD_ACCENT = 1u << 4
+} ncmm_ui_card_flags_v1;
+
+typedef struct ncmm_ui_progress_v1 {
+    const char *label;
+    int64_t current;
+    int64_t maximum;
+} ncmm_ui_progress_v1;
+
+/*
+ * icon_key is intentionally a logical asset identifier rather than a file path.
+ * NCMM 0.7.2's text renderer preserves this metadata but does not rasterize it yet.
+ * A future graphics backend can resolve the same key without changing module data.
+ */
+typedef struct ncmm_ui_card_v1 {
+    const char *id;
+    const char *title;
+    const char *subtitle;
+    const char *body;
+    const char *badge;
+    const char *icon_key;
+    uint32_t flags;
+} ncmm_ui_card_v1;
 
 typedef struct ncmm_host_api_v1 {
     uint32_t abi_version;
@@ -100,6 +130,16 @@ typedef struct ncmm_host_api_v1 {
     int ( *ui_tile_choose )( const char *title,
                              const char *const *labels,
                              const char *const *details,
+                             size_t count,
+                             size_t columns );
+    /*
+     * NCMM 0.7.2 card/layout tail. Modules must require ui.cards.v1 before use.
+     * icon_key fields are forward-compatible graphics metadata in 0.7.2.
+     */
+    int ( *ui_card_choose )( const char *title,
+                             const char *summary,
+                             const ncmm_ui_progress_v1 *progress,
+                             const ncmm_ui_card_v1 *cards,
                              size_t count,
                              size_t columns );
 } ncmm_host_api_v1;

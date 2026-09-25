@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdint>
 #include <iomanip>
+#include <limits>
 #include <map>
 #include <sstream>
 #include <string>
@@ -14,8 +15,7 @@
 namespace
 {
 const char *const module_id = "survivor_progression";
-constexpr int max_level = 30;
-constexpr int state_schema = 3;
+constexpr int state_schema = 4;
 
 const char *required_caps[] = {
     "core.v1",
@@ -26,6 +26,8 @@ const char *required_caps[] = {
     "character.modifiers.v1",
     "ui.basic.v1",
     "ui.tiles.v1",
+    "ui.cards.v1",
+    "module_hotkeys.context.v1",
     "module_hotkeys.v1",
     "api.versioning.v1",
     "state.migration.v1",
@@ -52,6 +54,17 @@ enum class currency_id {
     major
 };
 
+enum class perk_kind {
+    stat,
+    effect
+};
+
+enum class perk_scaling {
+    fixed,
+    per_active_branch,
+    per_owned_major
+};
+
 struct modifier_effect {
     const char *id;
     double value;
@@ -72,7 +85,17 @@ struct perk_def {
     std::array<modifier_effect, 4> effects;
     int effect_count;
     int xp_bonus_pct;
+    perk_kind kind = perk_kind::stat;
+    perk_scaling scaling = perk_scaling::fixed;
+    double branch_amp_pct = 0.0;
+    double global_amp_pct = 0.0;
 };
+
+perk_kind effective_kind( const perk_def &perk )
+{
+    return perk.kind == perk_kind::effect || perk.xp_bonus_pct != 0 ?
+           perk_kind::effect : perk_kind::stat;
+}
 
 const perk_def perks[] = {
     { "c_power", branch_id::combat, 1, 1, currency_id::perk, "", "", "Power Training", "Силовая подготовка", "+1 Strength", "+1 к силе", {{ { "str_flat", 1 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0 },
@@ -135,6 +158,67 @@ const perk_def perks[] = {
     { "a_polymath", branch_id::mastery, 4, 15, currency_id::perk, "a_insight", "", "Polymath", "Универсал", "+10% craft, +10% reading", "+10% крафт, +10% чтение", {{ { "craft_speed_pct", 10 }, { "read_speed_pct", 10 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0 },
     { "a_paragon", branch_id::mastery, 5, 20, currency_id::major, "a_growth", "a_polymath", "Paragon", "Образец", "+1 STR, +1 DEX, +1 PER, +1 INT", "+1 ко всем основным характеристикам", {{ { "str_flat", 1 }, { "dex_flat", 1 }, { "per_flat", 1 }, { "int_flat", 1 } }}, 4, 0 },
     { "a_transcendent", branch_id::mastery, 6, 30, currency_id::major, "a_paragon", "", "Transcendent Survivor", "Совершенный выживший", "+50% XP, +3% speed, +10% stamina, +10% healing", "+50% опыта, +3% скорость, +10% выносливость, +10% лечение", {{ { "speed_pct", 3 }, { "stamina_max_pct", 10 }, { "healing_pct", 10 }, { nullptr, 0.0 } }}, 3, 50 }
+,
+    { "ce_rhythm", branch_id::combat, 1, 3, currency_id::perk, "", "", "Combat Rhythm", "Боевой ритм", "Combat stat perks are 5% stronger.", "Статовые боевые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 5, 0 },
+    { "ce_drills", branch_id::combat, 1, 6, currency_id::perk, "ce_rhythm", "", "Drilled Reflexes", "Отработанные рефлексы", "+0.25 dodge and +0.25 melee hit.", "+0,25 уклонения и +0,25 точности ближнего боя.", {{ { "dodge_flat", 0.25 }, { "melee_hit_flat", 0.25 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
+    { "ce_reserve", branch_id::combat, 2, 9, currency_id::perk, "ce_drills", "", "Reserve Under Fire", "Резерв под огнём", "+2% max stamina per active Survivor branch.", "+2% максимума выносливости за каждую активную ветку Survivor.", {{ { "stamina_max_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ce_lessons", branch_id::combat, 2, 12, currency_id::perk, "ce_reserve", "", "Lessons of Violence", "Уроки боя", "+4% Survivor XP per owned major perk.", "+4% опыта Survivor за каждый купленный большой перк.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 4, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "ce_tactics", branch_id::combat, 3, 15, currency_id::major, "ce_lessons", "", "Tactical Integration", "Тактическая интеграция", "Combat stat perks are another 10% stronger.", "Статовые боевые перки ещё на 10% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 10, 0 },
+    { "ce_pressure", branch_id::combat, 3, 18, currency_id::perk, "ce_tactics", "", "Relentless Pressure", "Непрерывный натиск", "+1% speed per active Survivor branch.", "+1% скорости за каждую активную ветку Survivor.", {{ { "speed_pct", 1 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ce_memory", branch_id::combat, 4, 22, currency_id::perk, "ce_pressure", "", "Battle Memory", "Боевая память", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ce_refined", branch_id::combat, 4, 26, currency_id::perk, "ce_memory", "", "Refined Drills", "Отточенная подготовка", "+0.5 melee hit and +0.5 dodge.", "+0,5 точности ближнего боя и +0,5 уклонения.", {{ { "melee_hit_flat", 0.5 }, { "dodge_flat", 0.5 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
+    { "ce_veteran_reflex", branch_id::combat, 5, 32, currency_id::perk, "ce_refined", "", "Veteran Reflex", "Рефлекс ветерана", "+3% speed, +5% max stamina, +0.25 dodge.", "+3% скорости, +5% выносливости, +0,25 уклонения.", {{ { "speed_pct", 3 }, { "stamina_max_pct", 5 }, { "dodge_flat", 0.25 }, { nullptr, 0.0 } }}, 3, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
+    { "ce_warmaster", branch_id::combat, 6, 40, currency_id::major, "ce_veteran_reflex", "", "Warmaster", "Воевода", "All stat perks are 5% stronger.", "Все статовые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
+    { "se_lessons", branch_id::survival, 1, 3, currency_id::perk, "", "", "Hard Lessons", "Тяжёлые уроки", "Survival stat perks are 5% stronger.", "Статовые перки выживания на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 5, 0 },
+    { "se_routine", branch_id::survival, 1, 6, currency_id::perk, "se_lessons", "", "Survival Routine", "Режим выживания", "+5% healing per active Survivor branch.", "+5% лечения за каждую активную ветку Survivor.", {{ { "healing_pct", 5 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "se_reserves", branch_id::survival, 2, 9, currency_id::perk, "se_routine", "", "Deep Reserves", "Глубокие резервы", "+2% max stamina per active Survivor branch.", "+2% выносливости за каждую активную ветку Survivor.", {{ { "stamina_max_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "se_adaptive", branch_id::survival, 2, 12, currency_id::perk, "se_reserves", "", "Adaptive Survivor", "Адаптивный выживший", "+4% Survivor XP per owned major perk.", "+4% опыта Survivor за каждый большой перк.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 4, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "se_anchor", branch_id::survival, 3, 15, currency_id::major, "se_adaptive", "", "Anchor Point", "Точка опоры", "Survival stat perks are another 10% stronger.", "Статовые перки выживания ещё на 10% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 10, 0 },
+    { "se_memory", branch_id::survival, 3, 18, currency_id::perk, "se_anchor", "", "Long Memory", "Долгая память", "+3% carry capacity per active Survivor branch.", "+3% грузоподъёмности за каждую активную ветку.", {{ { "carry_weight_pct", 3 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "se_hardened", branch_id::survival, 4, 22, currency_id::perk, "se_memory", "", "Hardened Practice", "Закалённая практика", "+4% healing per owned major perk.", "+4% лечения за каждый купленный большой перк.", {{ { "healing_pct", 4 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "se_grit", branch_id::survival, 4, 26, currency_id::perk, "se_hardened", "", "Grit", "Стойкость", "+10% healing and +8% max stamina.", "+10% лечения и +8% максимума выносливости.", {{ { "healing_pct", 10 }, { "stamina_max_pct", 8 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
+    { "se_carried", branch_id::survival, 5, 32, currency_id::perk, "se_grit", "", "Lessons Carried", "Накопленный опыт", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "se_indomitable", branch_id::survival, 6, 40, currency_id::major, "se_carried", "", "Indomitable", "Несгибаемый", "All stat perks are 5% stronger.", "Все статовые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
+    { "me_economy", branch_id::mobility, 1, 3, currency_id::perk, "", "", "Motion Economy", "Экономия движения", "Mobility stat perks are 5% stronger.", "Статовые перки мобильности на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 5, 0 },
+    { "me_practice", branch_id::mobility, 1, 6, currency_id::perk, "me_economy", "", "Kinetic Practice", "Кинетическая практика", "-1% move cost per active Survivor branch.", "-1% стоимости движения за каждую активную ветку.", {{ { "move_cost_pct", -1 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "me_breath", branch_id::mobility, 2, 9, currency_id::perk, "me_practice", "", "Breath Cycle", "Цикл дыхания", "+2% max stamina per active Survivor branch.", "+2% выносливости за каждую активную ветку.", {{ { "stamina_max_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "me_road", branch_id::mobility, 2, 12, currency_id::perk, "me_breath", "", "Road Sense", "Чувство дороги", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "me_flow", branch_id::mobility, 3, 15, currency_id::major, "me_road", "", "Flow Control", "Контроль потока", "Mobility stat perks are another 10% stronger.", "Статовые перки мобильности ещё на 10% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 10, 0 },
+    { "me_stride", branch_id::mobility, 3, 18, currency_id::perk, "me_flow", "", "Long Stride", "Длинный шаг", "+1% speed per active Survivor branch.", "+1% скорости за каждую активную ветку.", {{ { "speed_pct", 1 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "me_mastery", branch_id::mobility, 4, 22, currency_id::perk, "me_stride", "", "Kinetic Mastery", "Мастерство движения", "-0.5% move cost per owned major perk.", "-0,5% стоимости движения за каждый большой перк.", {{ { "move_cost_pct", -0.5 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "me_feather", branch_id::mobility, 4, 26, currency_id::perk, "me_mastery", "", "Featherstep", "Невесомый шаг", "+0.5 dodge and +2% speed.", "+0,5 уклонения и +2% скорости.", {{ { "dodge_flat", 0.5 }, { "speed_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
+    { "me_endless", branch_id::mobility, 5, 32, currency_id::perk, "me_feather", "", "Endless Road", "Бесконечная дорога", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "me_horizon", branch_id::mobility, 6, 40, currency_id::major, "me_endless", "", "Horizon Runner", "Бегущий к горизонту", "All stat perks are 5% stronger.", "Все статовые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
+    { "fe_iterate", branch_id::crafting, 1, 3, currency_id::perk, "", "", "Iterative Practice", "Практика итераций", "Crafting stat perks are 5% stronger.", "Статовые перки крафта на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 5, 0 },
+    { "fe_method", branch_id::crafting, 1, 6, currency_id::perk, "fe_iterate", "", "Methodical Work", "Методичная работа", "+3% crafting speed per active Survivor branch.", "+3% скорости крафта за каждую активную ветку.", {{ { "craft_speed_pct", 3 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "fe_notes", branch_id::crafting, 2, 9, currency_id::perk, "fe_method", "", "Living Notes", "Живые заметки", "+3% reading speed per active Survivor branch.", "+3% скорости чтения за каждую активную ветку.", {{ { "read_speed_pct", 3 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "fe_learning", branch_id::crafting, 2, 12, currency_id::perk, "fe_notes", "", "Learning by Making", "Учёба делом", "+4% Survivor XP per owned major perk.", "+4% опыта Survivor за каждый большой перк.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 4, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "fe_breakthrough", branch_id::crafting, 3, 15, currency_id::major, "fe_learning", "", "Breakthrough", "Прорыв", "Crafting stat perks are another 10% stronger.", "Статовые перки крафта ещё на 10% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 10, 0 },
+    { "fe_standard", branch_id::crafting, 3, 18, currency_id::perk, "fe_breakthrough", "", "Standardized Process", "Стандартизация", "+2% crafting speed per owned major perk.", "+2% скорости крафта за каждый большой перк.", {{ { "craft_speed_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "fe_systems", branch_id::crafting, 4, 22, currency_id::perk, "fe_standard", "", "Systems Thinking", "Системное мышление", "+2% reading speed per owned major perk.", "+2% скорости чтения за каждый большой перк.", {{ { "read_speed_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "fe_theory", branch_id::crafting, 4, 26, currency_id::perk, "fe_systems", "", "Theory Into Practice", "Теория в практике", "+10% crafting and +10% reading speed.", "+10% скорости крафта и +10% скорости чтения.", {{ { "craft_speed_pct", 10 }, { "read_speed_pct", 10 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
+    { "fe_tuning", branch_id::crafting, 5, 32, currency_id::perk, "fe_theory", "", "Fine Tuning", "Тонкая настройка", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "fe_architect", branch_id::crafting, 6, 40, currency_id::major, "fe_tuning", "", "Architect Mind", "Разум архитектора", "All stat perks are 5% stronger.", "Все статовые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
+    { "ge_eye", branch_id::scavenging, 1, 3, currency_id::perk, "", "", "Sharp Eye", "Острый глаз", "Scavenging stat perks are 5% stronger.", "Статовые перки добычи на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 5, 0 },
+    { "ge_routes", branch_id::scavenging, 1, 6, currency_id::perk, "ge_eye", "", "Route Discipline", "Дисциплина маршрута", "-0.75% move cost per active Survivor branch.", "-0,75% стоимости движения за каждую активную ветку.", {{ { "move_cost_pct", -0.75 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ge_load", branch_id::scavenging, 2, 9, currency_id::perk, "ge_routes", "", "Load Planning", "Планирование груза", "+4% carry capacity per active Survivor branch.", "+4% грузоподъёмности за каждую активную ветку.", {{ { "carry_weight_pct", 4 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ge_field", branch_id::scavenging, 2, 12, currency_id::perk, "ge_load", "", "Field Experience", "Полевой опыт", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ge_opportunist", branch_id::scavenging, 3, 15, currency_id::major, "ge_field", "", "Opportunist", "Оппортунист", "Scavenging stat perks are another 10% stronger.", "Статовые перки добычи ещё на 10% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 10, 0 },
+    { "ge_cache", branch_id::scavenging, 3, 18, currency_id::perk, "ge_opportunist", "", "Cache Logic", "Логика тайников", "+0.25 PER per active Survivor branch.", "+0,25 восприятия за каждую активную ветку.", {{ { "per_flat", 0.25 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ge_network", branch_id::scavenging, 4, 22, currency_id::perk, "ge_cache", "", "Networked Routes", "Сеть маршрутов", "+2% speed per owned major perk.", "+2% скорости за каждый большой перк.", {{ { "speed_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "ge_instinct", branch_id::scavenging, 4, 26, currency_id::perk, "ge_network", "", "Scavenger Instinct", "Инстинкт добытчика", "+10% carry capacity and +0.5 PER.", "+10% грузоподъёмности и +0,5 восприятия.", {{ { "carry_weight_pct", 10 }, { "per_flat", 0.5 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
+    { "ge_wisdom", branch_id::scavenging, 5, 32, currency_id::perk, "ge_instinct", "", "Long Haul Wisdom", "Мудрость дальних рейдов", "+3% Survivor XP per owned major perk.", "+3% опыта Survivor за каждый большой перк.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "ge_nomad", branch_id::scavenging, 6, 40, currency_id::major, "ge_wisdom", "", "Nomad Legend", "Легенда кочевника", "All stat perks are 5% stronger.", "Все статовые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
+    { "ae_reflect", branch_id::mastery, 1, 3, currency_id::perk, "", "", "Reflection", "Рефлексия", "All stat perks are 2% stronger.", "Все статовые перки на 2% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 2 },
+    { "ae_cross", branch_id::mastery, 1, 6, currency_id::perk, "ae_reflect", "", "Cross Training", "Перекрёстная подготовка", "+5% Survivor XP per active Survivor branch.", "+5% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 5, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ae_foundation", branch_id::mastery, 2, 9, currency_id::perk, "ae_cross", "", "Strong Foundation", "Прочный фундамент", "+0.15 STR/DEX/PER/INT per active branch.", "+0,15 СИЛ/ЛОВ/ВОС/ИНТ за каждую активную ветку.", {{ { "str_flat", 0.15 }, { "dex_flat", 0.15 }, { "per_flat", 0.15 }, { "int_flat", 0.15 } }}, 4, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ae_pattern", branch_id::mastery, 2, 12, currency_id::perk, "ae_foundation", "", "Pattern Recognition", "Распознавание закономерностей", "+3% Survivor XP per owned major perk.", "+3% опыта Survivor за каждый большой перк.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "ae_milestone", branch_id::mastery, 3, 15, currency_id::major, "ae_pattern", "", "Milestone Discipline", "Дисциплина рубежей", "All stat perks are another 5% stronger.", "Все статовые перки ещё на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
+    { "ae_integrate", branch_id::mastery, 3, 18, currency_id::perk, "ae_milestone", "", "Integration", "Интеграция", "+2% crafting and reading speed per active branch.", "+2% крафта и чтения за каждую активную ветку.", {{ { "craft_speed_pct", 2 }, { "read_speed_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ae_compound", branch_id::mastery, 4, 22, currency_id::perk, "ae_integrate", "", "Compounding Practice", "Накопительная практика", "All stat perks are another 5% stronger.", "Все статовые перки ещё на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
+    { "ae_longgame", branch_id::mastery, 4, 26, currency_id::perk, "ae_compound", "", "Long Game", "Долгая игра", "+6% Survivor XP per active Survivor branch.", "+6% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 6, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ae_legacy", branch_id::mastery, 5, 32, currency_id::perk, "ae_longgame", "", "Legacy Mindset", "Мышление наследия", "+0.05 STR/DEX/PER/INT per owned major perk.", "+0,05 СИЛ/ЛОВ/ВОС/ИНТ за каждый большой перк.", {{ { "str_flat", 0.05 }, { "dex_flat", 0.05 }, { "per_flat", 0.05 }, { "int_flat", 0.05 } }}, 4, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "ae_ascendant", branch_id::mastery, 6, 40, currency_id::major, "ae_legacy", "", "Ascendant", "Восхождение", "All stat perks are 10% stronger and Survivor XP +50%.", "Все статовые перки на 10% сильнее, опыт Survivor +50%.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 50, perk_kind::effect, perk_scaling::fixed, 0, 10 },
 };
 
 bool russian()
@@ -199,9 +283,23 @@ const perk_def *find_perk( const char *id )
     return nullptr;
 }
 
-int xp_to_next( int level )
+int64_t xp_to_next( int64_t level )
 {
-    return 30 + ( level - 1 ) * 15;
+    level = std::max<int64_t>( 1, level );
+    if( level <= 30 ) {
+        return 30 + ( level - 1 ) * 15;
+    }
+
+    // Keep the proven early curve intact, then transition to a slow quadratic tail.
+    // There is no gameplay level cap; the numeric saturation only prevents int64 overflow.
+    const long double d = static_cast<long double>( level - 30 );
+    const long double required = 465.0L + 12.0L * d + 0.20L * d * d;
+    const long double safe_max = static_cast<long double>(
+                                     std::numeric_limits<int64_t>::max() / 4 );
+    if( required >= safe_max ) {
+        return std::numeric_limits<int64_t>::max() / 4;
+    }
+    return std::max<int64_t>( 1, static_cast<int64_t>( std::llround( required ) ) );
 }
 
 const char *branch_name_en( branch_id branch )
@@ -240,6 +338,17 @@ int branch_owned_count( branch_id branch )
     int result = 0;
     for( const perk_def &perk : perks ) {
         if( perk.branch == branch && owned( perk ) ) {
+            ++result;
+        }
+    }
+    return result;
+}
+
+int branch_total_count( branch_id branch )
+{
+    int result = 0;
+    for( const perk_def &perk : perks ) {
+        if( perk.branch == branch ) {
             ++result;
         }
     }
@@ -287,20 +396,82 @@ std::string effect_label( const std::string &id )
     return id;
 }
 
-std::map<std::string, double> owned_effect_totals()
+struct calculated_effects {
+    std::map<std::string, double> modifiers;
+    int xp_bonus_pct = 0;
+    int active_branches = 0;
+    int major_owned = 0;
+    std::array<double, 6> branch_amp = {{ 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 }};
+    double global_amp = 1.0;
+};
+
+int branch_index( branch_id branch )
 {
-    std::map<std::string, double> totals;
+    switch( branch ) {
+        case branch_id::combat: return 0;
+        case branch_id::survival: return 1;
+        case branch_id::mobility: return 2;
+        case branch_id::crafting: return 3;
+        case branch_id::scavenging: return 4;
+        case branch_id::mastery: return 5;
+    }
+    return 0;
+}
+
+calculated_effects calculate_owned_effects()
+{
+    calculated_effects result;
+    const std::array<branch_id, 6> branches = {
+        branch_id::combat, branch_id::survival, branch_id::mobility,
+        branch_id::crafting, branch_id::scavenging, branch_id::mastery
+    };
+
+    for( branch_id branch : branches ) {
+        if( branch_owned_count( branch ) > 0 ) {
+            ++result.active_branches;
+        }
+    }
+    result.major_owned = owned_count( currency_id::major );
+
+    for( const perk_def &perk : perks ) {
+        if( !owned( perk ) || effective_kind( perk ) != perk_kind::effect ) {
+            continue;
+        }
+        result.branch_amp[branch_index( perk.branch )] += perk.branch_amp_pct / 100.0;
+        result.global_amp += perk.global_amp_pct / 100.0;
+    }
+
     for( const perk_def &perk : perks ) {
         if( !owned( perk ) ) {
             continue;
         }
+
+        double scale = 1.0;
+        if( perk.scaling == perk_scaling::per_active_branch ) {
+            scale = static_cast<double>( result.active_branches );
+        } else if( perk.scaling == perk_scaling::per_owned_major ) {
+            scale = static_cast<double>( result.major_owned );
+        }
+
+        if( effective_kind( perk ) == perk_kind::stat ) {
+            scale *= result.global_amp * result.branch_amp[branch_index( perk.branch )];
+        }
+
+        result.xp_bonus_pct += static_cast<int>( std::llround( perk.xp_bonus_pct * scale ) );
         for( int i = 0; i < perk.effect_count; ++i ) {
             if( perk.effects[i].id != nullptr ) {
-                totals[perk.effects[i].id] += perk.effects[i].value;
+                result.modifiers[perk.effects[i].id] += perk.effects[i].value * scale;
             }
         }
     }
-    return totals;
+
+    result.xp_bonus_pct = std::max( 0, std::min( 5000, result.xp_bonus_pct ) );
+    return result;
+}
+
+std::map<std::string, double> owned_effect_totals()
+{
+    return calculate_owned_effects().modifiers;
 }
 
 bool prerequisites_met( const perk_def &perk )
@@ -355,22 +526,10 @@ void recalculate_effects()
         return;
     }
 
-    std::map<std::string, double> totals;
-    int xp_bonus = 0;
-    for( const perk_def &perk : perks ) {
-        if( !owned( perk ) ) {
-            continue;
-        }
-        xp_bonus += perk.xp_bonus_pct;
-        for( int i = 0; i < perk.effect_count; ++i ) {
-            if( perk.effects[i].id != nullptr ) {
-                totals[perk.effects[i].id] += perk.effects[i].value;
-            }
-        }
-    }
+    const calculated_effects calculated = calculate_owned_effects();
 
     host->character_modifier_clear_module( module_id );
-    for( const auto &entry : totals ) {
+    for( const auto &entry : calculated.modifiers ) {
         if( entry.second != 0.0 &&
             !host->character_modifier_set( module_id, entry.first.c_str(), entry.second ) ) {
             if( host->log ) {
@@ -380,7 +539,7 @@ void recalculate_effects()
         }
     }
 
-    current_xp_bonus_pct = xp_bonus;
+    current_xp_bonus_pct = calculated.xp_bonus_pct;
     effects_dirty = false;
 }
 
@@ -395,8 +554,7 @@ void migrate_state()
         return;
     }
 
-    int level = static_cast<int>( get_state( "level", 1 ) );
-    level = std::max( 1, std::min( max_level, level ) );
+    int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
     set_state( "level", level );
 
     int64_t xp = std::max<int64_t>( 0, get_state( "xp", 0 ) );
@@ -404,9 +562,6 @@ void migrate_state()
     if( fraction >= 100 ) {
         xp += fraction / 100;
         fraction %= 100;
-    }
-    if( level >= max_level ) {
-        xp = 0;
     }
     set_state( "xp", xp );
     set_state( "xp_fraction", fraction );
@@ -421,7 +576,8 @@ void migrate_state()
         }
     }
 
-    const int expected_major_awards = level / 5;
+    // Base major points continue every five levels forever.
+    const int64_t expected_major_awards = level / 5;
     int64_t major_awarded = std::max<int64_t>( 0, get_state( "major_awarded", 0 ) );
     int64_t major_points = get_state( "major_points", 0 );
     if( major_awarded < expected_major_awards ) {
@@ -438,7 +594,7 @@ void migrate_state()
     effects_dirty = true;
 }
 
-std::string status_prefix( const perk_def &perk, int level, int64_t perk_points, int64_t major_points )
+std::string status_prefix( const perk_def &perk, int64_t level, int64_t perk_points, int64_t major_points )
 {
     if( owned( perk ) ) {
         return "[✓] ";
@@ -466,7 +622,7 @@ std::string cost_text( const perk_def &perk )
 
 bool purchase_perk( const perk_def &perk )
 {
-    int level = static_cast<int>( get_state( "level", 1 ) );
+    int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
     int64_t perk_points = get_state( "perk_points", 0 );
     int64_t major_points = get_state( "major_points", 0 );
 
@@ -541,7 +697,7 @@ void show_perk_detail( const perk_def &perk )
     }
 }
 
-int branch_unlocked_count( branch_id branch, int level )
+int branch_unlocked_count( branch_id branch, int64_t level )
 {
     int result = 0;
     for( const perk_def &perk : perks ) {
@@ -552,39 +708,129 @@ int branch_unlocked_count( branch_id branch, int level )
     }
     return result;
 }
+struct card_text {
+    std::string id;
+    std::string title;
+    std::string subtitle;
+    std::string body;
+    std::string badge;
+    std::string icon_key;
+    uint32_t flags = NCMM_UI_CARD_NONE;
+};
+
+std::vector<ncmm_ui_card_v1> bind_cards( std::vector<card_text> &texts )
+{
+    std::vector<ncmm_ui_card_v1> result;
+    result.reserve( texts.size() );
+    for( card_text &text : texts ) {
+        result.push_back( {
+            text.id.c_str(),
+            text.title.c_str(),
+            text.subtitle.c_str(),
+            text.body.c_str(),
+            text.badge.c_str(),
+            text.icon_key.c_str(),
+            text.flags
+        } );
+    }
+    return result;
+}
+
+std::string perk_kind_label( const perk_def &perk )
+{
+    return effective_kind( perk ) == perk_kind::effect ?
+           tr( "EFFECT", "ЭФФЕКТ" ) : tr( "STAT", "СТАТ" );
+}
+
+std::string branch_icon_key( branch_id branch )
+{
+    return std::string( "survivor/branch/" ) + branch_name_en( branch );
+}
+
 void show_branch( branch_id branch )
 {
     while( true ) {
-        const int level = static_cast<int>( get_state( "level", 1 ) );
+        const int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
         const int64_t perk_points = get_state( "perk_points", 0 );
         const int64_t major_points = get_state( "major_points", 0 );
 
-        std::string title = branch_name( branch );
-        title += "\n" + tr( "Owned ", "Куплено " ) + std::to_string( branch_owned_count( branch ) ) + "/10";
-        title += " | P " + std::to_string( perk_points ) + " | M " + std::to_string( major_points );
-
         std::vector<const perk_def *> branch_perks;
-        std::vector<std::string> labels;
+        branch_perks.reserve( 24 );
+        std::vector<card_text> texts;
+        texts.reserve( 24 );
+
         for( const perk_def &perk : perks ) {
             if( perk.branch != branch ) {
                 continue;
             }
             branch_perks.push_back( &perk );
-            std::string label = status_prefix( perk, level, perk_points, major_points );
-            label += "T" + std::to_string( perk.tier ) + " ";
-            label += russian() ? perk.name_ru : perk.name_en;
-            labels.push_back( std::move( label ) );
-        }
-        labels.push_back( tr( "Back", "Назад" ) );
 
-        std::vector<const char *> raw;
-        raw.reserve( labels.size() );
-        for( const std::string &label : labels ) {
-            raw.push_back( label.c_str() );
+            const bool is_owned = owned( perk );
+            const bool unlocked = level >= perk.required_level && prerequisites_met( perk );
+            const bool enough = perk.currency == currency_id::perk ?
+                                perk_points > 0 : major_points > 0;
+
+            card_text card;
+            card.id = perk.id;
+            card.title = russian() ? perk.name_ru : perk.name_en;
+            card.subtitle = "T" + std::to_string( perk.tier ) + " | " +
+                            tr( "Lv ", "Ур " ) + std::to_string( perk.required_level ) +
+                            " | " + ( perk.currency == currency_id::perk ? "1P" : "1M" );
+            card.body = russian() ? perk.desc_ru : perk.desc_en;
+            if( perk.prereq1 != nullptr && perk.prereq1[0] != '\0' ) {
+                card.body += tr( "  Req: ", "  Треб.: " ) + prereq_text( perk );
+            }
+
+            card.badge = perk_kind_label( perk ) + " / ";
+            if( is_owned ) {
+                card.badge += tr( "OWNED", "КУПЛЕНО" );
+                card.flags |= NCMM_UI_CARD_OWNED;
+            } else if( !unlocked ) {
+                card.badge += tr( "LOCKED", "ЗАКРЫТО" );
+                card.flags |= NCMM_UI_CARD_LOCKED;
+            } else if( !enough ) {
+                card.badge += tr( "NO POINTS", "НЕТ ОЧКОВ" );
+            } else {
+                card.badge += tr( "AVAILABLE", "ДОСТУПНО" );
+            }
+
+            if( perk.currency == currency_id::major ) {
+                card.flags |= NCMM_UI_CARD_MAJOR;
+            }
+            if( effective_kind( perk ) == perk_kind::effect ) {
+                card.flags |= NCMM_UI_CARD_EFFECT;
+            }
+            card.icon_key = std::string( "survivor/perk/" ) + perk.id;
+            texts.push_back( std::move( card ) );
         }
 
-        const int choice = host->ui_choose ? host->ui_choose( title.c_str(), raw.data(), raw.size() ) : -1;
-        if( choice < 0 || static_cast<std::size_t>( choice ) >= branch_perks.size() ) {
+        const int owned_now = branch_owned_count( branch );
+        const int total_now = branch_total_count( branch );
+        const int unlocked_now = branch_unlocked_count( branch, level );
+
+        std::string title = branch_name( branch );
+        std::string summary =
+            tr( "Purchased ", "Куплено " ) + std::to_string( owned_now ) + "/" +
+            std::to_string( total_now ) +
+            tr( " | available ", " | доступно " ) + std::to_string( unlocked_now ) +
+            " | P " + std::to_string( perk_points ) +
+            " | M " + std::to_string( major_points );
+
+        std::string progress_label =
+            tr( "Branch ", "Ветка " ) + std::to_string( owned_now ) + "/" +
+            std::to_string( total_now );
+        ncmm_ui_progress_v1 progress{
+            progress_label.c_str(),
+            owned_now,
+            std::max( 1, total_now )
+        };
+
+        std::vector<ncmm_ui_card_v1> cards = bind_cards( texts );
+        const int choice = host->ui_card_choose ?
+                           host->ui_card_choose( title.c_str(), summary.c_str(), &progress,
+                                                 cards.data(), cards.size(), 2 ) :
+                           -1;
+        if( choice < 0 || static_cast<size_t>( choice ) >= branch_perks.size() ) {
             return;
         }
         show_perk_detail( *branch_perks[choice] );
@@ -593,27 +839,27 @@ void show_branch( branch_id branch )
 
 void show_overview()
 {
-    int level = static_cast<int>( get_state( "level", 1 ) );
-    const int64_t xp = get_state( "xp", 0 );
+    const int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
+    const int64_t xp = std::max<int64_t>( 0, get_state( "xp", 0 ) );
     const int64_t perk_points = get_state( "perk_points", 0 );
     const int64_t major_points = get_state( "major_points", 0 );
     const int normal_owned = owned_count( currency_id::perk );
     const int major_owned = owned_count( currency_id::major );
 
-    std::string out = "Survivor Progression v0.9.0\n";
-    out += tr( "Level ", "Уровень " ) + std::to_string( level ) + "/" + std::to_string( max_level );
-    if( level < max_level ) {
-        out += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
-    }
+    std::string out = "Survivor Progression v0.9.2\n";
+    out += tr( "Level ", "Уровень " ) + std::to_string( level );
+    out += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
     out += "\nP " + std::to_string( perk_points ) + " | M " + std::to_string( major_points );
     out += "\n" + tr( "Purchased: ", "Куплено: " ) +
            std::to_string( normal_owned ) + "P / " + std::to_string( major_owned ) + "M";
-    out += "\n" + tr( "Major points: levels 5/10/15/20/25/30.",
-                       "Большие очки: уровни 5/10/15/20/25/30." );
+    out += "\n" + tr( "Major points: every 5 levels, with no level cap.",
+                       "Большие очки: каждые 5 уровней, без ограничения уровня." );
 
     for( branch_id branch : { branch_id::combat, branch_id::survival, branch_id::mobility,
                               branch_id::crafting, branch_id::scavenging, branch_id::mastery } ) {
-        out += "\n" + branch_name( branch ) + ": " + std::to_string( branch_owned_count( branch ) ) + "/10";
+        out += "\n" + branch_name( branch ) + ": " +
+               std::to_string( branch_owned_count( branch ) ) + "/" +
+               std::to_string( branch_total_count( branch ) );
     }
 
     out += "\n\n" + tr( "Active effects:", "Активные эффекты:" );
@@ -698,60 +944,83 @@ void open_progression()
     }
 
     while( true ) {
-        int level = static_cast<int>( get_state( "level", 1 ) );
-        level = std::max( 1, std::min( max_level, level ) );
-        const int64_t xp = get_state( "xp", 0 );
+        const int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
+        const int64_t xp = std::max<int64_t>( 0, get_state( "xp", 0 ) );
         const int64_t perk_points = get_state( "perk_points", 0 );
         const int64_t major_points = get_state( "major_points", 0 );
-
-        std::string title = "Survivor Progression v0.9.1\n";
-        title += tr( "Level ", "Уровень " ) + std::to_string( level );
-        if( level < max_level ) {
-            title += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
-        } else {
-            title += tr( " | MAX", " | МАКС" );
-        }
-        title += " | P " + std::to_string( perk_points ) + " | M " + std::to_string( major_points );
 
         const std::array<branch_id, 6> branches = {
             branch_id::combat, branch_id::survival, branch_id::mobility,
             branch_id::crafting, branch_id::scavenging, branch_id::mastery
         };
 
-        std::vector<std::string> labels;
-        std::vector<std::string> details;
-        labels.reserve( 9 );
-        details.reserve( 9 );
-
+        std::vector<card_text> texts;
+        texts.reserve( 9 );
         for( branch_id branch : branches ) {
-            labels.push_back( branch_name( branch ) );
-            details.push_back(
-                tr( "Owned ", "Куплено " ) +
-                std::to_string( branch_owned_count( branch ) ) + "/10" +
-                tr( " | unlocked ", " | открыто " ) +
-                std::to_string( branch_unlocked_count( branch, level ) ) );
+            card_text card;
+            card.id = branch_name_en( branch );
+            card.title = branch_name( branch );
+            card.subtitle = tr( "Perks ", "Перки " ) +
+                            std::to_string( branch_owned_count( branch ) ) + "/" +
+                            std::to_string( branch_total_count( branch ) );
+            card.body = tr( "Available now: ", "Доступно сейчас: " ) +
+                        std::to_string( branch_unlocked_count( branch, level ) );
+            card.badge = tr( "BRANCH", "ВЕТКА" );
+            card.icon_key = branch_icon_key( branch );
+            card.flags = NCMM_UI_CARD_ACCENT;
+            texts.push_back( std::move( card ) );
         }
 
-        labels.push_back( tr( "Overview", "Обзор" ) );
-        details.push_back( tr( "Level, XP and active effects", "Уровень, XP и активные эффекты" ) );
-        labels.push_back( tr( "Respec", "Сброс перков" ) );
-        details.push_back( tr( "Refund all purchased perks", "Вернуть очки за купленные перки" ) );
-        labels.push_back( tr( "Close", "Закрыть" ) );
-        details.push_back( tr( "Return to the game", "Вернуться в игру" ) );
+        card_text overview;
+        overview.id = "overview";
+        overview.title = tr( "Overview", "Обзор" );
+        overview.subtitle = tr( "Level and effects", "Уровень и эффекты" );
+        overview.body = tr( "Inspect XP, points and active modifiers.",
+                            "XP, очки и активные модификаторы." );
+        overview.badge = tr( "INFO", "ИНФО" );
+        overview.icon_key = "survivor/action/overview";
+        texts.push_back( std::move( overview ) );
 
-        std::vector<const char *> raw_labels;
-        std::vector<const char *> raw_details;
-        raw_labels.reserve( labels.size() );
-        raw_details.reserve( details.size() );
-        for( size_t i = 0; i < labels.size(); ++i ) {
-            raw_labels.push_back( labels[i].c_str() );
-            raw_details.push_back( details[i].c_str() );
-        }
+        card_text reset;
+        reset.id = "respec";
+        reset.title = tr( "Respec", "Сброс перков" );
+        reset.subtitle = tr( "Refund purchases", "Вернуть покупки" );
+        reset.body = tr( "Refund all purchased perk and major points.",
+                         "Вернуть очки за все купленные перки." );
+        reset.badge = tr( "ACTION", "ДЕЙСТВИЕ" );
+        reset.icon_key = "survivor/action/respec";
+        texts.push_back( std::move( reset ) );
 
-        const int choice = host->ui_tile_choose ?
-                           host->ui_tile_choose( title.c_str(), raw_labels.data(),
-                                                 raw_details.data(), raw_labels.size(), 3 ) :
-                           host->ui_choose( title.c_str(), raw_labels.data(), raw_labels.size() );
+        card_text close;
+        close.id = "close";
+        close.title = tr( "Close", "Закрыть" );
+        close.subtitle = tr( "Return to game", "Вернуться в игру" );
+        close.body = tr( "Close Survivor Progression.", "Закрыть Survivor Progression." );
+        close.badge = tr( "ACTION", "ДЕЙСТВИЕ" );
+        close.icon_key = "survivor/action/close";
+        texts.push_back( std::move( close ) );
+
+        const int total_owned = owned_count( currency_id::perk ) + owned_count( currency_id::major );
+        const int total_perks = static_cast<int>( sizeof( perks ) / sizeof( perks[0] ) );
+
+        std::string title = "Survivor Progression v0.9.2";
+        std::string summary =
+            tr( "Level ", "Уровень " ) + std::to_string( level ) +
+            " | P " + std::to_string( perk_points ) +
+            " | M " + std::to_string( major_points ) +
+            tr( " | perks ", " | перки " ) +
+            std::to_string( total_owned ) + "/" + std::to_string( total_perks );
+
+        const int64_t xp_needed = xp_to_next( level );
+        std::string progress_label =
+            "XP " + std::to_string( xp ) + "/" + std::to_string( xp_needed );
+        ncmm_ui_progress_v1 progress{ progress_label.c_str(), xp, xp_needed };
+
+        std::vector<ncmm_ui_card_v1> cards = bind_cards( texts );
+        const int choice = host->ui_card_choose ?
+                           host->ui_card_choose( title.c_str(), summary.c_str(), &progress,
+                                                 cards.data(), cards.size(), 3 ) :
+                           -1;
 
         switch( choice ) {
             case 0: show_branch( branch_id::combat ); break;
@@ -766,17 +1035,14 @@ void open_progression()
         }
     }
 }
+
 void award_minute_xp()
 {
     if( !character_available() ) {
         return;
     }
 
-    int level = static_cast<int>( get_state( "level", 1 ) );
-    level = std::max( 1, std::min( max_level, level ) );
-    if( level >= max_level ) {
-        return;
-    }
+    int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
 
     int64_t fraction = get_state( "xp_fraction", 0 );
     fraction += 100 + current_xp_bonus_pct;
@@ -788,14 +1054,14 @@ void award_minute_xp()
         return;
     }
 
-    int64_t xp = get_state( "xp", 0 ) + gained;
+    int64_t xp = std::max<int64_t>( 0, get_state( "xp", 0 ) ) + gained;
     int64_t perk_points = get_state( "perk_points", 0 );
     int64_t major_points = get_state( "major_points", 0 );
     int64_t major_awarded = get_state( "major_awarded", 0 );
-    int levels_gained = 0;
-    int majors_gained = 0;
+    int64_t levels_gained = 0;
+    int64_t majors_gained = 0;
 
-    while( level < max_level && xp >= xp_to_next( level ) ) {
+    while( xp >= xp_to_next( level ) && level < std::numeric_limits<int64_t>::max() ) {
         xp -= xp_to_next( level );
         ++level;
         ++perk_points;
@@ -808,7 +1074,7 @@ void award_minute_xp()
     }
 
     set_state( "level", level );
-    set_state( "xp", level >= max_level ? 0 : xp );
+    set_state( "xp", xp );
     set_state( "perk_points", perk_points );
     set_state( "major_points", major_points );
     set_state( "major_awarded", major_awarded );
@@ -875,13 +1141,14 @@ int init( const ncmm_host_api_v1 *api )
     if( !api->character_state_available || !api->character_state_get_i64 ||
         !api->character_state_set_i64 || !api->character_modifier_set ||
         !api->character_modifier_clear_module || !api->ui_choose || !api->ui_tile_choose ||
+        !api->ui_card_choose ||
         !api->ui_message ) {
         return 0;
     }
 
     host = api;
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.9.1 initialized: 30 levels / 60 perks / 6 branches." );
+              "Survivor Progression 0.9.2 initialized: unbounded levels / 120 perks / 6 branches." );
     return 1;
 }
 
@@ -899,7 +1166,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     module_id,
     "Survivor Progression",
-    "0.9.1",
+    "0.9.2",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,

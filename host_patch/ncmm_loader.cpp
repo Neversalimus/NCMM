@@ -48,7 +48,6 @@ struct loaded_mod {
     uint32_t state_min_supported = 0;
     bool migration_ready = false;
     bool migration_suspended = false;
-    std::string action_id;
     std::string default_hotkey;
     runtime_fault_policy fault;
 };
@@ -70,6 +69,7 @@ struct module_state {
 
 std::vector<module_state> module_states;
 std::set<std::string> module_ids;
+std::set<std::string> hotkey_registration_logged;
 std::map<std::string, size_t> manifest_id_counts;
 std::map<std::string, std::map<std::string, double>> character_modifier_values;
 thread_local std::string active_module_id;
@@ -122,6 +122,8 @@ const char *const host_capabilities[] = {
     "character_state.v1",
     "ui.basic.v1",
     "ui.tiles.v1",
+    "ui.cards.v1",
+    "module_hotkeys.context.v1",
     "module_hotkeys.v1",
     "ingame_manager.v1",
     "world_options.layout.v1",
@@ -187,7 +189,7 @@ int has_capability( const char *capability )
 
 const char *get_host_version()
 {
-    return "0.7.1";
+    return "0.7.2";
 }
 
 uint32_t get_loader_api()
@@ -490,6 +492,236 @@ int ui_tile_choose( const char *title, const char *const *labels,
     }
 }
 
+int ui_card_choose( const char *title, const char *summary,
+                    const ncmm_ui_progress_v1 *progress,
+                    const ncmm_ui_card_v1 *cards, size_t count, size_t requested_columns )
+{
+    if( title == nullptr || cards == nullptr || count == 0 || count > 128 ||
+        requested_columns == 0 || requested_columns > 4 ) {
+        return -1;
+    }
+    for( size_t i = 0; i < count; ++i ) {
+        if( cards[i].title == nullptr ) {
+            return -1;
+        }
+    }
+
+    if( TERMX < 64 || TERMY < 20 ) {
+        std::vector<const char *> fallback;
+        fallback.reserve( count );
+        for( size_t i = 0; i < count; ++i ) {
+            fallback.push_back( cards[i].title );
+        }
+        return ui_choose( title, fallback.data(), fallback.size() );
+    }
+
+    int columns = static_cast<int>( std::min( requested_columns, count ) );
+    constexpr int gap = 1;
+    constexpr int card_height = 7;
+    constexpr int header_height = 5;
+    constexpr int footer_height = 2;
+
+    while( columns > 1 ) {
+        const int candidate = ( TERMX - 4 - gap * ( columns - 1 ) ) / columns;
+        if( candidate >= 26 ) {
+            break;
+        }
+        --columns;
+    }
+
+    const int card_width = std::max( 26, std::min( 42,
+                           ( TERMX - 4 - gap * ( columns - 1 ) ) / columns ) );
+    const int frame_width = columns * card_width + gap * ( columns - 1 ) + 2;
+    const int total_rows = ( static_cast<int>( count ) + columns - 1 ) / columns;
+    const int max_frame_height = std::max( header_height + card_height + footer_height,
+                                          TERMY - 2 );
+    int visible_rows = std::max( 1, std::min( total_rows,
+                            ( max_frame_height - header_height - footer_height ) / card_height ) );
+    const int frame_height = header_height + visible_rows * card_height + footer_height;
+
+    if( frame_width > TERMX || frame_height > TERMY ) {
+        std::vector<const char *> fallback;
+        fallback.reserve( count );
+        for( size_t i = 0; i < count; ++i ) {
+            fallback.push_back( cards[i].title );
+        }
+        return ui_choose( title, fallback.data(), fallback.size() );
+    }
+
+    const point origin( ( TERMX - frame_width ) / 2, ( TERMY - frame_height ) / 2 );
+    catacurses::window frame = catacurses::newwin( frame_height, frame_width, origin );
+
+    std::vector<catacurses::window> slots;
+    slots.reserve( static_cast<size_t>( visible_rows * columns ) );
+    for( int row = 0; row < visible_rows; ++row ) {
+        for( int col = 0; col < columns; ++col ) {
+            const point pos( origin.x + 1 + col * ( card_width + gap ),
+                             origin.y + header_height + row * card_height );
+            slots.push_back( catacurses::newwin( card_height, card_width, pos ) );
+        }
+    }
+
+    input_context ctxt( "NCMM_CARD_CHOOSE", keyboard_mode::keychar );
+    ctxt.register_cardinal();
+    ctxt.register_action( "PAGE_UP" );
+    ctxt.register_action( "PAGE_DOWN" );
+    ctxt.register_action( "HOME" );
+    ctxt.register_action( "END" );
+    ctxt.register_action( "CONFIRM" );
+    ctxt.register_action( "QUIT" );
+    ctxt.register_action( "HELP_KEYBINDINGS" );
+
+    int selected = 0;
+    int first_row = 0;
+
+    auto keep_visible = [&]() {
+        const int row = selected / columns;
+        if( row < first_row ) {
+            first_row = row;
+        } else if( row >= first_row + visible_rows ) {
+            first_row = row - visible_rows + 1;
+        }
+        const int max_first = std::max( 0, total_rows - visible_rows );
+        first_row = std::max( 0, std::min( first_row, max_first ) );
+    };
+
+    ui_adaptor ui;
+    ui.position_from_window( frame );
+    ui.on_redraw( [&]( const ui_adaptor & ) {
+        werase( frame );
+        draw_border( frame, BORDER_COLOR );
+        trim_and_print( frame, point( 2, 1 ), frame_width - 4, c_white, title );
+
+        if( summary != nullptr && summary[0] != '\0' ) {
+            trim_and_print( frame, point( 2, 2 ), frame_width - 4, c_light_gray, summary );
+        }
+
+        if( progress != nullptr && progress->maximum > 0 ) {
+            const int64_t maximum = std::max<int64_t>( 1, progress->maximum );
+            const int64_t current = std::max<int64_t>( 0, std::min( progress->current, maximum ) );
+            const long double ratio = static_cast<long double>( current ) /
+                                      static_cast<long double>( maximum );
+            const int bar_width = std::max( 8, std::min( 28, frame_width - 28 ) );
+            const int filled = std::max( 0, std::min( bar_width,
+                                    static_cast<int>( std::llround( ratio * bar_width ) ) ) );
+            std::string bar = "[";
+            bar.append( static_cast<size_t>( filled ), '=' );
+            bar.append( static_cast<size_t>( bar_width - filled ), '.' );
+            bar += "] ";
+            bar += std::to_string( static_cast<int>( std::llround( ratio * 100.0L ) ) );
+            bar += "%";
+            std::string line = progress->label ? progress->label : "";
+            if( !line.empty() ) {
+                line += "  ";
+            }
+            line += bar;
+            trim_and_print( frame, point( 2, 3 ), frame_width - 4, c_light_green, line );
+        }
+
+        const int first_index = first_row * columns;
+        for( size_t slot = 0; slot < slots.size(); ++slot ) {
+            catacurses::window &card_win = slots[slot];
+            werase( card_win );
+            const int index = first_index + static_cast<int>( slot );
+            if( index >= static_cast<int>( count ) ) {
+                wnoutrefresh( card_win );
+                continue;
+            }
+
+            const ncmm_ui_card_v1 &card = cards[index];
+            const bool active = index == selected;
+            const bool owned = ( card.flags & NCMM_UI_CARD_OWNED ) != 0;
+            const bool locked = ( card.flags & NCMM_UI_CARD_LOCKED ) != 0;
+            const bool effect = ( card.flags & NCMM_UI_CARD_EFFECT ) != 0;
+            const bool accent = ( card.flags & NCMM_UI_CARD_ACCENT ) != 0;
+
+            const nc_color border = active ? c_light_green :
+                                    owned ? c_cyan :
+                                    effect ? c_magenta :
+                                    accent ? c_light_blue : BORDER_COLOR;
+            const nc_color title_color = locked ? c_dark_gray :
+                                          active ? c_white : c_light_gray;
+            draw_border( card_win, border );
+
+            trim_and_print( card_win, point( 2, 1 ), card_width - 4,
+                            title_color, card.title ? card.title : "" );
+            if( card.subtitle != nullptr && card.subtitle[0] != '\0' ) {
+                trim_and_print( card_win, point( 2, 2 ), card_width - 4,
+                                locked ? c_dark_gray : c_light_gray, card.subtitle );
+            }
+
+            if( card.body != nullptr && card.body[0] != '\0' ) {
+                const std::vector<std::string> folded = foldstring( card.body, card_width - 4 );
+                for( size_t line = 0; line < std::min<size_t>( 2, folded.size() ); ++line ) {
+                    trim_and_print( card_win, point( 2, 3 + static_cast<int>( line ) ),
+                                    card_width - 4,
+                                    locked ? c_dark_gray : active ? c_cyan : c_light_gray,
+                                    folded[line] );
+                }
+            }
+
+            if( card.badge != nullptr && card.badge[0] != '\0' ) {
+                trim_and_print( card_win, point( 2, card_height - 2 ), card_width - 4,
+                                owned ? c_cyan : effect ? c_magenta :
+                                locked ? c_dark_gray : c_green,
+                                card.badge );
+            }
+            if( active ) {
+                mvwprintz( card_win, point( 1, 1 ), c_light_green, ">" );
+            }
+            wnoutrefresh( card_win );
+        }
+
+        std::string footer = tr_ui(
+            "Arrows: select  Enter: open  Esc: back  PgUp/PgDn: scroll",
+            "Стрелки: выбор  Enter: открыть  Esc: назад  PgUp/PgDn: прокрутка" );
+        footer += "  " + std::to_string( selected + 1 ) + "/" + std::to_string( count );
+        trim_and_print( frame, point( 2, frame_height - 2 ), frame_width - 4,
+                        c_dark_gray, footer );
+        wnoutrefresh( frame );
+    } );
+
+    while( true ) {
+        keep_visible();
+        ui_manager::redraw();
+        const std::string action = ctxt.handle_input();
+        const int col = selected % columns;
+        const int row = selected / columns;
+
+        if( action == "LEFT" ) {
+            if( col > 0 ) {
+                --selected;
+            }
+        } else if( action == "RIGHT" ) {
+            if( col + 1 < columns && selected + 1 < static_cast<int>( count ) ) {
+                ++selected;
+            }
+        } else if( action == "UP" ) {
+            if( row > 0 ) {
+                selected -= columns;
+            }
+        } else if( action == "DOWN" ) {
+            const int next = selected + columns;
+            if( next < static_cast<int>( count ) ) {
+                selected = next;
+            }
+        } else if( action == "PAGE_UP" ) {
+            selected = std::max( 0, selected - visible_rows * columns );
+        } else if( action == "PAGE_DOWN" ) {
+            selected = std::min( static_cast<int>( count ) - 1,
+                                 selected + visible_rows * columns );
+        } else if( action == "HOME" ) {
+            selected = 0;
+        } else if( action == "END" ) {
+            selected = static_cast<int>( count ) - 1;
+        } else if( action == "CONFIRM" ) {
+            return selected;
+        } else if( action == "QUIT" ) {
+            return -1;
+        }
+    }
+}
+
 void ui_message( const char *message )
 {
     if( message != nullptr ) {
@@ -547,7 +779,8 @@ const ncmm_host_api_v1 api = {
     &character_modifier_clear_module,
     &get_api_version_major,
     &get_api_version_minor,
-    &ui_tile_choose
+    &ui_tile_choose,
+    &ui_card_choose
 };
 
 std::string read_text_file( const std::filesystem::path &path )
@@ -599,6 +832,15 @@ int ui_hotkey_keycode( const std::string &value )
         number = number * 10 + static_cast<int>( value[i] - '0' );
     }
     return keycode::f1 + number - 1;
+}
+
+std::string module_action_id( const loaded_mod &mod )
+{
+    if( mod.open_ui == nullptr || mod.descriptor == nullptr || mod.descriptor->id == nullptr ||
+        mod.descriptor->id[0] == '\0' ) {
+        return {};
+    }
+    return "ncmm.open." + std::string( mod.descriptor->id );
 }
 
 bool validate_manifest( const manifest_contract &manifest, std::string &reason )
@@ -706,7 +948,7 @@ void write_modules_state()
 
     out << "{\n"
         << "  \"schema\": 3,\n"
-        << "  \"host_version\": \"0.7.1\",\n"
+        << "  \"host_version\": \"0.7.2\",\n"
         << "  \"loader_api\": " << NCMM_LOADER_API_VERSION << ",\n"
         << "  \"api_version\": {\"major\":" << NCMM_API_VERSION_MAJOR
         << ",\"minor\":" << NCMM_API_VERSION_MINOR << "},\n"
@@ -789,7 +1031,6 @@ void quarantine_runtime_callback( loaded_mod &mod, runtime_callback_kind kind,
             break;
         case runtime_callback_kind::ui:
             mod.open_ui = nullptr;
-            mod.action_id.clear();
             break;
     }
 
@@ -1146,14 +1387,13 @@ void load_one( const std::filesystem::path &library )
         return;
     }
 
-    // Do not create a live input action while CDDA is still finalizing core data.
-    // The action is armed by arm_hotkeys() after g->load_core_data() returns.
-    const std::string action_id;
+    // Keep module identity and its preferred key as passive metadata.
+    // Action IDs/default bindings are derived only when a gameplay input context exists.
     loaded.push_back( { module, desc, directory, locale_changed, on_turn, open_ui,
                         migrate_state,
                         manifest.state_contract_declared ? manifest.state_schema : 0u,
                         manifest.state_contract_declared ? manifest.state_min_supported : 0u,
-                        false, false, action_id, manifest.ui_hotkey } );
+                        false, false, manifest.ui_hotkey } );
     record_module_state( directory, manifest, "loaded", "ok" );
     log_line( NCMM_LOG_INFO, ( std::string( "Loaded module: " ) + desc->id + " " + desc->version ).c_str() );
 }
@@ -1184,24 +1424,6 @@ std::string settings_menu_label()
     return tr_ui( "<N|n>CMM / Mod Configuration", "<N|n>CMM / Настройка модов" );
 }
 
-void arm_hotkeys()
-{
-    size_t armed = 0;
-    for( loaded_mod &mod : loaded ) {
-        if( mod.open_ui == nullptr || mod.default_hotkey.empty() || !mod.action_id.empty() ||
-            mod.descriptor == nullptr || mod.descriptor->id == nullptr ) {
-            continue;
-        }
-        mod.action_id = "ncmm.open." + std::string( mod.descriptor->id );
-        ++armed;
-    }
-    if( armed != 0 ) {
-        log_line( NCMM_LOG_INFO,
-                  ( "Module hotkeys armed after core data finalization: " +
-                    std::to_string( armed ) ).c_str() );
-    }
-}
-
 void register_gameplay_actions( input_context &ctxt )
 {
     const std::string manager_name = tr_ui( "NCMM / Mod Configuration",
@@ -1212,23 +1434,34 @@ void register_gameplay_actions( input_context &ctxt )
         input_event( keycode::f2, input_event_t::keyboard_code ) );
     ctxt.register_action( "ncmm.manager", no_translation( manager_name ) );
 
-    for( const loaded_mod &mod : loaded ) {
-        if( mod.open_ui == nullptr || mod.action_id.empty() ) {
+    for( loaded_mod &mod : loaded ) {
+        if( mod.open_ui == nullptr || mod.descriptor == nullptr || mod.descriptor->id == nullptr ) {
             continue;
         }
 
-        const int keycode_value = ui_hotkey_keycode( mod.default_hotkey );
-        std::string action_name = mod.descriptor && mod.descriptor->name ?
-                                  mod.descriptor->name : mod.action_id;
+        const std::string action_id = module_action_id( mod );
+        if( action_id.empty() ) {
+            continue;
+        }
+
+        std::string action_name = mod.descriptor->name ?
+                                  mod.descriptor->name : action_id;
         action_name += tr_ui( " UI", " — интерфейс" );
 
+        const int keycode_value = ui_hotkey_keycode( mod.default_hotkey );
         if( keycode_value != 0 ) {
-            inp_mngr.ncmm_register_default_action(
-                mod.action_id,
+            inp_mngr.ncmm_register_context_default_action(
+                action_id,
                 no_translation( action_name ),
-                input_event( keycode_value, input_event_t::keyboard_code ) );
+                input_event( keycode_value, input_event_t::keyboard_code ),
+                "DEFAULTMODE" );
+            if( hotkey_registration_logged.insert( action_id ).second ) {
+                log_line( NCMM_LOG_INFO,
+                          ( "Module hotkey registered in gameplay context: " +
+                            action_id + " -> " + mod.default_hotkey ).c_str() );
+            }
         }
-        ctxt.register_action( mod.action_id, no_translation( action_name ) );
+        ctxt.register_action( action_id, no_translation( action_name ) );
     }
 }
 
@@ -1240,7 +1473,11 @@ bool handle_gameplay_action( const std::string &action )
     }
 
     for( loaded_mod &mod : loaded ) {
-        if( mod.action_id.empty() || action != mod.action_id || mod.open_ui == nullptr ) {
+        if( mod.open_ui == nullptr || mod.descriptor == nullptr || mod.descriptor->id == nullptr ) {
+            continue;
+        }
+        const std::string action_id = module_action_id( mod );
+        if( action_id.empty() || action != action_id ) {
             continue;
         }
         if( !ensure_state_migrated( mod ) ) {
@@ -1249,12 +1486,11 @@ bool handle_gameplay_action( const std::string &action )
             return true;
         }
         try {
-            module_call_scope scope( mod.descriptor && mod.descriptor->id ?
-                                     mod.descriptor->id : nullptr );
+            module_call_scope scope( mod.descriptor->id );
             mod.open_ui( &api );
         } catch( ... ) {
-            const std::string name = mod.descriptor && mod.descriptor->name ?
-                                     mod.descriptor->name : mod.action_id;
+            const std::string name = mod.descriptor->name ?
+                                     mod.descriptor->name : action_id;
             quarantine_runtime_callback( mod, runtime_callback_kind::ui, "ui_exception" );
             log_line( NCMM_LOG_WARN, ( "Module UI callback failed: " + name ).c_str() );
             popup( tr_ui( "Module UI callback failed and was quarantined for this session.",
@@ -1427,9 +1663,10 @@ void initialize()
     loaded.clear();
     module_states.clear();
     module_ids.clear();
+    hotkey_registration_logged.clear();
     manifest_id_counts.clear();
     character_modifier_values.clear();
-    log_line( NCMM_LOG_INFO, "NCMM 0.7.1 Host API 1.1 / Module Contract v1 initializing." );
+    log_line( NCMM_LOG_INFO, "NCMM 0.7.2 Host API 1.2 / Module Contract v1 initializing." );
 
     if( !shutdown_registered ) {
         std::atexit( &shutdown );
@@ -1560,6 +1797,7 @@ void shutdown()
     loaded.clear();
     module_states.clear();
     module_ids.clear();
+    hotkey_registration_logged.clear();
     manifest_id_counts.clear();
     character_modifier_values.clear();
     active_module_id.clear();
