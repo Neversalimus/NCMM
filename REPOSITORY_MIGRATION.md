@@ -1,7 +1,7 @@
 # Repository migration
 
 This standalone repository was derived from the NCMM history previously stored under
-`ncmm-platform/` in `Neversalimus/NCMM`.
+`ncmm-platform/` in `Neversalimus/Cataclysm`.
 
 Source cutover commit: `5fd2968a959753170deb83752ef3d031e0790daf`
 
@@ -19,3 +19,5 @@ new repository identity.
 
 The old repository should remain available until Runtime, Feed Integrity and Certified Hosts all
 pass from this standalone repository.
+
+NCMM 0.7.1 establishes `Neversalimus/NCMM` as the sole canonical runtime/feed/release repository. No legacy feed mirror is maintained after the standalone cutover.

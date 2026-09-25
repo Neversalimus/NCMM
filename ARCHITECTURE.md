@@ -1,4 +1,4 @@
-# NCMM v0.5.0 architecture
+# NCMM v0.7.1 architecture
 
 ```text
 Any launcher / manual shortcut

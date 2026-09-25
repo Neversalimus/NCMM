@@ -61,8 +61,8 @@ function NonAscii-Signature([string]$Text) {
 
 if (Test-Path $marker) {
     $markerText = [System.IO.File]::ReadAllText($marker)
-    if (-not $markerText.Contains('NCMM 0.7.0')) {
-        throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.7.0.'
+    if (-not $markerText.Contains('NCMM 0.7.1')) {
+        throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.7.1.'
     }
 
     $h = Read-Utf8 $optionsH
@@ -128,8 +128,8 @@ Copy-Item (Join-Path $PSScriptRoot 'ncmm_manifest_policy.h') (Join-Path $src 'nc
     if (-not $kn.Contains('ncmm::gameplay_modifier( "read_speed_pct" )')) { throw 'Post-check failed: read_speed_pct' }
     if (-not $cr.Contains('ncmm::gameplay_modifier( "craft_speed_pct" )')) { throw 'Post-check failed: craft_speed_pct' }
 
-    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.7.0 module contract`n" -Encoding ASCII
-    Write-Host 'Existing NCMM upstream patch verified; v0.7.0 loader/API refreshed.'
+    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.7.1 module contract`n" -Encoding ASCII
+    Write-Host 'Existing NCMM upstream patch verified; v0.7.1 loader/API refreshed.'
     exit 0
 }
 
@@ -506,7 +506,7 @@ $mm = Replace-ExactlyOnce $mm @'
 '@ 'main-menu.ncmm-manager-action'
 
 
-# NCMM 0.7.0 generic character modifier hooks.
+# NCMM 0.7.1 generic character modifier hooks.
 $ch = Replace-ExactlyOnce $ch '#include "npc.h"' ('#include "npc.h"' + "`n" + '#include "ncmm_loader.h"') 'character.include-ncmm'
 $ch = Replace-ExactlyOnce $ch @'
 int Character::get_str() const
@@ -800,5 +800,5 @@ foreach ($needle in @('ncmm::register_gameplay_actions( ctxt );','ncmm::handle_g
     if (-not $ha2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 
-Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.7.0 module contract`n" -Encoding ASCII
-Write-Host 'NCMM 0.7.0 host patch applied and UTF-8 preservation verified.'
+Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.7.1 module contract`n" -Encoding ASCII
+Write-Host 'NCMM 0.7.1 host patch applied and UTF-8 preservation verified.'

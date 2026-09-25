@@ -9,6 +9,7 @@ on:
       - 'sdk/**'
       - 'ci/Build-Runtime.ps1'
       - 'ci/Test-TextEncoding.ps1'
+      - 'ci/Test-VersionConsistency.ps1'
       - 'ci/Test-BootstrapFailureHarness.ps1'
       - 'tests/**'
       - 'host_patch/ncmm_fault_policy.h'
@@ -35,6 +36,11 @@ jobs:
         run: |
           ./ci/Test-TextEncoding.ps1 -RepoRoot "$env:GITHUB_WORKSPACE" -SelfTest
 
+      - name: Validate NCMM version consistency
+        shell: powershell
+        run: |
+          ./ci/Test-VersionConsistency.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE"
+
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
@@ -48,8 +54,8 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NCMM_Runtime_v0.7.0
-          path: dist/NCMM_Runtime_v0.7.0.zip
+          name: NCMM_Runtime_v0.7.1
+          path: dist/NCMM_Runtime_v0.7.1.zip
           if-no-files-found: error
 
       - name: Publish runtime release
@@ -58,11 +64,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'ncmm-runtime-v0.7.0'
+          $tag = 'ncmm-runtime-v0.7.1'
           cmd /c "gh release view $tag >nul 2>nul"
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title 'NCMM Runtime v0.7.0' --notes 'Portable NCMM runtime with certified-host and crash-loop hardening. No compiler or build tools are required on player PCs.'
+            gh release create $tag --title 'NCMM Runtime v0.7.1' --notes 'Portable NCMM runtime with certified-host and crash-loop hardening. No compiler or build tools are required on player PCs.'
             if ($LASTEXITCODE -ne 0) { throw 'Could not create runtime release.' }
           }
-          gh release upload $tag 'dist/NCMM_Runtime_v0.7.0.zip' --clobber
+          gh release upload $tag 'dist/NCMM_Runtime_v0.7.1.zip' --clobber
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload runtime package.' }

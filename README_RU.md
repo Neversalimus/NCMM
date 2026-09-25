@@ -1,12 +1,20 @@
-# NCMM v0.5.0 — Foundation Hardening
+# NCMM v0.7.1 — Standalone Cutover
 
 NCMM (Neversalimus Code Mod Manager) — экспериментальная платформа для native/code-модов Cataclysm:DDA.
+## v0.7.1 — Standalone Cutover
+
+Начиная с 0.7.1 канонический репозиторий NCMM — `Neversalimus/NCMM`.
+Runtime, certified-host feed и новые host-релизы публикуются только из standalone-репозитория.
+Старый `Neversalimus/Cataclysm` больше не является активной точкой разработки или публикации NCMM.
+
+Host ABI и Loader API остаются v1. Semantic Host API остаётся 1.1.
+Survivor Progression остаётся 0.9.0; этот релиз не меняет его баланс или save schema.
 
 ## UX игрока
 
 Игрок **не устанавливает** Git, MSYS2, GCC, CMake или Visual Studio.
 
-1. Скачать `NCMM_Runtime_v0.5.0.zip`.
+1. Скачать `NCMM_Runtime_v0.7.1.zip` из релизов `Neversalimus/NCMM`.
 2. Распаковать.
 3. Запустить `NCMM_Setup.exe`.
 4. Выбрать папку CDDA и нажать `Install / Repair NCMM + AWS`.

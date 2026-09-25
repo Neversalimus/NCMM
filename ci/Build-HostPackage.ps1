@@ -24,14 +24,19 @@ $patchScript = Join-Path $RepositoryRoot 'host_patch\Apply-NCMMHostPatch.ps1'
 # failure signal. Do not inspect stale $LASTEXITCODE from a previous native command.
 & $patchScript -SourceRoot $UpstreamRoot
 
+$buildTimer = [Diagnostics.Stopwatch]::StartNew()
 Push-Location $UpstreamRoot
 try {
     $env:BACKTRACE = '1'
     $env:CDDA_RELEASE_BUILD = '1'
     $env:VCPKG_OVERLAY_TRIPLETS = Join-Path $UpstreamRoot '.github\vcpkg_triplets'
-    & msbuild -m -p:Configuration=Release -p:Platform=x64 '-target:Cataclysm-vcpkg-static;JsonFormatter-vcpkg-static;zzip' 'msvc-full-features\Cataclysm-vcpkg-static.sln'
+    & msbuild -m -p:Configuration=Release -p:Platform=x64 '-target:Cataclysm-vcpkg-static' 'msvc-full-features\Cataclysm-vcpkg-static.sln'
     if ($LASTEXITCODE -ne 0) { throw 'MSVC CDDA host build failed.' }
-} finally { Pop-Location }
+} finally {
+    Pop-Location
+    $buildTimer.Stop()
+}
+Write-Host ("MSVC host build elapsed: {0}" -f $buildTimer.Elapsed)
 
 $canonicalBuiltHost = Join-Path $UpstreamRoot 'cataclysm-tiles.exe'
 if (Test-Path $canonicalBuiltHost) {
@@ -77,7 +82,7 @@ $metadata = [ordered]@{
     compatibility_schema = 1
     source_contracts = @($contractIds)
     loader_api = 1
-    ncmm_version = '0.7.0'
+    ncmm_version = '0.7.1'
     upstream_tag = $UpstreamTag
     source_commit = $commit
     patch_revision = $patchRevision

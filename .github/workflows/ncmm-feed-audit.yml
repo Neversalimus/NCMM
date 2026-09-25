@@ -7,6 +7,9 @@ on:
   push:
     paths:
       - 'feed/**'
+      - 'ci/Test-VersionConsistency.ps1'
+      - 'ci/Test-PatchRevisionPortability.ps1'
+      - '.github/workflows/ncmm-feed-audit.yml'
 
 permissions:
   contents: read
@@ -26,6 +29,16 @@ jobs:
         run: |
           ./ci/Test-TextEncoding.ps1 -RepoRoot "$env:GITHUB_WORKSPACE"
 
+      - name: Validate patch revision portability
+        shell: pwsh
+        run: |
+          ./ci/Test-PatchRevisionPortability.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE"
+
+      - name: Validate NCMM version consistency
+        shell: pwsh
+        run: |
+          ./ci/Test-VersionConsistency.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE"
+
       - name: Feed auditor self-test
         shell: pwsh
         run: |
@@ -38,7 +51,7 @@ jobs:
           ./ci/Test-FeedIntegrity.ps1 `
             -FeedPath ./feed/index.json `
             -RejectedPath ./feed/rejected.json `
-            -ExpectedRuntimeVersion '0.7.0' `
+            -ExpectedRuntimeVersion '0.7.1' `
             -ExpectedPatchRevision $revision `
             -Repository '${{ github.repository }}' `
             -Online
