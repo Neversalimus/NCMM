@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory=$true)][string]$RepositoryRoot,
     [Parameter(Mandatory=$true)][string]$OutputRoot
 )
@@ -120,12 +120,24 @@ foreach ($requiredLoaderFragment in @(
     '"runtime_fault"',
     'module_modifiers_quarantined',
     '#include "ncmm_manifest_policy.h"',
-    'manifest_duplicate_key:',
     'duplicate_module_id',
     'valid_module_id_v1'
 )) {
     if (-not $loaderSource.Contains($requiredLoaderFragment)) {
         throw "NCMM 0.6.6 loader hardening invariant missing: $requiredLoaderFragment"
+    }
+}
+
+$manifestPolicySource = Get-Content (Join-Path $RepositoryRoot 'host_patch\ncmm_manifest_policy.h') -Raw
+foreach ($requiredManifestPolicyFragment in @(
+    'manifest_duplicate_key:',
+    'manifest_unknown_field:',
+    'manifest_missing_field:',
+    'valid_utf8_no_controls',
+    'validate_manifest_contract_v1'
+)) {
+    if (-not $manifestPolicySource.Contains($requiredManifestPolicyFragment)) {
+        throw "NCMM 0.6.6 manifest policy invariant missing: $requiredManifestPolicyFragment"
     }
 }
 
