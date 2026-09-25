@@ -766,7 +766,7 @@ void open_progression()
         }
     }
 }
-void award_minute_xp()void award_minute_xp()
+void award_minute_xp()
 {
     if( !character_available() ) {
         return;
