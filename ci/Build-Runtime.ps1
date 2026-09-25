@@ -4,6 +4,9 @@
 )
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = (Resolve-Path $RepositoryRoot).Path
+$repoTop = Split-Path $RepositoryRoot -Parent
+$encodingGuard = Join-Path $RepositoryRoot 'ci\Test-TextEncoding.ps1'
+& $encodingGuard -RepoRoot $repoTop
 New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 $payload = Join-Path $OutputRoot 'payload'
 New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\AdvancedWorldSettings') | Out-Null

@@ -161,3 +161,13 @@ must match the feed's current patch revision.
 Crash-loop markers form a two-phase state: `boot.pending` means launch in progress, while `boot.ready` proves
 module initialization completed. `pending + ready` is treated as cleanup failure rather than a crash; ambiguous
 marker cleanup fails closed to vanilla for that run.
+
+## 0.6.3.1 text-encoding invariant
+
+Repository text consumed by GitHub Actions, PowerShell, C#, JSON and native builds is guarded as UTF-8.
+Workflow YAML is stricter and must be BOM-free because workflow parsing occurs before any CI step can run.
+Other NCMM text files may retain one UTF-8 BOM for Windows PowerShell compatibility, but multiple BOMs,
+UTF-16/UTF-32 and embedded U+FEFF are rejected.
+
+The invariant is enforced in three layers: EditorConfig at edit time, package/pre-commit validation, and
+both runtime/host build entry points. This hotfix intentionally does not change the 0.6.3 runtime/host protocol.

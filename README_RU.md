@@ -202,3 +202,13 @@ Bootstrap атомарно обновляет `ncmm/runtime.state.json`. В нё
 - Crash-loop recovery различает `pending без ready` (неуспешная загрузка) и `pending + ready` (host дошёл до ready, но очистка pending не завершилась).
 - Перед новым host launch старые ready/tmp markers удаляются строго; неоднозначное состояние приводит к vanilla fallback, а не к запуску наугад.
 - Seed build `cdda-experimental-2026-09-23-0546` больше не может быть тихо отмечен как unsupported при зелёном pipeline: такой regression делает build job красным.
+
+## NCMM 0.6.3.1 — CI Recovery + BOM Guard
+
+- Исправлен `.github/workflows/ncmm-runtime.yml`: двойной UTF-8 BOM, из-за которого GitHub Actions отклонял workflow до создания jobs, удалён.
+- Добавлен `ci/Test-TextEncoding.ps1`: строгая UTF-8 проверка NCMM text sources, обнаружение UTF-16/UTF-32, embedded U+FEFF и нескольких UTF-8 BOM.
+- GitHub workflow-файлы требуют UTF-8 без BOM; для остальных текстовых исходников допускается максимум один UTF-8 BOM для совместимости со старым PowerShell 5.
+- Guard имеет self-test с synthetic valid/double-BOM/UTF-16 fixtures.
+- Runtime и Certified Hosts запускают guard сразу после checkout; Build-Runtime и Build-HostPackage также вызывают его напрямую.
+- Добавлен `.editorconfig`, фиксирующий UTF-8 без BOM/LF для workflow и NCMM text source.
+- Это CI-only hotfix: runtime/host protocol остаётся 0.6.3, Host API v1, Survivor 0.8.1 и AWS 0.5.0 не меняются.
