@@ -96,10 +96,10 @@ Copy-Item $sp.FullName (Join-Path $payload 'code_mods\SurvivorProgression\ncmm_m
 Copy-Item (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') (Join-Path $payload 'code_mods\SurvivorProgression\mod.json') -Force
 
 $spManifest = Get-Content (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') -Raw | ConvertFrom-Json
-if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable' -or $spManifest.version -ne '0.9.0') {
-    throw 'Survivor Progression 0.9.0 manifest contract invalid.'
+if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable' -or $spManifest.version -ne '0.9.1') {
+    throw 'Survivor Progression 0.9.1 manifest contract invalid.'
 }
-foreach ($required in @('core.v1','events.turn.v1','character_state.v1','character.modifiers.v1','ui.basic.v1','module_hotkeys.v1','api.versioning.v1','state.migration.v1','module.lifecycle.v1')) {
+foreach ($required in @('core.v1','events.turn.v1','character_state.v1','character.modifiers.v1','ui.basic.v1','ui.tiles.v1','module_hotkeys.v1','api.versioning.v1','state.migration.v1','module.lifecycle.v1')) {
     if (-not ($spManifest.requires -contains $required)) {
         throw "Survivor Progression manifest missing $required"
     }
