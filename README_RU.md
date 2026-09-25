@@ -240,3 +240,30 @@ Bootstrap атомарно обновляет `ncmm/runtime.state.json`. В нё
 - Чистая policy-логика вынесена в `ncmm_fault_policy.h` и проверяется тем же `ncmm_smoke_host` в Runtime CI.
 
 Host API остаётся v1. Survivor Progression 0.8.1 и AWS 0.5.0 не меняют баланс/save schema.
+
+## NCMM 0.6.6 — Manifest/duplicate-ID hardening + Diagnostics 2.0
+
+### Manifest / duplicate-ID hardening
+- Старый строковый поиск полей `mod.json` заменён отдельным schema-aware parser'ом `ncmm_manifest_policy.h`.
+- Parser требует корректный top-level JSON object, правильные типы полей, единственность каждого ключа, отсутствие trailing garbage и обязательные поля Module Contract v1.
+- Для `loader_api=1` неизвестные top-level поля отклоняются как `manifest_unknown_field:<name>`: опечатка не может тихо превратиться в другой контракт.
+- JSON strings обрабатывают escapes/`\uXXXX`, но control characters, NUL, invalid UTF-8 и malformed surrogate pairs fail closed.
+- `requires` по-прежнему обязан быть уникальным, содержать `core.v1` и укладываться в лимит 32 capabilities.
+- Descriptor capability list теперь также ограничен 32 элементами, не допускает duplicate/invalid tokens и должен совпасть с manifest по количеству и множеству.
+- Duplicate-ID preflight считает только **активные** модули. Копия с marker `disabled` больше не блокирует единственную включённую копию с тем же id.
+- Два и более включённых модуля с одним id по-прежнему симметрично отклоняются до `LoadLibrary`.
+- `module_ids` резервируется только после проверки descriptor/capabilities и снимается при `init_exception`/`init_failed`.
+- `modules.state.json` schema 2 добавляет basename каталога модуля (`directory`) для точной диагностики конфликтов.
+- `ncmm_manifest_policy_test` автоматически проверяет valid manifest, duplicate key, wrong type, overflow, trailing garbage, duplicate requirements, missing core и hotkey contract.
+
+### Diagnostics 2.0
+- Setup теперь разбирает `host.binding.json`, `runtime.state.json` и `modules.state.json`, а не только проверяет их наличие.
+- Отчёт показывает runtime/host/loader/patch identity, SHA bootstrap/vanilla/host, selected mode, reason, feed status, crash-loop flags и last exit code.
+- Выполняется независимый scan `code_mods/*`: активные duplicate IDs показываются с именами конфликтующих каталогов; disabled-копия не считается конфликтом.
+- `runtime_fault`, `rejected`, `failed` и их machine-readable reasons превращаются в понятные строки отчёта.
+- Feed override отображается без query/fragment, чтобы диагностический отчёт не раскрывал токены из custom URL.
+- Логи не копируются в отчёт целиком; показываются только размер и UTC mtime.
+- Последний отчёт автоматически сохраняется как `ncmm/diagnostics-latest.txt`.
+- `DiagnosticsHarness.cs` проверяет duplicate-active, disabled-duplicate и runtime-fault сценарии через настоящий `SetupCore.Diagnose`.
+
+Host API остаётся v1. Survivor Progression остаётся 0.8.1, Advanced World Settings — 0.5.0.

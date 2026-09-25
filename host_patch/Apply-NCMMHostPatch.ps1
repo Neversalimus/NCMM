@@ -61,8 +61,8 @@ function NonAscii-Signature([string]$Text) {
 
 if (Test-Path $marker) {
     $markerText = [System.IO.File]::ReadAllText($marker)
-    if (-not $markerText.Contains('NCMM 0.6.5')) {
-        throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.6.5.'
+    if (-not $markerText.Contains('NCMM 0.6.6')) {
+        throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.6.6.'
     }
 
     $h = Read-Utf8 $optionsH
@@ -111,6 +111,7 @@ if (Test-Path $marker) {
     Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.h') (Join-Path $src 'ncmm_loader.h') -Force
     Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.cpp') (Join-Path $src 'ncmm_loader.cpp') -Force
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_fault_policy.h') (Join-Path $src 'ncmm_fault_policy.h') -Force
+Copy-Item (Join-Path $PSScriptRoot 'ncmm_manifest_policy.h') (Join-Path $src 'ncmm_manifest_policy.h') -Force
     Copy-Item (Join-Path (Split-Path $PSScriptRoot -Parent) 'sdk\ncmm_api.h') (Join-Path $src 'ncmm_api.h') -Force
 
     # Existing-patch verification must inspect the source variables read above.
@@ -127,8 +128,8 @@ Copy-Item (Join-Path $PSScriptRoot 'ncmm_fault_policy.h') (Join-Path $src 'ncmm_
     if (-not $kn.Contains('ncmm::gameplay_modifier( "read_speed_pct" )')) { throw 'Post-check failed: read_speed_pct' }
     if (-not $cr.Contains('ncmm::gameplay_modifier( "craft_speed_pct" )')) { throw 'Post-check failed: craft_speed_pct' }
 
-    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.6.5 module contract`n" -Encoding ASCII
-    Write-Host 'Existing NCMM upstream patch verified; v0.6.5 loader/API refreshed.'
+    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.6.6 module contract`n" -Encoding ASCII
+    Write-Host 'Existing NCMM upstream patch verified; v0.6.6 loader/API refreshed.'
     exit 0
 }
 
@@ -505,7 +506,7 @@ $mm = Replace-ExactlyOnce $mm @'
 '@ 'main-menu.ncmm-manager-action'
 
 
-# NCMM 0.6.5 generic character modifier hooks.
+# NCMM 0.6.6 generic character modifier hooks.
 $ch = Replace-ExactlyOnce $ch '#include "npc.h"' ('#include "npc.h"' + "`n" + '#include "ncmm_loader.h"') 'character.include-ncmm'
 $ch = Replace-ExactlyOnce $ch @'
 int Character::get_str() const
@@ -749,6 +750,7 @@ Write-Utf8 $craftingCpp $cr
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.h') (Join-Path $src 'ncmm_loader.h') -Force
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.cpp') (Join-Path $src 'ncmm_loader.cpp') -Force
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_fault_policy.h') (Join-Path $src 'ncmm_fault_policy.h') -Force
+Copy-Item (Join-Path $PSScriptRoot 'ncmm_manifest_policy.h') (Join-Path $src 'ncmm_manifest_policy.h') -Force
 Copy-Item (Join-Path (Split-Path $PSScriptRoot -Parent) 'sdk\ncmm_api.h') (Join-Path $src 'ncmm_api.h') -Force
 
 $h2 = Read-Utf8 $optionsH
@@ -798,5 +800,5 @@ foreach ($needle in @('ncmm::register_gameplay_actions( ctxt );','ncmm::handle_g
     if (-not $ha2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 
-Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.6.5 module contract`n" -Encoding ASCII
-Write-Host 'NCMM 0.6.5 host patch applied and UTF-8 preservation verified.'
+Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.6.6 module contract`n" -Encoding ASCII
+Write-Host 'NCMM 0.6.6 host patch applied and UTF-8 preservation verified.'

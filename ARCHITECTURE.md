@@ -196,3 +196,20 @@ module, and blocks subsequent modifier writes from the quarantined module. The n
 host never unloads code that may still have live function/static state. `modules.state.json` is atomically
 updated to `runtime_fault` with a machine-readable reason. The pure quarantine state machine lives in
 `ncmm_fault_policy.h` and is exercised by the runtime smoke executable.
+
+## 0.6.6 manifest identity and Diagnostics 2.0
+
+Module Contract v1 manifest parsing is no longer substring-based. `ncmm_manifest_policy.h` owns a small,
+bounded schema parser for the exact v1 manifest fields. Duplicate JSON keys, malformed strings/types,
+overflow, missing required fields and trailing content fail before `LoadLibrary`. Descriptor capability
+lists are independently normalized and duplicate-checked before equality with the manifest contract.
+
+Duplicate identity is defined across enabled modules only. Disabled module directories remain visible in
+state/diagnostics but do not reserve or conflict with an active module ID. Two enabled directories with the
+same ID reject symmetrically. Runtime identity reservation happens only after descriptor/capability validation
+and is released if init throws or returns failure.
+
+`modules.state.json` schema 2 adds the module directory basename. Diagnostics 2.0 correlates executable SHA,
+binding identity, bootstrap runtime state, host module state and a fresh `code_mods` scan. It exports a
+bounded text snapshot to `ncmm/diagnostics-latest.txt`; custom feed URLs are stripped of query/fragment and
+raw log contents are not embedded. The diagnostics harness runs against synthetic installations in Runtime CI.

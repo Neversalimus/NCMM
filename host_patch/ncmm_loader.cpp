@@ -1,6 +1,7 @@
 #include "ncmm_loader.h"
 #include "ncmm_api.h"
 #include "ncmm_fault_policy.h"
+#include "ncmm_manifest_policy.h"
 #include "avatar.h"
 #include "game.h"
 #include "input.h"
@@ -175,7 +176,7 @@ int has_capability( const char *capability )
 
 const char *get_host_version()
 {
-    return "0.6.5";
+    return "0.6.6";
 }
 
 uint32_t get_loader_api()
@@ -423,156 +424,29 @@ std::string read_text_file( const std::filesystem::path &path )
     return ss.str();
 }
 
-std::string manifest_string( const std::filesystem::path &directory, const std::string &key )
-{
-    const std::string text = read_text_file( directory / "mod.json" );
-    if( text.empty() ) {
-        return {};
-    }
-    const std::string needle = "\"" + key + "\"";
-    const std::size_t key_pos = text.find( needle );
-    if( key_pos == std::string::npos ) {
-        return {};
-    }
-    const std::size_t colon = text.find( ':', key_pos + needle.size() );
-    if( colon == std::string::npos ) {
-        return {};
-    }
-    const std::size_t first_quote = text.find( '"', colon + 1 );
-    if( first_quote == std::string::npos ) {
-        return {};
-    }
-    const std::size_t second_quote = text.find( '"', first_quote + 1 );
-    if( second_quote == std::string::npos ) {
-        return {};
-    }
-    return text.substr( first_quote + 1, second_quote - first_quote - 1 );
-}
+using manifest_contract = manifest_contract_v1;
 
-uint32_t manifest_uint( const std::filesystem::path &directory, const std::string &key )
-{
-    const std::string text = read_text_file( directory / "mod.json" );
-    if( text.empty() ) {
-        return 0;
-    }
-    const std::string needle = "\"" + key + "\"";
-    const std::size_t key_pos = text.find( needle );
-    if( key_pos == std::string::npos ) {
-        return 0;
-    }
-    const std::size_t colon = text.find( ':', key_pos + needle.size() );
-    if( colon == std::string::npos ) {
-        return 0;
-    }
-
-    std::size_t pos = colon + 1;
-    while( pos < text.size() && std::isspace( static_cast<unsigned char>( text[pos] ) ) ) {
-        ++pos;
-    }
-    uint32_t value = 0;
-    bool any = false;
-    while( pos < text.size() && std::isdigit( static_cast<unsigned char>( text[pos] ) ) ) {
-        any = true;
-        value = value * 10u + static_cast<uint32_t>( text[pos] - '0' );
-        ++pos;
-    }
-    return any ? value : 0;
-}
-
-std::vector<std::string> manifest_string_array( const std::filesystem::path &directory,
-        const std::string &key )
-{
-    std::vector<std::string> result;
-    const std::string text = read_text_file( directory / "mod.json" );
-    if( text.empty() ) {
-        return result;
-    }
-    const std::string needle = "\"" + key + "\"";
-    const std::size_t key_pos = text.find( needle );
-    if( key_pos == std::string::npos ) {
-        return result;
-    }
-    const std::size_t colon = text.find( ':', key_pos + needle.size() );
-    const std::size_t open = colon == std::string::npos ? std::string::npos : text.find( '[', colon + 1 );
-    const std::size_t close = open == std::string::npos ? std::string::npos : text.find( ']', open + 1 );
-    if( open == std::string::npos || close == std::string::npos ) {
-        return result;
-    }
-
-    std::size_t pos = open + 1;
-    while( pos < close ) {
-        const std::size_t first = text.find( '"', pos );
-        if( first == std::string::npos || first >= close ) {
-            break;
-        }
-        const std::size_t second = text.find( '"', first + 1 );
-        if( second == std::string::npos || second > close ) {
-            break;
-        }
-        result.push_back( text.substr( first + 1, second - first - 1 ) );
-        pos = second + 1;
-    }
-    return result;
-}
-
-struct manifest_contract {
-    std::string id;
-    std::string name;
-    std::string version;
-    std::string failure_policy;
-    std::string ui_hotkey;
-    uint32_t loader_api = 0;
-    std::vector<std::string> requires;
-};
-
-manifest_contract read_manifest( const std::filesystem::path &directory )
+manifest_contract read_manifest( const std::filesystem::path &directory,
+                                 std::string *parse_reason = nullptr )
 {
     manifest_contract result;
-    result.id = manifest_string( directory, "id" );
-    result.name = manifest_string( directory, "name" );
-    result.version = manifest_string( directory, "version" );
-    result.failure_policy = manifest_string( directory, "failure_policy" );
-    result.ui_hotkey = manifest_string( directory, "ui_hotkey" );
-    result.loader_api = manifest_uint( directory, "loader_api" );
-    result.requires = manifest_string_array( directory, "requires" );
+    const std::string text = read_text_file( directory / "mod.json" );
+    std::string reason;
+    if( !parse_manifest_contract_v1( text, result, reason ) ) {
+        if( parse_reason != nullptr ) {
+            *parse_reason = reason;
+        }
+        return {};
+    }
+    if( parse_reason != nullptr ) {
+        parse_reason->clear();
+    }
     return result;
-}
-
-bool valid_module_id( const std::string &id )
-{
-    if( id.empty() || id.size() > 64 ) {
-        return false;
-    }
-    for( unsigned char c : id ) {
-        if( !( std::islower( c ) || std::isdigit( c ) || c == '_' || c == '-' || c == '.' ) ) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool valid_ui_hotkey( const std::string &value )
-{
-    if( value.empty() ) {
-        return true;
-    }
-    if( value.size() < 2 || value.size() > 3 || value[0] != 'F' ) {
-        return false;
-    }
-    int number = 0;
-    for( std::size_t i = 1; i < value.size(); ++i ) {
-        const unsigned char c = static_cast<unsigned char>( value[i] );
-        if( !std::isdigit( c ) ) {
-            return false;
-        }
-        number = number * 10 + static_cast<int>( c - '0' );
-    }
-    return number >= 1 && number <= 12;
 }
 
 int ui_hotkey_keycode( const std::string &value )
 {
-    if( !valid_ui_hotkey( value ) || value.empty() ) {
+    if( !valid_ui_hotkey_v1( value ) || value.empty() ) {
         return 0;
     }
     int number = 0;
@@ -584,63 +458,33 @@ int ui_hotkey_keycode( const std::string &value )
 
 bool validate_manifest( const manifest_contract &manifest, std::string &reason )
 {
-    if( !valid_module_id( manifest.id ) || manifest.name.empty() || manifest.name.size() > 128 ||
-        manifest.version.empty() || manifest.version.size() > 64 || manifest.loader_api == 0 ) {
-        reason = "invalid_manifest";
-        return false;
-    }
-    if( manifest.failure_policy != "disable" ) {
-        reason = "unsupported_failure_policy";
-        return false;
-    }
-    if( manifest.requires.empty() || manifest.requires.size() > 32 ) {
-        reason = "invalid_capability_list";
-        return false;
-    }
-
-    std::set<std::string> unique;
-    bool has_core = false;
-    for( const std::string &capability : manifest.requires ) {
-        if( capability.empty() || capability.size() > 64 || !unique.insert( capability ).second ) {
-            reason = "invalid_capability_list";
-            return false;
-        }
-        if( capability == "core.v1" ) {
-            has_core = true;
-        }
-    }
-    if( !has_core ) {
-        reason = "core_capability_required";
-        return false;
-    }
-    if( !valid_ui_hotkey( manifest.ui_hotkey ) ) {
-        reason = "invalid_ui_hotkey";
-        return false;
-    }
-    if( !manifest.ui_hotkey.empty() &&
-        unique.count( "module_hotkeys.v1" ) == 0 ) {
-        reason = "ui_hotkey_capability_required";
-        return false;
-    }
-    return true;
+    return validate_manifest_contract_v1( manifest, reason );
 }
 
 bool same_capabilities( const manifest_contract &manifest, const ncmm_mod_descriptor_v1 *desc )
 {
-    if( desc == nullptr ) {
+    if( desc == nullptr || desc->required_capability_count > 32 ) {
         return false;
     }
     if( desc->required_capability_count != 0 && desc->required_capabilities == nullptr ) {
         return false;
     }
+    if( desc->required_capability_count != manifest.required_capabilities.size() ) {
+        return false;
+    }
 
-    std::set<std::string> manifest_caps( manifest.requires.begin(), manifest.requires.end() );
+    std::set<std::string> manifest_caps( manifest.required_capabilities.begin(),
+                                         manifest.required_capabilities.end() );
     std::set<std::string> descriptor_caps;
     for( size_t i = 0; i < desc->required_capability_count; ++i ) {
         if( desc->required_capabilities[i] == nullptr ) {
             return false;
         }
-        descriptor_caps.insert( desc->required_capabilities[i] );
+        const std::string capability( desc->required_capabilities[i] );
+        if( !manifest_detail::safe_token( capability ) ||
+            !descriptor_caps.insert( capability ).second ) {
+            return false;
+        }
     }
     return manifest_caps == descriptor_caps;
 }
@@ -714,8 +558,8 @@ void write_modules_state()
     }
 
     out << "{\n"
-        << "  \"schema\": 1,\n"
-        << "  \"host_version\": \"0.6.5\",\n"
+        << "  \"schema\": 2,\n"
+        << "  \"host_version\": \"0.6.6\",\n"
         << "  \"loader_api\": " << NCMM_LOADER_API_VERSION << ",\n"
         << "  \"capabilities\": [";
     for( size_t i = 0; i < get_capability_count(); ++i ) {
@@ -732,7 +576,8 @@ void write_modules_state()
             << "\",\"version\":\"" << json_escape( state.version )
             << "\",\"state\":\"" << json_escape( state.state )
             << "\",\"reason\":\"" << json_escape( state.reason )
-            << "\",\"default_hotkey\":\"" << json_escape( state.default_hotkey ) << "\"}";
+            << "\",\"default_hotkey\":\"" << json_escape( state.default_hotkey )
+            << "\",\"directory\":\"" << json_escape( state.directory.filename().string() ) << "\"}";
         if( i + 1 != module_states.size() ) {
             out << ',';
         }
@@ -866,8 +711,9 @@ std::vector<manager_entry> manager_entries()
             entry.name = state->name;
             entry.version = state->version;
         } else {
-            entry.name = manifest_string( dir, "name" );
-            entry.version = manifest_string( dir, "version" );
+            const manifest_contract manifest = read_manifest( dir );
+            entry.name = manifest.name;
+            entry.version = manifest.version;
             if( entry.name.empty() ) {
                 entry.name = dir.filename().string();
             }
@@ -881,9 +727,16 @@ std::vector<manager_entry> manager_entries()
 void load_one( const std::filesystem::path &library )
 {
     const std::filesystem::path directory = library.parent_path();
-    const manifest_contract manifest = read_manifest( directory );
-
     std::string manifest_reason;
+    const manifest_contract manifest = read_manifest( directory, &manifest_reason );
+
+    if( !manifest_reason.empty() ) {
+        record_module_state( directory, manifest, "rejected", manifest_reason );
+        log_line( NCMM_LOG_WARN,
+                  ( "Rejected module manifest parse/schema: " + directory.string() +
+                    " -> " + manifest_reason ).c_str() );
+        return;
+    }
     if( !validate_manifest( manifest, manifest_reason ) ) {
         record_module_state( directory, manifest, "rejected", manifest_reason );
         log_line( NCMM_LOG_WARN,
@@ -901,7 +754,7 @@ void load_one( const std::filesystem::path &library )
         log_line( NCMM_LOG_WARN, ( "Rejected module due to loader_api mismatch: " + manifest.id ).c_str() );
         return;
     }
-    for( const std::string &capability : manifest.requires ) {
+    for( const std::string &capability : manifest.required_capabilities ) {
         if( !has_capability( capability.c_str() ) ) {
             record_module_state( directory, manifest, "rejected", "missing_capability:" + capability );
             log_line( NCMM_LOG_WARN,
@@ -915,7 +768,6 @@ void load_one( const std::filesystem::path &library )
         log_line( NCMM_LOG_WARN, ( "Rejected duplicate module id at runtime: " + manifest.id ).c_str() );
         return;
     }
-    module_ids.insert( manifest.id );
 
     HMODULE module = LoadLibraryW( library.wstring().c_str() );
     if( module == nullptr ) {
@@ -945,7 +797,7 @@ void load_one( const std::filesystem::path &library )
     }
 
     if( desc == nullptr || desc->abi_version != NCMM_ABI_VERSION || desc->init == nullptr ||
-        desc->id == nullptr || desc->version == nullptr ) {
+        desc->id == nullptr || desc->name == nullptr || desc->version == nullptr ) {
         record_module_state( directory, manifest, "rejected", "descriptor_incompatible" );
         log_line( NCMM_LOG_WARN, ( "Rejected incompatible module: " + library.string() ).c_str() );
         FreeLibrary( module );
@@ -995,6 +847,10 @@ void load_one( const std::filesystem::path &library )
         return;
     }
 
+    // Reserve identity only after the DLL descriptor/capability contract is fully validated.
+    // Init-time host APIs depend on module_ids containing the active module.
+    module_ids.insert( manifest.id );
+
     // A retry/reload must never inherit runtime effects from an older failed init.
     character_modifier_values.erase( manifest.id );
     bool init_ok = false;
@@ -1003,6 +859,7 @@ void load_one( const std::filesystem::path &library )
         init_ok = desc->init( &api ) != 0;
     } catch( ... ) {
         character_modifier_values.erase( manifest.id );
+        module_ids.erase( manifest.id );
         record_module_state( directory, manifest, "failed", "init_exception" );
         log_line( NCMM_LOG_WARN,
                   ( std::string( "Module init callback threw; disabled: " ) + desc->id ).c_str() );
@@ -1011,6 +868,7 @@ void load_one( const std::filesystem::path &library )
     }
     if( !init_ok ) {
         character_modifier_values.erase( manifest.id );
+        module_ids.erase( manifest.id );
         record_module_state( directory, manifest, "failed", "init_failed" );
         log_line( NCMM_LOG_WARN, ( std::string( "Module init failed; disabled: " ) + desc->id ).c_str() );
         FreeLibrary( module );
@@ -1266,7 +1124,7 @@ void initialize()
     module_ids.clear();
     manifest_id_counts.clear();
     character_modifier_values.clear();
-    log_line( NCMM_LOG_INFO, "NCMM 0.6.5 Host API v1 / Module Contract v1 initializing." );
+    log_line( NCMM_LOG_INFO, "NCMM 0.6.6 Host API v1 / Module Contract v1 initializing." );
 
     if( !shutdown_registered ) {
         std::atexit( &shutdown );
@@ -1284,11 +1142,15 @@ void initialize()
         }
         std::sort( directories.begin(), directories.end() );
 
-        // Phase 1: count manifest IDs before any DLL is loaded. Duplicate IDs reject all
-        // conflicting modules instead of silently favoring directory sort order.
+        // Phase 1: count ACTIVE manifest IDs before any DLL is loaded. A disabled backup
+        // must not block the one enabled copy; two enabled copies reject each other.
         for( const std::filesystem::path &directory : directories ) {
-            const manifest_contract manifest = read_manifest( directory );
-            if( !manifest.id.empty() ) {
+            if( std::filesystem::exists( directory / "disabled" ) ) {
+                continue;
+            }
+            std::string parse_reason;
+            const manifest_contract manifest = read_manifest( directory, &parse_reason );
+            if( parse_reason.empty() && valid_module_id_v1( manifest.id ) ) {
                 ++manifest_id_counts[manifest.id];
             }
         }
@@ -1298,7 +1160,11 @@ void initialize()
             const auto lib = directory / "ncmm_mod.dll";
             const auto disabled = directory / "disabled";
             if( std::filesystem::exists( disabled ) ) {
-                record_module_state( directory, read_manifest( directory ), "disabled", "user_disabled" );
+                std::string disabled_parse_reason;
+                const manifest_contract disabled_manifest = read_manifest( directory, &disabled_parse_reason );
+                record_module_state( directory, disabled_manifest, "disabled",
+                                     disabled_parse_reason.empty() ? "user_disabled" :
+                                     "user_disabled:" + disabled_parse_reason );
                 continue;
             }
             load_one( lib );

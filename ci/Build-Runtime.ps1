@@ -31,6 +31,17 @@ $setupSource = Join-Path $RepositoryRoot 'runtime\NCMMSetup.cs'
     $setupSource
 if ($LASTEXITCODE -ne 0) { throw 'Setup compilation failed.' }
 
+$diagnosticsHarnessOut = Join-Path $OutputRoot 'NCMM_Diagnostics2_Harness.exe'
+$diagnosticsHarnessSource = Join-Path $RepositoryRoot 'tests\DiagnosticsHarness.cs'
+& $csc /nologo /target:exe /optimize+ /platform:x64 /main:DiagnosticsHarness `
+    /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll `
+    /out:$diagnosticsHarnessOut `
+    $setupSource $diagnosticsHarnessSource
+if ($LASTEXITCODE -ne 0) { throw 'Diagnostics 2.0 harness compilation failed.' }
+& $diagnosticsHarnessOut
+if ($LASTEXITCODE -ne 0) { throw 'Diagnostics 2.0 harness failed.' }
+Remove-Item $diagnosticsHarnessOut -Force -ErrorAction SilentlyContinue
+
 $failureHarness = Join-Path $RepositoryRoot 'ci\Test-BootstrapFailureHarness.ps1'
 & $failureHarness -RepositoryRoot $RepositoryRoot -BootstrapExe $bootstrapOut
 
@@ -44,6 +55,12 @@ if (-not $aws) { throw 'AWS ncmm_mod.dll not found after build.' }
 
 $smoke = Get-ChildItem $awsBuild -Filter 'ncmm_smoke_host.exe' -Recurse -File | Select-Object -First 1
 if (-not $smoke) { throw 'NCMM smoke host not found after build.' }
+
+$manifestPolicyTest = Get-ChildItem $awsBuild -Filter 'ncmm_manifest_policy_test.exe' -Recurse -File | Select-Object -First 1
+if (-not $manifestPolicyTest) { throw 'NCMM manifest policy test executable not found after build.' }
+& $manifestPolicyTest.FullName
+if ($LASTEXITCODE -ne 0) { throw 'NCMM manifest policy test failed.' }
+
 & $smoke.FullName $aws.FullName
 if ($LASTEXITCODE -ne 0) { throw 'NCMM/AWS module contract smoke test failed.' }
 & $smoke.FullName $aws.FullName '--missing-contract'
@@ -88,7 +105,7 @@ foreach ($required in @('core.v1','events.turn.v1','character_state.v1','charact
     }
 }
 
-# NCMM 0.6.5 loader hardening is intentionally source-structural: Runtime CI
+# NCMM 0.6.6 loader hardening is intentionally source-structural: Runtime CI
 # guards the invariants even before the certified-host workflow compiles them.
 $loaderSource = Get-Content (Join-Path $RepositoryRoot 'host_patch\ncmm_loader.cpp') -Raw
 foreach ($requiredLoaderFragment in @(
@@ -101,10 +118,28 @@ foreach ($requiredLoaderFragment in @(
     'boot.pending preserved',
     'quarantine_runtime_callback',
     '"runtime_fault"',
-    'module_modifiers_quarantined'
+    'module_modifiers_quarantined',
+    '#include "ncmm_manifest_policy.h"',
+    'manifest_duplicate_key:',
+    'duplicate_module_id',
+    'valid_module_id_v1'
 )) {
     if (-not $loaderSource.Contains($requiredLoaderFragment)) {
-        throw "NCMM 0.6.5 loader hardening invariant missing: $requiredLoaderFragment"
+        throw "NCMM 0.6.6 loader hardening invariant missing: $requiredLoaderFragment"
+    }
+}
+
+$setupSourceText = Get-Content (Join-Path $RepositoryRoot 'runtime\NCMMSetup.cs') -Raw
+foreach ($requiredDiagnosticsFragment in @(
+    'NCMM v0.6.6 Diagnostics 2.0',
+    '=== Manifest / Duplicate-ID Scan ===',
+    '=== Bootstrap Runtime State ===',
+    '=== Host Module State ===',
+    'diagnostics-latest.txt',
+    'Duplicate active module id'
+)) {
+    if (-not $setupSourceText.Contains($requiredDiagnosticsFragment)) {
+        throw "NCMM 0.6.6 Diagnostics 2.0 invariant missing: $requiredDiagnosticsFragment"
     }
 }
 
@@ -119,17 +154,17 @@ foreach ($requiredBootstrapFragment in @(
     'stale boot.pending still exists before host launch'
 )) {
     if (-not $bootstrapSourceText.Contains($requiredBootstrapFragment)) {
-        throw "NCMM 0.6.5 bootstrap hardening invariant missing: $requiredBootstrapFragment"
+        throw "NCMM 0.6.6 bootstrap hardening invariant missing: $requiredBootstrapFragment"
     }
 }
 
 $hostPatchSource = Get-Content (Join-Path $RepositoryRoot 'host_patch\Apply-NCMMHostPatch.ps1') -Raw
 if ($hostPatchSource.Contains("if (`$LASTEXITCODE -ne 0) { throw 'NCMM source-contract preflight failed.' }")) {
-    throw 'NCMM 0.6.5 regression: PowerShell source-contract preflight still inspects stale LASTEXITCODE.'
+    throw 'NCMM 0.6.6 regression: PowerShell source-contract preflight still inspects stale LASTEXITCODE.'
 }
 
 @'
-NCMM 0.6.5 Runtime
+NCMM 0.6.6 Runtime
 ===============
 1. Run NCMM_Setup.exe.
 2. Select the CDDA folder containing cataclysm-tiles.exe.
@@ -142,7 +177,7 @@ If no exact certified host exists for the installed CDDA executable, NCMM starts
 
 Remove-Item $awsBuild -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $spBuild -Recurse -Force -ErrorAction SilentlyContinue
-$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.6.5.zip'
+$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.6.6.zip'
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $OutputRoot '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip
