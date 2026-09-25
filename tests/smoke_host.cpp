@@ -83,7 +83,10 @@ int has_capability_fn( const char *cap )
            std::strcmp( cap, "character.modifiers.v1" ) == 0 ||
            std::strcmp( cap, "ui.basic.v1" ) == 0 ||
            std::strcmp( cap, "module_hotkeys.v1" ) == 0 ||
-           std::strcmp( cap, "ingame_manager.v1" ) == 0;
+           std::strcmp( cap, "ingame_manager.v1" ) == 0 ||
+           std::strcmp( cap, "api.versioning.v1" ) == 0 ||
+           std::strcmp( cap, "state.migration.v1" ) == 0 ||
+           std::strcmp( cap, "module.lifecycle.v1" ) == 0;
 }
 
 const char *get_locale_fn()
@@ -93,7 +96,7 @@ const char *get_locale_fn()
 
 const char *get_host_version_fn()
 {
-    return "0.6.5-smoke";
+    return "0.7.0-smoke";
 }
 
 uint32_t get_loader_api_fn()
@@ -101,11 +104,22 @@ uint32_t get_loader_api_fn()
     return NCMM_LOADER_API_VERSION;
 }
 
+uint32_t get_api_version_major_fn()
+{
+    return NCMM_API_VERSION_MAJOR;
+}
+
+uint32_t get_api_version_minor_fn()
+{
+    return NCMM_API_VERSION_MINOR;
+}
+
 const char *smoke_caps[] = {
     "core.v1", "world_options.v1", "world_options.layout.v1", "locale.v1",
     "module_contract.v1", "host_info.v1", "compatibility.v1", "events.turn.v1",
     "character_state.v1", "character.modifiers.v1", "ui.basic.v1",
-    "module_hotkeys.v1", "ingame_manager.v1"
+    "module_hotkeys.v1", "ingame_manager.v1", "api.versioning.v1",
+    "state.migration.v1", "module.lifecycle.v1"
 };
 
 size_t get_capability_count_fn()
@@ -232,7 +246,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 1 ) {
         // Buy Combat -> Power Training.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.8.1" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.0" ) != std::string::npos ) {
             ++ui_stage;
             return 0;
         }
@@ -249,7 +263,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 2 ) {
         // Buy Mastery -> Fast Learner.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.8.1" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.0" ) != std::string::npos ) {
             ++ui_stage;
             return 5;
         }
@@ -266,7 +280,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 3 ) {
         // Root -> Respec all perks -> confirm.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.8.1" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.0" ) != std::string::npos ) {
             ++ui_stage;
             return 7;
         }
@@ -359,7 +373,9 @@ int main( int argc, char **argv )
         &group_end_fn,
         &set_string_choices_fn,
         &modifier_set_fn,
-        &modifier_clear_fn
+        &modifier_clear_fn,
+        &get_api_version_major_fn,
+        &get_api_version_minor_fn
     };
 
     for( size_t i = 0; i < desc->required_capability_count; ++i ) {
@@ -403,16 +419,27 @@ int main( int argc, char **argv )
     if( std::strcmp( desc->id, "survivor_progression" ) == 0 ) {
         auto on_turn = symbol<ncmm_on_turn_v1_fn>( lib, NCMM_TURN_ENTRYPOINT );
         auto open_ui = symbol<ncmm_open_ui_v1_fn>( lib, NCMM_OPEN_UI_ENTRYPOINT );
-        if( !on_turn || !open_ui ) {
+        auto migrate = symbol<ncmm_migrate_state_v1_fn>( lib, NCMM_MIGRATE_STATE_ENTRYPOINT );
+        if( !on_turn || !open_ui || !migrate ) {
             std::cerr << "Survivor Progression callback export missing\n";
             return 9;
         }
 
-        // 30 minutes -> level 2, one perk point.
-        for( int i = 0; i < 1800; ++i ) {
+        const std::string prefix = "survivor_progression:";
+        character_state[prefix + "schema"] = 2;
+        character_state[prefix + "xp_fraction"] = 250;
+        if( !migrate( &api, 2, 3 ) ||
+            character_state[prefix + "schema"] != 3 ||
+            character_state[prefix + "xp_fraction"] != 50 ||
+            character_state[prefix + "xp"] != 2 ) {
+            std::cerr << "Survivor state-schema migration failed\n";
+            return 21;
+        }
+
+        // 28 more minutes after migrated 2 XP -> level 2, one perk point.
+        for( int i = 0; i < 1680; ++i ) {
             on_turn( &api );
         }
-        const std::string prefix = "survivor_progression:";
         if( character_state[prefix + "level"] != 2 ||
             character_state[prefix + "perk_points"] != 1 ) {
             std::cerr << "Survivor level-2 progression failed\n";
@@ -475,7 +502,7 @@ int main( int argc, char **argv )
             return 18;
         }
 
-        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.8.1 purchase/effects/respec slice)\n";
+        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.9.0 migration/purchase/effects/respec slice)\n";
         return 0;
     }
 

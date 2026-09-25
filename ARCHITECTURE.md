@@ -213,3 +213,26 @@ and is released if init throws or returns failure.
 binding identity, bootstrap runtime state, host module state and a fresh `code_mods` scan. It exports a
 bounded text snapshot to `ncmm/diagnostics-latest.txt`; custom feed URLs are stripped of query/fragment and
 raw log contents are not embedded. The diagnostics harness runs against synthetic installations in Runtime CI.
+
+## 0.7.0 API stabilization and state migration
+
+NCMM 0.7 keeps `NCMM_ABI_VERSION=1` and `NCMM_LOADER_API_VERSION=1`. The existing
+`ncmm_host_api_v1` prefix is unchanged; API 1.1 is a capability-gated tail extension, so correctly
+written older v1 code-mods remain binary compatible.
+
+`api.versioning.v1` exposes semantic API major/minor values independently from the NCMM runtime
+release number. A 0.7-aware manifest may declare `api_major` and `api_min_minor`; an incompatible
+major or unavailable minimum minor is rejected before `LoadLibrary` side effects.
+
+`state.migration.v1` standardizes persistent module-state upgrades. A module declares `state_schema`
+and `state_min_supported` and exports `ncmm_migrate_state_v1`. Before gameplay/UI callbacks touch an
+available character, the host checks the namespaced `schema`. Supported older state is migrated inside
+the normal module ownership scope. Newer/too-old state, callback failure, exception, or failure to commit
+the target schema suspends only that module and clears its runtime modifiers.
+
+`module.lifecycle.v1` adds an explicit `lifecycle` value to `modules.state.json` schema 3. Legacy
+`state` is retained for diagnostics compatibility. Normal modules are `active`; migration/runtime-fault
+modules are `suspended`; disabled/rejected modules are `disabled`.
+
+Survivor Progression 0.9.0 is the first production consumer: persistent schema 3, migration from schemas
+0–2, semantic API 1.1 requirement, and remap-safe level-up messaging. Perk balance is unchanged.

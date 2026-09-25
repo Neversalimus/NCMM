@@ -42,6 +42,45 @@ int main()
     expect( m.name.find( "\xCE\xA9" ) != std::string::npos, "unicode escape decoded" );
     expect( ncmm::validate_manifest_contract_v1( m, reason ), "valid manifest semantics" );
 
+    const std::string versioned = R"({
+      "id":"versioned_mod",
+      "name":"Versioned",
+      "version":"2.0.0",
+      "loader_api":1,
+      "api_major":1,
+      "api_min_minor":1,
+      "state_schema":3,
+      "state_min_supported":0,
+      "requires":["core.v1","api.versioning.v1","state.migration.v1"],
+      "failure_policy":"disable"
+    })";
+    expect( parse_ok( versioned, m, reason ) && m.api_contract_declared &&
+            m.state_contract_declared && m.state_schema == 3 &&
+            ncmm::validate_manifest_contract_v1( m, reason ),
+            "0.7 version/state contract parses" );
+
+    expect( !parse_ok(
+                R"({"id":"a","name":"N","version":"1","loader_api":1,"api_major":1,"requires":["core.v1","api.versioning.v1"],"failure_policy":"disable"})",
+                m, reason ) && reason == "manifest_api_contract_incomplete",
+            "incomplete semantic API contract rejected" );
+
+    expect( !parse_ok(
+                R"({"id":"a","name":"N","version":"1","loader_api":1,"state_schema":3,"requires":["core.v1","state.migration.v1"],"failure_policy":"disable"})",
+                m, reason ) && reason == "manifest_state_contract_incomplete",
+            "incomplete state contract rejected" );
+
+    expect( parse_ok(
+                R"({"id":"a","name":"N","version":"1","loader_api":1,"api_major":1,"api_min_minor":1,"requires":["core.v1"],"failure_policy":"disable"})",
+                m, reason ) && !ncmm::validate_manifest_contract_v1( m, reason ) &&
+            reason == "api_versioning_capability_required",
+            "semantic API fields require capability" );
+
+    expect( parse_ok(
+                R"({"id":"a","name":"N","version":"1","loader_api":1,"state_schema":3,"state_min_supported":0,"requires":["core.v1"],"failure_policy":"disable"})",
+                m, reason ) && !ncmm::validate_manifest_contract_v1( m, reason ) &&
+            reason == "state_migration_capability_required",
+            "state contract requires capability" );
+
     expect( !parse_ok(
                 R"({"id":"a","id":"b","name":"N","version":"1","loader_api":1,"requires":["core.v1"],"failure_policy":"disable"})",
                 m, reason ) && reason == "manifest_duplicate_key:id",

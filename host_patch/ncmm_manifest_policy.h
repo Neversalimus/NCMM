@@ -17,6 +17,12 @@ struct manifest_contract_v1 {
     std::string failure_policy;
     std::string ui_hotkey;
     uint32_t loader_api = 0;
+    uint32_t api_major = 0;
+    uint32_t api_min_minor = 0;
+    uint32_t state_schema = 0;
+    uint32_t state_min_supported = 0;
+    bool api_contract_declared = false;
+    bool state_contract_declared = false;
     std::vector<std::string> required_capabilities;
 };
 
@@ -174,6 +180,22 @@ class parser
                     if( !parse_uint32( out.loader_api ) ) {
                         return fail( reason, "manifest_type_error:loader_api" );
                     }
+                } else if( key == "api_major" ) {
+                    if( !parse_uint32( out.api_major ) ) {
+                        return fail( reason, "manifest_type_error:api_major" );
+                    }
+                } else if( key == "api_min_minor" ) {
+                    if( !parse_uint32( out.api_min_minor ) ) {
+                        return fail( reason, "manifest_type_error:api_min_minor" );
+                    }
+                } else if( key == "state_schema" ) {
+                    if( !parse_uint32( out.state_schema ) ) {
+                        return fail( reason, "manifest_type_error:state_schema" );
+                    }
+                } else if( key == "state_min_supported" ) {
+                    if( !parse_uint32( out.state_min_supported ) ) {
+                        return fail( reason, "manifest_type_error:state_min_supported" );
+                    }
                 } else if( key == "requires" ) {
                     if( !parse_string_array( out.required_capabilities ) ) {
                         return fail( reason, "manifest_type_error:requires" );
@@ -188,6 +210,22 @@ class parser
             if( pos_ != text_.size() ) {
                 return fail( reason, "manifest_json_trailing" );
             }
+
+            const bool has_api_major = seen.count( "api_major" ) != 0;
+            const bool has_api_minor = seen.count( "api_min_minor" ) != 0;
+            if( has_api_major != has_api_minor ) {
+                reason = "manifest_api_contract_incomplete";
+                return false;
+            }
+            out.api_contract_declared = has_api_major;
+
+            const bool has_state_schema = seen.count( "state_schema" ) != 0;
+            const bool has_state_min = seen.count( "state_min_supported" ) != 0;
+            if( has_state_schema != has_state_min ) {
+                reason = "manifest_state_contract_incomplete";
+                return false;
+            }
+            out.state_contract_declared = has_state_schema;
 
             const char *required[] = {
                 "id", "name", "version", "loader_api", "requires", "failure_policy"
@@ -440,6 +478,26 @@ inline bool validate_manifest_contract_v1( const manifest_contract_v1 &manifest,
         }
         if( capability == "core.v1" ) {
             has_core = true;
+        }
+    }
+    if( manifest.api_contract_declared ) {
+        if( manifest.api_major == 0 ) {
+            reason = "invalid_api_contract";
+            return false;
+        }
+        if( unique.count( "api.versioning.v1" ) == 0 ) {
+            reason = "api_versioning_capability_required";
+            return false;
+        }
+    }
+    if( manifest.state_contract_declared ) {
+        if( manifest.state_schema == 0 || manifest.state_min_supported > manifest.state_schema ) {
+            reason = "invalid_state_contract";
+            return false;
+        }
+        if( unique.count( "state.migration.v1" ) == 0 ) {
+            reason = "state_migration_capability_required";
+            return false;
         }
     }
     if( !has_core ) {

@@ -18,10 +18,13 @@ extern "C" {
 
 #define NCMM_ABI_VERSION 1u
 #define NCMM_LOADER_API_VERSION 1u
+#define NCMM_API_VERSION_MAJOR 1u
+#define NCMM_API_VERSION_MINOR 1u
 #define NCMM_ENTRYPOINT "ncmm_get_descriptor_v1"
 #define NCMM_LOCALE_ENTRYPOINT "ncmm_on_locale_changed_v1"
 #define NCMM_TURN_ENTRYPOINT "ncmm_on_turn_v1"
 #define NCMM_OPEN_UI_ENTRYPOINT "ncmm_open_ui_v1"
+#define NCMM_MIGRATE_STATE_ENTRYPOINT "ncmm_migrate_state_v1"
 
 typedef enum ncmm_log_level_v1 {
     NCMM_LOG_INFO = 0,
@@ -82,6 +85,13 @@ typedef struct ncmm_host_api_v1 {
                                      const char *modifier_id,
                                      double value );
     int ( *character_modifier_clear_module )( const char *module_id );
+
+    /*
+     * NCMM 0.7 semantic API tail. The binary ABI remains v1; modules must
+     * require api.versioning.v1 before using these fields.
+     */
+    uint32_t ( *get_api_version_major )( void );
+    uint32_t ( *get_api_version_minor )( void );
 } ncmm_host_api_v1;
 
 typedef int ( *ncmm_mod_init_v1 )( const ncmm_host_api_v1 *api );
@@ -89,6 +99,9 @@ typedef void ( *ncmm_mod_shutdown_v1 )( void );
 typedef void ( *ncmm_on_locale_changed_v1_fn )( const ncmm_host_api_v1 *api );
 typedef void ( *ncmm_on_turn_v1_fn )( const ncmm_host_api_v1 *api );
 typedef void ( *ncmm_open_ui_v1_fn )( const ncmm_host_api_v1 *api );
+typedef int ( *ncmm_migrate_state_v1_fn )( const ncmm_host_api_v1 *api,
+                                           uint32_t from_schema,
+                                           uint32_t to_schema );
 
 typedef struct ncmm_mod_descriptor_v1 {
     uint32_t abi_version;

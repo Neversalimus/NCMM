@@ -42,6 +42,11 @@ struct loaded_mod {
     ncmm_on_locale_changed_v1_fn locale_changed = nullptr;
     ncmm_on_turn_v1_fn on_turn = nullptr;
     ncmm_open_ui_v1_fn open_ui = nullptr;
+    ncmm_migrate_state_v1_fn migrate_state = nullptr;
+    uint32_t state_schema = 0;
+    uint32_t state_min_supported = 0;
+    bool migration_ready = false;
+    bool migration_suspended = false;
     std::string action_id;
     std::string default_hotkey;
     runtime_fault_policy fault;
@@ -57,6 +62,7 @@ struct module_state {
     std::string name;
     std::string version;
     std::string state;
+    std::string lifecycle;
     std::string reason;
     std::string default_hotkey;
 };
@@ -117,7 +123,10 @@ const char *const host_capabilities[] = {
     "module_hotkeys.v1",
     "ingame_manager.v1",
     "world_options.layout.v1",
-    "character.modifiers.v1"
+    "character.modifiers.v1",
+    "api.versioning.v1",
+    "state.migration.v1",
+    "module.lifecycle.v1"
 };
 
 std::filesystem::path game_root()
@@ -176,12 +185,22 @@ int has_capability( const char *capability )
 
 const char *get_host_version()
 {
-    return "0.6.6";
+    return "0.7.0";
 }
 
 uint32_t get_loader_api()
 {
     return NCMM_LOADER_API_VERSION;
+}
+
+uint32_t get_api_version_major()
+{
+    return NCMM_API_VERSION_MAJOR;
+}
+
+uint32_t get_api_version_minor()
+{
+    return NCMM_API_VERSION_MINOR;
 }
 
 size_t get_capability_count()
@@ -402,7 +421,9 @@ const ncmm_host_api_v1 api = {
     &worldgen_group_end,
     &worldgen_set_string_choices,
     &character_modifier_set,
-    &character_modifier_clear_module
+    &character_modifier_clear_module,
+    &get_api_version_major,
+    &get_api_version_minor
 };
 
 std::string read_text_file( const std::filesystem::path &path )
@@ -529,6 +550,8 @@ void record_module_state( const std::filesystem::path &directory, const manifest
     entry.name = manifest.name.empty() ? entry.id : manifest.name;
     entry.version = manifest.version;
     entry.state = state;
+    entry.lifecycle = state == "loaded" ? "active" :
+                      ( state == "runtime_fault" || state == "suspended" ? "suspended" : "disabled" );
     entry.reason = reason;
     entry.default_hotkey = manifest.ui_hotkey;
     module_states.push_back( std::move( entry ) );
@@ -558,9 +581,11 @@ void write_modules_state()
     }
 
     out << "{\n"
-        << "  \"schema\": 2,\n"
-        << "  \"host_version\": \"0.6.6\",\n"
+        << "  \"schema\": 3,\n"
+        << "  \"host_version\": \"0.7.0\",\n"
         << "  \"loader_api\": " << NCMM_LOADER_API_VERSION << ",\n"
+        << "  \"api_version\": {\"major\":" << NCMM_API_VERSION_MAJOR
+        << ",\"minor\":" << NCMM_API_VERSION_MINOR << "},\n"
         << "  \"capabilities\": [";
     for( size_t i = 0; i < get_capability_count(); ++i ) {
         if( i != 0 ) {
@@ -575,6 +600,7 @@ void write_modules_state()
             << "\",\"name\":\"" << json_escape( state.name )
             << "\",\"version\":\"" << json_escape( state.version )
             << "\",\"state\":\"" << json_escape( state.state )
+            << "\",\"lifecycle\":\"" << json_escape( state.lifecycle )
             << "\",\"reason\":\"" << json_escape( state.reason )
             << "\",\"default_hotkey\":\"" << json_escape( state.default_hotkey )
             << "\",\"directory\":\"" << json_escape( state.directory.filename().string() ) << "\"}";
@@ -654,6 +680,7 @@ void quarantine_runtime_callback( loaded_mod &mod, runtime_callback_kind kind,
     for( module_state &state : module_states ) {
         if( state.directory.lexically_normal() == mod.directory.lexically_normal() ) {
             state.state = "runtime_fault";
+            state.lifecycle = "suspended";
             state.reason = reason ? reason : "runtime_exception";
             break;
         }
@@ -664,6 +691,109 @@ void quarantine_runtime_callback( loaded_mod &mod, runtime_callback_kind kind,
                 ( module_id.empty() ? mod.directory.filename().string() : module_id ) +
                 " -> " + ( reason ? reason : "runtime_exception" ) ).c_str() );
     write_modules_state();
+}
+
+bool suspend_state_migration( loaded_mod &mod, const char *reason )
+{
+    const std::string id = mod.descriptor && mod.descriptor->id ? mod.descriptor->id : std::string();
+    if( !id.empty() ) {
+        character_modifier_values.erase( id );
+    }
+    mod.migration_ready = false;
+    mod.migration_suspended = true;
+    for( module_state &state : module_states ) {
+        if( state.directory.lexically_normal() == mod.directory.lexically_normal() ) {
+            state.state = "suspended";
+            state.lifecycle = "suspended";
+            state.reason = reason ? reason : "state_migration_failed";
+            break;
+        }
+    }
+    log_line( NCMM_LOG_WARN,
+              ( "State migration suspended module: " +
+                ( id.empty() ? mod.directory.filename().string() : id ) + " -> " +
+                ( reason ? reason : "state_migration_failed" ) ).c_str() );
+    write_modules_state();
+    return false;
+}
+
+bool ensure_state_migrated( loaded_mod &mod )
+{
+    if( mod.migrate_state == nullptr || mod.state_schema == 0 ) {
+        return true;
+    }
+    if( !character_state_available() ) {
+        mod.migration_ready = false;
+        mod.migration_suspended = false;
+        return true;
+    }
+    if( mod.migration_suspended ) {
+        return false;
+    }
+    if( mod.migration_ready ) {
+        return true;
+    }
+
+    const char *id = mod.descriptor && mod.descriptor->id ? mod.descriptor->id : nullptr;
+    if( id == nullptr ) {
+        return suspend_state_migration( mod, "state_migration_identity_missing" );
+    }
+
+    int64_t raw_schema = 0;
+    {
+        module_call_scope scope( id );
+        raw_schema = character_state_get_i64( id, "schema", 0 );
+    }
+    if( raw_schema < 0 || raw_schema > 4294967295LL ) {
+        return suspend_state_migration( mod, "state_schema_invalid" );
+    }
+    const uint32_t current = static_cast<uint32_t>( raw_schema );
+    if( current == mod.state_schema ) {
+        mod.migration_ready = true;
+        return true;
+    }
+    if( current < mod.state_min_supported || current > mod.state_schema ) {
+        return suspend_state_migration( mod, "state_schema_unsupported" );
+    }
+
+    bool ok = false;
+    try {
+        module_call_scope scope( id );
+        ok = mod.migrate_state( &api, current, mod.state_schema ) != 0;
+    } catch( ... ) {
+        return suspend_state_migration( mod, "state_migration_exception" );
+    }
+    if( !ok ) {
+        return suspend_state_migration( mod, "state_migration_failed" );
+    }
+
+    int64_t migrated = 0;
+    {
+        module_call_scope scope( id );
+        migrated = character_state_get_i64( id, "schema", 0 );
+    }
+    if( migrated != static_cast<int64_t>( mod.state_schema ) ) {
+        return suspend_state_migration( mod, "state_migration_uncommitted" );
+    }
+
+    mod.migration_ready = true;
+    mod.migration_suspended = false;
+    bool changed = false;
+    for( module_state &state : module_states ) {
+        if( state.directory.lexically_normal() == mod.directory.lexically_normal() ) {
+            if( state.state == "suspended" ) {
+                state.state = "loaded";
+                state.lifecycle = "active";
+                state.reason = "ok";
+                changed = true;
+            }
+            break;
+        }
+    }
+    if( changed ) {
+        write_modules_state();
+    }
+    return true;
 }
 
 struct manager_entry {
@@ -754,6 +884,13 @@ void load_one( const std::filesystem::path &library )
         log_line( NCMM_LOG_WARN, ( "Rejected module due to loader_api mismatch: " + manifest.id ).c_str() );
         return;
     }
+    if( manifest.api_contract_declared &&
+        ( manifest.api_major != NCMM_API_VERSION_MAJOR ||
+          manifest.api_min_minor > NCMM_API_VERSION_MINOR ) ) {
+        record_module_state( directory, manifest, "rejected", "api_version_mismatch" );
+        log_line( NCMM_LOG_WARN, ( "Rejected module due to semantic API mismatch: " + manifest.id ).c_str() );
+        return;
+    }
     for( const std::string &capability : manifest.required_capabilities ) {
         if( !has_capability( capability.c_str() ) ) {
             record_module_state( directory, manifest, "rejected", "missing_capability:" + capability );
@@ -838,6 +975,16 @@ void load_one( const std::filesystem::path &library )
                        GetProcAddress( module, NCMM_TURN_ENTRYPOINT ) );
     auto open_ui = reinterpret_cast<ncmm_open_ui_v1_fn>(
                        GetProcAddress( module, NCMM_OPEN_UI_ENTRYPOINT ) );
+    auto migrate_state = reinterpret_cast<ncmm_migrate_state_v1_fn>(
+                             GetProcAddress( module, NCMM_MIGRATE_STATE_ENTRYPOINT ) );
+
+    if( manifest.state_contract_declared && migrate_state == nullptr ) {
+        record_module_state( directory, manifest, "rejected", "migration_entrypoint_missing" );
+        log_line( NCMM_LOG_WARN,
+                  ( std::string( "Rejected module state contract without migration callback: " ) + manifest.id ).c_str() );
+        FreeLibrary( module );
+        return;
+    }
 
     if( !manifest.ui_hotkey.empty() && open_ui == nullptr ) {
         record_module_state( directory, manifest, "rejected", "ui_hotkey_without_ui" );
@@ -878,7 +1025,10 @@ void load_one( const std::filesystem::path &library )
     const std::string action_id = open_ui != nullptr && !manifest.ui_hotkey.empty() ?
                                   "ncmm.open." + manifest.id : std::string();
     loaded.push_back( { module, desc, directory, locale_changed, on_turn, open_ui,
-                        action_id, manifest.ui_hotkey } );
+                        migrate_state,
+                        manifest.state_contract_declared ? manifest.state_schema : 0u,
+                        manifest.state_contract_declared ? manifest.state_min_supported : 0u,
+                        false, false, action_id, manifest.ui_hotkey } );
     record_module_state( directory, manifest, "loaded", "ok" );
     log_line( NCMM_LOG_INFO, ( std::string( "Loaded module: " ) + desc->id + " " + desc->version ).c_str() );
 }
@@ -950,6 +1100,11 @@ bool handle_gameplay_action( const std::string &action )
         if( mod.action_id.empty() || action != mod.action_id || mod.open_ui == nullptr ) {
             continue;
         }
+        if( !ensure_state_migrated( mod ) ) {
+            popup( tr_ui( "Module state migration is suspended for this character. See NCMM diagnostics.",
+                          "Миграция состояния модуля приостановлена для этого персонажа. См. диагностику NCMM." ) );
+            return true;
+        }
         try {
             module_call_scope scope( mod.descriptor && mod.descriptor->id ?
                                      mod.descriptor->id : nullptr );
@@ -989,6 +1144,8 @@ void show_manager()
                 state = tr_ui( "OFF", "ВЫКЛ" );
             } else if( entry.runtime_state == "runtime_fault" ) {
                 state = tr_ui( "ON / quarantined", "ВКЛ / карантин" );
+            } else if( entry.runtime_state == "suspended" ) {
+                state = tr_ui( "ON / suspended", "ВКЛ / приостановлен" );
             } else if( entry.loaded_now ) {
                 state = tr_ui( "ON / loaded", "ВКЛ / загружен" );
             } else if( entry.runtime_state == "rejected" ) {
@@ -1031,6 +1188,11 @@ void show_manager()
             action.addentry( 1, true, MENU_AUTOASSIGN, tr_ui( "Disable module", "Выключить модуль" ) );
             action.query();
             if( action.ret == 0 ) {
+                if( !ensure_state_migrated( *runtime ) ) {
+                    popup( tr_ui( "Module state migration is suspended for this character. See NCMM diagnostics.",
+                                  "Миграция состояния модуля приостановлена для этого персонажа. См. диагностику NCMM." ) );
+                    continue;
+                }
                 try {
                     module_call_scope scope( runtime->descriptor && runtime->descriptor->id ?
                                              runtime->descriptor->id : nullptr );
@@ -1073,7 +1235,7 @@ void show_manager()
 void on_turn()
 {
     for( loaded_mod &mod : loaded ) {
-        if( mod.on_turn ) {
+        if( mod.on_turn && ensure_state_migrated( mod ) ) {
             try {
                 module_call_scope scope( mod.descriptor && mod.descriptor->id ?
                                          mod.descriptor->id : nullptr );
@@ -1124,7 +1286,7 @@ void initialize()
     module_ids.clear();
     manifest_id_counts.clear();
     character_modifier_values.clear();
-    log_line( NCMM_LOG_INFO, "NCMM 0.6.6 Host API v1 / Module Contract v1 initializing." );
+    log_line( NCMM_LOG_INFO, "NCMM 0.7.0 Host API 1.1 / Module Contract v1 initializing." );
 
     if( !shutdown_registered ) {
         std::atexit( &shutdown );

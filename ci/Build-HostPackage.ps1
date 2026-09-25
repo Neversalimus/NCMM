@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory=$true)][string]$RepositoryRoot,
     [Parameter(Mandatory=$true)][string]$UpstreamRoot,
     [Parameter(Mandatory=$true)][string]$UpstreamTag,
@@ -77,7 +77,7 @@ $metadata = [ordered]@{
     compatibility_schema = 1
     source_contracts = @($contractIds)
     loader_api = 1
-    ncmm_version = '0.6.6'
+    ncmm_version = '0.7.0'
     upstream_tag = $UpstreamTag
     source_commit = $commit
     patch_revision = $patchRevision

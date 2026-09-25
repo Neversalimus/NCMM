@@ -1,4 +1,4 @@
-# Survivor Progression v0.8.1 — Full Progression System Pass
+# Survivor Progression v0.9.0 — State Migration & API Stabilization Pass
 
 This replaces the 0.1 technical vertical slice with the first complete playable progression system.
 
@@ -47,3 +47,11 @@ and long-save migration have been tested in real CDDA sessions.
 - Respec confirmation shows the exact refund before applying it.
 - Respec smoke coverage now verifies point refund and modifier cleanup.
 - No perk values or progression thresholds were rebalanced in this pass.
+
+## 0.9.0 migration pass
+- First production consumer of NCMM semantic API 1.1 and `state.migration.v1`.
+- Persistent state schema is now 3; schemas 0–2 migrate through the host-owned migration lifecycle.
+- Migration normalizes invalid negative XP/point counters and fractional XP while preserving owned perks.
+- A newer/unsupported save schema is suspended by the host instead of being guessed or overwritten.
+- Level-up text no longer hardcodes F1 because the action is remappable in CDDA.
+- Perk values, level thresholds and the 60-perk layout are intentionally unchanged in this pass.

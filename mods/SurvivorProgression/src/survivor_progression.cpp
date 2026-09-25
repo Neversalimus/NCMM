@@ -15,7 +15,7 @@ namespace
 {
 const char *const module_id = "survivor_progression";
 constexpr int max_level = 30;
-constexpr int state_schema = 2;
+constexpr int state_schema = 3;
 
 const char *required_caps[] = {
     "core.v1",
@@ -25,7 +25,10 @@ const char *required_caps[] = {
     "character_state.v1",
     "character.modifiers.v1",
     "ui.basic.v1",
-    "module_hotkeys.v1"
+    "module_hotkeys.v1",
+    "api.versioning.v1",
+    "state.migration.v1",
+    "module.lifecycle.v1"
 };
 
 const ncmm_host_api_v1 *host = nullptr;
@@ -393,6 +396,21 @@ void migrate_state()
 
     int level = static_cast<int>( get_state( "level", 1 ) );
     level = std::max( 1, std::min( max_level, level ) );
+    set_state( "level", level );
+
+    int64_t xp = std::max<int64_t>( 0, get_state( "xp", 0 ) );
+    int64_t fraction = std::max<int64_t>( 0, get_state( "xp_fraction", 0 ) );
+    if( fraction >= 100 ) {
+        xp += fraction / 100;
+        fraction %= 100;
+    }
+    if( level >= max_level ) {
+        xp = 0;
+    }
+    set_state( "xp", xp );
+    set_state( "xp_fraction", fraction );
+    set_state( "perk_points", std::max<int64_t>( 0, get_state( "perk_points", 0 ) ) );
+    set_state( "major_points", std::max<int64_t>( 0, get_state( "major_points", 0 ) ) );
 
     // Preserve the old 0.1.x Fast Learner purchase.
     if( get_state( "fast_learner", 0 ) != 0 ) {
@@ -403,14 +421,17 @@ void migrate_state()
     }
 
     const int expected_major_awards = level / 5;
-    int64_t major_awarded = get_state( "major_awarded", 0 );
+    int64_t major_awarded = std::max<int64_t>( 0, get_state( "major_awarded", 0 ) );
     int64_t major_points = get_state( "major_points", 0 );
     if( major_awarded < expected_major_awards ) {
         major_points += expected_major_awards - major_awarded;
         major_awarded = expected_major_awards;
         set_state( "major_points", major_points );
-        set_state( "major_awarded", major_awarded );
     }
+    if( major_awarded > expected_major_awards ) {
+        major_awarded = expected_major_awards;
+    }
+    set_state( "major_awarded", major_awarded );
 
     set_state( "schema", state_schema );
     effects_dirty = true;
@@ -567,7 +588,7 @@ void show_overview()
     const int normal_owned = owned_count( currency_id::perk );
     const int major_owned = owned_count( currency_id::major );
 
-    std::string out = "Survivor Progression v0.8.1\n";
+    std::string out = "Survivor Progression v0.9.0\n";
     out += tr( "Level ", "Уровень " ) + std::to_string( level ) + "/" + std::to_string( max_level );
     if( level < max_level ) {
         out += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
@@ -671,7 +692,7 @@ void open_progression()
         const int64_t perk_points = get_state( "perk_points", 0 );
         const int64_t major_points = get_state( "major_points", 0 );
 
-        std::string title = "Survivor Progression v0.8.1\n";
+        std::string title = "Survivor Progression v0.9.0\n";
         title += tr( "Level ", "Уровень " ) + std::to_string( level );
         if( level < max_level ) {
             title += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
@@ -765,7 +786,8 @@ void award_minute_xp()
             text += tr( " +", " +" ) + std::to_string( majors_gained ) +
                     tr( " major point(s).", " больших очк." );
         }
-        text += tr( " Press F1 to spend them.", " Нажмите F1, чтобы потратить их." );
+        text += tr( " Open Survivor Progression to spend them.",
+                    " Откройте Survivor Progression, чтобы потратить их." );
         message( text );
     }
 }
@@ -805,6 +827,11 @@ int init( const ncmm_host_api_v1 *api )
     if( api == nullptr || api->abi_version != NCMM_ABI_VERSION ) {
         return 0;
     }
+    if( !api->get_api_version_major || !api->get_api_version_minor ||
+        api->get_api_version_major() != NCMM_API_VERSION_MAJOR ||
+        api->get_api_version_minor() < NCMM_API_VERSION_MINOR ) {
+        return 0;
+    }
     for( const char *capability : required_caps ) {
         if( !api->has_capability || !api->has_capability( capability ) ) {
             return 0;
@@ -818,7 +845,7 @@ int init( const ncmm_host_api_v1 *api )
 
     host = api;
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.8.1 initialized: 30 levels / 60 perks / 6 branches." );
+              "Survivor Progression 0.9.0 initialized: 30 levels / 60 perks / 6 branches." );
     return 1;
 }
 
@@ -836,7 +863,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     module_id,
     "Survivor Progression",
-    "0.8.1",
+    "0.9.0",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,
@@ -847,6 +874,18 @@ const ncmm_mod_descriptor_v1 descriptor = {
 extern "C" NCMM_EXPORT const ncmm_mod_descriptor_v1 *ncmm_get_descriptor_v1()
 {
     return &descriptor;
+}
+
+extern "C" NCMM_EXPORT int ncmm_migrate_state_v1( const ncmm_host_api_v1 *api,
+        uint32_t from_schema, uint32_t to_schema )
+{
+    if( api == nullptr || to_schema != static_cast<uint32_t>( state_schema ) ||
+        from_schema > to_schema ) {
+        return 0;
+    }
+    host = api;
+    migrate_state();
+    return get_state( "schema", 0 ) == state_schema ? 1 : 0;
 }
 
 extern "C" NCMM_EXPORT void ncmm_on_turn_v1( const ncmm_host_api_v1 *api )

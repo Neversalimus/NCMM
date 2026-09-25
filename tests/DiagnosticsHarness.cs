@@ -57,7 +57,7 @@ internal static class DiagnosticsHarness
             source_commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             upstream_tag = "cdda-experimental-test",
             patch_revision = new string('b', 64),
-            ncmm_version = "0.6.6",
+            ncmm_version = "0.7.0",
             loader_api = 1,
             installed_utc = DateTime.UtcNow.ToString("o")
         });
@@ -65,7 +65,7 @@ internal static class DiagnosticsHarness
         WriteJson(Path.Combine(game, "ncmm", "runtime.state.json"), new
         {
             schema = 1,
-            runtime_version = "0.6.6",
+            runtime_version = "0.7.0",
             loader_api = 1,
             updated_utc = DateTime.UtcNow.ToString("o"),
             source_commit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -113,7 +113,7 @@ internal static class DiagnosticsHarness
         WriteJson(Path.Combine(game, "ncmm", "modules.state.json"), new
         {
             schema = 2,
-            host_version = "0.6.6",
+            host_version = "0.7.0",
             loader_api = 1,
             capabilities = new string[] { "core.v1" },
             modules = modules
@@ -138,7 +138,7 @@ internal static class DiagnosticsHarness
         AssertTrue(report.Text.Contains("modules.state.json contains duplicate module id 'same_id'"), "duplicate host state is detected");
         AssertTrue(report.Text.Contains("=== Bootstrap Runtime State ==="), "runtime state section present");
         AssertTrue(report.Text.Contains("=== Host Module State ==="), "module state section present");
-        AssertTrue(report.Text.Contains("Binding: NCMM=0.6.6"), "binding identity reported");
+        AssertTrue(report.Text.Contains("Binding: NCMM=0.7.0"), "binding identity reported");
         AssertTrue(!String.IsNullOrEmpty(report.SavedPath) && File.Exists(report.SavedPath),
             "diagnostics-latest.txt exported");
     }

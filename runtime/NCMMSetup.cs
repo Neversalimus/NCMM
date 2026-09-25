@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -86,6 +86,7 @@ internal sealed class SetupModuleStateEntry
     public string name { get; set; }
     public string version { get; set; }
     public string state { get; set; }
+    public string lifecycle { get; set; }
     public string reason { get; set; }
     public string default_hotkey { get; set; }
     public string directory { get; set; }
@@ -364,6 +365,13 @@ internal static class SetupCore
         if (reason == "turn_exception") return "turn callback quarantined after exception";
         if (reason == "locale_exception") return "locale callback quarantined after exception";
         if (reason == "ui_exception") return "UI callback quarantined after exception";
+        if (reason == "api_version_mismatch") return "module requires an incompatible NCMM semantic API";
+        if (reason == "migration_entrypoint_missing") return "state contract declared without migration callback";
+        if (reason == "state_schema_invalid") return "stored state schema is invalid";
+        if (reason == "state_schema_unsupported") return "stored state schema is outside the supported migration range";
+        if (reason == "state_migration_exception") return "state migration threw and was suspended";
+        if (reason == "state_migration_failed") return "state migration declined and was suspended";
+        if (reason == "state_migration_uncommitted") return "state migration did not commit its target schema";
         return reason;
     }
 
@@ -408,7 +416,7 @@ internal static class SetupCore
         int errors = 0;
         int warnings = 0;
 
-        sb.AppendLine("NCMM v0.6.6 Diagnostics 2.0");
+        sb.AppendLine("NCMM v0.7.0 Diagnostics 2.0");
         sb.AppendLine("Generated UTC: " + DateTime.UtcNow.ToString("o"));
         sb.AppendLine("Target: " + target.BuildLabel);
         sb.AppendLine("Path: " + target.PathValue);
@@ -470,10 +478,10 @@ internal static class SetupCore
                 " | loader_api=" + binding.loader_api.ToString() +
                 " | patch=" + ShortSha(binding.patch_revision) +
                 " | upstream=" + (binding.upstream_tag ?? "unknown"));
-            if (!String.Equals(binding.ncmm_version, "0.6.6", StringComparison.OrdinalIgnoreCase))
+            if (!String.Equals(binding.ncmm_version, "0.7.0", StringComparison.OrdinalIgnoreCase))
                 AddCheck(sb, ref errors, ref warnings, "WARN", "Local binding belongs to a different NCMM runtime version.");
             else
-                AddCheck(sb, ref errors, ref warnings, "OK", "Local binding version matches NCMM 0.6.6.");
+                AddCheck(sb, ref errors, ref warnings, "OK", "Local binding version matches NCMM 0.7.0.");
 
             if (hostSha == null)
                 AddCheck(sb, ref errors, ref warnings, "WARN", "Certified host executable is absent.");
@@ -524,7 +532,7 @@ internal static class SetupCore
 
             if (runtime.schema != 1)
                 AddCheck(sb, ref errors, ref warnings, "WARN", "runtime.state.json schema is not 1.");
-            if (!String.Equals(runtime.runtime_version, "0.6.6", StringComparison.OrdinalIgnoreCase))
+            if (!String.Equals(runtime.runtime_version, "0.7.0", StringComparison.OrdinalIgnoreCase))
                 AddCheck(sb, ref errors, ref warnings, "WARN", "runtime.state.json was produced by a different NCMM runtime version.");
             if (runtime.loader_api != 1)
                 AddCheck(sb, ref errors, ref warnings, "ERROR", "runtime.state.json loader_api is incompatible.");
@@ -640,14 +648,14 @@ internal static class SetupCore
                 "Host module state: schema=" + moduleState.schema.ToString() +
                 " | host_version=" + (moduleState.host_version ?? "unknown") +
                 " | loader_api=" + moduleState.loader_api.ToString());
-            if (moduleState.schema < 1 || moduleState.schema > 2)
+            if (moduleState.schema < 1 || moduleState.schema > 3)
                 AddCheck(sb, ref errors, ref warnings, "WARN", "modules.state.json schema is unknown.");
-            if (!String.Equals(moduleState.host_version, "0.6.6", StringComparison.OrdinalIgnoreCase))
+            if (!String.Equals(moduleState.host_version, "0.7.0", StringComparison.OrdinalIgnoreCase))
                 AddCheck(sb, ref errors, ref warnings, "WARN", "modules.state.json belongs to a different/stale host version.");
             if (moduleState.loader_api != 1)
                 AddCheck(sb, ref errors, ref warnings, "ERROR", "modules.state.json loader_api is incompatible.");
 
-            int loadedCount = 0, disabledCount = 0, rejectedCount = 0, failedCount = 0, faultCount = 0;
+            int loadedCount = 0, disabledCount = 0, rejectedCount = 0, failedCount = 0, faultCount = 0, suspendedCount = 0;
             Dictionary<string, int> stateIds = new Dictionary<string, int>(StringComparer.Ordinal);
             if (moduleState.modules != null)
             {
@@ -669,13 +677,16 @@ internal static class SetupCore
                     else if (state == "rejected") rejectedCount++;
                     else if (state == "failed") failedCount++;
                     else if (state == "runtime_fault") faultCount++;
+                    else if (state == "suspended") suspendedCount++;
 
                     string moduleLabel = id +
                         (String.IsNullOrEmpty(entry.directory) ? "" : " [" + entry.directory + "]") +
-                        " | " + state + " | " + DescribeModuleReason(reason);
+                        " | " + state +
+                        (String.IsNullOrEmpty(entry.lifecycle) ? "" : " / lifecycle=" + entry.lifecycle) +
+                        " | " + DescribeModuleReason(reason);
                     string status = state == "loaded" ? "OK" :
                                     state == "disabled" ? "INFO" :
-                                    state == "runtime_fault" || state == "failed" || state == "rejected" ? "WARN" : "INFO";
+                                    state == "runtime_fault" || state == "suspended" || state == "failed" || state == "rejected" ? "WARN" : "INFO";
                     AddCheck(sb, ref errors, ref warnings, status, "Module state: " + moduleLabel);
                 }
             }
@@ -692,7 +703,8 @@ internal static class SetupCore
                 " | disabled=" + disabledCount.ToString() +
                 " | rejected=" + rejectedCount.ToString() +
                 " | failed=" + failedCount.ToString() +
-                " | runtime_fault=" + faultCount.ToString());
+                " | runtime_fault=" + faultCount.ToString() +
+                " | suspended=" + suspendedCount.ToString());
         }
 
         sb.AppendLine();
@@ -770,7 +782,7 @@ internal static class SetupCore
         string autoDisabledTmp = autoDisabled + ".tmp";
         StringBuilder result = new StringBuilder();
 
-        result.AppendLine(DateTime.UtcNow.ToString("o") + " NCMM v0.6.6 safe state repair");
+        result.AppendLine(DateTime.UtcNow.ToString("o") + " NCMM v0.7.0 safe state repair");
         result.AppendLine("Target: " + gameRoot);
 
         foreach (string marker in new string[] { pending, ready, readyTmp, autoDisabled, autoDisabledTmp })
@@ -832,7 +844,7 @@ internal sealed class MainForm : Form
 
     internal MainForm()
     {
-        Text = "NCMM 0.6.6 Setup";
+        Text = "NCMM 0.7.0 Setup";
         Width = 900;
         Height = 500;
         StartPosition = FormStartPosition.CenterScreen;
@@ -1044,7 +1056,7 @@ internal sealed class MainForm : Form
                 "Bootstrap SHA256:\n" + result.BootstrapSha256.ToUpperInvariant() + "\n\n" +
                 "You can launch CDDA normally.";
 
-            MessageBox.Show(this, message, "NCMM 0.6.6", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, message, "NCMM 0.7.0", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
@@ -1067,7 +1079,7 @@ internal sealed class MainForm : Form
 
             MessageBox.Show(this,
                 "Vanilla cataclysm-tiles.exe restored.\n\nTarget:\n" + target.PathValue,
-                "NCMM 0.6.6", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "NCMM 0.7.0", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
@@ -1097,7 +1109,7 @@ internal sealed class MainForm : Form
             MessageBox.Show(this,
                 "Diagnostics 2.0 finished: " + report.Summary +
                 (String.IsNullOrEmpty(report.SavedPath) ? "" : "\n\nSaved report:\n" + report.SavedPath),
-                "NCMM 0.6.6 Diagnostics 2.0", MessageBoxButtons.OK, icon);
+                "NCMM 0.7.0 Diagnostics 2.0", MessageBoxButtons.OK, icon);
         }
         catch (Exception ex)
         {
@@ -1130,7 +1142,7 @@ internal sealed class MainForm : Form
             }
             MessageBox.Show(this,
                 "Safe runtime state repair completed.\nSee ncmm\\repair.log for the audit trail.",
-                "NCMM 0.6.6", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "NCMM 0.7.0", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {

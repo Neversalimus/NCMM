@@ -267,3 +267,14 @@ Host API остаётся v1. Survivor Progression 0.8.1 и AWS 0.5.0 не ме�
 - `DiagnosticsHarness.cs` проверяет duplicate-active, disabled-duplicate и runtime-fault сценарии через настоящий `SetupCore.Diagnose`.
 
 Host API остаётся v1. Survivor Progression остаётся 0.8.1, Advanced World Settings — 0.5.0.
+
+## NCMM 0.7.0 — API Stabilization & Migration Layer
+
+- ABI и Loader API остаются v1; существующий бинарный prefix Host API не ломается.
+- `api.versioning.v1` отделяет semantic API 1.1 от номера runtime-релиза NCMM.
+- Манифест может явно требовать `api_major` / `api_min_minor`; несовместимость отсекается до загрузки DLL.
+- `state.migration.v1` вводит стандартные `state_schema`, `state_min_supported` и callback `ncmm_migrate_state_v1`.
+- Ошибка, исключение, слишком новая или слишком старая schema не валит NCMM: конкретный модуль получает lifecycle `suspended`, его runtime modifiers снимаются.
+- `modules.state.json` schema 3 сохраняет старое поле `state` и добавляет `lifecycle` для Manager/Diagnostics.
+- Survivor Progression 0.9.0 переводится на state schema 3 и API 1.1; schemas 0–2 мигрируют автоматически.
+- В Survivor 0.9.0 баланс 60 перков не меняется; исправлен только platform/migration UX, включая отсутствие жёсткой подсказки F1 после переназначения клавиши.
