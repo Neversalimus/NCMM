@@ -120,7 +120,8 @@ uint32_t get_api_version_minor_fn()
 const char *smoke_caps[] = {
     "core.v1", "world_options.v1", "world_options.layout.v1", "locale.v1",
     "module_contract.v1", "host_info.v1", "compatibility.v1", "events.turn.v1",
-    "character_state.v1", "character.modifiers.v1", "ui.basic.v1", "ui.tiles.v1",`n    "ui.cards.v1", "module_hotkeys.context.v1",
+    "character_state.v1", "character.modifiers.v1", "ui.basic.v1", "ui.tiles.v1",
+    "ui.cards.v1", "module_hotkeys.context.v1",
     "module_hotkeys.v1", "ingame_manager.v1", "api.versioning.v1",
     "state.migration.v1", "module.lifecycle.v1"
 };
