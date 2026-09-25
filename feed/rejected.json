@@ -1,8 +1,6 @@
 {
-    "schema":  1,
-    "loader_api":  1,
-    "patch_revision":  "3fc7aa1e9820f1ad3e6b041b2116a6a61d6e263e1a1d76b3a4aa7dc915ae003d",
-    "rejected":  {
-
-                 }
+  "schema": 1,
+  "loader_api": 1,
+  "patch_revision": "3fc7aa1e9820f1ad3e6b041b2116a6a61d6e263e1a1d76b3a4aa7dc915ae003d",
+  "rejected": {}
 }
