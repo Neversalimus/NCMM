@@ -65,7 +65,11 @@ function Assert-Encoding([string]$Path, [bool]$WorkflowFile) {
 }
 
 function Invoke-SelfTest {
-    $temp = Join-Path $env:TEMP ('ncmm-encoding-selftest-' + [guid]::NewGuid().ToString('N'))
+    $tempRoot = [IO.Path]::GetTempPath()
+    if ([String]::IsNullOrWhiteSpace($tempRoot)) {
+        throw 'System temporary directory is unavailable.'
+    }
+    $temp = Join-Path $tempRoot ('ncmm-encoding-selftest-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force -Path $temp | Out-Null
     try {
         $good = Join-Path $temp 'good.yml'
@@ -105,8 +109,10 @@ if ($SelfTest) {
 }
 
 $extensions = @('.ps1','.cs','.cpp','.h','.json','.md','.txt','.yml','.yaml')
+$workflowRoot = Join-Path (Join-Path $RepoRoot '.github') 'workflows'
+$workflowPrefix = [IO.Path]::GetFullPath($workflowRoot) + [IO.Path]::DirectorySeparatorChar
 $roots = @(
-    (Join-Path $RepoRoot '.github\workflows'),
+    $workflowRoot,
     (Join-Path $RepoRoot 'ncmm-platform')
 )
 
@@ -115,7 +121,8 @@ foreach ($root in $roots) {
     if (-not (Test-Path $root)) { continue }
     foreach ($file in Get-ChildItem $root -Recurse -File) {
         if ($extensions -notcontains $file.Extension.ToLowerInvariant()) { continue }
-        $workflow = $file.FullName -like (Join-Path $RepoRoot '.github\workflows\*')
+        $fullPath = [IO.Path]::GetFullPath($file.FullName)
+        $workflow = $fullPath.StartsWith($workflowPrefix, [StringComparison]::OrdinalIgnoreCase)
         Assert-Encoding $file.FullName $workflow
         $checked++
     }

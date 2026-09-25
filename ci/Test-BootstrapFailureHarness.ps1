@@ -9,7 +9,22 @@ $BootstrapExe = (Resolve-Path $BootstrapExe).Path
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (-not (Test-Path $csc)) { throw "Framework csc.exe not found: $csc" }
 
-$work = Join-Path $env:TEMP ('ncmm-bootstrap-failure-harness-' + [guid]::NewGuid().ToString('N'))
+$bootstrapSourcePath = Join-Path $RepositoryRoot 'runtime\NCMMBootstrap.cs'
+$bootstrapSourceText = Get-Content $bootstrapSourcePath -Raw
+$runtimeVersionMatch = [regex]::Match(
+    $bootstrapSourceText,
+    'private\s+const\s+string\s+RuntimeVersion\s*=\s*"([^"]+)"\s*;'
+)
+if (-not $runtimeVersionMatch.Success) {
+    throw 'Could not resolve RuntimeVersion from NCMMBootstrap.cs.'
+}
+$RuntimeVersionUnderTest = $runtimeVersionMatch.Groups[1].Value
+if ([String]::IsNullOrWhiteSpace($RuntimeVersionUnderTest)) {
+    throw 'Resolved RuntimeVersion is empty.'
+}
+Write-Host "Bootstrap failure harness runtime version: $RuntimeVersionUnderTest"
+
+$work = Join-Path ([IO.Path]::GetTempPath()) ('ncmm-bootstrap-failure-harness-' + [guid]::NewGuid().ToString('N'))
 $childOut = Join-Path $work 'BootstrapFailureChild.exe'
 $childSource = Join-Path $RepositoryRoot 'tests\BootstrapFailureChild.cs'
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -60,7 +75,7 @@ function Write-ValidBinding([string]$Root) {
         source_commit = ''
         upstream_tag = 'failure-harness'
         patch_revision = ('a' * 64)
-        ncmm_version = '0.6.4'
+        ncmm_version = $RuntimeVersionUnderTest
         loader_api = 1
         installed_utc = [DateTime]::UtcNow.ToString('o')
     }
@@ -141,7 +156,7 @@ try {
         $root = New-Scenario 'stale-version'
         $path = Join-Path $root 'ncmm\host.binding.json'
         $binding = Get-Content $path -Raw | ConvertFrom-Json
-        $binding.ncmm_version = '0.6.3'
+        $binding.ncmm_version = '__ncmm_stale_runtime__'
         $binding | ConvertTo-Json | Set-Content $path -Encoding UTF8
         [void](Invoke-Bootstrap $root @('--ncmm-offline','--test-host-ready') 0)
         Assert-Equal (Last-Child $root) 'cataclysm-tiles.vanilla.exe' 'Stale runtime binding was accepted.'
