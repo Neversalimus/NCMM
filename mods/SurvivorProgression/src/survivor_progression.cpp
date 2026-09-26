@@ -27,6 +27,7 @@ const char *required_caps[] = {
     "ui.basic.v1",
     "ui.tiles.v1",
     "ui.cards.v1",
+    "ui.tree.v1",
     "module_hotkeys.context.v1",
     "module_hotkeys.v1",
     "api.versioning.v1",
@@ -755,6 +756,61 @@ std::vector<ncmm_ui_card_v1> bind_cards( std::vector<card_text> &texts )
     return result;
 }
 
+struct tree_node_text {
+    card_text card;
+    int row = 0;
+    int column = 0;
+};
+
+std::pair<int, int> survival_tree_position( const std::string &id )
+{
+    static const std::map<std::string, std::pair<int, int>> positions = {
+        { "s_hardy", { 0, 0 } },
+        { "s_field", { 0, 2 } },
+        { "s_pack", { 1, 0 } },
+        { "s_resilient", { 1, 2 } },
+        { "s_endurance", { 2, 0 } },
+        { "s_instinct", { 2, 2 } },
+        { "s_ironback", { 3, 0 } },
+        { "s_recovery", { 3, 2 } },
+        { "s_survivor", { 4, 1 } },
+        { "s_unbreakable", { 5, 1 } },
+
+        { "se_lessons", { 0, 3 } },
+        { "se_routine", { 1, 3 } },
+        { "se_reserves", { 2, 3 } },
+        { "se_adaptive", { 3, 3 } },
+        { "se_anchor", { 4, 3 } },
+        { "se_memory", { 5, 3 } },
+        { "se_hardened", { 6, 3 } },
+        { "se_grit", { 7, 3 } },
+        { "se_carried", { 8, 3 } },
+        { "se_indomitable", { 9, 3 } }
+    };
+    const auto it = positions.find( id );
+    return it == positions.end() ? std::make_pair( 0, 0 ) : it->second;
+}
+
+std::vector<ncmm_ui_tree_node_v1> bind_tree_nodes( std::vector<tree_node_text> &texts )
+{
+    std::vector<ncmm_ui_tree_node_v1> result;
+    result.reserve( texts.size() );
+    for( tree_node_text &text : texts ) {
+        result.push_back( {
+            text.card.id.c_str(),
+            text.card.title.c_str(),
+            text.card.subtitle.c_str(),
+            text.card.body.c_str(),
+            text.card.badge.c_str(),
+            text.card.icon_key.c_str(),
+            text.card.flags,
+            text.row,
+            text.column
+        } );
+    }
+    return result;
+}
+
 std::string perk_kind_label( const perk_def &perk )
 {
     if( perk.currency == currency_id::major ) {
@@ -771,6 +827,8 @@ std::string branch_icon_key( branch_id branch )
 
 void show_branch( branch_id branch )
 {
+    bool tree_mode = branch == branch_id::survival;
+
     while( true ) {
         const int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
         const int64_t perk_points = get_state( "perk_points", 0 );
@@ -843,6 +901,56 @@ void show_branch( branch_id branch )
             owned_now,
             std::max( 1, total_now )
         };
+
+        if( branch == branch_id::survival && tree_mode && host->ui_tree_choose ) {
+            std::vector<tree_node_text> tree_texts;
+            tree_texts.reserve( branch_perks.size() );
+            std::map<std::string, size_t> index_by_id;
+
+            for( size_t i = 0; i < branch_perks.size(); ++i ) {
+                const perk_def &perk = *branch_perks[i];
+                tree_node_text node;
+                node.card = texts[i];
+                node.card.body += "\n" + tr( "Prerequisites: ", "Требования: " ) + prereq_text( perk );
+                const std::pair<int, int> position = survival_tree_position( perk.id );
+                node.row = position.first;
+                node.column = position.second;
+                index_by_id[perk.id] = i;
+                tree_texts.push_back( std::move( node ) );
+            }
+
+            std::vector<ncmm_ui_tree_edge_v1> edges;
+            auto add_edge = [&]( const char *prereq, size_t to ) {
+                if( prereq == nullptr || prereq[0] == '\0' ) {
+                    return;
+                }
+                const auto it = index_by_id.find( prereq );
+                if( it != index_by_id.end() ) {
+                    edges.push_back( { it->second, to } );
+                }
+            };
+            for( size_t i = 0; i < branch_perks.size(); ++i ) {
+                add_edge( branch_perks[i]->prereq1, i );
+                add_edge( branch_perks[i]->prereq2, i );
+            }
+
+            std::vector<ncmm_ui_tree_node_v1> nodes = bind_tree_nodes( tree_texts );
+            const std::string tree_summary =
+                summary + tr( " | TREE PROTOTYPE | Tab: cards",
+                              " | ДЕРЕВО-ПРОТОТИП | Tab: карточки" );
+            const int choice = host->ui_tree_choose(
+                                   title.c_str(), tree_summary.c_str(), &progress,
+                                   nodes.data(), nodes.size(), edges.data(), edges.size() );
+            if( choice == NCMM_UI_TREE_SHOW_CARDS ) {
+                tree_mode = false;
+                continue;
+            }
+            if( choice < 0 || static_cast<size_t>( choice ) >= branch_perks.size() ) {
+                return;
+            }
+            show_perk_detail( *branch_perks[choice] );
+            continue;
+        }
 
         std::vector<ncmm_ui_card_v1> cards = bind_cards( texts );
         const int choice = host->ui_card_choose ?
@@ -1024,7 +1132,7 @@ void open_progression()
         const int total_owned = owned_count( currency_id::perk ) + owned_count( currency_id::major );
         const int total_perks = static_cast<int>( sizeof( perks ) / sizeof( perks[0] ) );
 
-        std::string title = "Survivor Progression v0.9.3";
+        std::string title = "Survivor Progression v0.9.4";
         std::string summary =
             tr( "Level ", "Уровень " ) + std::to_string( level ) +
             " | P " + std::to_string( perk_points ) +
@@ -1162,14 +1270,14 @@ int init( const ncmm_host_api_v1 *api )
     if( !api->character_state_available || !api->character_state_get_i64 ||
         !api->character_state_set_i64 || !api->character_modifier_set ||
         !api->character_modifier_clear_module || !api->ui_choose || !api->ui_tile_choose ||
-        !api->ui_card_choose ||
+        !api->ui_card_choose || !api->ui_tree_choose ||
         !api->ui_message ) {
         return 0;
     }
 
     host = api;
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.9.3 initialized: unbounded levels / 120 perks / 6 branches." );
+              "Survivor Progression 0.9.4 initialized: unbounded levels / 120 perks / 6 branches." );
     return 1;
 }
 
@@ -1187,7 +1295,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     module_id,
     "Survivor Progression",
-    "0.9.3",
+    "0.9.4",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,

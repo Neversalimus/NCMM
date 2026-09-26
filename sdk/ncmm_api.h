@@ -19,7 +19,7 @@ extern "C" {
 #define NCMM_ABI_VERSION 1u
 #define NCMM_LOADER_API_VERSION 1u
 #define NCMM_API_VERSION_MAJOR 1u
-#define NCMM_API_VERSION_MINOR 2u
+#define NCMM_API_VERSION_MINOR 3u
 #define NCMM_ENTRYPOINT "ncmm_get_descriptor_v1"
 #define NCMM_LOCALE_ENTRYPOINT "ncmm_on_locale_changed_v1"
 #define NCMM_TURN_ENTRYPOINT "ncmm_on_turn_v1"
@@ -61,6 +61,33 @@ typedef struct ncmm_ui_card_v1 {
     const char *icon_key;
     uint32_t flags;
 } ncmm_ui_card_v1;
+
+/*
+ * ui.tree.v1 is a semantic graph layout.  row/column describe logical node
+ * placement; the host owns clipping, scrolling, navigation and connection drawing.
+ * The same NCMM_UI_CARD_* flags style tree nodes.
+ */
+typedef struct ncmm_ui_tree_node_v1 {
+    const char *id;
+    const char *title;
+    const char *subtitle;
+    const char *body;
+    const char *badge;
+    const char *icon_key;
+    uint32_t flags;
+    int32_t row;
+    int32_t column;
+} ncmm_ui_tree_node_v1;
+
+typedef struct ncmm_ui_tree_edge_v1 {
+    size_t from_index;
+    size_t to_index;
+} ncmm_ui_tree_edge_v1;
+
+enum {
+    NCMM_UI_TREE_CANCEL = -1,
+    NCMM_UI_TREE_SHOW_CARDS = -2
+};
 
 typedef struct ncmm_host_api_v1 {
     uint32_t abi_version;
@@ -142,6 +169,18 @@ typedef struct ncmm_host_api_v1 {
                              const ncmm_ui_card_v1 *cards,
                              size_t count,
                              size_t columns );
+
+    /*
+     * NCMM Host API 1.3 tail. Modules must require ui.tree.v1 before use.
+     * Returns a node index, NCMM_UI_TREE_CANCEL, or NCMM_UI_TREE_SHOW_CARDS.
+     */
+    int ( *ui_tree_choose )( const char *title,
+                             const char *summary,
+                             const ncmm_ui_progress_v1 *progress,
+                             const ncmm_ui_tree_node_v1 *nodes,
+                             size_t node_count,
+                             const ncmm_ui_tree_edge_v1 *edges,
+                             size_t edge_count );
 } ncmm_host_api_v1;
 
 typedef int ( *ncmm_mod_init_v1 )( const ncmm_host_api_v1 *api );

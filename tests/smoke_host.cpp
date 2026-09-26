@@ -84,6 +84,7 @@ int has_capability_fn( const char *cap )
            std::strcmp( cap, "ui.basic.v1" ) == 0 ||
            std::strcmp( cap, "ui.tiles.v1" ) == 0 ||
            std::strcmp( cap, "ui.cards.v1" ) == 0 ||
+           std::strcmp( cap, "ui.tree.v1" ) == 0 ||
            std::strcmp( cap, "module_hotkeys.context.v1" ) == 0 ||
            std::strcmp( cap, "module_hotkeys.v1" ) == 0 ||
            std::strcmp( cap, "ingame_manager.v1" ) == 0 ||
@@ -121,7 +122,7 @@ const char *smoke_caps[] = {
     "core.v1", "world_options.v1", "world_options.layout.v1", "locale.v1",
     "module_contract.v1", "host_info.v1", "compatibility.v1", "events.turn.v1",
     "character_state.v1", "character.modifiers.v1", "ui.basic.v1", "ui.tiles.v1",
-    "ui.cards.v1", "module_hotkeys.context.v1",
+    "ui.cards.v1", "ui.tree.v1", "module_hotkeys.context.v1",
     "module_hotkeys.v1", "ingame_manager.v1", "api.versioning.v1",
     "state.migration.v1", "module.lifecycle.v1"
 };
@@ -250,7 +251,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 1 ) {
         // Buy Combat -> Power Training.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.3" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.4" ) != std::string::npos ) {
             ++ui_stage;
             return 0;
         }
@@ -267,7 +268,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 2 ) {
         // Buy Mastery -> Fast Learner.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.3" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.4" ) != std::string::npos ) {
             ++ui_stage;
             return 5;
         }
@@ -284,13 +285,22 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 3 ) {
         // Root -> Respec all perks -> confirm.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.3" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.4" ) != std::string::npos ) {
             ++ui_stage;
             return 7;
         }
         if( ui_stage == 1 && t.find( "Refund: 2P / 0M" ) != std::string::npos ) {
             ++ui_stage;
             return 0;
+        }
+        return -1;
+    }
+
+    if( ui_script == 4 ) {
+        // Root -> Survival. Tree callback validates the prototype path.
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.4" ) != std::string::npos ) {
+            ++ui_stage;
+            return 1;
         }
         return -1;
     }
@@ -318,6 +328,22 @@ int ui_card_choose_fn( const char *title, const char *, const ncmm_ui_progress_v
     }
     return ui_choose_fn( title, labels.data(), labels.size() );
 }
+int ui_tree_choose_fn( const char *title, const char *,
+                        const ncmm_ui_progress_v1 *,
+                        const ncmm_ui_tree_node_v1 *nodes, size_t node_count,
+                        const ncmm_ui_tree_edge_v1 *, size_t )
+{
+    if( title == nullptr || nodes == nullptr || node_count == 0 ) {
+        return NCMM_UI_TREE_CANCEL;
+    }
+    const std::string t( title );
+    if( ui_script == 4 && ui_stage == 1 && t.find( "Survival" ) != std::string::npos ) {
+        ++ui_stage;
+        return NCMM_UI_TREE_CANCEL;
+    }
+    return NCMM_UI_TREE_CANCEL;
+}
+
 void ui_message_fn( const char * )
 {
     ++ui_message_count;
@@ -401,7 +427,8 @@ int main( int argc, char **argv )
         &get_api_version_major_fn,
         &get_api_version_minor_fn,
         &ui_tile_choose_fn,
-        &ui_card_choose_fn
+        &ui_card_choose_fn,
+        &ui_tree_choose_fn
     };
 
     for( size_t i = 0; i < desc->required_capability_count; ++i ) {
@@ -528,7 +555,15 @@ int main( int argc, char **argv )
             return 18;
         }
 
-        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.9.3 polished UI/migration/purchase/effects/respec slice)\n";
+        ui_script = 4;
+        ui_stage = 0;
+        open_ui( &api );
+        if( ui_stage < 2 ) {
+            std::cerr << "Survivor tree prototype path was not exercised\n";
+            return 22;
+        }
+
+        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.9.4 tree/migration/purchase/effects/respec slice)\n";
         return 0;
     }
 

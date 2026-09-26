@@ -123,6 +123,7 @@ const char *const host_capabilities[] = {
     "ui.basic.v1",
     "ui.tiles.v1",
     "ui.cards.v1",
+    "ui.tree.v1",
     "module_hotkeys.context.v1",
     "module_hotkeys.v1",
     "ingame_manager.v1",
@@ -644,10 +645,12 @@ int ui_card_choose( const char *title, const char *summary,
             const bool owned = ( card.flags & NCMM_UI_CARD_OWNED ) != 0;
             const bool locked = ( card.flags & NCMM_UI_CARD_LOCKED ) != 0;
             const bool effect = ( card.flags & NCMM_UI_CARD_EFFECT ) != 0;
+            const bool major = ( card.flags & NCMM_UI_CARD_MAJOR ) != 0;
             const bool accent = ( card.flags & NCMM_UI_CARD_ACCENT ) != 0;
 
             const nc_color border = active ? c_light_green :
                                     owned ? c_cyan :
+                                    major ? c_yellow :
                                     effect ? c_magenta :
                                     accent ? c_light_blue : BORDER_COLOR;
             const nc_color title_color = locked ? c_dark_gray :
@@ -673,7 +676,7 @@ int ui_card_choose( const char *title, const char *summary,
 
             if( card.badge != nullptr && card.badge[0] != '\0' ) {
                 trim_and_print( card_win, point( 2, card_height - 2 ), card_width - 4,
-                                owned ? c_cyan : effect ? c_magenta :
+                                owned ? c_cyan : major ? c_yellow : effect ? c_magenta :
                                 locked ? c_dark_gray : c_green,
                                 card.badge );
             }
@@ -723,6 +726,283 @@ int ui_card_choose( const char *title, const char *summary,
             return selected;
         } else if( action == "QUIT" ) {
             return -1;
+        }
+    }
+}
+
+int ui_tree_choose( const char *title, const char *summary,
+                    const ncmm_ui_progress_v1 *progress,
+                    const ncmm_ui_tree_node_v1 *nodes, size_t node_count,
+                    const ncmm_ui_tree_edge_v1 *edges, size_t edge_count )
+{
+    if( title == nullptr || nodes == nullptr || node_count == 0 || node_count > 64 ||
+        edge_count > 128 || ( edge_count > 0 && edges == nullptr ) ) {
+        return NCMM_UI_TREE_CANCEL;
+    }
+
+    int max_row = 0;
+    int max_col = 0;
+    for( size_t i = 0; i < node_count; ++i ) {
+        if( nodes[i].title == nullptr || nodes[i].row < 0 || nodes[i].column < 0 ||
+            nodes[i].row > 31 || nodes[i].column > 7 ) {
+            return NCMM_UI_TREE_CANCEL;
+        }
+        max_row = std::max( max_row, nodes[i].row );
+        max_col = std::max( max_col, nodes[i].column );
+    }
+    for( size_t i = 0; i < edge_count; ++i ) {
+        if( edges[i].from_index >= node_count || edges[i].to_index >= node_count ) {
+            return NCMM_UI_TREE_CANCEL;
+        }
+    }
+
+    // The prototype intentionally falls back to the proven cards UI on narrow screens.
+    if( TERMX < 118 || TERMY < 28 ) {
+        std::vector<ncmm_ui_card_v1> cards;
+        cards.reserve( node_count );
+        for( size_t i = 0; i < node_count; ++i ) {
+            cards.push_back( {
+                nodes[i].id, nodes[i].title, nodes[i].subtitle, nodes[i].body,
+                nodes[i].badge, nodes[i].icon_key, nodes[i].flags
+            } );
+        }
+        return ui_card_choose( title, summary, progress, cards.data(), cards.size(), 2 );
+    }
+
+    constexpr int node_width = 20;
+    constexpr int node_height = 4;
+    constexpr int hgap = 3;
+    constexpr int vgap = 1;
+    constexpr int header_height = 5;
+    constexpr int footer_height = 2;
+    constexpr int detail_width = 34;
+
+    const int logical_tree_width = ( max_col + 1 ) * node_width + max_col * hgap;
+    const int frame_width = std::min( TERMX - 2, logical_tree_width + detail_width + 6 );
+    const int canvas_width = frame_width - detail_width - 4;
+    const int available_height = TERMY - 2 - header_height - footer_height;
+    const int visible_rows = std::max( 1, available_height / ( node_height + vgap ) );
+    const int frame_height = std::min( TERMY - 2,
+                                      header_height + visible_rows * ( node_height + vgap ) +
+                                      footer_height );
+
+    const point origin( ( TERMX - frame_width ) / 2, ( TERMY - frame_height ) / 2 );
+    catacurses::window frame = catacurses::newwin( frame_height, frame_width, origin );
+
+    input_context ctxt( "NCMM_TREE_CHOOSE", keyboard_mode::keychar );
+    ctxt.register_cardinal();
+    ctxt.register_action( "PAGE_UP" );
+    ctxt.register_action( "PAGE_DOWN" );
+    ctxt.register_action( "HOME" );
+    ctxt.register_action( "END" );
+    ctxt.register_action( "NEXT_TAB" );
+    ctxt.register_action( "CONFIRM" );
+    ctxt.register_action( "QUIT" );
+    ctxt.register_action( "HELP_KEYBINDINGS" );
+
+    int selected = 0;
+    int first_row = 0;
+
+    auto keep_visible = [&]() {
+        const int row = nodes[selected].row;
+        if( row < first_row ) {
+            first_row = row;
+        } else if( row >= first_row + visible_rows ) {
+            first_row = row - visible_rows + 1;
+        }
+        first_row = std::max( 0, std::min( first_row,
+                         std::max( 0, max_row - visible_rows + 1 ) ) );
+    };
+
+    auto node_x = [&]( size_t i ) {
+        return 2 + nodes[i].column * ( node_width + hgap );
+    };
+    auto node_y = [&]( size_t i ) {
+        return header_height + ( nodes[i].row - first_row ) * ( node_height + vgap );
+    };
+    auto visible = [&]( size_t i ) {
+        return nodes[i].row >= first_row && nodes[i].row < first_row + visible_rows &&
+               node_x( i ) + node_width < canvas_width + 2;
+    };
+
+    auto select_direction = [&]( int row_sign, int col_sign ) {
+        int best = -1;
+        int best_score = 1000000;
+        const int sr = nodes[selected].row;
+        const int sc = nodes[selected].column;
+        for( size_t i = 0; i < node_count; ++i ) {
+            if( static_cast<int>( i ) == selected ) {
+                continue;
+            }
+            const int dr = nodes[i].row - sr;
+            const int dc = nodes[i].column - sc;
+            if( row_sign < 0 && dr >= 0 ) continue;
+            if( row_sign > 0 && dr <= 0 ) continue;
+            if( col_sign < 0 && dc >= 0 ) continue;
+            if( col_sign > 0 && dc <= 0 ) continue;
+
+            const int primary = row_sign != 0 ? std::abs( dr ) : std::abs( dc );
+            const int secondary = row_sign != 0 ? std::abs( dc ) : std::abs( dr );
+            const int score = primary * 100 + secondary * 10;
+            if( score < best_score ) {
+                best_score = score;
+                best = static_cast<int>( i );
+            }
+        }
+        if( best >= 0 ) {
+            selected = best;
+        }
+    };
+
+    ui_adaptor ui;
+    ui.position_from_window( frame );
+    ui.on_redraw( [&]( const ui_adaptor & ) {
+        werase( frame );
+        draw_border( frame, BORDER_COLOR );
+        trim_and_print( frame, point( 2, 1 ), frame_width - 4, c_white, title );
+        if( summary != nullptr && summary[0] != '\0' ) {
+            trim_and_print( frame, point( 2, 2 ), frame_width - 4, c_light_gray, summary );
+        }
+
+        if( progress != nullptr && progress->maximum > 0 ) {
+            const int64_t maximum = std::max<int64_t>( 1, progress->maximum );
+            const int64_t current = std::max<int64_t>( 0, std::min( progress->current, maximum ) );
+            const int percent = static_cast<int>( std::llround(
+                static_cast<long double>( current ) * 100.0L /
+                static_cast<long double>( maximum ) ) );
+            std::string line = progress->label ? progress->label : "";
+            if( !line.empty() ) line += "  ";
+            line += "[" + std::to_string( percent ) + "%]";
+            trim_and_print( frame, point( 2, 3 ), frame_width - 4, c_light_green, line );
+        }
+
+        const int divider_x = frame_width - detail_width - 2;
+        for( int y = header_height - 1; y < frame_height - footer_height; ++y ) {
+            mvwprintz( frame, point( divider_x, y ), c_dark_gray, "|" );
+        }
+
+        // Connections are staged first so node boxes remain visually dominant.
+        for( size_t e = 0; e < edge_count; ++e ) {
+            const size_t from = edges[e].from_index;
+            const size_t to = edges[e].to_index;
+            if( !visible( from ) || !visible( to ) ) {
+                continue;
+            }
+            const int x1 = node_x( from ) + node_width / 2;
+            const int y1 = node_y( from ) + node_height;
+            const int x2 = node_x( to ) + node_width / 2;
+            const int y2 = node_y( to ) - 1;
+            const int mid = y1 + std::max( 0, ( y2 - y1 ) / 2 );
+            for( int y = y1; y <= mid && y < frame_height - footer_height; ++y ) {
+                mvwprintz( frame, point( x1, y ), c_dark_gray, "|" );
+            }
+            const int left = std::min( x1, x2 );
+            const int right = std::max( x1, x2 );
+            for( int x = left; x <= right && x < divider_x; ++x ) {
+                mvwprintz( frame, point( x, mid ), c_dark_gray, "-" );
+            }
+            for( int y = mid; y <= y2 && y < frame_height - footer_height; ++y ) {
+                mvwprintz( frame, point( x2, y ), c_dark_gray, "|" );
+            }
+        }
+
+        for( size_t i = 0; i < node_count; ++i ) {
+            if( !visible( i ) ) {
+                continue;
+            }
+            const int x = node_x( i );
+            const int y = node_y( i );
+            const bool active = static_cast<int>( i ) == selected;
+            const bool owned = ( nodes[i].flags & NCMM_UI_CARD_OWNED ) != 0;
+            const bool locked = ( nodes[i].flags & NCMM_UI_CARD_LOCKED ) != 0;
+            const bool major = ( nodes[i].flags & NCMM_UI_CARD_MAJOR ) != 0;
+            const bool effect = ( nodes[i].flags & NCMM_UI_CARD_EFFECT ) != 0;
+
+            const nc_color border = active ? c_light_green :
+                                    owned ? c_cyan :
+                                    major ? c_yellow :
+                                    effect ? c_magenta : BORDER_COLOR;
+            const nc_color text_color = locked ? c_dark_gray :
+                                        active ? c_white : c_light_gray;
+
+            std::string horizontal( static_cast<size_t>( node_width - 2 ), '-' );
+            mvwprintz( frame, point( x, y ), border, "+" + horizontal + "+" );
+            for( int line = 1; line < node_height - 1; ++line ) {
+                mvwprintz( frame, point( x, y + line ), border, "|" );
+                mvwprintz( frame, point( x + node_width - 1, y + line ), border, "|" );
+            }
+            mvwprintz( frame, point( x, y + node_height - 1 ), border, "+" + horizontal + "+" );
+
+            trim_and_print( frame, point( x + 2, y + 1 ), node_width - 4,
+                            text_color, nodes[i].title ? nodes[i].title : "" );
+            trim_and_print( frame, point( x + 2, y + 2 ), node_width - 4,
+                            major ? c_yellow : effect ? c_magenta :
+                            owned ? c_cyan : locked ? c_dark_gray : c_green,
+                            nodes[i].badge ? nodes[i].badge : "" );
+            if( active ) {
+                mvwprintz( frame, point( x + 1, y + 1 ), c_light_green, ">" );
+            }
+        }
+
+        const ncmm_ui_tree_node_v1 &detail = nodes[selected];
+        const int dx = divider_x + 2;
+        trim_and_print( frame, point( dx, header_height ), detail_width - 3,
+                        c_white, detail.title ? detail.title : "" );
+        if( detail.subtitle != nullptr && detail.subtitle[0] != '\0' ) {
+            trim_and_print( frame, point( dx, header_height + 1 ), detail_width - 3,
+                            c_light_gray, detail.subtitle );
+        }
+        if( detail.badge != nullptr && detail.badge[0] != '\0' ) {
+            trim_and_print( frame, point( dx, header_height + 2 ), detail_width - 3,
+                            ( detail.flags & NCMM_UI_CARD_MAJOR ) ? c_yellow :
+                            ( detail.flags & NCMM_UI_CARD_EFFECT ) ? c_magenta : c_cyan,
+                            detail.badge );
+        }
+        if( detail.body != nullptr && detail.body[0] != '\0' ) {
+            const std::vector<std::string> folded = foldstring( detail.body, detail_width - 3 );
+            const int max_lines = std::max( 1, frame_height - header_height - footer_height - 4 );
+            for( int line = 0; line < std::min<int>( max_lines, folded.size() ); ++line ) {
+                trim_and_print( frame, point( dx, header_height + 4 + line ), detail_width - 3,
+                                c_light_gray, folded[line] );
+            }
+        }
+
+        std::string footer = tr_ui(
+            "Arrows: navigate  Enter: details  Tab: cards  Esc: back  PgUp/PgDn: scroll",
+            "Стрелки: навигация  Enter: детали  Tab: карточки  Esc: назад  PgUp/PgDn: прокрутка" );
+        footer += "  " + std::to_string( selected + 1 ) + "/" + std::to_string( node_count );
+        trim_and_print( frame, point( 2, frame_height - 2 ), frame_width - 4,
+                        c_dark_gray, footer );
+        wnoutrefresh( frame );
+    } );
+
+    while( true ) {
+        keep_visible();
+        ui_manager::redraw();
+        const std::string action = ctxt.handle_input();
+        if( action == "LEFT" ) {
+            select_direction( 0, -1 );
+        } else if( action == "RIGHT" ) {
+            select_direction( 0, 1 );
+        } else if( action == "UP" ) {
+            select_direction( -1, 0 );
+        } else if( action == "DOWN" ) {
+            select_direction( 1, 0 );
+        } else if( action == "PAGE_UP" ) {
+            first_row = std::max( 0, first_row - visible_rows );
+        } else if( action == "PAGE_DOWN" ) {
+            first_row = std::min( std::max( 0, max_row - visible_rows + 1 ),
+                                  first_row + visible_rows );
+        } else if( action == "HOME" ) {
+            selected = 0;
+        } else if( action == "END" ) {
+            selected = static_cast<int>( node_count ) - 1;
+        } else if( action == "NEXT_TAB" ) {
+            return NCMM_UI_TREE_SHOW_CARDS;
+        } else if( action == "CONFIRM" ) {
+            return selected;
+        } else if( action == "QUIT" ) {
+            return NCMM_UI_TREE_CANCEL;
         }
     }
 }
@@ -785,7 +1065,8 @@ const ncmm_host_api_v1 api = {
     &get_api_version_major,
     &get_api_version_minor,
     &ui_tile_choose,
-    &ui_card_choose
+    &ui_card_choose,
+    &ui_tree_choose
 };
 
 std::string read_text_file( const std::filesystem::path &path )
