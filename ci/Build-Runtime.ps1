@@ -96,8 +96,8 @@ Copy-Item $sp.FullName (Join-Path $payload 'code_mods\SurvivorProgression\ncmm_m
 Copy-Item (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') (Join-Path $payload 'code_mods\SurvivorProgression\mod.json') -Force
 
 $spManifest = Get-Content (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') -Raw | ConvertFrom-Json
-if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable' -or $spManifest.version -ne '0.9.2') {
-    throw 'Survivor Progression 0.9.2 manifest contract invalid.'
+if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable' -or $spManifest.version -ne '0.9.3') {
+    throw 'Survivor Progression 0.9.3 manifest contract invalid.'
 }
 foreach ($required in @('core.v1','events.turn.v1','character_state.v1','character.modifiers.v1','ui.basic.v1','ui.tiles.v1','ui.cards.v1','module_hotkeys.v1','module_hotkeys.context.v1','api.versioning.v1','state.migration.v1','module.lifecycle.v1')) {
     if (-not ($spManifest.requires -contains $required)) {
@@ -140,18 +140,18 @@ if ($loaderSource.Contains('void arm_hotkeys()') -or $loaderSource.Contains('mod
 
 $survivorSource = Get-Content (Join-Path $RepositoryRoot 'mods\SurvivorProgression\src\survivor_progression.cpp') -Raw
 foreach ($requiredSurvivorFragment in @(
-    'Survivor Progression 0.9.2',
+    'Survivor Progression 0.9.3',
     'ui_card_choose',
     'perk_kind::effect',
     'xp_to_next( int64_t level )',
     'unbounded levels / 120 perks / 6 branches'
 )) {
     if (-not $survivorSource.Contains($requiredSurvivorFragment)) {
-        throw "Survivor Progression 0.9.2 invariant missing: $requiredSurvivorFragment"
+        throw "Survivor Progression 0.9.3 invariant missing: $requiredSurvivorFragment"
     }
 }
 if ($survivorSource.Contains('max_level')) {
-    throw 'Survivor Progression 0.9.2 regression: hard level cap returned.'
+    throw 'Survivor Progression 0.9.3 regression: hard level cap returned.'
 }
 
 $manifestPolicySource = Get-Content (Join-Path $RepositoryRoot 'host_patch\ncmm_manifest_policy.h') -Raw

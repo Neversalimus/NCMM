@@ -333,6 +333,25 @@ std::string branch_name( branch_id branch )
     return russian() ? branch_name_ru( branch ) : branch_name_en( branch );
 }
 
+std::string branch_focus( branch_id branch )
+{
+    switch( branch ) {
+        case branch_id::combat:
+            return tr( "Power / accuracy / battle tempo", "Сила / точность / темп боя" );
+        case branch_id::survival:
+            return tr( "Stamina / healing / carrying", "Выносливость / лечение / груз" );
+        case branch_id::mobility:
+            return tr( "Speed / movement / endurance", "Скорость / движение / резерв" );
+        case branch_id::crafting:
+            return tr( "Crafting / study / intelligence", "Крафт / обучение / интеллект" );
+        case branch_id::scavenging:
+            return tr( "Perception / load / long routes", "Восприятие / груз / маршруты" );
+        case branch_id::mastery:
+            return tr( "XP / synergy / global growth", "Опыт / синергия / общий рост" );
+    }
+    return {};
+}
+
 int branch_owned_count( branch_id branch )
 {
     int result = 0;
@@ -738,6 +757,9 @@ std::vector<ncmm_ui_card_v1> bind_cards( std::vector<card_text> &texts )
 
 std::string perk_kind_label( const perk_def &perk )
 {
+    if( perk.currency == currency_id::major ) {
+        return tr( "KEYSTONE", "КЛЮЧЕВОЙ" );
+    }
     return effective_kind( perk ) == perk_kind::effect ?
            tr( "EFFECT", "ЭФФЕКТ" ) : tr( "STAT", "СТАТ" );
 }
@@ -777,11 +799,8 @@ void show_branch( branch_id branch )
                             tr( "Lv ", "Ур " ) + std::to_string( perk.required_level ) +
                             " | " + ( perk.currency == currency_id::perk ? "1P" : "1M" );
             card.body = russian() ? perk.desc_ru : perk.desc_en;
-            if( perk.prereq1 != nullptr && perk.prereq1[0] != '\0' ) {
-                card.body += tr( "  Req: ", "  Треб.: " ) + prereq_text( perk );
-            }
 
-            card.badge = perk_kind_label( perk ) + " / ";
+            card.badge = perk_kind_label( perk ) + " | ";
             if( is_owned ) {
                 card.badge += tr( "OWNED", "КУПЛЕНО" );
                 card.flags |= NCMM_UI_CARD_OWNED;
@@ -808,7 +827,7 @@ void show_branch( branch_id branch )
         const int total_now = branch_total_count( branch );
         const int unlocked_now = branch_unlocked_count( branch, level );
 
-        std::string title = branch_name( branch );
+        std::string title = "Survivor Progression > " + branch_name( branch );
         std::string summary =
             tr( "Purchased ", "Куплено " ) + std::to_string( owned_now ) + "/" +
             std::to_string( total_now ) +
@@ -817,7 +836,7 @@ void show_branch( branch_id branch )
             " | M " + std::to_string( major_points );
 
         std::string progress_label =
-            tr( "Branch ", "Ветка " ) + std::to_string( owned_now ) + "/" +
+            branch_name( branch ) + "  " + std::to_string( owned_now ) + "/" +
             std::to_string( total_now );
         ncmm_ui_progress_v1 progress{
             progress_label.c_str(),
@@ -836,7 +855,6 @@ void show_branch( branch_id branch )
         show_perk_detail( *branch_perks[choice] );
     }
 }
-
 void show_overview()
 {
     const int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
@@ -960,11 +978,13 @@ void open_progression()
             card_text card;
             card.id = branch_name_en( branch );
             card.title = branch_name( branch );
-            card.subtitle = tr( "Perks ", "Перки " ) +
-                            std::to_string( branch_owned_count( branch ) ) + "/" +
-                            std::to_string( branch_total_count( branch ) );
-            card.body = tr( "Available now: ", "Доступно сейчас: " ) +
-                        std::to_string( branch_unlocked_count( branch, level ) );
+            card.subtitle =
+                std::to_string( branch_owned_count( branch ) ) + "/" +
+                std::to_string( branch_total_count( branch ) ) +
+                tr( " purchased | ", " куплено | " ) +
+                std::to_string( branch_unlocked_count( branch, level ) ) +
+                tr( " available", " доступно" );
+            card.body = branch_focus( branch );
             card.badge = tr( "BRANCH", "ВЕТКА" );
             card.icon_key = branch_icon_key( branch );
             card.flags = NCMM_UI_CARD_ACCENT;
@@ -974,9 +994,9 @@ void open_progression()
         card_text overview;
         overview.id = "overview";
         overview.title = tr( "Overview", "Обзор" );
-        overview.subtitle = tr( "Level and effects", "Уровень и эффекты" );
-        overview.body = tr( "Inspect XP, points and active modifiers.",
-                            "XP, очки и активные модификаторы." );
+        overview.subtitle = tr( "Level / points / active effects", "Уровень / очки / активные эффекты" );
+        overview.body = tr( "Inspect the complete Survivor state.",
+                            "Полное состояние прогрессии Survivor." );
         overview.badge = tr( "INFO", "ИНФО" );
         overview.icon_key = "survivor/action/overview";
         texts.push_back( std::move( overview ) );
@@ -984,9 +1004,9 @@ void open_progression()
         card_text reset;
         reset.id = "respec";
         reset.title = tr( "Respec", "Сброс перков" );
-        reset.subtitle = tr( "Refund purchases", "Вернуть покупки" );
-        reset.body = tr( "Refund all purchased perk and major points.",
-                         "Вернуть очки за все купленные перки." );
+        reset.subtitle = tr( "Refund every purchase", "Вернуть все покупки" );
+        reset.body = tr( "Refund perk and major points and clear Survivor modifiers.",
+                         "Вернуть очки и снять модификаторы Survivor." );
         reset.badge = tr( "ACTION", "ДЕЙСТВИЕ" );
         reset.icon_key = "survivor/action/respec";
         texts.push_back( std::move( reset ) );
@@ -995,7 +1015,8 @@ void open_progression()
         close.id = "close";
         close.title = tr( "Close", "Закрыть" );
         close.subtitle = tr( "Return to game", "Вернуться в игру" );
-        close.body = tr( "Close Survivor Progression.", "Закрыть Survivor Progression." );
+        close.body = tr( "Keep your build and continue playing.",
+                         "Сохранить билд и вернуться в игру." );
         close.badge = tr( "ACTION", "ДЕЙСТВИЕ" );
         close.icon_key = "survivor/action/close";
         texts.push_back( std::move( close ) );
@@ -1003,17 +1024,18 @@ void open_progression()
         const int total_owned = owned_count( currency_id::perk ) + owned_count( currency_id::major );
         const int total_perks = static_cast<int>( sizeof( perks ) / sizeof( perks[0] ) );
 
-        std::string title = "Survivor Progression v0.9.2";
+        std::string title = "Survivor Progression v0.9.3";
         std::string summary =
             tr( "Level ", "Уровень " ) + std::to_string( level ) +
             " | P " + std::to_string( perk_points ) +
             " | M " + std::to_string( major_points ) +
-            tr( " | perks ", " | перки " ) +
+            tr( " | purchased ", " | куплено " ) +
             std::to_string( total_owned ) + "/" + std::to_string( total_perks );
 
         const int64_t xp_needed = xp_to_next( level );
         std::string progress_label =
-            "XP " + std::to_string( xp ) + "/" + std::to_string( xp_needed );
+            "XP " + std::to_string( xp ) + "/" + std::to_string( xp_needed ) +
+            tr( " -> Level ", " -> Уровень " ) + std::to_string( level + 1 );
         ncmm_ui_progress_v1 progress{ progress_label.c_str(), xp, xp_needed };
 
         std::vector<ncmm_ui_card_v1> cards = bind_cards( texts );
@@ -1035,7 +1057,6 @@ void open_progression()
         }
     }
 }
-
 void award_minute_xp()
 {
     if( !character_available() ) {
@@ -1148,7 +1169,7 @@ int init( const ncmm_host_api_v1 *api )
 
     host = api;
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.9.2 initialized: unbounded levels / 120 perks / 6 branches." );
+              "Survivor Progression 0.9.3 initialized: unbounded levels / 120 perks / 6 branches." );
     return 1;
 }
 
@@ -1166,7 +1187,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     module_id,
     "Survivor Progression",
-    "0.9.2",
+    "0.9.3",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,

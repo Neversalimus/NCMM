@@ -250,7 +250,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 1 ) {
         // Buy Combat -> Power Training.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.2" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.3" ) != std::string::npos ) {
             ++ui_stage;
             return 0;
         }
@@ -267,7 +267,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 2 ) {
         // Buy Mastery -> Fast Learner.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.2" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.3" ) != std::string::npos ) {
             ++ui_stage;
             return 5;
         }
@@ -284,7 +284,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 3 ) {
         // Root -> Respec all perks -> confirm.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.2" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.9.3" ) != std::string::npos ) {
             ++ui_stage;
             return 7;
         }
@@ -528,7 +528,7 @@ int main( int argc, char **argv )
             return 18;
         }
 
-        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.9.2 migration/purchase/effects/respec slice)\n";
+        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.9.3 polished UI/migration/purchase/effects/respec slice)\n";
         return 0;
     }
 
