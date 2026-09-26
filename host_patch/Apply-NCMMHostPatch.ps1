@@ -444,6 +444,26 @@ void input_manager::ncmm_register_context_default_action(
     basic.input_events.clear();
     basic.input_events.push_back( default_event );
 
+    // Match CDDA's native "keyboard_any" semantics for context-scoped NCMM hotkeys.
+    // Tiles gameplay can deliver function keys as keyboard_char (KEY_F(n)) even when
+    // the manifest default was registered from the SDL-style keyboard_code value.
+    if( default_event.type == input_event_t::keyboard_code ||
+        default_event.type == input_event_t::keyboard_char ) {
+        const input_event_t alternate_type =
+            default_event.type == input_event_t::keyboard_code ?
+            input_event_t::keyboard_char : input_event_t::keyboard_code;
+        const std::string portable_name =
+            get_keyname( default_event.get_first_input(), default_event.type, true );
+        const int alternate_code = get_keycode( alternate_type, portable_name );
+        if( alternate_code != 0 ) {
+            const input_event alternate( default_event.modifiers, alternate_code, alternate_type );
+            if( std::find( basic.input_events.begin(), basic.input_events.end(), alternate ) ==
+                basic.input_events.end() ) {
+                basic.input_events.push_back( alternate );
+            }
+        }
+    }
+
     t_actions &active = action_contexts[context];
     const auto it = active.find( action_descriptor );
     if( it == active.end() ) {

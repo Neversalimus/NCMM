@@ -618,6 +618,17 @@ int ui_card_choose( const char *title, const char *summary,
             trim_and_print( frame, point( 2, 3 ), frame_width - 4, c_light_green, line );
         }
 
+        std::string footer = tr_ui(
+            "Arrows: select  Enter: open  Esc: back  PgUp/PgDn: scroll",
+            "Стрелки: выбор  Enter: открыть  Esc: назад  PgUp/PgDn: прокрутка" );
+        footer += "  " + std::to_string( selected + 1 ) + "/" + std::to_string( count );
+        trim_and_print( frame, point( 2, frame_height - 2 ), frame_width - 4,
+                        c_dark_gray, footer );
+
+        // Stage the parent first. The cards are separate curses windows inside
+        // the frame; refreshing the blank parent after them erases their cells.
+        wnoutrefresh( frame );
+
         const int first_index = first_row * columns;
         for( size_t slot = 0; slot < slots.size(); ++slot ) {
             catacurses::window &card_win = slots[slot];
@@ -672,13 +683,7 @@ int ui_card_choose( const char *title, const char *summary,
             wnoutrefresh( card_win );
         }
 
-        std::string footer = tr_ui(
-            "Arrows: select  Enter: open  Esc: back  PgUp/PgDn: scroll",
-            "Стрелки: выбор  Enter: открыть  Esc: назад  PgUp/PgDn: прокрутка" );
-        footer += "  " + std::to_string( selected + 1 ) + "/" + std::to_string( count );
-        trim_and_print( frame, point( 2, frame_height - 2 ), frame_width - 4,
-                        c_dark_gray, footer );
-        wnoutrefresh( frame );
+
     } );
 
     while( true ) {
