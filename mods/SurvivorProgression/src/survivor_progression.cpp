@@ -811,7 +811,7 @@ std::string cost_text( const perk_def &perk )
 
 bool purchase_perk( const perk_def &perk )
 {
-    int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
+    int64_t level = branch_level( perk.branch );
     int64_t perk_points = get_state( "perk_points", 0 );
     int64_t major_points = get_state( "major_points", 0 );
 
@@ -820,7 +820,7 @@ bool purchase_perk( const perk_def &perk )
         return false;
     }
     if( level < perk.required_level ) {
-        message( tr( "Your Survivor level is too low.", "Недостаточный уровень Survivor." ) );
+        message( tr( "Your branch level is too low.", "Недостаточный уровень этой ветки." ) );
         return false;
     }
     if( !prerequisites_met( perk ) ) {
@@ -1609,7 +1609,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     module_id,
     "Survivor Progression",
-    "0.9.5",
+    "0.9.7",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,

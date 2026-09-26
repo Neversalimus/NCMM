@@ -77,6 +77,8 @@ std::set<std::string> hotkey_registration_logged;
 std::map<std::string, size_t> manifest_id_counts;
 std::map<std::string, std::map<std::string, double>> character_modifier_values;
 std::map<std::string, int64_t> gameplay_metric_values;
+character_id gameplay_avatar_id;
+bool gameplay_avatar_id_ready = false;
 thread_local std::string active_module_id;
 bool shutdown_registered = false;
 bool gameplay_metrics_subscribed = false;
@@ -88,43 +90,54 @@ class gameplay_metric_subscriber : public event_subscriber
 
         void notify( const cata::event &e ) override
         {
-            if( e.type() == event_type::game_load || e.type() == event_type::game_avatar_new ) {
+            if( e.type() == event_type::game_load ) {
                 gameplay_metric_values.clear();
+                gameplay_avatar_id = character_id();
+                gameplay_avatar_id_ready = false;
                 return;
             }
-            if( g == nullptr ) {
+            if( e.type() == event_type::game_avatar_new ) {
+                gameplay_metric_values.clear();
+                gameplay_avatar_id = e.get<character_id>( "avatar_id" );
+                gameplay_avatar_id_ready = true;
                 return;
             }
 
-            const character_id avatar_id = get_avatar().getID();
+            if( e.type() == event_type::avatar_moves ) {
+                ++gameplay_metric_values["mobility.steps"];
+                return;
+            }
+            if( e.type() == event_type::avatar_enters_omt ) {
+                ++gameplay_metric_values["scavenging.omt"];
+                return;
+            }
+
+            if( !gameplay_avatar_id_ready ) {
+                return;
+            }
+
             switch( e.type() ) {
                 case event_type::character_kills_monster:
-                    if( e.get<character_id>( "killer" ) == avatar_id ) {
+                    if( e.get<character_id>( "killer" ) == gameplay_avatar_id ) {
                         ++gameplay_metric_values["combat.kills"];
                         gameplay_metric_values["combat.kill_xp"] +=
                             std::max( 0, e.get<int>( "exp" ) );
                     }
                     break;
                 case event_type::character_kills_character:
-                    if( e.get<character_id>( "killer" ) == avatar_id ) {
+                    if( e.get<character_id>( "killer" ) == gameplay_avatar_id ) {
                         ++gameplay_metric_values["combat.kills"];
                         gameplay_metric_values["combat.kill_xp"] += 100;
                     }
                     break;
                 case event_type::character_heals_damage:
-                    if( e.get<character_id>( "character" ) == avatar_id ) {
+                    if( e.get<character_id>( "character" ) == gameplay_avatar_id ) {
                         gameplay_metric_values["survival.healing"] +=
                             std::max( 0, e.get<int>( "damage" ) );
                     }
                     break;
-                case event_type::avatar_moves:
-                    ++gameplay_metric_values["mobility.steps"];
-                    break;
-                case event_type::avatar_enters_omt:
-                    ++gameplay_metric_values["scavenging.omt"];
-                    break;
                 case event_type::character_finished_activity:
-                    if( e.get<character_id>( "character" ) == avatar_id &&
+                    if( e.get<character_id>( "character" ) == gameplay_avatar_id &&
                         !e.get<bool>( "canceled" ) ) {
                         const std::string activity = e.get<activity_id>( "activity" ).str();
                         if( activity == "ACT_CRAFT" || activity == "ACT_MULTIPLE_CRAFT" ) {
@@ -133,7 +146,7 @@ class gameplay_metric_subscriber : public event_subscriber
                     }
                     break;
                 case event_type::gains_skill_level:
-                    if( e.get<character_id>( "character" ) == avatar_id ) {
+                    if( e.get<character_id>( "character" ) == gameplay_avatar_id ) {
                         ++gameplay_metric_values["mastery.skill_levels"];
                     }
                     break;
@@ -210,6 +223,32 @@ std::filesystem::path game_root()
     return std::filesystem::current_path();
 }
 
+std::string ncmm_escape_printf_percents( const std::string &text )
+{
+    std::string result;
+    result.reserve( text.size() + 8 );
+    for( const char ch : text ) {
+        if( ch == '%' ) {
+            result.push_back( '%' );
+        }
+        result.push_back( ch );
+    }
+    return result;
+}
+
+void ncmm_trim_and_print_literal( const catacurses::window &w, const point &begin,
+                                  int width, const nc_color &base_color,
+                                  const std::string &text )
+{
+    // CDDA trim_and_print -> print_colored_text -> wprintz -> wprintw.
+    // wprintw treats '%' as printf syntax even when the input is already a
+    // complete UI string. Trim first using the real visible text, then double
+    // percent characters only for the final printf-backed write.
+    const std::string clipped = trim_by_length( text, width );
+    const std::string escaped = ncmm_escape_printf_percents( clipped );
+    nc_color current = base_color;
+    print_colored_text( w, begin, current, base_color, escaped );
+}
 std::string current_locale()
 {
     std::string selected = get_option<std::string>( "USE_LANG" );
@@ -427,9 +466,24 @@ int character_state_set_i64( const char *module_id, const char *key, int64_t val
 
 int64_t gameplay_metric_get_i64( const char *metric_id )
 {
-    if( metric_id == nullptr || active_module_id.empty() ) {
+    if( metric_id == nullptr || active_module_id.empty() || !character_state_available() ) {
         return 0;
     }
+
+    // get_event_bus() is a game-owned object.  NCMM initialize() runs from
+    // catacurses::init_interface, before game/event-bus lifetime is established.
+    // Subscribe only after character/world availability proves gameplay exists.
+    if( !gameplay_metrics_subscribed ) {
+        get_event_bus().subscribe( &gameplay_metrics );
+        gameplay_metrics_subscribed = true;
+        log_line( NCMM_LOG_INFO, "gameplay.metrics.v1 event subscription armed in gameplay." );
+    }
+
+    if( !gameplay_avatar_id_ready ) {
+        gameplay_avatar_id = get_avatar().getID();
+        gameplay_avatar_id_ready = true;
+    }
+
     const auto it = gameplay_metric_values.find( metric_id );
     return it == gameplay_metric_values.end() ? 0 : std::max<int64_t>( 0, it->second );
 }
@@ -519,7 +573,7 @@ int ui_tile_choose( const char *title, const char *const *labels,
         werase( frame );
         draw_border( frame, BORDER_COLOR );
         fold_and_print( frame, point( 2, 1 ), frame_width - 4, c_light_gray, title );
-        trim_and_print( frame, point( 2, frame_height - 2 ), frame_width - 4, c_dark_gray,
+        ncmm_trim_and_print_literal( frame, point( 2, frame_height - 2 ), frame_width - 4, c_dark_gray,
                         tr_ui( "Arrows: select  Enter: open  Esc: close",
                                "Стрелки: выбор  Enter: открыть  Esc: закрыть" ) );
         wnoutrefresh( frame );
@@ -529,10 +583,10 @@ int ui_tile_choose( const char *title, const char *const *labels,
             werase( tile );
             const bool active = static_cast<int>( i ) == selected;
             draw_border( tile, active ? c_light_green : BORDER_COLOR );
-            trim_and_print( tile, point( 2, 1 ), tile_width - 4,
+            ncmm_trim_and_print_literal( tile, point( 2, 1 ), tile_width - 4,
                             active ? c_white : c_light_gray, labels[i] );
             if( details != nullptr && details[i] != nullptr && details[i][0] != '\0' ) {
-                trim_and_print( tile, point( 2, 2 ), tile_width - 4,
+                ncmm_trim_and_print_literal( tile, point( 2, 2 ), tile_width - 4,
                                 active ? c_cyan : c_dark_gray, details[i] );
             }
             if( active ) {
@@ -671,10 +725,10 @@ int ui_card_choose( const char *title, const char *summary,
     ui.on_redraw( [&]( const ui_adaptor & ) {
         werase( frame );
         draw_border( frame, BORDER_COLOR );
-        trim_and_print( frame, point( 2, 1 ), frame_width - 4, c_white, title );
+        ncmm_trim_and_print_literal( frame, point( 2, 1 ), frame_width - 4, c_white, title );
 
         if( summary != nullptr && summary[0] != '\0' ) {
-            trim_and_print( frame, point( 2, 2 ), frame_width - 4, c_light_gray, summary );
+            ncmm_trim_and_print_literal( frame, point( 2, 2 ), frame_width - 4, c_light_gray, summary );
         }
 
         if( progress != nullptr && progress->maximum > 0 ) {
@@ -696,14 +750,14 @@ int ui_card_choose( const char *title, const char *summary,
                 line += "  ";
             }
             line += bar;
-            trim_and_print( frame, point( 2, 3 ), frame_width - 4, c_light_green, line );
+            ncmm_trim_and_print_literal( frame, point( 2, 3 ), frame_width - 4, c_light_green, line );
         }
 
         std::string footer = tr_ui(
             "Arrows: select  Enter: open  Esc: back  PgUp/PgDn: scroll",
             "Стрелки: выбор  Enter: открыть  Esc: назад  PgUp/PgDn: прокрутка" );
         footer += "  " + std::to_string( selected + 1 ) + "/" + std::to_string( count );
-        trim_and_print( frame, point( 2, frame_height - 2 ), frame_width - 4,
+        ncmm_trim_and_print_literal( frame, point( 2, frame_height - 2 ), frame_width - 4,
                         c_dark_gray, footer );
 
         // Stage the parent first. The cards are separate curses windows inside
@@ -737,17 +791,17 @@ int ui_card_choose( const char *title, const char *summary,
                                           active ? c_white : c_light_gray;
             draw_border( card_win, border );
 
-            trim_and_print( card_win, point( 2, 1 ), card_width - 4,
+            ncmm_trim_and_print_literal( card_win, point( 2, 1 ), card_width - 4,
                             title_color, card.title ? card.title : "" );
             if( card.subtitle != nullptr && card.subtitle[0] != '\0' ) {
-                trim_and_print( card_win, point( 2, 2 ), card_width - 4,
+                ncmm_trim_and_print_literal( card_win, point( 2, 2 ), card_width - 4,
                                 locked ? c_dark_gray : c_light_gray, card.subtitle );
             }
 
             if( card.body != nullptr && card.body[0] != '\0' ) {
                 const std::vector<std::string> folded = foldstring( card.body, card_width - 4 );
                 for( size_t line = 0; line < std::min<size_t>( 2, folded.size() ); ++line ) {
-                    trim_and_print( card_win, point( 2, 3 + static_cast<int>( line ) ),
+                    ncmm_trim_and_print_literal( card_win, point( 2, 3 + static_cast<int>( line ) ),
                                     card_width - 4,
                                     locked ? c_dark_gray : active ? c_cyan : c_light_gray,
                                     folded[line] );
@@ -755,7 +809,7 @@ int ui_card_choose( const char *title, const char *summary,
             }
 
             if( card.badge != nullptr && card.badge[0] != '\0' ) {
-                trim_and_print( card_win, point( 2, card_height - 2 ), card_width - 4,
+                ncmm_trim_and_print_literal( card_win, point( 2, card_height - 2 ), card_width - 4,
                                 owned ? c_cyan : major ? c_yellow : effect ? c_magenta :
                                 locked ? c_dark_gray : c_green,
                                 card.badge );
@@ -976,9 +1030,9 @@ int ui_tree_choose( const char *title, const char *summary,
     ui.on_redraw( [&]( const ui_adaptor & ) {
         werase( frame );
         draw_border( frame, BORDER_COLOR );
-        trim_and_print( frame, point( 2, 1 ), frame_width - 4, c_white, title );
+        ncmm_trim_and_print_literal( frame, point( 2, 1 ), frame_width - 4, c_white, title );
         if( summary != nullptr && summary[0] != '\0' ) {
-            trim_and_print( frame, point( 2, 2 ), frame_width - 4, c_light_gray, summary );
+            ncmm_trim_and_print_literal( frame, point( 2, 2 ), frame_width - 4, c_light_gray, summary );
         }
 
         if( progress != nullptr && progress->maximum > 0 ) {
@@ -990,7 +1044,7 @@ int ui_tree_choose( const char *title, const char *summary,
             std::string line = progress->label ? progress->label : "";
             if( !line.empty() ) line += "  ";
             line += "[" + std::to_string( percent ) + "%]";
-            trim_and_print( frame, point( 2, 3 ), frame_width - 4, c_light_green, line );
+            ncmm_trim_and_print_literal( frame, point( 2, 3 ), frame_width - 4, c_light_green, line );
         }
 
         const int divider_x = frame_width - detail_width - 2;
@@ -1000,7 +1054,7 @@ int ui_tree_choose( const char *title, const char *summary,
         for( int y = header_height - 1; y < frame_height - footer_height; ++y ) {
             mvwprintz( frame, point( divider_x, y ), c_dark_gray, "|" );
         }
-        trim_and_print( frame, point( divider_x + 2, header_height - 1 ),
+        ncmm_trim_and_print_literal( frame, point( divider_x + 2, header_height - 1 ),
                         detail_width - 3, c_dark_gray, tr_ui( "DETAIL", "ДЕТАЛИ" ) );
 
         // Connections are staged first so node boxes remain visually dominant.
@@ -1066,12 +1120,12 @@ int ui_tree_choose( const char *title, const char *summary,
             }
             mvwprintz( frame, point( x, y + node_height - 1 ), border, "+" + horizontal + "+" );
 
-            trim_and_print( frame, point( x + 2, y + 1 ), node_width - 4,
+            ncmm_trim_and_print_literal( frame, point( x + 2, y + 1 ), node_width - 4,
                             text_color, nodes[i].title ? nodes[i].title : "" );
-            trim_and_print( frame, point( x + 2, y + 2 ), node_width - 4,
+            ncmm_trim_and_print_literal( frame, point( x + 2, y + 2 ), node_width - 4,
                             locked ? c_dark_gray : c_light_gray,
                             nodes[i].subtitle ? nodes[i].subtitle : "" );
-            trim_and_print( frame, point( x + 2, y + 3 ), node_width - 4,
+            ncmm_trim_and_print_literal( frame, point( x + 2, y + 3 ), node_width - 4,
                             major ? c_yellow : effect ? c_magenta :
                             owned ? c_cyan : locked ? c_dark_gray : c_green,
                             nodes[i].badge ? nodes[i].badge : "" );
@@ -1082,14 +1136,14 @@ int ui_tree_choose( const char *title, const char *summary,
 
         const ncmm_ui_tree_node_v1 &detail = nodes[selected];
         const int dx = divider_x + 2;
-        trim_and_print( frame, point( dx, header_height ), detail_width - 3,
+        ncmm_trim_and_print_literal( frame, point( dx, header_height ), detail_width - 3,
                         c_white, detail.title ? detail.title : "" );
         if( detail.subtitle != nullptr && detail.subtitle[0] != '\0' ) {
-            trim_and_print( frame, point( dx, header_height + 1 ), detail_width - 3,
+            ncmm_trim_and_print_literal( frame, point( dx, header_height + 1 ), detail_width - 3,
                             c_light_gray, detail.subtitle );
         }
         if( detail.badge != nullptr && detail.badge[0] != '\0' ) {
-            trim_and_print( frame, point( dx, header_height + 2 ), detail_width - 3,
+            ncmm_trim_and_print_literal( frame, point( dx, header_height + 2 ), detail_width - 3,
                             ( detail.flags & NCMM_UI_CARD_MAJOR ) ? c_yellow :
                             ( detail.flags & NCMM_UI_CARD_EFFECT ) ? c_magenta : c_cyan,
                             detail.badge );
@@ -1098,7 +1152,7 @@ int ui_tree_choose( const char *title, const char *summary,
             const std::vector<std::string> folded = foldstring( detail.body, detail_width - 3 );
             const int max_lines = std::max( 1, frame_height - header_height - footer_height - 4 );
             for( int line = 0; line < std::min<int>( max_lines, folded.size() ); ++line ) {
-                trim_and_print( frame, point( dx, header_height + 4 + line ), detail_width - 3,
+                ncmm_trim_and_print_literal( frame, point( dx, header_height + 4 + line ), detail_width - 3,
                                 c_light_gray, folded[line] );
             }
         }
@@ -1107,7 +1161,7 @@ int ui_tree_choose( const char *title, const char *summary,
             "Arrows: navigate  Enter: details  Tab: cards  Esc: back  PgUp/PgDn: scroll",
             "Стрелки: навигация  Enter: детали  Tab: карточки  Esc: назад  PgUp/PgDn: прокрутка" );
         footer += "  " + std::to_string( selected + 1 ) + "/" + std::to_string( node_count );
-        trim_and_print( frame, point( 2, frame_height - 2 ), frame_width - 4,
+        ncmm_trim_and_print_literal( frame, point( 2, frame_height - 2 ), frame_width - 4,
                         c_dark_gray, footer );
         wnoutrefresh( frame );
     } );
@@ -2090,11 +2144,9 @@ void initialize()
     manifest_id_counts.clear();
     character_modifier_values.clear();
     gameplay_metric_values.clear();
-    if( !gameplay_metrics_subscribed ) {
-        get_event_bus().subscribe( &gameplay_metrics );
-        gameplay_metrics_subscribed = true;
-    }
-    log_line( NCMM_LOG_INFO, "NCMM 0.7.2 Host API 1.4 / gameplay.metrics.v1 initializing." );
+    gameplay_avatar_id = character_id();
+    gameplay_avatar_id_ready = false;
+    log_line( NCMM_LOG_INFO, "NCMM 0.7.2 Host API 1.4 / gameplay.metrics.v1 initializing (subscription deferred)." );
 
     if( !shutdown_registered ) {
         std::atexit( &shutdown );
