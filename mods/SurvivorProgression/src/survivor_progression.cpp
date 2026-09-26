@@ -1159,10 +1159,17 @@ void show_branch( branch_id branch )
         }
 
         std::vector<ncmm_ui_card_v1> cards = bind_cards( texts );
+        const std::string card_summary =
+            summary + tr( " | Cards | Tab: tree",
+                          " | Карточки | Tab: дерево" );
         const int choice = host->ui_card_choose ?
-                           host->ui_card_choose( title.c_str(), summary.c_str(), &progress,
+                           host->ui_card_choose( title.c_str(), card_summary.c_str(), &progress,
                                                  cards.data(), cards.size(), 2 ) :
                            -1;
+        if( choice == NCMM_UI_CARD_SHOW_TREE ) {
+            tree_mode = true;
+            continue;
+        }
         if( choice < 0 || static_cast<size_t>( choice ) >= branch_perks.size() ) {
             return;
         }
@@ -1178,7 +1185,7 @@ void show_overview()
     const int normal_owned = owned_count( currency_id::perk );
     const int major_owned = owned_count( currency_id::major );
 
-    std::string out = "Survivor Progression v0.9.7\n";
+    std::string out = "Survivor Progression v0.9.8\n";
     out += tr( "Level ", "Уровень " ) + std::to_string( level );
     out += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
     out += "\nP " + std::to_string( perk_points ) + " | M " + std::to_string( major_points );
@@ -1345,7 +1352,7 @@ void open_progression()
         const int total_owned = owned_count( currency_id::perk ) + owned_count( currency_id::major );
         const int total_perks = static_cast<int>( sizeof( perks ) / sizeof( perks[0] ) );
 
-        std::string title = "Survivor Progression v0.9.7";
+        std::string title = "Survivor Progression v0.9.8";
         std::string summary =
             tr( "Level ", "Уровень " ) + std::to_string( level ) +
             " | P " + std::to_string( perk_points ) +
@@ -1591,7 +1598,7 @@ int init( const ncmm_host_api_v1 *api )
 
     host = api;
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.9.7 initialized: anti-farm branch XP / 120 perks / 6 integrated RPG trees." );
+              "Survivor Progression 0.9.8 initialized: anti-farm branch XP / 120 perks / 6 integrated RPG trees." );
     return 1;
 }
 
@@ -1609,7 +1616,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     module_id,
     "Survivor Progression",
-    "0.9.7",
+    "0.9.8",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,

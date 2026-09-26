@@ -223,31 +223,14 @@ std::filesystem::path game_root()
     return std::filesystem::current_path();
 }
 
-std::string ncmm_escape_printf_percents( const std::string &text )
-{
-    std::string result;
-    result.reserve( text.size() + 8 );
-    for( const char ch : text ) {
-        if( ch == '%' ) {
-            result.push_back( '%' );
-        }
-        result.push_back( ch );
-    }
-    return result;
-}
-
 void ncmm_trim_and_print_literal( const catacurses::window &w, const point &begin,
                                   int width, const nc_color &base_color,
                                   const std::string &text )
 {
-    // CDDA trim_and_print -> print_colored_text -> wprintz -> wprintw.
-    // wprintw treats '%' as printf syntax even when the input is already a
-    // complete UI string. Trim first using the real visible text, then double
-    // percent characters only for the final printf-backed write.
+    // The std::string mvwprintz overload is literal-safe. Do not pre-escape '%':
+    // doing so visibly produced "100%%" in Survivor 0.9.7.
     const std::string clipped = trim_by_length( text, width );
-    const std::string escaped = ncmm_escape_printf_percents( clipped );
-    nc_color current = base_color;
-    print_colored_text( w, begin, current, base_color, escaped );
+    mvwprintz( w, begin, base_color, clipped );
 }
 std::string current_locale()
 {
@@ -652,26 +635,26 @@ int ui_card_choose( const char *title, const char *summary,
 
     int columns = static_cast<int>( std::min( requested_columns, count ) );
     constexpr int gap = 1;
-    constexpr int card_height = 7;
-    constexpr int header_height = 5;
+    constexpr int card_height = 8;
+    constexpr int header_height = 6;
     constexpr int footer_height = 2;
 
     while( columns > 1 ) {
         const int candidate = ( TERMX - 4 - gap * ( columns - 1 ) ) / columns;
-        if( candidate >= 26 ) {
+        if( candidate >= 28 ) {
             break;
         }
         --columns;
     }
 
-    const int card_width = std::max( 26, std::min( 42,
+    const int card_width = std::max( 28, std::min( 46,
                            ( TERMX - 4 - gap * ( columns - 1 ) ) / columns ) );
     const int frame_width = columns * card_width + gap * ( columns - 1 ) + 2;
     const int total_rows = ( static_cast<int>( count ) + columns - 1 ) / columns;
     const int max_frame_height = std::max( header_height + card_height + footer_height,
                                           TERMY - 2 );
-    int visible_rows = std::max( 1, std::min( total_rows,
-                            ( max_frame_height - header_height - footer_height ) / card_height ) );
+    const int visible_rows = std::max( 1, std::min( total_rows,
+                             ( max_frame_height - header_height - footer_height ) / card_height ) );
     const int frame_height = header_height + visible_rows * card_height + footer_height;
 
     if( frame_width > TERMX || frame_height > TERMY ) {
@@ -702,8 +685,13 @@ int ui_card_choose( const char *title, const char *summary,
     ctxt.register_action( "PAGE_DOWN" );
     ctxt.register_action( "HOME" );
     ctxt.register_action( "END" );
+    ctxt.register_action( "NEXT_TAB" );
     ctxt.register_action( "CONFIRM" );
     ctxt.register_action( "QUIT" );
+    ctxt.register_action( "MOUSE_MOVE" );
+    ctxt.register_action( "SELECT" );
+    ctxt.register_action( "SCROLL_UP" );
+    ctxt.register_action( "SCROLL_DOWN" );
     ctxt.register_action( "HELP_KEYBINDINGS" );
 
     int selected = 0;
@@ -716,8 +704,26 @@ int ui_card_choose( const char *title, const char *summary,
         } else if( row >= first_row + visible_rows ) {
             first_row = row - visible_rows + 1;
         }
-        const int max_first = std::max( 0, total_rows - visible_rows );
-        first_row = std::max( 0, std::min( first_row, max_first ) );
+        first_row = std::max( 0, std::min( first_row,
+                         std::max( 0, total_rows - visible_rows ) ) );
+    };
+
+    auto card_at = [&]( const point &p ) -> int {
+        if( p.y < header_height || p.y >= header_height + visible_rows * card_height ||
+            p.x < 1 ) {
+            return -1;
+        }
+        const int local_x = p.x - 1;
+        const int slot_span = card_width + gap;
+        const int col = local_x / slot_span;
+        const int inside_x = local_x % slot_span;
+        const int row = ( p.y - header_height ) / card_height;
+        if( col < 0 || col >= columns || row < 0 || row >= visible_rows ||
+            inside_x < 0 || inside_x >= card_width ) {
+            return -1;
+        }
+        const int index = ( first_row + row ) * columns + col;
+        return index >= 0 && index < static_cast<int>( count ) ? index : -1;
     };
 
     ui_adaptor ui;
@@ -728,40 +734,35 @@ int ui_card_choose( const char *title, const char *summary,
         ncmm_trim_and_print_literal( frame, point( 2, 1 ), frame_width - 4, c_white, title );
 
         if( summary != nullptr && summary[0] != '\0' ) {
-            ncmm_trim_and_print_literal( frame, point( 2, 2 ), frame_width - 4, c_light_gray, summary );
+            const std::vector<std::string> lines = foldstring( summary, frame_width - 4 );
+            for( size_t i = 0; i < std::min<size_t>( 2, lines.size() ); ++i ) {
+                ncmm_trim_and_print_literal( frame, point( 2, 2 + static_cast<int>( i ) ),
+                                            frame_width - 4, c_light_gray, lines[i] );
+            }
         }
 
         if( progress != nullptr && progress->maximum > 0 ) {
             const int64_t maximum = std::max<int64_t>( 1, progress->maximum );
             const int64_t current = std::max<int64_t>( 0, std::min( progress->current, maximum ) );
-            const long double ratio = static_cast<long double>( current ) /
-                                      static_cast<long double>( maximum );
-            const int bar_width = std::max( 8, std::min( 28, frame_width - 28 ) );
-            const int filled = std::max( 0, std::min( bar_width,
-                                    static_cast<int>( std::llround( ratio * bar_width ) ) ) );
-            std::string bar = "[";
-            bar.append( static_cast<size_t>( filled ), '=' );
-            bar.append( static_cast<size_t>( bar_width - filled ), '.' );
-            bar += "] ";
-            bar += std::to_string( static_cast<int>( std::llround( ratio * 100.0L ) ) );
-            bar += "%";
+            const int percent = static_cast<int>( std::llround(
+                static_cast<long double>( current ) * 100.0L /
+                static_cast<long double>( maximum ) ) );
             std::string line = progress->label ? progress->label : "";
             if( !line.empty() ) {
                 line += "  ";
             }
-            line += bar;
-            ncmm_trim_and_print_literal( frame, point( 2, 3 ), frame_width - 4, c_light_green, line );
+            line += "[" + std::to_string( percent ) + "%]";
+            ncmm_trim_and_print_literal( frame, point( 2, 4 ), frame_width - 4,
+                                        c_light_green, line );
         }
 
         std::string footer = tr_ui(
-            "Arrows: select  Enter: open  Esc: back  PgUp/PgDn: scroll",
-            "Стрелки: выбор  Enter: открыть  Esc: назад  PgUp/PgDn: прокрутка" );
+            "Mouse: hover/click/wheel  Tab: tree  Enter: open  Esc: back",
+            "Мышь: наведение/клик/колесо  Tab: дерево  Enter: открыть  Esc: назад" );
         footer += "  " + std::to_string( selected + 1 ) + "/" + std::to_string( count );
-        ncmm_trim_and_print_literal( frame, point( 2, frame_height - 2 ), frame_width - 4,
-                        c_dark_gray, footer );
+        ncmm_trim_and_print_literal( frame, point( 2, frame_height - 2 ),
+                                    frame_width - 4, c_dark_gray, footer );
 
-        // Stage the parent first. The cards are separate curses windows inside
-        // the frame; refreshing the blank parent after them erases their cells.
         wnoutrefresh( frame );
 
         const int first_index = first_row * columns;
@@ -792,61 +793,69 @@ int ui_card_choose( const char *title, const char *summary,
             draw_border( card_win, border );
 
             ncmm_trim_and_print_literal( card_win, point( 2, 1 ), card_width - 4,
-                            title_color, card.title ? card.title : "" );
+                                        title_color, card.title ? card.title : "" );
             if( card.subtitle != nullptr && card.subtitle[0] != '\0' ) {
                 ncmm_trim_and_print_literal( card_win, point( 2, 2 ), card_width - 4,
-                                locked ? c_dark_gray : c_light_gray, card.subtitle );
+                                            locked ? c_dark_gray : c_light_gray, card.subtitle );
             }
-
             if( card.body != nullptr && card.body[0] != '\0' ) {
                 const std::vector<std::string> folded = foldstring( card.body, card_width - 4 );
-                for( size_t line = 0; line < std::min<size_t>( 2, folded.size() ); ++line ) {
-                    ncmm_trim_and_print_literal( card_win, point( 2, 3 + static_cast<int>( line ) ),
-                                    card_width - 4,
-                                    locked ? c_dark_gray : active ? c_cyan : c_light_gray,
-                                    folded[line] );
+                for( size_t line = 0; line < std::min<size_t>( 3, folded.size() ); ++line ) {
+                    ncmm_trim_and_print_literal( card_win,
+                                                point( 2, 3 + static_cast<int>( line ) ),
+                                                card_width - 4,
+                                                locked ? c_dark_gray :
+                                                active ? c_cyan : c_light_gray,
+                                                folded[line] );
                 }
             }
-
             if( card.badge != nullptr && card.badge[0] != '\0' ) {
-                ncmm_trim_and_print_literal( card_win, point( 2, card_height - 2 ), card_width - 4,
-                                owned ? c_cyan : major ? c_yellow : effect ? c_magenta :
-                                locked ? c_dark_gray : c_green,
-                                card.badge );
+                ncmm_trim_and_print_literal( card_win, point( 2, card_height - 2 ),
+                                            card_width - 4,
+                                            owned ? c_cyan :
+                                            major ? c_yellow :
+                                            effect ? c_magenta :
+                                            locked ? c_dark_gray : c_green,
+                                            card.badge );
             }
             if( active ) {
                 mvwprintz( card_win, point( 1, 1 ), c_light_green, ">" );
             }
             wnoutrefresh( card_win );
         }
-
-
     } );
 
     while( true ) {
         keep_visible();
         ui_manager::redraw();
         const std::string action = ctxt.handle_input();
+
+        if( action == "MOUSE_MOVE" || action == "SELECT" ) {
+            const std::optional<point> mouse = ctxt.get_coordinates_text( frame );
+            if( mouse ) {
+                const int hit = card_at( *mouse );
+                if( hit >= 0 ) {
+                    selected = hit;
+                    if( action == "SELECT" ) {
+                        return selected;
+                    }
+                }
+            }
+            continue;
+        }
+
         const int col = selected % columns;
         const int row = selected / columns;
 
         if( action == "LEFT" ) {
-            if( col > 0 ) {
-                --selected;
-            }
+            if( col > 0 ) --selected;
         } else if( action == "RIGHT" ) {
-            if( col + 1 < columns && selected + 1 < static_cast<int>( count ) ) {
-                ++selected;
-            }
-        } else if( action == "UP" ) {
-            if( row > 0 ) {
-                selected -= columns;
-            }
-        } else if( action == "DOWN" ) {
+            if( col + 1 < columns && selected + 1 < static_cast<int>( count ) ) ++selected;
+        } else if( action == "UP" || action == "SCROLL_UP" ) {
+            if( row > 0 ) selected = std::max( 0, selected - columns );
+        } else if( action == "DOWN" || action == "SCROLL_DOWN" ) {
             const int next = selected + columns;
-            if( next < static_cast<int>( count ) ) {
-                selected = next;
-            }
+            if( next < static_cast<int>( count ) ) selected = next;
         } else if( action == "PAGE_UP" ) {
             selected = std::max( 0, selected - visible_rows * columns );
         } else if( action == "PAGE_DOWN" ) {
@@ -856,6 +865,8 @@ int ui_card_choose( const char *title, const char *summary,
             selected = 0;
         } else if( action == "END" ) {
             selected = static_cast<int>( count ) - 1;
+        } else if( action == "NEXT_TAB" ) {
+            return NCMM_UI_CARD_SHOW_TREE;
         } else if( action == "CONFIRM" ) {
             return selected;
         } else if( action == "QUIT" ) {
@@ -875,14 +886,12 @@ int ui_tree_choose( const char *title, const char *summary,
     }
 
     int max_row = 0;
-    int max_col = 0;
     for( size_t i = 0; i < node_count; ++i ) {
         if( nodes[i].title == nullptr || nodes[i].row < 0 || nodes[i].column < 0 ||
             nodes[i].row > 31 || nodes[i].column > 7 ) {
             return NCMM_UI_TREE_CANCEL;
         }
         max_row = std::max( max_row, nodes[i].row );
-        max_col = std::max( max_col, nodes[i].column );
     }
     for( size_t i = 0; i < edge_count; ++i ) {
         if( edges[i].from_index >= node_count || edges[i].to_index >= node_count ) {
@@ -901,9 +910,7 @@ int ui_tree_choose( const char *title, const char *summary,
             int parent_max = -1000000;
             size_t single_parent = 0;
             for( size_t e = 0; e < edge_count; ++e ) {
-                if( edges[e].to_index != i ) {
-                    continue;
-                }
+                if( edges[e].to_index != i ) continue;
                 const size_t parent = edges[e].from_index;
                 parent_min = std::min( parent_min, layout_x2[parent] );
                 parent_max = std::max( parent_max, layout_x2[parent] );
@@ -918,12 +925,10 @@ int ui_tree_choose( const char *title, const char *summary,
             }
         }
     }
-    int max_layout_x2 = 0;
-    for( int x2 : layout_x2 ) {
-        max_layout_x2 = std::max( max_layout_x2, x2 );
-    }
 
-    // Tree mode remains an enhancement; narrow terminals keep the proven cards UI.
+    int max_layout_x2 = 0;
+    for( int x2 : layout_x2 ) max_layout_x2 = std::max( max_layout_x2, x2 );
+
     if( TERMX < 118 || TERMY < 28 ) {
         std::vector<ncmm_ui_card_v1> cards;
         cards.reserve( node_count );
@@ -937,10 +942,10 @@ int ui_tree_choose( const char *title, const char *summary,
     }
 
     constexpr int node_width = 24;
-    constexpr int node_height = 5;
+    constexpr int node_height = 6;
     constexpr int hgap = 2;
     constexpr int vgap = 1;
-    constexpr int header_height = 5;
+    constexpr int header_height = 6;
     constexpr int footer_height = 2;
     constexpr int detail_width = 42;
 
@@ -969,6 +974,10 @@ int ui_tree_choose( const char *title, const char *summary,
     ctxt.register_action( "NEXT_TAB" );
     ctxt.register_action( "CONFIRM" );
     ctxt.register_action( "QUIT" );
+    ctxt.register_action( "MOUSE_MOVE" );
+    ctxt.register_action( "SELECT" );
+    ctxt.register_action( "SCROLL_UP" );
+    ctxt.register_action( "SCROLL_DOWN" );
     ctxt.register_action( "HELP_KEYBINDINGS" );
 
     int selected = 0;
@@ -976,11 +985,8 @@ int ui_tree_choose( const char *title, const char *summary,
 
     auto keep_visible = [&]() {
         const int row = nodes[selected].row;
-        if( row < first_row ) {
-            first_row = row;
-        } else if( row >= first_row + visible_rows ) {
-            first_row = row - visible_rows + 1;
-        }
+        if( row < first_row ) first_row = row;
+        else if( row >= first_row + visible_rows ) first_row = row - visible_rows + 1;
         first_row = std::max( 0, std::min( first_row,
                          std::max( 0, max_row - visible_rows + 1 ) ) );
     };
@@ -995,6 +1001,18 @@ int ui_tree_choose( const char *title, const char *summary,
         return nodes[i].row >= first_row && nodes[i].row < first_row + visible_rows &&
                node_x( i ) + node_width < canvas_width + 2;
     };
+    auto node_at = [&]( const point &p ) -> int {
+        for( size_t i = 0; i < node_count; ++i ) {
+            if( !visible( i ) ) continue;
+            const int x = node_x( i );
+            const int y = node_y( i );
+            if( p.x >= x && p.x < x + node_width &&
+                p.y >= y && p.y < y + node_height ) {
+                return static_cast<int>( i );
+            }
+        }
+        return -1;
+    };
 
     auto select_direction = [&]( int row_sign, int col_sign ) {
         int best = -1;
@@ -1002,16 +1020,13 @@ int ui_tree_choose( const char *title, const char *summary,
         const int sr = nodes[selected].row;
         const int sc = layout_x2[selected];
         for( size_t i = 0; i < node_count; ++i ) {
-            if( static_cast<int>( i ) == selected ) {
-                continue;
-            }
+            if( static_cast<int>( i ) == selected ) continue;
             const int dr = nodes[i].row - sr;
             const int dc = layout_x2[i] - sc;
             if( row_sign < 0 && dr >= 0 ) continue;
             if( row_sign > 0 && dr <= 0 ) continue;
             if( col_sign < 0 && dc >= 0 ) continue;
             if( col_sign > 0 && dc <= 0 ) continue;
-
             const int primary = row_sign != 0 ? std::abs( dr ) : std::abs( dc );
             const int secondary = row_sign != 0 ? std::abs( dc ) : std::abs( dr );
             const int score = primary * 100 + secondary * 10;
@@ -1020,9 +1035,7 @@ int ui_tree_choose( const char *title, const char *summary,
                 best = static_cast<int>( i );
             }
         }
-        if( best >= 0 ) {
-            selected = best;
-        }
+        if( best >= 0 ) selected = best;
     };
 
     ui_adaptor ui;
@@ -1031,8 +1044,13 @@ int ui_tree_choose( const char *title, const char *summary,
         werase( frame );
         draw_border( frame, BORDER_COLOR );
         ncmm_trim_and_print_literal( frame, point( 2, 1 ), frame_width - 4, c_white, title );
+
         if( summary != nullptr && summary[0] != '\0' ) {
-            ncmm_trim_and_print_literal( frame, point( 2, 2 ), frame_width - 4, c_light_gray, summary );
+            const std::vector<std::string> lines = foldstring( summary, frame_width - 4 );
+            for( size_t i = 0; i < std::min<size_t>( 2, lines.size() ); ++i ) {
+                ncmm_trim_and_print_literal( frame, point( 2, 2 + static_cast<int>( i ) ),
+                                            frame_width - 4, c_light_gray, lines[i] );
+            }
         }
 
         if( progress != nullptr && progress->maximum > 0 ) {
@@ -1044,59 +1062,41 @@ int ui_tree_choose( const char *title, const char *summary,
             std::string line = progress->label ? progress->label : "";
             if( !line.empty() ) line += "  ";
             line += "[" + std::to_string( percent ) + "%]";
-            ncmm_trim_and_print_literal( frame, point( 2, 3 ), frame_width - 4, c_light_green, line );
+            ncmm_trim_and_print_literal( frame, point( 2, 4 ), frame_width - 4,
+                                        c_light_green, line );
         }
 
         const int divider_x = frame_width - detail_width - 2;
         for( int x = 1; x < divider_x; ++x ) {
-            mvwprintz( frame, point( x, header_height - 1 ), c_dark_gray, "-" );
+            mvwaddch( frame, point( x, header_height - 1 ), LINE_OXOX );
         }
         for( int y = header_height - 1; y < frame_height - footer_height; ++y ) {
-            mvwprintz( frame, point( divider_x, y ), c_dark_gray, "|" );
+            mvwaddch( frame, point( divider_x, y ), LINE_XOXO );
         }
         ncmm_trim_and_print_literal( frame, point( divider_x + 2, header_height - 1 ),
-                        detail_width - 3, c_dark_gray, tr_ui( "DETAIL", "ДЕТАЛИ" ) );
+                                    detail_width - 3, c_dark_gray, tr_ui( "DETAIL", "ДЕТАЛИ" ) );
 
-        // Connections are staged first so node boxes remain visually dominant.
         for( size_t e = 0; e < edge_count; ++e ) {
             const size_t from = edges[e].from_index;
             const size_t to = edges[e].to_index;
-            if( !visible( from ) || !visible( to ) ) {
-                continue;
-            }
+            if( !visible( from ) || !visible( to ) ) continue;
             const int x1 = node_x( from ) + node_width / 2;
             const int y1 = node_y( from ) + node_height;
             const int x2 = node_x( to ) + node_width / 2;
             const int y2 = node_y( to ) - 1;
             const int mid = y1 + std::max( 0, ( y2 - y1 ) / 2 );
-            const bool edge_locked = ( nodes[to].flags & NCMM_UI_CARD_LOCKED ) != 0;
-            const bool edge_owned = ( nodes[to].flags & NCMM_UI_CARD_OWNED ) != 0;
-            const bool edge_major = ( nodes[to].flags & NCMM_UI_CARD_MAJOR ) != 0;
-            const bool edge_effect = ( nodes[to].flags & NCMM_UI_CARD_EFFECT ) != 0;
-            const nc_color edge_color = edge_locked ? c_dark_gray :
-                                        edge_owned ? c_cyan :
-                                        edge_major ? c_yellow :
-                                        edge_effect ? c_magenta : c_light_gray;
-            for( int y = y1; y <= mid && y < frame_height - footer_height; ++y ) {
+            const bool locked = ( nodes[to].flags & NCMM_UI_CARD_LOCKED ) != 0;
+            const nc_color edge_color = locked ? c_dark_gray : c_light_gray;
+            for( int y = y1; y <= mid && y < frame_height - footer_height; ++y )
                 mvwprintz( frame, point( x1, y ), edge_color, "|" );
-            }
-            const int left = std::min( x1, x2 );
-            const int right = std::max( x1, x2 );
-            for( int x = left; x <= right && x < divider_x; ++x ) {
+            for( int x = std::min( x1, x2 ); x <= std::max( x1, x2 ) && x < divider_x; ++x )
                 mvwprintz( frame, point( x, mid ), edge_color, "-" );
-            }
-            for( int y = mid; y <= y2 && y < frame_height - footer_height; ++y ) {
+            for( int y = mid; y <= y2 && y < frame_height - footer_height; ++y )
                 mvwprintz( frame, point( x2, y ), edge_color, "|" );
-            }
-            if( y2 >= header_height && y2 < frame_height - footer_height ) {
-                mvwprintz( frame, point( x2, y2 ), edge_color, "v" );
-            }
         }
 
         for( size_t i = 0; i < node_count; ++i ) {
-            if( !visible( i ) ) {
-                continue;
-            }
+            if( !visible( i ) ) continue;
             const int x = node_x( i );
             const int y = node_y( i );
             const bool active = static_cast<int>( i ) == selected;
@@ -1104,7 +1104,6 @@ int ui_tree_choose( const char *title, const char *summary,
             const bool locked = ( nodes[i].flags & NCMM_UI_CARD_LOCKED ) != 0;
             const bool major = ( nodes[i].flags & NCMM_UI_CARD_MAJOR ) != 0;
             const bool effect = ( nodes[i].flags & NCMM_UI_CARD_EFFECT ) != 0;
-
             const nc_color border = active ? c_light_green :
                                     owned ? c_cyan :
                                     major ? c_yellow :
@@ -1120,49 +1119,57 @@ int ui_tree_choose( const char *title, const char *summary,
             }
             mvwprintz( frame, point( x, y + node_height - 1 ), border, "+" + horizontal + "+" );
 
-            ncmm_trim_and_print_literal( frame, point( x + 2, y + 1 ), node_width - 4,
-                            text_color, nodes[i].title ? nodes[i].title : "" );
-            ncmm_trim_and_print_literal( frame, point( x + 2, y + 2 ), node_width - 4,
-                            locked ? c_dark_gray : c_light_gray,
-                            nodes[i].subtitle ? nodes[i].subtitle : "" );
-            ncmm_trim_and_print_literal( frame, point( x + 2, y + 3 ), node_width - 4,
-                            major ? c_yellow : effect ? c_magenta :
-                            owned ? c_cyan : locked ? c_dark_gray : c_green,
-                            nodes[i].badge ? nodes[i].badge : "" );
-            if( active ) {
-                mvwprintz( frame, point( x + 1, y + 1 ), c_light_green, ">" );
+            const std::vector<std::string> title_lines =
+                foldstring( nodes[i].title ? nodes[i].title : "", node_width - 4 );
+            for( size_t line = 0; line < std::min<size_t>( 2, title_lines.size() ); ++line ) {
+                ncmm_trim_and_print_literal( frame, point( x + 2, y + 1 + static_cast<int>( line ) ),
+                                            node_width - 4, text_color, title_lines[line] );
             }
+            ncmm_trim_and_print_literal( frame, point( x + 2, y + 3 ), node_width - 4,
+                                        locked ? c_dark_gray : c_light_gray,
+                                        nodes[i].subtitle ? nodes[i].subtitle : "" );
+            ncmm_trim_and_print_literal( frame, point( x + 2, y + 4 ), node_width - 4,
+                                        major ? c_yellow : effect ? c_magenta :
+                                        owned ? c_cyan : locked ? c_dark_gray : c_green,
+                                        nodes[i].badge ? nodes[i].badge : "" );
+            if( active ) mvwprintz( frame, point( x + 1, y + 1 ), c_light_green, ">" );
         }
 
         const ncmm_ui_tree_node_v1 &detail = nodes[selected];
         const int dx = divider_x + 2;
-        ncmm_trim_and_print_literal( frame, point( dx, header_height ), detail_width - 3,
-                        c_white, detail.title ? detail.title : "" );
-        if( detail.subtitle != nullptr && detail.subtitle[0] != '\0' ) {
-            ncmm_trim_and_print_literal( frame, point( dx, header_height + 1 ), detail_width - 3,
-                            c_light_gray, detail.subtitle );
+        const std::vector<std::string> detail_title =
+            foldstring( detail.title ? detail.title : "", detail_width - 3 );
+        int dy = header_height;
+        for( size_t line = 0; line < std::min<size_t>( 2, detail_title.size() ); ++line ) {
+            ncmm_trim_and_print_literal( frame, point( dx, dy++ ), detail_width - 3,
+                                        c_white, detail_title[line] );
         }
-        if( detail.badge != nullptr && detail.badge[0] != '\0' ) {
-            ncmm_trim_and_print_literal( frame, point( dx, header_height + 2 ), detail_width - 3,
-                            ( detail.flags & NCMM_UI_CARD_MAJOR ) ? c_yellow :
-                            ( detail.flags & NCMM_UI_CARD_EFFECT ) ? c_magenta : c_cyan,
-                            detail.badge );
+        if( detail.subtitle && detail.subtitle[0] != '\0' ) {
+            ncmm_trim_and_print_literal( frame, point( dx, dy++ ), detail_width - 3,
+                                        c_light_gray, detail.subtitle );
         }
-        if( detail.body != nullptr && detail.body[0] != '\0' ) {
+        if( detail.badge && detail.badge[0] != '\0' ) {
+            ncmm_trim_and_print_literal( frame, point( dx, dy++ ), detail_width - 3,
+                                        ( detail.flags & NCMM_UI_CARD_MAJOR ) ? c_yellow :
+                                        ( detail.flags & NCMM_UI_CARD_EFFECT ) ? c_magenta : c_cyan,
+                                        detail.badge );
+        }
+        ++dy;
+        if( detail.body && detail.body[0] != '\0' ) {
             const std::vector<std::string> folded = foldstring( detail.body, detail_width - 3 );
-            const int max_lines = std::max( 1, frame_height - header_height - footer_height - 4 );
+            const int max_lines = std::max( 1, frame_height - footer_height - dy - 1 );
             for( int line = 0; line < std::min<int>( max_lines, folded.size() ); ++line ) {
-                ncmm_trim_and_print_literal( frame, point( dx, header_height + 4 + line ), detail_width - 3,
-                                c_light_gray, folded[line] );
+                ncmm_trim_and_print_literal( frame, point( dx, dy + line ), detail_width - 3,
+                                            c_light_gray, folded[line] );
             }
         }
 
         std::string footer = tr_ui(
-            "Arrows: navigate  Enter: details  Tab: cards  Esc: back  PgUp/PgDn: scroll",
-            "Стрелки: навигация  Enter: детали  Tab: карточки  Esc: назад  PgUp/PgDn: прокрутка" );
+            "Mouse: hover/click/wheel  Tab: cards  Enter: details  Esc: back",
+            "Мышь: наведение/клик/колесо  Tab: карточки  Enter: детали  Esc: назад" );
         footer += "  " + std::to_string( selected + 1 ) + "/" + std::to_string( node_count );
-        ncmm_trim_and_print_literal( frame, point( 2, frame_height - 2 ), frame_width - 4,
-                        c_dark_gray, footer );
+        ncmm_trim_and_print_literal( frame, point( 2, frame_height - 2 ),
+                                    frame_width - 4, c_dark_gray, footer );
         wnoutrefresh( frame );
     } );
 
@@ -1170,30 +1177,32 @@ int ui_tree_choose( const char *title, const char *summary,
         keep_visible();
         ui_manager::redraw();
         const std::string action = ctxt.handle_input();
-        if( action == "LEFT" ) {
-            select_direction( 0, -1 );
-        } else if( action == "RIGHT" ) {
-            select_direction( 0, 1 );
-        } else if( action == "UP" ) {
-            select_direction( -1, 0 );
-        } else if( action == "DOWN" ) {
-            select_direction( 1, 0 );
-        } else if( action == "PAGE_UP" ) {
-            first_row = std::max( 0, first_row - visible_rows );
-        } else if( action == "PAGE_DOWN" ) {
-            first_row = std::min( std::max( 0, max_row - visible_rows + 1 ),
-                                  first_row + visible_rows );
-        } else if( action == "HOME" ) {
-            selected = 0;
-        } else if( action == "END" ) {
-            selected = static_cast<int>( node_count ) - 1;
-        } else if( action == "NEXT_TAB" ) {
-            return NCMM_UI_TREE_SHOW_CARDS;
-        } else if( action == "CONFIRM" ) {
-            return selected;
-        } else if( action == "QUIT" ) {
-            return NCMM_UI_TREE_CANCEL;
+
+        if( action == "MOUSE_MOVE" || action == "SELECT" ) {
+            const std::optional<point> mouse = ctxt.get_coordinates_text( frame );
+            if( mouse ) {
+                const int hit = node_at( *mouse );
+                if( hit >= 0 ) {
+                    selected = hit;
+                    if( action == "SELECT" ) return selected;
+                }
+            }
+            continue;
         }
+
+        if( action == "LEFT" ) select_direction( 0, -1 );
+        else if( action == "RIGHT" ) select_direction( 0, 1 );
+        else if( action == "UP" || action == "SCROLL_UP" ) select_direction( -1, 0 );
+        else if( action == "DOWN" || action == "SCROLL_DOWN" ) select_direction( 1, 0 );
+        else if( action == "PAGE_UP" ) {
+            for( int i = 0; i < visible_rows; ++i ) select_direction( -1, 0 );
+        } else if( action == "PAGE_DOWN" ) {
+            for( int i = 0; i < visible_rows; ++i ) select_direction( 1, 0 );
+        } else if( action == "HOME" ) selected = 0;
+        else if( action == "END" ) selected = static_cast<int>( node_count ) - 1;
+        else if( action == "NEXT_TAB" ) return NCMM_UI_TREE_SHOW_CARDS;
+        else if( action == "CONFIRM" ) return selected;
+        else if( action == "QUIT" ) return NCMM_UI_TREE_CANCEL;
     }
 }
 

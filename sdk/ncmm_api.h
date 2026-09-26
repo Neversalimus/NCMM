@@ -86,7 +86,8 @@ typedef struct ncmm_ui_tree_edge_v1 {
 
 enum {
     NCMM_UI_TREE_CANCEL = -1,
-    NCMM_UI_TREE_SHOW_CARDS = -2
+    NCMM_UI_TREE_SHOW_CARDS = -2,
+    NCMM_UI_CARD_SHOW_TREE = -2
 };
 
 typedef struct ncmm_host_api_v1 {
