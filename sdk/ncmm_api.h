@@ -19,7 +19,7 @@ extern "C" {
 #define NCMM_ABI_VERSION 1u
 #define NCMM_LOADER_API_VERSION 1u
 #define NCMM_API_VERSION_MAJOR 1u
-#define NCMM_API_VERSION_MINOR 3u
+#define NCMM_API_VERSION_MINOR 4u
 #define NCMM_ENTRYPOINT "ncmm_get_descriptor_v1"
 #define NCMM_LOCALE_ENTRYPOINT "ncmm_on_locale_changed_v1"
 #define NCMM_TURN_ENTRYPOINT "ncmm_on_turn_v1"
@@ -181,6 +181,13 @@ typedef struct ncmm_host_api_v1 {
                              size_t node_count,
                              const ncmm_ui_tree_edge_v1 *edges,
                              size_t edge_count );
+
+    /*
+     * NCMM Host API 1.4 tail.  gameplay.metrics.v1 exposes monotonic,
+     * read-only counters derived from the native CDDA event bus. Modules
+     * persist only their own deltas; the host never writes module state.
+     */
+    int64_t ( *gameplay_metric_get_i64 )( const char *metric_id );
 } ncmm_host_api_v1;
 
 typedef int ( *ncmm_mod_init_v1 )( const ncmm_host_api_v1 *api );

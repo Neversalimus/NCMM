@@ -4,6 +4,9 @@
 #include "ncmm_manifest_policy.h"
 #include "avatar.h"
 #include "game.h"
+#include "event_bus.h"
+#include "event_subscriber.h"
+#include "type_id.h"
 #include "input.h"
 #include "input_context.h"
 #include "options.h"
@@ -16,6 +19,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -72,8 +76,74 @@ std::set<std::string> module_ids;
 std::set<std::string> hotkey_registration_logged;
 std::map<std::string, size_t> manifest_id_counts;
 std::map<std::string, std::map<std::string, double>> character_modifier_values;
+std::map<std::string, int64_t> gameplay_metric_values;
 thread_local std::string active_module_id;
 bool shutdown_registered = false;
+bool gameplay_metrics_subscribed = false;
+
+class gameplay_metric_subscriber : public event_subscriber
+{
+    public:
+        using event_subscriber::notify;
+
+        void notify( const cata::event &e ) override
+        {
+            if( e.type() == event_type::game_load || e.type() == event_type::game_avatar_new ) {
+                gameplay_metric_values.clear();
+                return;
+            }
+            if( g == nullptr ) {
+                return;
+            }
+
+            const character_id avatar_id = get_avatar().getID();
+            switch( e.type() ) {
+                case event_type::character_kills_monster:
+                    if( e.get<character_id>( "killer" ) == avatar_id ) {
+                        ++gameplay_metric_values["combat.kills"];
+                        gameplay_metric_values["combat.kill_xp"] +=
+                            std::max( 0, e.get<int>( "exp" ) );
+                    }
+                    break;
+                case event_type::character_kills_character:
+                    if( e.get<character_id>( "killer" ) == avatar_id ) {
+                        ++gameplay_metric_values["combat.kills"];
+                        gameplay_metric_values["combat.kill_xp"] += 100;
+                    }
+                    break;
+                case event_type::character_heals_damage:
+                    if( e.get<character_id>( "character" ) == avatar_id ) {
+                        gameplay_metric_values["survival.healing"] +=
+                            std::max( 0, e.get<int>( "damage" ) );
+                    }
+                    break;
+                case event_type::avatar_moves:
+                    ++gameplay_metric_values["mobility.steps"];
+                    break;
+                case event_type::avatar_enters_omt:
+                    ++gameplay_metric_values["scavenging.omt"];
+                    break;
+                case event_type::character_finished_activity:
+                    if( e.get<character_id>( "character" ) == avatar_id &&
+                        !e.get<bool>( "canceled" ) ) {
+                        const std::string activity = e.get<activity_id>( "activity" ).str();
+                        if( activity == "ACT_CRAFT" || activity == "ACT_MULTIPLE_CRAFT" ) {
+                            ++gameplay_metric_values["crafting.completed"];
+                        }
+                    }
+                    break;
+                case event_type::gains_skill_level:
+                    if( e.get<character_id>( "character" ) == avatar_id ) {
+                        ++gameplay_metric_values["mastery.skill_levels"];
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+};
+
+gameplay_metric_subscriber gameplay_metrics;
 
 class module_call_scope
 {
@@ -124,6 +194,7 @@ const char *const host_capabilities[] = {
     "ui.tiles.v1",
     "ui.cards.v1",
     "ui.tree.v1",
+    "gameplay.metrics.v1",
     "module_hotkeys.context.v1",
     "module_hotkeys.v1",
     "ingame_manager.v1",
@@ -352,6 +423,15 @@ int character_state_set_i64( const char *module_id, const char *key, int64_t val
     get_avatar().get_values()[character_state_key( module_id, key )] =
         diag_value( std::to_string( value ) );
     return 1;
+}
+
+int64_t gameplay_metric_get_i64( const char *metric_id )
+{
+    if( metric_id == nullptr || active_module_id.empty() ) {
+        return 0;
+    }
+    const auto it = gameplay_metric_values.find( metric_id );
+    return it == gameplay_metric_values.end() ? 0 : std::max<int64_t>( 0, it->second );
 }
 
 int ui_choose( const char *title, const char *const *entries, size_t count )
@@ -756,7 +836,40 @@ int ui_tree_choose( const char *title, const char *summary,
         }
     }
 
-    // The prototype intentionally falls back to the proven cards UI on narrow screens.
+    std::vector<int> layout_x2( node_count, 0 );
+    for( size_t i = 0; i < node_count; ++i ) {
+        layout_x2[i] = nodes[i].column * 2;
+    }
+    for( int pass = 0; pass < 3; ++pass ) {
+        for( size_t i = 0; i < node_count; ++i ) {
+            int parent_count = 0;
+            int parent_min = 1000000;
+            int parent_max = -1000000;
+            size_t single_parent = 0;
+            for( size_t e = 0; e < edge_count; ++e ) {
+                if( edges[e].to_index != i ) {
+                    continue;
+                }
+                const size_t parent = edges[e].from_index;
+                parent_min = std::min( parent_min, layout_x2[parent] );
+                parent_max = std::max( parent_max, layout_x2[parent] );
+                single_parent = parent;
+                ++parent_count;
+            }
+            if( parent_count >= 2 ) {
+                layout_x2[i] = ( parent_min + parent_max ) / 2;
+            } else if( parent_count == 1 &&
+                       nodes[i].column == nodes[single_parent].column ) {
+                layout_x2[i] = layout_x2[single_parent];
+            }
+        }
+    }
+    int max_layout_x2 = 0;
+    for( int x2 : layout_x2 ) {
+        max_layout_x2 = std::max( max_layout_x2, x2 );
+    }
+
+    // Tree mode remains an enhancement; narrow terminals keep the proven cards UI.
     if( TERMX < 118 || TERMY < 28 ) {
         std::vector<ncmm_ui_card_v1> cards;
         cards.reserve( node_count );
@@ -769,22 +882,26 @@ int ui_tree_choose( const char *title, const char *summary,
         return ui_card_choose( title, summary, progress, cards.data(), cards.size(), 2 );
     }
 
-    constexpr int node_width = 20;
-    constexpr int node_height = 4;
-    constexpr int hgap = 3;
+    constexpr int node_width = 24;
+    constexpr int node_height = 5;
+    constexpr int hgap = 2;
     constexpr int vgap = 1;
     constexpr int header_height = 5;
     constexpr int footer_height = 2;
-    constexpr int detail_width = 34;
+    constexpr int detail_width = 42;
 
-    const int logical_tree_width = ( max_col + 1 ) * node_width + max_col * hgap;
-    const int frame_width = std::min( TERMX - 2, logical_tree_width + detail_width + 6 );
+    const int lane_step = node_width + hgap;
+    const int logical_tree_width = node_width + ( max_layout_x2 * lane_step + 1 ) / 2;
+    const int frame_width = std::min( TERMX - 2, logical_tree_width + detail_width + 7 );
     const int canvas_width = frame_width - detail_width - 4;
     const int available_height = TERMY - 2 - header_height - footer_height;
-    const int visible_rows = std::max( 1, available_height / ( node_height + vgap ) );
+    const int max_visible_rows = std::max( 1, ( available_height + vgap ) /
+                                          ( node_height + vgap ) );
+    const int visible_rows = std::min( max_row + 1, max_visible_rows );
+    const int tree_height = visible_rows * node_height +
+                            std::max( 0, visible_rows - 1 ) * vgap;
     const int frame_height = std::min( TERMY - 2,
-                                      header_height + visible_rows * ( node_height + vgap ) +
-                                      footer_height );
+                                      header_height + tree_height + footer_height );
 
     const point origin( ( TERMX - frame_width ) / 2, ( TERMY - frame_height ) / 2 );
     catacurses::window frame = catacurses::newwin( frame_height, frame_width, origin );
@@ -815,7 +932,7 @@ int ui_tree_choose( const char *title, const char *summary,
     };
 
     auto node_x = [&]( size_t i ) {
-        return 2 + nodes[i].column * ( node_width + hgap );
+        return 2 + ( layout_x2[i] * lane_step + 1 ) / 2;
     };
     auto node_y = [&]( size_t i ) {
         return header_height + ( nodes[i].row - first_row ) * ( node_height + vgap );
@@ -829,13 +946,13 @@ int ui_tree_choose( const char *title, const char *summary,
         int best = -1;
         int best_score = 1000000;
         const int sr = nodes[selected].row;
-        const int sc = nodes[selected].column;
+        const int sc = layout_x2[selected];
         for( size_t i = 0; i < node_count; ++i ) {
             if( static_cast<int>( i ) == selected ) {
                 continue;
             }
             const int dr = nodes[i].row - sr;
-            const int dc = nodes[i].column - sc;
+            const int dc = layout_x2[i] - sc;
             if( row_sign < 0 && dr >= 0 ) continue;
             if( row_sign > 0 && dr <= 0 ) continue;
             if( col_sign < 0 && dc >= 0 ) continue;
@@ -877,9 +994,14 @@ int ui_tree_choose( const char *title, const char *summary,
         }
 
         const int divider_x = frame_width - detail_width - 2;
+        for( int x = 1; x < divider_x; ++x ) {
+            mvwprintz( frame, point( x, header_height - 1 ), c_dark_gray, "-" );
+        }
         for( int y = header_height - 1; y < frame_height - footer_height; ++y ) {
             mvwprintz( frame, point( divider_x, y ), c_dark_gray, "|" );
         }
+        trim_and_print( frame, point( divider_x + 2, header_height - 1 ),
+                        detail_width - 3, c_dark_gray, tr_ui( "DETAIL", "ДЕТАЛИ" ) );
 
         // Connections are staged first so node boxes remain visually dominant.
         for( size_t e = 0; e < edge_count; ++e ) {
@@ -893,16 +1015,27 @@ int ui_tree_choose( const char *title, const char *summary,
             const int x2 = node_x( to ) + node_width / 2;
             const int y2 = node_y( to ) - 1;
             const int mid = y1 + std::max( 0, ( y2 - y1 ) / 2 );
+            const bool edge_locked = ( nodes[to].flags & NCMM_UI_CARD_LOCKED ) != 0;
+            const bool edge_owned = ( nodes[to].flags & NCMM_UI_CARD_OWNED ) != 0;
+            const bool edge_major = ( nodes[to].flags & NCMM_UI_CARD_MAJOR ) != 0;
+            const bool edge_effect = ( nodes[to].flags & NCMM_UI_CARD_EFFECT ) != 0;
+            const nc_color edge_color = edge_locked ? c_dark_gray :
+                                        edge_owned ? c_cyan :
+                                        edge_major ? c_yellow :
+                                        edge_effect ? c_magenta : c_light_gray;
             for( int y = y1; y <= mid && y < frame_height - footer_height; ++y ) {
-                mvwprintz( frame, point( x1, y ), c_dark_gray, "|" );
+                mvwprintz( frame, point( x1, y ), edge_color, "|" );
             }
             const int left = std::min( x1, x2 );
             const int right = std::max( x1, x2 );
             for( int x = left; x <= right && x < divider_x; ++x ) {
-                mvwprintz( frame, point( x, mid ), c_dark_gray, "-" );
+                mvwprintz( frame, point( x, mid ), edge_color, "-" );
             }
             for( int y = mid; y <= y2 && y < frame_height - footer_height; ++y ) {
-                mvwprintz( frame, point( x2, y ), c_dark_gray, "|" );
+                mvwprintz( frame, point( x2, y ), edge_color, "|" );
+            }
+            if( y2 >= header_height && y2 < frame_height - footer_height ) {
+                mvwprintz( frame, point( x2, y2 ), edge_color, "v" );
             }
         }
 
@@ -936,6 +1069,9 @@ int ui_tree_choose( const char *title, const char *summary,
             trim_and_print( frame, point( x + 2, y + 1 ), node_width - 4,
                             text_color, nodes[i].title ? nodes[i].title : "" );
             trim_and_print( frame, point( x + 2, y + 2 ), node_width - 4,
+                            locked ? c_dark_gray : c_light_gray,
+                            nodes[i].subtitle ? nodes[i].subtitle : "" );
+            trim_and_print( frame, point( x + 2, y + 3 ), node_width - 4,
                             major ? c_yellow : effect ? c_magenta :
                             owned ? c_cyan : locked ? c_dark_gray : c_green,
                             nodes[i].badge ? nodes[i].badge : "" );
@@ -1066,7 +1202,8 @@ const ncmm_host_api_v1 api = {
     &get_api_version_minor,
     &ui_tile_choose,
     &ui_card_choose,
-    &ui_tree_choose
+    &ui_tree_choose,
+    &gameplay_metric_get_i64
 };
 
 std::string read_text_file( const std::filesystem::path &path )
@@ -1952,7 +2089,12 @@ void initialize()
     hotkey_registration_logged.clear();
     manifest_id_counts.clear();
     character_modifier_values.clear();
-    log_line( NCMM_LOG_INFO, "NCMM 0.7.2 Host API 1.2 / Module Contract v1 initializing." );
+    gameplay_metric_values.clear();
+    if( !gameplay_metrics_subscribed ) {
+        get_event_bus().subscribe( &gameplay_metrics );
+        gameplay_metrics_subscribed = true;
+    }
+    log_line( NCMM_LOG_INFO, "NCMM 0.7.2 Host API 1.4 / gameplay.metrics.v1 initializing." );
 
     if( !shutdown_registered ) {
         std::atexit( &shutdown );

@@ -15,7 +15,7 @@
 namespace
 {
 const char *const module_id = "survivor_progression";
-constexpr int state_schema = 4;
+constexpr int state_schema = 5;
 
 const char *required_caps[] = {
     "core.v1",
@@ -28,6 +28,7 @@ const char *required_caps[] = {
     "ui.tiles.v1",
     "ui.cards.v1",
     "ui.tree.v1",
+    "gameplay.metrics.v1",
     "module_hotkeys.context.v1",
     "module_hotkeys.v1",
     "api.versioning.v1",
@@ -352,6 +353,70 @@ std::string branch_focus( branch_id branch )
     }
     return {};
 }
+const std::array<branch_id, 6> all_branches = {
+    branch_id::combat, branch_id::survival, branch_id::mobility,
+    branch_id::crafting, branch_id::scavenging, branch_id::mastery
+};
+
+const char *branch_tag( branch_id branch )
+{
+    switch( branch ) {
+        case branch_id::combat: return "combat";
+        case branch_id::survival: return "survival";
+        case branch_id::mobility: return "mobility";
+        case branch_id::crafting: return "crafting";
+        case branch_id::scavenging: return "scavenging";
+        case branch_id::mastery: return "mastery";
+    }
+    return "unknown";
+}
+
+std::string branch_state_key( branch_id branch, const char *suffix )
+{
+    return std::string( "b_" ) + branch_tag( branch ) + "_" + suffix;
+}
+
+int64_t branch_xp_to_next( int64_t level )
+{
+    level = std::max<int64_t>( 1, level );
+    const long double required = 20.0L + static_cast<long double>( level - 1 ) * 10.0L;
+    return required >= 1000000.0L ? 1000000 : static_cast<int64_t>( required );
+}
+
+int64_t branch_level( branch_id branch )
+{
+    return std::max<int64_t>( 1, get_state( branch_state_key( branch, "level" ), 1 ) );
+}
+
+int64_t branch_xp( branch_id branch )
+{
+    return std::max<int64_t>( 0, get_state( branch_state_key( branch, "xp" ), 0 ) );
+}
+
+std::string branch_xp_source( branch_id branch )
+{
+    switch( branch ) {
+        case branch_id::combat:
+            return tr( "Kills; dangerous targets are worth more.",
+                       "Убийства; опасные цели дают больше опыта." );
+        case branch_id::survival:
+            return tr( "Real damage healed.",
+                       "Фактически восстановленное здоровье." );
+        case branch_id::mobility:
+            return tr( "Active movement over the map.",
+                       "Активное перемещение по карте." );
+        case branch_id::crafting:
+            return tr( "Successfully completed crafting activities.",
+                       "Успешно завершённый крафт." );
+        case branch_id::scavenging:
+            return tr( "Entering overmap tiles while exploring.",
+                       "Переходы между клетками глобальной карты." );
+        case branch_id::mastery:
+            return tr( "Skill level-ups plus 10% of other branch XP.",
+                       "Рост навыков плюс 10% опыта остальных веток." );
+    }
+    return {};
+}
 
 int branch_owned_count( branch_id branch )
 {
@@ -610,6 +675,29 @@ void migrate_state()
     }
     set_state( "major_awarded", major_awarded );
 
+    for( branch_id branch : all_branches ) {
+        set_state( branch_state_key( branch, "level" ),
+                   std::max<int64_t>( 1, get_state( branch_state_key( branch, "level" ), 1 ) ) );
+        set_state( branch_state_key( branch, "xp" ),
+                   std::max<int64_t>( 0, get_state( branch_state_key( branch, "xp" ), 0 ) ) );
+    }
+    for( const char *key : {
+             "metric_combat_kills", "metric_combat_kill_xp", "metric_survival_healing",
+             "metric_mobility_steps", "metric_crafting_completed", "metric_scavenging_omt",
+             "metric_mastery_skill_levels"
+         } ) {
+        if( get_state( key, std::numeric_limits<int64_t>::min() ) ==
+            std::numeric_limits<int64_t>::min() ) {
+            set_state( key, -1 );
+        }
+    }
+    set_state( "survival_heal_remainder",
+               std::max<int64_t>( 0, get_state( "survival_heal_remainder", 0 ) ) );
+    set_state( "mobility_step_remainder",
+               std::max<int64_t>( 0, get_state( "mobility_step_remainder", 0 ) ) );
+    set_state( "mastery_share_fraction",
+               std::max<int64_t>( 0, get_state( "mastery_share_fraction", 0 ) ) % 100 );
+
     set_state( "schema", state_schema );
     effects_dirty = true;
 }
@@ -762,35 +850,20 @@ struct tree_node_text {
     int column = 0;
 };
 
-std::pair<int, int> survival_tree_position( const std::string &id )
+std::pair<int, int> branch_tree_position( size_t branch_index )
 {
-    static const std::map<std::string, std::pair<int, int>> positions = {
-        { "s_hardy", { 0, 0 } },
-        { "s_field", { 0, 2 } },
-        { "s_pack", { 1, 0 } },
-        { "s_resilient", { 1, 2 } },
-        { "s_endurance", { 2, 0 } },
-        { "s_instinct", { 2, 2 } },
-        { "s_ironback", { 3, 0 } },
-        { "s_recovery", { 3, 2 } },
-        { "s_survivor", { 4, 1 } },
-        { "s_unbreakable", { 5, 1 } },
-
-        { "se_lessons", { 0, 3 } },
-        { "se_routine", { 1, 3 } },
-        { "se_reserves", { 2, 3 } },
-        { "se_adaptive", { 3, 3 } },
-        { "se_anchor", { 4, 3 } },
-        { "se_memory", { 5, 3 } },
-        { "se_hardened", { 6, 3 } },
-        { "se_grit", { 7, 3 } },
-        { "se_carried", { 8, 3 } },
-        { "se_indomitable", { 9, 3 } }
-    };
-    const auto it = positions.find( id );
-    return it == positions.end() ? std::make_pair( 0, 0 ) : it->second;
+    // Every branch currently has 10 core perks followed by 10 effect perks.
+    // Core tiers form two parallel lanes, converge on the T5 keystone and
+    // continue into T6. The host automatically centres convergence nodes.
+    if( branch_index >= 10 ) {
+        return { static_cast<int>( branch_index - 10 ), 2 };
+    }
+    if( branch_index < 8 ) {
+        return { static_cast<int>( branch_index / 2 ),
+                 static_cast<int>( branch_index % 2 ) };
+    }
+    return { static_cast<int>( branch_index - 4 ), 0 };
 }
-
 std::vector<ncmm_ui_tree_node_v1> bind_tree_nodes( std::vector<tree_node_text> &texts )
 {
     std::vector<ncmm_ui_tree_node_v1> result;
@@ -827,7 +900,7 @@ std::string branch_icon_key( branch_id branch )
 
 void show_branch( branch_id branch )
 {
-    bool tree_mode = branch == branch_id::survival;
+    bool tree_mode = true;
 
     while( true ) {
         const int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
@@ -893,16 +966,22 @@ void show_branch( branch_id branch )
             " | P " + std::to_string( perk_points ) +
             " | M " + std::to_string( major_points );
 
+        const int64_t blevel = branch_level( branch );
+        const int64_t bxp = branch_xp( branch );
+        const int64_t bnext = branch_xp_to_next( blevel );
+        summary += tr( " | branch L", " | ветка ур." ) + std::to_string( blevel ) +
+                   " XP " + std::to_string( bxp ) + "/" + std::to_string( bnext );
+
         std::string progress_label =
-            branch_name( branch ) + "  " + std::to_string( owned_now ) + "/" +
-            std::to_string( total_now );
+            branch_name( branch ) + tr( " XP -> L", " XP -> ур." ) +
+            std::to_string( blevel + 1 );
         ncmm_ui_progress_v1 progress{
             progress_label.c_str(),
-            owned_now,
-            std::max( 1, total_now )
+            bxp,
+            bnext
         };
 
-        if( branch == branch_id::survival && tree_mode && host->ui_tree_choose ) {
+        if( tree_mode && host->ui_tree_choose ) {
             std::vector<tree_node_text> tree_texts;
             tree_texts.reserve( branch_perks.size() );
             std::map<std::string, size_t> index_by_id;
@@ -912,7 +991,7 @@ void show_branch( branch_id branch )
                 tree_node_text node;
                 node.card = texts[i];
                 node.card.body += "\n" + tr( "Prerequisites: ", "Требования: " ) + prereq_text( perk );
-                const std::pair<int, int> position = survival_tree_position( perk.id );
+                const std::pair<int, int> position = branch_tree_position( i );
                 node.row = position.first;
                 node.column = position.second;
                 index_by_id[perk.id] = i;
@@ -936,8 +1015,8 @@ void show_branch( branch_id branch )
 
             std::vector<ncmm_ui_tree_node_v1> nodes = bind_tree_nodes( tree_texts );
             const std::string tree_summary =
-                summary + tr( " | TREE PROTOTYPE | Tab: cards",
-                              " | ДЕРЕВО-ПРОТОТИП | Tab: карточки" );
+                summary + tr( " | Tree | Tab: cards",
+                              " | Дерево | Tab: карточки" );
             const int choice = host->ui_tree_choose(
                                    title.c_str(), tree_summary.c_str(), &progress,
                                    nodes.data(), nodes.size(), edges.data(), edges.size() );
@@ -972,7 +1051,7 @@ void show_overview()
     const int normal_owned = owned_count( currency_id::perk );
     const int major_owned = owned_count( currency_id::major );
 
-    std::string out = "Survivor Progression v0.9.2\n";
+    std::string out = "Survivor Progression v0.9.5\n";
     out += tr( "Level ", "Уровень " ) + std::to_string( level );
     out += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
     out += "\nP " + std::to_string( perk_points ) + " | M " + std::to_string( major_points );
@@ -983,7 +1062,11 @@ void show_overview()
 
     for( branch_id branch : { branch_id::combat, branch_id::survival, branch_id::mobility,
                               branch_id::crafting, branch_id::scavenging, branch_id::mastery } ) {
-        out += "\n" + branch_name( branch ) + ": " +
+        const int64_t blevel = branch_level( branch );
+        out += "\n" + branch_name( branch ) + ": L" +
+               std::to_string( blevel ) + " XP " +
+               std::to_string( branch_xp( branch ) ) + "/" +
+               std::to_string( branch_xp_to_next( blevel ) ) + " | perks " +
                std::to_string( branch_owned_count( branch ) ) + "/" +
                std::to_string( branch_total_count( branch ) );
     }
@@ -1086,13 +1169,15 @@ void open_progression()
             card_text card;
             card.id = branch_name_en( branch );
             card.title = branch_name( branch );
+            const int64_t blevel = branch_level( branch );
+            const int64_t bxp = branch_xp( branch );
+            const int64_t bnext = branch_xp_to_next( blevel );
             card.subtitle =
-                std::to_string( branch_owned_count( branch ) ) + "/" +
-                std::to_string( branch_total_count( branch ) ) +
-                tr( " purchased | ", " куплено | " ) +
-                std::to_string( branch_unlocked_count( branch, level ) ) +
-                tr( " available", " доступно" );
-            card.body = branch_focus( branch );
+                tr( "Branch L", "Ветка ур." ) + std::to_string( blevel ) +
+                " | XP " + std::to_string( bxp ) + "/" + std::to_string( bnext ) +
+                " | " + std::to_string( branch_owned_count( branch ) ) + "/" +
+                std::to_string( branch_total_count( branch ));
+            card.body = branch_focus( branch ) + "\n" + branch_xp_source( branch );
             card.badge = tr( "BRANCH", "ВЕТКА" );
             card.icon_key = branch_icon_key( branch );
             card.flags = NCMM_UI_CARD_ACCENT;
@@ -1132,7 +1217,7 @@ void open_progression()
         const int total_owned = owned_count( currency_id::perk ) + owned_count( currency_id::major );
         const int total_perks = static_cast<int>( sizeof( perks ) / sizeof( perks[0] ) );
 
-        std::string title = "Survivor Progression v0.9.4";
+        std::string title = "Survivor Progression v0.9.5";
         std::string summary =
             tr( "Level ", "Уровень " ) + std::to_string( level ) +
             " | P " + std::to_string( perk_points ) +
@@ -1165,24 +1250,28 @@ void open_progression()
         }
     }
 }
-void award_minute_xp()
+void award_global_xp( int64_t raw_gained )
 {
-    if( !character_available() ) {
+    if( raw_gained <= 0 || !character_available() ) {
         return;
     }
 
-    int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
-
     int64_t fraction = get_state( "xp_fraction", 0 );
-    fraction += 100 + current_xp_bonus_pct;
+    const int64_t multiplier = std::max<int64_t>( 0, 100 + current_xp_bonus_pct );
+    if( raw_gained > ( std::numeric_limits<int64_t>::max() - fraction ) /
+        std::max<int64_t>( 1, multiplier ) ) {
+        raw_gained = ( std::numeric_limits<int64_t>::max() - fraction ) /
+                     std::max<int64_t>( 1, multiplier );
+    }
+    fraction += raw_gained * multiplier;
     int64_t gained = fraction / 100;
     fraction %= 100;
     set_state( "xp_fraction", fraction );
-
     if( gained <= 0 ) {
         return;
     }
 
+    int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
     int64_t xp = std::max<int64_t>( 0, get_state( "xp", 0 ) ) + gained;
     int64_t perk_points = get_state( "perk_points", 0 );
     int64_t major_points = get_state( "major_points", 0 );
@@ -1216,10 +1305,105 @@ void award_minute_xp()
             text += tr( " +", " +" ) + std::to_string( majors_gained ) +
                     tr( " major point(s).", " больших очк." );
         }
-        text += tr( " Open Survivor Progression to spend them.",
-                    " Откройте Survivor Progression, чтобы потратить их." );
         message( text );
     }
+}
+
+int64_t award_branch_xp( branch_id branch, int64_t gained )
+{
+    if( gained <= 0 ) {
+        return 0;
+    }
+
+    int64_t level = branch_level( branch );
+    int64_t xp = branch_xp( branch ) + gained;
+    while( xp >= branch_xp_to_next( level ) &&
+           level < std::numeric_limits<int64_t>::max() ) {
+        xp -= branch_xp_to_next( level );
+        ++level;
+    }
+    set_state( branch_state_key( branch, "level" ), level );
+    set_state( branch_state_key( branch, "xp" ), xp );
+
+    // Branch activity is the canonical source of global Survivor XP in 0.9.5.
+    // XP perks modify only global Survivor XP, never branch specialization XP.
+    award_global_xp( gained );
+    return gained;
+}
+
+int64_t metric_now( const char *metric )
+{
+    return host && host->gameplay_metric_get_i64 ?
+           std::max<int64_t>( 0, host->gameplay_metric_get_i64( metric ) ) : 0;
+}
+
+void prime_metric_baselines()
+{
+    const std::array<std::pair<const char *, const char *>, 7> metrics = {{
+        { "combat.kills", "metric_combat_kills" },
+        { "combat.kill_xp", "metric_combat_kill_xp" },
+        { "survival.healing", "metric_survival_healing" },
+        { "mobility.steps", "metric_mobility_steps" },
+        { "crafting.completed", "metric_crafting_completed" },
+        { "scavenging.omt", "metric_scavenging_omt" },
+        { "mastery.skill_levels", "metric_mastery_skill_levels" }
+    }};
+    for( const auto &entry : metrics ) {
+        set_state( entry.second, metric_now( entry.first ) );
+    }
+}
+
+int64_t metric_delta( const char *metric, const char *baseline_key )
+{
+    const int64_t now = metric_now( metric );
+    const int64_t before = get_state( baseline_key, -1 );
+    set_state( baseline_key, now );
+    if( before < 0 || now < before ) {
+        return 0;
+    }
+    return now - before;
+}
+
+void poll_branch_xp()
+{
+    const int64_t kills = metric_delta( "combat.kills", "metric_combat_kills" );
+    const int64_t kill_xp = metric_delta( "combat.kill_xp", "metric_combat_kill_xp" );
+    int64_t combat_gain = std::max<int64_t>( kills, ( kill_xp + 49 ) / 50 );
+    combat_gain = std::min<int64_t>( combat_gain, 25 );
+
+    int64_t healing = metric_delta( "survival.healing", "metric_survival_healing" );
+    healing += get_state( "survival_heal_remainder", 0 );
+    int64_t survival_gain = std::min<int64_t>( healing / 10, 8 );
+    set_state( "survival_heal_remainder", healing % 10 );
+
+    int64_t steps = metric_delta( "mobility.steps", "metric_mobility_steps" );
+    steps += get_state( "mobility_step_remainder", 0 );
+    int64_t mobility_gain = std::min<int64_t>( steps / 150, 3 );
+    set_state( "mobility_step_remainder", steps % 150 );
+
+    const int64_t crafts = metric_delta( "crafting.completed", "metric_crafting_completed" );
+    const int64_t crafting_gain = std::min<int64_t>( crafts * 3, 12 );
+
+    const int64_t omts = metric_delta( "scavenging.omt", "metric_scavenging_omt" );
+    const int64_t scavenging_gain = std::min<int64_t>( omts * 4, 8 );
+
+    const int64_t skill_levels = metric_delta( "mastery.skill_levels",
+                                               "metric_mastery_skill_levels" );
+    int64_t mastery_gain = std::min<int64_t>( skill_levels * 6, 18 );
+
+    int64_t activity_total = 0;
+    activity_total += award_branch_xp( branch_id::combat, combat_gain );
+    activity_total += award_branch_xp( branch_id::survival, survival_gain );
+    activity_total += award_branch_xp( branch_id::mobility, mobility_gain );
+    activity_total += award_branch_xp( branch_id::crafting, crafting_gain );
+    activity_total += award_branch_xp( branch_id::scavenging, scavenging_gain );
+
+    int64_t mastery_fraction = get_state( "mastery_share_fraction", 0 );
+    mastery_fraction += activity_total * 10;
+    mastery_gain += mastery_fraction / 100;
+    mastery_fraction %= 100;
+    set_state( "mastery_share_fraction", mastery_fraction );
+    award_branch_xp( branch_id::mastery, mastery_gain );
 }
 
 void tick()
@@ -1238,6 +1422,7 @@ void tick()
     if( !last_character_available ) {
         last_character_available = true;
         migrate_state();
+        prime_metric_baselines();
         effects_dirty = true;
     }
     if( effects_dirty ) {
@@ -1249,9 +1434,8 @@ void tick()
         return;
     }
     turn_accumulator -= 60;
-    award_minute_xp();
+    poll_branch_xp();
 }
-
 int init( const ncmm_host_api_v1 *api )
 {
     if( api == nullptr || api->abi_version != NCMM_ABI_VERSION ) {
@@ -1271,13 +1455,13 @@ int init( const ncmm_host_api_v1 *api )
         !api->character_state_set_i64 || !api->character_modifier_set ||
         !api->character_modifier_clear_module || !api->ui_choose || !api->ui_tile_choose ||
         !api->ui_card_choose || !api->ui_tree_choose ||
-        !api->ui_message ) {
+        !api->gameplay_metric_get_i64 || !api->ui_message ) {
         return 0;
     }
 
     host = api;
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.9.4 initialized: unbounded levels / 120 perks / 6 branches." );
+              "Survivor Progression 0.9.5 initialized: event-driven branch XP / 120 perks / 6 full trees." );
     return 1;
 }
 
@@ -1295,7 +1479,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     module_id,
     "Survivor Progression",
-    "0.9.4",
+    "0.9.5",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,
