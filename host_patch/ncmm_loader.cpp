@@ -1076,23 +1076,128 @@ int ui_tree_choose( const char *title, const char *summary,
         ncmm_trim_and_print_literal( frame, point( divider_x + 2, header_height - 1 ),
                                     detail_width - 3, c_dark_gray, tr_ui( "DETAIL", "ДЕТАЛИ" ) );
 
+        // Build dependency connectors as a real box-drawing graph.  Each cell
+        // stores N/E/S/W connectivity; shared paths become proper corners,
+        // tees and crossings instead of overlapping ASCII '-'/'|' characters.
+        constexpr int edge_n = 1;
+        constexpr int edge_e = 2;
+        constexpr int edge_s = 4;
+        constexpr int edge_w = 8;
+        const int grid_size = frame_width * frame_height;
+        std::vector<int> edge_mask( static_cast<size_t>( grid_size ), 0 );
+        std::vector<int> edge_style( static_cast<size_t>( grid_size ), 0 );
+
+        auto grid_index = [&]( int x, int y ) {
+            return y * frame_width + x;
+        };
+        auto mark_dir = [&]( int x, int y, int dir, int style ) {
+            if( x <= 0 || x >= divider_x || y < header_height ||
+                y >= frame_height - footer_height ) {
+                return;
+            }
+            const int index = grid_index( x, y );
+            edge_mask[index] |= dir;
+            edge_style[index] = std::max( edge_style[index], style );
+        };
+        auto connect_cells = [&]( int ax, int ay, int bx, int by, int style ) {
+            if( ax == bx && by == ay + 1 ) {
+                mark_dir( ax, ay, edge_s, style );
+                mark_dir( bx, by, edge_n, style );
+            } else if( ax == bx && by == ay - 1 ) {
+                mark_dir( ax, ay, edge_n, style );
+                mark_dir( bx, by, edge_s, style );
+            } else if( ay == by && bx == ax + 1 ) {
+                mark_dir( ax, ay, edge_e, style );
+                mark_dir( bx, by, edge_w, style );
+            } else if( ay == by && bx == ax - 1 ) {
+                mark_dir( ax, ay, edge_w, style );
+                mark_dir( bx, by, edge_e, style );
+            }
+        };
+        auto style_for_node = [&]( size_t i ) {
+            if( nodes[i].flags & NCMM_UI_CARD_OWNED ) return 4;
+            if( nodes[i].flags & NCMM_UI_CARD_MAJOR ) return 3;
+            if( nodes[i].flags & NCMM_UI_CARD_EFFECT ) return 2;
+            if( nodes[i].flags & NCMM_UI_CARD_LOCKED ) return 0;
+            return 1;
+        };
+        auto color_for_style = [&]( int style ) {
+            switch( style ) {
+                case 4: return c_cyan;
+                case 3: return c_yellow;
+                case 2: return c_magenta;
+                case 1: return c_light_gray;
+                default: return c_dark_gray;
+            }
+        };
+        auto glyph_for_mask = [&]( int mask ) -> int {
+            const bool n = ( mask & edge_n ) != 0;
+            const bool e = ( mask & edge_e ) != 0;
+            const bool s = ( mask & edge_s ) != 0;
+            const bool w = ( mask & edge_w ) != 0;
+            if( n && e && s && w ) return LINE_XXXX;
+            if( n && e && s ) return LINE_XXXO;
+            if( n && e && w ) return LINE_XXOX;
+            if( n && s && w ) return LINE_XOXX;
+            if( e && s && w ) return LINE_OXXX;
+            if( n && e ) return LINE_XXOO;
+            if( e && s ) return LINE_OXXO;
+            if( s && w ) return LINE_OOXX;
+            if( n && w ) return LINE_XOOX;
+            if( n || s ) return LINE_XOXO;
+            return LINE_OXOX;
+        };
+
+        std::vector<bool> has_incoming( node_count, false );
+        std::vector<bool> has_outgoing( node_count, false );
+
         for( size_t e = 0; e < edge_count; ++e ) {
             const size_t from = edges[e].from_index;
             const size_t to = edges[e].to_index;
             if( !visible( from ) || !visible( to ) ) continue;
+
+            has_outgoing[from] = true;
+            has_incoming[to] = true;
+
             const int x1 = node_x( from ) + node_width / 2;
             const int y1 = node_y( from ) + node_height;
             const int x2 = node_x( to ) + node_width / 2;
             const int y2 = node_y( to ) - 1;
-            const int mid = y1 + std::max( 0, ( y2 - y1 ) / 2 );
-            const bool locked = ( nodes[to].flags & NCMM_UI_CARD_LOCKED ) != 0;
-            const nc_color edge_color = locked ? c_dark_gray : c_light_gray;
-            for( int y = y1; y <= mid && y < frame_height - footer_height; ++y )
-                mvwprintz( frame, point( x1, y ), edge_color, "|" );
-            for( int x = std::min( x1, x2 ); x <= std::max( x1, x2 ) && x < divider_x; ++x )
-                mvwprintz( frame, point( x, mid ), edge_color, "-" );
-            for( int y = mid; y <= y2 && y < frame_height - footer_height; ++y )
-                mvwprintz( frame, point( x2, y ), edge_color, "|" );
+            if( y2 < y1 ) continue;
+
+            const int mid = y1 + ( y2 - y1 ) / 2;
+            const int style = style_for_node( to );
+
+            // Seed endpoints as vertical line cells.
+            mark_dir( x1, y1, edge_n | edge_s, style );
+            mark_dir( x2, y2, edge_n | edge_s, style );
+
+            int cx = x1;
+            int cy = y1;
+            while( cy < mid ) {
+                connect_cells( cx, cy, cx, cy + 1, style );
+                ++cy;
+            }
+            while( cx != x2 ) {
+                const int nx = cx + ( x2 > cx ? 1 : -1 );
+                connect_cells( cx, cy, nx, cy, style );
+                cx = nx;
+            }
+            while( cy < y2 ) {
+                connect_cells( cx, cy, cx, cy + 1, style );
+                ++cy;
+            }
+        }
+
+        for( int y = header_height; y < frame_height - footer_height; ++y ) {
+            for( int x = 1; x < divider_x; ++x ) {
+                const int index = grid_index( x, y );
+                if( edge_mask[index] == 0 ) continue;
+                const nc_color color = color_for_style( edge_style[index] );
+                wattron( frame, color );
+                mvwaddch( frame, point( x, y ), glyph_for_mask( edge_mask[index] ) );
+                wattroff( frame, color );
+            }
         }
 
         for( size_t i = 0; i < node_count; ++i ) {
@@ -1111,13 +1216,24 @@ int ui_tree_choose( const char *title, const char *summary,
             const nc_color text_color = locked ? c_dark_gray :
                                         active ? c_white : c_light_gray;
 
-            std::string horizontal( static_cast<size_t>( node_width - 2 ), '-' );
-            mvwprintz( frame, point( x, y ), border, "+" + horizontal + "+" );
-            for( int line = 1; line < node_height - 1; ++line ) {
-                mvwprintz( frame, point( x, y + line ), border, "|" );
-                mvwprintz( frame, point( x + node_width - 1, y + line ), border, "|" );
+            wattron( frame, border );
+            mvwhline( frame, point( x + 1, y ), LINE_OXOX, node_width - 2 );
+            mvwhline( frame, point( x + 1, y + node_height - 1 ), LINE_OXOX, node_width - 2 );
+            mvwvline( frame, point( x, y + 1 ), LINE_XOXO, node_height - 2 );
+            mvwvline( frame, point( x + node_width - 1, y + 1 ), LINE_XOXO, node_height - 2 );
+            mvwaddch( frame, point( x, y ), LINE_OXXO );
+            mvwaddch( frame, point( x + node_width - 1, y ), LINE_OOXX );
+            mvwaddch( frame, point( x, y + node_height - 1 ), LINE_XXOO );
+            mvwaddch( frame, point( x + node_width - 1, y + node_height - 1 ), LINE_XOOX );
+
+            const int center_x = x + node_width / 2;
+            if( has_incoming[i] ) {
+                mvwaddch( frame, point( center_x, y ), LINE_XXOX );
             }
-            mvwprintz( frame, point( x, y + node_height - 1 ), border, "+" + horizontal + "+" );
+            if( has_outgoing[i] ) {
+                mvwaddch( frame, point( center_x, y + node_height - 1 ), LINE_OXXX );
+            }
+            wattroff( frame, border );
 
             const std::vector<std::string> title_lines =
                 foldstring( nodes[i].title ? nodes[i].title : "", node_width - 4 );

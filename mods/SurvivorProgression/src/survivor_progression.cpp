@@ -1185,7 +1185,7 @@ void show_overview()
     const int normal_owned = owned_count( currency_id::perk );
     const int major_owned = owned_count( currency_id::major );
 
-    std::string out = "Survivor Progression v0.9.8\n";
+    std::string out = "Survivor Progression v0.9.9\n";
     out += tr( "Level ", "Уровень " ) + std::to_string( level );
     out += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
     out += "\nP " + std::to_string( perk_points ) + " | M " + std::to_string( major_points );
@@ -1352,7 +1352,7 @@ void open_progression()
         const int total_owned = owned_count( currency_id::perk ) + owned_count( currency_id::major );
         const int total_perks = static_cast<int>( sizeof( perks ) / sizeof( perks[0] ) );
 
-        std::string title = "Survivor Progression v0.9.8";
+        std::string title = "Survivor Progression v0.9.9";
         std::string summary =
             tr( "Level ", "Уровень " ) + std::to_string( level ) +
             " | P " + std::to_string( perk_points ) +
@@ -1598,7 +1598,7 @@ int init( const ncmm_host_api_v1 *api )
 
     host = api;
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.9.8 initialized: anti-farm branch XP / 120 perks / 6 integrated RPG trees." );
+              "Survivor Progression 0.9.9 initialized: anti-farm branch XP / 120 perks / 6 integrated RPG trees." );
     return 1;
 }
 
@@ -1616,7 +1616,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     module_id,
     "Survivor Progression",
-    "0.9.8",
+    "0.9.9",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,
