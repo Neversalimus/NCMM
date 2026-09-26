@@ -161,66 +161,66 @@ const perk_def perks[] = {
     { "a_paragon", branch_id::mastery, 5, 20, currency_id::major, "a_growth", "a_polymath", "Paragon", "Образец", "+1 STR, +1 DEX, +1 PER, +1 INT", "+1 ко всем основным характеристикам", {{ { "str_flat", 1 }, { "dex_flat", 1 }, { "per_flat", 1 }, { "int_flat", 1 } }}, 4, 0 },
     { "a_transcendent", branch_id::mastery, 6, 30, currency_id::major, "a_paragon", "", "Transcendent Survivor", "Совершенный выживший", "+50% XP, +3% speed, +10% stamina, +10% healing", "+50% опыта, +3% скорость, +10% выносливость, +10% лечение", {{ { "speed_pct", 3 }, { "stamina_max_pct", 10 }, { "healing_pct", 10 }, { nullptr, 0.0 } }}, 3, 50 }
 ,
-    { "ce_rhythm", branch_id::combat, 1, 3, currency_id::perk, "", "", "Combat Rhythm", "Боевой ритм", "Combat stat perks are 5% stronger.", "Статовые боевые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 5, 0 },
-    { "ce_drills", branch_id::combat, 1, 6, currency_id::perk, "ce_rhythm", "", "Drilled Reflexes", "Отработанные рефлексы", "+0.25 dodge and +0.25 melee hit.", "+0,25 уклонения и +0,25 точности ближнего боя.", {{ { "dodge_flat", 0.25 }, { "melee_hit_flat", 0.25 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
-    { "ce_reserve", branch_id::combat, 2, 9, currency_id::perk, "ce_drills", "", "Reserve Under Fire", "Резерв под огнём", "+2% max stamina per active Survivor branch.", "+2% максимума выносливости за каждую активную ветку Survivor.", {{ { "stamina_max_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "ce_lessons", branch_id::combat, 2, 12, currency_id::perk, "ce_reserve", "", "Lessons of Violence", "Уроки боя", "+4% Survivor XP per owned major perk.", "+4% опыта Survivor за каждый купленный большой перк.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 4, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
-    { "ce_tactics", branch_id::combat, 3, 15, currency_id::major, "ce_lessons", "", "Tactical Integration", "Тактическая интеграция", "Combat stat perks are another 10% stronger.", "Статовые боевые перки ещё на 10% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 10, 0 },
-    { "ce_pressure", branch_id::combat, 3, 18, currency_id::perk, "ce_tactics", "", "Relentless Pressure", "Непрерывный натиск", "+1% speed per active Survivor branch.", "+1% скорости за каждую активную ветку Survivor.", {{ { "speed_pct", 1 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "ce_memory", branch_id::combat, 4, 22, currency_id::perk, "ce_pressure", "", "Battle Memory", "Боевая память", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "ce_refined", branch_id::combat, 4, 26, currency_id::perk, "ce_memory", "", "Refined Drills", "Отточенная подготовка", "+0.5 melee hit and +0.5 dodge.", "+0,5 точности ближнего боя и +0,5 уклонения.", {{ { "melee_hit_flat", 0.5 }, { "dodge_flat", 0.5 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
-    { "ce_veteran_reflex", branch_id::combat, 5, 32, currency_id::perk, "ce_refined", "", "Veteran Reflex", "Рефлекс ветерана", "+3% speed, +5% max stamina, +0.25 dodge.", "+3% скорости, +5% выносливости, +0,25 уклонения.", {{ { "speed_pct", 3 }, { "stamina_max_pct", 5 }, { "dodge_flat", 0.25 }, { nullptr, 0.0 } }}, 3, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
-    { "ce_warmaster", branch_id::combat, 6, 40, currency_id::major, "ce_veteran_reflex", "", "Warmaster", "Воевода", "All stat perks are 5% stronger.", "Все статовые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
-    { "se_lessons", branch_id::survival, 1, 3, currency_id::perk, "", "", "Hard Lessons", "Тяжёлые уроки", "Survival stat perks are 5% stronger.", "Статовые перки выживания на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 5, 0 },
-    { "se_routine", branch_id::survival, 1, 6, currency_id::perk, "se_lessons", "", "Survival Routine", "Режим выживания", "+5% healing per active Survivor branch.", "+5% лечения за каждую активную ветку Survivor.", {{ { "healing_pct", 5 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "se_reserves", branch_id::survival, 2, 9, currency_id::perk, "se_routine", "", "Deep Reserves", "Глубокие резервы", "+2% max stamina per active Survivor branch.", "+2% выносливости за каждую активную ветку Survivor.", {{ { "stamina_max_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "se_adaptive", branch_id::survival, 2, 12, currency_id::perk, "se_reserves", "", "Adaptive Survivor", "Адаптивный выживший", "+4% Survivor XP per owned major perk.", "+4% опыта Survivor за каждый большой перк.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 4, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
-    { "se_anchor", branch_id::survival, 3, 15, currency_id::major, "se_adaptive", "", "Anchor Point", "Точка опоры", "Survival stat perks are another 10% stronger.", "Статовые перки выживания ещё на 10% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 10, 0 },
-    { "se_memory", branch_id::survival, 3, 18, currency_id::perk, "se_anchor", "", "Long Memory", "Долгая память", "+3% carry capacity per active Survivor branch.", "+3% грузоподъёмности за каждую активную ветку.", {{ { "carry_weight_pct", 3 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "se_hardened", branch_id::survival, 4, 22, currency_id::perk, "se_memory", "", "Hardened Practice", "Закалённая практика", "+4% healing per owned major perk.", "+4% лечения за каждый купленный большой перк.", {{ { "healing_pct", 4 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
-    { "se_grit", branch_id::survival, 4, 26, currency_id::perk, "se_hardened", "", "Grit", "Стойкость", "+10% healing and +8% max stamina.", "+10% лечения и +8% максимума выносливости.", {{ { "healing_pct", 10 }, { "stamina_max_pct", 8 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
-    { "se_carried", branch_id::survival, 5, 32, currency_id::perk, "se_grit", "", "Lessons Carried", "Накопленный опыт", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "se_indomitable", branch_id::survival, 6, 40, currency_id::major, "se_carried", "", "Indomitable", "Несгибаемый", "All stat perks are 5% stronger.", "Все статовые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
-    { "me_economy", branch_id::mobility, 1, 3, currency_id::perk, "", "", "Motion Economy", "Экономия движения", "Mobility stat perks are 5% stronger.", "Статовые перки мобильности на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 5, 0 },
-    { "me_practice", branch_id::mobility, 1, 6, currency_id::perk, "me_economy", "", "Kinetic Practice", "Кинетическая практика", "-1% move cost per active Survivor branch.", "-1% стоимости движения за каждую активную ветку.", {{ { "move_cost_pct", -1 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "me_breath", branch_id::mobility, 2, 9, currency_id::perk, "me_practice", "", "Breath Cycle", "Цикл дыхания", "+2% max stamina per active Survivor branch.", "+2% выносливости за каждую активную ветку.", {{ { "stamina_max_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "me_road", branch_id::mobility, 2, 12, currency_id::perk, "me_breath", "", "Road Sense", "Чувство дороги", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "me_flow", branch_id::mobility, 3, 15, currency_id::major, "me_road", "", "Flow Control", "Контроль потока", "Mobility stat perks are another 10% stronger.", "Статовые перки мобильности ещё на 10% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 10, 0 },
-    { "me_stride", branch_id::mobility, 3, 18, currency_id::perk, "me_flow", "", "Long Stride", "Длинный шаг", "+1% speed per active Survivor branch.", "+1% скорости за каждую активную ветку.", {{ { "speed_pct", 1 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "me_mastery", branch_id::mobility, 4, 22, currency_id::perk, "me_stride", "", "Kinetic Mastery", "Мастерство движения", "-0.5% move cost per owned major perk.", "-0,5% стоимости движения за каждый большой перк.", {{ { "move_cost_pct", -0.5 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
-    { "me_feather", branch_id::mobility, 4, 26, currency_id::perk, "me_mastery", "", "Featherstep", "Невесомый шаг", "+0.5 dodge and +2% speed.", "+0,5 уклонения и +2% скорости.", {{ { "dodge_flat", 0.5 }, { "speed_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
-    { "me_endless", branch_id::mobility, 5, 32, currency_id::perk, "me_feather", "", "Endless Road", "Бесконечная дорога", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "me_horizon", branch_id::mobility, 6, 40, currency_id::major, "me_endless", "", "Horizon Runner", "Бегущий к горизонту", "All stat perks are 5% stronger.", "Все статовые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
-    { "fe_iterate", branch_id::crafting, 1, 3, currency_id::perk, "", "", "Iterative Practice", "Практика итераций", "Crafting stat perks are 5% stronger.", "Статовые перки крафта на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 5, 0 },
-    { "fe_method", branch_id::crafting, 1, 6, currency_id::perk, "fe_iterate", "", "Methodical Work", "Методичная работа", "+3% crafting speed per active Survivor branch.", "+3% скорости крафта за каждую активную ветку.", {{ { "craft_speed_pct", 3 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "fe_notes", branch_id::crafting, 2, 9, currency_id::perk, "fe_method", "", "Living Notes", "Живые заметки", "+3% reading speed per active Survivor branch.", "+3% скорости чтения за каждую активную ветку.", {{ { "read_speed_pct", 3 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "fe_learning", branch_id::crafting, 2, 12, currency_id::perk, "fe_notes", "", "Learning by Making", "Учёба делом", "+4% Survivor XP per owned major perk.", "+4% опыта Survivor за каждый большой перк.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 4, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
-    { "fe_breakthrough", branch_id::crafting, 3, 15, currency_id::major, "fe_learning", "", "Breakthrough", "Прорыв", "Crafting stat perks are another 10% stronger.", "Статовые перки крафта ещё на 10% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 10, 0 },
-    { "fe_standard", branch_id::crafting, 3, 18, currency_id::perk, "fe_breakthrough", "", "Standardized Process", "Стандартизация", "+2% crafting speed per owned major perk.", "+2% скорости крафта за каждый большой перк.", {{ { "craft_speed_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
-    { "fe_systems", branch_id::crafting, 4, 22, currency_id::perk, "fe_standard", "", "Systems Thinking", "Системное мышление", "+2% reading speed per owned major perk.", "+2% скорости чтения за каждый большой перк.", {{ { "read_speed_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
-    { "fe_theory", branch_id::crafting, 4, 26, currency_id::perk, "fe_systems", "", "Theory Into Practice", "Теория в практике", "+10% crafting and +10% reading speed.", "+10% скорости крафта и +10% скорости чтения.", {{ { "craft_speed_pct", 10 }, { "read_speed_pct", 10 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
-    { "fe_tuning", branch_id::crafting, 5, 32, currency_id::perk, "fe_theory", "", "Fine Tuning", "Тонкая настройка", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "fe_architect", branch_id::crafting, 6, 40, currency_id::major, "fe_tuning", "", "Architect Mind", "Разум архитектора", "All stat perks are 5% stronger.", "Все статовые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
-    { "ge_eye", branch_id::scavenging, 1, 3, currency_id::perk, "", "", "Sharp Eye", "Острый глаз", "Scavenging stat perks are 5% stronger.", "Статовые перки добычи на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 5, 0 },
-    { "ge_routes", branch_id::scavenging, 1, 6, currency_id::perk, "ge_eye", "", "Route Discipline", "Дисциплина маршрута", "-0.75% move cost per active Survivor branch.", "-0,75% стоимости движения за каждую активную ветку.", {{ { "move_cost_pct", -0.75 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "ge_load", branch_id::scavenging, 2, 9, currency_id::perk, "ge_routes", "", "Load Planning", "Планирование груза", "+4% carry capacity per active Survivor branch.", "+4% грузоподъёмности за каждую активную ветку.", {{ { "carry_weight_pct", 4 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "ge_field", branch_id::scavenging, 2, 12, currency_id::perk, "ge_load", "", "Field Experience", "Полевой опыт", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "ge_opportunist", branch_id::scavenging, 3, 15, currency_id::major, "ge_field", "", "Opportunist", "Оппортунист", "Scavenging stat perks are another 10% stronger.", "Статовые перки добычи ещё на 10% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 10, 0 },
-    { "ge_cache", branch_id::scavenging, 3, 18, currency_id::perk, "ge_opportunist", "", "Cache Logic", "Логика тайников", "+0.25 PER per active Survivor branch.", "+0,25 восприятия за каждую активную ветку.", {{ { "per_flat", 0.25 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "ge_network", branch_id::scavenging, 4, 22, currency_id::perk, "ge_cache", "", "Networked Routes", "Сеть маршрутов", "+2% speed per owned major perk.", "+2% скорости за каждый большой перк.", {{ { "speed_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
-    { "ge_instinct", branch_id::scavenging, 4, 26, currency_id::perk, "ge_network", "", "Scavenger Instinct", "Инстинкт добытчика", "+10% carry capacity and +0.5 PER.", "+10% грузоподъёмности и +0,5 восприятия.", {{ { "carry_weight_pct", 10 }, { "per_flat", 0.5 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
-    { "ge_wisdom", branch_id::scavenging, 5, 32, currency_id::perk, "ge_instinct", "", "Long Haul Wisdom", "Мудрость дальних рейдов", "+3% Survivor XP per owned major perk.", "+3% опыта Survivor за каждый большой перк.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
-    { "ge_nomad", branch_id::scavenging, 6, 40, currency_id::major, "ge_wisdom", "", "Nomad Legend", "Легенда кочевника", "All stat perks are 5% stronger.", "Все статовые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
-    { "ae_reflect", branch_id::mastery, 1, 3, currency_id::perk, "", "", "Reflection", "Рефлексия", "All stat perks are 2% stronger.", "Все статовые перки на 2% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 2 },
-    { "ae_cross", branch_id::mastery, 1, 6, currency_id::perk, "ae_reflect", "", "Cross Training", "Перекрёстная подготовка", "+5% Survivor XP per active Survivor branch.", "+5% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 5, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "ae_foundation", branch_id::mastery, 2, 9, currency_id::perk, "ae_cross", "", "Strong Foundation", "Прочный фундамент", "+0.15 STR/DEX/PER/INT per active branch.", "+0,15 СИЛ/ЛОВ/ВОС/ИНТ за каждую активную ветку.", {{ { "str_flat", 0.15 }, { "dex_flat", 0.15 }, { "per_flat", 0.15 }, { "int_flat", 0.15 } }}, 4, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "ae_pattern", branch_id::mastery, 2, 12, currency_id::perk, "ae_foundation", "", "Pattern Recognition", "Распознавание закономерностей", "+3% Survivor XP per owned major perk.", "+3% опыта Survivor за каждый большой перк.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
-    { "ae_milestone", branch_id::mastery, 3, 15, currency_id::major, "ae_pattern", "", "Milestone Discipline", "Дисциплина рубежей", "All stat perks are another 5% stronger.", "Все статовые перки ещё на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
-    { "ae_integrate", branch_id::mastery, 3, 18, currency_id::perk, "ae_milestone", "", "Integration", "Интеграция", "+2% crafting and reading speed per active branch.", "+2% крафта и чтения за каждую активную ветку.", {{ { "craft_speed_pct", 2 }, { "read_speed_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "ae_compound", branch_id::mastery, 4, 22, currency_id::perk, "ae_integrate", "", "Compounding Practice", "Накопительная практика", "All stat perks are another 5% stronger.", "Все статовые перки ещё на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
-    { "ae_longgame", branch_id::mastery, 4, 26, currency_id::perk, "ae_compound", "", "Long Game", "Долгая игра", "+6% Survivor XP per active Survivor branch.", "+6% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 6, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
-    { "ae_legacy", branch_id::mastery, 5, 32, currency_id::perk, "ae_longgame", "", "Legacy Mindset", "Мышление наследия", "+0.05 STR/DEX/PER/INT per owned major perk.", "+0,05 СИЛ/ЛОВ/ВОС/ИНТ за каждый большой перк.", {{ { "str_flat", 0.05 }, { "dex_flat", 0.05 }, { "per_flat", 0.05 }, { "int_flat", 0.05 } }}, 4, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
-    { "ae_ascendant", branch_id::mastery, 6, 40, currency_id::major, "ae_legacy", "", "Ascendant", "Восхождение", "All stat perks are 10% stronger and Survivor XP +50%.", "Все статовые перки на 10% сильнее, опыт Survivor +50%.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 50, perk_kind::effect, perk_scaling::fixed, 0, 10 },
+    { "ce_rhythm", branch_id::combat, 1, 3, currency_id::perk, "c_power", "", "Combat Rhythm", "Боевой ритм", "Combat stat perks are 5% stronger.", "Статовые боевые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 5, 0 },
+    { "ce_drills", branch_id::combat, 1, 6, currency_id::perk, "c_footwork", "", "Drilled Reflexes", "Отработанные рефлексы", "+0.25 dodge and +0.25 melee hit.", "+0,25 уклонения и +0,25 точности ближнего боя.", {{ { "dodge_flat", 0.25 }, { "melee_hit_flat", 0.25 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
+    { "ce_reserve", branch_id::combat, 2, 9, currency_id::perk, "c_precision", "ce_rhythm", "Reserve Under Fire", "Резерв под огнём", "+2% max stamina per active Survivor branch.", "+2% максимума выносливости за каждую активную ветку Survivor.", {{ { "stamina_max_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ce_lessons", branch_id::combat, 2, 12, currency_id::perk, "c_reflexes", "ce_drills", "Lessons of Violence", "Уроки боя", "+4% Survivor XP per owned major perk.", "+4% опыта Survivor за каждый купленный большой перк.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 4, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "ce_tactics", branch_id::combat, 3, 15, currency_id::major, "c_conditioning", "ce_reserve", "Tactical Integration", "Тактическая интеграция", "Combat stat perks are another 10% stronger.", "Статовые боевые перки ещё на 10% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 10, 0 },
+    { "ce_pressure", branch_id::combat, 3, 18, currency_id::perk, "c_tempo", "ce_lessons", "Relentless Pressure", "Непрерывный натиск", "+1% speed per active Survivor branch.", "+1% скорости за каждую активную ветку Survivor.", {{ { "speed_pct", 1 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ce_memory", branch_id::combat, 4, 22, currency_id::perk, "c_bruiser", "ce_tactics", "Battle Memory", "Боевая память", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ce_refined", branch_id::combat, 4, 26, currency_id::perk, "c_evasion", "ce_pressure", "Refined Drills", "Отточенная подготовка", "+0.5 melee hit and +0.5 dodge.", "+0,5 точности ближнего боя и +0,5 уклонения.", {{ { "melee_hit_flat", 0.5 }, { "dodge_flat", 0.5 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
+    { "ce_veteran_reflex", branch_id::combat, 5, 32, currency_id::perk, "ce_memory", "ce_refined", "Veteran Reflex", "Рефлекс ветерана", "+3% speed, +5% max stamina, +0.25 dodge.", "+3% скорости, +5% выносливости, +0,25 уклонения.", {{ { "speed_pct", 3 }, { "stamina_max_pct", 5 }, { "dodge_flat", 0.25 }, { nullptr, 0.0 } }}, 3, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
+    { "ce_warmaster", branch_id::combat, 6, 40, currency_id::major, "c_apex", "ce_veteran_reflex", "Warmaster", "Воевода", "All stat perks are 5% stronger.", "Все статовые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
+    { "se_lessons", branch_id::survival, 1, 3, currency_id::perk, "s_hardy", "", "Hard Lessons", "Тяжёлые уроки", "Survival stat perks are 5% stronger.", "Статовые перки выживания на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 5, 0 },
+    { "se_routine", branch_id::survival, 1, 6, currency_id::perk, "s_field", "", "Survival Routine", "Режим выживания", "+5% healing per active Survivor branch.", "+5% лечения за каждую активную ветку Survivor.", {{ { "healing_pct", 5 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "se_reserves", branch_id::survival, 2, 9, currency_id::perk, "s_pack", "se_lessons", "Deep Reserves", "Глубокие резервы", "+2% max stamina per active Survivor branch.", "+2% выносливости за каждую активную ветку Survivor.", {{ { "stamina_max_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "se_adaptive", branch_id::survival, 2, 12, currency_id::perk, "s_resilient", "se_routine", "Adaptive Survivor", "Адаптивный выживший", "+4% Survivor XP per owned major perk.", "+4% опыта Survivor за каждый большой перк.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 4, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "se_anchor", branch_id::survival, 3, 15, currency_id::major, "s_endurance", "se_reserves", "Anchor Point", "Точка опоры", "Survival stat perks are another 10% stronger.", "Статовые перки выживания ещё на 10% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 10, 0 },
+    { "se_memory", branch_id::survival, 3, 18, currency_id::perk, "s_instinct", "se_adaptive", "Long Memory", "Долгая память", "+3% carry capacity per active Survivor branch.", "+3% грузоподъёмности за каждую активную ветку.", {{ { "carry_weight_pct", 3 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "se_hardened", branch_id::survival, 4, 22, currency_id::perk, "s_ironback", "se_anchor", "Hardened Practice", "Закалённая практика", "+4% healing per owned major perk.", "+4% лечения за каждый купленный большой перк.", {{ { "healing_pct", 4 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "se_grit", branch_id::survival, 4, 26, currency_id::perk, "s_recovery", "se_memory", "Grit", "Стойкость", "+10% healing and +8% max stamina.", "+10% лечения и +8% максимума выносливости.", {{ { "healing_pct", 10 }, { "stamina_max_pct", 8 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
+    { "se_carried", branch_id::survival, 5, 32, currency_id::perk, "se_hardened", "se_grit", "Lessons Carried", "Накопленный опыт", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "se_indomitable", branch_id::survival, 6, 40, currency_id::major, "s_unbreakable", "se_carried", "Indomitable", "Несгибаемый", "All stat perks are 5% stronger.", "Все статовые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
+    { "me_economy", branch_id::mobility, 1, 3, currency_id::perk, "m_light", "", "Motion Economy", "Экономия движения", "Mobility stat perks are 5% stronger.", "Статовые перки мобильности на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 5, 0 },
+    { "me_practice", branch_id::mobility, 1, 6, currency_id::perk, "m_cardio", "", "Kinetic Practice", "Кинетическая практика", "-1% move cost per active Survivor branch.", "-1% стоимости движения за каждую активную ветку.", {{ { "move_cost_pct", -1 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "me_breath", branch_id::mobility, 2, 9, currency_id::perk, "m_stride", "me_economy", "Breath Cycle", "Цикл дыхания", "+2% max stamina per active Survivor branch.", "+2% выносливости за каждую активную ветку.", {{ { "stamina_max_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "me_road", branch_id::mobility, 2, 12, currency_id::perk, "m_breath", "me_practice", "Road Sense", "Чувство дороги", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "me_flow", branch_id::mobility, 3, 15, currency_id::major, "m_parkour", "me_breath", "Flow Control", "Контроль потока", "Mobility stat perks are another 10% stronger.", "Статовые перки мобильности ещё на 10% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 10, 0 },
+    { "me_stride", branch_id::mobility, 3, 18, currency_id::perk, "m_quick", "me_road", "Long Stride", "Длинный шаг", "+1% speed per active Survivor branch.", "+1% скорости за каждую активную ветку.", {{ { "speed_pct", 1 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "me_mastery", branch_id::mobility, 4, 22, currency_id::perk, "m_runner", "me_flow", "Kinetic Mastery", "Мастерство движения", "-0.5% move cost per owned major perk.", "-0,5% стоимости движения за каждый большой перк.", {{ { "move_cost_pct", -0.5 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "me_feather", branch_id::mobility, 4, 26, currency_id::perk, "m_marathon", "me_stride", "Featherstep", "Невесомый шаг", "+0.5 dodge and +2% speed.", "+0,5 уклонения и +2% скорости.", {{ { "dodge_flat", 0.5 }, { "speed_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
+    { "me_endless", branch_id::mobility, 5, 32, currency_id::perk, "me_mastery", "me_feather", "Endless Road", "Бесконечная дорога", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "me_horizon", branch_id::mobility, 6, 40, currency_id::major, "m_untouchable", "me_endless", "Horizon Runner", "Бегущий к горизонту", "All stat perks are 5% stronger.", "Все статовые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
+    { "fe_iterate", branch_id::crafting, 1, 3, currency_id::perk, "f_hands", "", "Iterative Practice", "Практика итераций", "Crafting stat perks are 5% stronger.", "Статовые перки крафта на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 5, 0 },
+    { "fe_method", branch_id::crafting, 1, 6, currency_id::perk, "f_reader", "", "Methodical Work", "Методичная работа", "+3% crafting speed per active Survivor branch.", "+3% скорости крафта за каждую активную ветку.", {{ { "craft_speed_pct", 3 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "fe_notes", branch_id::crafting, 2, 9, currency_id::perk, "f_efficiency", "fe_iterate", "Living Notes", "Живые заметки", "+3% reading speed per active Survivor branch.", "+3% скорости чтения за каждую активную ветку.", {{ { "read_speed_pct", 3 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "fe_learning", branch_id::crafting, 2, 12, currency_id::perk, "f_study", "fe_method", "Learning by Making", "Учёба делом", "+4% Survivor XP per owned major perk.", "+4% опыта Survivor за каждый большой перк.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 4, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "fe_breakthrough", branch_id::crafting, 3, 15, currency_id::major, "f_workflow", "fe_notes", "Breakthrough", "Прорыв", "Crafting stat perks are another 10% stronger.", "Статовые перки крафта ещё на 10% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 10, 0 },
+    { "fe_standard", branch_id::crafting, 3, 18, currency_id::perk, "f_quickstudy", "fe_learning", "Standardized Process", "Стандартизация", "+2% crafting speed per owned major perk.", "+2% скорости крафта за каждый большой перк.", {{ { "craft_speed_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "fe_systems", branch_id::crafting, 4, 22, currency_id::perk, "f_engineer", "fe_breakthrough", "Systems Thinking", "Системное мышление", "+2% reading speed per owned major perk.", "+2% скорости чтения за каждый большой перк.", {{ { "read_speed_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "fe_theory", branch_id::crafting, 4, 26, currency_id::perk, "f_scholar", "fe_standard", "Theory Into Practice", "Теория в практике", "+10% crafting and +10% reading speed.", "+10% скорости крафта и +10% скорости чтения.", {{ { "craft_speed_pct", 10 }, { "read_speed_pct", 10 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
+    { "fe_tuning", branch_id::crafting, 5, 32, currency_id::perk, "fe_systems", "fe_theory", "Fine Tuning", "Тонкая настройка", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "fe_architect", branch_id::crafting, 6, 40, currency_id::major, "f_genius", "fe_tuning", "Architect Mind", "Разум архитектора", "All stat perks are 5% stronger.", "Все статовые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
+    { "ge_eye", branch_id::scavenging, 1, 3, currency_id::perk, "g_observer", "", "Sharp Eye", "Острый глаз", "Scavenging stat perks are 5% stronger.", "Статовые перки добычи на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 5, 0 },
+    { "ge_routes", branch_id::scavenging, 1, 6, currency_id::perk, "g_hauler", "", "Route Discipline", "Дисциплина маршрута", "-0.75% move cost per active Survivor branch.", "-0,75% стоимости движения за каждую активную ветку.", {{ { "move_cost_pct", -0.75 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ge_load", branch_id::scavenging, 2, 9, currency_id::perk, "g_route", "ge_eye", "Load Planning", "Планирование груза", "+4% carry capacity per active Survivor branch.", "+4% грузоподъёмности за каждую активную ветку.", {{ { "carry_weight_pct", 4 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ge_field", branch_id::scavenging, 2, 12, currency_id::perk, "g_pack", "ge_routes", "Field Experience", "Полевой опыт", "+3% Survivor XP per active Survivor branch.", "+3% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ge_opportunist", branch_id::scavenging, 3, 15, currency_id::major, "g_awareness", "ge_load", "Opportunist", "Оппортунист", "Scavenging stat perks are another 10% stronger.", "Статовые перки добычи ещё на 10% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 10, 0 },
+    { "ge_cache", branch_id::scavenging, 3, 18, currency_id::perk, "g_endurance", "ge_field", "Cache Logic", "Логика тайников", "+0.25 PER per active Survivor branch.", "+0,25 восприятия за каждую активную ветку.", {{ { "per_flat", 0.25 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ge_network", branch_id::scavenging, 4, 22, currency_id::perk, "g_pathfinder", "ge_opportunist", "Networked Routes", "Сеть маршрутов", "+2% speed per owned major perk.", "+2% скорости за каждый большой перк.", {{ { "speed_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "ge_instinct", branch_id::scavenging, 4, 26, currency_id::perk, "g_mule", "ge_cache", "Scavenger Instinct", "Инстинкт добытчика", "+10% carry capacity and +0.5 PER.", "+10% грузоподъёмности и +0,5 восприятия.", {{ { "carry_weight_pct", 10 }, { "per_flat", 0.5 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::fixed, 0, 0 },
+    { "ge_wisdom", branch_id::scavenging, 5, 32, currency_id::perk, "ge_network", "ge_instinct", "Long Haul Wisdom", "Мудрость дальних рейдов", "+3% Survivor XP per owned major perk.", "+3% опыта Survivor за каждый большой перк.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "ge_nomad", branch_id::scavenging, 6, 40, currency_id::major, "g_legend", "ge_wisdom", "Nomad Legend", "Легенда кочевника", "All stat perks are 5% stronger.", "Все статовые перки на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
+    { "ae_reflect", branch_id::mastery, 1, 3, currency_id::perk, "a_fast", "", "Reflection", "Рефлексия", "All stat perks are 2% stronger.", "Все статовые перки на 2% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 2 },
+    { "ae_cross", branch_id::mastery, 1, 6, currency_id::perk, "a_focus", "", "Cross Training", "Перекрёстная подготовка", "+5% Survivor XP per active Survivor branch.", "+5% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 5, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ae_foundation", branch_id::mastery, 2, 9, currency_id::perk, "a_adapt", "ae_reflect", "Strong Foundation", "Прочный фундамент", "+0.15 STR/DEX/PER/INT per active branch.", "+0,15 СИЛ/ЛОВ/ВОС/ИНТ за каждую активную ветку.", {{ { "str_flat", 0.15 }, { "dex_flat", 0.15 }, { "per_flat", 0.15 }, { "int_flat", 0.15 } }}, 4, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ae_pattern", branch_id::mastery, 2, 12, currency_id::perk, "a_balance", "ae_cross", "Pattern Recognition", "Распознавание закономерностей", "+3% Survivor XP per owned major perk.", "+3% опыта Survivor за каждый большой перк.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 3, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "ae_milestone", branch_id::mastery, 3, 15, currency_id::major, "a_learning", "ae_foundation", "Milestone Discipline", "Дисциплина рубежей", "All stat perks are another 5% stronger.", "Все статовые перки ещё на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
+    { "ae_integrate", branch_id::mastery, 3, 18, currency_id::perk, "a_insight", "ae_pattern", "Integration", "Интеграция", "+2% crafting and reading speed per active branch.", "+2% крафта и чтения за каждую активную ветку.", {{ { "craft_speed_pct", 2 }, { "read_speed_pct", 2 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ae_compound", branch_id::mastery, 4, 22, currency_id::perk, "a_growth", "ae_milestone", "Compounding Practice", "Накопительная практика", "All stat perks are another 5% stronger.", "Все статовые перки ещё на 5% сильнее.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 0, perk_kind::effect, perk_scaling::fixed, 0, 5 },
+    { "ae_longgame", branch_id::mastery, 4, 26, currency_id::perk, "a_polymath", "ae_integrate", "Long Game", "Долгая игра", "+6% Survivor XP per active Survivor branch.", "+6% опыта Survivor за каждую активную ветку.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 6, perk_kind::effect, perk_scaling::per_active_branch, 0, 0 },
+    { "ae_legacy", branch_id::mastery, 5, 32, currency_id::perk, "ae_compound", "ae_longgame", "Legacy Mindset", "Мышление наследия", "+0.05 STR/DEX/PER/INT per owned major perk.", "+0,05 СИЛ/ЛОВ/ВОС/ИНТ за каждый большой перк.", {{ { "str_flat", 0.05 }, { "dex_flat", 0.05 }, { "per_flat", 0.05 }, { "int_flat", 0.05 } }}, 4, 0, perk_kind::effect, perk_scaling::per_owned_major, 0, 0 },
+    { "ae_ascendant", branch_id::mastery, 6, 40, currency_id::major, "a_transcendent", "ae_legacy", "Ascendant", "Восхождение", "All stat perks are 10% stronger and Survivor XP +50%.", "Все статовые перки на 10% сильнее, опыт Survivor +50%.", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 50, perk_kind::effect, perk_scaling::fixed, 0, 10 },
 };
 
 bool russian()
@@ -854,14 +854,14 @@ bool purchase_perk( const perk_def &perk )
 void show_perk_detail( const perk_def &perk )
 {
     while( true ) {
-        const int level = static_cast<int>( get_state( "level", 1 ) );
+        const int level = static_cast<int>( branch_level( perk.branch ) );
         const bool is_owned = owned( perk );
         const bool unlocked = level >= perk.required_level && prerequisites_met( perk );
 
         std::string title = ( russian() ? perk.name_ru : perk.name_en );
         title += "\n" + std::string( russian() ? perk.desc_ru : perk.desc_en );
         title += "\n" + tr( "Tier ", "Тир " ) + std::to_string( perk.tier );
-        title += " | " + tr( "Requires level ", "Нужен уровень " ) + std::to_string( perk.required_level );
+        title += " | " + tr( "Requires branch level ", "Нужен уровень ветки " ) + std::to_string( perk.required_level );
         title += "\n" + tr( "Prerequisites: ", "Требования: " ) + prereq_text( perk );
         title += "\n" + tr( "Cost: ", "Стоимость: " ) + cost_text( perk );
 
@@ -886,8 +886,9 @@ void show_perk_detail( const perk_def &perk )
     }
 }
 
-int branch_unlocked_count( branch_id branch, int64_t level )
+int branch_unlocked_count( branch_id branch, int64_t )
 {
+    const int64_t level = branch_level( branch );
     int result = 0;
     for( const perk_def &perk : perks ) {
         if( perk.branch == branch && !owned( perk ) &&
@@ -896,8 +897,7 @@ int branch_unlocked_count( branch_id branch, int64_t level )
         }
     }
     return result;
-}
-struct card_text {
+}struct card_text {
     std::string id;
     std::string title;
     std::string subtitle;
@@ -931,19 +931,64 @@ struct tree_node_text {
     int column = 0;
 };
 
-std::pair<int, int> branch_tree_position( size_t branch_index )
+std::pair<int, int> branch_tree_position( branch_id branch, size_t branch_index )
 {
-    // Every branch currently has 10 core perks followed by 10 effect perks.
-    // Core tiers form two parallel lanes, converge on the T5 keystone and
-    // continue into T6. The host automatically centres convergence nodes.
-    if( branch_index >= 10 ) {
-        return { static_cast<int>( branch_index - 10 ), 2 };
+    // 0.9.7 true tree: 20 connected nodes per branch.
+    // 0..9 are the core line, 10..19 are the specialization/effect line.
+    // The layout deliberately interleaves both lines instead of rendering a
+    // detached vertical effect column.
+    static const std::array<std::pair<int, int>, 20> standard = {{
+        { 0, 0 }, { 0, 4 },
+        { 2, 0 }, { 2, 4 },
+        { 4, 0 }, { 4, 4 },
+        { 6, 0 }, { 6, 4 },
+        { 8, 2 }, { 10, 2 },
+
+        { 1, 1 }, { 1, 3 },
+        { 3, 1 }, { 3, 3 },
+        { 5, 1 }, { 5, 3 },
+        { 7, 1 }, { 7, 3 },
+        { 9, 2 }, { 11, 2 }
+    }};
+
+    static const std::array<std::pair<int, int>, 20> mobility = {{
+        { 0, 0 }, { 0, 4 },
+        { 2, 1 }, { 2, 3 },
+        { 4, 0 }, { 4, 4 },
+        { 6, 1 }, { 6, 3 },
+        { 8, 2 }, { 10, 2 },
+
+        { 1, 1 }, { 1, 3 },
+        { 3, 0 }, { 3, 4 },
+        { 5, 1 }, { 5, 3 },
+        { 7, 0 }, { 7, 4 },
+        { 9, 2 }, { 11, 2 }
+    }};
+
+    static const std::array<std::pair<int, int>, 20> mastery = {{
+        { 0, 1 }, { 0, 3 },
+        { 2, 0 }, { 2, 4 },
+        { 4, 1 }, { 4, 3 },
+        { 6, 0 }, { 6, 4 },
+        { 8, 2 }, { 10, 2 },
+
+        { 1, 2 }, { 1, 4 },
+        { 3, 1 }, { 3, 3 },
+        { 5, 2 }, { 5, 4 },
+        { 7, 1 }, { 7, 3 },
+        { 9, 2 }, { 11, 2 }
+    }};
+
+    if( branch_index >= standard.size() ) {
+        return { 0, 0 };
     }
-    if( branch_index < 8 ) {
-        return { static_cast<int>( branch_index / 2 ),
-                 static_cast<int>( branch_index % 2 ) };
+    if( branch == branch_id::mobility || branch == branch_id::scavenging ) {
+        return mobility[branch_index];
     }
-    return { static_cast<int>( branch_index - 4 ), 0 };
+    if( branch == branch_id::mastery ) {
+        return mastery[branch_index];
+    }
+    return standard[branch_index];
 }
 std::vector<ncmm_ui_tree_node_v1> bind_tree_nodes( std::vector<tree_node_text> &texts )
 {
@@ -984,7 +1029,7 @@ void show_branch( branch_id branch )
     bool tree_mode = true;
 
     while( true ) {
-        const int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
+        const int64_t level = branch_level( branch );
         const int64_t perk_points = get_state( "perk_points", 0 );
         const int64_t major_points = get_state( "major_points", 0 );
 
@@ -1008,7 +1053,7 @@ void show_branch( branch_id branch )
             card.id = perk.id;
             card.title = russian() ? perk.name_ru : perk.name_en;
             card.subtitle = "T" + std::to_string( perk.tier ) + " | " +
-                            tr( "Lv ", "Ур " ) + std::to_string( perk.required_level ) +
+                            tr( "BLv ", "УрВ " ) + std::to_string( perk.required_level ) +
                             " | " + ( perk.currency == currency_id::perk ? "1P" : "1M" );
             card.body = russian() ? perk.desc_ru : perk.desc_en;
 
@@ -1073,7 +1118,7 @@ void show_branch( branch_id branch )
                 tree_node_text node;
                 node.card = texts[i];
                 node.card.body += "\n" + tr( "Prerequisites: ", "Требования: " ) + prereq_text( perk );
-                const std::pair<int, int> position = branch_tree_position( i );
+                const std::pair<int, int> position = branch_tree_position( branch, i );
                 node.row = position.first;
                 node.column = position.second;
                 index_by_id[perk.id] = i;
@@ -1097,8 +1142,8 @@ void show_branch( branch_id branch )
 
             std::vector<ncmm_ui_tree_node_v1> nodes = bind_tree_nodes( tree_texts );
             const std::string tree_summary =
-                summary + tr( " | Tree | Tab: cards",
-                              " | Дерево | Tab: карточки" );
+                summary + tr( " | Integrated tree | Tab: cards",
+                              " | Связанное дерево | Tab: карточки" );
             const int choice = host->ui_tree_choose(
                                    title.c_str(), tree_summary.c_str(), &progress,
                                    nodes.data(), nodes.size(), edges.data(), edges.size() );
@@ -1133,7 +1178,7 @@ void show_overview()
     const int normal_owned = owned_count( currency_id::perk );
     const int major_owned = owned_count( currency_id::major );
 
-    std::string out = "Survivor Progression v0.9.6\n";
+    std::string out = "Survivor Progression v0.9.7\n";
     out += tr( "Level ", "Уровень " ) + std::to_string( level );
     out += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
     out += "\nP " + std::to_string( perk_points ) + " | M " + std::to_string( major_points );
@@ -1300,7 +1345,7 @@ void open_progression()
         const int total_owned = owned_count( currency_id::perk ) + owned_count( currency_id::major );
         const int total_perks = static_cast<int>( sizeof( perks ) / sizeof( perks[0] ) );
 
-        std::string title = "Survivor Progression v0.9.6";
+        std::string title = "Survivor Progression v0.9.7";
         std::string summary =
             tr( "Level ", "Уровень " ) + std::to_string( level ) +
             " | P " + std::to_string( perk_points ) +
@@ -1546,7 +1591,7 @@ int init( const ncmm_host_api_v1 *api )
 
     host = api;
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.9.6 initialized: branch XP + fatigue anti-farm / 120 perks / 6 trees." );
+              "Survivor Progression 0.9.7 initialized: anti-farm branch XP / 120 perks / 6 integrated RPG trees." );
     return 1;
 }
 

@@ -1,7 +1,7 @@
 {
   "id": "survivor_progression",
   "name": "Survivor Progression",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "loader_api": 1,
   "api_major": 1,
   "api_min_minor": 4,
