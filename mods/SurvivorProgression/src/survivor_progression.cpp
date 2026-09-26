@@ -267,9 +267,88 @@ std::string perk_key( const perk_def &perk )
     return std::string( "p_" ) + perk.id;
 }
 
+bool ranked_perk_id( const perk_def &perk )
+{
+    const std::string id = perk.id ? perk.id : "";
+    return id == "c_conditioning" || id == "s_field" || id == "m_light" ||
+           id == "f_hands" || id == "g_route" || id == "a_adapt";
+}
+
+int perk_max_rank( const perk_def &perk )
+{
+    const std::string id = perk.id ? perk.id : "";
+    if( id == "s_field" || id == "g_route" ) {
+        return 3;
+    }
+    if( id == "c_conditioning" || id == "m_light" ||
+        id == "f_hands" || id == "a_adapt" ) {
+        return 5;
+    }
+    return 1;
+}
+
+double perk_extra_rank_scale( const perk_def &perk )
+{
+    const std::string id = perk.id ? perk.id : "";
+    if( id == "c_conditioning" ) return 0.125;       // +8% -> +12% at V
+    if( id == "s_field" ) return 0.50;               // +10% -> +20% at III
+    if( id == "m_light" ) return 1.0 / 6.0;          // -3% -> -5% at V
+    if( id == "f_hands" ) return 0.40;               // +5% -> +13% at V
+    if( id == "g_route" ) return 1.0 / 3.0;          // -3% -> -5% at III
+    if( id == "a_adapt" ) return 0.20;               // +25% -> +45% at V
+    return 0.0;
+}
+
+int perk_rank( const perk_def &perk )
+{
+    return static_cast<int>( std::max<int64_t>(
+        0, std::min<int64_t>( perk_max_rank( perk ), get_state( perk_key( perk ), 0 ) ) ) );
+}
+
+bool perk_maxed( const perk_def &perk )
+{
+    return perk_rank( perk ) >= perk_max_rank( perk );
+}
+
+double perk_rank_multiplier_for( const perk_def &perk, int rank )
+{
+    if( rank <= 0 ) {
+        return 0.0;
+    }
+    rank = std::min( rank, perk_max_rank( perk ) );
+    return 1.0 + static_cast<double>( rank - 1 ) * perk_extra_rank_scale( perk );
+}
+
+double perk_rank_multiplier( const perk_def &perk )
+{
+    return perk_rank_multiplier_for( perk, perk_rank( perk ) );
+}
+
+std::string rank_roman( int rank )
+{
+    switch( rank ) {
+        case 1: return "I";
+        case 2: return "II";
+        case 3: return "III";
+        case 4: return "IV";
+        case 5: return "V";
+        default: return std::to_string( rank );
+    }
+}
+
+std::string perk_display_name( const perk_def &perk )
+{
+    std::string result = russian() ? perk.name_ru : perk.name_en;
+    const int rank = perk_rank( perk );
+    if( perk_max_rank( perk ) > 1 && rank > 0 ) {
+        result += " " + rank_roman( rank );
+    }
+    return result;
+}
+
 bool owned( const perk_def &perk )
 {
-    return get_state( perk_key( perk ), 0 ) != 0;
+    return perk_rank( perk ) > 0;
 }
 
 const perk_def *find_perk( const char *id )
@@ -551,6 +630,62 @@ std::string effect_label( const std::string &id )
     return id;
 }
 
+std::string ranked_effect_summary( const perk_def &perk, int rank )
+{
+    if( rank <= 0 ) {
+        return {};
+    }
+
+    const double multiplier = perk_rank_multiplier_for( perk, rank );
+    std::vector<std::string> parts;
+    for( int i = 0; i < perk.effect_count; ++i ) {
+        if( perk.effects[i].id == nullptr ) {
+            continue;
+        }
+        const double value = perk.effects[i].value * multiplier;
+        const std::string sign = value > 0.0 ? "+" : "";
+        parts.push_back( effect_label( perk.effects[i].id ) + ": " +
+                         sign + format_number( value ) );
+    }
+    if( perk.xp_bonus_pct != 0 ) {
+        const int value = static_cast<int>(
+                              std::llround( static_cast<double>( perk.xp_bonus_pct ) * multiplier ) );
+        parts.push_back( tr( "Survivor XP: +", "Опыт Survivor: +" ) +
+                         std::to_string( value ) + "%" );
+    }
+
+    std::string result;
+    for( size_t i = 0; i < parts.size(); ++i ) {
+        if( i != 0 ) {
+            result += ", ";
+        }
+        result += parts[i];
+    }
+    return result;
+}
+
+std::string perk_description( const perk_def &perk )
+{
+    std::string result = russian() ? perk.desc_ru : perk.desc_en;
+    const int max_rank = perk_max_rank( perk );
+    if( max_rank <= 1 ) {
+        return result;
+    }
+
+    const int rank = perk_rank( perk );
+    result += "\n" + tr( "Rank ", "Ранг " ) + std::to_string( rank ) + "/" +
+              std::to_string( max_rank );
+
+    if( rank > 0 ) {
+        result += "\n" + tr( "Current: ", "Сейчас: " ) +
+                  ranked_effect_summary( perk, rank );
+    }
+    if( rank < max_rank ) {
+        result += "\n" + tr( "Next: ", "Следующий: " ) +
+                  ranked_effect_summary( perk, rank + 1 );
+    }
+    return result;
+}
 struct calculated_effects {
     std::map<std::string, double> modifiers;
     int xp_bonus_pct = 0;
@@ -592,8 +727,10 @@ calculated_effects calculate_owned_effects()
         if( !owned( perk ) || effective_kind( perk ) != perk_kind::effect ) {
             continue;
         }
-        result.branch_amp[branch_index( perk.branch )] += perk.branch_amp_pct / 100.0;
-        result.global_amp += perk.global_amp_pct / 100.0;
+        const double rank_scale = perk_rank_multiplier( perk );
+        result.branch_amp[branch_index( perk.branch )] +=
+            perk.branch_amp_pct * rank_scale / 100.0;
+        result.global_amp += perk.global_amp_pct * rank_scale / 100.0;
     }
 
     for( const perk_def &perk : perks ) {
@@ -607,6 +744,8 @@ calculated_effects calculate_owned_effects()
         } else if( perk.scaling == perk_scaling::per_owned_major ) {
             scale = static_cast<double>( result.major_owned );
         }
+
+        scale *= perk_rank_multiplier( perk );
 
         if( effective_kind( perk ) == perk_kind::stat ) {
             scale *= result.global_amp * result.branch_amp[branch_index( perk.branch )];
@@ -785,12 +924,17 @@ void migrate_state()
 
 std::string status_prefix( const perk_def &perk, int64_t level, int64_t perk_points, int64_t major_points )
 {
-    if( owned( perk ) ) {
+    const int rank = perk_rank( perk );
+    const int max_rank = perk_max_rank( perk );
+    if( rank >= max_rank ) {
         return "[✓] ";
+    }
+    if( rank > 0 ) {
+        return "[R" + std::to_string( rank ) + "/" + std::to_string( max_rank ) + "] ";
     }
     if( level < perk.required_level ) {
         return std::string( russian() ? "[УР " : "[L" ) +
-               std::to_string( perk.required_level ) + ( russian() ? "] " : "] " );
+               std::to_string( perk.required_level ) + "] ";
     }
     if( !prerequisites_met( perk ) ) {
         return russian() ? "[ТРЕБ.] " : "[REQ] ";
@@ -811,12 +955,15 @@ std::string cost_text( const perk_def &perk )
 
 bool purchase_perk( const perk_def &perk )
 {
-    int64_t level = branch_level( perk.branch );
+    const int64_t level = branch_level( perk.branch );
     int64_t perk_points = get_state( "perk_points", 0 );
     int64_t major_points = get_state( "major_points", 0 );
+    const int rank = perk_rank( perk );
+    const int max_rank = perk_max_rank( perk );
 
-    if( owned( perk ) ) {
-        message( tr( "This perk is already owned.", "Этот перк уже куплен." ) );
+    if( rank >= max_rank ) {
+        message( tr( "This perk is already at maximum rank.",
+                     "Этот перк уже максимального ранга." ) );
         return false;
     }
     if( level < perk.required_level ) {
@@ -842,12 +989,18 @@ bool purchase_perk( const perk_def &perk )
         set_state( "major_points", major_points - 1 );
     }
 
-    set_state( perk_key( perk ), 1 );
+    set_state( perk_key( perk ), rank + 1 );
     effects_dirty = true;
     recalculate_effects();
 
-    message( tr( "Perk purchased: ", "Куплен перк: " ) +
-             ( russian() ? perk.name_ru : perk.name_en ) );
+    std::string text = rank == 0 ?
+                       tr( "Perk purchased: ", "Куплен перк: " ) :
+                       tr( "Perk upgraded: ", "Перк улучшен: " );
+    text += russian() ? perk.name_ru : perk.name_en;
+    if( max_rank > 1 ) {
+        text += " " + std::to_string( rank + 1 ) + "/" + std::to_string( max_rank );
+    }
+    message( text );
     return true;
 }
 
@@ -855,26 +1008,38 @@ void show_perk_detail( const perk_def &perk )
 {
     while( true ) {
         const int level = static_cast<int>( branch_level( perk.branch ) );
-        const bool is_owned = owned( perk );
+        const int rank = perk_rank( perk );
+        const int max_rank = perk_max_rank( perk );
+        const bool maxed = rank >= max_rank;
         const bool unlocked = level >= perk.required_level && prerequisites_met( perk );
 
-        std::string title = ( russian() ? perk.name_ru : perk.name_en );
-        title += "\n" + std::string( russian() ? perk.desc_ru : perk.desc_en );
+        std::string title = perk_display_name( perk );
+        title += "\n" + perk_description( perk );
         title += "\n" + tr( "Tier ", "Тир " ) + std::to_string( perk.tier );
-        title += " | " + tr( "Requires branch level ", "Нужен уровень ветки " ) + std::to_string( perk.required_level );
+        title += " | " + tr( "Requires branch level ", "Нужен уровень ветки " ) +
+                 std::to_string( perk.required_level );
         title += "\n" + tr( "Prerequisites: ", "Требования: " ) + prereq_text( perk );
-        title += "\n" + tr( "Cost: ", "Стоимость: " ) + cost_text( perk );
+        title += "\n" + tr( "Cost per rank: ", "Цена за ранг: " ) + cost_text( perk );
 
-        std::string buy = is_owned ? tr( "[Owned]", "[Куплено]" ) :
-                          unlocked ? tr( "Purchase", "Купить" ) :
-                          tr( "Locked", "Закрыто" );
+        std::string buy;
+        if( maxed ) {
+            buy = tr( "[Maximum rank]", "[Максимальный ранг]" );
+        } else if( !unlocked ) {
+            buy = tr( "Locked", "Закрыто" );
+        } else if( rank > 0 ) {
+            buy = tr( "Upgrade to rank ", "Улучшить до ранга " ) +
+                  std::to_string( rank + 1 ) + "/" + std::to_string( max_rank );
+        } else {
+            buy = tr( "Purchase", "Купить" );
+        }
+
         std::string back = tr( "Back", "Назад" );
         const char *entries[] = { buy.c_str(), back.c_str() };
         const int choice = host->ui_choose ? host->ui_choose( title.c_str(), entries, 2 ) : -1;
         if( choice != 0 ) {
             return;
         }
-        if( is_owned ) {
+        if( maxed ) {
             return;
         }
         if( !unlocked ) {
@@ -891,13 +1056,15 @@ int branch_unlocked_count( branch_id branch, int64_t )
     const int64_t level = branch_level( branch );
     int result = 0;
     for( const perk_def &perk : perks ) {
-        if( perk.branch == branch && !owned( perk ) &&
+        if( perk.branch == branch && !perk_maxed( perk ) &&
             level >= perk.required_level && prerequisites_met( perk ) ) {
             ++result;
         }
     }
     return result;
-}struct card_text {
+}
+
+struct card_text {
     std::string id;
     std::string title;
     std::string subtitle;
@@ -1044,22 +1211,35 @@ void show_branch( branch_id branch )
             }
             branch_perks.push_back( &perk );
 
-            const bool is_owned = owned( perk );
+            const int rank = perk_rank( perk );
+            const int max_rank = perk_max_rank( perk );
+            const bool maxed = rank >= max_rank;
             const bool unlocked = level >= perk.required_level && prerequisites_met( perk );
             const bool enough = perk.currency == currency_id::perk ?
                                 perk_points > 0 : major_points > 0;
 
             card_text card;
             card.id = perk.id;
-            card.title = russian() ? perk.name_ru : perk.name_en;
+            card.title = perk_display_name( perk );
             card.subtitle = "T" + std::to_string( perk.tier ) + " | " +
                             tr( "BLv ", "УрВ " ) + std::to_string( perk.required_level ) +
                             " | " + ( perk.currency == currency_id::perk ? "1P" : "1M" );
-            card.body = russian() ? perk.desc_ru : perk.desc_en;
+            if( max_rank > 1 ) {
+                card.subtitle += " | " + tr( "R ", "Р " ) +
+                                 std::to_string( rank ) + "/" + std::to_string( max_rank );
+            }
+            card.body = perk_description( perk );
 
             card.badge = perk_kind_label( perk ) + " | ";
-            if( is_owned ) {
-                card.badge += tr( "OWNED", "КУПЛЕНО" );
+            if( maxed ) {
+                card.badge += max_rank > 1 ?
+                              tr( "MAX ", "МАКС " ) + std::to_string( rank ) + "/" +
+                              std::to_string( max_rank ) :
+                              tr( "OWNED", "КУПЛЕНО" );
+                card.flags |= NCMM_UI_CARD_OWNED;
+            } else if( rank > 0 ) {
+                card.badge += tr( "RANK ", "РАНГ " ) + std::to_string( rank ) + "/" +
+                              std::to_string( max_rank );
                 card.flags |= NCMM_UI_CARD_OWNED;
             } else if( !unlocked ) {
                 card.badge += tr( "LOCKED", "ЗАКРЫТО" );
@@ -1117,7 +1297,8 @@ void show_branch( branch_id branch )
                 const perk_def &perk = *branch_perks[i];
                 tree_node_text node;
                 node.card = texts[i];
-                node.card.body += "\n" + tr( "Prerequisites: ", "Требования: " ) + prereq_text( perk );
+                node.card.body += "\n" + tr( "Prerequisites: ", "Требования: " ) +
+                                  prereq_text( perk );
                 const std::pair<int, int> position = branch_tree_position( branch, i );
                 node.row = position.first;
                 node.column = position.second;
@@ -1142,8 +1323,8 @@ void show_branch( branch_id branch )
 
             std::vector<ncmm_ui_tree_node_v1> nodes = bind_tree_nodes( tree_texts );
             const std::string tree_summary =
-                summary + tr( " | Integrated tree | Tab: cards",
-                              " | Связанное дерево | Tab: карточки" );
+                summary + tr( " | Routed tree | Tab: cards",
+                              " | Разведённое дерево | Tab: карточки" );
             const int choice = host->ui_tree_choose(
                                    title.c_str(), tree_summary.c_str(), &progress,
                                    nodes.data(), nodes.size(), edges.data(), edges.size() );
@@ -1176,6 +1357,7 @@ void show_branch( branch_id branch )
         show_perk_detail( *branch_perks[choice] );
     }
 }
+
 void show_overview()
 {
     const int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
@@ -1185,7 +1367,7 @@ void show_overview()
     const int normal_owned = owned_count( currency_id::perk );
     const int major_owned = owned_count( currency_id::major );
 
-    std::string out = "Survivor Progression v0.9.9\n";
+    std::string out = "Survivor Progression v0.9.10\n";
     out += tr( "Level ", "Уровень " ) + std::to_string( level );
     out += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
     out += "\nP " + std::to_string( perk_points ) + " | M " + std::to_string( major_points );
@@ -1228,13 +1410,14 @@ void respec()
     int64_t refund_perk = 0;
     int64_t refund_major = 0;
     for( const perk_def &perk : perks ) {
-        if( !owned( perk ) ) {
+        const int rank = perk_rank( perk );
+        if( rank <= 0 ) {
             continue;
         }
         if( perk.currency == currency_id::perk ) {
-            ++refund_perk;
+            refund_perk += rank;
         } else {
-            ++refund_major;
+            refund_major += rank;
         }
     }
 
@@ -1247,8 +1430,8 @@ void respec()
         "Respec all Survivor perks?\nRefund: ",
         "Сбросить все перки Survivor?\nВозврат: " );
     title += std::to_string( refund_perk ) + "P / " + std::to_string( refund_major ) + "M";
-    title += tr( "\nAll active gameplay modifiers from Survivor Progression will be removed.",
-                 "\nВсе активные игровые модификаторы Survivor Progression будут сняты." );
+    title += tr( "\nRanked perks refund every purchased rank.",
+                 "\nМногоуровневые перки возвращают очко за каждый купленный ранг." );
 
     std::string yes = tr( "Respec", "Сбросить" );
     std::string no = tr( "Cancel", "Отмена" );
@@ -1259,7 +1442,7 @@ void respec()
     }
 
     for( const perk_def &perk : perks ) {
-        if( owned( perk ) ) {
+        if( perk_rank( perk ) > 0 ) {
             set_state( perk_key( perk ), 0 );
         }
     }
@@ -1352,7 +1535,7 @@ void open_progression()
         const int total_owned = owned_count( currency_id::perk ) + owned_count( currency_id::major );
         const int total_perks = static_cast<int>( sizeof( perks ) / sizeof( perks[0] ) );
 
-        std::string title = "Survivor Progression v0.9.9";
+        std::string title = "Survivor Progression v0.9.10";
         std::string summary =
             tr( "Level ", "Уровень " ) + std::to_string( level ) +
             " | P " + std::to_string( perk_points ) +
@@ -1598,7 +1781,7 @@ int init( const ncmm_host_api_v1 *api )
 
     host = api;
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.9.9 initialized: anti-farm branch XP / 120 perks / 6 integrated RPG trees." );
+              "Survivor Progression 0.9.10 initialized: anti-farm branch XP / routed trees / ranked foundational perks." );
     return 1;
 }
 
@@ -1616,7 +1799,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     module_id,
     "Survivor Progression",
-    "0.9.9",
+    "0.9.10",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,

@@ -1076,9 +1076,9 @@ int ui_tree_choose( const char *title, const char *summary,
         ncmm_trim_and_print_literal( frame, point( divider_x + 2, header_height - 1 ),
                                     detail_width - 3, c_dark_gray, tr_ui( "DETAIL", "ДЕТАЛИ" ) );
 
-        // Build dependency connectors as a real box-drawing graph.  Each cell
-        // stores N/E/S/W connectivity; shared paths become proper corners,
-        // tees and crossings instead of overlapping ASCII '-'/'|' characters.
+        // 0.9.10: route dependency lines through the two-character gutters
+        // between node columns.  Long vertical runs no longer pass through
+        // unrelated perk tiles.
         constexpr int edge_n = 1;
         constexpr int edge_e = 2;
         constexpr int edge_s = 4;
@@ -1086,13 +1086,32 @@ int ui_tree_choose( const char *title, const char *summary,
         const int grid_size = frame_width * frame_height;
         std::vector<int> edge_mask( static_cast<size_t>( grid_size ), 0 );
         std::vector<int> edge_style( static_cast<size_t>( grid_size ), 0 );
+        std::vector<std::array<int, 4>> blocked_rects;
+        blocked_rects.reserve( node_count );
+
+        for( size_t i = 0; i < node_count; ++i ) {
+            if( !visible( i ) ) {
+                continue;
+            }
+            const int bx = node_x( i );
+            const int by = node_y( i );
+            blocked_rects.push_back( {{ bx, by, bx + node_width - 1, by + node_height - 1 }} );
+        }
 
         auto grid_index = [&]( int x, int y ) {
             return y * frame_width + x;
         };
+        auto is_blocked = [&]( int x, int y ) {
+            for( const std::array<int, 4> &r : blocked_rects ) {
+                if( x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3] ) {
+                    return true;
+                }
+            }
+            return false;
+        };
         auto mark_dir = [&]( int x, int y, int dir, int style ) {
             if( x <= 0 || x >= divider_x || y < header_height ||
-                y >= frame_height - footer_height ) {
+                y >= frame_height - footer_height || is_blocked( x, y ) ) {
                 return;
             }
             const int index = grid_index( x, y );
@@ -1154,45 +1173,93 @@ int ui_tree_choose( const char *title, const char *summary,
         for( size_t e = 0; e < edge_count; ++e ) {
             const size_t from = edges[e].from_index;
             const size_t to = edges[e].to_index;
-            if( !visible( from ) || !visible( to ) ) continue;
+            if( !visible( from ) || !visible( to ) ) {
+                continue;
+            }
 
             has_outgoing[from] = true;
             has_incoming[to] = true;
 
-            const int x1 = node_x( from ) + node_width / 2;
+            const int from_left = node_x( from );
+            const int from_right = from_left + node_width - 1;
+            const int x1 = from_left + node_width / 2;
             const int y1 = node_y( from ) + node_height;
             const int x2 = node_x( to ) + node_width / 2;
             const int y2 = node_y( to ) - 1;
-            if( y2 < y1 ) continue;
+            if( y2 < y1 ) {
+                continue;
+            }
 
-            const int mid = y1 + ( y2 - y1 ) / 2;
             const int style = style_for_node( to );
 
-            // Seed endpoints as vertical line cells.
-            mark_dir( x1, y1, edge_n | edge_s, style );
-            mark_dir( x2, y2, edge_n | edge_s, style );
+            auto vertical_clear = [&]( int x, int ya, int yb ) {
+                if( x <= 0 || x >= divider_x ) {
+                    return false;
+                }
+                if( yb < ya ) {
+                    std::swap( ya, yb );
+                }
+                for( int y = ya; y <= yb; ++y ) {
+                    if( is_blocked( x, y ) ) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+
+            std::vector<int> candidates;
+            candidates.reserve( static_cast<size_t>( divider_x ) );
+            const int preferred = x2 > x1 ? from_right + 1 :
+                                  x2 < x1 ? from_left - 1 :
+                                  from_right + 1;
+            for( int distance = 0; distance < divider_x; ++distance ) {
+                const int right = preferred + distance;
+                const int left = preferred - distance;
+                if( right > 0 && right < divider_x ) {
+                    candidates.push_back( right );
+                }
+                if( distance > 0 && left > 0 && left < divider_x ) {
+                    candidates.push_back( left );
+                }
+            }
+
+            int route_x = -1;
+            for( const int candidate : candidates ) {
+                if( vertical_clear( candidate, y1, y2 ) ) {
+                    route_x = candidate;
+                    break;
+                }
+            }
+            if( route_x < 0 ) {
+                route_x = x2 >= x1 ? divider_x - 1 : 1;
+            }
 
             int cx = x1;
             int cy = y1;
-            while( cy < mid ) {
-                connect_cells( cx, cy, cx, cy + 1, style );
-                ++cy;
+
+            while( cx != route_x ) {
+                const int nx = cx + ( route_x > cx ? 1 : -1 );
+                connect_cells( cx, cy, nx, cy, style );
+                cx = nx;
+            }
+            while( cy != y2 ) {
+                const int ny = cy + ( y2 > cy ? 1 : -1 );
+                connect_cells( cx, cy, cx, ny, style );
+                cy = ny;
             }
             while( cx != x2 ) {
                 const int nx = cx + ( x2 > cx ? 1 : -1 );
                 connect_cells( cx, cy, nx, cy, style );
                 cx = nx;
             }
-            while( cy < y2 ) {
-                connect_cells( cx, cy, cx, cy + 1, style );
-                ++cy;
-            }
         }
 
         for( int y = header_height; y < frame_height - footer_height; ++y ) {
             for( int x = 1; x < divider_x; ++x ) {
                 const int index = grid_index( x, y );
-                if( edge_mask[index] == 0 ) continue;
+                if( edge_mask[index] == 0 ) {
+                    continue;
+                }
                 const nc_color color = color_for_style( edge_style[index] );
                 wattron( frame, color );
                 mvwaddch( frame, point( x, y ), glyph_for_mask( edge_mask[index] ) );
