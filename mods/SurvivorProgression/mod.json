@@ -1,11 +1,11 @@
 {
   "id": "survivor_progression",
   "name": "Survivor Progression",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "loader_api": 1,
   "api_major": 1,
   "api_min_minor": 4,
-  "state_schema": 5,
+  "state_schema": 6,
   "state_min_supported": 0,
   "requires": [
     "core.v1",
