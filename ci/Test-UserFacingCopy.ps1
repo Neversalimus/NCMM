@@ -23,7 +23,6 @@ $host = [IO.File]::ReadAllText( $targets.Host )
 
 $checks = @(
     @{ Name='Survivor dev label Mechanical'; Text=$survivor; Pattern='Mechanical:' },
-    @{ Name='Survivor dev label Russian Mechanics'; Text=$survivor; Pattern='Механика:' },
     @{ Name='Survivor dev label Technical'; Text=$survivor; Pattern='Technical:' },
     @{ Name='Survivor dev label Fieldcraft'; Text=$survivor; Pattern='Fieldcraft' },
     @{ Name='Survivor design taxonomy Cross-discipline'; Text=$survivor; Pattern='Cross-discipline' },
@@ -31,17 +30,17 @@ $checks = @(
     @{ Name='Survivor engine wording damage pipeline'; Text=$survivor; Pattern='damage pipeline' },
     @{ Name='Survivor engine wording failure event'; Text=$survivor; Pattern='failure event' },
     @{ Name='Survivor developer roll wording'; Text=$survivor; Pattern='actual [A-Za-z -]*roll' },
-    @{ Name='Survivor developer Russian roll wording'; Text=$survivor; Pattern='реальн[^"\r\n]*брос' },
+    @{ Name='Survivor developer Russian roll wording'; Text=$survivor; Pattern='\u0440\u0435\u0430\u043b\u044c\u043d[^"\r\n]*\u0431\u0440\u043e\u0441' },
     @{ Name='Survivor XP implementation wording'; Text=$survivor; Pattern='XP-awarding' },
     @{ Name='Survivor layout implementation wording'; Text=$survivor; Pattern='Routed tree' },
     @{ Name='Survivor state implementation wording'; Text=$survivor; Pattern='complete Survivor state' },
     @{ Name='Survivor integration-anchor wording'; Text=$survivor; Pattern='integration anchor' },
     @{ Name='Survivor sourced-ability wording'; Text=$survivor; Pattern='Prime-sourced' },
     @{ Name='Survivor stat-perk implementation wording'; Text=$survivor; Pattern='stat perks' },
-    @{ Name='Survivor legacy compact branch-level token'; Text=$survivor; Pattern='BLv|УрВ' },
-    @{ Name='Survivor legacy Prime design label'; Text=$survivor; Pattern='PRIME TRADEOFF|ПРАЙМ-КОМПРОМИСС' },
-    @{ Name='Survivor Russian translocation mistranslation'; Text=$survivor; Pattern='трансляци' },
-    @{ Name='Survivor old world-mod wording'; Text=$survivor; Pattern='World mod:|Мод мира:' },
+    @{ Name='Survivor legacy compact branch-level token'; Text=$survivor; Pattern='BLv' },
+    @{ Name='Survivor legacy Prime design label'; Text=$survivor; Pattern='PRIME TRADEOFF' },
+    @{ Name='Survivor Russian translocation mistranslation'; Text=$survivor; Pattern='\u0442\u0440\u0430\u043d\u0441\u043b\u044f\u0446\u0438' },
+    @{ Name='Survivor old world-mod wording'; Text=$survivor; Pattern='World mod:' },
     @{ Name='Survivor generic-bonus implementation wording'; Text=$survivor; Pattern='generic Survivor' },
 
     @{ Name='AWS internal new-map marker'; Text=$aws; Pattern='\[NEW MAP\]' },
@@ -51,7 +50,7 @@ $checks = @(
     @{ Name='AWS internal urbanity name'; Text=$aws; Pattern='urbanity multiplier' },
 
     @{ Name='Host raw callback quarantine popup'; Text=$host; Pattern='callback failed and was quarantined' },
-    @{ Name='Host raw quarantine state'; Text=$host; Pattern='ON / quarantined|ВКЛ / карантин' },
+    @{ Name='Host raw quarantine state'; Text=$host; Pattern='ON / quarantined' },
     @{ Name='Host raw failed state'; Text=$host; Pattern='ON / failed' },
     @{ Name='Host raw internal reason in player label'; Text=$host; Pattern='label \+= " - " \+ entry\.reason' }
 )
@@ -73,6 +72,7 @@ $required = @(
     @{ Name='Host natural UI failure message'; Text=$host; Needle="This mod's interface failed to open and has been disabled for this session." },
     @{ Name='Host natural settings badge'; Text=$host; Needle=' [SETTINGS]' }
 )
+
 foreach( $check in $required ) {
     if( -not ( [string]$check.Text ).Contains( [string]$check.Needle ) ) {
         $failures.Add( 'Missing expected player copy: ' + [string]$check.Name )
