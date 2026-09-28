@@ -99,8 +99,8 @@ jobs:
             'mods\AdvancedWorldSettings\src\aws.cpp',
             'host_patch\ncmm_loader.cpp'
           )){
-            $repoText = [IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE $rel)).Replace([char]13 + [char]10,[char]10)
-            $genText = [IO.File]::ReadAllText((Join-Path $generated $rel)).Replace([char]13 + [char]10,[char]10)
+            $repoText = [IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE $rel)).Replace("`r`n","`n")
+            $genText = [IO.File]::ReadAllText((Join-Path $generated $rel)).Replace("`r`n","`n")
             if($repoText -ne $genText){throw "Generated source drift: $rel"}
           }
           Write-Host 'Payload-generated source matches checked-in source: PASS' -ForegroundColor Green
