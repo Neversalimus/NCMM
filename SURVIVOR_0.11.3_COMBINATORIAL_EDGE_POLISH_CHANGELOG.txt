@@ -1,0 +1,40 @@
+Survivor Progression 0.11.3 — Combinatorial Edge Polish
+
+Scope
+- No perk nodes removed or rebalanced merely for symmetry.
+- State schema remains 8; existing purchases remain compatible.
+- 0.11.0 reactive 25-node layer remains intact (323+ generated nodes on the baseline tree).
+
+Runtime polish
+- Riposte refund uses a pre-attack melee-cost basis so nested critical/kill move rewards cannot corrupt refund accounting.
+- Automatic NCMM riposte is disabled while mounted.
+- A vanilla martial-arts dodge counter suppresses NCMM fallback only if its melee attack actually executes.
+- Critical rewards and general reactive/execute damage require a hostile real target; fleeing hostile monsters still count.
+- Hostile real NPC kills now emit the same generic NCMM player-kill event/recovery path as hostile monster kills. Fake, hallucination, friendly and neutral NPCs are excluded.
+- Momentum kill increments clamp before +1, self-heal corrupted persisted state, and skip expensive modifier recalculation when already at the same cap.
+- Craft failure cancellation always advances the next failure point; the catastrophic-failure UI estimate reflects failure cancellation.
+
+Compatibility
+- Exact source gate remains pinned to CDDA e262adb299a7613b4aedc5f12c08fe0413c56a84.
+- Exact adapter now also pins src/npc.cpp because 0.11.3 adds generic hostile-NPC kill parity.
+- Candidate only until Windows/MSVC install + normal Host launch + runtime verify PASS.
+Installer HOTFIX1
+- Fixed a PowerShell parse error in generated gameplay-hook contract assembly (literal `n used as a statement separator).
+- Patch-revision mechanics contract now fingerprints both Apply-NcmmReactiveMechanics0112 and Apply-NcmmReactiveMechanics0113, ensuring 0.11.3 engine-hook changes invalidate the Host cache correctly.
+- Added a static regression gate for both conditions. Survivor version remains 0.11.3 and state schema remains 8.
+
+HOTFIX8 - generated perk-array separator hardening
+- Fixed the real MSVC syntax failure exposed after the full 0.11.x transform chain reached compilation.
+- 0.10.0 legitimately leaves its final appended perk without a trailing comma; 0.11.0 now conditionally inserts exactly one comma before appending cr_riposte and the remaining reactive records.
+- Added a compile-shape preflight, CI regression contract, and golden C++ separator fixture so record-count audits cannot falsely pass an invalid initializer list again.
+
+HOTFIX9 installer/build-chain fix:
+- Fixed the earlier 0.9.15 Prime -> 0.10.0 Mechanical initializer-list boundary.
+- 0.10.0 now promotes the previous comma-less tail before appending 27 mechanical perks.
+- Added full Prime -> Mechanical -> Reactive separator regression fixture.
+
+HOTFIX13 - chargen lifecycle and F1 tree layout hardening
+- Host API 2.0 character-state access is unavailable while g->new_game is true; active_world alone is no longer treated as a safe avatar lifetime signal.
+- Generic runtime gameplay hooks return neutral values until WORLD_LOADED is announced on the first real game turn. This isolates Magiclysm/Mind Over Matter/Xedra character-creation EOCs from Survivor runtime modifiers.
+- F1 tree routing now deconflicts every multi-node row after parent-centering, preserving singleton centering while preventing overlapping cards and unreachable mouse hitboxes.
+- No perk nodes, balance values, state schema, or mod-integration IDs changed. Candidate status remains until the reported modded new-character crash is retested and Runtime Verify passes.

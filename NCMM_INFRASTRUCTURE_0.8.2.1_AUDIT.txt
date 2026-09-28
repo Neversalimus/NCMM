@@ -1,0 +1,29 @@
+NCMM Infrastructure 0.8.2.1 — Infrastructure Cleanup Audit
+
+BASE: NCMM Infrastructure 0.8.2
+SCOPE: tooling cleanup only; no Host API expansion and no gameplay change.
+
+ROOT CAUSE FIXED
+- Test-Infrastructure082.ps1 line 15 passed three strings as one Join-Path ChildPath argument.
+- 0.8.2.1 removes that call entirely and runs the update/dependency regression inline.
+
+SCRIPT REDUCTION
+- CMD: 16 -> 1
+- PS1: 29 -> 19
+- user-facing entrypoints: NCMM.cmd only
+- thin wrappers/legacy 0.8.0/0.8.1 redirects removed.
+
+INVARIANTS
+- Survivor/AWS/Host build payload byte-for-byte unchanged: PASS
+- exact 0546 adapter preserved: PASS
+- base adapter preserved: PASS
+- component/update/migration schemas preserved: PASS
+- package integrity regenerated: 56 immutable files
+- JSON parse: PASS
+- PS1 UTF-8 BOM contract: PASS
+- NCMM.cmd no-BOM contract: PASS
+- known Join-Path array misuse pattern: ABSENT
+- runtime static test now uses System.Management.Automation.Language.Parser on every PS1.
+
+NOT CLAIMED
+- Windows PowerShell 5.1 runtime parse/build has not been executed in this Linux environment. NCMM.cmd and Test-Infrastructure0821.ps1 perform the real Windows parser check on the user's machine before install.

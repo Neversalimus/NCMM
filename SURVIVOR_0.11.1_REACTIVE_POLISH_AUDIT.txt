@@ -1,0 +1,73 @@
+Survivor Progression 0.11.1 — Reactive Mechanics Polish Audit
+==============================================================
+
+Target baseline
+---------------
+Infrastructure: 0.8.3.1
+Host: 0.8.0
+Legacy API: 1.9
+Host API: 2.0 Core
+Advanced World Settings: 0.6.2
+Exact CDDA: cdda_experimental_2026_09_23_0546
+Source commit: e262adb299a7613b4aedc5f12c08fe0413c56a84
+
+Preservation gate
+-----------------
+- The 0.10.0 Mechanical Perks layer remains intact.
+- The 0.11.0 Reactive Mechanics layer remains intact: 25 appended nodes, with deliberately unequal branch counts.
+- 0.11.1 adds no replacement tree and removes no nodes.
+- The 0.11.1 transform counts the complete perk array before and after the polish and requires exact equality; baseline must still contain at least 323 nodes.
+- State schema remains 8.
+
+Issues found during polish
+--------------------------
+1. Riposte ordering: 0.11.0 inserted the NCMM riposte before the vanilla martial-arts dodge-counter block, allowing the modded counter to pre-empt/stack awkwardly with vanilla counter semantics.
+2. Riposte eligibility: the NCMM counter lacked the vanilla one-third-stamina gate and an explicit dead-attacker guard.
+3. Self-damage: general outgoing/execute multipliers used avatar-source alone and could therefore amplify avatar self-damage.
+4. Kill farming: revived monsters explicitly receive zero kill XP in CDDA, but the 0.11.0 NCMM kill bridge still fired move/stamina/Momentum rewards.
+5. Event integration readability: patched monster.cpp emitted a raw numeric Host event ID instead of a named Host-owned integration function.
+6. Crafting UI mismatch: the real crafting success roll received the technical bonus, while recipe_success_chance() still displayed the vanilla estimate.
+7. Lockpick floor: a global five-second clamp allowed ordinary lockpicks to bypass vanilla's 30-second minimum after Quick Entry reduction.
+8. RU terminology: descriptions translated CDDA action points/moves as whole "turns", overstating +5/+10/+15 move rewards.
+9. Partial-apply recovery: the reactive idempotency probe checked patched gameplay files but not the new Host kill-wrapper declaration/definition.
+10. Source probes were broader than the exact code paths now modified.
+
+Corrections applied
+-------------------
+- Vanilla martial-arts dodge counter is preserved first; NCMM riposte is a fallback and cannot double-counter the same dodge.
+- Riposte requires >= 1/3 max stamina and a living adjacent attacker; recursion guard and move-refund logic remain.
+- Outgoing/execute path now requires source != target.
+- Kill rewards/NCMM kill event require avatar attribution and kill_xp > 0.
+- Added Host-owned runtime_player_kill_notify() wrapper and header declaration.
+- Idempotency probes now require both wrapper declaration and implementation before treating the patch as complete.
+- recipe_success_chance() receives the same capped crafting.success_roll_flat adjustment as the real roll.
+- Quick Entry uses a 30-second floor for ordinary lockpicks and a 5-second floor for perfect lockpicks.
+- Russian move terminology and kill-trigger wording are corrected.
+- reactive_technical_hooks.source.v2 adds exact upstream anchors for the newly hardened paths.
+
+Exact-source evidence
+---------------------
+The following upstream exact-commit anchors were checked before packaging:
+- Character::on_dodge vanilla martial-arts counter block;
+- monster::die kill_xp / revived-marker path and event send;
+- Character::crafting_success_roll and recipe_success_chance;
+- item::handle_craft_failure;
+- lockpick_activity_actor::lockpicking_moves and alarm path;
+- trap::detect_trap;
+- Creature::deal_damage and melee critical hook points.
+Exact adapter blob identities for monster.cpp, activity_actor.cpp, trap.cpp, ranged.cpp and the existing mechanical-hook sources remain pinned.
+
+Static verification performed in the build environment
+------------------------------------------------------
+- JSON parse: PASS (all package JSON files before final integrity regeneration).
+- YAML parse: PASS (both GitHub workflow files).
+- PowerShell package encoding/here-string structural scan: PASS (26 PS1 files; UTF-8 BOM + CRLF convention preserved).
+- Reactive perk-definition uniqueness: PASS (25/25 0.11.0 reactive node IDs occur exactly once in the appended definitions).
+- Current module-version consistency: PASS for component descriptor, component catalog, compatibility self-test, update feed and exact-commit feed entry.
+- Synthetic C++17 semantic fixture: PASS for riposte precedence/stamina/dead-target gates, self-damage guard, execute threshold, zero-XP kill gate, crafting display-threshold adjustment and lockpick floors.
+- Final package-integrity regeneration/verification: PASS (81/81 immutable package files; integrity manifest excluded from its own hash set).
+
+Limitations
+-----------
+No Windows PowerShell executable is available in the packaging environment, so the actual Windows PowerShell parser and the package's native static test are not claimed to have executed here. The package's own Test-Infrastructure083.ps1 regression contract has been updated for 0.11.1 and will run on Windows.
+No MSVC/CDDA executable is available here; therefore compile/install/runtime status remains candidate-only until the normal NCMM install + first-launch selftest is run on the target PC.

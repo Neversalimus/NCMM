@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "id": "survivor_only",
+  "active_mod_ids": [
+    "dda"
+  ],
+  "expected": {
+    "survivor_schema": 8,
+    "core_prime_roots": 18,
+    "total_prime_roots": 39,
+    "mod_native_nodes": 161,
+    "available_prime_roots": 18,
+    "available_mod_prime_roots": 0
+  },
+  "required_tokens": [
+    "integration_anchor_id",
+    "perk_world_available",
+    "active_world_mod"
+  ]
+}

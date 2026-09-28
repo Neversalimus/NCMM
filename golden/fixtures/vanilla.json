@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "id": "vanilla",
+  "active_mod_ids": [],
+  "expected": {
+    "survivor_schema": 8,
+    "core_prime_roots": 18,
+    "total_prime_roots": 39,
+    "mod_native_nodes": 161,
+    "available_prime_roots": 18,
+    "available_mod_prime_roots": 0
+  },
+  "required_tokens": [
+    "constexpr int state_schema = 8;",
+    "active_mods.registry.v2"
+  ]
+}

@@ -1,0 +1,1416 @@
+NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL
+param([string]$Root)
+
+    Write-Host "Applying Host API 2.0 generic runtime gameplay hooks..." -ForegroundColor Cyan
+    $src = Join-Path $Root "src"
+    $magicPath = Join-Path $src "magic.cpp"
+    $knowledgePath = Join-Path $src "character_knowledge.cpp"
+    $creaturePath = Join-Path $src "creature.cpp"
+    $characterPath = Join-Path $src "character.cpp"
+    $characterHealthPath = Join-Path $src "character_health.cpp"
+    $meleePath = Join-Path $src "melee.cpp"
+    $rangedPath = Join-Path $src "ranged.cpp"
+    $marker = Join-Path $Root ".ncmm_runtime_gameplay_hooks_v2"
+    foreach ($legacy in @('.ncmm_survivor_modstats_v8','.ncmm_survivor_modstats_v82','.ncmm_survivor_modstats_v83')) {
+        Remove-Item (Join-Path $Root $legacy) -Force -ErrorAction SilentlyContinue
+    }
+    foreach ($p in @($magicPath,$knowledgePath,$creaturePath,$characterPath,$characterHealthPath,$meleePath,$rangedPath)) {
+        if (-not (Test-Path $p -PathType Leaf)) { throw "Host API 2.0 runtime-hook source file missing: $p" }
+    }
+
+    $Utf8NoBomV82 = New-Object System.Text.UTF8Encoding($false)
+    function Read-V82([string]$Path) { return [IO.File]::ReadAllText($Path) }
+    function Write-V82([string]$Path,[string]$Text) { [IO.File]::WriteAllText($Path,$Text,$Utf8NoBomV82) }
+    function Replace-V82Once([string]$Text,[string]$Old,[string]$New,[string]$Name) {
+        $Text = Normalize-Lf $Text; $Old = (Normalize-Lf $Old).TrimEnd(); $New = (Normalize-Lf $New).TrimEnd()
+        $count = ([regex]::Matches($Text,[regex]::Escape($Old))).Count
+        if ($count -ne 1) { throw "Host API 2.0 source contract '$Name' expected exactly once, found $count" }
+        return $Text.Replace($Old,$New)
+    }
+    function Replace-V82Range([string]$Text,[string]$Start,[string]$End,[string]$Replacement,[string]$Name) {
+        $Text = Normalize-Lf $Text; $Start = Normalize-Lf $Start; $End = Normalize-Lf $End; $Replacement = Normalize-Lf $Replacement
+        $a = $Text.IndexOf($Start); if ($a -lt 0) { throw "Host API 2.0 source range '$Name' start not found: $Start" }
+        $b = $Text.IndexOf($End,$a + $Start.Length); if ($b -lt 0 -or $b -le $a) { throw "Host API 2.0 source range '$Name' end not found: $End" }
+        return $Text.Substring(0,$a) + $Replacement.TrimEnd() + "`n`n" + $Text.Substring($b)
+    }
+    function Replace-V82OneOf([string]$Text,[object[]]$Candidates,[string]$New,[string]$Name) {
+        $Text = Normalize-Lf $Text; $New = (Normalize-Lf $New).TrimEnd(); $matched = $null; $total = 0
+        foreach ($candidateRaw in $Candidates) {
+            $candidate = (Normalize-Lf ([string]$candidateRaw)).TrimEnd(); $count = ([regex]::Matches($Text,[regex]::Escape($candidate))).Count
+            if ($count -gt 0) { $total += $count; $matched = $candidate }
+        }
+        if ($total -ne 1 -or $null -eq $matched) { throw "Host API 2.0 source contract '$Name' expected one known source form, found $total" }
+        return $Text.Replace($matched,$New)
+    }
+    function Test-V82Contains([string]$Text,[string]$Needle) {
+        return (Normalize-Lf $Text).Contains((Normalize-Lf $Needle).TrimEnd())
+    }
+
+    $magicProbe = Read-V82 $magicPath; $knowledgeProbe = Read-V82 $knowledgePath; $creatureProbe = Read-V82 $creaturePath
+    $characterProbe = Read-V82 $characterPath; $characterHealthProbe = Read-V82 $characterHealthPath
+    $meleeProbe = Read-V82 $meleePath; $rangedProbe = Read-V82 $rangedPath
+    $complete = $magicProbe.Contains('static const char *ncmm_spell_hook_id(') -and
+                $knowledgeProbe.Contains('static float ncmm_runtime_skill_bonus( const skill_id &ident )') -and
+                $creatureProbe.Contains('combat.damage_to_species_pct') -and
+                $creatureProbe.Contains('combat.damage_taken_pct') -and
+                $characterHealthProbe.Contains('combat.damage_avoid_pct') -and
+                $characterProbe.Contains('combat.dodge_attempts_bonus') -and
+                $characterProbe.Contains('combat.free_dodge_attempts_bonus') -and
+                $characterProbe.Contains('combat.block_attempts_bonus') -and
+                $meleeProbe.Contains('combat.melee_crit_chance_pct') -and
+                $meleeProbe.Contains('combat.melee_crit_damage_pct') -and
+                $rangedProbe.Contains('combat.ranged_crit_damage_pct')
+    if ($complete) {
+        if (-not (Test-Path $marker -PathType Leaf)) { Set-Content -Path $marker -Value "Recovered Host API 2.0 runtime-hook marker`n" -Encoding ASCII }
+        foreach ($forbidden in @('"mg_','"mom_','"xe_','"af_','"afp_','"secx_','"sec_damage_pct','"sec_resist_pct','SECROZED_','SFLESH')) {
+            if ($magicProbe.Contains($forbidden) -or $knowledgeProbe.Contains($forbidden) -or $creatureProbe.Contains($forbidden) -or
+                $characterProbe.Contains($forbidden) -or $characterHealthProbe.Contains($forbidden) -or
+                $meleeProbe.Contains($forbidden) -or $rangedProbe.Contains($forbidden)) {
+                throw "Host API 2.0 generic CDDA hooks still contain module-specific token: $forbidden"
+            }
+        }
+        Write-Host "Host API 2.0 generic runtime gameplay hooks already present." -ForegroundColor Green
+        return
+    }
+    if ((Test-Path $marker -PathType Leaf)) { Remove-Item $marker -Force }
+
+    $magic = Read-V82 $magicPath
+    if (-not $magic.Contains('#include "ncmm_loader.h"')) {
+        $magic = Replace-V82Once $magic '#include "magic.h"' ('#include "magic.h"' + "`n" + '#include "ncmm_loader.h"') 'magic.include-ncmm'
+    }
+
+    $magicHelper = @'
+
+enum class ncmm_spell_modifier {
+    cost,
+    cast_time,
+    failure,
+    experience,
+    power,
+    range,
+    area,
+    duration
+};
+
+static const char *ncmm_spell_hook_id( ncmm_spell_modifier modifier )
+{
+    switch( modifier ) {
+        case ncmm_spell_modifier::cost: return "spell.cost_pct";
+        case ncmm_spell_modifier::cast_time: return "spell.cast_time_pct";
+        case ncmm_spell_modifier::failure: return "spell.failure_pct";
+        case ncmm_spell_modifier::experience: return "spell.experience_pct";
+        case ncmm_spell_modifier::power: return "spell.power_pct";
+        case ncmm_spell_modifier::range: return "spell.range_pct";
+        case ncmm_spell_modifier::area: return "spell.area_pct";
+        case ncmm_spell_modifier::duration: return "spell.duration_pct";
+    }
+    return nullptr;
+}
+
+static double ncmm_spell_source_modifier( const spell &sp, ncmm_spell_modifier modifier )
+{
+    const char *hook = ncmm_spell_hook_id( modifier );
+    if( hook == nullptr ) return 0.0;
+    const std::string source = sp.get_src().str();
+    return ncmm::runtime_hook_modifier( hook, nullptr,
+                                       source.empty() ? nullptr : source.c_str(), nullptr, nullptr );
+}
+
+static double ncmm_spell_multiplier( const spell &sp, ncmm_spell_modifier modifier,
+                                     double minimum = 0.10 )
+{
+    return std::max( minimum, 1.0 + ncmm_spell_source_modifier( sp, modifier ) / 100.0 );
+}
+
+enum class ncmm_shared_mana_modifier_kind { maximum, regeneration };
+
+static double ncmm_shared_mana_modifier( ncmm_shared_mana_modifier_kind modifier )
+{
+    return ncmm::runtime_hook_modifier(
+        modifier == ncmm_shared_mana_modifier_kind::maximum ?
+        "magic.mana.max_pct" : "magic.mana.regen_pct" );
+}
+
+class ncmm_spell_source_scope
+{
+    public:
+        explicit ncmm_spell_source_scope( const spell &sp ) :
+            previous_( ncmm::runtime_source_mod_swap( sp.get_src().str() ) ) {}
+        ncmm_spell_source_scope( const ncmm_spell_source_scope & ) = delete;
+        ncmm_spell_source_scope &operator=( const ncmm_spell_source_scope & ) = delete;
+        ~ncmm_spell_source_scope() { ncmm::runtime_source_mod_swap( previous_ ); }
+    private:
+        std::string previous_;
+};
+
+static float ncmm_spell_skill_level( const spell &sp, const Character &guy )
+{
+    const ncmm_spell_source_scope source_scope( sp );
+    return guy.get_skill_level( sp.skill() );
+}
+'@
+    $helperAnchor = 'static std::map<spell_id, spell_migration> spell_migrations;'
+    if ($magic.Contains('static double ncmm_spell_source_modifier')) {
+        $magic = Replace-V82Range $magic 'static double ncmm_spell_source_modifier' 'static std::string target_to_string' $magicHelper 'magic.upgrade-helper'
+    } elseif (-not $magic.Contains('ncmm_spell_hook_id')) {
+        $magic = Replace-V82Once $magic $helperAnchor ($helperAnchor + $magicHelper) 'magic.mod-source-helper'
+    }
+
+    $energyVanilla = @'
+    return std::max( cost * temp_spell_cost_multiplyer, 0.0f );
+'@
+    $energyV8 = @'
+    const double multiplier = guy.is_avatar() ? ncmm_spell_multiplier( *this, "_spell_cost_pct" ) : 1.0;
+    const double adjusted = std::max( cost * temp_spell_cost_multiplyer, 0.0f ) * multiplier;
+    return std::max( 0, static_cast<int>( std::lround( adjusted ) ) );
+'@
+    $energyV82 = @'
+    const int vanilla_cost = static_cast<int>( std::max( cost * temp_spell_cost_multiplyer, 0.0f ) );
+    const double multiplier = guy.is_avatar() ?
+                              ncmm_spell_multiplier( *this, ncmm_spell_modifier::cost ) : 1.0;
+    return std::max( 0, static_cast<int>( std::lround( vanilla_cost * multiplier ) ) );
+'@
+    $magic = Replace-V82OneOf $magic @($energyVanilla,$energyV8,$energyV82) $energyV82 'magic.energy-cost'
+
+    $castVanilla = @'
+    return std::max( casting_time * temp_cast_time_multiplyer, 0.0f );
+'@
+    $castV8 = @'
+    const double multiplier = guy.is_avatar() ? ncmm_spell_multiplier( *this, "_cast_time_pct" ) : 1.0;
+    const double adjusted = std::max( casting_time * temp_cast_time_multiplyer, 0.0f ) * multiplier;
+    return std::max( 0, static_cast<int>( std::lround( adjusted ) ) );
+'@
+    $castV82 = @'
+    const int vanilla_time = static_cast<int>( std::max( casting_time * temp_cast_time_multiplyer, 0.0f ) );
+    const double multiplier = guy.is_avatar() ?
+                              ncmm_spell_multiplier( *this, ncmm_spell_modifier::cast_time ) : 1.0;
+    return std::max( 0, static_cast<int>( std::lround( vanilla_time * multiplier ) ) );
+'@
+    $magic = Replace-V82OneOf $magic @($castVanilla,$castV8,$castV82) $castV82 'magic.cast-time'
+
+    $skillNormalOld = @'
+    const float effective_skill = 2 * ( get_effective_level() - get_difficulty(
+                                            guy ) ) + guy.get_int() +
+                                  guy.get_skill_level( skill() );
+'@
+    $skillNormalNew = @'
+    const float effective_skill = 2 * ( get_effective_level() - get_difficulty(
+                                            guy ) ) + guy.get_int() +
+                                  ncmm_spell_skill_level( *this, guy );
+'@
+    if ($magic.Contains((Normalize-Lf $skillNormalOld).TrimEnd())) {
+        $magic = Replace-V82Once $magic $skillNormalOld $skillNormalNew 'magic.fail-effective-skill'
+    }
+    $skillPsiOld = @'
+        const float psi_effective_skill_initial = 2 * ( ( guy.get_skill_level(
+                    skill() ) * 2 ) - get_difficulty(
+'@
+    $skillPsiNew = @'
+        const float psi_effective_skill_initial = 2 * ( ( ncmm_spell_skill_level(
+                    *this, guy ) * 2 ) - get_difficulty(
+'@
+    if ($magic.Contains((Normalize-Lf $skillPsiOld).TrimEnd())) {
+        $magic = Replace-V82Once $magic $skillPsiOld $skillPsiNew 'magic.fail-psi-skill'
+    }
+
+    $customFailFormulaOld = @'
+        const_dialogue d( get_const_talker_for( guy ), nullptr );
+        d.set_value( "spell_id", id().str() );
+        fail_chance = type->magic_type.value()->failure_chance_formula_id.value()->eval( d );
+'@
+    $customFailFormulaNew = @'
+        const ncmm_spell_source_scope source_scope( *this );
+        const_dialogue d( get_const_talker_for( guy ), nullptr );
+        d.set_value( "spell_id", id().str() );
+        fail_chance = type->magic_type.value()->failure_chance_formula_id.value()->eval( d );
+'@
+    if ($magic.Contains((Normalize-Lf $customFailFormulaOld).TrimEnd())) {
+        $magic = Replace-V82Once $magic $customFailFormulaOld $customFailFormulaNew 'magic.custom-fail-metaphysics-context'
+    }
+
+    $failVanilla = @'
+    return clamp( fail_chance, 0.0f, 1.0f );
+'@
+    $failV8 = @'
+    const double multiplier = guy.is_avatar() ? ncmm_spell_multiplier( *this, "_fail_pct", 0.0 ) : 1.0;
+    const double adjusted = clamp( fail_chance, 0.0f, 1.0f ) * multiplier;
+    return clamp( static_cast<float>( adjusted ), 0.0f, 1.0f );
+'@
+    $failV82 = @'
+    const double multiplier = guy.is_avatar() ?
+                              ncmm_spell_multiplier( *this, ncmm_spell_modifier::failure, 0.0 ) : 1.0;
+    const double adjusted = clamp( fail_chance, 0.0f, 1.0f ) * multiplier;
+    return clamp( static_cast<float>( adjusted ), 0.0f, 1.0f );
+'@
+    $magic = Replace-V82OneOf $magic @($failVanilla,$failV8,$failV82) $failV82 'magic.fail-chance'
+
+    $expSkillOld = '    const float spellcraft_modifier = guy.get_skill_level( skill() ) / 10.0f;'
+    $expSkillNew = '    const float spellcraft_modifier = ncmm_spell_skill_level( *this, guy ) / 10.0f;'
+    if ($magic.Contains($expSkillOld)) {
+        $magic = Replace-V82Once $magic $expSkillOld $expSkillNew 'magic.exp-skill'
+    }
+
+    $castingExp = @'
+int spell::casting_exp( const Character &guy ) const
+{
+    int result = 0;
+    if( type->magic_type.has_value() && type->magic_type.value()->casting_xp_formula_id.has_value() ) {
+        const ncmm_spell_source_scope source_scope( *this );
+        const_dialogue d( get_const_talker_for( guy ), nullptr );
+        d.set_value( "spell_id", id().str() );
+        result = std::round( type->magic_type.value()->casting_xp_formula_id.value()->eval( d ) );
+    } else {
+        const int base_casting_xp = 75;
+        result = std::round( guy.adjust_for_focus( base_casting_xp * exp_modifier( guy ) ) );
+    }
+    const double multiplier = guy.is_avatar() ?
+                              ncmm_spell_multiplier( *this, ncmm_spell_modifier::experience, 0.0 ) : 1.0;
+    result = static_cast<int>( std::lround( result * multiplier ) );
+    return std::max( 0, result );
+}
+'@
+    $magic = Replace-V82Range $magic 'int spell::casting_exp( const Character &guy ) const' 'std::string spell::enumerate_targets() const' $castingExp 'magic.casting-exp'
+
+    $damage = @'
+int spell::damage( const Creature &caster ) const
+{
+    const_dialogue d( get_const_talker_for( caster ), nullptr );
+    const int leveled_damage = min_leveled_damage( caster );
+    double result = 0.0;
+
+    if( has_flag( spell_flag::RANDOM_DAMAGE ) ) {
+        result = rng( std::min( leveled_damage, static_cast<int>( type->max_damage.evaluate( d ) ) ),
+                      std::max( leveled_damage,
+                                static_cast<int>( type->max_damage.evaluate( d ) ) ) ) * temp_damage_multiplyer;
+    } else if( type->min_damage.evaluate( d ) >= 0 ||
+               type->max_damage.evaluate( d ) >= type->min_damage.evaluate( d ) ) {
+        result = std::min( leveled_damage,
+                           static_cast<int>( type->max_damage.evaluate( d ) ) ) * temp_damage_multiplyer;
+    } else {
+        result = std::max( leveled_damage,
+                           static_cast<int>( type->max_damage.evaluate( d ) ) ) * temp_damage_multiplyer;
+    }
+
+    const int vanilla_damage = static_cast<int>( result );
+    if( !caster.is_avatar() ) {
+        return vanilla_damage;
+    }
+    return static_cast<int>( std::lround( vanilla_damage *
+                             ncmm_spell_multiplier( *this, ncmm_spell_modifier::power, 0.0 ) ) );
+}
+'@
+    $magic = Replace-V82Range $magic 'int spell::damage( const Creature &caster ) const' 'int spell::min_leveled_accuracy( const Creature &caster ) const' $damage 'magic.spell-power'
+
+    $damageDot = @'
+double spell::damage_dot( const Creature &caster ) const
+{
+    const_dialogue d( get_const_talker_for( caster ), nullptr );
+    const double leveled_dot = min_leveled_dot( caster );
+    double result;
+    if( type->min_dot.evaluate( d ) >= 0.0 ||
+        type->max_dot.evaluate( d ) >= type->min_dot.evaluate( d ) ) {
+        result = std::min( leveled_dot, type->max_dot.evaluate( d ) );
+    } else {
+        result = std::max( leveled_dot, type->max_dot.evaluate( d ) );
+    }
+    if( caster.is_avatar() ) {
+        result *= ncmm_spell_multiplier( *this, ncmm_spell_modifier::power, 0.0 );
+    }
+    return result;
+}
+'@
+    $magic = Replace-V82Range $magic 'double spell::damage_dot( const Creature &caster ) const' 'damage_over_time_data spell::damage_over_time' $damageDot 'magic.spell-dot-power'
+
+    $aoe = @'
+int spell::aoe( const Creature &caster ) const
+{
+    const_dialogue d( get_const_talker_for( caster ), nullptr );
+    const int leveled_aoe = min_leveled_aoe( caster );
+    int return_value;
+
+    if( has_flag( spell_flag::RANDOM_AOE ) ) {
+        return_value = rng( std::min( leveled_aoe, static_cast<int>( type->max_aoe.evaluate( d ) ) ),
+                            std::max( leveled_aoe, static_cast<int>( type->max_aoe.evaluate( d ) ) ) );
+    } else if( type->max_aoe.evaluate( d ) >= type->min_aoe.evaluate( d ) ) {
+        return_value = std::min( leveled_aoe, static_cast<int>( type->max_aoe.evaluate( d ) ) );
+    } else {
+        return_value = std::max( leveled_aoe, static_cast<int>( type->max_aoe.evaluate( d ) ) );
+    }
+    const int vanilla_aoe = static_cast<int>( return_value * temp_aoe_multiplyer );
+    const double multiplier = caster.is_avatar() ?
+                              ncmm_spell_multiplier( *this, ncmm_spell_modifier::area, 0.0 ) : 1.0;
+    return static_cast<int>( std::lround( vanilla_aoe * multiplier ) );
+}
+
+std::set<tripoint_bub_ms> spell::effect_area( const spell_effect::override_parameters &params,
+        const tripoint_bub_ms &source, const tripoint_bub_ms &target ) const
+{
+    return type->spell_area_function( params, source, target );
+}
+
+std::set<tripoint_bub_ms> spell::effect_area( const tripoint_bub_ms &source,
+        const tripoint_bub_ms &target, const Creature &caster ) const
+{
+    return effect_area( spell_effect::override_parameters( *this, caster ), source, target );
+}
+'@
+    # End at in_aoe intentionally: old v8 accidentally deleted the two effect_area definitions.
+    # Including them in the replacement repairs already-v8-patched caches as well as pristine source.
+    $magic = Replace-V82Range $magic 'int spell::aoe( const Creature &caster ) const' 'bool spell::in_aoe(' $aoe 'magic.aoe-and-effect-area'
+
+    $inAoeOld = @'
+bool spell::in_aoe( const tripoint_bub_ms &source, const tripoint_bub_ms &target,
+                    const Creature &caster ) const
+{
+    const_dialogue d( get_const_talker_for( caster ), nullptr );
+    if( has_flag( spell_flag::RANDOM_AOE ) ) {
+        return rl_dist( source, target ) <= type->max_aoe.evaluate( d );
+    } else {
+        return rl_dist( source, target ) <= aoe( caster );
+    }
+}
+'@
+    $inAoeNew = @'
+bool spell::in_aoe( const tripoint_bub_ms &source, const tripoint_bub_ms &target,
+                    const Creature &caster ) const
+{
+    const_dialogue d( get_const_talker_for( caster ), nullptr );
+    if( has_flag( spell_flag::RANDOM_AOE ) ) {
+        const double multiplier = caster.is_avatar() ?
+                                  ncmm_spell_multiplier( *this, ncmm_spell_modifier::area, 0.0 ) : 1.0;
+        const double max_aoe = type->max_aoe.evaluate( d ) * multiplier;
+        return rl_dist( source, target ) <= max_aoe;
+    }
+    return rl_dist( source, target ) <= aoe( caster );
+}
+'@
+    if ($magic.Contains((Normalize-Lf $inAoeOld).TrimEnd())) {
+        $magic = Replace-V82Once $magic $inAoeOld $inAoeNew 'magic.random-aoe-reach'
+    }
+
+    $range = @'
+int spell::range( const Creature &caster ) const
+{
+    const_dialogue d( get_const_talker_for( caster ), nullptr );
+    const int leveled_range = type->min_range.evaluate( d ) + std::round( get_effective_level() *
+                              type->range_increment.evaluate( d ) );
+    float range;
+    if( type->max_range.evaluate( d ) >= type->min_range.evaluate( d ) ) {
+        range = std::min( leveled_range, static_cast<int>( type->max_range.evaluate( d ) ) );
+    } else {
+        range = std::max( leveled_range, static_cast<int>( type->max_range.evaluate( d ) ) );
+    }
+    const int vanilla_range = static_cast<int>( std::max( range * temp_range_multiplyer, 0.0f ) );
+    const double multiplier = caster.is_avatar() ?
+                              ncmm_spell_multiplier( *this, ncmm_spell_modifier::range, 0.0 ) : 1.0;
+    return std::max( 0, static_cast<int>( std::lround( vanilla_range * multiplier ) ) );
+}
+'@
+    $magic = Replace-V82Range $magic 'int spell::range( const Creature &caster ) const' 'std::vector<tripoint_bub_ms> spell::targetable_locations' $range 'magic.range'
+
+    $duration = @'
+int spell::duration( const Creature &caster ) const
+{
+    const_dialogue d( get_const_talker_for( caster ), nullptr );
+    const int leveled_duration = min_leveled_duration( caster );
+    int return_value;
+    if( has_flag( spell_flag::RANDOM_DURATION ) ) {
+        return_value = rng( std::min( leveled_duration,
+                                      static_cast<int>( type->max_duration.evaluate( d ) ) ),
+                            std::max( leveled_duration,
+                                      static_cast<int>( type->max_duration.evaluate( d ) ) ) );
+    } else if( type->max_duration.evaluate( d ) >= type->min_duration.evaluate( d ) ) {
+        return_value = std::min( leveled_duration, static_cast<int>( type->max_duration.evaluate( d ) ) );
+    } else {
+        return_value = std::max( leveled_duration, static_cast<int>( type->max_duration.evaluate( d ) ) );
+    }
+    const int vanilla_duration = static_cast<int>( std::max( return_value * temp_duration_multiplyer, 0.0f ) );
+    const double multiplier = caster.is_avatar() ?
+                              ncmm_spell_multiplier( *this, ncmm_spell_modifier::duration, 0.0 ) : 1.0;
+    return std::max( 0, static_cast<int>( std::lround( vanilla_duration * multiplier ) ) );
+}
+'@
+    $magic = Replace-V82Range $magic 'int spell::duration( const Creature &caster ) const' 'std::string spell::duration_string' $duration 'magic.duration'
+
+    # CDDA exposes one known_magic mana pool for the avatar. Magiclysm and Xedra
+    # therefore intentionally contribute to the same maximum/regeneration pool.
+    # Source-scoped spell cost/power/range/etc. remain isolated per mod.
+    $maxManaShared = @'
+int known_magic::max_mana( const Character &guy ) const
+{
+    const float int_bonus = ( ( 0.2f + guy.get_int() * 0.1f ) - 1.0f ) * mana_base;
+    int penalty_calc = std::round( std::max<int64_t>( 0,
+                                   units::to_kilojoule( guy.get_power_level() ) ) );
+
+    const int bionic_penalty = guy.enchantment_cache->modify_value(
+                                   enchant_vals::mod::BIONIC_MANA_PENALTY, penalty_calc );
+
+    const float unaugmented_mana = std::max( 0.0f,
+                                   ( mana_base + int_bonus ) - bionic_penalty );
+    const double vanilla = guy.calculate_by_enchantment( unaugmented_mana,
+                           enchant_vals::mod::MAX_MANA, true );
+    if( !guy.is_avatar() ) {
+        return vanilla;
+    }
+    const double bonus = ncmm_shared_mana_modifier( ncmm_shared_mana_modifier_kind::maximum );
+    if( bonus == 0.0 ) {
+        return vanilla;
+    }
+    return vanilla * std::max( 0.10, 1.0 + bonus / 100.0 );
+}
+'@
+    $magic = Replace-V82Range $magic 'int known_magic::max_mana( const Character &guy ) const' 'void known_magic::update_mana( const Character &guy, float turns )' $maxManaShared 'magic.shared-max-mana'
+
+    $updateManaShared = @'
+void known_magic::update_mana( const Character &guy, float turns )
+{
+    const double full_replenish = to_turns<double>( 8_hours );
+    const double ratio = turns / full_replenish;
+    double regen = std::max( 0.0,
+                   guy.calculate_by_enchantment( static_cast<double>( max_mana( guy ) ),
+                                                  enchant_vals::mod::REGEN_MANA ) );
+    if( guy.is_avatar() ) {
+        const double bonus = ncmm_shared_mana_modifier( ncmm_shared_mana_modifier_kind::regeneration );
+        if( bonus != 0.0 ) {
+            regen *= std::max( 0.10, 1.0 + bonus / 100.0 );
+        }
+    }
+    mod_mana( guy, std::floor( ratio * regen ) );
+}
+'@
+    $magic = Replace-V82Range $magic 'void known_magic::update_mana( const Character &guy, float turns )' 'std::vector<spell_id> known_magic::spells() const' $updateManaShared 'magic.shared-mana-regen'
+
+    $knowledge = Read-V82 $knowledgePath
+    $uniqueSkillHelper = @'
+static float ncmm_runtime_skill_bonus( const skill_id &ident )
+{
+    const std::string subject = ident.str();
+    const std::string hook = "skill." + subject + ".flat";
+    const std::string &source = ncmm::runtime_source_mod();
+    return static_cast<float>( ncmm::runtime_hook_modifier(
+        hook.c_str(), subject.c_str(), source.empty() ? nullptr : source.c_str(), nullptr, nullptr ) );
+}
+
+float Character::get_skill_level( const skill_id &ident ) const
+{
+    float result = enchantment_cache->modify_value( ident,
+                   _skills->get_skill_level( ident ) + _skills->get_progress_level( ident ) );
+    if( is_avatar() ) result += ncmm_runtime_skill_bonus( ident );
+    return result;
+}
+'@
+    $knowledge = Replace-V82Range $knowledge 'float Character::get_skill_level( const skill_id &ident ) const' 'float Character::get_skill_level( const skill_id &ident, const item &context ) const' $uniqueSkillHelper 'knowledge.skill-no-context'
+
+    $skillContext = @'
+float Character::get_skill_level( const skill_id &ident, const item &context ) const
+{
+    float result = enchantment_cache->modify_value( ident, _skills->get_skill_level( ident,
+                   context ) + _skills->get_progress_level( ident, context ) );
+    if( is_avatar() ) {
+        result += ncmm_runtime_skill_bonus( ident );
+    }
+    return result;
+}
+'@
+    $knowledge = Replace-V82Range $knowledge 'float Character::get_skill_level( const skill_id &ident, const item &context ) const' 'int Character::get_knowledge_level( const skill_id &ident ) const' $skillContext 'knowledge.skill-context'
+
+    foreach ($needle in @('ncmm_spell_hook_id','ncmm_spell_source_scope','ncmm_spell_skill_level','ncmm_shared_mana_modifier','spell::effect_area','spell::damage_dot')) {
+        if (-not $magic.Contains($needle)) { throw "Host API 2.0 transformed magic source missing: $needle" }
+    }
+    $effectAreaCount = ([regex]::Matches($magic,[regex]::Escape('std::set<tripoint_bub_ms> spell::effect_area'))).Count
+    if ($effectAreaCount -ne 2) { throw "Host API 2.0 expected two spell::effect_area overloads, found $effectAreaCount" }
+    if (-not $knowledge.Contains('ncmm_runtime_skill_bonus')) { throw 'Host API 2.0 transformed skill source missing generic skill hook.' }
+    if ($knowledge.Contains('return std::max( 0.0f, result );')) { throw 'Host API 2.0 skill hook changed vanilla negative-skill semantics.' }
+    if (-not $magic.Contains('const double max_aoe = type->max_aoe.evaluate( d ) * multiplier;')) { throw 'Host API 2.0 RANDOM_AOE hook changed vanilla continuous comparison.' }
+    foreach ($forbidden in @('"mg_','"mom_','"xe_','"af_','"afp_','"secx_','SECROZED_','SFLESH')) {
+        if ($magic.Contains($forbidden) -or $knowledge.Contains($forbidden)) { throw "Host API 2.0 generic magic/skill source contains module token: $forbidden" }
+    }
+
+    # Survivor 0.11.0 mechanical-perk hooks are generic Host API 2.0 contracts.
+    # CDDA knows only hook names; all modifier ownership/value semantics stay in modules.
+    $character = Read-V82 $characterPath
+    if( -not $character.Contains('#include "ncmm_loader.h"') ) {
+        $character = Replace-V82Once $character '#include "character.h"' ('#include "character.h"' + "`n" + '#include "ncmm_loader.h"') 'character.include-ncmm'
+    }
+    $turnResetVanilla = @'
+    // We can dodge again! Assuming we can actually move...
+    if( in_sleep_state() ) {
+        blocks_left = 0;
+        set_dodges_left( 0 );
+        set_free_dodges_left( 0 );
+    } else if( moves > 0 ) {
+        blocks_left = get_num_blocks();
+        set_dodges_left( get_num_dodges() );
+        set_free_dodges_left( get_num_free_dodges() );
+    }
+'@
+    $turnResetMechanical = @'
+    // We can dodge again! Assuming we can actually move...
+    if( in_sleep_state() ) {
+        blocks_left = 0;
+        set_dodges_left( 0 );
+        set_free_dodges_left( 0 );
+    } else if( moves > 0 ) {
+        const int ncmm_block_bonus = is_avatar() ? std::max( 0, std::min( 4,
+                                     static_cast<int>( std::lround( ncmm::runtime_hook_modifier(
+                                             "combat.block_attempts_bonus" ) ) ) ) ) : 0;
+        const int ncmm_dodge_bonus = is_avatar() ? std::max( 0, std::min( 4,
+                                     static_cast<int>( std::lround( ncmm::runtime_hook_modifier(
+                                             "combat.dodge_attempts_bonus" ) ) ) ) ) : 0;
+        const int ncmm_free_dodge_bonus = is_avatar() ? std::max( 0, std::min( 4,
+                                          static_cast<int>( std::lround( ncmm::runtime_hook_modifier(
+                                                  "combat.free_dodge_attempts_bonus" ) ) ) ) ) : 0;
+        blocks_left = get_num_blocks() + ncmm_block_bonus;
+        set_dodges_left( std::max( 0, get_num_dodges() + ncmm_dodge_bonus ) );
+        set_free_dodges_left( std::max( 0, get_num_free_dodges() + ncmm_free_dodge_bonus ) );
+    }
+'@
+    if( Test-V82Contains $character $turnResetVanilla ) {
+        $character = Replace-V82Once $character $turnResetVanilla $turnResetMechanical 'character.mechanical-defense-reset'
+    } elseif( -not $character.Contains('combat.dodge_attempts_bonus') ) {
+        throw 'Host API 2.0 character mechanical-defense hook is neither pristine nor already patched.'
+    }
+
+    $characterHealth = Read-V82 $characterHealthPath
+    if( -not $characterHealth.Contains('#include "ncmm_loader.h"') ) {
+        $characterHealth = Replace-V82Once $characterHealth '#include "character.h"' ('#include "character.h"' + "`n" + '#include "ncmm_loader.h"') 'character-health.include-ncmm'
+    }
+    $damageAvoidAnchor = @'
+    if( has_effect( effect_incorporeal ) || has_flag( json_flag_CANNOT_TAKE_DAMAGE ) ) {
+        return dealt_damage_instance();
+    }
+
+    //damage applied here
+'@
+    $damageAvoidMechanical = @'
+    if( has_effect( effect_incorporeal ) || has_flag( json_flag_CANNOT_TAKE_DAMAGE ) ) {
+        return dealt_damage_instance();
+    }
+
+    if( is_avatar() ) {
+        const double avoid_pct = std::max( 0.0, std::min( 95.0,
+                                   ncmm::runtime_hook_modifier( "combat.damage_avoid_pct" ) ) );
+        if( avoid_pct > 0.0 && rng_float( 0.0, 100.0 ) < avoid_pct ) {
+            return dealt_damage_instance();
+        }
+    }
+
+    //damage applied here
+'@
+    if( Test-V82Contains $characterHealth $damageAvoidAnchor ) {
+        $characterHealth = Replace-V82Once $characterHealth $damageAvoidAnchor $damageAvoidMechanical 'character-health.full-damage-avoidance'
+    } elseif( -not $characterHealth.Contains('combat.damage_avoid_pct') ) {
+        throw 'Host API 2.0 full-damage avoidance hook is neither pristine nor already patched.'
+    }
+
+    $melee = Read-V82 $meleePath
+    if( -not $melee.Contains('#include "ncmm_loader.h"') ) {
+        $melee = Replace-V82Once $melee '#include "melee.h"' ('#include "melee.h"' + "`n" + '#include "ncmm_loader.h"') 'melee.include-ncmm'
+    }
+    $critChanceVanilla = '    double ma_buff_crit_chance = mabuff_critical_hit_chance_bonus() / 100;'
+    $critChanceMechanical = @'
+    double ma_buff_crit_chance = mabuff_critical_hit_chance_bonus() / 100;
+    if( is_avatar() ) {
+        const double ncmm_bonus = ncmm::runtime_hook_modifier( "combat.melee_crit_chance_pct" );
+        ma_buff_crit_chance += std::max( -0.95, std::min( 0.50, ncmm_bonus / 100.0 ) );
+    }
+'@
+    if( $melee.Contains($critChanceVanilla) ) {
+        $melee = Replace-V82Once $melee $critChanceVanilla $critChanceMechanical 'melee.crit-chance-hook'
+    } elseif( -not $melee.Contains('combat.melee_crit_chance_pct') ) {
+        throw 'Host API 2.0 melee critical-chance hook is neither pristine nor already patched.'
+    }
+    $meleeDamageVanilla = '    di.add_damage( dt, dmg, arpen, armor_mult, dmg_mul );'
+    $meleeDamageMechanical = @'
+    if( crit && u.is_avatar() ) {
+        const double ncmm_bonus = ncmm::runtime_hook_modifier( "combat.melee_crit_damage_pct" );
+        dmg_mul *= std::max( 0.10, 1.0 + ncmm_bonus / 100.0 );
+    }
+    di.add_damage( dt, dmg, arpen, armor_mult, dmg_mul );
+'@
+    if( $melee.Contains($meleeDamageVanilla) ) {
+        $melee = Replace-V82Once $melee $meleeDamageVanilla $meleeDamageMechanical 'melee.crit-damage-hook'
+    } elseif( -not $melee.Contains('combat.melee_crit_damage_pct') ) {
+        throw 'Host API 2.0 melee critical-damage hook is neither pristine nor already patched.'
+    }
+
+    $ranged = Read-V82 $rangedPath
+    if( -not $ranged.Contains('#include "ncmm_loader.h"') ) {
+        $ranged = Replace-V82Once $ranged '#include "ranged.h"' ('#include "ranged.h"' + "`n" + '#include "ncmm_loader.h"') 'ranged.include-ncmm'
+    }
+    $rangedCritVanilla = '        proj.critical_multiplier = ammo->critical_multiplier;'
+    $rangedCritMechanical = @'
+        proj.critical_multiplier = ammo->critical_multiplier;
+        if( guy.is_avatar() ) {
+            const double ncmm_bonus = ncmm::runtime_hook_modifier( "combat.ranged_crit_damage_pct" );
+            proj.critical_multiplier *= std::max( 0.10, 1.0 + ncmm_bonus / 100.0 );
+        }
+'@
+    if( $ranged.Contains($rangedCritVanilla) ) {
+        $ranged = Replace-V82Once $ranged $rangedCritVanilla $rangedCritMechanical 'ranged.crit-damage-hook'
+    } elseif( -not $ranged.Contains('combat.ranged_crit_damage_pct') ) {
+        throw 'Host API 2.0 ranged critical-damage hook is neither pristine nor already patched.'
+    }
+
+    $creature = Read-V82 $creaturePath
+    if( -not $creature.Contains('#include "ncmm_loader.h"') ) {
+        $creature = Replace-V82Once $creature '#include "monster.h"' ('#include "monster.h"' + "`n" + '#include "ncmm_loader.h"') 'creature.include-ncmm'
+    }
+
+    $damageCopyVanilla = '    damage_instance d = dam; // copy, since we will mutate in absorb_hit'
+    $damageCopyLegacyV2 = @'
+    damage_instance d = dam; // copy, since we will mutate in absorb_hit
+    if( source != nullptr ) {
+        double multiplier = 1.0;
+        if( source->is_avatar() ) {
+            const double bonus = ncmm::runtime_hook_modifier_for_creatures(
+                                     "combat.damage_to_species_pct", source, this );
+            multiplier *= std::max( 0.10, 1.0 + bonus / 100.0 );
+        }
+        if( is_avatar() ) {
+            const double reduction = ncmm::runtime_hook_modifier_for_creatures(
+                                         "combat.resist_from_species_pct", source, this );
+            multiplier *= std::max( 0.10, 1.0 - reduction / 100.0 );
+        }
+        if( multiplier != 1.0 ) d.mult_damage( multiplier );
+    }
+'@
+    $damageCopyMechanical = @'
+    damage_instance d = dam; // copy, since we will mutate in absorb_hit
+    double multiplier = 1.0;
+    if( source != nullptr && source->is_avatar() ) {
+        const double bonus = ncmm::runtime_hook_modifier_for_creatures(
+                                 "combat.damage_to_species_pct", source, this );
+        multiplier *= std::max( 0.10, 1.0 + bonus / 100.0 );
+    }
+    if( is_avatar() ) {
+        if( source != nullptr ) {
+            const double species_reduction = ncmm::runtime_hook_modifier_for_creatures(
+                                                 "combat.resist_from_species_pct", source, this );
+            multiplier *= std::max( 0.10, 1.0 - species_reduction / 100.0 );
+        }
+        const double general_reduction = ncmm::runtime_hook_modifier( "combat.damage_taken_pct" );
+        multiplier *= std::max( 0.10, 1.0 - general_reduction / 100.0 );
+    }
+    if( multiplier != 1.0 ) d.mult_damage( multiplier );
+'@
+    if( $creature.Contains($damageCopyVanilla) ) {
+        $creature = Replace-V82Once $creature $damageCopyVanilla $damageCopyMechanical 'creature.generic-runtime-hooks-v3'
+    } elseif( Test-V82Contains $creature $damageCopyLegacyV2 ) {
+        $creature = Replace-V82Once $creature $damageCopyLegacyV2 $damageCopyMechanical 'creature.upgrade-runtime-hooks-v2-to-v3'
+    } elseif( -not $creature.Contains('combat.damage_to_species_pct') -or -not $creature.Contains('combat.damage_taken_pct') ) {
+        throw 'Host API 2.0 creature hook is neither pristine, v2, nor already v3-patched.'
+    }
+    foreach ($forbidden in @('"sec_damage_pct','"sec_resist_pct','SECROZED_','SFLESH')) {
+        if ($creature.Contains($forbidden)) { throw "Host API 2.0 creature source contains Survivor-specific token: $forbidden" }
+    }
+
+    Write-V82 $magicPath $magic
+    Write-V82 $knowledgePath $knowledge
+    Write-V82 $characterPath $character
+    Write-V82 $characterHealthPath $characterHealth
+    Write-V82 $meleePath $melee
+    Write-V82 $rangedPath $ranged
+    Write-V82 $creaturePath $creature
+    Set-Content -Path $marker -Value "Host API 2.0 generic runtime gameplay hooks v3 / Survivor mechanical surface`n" -Encoding ASCII
+    Write-Host "Host API 2.0 generic runtime gameplay hooks: APPLIED" -ForegroundColor Green
+
+param([string]$Root)
+
+    Write-Host "Applying Host API 2.0 reactive/technical mechanics hooks for Survivor 0.11.2 edge-case polish..." -ForegroundColor Cyan
+    $src = Join-Path $Root "src"
+    $characterPath = Join-Path $src "character.cpp"
+    $meleePath = Join-Path $src "melee.cpp"
+    $creaturePath = Join-Path $src "creature.cpp"
+    $monsterPath = Join-Path $src "monster.cpp"
+    $craftingPath = Join-Path $src "crafting.cpp"
+    $activityActorPath = Join-Path $src "activity_actor.cpp"
+    $trapPath = Join-Path $src "trap.cpp"
+    $loaderHeaderPath0111 = Join-Path $src "ncmm_loader.h"
+    $loaderSourcePath0111 = Join-Path $src "ncmm_loader.cpp"
+    $marker = Join-Path $Root ".ncmm_reactive_mechanics_0112"
+    foreach($p in @($characterPath,$meleePath,$creaturePath,$monsterPath,$craftingPath,$activityActorPath,$trapPath,$loaderHeaderPath0111,$loaderSourcePath0111)) {
+        if(-not (Test-Path $p -PathType Leaf)) { throw "Reactive mechanics source file missing: $p" }
+    }
+    $Utf8NoBom0111 = New-Object System.Text.UTF8Encoding($false)
+    function Read-0111([string]$Path) { return Normalize-Lf ([IO.File]::ReadAllText($Path)) }
+    function Write-0111([string]$Path,[string]$Text) { [IO.File]::WriteAllText($Path,(Normalize-Lf $Text),$Utf8NoBom0111) }
+    function Replace-0111([string]$Text,[string]$Old,[string]$New,[string]$Name) {
+        $Text=Normalize-Lf $Text; $Old=(Normalize-Lf $Old).TrimEnd(); $New=(Normalize-Lf $New).TrimEnd()
+        $count=([regex]::Matches($Text,[regex]::Escape($Old))).Count
+        if($count -ne 1) { throw "Reactive mechanics contract '$Name' expected exactly once, found $count" }
+        return $Text.Replace($Old,$New)
+    }
+
+    $probes = @(
+        @{Path=$characterPath;Needle='source->attitude_to( *this ) == Creature::Attitude::HOSTILE'},
+        @{Path=$meleePath;Needle='is_avatar() && dam > 0 && !t.is_hallucination()'},
+        @{Path=$creaturePath;Needle='combat.execute_threshold_pct'},
+        @{Path=$monsterPath;Needle='ncmm_kill_attitude == MATT_ATTACK || ncmm_kill_attitude == MATT_FLEE'},
+        @{Path=$craftingPath;Needle='crafting.failure_save_pct'},
+        @{Path=$activityActorPath;Needle='const bool ncmm_perfect_lockpick = lockpick != nullptr'},
+        @{Path=$trapPath;Needle='scavenging.trap_detection_flat'},
+        @{Path=$loaderHeaderPath0111;Needle='void runtime_player_kill_notify();'},
+        @{Path=$loaderSourcePath0111;Needle='void runtime_player_kill_notify()'}
+    )
+    $already=$true
+    foreach($probe in $probes) { if(-not (Read-0111 $probe.Path).Contains($probe.Needle)) { $already=$false; break } }
+    if($already) {
+        if(-not (Test-Path $marker -PathType Leaf)) { Set-Content -Path $marker -Value "Recovered Survivor 0.11.2 reactive edge marker`n" -Encoding ASCII }
+        Write-Host "Reactive/technical mechanics hooks already present." -ForegroundColor Green
+        return
+    }
+    Remove-Item $marker -Force -ErrorAction SilentlyContinue
+
+    # Successful dodge: immediate flow rewards plus guarded automatic riposte.
+    $character = Read-0111 $characterPath
+    if(-not $character.Contains('#include "ncmm_loader.h"')) { throw 'Survivor 0.11.2 requires v3 character runtime hooks first.' }
+    $dodgeOld = @'
+    magic->break_channeling( *this );
+
+    // For adjacent attackers check for techniques usable upon successful dodge
+    if( source && square_dist( pos_bub(), source->pos_bub() ) == 1 ) {
+        matec_id tec = std::get<0>( pick_technique( *source, used_weapon(), false, true, false ) );
+
+        if( tec != tec_none && !is_dead_state() ) {
+            if( get_stamina() < get_stamina_max() / 3 ) {
+                add_msg( m_bad, _( "You try to counterattack, but you are too exhausted!" ) );
+            } else {
+                melee_attack( *source, false, tec );
+            }
+        }
+    }
+'@
+    $dodgeNew = @'
+    magic->break_channeling( *this );
+
+    // Preserve vanilla martial-arts dodge counters. NCMM riposte is a fallback,
+    // never a replacement or an automatic double-counter.
+    bool ncmm_vanilla_counter_fired = false;
+    if( source && square_dist( pos_bub(), source->pos_bub() ) == 1 ) {
+        matec_id tec = std::get<0>( pick_technique( *source, used_weapon(), false, true, false ) );
+
+        if( tec != tec_none && !is_dead_state() ) {
+            if( get_stamina() < get_stamina_max() / 3 ) {
+                add_msg( m_bad, _( "You try to counterattack, but you are too exhausted!" ) );
+            } else {
+                ncmm_vanilla_counter_fired = melee_attack( *source, false, tec );
+            }
+        }
+    }
+
+    static thread_local bool ncmm_riposte_in_progress = false;
+    if( is_avatar() ) {
+        const int ncmm_dodge_moves = clamp<int>( static_cast<int>(
+                                         ncmm::runtime_hook_modifier( "combat.on_dodge_moves" ) ), 0, 50 );
+        if( ncmm_dodge_moves > 0 ) mod_moves( ncmm_dodge_moves );
+        const double ncmm_dodge_stamina_pct = std::max( 0.0, std::min( 10.0,
+                ncmm::runtime_hook_modifier( "combat.on_dodge_stamina_pct" ) ) );
+        if( ncmm_dodge_stamina_pct > 0.0 ) {
+            mod_stamina( static_cast<int>( get_stamina_max() * ncmm_dodge_stamina_pct / 100.0 ) );
+        }
+        const double ncmm_riposte_chance = std::max( 0.0, std::min( 60.0,
+                ncmm::runtime_hook_modifier( "combat.riposte_chance_pct" ) ) );
+        if( !ncmm_vanilla_counter_fired && !ncmm_riposte_in_progress && source != nullptr &&
+            square_dist( pos_bub(), source->pos_bub() ) == 1 && !source->is_dead_state() &&
+            !source->is_hallucination() &&
+            source->attitude_to( *this ) == Creature::Attitude::HOSTILE &&
+            !is_dead_state() && get_stamina() >= get_stamina_max() / 3 &&
+            ncmm_riposte_chance > 0.0 && rng_float( 0.0, 100.0 ) < ncmm_riposte_chance ) {
+            ncmm_riposte_in_progress = true;
+            const int ncmm_moves_before = get_moves();
+            melee_attack( *source, false );
+            const int ncmm_spent = std::max( 0, ncmm_moves_before - get_moves() );
+            const double ncmm_refund_pct = std::max( 0.0, std::min( 100.0,
+                    ncmm::runtime_hook_modifier( "combat.riposte_refund_pct" ) ) );
+            if( ncmm_spent > 0 && ncmm_refund_pct > 0.0 ) {
+                mod_moves( static_cast<int>( ncmm_spent * ncmm_refund_pct / 100.0 ) );
+            }
+            ncmm_riposte_in_progress = false;
+        }
+    }
+'@
+    $character = Replace-0111 $character $dodgeOld $dodgeNew 'character.after-dodge-riposte'
+    Write-0111 $characterPath $character
+
+    # Melee critical: immediate move/stamina surge; static crit chance/damage remains in v3 hook layer.
+    $melee = Read-0111 $meleePath
+    $critOld = @'
+            if( critical_hit ) {
+                // trigger martial arts on-crit effects
+                martial_arts_data->ma_oncrit_effects( *this );
+            }
+'@
+    $critNew = @'
+            if( critical_hit ) {
+                if( is_avatar() && dam > 0 && !t.is_hallucination() ) {
+                    const int ncmm_crit_moves = clamp<int>( static_cast<int>(
+                                                   ncmm::runtime_hook_modifier( "combat.on_crit_moves" ) ), 0, 50 );
+                    if( ncmm_crit_moves > 0 ) mod_moves( ncmm_crit_moves );
+                    const double ncmm_crit_stamina_pct = std::max( 0.0, std::min( 10.0,
+                            ncmm::runtime_hook_modifier( "combat.on_crit_stamina_pct" ) ) );
+                    if( ncmm_crit_stamina_pct > 0.0 ) {
+                        mod_stamina( static_cast<int>( get_stamina_max() * ncmm_crit_stamina_pct / 100.0 ) );
+                    }
+                }
+                // trigger martial arts on-crit effects
+                martial_arts_data->ma_oncrit_effects( *this );
+            }
+'@
+    $melee = Replace-0111 $melee $critOld $critNew 'melee.after-crit-effects'
+    Write-0111 $meleePath $melee
+
+    # Generic outgoing damage and low-health execution window.
+    $creature = Read-0111 $creaturePath
+    $damageOld = @'
+    damage_instance d = dam; // copy, since we will mutate in absorb_hit
+    double multiplier = 1.0;
+    if( source != nullptr && source->is_avatar() ) {
+        const double bonus = ncmm::runtime_hook_modifier_for_creatures(
+                                 "combat.damage_to_species_pct", source, this );
+        multiplier *= std::max( 0.10, 1.0 + bonus / 100.0 );
+    }
+    if( is_avatar() ) {
+'@
+    $damageNew = @'
+    damage_instance d = dam; // copy, since we will mutate in absorb_hit
+    double multiplier = 1.0;
+    if( source != nullptr && source->is_avatar() && source != this ) {
+        const double bonus = ncmm::runtime_hook_modifier_for_creatures(
+                                 "combat.damage_to_species_pct", source, this );
+        multiplier *= std::max( 0.10, 1.0 + bonus / 100.0 );
+        const double general_bonus = ncmm::runtime_hook_modifier( "combat.damage_dealt_pct" );
+        multiplier *= std::max( 0.10, 1.0 + general_bonus / 100.0 );
+        const double execute_threshold = std::max( 0.0, std::min( 40.0,
+                ncmm::runtime_hook_modifier( "combat.execute_threshold_pct" ) ) );
+        if( execute_threshold > 0.0 && hp_percentage() <= execute_threshold ) {
+            const double execute_bonus = std::max( 0.0, std::min( 200.0,
+                    ncmm::runtime_hook_modifier( "combat.execute_damage_pct" ) ) );
+            multiplier *= 1.0 + execute_bonus / 100.0;
+        }
+    }
+    if( is_avatar() ) {
+'@
+    $creature = Replace-0111 $creature $damageOld $damageNew 'creature.execute-and-momentum-damage'
+    Write-0111 $creaturePath $creature
+
+    # Player-attributed kill: immediate recovery hooks + generic API2 event for module-owned momentum state.
+    $monster = Read-0111 $monsterPath
+    if(-not $monster.Contains('#include "ncmm_loader.h"')) {
+        $monster = Replace-0111 $monster '#include "monster.h"' ('#include "monster.h"' + "`n" + '#include "ncmm_loader.h"') 'monster.include-ncmm'
+    }
+    $loaderHeader0111 = Read-0111 $loaderHeaderPath0111
+    $loaderSource0111 = Read-0111 $loaderSourcePath0111
+    if(-not $loaderHeader0111.Contains('void runtime_player_kill_notify();')) {
+        $loaderHeader0111 = Replace-0111 $loaderHeader0111 'void runtime_event_notify( uint32_t event_id );' ('void runtime_event_notify( uint32_t event_id );' + "`n" + 'void runtime_player_kill_notify();') 'loader.named-player-kill-decl'
+        Write-0111 $loaderHeaderPath0111 $loaderHeader0111
+    }
+    if(-not $loaderSource0111.Contains('void runtime_player_kill_notify()')) {
+        $runtimeEventImpl0111 = @'
+void runtime_event_notify( uint32_t event_id )
+{
+    dispatch_event_v2( event_id );
+}
+'@
+        $runtimeEventImplNew0111 = @'
+void runtime_event_notify( uint32_t event_id )
+{
+    dispatch_event_v2( event_id );
+}
+
+void runtime_player_kill_notify()
+{
+    dispatch_event_v2( NCMM_EVENT_PLAYER_KILL_V2 );
+}
+'@
+        $loaderSource0111 = Replace-0111 $loaderSource0111 $runtimeEventImpl0111 $runtimeEventImplNew0111 'loader.named-player-kill-impl'
+        Write-0111 $loaderSourcePath0111 $loaderSource0111
+    }
+    $killOld = @'
+            get_event_bus().send_with_talker( ch, this, e );
+'@
+    $killNew = @'
+            get_event_bus().send_with_talker( ch, this, e );
+            // Only XP-awarding hostile combat kills fuel reactive perks or Momentum.
+            // Fleeing enemies still count; friendly/passive/neutral kills do not.
+            const monster_attitude ncmm_kill_attitude = attitude( ch );
+            if( ch->is_avatar() && kill_xp > 0 &&
+                ( ncmm_kill_attitude == MATT_ATTACK || ncmm_kill_attitude == MATT_FLEE ) ) {
+                const int ncmm_kill_moves = std::max( 0, std::min( 75, static_cast<int>(
+                                                ncmm::runtime_hook_modifier( "combat.on_kill_moves" ) ) ) );
+                if( ncmm_kill_moves > 0 ) ch->mod_moves( ncmm_kill_moves );
+                const double ncmm_kill_stamina_pct = std::max( 0.0, std::min( 15.0,
+                        ncmm::runtime_hook_modifier( "combat.on_kill_stamina_pct" ) ) );
+                if( ncmm_kill_stamina_pct > 0.0 ) {
+                    ch->mod_stamina( static_cast<int>( ch->get_stamina_max() * ncmm_kill_stamina_pct / 100.0 ) );
+                }
+                ncmm::runtime_player_kill_notify();
+            }
+'@
+    $monster = Replace-0111 $monster $killOld $killNew 'monster.player-kill-event'
+    Write-0111 $monsterPath $monster
+
+    # Crafting: real outcome control, not just speed bonuses.
+    $crafting = Read-0111 $craftingPath
+    if(-not $crafting.Contains('#include "ncmm_loader.h"')) {
+        $crafting = Replace-0111 $crafting '#include "crafting.h"' ('#include "crafting.h"' + "`n" + '#include "ncmm_loader.h"') 'crafting.include-ncmm'
+    }
+    $craftRollOld = @'
+float Character::crafting_success_roll( const recipe &making ) const
+{
+    craft_roll_data data = recipe_success_roll_data( making );
+    float craft_roll = std::max( normal_roll( data.center, data.stddev ), 0.0 );
+
+    add_msg_debug( debugmode::DF_CHARACTER, "Crafting skill roll: %f, final difficulty %g", craft_roll,
+'@
+    $craftRollNew = @'
+float Character::crafting_success_roll( const recipe &making ) const
+{
+    craft_roll_data data = recipe_success_roll_data( making );
+    float craft_roll = std::max( normal_roll( data.center, data.stddev ), 0.0 );
+    if( is_avatar() ) {
+        craft_roll += std::max( 0.0, std::min( 2.0,
+                                   ncmm::runtime_hook_modifier( "crafting.success_roll_flat" ) ) );
+    }
+
+    add_msg_debug( debugmode::DF_CHARACTER, "Crafting skill roll: %f, final difficulty %g", craft_roll,
+'@
+    $crafting = Replace-0111 $crafting $craftRollOld $craftRollNew 'crafting.success-roll-hook'
+    $recipeChanceOld = @'
+float Character::recipe_success_chance( const recipe &making ) const
+{
+    // We calculate the failure chance of a recipe by performing a normal roll with a given
+    // standard deviation and center, then subtracting a "final difficulty" score from that.
+    // If that result is above 1, there is no chance of failure.
+    craft_roll_data data = recipe_success_roll_data( making );
+
+    return normal_roll_chance( data.center, data.stddev, 1.f + data.final_difficulty );
+}
+'@
+    $recipeChanceNew = @'
+float Character::recipe_success_chance( const recipe &making ) const
+{
+    // Keep the displayed estimate aligned with the actual NCMM-adjusted success roll.
+    craft_roll_data data = recipe_success_roll_data( making );
+    const double ncmm_success_bonus = is_avatar() ? std::max( 0.0, std::min( 2.0,
+            ncmm::runtime_hook_modifier( "crafting.success_roll_flat" ) ) ) : 0.0;
+
+    return normal_roll_chance( data.center, data.stddev,
+                               1.f + data.final_difficulty - static_cast<float>( ncmm_success_bonus ) );
+}
+'@
+    $crafting = Replace-0111 $crafting $recipeChanceOld $recipeChanceNew 'crafting.success-chance-ui-hook'
+    $failureOpenOld = @'
+    if( !is_craft() ) {
+        debugmsg( "handle_craft_failure() called on non-craft '%s.'  Aborting.", tname() );
+        return false;
+    }
+
+    // The completed result will have a crafting defect (if any are defined).
+'@
+    $failureOpenNew = @'
+    if( !is_craft() ) {
+        debugmsg( "handle_craft_failure() called on non-craft '%s.'  Aborting.", tname() );
+        return false;
+    }
+    if( crafter.is_avatar() ) {
+        const double ncmm_failure_save = std::max( 0.0, std::min( 35.0,
+                ncmm::runtime_hook_modifier( "crafting.failure_save_pct" ) ) );
+        if( ncmm_failure_save > 0.0 && rng_float( 0.0, 100.0 ) < ncmm_failure_save ) {
+            set_next_failure_point( crafter );
+            return false;
+        }
+    }
+
+    // The completed result will have a crafting defect (if any are defined).
+'@
+    $crafting = Replace-0111 $crafting $failureOpenOld $failureOpenNew 'crafting.failure-save-hook'
+    $successRollOld = '    const double success_roll = crafter.crafting_failure_roll( get_making() );'
+    $successRollNew = @'
+    const double success_roll = crafter.crafting_failure_roll( get_making() );
+    const double ncmm_component_protection = crafter.is_avatar() ? std::max( 0.0, std::min( 75.0,
+            ncmm::runtime_hook_modifier( "crafting.component_loss_reduction_pct" ) ) ) : 0.0;
+'@
+    $crafting = Replace-0111 $crafting $successRollOld $successRollNew 'crafting.component-protection-setup'
+    $destroyCheckOld = @'
+        // If we roll success, skip destroying a component
+        if( x_in_y( success_roll, 1.0 ) ) {
+            continue;
+        }
+'@
+    $destroyCheckNew = @'
+        // If we roll success, or NCMM technical discipline protects this component, skip destruction.
+        if( x_in_y( success_roll, 1.0 ) ||
+            ( ncmm_component_protection > 0.0 && rng_float( 0.0, 100.0 ) < ncmm_component_protection ) ) {
+            continue;
+        }
+'@
+    $crafting = Replace-0111 $crafting $destroyCheckOld $destroyCheckNew 'crafting.component-loss-hook'
+    $progressOld = '    const double percent_progress_loss = rng_exponential( 0.25, 0.35 ) * ( 1.0 - success_roll );'
+    $progressNew = @'
+    double percent_progress_loss = rng_exponential( 0.25, 0.35 ) * ( 1.0 - success_roll );
+    if( crafter.is_avatar() ) {
+        const double ncmm_progress_protection = std::max( 0.0, std::min( 80.0,
+                ncmm::runtime_hook_modifier( "crafting.progress_loss_reduction_pct" ) ) );
+        percent_progress_loss *= std::max( 0.0, 1.0 - ncmm_progress_protection / 100.0 );
+    }
+'@
+    $crafting = Replace-0111 $crafting $progressOld $progressNew 'crafting.progress-loss-hook'
+    Write-0111 $craftingPath $crafting
+
+    # Scavenging technical surface: lockpicking and hazard recognition.
+    $activity = Read-0111 $activityActorPath
+    if(-not $activity.Contains('#include "ncmm_loader.h"')) {
+        $activity = Replace-0111 $activity '#include "activity_actor_definitions.h"' ('#include "activity_actor_definitions.h"' + "`n" + '#include "ncmm_loader.h"') 'activity-actor.include-ncmm'
+    }
+    $lockMovesOld = @'
+    if( lockpick->has_flag( flag_PERFECT_LOCKPICK ) ) {
+        return to_moves<int>( 5_seconds );
+    } else {
+        /** @EFFECT_DEX speeds up door lock picking */
+        return to_moves<int>(
+                   std::max( 30_seconds,
+                             ( 10_minutes - time_duration::from_minutes( qual + static_cast<float>( who.get_dex() ) / 4.0f +
+                                     weighted_skill_average ) ) * duration_proficiency_factor ) );
+    }
+'@
+    $lockMovesNew = @'
+    const bool ncmm_perfect_lockpick = lockpick != nullptr && lockpick->has_flag( flag_PERFECT_LOCKPICK );
+    int ncmm_lock_moves = 0;
+    if( ncmm_perfect_lockpick ) {
+        ncmm_lock_moves = to_moves<int>( 5_seconds );
+    } else {
+        /** @EFFECT_DEX speeds up door lock picking */
+        ncmm_lock_moves = to_moves<int>(
+                              std::max( 30_seconds,
+                                        ( 10_minutes - time_duration::from_minutes( qual + static_cast<float>( who.get_dex() ) / 4.0f +
+                                                weighted_skill_average ) ) * duration_proficiency_factor ) );
+    }
+    if( who.is_avatar() ) {
+        const double ncmm_time_reduction = std::max( 0.0, std::min( 60.0,
+                ncmm::runtime_hook_modifier( "scavenging.lockpick_time_pct" ) ) );
+        const int ncmm_lock_floor = ncmm_perfect_lockpick ?
+                                    to_moves<int>( 5_seconds ) : to_moves<int>( 30_seconds );
+        ncmm_lock_moves = std::max( ncmm_lock_floor,
+                                   static_cast<int>( ncmm_lock_moves * ( 1.0 - ncmm_time_reduction / 100.0 ) ) );
+    }
+    return ncmm_lock_moves;
+'@
+    $activity = Replace-0111 $activity $lockMovesOld $lockMovesNew 'lockpick.time-hook'
+    $meanRollOld = @'
+    const float mean_roll = weighted_skill_average + ( weighted_stat_average / 4 ) + proficiency_effect
+                            + tool_effect;
+'@
+    $meanRollNew = @'
+    float mean_roll = weighted_skill_average + ( weighted_stat_average / 4 ) + proficiency_effect
+                      + tool_effect;
+    if( who.is_avatar() ) {
+        mean_roll += static_cast<float>( std::max( 0.0, std::min( 5.0,
+                ncmm::runtime_hook_modifier( "scavenging.lockpick_roll_flat" ) ) ) );
+    }
+'@
+    $activity = Replace-0111 $activity $meanRollOld $meanRollNew 'lockpick.roll-hook'
+    $damageToolOld = @'
+    } else if( lock_roll > ( 1.5 * pick_roll ) ) {
+        if( it->inc_damage() ) {
+'@
+    $damageToolNew = @'
+    } else if( lock_roll > ( 1.5 * pick_roll ) ) {
+        const double ncmm_tool_protection = who.is_avatar() ? std::max( 0.0, std::min( 90.0,
+                ncmm::runtime_hook_modifier( "scavenging.lockpick_tool_protection_pct" ) ) ) : 0.0;
+        if( ncmm_tool_protection > 0.0 && rng_float( 0.0, 100.0 ) < ncmm_tool_protection ) {
+            who.add_msg_if_player( m_bad, _( "The lock stumps your efforts to pick it." ) );
+        } else if( it->inc_damage() ) {
+'@
+    $activity = Replace-0111 $activity $damageToolOld $damageToolNew 'lockpick.tool-protection-hook'
+    $alarmOld = @'
+    if( !perfect && ter_type == ter_t_door_locked_alarm && ( lock_roll + dice( 1, 30 ) ) > pick_roll ) {
+        sounds::sound( who.pos_bub(), 40, sounds::sound_t::alarm, _( "an alarm sound!" ), true,
+'@
+    $alarmNew = @'
+    const double ncmm_alarm_avoid = who.is_avatar() ? std::max( 0.0, std::min( 75.0,
+            ncmm::runtime_hook_modifier( "scavenging.lockpick_alarm_avoid_pct" ) ) ) : 0.0;
+    if( !perfect && ter_type == ter_t_door_locked_alarm && ( lock_roll + dice( 1, 30 ) ) > pick_roll &&
+        !( ncmm_alarm_avoid > 0.0 && rng_float( 0.0, 100.0 ) < ncmm_alarm_avoid ) ) {
+        sounds::sound( who.pos_bub(), 40, sounds::sound_t::alarm, _( "an alarm sound!" ), true,
+'@
+    $activity = Replace-0111 $activity $alarmOld $alarmNew 'lockpick.alarm-hook'
+    Write-0111 $activityActorPath $activity
+
+    $trap = Read-0111 $trapPath
+    if(-not $trap.Contains('#include "ncmm_loader.h"')) {
+        $trap = Replace-0111 $trap '#include "trap.h"' ('#include "trap.h"' + "`n" + '#include "ncmm_loader.h"' + "`n" + '#include <algorithm>') 'trap.include-ncmm'
+    }
+    $trapRollOld = @'
+    const float mean_roll = weighted_stat_average + ( traps_skill_level / 3.0f ) +
+                            proficiency_effect - distance_penalty - sleepiness_penalty - encumbrance_penalty;
+
+    const int roll = std::round( normal_roll( mean_roll, 3 ) );
+'@
+    $trapRollNew = @'
+    float mean_roll = weighted_stat_average + ( traps_skill_level / 3.0f ) +
+                      proficiency_effect - distance_penalty - sleepiness_penalty - encumbrance_penalty;
+    if( p.is_avatar() ) {
+        mean_roll += static_cast<float>( std::max( 0.0, std::min( 6.0,
+                ncmm::runtime_hook_modifier( "scavenging.trap_detection_flat" ) ) ) );
+    }
+
+    const int roll = std::round( normal_roll( mean_roll, 3 ) );
+'@
+    $trap = Replace-0111 $trap $trapRollOld $trapRollNew 'trap.detection-hook'
+    Write-0111 $trapPath $trap
+
+    Set-Content -Path $marker -Value "Host API 2.0 reactive/technical mechanics v3 / Survivor 0.11.2 edge-hardened surface`n" -Encoding ASCII
+    Write-Host "Host API 2.0 reactive/technical mechanics hooks: APPLIED (0.11.2 edge polish)" -ForegroundColor Green
+
+param([string]$Root)
+
+    Write-Host "Applying Survivor 0.11.3 combinatorial edge refinements..." -ForegroundColor Cyan
+    $src = Join-Path $Root "src"
+    $characterPath = Join-Path $src "character.cpp"
+    $meleePath = Join-Path $src "melee.cpp"
+    $creaturePath = Join-Path $src "creature.cpp"
+    $monsterPath = Join-Path $src "monster.cpp"
+    $npcPath = Join-Path $src "npc.cpp"
+    $craftingPath = Join-Path $src "crafting.cpp"
+    $marker = Join-Path $Root ".ncmm_reactive_mechanics_0113"
+    foreach($p in @($characterPath,$meleePath,$creaturePath,$monsterPath,$npcPath,$craftingPath)) {
+        if(-not (Test-Path $p -PathType Leaf)) { throw "0.11.3 combinatorial source file missing: $p" }
+    }
+    $Utf8NoBom0113 = New-Object System.Text.UTF8Encoding($false)
+    function Read-0113([string]$Path) { return Normalize-Lf ([IO.File]::ReadAllText($Path)) }
+    function Write-0113([string]$Path,[string]$Text) { [IO.File]::WriteAllText($Path,(Normalize-Lf $Text),$Utf8NoBom0113) }
+    function Replace-0113([string]$Text,[string]$Old,[string]$New,[string]$Name) {
+        $Text=Normalize-Lf $Text; $Old=(Normalize-Lf $Old).TrimEnd(); $New=(Normalize-Lf $New).TrimEnd()
+        $count=([regex]::Matches($Text,[regex]::Escape($Old))).Count
+        if($count -ne 1) { throw "0.11.3 contract '$Name' expected exactly once, found $count" }
+        return $Text.Replace($Old,$New)
+    }
+
+    $probes = @(
+        @{Path=$characterPath;Needle='const int ncmm_refund_basis = std::max( 0, attack_speed( ncmm_riposte_item ) );'},
+        @{Path=$characterPath;Needle='!is_mounted() &&'},
+        @{Path=$meleePath;Needle='ncmm_hostile_target_before'},
+        @{Path=$creaturePath;Needle='ncmm_hostile_reactive_target'},
+        @{Path=$npcPath;Needle='ncmm_hostile_avatar_kill_before_death'},
+        @{Path=$craftingPath;Needle='craft_data_->next_failure_point <= item_counter'},
+        @{Path=$craftingPath;Needle='ncmm_catastrophic_save'}
+    )
+    $already=$true
+    foreach($probe in $probes) { if(-not (Read-0113 $probe.Path).Contains($probe.Needle)) { $already=$false; break } }
+    if($already) {
+        if(-not (Test-Path $marker -PathType Leaf)) { Set-Content -Path $marker -Value "Recovered Survivor 0.11.3 combinatorial edge marker`n" -Encoding ASCII }
+        Write-Host "Survivor 0.11.3 combinatorial CDDA hooks already present." -ForegroundColor Green
+        return
+    }
+    Remove-Item $marker -Force -ErrorAction SilentlyContinue
+
+    # Riposte refund is based on pre-attack base melee cost, not net moves after nested crit/kill rewards.
+    $character = Read-0113 $characterPath
+    if(-not $character.Contains('#include "item.h"')) {
+        $character = Replace-0113 $character '#include "item_location.h"' ('#include "item.h"' + "`n" + '#include "item_location.h"') 'character.explicit-item-include'
+    }
+    $riposteOld0113 = @'
+        if( !ncmm_vanilla_counter_fired && !ncmm_riposte_in_progress && source != nullptr &&
+            square_dist( pos_bub(), source->pos_bub() ) == 1 && !source->is_dead_state() &&
+            !source->is_hallucination() &&
+            source->attitude_to( *this ) == Creature::Attitude::HOSTILE &&
+            !is_dead_state() && get_stamina() >= get_stamina_max() / 3 &&
+            ncmm_riposte_chance > 0.0 && rng_float( 0.0, 100.0 ) < ncmm_riposte_chance ) {
+            ncmm_riposte_in_progress = true;
+            const int ncmm_moves_before = get_moves();
+            melee_attack( *source, false );
+            const int ncmm_spent = std::max( 0, ncmm_moves_before - get_moves() );
+            const double ncmm_refund_pct = std::max( 0.0, std::min( 100.0,
+                    ncmm::runtime_hook_modifier( "combat.riposte_refund_pct" ) ) );
+            if( ncmm_spent > 0 && ncmm_refund_pct > 0.0 ) {
+                mod_moves( static_cast<int>( ncmm_spent * ncmm_refund_pct / 100.0 ) );
+            }
+            ncmm_riposte_in_progress = false;
+        }
+'@
+    $riposteNew0113 = @'
+        if( !ncmm_vanilla_counter_fired && !ncmm_riposte_in_progress && source != nullptr &&
+            square_dist( pos_bub(), source->pos_bub() ) == 1 && !source->is_dead_state() &&
+            !source->is_hallucination() && !is_mounted() &&
+            source->attitude_to( *this ) == Creature::Attitude::HOSTILE &&
+            !is_dead_state() && get_stamina() >= get_stamina_max() / 3 &&
+            ncmm_riposte_chance > 0.0 && rng_float( 0.0, 100.0 ) < ncmm_riposte_chance ) {
+            const item_location ncmm_riposte_weapon = used_weapon();
+            const item &ncmm_riposte_item = ncmm_riposte_weapon ? *ncmm_riposte_weapon : null_item_reference();
+            const int ncmm_refund_basis = std::max( 0, attack_speed( ncmm_riposte_item ) );
+            const double ncmm_refund_pct = std::max( 0.0, std::min( 100.0,
+                    ncmm::runtime_hook_modifier( "combat.riposte_refund_pct" ) ) );
+            ncmm_riposte_in_progress = true;
+            const bool ncmm_riposte_executed = melee_attack( *source, false );
+            ncmm_riposte_in_progress = false;
+            if( ncmm_riposte_executed && ncmm_refund_basis > 0 && ncmm_refund_pct > 0.0 ) {
+                mod_moves( static_cast<int>( std::lround( ncmm_refund_basis * ncmm_refund_pct / 100.0 ) ) );
+            }
+        }
+'@
+    $character = Replace-0113 $character $riposteOld0113 $riposteNew0113 'character.riposte-refund-isolation'
+    Write-0113 $characterPath $character
+
+    # Snapshot hostility before damage so crit rewards cannot be farmed by striking neutral/friendly targets.
+    $melee = Read-0113 $meleePath
+    $hostilityAnchor0113 = '    const bool hits = hit_spread >= 0;'
+    $hostilityNew0113 = @'
+    const bool hits = hit_spread >= 0;
+    bool ncmm_hostile_target_before = false;
+    if( is_avatar() ) {
+        ncmm_hostile_target_before = t.attitude_to( *this ) == Creature::Attitude::HOSTILE;
+        if( const monster *ncmm_target_mon = t.as_monster() ) {
+            const monster_attitude ncmm_target_mood = ncmm_target_mon->attitude( this );
+            ncmm_hostile_target_before = ncmm_hostile_target_before || ncmm_target_mood == MATT_FLEE;
+        }
+    }
+'@
+    $melee = Replace-0113 $melee $hostilityAnchor0113 $hostilityNew0113 'melee.pre-hit-hostility-snapshot'
+    $melee = Replace-0113 $melee 'if( is_avatar() && dam > 0 && !t.is_hallucination() ) {' 'if( is_avatar() && ncmm_hostile_target_before && dam > 0 && !t.is_hallucination() ) {' 'melee.hostile-crit-reward'
+    Write-0113 $meleePath $melee
+
+    # Momentum/general reactive damage and Execute are combat rewards: never amplify friendly/neutral damage.
+    $creature = Read-0113 $creaturePath
+    $damageOld0113 = @'
+        const double general_bonus = ncmm::runtime_hook_modifier( "combat.damage_dealt_pct" );
+        multiplier *= std::max( 0.10, 1.0 + general_bonus / 100.0 );
+        const double execute_threshold = std::max( 0.0, std::min( 40.0,
+                ncmm::runtime_hook_modifier( "combat.execute_threshold_pct" ) ) );
+        if( execute_threshold > 0.0 && hp_percentage() <= execute_threshold ) {
+            const double execute_bonus = std::max( 0.0, std::min( 200.0,
+                    ncmm::runtime_hook_modifier( "combat.execute_damage_pct" ) ) );
+            multiplier *= 1.0 + execute_bonus / 100.0;
+        }
+'@
+    $damageNew0113 = @'
+        bool ncmm_hostile_reactive_target = attitude_to( *source ) == Creature::Attitude::HOSTILE;
+        if( monster *ncmm_target_mon = as_monster() ) {
+            if( Character *ncmm_source_character = source->as_character() ) {
+                ncmm_hostile_reactive_target = ncmm_hostile_reactive_target ||
+                                               ncmm_target_mon->attitude( ncmm_source_character ) == MATT_FLEE;
+            }
+        }
+        if( ncmm_hostile_reactive_target ) {
+            const double general_bonus = ncmm::runtime_hook_modifier( "combat.damage_dealt_pct" );
+            multiplier *= std::max( 0.10, 1.0 + general_bonus / 100.0 );
+            const double execute_threshold = std::max( 0.0, std::min( 40.0,
+                    ncmm::runtime_hook_modifier( "combat.execute_threshold_pct" ) ) );
+            if( execute_threshold > 0.0 && hp_percentage() <= execute_threshold ) {
+                const double execute_bonus = std::max( 0.0, std::min( 200.0,
+                        ncmm::runtime_hook_modifier( "combat.execute_damage_pct" ) ) );
+                multiplier *= 1.0 + execute_bonus / 100.0;
+            }
+        }
+'@
+    $creature = Replace-0113 $creature $damageOld0113 $damageNew0113 'creature.hostile-reactive-damage'
+    Write-0113 $creaturePath $creature
+
+    # Hostile human NPC kills are real combat kills too. Snapshot hostility before npc::die()
+    # detaches faction state, then emit the same generic player-kill event after actual death.
+    $npc = Read-0113 $npcPath
+    if(-not $npc.Contains('#include "ncmm_loader.h"')) {
+        $npc = Replace-0113 $npc '#include "npc.h"' ('#include "npc.h"' + "`n" + '#include "ncmm_loader.h"') 'npc.include-ncmm'
+    }
+    $npcDeathOpenOld0113 = @'
+void npc::die( map *here, Creature *nkiller )
+{
+    if( dead ) {
+        // We are already dead, don't die again, note that npc::dead is
+        // *only* set to true in this function!
+        return;
+    }
+    prevent_death_reminder = false;
+'@
+    $npcDeathOpenNew0113 = @'
+void npc::die( map *here, Creature *nkiller )
+{
+    if( dead ) {
+        // We are already dead, don't die again, note that npc::dead is
+        // *only* set to true in this function!
+        return;
+    }
+    const bool ncmm_hostile_avatar_kill_before_death = nkiller != nullptr && nkiller->is_avatar() &&
+            !is_hallucination() && !is_fake() && guaranteed_hostile();
+    prevent_death_reminder = false;
+'@
+    $npc = Replace-0113 $npc $npcDeathOpenOld0113 $npcDeathOpenNew0113 'npc.pre-death-hostility-snapshot'
+    $npcKillOld0113 = @'
+    if( Character *ch = dynamic_cast<Character *>( killer ) ) {
+        get_event_bus().send<event_type::character_kills_character>( ch->getID(), getID(), get_name(),
+                myclass.c_str() );
+    }
+    Character &player_character = get_player_character();
+'@
+    $npcKillNew0113 = @'
+    if( Character *ch = dynamic_cast<Character *>( killer ) ) {
+        get_event_bus().send<event_type::character_kills_character>( ch->getID(), getID(), get_name(),
+                myclass.c_str() );
+        if( ncmm_hostile_avatar_kill_before_death && ch->is_avatar() ) {
+            const int ncmm_kill_moves = std::max( 0, std::min( 75, static_cast<int>(
+                                            ncmm::runtime_hook_modifier( "combat.on_kill_moves" ) ) ) );
+            if( ncmm_kill_moves > 0 ) ch->mod_moves( ncmm_kill_moves );
+            const double ncmm_kill_stamina_pct = std::max( 0.0, std::min( 15.0,
+                    ncmm::runtime_hook_modifier( "combat.on_kill_stamina_pct" ) ) );
+            if( ncmm_kill_stamina_pct > 0.0 ) {
+                ch->mod_stamina( static_cast<int>( ch->get_stamina_max() * ncmm_kill_stamina_pct / 100.0 ) );
+            }
+            ncmm::runtime_player_kill_notify();
+        }
+    }
+    Character &player_character = get_player_character();
+'@
+    $npc = Replace-0113 $npc $npcKillOld0113 $npcKillNew0113 'npc.hostile-player-kill-event'
+    Write-0113 $npcPath $npc
+
+    # A cancelled craft failure must advance its failure point monotonically, even after a zero roll.
+    # Also keep the catastrophic-failure UI estimate aware of cancellation perks.
+    $crafting = Read-0113 $craftingPath
+    $failureSaveOld0113 = @'
+        if( ncmm_failure_save > 0.0 && rng_float( 0.0, 100.0 ) < ncmm_failure_save ) {
+            set_next_failure_point( crafter );
+            return false;
+        }
+'@
+    $failureSaveNew0113 = @'
+        if( ncmm_failure_save > 0.0 && rng_float( 0.0, 100.0 ) < ncmm_failure_save ) {
+            set_next_failure_point( crafter );
+            if( craft_data_->next_failure_point <= item_counter ) {
+                craft_data_->next_failure_point = std::min( 10000000, item_counter + 1 );
+            }
+            return false;
+        }
+'@
+    $crafting = Replace-0113 $crafting $failureSaveOld0113 $failureSaveNew0113 'crafting.failure-save-monotonicity'
+    $destructionOld0113 = @'
+float Character::item_destruction_chance( const recipe &making ) const
+{
+    // If a normal roll with these parameters rolls over 1, we will not have a catastrophic failure
+    // If we roll under one, we will
+    craft_roll_data data = recipe_failure_roll_data( making );
+
+    // normal_roll_chance returns the chance that we roll over, we want the chance we roll under
+    return 1.f - normal_roll_chance( data.center, data.stddev, 1.f + data.final_difficulty );
+}
+'@
+    $destructionNew0113 = @'
+float Character::item_destruction_chance( const recipe &making ) const
+{
+    // Keep the displayed catastrophic-failure estimate aware of NCMM failure cancellation.
+    // Component protection can reduce real losses further, so this remains a conservative estimate.
+    craft_roll_data data = recipe_failure_roll_data( making );
+    float chance = 1.f - normal_roll_chance( data.center, data.stddev, 1.f + data.final_difficulty );
+    if( is_avatar() ) {
+        const double ncmm_catastrophic_save = std::max( 0.0, std::min( 35.0,
+                ncmm::runtime_hook_modifier( "crafting.failure_save_pct" ) ) );
+        chance *= static_cast<float>( std::max( 0.0, 1.0 - ncmm_catastrophic_save / 100.0 ) );
+    }
+    return clamp( chance, 0.0f, 1.0f );
+}
+'@
+    $crafting = Replace-0113 $crafting $destructionOld0113 $destructionNew0113 'crafting.catastrophic-ui-alignment'
+    Write-0113 $craftingPath $crafting
+
+    Set-Content -Path $marker -Value "Survivor 0.11.3 combinatorial edge hooks / isolated riposte refund + hostile reactive gates + monotonic craft save`n" -Encoding ASCII
+    Write-Host "Survivor 0.11.3 combinatorial CDDA hook polish: APPLIED" -ForegroundColor Green
+

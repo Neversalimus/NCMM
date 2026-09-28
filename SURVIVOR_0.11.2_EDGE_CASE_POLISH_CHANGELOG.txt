@@ -1,0 +1,41 @@
+Survivor Progression 0.11.2 — Reactive Edge-Case Polish
+=========================================================
+
+Scope
+-----
+This is a hardening pass over 0.11.1. It adds no replacement tree and removes no perk nodes.
+The 0.11.0 25-node Reactive Mechanics + Technical Mastery layer remains intact; state schema remains 8.
+
+Reactive combat hardening
+-------------------------
+- Automatic Riposte is still a fallback after the vanilla martial-arts dodge counter.
+- Riposte now requires a living, adjacent, non-hallucination HOSTILE source and at least one third stamina.
+- Friendly and neutral attackers are never selected by the automatic Survivor counter.
+- Critical Surge / post-critical reactive rewards now require positive dealt damage and a non-hallucination target.
+- Player-kill recovery and Momentum now require both positive vanilla kill XP and a combat disposition of MATT_ATTACK or MATT_FLEE.
+  Friendly, passive, following, ignoring/neutral and zero-XP revived targets do not fuel reactive kill rewards.
+- Outgoing/execute hooks retain the 0.11.1 self-damage guard.
+
+Momentum lifecycle hardening
+----------------------------
+- Transient Momentum is cleared immediately if Predator Momentum is no longer owned.
+- Runtime reads clamp stacks to the currently owned cap (3/5, +2 with Momentum Engine).
+- Runtime reads clamp duration to 12/20 turns.
+- Negative or corrupt transient values are bounded before they can affect modifiers.
+- Full respec explicitly clears both momentum_stacks and momentum_turns, preventing buy -> stack -> respec -> rebuy carryover.
+- Existing 0.11.2-generated source is audited before the transform accepts it as already applied.
+
+Crafting / Scavenging edge hardening
+------------------------------------
+- 0.11.1 crafting outcome and displayed-chance parity is retained.
+- lockpick_activity_actor::lockpicking_moves is null-safe for a lost lockpick pointer.
+- Quick Entry still respects vanilla timing floors: ordinary lockpicks >= 30 seconds, perfect lockpicks >= 5 seconds.
+- Alarm Bypass text is narrowed to the actual runtime surface: alarmed door locks.
+
+Compatibility / packaging
+-------------------------
+- Exact target remains cdda_experimental_2026_09_23_0546 / e262adb299a7613b4aedc5f12c08fe0413c56a84.
+- reactive_technical_hooks source contract is raised to v3 with additional exact-source anchors.
+- Survivor build fingerprint is .survivor_0112_edge_build.sha256 / v8.7.6.8-survivor-0.11.2-reactive-edge-api2.
+- Host reactive marker is .ncmm_reactive_mechanics_0112.
+- Candidate status only: a fresh Windows/MSVC install and first-launch runtime verification are still required before live promotion.

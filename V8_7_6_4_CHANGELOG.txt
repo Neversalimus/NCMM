@@ -1,0 +1,16 @@
+NCMM / Survivor Progression v8.7.6.4 — Tree Renderer Anchor Hotfix
+
+Fixed
+-----
+- Live preflight failure: `tree-scoped dependency marker focus expected exactly once, found 0`.
+- Root cause: v8.7.6.3 incorrectly assumed the dependency-aware text-color block and marker block were adjacent.
+- The transform now matches the full tree marker renderer, including `mvwprintz( frame, point( x + 1, y + 1 ), ... )`.
+- This is unique from the card renderer, which uses `card_win`.
+- Updated the final cumulative audit to expect the Clarity Pass footer (`PgUp/PgDn: jump`) instead of the removed pre-Clarity footer (`Arrows: nearest node`).
+
+Preserved
+---------
+- v8.7.6 Clarity Pass behavior.
+- v8.7.5 locale/overview fixes.
+- Recipe Finalization Profiler dormant host support.
+- Survivor schema 8 / Prime and active-mod registry contracts.

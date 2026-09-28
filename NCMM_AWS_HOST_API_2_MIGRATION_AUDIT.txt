@@ -1,0 +1,38 @@
+NCMM AWS HOST API 2.0 MIGRATION / SHORT INTEGRATION AUDIT
+
+Base: Infrastructure 0.8.2.1 / Host 0.8.0 / Survivor 0.9.16
+AWS: 0.6.1 -> 0.6.2
+Target: CDDA 2026-09-23-0546 / e262adb299a7613b4aedc5f12c08fe0413c56a84
+
+PASS  Survivor API2 bridge field corrected
+PASS  AWS module migration function present
+PASS  AWS source genericizer present
+PASS  AWS version 0.6.2 final compile metadata
+PASS  AWS module requires Host API2
+PASS  AWS module queries API2
+PASS  AWS worldgen binding table size 48
+PASS  AWS binding rows exactly 48 (rows=48)
+PASS  AWS binding hook IDs unique
+PASS  AWS setting IDs unique in binding table
+PASS  AWS genericizer mapping exactly 48 (mapped=48)
+PASS  Final source guard rejects NCMM_AWS leakage
+PASS  Genericizer applied in deep probe and build (count=2)
+PASS  No old Join-Path Object[] regression
+PASS  AWS component 0.6.2
+PASS  AWS component Host min 0.8.0
+PASS  AWS component capabilities
+PASS  Self-test expects AWS 0.6.2
+PASS  JSON parse (files=20)
+PASS  YAML parse
+PASS  PowerShell UTF-8 BOM (files=19)
+PASS  PowerShell CRLF-only
+PASS  Payload here-string delimiters balanced (single=309/309)
+PASS  AWS 0.6.2 C++17 syntax smoke
+
+Integration gate:
+- Actual migrated AWS C++ source was compiled with g++ -std=c++17 -fsyntax-only against a Host API 2.0 contract stub: PASS.
+- Survivor API2 bridge was re-audited and corrected to use ncmm_host_api_v2_core::api_major.
+- AWS final CDDA transform contains a hard post-check rejecting any NCMM_AWS_* leakage in geography source files.
+- Full Windows PowerShell 5.1 + MSVC/CDDA native link is not available in this Linux environment and remains the live build gate.
+
+OVERALL: PASS

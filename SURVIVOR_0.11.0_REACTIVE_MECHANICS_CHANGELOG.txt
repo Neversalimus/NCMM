@@ -1,0 +1,50 @@
+Survivor Progression 0.11.0 — Reactive Mechanics + Technical Mastery
+====================================================================
+
+Baseline
+- Infrastructure 0.8.3.1 / Host 0.8.0 / Host API 2.0 Core / AWS 0.6.2.
+- Preserves the complete 0.10.0 Mechanical Perks pass and state schema 8.
+- No existing Survivor perk node is removed.
+
+New nodes: +25, deliberately unequal by branch
+- Combat +6
+- Survival +2
+- Mobility +4
+- Crafting +5
+- Scavenging +5
+- Mastery +3
+
+Reactive combat
+- Riposte: successful dodge can launch one guarded automatic melee counterattack.
+- Counterflow: NCMM ripostes can refund part of their move cost.
+- Post-dodge / post-melee-crit / post-kill move and stamina recovery hooks.
+- Execution Protocol: low-HP execution window adds outgoing damage instead of unconditional instant-kill logic.
+- Predator Momentum: player-attributed kills build temporary stacks that increase outgoing damage and speed.
+- Relentless Momentum and Momentum Engine extend stack cap/duration/power.
+
+Crafting technical mechanics
+- Quality Control modifies the real crafting success roll.
+- Measure Twice can cancel a crafting failure before defect/component/progress-loss handling.
+- Material Discipline independently protects components that would be destroyed by a failed craft.
+- Failure Analysis reduces real crafting progress loss.
+- Zero-Defect Process and Perfect Process layer additional technical protection.
+
+Scavenging fieldcraft
+- Trap Reader modifies the real trap-detection mean roll.
+- Lock Whisperer modifies the actual lockpick roll.
+- Quick Entry reduces lockpicking duration while preserving the vanilla five-second floor.
+- Gentle Tools can prevent lockpick damage/destruction on severe failure.
+- Alarm Bypass can suppress the alarm check on alarmed locks.
+
+Host/API architecture
+- Adds generic Host event NCMM_EVENT_PLAYER_KILL_V2 (id 6) to events.core.v2.
+- Adds public ncmm::runtime_event_notify(uint32_t) bridge for exact player-attributed kill dispatch.
+- CDDA patches use generic combat.*, crafting.* and scavenging.* hooks only.
+- Concrete Survivor perk/modifier IDs remain module-owned.
+- Adds exact-source contract coverage for character/melee/creature/monster/crafting/activity_actor/trap integration points.
+
+Cache/install behavior
+- Survivor build fingerprint: v8.7.6.8-survivor-0.11.0-reactive-api2.
+- Survivor cache marker: .survivor_0110_reactive_build.sha256.
+- CDDA reactive source marker: .ncmm_reactive_mechanics_0110.
+- C:\NCMMBuild is intentionally reusable; changed patch/fingerprint inputs invalidate only affected outputs.

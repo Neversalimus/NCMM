@@ -1,0 +1,13 @@
+﻿V8.7.4 hotfix summary
+
+Requested issues addressed
+1. Overview screen: switched to RPG card chooser path with SECTIONED_DETAIL + detail-width hint. Intended result: right-side description frame when the host layout supports it.
+2. Prime overlap: reverted compact 0/1/2 spacing back to non-overlapping 0/2/4 spacing for both core and mod Prime rows.
+3. Hidden third Prime: reduced default RPG node/detail widths from 30/50 to 26/42 so all three Prime choices fit more often on the current screen.
+4. Text cleanup: simplified mod-branch descriptions and removed/softened several system/internal phrases from player-facing copy.
+
+Files changed
+- SURVIVOR_0911_0915_INSTALL.ps1
+- README.txt
+- V8_7_RPG_VISUAL_PASS_NOTES.txt
+- V8_7_4_CHANGELOG.txt

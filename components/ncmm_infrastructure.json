@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "id": "ncmm_infrastructure",
+  "name": "NCMM Infrastructure",
+  "version": "0.8.3.1",
+  "kind": "tooling",
+  "atomic_group": "infrastructure",
+  "delivery": "embedded",
+  "required": true,
+  "dependencies": [],
+  "descriptor": "components/ncmm_infrastructure.json"
+}

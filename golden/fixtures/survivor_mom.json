@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "id": "survivor_mom",
+  "active_mod_ids": [
+    "dda",
+    "mindovermatter"
+  ],
+  "expected": {
+    "survivor_schema": 8,
+    "integration": "mindovermatter",
+    "available_prime_roots": 21,
+    "available_mod_prime_roots": 3
+  },
+  "required_tokens": [
+    "active_world_mod( \"mindovermatter\" )",
+    "mom_mental_focus",
+    "Transcendent Focus"
+  ]
+}

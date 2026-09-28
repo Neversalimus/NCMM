@@ -1,0 +1,28 @@
+NCMM Infrastructure 0.8.3.1 — World Settings Persistence Fix
+
+Runtime finding after the first successful 0.8.3 staged install:
+- Host 0.8.0 / Host API 2.0 started correctly.
+- Survivor Progression 0.9.16 loaded and its UI worked.
+- Advanced World Settings 0.6.2 was discovered but returned init_failed.
+
+Root cause:
+CDDA loads global options.json before NCMM initializes native code modules. Synthetic NCMM_AWS_* settings
+saved by the Experimental page were therefore deserialized before AWS had registered their real types.
+Vanilla options_manager::deserialize created default VOID cOpt placeholders through options[name]. AWS then
+found an existing setting with the wrong type/page and rejected registration, causing init_failed.
+
+Fixes:
+1. Unknown persisted NCMM_* values are now deferred during options.json load instead of creating VOID options.
+2. bool/int/float/enum NCMM setting registration applies a deferred value only after the real typed option exists.
+3. Normal non-NCMM unknown-option behavior is unchanged.
+4. WORLD::load_options now restores both world_default and ncmm_experimental settings, so AWS values persist
+   correctly in existing world saves.
+5. Host build fingerprint/cache marker changed so the patched CDDA host is rebuilt.
+6. Runtime verify now prints module state/lifecycle/reason and emits module_failures in runtime_verify.latest.json.
+
+Unchanged native module contracts:
+- Host public version: 0.8.0
+- Legacy NCMM API bridge: 1.9
+- Host API 2.0 Core: 2.0
+- Survivor Progression: 0.9.16 / state schema 8
+- Advanced World Settings: 0.6.2 / 48 geography bindings

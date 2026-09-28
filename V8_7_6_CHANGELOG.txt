@@ -1,0 +1,16 @@
+﻿V8.7.6 — CLARITY PASS
+
+Player-facing usability improvements built on the verified v8.7.5 package.
+
+- Exact lock reasons: the perk detail dialog and RPG tree detail pane now explain the real blocker (level, missing prerequisite, Prime exclusivity, inactive world mod, or missing point).
+- Next unlocks: Overview detail now shows current progression, how many perks are available now, and the next level-gated unlock for both core and active-mod branches.
+- Dependency focus: selecting a tree node highlights only its ancestor chain and descendant chain; unrelated sibling branches are dimmed rather than competing visually.
+- Off-screen indicators: tree footer shows how many nodes are hidden to the left/right of the horizontal viewport.
+- Context controls: footer explicitly shows arrows, PgUp/PgDn, Home/End, Tab, Enter and Esc behavior.
+- STATUS section receives its own color in the right-side detail pane.
+- No perk values, Prime tradeoffs, save schema, active-mod registry IDs, World Settings contracts or balance values changed.
+
+Validation included in the installer:
+- exact transform contracts for every v8.7.6 source patch;
+- structural post-transform guards before MSVC;
+- UTF-8 BOM preserved for Windows PowerShell 5.1.

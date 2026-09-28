@@ -1,0 +1,62 @@
+Survivor Progression 0.11.0 — Reactive Mechanics + Technical Mastery Audit
+==========================================================================
+
+Target
+- CDDA: cdda_experimental_2026_09_23_0546
+- Source commit: e262adb299a7613b4aedc5f12c08fe0413c56a84
+- NCMM Infrastructure: 0.8.3.1
+- Host: 0.8.0
+- Host API: 2.0 Core
+- Survivor: 0.11.0 candidate
+- AWS: 0.6.2
+
+Node-preservation contract
+- 0.10.0 Mechanical Perks transform remains intact.
+- 0.11.0 requires an already-generated 0.10.0 source tree.
+- Baseline guard: generated tree must contain at least 298 nodes before the 0.11 pass.
+- 0.11 pass appends exactly 25 definitions and asserts post_count == pre_count + 25.
+- State schema remains 8; existing purchases are not rewritten or refunded.
+- Branch allocation is intentionally unequal: Combat 6 / Survival 2 / Mobility 4 / Crafting 5 / Scavenging 5 / Mastery 3.
+
+Exact-source anchor audit
+The new source contracts were checked against the exact target commit. Reference blob identities:
+- src/character.cpp      838812b4540beded00058a6d2b2782f5c586cc21
+- src/character_health.cpp 1075811c1790fb1e241844e67aefc10d62252c51
+- src/melee.cpp          8f2a3e570e18648aed83466323b9f2514762a3db
+- src/ranged.cpp         54426a5dafe395306dc68fa73007f52e6ae2f645
+- src/creature.cpp       0ab8460d624ba27ee1afdd241ed33fea800b37f0
+- src/monster.cpp        e6d6fff55d2c647adfd063e8bd009173307b39de
+- src/crafting.cpp       e08768cbc527b809078e2cbdce6d0dd0e7ff176f
+- src/activity_actor.cpp 77807e28c54316db8f2b1890ffb81b2f24d18c6e
+- src/trap.cpp           8857008a59b421d10ad40cf572c6b034bb8630f9
+The exact adapter now pins the newly touched monster/activity_actor/trap blobs as well.
+
+Mechanical boundaries
+- Automatic riposte is recursion-guarded and suppresses a second automatic vanilla dodge-counter selection only when the NCMM riposte actually fired.
+- Execute is a bounded damage-window mechanic (target <= configured HP threshold), not unconditional death.
+- Momentum state is module-owned and driven by a generic player-kill event; Host/CDDA contain no concrete perk IDs.
+- Momentum is cleared on world-load event, expires by turn TTL, and recalculates runtime modifiers only when state changes.
+- Craft failure cancellation schedules the next failure point before returning, preventing the same failure point from immediately re-firing.
+- Lockpick time keeps the vanilla five-second minimum.
+
+Static/fixture validation
+- Reactive perk definitions: 25/25 present.
+- Branch distribution fixture: 6/2/4/5/5/3.
+- Generic reactive/technical hook names present in source transform and module bindings.
+- C++17 reactive combat/Momentum fixture: PASS.
+- C++17 crafting/lock-time formula fixture: PASS.
+- JSON/YAML/package-integrity/PowerShell here-string/line-ending checks are performed again during final packaging.
+
+Live verification status
+- The underlying 0.8.3.1 / Host 0.8.0 / Survivor 0.9.16 / AWS 0.6.2 baseline was live-verified previously.
+- Survivor 0.11.0 itself is NOT marked live-verified in this package. Promotion requires a fresh Windows/MSVC install, a normal game launch, and NCMM runtime verification PASS.
+
+Final package audit
+- JSON: 21/21 PASS
+- YAML: 2/2 PASS
+- PowerShell: 26/26 UTF-8 BOM + CRLF; here-string pairing PASS
+- CMD: 1/1 no BOM + CRLF PASS
+- Package integrity entries: 79
+- C++17 reactive combat/Momentum fixture: PASS
+- C++17 crafting/lock-time fixture: PASS
+- ZIP CRC: verified after archive creation

@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "id": "ncmm_host",
+  "name": "NCMM Host",
+  "version": "0.8.0",
+  "kind": "native_host",
+  "atomic_group": "native-runtime",
+  "delivery": "source_build",
+  "required": true,
+  "dependencies": [],
+  "provides": [
+    "loader_api:1",
+    "ncmm_api:1.9",
+    "host_api_v2:2.0",
+    "api.versioning.v1",
+    "active_mods.v1",
+    "active_mods.registry.v2",
+    "world_settings.v2",
+    "world_options.experimental.v1",
+    "ui.theme.v1",
+    "ui.layout.v1",
+    "state.migration.v1",
+    "module.lifecycle.v1",
+    "host_api.v2.core",
+    "events.core.v2",
+    "settings.typed.v2",
+    "character.modifiers.v2",
+    "runtime_hooks.registry.v2",
+    "worldgen.bindings.v2",
+    "module.lifecycle.query.v2"
+  ],
+  "descriptor": "components/ncmm_host.json"
+}

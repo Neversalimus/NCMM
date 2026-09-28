@@ -1,0 +1,15 @@
+NCMM Survivor -> Host API 2.0 Migration
+
+Survivor Progression: 0.9.15 -> 0.9.16
+NCMM Host: 0.8.0
+Infrastructure: 0.8.2.1
+State schema: 8 (unchanged)
+
+Changes
+- Survivor now requires Host API 2.0 Core, character.modifiers.v2 and runtime_hooks.registry.v2.
+- Survivor integration modifier IDs are dynamically owned/defined by the Survivor module.
+- Spell, skill and Secronom combat behavior binds to generic Host hook IDs.
+- CDDA magic.cpp, character_knowledge.cpp and creature.cpp contain only generic NCMM runtime hook integration; no Magiclysm/MoM/Xedra/Aftershock/Secronom modifier IDs or species lists.
+- Legacy Host contextual_metaphysics plumbing and predeclared Survivor modifier policy are removed from the final Host source.
+- Existing progression state schema 8, perk IDs, Prime commitments and integration registry are preserved.
+- AWS 0.6.1 is intentionally not migrated in this release.

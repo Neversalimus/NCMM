@@ -1,0 +1,47 @@
+﻿NCMM Survivor Progression v8.7.1 — RPG Visual Pass + Prime Visibility Fix
+
+Implemented
+- Compact Prime rows: the three mutually exclusive Prime roots/capstones use adjacent logical columns, so all three choices can be visible at once on normal desktop layouts.
+- Real horizontal tree viewport: selecting a node automatically pans the tree if that node would otherwise sit behind/outside the detail pane.
+- Per-node border style support in the RPG tree API.
+- Prime nodes use a visibly different border glyph style in addition to color/marker accents.
+- Sectioned detail pane with semantic headings/colors: BONUS, TRADEOFF, REQUIRES.
+- Prime descriptions are split at the semicolon so the bonus and drawback are not duplicated.
+- ui.layout.v1 capability remains additive on the existing NCMM 0.7.4 / API 1.8 baseline.
+
+Regression fixed from v8.7.5
+- In most branches the third Prime path was keyboard-selectable but clipped to the right of the tree canvas.
+
+Validation scope
+- UTF-8 BOM and PowerShell lexical structure checked.
+- Prime compact-layout and viewport math tested with a standalone C++17 probe.
+- ZIP structure/CRC checked.
+- Full Windows/MSVC/CDDA runtime build is still verified by the user's machine.
+
+V8.7.3 transform hotfix
+- Fixed RPG helper source-transform contract for Secronom+ accent: existing v8.6.6.x helper uses YELLOW, not MAGENTA.
+- Prevents false Replace-TextBlock count=0 during preflight before compilation.
+
+V8.7.3 pointer-container compile hotfix
+- Core branch_perks is std::vector<const perk_def *>; RPG border pass now iterates pointers and dereferences safely, matching the existing mod_perks path.
+- Added a preflight contract that rejects the old reference-over-pointer loop before MSVC.
+
+
+Additional v8.7.5 cleanup:
+- overview card chooser routed through RPG theme wrapper with detail-frame width hint
+- Prime rows returned to non-overlapping spacing; default RPG node/detail widths reduced to keep all three choices visible
+- cleaned user-facing mod-branch copy and Prime/tradeoff wording
+
+
+V8.7.5 live locale / overview renderer:
+- actual right-side overview detail frame
+- live Advanced World Settings language refresh through options.cpp -> ncmm::on_language_changed()
+- Prime parent-centering bypass for stable 3-way lanes
+
+
+V8.7.6 Clarity Pass
+- Tree detail now exposes exact lock reasons instead of a generic LOCKED state.
+- Overview adds available-now counts and next unlocks.
+- Selected dependency ancestry/descendancy is highlighted; sibling noise is dimmed.
+- Horizontal viewport exposes hidden-left/hidden-right counts.
+- Context controls are visible in the footer.

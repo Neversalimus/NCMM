@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "id": "advanced_world_settings",
+  "name": "Advanced World Settings",
+  "version": "0.6.2",
+  "kind": "native_module",
+  "atomic_group": "native-runtime",
+  "delivery": "source_build",
+  "required": true,
+  "dependencies": [
+    {
+      "component": "ncmm_host",
+      "min_version": "0.8.0"
+    },
+    {
+      "capability": "world_settings.v2"
+    },
+    {
+      "capability": "host_api.v2.core"
+    },
+    {
+      "capability": "settings.typed.v2"
+    },
+    {
+      "capability": "worldgen.bindings.v2"
+    }
+  ],
+  "descriptor": "components/advanced_world_settings.json"
+}

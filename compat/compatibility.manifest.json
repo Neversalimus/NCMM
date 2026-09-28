@@ -1,0 +1,184 @@
+{
+  "schema": 4,
+  "infrastructure_version": "0.8.3.1",
+  "host_version": "0.8.0",
+  "ncmm_api": "1.9",
+  "loader_api": 1,
+  "base_adapter": "base-cdda-2026-series-v1",
+  "adapter_base": "base-cdda-2026-series-v1",
+  "contract_registry": "compat/contracts.json",
+  "compatibility_feed": "compat/feed/index.json",
+  "golden_fixtures": "golden/fixtures",
+  "adapter_search": [
+    "adapters",
+    "adapters/generated"
+  ],
+  "update_policy": {
+    "exact_commit": "install_allowed",
+    "structural_pass": "probe_passes_but_install_requires_deep_probe_and_adapter_or_AllowStructuralReuse",
+    "structural_fail": "install_blocked",
+    "payload_anchor_failure": "fail_before_runtime_commit",
+    "generated_adapter_gate": "deep_source_probe_required",
+    "certification_promotion": "manual_only",
+    "offline_verify_failure": "rollback",
+    "runtime_verify_failure": "report_only_no_automatic_rollback"
+  },
+  "transaction": {
+    "schema": 4,
+    "phases": [
+      "snapshot",
+      "legacy_generate",
+      "api2_migrate",
+      "source_preflight",
+      "compile",
+      "cdda_patch",
+      "install",
+      "offline_verify",
+      "commit"
+    ],
+    "snapshot": [
+      "cataclysm-tiles.exe",
+      "cataclysm-tiles.vanilla.exe",
+      "cataclysm-tiles.ncmm.exe",
+      "ncmm",
+      "code_mods/SurvivorProgression",
+      "code_mods/AdvancedWorldSettings"
+    ],
+    "backup_folder": "NCMM_Infrastructure_Backups",
+    "pending_marker": "ncmm/transaction.pending.json",
+    "journal": "ncmm/transaction.journal.json",
+    "latest_report": "ncmm/transaction.latest.json",
+    "fresh_vanilla_install": "supported_transactionally",
+    "interrupted_transaction": "automatic_rollback_from_archive"
+  },
+  "self_test": {
+    "required_capabilities": [
+      "core.v1",
+      "module_contract.v1",
+      "api.versioning.v1",
+      "active_mods.v1",
+      "active_mods.registry.v2",
+      "world_settings.v2",
+      "world_options.experimental.v1",
+      "ui.theme.v1",
+      "ui.layout.v1",
+      "state.migration.v1",
+      "module.lifecycle.v1",
+      "host_api.v2.core",
+      "events.core.v2",
+      "settings.typed.v2",
+      "character.modifiers.v2",
+      "runtime_hooks.registry.v2",
+      "worldgen.bindings.v2",
+      "module.lifecycle.query.v2"
+    ],
+    "required_modules": [
+      {
+        "id": "survivor_progression",
+        "version": "0.11.3"
+      },
+      {
+        "id": "advanced_world_settings",
+        "version": "0.6.2"
+      }
+    ],
+    "optional_modules": [
+      {
+        "id": "recipe_finalize_profiler",
+        "version": "0.1.1"
+      }
+    ]
+  },
+  "certification": {
+    "workflow": ".github/workflows/ncmm-certify.yml",
+    "script": "ci/Invoke-NCMMCertification.ps1",
+    "required_stages": [
+      "package_integrity",
+      "source_contracts",
+      "deep_source_probe",
+      "golden_regression",
+      "update_dependency_layer",
+      "build_install",
+      "offline_install_verify"
+    ],
+    "result": "certificate.json",
+    "feed_candidate": "feed-candidate.json",
+    "update_release_builder": "ci/Build-UpdateRelease.ps1",
+    "update_promotion": "ci/Promote-UpdateRelease.ps1"
+  },
+  "diagnostics": {
+    "collector": "NCMM.cmd diagnostics",
+    "save_files": "excluded"
+  },
+  "package_integrity": "compat/package.integrity.json",
+  "component_catalog": "components/index.json",
+  "update_feed": "compat/update/index.json",
+  "migration_registry": "migrations/migrations.json",
+  "update_layer": {
+    "resolver": "tools/NCMM.Update.Common.ps1",
+    "updater": "NCMM.ps1 + tools/Invoke-NCMMUpdate.ps1",
+    "default_policy": "certified_only_manual_apply",
+    "atomic_native_runtime": true,
+    "local_package_update": "supported",
+    "remote_feed_update": "supported_when_package_url_and_sha_are_published",
+    "default_remote_feed": "https://raw.githubusercontent.com/Neversalimus/NCMM/main/compat/update/index.json",
+    "feed_fallback": "embedded",
+    "state_schema": 2,
+    "module_state_policy": "opaque module state is never edited without an explicit component migration hook",
+    "minimum_entrypoint": "NCMM.cmd"
+  },
+  "experimental_watcher": {
+    "workflow": ".github/workflows/ncmm-experimental-watch.yml",
+    "schedule": "every_6_hours",
+    "unknown_build_action": "SourceOnly certification request",
+    "automatic_user_release": false
+  },
+  "exact_seed_adapter": "cdda-2026-09-23-0546-e262adb2",
+  "host_api_v2": "2.0",
+  "host_api_2_core": {
+    "version": "2.0",
+    "delivery": "query_interface_over_legacy_abi_v1",
+    "legacy_api": "1.9",
+    "module_binary_compatibility": "existing ABI-v1 modules preserved",
+    "domains": [
+      "events",
+      "typed_world_settings",
+      "active_mod_registry",
+      "module_lifecycle_query",
+      "character_modifiers",
+      "runtime_hook_registry",
+      "worldgen_binding_registry"
+    ],
+    "module_migration_status": "Survivor 0.11.3 and AWS 0.6.2 use Host API 2.0; reactive combat now includes combinatorial-safe riposte refunds, hostile NPC kill parity, hostile-target guards, bounded/self-healing Momentum state, technical crafting/scavenging and geography semantics through generic Host hooks.",
+    "survivor_migration": "runtime_hook_registry_v2 + dynamic_modifier_ownership; no Survivor-specific identifiers remain in patched CDDA source",
+    "aws_migration": "typed_world_settings_v2 + worldgen_binding_registry_v2; final patched CDDA geography sources contain no NCMM_AWS_* identifiers"
+  },
+  "verification": {
+    "offline_install": {
+      "transaction_gate": true,
+      "report": "ncmm/offline_verify.latest.json",
+      "launch_mode": "--ncmm-offline --ncmm-diagnose",
+      "checks": [
+        "bootstrap/vanilla/host hashes",
+        "binding/source identity",
+        "host validity",
+        "installed module DLL+manifest identity",
+        "runtime infrastructure markers"
+      ]
+    },
+    "runtime_modules": {
+      "transaction_gate": false,
+      "requires_first_normal_host_launch": true,
+      "report": "ncmm/runtime_verify.latest.json",
+      "pending_marker": "ncmm/runtime_verification.pending.json",
+      "checks": [
+        "modules.state freshness",
+        "Host/API versions",
+        "required capabilities",
+        "required modules loaded+active",
+        "boot.ready"
+      ]
+    }
+  },
+  "installer_pipeline": "pipeline/pipeline.manifest.json"
+}

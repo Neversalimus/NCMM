@@ -1,0 +1,9 @@
+v8.7.6.6 Runtime Infrastructure Hotfix
+
+1. Rebuilt from the verified v8.7.6.4 baseline to avoid the broken v8.7.6.5 PowerShell expression.
+2. Safe NCMM option accessors prevent missing/wrong-type optional world settings from calling value_as<T>() on VOID.
+3. Geography boolean reads use conservative fallbacks: custom geography OFF, feature toggles ON.
+4. Debug prompts on the NCMM-patched host show https://github.com/Neversalimus/NCMM/issues plus the upstream CDDA tracker.
+5. NCMM manager turns common internal rejection codes into readable messages.
+6. Writes ncmm/diagnostics.txt with host/API/capabilities/module states for support.
+7. Recipe profiler support remains dormant until the separate profiler module is enabled.

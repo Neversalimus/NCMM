@@ -1,0 +1,26 @@
+NCMM Host API 2.0 Core — static build audit
+
+Base: NCMM Infrastructure 0.8.2.1 cleanup package.
+Host target: 0.8.0.
+Loader ABI: 1 (preserved).
+Legacy semantic API: 1.9 additive bridge.
+Queried Core API: 2.0.
+
+Scope boundaries:
+- API/Host infrastructure only.
+- Survivor 0.9.15 and AWS 0.6.1 are NOT migrated in this release.
+- Existing gameplay/source semantics are intentionally preserved until separate migration.
+
+Static assertions performed by package test/generator:
+- Host API 2.0 SDK transform markers present.
+- query_interface bridge appended after the v1 ABI prefix.
+- v2 event/settings/mod/lifecycle/modifier/runtime-hook/worldgen registries present.
+- Host-owned internal runtime_hook_modifier/worldgen_hook_* declarations are generated.
+- package metadata expects Host 0.8.0, legacy API 1.9 and Core 2.0.
+- self-test requires Host API 2 capabilities and marker.
+- PowerShell/CMD encoding policy retained.
+- package integrity regenerated after all modifications.
+- ZIP CRC validated after packaging.
+
+Environment limitation:
+Linux build environment cannot run Windows PowerShell 5.1/MSVC. The package keeps the on-target PowerShell parser/static gate and transactional rollback; first Windows build is the live validation gate.

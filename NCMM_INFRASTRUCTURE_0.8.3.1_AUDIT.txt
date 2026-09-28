@@ -1,0 +1,67 @@
+NCMM Infrastructure 0.8.3.1 — World Settings Persistence Audit
+Date: 2026-09-28
+Target: cdda_experimental_2026_09_23_0546 / e262adb299a7613b4aedc5f12c08fe0413c56a84
+Native stack: Host 0.8.0 / legacy API 1.9 / Host API 2.0 / Survivor 0.9.16 / AWS 0.6.2
+
+LIVE INPUT THAT TRIGGERED THIS PASS
+- Infrastructure 0.8.3 install COMMITTED successfully with offline verification.
+- Host launched in game; F2 NCMM UI worked.
+- Survivor Progression 0.9.16 loaded and its UI worked.
+- Runtime verification failed only module.advanced_world_settings.
+- Host module state showed AWS init_failed.
+
+ROOT CAUSE
+CDDA options_manager::load() runs before ncmm::initialize(). Global options.json may already contain
+NCMM_AWS_* entries serialized from the NCMM Experimental page. Vanilla options_manager::deserialize uses
+options[name].setValue(value); for an unknown name, which creates a default VOID cOpt. When AWS later
+registers the real bool/int/float/enum setting, the World Settings API sees an existing option with the wrong
+page/type and returns false. AWS geography registration therefore fails and module init returns false.
+
+A second persistence defect was found adjacent to the init failure: WORLD::load_options() in exact 0546
+only restores page == world_default. NCMM experimental settings are present in WORLD_OPTIONS but their
+saved values were ignored on world reload because their page is ncmm_experimental.
+
+FIX
+1. options.cpp generated patch now owns ncmm_deferred_option_values.
+2. options_manager::deserialize defers only unknown names with prefix NCMM_; normal CDDA unknown-option
+   behavior is left unchanged.
+3. All four typed registration paths (bool/int/float/enum) apply a deferred value after the real typed cOpt
+   has been created or refreshed; 4/4 creation paths and 4/4 refresh paths are covered.
+4. worldfactory.cpp generated patch restores both world_default and ncmm_experimental entries.
+5. worldfactory.cpp is now part of World Settings v2 required-file, marker and patched-source audits.
+6. Host build cache identity changed to .ncmm_host_0831_persistence_build.sha256 /
+   v8.2-host-0831-persistence so the current 0.8.3 Host binary cannot be reused for this source change.
+7. Runtime verification report schema advanced to 3 and now includes module_failures plus state/lifecycle/reason.
+   NCMM.cmd selftest prints each failed test detail instead of only the test ID.
+
+REGRESSION / STATIC AUDIT
+- JSON parse: 20 package JSON files (package.integrity excluded until regeneration): PASS
+- YAML parse: 2 GitHub workflow files: PASS
+- PowerShell packaging: 26 PS1 files, UTF-8 BOM + CRLF: PASS
+- CMD packaging: 1 CMD file, no BOM + CRLF: PASS
+- Here-string lexical balance / terminator safety: PASS
+- New persistence source contract tokens: PASS
+- Deferred setting application counts: create 4/4, refresh 4/4: PASS
+- Host cache identity bump: PASS
+- Runtime module reason/failure summary contract: PASS
+- Infrastructure identity 0.8.3.1 across compatibility/component/update/feed manifests: PASS
+- C++17 focused persistence fixture: compiled and executed successfully with g++ 14.2
+- Existing staged transaction model retained: offline verify remains commit gate; runtime verify remains report-only.
+- Host/Survivor/AWS public versions unchanged.
+
+EXACT-UPSTREAM CONTRACTS VERIFIED DURING ANALYSIS
+- options_manager::deserialize on exact e262adb2 contains one add_retry + options[name].setValue(value) anchor.
+- exact options.cpp defines the AWS-exposed hidden world_default controls used by the current API.
+- exact WORLD::load_options() has one world_default-only restore condition targeted by this patch.
+- WORLD_OPTIONS is initialized from get_world_defaults(), and the existing NCMM patch already includes
+  ncmm_experimental in get_world_defaults(), so restored AWS values have a typed destination after module init.
+
+PACKAGE POLICY
+- 75 immutable package files are expected in package.integrity.json after this audit file is included.
+- adapters/generated and certification-output remain excluded by integrity policy.
+- No save files are bundled or modified by the package itself.
+
+LIVE STATUS
+0.8.3.1 still requires one Windows/MSVC install + normal game launch + Runtime Verify run. The expected
+behavior is that the pre-existing NCMM_AWS_* values in options.json are recovered automatically; users do
+not need to delete options.json or C:\NCMMBuild.

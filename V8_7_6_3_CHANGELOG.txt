@@ -1,0 +1,19 @@
+NCMM / Survivor Progression v8.7.6.3 — Tree Marker Anchor Hotfix
+Date: 2026-09-27
+
+Fixed
+-----
+- Clarity Pass no longer replaces an ambiguous bare tree/card marker expression.
+- The dependency marker transform is now scoped to the tree-only dependency-aware
+  text-color block created by the immediately preceding node-focus transform.
+- This fixes live preflight failure:
+  "v8.7.6.1 dependency marker focus expected exactly once, found 2".
+
+Preserved
+---------
+- v8.7.6 Clarity Pass behavior.
+- v8.7.5 overview detail frame and locale refresh.
+- v8.7.6.1 CMD/BOM/errorlevel fixes.
+- v8.7.6.2 API 1.8 smoke-anchor fix.
+- dormant Recipe Finalization Profiler host support.
+- Survivor schema 8 / NCMM host 0.7.4 / API 1.8.

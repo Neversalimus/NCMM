@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "channel": "experimental",
+  "generated_utc": "2026-09-28T11:36:00Z",
+  "infrastructure_version": "0.8.3.1",
+  "policy": {
+    "auto_apply": false,
+    "certified_only_default": true,
+    "unknown_experimental": "probe_before_install",
+    "native_runtime": "atomic_rebuild_group"
+  },
+  "releases": [
+    {
+      "version": "0.8.3.1",
+      "status": "embedded-current",
+      "certification": "local-static-audit",
+      "package_url": null,
+      "package_sha256": null,
+      "components": {
+        "ncmm_infrastructure": "0.8.3.1",
+        "ncmm_host": "0.8.0",
+        "survivor_progression": "0.11.3",
+        "advanced_world_settings": "0.6.2",
+        "recipe_finalize_profiler": "0.1.1"
+      },
+      "minimum_updater": "0.8.3"
+    }
+  ],
+  "default_remote": "https://raw.githubusercontent.com/Neversalimus/NCMM/main/compat/update/index.json"
+}

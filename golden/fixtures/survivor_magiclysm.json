@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "id": "survivor_magiclysm",
+  "active_mod_ids": [
+    "dda",
+    "magiclysm"
+  ],
+  "expected": {
+    "survivor_schema": 8,
+    "integration": "magiclysm",
+    "available_prime_roots": 21,
+    "available_mod_prime_roots": 3
+  },
+  "required_tokens": [
+    "active_world_mod( \"magiclysm\" )",
+    "mg_arcane_focus",
+    "Mana Mastery"
+  ]
+}

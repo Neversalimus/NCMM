@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "id": "full_stack",
+  "active_mod_ids": [
+    "dda",
+    "magiclysm",
+    "mindovermatter",
+    "xedra_evolved",
+    "aftershock_exoplanet",
+    "aftershock_prime",
+    "secronom",
+    "secronom_lore_expansion"
+  ],
+  "expected": {
+    "survivor_schema": 8,
+    "core_prime_roots": 18,
+    "mod_prime_roots": 21,
+    "total_prime_roots": 39,
+    "mod_native_nodes": 161,
+    "integration_count": 7,
+    "available_prime_roots": 39,
+    "available_mod_prime_roots": 21
+  },
+  "required_tokens": [
+    "active_world_mod( \"aftershock_exoplanet\" )",
+    "active_world_mod( \"aftershock_prime\" )",
+    "active_world_mod( \"secronom\" )",
+    "active_world_mod( \"secronom_lore_expansion\" )",
+    "af_systems_operator",
+    "afp_prime_operator",
+    "sec_field_researcher",
+    "secx_flesh_initiate"
+  ]
+}

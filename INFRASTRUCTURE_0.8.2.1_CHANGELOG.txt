@@ -1,0 +1,28 @@
+NCMM Infrastructure 0.8.2.1 — Infrastructure Cleanup
+
+ONE USER ENTRYPOINT:
+  NCMM.cmd
+
+Run without arguments for menu. Command-line examples:
+  NCMM.cmd install
+  NCMM.cmd check
+  NCMM.cmd update
+  NCMM.cmd probe
+  NCMM.cmd deepprobe
+  NCMM.cmd adapter
+  NCMM.cmd selftest
+  NCMM.cmd diagnostics
+  NCMM.cmd recover
+  NCMM.cmd package C:\path\NCMM_update.zip
+
+What changed from 0.8.2:
+- fixed Windows PowerShell 5.1 Join-Path System.Object[] failure in static test;
+- reduced user-facing CMD files from 16 to 1;
+- removed legacy 0.8.0/0.8.1 redirect entrypoints;
+- removed thin wrapper scripts and merged their routing into NCMM.ps1;
+- merged update/dependency regression into one Infrastructure 0.8.2.1 static test;
+- every PS1 is parsed by the real Windows PowerShell parser before static test passes;
+- local package updater now uses NCMM.ps1 instead of version-specific entrypoint names.
+
+The game payload SURVIVOR_0911_0915_v8.7.6.8.ps1 is byte-for-byte unchanged from 0.8.2.
+Host API expansion is intentionally NOT part of this cleanup release.

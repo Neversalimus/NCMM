@@ -1,0 +1,9 @@
+NCMM Advanced World Settings 0.6.2 — Host API 2.0 Migration
+
+- AWS now acquires Host API 2.0 through the legacy ABI-v1 query_interface bridge.
+- Typed synthetic world settings are registered through Host API 2.0.
+- 48 geography settings are bound by AWS to generic geography.* Host hooks.
+- Final patched CDDA geography sources contain no NCMM_AWS_* setting IDs.
+- World Settings UI/grouping remains provided by the generic NCMM Host integration layer.
+- Host 0.8.0 + Survivor 0.9.16 remain unchanged in gameplay semantics.
+- AWS version 0.6.2; no world-setting IDs were renamed, preserving existing world option state.

@@ -1,0 +1,14 @@
+NCMM Host API 2.0 Core
+
+- Host 0.8.0; Loader ABI 1 remains unchanged.
+- Legacy semantic API advances additively from 1.8 to 1.9 only to expose query_interface.
+- New queried interface: ncmm.host_api.v2.core, ABI/API 2.0.
+- Added event subscription registry for host-ready, world-loaded/unloaded, turn, locale-changed.
+- Added typed World Settings registration/read surface in v2 table.
+- Added active-world mod and module lifecycle query surfaces.
+- Added dynamic modifier definition/ownership plus aggregate reads.
+- Added generic runtime-hook rule registry with selectors (subject/source-mod/source-species/target-species).
+- Added generic worldgen hook -> typed setting binding registry.
+- Added Host-owned internal runtime_hook_modifier/worldgen_hook_* bridge functions for the next Survivor/AWS migration pass.
+- Existing Survivor 0.9.15 and AWS 0.6.1 remain on legacy ABI v1 in this release; no claim of completed migration.
+- Existing module-specific CDDA source patches are intentionally untouched until the migration pass, so this Core release changes API infrastructure, not gameplay semantics.

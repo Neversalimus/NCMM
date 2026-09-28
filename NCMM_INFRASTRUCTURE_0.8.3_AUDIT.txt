@@ -1,0 +1,116 @@
+NCMM Infrastructure 0.8.3 — Staged Installer / Verification Split Audit
+=======================================================================
+Target runtime stack
+- NCMM Host: 0.8.0
+- Legacy NCMM API: 1.9
+- Host API 2.0 Core: 2.0
+- Loader API: 1
+- Survivor Progression: 0.9.16 / state schema 8
+- Advanced World Settings: 0.6.2
+- Exact CDDA target: cdda_experimental_2026_09_23_0546
+- Exact source commit: e262adb299a7613b4aedc5f12c08fe0413c56a84
+
+Root cause fixed
+----------------
+The previous install transaction ran the bootstrap in diagnostics-only mode:
+  --ncmm-offline --ncmm-diagnose
+That bootstrap mode validates the vanilla/host/binding relationship, writes runtime.state.json,
+and exits without launching cataclysm-tiles.ncmm.exe. Therefore the Host cannot initialize code_mods,
+publish fresh modules.state.json, advertise Host API 2.0 runtime capabilities, or mark modules loaded/active.
+The old unified self-test nevertheless required those runtime-only facts immediately and rolled back an
+otherwise successful Host build/install.
+
+0.8.3 verification model
+------------------------
+1. Offline install verification — TRANSACTION GATE / rollback on failure
+   - bootstrap, vanilla and host files/hashes
+   - host.binding.json parse + source identity + Host/Loader version
+   - diagnostics-only bootstrap exit + runtime.state.json host validity
+   - installed Survivor/AWS DLL + manifest presence and manifest identity/version
+   - runtime infrastructure marker files
+   - report: ncmm/offline_verify.latest.json
+
+2. Runtime module verification — POST-COMMIT / never automatic rollback
+   - requires one normal NCMM Host launch after installation
+   - requires fresh modules.state.json newer than host.binding installed_utc
+   - Host/API versions
+   - required Host API 2.0 capabilities
+   - Survivor 0.9.16 loaded/active
+   - AWS 0.6.2 loaded/active
+   - boot.ready
+   - report: ncmm/runtime_verify.latest.json
+   - pending marker: ncmm/runtime_verification.pending.json
+   - command: NCMM.cmd selftest
+
+Staged installer structure
+--------------------------
+internal/stages/10-Preflight.ps1
+internal/stages/20-Snapshot.ps1
+internal/stages/30-PayloadEngine.ps1
+internal/stages/40-OfflineVerify.ps1
+internal/stages/50-Commit.ps1
+internal/stages/60-RuntimeVerify.ps1
+
+The historical SURVIVOR_0911_0915_v8.7.6.8.ps1 remains isolated as the compatibility/native build
+engine for this release to avoid rebreaking the now-working Host/MSVC pipeline. It now emits explicit
+journal checkpoints for:
+- legacy_generate
+- api2_migrate
+- source_preflight
+- compile
+- cdda_patch
+- install
+
+This creates stable extraction boundaries for later physical decomposition of the historical engine
+without changing the transaction shell again.
+
+Transaction behavior
+--------------------
+- Schema: 4
+- A successful native build + offline verification commits the transaction.
+- Runtime verification is recorded as pending_first_host_launch and cannot trigger rollback.
+- A failure before commit still restores the pre-install transaction snapshot.
+- Interrupted pending transactions retain the existing recovery path.
+
+Certification behavior
+----------------------
+- Full certification requires offline_install_verify PASS.
+- runtime_module_verify is explicitly DEFERRED because it requires a normal Host launch rather than
+  bootstrap diagnostics-only mode.
+- SourceOnly mode skips build/install and both runtime-facing verification stages.
+
+Regression guards added
+-----------------------
+- Install orchestrator must not invoke the runtime self-test.
+- Offline verification body must not contain modules.state/API/capability/loaded-module checks.
+- Runtime verification must contain modules.state, Host/API, freshness and boot.ready checks.
+- Pipeline stage files and pipeline manifest are mandatory package files.
+- Payload stage checkpoint contracts are mandatory.
+- Existing PS5.1 parser, here-string, generic-collection, Host API2 ordering, MSVC build/link and
+  public-hook regression guards are retained.
+
+Static package audit in this build
+----------------------------------
+- JSON documents: 21 parse successfully
+- YAML workflows: 2 parse successfully
+- PowerShell files: 26, UTF-8 BOM + CRLF
+- CMD files: 1, no BOM + CRLF
+- Payload here-string pairs: 314 / 314
+- Unsafe here-string closing markers with trailing tokens: 0
+- Unsafe interpolated ordinary $name: references in PowerShell diagnostics: 0
+- Outer installer stages: 6 / 6 present
+- Required payload checkpoints: 6 / 6 present
+- Offline verification contains no runtime module-state gates
+- Runtime verification remains post-commit/report-only
+
+Important live-test expectation
+-------------------------------
+The immediately preceding user run already reached:
+- patched-source audit PASS
+- Host build READY
+- NCMM bootstrap runtime READY
+- binding/hash publication
+- bootstrap diagnostics PASS
+- installed Survivor 0.9.16 / AWS 0.6.2 report
+The only failure was the logically impossible pre-first-launch runtime module self-test. 0.8.3 removes
+that false rollback path; the first Windows run should therefore commit after offline verification.

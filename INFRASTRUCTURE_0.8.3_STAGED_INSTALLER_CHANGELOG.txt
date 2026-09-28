@@ -1,0 +1,9 @@
+NCMM Infrastructure 0.8.3 — Staged Installer / Verification Split
+
+- Fixes false rollback after a successful Host build/install. `--ncmm-diagnose` validates bootstrap/host binding only and does not launch the Host, so module/API2 runtime state is no longer required inside the install transaction.
+- Offline install verification is now the rollback gate.
+- Runtime module verification runs separately after the first normal Cataclysm/NCMM Host launch (`NCMM.cmd selftest`) and never automatically rolls back an installed Host.
+- Added runtime_verification.pending.json and separate offline/runtime verification reports.
+- Split outer installer orchestration into preflight, snapshot, payload engine, offline verification, commit, and runtime verification stage scripts.
+- Historical v8.7.6.8 generator/build payload remains isolated for compatibility but now writes granular legacy_generate/api2_migrate/source_preflight/cdda_patch checkpoints.
+- Certification uses offline install verification as the Full-mode transaction gate; runtime module verification is explicitly deferred.

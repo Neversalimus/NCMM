@@ -1,0 +1,145 @@
+{
+  "schema": 1,
+  "infrastructure_version": "0.8.3.1",
+  "version_scheme": "numeric-dotted",
+  "atomic_groups": {
+    "infrastructure": [
+      "ncmm_infrastructure"
+    ],
+    "native-runtime": [
+      "ncmm_host",
+      "survivor_progression",
+      "advanced_world_settings"
+    ],
+    "optional-diagnostics": [
+      "recipe_finalize_profiler"
+    ]
+  },
+  "components": [
+    {
+      "id": "ncmm_infrastructure",
+      "name": "NCMM Infrastructure",
+      "version": "0.8.3.1",
+      "kind": "tooling",
+      "atomic_group": "infrastructure",
+      "delivery": "embedded",
+      "required": true,
+      "dependencies": [],
+      "descriptor": "components/ncmm_infrastructure.json"
+    },
+    {
+      "id": "ncmm_host",
+      "name": "NCMM Host",
+      "version": "0.8.0",
+      "kind": "native_host",
+      "atomic_group": "native-runtime",
+      "delivery": "source_build",
+      "required": true,
+      "dependencies": [],
+      "provides": [
+        "loader_api:1",
+        "ncmm_api:1.9",
+        "host_api_v2:2.0",
+        "api.versioning.v1",
+        "active_mods.v1",
+        "active_mods.registry.v2",
+        "world_settings.v2",
+        "world_options.experimental.v1",
+        "ui.theme.v1",
+        "ui.layout.v1",
+        "state.migration.v1",
+        "module.lifecycle.v1",
+        "host_api.v2.core",
+        "events.core.v2",
+        "settings.typed.v2",
+        "character.modifiers.v2",
+        "runtime_hooks.registry.v2",
+        "worldgen.bindings.v2",
+        "module.lifecycle.query.v2"
+      ],
+      "descriptor": "components/ncmm_host.json"
+    },
+    {
+      "id": "survivor_progression",
+      "name": "Survivor Progression",
+      "version": "0.11.3",
+      "kind": "native_module",
+      "atomic_group": "native-runtime",
+      "delivery": "source_build",
+      "required": true,
+      "dependencies": [
+        {
+          "component": "ncmm_host",
+          "min_version": "0.8.0"
+        },
+        {
+          "capability": "api.versioning.v1"
+        },
+        {
+          "capability": "active_mods.registry.v2"
+        },
+        {
+          "capability": "host_api.v2.core"
+        },
+        {
+          "capability": "events.core.v2"
+        },
+        {
+          "capability": "character.modifiers.v2"
+        },
+        {
+          "capability": "runtime_hooks.registry.v2"
+        }
+      ],
+      "descriptor": "components/survivor_progression.json"
+    },
+    {
+      "id": "advanced_world_settings",
+      "name": "Advanced World Settings",
+      "version": "0.6.2",
+      "kind": "native_module",
+      "atomic_group": "native-runtime",
+      "delivery": "source_build",
+      "required": true,
+      "dependencies": [
+        {
+          "component": "ncmm_host",
+          "min_version": "0.8.0"
+        },
+        {
+          "capability": "world_settings.v2"
+        },
+        {
+          "capability": "host_api.v2.core"
+        },
+        {
+          "capability": "settings.typed.v2"
+        },
+        {
+          "capability": "worldgen.bindings.v2"
+        }
+      ],
+      "descriptor": "components/advanced_world_settings.json"
+    },
+    {
+      "id": "recipe_finalize_profiler",
+      "name": "Recipe Finalization Profiler",
+      "version": "0.1.1",
+      "kind": "native_module",
+      "atomic_group": "optional-diagnostics",
+      "delivery": "external_package",
+      "required": false,
+      "package_available": false,
+      "dependencies": [
+        {
+          "component": "ncmm_host",
+          "min_version": "0.7.4"
+        },
+        {
+          "capability": "api.versioning.v1"
+        }
+      ],
+      "descriptor": "components/recipe_finalize_profiler.json"
+    }
+  ]
+}

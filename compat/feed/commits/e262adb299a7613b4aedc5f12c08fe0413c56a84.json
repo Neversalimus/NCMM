@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "commit": "e262adb299a7613b4aedc5f12c08fe0413c56a84",
+  "tag": "cdda-experimental-2026-09-23-0546",
+  "build_label": "cdda_experimental_2026_09_23_0546",
+  "status": "supported_exact",
+  "certification": {
+    "state": "seed-live-verified",
+    "ci_081": "not_yet_run",
+    "note": "0.8.3.1 baseline was live-verified on exact CDDA 0546: Host 0.8.0 / Host API 2.0, Survivor 0.9.16 and AWS 0.6.2 loaded/active with runtime verification PASS. This candidate advances Survivor through 0.10.0, 0.11.0, 0.11.1 and 0.11.2 to 0.11.3 Combinatorial Edge Polish; it requires a new Windows/MSVC install + runtime verification.",
+    "ci_082": "not_yet_run",
+    "host_api_2_core": "live_verified_0.8.3.1",
+    "survivor_api2_migration": "0.9.16_live_verified;0.10.0_mechanical_candidate;0.11.0_reactive_candidate;0.11.1_polish_candidate;0.11.2_edge_polish_candidate;0.11.3_combinatorial_edge_requires_live_verify",
+    "aws_api2_migration": "live_verified_0.8.3.1"
+  },
+  "adapter": {
+    "id": "cdda-2026-09-23-0546-e262adb2",
+    "inherits": "base-cdda-2026-series-v1",
+    "support": "exact"
+  },
+  "runtime": {
+    "host_version": "0.8.0",
+    "ncmm_api": "1.9",
+    "loader_api": 1,
+    "host_api_v2": "2.0"
+  },
+  "modules": {
+    "survivor_progression": "0.11.3",
+    "advanced_world_settings": "0.6.2",
+    "recipe_finalize_profiler": "0.1.1"
+  },
+  "hashes": {
+    "adapter_sha256": "fa56037a5a3d9d6c4adf52ad851d5709d0b3b7cac49abdd596e4c403acab0f12",
+    "base_adapter_sha256": "d7e9c68f924299b98f50ae2baafb02b3a1d945abaffc0b203b52b3aa4b174545",
+    "payload_sha256": "4700e6baea01c35c74f3d7ab165ea9d054b1811e16a099637cb4fea5ce8a357c",
+    "contracts_sha256": "06b4a5143437231a87311a2adfad5b5fd314a749046ae8cb1aa8f79b4205b6fe",
+    "components_sha256": "ffb8b925e793357e24eeaf1cef5bca86d815242adbc3a25e0328fe682fc602f6",
+    "migrations_sha256": "ce48c502a9288db826302b242c7d7b0a2a469e21e4ba289cb9cce74b3767abd2"
+  },
+  "updated_utc": "2026-09-28T14:48:00Z",
+  "candidate_note": "Exact CDDA 0546 baseline remains live-verified through Survivor 0.9.16/AWS 0.6.2. HOTFIX13 keeps Survivor 0.11.3 candidate/schema 8 and adds targeted native-runtime hardening for the reported new-character SIGSEGV with Magiclysm + Mind Over Matter + Xedra: character state is unavailable while g->new_game is true and generic API2 runtime hooks stay neutral until WORLD_LOADED/first real turn. It also fixes F1 tree overlap/unreachable hitboxes by deconflicting every multi-node physical row after parent-centering while preserving singleton centering. The crash log is unsymbolized, so the lifecycle fix is a concrete unsafe-state correction rather than a claimed exact stack-frame resolution. Same mod-combination retest and Runtime Verify are still required."
+}

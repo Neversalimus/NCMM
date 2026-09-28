@@ -1,0 +1,37 @@
+Survivor Progression 0.10.0 — Mechanical Perks Pass
+
+Base: Survivor 0.9.16 / state schema 8 / Host API 2.0 Core
+
+Goals
+- Preserve every existing perk node; no node was removed or replaced.
+- Append 27 new nodes across the six core trees. Counts intentionally differ by tree.
+- Add rule-changing mechanics instead of only another layer of stat percentages.
+
+New generic Host API 2.0 mechanics
+- combat.melee_crit_chance_pct
+- combat.melee_crit_damage_pct
+- combat.ranged_crit_damage_pct
+- combat.damage_avoid_pct
+- combat.damage_taken_pct
+- combat.dodge_attempts_bonus
+- combat.free_dodge_attempts_bonus
+- combat.block_attempts_bonus
+
+Tree additions
+- Combat: 7 nodes (critical chance/damage, projectile critical multiplier, extra block/dodge attempts).
+- Survival: 5 nodes (damage reduction, block reserve, Defy Fate).
+- Mobility: 5 nodes (second dodge, stamina-free dodge economy, damage avoidance).
+- Crafting: 3 high-tier progression nodes; no artificial combat mechanics forced into the tree.
+- Scavenging: 3 field-combat/logistics nodes.
+- Mastery: 4 cross-discipline mechanical nodes.
+
+Defy Fate
+- One ranked node with five ranks.
+- Rank I..V grants 1/2/3/4/5% chance to negate an incoming normal damage packet.
+- State schema remains 8 because perk state is already rank-based and keyed by stable perk IDs.
+
+Compatibility
+- Infrastructure remains 0.8.3.1.
+- Host remains 0.8.0.
+- AWS remains 0.6.2.
+- Existing Survivor saves remain compatible; new nodes begin unowned.

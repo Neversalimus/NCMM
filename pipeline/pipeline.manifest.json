@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "infrastructure": "0.8.3.1",
+  "id": "staged-installer-v1",
+  "transaction_gate": "offline_install_verification",
+  "runtime_verification": "deferred_after_first_normal_host_launch",
+  "outer_stages": [
+    {
+      "order": 10,
+      "id": "preflight",
+      "script": "internal/stages/10-Preflight.ps1",
+      "rollback_scope": "none_before_snapshot"
+    },
+    {
+      "order": 20,
+      "id": "snapshot",
+      "script": "internal/stages/20-Snapshot.ps1",
+      "rollback_scope": "creates_transaction_snapshot"
+    },
+    {
+      "order": 30,
+      "id": "payload_engine",
+      "script": "internal/stages/30-PayloadEngine.ps1",
+      "rollback_scope": "transactional",
+      "engine": "payload/SURVIVOR_0911_0915_v8.7.6.8.ps1"
+    },
+    {
+      "order": 40,
+      "id": "offline_verify",
+      "script": "internal/stages/40-OfflineVerify.ps1",
+      "rollback_scope": "transactional"
+    },
+    {
+      "order": 50,
+      "id": "commit",
+      "script": "internal/stages/50-Commit.ps1",
+      "rollback_scope": "commit_boundary"
+    },
+    {
+      "order": 60,
+      "id": "runtime_verify",
+      "script": "internal/stages/60-RuntimeVerify.ps1",
+      "rollback_scope": "none_report_only"
+    }
+  ],
+  "payload_checkpoints": [
+    "legacy_generate",
+    "api2_migrate",
+    "source_preflight",
+    "compile",
+    "cdda_patch",
+    "install"
+  ],
+  "resume_policy": {
+    "inside_payload": "recompute_from_clean_source_with_existing_build_caches",
+    "after_commit": "runtime_verify_only",
+    "interrupted_transaction": "restore_snapshot"
+  },
+  "design_note": "The historical payload remains an isolated compatibility/build engine in 0.8.3.1. New migrations should be added as separate stages instead of extending the monolith; payload checkpoints make future extraction deterministic."
+}

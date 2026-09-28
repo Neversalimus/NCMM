@@ -1,0 +1,52 @@
+Survivor Progression 0.11.2 — Edge-Case Audit
+==============================================
+
+Audit target
+------------
+Infrastructure 0.8.3.1 / Host 0.8.0 / Host API 2.0 Core / Survivor 0.11.2 candidate / AWS 0.6.2.
+Exact CDDA source commit: e262adb299a7613b4aedc5f12c08fe0413c56a84.
+
+Edge cases reviewed
+-------------------
+1. Dodge counter precedence: vanilla martial-arts counter remains first; Survivor Riposte is fallback-only.
+2. Unsafe automatic target selection: dead, hallucination, friendly and neutral sources are rejected; adjacency and stamina are required.
+3. Recursive counter chains: thread-local riposte guard remains in place.
+4. Zero-effect critical farming: reactive critical rewards require dealt_damage > 0 and a real target.
+5. Kill farming: zero-XP revived targets are rejected; friendly/passive/neutral kills are rejected; attacking/fleeing combat targets with XP remain valid.
+6. Self-damage amplification: 0.11.1 source != this outgoing/execute guard remains required by audit.
+7. Momentum stale/corrupt state: stack and timer reads are bounded; missing owner perk clears state.
+8. Respec carryover: full respec explicitly zeros Momentum stack/timer state before recalculation.
+9. World-load transient state: existing 0.11.0 world-load reset remains intact.
+10. Craft failure cancellation: saved failures still schedule the next failure point before returning.
+11. Craft UI parity: displayed recipe success estimate still includes the same success-roll bonus used by the failure-point roll.
+12. Lockpick lost-item path: perfect-lockpick test is null-safe; normal/perfect timing floors remain 30 s / 5 s.
+13. Alarm Bypass scope: user-facing text now matches the actual alarmed-door hook.
+14. Reapply/idempotence: an already-generated 0.11.2 source is node-count/state-schema/required-perk audited before being accepted.
+15. Perk preservation: 0.11.2 changes mechanics/text only; it does not intentionally add or remove nodes and its transform requires pre/post node-count equality.
+
+Static fixtures
+---------------
+- golden/fixtures/survivor_reactive_edge_0112.cpp covers hostile-only riposte eligibility, damaging-critical gating,
+  hostile/XP kill gating, Momentum bounds/reset and lockpick pointer/timing-floor behavior.
+- Fixture is intended for C++17 and contains no CDDA private ABI assumptions.
+
+Verification boundary
+---------------------
+This audit is static/package-side. It does NOT claim that Survivor 0.11.2 has been compiled by the user's Windows/MSVC toolchain
+or loaded by CDDA. Promotion to live-verified requires: install -> normal game launch -> exit -> NCMM.cmd selftest/runtime verify.
+
+Static validation results for packaged candidate
+------------------------------------------------
+- JSON parse: 21/21 PASS.
+- YAML parse: 2/2 PASS.
+- PowerShell packaging convention: 26/26 files retain UTF-8 BOM + CRLF; here-string pairing PASS.
+- PowerShell delimiter lexical scan: 26/26 PASS.
+- PowerShell 5.1 unsafe interpolated-variable-before-colon scan: PASS.
+- Current Survivor identity cross-check (component descriptor/catalog, compatibility status, update feed, exact feed): 0.11.2 PASS.
+- 0.11.0 reactive node definitions: 25/25 present exactly once; no 0.11.2 node deletion is introduced.
+- Sequential transform anchor coherence (0.11.0 -> 0.11.1 -> 0.11.2): PASS.
+- Exact adapter reference blobs for character/melee/ranged/monster/activity_actor/trap remain pinned to CDDA 0546.
+- reactive_technical_hooks.source.v3 anchors were rechecked against exact upstream commit e262adb299a7613b4aedc5f12c08fe0413c56a84: PASS.
+- C++17 edge fixture: g++ PASS; clang++ PASS.
+- Windows PowerShell parser and MSVC/CDDA runtime were not available in this packaging environment; those remain live gates.
+- Package integrity manifest: 84/84 tracked files verified before archive creation.

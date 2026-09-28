@@ -1,0 +1,14 @@
+v8.7.6.8 Cache Marker Recovery Hotfix
+
+FIXED
+- Incremental CDDA src reset now removes .ncmm_recipe_finalize_profiler_v1.
+- Incremental CDDA src reset now removes .ncmm_runtime_infra_v8766.
+- Immutable pristine-cache validation rejects both markers.
+- Source-clean audit now checks profiler and Runtime Infrastructure signatures.
+- Recipe Finalization Profiler support no longer trusts a marker without its C++ contract; stale marker is removed and support is rebuilt.
+- Runtime Infrastructure marker is verified; stale marker is removed and the patch is rebuilt.
+
+PRESERVED
+- v8.7.6.7 0.9.11 connector audit hardening.
+- v8.7.6.6 World Settings type safety, diagnostics.txt, GitHub error routing, human-readable manager reasons.
+- Recipe Finalization Profiler 0.1.1 compatibility.

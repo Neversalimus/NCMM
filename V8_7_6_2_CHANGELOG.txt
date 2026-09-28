@@ -1,0 +1,18 @@
+NCMM / Survivor Progression v8.7.6.2 — Smoke Anchor Hotfix
+
+Fixed
+-----
+- Fixes false `NCMM API 1.8 smoke initializer anchor missing` during source transform.
+- Root cause: API 1.7 intentionally inserted the smoke initializer with TrimEnd(), while the redundant API 1.8 `.Contains()` precheck used the raw Windows here-string including its trailing CRLF.
+- API 1.8 now relies on `Replace-TextBlock`, which already normalizes LF/CRLF, trims block edges, and enforces an exact single match.
+
+Preserved
+---------
+- v8.7.6 Clarity Pass behavior.
+- v8.7.6.1 CMD BOM fix and reliable exit-code capture.
+- dormant Recipe Finalization Profiler host support.
+- Survivor schema 8 / 39 Prime roots / 161 mod-native nodes.
+- NCMM host 0.7.4 / API 1.8.
+- World Settings locale refresh.
+
+No gameplay balance or recipe semantics changed.

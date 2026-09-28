@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "id": "recipe_finalize_profiler",
+  "name": "Recipe Finalization Profiler",
+  "version": "0.1.1",
+  "kind": "native_module",
+  "atomic_group": "optional-diagnostics",
+  "delivery": "external_package",
+  "required": false,
+  "package_available": false,
+  "dependencies": [
+    {
+      "component": "ncmm_host",
+      "min_version": "0.7.4"
+    },
+    {
+      "capability": "api.versioning.v1"
+    }
+  ],
+  "descriptor": "components/recipe_finalize_profiler.json"
+}

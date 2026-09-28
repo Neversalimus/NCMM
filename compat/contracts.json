@@ -146,6 +146,121 @@
           ]
         }
       ]
+    },
+    {
+      "id": "mechanical_combat_hooks.source.v1",
+      "files": [
+        {
+          "path": "src/character.cpp",
+          "required": [
+            "// We can dodge again! Assuming we can actually move...",
+            "set_dodges_left( get_num_dodges() );",
+            "set_free_dodges_left( get_num_free_dodges() );"
+          ]
+        },
+        {
+          "path": "src/character_health.cpp",
+          "required": [
+            "dealt_damage_instance Character::deal_damage(",
+            "//damage applied here"
+          ]
+        },
+        {
+          "path": "src/melee.cpp",
+          "required": [
+            "double Character::crit_chance(",
+            "double ma_buff_crit_chance = mabuff_critical_hit_chance_bonus() / 100;",
+            "di.add_damage( dt, dmg, arpen, armor_mult, dmg_mul );"
+          ]
+        },
+        {
+          "path": "src/ranged.cpp",
+          "required": [
+            "static projectile make_gun_projectile(",
+            "proj.critical_multiplier = ammo->critical_multiplier;"
+          ]
+        },
+        {
+          "path": "src/creature.cpp",
+          "required": [
+            "dealt_damage_instance Creature::deal_damage(",
+            "damage_instance d = dam; // copy, since we will mutate in absorb_hit"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reactive_technical_hooks.source.v4",
+      "files": [
+        {
+          "path": "src/character.cpp",
+          "required": [
+            "void Character::on_dodge(",
+            "magic->break_channeling( *this );",
+            "matec_id tec = std::get<0>( pick_technique( *source, used_weapon(), false, true, false ) );",
+            "melee_attack( *source, false, tec );"
+          ]
+        },
+        {
+          "path": "src/melee.cpp",
+          "required": [
+            "if( critical_hit ) {",
+            "martial_arts_data->ma_oncrit_effects( *this );",
+            "int dam = dealt_dam.total_damage();",
+            "const bool hits = hit_spread >= 0;"
+          ]
+        },
+        {
+          "path": "src/creature.cpp",
+          "required": [
+            "dealt_damage_instance Creature::deal_damage(",
+            "damage_instance d = dam; // copy, since we will mutate in absorb_hit"
+          ]
+        },
+        {
+          "path": "src/monster.cpp",
+          "required": [
+            "void monster::die( map *here, Creature *nkiller )",
+            "get_event_bus().send_with_talker( ch, this, e );",
+            "const int kill_xp = has_effect( effect_revived_marker ) ? 0 : compute_kill_xp( type->id );",
+            "monster_attitude monster::attitude( const Character *u ) const"
+          ]
+        },
+        {
+          "path": "src/npc.cpp",
+          "required": [
+            "void npc::die( map *here, Creature *nkiller )",
+            "get_event_bus().send<event_type::character_kills_character>( ch->getID(), getID(), get_name(),",
+            "bool npc::guaranteed_hostile() const"
+          ]
+        },
+        {
+          "path": "src/crafting.cpp",
+          "required": [
+            "float Character::crafting_success_roll( const recipe &making ) const",
+            "bool item::handle_craft_failure( Character &crafter )",
+            "float Character::recipe_success_chance( const recipe &making ) const",
+            "return normal_roll_chance( data.center, data.stddev, 1.f + data.final_difficulty );",
+            "float Character::item_destruction_chance( const recipe &making ) const"
+          ]
+        },
+        {
+          "path": "src/activity_actor.cpp",
+          "required": [
+            "int lockpick_activity_actor::lockpicking_moves(",
+            "void lockpick_activity_actor::finish( player_activity &act, Character &who )",
+            "if( lockpick->has_flag( flag_PERFECT_LOCKPICK ) ) {",
+            "if( !perfect && ter_type == ter_t_door_locked_alarm && ( lock_roll + dice( 1, 30 ) ) > pick_roll ) {",
+            "const item *lockpick = lockpick_location.get_item();"
+          ]
+        },
+        {
+          "path": "src/trap.cpp",
+          "required": [
+            "bool trap::detect_trap( const tripoint_bub_ms &pos, const Character &p ) const"
+          ]
+        }
+      ]
     }
   ]
 }

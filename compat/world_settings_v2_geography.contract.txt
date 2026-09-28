@@ -1,0 +1,1115 @@
+NCMM World Settings API v2 + full geography hooks for CDDA 0546
+param([string]$Root)
+
+    Write-Host "Applying World Settings API v2 geography hooks..." -ForegroundColor Cyan
+    $src = Join-Path $Root "src"
+    $optionsH = Join-Path $src "options.h"
+    $optionsCpp = Join-Path $src "options.cpp"
+    $overmapPath = Join-Path $src "overmap.cpp"
+    $overmapHPath = Join-Path $src "overmap.h"
+    $cityPath = Join-Path $src "overmap_city.cpp"
+    $waterPath = Join-Path $src "overmap_water.cpp"
+    $highwayPath = Join-Path $src "overmap_highway.cpp"
+    $worldFactoryPath = Join-Path $src "worldfactory.cpp"
+    $marker = Join-Path $Root ".ncmm_world_settings_v2_patched"
+    foreach ($p in @($optionsH,$optionsCpp,$overmapPath,$overmapHPath,$cityPath,$waterPath,$highwayPath,$worldFactoryPath)) {
+        if (-not (Test-Path $p -PathType Leaf)) { throw "World Settings v2 required source file missing: $p" }
+    }
+
+    function Read-WS([string]$Path) { return Normalize-Lf ([IO.File]::ReadAllText($Path)) }
+    function Write-WS([string]$Path,[string]$Body) { Write-Utf8NoBom $Path (Normalize-Lf $Body) }
+    function Replace-WSOnce([string]$Body,[string]$Old,[string]$New,[string]$Name) {
+        return Replace-TextBlock $Body $Old $New ("World Settings v2 " + $Name)
+    }
+    function Replace-WSRange([string]$Body,[string]$Start,[string]$End,[string]$New,[string]$Name) {
+        return Replace-CppRange $Body $Start $End $New ("World Settings v2 " + $Name)
+    }
+
+    if (Test-Path $marker -PathType Leaf) {
+        $checks = @{
+            $optionsH = @('ncmm_register_world_bool','ncmm_register_world_int','ncmm_register_world_float','ncmm_register_world_enum')
+            $optionsCpp = @('options_manager::ncmm_register_world_bool','options_manager::ncmm_register_world_enum','options_manager::ncmm_ensure_experimental_page','ncmm_world_scoped_page( iCurrentPage )','ncmm::on_language_changed();','ncmm_deferred_option_values','name.rfind( "NCMM_", 0 ) == 0')
+            $worldFactoryPath = @('opts.get_option( name ).getPage() == "ncmm_experimental"')
+            $cityPath = @('NCMM_AWS_CUSTOM_GEOGRAPHY','NCMM_AWS_CITY_SIZE','NCMM_AWS_CITY_SPACING','NCMM_AWS_MAX_URBANITY','NCMM_AWS_MEGACITY','NCMM_AWS_SHOP_RADIUS','NCMM_AWS_PARK_RADIUS')
+            $overmapPath = @('NCMM_AWS_ENABLE_FORESTS','ncmm_disable_forests','NCMM_AWS_ENABLE_SWAMPS','NCMM_AWS_RAVINE_COUNT','NCMM_AWS_TRAIL_CHANCE','NCMM_AWS_PLACE_SPECIALS')
+            $overmapHPath = @('void set_options( int row_override = -1')
+            $waterPath = @('NCMM_AWS_RIVER_FREQUENCY','NCMM_AWS_LAKE_THRESHOLD','NCMM_AWS_OCEAN_THRESHOLD')
+            $highwayPath = @('NCMM_AWS_HIGHWAY_GRID_ROW','NCMM_AWS_HIGHWAY_STRAIGHTNESS','ncmm_custom_grid','ncmm_lakes_enabled','ncmm_oceans_disabled')
+        }
+        foreach ($entry in $checks.GetEnumerator()) {
+            $body = Read-WS $entry.Key
+            foreach ($needle in $entry.Value) {
+                if (-not $body.Contains($needle)) { throw "World Settings v2 marker exists but hook is incomplete: $needle" }
+            }
+        }
+        Write-Host "World Settings API v2 geography hooks already present and verified." -ForegroundColor Green
+        return
+    }
+
+    # options_manager: typed synthetic per-world settings. They live on ncmm_experimental,
+    # are copied into WORLD_OPTIONS, and persist through the same world-save path as world_default.
+    $h = Read-WS $optionsH
+    $declAnchor = @'
+        bool ncmm_set_worldgen_string_choices( const std::string &name,
+                const std::vector<id_and_option> &items );
+'@
+    $declNew = @'
+        bool ncmm_set_worldgen_string_choices( const std::string &name,
+                const std::vector<id_and_option> &items );
+
+        /** NCMM World Settings API v2: create/update typed synthetic per-world settings. */
+        bool ncmm_register_world_bool( const std::string &name, const translation &menu_text,
+                                       const translation &tooltip, bool default_value );
+        bool ncmm_register_world_int( const std::string &name, const translation &menu_text,
+                                      const translation &tooltip, int min_value, int max_value,
+                                      int default_value );
+        bool ncmm_register_world_float( const std::string &name, const translation &menu_text,
+                                        const translation &tooltip, float min_value, float max_value,
+                                        float default_value, float step );
+        bool ncmm_register_world_enum( const std::string &name, const translation &menu_text,
+                                       const translation &tooltip,
+                                       const std::vector<id_and_option> &items,
+                                       const std::string &default_value );
+
+        /** NCMM experimental per-world page used for non-vanilla world generation controls. */
+        void ncmm_ensure_experimental_page();
+        bool ncmm_begin_experimental_group( const std::string &group_id,
+                                             const translation &name,
+                                             const translation &tooltip );
+'@
+    $h = Replace-WSOnce $h $declAnchor $declNew 'options declarations'
+    Write-WS $optionsH $h
+
+    $c = Read-WS $optionsCpp
+
+    # Infrastructure 0.8.3.1: NCMM modules register synthetic settings after options.json is loaded.
+    # Persisted NCMM_* values therefore must be deferred instead of creating a placeholder VOID cOpt.
+    # Otherwise a subsequent module registration sees an existing option with the wrong type/page and init fails.
+    $deferredStateOld = @'
+static const std::string blank_value( 1, 001 ); // because "" might be valid
+'@
+    $deferredStateNew = @'
+static const std::string blank_value( 1, 001 ); // because "" might be valid
+
+// NCMM runtime-owned options are registered after options.json is loaded. Keep their serialized
+// values out-of-band until the owning code module declares the real typed option.
+static std::unordered_map<std::string, std::string> ncmm_deferred_option_values;
+
+static void ncmm_apply_deferred_option_value( const std::string &name, options_manager::cOpt &opt )
+{
+    const auto it = ncmm_deferred_option_values.find( name );
+    if( it == ncmm_deferred_option_values.end() ) {
+        return;
+    }
+    opt.setValue( it->second );
+    ncmm_deferred_option_values.erase( it );
+}
+'@
+    $c = Replace-WSOnce $c $deferredStateOld $deferredStateNew 'deferred NCMM option persistence state'
+
+    $deserializeDeferredOld = @'
+        add_retry( name, value );
+        options[ name ].setValue( value );
+'@
+    $deserializeDeferredNew = @'
+        // NCMM synthetic options do not exist yet: native code modules are initialized after
+        // options_manager::load(). Defer only the NCMM namespace so vanilla unknown-option
+        // behavior remains unchanged.
+        if( options.find( name ) == options.end() && name.rfind( "NCMM_", 0 ) == 0 ) {
+            ncmm_deferred_option_values[name] = value;
+            continue;
+        }
+
+        add_retry( name, value );
+        options[ name ].setValue( value );
+'@
+    $c = Replace-WSOnce $c $deserializeDeferredOld $deserializeDeferredNew 'defer unknown persisted NCMM options'
+
+    # v8.7.5: changing USE_LANG inside the options screen must notify NCMM modules too.
+    # The host already exposes ncmm::on_language_changed(), but options.cpp did not dispatch it.
+    if (-not $c.Contains('#include "ncmm_loader.h"')) {
+        $c = Replace-WSOnce $c '#include "mapsharing.h"' ('#include "mapsharing.h"' + "`n" + '#include "ncmm_loader.h"') 'options locale include'
+    }
+    $localeDispatchOld875 = @'
+    if( lang_changed ) {
+        update_global_locale();
+        set_language_from_options();
+    }
+'@
+    $localeDispatchNew875 = @'
+    if( lang_changed ) {
+        update_global_locale();
+        set_language_from_options();
+        ncmm::on_language_changed();
+    }
+'@
+    if (-not $c.Contains('ncmm::on_language_changed();')) {
+        $c = Replace-WSOnce $c $localeDispatchOld875 $localeDispatchNew875 'options locale dispatch'
+    }
+
+    # NCMM 0.7.3: synthetic non-vanilla settings live on a dedicated Experimental page
+    # while retaining the same per-world serialization semantics as world_default.
+    $experimentalPageOld = @'
+    const int iWorldOptPage = std::find_if( pages_.begin(), pages_.end(), [&]( const Page & p ) {
+        return p.id_ == "world_default";
+    } ) - pages_.begin();
+'@
+    $experimentalPageNew = @'
+    const int iWorldOptPage = std::find_if( pages_.begin(), pages_.end(), [&]( const Page & p ) {
+        return p.id_ == "world_default";
+    } ) - pages_.begin();
+    const int iExperimentalPage = std::find_if( pages_.begin(), pages_.end(), [&]( const Page & p ) {
+        return p.id_ == "ncmm_experimental";
+    } ) - pages_.begin();
+    const auto ncmm_world_scoped_page = [&]( int page ) {
+        return page == iWorldOptPage || page == iExperimentalPage;
+    };
+'@
+    $c = Replace-WSOnce $c $experimentalPageOld $experimentalPageNew 'experimental show page index'
+
+    # CDDA 0546 contains this world-container selector twice in options_manager::show():
+    # once in the redraw callback and once in the input loop.  Treat the pair as one
+    # source contract instead of using Replace-ExactlyOnce on the first occurrence.
+    $showContainerOld = @'
+        options_manager::options_container &cOPTIONS = ( ingame || world_options_only ) &&
+                iCurrentPage == iWorldOptPage ?
+                ACTIVE_WORLD_OPTIONS : OPTIONS;
+'@
+    $showContainerNew = @'
+        options_manager::options_container &cOPTIONS = ( ingame || world_options_only ) &&
+                ncmm_world_scoped_page( iCurrentPage ) ?
+                ACTIVE_WORLD_OPTIONS : OPTIONS;
+'@
+    $showContainerOldNorm = (Normalize-Lf $showContainerOld).TrimEnd()
+    $showContainerNewNorm = (Normalize-Lf $showContainerNew).TrimEnd()
+    $containerCountBefore = ([regex]::Matches($c,[regex]::Escape($showContainerOldNorm))).Count
+    if ($containerCountBefore -ne 2) {
+        throw "World Settings v2 experimental world container expected exactly twice before patch, found $containerCountBefore"
+    }
+    for ($containerPass = 1; $containerPass -le 2; $containerPass++) {
+        $containerAt = $c.IndexOf($showContainerOldNorm,[StringComparison]::Ordinal)
+        if ($containerAt -lt 0) {
+            throw "World Settings v2 experimental world container pass $containerPass could not find the remaining selector"
+        }
+        $c = $c.Substring(0,$containerAt) + $showContainerNewNorm + $c.Substring($containerAt + $showContainerOldNorm.Length)
+    }
+    $containerOldAfter = ([regex]::Matches($c,[regex]::Escape($showContainerOldNorm))).Count
+    $containerNewAfter = ([regex]::Matches($c,[regex]::Escape($showContainerNewNorm))).Count
+    if ($containerOldAfter -ne 0 -or $containerNewAfter -ne 2) {
+        throw "World Settings v2 experimental world container post-check failed: old=$containerOldAfter new=$containerNewAfter"
+    }
+
+    $c = $c.Replace(
+        'is_hidden( world_options_only || ( ingame && iCurrentPage == iWorldOptPage ) )',
+        'is_hidden( world_options_only || iCurrentPage == iExperimentalPage || ( ingame && iCurrentPage == iWorldOptPage ) )' )
+
+    $experimentalWarningOld = @'
+        if( ingame && iCurrentPage == iWorldOptPage ) {
+            mvwprintz( w_options_tooltip, point( 3, 5 ), c_light_red, "%s", _( "Note: " ) );
+            wprintz( w_options_tooltip, c_white, "%s",
+                     _( "Some of these options may produce unexpected results if changed." ) );
+        }
+'@
+    $experimentalWarningNew = @'
+        if( iCurrentPage == iExperimentalPage ) {
+            mvwprintz( w_options_tooltip, point( 3, 5 ), c_light_red, "%s", _( "Experimental: " ) );
+            wprintz( w_options_tooltip, c_white, "%s",
+                     _( "NCMM world-generation controls; changes affect only newly generated map areas unless stated otherwise." ) );
+        } else if( ingame && iCurrentPage == iWorldOptPage ) {
+            mvwprintz( w_options_tooltip, point( 3, 5 ), c_light_red, "%s", _( "Note: " ) );
+            wprintz( w_options_tooltip, c_white, "%s",
+                     _( "Some of these options may produce unexpected results if changed." ) );
+        }
+'@
+    $c = Replace-WSOnce $c $experimentalWarningOld $experimentalWarningNew 'experimental warning'
+
+    $experimentalGetOptionOld = @'
+        if( opt->second.getPage() != "world_default" ) {
+            // Requested a non-world option, deliver it.
+            return opt->second;
+        }
+'@
+    $experimentalGetOptionNew = @'
+        if( opt->second.getPage() != "world_default" &&
+            opt->second.getPage() != "ncmm_experimental" ) {
+            // Requested a non-world option, deliver it.
+            return opt->second;
+        }
+'@
+    $c = Replace-WSOnce $c $experimentalGetOptionOld $experimentalGetOptionNew 'experimental get_option world scope'
+
+    $experimentalDefaultsOld = @'
+        if( elem.second.getPage() == "world_default" ) {
+            result.insert( elem );
+        }
+'@
+    $experimentalDefaultsNew = @'
+        if( elem.second.getPage() == "world_default" ||
+            elem.second.getPage() == "ncmm_experimental" ) {
+            result.insert( elem );
+        }
+'@
+    $c = Replace-WSOnce $c $experimentalDefaultsOld $experimentalDefaultsNew 'experimental world defaults'
+
+    $registerImpl = @'
+void options_manager::ncmm_ensure_experimental_page()
+{
+    const auto existing = std::find_if( pages_.begin(), pages_.end(), []( const Page &page ) {
+        return page.id_ == "ncmm_experimental";
+    } );
+    if( existing != pages_.end() ) {
+        return;
+    }
+
+    const auto debug_page = std::find_if( pages_.begin(), pages_.end(), []( const Page &page ) {
+        return page.id_ == "debug";
+    } );
+    pages_.emplace( debug_page, "ncmm_experimental", to_translation( "Experimental" ) );
+}
+
+bool options_manager::ncmm_begin_experimental_group( const std::string &group_id,
+        const translation &name, const translation &tooltip )
+{
+    if( group_id.empty() || !adding_to_group_.empty() ) {
+        return false;
+    }
+    ncmm_ensure_experimental_page();
+
+    for( Group &group : groups_ ) {
+        if( group.id_ == group_id ) {
+            group.name_ = name;
+            group.tooltip_ = tooltip;
+            adding_to_group_ = group_id;
+            return true;
+        }
+    }
+
+    groups_.emplace_back( group_id, name, tooltip );
+    add_empty_line( "ncmm_experimental" );
+    find_page( "ncmm_experimental" ).items_.emplace_back(
+        ItemType::GroupHeader, group_id, group_id );
+    adding_to_group_ = group_id;
+    return true;
+}
+
+bool options_manager::ncmm_register_world_bool( const std::string &name,
+        const translation &menu_text, const translation &tooltip, bool default_value )
+{
+    auto it = options.find( name );
+    if( it == options.end() ) {
+        ncmm_ensure_experimental_page();
+        add( name, "ncmm_experimental", menu_text, tooltip, default_value, COPT_WORLDGEN_ONLY );
+        ncmm_apply_deferred_option_value( name, options[name] );
+        return true;
+    }
+    cOpt &opt = it->second;
+    if( opt.sPage == "world_default" ) {
+        opt.sPage = "ncmm_experimental";
+    }
+    if( opt.sPage != "ncmm_experimental" || opt.eType != cOpt::CVT_BOOL ) {
+        return false;
+    }
+    opt.sMenuText = menu_text;
+    opt.sTooltip = tooltip;
+    opt.hide = COPT_WORLDGEN_ONLY;
+    opt.bDefault = default_value;
+    ncmm_apply_deferred_option_value( name, opt );
+    if( world_options.has_value() ) {
+        auto w = ( **world_options ).find( name );
+        if( w != ( **world_options ).end() ) {
+            w->second.sMenuText = menu_text;
+            w->second.sTooltip = tooltip;
+            w->second.hide = COPT_WORLDGEN_ONLY;
+            w->second.sPage = "ncmm_experimental";
+        }
+    }
+    return true;
+}
+
+bool options_manager::ncmm_register_world_int( const std::string &name,
+        const translation &menu_text, const translation &tooltip, int min_value,
+        int max_value, int default_value )
+{
+    if( min_value > max_value || default_value < min_value || default_value > max_value ) {
+        return false;
+    }
+    auto it = options.find( name );
+    if( it == options.end() ) {
+        ncmm_ensure_experimental_page();
+        add( name, "ncmm_experimental", menu_text, tooltip, min_value, max_value, default_value,
+             COPT_WORLDGEN_ONLY );
+        ncmm_apply_deferred_option_value( name, options[name] );
+        return true;
+    }
+    cOpt &opt = it->second;
+    if( opt.sPage == "world_default" ) {
+        opt.sPage = "ncmm_experimental";
+    }
+    if( opt.sPage != "ncmm_experimental" || opt.eType != cOpt::CVT_INT ) {
+        return false;
+    }
+    opt.sMenuText = menu_text;
+    opt.sTooltip = tooltip;
+    opt.hide = COPT_WORLDGEN_ONLY;
+    opt.iMin = min_value;
+    opt.iMax = max_value;
+    opt.iDefault = default_value;
+    opt.iSet = std::clamp( opt.iSet, min_value, max_value );
+    ncmm_apply_deferred_option_value( name, opt );
+    if( world_options.has_value() ) {
+        auto w = ( **world_options ).find( name );
+        if( w != ( **world_options ).end() ) {
+            w->second.sMenuText = menu_text;
+            w->second.sTooltip = tooltip;
+            w->second.hide = COPT_WORLDGEN_ONLY;
+            w->second.sPage = "ncmm_experimental";
+            w->second.iMin = min_value;
+            w->second.iMax = max_value;
+            w->second.iDefault = default_value;
+            w->second.iSet = std::clamp( w->second.iSet, min_value, max_value );
+        }
+    }
+    return true;
+}
+
+bool options_manager::ncmm_register_world_float( const std::string &name,
+        const translation &menu_text, const translation &tooltip, float min_value,
+        float max_value, float default_value, float step )
+{
+    if( min_value > max_value || default_value < min_value || default_value > max_value || step <= 0.0f ) {
+        return false;
+    }
+    auto it = options.find( name );
+    if( it == options.end() ) {
+        ncmm_ensure_experimental_page();
+        add( name, "ncmm_experimental", menu_text, tooltip, min_value, max_value,
+             default_value, step, COPT_WORLDGEN_ONLY );
+        ncmm_apply_deferred_option_value( name, options[name] );
+        return true;
+    }
+    cOpt &opt = it->second;
+    if( opt.sPage == "world_default" ) {
+        opt.sPage = "ncmm_experimental";
+    }
+    if( opt.sPage != "ncmm_experimental" || opt.eType != cOpt::CVT_FLOAT ) {
+        return false;
+    }
+    opt.sMenuText = menu_text;
+    opt.sTooltip = tooltip;
+    opt.hide = COPT_WORLDGEN_ONLY;
+    opt.fMin = min_value;
+    opt.fMax = max_value;
+    opt.fDefault = default_value;
+    opt.fStep = step;
+    opt.fSet = std::clamp( opt.fSet, min_value, max_value );
+    ncmm_apply_deferred_option_value( name, opt );
+    if( world_options.has_value() ) {
+        auto w = ( **world_options ).find( name );
+        if( w != ( **world_options ).end() ) {
+            w->second.sMenuText = menu_text;
+            w->second.sTooltip = tooltip;
+            w->second.hide = COPT_WORLDGEN_ONLY;
+            w->second.sPage = "ncmm_experimental";
+            w->second.fMin = min_value;
+            w->second.fMax = max_value;
+            w->second.fDefault = default_value;
+            w->second.fStep = step;
+            w->second.fSet = std::clamp( w->second.fSet, min_value, max_value );
+        }
+    }
+    return true;
+}
+
+bool options_manager::ncmm_register_world_enum( const std::string &name,
+        const translation &menu_text, const translation &tooltip,
+        const std::vector<id_and_option> &items, const std::string &default_value )
+{
+    if( items.empty() ) {
+        return false;
+    }
+    const auto contains = [&]( const std::string &value ) {
+        return std::any_of( items.begin(), items.end(), [&]( const id_and_option &item ) {
+            return item.first == value;
+        } );
+    };
+    if( !contains( default_value ) ) {
+        return false;
+    }
+    auto it = options.find( name );
+    if( it == options.end() ) {
+        ncmm_ensure_experimental_page();
+        add( name, "ncmm_experimental", menu_text, tooltip, items, default_value, COPT_WORLDGEN_ONLY );
+        ncmm_apply_deferred_option_value( name, options[name] );
+        return true;
+    }
+    cOpt &opt = it->second;
+    if( opt.sPage == "world_default" ) {
+        opt.sPage = "ncmm_experimental";
+    }
+    if( opt.sPage != "ncmm_experimental" || opt.eType != cOpt::CVT_STRING ) {
+        return false;
+    }
+    opt.sMenuText = menu_text;
+    opt.sTooltip = tooltip;
+    opt.hide = COPT_WORLDGEN_ONLY;
+    opt.sType = "string_select";
+    opt.vItems = items;
+    opt.sDefault = default_value;
+    if( !contains( opt.sSet ) ) {
+        opt.sSet = default_value;
+    }
+    ncmm_apply_deferred_option_value( name, opt );
+    if( world_options.has_value() ) {
+        auto w = ( **world_options ).find( name );
+        if( w != ( **world_options ).end() ) {
+            w->second.sMenuText = menu_text;
+            w->second.sTooltip = tooltip;
+            w->second.hide = COPT_WORLDGEN_ONLY;
+            w->second.sPage = "ncmm_experimental";
+            w->second.sType = "string_select";
+            w->second.vItems = items;
+            w->second.sDefault = default_value;
+            if( !contains( w->second.sSet ) ) {
+                w->second.sSet = default_value;
+            }
+        }
+    }
+    return true;
+}
+
+'@
+    $c = Replace-WSOnce $c 'void options_manager::update_global_locale()' ($registerImpl + 'void options_manager::update_global_locale()') 'options implementation'
+    Write-WS $optionsCpp $c
+
+    # Infrastructure 0.8.3.1: world saves serialize NCMM experimental settings through WORLD_OPTIONS,
+    # but vanilla 0546 restores only entries on world_default. Treat ncmm_experimental as the same
+    # world-scoped persistence domain so existing worlds retain their AWS values.
+    $wf = Read-WS $worldFactoryPath
+    $worldLoadOld = @'
+        if( opts.has_option( name ) && opts.get_option( name ).getPage() == "world_default" ) {
+            WORLD_OPTIONS[ name ].setValue( value );
+        }
+'@
+    $worldLoadNew = @'
+        if( opts.has_option( name ) &&
+            ( opts.get_option( name ).getPage() == "world_default" ||
+              opts.get_option( name ).getPage() == "ncmm_experimental" ) ) {
+            WORLD_OPTIONS[ name ].setValue( value );
+        }
+'@
+    $wf = Replace-WSOnce $wf $worldLoadOld $worldLoadNew 'restore experimental settings from world save'
+    Write-WS $worldFactoryPath $wf
+
+    # City size/spacing/urbanity. Applied only to the default world region.
+    $city = Read-WS $cityPath
+    if (-not $city.Contains('#include "options.h"')) {
+        $city = Replace-WSOnce $city '#include "omdata.h"' ('#include "omdata.h"' + "`n" + '#include "options.h"') 'city options include'
+    }
+    $cityOld = @'
+    const region_settings_city &city_settings = settings->get_settings_city();
+    int op_city_spacing = city_settings.city_spacing;
+    int op_city_size = city_settings.city_size;
+    int max_urbanity = settings->max_urban;
+'@
+    $cityNew = @'
+    const region_settings_city &city_settings = settings->get_settings_city();
+    const bool ncmm_geo = settings->id.str() == "default" &&
+                          get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) &&
+                          get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) &&
+                          get_options().has_option( "NCMM_AWS_CITY_SIZE" );
+    int op_city_spacing = ncmm_geo ? get_option<int>( "NCMM_AWS_CITY_SPACING" ) : city_settings.city_spacing;
+    int op_city_size = ncmm_geo ? get_option<int>( "NCMM_AWS_CITY_SIZE" ) : city_settings.city_size;
+    int max_urbanity = ncmm_geo ? get_option<int>( "NCMM_AWS_MAX_URBANITY" ) : settings->max_urban;
+    const bool ncmm_megacity = ncmm_geo && get_options().has_option( "NCMM_AWS_MEGACITY" ) ?
+                                get_option<bool>( "NCMM_AWS_MEGACITY" ) : city_settings.is_megacity;
+'@
+    $city = Replace-WSOnce $city $cityOld $cityNew 'city size spacing urbanity megacity'
+    $city = Replace-WSOnce $city '    if( city_settings.is_megacity ) {' '    if( ncmm_megacity ) {' 'megacity mode'
+
+    $buildingMixOld = @'
+    const region_settings_city &city_spec = settings->get_settings_city();
+    int shop_radius = city_spec.shop_radius;
+    int park_radius = city_spec.park_radius;
+
+    int shop_sigma = city_spec.shop_sigma;
+    int park_sigma = city_spec.park_sigma;
+'@
+    $buildingMixNew = @'
+    const region_settings_city &city_spec = settings->get_settings_city();
+    const bool ncmm_geo = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_SHOP_RADIUS" );
+    int shop_radius = ncmm_geo ? get_option<int>( "NCMM_AWS_SHOP_RADIUS" ) : city_spec.shop_radius;
+    int park_radius = ncmm_geo ? get_option<int>( "NCMM_AWS_PARK_RADIUS" ) : city_spec.park_radius;
+
+    int shop_sigma = ncmm_geo ? get_option<int>( "NCMM_AWS_SHOP_SIGMA" ) : city_spec.shop_sigma;
+    int park_sigma = ncmm_geo ? get_option<int>( "NCMM_AWS_PARK_SIGMA" ) : city_spec.park_sigma;
+'@
+    $city = Replace-WSOnce $city $buildingMixOld $buildingMixNew 'city shop/park distribution'
+    Write-WS $cityPath $city
+
+    $om = Read-WS $overmapPath
+    $geoGenerate = @'
+    std::vector<Highway_path> highway_paths;
+    calculate_urbanity();
+    calculate_forestosity();
+    const bool ncmm_geo = settings->id.str() == "default" &&
+                          get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) &&
+                          get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) &&
+                          get_options().has_option( "NCMM_AWS_CITY_SIZE" );
+    const auto geo_enabled = [&]( const char *id ) {
+        return !ncmm_geo || !get_options().has_option( id ) || get_option<bool>( id );
+    };
+    if( settings->neighbor_connections && geo_enabled( "NCMM_AWS_NEIGHBOR_CONNECTIONS" ) ) {
+        populate_connections_out_from_neighbors( neighbor_overmaps );
+    }
+    if( settings->overmap_river && geo_enabled( "NCMM_AWS_ENABLE_RIVERS" ) ) {
+        place_rivers( neighbor_overmaps );
+    }
+    if( settings->overmap_lake && geo_enabled( "NCMM_AWS_ENABLE_LAKES" ) ) {
+        place_lakes( neighbor_overmaps );
+    }
+    if( settings->overmap_ocean && geo_enabled( "NCMM_AWS_ENABLE_OCEANS" ) ) {
+        place_oceans( neighbor_overmaps );
+    }
+    if( settings->overmap_forest && geo_enabled( "NCMM_AWS_ENABLE_FORESTS" ) ) {
+        place_forests();
+    }
+    if( settings->overmap_forest && settings->place_swamps && geo_enabled( "NCMM_AWS_ENABLE_SWAMPS" ) ) {
+        place_swamps();
+    }
+    if( settings->overmap_ravine && geo_enabled( "NCMM_AWS_ENABLE_RAVINES" ) ) {
+        place_ravines();
+    }
+    if( settings->overmap_river && geo_enabled( "NCMM_AWS_ENABLE_RIVERS" ) ) {
+        polish_river( neighbor_overmaps );
+    }
+    if( settings->overmap_highway && geo_enabled( "NCMM_AWS_ENABLE_HIGHWAYS" ) ) {
+        highway_paths = place_highways( neighbor_overmaps );
+    }
+    if( settings->city_spec ) {
+        place_cities();
+    }
+    if( settings->overmap_highway && geo_enabled( "NCMM_AWS_ENABLE_HIGHWAYS" ) ) {
+        place_highway_interchanges( highway_paths );
+    }
+    if( settings->city_spec ) {
+        build_cities();
+    }
+    if( settings->forest_trail && geo_enabled( "NCMM_AWS_ENABLE_TRAILS" ) ) {
+        place_forest_trails();
+    }
+    if( settings->place_railroads_before_roads ) {
+        if( settings->place_railroads && geo_enabled( "NCMM_AWS_PLACE_RAILROADS" ) ) {
+            place_railroads( neighbor_overmaps );
+        }
+        if( settings->place_roads && geo_enabled( "NCMM_AWS_PLACE_ROADS" ) ) {
+            place_roads( neighbor_overmaps );
+        }
+    } else {
+        if( settings->place_roads && geo_enabled( "NCMM_AWS_PLACE_ROADS" ) ) {
+            place_roads( neighbor_overmaps );
+        }
+        if( settings->place_railroads && geo_enabled( "NCMM_AWS_PLACE_RAILROADS" ) ) {
+            place_railroads( neighbor_overmaps );
+        }
+    }
+    if( settings->place_specials && geo_enabled( "NCMM_AWS_PLACE_SPECIALS" ) ) {
+        place_specials( enabled_specials );
+    }
+    if( settings->overmap_highway && geo_enabled( "NCMM_AWS_ENABLE_HIGHWAYS" ) ) {
+        finalize_highways( highway_paths );
+    }
+    if( settings->forest_trail && geo_enabled( "NCMM_AWS_ENABLE_TRAILS" ) ) {
+        place_forest_trailheads();
+    }
+    if( settings->overmap_river && geo_enabled( "NCMM_AWS_ENABLE_RIVERS" ) ) {
+        polish_river( neighbor_overmaps );
+    }
+'@
+    $om = Replace-WSRange $om '    std::vector<Highway_path> highway_paths;' '    // TODO: there is no reason we can''t generate the sublevels in one pass' $geoGenerate 'generation feature gates'
+
+    $forestosityGateOld = @'
+    const region_settings_forest &settings_forest = settings->get_settings_forest();
+    float northern_forest_increase = settings_forest.forest_increase[static_cast<int>
+'@
+    $forestosityGateNew = @'
+    const region_settings_forest &settings_forest = settings->get_settings_forest();
+    const bool ncmm_disable_forests = settings->id.str() == "default" &&
+                                      get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) &&
+                                      get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) &&
+                                      get_options().has_option( "NCMM_AWS_ENABLE_FORESTS" ) &&
+                                      !get_option<bool>( "NCMM_AWS_ENABLE_FORESTS" );
+    if( ncmm_disable_forests ) {
+        forest_size_adjust = 0;
+        forestosity = 0;
+        return;
+    }
+    float northern_forest_increase = settings_forest.forest_increase[static_cast<int>
+'@
+    $om = Replace-WSOnce $om $forestosityGateOld $forestosityGateNew 'disabled-forest forestosity reset'
+
+    $forestosityOld = @'
+    forest_size_adjust = std::min<float>( forest_size_adjust,
+                                          settings_forest.max_forest - settings_forest.noise_threshold_forest );
+'@
+    $forestosityNew = @'
+    const float ncmm_forest_threshold = settings->id.str() == "default" &&
+                                        get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) &&
+                                        get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) &&
+                                        get_options().has_option( "NCMM_AWS_FOREST_THRESHOLD" ) ?
+                                        get_option<float>( "NCMM_AWS_FOREST_THRESHOLD" ) :
+                                        settings_forest.noise_threshold_forest;
+    forest_size_adjust = std::min<float>( forest_size_adjust,
+                                          settings_forest.max_forest - ncmm_forest_threshold );
+'@
+    $om = Replace-WSOnce $om $forestosityOld $forestosityNew 'forestosity threshold clamp'
+
+    $forestNew = @'
+void overmap::place_forests()
+{
+    const region_settings_forest &settings_forest = settings->get_settings_forest();
+    const bool ncmm_geo = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_FOREST_THRESHOLD" );
+    const float forest_threshold = ncmm_geo ? get_option<float>( "NCMM_AWS_FOREST_THRESHOLD" ) :
+                                   settings_forest.noise_threshold_forest;
+    const float thick_threshold_raw = ncmm_geo ? get_option<float>( "NCMM_AWS_FOREST_THICK_THRESHOLD" ) :
+                                      settings_forest.noise_threshold_forest_thick;
+    const float thick_threshold = std::max( forest_threshold, thick_threshold_raw );
+    const oter_id default_oter_id( settings->default_oter[OVERMAP_DEPTH] );
+    const om_noise::om_noise_layer_forest f( global_base_point(), g->get_seed() );
+
+    for( int x = 0; x < OMAPX; x++ ) {
+        for( int y = 0; y < OMAPY; y++ ) {
+            const tripoint_om_omt p( x, y, 0 );
+            const oter_id &oter = ter( p );
+            if( oter != default_oter_id ) {
+                continue;
+            }
+            const float n = f.noise_at( p.xy() );
+            if( n + forest_size_adjust > thick_threshold ) {
+                ter_set( p, oter_forest_thick );
+            } else if( n + forest_size_adjust > forest_threshold ) {
+                ter_set( p, oter_forest );
+            }
+        }
+    }
+}
+'@
+    $om = Replace-WSRange $om 'void overmap::place_forests()' 'bool overmap::omt_lake_noise_threshold' $forestNew 'forest thresholds'
+
+    $swampNew = @'
+void overmap::place_swamps()
+{
+    const region_settings_forest &settings_forest = settings->get_settings_forest();
+    const bool ncmm_geo = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_SWAMP_ADJ_THRESHOLD" );
+    int flood_min = ncmm_geo ? get_option<int>( "NCMM_AWS_FLOODPLAIN_MIN" ) :
+                    settings_forest.river_floodplain_buffer_distance_min;
+    int flood_max = ncmm_geo ? get_option<int>( "NCMM_AWS_FLOODPLAIN_MAX" ) :
+                    settings_forest.river_floodplain_buffer_distance_max;
+    if( flood_min > flood_max ) {
+        std::swap( flood_min, flood_max );
+    }
+    const float swamp_adj = ncmm_geo ? get_option<float>( "NCMM_AWS_SWAMP_ADJ_THRESHOLD" ) :
+                            settings_forest.noise_threshold_swamp_adjacent_water;
+    const float swamp_isolated = ncmm_geo ? get_option<float>( "NCMM_AWS_SWAMP_ISOLATED_THRESHOLD" ) :
+                                 settings_forest.noise_threshold_swamp_isolated;
+
+    std::unique_ptr<cata::mdarray<int, point_om_omt>> floodptr =
+                std::make_unique<cata::mdarray<int, point_om_omt>>( 0 );
+    cata::mdarray<int, point_om_omt> &floodplain = *floodptr;
+    for( int x = 0; x < OMAPX; x++ ) {
+        for( int y = 0; y < OMAPY; y++ ) {
+            const tripoint_om_omt pos( x, y, 0 );
+            if( is_ot_match( "river", ter_unsafe( pos ), ot_match_type::contains ) ) {
+                std::vector<point_om_omt> buffered_points =
+                    closest_points_first( pos.xy(), rng( flood_min, flood_max ) );
+                for( const point_om_omt &p : buffered_points )  {
+                    if( !inbounds( p ) ) {
+                        continue;
+                    }
+                    floodplain[p] += 1;
+                }
+            }
+        }
+    }
+
+    const om_noise::om_noise_layer_floodplain f( global_base_point(), g->get_seed() );
+    for( int x = 0; x < OMAPX; x++ ) {
+        for( int y = 0; y < OMAPY; y++ ) {
+            const tripoint_om_omt pos( x, y, 0 );
+            if( !is_ot_match( "forest", ter( pos ), ot_match_type::contains ) ) {
+                continue;
+            }
+            const bool should_flood = floodplain[x][y] > 0 && !one_in( floodplain[x][y] ) &&
+                                      f.noise_at( { x, y } ) > swamp_adj;
+            const bool should_isolated_swamp = f.noise_at( pos.xy() ) > swamp_isolated;
+            if( should_flood || should_isolated_swamp ) {
+                ter_set( pos, oter_forest_water );
+            }
+        }
+    }
+}
+'@
+    $om = Replace-WSRange $om 'void overmap::place_swamps()' 'void overmap::place_roads(' $swampNew 'swamp and floodplain controls'
+
+    # Existing road/rail/trailhead checks must honor a city-size override of zero.
+    $roadNeedle = 'int op_city_size = settings->get_settings_city().city_size;'
+    $roadCount = ([regex]::Matches($om,[regex]::Escape($roadNeedle))).Count
+    if ($roadCount -ne 3) { throw "World Settings v2 expected three city-size urbanity/road/rail checks, found $roadCount" }
+    $om = $om.Replace($roadNeedle,
+        'const bool ncmm_geo_city = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_CITY_SIZE" );' + "`n" +
+        '    int op_city_size = ncmm_geo_city ? get_option<int>( "NCMM_AWS_CITY_SIZE" ) : settings->get_settings_city().city_size;')
+
+    $trailNew = @'
+void overmap::place_forest_trails()
+{
+    std::unordered_set<point_om_omt> visited;
+    const auto is_forest = [&]( const point_om_omt & p ) {
+        if( !inbounds( p, 1 ) ) {
+            return false;
+        }
+        const oter_id current_terrain = ter( tripoint_om_omt( p, 0 ) );
+        return current_terrain == oter_forest || current_terrain == oter_forest_thick ||
+               current_terrain == oter_forest_water;
+    };
+    const region_settings_forest_trail &forest_trail = settings->get_settings_forest_trail();
+    const bool ncmm_geo = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_TRAIL_CHANCE" );
+    const int trail_chance = ncmm_geo ? get_option<int>( "NCMM_AWS_TRAIL_CHANCE" ) : forest_trail.chance;
+    const int minimum_forest_size = ncmm_geo ? get_option<int>( "NCMM_AWS_TRAIL_MIN_FOREST" ) : forest_trail.minimum_forest_size;
+
+    for( int i = 0; i < OMAPX; i++ ) {
+        for( int j = 0; j < OMAPY; j++ ) {
+            tripoint_om_omt seed_point( i, j, 0 );
+            oter_id oter = ter( seed_point );
+            if( !is_ot_match( "forest", oter, ot_match_type::prefix ) ) {
+                continue;
+            }
+            if( visited.find( seed_point.xy() ) != visited.end() ) {
+                continue;
+            }
+            std::vector<point_om_omt> forest_points =
+                ff::point_flood_fill_4_connected<std::vector>( seed_point.xy(), visited, is_forest );
+            if( forest_points.empty() || forest_points.size() < static_cast<size_t>( minimum_forest_size ) ) {
+                continue;
+            }
+            if( !one_in( std::max( 1, trail_chance ) ) ) {
+                continue;
+            }
+
+            auto north_south_most = std::minmax_element( forest_points.begin(), forest_points.end(),
+            []( const point_om_omt & lhs, const point_om_omt & rhs ) { return lhs.y() < rhs.y(); } );
+            auto west_east_most = std::minmax_element( forest_points.begin(), forest_points.end(),
+            []( const point_om_omt & lhs, const point_om_omt & rhs ) { return lhs.x() < rhs.x(); } );
+            point_om_omt northmost = *north_south_most.first;
+            point_om_omt southmost = *north_south_most.second;
+            point_om_omt westmost = *west_east_most.first;
+            point_om_omt eastmost = *west_east_most.second;
+            point_om_omt center( westmost.x() + ( eastmost.x() - westmost.x() ) / 2,
+                                 northmost.y() + ( southmost.y() - northmost.y() ) / 2 );
+            point_om_omt actual_center_point = *std::min_element( forest_points.begin(), forest_points.end(),
+            [&center]( const point_om_omt & lhs, const point_om_omt & rhs ) {
+                return square_dist( lhs, center ) < square_dist( rhs, center );
+            } );
+            int max_random_points = forest_trail.random_point_min + forest_points.size() /
+                                    forest_trail.random_point_size_scalar;
+            max_random_points = std::min( max_random_points, forest_trail.random_point_max );
+            std::vector<point_om_omt> chosen_points = { actual_center_point };
+            int random_point_count = 0;
+            std::shuffle( forest_points.begin(), forest_points.end(), rng_get_engine() );
+            for( const auto &random_point : forest_points ) {
+                if( random_point_count >= max_random_points ) {
+                    break;
+                }
+                ++random_point_count;
+                chosen_points.emplace_back( random_point );
+            }
+            if( one_in( forest_trail.border_point_chance ) ) chosen_points.emplace_back( northmost );
+            if( one_in( forest_trail.border_point_chance ) ) chosen_points.emplace_back( southmost );
+            if( one_in( forest_trail.border_point_chance ) ) chosen_points.emplace_back( westmost );
+            if( one_in( forest_trail.border_point_chance ) ) chosen_points.emplace_back( eastmost );
+            const overmap_connection_id &trail_connection = settings->overmap_connection.trail_connection;
+            connect_closest_points( chosen_points, 0, *trail_connection );
+        }
+    }
+}
+'@
+    $om = Replace-WSRange $om 'void overmap::place_forest_trails()' 'void overmap::place_forest_trailheads()' $trailNew 'forest trail frequency'
+
+    $trailheadNew = @'
+void overmap::place_forest_trailheads()
+{
+    const bool ncmm_geo = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_CITY_SIZE" );
+    const int city_size = ncmm_geo ? get_option<int>( "NCMM_AWS_CITY_SIZE" ) : settings->get_settings_city().city_size;
+    if( city_size <= 0 ) {
+        return;
+    }
+    const region_settings_forest_trail &settings_forest_trail = settings->get_settings_forest_trail();
+    const int trailhead_chance = ncmm_geo && get_options().has_option( "NCMM_AWS_TRAILHEAD_CHANCE" ) ?
+                                 get_option<int>( "NCMM_AWS_TRAILHEAD_CHANCE" ) : settings_forest_trail.trailhead_chance;
+    const int road_distance = ncmm_geo && get_options().has_option( "NCMM_AWS_TRAILHEAD_ROAD_DISTANCE" ) ?
+                              get_option<int>( "NCMM_AWS_TRAILHEAD_ROAD_DISTANCE" ) : settings_forest_trail.trailhead_road_distance;
+
+    const auto trailhead_close_to_road = [&]( const tripoint_om_omt & trailhead ) {
+        bool close = false;
+        for( const tripoint_om_omt &nearby_point : closest_points_first( trailhead, road_distance ) ) {
+            if( check_ot( "road", ot_match_type::contains, nearby_point ) ) {
+                close = true;
+            }
+        }
+        return close;
+    };
+    const auto try_place_trailhead_special = [&]( const tripoint_om_omt & trail_end,
+    const om_direction::type & dir ) {
+        overmap_special_id trailhead = settings_forest_trail.trailheads.pick();
+        if( one_in( std::max( 1, trailhead_chance ) ) && trailhead_close_to_road( trail_end ) &&
+            can_place_special( *trailhead, trail_end, dir, false ) ) {
+            const city &nearest_city = get_nearest_city( trail_end );
+            place_special( *trailhead, trail_end, dir, nearest_city, false, false );
+        }
+    };
+    for( int i = 2; i < OMAPX - 2; i++ ) {
+        for( int j = 2; j < OMAPY - 2; j++ ) {
+            const tripoint_om_omt p( i, j, 0 );
+            oter_id oter = ter( p );
+            if( is_ot_match( "forest_trail_end", oter, ot_match_type::prefix ) ) {
+                try_place_trailhead_special( p, static_cast<om_direction::type>( oter->get_rotation() ) );
+            }
+        }
+    }
+}
+'@
+    $om = Replace-WSRange $om 'void overmap::place_forest_trailheads()' 'void overmap::place_forests()' $trailheadNew 'forest trailheads'
+
+    $ravineNew = @'
+void overmap::place_ravines()
+{
+    const region_settings_ravine &settings_ravine = settings->get_settings_ravine();
+    const bool ncmm_geo = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_RAVINE_COUNT" );
+    const int num_ravines = ncmm_geo ? get_option<int>( "NCMM_AWS_RAVINE_COUNT" ) : settings_ravine.num_ravines;
+    if( num_ravines == 0 ) {
+        return;
+    }
+    const oter_id rift( "ravine" );
+    const oter_id rift_edge( "ravine_edge" );
+    const oter_id rift_floor = settings_ravine.ravine_bottom_terrain_str_id.id();
+    const oter_id rift_floor_edge( "ravine_floor_edge" );
+    std::set<point_om_omt> rift_points;
+    const pf::two_node_scoring_fn<point_om_omt> estimate =
+    [&]( pf::directed_node<point_om_omt>, const std::optional<pf::directed_node<point_om_omt>> & ) {
+        return pf::node_score( 0, rng( 1, 2 ) );
+    };
+    const int ravine_range = ncmm_geo ? get_option<int>( "NCMM_AWS_RAVINE_RANGE" ) : settings_ravine.ravine_range;
+    const int ravine_width = ncmm_geo ? get_option<int>( "NCMM_AWS_RAVINE_WIDTH" ) : settings_ravine.ravine_width;
+    const int ravine_depth = ncmm_geo ? get_option<int>( "NCMM_AWS_RAVINE_DEPTH" ) : settings_ravine.ravine_depth;
+    for( int n = 0; n < num_ravines; n++ ) {
+        const point_rel_omt offset( rng( -ravine_range, ravine_range ), rng( -ravine_range, ravine_range ) );
+        const point_om_omt origin( rng( 0, OMAPX ), rng( 0, OMAPY ) );
+        const point_om_omt destination = origin + offset;
+        if( !inbounds( destination, ravine_width * 3 ) ) {
+            continue;
+        }
+        const auto path = pf::greedy_path( origin, destination, point_om_omt( OMAPX, OMAPY ), estimate );
+        for( const auto &node : path.nodes ) {
+            for( int i = 1 - ravine_width; i < ravine_width; i++ ) {
+                for( int j = 1 - ravine_width; j < ravine_width; j++ ) {
+                    const point_om_omt n = node.pos + point( j, i );
+                    if( inbounds( n, 1 ) ) {
+                        rift_points.emplace( n );
+                    }
+                }
+            }
+        }
+    }
+    for( const point_om_omt &p : rift_points ) {
+        bool edge = false;
+        for( int ni = -1; ni <= 1 && !edge; ni++ ) {
+            for( int nj = -1; nj <= 1 && !edge; nj++ ) {
+                const point_om_omt n = p + point_rel_omt( ni, nj );
+                if( rift_points.find( n ) == rift_points.end() || !inbounds( n ) ) {
+                    edge = true;
+                }
+            }
+        }
+        for( int z = 0; z >= ravine_depth; z-- ) {
+            if( z == ravine_depth ) {
+                ter_set( tripoint_om_omt( p, z ), edge ? rift_floor_edge : rift_floor );
+            } else {
+                ter_set( tripoint_om_omt( p, z ), edge ? rift_edge : rift );
+            }
+        }
+    }
+}
+'@
+    $om = Replace-WSRange $om 'void overmap::place_ravines()' 'pf::directed_path<point_om_omt> overmap::lay_out_connection' $ravineNew 'ravine controls'
+    Write-WS $overmapPath $om
+
+    $water = Read-WS $waterPath
+    if (-not $water.Contains('#include "options.h"')) {
+        $water = Replace-WSOnce $water '#include "omdata.h"' ('#include "omdata.h"' + "`n" + '#include "options.h"') 'water options include'
+    }
+    $riverSettingsOld = @'
+    const region_settings_river &settings_river = settings->get_settings_river();
+    const int OMAPX_edge = OMAPX - 1;
+'@
+    $riverSettingsNew = @'
+    const region_settings_river &settings_river = settings->get_settings_river();
+    const bool ncmm_geo = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_RIVER_BRANCH_CHANCE" );
+    const double river_branch_chance = ncmm_geo ? get_option<int>( "NCMM_AWS_RIVER_BRANCH_CHANCE" ) : settings_river.river_branch_chance;
+    const double river_branch_remerge_chance = ncmm_geo ? get_option<int>( "NCMM_AWS_RIVER_REMERGE_CHANCE" ) : settings_river.river_branch_remerge_chance;
+    const double river_branch_scale_decrease = ncmm_geo ? get_option<float>( "NCMM_AWS_RIVER_BRANCH_SCALE_DECREASE" ) : settings_river.river_branch_scale_decrease;
+    const int OMAPX_edge = OMAPX - 1;
+'@
+    $water = Replace-WSOnce $water $riverSettingsOld $riverSettingsNew 'river branch locals'
+    $water = $water.Replace('one_in( settings_river.river_branch_chance )','one_in( river_branch_chance )')
+    $water = $water.Replace('one_in( settings_river.river_branch_remerge_chance )','one_in( river_branch_remerge_chance )')
+    $water = $water.Replace('river_scale - settings_river.river_branch_scale_decrease','river_scale - river_branch_scale_decrease')
+
+    $riverMainOld = @'
+    const region_settings_river &settings_river = settings->get_settings_river();
+    int river_scale = settings_river.river_scale;
+'@
+    $riverMainNew = @'
+    const region_settings_river &settings_river = settings->get_settings_river();
+    const bool ncmm_geo = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_RIVER_SCALE" );
+    int river_scale = ncmm_geo ? get_option<int>( "NCMM_AWS_RIVER_SCALE" ) : settings_river.river_scale;
+    const double river_frequency = ncmm_geo ? get_option<float>( "NCMM_AWS_RIVER_FREQUENCY" ) : settings_river.river_frequency;
+'@
+    $water = Replace-WSOnce $water $riverMainOld $riverMainNew 'river scale/frequency locals'
+    $water = $water.Replace('std::pow( settings_river.river_frequency,','std::pow( river_frequency,')
+
+    $lakeOld = @'
+    const region_settings_lake &settings_lake = settings->get_settings_lake();
+    double noise_threshold = settings_lake.noise_threshold_lake;
+    const int lake_depth = settings_lake.lake_depth;
+'@
+    $lakeNew = @'
+    const region_settings_lake &settings_lake = settings->get_settings_lake();
+    const bool ncmm_geo = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_LAKE_THRESHOLD" );
+    double noise_threshold = ncmm_geo ? get_option<float>( "NCMM_AWS_LAKE_THRESHOLD" ) : settings_lake.noise_threshold_lake;
+    const int lake_size_min = ncmm_geo ? get_option<int>( "NCMM_AWS_LAKE_MIN_SIZE" ) : settings_lake.lake_size_min;
+    const int lake_depth = settings_lake.lake_depth;
+'@
+    $water = Replace-WSOnce $water $lakeOld $lakeNew 'lake controls'
+    $water = $water.Replace('( settings_lake.lake_size_min )','( lake_size_min )')
+
+    $oceanOld = @'
+    const region_settings_ocean &settings_ocean = settings->get_settings_ocean();
+    const int ocean_depth = settings_ocean.ocean_depth;
+'@
+    $oceanNew = @'
+    const region_settings_ocean &settings_ocean = settings->get_settings_ocean();
+    const bool ncmm_geo = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_OCEAN_THRESHOLD" );
+    const double ocean_threshold = ncmm_geo ? get_option<float>( "NCMM_AWS_OCEAN_THRESHOLD" ) : settings_ocean.noise_threshold_ocean;
+    const int ocean_size_min = ncmm_geo ? get_option<int>( "NCMM_AWS_OCEAN_MIN_SIZE" ) : settings_ocean.ocean_size_min;
+    const int ocean_depth = settings_ocean.ocean_depth;
+'@
+    $water = Replace-WSOnce $water $oceanOld $oceanNew 'ocean controls'
+    $water = $water.Replace('f.noise_at( p ) + ocean_adjust > settings_ocean.noise_threshold_ocean','f.noise_at( p ) + ocean_adjust > ocean_threshold')
+    $water = $water.Replace('( settings_ocean.ocean_size_min )','( ocean_size_min )')
+    Write-WS $waterPath $water
+
+    $overmapH = Read-WS $overmapHPath
+    $highwayDeclOld = '        void set_options();'
+    $highwayDeclNew = @'
+        void set_options( int row_override = -1, int column_override = -1,
+                          int variance_override = -1 );
+'@
+    $overmapH = Replace-WSOnce $overmapH $highwayDeclOld $highwayDeclNew 'highway grid scoped options declaration'
+    Write-WS $overmapHPath $overmapH
+
+    $highway = Read-WS $highwayPath
+    $setOptionsOld = @'
+void highway_intersection_grid::set_options()
+{
+    row_separation = get_option<int>( "HIGHWAY_GRID_ROW_SEPARATION" );
+    column_separation = get_option<int>( "HIGHWAY_GRID_COLUMN_SEPARATION" );
+    max_offset_variance = get_option<int>( "HIGHWAY_GRID_VARIANCE" );
+}
+'@
+    $setOptionsNew = @'
+void highway_intersection_grid::set_options( int row_override, int column_override,
+        int variance_override )
+{
+    row_separation = row_override >= 0 ? row_override : get_option<int>( "HIGHWAY_GRID_ROW_SEPARATION" );
+    column_separation = column_override >= 0 ? column_override :
+                        get_option<int>( "HIGHWAY_GRID_COLUMN_SEPARATION" );
+    max_offset_variance = variance_override >= 0 ? variance_override :
+                          get_option<int>( "HIGHWAY_GRID_VARIANCE" );
+    const int safe_limit = std::max( 0, std::min( row_separation, column_separation ) / 2 - 1 );
+    max_offset_variance = std::min( max_offset_variance, safe_limit );
+}
+'@
+    $highway = Replace-WSOnce $highway $setOptionsOld $setOptionsNew 'highway grid'
+    $gridCallOld = @'
+    highway_grid.set_options();
+'@
+    $gridCallNew = @'
+    const bool ncmm_custom_grid = settings->id.str() == "default" &&
+                                  get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) &&
+                                  get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) &&
+                                  get_options().has_option( "NCMM_AWS_HIGHWAY_GRID_ROW" );
+    if( ncmm_custom_grid ) {
+        highway_grid.set_options( get_option<int>( "NCMM_AWS_HIGHWAY_GRID_ROW" ),
+                                  get_option<int>( "NCMM_AWS_HIGHWAY_GRID_COLUMN" ),
+                                  get_option<int>( "NCMM_AWS_HIGHWAY_GRID_VARIANCE" ) );
+    } else {
+        highway_grid.set_options();
+    }
+'@
+    $highway = Replace-WSOnce $highway $gridCallOld $gridCallNew 'default-region highway grid selection'
+
+    $straightOld = @'
+    const region_settings_highway &highway_settings = settings->get_settings_highway();
+    const int HIGHWAY_MAX_DEVIANCE = highway_settings.HIGHWAY_MAX_DEVIANCE;
+    //used until intersections can be safely placed at corners of the overmap with two-bend pathing
+'@
+    $straightNew = @'
+    const region_settings_highway &highway_settings = settings->get_settings_highway();
+    const int HIGHWAY_MAX_DEVIANCE = highway_settings.HIGHWAY_MAX_DEVIANCE;
+    const bool ncmm_geo = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_HIGHWAY_STRAIGHTNESS" );
+    const double ncmm_highway_straightness = ncmm_geo ? get_option<float>( "NCMM_AWS_HIGHWAY_STRAIGHTNESS" ) :
+                                             highway_settings.straightness_chance;
+    //used until intersections can be safely placed at corners of the overmap with two-bend pathing
+'@
+    $highway = Replace-WSOnce $highway $straightOld $straightNew 'highway straightness local'
+    $highway = $highway.Replace('x_in_y( highway_settings.straightness_chance, 1.0 )','x_in_y( ncmm_highway_straightness, 1.0 )')
+
+    # Lake-aware highway intersection avoidance follows the same world lake controls.
+    $lakeAvoidOld = @'
+            const region_settings_lake &lake_settings = settings.get_settings_lake();
+            val_emplaced.first->second =
+                !overmap::guess_has_lake( pt, lake_settings.noise_threshold_lake,
+                                          lake_settings.lake_size_min );
+'@
+    $lakeAvoidNew = @'
+            const region_settings_lake &lake_settings = settings.get_settings_lake();
+            const bool ncmm_geo = settings.id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_LAKE_THRESHOLD" );
+            const bool ncmm_lakes_enabled = !ncmm_geo || !get_options().has_option( "NCMM_AWS_ENABLE_LAKES" ) || get_option<bool>( "NCMM_AWS_ENABLE_LAKES" );
+            const double lake_threshold = ncmm_geo ? get_option<float>( "NCMM_AWS_LAKE_THRESHOLD" ) : lake_settings.noise_threshold_lake;
+            const int lake_min_size = ncmm_geo ? get_option<int>( "NCMM_AWS_LAKE_MIN_SIZE" ) : lake_settings.lake_size_min;
+            val_emplaced.first->second = !ncmm_lakes_enabled ||
+                                         !overmap::guess_has_lake( pt, lake_threshold, lake_min_size );
+'@
+    $highway = Replace-WSOnce $highway $lakeAvoidOld $lakeAvoidNew 'highway lake avoidance'
+    $oceanHandleOld = @'
+overmap::highway_handle_oceans()
+{
+    std::bitset<HIGHWAY_MAX_CONNECTIONS> ocean_adjacent;
+'@
+    $oceanHandleNew = @'
+overmap::highway_handle_oceans()
+{
+    std::bitset<HIGHWAY_MAX_CONNECTIONS> ocean_adjacent;
+    const bool ncmm_oceans_disabled = settings->id.str() == "default" &&
+                                      get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) &&
+                                      get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) &&
+                                      get_options().has_option( "NCMM_AWS_ENABLE_OCEANS" ) &&
+                                      !get_option<bool>( "NCMM_AWS_ENABLE_OCEANS" );
+    if( ncmm_oceans_disabled ) {
+        return { false, ocean_adjacent };
+    }
+'@
+    $highway = Replace-WSOnce $highway $oceanHandleOld $oceanHandleNew 'disabled-ocean highway continuity'
+    Write-WS $highwayPath $highway
+
+    Write-Utf8NoBom $marker ("NCMM World Settings API v2 geography hooks for CDDA 0546`n")
+    Write-Host "World Settings API v2 geography hooks: READY" -ForegroundColor Green
+

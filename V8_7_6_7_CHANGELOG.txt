@@ -1,0 +1,8 @@
+v8.7.6.7 Connector Audit Range Hotfix
+
+1. Fixes the cumulative preflight false failure `0.9.11 connector audit range not found.`
+2. Root cause: the audit used a multiline Windows PowerShell here-string anchored on the following node renderer. Generated C++ is LF-normalized, so direct IndexOf could fail on CRLF/LF alone; later UI transforms also made that neighboring renderer a fragile range boundary.
+3. The audit now normalizes the loader text and searches for the connector's own stable draw-tail, then includes that tail in the audited slice.
+4. Existing semantic checks remain intact: no c_yellow/c_magenta/c_cyan/style_for_node in the routing block, and the COMPLETE-route border-stub guard is still required.
+5. Inherits v8.7.6.6 Runtime Infrastructure, diagnostics, support routing, World Settings type safety, Clarity Pass and Recipe Finalization Profiler host support unchanged.
+6. No gameplay/balance/save-schema/API behavior change.

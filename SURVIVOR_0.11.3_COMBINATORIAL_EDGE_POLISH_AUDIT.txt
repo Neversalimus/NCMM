@@ -1,0 +1,56 @@
+Survivor Progression 0.11.3 — Combinatorial Edge Audit
+
+Invariants
+- Existing perk count is preserved by transform; no node removal is allowed.
+- State schema remains 8.
+- Host API remains generic: CDDA source sees combat.*, crafting.*, scavenging.* hooks and a generic player-kill event, never Survivor perk IDs.
+
+Edge cases covered
+1. Riposte + crit/kill move rewards: refund basis is captured before attack and no longer inferred from net moves.
+2. Mounted combat: automatic NCMM riposte is suppressed to avoid mech/mount attack-cost mismatch.
+3. Vanilla counter selection vs execution: failed vanilla counter attempts no longer falsely consume NCMM fallback.
+4. Friendly/neutral/hallucination targets: no reactive crit/execute/Momentum damage amplification.
+5. Hostile fleeing monsters: remain valid combat targets/rewards.
+6. Hostile NPC death: direct avatar kills receive generic kill recovery/Momentum; fake/hallucination/non-hostile NPCs do not.
+7. INT64-corrupted Momentum: values saturate before increment and self-heal to currently owned caps.
+8. Momentum at cap: timer refresh does not force a redundant modifier recalculation.
+9. Respec/perk loss: transient Momentum is cleared by prior 0.11.2 guards.
+10. Craft failure save at zero roll: next failure point is forced strictly beyond current progress.
+11. Craft UI: catastrophic failure display includes the runtime failure-save probability.
+12. Lockpick null/floor behavior: inherited 0.11.2 protections remain unchanged.
+
+Verification status
+- Static/package and portable C++ fixtures are required before packaging.
+- Windows PowerShell parser, MSVC Host/module compile and in-game runtime are not represented as live-verified by this audit.
+
+Portable audit executed in packaging environment
+- JSON parse: 21/21 PASS.
+- YAML parse: 2/2 PASS.
+- PowerShell package files: 26/26 UTF-8 BOM + CRLF PASS; here-string delimiter balance PASS.
+- CMD line-ending check: PASS.
+- 25/25 reactive perk definitions present exactly once in the transform surface.
+- Feed component/hash surfaces: PASS before integrity generation.
+- survivor_reactive_edge_0113.cpp: g++ C++17 PASS; clang++ C++17 PASS.
+
+Installer HOTFIX3
+- Corrected the 0.10.0 -> 0.11.0 transform guard to recognize the actual inherited effect_label signature: std::string effect_label( const std::string &id ).
+- Retains a structural fallback on std::string effect_label( so harmless signature refactors do not break the transform chain.
+- Gameplay, perk topology, state schema and 0.11.3 runtime semantics are unchanged by HOTFIX3.
+
+HOTFIX8 - generated perk-array separator hardening
+- Fixed the real MSVC syntax failure exposed after the full 0.11.x transform chain reached compilation.
+- 0.10.0 legitimately leaves its final appended perk without a trailing comma; 0.11.0 now conditionally inserts exactly one comma before appending cr_riposte and the remaining reactive records.
+- Added a compile-shape preflight, CI regression contract, and golden C++ separator fixture so record-count audits cannot falsely pass an invalid initializer list again.
+
+HOTFIX9 build-chain audit:
+- Root cause confirmed at the earlier 0.9.15 Prime -> 0.10.0 Mechanical array boundary, not the 0.10 -> 0.11 boundary alone.
+- modPrimePerks0915 intentionally ends comma-less; Apply-SurvivorMechanicalPerks0100 now promotes that tail before appending 27 mechanical nodes.
+- Full Prime -> Mechanical -> Reactive initializer chain is regression-compiled.
+
+HOTFIX13 targeted audit
+- Crash evidence: unsymbolized SIGSEGV in cataclysm-tiles.ncmm.exe during new-character creation with Magiclysm + Mind Over Matter + Xedra; clean/no-mod character creation succeeds. The exact stack frame is not claimed without PDB symbols.
+- Concrete lifecycle defect removed: character_state_available previously became true from g + active_world during chargen, and API2 spell/skill hooks could consult runtime modifier state before the first world-loaded turn.
+- Runtime hook value paths are now gated by api_v2_world_announced; character state additionally requires !g->new_game.
+- Concrete F1 defect removed: parent-centering could assign the same physical layout_x2 to multiple nodes on one row; node_at() then made only the first overlapping card selectable. Multi-node rows now receive stable, minimum-one-lane-separated physical positions.
+- Static regression models duplicate-column and routed-x collisions while confirming singleton rows keep centered positions.
+- Runtime crash fix remains candidate until the same Magiclysm/MoM/Xedra creation path is retested.

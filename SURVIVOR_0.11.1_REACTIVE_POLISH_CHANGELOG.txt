@@ -1,0 +1,43 @@
+Survivor Progression 0.11.1 — Reactive Mechanics Polish
+========================================================
+
+Scope
+-----
+0.11.1 is a semantic/runtime polish pass over 0.11.0. It does not remove perk nodes, does not change the Survivor state schema (still 8), and does not change the Infrastructure/Host/AWS version line.
+
+Combat correctness
+------------------
+- Riposte no longer competes with or double-fires alongside vanilla martial-arts dodge counters.
+  Vanilla dodge-counter technique resolution runs first; the NCMM Riposte is a fallback only when no vanilla counter was executed.
+- NCMM Riposte now mirrors the vanilla counter stamina gate (at least one third of maximum stamina) and will not target an attacker already in a dead state.
+- Reactive outgoing/execute damage no longer applies when the avatar is both damage source and target, preventing self-inflicted damage amplification.
+- Kill-reactive rewards and the Momentum event are gated to XP-awarding monster kills; zero-XP revived kills no longer feed Momentum, moves, or stamina recovery.
+- The patched CDDA source no longer dispatches the numeric event ID directly. It calls a named Host wrapper, runtime_player_kill_notify(), while the event ID remains internal to Host API 2.0.
+
+Crafting correctness
+--------------------
+- Quality Control already affected the real crafting success roll. 0.11.1 also applies the same bonus to recipe_success_chance(), so the crafting UI estimate and the real failure-point mechanics agree.
+- Failure cancellation, component protection and progress-loss reduction remain unchanged in strength.
+
+Scavenging / lockpicking correctness
+------------------------------------
+- Quick Entry now preserves vanilla timing floors:
+  * ordinary lockpicks: never below 30 seconds;
+  * PERFECT_LOCKPICK: never below 5 seconds.
+- Lockpick roll, tool protection, alarm bypass and trap-detection bonuses remain unchanged.
+
+Persistence / compatibility / UX
+--------------------------------
+- 25 nodes introduced by 0.11.0 remain present. 0.11.1 performs an exact pre/post perk-count equality check and refuses the transform if any node disappears.
+- Survivor state schema remains 8; existing purchases and saves remain compatible.
+- Russian descriptions now distinguish CDDA action "moves" from full turns ("ед. хода" instead of misleading "ходов").
+- Kill-related descriptions now explicitly match the implementation: XP-awarding monster kills.
+- reactive_technical_hooks.source.v2 strengthens source-probe anchors for the exact dodge-counter, revived-kill, crafting-success, lockpick-floor and alarm code paths used by the transform.
+- Survivor and Host build fingerprints are changed, forcing only the required rebuilds while preserving C:\NCMMBuild caches.
+
+Verification status
+-------------------
+Static/package audit: PASS (81/81 immutable package entries verified before ZIP creation).
+Windows/MSVC install verification: REQUIRED.
+First-launch runtime verification: REQUIRED.
+0.11.1 is not claimed live-verified by this package.

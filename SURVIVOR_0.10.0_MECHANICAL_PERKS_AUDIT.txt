@@ -1,0 +1,25 @@
+Survivor Progression 0.10.0 Mechanical Perks Audit
+
+Expected native stack
+- NCMM Infrastructure 0.8.3.1
+- Host 0.8.0 / Host API 2.0 Core
+- Survivor Progression 0.10.0 / state schema 8
+- Advanced World Settings 0.6.2
+
+Static invariants
+- Historical 0.9.11-0.9.16 transform chain remains present.
+- 0.10.0 transform appends exactly 27 perk definitions and asserts before/after count.
+- It refuses to run if baseline perk count is below 271.
+- Defy Fate is rankable to V with linear 1% per-rank avoidance.
+- Concrete sp_* modifier IDs live in Survivor; patched CDDA source contains only generic combat.* hook IDs.
+- Host/CDDA patch integrity explicitly audits every new generic hook.
+- Survivor build cache has a new 0.10.0 fingerprint and marker, forcing module rebuild.
+- Host patch revision changes because the generic gameplay-hook contract changes, forcing Host rebuild.
+
+Validation performed for this package
+- Exact CDDA source commit e262adb299a7613b4aedc5f12c08fe0413c56a84 anchors verified for character.cpp, character_health.cpp, melee.cpp, ranged.cpp and creature.cpp.
+- Exact adapter pins ranged.cpp Git blob 54426a5dafe395306dc68fa73007f52e6ae2f645 in addition to the existing exact-source pins.
+- Mechanical perk C++ initializer fixture: C++17 syntax PASS.
+- Generic mechanical source-hook fixture: C++17 syntax PASS.
+- Package JSON/YAML, PowerShell UTF-8 BOM/CRLF convention, CMD encoding, here-string safety and feed hashes: static audit PASS.
+- Windows/MSVC compilation and real CDDA runtime verification remain intentionally pending the target-machine install; the feed does not claim 0.10.0 live verification yet.

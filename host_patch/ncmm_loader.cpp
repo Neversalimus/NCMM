@@ -3,18 +3,24 @@
 #include "ncmm_fault_policy.h"
 #include "ncmm_manifest_policy.h"
 #include "avatar.h"
+#include "creature.h"
 #include "game.h"
+#include "event_bus.h"
+#include "event_subscriber.h"
+#include "type_id.h"
 #include "input.h"
 #include "input_context.h"
 #include "options.h"
 #include "output.h"
 #include "system_locale.h"
 #include "uilist.h"
+#include "ui_manager.h"
 #include "worldfactory.h"
 
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -47,7 +53,6 @@ struct loaded_mod {
     uint32_t state_min_supported = 0;
     bool migration_ready = false;
     bool migration_suspended = false;
-    std::string action_id;
     std::string default_hotkey;
     runtime_fault_policy fault;
 };
@@ -69,10 +74,281 @@ struct module_state {
 
 std::vector<module_state> module_states;
 std::set<std::string> module_ids;
+std::set<std::string> hotkey_registration_logged;
+std::map<std::string, std::string> world_setting_owners;
+std::map<std::string, uint32_t> world_setting_scopes;
+std::string world_setting_string_cache;
 std::map<std::string, size_t> manifest_id_counts;
 std::map<std::string, std::map<std::string, double>> character_modifier_values;
+std::map<std::string, double, std::less<>> character_modifier_totals;
+std::map<std::string, std::string, std::less<>> modifier_owners_v2;
+
+struct ncmm_event_subscription_v2_internal {
+    std::string module_id;
+    uint32_t event_id = 0u;
+    ncmm_event_callback_v2 callback = nullptr;
+    void *user_data = nullptr;
+};
+struct ncmm_runtime_hook_rule_v2_internal {
+    std::string module_id;
+    std::string hook_id;
+    uint32_t selector_kind = NCMM_SELECTOR_ANY_V2;
+    std::string selector_value;
+    std::string modifier_id;
+};
+struct ncmm_worldgen_binding_v2_internal {
+    std::string module_id;
+    std::string setting_id;
+    uint32_t value_type = 0u;
+};
+std::vector<ncmm_event_subscription_v2_internal> event_subscriptions_v2;
+std::vector<ncmm_runtime_hook_rule_v2_internal> runtime_hook_rules_v2;
+std::map<std::string, ncmm_worldgen_binding_v2_internal, std::less<>> worldgen_bindings_v2;
+thread_local std::string api_v2_string_cache;
+thread_local std::string runtime_source_mod_context_v2;
+bool api_v2_world_announced = false;
+
+void erase_module_modifiers( const std::string &module_id )
+{
+    const auto module_it = character_modifier_values.find( module_id );
+    if( module_it == character_modifier_values.end() ) {
+        return;
+    }
+    for( const auto &entry : module_it->second ) {
+        const auto total_it = character_modifier_totals.find( entry.first );
+        if( total_it == character_modifier_totals.end() ) {
+            continue;
+        }
+        total_it->second -= entry.second;
+        if( std::abs( total_it->second ) < 1.0e-12 ) {
+            character_modifier_totals.erase( total_it );
+        }
+    }
+    character_modifier_values.erase( module_it );
+}
+std::map<std::string, int64_t> gameplay_metric_values;
+character_id gameplay_avatar_id;
+bool gameplay_avatar_id_ready = false;
 thread_local std::string active_module_id;
+thread_local ncmm_ui_theme_v1 active_ui_theme = {
+    NCMM_UI_COLOR_DEFAULT, NCMM_UI_THEME_NONE, 0, 0, nullptr, 0
+};
+thread_local const uint32_t *active_ui_border_styles = nullptr;
+thread_local size_t active_ui_border_style_count = 0;
+thread_local uint32_t active_ui_layout_flags = NCMM_UI_THEME_NONE;
+
+uint32_t ncmm_ui_theme_accent_id( size_t item_index = static_cast<size_t>( -1 ) )
+{
+    if( item_index != static_cast<size_t>( -1 ) && active_ui_theme.item_accents != nullptr &&
+        item_index < active_ui_theme.item_accent_count ) {
+        const uint32_t item = active_ui_theme.item_accents[item_index];
+        if( item <= NCMM_UI_COLOR_MAGENTA ) {
+            return item;
+        }
+    }
+    return active_ui_theme.accent;
+}
+
+uint32_t ncmm_ui_border_style_id( size_t item_index = static_cast<size_t>( -1 ) )
+{
+    if( item_index != static_cast<size_t>( -1 ) && active_ui_border_styles != nullptr &&
+        item_index < active_ui_border_style_count ) {
+        const uint32_t item = active_ui_border_styles[item_index];
+        if( item <= NCMM_UI_BORDER_EXCLUDED ) {
+            return item;
+        }
+    }
+    return NCMM_UI_BORDER_AUTO;
+}
+
+bool ncmm_ui_theme_enabled( size_t item_index = static_cast<size_t>( -1 ) )
+{
+    return ncmm_ui_theme_accent_id( item_index ) != NCMM_UI_COLOR_DEFAULT;
+}
+
+bool ncmm_ui_horizontal_viewport()
+{
+    return ( active_ui_layout_flags & NCMM_UI_THEME_HORIZONTAL_VIEWPORT ) != 0u;
+}
+
+bool ncmm_ui_sectioned_detail()
+{
+    return ( active_ui_layout_flags & NCMM_UI_THEME_SECTIONED_DETAIL ) != 0u;
+}
+
+nc_color ncmm_ui_theme_accent( size_t item_index = static_cast<size_t>( -1 ) )
+{
+    switch( ncmm_ui_theme_accent_id( item_index ) ) {
+        case NCMM_UI_COLOR_RED: return c_light_red;
+        case NCMM_UI_COLOR_GREEN: return c_light_green;
+        case NCMM_UI_COLOR_CYAN: return c_light_cyan;
+        case NCMM_UI_COLOR_YELLOW: return c_yellow;
+        case NCMM_UI_COLOR_BLUE: return c_light_blue;
+        case NCMM_UI_COLOR_MAGENTA: return c_pink;
+        default: return c_light_gray;
+    }
+}
+
+class ncmm_ui_theme_scope
+{
+    public:
+        explicit ncmm_ui_theme_scope( const ncmm_ui_theme_v1 *theme ) : previous_( active_ui_theme ),
+            previous_border_( active_ui_border_styles ), previous_border_count_( active_ui_border_style_count ),
+            previous_layout_flags_( active_ui_layout_flags )
+        {
+            active_ui_theme = { NCMM_UI_COLOR_DEFAULT, NCMM_UI_THEME_NONE, 0, 0, nullptr, 0 };
+            active_ui_border_styles = nullptr;
+            active_ui_border_style_count = 0;
+            active_ui_layout_flags = NCMM_UI_THEME_NONE;
+            if( theme != nullptr ) {
+                active_ui_theme = *theme;
+                if( active_ui_theme.accent > NCMM_UI_COLOR_MAGENTA ) {
+                    active_ui_theme.accent = NCMM_UI_COLOR_DEFAULT;
+                }
+                active_ui_theme.flags &= NCMM_UI_THEME_STRONG_BORDER | NCMM_UI_THEME_WIDE_NODES |
+                                         NCMM_UI_THEME_HORIZONTAL_VIEWPORT | NCMM_UI_THEME_SECTIONED_DETAIL;
+                active_ui_layout_flags = active_ui_theme.flags;
+            }
+        }
+
+        ncmm_ui_theme_scope( const ncmm_ui_theme_scope & ) = delete;
+        ncmm_ui_theme_scope &operator=( const ncmm_ui_theme_scope & ) = delete;
+
+        ~ncmm_ui_theme_scope()
+        {
+            active_ui_theme = previous_;
+            active_ui_border_styles = previous_border_;
+            active_ui_border_style_count = previous_border_count_;
+            active_ui_layout_flags = previous_layout_flags_;
+        }
+
+    private:
+        ncmm_ui_theme_v1 previous_;
+        const uint32_t *previous_border_;
+        size_t previous_border_count_;
+        uint32_t previous_layout_flags_;
+};
+
+class ncmm_ui_rpg_theme_scope
+{
+    public:
+        explicit ncmm_ui_rpg_theme_scope( const ncmm_ui_theme_ex_v1 *theme ) : previous_( active_ui_theme ),
+            previous_border_( active_ui_border_styles ), previous_border_count_( active_ui_border_style_count ),
+            previous_layout_flags_( active_ui_layout_flags )
+        {
+            active_ui_theme = { NCMM_UI_COLOR_DEFAULT, NCMM_UI_THEME_NONE, 0, 0, nullptr, 0 };
+            active_ui_border_styles = nullptr;
+            active_ui_border_style_count = 0;
+            active_ui_layout_flags = NCMM_UI_THEME_NONE;
+            if( theme != nullptr ) {
+                active_ui_theme = { theme->accent, theme->flags, theme->preferred_node_width,
+                                    theme->preferred_detail_width, theme->item_accents,
+                                    theme->item_accent_count };
+                if( active_ui_theme.accent > NCMM_UI_COLOR_MAGENTA ) {
+                    active_ui_theme.accent = NCMM_UI_COLOR_DEFAULT;
+                }
+                active_ui_theme.flags &= NCMM_UI_THEME_STRONG_BORDER | NCMM_UI_THEME_WIDE_NODES |
+                                         NCMM_UI_THEME_HORIZONTAL_VIEWPORT | NCMM_UI_THEME_SECTIONED_DETAIL;
+                active_ui_layout_flags = active_ui_theme.flags;
+                active_ui_border_styles = theme->item_border_styles;
+                active_ui_border_style_count = theme->item_border_style_count;
+            }
+        }
+
+        ncmm_ui_rpg_theme_scope( const ncmm_ui_rpg_theme_scope & ) = delete;
+        ncmm_ui_rpg_theme_scope &operator=( const ncmm_ui_rpg_theme_scope & ) = delete;
+
+        ~ncmm_ui_rpg_theme_scope()
+        {
+            active_ui_theme = previous_;
+            active_ui_border_styles = previous_border_;
+            active_ui_border_style_count = previous_border_count_;
+            active_ui_layout_flags = previous_layout_flags_;
+        }
+
+    private:
+        ncmm_ui_theme_v1 previous_;
+        const uint32_t *previous_border_;
+        size_t previous_border_count_;
+        uint32_t previous_layout_flags_;
+};
 bool shutdown_registered = false;
+bool gameplay_metrics_subscribed = false;
+
+class gameplay_metric_subscriber : public event_subscriber
+{
+    public:
+        using event_subscriber::notify;
+
+        void notify( const cata::event &e ) override
+        {
+            if( e.type() == event_type::game_load ) {
+                gameplay_metric_values.clear();
+                gameplay_avatar_id = character_id();
+                gameplay_avatar_id_ready = false;
+                return;
+            }
+            if( e.type() == event_type::game_avatar_new ) {
+                gameplay_metric_values.clear();
+                gameplay_avatar_id = e.get<character_id>( "avatar_id" );
+                gameplay_avatar_id_ready = true;
+                return;
+            }
+
+            if( e.type() == event_type::avatar_moves ) {
+                ++gameplay_metric_values["mobility.steps"];
+                return;
+            }
+            if( e.type() == event_type::avatar_enters_omt ) {
+                ++gameplay_metric_values["scavenging.omt"];
+                return;
+            }
+
+            if( !gameplay_avatar_id_ready ) {
+                return;
+            }
+
+            switch( e.type() ) {
+                case event_type::character_kills_monster:
+                    if( e.get<character_id>( "killer" ) == gameplay_avatar_id ) {
+                        ++gameplay_metric_values["combat.kills"];
+                        gameplay_metric_values["combat.kill_xp"] +=
+                            std::max( 0, e.get<int>( "exp" ) );
+                    }
+                    break;
+                case event_type::character_kills_character:
+                    if( e.get<character_id>( "killer" ) == gameplay_avatar_id ) {
+                        ++gameplay_metric_values["combat.kills"];
+                        gameplay_metric_values["combat.kill_xp"] += 100;
+                    }
+                    break;
+                case event_type::character_heals_damage:
+                    if( e.get<character_id>( "character" ) == gameplay_avatar_id ) {
+                        gameplay_metric_values["survival.healing"] +=
+                            std::max( 0, e.get<int>( "damage" ) );
+                    }
+                    break;
+                case event_type::character_finished_activity:
+                    if( e.get<character_id>( "character" ) == gameplay_avatar_id &&
+                        !e.get<bool>( "canceled" ) ) {
+                        const std::string activity = e.get<activity_id>( "activity" ).str();
+                        if( activity == "ACT_CRAFT" || activity == "ACT_MULTIPLE_CRAFT" ) {
+                            ++gameplay_metric_values["crafting.completed"];
+                        }
+                    }
+                    break;
+                case event_type::gains_skill_level:
+                    if( e.get<character_id>( "character" ) == gameplay_avatar_id ) {
+                        ++gameplay_metric_values["mastery.skill_levels"];
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+};
+
+gameplay_metric_subscriber gameplay_metrics;
 
 class module_call_scope
 {
@@ -94,7 +370,7 @@ class module_call_scope
         std::string previous_;
 };
 
-const std::map<std::string, std::pair<double, double>> character_modifier_limits = {
+std::map<std::string, std::pair<double, double>, std::less<>> character_modifier_limits = {
     { "str_flat", { -20.0, 20.0 } },
     { "dex_flat", { -20.0, 20.0 } },
     { "per_flat", { -20.0, 20.0 } },
@@ -107,7 +383,7 @@ const std::map<std::string, std::pair<double, double>> character_modifier_limits
     { "melee_hit_flat", { -20.0, 20.0 } },
     { "healing_pct", { -100.0, 500.0 } },
     { "read_speed_pct", { -90.0, 500.0 } },
-    { "craft_speed_pct", { -90.0, 500.0 } }
+    { "craft_speed_pct", { -90.0, 500.0 } },
 };
 
 const char *const host_capabilities[] = {
@@ -120,11 +396,29 @@ const char *const host_capabilities[] = {
     "events.turn.v1",
     "character_state.v1",
     "ui.basic.v1",
+    "ui.tiles.v1",
+    "ui.cards.v1",
+    "ui.tree.v1",
+    "gameplay.metrics.v1",
+    "active_mods.v1",
+    "active_mods.registry.v2",
+    "world_settings.v2",
+    "world_options.experimental.v1",
+    "ui.theme.v1",
+    "ui.layout.v1",
+    "module_hotkeys.context.v1",
     "module_hotkeys.v1",
     "ingame_manager.v1",
     "world_options.layout.v1",
     "character.modifiers.v1",
     "api.versioning.v1",
+    "module.lifecycle.query.v2",
+    "worldgen.bindings.v2",
+    "runtime_hooks.registry.v2",
+    "character.modifiers.v2",
+    "settings.typed.v2",
+    "events.core.v2",
+    "host_api.v2.core",
     "state.migration.v1",
     "module.lifecycle.v1"
 };
@@ -134,6 +428,15 @@ std::filesystem::path game_root()
     return std::filesystem::current_path();
 }
 
+void ncmm_trim_and_print_literal( const catacurses::window &w, const point &begin,
+                                  int width, const nc_color &base_color,
+                                  const std::string &text )
+{
+    // The std::string mvwprintz overload is literal-safe. Do not pre-escape '%':
+    // doing so visibly produced "100%%" in Survivor 0.9.7.
+    const std::string clipped = trim_by_length( text, width );
+    mvwprintz( w, begin, base_color, clipped );
+}
 std::string current_locale()
 {
     std::string selected = get_option<std::string>( "USE_LANG" );
@@ -185,7 +488,7 @@ int has_capability( const char *capability )
 
 const char *get_host_version()
 {
-    return "0.7.1";
+    return "0.8.0";
 }
 
 uint32_t get_loader_api()
@@ -213,6 +516,182 @@ const char *get_capability( size_t index )
     return index < get_capability_count() ? host_capabilities[index] : nullptr;
 }
 
+int world_mod_active( const char *requested_mod_id )
+{
+    if( requested_mod_id == nullptr || requested_mod_id[0] == '\0' ||
+        world_generator == nullptr || world_generator->active_world == nullptr ) {
+        return 0;
+    }
+
+    // Compare mod_id values directly. type_id.h only forward-declares
+    // MOD_INFORMATION; dereferencing mod_id here is unnecessary.
+    const mod_id wanted( requested_mod_id );
+    for( const mod_id &mod : world_generator->active_world->active_mod_order ) {
+        if( mod == wanted ) {
+            return 1;
+        }
+    }
+    return 0;
+}
+// Defined later in the loader; World Settings v2 is injected before that definition.
+bool active_module_matches( const char *module_id );
+
+bool safe_world_setting_id( const char *value )
+{
+    if( value == nullptr ) {
+        return false;
+    }
+    const std::string text( value );
+    if( text.size() < 6 || text.size() > 80 || text.rfind( "NCMM_", 0 ) != 0 ) {
+        return false;
+    }
+    for( unsigned char c : text ) {
+        if( !( std::isupper( c ) || std::isdigit( c ) || c == '_' ) ) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool claim_world_setting( const char *module_id, const char *setting_id, uint32_t scope )
+{
+    if( !active_module_matches( module_id ) || module_ids.count( module_id ) == 0 ||
+        !safe_world_setting_id( setting_id ) || scope > NCMM_WORLD_SETTING_NEW_WORLD ) {
+        return false;
+    }
+    const std::string id( setting_id );
+    const auto owner = world_setting_owners.find( id );
+    if( owner != world_setting_owners.end() && owner->second != module_id ) {
+        return false;
+    }
+    world_setting_owners[id] = module_id;
+    world_setting_scopes[id] = scope;
+    return true;
+}
+
+int world_setting_register_bool( const char *module_id, const char *setting_id,
+                                 const char *display_name, const char *tooltip,
+                                 int default_value, uint32_t scope )
+{
+    if( !display_name || !tooltip || !claim_world_setting( module_id, setting_id, scope ) ) {
+        return 0;
+    }
+    return get_options().ncmm_register_world_bool( setting_id, to_translation( display_name ),
+            to_translation( tooltip ), default_value != 0 ) ? 1 : 0;
+}
+
+int world_setting_register_int( const char *module_id, const char *setting_id,
+                                const char *display_name, const char *tooltip,
+                                int min_value, int max_value, int default_value, uint32_t scope )
+{
+    if( !display_name || !tooltip || !claim_world_setting( module_id, setting_id, scope ) ) {
+        return 0;
+    }
+    return get_options().ncmm_register_world_int( setting_id, to_translation( display_name ),
+            to_translation( tooltip ), min_value, max_value, default_value ) ? 1 : 0;
+}
+
+int world_setting_register_float( const char *module_id, const char *setting_id,
+                                  const char *display_name, const char *tooltip,
+                                  double min_value, double max_value, double default_value,
+                                  double step, uint32_t scope )
+{
+    if( !display_name || !tooltip || !std::isfinite( min_value ) || !std::isfinite( max_value ) ||
+        !std::isfinite( default_value ) || !std::isfinite( step ) ||
+        !claim_world_setting( module_id, setting_id, scope ) ) {
+        return 0;
+    }
+    return get_options().ncmm_register_world_float( setting_id, to_translation( display_name ),
+            to_translation( tooltip ), static_cast<float>( min_value ), static_cast<float>( max_value ),
+            static_cast<float>( default_value ), static_cast<float>( step ) ) ? 1 : 0;
+}
+
+int world_setting_register_enum( const char *module_id, const char *setting_id,
+                                 const char *display_name, const char *tooltip,
+                                 const char *const *value_ids, const char *const *display_names,
+                                 size_t count, const char *default_value, uint32_t scope )
+{
+    if( !display_name || !tooltip || !value_ids || !display_names || !default_value ||
+        count == 0 || count > 64 || !claim_world_setting( module_id, setting_id, scope ) ) {
+        return 0;
+    }
+    std::vector<options_manager::id_and_option> items;
+    items.reserve( count );
+    for( size_t i = 0; i < count; ++i ) {
+        if( !value_ids[i] || !display_names[i] ) {
+            return 0;
+        }
+        items.emplace_back( value_ids[i], to_translation( display_names[i] ) );
+    }
+    return get_options().ncmm_register_world_enum( setting_id, to_translation( display_name ),
+            to_translation( tooltip ), items, default_value ) ? 1 : 0;
+}
+
+int world_setting_get_bool( const char *setting_id, int fallback )
+{
+    if( !safe_world_setting_id( setting_id ) || !get_options().has_option( setting_id ) ) {
+        return fallback;
+    }
+    const options_manager::cOpt &opt = get_options().get_option( setting_id );
+    if( opt.getType() != "bool" ) {
+        return fallback;
+    }
+    return opt.value_as<bool>() ? 1 : 0;
+}
+
+int64_t world_setting_get_i64( const char *setting_id, int64_t fallback )
+{
+    if( !safe_world_setting_id( setting_id ) || !get_options().has_option( setting_id ) ) {
+        return fallback;
+    }
+    const options_manager::cOpt &opt = get_options().get_option( setting_id );
+    if( opt.getType() != "int" && opt.getType() != "int_map" ) {
+        return fallback;
+    }
+    return static_cast<int64_t>( opt.value_as<int>() );
+}
+
+double world_setting_get_f64( const char *setting_id, double fallback )
+{
+    if( !safe_world_setting_id( setting_id ) || !get_options().has_option( setting_id ) ) {
+        return fallback;
+    }
+    const options_manager::cOpt &opt = get_options().get_option( setting_id );
+    if( opt.getType() != "float" ) {
+        return fallback;
+    }
+    return static_cast<double>( opt.value_as<float>() );
+}
+
+const char *world_setting_get_string( const char *setting_id, const char *fallback )
+{
+    world_setting_string_cache = fallback ? fallback : "";
+    if( !safe_world_setting_id( setting_id ) || !get_options().has_option( setting_id ) ) {
+        return world_setting_string_cache.c_str();
+    }
+    const options_manager::cOpt &opt = get_options().get_option( setting_id );
+    if( opt.getType() != "string_select" && opt.getType() != "string_input" && opt.getType() != "string" ) {
+        return world_setting_string_cache.c_str();
+    }
+    world_setting_string_cache = opt.value_as<std::string>();
+    return world_setting_string_cache.c_str();
+}
+size_t world_mod_count()
+{
+    if( world_generator == nullptr || world_generator->active_world == nullptr ) return 0;
+    return world_generator->active_world->active_mod_order.size();
+}
+
+const char *world_mod_id( size_t index )
+{
+    static thread_local std::string id_cache;
+    id_cache.clear();
+    if( world_generator == nullptr || world_generator->active_world == nullptr ) return nullptr;
+    const auto &mods = world_generator->active_world->active_mod_order;
+    if( index >= mods.size() ) return nullptr;
+    id_cache = mods[index].str();
+    return id_cache.c_str();
+}
 int can_expose_worldgen_option( const char *option_id )
 {
     if( !option_id ) {
@@ -230,6 +709,15 @@ int expose_worldgen_option( const char *option_id, const char *display_name, con
             to_translation( display_name ), to_translation( tooltip ) ) ? 1 : 0;
 }
 
+int worldgen_experimental_group_begin( const char *group_id, const char *display_name,
+                                       const char *tooltip )
+{
+    if( !group_id || !display_name || !tooltip ) {
+        return 0;
+    }
+    return get_options().ncmm_begin_experimental_group(
+               group_id, to_translation( display_name ), to_translation( tooltip ) ) ? 1 : 0;
+}
 int worldgen_group_begin( const char *group_id, const char *display_name, const char *tooltip )
 {
     if( !group_id || !display_name || !tooltip ) {
@@ -311,7 +799,8 @@ std::string character_state_key( const char *module_id, const char *key )
 
 int character_state_available()
 {
-    return g != nullptr && world_generator != nullptr && world_generator->active_world != nullptr ? 1 : 0;
+    return g != nullptr && !g->new_game && world_generator != nullptr &&
+           world_generator->active_world != nullptr ? 1 : 0;
 }
 
 int64_t character_state_get_i64( const char *module_id, const char *key, int64_t fallback )
@@ -349,6 +838,30 @@ int character_state_set_i64( const char *module_id, const char *key, int64_t val
     return 1;
 }
 
+int64_t gameplay_metric_get_i64( const char *metric_id )
+{
+    if( metric_id == nullptr || active_module_id.empty() || !character_state_available() ) {
+        return 0;
+    }
+
+    // get_event_bus() is a game-owned object.  NCMM initialize() runs from
+    // catacurses::init_interface, before game/event-bus lifetime is established.
+    // Subscribe only after character/world availability proves gameplay exists.
+    if( !gameplay_metrics_subscribed ) {
+        get_event_bus().subscribe( &gameplay_metrics );
+        gameplay_metrics_subscribed = true;
+        log_line( NCMM_LOG_INFO, "gameplay.metrics.v1 event subscription armed in gameplay." );
+    }
+
+    if( !gameplay_avatar_id_ready ) {
+        gameplay_avatar_id = get_avatar().getID();
+        gameplay_avatar_id_ready = true;
+    }
+
+    const auto it = gameplay_metric_values.find( metric_id );
+    return it == gameplay_metric_values.end() ? 0 : std::max<int64_t>( 0, it->second );
+}
+
 int ui_choose( const char *title, const char *const *entries, size_t count )
 {
     if( title == nullptr || entries == nullptr || count == 0 || count > 64 ) {
@@ -367,6 +880,1281 @@ int ui_choose( const char *title, const char *const *entries, size_t count )
     return menu.ret >= 0 && static_cast<size_t>( menu.ret ) < count ? menu.ret : -1;
 }
 
+int ui_tile_choose( const char *title, const char *const *labels,
+                    const char *const *details, size_t count, size_t requested_columns )
+{
+    if( title == nullptr || labels == nullptr || count == 0 || count > 16 ||
+        requested_columns == 0 || requested_columns > 4 ) {
+        return -1;
+    }
+    for( size_t i = 0; i < count; ++i ) {
+        if( labels[i] == nullptr ) {
+            return -1;
+        }
+    }
+
+    // Very small terminals keep the proven vertical selector instead of clipping tiles.
+    if( TERMX < 60 || TERMY < 18 ) {
+        return ui_choose( title, labels, count );
+    }
+
+    int columns = static_cast<int>( std::min( requested_columns, count ) );
+    constexpr int gap = 1;
+    constexpr int tile_height = 5;
+    constexpr int header_height = 4;
+
+    while( columns > 1 ) {
+        const int candidate = ( TERMX - 4 - gap * ( columns - 1 ) ) / columns;
+        if( candidate >= 18 ) {
+            break;
+        }
+        --columns;
+    }
+
+    const int rows = ( static_cast<int>( count ) + columns - 1 ) / columns;
+    const int tile_width = std::max( 18, std::min( 30,
+                           ( TERMX - 4 - gap * ( columns - 1 ) ) / columns ) );
+    const int frame_width = columns * tile_width + gap * ( columns - 1 ) + 2;
+    const int frame_height = header_height + rows * tile_height + 2;
+
+    if( frame_width > TERMX || frame_height > TERMY ) {
+        return ui_choose( title, labels, count );
+    }
+
+    const point origin( ( TERMX - frame_width ) / 2, ( TERMY - frame_height ) / 2 );
+    catacurses::window frame = catacurses::newwin( frame_height, frame_width, origin );
+
+    std::vector<catacurses::window> tiles;
+    tiles.reserve( count );
+    for( size_t i = 0; i < count; ++i ) {
+        const int col = static_cast<int>( i ) % columns;
+        const int row = static_cast<int>( i ) / columns;
+        const point pos( origin.x + 1 + col * ( tile_width + gap ),
+                         origin.y + header_height + row * tile_height );
+        tiles.push_back( catacurses::newwin( tile_height, tile_width, pos ) );
+    }
+
+    input_context ctxt( "NCMM_TILE_CHOOSE", keyboard_mode::keychar );
+    ctxt.register_cardinal();
+    ctxt.register_action( "CONFIRM" );
+    ctxt.register_action( "QUIT" );
+    ctxt.register_action( "HELP_KEYBINDINGS" );
+
+    int selected = 0;
+    ui_adaptor ui;
+    ui.position_from_window( frame );
+    ui.on_redraw( [&]( const ui_adaptor & ) {
+        werase( frame );
+        draw_border( frame, BORDER_COLOR );
+        fold_and_print( frame, point( 2, 1 ), frame_width - 4, c_light_gray, title );
+        ncmm_trim_and_print_literal( frame, point( 2, frame_height - 2 ), frame_width - 4, c_dark_gray,
+                        tr_ui( "Arrows: select  Enter: open  Esc: close",
+                               "Стрелки: выбор  Enter: открыть  Esc: закрыть" ) );
+        wnoutrefresh( frame );
+
+        for( size_t i = 0; i < tiles.size(); ++i ) {
+            catacurses::window &tile = tiles[i];
+            werase( tile );
+            const bool active = static_cast<int>( i ) == selected;
+            draw_border( tile, active ? c_light_green : BORDER_COLOR );
+            ncmm_trim_and_print_literal( tile, point( 2, 1 ), tile_width - 4,
+                            active ? c_white : c_light_gray, labels[i] );
+            if( details != nullptr && details[i] != nullptr && details[i][0] != '\0' ) {
+                ncmm_trim_and_print_literal( tile, point( 2, 2 ), tile_width - 4,
+                                active ? c_cyan : c_dark_gray, details[i] );
+            }
+            if( active ) {
+                mvwprintz( tile, point( 1, 1 ), c_light_green, ">" );
+            }
+            wnoutrefresh( tile );
+        }
+    } );
+
+    while( true ) {
+        ui_manager::redraw();
+        const std::string action = ctxt.handle_input();
+        const int col = selected % columns;
+        const int row = selected / columns;
+
+        if( action == "LEFT" ) {
+            if( col > 0 ) {
+                --selected;
+            }
+        } else if( action == "RIGHT" ) {
+            if( col + 1 < columns && selected + 1 < static_cast<int>( count ) ) {
+                ++selected;
+            }
+        } else if( action == "UP" ) {
+            if( row > 0 ) {
+                selected -= columns;
+            }
+        } else if( action == "DOWN" ) {
+            const int next = selected + columns;
+            if( next < static_cast<int>( count ) ) {
+                selected = next;
+            }
+        } else if( action == "CONFIRM" ) {
+            return selected;
+        } else if( action == "QUIT" ) {
+            return -1;
+        }
+    }
+}
+
+int ui_card_choose( const char *title, const char *summary,
+                    const ncmm_ui_progress_v1 *progress,
+                    const ncmm_ui_card_v1 *cards, size_t count, size_t requested_columns )
+{
+    if( title == nullptr || cards == nullptr || count == 0 || count > 128 ||
+        requested_columns == 0 || requested_columns > 4 ) {
+        return -1;
+    }
+    for( size_t i = 0; i < count; ++i ) {
+        if( cards[i].title == nullptr ) {
+            return -1;
+        }
+    }
+
+    if( TERMX < 64 || TERMY < 20 ) {
+        std::vector<const char *> fallback;
+        fallback.reserve( count );
+        for( size_t i = 0; i < count; ++i ) {
+            fallback.push_back( cards[i].title );
+        }
+        return ui_choose( title, fallback.data(), fallback.size() );
+    }
+
+    int columns = static_cast<int>( std::min( requested_columns, count ) );
+    constexpr int gap = 1;
+    constexpr int card_height = 8;
+    constexpr int header_height = 6;
+    constexpr int footer_height = 2;
+    const bool detail_panel = ncmm_ui_sectioned_detail() && TERMX >= 108;
+    const int requested_card_detail_width = active_ui_theme.preferred_detail_width > 0 ?
+                                            active_ui_theme.preferred_detail_width : 40;
+    const int card_detail_width = detail_panel ?
+                                  std::clamp( requested_card_detail_width, 34, 48 ) : 0;
+    const int card_detail_reserve = detail_panel ? card_detail_width + 1 : 0;
+
+    while( columns > 1 ) {
+        const int candidate = ( TERMX - 4 - card_detail_reserve - gap * ( columns - 1 ) ) / columns;
+        if( candidate >= 28 ) {
+            break;
+        }
+        --columns;
+    }
+
+    const int card_width = std::max( 28, std::min( 46,
+                           ( TERMX - 4 - card_detail_reserve - gap * ( columns - 1 ) ) / columns ) );
+    const int frame_width = columns * card_width + gap * ( columns - 1 ) + 2 + card_detail_reserve;
+    const int total_rows = ( static_cast<int>( count ) + columns - 1 ) / columns;
+    const int max_frame_height = std::max( header_height + card_height + footer_height,
+                                          TERMY - 2 );
+    const int visible_rows = std::max( 1, std::min( total_rows,
+                             ( max_frame_height - header_height - footer_height ) / card_height ) );
+    const int frame_height = header_height + visible_rows * card_height + footer_height;
+
+    if( frame_width > TERMX || frame_height > TERMY ) {
+        std::vector<const char *> fallback;
+        fallback.reserve( count );
+        for( size_t i = 0; i < count; ++i ) {
+            fallback.push_back( cards[i].title );
+        }
+        return ui_choose( title, fallback.data(), fallback.size() );
+    }
+
+    const point origin( ( TERMX - frame_width ) / 2, ( TERMY - frame_height ) / 2 );
+    catacurses::window frame = catacurses::newwin( frame_height, frame_width, origin );
+
+    std::vector<catacurses::window> slots;
+    slots.reserve( static_cast<size_t>( visible_rows * columns ) );
+    for( int row = 0; row < visible_rows; ++row ) {
+        for( int col = 0; col < columns; ++col ) {
+            const point pos( origin.x + 1 + col * ( card_width + gap ),
+                             origin.y + header_height + row * card_height );
+            slots.push_back( catacurses::newwin( card_height, card_width, pos ) );
+        }
+    }
+
+    input_context ctxt( "NCMM_CARD_CHOOSE", keyboard_mode::keychar );
+    ctxt.register_cardinal();
+    ctxt.register_action( "PAGE_UP" );
+    ctxt.register_action( "PAGE_DOWN" );
+    ctxt.register_action( "HOME" );
+    ctxt.register_action( "END" );
+    ctxt.register_action( "NEXT_TAB" );
+    ctxt.register_action( "CONFIRM" );
+    ctxt.register_action( "QUIT" );
+    ctxt.register_action( "MOUSE_MOVE" );
+    ctxt.register_action( "SELECT" );
+    ctxt.register_action( "SCROLL_UP" );
+    ctxt.register_action( "SCROLL_DOWN" );
+    ctxt.register_action( "HELP_KEYBINDINGS" );
+
+    int selected = 0;
+    int first_row = 0;
+
+    auto keep_visible = [&]() {
+        const int row = selected / columns;
+        if( row < first_row ) {
+            first_row = row;
+        } else if( row >= first_row + visible_rows ) {
+            first_row = row - visible_rows + 1;
+        }
+        first_row = std::max( 0, std::min( first_row,
+                         std::max( 0, total_rows - visible_rows ) ) );
+    };
+
+    auto card_at = [&]( const point &p ) -> int {
+        if( p.y < header_height || p.y >= header_height + visible_rows * card_height ||
+            p.x < 1 ) {
+            return -1;
+        }
+        const int local_x = p.x - 1;
+        const int slot_span = card_width + gap;
+        const int col = local_x / slot_span;
+        const int inside_x = local_x % slot_span;
+        const int row = ( p.y - header_height ) / card_height;
+        if( col < 0 || col >= columns || row < 0 || row >= visible_rows ||
+            inside_x < 0 || inside_x >= card_width ) {
+            return -1;
+        }
+        const int index = ( first_row + row ) * columns + col;
+        return index >= 0 && index < static_cast<int>( count ) ? index : -1;
+    };
+
+    ui_adaptor ui;
+    ui.position_from_window( frame );
+    ui.on_redraw( [&]( const ui_adaptor & ) {
+        werase( frame );
+        draw_border( frame, BORDER_COLOR );
+        ncmm_trim_and_print_literal( frame, point( 2, 1 ), frame_width - 4,
+                                    ncmm_ui_theme_enabled() ? ncmm_ui_theme_accent() : c_white, title );
+
+        if( summary != nullptr && summary[0] != '\0' ) {
+            const std::vector<std::string> lines = foldstring( summary, frame_width - 4 );
+            for( size_t i = 0; i < std::min<size_t>( 2, lines.size() ); ++i ) {
+                ncmm_trim_and_print_literal( frame, point( 2, 2 + static_cast<int>( i ) ),
+                                            frame_width - 4, c_light_gray, lines[i] );
+            }
+        }
+
+        if( progress != nullptr && progress->maximum > 0 ) {
+            const int64_t maximum = std::max<int64_t>( 1, progress->maximum );
+            const int64_t current = std::max<int64_t>( 0, std::min( progress->current, maximum ) );
+            const int percent = static_cast<int>( std::llround(
+                static_cast<long double>( current ) * 100.0L /
+                static_cast<long double>( maximum ) ) );
+            std::string line = progress->label ? progress->label : "";
+            if( !line.empty() ) {
+                line += "  ";
+            }
+            const int bar_width = 18;
+            const int filled = std::max( 0, std::min( bar_width,
+                               static_cast<int>( std::llround( percent * bar_width / 100.0 ) ) ) );
+            line += "[" + std::string( static_cast<size_t>( filled ), '#' ) +
+                    std::string( static_cast<size_t>( bar_width - filled ), '-' ) + "] " +
+                    std::to_string( percent ) + "%";
+            ncmm_trim_and_print_literal( frame, point( 2, 4 ), frame_width - 4,
+                                        ncmm_ui_theme_enabled() ? ncmm_ui_theme_accent() : c_light_green, line );
+        }
+
+        std::string footer = tr_ui(
+            "Mouse: hover/click/wheel  Tab: tree  Enter: open  Esc: back",
+            "Мышь: наведение/клик/колесо  Tab: дерево  Enter: открыть  Esc: назад" );
+        footer += "  " + std::to_string( selected + 1 ) + "/" + std::to_string( count );
+        ncmm_trim_and_print_literal( frame, point( 2, frame_height - 2 ),
+                                    frame_width - 4, c_dark_gray, footer );
+
+        if( detail_panel ) {
+            const int divider_x = 1 + columns * card_width + gap * ( columns - 1 );
+            for( int y = header_height - 1; y < frame_height - footer_height; ++y ) {
+                mvwaddch( frame, point( divider_x, y ), LINE_XOXO );
+            }
+            ncmm_trim_and_print_literal( frame, point( divider_x + 2, header_height - 1 ),
+                                        card_detail_width - 3, c_dark_gray,
+                                        tr_ui( "DETAIL", "ДЕТАЛИ" ) );
+
+            const ncmm_ui_card_v1 &detail = cards[selected];
+            const int dx = divider_x + 2;
+            int dy = header_height;
+            const nc_color detail_accent = ncmm_ui_theme_enabled( static_cast<size_t>( selected ) ) ?
+                                           ncmm_ui_theme_accent( static_cast<size_t>( selected ) ) : c_white;
+            const std::vector<std::string> detail_title =
+                foldstring( detail.title ? detail.title : "", card_detail_width - 3 );
+            for( size_t line = 0; line < std::min<size_t>( 2, detail_title.size() ); ++line ) {
+                ncmm_trim_and_print_literal( frame, point( dx, dy++ ), card_detail_width - 3,
+                                            detail_accent, detail_title[line] );
+            }
+            if( detail.subtitle && detail.subtitle[0] != '\0' ) {
+                ncmm_trim_and_print_literal( frame, point( dx, dy++ ), card_detail_width - 3,
+                                            c_light_gray, detail.subtitle );
+            }
+            if( detail.badge && detail.badge[0] != '\0' ) {
+                ncmm_trim_and_print_literal( frame, point( dx, dy++ ), card_detail_width - 3,
+                                            detail_accent, detail.badge );
+            }
+            ++dy;
+            if( detail.body && detail.body[0] != '\0' ) {
+                const std::vector<std::string> folded = foldstring( detail.body, card_detail_width - 3 );
+                const int max_lines = std::max( 1, frame_height - footer_height - dy - 1 );
+                for( int line = 0; line < std::min<int>( max_lines, folded.size() ); ++line ) {
+                    nc_color detail_color = c_light_gray;
+                    if( folded[line] == "HOW TO GAIN XP:" || folded[line] == "КАК КАЧАТЬ:" ||
+                        folded[line] == "PROGRESSION:" || folded[line] == "ПРОГРЕСС:" ) {
+                        detail_color = c_light_green;
+                    } else if( folded[line] == "EFFICIENCY:" || folded[line] == "ЭФФЕКТИВНОСТЬ:" ) {
+                        detail_color = c_yellow;
+                    }
+                    ncmm_trim_and_print_literal( frame, point( dx, dy + line ), card_detail_width - 3,
+                                                detail_color, folded[line] );
+                }
+            }
+        }
+
+        wnoutrefresh( frame );
+
+        const int first_index = first_row * columns;
+        for( size_t slot = 0; slot < slots.size(); ++slot ) {
+            catacurses::window &card_win = slots[slot];
+            werase( card_win );
+            const int index = first_index + static_cast<int>( slot );
+            if( index >= static_cast<int>( count ) ) {
+                wnoutrefresh( card_win );
+                continue;
+            }
+
+            const ncmm_ui_card_v1 &card = cards[index];
+            const bool active = index == selected;
+            const bool owned = ( card.flags & NCMM_UI_CARD_OWNED ) != 0;
+            const bool locked = ( card.flags & NCMM_UI_CARD_LOCKED ) != 0;
+            const bool effect = ( card.flags & NCMM_UI_CARD_EFFECT ) != 0;
+            const bool major = ( card.flags & NCMM_UI_CARD_MAJOR ) != 0;
+            const bool accent = ( card.flags & NCMM_UI_CARD_ACCENT ) != 0;
+
+            const bool themed = ncmm_ui_theme_enabled( static_cast<size_t>( index ) );
+            const uint32_t border_style = ncmm_ui_border_style_id( static_cast<size_t>( index ) );
+            const nc_color theme_accent = ncmm_ui_theme_accent( static_cast<size_t>( index ) );
+            const nc_color border = active ? ( themed ? hilite( theme_accent ) : c_light_green ) :
+                                    border_style == NCMM_UI_BORDER_PRIME ? c_white :
+                                    border_style == NCMM_UI_BORDER_MAJOR ? c_yellow :
+                                    border_style == NCMM_UI_BORDER_EXCLUDED ? c_dark_gray :
+                                    themed ? theme_accent :
+                                    owned ? c_cyan :
+                                    major ? c_yellow :
+                                    accent ? c_light_blue :
+                                    effect ? c_magenta : BORDER_COLOR;
+            const nc_color title_color = locked || border_style == NCMM_UI_BORDER_EXCLUDED ? c_dark_gray :
+                                          active ? c_white :
+                                          border_style == NCMM_UI_BORDER_PRIME ? c_white :
+                                          themed ? theme_accent : c_light_gray;
+            draw_border( card_win, border );
+
+            ncmm_trim_and_print_literal( card_win, point( 2, 1 ), card_width - 4,
+                                        title_color, card.title ? card.title : "" );
+            if( card.subtitle != nullptr && card.subtitle[0] != '\0' ) {
+                ncmm_trim_and_print_literal( card_win, point( 2, 2 ), card_width - 4,
+                                            locked ? c_dark_gray : c_light_gray, card.subtitle );
+            }
+            if( card.body != nullptr && card.body[0] != '\0' ) {
+                const std::vector<std::string> folded = foldstring( card.body, card_width - 4 );
+                const size_t card_body_lines = detail_panel ? 1 : 3;
+                for( size_t line = 0; line < std::min<size_t>( card_body_lines, folded.size() ); ++line ) {
+                    ncmm_trim_and_print_literal( card_win,
+                                                point( 2, 3 + static_cast<int>( line ) ),
+                                                card_width - 4,
+                                                locked ? c_dark_gray :
+                                                active ? c_cyan : c_light_gray,
+                                                folded[line] );
+                }
+            }
+            if( card.badge != nullptr && card.badge[0] != '\0' ) {
+                ncmm_trim_and_print_literal( card_win, point( 2, card_height - 2 ),
+                                            card_width - 4,
+                                            owned ? c_cyan :
+                                            major ? c_yellow :
+                                            effect ? c_magenta :
+                                            locked ? c_dark_gray : c_green,
+                                            card.badge );
+            }
+            const char *marker = active ? ">" :
+                                 border_style == NCMM_UI_BORDER_PRIME ? "*" :
+                                 border_style == NCMM_UI_BORDER_MAJOR ? "+" :
+                                 border_style == NCMM_UI_BORDER_EXCLUDED ? "x" :
+                                 ( themed && ( active_ui_layout_flags & NCMM_UI_THEME_STRONG_BORDER ) ? "*" : nullptr );
+            if( marker != nullptr ) {
+                mvwprintz( card_win, point( 1, 1 ),
+                           border_style == NCMM_UI_BORDER_EXCLUDED ? c_dark_gray :
+                           ( themed ? theme_accent : c_light_green ), marker );
+            }
+            wnoutrefresh( card_win );
+        }
+    } );
+
+    while( true ) {
+        keep_visible();
+        ui_manager::redraw();
+        const std::string action = ctxt.handle_input();
+
+        if( action == "MOUSE_MOVE" || action == "SELECT" ) {
+            const std::optional<point> mouse = ctxt.get_coordinates_text( frame );
+            if( mouse ) {
+                const int hit = card_at( *mouse );
+                if( hit >= 0 ) {
+                    selected = hit;
+                    if( action == "SELECT" ) {
+                        return selected;
+                    }
+                }
+            }
+            continue;
+        }
+
+        const int col = selected % columns;
+        const int row = selected / columns;
+
+        if( action == "LEFT" ) {
+            if( col > 0 ) --selected;
+        } else if( action == "RIGHT" ) {
+            if( col + 1 < columns && selected + 1 < static_cast<int>( count ) ) ++selected;
+        } else if( action == "UP" || action == "SCROLL_UP" ) {
+            if( row > 0 ) selected = std::max( 0, selected - columns );
+        } else if( action == "DOWN" || action == "SCROLL_DOWN" ) {
+            const int next = selected + columns;
+            if( next < static_cast<int>( count ) ) selected = next;
+        } else if( action == "PAGE_UP" ) {
+            selected = std::max( 0, selected - visible_rows * columns );
+        } else if( action == "PAGE_DOWN" ) {
+            selected = std::min( static_cast<int>( count ) - 1,
+                                 selected + visible_rows * columns );
+        } else if( action == "HOME" ) {
+            selected = 0;
+        } else if( action == "END" ) {
+            selected = static_cast<int>( count ) - 1;
+        } else if( action == "NEXT_TAB" ) {
+            return NCMM_UI_CARD_SHOW_TREE;
+        } else if( action == "CONFIRM" ) {
+            return selected;
+        } else if( action == "QUIT" ) {
+            return -1;
+        }
+    }
+}
+
+int ui_tree_choose( const char *title, const char *summary,
+                    const ncmm_ui_progress_v1 *progress,
+                    const ncmm_ui_tree_node_v1 *nodes, size_t node_count,
+                    const ncmm_ui_tree_edge_v1 *edges, size_t edge_count )
+{
+    if( title == nullptr || nodes == nullptr || node_count == 0 || node_count > 64 ||
+        edge_count > 128 || ( edge_count > 0 && edges == nullptr ) ) {
+        return NCMM_UI_TREE_CANCEL;
+    }
+
+    int max_row = 0;
+    for( size_t i = 0; i < node_count; ++i ) {
+        if( nodes[i].title == nullptr || nodes[i].row < 0 || nodes[i].column < 0 ||
+            nodes[i].row > 31 || nodes[i].column > 7 ) {
+            return NCMM_UI_TREE_CANCEL;
+        }
+        max_row = std::max( max_row, nodes[i].row );
+    }
+    for( size_t i = 0; i < edge_count; ++i ) {
+        if( edges[i].from_index >= node_count || edges[i].to_index >= node_count ) {
+            return NCMM_UI_TREE_CANCEL;
+        }
+    }
+
+    std::vector<int> layout_x2( node_count, 0 );
+    for( size_t i = 0; i < node_count; ++i ) {
+        layout_x2[i] = nodes[i].column * 2;
+    }
+    for( int pass = 0; pass < 3; ++pass ) {
+        for( size_t i = 0; i < node_count; ++i ) {
+            if( ncmm_ui_border_style_id( i ) == NCMM_UI_BORDER_PRIME ) {
+                continue;
+            }
+            int parent_count = 0;
+            int parent_min = 1000000;
+            int parent_max = -1000000;
+            size_t single_parent = 0;
+            for( size_t e = 0; e < edge_count; ++e ) {
+                if( edges[e].to_index != i ) continue;
+                const size_t parent = edges[e].from_index;
+                parent_min = std::min( parent_min, layout_x2[parent] );
+                parent_max = std::max( parent_max, layout_x2[parent] );
+                single_parent = parent;
+                ++parent_count;
+            }
+            if( parent_count >= 2 ) {
+                layout_x2[i] = ( parent_min + parent_max ) / 2;
+            } else if( parent_count == 1 &&
+                       nodes[i].column == nodes[single_parent].column ) {
+                layout_x2[i] = layout_x2[single_parent];
+            }
+        }
+    }
+
+    // NCMM HOTFIX13: keep every multi-node row physically non-overlapping after routing.
+    // Singleton rows retain parent-centering; siblings use declared lanes with a one-lane minimum gap.
+    std::map<int, std::vector<size_t>> ncmm_row_nodes;
+    for( size_t i = 0; i < node_count; ++i ) {
+        ncmm_row_nodes[nodes[i].row].push_back( i );
+    }
+    for( auto &row_entry : ncmm_row_nodes ) {
+        std::vector<size_t> &row_nodes = row_entry.second;
+        if( row_nodes.size() < 2 ) {
+            continue;
+        }
+        std::stable_sort( row_nodes.begin(), row_nodes.end(), [&]( size_t lhs, size_t rhs ) {
+            if( nodes[lhs].column != nodes[rhs].column ) {
+                return nodes[lhs].column < nodes[rhs].column;
+            }
+            return lhs < rhs;
+        } );
+        int next_x2 = nodes[row_nodes.front()].column * 2;
+        for( size_t index : row_nodes ) {
+            const int declared_x2 = nodes[index].column * 2;
+            next_x2 = std::max( next_x2, declared_x2 );
+            layout_x2[index] = next_x2;
+            next_x2 += 2;
+        }
+    }
+
+    int max_layout_x2 = 0;
+    for( int x2 : layout_x2 ) max_layout_x2 = std::max( max_layout_x2, x2 );
+
+    if( TERMX < 118 || TERMY < 28 ) {
+        std::vector<ncmm_ui_card_v1> cards;
+        cards.reserve( node_count );
+        for( size_t i = 0; i < node_count; ++i ) {
+            cards.push_back( {
+                nodes[i].id, nodes[i].title, nodes[i].subtitle, nodes[i].body,
+                nodes[i].badge, nodes[i].icon_key, nodes[i].flags
+            } );
+        }
+        return ui_card_choose( title, summary, progress, cards.data(), cards.size(), 2 );
+    }
+
+    const int requested_node_width = active_ui_theme.preferred_node_width > 0 ?
+                                     active_ui_theme.preferred_node_width :
+                                     ( ( active_ui_theme.flags & NCMM_UI_THEME_WIDE_NODES ) ? 30 : 24 );
+    const int requested_detail_width = active_ui_theme.preferred_detail_width > 0 ?
+                                       active_ui_theme.preferred_detail_width : 42;
+    int node_width = std::clamp( requested_node_width, 24, 34 );
+    constexpr int node_height = 6;
+    constexpr int hgap = 2;
+    constexpr int vgap = 1;
+    constexpr int header_height = 6;
+    constexpr int footer_height = 2;
+    int detail_width = std::clamp( requested_detail_width, 38, 54 );
+
+    // Preserve every logical tree column before spending horizontal space on
+    // cosmetic width.  Large displays get the requested 30-char Survivor
+    // nodes; narrower terminals automatically step down to the proven 24-char
+    // geometry instead of silently clipping the right-hand branch.
+    const auto required_tree_width = [&]( int candidate_node, int candidate_detail ) {
+        const int candidate_lane = candidate_node + hgap;
+        const int candidate_tree = candidate_node +
+                                   ( max_layout_x2 * candidate_lane + 1 ) / 2;
+        return candidate_tree + candidate_detail + 7;
+    };
+    while( detail_width > 38 && required_tree_width( node_width, detail_width ) > TERMX - 2 ) {
+        --detail_width;
+    }
+    while( node_width > 24 && required_tree_width( node_width, detail_width ) > TERMX - 2 ) {
+        --node_width;
+    }
+
+    const int lane_step = node_width + hgap;
+    const int logical_tree_width = node_width + ( max_layout_x2 * lane_step + 1 ) / 2;
+    const int frame_width = std::min( TERMX - 2, logical_tree_width + detail_width + 7 );
+    const int canvas_width = frame_width - detail_width - 4;
+    const int available_height = TERMY - 2 - header_height - footer_height;
+    const int max_visible_rows = std::max( 1, ( available_height + vgap ) /
+                                          ( node_height + vgap ) );
+    const int visible_rows = std::min( max_row + 1, max_visible_rows );
+    const int tree_height = visible_rows * node_height +
+                            std::max( 0, visible_rows - 1 ) * vgap;
+    const int frame_height = std::min( TERMY - 2,
+                                      header_height + tree_height + footer_height );
+
+    const point origin( ( TERMX - frame_width ) / 2, ( TERMY - frame_height ) / 2 );
+    catacurses::window frame = catacurses::newwin( frame_height, frame_width, origin );
+
+    input_context ctxt( "NCMM_TREE_CHOOSE", keyboard_mode::keychar );
+    ctxt.register_cardinal();
+    ctxt.register_action( "PAGE_UP" );
+    ctxt.register_action( "PAGE_DOWN" );
+    ctxt.register_action( "HOME" );
+    ctxt.register_action( "END" );
+    ctxt.register_action( "NEXT_TAB" );
+    ctxt.register_action( "CONFIRM" );
+    ctxt.register_action( "QUIT" );
+    ctxt.register_action( "MOUSE_MOVE" );
+    ctxt.register_action( "SELECT" );
+    ctxt.register_action( "SCROLL_UP" );
+    ctxt.register_action( "SCROLL_DOWN" );
+    ctxt.register_action( "HELP_KEYBINDINGS" );
+
+    int selected = 0;
+    int first_row = 0;
+    int first_x = 0;
+    const int max_first_x = std::max( 0, logical_tree_width - canvas_width + 1 );
+
+    auto logical_node_x = [&]( size_t i ) {
+        return 2 + ( layout_x2[i] * lane_step + 1 ) / 2;
+    };
+
+    auto keep_visible = [&]() {
+        const int row = nodes[selected].row;
+        if( row < first_row ) first_row = row;
+        else if( row >= first_row + visible_rows ) first_row = row - visible_rows + 1;
+        first_row = std::max( 0, std::min( first_row,
+                         std::max( 0, max_row - visible_rows + 1 ) ) );
+
+        if( ncmm_ui_horizontal_viewport() ) {
+            int row_left = 1000000;
+            int row_right = -1000000;
+            for( size_t i = 0; i < node_count; ++i ) {
+                if( nodes[i].row != row ) continue;
+                const int candidate_left = logical_node_x( i );
+                row_left = std::min( row_left, candidate_left );
+                row_right = std::max( row_right, candidate_left + node_width - 1 );
+            }
+
+            // If the entire logical row fits, show it as a group.  This is crucial
+            // for the three-way Prime choice: all alternatives remain visible at once.
+            if( row_left <= row_right && row_right - row_left + 1 < canvas_width ) {
+                first_x = row_left - 2;
+            } else {
+                const int left = logical_node_x( static_cast<size_t>( selected ) );
+                const int right = left + node_width - 1;
+                if( left - first_x < 2 ) {
+                    first_x = left - 2;
+                } else if( right - first_x >= canvas_width + 2 ) {
+                    first_x = right - canvas_width;
+                }
+            }
+            first_x = std::max( 0, std::min( first_x, max_first_x ) );
+        } else {
+            first_x = 0;
+        }
+    };
+
+    auto node_x = [&]( size_t i ) {
+        return logical_node_x( i ) - first_x;
+    };
+    auto node_y = [&]( size_t i ) {
+        return header_height + ( nodes[i].row - first_row ) * ( node_height + vgap );
+    };
+    auto visible = [&]( size_t i ) {
+        const int x = node_x( i );
+        return nodes[i].row >= first_row && nodes[i].row < first_row + visible_rows &&
+               x >= 2 && x + node_width < canvas_width + 2;
+    };
+    auto node_at = [&]( const point &p ) -> int {
+        for( size_t i = 0; i < node_count; ++i ) {
+            if( !visible( i ) ) continue;
+            const int x = node_x( i );
+            const int y = node_y( i );
+            if( p.x >= x && p.x < x + node_width &&
+                p.y >= y && p.y < y + node_height ) {
+                return static_cast<int>( i );
+            }
+        }
+        return -1;
+    };
+
+    // v7: logical navigation follows the declared tree grid instead of the
+    // post-routing layout_x2.  This prevents multi-row jumps and makes every
+    // tile on an occupied row reachable by arrows.
+    auto select_direction = [&]( int row_sign, int col_sign ) {
+        const int sr = nodes[selected].row;
+        const int sc = nodes[selected].column;
+        int best = -1;
+
+        if( row_sign != 0 ) {
+            int nearest_row_delta = 1000000;
+            for( size_t i = 0; i < node_count; ++i ) {
+                if( static_cast<int>( i ) == selected ) {
+                    continue;
+                }
+                const int dr = nodes[i].row - sr;
+                if( ( row_sign < 0 && dr >= 0 ) || ( row_sign > 0 && dr <= 0 ) ) {
+                    continue;
+                }
+                nearest_row_delta = std::min( nearest_row_delta, std::abs( dr ) );
+            }
+            if( nearest_row_delta == 1000000 ) {
+                return;
+            }
+
+            int best_col_delta = 1000000;
+            int best_declared_col = 1000000;
+            for( size_t i = 0; i < node_count; ++i ) {
+                if( static_cast<int>( i ) == selected ) {
+                    continue;
+                }
+                const int dr = nodes[i].row - sr;
+                if( ( row_sign < 0 && dr >= 0 ) || ( row_sign > 0 && dr <= 0 ) ||
+                    std::abs( dr ) != nearest_row_delta ) {
+                    continue;
+                }
+                const int col_delta = std::abs( nodes[i].column - sc );
+                if( col_delta < best_col_delta ||
+                    ( col_delta == best_col_delta && nodes[i].column < best_declared_col ) ) {
+                    best_col_delta = col_delta;
+                    best_declared_col = nodes[i].column;
+                    best = static_cast<int>( i );
+                }
+            }
+        } else if( col_sign != 0 ) {
+            int nearest_col_delta = 1000000;
+            for( size_t i = 0; i < node_count; ++i ) {
+                if( static_cast<int>( i ) == selected || nodes[i].row != sr ) {
+                    continue;
+                }
+                const int dc = nodes[i].column - sc;
+                if( ( col_sign < 0 && dc >= 0 ) || ( col_sign > 0 && dc <= 0 ) ) {
+                    continue;
+                }
+                const int col_delta = std::abs( dc );
+                if( col_delta < nearest_col_delta ) {
+                    nearest_col_delta = col_delta;
+                    best = static_cast<int>( i );
+                }
+            }
+        }
+
+        if( best >= 0 ) {
+            selected = best;
+        }
+    };
+
+    ui_adaptor ui;
+    ui.position_from_window( frame );
+    ui.on_redraw( [&]( const ui_adaptor & ) {
+        werase( frame );
+        draw_border( frame, BORDER_COLOR );
+        ncmm_trim_and_print_literal( frame, point( 2, 1 ), frame_width - 4,
+                                    ncmm_ui_theme_enabled() ? ncmm_ui_theme_accent() : c_white, title );
+
+        if( summary != nullptr && summary[0] != '\0' ) {
+            const std::vector<std::string> lines = foldstring( summary, frame_width - 4 );
+            for( size_t i = 0; i < std::min<size_t>( 2, lines.size() ); ++i ) {
+                ncmm_trim_and_print_literal( frame, point( 2, 2 + static_cast<int>( i ) ),
+                                            frame_width - 4, c_light_gray, lines[i] );
+            }
+        }
+
+        if( progress != nullptr && progress->maximum > 0 ) {
+            const int64_t maximum = std::max<int64_t>( 1, progress->maximum );
+            const int64_t current = std::max<int64_t>( 0, std::min( progress->current, maximum ) );
+            const int percent = static_cast<int>( std::llround(
+                static_cast<long double>( current ) * 100.0L /
+                static_cast<long double>( maximum ) ) );
+            std::string line = progress->label ? progress->label : "";
+            if( !line.empty() ) line += "  ";
+            const int bar_width = 18;
+            const int filled = std::max( 0, std::min( bar_width,
+                               static_cast<int>( std::llround( percent * bar_width / 100.0 ) ) ) );
+            line += "[" + std::string( static_cast<size_t>( filled ), '#' ) +
+                    std::string( static_cast<size_t>( bar_width - filled ), '-' ) + "] " +
+                    std::to_string( percent ) + "%";
+            ncmm_trim_and_print_literal( frame, point( 2, 4 ), frame_width - 4,
+                                        ncmm_ui_theme_enabled() ? ncmm_ui_theme_accent() : c_light_green, line );
+        }
+
+        const int divider_x = frame_width - detail_width - 2;
+        for( int x = 1; x < divider_x; ++x ) {
+            mvwaddch( frame, point( x, header_height - 1 ), LINE_OXOX );
+        }
+        for( int y = header_height - 1; y < frame_height - footer_height; ++y ) {
+            mvwaddch( frame, point( divider_x, y ), LINE_XOXO );
+        }
+        ncmm_trim_and_print_literal( frame, point( divider_x + 2, header_height - 1 ),
+                                    detail_width - 3, c_dark_gray, tr_ui( "DETAIL", "ДЕТАЛИ" ) );
+
+        // 0.9.11: obstacle-safe dependency graph.
+        // Connectors no longer encode perk type with milestone/effect colors.
+        // Nodes carry semantic color; edges stay neutral, with only the edge
+        // touching the current selection highlighted.  Every committed edge is
+        // a complete BFS path, so a blocked horizontal leg can never appear as
+        // a visually broken half-connector.
+        constexpr int edge_n = 1;
+        constexpr int edge_e = 2;
+        constexpr int edge_s = 4;
+        constexpr int edge_w = 8;
+        const int grid_size = frame_width * frame_height;
+        std::vector<int> edge_mask( static_cast<size_t>( grid_size ), 0 );
+        std::vector<int> edge_style( static_cast<size_t>( grid_size ), 0 );
+        std::vector<std::array<int, 4>> blocked_rects;
+        blocked_rects.reserve( node_count );
+
+        for( size_t i = 0; i < node_count; ++i ) {
+            if( !visible( i ) ) {
+                continue;
+            }
+            const int bx = node_x( i );
+            const int by = node_y( i );
+            blocked_rects.push_back( {{ bx, by, bx + node_width - 1, by + node_height - 1 }} );
+        }
+
+        auto grid_index = [&]( int x, int y ) {
+            return y * frame_width + x;
+        };
+        auto is_blocked = [&]( int x, int y ) {
+            for( const std::array<int, 4> &r : blocked_rects ) {
+                if( x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3] ) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        auto mark_dir = [&]( int x, int y, int dir, int style ) {
+            if( x <= 0 || x >= divider_x || y < header_height ||
+                y >= frame_height - footer_height || is_blocked( x, y ) ) {
+                return;
+            }
+            const int index = grid_index( x, y );
+            edge_mask[index] |= dir;
+            edge_style[index] = std::max( edge_style[index], style );
+        };
+        auto connect_cells = [&]( int ax, int ay, int bx, int by, int style ) {
+            if( ax == bx && by == ay + 1 ) {
+                mark_dir( ax, ay, edge_s, style );
+                mark_dir( bx, by, edge_n, style );
+            } else if( ax == bx && by == ay - 1 ) {
+                mark_dir( ax, ay, edge_n, style );
+                mark_dir( bx, by, edge_s, style );
+            } else if( ay == by && bx == ax + 1 ) {
+                mark_dir( ax, ay, edge_e, style );
+                mark_dir( bx, by, edge_w, style );
+            } else if( ay == by && bx == ax - 1 ) {
+                mark_dir( ax, ay, edge_w, style );
+                mark_dir( bx, by, edge_e, style );
+            }
+        };
+        auto color_for_style = [&]( int style ) {
+            if( style >= 2 ) return c_light_green;
+            if( style == 1 ) return c_light_gray;
+            return c_dark_gray;
+        };
+        auto glyph_for_mask = [&]( int mask ) -> int {
+            const bool n = ( mask & edge_n ) != 0;
+            const bool e = ( mask & edge_e ) != 0;
+            const bool s = ( mask & edge_s ) != 0;
+            const bool w = ( mask & edge_w ) != 0;
+            if( n && e && s && w ) return LINE_XXXX;
+            if( n && e && s ) return LINE_XXXO;
+            if( n && e && w ) return LINE_XXOX;
+            if( n && s && w ) return LINE_XOXX;
+            if( e && s && w ) return LINE_OXXX;
+            if( n && e ) return LINE_XXOO;
+            if( e && s ) return LINE_OXXO;
+            if( s && w ) return LINE_OOXX;
+            if( n && w ) return LINE_XOOX;
+            if( n || s ) return LINE_XOXO;
+            return LINE_OXOX;
+        };
+
+        std::vector<bool> has_incoming( node_count, false );
+        std::vector<bool> has_outgoing( node_count, false );
+
+        // v8.7.6.1: focus the selected node's actual dependency chain.  Ancestors
+        // and descendants are propagated separately so sibling branches do not
+        // become highlighted merely because they share a common parent.
+        std::vector<bool> dependency_ancestor( node_count, false );
+        std::vector<bool> dependency_descendant( node_count, false );
+        std::vector<bool> dependency_related( node_count, false );
+        dependency_ancestor[static_cast<size_t>( selected )] = true;
+        dependency_descendant[static_cast<size_t>( selected )] = true;
+        for( size_t pass = 0; pass < node_count; ++pass ) {
+            bool changed = false;
+            for( size_t e = 0; e < edge_count; ++e ) {
+                const size_t from = edges[e].from_index;
+                const size_t to = edges[e].to_index;
+                if( dependency_ancestor[to] && !dependency_ancestor[from] ) {
+                    dependency_ancestor[from] = true;
+                    changed = true;
+                }
+                if( dependency_descendant[from] && !dependency_descendant[to] ) {
+                    dependency_descendant[to] = true;
+                    changed = true;
+                }
+            }
+            if( !changed ) break;
+        }
+        for( size_t i = 0; i < node_count; ++i ) {
+            dependency_related[i] = dependency_ancestor[i] || dependency_descendant[i];
+        }
+
+        for( size_t e = 0; e < edge_count; ++e ) {
+            const size_t from = edges[e].from_index;
+            const size_t to = edges[e].to_index;
+            if( !visible( from ) || !visible( to ) ) {
+                continue;
+            }
+
+            const int x1 = node_x( from ) + node_width / 2;
+            const int y1 = node_y( from ) + node_height;
+            const int x2 = node_x( to ) + node_width / 2;
+            const int y2 = node_y( to ) - 1;
+            if( y2 < y1 || x1 <= 0 || x1 >= divider_x ||
+                x2 <= 0 || x2 >= divider_x ) {
+                continue;
+            }
+
+            const bool related_to_selection =
+                ( dependency_ancestor[from] && dependency_ancestor[to] ) ||
+                ( dependency_descendant[from] && dependency_descendant[to] );
+            const int style = related_to_selection ? 2 : 0;
+
+            const int start_index = grid_index( x1, y1 );
+            const int goal_index = grid_index( x2, y2 );
+            std::vector<int> previous( static_cast<size_t>( grid_size ), -1 );
+            std::vector<int> frontier;
+            frontier.reserve( static_cast<size_t>( grid_size ) );
+            previous[start_index] = start_index;
+            frontier.push_back( start_index );
+
+            size_t head = 0;
+            while( head < frontier.size() && previous[goal_index] < 0 ) {
+                const int current = frontier[head++];
+                const int cx = current % frame_width;
+                const int cy = current / frame_width;
+
+                // Prefer downward movement first: dependency trees remain easy to read,
+                // while BFS still guarantees a complete route around every tile.
+                const std::array<std::pair<int, int>, 4> directions = {{
+                    { 0, 1 }, { x2 >= cx ? 1 : -1, 0 },
+                    { x2 >= cx ? -1 : 1, 0 }, { 0, -1 }
+                }};
+                for( const auto &dir : directions ) {
+                    const int nx = cx + dir.first;
+                    const int ny = cy + dir.second;
+                    if( nx <= 0 || nx >= divider_x || ny < header_height ||
+                        ny >= frame_height - footer_height ) {
+                        continue;
+                    }
+                    if( is_blocked( nx, ny ) && !( nx == x2 && ny == y2 ) ) {
+                        continue;
+                    }
+                    const int next = grid_index( nx, ny );
+                    if( previous[next] >= 0 ) {
+                        continue;
+                    }
+                    previous[next] = current;
+                    frontier.push_back( next );
+                }
+            }
+
+            // Never draw a partial connector.  If no complete path exists in the
+            // visible canvas, omit this edge for the current scroll window.
+            if( previous[goal_index] < 0 ) {
+                continue;
+            }
+
+            // Only expose the border tees after a COMPLETE connector exists.
+            // This prevents the apparent one-cell "broken line" stubs that
+            // v1 could leave when routing failed in the current scroll window.
+            has_outgoing[from] = true;
+            has_incoming[to] = true;
+
+            std::vector<int> path;
+            for( int at = goal_index; ; at = previous[at] ) {
+                path.push_back( at );
+                if( at == start_index ) {
+                    break;
+                }
+            }
+            std::reverse( path.begin(), path.end() );
+            for( size_t p = 1; p < path.size(); ++p ) {
+                const int a = path[p - 1];
+                const int b = path[p];
+                connect_cells( a % frame_width, a / frame_width,
+                               b % frame_width, b / frame_width, style );
+            }
+        }
+
+        for( int y = header_height; y < frame_height - footer_height; ++y ) {
+            for( int x = 1; x < divider_x; ++x ) {
+                const int index = grid_index( x, y );
+                if( edge_mask[index] == 0 ) {
+                    continue;
+                }
+                const nc_color color = color_for_style( edge_style[index] );
+                wattron( frame, color );
+                mvwaddch( frame, point( x, y ), glyph_for_mask( edge_mask[index] ) );
+                wattroff( frame, color );
+            }
+        }
+
+        for( size_t i = 0; i < node_count; ++i ) {
+            if( !visible( i ) ) continue;
+            const int x = node_x( i );
+            const int y = node_y( i );
+            const bool active = static_cast<int>( i ) == selected;
+            const bool owned = ( nodes[i].flags & NCMM_UI_CARD_OWNED ) != 0;
+            const bool locked = ( nodes[i].flags & NCMM_UI_CARD_LOCKED ) != 0;
+            const bool major = ( nodes[i].flags & NCMM_UI_CARD_MAJOR ) != 0;
+            const bool effect = ( nodes[i].flags & NCMM_UI_CARD_EFFECT ) != 0;
+            const bool themed = ncmm_ui_theme_enabled( i );
+            const bool dependency_focus = dependency_related[i];
+            const uint32_t border_style = ncmm_ui_border_style_id( i );
+            const nc_color theme_accent = ncmm_ui_theme_accent( i );
+            const nc_color border = active ? ( themed ? hilite( theme_accent ) : c_light_green ) :
+                                    !dependency_focus ? c_dark_gray :
+                                    border_style == NCMM_UI_BORDER_PRIME ? c_white :
+                                    border_style == NCMM_UI_BORDER_MAJOR ? c_yellow :
+                                    border_style == NCMM_UI_BORDER_EXCLUDED ? c_dark_gray :
+                                    themed ? theme_accent :
+                                    owned ? c_cyan :
+                                    major ? c_yellow :
+                                    effect ? c_magenta : BORDER_COLOR;
+            const nc_color text_color = active ? c_white :
+                                        !dependency_focus ? c_dark_gray :
+                                        locked || border_style == NCMM_UI_BORDER_EXCLUDED ? c_dark_gray :
+                                        border_style == NCMM_UI_BORDER_PRIME ? c_white :
+                                        themed ? theme_accent : c_light_gray;
+
+            const bool prime_border = border_style == NCMM_UI_BORDER_PRIME;
+            const int horizontal_glyph = prime_border ? '=' : LINE_OXOX;
+            const int vertical_glyph = prime_border ? '|' : LINE_XOXO;
+            const int top_left_glyph = prime_border ? '+' : LINE_OXXO;
+            const int top_right_glyph = prime_border ? '+' : LINE_OOXX;
+            const int bottom_left_glyph = prime_border ? '+' : LINE_XXOO;
+            const int bottom_right_glyph = prime_border ? '+' : LINE_XOOX;
+
+            wattron( frame, border );
+            mvwhline( frame, point( x + 1, y ), horizontal_glyph, node_width - 2 );
+            mvwhline( frame, point( x + 1, y + node_height - 1 ), horizontal_glyph, node_width - 2 );
+            mvwvline( frame, point( x, y + 1 ), vertical_glyph, node_height - 2 );
+            mvwvline( frame, point( x + node_width - 1, y + 1 ), vertical_glyph, node_height - 2 );
+            mvwaddch( frame, point( x, y ), top_left_glyph );
+            mvwaddch( frame, point( x + node_width - 1, y ), top_right_glyph );
+            mvwaddch( frame, point( x, y + node_height - 1 ), bottom_left_glyph );
+            mvwaddch( frame, point( x + node_width - 1, y + node_height - 1 ), bottom_right_glyph );
+
+            const int center_x = x + node_width / 2;
+            if( has_incoming[i] ) {
+                mvwaddch( frame, point( center_x, y ), prime_border ? '+' : LINE_XXOX );
+            }
+            if( has_outgoing[i] ) {
+                mvwaddch( frame, point( center_x, y + node_height - 1 ), prime_border ? '+' : LINE_OXXX );
+            }
+            wattroff( frame, border );
+
+            const std::vector<std::string> title_lines =
+                foldstring( nodes[i].title ? nodes[i].title : "", node_width - 4 );
+            for( size_t line = 0; line < std::min<size_t>( 2, title_lines.size() ); ++line ) {
+                ncmm_trim_and_print_literal( frame, point( x + 2, y + 1 + static_cast<int>( line ) ),
+                                            node_width - 4, text_color, title_lines[line] );
+            }
+            ncmm_trim_and_print_literal( frame, point( x + 2, y + 3 ), node_width - 4,
+                                        locked ? c_dark_gray : c_light_gray,
+                                        nodes[i].subtitle ? nodes[i].subtitle : "" );
+            ncmm_trim_and_print_literal( frame, point( x + 2, y + 4 ), node_width - 4,
+                                        major ? c_yellow : effect ? c_magenta :
+                                        owned ? c_cyan : locked ? c_dark_gray : c_green,
+                                        nodes[i].badge ? nodes[i].badge : "" );
+            const char *marker = active ? ">" :
+                                 !dependency_focus ? nullptr :
+                                 border_style == NCMM_UI_BORDER_PRIME ? "*" :
+                                 border_style == NCMM_UI_BORDER_MAJOR ? "+" :
+                                 border_style == NCMM_UI_BORDER_EXCLUDED ? "x" :
+                                 ( themed && ( active_ui_layout_flags & NCMM_UI_THEME_STRONG_BORDER ) ? "*" : nullptr );
+            if( marker != nullptr ) {
+                mvwprintz( frame, point( x + 1, y + 1 ),
+                           border_style == NCMM_UI_BORDER_EXCLUDED ? c_dark_gray :
+                           ( themed ? theme_accent : c_light_green ), marker );
+            }
+        }
+
+        const ncmm_ui_tree_node_v1 &detail = nodes[selected];
+        const int dx = divider_x + 2;
+        const std::vector<std::string> detail_title =
+            foldstring( detail.title ? detail.title : "", detail_width - 3 );
+        int dy = header_height;
+        for( size_t line = 0; line < std::min<size_t>( 2, detail_title.size() ); ++line ) {
+            ncmm_trim_and_print_literal( frame, point( dx, dy++ ), detail_width - 3,
+                                        ncmm_ui_theme_enabled( static_cast<size_t>( selected ) ) ?
+                                        ncmm_ui_theme_accent( static_cast<size_t>( selected ) ) : c_white,
+                                        detail_title[line] );
+        }
+        if( detail.subtitle && detail.subtitle[0] != '\0' ) {
+            ncmm_trim_and_print_literal( frame, point( dx, dy++ ), detail_width - 3,
+                                        c_light_gray, detail.subtitle );
+        }
+        if( detail.badge && detail.badge[0] != '\0' ) {
+            ncmm_trim_and_print_literal( frame, point( dx, dy++ ), detail_width - 3,
+                                        ( detail.flags & NCMM_UI_CARD_MAJOR ) ? c_yellow :
+                                        ( detail.flags & NCMM_UI_CARD_EFFECT ) ? c_magenta : c_cyan,
+                                        detail.badge );
+        }
+        ++dy;
+        if( detail.body && detail.body[0] != '\0' ) {
+            const std::vector<std::string> folded = foldstring( detail.body, detail_width - 3 );
+            const int max_lines = std::max( 1, frame_height - footer_height - dy - 1 );
+            for( int line = 0; line < std::min<int>( max_lines, folded.size() ); ++line ) {
+                nc_color detail_color = c_light_gray;
+                if( ncmm_ui_sectioned_detail() ) {
+                    if( folded[line] == "BONUS:" || folded[line] == "БОНУС:" ) {
+                        detail_color = c_light_green;
+                    } else if( folded[line] == "TRADEOFF:" || folded[line] == "КОМПРОМИСС:" ) {
+                        detail_color = c_light_red;
+                    } else if( folded[line] == "REQUIRES:" || folded[line] == "ТРЕБУЕТ:" ) {
+                        detail_color = c_yellow;
+                    } else if( folded[line] == "STATUS:" || folded[line] == "СТАТУС:" ) {
+                        detail_color = c_cyan;
+                    }
+                }
+                ncmm_trim_and_print_literal( frame, point( dx, dy + line ), detail_width - 3,
+                                            detail_color, folded[line] );
+            }
+        }
+
+        int hidden_left = 0;
+        int hidden_right = 0;
+        for( size_t i = 0; i < node_count; ++i ) {
+            if( nodes[i].row < first_row || nodes[i].row >= first_row + visible_rows ) {
+                continue;
+            }
+            const int x = node_x( i );
+            if( x < 2 ) {
+                ++hidden_left;
+            } else if( x + node_width >= canvas_width + 2 ) {
+                ++hidden_right;
+            }
+        }
+
+        std::string footer = tr_ui(
+            "Arrows: move  PgUp/PgDn: jump  Home/End: ends  Tab: cards  Enter: details  Esc: back",
+            "Стрелки: ход  PgUp/PgDn: прыжок  Home/End: края  Tab: карточки  Enter: детали  Esc: назад" );
+        if( hidden_left > 0 ) {
+            footer = "< " + std::to_string( hidden_left ) + "  " + footer;
+        }
+        if( hidden_right > 0 ) {
+            footer += "  " + std::to_string( hidden_right ) + " >";
+        }
+        footer += "  " + std::to_string( selected + 1 ) + "/" + std::to_string( node_count );
+        ncmm_trim_and_print_literal( frame, point( 2, frame_height - 2 ),
+                                    frame_width - 4, c_dark_gray, footer );
+        wnoutrefresh( frame );
+    } );
+
+    while( true ) {
+        keep_visible();
+        ui_manager::redraw();
+        const std::string action = ctxt.handle_input();
+
+        if( action == "MOUSE_MOVE" || action == "SELECT" ) {
+            const std::optional<point> mouse = ctxt.get_coordinates_text( frame );
+            if( mouse ) {
+                const int hit = node_at( *mouse );
+                if( hit >= 0 ) {
+                    selected = hit;
+                    if( action == "SELECT" ) return selected;
+                }
+            }
+            continue;
+        }
+
+        if( action == "LEFT" ) select_direction( 0, -1 );
+        else if( action == "RIGHT" ) select_direction( 0, 1 );
+        else if( action == "UP" || action == "SCROLL_UP" ) select_direction( -1, 0 );
+        else if( action == "DOWN" || action == "SCROLL_DOWN" ) select_direction( 1, 0 );
+        else if( action == "PAGE_UP" ) {
+            for( int i = 0; i < visible_rows; ++i ) select_direction( -1, 0 );
+        } else if( action == "PAGE_DOWN" ) {
+            for( int i = 0; i < visible_rows; ++i ) select_direction( 1, 0 );
+        } else if( action == "HOME" ) selected = 0;
+        else if( action == "END" ) selected = static_cast<int>( node_count ) - 1;
+        else if( action == "NEXT_TAB" ) return NCMM_UI_TREE_SHOW_CARDS;
+        else if( action == "CONFIRM" ) return selected;
+        else if( action == "QUIT" ) return NCMM_UI_TREE_CANCEL;
+    }
+}
+
+int ui_card_choose_themed( const char *title, const char *summary,
+                           const ncmm_ui_progress_v1 *progress,
+                           const ncmm_ui_card_v1 *cards, size_t count, size_t columns,
+                           const ncmm_ui_theme_v1 *theme )
+{
+    ncmm_ui_theme_v1 safe_theme = theme != nullptr ? *theme :
+                                  ncmm_ui_theme_v1{ NCMM_UI_COLOR_DEFAULT, NCMM_UI_THEME_NONE,
+                                                    0, 0, nullptr, 0 };
+    if( safe_theme.item_accents == nullptr ) {
+        safe_theme.item_accent_count = 0;
+    } else {
+        safe_theme.item_accent_count = std::min( safe_theme.item_accent_count, count );
+    }
+    ncmm_ui_theme_scope scope( &safe_theme );
+    return ui_card_choose( title, summary, progress, cards, count, columns );
+}
+
+int ui_tree_choose_themed( const char *title, const char *summary,
+                           const ncmm_ui_progress_v1 *progress,
+                           const ncmm_ui_tree_node_v1 *nodes, size_t node_count,
+                           const ncmm_ui_tree_edge_v1 *edges, size_t edge_count,
+                           const ncmm_ui_theme_v1 *theme )
+{
+    ncmm_ui_theme_v1 safe_theme = theme != nullptr ? *theme :
+                                  ncmm_ui_theme_v1{ NCMM_UI_COLOR_DEFAULT, NCMM_UI_THEME_NONE,
+                                                    0, 0, nullptr, 0 };
+    if( safe_theme.item_accents == nullptr ) {
+        safe_theme.item_accent_count = 0;
+    } else {
+        safe_theme.item_accent_count = std::min( safe_theme.item_accent_count, node_count );
+    }
+    ncmm_ui_theme_scope scope( &safe_theme );
+    return ui_tree_choose( title, summary, progress, nodes, node_count, edges, edge_count );
+}
+int ui_card_choose_rpg( const char *title, const char *summary,
+                        const ncmm_ui_progress_v1 *progress,
+                        const ncmm_ui_card_v1 *cards, size_t count, size_t columns,
+                        const ncmm_ui_theme_ex_v1 *theme )
+{
+    ncmm_ui_theme_ex_v1 safe_theme = theme != nullptr ? *theme :
+                                     ncmm_ui_theme_ex_v1{ NCMM_UI_COLOR_DEFAULT, NCMM_UI_THEME_NONE,
+                                                          0, 0, nullptr, 0, nullptr, 0 };
+    if( safe_theme.item_accents == nullptr ) {
+        safe_theme.item_accent_count = 0;
+    } else {
+        safe_theme.item_accent_count = std::min( safe_theme.item_accent_count, count );
+    }
+    if( safe_theme.item_border_styles == nullptr ) {
+        safe_theme.item_border_style_count = 0;
+    } else {
+        safe_theme.item_border_style_count = std::min( safe_theme.item_border_style_count, count );
+    }
+    ncmm_ui_rpg_theme_scope scope( &safe_theme );
+    return ui_card_choose( title, summary, progress, cards, count, columns );
+}
+
+int ui_tree_choose_rpg( const char *title, const char *summary,
+                        const ncmm_ui_progress_v1 *progress,
+                        const ncmm_ui_tree_node_v1 *nodes, size_t node_count,
+                        const ncmm_ui_tree_edge_v1 *edges, size_t edge_count,
+                        const ncmm_ui_theme_ex_v1 *theme )
+{
+    ncmm_ui_theme_ex_v1 safe_theme = theme != nullptr ? *theme :
+                                     ncmm_ui_theme_ex_v1{ NCMM_UI_COLOR_DEFAULT, NCMM_UI_THEME_NONE,
+                                                          0, 0, nullptr, 0, nullptr, 0 };
+    if( safe_theme.item_accents == nullptr ) {
+        safe_theme.item_accent_count = 0;
+    } else {
+        safe_theme.item_accent_count = std::min( safe_theme.item_accent_count, node_count );
+    }
+    if( safe_theme.item_border_styles == nullptr ) {
+        safe_theme.item_border_style_count = 0;
+    } else {
+        safe_theme.item_border_style_count = std::min( safe_theme.item_border_style_count, node_count );
+    }
+    ncmm_ui_rpg_theme_scope scope( &safe_theme );
+    return ui_tree_choose( title, summary, progress, nodes, node_count, edges, edge_count );
+}
 void ui_message( const char *message )
 {
     if( message != nullptr ) {
@@ -374,6 +2162,252 @@ void ui_message( const char *message )
     }
 }
 
+bool api_v2_token_safe( const char *value )
+{
+    if( value == nullptr ) return false;
+    const std::string text( value );
+    if( text.empty() || text.size() > 128 ) return false;
+    for( unsigned char c : text ) {
+        if( !( std::isalnum( c ) || c == '_' || c == '-' || c == '.' || c == ':' ) ) return false;
+    }
+    return true;
+}
+
+void clear_module_runtime_v2( const std::string &module_id )
+{
+    erase_module_modifiers( module_id );
+    event_subscriptions_v2.erase( std::remove_if( event_subscriptions_v2.begin(), event_subscriptions_v2.end(),
+    [&]( const ncmm_event_subscription_v2_internal &s ) { return s.module_id == module_id; } ), event_subscriptions_v2.end() );
+    runtime_hook_rules_v2.erase( std::remove_if( runtime_hook_rules_v2.begin(), runtime_hook_rules_v2.end(),
+    [&]( const ncmm_runtime_hook_rule_v2_internal &r ) { return r.module_id == module_id; } ), runtime_hook_rules_v2.end() );
+    for( auto it = modifier_owners_v2.begin(); it != modifier_owners_v2.end(); ) {
+        if( it->second == module_id ) {
+            character_modifier_limits.erase( it->first );
+            it = modifier_owners_v2.erase( it );
+        } else {
+            ++it;
+        }
+    }
+    for( auto it = worldgen_bindings_v2.begin(); it != worldgen_bindings_v2.end(); ) {
+        if( it->second.module_id == module_id ) it = worldgen_bindings_v2.erase( it ); else ++it;
+    }
+}
+
+const char *current_module_id_v2()
+{
+    return active_module_id.empty() ? nullptr : active_module_id.c_str();
+}
+
+int event_available_v2( uint32_t event_id )
+{
+    switch( event_id ) {
+        case NCMM_EVENT_HOST_READY_V2:
+        case NCMM_EVENT_WORLD_LOADED_V2:
+        case NCMM_EVENT_WORLD_UNLOADED_V2:
+        case NCMM_EVENT_TURN_V2:
+        case NCMM_EVENT_LOCALE_CHANGED_V2:
+        case NCMM_EVENT_PLAYER_KILL_V2:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+int event_subscribe_v2( const char *module_id, uint32_t event_id,
+                        ncmm_event_callback_v2 callback, void *user_data )
+{
+    if( !active_module_matches( module_id ) || module_ids.count( module_id ) == 0 ||
+        !event_available_v2( event_id ) || callback == nullptr ) return 0;
+    for( const auto &s : event_subscriptions_v2 ) {
+        if( s.module_id == module_id && s.event_id == event_id &&
+            s.callback == callback && s.user_data == user_data ) return 1;
+    }
+    event_subscriptions_v2.push_back( { module_id, event_id, callback, user_data } );
+    return 1;
+}
+
+int event_unsubscribe_all_v2( const char *module_id )
+{
+    if( !active_module_matches( module_id ) || module_ids.count( module_id ) == 0 ) return 0;
+    event_subscriptions_v2.erase( std::remove_if( event_subscriptions_v2.begin(), event_subscriptions_v2.end(),
+    [&]( const ncmm_event_subscription_v2_internal &s ) { return s.module_id == module_id; } ), event_subscriptions_v2.end() );
+    return 1;
+}
+
+void dispatch_event_v2( uint32_t event_id )
+{
+    if( !event_available_v2( event_id ) || event_subscriptions_v2.empty() ) return;
+    const auto snapshot = event_subscriptions_v2;
+    std::set<std::string> failed;
+    for( const auto &s : snapshot ) {
+        if( s.callback == nullptr || module_ids.count( s.module_id ) == 0 ) continue;
+        try {
+            module_call_scope scope( s.module_id.c_str() );
+            s.callback( event_id, s.user_data );
+        } catch( ... ) {
+            failed.insert( s.module_id );
+            log_line( NCMM_LOG_WARN, ( "Host API 2.0 event callback failed: " + s.module_id ).c_str() );
+        }
+    }
+    if( !failed.empty() ) {
+        event_subscriptions_v2.erase( std::remove_if( event_subscriptions_v2.begin(), event_subscriptions_v2.end(),
+        [&]( const ncmm_event_subscription_v2_internal &s ) { return failed.count( s.module_id ) != 0; } ), event_subscriptions_v2.end() );
+    }
+}
+
+int module_is_loaded_v2( const char *module_id )
+{
+    return module_id && module_ids.count( module_id ) != 0 ? 1 : 0;
+}
+
+const char *module_version_v2( const char *module_id )
+{
+    api_v2_string_cache.clear();
+    if( module_id == nullptr ) return nullptr;
+    for( const loaded_mod &mod : loaded ) {
+        if( mod.descriptor && mod.descriptor->id && std::string( mod.descriptor->id ) == module_id ) {
+            api_v2_string_cache = mod.descriptor->version ? mod.descriptor->version : "";
+            return api_v2_string_cache.c_str();
+        }
+    }
+    for( const module_state &state : module_states ) {
+        if( state.id == module_id ) {
+            api_v2_string_cache = state.version;
+            return api_v2_string_cache.c_str();
+        }
+    }
+    return nullptr;
+}
+
+const char *module_state_v2( const char *module_id )
+{
+    api_v2_string_cache.clear();
+    if( module_id == nullptr ) return nullptr;
+    for( const module_state &state : module_states ) {
+        if( state.id == module_id ) {
+            api_v2_string_cache = state.state;
+            if( !state.lifecycle.empty() ) api_v2_string_cache += "/" + state.lifecycle;
+            return api_v2_string_cache.c_str();
+        }
+    }
+    return nullptr;
+}
+
+int modifier_define_v2( const char *module_id, const char *modifier_id,
+                        double min_value, double max_value )
+{
+    if( !active_module_matches( module_id ) || module_ids.count( module_id ) == 0 ||
+        !api_v2_token_safe( modifier_id ) || !std::isfinite( min_value ) ||
+        !std::isfinite( max_value ) || min_value > max_value ||
+        min_value < -100000.0 || max_value > 100000.0 ) return 0;
+    const auto owner = modifier_owners_v2.find( modifier_id );
+    const auto policy = character_modifier_limits.find( modifier_id );
+    if( policy != character_modifier_limits.end() ) {
+        if( owner == modifier_owners_v2.end() || owner->second != module_id ) return 0;
+        return std::abs( policy->second.first - min_value ) < 1.0e-12 &&
+               std::abs( policy->second.second - max_value ) < 1.0e-12 ? 1 : 0;
+    }
+    character_modifier_limits.emplace( modifier_id, std::make_pair( min_value, max_value ) );
+    modifier_owners_v2[modifier_id] = module_id;
+    return 1;
+}
+
+int runtime_hook_bind_modifier_v2( const char *module_id, const char *hook_id,
+                                   uint32_t selector_kind, const char *selector_value,
+                                   const char *modifier_id )
+{
+    if( !active_module_matches( module_id ) || module_ids.count( module_id ) == 0 ||
+        !api_v2_token_safe( hook_id ) || !api_v2_token_safe( modifier_id ) ||
+        selector_kind > NCMM_SELECTOR_TARGET_SPECIES_V2 ) return 0;
+    if( selector_kind != NCMM_SELECTOR_ANY_V2 && !api_v2_token_safe( selector_value ) ) return 0;
+    if( character_modifier_limits.find( modifier_id ) == character_modifier_limits.end() ) return 0;
+    const auto owner = modifier_owners_v2.find( modifier_id );
+    if( owner != modifier_owners_v2.end() && owner->second != module_id ) return 0;
+    const std::string selector = selector_kind == NCMM_SELECTOR_ANY_V2 ? "" : selector_value;
+    for( const auto &r : runtime_hook_rules_v2 ) {
+        if( r.module_id == module_id && r.hook_id == hook_id &&
+            r.selector_kind == selector_kind && r.selector_value == selector &&
+            r.modifier_id == modifier_id ) return 1;
+    }
+    runtime_hook_rules_v2.push_back( { module_id, hook_id, selector_kind, selector, modifier_id } );
+    return 1;
+}
+
+bool runtime_rule_matches_v2( const ncmm_runtime_hook_rule_v2_internal &r,
+                              const char *subject_id, const char *source_mod_id,
+                              const char *source_species_id, const char *target_species_id )
+{
+    switch( r.selector_kind ) {
+        case NCMM_SELECTOR_ANY_V2: return true;
+        case NCMM_SELECTOR_SUBJECT_ID_V2: return subject_id && r.selector_value == subject_id;
+        case NCMM_SELECTOR_SOURCE_MOD_V2: return source_mod_id && r.selector_value == source_mod_id;
+        case NCMM_SELECTOR_SOURCE_SPECIES_V2: return source_species_id && r.selector_value == source_species_id;
+        case NCMM_SELECTOR_TARGET_SPECIES_V2: return target_species_id && r.selector_value == target_species_id;
+        default: return false;
+    }
+}
+
+double runtime_hook_value_v2( const char *hook_id, const char *subject_id,
+                              const char *source_mod_id, const char *source_species_id,
+                              const char *target_species_id )
+{
+    // HOTFIX13: mod character-creation EOCs may query spell/skill formulas before the
+    // avatar is fully established. Runtime gameplay modifiers stay neutral until the
+    // first real turn announces the world.
+    if( !api_v2_world_announced || !character_state_available() || !api_v2_token_safe( hook_id ) ) return 0.0;
+    double total = 0.0;
+    std::set<std::string> counted;
+    for( const auto &r : runtime_hook_rules_v2 ) {
+        if( r.hook_id != hook_id || !runtime_rule_matches_v2( r, subject_id, source_mod_id,
+                source_species_id, target_species_id ) ) continue;
+        const auto module_it = character_modifier_values.find( r.module_id );
+        if( module_it == character_modifier_values.end() ) continue;
+        const auto value_it = module_it->second.find( r.modifier_id );
+        if( value_it == module_it->second.end() ) continue;
+        const std::string key = r.module_id + "\n" + r.modifier_id;
+        if( counted.insert( key ).second ) total += value_it->second;
+    }
+    return std::max( -100000.0, std::min( 100000.0, total ) );
+}
+
+int worldgen_hook_bind_setting_v2( const char *module_id, const char *hook_id,
+                                   const char *setting_id, uint32_t value_type )
+{
+    if( !active_module_matches( module_id ) || module_ids.count( module_id ) == 0 ||
+        !api_v2_token_safe( hook_id ) || !api_v2_token_safe( setting_id ) ||
+        value_type < NCMM_WORLDGEN_BOOL_V2 || value_type > NCMM_WORLDGEN_FLOAT_V2 ) return 0;
+    const auto existing = worldgen_bindings_v2.find( hook_id );
+    if( existing != worldgen_bindings_v2.end() ) {
+        return existing->second.module_id == module_id && existing->second.setting_id == setting_id &&
+               existing->second.value_type == value_type ? 1 : 0;
+    }
+    worldgen_bindings_v2.emplace( hook_id, ncmm_worldgen_binding_v2_internal{ module_id, setting_id, value_type } );
+    return 1;
+}
+
+int worldgen_hook_bool_v2( const char *hook_id, int fallback )
+{
+    const auto it = hook_id ? worldgen_bindings_v2.find( hook_id ) : worldgen_bindings_v2.end();
+    if( it == worldgen_bindings_v2.end() || it->second.value_type != NCMM_WORLDGEN_BOOL_V2 ) return fallback;
+    return world_setting_get_bool( it->second.setting_id.c_str(), fallback );
+}
+int64_t worldgen_hook_i64_v2( const char *hook_id, int64_t fallback )
+{
+    const auto it = hook_id ? worldgen_bindings_v2.find( hook_id ) : worldgen_bindings_v2.end();
+    if( it == worldgen_bindings_v2.end() || it->second.value_type != NCMM_WORLDGEN_INT_V2 ) return fallback;
+    return world_setting_get_i64( it->second.setting_id.c_str(), fallback );
+}
+double worldgen_hook_f64_v2( const char *hook_id, double fallback )
+{
+    const auto it = hook_id ? worldgen_bindings_v2.find( hook_id ) : worldgen_bindings_v2.end();
+    if( it == worldgen_bindings_v2.end() || it->second.value_type != NCMM_WORLDGEN_FLOAT_V2 ) return fallback;
+    return world_setting_get_f64( it->second.setting_id.c_str(), fallback );
+}
+
+double modifier_get_total_v2( const char *modifier_id )
+{
+    return gameplay_modifier( modifier_id );
+}
 int character_modifier_set( const char *module_id, const char *modifier_id, double value )
 {
     if( !active_module_matches( module_id ) || module_ids.count( module_id ) == 0 ||
@@ -387,8 +2421,21 @@ int character_modifier_set( const char *module_id, const char *modifier_id, doub
         value < policy->second.first || value > policy->second.second ) {
         return 0;
     }
+    const auto dynamic_owner = modifier_owners_v2.find( modifier_id );
+    if( dynamic_owner != modifier_owners_v2.end() && dynamic_owner->second != module_id ) {
+        return 0;
+    }
 
-    character_modifier_values[module_id][modifier_id] = value;
+    auto &module_values = character_modifier_values[module_id];
+    double &module_value = module_values[modifier_id];
+    const double previous_value = module_value;
+    module_value = value;
+
+    double &aggregate = character_modifier_totals[modifier_id];
+    aggregate += value - previous_value;
+    if( std::abs( aggregate ) < 1.0e-12 ) {
+        character_modifier_totals.erase( modifier_id );
+    }
     return 1;
 }
 
@@ -397,9 +2444,11 @@ int character_modifier_clear_module( const char *module_id )
     if( !active_module_matches( module_id ) || module_ids.count( module_id ) == 0 ) {
         return 0;
     }
-    character_modifier_values.erase( module_id );
+    erase_module_modifiers( module_id );
     return 1;
 }
+
+const void *query_interface_v2( const char *interface_id, uint32_t min_major, uint32_t min_minor );
 
 const ncmm_host_api_v1 api = {
     NCMM_ABI_VERSION,
@@ -423,8 +2472,78 @@ const ncmm_host_api_v1 api = {
     &character_modifier_set,
     &character_modifier_clear_module,
     &get_api_version_major,
-    &get_api_version_minor
+    &get_api_version_minor,
+    &ui_tile_choose,
+    &ui_card_choose,
+    &ui_tree_choose,
+    &gameplay_metric_get_i64,
+    &world_mod_active,
+    &world_setting_register_bool,
+    &world_setting_register_int,
+    &world_setting_register_float,
+    &world_setting_register_enum,
+    &world_setting_get_bool,
+    &world_setting_get_i64,
+    &world_setting_get_f64,
+    &world_setting_get_string,
+    &worldgen_experimental_group_begin,
+    &ui_card_choose_themed,
+    &ui_tree_choose_themed,
+    &world_mod_count,
+    &world_mod_id,
+    &ui_card_choose_rpg,
+    &ui_tree_choose_rpg,
+    &query_interface_v2
 };
+const ncmm_host_api_v2_core api_v2_core = {
+    sizeof( ncmm_host_api_v2_core ),
+    NCMM_HOST_API_V2_CORE_ABI,
+    NCMM_HOST_API_V2_CORE_MAJOR,
+    NCMM_HOST_API_V2_CORE_MINOR,
+    &api,
+    &log_line,
+    &has_capability,
+    &get_host_version,
+    &current_module_id_v2,
+    &event_available_v2,
+    &event_subscribe_v2,
+    &event_unsubscribe_all_v2,
+    &world_setting_register_bool,
+    &world_setting_register_int,
+    &world_setting_register_float,
+    &world_setting_register_enum,
+    &world_setting_get_bool,
+    &world_setting_get_i64,
+    &world_setting_get_f64,
+    &world_setting_get_string,
+    &world_mod_count,
+    &world_mod_id,
+    &world_mod_active,
+    &character_state_available,
+    &character_state_get_i64,
+    &character_state_set_i64,
+    &module_is_loaded_v2,
+    &module_version_v2,
+    &module_state_v2,
+    &modifier_define_v2,
+    &character_modifier_set,
+    &character_modifier_clear_module,
+    &modifier_get_total_v2,
+    &runtime_hook_bind_modifier_v2,
+    &runtime_hook_value_v2,
+    &worldgen_hook_bind_setting_v2,
+    &worldgen_hook_bool_v2,
+    &worldgen_hook_i64_v2,
+    &worldgen_hook_f64_v2
+};
+
+const void *query_interface_v2( const char *interface_id, uint32_t min_major, uint32_t min_minor )
+{
+    if( interface_id == nullptr || std::string( interface_id ) != NCMM_HOST_API_V2_CORE_ID ) return nullptr;
+    if( min_major > NCMM_HOST_API_V2_CORE_MAJOR ) return nullptr;
+    if( min_major == NCMM_HOST_API_V2_CORE_MAJOR && min_minor > NCMM_HOST_API_V2_CORE_MINOR ) return nullptr;
+    return &api_v2_core;
+}
 
 std::string read_text_file( const std::filesystem::path &path )
 {
@@ -475,6 +2594,15 @@ int ui_hotkey_keycode( const std::string &value )
         number = number * 10 + static_cast<int>( value[i] - '0' );
     }
     return keycode::f1 + number - 1;
+}
+
+std::string module_action_id( const loaded_mod &mod )
+{
+    if( mod.open_ui == nullptr || mod.descriptor == nullptr || mod.descriptor->id == nullptr ||
+        mod.descriptor->id[0] == '\0' ) {
+        return {};
+    }
+    return "ncmm.open." + std::string( mod.descriptor->id );
 }
 
 bool validate_manifest( const manifest_contract &manifest, std::string &reason )
@@ -582,7 +2710,7 @@ void write_modules_state()
 
     out << "{\n"
         << "  \"schema\": 3,\n"
-        << "  \"host_version\": \"0.7.1\",\n"
+        << "  \"host_version\": \"0.8.0\",\n"
         << "  \"loader_api\": " << NCMM_LOADER_API_VERSION << ",\n"
         << "  \"api_version\": {\"major\":" << NCMM_API_VERSION_MAJOR
         << ",\"minor\":" << NCMM_API_VERSION_MINOR << "},\n"
@@ -665,12 +2793,11 @@ void quarantine_runtime_callback( loaded_mod &mod, runtime_callback_kind kind,
             break;
         case runtime_callback_kind::ui:
             mod.open_ui = nullptr;
-            mod.action_id.clear();
             break;
     }
 
     if( !module_id.empty() ) {
-        character_modifier_values.erase( module_id );
+        erase_module_modifiers( module_id );
     }
 
     if( !mod.fault.quarantine( kind ) ) {
@@ -697,7 +2824,7 @@ bool suspend_state_migration( loaded_mod &mod, const char *reason )
 {
     const std::string id = mod.descriptor && mod.descriptor->id ? mod.descriptor->id : std::string();
     if( !id.empty() ) {
-        character_modifier_values.erase( id );
+        erase_module_modifiers( id );
     }
     mod.migration_ready = false;
     mod.migration_suspended = true;
@@ -999,13 +3126,13 @@ void load_one( const std::filesystem::path &library )
     module_ids.insert( manifest.id );
 
     // A retry/reload must never inherit runtime effects from an older failed init.
-    character_modifier_values.erase( manifest.id );
+    clear_module_runtime_v2( manifest.id );
     bool init_ok = false;
     try {
         module_call_scope scope( manifest.id.c_str() );
         init_ok = desc->init( &api ) != 0;
     } catch( ... ) {
-        character_modifier_values.erase( manifest.id );
+        clear_module_runtime_v2( manifest.id );
         module_ids.erase( manifest.id );
         record_module_state( directory, manifest, "failed", "init_exception" );
         log_line( NCMM_LOG_WARN,
@@ -1014,7 +3141,7 @@ void load_one( const std::filesystem::path &library )
         return;
     }
     if( !init_ok ) {
-        character_modifier_values.erase( manifest.id );
+        clear_module_runtime_v2( manifest.id );
         module_ids.erase( manifest.id );
         record_module_state( directory, manifest, "failed", "init_failed" );
         log_line( NCMM_LOG_WARN, ( std::string( "Module init failed; disabled: " ) + desc->id ).c_str() );
@@ -1022,36 +3149,105 @@ void load_one( const std::filesystem::path &library )
         return;
     }
 
-    const std::string action_id = open_ui != nullptr && !manifest.ui_hotkey.empty() ?
-                                  "ncmm.open." + manifest.id : std::string();
+    // Keep module identity and its preferred key as passive metadata.
+    // Action IDs/default bindings are derived only when a gameplay input context exists.
     loaded.push_back( { module, desc, directory, locale_changed, on_turn, open_ui,
                         migrate_state,
                         manifest.state_contract_declared ? manifest.state_schema : 0u,
                         manifest.state_contract_declared ? manifest.state_min_supported : 0u,
-                        false, false, action_id, manifest.ui_hotkey } );
+                        false, false, manifest.ui_hotkey } );
     record_module_state( directory, manifest, "loaded", "ok" );
     log_line( NCMM_LOG_INFO, ( std::string( "Loaded module: " ) + desc->id + " " + desc->version ).c_str() );
 }
 #endif
 } // namespace
 
+double runtime_hook_modifier( const char *hook_id, const char *subject_id,
+                              const char *source_mod_id, const char *source_species_id,
+                              const char *target_species_id )
+{
+    return runtime_hook_value_v2( hook_id, subject_id, source_mod_id,
+                                  source_species_id, target_species_id );
+}
+
+void runtime_event_notify( uint32_t event_id )
+{
+    dispatch_event_v2( event_id );
+}
+
+std::string runtime_source_mod_swap( const std::string &source_mod_id )
+{
+    std::string previous = runtime_source_mod_context_v2;
+    runtime_source_mod_context_v2 = source_mod_id;
+    return previous;
+}
+
+const std::string &runtime_source_mod()
+{
+    return runtime_source_mod_context_v2;
+}
+
+double runtime_hook_modifier_for_creatures( const char *hook_id,
+        const Creature *source, const Creature *target )
+{
+    // HOTFIX13: never expose combat/runtime modifier state during chargen or pre-world load.
+    if( !api_v2_world_announced || !character_state_available() || !api_v2_token_safe( hook_id ) ) return 0.0;
+    double total = 0.0;
+    std::set<std::string> counted;
+    for( const auto &r : runtime_hook_rules_v2 ) {
+        if( r.hook_id != hook_id ) continue;
+        bool match = false;
+        switch( r.selector_kind ) {
+            case NCMM_SELECTOR_ANY_V2: match = true; break;
+            case NCMM_SELECTOR_SOURCE_MOD_V2:
+                match = !runtime_source_mod_context_v2.empty() &&
+                        r.selector_value == runtime_source_mod_context_v2;
+                break;
+            case NCMM_SELECTOR_SOURCE_SPECIES_V2:
+                match = source != nullptr && source->in_species( species_id( r.selector_value ) );
+                break;
+            case NCMM_SELECTOR_TARGET_SPECIES_V2:
+                match = target != nullptr && target->in_species( species_id( r.selector_value ) );
+                break;
+            default: break;
+        }
+        if( !match ) continue;
+        const auto module_it = character_modifier_values.find( r.module_id );
+        if( module_it == character_modifier_values.end() ) continue;
+        const auto value_it = module_it->second.find( r.modifier_id );
+        if( value_it == module_it->second.end() ) continue;
+        const std::string key = r.module_id + "\n" + r.modifier_id;
+        if( counted.insert( key ).second ) total += value_it->second;
+    }
+    return std::max( -100000.0, std::min( 100000.0, total ) );
+}
+
+bool worldgen_hook_bound( const char *hook_id )
+{
+    return hook_id != nullptr && worldgen_bindings_v2.find( hook_id ) != worldgen_bindings_v2.end();
+}
+int worldgen_hook_bool( const char *hook_id, int fallback )
+{
+    return worldgen_hook_bool_v2( hook_id, fallback );
+}
+int64_t worldgen_hook_i64( const char *hook_id, int64_t fallback )
+{
+    return worldgen_hook_i64_v2( hook_id, fallback );
+}
+double worldgen_hook_f64( const char *hook_id, double fallback )
+{
+    return worldgen_hook_f64_v2( hook_id, fallback );
+}
 double gameplay_modifier( const char *modifier_id )
 {
-    if( modifier_id == nullptr || character_modifier_limits.count( modifier_id ) == 0 ) {
+    if( modifier_id == nullptr || character_modifier_limits.find( modifier_id ) == character_modifier_limits.end() ) {
         return 0.0;
     }
-
-    double total = 0.0;
-    for( const auto &module : character_modifier_values ) {
-        const auto it = module.second.find( modifier_id );
-        if( it != module.second.end() ) {
-            total += it->second;
-        }
+    const auto it = character_modifier_totals.find( modifier_id );
+    if( it == character_modifier_totals.end() ) {
+        return 0.0;
     }
-
-    // Aggregate clamp is intentionally wider than the per-module policy so several
-    // independently validated code-mods can stack without one module bypassing bounds.
-    return std::max( -500.0, std::min( 500.0, total ) );
+    return std::max( -500.0, std::min( 500.0, it->second ) );
 }
 
 std::string settings_menu_label()
@@ -1069,23 +3265,34 @@ void register_gameplay_actions( input_context &ctxt )
         input_event( keycode::f2, input_event_t::keyboard_code ) );
     ctxt.register_action( "ncmm.manager", no_translation( manager_name ) );
 
-    for( const loaded_mod &mod : loaded ) {
-        if( mod.open_ui == nullptr || mod.action_id.empty() ) {
+    for( loaded_mod &mod : loaded ) {
+        if( mod.open_ui == nullptr || mod.descriptor == nullptr || mod.descriptor->id == nullptr ) {
             continue;
         }
 
-        const int keycode_value = ui_hotkey_keycode( mod.default_hotkey );
-        std::string action_name = mod.descriptor && mod.descriptor->name ?
-                                  mod.descriptor->name : mod.action_id;
+        const std::string action_id = module_action_id( mod );
+        if( action_id.empty() ) {
+            continue;
+        }
+
+        std::string action_name = mod.descriptor->name ?
+                                  mod.descriptor->name : action_id;
         action_name += tr_ui( " UI", " — интерфейс" );
 
+        const int keycode_value = ui_hotkey_keycode( mod.default_hotkey );
         if( keycode_value != 0 ) {
-            inp_mngr.ncmm_register_default_action(
-                mod.action_id,
+            inp_mngr.ncmm_register_context_default_action(
+                action_id,
                 no_translation( action_name ),
-                input_event( keycode_value, input_event_t::keyboard_code ) );
+                input_event( keycode_value, input_event_t::keyboard_code ),
+                "DEFAULTMODE" );
+            if( hotkey_registration_logged.insert( action_id ).second ) {
+                log_line( NCMM_LOG_INFO,
+                          ( "Module hotkey registered in gameplay context: " +
+                            action_id + " -> " + mod.default_hotkey ).c_str() );
+            }
         }
-        ctxt.register_action( mod.action_id, no_translation( action_name ) );
+        ctxt.register_action( action_id, no_translation( action_name ) );
     }
 }
 
@@ -1097,7 +3304,11 @@ bool handle_gameplay_action( const std::string &action )
     }
 
     for( loaded_mod &mod : loaded ) {
-        if( mod.action_id.empty() || action != mod.action_id || mod.open_ui == nullptr ) {
+        if( mod.open_ui == nullptr || mod.descriptor == nullptr || mod.descriptor->id == nullptr ) {
+            continue;
+        }
+        const std::string action_id = module_action_id( mod );
+        if( action_id.empty() || action != action_id ) {
             continue;
         }
         if( !ensure_state_migrated( mod ) ) {
@@ -1106,12 +3317,11 @@ bool handle_gameplay_action( const std::string &action )
             return true;
         }
         try {
-            module_call_scope scope( mod.descriptor && mod.descriptor->id ?
-                                     mod.descriptor->id : nullptr );
+            module_call_scope scope( mod.descriptor->id );
             mod.open_ui( &api );
         } catch( ... ) {
-            const std::string name = mod.descriptor && mod.descriptor->name ?
-                                     mod.descriptor->name : mod.action_id;
+            const std::string name = mod.descriptor->name ?
+                                     mod.descriptor->name : action_id;
             quarantine_runtime_callback( mod, runtime_callback_kind::ui, "ui_exception" );
             log_line( NCMM_LOG_WARN, ( "Module UI callback failed: " + name ).c_str() );
             popup( tr_ui( "Module UI callback failed and was quarantined for this session.",
@@ -1234,6 +3444,11 @@ void show_manager()
 
 void on_turn()
 {
+    if( !api_v2_world_announced && character_state_available() ) {
+        api_v2_world_announced = true;
+        dispatch_event_v2( NCMM_EVENT_WORLD_LOADED_V2 );
+    }
+    dispatch_event_v2( NCMM_EVENT_TURN_V2 );
     for( loaded_mod &mod : loaded ) {
         if( mod.on_turn && ensure_state_migrated( mod ) ) {
             try {
@@ -1254,6 +3469,7 @@ void on_turn()
 
 void on_language_changed()
 {
+    dispatch_event_v2( NCMM_EVENT_LOCALE_CHANGED_V2 );
     for( loaded_mod &mod : loaded ) {
         if( mod.locale_changed ) {
             try {
@@ -1284,9 +3500,23 @@ void initialize()
     loaded.clear();
     module_states.clear();
     module_ids.clear();
+    hotkey_registration_logged.clear();
     manifest_id_counts.clear();
     character_modifier_values.clear();
-    log_line( NCMM_LOG_INFO, "NCMM 0.7.1 Host API 1.1 / Module Contract v1 initializing." );
+    character_modifier_totals.clear();
+    for( const auto &owned : modifier_owners_v2 ) {
+        character_modifier_limits.erase( owned.first );
+    }
+    modifier_owners_v2.clear();
+    event_subscriptions_v2.clear();
+    runtime_hook_rules_v2.clear();
+    worldgen_bindings_v2.clear();
+    runtime_source_mod_context_v2.clear();
+    api_v2_world_announced = false;
+    gameplay_metric_values.clear();
+    gameplay_avatar_id = character_id();
+    gameplay_avatar_id_ready = false;
+    log_line( NCMM_LOG_INFO, "NCMM 0.7.2 Host API 1.4 / gameplay.metrics.v1 initializing (subscription deferred)." );
 
     if( !shutdown_registered ) {
         std::atexit( &shutdown );
@@ -1336,6 +3566,7 @@ void initialize()
     log_line( NCMM_LOG_WARN, "NCMM native module loading is Windows-only; host continues without code mods." );
 #endif
 
+    dispatch_event_v2( NCMM_EVENT_HOST_READY_V2 );
     write_modules_state();
     mark_ready();
 }
@@ -1393,6 +3624,10 @@ void mark_ready()
 
 void shutdown()
 {
+    if( api_v2_world_announced ) {
+        dispatch_event_v2( NCMM_EVENT_WORLD_UNLOADED_V2 );
+        api_v2_world_announced = false;
+    }
 #ifdef _WIN32
     for( auto it = loaded.rbegin(); it != loaded.rend(); ++it ) {
         const std::string module_id = it->descriptor && it->descriptor->id ?
@@ -1407,7 +3642,7 @@ void shutdown()
             }
         }
         if( !module_id.empty() ) {
-            character_modifier_values.erase( module_id );
+            erase_module_modifiers( module_id );
         }
         if( it->handle ) {
             FreeLibrary( it->handle );
@@ -1417,8 +3652,19 @@ void shutdown()
     loaded.clear();
     module_states.clear();
     module_ids.clear();
+    hotkey_registration_logged.clear();
     manifest_id_counts.clear();
     character_modifier_values.clear();
+    character_modifier_totals.clear();
+    for( const auto &owned : modifier_owners_v2 ) {
+        character_modifier_limits.erase( owned.first );
+    }
+    modifier_owners_v2.clear();
+    event_subscriptions_v2.clear();
+    runtime_hook_rules_v2.clear();
+    worldgen_bindings_v2.clear();
+    runtime_source_mod_context_v2.clear();
+    api_v2_world_announced = false;
     active_module_id.clear();
 }
 } // namespace ncmm

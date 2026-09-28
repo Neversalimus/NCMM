@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "id": "survivor_progression",
+  "name": "Survivor Progression",
+  "version": "0.11.3",
+  "kind": "native_module",
+  "atomic_group": "native-runtime",
+  "delivery": "source_build",
+  "required": true,
+  "dependencies": [
+    {
+      "component": "ncmm_host",
+      "min_version": "0.8.0"
+    },
+    {
+      "capability": "api.versioning.v1"
+    },
+    {
+      "capability": "active_mods.registry.v2"
+    },
+    {
+      "capability": "host_api.v2.core"
+    },
+    {
+      "capability": "events.core.v2"
+    },
+    {
+      "capability": "character.modifiers.v2"
+    },
+    {
+      "capability": "runtime_hooks.registry.v2"
+    }
+  ],
+  "descriptor": "components/survivor_progression.json"
+}

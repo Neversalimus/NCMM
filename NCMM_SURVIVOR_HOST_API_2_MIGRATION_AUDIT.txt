@@ -1,0 +1,53 @@
+NCMM SURVIVOR -> HOST API 2.0 MIGRATION AUDIT
+================================================
+
+Result: 28/28 checks PASS
+Payload SHA-256: 1f6bb02d6998248f3be28f5dbec619e7cadcc924490cb296df49bcde07b94c52
+Infrastructure: 0.8.2.1
+Host: 0.8.0 | legacy API 1.9 | Host API 2.0
+Survivor: 0.9.16 | state schema 8
+AWS: 0.6.1 (not migrated in this release)
+
+PASS | JSON parse | 20 files
+PASS | YAML parse | 2 files
+PASS | PS1 UTF-8 BOM + CRLF | 19 files
+PASS | single CMD no BOM + CRLF | ['NCMM.cmd']
+PASS | PowerShell here-string lexical state
+PASS | known Join-Path Object[] regression absent
+PASS | legacy Apply-SurvivorModMechanicsPatch removed
+PASS | generic runtime hooks invoked twice | 2
+PASS | generic marker reset guards
+PASS | generic contamination probes
+PASS | generic injected C++ free of module IDs | []
+PASS | Host dynamic modifier lifecycle cleanup
+PASS | Host post-clean output audit
+PASS | Survivor Host API2 migration present
+PASS | Survivor shutdown clears host2
+PASS | Survivor state schema remains 8
+PASS | 39 Prime roots audit preserved
+PASS | 161 mod-native nodes audit preserved
+PASS | Survivor component 0.9.16
+PASS | Host component 0.8.0
+PASS | AWS remains 0.6.1
+PASS | Survivor requires Host >=0.8.0
+PASS | required API2 capabilities advertised
+PASS | self-test expects Survivor 0.9.16
+PASS | compat feed hashes current
+PASS | C++17 API2 setup syntax smoke
+PASS | payload BOM + CRLF
+PASS | only one user CMD
+
+Migration invariants:
+- Survivor-specific CDDA patch function is removed.
+- CDDA runtime hooks are generic Host-owned hooks only.
+- Survivor owns/binds mg/mom/xe/af/afp/sec* modifier IDs through Host API 2.0.
+- Host removes dynamic v2 modifier policy entries on reset/shutdown.
+- Existing historical 0.9.11-0.9.15 generation/audit chain remains intact before the 0.9.16 migration transform.
+- 39 Prime roots / 161 mod-native node audits remain unchanged.
+- State schema remains 8; no save-state migration is introduced by 0.9.16.
+- AWS 0.6.1 remains on the legacy path for the next separate migration stage.
+
+Environment limitation:
+- Windows PowerShell 5.1 AST parsing and the real MSVC/CDDA build are not available in this Linux container.
+- ci/Test-Infrastructure0821.ps1 performs the actual Windows PowerShell parser gate before installation.
+- The first NCMM.cmd install on Windows is therefore the native compile/runtime gate.

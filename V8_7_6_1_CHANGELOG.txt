@@ -1,0 +1,34 @@
+NCMM / Survivor Progression v8.7.6.1 — Anchor + Launcher + Profiler Support Hotfix
+================================================================================
+
+Fixes
+-----
+1. Fixed the live Windows failure:
+   `0.9.15 hardcoded mod-tab list anchor missing.`
+   Cause: earlier exact transforms normalize generated Survivor C++ to LF, while the
+   Windows PowerShell here-string anchor remains CRLF. The raw String.Contains guard
+   compared different newline encodings. The 0.9.15 mod-tab anchor is now normalized
+   before both the guard and exact replacement.
+
+2. Fixed RUN_SURVIVOR_0915.cmd encoding.
+   The launcher is now UTF-8/ASCII-compatible text without BOM, so cmd.exe no longer
+   tries to execute `я╗┐@echo off` as the first command. Parser exit-code capture was
+   also moved outside a parenthesized block so `%ERRORLEVEL%` cannot be expanded to a
+   stale 0. The PowerShell installer keeps its required UTF-8 BOM for Windows PowerShell
+   5.1 Russian text.
+
+3. Added dormant Recipe Finalization Profiler host support.
+   No profiling is performed unless the separate NCMM Recipe Finalization Profiler
+   module is installed/enabled. When enabled it writes:
+      <CDDA root>\ncmm\recipe_finalize_profile.txt
+   with total/stage timings, source-mod attribution for recipe::finalize calls, and
+   the slowest individual recipes.
+
+Unchanged
+---------
+- Survivor schema 8
+- 39 Prime roots
+- 161 mod-native nodes
+- perk values / tradeoffs
+- World Settings API v2
+- NCMM host 0.7.4 / API 1.8

@@ -61,8 +61,8 @@ function NonAscii-Signature([string]$Text) {
 
 if (Test-Path $marker) {
     $markerText = [System.IO.File]::ReadAllText($marker)
-    if (-not $markerText.Contains('NCMM 0.7.1')) {
-        throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.7.1.'
+    if (-not $markerText.Contains('NCMM 0.8.0')) {
+        throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.8.0.'
     }
 
     $h = Read-Utf8 $optionsH
@@ -93,6 +93,7 @@ if (Test-Path $marker) {
         @($mm,'ncmm::register_gameplay_actions( ctxt_default );'),
         @($dt,'ncmm::on_turn();'),
         @($ih,'ncmm_register_default_action'),
+        @($ih,'ncmm_register_context_default_action'),
         @($ic,'alternate_type'),
         @($ha,'ncmm::register_gameplay_actions( ctxt );'),
         @($ha,'ncmm::handle_gameplay_action( action )'),
@@ -128,8 +129,8 @@ Copy-Item (Join-Path $PSScriptRoot 'ncmm_manifest_policy.h') (Join-Path $src 'nc
     if (-not $kn.Contains('ncmm::gameplay_modifier( "read_speed_pct" )')) { throw 'Post-check failed: read_speed_pct' }
     if (-not $cr.Contains('ncmm::gameplay_modifier( "craft_speed_pct" )')) { throw 'Post-check failed: craft_speed_pct' }
 
-    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.7.1 module contract`n" -Encoding ASCII
-    Write-Host 'Existing NCMM upstream patch verified; v0.7.1 loader/API refreshed.'
+    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.8.0 module contract`n" -Encoding ASCII
+    Write-Host 'Existing NCMM upstream patch verified; v0.8.0 loader/API refreshed.'
     exit 0
 }
 
@@ -370,10 +371,19 @@ $dt = Replace-ExactlyOnce $dt @'
 $ih = Replace-ExactlyOnce $ih '        void save();' @'
         void save();
 
-        /** NCMM: register a stable keyboard-any default without overwriting user remaps. */
+        /** NCMM: register a stable global default without overwriting user remaps. */
         void ncmm_register_default_action( const std::string &action_descriptor,
                                            const translation &name,
                                            const input_event &default_event );
+
+        /**
+         * NCMM: register a default only in one input context (DEFAULTMODE for module hotkeys).
+         * Existing user bindings in that context are preserved.
+         */
+        void ncmm_register_context_default_action( const std::string &action_descriptor,
+                                                   const translation &name,
+                                                   const input_event &default_event,
+                                                   const std::string &context );
 '@ 'input.ncmm-default-action-declaration'
 
 $ic = Replace-ExactlyOnce $ic @'
@@ -414,6 +424,53 @@ void input_manager::ncmm_register_default_action( const std::string &action_desc
         active[action_descriptor] = basic;
     } else {
         // Preserve user-selected input events; refresh only the display name.
+        it->second.name = name;
+    }
+}
+
+void input_manager::ncmm_register_context_default_action(
+        const std::string &action_descriptor,
+        const translation &name,
+        const input_event &default_event,
+        const std::string &context )
+{
+    if( action_descriptor.empty() || context.empty() ) {
+        return;
+    }
+
+    action_attributes &basic = basic_action_contexts[context][action_descriptor];
+    basic.name = name;
+    basic.is_user_created = false;
+    basic.input_events.clear();
+    basic.input_events.push_back( default_event );
+
+    // Match CDDA's native "keyboard_any" semantics for context-scoped NCMM hotkeys.
+    // Tiles gameplay can deliver function keys as keyboard_char (KEY_F(n)) even when
+    // the manifest default was registered from the SDL-style keyboard_code value.
+    if( default_event.type == input_event_t::keyboard_code ||
+        default_event.type == input_event_t::keyboard_char ) {
+        const input_event_t alternate_type =
+            default_event.type == input_event_t::keyboard_code ?
+            input_event_t::keyboard_char : input_event_t::keyboard_code;
+        const std::string portable_name =
+            get_keyname( default_event.get_first_input(), default_event.type, true );
+        const int alternate_code = get_keycode( alternate_type, portable_name );
+        if( alternate_code != 0 ) {
+            const input_event alternate( default_event.modifiers, alternate_code, alternate_type );
+            if( std::find( basic.input_events.begin(), basic.input_events.end(), alternate ) ==
+                basic.input_events.end() ) {
+                basic.input_events.push_back( alternate );
+            }
+        }
+    }
+
+    t_actions &active = action_contexts[context];
+    const auto it = active.find( action_descriptor );
+    if( it == active.end() ) {
+        active[action_descriptor] = basic;
+    } else {
+        // The user-keybinding file was loaded before NCMM reaches gameplay.
+        // Never overwrite its selected events; only refresh the display name.
         it->second.name = name;
     }
 }
@@ -506,7 +563,7 @@ $mm = Replace-ExactlyOnce $mm @'
 '@ 'main-menu.ncmm-manager-action'
 
 
-# NCMM 0.7.1 generic character modifier hooks.
+# NCMM 0.8.0 generic character modifier hooks.
 $ch = Replace-ExactlyOnce $ch '#include "npc.h"' ('#include "npc.h"' + "`n" + '#include "ncmm_loader.h"') 'character.include-ncmm'
 $ch = Replace-ExactlyOnce $ch @'
 int Character::get_str() const
@@ -733,6 +790,8 @@ $cr = Replace-ExactlyOnce $cr @'
     return std::max( result, 0.0f );
 '@ 'crafting.recipe-speed'
 
+
+
 Write-Utf8 $optionsH $h
 Write-Utf8 $optionsCpp $c
 Write-Utf8 $sdl $sd
@@ -793,12 +852,12 @@ foreach ($needle in @('ncmm::settings_menu_label()','ncmm::show_manager();','ncm
 }
 if (-not $dt2.Contains('ncmm::on_turn();')) { throw 'Post-check failed: ncmm::on_turn' }
 if (-not $ih2.Contains('ncmm_register_default_action')) { throw 'Post-check failed: input manager NCMM declaration' }
-foreach ($needle in @('input_manager::ncmm_register_default_action','alternate_type','portable_name','keyboard_char','keyboard_code')) {
+foreach ($needle in @('input_manager::ncmm_register_default_action','input_manager::ncmm_register_context_default_action','alternate_type','portable_name','keyboard_char','keyboard_code')) {
     if (-not $ic2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 foreach ($needle in @('ncmm::register_gameplay_actions( ctxt );','ncmm::handle_gameplay_action( action )')) {
     if (-not $ha2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 
-Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.7.1 module contract`n" -Encoding ASCII
-Write-Host 'NCMM 0.7.1 host patch applied and UTF-8 preservation verified.'
+Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.8.0 module contract`n" -Encoding ASCII
+Write-Host 'NCMM 0.8.0 host patch applied and UTF-8 preservation verified.'

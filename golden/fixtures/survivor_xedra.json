@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "id": "survivor_xedra",
+  "active_mod_ids": [
+    "dda",
+    "xedra_evolved"
+  ],
+  "expected": {
+    "survivor_schema": 8,
+    "integration": "xedra_evolved",
+    "available_prime_roots": 21,
+    "available_mod_prime_roots": 3
+  },
+  "required_tokens": [
+    "active_world_mod( \"xedra_evolved\" )",
+    "xe_anomaly_method",
+    "Boundary Master"
+  ]
+}
