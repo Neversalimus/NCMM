@@ -26,7 +26,7 @@ internal sealed class MainForm : Form
 
     internal MainForm()
     {
-        Text = "NCMM 0.8.0 Setup";
+        Text = "NCMM " + SetupCore.RuntimeVersion + " Setup";
         Width = 920;
         Height = 680;
         StartPosition = FormStartPosition.CenterScreen;

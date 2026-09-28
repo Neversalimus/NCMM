@@ -22,11 +22,13 @@ function Assert-Contains([string]$Rel,[string]$Needle) {
 
 $markers = @(
     @('runtime/NCMMBootstrap.cs',('private const string RuntimeVersion = "'+$ExpectedVersion+'";')),
-    @('runtime/NCMMSetup.cs',('NCMM '+$ExpectedVersion+' Setup')),
+    @('runtime/NCMMSetupCore.cs',('internal const string RuntimeVersion = "'+$ExpectedVersion+'";')),
+    @('runtime/NCMMSetup.cs','Text = "NCMM " + SetupCore.RuntimeVersion + " Setup";'),
     @('host_patch/ncmm_loader.cpp',('return "'+$ExpectedVersion+'";')),
     @('ci/Build-HostPackage.ps1','Get-NcmmCurrentVersion.ps1'),
     @('ci/Build-HostPackage.ps1','ncmm_version = $ncmmVersion'),
-    @('.github/workflows/ncmm-runtime.yml',('ncmm-runtime-v'+$ExpectedVersion)),
+    @('.github/workflows/ncmm-runtime.yml','Get-NcmmCurrentVersion.ps1'),
+    @('.github/workflows/ncmm-runtime.yml','$tag = "ncmm-runtime-v$version"'),
     @('.github/workflows/ncmm-host.yml',('NCMM '+$ExpectedVersion+' certification')),
     @('.github/workflows/ncmm-feed-audit.yml','Get-NcmmCurrentVersion.ps1'),
     @('tests/smoke_host.cpp',('return "'+$ExpectedVersion+'-smoke";'))
