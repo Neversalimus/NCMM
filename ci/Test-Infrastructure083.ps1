@@ -269,8 +269,6 @@ if(([regex]::Matches($payload,[regex]::Escape('ncmm_apply_deferred_option_value(
 $deferPos0831=$payload.IndexOf('name.rfind( "NCMM_", 0 ) == 0')
 $registerPos0831=$payload.IndexOf('bool options_manager::ncmm_register_world_bool(')
 if($deferPos0831 -lt 0 -or $registerPos0831 -lt 0 -or $deferPos0831 -gt $registerPos0831){throw 'Deferred NCMM deserialize gate must be generated before runtime setting registration implementations.'}
-if(-not $common083.Contains("reason='+[string]`$m.reason")){throw 'Runtime verifier no longer reports module reason.'}
-if(-not $common083.Contains('module_failures=@($moduleFailures)')){throw 'Runtime verifier module failure summary missing.'}
 
 # Survivor Progression 0.10.0 Mechanical Perks regression contracts.
 # Historical gameplay/content contracts stay pinned here; build-cache marker/fingerprint are version-current and are checked by the 0.11.3 block below.

@@ -29,4 +29,7 @@ $runtimeBody083=$common083.Substring($runtimeFn083)
 foreach($runtimeNeed083 in @('modules.state.json','modules.host_version','modules.api_version','host.boot_ready','modules.fresh_after_install')){if(-not $runtimeBody083.Contains($runtimeNeed083)){throw ('Runtime verification contract missing: '+$runtimeNeed083)}}
 foreach($phase083 in @('legacy_generate','api2_migrate','source_preflight','cdda_patch')){if(-not $payload.Contains('Set-InfrastructureTransactionPhase "'+$phase083+'"')){throw ('Payload stage checkpoint missing: '+$phase083)}}
 
+if(-not $common083.Contains("reason='+[string]`$m.reason")){throw 'Runtime verifier no longer reports module reason.'}
+if(-not $common083.Contains('module_failures=@($moduleFailures)')){throw 'Runtime verifier module failure summary missing.'}
+
 Write-Host 'NCMM staged installer transaction contract: PASS' -ForegroundColor Green

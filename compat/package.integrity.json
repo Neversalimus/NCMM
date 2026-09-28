@@ -71,13 +71,13 @@
     },
     {
       "path": "ci\\Test-Infrastructure083.ps1",
-      "sha256": "d3e07f11e177d5c9dfe573fb4738abc2aa58febc3913276e0b2b00761636c683",
-      "bytes": 45139
+      "sha256": "25af0647897e7fffa04307d93d754b018e9c0c91d005e82a4bd5f0e44c2edf7c",
+      "bytes": 44893
     },
     {
       "path": "ci\\Test-InstallerTransaction.ps1",
-      "sha256": "3e6a14c70daef1e01f8b5b73f39d54183728e50d81125780da5fd5e156be2367",
-      "bytes": 3174
+      "sha256": "3e056de12129146c4617dccccff1f03b90d8f533b8bd92bc3ccb29ab699550e4",
+      "bytes": 3422
     },
     {
       "path": "ci\\Watch-CDDAExperimental.ps1",
