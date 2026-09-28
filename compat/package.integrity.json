@@ -81,8 +81,8 @@
     },
     {
       "path": "ci\\Test-InstallerTransaction.ps1",
-      "sha256": "3e056de12129146c4617dccccff1f03b90d8f533b8bd92bc3ccb29ab699550e4",
-      "bytes": 3422
+      "sha256": "25a56d2e1891b24e7503775a28f815e564d4b20dc663ddee78f948856a46eef7",
+      "bytes": 3725
     },
     {
       "path": "ci\\Test-SurvivorPayloadContracts.ps1",
