@@ -79,6 +79,9 @@ SURVIVOR_HOST_API_2_MIGRATION_CHANGELOG.txt
 tools\Collect-NCMMDiagnostics.ps1
 tools\Invoke-NCMMUpdate.ps1
 tools\NCMM.Infrastructure.Common.ps1
+tools\NCMM.Infrastructure.Core.ps1
+tools\NCMM.Infrastructure.Package.ps1
+tools\NCMM.Infrastructure.Transaction.ps1
 tools\NCMM.Update.Common.ps1
 V8_7_4_CHANGELOG.txt
 V8_7_5_CHANGELOG.txt
