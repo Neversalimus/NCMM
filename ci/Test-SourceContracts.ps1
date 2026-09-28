@@ -46,7 +46,7 @@ $report = [ordered]@{
     status = if ($failed.Count -eq 0) { 'compatible' } else { 'incompatible' }
     checked_utc = [DateTime]::UtcNow.ToString('o')
     contracts = @($results)
-    failed_contracts = @($failed)
+    failed_contracts = $failed.ToArray()
 }
 
 $reportPath = Join-Path $SourceRoot '.ncmm_contract_report.json'
