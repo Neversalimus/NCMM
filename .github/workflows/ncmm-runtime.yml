@@ -24,7 +24,7 @@ permissions:
 
 concurrency:
   group: ncmm-runtime-release
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-runtime:
@@ -52,6 +52,12 @@ jobs:
           $hostComponent = @($components.components | Where-Object { $_.id -eq 'ncmm_host' })[0]
           if ($null -eq $hostComponent -or [string]$hostComponent.version -ne '0.8.0') { throw 'Component catalog host version is not 0.8.0.' }
           Write-Host 'Current runtime package consistency: PASS (runtime/host 0.8.0).' -ForegroundColor Green
+
+      - name: Validate component dependency and installer contracts
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          ./ci/Test-Infrastructure083.ps1 -PackageRoot "$env:GITHUB_WORKSPACE"
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
