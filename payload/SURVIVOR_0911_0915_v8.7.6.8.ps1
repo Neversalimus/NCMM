@@ -15474,6 +15474,8 @@ std::string rpg_detail_body( const perk_def &perk, const std::string &body,
         $sp = [regex]::Replace($sp,[string]$rule[0],[string]$rule[1])
     }
     Write-Utf8NoBom $spPath $sp
+    Copy-Item $spPath (Join-Path $NcmmRoot "mods\SurvivorProgression\src\survivor_progression.cpp") -Force
+    Copy-Item $manifestPath (Join-Path $NcmmRoot "mods\SurvivorProgression\mod.json") -Force
 
     $loader = Normalize-Lf ([IO.File]::ReadAllText($loaderPath))
     foreach($pair in @(
