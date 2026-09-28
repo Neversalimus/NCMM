@@ -12,6 +12,7 @@ on:
       - 'ci/Test-VersionConsistency.ps1'
       - 'ci/Test-BootstrapFailureHarness.ps1'
       - 'tests/**'
+      - 'feed/index.json'
       - 'host_patch/ncmm_fault_policy.h'
       - 'host_patch/ncmm_manifest_policy.h'
       - '.editorconfig'
