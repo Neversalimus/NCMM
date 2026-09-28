@@ -9,9 +9,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = (Resolve-Path $RepositoryRoot).Path
 $UpstreamRoot = (Resolve-Path $UpstreamRoot).Path
-$repoTop = Split-Path $RepositoryRoot -Parent
 $encodingGuard = Join-Path $RepositoryRoot 'ci\Test-TextEncoding.ps1'
-& $encodingGuard -RepoRoot $repoTop
+& $encodingGuard -RepoRoot $RepositoryRoot
 New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 
 $commit = (& git -C $UpstreamRoot rev-parse HEAD).Trim()
