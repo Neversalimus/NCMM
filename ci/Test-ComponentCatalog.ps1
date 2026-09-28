@@ -117,7 +117,7 @@ try{
         source_commit='e262adb299a7613b4aedc5f12c08fe0413c56a84'
     }|ConvertTo-Json)+"`n")
     Write-NcmmUtf8NoBom (Join-Path $tmp 'ncmm\modules.state.json') (([ordered]@{
-        capabilities=@('api.versioning.v1','active_mods.registry.v2','world_settings.v2','host_api.v2.core','character.modifiers.v2','runtime_hooks.registry.v2')
+        capabilities=@('api.versioning.v1','active_mods.registry.v2','world_settings.v2','host_api.v2.core','settings.typed.v2','character.modifiers.v2','runtime_hooks.registry.v2')
         modules=@(
             @{id='survivor_progression';version=[string]$survivor.version},
             @{id='advanced_world_settings';version=[string]$aws.version}
