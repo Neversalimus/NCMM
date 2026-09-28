@@ -9,6 +9,7 @@ on:
       - 'host_patch/ncmm_loader.cpp'
       - 'payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
       - 'ci/Test-UserFacingCopy.ps1'
+      - 'ci/Build-HostPackage.ps1'
       - '.github/workflows/ncmm-text-audit.yml'
   workflow_dispatch:
 

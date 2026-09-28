@@ -87,7 +87,7 @@ $metadata = [ordered]@{
     source_commit = $commit
     patch_revision = $patchRevision
     host_sha256 = $hostSha
-    vanilla_sha256 = @($vanillaHashes)
+    vanilla_sha256 = $vanillaHashes.ToArray()
     built_utc = [DateTime]::UtcNow.ToString('o')
 }
 $metadata | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $OutputRoot 'host.json') -Encoding UTF8
