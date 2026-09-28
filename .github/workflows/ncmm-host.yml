@@ -18,6 +18,7 @@ on:
       - 'ci/Test-PatchRevisionPortability.ps1'
       - 'ci/Test-SourceContracts.ps1'
       - 'ci/Build-HostPackage.ps1'
+      - 'payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
       - 'ci/Test-TextEncoding.ps1'
       - 'ci/Test-VersionConsistency.ps1'
       - 'ci/Test-FeedIntegrity.ps1'
