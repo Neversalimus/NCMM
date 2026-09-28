@@ -101,7 +101,24 @@ jobs:
           )){
             $repoText = [IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE $rel)).Replace("`r`n","`n")
             $genText = [IO.File]::ReadAllText((Join-Path $generated $rel)).Replace("`r`n","`n")
-            if($repoText -ne $genText){throw "Generated source drift: $rel"}
+            if($repoText -ne $genText){
+              $repoLines = $repoText -split "`n",-1
+              $genLines = $genText -split "`n",-1
+              $max = [Math]::Max($repoLines.Count,$genLines.Count)
+              $shown = 0
+              Write-Host ("Generated source drift details: " + $rel) -ForegroundColor Yellow
+              for($i=0; $i -lt $max -and $shown -lt 40; ++$i){
+                $r = if($i -lt $repoLines.Count){$repoLines[$i]}else{"<EOF>"}
+                $g = if($i -lt $genLines.Count){$genLines[$i]}else{"<EOF>"}
+                if($r -ne $g){
+                  Write-Host ("  line {0}" -f ($i+1))
+                  Write-Host ("    repo: " + $r)
+                  Write-Host ("    gen : " + $g)
+                  ++$shown
+                }
+              }
+              throw "Generated source drift: $rel"
+            }
           }
           Write-Host 'Payload-generated source matches checked-in source: PASS' -ForegroundColor Green
 
