@@ -71,8 +71,8 @@
     },
     {
       "path": "ci\\Test-Infrastructure083.ps1",
-      "sha256": "25af0647897e7fffa04307d93d754b018e9c0c91d005e82a4bd5f0e44c2edf7c",
-      "bytes": 44893
+      "sha256": "69ee84825725a3239b3f3d1f6f80434c9d8c39828f55833a658c8d11e190dbb0",
+      "bytes": 45020
     },
     {
       "path": "ci\\Test-InstallerTransaction.ps1",
@@ -396,8 +396,8 @@
     },
     {
       "path": "tools\\NCMM.Infrastructure.Common.ps1",
-      "sha256": "90f2ebb9f2a84c5c411efaccbe3eb97e7746dd3d94d03adc62f5d77b3cde9539",
-      "bytes": 39251
+      "sha256": "76dd38c1404ffd4c7223084a7fee7178ca4a42e87028aec1e059ab1435d43089",
+      "bytes": 41258
     },
     {
       "path": "tools\\NCMM.Update.Common.ps1",

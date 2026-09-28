@@ -19,6 +19,7 @@ on:
       - 'compat/package.integrity.json'
       - 'ci/Build-Runtime.ps1'
       - 'tools/NCMM.Update.Common.ps1'
+      - 'tools/NCMM.Infrastructure.Common.ps1'
       - 'components/**'
       - 'runtime/NCMMSetup.cs'
       - 'tests/DiagnosticsHarness.cs'

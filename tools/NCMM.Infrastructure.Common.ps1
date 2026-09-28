@@ -76,16 +76,68 @@ function Assert-NcmmPackageIntegrity([string]$PackageRoot) {
     $m=Get-Content $manifestPath -Raw|ConvertFrom-Json
     $rel=[string]$m.package_integrity
     if([string]::IsNullOrWhiteSpace($rel)){throw 'Package integrity manifest is not declared.'}
+
     $ip=Join-Path $PackageRoot $rel
+    $membershipPath=Join-Path $PackageRoot 'compat\package-files.txt'
     if(-not(Test-Path $ip -PathType Leaf)){throw "Package integrity manifest missing: $ip"}
+    if(-not(Test-Path $membershipPath -PathType Leaf)){throw 'Package membership file missing: compat\package-files.txt'}
+
     $integrity=Get-Content $ip -Raw|ConvertFrom-Json
-    if([int]$integrity.schema -ne 1){throw 'Unsupported package integrity schema.'}
+    if([int]$integrity.schema -ne 1 -or [string]$integrity.algorithm -ne 'sha256'){
+        throw 'Unsupported package integrity schema/algorithm.'
+    }
+
+    $members=@(
+        Get-Content $membershipPath |
+        ForEach-Object { ([string]$_).Trim() } |
+        Where-Object { $_ -and -not $_.StartsWith('#') }
+    )
+    if($members.Count -eq 0){throw 'Package membership is empty.'}
+
+    $memberMap=@{}
+    foreach($member in $members){
+        if([IO.Path]::IsPathRooted($member) -or $member.Contains('..')){
+            throw "Unsafe package membership path: $member"
+        }
+        if($memberMap.ContainsKey($member)){throw "Duplicate package membership path: $member"}
+        $memberMap[$member]=$true
+    }
+
+    $entryMap=@{}
+    foreach($entry in @($integrity.files)){
+        $path=[string]$entry.path
+        if([string]::IsNullOrWhiteSpace($path)){throw 'Package integrity contains an empty path.'}
+        if([IO.Path]::IsPathRooted($path) -or $path.Contains('..')){throw "Unsafe package integrity path: $path"}
+        if($entryMap.ContainsKey($path)){throw "Duplicate package integrity path: $path"}
+        $entryMap[$path]=$entry
+    }
+
+    if($entryMap.Count -ne $memberMap.Count){
+        throw "Package integrity membership count mismatch: integrity=$($entryMap.Count), membership=$($memberMap.Count)."
+    }
+    foreach($member in $memberMap.Keys){
+        if(-not $entryMap.ContainsKey($member)){throw "Package integrity entry missing for membership path: $member"}
+    }
+    foreach($path in $entryMap.Keys){
+        if(-not $memberMap.ContainsKey($path)){throw "Package integrity contains undeclared membership path: $path"}
+    }
+
     $failed=@()
-    foreach($entry in $integrity.files){
-        $fp=Join-Path $PackageRoot ([string]$entry.path)
-        if(-not(Test-Path $fp -PathType Leaf)){$failed += (([string]$entry.path)+':missing');continue}
+    foreach($path in $memberMap.Keys){
+        $entry=$entryMap[$path]
+        $fp=Join-Path $PackageRoot $path
+        if(-not(Test-Path $fp -PathType Leaf)){$failed += ($path+':missing');continue}
+
+        $item=Get-Item -LiteralPath $fp
+        if([int64]$item.Length -ne [int64]$entry.bytes){
+            $failed += ($path+':bytes_mismatch')
+            continue
+        }
+
         $actual=Get-NcmmHash $fp
-        if($actual -ne ([string]$entry.sha256).ToLowerInvariant()){$failed += (([string]$entry.path)+':sha256_mismatch')}
+        if($actual -ne ([string]$entry.sha256).ToLowerInvariant()){
+            $failed += ($path+':sha256_mismatch')
+        }
     }
     if($failed.Count -gt 0){throw ('NCMM Infrastructure package integrity failed: '+($failed -join ', '))}
     return $true
