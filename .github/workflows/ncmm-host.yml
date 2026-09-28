@@ -61,7 +61,7 @@ jobs:
       - name: Validate NCMM version consistency
         shell: pwsh
         run: |
-          ./ci/Test-VersionConsistency.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE" -LegacyFeedVersion '0.7.1'
+          ./ci/Test-VersionConsistency.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE" -LegacyFeedVersion '0.8.0'
 
       - name: Feed auditor self-test
         shell: pwsh
