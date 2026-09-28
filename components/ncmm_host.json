@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "ncmm_host",
   "name": "NCMM Host",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "kind": "native_host",
   "atomic_group": "host-runtime",
   "delivery": "source_build",
