@@ -25,6 +25,7 @@ on:
       - 'components/**'
       - 'runtime/NCMMSetup.cs'
       - 'runtime/NCMMSetupCore.cs'
+      - 'runtime/NCMMSetupDiagnostics.cs'
       - 'tests/DiagnosticsHarness.cs'
       - '.github/workflows/ncmm-text-audit.yml'
   workflow_dispatch:
