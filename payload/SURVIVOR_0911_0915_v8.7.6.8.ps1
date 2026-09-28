@@ -15357,6 +15357,163 @@ if(([regex]::Matches($awsMigrationAudit,[regex]::Escape('worldgen_hook_bind_sett
 Write-Host "Advanced World Settings 0.6.2 Host API 2.0 module audit: PASS (48/48 unique geography bindings)" -ForegroundColor Green
 
 
+
+function Apply-PlayerFacingCopyPolishFinal {
+    Write-Host "Applying final player-facing copy polish..." -ForegroundColor Cyan
+
+    $sp = Normalize-Lf ([IO.File]::ReadAllText($spPath))
+    $detailOld = @'
+    if( prime_visual_perk( perk ) ) {
+        result += "\n\n";
+        result += tr( "TRADEOFF:", "КОМПРОМИСС:" );
+        result += "\n" + ( drawback.empty() ? tr( "Another Prime path stays locked until full respec.",
+                                                   "Другой Прайм-путь закрыт до полного сброса." ) : drawback );
+    }
+'@
+    $detailNew = @'
+    if( prime_visual_perk( perk ) && !drawback.empty() ) {
+        result += "\n\n";
+        result += tr( "DRAWBACK:", "ШТРАФ:" );
+        result += "\n" + drawback;
+    }
+'@
+    if( $sp.Contains($detailOld) ) {
+        $sp = $sp.Replace($detailOld,$detailNew)
+    } elseif( -not $sp.Contains($detailNew) ) {
+        throw 'Final copy polish: Prime detail block anchor missing.'
+    }
+
+    foreach($pair in @(
+        @('Apex Combatant','Elite Combatant'),
+        @('Вершина боя','Элитный боец'),
+        @('Pack Discipline','Efficient Packing'),
+        @('Efficient Workflow','Workshop Routine'),
+        @('Эффективный процесс','Отлаженная работа'),
+        @('Learning Loop','Practice Pays Off'),
+        @('Цикл обучения','Учёба на практике'),
+        @('Kinetic Mastery','Kinetic Rhythm'),
+        @('Мастерство движения','Ритм движения'),
+        @('Route Discipline','Efficient Routes'),
+        @('Дисциплина маршрута','Экономные маршруты'),
+        @('Milestone Discipline','Milestone Focus'),
+        @('Дисциплина рубежей','Ориентир на результат'),
+        @('Compounding Practice','Lessons Learned'),
+        @('Накопительная практика','Усвоенные уроки'),
+        @('Deep Practice','Dedicated Study'),
+        @('Глубокая практика','Углублённое обучение'),
+        @('Compounding Insight','Self-Taught Expertise'),
+        @('Накопительное понимание','Опыт самоучки'),
+        @('Systems Architect','Chief Engineer'),
+        @('Архитектор систем','Главный инженер'),
+        @('Prime Systems Savant','Prime Systems Specialist'),
+        @('Прайм: Системный савант','Прайм: Специалист по системам'),
+        @('Prime Systems Integrator','Prime Systems Controller'),
+        @('Прайм: Интегратор систем','Прайм: Системный оператор'),
+        @('Prime Rift Operator','Prime Riftwalker'),
+        @('Прайм: Оператор разлома','Прайм: Странник разломов'),
+        @('Pattern Archive','Anomaly Archive'),
+        @('Архив паттернов','Архив аномалий'),
+        @('Material Discipline','Careful Handling'),
+        @('Дисциплина материалов','Бережная работа'),
+        @('Momentum Engine','Unbroken Momentum'),
+        @('Двигатель импульса','Непрерывный импульс'),
+        @('Master Craft','Masterful Work'),
+        @('Мастерская работа','Работа мастера'),
+        @('+1 free dodge and +2% speed.','One dodge per refresh costs no stamina; +2% speed.'),
+        @('+1 бесплатное уклонение и +2% скорости.','Одно уклонение до восстановления попыток не тратит выносливость; +2% скорости.')
+    )) {
+        $sp = $sp.Replace([string]$pair[0],[string]$pair[1])
+    }
+
+    # Fix the remaining terse generated Russian stat phrases without changing values.
+    $grammar = @(
+        @('([+-]\d+(?:[.,]\d+)?%) максимум выносливости(?=[,;." ])','$1 максимальной выносливости'),
+        @('([+-]\d+(?:[.,]\d+)?%) скорость(?=[,;." ])','$1 скорости'),
+        @('([+-]\d+(?:[.,]\d+)?%) выносливость(?=[,;." ])','$1 выносливости'),
+        @('([+-]\d+(?:[.,]\d+)?%) грузоподъёмность(?=[,;." ])','$1 грузоподъёмности'),
+        @('([+-]\d+(?:[.,]\d+)?%) груза(?=[,;." ])','$1 грузоподъёмности'),
+        @('([+-]\d+(?:[.,]\d+)?%) крафт(?=[,;." ])','$1 скорости крафта'),
+        @('([+-]\d+(?:[.,]\d+)?%) чтение(?=[,;." ])','$1 скорости чтения'),
+        @('([+-]\d+(?:[.,]\d+)?%) лечение(?=[,;." ])','$1 лечения'),
+        @('([+-]\d+(?:[.,]\d+)?%) мощность(?=[,;." ])','$1 мощности'),
+        @('([+-]\d+(?:[.,]\d+)?%) дальность(?=[,;." ])','$1 дальности'),
+        @('([+-]\d+(?:[.,]\d+)?%) площадь(?=[,;." ])','$1 площади'),
+        @('([+-]\d+(?:[.,]\d+)?%) длительность(?=[,;." ])','$1 длительности'),
+        @('([+-]\d+(?:[.,]\d+)?%) восстановление маны(?=[,;." ])','$1 восстановления маны'),
+        @('([+-]\d+(?:[.,]\d+)?%) регена маны(?=[,;." ])','$1 восстановления маны'),
+        @('([+-]\d+(?:[.,]\d+)?%) опыт(?=\s|[,;." ])','$1 опыта'),
+        @('([+-]\d+(?:[.,]\d+)?%) стоимость движения(?=[,;." ])','$1 стоимости движения'),
+        @('([+-]\d+(?:[.,]\d+)?%) движение(?=[,;." ])','$1 стоимости движения'),
+        @('([+-]\d+(?:[.,]\d+)?) сила(?=[,;." ])','$1 к силе'),
+        @('([+-]\d+(?:[.,]\d+)?) ловкость(?=[,;." ])','$1 к ловкости'),
+        @('([+-]\d+(?:[.,]\d+)?) восприятие(?=[,;." ])','$1 к восприятию'),
+        @('([+-]\d+(?:[.,]\d+)?) интеллект(?=[,;." ])','$1 к интеллекту'),
+        @('([+-]\d+(?:[.,]\d+)?) точность(?=[,;." ])','$1 к точности'),
+        @('([+-]\d+(?:[.,]\d+)?) уклонени(?:е|я)(?=[,;." ])','$1 к уклонению')
+    )
+    foreach($rule in $grammar) {
+        $sp = [regex]::Replace($sp,[string]$rule[0],[string]$rule[1])
+    }
+    Write-Utf8NoBom $spPath $sp
+
+    $loader = Normalize-Lf ([IO.File]::ReadAllText($loaderPath))
+    foreach($pair in @(
+        @('No NCMM code mods are installed.','No NCMM mods are installed.'),
+        @('NCMM code-моды не установлены.','Моды NCMM не установлены.'),
+        @('NCMM — Mod Configuration\nIn game the manager is a normal remappable keybinding (F2 by default). Modules marked [UI] can be opened with Enter.',
+          'NCMM — Mod Configuration\nPress F2 to open this menu (the key can be changed in Controls). Press Enter to open settings for supported mods.'),
+        @('NCMM — Настройка модов\nВ игре менеджер — обычное переназначаемое действие (по умолчанию F2). Модули с [UI] открываются через Enter.',
+          'NCMM — Настройка модов\nF2 открывает это меню; клавишу можно изменить в управлении. Enter открывает настройки поддерживаемого мода.'),
+        @('ON / quarantined','ON / error'),
+        @('ВКЛ / карантин','ВКЛ / ошибка'),
+        @('ON / suspended','ON / needs attention'),
+        @('ВКЛ / приостановлен','ВКЛ / требует внимания'),
+        @('ON / loaded','ON'),
+        @('ВКЛ / загружен','ВКЛ'),
+        @('ON / rejected','ON / incompatible'),
+        @('ВКЛ / отклонён','ВКЛ / несовместим'),
+        @('ON / failed','ON / error'),
+        @('ON / not loaded','ON / restart required'),
+        @('ВКЛ / не загружен','ВКЛ / нужен перезапуск'),
+        @('label += " [UI]";','label += tr_ui( " [SETTINGS]", " [НАСТРОЙКИ]" );'),
+        @('Open module UI','Open settings'),
+        @('Открыть интерфейс мода','Открыть настройки'),
+        @('Disable module','Disable mod'),
+        @('Выключить модуль','Выключить мод'),
+        @('Module state migration is suspended for this character. See NCMM diagnostics.',
+          'This mod could not load its saved data safely. Open NCMM diagnostics for details.'),
+        @('Миграция состояния модуля приостановлена для этого персонажа. См. диагностику NCMM.',
+          'Не удалось безопасно загрузить сохранённые данные этого мода. Подробности — в диагностике NCMM.'),
+        @('Module UI callback failed and was quarantined for this session.',
+          'This mod''s interface failed to open and has been disabled for this session.'),
+        @('Ошибка callback интерфейса мода; callback помещён в карантин до перезапуска.',
+          'Интерфейс мода не открылся и отключён до перезапуска игры.'),
+        @('Could not enable the module.','Could not enable the mod.'),
+        @('Не удалось включить модуль.','Не удалось включить мод.'),
+        @('Module enabled. Restart CDDA to apply.','Mod enabled. Restart CDDA to apply.'),
+        @('Модуль включён. Перезапустите CDDA для применения.','Мод включён. Перезапустите CDDA для применения.'),
+        @('Could not disable the module.','Could not disable the mod.'),
+        @('Не удалось выключить модуль.','Не удалось выключить мод.'),
+        @('Module disabled. Restart CDDA to apply.','Mod disabled. Restart CDDA to apply.'),
+        @('Модуль выключен. Перезапустите CDDA для применения.','Мод выключен. Перезапустите CDDA для применения.')
+    )) {
+        $loader = $loader.Replace([string]$pair[0],[string]$pair[1])
+    }
+
+    $reasonBlock = @'
+            if( !entry.reason.empty() && !entry.disabled &&
+                ( !entry.loaded_now || entry.runtime_state == "runtime_fault" ) ) {
+                label += " - " + entry.reason;
+            }
+'@
+    $loader = $loader.Replace($reasonBlock,'')
+    Write-Utf8NoBom $loaderPath $loader
+
+    Write-Host "Final player-facing copy polish: READY" -ForegroundColor Green
+}
+
+Apply-PlayerFacingCopyPolishFinal
+
 # NCMM Infrastructure 0.8.0 deep probe: execute the exact host/source transform stack
 # without resolving Visual Studio, compiling binaries, touching the target runtime, or installing files.
 if ($HostSourceProbeOnly) {
