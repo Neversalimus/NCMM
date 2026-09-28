@@ -90,13 +90,29 @@ jobs:
         id: host_feed
         shell: powershell
         run: |
+          $ErrorActionPreference='Stop'
           $feed = Get-Content feed/index.json -Raw | ConvertFrom-Json
-          $ready = [string]$feed.runtime_version -eq '0.8.0'
+          $hostVersion = [string](Get-Content components/ncmm_host.json -Raw | ConvertFrom-Json).version
+          $currentRevision = (./ci/Get-PatchRevision.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE").Trim()
+          if ($currentRevision -notmatch '^[0-9a-f]{64}$') {
+            throw "Current patch revision is invalid: $currentRevision"
+          }
+
+          $versionReady = [string]$feed.runtime_version -eq $hostVersion
+          $revisionReady = [string]$feed.patch_revision -eq $currentRevision
+          $ready = $versionReady -and $revisionReady
           "ready=$($ready.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
           if ($ready) {
-            Write-Host 'Certified-host feed is ready for runtime 0.8.0.' -ForegroundColor Green
+            Write-Host "Certified-host feed is ready for NCMM $hostVersion / patch $currentRevision." -ForegroundColor Green
           } else {
-            Write-Host ("Certified-host feed is still " + [string]$feed.runtime_version + "; runtime 0.8.0 release publication is intentionally skipped.") -ForegroundColor Yellow
+            Write-Host (
+              "Certified-host feed is not release-ready. " +
+              "feed_version=" + [string]$feed.runtime_version +
+              " source_version=" + $hostVersion +
+              " feed_patch=" + [string]$feed.patch_revision +
+              " source_patch=" + $currentRevision
+            ) -ForegroundColor Yellow
           }
 
       - name: Publish runtime release
