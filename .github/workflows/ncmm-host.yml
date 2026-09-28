@@ -175,12 +175,16 @@ jobs:
           $tag = '${{ matrix.tag }}'
           $source = '${{ steps.source.outputs.sha }}'
           $releaseTag = "ncmm-host-$tag-r$($rev.Substring(0, 12))"
-          & gh release view $releaseTag *> $null
+          # A missing release is a normal cache miss, not a certification error.
+          # Run the probe under cmd.exe so GitHub Actions' PowerShell error policy
+          # cannot promote gh's expected stderr into a terminating exception.
+          & cmd.exe /d /c "gh release view `"$releaseTag`" >nul 2>nul"
           if ($LASTEXITCODE -ne 0) {
-              Write-Host "No reusable certified release: $releaseTag"
+              Write-Host "Certified-host reuse: MISS ($releaseTag)"
               "reused=false" >> $env:GITHUB_OUTPUT
               exit 0
           }
+          Write-Host "Certified-host reuse: HIT ($releaseTag)"
 
           $zipName = "ncmm-host-win64-$tag.zip"
           New-Item -ItemType Directory -Force -Path result/package | Out-Null
