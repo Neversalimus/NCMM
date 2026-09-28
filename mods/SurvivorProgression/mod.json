@@ -23,6 +23,7 @@
     "ui.theme.v1",
     "active_mods.registry.v2",
     "host_api.v2.core",
+    "settings.typed.v2",
     "events.core.v2",
     "character.modifiers.v2",
     "runtime_hooks.registry.v2",
