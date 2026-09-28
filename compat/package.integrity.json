@@ -55,6 +55,11 @@
       "bytes": 3446
     },
     {
+      "path": "ci\\Test-ComponentCatalog.ps1",
+      "sha256": "00e66b314d6b5ae154d61372c8c8ea806e2eaeee2c696b8922d83a0dd7391cde",
+      "bytes": 8011
+    },
+    {
       "path": "ci\\Test-GoldenRegression.ps1",
       "sha256": "8a84a7cc6f9d78378bb98386ac0b97c75e647133502e857f2efc8cc34180e288",
       "bytes": 1993
@@ -66,8 +71,8 @@
     },
     {
       "path": "ci\\Test-Infrastructure083.ps1",
-      "sha256": "b9e89834192f24710fb6105ee312ae65205419ca242918edc2d70334bfc6f3e0",
-      "bytes": 51138
+      "sha256": "755fa595a0a7acf03fca86ff56ccb3a21ec4cfe9db84295846dd7a71f62ab507",
+      "bytes": 47229
     },
     {
       "path": "ci\\Watch-CDDAExperimental.ps1",
@@ -96,8 +101,8 @@
     },
     {
       "path": "compat\\package-files.txt",
-      "sha256": "93a2aa7b82edcf63dbfd97201963da9d85ce3a37a002bb9998cbf8eed09813c1",
-      "bytes": 3077
+      "sha256": "2dbfdca722f5ab568bb5053d356a9a76cf9272255ac03f30889845d73a41086d",
+      "bytes": 3106
     },
     {
       "path": "compat\\update\\index.json",

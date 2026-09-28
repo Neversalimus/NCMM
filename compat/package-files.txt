@@ -8,6 +8,7 @@ ci\Invoke-NCMMCertification.ps1
 ci\Promote-CertificateToFeed.ps1
 ci\Promote-UpdateRelease.ps1
 ci\Regenerate-PackageIntegrity.ps1
+ci\Test-ComponentCatalog.ps1
 ci\Test-GoldenRegression.ps1
 ci\Test-Infrastructure0821.ps1
 ci\Test-Infrastructure083.ps1

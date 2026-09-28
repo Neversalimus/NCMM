@@ -12,6 +12,8 @@ on:
       - 'ci/Test-TextEncoding.ps1'
       - 'ci/Test-VersionConsistency.ps1'
       - 'ci/Test-BootstrapFailureHarness.ps1'
+      - 'ci/Test-ComponentCatalog.ps1'
+      - 'tools/NCMM.Update.Common.ps1'
       - 'tests/**'
       - 'feed/index.json'
       - 'host_patch/ncmm_fault_policy.h'

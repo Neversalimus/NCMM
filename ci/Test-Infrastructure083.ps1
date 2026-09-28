@@ -2,7 +2,7 @@
 $ErrorActionPreference='Stop'
 . (Join-Path $PackageRoot 'tools\NCMM.Infrastructure.Common.ps1')
 . (Join-Path $PackageRoot 'tools\NCMM.Update.Common.ps1')
-$required=@('NCMM.cmd','NCMM.ps1','internal\NCMM.Install.ps1','internal\stages\10-Preflight.ps1','internal\stages\20-Snapshot.ps1','internal\stages\30-PayloadEngine.ps1','internal\stages\40-OfflineVerify.ps1','internal\stages\50-Commit.ps1','internal\stages\60-RuntimeVerify.ps1','pipeline\pipeline.manifest.json','compat\compatibility.manifest.json','compat\contracts.json','compat\package.integrity.json','compat\feed\index.json','compat\update\index.json','components\index.json','components\package-format.json','migrations\migrations.json','tools\NCMM.Infrastructure.Common.ps1','tools\NCMM.Update.Common.ps1','tools\Invoke-NCMMUpdate.ps1','tools\Collect-NCMMDiagnostics.ps1','ci\Invoke-NCMMCertification.ps1','ci\Watch-CDDAExperimental.ps1','ci\Test-GoldenRegression.ps1','ci\Build-UpdateRelease.ps1','ci\Promote-UpdateRelease.ps1','adapters\base\cdda_2026_series.ps1','adapters\cdda_2026_09_23_0546.ps1','payload\SURVIVOR_0911_0915_v8.7.6.8.ps1','.github\workflows\ncmm-certify.yml','.github\workflows\ncmm-experimental-watch.yml')
+$required=@('NCMM.cmd','NCMM.ps1','internal\NCMM.Install.ps1','internal\stages\10-Preflight.ps1','internal\stages\20-Snapshot.ps1','internal\stages\30-PayloadEngine.ps1','internal\stages\40-OfflineVerify.ps1','internal\stages\50-Commit.ps1','internal\stages\60-RuntimeVerify.ps1','pipeline\pipeline.manifest.json','compat\compatibility.manifest.json','compat\contracts.json','compat\package.integrity.json','compat\package-files.txt','compat\feed\index.json','compat\update\index.json','components\index.json','components\package-format.json','migrations\migrations.json','tools\NCMM.Infrastructure.Common.ps1','tools\NCMM.Update.Common.ps1','tools\Invoke-NCMMUpdate.ps1','tools\Collect-NCMMDiagnostics.ps1','ci\Invoke-NCMMCertification.ps1','ci\Watch-CDDAExperimental.ps1','ci\Test-GoldenRegression.ps1','ci\Test-ComponentCatalog.ps1','ci\Regenerate-PackageIntegrity.ps1','ci\Build-UpdateRelease.ps1','ci\Promote-UpdateRelease.ps1','adapters\base\cdda_2026_series.ps1','adapters\cdda_2026_09_23_0546.ps1','payload\SURVIVOR_0911_0915_v8.7.6.8.ps1','.github\workflows\ncmm-certify.yml','.github\workflows\ncmm-experimental-watch.yml')
 foreach($r in $required){if(-not(Test-Path (Join-Path $PackageRoot $r) -PathType Leaf)){throw "Missing Infrastructure 0.8.3.1 file: $r"}}
 $m=Get-Content (Join-Path $PackageRoot 'compat\compatibility.manifest.json') -Raw|ConvertFrom-Json
 $pipeline083=Get-Content (Join-Path $PackageRoot 'pipeline\pipeline.manifest.json') -Raw|ConvertFrom-Json
@@ -11,18 +11,8 @@ if([int]$m.schema -ne 4 -or [string]$m.infrastructure_version -ne '0.8.3.1'){thr
 $exact=& (Join-Path $PackageRoot 'adapters\cdda_2026_09_23_0546.ps1') -Mode Describe
 if([string]$exact.commit -ne 'e262adb299a7613b4aedc5f12c08fe0413c56a84' -or [string]$exact.support -ne 'exact'){throw 'Exact 0546 adapter identity drift.'}
 $base=Get-NcmmBaseAdapter $PackageRoot;if(-not $base -or [string]$base.id -ne 'base-cdda-2026-series-v1'){throw 'Inherited base adapter resolution failed.'}
-$c=Get-Content (Join-Path $PackageRoot 'components\index.json') -Raw|ConvertFrom-Json
-if([int]$c.schema -ne 1 -or [string]$c.infrastructure_version -ne '0.8.3.1'){throw 'Component catalog invalid.'}
-foreach($id in @('ncmm_infrastructure','ncmm_host','survivor_progression','advanced_world_settings','recipe_finalize_profiler')){if(@($c.components|Where-Object{$_.id -eq $id}).Count -ne 1){throw "Component missing/duplicate: $id"}}
+& (Join-Path $PackageRoot 'ci\Test-ComponentCatalog.ps1') -PackageRoot $PackageRoot
 $r=Get-Content (Join-Path $PackageRoot 'migrations\migrations.json') -Raw|ConvertFrom-Json;if([int]$r.update_state_schema -ne 2){throw 'Migration registry invalid.'}
-$f=Get-Content (Join-Path $PackageRoot 'compat\update\index.json') -Raw|ConvertFrom-Json;if([string]$f.infrastructure_version -ne '0.8.3.1'){throw 'Update feed invalid.'}
-# PowerShell 5.1 update resolver intentionally uses native Hashtable/Array values.
-# Generic List/HashSet values can trigger PSToObjectArrayBinder / fixed-size array failures.
-$capSetProbe=Get-NcmmReleaseCapabilitySet $c (@($f.releases)[0])
-if(-not ($capSetProbe -is [hashtable])){throw ('PS5.1 capability set type drift: '+$capSetProbe.GetType().FullName)}
-$capSetProbe['__ncmm_ps51_mutation_probe__']=$true
-if(-not $capSetProbe.ContainsKey('__ncmm_ps51_mutation_probe__')){throw 'PS5.1 capability set mutation probe failed.'}
-$capSetProbe.Remove('__ncmm_ps51_mutation_probe__')
 $payload=[IO.File]::ReadAllText((Join-Path $PackageRoot 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1'));foreach($n in @('[switch]$HostSourceProbeOnly','Set-InfrastructureTransactionPhase "compile"','Set-InfrastructureTransactionPhase "install"','DEEP_SOURCE_PASS')){if(-not $payload.Contains($n)){throw "Payload contract missing: $n"}}
 foreach($badHere in @("'@.TrimEnd(",'"@.TrimEnd(',"'@ @'",'"@ @"')){if($payload.Contains($badHere)){throw ('PowerShell 5.1 unsafe here-string composition: '+$badHere)}}
 # Windows PowerShell 5.1 requires a here-string closing marker to be the only token on its line.
@@ -228,18 +218,6 @@ foreach($ps in Get-ChildItem $PackageRoot -Recurse -File -Filter '*.ps1'){
         }
     }
 }
-# Dependency/update regression inline (avoids wrapper/test script fan-out).
-$tmp=Join-Path $env:TEMP ('NCMM_UPDATE_TEST_'+[guid]::NewGuid().ToString('N'));New-Item -ItemType Directory -Force (Join-Path $tmp 'ncmm')|Out-Null
-try{
- [IO.File]::WriteAllText((Join-Path $tmp 'VERSION.txt'),'commit sha: e262adb299a7613b4aedc5f12c08fe0413c56a84'+"`r`n",(New-Object Text.UTF8Encoding($false)));[IO.File]::WriteAllBytes((Join-Path $tmp 'cataclysm-tiles.exe'),(New-Object byte[] 1))
- Write-NcmmUtf8NoBom (Join-Path $tmp 'ncmm\host.binding.json') (([ordered]@{ncmm_version='0.8.0';source_commit='e262adb299a7613b4aedc5f12c08fe0413c56a84'}|ConvertTo-Json)+"`n")
- Write-NcmmUtf8NoBom (Join-Path $tmp 'ncmm\modules.state.json') (([ordered]@{capabilities=@('api.versioning.v1','active_mods.registry.v2','world_settings.v2','host_api.v2.core','character.modifiers.v2','runtime_hooks.registry.v2');modules=@(@{id='survivor_progression';version='0.11.3'},@{id='advanced_world_settings';version='0.6.2'})}|ConvertTo-Json -Depth 6)+"`n")
- $plan=Resolve-NcmmDependencyPlan $PackageRoot $tmp $f @('survivor_progression');if($plan.expanded -notcontains 'survivor_progression'){throw 'Survivor component missing from independent update plan.'};if($plan.expanded -contains 'advanced_world_settings'){throw 'AWS was incorrectly pulled into Survivor independent update plan.'};if($plan.expanded -contains 'recipe_finalize_profiler'){throw 'Optional profiler pulled into Survivor update plan.'}
- Remove-Item (Join-Path $tmp 'ncmm\host.binding.json') -Force
- $planWithoutHost=Resolve-NcmmDependencyPlan $PackageRoot $tmp $f @('survivor_progression');foreach($id in @('ncmm_host','survivor_progression')){if($planWithoutHost.expanded -notcontains $id){throw "Missing dependency-expanded component: $id"}};if($planWithoutHost.expanded -contains 'advanced_world_settings'){throw 'AWS was incorrectly pulled into dependency-expanded Survivor plan.'}
- $mig=Invoke-NcmmUpdateStateMigration $PackageRoot $tmp;if([int]$mig.state.schema -ne 2){throw 'Migration did not reach schema 2.'};$mig2=Invoke-NcmmUpdateStateMigration $PackageRoot $tmp;if(@($mig2.migrations).Count -ne 0){throw 'Migrations are not idempotent.'}
-}finally{Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue}
-
 # HOTFIX18 regression: PowerShell 5.1 treats `$name:` inside an interpolated string as an invalid variable reference.
 # Scope-qualified forms such as $env: and $script: are legal; ordinary variables before punctuation must use ${name}:.
 $payloadHotfix18 = Get-Content (Join-Path $PackageRoot 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1') -Raw
