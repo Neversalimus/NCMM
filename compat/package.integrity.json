@@ -56,8 +56,8 @@
     },
     {
       "path": "ci\\Test-ComponentCatalog.ps1",
-      "sha256": "29f14372c8edcb988fff173f63e30bad17fddf2575c86c178a24a0e016c7c753",
-      "bytes": 8185
+      "sha256": "20ba6711a25eec75d5e5bf2b9653003351e0d4a885e1581c8a29f429af5c2f18",
+      "bytes": 9571
     },
     {
       "path": "ci\\Test-GoldenRegression.ps1",
@@ -81,8 +81,8 @@
     },
     {
       "path": "ci\\Test-InstallerTransaction.ps1",
-      "sha256": "25a56d2e1891b24e7503775a28f815e564d4b20dc663ddee78f948856a46eef7",
-      "bytes": 3725
+      "sha256": "2cb110335dd57fdc3f304f4ce2668ed13f50cad7c70259292680b8a24ec19a68",
+      "bytes": 5025
     },
     {
       "path": "ci\\Test-SurvivorPayloadContracts.ps1",
@@ -96,8 +96,8 @@
     },
     {
       "path": "compat\\compatibility.manifest.json",
-      "sha256": "193f973997daf4b4bc042a2ba76d4686928aa4a6b6c5e757920004caf80e1e10",
-      "bytes": 6507
+      "sha256": "34a6e149b2afca2deca67c441a8b7ee3ce8091d190827745547e85b5efe2067b",
+      "bytes": 6502
     },
     {
       "path": "compat\\contracts.json",
@@ -241,8 +241,8 @@
     },
     {
       "path": "internal\\stages\\20-Snapshot.ps1",
-      "sha256": "9cc82f343119fbfd849fe6e434e5747478ac5a19136acb909eb9616a88c0cb28",
-      "bytes": 1241
+      "sha256": "cd01dd29ccd7d543b4b1e8a750b3edeeb996289ed7bb95068fe77514455e9501",
+      "bytes": 1254
     },
     {
       "path": "internal\\stages\\30-PayloadEngine.ps1",
@@ -421,8 +421,8 @@
     },
     {
       "path": "tools\\NCMM.Infrastructure.Transaction.ps1",
-      "sha256": "97ef808699398ecd91c92cafd8d4995909edb7b0364ca727ee5313e8315c2cf7",
-      "bytes": 22846
+      "sha256": "4f5cf016630ffb62b67f6a044579208bd74f499068192e1796cacb8dfd37c108",
+      "bytes": 27153
     },
     {
       "path": "tools\\NCMM.Update.Common.ps1",

@@ -144,4 +144,24 @@ try{
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }
 
+$compatibility=Get-Content (Join-Path $PackageRoot 'compat\compatibility.manifest.json') -Raw|ConvertFrom-Json
+$requiredNative=@($components|Where-Object{[string]$_.kind -eq 'native_module' -and [bool]$_.required})
+$optionalNative=@($components|Where-Object{[string]$_.kind -eq 'native_module' -and -not [bool]$_.required})
+$requiredIds=@($compatibility.self_test.required_modules|ForEach-Object{[string]$_.id}|Sort-Object)
+$expectedRequiredIds=@($requiredNative|ForEach-Object{[string]$_.id}|Sort-Object)
+if(($requiredIds -join "`n") -ne ($expectedRequiredIds -join "`n")){
+    throw 'Compatibility self-test required_modules drift from component catalog.'
+}
+$optionalIds=@($compatibility.self_test.optional_modules|ForEach-Object{[string]$_.id}|Sort-Object)
+$expectedOptionalIds=@($optionalNative|ForEach-Object{[string]$_.id}|Sort-Object)
+if(($optionalIds -join "`n") -ne ($expectedOptionalIds -join "`n")){
+    throw 'Compatibility self-test optional_modules drift from component catalog.'
+}
+foreach($entry in @($compatibility.self_test.required_modules)+@($compatibility.self_test.optional_modules)){
+    $component=@($components|Where-Object{[string]$_.id -eq [string]$entry.id})[0]
+    if($null -eq $component -or [string]$component.version -ne [string]$entry.version){
+        throw "Compatibility self-test version drift for $([string]$entry.id)."
+    }
+}
+
 Write-Host 'NCMM component catalog/dependency contract: PASS' -ForegroundColor Green

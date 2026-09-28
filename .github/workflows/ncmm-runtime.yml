@@ -20,6 +20,8 @@ on:
       - 'ci/Regenerate-PackageIntegrity.ps1'
       - 'compat/package-files.txt'
       - 'compat/package.integrity.json'
+      - 'compat/compatibility.manifest.json'
+      - 'internal/stages/**'
       - 'tools/NCMM.Infrastructure.Common.ps1'
       - 'tools/NCMM.Infrastructure.Core.ps1'
       - 'tools/NCMM.Infrastructure.Package.ps1'

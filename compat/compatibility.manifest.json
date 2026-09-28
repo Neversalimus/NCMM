@@ -72,7 +72,8 @@
       "worldgen.bindings.v2",
       "module.lifecycle.query.v2"
     ],
-    "required_modules": [
+    "required_modules": [],
+    "optional_modules": [
       {
         "id": "survivor_progression",
         "version": "0.11.3"
@@ -80,9 +81,7 @@
       {
         "id": "advanced_world_settings",
         "version": "0.6.2"
-      }
-    ],
-    "optional_modules": [
+      },
       {
         "id": "recipe_finalize_profiler",
         "version": "0.1.1"

@@ -19,6 +19,8 @@ on:
       - 'ci/Regenerate-PackageIntegrity.ps1'
       - 'compat/package-files.txt'
       - 'compat/package.integrity.json'
+      - 'compat/compatibility.manifest.json'
+      - 'internal/stages/**'
       - 'ci/Build-Runtime.ps1'
       - 'tools/NCMM.Update.Common.ps1'
       - 'tools/NCMM.Infrastructure.Common.ps1'

@@ -38,4 +38,28 @@ foreach($phase083 in @('legacy_generate','api2_migrate','source_preflight','cdda
 if(-not $transaction083.Contains("reason='+[string]`$m.reason")){throw 'Runtime verifier no longer reports module reason.'}
 if(-not $transaction083.Contains('module_failures=@($moduleFailures)')){throw 'Runtime verifier module failure summary missing.'}
 
+if($transaction083.Contains('code_mods\SurvivorProgression') -or
+   $transaction083.Contains('code_mods\AdvancedWorldSettings')){
+    throw 'Transaction layer still hardcodes gameplay module directories.'
+}
+if(-not(Get-Command Get-NcmmManagedModuleInstallations -CommandType Function -ErrorAction SilentlyContinue)){
+    throw 'Managed-module discovery API missing.'
+}
+$tmpModules083=Join-Path $env:TEMP ('NCMM_TX_MODULES_'+[guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Force (Join-Path $tmpModules083 'ncmm')|Out-Null
+try{
+    [ordered]@{
+        schema=1;runtime_version='0.8.0';components=@(
+            [ordered]@{id='ncmm_host';version='0.8.0';directory=$null},
+            [ordered]@{id='survivor_progression';version='0.11.3';directory='SurvivorProgression'}
+        )
+    }|ConvertTo-Json -Depth 6|Set-Content (Join-Path $tmpModules083 'ncmm\installed-components.json') -Encoding UTF8
+    $managed083=@(Get-NcmmManagedModuleInstallations $PackageRoot $tmpModules083)
+    if($managed083.Count -ne 1 -or [string]$managed083[0].id -ne 'survivor_progression'){
+        throw 'Managed-module discovery did not preserve an independent single-module selection.'
+    }
+}finally{
+    Remove-Item $tmpModules083 -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 Write-Host 'NCMM staged installer transaction contract: PASS' -ForegroundColor Green

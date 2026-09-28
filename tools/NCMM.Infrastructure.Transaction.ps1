@@ -1,6 +1,69 @@
 $ErrorActionPreference = 'Stop'
 
-function New-NcmmTransactionSnapshot([string]$GameRoot,[string]$BuildRoot) {
+function Get-NcmmManagedModuleInstallations([string]$PackageRoot,[string]$GameRoot) {
+    $known=@{}
+    $hasCatalog=$false
+    if(-not [string]::IsNullOrWhiteSpace($PackageRoot)){
+        $catalogPath=Join-Path $PackageRoot 'components\index.json'
+        if(Test-Path $catalogPath -PathType Leaf){
+            $catalog=Get-Content $catalogPath -Raw|ConvertFrom-Json
+            foreach($component in @($catalog.components|Where-Object{[string]$_.kind -eq 'native_module'})){
+                $id=([string]$component.id).Trim()
+                if($id){$known[$id]=[pscustomobject]@{id=$id;version=[string]$component.version}}
+            }
+            $hasCatalog=$true
+        }
+    }
+
+    $result=@{}
+    $statePath=Join-Path $GameRoot 'ncmm\installed-components.json'
+    if(Test-Path $statePath -PathType Leaf){
+        try{
+            $state=Get-Content $statePath -Raw|ConvertFrom-Json
+            foreach($component in @($state.components)){
+                $id=([string]$component.id).Trim()
+                $directory=([string]$component.directory).Trim()
+                if(-not $id -or -not $directory){continue}
+                if($hasCatalog -and -not $known.ContainsKey($id)){continue}
+                if([IO.Path]::IsPathRooted($directory) -or $directory.Contains('..') -or
+                   $directory.Contains('\') -or $directory.Contains('/')){
+                    throw "Unsafe managed module directory in installed-components.json: $directory"
+                }
+                $expected=if($known.ContainsKey($id)){[string]$known[$id].version}else{[string]$component.version}
+                $result[$id]=[pscustomobject]@{id=$id;directory=$directory;expected_version=$expected;source='installed-components'}
+            }
+        }catch{
+            throw "Could not read NCMM installed-components state: $($_.Exception.Message)"
+        }
+    }
+
+    # Fallback for pre-state installations: only catalog-recognized native modules are eligible.
+    if($hasCatalog){
+        $modsRoot=Join-Path $GameRoot 'code_mods'
+        if(Test-Path $modsRoot -PathType Container){
+            foreach($dir in @(Get-ChildItem $modsRoot -Directory -ErrorAction SilentlyContinue)){
+                $manifestPath=Join-Path $dir.FullName 'mod.json'
+                if(-not(Test-Path $manifestPath -PathType Leaf)){continue}
+                try{$moduleManifest=Get-Content $manifestPath -Raw|ConvertFrom-Json}catch{continue}
+                $id=([string]$moduleManifest.id).Trim()
+                if(-not $id -or -not $known.ContainsKey($id)){continue}
+                if($result.ContainsKey($id)){
+                    if([string]$result[$id].directory -ne [string]$dir.Name){
+                        throw "Duplicate managed module id '$id' in multiple directories."
+                    }
+                    continue
+                }
+                $result[$id]=[pscustomobject]@{
+                    id=$id;directory=[string]$dir.Name;expected_version=[string]$known[$id].version;source='manifest-scan'
+                }
+            }
+        }
+    }
+
+    return @($result.GetEnumerator()|Sort-Object Name|ForEach-Object{$_.Value})
+}
+
+function New-NcmmTransactionSnapshot([string]$GameRoot,[string]$BuildRoot,[string]$PackageRoot='') {
     $id=(Get-Date -Format 'yyyyMMdd_HHmmss')+'_'+[Guid]::NewGuid().ToString('N').Substring(0,8)
     $stage=Join-Path $env:TEMP ('NCMM_INFRA_083_'+$id)
     New-Item -ItemType Directory -Force $stage | Out-Null
@@ -8,31 +71,63 @@ function New-NcmmTransactionSnapshot([string]$GameRoot,[string]$BuildRoot) {
         @{src='cataclysm-tiles.exe';dst='cataclysm-tiles.exe';kind='file'},
         @{src='cataclysm-tiles.vanilla.exe';dst='cataclysm-tiles.vanilla.exe';kind='file'},
         @{src='cataclysm-tiles.ncmm.exe';dst='cataclysm-tiles.ncmm.exe';kind='file'},
-        @{src='ncmm';dst='ncmm';kind='dir'},
-        @{src='code_mods\SurvivorProgression';dst='code_mods\SurvivorProgression';kind='dir'},
-        @{src='code_mods\AdvancedWorldSettings';dst='code_mods\AdvancedWorldSettings';kind='dir'}
+        @{src='ncmm';dst='ncmm';kind='dir'}
     )
+    $managed=@(Get-NcmmManagedModuleInstallations $PackageRoot $GameRoot)
+    foreach($module in $managed){
+        $rel='code_mods\'+[string]$module.directory
+        $entries += @{src=$rel;dst=$rel;kind='dir'}
+    }
+
     $presence=@{}
     foreach($e in $entries){
         $s=Join-Path $GameRoot $e.src; $d=Join-Path $stage $e.dst
         $presence[$e.src]=(Test-Path $s)
-        if(Test-Path $s){New-Item -ItemType Directory -Force (Split-Path -Parent $d)|Out-Null; if($e.kind -eq 'dir'){Copy-Item $s $d -Recurse -Force}else{Copy-Item $s $d -Force}}
+        if(Test-Path $s){
+            New-Item -ItemType Directory -Force (Split-Path -Parent $d)|Out-Null
+            if($e.kind -eq 'dir'){Copy-Item $s $d -Recurse -Force}else{Copy-Item $s $d -Force}
+        }
     }
-    $meta=[ordered]@{schema=1;infrastructure='0.8.3.1';id=$id;game_root=$GameRoot;created_utc=[DateTime]::UtcNow.ToString('o');presence=$presence}
+    $meta=[ordered]@{
+        schema=1;infrastructure='0.8.3.1';id=$id;game_root=$GameRoot;
+        created_utc=[DateTime]::UtcNow.ToString('o');presence=$presence;
+        managed_modules=@($managed|ForEach-Object{[ordered]@{id=$_.id;directory=$_.directory;expected_version=$_.expected_version}})
+    }
     Write-NcmmUtf8NoBom (Join-Path $stage 'transaction_snapshot.json') (($meta|ConvertTo-Json -Depth 8)+"`n")
-    $backupRoot=Join-Path $env:USERPROFILE 'Downloads\NCMM_Infrastructure_Backups';New-Item -ItemType Directory -Force $backupRoot|Out-Null
-    $zip=Join-Path $backupRoot ('ncmm_infra_before_'+$id+'.zip'); Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
+    $backupRoot=Join-Path $env:USERPROFILE 'Downloads\NCMM_Infrastructure_Backups'
+    New-Item -ItemType Directory -Force $backupRoot|Out-Null
+    $zip=Join-Path $backupRoot ('ncmm_infra_before_'+$id+'.zip')
+    Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
     [pscustomobject]@{id=$id;stage=$stage;backup=$zip;metadata=$meta}
 }
 function Restore-NcmmTransactionSnapshot([object]$Snapshot) {
     $stage=[string]$Snapshot.stage; $meta=$Snapshot.metadata; $root=[string]$meta.game_root
-    foreach($rel in @('cataclysm-tiles.exe','cataclysm-tiles.vanilla.exe','cataclysm-tiles.ncmm.exe','ncmm','code_mods\SurvivorProgression','code_mods\AdvancedWorldSettings')){
-        $target=Join-Path $root $rel; Remove-Item $target -Recurse -Force -ErrorAction SilentlyContinue
-        $had=$false; try{$had=[bool]$meta.presence[$rel]}catch{}
+    $rels=@()
+    if($meta.presence -is [Collections.IDictionary]){
+        $rels=@($meta.presence.Keys)
+    }else{
+        $rels=@($meta.presence.PSObject.Properties|ForEach-Object{[string]$_.Name})
+    }
+    foreach($rel in $rels){
+        $baseSafe=$rel -in @('cataclysm-tiles.exe','cataclysm-tiles.vanilla.exe','cataclysm-tiles.ncmm.exe','ncmm')
+        $moduleSafe=$rel -match '^code_mods\\[^\\/:*?"<>|]+$'
+        if(-not $baseSafe -and -not $moduleSafe){throw "Unsafe transaction snapshot path: $rel"}
+
+        $target=Join-Path $root $rel
+        Remove-Item $target -Recurse -Force -ErrorAction SilentlyContinue
+        $had=$false
+        try{
+            if($meta.presence -is [Collections.IDictionary]){$had=[bool]$meta.presence[$rel]}
+            else{$had=[bool]($meta.presence.PSObject.Properties[$rel].Value)}
+        }catch{}
         $saved=Join-Path $stage $rel
-        if($had -and (Test-Path $saved)){New-Item -ItemType Directory -Force (Split-Path -Parent $target)|Out-Null;Copy-Item $saved $target -Recurse -Force}
+        if($had -and (Test-Path $saved)){
+            New-Item -ItemType Directory -Force (Split-Path -Parent $target)|Out-Null
+            Copy-Item $saved $target -Recurse -Force
+        }
     }
 }
+
 function New-NcmmVerificationRecord([string]$Id,[bool]$Ok,[string]$Detail) {
     [pscustomobject]@{id=$Id;status=$(if($Ok){'PASS'}else{'FAIL'});detail=$Detail}
 }
@@ -61,12 +156,19 @@ function Invoke-NcmmOfflineVerification([string]$PackageRoot,[string]$GameRoot,[
     $tests=@()
 
     foreach($f in @(
-        'cataclysm-tiles.exe','cataclysm-tiles.vanilla.exe','cataclysm-tiles.ncmm.exe','ncmm\host.binding.json',
-        'code_mods\SurvivorProgression\ncmm_mod.dll','code_mods\SurvivorProgression\mod.json',
-        'code_mods\AdvancedWorldSettings\ncmm_mod.dll','code_mods\AdvancedWorldSettings\mod.json'
+        'cataclysm-tiles.exe','cataclysm-tiles.vanilla.exe','cataclysm-tiles.ncmm.exe','ncmm\host.binding.json'
     )){
         $ok=Test-Path (Join-Path $root $f) -PathType Leaf
         $tests += New-NcmmVerificationRecord ('file.'+$f) $ok $f
+    }
+
+    $managedModules=@(Get-NcmmManagedModuleInstallations $PackageRoot $root)
+    foreach($module in $managedModules){
+        $dirRel='code_mods\'+[string]$module.directory
+        foreach($leaf in @('ncmm_mod.dll','mod.json')){
+            $rel=$dirRel+'\'+$leaf
+            $tests += New-NcmmVerificationRecord ('file.'+$rel) (Test-Path (Join-Path $root $rel) -PathType Leaf) $rel
+        }
     }
 
     $binding=$null
@@ -127,16 +229,19 @@ function Invoke-NcmmOfflineVerification([string]$PackageRoot,[string]$GameRoot,[
         if($LaunchDiagnostics){$tests += New-NcmmVerificationRecord 'runtime.diagnostics_only' ([bool]$runtime.diagnostics_only) ([string]$runtime.diagnostics_only)}
     }
 
-    foreach($mod in @(
-        @{id='survivor_progression';folder='SurvivorProgression';version='0.11.3'},
-        @{id='advanced_world_settings';folder='AdvancedWorldSettings';version='0.6.2'}
-    )){
-        $mp=Join-Path $root ('code_mods\'+$mod.folder+'\mod.json')
+    foreach($mod in $managedModules){
+        $mp=Join-Path $root ('code_mods\'+[string]$mod.directory+'\mod.json')
         try{
             $mj=Get-Content $mp -Raw|ConvertFrom-Json
-            $ok=([string]$mj.id -eq [string]$mod.id) -and ([string]$mj.version -eq [string]$mod.version)
-            $tests += New-NcmmVerificationRecord ('module_manifest.'+$mod.id) $ok (([string]$mj.id)+' '+([string]$mj.version))
-        } catch {$tests += New-NcmmVerificationRecord ('module_manifest.'+$mod.id) $false $_.Exception.Message}
+            $ok=([string]$mj.id -eq [string]$mod.id) -and
+                ([string]$mj.version -eq [string]$mod.expected_version) -and
+                ([int]$mj.loader_api -eq [int]$manifest.loader_api)
+            $tests += New-NcmmVerificationRecord ('module_manifest.'+[string]$mod.id) $ok (
+                ([string]$mj.id)+' '+([string]$mj.version)+' loader_api='+([string]$mj.loader_api)
+            )
+        } catch {
+            $tests += New-NcmmVerificationRecord ('module_manifest.'+[string]$mod.id) $false $_.Exception.Message
+        }
     }
 
     foreach($marker in @('ncmm\recipe_profiler_support.v1','ncmm\runtime_infrastructure.v8766','ncmm\host_api_v2.core')){
@@ -195,12 +300,13 @@ function Invoke-NcmmRuntimeVerification([string]$PackageRoot,[string]$GameRoot,[
             }else{'missing'}
             $tests += New-NcmmVerificationRecord ('module.'+[string]$req.id) ([bool]$ok) $detail
         }
+        $managedRuntimeModules=@(Get-NcmmManagedModuleInstallations $PackageRoot $root)
         foreach($opt in $manifest.self_test.optional_modules){
-            $folder=if([string]$opt.id -eq 'recipe_finalize_profiler'){'NCMM_Recipe_Finalization_Profiler'}else{[string]$opt.id}
-            $dir=Join-Path $root ('code_mods\'+$folder)
-            if(Test-Path $dir -PathType Container){
+            $installed=@($managedRuntimeModules|Where-Object{[string]$_.id -eq [string]$opt.id})|Select-Object -First 1
+            if($installed){
                 $m=@($mods.modules|Where-Object{[string]$_.id -eq [string]$opt.id})|Select-Object -First 1
-                $ok=$m -and [string]$m.state -eq 'loaded' -and [string]$m.lifecycle -eq 'active' -and [string]$m.version -eq [string]$opt.version
+                $ok=$m -and [string]$m.state -eq 'loaded' -and [string]$m.lifecycle -eq 'active' -and
+                    [string]$m.version -eq [string]$opt.version
                 $detail=if($m){([string]$m.version+' '+[string]$m.state+'/'+[string]$m.lifecycle)}else{'installed but missing from state'}
                 $tests += New-NcmmVerificationRecord ('module.optional.'+[string]$opt.id) ([bool]$ok) $detail
             }
