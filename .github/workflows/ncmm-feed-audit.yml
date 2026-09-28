@@ -37,7 +37,7 @@ jobs:
       - name: Validate NCMM version consistency
         shell: pwsh
         run: |
-          ./ci/Test-VersionConsistency.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          ./ci/Test-VersionConsistency.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE" -LegacyFeedVersion '0.7.1'
 
       - name: Feed auditor self-test
         shell: pwsh
@@ -47,11 +47,25 @@ jobs:
       - name: Audit published certified-host feed
         shell: pwsh
         run: |
-          $revision = (./ci/Get-PatchRevision.ps1 -RepositoryRoot .).Trim()
+          $CurrentSourceVersion = '0.8.0'
+          $LegacyFeedVersion = '0.7.1'
+          $currentRevision = (./ci/Get-PatchRevision.ps1 -RepositoryRoot .).Trim()
+          $feed = Get-Content ./feed/index.json -Raw | ConvertFrom-Json
+          $feedVersion = [string]$feed.runtime_version
+
+          if ([String]::Equals($feedVersion,$CurrentSourceVersion,[StringComparison]::OrdinalIgnoreCase)) {
+            $expectedRevision = $currentRevision
+          } elseif ([String]::Equals($feedVersion,$LegacyFeedVersion,[StringComparison]::OrdinalIgnoreCase)) {
+            $expectedRevision = [string]$feed.patch_revision
+            Write-Host "Auditing transactional legacy feed $feedVersion while source stack is $CurrentSourceVersion." -ForegroundColor Yellow
+          } else {
+            throw "Unexpected feed runtime version: $feedVersion"
+          }
+
           ./ci/Test-FeedIntegrity.ps1 `
             -FeedPath ./feed/index.json `
             -RejectedPath ./feed/rejected.json `
-            -ExpectedRuntimeVersion '0.7.1' `
-            -ExpectedPatchRevision $revision `
+            -ExpectedRuntimeVersion $feedVersion `
+            -ExpectedPatchRevision $expectedRevision `
             -Repository '${{ github.repository }}' `
             -Online

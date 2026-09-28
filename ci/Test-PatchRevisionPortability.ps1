@@ -5,6 +5,8 @@ $revisionScript = Join-Path $RepositoryRoot 'ci\Get-PatchRevision.ps1'
 
 $inputs = @(
     'host_patch/Apply-NCMMHostPatch.ps1',
+    'compat/survivor_mod_mechanics_v82.contract.txt',
+    'compat/world_settings_v2_geography.contract.txt',
     'sdk/ncmm_api.h',
     'host_patch/ncmm_loader.h',
     'host_patch/ncmm_loader.cpp',

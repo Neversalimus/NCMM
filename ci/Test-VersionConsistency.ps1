@@ -1,15 +1,18 @@
 param(
     [Parameter(Mandatory=$true)][string]$RepositoryRoot,
-    [string]$ExpectedVersion = '0.7.1'
+    [string]$ExpectedVersion = '0.8.0',
+    [string]$LegacyFeedVersion = ''
 )
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = (Resolve-Path $RepositoryRoot).Path
+
 function Assert-Contains([string]$Rel,[string]$Needle) {
     $path = Join-Path $RepositoryRoot $Rel
     if (-not (Test-Path $path -PathType Leaf)) { throw "Missing version-contract file: $Rel" }
     $text = [IO.File]::ReadAllText($path)
     if (-not $text.Contains($Needle)) { throw "Version consistency failed: $Rel missing: $Needle" }
 }
+
 $markers = @(
     @('runtime/NCMMBootstrap.cs',('private const string RuntimeVersion = "'+$ExpectedVersion+'";')),
     @('runtime/NCMMSetup.cs',('NCMM '+$ExpectedVersion+' Setup')),
@@ -17,17 +20,29 @@ $markers = @(
     @('ci/Build-HostPackage.ps1',("ncmm_version = '"+$ExpectedVersion+"'")),
     @('.github/workflows/ncmm-runtime.yml',('ncmm-runtime-v'+$ExpectedVersion)),
     @('.github/workflows/ncmm-host.yml',('NCMM '+$ExpectedVersion+' certification')),
-    @('.github/workflows/ncmm-feed-audit.yml',("-ExpectedRuntimeVersion '"+$ExpectedVersion+"'")),
+    @('.github/workflows/ncmm-feed-audit.yml',("CurrentSourceVersion = '"+$ExpectedVersion+"'")),
     @('tests/smoke_host.cpp',('return "'+$ExpectedVersion+'-smoke";'))
 )
 foreach ($pair in $markers) { Assert-Contains $pair[0] $pair[1] }
+
 $feed = Get-Content (Join-Path $RepositoryRoot 'feed\index.json') -Raw | ConvertFrom-Json
-if (-not [String]::Equals([string]$feed.runtime_version,$ExpectedVersion,[StringComparison]::OrdinalIgnoreCase)) {
-    throw "Feed runtime_version '$($feed.runtime_version)' != '$ExpectedVersion'."
+$feedVersion = [string]$feed.runtime_version
+$feedIsCurrent = [String]::Equals($feedVersion,$ExpectedVersion,[StringComparison]::OrdinalIgnoreCase)
+$feedIsLegacy = -not [String]::IsNullOrWhiteSpace($LegacyFeedVersion) -and
+    [String]::Equals($feedVersion,$LegacyFeedVersion,[StringComparison]::OrdinalIgnoreCase)
+if (-not $feedIsCurrent -and -not $feedIsLegacy) {
+    if ([String]::IsNullOrWhiteSpace($LegacyFeedVersion)) {
+        throw "Feed runtime_version '$feedVersion' != '$ExpectedVersion'."
+    }
+    throw "Feed runtime_version '$feedVersion' is neither current '$ExpectedVersion' nor allowed migration feed '$LegacyFeedVersion'."
 }
 foreach ($entry in @($feed.hosts.PSObject.Properties | ForEach-Object { $_.Value })) {
-    if (-not [String]::Equals([string]$entry.ncmm_version,$ExpectedVersion,[StringComparison]::OrdinalIgnoreCase)) {
-        throw "Feed host '$($entry.upstream_tag)' version mismatch."
+    if (-not [String]::Equals([string]$entry.ncmm_version,$feedVersion,[StringComparison]::OrdinalIgnoreCase)) {
+        throw "Feed host '$($entry.upstream_tag)' version '$($entry.ncmm_version)' does not match feed '$feedVersion'."
     }
 }
-Write-Host "NCMM version consistency: PASS ($ExpectedVersion)" -ForegroundColor Green
+if ($feedIsLegacy) {
+    Write-Host "NCMM version consistency: PASS (source $ExpectedVersion; transactional legacy feed $feedVersion)" -ForegroundColor Yellow
+} else {
+    Write-Host "NCMM version consistency: PASS ($ExpectedVersion)" -ForegroundColor Green
+}
