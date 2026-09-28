@@ -72,7 +72,11 @@ Copy-Item (Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings\mod.json') (Joi
 $manifest = Get-Content (Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings\mod.json') -Raw | ConvertFrom-Json
 if ($manifest.loader_api -ne 1) { throw 'AWS manifest loader_api must be 1.' }
 if ($manifest.failure_policy -ne 'disable') { throw 'AWS manifest failure_policy must be disable.' }
-foreach ($required in @('core.v1','world_options.v1','world_options.layout.v1','locale.v1','module_contract.v1')) {
+foreach ($required in @(
+    'core.v1','world_options.v1','world_options.layout.v1','world_settings.v2',
+    'world_options.experimental.v1','locale.v1','module_contract.v1','api.versioning.v1',
+    'host_api.v2.core','settings.typed.v2','worldgen.bindings.v2'
+)) {
     if (-not ($manifest.requires -contains $required)) {
         throw "AWS manifest missing $required"
     }

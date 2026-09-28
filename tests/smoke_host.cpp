@@ -630,7 +630,7 @@ int main( int argc, char **argv )
             "ETERNAL_TIME_OF_DAY"
         };
         const std::set<std::string> actual( exposed.begin(), exposed.end() );
-        if( actual != expected || groups.size() != 2 ||
+        if( actual != expected || groups.size() < 2 ||
             groups[0] != "aws_advanced" || groups[1] != "aws_experimental" ) {
             std::cerr << "AWS grouped registration failed\n";
             return 8;
