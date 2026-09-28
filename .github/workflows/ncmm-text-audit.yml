@@ -85,7 +85,7 @@ jobs:
           $stopCode = 'Write-Host "Copy-audit source generation complete." -ForegroundColor Green' +
                       [Environment]::NewLine + 'exit 0' + [Environment]::NewLine + [Environment]::NewLine
           $text = $text.Substring(0,$stop) + $stopCode + $text.Substring($stop)
-          [IO.File]::WriteAllText($sourceOnly,$text,(New-Object Text.UTF8Encoding($false)))
+          [IO.File]::WriteAllText($sourceOnly,$text,(New-Object Text.UTF8Encoding($true)))
 
           & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $sourceOnly -BuildRoot $buildRoot
           if($LASTEXITCODE -ne 0){throw "Source generation failed with exit code $LASTEXITCODE."}
