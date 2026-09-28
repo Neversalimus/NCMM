@@ -5432,7 +5432,7 @@ $sp = Replace-CppRange $sp "void respec()" "void open_progression()" $newRespec 
 # Keep the log/descriptor version synchronized even if snapshot had extra text.
 $sp = $sp.Replace(
     "anti-farm branch XP / 120 perks / 6 integrated RPG trees.",
-    "anti-farm branch XP / routed trees / ranked foundational perks."
+    "branch progression / perk ranks / anti-farm XP."
 )
 
 Write-Utf8NoBom $spPath $sp
@@ -7166,7 +7166,7 @@ $sp = $sp.Replace('"0.9.13"','"0.9.14"')
 $sp = $sp.Replace('Survivor Progression v0.9.13','Survivor Progression v0.9.14')
 $sp = $sp.Replace('Survivor Progression 0.9.13 initialized:','Survivor Progression 0.9.14 initialized:')
 $sp = $sp.Replace('anti-farm branch XP / routed trees / ranked foundational perks.',
-                  'branch bars / exclusive specializations / conditional deep mod integrations.')
+                  'branch progress / exclusive specializations / perks for supported mods.')
 Write-Utf8NoBom $spPath $sp
 
 $manifest = [IO.File]::ReadAllText($manifestPath).Replace('"version": "0.9.13"','"version": "0.9.14"')
@@ -14777,8 +14777,8 @@ $spPolishAudit0111 = [IO.File]::ReadAllText($spPath)
 $manifestPolishAudit0111 = [IO.File]::ReadAllText($manifestPath)
 foreach($needle0111 in @(
     'Survivor Progression v0.11.1','cr_riposte','cr_predator_momentum','fr_quality_control','gr_quick_entry',
-    'XP-awarding monster kills build Momentum:','normal picks keep the vanilla 30-second floor',
-    'displayed success estimate follows the same bonus.','Ед. хода после уклонения','Возврат стоимости рипоста %'
+    'Hostile monster kills that grant XP build Momentum','cannot go below 30 seconds with normal picks or 5 seconds with perfect picks.',
+    'displayed success chance uses the same bonus.','Ед. хода после уклонения','Возврат стоимости рипоста %'
 )) { if(-not $spPolishAudit0111.Contains($needle0111)){ throw "Survivor 0.11.1 polish audit missing: $needle0111" } }
 if(-not $manifestPolishAudit0111.Contains('"version": "0.11.1"')) { throw 'Survivor 0.11.1 manifest audit failed.' }
 if(-not $spPolishAudit0111.Contains('constexpr int state_schema = 8;')) { throw 'Survivor 0.11.1 state schema changed unexpectedly.' }
@@ -14982,11 +14982,11 @@ $manifestEdgeAudit0112 = [IO.File]::ReadAllText($manifestPath)
 foreach($needle0112 in @(
     'Survivor Progression v0.11.2','cr_riposte','cr_predator_momentum','fr_quality_control','gr_quick_entry',
     'Friendly, neutral and hallucination sources are never auto-targeted.','damaging melee critical against a real target',
-    'XP-awarding hostile monster kills build Momentum:','every XP-awarding hostile monster kill also returns 15 moves',
+    'Killing a hostile monster that grants XP builds Momentum','hostile monster kill that grants XP',
     'A hostile monster kill credited to you that grants XP restores 4% maximum stamina.',
     'hostile monster kills that grant XP return 5 moves.','hostile monster kills that grant XP return 10 moves.',
     'set_state( "momentum_stacks", 0 );','set_state( "momentum_turns", 0 );','momentum_stack_cap',
-    'alarmed door lock.'
+    'alarmed lock.'
 )) { if(-not $spEdgeAudit0112.Contains($needle0112)){ throw "Survivor 0.11.2 edge audit missing: $needle0112" } }
 foreach($obsolete0112 in @(
     'XP-awarding monster kills build Momentum: up to 3 stacks for 12 turns;',
@@ -15191,8 +15191,8 @@ $manifestEdgeAudit0113 = [IO.File]::ReadAllText($manifestPath)
 # Module-only audit: engine-hook invariants are verified after Apply-NcmmReactiveMechanics0113.
 foreach($needle0113 in @(
     'Survivor Progression v0.11.3','cr_riposte','cr_counterflow','cr_critical_surge','cr_execution_protocol','cr_predator_momentum','fr_second_measure',
-    'pre-attack base melee move cost','hostile real target','against hostile targets at 18% HP or lower',
-    'cancelled event always advances its next failure point','current_stacks + 1','raw_stacks','raw_turns'
+    'base move cost','damaging melee critical against a hostile target','Deal +60% damage to hostile targets at 18% health or less',
+    'The next failure check still advances normally.','current_stacks + 1','raw_stacks','raw_turns'
 )) { if(-not $spEdgeAudit0113.Contains($needle0113)){ throw "Survivor 0.11.3 combinatorial module audit missing: $needle0113" } }
 if(-not $manifestEdgeAudit0113.Contains('"version": "0.11.3"')) { throw 'Survivor 0.11.3 manifest audit failed.' }
 if(-not $spEdgeAudit0113.Contains('constexpr int state_schema = 8;')) { throw 'Survivor 0.11.3 state schema changed unexpectedly.' }
