@@ -46,7 +46,7 @@ function Import-NcmmPayloadFunctions {
         }
 
         $definition = [string]$matches[0].Extent.Text
-        $pattern = '^\\s*function\\s+' + [regex]::Escape($name) + '\\b'
+        $pattern = '^\s*function\s+' + [regex]::Escape($name) + '\b'
         $rewriter = New-Object Text.RegularExpressions.Regex(
             $pattern, [Text.RegularExpressions.RegexOptions]::IgnoreCase )
         $scoped = $rewriter.Replace(
