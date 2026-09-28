@@ -36,10 +36,20 @@ jobs:
         run: |
           ./ci/Test-TextEncoding.ps1 -RepoRoot "$env:GITHUB_WORKSPACE" -SelfTest
 
-      - name: Validate NCMM version consistency
+      - name: Validate current runtime package consistency
         shell: powershell
         run: |
-          ./ci/Test-VersionConsistency.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE"
+          $bootstrap = Get-Content runtime/NCMMBootstrap.cs -Raw
+          $setup = Get-Content runtime/NCMMSetup.cs -Raw
+          $host = Get-Content host_patch/ncmm_loader.cpp -Raw
+          $components = Get-Content components/index.json -Raw | ConvertFrom-Json
+          if (-not $bootstrap.Contains('private const string RuntimeVersion = "0.8.0";')) { throw 'Bootstrap runtime version is not 0.8.0.' }
+          if (-not $bootstrap.Contains('NCMM/0.8.0')) { throw 'Bootstrap User-Agent is not 0.8.0.' }
+          if (-not $setup.Contains('NCMM 0.8.0 Setup')) { throw 'Setup version is not 0.8.0.' }
+          if (-not $host.Contains('return "0.8.0";')) { throw 'Host version is not 0.8.0.' }
+          $hostComponent = @($components.components | Where-Object { $_.id -eq 'ncmm_host' })[0]
+          if ($null -eq $hostComponent -or [string]$hostComponent.version -ne '0.8.0') { throw 'Component catalog host version is not 0.8.0.' }
+          Write-Host 'Current runtime package consistency: PASS (runtime/host 0.8.0).' -ForegroundColor Green
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
@@ -54,21 +64,34 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NCMM_Runtime_v0.7.1
-          path: dist/NCMM_Runtime_v0.7.1.zip
+          name: NCMM_Runtime_v0.8.0
+          path: dist/NCMM_Runtime_v0.8.0.zip
           if-no-files-found: error
 
+      - name: Check certified-host feed readiness
+        id: host_feed
+        shell: powershell
+        run: |
+          $feed = Get-Content feed/index.json -Raw | ConvertFrom-Json
+          $ready = [string]$feed.runtime_version -eq '0.8.0'
+          "ready=$($ready.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          if ($ready) {
+            Write-Host 'Certified-host feed is ready for runtime 0.8.0.' -ForegroundColor Green
+          } else {
+            Write-Host ("Certified-host feed is still " + [string]$feed.runtime_version + "; runtime 0.8.0 release publication is intentionally skipped.") -ForegroundColor Yellow
+          }
+
       - name: Publish runtime release
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.host_feed.outputs.ready == 'true'
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'ncmm-runtime-v0.7.1'
+          $tag = 'ncmm-runtime-v0.8.0'
           cmd /c "gh release view $tag >nul 2>nul"
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title 'NCMM Runtime v0.7.1' --notes 'Portable NCMM runtime with certified-host and crash-loop hardening. No compiler or build tools are required on player PCs.'
+            gh release create $tag --title 'NCMM Runtime v0.8.0' --notes 'Portable NCMM runtime with certified-host and crash-loop hardening. No compiler or build tools are required on player PCs.'
             if ($LASTEXITCODE -ne 0) { throw 'Could not create runtime release.' }
           }
-          gh release upload $tag 'dist/NCMM_Runtime_v0.7.1.zip' --clobber
+          gh release upload $tag 'dist/NCMM_Runtime_v0.8.0.zip' --clobber
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload runtime package.' }
