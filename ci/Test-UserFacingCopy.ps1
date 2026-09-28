@@ -19,7 +19,7 @@ foreach( $name in $targets.Keys ) {
 
 $survivor = [IO.File]::ReadAllText( $targets.Survivor )
 $aws = [IO.File]::ReadAllText( $targets.AWS )
-$host = [IO.File]::ReadAllText( $targets.Host )
+$hostText = [IO.File]::ReadAllText( $targets.Host )
 
 $checks = @(
     @{ Name='Survivor dev label Mechanical'; Text=$survivor; Pattern='Mechanical:' },
@@ -49,10 +49,10 @@ $checks = @(
     @{ Name='AWS formula implementation name'; Text=$aws; Pattern='frequency divisor' },
     @{ Name='AWS internal urbanity name'; Text=$aws; Pattern='urbanity multiplier' },
 
-    @{ Name='Host raw callback quarantine popup'; Text=$host; Pattern='callback failed and was quarantined' },
-    @{ Name='Host raw quarantine state'; Text=$host; Pattern='ON / quarantined' },
-    @{ Name='Host raw failed state'; Text=$host; Pattern='ON / failed' },
-    @{ Name='Host raw internal reason in player label'; Text=$host; Pattern='label \+= " - " \+ entry\.reason' }
+    @{ Name='Host raw callback quarantine popup'; Text=$hostText; Pattern='callback failed and was quarantined' },
+    @{ Name='Host raw quarantine state'; Text=$hostText; Pattern='ON / quarantined' },
+    @{ Name='Host raw failed state'; Text=$hostText; Pattern='ON / failed' },
+    @{ Name='Host raw internal reason in player label'; Text=$hostText; Pattern='label \+= " - " \+ entry\.reason' }
 )
 
 $failures = New-Object System.Collections.Generic.List[string]
@@ -69,8 +69,8 @@ $required = @(
     @{ Name='Survivor explicit drawback label'; Text=$survivor; Needle='DRAWBACK:' },
     @{ Name='Survivor natural mod requirement'; Text=$survivor; Needle='Requires mod: ' },
     @{ Name='AWS natural new-area warning'; Text=$aws; Needle='Affects only areas generated after this change.' },
-    @{ Name='Host natural UI failure message'; Text=$host; Needle="This mod's interface failed to open and has been disabled for this session." },
-    @{ Name='Host natural settings badge'; Text=$host; Needle=' [SETTINGS]' }
+    @{ Name='Host natural UI failure message'; Text=$hostText; Needle="This mod's interface failed to open and has been disabled for this session." },
+    @{ Name='Host natural settings badge'; Text=$hostText; Needle=' [SETTINGS]' }
 )
 
 foreach( $check in $required ) {
