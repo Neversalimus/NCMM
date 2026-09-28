@@ -36,13 +36,13 @@
     },
     {
       "path": "ci\\Invoke-NCMMCertification.ps1",
-      "sha256": "e40707a8b4c45e908d70985a68d486187febb8ba1b9d6443c72d17bd58e87a4d",
-      "bytes": 8612
+      "sha256": "377640c9de1984c3ba2250fd8306bec8966319433f4ae775e41bbe02b58a262a",
+      "bytes": 9488
     },
     {
       "path": "ci\\Promote-CertificateToFeed.ps1",
-      "sha256": "08a9c343df568f25639fd0912d292381ea5ecf21a41eb7b4d711dd75ac34d946",
-      "bytes": 1251
+      "sha256": "0d31377d059d331afc38a7ca14b906c56419dcde9fcc975443a42e0428c9d081",
+      "bytes": 1349
     },
     {
       "path": "ci\\Promote-UpdateRelease.ps1",
