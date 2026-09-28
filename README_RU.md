@@ -1,14 +1,19 @@
-# NCMM v0.7.1 — Standalone Cutover
+# NCMM — текущая ветка разработки
 
-NCMM (Neversalimus Code Mod Manager) — экспериментальная платформа для native/code-модов Cataclysm:DDA.
-## v0.7.1 — Standalone Cutover
+NCMM (Neversalimus Code Mod Manager) — платформа для native/code-модов Cataclysm:DDA.
 
-Начиная с 0.7.1 канонический репозиторий NCMM — `Neversalimus/NCMM`.
-Runtime, certified-host feed и новые host-релизы публикуются только из standalone-репозитория.
-Старый `Neversalimus/Cataclysm` больше не является активной точкой разработки или публикации NCMM.
+Текущее состояние исходников:
+- NCMM Infrastructure: **0.8.3.1**
+- NCMM Host: **0.8.0**
+- Host ABI / Loader API: **v1**
+- Semantic Host API: **1.9**
+- Host API 2.0 Core: **2.0**
+- Survivor Progression: **0.11.3**
+- Advanced World Settings: **0.6.2**
 
-Host ABI и Loader API остаются v1. Semantic Host API остаётся 1.1.
-Survivor Progression остаётся 0.9.0; этот релиз не меняет его баланс или save schema.
+Канонический репозиторий — `Neversalimus/NCMM`. Старый `Neversalimus/Cataclysm` больше не участвует в активной разработке и публикации NCMM.
+
+Важно: текущий source-stack уже новее публичного certified-host feed 0.7.1. Runtime 0.8.0 собирается и тестируется в CI, но публичная публикация намеренно блокируется, пока не появится совместимый certified-host feed 0.8.0. Разделы ниже, описывающие 0.7.x и более ранние версии, сохранены как история развития и не являются описанием текущего source-state.
 
 ## UX игрока
 

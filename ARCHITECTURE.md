@@ -1,4 +1,8 @@
-# NCMM v0.7.1 architecture
+# NCMM architecture — current source stack
+
+Current architecture baseline: Infrastructure 0.8.3.1, Host 0.8.0, semantic Host API 1.9, queried Host API 2.0 Core, Survivor Progression 0.11.3 and Advanced World Settings 0.6.2.
+
+The binary Host ABI / Loader API remains v1. Host API 2.0 is queried additively through the ABI-v1 `query_interface` tail, so the 2.0 Core layer does not replace the stable v1 binary prefix.
 
 ```text
 Any launcher / manual shortcut
@@ -28,7 +32,7 @@ Any launcher / manual shortcut
   cataclysm-tiles.ncmm.exe   vanilla executable
        [NCMM Host]
              |
-      Host API v1/capabilities
+ Host API v1 + queried Host API 2.0 Core
              |
    Module Contract v1 preflight
    mod.json <-> DLL descriptor
@@ -52,24 +56,21 @@ Host writes ncmm/modules.state.json.
 7. **Manifest hardening** rejects oversized/incomplete manifests, duplicate IDs, duplicate requirements and unsupported failure policy before module initialization.
 8. Native DLLs are trusted code. A bug after successful initialization can still crash the process; NCMM cannot sandbox arbitrary native code. Script/WASM sandboxing is a future layer.
 
-## Host API v1
+## Host API
 
-Capabilities currently exposed:
+The stable binary prefix remains `ncmm_host_api_v1`. Additive v1 tail capabilities cover module contracts, versioning, world settings, UI, active-world mod discovery and state access. Host 0.8.0 additionally exposes **Host API 2.0 Core** through `query_interface("ncmm.host_api.v2.core", 2, 0)`.
 
-- `core.v1`
-- `world_options.v1`
-- `locale.v1`
-- `module_contract.v1`
-- `host_info.v1`
+Current 2.0 Core domains include:
+- event subscriptions;
+- typed world settings;
+- active-world mod and module lifecycle queries;
+- dynamic character modifiers;
+- generic runtime-hook bindings;
+- generic world-generation setting bindings.
 
-`module_contract.v1` means the host validates `mod.json` before loading native code and cross-checks the manifest against the DLL descriptor after load.
+Survivor Progression 0.11.3 uses the generic runtime-hook/modifier/event surfaces. Advanced World Settings 0.6.2 uses typed settings plus generic geography bindings. Module-specific identifiers remain inside their modules instead of becoming CDDA-facing Host API primitives.
 
-`host_info.v1` exposes the host version, loader API version and enumerable capability registry through a binary-compatible tail extension of `ncmm_host_api_v1`.
-
-`world_options.v1` currently exposes only the minimum primitive needed by AWS:
-
-- preflight: can an existing permanently-hidden world option be exposed?
-- commit: expose it only in world-generation options and assign display name/tooltip.
+`module_contract.v1` still validates `mod.json` before loading native code and cross-checks the manifest against the DLL descriptor after load. `host_info.v1` still exposes host/loader identity and the enumerable capability registry through the binary-compatible v1 tail.
 
 ## Compatibility rule
 
