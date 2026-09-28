@@ -66,8 +66,8 @@
                   },
                   {
                       "path":  "ci\\Test-Infrastructure083.ps1",
-                      "sha256":  "d3a02734b8dc3d41bc6350cf9d45bb685528645be8e937b631a22e48a282b73a",
-                      "bytes":  50584
+                      "sha256":  "b9e89834192f24710fb6105ee312ae65205419ca242918edc2d70334bfc6f3e0",
+                      "bytes":  51138
                   },
                   {
                       "path":  "ci\\Watch-CDDAExperimental.ps1",
@@ -101,13 +101,13 @@
                   },
                   {
                       "path":  "components\\advanced_world_settings.json",
-                      "sha256":  "4910a1edb55c57dfab304af295e4fc7ba0c7d41a88e2d2581d4224951c7f5c4a",
-                      "bytes":  625
+                      "sha256":  "9e6111f07abac7bbe9e242d858fdbf7d44ea8fa9342efb54b3f8d8d5227ca4eb",
+                      "bytes":  635
                   },
                   {
                       "path":  "components\\index.json",
-                      "sha256":  "83c7e2d74575c79a68d14948647f8c202e3d026db52f7814bd8e0b50b9f13e5e",
-                      "bytes":  3802
+                      "sha256":  "56e9b508d4acfbfdf79819fffe70e77cae2c81d47b97e44c5e156fa483f88ba6",
+                      "bytes":  3894
                   },
                   {
                       "path":  "components\\ncmm_host.json",
@@ -121,8 +121,8 @@
                   },
                   {
                       "path":  "components\\package-format.json",
-                      "sha256":  "c5f740e8b7dbbf9343f841993ee10ca6a0cdf7c5fbdbb72d11f909eaca235144",
-                      "bytes":  1009
+                      "sha256":  "1985fd99cdd1b9a7c4bda83b9d642a0f65f3e9412932f04a343ca5bf35f78536",
+                      "bytes":  1052
                   },
                   {
                       "path":  "components\\recipe_finalize_profiler.json",
@@ -131,8 +131,8 @@
                   },
                   {
                       "path":  "components\\survivor_progression.json",
-                      "sha256":  "7f6b928573d600ad8bd43f2fd7dda0afe90d3ef73713c48e7caeb544d71669f4",
-                      "bytes":  742
+                      "sha256":  "5f1404cc73bc974e74b90cd53feced2abb251d1508abb1b3a99634551c4ffae3",
+                      "bytes":  749
                   },
                   {
                       "path":  "golden\\fixtures\\full_stack.json",
@@ -386,8 +386,8 @@
                   },
                   {
                       "path":  "tools\\NCMM.Update.Common.ps1",
-                      "sha256":  "54eb9c2a6e86118551e1fe53cd0b414535ddb2978b461286af96625f62f00631",
-                      "bytes":  10022
+                      "sha256":  "6ad624b4ecbf7a352cfe8045b809c2798acb0f01e99d1f3df72e35ede14f1220",
+                      "bytes":  11475
                   },
                   {
                       "path":  "V8_7_4_CHANGELOG.txt",
