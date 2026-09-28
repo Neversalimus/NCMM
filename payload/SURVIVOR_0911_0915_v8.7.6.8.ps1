@@ -15362,27 +15362,46 @@ function Apply-PlayerFacingCopyPolishFinal {
     Write-Host "Applying final player-facing copy polish..." -ForegroundColor Cyan
 
     $sp = Normalize-Lf ([IO.File]::ReadAllText($spPath))
-    $detailNew = @'
+    $detailFunction = @'
+std::string rpg_detail_body( const perk_def &perk, const std::string &body,
+                             const std::string &requires_text )
+{
+    std::string bonus = body;
+    std::string drawback;
+    if( prime_visual_perk( perk ) ) {
+        const size_t colon = bonus.find( ':' );
+        if( colon != std::string::npos ) {
+            bonus = bonus.substr( colon + 1 );
+        }
+        const size_t semicolon = bonus.find( ';' );
+        if( semicolon != std::string::npos ) {
+            drawback = bonus.substr( semicolon + 1 );
+            bonus = bonus.substr( 0, semicolon );
+        }
+        while( !bonus.empty() && bonus.front() == ' ' ) bonus.erase( bonus.begin() );
+        while( !drawback.empty() && drawback.front() == ' ' ) drawback.erase( drawback.begin() );
+    }
+
+    std::string result;
+    result += tr( "BONUS:", "БОНУС:" );
+    result += "\n" + bonus;
     if( prime_visual_perk( perk ) && !drawback.empty() ) {
         result += "\n\n";
         result += tr( "DRAWBACK:", "ШТРАФ:" );
         result += "\n" + drawback;
     }
+    result += "\n\n";
+    result += tr( "REQUIRES:", "ТРЕБУЕТ:" );
+    result += "\n" + requires_text;
+    return result;
+}
 '@
-    if( -not $sp.Contains($detailNew) ) {
-        $tradeNeedle = '        result += tr( "TRADEOFF:", "КОМПРОМИСС:" );'
-        $tradePos = $sp.IndexOf($tradeNeedle)
-        if( $tradePos -lt 0 ) { throw 'Final copy polish: TRADEOFF label missing.' }
-        $detailStart = $sp.LastIndexOf('    if( prime_visual_perk( perk ) ) {',$tradePos)
-        $requiresLine = '    result += tr( "REQUIRES:", "ТРЕБУЕТ:" );'
-        $requiresPos = $sp.IndexOf($requiresLine,$tradePos)
-        if( $detailStart -lt 0 -or $requiresPos -le $detailStart ) {
-            throw 'Final copy polish: Prime detail boundaries missing.'
-        }
-        $detailEnd = $sp.LastIndexOf('    result += "\n\n";',$requiresPos)
-        if( $detailEnd -le $detailStart ) { throw 'Final copy polish: Prime detail end missing.' }
-        $sp = $sp.Substring(0,$detailStart) + $detailNew + "`n" + $sp.Substring($detailEnd)
+    $detailFunctionStart = $sp.IndexOf('std::string rpg_detail_body( const perk_def &perk, const std::string &body,')
+    $detailFunctionEnd = $sp.IndexOf('ncmm_ui_theme_v1 branch_ui_theme',$detailFunctionStart)
+    if( $detailFunctionStart -lt 0 -or $detailFunctionEnd -le $detailFunctionStart ) {
+        throw 'Final copy polish: rpg_detail_body function boundaries missing.'
     }
+    $sp = $sp.Substring(0,$detailFunctionStart) + $detailFunction + "`n`n" + $sp.Substring($detailFunctionEnd)
     foreach($pair in @(
         @('Apex Combatant','Elite Combatant'),
         @('Вершина боя','Элитный боец'),
