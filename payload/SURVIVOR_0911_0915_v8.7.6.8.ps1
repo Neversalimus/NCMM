@@ -15403,6 +15403,34 @@ std::string rpg_detail_body( const perk_def &perk, const std::string &body,
     }
     $sp = $sp.Substring(0,$detailFunctionStart) + $detailFunction + "`n`n" + $sp.Substring($detailFunctionEnd)
     foreach($pair in @(
+        @('Combat stat perks are 5% stronger.','Direct bonuses from Combat perks are 5% stronger.'),
+        @('Статовые боевые перки на 5% сильнее.','Прямые бонусы боевых перков на 5% сильнее.'),
+        @('Combat stat perks are another 10% stronger.','Direct bonuses from Combat perks are another 10% stronger.'),
+        @('Статовые боевые перки ещё на 10% сильнее.','Прямые бонусы боевых перков ещё на 10% сильнее.'),
+        @('Survival stat perks are 5% stronger.','Direct bonuses from Survival perks are 5% stronger.'),
+        @('Статовые перки выживания на 5% сильнее.','Прямые бонусы перков выживания на 5% сильнее.'),
+        @('Survival stat perks are another 10% stronger.','Direct bonuses from Survival perks are another 10% stronger.'),
+        @('Статовые перки выживания ещё на 10% сильнее.','Прямые бонусы перков выживания ещё на 10% сильнее.'),
+        @('Mobility stat perks are 5% stronger.','Direct bonuses from Mobility perks are 5% stronger.'),
+        @('Статовые перки мобильности на 5% сильнее.','Прямые бонусы перков мобильности на 5% сильнее.'),
+        @('Mobility stat perks are another 10% stronger.','Direct bonuses from Mobility perks are another 10% stronger.'),
+        @('Статовые перки мобильности ещё на 10% сильнее.','Прямые бонусы перков мобильности ещё на 10% сильнее.'),
+        @('Crafting stat perks are 5% stronger.','Direct bonuses from Crafting perks are 5% stronger.'),
+        @('Статовые перки крафта на 5% сильнее.','Прямые бонусы перков крафта на 5% сильнее.'),
+        @('Crafting stat perks are another 10% stronger.','Direct bonuses from Crafting perks are another 10% stronger.'),
+        @('Статовые перки крафта ещё на 10% сильнее.','Прямые бонусы перков крафта ещё на 10% сильнее.'),
+        @('Scavenging stat perks are 5% stronger.','Direct bonuses from Scavenging perks are 5% stronger.'),
+        @('Статовые перки добычи на 5% сильнее.','Прямые бонусы перков добычи на 5% сильнее.'),
+        @('Scavenging stat perks are another 10% stronger.','Direct bonuses from Scavenging perks are another 10% stronger.'),
+        @('Статовые перки добычи ещё на 10% сильнее.','Прямые бонусы перков добычи ещё на 10% сильнее.'),
+        @('All stat perks are 2% stronger.','Direct bonuses from all Survivor perks are 2% stronger.'),
+        @('Все статовые перки на 2% сильнее.','Прямые бонусы всех перков Survivor на 2% сильнее.'),
+        @('All stat perks are 5% stronger.','Direct bonuses from all Survivor perks are 5% stronger.'),
+        @('Все статовые перки на 5% сильнее.','Прямые бонусы всех перков Survivor на 5% сильнее.'),
+        @('All stat perks are another 5% stronger.','Direct bonuses from all Survivor perks are another 5% stronger.'),
+        @('Все статовые перки ещё на 5% сильнее.','Прямые бонусы всех перков Survivor ещё на 5% сильнее.'),
+        @('All stat perks are 10% stronger and Survivor XP +50%.','Direct bonuses from all Survivor perks are 10% stronger; Survivor XP +50%.'),
+        @('Все статовые перки на 10% сильнее, опыт Survivor +50%.','Прямые бонусы всех перков Survivor на 10% сильнее; опыт Survivor +50%.'),
         @('Apex Combatant','Elite Combatant'),
         @('Вершина боя','Элитный боец'),
         @('Pack Discipline','Efficient Packing'),
@@ -15521,13 +15549,11 @@ std::string rpg_detail_body( const perk_def &perk, const std::string &body,
         $loader = $loader.Replace([string]$pair[0],[string]$pair[1])
     }
 
-    $reasonBlock = @'
-            if( !entry.reason.empty() && !entry.disabled &&
-                ( !entry.loaded_now || entry.runtime_state == "runtime_fault" ) ) {
-                label += " - " + entry.reason;
-            }
-'@
-    $loader = $loader.Replace($reasonBlock,'')
+    $loader = [regex]::Replace(
+        $loader,
+        '(?ms)^\s*if\( !entry\.reason\.empty\(\) && !entry\.disabled &&\s*\( !entry\.loaded_now \|\| entry\.runtime_state == "runtime_fault" \) \) \{\s*label \+= " - " \+ entry\.reason;\s*\}\s*',
+        ''
+    )
     Write-Utf8NoBom $loaderPath $loader
 
     Write-Host "Final player-facing copy polish: READY" -ForegroundColor Green
