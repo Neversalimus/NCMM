@@ -304,7 +304,7 @@ internal static class NCMMBootstrap
         {
             using (TimeoutWebClient wc = new TimeoutWebClient())
             {
-                wc.Headers[HttpRequestHeader.UserAgent] = "NCMM/0.8.0";
+                wc.Headers[HttpRequestHeader.UserAgent] = "NCMM/" + RuntimeVersion;
                 string feedText = wc.DownloadString(FeedUrlForRequest(forceRefresh));
                 FeedIndex feed = Json.Deserialize<FeedIndex>(feedText);
                 if (feed == null || feed.schema != 1 || feed.loader_api != LoaderApi ||

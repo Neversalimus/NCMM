@@ -181,7 +181,7 @@ foreach ($required in @(
 $awsModuleZip = New-NcmmModuleArchive -Folder 'AdvancedWorldSettings' -ComponentId 'advanced_world_settings' -Version $awsVersion
 $survivorModuleZip = New-NcmmModuleArchive -Folder 'SurvivorProgression' -ComponentId 'survivor_progression' -Version $survivorVersion
 
-# NCMM 0.8.0 loader hardening is intentionally source-structural: Runtime CI
+# Current NCMM loader hardening is intentionally source-structural: Runtime CI
 # guards the invariants even before the certified-host workflow compiles them.
 $loaderSource = Get-Content (Join-Path $RepositoryRoot 'host_patch\ncmm_loader.cpp') -Raw
 foreach ($requiredLoaderFragment in @(
@@ -204,7 +204,7 @@ foreach ($requiredLoaderFragment in @(
     'module.lifecycle.v1'
 )) {
     if (-not $loaderSource.Contains($requiredLoaderFragment)) {
-        throw "NCMM 0.8.0 loader hardening invariant missing: $requiredLoaderFragment"
+        throw "NCMM $hostVersion loader hardening invariant missing: $requiredLoaderFragment"
     }
 }
 
@@ -217,13 +217,14 @@ foreach ($requiredManifestPolicyFragment in @(
     'validate_manifest_contract_v1'
 )) {
     if (-not $manifestPolicySource.Contains($requiredManifestPolicyFragment)) {
-        throw "NCMM 0.8.0 manifest policy invariant missing: $requiredManifestPolicyFragment"
+        throw "NCMM $hostVersion manifest policy invariant missing: $requiredManifestPolicyFragment"
     }
 }
 
 $setupSourceText = Get-Content (Join-Path $RepositoryRoot 'runtime\NCMMSetup.cs') -Raw
+$diagnosticsTitle = "NCMM v$hostVersion Diagnostics 2.0"
 foreach ($requiredDiagnosticsFragment in @(
-    'NCMM v0.8.0 Diagnostics 2.0',
+    $diagnosticsTitle,
     '=== Manifest / Duplicate-ID Scan ===',
     '=== Bootstrap Runtime State ===',
     '=== Host Module State ===',
@@ -231,7 +232,7 @@ foreach ($requiredDiagnosticsFragment in @(
     'Duplicate active module id'
 )) {
     if (-not $setupSourceText.Contains($requiredDiagnosticsFragment)) {
-        throw "NCMM 0.8.0 Diagnostics 2.0 invariant missing: $requiredDiagnosticsFragment"
+        throw "NCMM $hostVersion Diagnostics 2.0 invariant missing: $requiredDiagnosticsFragment"
     }
 }
 
@@ -246,17 +247,17 @@ foreach ($requiredBootstrapFragment in @(
     'stale boot.pending still exists before host launch'
 )) {
     if (-not $bootstrapSourceText.Contains($requiredBootstrapFragment)) {
-        throw "NCMM 0.8.0 bootstrap hardening invariant missing: $requiredBootstrapFragment"
+        throw "NCMM $hostVersion bootstrap hardening invariant missing: $requiredBootstrapFragment"
     }
 }
 
 $hostPatchSource = Get-Content (Join-Path $RepositoryRoot 'host_patch\Apply-NCMMHostPatch.ps1') -Raw
 if ($hostPatchSource.Contains("if (`$LASTEXITCODE -ne 0) { throw 'NCMM source-contract preflight failed.' }")) {
-    throw 'NCMM 0.8.0 regression: PowerShell source-contract preflight still inspects stale LASTEXITCODE.'
+    throw "NCMM $hostVersion regression: PowerShell source-contract preflight still inspects stale LASTEXITCODE."
 }
 
-@'
-NCMM 0.8.0 Runtime
+@"
+NCMM $hostVersion Runtime
 ===============
 1. Run NCMM_Setup.exe.
 2. Select the CDDA folder containing cataclysm-tiles.exe.
@@ -267,11 +268,11 @@ NCMM 0.8.0 Runtime
 The Host/runtime is required. Advanced World Settings and Survivor Progression are independent optional modules.
 No compiler, Git, CMake, or MSYS2 is required on the player's PC.
 If no exact certified host exists for the installed CDDA executable, NCMM starts vanilla CDDA.
-'@ | Set-Content (Join-Path $OutputRoot 'README.txt') -Encoding UTF8
+"@ | Set-Content (Join-Path $OutputRoot 'README.txt') -Encoding UTF8
 
 Remove-Item $awsBuild -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $spBuild -Recurse -Force -ErrorAction SilentlyContinue
-$zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.8.0.zip'
+$zip = Join-Path (Split-Path $OutputRoot -Parent) ("NCMM_Runtime_v$hostVersion.zip")
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $OutputRoot '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip
