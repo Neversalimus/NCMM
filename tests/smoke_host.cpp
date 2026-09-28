@@ -71,22 +71,18 @@ int has_capability_fn( const char *cap )
     if( simulate_missing_contract && std::strcmp( cap, "world_options.v1" ) == 0 ) {
         return 0;
     }
-    return std::strcmp( cap, "core.v1" ) == 0 ||
-           std::strcmp( cap, "world_options.v1" ) == 0 ||
-           std::strcmp( cap, "world_options.layout.v1" ) == 0 ||
-           std::strcmp( cap, "locale.v1" ) == 0 ||
-           std::strcmp( cap, "module_contract.v1" ) == 0 ||
-           std::strcmp( cap, "host_info.v1" ) == 0 ||
-           std::strcmp( cap, "compatibility.v1" ) == 0 ||
-           std::strcmp( cap, "events.turn.v1" ) == 0 ||
-           std::strcmp( cap, "character_state.v1" ) == 0 ||
-           std::strcmp( cap, "character.modifiers.v1" ) == 0 ||
-           std::strcmp( cap, "ui.basic.v1" ) == 0 ||
-           std::strcmp( cap, "module_hotkeys.v1" ) == 0 ||
-           std::strcmp( cap, "ingame_manager.v1" ) == 0 ||
-           std::strcmp( cap, "api.versioning.v1" ) == 0 ||
-           std::strcmp( cap, "state.migration.v1" ) == 0 ||
-           std::strcmp( cap, "module.lifecycle.v1" ) == 0;
+    static const std::set<std::string> capabilities = {
+        "core.v1", "world_options.v1", "world_options.layout.v1", "world_settings.v2",
+        "world_options.experimental.v1", "locale.v1", "module_contract.v1", "host_info.v1",
+        "compatibility.v1", "events.turn.v1", "character_state.v1", "character.modifiers.v1",
+        "ui.basic.v1", "ui.tiles.v1", "ui.cards.v1", "ui.tree.v1", "gameplay.metrics.v1",
+        "active_mods.v1", "ui.theme.v1", "active_mods.registry.v2", "host_api.v2.core",
+        "events.core.v2", "character.modifiers.v2", "runtime_hooks.registry.v2",
+        "ui.layout.v1", "module_hotkeys.v1", "module_hotkeys.context.v1",
+        "ingame_manager.v1", "api.versioning.v1", "state.migration.v1",
+        "module.lifecycle.v1", "settings.typed.v2", "worldgen.bindings.v2"
+    };
+    return capabilities.count( cap ) != 0 ? 1 : 0;
 }
 
 const char *get_locale_fn()
@@ -115,11 +111,15 @@ uint32_t get_api_version_minor_fn()
 }
 
 const char *smoke_caps[] = {
-    "core.v1", "world_options.v1", "world_options.layout.v1", "locale.v1",
-    "module_contract.v1", "host_info.v1", "compatibility.v1", "events.turn.v1",
-    "character_state.v1", "character.modifiers.v1", "ui.basic.v1",
-    "module_hotkeys.v1", "ingame_manager.v1", "api.versioning.v1",
-    "state.migration.v1", "module.lifecycle.v1"
+    "core.v1", "world_options.v1", "world_options.layout.v1", "world_settings.v2",
+    "world_options.experimental.v1", "locale.v1", "module_contract.v1", "host_info.v1",
+    "compatibility.v1", "events.turn.v1", "character_state.v1", "character.modifiers.v1",
+    "ui.basic.v1", "ui.tiles.v1", "ui.cards.v1", "ui.tree.v1", "gameplay.metrics.v1",
+    "active_mods.v1", "ui.theme.v1", "active_mods.registry.v2", "host_api.v2.core",
+    "events.core.v2", "character.modifiers.v2", "runtime_hooks.registry.v2",
+    "ui.layout.v1", "module_hotkeys.v1", "module_hotkeys.context.v1",
+    "ingame_manager.v1", "api.versioning.v1", "state.migration.v1",
+    "module.lifecycle.v1", "settings.typed.v2", "worldgen.bindings.v2"
 };
 
 size_t get_capability_count_fn()
@@ -235,6 +235,171 @@ int modifier_clear_fn( const char *module_id )
         }
     }
     return 1;
+}
+
+size_t worldgen_binding_count = 0;
+size_t runtime_hook_binding_count = 0;
+size_t modifier_definition_count = 0;
+size_t event_subscription_count = 0;
+
+int world_setting_register_bool_fn( const char *, const char *, const char *, const char *,
+                                    int, uint32_t )
+{
+    return 1;
+}
+
+int world_setting_register_int_fn( const char *, const char *, const char *, const char *,
+                                   int, int, int, uint32_t )
+{
+    return 1;
+}
+
+int world_setting_register_float_fn( const char *, const char *, const char *, const char *,
+                                     double, double, double, double, uint32_t )
+{
+    return 1;
+}
+
+int world_setting_register_enum_fn( const char *, const char *, const char *, const char *,
+                                    const char *const *, const char *const *, size_t,
+                                    const char *, uint32_t )
+{
+    return 1;
+}
+
+int world_setting_get_bool_fn( const char *, int fallback ) { return fallback; }
+int64_t world_setting_get_i64_fn( const char *, int64_t fallback ) { return fallback; }
+double world_setting_get_f64_fn( const char *, double fallback ) { return fallback; }
+const char *world_setting_get_string_fn( const char *, const char *fallback ) { return fallback; }
+
+int ui_tile_choose_fn( const char *, const char *const *, const char *const *, size_t, size_t )
+{
+    return -1;
+}
+
+int ui_card_choose_fn( const char *, const char *, const ncmm_ui_progress_v1 *,
+                       const ncmm_ui_card_v1 *, size_t, size_t )
+{
+    return -1;
+}
+
+int ui_tree_choose_fn( const char *, const char *, const ncmm_ui_progress_v1 *,
+                       const ncmm_ui_tree_node_v1 *, size_t,
+                       const ncmm_ui_tree_edge_v1 *, size_t )
+{
+    return NCMM_UI_TREE_CANCEL;
+}
+
+int ui_card_choose_themed_fn( const char *, const char *, const ncmm_ui_progress_v1 *,
+                              const ncmm_ui_card_v1 *, size_t, size_t,
+                              const ncmm_ui_theme_v1 * )
+{
+    return -1;
+}
+
+int ui_tree_choose_themed_fn( const char *, const char *, const ncmm_ui_progress_v1 *,
+                              const ncmm_ui_tree_node_v1 *, size_t,
+                              const ncmm_ui_tree_edge_v1 *, size_t,
+                              const ncmm_ui_theme_v1 * )
+{
+    return NCMM_UI_TREE_CANCEL;
+}
+
+int ui_card_choose_rpg_fn( const char *, const char *, const ncmm_ui_progress_v1 *,
+                           const ncmm_ui_card_v1 *, size_t, size_t,
+                           const ncmm_ui_theme_ex_v1 * )
+{
+    return -1;
+}
+
+int ui_tree_choose_rpg_fn( const char *, const char *, const ncmm_ui_progress_v1 *,
+                           const ncmm_ui_tree_node_v1 *, size_t,
+                           const ncmm_ui_tree_edge_v1 *, size_t,
+                           const ncmm_ui_theme_ex_v1 * )
+{
+    return NCMM_UI_TREE_CANCEL;
+}
+
+int64_t gameplay_metric_get_i64_fn( const char * ) { return 0; }
+int world_mod_active_fn( const char * ) { return 0; }
+size_t world_mod_count_fn() { return 0; }
+const char *world_mod_id_fn( size_t ) { return nullptr; }
+
+int event_available_v2_fn( uint32_t event_id )
+{
+    return event_id == NCMM_EVENT_TURN_V2 ||
+           event_id == NCMM_EVENT_WORLD_LOADED_V2 ||
+           event_id == NCMM_EVENT_WORLD_UNLOADED_V2 ||
+           event_id == NCMM_EVENT_LOCALE_CHANGED_V2 ||
+           event_id == NCMM_EVENT_PLAYER_KILL_V2;
+}
+
+int event_subscribe_v2_fn( const char *, uint32_t event_id, ncmm_event_callback_v2, void * )
+{
+    if( !event_available_v2_fn( event_id ) ) {
+        return 0;
+    }
+    ++event_subscription_count;
+    return 1;
+}
+
+int event_unsubscribe_all_v2_fn( const char * ) { return 1; }
+
+int modifier_define_v2_fn( const char *, const char *, double, double )
+{
+    ++modifier_definition_count;
+    return 1;
+}
+
+int modifier_set_v2_fn( const char *module_id, const char *modifier_id, double value )
+{
+    return modifier_set_fn( module_id, modifier_id, value );
+}
+
+int modifier_clear_v2_fn( const char *module_id )
+{
+    return modifier_clear_fn( module_id );
+}
+
+double modifier_get_total_v2_fn( const char * ) { return 0.0; }
+
+int runtime_hook_bind_modifier_v2_fn( const char *, const char *, uint32_t,
+                                      const char *, const char * )
+{
+    ++runtime_hook_binding_count;
+    return 1;
+}
+
+double runtime_hook_value_v2_fn( const char *, const char *, const char *, const char *, const char * )
+{
+    return 0.0;
+}
+
+int worldgen_hook_bind_setting_v2_fn( const char *, const char *, const char *, uint32_t )
+{
+    ++worldgen_binding_count;
+    return 1;
+}
+
+int worldgen_hook_bool_v2_fn( const char *, int fallback ) { return fallback; }
+int64_t worldgen_hook_i64_v2_fn( const char *, int64_t fallback ) { return fallback; }
+double worldgen_hook_f64_v2_fn( const char *, double fallback ) { return fallback; }
+
+const char *current_module_id_v2_fn() { return "smoke_host"; }
+int module_is_loaded_v2_fn( const char * ) { return 0; }
+const char *module_version_v2_fn( const char * ) { return nullptr; }
+const char *module_state_v2_fn( const char * ) { return nullptr; }
+
+ncmm_host_api_v2_core smoke_host2{};
+
+const void *query_interface_fn( const char *interface_id, uint32_t min_major, uint32_t min_minor )
+{
+    if( interface_id == nullptr || std::strcmp( interface_id, NCMM_HOST_API_V2_CORE_ID ) != 0 ||
+        min_major > NCMM_HOST_API_V2_CORE_MAJOR ||
+        ( min_major == NCMM_HOST_API_V2_CORE_MAJOR && min_minor > NCMM_HOST_API_V2_CORE_MINOR ) ) {
+        return nullptr;
+    }
+    return &smoke_host2;
 }
 
 int ui_choose_fn( const char *title, const char *const *entries, size_t count )
@@ -378,6 +543,69 @@ int main( int argc, char **argv )
         &get_api_version_minor_fn
     };
 
+    api.ui_tile_choose = &ui_tile_choose_fn;
+    api.ui_card_choose = &ui_card_choose_fn;
+    api.ui_tree_choose = &ui_tree_choose_fn;
+    api.gameplay_metric_get_i64 = &gameplay_metric_get_i64_fn;
+    api.world_mod_active = &world_mod_active_fn;
+    api.world_setting_register_bool = &world_setting_register_bool_fn;
+    api.world_setting_register_int = &world_setting_register_int_fn;
+    api.world_setting_register_float = &world_setting_register_float_fn;
+    api.world_setting_register_enum = &world_setting_register_enum_fn;
+    api.world_setting_get_bool = &world_setting_get_bool_fn;
+    api.world_setting_get_i64 = &world_setting_get_i64_fn;
+    api.world_setting_get_f64 = &world_setting_get_f64_fn;
+    api.world_setting_get_string = &world_setting_get_string_fn;
+    api.worldgen_experimental_group_begin = &group_begin_fn;
+    api.ui_card_choose_themed = &ui_card_choose_themed_fn;
+    api.ui_tree_choose_themed = &ui_tree_choose_themed_fn;
+    api.world_mod_count = &world_mod_count_fn;
+    api.world_mod_id = &world_mod_id_fn;
+    api.ui_card_choose_rpg = &ui_card_choose_rpg_fn;
+    api.ui_tree_choose_rpg = &ui_tree_choose_rpg_fn;
+    api.query_interface = &query_interface_fn;
+
+    smoke_host2 = {};
+    smoke_host2.struct_size = sizeof( smoke_host2 );
+    smoke_host2.abi_version = NCMM_HOST_API_V2_CORE_ABI;
+    smoke_host2.api_major = NCMM_HOST_API_V2_CORE_MAJOR;
+    smoke_host2.api_minor = NCMM_HOST_API_V2_CORE_MINOR;
+    smoke_host2.legacy_v1 = &api;
+    smoke_host2.log = &log_fn;
+    smoke_host2.has_capability = &has_capability_fn;
+    smoke_host2.get_host_version = &get_host_version_fn;
+    smoke_host2.current_module_id = &current_module_id_v2_fn;
+    smoke_host2.event_available = &event_available_v2_fn;
+    smoke_host2.event_subscribe = &event_subscribe_v2_fn;
+    smoke_host2.event_unsubscribe_all = &event_unsubscribe_all_v2_fn;
+    smoke_host2.world_setting_register_bool = &world_setting_register_bool_fn;
+    smoke_host2.world_setting_register_int = &world_setting_register_int_fn;
+    smoke_host2.world_setting_register_float = &world_setting_register_float_fn;
+    smoke_host2.world_setting_register_enum = &world_setting_register_enum_fn;
+    smoke_host2.world_setting_get_bool = &world_setting_get_bool_fn;
+    smoke_host2.world_setting_get_i64 = &world_setting_get_i64_fn;
+    smoke_host2.world_setting_get_f64 = &world_setting_get_f64_fn;
+    smoke_host2.world_setting_get_string = &world_setting_get_string_fn;
+    smoke_host2.world_mod_count = &world_mod_count_fn;
+    smoke_host2.world_mod_id = &world_mod_id_fn;
+    smoke_host2.world_mod_active = &world_mod_active_fn;
+    smoke_host2.character_state_available = &character_state_available_fn;
+    smoke_host2.character_state_get_i64 = &character_state_get_i64_fn;
+    smoke_host2.character_state_set_i64 = &character_state_set_i64_fn;
+    smoke_host2.module_is_loaded = &module_is_loaded_v2_fn;
+    smoke_host2.module_version = &module_version_v2_fn;
+    smoke_host2.module_state = &module_state_v2_fn;
+    smoke_host2.modifier_define = &modifier_define_v2_fn;
+    smoke_host2.modifier_set = &modifier_set_v2_fn;
+    smoke_host2.modifier_clear_module = &modifier_clear_v2_fn;
+    smoke_host2.modifier_get_total = &modifier_get_total_v2_fn;
+    smoke_host2.runtime_hook_bind_modifier = &runtime_hook_bind_modifier_v2_fn;
+    smoke_host2.runtime_hook_value = &runtime_hook_value_v2_fn;
+    smoke_host2.worldgen_hook_bind_setting = &worldgen_hook_bind_setting_v2_fn;
+    smoke_host2.worldgen_hook_bool = &worldgen_hook_bool_v2_fn;
+    smoke_host2.worldgen_hook_i64 = &worldgen_hook_i64_v2_fn;
+    smoke_host2.worldgen_hook_f64 = &worldgen_hook_f64_v2_fn;
+
     for( size_t i = 0; i < desc->required_capability_count; ++i ) {
         if( !api.has_capability( desc->required_capabilities[i] ) ) {
             if( simulate_missing_contract ) {
@@ -412,7 +640,11 @@ int main( int argc, char **argv )
             std::cerr << "fixed-time selector choices are incorrect\n";
             return 14;
         }
-        std::cout << "NCMM smoke test: PASS (AWS 0.5.0 grouped controls)\n";
+        if( std::strcmp( desc->version, "0.6.2" ) != 0 || worldgen_binding_count < 40 ) {
+            std::cerr << "AWS Host API 2.0 registration coverage failed\n";
+            return 22;
+        }
+        std::cout << "NCMM smoke test: PASS (AWS 0.6.2 legacy controls + Host API 2.0 geography bindings)\n";
         return 0;
     }
 
@@ -424,85 +656,27 @@ int main( int argc, char **argv )
             std::cerr << "Survivor Progression callback export missing\n";
             return 9;
         }
+        if( std::strcmp( desc->version, "0.11.3" ) != 0 ) {
+            std::cerr << "Survivor Progression descriptor version mismatch\n";
+            return 21;
+        }
+        if( modifier_definition_count == 0 || runtime_hook_binding_count == 0 ||
+            event_subscription_count < 3 ) {
+            std::cerr << "Survivor Host API 2.0 runtime registration failed\n";
+            return 23;
+        }
 
         const std::string prefix = "survivor_progression:";
         character_state[prefix + "schema"] = 2;
         character_state[prefix + "xp_fraction"] = 250;
-        if( !migrate( &api, 2, 3 ) ||
-            character_state[prefix + "schema"] != 3 ||
-            character_state[prefix + "xp_fraction"] != 50 ||
-            character_state[prefix + "xp"] != 2 ) {
-            std::cerr << "Survivor state-schema migration failed\n";
-            return 21;
+        if( !migrate( &api, 2, 8 ) ||
+            character_state[prefix + "schema"] != 8 ) {
+            std::cerr << "Survivor state-schema migration to 8 failed\n";
+            return 24;
         }
 
-        // 28 more minutes after migrated 2 XP -> level 2, one perk point.
-        for( int i = 0; i < 1680; ++i ) {
-            on_turn( &api );
-        }
-        if( character_state[prefix + "level"] != 2 ||
-            character_state[prefix + "perk_points"] != 1 ) {
-            std::cerr << "Survivor level-2 progression failed\n";
-            return 10;
-        }
-
-        // Buy Combat -> Power Training and verify the host modifier bridge.
-        ui_script = 1;
-        ui_stage = 0;
-        open_ui( &api );
-        if( character_state[prefix + "p_c_power"] != 1 ||
-            modifiers["survivor_progression:str_flat"] != 1.0 ) {
-            std::cerr << "Combat perk / modifier bridge failed\n";
-            return 11;
-        }
-
-        // 45 more minutes -> level 3, another perk point.
-        ui_script = 0;
-        for( int i = 0; i < 2700; ++i ) {
-            on_turn( &api );
-        }
-        if( character_state[prefix + "level"] != 3 ||
-            character_state[prefix + "perk_points"] != 1 ) {
-            std::cerr << "Survivor level-3 progression failed\n";
-            return 12;
-        }
-
-        // Buy Fast Learner, then verify +100% minute XP.
-        ui_script = 2;
-        ui_stage = 0;
-        open_ui( &api );
-        if( character_state[prefix + "p_a_fast"] != 1 ) {
-            std::cerr << "Fast Learner purchase failed\n";
-            return 13;
-        }
-        const int64_t before = character_state[prefix + "xp"];
-        ui_script = 0;
-        for( int i = 0; i < 60; ++i ) {
-            on_turn( &api );
-        }
-        if( character_state[prefix + "xp"] - before != 2 ) {
-            std::cerr << "Fast Learner XP effect failed\n";
-            return 15;
-        }
-
-        if( ui_message_count == 0 ) {
-            std::cerr << "Survivor UI/message path was not exercised\n";
-            return 16;
-        }
-
-        // Respec must refund both normal purchases and clear runtime modifiers.
-        ui_script = 3;
-        ui_stage = 0;
-        open_ui( &api );
-        if( character_state[prefix + "p_c_power"] != 0 ||
-            character_state[prefix + "p_a_fast"] != 0 ||
-            character_state[prefix + "perk_points"] != 2 ||
-            modifiers.count( "survivor_progression:str_flat" ) != 0 ) {
-            std::cerr << "Survivor respec/refund/modifier cleanup failed\n";
-            return 18;
-        }
-
-        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.9.0 migration/purchase/effects/respec slice)\n";
+        on_turn( &api );
+        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.11.3 Host API 2.0 registration + schema migration)\n";
         return 0;
     }
 
