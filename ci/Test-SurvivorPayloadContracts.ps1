@@ -6,7 +6,7 @@ $payload=[IO.File]::ReadAllText((Join-Path $PackageRoot 'payload\SURVIVOR_0911_0
 # Survivor Progression 0.10.0 Mechanical Perks regression contracts.
 # Historical gameplay/content contracts stay pinned here; build-cache marker/fingerprint are version-current and are checked by the 0.11.3 block below.
 $survivor0100=Get-Content (Join-Path $PackageRoot 'components\survivor_progression.json') -Raw|ConvertFrom-Json
-if([string]$survivor0100.version -ne '0.11.3'){throw 'Survivor 0.11.3 component identity mismatch.'}
+if([string]$survivor0100.version -ne '0.12.0'){throw 'Survivor 0.12.0 component identity mismatch.'}
 $contracts0100=Get-Content (Join-Path $PackageRoot 'compat\contracts.json') -Raw|ConvertFrom-Json
 if(@($contracts0100.contracts|Where-Object{$_.id -eq 'mechanical_combat_hooks.source.v1'}).Count -ne 1){throw 'Mechanical combat source contract missing.'}
 foreach($mechanicalNeedle0100 in @(
@@ -47,7 +47,7 @@ foreach($ref0110 in @(
 # Survivor Progression 0.11.0 Reactive Mechanics + Technical Mastery regression contracts,
 # plus 0.11.1 semantic polish, 0.11.2 edge hardening and 0.11.3 combinatorial edge polish. The 25-node 0.11.0 layer remains intact; no polish pass removes nodes.
 $survivor0110=Get-Content (Join-Path $PackageRoot 'components\survivor_progression.json') -Raw|ConvertFrom-Json
-if([string]$survivor0110.version -ne '0.11.3'){throw 'Survivor 0.11.3 component identity mismatch.'}
+if([string]$survivor0110.version -ne '0.12.0'){throw 'Survivor 0.12.0 component identity mismatch.'}
 $contracts0110=Get-Content (Join-Path $PackageRoot 'compat\contracts.json') -Raw|ConvertFrom-Json
 if(@($contracts0110.contracts|Where-Object{$_.id -eq 'reactive_technical_hooks.source.v4'}).Count -ne 1){throw 'Reactive/technical source contract missing.'}
 foreach($reactiveNeedle0110 in @(
@@ -330,4 +330,13 @@ if(($rows013|Where-Object{$_.Index -eq 3}).X2 -ne 3){
     throw 'HOTFIX13 singleton row must preserve parent-centered physical x.'
 }
 
+foreach($n in @(
+    'Apply-NcmmManagerUiV1Source',
+    'NCMM_SP_XP_RATE',
+    'NCMM_SP_STAT_POWER',
+    'configure_progression_settings',
+    'progression_xp_rate_pct',
+    'progression_stat_power_pct',
+    'settings.typed.v2'
+)){if(-not $payload.Contains($n)){throw ('Survivor 0.12.0 settings contract missing: '+$n)}}
 Write-Host 'NCMM Survivor payload regression contract: PASS' -ForegroundColor Green
