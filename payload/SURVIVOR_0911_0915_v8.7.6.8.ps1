@@ -15583,7 +15583,7 @@ std::string rpg_detail_body( const perk_def &perk, const std::string &body,
 
     $loader = [regex]::Replace(
         $loader,
-        '(?ms)^\s*if\( !entry\.reason\.empty\(\) && !entry\.disabled &&\s*\( !entry\.loaded_now \|\| entry\.runtime_state == "runtime_fault" \) \) \{\s*label \+= " - " \+ entry\.reason;\s*\}\s*',
+        '(?ms)^[ \t]*if\( !entry\.reason\.empty\(\) && !entry\.disabled &&\s*\( !entry\.loaded_now \|\| entry\.runtime_state == "runtime_fault" \) \) \{\s*label \+= " - " \+ entry\.reason;\s*\}[ \t]*(?:\r?\n)?',
         ''
     )
     Write-Utf8NoBom $loaderPath $loader

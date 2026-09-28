@@ -2002,7 +2002,7 @@ int ui_tree_choose( const char *title, const char *summary,
                 if( ncmm_ui_sectioned_detail() ) {
                     if( folded[line] == "BONUS:" || folded[line] == "БОНУС:" ) {
                         detail_color = c_light_green;
-                    } else if( folded[line] == "TRADEOFF:" || folded[line] == "КОМПРОМИСС:" ) {
+                    } else if( folded[line] == "DRAWBACK:" || folded[line] == "ШТРАФ:" ) {
                         detail_color = c_light_red;
                     } else if( folded[line] == "REQUIRES:" || folded[line] == "ТРЕБУЕТ:" ) {
                         detail_color = c_yellow;
