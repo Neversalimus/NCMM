@@ -13083,7 +13083,31 @@ std::vector<manager_entry> manager_entries()
 
         $reasonOld = '                label += " - " + entry.reason;'
         $reasonNew = '                label += " - " + manager_reason_text( entry.reason );'
-        $l = Replace-TextBlock $l $reasonOld $reasonNew 'v8.7.6.6 manager readable failure reason'
+        if ($l.Contains($reasonOld)) {
+            # Legacy manager already exposed raw reason text: preserve its layout and translate the reason.
+            $l = Replace-TextBlock $l $reasonOld $reasonNew 'v8.7.6.6 manager readable failure reason'
+        } else {
+            # Host 0.8 manager no longer appends raw reasons at all. Restore the useful detail
+            # explicitly, but only for non-OK states so normal module rows stay compact.
+            $reasonBlockOld = @'
+            const loaded_mod *runtime = find_loaded( entry.directory );
+            if( runtime != nullptr && runtime->open_ui != nullptr ) {
+                label += tr_ui( " [SETTINGS]", " [НАСТРОЙКИ]" );
+            }
+            menu.addentry( i, true, MENU_AUTOASSIGN, label );
+'@
+            $reasonBlockNew = @'
+            const loaded_mod *runtime = find_loaded( entry.directory );
+            if( runtime != nullptr && runtime->open_ui != nullptr ) {
+                label += tr_ui( " [SETTINGS]", " [НАСТРОЙКИ]" );
+            }
+            if( !entry.reason.empty() && entry.reason != "ok" ) {
+                label += " - " + manager_reason_text( entry.reason );
+            }
+            menu.addentry( i, true, MENU_AUTOASSIGN, label );
+'@
+            $l = Replace-TextBlock $l $reasonBlockOld $reasonBlockNew 'v8.7.6.6 manager readable failure reason current host'
+        }
 
         $menuEnOld = 'NCMM — Mod Configuration\nPress F2 to open this menu (the key can be changed in Controls). Press Enter to open settings for supported mods.'
         $menuEnNew = 'NCMM — Mod Configuration\nPress F2 to open this menu (the key can be changed in Controls). Press Enter to open settings for supported mods.\nSupport: https://github.com/Neversalimus/NCMM/issues'
