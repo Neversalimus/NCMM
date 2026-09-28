@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "helpers": [
+    "Normalize-Lf",
+    "Write-Utf8NoBom",
+    "Replace-TextBlock",
+    "Replace-CppRange"
+  ],
+  "layers": [
+    "Apply-WorldSettingsV2Patch",
+    "Apply-AwsWorldgenHostApi20",
+    "Apply-NcmmRuntimeGameplayHooksV2",
+    "Apply-NcmmReactiveMechanics0112",
+    "Apply-NcmmReactiveMechanics0113",
+    "Assert-NcmmReactiveMechanics0113Source",
+    "Apply-RecipeFinalizeProfilerSupportPatch",
+    "Apply-NcmmRuntimeInfrastructureV8766"
+  ]
+}

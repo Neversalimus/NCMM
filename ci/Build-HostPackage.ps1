@@ -72,46 +72,96 @@ $payloadPath = Join-Path $RepositoryRoot 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps
 if (-not (Test-Path $payloadPath -PathType Leaf)) {
     throw "Canonical payload is missing: $payloadPath"
 }
-$payloadFunctions = @(
-    'Normalize-Lf',
-    'Write-Utf8NoBom',
-    'Replace-TextBlock',
-    'Replace-CppRange',
-    'Apply-WorldSettingsV2Patch',
-    'Apply-AwsWorldgenHostApi20',
-    'Apply-NcmmRuntimeGameplayHooksV2',
-    'Apply-NcmmReactiveMechanics0112',
-    'Apply-NcmmReactiveMechanics0113',
-    'Assert-NcmmReactiveMechanics0113Source',
-    'Apply-RecipeFinalizeProfilerSupportPatch',
-    'Apply-NcmmRuntimeInfrastructureV8766'
-)
+$stackManifestPath = Join-Path $RepositoryRoot 'ci\host-patch-stack.json'
+if (-not (Test-Path $stackManifestPath -PathType Leaf)) {
+    throw "Certified-host patch stack manifest is missing: $stackManifestPath"
+}
+$stackManifest = Get-Content $stackManifestPath -Raw | ConvertFrom-Json
+if ([int]$stackManifest.schema -ne 1) {
+    throw "Unsupported certified-host patch stack schema: $($stackManifest.schema)"
+}
+$payloadHelpers = @($stackManifest.helpers | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ })
+$engineLayers = @($stackManifest.layers | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ })
+if ($payloadHelpers.Count -eq 0 -or $engineLayers.Count -eq 0) {
+    throw 'Certified-host patch stack must define helpers and engine layers.'
+}
+$payloadFunctions = @($payloadHelpers) + @($engineLayers)
+if (@($payloadFunctions | Sort-Object -Unique).Count -ne $payloadFunctions.Count) {
+    throw 'Certified-host patch stack contains duplicate function names.'
+}
 Import-NcmmPayloadFunctions -PayloadPath $payloadPath -Names $payloadFunctions
 
-$engineLayers = @(
-    'Apply-WorldSettingsV2Patch',
-    'Apply-AwsWorldgenHostApi20',
-    'Apply-NcmmRuntimeGameplayHooksV2',
-    'Apply-NcmmReactiveMechanics0112',
-    'Apply-NcmmReactiveMechanics0113',
-    'Assert-NcmmReactiveMechanics0113Source',
-    'Apply-RecipeFinalizeProfilerSupportPatch',
-    'Apply-NcmmRuntimeInfrastructureV8766'
-)
 foreach ($layer in $engineLayers) {
     Write-Host "Applying certified-host engine layer: $layer"
     & $layer $UpstreamRoot
 }
 
 $buildTimer = [Diagnostics.Stopwatch]::StartNew()
+$commonPropsPath = Join-Path $UpstreamRoot 'msvc-full-features\Cataclysm-common.props'
+$commonPropsOriginalBytes = $null
 Push-Location $UpstreamRoot
 try {
     $env:BACKTRACE = '1'
     $env:CDDA_RELEASE_BUILD = '1'
     $env:VCPKG_OVERLAY_TRIPLETS = Join-Path $UpstreamRoot '.github\vcpkg_triplets'
-    & msbuild -m -p:Configuration=Release -p:Platform=x64 '-target:Cataclysm-vcpkg-static' 'msvc-full-features\Cataclysm-vcpkg-static.sln'
+
+    $msbuildArgs = @(
+        '-m',
+        '-p:Configuration=Release',
+        '-p:Platform=x64',
+        '-target:Cataclysm-vcpkg-static',
+        'msvc-full-features\Cataclysm-vcpkg-static.sln'
+    )
+
+    if ($env:NCMM_SCCACHE_WRAPPER_DIR) {
+        $wrapper = Join-Path $env:NCMM_SCCACHE_WRAPPER_DIR 'cl.bat'
+        if (-not (Test-Path $wrapper -PathType Leaf)) {
+            throw "NCMM sccache wrapper was requested but not found: $wrapper"
+        }
+        if (-not (Test-Path $commonPropsPath -PathType Leaf)) {
+            throw "CDDA compiler props missing: $commonPropsPath"
+        }
+
+        # /MP batches translation units into one cl.exe process and defeats
+        # per-translation-unit caching.  In CI cache mode MultiToolTask supplies
+        # the parallelism while sccache sees one translation unit per invocation.
+        # /Z7 keeps debug information inside each object instead of a shared PDB.
+        $commonPropsOriginalBytes = [IO.File]::ReadAllBytes($commonPropsPath)
+        $commonPropsText = [IO.File]::ReadAllText($commonPropsPath)
+        $parallelAnchor = '<MultiProcessorCompilation>true</MultiProcessorCompilation>'
+        $debugAnchor = '<DebugInformationFormat>ProgramDatabase</DebugInformationFormat>'
+        if (-not $commonPropsText.Contains($parallelAnchor) -or -not $commonPropsText.Contains($debugAnchor)) {
+            throw 'CDDA compiler props no longer expose the expected sccache integration anchors.'
+        }
+        $commonPropsText = $commonPropsText.Replace(
+            $parallelAnchor, '<MultiProcessorCompilation>false</MultiProcessorCompilation>')
+        $commonPropsText = $commonPropsText.Replace(
+            $debugAnchor, '<DebugInformationFormat>OldStyle</DebugInformationFormat>')
+        [IO.File]::WriteAllText(
+            $commonPropsPath, $commonPropsText, (New-Object Text.UTF8Encoding($false)))
+
+        $msbuildArgs = @(
+            '-m',
+            '-p:Configuration=Release',
+            '-p:Platform=x64',
+            '-p:CLToolExe=cl.bat',
+            "-p:CLToolPath=$env:NCMM_SCCACHE_WRAPPER_DIR",
+            '-p:TrackFileAccess=false',
+            '-p:UseMultiToolTask=true',
+            '-target:Cataclysm-vcpkg-static',
+            'msvc-full-features\Cataclysm-vcpkg-static.sln'
+        )
+        Write-Host "MSVC compiler cache: ENABLED ($wrapper)"
+    } else {
+        Write-Host 'MSVC compiler cache: disabled; using upstream /MP settings.'
+    }
+
+    & msbuild @msbuildArgs
     if ($LASTEXITCODE -ne 0) { throw 'MSVC CDDA host build failed.' }
 } finally {
+    if ($null -ne $commonPropsOriginalBytes) {
+        [IO.File]::WriteAllBytes($commonPropsPath, $commonPropsOriginalBytes)
+    }
     Pop-Location
     $buildTimer.Stop()
 }

@@ -18,6 +18,7 @@ on:
       - 'ci/Test-PatchRevisionPortability.ps1'
       - 'ci/Test-SourceContracts.ps1'
       - 'ci/Build-HostPackage.ps1'
+      - 'ci/host-patch-stack.json'
       - 'payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
       - 'ci/Test-TextEncoding.ps1'
       - 'ci/Test-VersionConsistency.ps1'
@@ -34,7 +35,7 @@ env:
 
 concurrency:
   group: ncmm-certified-host-pipeline
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   discover:
@@ -128,6 +129,8 @@ jobs:
       matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
     runs-on: windows-2022
     timeout-minutes: 90
+    env:
+      SCCACHE_GHA_ENABLED: 'true'
     steps:
       - name: Checkout NCMM repository
         uses: actions/checkout@v4
@@ -164,15 +167,59 @@ jobs:
           $sha = (git -C upstream rev-parse HEAD).Trim()
           "sha=$sha" >> $env:GITHUB_OUTPUT
 
+      - name: Reuse existing certified host
+        id: reuse
+        shell: powershell
+        run: |
+          $rev = '${{ needs.discover.outputs.patch_revision }}'
+          $tag = '${{ matrix.tag }}'
+          $source = '${{ steps.source.outputs.sha }}'
+          $releaseTag = "ncmm-host-$tag-r$($rev.Substring(0, 12))"
+          & gh release view $releaseTag *> $null
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "No reusable certified release: $releaseTag"
+              "reused=false" >> $env:GITHUB_OUTPUT
+              exit 0
+          }
+
+          $zipName = "ncmm-host-win64-$tag.zip"
+          New-Item -ItemType Directory -Force -Path result/package | Out-Null
+          & gh release download $releaseTag -p $zipName -D result --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Could not download reusable host package $releaseTag/$zipName" }
+          Expand-Archive (Join-Path result $zipName) result/package -Force
+
+          $metaPath = 'result/package/host.json'
+          $hostPath = 'result/package/cataclysm-tiles.ncmm.exe'
+          if (-not (Test-Path $metaPath) -or -not (Test-Path $hostPath)) {
+              throw "Reusable release $releaseTag is incomplete."
+          }
+          $meta = Get-Content $metaPath -Raw | ConvertFrom-Json
+          if ($meta.patch_revision -ne $rev -or
+              $meta.ncmm_version -ne '0.8.0' -or
+              $meta.upstream_tag -ne $tag -or
+              $meta.source_commit -ne $source) {
+              throw "Reusable release metadata does not match requested certification identity."
+          }
+          $sha = (Get-FileHash $hostPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne $meta.host_sha256) {
+              throw "Reusable release host digest mismatch: $sha != $($meta.host_sha256)"
+          }
+          if (@($meta.vanilla_sha256).Count -eq 0) {
+              throw "Reusable release has no vanilla executable identities."
+          }
+          Write-Host "Reusing certified host release $releaseTag"
+          "reused=true" >> $env:GITHUB_OUTPUT
+
       - name: Contract preflight / patch
         id: patch
+        if: steps.reuse.outputs.reused != 'true'
         continue-on-error: true
         shell: powershell
         run: |
           ./ncmmrepo/host_patch/Apply-NCMMHostPatch.ps1 -SourceRoot ./upstream
 
       - name: Record unsupported contract
-        if: steps.patch.outcome != 'success'
+        if: steps.reuse.outputs.reused != 'true' && steps.patch.outcome != 'success'
         shell: powershell
         run: |
           New-Item -ItemType Directory -Force -Path result | Out-Null
@@ -186,24 +233,24 @@ jobs:
           } | ConvertTo-Json | Set-Content result/rejection.json -Encoding UTF8
 
       - name: Setup MSBuild
-        if: steps.patch.outcome == 'success'
+        if: steps.reuse.outputs.reused != 'true' && steps.patch.outcome == 'success'
         uses: microsoft/setup-msbuild@v2
 
       - name: Setup vcpkg
-        if: steps.patch.outcome == 'success'
+        if: steps.reuse.outputs.reused != 'true' && steps.patch.outcome == 'success'
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: '${{ runner.workspace }}/b/vcpkg'
           vcpkgGitCommitId: 'f6672d8e480ccdecddfad3fd1b838ba369ffe6cd'
 
       - name: Integrate vcpkg
-        if: steps.patch.outcome == 'success'
+        if: steps.reuse.outputs.reused != 'true' && steps.patch.outcome == 'success'
         shell: powershell
         run: |
           vcpkg integrate install --vcpkg-root '${{ runner.workspace }}\b\vcpkg'
 
       - name: Setup MSYS2 helper tools
-        if: steps.patch.outcome == 'success'
+        if: steps.reuse.outputs.reused != 'true' && steps.patch.outcome == 'success'
         uses: msys2/setup-msys2@v2
         with:
           msystem: mingw64
@@ -212,14 +259,35 @@ jobs:
             make
 
       - name: Cache vcpkg packages
-        if: steps.patch.outcome == 'success'
+        if: steps.reuse.outputs.reused != 'true' && steps.patch.outcome == 'success'
         uses: actions/cache@v4
         with:
           path: upstream/msvc-full-features/vcpkg_installed
           key: ncmm-vcpkg-${{ runner.os }}-f6672d8e480ccdecddfad3fd1b838ba369ffe6cd-${{ hashFiles('upstream/msvc-full-features/vcpkg.json', 'upstream/.github/vcpkg_triplets/x64-windows-static.cmake') }}
 
+      - name: Setup sccache compiler cache
+        if: steps.reuse.outputs.reused != 'true' && steps.patch.outcome == 'success'
+        uses: mozilla-actions/sccache-action@v0.0.11
+        with:
+          version: 'v0.16.0'
+
+      - name: Configure MSVC sccache wrapper
+        if: steps.reuse.outputs.reused != 'true' && steps.patch.outcome == 'success'
+        shell: powershell
+        run: |
+          $wrapperDir = Join-Path $env:RUNNER_TEMP 'ncmm-sccache-wrapper'
+          New-Item -ItemType Directory -Force -Path $wrapperDir | Out-Null
+          @'
+          @echo off
+          setlocal
+          sccache.exe cl.exe %*
+          exit /b %ERRORLEVEL%
+          '@ | Set-Content -Encoding Ascii (Join-Path $wrapperDir 'cl.bat')
+          "NCMM_SCCACHE_WRAPPER_DIR=$wrapperDir" >> $env:GITHUB_ENV
+          sccache --zero-stats
+
       - name: Build and certify host
-        if: steps.patch.outcome == 'success'
+        if: steps.reuse.outputs.reused != 'true' && steps.patch.outcome == 'success'
         shell: powershell
         run: |
           ./ncmmrepo/ci/Build-HostPackage.ps1 `
@@ -227,6 +295,12 @@ jobs:
             -UpstreamRoot "$env:GITHUB_WORKSPACE/upstream" `
             -UpstreamTag '${{ matrix.tag }}' `
             -OutputRoot "$env:GITHUB_WORKSPACE/result/package"
+
+      - name: Report sccache statistics
+        if: always() && steps.reuse.outputs.reused != 'true' && steps.patch.outcome == 'success'
+        shell: powershell
+        run: |
+          sccache --show-stats
 
       - name: Upload result
         if: always()
@@ -237,7 +311,7 @@ jobs:
           if-no-files-found: error
 
       - name: Fail required seed certification
-        if: always() && steps.patch.outcome != 'success'
+        if: always() && steps.reuse.outputs.reused != 'true' && steps.patch.outcome != 'success'
         shell: powershell
         run: |
           $tag = '${{ matrix.tag }}'

@@ -14,8 +14,7 @@ $paths = @(
     'host_patch/ncmm_manifest_policy.h',
     'compat/contracts.json',
     'ci/Test-SourceContracts.ps1',
-    'ci/Build-HostPackage.ps1',
-    'ci/Get-PatchRevision.ps1'
+    'ci/host-patch-stack.json'
 )
 
 $Utf8Strict = New-Object System.Text.UTF8Encoding($false, $true)
@@ -40,20 +39,23 @@ function Get-CanonicalTextBytes([string]$Path) {
 }
 
 $payloadRelativePath = 'payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
+$stackManifestRelativePath = 'ci/host-patch-stack.json'
+$stackManifestPath = Join-Path $RepositoryRoot $stackManifestRelativePath
+if (-not (Test-Path $stackManifestPath -PathType Leaf)) {
+    throw "Missing host patch stack manifest: $stackManifestRelativePath"
+}
+$stackManifest = Get-Content $stackManifestPath -Raw | ConvertFrom-Json
+if ([int]$stackManifest.schema -ne 1) {
+    throw "Unsupported host patch stack schema: $($stackManifest.schema)"
+}
 $payloadFunctionNames = @(
-    'Normalize-Lf',
-    'Write-Utf8NoBom',
-    'Replace-TextBlock',
-    'Replace-CppRange',
-    'Apply-WorldSettingsV2Patch',
-    'Apply-AwsWorldgenHostApi20',
-    'Apply-NcmmRuntimeGameplayHooksV2',
-    'Apply-NcmmReactiveMechanics0112',
-    'Apply-NcmmReactiveMechanics0113',
-    'Assert-NcmmReactiveMechanics0113Source',
-    'Apply-RecipeFinalizeProfilerSupportPatch',
-    'Apply-NcmmRuntimeInfrastructureV8766'
+    @($stackManifest.helpers | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ }) +
+    @($stackManifest.layers | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ })
 )
+if ($payloadFunctionNames.Count -eq 0 -or
+    @($payloadFunctionNames | Sort-Object -Unique).Count -ne $payloadFunctionNames.Count) {
+    throw 'Host patch stack function list is empty or contains duplicates.'
+}
 
 function Get-CanonicalStringBytes([string]$Text) {
     $normalized = (($Text -replace "`r`n","`n") -replace "`r","`n")
