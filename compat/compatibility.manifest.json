@@ -1,7 +1,7 @@
 {
   "schema": 4,
   "infrastructure_version": "0.8.3.1",
-  "host_version": "0.8.0",
+  "host_version": "0.8.1",
   "ncmm_api": "1.9",
   "loader_api": 1,
   "base_adapter": "base-cdda-2026-series-v1",
@@ -76,7 +76,7 @@
     "optional_modules": [
       {
         "id": "survivor_progression",
-        "version": "0.11.3"
+        "version": "0.12.0"
       },
       {
         "id": "advanced_world_settings",
@@ -148,7 +148,7 @@
       "runtime_hook_registry",
       "worldgen_binding_registry"
     ],
-    "module_migration_status": "Survivor 0.11.3 and AWS 0.6.2 use Host API 2.0; reactive combat now includes combinatorial-safe riposte refunds, hostile NPC kill parity, hostile-target guards, bounded/self-healing Momentum state, technical crafting/scavenging and geography semantics through generic Host hooks.",
+    "module_migration_status": "Survivor 0.12.0 and AWS 0.6.2 use Host API 2.0; Survivor 0.12.0 adds Host-managed live balance settings and the two-pane NCMM manager while preserving the 0.11.3 gameplay contracts.",
     "survivor_migration": "runtime_hook_registry_v2 + dynamic_modifier_ownership; no Survivor-specific identifiers remain in patched CDDA source",
     "aws_migration": "typed_world_settings_v2 + worldgen_binding_registry_v2; final patched CDDA geography sources contain no NCMM_AWS_* identifiers"
   },
