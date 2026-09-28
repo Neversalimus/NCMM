@@ -19,10 +19,88 @@ if ($patchRevision -notmatch '^[0-9a-f]{64}$') {
     throw "Invalid NCMM patch revision: $patchRevision"
 }
 
+function Import-NcmmPayloadFunctions {
+    param(
+        [Parameter(Mandatory=$true)][string]$PayloadPath,
+        [Parameter(Mandatory=$true)][string[]]$Names
+    )
+
+    $tokens = $null
+    $parseErrors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+        $PayloadPath, [ref]$tokens, [ref]$parseErrors )
+    if (@($parseErrors).Count -ne 0) {
+        $messages = @($parseErrors | ForEach-Object { $_.Message }) -join '; '
+        throw "Could not parse canonical NCMM payload: $messages"
+    }
+
+    $definitions = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst]
+    }, $true))
+
+    foreach ($name in $Names) {
+        $matches = @($definitions | Where-Object { $_.Name -eq $name })
+        if ($matches.Count -ne 1) {
+            throw "Canonical payload function '$name' expected exactly once, found $($matches.Count)."
+        }
+
+        $definition = [string]$matches[0].Extent.Text
+        $pattern = '^\\s*function\\s+' + [regex]::Escape($name) + '\\b'
+        $scoped = [regex]::Replace(
+            $definition, $pattern, ('function script:' + $name), 1,
+            [Text.RegularExpressions.RegexOptions]::IgnoreCase )
+        if ($scoped -eq $definition) {
+            throw "Could not scope canonical payload function '$name'."
+        }
+        Invoke-Expression $scoped
+        if (-not (Get-Command $name -CommandType Function -ErrorAction SilentlyContinue)) {
+            throw "Canonical payload function '$name' was not imported."
+        }
+    }
+}
+
 $patchScript = Join-Path $RepositoryRoot 'host_patch\Apply-NCMMHostPatch.ps1'
-# Apply-NCMMHostPatch.ps1 is a PowerShell script: terminating exceptions are the
-# failure signal. Do not inspect stale $LASTEXITCODE from a previous native command.
+# Apply-NCMMHostPatch.ps1 owns the stable Host/ABI bridge.  The cumulative payload
+# owns additive engine patch layers used by the current modules.  Certified hosts
+# must apply the same layers as a local source build or the two installation paths
+# silently diverge.
 & $patchScript -SourceRoot $UpstreamRoot
+
+$payloadPath = Join-Path $RepositoryRoot 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1'
+if (-not (Test-Path $payloadPath -PathType Leaf)) {
+    throw "Canonical payload is missing: $payloadPath"
+}
+$payloadFunctions = @(
+    'Normalize-Lf',
+    'Write-Utf8NoBom',
+    'Replace-TextBlock',
+    'Replace-CppRange',
+    'Apply-WorldSettingsV2Patch',
+    'Apply-AwsWorldgenHostApi20',
+    'Apply-NcmmRuntimeGameplayHooksV2',
+    'Apply-NcmmReactiveMechanics0112',
+    'Apply-NcmmReactiveMechanics0113',
+    'Assert-NcmmReactiveMechanics0113Source',
+    'Apply-RecipeFinalizeProfilerSupportPatch',
+    'Apply-NcmmRuntimeInfrastructureV8766'
+)
+Import-NcmmPayloadFunctions -PayloadPath $payloadPath -Names $payloadFunctions
+
+$engineLayers = @(
+    'Apply-WorldSettingsV2Patch',
+    'Apply-AwsWorldgenHostApi20',
+    'Apply-NcmmRuntimeGameplayHooksV2',
+    'Apply-NcmmReactiveMechanics0112',
+    'Apply-NcmmReactiveMechanics0113',
+    'Assert-NcmmReactiveMechanics0113Source',
+    'Apply-RecipeFinalizeProfilerSupportPatch',
+    'Apply-NcmmRuntimeInfrastructureV8766'
+)
+foreach ($layer in $engineLayers) {
+    Write-Host "Applying certified-host engine layer: $layer"
+    & $layer $UpstreamRoot
+}
 
 $buildTimer = [Diagnostics.Stopwatch]::StartNew()
 Push-Location $UpstreamRoot

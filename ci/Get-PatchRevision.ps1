@@ -39,6 +39,27 @@ function Get-CanonicalTextBytes([string]$Path) {
     return $Utf8NoBom.GetBytes($text)
 }
 
+$payloadRelativePath = 'payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
+$payloadFunctionNames = @(
+    'Normalize-Lf',
+    'Write-Utf8NoBom',
+    'Replace-TextBlock',
+    'Replace-CppRange',
+    'Apply-WorldSettingsV2Patch',
+    'Apply-AwsWorldgenHostApi20',
+    'Apply-NcmmRuntimeGameplayHooksV2',
+    'Apply-NcmmReactiveMechanics0112',
+    'Apply-NcmmReactiveMechanics0113',
+    'Assert-NcmmReactiveMechanics0113Source',
+    'Apply-RecipeFinalizeProfilerSupportPatch',
+    'Apply-NcmmRuntimeInfrastructureV8766'
+)
+
+function Get-CanonicalStringBytes([string]$Text) {
+    $normalized = (($Text -replace "`r`n","`n") -replace "`r","`n")
+    return $Utf8NoBom.GetBytes($normalized)
+}
+
 $sha = [Security.Cryptography.SHA256]::Create()
 $ms = New-Object IO.MemoryStream
 try {
@@ -52,6 +73,35 @@ try {
         $bytes = Get-CanonicalTextBytes $path
         $ms.Write($bytes, 0, $bytes.Length)
 
+        $ms.WriteByte(10)
+    }
+
+    $payloadPath = Join-Path $RepositoryRoot $payloadRelativePath
+    if (-not (Test-Path $payloadPath -PathType Leaf)) {
+        throw "Missing canonical payload for patch revision: $payloadRelativePath"
+    }
+    $tokens = $null
+    $parseErrors = $null
+    $payloadAst = [System.Management.Automation.Language.Parser]::ParseFile(
+        $payloadPath, [ref]$tokens, [ref]$parseErrors )
+    if (@($parseErrors).Count -ne 0) {
+        $messages = @($parseErrors | ForEach-Object { $_.Message }) -join '; '
+        throw "Canonical payload parse failed during patch revision: $messages"
+    }
+    $functionDefinitions = @($payloadAst.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst]
+    }, $true))
+
+    foreach ($functionName in $payloadFunctionNames) {
+        $matches = @($functionDefinitions | Where-Object { $_.Name -eq $functionName })
+        if ($matches.Count -ne 1) {
+            throw "Patch revision function '$functionName' expected exactly once, found $($matches.Count)."
+        }
+        $label = $Utf8NoBom.GetBytes($payloadRelativePath + '::' + $functionName + "`n")
+        $ms.Write($label, 0, $label.Length)
+        $functionBytes = Get-CanonicalStringBytes ([string]$matches[0].Extent.Text)
+        $ms.Write($functionBytes, 0, $functionBytes.Length)
         $ms.WriteByte(10)
     }
 

@@ -16,7 +16,8 @@ $inputs = @(
     'compat/contracts.json',
     'ci/Test-SourceContracts.ps1',
     'ci/Build-HostPackage.ps1',
-    'ci/Get-PatchRevision.ps1'
+    'ci/Get-PatchRevision.ps1',
+    'payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
 )
 
 $tempBase = Join-Path ([IO.Path]::GetTempPath()) ('ncmm-patch-revision-' + [guid]::NewGuid().ToString('N'))
