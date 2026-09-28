@@ -15224,7 +15224,7 @@ Write-Host "Survivor 0.11.3 Combinatorial Edge Polish module audit: PASS (323+ n
 
 
 function Apply-NcmmManagerUiV1Source {
-    Write-Host "Applying NCMM two-pane manager + Survivor live balance settings..." -ForegroundColor Cyan
+    Write-Host "Applying NCMM 0.8.1 two-pane manager + Survivor 0.12.0 live balance settings..." -ForegroundColor Cyan
     $loaderUiPath = Join-Path $NcmmRoot 'host_patch\ncmm_loader.cpp'
     $spUiPath = $spPath
     $spUiManifestPath = $manifestPath
@@ -15866,7 +15866,8 @@ void show_manager()
     }
 }
 '@ 'two-pane NCMM manager UI'
-    foreach($managerNeedle in @('module_setting_meta','manager_description','manager_setting_value','manager_adjust_setting','NCMM_MANAGER','MODULE DETAILS','СВЕДЕНИЯ О МОДЕ')){
+    $loaderUi = $loaderUi.Replace('0.8.0','0.8.1')
+    foreach($managerNeedle in @('module_setting_meta','manager_description','manager_setting_value','manager_adjust_setting','NCMM_MANAGER','MODULE DETAILS','СВЕДЕНИЯ О МОДЕ','return "0.8.1";')){
         if(-not $loaderUi.Contains($managerNeedle)){throw "NCMM manager generated source missing: $managerNeedle"}
     }
     Write-Utf8NoBom $loaderUiPath $loaderUi
@@ -16212,7 +16213,7 @@ int init( const ncmm_host_api_v1 *api )
     }
     last_stat_power_pct = progression_stat_power_pct();
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.11.3 initialized: branch bars / exclusive specializations / conditional deep mod integrations." );
+              "Survivor Progression 0.12.0 initialized: branch bars / exclusive specializations / conditional deep mod integrations." );
     return 1;
 }
 
@@ -16229,7 +16230,8 @@ void shutdown()
     last_stat_power_pct = -1;
 }
 '@ 'Survivor settings registration lifecycle'
-    foreach($settingNeedle in @('NCMM_SP_XP_RATE','NCMM_SP_STAT_POWER','configure_progression_settings','progression_xp_rate_pct','progression_stat_power_pct','settings.typed.v2')){
+    $spUi = $spUi.Replace('0.11.3','0.12.0')
+    foreach($settingNeedle in @('NCMM_SP_XP_RATE','NCMM_SP_STAT_POWER','configure_progression_settings','progression_xp_rate_pct','progression_stat_power_pct','settings.typed.v2','Survivor Progression v0.12.0')){
         if(-not $spUi.Contains($settingNeedle)){throw "Survivor settings generated source missing: $settingNeedle"}
     }
     Write-Utf8NoBom $spUiPath $spUi
@@ -16239,8 +16241,14 @@ void shutdown()
         $spUiManifest = $spUiManifest.Replace('    "host_api.v2.core",',
             '    "host_api.v2.core",' + "`n" + '    "settings.typed.v2",')
     }
+    $spUiManifest = $spUiManifest.Replace('"version": "0.11.3"','"version": "0.12.0"')
     Write-Utf8NoBom $spUiManifestPath $spUiManifest
-    Write-Host "NCMM two-pane manager + Survivor live balance settings: READY" -ForegroundColor Green
+
+    Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\SurvivorProgression\about.en.txt') "Character progression system with independent activity XP branches, perks, specializations and optional integrations with supported content mods.`n"
+    Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\SurvivorProgression\about.ru.txt') "Система развития персонажа с отдельными ветками опыта за действия, перками, специализациями и интеграциями с поддерживаемыми контентными модами.`n"
+    Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\AdvancedWorldSettings\about.en.txt') "Expanded world-generation and calendar controls, including cities, terrain, water, roads and time settings.`n"
+    Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\AdvancedWorldSettings\about.ru.txt') "Расширенные настройки генерации мира и календаря: города, ландшафт, вода, дороги и параметры времени.`n"
+    Write-Host "NCMM 0.8.1 manager + Survivor 0.12.0 settings: READY" -ForegroundColor Green
 }
 
 Apply-NcmmManagerUiV1Source
