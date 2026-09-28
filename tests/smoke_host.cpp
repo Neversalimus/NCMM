@@ -92,7 +92,7 @@ const char *get_locale_fn()
 
 const char *get_host_version_fn()
 {
-    return "0.8.0-smoke";
+    return "0.8.1-smoke";
 }
 
 uint32_t get_loader_api_fn()
@@ -411,7 +411,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 1 ) {
         // Buy Combat -> Power Training.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.11.3" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.12.0" ) != std::string::npos ) {
             ++ui_stage;
             return 0;
         }
@@ -428,7 +428,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 2 ) {
         // Buy Mastery -> Fast Learner.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.11.3" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.12.0" ) != std::string::npos ) {
             ++ui_stage;
             return 5;
         }
@@ -445,7 +445,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 3 ) {
         // Root -> Respec all perks -> confirm.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.11.3" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.12.0" ) != std::string::npos ) {
             ++ui_stage;
             return 7;
         }
@@ -656,7 +656,7 @@ int main( int argc, char **argv )
             std::cerr << "Survivor Progression callback export missing\n";
             return 9;
         }
-        if( std::strcmp( desc->version, "0.11.3" ) != 0 ) {
+        if( std::strcmp( desc->version, "0.12.0" ) != 0 ) {
             std::cerr << "Survivor Progression descriptor version mismatch\n";
             return 21;
         }
@@ -676,7 +676,7 @@ int main( int argc, char **argv )
         }
 
         on_turn( &api );
-        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.11.3 Host API 2.0 registration + schema migration)\n";
+        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.12.0 Host API 2.0 registration + schema migration)\n";
         return 0;
     }
 
