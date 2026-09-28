@@ -85,11 +85,12 @@ $bootstrapSource = Join-Path $RepositoryRoot 'runtime\NCMMBootstrap.cs'
 if ($LASTEXITCODE -ne 0) { throw 'Bootstrap compilation failed.' }
 
 $setupOut = Join-Path $OutputRoot 'NCMM_Setup.exe'
+$setupCoreSource = Join-Path $RepositoryRoot 'runtime\NCMMSetupCore.cs'
 $setupSource = Join-Path $RepositoryRoot 'runtime\NCMMSetup.cs'
 & $csc /nologo /target:winexe /optimize+ /platform:x64 `
     /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll `
     /out:$setupOut `
-    $setupSource
+    $setupCoreSource $setupSource
 if ($LASTEXITCODE -ne 0) { throw 'Setup compilation failed.' }
 
 $diagnosticsHarnessOut = Join-Path $OutputRoot 'NCMM_Diagnostics2_Harness.exe'
@@ -97,7 +98,7 @@ $diagnosticsHarnessSource = Join-Path $RepositoryRoot 'tests\DiagnosticsHarness.
 & $csc /nologo /target:exe /optimize+ /platform:x64 /main:DiagnosticsHarness `
     /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll `
     /out:$diagnosticsHarnessOut `
-    $setupSource $diagnosticsHarnessSource
+    $setupCoreSource $setupSource $diagnosticsHarnessSource
 if ($LASTEXITCODE -ne 0) { throw 'Diagnostics 2.0 harness compilation failed.' }
 & $diagnosticsHarnessOut
 if ($LASTEXITCODE -ne 0) { throw 'Diagnostics 2.0 harness failed.' }
@@ -221,7 +222,11 @@ foreach ($requiredManifestPolicyFragment in @(
     }
 }
 
-$setupSourceText = Get-Content (Join-Path $RepositoryRoot 'runtime\NCMMSetup.cs') -Raw
+$setupSourceText = (
+    (Get-Content (Join-Path $RepositoryRoot 'runtime\NCMMSetupCore.cs') -Raw) +
+    "`n" +
+    (Get-Content (Join-Path $RepositoryRoot 'runtime\NCMMSetup.cs') -Raw)
+)
 $setupRuntimeVersionMarker = 'internal const string RuntimeVersion = "' + $hostVersion + '";'
 foreach ($requiredDiagnosticsFragment in @(
     $setupRuntimeVersionMarker,
