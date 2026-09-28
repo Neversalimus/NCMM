@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <iomanip>
 #include <limits>
 #include <map>
@@ -35,6 +36,7 @@ const char *required_caps[] = {
     "ui.theme.v1",
     "active_mods.registry.v2",
     "host_api.v2.core",
+    "settings.typed.v2",
     "events.core.v2",
     "character.modifiers.v2",
     "runtime_hooks.registry.v2",
@@ -52,6 +54,7 @@ int turn_accumulator = 0;
 bool last_character_available = false;
 bool effects_dirty = true;
 int current_xp_bonus_pct = 0;
+int last_stat_power_pct = -1;
 
 enum class branch_id {
     combat,
@@ -514,6 +517,68 @@ bool russian()
 std::string tr( const char *en, const char *ru )
 {
     return russian() ? ru : en;
+}
+
+constexpr const char *xp_rate_setting = "NCMM_SP_XP_RATE";
+constexpr const char *stat_power_setting = "NCMM_SP_STAT_POWER";
+
+int progression_percent_setting( const char *setting_id, int fallback )
+{
+    if( host2 == nullptr || host2->world_setting_get_string == nullptr ) {
+        return fallback;
+    }
+    const char *raw = host2->world_setting_get_string( setting_id, "" );
+    if( raw == nullptr || raw[0] == '\0' ) {
+        return fallback;
+    }
+    char *end = nullptr;
+    const long value = std::strtol( raw, &end, 10 );
+    if( end == raw || ( end != nullptr && *end != '\0' ) ) {
+        return fallback;
+    }
+    return static_cast<int>( std::max<long>( 25, std::min<long>( 300, value ) ) );
+}
+
+int progression_xp_rate_pct()
+{
+    return progression_percent_setting( xp_rate_setting, 100 );
+}
+
+int progression_stat_power_pct()
+{
+    return progression_percent_setting( stat_power_setting, 100 );
+}
+
+bool configure_progression_settings()
+{
+    if( host2 == nullptr || host2->world_setting_register_enum == nullptr ||
+        host2->world_setting_get_string == nullptr ) {
+        return false;
+    }
+    static const char *values[] = {
+        "25", "50", "75", "100", "125", "150", "175", "200", "225", "250", "275", "300"
+    };
+    static const char *labels[] = {
+        "25%", "50%", "75%", "100%", "125%", "150%", "175%", "200%", "225%", "250%", "275%", "300%"
+    };
+    const size_t count = sizeof( values ) / sizeof( values[0] );
+    if( !host2->world_setting_register_enum(
+            module_id, xp_rate_setting,
+            russian() ? "Получение опыта" : "Experience gain",
+            russian() ? "Множитель опыта Survivor после антифарма. 100% сохраняет стандартный баланс." :
+                        "Multiplier for Survivor XP after anti-farm adjustments. 100% keeps the default balance.",
+            values, labels, count, "100", NCMM_WORLD_SETTING_LIVE ) ) {
+        return false;
+    }
+    if( !host2->world_setting_register_enum(
+            module_id, stat_power_setting,
+            russian() ? "Сила стат-перков" : "Stat perk strength",
+            russian() ? "Масштабирует прямые бонусы обычных стат-перков. Механические перки не затрагиваются." :
+                        "Scales direct bonuses from regular stat perks. Mechanical perks are not affected.",
+            values, labels, count, "100", NCMM_WORLD_SETTING_LIVE ) ) {
+        return false;
+    }
+    return true;
 }
 
 bool active_world_mod( const char *mod_id )
@@ -1516,7 +1581,10 @@ std::string ranked_effect_summary( const perk_def &perk, int rank )
         return {};
     }
 
-    const double multiplier = perk_rank_multiplier_for( perk, rank );
+    double multiplier = perk_rank_multiplier_for( perk, rank );
+    if( effective_kind( perk ) == perk_kind::stat ) {
+        multiplier *= static_cast<double>( progression_stat_power_pct() ) / 100.0;
+    }
     std::vector<std::string> parts;
     for( int i = 0; i < perk.effect_count; ++i ) {
         if( perk.effects[i].id == nullptr ) {
@@ -1643,6 +1711,7 @@ calculated_effects calculate_owned_effects()
 
         if( effective_kind( perk ) == perk_kind::stat ) {
             scale *= result.global_amp * result.branch_amp[branch_index( perk.branch )];
+            scale *= static_cast<double>( progression_stat_power_pct() ) / 100.0;
         }
 
         result.xp_bonus_pct += static_cast<int>( std::llround( perk.xp_bonus_pct * scale ) );
@@ -3078,7 +3147,10 @@ void award_global_xp( int64_t raw_gained )
     }
 
     int64_t fraction = get_state( "xp_fraction", 0 );
-    const int64_t multiplier = std::max<int64_t>( 0, 100 + current_xp_bonus_pct );
+    const int64_t perk_multiplier = std::max<int64_t>( 0, 100 + current_xp_bonus_pct );
+    const int64_t multiplier = std::max<int64_t>(
+                                   0, ( static_cast<int64_t>( progression_xp_rate_pct() ) *
+                                        perk_multiplier + 50 ) / 100 );
     if( raw_gained > ( std::numeric_limits<int64_t>::max() - fraction ) /
         std::max<int64_t>( 1, multiplier ) ) {
         raw_gained = ( std::numeric_limits<int64_t>::max() - fraction ) /
@@ -3313,6 +3385,11 @@ void tick()
         prime_metric_baselines();
         effects_dirty = true;
     }
+    const int stat_power = progression_stat_power_pct();
+    if( stat_power != last_stat_power_pct ) {
+        last_stat_power_pct = stat_power;
+        effects_dirty = true;
+    }
     if( effects_dirty ) {
         recalculate_effects();
     }
@@ -3526,6 +3603,10 @@ int init( const ncmm_host_api_v1 *api )
     }
 
     host = api;
+    if( !configure_progression_settings() ) {
+        return 0;
+    }
+    last_stat_power_pct = progression_stat_power_pct();
     api->log( NCMM_LOG_INFO,
               "Survivor Progression 0.11.3 initialized: branch bars / exclusive specializations / conditional deep mod integrations." );
     return 1;
@@ -3541,6 +3622,7 @@ void shutdown()
     last_character_available = false;
     effects_dirty = true;
     current_xp_bonus_pct = 0;
+    last_stat_power_pct = -1;
 }
 
 const ncmm_mod_descriptor_v1 descriptor = {
