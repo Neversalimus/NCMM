@@ -38,8 +38,13 @@ Any launcher / manual shortcut
    mod.json <-> DLL descriptor
              |
          code_mods/*
-             |
-     AdvancedWorldSettings
+          /         \
+         v           v
+AdvancedWorldSettings  SurvivorProgression
+      [optional]          [optional]
+
+Additional native modules can be bundled independently as long as their manifests
+declare a compatible Loader API / Host capability contract.
 
 Runtime writes ncmm/runtime.state.json.
 Host writes ncmm/modules.state.json.
