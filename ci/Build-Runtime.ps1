@@ -96,10 +96,17 @@ Copy-Item $sp.FullName (Join-Path $payload 'code_mods\SurvivorProgression\ncmm_m
 Copy-Item (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') (Join-Path $payload 'code_mods\SurvivorProgression\mod.json') -Force
 
 $spManifest = Get-Content (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') -Raw | ConvertFrom-Json
-if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable' -or $spManifest.version -ne '0.9.0') {
-    throw 'Survivor Progression 0.9.0 manifest contract invalid.'
+if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable' -or $spManifest.version -ne '0.11.3') {
+    throw 'Survivor Progression 0.11.3 manifest contract invalid.'
 }
-foreach ($required in @('core.v1','events.turn.v1','character_state.v1','character.modifiers.v1','ui.basic.v1','module_hotkeys.v1','api.versioning.v1','state.migration.v1','module.lifecycle.v1')) {
+foreach ($required in @(
+    'core.v1','events.turn.v1','character_state.v1','character.modifiers.v1',
+    'ui.basic.v1','ui.tiles.v1','ui.cards.v1','ui.tree.v1','gameplay.metrics.v1',
+    'active_mods.v1','ui.theme.v1','active_mods.registry.v2','host_api.v2.core',
+    'events.core.v2','character.modifiers.v2','runtime_hooks.registry.v2',
+    'ui.layout.v1','module_hotkeys.v1','module_hotkeys.context.v1',
+    'api.versioning.v1','state.migration.v1','module.lifecycle.v1'
+)) {
     if (-not ($spManifest.requires -contains $required)) {
         throw "Survivor Progression manifest missing $required"
     }
