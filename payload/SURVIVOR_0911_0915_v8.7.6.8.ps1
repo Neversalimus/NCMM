@@ -12206,8 +12206,8 @@ if ($awsGeoIdsV86 -notcontains 'NCMM_AWS_CUSTOM_GEOGRAPHY') {
     throw 'AWS 0.6 custom-geography master switch missing from registered settings.'
 }
 if (-not $awsAudit.Contains('"NCMM_AWS_CUSTOM_GEOGRAPHY","Use custom geography"') -or
-    -not $awsAudit.Contains('"Географию активного региона/модов"') -and
-    -not $awsAudit.Contains('сохраняет географию активного региона/модов')) {
+    -not $awsAudit.Contains("Leave this off to use the world's normal geography.") -or
+    -not $awsAudit.Contains('Оставьте выключенным для обычной географии мира.')) {
     throw 'AWS 0.6 custom-geography OFF-by-default preservation contract missing.'
 }
 foreach ($geoIdV86 in $awsGeoUniqueV86) {
