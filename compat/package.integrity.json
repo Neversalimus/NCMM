@@ -56,8 +56,8 @@
     },
     {
       "path": "ci\\Test-ComponentCatalog.ps1",
-      "sha256": "c3a60b9206bb93fa59210f0a4fba667e15a765f2525c6e4801003103d07f7f21",
-      "bytes": 8158
+      "sha256": "29f14372c8edcb988fff173f63e30bad17fddf2575c86c178a24a0e016c7c753",
+      "bytes": 8185
     },
     {
       "path": "ci\\Test-GoldenRegression.ps1",

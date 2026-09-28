@@ -66,10 +66,10 @@ foreach($component in $components){
     }
 }
 
-$host=@($components|Where-Object{$_.id -eq 'ncmm_host'})[0]
+$hostComponent=@($components|Where-Object{$_.id -eq 'ncmm_host'})[0]
 $survivor=@($components|Where-Object{$_.id -eq 'survivor_progression'})[0]
 $aws=@($components|Where-Object{$_.id -eq 'advanced_world_settings'})[0]
-if(-not [bool]$host.required){throw 'NCMM Host must remain required.'}
+if(-not [bool]$hostComponent.required){throw 'NCMM Host must remain required.'}
 if([bool]$survivor.required -or [bool]$aws.required){throw 'Gameplay modules must remain independently optional.'}
 if([string]$survivor.atomic_group -eq [string]$aws.atomic_group){throw 'Survivor and AWS must not share an atomic group.'}
 
@@ -113,7 +113,7 @@ try{
     )
     [IO.File]::WriteAllBytes((Join-Path $tmp 'cataclysm-tiles.exe'),(New-Object byte[] 1))
     Write-NcmmUtf8NoBom (Join-Path $tmp 'ncmm\host.binding.json') (([ordered]@{
-        ncmm_version=[string]$host.version
+        ncmm_version=[string]$hostComponent.version
         source_commit='e262adb299a7613b4aedc5f12c08fe0413c56a84'
     }|ConvertTo-Json)+"`n")
     Write-NcmmUtf8NoBom (Join-Path $tmp 'ncmm\modules.state.json') (([ordered]@{
