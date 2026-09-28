@@ -4,9 +4,9 @@
   "name": "Survivor Progression",
   "version": "0.11.3",
   "kind": "native_module",
-  "atomic_group": "native-runtime",
+  "atomic_group": "survivor-progression",
   "delivery": "source_build",
-  "required": true,
+  "required": false,
   "dependencies": [
     {
       "component": "ncmm_host",

@@ -83,6 +83,35 @@ function Resolve-NcmmDependencyPlan([string]$PackageRoot,[string]$GameRoot,[obje
         if($known -notcontains [string]$id){throw "Unknown component requested: $id"}
     }
 
+    $requestedTargets=@($targets)
+    # Resolve component dependencies before atomic-group expansion. Optional native
+    # modules have independent atomic groups; selecting Survivor must never pull AWS
+    # (or vice versa), while a missing/outdated Host is still added automatically.
+    $selected=@{}
+    foreach($id in $targets){$selected[[string]$id]=$true}
+    $changed=$true
+    while($changed){
+        $changed=$false
+        foreach($id in @($selected.Keys)){
+            $component=@($catalog.components|Where-Object{[string]$_.id -eq [string]$id}|Select-Object -First 1)[0]
+            foreach($d in @($component.dependencies)){
+                if(-not $d.component){continue}
+                $dep=[string]$d.component
+                if($known -notcontains $dep){throw "$id depends on unknown component $dep"}
+                $needDependency=$false
+                if(-not $installed.ContainsKey($dep)){$needDependency=$true}
+                elseif($d.min_version -and
+                       (Convert-NcmmVersion ([string]$installed[$dep])) -lt
+                       (Convert-NcmmVersion ([string]$d.min_version))){$needDependency=$true}
+                if($needDependency -and $available -contains $dep -and -not $selected.ContainsKey($dep)){
+                    $selected[$dep]=$true
+                    $changed=$true
+                }
+            }
+        }
+    }
+    $targets=@($selected.Keys)
+
     # Use a native hashtable as a set. This avoids the Windows PowerShell 5.1
     # PSToObjectArrayBinder bug that can occur with generic HashSet/List values.
     $groups=@{}
@@ -150,7 +179,7 @@ function Resolve-NcmmDependencyPlan([string]$PackageRoot,[string]$GameRoot,[obje
         schema=1
         release_version=[string]$release.version
         release_status=[string]$release.status
-        requested=@($targets)
+        requested=@($requestedTargets)
         expanded=@($expandedUnique)
         atomic_groups=@($groupNames)
         actions=@($actions)

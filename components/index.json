@@ -6,9 +6,13 @@
     "infrastructure": [
       "ncmm_infrastructure"
     ],
-    "native-runtime": [
-      "ncmm_host",
-      "survivor_progression",
+    "host-runtime": [
+      "ncmm_host"
+    ],
+    "survivor-progression": [
+      "survivor_progression"
+    ],
+    "advanced-world-settings": [
       "advanced_world_settings"
     ],
     "optional-diagnostics": [
@@ -32,7 +36,7 @@
       "name": "NCMM Host",
       "version": "0.8.0",
       "kind": "native_host",
-      "atomic_group": "native-runtime",
+      "atomic_group": "host-runtime",
       "delivery": "source_build",
       "required": true,
       "dependencies": [],
@@ -64,9 +68,9 @@
       "name": "Survivor Progression",
       "version": "0.11.3",
       "kind": "native_module",
-      "atomic_group": "native-runtime",
+      "atomic_group": "survivor-progression",
       "delivery": "source_build",
-      "required": true,
+      "required": false,
       "dependencies": [
         {
           "component": "ncmm_host",
@@ -98,9 +102,9 @@
       "name": "Advanced World Settings",
       "version": "0.6.2",
       "kind": "native_module",
-      "atomic_group": "native-runtime",
+      "atomic_group": "advanced-world-settings",
       "delivery": "source_build",
-      "required": true,
+      "required": false,
       "dependencies": [
         {
           "component": "ncmm_host",

@@ -26,5 +26,5 @@
     "integrity": "SHA-256 package + inner package.integrity.json",
     "automatic_apply": "certified releases only by default"
   },
-  "note": "Infrastructure 0.8.3.1 uses a staged transaction shell: offline verification is the install gate; runtime module verification is deferred until the first normal Host launch. Host 0.8.0 / Survivor 0.11.3 / AWS 0.6.2 are the native runtime stack in this candidate."
+  "note": "Infrastructure 0.8.3.1 uses a staged transaction shell. Host 0.8.0 is required; Survivor Progression 0.11.3 and Advanced World Settings 0.6.2 are independently selectable native modules. Offline verification remains the install gate and runtime verification is deferred until the first normal Host launch."
 }
