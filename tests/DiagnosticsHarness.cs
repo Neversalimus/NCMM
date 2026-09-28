@@ -214,7 +214,8 @@ internal static class DiagnosticsHarness
         List<SetupBundledModule> discovered =
             SetupCore.DiscoverBundledModules(Path.Combine(payload, "code_mods"));
         AssertTrue(discovered.Count == 3, "bundled module discovery is data-driven");
-        AssertTrue(discovered.Any(module => module.Manifest.id == "future_module"),
+        AssertTrue(discovered.Exists(module =>
+            module.Manifest != null && module.Manifest.id == "future_module"),
             "new bundled module is discovered without installer code changes");
 
         InstallResult first = SetupCore.Install(
