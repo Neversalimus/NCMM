@@ -51,13 +51,13 @@
     },
     {
       "path": "ci\\Regenerate-PackageIntegrity.ps1",
-      "sha256": "4b288adb8d9b051dc11950a8e648375ae718e608212797ffe5cfaecc8cea34c8",
-      "bytes": 3446
+      "sha256": "fbc2681eb03060c79f64da52f732b7c234f9e59cdfb0e3c4531a1715766727bc",
+      "bytes": 3529
     },
     {
       "path": "ci\\Test-ComponentCatalog.ps1",
-      "sha256": "00e66b314d6b5ae154d61372c8c8ea806e2eaeee2c696b8922d83a0dd7391cde",
-      "bytes": 8011
+      "sha256": "c3a60b9206bb93fa59210f0a4fba667e15a765f2525c6e4801003103d07f7f21",
+      "bytes": 8158
     },
     {
       "path": "ci\\Test-GoldenRegression.ps1",
@@ -71,8 +71,8 @@
     },
     {
       "path": "ci\\Test-Infrastructure083.ps1",
-      "sha256": "755fa595a0a7acf03fca86ff56ccb3a21ec4cfe9db84295846dd7a71f62ab507",
-      "bytes": 47229
+      "sha256": "a8f6a33a429e645a011d1dec0af072a2d11ce20240733e8041beda0d9e3011aa",
+      "bytes": 47856
     },
     {
       "path": "ci\\Watch-CDDAExperimental.ps1",
@@ -101,13 +101,13 @@
     },
     {
       "path": "compat\\package-files.txt",
-      "sha256": "2dbfdca722f5ab568bb5053d356a9a76cf9272255ac03f30889845d73a41086d",
-      "bytes": 3106
+      "sha256": "4b8244ca8884258c2df2756e46d5834ae2970c34eead2f4a358f1918db188ce8",
+      "bytes": 3196
     },
     {
       "path": "compat\\update\\index.json",
-      "sha256": "81c8c727ae8338d36550aaeb10651746b2a2dd40ec0e432b153abc321cd23c48",
-      "bytes": 906
+      "sha256": "e54ab64b3f4f91657cd5e787a7b3f3befdfa101f826cd0b46cddd546ae93f3cd",
+      "bytes": 917
     },
     {
       "path": "components\\advanced_world_settings.json",
@@ -121,8 +121,8 @@
     },
     {
       "path": "components\\ncmm_host.json",
-      "sha256": "2faebe84b5910f71d3cbae1487018227d540a0412dbe5f1a51244788d9328eb1",
-      "bytes": 805
+      "sha256": "88c5b9453d20383448749bb159c2647013d7de30aeeb0e688cc289cc3eacefa0",
+      "bytes": 803
     },
     {
       "path": "components\\ncmm_infrastructure.json",

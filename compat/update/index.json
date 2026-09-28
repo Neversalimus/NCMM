@@ -7,7 +7,7 @@
     "auto_apply": false,
     "certified_only_default": true,
     "unknown_experimental": "probe_before_install",
-    "native_runtime": "atomic_rebuild_group"
+    "native_runtime": "dependency_scoped_atomic_groups"
   },
   "releases": [
     {

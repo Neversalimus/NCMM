@@ -4,7 +4,7 @@
   "name": "NCMM Host",
   "version": "0.8.0",
   "kind": "native_host",
-  "atomic_group": "native-runtime",
+  "atomic_group": "host-runtime",
   "delivery": "source_build",
   "required": true,
   "dependencies": [],
