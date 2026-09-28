@@ -36,7 +36,7 @@ foreach ($contract in $registry.contracts) {
     $results += [ordered]@{
         id = [string]$contract.id
         status = $status
-        missing = @($missing)
+        missing = $missing.ToArray()
     }
 }
 
