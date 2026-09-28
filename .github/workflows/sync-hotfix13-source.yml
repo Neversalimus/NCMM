@@ -72,11 +72,11 @@ jobs:
           if ($a -lt 0 -or $b -le $a) {
             throw "Could not isolate runtime game-root preflight."
           }
-          $gameBypass = @'
-$GameRoot = $env:RUNNER_TEMP
-Write-Host "Repository source-sync mode: local game-root preflight intentionally bypassed." -ForegroundColor DarkCyan
-
-'@
+          $gameBypass = @(
+            '$GameRoot = $env:RUNNER_TEMP'
+            'Write-Host "Repository source-sync mode: local game-root preflight intentionally bypassed." -ForegroundColor DarkCyan'
+            ''
+          ) -join [Environment]::NewLine
           $text = $text.Substring(0,$a) + $gameBypass + $text.Substring($b)
 
           # Stop after all NCMM/Survivor/AWS transforms and source audits, before CDDA/toolchain work.
@@ -85,11 +85,11 @@ Write-Host "Repository source-sync mode: local game-root preflight intentionally
           if ($stop -lt 0) {
             throw "Source-generation stop marker missing."
           }
-          $stopCode = @'
-Write-Host "Repository source-sync generation complete; stopping before CDDA/toolchain work." -ForegroundColor Green
-exit 0
-
-'@
+          $stopCode = @(
+            'Write-Host "Repository source-sync generation complete; stopping before CDDA/toolchain work." -ForegroundColor Green'
+            'exit 0'
+            ''
+          ) -join [Environment]::NewLine
           $text = $text.Substring(0,$stop) + $stopCode + $text.Substring($stop)
           [IO.File]::WriteAllText($sourceOnly,$text,(New-Object Text.UTF8Encoding($false)))
 
