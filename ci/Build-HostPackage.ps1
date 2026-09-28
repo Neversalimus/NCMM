@@ -2,7 +2,9 @@ param(
     [Parameter(Mandatory=$true)][string]$RepositoryRoot,
     [Parameter(Mandatory=$true)][string]$UpstreamRoot,
     [Parameter(Mandatory=$true)][string]$UpstreamTag,
-    [Parameter(Mandatory=$true)][string]$OutputRoot
+    [Parameter(Mandatory=$true)][string]$OutputRoot,
+    [string]$VanillaIdentityCachePath = '',
+    [string]$VanillaAssetFingerprint = ''
 )
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = (Resolve-Path $RepositoryRoot).Path
@@ -180,24 +182,93 @@ $hostDest = Join-Path $OutputRoot 'cataclysm-tiles.ncmm.exe'
 Copy-Item $builtHost.FullName $hostDest -Force
 $hostSha = (Get-FileHash $hostDest -Algorithm SHA256).Hash.ToLowerInvariant()
 
-$releaseDir = Join-Path $OutputRoot '_official'
-New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-Push-Location $releaseDir
-try {
-    & gh release download $UpstreamTag -R CleverRaven/Cataclysm-DDA -p 'cdda-windows-with-graphics-x64-*.zip' -p 'cdda-windows-with-graphics-and-sounds-x64-*.zip' --clobber
-    if ($LASTEXITCODE -ne 0) { throw 'Could not download official Windows CDDA release assets.' }
-} finally { Pop-Location }
+if (($VanillaIdentityCachePath -and -not $VanillaAssetFingerprint) -or
+    ($VanillaAssetFingerprint -and -not $VanillaIdentityCachePath)) {
+    throw 'Vanilla identity cache path and asset fingerprint must be supplied together.'
+}
+if ($VanillaAssetFingerprint -and $VanillaAssetFingerprint -notmatch '^[0-9a-f]{64}$') {
+    throw "Invalid vanilla asset fingerprint: $VanillaAssetFingerprint"
+}
 
 $vanillaHashes = New-Object System.Collections.Generic.List[string]
-foreach ($zip in Get-ChildItem $releaseDir -Filter '*.zip' -File) {
-    $extract = Join-Path $releaseDir ([IO.Path]::GetFileNameWithoutExtension($zip.Name))
-    Expand-Archive $zip.FullName $extract -Force
-    $exe = Get-ChildItem $extract -Filter 'cataclysm-tiles.exe' -Recurse -File | Select-Object -First 1
-    if (-not $exe) { throw "Official asset $($zip.Name) did not contain cataclysm-tiles.exe" }
-    $hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-    if (-not $vanillaHashes.Contains($hash)) { $vanillaHashes.Add($hash) }
+$vanillaCacheHit = $false
+if ($VanillaIdentityCachePath -and (Test-Path $VanillaIdentityCachePath -PathType Leaf)) {
+    try {
+        $cached = Get-Content $VanillaIdentityCachePath -Raw | ConvertFrom-Json
+        $cachedHashes = @($cached.vanilla_sha256 | ForEach-Object { ([string]$_).ToLowerInvariant() })
+        $cacheValid = (
+            [int]$cached.schema -eq 1 -and
+            [string]$cached.upstream_tag -eq $UpstreamTag -and
+            [string]$cached.source_commit -eq $commit -and
+            [string]$cached.asset_fingerprint -eq $VanillaAssetFingerprint -and
+            $cachedHashes.Count -gt 0 -and
+            @($cachedHashes | Where-Object { $_ -notmatch '^[0-9a-f]{64}$' }).Count -eq 0
+        )
+        if ($cacheValid) {
+            foreach ($hash in $cachedHashes) {
+                if (-not $vanillaHashes.Contains($hash)) { $vanillaHashes.Add($hash) }
+            }
+            $vanillaCacheHit = $true
+            Write-Host "Official vanilla identity cache: HIT ($VanillaAssetFingerprint)"
+        } else {
+            Write-Warning 'Official vanilla identity cache was present but did not match the exact release identity; recomputing.'
+        }
+    } catch {
+        Write-Warning "Official vanilla identity cache could not be read; recomputing: $($_.Exception.Message)"
+    }
 }
-if ($vanillaHashes.Count -eq 0) { throw 'No official vanilla executable hashes were collected.' }
+
+$releaseDir = $null
+if (-not $vanillaCacheHit) {
+    $releaseDir = Join-Path $OutputRoot '_official'
+    New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
+    Push-Location $releaseDir
+    try {
+        & gh release download $UpstreamTag -R CleverRaven/Cataclysm-DDA -p 'cdda-windows-with-graphics-x64-*.zip' -p 'cdda-windows-with-graphics-and-sounds-x64-*.zip' --clobber
+        if ($LASTEXITCODE -ne 0) { throw 'Could not download official Windows CDDA release assets.' }
+    } finally { Pop-Location }
+
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    foreach ($zip in Get-ChildItem $releaseDir -Filter '*.zip' -File) {
+        $archive = [IO.Compression.ZipFile]::OpenRead($zip.FullName)
+        try {
+            $entries = @($archive.Entries | Where-Object {
+                [IO.Path]::GetFileName($_.FullName) -ieq 'cataclysm-tiles.exe'
+            })
+            if ($entries.Count -ne 1) {
+                throw "Official asset $($zip.Name) expected exactly one cataclysm-tiles.exe, found $($entries.Count)."
+            }
+
+            $stream = $entries[0].Open()
+            $hasher = [Security.Cryptography.SHA256]::Create()
+            try {
+                $hashBytes = $hasher.ComputeHash($stream)
+                $hash = -join ($hashBytes | ForEach-Object { $_.ToString('x2') })
+            } finally {
+                $hasher.Dispose()
+                $stream.Dispose()
+            }
+            if (-not $vanillaHashes.Contains($hash)) { $vanillaHashes.Add($hash) }
+        } finally {
+            $archive.Dispose()
+        }
+    }
+    if ($vanillaHashes.Count -eq 0) { throw 'No official vanilla executable hashes were collected.' }
+
+    if ($VanillaIdentityCachePath) {
+        $cacheParent = Split-Path $VanillaIdentityCachePath -Parent
+        New-Item -ItemType Directory -Force -Path $cacheParent | Out-Null
+        [ordered]@{
+            schema = 1
+            upstream_tag = $UpstreamTag
+            source_commit = $commit
+            asset_fingerprint = $VanillaAssetFingerprint
+            vanilla_sha256 = $vanillaHashes.ToArray()
+            generated_utc = [DateTime]::UtcNow.ToString('o')
+        } | ConvertTo-Json -Depth 4 | Set-Content $VanillaIdentityCachePath -Encoding UTF8
+        Write-Host "Official vanilla identity cache: STORED ($VanillaAssetFingerprint)"
+    }
+}
 
 $contractReportPath = Join-Path $UpstreamRoot '.ncmm_contract_report.json'
 $contractIds = @()
@@ -220,7 +291,9 @@ $metadata = [ordered]@{
     built_utc = [DateTime]::UtcNow.ToString('o')
 }
 $metadata | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $OutputRoot 'host.json') -Encoding UTF8
-Remove-Item $releaseDir -Recurse -Force -ErrorAction SilentlyContinue
+if ($releaseDir) {
+    Remove-Item $releaseDir -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 $zipOut = Join-Path (Split-Path $OutputRoot -Parent) ("ncmm-host-win64-{0}.zip" -f $UpstreamTag)
 if (Test-Path $zipOut) { Remove-Item $zipOut -Force }

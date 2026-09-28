@@ -152,19 +152,16 @@ jobs:
         run: |
           ./ncmmrepo/ci/Test-VersionConsistency.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE/ncmmrepo" -LegacyFeedVersion '0.7.1'
 
-      - name: Checkout exact CDDA release
-        uses: actions/checkout@v4
-        with:
-          repository: CleverRaven/Cataclysm-DDA
-          ref: ${{ matrix.tag }}
-          fetch-depth: 1
-          path: upstream
-
-      - name: Capture source commit
+      - name: Resolve exact CDDA source commit
         id: source
         shell: powershell
         run: |
-          $sha = (git -C upstream rev-parse HEAD).Trim()
+          $tag = '${{ matrix.tag }}'
+          $json = & gh api "repos/CleverRaven/Cataclysm-DDA/commits/$tag"
+          if ($LASTEXITCODE -ne 0) { throw "Could not resolve CDDA source commit for $tag." }
+          $sha = [string](($json | ConvertFrom-Json).sha)
+          if ($sha -notmatch '^[0-9a-f]{40}$') { throw "Invalid upstream source commit: $sha" }
+          Write-Host "Resolved $tag -> $sha"
           "sha=$sha" >> $env:GITHUB_OUTPUT
 
       - name: Reuse existing certified host
@@ -213,6 +210,63 @@ jobs:
           }
           Write-Host "Reusing certified host release $releaseTag"
           "reused=true" >> $env:GITHUB_OUTPUT
+
+      - name: Resolve official CDDA asset fingerprint
+        id: assets
+        if: steps.reuse.outputs.reused != 'true'
+        shell: powershell
+        run: |
+          $tag = '${{ matrix.tag }}'
+          $json = & gh api "repos/CleverRaven/Cataclysm-DDA/releases/tags/$tag"
+          if ($LASTEXITCODE -ne 0) { throw "Could not resolve official CDDA release assets for $tag." }
+          $release = $json | ConvertFrom-Json
+          $assets = @($release.assets | Where-Object {
+              $_.name -like 'cdda-windows-with-graphics-x64-*.zip' -or
+              $_.name -like 'cdda-windows-with-graphics-and-sounds-x64-*.zip'
+          } | Sort-Object name)
+          if ($assets.Count -eq 0) {
+              throw "No official Windows graphics assets found for $tag."
+          }
+
+          $identity = @($assets | ForEach-Object {
+              '{0}|{1}|{2}|{3}|{4}' -f $_.name, $_.id, ([string]$_.digest), $_.size, $_.updated_at
+          }) -join "`n"
+          $hasher = [Security.Cryptography.SHA256]::Create()
+          try {
+              $bytes = [Text.Encoding]::UTF8.GetBytes($identity)
+              $fingerprint = -join ($hasher.ComputeHash($bytes) | ForEach-Object { $_.ToString('x2') })
+          } finally {
+              $hasher.Dispose()
+          }
+          Write-Host "Official asset fingerprint: $fingerprint"
+          "fingerprint=$fingerprint" >> $env:GITHUB_OUTPUT
+
+      - name: Restore official vanilla identity cache
+        if: steps.reuse.outputs.reused != 'true'
+        uses: actions/cache@v4
+        with:
+          path: .ncmm-cache/vanilla
+          key: ncmm-vanilla-v1-${{ runner.os }}-${{ matrix.tag }}-${{ steps.source.outputs.sha }}-${{ steps.assets.outputs.fingerprint }}
+
+      - name: Checkout exact CDDA release
+        if: steps.reuse.outputs.reused != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: CleverRaven/Cataclysm-DDA
+          ref: ${{ matrix.tag }}
+          fetch-depth: 1
+          path: upstream
+
+      - name: Verify checked-out CDDA identity
+        if: steps.reuse.outputs.reused != 'true'
+        shell: powershell
+        run: |
+          $actual = (git -C upstream rev-parse HEAD).Trim()
+          $expected = '${{ steps.source.outputs.sha }}'
+          if ($actual -ne $expected) {
+              throw "CDDA checkout identity mismatch: expected $expected got $actual"
+          }
+          Write-Host "CDDA checkout identity verified: $actual"
 
       - name: Contract preflight / patch
         id: patch
@@ -298,7 +352,9 @@ jobs:
             -RepositoryRoot "$env:GITHUB_WORKSPACE/ncmmrepo" `
             -UpstreamRoot "$env:GITHUB_WORKSPACE/upstream" `
             -UpstreamTag '${{ matrix.tag }}' `
-            -OutputRoot "$env:GITHUB_WORKSPACE/result/package"
+            -OutputRoot "$env:GITHUB_WORKSPACE/result/package" `
+            -VanillaIdentityCachePath "$env:GITHUB_WORKSPACE/.ncmm-cache/vanilla/${{ matrix.tag }}-${{ steps.assets.outputs.fingerprint }}.json" `
+            -VanillaAssetFingerprint '${{ steps.assets.outputs.fingerprint }}'
 
       - name: Report sccache statistics
         if: always() && steps.reuse.outputs.reused != 'true' && steps.patch.outcome == 'success'
