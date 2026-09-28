@@ -47,9 +47,10 @@ function Import-NcmmPayloadFunctions {
 
         $definition = [string]$matches[0].Extent.Text
         $pattern = '^\\s*function\\s+' + [regex]::Escape($name) + '\\b'
-        $scoped = [regex]::Replace(
-            $definition, $pattern, ('function script:' + $name), 1,
-            [Text.RegularExpressions.RegexOptions]::IgnoreCase )
+        $rewriter = New-Object Text.RegularExpressions.Regex(
+            $pattern, [Text.RegularExpressions.RegexOptions]::IgnoreCase )
+        $scoped = $rewriter.Replace(
+            $definition, ('function script:' + $name), 1 )
         if ($scoped -eq $definition) {
             throw "Could not scope canonical payload function '$name'."
         }
