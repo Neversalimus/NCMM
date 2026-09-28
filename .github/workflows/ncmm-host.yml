@@ -273,124 +273,7 @@ jobs:
           index='feed/index.json'
           rejected='feed/rejected.json'
 
-          if ! printf '%s' "$PATCH_REVISION" | grep -Eq '^[0-9a-f]{64}
-             '.schema=1 | .loader_api=1 | .runtime_version="0.8.0" | .patch_revision=$rev |
-              .hosts=(.hosts // {} | with_entries(select(
-                (.value.patch_revision // "") == $rev and (.value.ncmm_version // "") == "0.8.0"
-              )))' \
-             "$index" > /tmp/index.json
-          mv /tmp/index.json "$index"
-
-          old_rev=$(jq -r '.patch_revision // ""' "$rejected")
-          if [ "$old_rev" != "$PATCH_REVISION" ]; then
-            jq --arg rev "$PATCH_REVISION" '.patch_revision=$rev | .rejected={}' "$rejected" > /tmp/rejected.json
-            mv /tmp/rejected.json "$rejected"
-          fi
-
-          certified=0
-          rejected_count=0
-
-          while IFS= read -r meta; do
-            dir=$(dirname "$meta")
-            tag=$(jq -r '.upstream_tag' "$meta")
-            commit=$(jq -r '.source_commit' "$meta")
-            host_sha=$(jq -r '.host_sha256' "$meta")
-            meta_rev=$(jq -r '.patch_revision' "$meta")
-            meta_version=$(jq -r '.ncmm_version' "$meta")
-            host="$dir/cataclysm-tiles.ncmm.exe"
-            zip=$(find "$(dirname "$dir")" -maxdepth 1 -type f -name "ncmm-host-win64-${tag}.zip" | head -n1 || true)
-
-            if [ "$meta_rev" != "$PATCH_REVISION" ] || [ "$meta_version" != "0.8.0" ]; then
-              echo "Host metadata revision/version mismatch for $tag" >&2
-              exit 1
-            fi
-            local_sha=$(sha256sum "$host" | awk '{print $1}')
-            if [ "$local_sha" != "$host_sha" ]; then
-              echo "Built host digest mismatch before publication for $tag" >&2
-              exit 1
-            fi
-
-            short_rev=${PATCH_REVISION:0:12}
-            release_tag="ncmm-host-${tag}-r${short_rev}"
-            gh release view "$release_tag" >/dev/null 2>&1 || \
-              gh release create "$release_tag" --title "NCMM 0.8.0 host for $tag" \
-                --notes "Certified NCMM 0.8.0 host (ABI v1 + Host API 2.0 Core / Module Contract v1) for $tag ($commit), patch revision $PATCH_REVISION."
-            gh release upload "$release_tag" "$host" --clobber
-            if [ -n "$zip" ]; then gh release upload "$release_tag" "$zip" --clobber; fi
-
-            remote_digest=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${release_tag}" \
-              --jq '.assets[] | select(.name=="cataclysm-tiles.ncmm.exe") | .digest' | tail -n1)
-            if [ "$remote_digest" != "sha256:$host_sha" ]; then
-              echo "Published asset digest mismatch for $tag: $remote_digest != sha256:$host_sha" >&2
-              exit 1
-            fi
-
-            url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${release_tag}/cataclysm-tiles.ncmm.exe"
-
-            jq --arg tag "$tag" \
-              '.hosts |= with_entries(select((.value.upstream_tag // "") != $tag))' \
-              "$index" > /tmp/index.json
-            mv /tmp/index.json "$index"
-
-            while IFS= read -r vanilla_sha; do
-              [ -z "$vanilla_sha" ] && continue
-              jq --arg key "$vanilla_sha" \
-                 --arg commit "$commit" \
-                 --arg tag "$tag" \
-                 --arg url "$url" \
-                 --arg hostsha "$host_sha" \
-                 --arg patchrev "$PATCH_REVISION" \
-                 '.hosts[$key] = {source_commit:$commit,upstream_tag:$tag,host_url:$url,host_sha256:$hostsha,patch_revision:$patchrev,ncmm_version:"0.8.0",loader_api:1}' \
-                 "$index" > /tmp/index.json
-              mv /tmp/index.json "$index"
-            done < <(jq -r '.vanilla_sha256[]' "$meta")
-
-            jq --arg tag "$tag" 'del(.rejected[$tag])' "$rejected" > /tmp/rejected.json
-            mv /tmp/rejected.json "$rejected"
-            certified=$((certified + 1))
-          done < <(find results -type f -name host.json)
-
-          while IFS= read -r rejection; do
-            tag=$(jq -r '.upstream_tag' "$rejection")
-            commit=$(jq -r '.source_commit' "$rejection")
-            when=$(jq -r '.recorded_utc' "$rejection")
-
-            jq --arg tag "$tag" \
-              '.hosts |= with_entries(select((.value.upstream_tag // "") != $tag))' \
-              "$index" > /tmp/index.json
-            mv /tmp/index.json "$index"
-
-            jq --arg tag "$tag" --arg commit "$commit" --arg when "$when" --arg rev "$PATCH_REVISION" \
-              '.patch_revision=$rev | .rejected[$tag]={source_commit:$commit,recorded_utc:$when}' \
-              "$rejected" > /tmp/rejected.json
-            mv /tmp/rejected.json "$rejected"
-            rejected_count=$((rejected_count + 1))
-          done < <(find results -type f -name rejection.json)
-
-          now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-          jq --arg now "$now" --arg rev "$PATCH_REVISION" \
-             '.generated_utc=$now | .runtime_version="0.8.0" | .patch_revision=$rev' \
-             "$index" > /tmp/index.json
-          mv /tmp/index.json "$index"
-
-          pwsh -NoProfile -File ci/Test-FeedIntegrity.ps1             -FeedPath "$index"             -RejectedPath "$rejected"             -ExpectedRuntimeVersion '0.8.0'             -ExpectedPatchRevision "$PATCH_REVISION"             -Repository "$GITHUB_REPOSITORY"             -Online
-
-          {
-            echo "## NCMM 0.8.0 certification"
-            echo ""
-            echo "- patch revision: \`$PATCH_REVISION\`"
-            echo "- certified hosts: $certified"
-            echo "- rejected/unsupported hosts: $rejected_count"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if ! git diff --quiet -- "$index" "$rejected"; then
-            git config user.name 'NCMM Host Bot'
-            git config user.email 'actions@users.noreply.github.com'
-            git add "$index" "$rejected"
-            git commit -m 'NCMM: update certified host feed'
-            git push
-          fi
-; then
+          if ! printf '%s' "$PATCH_REVISION" | grep -Eq '^[0-9a-f]{64}$'; then
             echo "Invalid PATCH_REVISION: $PATCH_REVISION" >&2
             exit 1
           fi
@@ -455,7 +338,7 @@ jobs:
             release_tag="ncmm-host-${tag}-r${short_rev}"
             gh release view "$release_tag" >/dev/null 2>&1 || \
               gh release create "$release_tag" --title "NCMM 0.8.0 host for $tag" \
-                --notes "Certified NCMM 0.8.0 Host API v1 / Module Contract v1 for $tag ($commit), patch revision $PATCH_REVISION."
+                --notes "Certified NCMM 0.8.0 host (ABI v1 + Host API 2.0 Core / Module Contract v1) for $tag ($commit), patch revision $PATCH_REVISION."
             gh release upload "$release_tag" "$host" --clobber
             if [ -n "$zip" ]; then gh release upload "$release_tag" "$zip" --clobber; fi
 
