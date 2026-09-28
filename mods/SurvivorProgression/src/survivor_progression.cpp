@@ -2553,7 +2553,7 @@ void show_overview()
     const int normal_owned = owned_count( currency_id::perk );
     const int major_owned = owned_count( currency_id::major );
 
-    std::string out = "Survivor Progression v0.11.3\n";
+    std::string out = "Survivor Progression v0.12.0\n";
     out += tr( "Level ", "Уровень " ) + std::to_string( level );
     out += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
     out += "\nP " + std::to_string( perk_points ) + " | M " + std::to_string( major_points );
@@ -3071,7 +3071,7 @@ void open_progression()
                                 owned_count( currency_id::major );
         const int total_perks = visible_perk_count();
 
-        std::string title = "Survivor Progression v0.11.3";
+        std::string title = "Survivor Progression v0.12.0";
         std::string summary =
             tr( "Level ", "Уровень " ) + std::to_string( level ) +
             " | P " + std::to_string( perk_points ) +
@@ -3608,7 +3608,7 @@ int init( const ncmm_host_api_v1 *api )
     }
     last_stat_power_pct = progression_stat_power_pct();
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.11.3 initialized: branch bars / exclusive specializations / conditional deep mod integrations." );
+              "Survivor Progression 0.12.0 initialized: branch bars / exclusive specializations / conditional deep mod integrations." );
     return 1;
 }
 
@@ -3629,7 +3629,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     module_id,
     "Survivor Progression",
-    "0.11.3",
+    "0.12.0",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,
