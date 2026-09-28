@@ -21,11 +21,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ncmm-player-facing-text-audit
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   audit:
@@ -42,29 +42,11 @@ jobs:
         run: |
           .\ci\Test-UserFacingCopy.ps1 -SourceRoot "$env:GITHUB_WORKSPACE"
 
-      - name: Refresh package integrity hashes
+      - name: Validate package integrity freshness
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $manifestPath = Join-Path $env:GITHUB_WORKSPACE 'compat\package.integrity.json'
-          $obj = Get-Content $manifestPath -Raw | ConvertFrom-Json
-          $count = 0
-          foreach($entry in @($obj.files)){
-            $rel = ([string]$entry.path).Replace('\',[IO.Path]::DirectorySeparatorChar)
-            $file = Join-Path $env:GITHUB_WORKSPACE $rel
-            if(-not(Test-Path -LiteralPath $file -PathType Leaf)){
-              throw ('Integrity-listed package file missing: ' + [string]$entry.path)
-            }
-            $entry.sha256 = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
-            $entry.bytes = [int64](Get-Item -LiteralPath $file).Length
-            ++$count
-          }
-          [IO.File]::WriteAllText(
-            $manifestPath,
-            (($obj | ConvertTo-Json -Depth 12) + [Environment]::NewLine),
-            (New-Object Text.UTF8Encoding($false))
-          )
-          Write-Host ('Package integrity refreshed for ' + $count + ' existing manifest entries.')
+          .\ci\Regenerate-PackageIntegrity.ps1 -PackageRoot "$env:GITHUB_WORKSPACE" -Check
 
       - name: Validate Infrastructure package contract
         shell: powershell
@@ -134,22 +116,6 @@ jobs:
             }
           }
           Write-Host 'Payload-generated source matches checked-in source: PASS' -ForegroundColor Green
-
-      - name: Publish refreshed integrity manifest
-        shell: powershell
-        run: |
-          $ErrorActionPreference='Stop'
-          git config user.name 'NCMM Text Audit'
-          git config user.email 'actions@users.noreply.github.com'
-          git add compat/package.integrity.json
-          git diff --cached --quiet
-          if($LASTEXITCODE -eq 0){
-            Write-Host 'Integrity manifest already current.'
-          } else {
-            git commit -m 'chore: refresh package integrity after text polish'
-            git pull --rebase origin main
-            git push origin HEAD:main
-          }
 
       - name: Build clean install package
         shell: powershell

@@ -12,6 +12,24 @@ $payload = Join-Path $OutputRoot 'payload'
 New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\AdvancedWorldSettings') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\SurvivorProgression') | Out-Null
 
+$hostDescriptor = Get-Content (Join-Path $RepositoryRoot 'components\ncmm_host.json') -Raw | ConvertFrom-Json
+$awsManifestPath = Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings\mod.json'
+$survivorManifestPath = Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json'
+$awsManifestSource = Get-Content $awsManifestPath -Raw | ConvertFrom-Json
+$survivorManifestSource = Get-Content $survivorManifestPath -Raw | ConvertFrom-Json
+$hostVersion = [string]$hostDescriptor.version
+$awsVersion = [string]$awsManifestSource.version
+$survivorVersion = [string]$survivorManifestSource.version
+foreach($pair in @(
+    @{Name='Host';Value=$hostVersion},
+    @{Name='Advanced World Settings';Value=$awsVersion},
+    @{Name='Survivor Progression';Value=$survivorVersion}
+)){
+    if([string]::IsNullOrWhiteSpace([string]$pair.Value) -or [string]$pair.Value -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$'){
+        throw ("Invalid {0} version: {1}" -f $pair.Name,$pair.Value)
+    }
+}
+
 function New-NcmmModuleArchive {
     param(
         [Parameter(Mandatory=$true)][string]$Folder,
@@ -36,7 +54,7 @@ function New-NcmmModuleArchive {
     $readme = @(
         "NCMM native module: $ComponentId",
         "Version: $Version",
-        "Requires: NCMM Host 0.8.0",
+        ("Requires: NCMM Host " + $hostVersion),
         "",
         "Preferred installation: run NCMM_Setup.exe and select this component.",
         "Manual fallback: copy the code_mods folder into the selected CDDA installation."
@@ -143,8 +161,9 @@ Copy-Item $sp.FullName (Join-Path $payload 'code_mods\SurvivorProgression\ncmm_m
 Copy-Item (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') (Join-Path $payload 'code_mods\SurvivorProgression\mod.json') -Force
 
 $spManifest = Get-Content (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') -Raw | ConvertFrom-Json
-if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable' -or $spManifest.version -ne '0.11.3') {
-    throw 'Survivor Progression 0.11.3 manifest contract invalid.'
+if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable' -or
+    [string]$spManifest.version -ne $survivorVersion) {
+    throw "Survivor Progression manifest contract invalid for version $survivorVersion."
 }
 foreach ($required in @(
     'core.v1','events.turn.v1','character_state.v1','character.modifiers.v1',
@@ -159,8 +178,8 @@ foreach ($required in @(
     }
 }
 
-$awsModuleZip = New-NcmmModuleArchive -Folder 'AdvancedWorldSettings' -ComponentId 'advanced_world_settings' -Version '0.6.2'
-$survivorModuleZip = New-NcmmModuleArchive -Folder 'SurvivorProgression' -ComponentId 'survivor_progression' -Version '0.11.3'
+$awsModuleZip = New-NcmmModuleArchive -Folder 'AdvancedWorldSettings' -ComponentId 'advanced_world_settings' -Version $awsVersion
+$survivorModuleZip = New-NcmmModuleArchive -Folder 'SurvivorProgression' -ComponentId 'survivor_progression' -Version $survivorVersion
 
 # NCMM 0.8.0 loader hardening is intentionally source-structural: Runtime CI
 # guards the invariants even before the certified-host workflow compiles them.

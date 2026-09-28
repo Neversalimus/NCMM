@@ -1,448 +1,453 @@
 {
-    "schema":  1,
-    "infrastructure":  "0.8.3.1",
-    "algorithm":  "sha256",
-    "policy":  "all immutable package files except this integrity manifest; generated adapters and certification-output excluded",
-    "files":  [
-                  {
-                      "path":  ".github\\workflows\\ncmm-certify.yml",
-                      "sha256":  "9fa6e24e50d38460e193c91411bc0fd275fdc33627df30e0d1b6f2dc6b8d3efb",
-                      "bytes":  2746
-                  },
-                  {
-                      "path":  ".github\\workflows\\ncmm-experimental-watch.yml",
-                      "sha256":  "0c3a5c8c22e669457455a70f1a8170e73602c33ad38a477b3d8a7004bb666324",
-                      "bytes":  1516
-                  },
-                  {
-                      "path":  "adapters\\base\\cdda_2026_series.ps1",
-                      "sha256":  "d7e9c68f924299b98f50ae2baafb02b3a1d945abaffc0b203b52b3aa4b174545",
-                      "bytes":  688
-                  },
-                  {
-                      "path":  "adapters\\cdda_2026_09_23_0546.ps1",
-                      "sha256":  "fa56037a5a3d9d6c4adf52ad851d5709d0b3b7cac49abdd596e4c403acab0f12",
-                      "bytes":  3488
-                  },
-                  {
-                      "path":  "AWS_HOST_API_2_MIGRATION_CHANGELOG.txt",
-                      "sha256":  "4ced56e1e74cd5c389beacea3ebc7583a2e978977a36169d5dfd19ff7876cbad",
-                      "bytes":  631
-                  },
-                  {
-                      "path":  "ci\\Build-UpdateRelease.ps1",
-                      "sha256":  "b170e02ed45910834780da1ffd1931d8bfb8f575550b1ba4529d7034d9e095bd",
-                      "bytes":  2362
-                  },
-                  {
-                      "path":  "ci\\Invoke-NCMMCertification.ps1",
-                      "sha256":  "e40707a8b4c45e908d70985a68d486187febb8ba1b9d6443c72d17bd58e87a4d",
-                      "bytes":  8612
-                  },
-                  {
-                      "path":  "ci\\Promote-CertificateToFeed.ps1",
-                      "sha256":  "08a9c343df568f25639fd0912d292381ea5ecf21a41eb7b4d711dd75ac34d946",
-                      "bytes":  1251
-                  },
-                  {
-                      "path":  "ci\\Promote-UpdateRelease.ps1",
-                      "sha256":  "5ea8c94a9862dc844ccfdc88b197bcbe20c540cb4ec0a91e6b0fcf5c4835b3e4",
-                      "bytes":  1325
-                  },
-                  {
-                      "path":  "ci\\Regenerate-PackageIntegrity.ps1",
-                      "sha256":  "b97f149976edf7060cb084256744c15fc183a37af423886f2a96c2409433ee15",
-                      "bytes":  1261
-                  },
-                  {
-                      "path":  "ci\\Test-GoldenRegression.ps1",
-                      "sha256":  "8a84a7cc6f9d78378bb98386ac0b97c75e647133502e857f2efc8cc34180e288",
-                      "bytes":  1993
-                  },
-                  {
-                      "path":  "ci\\Test-Infrastructure0821.ps1",
-                      "sha256":  "d4cf7d114219b7d9b74e325578c823e70ac6ad296da44922e8aa631807d0bff8",
-                      "bytes":  338
-                  },
-                  {
-                      "path":  "ci\\Test-Infrastructure083.ps1",
-                      "sha256":  "b9e89834192f24710fb6105ee312ae65205419ca242918edc2d70334bfc6f3e0",
-                      "bytes":  51138
-                  },
-                  {
-                      "path":  "ci\\Watch-CDDAExperimental.ps1",
-                      "sha256":  "aff245df857552668d1ab85f9bc0496bafcb6bfd8757df8f9fa4bb896ccc647d",
-                      "bytes":  1518
-                  },
-                  {
-                      "path":  "compat\\compatibility.manifest.json",
-                      "sha256":  "193f973997daf4b4bc042a2ba76d4686928aa4a6b6c5e757920004caf80e1e10",
-                      "bytes":  6507
-                  },
-                  {
-                      "path":  "compat\\contracts.json",
-                      "sha256":  "5091627e24dc0419bca8f97a025e7bbbec1423a04f0ee69affe19748e688d9a5",
-                      "bytes":  8290
-                  },
-                  {
-                      "path":  "compat\\feed\\commits\\e262adb299a7613b4aedc5f12c08fe0413c56a84.json",
-                      "sha256":  "835dda9ff94d57fb6aa7e23d3d4afcbc605305184936c8d673d8ec632353c83c",
-                      "bytes":  2804
-                  },
-                  {
-                      "path":  "compat\\feed\\index.json",
-                      "sha256":  "eb73a6f9e48c3f6d704b8dcf662f9ee16fcc60a2e81c321bf33760296eac65ca",
-                      "bytes":  573
-                  },
-                  {
-                      "path":  "compat\\update\\index.json",
-                      "sha256":  "81c8c727ae8338d36550aaeb10651746b2a2dd40ec0e432b153abc321cd23c48",
-                      "bytes":  906
-                  },
-                  {
-                      "path":  "components\\advanced_world_settings.json",
-                      "sha256":  "9e6111f07abac7bbe9e242d858fdbf7d44ea8fa9342efb54b3f8d8d5227ca4eb",
-                      "bytes":  635
-                  },
-                  {
-                      "path":  "components\\index.json",
-                      "sha256":  "56e9b508d4acfbfdf79819fffe70e77cae2c81d47b97e44c5e156fa483f88ba6",
-                      "bytes":  3894
-                  },
-                  {
-                      "path":  "components\\ncmm_host.json",
-                      "sha256":  "2faebe84b5910f71d3cbae1487018227d540a0412dbe5f1a51244788d9328eb1",
-                      "bytes":  805
-                  },
-                  {
-                      "path":  "components\\ncmm_infrastructure.json",
-                      "sha256":  "4abfae0c8b40ca6a14df92849e509ec5824b4925ac8b8a11f13c939fe5706a9b",
-                      "bytes":  298
-                  },
-                  {
-                      "path":  "components\\package-format.json",
-                      "sha256":  "1985fd99cdd1b9a7c4bda83b9d642a0f65f3e9412932f04a343ca5bf35f78536",
-                      "bytes":  1052
-                  },
-                  {
-                      "path":  "components\\recipe_finalize_profiler.json",
-                      "sha256":  "cea26af7384eab7bae61165e5ee8acd38671b47841a4d8b1c97e51f4cfb6a5ec",
-                      "bytes":  504
-                  },
-                  {
-                      "path":  "components\\survivor_progression.json",
-                      "sha256":  "5f1404cc73bc974e74b90cd53feced2abb251d1508abb1b3a99634551c4ffae3",
-                      "bytes":  749
-                  },
-                  {
-                      "path":  "golden\\fixtures\\full_stack.json",
-                      "sha256":  "6d299871005f889954ee89b21d452bfa1b4be9ea3ca5330d1cfd7f653aba98ac",
-                      "bytes":  857
-                  },
-                  {
-                      "path":  "golden\\fixtures\\survivor_magiclysm.json",
-                      "sha256":  "801d138fd3f25b6daaf91a3e74dad0918e664455b11edfa15cf7a7578c0acedb",
-                      "bytes":  379
-                  },
-                  {
-                      "path":  "golden\\fixtures\\survivor_mom.json",
-                      "sha256":  "12e43d7a8a13f2ae679f11476fa5e70bca8f3274a47e9dfe557ddcf42f9fc30c",
-                      "bytes":  395
-                  },
-                  {
-                      "path":  "golden\\fixtures\\survivor_only.json",
-                      "sha256":  "fc9a7d753e472b585560101b03a8295fe19c7522e66e613ae54780c6ee6cd6b4",
-                      "bytes":  409
-                  },
-                  {
-                      "path":  "golden\\fixtures\\survivor_perk_array_separator_0110.cpp",
-                      "sha256":  "d111e7ecd2626e28a776a77acc7f79e9c13e412f8a4ea8b9fa4c6844e1e4e060",
-                      "bytes":  632
-                  },
-                  {
-                      "path":  "golden\\fixtures\\survivor_reactive_edge_0112.cpp",
-                      "sha256":  "f26d7b79d470839f9a6ddd0fe531c7966c2f55dd4dbae12c03976dc76cb275b4",
-                      "bytes":  5311
-                  },
-                  {
-                      "path":  "golden\\fixtures\\survivor_reactive_edge_0113.cpp",
-                      "sha256":  "47e2899532611eb51e3a5816ede5fc9d1c3c028f849046a8ef4e33050d572cd9",
-                      "bytes":  5976
-                  },
-                  {
-                      "path":  "golden\\fixtures\\survivor_xedra.json",
-                      "sha256":  "0277329065cc8739725ba95b6559307e63ebad24557eeedcbda4263a055bf9ab",
-                      "bytes":  392
-                  },
-                  {
-                      "path":  "golden\\fixtures\\vanilla.json",
-                      "sha256":  "9ec5e3a9c723445b1f68ddb3ef9d803ba6780dff1769698f3c797ad587cf6ce4",
-                      "bytes":  376
-                  },
-                  {
-                      "path":  "golden\\fixtures\\world_settings_persistence_0831.cpp",
-                      "sha256":  "3881a9d672a1478bf1cf06b6d07063a26a2d3743f3cb927fb6617aef2f0dd31f",
-                      "bytes":  1451
-                  },
-                  {
-                      "path":  "HOST_API_2.0_CORE_CHANGELOG.txt",
-                      "sha256":  "82f6e3df4caf02f1aae4f0b14304986766331cb566e860f21ce4b3b79aba1b18",
-                      "bytes":  1119
-                  },
-                  {
-                      "path":  "INFRASTRUCTURE_0.8.2.1_CHANGELOG.txt",
-                      "sha256":  "d38dd73e7ca5c83872d192559078c1f5beb6427e33f2c020522442f21dac6e8e",
-                      "bytes":  1080
-                  },
-                  {
-                      "path":  "INFRASTRUCTURE_0.8.3.1_WORLD_SETTINGS_PERSISTENCE_CHANGELOG.txt",
-                      "sha256":  "89226ff3a6a416d89770c9256a6fab8e6f14fafaa9745c1621c43d0f5e962f75",
-                      "bytes":  1625
-                  },
-                  {
-                      "path":  "INFRASTRUCTURE_0.8.3_STAGED_INSTALLER_CHANGELOG.txt",
-                      "sha256":  "5bfd65d32d053d6f5a5b11e048b1f11dfba1e322f4d58852bc15db612c824f01",
-                      "bytes":  1093
-                  },
-                  {
-                      "path":  "internal\\NCMM.Install.ps1",
-                      "sha256":  "c0aa622b471ec479a4a96c9a654cd3254f04d4af1567cec6dca09f7d028561ea",
-                      "bytes":  3278
-                  },
-                  {
-                      "path":  "internal\\stages\\10-Preflight.ps1",
-                      "sha256":  "65cfb49dda372a5cad56a05e8eda52091feb984049873442422d87a7b0b4fccc",
-                      "bytes":  2979
-                  },
-                  {
-                      "path":  "internal\\stages\\20-Snapshot.ps1",
-                      "sha256":  "9cc82f343119fbfd849fe6e434e5747478ac5a19136acb909eb9616a88c0cb28",
-                      "bytes":  1241
-                  },
-                  {
-                      "path":  "internal\\stages\\30-PayloadEngine.ps1",
-                      "sha256":  "53fad8962f11f8426c91e637a675e806968d784a195dfab891af790268ac3937",
-                      "bytes":  1467
-                  },
-                  {
-                      "path":  "internal\\stages\\40-OfflineVerify.ps1",
-                      "sha256":  "d4647bc2b45dc749a02d1bc9ce3eb9a9de717a46e842fdc754cbcff924c2026e",
-                      "bytes":  661
-                  },
-                  {
-                      "path":  "internal\\stages\\50-Commit.ps1",
-                      "sha256":  "40b1336bbc25a1c9785a0053d14ff5c640b633afa9e660db611333013f658204",
-                      "bytes":  2185
-                  },
-                  {
-                      "path":  "internal\\stages\\60-RuntimeVerify.ps1",
-                      "sha256":  "71377a9d121808a4855833dc07c744d0583082461e473c8570918f3c5a59c33b",
-                      "bytes":  215
-                  },
-                  {
-                      "path":  "migrations\\migrations.json",
-                      "sha256":  "c3d8c7eb5a004c9529ac44b11aaafd79dcc59b93e799785326108bbb149fe256",
-                      "bytes":  645
-                  },
-                  {
-                      "path":  "migrations\\update_state_0_to_1.ps1",
-                      "sha256":  "59f899cbd6517f0294dc1d31a9987d8f02c6e44915438adaaee2486f10a591cd",
-                      "bytes":  344
-                  },
-                  {
-                      "path":  "migrations\\update_state_1_to_2.ps1",
-                      "sha256":  "ef297c08af4cdc2e3ce05cb97aacbd78fd37ccbec7b1fee052853cd85918275a",
-                      "bytes":  493
-                  },
-                  {
-                      "path":  "NCMM.cmd",
-                      "sha256":  "46e778aceab5921475dd04ee0ae59fe7bcab21105c1eeda91dfab6baa5e67c8c",
-                      "bytes":  3749
-                  },
-                  {
-                      "path":  "NCMM.ps1",
-                      "sha256":  "66739bb1111fb15a7a092cdee5ecd1713a42e52bf2ab68bd7afb6e69075f6383",
-                      "bytes":  9278
-                  },
-                  {
-                      "path":  "NCMM_AWS_HOST_API_2_MIGRATION_AUDIT.txt",
-                      "sha256":  "0be05212ae5c67a09412cfa4ed6a0694232fb91f1e7ebe68b38e2d087fecf50c",
-                      "bytes":  1689
-                  },
-                  {
-                      "path":  "NCMM_HOST_API_2.0_CORE_AUDIT.txt",
-                      "sha256":  "bf6e610e7ed4cd314b9da0fd141a0d30add45a2b2e663f572bffd215008ecbaa",
-                      "bytes":  1268
-                  },
-                  {
-                      "path":  "NCMM_INFRASTRUCTURE_0.8.2.1_AUDIT.txt",
-                      "sha256":  "075031699d8f43e583895a49cc79501eee574042c46f986376b01fc947381571",
-                      "bytes":  1235
-                  },
-                  {
-                      "path":  "NCMM_INFRASTRUCTURE_0.8.3.1_AUDIT.txt",
-                      "sha256":  "90785debddebd5216a504033cdeec6a8e0d3796a384913b03c59308b755927ee",
-                      "bytes":  4446
-                  },
-                  {
-                      "path":  "NCMM_INFRASTRUCTURE_0.8.3_AUDIT.txt",
-                      "sha256":  "7d84bd77f1dc763377bc3ed329eec1f24205dddce8b4f7c9e74b48990025c3a1",
-                      "bytes":  5228
-                  },
-                  {
-                      "path":  "NCMM_SURVIVOR_HOST_API_2_MIGRATION_AUDIT.txt",
-                      "sha256":  "51b62a7675d06c566036d8b258e20e7bdeb4d3e66f6dfe47a21611356d8f7ee0",
-                      "bytes":  2415
-                  },
-                  {
-                      "path":  "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-                      "sha256":  "615984b094400beeb689e8b5081686b5ffcbc82a1025fcdf4d206711ec610a06",
-                      "bytes":  974571
-                  },
-                  {
-                      "path":  "pipeline\\pipeline.manifest.json",
-                      "sha256":  "3e824870dc1fc3e47c03c88e61eda25af61db2cadecbcc3909647237bcd3d870",
-                      "bytes":  1876
-                  },
-                  {
-                      "path":  "README.txt",
-                      "sha256":  "20c0f5e93c37ec5cd3d35f24bcaa244e03e748e640f0e52929f6cf2da9815b3e",
-                      "bytes":  9032
-                  },
-                  {
-                      "path":  "sdk\\HOST_API_2_CORE_CONTRACT.md",
-                      "sha256":  "ef10bb1071f9aea69071dcd6b2baad4815ac81fba2eaee87767d66b1f1a6b2ed",
-                      "bytes":  976
-                  },
-                  {
-                      "path":  "SURVIVOR_0.10.0_MECHANICAL_PERKS_AUDIT.txt",
-                      "sha256":  "10d6f9e4d5cd5a141af99b0e51f51d4bca8162243ced87ff09bfa434121e2daa",
-                      "bytes":  1656
-                  },
-                  {
-                      "path":  "SURVIVOR_0.10.0_MECHANICAL_PERKS_CHANGELOG.txt",
-                      "sha256":  "9c5bef0e524f01730d3ad46eeb76148f4e037f6bc9d7f6bbc3c66621d9cd9825",
-                      "bytes":  1515
-                  },
-                  {
-                      "path":  "SURVIVOR_0.11.0_REACTIVE_MECHANICS_AUDIT.txt",
-                      "sha256":  "dcf4a253706f77293576b42b8e90436aafe14cdef2570d9071ead67a9f1e9997",
-                      "bytes":  3507
-                  },
-                  {
-                      "path":  "SURVIVOR_0.11.0_REACTIVE_MECHANICS_CHANGELOG.txt",
-                      "sha256":  "43996d53e1edd62a4771a974e7ba4ed5ef9f6312b74ca3e3bad249a456c6b954",
-                      "bytes":  2626
-                  },
-                  {
-                      "path":  "SURVIVOR_0.11.1_REACTIVE_POLISH_AUDIT.txt",
-                      "sha256":  "cabd84ee9fdf947eeafe893c85711638788e2ed66ef560816fa36e08d067ff2f",
-                      "bytes":  5408
-                  },
-                  {
-                      "path":  "SURVIVOR_0.11.1_REACTIVE_POLISH_CHANGELOG.txt",
-                      "sha256":  "c07710c96efa13a3243a3c7ae83c31d568bb5d89daf3cbf07df4adb4be02413c",
-                      "bytes":  3083
-                  },
-                  {
-                      "path":  "SURVIVOR_0.11.2_EDGE_CASE_POLISH_AUDIT.txt",
-                      "sha256":  "ba3b4c835bf2951b721df279e19b531d464473dcbdcfd338635efbf80b68989f",
-                      "bytes":  3874
-                  },
-                  {
-                      "path":  "SURVIVOR_0.11.2_EDGE_CASE_POLISH_CHANGELOG.txt",
-                      "sha256":  "7f9d7ea46b8c7b14a9b7563e085a1495ca5f9a3899c1bfc32d4d91a4d90e9e55",
-                      "bytes":  2696
-                  },
-                  {
-                      "path":  "SURVIVOR_0.11.3_COMBINATORIAL_EDGE_POLISH_AUDIT.txt",
-                      "sha256":  "e6ff722921dc56400107c7fc9106193e91d7b0902f767e8b5f5e77232e6009c1",
-                      "bytes":  4605
-                  },
-                  {
-                      "path":  "SURVIVOR_0.11.3_COMBINATORIAL_EDGE_POLISH_CHANGELOG.txt",
-                      "sha256":  "cdd92a8ddace0cfdf8f23de71613edbe28ab8885fb2cffaeb86ea53bae86f3b5",
-                      "bytes":  3545
-                  },
-                  {
-                      "path":  "SURVIVOR_HOST_API_2_MIGRATION_CHANGELOG.txt",
-                      "sha256":  "21ffef2c5558dfe5de4448edbea0755f8fab3824aac20e0a82dd9dee86f10a0c",
-                      "bytes":  914
-                  },
-                  {
-                      "path":  "tools\\Collect-NCMMDiagnostics.ps1",
-                      "sha256":  "4461b9a31bae74ec007ffca6aa5994eac743e6429aa4a161194f48ca19ec7757",
-                      "bytes":  4082
-                  },
-                  {
-                      "path":  "tools\\Invoke-NCMMUpdate.ps1",
-                      "sha256":  "50ed6b334aadc38da8d3651b286980ec11499b5d9c73bae4e3e350e3e6894574",
-                      "bytes":  4600
-                  },
-                  {
-                      "path":  "tools\\NCMM.Infrastructure.Common.ps1",
-                      "sha256":  "90f2ebb9f2a84c5c411efaccbe3eb97e7746dd3d94d03adc62f5d77b3cde9539",
-                      "bytes":  39251
-                  },
-                  {
-                      "path":  "tools\\NCMM.Update.Common.ps1",
-                      "sha256":  "6ad624b4ecbf7a352cfe8045b809c2798acb0f01e99d1f3df72e35ede14f1220",
-                      "bytes":  11475
-                  },
-                  {
-                      "path":  "V8_7_4_CHANGELOG.txt",
-                      "sha256":  "753b314995d6a01f832c9168aeada9491f79411443bb7a6d5a584416fcc42dfe",
-                      "bytes":  758
-                  },
-                  {
-                      "path":  "V8_7_5_CHANGELOG.txt",
-                      "sha256":  "1cb923f1d570c0dcb437ecd810525c152ec00b24cac614a21bc3d37dcf92ae9c",
-                      "bytes":  1255
-                  },
-                  {
-                      "path":  "V8_7_6_1_CHANGELOG.txt",
-                      "sha256":  "32f49a762c5077c89621f571012c326ce52f0c9e58028f14a09d5202b1054a02",
-                      "bytes":  1545
-                  },
-                  {
-                      "path":  "V8_7_6_2_CHANGELOG.txt",
-                      "sha256":  "72c7ef0197a5cee45acf629cb901ac5af4cd9d377a030ab1d723904e88284e6e",
-                      "bytes":  843
-                  },
-                  {
-                      "path":  "V8_7_6_3_CHANGELOG.txt",
-                      "sha256":  "73bf7765efdd965ed4a7226879df7ced10153f424a4fa9b45936e149ef76eb60",
-                      "bytes":  743
-                  },
-                  {
-                      "path":  "V8_7_6_4_CHANGELOG.txt",
-                      "sha256":  "4947b63bfba8f686d5b20c3206b17cd993cdbf1af11d0b0b4f0caf8ce30efce1",
-                      "bytes":  850
-                  },
-                  {
-                      "path":  "V8_7_6_6_CHANGELOG.txt",
-                      "sha256":  "5542cf9344d8a6470530c0f56959faa11dba38a7f1605daf619464397d66f7e6",
-                      "bytes":  738
-                  },
-                  {
-                      "path":  "V8_7_6_7_CHANGELOG.txt",
-                      "sha256":  "8e63dc1af06defb60224c763413c83ed98d9761fcf93cfd6558e5da3a10b4b0b",
-                      "bytes":  955
-                  },
-                  {
-                      "path":  "V8_7_6_8_CHANGELOG.txt",
-                      "sha256":  "95f8ca28e3868a61ca97e8674751c2f10cfbe7c817b2485c3ff1f6892385e2a2",
-                      "bytes":  795
-                  },
-                  {
-                      "path":  "V8_7_6_CHANGELOG.txt",
-                      "sha256":  "a57ad4c425fb1f42ff990c1e44db33543ce72eb3febddf8aa00701800b95dcb7",
-                      "bytes":  1253
-                  },
-                  {
-                      "path":  "V8_7_RPG_VISUAL_PASS_NOTES.txt",
-                      "sha256":  "dd5dee3a76ab1cfb9b6f1f09eda3b4aba8a327ff624f30d1fb36c7b8e7e9f9bf",
-                      "bytes":  2669
-                  }
-              ]
+  "schema": 1,
+  "infrastructure": "0.8.3.1",
+  "algorithm": "sha256",
+  "policy": "explicit immutable package membership from compat/package-files.txt; integrity manifest excludes itself",
+  "files": [
+    {
+      "path": ".github\\workflows\\ncmm-certify.yml",
+      "sha256": "9fa6e24e50d38460e193c91411bc0fd275fdc33627df30e0d1b6f2dc6b8d3efb",
+      "bytes": 2746
+    },
+    {
+      "path": ".github\\workflows\\ncmm-experimental-watch.yml",
+      "sha256": "0c3a5c8c22e669457455a70f1a8170e73602c33ad38a477b3d8a7004bb666324",
+      "bytes": 1516
+    },
+    {
+      "path": "adapters\\base\\cdda_2026_series.ps1",
+      "sha256": "d7e9c68f924299b98f50ae2baafb02b3a1d945abaffc0b203b52b3aa4b174545",
+      "bytes": 688
+    },
+    {
+      "path": "adapters\\cdda_2026_09_23_0546.ps1",
+      "sha256": "fa56037a5a3d9d6c4adf52ad851d5709d0b3b7cac49abdd596e4c403acab0f12",
+      "bytes": 3488
+    },
+    {
+      "path": "AWS_HOST_API_2_MIGRATION_CHANGELOG.txt",
+      "sha256": "4ced56e1e74cd5c389beacea3ebc7583a2e978977a36169d5dfd19ff7876cbad",
+      "bytes": 631
+    },
+    {
+      "path": "ci\\Build-UpdateRelease.ps1",
+      "sha256": "b170e02ed45910834780da1ffd1931d8bfb8f575550b1ba4529d7034d9e095bd",
+      "bytes": 2362
+    },
+    {
+      "path": "ci\\Invoke-NCMMCertification.ps1",
+      "sha256": "e40707a8b4c45e908d70985a68d486187febb8ba1b9d6443c72d17bd58e87a4d",
+      "bytes": 8612
+    },
+    {
+      "path": "ci\\Promote-CertificateToFeed.ps1",
+      "sha256": "08a9c343df568f25639fd0912d292381ea5ecf21a41eb7b4d711dd75ac34d946",
+      "bytes": 1251
+    },
+    {
+      "path": "ci\\Promote-UpdateRelease.ps1",
+      "sha256": "5ea8c94a9862dc844ccfdc88b197bcbe20c540cb4ec0a91e6b0fcf5c4835b3e4",
+      "bytes": 1325
+    },
+    {
+      "path": "ci\\Regenerate-PackageIntegrity.ps1",
+      "sha256": "139dfa08e632d74db0c259384bc8f2e2cea00ecb95e04fa84f60f82c81ccd5f6",
+      "bytes": 2467
+    },
+    {
+      "path": "ci\\Test-GoldenRegression.ps1",
+      "sha256": "8a84a7cc6f9d78378bb98386ac0b97c75e647133502e857f2efc8cc34180e288",
+      "bytes": 1993
+    },
+    {
+      "path": "ci\\Test-Infrastructure0821.ps1",
+      "sha256": "d4cf7d114219b7d9b74e325578c823e70ac6ad296da44922e8aa631807d0bff8",
+      "bytes": 338
+    },
+    {
+      "path": "ci\\Test-Infrastructure083.ps1",
+      "sha256": "b9e89834192f24710fb6105ee312ae65205419ca242918edc2d70334bfc6f3e0",
+      "bytes": 51138
+    },
+    {
+      "path": "ci\\Watch-CDDAExperimental.ps1",
+      "sha256": "aff245df857552668d1ab85f9bc0496bafcb6bfd8757df8f9fa4bb896ccc647d",
+      "bytes": 1518
+    },
+    {
+      "path": "compat\\compatibility.manifest.json",
+      "sha256": "193f973997daf4b4bc042a2ba76d4686928aa4a6b6c5e757920004caf80e1e10",
+      "bytes": 6507
+    },
+    {
+      "path": "compat\\contracts.json",
+      "sha256": "5091627e24dc0419bca8f97a025e7bbbec1423a04f0ee69affe19748e688d9a5",
+      "bytes": 8290
+    },
+    {
+      "path": "compat\\feed\\commits\\e262adb299a7613b4aedc5f12c08fe0413c56a84.json",
+      "sha256": "835dda9ff94d57fb6aa7e23d3d4afcbc605305184936c8d673d8ec632353c83c",
+      "bytes": 2804
+    },
+    {
+      "path": "compat\\feed\\index.json",
+      "sha256": "eb73a6f9e48c3f6d704b8dcf662f9ee16fcc60a2e81c321bf33760296eac65ca",
+      "bytes": 573
+    },
+    {
+      "path": "compat\\package-files.txt",
+      "sha256": "93a2aa7b82edcf63dbfd97201963da9d85ce3a37a002bb9998cbf8eed09813c1",
+      "bytes": 3077
+    },
+    {
+      "path": "compat\\update\\index.json",
+      "sha256": "81c8c727ae8338d36550aaeb10651746b2a2dd40ec0e432b153abc321cd23c48",
+      "bytes": 906
+    },
+    {
+      "path": "components\\advanced_world_settings.json",
+      "sha256": "9e6111f07abac7bbe9e242d858fdbf7d44ea8fa9342efb54b3f8d8d5227ca4eb",
+      "bytes": 635
+    },
+    {
+      "path": "components\\index.json",
+      "sha256": "56e9b508d4acfbfdf79819fffe70e77cae2c81d47b97e44c5e156fa483f88ba6",
+      "bytes": 3894
+    },
+    {
+      "path": "components\\ncmm_host.json",
+      "sha256": "2faebe84b5910f71d3cbae1487018227d540a0412dbe5f1a51244788d9328eb1",
+      "bytes": 805
+    },
+    {
+      "path": "components\\ncmm_infrastructure.json",
+      "sha256": "4abfae0c8b40ca6a14df92849e509ec5824b4925ac8b8a11f13c939fe5706a9b",
+      "bytes": 298
+    },
+    {
+      "path": "components\\package-format.json",
+      "sha256": "1985fd99cdd1b9a7c4bda83b9d642a0f65f3e9412932f04a343ca5bf35f78536",
+      "bytes": 1052
+    },
+    {
+      "path": "components\\recipe_finalize_profiler.json",
+      "sha256": "cea26af7384eab7bae61165e5ee8acd38671b47841a4d8b1c97e51f4cfb6a5ec",
+      "bytes": 504
+    },
+    {
+      "path": "components\\survivor_progression.json",
+      "sha256": "5f1404cc73bc974e74b90cd53feced2abb251d1508abb1b3a99634551c4ffae3",
+      "bytes": 749
+    },
+    {
+      "path": "golden\\fixtures\\full_stack.json",
+      "sha256": "6d299871005f889954ee89b21d452bfa1b4be9ea3ca5330d1cfd7f653aba98ac",
+      "bytes": 857
+    },
+    {
+      "path": "golden\\fixtures\\survivor_magiclysm.json",
+      "sha256": "801d138fd3f25b6daaf91a3e74dad0918e664455b11edfa15cf7a7578c0acedb",
+      "bytes": 379
+    },
+    {
+      "path": "golden\\fixtures\\survivor_mom.json",
+      "sha256": "12e43d7a8a13f2ae679f11476fa5e70bca8f3274a47e9dfe557ddcf42f9fc30c",
+      "bytes": 395
+    },
+    {
+      "path": "golden\\fixtures\\survivor_only.json",
+      "sha256": "fc9a7d753e472b585560101b03a8295fe19c7522e66e613ae54780c6ee6cd6b4",
+      "bytes": 409
+    },
+    {
+      "path": "golden\\fixtures\\survivor_perk_array_separator_0110.cpp",
+      "sha256": "d111e7ecd2626e28a776a77acc7f79e9c13e412f8a4ea8b9fa4c6844e1e4e060",
+      "bytes": 632
+    },
+    {
+      "path": "golden\\fixtures\\survivor_reactive_edge_0112.cpp",
+      "sha256": "f26d7b79d470839f9a6ddd0fe531c7966c2f55dd4dbae12c03976dc76cb275b4",
+      "bytes": 5311
+    },
+    {
+      "path": "golden\\fixtures\\survivor_reactive_edge_0113.cpp",
+      "sha256": "47e2899532611eb51e3a5816ede5fc9d1c3c028f849046a8ef4e33050d572cd9",
+      "bytes": 5976
+    },
+    {
+      "path": "golden\\fixtures\\survivor_xedra.json",
+      "sha256": "0277329065cc8739725ba95b6559307e63ebad24557eeedcbda4263a055bf9ab",
+      "bytes": 392
+    },
+    {
+      "path": "golden\\fixtures\\vanilla.json",
+      "sha256": "9ec5e3a9c723445b1f68ddb3ef9d803ba6780dff1769698f3c797ad587cf6ce4",
+      "bytes": 376
+    },
+    {
+      "path": "golden\\fixtures\\world_settings_persistence_0831.cpp",
+      "sha256": "3881a9d672a1478bf1cf06b6d07063a26a2d3743f3cb927fb6617aef2f0dd31f",
+      "bytes": 1451
+    },
+    {
+      "path": "HOST_API_2.0_CORE_CHANGELOG.txt",
+      "sha256": "82f6e3df4caf02f1aae4f0b14304986766331cb566e860f21ce4b3b79aba1b18",
+      "bytes": 1119
+    },
+    {
+      "path": "INFRASTRUCTURE_0.8.2.1_CHANGELOG.txt",
+      "sha256": "d38dd73e7ca5c83872d192559078c1f5beb6427e33f2c020522442f21dac6e8e",
+      "bytes": 1080
+    },
+    {
+      "path": "INFRASTRUCTURE_0.8.3_STAGED_INSTALLER_CHANGELOG.txt",
+      "sha256": "5bfd65d32d053d6f5a5b11e048b1f11dfba1e322f4d58852bc15db612c824f01",
+      "bytes": 1093
+    },
+    {
+      "path": "INFRASTRUCTURE_0.8.3.1_WORLD_SETTINGS_PERSISTENCE_CHANGELOG.txt",
+      "sha256": "89226ff3a6a416d89770c9256a6fab8e6f14fafaa9745c1621c43d0f5e962f75",
+      "bytes": 1625
+    },
+    {
+      "path": "internal\\NCMM.Install.ps1",
+      "sha256": "c0aa622b471ec479a4a96c9a654cd3254f04d4af1567cec6dca09f7d028561ea",
+      "bytes": 3278
+    },
+    {
+      "path": "internal\\stages\\10-Preflight.ps1",
+      "sha256": "65cfb49dda372a5cad56a05e8eda52091feb984049873442422d87a7b0b4fccc",
+      "bytes": 2979
+    },
+    {
+      "path": "internal\\stages\\20-Snapshot.ps1",
+      "sha256": "9cc82f343119fbfd849fe6e434e5747478ac5a19136acb909eb9616a88c0cb28",
+      "bytes": 1241
+    },
+    {
+      "path": "internal\\stages\\30-PayloadEngine.ps1",
+      "sha256": "53fad8962f11f8426c91e637a675e806968d784a195dfab891af790268ac3937",
+      "bytes": 1467
+    },
+    {
+      "path": "internal\\stages\\40-OfflineVerify.ps1",
+      "sha256": "d4647bc2b45dc749a02d1bc9ce3eb9a9de717a46e842fdc754cbcff924c2026e",
+      "bytes": 661
+    },
+    {
+      "path": "internal\\stages\\50-Commit.ps1",
+      "sha256": "40b1336bbc25a1c9785a0053d14ff5c640b633afa9e660db611333013f658204",
+      "bytes": 2185
+    },
+    {
+      "path": "internal\\stages\\60-RuntimeVerify.ps1",
+      "sha256": "71377a9d121808a4855833dc07c744d0583082461e473c8570918f3c5a59c33b",
+      "bytes": 215
+    },
+    {
+      "path": "migrations\\migrations.json",
+      "sha256": "c3d8c7eb5a004c9529ac44b11aaafd79dcc59b93e799785326108bbb149fe256",
+      "bytes": 645
+    },
+    {
+      "path": "migrations\\update_state_0_to_1.ps1",
+      "sha256": "59f899cbd6517f0294dc1d31a9987d8f02c6e44915438adaaee2486f10a591cd",
+      "bytes": 344
+    },
+    {
+      "path": "migrations\\update_state_1_to_2.ps1",
+      "sha256": "ef297c08af4cdc2e3ce05cb97aacbd78fd37ccbec7b1fee052853cd85918275a",
+      "bytes": 493
+    },
+    {
+      "path": "NCMM_AWS_HOST_API_2_MIGRATION_AUDIT.txt",
+      "sha256": "0be05212ae5c67a09412cfa4ed6a0694232fb91f1e7ebe68b38e2d087fecf50c",
+      "bytes": 1689
+    },
+    {
+      "path": "NCMM_HOST_API_2.0_CORE_AUDIT.txt",
+      "sha256": "bf6e610e7ed4cd314b9da0fd141a0d30add45a2b2e663f572bffd215008ecbaa",
+      "bytes": 1268
+    },
+    {
+      "path": "NCMM_INFRASTRUCTURE_0.8.2.1_AUDIT.txt",
+      "sha256": "075031699d8f43e583895a49cc79501eee574042c46f986376b01fc947381571",
+      "bytes": 1235
+    },
+    {
+      "path": "NCMM_INFRASTRUCTURE_0.8.3_AUDIT.txt",
+      "sha256": "7d84bd77f1dc763377bc3ed329eec1f24205dddce8b4f7c9e74b48990025c3a1",
+      "bytes": 5228
+    },
+    {
+      "path": "NCMM_INFRASTRUCTURE_0.8.3.1_AUDIT.txt",
+      "sha256": "90785debddebd5216a504033cdeec6a8e0d3796a384913b03c59308b755927ee",
+      "bytes": 4446
+    },
+    {
+      "path": "NCMM_SURVIVOR_HOST_API_2_MIGRATION_AUDIT.txt",
+      "sha256": "51b62a7675d06c566036d8b258e20e7bdeb4d3e66f6dfe47a21611356d8f7ee0",
+      "bytes": 2415
+    },
+    {
+      "path": "NCMM.cmd",
+      "sha256": "46e778aceab5921475dd04ee0ae59fe7bcab21105c1eeda91dfab6baa5e67c8c",
+      "bytes": 3749
+    },
+    {
+      "path": "NCMM.ps1",
+      "sha256": "66739bb1111fb15a7a092cdee5ecd1713a42e52bf2ab68bd7afb6e69075f6383",
+      "bytes": 9278
+    },
+    {
+      "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
+      "sha256": "615984b094400beeb689e8b5081686b5ffcbc82a1025fcdf4d206711ec610a06",
+      "bytes": 974571
+    },
+    {
+      "path": "pipeline\\pipeline.manifest.json",
+      "sha256": "3e824870dc1fc3e47c03c88e61eda25af61db2cadecbcc3909647237bcd3d870",
+      "bytes": 1876
+    },
+    {
+      "path": "README.txt",
+      "sha256": "20c0f5e93c37ec5cd3d35f24bcaa244e03e748e640f0e52929f6cf2da9815b3e",
+      "bytes": 9032
+    },
+    {
+      "path": "sdk\\HOST_API_2_CORE_CONTRACT.md",
+      "sha256": "ef10bb1071f9aea69071dcd6b2baad4815ac81fba2eaee87767d66b1f1a6b2ed",
+      "bytes": 976
+    },
+    {
+      "path": "SURVIVOR_0.10.0_MECHANICAL_PERKS_AUDIT.txt",
+      "sha256": "10d6f9e4d5cd5a141af99b0e51f51d4bca8162243ced87ff09bfa434121e2daa",
+      "bytes": 1656
+    },
+    {
+      "path": "SURVIVOR_0.10.0_MECHANICAL_PERKS_CHANGELOG.txt",
+      "sha256": "9c5bef0e524f01730d3ad46eeb76148f4e037f6bc9d7f6bbc3c66621d9cd9825",
+      "bytes": 1515
+    },
+    {
+      "path": "SURVIVOR_0.11.0_REACTIVE_MECHANICS_AUDIT.txt",
+      "sha256": "dcf4a253706f77293576b42b8e90436aafe14cdef2570d9071ead67a9f1e9997",
+      "bytes": 3507
+    },
+    {
+      "path": "SURVIVOR_0.11.0_REACTIVE_MECHANICS_CHANGELOG.txt",
+      "sha256": "43996d53e1edd62a4771a974e7ba4ed5ef9f6312b74ca3e3bad249a456c6b954",
+      "bytes": 2626
+    },
+    {
+      "path": "SURVIVOR_0.11.1_REACTIVE_POLISH_AUDIT.txt",
+      "sha256": "cabd84ee9fdf947eeafe893c85711638788e2ed66ef560816fa36e08d067ff2f",
+      "bytes": 5408
+    },
+    {
+      "path": "SURVIVOR_0.11.1_REACTIVE_POLISH_CHANGELOG.txt",
+      "sha256": "c07710c96efa13a3243a3c7ae83c31d568bb5d89daf3cbf07df4adb4be02413c",
+      "bytes": 3083
+    },
+    {
+      "path": "SURVIVOR_0.11.2_EDGE_CASE_POLISH_AUDIT.txt",
+      "sha256": "ba3b4c835bf2951b721df279e19b531d464473dcbdcfd338635efbf80b68989f",
+      "bytes": 3874
+    },
+    {
+      "path": "SURVIVOR_0.11.2_EDGE_CASE_POLISH_CHANGELOG.txt",
+      "sha256": "7f9d7ea46b8c7b14a9b7563e085a1495ca5f9a3899c1bfc32d4d91a4d90e9e55",
+      "bytes": 2696
+    },
+    {
+      "path": "SURVIVOR_0.11.3_COMBINATORIAL_EDGE_POLISH_AUDIT.txt",
+      "sha256": "e6ff722921dc56400107c7fc9106193e91d7b0902f767e8b5f5e77232e6009c1",
+      "bytes": 4605
+    },
+    {
+      "path": "SURVIVOR_0.11.3_COMBINATORIAL_EDGE_POLISH_CHANGELOG.txt",
+      "sha256": "cdd92a8ddace0cfdf8f23de71613edbe28ab8885fb2cffaeb86ea53bae86f3b5",
+      "bytes": 3545
+    },
+    {
+      "path": "SURVIVOR_HOST_API_2_MIGRATION_CHANGELOG.txt",
+      "sha256": "21ffef2c5558dfe5de4448edbea0755f8fab3824aac20e0a82dd9dee86f10a0c",
+      "bytes": 914
+    },
+    {
+      "path": "tools\\Collect-NCMMDiagnostics.ps1",
+      "sha256": "4461b9a31bae74ec007ffca6aa5994eac743e6429aa4a161194f48ca19ec7757",
+      "bytes": 4082
+    },
+    {
+      "path": "tools\\Invoke-NCMMUpdate.ps1",
+      "sha256": "50ed6b334aadc38da8d3651b286980ec11499b5d9c73bae4e3e350e3e6894574",
+      "bytes": 4600
+    },
+    {
+      "path": "tools\\NCMM.Infrastructure.Common.ps1",
+      "sha256": "90f2ebb9f2a84c5c411efaccbe3eb97e7746dd3d94d03adc62f5d77b3cde9539",
+      "bytes": 39251
+    },
+    {
+      "path": "tools\\NCMM.Update.Common.ps1",
+      "sha256": "6ad624b4ecbf7a352cfe8045b809c2798acb0f01e99d1f3df72e35ede14f1220",
+      "bytes": 11475
+    },
+    {
+      "path": "V8_7_4_CHANGELOG.txt",
+      "sha256": "753b314995d6a01f832c9168aeada9491f79411443bb7a6d5a584416fcc42dfe",
+      "bytes": 758
+    },
+    {
+      "path": "V8_7_5_CHANGELOG.txt",
+      "sha256": "1cb923f1d570c0dcb437ecd810525c152ec00b24cac614a21bc3d37dcf92ae9c",
+      "bytes": 1255
+    },
+    {
+      "path": "V8_7_6_1_CHANGELOG.txt",
+      "sha256": "32f49a762c5077c89621f571012c326ce52f0c9e58028f14a09d5202b1054a02",
+      "bytes": 1545
+    },
+    {
+      "path": "V8_7_6_2_CHANGELOG.txt",
+      "sha256": "72c7ef0197a5cee45acf629cb901ac5af4cd9d377a030ab1d723904e88284e6e",
+      "bytes": 843
+    },
+    {
+      "path": "V8_7_6_3_CHANGELOG.txt",
+      "sha256": "73bf7765efdd965ed4a7226879df7ced10153f424a4fa9b45936e149ef76eb60",
+      "bytes": 743
+    },
+    {
+      "path": "V8_7_6_4_CHANGELOG.txt",
+      "sha256": "4947b63bfba8f686d5b20c3206b17cd993cdbf1af11d0b0b4f0caf8ce30efce1",
+      "bytes": 850
+    },
+    {
+      "path": "V8_7_6_6_CHANGELOG.txt",
+      "sha256": "5542cf9344d8a6470530c0f56959faa11dba38a7f1605daf619464397d66f7e6",
+      "bytes": 738
+    },
+    {
+      "path": "V8_7_6_7_CHANGELOG.txt",
+      "sha256": "8e63dc1af06defb60224c763413c83ed98d9761fcf93cfd6558e5da3a10b4b0b",
+      "bytes": 955
+    },
+    {
+      "path": "V8_7_6_8_CHANGELOG.txt",
+      "sha256": "95f8ca28e3868a61ca97e8674751c2f10cfbe7c817b2485c3ff1f6892385e2a2",
+      "bytes": 795
+    },
+    {
+      "path": "V8_7_6_CHANGELOG.txt",
+      "sha256": "a57ad4c425fb1f42ff990c1e44db33543ce72eb3febddf8aa00701800b95dcb7",
+      "bytes": 1253
+    },
+    {
+      "path": "V8_7_RPG_VISUAL_PASS_NOTES.txt",
+      "sha256": "dd5dee3a76ab1cfb9b6f1f09eda3b4aba8a327ff624f30d1fb36c7b8e7e9f9bf",
+      "bytes": 2669
+    }
+  ]
 }

@@ -237,6 +237,24 @@ internal static class SetupCore
         return result;
     }
 
+    internal static string BundledModuleLabel(string payloadRoot, string directoryName, string expectedId)
+    {
+        try
+        {
+            string manifestPath = Path.Combine(payloadRoot, "code_mods", directoryName, "mod.json");
+            SetupModuleManifest manifest = ReadModuleManifest(manifestPath);
+            if (manifest == null || !String.Equals(manifest.id, expectedId, StringComparison.Ordinal))
+                return expectedId;
+            string name = String.IsNullOrWhiteSpace(manifest.name) ? expectedId : manifest.name.Trim();
+            string version = String.IsNullOrWhiteSpace(manifest.version) ? "" : manifest.version.Trim();
+            return version.Length == 0 ? name : name + " " + version;
+        }
+        catch
+        {
+            return expectedId;
+        }
+    }
+
     internal static bool IsModuleInstalled(string gameRoot, string directoryName, string expectedId)
     {
         try
@@ -1081,14 +1099,16 @@ internal sealed class MainForm : Form
         hostComponent.Enabled = false;
         components.Controls.Add(hostComponent);
 
-        awsComponent.Text = "Advanced World Settings 0.6.2";
+        awsComponent.Text = SetupCore.BundledModuleLabel(
+            payloadRoot, "AdvancedWorldSettings", "advanced_world_settings");
         awsComponent.Left = 18;
         awsComponent.Top = 54;
         awsComponent.Width = 390;
         awsComponent.Checked = true;
         components.Controls.Add(awsComponent);
 
-        survivorComponent.Text = "Survivor Progression 0.11.3";
+        survivorComponent.Text = SetupCore.BundledModuleLabel(
+            payloadRoot, "SurvivorProgression", "survivor_progression");
         survivorComponent.Left = 18;
         survivorComponent.Top = 83;
         survivorComponent.Width = 390;

@@ -110,13 +110,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'ncmm-aws-v0.6.2'
+          $version = [string](Get-Content 'mods/AdvancedWorldSettings/mod.json' -Raw | ConvertFrom-Json).version
+          $hostVersion = [string](Get-Content 'components/ncmm_host.json' -Raw | ConvertFrom-Json).version
+          $tag = "ncmm-aws-v$version"
           cmd /c "gh release view $tag >nul 2>nul"
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title 'Advanced World Settings v0.6.2' --notes 'Independent NCMM native module. Requires NCMM Host 0.8.0. Recommended installation: NCMM_Setup.exe component selection.'
+            gh release create $tag --title "Advanced World Settings v$version" --notes "Independent NCMM native module. Requires NCMM Host $hostVersion. Recommended installation: NCMM_Setup.exe component selection."
             if ($LASTEXITCODE -ne 0) { throw 'Could not create AWS module release.' }
           }
-          gh release upload $tag 'dist/NCMM_AdvancedWorldSettings_v0.6.2.zip' --clobber
+          gh release upload $tag "dist/NCMM_AdvancedWorldSettings_v$version.zip" --clobber
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload AWS module package.' }
 
       - name: Publish Survivor Progression release
@@ -125,11 +127,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'ncmm-survivor-v0.11.3'
+          $version = [string](Get-Content 'mods/SurvivorProgression/mod.json' -Raw | ConvertFrom-Json).version
+          $hostVersion = [string](Get-Content 'components/ncmm_host.json' -Raw | ConvertFrom-Json).version
+          $tag = "ncmm-survivor-v$version"
           cmd /c "gh release view $tag >nul 2>nul"
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title 'Survivor Progression v0.11.3' --notes 'Independent NCMM native module. Requires NCMM Host 0.8.0. Recommended installation: NCMM_Setup.exe component selection.'
+            gh release create $tag --title "Survivor Progression v$version" --notes "Independent NCMM native module. Requires NCMM Host $hostVersion. Recommended installation: NCMM_Setup.exe component selection."
             if ($LASTEXITCODE -ne 0) { throw 'Could not create Survivor module release.' }
           }
-          gh release upload $tag 'dist/NCMM_SurvivorProgression_v0.11.3.zip' --clobber
+          gh release upload $tag "dist/NCMM_SurvivorProgression_v$version.zip" --clobber
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload Survivor module package.' }
