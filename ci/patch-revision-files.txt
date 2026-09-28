@@ -1,0 +1,17 @@
+# Inputs whose canonical content defines a certified Host build recipe.
+# The cumulative payload itself is not hashed wholesale; function bodies named by
+# ci/host-patch-stack.json are hashed separately by ci/Get-PatchRevision.ps1.
+host_patch/Apply-NCMMHostPatch.ps1
+compat/survivor_mod_mechanics_v82.contract.txt
+compat/world_settings_v2_geography.contract.txt
+sdk/ncmm_api.h
+host_patch/ncmm_loader.h
+host_patch/ncmm_loader.cpp
+host_patch/ncmm_fault_policy.h
+host_patch/ncmm_manifest_policy.h
+compat/contracts.json
+ci/Test-SourceContracts.ps1
+ci/host-patch-stack.json
+ci/Get-NcmmCurrentVersion.ps1
+ci/Build-HostPackage.ps1
+ci/Get-PatchRevision.ps1
