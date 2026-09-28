@@ -3632,7 +3632,7 @@ void show_manager()
                              entry.disabled ? tr_ui( "Enable mod", "Включить мод" ) :
                              tr_ui( "Disable mod", "Выключить мод" ) );
             action.query();
-            if( action.ret == open_index ) manager_open_module_ui( entry );
+            if( open_index >= 0 && action.ret == open_index ) manager_open_module_ui( entry );
             else if( action.ret == toggle_index ) manager_toggle_module( entry );
             continue;
         }
