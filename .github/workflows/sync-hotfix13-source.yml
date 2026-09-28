@@ -103,11 +103,16 @@ jobs:
             throw "Generated NCMM work tree missing."
           }
 
-          $survivorManifestPath = Join-Path $generated "mods\SurvivorProgression\mod.json"
+          # Survivor's cumulative transform intentionally lives in survivor_0910_src;
+          # ncmm_0910_work is the host/AWS work tree and is only mirrored back to 0.9.15
+          # before the later 0.9.16 -> 0.11.3 module-only passes.
+          $survivorGenerated = Join-Path $buildRoot "survivor_0910_src"
+          $survivorManifestPath = Join-Path $survivorGenerated "mod.json"
+          $survivorCppPath = Join-Path $survivorGenerated "src\survivor_progression.cpp"
           $awsManifestPath = Join-Path $generated "mods\AdvancedWorldSettings\mod.json"
           $sdkPath = Join-Path $generated "sdk\ncmm_api.h"
           $loaderPath = Join-Path $generated "host_patch\ncmm_loader.cpp"
-          foreach ($required in @($survivorManifestPath,$awsManifestPath,$sdkPath,$loaderPath)) {
+          foreach ($required in @($survivorManifestPath,$survivorCppPath,$awsManifestPath,$sdkPath,$loaderPath)) {
             if (-not (Test-Path $required -PathType Leaf)) {
               throw "Generated source is incomplete: $required"
             }
@@ -135,8 +140,9 @@ jobs:
             throw "Generated Host is missing the chargen lifecycle guard."
           }
 
-          # Replace source-owned trees with their fully transformed output.
-          foreach ($dir in @("host_patch","mods","runtime","sdk","tests","ci")) {
+          # Replace only trees owned by the transformed Host source. Keep repository CI/tests
+          # that are newer than the immutable 0.9.9 seed.
+          foreach ($dir in @("host_patch","runtime","sdk")) {
             $src = Join-Path $generated $dir
             if (-not (Test-Path $src -PathType Container)) { continue }
             $dst = Join-Path $env:GITHUB_WORKSPACE $dir
@@ -145,8 +151,31 @@ jobs:
             Copy-Item (Join-Path $src "*") $dst -Recurse -Force
           }
 
-          New-Item -ItemType Directory -Force (Join-Path $env:GITHUB_WORKSPACE "compat") | Out-Null
-          Copy-Item (Join-Path $generated "compat\contracts.json") (Join-Path $env:GITHUB_WORKSPACE "compat\contracts.json") -Force
+          # AWS is transformed directly inside ncmm_0910_work.
+          $awsSrc = Join-Path $generated "mods\AdvancedWorldSettings"
+          $awsDst = Join-Path $env:GITHUB_WORKSPACE "mods\AdvancedWorldSettings"
+          if (Test-Path $awsDst) { Remove-Item $awsDst -Recurse -Force }
+          New-Item -ItemType Directory -Force $awsDst | Out-Null
+          Copy-Item (Join-Path $awsSrc "*") $awsDst -Recurse -Force
+
+          # Survivor 0.9.16 -> 0.11.3 lives in survivor_0910_src. Preserve repository
+          # build/docs files but replace the authoritative manifest and C++ source.
+          $survivorDst = Join-Path $env:GITHUB_WORKSPACE "mods\SurvivorProgression"
+          New-Item -ItemType Directory -Force (Join-Path $survivorDst "src") | Out-Null
+          Copy-Item $survivorManifestPath (Join-Path $survivorDst "mod.json") -Force
+          Copy-Item $survivorCppPath (Join-Path $survivorDst "src\survivor_progression.cpp") -Force
+
+          # Generated compatibility/source-revision inputs are additive.
+          $generatedCompat = Join-Path $generated "compat"
+          $repoCompat = Join-Path $env:GITHUB_WORKSPACE "compat"
+          New-Item -ItemType Directory -Force $repoCompat | Out-Null
+          if (Test-Path $generatedCompat -PathType Container) {
+            Copy-Item (Join-Path $generatedCompat "*") $repoCompat -Recurse -Force
+          }
+          $generatedRevision = Join-Path $generated "ci\Get-PatchRevision.ps1"
+          if (Test-Path $generatedRevision -PathType Leaf) {
+            Copy-Item $generatedRevision (Join-Path $env:GITHUB_WORKSPACE "ci\Get-PatchRevision.ps1") -Force
+          }
 
           # Overlay the exact Infrastructure 0.8.3.1 package additively.
           # Package-owned infrastructure becomes byte-identical to HOTFIX13 while repository-only
