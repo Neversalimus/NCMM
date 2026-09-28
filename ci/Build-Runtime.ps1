@@ -222,9 +222,10 @@ foreach ($requiredManifestPolicyFragment in @(
 }
 
 $setupSourceText = Get-Content (Join-Path $RepositoryRoot 'runtime\NCMMSetup.cs') -Raw
-$diagnosticsTitle = "NCMM v$hostVersion Diagnostics 2.0"
+$setupRuntimeVersionMarker = 'internal const string RuntimeVersion = "' + $hostVersion + '";'
 foreach ($requiredDiagnosticsFragment in @(
-    $diagnosticsTitle,
+    $setupRuntimeVersionMarker,
+    'sb.AppendLine("NCMM v" + RuntimeVersion + " Diagnostics 2.0");',
     '=== Manifest / Duplicate-ID Scan ===',
     '=== Bootstrap Runtime State ===',
     '=== Host Module State ===',
