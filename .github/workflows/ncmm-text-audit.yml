@@ -13,6 +13,7 @@ on:
       - 'ci/Test-SourceContracts.ps1'
       - 'ci/Test-Infrastructure083.ps1'
       - 'ci/Test-ComponentCatalog.ps1'
+      - 'ci/Test-InstallerTransaction.ps1'
       - 'ci/Regenerate-PackageIntegrity.ps1'
       - 'compat/package-files.txt'
       - 'compat/package.integrity.json'
