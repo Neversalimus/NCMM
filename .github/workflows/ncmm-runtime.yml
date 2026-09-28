@@ -9,6 +9,7 @@ on:
       - 'components/**'
       - 'sdk/**'
       - 'ci/Build-Runtime.ps1'
+      - 'ci/Get-NcmmCurrentVersion.ps1'
       - 'ci/Test-TextEncoding.ps1'
       - 'ci/Test-VersionConsistency.ps1'
       - 'ci/Test-BootstrapFailureHarness.ps1'
