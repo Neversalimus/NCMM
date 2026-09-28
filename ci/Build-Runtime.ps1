@@ -12,12 +12,11 @@ $payload = Join-Path $OutputRoot 'payload'
 New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\AdvancedWorldSettings') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\SurvivorProgression') | Out-Null
 
-$hostDescriptor = Get-Content (Join-Path $RepositoryRoot 'components\ncmm_host.json') -Raw | ConvertFrom-Json
 $awsManifestPath = Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings\mod.json'
 $survivorManifestPath = Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json'
 $awsManifestSource = Get-Content $awsManifestPath -Raw | ConvertFrom-Json
 $survivorManifestSource = Get-Content $survivorManifestPath -Raw | ConvertFrom-Json
-$hostVersion = [string]$hostDescriptor.version
+$hostVersion = (& (Join-Path $RepositoryRoot 'ci\Get-NcmmCurrentVersion.ps1') -RepositoryRoot $RepositoryRoot).Trim()
 $awsVersion = [string]$awsManifestSource.version
 $survivorVersion = [string]$survivorManifestSource.version
 foreach($pair in @(
