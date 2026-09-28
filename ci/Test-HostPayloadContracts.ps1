@@ -23,10 +23,10 @@ foreach($badPsQuoteEscape in @( "\'.\'", "\'\\n\'" )){
     }
 }
 
-if([string]$m.host_version -ne '0.8.0' -or [string]$m.ncmm_api -ne '1.9' -or [string]$m.host_api_v2 -ne '2.0'){throw 'Host API 2.0 Core manifest identity mismatch.'}
+if([string]$m.host_version -ne '0.8.1' -or [string]$m.ncmm_api -ne '1.9' -or [string]$m.host_api_v2 -ne '2.0'){throw 'Host API 2.0 Core manifest identity mismatch.'}
 foreach($cap in @('host_api.v2.core','events.core.v2','settings.typed.v2','character.modifiers.v2','runtime_hooks.registry.v2','worldgen.bindings.v2','module.lifecycle.query.v2')){if(@($m.self_test.required_capabilities) -notcontains $cap){throw "Host API 2.0 required capability missing: $cap"}}
 $hostComponent=Get-Content (Join-Path $PackageRoot 'components\ncmm_host.json') -Raw|ConvertFrom-Json
-if([string]$hostComponent.version -ne '0.8.0' -or @($hostComponent.provides) -notcontains 'host_api_v2:2.0'){throw 'Host API 2.0 component catalog mismatch.'}
+if([string]$hostComponent.version -ne '0.8.1' -or @($hostComponent.provides) -notcontains 'host_api_v2:2.0'){throw 'Host API 2.0 component catalog mismatch.'}
 foreach($n in @('function Apply-NcmmHostApi20Core','#define NCMM_HOST_API_V2_CORE_MAJOR 2u','typedef struct ncmm_host_api_v2_core {','const ncmm_host_api_v2_core api_v2_core = {','runtime_hook_bind_modifier_v2','worldgen_hook_bind_setting_v2','Apply-NcmmHostApi20Core')){if(-not $payload.Contains($n)){throw "Host API 2.0 payload contract missing: $n"}}
 # Patched-source audit must distinguish the required query_interface_v2 forward declaration
 # from its single implementation.  A raw substring count is intentionally invalid because both
@@ -231,4 +231,12 @@ $deferPos0831=$payload.IndexOf('name.rfind( "NCMM_", 0 ) == 0')
 $registerPos0831=$payload.IndexOf('bool options_manager::ncmm_register_world_bool(')
 if($deferPos0831 -lt 0 -or $registerPos0831 -lt 0 -or $deferPos0831 -gt $registerPos0831){throw 'Deferred NCMM deserialize gate must be generated before runtime setting registration implementations.'}
 
+foreach($n in @(
+    'Apply-NcmmManagerUiV1Source',
+    'module_setting_meta',
+    'manager_adjust_setting',
+    'NCMM_MANAGER',
+    'MODULE DETAILS',
+    'СВЕДЕНИЯ О МОДЕ'
+)){if(-not $payload.Contains($n)){throw ('NCMM manager/settings payload contract missing: '+$n)}}
 Write-Host 'NCMM Host/AWS payload regression contract: PASS' -ForegroundColor Green
