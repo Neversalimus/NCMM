@@ -1,0 +1,47 @@
+name: NCMM Experimental Watch
+
+"on":
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: ncmm-experimental-watch
+  cancel-in-progress: true
+
+jobs:
+  watch:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check latest CDDA experimental
+        id: watch
+        shell: powershell
+        continue-on-error: true
+        run: |
+          .\ci\Watch-CDDAExperimental.ps1 -PackageRoot $PWD.Path -OutputDir (Join-Path $PWD 'watch-output')
+      - name: Resolve watcher result
+        id: result
+        shell: powershell
+        run: |
+          $r = Get-Content .\watch-output\latest-experimental.json -Raw | ConvertFrom-Json
+          "commit=$($r.commit)" >> $env:GITHUB_OUTPUT
+          "tag=$($r.tag)" >> $env:GITHUB_OUTPUT
+          "known=$($r.known.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+      - name: Request SourceOnly certification for unknown experimental
+        if: steps.result.outputs.known == 'false'
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run ncmm-certify.yml -f commit='${{ steps.result.outputs.commit }}' -f tag='${{ steps.result.outputs.tag }}' -f mode='SourceOnly'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ncmm-experimental-watch
+          path: watch-output/**
+          retention-days: 14
