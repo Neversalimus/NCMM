@@ -98,6 +98,14 @@ jobs:
 
           $generated = Join-Path $buildRoot 'ncmm_0910_work'
           if(-not(Test-Path $generated -PathType Container)){throw 'Generated source tree missing.'}
+
+          $generatedSurvivor = Join-Path $generated 'mods\SurvivorProgression\src\survivor_progression.cpp'
+          $repoSurvivor = Join-Path $env:GITHUB_WORKSPACE 'mods\SurvivorProgression\src\survivor_progression.cpp'
+          Write-Host ('Generated Survivor SHA256: ' + (Get-FileHash -LiteralPath $generatedSurvivor -Algorithm SHA256).Hash)
+          Write-Host ('Repository Survivor SHA256: ' + (Get-FileHash -LiteralPath $repoSurvivor -Algorithm SHA256).Hash)
+          Select-String -LiteralPath $generatedSurvivor -Pattern 'rpg_detail_body|DRAWBACK:|TRADEOFF:' -SimpleMatch:$false |
+            ForEach-Object { Write-Host ('GENERATED COPY: ' + $_.LineNumber + ': ' + $_.Line.Trim()) }
+
           .\ci\Test-UserFacingCopy.ps1 -SourceRoot $generated
 
           foreach($rel in @(
