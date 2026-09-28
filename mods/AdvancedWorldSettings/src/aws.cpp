@@ -21,15 +21,15 @@ struct option_desc {
 };
 
 const option_desc options_en[] = {
-    { "SPAWN_DENSITY", "Monster spawn density", "Multiplier for monster spawn density. 1.00 is the vanilla default." },
-    { "ITEM_SPAWNRATE", "Item spawn rate", "Multiplier for generated item quantity. 1.00 is the vanilla default." },
-    { "MONSTER_SPEED", "Monster speed", "Global monster speed percentage. 100% is the vanilla default." },
-    { "MONSTER_RESILIENCE", "Monster resilience", "Global monster health percentage. 100% is the vanilla default." },
+    { "SPAWN_DENSITY", "Monster spawn density", "Multiplier for monster spawn density. 1.00 is the default." },
+    { "ITEM_SPAWNRATE", "Item spawn rate", "Multiplier for generated item quantity. 1.00 is the default." },
+    { "MONSTER_SPEED", "Monster speed", "Global monster speed percentage. 100% is the default." },
+    { "MONSTER_RESILIENCE", "Monster resilience", "Global monster health percentage. 100% is the default." },
     { "EVOLUTION_INVERSE_MULTIPLIER", "Monster evolution time multiplier", "Higher values slow evolution; 0 disables upgrades where supported." },
-    { "SEASON_LENGTH", "Season length (days)", "[RELOAD] Number of days in each season. CDDA default is 91." },
+    { "SEASON_LENGTH", "Season length (days)", "Requires world reload. Number of days in each season. CDDA default is 91." },
     { "CONSTRUCTION_SCALING", "Construction time scaling", "Percentage of base construction time. 100% is normal; 50% is twice as fast." },
-    { "ETERNAL_SEASON", "Eternal season", "[RELOAD] Stops normal season progression." },
-    { "ETERNAL_TIME_OF_DAY", "Fixed time of day", "[RELOAD] Normal time flow, permanent day, or permanent night." }
+    { "ETERNAL_SEASON", "Eternal season", "Requires world reload. Stops normal season progression." },
+    { "ETERNAL_TIME_OF_DAY", "Fixed time of day", "Requires world reload. Normal time flow, permanent day, or permanent night." }
 };
 const option_desc options_ru[] = {
     { "SPAWN_DENSITY", "Плотность монстров", "Множитель плотности появления монстров. 1,00 — стандарт." },
@@ -37,10 +37,10 @@ const option_desc options_ru[] = {
     { "MONSTER_SPEED", "Скорость монстров", "Глобальная скорость монстров в процентах. 100% — стандарт." },
     { "MONSTER_RESILIENCE", "Живучесть монстров", "Глобальный запас здоровья монстров в процентах. 100% — стандарт." },
     { "EVOLUTION_INVERSE_MULTIPLIER", "Время эволюции монстров", "Большие значения замедляют эволюцию; 0 отключает улучшения там, где это поддерживается." },
-    { "SEASON_LENGTH", "Длина сезона (дни)", "[ПЕРЕЗАГРУЗКА] Количество дней в сезоне. Стандарт CDDA — 91." },
+    { "SEASON_LENGTH", "Длина сезона (дни)", "Нужна перезагрузка мира. Количество дней в сезоне. Стандарт CDDA — 91." },
     { "CONSTRUCTION_SCALING", "Время строительства", "Процент от базового времени. 100% — стандарт; 50% — вдвое быстрее." },
-    { "ETERNAL_SEASON", "Вечный сезон", "[ПЕРЕЗАГРУЗКА] Останавливает обычную смену сезонов." },
-    { "ETERNAL_TIME_OF_DAY", "Фиксированное время суток", "[ПЕРЕЗАГРУЗКА] Обычный цикл, постоянный день или постоянная ночь." }
+    { "ETERNAL_SEASON", "Вечный сезон", "Нужна перезагрузка мира. Останавливает обычную смену сезонов." },
+    { "ETERNAL_TIME_OF_DAY", "Фиксированное время суток", "Нужна перезагрузка мира. Обычный цикл, постоянный день или постоянная ночь." }
 };
 
 bool russian( const ncmm_host_api_v1 *api ) {
@@ -91,71 +91,71 @@ bool geography( const ncmm_host_api_v1 *api, bool ru ) {
     auto end = [&]() { api->worldgen_group_end(); };
 
     if( !begin( "aws_geo_city", "Cities and infrastructure", "Города и инфраструктура",
-                "[NEW MAP] Affects only overmaps generated after the change.",
-                "[НОВАЯ КАРТА] Влияет только на овермапы, созданные после изменения." ) ) return false;
-    ok &= reg_bool( api,ru,"NCMM_AWS_CUSTOM_GEOGRAPHY","Use custom geography","Использовать свою географию","OFF preserves the active region/mod geography exactly. Turn ON to apply the controls below to newly generated default-region overmaps.","ВЫКЛ сохраняет географию активного региона/модов без изменений. Включите, чтобы применять параметры ниже к новым овермапам стандартного региона.",false );
-    ok &= reg_int( api,ru,"NCMM_AWS_CITY_SIZE","Base city size","Базовый размер города","0 disables random cities; vanilla 8.","0 отключает случайные города; стандарт 8.",0,32,8 );
-    ok &= reg_int( api,ru,"NCMM_AWS_CITY_SPACING","City spacing","Расстояние между городами","Higher values produce fewer cities; vanilla 4.","Чем выше значение, тем реже города; стандарт 4.",0,8,4 );
-    ok &= reg_int( api,ru,"NCMM_AWS_MAX_URBANITY","Maximum urbanity multiplier","Максимальная урбанизация","Caps regional city-size amplification; vanilla 8.","Ограничивает региональное увеличение городов; стандарт 8.",1,16,8 );
-    ok &= reg_bool( api,ru,"NCMM_AWS_MEGACITY","Megacity generation","Мегаполис","Uses CDDA megacity placement for newly generated overmaps. Very dense and heavier to generate.","Использует режим мегаполиса CDDA для новых овермапов. Очень плотная и более тяжёлая генерация.",false );
-    ok &= reg_int( api,ru,"NCMM_AWS_SHOP_RADIUS","Shop radius","Радиус магазинов","Controls how far shop candidates extend from the city center; larger values generally produce shops across more of the city. 0 effectively disables shop selection through this radius check. CDDA 0546 default is 30.","Управляет тем, насколько далеко от центра города могут выбираться магазины; большие значения обычно распространяют магазины на большую часть города. 0 фактически отключает выбор магазинов через эту проверку радиуса. Стандарт CDDA 0546 — 30.",0,200,30 );
-    ok &= reg_int( api,ru,"NCMM_AWS_SHOP_SIGMA","Shop distribution sigma","Разброс магазинов","Random spread for shop radius. CDDA 0546 default is 50.","Случайный разброс радиуса магазинов. Стандарт CDDA 0546 — 50.",0,200,50 );
-    ok &= reg_int( api,ru,"NCMM_AWS_PARK_RADIUS","Park radius","Радиус парков","Controls how far park candidates extend from the city center; larger values generally produce parks across more of the city. 0 effectively disables park selection through this radius check. CDDA 0546 default is 20.","Управляет тем, насколько далеко от центра города могут выбираться парки; большие значения обычно распространяют парки на большую часть города. 0 фактически отключает выбор парков через эту проверку радиуса. Стандарт CDDA 0546 — 20.",0,200,20 );
-    ok &= reg_int( api,ru,"NCMM_AWS_PARK_SIGMA","Park distribution sigma","Разброс парков","Random spread for park radius. CDDA 0546 default is 80.","Случайный разброс радиуса парков. Стандарт CDDA 0546 — 80.",0,200,80 );
+                "Affects only areas generated after this change.",
+                "Влияет только на новые области, созданные после изменения." ) ) return false;
+    ok &= reg_bool( api,ru,"NCMM_AWS_CUSTOM_GEOGRAPHY","Use custom geography","Использовать свою географию","Leave this off to use the world's normal geography. Turn it on to customize areas generated from now on.","Оставьте выключенным для обычной географии мира. Включите, чтобы настраивать области, которые будут созданы после изменения.",false );
+    ok &= reg_int( api,ru,"NCMM_AWS_CITY_SIZE","Base city size","Базовый размер города","0 disables random cities; default 8.","0 отключает случайные города; стандарт 8.",0,32,8 );
+    ok &= reg_int( api,ru,"NCMM_AWS_CITY_SPACING","City spacing","Расстояние между городами","Higher values produce fewer cities; default 4.","Чем выше значение, тем реже города; стандарт 4.",0,8,4 );
+    ok &= reg_int( api,ru,"NCMM_AWS_MAX_URBANITY","Maximum city growth","Максимальный рост городов","Limits how strongly regional generation can enlarge cities; default 8.","Ограничивает, насколько сильно региональные настройки могут увеличивать города; стандарт 8.",1,16,8 );
+    ok &= reg_bool( api,ru,"NCMM_AWS_MEGACITY","Megacity generation","Мегаполис","Generates new areas as a dense megacity. This can noticeably increase generation time.","Новые области генерируются как плотный мегаполис. Это может заметно увеличить время генерации.",false );
+    ok &= reg_int( api,ru,"NCMM_AWS_SHOP_RADIUS","Shop radius","Радиус магазинов","Controls how far from the city center shops may appear. Larger values spread shops farther out; 0 prevents shops from being placed by this rule. CDDA 0546 default is 30.","Определяет, насколько далеко от центра города могут появляться магазины. Чем выше значение, тем дальше они распространяются; 0 запрещает размещение магазинов по этому правилу. Стандарт CDDA 0546 — 30.",0,200,30 );
+    ok &= reg_int( api,ru,"NCMM_AWS_SHOP_SIGMA","Shop spread","Разброс магазинов","Controls how widely shops are scattered around the city center. CDDA 0546 default is 50.","Определяет, насколько широко магазины распределяются вокруг центра города. Стандарт CDDA 0546 — 50.",0,200,50 );
+    ok &= reg_int( api,ru,"NCMM_AWS_PARK_RADIUS","Park radius","Радиус парков","Controls how far from the city center parks may appear. Larger values spread parks farther out; 0 prevents parks from being placed by this rule. CDDA 0546 default is 20.","Определяет, насколько далеко от центра города могут появляться парки. Чем выше значение, тем дальше они распространяются; 0 запрещает размещение парков по этому правилу. Стандарт CDDA 0546 — 20.",0,200,20 );
+    ok &= reg_int( api,ru,"NCMM_AWS_PARK_SIGMA","Park spread","Разброс парков","Controls how widely parks are scattered around the city center. CDDA 0546 default is 80.","Определяет, насколько широко парки распределяются вокруг центра города. Стандарт CDDA 0546 — 80.",0,200,80 );
     ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_ROADS","Generate roads","Генерировать дороги","Disables new inter-city roads when off.","Отключает новые межгородские дороги.",true );
     ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_RAILROADS","Generate railroads","Генерировать железные дороги","Disables new railroads when off.","Отключает новые железные дороги.",true );
-    ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_SPECIALS","Generate overmap specials","Генерировать особые локации","Controls placement of new overmap specials.","Управляет размещением новых особых локаций.",true );
-    ok &= reg_bool( api,ru,"NCMM_AWS_NEIGHBOR_CONNECTIONS","Connect neighboring overmaps","Связывать соседние овермапы","Keeps roads/rails/rivers continuous across overmap borders.","Сохраняет непрерывность дорог, рельсов и рек между овермапами.",true );
+    ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_SPECIALS","Generate special locations","Генерировать особые локации","Controls placement of new special locations.","Управляет размещением новых особых локаций.",true );
+    ok &= reg_bool( api,ru,"NCMM_AWS_NEIGHBOR_CONNECTIONS","Connect neighboring map regions","Связывать соседние области карты","Keeps roads, rail lines and rivers continuous across map-region borders.","Сохраняет непрерывность дорог, железных дорог и рек между областями карты.",true );
     end(); if( !ok ) return false;
 
     if( !begin( "aws_geo_forest", "Forests, swamps and trails", "Леса, болота и тропы",
-                "[NEW MAP] Lower noise thresholds create more of that terrain.",
-                "[НОВАЯ КАРТА] Чем ниже порог шума, тем больше соответствующего ландшафта." ) ) return false;
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_FORESTS","Generate forests","Генерировать леса","Master switch for new forests.","Главный переключатель новых лесов.",true );
+                "Lower threshold values generate more of the selected terrain in new areas.",
+                "Чем ниже порог, тем больше соответствующего ландшафта появится в новых областях." ) ) return false;
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_FORESTS","Generate forests","Генерировать леса","Turns forest generation on or off in new areas.","Включает или отключает леса в новых областях.",true );
     ok &= reg_float( api,ru,"NCMM_AWS_FOREST_THRESHOLD","Forest threshold","Порог леса","Lower = more forest. CDDA 0546 default is 0.20.","Ниже = больше леса. Стандарт CDDA 0546 — 0,20.",0.0,1.0,0.20,0.01 );
     ok &= reg_float( api,ru,"NCMM_AWS_FOREST_THICK_THRESHOLD","Dense forest threshold","Порог густого леса","Lower = more dense forest. CDDA 0546 default is 0.25.","Ниже = больше густого леса. Стандарт CDDA 0546 — 0,25.",0.0,1.0,0.25,0.01 );
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_SWAMPS","Generate swamps","Генерировать болота","Master switch for new swamps.","Главный переключатель новых болот.",true );
-    ok &= reg_float( api,ru,"NCMM_AWS_SWAMP_ADJ_THRESHOLD","Floodplain swamp threshold","Порог пойменных болот","Lower = more river-adjacent swamp. Vanilla 0.30.","Ниже = больше болот у рек. Стандарт 0,30.",0.0,1.0,0.30,0.01 );
-    ok &= reg_float( api,ru,"NCMM_AWS_SWAMP_ISOLATED_THRESHOLD","Isolated swamp threshold","Порог изолированных болот","Lower = more isolated swamp. Vanilla 0.60.","Ниже = больше отдельных болот. Стандарт 0,60.",0.0,1.0,0.60,0.01 );
-    ok &= reg_int( api,ru,"NCMM_AWS_FLOODPLAIN_MIN","Floodplain radius minimum","Минимальный радиус поймы","Minimum river floodplain buffer. Vanilla 3.","Минимальный буфер поймы реки. Стандарт 3.",0,30,3 );
-    ok &= reg_int( api,ru,"NCMM_AWS_FLOODPLAIN_MAX","Floodplain radius maximum","Максимальный радиус поймы","Maximum river floodplain buffer. Vanilla 15.","Максимальный буфер поймы реки. Стандарт 15.",0,60,15 );
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_TRAILS","Generate forest trails","Генерировать лесные тропы","Master switch for new forest trails and trailheads.","Главный переключатель новых лесных троп и входов.",true );
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_SWAMPS","Generate swamps","Генерировать болота","Turns swamp generation on or off in new areas.","Включает или отключает болота в новых областях.",true );
+    ok &= reg_float( api,ru,"NCMM_AWS_SWAMP_ADJ_THRESHOLD","Floodplain swamp threshold","Порог пойменных болот","Lower = more river-adjacent swamp. Default 0.30.","Ниже = больше болот у рек. Стандарт 0,30.",0.0,1.0,0.30,0.01 );
+    ok &= reg_float( api,ru,"NCMM_AWS_SWAMP_ISOLATED_THRESHOLD","Isolated swamp threshold","Порог изолированных болот","Lower = more isolated swamp. Default 0.60.","Ниже = больше отдельных болот. Стандарт 0,60.",0.0,1.0,0.60,0.01 );
+    ok &= reg_int( api,ru,"NCMM_AWS_FLOODPLAIN_MIN","Floodplain radius minimum","Минимальный радиус поймы","Minimum river floodplain buffer. Default 3.","Минимальный буфер поймы реки. Стандарт 3.",0,30,3 );
+    ok &= reg_int( api,ru,"NCMM_AWS_FLOODPLAIN_MAX","Floodplain radius maximum","Максимальный радиус поймы","Maximum river floodplain buffer. Default 15.","Максимальный буфер поймы реки. Стандарт 15.",0,60,15 );
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_TRAILS","Generate forest trails","Генерировать лесные тропы","Turns forest trails and trailheads on or off in new areas.","Включает или отключает лесные тропы и выходы к дорогам в новых областях.",true );
     ok &= reg_int( api,ru,"NCMM_AWS_TRAIL_CHANCE","Forest trail chance (1 in X)","Шанс лесной тропы (1 из X)","1 means every qualifying forest; CDDA 0546 default is 2.","1 означает каждый подходящий лес; стандарт CDDA 0546 — 2.",1,32,2 );
     ok &= reg_int( api,ru,"NCMM_AWS_TRAIL_MIN_FOREST","Minimum forest size for trails","Минимальный лес для троп","Minimum contiguous forest tiles; CDDA 0546 default is 100.","Минимальный размер связного леса; стандарт CDDA 0546 — 100.",1,1000,100 );
-    ok &= reg_int( api,ru,"NCMM_AWS_TRAILHEAD_CHANCE","Trailhead chance (1 in X)","Шанс входа на тропу (1 из X)","1 means every eligible trail end; vanilla 1.","1 означает каждый подходящий конец тропы; стандарт 1.",1,32,1 );
-    ok &= reg_int( api,ru,"NCMM_AWS_TRAILHEAD_ROAD_DISTANCE","Trailhead road distance","Дистанция тропы до дороги","Maximum road-search radius for a trailhead; vanilla 6.","Радиус поиска дороги для входа на тропу; стандарт 6.",1,30,6 );
+    ok &= reg_int( api,ru,"NCMM_AWS_TRAILHEAD_CHANCE","Trailhead chance (1 in X)","Шанс входа на тропу (1 из X)","1 means every eligible trail end; default 1.","1 означает каждый подходящий конец тропы; стандарт 1.",1,32,1 );
+    ok &= reg_int( api,ru,"NCMM_AWS_TRAILHEAD_ROAD_DISTANCE","Trailhead road distance","Дистанция тропы до дороги","Maximum road-search radius for a trailhead; default 6.","Радиус поиска дороги для входа на тропу; стандарт 6.",1,30,6 );
     end(); if( !ok ) return false;
 
     if( !begin( "aws_geo_water", "Rivers, lakes and oceans", "Реки, озёра и океаны",
-                "[NEW MAP] Water-generation controls for newly generated overmaps.",
-                "[НОВАЯ КАРТА] Настройки воды для новых овермапов." ) ) return false;
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_RIVERS","Generate rivers","Генерировать реки","Master switch for new rivers.","Главный переключатель новых рек.",true );
-    ok &= reg_int( api,ru,"NCMM_AWS_RIVER_SCALE","River width scale","Масштаб ширины рек","0 disables rivers; vanilla region value is 1.","0 отключает реки; стандарт региона 1.",0,5,1 );
-    ok &= reg_float( api,ru,"NCMM_AWS_RIVER_FREQUENCY","River frequency divisor","Редкость рек","Higher = fewer new major rivers. Vanilla 1.5.","Выше = меньше новых крупных рек. Стандарт 1,5.",1.0,8.0,1.5,0.1 );
-    ok &= reg_int( api,ru,"NCMM_AWS_RIVER_BRANCH_CHANCE","River branch chance (1 in X)","Ветвление рек (1 из X)","Lower = more branches. Vanilla 64.","Ниже = больше ответвлений. Стандарт 64.",1,256,64 );
-    ok &= reg_int( api,ru,"NCMM_AWS_RIVER_REMERGE_CHANCE","Branch remerge chance (1 in X)","Слияние ответвлений (1 из X)","Lower = branches rejoin more often. Vanilla 2.","Ниже = ответвления чаще сливаются. Стандарт 2.",1,64,2 );
-    ok &= reg_float( api,ru,"NCMM_AWS_RIVER_BRANCH_SCALE_DECREASE","Branch width decrease","Уменьшение ширины ответвлений","Width removed from child branches. Vanilla 1.0.","Насколько уже дочерние ответвления. Стандарт 1,0.",0.0,5.0,1.0,0.25 );
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_LAKES","Generate lakes","Генерировать озёра","Master switch for new lakes.","Главный переключатель новых озёр.",true );
-    ok &= reg_float( api,ru,"NCMM_AWS_LAKE_THRESHOLD","Lake threshold","Порог озёр","Lower = more lake terrain. Vanilla 0.25.","Ниже = больше озёр. Стандарт 0,25.",0.0,1.0,0.25,0.01 );
-    ok &= reg_int( api,ru,"NCMM_AWS_LAKE_MIN_SIZE","Minimum lake size","Минимальный размер озера","Rejects smaller lake blobs. Vanilla 20.","Отбрасывает меньшие озёра. Стандарт 20.",1,1000,20 );
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_OCEANS","Generate oceans","Генерировать океаны","Master switch where the current region supports oceans.","Главный переключатель там, где регион поддерживает океан.",true );
-    ok &= reg_float( api,ru,"NCMM_AWS_OCEAN_THRESHOLD","Ocean threshold","Порог океана","Lower = ocean expands more easily where coastline generation is active. Vanilla 0.25.","Ниже = океан легче расширяется там, где активна береговая генерация. Стандарт 0,25.",0.0,1.0,0.25,0.01 );
-    ok &= reg_int( api,ru,"NCMM_AWS_OCEAN_MIN_SIZE","Minimum ocean body size","Минимальный размер океана","Rejects smaller ocean blobs. Vanilla 100.","Отбрасывает меньшие океанские области. Стандарт 100.",1,5000,100 );
+                "Controls rivers, lakes and oceans in newly generated areas.",
+                "Настройки рек, озёр и океанов в новых областях." ) ) return false;
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_RIVERS","Generate rivers","Генерировать реки","Turns river generation on or off in new areas.","Включает или отключает реки в новых областях.",true );
+    ok &= reg_int( api,ru,"NCMM_AWS_RIVER_SCALE","River width scale","Масштаб ширины рек","0 disables rivers; default region value is 1.","0 отключает реки; стандарт региона 1.",0,5,1 );
+    ok &= reg_float( api,ru,"NCMM_AWS_RIVER_FREQUENCY","River frequency","Частота рек","Higher = fewer new major rivers. Default 1.5.","Выше = меньше новых крупных рек. Стандарт 1,5.",1.0,8.0,1.5,0.1 );
+    ok &= reg_int( api,ru,"NCMM_AWS_RIVER_BRANCH_CHANCE","River branch chance (1 in X)","Ветвление рек (1 из X)","Lower = more branches. Default 64.","Ниже = больше ответвлений. Стандарт 64.",1,256,64 );
+    ok &= reg_int( api,ru,"NCMM_AWS_RIVER_REMERGE_CHANCE","Branch merging chance (1 in X)","Слияние рукавов (1 из X)","Lower = river branches merge back more often. Default 2.","Ниже = рукава рек чаще сливаются обратно. Стандарт 2.",1,64,2 );
+    ok &= reg_float( api,ru,"NCMM_AWS_RIVER_BRANCH_SCALE_DECREASE","Branch narrowing","Сужение рукавов","How much narrower each new river branch becomes. Default 1.0.","Насколько уже становится каждый новый рукав. Стандарт 1,0.",0.0,5.0,1.0,0.25 );
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_LAKES","Generate lakes","Генерировать озёра","Turns lake generation on or off in new areas.","Включает или отключает озёра в новых областях.",true );
+    ok &= reg_float( api,ru,"NCMM_AWS_LAKE_THRESHOLD","Lake threshold","Порог озёр","Lower = more lake terrain. Default 0.25.","Ниже = больше озёр. Стандарт 0,25.",0.0,1.0,0.25,0.01 );
+    ok &= reg_int( api,ru,"NCMM_AWS_LAKE_MIN_SIZE","Minimum lake size","Минимальный размер озера","Lakes smaller than this are not generated. Default 20.","Озёра меньше этого размера не генерируются. Стандарт 20.",1,1000,20 );
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_OCEANS","Generate oceans","Генерировать океаны","Turns ocean generation on or off where the current region supports it.","Включает или отключает океаны там, где текущий регион их поддерживает.",true );
+    ok &= reg_float( api,ru,"NCMM_AWS_OCEAN_THRESHOLD","Ocean threshold","Порог океана","Lower = ocean expands more easily where coastline generation is active. Default 0.25.","Ниже = океан легче расширяется там, где активна береговая генерация. Стандарт 0,25.",0.0,1.0,0.25,0.01 );
+    ok &= reg_int( api,ru,"NCMM_AWS_OCEAN_MIN_SIZE","Minimum ocean body size","Минимальный размер океана","Ocean areas smaller than this are not generated. Default 100.","Океанские области меньше этого размера не генерируются. Стандарт 100.",1,5000,100 );
     end(); if( !ok ) return false;
 
     if( !begin( "aws_geo_transport", "Highways and ravines", "Шоссе и овраги",
-                "[NEW MAP] Large-scale transport grid and ravine generation.",
-                "[НОВАЯ КАРТА] Сетка шоссе и генерация оврагов." ) ) return false;
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_HIGHWAYS","Generate highways","Генерировать шоссе","Master switch for new highways.","Главный переключатель новых шоссе.",true );
-    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_ROW","Highway row separation","Расстояние между горизонтальными шоссе","Overmap-grid separation. Vanilla 8.","Шаг сетки овермапов. Стандарт 8.",2,32,8 );
-    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_COLUMN","Highway column separation","Расстояние между вертикальными шоссе","Overmap-grid separation. Vanilla 10.","Шаг сетки овермапов. Стандарт 10.",2,32,10 );
-    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_VARIANCE","Highway grid variance","Отклонение сетки шоссе","Intersection displacement; automatically clamped to a safe value. Vanilla 2.","Смещение перекрёстков; автоматически ограничивается безопасным значением. Стандарт 2.",0,7,2 );
-    ok &= reg_float( api,ru,"NCMM_AWS_HIGHWAY_STRAIGHTNESS","Highway straightness chance","Прямолинейность шоссе","Chance for new highway endpoints to align. Vanilla 0.60.","Шанс выравнивания новых участков шоссе. Стандарт 0,60.",0.0,1.0,0.60,0.05 );
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_RAVINES","Generate ravines","Генерировать овраги","Master switch for ravines where the region supports them.","Главный переключатель оврагов там, где регион их поддерживает.",true );
-    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_COUNT","Ravines per overmap","Оврагов на овермап","0 disables ravines. Vanilla default region is 0.","0 отключает овраги. В стандартном регионе по умолчанию 0.",0,16,0 );
-    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_RANGE","Ravine length range","Длина оврага","Path displacement range. Vanilla 45.","Диапазон смещения пути. Стандарт 45.",1,120,45 );
+                "Controls highways and ravines in newly generated areas.",
+                "Настройки шоссе и оврагов в новых областях." ) ) return false;
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_HIGHWAYS","Generate highways","Генерировать шоссе","Turns highway generation on or off in new areas.","Включает или отключает шоссе в новых областях.",true );
+    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_ROW","Highway row separation","Расстояние между горизонтальными шоссе","Distance between highway rows, measured in map regions. Default 8.","Расстояние между рядами шоссе в областях карты. Стандарт 8.",2,32,8 );
+    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_COLUMN","Highway column separation","Расстояние между вертикальными шоссе","Distance between highway columns, measured in map regions. Default 10.","Расстояние между колоннами шоссе в областях карты. Стандарт 10.",2,32,10 );
+    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_VARIANCE","Highway alignment variation","Разброс линий шоссе","How far highway intersections may shift from the grid. Default 2.","Насколько перекрёстки могут смещаться относительно сетки. Стандарт 2.",0,7,2 );
+    ok &= reg_float( api,ru,"NCMM_AWS_HIGHWAY_STRAIGHTNESS","Highway straightness chance","Прямолинейность шоссе","Chance for new highway endpoints to align. Default 0.60.","Шанс выравнивания новых участков шоссе. Стандарт 0,60.",0.0,1.0,0.60,0.05 );
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_RAVINES","Generate ravines","Генерировать овраги","Turns ravines on or off where the current region supports them.","Включает или отключает овраги там, где текущий регион их поддерживает.",true );
+    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_COUNT","Ravines per map region","Оврагов на область карты","0 disables ravines. Default region value is 0.","0 отключает овраги. В стандартном регионе по умолчанию 0.",0,16,0 );
+    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_RANGE","Ravine length range","Длина оврага","Path displacement range. Default 45.","Диапазон смещения пути. Стандарт 45.",1,120,45 );
     ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_WIDTH","Ravine width","Ширина оврага","Ravine width control. CDDA 0546 default is 3.","Управление шириной оврага. Стандарт CDDA 0546 — 3.",1,10,3 );
-    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_DEPTH","Ravine depth Z-level","Глубина оврага по Z","Negative Z-level for ravine floor. Vanilla -3.","Отрицательный Z-уровень дна оврага. Стандарт -3.",-20,-1,-3 );
+    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_DEPTH","Ravine depth Z-level","Глубина оврага по Z","Negative Z-level for ravine floor. Default -3.","Отрицательный Z-уровень дна оврага. Стандарт -3.",-20,-1,-3 );
     end();
     return ok;
 }

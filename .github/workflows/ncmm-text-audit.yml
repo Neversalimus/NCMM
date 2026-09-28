@@ -1,0 +1,156 @@
+name: NCMM Player-Facing Text Audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mods/SurvivorProgression/**'
+      - 'mods/AdvancedWorldSettings/**'
+      - 'host_patch/ncmm_loader.cpp'
+      - 'payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
+      - 'ci/Test-UserFacingCopy.ps1'
+      - '.github/workflows/ncmm-text-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ncmm-player-facing-text-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - name: Checkout NCMM
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Audit checked-in player-facing text
+        shell: powershell
+        run: |
+          .\ci\Test-UserFacingCopy.ps1 -SourceRoot "$env:GITHUB_WORKSPACE"
+
+      - name: Refresh payload integrity entry
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $manifestPath = Join-Path $env:GITHUB_WORKSPACE 'compat\package.integrity.json'
+          $payloadPath = Join-Path $env:GITHUB_WORKSPACE 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1'
+          $obj = Get-Content $manifestPath -Raw | ConvertFrom-Json
+          $entry = @($obj.files | Where-Object { [string]$_.path -eq 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1' })
+          if( $entry.Count -ne 1 ) { throw 'Payload integrity entry missing or duplicated.' }
+          $entry[0].sha256 = (Get-FileHash -LiteralPath $payloadPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $entry[0].bytes = [int64](Get-Item -LiteralPath $payloadPath).Length
+          [IO.File]::WriteAllText(
+            $manifestPath,
+            (($obj | ConvertTo-Json -Depth 12) + [Environment]::NewLine),
+            (New-Object Text.UTF8Encoding($false))
+          )
+          Write-Host ('Payload integrity refreshed: ' + $entry[0].sha256)
+
+      - name: Validate Infrastructure package contract
+        shell: powershell
+        run: |
+          .\ci\Test-Infrastructure083.ps1 -PackageRoot "$env:GITHUB_WORKSPACE"
+
+      - name: Regenerate final module sources from payload
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $payload = Join-Path $env:GITHUB_WORKSPACE 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1'
+          $sourceOnly = Join-Path $env:RUNNER_TEMP 'SURVIVOR_COPY_AUDIT_GENERATOR.ps1'
+          $buildRoot = Join-Path $env:RUNNER_TEMP 'ncmm-copy-audit-build'
+          Remove-Item $buildRoot -Recurse -Force -ErrorAction SilentlyContinue
+
+          $text = [IO.File]::ReadAllText($payload)
+          $gameStart = '$GameRoot = Resolve-GameRoot $GameRoot $CddaCommit $CddaFolder'
+          $gameEnd = '# v4 portability fix:'
+          $a = $text.IndexOf($gameStart)
+          $b = $text.IndexOf($gameEnd,$a)
+          if($a -lt 0 -or $b -le $a){throw 'Could not isolate runtime game-root preflight.'}
+          $bypass = '$GameRoot = $env:RUNNER_TEMP' + [Environment]::NewLine +
+                    'Write-Host "Copy-audit source generation: game-root preflight bypassed." -ForegroundColor DarkCyan' +
+                    [Environment]::NewLine + [Environment]::NewLine
+          $text = $text.Substring(0,$a) + $bypass + $text.Substring($b)
+
+          $stopMarker = '# NCMM Infrastructure 0.8.0 deep probe: execute the exact host/source transform stack'
+          $stop = $text.IndexOf($stopMarker)
+          if($stop -lt 0){throw 'Source-generation stop marker missing.'}
+          $stopCode = 'Write-Host "Copy-audit source generation complete." -ForegroundColor Green' +
+                      [Environment]::NewLine + 'exit 0' + [Environment]::NewLine + [Environment]::NewLine
+          $text = $text.Substring(0,$stop) + $stopCode + $text.Substring($stop)
+          [IO.File]::WriteAllText($sourceOnly,$text,(New-Object Text.UTF8Encoding($false)))
+
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $sourceOnly -BuildRoot $buildRoot
+          if($LASTEXITCODE -ne 0){throw "Source generation failed with exit code $LASTEXITCODE."}
+
+          $generated = Join-Path $buildRoot 'ncmm_0910_work'
+          if(-not(Test-Path $generated -PathType Container)){throw 'Generated source tree missing.'}
+          .\ci\Test-UserFacingCopy.ps1 -SourceRoot $generated
+
+          foreach($rel in @(
+            'mods\SurvivorProgression\src\survivor_progression.cpp',
+            'mods\AdvancedWorldSettings\src\aws.cpp',
+            'host_patch\ncmm_loader.cpp'
+          )){
+            $repoText = [IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE $rel)).Replace([char]13 + [char]10,[char]10)
+            $genText = [IO.File]::ReadAllText((Join-Path $generated $rel)).Replace([char]13 + [char]10,[char]10)
+            if($repoText -ne $genText){throw "Generated source drift: $rel"}
+          }
+          Write-Host 'Payload-generated source matches checked-in source: PASS' -ForegroundColor Green
+
+      - name: Publish refreshed integrity manifest
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          git config user.name 'NCMM Text Audit'
+          git config user.email 'actions@users.noreply.github.com'
+          git add compat/package.integrity.json
+          git diff --cached --quiet
+          if($LASTEXITCODE -eq 0){
+            Write-Host 'Integrity manifest already current.'
+          } else {
+            git commit -m 'chore: refresh payload integrity after text polish'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          }
+
+      - name: Build clean install package
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          . .\tools\NCMM.Infrastructure.Common.ps1
+          [void](Assert-NcmmPackageIntegrity $env:GITHUB_WORKSPACE)
+          $integrity = Get-Content .\compat\package.integrity.json -Raw | ConvertFrom-Json
+          $stage = Join-Path $env:RUNNER_TEMP 'ncmm-text-polish-package'
+          $out = Join-Path $env:GITHUB_WORKSPACE 'artifact-output'
+          Remove-Item $stage,$out -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force $stage,$out | Out-Null
+
+          foreach($entry in @($integrity.files)){
+            $rel = ([string]$entry.path).Replace('\',[IO.Path]::DirectorySeparatorChar)
+            $src = Join-Path $env:GITHUB_WORKSPACE $rel
+            $dst = Join-Path $stage $rel
+            New-Item -ItemType Directory -Force (Split-Path $dst -Parent) | Out-Null
+            Copy-Item -LiteralPath $src -Destination $dst -Force
+          }
+          New-Item -ItemType Directory -Force (Join-Path $stage 'compat') | Out-Null
+          Copy-Item .\compat\package.integrity.json (Join-Path $stage 'compat\package.integrity.json') -Force
+
+          $zip = Join-Path $out 'NCMM_INFRASTRUCTURE_v0.8.3.1_SURVIVOR_0.11.3_TEXT_POLISH1.zip'
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
+          $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -LiteralPath (Join-Path $out 'SHA256.txt') -Value $hash -Encoding ASCII
+          Write-Host "Install package SHA256: $hash"
+
+      - name: Upload clean install package
+        uses: actions/upload-artifact@v4
+        with:
+          name: NCMM-0.8.3.1-Survivor-0.11.3-Text-Polish1
+          path: artifact-output/**
+          if-no-files-found: error
+          retention-days: 30

@@ -5233,7 +5233,7 @@ void show_branch( branch_id branch )
             card.id = perk.id;
             card.title = perk_display_name( perk );
             card.subtitle = "T" + std::to_string( perk.tier ) + " | " +
-                            tr( "BLv ", "УрВ " ) + std::to_string( perk.required_level ) +
+                            tr( "Lv ", "Ур " ) + std::to_string( perk.required_level ) +
                             " | " + ( perk.currency == currency_id::perk ? "1P" : "1M" );
             if( max_rank > 1 ) {
                 card.subtitle += " | " + tr( "R ", "Р " ) +
@@ -5289,7 +5289,7 @@ void show_branch( branch_id branch )
         const int64_t blevel = branch_level( branch );
         const int64_t bxp = branch_xp( branch );
         const int64_t bnext = branch_xp_to_next( blevel );
-        summary += tr( " | branch L", " | ветка ур." ) + std::to_string( blevel ) +
+        summary += tr( " | Lv ", " | ур. " ) + std::to_string( blevel ) +
                    " XP " + std::to_string( bxp ) + "/" + std::to_string( bnext ) +
                    " | " + branch_efficiency_text( branch );
 
@@ -5337,8 +5337,8 @@ void show_branch( branch_id branch )
 
             std::vector<ncmm_ui_tree_node_v1> nodes = bind_tree_nodes( tree_texts );
             const std::string tree_summary =
-                summary + tr( " | Routed tree | Tab: cards",
-                              " | Разведённое дерево | Tab: карточки" );
+                summary + tr( " | Tree view | Tab: cards",
+                              " | Дерево | Tab: карточки" );
             const int choice = host->ui_tree_choose(
                                    title.c_str(), tree_summary.c_str(), &progress,
                                    nodes.data(), nodes.size(), edges.data(), edges.size() );
@@ -5976,55 +5976,55 @@ $extraPerks0914 = @'
     { "spc_c_juggernaut", branch_id::combat, 4, 15, currency_id::perk, "c_conditioning", "", "Juggernaut", "Штурмовик", "Commit to armored endurance: +10% stamina and +0.5 STR.", "Ставка на силовую выносливость: +10% выносливости и +0,5 СИЛ.", {{ { "stamina_max_pct", 10 }, { "str_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
     { "spc_c_duelist", branch_id::combat, 4, 15, currency_id::perk, "c_tempo", "", "Duelist", "Дуэлянт", "Commit to mobility and timing: +3% speed and +0.5 dodge.", "Ставка на мобильность и темп: +3% скорости и +0,5 уклонения.", {{ { "speed_pct", 3 }, { "dodge_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
     { "spc_c_tactician", branch_id::combat, 4, 15, currency_id::perk, "c_precision", "c_reflexes", "Tactician", "Тактик", "Commit to control: +0.5 PER and +0.25 melee hit.", "Ставка на контроль: +0,5 ВОС и +0,25 точности ближнего боя.", {{ { "per_flat", 0.5 }, { "melee_hit_flat", 0.25 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "spc_c_juggernaut_cap", branch_id::combat, 5, 25, currency_id::major, "spc_c_juggernaut", "", "Iron Advance", "Железный натиск", "Juggernaut capstone: +1 STR, +12% stamina, +5% carry.", "Вершина штурмовика: +1 СИЛ, +12% выносливости, +5% груза.", {{ { "str_flat", 1 }, { "stamina_max_pct", 12 }, { "carry_weight_pct", 5 }, { nullptr, 0 } }}, 3, 0 },
-    { "spc_c_duelist_cap", branch_id::combat, 5, 25, currency_id::major, "spc_c_duelist", "", "Perfect Tempo", "Идеальный темп", "Duelist capstone: +5% speed, +1 dodge, -3% move cost.", "Вершина дуэлянта: +5% скорости, +1 уклонение, -3% стоимости движения.", {{ { "speed_pct", 5 }, { "dodge_flat", 1 }, { "move_cost_pct", -3 }, { nullptr, 0 } }}, 3, 0 },
-    { "spc_c_tactician_cap", branch_id::combat, 5, 25, currency_id::major, "spc_c_tactician", "", "Battlefield Control", "Контроль поля боя", "Tactician capstone: +1 PER, +0.75 melee hit, +3% speed.", "Вершина тактика: +1 ВОС, +0,75 точности, +3% скорости.", {{ { "per_flat", 1 }, { "melee_hit_flat", 0.75 }, { "speed_pct", 3 }, { nullptr, 0 } }}, 3, 0 },
-    { "mg_battlemage", branch_id::combat, 4, 18, currency_id::perk, "c_tempo", "mg_arcane_focus", "Battlemage Practice", "Практика боевого мага", "Magiclysm synergy: weave movement into casting; +3% speed and +0.25 melee hit.", "Синергия Magiclysm: движение вплетено в колдовство; +3% скорости и +0,25 точности.", {{ { "speed_pct", 3 }, { "melee_hit_flat", 0.25 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "mom_combat_focus", branch_id::combat, 4, 18, currency_id::perk, "c_reflexes", "mom_mental_focus", "Psionic Combat Focus", "Псионический боевой фокус", "Mind Over Matter synergy: +0.5 melee hit and +2% speed.", "Синергия Mind Over Matter: +0,5 точности и +2% скорости.", {{ { "melee_hit_flat", 0.5 }, { "speed_pct", 2 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "xe_dimensional_hunter", branch_id::combat, 4, 18, currency_id::perk, "c_precision", "xe_anomaly_method", "Dimensional Hunter", "Охотник на аномалии", "Xedra Evolved synergy: +0.5 melee hit and +0.5 dodge.", "Синергия Xedra Evolved: +0,5 точности и +0,5 уклонения.", {{ { "melee_hit_flat", 0.5 }, { "dodge_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "af_combat_technician", branch_id::combat, 4, 18, currency_id::perk, "c_precision", "af_systems_operator", "Combat Technician", "Боевой техник", "Aftershock synergy: +0.5 melee hit and +1 PER.", "Синергия Aftershock: +0,5 точности и +1 ВОС.", {{ { "melee_hit_flat", 0.5 }, { "per_flat", 1 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "spc_c_juggernaut_cap", branch_id::combat, 5, 25, currency_id::major, "spc_c_juggernaut", "", "Iron Advance", "Железный натиск", "+1 STR, +12% stamina, +5% carry.", "+1 СИЛ, +12% выносливости, +5% груза.", {{ { "str_flat", 1 }, { "stamina_max_pct", 12 }, { "carry_weight_pct", 5 }, { nullptr, 0 } }}, 3, 0 },
+    { "spc_c_duelist_cap", branch_id::combat, 5, 25, currency_id::major, "spc_c_duelist", "", "Perfect Tempo", "Идеальный темп", "+5% speed, +1 dodge, -3% move cost.", "+5% скорости, +1 уклонение, -3% стоимости движения.", {{ { "speed_pct", 5 }, { "dodge_flat", 1 }, { "move_cost_pct", -3 }, { nullptr, 0 } }}, 3, 0 },
+    { "spc_c_tactician_cap", branch_id::combat, 5, 25, currency_id::major, "spc_c_tactician", "", "Battlefield Control", "Контроль поля боя", "+1 PER, +0.75 melee hit, +3% speed.", "+1 ВОС, +0,75 точности, +3% скорости.", {{ { "per_flat", 1 }, { "melee_hit_flat", 0.75 }, { "speed_pct", 3 }, { nullptr, 0 } }}, 3, 0 },
+    { "mg_battlemage", branch_id::combat, 4, 18, currency_id::perk, "c_tempo", "mg_arcane_focus", "Battlemage Practice", "Практика боевого мага", "Magiclysm: weave movement into casting; +3% speed and +0.25 melee hit.", "Magiclysm: движение вплетено в колдовство; +3% скорости и +0,25 точности.", {{ { "speed_pct", 3 }, { "melee_hit_flat", 0.25 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "mom_combat_focus", branch_id::combat, 4, 18, currency_id::perk, "c_reflexes", "mom_mental_focus", "Psionic Combat Focus", "Псионический боевой фокус", "Mind Over Matter: +0.5 melee hit and +2% speed.", "Mind Over Matter: +0,5 точности и +2% скорости.", {{ { "melee_hit_flat", 0.5 }, { "speed_pct", 2 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "xe_dimensional_hunter", branch_id::combat, 4, 18, currency_id::perk, "c_precision", "xe_anomaly_method", "Dimensional Hunter", "Охотник на аномалии", "Xedra Evolved: +0.5 melee hit and +0.5 dodge.", "Xedra Evolved: +0,5 точности и +0,5 уклонения.", {{ { "melee_hit_flat", 0.5 }, { "dodge_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "af_combat_technician", branch_id::combat, 4, 18, currency_id::perk, "c_precision", "af_systems_operator", "Combat Technician", "Боевой техник", "Aftershock: +0.5 melee hit and +1 PER.", "Aftershock: +0,5 точности и +1 ВОС.", {{ { "melee_hit_flat", 0.5 }, { "per_flat", 1 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
     { "spc_s_nomad", branch_id::survival, 4, 15, currency_id::perk, "s_endurance", "", "Nomad", "Кочевник", "Commit to long expeditions: +8% stamina and +8% carry.", "Ставка на дальние походы: +8% выносливости и +8% груза.", {{ { "stamina_max_pct", 8 }, { "carry_weight_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
     { "spc_s_medic", branch_id::survival, 4, 15, currency_id::perk, "s_field", "s_resilient", "Field Medic", "Полевой медик", "Commit to recovery: +15% healing.", "Ставка на восстановление: +15% лечения.", {{ { "healing_pct", 15 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0 },
     { "spc_s_quartermaster", branch_id::survival, 4, 15, currency_id::perk, "s_pack", "", "Quartermaster", "Интендант", "Commit to preparation: +15% carry and +5% crafting speed.", "Ставка на подготовку: +15% груза и +5% скорости крафта.", {{ { "carry_weight_pct", 15 }, { "craft_speed_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "spc_s_nomad_cap", branch_id::survival, 5, 25, currency_id::major, "spc_s_nomad", "", "Long Road", "Долгая дорога", "Nomad capstone: +15% stamina, +15% carry, -3% move cost.", "Вершина кочевника: +15% выносливости, +15% груза, -3% стоимости движения.", {{ { "stamina_max_pct", 15 }, { "carry_weight_pct", 15 }, { "move_cost_pct", -3 }, { nullptr, 0 } }}, 3, 0 },
-    { "spc_s_medic_cap", branch_id::survival, 5, 25, currency_id::major, "spc_s_medic", "", "Trauma Veteran", "Ветеран травм", "Medic capstone: +30% healing and +8% stamina.", "Вершина медика: +30% лечения и +8% выносливости.", {{ { "healing_pct", 30 }, { "stamina_max_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "spc_s_quartermaster_cap", branch_id::survival, 5, 25, currency_id::major, "spc_s_quartermaster", "", "Prepared for Anything", "Готов ко всему", "Quartermaster capstone: +25% carry and +8% crafting speed.", "Вершина интенданта: +25% груза и +8% скорости крафта.", {{ { "carry_weight_pct", 25 }, { "craft_speed_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "mg_wayfarer", branch_id::survival, 4, 18, currency_id::perk, "s_instinct", "mg_arcane_focus", "Arcane Wayfarer", "Магический странник", "Magiclysm synergy: +6% stamina and -2% move cost.", "Синергия Magiclysm: +6% выносливости и -2% стоимости движения.", {{ { "stamina_max_pct", 6 }, { "move_cost_pct", -2 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "mom_neural_reserve", branch_id::survival, 4, 18, currency_id::perk, "s_resilient", "mom_mental_focus", "Neural Reserve", "Нейронный резерв", "Mind Over Matter synergy: +8% stamina and +5% healing.", "Синергия Mind Over Matter: +8% выносливости и +5% лечения.", {{ { "stamina_max_pct", 8 }, { "healing_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "af_conditioning", branch_id::survival, 4, 18, currency_id::perk, "s_hardy", "af_systems_operator", "Exoplanet Conditioning", "Экзопланетная закалка", "Aftershock synergy: +8% stamina and +6% carry.", "Синергия Aftershock: +8% выносливости и +6% груза.", {{ { "stamina_max_pct", 8 }, { "carry_weight_pct", 6 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "spc_s_nomad_cap", branch_id::survival, 5, 25, currency_id::major, "spc_s_nomad", "", "Long Road", "Долгая дорога", "+15% stamina, +15% carry, -3% move cost.", "+15% выносливости, +15% груза, -3% стоимости движения.", {{ { "stamina_max_pct", 15 }, { "carry_weight_pct", 15 }, { "move_cost_pct", -3 }, { nullptr, 0 } }}, 3, 0 },
+    { "spc_s_medic_cap", branch_id::survival, 5, 25, currency_id::major, "spc_s_medic", "", "Trauma Veteran", "Ветеран травм", "+30% healing and +8% stamina.", "+30% лечения и +8% выносливости.", {{ { "healing_pct", 30 }, { "stamina_max_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "spc_s_quartermaster_cap", branch_id::survival, 5, 25, currency_id::major, "spc_s_quartermaster", "", "Prepared for Anything", "Готов ко всему", "+25% carry and +8% crafting speed.", "+25% груза и +8% скорости крафта.", {{ { "carry_weight_pct", 25 }, { "craft_speed_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "mg_wayfarer", branch_id::survival, 4, 18, currency_id::perk, "s_instinct", "mg_arcane_focus", "Arcane Wayfarer", "Магический странник", "Magiclysm: +6% stamina and -2% move cost.", "Magiclysm: +6% выносливости и -2% стоимости движения.", {{ { "stamina_max_pct", 6 }, { "move_cost_pct", -2 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "mom_neural_reserve", branch_id::survival, 4, 18, currency_id::perk, "s_resilient", "mom_mental_focus", "Neural Reserve", "Нейронный резерв", "Mind Over Matter: +8% stamina and +5% healing.", "Mind Over Matter: +8% выносливости и +5% лечения.", {{ { "stamina_max_pct", 8 }, { "healing_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "af_conditioning", branch_id::survival, 4, 18, currency_id::perk, "s_hardy", "af_systems_operator", "Exoplanet Conditioning", "Экзопланетная закалка", "Aftershock: +8% stamina and +6% carry.", "Aftershock: +8% выносливости и +6% груза.", {{ { "stamina_max_pct", 8 }, { "carry_weight_pct", 6 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
     { "spc_m_sprinter", branch_id::mobility, 4, 15, currency_id::perk, "m_cardio", "", "Sprinter", "Спринтер", "Commit to burst mobility: +3% speed and +5% stamina.", "Ставка на рывок: +3% скорости и +5% выносливости.", {{ { "speed_pct", 3 }, { "stamina_max_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
     { "spc_m_ghost", branch_id::mobility, 4, 15, currency_id::perk, "m_light", "m_parkour", "Ghost", "Призрак", "Commit to evasive movement: -4% move cost and +0.5 dodge.", "Ставка на уклончивость: -4% стоимости движения и +0,5 уклонения.", {{ { "move_cost_pct", -4 }, { "dodge_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
     { "spc_m_pathfinder", branch_id::mobility, 4, 15, currency_id::perk, "m_stride", "", "Pathfinder", "Путепроходец", "Commit to efficient travel: -3% move cost and +8% stamina.", "Ставка на эффективный путь: -3% стоимости движения и +8% выносливости.", {{ { "move_cost_pct", -3 }, { "stamina_max_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "spc_m_sprinter_cap", branch_id::mobility, 5, 25, currency_id::major, "spc_m_sprinter", "", "Burst Engine", "Двигатель рывка", "Sprinter capstone: +6% speed and +10% stamina.", "Вершина спринтера: +6% скорости и +10% выносливости.", {{ { "speed_pct", 6 }, { "stamina_max_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "spc_m_ghost_cap", branch_id::mobility, 5, 25, currency_id::major, "spc_m_ghost", "", "Vanishing Step", "Исчезающий шаг", "Ghost capstone: -7% move cost and +1 dodge.", "Вершина призрака: -7% стоимости движения и +1 уклонение.", {{ { "move_cost_pct", -7 }, { "dodge_flat", 1 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "spc_m_pathfinder_cap", branch_id::mobility, 5, 25, currency_id::major, "spc_m_pathfinder", "", "Always a Route", "Путь всегда есть", "Pathfinder capstone: -5% move cost, +10% carry, +10% stamina.", "Вершина путепроходца: -5% стоимости движения, +10% груза, +10% выносливости.", {{ { "move_cost_pct", -5 }, { "carry_weight_pct", 10 }, { "stamina_max_pct", 10 }, { nullptr, 0 } }}, 3, 0 },
-    { "mom_kinetic_control", branch_id::mobility, 4, 18, currency_id::perk, "m_quick", "mom_mental_focus", "Kinetic Control", "Кинетический контроль", "Mind Over Matter synergy: -3% move cost and +0.5 dodge.", "Синергия Mind Over Matter: -3% стоимости движения и +0,5 уклонения.", {{ { "move_cost_pct", -3 }, { "dodge_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "spc_m_sprinter_cap", branch_id::mobility, 5, 25, currency_id::major, "spc_m_sprinter", "", "Burst Engine", "Двигатель рывка", "+6% speed and +10% stamina.", "+6% скорости и +10% выносливости.", {{ { "speed_pct", 6 }, { "stamina_max_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "spc_m_ghost_cap", branch_id::mobility, 5, 25, currency_id::major, "spc_m_ghost", "", "Vanishing Step", "Исчезающий шаг", "-7% move cost and +1 dodge.", "-7% стоимости движения и +1 уклонение.", {{ { "move_cost_pct", -7 }, { "dodge_flat", 1 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "spc_m_pathfinder_cap", branch_id::mobility, 5, 25, currency_id::major, "spc_m_pathfinder", "", "Always a Route", "Путь всегда есть", "-5% move cost, +10% carry, +10% stamina.", "-5% стоимости движения, +10% груза, +10% выносливости.", {{ { "move_cost_pct", -5 }, { "carry_weight_pct", 10 }, { "stamina_max_pct", 10 }, { nullptr, 0 } }}, 3, 0 },
+    { "mom_kinetic_control", branch_id::mobility, 4, 18, currency_id::perk, "m_quick", "mom_mental_focus", "Kinetic Control", "Кинетический контроль", "Mind Over Matter: -3% move cost and +0.5 dodge.", "Mind Over Matter: -3% стоимости движения и +0,5 уклонения.", {{ { "move_cost_pct", -3 }, { "dodge_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
     { "spc_f_systems", branch_id::crafting, 4, 15, currency_id::perk, "f_engineer", "", "Systems Engineer", "Системный инженер", "Commit to engineering: +10% crafting speed and +0.5 INT.", "Ставка на инженерию: +10% скорости крафта и +0,5 ИНТ.", {{ { "craft_speed_pct", 10 }, { "int_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
     { "spc_f_improviser", branch_id::crafting, 4, 15, currency_id::perk, "f_hands", "f_workflow", "Improviser", "Импровизатор", "Commit to practical work: +8% crafting speed and +5% carry.", "Ставка на практику: +8% скорости крафта и +5% груза.", {{ { "craft_speed_pct", 8 }, { "carry_weight_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
     { "spc_f_researcher", branch_id::crafting, 4, 15, currency_id::perk, "f_reader", "f_scholar", "Researcher", "Исследователь", "Commit to theory: +10% reading speed and +0.5 INT.", "Ставка на теорию: +10% скорости чтения и +0,5 ИНТ.", {{ { "read_speed_pct", 10 }, { "int_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "spc_f_systems_cap", branch_id::crafting, 5, 25, currency_id::major, "spc_f_systems", "", "Systems Architect", "Архитектор систем", "Engineer capstone: +18% crafting speed and +1 INT.", "Вершина инженера: +18% скорости крафта и +1 ИНТ.", {{ { "craft_speed_pct", 18 }, { "int_flat", 1 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "spc_f_improviser_cap", branch_id::crafting, 5, 25, currency_id::major, "spc_f_improviser", "", "Make It Work", "Заставить работать", "Improviser capstone: +15% crafting speed and +10% carry.", "Вершина импровизатора: +15% скорости крафта и +10% груза.", {{ { "craft_speed_pct", 15 }, { "carry_weight_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "spc_f_researcher_cap", branch_id::crafting, 5, 25, currency_id::major, "spc_f_researcher", "", "Applied Theory", "Прикладная теория", "Researcher capstone: +20% reading, +1 INT, +5% crafting speed.", "Вершина исследователя: +20% чтения, +1 ИНТ, +5% скорости крафта.", {{ { "read_speed_pct", 20 }, { "int_flat", 1 }, { "craft_speed_pct", 5 }, { nullptr, 0 } }}, 3, 0 },
-    { "mg_ritual_craft", branch_id::crafting, 4, 18, currency_id::perk, "f_study", "mg_arcane_focus", "Ritual Craft", "Ритуальное ремесло", "Magiclysm synergy: +8% crafting and +5% reading speed.", "Синергия Magiclysm: +8% крафта и +5% скорости чтения.", {{ { "craft_speed_pct", 8 }, { "read_speed_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "xe_occult_engineer", branch_id::crafting, 4, 18, currency_id::perk, "f_engineer", "xe_anomaly_method", "Occult Engineer", "Оккультный инженер", "Xedra Evolved synergy: +8% crafting speed and +0.5 INT.", "Синергия Xedra Evolved: +8% крафта и +0,5 ИНТ.", {{ { "craft_speed_pct", 8 }, { "int_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "af_systems_operator", branch_id::crafting, 4, 18, currency_id::perk, "f_engineer", "", "Systems Operator", "Оператор систем", "Aftershock synergy: +10% crafting speed and +0.5 INT.", "Синергия Aftershock: +10% крафта и +0,5 ИНТ.", {{ { "craft_speed_pct", 10 }, { "int_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "spc_f_systems_cap", branch_id::crafting, 5, 25, currency_id::major, "spc_f_systems", "", "Systems Architect", "Архитектор систем", "+18% crafting speed and +1 INT.", "+18% скорости крафта и +1 ИНТ.", {{ { "craft_speed_pct", 18 }, { "int_flat", 1 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "spc_f_improviser_cap", branch_id::crafting, 5, 25, currency_id::major, "spc_f_improviser", "", "Make It Work", "Заставить работать", "+15% crafting speed and +10% carry.", "+15% скорости крафта и +10% груза.", {{ { "craft_speed_pct", 15 }, { "carry_weight_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "spc_f_researcher_cap", branch_id::crafting, 5, 25, currency_id::major, "spc_f_researcher", "", "Applied Theory", "Прикладная теория", "+20% reading, +1 INT, +5% crafting speed.", "+20% чтения, +1 ИНТ, +5% скорости крафта.", {{ { "read_speed_pct", 20 }, { "int_flat", 1 }, { "craft_speed_pct", 5 }, { nullptr, 0 } }}, 3, 0 },
+    { "mg_ritual_craft", branch_id::crafting, 4, 18, currency_id::perk, "f_study", "mg_arcane_focus", "Ritual Craft", "Ритуальное ремесло", "Magiclysm: +8% crafting and +5% reading speed.", "Magiclysm: +8% крафта и +5% скорости чтения.", {{ { "craft_speed_pct", 8 }, { "read_speed_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "xe_occult_engineer", branch_id::crafting, 4, 18, currency_id::perk, "f_engineer", "xe_anomaly_method", "Occult Engineer", "Оккультный инженер", "Xedra Evolved: +8% crafting speed and +0.5 INT.", "Xedra Evolved: +8% крафта и +0,5 ИНТ.", {{ { "craft_speed_pct", 8 }, { "int_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "af_systems_operator", branch_id::crafting, 4, 18, currency_id::perk, "f_engineer", "", "Systems Operator", "Оператор систем", "Aftershock: +10% crafting speed and +0.5 INT.", "Aftershock: +10% крафта и +0,5 ИНТ.", {{ { "craft_speed_pct", 10 }, { "int_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
     { "spc_g_prospector", branch_id::scavenging, 4, 15, currency_id::perk, "g_observer", "", "Prospector", "Искатель", "Commit to finding value: +0.5 PER and +5% carry.", "Ставка на поиск ценного: +0,5 ВОС и +5% груза.", {{ { "per_flat", 0.5 }, { "carry_weight_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
     { "spc_g_courier", branch_id::scavenging, 4, 15, currency_id::perk, "g_pack", "g_endurance", "Courier", "Курьер", "Commit to loaded travel: +15% carry and -2% move cost.", "Ставка на движение с грузом: +15% груза и -2% стоимости движения.", {{ { "carry_weight_pct", 15 }, { "move_cost_pct", -2 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
     { "spc_g_investigator", branch_id::scavenging, 4, 15, currency_id::perk, "g_awareness", "", "Investigator", "Исследователь руин", "Commit to reading the environment: +1 PER and +5% reading speed.", "Ставка на анализ окружения: +1 ВОС и +5% скорости чтения.", {{ { "per_flat", 1 }, { "read_speed_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "spc_g_prospector_cap", branch_id::scavenging, 5, 25, currency_id::major, "spc_g_prospector", "", "Nothing Wasted", "Ничего не пропадает", "Prospector capstone: +1 PER and +10% carry.", "Вершина искателя: +1 ВОС и +10% груза.", {{ { "per_flat", 1 }, { "carry_weight_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "spc_g_courier_cap", branch_id::scavenging, 5, 25, currency_id::major, "spc_g_courier", "", "Heavy Route", "Тяжёлый маршрут", "Courier capstone: +25% carry, -4% move cost, +8% stamina.", "Вершина курьера: +25% груза, -4% стоимости движения, +8% выносливости.", {{ { "carry_weight_pct", 25 }, { "move_cost_pct", -4 }, { "stamina_max_pct", 8 }, { nullptr, 0 } }}, 3, 0 },
-    { "spc_g_investigator_cap", branch_id::scavenging, 5, 25, currency_id::major, "spc_g_investigator", "", "Read the Ruins", "Читать руины", "Investigator capstone: +1.5 PER, +10% reading, -2% move cost.", "Вершина исследователя: +1,5 ВОС, +10% чтения, -2% стоимости движения.", {{ { "per_flat", 1.5 }, { "read_speed_pct", 10 }, { "move_cost_pct", -2 }, { nullptr, 0 } }}, 3, 0 },
-    { "xe_field_agent", branch_id::scavenging, 4, 18, currency_id::perk, "g_awareness", "xe_anomaly_method", "XEDRA Field Agent", "Полевой агент XEDRA", "Xedra Evolved synergy: +1 PER and -2% move cost.", "Синергия Xedra Evolved: +1 ВОС и -2% стоимости движения.", {{ { "per_flat", 1 }, { "move_cost_pct", -2 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
-    { "af_expedition_logistics", branch_id::scavenging, 4, 18, currency_id::perk, "g_pack", "af_systems_operator", "Expedition Logistics", "Экспедиционная логистика", "Aftershock synergy: +10% carry and -2% move cost.", "Синергия Aftershock: +10% груза и -2% стоимости движения.", {{ { "carry_weight_pct", 10 }, { "move_cost_pct", -2 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "spc_g_prospector_cap", branch_id::scavenging, 5, 25, currency_id::major, "spc_g_prospector", "", "Nothing Wasted", "Ничего не пропадает", "+1 PER and +10% carry.", "+1 ВОС и +10% груза.", {{ { "per_flat", 1 }, { "carry_weight_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "spc_g_courier_cap", branch_id::scavenging, 5, 25, currency_id::major, "spc_g_courier", "", "Heavy Route", "Тяжёлый маршрут", "+25% carry, -4% move cost, +8% stamina.", "+25% груза, -4% стоимости движения, +8% выносливости.", {{ { "carry_weight_pct", 25 }, { "move_cost_pct", -4 }, { "stamina_max_pct", 8 }, { nullptr, 0 } }}, 3, 0 },
+    { "spc_g_investigator_cap", branch_id::scavenging, 5, 25, currency_id::major, "spc_g_investigator", "", "Read the Ruins", "Читать руины", "+1.5 PER, +10% reading, -2% move cost.", "+1,5 ВОС, +10% чтения, -2% стоимости движения.", {{ { "per_flat", 1.5 }, { "read_speed_pct", 10 }, { "move_cost_pct", -2 }, { nullptr, 0 } }}, 3, 0 },
+    { "xe_field_agent", branch_id::scavenging, 4, 18, currency_id::perk, "g_awareness", "xe_anomaly_method", "XEDRA Field Agent", "Полевой агент XEDRA", "Xedra Evolved: +1 PER and -2% move cost.", "Xedra Evolved: +1 ВОС и -2% стоимости движения.", {{ { "per_flat", 1 }, { "move_cost_pct", -2 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "af_expedition_logistics", branch_id::scavenging, 4, 18, currency_id::perk, "g_pack", "af_systems_operator", "Expedition Logistics", "Экспедиционная логистика", "Aftershock: +10% carry and -2% move cost.", "Aftershock: +10% груза и -2% стоимости движения.", {{ { "carry_weight_pct", 10 }, { "move_cost_pct", -2 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
     { "spc_a_specialist", branch_id::mastery, 4, 15, currency_id::perk, "a_focus", "a_growth", "Specialist", "Специалист", "Commit to depth: +10% Survivor XP.", "Ставка на глубину: +10% опыта Survivor.", {{ { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 0, 10 },
     { "spc_a_polymath", branch_id::mastery, 4, 15, currency_id::perk, "a_balance", "a_polymath", "Polymath Path", "Путь универсала", "Commit to breadth: +0.25 to all primary stats.", "Ставка на широту: +0,25 ко всем основным характеристикам.", {{ { "str_flat", 0.25 }, { "dex_flat", 0.25 }, { "per_flat", 0.25 }, { "int_flat", 0.25 } }}, 4, 0 },
     { "spc_a_selfteacher", branch_id::mastery, 4, 15, currency_id::perk, "a_adapt", "", "Self-Teacher", "Самоучка", "Commit to self-directed growth: +5% reading, +5% crafting, +5% Survivor XP.", "Ставка на самостоятельный рост: +5% чтения, +5% крафта, +5% опыта Survivor.", {{ { "read_speed_pct", 5 }, { "craft_speed_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 5 },
-    { "spc_a_specialist_cap", branch_id::mastery, 5, 25, currency_id::major, "spc_a_specialist", "", "Deep Practice", "Глубокая практика", "Specialist capstone: +20% Survivor XP.", "Вершина специалиста: +20% опыта Survivor.", {{ { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 0, 20 },
-    { "spc_a_polymath_cap", branch_id::mastery, 5, 25, currency_id::major, "spc_a_polymath", "", "Cross Discipline", "Перекрёстная дисциплина", "Polymath capstone: +0.5 to all primary stats.", "Вершина универсала: +0,5 ко всем основным характеристикам.", {{ { "str_flat", 0.5 }, { "dex_flat", 0.5 }, { "per_flat", 0.5 }, { "int_flat", 0.5 } }}, 4, 0 },
-    { "spc_a_selfteacher_cap", branch_id::mastery, 5, 25, currency_id::major, "spc_a_selfteacher", "", "Compounding Insight", "Накопительное понимание", "Self-teacher capstone: +10% reading, +10% crafting, +10% Survivor XP.", "Вершина самоучки: +10% чтения, +10% крафта, +10% опыта Survivor.", {{ { "read_speed_pct", 10 }, { "craft_speed_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 10 },
-    { "mg_arcane_focus", branch_id::mastery, 3, 12, currency_id::perk, "a_adapt", "", "Arcane Focus", "Магический фокус", "Magiclysm integration anchor: +8% reading speed.", "Якорь интеграции Magiclysm: +8% скорости чтения.", {{ { "read_speed_pct", 8 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0 },
-    { "mom_mental_focus", branch_id::mastery, 3, 12, currency_id::perk, "a_focus", "", "Psionic Focus", "Псионический фокус", "Mind Over Matter integration anchor: +0.5 INT and +5% Survivor XP.", "Якорь интеграции Mind Over Matter: +0,5 ИНТ и +5% опыта Survivor.", {{ { "int_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 5 },
-    { "xe_anomaly_method", branch_id::mastery, 3, 12, currency_id::perk, "a_insight", "", "Anomaly Method", "Метод аномалий", "Xedra Evolved integration anchor: +1 PER and +5% reading speed.", "Якорь интеграции Xedra Evolved: +1 ВОС и +5% скорости чтения.", {{ { "per_flat", 1 }, { "read_speed_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
+    { "spc_a_specialist_cap", branch_id::mastery, 5, 25, currency_id::major, "spc_a_specialist", "", "Deep Practice", "Глубокая практика", "+20% Survivor XP.", "+20% опыта Survivor.", {{ { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 0, 20 },
+    { "spc_a_polymath_cap", branch_id::mastery, 5, 25, currency_id::major, "spc_a_polymath", "", "Cross Discipline", "Перекрёстная дисциплина", "+0.5 to all primary stats.", "+0,5 ко всем основным характеристикам.", {{ { "str_flat", 0.5 }, { "dex_flat", 0.5 }, { "per_flat", 0.5 }, { "int_flat", 0.5 } }}, 4, 0 },
+    { "spc_a_selfteacher_cap", branch_id::mastery, 5, 25, currency_id::major, "spc_a_selfteacher", "", "Compounding Insight", "Накопительное понимание", "+10% reading, +10% crafting, +10% Survivor XP.", "+10% чтения, +10% крафта, +10% опыта Survivor.", {{ { "read_speed_pct", 10 }, { "craft_speed_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 10 },
+    { "mg_arcane_focus", branch_id::mastery, 3, 12, currency_id::perk, "a_adapt", "", "Arcane Focus", "Магический фокус", "Magiclysm: +8% reading speed.", "Magiclysm: +8% скорости чтения.", {{ { "read_speed_pct", 8 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0 },
+    { "mom_mental_focus", branch_id::mastery, 3, 12, currency_id::perk, "a_focus", "", "Psionic Focus", "Псионический фокус", "Mind Over Matter: +0.5 INT and +5% Survivor XP.", "Mind Over Matter: +0,5 ИНТ и +5% опыта Survivor.", {{ { "int_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 5 },
+    { "xe_anomaly_method", branch_id::mastery, 3, 12, currency_id::perk, "a_insight", "", "Anomaly Method", "Метод аномалий", "Xedra Evolved: +1 PER and +5% reading speed.", "Xedra Evolved: +1 ВОС и +5% скорости чтения.", {{ { "per_flat", 1 }, { "read_speed_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0 },
 '@
 $perkArrayStart = $sp.IndexOf('const perk_def perks[] = {')
 if ($perkArrayStart -lt 0) { throw "0.9.14 perk array start not found." }
@@ -6269,7 +6269,7 @@ bool purchase_perk( const perk_def &perk )
     const int max_rank = perk_max_rank( perk );
 
     if( !perk_world_available( perk ) ) {
-        message( tr( "The required world mod is not active.", "Требуемый мод мира не активен." ) );
+        message( tr( "The required mod is not active.", "Требуемый мод не активен." ) );
         return false;
     }
     if( rank >= max_rank ) {
@@ -6400,13 +6400,12 @@ std::string perk_kind_label( const perk_def &perk )
         return tr( "SPECIALIZATION", "СПЕЦИАЛИЗАЦИЯ" );
     }
     if( integration_perk( perk ) ) {
-        return tr( "MOD SYNERGY", "СИНЕРГИЯ МОДА" );
+        return tr( "MOD PERK", "ПЕРК МОДА" );
     }
     if( perk.currency == currency_id::major ) {
-        return tr( "KEYSTONE", "КЛЮЧЕВОЙ" );
+        return tr( "MAJOR PERK", "БОЛЬШОЙ ПЕРК" );
     }
-    return effective_kind( perk ) == perk_kind::effect ?
-           tr( "EFFECT", "ЭФФЕКТ" ) : tr( "STAT", "СТАТ" );
+    return tr( "PERK", "ПЕРК" );
 }
 '@
 $sp = Replace-CppRange $sp "std::string perk_kind_label( const perk_def &perk )" "std::string branch_icon_key( branch_id branch )" $perkKind0914 "0.9.14 perk badges"
@@ -6539,7 +6538,7 @@ $overviewAnchor = '    out += "\n" + tr( "Major points: every 5 levels, with no 
 $overviewInsert = @'
     out += "\n" + tr( "Major points: every 5 levels, with no level cap.",
                        "Большие очки: каждые 5 уровней, без ограничения уровня." );
-    out += "\n" + tr( "Active integrations: ", "Активные интеграции: " );
+    out += "\n" + tr( "Mod perks available for: ", "Перки модов доступны для: " );
     std::vector<std::string> integration_names;
     if( active_world_mod( "magiclysm" ) ) integration_names.push_back( "Magiclysm" );
     if( active_world_mod( "mindovermatter" ) ) integration_names.push_back( "Mind Over Matter" );
@@ -6569,7 +6568,7 @@ $detailReplacement = @'
                                  "Эксклюзивный выбор: две другие специализации будут закрыты до полного сброса." );
         }
         if( integration_perk( perk ) ) {
-            title += "\n" + tr( "World mod: ", "Мод мира: " ) + integration_mod_name( perk );
+            title += "\n" + tr( "Requires mod: ", "Нужен мод: " ) + integration_mod_name( perk );
         }
 '@
 if (-not $sp.Contains($detailAnchor)) { throw "0.9.14 detail integration anchor not found." }
@@ -6790,20 +6789,20 @@ std::string integration_mod_display_name( const std::string &mod_id )
 std::string integration_mod_focus( const std::string &mod_id )
 {
     if( mod_id == "magiclysm" ) {
-        return tr( "Arcane training linked to combat, survival and crafting.",
-                   "Магическая подготовка, связанная с боем, выживанием и крафтом." );
+        return tr( "Magiclysm perks for spells, survival and crafting.",
+                   "Перки Magiclysm для магии, выживания и крафта." );
     }
     if( mod_id == "mindovermatter" ) {
-        return tr( "Psionic discipline linked to combat, mobility and resilience.",
-                   "Псионическая дисциплина, связанная с боем, мобильностью и стойкостью." );
+        return tr( "Mind Over Matter perks for psionics, mobility and endurance.",
+                   "Перки Mind Over Matter для псионики, мобильности и выносливости." );
     }
     if( mod_id == "xedra_evolved" ) {
-        return tr( "Anomaly fieldcraft linked to combat, scavenging and engineering.",
-                   "Работа с аномалиями, связанная с боем, добычей и инженерией." );
+        return tr( "Xedra Evolved perks for anomaly research, field work and combat.",
+                   "Перки Xedra Evolved для исследования аномалий, полевой работы и боя." );
     }
     if( mod_id == "aftershock_exoplanet" ) {
-        return tr( "Exoplanet systems training linked to combat, survival and logistics.",
-                   "Экзопланетная системная подготовка, связанная с боем, выживанием и логистикой." );
+        return tr( "Aftershock Exoplanet perks for combat, survival and expedition gear.",
+                   "Перки Aftershock Exoplanet для боя, выживания и экспедиционного снаряжения." );
     }
     return {};
 }
@@ -6835,8 +6834,8 @@ int integration_total_count( const std::string &mod_id )
 void show_integration_branch( const std::string &mod_id )
 {
     if( !active_world_mod( mod_id.c_str() ) ) {
-        message( tr( "This integration is not active in the current world.",
-                     "Эта интеграция не активна в текущем мире." ) );
+        message( tr( "This mod is not active in the current world.",
+                     "Этот мод не активен в текущем мире." ) );
         return;
     }
 
@@ -6863,8 +6862,8 @@ void show_integration_branch( const std::string &mod_id )
         }
 
         if( mod_perks.empty() ) {
-            message( tr( "No integration perks are available for this mod.",
-                         "Для этого мода нет доступных интеграционных перков." ) );
+            message( tr( "No Survivor perks are available for this mod.",
+                         "Для этого мода нет доступных перков Survivor." ) );
             return;
         }
 
@@ -6884,7 +6883,7 @@ void show_integration_branch( const std::string &mod_id )
             card.id = perk.id;
             card.title = perk_display_name( perk );
             card.subtitle = branch_name( perk.branch ) + " | " +
-                            tr( "BLv ", "УрВ " ) + std::to_string( perk.required_level ) +
+                            tr( "Lv ", "Ур " ) + std::to_string( perk.required_level ) +
                             " | " + ( perk.currency == currency_id::perk ? "1P" : "1M" );
             card.body = perk_description( perk ) + "\n" +
                         tr( "Base branch gate: ", "Требование базовой ветки: " ) +
@@ -6923,7 +6922,7 @@ void show_integration_branch( const std::string &mod_id )
         const std::string mod_name = integration_mod_display_name( mod_id );
         std::string title = "Survivor Progression > " + mod_name;
         std::string summary =
-            tr( "Dedicated mod branch", "Отдельная ветка мода" ) +
+            tr( "Mod perks", "Перки мода" ) +
             tr( " | purchased ", " | куплено " ) +
             std::to_string( integration_owned_count( mod_id ) ) + "/" +
             std::to_string( integration_total_count( mod_id ) ) +
@@ -7032,7 +7031,7 @@ void open_progression()
             const int64_t bxp = branch_xp( branch );
             const int64_t bnext = branch_xp_to_next( blevel );
             card.subtitle =
-                tr( "Branch L", "Ветка ур." ) + std::to_string( blevel ) +
+                tr( "Lv ", "Ур. " ) + std::to_string( blevel ) +
                 " | XP " + std::to_string( bxp ) + "/" + std::to_string( bnext ) +
                 " | " + std::to_string( branch_owned_count( branch ) ) + "/" +
                 std::to_string( branch_total_count( branch ) );
@@ -7056,13 +7055,13 @@ void open_progression()
             card.id = std::string( "mod_" ) + id;
             card.title = integration_mod_display_name( id );
             card.subtitle =
-                tr( "Mod branch | ", "Ветка мода | " ) +
+                tr( "Mod perks | ", "Перки мода | " ) +
                 std::to_string( integration_owned_count( id ) ) + "/" +
                 std::to_string( integration_total_count( id ) );
             card.body = integration_mod_focus( id ) + "\n" +
                         tr( "Available only in worlds where this mod is active.",
                             "Доступно только в мирах, где активен этот мод." );
-            card.badge = tr( "MOD BRANCH", "ВЕТКА МОДА" );
+            card.badge = tr( "MOD PERKS", "ПЕРКИ МОДА" );
             card.icon_key = std::string( "survivor/mod/" ) + id;
             card.flags = NCMM_UI_CARD_ACCENT;
             texts.push_back( std::move( card ) );
@@ -7080,8 +7079,8 @@ void open_progression()
         overview.id = "overview";
         overview.title = tr( "Overview", "Обзор" );
         overview.subtitle = tr( "Level / points / active effects", "Уровень / очки / активные эффекты" );
-        overview.body = tr( "Inspect the complete Survivor state.",
-                            "Полное состояние прогрессии Survivor." );
+        overview.body = tr( "View your level, points, branch progress and active bonuses.",
+                            "Уровень, очки, прогресс веток и действующие бонусы." );
         overview.badge = tr( "INFO", "ИНФО" );
         overview.icon_key = "survivor/action/overview";
         texts.push_back( std::move( overview ) );
@@ -7120,7 +7119,7 @@ void open_progression()
             tr( " | purchased ", " | куплено " ) +
             std::to_string( total_owned ) + "/" + std::to_string( total_perks );
         if( !mod_branches.empty() ) {
-            summary += tr( " | mod branches ", " | ветки модов " ) +
+            summary += tr( " | mods ", " | модов " ) +
                        std::to_string( mod_branches.size() );
         }
 
@@ -7215,13 +7214,13 @@ $modPerksV8 = @'
     { "mg_deep_reservoir", branch_id::mastery, 5, 20, currency_id::perk, "mg_efficient_channels", "", "Deep Reservoir", "Глубокий резерв", "Magiclysm: +12% maximum mana and +8% mana regeneration.", "Magiclysm: +12% максимум маны и +8% восстановление маны.", {{ { "mg_mana_max_pct", 12 }, { "mg_mana_regen_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "mg_quick_invocation", branch_id::mastery, 5, 20, currency_id::perk, "mg_spellcraft_drills", "", "Quick Invocation", "Быстрое сотворение", "Magiclysm: casting time -8% and failure chance -5%.", "Magiclysm: время сотворения -8%, шанс провала -5%.", {{ { "mg_cast_time_pct", -8 }, { "mg_fail_pct", -5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "mg_arcane_geometry", branch_id::mastery, 5, 20, currency_id::perk, "mg_sustained_weave", "", "Arcane Geometry", "Магическая геометрия", "Magiclysm: area of effect +6% and range +5%.", "Magiclysm: площадь действия +6%, дальность +5%.", {{ { "mg_aoe_pct", 6 }, { "mg_range_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "mg_mana_mastery", branch_id::mastery, 6, 25, currency_id::major, "mg_deep_reservoir", "", "Mana Mastery", "Мастерство маны", "Magiclysm mana capstone: spell cost -10%, mana regeneration +15%.", "Вершина маны Magiclysm: стоимость заклинаний -10%, регенерация маны +15%.", {{ { "mg_spell_cost_pct", -10 }, { "mg_mana_regen_pct", 15 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "mg_ritual_craft", branch_id::mastery, 6, 25, currency_id::major, "mg_quick_invocation", "", "Ritual Mastery", "Мастерство ритуалов", "Magiclysm control capstone: +0.75 Spellcraft and +12% spell XP.", "Вершина контроля Magiclysm: +0,75 Spellcraft и +12% опыта заклинаний.", {{ { "mg_spellcraft_flat", 0.75 }, { "mg_spell_xp_pct", 12 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "mg_high_thaumaturgy", branch_id::mastery, 6, 25, currency_id::major, "mg_arcane_geometry", "", "High Thaumaturgy", "Высшая тауматургия", "Magiclysm projection capstone: spell potency +10%, duration +10%.", "Вершина проекции Magiclysm: мощность +10%, длительность +10%.", {{ { "mg_spell_power_pct", 10 }, { "mg_duration_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "mg_efficient_theory", branch_id::mastery, 7, 30, currency_id::perk, "mg_mana_mastery", "mg_ritual_craft", "Efficient Theory", "Эффективная теория", "Magiclysm convergence: spell cost -5%, spell XP +8%.", "Сведение путей Magiclysm: стоимость -5%, опыт заклинаний +8%.", {{ { "mg_spell_cost_pct", -5 }, { "mg_spell_xp_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "mg_combat_weave", branch_id::mastery, 7, 30, currency_id::perk, "mg_ritual_craft", "mg_high_thaumaturgy", "Combat Weave", "Боевое плетение", "Magiclysm convergence: casting time -5%, spell potency +8%.", "Сведение путей Magiclysm: время сотворения -5%, мощность +8%.", {{ { "mg_cast_time_pct", -5 }, { "mg_spell_power_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "mg_resonant_reserve", branch_id::mastery, 7, 30, currency_id::perk, "mg_mana_mastery", "mg_high_thaumaturgy", "Resonant Reserve", "Резонансный резерв", "Magiclysm convergence: maximum mana +10%, spell duration +8%.", "Сведение путей Magiclysm: максимум маны +10%, длительность +8%.", {{ { "mg_mana_max_pct", 10 }, { "mg_duration_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "mg_archmage", branch_id::mastery, 8, 40, currency_id::major, "mg_efficient_theory", "mg_combat_weave", "Archmage", "Архимаг", "Magiclysm apex: +0.75 Spellcraft, -5% failure, +8% potency, +8% spell XP.", "Вершина Magiclysm: +0,75 Spellcraft, -5% провала, +8% мощность, +8% опыт заклинаний.", {{ { "mg_spellcraft_flat", 0.75 }, { "mg_fail_pct", -5 }, { "mg_spell_power_pct", 8 }, { "mg_spell_xp_pct", 8 } }}, 4, 0, perk_kind::effect },
+    { "mg_mana_mastery", branch_id::mastery, 6, 25, currency_id::major, "mg_deep_reservoir", "", "Mana Mastery", "Мастерство маны", "spell cost -10%, mana regeneration +15%.", "стоимость заклинаний -10%, регенерация маны +15%.", {{ { "mg_spell_cost_pct", -10 }, { "mg_mana_regen_pct", 15 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "mg_ritual_craft", branch_id::mastery, 6, 25, currency_id::major, "mg_quick_invocation", "", "Ritual Mastery", "Мастерство ритуалов", "+0.75 Spellcraft and +12% spell XP.", "+0,75 Spellcraft и +12% опыта заклинаний.", {{ { "mg_spellcraft_flat", 0.75 }, { "mg_spell_xp_pct", 12 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "mg_high_thaumaturgy", branch_id::mastery, 6, 25, currency_id::major, "mg_arcane_geometry", "", "High Thaumaturgy", "Высшая тауматургия", "spell potency +10%, duration +10%.", "мощность +10%, длительность +10%.", {{ { "mg_spell_power_pct", 10 }, { "mg_duration_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "mg_efficient_theory", branch_id::mastery, 7, 30, currency_id::perk, "mg_mana_mastery", "mg_ritual_craft", "Efficient Theory", "Эффективная теория", "spell cost -5%, spell XP +8%.", "стоимость -5%, опыт заклинаний +8%.", {{ { "mg_spell_cost_pct", -5 }, { "mg_spell_xp_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "mg_combat_weave", branch_id::mastery, 7, 30, currency_id::perk, "mg_ritual_craft", "mg_high_thaumaturgy", "Combat Weave", "Боевое плетение", "casting time -5%, spell potency +8%.", "время сотворения -5%, мощность +8%.", {{ { "mg_cast_time_pct", -5 }, { "mg_spell_power_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "mg_resonant_reserve", branch_id::mastery, 7, 30, currency_id::perk, "mg_mana_mastery", "mg_high_thaumaturgy", "Resonant Reserve", "Резонансный резерв", "maximum mana +10%, spell duration +8%.", "максимум маны +10%, длительность +8%.", {{ { "mg_mana_max_pct", 10 }, { "mg_duration_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "mg_archmage", branch_id::mastery, 8, 40, currency_id::major, "mg_efficient_theory", "mg_combat_weave", "Archmage", "Архимаг", "+0.75 Spellcraft, -5% failure, +8% potency, +8% spell XP.", "+0,75 Spellcraft, -5% провала, +8% мощность, +8% опыт заклинаний.", {{ { "mg_spellcraft_flat", 0.75 }, { "mg_fail_pct", -5 }, { "mg_spell_power_pct", 8 }, { "mg_spell_xp_pct", 8 } }}, 4, 0, perk_kind::effect },
 
     { "mom_mental_focus", branch_id::mastery, 1, 2, currency_id::perk, "", "", "Psionic Focus", "Псионический фокус", "Mind Over Matter powers: +0.5 effective Metaphysics while channeling.", "Силы Mind Over Matter: +0,5 к эффективной Metaphysics при ченнелинге.", {{ { "mom_metaphysics_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "mom_still_mind", branch_id::mastery, 2, 5, currency_id::perk, "mom_mental_focus", "", "Still Mind", "Спокойный разум", "Mind Over Matter: power failure chance -6%.", "Mind Over Matter: шанс провала псионических сил -6%.", {{ { "mom_fail_pct", -6 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
@@ -7236,13 +7235,13 @@ $modPerksV8 = @'
     { "mom_mental_lattice", branch_id::mastery, 5, 20, currency_id::perk, "mom_metaphysical_method", "", "Mental Lattice", "Ментальная решётка", "Mind Over Matter: failure chance -7%, activation time -5%.", "Mind Over Matter: шанс провала -7%, время активации -5%.", {{ { "mom_fail_pct", -7 }, { "mom_cast_time_pct", -5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "mom_recovery_cycle", branch_id::mastery, 5, 20, currency_id::perk, "mom_controlled_exposure", "", "Recovery Cycle", "Цикл восстановления", "Mind Over Matter: stamina cost -7%, power-use XP +8%.", "Mind Over Matter: стоимость по выносливости -7%, опыт сил +8%.", {{ { "mom_spell_cost_pct", -7 }, { "mom_spell_xp_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "mom_field_shaping", branch_id::mastery, 5, 20, currency_id::perk, "mom_extended_pattern", "", "Field Shaping", "Формирование поля", "Mind Over Matter: area of effect +6%, range +5%.", "Mind Over Matter: площадь действия +6%, дальность +5%.", {{ { "mom_aoe_pct", 6 }, { "mom_range_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "mom_combat_focus", branch_id::mastery, 6, 25, currency_id::major, "mom_mental_lattice", "", "Noetic Control", "Ноэтический контроль", "Mind Over Matter control capstone: +0.75 effective Metaphysics while channeling, failure chance -8%.", "Вершина контроля Mind Over Matter: +0,75 эффективной Metaphysics при ченнелинге, шанс провала -8%.", {{ { "mom_metaphysics_flat", 0.75 }, { "mom_fail_pct", -8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "mom_nether_discipline", branch_id::mastery, 6, 25, currency_id::major, "mom_recovery_cycle", "", "Nether Discipline", "Дисциплина Низины", "Mind Over Matter economy capstone: stamina cost -10%, power-use XP +12%.", "Вершина экономии Mind Over Matter: стоимость по выносливости -10%, опыт сил +12%.", {{ { "mom_spell_cost_pct", -10 }, { "mom_spell_xp_pct", 12 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "mom_noetic_projection", branch_id::mastery, 6, 25, currency_id::major, "mom_field_shaping", "", "Noetic Projection", "Ноэтическая проекция", "Mind Over Matter projection capstone: potency +10%, duration +10%.", "Вершина проекции Mind Over Matter: мощность +10%, длительность +10%.", {{ { "mom_spell_power_pct", 10 }, { "mom_duration_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "mom_stable_channel", branch_id::mastery, 7, 30, currency_id::perk, "mom_combat_focus", "mom_nether_discipline", "Stable Channel", "Стабильный канал", "Mind Over Matter convergence: failure -5%, stamina cost -5%.", "Сведение путей Mind Over Matter: провал -5%, стоимость по выносливости -5%.", {{ { "mom_fail_pct", -5 }, { "mom_spell_cost_pct", -5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "mom_precise_manifestation", branch_id::mastery, 7, 30, currency_id::perk, "mom_combat_focus", "mom_noetic_projection", "Precise Manifestation", "Точная манифестация", "Mind Over Matter convergence: activation time -5%, range +6%.", "Сведение путей Mind Over Matter: время активации -5%, дальность +6%.", {{ { "mom_cast_time_pct", -5 }, { "mom_range_pct", 6 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "mom_efficient_force", branch_id::mastery, 7, 30, currency_id::perk, "mom_nether_discipline", "mom_noetic_projection", "Efficient Force", "Эффективная сила", "Mind Over Matter convergence: stamina cost -5%, potency +8%.", "Сведение путей Mind Over Matter: стоимость по выносливости -5%, мощность +8%.", {{ { "mom_spell_cost_pct", -5 }, { "mom_spell_power_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "mom_transcendent_focus", branch_id::mastery, 8, 40, currency_id::major, "mom_stable_channel", "mom_efficient_force", "Transcendent Focus", "Трансцендентный фокус", "Mind Over Matter apex: +0.75 effective Metaphysics while channeling, failure -5%, potency +8%, power XP +8%.", "Вершина Mind Over Matter: +0,75 эффективной Metaphysics при ченнелинге, провал -5%, мощность +8%, опыт сил +8%.", {{ { "mom_metaphysics_flat", 0.75 }, { "mom_fail_pct", -5 }, { "mom_spell_power_pct", 8 }, { "mom_spell_xp_pct", 8 } }}, 4, 0, perk_kind::effect },
+    { "mom_combat_focus", branch_id::mastery, 6, 25, currency_id::major, "mom_mental_lattice", "", "Noetic Control", "Ноэтический контроль", "+0.75 effective Metaphysics while channeling, failure chance -8%.", "+0,75 эффективной Metaphysics при ченнелинге, шанс провала -8%.", {{ { "mom_metaphysics_flat", 0.75 }, { "mom_fail_pct", -8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "mom_nether_discipline", branch_id::mastery, 6, 25, currency_id::major, "mom_recovery_cycle", "", "Nether Discipline", "Дисциплина Низины", "stamina cost -10%, power-use XP +12%.", "стоимость по выносливости -10%, опыт сил +12%.", {{ { "mom_spell_cost_pct", -10 }, { "mom_spell_xp_pct", 12 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "mom_noetic_projection", branch_id::mastery, 6, 25, currency_id::major, "mom_field_shaping", "", "Noetic Projection", "Ноэтическая проекция", "potency +10%, duration +10%.", "мощность +10%, длительность +10%.", {{ { "mom_spell_power_pct", 10 }, { "mom_duration_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "mom_stable_channel", branch_id::mastery, 7, 30, currency_id::perk, "mom_combat_focus", "mom_nether_discipline", "Stable Channel", "Стабильный канал", "failure -5%, stamina cost -5%.", "провал -5%, стоимость по выносливости -5%.", {{ { "mom_fail_pct", -5 }, { "mom_spell_cost_pct", -5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "mom_precise_manifestation", branch_id::mastery, 7, 30, currency_id::perk, "mom_combat_focus", "mom_noetic_projection", "Precise Manifestation", "Точная манифестация", "activation time -5%, range +6%.", "время активации -5%, дальность +6%.", {{ { "mom_cast_time_pct", -5 }, { "mom_range_pct", 6 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "mom_efficient_force", branch_id::mastery, 7, 30, currency_id::perk, "mom_nether_discipline", "mom_noetic_projection", "Efficient Force", "Эффективная сила", "stamina cost -5%, potency +8%.", "стоимость по выносливости -5%, мощность +8%.", {{ { "mom_spell_cost_pct", -5 }, { "mom_spell_power_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "mom_transcendent_focus", branch_id::mastery, 8, 40, currency_id::major, "mom_stable_channel", "mom_efficient_force", "Transcendent Focus", "Трансцендентный фокус", "+0.75 effective Metaphysics while channeling, failure -5%, potency +8%, power XP +8%.", "+0,75 эффективной Metaphysics при ченнелинге, провал -5%, мощность +8%, опыт сил +8%.", {{ { "mom_metaphysics_flat", 0.75 }, { "mom_fail_pct", -5 }, { "mom_spell_power_pct", 8 }, { "mom_spell_xp_pct", 8 } }}, 4, 0, perk_kind::effect },
 
     { "xe_anomaly_method", branch_id::mastery, 1, 2, currency_id::perk, "", "", "Anomaly Method", "Метод аномалий", "Xedra Evolved: +0.5 effective Deduction.", "Xedra Evolved: +0,5 к эффективной Deduction.", {{ { "xe_deduction_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "xe_field_agent", branch_id::mastery, 2, 5, currency_id::perk, "xe_anomaly_method", "", "XEDRA Field Analysis", "Полевой анализ XEDRA", "Xedra Evolved: +0.5 effective Deduction.", "Xedra Evolved: +0,5 к эффективной Deduction.", {{ { "xe_deduction_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
@@ -7257,13 +7256,13 @@ $modPerksV8 = @'
     { "xe_pattern_archive", branch_id::mastery, 5, 20, currency_id::perk, "xe_dimensional_model", "", "Pattern Archive", "Архив паттернов", "Xedra Evolved: +0.5 Deduction and +8% spell XP.", "Xedra Evolved: +0,5 Deduction и +8% опыта заклинаний.", {{ { "xe_deduction_flat", 0.5 }, { "xe_spell_xp_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "xe_dream_reservoir", branch_id::mastery, 5, 20, currency_id::perk, "xe_efficient_oneiromancy", "", "Dream Reservoir", "Резерв сновидений", "Xedra Evolved: +12% maximum mana and +8% mana regeneration.", "Xedra Evolved: +12% максимум маны и +8% восстановление маны.", {{ { "xe_mana_max_pct", 12 }, { "xe_mana_regen_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "xe_liminal_persistence", branch_id::mastery, 5, 20, currency_id::perk, "xe_oneiric_force", "", "Liminal Persistence", "Пограничная устойчивость", "Xedra Evolved: duration +8%, area of effect +6%.", "Xedra Evolved: длительность +8%, площадь действия +6%.", {{ { "xe_duration_pct", 8 }, { "xe_aoe_pct", 6 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "xe_occult_engineer", branch_id::mastery, 6, 25, currency_id::major, "xe_pattern_archive", "", "Occult Engineer", "Оккультный инженер", "Xedra Evolved analysis capstone: +0.75 Deduction and +0.75 Gramarye.", "Вершина анализа Xedra Evolved: +0,75 Deduction и +0,75 Gramarye.", {{ { "xe_deduction_flat", 0.75 }, { "xe_gramarye_flat", 0.75 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "xe_dream_economy", branch_id::mastery, 6, 25, currency_id::major, "xe_dream_reservoir", "", "Dream Economy", "Экономия сновидений", "Xedra Evolved dream capstone: mana cost -10%, mana regeneration +15%.", "Вершина сновидений Xedra Evolved: стоимость маны -10%, регенерация +15%.", {{ { "xe_spell_cost_pct", -10 }, { "xe_mana_regen_pct", 15 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "xe_reality_shaper", branch_id::mastery, 6, 25, currency_id::major, "xe_liminal_persistence", "", "Reality Shaper", "Формирователь реальности", "Xedra Evolved projection capstone: potency +10%, range +8%.", "Вершина проекции Xedra Evolved: мощность +10%, дальность +8%.", {{ { "xe_spell_power_pct", 10 }, { "xe_range_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "xe_dream_theorist", branch_id::mastery, 7, 30, currency_id::perk, "xe_occult_engineer", "xe_dream_economy", "Dream Theorist", "Теоретик сновидений", "Xedra Evolved convergence: spell XP +8%, mana cost -5%.", "Сведение путей Xedra Evolved: опыт заклинаний +8%, стоимость маны -5%.", {{ { "xe_spell_xp_pct", 8 }, { "xe_spell_cost_pct", -5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "xe_liminal_engineer", branch_id::mastery, 7, 30, currency_id::perk, "xe_occult_engineer", "xe_reality_shaper", "Liminal Engineer", "Пограничный инженер", "Xedra Evolved convergence: failure -5%, cast time -5%.", "Сведение путей Xedra Evolved: провал -5%, время сотворения -5%.", {{ { "xe_fail_pct", -5 }, { "xe_cast_time_pct", -5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "xe_oneiric_architect", branch_id::mastery, 7, 30, currency_id::perk, "xe_dream_economy", "xe_reality_shaper", "Oneiric Architect", "Онейрический архитектор", "Xedra Evolved convergence: potency +8%, duration +8%.", "Сведение путей Xedra Evolved: мощность +8%, длительность +8%.", {{ { "xe_spell_power_pct", 8 }, { "xe_duration_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "xe_boundary_master", branch_id::mastery, 8, 40, currency_id::major, "xe_dream_theorist", "xe_oneiric_architect", "Boundary Master", "Мастер границы", "Xedra Evolved apex: +0.75 Deduction, +0.5 Gramarye, failure -5%, potency +8%.", "Вершина Xedra Evolved: +0,75 Deduction, +0,5 Gramarye, провал -5%, мощность +8%.", {{ { "xe_deduction_flat", 0.75 }, { "xe_gramarye_flat", 0.5 }, { "xe_fail_pct", -5 }, { "xe_spell_power_pct", 8 } }}, 4, 0, perk_kind::effect },
+    { "xe_occult_engineer", branch_id::mastery, 6, 25, currency_id::major, "xe_pattern_archive", "", "Occult Engineer", "Оккультный инженер", "+0.75 Deduction and +0.75 Gramarye.", "+0,75 Deduction и +0,75 Gramarye.", {{ { "xe_deduction_flat", 0.75 }, { "xe_gramarye_flat", 0.75 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "xe_dream_economy", branch_id::mastery, 6, 25, currency_id::major, "xe_dream_reservoir", "", "Dream Economy", "Экономия сновидений", "mana cost -10%, mana regeneration +15%.", "стоимость маны -10%, регенерация +15%.", {{ { "xe_spell_cost_pct", -10 }, { "xe_mana_regen_pct", 15 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "xe_reality_shaper", branch_id::mastery, 6, 25, currency_id::major, "xe_liminal_persistence", "", "Reality Shaper", "Формирователь реальности", "potency +10%, range +8%.", "мощность +10%, дальность +8%.", {{ { "xe_spell_power_pct", 10 }, { "xe_range_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "xe_dream_theorist", branch_id::mastery, 7, 30, currency_id::perk, "xe_occult_engineer", "xe_dream_economy", "Dream Theorist", "Теоретик сновидений", "spell XP +8%, mana cost -5%.", "опыт заклинаний +8%, стоимость маны -5%.", {{ { "xe_spell_xp_pct", 8 }, { "xe_spell_cost_pct", -5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "xe_liminal_engineer", branch_id::mastery, 7, 30, currency_id::perk, "xe_occult_engineer", "xe_reality_shaper", "Liminal Engineer", "Пограничный инженер", "failure -5%, cast time -5%.", "провал -5%, время сотворения -5%.", {{ { "xe_fail_pct", -5 }, { "xe_cast_time_pct", -5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "xe_oneiric_architect", branch_id::mastery, 7, 30, currency_id::perk, "xe_dream_economy", "xe_reality_shaper", "Oneiric Architect", "Онейрический архитектор", "potency +8%, duration +8%.", "мощность +8%, длительность +8%.", {{ { "xe_spell_power_pct", 8 }, { "xe_duration_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "xe_boundary_master", branch_id::mastery, 8, 40, currency_id::major, "xe_dream_theorist", "xe_oneiric_architect", "Boundary Master", "Мастер границы", "+0.75 Deduction, +0.5 Gramarye, failure -5%, potency +8%.", "+0,75 Deduction, +0,5 Gramarye, провал -5%, мощность +8%.", {{ { "xe_deduction_flat", 0.75 }, { "xe_gramarye_flat", 0.5 }, { "xe_fail_pct", -5 }, { "xe_spell_power_pct", 8 } }}, 4, 0, perk_kind::effect },
 
     { "af_systems_operator", branch_id::mastery, 1, 2, currency_id::perk, "", "", "Systems Operator", "Оператор систем", "Aftershock Exoplanet: +0.25 effective Smartgun and +0.25 effective Metaphysics while channeling esper powers.", "Aftershock Exoplanet: +0,25 к Smartgun и +0,25 к эффективной Metaphysics при ченнелинге эспер-сил.", {{ { "af_smartgun_flat", 0.25 }, { "af_metaphysics_flat", 0.25 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "af_targeting_link", branch_id::mastery, 2, 5, currency_id::perk, "af_systems_operator", "", "Targeting Link", "Связь с прицелом", "Aftershock Exoplanet: +0.25 effective Smartgun.", "Aftershock Exoplanet: +0,25 к эффективному Smartgun.", {{ { "af_smartgun_flat", 0.25 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
@@ -7278,33 +7277,33 @@ $modPerksV8 = @'
     { "af_combat_technician", branch_id::mastery, 5, 20, currency_id::perk, "af_sensor_fusion", "", "Combat Technician", "Боевой техник", "Aftershock Exoplanet: +0.5 effective Smartgun.", "Aftershock Exoplanet: +0,5 к эффективному Smartgun.", {{ { "af_smartgun_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "af_efficient_esper", branch_id::mastery, 5, 20, currency_id::perk, "af_stable_esper", "", "Efficient Esper", "Эффективный эспер", "Aftershock Exoplanet esper powers: stamina cost -7%, power XP +8%.", "Псионика Aftershock Exoplanet: стоимость по выносливости -7%, опыт сил +8%.", {{ { "af_spell_cost_pct", -7 }, { "af_spell_xp_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "af_sustained_phenomena", branch_id::mastery, 5, 20, currency_id::perk, "af_esper_force", "", "Sustained Phenomena", "Устойчивые феномены", "Aftershock Exoplanet esper powers: duration +8%, range +5%.", "Псионика Aftershock Exoplanet: длительность +8%, дальность +5%.", {{ { "af_duration_pct", 8 }, { "af_range_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "af_smartgun_mastery", branch_id::mastery, 6, 25, currency_id::major, "af_combat_technician", "", "Smartgun Mastery", "Мастерство Smartgun", "Aftershock Exoplanet smartgun capstone: +0.75 effective Smartgun.", "Вершина Smartgun Aftershock Exoplanet: +0,75 к эффективному Smartgun.", {{ { "af_smartgun_flat", 0.75 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "af_esper_mastery", branch_id::mastery, 6, 25, currency_id::major, "af_efficient_esper", "", "Esper Mastery", "Мастерство эспера", "Aftershock Exoplanet esper capstone: +0.75 effective Metaphysics while channeling, failure chance -10%.", "Вершина эспера Aftershock Exoplanet: +0,75 эффективной Metaphysics при ченнелинге, шанс провала -10%.", {{ { "af_metaphysics_flat", 0.75 }, { "af_fail_pct", -10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "af_noetic_artillery", branch_id::mastery, 6, 25, currency_id::major, "af_sustained_phenomena", "", "Noetic Artillery", "Ноэтическая артиллерия", "Aftershock Exoplanet projection capstone: esper potency +10%, range +8%.", "Вершина проекции Aftershock Exoplanet: мощность эспера +10%, дальность +8%.", {{ { "af_spell_power_pct", 10 }, { "af_range_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "af_neural_targeting", branch_id::mastery, 7, 30, currency_id::perk, "af_smartgun_mastery", "af_esper_mastery", "Neural Targeting", "Нейронное наведение", "Aftershock Exoplanet convergence: +0.25 Smartgun and +0.5 effective Metaphysics while channeling.", "Сведение путей Aftershock Exoplanet: +0,25 Smartgun и +0,5 эффективной Metaphysics при ченнелинге.", {{ { "af_smartgun_flat", 0.25 }, { "af_metaphysics_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "af_psionic_firecontrol", branch_id::mastery, 7, 30, currency_id::perk, "af_smartgun_mastery", "af_noetic_artillery", "Psionic Fire Control", "Псионическое управление огнём", "Aftershock Exoplanet convergence: +0.25 Smartgun, esper potency +6%.", "Сведение путей Aftershock Exoplanet: +0,25 Smartgun, мощность эспера +6%.", {{ { "af_smartgun_flat", 0.25 }, { "af_spell_power_pct", 6 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "af_stable_projection", branch_id::mastery, 7, 30, currency_id::perk, "af_esper_mastery", "af_noetic_artillery", "Stable Projection", "Стабильная проекция", "Aftershock Exoplanet convergence: stamina cost -5%, failure chance -5%.", "Сведение путей Aftershock Exoplanet: стоимость по выносливости -5%, провал -5%.", {{ { "af_spell_cost_pct", -5 }, { "af_fail_pct", -5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "af_posthuman_operator", branch_id::mastery, 8, 40, currency_id::major, "af_neural_targeting", "af_stable_projection", "Posthuman Operator", "Постчеловеческий оператор", "Aftershock Exoplanet apex: +0.5 Smartgun, +0.75 effective Metaphysics while channeling, stamina cost -5%, esper potency +8%.", "Вершина Aftershock Exoplanet: +0,5 Smartgun, +0,75 эффективной Metaphysics при ченнелинге, стоимость выносливости -5%, мощность эспера +8%.", {{ { "af_smartgun_flat", 0.5 }, { "af_metaphysics_flat", 0.75 }, { "af_spell_cost_pct", -5 }, { "af_spell_power_pct", 8 } }}, 4, 0, perk_kind::effect },
-    { "afp_prime_operator", branch_id::mastery, 1, 2, currency_id::perk, "", "", "Prime Operator", "Оператор Prime", "Aftershock Prime: +0.25 effective Smartgun and +3% XP for Prime-sourced abilities.", "Aftershock Prime: +0,25 к эффективному Smartgun и +3% опыта способностей Prime.", {{ { "afp_smartgun_flat", 0.25 }, { "afp_spell_xp_pct", 3 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "af_smartgun_mastery", branch_id::mastery, 6, 25, currency_id::major, "af_combat_technician", "", "Smartgun Mastery", "Мастерство Smartgun", "+0.75 effective Smartgun.", "+0,75 к эффективному Smartgun.", {{ { "af_smartgun_flat", 0.75 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "af_esper_mastery", branch_id::mastery, 6, 25, currency_id::major, "af_efficient_esper", "", "Esper Mastery", "Мастерство эспера", "+0.75 effective Metaphysics while channeling, failure chance -10%.", "+0,75 эффективной Metaphysics при ченнелинге, шанс провала -10%.", {{ { "af_metaphysics_flat", 0.75 }, { "af_fail_pct", -10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "af_noetic_artillery", branch_id::mastery, 6, 25, currency_id::major, "af_sustained_phenomena", "", "Noetic Artillery", "Ноэтическая артиллерия", "esper potency +10%, range +8%.", "мощность эспера +10%, дальность +8%.", {{ { "af_spell_power_pct", 10 }, { "af_range_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "af_neural_targeting", branch_id::mastery, 7, 30, currency_id::perk, "af_smartgun_mastery", "af_esper_mastery", "Neural Targeting", "Нейронное наведение", "+0.25 Smartgun and +0.5 effective Metaphysics while channeling.", "+0,25 Smartgun и +0,5 эффективной Metaphysics при ченнелинге.", {{ { "af_smartgun_flat", 0.25 }, { "af_metaphysics_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "af_psionic_firecontrol", branch_id::mastery, 7, 30, currency_id::perk, "af_smartgun_mastery", "af_noetic_artillery", "Psionic Fire Control", "Псионическое управление огнём", "+0.25 Smartgun, esper potency +6%.", "+0,25 Smartgun, мощность эспера +6%.", {{ { "af_smartgun_flat", 0.25 }, { "af_spell_power_pct", 6 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "af_stable_projection", branch_id::mastery, 7, 30, currency_id::perk, "af_esper_mastery", "af_noetic_artillery", "Stable Projection", "Стабильная проекция", "stamina cost -5%, failure chance -5%.", "стоимость по выносливости -5%, провал -5%.", {{ { "af_spell_cost_pct", -5 }, { "af_fail_pct", -5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "af_posthuman_operator", branch_id::mastery, 8, 40, currency_id::major, "af_neural_targeting", "af_stable_projection", "Posthuman Operator", "Постчеловеческий оператор", "+0.5 Smartgun, +0.75 effective Metaphysics while channeling, stamina cost -5%, esper potency +8%.", "+0,5 Smartgun, +0,75 эффективной Metaphysics при ченнелинге, стоимость выносливости -5%, мощность эспера +8%.", {{ { "af_smartgun_flat", 0.5 }, { "af_metaphysics_flat", 0.75 }, { "af_spell_cost_pct", -5 }, { "af_spell_power_pct", 8 } }}, 4, 0, perk_kind::effect },
+    { "afp_prime_operator", branch_id::mastery, 1, 2, currency_id::perk, "", "", "Prime Operator", "Оператор Prime", "Aftershock Prime: +0.25 effective Smartgun and +3% XP for Prime abilities.", "Aftershock Prime: +0,25 к эффективному Smartgun и +3% опыта способностей Prime.", {{ { "afp_smartgun_flat", 0.25 }, { "afp_spell_xp_pct", 3 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "afp_smartgun_interface", branch_id::mastery, 2, 5, currency_id::perk, "afp_prime_operator", "", "Smartgun Interface", "Интерфейс Smartgun", "Prime smart weapons: +0.25 effective Smartgun.", "Умное оружие Prime: +0,25 к эффективному Smartgun.", {{ { "afp_smartgun_flat", 0.25 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "afp_systems_theory", branch_id::mastery, 2, 5, currency_id::perk, "afp_prime_operator", "", "Systems Theory", "Теория систем", "Prime-sourced utility abilities: energy cost -4%, XP +4%.", "Утилитарные способности Prime: стоимость энергии -4%, опыт +4%.", {{ { "afp_spell_cost_pct", -4 }, { "afp_spell_xp_pct", 4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "afp_translocation_calculus", branch_id::mastery, 2, 5, currency_id::perk, "afp_prime_operator", "", "Translocation Calculus", "Расчёт трансляции", "Prime-sourced spatial abilities: range +5%, duration +4%.", "Пространственные способности Prime: дальность +5%, длительность +4%.", {{ { "afp_range_pct", 5 }, { "afp_duration_pct", 4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "afp_systems_theory", branch_id::mastery, 2, 5, currency_id::perk, "afp_prime_operator", "", "Systems Theory", "Теория систем", "Prime abilities: energy cost -4%, XP +4%.", "Способности Prime: стоимость энергии -4%, опыт +4%.", {{ { "afp_spell_cost_pct", -4 }, { "afp_spell_xp_pct", 4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "afp_translocation_calculus", branch_id::mastery, 2, 5, currency_id::perk, "afp_prime_operator", "", "Translocation Calculus", "Расчёт транслокации", "Prime spatial abilities: range +5%, duration +4%.", "Пространственные способности Prime: дальность +5%, длительность +4%.", {{ { "afp_range_pct", 5 }, { "afp_duration_pct", 4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "afp_predictive_targeting", branch_id::mastery, 3, 9, currency_id::perk, "afp_smartgun_interface", "", "Predictive Targeting", "Предиктивное наведение", "Prime smart weapons: +0.25 effective Smartgun.", "Умное оружие Prime: +0,25 к эффективному Smartgun.", {{ { "afp_smartgun_flat", 0.25 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "afp_power_budget", branch_id::mastery, 3, 9, currency_id::perk, "afp_systems_theory", "", "Power Budget", "Энергобюджет", "Prime-sourced abilities: energy cost -4%, activation time -3%.", "Способности Prime: стоимость энергии -4%, время активации -3%.", {{ { "afp_spell_cost_pct", -4 }, { "afp_cast_time_pct", -3 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "afp_spatial_solution", branch_id::mastery, 3, 9, currency_id::perk, "afp_translocation_calculus", "", "Spatial Solution", "Пространственное решение", "Prime-sourced spatial abilities: range +5%, area +5%.", "Пространственные способности Prime: дальность +5%, площадь +5%.", {{ { "afp_range_pct", 5 }, { "afp_aoe_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "afp_power_budget", branch_id::mastery, 3, 9, currency_id::perk, "afp_systems_theory", "", "Power Budget", "Энергобюджет", "Prime abilities: energy cost -4%, activation time -3%.", "Способности Prime: стоимость энергии -4%, время активации -3%.", {{ { "afp_spell_cost_pct", -4 }, { "afp_cast_time_pct", -3 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "afp_spatial_solution", branch_id::mastery, 3, 9, currency_id::perk, "afp_translocation_calculus", "", "Spatial Solution", "Пространственное решение", "Prime spatial abilities: range +5%, area +5%.", "Пространственные способности Prime: дальность +5%, площадь +5%.", {{ { "afp_range_pct", 5 }, { "afp_aoe_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "afp_sensor_fusion", branch_id::mastery, 4, 14, currency_id::perk, "afp_predictive_targeting", "", "Sensor Fusion", "Слияние сенсоров", "Prime smart weapons: +0.25 effective Smartgun.", "Умное оружие Prime: +0,25 к эффективному Smartgun.", {{ { "afp_smartgun_flat", 0.25 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "afp_utility_protocols", branch_id::mastery, 4, 14, currency_id::perk, "afp_power_budget", "", "Utility Protocols", "Утилитарные протоколы", "Prime-sourced abilities: XP +6%, failure chance -4%.", "Способности Prime: опыт +6%, шанс провала -4%.", {{ { "afp_spell_xp_pct", 6 }, { "afp_fail_pct", -4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "afp_stable_translation", branch_id::mastery, 4, 14, currency_id::perk, "afp_spatial_solution", "", "Stable Translation", "Стабильная трансляция", "Prime-sourced spatial abilities: duration +6%, failure chance -4%.", "Пространственные способности Prime: длительность +6%, шанс провала -4%.", {{ { "afp_duration_pct", 6 }, { "afp_fail_pct", -4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "afp_utility_protocols", branch_id::mastery, 4, 14, currency_id::perk, "afp_power_budget", "", "Utility Suite", "Набор утилит", "Prime abilities: XP +6%, failure chance -4%.", "Способности Prime: опыт +6%, шанс провала -4%.", {{ { "afp_spell_xp_pct", 6 }, { "afp_fail_pct", -4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "afp_stable_translation", branch_id::mastery, 4, 14, currency_id::perk, "afp_spatial_solution", "", "Stable Translocation", "Стабильная транслокация", "Prime spatial abilities: duration +6%, failure chance -4%.", "Пространственные способности Prime: длительность +6%, шанс провала -4%.", {{ { "afp_duration_pct", 6 }, { "afp_fail_pct", -4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "afp_combat_technician", branch_id::mastery, 5, 20, currency_id::perk, "afp_sensor_fusion", "", "Prime Combat Technician", "Боевой техник Prime", "Prime smart weapons: +0.5 effective Smartgun.", "Умное оружие Prime: +0,5 к эффективному Smartgun.", {{ { "afp_smartgun_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "afp_systems_automation", branch_id::mastery, 5, 20, currency_id::perk, "afp_utility_protocols", "", "Systems Automation", "Автоматизация систем", "Prime-sourced abilities: activation time -5%, XP +7%.", "Способности Prime: время активации -5%, опыт +7%.", {{ { "afp_cast_time_pct", -5 }, { "afp_spell_xp_pct", 7 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "afp_field_projection", branch_id::mastery, 5, 20, currency_id::perk, "afp_stable_translation", "", "Field Projection", "Полевая проекция", "Prime-sourced abilities: potency +6%, range +5%.", "Способности Prime: мощность +6%, дальность +5%.", {{ { "afp_spell_power_pct", 6 }, { "afp_range_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "afp_smartgun_mastery", branch_id::mastery, 6, 25, currency_id::major, "afp_combat_technician", "", "Prime Smartgun Mastery", "Мастерство Smartgun Prime", "Prime smartgun capstone: +0.75 effective Smartgun.", "Вершина Smartgun Prime: +0,75 к эффективному Smartgun.", {{ { "afp_smartgun_flat", 0.75 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "afp_prime_systems_mastery", branch_id::mastery, 6, 25, currency_id::major, "afp_systems_automation", "", "Prime Systems Mastery", "Мастерство систем Prime", "Prime systems capstone: energy cost -7%, activation time -6%, XP +8%.", "Вершина систем Prime: стоимость энергии -7%, время активации -6%, опыт +8%.", {{ { "afp_spell_cost_pct", -7 }, { "afp_cast_time_pct", -6 }, { "afp_spell_xp_pct", 8 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
-    { "afp_translocation_mastery", branch_id::mastery, 6, 25, currency_id::major, "afp_field_projection", "", "Translocation Mastery", "Мастерство трансляции", "Prime spatial capstone: potency +8%, range +8%, duration +8%.", "Вершина трансляции Prime: мощность +8%, дальность +8%, длительность +8%.", {{ { "afp_spell_power_pct", 8 }, { "afp_range_pct", 8 }, { "afp_duration_pct", 8 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
-    { "afp_integrated_firecontrol", branch_id::mastery, 7, 30, currency_id::perk, "afp_smartgun_mastery", "afp_prime_systems_mastery", "Integrated Fire Control", "Интегрированное управление огнём", "Prime convergence: +0.25 Smartgun, activation time -4%.", "Сведение Prime: +0,25 Smartgun, время активации -4%.", {{ { "afp_smartgun_flat", 0.25 }, { "afp_cast_time_pct", -4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "afp_remote_geometry", branch_id::mastery, 7, 30, currency_id::perk, "afp_prime_systems_mastery", "afp_translocation_mastery", "Remote Geometry", "Удалённая геометрия", "Prime convergence: area +5%, duration +5%.", "Сведение Prime: площадь +5%, длительность +5%.", {{ { "afp_aoe_pct", 5 }, { "afp_duration_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "afp_mobile_platform", branch_id::mastery, 7, 30, currency_id::perk, "afp_smartgun_mastery", "afp_translocation_mastery", "Mobile Platform", "Мобильная платформа", "Prime convergence: +0.25 Smartgun, range +5%.", "Сведение Prime: +0,25 Smartgun, дальность +5%.", {{ { "afp_smartgun_flat", 0.25 }, { "afp_range_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "afp_prime_integrator", branch_id::mastery, 8, 40, currency_id::major, "afp_integrated_firecontrol", "afp_remote_geometry", "Prime Integrator", "Интегратор Prime", "Prime apex: +0.5 Smartgun, energy cost -5%, potency +6%, duration +6%.", "Вершина Prime: +0,5 Smartgun, стоимость энергии -5%, мощность +6%, длительность +6%.", {{ { "afp_smartgun_flat", 0.5 }, { "afp_spell_cost_pct", -5 }, { "afp_spell_power_pct", 6 }, { "afp_duration_pct", 6 } }}, 4, 0, perk_kind::effect },
+    { "afp_systems_automation", branch_id::mastery, 5, 20, currency_id::perk, "afp_utility_protocols", "", "Systems Automation", "Автоматизация систем", "Prime abilities: activation time -5%, XP +7%.", "Способности Prime: время активации -5%, опыт +7%.", {{ { "afp_cast_time_pct", -5 }, { "afp_spell_xp_pct", 7 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "afp_field_projection", branch_id::mastery, 5, 20, currency_id::perk, "afp_stable_translation", "", "Field Projection", "Полевая проекция", "Prime abilities: potency +6%, range +5%.", "Способности Prime: мощность +6%, дальность +5%.", {{ { "afp_spell_power_pct", 6 }, { "afp_range_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "afp_smartgun_mastery", branch_id::mastery, 6, 25, currency_id::major, "afp_combat_technician", "", "Prime Smartgun Mastery", "Мастерство Smartgun Prime", "+0.75 effective Smartgun.", "+0,75 к эффективному Smartgun.", {{ { "afp_smartgun_flat", 0.75 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "afp_prime_systems_mastery", branch_id::mastery, 6, 25, currency_id::major, "afp_systems_automation", "", "Prime Systems Mastery", "Мастерство систем Prime", "energy cost -7%, activation time -6%, XP +8%.", "стоимость энергии -7%, время активации -6%, опыт +8%.", {{ { "afp_spell_cost_pct", -7 }, { "afp_cast_time_pct", -6 }, { "afp_spell_xp_pct", 8 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
+    { "afp_translocation_mastery", branch_id::mastery, 6, 25, currency_id::major, "afp_field_projection", "", "Translocation Mastery", "Мастерство транслокации", "potency +8%, range +8%, duration +8%.", "мощность +8%, дальность +8%, длительность +8%.", {{ { "afp_spell_power_pct", 8 }, { "afp_range_pct", 8 }, { "afp_duration_pct", 8 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
+    { "afp_integrated_firecontrol", branch_id::mastery, 7, 30, currency_id::perk, "afp_smartgun_mastery", "afp_prime_systems_mastery", "Integrated Fire Control", "Интегрированное управление огнём", "+0.25 Smartgun, activation time -4%.", "+0,25 Smartgun, время активации -4%.", {{ { "afp_smartgun_flat", 0.25 }, { "afp_cast_time_pct", -4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "afp_remote_geometry", branch_id::mastery, 7, 30, currency_id::perk, "afp_prime_systems_mastery", "afp_translocation_mastery", "Remote Geometry", "Удалённая геометрия", "area +5%, duration +5%.", "площадь +5%, длительность +5%.", {{ { "afp_aoe_pct", 5 }, { "afp_duration_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "afp_mobile_platform", branch_id::mastery, 7, 30, currency_id::perk, "afp_smartgun_mastery", "afp_translocation_mastery", "Mobile Platform", "Мобильная платформа", "+0.25 Smartgun, range +5%.", "+0,25 Smartgun, дальность +5%.", {{ { "afp_smartgun_flat", 0.25 }, { "afp_range_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "afp_prime_integrator", branch_id::mastery, 8, 40, currency_id::major, "afp_integrated_firecontrol", "afp_remote_geometry", "Prime Integrator", "Интегратор Prime", "+0.5 Smartgun, energy cost -5%, potency +6%, duration +6%.", "+0,5 Smartgun, стоимость энергии -5%, мощность +6%, длительность +6%.", {{ { "afp_smartgun_flat", 0.5 }, { "afp_spell_cost_pct", -5 }, { "afp_spell_power_pct", 6 }, { "afp_duration_pct", 6 } }}, 4, 0, perk_kind::effect },
 
     { "sec_field_researcher", branch_id::mastery, 1, 2, currency_id::perk, "", "", "Secronom Field Researcher", "Полевой исследователь Secronom", "Against Secronom creatures: damage +2%, incoming damage -2%.", "Против существ Secronom: урон +2%, входящий урон -2%.", {{ { "sec_damage_pct", 2 }, { "sec_resist_pct", 2 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "sec_hunter_drills", branch_id::mastery, 2, 5, currency_id::perk, "sec_field_researcher", "", "Hunter Drills", "Тренировки охотника", "Against Secronom creatures: damage +3%.", "Против существ Secronom: урон +3%.", {{ { "sec_damage_pct", 3 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
@@ -7316,37 +7315,37 @@ $modPerksV8 = @'
     { "sec_elite_tracking", branch_id::mastery, 4, 14, currency_id::perk, "sec_vital_targets", "", "Elite Tracking", "Выслеживание элиты", "Against elite/catastrophic Secronom species: extra damage +4%.", "Против элитных/катастрофических видов Secronom: дополнительный урон +4%.", {{ { "sec_elite_damage_pct", 4 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "sec_adaptive_response", branch_id::mastery, 4, 14, currency_id::perk, "sec_toxicology", "", "Adaptive Response", "Адаптивная реакция", "Against elite/catastrophic Secronom species: incoming damage -4% extra.", "Против элитных/катастрофических видов Secronom: дополнительное снижение урона -4%.", {{ { "sec_elite_resist_pct", 4 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "sec_crimson_countermeasures", branch_id::mastery, 4, 14, currency_id::perk, "sec_flesh_patterning", "", "Crimson Countermeasures", "Контрмеры Crimson", "Against Crimson Horror species: incoming damage -4% extra.", "Против видов Crimson Horror: дополнительное снижение урона -4%.", {{ { "sec_crimson_resist_pct", 4 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "sec_execution_protocol", branch_id::mastery, 5, 20, currency_id::perk, "sec_elite_tracking", "", "Execution Protocol", "Протокол уничтожения", "Against elite/catastrophic Secronom species: extra damage +5%.", "Против элитных/катастрофических видов Secronom: дополнительный урон +5%.", {{ { "sec_elite_damage_pct", 5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "sec_execution_protocol", branch_id::mastery, 5, 20, currency_id::perk, "sec_elite_tracking", "", "Elite Hunter", "Охотник на элиту", "Against elite/catastrophic Secronom species: extra damage +5%.", "Против элитных/катастрофических видов Secronom: дополнительный урон +5%.", {{ { "sec_elite_damage_pct", 5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "sec_hardened_survivor", branch_id::mastery, 5, 20, currency_id::perk, "sec_adaptive_response", "", "Hardened Survivor", "Закалённый выживший", "Against elite/catastrophic Secronom species: incoming damage -5% extra.", "Против элитных/катастрофических видов Secronom: дополнительное снижение урона -5%.", {{ { "sec_elite_resist_pct", 5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "sec_fleshbreaker", branch_id::mastery, 5, 20, currency_id::perk, "sec_crimson_countermeasures", "", "Fleshbreaker", "Разрушитель плоти", "Against Crimson Horror species: extra damage +5%, incoming damage -3% extra.", "Против видов Crimson Horror: дополнительный урон +5%, дополнительное снижение урона -3%.", {{ { "sec_crimson_damage_pct", 5 }, { "sec_crimson_resist_pct", 3 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "sec_hunter_mastery", branch_id::mastery, 6, 25, currency_id::major, "sec_execution_protocol", "", "Secronom Hunter Mastery", "Мастерство охотника Secronom", "Hunter capstone: damage +6% to all Secronom and +4% extra to elites.", "Вершина охотника: урон +6% по всем Secronom и ещё +4% по элите.", {{ { "sec_damage_pct", 6 }, { "sec_elite_damage_pct", 4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "sec_survival_mastery", branch_id::mastery, 6, 25, currency_id::major, "sec_hardened_survivor", "", "Secronom Survival Mastery", "Мастерство выживания Secronom", "Survival capstone: incoming damage -6% from all Secronom and -4% extra from elites.", "Вершина выживания: входящий урон -6% от всех Secronom и ещё -4% от элиты.", {{ { "sec_resist_pct", 6 }, { "sec_elite_resist_pct", 4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "sec_crimson_mastery", branch_id::mastery, 6, 25, currency_id::major, "sec_fleshbreaker", "", "Crimson Horror Mastery", "Мастерство Crimson Horror", "Crimson capstone: extra damage +7%, incoming damage -5% extra.", "Вершина Crimson: дополнительный урон +7%, дополнительное снижение урона -5%.", {{ { "sec_crimson_damage_pct", 7 }, { "sec_crimson_resist_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "sec_apex_hunter", branch_id::mastery, 7, 30, currency_id::perk, "sec_hunter_mastery", "sec_survival_mastery", "Apex Hunter", "Вершинный охотник", "Secronom convergence: damage +4%, incoming damage -4%.", "Сведение Secronom: урон +4%, входящий урон -4%.", {{ { "sec_damage_pct", 4 }, { "sec_resist_pct", 4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "sec_ultimate_protocol", branch_id::mastery, 7, 30, currency_id::perk, "sec_survival_mastery", "sec_crimson_mastery", "Ultimate Protocol", "Протокол Ultimate", "Secronom convergence: elite resistance +5%, Crimson damage +4%.", "Сведение Secronom: защита от элиты +5%, урон по Crimson +4%.", {{ { "sec_elite_resist_pct", 5 }, { "sec_crimson_damage_pct", 4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "sec_red_harvest", branch_id::mastery, 7, 30, currency_id::perk, "sec_hunter_mastery", "sec_crimson_mastery", "Red Harvest", "Красная жатва", "Secronom convergence: elite damage +5%, Crimson damage +5%.", "Сведение Secronom: урон по элите +5%, урон по Crimson +5%.", {{ { "sec_elite_damage_pct", 5 }, { "sec_crimson_damage_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "sec_nightmare_specialist", branch_id::mastery, 8, 40, currency_id::major, "sec_apex_hunter", "sec_red_harvest", "Nightmare Specialist", "Специалист по кошмарам", "Secronom apex: damage +5%, resistance +5%, elite damage +5%, Crimson damage +5%.", "Вершина Secronom: урон +5%, защита +5%, урон по элите +5%, урон по Crimson +5%.", {{ { "sec_damage_pct", 5 }, { "sec_resist_pct", 5 }, { "sec_elite_damage_pct", 5 }, { "sec_crimson_damage_pct", 5 } }}, 4, 0, perk_kind::effect },
+    { "sec_hunter_mastery", branch_id::mastery, 6, 25, currency_id::major, "sec_execution_protocol", "", "Veteran Secronom Hunter", "Опытный охотник Secronom", "damage +6% to all Secronom and +4% extra to elites.", "урон +6% по всем Secronom и ещё +4% по элите.", {{ { "sec_damage_pct", 6 }, { "sec_elite_damage_pct", 4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "sec_survival_mastery", branch_id::mastery, 6, 25, currency_id::major, "sec_hardened_survivor", "", "Secronom Survivor", "Выживший против Secronom", "incoming damage -6% from all Secronom and -4% extra from elites.", "входящий урон -6% от всех Secronom и ещё -4% от элиты.", {{ { "sec_resist_pct", 6 }, { "sec_elite_resist_pct", 4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "sec_crimson_mastery", branch_id::mastery, 6, 25, currency_id::major, "sec_fleshbreaker", "", "Crimson Veteran", "Ветеран Crimson Horror", "extra damage +7%, incoming damage -5% extra.", "дополнительный урон +7%, дополнительное снижение урона -5%.", {{ { "sec_crimson_damage_pct", 7 }, { "sec_crimson_resist_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "sec_apex_hunter", branch_id::mastery, 7, 30, currency_id::perk, "sec_hunter_mastery", "sec_survival_mastery", "Nightmare Hunter", "Охотник на кошмары", "damage +4%, incoming damage -4%.", "урон +4%, входящий урон -4%.", {{ { "sec_damage_pct", 4 }, { "sec_resist_pct", 4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "sec_ultimate_protocol", branch_id::mastery, 7, 30, currency_id::perk, "sec_survival_mastery", "sec_crimson_mastery", "Crimson Doctrine", "Багровая доктрина", "elite resistance +5%, Crimson damage +4%.", "защита от элиты +5%, урон по Crimson +4%.", {{ { "sec_elite_resist_pct", 5 }, { "sec_crimson_damage_pct", 4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "sec_red_harvest", branch_id::mastery, 7, 30, currency_id::perk, "sec_hunter_mastery", "sec_crimson_mastery", "Red Harvest", "Красная жатва", "elite damage +5%, Crimson damage +5%.", "урон по элите +5%, урон по Crimson +5%.", {{ { "sec_elite_damage_pct", 5 }, { "sec_crimson_damage_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "sec_nightmare_specialist", branch_id::mastery, 8, 40, currency_id::major, "sec_apex_hunter", "sec_red_harvest", "Nightmare Specialist", "Специалист по кошмарам", "damage +5%, resistance +5%, elite damage +5%, Crimson damage +5%.", "урон +5%, защита +5%, урон по элите +5%, урон по Crimson +5%.", {{ { "sec_damage_pct", 5 }, { "sec_resist_pct", 5 }, { "sec_elite_damage_pct", 5 }, { "sec_crimson_damage_pct", 5 } }}, 4, 0, perk_kind::effect },
 
     { "secx_flesh_initiate", branch_id::mastery, 1, 2, currency_id::perk, "", "", "Flesh Initiate", "Посвящённый плоти", "Secronom+: +0.25 effective Flesh Weaving and +0.25 Bio-organic Weapons.", "Secronom+: +0,25 к Flesh Weaving и +0,25 к Bio-organic Weapons.", {{ { "secx_flesh_craft_flat", 0.25 }, { "secx_flesh_combat_flat", 0.25 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "secx_flesh_weaving", branch_id::mastery, 2, 5, currency_id::perk, "secx_flesh_initiate", "", "Flesh Weaving Practice", "Практика Flesh Weaving", "Secronom+: +0.5 effective Flesh Weaving.", "Secronom+: +0,5 к эффективному Flesh Weaving.", {{ { "secx_flesh_craft_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "secx_biomorph_training", branch_id::mastery, 2, 5, currency_id::perk, "secx_flesh_initiate", "", "Biomorph Training", "Тренировка Biomorph", "Secronom+: +0.5 effective Bio-organic Weapons.", "Secronom+: +0,5 к эффективному Bio-organic Weapons.", {{ { "secx_flesh_combat_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "secx_neural_link", branch_id::mastery, 2, 5, currency_id::perk, "secx_flesh_initiate", "", "Flesh Vessel Neural Link", "Нейросвязь Flesh Vessel", "Secronom+-sourced abilities: energy cost -4%, XP +4%.", "Способности Secronom+: стоимость энергии -4%, опыт +4%.", {{ { "secx_spell_cost_pct", -4 }, { "secx_spell_xp_pct", 4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "secx_neural_link", branch_id::mastery, 2, 5, currency_id::perk, "secx_flesh_initiate", "", "Flesh Vessel Neural Link", "Нейросвязь Flesh Vessel", "Secronom+ abilities: energy cost -4%, XP +4%.", "Способности Secronom+: стоимость энергии -4%, опыт +4%.", {{ { "secx_spell_cost_pct", -4 }, { "secx_spell_xp_pct", 4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "secx_resource_shaping", branch_id::mastery, 3, 9, currency_id::perk, "secx_flesh_weaving", "", "Resource Shaping", "Формирование ресурсов", "Secronom+: +0.5 effective Flesh Weaving.", "Secronom+: +0,5 к эффективному Flesh Weaving.", {{ { "secx_flesh_craft_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "secx_armament_drills", branch_id::mastery, 3, 9, currency_id::perk, "secx_biomorph_training", "", "Armament Drills", "Тренировки вооружения", "Secronom+: +0.5 effective Bio-organic Weapons.", "Secronom+: +0,5 к эффективному Bio-organic Weapons.", {{ { "secx_flesh_combat_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "secx_morph_control", branch_id::mastery, 3, 9, currency_id::perk, "secx_neural_link", "", "Morph Control", "Контроль морфинга", "Secronom+-sourced abilities: activation time -4%, failure chance -4%.", "Способности Secronom+: время активации -4%, шанс провала -4%.", {{ { "secx_cast_time_pct", -4 }, { "secx_fail_pct", -4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "secx_morph_control", branch_id::mastery, 3, 9, currency_id::perk, "secx_neural_link", "", "Morph Control", "Контроль морфинга", "Secronom+ abilities: activation time -4%, failure chance -4%.", "Способности Secronom+: время активации -4%, шанс провала -4%.", {{ { "secx_cast_time_pct", -4 }, { "secx_fail_pct", -4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "secx_advanced_weaving", branch_id::mastery, 4, 14, currency_id::perk, "secx_resource_shaping", "", "Advanced Flesh Weaving", "Продвинутое Flesh Weaving", "Secronom+: +0.5 effective Flesh Weaving.", "Secronom+: +0,5 к эффективному Flesh Weaving.", {{ { "secx_flesh_craft_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "secx_combat_instinct", branch_id::mastery, 4, 14, currency_id::perk, "secx_armament_drills", "", "Bio-organic Combat Instinct", "Биоорганический боевой инстинкт", "Secronom+: +0.5 effective Bio-organic Weapons.", "Secronom+: +0,5 к эффективному Bio-organic Weapons.", {{ { "secx_flesh_combat_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "secx_flesh_channel", branch_id::mastery, 4, 14, currency_id::perk, "secx_morph_control", "", "Flesh Channel", "Канал плоти", "Secronom+-sourced abilities: duration +5%, potency +5%.", "Способности Secronom+: длительность +5%, мощность +5%.", {{ { "secx_duration_pct", 5 }, { "secx_spell_power_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "secx_flesh_channel", branch_id::mastery, 4, 14, currency_id::perk, "secx_morph_control", "", "Flesh Channel", "Канал плоти", "Secronom+ abilities: duration +5%, potency +5%.", "Способности Secronom+: длительность +5%, мощность +5%.", {{ { "secx_duration_pct", 5 }, { "secx_spell_power_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "secx_material_mastery", branch_id::mastery, 5, 20, currency_id::perk, "secx_advanced_weaving", "", "Living Material Mastery", "Мастерство живого материала", "Secronom+: +0.75 effective Flesh Weaving.", "Secronom+: +0,75 к эффективному Flesh Weaving.", {{ { "secx_flesh_craft_flat", 0.75 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "secx_bioorganic_mastery", branch_id::mastery, 5, 20, currency_id::perk, "secx_combat_instinct", "", "Bio-organic Armament Mastery", "Мастерство биооружия", "Secronom+: +0.75 effective Bio-organic Weapons.", "Secronom+: +0,75 к эффективному Bio-organic Weapons.", {{ { "secx_flesh_combat_flat", 0.75 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "secx_vessel_resonance", branch_id::mastery, 5, 20, currency_id::perk, "secx_flesh_channel", "", "Flesh Vessel Resonance", "Резонанс Flesh Vessel", "Secronom+-sourced abilities: energy cost -5%, duration +6%.", "Способности Secronom+: стоимость энергии -5%, длительность +6%.", {{ { "secx_spell_cost_pct", -5 }, { "secx_duration_pct", 6 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "secx_fleshcraft_mastery", branch_id::mastery, 6, 25, currency_id::major, "secx_material_mastery", "", "Fleshcraft Mastery", "Мастерство Fleshcraft", "Flesh Weaving capstone: +1.0 effective Flesh Weaving.", "Вершина Flesh Weaving: +1,0 к эффективному Flesh Weaving.", {{ { "secx_flesh_craft_flat", 1.0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "secx_biomorph_mastery", branch_id::mastery, 6, 25, currency_id::major, "secx_bioorganic_mastery", "", "Biomorph Mastery", "Мастерство Biomorph", "Bio-organic Weapons capstone: +1.0 effective Bio-organic Weapons.", "Вершина Bio-organic Weapons: +1,0 к эффективному Bio-organic Weapons.", {{ { "secx_flesh_combat_flat", 1.0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "secx_flesh_vessel_mastery", branch_id::mastery, 6, 25, currency_id::major, "secx_vessel_resonance", "", "Flesh Vessel Mastery", "Мастерство Flesh Vessel", "Flesh Vessel capstone: potency +8%, energy cost -6%, duration +8%.", "Вершина Flesh Vessel: мощность +8%, стоимость энергии -6%, длительность +8%.", {{ { "secx_spell_power_pct", 8 }, { "secx_spell_cost_pct", -6 }, { "secx_duration_pct", 8 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
-    { "secx_living_arsenal", branch_id::mastery, 7, 30, currency_id::perk, "secx_fleshcraft_mastery", "secx_biomorph_mastery", "Living Arsenal", "Живой арсенал", "Secronom+ convergence: +0.5 Flesh Weaving and +0.5 Bio-organic Weapons.", "Сведение Secronom+: +0,5 Flesh Weaving и +0,5 Bio-organic Weapons.", {{ { "secx_flesh_craft_flat", 0.5 }, { "secx_flesh_combat_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "secx_adaptive_morph", branch_id::mastery, 7, 30, currency_id::perk, "secx_biomorph_mastery", "secx_flesh_vessel_mastery", "Adaptive Morph", "Адаптивный морф", "Secronom+ convergence: +0.5 Bio-organic Weapons, activation time -4%.", "Сведение Secronom+: +0,5 Bio-organic Weapons, время активации -4%.", {{ { "secx_flesh_combat_flat", 0.5 }, { "secx_cast_time_pct", -4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "secx_artificial_ecology", branch_id::mastery, 7, 30, currency_id::perk, "secx_fleshcraft_mastery", "secx_flesh_vessel_mastery", "Artificial Ecology", "Искусственная экология", "Secronom+ convergence: +0.5 Flesh Weaving, ability XP +6%.", "Сведение Secronom+: +0,5 Flesh Weaving, опыт способностей +6%.", {{ { "secx_flesh_craft_flat", 0.5 }, { "secx_spell_xp_pct", 6 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "secx_flesh_architect", branch_id::mastery, 8, 40, currency_id::major, "secx_living_arsenal", "secx_adaptive_morph", "Flesh Architect", "Архитектор плоти", "Secronom+ apex: +0.75 Flesh Weaving, +0.75 Bio-organic Weapons, potency +6%, energy cost -5%.", "Вершина Secronom+: +0,75 Flesh Weaving, +0,75 Bio-organic Weapons, мощность +6%, стоимость энергии -5%.", {{ { "secx_flesh_craft_flat", 0.75 }, { "secx_flesh_combat_flat", 0.75 }, { "secx_spell_power_pct", 6 }, { "secx_spell_cost_pct", -5 } }}, 4, 0, perk_kind::effect },
+    { "secx_vessel_resonance", branch_id::mastery, 5, 20, currency_id::perk, "secx_flesh_channel", "", "Flesh Vessel Resonance", "Резонанс Flesh Vessel", "Secronom+ abilities: energy cost -5%, duration +6%.", "Способности Secronom+: стоимость энергии -5%, длительность +6%.", {{ { "secx_spell_cost_pct", -5 }, { "secx_duration_pct", 6 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "secx_fleshcraft_mastery", branch_id::mastery, 6, 25, currency_id::major, "secx_material_mastery", "", "Fleshcraft Mastery", "Мастерство Fleshcraft", "+1.0 effective Flesh Weaving.", "+1,0 к эффективному Flesh Weaving.", {{ { "secx_flesh_craft_flat", 1.0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "secx_biomorph_mastery", branch_id::mastery, 6, 25, currency_id::major, "secx_bioorganic_mastery", "", "Biomorph Mastery", "Мастерство Biomorph", "+1.0 effective Bio-organic Weapons.", "+1,0 к эффективному Bio-organic Weapons.", {{ { "secx_flesh_combat_flat", 1.0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "secx_flesh_vessel_mastery", branch_id::mastery, 6, 25, currency_id::major, "secx_vessel_resonance", "", "Flesh Vessel Mastery", "Мастерство Flesh Vessel", "potency +8%, energy cost -6%, duration +8%.", "мощность +8%, стоимость энергии -6%, длительность +8%.", {{ { "secx_spell_power_pct", 8 }, { "secx_spell_cost_pct", -6 }, { "secx_duration_pct", 8 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
+    { "secx_living_arsenal", branch_id::mastery, 7, 30, currency_id::perk, "secx_fleshcraft_mastery", "secx_biomorph_mastery", "Living Arsenal", "Живой арсенал", "+0.5 Flesh Weaving and +0.5 Bio-organic Weapons.", "+0,5 Flesh Weaving и +0,5 Bio-organic Weapons.", {{ { "secx_flesh_craft_flat", 0.5 }, { "secx_flesh_combat_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "secx_adaptive_morph", branch_id::mastery, 7, 30, currency_id::perk, "secx_biomorph_mastery", "secx_flesh_vessel_mastery", "Adaptive Morph", "Адаптивный морф", "+0.5 Bio-organic Weapons, activation time -4%.", "+0,5 Bio-organic Weapons, время активации -4%.", {{ { "secx_flesh_combat_flat", 0.5 }, { "secx_cast_time_pct", -4 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "secx_artificial_ecology", branch_id::mastery, 7, 30, currency_id::perk, "secx_fleshcraft_mastery", "secx_flesh_vessel_mastery", "Artificial Ecology", "Искусственная экология", "+0.5 Flesh Weaving, ability XP +6%.", "+0,5 Flesh Weaving, опыт способностей +6%.", {{ { "secx_flesh_craft_flat", 0.5 }, { "secx_spell_xp_pct", 6 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "secx_flesh_architect", branch_id::mastery, 8, 40, currency_id::major, "secx_living_arsenal", "secx_adaptive_morph", "Flesh Architect", "Архитектор плоти", "+0.75 Flesh Weaving, +0.75 Bio-organic Weapons, potency +6%, energy cost -5%.", "+0,75 Flesh Weaving, +0,75 Bio-organic Weapons, мощность +6%, стоимость энергии -5%.", {{ { "secx_flesh_craft_flat", 0.75 }, { "secx_flesh_combat_flat", 0.75 }, { "secx_spell_power_pct", 6 }, { "secx_spell_cost_pct", -5 } }}, 4, 0, perk_kind::effect },
 '@
 $perkArrayStartV8 = $sp.IndexOf('const perk_def perks[] = {')
 if ($perkArrayStartV8 -lt 0) { throw 'v8 perk array start not found.' }
@@ -7435,7 +7434,7 @@ bool purchase_perk( const perk_def &perk )
     const int max_rank = perk_max_rank( perk );
 
     if( !perk_world_available( perk ) ) {
-        message( tr( "The required world mod is not active.", "Требуемый мод мира не активен." ) );
+        message( tr( "The required mod is not active.", "Требуемый мод не активен." ) );
         return false;
     }
     if( rank >= max_rank ) {
@@ -7445,8 +7444,8 @@ bool purchase_perk( const perk_def &perk )
     }
     if( level < perk.required_level ) {
         message( integration_perk( perk ) ?
-                 tr( "Your Survivor level is too low for this mod perk.",
-                     "Недостаточный уровень Survivor для этого перка мода." ) :
+                 tr( "Your Survivor level is too low for this perk.",
+                     "Недостаточный уровень Survivor для этого перка." ) :
                  tr( "Your branch level is too low.", "Недостаточный уровень этой ветки." ) );
         return false;
     }
@@ -7533,8 +7532,8 @@ void show_perk_detail( const perk_def &perk )
                                   "Эксклюзивный выбор: две другие специализации будут закрыты до полного сброса." );
         }
         if( integration_perk( perk ) ) {
-            title += "\n" + tr( "World mod: ", "Мод мира: " ) + integration_mod_name( perk );
-            title += "\n" + tr( "Mod effect: changes this mod's mechanics instead of giving generic Survivor stat bonuses.",
+            title += "\n" + tr( "Requires mod: ", "Нужен мод: " ) + integration_mod_name( perk );
+            title += "\n" + tr( "This perk improves abilities or mechanics from that mod.",
                                   "Эффект мода: меняет механику этого мода, а не даёт общие бонусы Survivor." );
         }
 
@@ -7620,26 +7619,26 @@ std::string integration_mod_display_name( const std::string &mod_id )
 std::string integration_mod_focus( const std::string &mod_id )
 {
     if( mod_id == "magiclysm" ) return tr(
-        "Magic branch: Spellcraft, casting stability and stronger spell output.",
-        "Магическая ветка: Spellcraft, стабильность каста и усиление заклинаний." );
+        "Magiclysm: better Spellcraft, safer casting and stronger spells.",
+        "Magiclysm: выше Spellcraft, надёжнее сотворение и сильнее заклинания." );
     if( mod_id == "mindovermatter" ) return tr(
-        "Psionic branch: Metaphysics, stamina efficiency and stronger powers.",
-        "Псионическая ветка: Metaphysics, экономия выносливости и усиление способностей." );
+        "Mind Over Matter: stronger powers, steadier channeling and lower stamina cost.",
+        "Mind Over Matter: сильнее способности, стабильнее концентрация и ниже расход выносливости." );
     if( mod_id == "xedra_evolved" ) return tr(
-        "Xedra branch: Deduction, Gramarye and anomaly control.",
-        "Ветка Xedra: Deduction, Gramarye и контроль аномалий." );
+        "Xedra Evolved: Deduction, Gramarye and stronger anomaly abilities.",
+        "Xedra Evolved: Deduction, Gramarye и усиление аномальных способностей." );
     if( mod_id == "aftershock_exoplanet" ) return tr(
-        "Aftershock branch: Smartgun, channeling Metaphysics and esper support.",
-        "Ветка Aftershock: Smartgun, channeling Metaphysics и поддержка эспера." );
+        "Aftershock Exoplanet: Smartgun expertise and stronger, steadier esper powers.",
+        "Aftershock Exoplanet: навык Smartgun и более сильные, стабильные эспер-способности." );
     if( mod_id == "aftershock_prime" ) return tr(
-        "Prime branch: Smartgun, systems control, translocation and utility tech.",
-        "Ветка Prime: Smartgun, системный контроль, трансляция и утилитарные технологии." );
+        "Aftershock Prime: Smartgun expertise, translocation and more efficient abilities.",
+        "Aftershock Prime: навык Smartgun, транслокация и более эффективные способности." );
     if( mod_id == "secronom" ) return tr(
-        "Hunter branch: defense and offense against Secronom, elites and Crimson Horrors.",
-        "Ветка охотника: защита и урон против Secronom, элиты и Crimson Horrors." );
+        "Secronom: more damage and resistance against its creatures, elites and Crimson Horrors.",
+        "Secronom: больше урона и защиты против его существ, элиты и Crimson Horrors." );
     if( mod_id == "secronom_lore_expansion" ) return tr(
-        "Bio-organic branch: Flesh Weaving, living weapons and Flesh Vessel powers.",
-        "Биоорганическая ветка: Flesh Weaving, живое оружие и способности Flesh Vessel." );
+        "Secronom+: Flesh Weaving, living weapons and Flesh Vessel abilities.",
+        "Secronom+: Flesh Weaving, живое оружие и способности Flesh Vessel." );
     return {};
 }
 
@@ -7681,8 +7680,8 @@ std::pair<int, int> integration_tree_position( size_t i )
 void show_integration_branch( const std::string &mod_id )
 {
     if( !active_world_mod( mod_id.c_str() ) ) {
-        message( tr( "This integration is not active in the current world.",
-                     "Эта интеграция не активна в текущем мире." ) );
+        message( tr( "This mod is not active in the current world.",
+                     "Этот мод не активен в текущем мире." ) );
         return;
     }
 
@@ -7707,8 +7706,8 @@ void show_integration_branch( const std::string &mod_id )
             mod_perks.push_back( &perk );
         }
         if( mod_perks.empty() ) {
-            message( tr( "No integration perks are available for this mod.",
-                         "Для этого мода нет доступных интеграционных перков." ) );
+            message( tr( "No Survivor perks are available for this mod.",
+                         "Для этого мода нет доступных перков Survivor." ) );
             return;
         }
 
@@ -7751,7 +7750,7 @@ void show_integration_branch( const std::string &mod_id )
 
         const std::string mod_name = integration_mod_display_name( mod_id );
         std::string title = "Survivor Progression > " + mod_name;
-        std::string summary = tr( "Mod branch", "Ветка мода" ) +
+        std::string summary = tr( "Mod perks", "Перки мода" ) +
                               tr( " | purchased ", " | куплено " ) +
                               std::to_string( integration_owned_count( mod_id ) ) + "/" +
                               std::to_string( integration_total_count( mod_id ) ) +
@@ -7913,7 +7912,7 @@ $coreTreeNodeNew = @'
                 const int tree_max_rank = perk_max_rank( perk );
                 const bool tree_unlocked = level >= perk.required_level && prerequisites_met( perk );
                 node.card.subtitle = "T" + std::to_string( perk.tier ) + " | " +
-                                     tr( "L", "ур." ) + std::to_string( perk.required_level ) +
+                                     tr( "Lv ", "ур. " ) + std::to_string( perk.required_level ) +
                                      " | " + ( perk.currency == currency_id::perk ? "1P" : "1M" );
                 if( tree_max_rank > 1 && tree_rank > 0 ) {
                     node.card.subtitle += " | R" + std::to_string( tree_rank ) + "/" +
@@ -7967,7 +7966,7 @@ $modTreeNodeNew = @'
                 const int tree_max_rank = perk_max_rank( tree_perk );
                 const bool tree_unlocked = survivor_level >= tree_perk.required_level &&
                                            prerequisites_met( tree_perk );
-                node.card.subtitle = tr( "L", "ур." ) + std::to_string( tree_perk.required_level ) +
+                node.card.subtitle = tr( "Lv ", "ур. " ) + std::to_string( tree_perk.required_level ) +
                                      " | " + ( tree_perk.currency == currency_id::perk ? "1P" : "1M" );
                 if( tree_max_rank > 1 && tree_rank > 0 ) {
                     node.card.subtitle += " | R" + std::to_string( tree_rank ) + "/" +
@@ -8074,57 +8073,57 @@ function Replace-PrimeCorePerk0915([string]$Id,[string]$Row) {
 }
 
 $corePrime0915 = [ordered]@{
-'spc_c_juggernaut' = '    { "spc_c_juggernaut", branch_id::combat, 4, 15, currency_id::perk, "c_conditioning", "", "Prime Juggernaut", "Прайм: Штурмовик", "PRIME TRADEOFF: +2 STR, +25% stamina, +20% carry; -12% speed.", "ПРАЙМ-КОМПРОМИСС: +2 СИЛ, +25% выносливости, +20% груза; -12% скорости.", {{ { "str_flat", 2 }, { "stamina_max_pct", 25 }, { "carry_weight_pct", 20 }, { "speed_pct", -12 } }}, 4, 0, perk_kind::effect },'
-'spc_c_duelist' = '    { "spc_c_duelist", branch_id::combat, 4, 15, currency_id::perk, "c_tempo", "", "Prime Duelist", "Прайм: Дуэлянт", "PRIME TRADEOFF: +10% speed, +2 dodge, -10% move cost; -25% carry.", "ПРАЙМ-КОМПРОМИСС: +10% скорости, +2 уклонения, -10% стоимости движения; -25% груза.", {{ { "speed_pct", 10 }, { "dodge_flat", 2 }, { "move_cost_pct", -10 }, { "carry_weight_pct", -25 } }}, 4, 0, perk_kind::effect },'
-'spc_c_tactician' = '    { "spc_c_tactician", branch_id::combat, 4, 15, currency_id::perk, "c_precision", "c_reflexes", "Prime Tactician", "Прайм: Тактик", "PRIME TRADEOFF: +2 PER, +1.5 melee hit, +5% speed; -20% stamina.", "ПРАЙМ-КОМПРОМИСС: +2 ВОС, +1,5 точности ближнего боя, +5% скорости; -20% выносливости.", {{ { "per_flat", 2 }, { "melee_hit_flat", 1.5 }, { "speed_pct", 5 }, { "stamina_max_pct", -20 } }}, 4, 0, perk_kind::effect },'
-'spc_s_nomad' = '    { "spc_s_nomad", branch_id::survival, 4, 15, currency_id::perk, "s_endurance", "", "Prime Nomad", "Прайм: Кочевник", "PRIME TRADEOFF: +30% stamina, +30% carry; -12% speed.", "ПРАЙМ-КОМПРОМИСС: +30% выносливости, +30% груза; -12% скорости.", {{ { "stamina_max_pct", 30 }, { "carry_weight_pct", 30 }, { "speed_pct", -12 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
-'spc_s_medic' = '    { "spc_s_medic", branch_id::survival, 4, 15, currency_id::perk, "s_field", "s_resilient", "Prime Field Medic", "Прайм: Полевой медик", "PRIME TRADEOFF: +60% healing, +15% stamina; -25% carry.", "ПРАЙМ-КОМПРОМИСС: +60% лечения, +15% выносливости; -25% груза.", {{ { "healing_pct", 60 }, { "stamina_max_pct", 15 }, { "carry_weight_pct", -25 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
-'spc_s_quartermaster' = '    { "spc_s_quartermaster", branch_id::survival, 4, 15, currency_id::perk, "s_pack", "", "Prime Quartermaster", "Прайм: Интендант", "PRIME TRADEOFF: +40% carry, +25% crafting speed; -12% speed.", "ПРАЙМ-КОМПРОМИСС: +40% груза, +25% скорости крафта; -12% скорости.", {{ { "carry_weight_pct", 40 }, { "craft_speed_pct", 25 }, { "speed_pct", -12 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
-'spc_m_sprinter' = '    { "spc_m_sprinter", branch_id::mobility, 4, 15, currency_id::perk, "m_cardio", "", "Prime Sprinter", "Прайм: Спринтер", "PRIME TRADEOFF: +12% speed, -10% move cost; -35% carry.", "ПРАЙМ-КОМПРОМИСС: +12% скорости, -10% стоимости движения; -35% груза.", {{ { "speed_pct", 12 }, { "move_cost_pct", -10 }, { "carry_weight_pct", -35 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
-'spc_m_ghost' = '    { "spc_m_ghost", branch_id::mobility, 4, 15, currency_id::perk, "m_light", "m_parkour", "Prime Ghost", "Прайм: Призрак", "PRIME TRADEOFF: -15% move cost, +2 dodge; -25% stamina.", "ПРАЙМ-КОМПРОМИСС: -15% стоимости движения, +2 уклонения; -25% выносливости.", {{ { "move_cost_pct", -15 }, { "dodge_flat", 2 }, { "stamina_max_pct", -25 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
-'spc_m_pathfinder' = '    { "spc_m_pathfinder", branch_id::mobility, 4, 15, currency_id::perk, "m_stride", "", "Prime Pathfinder", "Прайм: Путепроходец", "PRIME TRADEOFF: -12% move cost, +25% stamina, +20% carry; -25% healing.", "ПРАЙМ-КОМПРОМИСС: -12% стоимости движения, +25% выносливости, +20% груза; -25% лечения.", {{ { "move_cost_pct", -12 }, { "stamina_max_pct", 25 }, { "carry_weight_pct", 20 }, { "healing_pct", -25 } }}, 4, 0, perk_kind::effect },'
-'spc_f_systems' = '    { "spc_f_systems", branch_id::crafting, 4, 15, currency_id::perk, "f_engineer", "", "Prime Systems Engineer", "Прайм: Системный инженер", "PRIME TRADEOFF: +30% crafting speed, +2 INT; -12% speed.", "ПРАЙМ-КОМПРОМИСС: +30% скорости крафта, +2 ИНТ; -12% скорости.", {{ { "craft_speed_pct", 30 }, { "int_flat", 2 }, { "speed_pct", -12 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
-'spc_f_improviser' = '    { "spc_f_improviser", branch_id::crafting, 4, 15, currency_id::perk, "f_hands", "f_workflow", "Prime Improviser", "Прайм: Импровизатор", "PRIME TRADEOFF: +25% crafting speed, +25% carry; -30% reading speed.", "ПРАЙМ-КОМПРОМИСС: +25% скорости крафта, +25% груза; -30% скорости чтения.", {{ { "craft_speed_pct", 25 }, { "carry_weight_pct", 25 }, { "read_speed_pct", -30 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
-'spc_f_researcher' = '    { "spc_f_researcher", branch_id::crafting, 4, 15, currency_id::perk, "f_reader", "f_scholar", "Prime Researcher", "Прайм: Исследователь", "PRIME TRADEOFF: +35% reading speed, +2 INT; -20% crafting speed.", "ПРАЙМ-КОМПРОМИСС: +35% скорости чтения, +2 ИНТ; -20% скорости крафта.", {{ { "read_speed_pct", 35 }, { "int_flat", 2 }, { "craft_speed_pct", -20 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
-'spc_g_prospector' = '    { "spc_g_prospector", branch_id::scavenging, 4, 15, currency_id::perk, "g_observer", "", "Prime Prospector", "Прайм: Искатель", "PRIME TRADEOFF: +2 PER, +25% carry; -12% speed.", "ПРАЙМ-КОМПРОМИСС: +2 ВОС, +25% груза; -12% скорости.", {{ { "per_flat", 2 }, { "carry_weight_pct", 25 }, { "speed_pct", -12 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
-'spc_g_courier' = '    { "spc_g_courier", branch_id::scavenging, 4, 15, currency_id::perk, "g_pack", "g_endurance", "Prime Courier", "Прайм: Курьер", "PRIME TRADEOFF: +40% carry, -12% move cost; -1.5 PER.", "ПРАЙМ-КОМПРОМИСС: +40% груза, -12% стоимости движения; -1,5 ВОС.", {{ { "carry_weight_pct", 40 }, { "move_cost_pct", -12 }, { "per_flat", -1.5 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
-'spc_g_investigator' = '    { "spc_g_investigator", branch_id::scavenging, 4, 15, currency_id::perk, "g_awareness", "", "Prime Investigator", "Прайм: Исследователь руин", "PRIME TRADEOFF: +2 PER, +30% reading speed; -25% carry.", "ПРАЙМ-КОМПРОМИСС: +2 ВОС, +30% скорости чтения; -25% груза.", {{ { "per_flat", 2 }, { "read_speed_pct", 30 }, { "carry_weight_pct", -25 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
-'spc_a_specialist' = '    { "spc_a_specialist", branch_id::mastery, 4, 15, currency_id::perk, "a_focus", "a_growth", "Prime Specialist", "Прайм: Специалист", "PRIME TRADEOFF: +30% Survivor XP and +1 INT; -1 STR, -1 DEX.", "ПРАЙМ-КОМПРОМИСС: +30% опыта Survivor и +1 ИНТ; -1 СИЛ, -1 ЛОВ.", {{ { "int_flat", 1 }, { "str_flat", -1 }, { "dex_flat", -1 }, { nullptr, 0 } }}, 3, 30, perk_kind::effect },'
-'spc_a_polymath' = '    { "spc_a_polymath", branch_id::mastery, 4, 15, currency_id::perk, "a_balance", "a_polymath", "Prime Polymath", "Прайм: Универсал", "PRIME TRADEOFF: +1 STR/DEX/PER/INT; -20% Survivor XP.", "ПРАЙМ-КОМПРОМИСС: +1 СИЛ/ЛОВ/ВОС/ИНТ; -20% опыта Survivor.", {{ { "str_flat", 1 }, { "dex_flat", 1 }, { "per_flat", 1 }, { "int_flat", 1 } }}, 4, -20, perk_kind::effect },'
-'spc_a_selfteacher' = '    { "spc_a_selfteacher", branch_id::mastery, 4, 15, currency_id::perk, "a_adapt", "", "Prime Self-Teacher", "Прайм: Самоучка", "PRIME TRADEOFF: +25% reading, +25% crafting, +15% Survivor XP; -15% speed.", "ПРАЙМ-КОМПРОМИСС: +25% чтения, +25% крафта, +15% опыта Survivor; -15% скорости.", {{ { "read_speed_pct", 25 }, { "craft_speed_pct", 25 }, { "speed_pct", -15 }, { nullptr, 0 } }}, 3, 15, perk_kind::effect },'
+'spc_c_juggernaut' = '    { "spc_c_juggernaut", branch_id::combat, 4, 15, currency_id::perk, "c_conditioning", "", "Prime Juggernaut", "Прайм: Штурмовик", "+2 STR, +25% stamina, +20% carry; -12% speed.", "+2 СИЛ, +25% выносливости, +20% груза; -12% скорости.", {{ { "str_flat", 2 }, { "stamina_max_pct", 25 }, { "carry_weight_pct", 20 }, { "speed_pct", -12 } }}, 4, 0, perk_kind::effect },'
+'spc_c_duelist' = '    { "spc_c_duelist", branch_id::combat, 4, 15, currency_id::perk, "c_tempo", "", "Prime Duelist", "Прайм: Дуэлянт", "+10% speed, +2 dodge, -10% move cost; -25% carry.", "+10% скорости, +2 уклонения, -10% стоимости движения; -25% груза.", {{ { "speed_pct", 10 }, { "dodge_flat", 2 }, { "move_cost_pct", -10 }, { "carry_weight_pct", -25 } }}, 4, 0, perk_kind::effect },'
+'spc_c_tactician' = '    { "spc_c_tactician", branch_id::combat, 4, 15, currency_id::perk, "c_precision", "c_reflexes", "Prime Tactician", "Прайм: Тактик", "+2 PER, +1.5 melee hit, +5% speed; -20% stamina.", "+2 ВОС, +1,5 точности ближнего боя, +5% скорости; -20% выносливости.", {{ { "per_flat", 2 }, { "melee_hit_flat", 1.5 }, { "speed_pct", 5 }, { "stamina_max_pct", -20 } }}, 4, 0, perk_kind::effect },'
+'spc_s_nomad' = '    { "spc_s_nomad", branch_id::survival, 4, 15, currency_id::perk, "s_endurance", "", "Prime Nomad", "Прайм: Кочевник", "+30% stamina, +30% carry; -12% speed.", "+30% выносливости, +30% груза; -12% скорости.", {{ { "stamina_max_pct", 30 }, { "carry_weight_pct", 30 }, { "speed_pct", -12 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
+'spc_s_medic' = '    { "spc_s_medic", branch_id::survival, 4, 15, currency_id::perk, "s_field", "s_resilient", "Prime Field Medic", "Прайм: Полевой медик", "+60% healing, +15% stamina; -25% carry.", "+60% лечения, +15% выносливости; -25% груза.", {{ { "healing_pct", 60 }, { "stamina_max_pct", 15 }, { "carry_weight_pct", -25 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
+'spc_s_quartermaster' = '    { "spc_s_quartermaster", branch_id::survival, 4, 15, currency_id::perk, "s_pack", "", "Prime Quartermaster", "Прайм: Интендант", "+40% carry, +25% crafting speed; -12% speed.", "+40% груза, +25% скорости крафта; -12% скорости.", {{ { "carry_weight_pct", 40 }, { "craft_speed_pct", 25 }, { "speed_pct", -12 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
+'spc_m_sprinter' = '    { "spc_m_sprinter", branch_id::mobility, 4, 15, currency_id::perk, "m_cardio", "", "Prime Sprinter", "Прайм: Спринтер", "+12% speed, -10% move cost; -35% carry.", "+12% скорости, -10% стоимости движения; -35% груза.", {{ { "speed_pct", 12 }, { "move_cost_pct", -10 }, { "carry_weight_pct", -35 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
+'spc_m_ghost' = '    { "spc_m_ghost", branch_id::mobility, 4, 15, currency_id::perk, "m_light", "m_parkour", "Prime Ghost", "Прайм: Призрак", "-15% move cost, +2 dodge; -25% stamina.", "-15% стоимости движения, +2 уклонения; -25% выносливости.", {{ { "move_cost_pct", -15 }, { "dodge_flat", 2 }, { "stamina_max_pct", -25 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
+'spc_m_pathfinder' = '    { "spc_m_pathfinder", branch_id::mobility, 4, 15, currency_id::perk, "m_stride", "", "Prime Pathfinder", "Прайм: Путепроходец", "-12% move cost, +25% stamina, +20% carry; -25% healing.", "-12% стоимости движения, +25% выносливости, +20% груза; -25% лечения.", {{ { "move_cost_pct", -12 }, { "stamina_max_pct", 25 }, { "carry_weight_pct", 20 }, { "healing_pct", -25 } }}, 4, 0, perk_kind::effect },'
+'spc_f_systems' = '    { "spc_f_systems", branch_id::crafting, 4, 15, currency_id::perk, "f_engineer", "", "Prime Systems Engineer", "Прайм: Системный инженер", "+30% crafting speed, +2 INT; -12% speed.", "+30% скорости крафта, +2 ИНТ; -12% скорости.", {{ { "craft_speed_pct", 30 }, { "int_flat", 2 }, { "speed_pct", -12 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
+'spc_f_improviser' = '    { "spc_f_improviser", branch_id::crafting, 4, 15, currency_id::perk, "f_hands", "f_workflow", "Prime Improviser", "Прайм: Импровизатор", "+25% crafting speed, +25% carry; -30% reading speed.", "+25% скорости крафта, +25% груза; -30% скорости чтения.", {{ { "craft_speed_pct", 25 }, { "carry_weight_pct", 25 }, { "read_speed_pct", -30 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
+'spc_f_researcher' = '    { "spc_f_researcher", branch_id::crafting, 4, 15, currency_id::perk, "f_reader", "f_scholar", "Prime Researcher", "Прайм: Исследователь", "+35% reading speed, +2 INT; -20% crafting speed.", "+35% скорости чтения, +2 ИНТ; -20% скорости крафта.", {{ { "read_speed_pct", 35 }, { "int_flat", 2 }, { "craft_speed_pct", -20 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
+'spc_g_prospector' = '    { "spc_g_prospector", branch_id::scavenging, 4, 15, currency_id::perk, "g_observer", "", "Prime Prospector", "Прайм: Искатель", "+2 PER, +25% carry; -12% speed.", "+2 ВОС, +25% груза; -12% скорости.", {{ { "per_flat", 2 }, { "carry_weight_pct", 25 }, { "speed_pct", -12 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
+'spc_g_courier' = '    { "spc_g_courier", branch_id::scavenging, 4, 15, currency_id::perk, "g_pack", "g_endurance", "Prime Courier", "Прайм: Курьер", "+40% carry, -12% move cost; -1.5 PER.", "+40% груза, -12% стоимости движения; -1,5 ВОС.", {{ { "carry_weight_pct", 40 }, { "move_cost_pct", -12 }, { "per_flat", -1.5 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
+'spc_g_investigator' = '    { "spc_g_investigator", branch_id::scavenging, 4, 15, currency_id::perk, "g_awareness", "", "Prime Investigator", "Прайм: Исследователь руин", "+2 PER, +30% reading speed; -25% carry.", "+2 ВОС, +30% скорости чтения; -25% груза.", {{ { "per_flat", 2 }, { "read_speed_pct", 30 }, { "carry_weight_pct", -25 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },'
+'spc_a_specialist' = '    { "spc_a_specialist", branch_id::mastery, 4, 15, currency_id::perk, "a_focus", "a_growth", "Prime Specialist", "Прайм: Специалист", "+30% Survivor XP and +1 INT; -1 STR, -1 DEX.", "+30% опыта Survivor и +1 ИНТ; -1 СИЛ, -1 ЛОВ.", {{ { "int_flat", 1 }, { "str_flat", -1 }, { "dex_flat", -1 }, { nullptr, 0 } }}, 3, 30, perk_kind::effect },'
+'spc_a_polymath' = '    { "spc_a_polymath", branch_id::mastery, 4, 15, currency_id::perk, "a_balance", "a_polymath", "Prime Polymath", "Прайм: Универсал", "+1 STR/DEX/PER/INT; -20% Survivor XP.", "+1 СИЛ/ЛОВ/ВОС/ИНТ; -20% опыта Survivor.", {{ { "str_flat", 1 }, { "dex_flat", 1 }, { "per_flat", 1 }, { "int_flat", 1 } }}, 4, -20, perk_kind::effect },'
+'spc_a_selfteacher' = '    { "spc_a_selfteacher", branch_id::mastery, 4, 15, currency_id::perk, "a_adapt", "", "Prime Self-Teacher", "Прайм: Самоучка", "+25% reading, +25% crafting, +15% Survivor XP; -15% speed.", "+25% чтения, +25% крафта, +15% опыта Survivor; -15% скорости.", {{ { "read_speed_pct", 25 }, { "craft_speed_pct", 25 }, { "speed_pct", -15 }, { nullptr, 0 } }}, 3, 15, perk_kind::effect },'
 }
 foreach ($primeEntry in $corePrime0915.GetEnumerator()) {
     Replace-PrimeCorePerk0915 $primeEntry.Key $primeEntry.Value
 }
 
 $modPrimePerks0915 = @'
-    { "mg_prime_arcanist", branch_id::mastery, 9, 45, currency_id::major, "mg_archmage", "", "Prime Arcanist", "Прайм: Арканист", "PRIME TRADEOFF: +2 Spellcraft, +20% potency, +15% range; mana cost +30%.", "ПРАЙМ-КОМПРОМИСС: +2 Spellcraft, +20% мощность, +15% дальность; стоимость маны +30%.", {{ { "mg_spellcraft_flat", 2 }, { "mg_spell_power_pct", 20 }, { "mg_range_pct", 15 }, { "mg_spell_cost_pct", 30 } }}, 4, 0, perk_kind::effect },
-    { "mg_prime_channeler", branch_id::mastery, 9, 45, currency_id::major, "mg_archmage", "", "Prime Channeler", "Прайм: Проводник", "PRIME TRADEOFF: +40% mana, +30% mana regen, spell cost -20%; casting time +30%.", "ПРАЙМ-КОМПРОМИСС: +40% маны, +30% регена маны, стоимость заклинаний -20%; время сотворения +30%.", {{ { "mg_mana_max_pct", 40 }, { "mg_mana_regen_pct", 30 }, { "mg_spell_cost_pct", -20 }, { "mg_cast_time_pct", 30 } }}, 4, 0, perk_kind::effect },
-    { "mg_prime_warcaster", branch_id::mastery, 9, 45, currency_id::major, "mg_archmage", "", "Prime Warcaster", "Прайм: Боевой маг", "PRIME TRADEOFF: casting time -25%, failure -20%, potency +20%; spell XP -35%.", "ПРАЙМ-КОМПРОМИСС: время сотворения -25%, провал -20%, мощность +20%; опыт заклинаний -35%.", {{ { "mg_cast_time_pct", -25 }, { "mg_fail_pct", -20 }, { "mg_spell_power_pct", 20 }, { "mg_spell_xp_pct", -35 } }}, 4, 0, perk_kind::effect },
+    { "mg_prime_arcanist", branch_id::mastery, 9, 45, currency_id::major, "mg_archmage", "", "Prime Arcanist", "Прайм: Арканист", "+2 Spellcraft, +20% potency, +15% range; mana cost +30%.", "+2 Spellcraft, +20% мощность, +15% дальность; стоимость маны +30%.", {{ { "mg_spellcraft_flat", 2 }, { "mg_spell_power_pct", 20 }, { "mg_range_pct", 15 }, { "mg_spell_cost_pct", 30 } }}, 4, 0, perk_kind::effect },
+    { "mg_prime_channeler", branch_id::mastery, 9, 45, currency_id::major, "mg_archmage", "", "Prime Channeler", "Прайм: Проводник", "+40% mana, +30% mana regen, spell cost -20%; casting time +30%.", "+40% маны, +30% регена маны, стоимость заклинаний -20%; время сотворения +30%.", {{ { "mg_mana_max_pct", 40 }, { "mg_mana_regen_pct", 30 }, { "mg_spell_cost_pct", -20 }, { "mg_cast_time_pct", 30 } }}, 4, 0, perk_kind::effect },
+    { "mg_prime_warcaster", branch_id::mastery, 9, 45, currency_id::major, "mg_archmage", "", "Prime Warcaster", "Прайм: Боевой маг", "casting time -25%, failure -20%, potency +20%; spell XP -35%.", "время сотворения -25%, провал -20%, мощность +20%; опыт заклинаний -35%.", {{ { "mg_cast_time_pct", -25 }, { "mg_fail_pct", -20 }, { "mg_spell_power_pct", 20 }, { "mg_spell_xp_pct", -35 } }}, 4, 0, perk_kind::effect },
 
-    { "mom_prime_kinetic", branch_id::mastery, 9, 45, currency_id::major, "mom_transcendent_focus", "", "Prime Kinetic Savant", "Прайм: Кинетик", "PRIME TRADEOFF: potency +25%, range +20%, area +20%; psionic cost +30%.", "ПРАЙМ-КОМПРОМИСС: мощность +25%, дальность +20%, площадь +20%; стоимость псионики +30%.", {{ { "mom_spell_power_pct", 25 }, { "mom_range_pct", 20 }, { "mom_aoe_pct", 20 }, { "mom_spell_cost_pct", 30 } }}, 4, 0, perk_kind::effect },
-    { "mom_prime_overclock", branch_id::mastery, 9, 45, currency_id::major, "mom_transcendent_focus", "", "Prime Neural Overclock", "Прайм: Нейроразгон", "PRIME TRADEOFF: +1.5 Metaphysics, activation -25%, power XP +20%; failure +30%.", "ПРАЙМ-КОМПРОМИСС: +1,5 Metaphysics, активация -25%, опыт сил +20%; провал +30%.", {{ { "mom_metaphysics_flat", 1.5 }, { "mom_cast_time_pct", -25 }, { "mom_spell_xp_pct", 20 }, { "mom_fail_pct", 30 } }}, 4, 0, perk_kind::effect },
-    { "mom_prime_ascetic", branch_id::mastery, 9, 45, currency_id::major, "mom_transcendent_focus", "", "Prime Deep Focus", "Прайм: Глубокий фокус", "PRIME TRADEOFF: failure -25%, cost -20%, duration +30%; potency -20%.", "ПРАЙМ-КОМПРОМИСС: провал -25%, стоимость -20%, длительность +30%; мощность -20%.", {{ { "mom_fail_pct", -25 }, { "mom_spell_cost_pct", -20 }, { "mom_duration_pct", 30 }, { "mom_spell_power_pct", -20 } }}, 4, 0, perk_kind::effect },
+    { "mom_prime_kinetic", branch_id::mastery, 9, 45, currency_id::major, "mom_transcendent_focus", "", "Prime Kinetic Savant", "Прайм: Кинетик", "potency +25%, range +20%, area +20%; psionic cost +30%.", "мощность +25%, дальность +20%, площадь +20%; стоимость псионики +30%.", {{ { "mom_spell_power_pct", 25 }, { "mom_range_pct", 20 }, { "mom_aoe_pct", 20 }, { "mom_spell_cost_pct", 30 } }}, 4, 0, perk_kind::effect },
+    { "mom_prime_overclock", branch_id::mastery, 9, 45, currency_id::major, "mom_transcendent_focus", "", "Prime Neural Overclock", "Прайм: Нейроразгон", "+1.5 Metaphysics, activation -25%, power XP +20%; failure +30%.", "+1,5 Metaphysics, активация -25%, опыт сил +20%; провал +30%.", {{ { "mom_metaphysics_flat", 1.5 }, { "mom_cast_time_pct", -25 }, { "mom_spell_xp_pct", 20 }, { "mom_fail_pct", 30 } }}, 4, 0, perk_kind::effect },
+    { "mom_prime_ascetic", branch_id::mastery, 9, 45, currency_id::major, "mom_transcendent_focus", "", "Prime Deep Focus", "Прайм: Глубокий фокус", "failure -25%, cost -20%, duration +30%; potency -20%.", "провал -25%, стоимость -20%, длительность +30%; мощность -20%.", {{ { "mom_fail_pct", -25 }, { "mom_spell_cost_pct", -20 }, { "mom_duration_pct", 30 }, { "mom_spell_power_pct", -20 } }}, 4, 0, perk_kind::effect },
 
-    { "xe_prime_analyst", branch_id::mastery, 9, 45, currency_id::major, "xe_boundary_master", "", "Prime Anomaly Analyst", "Прайм: Аналитик аномалий", "PRIME TRADEOFF: +1.5 Deduction, +1.5 Gramarye, potency +20%; failure +30%.", "ПРАЙМ-КОМПРОМИСС: +1,5 Deduction, +1,5 Gramarye, мощность +20%; провал +30%.", {{ { "xe_deduction_flat", 1.5 }, { "xe_gramarye_flat", 1.5 }, { "xe_spell_power_pct", 20 }, { "xe_fail_pct", 30 } }}, 4, 0, perk_kind::effect },
-    { "xe_prime_resonant", branch_id::mastery, 9, 45, currency_id::major, "xe_boundary_master", "", "Prime Resonance Vessel", "Прайм: Резонансный сосуд", "PRIME TRADEOFF: +40% mana, +30% mana regen, cost -20%; range -20%.", "ПРАЙМ-КОМПРОМИСС: +40% маны, +30% регена маны, стоимость -20%; дальность -20%.", {{ { "xe_mana_max_pct", 40 }, { "xe_mana_regen_pct", 30 }, { "xe_spell_cost_pct", -20 }, { "xe_range_pct", -20 } }}, 4, 0, perk_kind::effect },
-    { "xe_prime_riftwalker", branch_id::mastery, 9, 45, currency_id::major, "xe_boundary_master", "", "Prime Rift Operator", "Прайм: Оператор разлома", "PRIME TRADEOFF: range +30%, area +25%, casting time -20%; duration -30%.", "ПРАЙМ-КОМПРОМИСС: дальность +30%, площадь +25%, время сотворения -20%; длительность -30%.", {{ { "xe_range_pct", 30 }, { "xe_aoe_pct", 25 }, { "xe_cast_time_pct", -20 }, { "xe_duration_pct", -30 } }}, 4, 0, perk_kind::effect },
+    { "xe_prime_analyst", branch_id::mastery, 9, 45, currency_id::major, "xe_boundary_master", "", "Prime Anomaly Analyst", "Прайм: Аналитик аномалий", "+1.5 Deduction, +1.5 Gramarye, potency +20%; failure +30%.", "+1,5 Deduction, +1,5 Gramarye, мощность +20%; провал +30%.", {{ { "xe_deduction_flat", 1.5 }, { "xe_gramarye_flat", 1.5 }, { "xe_spell_power_pct", 20 }, { "xe_fail_pct", 30 } }}, 4, 0, perk_kind::effect },
+    { "xe_prime_resonant", branch_id::mastery, 9, 45, currency_id::major, "xe_boundary_master", "", "Prime Resonance Vessel", "Прайм: Резонансный сосуд", "+40% mana, +30% mana regen, cost -20%; range -20%.", "+40% маны, +30% регена маны, стоимость -20%; дальность -20%.", {{ { "xe_mana_max_pct", 40 }, { "xe_mana_regen_pct", 30 }, { "xe_spell_cost_pct", -20 }, { "xe_range_pct", -20 } }}, 4, 0, perk_kind::effect },
+    { "xe_prime_riftwalker", branch_id::mastery, 9, 45, currency_id::major, "xe_boundary_master", "", "Prime Rift Operator", "Прайм: Оператор разлома", "range +30%, area +25%, casting time -20%; duration -30%.", "дальность +30%, площадь +25%, время сотворения -20%; длительность -30%.", {{ { "xe_range_pct", 30 }, { "xe_aoe_pct", 25 }, { "xe_cast_time_pct", -20 }, { "xe_duration_pct", -30 } }}, 4, 0, perk_kind::effect },
 
-    { "af_prime_smartgun", branch_id::mastery, 9, 45, currency_id::major, "af_posthuman_operator", "", "Prime Smartgun Ace", "Прайм: Ас Smartgun", "PRIME TRADEOFF: +2 Smartgun, potency +20%, range +15%; energy cost +30%.", "ПРАЙМ-КОМПРОМИСС: +2 Smartgun, мощность +20%, дальность +15%; стоимость энергии +30%.", {{ { "af_smartgun_flat", 2 }, { "af_spell_power_pct", 20 }, { "af_range_pct", 15 }, { "af_spell_cost_pct", 30 } }}, 4, 0, perk_kind::effect },
-    { "af_prime_systems", branch_id::mastery, 9, 45, currency_id::major, "af_posthuman_operator", "", "Prime Systems Savant", "Прайм: Системный савант", "PRIME TRADEOFF: +1.5 Metaphysics, cost -20%, activation -20%; ability XP -30%.", "ПРАЙМ-КОМПРОМИСС: +1,5 Metaphysics, стоимость -20%, активация -20%; опыт способностей -30%.", {{ { "af_metaphysics_flat", 1.5 }, { "af_spell_cost_pct", -20 }, { "af_cast_time_pct", -20 }, { "af_spell_xp_pct", -30 } }}, 4, 0, perk_kind::effect },
-    { "af_prime_phase", branch_id::mastery, 9, 45, currency_id::major, "af_posthuman_operator", "", "Prime Phase Engineer", "Прайм: Фазовый инженер", "PRIME TRADEOFF: range +30%, area +25%, duration +25%; failure +30%.", "ПРАЙМ-КОМПРОМИСС: дальность +30%, площадь +25%, длительность +25%; провал +30%.", {{ { "af_range_pct", 30 }, { "af_aoe_pct", 25 }, { "af_duration_pct", 25 }, { "af_fail_pct", 30 } }}, 4, 0, perk_kind::effect },
+    { "af_prime_smartgun", branch_id::mastery, 9, 45, currency_id::major, "af_posthuman_operator", "", "Prime Smartgun Ace", "Прайм: Ас Smartgun", "+2 Smartgun, potency +20%, range +15%; energy cost +30%.", "+2 Smartgun, мощность +20%, дальность +15%; стоимость энергии +30%.", {{ { "af_smartgun_flat", 2 }, { "af_spell_power_pct", 20 }, { "af_range_pct", 15 }, { "af_spell_cost_pct", 30 } }}, 4, 0, perk_kind::effect },
+    { "af_prime_systems", branch_id::mastery, 9, 45, currency_id::major, "af_posthuman_operator", "", "Prime Systems Savant", "Прайм: Системный савант", "+1.5 Metaphysics, cost -20%, activation -20%; ability XP -30%.", "+1,5 Metaphysics, стоимость -20%, активация -20%; опыт способностей -30%.", {{ { "af_metaphysics_flat", 1.5 }, { "af_spell_cost_pct", -20 }, { "af_cast_time_pct", -20 }, { "af_spell_xp_pct", -30 } }}, 4, 0, perk_kind::effect },
+    { "af_prime_phase", branch_id::mastery, 9, 45, currency_id::major, "af_posthuman_operator", "", "Prime Phase Engineer", "Прайм: Фазовый инженер", "range +30%, area +25%, duration +25%; failure +30%.", "дальность +30%, площадь +25%, длительность +25%; провал +30%.", {{ { "af_range_pct", 30 }, { "af_aoe_pct", 25 }, { "af_duration_pct", 25 }, { "af_fail_pct", 30 } }}, 4, 0, perk_kind::effect },
 
-    { "afp_prime_gunslinger", branch_id::mastery, 9, 45, currency_id::major, "afp_prime_integrator", "", "Prime Gunslinger", "Прайм: Стрелок Prime", "PRIME TRADEOFF: +2 Smartgun, potency +20%, range +15%; energy cost +30%.", "ПРАЙМ-КОМПРОМИСС: +2 Smartgun, мощность +20%, дальность +15%; стоимость энергии +30%.", {{ { "afp_smartgun_flat", 2 }, { "afp_spell_power_pct", 20 }, { "afp_range_pct", 15 }, { "afp_spell_cost_pct", 30 } }}, 4, 0, perk_kind::effect },
-    { "afp_prime_systems_specialist", branch_id::mastery, 9, 45, currency_id::major, "afp_prime_integrator", "", "Prime Systems Integrator", "Прайм: Интегратор систем", "PRIME TRADEOFF: energy cost -25%, activation -20%, duration +25%; ability XP -30%.", "ПРАЙМ-КОМПРОМИСС: стоимость энергии -25%, активация -20%, длительность +25%; опыт способностей -30%.", {{ { "afp_spell_cost_pct", -25 }, { "afp_cast_time_pct", -20 }, { "afp_duration_pct", 25 }, { "afp_spell_xp_pct", -30 } }}, 4, 0, perk_kind::effect },
-    { "afp_prime_translocator", branch_id::mastery, 9, 45, currency_id::major, "afp_prime_integrator", "", "Prime Translocator", "Прайм: Транслокатор", "PRIME TRADEOFF: range +35%, area +25%, activation -20%; failure +30%.", "ПРАЙМ-КОМПРОМИСС: дальность +35%, площадь +25%, активация -20%; провал +30%.", {{ { "afp_range_pct", 35 }, { "afp_aoe_pct", 25 }, { "afp_cast_time_pct", -20 }, { "afp_fail_pct", 30 } }}, 4, 0, perk_kind::effect },
+    { "afp_prime_gunslinger", branch_id::mastery, 9, 45, currency_id::major, "afp_prime_integrator", "", "Prime Gunslinger", "Прайм: Стрелок Prime", "+2 Smartgun, potency +20%, range +15%; energy cost +30%.", "+2 Smartgun, мощность +20%, дальность +15%; стоимость энергии +30%.", {{ { "afp_smartgun_flat", 2 }, { "afp_spell_power_pct", 20 }, { "afp_range_pct", 15 }, { "afp_spell_cost_pct", 30 } }}, 4, 0, perk_kind::effect },
+    { "afp_prime_systems_specialist", branch_id::mastery, 9, 45, currency_id::major, "afp_prime_integrator", "", "Prime Systems Integrator", "Прайм: Интегратор систем", "energy cost -25%, activation -20%, duration +25%; ability XP -30%.", "стоимость энергии -25%, активация -20%, длительность +25%; опыт способностей -30%.", {{ { "afp_spell_cost_pct", -25 }, { "afp_cast_time_pct", -20 }, { "afp_duration_pct", 25 }, { "afp_spell_xp_pct", -30 } }}, 4, 0, perk_kind::effect },
+    { "afp_prime_translocator", branch_id::mastery, 9, 45, currency_id::major, "afp_prime_integrator", "", "Prime Translocator", "Прайм: Транслокатор", "range +35%, area +25%, activation -20%; failure +30%.", "дальность +35%, площадь +25%, активация -20%; провал +30%.", {{ { "afp_range_pct", 35 }, { "afp_aoe_pct", 25 }, { "afp_cast_time_pct", -20 }, { "afp_fail_pct", 30 } }}, 4, 0, perk_kind::effect },
 
-    { "sec_prime_hunter", branch_id::mastery, 9, 45, currency_id::major, "sec_nightmare_specialist", "", "Prime Hunter", "Прайм: Охотник", "PRIME TRADEOFF: +20% damage vs Secronom, +15% elite damage; -20% Secronom resistance.", "ПРАЙМ-КОМПРОМИСС: +20% урона по Secronom, +15% урона по элите; -20% защиты от Secronom.", {{ { "sec_damage_pct", 20 }, { "sec_elite_damage_pct", 15 }, { "sec_resist_pct", -20 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
-    { "sec_prime_bulwark", branch_id::mastery, 9, 45, currency_id::major, "sec_nightmare_specialist", "", "Prime Bulwark", "Прайм: Бастион", "PRIME TRADEOFF: +25% Secronom resistance, +20% elite resistance; -20% damage vs Secronom.", "ПРАЙМ-КОМПРОМИСС: +25% защиты от Secronom, +20% защиты от элиты; -20% урона по Secronom.", {{ { "sec_resist_pct", 25 }, { "sec_elite_resist_pct", 20 }, { "sec_damage_pct", -20 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
-    { "sec_prime_crimson", branch_id::mastery, 9, 45, currency_id::major, "sec_nightmare_specialist", "", "Prime Crimson Reaper", "Прайм: Багровый жнец", "PRIME TRADEOFF: +30% Crimson damage, +20% elite damage; -25% Crimson resistance.", "ПРАЙМ-КОМПРОМИСС: +30% урона по Crimson, +20% урона по элите; -25% защиты от Crimson.", {{ { "sec_crimson_damage_pct", 30 }, { "sec_elite_damage_pct", 20 }, { "sec_crimson_resist_pct", -25 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
+    { "sec_prime_hunter", branch_id::mastery, 9, 45, currency_id::major, "sec_nightmare_specialist", "", "Prime Hunter", "Прайм: Охотник", "+20% damage vs Secronom, +15% elite damage; -20% Secronom resistance.", "+20% урона по Secronom, +15% урона по элите; -20% защиты от Secronom.", {{ { "sec_damage_pct", 20 }, { "sec_elite_damage_pct", 15 }, { "sec_resist_pct", -20 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
+    { "sec_prime_bulwark", branch_id::mastery, 9, 45, currency_id::major, "sec_nightmare_specialist", "", "Prime Bulwark", "Прайм: Бастион", "+25% Secronom resistance, +20% elite resistance; -20% damage vs Secronom.", "+25% защиты от Secronom, +20% защиты от элиты; -20% урона по Secronom.", {{ { "sec_resist_pct", 25 }, { "sec_elite_resist_pct", 20 }, { "sec_damage_pct", -20 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
+    { "sec_prime_crimson", branch_id::mastery, 9, 45, currency_id::major, "sec_nightmare_specialist", "", "Prime Crimson Reaper", "Прайм: Багровый жнец", "+30% Crimson damage, +20% elite damage; -25% Crimson resistance.", "+30% урона по Crimson, +20% урона по элите; -25% защиты от Crimson.", {{ { "sec_crimson_damage_pct", 30 }, { "sec_elite_damage_pct", 20 }, { "sec_crimson_resist_pct", -25 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
 
-    { "secx_prime_architect", branch_id::mastery, 9, 45, currency_id::major, "secx_flesh_architect", "", "Prime Flesh Architect", "Прайм: Архитектор плоти", "PRIME TRADEOFF: +2 Flesh Weaving, potency +20%, ability XP +20%; energy cost +30%.", "ПРАЙМ-КОМПРОМИСС: +2 Flesh Weaving, мощность +20%, опыт способностей +20%; стоимость энергии +30%.", {{ { "secx_flesh_craft_flat", 2 }, { "secx_spell_power_pct", 20 }, { "secx_spell_xp_pct", 20 }, { "secx_spell_cost_pct", 30 } }}, 4, 0, perk_kind::effect },
-    { "secx_prime_predator", branch_id::mastery, 9, 45, currency_id::major, "secx_flesh_architect", "", "Prime Biomorph Predator", "Прайм: Биоморф-хищник", "PRIME TRADEOFF: +2 Bio-organic Weapons, potency +20%, range +15%; failure +30%.", "ПРАЙМ-КОМПРОМИСС: +2 Bio-organic Weapons, мощность +20%, дальность +15%; провал +30%.", {{ { "secx_flesh_combat_flat", 2 }, { "secx_spell_power_pct", 20 }, { "secx_range_pct", 15 }, { "secx_fail_pct", 30 } }}, 4, 0, perk_kind::effect },
-    { "secx_prime_vessel", branch_id::mastery, 9, 45, currency_id::major, "secx_flesh_architect", "", "Prime Flesh Vessel", "Прайм: Сосуд плоти", "PRIME TRADEOFF: energy cost -25%, failure -20%, duration +30%; Flesh Weaving -1.5.", "ПРАЙМ-КОМПРОМИСС: стоимость энергии -25%, провал -20%, длительность +30%; Flesh Weaving -1,5.", {{ { "secx_spell_cost_pct", -25 }, { "secx_fail_pct", -20 }, { "secx_duration_pct", 30 }, { "secx_flesh_craft_flat", -1.5 } }}, 4, 0, perk_kind::effect }
+    { "secx_prime_architect", branch_id::mastery, 9, 45, currency_id::major, "secx_flesh_architect", "", "Prime Flesh Architect", "Прайм: Архитектор плоти", "+2 Flesh Weaving, potency +20%, ability XP +20%; energy cost +30%.", "+2 Flesh Weaving, мощность +20%, опыт способностей +20%; стоимость энергии +30%.", {{ { "secx_flesh_craft_flat", 2 }, { "secx_spell_power_pct", 20 }, { "secx_spell_xp_pct", 20 }, { "secx_spell_cost_pct", 30 } }}, 4, 0, perk_kind::effect },
+    { "secx_prime_predator", branch_id::mastery, 9, 45, currency_id::major, "secx_flesh_architect", "", "Prime Biomorph Predator", "Прайм: Биоморф-хищник", "+2 Bio-organic Weapons, potency +20%, range +15%; failure +30%.", "+2 Bio-organic Weapons, мощность +20%, дальность +15%; провал +30%.", {{ { "secx_flesh_combat_flat", 2 }, { "secx_spell_power_pct", 20 }, { "secx_range_pct", 15 }, { "secx_fail_pct", 30 } }}, 4, 0, perk_kind::effect },
+    { "secx_prime_vessel", branch_id::mastery, 9, 45, currency_id::major, "secx_flesh_architect", "", "Prime Flesh Vessel", "Прайм: Сосуд плоти", "energy cost -25%, failure -20%, duration +30%; Flesh Weaving -1.5.", "стоимость энергии -25%, провал -20%, длительность +30%; Flesh Weaving -1,5.", {{ { "secx_spell_cost_pct", -25 }, { "secx_fail_pct", -20 }, { "secx_duration_pct", 30 }, { "secx_flesh_craft_flat", -1.5 } }}, 4, 0, perk_kind::effect }
 '@
 
 # Append exactly three Prime choices to each of the seven conditional mod branches.
@@ -8262,7 +8261,7 @@ bool purchase_perk( const perk_def &perk )
     const int max_rank = perk_max_rank( perk );
 
     if( !perk_world_available( perk ) ) {
-        message( tr( "The required world mod is not active.", "Требуемый мод мира не активен." ) );
+        message( tr( "The required mod is not active.", "Требуемый мод не активен." ) );
         return false;
     }
     if( rank >= max_rank ) {
@@ -8271,7 +8270,7 @@ bool purchase_perk( const perk_def &perk )
     }
     if( level < perk.required_level ) {
         message( integration_perk( perk ) ?
-                 tr( "Your Survivor level is too low for this mod perk.", "Недостаточный уровень Survivor для этого перка мода." ) :
+                 tr( "Your Survivor level is too low for this perk.", "Недостаточный уровень Survivor для этого перка." ) :
                  tr( "Your branch level is too low.", "Недостаточный уровень этой ветки." ) );
         return false;
     }
@@ -8293,10 +8292,10 @@ bool purchase_perk( const perk_def &perk )
         const int64_t existing = get_state( chosen_state, 0 );
         if( existing == 0 ) {
             std::string prompt = tr(
-                "Commit to this PRIME specialization? Its strong bonus AND strong drawback are both permanent until a full respec. The other two Prime choices here will lock.\n",
-                "Выбрать эту ПРАЙМ-специализацию? Сильный бонус И сильный штраф останутся до полного сброса. Два других Прайм-пути здесь закроются.\n" );
+                "Choose this Prime specialization? Its bonus and drawback remain until a full respec, and the other two choices will be locked.\n",
+                "Выбрать эту Прайм-специализацию? Её бонус и штраф останутся до полного сброса, а два других варианта будут закрыты.\n" );
             prompt += perk_display_name( perk ) + "\n" + perk_description( perk );
-            std::string yes = tr( "Commit PRIME", "Выбрать ПРАЙМ" );
+            std::string yes = tr( "Choose Prime", "Выбрать" );
             std::string no = tr( "Cancel", "Отмена" );
             const char *entries[] = { yes.c_str(), no.c_str() };
             const int choice = host->ui_choose ? host->ui_choose( prompt.c_str(), entries, 2 ) : -1;
@@ -8354,15 +8353,15 @@ void show_perk_detail( const perk_def &perk )
         title += "\n" + tr( "Prerequisites: ", "Требования: " ) + prereq_text( perk );
         title += "\n" + tr( "Cost per rank: ", "Цена за ранг: " ) + cost_text( perk );
         if( exclusive_specialization_root( perk ) ) {
-            title += "\n" + tr( "PRIME: one exclusive path with a powerful bonus and a permanent drawback until respec.",
-                                  "ПРАЙМ: один эксклюзивный путь с сильным бонусом и постоянным штрафом до сброса." );
+            title += "\n" + tr( "Prime specialization: choosing it locks the other two choices until a full respec.",
+                                  "Прайм-специализация: её выбор закрывает два других варианта до полного сброса." );
         } else if( specialization_perk( perk ) ) {
-            title += "\n" + tr( "Prime specialization path.", "Путь Прайм-специализации." );
+            title += "\n" + tr( "Part of the chosen Prime specialization.", "Часть выбранной Прайм-специализации." );
         }
         if( integration_perk( perk ) ) {
-            title += "\n" + tr( "World mod: ", "Мод мира: " ) + integration_mod_name( perk );
-            title += "\n" + tr( "Mod effect: affects this mod's mechanics instead of generic Survivor stat bonuses.",
-                                  "Эффект мода: влияет на механику этого мода, а не на общие бонусы Survivor." );
+            title += "\n" + tr( "Requires mod: ", "Нужен мод: " ) + integration_mod_name( perk );
+            title += "\n" + tr( "This perk improves abilities or mechanics from that mod.",
+                                  "Этот перк усиливает способности или механику этого мода." );
         }
 
         std::string buy;
@@ -8391,15 +8390,14 @@ $perkKindPrime0915 = @'
 std::string perk_kind_label( const perk_def &perk )
 {
     if( mod_prime_specialization_root( perk ) || specialization_root( perk ) ) {
-        return tr( "PRIME SPECIALIZATION", "ПРАЙМ-СПЕЦИАЛИЗАЦИЯ" );
+        return tr( "PRIME", "ПРАЙМ" );
     }
     if( specialization_perk( perk ) ) {
-        return tr( "PRIME PATH", "ПРАЙМ-ПУТЬ" );
+        return tr( "PRIME PERK", "ПРАЙМ-ПЕРК" );
     }
-    if( integration_perk( perk ) ) return tr( "MOD SYNERGY", "СИНЕРГИЯ МОДА" );
-    if( perk.currency == currency_id::major ) return tr( "KEYSTONE", "КЛЮЧЕВОЙ" );
-    return effective_kind( perk ) == perk_kind::effect ?
-           tr( "EFFECT", "ЭФФЕКТ" ) : tr( "STAT", "СТАТ" );
+    if( integration_perk( perk ) ) return tr( "MOD PERK", "ПЕРК МОДА" );
+    if( perk.currency == currency_id::major ) return tr( "MAJOR PERK", "БОЛЬШОЙ ПЕРК" );
+    return tr( "PERK", "ПЕРК" );
 }
 '@
 $sp = Replace-CppRange $sp 'std::string perk_kind_label( const perk_def &perk )' 'std::string branch_icon_key( branch_id branch )' $perkKindPrime0915 '0.9.15 Prime badges'
@@ -9665,15 +9663,15 @@ struct option_desc {
 };
 
 const option_desc options_en[] = {
-    { "SPAWN_DENSITY", "Monster spawn density", "Multiplier for monster spawn density. 1.00 is the vanilla default." },
-    { "ITEM_SPAWNRATE", "Item spawn rate", "Multiplier for generated item quantity. 1.00 is the vanilla default." },
-    { "MONSTER_SPEED", "Monster speed", "Global monster speed percentage. 100% is the vanilla default." },
-    { "MONSTER_RESILIENCE", "Monster resilience", "Global monster health percentage. 100% is the vanilla default." },
+    { "SPAWN_DENSITY", "Monster spawn density", "Multiplier for monster spawn density. 1.00 is the default." },
+    { "ITEM_SPAWNRATE", "Item spawn rate", "Multiplier for generated item quantity. 1.00 is the default." },
+    { "MONSTER_SPEED", "Monster speed", "Global monster speed percentage. 100% is the default." },
+    { "MONSTER_RESILIENCE", "Monster resilience", "Global monster health percentage. 100% is the default." },
     { "EVOLUTION_INVERSE_MULTIPLIER", "Monster evolution time multiplier", "Higher values slow evolution; 0 disables upgrades where supported." },
-    { "SEASON_LENGTH", "Season length (days)", "[RELOAD] Number of days in each season. CDDA default is 91." },
+    { "SEASON_LENGTH", "Season length (days)", "Requires world reload. Number of days in each season. CDDA default is 91." },
     { "CONSTRUCTION_SCALING", "Construction time scaling", "Percentage of base construction time. 100% is normal; 50% is twice as fast." },
-    { "ETERNAL_SEASON", "Eternal season", "[RELOAD] Stops normal season progression." },
-    { "ETERNAL_TIME_OF_DAY", "Fixed time of day", "[RELOAD] Normal time flow, permanent day, or permanent night." }
+    { "ETERNAL_SEASON", "Eternal season", "Requires world reload. Stops normal season progression." },
+    { "ETERNAL_TIME_OF_DAY", "Fixed time of day", "Requires world reload. Normal time flow, permanent day, or permanent night." }
 };
 const option_desc options_ru[] = {
     { "SPAWN_DENSITY", "Плотность монстров", "Множитель плотности появления монстров. 1,00 — стандарт." },
@@ -9681,10 +9679,10 @@ const option_desc options_ru[] = {
     { "MONSTER_SPEED", "Скорость монстров", "Глобальная скорость монстров в процентах. 100% — стандарт." },
     { "MONSTER_RESILIENCE", "Живучесть монстров", "Глобальный запас здоровья монстров в процентах. 100% — стандарт." },
     { "EVOLUTION_INVERSE_MULTIPLIER", "Время эволюции монстров", "Большие значения замедляют эволюцию; 0 отключает улучшения там, где это поддерживается." },
-    { "SEASON_LENGTH", "Длина сезона (дни)", "[ПЕРЕЗАГРУЗКА] Количество дней в сезоне. Стандарт CDDA — 91." },
+    { "SEASON_LENGTH", "Длина сезона (дни)", "Нужна перезагрузка мира. Количество дней в сезоне. Стандарт CDDA — 91." },
     { "CONSTRUCTION_SCALING", "Время строительства", "Процент от базового времени. 100% — стандарт; 50% — вдвое быстрее." },
-    { "ETERNAL_SEASON", "Вечный сезон", "[ПЕРЕЗАГРУЗКА] Останавливает обычную смену сезонов." },
-    { "ETERNAL_TIME_OF_DAY", "Фиксированное время суток", "[ПЕРЕЗАГРУЗКА] Обычный цикл, постоянный день или постоянная ночь." }
+    { "ETERNAL_SEASON", "Вечный сезон", "Нужна перезагрузка мира. Останавливает обычную смену сезонов." },
+    { "ETERNAL_TIME_OF_DAY", "Фиксированное время суток", "Нужна перезагрузка мира. Обычный цикл, постоянный день или постоянная ночь." }
 };
 
 bool russian( const ncmm_host_api_v1 *api ) {
@@ -9735,71 +9733,71 @@ bool geography( const ncmm_host_api_v1 *api, bool ru ) {
     auto end = [&]() { api->worldgen_group_end(); };
 
     if( !begin( "aws_geo_city", "Cities and infrastructure", "Города и инфраструктура",
-                "[NEW MAP] Affects only overmaps generated after the change.",
-                "[НОВАЯ КАРТА] Влияет только на овермапы, созданные после изменения." ) ) return false;
-    ok &= reg_bool( api,ru,"NCMM_AWS_CUSTOM_GEOGRAPHY","Use custom geography","Использовать свою географию","OFF preserves the active region/mod geography exactly. Turn ON to apply the controls below to newly generated default-region overmaps.","ВЫКЛ сохраняет географию активного региона/модов без изменений. Включите, чтобы применять параметры ниже к новым овермапам стандартного региона.",false );
-    ok &= reg_int( api,ru,"NCMM_AWS_CITY_SIZE","Base city size","Базовый размер города","0 disables random cities; vanilla 8.","0 отключает случайные города; стандарт 8.",0,32,8 );
-    ok &= reg_int( api,ru,"NCMM_AWS_CITY_SPACING","City spacing","Расстояние между городами","Higher values produce fewer cities; vanilla 4.","Чем выше значение, тем реже города; стандарт 4.",0,8,4 );
-    ok &= reg_int( api,ru,"NCMM_AWS_MAX_URBANITY","Maximum urbanity multiplier","Максимальная урбанизация","Caps regional city-size amplification; vanilla 8.","Ограничивает региональное увеличение городов; стандарт 8.",1,16,8 );
-    ok &= reg_bool( api,ru,"NCMM_AWS_MEGACITY","Megacity generation","Мегаполис","Uses CDDA megacity placement for newly generated overmaps. Very dense and heavier to generate.","Использует режим мегаполиса CDDA для новых овермапов. Очень плотная и более тяжёлая генерация.",false );
-    ok &= reg_int( api,ru,"NCMM_AWS_SHOP_RADIUS","Shop radius","Радиус магазинов","Controls how far shop candidates extend from the city center; larger values generally produce shops across more of the city. 0 effectively disables shop selection through this radius check. CDDA 0546 default is 30.","Управляет тем, насколько далеко от центра города могут выбираться магазины; большие значения обычно распространяют магазины на большую часть города. 0 фактически отключает выбор магазинов через эту проверку радиуса. Стандарт CDDA 0546 — 30.",0,200,30 );
-    ok &= reg_int( api,ru,"NCMM_AWS_SHOP_SIGMA","Shop distribution sigma","Разброс магазинов","Random spread for shop radius. CDDA 0546 default is 50.","Случайный разброс радиуса магазинов. Стандарт CDDA 0546 — 50.",0,200,50 );
-    ok &= reg_int( api,ru,"NCMM_AWS_PARK_RADIUS","Park radius","Радиус парков","Controls how far park candidates extend from the city center; larger values generally produce parks across more of the city. 0 effectively disables park selection through this radius check. CDDA 0546 default is 20.","Управляет тем, насколько далеко от центра города могут выбираться парки; большие значения обычно распространяют парки на большую часть города. 0 фактически отключает выбор парков через эту проверку радиуса. Стандарт CDDA 0546 — 20.",0,200,20 );
-    ok &= reg_int( api,ru,"NCMM_AWS_PARK_SIGMA","Park distribution sigma","Разброс парков","Random spread for park radius. CDDA 0546 default is 80.","Случайный разброс радиуса парков. Стандарт CDDA 0546 — 80.",0,200,80 );
+                "Affects only areas generated after this change.",
+                "Влияет только на новые области, созданные после изменения." ) ) return false;
+    ok &= reg_bool( api,ru,"NCMM_AWS_CUSTOM_GEOGRAPHY","Use custom geography","Использовать свою географию","Leave this off to use the world's normal geography. Turn it on to customize areas generated from now on.","Оставьте выключенным для обычной географии мира. Включите, чтобы настраивать области, которые будут созданы после изменения.",false );
+    ok &= reg_int( api,ru,"NCMM_AWS_CITY_SIZE","Base city size","Базовый размер города","0 disables random cities; default 8.","0 отключает случайные города; стандарт 8.",0,32,8 );
+    ok &= reg_int( api,ru,"NCMM_AWS_CITY_SPACING","City spacing","Расстояние между городами","Higher values produce fewer cities; default 4.","Чем выше значение, тем реже города; стандарт 4.",0,8,4 );
+    ok &= reg_int( api,ru,"NCMM_AWS_MAX_URBANITY","Maximum city growth","Максимальный рост городов","Limits how strongly regional generation can enlarge cities; default 8.","Ограничивает, насколько сильно региональные настройки могут увеличивать города; стандарт 8.",1,16,8 );
+    ok &= reg_bool( api,ru,"NCMM_AWS_MEGACITY","Megacity generation","Мегаполис","Generates new areas as a dense megacity. This can noticeably increase generation time.","Новые области генерируются как плотный мегаполис. Это может заметно увеличить время генерации.",false );
+    ok &= reg_int( api,ru,"NCMM_AWS_SHOP_RADIUS","Shop radius","Радиус магазинов","Controls how far from the city center shops may appear. Larger values spread shops farther out; 0 prevents shops from being placed by this rule. CDDA 0546 default is 30.","Определяет, насколько далеко от центра города могут появляться магазины. Чем выше значение, тем дальше они распространяются; 0 запрещает размещение магазинов по этому правилу. Стандарт CDDA 0546 — 30.",0,200,30 );
+    ok &= reg_int( api,ru,"NCMM_AWS_SHOP_SIGMA","Shop spread","Разброс магазинов","Controls how widely shops are scattered around the city center. CDDA 0546 default is 50.","Определяет, насколько широко магазины распределяются вокруг центра города. Стандарт CDDA 0546 — 50.",0,200,50 );
+    ok &= reg_int( api,ru,"NCMM_AWS_PARK_RADIUS","Park radius","Радиус парков","Controls how far from the city center parks may appear. Larger values spread parks farther out; 0 prevents parks from being placed by this rule. CDDA 0546 default is 20.","Определяет, насколько далеко от центра города могут появляться парки. Чем выше значение, тем дальше они распространяются; 0 запрещает размещение парков по этому правилу. Стандарт CDDA 0546 — 20.",0,200,20 );
+    ok &= reg_int( api,ru,"NCMM_AWS_PARK_SIGMA","Park spread","Разброс парков","Controls how widely parks are scattered around the city center. CDDA 0546 default is 80.","Определяет, насколько широко парки распределяются вокруг центра города. Стандарт CDDA 0546 — 80.",0,200,80 );
     ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_ROADS","Generate roads","Генерировать дороги","Disables new inter-city roads when off.","Отключает новые межгородские дороги.",true );
     ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_RAILROADS","Generate railroads","Генерировать железные дороги","Disables new railroads when off.","Отключает новые железные дороги.",true );
-    ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_SPECIALS","Generate overmap specials","Генерировать особые локации","Controls placement of new overmap specials.","Управляет размещением новых особых локаций.",true );
-    ok &= reg_bool( api,ru,"NCMM_AWS_NEIGHBOR_CONNECTIONS","Connect neighboring overmaps","Связывать соседние овермапы","Keeps roads/rails/rivers continuous across overmap borders.","Сохраняет непрерывность дорог, рельсов и рек между овермапами.",true );
+    ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_SPECIALS","Generate special locations","Генерировать особые локации","Controls placement of new special locations.","Управляет размещением новых особых локаций.",true );
+    ok &= reg_bool( api,ru,"NCMM_AWS_NEIGHBOR_CONNECTIONS","Connect neighboring map regions","Связывать соседние области карты","Keeps roads, rail lines and rivers continuous across map-region borders.","Сохраняет непрерывность дорог, железных дорог и рек между областями карты.",true );
     end(); if( !ok ) return false;
 
     if( !begin( "aws_geo_forest", "Forests, swamps and trails", "Леса, болота и тропы",
-                "[NEW MAP] Lower noise thresholds create more of that terrain.",
-                "[НОВАЯ КАРТА] Чем ниже порог шума, тем больше соответствующего ландшафта." ) ) return false;
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_FORESTS","Generate forests","Генерировать леса","Master switch for new forests.","Главный переключатель новых лесов.",true );
+                "Lower threshold values generate more of the selected terrain in new areas.",
+                "Чем ниже порог, тем больше соответствующего ландшафта появится в новых областях." ) ) return false;
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_FORESTS","Generate forests","Генерировать леса","Turns forest generation on or off in new areas.","Включает или отключает леса в новых областях.",true );
     ok &= reg_float( api,ru,"NCMM_AWS_FOREST_THRESHOLD","Forest threshold","Порог леса","Lower = more forest. CDDA 0546 default is 0.20.","Ниже = больше леса. Стандарт CDDA 0546 — 0,20.",0.0,1.0,0.20,0.01 );
     ok &= reg_float( api,ru,"NCMM_AWS_FOREST_THICK_THRESHOLD","Dense forest threshold","Порог густого леса","Lower = more dense forest. CDDA 0546 default is 0.25.","Ниже = больше густого леса. Стандарт CDDA 0546 — 0,25.",0.0,1.0,0.25,0.01 );
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_SWAMPS","Generate swamps","Генерировать болота","Master switch for new swamps.","Главный переключатель новых болот.",true );
-    ok &= reg_float( api,ru,"NCMM_AWS_SWAMP_ADJ_THRESHOLD","Floodplain swamp threshold","Порог пойменных болот","Lower = more river-adjacent swamp. Vanilla 0.30.","Ниже = больше болот у рек. Стандарт 0,30.",0.0,1.0,0.30,0.01 );
-    ok &= reg_float( api,ru,"NCMM_AWS_SWAMP_ISOLATED_THRESHOLD","Isolated swamp threshold","Порог изолированных болот","Lower = more isolated swamp. Vanilla 0.60.","Ниже = больше отдельных болот. Стандарт 0,60.",0.0,1.0,0.60,0.01 );
-    ok &= reg_int( api,ru,"NCMM_AWS_FLOODPLAIN_MIN","Floodplain radius minimum","Минимальный радиус поймы","Minimum river floodplain buffer. Vanilla 3.","Минимальный буфер поймы реки. Стандарт 3.",0,30,3 );
-    ok &= reg_int( api,ru,"NCMM_AWS_FLOODPLAIN_MAX","Floodplain radius maximum","Максимальный радиус поймы","Maximum river floodplain buffer. Vanilla 15.","Максимальный буфер поймы реки. Стандарт 15.",0,60,15 );
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_TRAILS","Generate forest trails","Генерировать лесные тропы","Master switch for new forest trails and trailheads.","Главный переключатель новых лесных троп и входов.",true );
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_SWAMPS","Generate swamps","Генерировать болота","Turns swamp generation on or off in new areas.","Включает или отключает болота в новых областях.",true );
+    ok &= reg_float( api,ru,"NCMM_AWS_SWAMP_ADJ_THRESHOLD","Floodplain swamp threshold","Порог пойменных болот","Lower = more river-adjacent swamp. Default 0.30.","Ниже = больше болот у рек. Стандарт 0,30.",0.0,1.0,0.30,0.01 );
+    ok &= reg_float( api,ru,"NCMM_AWS_SWAMP_ISOLATED_THRESHOLD","Isolated swamp threshold","Порог изолированных болот","Lower = more isolated swamp. Default 0.60.","Ниже = больше отдельных болот. Стандарт 0,60.",0.0,1.0,0.60,0.01 );
+    ok &= reg_int( api,ru,"NCMM_AWS_FLOODPLAIN_MIN","Floodplain radius minimum","Минимальный радиус поймы","Minimum river floodplain buffer. Default 3.","Минимальный буфер поймы реки. Стандарт 3.",0,30,3 );
+    ok &= reg_int( api,ru,"NCMM_AWS_FLOODPLAIN_MAX","Floodplain radius maximum","Максимальный радиус поймы","Maximum river floodplain buffer. Default 15.","Максимальный буфер поймы реки. Стандарт 15.",0,60,15 );
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_TRAILS","Generate forest trails","Генерировать лесные тропы","Turns forest trails and trailheads on or off in new areas.","Включает или отключает лесные тропы и выходы к дорогам в новых областях.",true );
     ok &= reg_int( api,ru,"NCMM_AWS_TRAIL_CHANCE","Forest trail chance (1 in X)","Шанс лесной тропы (1 из X)","1 means every qualifying forest; CDDA 0546 default is 2.","1 означает каждый подходящий лес; стандарт CDDA 0546 — 2.",1,32,2 );
     ok &= reg_int( api,ru,"NCMM_AWS_TRAIL_MIN_FOREST","Minimum forest size for trails","Минимальный лес для троп","Minimum contiguous forest tiles; CDDA 0546 default is 100.","Минимальный размер связного леса; стандарт CDDA 0546 — 100.",1,1000,100 );
-    ok &= reg_int( api,ru,"NCMM_AWS_TRAILHEAD_CHANCE","Trailhead chance (1 in X)","Шанс входа на тропу (1 из X)","1 means every eligible trail end; vanilla 1.","1 означает каждый подходящий конец тропы; стандарт 1.",1,32,1 );
-    ok &= reg_int( api,ru,"NCMM_AWS_TRAILHEAD_ROAD_DISTANCE","Trailhead road distance","Дистанция тропы до дороги","Maximum road-search radius for a trailhead; vanilla 6.","Радиус поиска дороги для входа на тропу; стандарт 6.",1,30,6 );
+    ok &= reg_int( api,ru,"NCMM_AWS_TRAILHEAD_CHANCE","Trailhead chance (1 in X)","Шанс входа на тропу (1 из X)","1 means every eligible trail end; default 1.","1 означает каждый подходящий конец тропы; стандарт 1.",1,32,1 );
+    ok &= reg_int( api,ru,"NCMM_AWS_TRAILHEAD_ROAD_DISTANCE","Trailhead road distance","Дистанция тропы до дороги","Maximum road-search radius for a trailhead; default 6.","Радиус поиска дороги для входа на тропу; стандарт 6.",1,30,6 );
     end(); if( !ok ) return false;
 
     if( !begin( "aws_geo_water", "Rivers, lakes and oceans", "Реки, озёра и океаны",
-                "[NEW MAP] Water-generation controls for newly generated overmaps.",
-                "[НОВАЯ КАРТА] Настройки воды для новых овермапов." ) ) return false;
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_RIVERS","Generate rivers","Генерировать реки","Master switch for new rivers.","Главный переключатель новых рек.",true );
-    ok &= reg_int( api,ru,"NCMM_AWS_RIVER_SCALE","River width scale","Масштаб ширины рек","0 disables rivers; vanilla region value is 1.","0 отключает реки; стандарт региона 1.",0,5,1 );
-    ok &= reg_float( api,ru,"NCMM_AWS_RIVER_FREQUENCY","River frequency divisor","Редкость рек","Higher = fewer new major rivers. Vanilla 1.5.","Выше = меньше новых крупных рек. Стандарт 1,5.",1.0,8.0,1.5,0.1 );
-    ok &= reg_int( api,ru,"NCMM_AWS_RIVER_BRANCH_CHANCE","River branch chance (1 in X)","Ветвление рек (1 из X)","Lower = more branches. Vanilla 64.","Ниже = больше ответвлений. Стандарт 64.",1,256,64 );
-    ok &= reg_int( api,ru,"NCMM_AWS_RIVER_REMERGE_CHANCE","Branch remerge chance (1 in X)","Слияние ответвлений (1 из X)","Lower = branches rejoin more often. Vanilla 2.","Ниже = ответвления чаще сливаются. Стандарт 2.",1,64,2 );
-    ok &= reg_float( api,ru,"NCMM_AWS_RIVER_BRANCH_SCALE_DECREASE","Branch width decrease","Уменьшение ширины ответвлений","Width removed from child branches. Vanilla 1.0.","Насколько уже дочерние ответвления. Стандарт 1,0.",0.0,5.0,1.0,0.25 );
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_LAKES","Generate lakes","Генерировать озёра","Master switch for new lakes.","Главный переключатель новых озёр.",true );
-    ok &= reg_float( api,ru,"NCMM_AWS_LAKE_THRESHOLD","Lake threshold","Порог озёр","Lower = more lake terrain. Vanilla 0.25.","Ниже = больше озёр. Стандарт 0,25.",0.0,1.0,0.25,0.01 );
-    ok &= reg_int( api,ru,"NCMM_AWS_LAKE_MIN_SIZE","Minimum lake size","Минимальный размер озера","Rejects smaller lake blobs. Vanilla 20.","Отбрасывает меньшие озёра. Стандарт 20.",1,1000,20 );
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_OCEANS","Generate oceans","Генерировать океаны","Master switch where the current region supports oceans.","Главный переключатель там, где регион поддерживает океан.",true );
-    ok &= reg_float( api,ru,"NCMM_AWS_OCEAN_THRESHOLD","Ocean threshold","Порог океана","Lower = ocean expands more easily where coastline generation is active. Vanilla 0.25.","Ниже = океан легче расширяется там, где активна береговая генерация. Стандарт 0,25.",0.0,1.0,0.25,0.01 );
-    ok &= reg_int( api,ru,"NCMM_AWS_OCEAN_MIN_SIZE","Minimum ocean body size","Минимальный размер океана","Rejects smaller ocean blobs. Vanilla 100.","Отбрасывает меньшие океанские области. Стандарт 100.",1,5000,100 );
+                "Controls rivers, lakes and oceans in newly generated areas.",
+                "Настройки рек, озёр и океанов в новых областях." ) ) return false;
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_RIVERS","Generate rivers","Генерировать реки","Turns river generation on or off in new areas.","Включает или отключает реки в новых областях.",true );
+    ok &= reg_int( api,ru,"NCMM_AWS_RIVER_SCALE","River width scale","Масштаб ширины рек","0 disables rivers; default region value is 1.","0 отключает реки; стандарт региона 1.",0,5,1 );
+    ok &= reg_float( api,ru,"NCMM_AWS_RIVER_FREQUENCY","River frequency","Частота рек","Higher = fewer new major rivers. Default 1.5.","Выше = меньше новых крупных рек. Стандарт 1,5.",1.0,8.0,1.5,0.1 );
+    ok &= reg_int( api,ru,"NCMM_AWS_RIVER_BRANCH_CHANCE","River branch chance (1 in X)","Ветвление рек (1 из X)","Lower = more branches. Default 64.","Ниже = больше ответвлений. Стандарт 64.",1,256,64 );
+    ok &= reg_int( api,ru,"NCMM_AWS_RIVER_REMERGE_CHANCE","Branch merging chance (1 in X)","Слияние рукавов (1 из X)","Lower = river branches merge back more often. Default 2.","Ниже = рукава рек чаще сливаются обратно. Стандарт 2.",1,64,2 );
+    ok &= reg_float( api,ru,"NCMM_AWS_RIVER_BRANCH_SCALE_DECREASE","Branch narrowing","Сужение рукавов","How much narrower each new river branch becomes. Default 1.0.","Насколько уже становится каждый новый рукав. Стандарт 1,0.",0.0,5.0,1.0,0.25 );
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_LAKES","Generate lakes","Генерировать озёра","Turns lake generation on or off in new areas.","Включает или отключает озёра в новых областях.",true );
+    ok &= reg_float( api,ru,"NCMM_AWS_LAKE_THRESHOLD","Lake threshold","Порог озёр","Lower = more lake terrain. Default 0.25.","Ниже = больше озёр. Стандарт 0,25.",0.0,1.0,0.25,0.01 );
+    ok &= reg_int( api,ru,"NCMM_AWS_LAKE_MIN_SIZE","Minimum lake size","Минимальный размер озера","Lakes smaller than this are not generated. Default 20.","Озёра меньше этого размера не генерируются. Стандарт 20.",1,1000,20 );
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_OCEANS","Generate oceans","Генерировать океаны","Turns ocean generation on or off where the current region supports it.","Включает или отключает океаны там, где текущий регион их поддерживает.",true );
+    ok &= reg_float( api,ru,"NCMM_AWS_OCEAN_THRESHOLD","Ocean threshold","Порог океана","Lower = ocean expands more easily where coastline generation is active. Default 0.25.","Ниже = океан легче расширяется там, где активна береговая генерация. Стандарт 0,25.",0.0,1.0,0.25,0.01 );
+    ok &= reg_int( api,ru,"NCMM_AWS_OCEAN_MIN_SIZE","Minimum ocean body size","Минимальный размер океана","Ocean areas smaller than this are not generated. Default 100.","Океанские области меньше этого размера не генерируются. Стандарт 100.",1,5000,100 );
     end(); if( !ok ) return false;
 
     if( !begin( "aws_geo_transport", "Highways and ravines", "Шоссе и овраги",
-                "[NEW MAP] Large-scale transport grid and ravine generation.",
-                "[НОВАЯ КАРТА] Сетка шоссе и генерация оврагов." ) ) return false;
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_HIGHWAYS","Generate highways","Генерировать шоссе","Master switch for new highways.","Главный переключатель новых шоссе.",true );
-    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_ROW","Highway row separation","Расстояние между горизонтальными шоссе","Overmap-grid separation. Vanilla 8.","Шаг сетки овермапов. Стандарт 8.",2,32,8 );
-    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_COLUMN","Highway column separation","Расстояние между вертикальными шоссе","Overmap-grid separation. Vanilla 10.","Шаг сетки овермапов. Стандарт 10.",2,32,10 );
-    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_VARIANCE","Highway grid variance","Отклонение сетки шоссе","Intersection displacement; automatically clamped to a safe value. Vanilla 2.","Смещение перекрёстков; автоматически ограничивается безопасным значением. Стандарт 2.",0,7,2 );
-    ok &= reg_float( api,ru,"NCMM_AWS_HIGHWAY_STRAIGHTNESS","Highway straightness chance","Прямолинейность шоссе","Chance for new highway endpoints to align. Vanilla 0.60.","Шанс выравнивания новых участков шоссе. Стандарт 0,60.",0.0,1.0,0.60,0.05 );
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_RAVINES","Generate ravines","Генерировать овраги","Master switch for ravines where the region supports them.","Главный переключатель оврагов там, где регион их поддерживает.",true );
-    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_COUNT","Ravines per overmap","Оврагов на овермап","0 disables ravines. Vanilla default region is 0.","0 отключает овраги. В стандартном регионе по умолчанию 0.",0,16,0 );
-    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_RANGE","Ravine length range","Длина оврага","Path displacement range. Vanilla 45.","Диапазон смещения пути. Стандарт 45.",1,120,45 );
+                "Controls highways and ravines in newly generated areas.",
+                "Настройки шоссе и оврагов в новых областях." ) ) return false;
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_HIGHWAYS","Generate highways","Генерировать шоссе","Turns highway generation on or off in new areas.","Включает или отключает шоссе в новых областях.",true );
+    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_ROW","Highway row separation","Расстояние между горизонтальными шоссе","Distance between highway rows, measured in map regions. Default 8.","Расстояние между рядами шоссе в областях карты. Стандарт 8.",2,32,8 );
+    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_COLUMN","Highway column separation","Расстояние между вертикальными шоссе","Distance between highway columns, measured in map regions. Default 10.","Расстояние между колоннами шоссе в областях карты. Стандарт 10.",2,32,10 );
+    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_VARIANCE","Highway alignment variation","Разброс линий шоссе","How far highway intersections may shift from the grid. Default 2.","Насколько перекрёстки могут смещаться относительно сетки. Стандарт 2.",0,7,2 );
+    ok &= reg_float( api,ru,"NCMM_AWS_HIGHWAY_STRAIGHTNESS","Highway straightness chance","Прямолинейность шоссе","Chance for new highway endpoints to align. Default 0.60.","Шанс выравнивания новых участков шоссе. Стандарт 0,60.",0.0,1.0,0.60,0.05 );
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_RAVINES","Generate ravines","Генерировать овраги","Turns ravines on or off where the current region supports them.","Включает или отключает овраги там, где текущий регион их поддерживает.",true );
+    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_COUNT","Ravines per map region","Оврагов на область карты","0 disables ravines. Default region value is 0.","0 отключает овраги. В стандартном регионе по умолчанию 0.",0,16,0 );
+    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_RANGE","Ravine length range","Длина оврага","Path displacement range. Default 45.","Диапазон смещения пути. Стандарт 45.",1,120,45 );
     ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_WIDTH","Ravine width","Ширина оврага","Ravine width control. CDDA 0546 default is 3.","Управление шириной оврага. Стандарт CDDA 0546 — 3.",1,10,3 );
-    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_DEPTH","Ravine depth Z-level","Глубина оврага по Z","Negative Z-level for ravine floor. Vanilla -3.","Отрицательный Z-уровень дна оврага. Стандарт -3.",-20,-1,-3 );
+    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_DEPTH","Ravine depth Z-level","Глубина оврага по Z","Negative Z-level for ravine floor. Default -3.","Отрицательный Z-уровень дна оврага. Стандарт -3.",-20,-1,-3 );
     end();
     return ok;
 }
@@ -10530,7 +10528,7 @@ std::string rpg_detail_body( const perk_def &perk, const std::string &body,
     result += requires_text;
     if( prime_visual_perk( perk ) ) {
         result += "\n\n";
-        result += tr( "TRADEOFF:", "КОМПРОМИСС:" );
+        result += tr( "DRAWBACK:", "ШТРАФ:" );
         result += "\n";
         result += body;
     }
@@ -10563,7 +10561,7 @@ $coreTreeNodeOld87 = @'
                 const int tree_max_rank = perk_max_rank( perk );
                 const bool tree_unlocked = level >= perk.required_level && prerequisites_met( perk );
                 node.card.subtitle = "T" + std::to_string( perk.tier ) + " | " +
-                                     tr( "L", "ур." ) + std::to_string( perk.required_level ) +
+                                     tr( "Lv ", "ур. " ) + std::to_string( perk.required_level ) +
                                      " | " + ( perk.currency == currency_id::perk ? "1P" : "1M" );
                 if( tree_max_rank > 1 && tree_rank > 0 ) {
                     node.card.subtitle += " | R" + std::to_string( tree_rank ) + "/" +
@@ -10581,7 +10579,7 @@ $coreTreeNodeNew87 = @'
                 const int tree_max_rank = perk_max_rank( perk );
                 const bool tree_unlocked = level >= perk.required_level && prerequisites_met( perk );
                 node.card.subtitle = "T" + std::to_string( perk.tier ) + " | " +
-                                     tr( "L", "ур." ) + std::to_string( perk.required_level ) +
+                                     tr( "Lv ", "ур. " ) + std::to_string( perk.required_level ) +
                                      " | " + ( perk.currency == currency_id::perk ? "1P" : "1M" );
                 if( tree_max_rank > 1 && tree_rank > 0 ) {
                     node.card.subtitle += " | R" + std::to_string( tree_rank ) + "/" +
@@ -10604,7 +10602,7 @@ $modTreeNodeOld87 = @'
                 const int tree_max_rank = perk_max_rank( tree_perk );
                 const bool tree_unlocked = survivor_level >= tree_perk.required_level &&
                                            prerequisites_met( tree_perk );
-                node.card.subtitle = tr( "L", "ур." ) + std::to_string( tree_perk.required_level ) +
+                node.card.subtitle = tr( "Lv ", "ур. " ) + std::to_string( tree_perk.required_level ) +
                                      " | " + ( tree_perk.currency == currency_id::perk ? "1P" : "1M" );
                 if( tree_max_rank > 1 && tree_rank > 0 ) {
                     node.card.subtitle += " | R" + std::to_string( tree_rank ) + "/" +
@@ -10623,7 +10621,7 @@ $modTreeNodeNew87 = @'
                 const int tree_max_rank = perk_max_rank( tree_perk );
                 const bool tree_unlocked = survivor_level >= tree_perk.required_level &&
                                            prerequisites_met( tree_perk );
-                node.card.subtitle = tr( "L", "ур." ) + std::to_string( tree_perk.required_level ) +
+                node.card.subtitle = tr( "Lv ", "ур. " ) + std::to_string( tree_perk.required_level ) +
                                      " | " + ( tree_perk.currency == currency_id::perk ? "1P" : "1M" );
                 if( tree_max_rank > 1 && tree_rank > 0 ) {
                     node.card.subtitle += " | R" + std::to_string( tree_rank ) + "/" +
@@ -10783,7 +10781,7 @@ std::string rpg_detail_body( const perk_def &perk, const std::string &body,
     result += requires_text;
     if( prime_visual_perk( perk ) ) {
         result += "\n\n";
-        result += tr( "TRADEOFF:", "КОМПРОМИСС:" );
+        result += tr( "DRAWBACK:", "ШТРАФ:" );
         result += "\n";
         result += body;
     }
@@ -10813,11 +10811,10 @@ std::string rpg_detail_body( const perk_def &perk, const std::string &body,
     std::string result;
     result += tr( "BONUS:", "БОНУС:" );
     result += "\n" + bonus;
-    if( prime_visual_perk( perk ) ) {
+    if( prime_visual_perk( perk ) && !drawback.empty() ) {
         result += "\n\n";
-        result += tr( "TRADEOFF:", "КОМПРОМИСС:" );
-        result += "\n" + ( drawback.empty() ? tr( "Another Prime path stays locked until full respec.",
-                                                   "Другой Прайм-путь закрыт до полного сброса." ) : drawback );
+        result += tr( "DRAWBACK:", "ШТРАФ:" );
+        result += "\n" + drawback;
     }
     result += "\n\n";
     result += tr( "REQUIRES:", "ТРЕБУЕТ:" );
@@ -11047,7 +11044,7 @@ $detailBodyNew871 = @'
                 if( ncmm_ui_sectioned_detail() ) {
                     if( folded[line] == "BONUS:" || folded[line] == "БОНУС:" ) {
                         detail_color = c_light_green;
-                    } else if( folded[line] == "TRADEOFF:" || folded[line] == "КОМПРОМИСС:" ) {
+                    } else if( folded[line] == "DRAWBACK:" || folded[line] == "ШТРАФ:" ) {
                         detail_color = c_light_red;
                     } else if( folded[line] == "REQUIRES:" || folded[line] == "ТРЕБУЕТ:" ) {
                         detail_color = c_yellow;
@@ -11088,7 +11085,7 @@ foreach ($needle in @(
     'ncmm_ui_horizontal_viewport()',
     'const bool prime_border = border_style == NCMM_UI_BORDER_PRIME;',
     'if( ncmm_ui_border_style_id( i ) == NCMM_UI_BORDER_PRIME )',
-    'folded[line] == "TRADEOFF:"',
+    'folded[line] == "DRAWBACK:"',
     'folded[line] == "REQUIRES:"'
 )) {
     if (-not $loader871Audit.Contains($needle)) { throw "v8.7.3 UI visibility/render audit missing: $needle" }
@@ -11245,8 +11242,8 @@ $overviewModBodyOld875 = @'
 $overviewModBodyNew875 = @'
             card.body = integration_mod_focus( id ) + "\n\n" +
                         tr( "PROGRESSION:", "ПРОГРЕСС:" ) + "\n" +
-                        tr( "No separate branch XP; perks unlock from your overall Survivor level.",
-                            "Отдельного XP ветки нет; перки открываются по общему уровню Survivor." ) + "\n\n" +
+                        tr( "These perks use your overall Survivor level instead of separate branch XP.",
+                            "Эти перки используют общий уровень Survivor вместо отдельного опыта ветки." ) + "\n\n" +
                         tr( "Available only in worlds where this mod is active.",
                             "Доступно только в мирах, где активен этот мод." );
 '@
@@ -11267,7 +11264,7 @@ $sp875Audit = Normalize-Lf ([IO.File]::ReadAllText($spPath))
 foreach ($needle in @(
     'tr( "HOW TO GAIN XP:", "КАК КАЧАТЬ:" )',
     'tr( "PROGRESSION:", "ПРОГРЕСС:" )',
-    'No separate branch XP; perks unlock from your overall Survivor level.'
+    'These perks use your overall Survivor level instead of separate branch XP.'
 )) {
     if (-not $sp875Audit.Contains($needle)) { throw "v8.7.5 overview clarity audit missing: $needle" }
 }
@@ -11289,8 +11286,8 @@ std::string perk_lock_reason( const perk_def &perk )
     if( !perk_world_available( perk ) ) {
         const std::string mod_name = integration_mod_name( perk );
         return mod_name.empty() ?
-               tr( "Required world mod is not active.", "Требуемый мод мира не активен." ) :
-               tr( "Requires active world mod: ", "Нужен активный мод мира: " ) + mod_name;
+               tr( "Required mod is not active.", "Требуемый мод не активен." ) :
+               tr( "Requires mod: ", "Нужен мод: " ) + mod_name;
     }
     if( rank >= max_rank ) {
         return tr( "Maximum rank reached.", "Достигнут максимальный ранг." );
@@ -11465,16 +11462,16 @@ $sp = Replace-TextBlock $sp $overviewCoreOld876 $overviewCoreNew876 'v8.7.6.1 ov
 $overviewModOld876 = @'
             card.body = integration_mod_focus( id ) + "\n\n" +
                         tr( "PROGRESSION:", "ПРОГРЕСС:" ) + "\n" +
-                        tr( "No separate branch XP; perks unlock from your overall Survivor level.",
-                            "Отдельного XP ветки нет; перки открываются по общему уровню Survivor." ) + "\n\n" +
+                        tr( "These perks use your overall Survivor level instead of separate branch XP.",
+                            "Эти перки используют общий уровень Survivor вместо отдельного опыта ветки." ) + "\n\n" +
                         tr( "Available only in worlds where this mod is active.",
                             "Доступно только в мирах, где активен этот мод." );
 '@
 $overviewModNew876 = @'
             card.body = integration_mod_focus( id ) + "\n\n" +
                         tr( "PROGRESSION:", "ПРОГРЕСС:" ) + "\n" +
-                        tr( "No separate branch XP; perks unlock from your overall Survivor level.",
-                            "Отдельного XP ветки нет; перки открываются по общему уровню Survivor." ) + "\n" +
+                        tr( "These perks use your overall Survivor level instead of separate branch XP.",
+                            "Эти перки используют общий уровень Survivor вместо отдельного опыта ветки." ) + "\n" +
                         tr( "Survivor level: ", "Уровень Survivor: " ) + std::to_string( level ) + "\n" +
                         tr( "Available now: ", "Доступно сейчас: " ) +
                         std::to_string( integration_ready_count( id ) ) + "\n" +
@@ -11802,10 +11799,10 @@ foreach ($needle in @(
     "specialization_allowed",
     "exclusive_specialization_root",
     "integration_branch_xp_bonus_pct",
-    "Mod branch",
+    "Mod perks",
     "mod_perks.reserve( 24 )",
     "show_integration_branch",
-    "MOD BRANCH",
+    "MOD PERKS",
     "integration_tree_position",
     "perk_progression_level",
     "mg_archmage",
@@ -13088,10 +13085,10 @@ std::vector<manager_entry> manager_entries()
         $reasonNew = '                label += " - " + manager_reason_text( entry.reason );'
         $l = Replace-TextBlock $l $reasonOld $reasonNew 'v8.7.6.6 manager readable failure reason'
 
-        $menuEnOld = 'NCMM — Mod Configuration\nIn game the manager is a normal remappable keybinding (F2 by default). Modules marked [UI] can be opened with Enter.'
-        $menuEnNew = 'NCMM — Mod Configuration\nIn game the manager is a normal remappable keybinding (F2 by default). Modules marked [UI] can be opened with Enter.\nSupport: https://github.com/Neversalimus/NCMM/issues'
-        $menuRuOld = 'NCMM — Настройка модов\nВ игре менеджер — обычное переназначаемое действие (по умолчанию F2). Модули с [UI] открываются через Enter.'
-        $menuRuNew = 'NCMM — Настройка модов\nВ игре менеджер — обычное переназначаемое действие (по умолчанию F2). Модули с [UI] открываются через Enter.\nПоддержка: https://github.com/Neversalimus/NCMM/issues'
+        $menuEnOld = 'NCMM — Mod Configuration\nPress F2 to open this menu (the key can be changed in Controls). Press Enter to open settings for supported mods.'
+        $menuEnNew = 'NCMM — Mod Configuration\nPress F2 to open this menu (the key can be changed in Controls). Press Enter to open settings for supported mods.\nSupport: https://github.com/Neversalimus/NCMM/issues'
+        $menuRuOld = 'NCMM — Настройка модов\nF2 открывает это меню; клавишу можно изменить в управлении. Enter открывает настройки поддерживаемого мода.'
+        $menuRuNew = 'NCMM — Настройка модов\nF2 открывает это меню; клавишу можно изменить в управлении. Enter открывает настройки поддерживаемого мода.\nПоддержка: https://github.com/Neversalimus/NCMM/issues'
         if (-not $l.Contains($menuEnOld) -or -not $l.Contains($menuRuOld)) {
             throw 'v8.7.6.6 manager support-text anchor missing.'
         }
@@ -14206,38 +14203,38 @@ function Apply-SurvivorMechanicalPerks0100 {
     if($perkCountBefore0100 -lt 271) { throw "Survivor 0.10.0 baseline perk count unexpectedly low: $perkCountBefore0100" }
 
     $mechanicalPerks0100 = @'
-    { "cm_critical_eye", branch_id::combat, 3, 12, currency_id::perk, "c_precision", "ce_lessons", "Critical Eye", "Критический глаз", "Mechanical: +2 percentage points to melee critical-hit chance.", "Механика: +2 процентных пункта к шансу критического удара в ближнем бою.", {{ { "sp_melee_crit_chance_pct", 2 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "cm_vital_strike", branch_id::combat, 4, 17, currency_id::perk, "cm_critical_eye", "c_bruiser", "Vital Strike", "Смертельный удар", "Mechanical: melee critical damage +10%.", "Механика: урон критических ударов в ближнем бою +10%.", {{ { "sp_melee_crit_damage_pct", 10 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "cm_execution_window", branch_id::combat, 5, 23, currency_id::major, "cm_vital_strike", "c_veteran", "Execution Window", "Окно для добивания", "Mechanical: melee critical chance +3 points and critical damage +15%.", "Механика: +3 пункта к шансу критического удара и +15% к критическому урону в ближнем бою.", {{ { "sp_melee_crit_chance_pct", 3 }, { "sp_melee_crit_damage_pct", 15 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "cm_guard_reserve", branch_id::combat, 3, 14, currency_id::perk, "c_conditioning", "ce_reserve", "Guard Reserve", "Резерв защиты", "Mechanical: +1 block attempt whenever defensive attempts refresh.", "Механика: +1 попытка блока при каждом обновлении защитных попыток.", {{ { "sp_block_attempts_bonus", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "cm_second_reaction", branch_id::combat, 4, 18, currency_id::perk, "c_reflexes", "ce_drills", "Second Reaction", "Вторая реакция", "Mechanical: +1 dodge attempt per defensive refresh, allowing two normal dodge attempts from the base one.", "Механика: +1 попытка уклонения при обновлении защиты — две обычные попытки вместо базовой одной.", {{ { "sp_dodge_attempts_bonus", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "cm_ballistic_weakpoints", branch_id::combat, 4, 18, currency_id::perk, "c_precision", "ce_tactics", "Ballistic Weakpoints", "Баллистические уязвимости", "Mechanical: projectile critical multiplier +12%.", "Механика: множитель критического урона снарядов +12%.", {{ { "sp_ranged_crit_damage_pct", 12 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "cm_lethal_mastery", branch_id::combat, 6, 32, currency_id::major, "cm_execution_window", "cm_ballistic_weakpoints", "Lethal Mastery", "Смертельное мастерство", "Mechanical apex: melee crit chance +2 points; melee and ranged critical damage +15%.", "Механическая вершина: +2 пункта к шансу крита в ближнем бою; критический урон ближнего и дальнего боя +15%.", {{ { "sp_melee_crit_chance_pct", 2 }, { "sp_melee_crit_damage_pct", 15 }, { "sp_ranged_crit_damage_pct", 15 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
+    { "cm_critical_eye", branch_id::combat, 3, 12, currency_id::perk, "c_precision", "ce_lessons", "Critical Eye", "Критический глаз", "+2 percentage points to melee critical-hit chance.", "+2 процентных пункта к шансу критического удара в ближнем бою.", {{ { "sp_melee_crit_chance_pct", 2 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "cm_vital_strike", branch_id::combat, 4, 17, currency_id::perk, "cm_critical_eye", "c_bruiser", "Vital Strike", "Смертельный удар", "melee critical damage +10%.", "урон критических ударов в ближнем бою +10%.", {{ { "sp_melee_crit_damage_pct", 10 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "cm_execution_window", branch_id::combat, 5, 23, currency_id::major, "cm_vital_strike", "c_veteran", "Execution Window", "Окно для добивания", "melee critical chance +3 points and critical damage +15%.", "+3 пункта к шансу критического удара и +15% к критическому урону в ближнем бою.", {{ { "sp_melee_crit_chance_pct", 3 }, { "sp_melee_crit_damage_pct", 15 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "cm_guard_reserve", branch_id::combat, 3, 14, currency_id::perk, "c_conditioning", "ce_reserve", "Guard Reserve", "Резерв защиты", "+1 block attempt whenever defensive attempts refresh.", "+1 попытка блока при каждом обновлении защитных попыток.", {{ { "sp_block_attempts_bonus", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "cm_second_reaction", branch_id::combat, 4, 18, currency_id::perk, "c_reflexes", "ce_drills", "Second Reaction", "Вторая реакция", "gain one extra dodge before dodge attempts refresh.", "одно дополнительное уклонение до следующего восстановления попыток.", {{ { "sp_dodge_attempts_bonus", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "cm_ballistic_weakpoints", branch_id::combat, 4, 18, currency_id::perk, "c_precision", "ce_tactics", "Ballistic Weakpoints", "Баллистические уязвимости", "projectile critical multiplier +12%.", "множитель критического урона снарядов +12%.", {{ { "sp_ranged_crit_damage_pct", 12 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "cm_lethal_mastery", branch_id::combat, 6, 32, currency_id::major, "cm_execution_window", "cm_ballistic_weakpoints", "Killing Edge", "Смертельная грань", "melee crit chance +2 points; melee and ranged critical damage +15%.", "+2 пункта к шансу крита в ближнем бою; критический урон ближнего и дальнего боя +15%.", {{ { "sp_melee_crit_chance_pct", 2 }, { "sp_melee_crit_damage_pct", 15 }, { "sp_ranged_crit_damage_pct", 15 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
 
-    { "sm_damage_control", branch_id::survival, 3, 12, currency_id::perk, "s_hardy", "se_lessons", "Damage Control", "Контроль повреждений", "Mechanical: all normal incoming damage packets are reduced by 3%.", "Механика: весь обычный входящий урон через стандартный damage pipeline уменьшается на 3%.", {{ { "sp_damage_taken_pct", 3 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "sm_hard_to_kill", branch_id::survival, 4, 18, currency_id::perk, "sm_damage_control", "s_resilient", "Hard to Kill", "Живучий", "Mechanical: incoming damage reduction +4%.", "Механика: дополнительное снижение входящего урона на 4%.", {{ { "sp_damage_taken_pct", 4 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "sm_defy_fate", branch_id::survival, 4, 16, currency_id::perk, "s_instinct", "se_adaptive", "Defy Fate", "Обмануть судьбу", "Ranked mechanical perk: 1% chance per rank to completely negate an incoming normal damage packet, up to 5% at rank V.", "Ранговая механика: 1% за ранг полностью отменить обычный пакет входящего урона, до 5% на V ранге.", {{ { "sp_damage_avoid_pct", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "sm_brace_for_impact", branch_id::survival, 5, 23, currency_id::perk, "sm_hard_to_kill", "s_survivor", "Brace for Impact", "Принять удар", "Mechanical: +1 block attempt and +5% maximum stamina.", "Механика: +1 попытка блока и +5% максимума выносливости.", {{ { "sp_block_attempts_bonus", 1 }, { "stamina_max_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "sm_indomitable_body", branch_id::survival, 6, 34, currency_id::major, "sm_brace_for_impact", "sm_defy_fate", "Indomitable Body", "Несокрушимое тело", "Mechanical apex: another 5% incoming damage reduction and +10% healing.", "Механическая вершина: ещё -5% входящего урона и +10% лечения.", {{ { "sp_damage_taken_pct", 5 }, { "healing_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "sm_damage_control", branch_id::survival, 3, 12, currency_id::perk, "s_hardy", "se_lessons", "Damage Control", "Контроль повреждений", "incoming damage -3%.", "входящий урон -3%.", {{ { "sp_damage_taken_pct", 3 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "sm_hard_to_kill", branch_id::survival, 4, 18, currency_id::perk, "sm_damage_control", "s_resilient", "Hard to Kill", "Живучий", "incoming damage -4%.", "входящий урон -4%.", {{ { "sp_damage_taken_pct", 4 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "sm_defy_fate", branch_id::survival, 4, 16, currency_id::perk, "s_instinct", "se_adaptive", "Defy Fate", "Обмануть судьбу", "each rank adds a 1% chance to completely avoid incoming damage, up to 5% at rank V.", "каждый ранг даёт 1% шанс полностью избежать входящего урона, до 5% на V ранге.", {{ { "sp_damage_avoid_pct", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "sm_brace_for_impact", branch_id::survival, 5, 23, currency_id::perk, "sm_hard_to_kill", "s_survivor", "Brace for Impact", "Принять удар", "+1 block attempt and +5% maximum stamina.", "+1 попытка блока и +5% максимума выносливости.", {{ { "sp_block_attempts_bonus", 1 }, { "stamina_max_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "sm_indomitable_body", branch_id::survival, 6, 34, currency_id::major, "sm_brace_for_impact", "sm_defy_fate", "Indomitable Body", "Несокрушимое тело", "another 5% incoming damage reduction and +10% healing.", "ещё -5% входящего урона и +10% лечения.", {{ { "sp_damage_taken_pct", 5 }, { "healing_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
 
-    { "mm_second_dodge", branch_id::mobility, 3, 12, currency_id::perk, "m_parkour", "me_breath", "Second Dodge", "Второе уклонение", "Mechanical: +1 dodge attempt when defensive attempts refresh; base characters can dodge twice before the next refresh.", "Механика: +1 попытка уклонения при обновлении защиты; базовый персонаж может уклониться дважды до следующего обновления.", {{ { "sp_dodge_attempts_bonus", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "mm_efficient_evasion", branch_id::mobility, 4, 17, currency_id::perk, "mm_second_dodge", "m_quick", "Efficient Evasion", "Экономное уклонение", "Mechanical: +1 dodge attempt is treated as free for stamina accounting when free dodges are consumed.", "Механика: +1 попытка уклонения считается бесплатной по расходу выносливости при списании free-dodge.", {{ { "sp_free_dodge_attempts_bonus", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "mm_afterimage", branch_id::mobility, 4, 19, currency_id::perk, "m_runner", "me_stride", "Afterimage", "Послеобраз", "Mechanical: 1% chance to completely negate an incoming normal damage packet.", "Механика: 1% шанс полностью отменить обычный пакет входящего урона.", {{ { "sp_damage_avoid_pct", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "mm_perfect_step", branch_id::mobility, 5, 25, currency_id::major, "mm_efficient_evasion", "mm_afterimage", "Perfect Step", "Идеальный шаг", "Mechanical: +2% full damage avoidance and -3% move cost.", "Механика: +2% полного избегания урона и -3% стоимости движения.", {{ { "sp_damage_avoid_pct", 2 }, { "move_cost_pct", -3 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "mm_combat_flow", branch_id::mobility, 6, 34, currency_id::major, "mm_perfect_step", "m_untouchable", "Combat Flow", "Боевой поток", "Mechanical apex: +1 free dodge, +2% speed and +1 point melee critical chance.", "Механическая вершина: +1 бесплатное уклонение, +2% скорости и +1 пункт шанса крита в ближнем бою.", {{ { "sp_free_dodge_attempts_bonus", 1 }, { "speed_pct", 2 }, { "sp_melee_crit_chance_pct", 1 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
+    { "mm_second_dodge", branch_id::mobility, 3, 12, currency_id::perk, "m_parkour", "me_breath", "Second Dodge", "Второе уклонение", "gain one extra dodge before dodge attempts refresh.", "одно дополнительное уклонение до следующего восстановления попыток.", {{ { "sp_dodge_attempts_bonus", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "mm_efficient_evasion", branch_id::mobility, 4, 17, currency_id::perk, "mm_second_dodge", "m_quick", "Efficient Evasion", "Экономное уклонение", "one dodge attempt per refresh costs no stamina.", "одно уклонение до следующего восстановления попыток не тратит выносливость.", {{ { "sp_free_dodge_attempts_bonus", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "mm_afterimage", branch_id::mobility, 4, 19, currency_id::perk, "m_runner", "me_stride", "Afterimage", "Послеобраз", "1% chance to completely avoid incoming damage.", "1% шанс полностью избежать входящего урона.", {{ { "sp_damage_avoid_pct", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "mm_perfect_step", branch_id::mobility, 5, 25, currency_id::major, "mm_efficient_evasion", "mm_afterimage", "Perfect Step", "Идеальный шаг", "+2% chance to completely avoid incoming damage and -3% move cost.", "+2% шанс полностью избежать входящего урона и -3% стоимости движения.", {{ { "sp_damage_avoid_pct", 2 }, { "move_cost_pct", -3 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "mm_combat_flow", branch_id::mobility, 6, 34, currency_id::major, "mm_perfect_step", "m_untouchable", "Combat Flow", "Боевой поток", "One dodge per refresh costs no stamina; +2% speed and +1 point melee critical chance.", "Одно уклонение до восстановления попыток не тратит выносливость; +2% скорости и +1 пункт шанса крита в ближнем бою.", {{ { "sp_free_dodge_attempts_bonus", 1 }, { "speed_pct", 2 }, { "sp_melee_crit_chance_pct", 1 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
 
-    { "fm_precision_assembly", branch_id::crafting, 4, 18, currency_id::perk, "f_engineer", "fe_standard", "Precision Assembly", "Точная сборка", "Advanced practice: +8% crafting speed and +0.5 INT.", "Продвинутая практика: +8% скорости крафта и +0,5 ИНТ.", {{ { "craft_speed_pct", 8 }, { "int_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "fm_field_maintenance", branch_id::crafting, 5, 24, currency_id::perk, "fm_precision_assembly", "f_master", "Field Maintenance", "Полевая эксплуатация", "Advanced practice: +8% crafting speed and +10% carrying capacity.", "Продвинутая практика: +8% скорости крафта и +10% грузоподъёмности.", {{ { "craft_speed_pct", 8 }, { "carry_weight_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "fm_masterwork_discipline", branch_id::crafting, 6, 34, currency_id::major, "fm_field_maintenance", "f_genius", "Masterwork Discipline", "Дисциплина шедевра", "Crafting apex: +12% crafting, +10% reading and +1 INT.", "Вершина крафта: +12% крафта, +10% чтения и +1 ИНТ.", {{ { "craft_speed_pct", 12 }, { "read_speed_pct", 10 }, { "int_flat", 1 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
+    { "fm_precision_assembly", branch_id::crafting, 4, 18, currency_id::perk, "f_engineer", "fe_standard", "Precision Assembly", "Точная сборка", "+8% crafting speed and +0.5 INT.", "+8% скорости крафта и +0,5 ИНТ.", {{ { "craft_speed_pct", 8 }, { "int_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "fm_field_maintenance", branch_id::crafting, 5, 24, currency_id::perk, "fm_precision_assembly", "f_master", "Field Maintenance", "Полевая эксплуатация", "+8% crafting speed and +10% carrying capacity.", "+8% скорости крафта и +10% грузоподъёмности.", {{ { "craft_speed_pct", 8 }, { "carry_weight_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "fm_masterwork_discipline", branch_id::crafting, 6, 34, currency_id::major, "fm_field_maintenance", "f_genius", "Master Craftsmanship", "Высшее мастерство", "+12% crafting, +10% reading and +1 INT.", "+12% крафта, +10% чтения и +1 ИНТ.", {{ { "craft_speed_pct", 12 }, { "read_speed_pct", 10 }, { "int_flat", 1 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
 
-    { "gm_weakpoint_eye", branch_id::scavenging, 4, 17, currency_id::perk, "g_awareness", "ge_cache", "Weakpoint Eye", "Глаз на уязвимости", "Field instinct: +1 point melee critical chance and +5% projectile critical multiplier.", "Полевой инстинкт: +1 пункт шанса крита в ближнем бою и +5% множителя критического урона снарядов.", {{ { "sp_melee_crit_chance_pct", 1 }, { "sp_ranged_crit_damage_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "gm_scrap_armor_instinct", branch_id::scavenging, 5, 23, currency_id::perk, "g_mule", "ge_instinct", "Scrap Armor Instinct", "Инстинкт бронесборщика", "Field toughness: incoming damage reduction +2% and carrying capacity +5%.", "Полевая живучесть: -2% входящего урона и +5% грузоподъёмности.", {{ { "sp_damage_taken_pct", 2 }, { "carry_weight_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "gm_escape_route", branch_id::scavenging, 6, 33, currency_id::major, "gm_weakpoint_eye", "gm_scrap_armor_instinct", "Escape Route", "Маршрут отхода", "Field apex: +1 free dodge, +3% speed and -2% move cost.", "Полевая вершина: +1 бесплатное уклонение, +3% скорости и -2% стоимости движения.", {{ { "sp_free_dodge_attempts_bonus", 1 }, { "speed_pct", 3 }, { "move_cost_pct", -2 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
+    { "gm_weakpoint_eye", branch_id::scavenging, 4, 17, currency_id::perk, "g_awareness", "ge_cache", "Weakpoint Eye", "Глаз на уязвимости", "+1 point melee critical chance and +5% projectile critical multiplier.", "+1 пункт шанса крита в ближнем бою и +5% множителя критического урона снарядов.", {{ { "sp_melee_crit_chance_pct", 1 }, { "sp_ranged_crit_damage_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "gm_scrap_armor_instinct", branch_id::scavenging, 5, 23, currency_id::perk, "g_mule", "ge_instinct", "Scrap Armor Instinct", "Инстинкт бронесборщика", "incoming damage reduction +2% and carrying capacity +5%.", "-2% входящего урона и +5% грузоподъёмности.", {{ { "sp_damage_taken_pct", 2 }, { "carry_weight_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "gm_escape_route", branch_id::scavenging, 6, 33, currency_id::major, "gm_weakpoint_eye", "gm_scrap_armor_instinct", "Escape Route", "Маршрут отхода", "+1 free dodge, +3% speed and -2% move cost.", "+1 бесплатное уклонение, +3% скорости и -2% стоимости движения.", {{ { "sp_free_dodge_attempts_bonus", 1 }, { "speed_pct", 3 }, { "move_cost_pct", -2 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
 
-    { "am_combat_synthesis", branch_id::mastery, 4, 19, currency_id::perk, "a_insight", "ae_integrate", "Combat Synthesis", "Синтез боя", "Cross-discipline mechanics: +1 point melee critical chance; melee and ranged critical damage +5%.", "Междисциплинарная механика: +1 пункт шанса крита; критический урон ближнего и дальнего боя +5%.", {{ { "sp_melee_crit_chance_pct", 1 }, { "sp_melee_crit_damage_pct", 5 }, { "sp_ranged_crit_damage_pct", 5 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
-    { "am_survival_synthesis", branch_id::mastery, 5, 25, currency_id::major, "a_paragon", "am_combat_synthesis", "Survival Synthesis", "Синтез выживания", "Cross-discipline mechanics: incoming damage -2% and full damage avoidance +1%.", "Междисциплинарная механика: -2% входящего урона и +1% полного избегания урона.", {{ { "sp_damage_taken_pct", 2 }, { "sp_damage_avoid_pct", 1 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "am_reflex_memory", branch_id::mastery, 5, 27, currency_id::perk, "a_polymath", "ae_longgame", "Reflex Memory", "Память рефлексов", "Cross-discipline mechanics: +1 free dodge and +2% speed.", "Междисциплинарная механика: +1 бесплатное уклонение и +2% скорости.", {{ { "sp_free_dodge_attempts_bonus", 1 }, { "speed_pct", 2 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "am_apex_adaptation", branch_id::mastery, 6, 40, currency_id::major, "a_transcendent", "am_survival_synthesis", "Apex Adaptation", "Вершина адаптации", "Mechanical apex: +2% incoming damage reduction, +1 point melee crit chance, +5% melee crit damage and +5% ranged crit damage.", "Механическая вершина: -2% входящего урона, +1 пункт шанса крита, +5% критического урона ближнего и дальнего боя.", {{ { "sp_damage_taken_pct", 2 }, { "sp_melee_crit_chance_pct", 1 }, { "sp_melee_crit_damage_pct", 5 }, { "sp_ranged_crit_damage_pct", 5 } }}, 4, 0, perk_kind::effect }
+    { "am_combat_synthesis", branch_id::mastery, 4, 19, currency_id::perk, "a_insight", "ae_integrate", "Battle Sense", "Боевое чутьё", "+1 point melee critical chance; melee and ranged critical damage +5%.", "+1 пункт шанса крита; критический урон ближнего и дальнего боя +5%.", {{ { "sp_melee_crit_chance_pct", 1 }, { "sp_melee_crit_damage_pct", 5 }, { "sp_ranged_crit_damage_pct", 5 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
+    { "am_survival_synthesis", branch_id::mastery, 5, 25, currency_id::major, "a_paragon", "am_combat_synthesis", "Hardened Reflexes", "Закалённые рефлексы", "incoming damage -2% and +1% chance to completely avoid incoming damage.", "-2% входящего урона и +1% шанс полностью избежать входящего урона.", {{ { "sp_damage_taken_pct", 2 }, { "sp_damage_avoid_pct", 1 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "am_reflex_memory", branch_id::mastery, 5, 27, currency_id::perk, "a_polymath", "ae_longgame", "Reflex Memory", "Память рефлексов", "+1 free dodge and +2% speed.", "+1 бесплатное уклонение и +2% скорости.", {{ { "sp_free_dodge_attempts_bonus", 1 }, { "speed_pct", 2 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "am_apex_adaptation", branch_id::mastery, 6, 40, currency_id::major, "a_transcendent", "am_survival_synthesis", "Total Adaptation", "Полная адаптация", "incoming damage -2%, +1 point melee crit chance, +5% melee crit damage and +5% ranged crit damage.", "-2% входящего урона, +1 пункт шанса крита, +5% критического урона ближнего и дальнего боя.", {{ { "sp_damage_taken_pct", 2 }, { "sp_melee_crit_chance_pct", 1 }, { "sp_melee_crit_damage_pct", 5 }, { "sp_ranged_crit_damage_pct", 5 } }}, 4, 0, perk_kind::effect }
 '@
     # 0.9.15's final mod-Prime perk is intentionally comma-less while it is the array tail.
     # 0.10.0 appends 27 mechanical perks, so turn the old tail into a non-final record first.
@@ -14381,7 +14378,7 @@ function Apply-SurvivorReactiveMechanics0110 {
     { "cr_riposte", branch_id::combat, 4, 20, currency_id::perk, "cm_second_reaction", "ce_tactics", "Riposte", "Рипост", "Reactive: every successful dodge has a 20% chance to launch one guarded automatic melee counterattack.", "Реакция: каждое успешное уклонение даёт 20% шанс на одну защищённую автоматическую контратаку в ближнем бою.", {{ { "sp_riposte_chance_pct", 20 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "cr_counterflow", branch_id::combat, 5, 25, currency_id::perk, "cr_riposte", "c_veteran", "Counterflow", "Поток контратаки", "Ripostes refund 50% of the moves they spend; successful dodges also return 5 moves.", "Рипост возвращает 50% потраченных ходов; успешное уклонение также возвращает 5 ходов.", {{ { "sp_riposte_refund_pct", 50 }, { "sp_on_dodge_moves", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "cr_critical_surge", branch_id::combat, 4, 21, currency_id::perk, "cm_critical_eye", "cm_vital_strike", "Critical Surge", "Критический импульс", "After every melee critical: +10 moves and restore 2% maximum stamina.", "После каждого критического удара в ближнем бою: +10 ходов и восстановление 2% максимальной выносливости.", {{ { "sp_on_crit_moves", 10 }, { "sp_on_crit_stamina_pct", 2 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "cr_execution_protocol", branch_id::combat, 5, 27, currency_id::major, "cm_execution_window", "cm_vital_strike", "Execution Protocol", "Протокол добивания", "Execute window: against targets at 18% HP or lower, outgoing normal damage is increased by 60%.", "Окно добивания: по целям с 18% здоровья или меньше обычный исходящий урон увеличивается на 60%.", {{ { "sp_execute_threshold_pct", 18 }, { "sp_execute_damage_pct", 60 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "cr_execution_protocol", branch_id::combat, 5, 27, currency_id::major, "cm_execution_window", "cm_vital_strike", "Finisher", "Добивание", "Execute window: against targets at 18% HP or lower, outgoing normal damage is increased by 60%.", "Окно добивания: по целям с 18% здоровья или меньше обычный исходящий урон увеличивается на 60%.", {{ { "sp_execute_threshold_pct", 18 }, { "sp_execute_damage_pct", 60 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "cr_predator_momentum", branch_id::combat, 5, 28, currency_id::perk, "c_veteran", "ce_tactics", "Predator Momentum", "Импульс хищника", "Kills build Momentum: up to 3 stacks for 12 turns; each stack grants +3% outgoing damage and +1% speed.", "Убийства накапливают Импульс: до 3 зарядов на 12 ходов; каждый заряд даёт +3% исходящего урона и +1% скорости.", {{ { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 0, 0, perk_kind::effect },
     { "cr_relentless_momentum", branch_id::combat, 6, 38, currency_id::major, "cr_predator_momentum", "cm_lethal_mastery", "Relentless Momentum", "Неудержимый импульс", "Momentum cap becomes 5 and lasts 20 turns; every kill also returns 15 moves and 3% maximum stamina.", "Лимит Импульса становится 5, длительность — 20 ходов; каждое убийство также возвращает 15 ходов и 3% максимальной выносливости.", {{ { "sp_on_kill_moves", 15 }, { "sp_on_kill_stamina_pct", 3 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
 
@@ -14390,24 +14387,24 @@ function Apply-SurvivorReactiveMechanics0110 {
 
     { "mr_slipstream", branch_id::mobility, 4, 19, currency_id::perk, "mm_second_dodge", "me_stride", "Slipstream", "Скольжение", "Every successful dodge immediately returns 12 moves.", "Каждое успешное уклонение немедленно возвращает 12 ходов.", {{ { "sp_on_dodge_moves", 12 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "mr_breath_return", branch_id::mobility, 4, 21, currency_id::perk, "mm_efficient_evasion", "m_marathon", "Breath Return", "Возврат дыхания", "Every successful dodge restores 3% maximum stamina.", "Каждое успешное уклонение восстанавливает 3% максимальной выносливости.", {{ { "sp_on_dodge_stamina_pct", 3 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "mr_reactive_step", branch_id::mobility, 5, 27, currency_id::perk, "mr_slipstream", "mm_perfect_step", "Reactive Step", "Ответный шаг", "Successful dodges gain +10 percentage points of riposte chance; NCMM ripostes refund 25% of their move cost.", "Успешные уклонения получают +10 процентных пунктов шанса рипоста; NCMM-рипосты возвращают 25% стоимости хода.", {{ { "sp_riposte_chance_pct", 10 }, { "sp_riposte_refund_pct", 25 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "mr_reactive_step", branch_id::mobility, 5, 27, currency_id::perk, "mr_slipstream", "mm_perfect_step", "Reactive Step", "Ответный шаг", "Successful dodges gain +10 percentage points of riposte chance; ripostes refund 25% of their move cost.", "Успешные уклонения получают +10 процентных пунктов шанса рипоста; рипосты возвращают 25% стоимости хода.", {{ { "sp_riposte_chance_pct", 10 }, { "sp_riposte_refund_pct", 25 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "mr_kinetic_chain", branch_id::mobility, 6, 36, currency_id::major, "mr_breath_return", "mm_combat_flow", "Kinetic Chain", "Кинетическая цепь", "Criticals return 5 moves; kills return 10 moves. Movement keeps feeding combat tempo.", "Криты возвращают 5 ходов, убийства — 10 ходов. Движение продолжает подпитывать темп боя.", {{ { "sp_on_crit_moves", 5 }, { "sp_on_kill_moves", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
 
-    { "fr_quality_control", branch_id::crafting, 4, 19, currency_id::perk, "fm_precision_assembly", "fe_theory", "Quality Control", "Контроль качества", "Technical: +0.25 to the real crafting success roll used to place failure points.", "Техника: +0,25 к реальному броску успеха крафта, определяющему точки ошибок.", {{ { "sp_craft_success_roll_flat", 0.25 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "fr_second_measure", branch_id::crafting, 5, 24, currency_id::perk, "fr_quality_control", "f_master", "Measure Twice", "Семь раз отмерь", "Technical: 10% chance to completely cancel a crafting failure event before defects, component loss or progress loss are applied.", "Техника: 10% шанс полностью отменить событие ошибки крафта до дефектов, потери компонентов и прогресса.", {{ { "sp_craft_failure_save_pct", 10 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "fr_material_discipline", branch_id::crafting, 5, 26, currency_id::perk, "fm_field_maintenance", "fr_quality_control", "Material Discipline", "Дисциплина материалов", "Technical: each component that would be destroyed by a crafting failure has a 25% independent protection chance.", "Техника: каждый компонент, который должен быть уничтожен ошибкой крафта, получает независимый 25% шанс сохраниться.", {{ { "sp_craft_component_loss_reduction_pct", 25 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "fr_failure_analysis", branch_id::crafting, 5, 28, currency_id::perk, "fr_second_measure", "fr_material_discipline", "Failure Analysis", "Анализ ошибок", "Technical: progress lost when a crafting failure still happens is reduced by 35%.", "Техника: если ошибка крафта всё же происходит, потеря прогресса уменьшается на 35%.", {{ { "sp_craft_progress_loss_reduction_pct", 35 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "fr_zero_defect", branch_id::crafting, 6, 38, currency_id::major, "fr_failure_analysis", "fm_masterwork_discipline", "Zero-Defect Process", "Бездефектный процесс", "Technical apex: +10% failure cancellation, +15% component protection and +20% progress-loss reduction.", "Техническая вершина: +10% отмены ошибки, +15% защиты компонентов и +20% снижения потери прогресса.", {{ { "sp_craft_failure_save_pct", 10 }, { "sp_craft_component_loss_reduction_pct", 15 }, { "sp_craft_progress_loss_reduction_pct", 20 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
+    { "fr_quality_control", branch_id::crafting, 4, 19, currency_id::perk, "fm_precision_assembly", "fe_theory", "Quality Control", "Контроль качества", "+0.25 to crafting success checks; the displayed success chance uses the same bonus.", "+0,25 к проверкам успеха крафта; отображаемый шанс успеха учитывает тот же бонус.", {{ { "sp_craft_success_roll_flat", 0.25 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "fr_second_measure", branch_id::crafting, 5, 24, currency_id::perk, "fr_quality_control", "f_master", "Measure Twice", "Семь раз отмерь", "10% chance to prevent a crafting failure before it causes defects, destroys components or removes progress. The next failure check still advances normally.", "10% шанс предотвратить ошибку крафта до появления дефекта, потери компонентов или прогресса. Следующая проверка ошибки всё равно сдвигается вперёд.", {{ { "sp_craft_failure_save_pct", 10 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "fr_material_discipline", branch_id::crafting, 5, 26, currency_id::perk, "fm_field_maintenance", "fr_quality_control", "Material Discipline", "Дисциплина материалов", "each component threatened by a crafting failure has a 25% chance to survive.", "каждый компонент, которому грозит уничтожение при ошибке крафта, имеет 25% шанс сохраниться.", {{ { "sp_craft_component_loss_reduction_pct", 25 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "fr_failure_analysis", branch_id::crafting, 5, 28, currency_id::perk, "fr_second_measure", "fr_material_discipline", "Failure Analysis", "Анализ ошибок", "lose 35% less progress when crafting fails.", "при ошибке крафта теряется на 35% меньше прогресса.", {{ { "sp_craft_progress_loss_reduction_pct", 35 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "fr_zero_defect", branch_id::crafting, 6, 38, currency_id::major, "fr_failure_analysis", "fm_masterwork_discipline", "Flawless Work", "Безупречная работа", "+10% chance to prevent a crafting failure, +15% component protection and 20% less progress loss.", "+10% шанс предотвратить ошибку крафта, +15% защиты компонентов и на 20% меньше потери прогресса.", {{ { "sp_craft_failure_save_pct", 10 }, { "sp_craft_component_loss_reduction_pct", 15 }, { "sp_craft_progress_loss_reduction_pct", 20 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
 
-    { "gr_trap_reader", branch_id::scavenging, 3, 14, currency_id::perk, "g_awareness", "ge_field", "Trap Reader", "Чтение ловушек", "Fieldcraft: +2 to the actual trap-detection mean roll.", "Полевая техника: +2 к реальному среднему броску обнаружения ловушек.", {{ { "sp_trap_detection_flat", 2 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "gr_lock_whisperer", branch_id::scavenging, 4, 19, currency_id::perk, "gr_trap_reader", "g_pathfinder", "Lock Whisperer", "Шёпот замков", "Fieldcraft: +2 to the real lockpick roll before it is compared with lock difficulty.", "Полевая техника: +2 к реальному броску взлома до сравнения со сложностью замка.", {{ { "sp_lockpick_roll_flat", 2 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "gr_quick_entry", branch_id::scavenging, 4, 21, currency_id::perk, "gr_lock_whisperer", "ge_network", "Quick Entry", "Быстрый вход", "Fieldcraft: lockpicking time is reduced by 20%, respecting the vanilla five-second lower bound.", "Полевая техника: время взлома замков уменьшается на 20% с сохранением ванильного минимума в пять секунд.", {{ { "sp_lockpick_time_reduction_pct", 20 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "gr_gentle_tools", branch_id::scavenging, 5, 27, currency_id::perk, "gr_lock_whisperer", "gm_scrap_armor_instinct", "Gentle Tools", "Бережный инструмент", "Fieldcraft: 50% chance to prevent lockpick damage/destruction on a severe failed attempt.", "Полевая техника: 50% шанс не допустить повреждение или уничтожение отмычки при тяжёлой неудаче.", {{ { "sp_lockpick_tool_protection_pct", 50 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "gr_alarm_bypass", branch_id::scavenging, 6, 35, currency_id::major, "gr_quick_entry", "gr_gentle_tools", "Alarm Bypass", "Обход сигнализации", "Fieldcraft apex: 25% chance to suppress the alarm check after an attempt on an alarmed lock.", "Полевая вершина: 25% шанс подавить проверку тревоги после попытки взлома сигнализированного замка.", {{ { "sp_lockpick_alarm_avoid_pct", 25 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "gr_trap_reader", branch_id::scavenging, 3, 14, currency_id::perk, "g_awareness", "ge_field", "Trap Reader", "Чтение ловушек", "+2 to trap detection checks.", "+2 к проверкам обнаружения ловушек.", {{ { "sp_trap_detection_flat", 2 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "gr_lock_whisperer", branch_id::scavenging, 4, 19, currency_id::perk, "gr_trap_reader", "g_pathfinder", "Lock Whisperer", "Шёпот замков", "+2 to lockpicking checks.", "+2 к проверкам взлома.", {{ { "sp_lockpick_roll_flat", 2 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "gr_quick_entry", branch_id::scavenging, 4, 21, currency_id::perk, "gr_lock_whisperer", "ge_network", "Quick Entry", "Быстрый вход", "lockpicking is 20% faster, but cannot go below 30 seconds with normal picks or 5 seconds with perfect picks.", "взлом на 20% быстрее, но не может занять меньше 30 секунд обычной отмычкой или 5 секунд идеальной.", {{ { "sp_lockpick_time_reduction_pct", 20 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "gr_gentle_tools", branch_id::scavenging, 5, 27, currency_id::perk, "gr_lock_whisperer", "gm_scrap_armor_instinct", "Gentle Tools", "Бережный инструмент", "50% chance to keep your lockpick from being damaged or destroyed after a severe failure.", "50% шанс сохранить отмычку от повреждения или уничтожения после тяжёлой неудачи.", {{ { "sp_lockpick_tool_protection_pct", 50 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "gr_alarm_bypass", branch_id::scavenging, 6, 35, currency_id::major, "gr_quick_entry", "gr_gentle_tools", "Alarm Bypass", "Обход сигнализации", "25% chance to prevent an alarm from triggering after attempting an alarmed lock.", "25% шанс подавить проверку тревоги после попытки взлома сигнализированного замка.", {{ { "sp_lockpick_alarm_avoid_pct", 25 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
 
-    { "ar_reactive_synthesis", branch_id::mastery, 5, 28, currency_id::perk, "am_combat_synthesis", "ae_integrate", "Reactive Synthesis", "Синтез реакции", "Cross-discipline: dodges, melee criticals and kills each return 5 moves.", "Междисциплинарно: уклонения, критические удары в ближнем бою и убийства возвращают по 5 ходов.", {{ { "sp_on_dodge_moves", 5 }, { "sp_on_crit_moves", 5 }, { "sp_on_kill_moves", 5 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
-    { "ar_momentum_engine", branch_id::mastery, 6, 38, currency_id::major, "ar_reactive_synthesis", "am_apex_adaptation", "Momentum Engine", "Двигатель импульса", "If Predator Momentum is owned, each stack gains another +1% damage and +1% speed, and maximum stacks increase by 2.", "Если куплен Импульс хищника, каждый заряд получает ещё +1% урона и +1% скорости, а максимум зарядов увеличивается на 2.", {{ { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 0, 0, perk_kind::effect },
-    { "ar_perfect_process", branch_id::mastery, 6, 40, currency_id::major, "ar_reactive_synthesis", "ae_ascendant", "Perfect Process", "Совершенный процесс", "Cross-discipline technical mastery: +5% craft-failure cancellation, +10% component protection and +15% progress-loss reduction.", "Междисциплинарное техническое мастерство: +5% отмены ошибки крафта, +10% защиты компонентов и +15% снижения потери прогресса.", {{ { "sp_craft_failure_save_pct", 5 }, { "sp_craft_component_loss_reduction_pct", 10 }, { "sp_craft_progress_loss_reduction_pct", 15 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect }
+    { "ar_reactive_synthesis", branch_id::mastery, 5, 28, currency_id::perk, "am_combat_synthesis", "ae_integrate", "Reflex Chain", "Цепная реакция", "dodges, melee criticals and kills each return 5 moves.", "уклонения, критические удары в ближнем бою и убийства возвращают по 5 ходов.", {{ { "sp_on_dodge_moves", 5 }, { "sp_on_crit_moves", 5 }, { "sp_on_kill_moves", 5 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
+    { "ar_momentum_engine", branch_id::mastery, 6, 38, currency_id::major, "ar_reactive_synthesis", "am_apex_adaptation", "Momentum Engine", "Двигатель импульса", "With Predator Momentum, each stack gains another +1% damage and +1% speed, and the maximum increases by 2 stacks.", "С Импульсом хищника каждый заряд даёт ещё +1% урона и +1% скорости, а максимум увеличивается на 2 заряда.", {{ { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 0, 0, perk_kind::effect },
+    { "ar_perfect_process", branch_id::mastery, 6, 40, currency_id::major, "ar_reactive_synthesis", "ae_ascendant", "Master Craft", "Мастерская работа", "+5% chance to prevent a crafting failure, +10% component protection and 15% less progress loss.", "+5% шанс предотвратить ошибку крафта, +10% защиты компонентов и на 15% меньше потери прогресса.", {{ { "sp_craft_failure_save_pct", 5 }, { "sp_craft_component_loss_reduction_pct", 10 }, { "sp_craft_progress_loss_reduction_pct", 15 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect }
 '@
     # Append safely even when the previous layer's final perk intentionally has no trailing comma.
     # 0.10.0 ends with am_apex_adaptation without a comma because it was the final array element;
@@ -14692,52 +14689,52 @@ function Apply-SurvivorReactivePolish0111 {
         'Реакция: после успешного уклонения, если не сработала контратака боевого искусства и хватает выносливости, есть 20% шанс на одну защищённую автоматическую контратаку.')
     $sp = $sp.Replace(
         'Kills build Momentum: up to 3 stacks for 12 turns; each stack grants +3% outgoing damage and +1% speed.',
-        'XP-awarding monster kills build Momentum: up to 3 stacks for 12 turns; each stack grants +3% outgoing damage and +1% speed. Zero-XP revived kills do not trigger it.')
+        'Hostile monster kills that grant XP build Momentum, up to 3 stacks for 12 turns. Each stack grants +3% damage and +1% speed. Revived enemies that grant no XP do not add stacks.')
     $sp = $sp.Replace(
         'Убийства накапливают Импульс: до 3 зарядов на 12 ходов; каждый заряд даёт +3% исходящего урона и +1% скорости.',
         'Убийства монстров, дающие опыт, накапливают Импульс: до 3 зарядов на 12 ходов; каждый заряд даёт +3% исходящего урона и +1% скорости. Убийства возрождённых целей без опыта не срабатывают.')
     $sp = $sp.Replace(
-        'Fieldcraft: lockpicking time is reduced by 20%, respecting the vanilla five-second lower bound.',
-        'Fieldcraft: lockpicking time is reduced by 20%; normal picks keep the vanilla 30-second floor and perfect picks keep their 5-second floor.')
+        'lockpicking is 20% faster, but cannot go below 30 seconds with normal picks or 5 seconds with perfect picks.',
+        'lockpicking is 20% faster, but cannot go below 30 seconds with normal picks or 5 seconds with perfect picks.')
     $sp = $sp.Replace(
-        'Полевая техника: время взлома замков уменьшается на 20% с сохранением ванильного минимума в пять секунд.',
-        'Полевая техника: время взлома уменьшается на 20%; обычные отмычки сохраняют ванильный минимум 30 секунд, идеальные — 5 секунд.')
+        'взлом на 20% быстрее, но не может занять меньше 30 секунд обычной отмычкой или 5 секунд идеальной.',
+        'взлом на 20% быстрее, но не может занять меньше 30 секунд обычной отмычкой или 5 секунд идеальной.')
     $sp = $sp.Replace(
-        'Technical: +0.25 to the real crafting success roll used to place failure points.',
-        'Technical: +0.25 to the real crafting success roll used to place failure points; the displayed success estimate follows the same bonus.')
+        '+0.25 to crafting success checks; the displayed success chance uses the same bonus.',
+        '+0.25 to crafting success checks; the displayed success chance uses the same bonus.')
     $sp = $sp.Replace(
-        'Техника: +0,25 к реальному броску успеха крафта, определяющему точки ошибок.',
-        'Техника: +0,25 к реальному броску успеха крафта, определяющему точки ошибок; отображаемая оценка успеха учитывает тот же бонус.')
+        '+0,25 к проверкам успеха крафта; отображаемый шанс успеха учитывает тот же бонус.',
+        '+0,25 к проверкам успеха крафта; отображаемый шанс успеха учитывает тот же бонус.')
     $sp = $sp.Replace(
         'Momentum cap becomes 5 and lasts 20 turns; every kill also returns 15 moves and 3% maximum stamina.',
-        'Momentum cap becomes 5 and lasts 20 turns; every XP-awarding monster kill also returns 15 moves and 3% maximum stamina.')
+        'Momentum cap becomes 5 and lasts 20 turns; every hostile monster kill that grants XP also returns 15 moves and 3% maximum stamina.')
     $sp = $sp.Replace(
         'Лимит Импульса становится 5, длительность — 20 ходов; каждое убийство также возвращает 15 ходов и 3% максимальной выносливости.',
         'Лимит Импульса становится 5, длительность — 20 ходов; каждое убийство монстра, дающее опыт, также возвращает 15 ходов и 3% максимальной выносливости.')
     $sp = $sp.Replace(
         'Every player-attributed kill restores 4% maximum stamina.',
-        'Every XP-awarding monster kill attributed to the player restores 4% maximum stamina.')
+        'A hostile monster kill credited to you that grants XP restores 4% maximum stamina.')
     $sp = $sp.Replace(
         'Каждое убийство, засчитанное игроку, восстанавливает 4% максимальной выносливости.',
         'Каждое убийство монстра, дающее опыт и засчитанное игроку, восстанавливает 4% максимальной выносливости.')
     $sp = $sp.Replace(
         'Melee criticals restore 2% max stamina; kills return 5 moves.',
-        'Melee criticals restore 2% max stamina; XP-awarding monster kills return 5 moves.')
+        'Melee criticals restore 2% max stamina; hostile monster kills that grant XP return 5 moves.')
     $sp = $sp.Replace(
         'Критические удары в ближнем бою восстанавливают 2% максимальной выносливости; убийства возвращают 5 ходов.',
         'Критические удары в ближнем бою восстанавливают 2% максимальной выносливости; убийства монстров, дающие опыт, возвращают 5 ходов.')
     $sp = $sp.Replace(
         'Criticals return 5 moves; kills return 10 moves. Movement keeps feeding combat tempo.',
-        'Criticals return 5 moves; XP-awarding monster kills return 10 moves. Movement keeps feeding combat tempo.')
+        'Criticals return 5 moves; hostile monster kills that grant XP return 10 moves. Movement keeps feeding combat tempo.')
     $sp = $sp.Replace(
         'Криты возвращают 5 ходов, убийства — 10 ходов. Движение продолжает подпитывать темп боя.',
         'Криты возвращают 5 ходов, убийства монстров, дающие опыт, — 10 ходов. Движение продолжает подпитывать темп боя.')
     $sp = $sp.Replace(
-        'Cross-discipline: dodges, melee criticals and kills each return 5 moves.',
-        'Cross-discipline: dodges and melee criticals return 5 moves; XP-awarding monster kills also return 5 moves.')
+        'dodges, melee criticals and kills each return 5 moves.',
+        'dodges and melee criticals return 5 moves; hostile monster kills that grant XP also return 5 moves.')
     $sp = $sp.Replace(
-        'Междисциплинарно: уклонения, критические удары в ближнем бою и убийства возвращают по 5 ходов.',
-        'Междисциплинарно: уклонения и критические удары в ближнем бою возвращают 5 ед. хода; убийства монстров, дающие опыт, также возвращают 5 ед. хода.')
+        'уклонения, критические удары в ближнем бою и убийства возвращают по 5 ходов.',
+        'уклонения и критические удары в ближнем бою возвращают 5 ед. хода; убийства монстров, дающие опыт, также возвращают 5 ед. хода.')
 
     # Russian UX: CDDA "moves" are action points, not whole turns. Avoid implying +5/+10/+15 full turns.
     $sp = $sp.Replace('Рипост возвращает 50% потраченных ходов; успешное уклонение также возвращает 5 ходов.',
@@ -14936,31 +14933,31 @@ function Apply-SurvivorReactiveEdgePolish0112 {
         'После каждого критического удара в ближнем бою: +10 ед. хода и восстановление 2% максимальной выносливости.',
         'После каждого критического удара в ближнем бою, наносящего урон реальной цели: +10 ед. хода и восстановление 2% максимальной выносливости.')
     $sp = $sp.Replace(
-        'XP-awarding monster kills build Momentum: up to 3 stacks for 12 turns; each stack grants +3% outgoing damage and +1% speed. Zero-XP revived kills do not trigger it.',
-        'XP-awarding hostile monster kills build Momentum: up to 3 stacks for 12 turns; each stack grants +3% outgoing damage and +1% speed. Friendly/passive/neutral and zero-XP revived kills do not trigger it.')
+        'Hostile monster kills that grant XP build Momentum, up to 3 stacks for 12 turns. Each stack grants +3% damage and +1% speed. Revived enemies that grant no XP do not add stacks.',
+        'Killing a hostile monster that grants XP builds Momentum, up to 3 stacks for 12 turns. Each stack grants +3% damage and +1% speed. Allies, neutral creatures and revived enemies that grant no XP do not add stacks.')
     $sp = $sp.Replace(
         'Убийства монстров, дающие опыт, накапливают Импульс: до 3 зарядов на 12 ходов; каждый заряд даёт +3% исходящего урона и +1% скорости. Убийства возрождённых целей без опыта не срабатывают.',
-        'Убийства враждебных монстров, дающие опыт, накапливают Импульс: до 3 зарядов на 12 ходов; каждый заряд даёт +3% исходящего урона и +1% скорости. Дружественные, пассивные, нейтральные и возрождённые цели без опыта не срабатывают.')
-    $sp = $sp.Replace('every XP-awarding monster kill also returns 15 moves and 3% maximum stamina.',
-                      'every XP-awarding hostile monster kill also returns 15 moves and 3% maximum stamina.')
+        'Убийство враждебного монстра, за которое начисляется опыт, даёт заряд Импульса: до 3 зарядов на 12 ходов. Каждый заряд даёт +3% урона и +1% скорости. Союзники, нейтральные существа и возрождённые враги без опыта зарядов не дают.')
+    $sp = $sp.Replace('every hostile monster kill that grants XP also returns 15 moves and 3% maximum stamina.',
+                      'every hostile monster kill that grants XP also returns 15 moves and 3% maximum stamina.')
     $sp = $sp.Replace('каждое убийство монстра, дающее опыт, также возвращает 15 ед. хода и 3% максимальной выносливости.',
                       'каждое убийство враждебного монстра, дающее опыт, также возвращает 15 ед. хода и 3% максимальной выносливости.')
-    $sp = $sp.Replace('Every XP-awarding monster kill attributed to the player restores 4% maximum stamina.',
-                      'Every XP-awarding hostile monster kill attributed to the player restores 4% maximum stamina.')
+    $sp = $sp.Replace('A hostile monster kill credited to you that grants XP restores 4% maximum stamina.',
+                      'A hostile monster kill credited to you that grants XP restores 4% maximum stamina.')
     $sp = $sp.Replace('Каждое убийство монстра, дающее опыт и засчитанное игроку, восстанавливает 4% максимальной выносливости.',
-                      'Каждое убийство враждебного монстра, дающее опыт и засчитанное игроку, восстанавливает 4% максимальной выносливости.')
-    $sp = $sp.Replace('XP-awarding monster kills return 5 moves.', 'XP-awarding hostile monster kills return 5 moves.')
+                      'Убийство враждебного монстра, засчитанное вам и дающее опыт, восстанавливает 4% максимальной выносливости.')
+    $sp = $sp.Replace('hostile monster kills that grant XP return 5 moves.', 'hostile monster kills that grant XP return 5 moves.')
     $sp = $sp.Replace('убийства монстров, дающие опыт, возвращают 5 ед. хода.', 'убийства враждебных монстров, дающие опыт, возвращают 5 ед. хода.')
-    $sp = $sp.Replace('XP-awarding monster kills return 10 moves.', 'XP-awarding hostile monster kills return 10 moves.')
+    $sp = $sp.Replace('hostile monster kills that grant XP return 10 moves.', 'hostile monster kills that grant XP return 10 moves.')
     $sp = $sp.Replace('убийства монстров, дающие опыт, — 10 ед. хода.', 'убийства враждебных монстров, дающие опыт, — 10 ед. хода.')
-    $sp = $sp.Replace('XP-awarding monster kills also return 5 moves.', 'XP-awarding hostile monster kills also return 5 moves.')
+    $sp = $sp.Replace('hostile monster kills that grant XP also return 5 moves.', 'hostile monster kills that grant XP also return 5 moves.')
     $sp = $sp.Replace('убийства монстров, дающие опыт, также возвращают 5 ед. хода.', 'убийства враждебных монстров, дающие опыт, также возвращают 5 ед. хода.')
     $sp = $sp.Replace(
-        'Fieldcraft apex: 25% chance to suppress the alarm check after an attempt on an alarmed lock.',
-        'Fieldcraft apex: 25% chance to suppress the alarm check after an attempt on an alarmed door lock.')
+        '25% chance to prevent an alarm from triggering after attempting an alarmed lock.',
+        '25% chance to prevent an alarm from triggering after attempting an alarmed lock.')
     $sp = $sp.Replace(
-        'Полевая вершина: 25% шанс подавить проверку тревоги после попытки взлома сигнализированного замка.',
-        'Полевая вершина: 25% шанс подавить проверку тревоги после попытки взлома двери с сигнализацией.')
+        '25% шанс подавить проверку тревоги после попытки взлома сигнализированного замка.',
+        '25% шанс не дать сигнализации сработать после попытки взлома защищённого замка.')
 
     $sp = $sp.Replace('Survivor Progression v0.11.1','Survivor Progression v0.11.2')
     $sp = $sp.Replace('Survivor Progression 0.11.1 initialized:','Survivor Progression 0.11.2 initialized:')
@@ -14986,14 +14983,14 @@ foreach($needle0112 in @(
     'Survivor Progression v0.11.2','cr_riposte','cr_predator_momentum','fr_quality_control','gr_quick_entry',
     'Friendly, neutral and hallucination sources are never auto-targeted.','damaging melee critical against a real target',
     'XP-awarding hostile monster kills build Momentum:','every XP-awarding hostile monster kill also returns 15 moves',
-    'Every XP-awarding hostile monster kill attributed to the player restores 4% maximum stamina.',
-    'XP-awarding hostile monster kills return 5 moves.','XP-awarding hostile monster kills return 10 moves.',
+    'A hostile monster kill credited to you that grants XP restores 4% maximum stamina.',
+    'hostile monster kills that grant XP return 5 moves.','hostile monster kills that grant XP return 10 moves.',
     'set_state( "momentum_stacks", 0 );','set_state( "momentum_turns", 0 );','momentum_stack_cap',
     'alarmed door lock.'
 )) { if(-not $spEdgeAudit0112.Contains($needle0112)){ throw "Survivor 0.11.2 edge audit missing: $needle0112" } }
 foreach($obsolete0112 in @(
     'XP-awarding monster kills build Momentum: up to 3 stacks for 12 turns;',
-    'Fieldcraft apex: 25% chance to suppress the alarm check after an attempt on an alarmed lock.'
+    '25% chance to prevent an alarm from triggering after attempting an alarmed lock.'
 )) { if($spEdgeAudit0112.Contains($obsolete0112)){ throw "Survivor 0.11.2 stale pre-polish text survived: $obsolete0112" } }
 if(-not $manifestEdgeAudit0112.Contains('"version": "0.11.2"')) { throw 'Survivor 0.11.2 manifest audit failed.' }
 if(-not $spEdgeAudit0112.Contains('constexpr int state_schema = 8;')) { throw 'Survivor 0.11.2 state schema changed unexpectedly.' }
@@ -15148,28 +15145,28 @@ function Apply-SurvivorCombinatorialEdgePolish0113 {
         'Реакция: после успешного уклонения пешком, если не сработала контратака боевого искусства и хватает выносливости, есть 20% шанс контратаковать соседнего враждебного атакующего. Дружественные, нейтральные, иллюзорные и ситуации верхом исключены.')
     $sp = $sp.Replace(
         'Ripostes refund 50% of the moves they spend; successful dodges also return 5 moves.',
-        'Ripostes refund 50% of their pre-attack base melee move cost; successful dodges also return 5 moves. Nested crit/kill rewards do not distort the refund.')
+        'Ripostes refund 50% of their base move cost; successful dodges also return 5 moves.')
     $sp = $sp.Replace(
         'Рипост возвращает 50% потраченных единиц хода; успешное уклонение также возвращает 5 ед. хода.',
-        'Рипост возвращает 50% базовой стоимости атаки в единицах хода, рассчитанной до удара; успешное уклонение также возвращает 5 ед. хода. Награды за крит/убийство не искажают возврат.')
+        'Рипост возвращает 50% базовой стоимости атаки; успешное уклонение также возвращает 5 ед. хода.')
     $sp = $sp.Replace(
         'After every damaging melee critical against a real target: +10 moves and restore 2% maximum stamina.',
-        'After every damaging melee critical against a hostile real target: +10 moves and restore 2% maximum stamina. Fleeing hostile monsters still count.')
+        'A damaging melee critical against a hostile target returns 10 moves and restores 2% maximum stamina. Fleeing enemies still count.')
     $sp = $sp.Replace(
         'После каждого критического удара в ближнем бою, наносящего урон реальной цели: +10 ед. хода и восстановление 2% максимальной выносливости.',
-        'После каждого критического удара в ближнем бою, наносящего урон реальной враждебной цели: +10 ед. хода и восстановление 2% максимальной выносливости. Убегающие враги учитываются.')
+        'Критический удар в ближнем бою по враждебной цели возвращает 10 ед. хода и восстанавливает 2% максимальной выносливости. Убегающие враги тоже учитываются.')
     $sp = $sp.Replace(
         'Execute window: against targets at 18% HP or lower, outgoing normal damage is increased by 60%.',
-        'Execute window: against hostile targets at 18% HP or lower, outgoing normal damage is increased by 60%; friendly and neutral targets never receive this bonus.')
+        'Deal +60% damage to hostile targets at 18% health or less. Friendly and neutral targets are unaffected.')
     $sp = $sp.Replace(
         'Окно добивания: по целям с 18% здоровья или меньше обычный исходящий урон увеличивается на 60%.',
-        'Окно добивания: по враждебным целям с 18% здоровья или меньше обычный исходящий урон увеличивается на 60%; дружественные и нейтральные цели бонус не получают.')
+        'По враждебным целям с 18% здоровья или меньше урон увеличивается на 60%. Дружественные и нейтральные цели не затрагиваются.')
     $sp = $sp.Replace(
-        'Technical: 10% chance to completely cancel a crafting failure event before defects, component loss or progress loss are applied.',
-        'Technical: 10% chance to completely cancel a crafting failure event before defects, component loss or progress loss are applied; a cancelled event always advances its next failure point.')
+        '10% chance to prevent a crafting failure before it causes defects, destroys components or removes progress. The next failure check still advances normally.',
+        '10% chance to prevent a crafting failure before it causes defects, destroys components or removes progress. The next failure check still advances normally.')
     $sp = $sp.Replace(
-        'Техника: 10% шанс полностью отменить событие ошибки крафта до дефектов, потери компонентов и прогресса.',
-        'Техника: 10% шанс полностью отменить событие ошибки крафта до дефектов, потери компонентов и прогресса; после отмены следующая точка ошибки всегда сдвигается вперёд.')
+        '10% шанс предотвратить ошибку крафта до появления дефекта, потери компонентов или прогресса. Следующая проверка ошибки всё равно сдвигается вперёд.',
+        '10% шанс предотвратить ошибку крафта до появления дефекта, потери компонентов или прогресса. Следующая проверка ошибки всё равно сдвигается вперёд.')
 
     $sp = $sp.Replace('Survivor Progression v0.11.2','Survivor Progression v0.11.3')
     $sp = $sp.Replace('Survivor Progression 0.11.2 initialized:','Survivor Progression 0.11.3 initialized:')

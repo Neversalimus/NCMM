@@ -3312,8 +3312,8 @@ bool handle_gameplay_action( const std::string &action )
             continue;
         }
         if( !ensure_state_migrated( mod ) ) {
-            popup( tr_ui( "Module state migration is suspended for this character. See NCMM diagnostics.",
-                          "Миграция состояния модуля приостановлена для этого персонажа. См. диагностику NCMM." ) );
+            popup( tr_ui( "This mod could not load its saved data safely. Open NCMM diagnostics for details.",
+                          "Не удалось безопасно загрузить сохранённые данные этого мода. Подробности — в диагностике NCMM." ) );
             return true;
         }
         try {
@@ -3324,8 +3324,8 @@ bool handle_gameplay_action( const std::string &action )
                                      mod.descriptor->name : action_id;
             quarantine_runtime_callback( mod, runtime_callback_kind::ui, "ui_exception" );
             log_line( NCMM_LOG_WARN, ( "Module UI callback failed: " + name ).c_str() );
-            popup( tr_ui( "Module UI callback failed and was quarantined for this session.",
-                          "Ошибка callback интерфейса мода; callback помещён в карантин до перезапуска." ) );
+            popup( tr_ui( "This mod's interface failed to open and has been disabled for this session.",
+                          "Интерфейс мода не открылся и отключён до перезапуска игры." ) );
         }
         return true;
     }
@@ -3338,14 +3338,14 @@ void show_manager()
     while( true ) {
         const std::vector<manager_entry> entries = manager_entries();
         if( entries.empty() ) {
-            popup( tr_ui( "No NCMM code mods are installed.", "NCMM code-моды не установлены." ) );
+            popup( tr_ui( "No NCMM mods are installed.", "Моды NCMM не установлены." ) );
             return;
         }
 
         uilist menu;
         menu.text = tr_ui(
-                        "NCMM — Mod Configuration\nIn game the manager is a normal remappable keybinding (F2 by default). Modules marked [UI] can be opened with Enter.",
-                        "NCMM — Настройка модов\nВ игре менеджер — обычное переназначаемое действие (по умолчанию F2). Модули с [UI] открываются через Enter." );
+                        "NCMM — Mod Configuration\nPress F2 to open this menu (the key can be changed in Controls). Press Enter to open settings for supported mods.",
+                        "NCMM — Настройка модов\nF2 открывает это меню; клавишу можно изменить в управлении. Enter открывает настройки поддерживаемого мода." );
 
         for( int i = 0; i < static_cast<int>( entries.size() ); ++i ) {
             const manager_entry &entry = entries[i];
@@ -3353,30 +3353,26 @@ void show_manager()
             if( entry.disabled ) {
                 state = tr_ui( "OFF", "ВЫКЛ" );
             } else if( entry.runtime_state == "runtime_fault" ) {
-                state = tr_ui( "ON / quarantined", "ВКЛ / карантин" );
+                state = tr_ui( "ON / error", "ВКЛ / ошибка" );
             } else if( entry.runtime_state == "suspended" ) {
-                state = tr_ui( "ON / suspended", "ВКЛ / приостановлен" );
+                state = tr_ui( "ON / needs attention", "ВКЛ / требует внимания" );
             } else if( entry.loaded_now ) {
-                state = tr_ui( "ON / loaded", "ВКЛ / загружен" );
+                state = tr_ui( "ON", "ВКЛ" );
             } else if( entry.runtime_state == "rejected" ) {
-                state = tr_ui( "ON / rejected", "ВКЛ / отклонён" );
+                state = tr_ui( "ON / incompatible", "ВКЛ / несовместим" );
             } else if( entry.runtime_state == "failed" ) {
-                state = tr_ui( "ON / failed", "ВКЛ / ошибка" );
+                state = tr_ui( "ON / error", "ВКЛ / ошибка" );
             } else {
-                state = tr_ui( "ON / not loaded", "ВКЛ / не загружен" );
+                state = tr_ui( "ON / restart required", "ВКЛ / нужен перезапуск" );
             }
 
             std::string label = "[" + state + "] " + entry.name;
             if( !entry.version.empty() ) {
                 label += "  " + entry.version;
             }
-            if( !entry.reason.empty() && !entry.disabled &&
-                ( !entry.loaded_now || entry.runtime_state == "runtime_fault" ) ) {
-                label += " - " + entry.reason;
-            }
             const loaded_mod *runtime = find_loaded( entry.directory );
             if( runtime != nullptr && runtime->open_ui != nullptr ) {
-                label += " [UI]";
+                label += tr_ui( " [SETTINGS]", " [НАСТРОЙКИ]" );
             }
             menu.addentry( i, true, MENU_AUTOASSIGN, label );
         }
@@ -3394,13 +3390,13 @@ void show_manager()
         if( !entry.disabled && runtime != nullptr && runtime->open_ui != nullptr ) {
             uilist action;
             action.text = entry.name;
-            action.addentry( 0, true, MENU_AUTOASSIGN, tr_ui( "Open module UI", "Открыть интерфейс мода" ) );
-            action.addentry( 1, true, MENU_AUTOASSIGN, tr_ui( "Disable module", "Выключить модуль" ) );
+            action.addentry( 0, true, MENU_AUTOASSIGN, tr_ui( "Open settings", "Открыть настройки" ) );
+            action.addentry( 1, true, MENU_AUTOASSIGN, tr_ui( "Disable mod", "Выключить мод" ) );
             action.query();
             if( action.ret == 0 ) {
                 if( !ensure_state_migrated( *runtime ) ) {
-                    popup( tr_ui( "Module state migration is suspended for this character. See NCMM diagnostics.",
-                                  "Миграция состояния модуля приостановлена для этого персонажа. См. диагностику NCMM." ) );
+                    popup( tr_ui( "This mod could not load its saved data safely. Open NCMM diagnostics for details.",
+                                  "Не удалось безопасно загрузить сохранённые данные этого мода. Подробности — в диагностике NCMM." ) );
                     continue;
                 }
                 try {
@@ -3410,8 +3406,8 @@ void show_manager()
                 } catch( ... ) {
                     quarantine_runtime_callback( *runtime, runtime_callback_kind::ui, "ui_exception" );
                     log_line( NCMM_LOG_WARN, ( "Module UI callback failed: " + entry.name ).c_str() );
-                    popup( tr_ui( "Module UI callback failed and was quarantined for this session.",
-                                  "Ошибка callback интерфейса мода; callback помещён в карантин до перезапуска." ) );
+                    popup( tr_ui( "This mod's interface failed to open and has been disabled for this session.",
+                                  "Интерфейс мода не открылся и отключён до перезапуска игры." ) );
                 }
                 continue;
             }
@@ -3423,20 +3419,20 @@ void show_manager()
         if( entry.disabled ) {
             std::filesystem::remove( marker, ec );
             if( ec ) {
-                popup( tr_ui( "Could not enable the module.", "Не удалось включить модуль." ) );
+                popup( tr_ui( "Could not enable the mod.", "Не удалось включить мод." ) );
             } else {
-                popup( tr_ui( "Module enabled. Restart CDDA to apply.",
-                              "Модуль включён. Перезапустите CDDA для применения." ) );
+                popup( tr_ui( "Mod enabled. Restart CDDA to apply.",
+                              "Мод включён. Перезапустите CDDA для применения." ) );
             }
         } else {
             std::ofstream out( marker, std::ios::trunc );
             if( !out ) {
-                popup( tr_ui( "Could not disable the module.", "Не удалось выключить модуль." ) );
+                popup( tr_ui( "Could not disable the mod.", "Не удалось выключить мод." ) );
             } else {
                 out << "Disabled by NCMM Mod Configuration. Restart required.\n";
                 out.close();
-                popup( tr_ui( "Module disabled. Restart CDDA to apply.",
-                              "Модуль выключен. Перезапустите CDDA для применения." ) );
+                popup( tr_ui( "Mod disabled. Restart CDDA to apply.",
+                              "Мод выключен. Перезапустите CDDA для применения." ) );
             }
         }
     }
