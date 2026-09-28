@@ -1,0 +1,150 @@
+name: Sync HOTFIX13 source tree
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".sync/hotfix13/**"
+      - ".github/workflows/sync-hotfix13-source.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ncmm-hotfix13-source-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect pending source sync
+        id: pending
+        shell: pwsh
+        run: |
+          if (Test-Path ".sync/hotfix13/READY" -PathType Leaf) {
+            "run=true" >> $env:GITHUB_OUTPUT
+          } else {
+            "run=false" >> $env:GITHUB_OUTPUT
+            Write-Host "No pending HOTFIX13 chunk set; nothing to synchronize."
+          }
+
+      - name: Reassemble and verify exact package
+        if: steps.pending.outputs.run == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $chunkDir = Join-Path $env:GITHUB_WORKSPACE ".sync\hotfix13"
+          $packageDir = Join-Path $env:GITHUB_WORKSPACE "packages"
+          New-Item -ItemType Directory -Force $packageDir | Out-Null
+          $package = Join-Path $packageDir "NCMM_INFRASTRUCTURE_v0.8.3.1_SURVIVOR_0.11.3_COMBINATORIAL_EDGE_POLISH_HOTFIX13.zip"
+
+          $parts = Get-ChildItem $chunkDir -Filter "part-*.b64" | Sort-Object Name
+          if ($parts.Count -eq 0) { throw "HOTFIX13 chunk set is empty." }
+          $b64 = [string]::Concat(@($parts | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }))
+          [IO.File]::WriteAllBytes($package, [Convert]::FromBase64String($b64))
+
+          $hash = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne "62cd6fabfc9ecf9824f8d77d27e177f02f909b88dacd7ea9a81d8852e1abf748") {
+            throw "HOTFIX13 SHA-256 mismatch: $hash"
+          }
+          Write-Host "Exact HOTFIX13 package verified: $hash"
+
+      - name: Generate final NCMM source state
+        if: steps.pending.outputs.run == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $package = Join-Path $env:GITHUB_WORKSPACE "packages\NCMM_INFRASTRUCTURE_v0.8.3.1_SURVIVOR_0.11.3_COMBINATORIAL_EDGE_POLISH_HOTFIX13.zip"
+          $extract = Join-Path $env:RUNNER_TEMP "ncmm-hotfix13"
+          $buildRoot = Join-Path $env:RUNNER_TEMP "ncmm-source-sync-build"
+          Remove-Item $extract,$buildRoot -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -LiteralPath $package -DestinationPath $extract -Force
+
+          $payload = Join-Path $extract "payload\SURVIVOR_0911_0915_v8.7.6.8.ps1"
+          $sourceOnly = Join-Path $env:RUNNER_TEMP "SURVIVOR_SOURCE_SYNC.ps1"
+          $text = [IO.File]::ReadAllText($payload)
+
+          # The production payload validates a local installed CDDA before source generation.
+          # CI source synchronization has no game installation, so bypass only that preflight block.
+          $gameStart = '$GameRoot = Resolve-GameRoot $GameRoot $CddaCommit $CddaFolder'
+          $gameEnd = '# v4 portability fix:'
+          $a = $text.IndexOf($gameStart)
+          $b = $text.IndexOf($gameEnd, $a)
+          if ($a -lt 0 -or $b -le $a) { throw "Could not isolate runtime game-root preflight." }
+          $gameBypass = @'
+$GameRoot = $env:RUNNER_TEMP
+Write-Host "Repository source-sync mode: local game-root preflight intentionally bypassed." -ForegroundColor DarkCyan
+
+'@
+          $text = $text.Substring(0,$a) + $gameBypass + $text.Substring($b)
+
+          # Stop after all NCMM/Survivor/AWS source transforms and audits, before any CDDA/toolchain build work.
+          $stopMarker = '# NCMM Infrastructure 0.8.0 deep probe: execute the exact host/source transform stack'
+          $stop = $text.IndexOf($stopMarker)
+          if ($stop -lt 0) { throw "Source-generation stop marker missing." }
+          $stopCode = @'
+Write-Host "Repository source-sync generation complete; stopping before CDDA/toolchain work." -ForegroundColor Green
+exit 0
+
+'@
+          $text = $text.Substring(0,$stop) + $stopCode + $text.Substring($stop)
+          [IO.File]::WriteAllText($sourceOnly,$text,(New-Object Text.UTF8Encoding($false)))
+
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $sourceOnly -BuildRoot $buildRoot
+          if ($LASTEXITCODE -ne 0) { throw "Source-generation payload failed with exit code $LASTEXITCODE." }
+
+          $generated = Join-Path $buildRoot "ncmm_0910_work"
+          if (-not (Test-Path $generated -PathType Container)) { throw "Generated NCMM work tree missing." }
+
+          $survivorManifest = Get-Content (Join-Path $generated "mods\SurvivorProgression\mod.json") -Raw | ConvertFrom-Json
+          $awsManifest = Get-Content (Join-Path $generated "mods\AdvancedWorldSettings\mod.json") -Raw | ConvertFrom-Json
+          $sdk = [IO.File]::ReadAllText((Join-Path $generated "sdk\ncmm_api.h"))
+          $loader = [IO.File]::ReadAllText((Join-Path $generated "host_patch\ncmm_loader.cpp"))
+          if ([string]$survivorManifest.version -ne "0.11.3") { throw "Generated Survivor version is not 0.11.3." }
+          if ([string]$awsManifest.version -ne "0.6.2") { throw "Generated AWS version is not 0.6.2." }
+          if (-not $sdk.Contains('#define NCMM_API_VERSION_MINOR 9u') -or -not $sdk.Contains('NCMM_HOST_API_V2_CORE_MAJOR 2u')) {
+            throw "Generated SDK is not Host API 2.0 / legacy bridge 1.9."
+          }
+          if (-not $loader.Contains('return "0.8.0";') -or -not $loader.Contains('character_state_available()')) {
+            throw "Generated Host 0.8.0 source audit failed."
+          }
+
+          # Copy only source-owned trees from the generated work copy.  Do not regress docs/workflows
+          # to the pinned 0.9.9 seed that the transform chain starts from.
+          foreach ($dir in @("host_patch","mods","runtime","sdk","tests","ci")) {
+            $src = Join-Path $generated $dir
+            $dst = Join-Path $env:GITHUB_WORKSPACE $dir
+            New-Item -ItemType Directory -Force $dst | Out-Null
+            $rc = Start-Process robocopy.exe -ArgumentList @($src,$dst,"/E","/NFL","/NDL","/NJH","/NJS","/NP") -Wait -PassThru -NoNewWindow
+            if ($rc.ExitCode -gt 7) { throw "robocopy failed for $dir with $($rc.ExitCode)." }
+          }
+          Copy-Item (Join-Path $generated "compat\contracts.json") (Join-Path $env:GITHUB_WORKSPACE "compat\contracts.json") -Force
+
+          # Overlay the exact Infrastructure 0.8.3.1 package sources/tooling.  This is additive:
+          # repository-only source files remain, while package-owned files become byte-identical to HOTFIX13.
+          $rc = Start-Process robocopy.exe -ArgumentList @($extract,$env:GITHUB_WORKSPACE,"/E","/NFL","/NDL","/NJH","/NJS","/NP") -Wait -PassThru -NoNewWindow
+          if ($rc.ExitCode -gt 7) { throw "Package overlay robocopy failed with $($rc.ExitCode)." }
+
+          # Chunks are transport-only; keep the verified exact ZIP, not its base64 fragments.
+          Remove-Item (Join-Path $env:GITHUB_WORKSPACE ".sync\hotfix13") -Recurse -Force
+
+      - name: Commit synchronized source
+        if: steps.pending.outputs.run == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          git config user.name "NCMM Source Sync"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if ((git diff --cached --quiet); $LASTEXITCODE -eq 0) {
+            Write-Host "Repository already matches HOTFIX13."
+            exit 0
+          }
+          git commit -m "sync: Infrastructure 0.8.3.1 / Survivor 0.11.3 source state"
+          git pull --rebase origin main
+          git push origin HEAD:main
