@@ -9,6 +9,7 @@ on:
       - 'feed/**'
       - 'ci/Test-VersionConsistency.ps1'
       - 'ci/Test-PatchRevisionPortability.ps1'
+      - 'payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
       - '.github/workflows/ncmm-feed-audit.yml'
 
 permissions:
