@@ -65,14 +65,19 @@
       "bytes": 1993
     },
     {
+      "path": "ci\\Test-HostPayloadContracts.ps1",
+      "sha256": "cb09462270d1f1a2ff287c9581f39e5a658ba6b0e46f65229922b9db76f711d4",
+      "bytes": 18407
+    },
+    {
       "path": "ci\\Test-Infrastructure0821.ps1",
       "sha256": "d4cf7d114219b7d9b74e325578c823e70ac6ad296da44922e8aa631807d0bff8",
       "bytes": 338
     },
     {
       "path": "ci\\Test-Infrastructure083.ps1",
-      "sha256": "69ee84825725a3239b3f3d1f6f80434c9d8c39828f55833a658c8d11e190dbb0",
-      "bytes": 45020
+      "sha256": "6c1fa3b8a5ad7bd9c763b74c4519d8284fb0a5ad49ecb1ab4feebd7b9f5c5a83",
+      "bytes": 27273
     },
     {
       "path": "ci\\Test-InstallerTransaction.ps1",
@@ -106,8 +111,8 @@
     },
     {
       "path": "compat\\package-files.txt",
-      "sha256": "25330a79d7ed0159cb508fa287cefcf12d1a6ccfb5c4dfa6a9d6b424cce0d889",
-      "bytes": 3230
+      "sha256": "c7daa735a3936fb25ae429eaead1ddfb15a8e4c1cf1adb0d4704b3071f546818",
+      "bytes": 3264
     },
     {
       "path": "compat\\update\\index.json",
