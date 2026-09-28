@@ -502,7 +502,7 @@ int has_capability( const char *capability )
 
 const char *get_host_version()
 {
-    return "0.8.0";
+    return "0.8.1";
 }
 
 uint32_t get_loader_api()
@@ -2800,7 +2800,7 @@ void write_modules_state()
 
     out << "{\n"
         << "  \"schema\": 3,\n"
-        << "  \"host_version\": \"0.8.0\",\n"
+        << "  \"host_version\": \"0.8.1\",\n"
         << "  \"loader_api\": " << NCMM_LOADER_API_VERSION << ",\n"
         << "  \"api_version\": {\"major\":" << NCMM_API_VERSION_MAJOR
         << ",\"minor\":" << NCMM_API_VERSION_MINOR << "},\n"
