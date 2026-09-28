@@ -76,13 +76,18 @@
     },
     {
       "path": "ci\\Test-Infrastructure083.ps1",
-      "sha256": "6c1fa3b8a5ad7bd9c763b74c4519d8284fb0a5ad49ecb1ab4feebd7b9f5c5a83",
-      "bytes": 27273
+      "sha256": "9d877aa118db1b2c52fa79e21e5af345049039b78102ee74b239b7dbe23e43c5",
+      "bytes": 4859
     },
     {
       "path": "ci\\Test-InstallerTransaction.ps1",
       "sha256": "3e056de12129146c4617dccccff1f03b90d8f533b8bd92bc3ccb29ab699550e4",
       "bytes": 3422
+    },
+    {
+      "path": "ci\\Test-SurvivorPayloadContracts.ps1",
+      "sha256": "3384b96ef508cc02d6afd0fbf43f8e4d20dfaf0a26def415c43a1e18873a897c",
+      "bytes": 22775
     },
     {
       "path": "ci\\Watch-CDDAExperimental.ps1",
@@ -111,8 +116,8 @@
     },
     {
       "path": "compat\\package-files.txt",
-      "sha256": "c7daa735a3936fb25ae429eaead1ddfb15a8e4c1cf1adb0d4704b3071f546818",
-      "bytes": 3264
+      "sha256": "b4a9f4309effa02426be0be1c9a2c2fa56f05c7ee2d6e911ae80f827641bf7fd",
+      "bytes": 3302
     },
     {
       "path": "compat\\update\\index.json",
