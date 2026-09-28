@@ -14990,7 +14990,7 @@ foreach($needle0112 in @(
 )) { if(-not $spEdgeAudit0112.Contains($needle0112)){ throw "Survivor 0.11.2 edge audit missing: $needle0112" } }
 foreach($obsolete0112 in @(
     'XP-awarding monster kills build Momentum: up to 3 stacks for 12 turns;',
-    '25% chance to prevent an alarm from triggering after attempting an alarmed lock.'
+    'suppress the alarm check after an attempt on an alarmed door lock.'
 )) { if($spEdgeAudit0112.Contains($obsolete0112)){ throw "Survivor 0.11.2 stale pre-polish text survived: $obsolete0112" } }
 if(-not $manifestEdgeAudit0112.Contains('"version": "0.11.2"')) { throw 'Survivor 0.11.2 manifest audit failed.' }
 if(-not $spEdgeAudit0112.Contains('constexpr int state_schema = 8;')) { throw 'Survivor 0.11.2 state schema changed unexpectedly.' }
