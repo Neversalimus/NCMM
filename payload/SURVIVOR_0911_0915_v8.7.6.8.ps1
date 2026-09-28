@@ -15370,15 +15370,17 @@ function Apply-PlayerFacingCopyPolishFinal {
     }
 '@
     if( -not $sp.Contains($detailNew) ) {
-        $bonusAnchor = '    result += "\n" + bonus;'
-        $bonusPos = $sp.IndexOf($bonusAnchor)
-        if( $bonusPos -lt 0 ) { throw 'Final copy polish: Prime bonus anchor missing.' }
-        $detailStart = $sp.IndexOf('    if( prime_visual_perk( perk ) ) {',$bonusPos + $bonusAnchor.Length)
-        $requiresAnchor = '    result += "\n\n";' + "`n" + '    result += tr( "REQUIRES:", "ТРЕБУЕТ:" );'
-        $detailEnd = $sp.IndexOf($requiresAnchor,$detailStart)
-        if( $detailStart -lt 0 -or $detailEnd -le $detailStart ) {
-            throw 'Final copy polish: Prime detail structural anchors missing.'
+        $tradeNeedle = '        result += tr( "TRADEOFF:", "КОМПРОМИСС:" );'
+        $tradePos = $sp.IndexOf($tradeNeedle)
+        if( $tradePos -lt 0 ) { throw 'Final copy polish: TRADEOFF label missing.' }
+        $detailStart = $sp.LastIndexOf('    if( prime_visual_perk( perk ) ) {',$tradePos)
+        $requiresLine = '    result += tr( "REQUIRES:", "ТРЕБУЕТ:" );'
+        $requiresPos = $sp.IndexOf($requiresLine,$tradePos)
+        if( $detailStart -lt 0 -or $requiresPos -le $detailStart ) {
+            throw 'Final copy polish: Prime detail boundaries missing.'
         }
+        $detailEnd = $sp.LastIndexOf('    result += "\n\n";',$requiresPos)
+        if( $detailEnd -le $detailStart ) { throw 'Final copy polish: Prime detail end missing.' }
         $sp = $sp.Substring(0,$detailStart) + $detailNew + "`n" + $sp.Substring($detailEnd)
     }
     foreach($pair in @(
