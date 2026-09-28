@@ -118,6 +118,14 @@ internal sealed class SetupBundledModule
     internal string DirectoryName { get; set; }
     internal string SourceDirectory { get; set; }
     internal SetupModuleManifest Manifest { get; set; }
+
+    public override string ToString()
+    {
+        if (Manifest == null) return DirectoryName ?? "<invalid module>";
+        string name = String.IsNullOrWhiteSpace(Manifest.name) ? Manifest.id : Manifest.name.Trim();
+        string version = String.IsNullOrWhiteSpace(Manifest.version) ? "" : Manifest.version.Trim();
+        return version.Length == 0 ? name : name + " " + version;
+    }
 }
 
 internal sealed class SetupInstalledComponent
@@ -202,7 +210,7 @@ internal static class SetupCore
         }
     }
 
-    private static List<SetupBundledModule> DiscoverBundledModules(string payloadMods)
+    internal static List<SetupBundledModule> DiscoverBundledModules(string payloadMods)
     {
         if (!Directory.Exists(payloadMods))
             throw new InvalidOperationException("Installer payload is incomplete: code_mods missing.");
@@ -234,25 +242,11 @@ internal static class SetupCore
         }
         if (result.Count == 0)
             throw new InvalidOperationException("Installer payload contains no complete NCMM code-mods.");
-        return result;
-    }
-
-    internal static string BundledModuleLabel(string payloadRoot, string directoryName, string expectedId)
-    {
-        try
-        {
-            string manifestPath = Path.Combine(payloadRoot, "code_mods", directoryName, "mod.json");
-            SetupModuleManifest manifest = ReadModuleManifest(manifestPath);
-            if (manifest == null || !String.Equals(manifest.id, expectedId, StringComparison.Ordinal))
-                return expectedId;
-            string name = String.IsNullOrWhiteSpace(manifest.name) ? expectedId : manifest.name.Trim();
-            string version = String.IsNullOrWhiteSpace(manifest.version) ? "" : manifest.version.Trim();
-            return version.Length == 0 ? name : name + " " + version;
-        }
-        catch
-        {
-            return expectedId;
-        }
+        return result.OrderBy(module =>
+            module.Manifest == null || String.IsNullOrWhiteSpace(module.Manifest.name)
+                ? module.DirectoryName
+                : module.Manifest.name,
+            StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     internal static bool IsModuleInstalled(string gameRoot, string directoryName, string expectedId)
@@ -1022,8 +1016,7 @@ internal sealed class MainForm : Form
     private readonly Button repairStateButton = new Button();
     private readonly Button browseButton = new Button();
     private readonly CheckBox hostComponent = new CheckBox();
-    private readonly CheckBox awsComponent = new CheckBox();
-    private readonly CheckBox survivorComponent = new CheckBox();
+    private readonly CheckedListBox moduleComponents = new CheckedListBox();
     private readonly string payloadRoot;
     private int detectedInstallations;
 
@@ -1099,21 +1092,19 @@ internal sealed class MainForm : Form
         hostComponent.Enabled = false;
         components.Controls.Add(hostComponent);
 
-        awsComponent.Text = SetupCore.BundledModuleLabel(
-            payloadRoot, "AdvancedWorldSettings", "advanced_world_settings");
-        awsComponent.Left = 18;
-        awsComponent.Top = 54;
-        awsComponent.Width = 390;
-        awsComponent.Checked = true;
-        components.Controls.Add(awsComponent);
-
-        survivorComponent.Text = SetupCore.BundledModuleLabel(
-            payloadRoot, "SurvivorProgression", "survivor_progression");
-        survivorComponent.Left = 18;
-        survivorComponent.Top = 83;
-        survivorComponent.Width = 390;
-        survivorComponent.Checked = true;
-        components.Controls.Add(survivorComponent);
+        moduleComponents.Left = 18;
+        moduleComponents.Top = 50;
+        moduleComponents.Width = 390;
+        moduleComponents.Height = 74;
+        moduleComponents.CheckOnClick = true;
+        moduleComponents.IntegralHeight = false;
+        List<SetupBundledModule> bundledModules =
+            SetupCore.DiscoverBundledModules(Path.Combine(payloadRoot, "code_mods"));
+        foreach (SetupBundledModule module in bundledModules)
+        {
+            moduleComponents.Items.Add(module, true);
+        }
+        components.Controls.Add(moduleComponents);
 
         Label componentHint = new Label();
         componentHint.Text = "Unchecking a previously installed bundled module removes only its NCMM-managed DLL and mod.json. User markers/state files are preserved.";
@@ -1168,7 +1159,7 @@ internal sealed class MainForm : Form
         Controls.Add(log);
 
         Append("NCMM runtime does not require Git, CMake, MSYS2 or a compiler.");
-        Append("Advanced World Settings and Survivor Progression are independently selectable.");
+        Append("Bundled native modules are independently selectable.");
         Append("If a matching certified Host is unavailable, CDDA starts vanilla.");
 
         if (detectedInstallations > 1)
@@ -1201,12 +1192,17 @@ internal sealed class MainForm : Form
         return selected;
     }
 
+    private void SetAllModuleChecks(bool value)
+    {
+        for (int i = 0; i < moduleComponents.Items.Count; i++)
+            moduleComponents.SetItemChecked(i, value);
+    }
+
     private void SyncComponentSelection(DetectedInstallation selected)
     {
         if (selected == null)
         {
-            awsComponent.Checked = true;
-            survivorComponent.Checked = true;
+            SetAllModuleChecks(true);
             return;
         }
 
@@ -1214,31 +1210,47 @@ internal sealed class MainForm : Form
             File.Exists(Path.Combine(selected.PathValue, "ncmm", "bootstrap.sha256"));
         if (!ncmmAlreadyInstalled)
         {
-            awsComponent.Checked = true;
-            survivorComponent.Checked = true;
+            SetAllModuleChecks(true);
             return;
         }
 
-        awsComponent.Checked = SetupCore.IsModuleInstalled(
-            selected.PathValue, "AdvancedWorldSettings", "advanced_world_settings");
-        survivorComponent.Checked = SetupCore.IsModuleInstalled(
-            selected.PathValue, "SurvivorProgression", "survivor_progression");
+        for (int i = 0; i < moduleComponents.Items.Count; i++)
+        {
+            SetupBundledModule module = moduleComponents.Items[i] as SetupBundledModule;
+            bool installed = module != null && module.Manifest != null &&
+                SetupCore.IsModuleInstalled(
+                    selected.PathValue, module.DirectoryName, module.Manifest.id);
+            moduleComponents.SetItemChecked(i, installed);
+        }
     }
 
     private List<string> SelectedModuleIds()
     {
         List<string> ids = new List<string>();
-        if (awsComponent.Checked) ids.Add("advanced_world_settings");
-        if (survivorComponent.Checked) ids.Add("survivor_progression");
+        foreach (object item in moduleComponents.CheckedItems)
+        {
+            SetupBundledModule module = item as SetupBundledModule;
+            if (module != null && module.Manifest != null &&
+                !String.IsNullOrWhiteSpace(module.Manifest.id))
+                ids.Add(module.Manifest.id);
+        }
         return ids;
     }
 
     private string SelectedComponentSummary()
     {
         List<string> names = new List<string>();
-        if (awsComponent.Checked) names.Add("Advanced World Settings");
-        if (survivorComponent.Checked) names.Add("Survivor Progression");
-        return names.Count == 0 ? "NCMM Host only" : "NCMM Host + " + String.Join(" + ", names.ToArray());
+        foreach (object item in moduleComponents.CheckedItems)
+        {
+            SetupBundledModule module = item as SetupBundledModule;
+            if (module == null || module.Manifest == null) continue;
+            names.Add(String.IsNullOrWhiteSpace(module.Manifest.name)
+                ? module.Manifest.id
+                : module.Manifest.name);
+        }
+        return names.Count == 0
+            ? "NCMM Host only"
+            : "NCMM Host + " + String.Join(" + ", names.ToArray());
     }
 
     private void UpdateTargetInfo()

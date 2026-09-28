@@ -209,6 +209,13 @@ internal static class DiagnosticsHarness
         WriteBytes(Path.Combine(payload, "cataclysm-tiles.ncmm-bootstrap.exe"), "ncmm-bootstrap");
         WritePayloadModule(payload, "AdvancedWorldSettings", "advanced_world_settings", "0.6.2");
         WritePayloadModule(payload, "SurvivorProgression", "survivor_progression", "0.11.3");
+        WritePayloadModule(payload, "FutureModule", "future_module", "1.0.0");
+
+        List<SetupBundledModule> discovered =
+            SetupCore.DiscoverBundledModules(Path.Combine(payload, "code_mods"));
+        AssertTrue(discovered.Count == 3, "bundled module discovery is data-driven");
+        AssertTrue(discovered.Any(module => module.Manifest.id == "future_module"),
+            "new bundled module is discovered without installer code changes");
 
         InstallResult first = SetupCore.Install(
             game, payload, new string[] { "advanced_world_settings" });
