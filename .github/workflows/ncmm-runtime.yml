@@ -41,12 +41,12 @@ jobs:
         run: |
           $bootstrap = Get-Content runtime/NCMMBootstrap.cs -Raw
           $setup = Get-Content runtime/NCMMSetup.cs -Raw
-          $host = Get-Content host_patch/ncmm_loader.cpp -Raw
+          $hostSource = Get-Content host_patch/ncmm_loader.cpp -Raw
           $components = Get-Content components/index.json -Raw | ConvertFrom-Json
           if (-not $bootstrap.Contains('private const string RuntimeVersion = "0.8.0";')) { throw 'Bootstrap runtime version is not 0.8.0.' }
           if (-not $bootstrap.Contains('NCMM/0.8.0')) { throw 'Bootstrap User-Agent is not 0.8.0.' }
           if (-not $setup.Contains('NCMM 0.8.0 Setup')) { throw 'Setup version is not 0.8.0.' }
-          if (-not $host.Contains('return "0.8.0";')) { throw 'Host version is not 0.8.0.' }
+          if (-not $hostSource.Contains('return "0.8.0";')) { throw 'Host version is not 0.8.0.' }
           $hostComponent = @($components.components | Where-Object { $_.id -eq 'ncmm_host' })[0]
           if ($null -eq $hostComponent -or [string]$hostComponent.version -ne '0.8.0') { throw 'Component catalog host version is not 0.8.0.' }
           Write-Host 'Current runtime package consistency: PASS (runtime/host 0.8.0).' -ForegroundColor Green
