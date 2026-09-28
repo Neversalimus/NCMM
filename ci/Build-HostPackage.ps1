@@ -20,6 +20,10 @@ $patchRevision = (& (Join-Path $RepositoryRoot 'ci\Get-PatchRevision.ps1') -Repo
 if ($patchRevision -notmatch '^[0-9a-f]{64}$') {
     throw "Invalid NCMM patch revision: $patchRevision"
 }
+$ncmmVersion = (& (Join-Path $RepositoryRoot 'ci\Get-NcmmCurrentVersion.ps1') -RepositoryRoot $RepositoryRoot).Trim()
+if ($ncmmVersion -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$') {
+    throw "Invalid NCMM version: $ncmmVersion"
+}
 
 function Import-NcmmPayloadFunctions {
     param(
@@ -282,7 +286,7 @@ $metadata = [ordered]@{
     compatibility_schema = 1
     source_contracts = @($contractIds)
     loader_api = 1
-    ncmm_version = '0.8.0'
+    ncmm_version = $ncmmVersion
     upstream_tag = $UpstreamTag
     source_commit = $commit
     patch_revision = $patchRevision

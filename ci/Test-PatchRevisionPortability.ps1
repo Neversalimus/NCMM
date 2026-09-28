@@ -2,22 +2,18 @@ param([Parameter(Mandatory=$true)][string]$RepositoryRoot)
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = (Resolve-Path $RepositoryRoot).Path
 $revisionScript = Join-Path $RepositoryRoot 'ci\Get-PatchRevision.ps1'
-
-$inputs = @(
-    'host_patch/Apply-NCMMHostPatch.ps1',
-    'compat/survivor_mod_mechanics_v82.contract.txt',
-    'compat/world_settings_v2_geography.contract.txt',
-    'runtime/NCMMBootstrap.cs',
-    'sdk/ncmm_api.h',
-    'host_patch/ncmm_loader.h',
-    'host_patch/ncmm_loader.cpp',
-    'host_patch/ncmm_fault_policy.h',
-    'host_patch/ncmm_manifest_policy.h',
-    'compat/contracts.json',
-    'ci/Test-SourceContracts.ps1',
-    'ci/host-patch-stack.json',
-    'payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
+$inputListRel = 'ci\patch-revision-files.txt'
+$inputListPath = Join-Path $RepositoryRoot $inputListRel
+if (-not (Test-Path $inputListPath -PathType Leaf)) {
+    throw "Missing patch revision input manifest: $inputListRel"
+}
+$declared = @(
+    Get-Content $inputListPath |
+    ForEach-Object { ([string]$_).Trim() } |
+    Where-Object { $_ -and -not $_.StartsWith('#') }
 )
+$inputs = @($inputListRel, 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1') + @($declared)
+$inputs = @($inputs | Select-Object -Unique)
 
 $tempBase = Join-Path ([IO.Path]::GetTempPath()) ('ncmm-patch-revision-' + [guid]::NewGuid().ToString('N'))
 $lfRoot = Join-Path $tempBase 'lf'
@@ -48,14 +44,10 @@ try {
     }
 
     $lf = (& $revisionScript -RepositoryRoot $lfRoot).Trim()
-    if ($lf -notmatch '^[0-9a-f]{64}$') {
-        throw "LF patch revision calculation failed: $lf"
-    }
+    if ($lf -notmatch '^[0-9a-f]{64}$') { throw "LF patch revision calculation failed: $lf" }
 
     $crlf = (& $revisionScript -RepositoryRoot $crlfRoot).Trim()
-    if ($crlf -notmatch '^[0-9a-f]{64}$') {
-        throw "CRLF patch revision calculation failed: $crlf"
-    }
+    if ($crlf -notmatch '^[0-9a-f]{64}$') { throw "CRLF patch revision calculation failed: $crlf" }
 
     if ($lf -ne $crlf) {
         throw "Patch revision is line-ending dependent: LF=$lf CRLF=$crlf"

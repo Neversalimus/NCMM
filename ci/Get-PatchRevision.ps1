@@ -2,21 +2,6 @@ param([string]$RepositoryRoot = (Split-Path $PSScriptRoot -Parent))
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = (Resolve-Path $RepositoryRoot).Path
 
-$paths = @(
-    'host_patch/Apply-NCMMHostPatch.ps1',
-    'compat/survivor_mod_mechanics_v82.contract.txt',
-    'compat/world_settings_v2_geography.contract.txt',
-    'runtime/NCMMBootstrap.cs',
-    'sdk/ncmm_api.h',
-    'host_patch/ncmm_loader.h',
-    'host_patch/ncmm_loader.cpp',
-    'host_patch/ncmm_fault_policy.h',
-    'host_patch/ncmm_manifest_policy.h',
-    'compat/contracts.json',
-    'ci/Test-SourceContracts.ps1',
-    'ci/host-patch-stack.json'
-)
-
 $Utf8Strict = New-Object System.Text.UTF8Encoding($false, $true)
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
@@ -27,15 +12,50 @@ function Get-CanonicalTextBytes([string]$Path) {
         $raw[0] -eq 0xEF -and $raw[1] -eq 0xBB -and $raw[2] -eq 0xBF) {
         $offset = 3
     }
-
     try {
         $text = $Utf8Strict.GetString($raw, $offset, $raw.Length - $offset)
     } catch {
         throw "Patch revision input is not valid UTF-8: $Path"
     }
-
     $text = (($text -replace "`r`n","`n") -replace "`r","`n")
     return $Utf8NoBom.GetBytes($text)
+}
+
+function Get-CanonicalStringBytes([string]$Text) {
+    $normalized = (($Text -replace "`r`n","`n") -replace "`r","`n")
+    return $Utf8NoBom.GetBytes($normalized)
+}
+
+$inputManifestRelativePath = 'ci/patch-revision-files.txt'
+$inputManifestPath = Join-Path $RepositoryRoot $inputManifestRelativePath
+if (-not (Test-Path $inputManifestPath -PathType Leaf)) {
+    throw "Missing patch revision input manifest: $inputManifestRelativePath"
+}
+
+$paths = @(
+    Get-Content $inputManifestPath |
+    ForEach-Object { ([string]$_).Trim() } |
+    Where-Object { $_ -and -not $_.StartsWith('#') }
+)
+if ($paths.Count -eq 0) { throw 'Patch revision input manifest is empty.' }
+$seen = @{}
+foreach ($rel in $paths) {
+    if ([IO.Path]::IsPathRooted($rel) -or $rel.Contains('..')) {
+        throw "Unsafe patch revision input path: $rel"
+    }
+    $key = $rel.ToLowerInvariant()
+    if ($seen.ContainsKey($key)) { throw "Duplicate patch revision input: $rel" }
+    $seen[$key] = $true
+}
+foreach ($required in @(
+    'ci/Build-HostPackage.ps1',
+    'ci/Get-NcmmCurrentVersion.ps1',
+    'ci/Get-PatchRevision.ps1',
+    'ci/host-patch-stack.json'
+)) {
+    if (-not $seen.ContainsKey($required.ToLowerInvariant())) {
+        throw "Required patch revision input is not declared: $required"
+    }
 }
 
 $payloadRelativePath = 'payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
@@ -57,24 +77,24 @@ if ($payloadFunctionNames.Count -eq 0 -or
     throw 'Host patch stack function list is empty or contains duplicates.'
 }
 
-function Get-CanonicalStringBytes([string]$Text) {
-    $normalized = (($Text -replace "`r`n","`n") -replace "`r","`n")
-    return $Utf8NoBom.GetBytes($normalized)
-}
-
 $sha = [Security.Cryptography.SHA256]::Create()
 $ms = New-Object IO.MemoryStream
 try {
+    # The declaration of the recipe inputs is itself part of the identity.
+    $manifestLabel = $Utf8NoBom.GetBytes($inputManifestRelativePath + "`n")
+    $ms.Write($manifestLabel, 0, $manifestLabel.Length)
+    $manifestBytes = Get-CanonicalTextBytes $inputManifestPath
+    $ms.Write($manifestBytes, 0, $manifestBytes.Length)
+    $ms.WriteByte(10)
+
     foreach ($rel in $paths) {
         $path = Join-Path $RepositoryRoot $rel
         if (-not (Test-Path $path -PathType Leaf)) { throw "Missing patch input: $rel" }
 
         $name = $Utf8NoBom.GetBytes($rel + "`n")
         $ms.Write($name, 0, $name.Length)
-
         $bytes = Get-CanonicalTextBytes $path
         $ms.Write($bytes, 0, $bytes.Length)
-
         $ms.WriteByte(10)
     }
 

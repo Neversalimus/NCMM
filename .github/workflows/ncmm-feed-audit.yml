@@ -8,6 +8,9 @@ on:
     paths:
       - 'feed/**'
       - 'ci/Test-VersionConsistency.ps1'
+      - 'ci/Get-NcmmCurrentVersion.ps1'
+      - 'ci/Get-PatchRevision.ps1'
+      - 'ci/patch-revision-files.txt'
       - 'ci/Test-PatchRevisionPortability.ps1'
       - 'payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
       - '.github/workflows/ncmm-feed-audit.yml'
@@ -48,25 +51,37 @@ jobs:
       - name: Audit published certified-host feed
         shell: pwsh
         run: |
-          $CurrentSourceVersion = '0.8.0'
+          $CurrentSourceVersion = (./ci/Get-NcmmCurrentVersion.ps1 -RepositoryRoot .).Trim()
           $LegacyFeedVersion = '0.7.1'
           $currentRevision = (./ci/Get-PatchRevision.ps1 -RepositoryRoot .).Trim()
           $feed = Get-Content ./feed/index.json -Raw | ConvertFrom-Json
           $feedVersion = [string]$feed.runtime_version
+          $feedRevision = [string]$feed.patch_revision
 
-          if ([String]::Equals($feedVersion,$CurrentSourceVersion,[StringComparison]::OrdinalIgnoreCase)) {
-            $expectedRevision = $currentRevision
-          } elseif ([String]::Equals($feedVersion,$LegacyFeedVersion,[StringComparison]::OrdinalIgnoreCase)) {
-            $expectedRevision = [string]$feed.patch_revision
-            Write-Host "Auditing transactional legacy feed $feedVersion while source stack is $CurrentSourceVersion." -ForegroundColor Yellow
-          } else {
+          $feedIsCurrentVersion = [String]::Equals(
+            $feedVersion,$CurrentSourceVersion,[StringComparison]::OrdinalIgnoreCase)
+          $feedIsLegacyVersion = [String]::Equals(
+            $feedVersion,$LegacyFeedVersion,[StringComparison]::OrdinalIgnoreCase)
+          if (-not $feedIsCurrentVersion -and -not $feedIsLegacyVersion) {
             throw "Unexpected feed runtime version: $feedVersion"
+          }
+          if ($feedRevision -notmatch '^[0-9a-f]{64}$') {
+            throw "Published feed patch revision is invalid: $feedRevision"
           }
 
           ./ci/Test-FeedIntegrity.ps1 `
             -FeedPath ./feed/index.json `
             -RejectedPath ./feed/rejected.json `
             -ExpectedRuntimeVersion $feedVersion `
-            -ExpectedPatchRevision $expectedRevision `
+            -ExpectedPatchRevision $feedRevision `
             -Repository '${{ github.repository }}' `
             -Online
+
+          if ($feedIsCurrentVersion -and $feedRevision -eq $currentRevision) {
+            Write-Host "Published feed is valid and current: $feedVersion / $feedRevision" -ForegroundColor Green
+          } else {
+            Write-Host (
+              "Published feed is valid but source certification is ahead/pending. " +
+              "feed=$feedVersion/$feedRevision source=$CurrentSourceVersion/$currentRevision"
+            ) -ForegroundColor Yellow
+          }

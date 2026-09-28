@@ -1,10 +1,17 @@
 param(
     [Parameter(Mandatory=$true)][string]$RepositoryRoot,
-    [string]$ExpectedVersion = '0.8.0',
+    [string]$ExpectedVersion = '',
     [string]$LegacyFeedVersion = ''
 )
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = (Resolve-Path $RepositoryRoot).Path
+
+$canonicalVersion = (& (Join-Path $RepositoryRoot 'ci\Get-NcmmCurrentVersion.ps1') -RepositoryRoot $RepositoryRoot).Trim()
+if ([String]::IsNullOrWhiteSpace($ExpectedVersion)) {
+    $ExpectedVersion = $canonicalVersion
+} elseif (-not [String]::Equals($ExpectedVersion,$canonicalVersion,[StringComparison]::OrdinalIgnoreCase)) {
+    throw "Explicit expected version '$ExpectedVersion' differs from canonical Host version '$canonicalVersion'."
+}
 
 function Assert-Contains([string]$Rel,[string]$Needle) {
     $path = Join-Path $RepositoryRoot $Rel
@@ -17,10 +24,11 @@ $markers = @(
     @('runtime/NCMMBootstrap.cs',('private const string RuntimeVersion = "'+$ExpectedVersion+'";')),
     @('runtime/NCMMSetup.cs',('NCMM '+$ExpectedVersion+' Setup')),
     @('host_patch/ncmm_loader.cpp',('return "'+$ExpectedVersion+'";')),
-    @('ci/Build-HostPackage.ps1',("ncmm_version = '"+$ExpectedVersion+"'")),
+    @('ci/Build-HostPackage.ps1','Get-NcmmCurrentVersion.ps1'),
+    @('ci/Build-HostPackage.ps1','ncmm_version = $ncmmVersion'),
     @('.github/workflows/ncmm-runtime.yml',('ncmm-runtime-v'+$ExpectedVersion)),
     @('.github/workflows/ncmm-host.yml',('NCMM '+$ExpectedVersion+' certification')),
-    @('.github/workflows/ncmm-feed-audit.yml',("CurrentSourceVersion = '"+$ExpectedVersion+"'")),
+    @('.github/workflows/ncmm-feed-audit.yml','Get-NcmmCurrentVersion.ps1'),
     @('tests/smoke_host.cpp',('return "'+$ExpectedVersion+'-smoke";'))
 )
 foreach ($pair in $markers) { Assert-Contains $pair[0] $pair[1] }
