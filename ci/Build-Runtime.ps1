@@ -131,7 +131,7 @@ if ($LASTEXITCODE -ne 0) { throw 'NCMM/AWS fail-closed smoke test failed.' }
 Copy-Item $aws.FullName (Join-Path $payload 'code_mods\AdvancedWorldSettings\ncmm_mod.dll') -Force
 Copy-Item (Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings\mod.json') (Join-Path $payload 'code_mods\AdvancedWorldSettings\mod.json') -Force
 
-$manifest = Get-Content (Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings\mod.json') -Raw | ConvertFrom-Json
+$manifest = $awsManifestSource
 if ($manifest.loader_api -ne 1) { throw 'AWS manifest loader_api must be 1.' }
 if ($manifest.failure_policy -ne 'disable') { throw 'AWS manifest failure_policy must be disable.' }
 foreach ($required in @(
@@ -161,7 +161,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Survivor Progression vertical-slice smoke test
 Copy-Item $sp.FullName (Join-Path $payload 'code_mods\SurvivorProgression\ncmm_mod.dll') -Force
 Copy-Item (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') (Join-Path $payload 'code_mods\SurvivorProgression\mod.json') -Force
 
-$spManifest = Get-Content (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') -Raw | ConvertFrom-Json
+$spManifest = $survivorManifestSource
 if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable' -or
     [string]$spManifest.version -ne $survivorVersion) {
     throw "Survivor Progression manifest contract invalid for version $survivorVersion."
