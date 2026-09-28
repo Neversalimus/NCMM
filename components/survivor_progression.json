@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "survivor_progression",
   "name": "Survivor Progression",
-  "version": "0.11.3",
+  "version": "0.12.0",
   "kind": "native_module",
   "atomic_group": "survivor-progression",
   "delivery": "source_build",
@@ -10,7 +10,7 @@
   "dependencies": [
     {
       "component": "ncmm_host",
-      "min_version": "0.8.0"
+      "min_version": "0.8.1"
     },
     {
       "capability": "api.versioning.v1"
@@ -20,6 +20,9 @@
     },
     {
       "capability": "host_api.v2.core"
+    },
+    {
+      "capability": "settings.typed.v2"
     },
     {
       "capability": "events.core.v2"
