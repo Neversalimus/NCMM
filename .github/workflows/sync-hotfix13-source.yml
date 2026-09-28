@@ -180,7 +180,7 @@ jobs:
           # Overlay the exact Infrastructure 0.8.3.1 package additively.
           # Package-owned infrastructure becomes byte-identical to HOTFIX13 while repository-only
           # documentation/source history remains present.
-          Get-ChildItem $extract -Force | ForEach-Object {
+          Get-ChildItem $extract -Force | Where-Object { $_.Name -ne ".github" } | ForEach-Object {
             $target = Join-Path $env:GITHUB_WORKSPACE $_.Name
             if ($_.PSIsContainer) {
               New-Item -ItemType Directory -Force $target | Out-Null
