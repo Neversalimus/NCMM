@@ -116,7 +116,7 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $feed = Get-Content feed/index.json -Raw | ConvertFrom-Json
-          $hostVersion = [string](Get-Content components/ncmm_host.json -Raw | ConvertFrom-Json).version
+          $hostVersion = (./ci/Get-NcmmCurrentVersion.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE").Trim()
           $currentRevision = (./ci/Get-PatchRevision.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE").Trim()
           if ($currentRevision -notmatch '^[0-9a-f]{64}$') {
             throw "Current patch revision is invalid: $currentRevision"
@@ -162,7 +162,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = [string](Get-Content 'mods/AdvancedWorldSettings/mod.json' -Raw | ConvertFrom-Json).version
-          $hostVersion = [string](Get-Content 'components/ncmm_host.json' -Raw | ConvertFrom-Json).version
+          $hostVersion = (./ci/Get-NcmmCurrentVersion.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE").Trim()
           $tag = "ncmm-aws-v$version"
           cmd /c "gh release view $tag >nul 2>nul"
           if ($LASTEXITCODE -ne 0) {
@@ -179,7 +179,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = [string](Get-Content 'mods/SurvivorProgression/mod.json' -Raw | ConvertFrom-Json).version
-          $hostVersion = [string](Get-Content 'components/ncmm_host.json' -Raw | ConvertFrom-Json).version
+          $hostVersion = (./ci/Get-NcmmCurrentVersion.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE").Trim()
           $tag = "ncmm-survivor-v$version"
           cmd /c "gh release view $tag >nul 2>nul"
           if ($LASTEXITCODE -ne 0) {
