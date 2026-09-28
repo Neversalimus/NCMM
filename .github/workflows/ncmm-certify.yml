@@ -1,0 +1,92 @@
+name: NCMM Certification
+
+"on":
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Exact 40-character CDDA source commit
+        required: true
+        default: e262adb299a7613b4aedc5f12c08fe0413c56a84
+      tag:
+        description: CDDA release tag containing the official Windows graphics build
+        required: true
+        default: cdda-experimental-2026-09-23-0546
+      mode:
+        description: Certification depth
+        required: true
+        type: choice
+        options:
+          - Full
+          - SourceOnly
+        default: Full
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ncmm-certify-${{ inputs.commit }}
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    runs-on: windows-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout NCMM
+        uses: actions/checkout@v4
+
+      - name: Restore NCMM build caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}\NCMMBuild\vcpkg
+            ${{ runner.temp }}\NCMMBuild\downloads
+          key: ncmm-cert-${{ runner.os }}-${{ inputs.commit }}
+          restore-keys: |
+            ncmm-cert-${{ runner.os }}-
+
+      - name: Verify PowerShell package contract
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          .\ci\Test-Infrastructure083.ps1 -PackageRoot $PWD.Path
+
+      - name: Run NCMM certification
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $build = Join-Path $env:RUNNER_TEMP 'NCMMBuild'
+          .\ci\Invoke-NCMMCertification.ps1 `
+            -Commit '${{ inputs.commit }}' `
+            -Tag '${{ inputs.tag }}' `
+            -Mode '${{ inputs.mode }}' `
+            -BuildRoot $build `
+            -BuildProfile Safe `
+            -OutputDir (Join-Path $PWD 'certification-output')
+
+
+      - name: Build update release artifact
+        if: inputs.mode == 'Full'
+        shell: powershell
+        run: |
+          .\ci\Build-UpdateRelease.ps1 -PackageRoot $PWD.Path -OutputDir (Join-Path $PWD 'release-output')
+
+      - name: Upload update release package
+        if: inputs.mode == 'Full'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ncmm-update-${{ inputs.commit }}
+          path: |
+            release-output/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload certificate and feed candidate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ncmm-certification-${{ inputs.commit }}
+          path: |
+            certification-output/**
+          if-no-files-found: error
+          retention-days: 30
