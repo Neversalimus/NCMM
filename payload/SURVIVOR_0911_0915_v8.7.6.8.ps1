@@ -15362,14 +15362,6 @@ function Apply-PlayerFacingCopyPolishFinal {
     Write-Host "Applying final player-facing copy polish..." -ForegroundColor Cyan
 
     $sp = Normalize-Lf ([IO.File]::ReadAllText($spPath))
-    $detailOld = @'
-    if( prime_visual_perk( perk ) ) {
-        result += "\n\n";
-        result += tr( "TRADEOFF:", "КОМПРОМИСС:" );
-        result += "\n" + ( drawback.empty() ? tr( "Another Prime path stays locked until full respec.",
-                                                   "Другой Прайм-путь закрыт до полного сброса." ) : drawback );
-    }
-'@
     $detailNew = @'
     if( prime_visual_perk( perk ) && !drawback.empty() ) {
         result += "\n\n";
@@ -15377,12 +15369,18 @@ function Apply-PlayerFacingCopyPolishFinal {
         result += "\n" + drawback;
     }
 '@
-    if( $sp.Contains($detailOld) ) {
-        $sp = $sp.Replace($detailOld,$detailNew)
-    } elseif( -not $sp.Contains($detailNew) ) {
-        throw 'Final copy polish: Prime detail block anchor missing.'
+    if( -not $sp.Contains($detailNew) ) {
+        $bonusAnchor = '    result += "\n" + bonus;'
+        $bonusPos = $sp.IndexOf($bonusAnchor)
+        if( $bonusPos -lt 0 ) { throw 'Final copy polish: Prime bonus anchor missing.' }
+        $detailStart = $sp.IndexOf('    if( prime_visual_perk( perk ) ) {',$bonusPos + $bonusAnchor.Length)
+        $requiresAnchor = '    result += "\n\n";' + "`n" + '    result += tr( "REQUIRES:", "ТРЕБУЕТ:" );'
+        $detailEnd = $sp.IndexOf($requiresAnchor,$detailStart)
+        if( $detailStart -lt 0 -or $detailEnd -le $detailStart ) {
+            throw 'Final copy polish: Prime detail structural anchors missing.'
+        }
+        $sp = $sp.Substring(0,$detailStart) + $detailNew + "`n" + $sp.Substring($detailEnd)
     }
-
     foreach($pair in @(
         @('Apex Combatant','Elite Combatant'),
         @('Вершина боя','Элитный боец'),
