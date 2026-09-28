@@ -78,6 +78,20 @@ std::set<std::string> hotkey_registration_logged;
 std::map<std::string, std::string> world_setting_owners;
 std::map<std::string, uint32_t> world_setting_scopes;
 std::string world_setting_string_cache;
+
+struct module_setting_meta {
+    std::string module_id;
+    std::string setting_id;
+    std::string name;
+    std::string tooltip;
+    std::string type;
+    uint32_t scope = NCMM_WORLD_SETTING_LIVE;
+    double min_value = 0.0;
+    double max_value = 0.0;
+    double step = 1.0;
+    std::vector<std::pair<std::string, std::string>> choices;
+};
+std::vector<module_setting_meta> module_settings;
 std::map<std::string, size_t> manifest_id_counts;
 std::map<std::string, std::map<std::string, double>> character_modifier_values;
 std::map<std::string, double, std::less<>> character_modifier_totals;
@@ -569,6 +583,24 @@ bool claim_world_setting( const char *module_id, const char *setting_id, uint32_
     return true;
 }
 
+void remember_module_setting( const module_setting_meta &meta )
+{
+    auto existing = std::find_if( module_settings.begin(), module_settings.end(),
+    [&]( const module_setting_meta &entry ) {
+        return entry.module_id == meta.module_id && entry.setting_id == meta.setting_id;
+    } );
+    if( existing != module_settings.end() ) {
+        *existing = meta;
+    } else {
+        module_settings.push_back( meta );
+    }
+}
+
+bool manager_visible_setting_scope( uint32_t scope )
+{
+    return scope == NCMM_WORLD_SETTING_LIVE || scope == NCMM_WORLD_SETTING_RELOAD;
+}
+
 int world_setting_register_bool( const char *module_id, const char *setting_id,
                                  const char *display_name, const char *tooltip,
                                  int default_value, uint32_t scope )
@@ -576,8 +608,20 @@ int world_setting_register_bool( const char *module_id, const char *setting_id,
     if( !display_name || !tooltip || !claim_world_setting( module_id, setting_id, scope ) ) {
         return 0;
     }
-    return get_options().ncmm_register_world_bool( setting_id, to_translation( display_name ),
-            to_translation( tooltip ), default_value != 0 ) ? 1 : 0;
+    const int registered = get_options().ncmm_register_world_bool(
+                               setting_id, to_translation( display_name ),
+                               to_translation( tooltip ), default_value != 0 ) ? 1 : 0;
+    if( registered && manager_visible_setting_scope( scope ) ) {
+        module_setting_meta meta;
+        meta.module_id = module_id;
+        meta.setting_id = setting_id;
+        meta.name = display_name;
+        meta.tooltip = tooltip;
+        meta.type = "bool";
+        meta.scope = scope;
+        remember_module_setting( meta );
+    }
+    return registered;
 }
 
 int world_setting_register_int( const char *module_id, const char *setting_id,
@@ -587,8 +631,23 @@ int world_setting_register_int( const char *module_id, const char *setting_id,
     if( !display_name || !tooltip || !claim_world_setting( module_id, setting_id, scope ) ) {
         return 0;
     }
-    return get_options().ncmm_register_world_int( setting_id, to_translation( display_name ),
-            to_translation( tooltip ), min_value, max_value, default_value ) ? 1 : 0;
+    const int registered = get_options().ncmm_register_world_int(
+                               setting_id, to_translation( display_name ),
+                               to_translation( tooltip ), min_value, max_value, default_value ) ? 1 : 0;
+    if( registered && manager_visible_setting_scope( scope ) ) {
+        module_setting_meta meta;
+        meta.module_id = module_id;
+        meta.setting_id = setting_id;
+        meta.name = display_name;
+        meta.tooltip = tooltip;
+        meta.type = "int";
+        meta.scope = scope;
+        meta.min_value = min_value;
+        meta.max_value = max_value;
+        meta.step = 1.0;
+        remember_module_setting( meta );
+    }
+    return registered;
 }
 
 int world_setting_register_float( const char *module_id, const char *setting_id,
@@ -601,9 +660,25 @@ int world_setting_register_float( const char *module_id, const char *setting_id,
         !claim_world_setting( module_id, setting_id, scope ) ) {
         return 0;
     }
-    return get_options().ncmm_register_world_float( setting_id, to_translation( display_name ),
-            to_translation( tooltip ), static_cast<float>( min_value ), static_cast<float>( max_value ),
-            static_cast<float>( default_value ), static_cast<float>( step ) ) ? 1 : 0;
+    const int registered = get_options().ncmm_register_world_float(
+                               setting_id, to_translation( display_name ),
+                               to_translation( tooltip ), static_cast<float>( min_value ),
+                               static_cast<float>( max_value ), static_cast<float>( default_value ),
+                               static_cast<float>( step ) ) ? 1 : 0;
+    if( registered && manager_visible_setting_scope( scope ) ) {
+        module_setting_meta meta;
+        meta.module_id = module_id;
+        meta.setting_id = setting_id;
+        meta.name = display_name;
+        meta.tooltip = tooltip;
+        meta.type = "float";
+        meta.scope = scope;
+        meta.min_value = min_value;
+        meta.max_value = max_value;
+        meta.step = step;
+        remember_module_setting( meta );
+    }
+    return registered;
 }
 
 int world_setting_register_enum( const char *module_id, const char *setting_id,
@@ -623,8 +698,23 @@ int world_setting_register_enum( const char *module_id, const char *setting_id,
         }
         items.emplace_back( value_ids[i], to_translation( display_names[i] ) );
     }
-    return get_options().ncmm_register_world_enum( setting_id, to_translation( display_name ),
-            to_translation( tooltip ), items, default_value ) ? 1 : 0;
+    const int registered = get_options().ncmm_register_world_enum(
+                               setting_id, to_translation( display_name ),
+                               to_translation( tooltip ), items, default_value ) ? 1 : 0;
+    if( registered && manager_visible_setting_scope( scope ) ) {
+        module_setting_meta meta;
+        meta.module_id = module_id;
+        meta.setting_id = setting_id;
+        meta.name = display_name;
+        meta.tooltip = tooltip;
+        meta.type = "enum";
+        meta.scope = scope;
+        for( size_t i = 0; i < count; ++i ) {
+            meta.choices.emplace_back( value_ids[i], display_names[i] );
+        }
+        remember_module_setting( meta );
+    }
+    return registered;
 }
 
 int world_setting_get_bool( const char *setting_id, int fallback )
@@ -2925,13 +3015,30 @@ bool ensure_state_migrated( loaded_mod &mod )
 
 struct manager_entry {
     std::filesystem::path directory;
+    std::string id;
     std::string name;
     std::string version;
+    std::string description;
+    std::string default_hotkey;
     std::string runtime_state;
     std::string reason;
     bool disabled = false;
     bool loaded_now = false;
 };
+
+std::string manager_description( const std::filesystem::path &directory )
+{
+    const std::filesystem::path localized = directory /
+        ( russian_ui() ? "about.ru.txt" : "about.en.txt" );
+    std::string result = read_text_file( localized );
+    if( result.empty() && russian_ui() ) {
+        result = read_text_file( directory / "about.en.txt" );
+    }
+    while( !result.empty() && ( result.back() == '\n' || result.back() == '\r' ) ) {
+        result.pop_back();
+    }
+    return result;
+}
 
 std::vector<manager_entry> manager_entries()
 {
@@ -2962,19 +3069,26 @@ std::vector<manager_entry> manager_entries()
         }
 
         if( runtime && runtime->descriptor ) {
+            entry.id = runtime->descriptor->id ? runtime->descriptor->id : "";
             entry.name = runtime->descriptor->name ? runtime->descriptor->name : dir.filename().string();
             entry.version = runtime->descriptor->version ? runtime->descriptor->version : "";
+            entry.default_hotkey = runtime->default_hotkey;
         } else if( state ) {
+            entry.id = state->id;
             entry.name = state->name;
             entry.version = state->version;
+            entry.default_hotkey = state->default_hotkey;
         } else {
             const manifest_contract manifest = read_manifest( dir );
+            entry.id = manifest.id;
             entry.name = manifest.name;
             entry.version = manifest.version;
+            entry.default_hotkey = manifest.ui_hotkey;
             if( entry.name.empty() ) {
                 entry.name = dir.filename().string();
             }
         }
+        entry.description = manager_description( dir );
         result.push_back( entry );
     }
     return result;
@@ -3333,8 +3447,159 @@ bool handle_gameplay_action( const std::string &action )
     return false;
 }
 
+std::string manager_state_label( const manager_entry &entry )
+{
+    if( entry.disabled ) return tr_ui( "OFF", "ВЫКЛ" );
+    if( entry.runtime_state == "runtime_fault" || entry.runtime_state == "failed" ) {
+        return tr_ui( "ON / error", "ВКЛ / ошибка" );
+    }
+    if( entry.runtime_state == "suspended" ) {
+        return tr_ui( "ON / needs attention", "ВКЛ / требует внимания" );
+    }
+    if( entry.loaded_now ) return tr_ui( "ON / loaded", "ВКЛ / загружен" );
+    if( entry.runtime_state == "rejected" ) {
+        return tr_ui( "ON / incompatible", "ВКЛ / несовместим" );
+    }
+    return tr_ui( "ON / restart required", "ВКЛ / нужен перезапуск" );
+}
+
+std::vector<const module_setting_meta *> manager_settings_for( const std::string &module_id )
+{
+    std::vector<const module_setting_meta *> result;
+    for( const module_setting_meta &setting : module_settings ) {
+        if( setting.module_id == module_id ) {
+            result.push_back( &setting );
+        }
+    }
+    return result;
+}
+
+std::string manager_setting_value( const module_setting_meta &setting )
+{
+    if( !get_options().has_option( setting.setting_id ) ) {
+        return tr_ui( "unavailable", "недоступно" );
+    }
+    if( setting.type == "bool" ) {
+        return world_setting_get_bool( setting.setting_id.c_str(), 0 ) ?
+               tr_ui( "On", "Вкл" ) : tr_ui( "Off", "Выкл" );
+    }
+    if( setting.type == "int" ) {
+        return std::to_string( world_setting_get_i64( setting.setting_id.c_str(), 0 ) );
+    }
+    if( setting.type == "float" ) {
+        std::ostringstream out;
+        out << world_setting_get_f64( setting.setting_id.c_str(), 0.0 );
+        return out.str();
+    }
+    const std::string current = world_setting_get_string( setting.setting_id.c_str(), "" );
+    for( const auto &choice : setting.choices ) {
+        if( choice.first == current ) {
+            return choice.second;
+        }
+    }
+    return current;
+}
+
+bool manager_adjust_setting( const module_setting_meta &setting, int direction )
+{
+    if( direction == 0 || !get_options().has_option( setting.setting_id ) ) {
+        return false;
+    }
+    options_manager::cOpt &opt = get_options().get_option( setting.setting_id );
+    if( setting.type == "bool" ) {
+        const bool current = world_setting_get_bool( setting.setting_id.c_str(), 0 ) != 0;
+        opt.setValue( current ? "false" : "true" );
+        return true;
+    }
+    if( setting.type == "int" ) {
+        const int64_t current = world_setting_get_i64( setting.setting_id.c_str(), 0 );
+        const int64_t next = std::max<int64_t>( static_cast<int64_t>( setting.min_value ),
+                             std::min<int64_t>( static_cast<int64_t>( setting.max_value ),
+                                               current + direction * static_cast<int64_t>( setting.step ) ) );
+        opt.setValue( std::to_string( next ) );
+        return next != current;
+    }
+    if( setting.type == "float" ) {
+        const double current = world_setting_get_f64( setting.setting_id.c_str(), 0.0 );
+        const double next = std::max( setting.min_value,
+                                     std::min( setting.max_value,
+                                               current + direction * setting.step ) );
+        std::ostringstream value;
+        value << next;
+        opt.setValue( value.str() );
+        return std::abs( next - current ) > 0.000001;
+    }
+    if( setting.type == "enum" && !setting.choices.empty() ) {
+        const std::string current = world_setting_get_string( setting.setting_id.c_str(),
+                                    setting.choices.front().first.c_str() );
+        size_t index = 0;
+        for( size_t i = 0; i < setting.choices.size(); ++i ) {
+            if( setting.choices[i].first == current ) {
+                index = i;
+                break;
+            }
+        }
+        if( direction < 0 && index > 0 ) --index;
+        if( direction > 0 && index + 1 < setting.choices.size() ) ++index;
+        opt.setValue( setting.choices[index].first );
+        return setting.choices[index].first != current;
+    }
+    return false;
+}
+
+bool manager_open_module_ui( const manager_entry &entry )
+{
+    loaded_mod *runtime = find_loaded_mutable( entry.directory );
+    if( runtime == nullptr || runtime->open_ui == nullptr ) {
+        return false;
+    }
+    if( !ensure_state_migrated( *runtime ) ) {
+        popup( tr_ui( "This mod could not load its saved data safely. Open NCMM diagnostics for details.",
+                      "Не удалось безопасно загрузить сохранённые данные этого мода. Подробности — в диагностике NCMM." ) );
+        return true;
+    }
+    try {
+        module_call_scope scope( runtime->descriptor && runtime->descriptor->id ?
+                                 runtime->descriptor->id : nullptr );
+        runtime->open_ui( &api );
+    } catch( ... ) {
+        quarantine_runtime_callback( *runtime, runtime_callback_kind::ui, "ui_exception" );
+        log_line( NCMM_LOG_WARN, ( "Module UI callback failed: " + entry.name ).c_str() );
+        popup( tr_ui( "This mod's interface failed to open and has been disabled for this session.",
+                      "Интерфейс мода не открылся и отключён до перезапуска игры." ) );
+    }
+    return true;
+}
+
+void manager_toggle_module( const manager_entry &entry )
+{
+    const std::filesystem::path marker = entry.directory / "disabled";
+    std::error_code ec;
+    if( entry.disabled ) {
+        std::filesystem::remove( marker, ec );
+        if( ec ) {
+            popup( tr_ui( "Could not enable the mod.", "Не удалось включить мод." ) );
+        } else {
+            popup( tr_ui( "Mod enabled. Restart CDDA to apply.",
+                          "Мод включён. Перезапустите CDDA для применения." ) );
+        }
+        return;
+    }
+
+    std::ofstream out( marker, std::ios::trunc );
+    if( !out ) {
+        popup( tr_ui( "Could not disable the mod.", "Не удалось выключить мод." ) );
+        return;
+    }
+    out << "Disabled by NCMM Mod Configuration. Restart required.\n";
+    out.close();
+    popup( tr_ui( "Mod disabled. Restart CDDA to apply.",
+                  "Мод выключен. Перезапустите CDDA для применения." ) );
+}
+
 void show_manager()
 {
+    write_diagnostics_summary();
     while( true ) {
         const std::vector<manager_entry> entries = manager_entries();
         if( entries.empty() ) {
@@ -3342,97 +3607,237 @@ void show_manager()
             return;
         }
 
-        uilist menu;
-        menu.text = tr_ui(
-                        "NCMM — Mod Configuration\nPress F2 to open this menu (the key can be changed in Controls). Press Enter to open settings for supported mods.",
-                        "NCMM — Настройка модов\nF2 открывает это меню; клавишу можно изменить в управлении. Enter открывает настройки поддерживаемого мода." );
-
-        for( int i = 0; i < static_cast<int>( entries.size() ); ++i ) {
-            const manager_entry &entry = entries[i];
-            std::string state;
-            if( entry.disabled ) {
-                state = tr_ui( "OFF", "ВЫКЛ" );
-            } else if( entry.runtime_state == "runtime_fault" ) {
-                state = tr_ui( "ON / error", "ВКЛ / ошибка" );
-            } else if( entry.runtime_state == "suspended" ) {
-                state = tr_ui( "ON / needs attention", "ВКЛ / требует внимания" );
-            } else if( entry.loaded_now ) {
-                state = tr_ui( "ON", "ВКЛ" );
-            } else if( entry.runtime_state == "rejected" ) {
-                state = tr_ui( "ON / incompatible", "ВКЛ / несовместим" );
-            } else if( entry.runtime_state == "failed" ) {
-                state = tr_ui( "ON / error", "ВКЛ / ошибка" );
-            } else {
-                state = tr_ui( "ON / restart required", "ВКЛ / нужен перезапуск" );
+        if( TERMX < 78 || TERMY < 20 ) {
+            uilist menu;
+            menu.text = tr_ui( "NCMM — Mod Configuration", "NCMM — Настройка модов" );
+            for( int i = 0; i < static_cast<int>( entries.size() ); ++i ) {
+                menu.addentry( i, true, MENU_AUTOASSIGN,
+                               "[" + manager_state_label( entries[i] ) + "] " +
+                               entries[i].name + "  " + entries[i].version );
             }
-
-            std::string label = "[" + state + "] " + entry.name;
-            if( !entry.version.empty() ) {
-                label += "  " + entry.version;
-            }
-            const loaded_mod *runtime = find_loaded( entry.directory );
-            if( runtime != nullptr && runtime->open_ui != nullptr ) {
-                label += tr_ui( " [SETTINGS]", " [НАСТРОЙКИ]" );
-            }
-            menu.addentry( i, true, MENU_AUTOASSIGN, label );
-        }
-
-        menu.query();
-        if( menu.ret < 0 || menu.ret >= static_cast<int>( entries.size() ) ) {
-            return;
-        }
-
-        const manager_entry &entry = entries[menu.ret];
-        const std::filesystem::path marker = entry.directory / "disabled";
-        std::error_code ec;
-
-        loaded_mod *runtime = find_loaded_mutable( entry.directory );
-        if( !entry.disabled && runtime != nullptr && runtime->open_ui != nullptr ) {
+            menu.query();
+            if( menu.ret < 0 || menu.ret >= static_cast<int>( entries.size() ) ) return;
+            const manager_entry &entry = entries[menu.ret];
+            loaded_mod *runtime = find_loaded_mutable( entry.directory );
             uilist action;
             action.text = entry.name;
-            action.addentry( 0, true, MENU_AUTOASSIGN, tr_ui( "Open settings", "Открыть настройки" ) );
-            action.addentry( 1, true, MENU_AUTOASSIGN, tr_ui( "Disable mod", "Выключить мод" ) );
+            int open_index = -1;
+            if( runtime != nullptr && runtime->open_ui != nullptr ) {
+                open_index = 0;
+                action.addentry( 0, true, MENU_AUTOASSIGN,
+                                 tr_ui( "Open mod interface", "Открыть интерфейс мода" ) );
+            }
+            const int toggle_index = open_index == 0 ? 1 : 0;
+            action.addentry( toggle_index, true, MENU_AUTOASSIGN,
+                             entry.disabled ? tr_ui( "Enable mod", "Включить мод" ) :
+                             tr_ui( "Disable mod", "Выключить мод" ) );
             action.query();
-            if( action.ret == 0 ) {
-                if( !ensure_state_migrated( *runtime ) ) {
-                    popup( tr_ui( "This mod could not load its saved data safely. Open NCMM diagnostics for details.",
-                                  "Не удалось безопасно загрузить сохранённые данные этого мода. Подробности — в диагностике NCMM." ) );
-                    continue;
-                }
-                try {
-                    module_call_scope scope( runtime->descriptor && runtime->descriptor->id ?
-                                             runtime->descriptor->id : nullptr );
-                    runtime->open_ui( &api );
-                } catch( ... ) {
-                    quarantine_runtime_callback( *runtime, runtime_callback_kind::ui, "ui_exception" );
-                    log_line( NCMM_LOG_WARN, ( "Module UI callback failed: " + entry.name ).c_str() );
-                    popup( tr_ui( "This mod's interface failed to open and has been disabled for this session.",
-                                  "Интерфейс мода не открылся и отключён до перезапуска игры." ) );
-                }
-                continue;
-            }
-            if( action.ret != 1 ) {
-                continue;
-            }
+            if( action.ret == open_index ) manager_open_module_ui( entry );
+            else if( action.ret == toggle_index ) manager_toggle_module( entry );
+            continue;
         }
 
-        if( entry.disabled ) {
-            std::filesystem::remove( marker, ec );
-            if( ec ) {
-                popup( tr_ui( "Could not enable the mod.", "Не удалось включить мод." ) );
-            } else {
-                popup( tr_ui( "Mod enabled. Restart CDDA to apply.",
-                              "Мод включён. Перезапустите CDDA для применения." ) );
+        const int frame_width = std::min( TERMX - 2, 118 );
+        const int frame_height = std::min( TERMY - 2, 32 );
+        const int left_width = std::max( 26, std::min( 36, frame_width / 3 ) );
+        const int divider_x = left_width + 1;
+        const int right_x = divider_x + 2;
+        const int right_width = frame_width - right_x - 2;
+        const int list_top = 3;
+        const int list_bottom = frame_height - 3;
+        const int visible_modules = std::max( 1, list_bottom - list_top + 1 );
+        const point origin( ( TERMX - frame_width ) / 2, ( TERMY - frame_height ) / 2 );
+        catacurses::window frame = catacurses::newwin( frame_height, frame_width, origin );
+
+        input_context ctxt( "NCMM_MANAGER", keyboard_mode::keychar );
+        ctxt.register_cardinal();
+        ctxt.register_action( "NEXT_TAB" );
+        ctxt.register_action( "CONFIRM" );
+        ctxt.register_action( "QUIT" );
+        ctxt.register_action( "HELP_KEYBINDINGS" );
+
+        int selected_module = 0;
+        int first_module = 0;
+        int focus = 0;
+        int selected_detail = 0;
+
+        auto keep_module_visible = [&]() {
+            if( selected_module < first_module ) first_module = selected_module;
+            if( selected_module >= first_module + visible_modules ) {
+                first_module = selected_module - visible_modules + 1;
             }
-        } else {
-            std::ofstream out( marker, std::ios::trunc );
-            if( !out ) {
-                popup( tr_ui( "Could not disable the mod.", "Не удалось выключить мод." ) );
-            } else {
-                out << "Disabled by NCMM Mod Configuration. Restart required.\n";
-                out.close();
-                popup( tr_ui( "Mod disabled. Restart CDDA to apply.",
-                              "Мод выключен. Перезапустите CDDA для применения." ) );
+            first_module = std::max( 0, std::min( first_module,
+                            std::max( 0, static_cast<int>( entries.size() ) - visible_modules ) ) );
+        };
+
+        while( true ) {
+            const manager_entry &entry = entries[static_cast<size_t>( selected_module )];
+            const std::vector<const module_setting_meta *> settings = manager_settings_for( entry.id );
+            loaded_mod *runtime = find_loaded_mutable( entry.directory );
+            const bool has_open = runtime != nullptr && runtime->open_ui != nullptr;
+            const int detail_count = static_cast<int>( settings.size() ) + ( has_open ? 1 : 0 ) + 1;
+            selected_detail = std::max( 0, std::min( selected_detail, detail_count - 1 ) );
+
+            ui_adaptor ui;
+            ui.position_from_window( frame );
+            ui.on_redraw( [&]( const ui_adaptor & ) {
+                werase( frame );
+                draw_border( frame, BORDER_COLOR );
+                ncmm_trim_and_print_literal( frame, point( 2, 1 ), left_width - 2,
+                                            focus == 0 ? c_light_green : c_white,
+                                            tr_ui( "NCMM MODS", "МОДЫ NCMM" ) );
+                ncmm_trim_and_print_literal( frame, point( right_x, 1 ), right_width,
+                                            focus == 1 ? c_light_green : c_white,
+                                            tr_ui( "MODULE DETAILS", "СВЕДЕНИЯ О МОДЕ" ) );
+
+                for( int y = 1; y < frame_height - 1; ++y ) {
+                    mvwprintz( frame, point( divider_x, y ), BORDER_COLOR, "|" );
+                }
+
+                for( int row = 0; row < visible_modules; ++row ) {
+                    const int index = first_module + row;
+                    if( index >= static_cast<int>( entries.size() ) ) break;
+                    const manager_entry &candidate = entries[static_cast<size_t>( index )];
+                    const bool active = index == selected_module;
+                    std::string label = ( active ? "> " : "  " ) + candidate.name;
+                    ncmm_trim_and_print_literal( frame, point( 2, list_top + row ),
+                                                left_width - 3,
+                                                active ? ( focus == 0 ? c_light_green : c_cyan ) :
+                                                c_light_gray, label );
+                }
+
+                int y = 3;
+                ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                            c_white, entry.name );
+                ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                            c_light_gray,
+                                            tr_ui( "Version: ", "Версия: " ) + entry.version );
+                ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                            entry.loaded_now ? c_light_green : c_yellow,
+                                            tr_ui( "Status: ", "Статус: " ) +
+                                            manager_state_label( entry ) );
+                if( !entry.id.empty() ) {
+                    ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                                c_dark_gray, "ID: " + entry.id );
+                }
+                if( !entry.default_hotkey.empty() ) {
+                    ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                                c_dark_gray,
+                                                tr_ui( "Hotkey: ", "Горячая клавиша: " ) +
+                                                entry.default_hotkey );
+                }
+                if( !entry.reason.empty() && entry.reason != "ok" ) {
+                    ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                                c_light_red, manager_reason_text( entry.reason ) );
+                }
+
+                if( !entry.description.empty() ) {
+                    const std::vector<std::string> desc = foldstring( entry.description, right_width );
+                    for( size_t i = 0; i < std::min<size_t>( 3, desc.size() ) &&
+                         y < frame_height - 8; ++i ) {
+                        ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                                    c_light_gray, desc[i] );
+                    }
+                }
+                ++y;
+                ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                            c_white,
+                                            tr_ui( "SETTINGS", "НАСТРОЙКИ" ) );
+
+                int detail_index = 0;
+                for( const module_setting_meta *setting : settings ) {
+                    if( y >= frame_height - 4 ) break;
+                    const bool active = focus == 1 && detail_index == selected_detail;
+                    const std::string row = ( active ? "> " : "  " ) + setting->name +
+                                            "  < " + manager_setting_value( *setting ) + " >";
+                    ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                                active ? c_light_green : c_light_gray, row );
+                    ++detail_index;
+                }
+
+                if( has_open && y < frame_height - 3 ) {
+                    const bool active = focus == 1 && detail_index == selected_detail;
+                    ncmm_trim_and_print_literal(
+                        frame, point( right_x, y++ ), right_width,
+                        active ? c_light_green : c_cyan,
+                        ( active ? "> " : "  " ) +
+                        tr_ui( "[Open mod interface]", "[Открыть интерфейс мода]" ) );
+                    ++detail_index;
+                }
+                if( y < frame_height - 3 ) {
+                    const bool active = focus == 1 && detail_index == selected_detail;
+                    ncmm_trim_and_print_literal(
+                        frame, point( right_x, y++ ), right_width,
+                        active ? c_light_green : c_yellow,
+                        ( active ? "> " : "  " ) +
+                        ( entry.disabled ? tr_ui( "[Enable mod]", "[Включить мод]" ) :
+                          tr_ui( "[Disable mod]", "[Выключить мод]" ) ) );
+                }
+
+                ncmm_trim_and_print_literal(
+                    frame, point( 2, frame_height - 2 ), frame_width - 4, c_dark_gray,
+                    tr_ui( "Up/Down: select  Tab: panel  Left/Right: change  Enter: action  Esc: close",
+                           "Вверх/вниз: выбор  Tab: панель  Влево/вправо: изменить  Enter: действие  Esc: выход" ) );
+                wnoutrefresh( frame );
+            } );
+
+            ui_manager::redraw();
+            const std::string action = ctxt.handle_input();
+
+            if( action == "QUIT" ) return;
+            if( action == "NEXT_TAB" || ( focus == 0 && action == "RIGHT" ) ||
+                ( focus == 1 && action == "LEFT" && settings.empty() ) ) {
+                focus = 1 - focus;
+                continue;
+            }
+            if( focus == 0 ) {
+                if( action == "UP" && selected_module > 0 ) {
+                    --selected_module;
+                    selected_detail = 0;
+                    keep_module_visible();
+                } else if( action == "DOWN" &&
+                           selected_module + 1 < static_cast<int>( entries.size() ) ) {
+                    ++selected_module;
+                    selected_detail = 0;
+                    keep_module_visible();
+                } else if( action == "CONFIRM" ) {
+                    focus = 1;
+                }
+                continue;
+            }
+
+            if( action == "UP" && selected_detail > 0 ) {
+                --selected_detail;
+                continue;
+            }
+            if( action == "DOWN" && selected_detail + 1 < detail_count ) {
+                ++selected_detail;
+                continue;
+            }
+
+            if( selected_detail < static_cast<int>( settings.size() ) ) {
+                if( action == "LEFT" ) {
+                    manager_adjust_setting( *settings[static_cast<size_t>( selected_detail )], -1 );
+                } else if( action == "RIGHT" || action == "CONFIRM" ) {
+                    manager_adjust_setting( *settings[static_cast<size_t>( selected_detail )], 1 );
+                }
+                continue;
+            }
+
+            int action_index = static_cast<int>( settings.size() );
+            if( has_open ) {
+                if( selected_detail == action_index && action == "CONFIRM" ) {
+                    manager_open_module_ui( entry );
+                    continue;
+                }
+                ++action_index;
+            }
+            if( selected_detail == action_index && action == "CONFIRM" ) {
+                manager_toggle_module( entry );
+                break;
+            }
+            if( action == "LEFT" ) {
+                focus = 0;
             }
         }
     }
