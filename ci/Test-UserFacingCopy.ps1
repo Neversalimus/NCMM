@@ -43,6 +43,10 @@ $checks = @(
     @{ Name='Survivor old world-mod wording'; Text=$survivor; Pattern='World mod:' },
     @{ Name='Survivor generic-bonus implementation wording'; Text=$survivor; Pattern='generic Survivor' },
 
+    @{ Name='Survivor broken Russian percent grammar - speed'; Text=$survivor; Pattern='[+-][0-9]+(?:[.,][0-9]+)?% \\u0441\\u043a\\u043e\\u0440\\u043e\\u0441\\u0442(?:[,;." ]|$)' },
+    @{ Name='Survivor broken Russian percent grammar - stamina'; Text=$survivor; Pattern='[+-][0-9]+(?:[.,][0-9]+)?% \\u0432\\u044b\\u043d\\u043e\\u0441\\u043b\\u0438\\u0432\\u043e\\u0441\\u0442\\u044c(?:[,;." ]|$)' },
+    @{ Name='Survivor broken Russian percent grammar - crafting'; Text=$survivor; Pattern='[+-][0-9]+(?:[.,][0-9]+)?% \\u043a\\u0440\\u0430\\u0444\\u0442(?:[,;." ]|$)' },
+    @{ Name='Survivor broken Russian percent grammar - reading'; Text=$survivor; Pattern='[+-][0-9]+(?:[.,][0-9]+)?% \\u0447\\u0442\\u0435\\u043d\\u0438\\u0435(?:[,;." ]|$)' },
     @{ Name='AWS internal new-map marker'; Text=$aws; Pattern='\[NEW MAP\]' },
     @{ Name='AWS implementation region wording'; Text=$aws; Pattern='default-region overmaps' },
     @{ Name='AWS statistical implementation name'; Text=$aws; Pattern='distribution sigma' },
