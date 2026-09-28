@@ -1,0 +1,1 @@
+Character progression system with independent activity XP branches, perks, specializations and optional integrations with supported content mods.
