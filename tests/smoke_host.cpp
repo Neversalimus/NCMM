@@ -241,6 +241,7 @@ size_t worldgen_binding_count = 0;
 size_t runtime_hook_binding_count = 0;
 size_t modifier_definition_count = 0;
 size_t event_subscription_count = 0;
+std::set<std::string> registered_setting_ids;
 
 int world_setting_register_bool_fn( const char *, const char *, const char *, const char *,
                                     int, uint32_t )
@@ -260,10 +261,13 @@ int world_setting_register_float_fn( const char *, const char *, const char *, c
     return 1;
 }
 
-int world_setting_register_enum_fn( const char *, const char *, const char *, const char *,
+int world_setting_register_enum_fn( const char *, const char *setting_id, const char *, const char *,
                                     const char *const *, const char *const *, size_t,
                                     const char *, uint32_t )
 {
+    if( setting_id != nullptr ) {
+        registered_setting_ids.insert( setting_id );
+    }
     return 1;
 }
 
@@ -676,7 +680,12 @@ int main( int argc, char **argv )
         }
 
         on_turn( &api );
-        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.12.0 Host API 2.0 registration + schema migration)\n";
+        if( registered_setting_ids.count( "NCMM_SP_XP_RATE" ) == 0 ||
+        registered_setting_ids.count( "NCMM_SP_STAT_POWER" ) == 0 ) {
+        std::cerr << "Survivor Progression did not register both live balance settings\n";
+        return 38;
+    }
+    std::cout << "NCMM smoke test: PASS (Survivor Progression 0.12.0 Host API 2.0 registration + schema migration)\n";
         return 0;
     }
 
