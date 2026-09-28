@@ -12,6 +12,49 @@ $payload = Join-Path $OutputRoot 'payload'
 New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\AdvancedWorldSettings') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\SurvivorProgression') | Out-Null
 
+function New-NcmmModuleArchive {
+    param(
+        [Parameter(Mandatory=$true)][string]$Folder,
+        [Parameter(Mandatory=$true)][string]$ComponentId,
+        [Parameter(Mandatory=$true)][string]$Version
+    )
+    $source = Join-Path $payload ('code_mods\' + $Folder)
+    if (-not (Test-Path (Join-Path $source 'ncmm_mod.dll') -PathType Leaf) -or
+        -not (Test-Path (Join-Path $source 'mod.json') -PathType Leaf)) {
+        throw "Cannot package incomplete module: $ComponentId"
+    }
+
+    $stage = Join-Path $OutputRoot ('_module_package_' + $ComponentId)
+    Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+    $moduleDest = Join-Path $stage ('code_mods\' + $Folder)
+    New-Item -ItemType Directory -Force -Path $moduleDest | Out-Null
+    Copy-Item (Join-Path $source 'ncmm_mod.dll') (Join-Path $moduleDest 'ncmm_mod.dll') -Force
+    Copy-Item (Join-Path $source 'mod.json') (Join-Path $moduleDest 'mod.json') -Force
+    $descriptor = Join-Path $RepositoryRoot ('components\' + $ComponentId + '.json')
+    Copy-Item $descriptor (Join-Path $stage 'component.json') -Force
+
+    $readme = @(
+        "NCMM native module: $ComponentId",
+        "Version: $Version",
+        "Requires: NCMM Host 0.8.0",
+        "",
+        "Preferred installation: run NCMM_Setup.exe and select this component.",
+        "Manual fallback: copy the code_mods folder into the selected CDDA installation."
+    ) -join [Environment]::NewLine
+    Set-Content (Join-Path $stage 'README.txt') -Value $readme -Encoding UTF8
+
+    $zipName = if ($ComponentId -eq 'advanced_world_settings') {
+        "NCMM_AdvancedWorldSettings_v$Version.zip"
+    } else {
+        "NCMM_SurvivorProgression_v$Version.zip"
+    }
+    $zipPath = Join-Path (Split-Path $OutputRoot -Parent) $zipName
+    if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+    Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zipPath -CompressionLevel Optimal
+    Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+    return $zipPath
+}
+
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (-not (Test-Path $csc)) { throw "Framework csc.exe not found: $csc" }
 
@@ -116,6 +159,9 @@ foreach ($required in @(
     }
 }
 
+$awsModuleZip = New-NcmmModuleArchive -Folder 'AdvancedWorldSettings' -ComponentId 'advanced_world_settings' -Version '0.6.2'
+$survivorModuleZip = New-NcmmModuleArchive -Folder 'SurvivorProgression' -ComponentId 'survivor_progression' -Version '0.11.3'
+
 # NCMM 0.8.0 loader hardening is intentionally source-structural: Runtime CI
 # guards the invariants even before the certified-host workflow compiles them.
 $loaderSource = Get-Content (Join-Path $RepositoryRoot 'host_patch\ncmm_loader.cpp') -Raw
@@ -195,9 +241,11 @@ NCMM 0.8.0 Runtime
 ===============
 1. Run NCMM_Setup.exe.
 2. Select the CDDA folder containing cataclysm-tiles.exe.
-3. Click "Install / Repair NCMM + bundled mods".
-4. Launch CDDA normally from CatLauncher, Catapult, or a shortcut.
+3. Choose optional components: Advanced World Settings and/or Survivor Progression.
+4. Click "Install / Repair selected".
+5. Launch CDDA normally from CatLauncher, Catapult, or a shortcut.
 
+The Host/runtime is required. Advanced World Settings and Survivor Progression are independent optional modules.
 No compiler, Git, CMake, or MSYS2 is required on the player's PC.
 If no exact certified host exists for the installed CDDA executable, NCMM starts vanilla CDDA.
 '@ | Set-Content (Join-Path $OutputRoot 'README.txt') -Encoding UTF8
@@ -208,3 +256,5 @@ $zip = Join-Path (Split-Path $OutputRoot -Parent) 'NCMM_Runtime_v0.8.0.zip'
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $OutputRoot '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip
+Write-Output $awsModuleZip
+Write-Output $survivorModuleZip

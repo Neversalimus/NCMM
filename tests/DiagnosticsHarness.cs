@@ -180,6 +180,70 @@ internal static class DiagnosticsHarness
         AssertTrue(report.Text.Contains("runtime_fault=1"), "runtime fault counted in summary");
     }
 
+    private static void WritePayloadModule(string payload, string folder, string id, string version)
+    {
+        string dir = Path.Combine(payload, "code_mods", folder);
+        Directory.CreateDirectory(dir);
+        WriteBytes(Path.Combine(dir, "ncmm_mod.dll"), "payload-" + id);
+        WriteJson(Path.Combine(dir, "mod.json"), new
+        {
+            id = id,
+            name = folder,
+            version = version,
+            loader_api = 1,
+            requires = new string[] { "core.v1" },
+            failure_policy = "disable"
+        });
+    }
+
+    private static void RunComponentSelectionScenario(string root)
+    {
+        string game = Path.Combine(root, "component-selection");
+        Directory.CreateDirectory(game);
+        WriteBytes(Path.Combine(game, "cataclysm-tiles.exe"), "fresh-vanilla");
+        File.WriteAllText(Path.Combine(game, "VERSION.txt"),
+            "commit sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n", Encoding.ASCII);
+
+        string payload = Path.Combine(root, "selection-payload");
+        Directory.CreateDirectory(payload);
+        WriteBytes(Path.Combine(payload, "cataclysm-tiles.ncmm-bootstrap.exe"), "ncmm-bootstrap");
+        WritePayloadModule(payload, "AdvancedWorldSettings", "advanced_world_settings", "0.6.2");
+        WritePayloadModule(payload, "SurvivorProgression", "survivor_progression", "0.11.3");
+
+        InstallResult first = SetupCore.Install(
+            game, payload, new string[] { "advanced_world_settings" });
+        AssertTrue(first.InstalledModuleIds.Count == 1 &&
+            first.InstalledModuleIds[0] == "advanced_world_settings",
+            "component installer records AWS-only selection");
+        AssertTrue(SetupCore.IsModuleInstalled(game, "AdvancedWorldSettings", "advanced_world_settings"),
+            "AWS is installed when selected");
+        AssertTrue(!SetupCore.IsModuleInstalled(game, "SurvivorProgression", "survivor_progression"),
+            "Survivor is absent when not selected");
+
+        string awsDir = Path.Combine(game, "code_mods", "AdvancedWorldSettings");
+        File.WriteAllText(Path.Combine(awsDir, "user.keep"), "preserve", Encoding.ASCII);
+
+        InstallResult second = SetupCore.Install(
+            game, payload, new string[] { "survivor_progression" });
+        AssertTrue(second.InstalledModuleIds.Count == 1 &&
+            second.InstalledModuleIds[0] == "survivor_progression",
+            "component installer records Survivor-only selection");
+        AssertTrue(!File.Exists(Path.Combine(awsDir, "ncmm_mod.dll")) &&
+            !File.Exists(Path.Combine(awsDir, "mod.json")),
+            "unselected AWS managed payload files are removed");
+        AssertTrue(File.Exists(Path.Combine(awsDir, "user.keep")),
+            "unselected module user-owned files are preserved");
+        AssertTrue(SetupCore.IsModuleInstalled(game, "SurvivorProgression", "survivor_progression"),
+            "Survivor is installed after switching selection");
+
+        string statePath = Path.Combine(game, "ncmm", "installed-components.json");
+        AssertTrue(File.Exists(statePath), "installed component selection is persisted");
+        string stateText = File.ReadAllText(statePath);
+        AssertTrue(stateText.Contains("survivor_progression") &&
+            !stateText.Contains("advanced_world_settings"),
+            "persisted component selection matches the active optional modules");
+    }
+
     public static int Main()
     {
         string root = Path.Combine(Path.GetTempPath(),
@@ -190,6 +254,7 @@ internal static class DiagnosticsHarness
             RunDuplicateScenario(root);
             RunDisabledDuplicateScenario(root);
             RunRuntimeFaultScenario(root);
+            RunComponentSelectionScenario(root);
 
             if (failures != 0)
             {

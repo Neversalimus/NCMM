@@ -41,6 +41,7 @@ internal sealed class InstallResult
     internal string SourceCommit { get; set; }
     internal string BootstrapSha256 { get; set; }
     internal string VanillaSha256 { get; set; }
+    internal List<string> InstalledModuleIds { get; set; }
 }
 
 internal sealed class SetupHostBinding
@@ -112,6 +113,28 @@ internal sealed class SetupModuleManifest
     public string ui_hotkey { get; set; }
 }
 
+internal sealed class SetupBundledModule
+{
+    internal string DirectoryName { get; set; }
+    internal string SourceDirectory { get; set; }
+    internal SetupModuleManifest Manifest { get; set; }
+}
+
+internal sealed class SetupInstalledComponent
+{
+    public string id { get; set; }
+    public string version { get; set; }
+    public string directory { get; set; }
+}
+
+internal sealed class SetupInstalledComponents
+{
+    public int schema { get; set; }
+    public string runtime_version { get; set; }
+    public string updated_utc { get; set; }
+    public List<SetupInstalledComponent> components { get; set; }
+}
+
 internal sealed class DiagnosticsReport
 {
     internal string Summary { get; set; }
@@ -166,7 +189,107 @@ internal static class SetupCore
         return new DetectedInstallation(gameRoot, buildLabel, ReadSourceCommit(gameRoot));
     }
 
+    private static SetupModuleManifest ReadModuleManifest(string path)
+    {
+        if (!File.Exists(path)) return null;
+        try
+        {
+            return new JavaScriptSerializer().Deserialize<SetupModuleManifest>(File.ReadAllText(path));
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Invalid NCMM module manifest: " + path + " | " + ex.Message);
+        }
+    }
+
+    private static List<SetupBundledModule> DiscoverBundledModules(string payloadMods)
+    {
+        if (!Directory.Exists(payloadMods))
+            throw new InvalidOperationException("Installer payload is incomplete: code_mods missing.");
+
+        List<SetupBundledModule> result = new List<SetupBundledModule>();
+        HashSet<string> ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string dir in Directory.GetDirectories(payloadMods))
+        {
+            string dll = Path.Combine(dir, "ncmm_mod.dll");
+            string manifestPath = Path.Combine(dir, "mod.json");
+            bool hasDll = File.Exists(dll);
+            bool hasManifest = File.Exists(manifestPath);
+            if (!hasDll && !hasManifest) continue;
+            if (!hasDll || !hasManifest)
+                throw new InvalidOperationException("Installer payload contains an incomplete module: " + dir);
+
+            SetupModuleManifest manifest = ReadModuleManifest(manifestPath);
+            if (manifest == null || String.IsNullOrWhiteSpace(manifest.id) ||
+                String.IsNullOrWhiteSpace(manifest.version))
+                throw new InvalidOperationException("Installer payload contains a module with invalid identity: " + dir);
+            if (!ids.Add(manifest.id))
+                throw new InvalidOperationException("Installer payload contains duplicate module id: " + manifest.id);
+
+            SetupBundledModule module = new SetupBundledModule();
+            module.DirectoryName = new DirectoryInfo(dir).Name;
+            module.SourceDirectory = dir;
+            module.Manifest = manifest;
+            result.Add(module);
+        }
+        if (result.Count == 0)
+            throw new InvalidOperationException("Installer payload contains no complete NCMM code-mods.");
+        return result;
+    }
+
+    internal static bool IsModuleInstalled(string gameRoot, string directoryName, string expectedId)
+    {
+        try
+        {
+            string dir = Path.Combine(Path.GetFullPath(gameRoot.Trim()), "code_mods", directoryName);
+            string dll = Path.Combine(dir, "ncmm_mod.dll");
+            string manifestPath = Path.Combine(dir, "mod.json");
+            if (!File.Exists(dll) || !File.Exists(manifestPath)) return false;
+            SetupModuleManifest manifest = ReadModuleManifest(manifestPath);
+            return manifest != null && String.Equals(manifest.id, expectedId, StringComparison.Ordinal);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void AssertSafeModuleDestination(string destination, string expectedId)
+    {
+        string manifestPath = Path.Combine(destination, "mod.json");
+        if (!File.Exists(manifestPath)) return;
+        SetupModuleManifest existing = ReadModuleManifest(manifestPath);
+        if (existing == null || !String.Equals(existing.id, expectedId, StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                "Refusing to overwrite module directory owned by a different module: " + destination);
+    }
+
+    private static void RemoveManagedModuleFiles(string destination, string expectedId)
+    {
+        if (!Directory.Exists(destination)) return;
+        string manifestPath = Path.Combine(destination, "mod.json");
+        if (!File.Exists(manifestPath)) return;
+
+        SetupModuleManifest existing = ReadModuleManifest(manifestPath);
+        if (existing == null || !String.Equals(existing.id, expectedId, StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                "Refusing to remove files from module directory owned by a different module: " + destination);
+
+        string dll = Path.Combine(destination, "ncmm_mod.dll");
+        if (File.Exists(dll)) File.Delete(dll);
+        File.Delete(manifestPath);
+
+        // Preserve user-created disabled markers, notes and any future module state files.
+        if (Directory.GetFileSystemEntries(destination).Length == 0)
+            Directory.Delete(destination);
+    }
+
     internal static InstallResult Install(string gameRoot, string payloadRoot)
+    {
+        return Install(gameRoot, payloadRoot, null);
+    }
+
+    internal static InstallResult Install(string gameRoot, string payloadRoot, IEnumerable<string> selectedModuleIds)
     {
         gameRoot = Path.GetFullPath(gameRoot.Trim());
         DetectedInstallation target = DescribeInstallation(gameRoot);
@@ -178,15 +301,23 @@ internal static class SetupCore
         string bootstrap = Path.Combine(payloadRoot, "cataclysm-tiles.ncmm-bootstrap.exe");
         string payloadMods = Path.Combine(payloadRoot, "code_mods");
 
-        if (!File.Exists(bootstrap)) throw new InvalidOperationException("Installer payload is incomplete: bootstrap missing.");
-        if (!Directory.Exists(payloadMods)) throw new InvalidOperationException("Installer payload is incomplete: code_mods missing.");
+        if (!File.Exists(bootstrap))
+            throw new InvalidOperationException("Installer payload is incomplete: bootstrap missing.");
 
-        string[] bundledModules = Directory.GetDirectories(payloadMods)
-            .Where(dir => File.Exists(Path.Combine(dir, "ncmm_mod.dll")) &&
-                          File.Exists(Path.Combine(dir, "mod.json")))
-            .ToArray();
-        if (bundledModules.Length == 0)
-            throw new InvalidOperationException("Installer payload contains no complete NCMM code-mods.");
+        List<SetupBundledModule> bundledModules = DiscoverBundledModules(payloadMods);
+        HashSet<string> knownIds = new HashSet<string>(
+            bundledModules.Select(module => module.Manifest.id), StringComparer.Ordinal);
+        HashSet<string> selected = selectedModuleIds == null
+            ? new HashSet<string>(knownIds, StringComparer.Ordinal)
+            : new HashSet<string>(
+                selectedModuleIds.Where(id => !String.IsNullOrWhiteSpace(id)).Select(id => id.Trim()),
+                StringComparer.Ordinal);
+
+        foreach (string id in selected)
+        {
+            if (!knownIds.Contains(id))
+                throw new InvalidOperationException("Unknown bundled NCMM component selected: " + id);
+        }
 
         Directory.CreateDirectory(ncmm);
         Directory.CreateDirectory(mods);
@@ -194,20 +325,20 @@ internal static class SetupCore
         string bootstrapHash = Sha256(bootstrap);
         string currentHash = Sha256(exe);
         string installedHashFile = Path.Combine(ncmm, "bootstrap.sha256");
-        string previousBootstrapHash = File.Exists(installedHashFile) ? File.ReadAllText(installedHashFile).Trim().ToLowerInvariant() : null;
+        string previousBootstrapHash = File.Exists(installedHashFile)
+            ? File.ReadAllText(installedHashFile).Trim().ToLowerInvariant() : null;
 
-        // Safe migration from the earlier CML prototype used during development.
-        // If the current exe is exactly the legacy bootstrap and a vanilla backup exists,
-        // preserve that backup and replace only the bootstrap.
         string legacyDir = Path.Combine(gameRoot, "cml");
         string legacyHashFile = Path.Combine(legacyDir, "bootstrap.sha256");
-        string legacyBootstrapHash = File.Exists(legacyHashFile) ? File.ReadAllText(legacyHashFile).Trim().ToLowerInvariant() : null;
+        string legacyBootstrapHash = File.Exists(legacyHashFile)
+            ? File.ReadAllText(legacyHashFile).Trim().ToLowerInvariant() : null;
         bool legacyBootstrapInstalled = File.Exists(vanilla) && !String.IsNullOrEmpty(legacyBootstrapHash) &&
                                         String.Equals(currentHash, legacyBootstrapHash, StringComparison.OrdinalIgnoreCase);
 
         if (String.Equals(currentHash, bootstrapHash, StringComparison.OrdinalIgnoreCase))
         {
-            if (!File.Exists(vanilla)) throw new InvalidOperationException("NCMM bootstrap is present but vanilla backup is missing. Refusing to guess.");
+            if (!File.Exists(vanilla))
+                throw new InvalidOperationException("NCMM bootstrap is present but vanilla backup is missing. Refusing to guess.");
         }
         else if (legacyBootstrapInstalled)
         {
@@ -225,7 +356,8 @@ internal static class SetupCore
         {
             if (File.Exists(vanilla))
             {
-                string archive = Path.Combine(ncmm, "cataclysm-tiles.vanilla.backup-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".exe");
+                string archive = Path.Combine(ncmm,
+                    "cataclysm-tiles.vanilla.backup-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".exe");
                 File.Copy(vanilla, archive, true);
                 File.Copy(exe, vanilla, true);
             }
@@ -238,21 +370,52 @@ internal static class SetupCore
 
         if (!String.Equals(Sha256(exe), bootstrapHash, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Bootstrap post-install SHA256 check failed.");
-        if (!File.Exists(vanilla)) throw new InvalidOperationException("Vanilla backup post-install check failed.");
+        if (!File.Exists(vanilla))
+            throw new InvalidOperationException("Vanilla backup post-install check failed.");
 
         string vanillaHash = Sha256(vanilla);
         File.WriteAllText(installedHashFile, bootstrapHash.ToLowerInvariant() + Environment.NewLine, Encoding.ASCII);
-        File.WriteAllText(Path.Combine(ncmm, "vanilla.sha256"), vanillaHash.ToLowerInvariant() + Environment.NewLine, Encoding.ASCII);
+        File.WriteAllText(Path.Combine(ncmm, "vanilla.sha256"),
+            vanillaHash.ToLowerInvariant() + Environment.NewLine, Encoding.ASCII);
 
-        foreach (string sourceModule in bundledModules)
+        List<string> installedIds = new List<string>();
+        List<SetupInstalledComponent> componentState = new List<SetupInstalledComponent>();
+        componentState.Add(new SetupInstalledComponent {
+            id = "ncmm_host", version = "0.8.0", directory = null
+        });
+
+        foreach (SetupBundledModule module in bundledModules)
         {
-            string moduleName = new DirectoryInfo(sourceModule).Name;
-            string destination = Path.Combine(mods, moduleName);
-            Directory.CreateDirectory(destination);
-            File.Copy(Path.Combine(sourceModule, "ncmm_mod.dll"), Path.Combine(destination, "ncmm_mod.dll"), true);
-            File.Copy(Path.Combine(sourceModule, "mod.json"), Path.Combine(destination, "mod.json"), true);
-            // Preserve an existing user-created "disabled" marker during repair/update.
+            string destination = Path.Combine(mods, module.DirectoryName);
+            if (selected.Contains(module.Manifest.id))
+            {
+                Directory.CreateDirectory(destination);
+                AssertSafeModuleDestination(destination, module.Manifest.id);
+                File.Copy(Path.Combine(module.SourceDirectory, "ncmm_mod.dll"),
+                    Path.Combine(destination, "ncmm_mod.dll"), true);
+                File.Copy(Path.Combine(module.SourceDirectory, "mod.json"),
+                    Path.Combine(destination, "mod.json"), true);
+                installedIds.Add(module.Manifest.id);
+                componentState.Add(new SetupInstalledComponent {
+                    id = module.Manifest.id,
+                    version = module.Manifest.version,
+                    directory = module.DirectoryName
+                });
+            }
+            else
+            {
+                RemoveManagedModuleFiles(destination, module.Manifest.id);
+            }
         }
+
+        SetupInstalledComponents installedState = new SetupInstalledComponents();
+        installedState.schema = 1;
+        installedState.runtime_version = "0.8.0";
+        installedState.updated_utc = DateTime.UtcNow.ToString("o");
+        installedState.components = componentState;
+        string installedStateJson = new JavaScriptSerializer().Serialize(installedState);
+        File.WriteAllText(Path.Combine(ncmm, "installed-components.json"),
+            installedStateJson + Environment.NewLine, new UTF8Encoding(false));
 
         string autoDisabled = Path.Combine(ncmm, "ncmm.auto_disabled");
         string pending = Path.Combine(ncmm, "boot.pending");
@@ -269,6 +432,7 @@ internal static class SetupCore
         result.SourceCommit = target.SourceCommit;
         result.BootstrapSha256 = bootstrapHash;
         result.VanillaSha256 = vanillaHash;
+        result.InstalledModuleIds = installedIds;
         return result;
     }
 
@@ -839,16 +1003,19 @@ internal sealed class MainForm : Form
     private readonly Button diagnosticsButton = new Button();
     private readonly Button repairStateButton = new Button();
     private readonly Button browseButton = new Button();
+    private readonly CheckBox hostComponent = new CheckBox();
+    private readonly CheckBox awsComponent = new CheckBox();
+    private readonly CheckBox survivorComponent = new CheckBox();
     private readonly string payloadRoot;
     private int detectedInstallations;
 
     internal MainForm()
     {
         Text = "NCMM 0.8.0 Setup";
-        Width = 900;
-        Height = 500;
+        Width = 920;
+        Height = 680;
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(760, 430);
+        MinimumSize = new Size(800, 600);
 
         payloadRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "payload");
 
@@ -861,18 +1028,18 @@ internal sealed class MainForm : Form
         Controls.Add(title);
 
         Label hint = new Label();
-        hint.Text = "Choose the exact CDDA installation. NCMM preserves the original executable and falls back to vanilla when no certified host is available.";
+        hint.Text = "Choose the exact CDDA installation, then select the NCMM components you want. The Host/runtime is required; gameplay modules are independent and optional.";
         hint.AutoSize = false;
         hint.Left = 20;
         hint.Top = 58;
-        hint.Width = 840;
+        hint.Width = 860;
         hint.Height = 42;
         hint.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         Controls.Add(hint);
 
         pathBox.Left = 20;
         pathBox.Top = 108;
-        pathBox.Width = 730;
+        pathBox.Width = 750;
         pathBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         pathBox.DropDownStyle = ComboBoxStyle.DropDownList;
         pathBox.SelectedIndexChanged += delegate { UpdateTargetInfo(); };
@@ -880,11 +1047,10 @@ internal sealed class MainForm : Form
         List<DetectedInstallation> detected = SetupCore.DetectInstallations();
         detectedInstallations = detected.Count;
         foreach (DetectedInstallation installation in detected) pathBox.Items.Add(installation);
-        if (detected.Count == 1) pathBox.SelectedIndex = 0;
         Controls.Add(pathBox);
 
         browseButton.Text = "Browse...";
-        browseButton.Left = 760;
+        browseButton.Left = 780;
         browseButton.Top = 106;
         browseButton.Width = 100;
         browseButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
@@ -893,48 +1059,88 @@ internal sealed class MainForm : Form
 
         targetInfo.Left = 20;
         targetInfo.Top = 142;
-        targetInfo.Width = 840;
-        targetInfo.Height = 42;
+        targetInfo.Width = 860;
+        targetInfo.Height = 38;
         targetInfo.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         targetInfo.AutoEllipsis = true;
         Controls.Add(targetInfo);
 
-        installButton.Text = "Install / Repair NCMM + bundled mods";
+        GroupBox components = new GroupBox();
+        components.Text = "Components";
+        components.Left = 20;
+        components.Top = 184;
+        components.Width = 860;
+        components.Height = 142;
+        components.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+
+        hostComponent.Text = "NCMM Host / Runtime 0.8.0  (required)";
+        hostComponent.Left = 18;
+        hostComponent.Top = 25;
+        hostComponent.Width = 390;
+        hostComponent.Checked = true;
+        hostComponent.Enabled = false;
+        components.Controls.Add(hostComponent);
+
+        awsComponent.Text = "Advanced World Settings 0.6.2";
+        awsComponent.Left = 18;
+        awsComponent.Top = 54;
+        awsComponent.Width = 390;
+        awsComponent.Checked = true;
+        components.Controls.Add(awsComponent);
+
+        survivorComponent.Text = "Survivor Progression 0.11.3";
+        survivorComponent.Left = 18;
+        survivorComponent.Top = 83;
+        survivorComponent.Width = 390;
+        survivorComponent.Checked = true;
+        components.Controls.Add(survivorComponent);
+
+        Label componentHint = new Label();
+        componentHint.Text = "Unchecking a previously installed bundled module removes only its NCMM-managed DLL and mod.json. User markers/state files are preserved.";
+        componentHint.Left = 430;
+        componentHint.Top = 30;
+        componentHint.Width = 405;
+        componentHint.Height = 72;
+        componentHint.AutoSize = false;
+        components.Controls.Add(componentHint);
+        Controls.Add(components);
+
+        installButton.Text = "Install / Repair selected";
         installButton.Left = 20;
-        installButton.Top = 192;
-        installButton.Width = 220;
+        installButton.Top = 340;
+        installButton.Width = 210;
         installButton.Height = 34;
         installButton.Click += delegate { Install(); };
         Controls.Add(installButton);
 
         restoreButton.Text = "Restore vanilla EXE";
-        restoreButton.Left = 250;
-        restoreButton.Top = 192;
+        restoreButton.Left = 240;
+        restoreButton.Top = 340;
         restoreButton.Width = 160;
         restoreButton.Height = 34;
         restoreButton.Click += delegate { Restore(); };
         Controls.Add(restoreButton);
 
         diagnosticsButton.Text = "Diagnostics 2.0";
-        diagnosticsButton.Left = 420;
-        diagnosticsButton.Top = 192;
+        diagnosticsButton.Left = 410;
+        diagnosticsButton.Top = 340;
         diagnosticsButton.Width = 150;
         diagnosticsButton.Height = 34;
         diagnosticsButton.Click += delegate { Diagnostics(); };
         Controls.Add(diagnosticsButton);
 
         repairStateButton.Text = "Repair NCMM State";
-        repairStateButton.Left = 580;
-        repairStateButton.Top = 192;
+        repairStateButton.Left = 570;
+        repairStateButton.Top = 340;
         repairStateButton.Width = 180;
         repairStateButton.Height = 34;
         repairStateButton.Click += delegate { RepairState(); };
         Controls.Add(repairStateButton);
 
         log.Left = 20;
-        log.Top = 242;
-        log.Width = 840;
-        log.Height = 200;
+        log.Top = 390;
+        log.Width = 860;
+        log.Height = 235;
         log.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         log.Multiline = true;
         log.ScrollBars = ScrollBars.Vertical;
@@ -942,7 +1148,8 @@ internal sealed class MainForm : Form
         Controls.Add(log);
 
         Append("NCMM runtime does not require Git, CMake, MSYS2 or a compiler.");
-        Append("If a matching certified host is unavailable, CDDA starts vanilla.");
+        Append("Advanced World Settings and Survivor Progression are independently selectable.");
+        Append("If a matching certified Host is unavailable, CDDA starts vanilla.");
 
         if (detectedInstallations > 1)
         {
@@ -952,6 +1159,10 @@ internal sealed class MainForm : Form
         else if (detectedInstallations == 0)
         {
             Append("No CatLauncher installation was detected automatically. Use Browse.");
+        }
+        else
+        {
+            pathBox.SelectedIndex = 0;
         }
 
         UpdateTargetInfo();
@@ -970,6 +1181,46 @@ internal sealed class MainForm : Form
         return selected;
     }
 
+    private void SyncComponentSelection(DetectedInstallation selected)
+    {
+        if (selected == null)
+        {
+            awsComponent.Checked = true;
+            survivorComponent.Checked = true;
+            return;
+        }
+
+        bool ncmmAlreadyInstalled =
+            File.Exists(Path.Combine(selected.PathValue, "ncmm", "bootstrap.sha256"));
+        if (!ncmmAlreadyInstalled)
+        {
+            awsComponent.Checked = true;
+            survivorComponent.Checked = true;
+            return;
+        }
+
+        awsComponent.Checked = SetupCore.IsModuleInstalled(
+            selected.PathValue, "AdvancedWorldSettings", "advanced_world_settings");
+        survivorComponent.Checked = SetupCore.IsModuleInstalled(
+            selected.PathValue, "SurvivorProgression", "survivor_progression");
+    }
+
+    private List<string> SelectedModuleIds()
+    {
+        List<string> ids = new List<string>();
+        if (awsComponent.Checked) ids.Add("advanced_world_settings");
+        if (survivorComponent.Checked) ids.Add("survivor_progression");
+        return ids;
+    }
+
+    private string SelectedComponentSummary()
+    {
+        List<string> names = new List<string>();
+        if (awsComponent.Checked) names.Add("Advanced World Settings");
+        if (survivorComponent.Checked) names.Add("Survivor Progression");
+        return names.Count == 0 ? "NCMM Host only" : "NCMM Host + " + String.Join(" + ", names.ToArray());
+    }
+
     private void UpdateTargetInfo()
     {
         DetectedInstallation selected = pathBox.SelectedItem as DetectedInstallation;
@@ -982,7 +1233,9 @@ internal sealed class MainForm : Form
             return;
         }
 
-        targetInfo.Text = "Target: " + selected.BuildLabel + " | " + selected.ShortCommit() + " | " + selected.PathValue;
+        targetInfo.Text = "Target: " + selected.BuildLabel + " | " +
+            selected.ShortCommit() + " | " + selected.PathValue;
+        SyncComponentSelection(selected);
     }
 
     private void SelectInstallation(DetectedInstallation installation)
@@ -1015,7 +1268,8 @@ internal sealed class MainForm : Form
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, ex.Message, "Invalid CDDA folder", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, ex.Message, "Invalid CDDA folder",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
@@ -1041,27 +1295,35 @@ internal sealed class MainForm : Form
         try
         {
             DetectedInstallation target = SelectedInstallation();
-            if (!ConfirmTarget(target, "Install / Repair NCMM + bundled mods")) return;
+            string selection = SelectedComponentSummary();
+            if (!ConfirmTarget(target, "Install / Repair: " + selection)) return;
 
-            InstallResult result = SetupCore.Install(target.PathValue, payloadRoot);
-            Append("Installed successfully. Bundled NCMM code-mods deployed; existing disabled markers preserved.");
+            InstallResult result = SetupCore.Install(target.PathValue, payloadRoot, SelectedModuleIds());
+            Append("Installed successfully: " + selection + ".");
+            Append("Unselected bundled modules were safely deactivated; user-owned files were preserved.");
             Append("Target: " + result.BuildLabel + " | " + result.GameRoot);
             Append("Bootstrap SHA256: " + result.BootstrapSha256.ToUpperInvariant());
             Append("Vanilla SHA256: " + result.VanillaSha256.ToUpperInvariant());
 
+            string modules = result.InstalledModuleIds == null || result.InstalledModuleIds.Count == 0
+                ? "none (Host only)"
+                : String.Join(", ", result.InstalledModuleIds.ToArray());
+
             string message =
-                "NCMM + bundled code-mods installed.\n\n" +
+                "NCMM installed successfully.\n\n" +
                 "Target build: " + result.BuildLabel + "\n" +
                 "Path: " + result.GameRoot + "\n" +
-                "Bootstrap SHA256:\n" + result.BootstrapSha256.ToUpperInvariant() + "\n\n" +
+                "Optional modules: " + modules + "\n\n" +
                 "You can launch CDDA normally.";
 
-            MessageBox.Show(this, message, "NCMM 0.8.0", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, message, "NCMM 0.8.0",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
             Append("INSTALL FAILED: " + ex.Message);
-            MessageBox.Show(this, ex.Message, "NCMM install failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, ex.Message, "NCMM install failed",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -1084,7 +1346,8 @@ internal sealed class MainForm : Form
         catch (Exception ex)
         {
             Append("RESTORE FAILED: " + ex.Message);
-            MessageBox.Show(this, ex.Message, "NCMM restore failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, ex.Message, "NCMM restore failed",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -1114,7 +1377,8 @@ internal sealed class MainForm : Form
         catch (Exception ex)
         {
             Append("DIAGNOSTICS FAILED: " + ex.Message);
-            MessageBox.Show(this, ex.Message, "NCMM diagnostics failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, ex.Message, "NCMM diagnostics failed",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -1147,7 +1411,8 @@ internal sealed class MainForm : Form
         catch (Exception ex)
         {
             Append("STATE REPAIR FAILED: " + ex.Message);
-            MessageBox.Show(this, ex.Message, "NCMM state repair failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, ex.Message, "NCMM state repair failed",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 }
