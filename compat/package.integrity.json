@@ -51,8 +51,8 @@
     },
     {
       "path": "ci\\Regenerate-PackageIntegrity.ps1",
-      "sha256": "139dfa08e632d74db0c259384bc8f2e2cea00ecb95e04fa84f60f82c81ccd5f6",
-      "bytes": 2467
+      "sha256": "4b288adb8d9b051dc11950a8e648375ae718e608212797ffe5cfaecc8cea34c8",
+      "bytes": 3446
     },
     {
       "path": "ci\\Test-GoldenRegression.ps1",

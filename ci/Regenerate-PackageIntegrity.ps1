@@ -51,9 +51,29 @@ $expected=(($obj|ConvertTo-Json -Depth 8)+"`n")
 
 if($Check){
     if(-not(Test-Path $manifestPath -PathType Leaf)){throw 'Package integrity manifest is missing.'}
-    $actual=[IO.File]::ReadAllText($manifestPath).Replace("`r`n","`n")
-    if($actual -ne $expected){
-        throw 'Package integrity manifest is stale. Run ci\Regenerate-PackageIntegrity.ps1 and commit the result with the source change.'
+    try{$actual=Get-Content $manifestPath -Raw|ConvertFrom-Json}catch{throw 'Package integrity manifest is not valid JSON.'}
+    if([int]$actual.schema -ne 1 -or [string]$actual.infrastructure -ne '0.8.3.1' -or
+       [string]$actual.algorithm -ne 'sha256'){
+        throw 'Package integrity manifest metadata is invalid.'
+    }
+    $actualEntries=@($actual.files)
+    if($actualEntries.Count -ne $entries.Count){
+        throw "Package integrity membership count drift: manifest=$($actualEntries.Count), expected=$($entries.Count)."
+    }
+    $actualMap=@{}
+    foreach($entry in $actualEntries){
+        $key=[string]$entry.path
+        if(-not $key -or $actualMap.ContainsKey($key)){throw "Package integrity contains missing/duplicate path: $key"}
+        $actualMap[$key]=$entry
+    }
+    foreach($expectedEntry in $entries){
+        $key=[string]$expectedEntry.path
+        if(-not $actualMap.ContainsKey($key)){throw "Package integrity entry missing: $key"}
+        $actualEntry=$actualMap[$key]
+        if([string]$actualEntry.sha256 -ne [string]$expectedEntry.sha256 -or
+           [int64]$actualEntry.bytes -ne [int64]$expectedEntry.bytes){
+            throw "Package integrity entry is stale: $key"
+        }
     }
     Write-Host ('Package integrity is current: '+$entries.Count+' files') -ForegroundColor Green
     return
