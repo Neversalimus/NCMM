@@ -631,7 +631,7 @@ int main( int argc, char **argv )
         };
         const std::set<std::string> actual( exposed.begin(), exposed.end() );
         if( actual != expected || groups.size() < 2 ||
-            groups[0] != "aws_advanced" || groups[1] != "aws_experimental" ) {
+            groups[0] != "aws_difficulty" || groups[1] != "aws_time" ) {
             std::cerr << "AWS grouped registration failed\n";
             return 8;
         }
