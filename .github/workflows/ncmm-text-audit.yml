@@ -36,23 +36,29 @@ jobs:
         run: |
           .\ci\Test-UserFacingCopy.ps1 -SourceRoot "$env:GITHUB_WORKSPACE"
 
-      - name: Refresh payload integrity entry
+      - name: Refresh package integrity hashes
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
           $manifestPath = Join-Path $env:GITHUB_WORKSPACE 'compat\package.integrity.json'
-          $payloadPath = Join-Path $env:GITHUB_WORKSPACE 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1'
           $obj = Get-Content $manifestPath -Raw | ConvertFrom-Json
-          $entry = @($obj.files | Where-Object { [string]$_.path -eq 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1' })
-          if( $entry.Count -ne 1 ) { throw 'Payload integrity entry missing or duplicated.' }
-          $entry[0].sha256 = (Get-FileHash -LiteralPath $payloadPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          $entry[0].bytes = [int64](Get-Item -LiteralPath $payloadPath).Length
+          $count = 0
+          foreach($entry in @($obj.files)){
+            $rel = ([string]$entry.path).Replace('\',[IO.Path]::DirectorySeparatorChar)
+            $file = Join-Path $env:GITHUB_WORKSPACE $rel
+            if(-not(Test-Path -LiteralPath $file -PathType Leaf)){
+              throw ('Integrity-listed package file missing: ' + [string]$entry.path)
+            }
+            $entry.sha256 = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            $entry.bytes = [int64](Get-Item -LiteralPath $file).Length
+            ++$count
+          }
           [IO.File]::WriteAllText(
             $manifestPath,
             (($obj | ConvertTo-Json -Depth 12) + [Environment]::NewLine),
             (New-Object Text.UTF8Encoding($false))
           )
-          Write-Host ('Payload integrity refreshed: ' + $entry[0].sha256)
+          Write-Host ('Package integrity refreshed for ' + $count + ' existing manifest entries.')
 
       - name: Validate Infrastructure package contract
         shell: powershell
@@ -133,7 +139,7 @@ jobs:
           if($LASTEXITCODE -eq 0){
             Write-Host 'Integrity manifest already current.'
           } else {
-            git commit -m 'chore: refresh payload integrity after text polish'
+            git commit -m 'chore: refresh package integrity after text polish'
             git pull --rebase origin main
             git push origin HEAD:main
           }
