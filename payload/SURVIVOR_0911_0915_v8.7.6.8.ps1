@@ -4294,6 +4294,7 @@ if ($HostSourceProbeOnly) {
     }
 }
 
+# v4 portability fix:
 New-Item -ItemType Directory -Force -Path $BuildRoot | Out-Null
 
 $SeedBranch = "survivor-099-mouse-graphical-tree-validation"
@@ -17522,6 +17523,7 @@ std::string rpg_detail_body( const perk_def &perk, const std::string &body,
 
 Apply-PlayerFacingCopyPolishFinal
 
+# NCMM Infrastructure 0.8.3.1 deep probe: execute the exact host/source transform stack
 if ($HostSourceProbeOnly) {
     Write-Host ""
     Write-Host "=== NCMM Infrastructure 0.8.3.1 DEEP SOURCE PROBE ===" -ForegroundColor Cyan
