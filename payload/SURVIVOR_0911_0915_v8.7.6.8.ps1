@@ -15917,10 +15917,11 @@ void show_manager()
     # checked-in Host. Use CDDA's native menu_move SFX so soundpack/volume rules
     # remain entirely owned by the game.
     if(-not $loaderUi.Contains('#include "sounds.h"')){
-        $loaderUi = Replace-TextBlock $loaderUi '#include "output.h"' @'
+        $soundIncludeNew = @'
 #include "output.h"
 #include "sounds.h"
-'@ 'NCMM native menu sound include'
+'@
+        $loaderUi = Replace-TextBlock $loaderUi '#include "output.h"' $soundIncludeNew 'NCMM native menu sound include'
     }
 
     if(-not $loaderUi.Contains('std::string version_label()')){
@@ -16123,10 +16124,11 @@ int ui_card_choose_themed( const char *title, const char *summary,
     if(Test-Path $loaderHeaderUiPath -PathType Leaf){
         $loaderHeaderUi = Normalize-Lf ([IO.File]::ReadAllText($loaderHeaderUiPath))
         if(-not $loaderHeaderUi.Contains('std::string version_label();')){
-            $loaderHeaderUi = Replace-TextBlock $loaderHeaderUi 'std::string settings_menu_label();' @'
+            $versionLabelDeclNew = @'
 std::string settings_menu_label();
 std::string version_label();
-'@ 'NCMM version label declaration'
+'@
+            $loaderHeaderUi = Replace-TextBlock $loaderHeaderUi 'std::string settings_menu_label();' $versionLabelDeclNew 'NCMM version label declaration'
             Write-Utf8NoBom $loaderHeaderUiPath $loaderHeaderUi
         }
     }
