@@ -2,6 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$RepositoryRoot,
     [Parameter(Mandatory=$true)][string]$PayloadRoot,
     [ValidateSet('Synthetic','Real')][string]$Mode='Synthetic',
+    [ValidateSet('Install','PostRuntime')][string]$RealPhase='Install',
     [string]$GameRoot=''
 )
 $ErrorActionPreference='Stop'
@@ -31,8 +32,10 @@ try{
 
     if($Mode -eq 'Synthetic'){
         & $exe $PayloadRoot
-    } else {
+    } elseif($RealPhase -eq 'Install') {
         & $exe --real-install-smoke $GameRoot $PayloadRoot
+    } else {
+        & $exe --real-runtime-verify $GameRoot
     }
     if($LASTEXITCODE -ne 0){
         throw "NCMM installation matrix failed in $Mode mode with exit $LASTEXITCODE."
@@ -40,4 +43,8 @@ try{
 } finally {
     Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
 }
-Write-Host ("NCMM Installation Matrix "+$Mode+": PASS") -ForegroundColor Green
+if($Mode -eq 'Real'){
+    Write-Host ("NCMM Installation Matrix Real/"+$RealPhase+": PASS") -ForegroundColor Green
+} else {
+    Write-Host "NCMM Installation Matrix Synthetic: PASS" -ForegroundColor Green
+}
