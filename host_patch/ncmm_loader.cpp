@@ -3,8 +3,18 @@
 #include "ncmm_fault_policy.h"
 #include "ncmm_manifest_policy.h"
 #include "avatar.h"
+#include "calendar.h"
+#include "color.h"
+#include "coordinates.h"
 #include "creature.h"
 #include "game.h"
+#include "map.h"
+#include "mod_manager.h"
+#include "overmap.h"
+#include "overmapbuffer.h"
+#include "path_info.h"
+#include "point.h"
+#include "rng.h"
 #include "event_bus.h"
 #include "event_subscriber.h"
 #include "type_id.h"
@@ -93,6 +103,7 @@ struct module_setting_meta {
     std::vector<std::pair<std::string, std::string>> choices;
 };
 std::vector<module_setting_meta> module_settings;
+std::vector<module_setting_meta> registered_world_settings;
 
 std::map<std::string, size_t> manifest_id_counts;
 std::map<std::string, std::map<std::string, double>> character_modifier_values;
@@ -595,6 +606,19 @@ void remember_module_setting( const module_setting_meta &meta )
         *existing = meta;
     } else {
         module_settings.push_back( meta );
+    }
+}
+
+void remember_registered_world_setting( const module_setting_meta &meta )
+{
+    auto existing = std::find_if( registered_world_settings.begin(), registered_world_settings.end(),
+    [&]( const module_setting_meta &entry ) {
+        return entry.module_id == meta.module_id && entry.setting_id == meta.setting_id;
+    } );
+    if( existing != registered_world_settings.end() ) {
+        *existing = meta;
+    } else {
+        registered_world_settings.push_back( meta );
     }
 }
 
