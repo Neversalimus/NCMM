@@ -550,6 +550,79 @@ static Target_attributes ncmm_gun_target_attributes( const Character &you,
 * struct used to hold the information on entire aim_type prediction;
 '@ 'ranged.exact-probability-helpers'
 
+
+$rg = Replace-ExactlyOnce $rg @'
+            if( display_numbers ) {
+                t_aims[aim_iter] = string_format( "<color_dark_gray>%s:</color>", out.name );
+                t_confidence[( aim_iter * 5 ) + 4] = string_format( "<color_light_blue>%d</color>", out.moves );
+            } else {
+                print_colored_text( w, point( 1, line_number ), col, col, string_format( _( "%s %s:" ), out.name,
+                                    _( "Aim" ) ) );
+                right_print( w, line_number++, 1, c_light_blue, _( "Moves" ) );
+'@ @'
+            if( display_numbers ) {
+                t_aims[aim_iter] = string_format( "<color_dark_gray>%s:</color>", out.name );
+                if( out.exact_hit_probability >= 0.0 ) {
+                    t_aims[aim_iter] += " " + ncmm_hit_probability_text( out.exact_hit_probability );
+                }
+                t_confidence[( aim_iter * 5 ) + 4] = string_format( "<color_light_blue>%d</color>", out.moves );
+            } else {
+                std::string aim_label = string_format( _( "%s %s:" ), out.name, _( "Aim" ) );
+                if( out.exact_hit_probability >= 0.0 ) {
+                    aim_label += " " + ncmm::localized_text( "Hit", "Попадание" ) + ": " +
+                                 ncmm_hit_probability_text( out.exact_hit_probability );
+                }
+                print_colored_text( w, point( 1, line_number ), col, col, aim_label );
+                right_print( w, line_number++, 1, c_light_blue, _( "Moves" ) );
+'@ 'ranged.narrow-hit'
+
+$rg = Replace-ExactlyOnce $rg @'
+            std::string desc = time ==  0 ?
+                               string_format( "<color_white>[%s]</color> <color_%s>%s %s</color> | %s: <color_light_blue>%3d</color>",
+                                              out.hotkey, col_hl, out.name, _( "Aim" ), _( "Moves to fire" ), out.moves ) :
+                               string_format( "<color_white>[%s]</color> <color_%s>%s %s</color> | %s: <color_light_blue>%3d</color> (%d)",
+                                              out.hotkey, col_hl, out.name, _( "Aim" ), _( "Moves to fire" ), out.moves, time );
+
+            print_colored_text( w, point( 1, line_number++ ), col, col, desc );
+'@ @'
+            std::string desc = time ==  0 ?
+                               string_format( "<color_white>[%s]</color> <color_%s>%s %s</color> | %s: <color_light_blue>%3d</color>",
+                                              out.hotkey, col_hl, out.name, _( "Aim" ), _( "Moves to fire" ), out.moves ) :
+                               string_format( "<color_white>[%s]</color> <color_%s>%s %s</color> | %s: <color_light_blue>%3d</color> (%d)",
+                                              out.hotkey, col_hl, out.name, _( "Aim" ), _( "Moves to fire" ), out.moves, time );
+            if( out.exact_hit_probability >= 0.0 ) {
+                desc += " | " + ncmm::localized_text( "Hit", "Попадание" ) + ": " +
+                        ncmm_hit_probability_text( out.exact_hit_probability );
+            }
+
+            print_colored_text( w, point( 1, line_number++ ), col, col, desc );
+'@ 'ranged.full-hit'
+
+$rg = Replace-ExactlyOnce $rg @'
+    // This is absolute accuracy for the player.
+    // TODO: push the calculations duplicated from Creature::deal_projectile_attack() and
+    // Creature::projectile_attack() into shared methods.
+    // Dodge doesn't affect gun attacks
+
+    dispersion_sources dispersion = you.get_weapon_dispersion( weapon );
+'@ @'
+    // Legacy confidence UI remains intact. Ballistic Hit Chance separately
+    // mirrors projectile dispersion, HARDTOHIT and RANGE_DODGE.
+
+    dispersion_sources dispersion = you.get_weapon_dispersion( weapon );
+'@ 'ranged.aim-comment'
+
+$rg = Replace-ExactlyOnce $rg @'
+    const std::vector<aim_type_prediction> aim_chances = calculate_ranged_chances( ui, you,
+            target_ui::TargetMode::Fire, ctxt, weapon, dispersion, confidence_config,
+            Target_attributes( you.pos_bub(), pos ), pos, load_loc );
+'@ @'
+    const Target_attributes target = ncmm_gun_target_attributes( you, weapon, pos );
+    const std::vector<aim_type_prediction> aim_chances = calculate_ranged_chances( ui, you,
+            target_ui::TargetMode::Fire, ctxt, weapon, dispersion, confidence_config,
+            target, pos, load_loc );
+'@ 'ranged.adjust-target-size'
+
 $h = Replace-ExactlyOnce $h @'
             COPT_NO_SOUND_HIDE,
             /** Hide this option always, it should not be changed by user directly through UI. **/
