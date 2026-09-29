@@ -13092,9 +13092,10 @@ std::vector<manager_entry> manager_entries()
         if ($l.Contains($reasonOld)) {
             # Legacy manager already exposed raw reason text: preserve its layout and translate the reason.
             $l = Replace-TextBlock $l $reasonOld $reasonNew 'v8.7.6.6 manager readable failure reason'
-        } else {
-            # Host 0.8 manager no longer appends raw reasons at all. Restore the useful detail
-            # explicitly, but only for non-OK states so normal module rows stay compact.
+        } elseif (-not $l.Contains('manager_reason_text( entry.reason )')) {
+            # Intermediate Host 0.8 manager had neither a translated reason nor the new details panel.
+            # Restore the useful detail only for that legacy shape. Host 0.8.1 renders the reason in
+            # the right-hand details panel already, so no source rewrite is needed there.
             $reasonBlockOld = @'
             const loaded_mod *runtime = find_loaded( entry.directory );
             if( runtime != nullptr && runtime->open_ui != nullptr ) {
@@ -13119,10 +13120,11 @@ std::vector<manager_entry> manager_entries()
         $menuEnNew = 'NCMM — Mod Configuration\nPress F2 to open this menu (the key can be changed in Controls). Press Enter to open settings for supported mods.\nSupport: https://github.com/Neversalimus/NCMM/issues'
         $menuRuOld = 'NCMM — Настройка модов\nF2 открывает это меню; клавишу можно изменить в управлении. Enter открывает настройки поддерживаемого мода.'
         $menuRuNew = 'NCMM — Настройка модов\nF2 открывает это меню; клавишу можно изменить в управлении. Enter открывает настройки поддерживаемого мода.\nПоддержка: https://github.com/Neversalimus/NCMM/issues'
-        if (-not $l.Contains($menuEnOld) -or -not $l.Contains($menuRuOld)) {
+        if ($l.Contains($menuEnOld) -and $l.Contains($menuRuOld)) {
+            $l = $l.Replace($menuEnOld,$menuEnNew).Replace($menuRuOld,$menuRuNew)
+        } elseif (-not $l.Contains('input_context ctxt( "NCMM_MANAGER"')) {
             throw 'v8.7.6.6 manager support-text anchor missing.'
         }
-        $l = $l.Replace($menuEnOld,$menuEnNew).Replace($menuRuOld,$menuRuNew)
 
         $initOld = @'
     write_modules_state();
@@ -13133,7 +13135,11 @@ std::vector<manager_entry> manager_entries()
     write_diagnostics_summary();
     mark_ready();
 '@
-        $l = Replace-TextBlock $l $initOld $initNew 'v8.7.6.6 initialize diagnostics snapshot'
+        if ($l.Contains($initOld)) {
+            $l = Replace-TextBlock $l $initOld $initNew 'v8.7.6.6 initialize diagnostics snapshot'
+        } elseif (-not $l.Contains($initNew)) {
+            throw 'v8.7.6.6 initialize diagnostics anchor missing.'
+        }
 
         $showOld = @'
 void show_manager()
@@ -13146,7 +13152,11 @@ void show_manager()
     write_diagnostics_summary();
     while( true ) {
 '@
-        $l = Replace-TextBlock $l $showOld $showNew 'v8.7.6.6 manager refresh diagnostics snapshot'
+        if ($l.Contains($showOld)) {
+            $l = Replace-TextBlock $l $showOld $showNew 'v8.7.6.6 manager refresh diagnostics snapshot'
+        } elseif (-not $l.Contains($showNew)) {
+            throw 'v8.7.6.6 manager diagnostics refresh anchor missing.'
+        }
         Write-Utf8NoBom $loaderCpp $l
     }
 
