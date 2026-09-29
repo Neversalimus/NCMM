@@ -1,57 +1,59 @@
-# Survivor Progression v0.9.0 — State Migration & API Stabilization Pass
+# Survivor Progression 0.12.0
 
-This replaces the 0.1 technical vertical slice with the first complete playable progression system.
+Survivor Progression is an optional NCMM native module that adds persistent character progression, perk trees, mechanical perk effects and conditional integrations with supported world mods.
 
-## Core
-- 30 Survivor levels.
-- 1 normal perk point per level gained.
-- 1 Major Point at levels 5, 10, 15, 20, 25 and 30.
-- Persistent per-character state through `character_state.v1`.
-- F1 opens the progression interface; the binding remains remappable through CDDA.
-- Level-up no longer forcibly opens a menu during sleep/wait/activity; it posts a notification instead.
-- Full respec with exact refund of spent normal and Major Points.
-- 0.1.x Fast Learner ownership is migrated into the new Mastery tree.
+It requires NCMM Host 0.8.1 and keeps persistent state schema **8**.
 
-## Six branches / 60 perks
-Each branch contains 8 normal perks, 1 Major perk and 1 capstone:
-- Combat
-- Survival
-- Mobility
-- Crafting
-- Scavenging
-- Mastery
+## Current system
 
-Each branch has two prerequisite lanes which merge into its Major perk, then a level-30 capstone.
-The full character can earn 29 normal perk points and 6 Major Points, so the system is intentionally
-choice-driven rather than allowing every perk in one run.
+- 30 normal Survivor levels with persistent XP and perk currencies.
+- 369 perk nodes in the current source.
+- Core branches: Combat, Survival, Mobility, Crafting, Scavenging and Mastery.
+- Additional mod-specific progression is shown only when the matching world mod is active.
+- F1 opens the progression UI by default; the action is remappable through CDDA.
+- Full respec preserves the module's explicit refund rules and clears transient perk state when required.
+- Level-up feedback does not forcibly interrupt sleep/wait/activity.
+- UI navigation is Host-owned; current main-source Host uses CDDA's native `menu_move` SFX while moving between perk nodes/cards.
 
-## Real gameplay effects
-Perks use NCMM `character.modifiers.v1`, not fake UI-only bonuses. Supported effects in this pass include:
-- STR / DEX / PER / INT
-- movement speed and movement cost
-- maximum stamina
-- carrying capacity
-- dodge and melee accuracy
-- natural healing
-- reading speed
-- crafting speed
-- Survivor XP rate
+## Supported conditional integrations
 
-## Balance state
-This is feature-complete enough for live play, but remains v0.8 rather than 1.0 until the 60-perk balance
-and long-save migration have been tested in real CDDA sessions.
+The current integration registry contains dedicated progression for:
 
-## 0.8.1 safe polish
-- Overview now shows purchased normal/Major counts and aggregated active gameplay effects.
-- Locked perk labels distinguish level gates from missing prerequisites.
-- Respec confirmation shows the exact refund before applying it.
-- Respec smoke coverage now verifies point refund and modifier cleanup.
-- No perk values or progression thresholds were rebalanced in this pass.
+- Magiclysm
+- Mind Over Matter
+- Xedra Evolved
+- Aftershock Exoplanet
+- Aftershock Prime
+- Secronom
+- Secronom+
 
-## 0.9.0 migration pass
-- First production consumer of NCMM semantic API 1.1 and `state.migration.v1`.
-- Persistent state schema is now 3; schemas 0–2 migrate through the host-owned migration lifecycle.
-- Migration normalizes invalid negative XP/point counters and fractional XP while preserving owned perks.
-- A newer/unsupported save schema is suspended by the host instead of being guessed or overwritten.
-- Level-up text no longer hardcodes F1 because the action is remappable in CDDA.
-- Perk values, level thresholds and the 60-perk layout are intentionally unchanged in this pass.
+These nodes stay unavailable/hidden when their corresponding world mod is not active. Survivor uses the Host active-mod registry rather than hard-wiring world-mod assumptions into CDDA itself.
+
+## Gameplay effects
+
+Survivor uses NCMM Host APIs and generic Host hooks for real gameplay effects rather than UI-only bonuses. The current stack covers direct attributes and movement/stamina/carry/healing/reading/crafting effects, plus the later reactive/mechanical systems introduced in 0.10–0.11: combat reactions, momentum/kill effects, crafting failure handling, trap/lock interactions and mod-specific spell/ability mechanics.
+
+Module-specific perk IDs remain inside Survivor. CDDA-facing source hooks are generic Host API 2.0 bindings.
+
+## 0.12.0 live balance controls
+
+NCMM Mod Configuration exposes two Host-managed settings:
+
+| Setting | Range | Meaning |
+| --- | ---: | --- |
+| Experience gain | 25%–300%, step 25% | Scales Survivor XP after branch anti-farm adjustments. |
+| Stat perk strength | 25%–300%, step 25% | Scales direct stat-perk effects only. Mechanical perk behavior is unchanged. |
+
+The controls use the existing typed-settings persistence layer and do not change state schema 8.
+
+## Compatibility and migration
+
+The module enters through Loader ABI v1, requires semantic Host API 1.9 capabilities and uses Host API 2.0 Core services for current generic events/settings/modifier/runtime-hook behavior.
+
+State schemas 0–7 remain migration inputs supported by the current module contract. A save with an unsupported/newer schema is suspended rather than guessed or overwritten.
+
+The 0.12.0 update preserves the 0.11.3 gameplay/perk baseline and adds manager-integrated balance controls. Existing perk nodes were not removed merely to equalize branch sizes; branch counts are intentionally allowed to differ.
+
+## Development invariant
+
+When extending Survivor, prefer a generic Host capability or hook that can serve multiple modules. A new Survivor-specific CDDA source patch should be treated as a design failure unless the engine truly lacks a reusable domain primitive.
