@@ -15244,7 +15244,7 @@ function Apply-NcmmManagerUiV1Source {
     }
 
     $loaderUi = Normalize-Lf ([IO.File]::ReadAllText($loaderUiPath))
-    $loaderUi = Replace-CppRange $loaderUi 'std::map<std::string, std::string> world_setting_owners;' 'std::map<std::string, size_t> manifest_id_counts;' @'
+    $ncmmManagerSourceBlock01 = @'
 std::map<std::string, std::string> world_setting_owners;
 std::map<std::string, uint32_t> world_setting_scopes;
 std::string world_setting_string_cache;
@@ -15262,8 +15262,9 @@ struct module_setting_meta {
     std::vector<std::pair<std::string, std::string>> choices;
 };
 std::vector<module_setting_meta> module_settings;
-'@ 'manager typed-setting metadata globals'
-    $loaderUi = Replace-CppRange $loaderUi 'int world_setting_register_bool(' 'int world_setting_get_bool(' @'
+'@
+    $loaderUi = Replace-CppRange $loaderUi 'std::map<std::string, std::string> world_setting_owners;' 'std::map<std::string, size_t> manifest_id_counts;' $ncmmManagerSourceBlock01 'manager typed-setting metadata globals'
+    $ncmmManagerSourceBlock02 = @'
 void remember_module_setting( const module_setting_meta &meta )
 {
     auto existing = std::find_if( module_settings.begin(), module_settings.end(),
@@ -15397,8 +15398,9 @@ int world_setting_register_enum( const char *module_id, const char *setting_id,
     }
     return registered;
 }
-'@ 'manager typed-setting registration metadata'
-    $loaderUi = Replace-CppRange $loaderUi 'struct manager_entry {' '#ifdef _WIN32' @'
+'@
+    $loaderUi = Replace-CppRange $loaderUi 'int world_setting_register_bool(' 'int world_setting_get_bool(' $ncmmManagerSourceBlock02 'manager typed-setting registration metadata'
+    $ncmmManagerSourceBlock03 = @'
 struct manager_entry {
     std::filesystem::path directory;
     std::string id;
@@ -15479,8 +15481,9 @@ std::vector<manager_entry> manager_entries()
     }
     return result;
 }
-'@ 'manager entry metadata and descriptions'
-    $loaderUi = Replace-CppRange $loaderUi 'void show_manager()' 'void on_turn()' @'
+'@
+    $loaderUi = Replace-CppRange $loaderUi 'struct manager_entry {' '#ifdef _WIN32' $ncmmManagerSourceBlock03 'manager entry metadata and descriptions'
+    $ncmmManagerSourceBlock04 = @'
 std::string manager_state_label( const manager_entry &entry )
 {
     if( entry.disabled ) return tr_ui( "OFF", "ВЫКЛ" );
@@ -15876,7 +15879,8 @@ void show_manager()
         }
     }
 }
-'@ 'two-pane NCMM manager UI'
+'@
+    $loaderUi = Replace-CppRange $loaderUi 'void show_manager()' 'void on_turn()' $ncmmManagerSourceBlock04 'two-pane NCMM manager UI'
     $loaderUi = $loaderUi.Replace('0.8.0','0.8.1')
     foreach($managerNeedle in @('module_setting_meta','manager_description','manager_setting_value','manager_adjust_setting','NCMM_MANAGER','MODULE DETAILS','СВЕДЕНИЯ О МОДЕ','return "0.8.1";')){
         if(-not $loaderUi.Contains($managerNeedle)){throw "NCMM manager generated source missing: $managerNeedle"}
@@ -15893,7 +15897,7 @@ void show_manager()
     if(-not $spUi.Contains('int last_stat_power_pct = -1;')){
         $spUi = Replace-TextBlock $spUi 'int current_xp_bonus_pct = 0;' ('int current_xp_bonus_pct = 0;' + "`n" + 'int last_stat_power_pct = -1;') 'Survivor settings runtime cache'
     }
-    $spUi = Replace-CppRange $spUi 'std::string tr( const char *en, const char *ru )' 'bool active_world_mod(' @'
+    $ncmmManagerSourceBlock05 = @'
 std::string tr( const char *en, const char *ru )
 {
     return russian() ? ru : en;
@@ -15960,8 +15964,9 @@ bool configure_progression_settings()
     }
     return true;
 }
-'@ 'Survivor configurable balance helpers'
-    $spUi = Replace-CppRange $spUi 'int64_t anti_farm_adjust( branch_id branch, int64_t raw )' 'int branch_owned_count(' @'
+'@
+    $spUi = Replace-CppRange $spUi 'std::string tr( const char *en, const char *ru )' 'bool active_world_mod(' $ncmmManagerSourceBlock05 'Survivor configurable balance helpers'
+    $ncmmManagerSourceBlock06 = @'
 int64_t scale_configured_xp( branch_id branch, int64_t adjusted )
 {
     if( adjusted <= 0 ) {
@@ -16007,8 +16012,9 @@ int64_t anti_farm_adjust( branch_id branch, int64_t raw )
                std::min<int64_t>( 1000, branch_fatigue( branch ) + fatigue_gain ) );
     return scale_configured_xp( branch, adjusted );
 }
-'@ 'Survivor post-anti-farm XP rate'
-    $spUi = Replace-CppRange $spUi 'std::string ranked_effect_summary( const perk_def &perk, int rank )' 'std::string perk_description(' @'
+'@
+    $spUi = Replace-CppRange $spUi 'int64_t anti_farm_adjust( branch_id branch, int64_t raw )' 'int branch_owned_count(' $ncmmManagerSourceBlock06 'Survivor post-anti-farm XP rate'
+    $ncmmManagerSourceBlock07 = @'
 std::string ranked_effect_summary( const perk_def &perk, int rank )
 {
     if( rank <= 0 ) {
@@ -16045,8 +16051,9 @@ std::string ranked_effect_summary( const perk_def &perk, int rank )
     }
     return result;
 }
-'@ 'Survivor configured perk summary'
-    $spUi = Replace-CppRange $spUi 'calculated_effects calculate_owned_effects()' 'std::map<std::string, double> owned_effect_totals()' @'
+'@
+    $spUi = Replace-CppRange $spUi 'std::string ranked_effect_summary( const perk_def &perk, int rank )' 'std::string perk_description(' $ncmmManagerSourceBlock07 'Survivor configured perk summary'
+    $ncmmManagerSourceBlock08 = @'
 calculated_effects calculate_owned_effects()
 {
     calculated_effects result;
@@ -16136,8 +16143,9 @@ calculated_effects calculate_owned_effects()
     }    result.xp_bonus_pct = std::max( 0, std::min( 5000, result.xp_bonus_pct ) );
     return result;
 }
-'@ 'Survivor configured stat effects'
-    $spUi = Replace-CppRange $spUi 'void award_global_xp( int64_t raw_gained )' 'int64_t award_branch_xp(' @'
+'@
+    $spUi = Replace-CppRange $spUi 'calculated_effects calculate_owned_effects()' 'std::map<std::string, double> owned_effect_totals()' $ncmmManagerSourceBlock08 'Survivor configured stat effects'
+    $ncmmManagerSourceBlock09 = @'
 void award_global_xp( int64_t raw_gained )
 {
     if( raw_gained <= 0 || !character_available() ) {
@@ -16196,8 +16204,9 @@ void award_global_xp( int64_t raw_gained )
         message( text );
     }
 }
-'@ 'Survivor configured global XP'
-    $spUi = Replace-CppRange $spUi 'void tick()' 'bool survivor_has_perk_id(' @'
+'@
+    $spUi = Replace-CppRange $spUi 'void award_global_xp( int64_t raw_gained )' 'int64_t award_branch_xp(' $ncmmManagerSourceBlock09 'Survivor configured global XP'
+    $ncmmManagerSourceBlock10 = @'
 void tick()
 {
     const bool available = character_available();
@@ -16233,8 +16242,9 @@ void tick()
     turn_accumulator -= 60;
     poll_branch_xp();
 }
-'@ 'Survivor live settings refresh'
-    $spUi = Replace-CppRange $spUi 'int init( const ncmm_host_api_v1 *api )' 'const ncmm_mod_descriptor_v1 descriptor = {' @'
+'@
+    $spUi = Replace-CppRange $spUi 'void tick()' 'bool survivor_has_perk_id(' $ncmmManagerSourceBlock10 'Survivor live settings refresh'
+    $ncmmManagerSourceBlock11 = @'
 int init( const ncmm_host_api_v1 *api )
 {
     if( api == nullptr || api->abi_version != NCMM_ABI_VERSION || api->query_interface == nullptr ) return 0;
@@ -16284,7 +16294,8 @@ void shutdown()
     current_xp_bonus_pct = 0;
     last_stat_power_pct = -1;
 }
-'@ 'Survivor settings registration lifecycle'
+'@
+    $spUi = Replace-CppRange $spUi 'int init( const ncmm_host_api_v1 *api )' 'const ncmm_mod_descriptor_v1 descriptor = {' $ncmmManagerSourceBlock11 'Survivor settings registration lifecycle'
     if(-not $spUi.Contains('extern "C" NCMM_EXPORT void ncmm_on_locale_changed_v1')){
         $localeAnchor = 'extern "C" NCMM_EXPORT void ncmm_on_turn_v1( const ncmm_host_api_v1 *api )'
         $localeHandler = @'
