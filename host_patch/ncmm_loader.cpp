@@ -4203,15 +4203,13 @@ int run_gameplay_smoke()
             return 106;
         }
 
-        // Load the real world data and force one overmap generation.  Any bad AWS
-        // geography hook now fails/crashes inside the same path used by gameplay.
+        // Enter the same world initialization path used for a real new character.
+        // game::setup() owns the ordering constraints around calendar state, mod
+        // validation, core/mod loading, and DynamicDataLoader finalization.
         log_line( NCMM_LOG_INFO,
-                  "NCMM gameplay smoke checkpoint: AWS save/reload + 48 bindings PASS; loading core data." );
-        g->new_game = true;
-        g->load_core_data();
-        log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: core data loaded." );
-        g->load_world_modfiles();
-        log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: world modfiles loaded." );
+                  "NCMM gameplay smoke checkpoint: AWS save/reload + 48 bindings PASS; running game setup." );
+        g->setup();
+        log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: game setup complete." );
         overmap_buffer.init_region_layout();
         log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: region layout initialized; generating overmap." );
         overmap_special_batch empty_specials( point_abs_om{} );
