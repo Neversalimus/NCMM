@@ -16374,9 +16374,11 @@ int run_module_gameplay_smoke( uint32_t seed )
             if( effect_name == nullptr ) return 219;
             const double before = baseline_effects[effect_name];
             const double expected_delta = test_effect_value( i, effect ) * scale;
-            const double actual_delta = gameplay_modifier( effect_name ) - before;
-            if( std::abs( actual_delta - expected_delta ) >
-                0.000001 * std::max( 1.0, std::abs( expected_delta ) ) ) {
+            const double expected_value = std::max( -500.0, std::min( 500.0,
+                                          before + expected_delta ) );
+            const double actual_value = gameplay_modifier( effect_name );
+            if( std::abs( actual_value - expected_value ) >
+                0.000001 * std::max( 1.0, std::abs( expected_value ) ) ) {
                 log_line( NCMM_LOG_ERROR,
                           ( "Survivor real Host effect mismatch: perk=" +
                             std::string( test_id( i ) ? test_id( i ) : "<null>" ) +
@@ -16388,7 +16390,9 @@ int run_module_gameplay_smoke( uint32_t seed )
 
         const int expected_xp_delta = static_cast<int>(
                                           std::llround( test_xp_bonus( i ) * scale ) );
-        if( test_current_xp() - baseline_xp != expected_xp_delta ) {
+        const int expected_xp = std::max( -100, std::min( 5000,
+                                    baseline_xp + expected_xp_delta ) );
+        if( test_current_xp() != expected_xp ) {
             log_line( NCMM_LOG_ERROR,
                       ( "Survivor real Host XP mismatch: perk=" +
                         std::string( test_id( i ) ? test_id( i ) : "<null>" ) ).c_str() );
