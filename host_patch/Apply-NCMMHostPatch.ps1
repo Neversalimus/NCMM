@@ -7,6 +7,7 @@ $src = Join-Path $SourceRoot 'src'
 $optionsH = Join-Path $src 'options.h'
 $optionsCpp = Join-Path $src 'options.cpp'
 $sdl = Join-Path $src 'sdltiles.cpp'
+$mainCpp = Join-Path $src 'main.cpp'
 $mainMenu = Join-Path $src 'main_menu.cpp'
 $doTurn = Join-Path $src 'do_turn.cpp'
 $inputH = Join-Path $src 'input.h'
@@ -19,7 +20,7 @@ $knowledgeCpp = Join-Path $src 'character_knowledge.cpp'
 $craftingCpp = Join-Path $src 'crafting.cpp'
 $marker = Join-Path $SourceRoot '.ncmm_host_v1_patched'
 
-foreach ($f in @($optionsH,$optionsCpp,$sdl,$mainMenu,$doTurn,$inputH,$inputCpp,$handleAction,
+foreach ($f in @($optionsH,$optionsCpp,$sdl,$mainCpp,$mainMenu,$doTurn,$inputH,$inputCpp,$handleAction,
                   $characterCpp,$characterHealthCpp,$meleeCpp,$knowledgeCpp,$craftingCpp)) {
     if (-not (Test-Path $f)) { throw "Required source file missing: $f" }
 }
@@ -68,6 +69,7 @@ if (Test-Path $marker) {
     $h = Read-Utf8 $optionsH
     $c = Read-Utf8 $optionsCpp
     $sd = Read-Utf8 $sdl
+    $mn = Read-Utf8 $mainCpp
     $mm = Read-Utf8 $mainMenu
     $dt = Read-Utf8 $doTurn
     $ih = Read-Utf8 $inputH
@@ -87,6 +89,8 @@ if (Test-Path $marker) {
         @($c,'options_manager::ncmm_begin_worldgen_group'),
         @($c,'options_manager::ncmm_set_worldgen_string_choices'),
         @($sd,'ncmm::initialize();'),
+        @($mn,'--ncmm-runtime-smoke-gameplay'),
+        @($mn,'ncmm::run_module_gameplay_smoke'),
         @($mm,'ncmm::settings_menu_label()'),
         @($mm,'ncmm::version_label()'),
         @($mm,'ncmm::show_manager();'),
@@ -144,6 +148,7 @@ $contractScript = Join-Path (Split-Path $PSScriptRoot -Parent) 'ci\Test-SourceCo
 $hOriginal = Read-Utf8 $optionsH
 $cOriginal = Read-Utf8 $optionsCpp
 $sdOriginal = Read-Utf8 $sdl
+$mnOriginal = Read-Utf8 $mainCpp
 $mmOriginal = Read-Utf8 $mainMenu
 $dtOriginal = Read-Utf8 $doTurn
 $ihOriginal = Read-Utf8 $inputH
@@ -157,6 +162,7 @@ $crOriginal = Read-Utf8 $craftingCpp
 $hSig = NonAscii-Signature $hOriginal
 $cSig = NonAscii-Signature $cOriginal
 $sdSig = NonAscii-Signature $sdOriginal
+$mnSig = NonAscii-Signature $mnOriginal
 $mmSig = NonAscii-Signature $mmOriginal
 $dtSig = NonAscii-Signature $dtOriginal
 $ihSig = NonAscii-Signature $ihOriginal
@@ -171,6 +177,7 @@ $crSig = NonAscii-Signature $crOriginal
 $h = Normalize-Lf $hOriginal
 $c = Normalize-Lf $cOriginal
 $sd = Normalize-Lf $sdOriginal
+$mn = Normalize-Lf $mnOriginal
 $mm = Normalize-Lf $mmOriginal
 $dt = Normalize-Lf $dtOriginal
 $ih = Normalize-Lf $ihOriginal
@@ -352,6 +359,57 @@ $sd = Replace-ExactlyOnce $sd @'
     set_language_from_options(); //Prevent translated language strings from causing an error if language not set
     ncmm::initialize();
 '@ 'sdl.initialize-ncmm'
+
+$mn = Replace-ExactlyOnce $mn '#include "options.h"' ('#include "options.h"' + "`n" + '#include "ncmm_loader.h"') 'main.include-ncmm-gameplay-smoke'
+$mn = Replace-ExactlyOnce $mn @'
+    std::string world; /** if set try to load first save in this world on startup */
+    bool disable_ascii_art = false;
+};
+'@ @'
+    std::string world; /** if set try to load first save in this world on startup */
+    bool disable_ascii_art = false;
+    bool ncmm_gameplay_smoke = false;
+};
+'@ 'main.cli-ncmm-gameplay-field'
+$mn = Replace-ExactlyOnce $mn @'
+            {
+                "--noverify", {},
+                "Skips JSON verification",
+'@ @'
+            {
+                "--ncmm-runtime-smoke-gameplay", {},
+                "NCMM CI-only module gameplay smoke",
+                section_default,
+                0,
+                [&result]( int, const char ** ) -> int {
+                    result.ncmm_gameplay_smoke = true;
+                    test_mode = true;
+                    return 0;
+                }
+            },
+            {
+                "--noverify", {},
+                "Skips JSON verification",
+'@ 'main.cli-ncmm-gameplay-handler'
+$mn = Replace-ExactlyOnce $mn '} else if( cli.check_mods ) {' '} else if( cli.check_mods || cli.ncmm_gameplay_smoke ) {' 'main.test-mode-options'
+$mn = Replace-ExactlyOnce $mn @'
+    g = std::make_unique<game>();
+    load_static_game_data( cli );
+
+    initialize_imgui();
+'@ @'
+    g = std::make_unique<game>();
+    load_static_game_data( cli );
+
+    if( cli.ncmm_gameplay_smoke ) {
+        ncmm::initialize();
+        const int smoke_result = ncmm::run_module_gameplay_smoke( static_cast<uint32_t>( cli.seed ) );
+        exit_handler( smoke_result );
+        return smoke_result;
+    }
+
+    initialize_imgui();
+'@ 'main.run-ncmm-gameplay-smoke'
 
 $dt = Replace-ExactlyOnce $dt '#include "npc.h"' ('#include "npc.h"' + "`n" + '#include "ncmm_loader.h"') 'turn.include-ncmm'
 $dt = Replace-ExactlyOnce $dt @'
@@ -815,6 +873,7 @@ $cr = Replace-ExactlyOnce $cr @'
 Write-Utf8 $optionsH $h
 Write-Utf8 $optionsCpp $c
 Write-Utf8 $sdl $sd
+Write-Utf8 $mainCpp $mn
 Write-Utf8 $mainMenu $mm
 Write-Utf8 $doTurn $dt
 Write-Utf8 $inputH $ih
@@ -835,6 +894,7 @@ Copy-Item (Join-Path (Split-Path $PSScriptRoot -Parent) 'sdk\ncmm_api.h') (Join-
 $h2 = Read-Utf8 $optionsH
 $c2 = Read-Utf8 $optionsCpp
 $sd2 = Read-Utf8 $sdl
+$mn2 = Read-Utf8 $mainCpp
 $mm2 = Read-Utf8 $mainMenu
 $dt2 = Read-Utf8 $doTurn
 $ih2 = Read-Utf8 $inputH
@@ -849,6 +909,7 @@ $cr2 = Read-Utf8 $craftingCpp
 if ((NonAscii-Signature $h2) -ne $hSig) { throw 'UTF-8 preservation check failed for options.h' }
 if ((NonAscii-Signature $c2) -ne $cSig) { throw 'UTF-8 preservation check failed for options.cpp' }
 if ((NonAscii-Signature $sd2) -ne $sdSig) { throw 'UTF-8 preservation check failed for sdltiles.cpp' }
+if ((NonAscii-Signature $mn2) -ne $mnSig) { throw 'UTF-8 preservation check failed for main.cpp' }
 if ((NonAscii-Signature $mm2) -ne $mmSig) { throw 'UTF-8 preservation check failed for main_menu.cpp' }
 if ((NonAscii-Signature $dt2) -ne $dtSig) { throw 'UTF-8 preservation check failed for do_turn.cpp' }
 if ((NonAscii-Signature $ih2) -ne $ihSig) { throw 'UTF-8 preservation check failed for input.h' }
@@ -867,6 +928,9 @@ foreach ($needle in @('case COPT_WORLDGEN_ONLY:','is_hidden( world_options_only 
     if (-not $c2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 if (-not $sd2.Contains('ncmm::initialize();')) { throw 'Post-check failed: ncmm::initialize' }
+foreach ($needle in @('--ncmm-runtime-smoke-gameplay','ncmm::run_module_gameplay_smoke')) {
+    if (-not $mn2.Contains($needle)) { throw "Post-check failed: $needle" }
+}
 foreach ($needle in @('ncmm::settings_menu_label()','ncmm::show_manager();','ncmm::on_language_changed();','ncmm::register_gameplay_actions( ctxt_default );')) {
     if (-not $mm2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
