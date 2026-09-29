@@ -164,6 +164,21 @@ jobs:
           if ($evidence.Count -ne $seeds.Count) {
             throw "Expected $($seeds.Count) gameplay evidence files, found $($evidence.Count)."
           }
+          foreach ($file in $evidence) {
+            try { $proof = Get-Content $file.FullName -Raw | ConvertFrom-Json }
+            catch { throw "Invalid gameplay evidence JSON $($file.Name): $($_.Exception.Message)" }
+            if ([int]$proof.schema -ne 1 -or
+                [int]$proof.aws_settings -ne 48 -or
+                $proof.aws_world_saved -ne $true -or
+                $proof.aws_world_reloaded -ne $true -or
+                $proof.aws_overmap_generated -ne $true -or
+                [int]$proof.survivor_catalog -ne 369 -or
+                [int]$proof.survivor_real_character_checks -ne 9 -or
+                $proof.survivor_cleanup -ne $true) {
+              throw "Gameplay evidence contract failed: $($file.Name)"
+            }
+            Write-Host "Evidence PASS: $($file.Name) world=$($proof.world)"
+          }
 
       - name: Verify certified Host + modules and restore vanilla
         shell: powershell
@@ -205,7 +220,7 @@ jobs:
           "- CDDA: ${{ steps.release.outputs.tag }}" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- production SetupCore: install / module switch / reinstall" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- bootstrap -> certified Host -> AWS + Survivor -> boot.ready -> clean exit: two consecutive real launches" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "- gameplay: 3 deterministic randomized AWS worlds + real overmap generation + 9 real Survivor Character checks per world" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "- gameplay: 3 deterministic randomized AWS worlds + save/reload + real overmap generation + 9 real Survivor Character checks per world" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- RestoreVanilla: verified by SHA-256" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       - name: Upload evidence
