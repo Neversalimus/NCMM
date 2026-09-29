@@ -565,8 +565,8 @@ bool configure_progression_settings()
     if( !host2->world_setting_register_enum(
             module_id, xp_rate_setting,
             russian() ? "Получение опыта" : "Experience gain",
-            russian() ? "Множитель опыта Survivor после антифарма. 100% сохраняет стандартный баланс." :
-                        "Multiplier for Survivor XP after anti-farm adjustments. 100% keeps the default balance.",
+            russian() ? "Множитель опыта веток и общего уровня Survivor после антифарма. 100% сохраняет стандартный баланс." :
+                        "Multiplier for branch XP and the global Survivor level after anti-farm adjustments. 100% keeps the default balance.",
             values, labels, count, "100", NCMM_WORLD_SETTING_LIVE ) ) {
         return false;
     }
@@ -1422,6 +1422,24 @@ void decay_branch_fatigue()
     }
 }
 
+int64_t scale_configured_xp( branch_id branch, int64_t adjusted )
+{
+    if( adjusted <= 0 ) {
+        return 0;
+    }
+    const int64_t rate = progression_xp_rate_pct();
+    const std::string key = branch_state_key( branch, "rate_fraction" );
+    int64_t fraction = std::max<int64_t>( 0, get_state( key, 0 ) ) % 100;
+    if( adjusted > ( std::numeric_limits<int64_t>::max() - fraction ) /
+        std::max<int64_t>( 1, rate ) ) {
+        adjusted = ( std::numeric_limits<int64_t>::max() - fraction ) /
+                   std::max<int64_t>( 1, rate );
+    }
+    const int64_t scaled = adjusted * rate + fraction;
+    set_state( key, scaled % 100 );
+    return scaled / 100;
+}
+
 int64_t anti_farm_adjust( branch_id branch, int64_t raw )
 {
     if( raw <= 0 ) {
@@ -1447,7 +1465,7 @@ int64_t anti_farm_adjust( branch_id branch, int64_t raw )
 
     set_state( branch_state_key( branch, "fatigue" ),
                std::min<int64_t>( 1000, branch_fatigue( branch ) + fatigue_gain ) );
-    return adjusted;
+    return scale_configured_xp( branch, adjusted );
 }
 
 int branch_owned_count( branch_id branch )
@@ -3147,10 +3165,7 @@ void award_global_xp( int64_t raw_gained )
     }
 
     int64_t fraction = get_state( "xp_fraction", 0 );
-    const int64_t perk_multiplier = std::max<int64_t>( 0, 100 + current_xp_bonus_pct );
-    const int64_t multiplier = std::max<int64_t>(
-                                   0, ( static_cast<int64_t>( progression_xp_rate_pct() ) *
-                                        perk_multiplier + 50 ) / 100 );
+    const int64_t multiplier = std::max<int64_t>( 0, 100 + current_xp_bonus_pct );
     if( raw_gained > ( std::numeric_limits<int64_t>::max() - fraction ) /
         std::max<int64_t>( 1, multiplier ) ) {
         raw_gained = ( std::numeric_limits<int64_t>::max() - fraction ) /
