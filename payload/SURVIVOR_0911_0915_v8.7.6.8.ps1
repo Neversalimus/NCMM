@@ -15912,6 +15912,223 @@ void show_manager()
 }
 '@
     $loaderUi = Replace-CppRange $loaderUi 'void show_manager()' 'void on_turn()' $ncmmManagerSourceBlock04 'two-pane NCMM manager UI'
+
+    # NCMM 0.8.1 UI polish: keep payload-generated Host source identical to the
+    # checked-in Host. Use CDDA's native menu_move SFX so soundpack/volume rules
+    # remain entirely owned by the game.
+    if(-not $loaderUi.Contains('#include "sounds.h"')){
+        $loaderUi = Replace-TextBlock $loaderUi '#include "output.h"' @'
+#include "output.h"
+#include "sounds.h"
+'@ 'NCMM native menu sound include'
+    }
+
+    if(-not $loaderUi.Contains('std::string version_label()')){
+        $loaderUi = Replace-TextBlock $loaderUi @'
+std::string settings_menu_label()
+{
+    return tr_ui( "<N|n>CMM / Mod Configuration", "<N|n>CMM / Настройка модов" );
+}
+'@ @'
+std::string settings_menu_label()
+{
+    return tr_ui( "<N|n>CMM / Mod Configuration", "<N|n>CMM / Настройка модов" );
+}
+
+std::string version_label()
+{
+    return std::string( "NCMM " ) + get_host_version();
+}
+'@ 'NCMM version label implementation'
+    }
+
+    $tileLoopOld = @'
+    while( true ) {
+        ui_manager::redraw();
+        const std::string action = ctxt.handle_input();
+        const int col = selected % columns;
+        const int row = selected / columns;
+'@
+    $tileLoopNew = @'
+    while( true ) {
+        ui_manager::redraw();
+        const std::string action = ctxt.handle_input();
+        const int previous_selected = selected;
+        const int col = selected % columns;
+        const int row = selected / columns;
+'@
+    $loaderUi = Replace-TextBlock $loaderUi $tileLoopOld $tileLoopNew 'tile chooser previous selection'
+
+    $tileEndOld = @'
+        } else if( action == "QUIT" ) {
+            return -1;
+        }
+    }
+}
+
+int ui_card_choose( const char *title, const char *summary,
+'@
+    $tileEndNew = @'
+        } else if( action == "QUIT" ) {
+            return -1;
+        }
+        if( selected != previous_selected ) {
+            sfx::play_variant_sound( "menu_move", "default", 100 );
+        }
+    }
+}
+
+int ui_card_choose( const char *title, const char *summary,
+'@
+    $loaderUi = Replace-TextBlock $loaderUi $tileEndOld $tileEndNew 'tile chooser menu sound'
+
+    $cardLoopOld = @'
+    while( true ) {
+        keep_visible();
+        ui_manager::redraw();
+        const std::string action = ctxt.handle_input();
+
+        if( action == "MOUSE_MOVE" || action == "SELECT" ) {
+            const std::optional<point> mouse = ctxt.get_coordinates_text( frame );
+            if( mouse ) {
+                const int hit = card_at( *mouse );
+                if( hit >= 0 ) {
+                    selected = hit;
+                    if( action == "SELECT" ) {
+                        return selected;
+                    }
+                }
+            }
+            continue;
+        }
+'@
+    $cardLoopNew = @'
+    while( true ) {
+        keep_visible();
+        ui_manager::redraw();
+        const std::string action = ctxt.handle_input();
+        const int previous_selected = selected;
+
+        if( action == "MOUSE_MOVE" || action == "SELECT" ) {
+            const std::optional<point> mouse = ctxt.get_coordinates_text( frame );
+            if( mouse ) {
+                const int hit = card_at( *mouse );
+                if( hit >= 0 ) {
+                    selected = hit;
+                    if( selected != previous_selected ) {
+                        sfx::play_variant_sound( "menu_move", "default", 100 );
+                    }
+                    if( action == "SELECT" ) {
+                        return selected;
+                    }
+                }
+            }
+            continue;
+        }
+'@
+    $loaderUi = Replace-TextBlock $loaderUi $cardLoopOld $cardLoopNew 'card chooser menu sound input'
+
+    $cardEndOld = @'
+        } else if( action == "QUIT" ) {
+            return -1;
+        }
+    }
+}
+
+int ui_tree_choose( const char *title, const char *summary,
+'@
+    $cardEndNew = @'
+        } else if( action == "QUIT" ) {
+            return -1;
+        }
+        if( selected != previous_selected ) {
+            sfx::play_variant_sound( "menu_move", "default", 100 );
+        }
+    }
+}
+
+int ui_tree_choose( const char *title, const char *summary,
+'@
+    $loaderUi = Replace-TextBlock $loaderUi $cardEndOld $cardEndNew 'card chooser menu sound'
+
+    $treeLoopOld = @'
+    while( true ) {
+        keep_visible();
+        ui_manager::redraw();
+        const std::string action = ctxt.handle_input();
+
+        if( action == "MOUSE_MOVE" || action == "SELECT" ) {
+            const std::optional<point> mouse = ctxt.get_coordinates_text( frame );
+            if( mouse ) {
+                const int hit = node_at( *mouse );
+                if( hit >= 0 ) {
+                    selected = hit;
+                    if( action == "SELECT" ) return selected;
+                }
+            }
+            continue;
+        }
+'@
+    $treeLoopNew = @'
+    while( true ) {
+        keep_visible();
+        ui_manager::redraw();
+        const std::string action = ctxt.handle_input();
+        const int previous_selected = selected;
+
+        if( action == "MOUSE_MOVE" || action == "SELECT" ) {
+            const std::optional<point> mouse = ctxt.get_coordinates_text( frame );
+            if( mouse ) {
+                const int hit = node_at( *mouse );
+                if( hit >= 0 ) {
+                    selected = hit;
+                    if( selected != previous_selected ) {
+                        sfx::play_variant_sound( "menu_move", "default", 100 );
+                    }
+                    if( action == "SELECT" ) return selected;
+                }
+            }
+            continue;
+        }
+'@
+    $loaderUi = Replace-TextBlock $loaderUi $treeLoopOld $treeLoopNew 'tree chooser menu sound input'
+
+    $treeEndOld = @'
+        else if( action == "NEXT_TAB" ) return NCMM_UI_TREE_SHOW_CARDS;
+        else if( action == "CONFIRM" ) return selected;
+        else if( action == "QUIT" ) return NCMM_UI_TREE_CANCEL;
+    }
+}
+
+int ui_card_choose_themed( const char *title, const char *summary,
+'@
+    $treeEndNew = @'
+        else if( action == "NEXT_TAB" ) return NCMM_UI_TREE_SHOW_CARDS;
+        else if( action == "CONFIRM" ) return selected;
+        else if( action == "QUIT" ) return NCMM_UI_TREE_CANCEL;
+
+        if( selected != previous_selected ) {
+            sfx::play_variant_sound( "menu_move", "default", 100 );
+        }
+    }
+}
+
+int ui_card_choose_themed( const char *title, const char *summary,
+'@
+    $loaderUi = Replace-TextBlock $loaderUi $treeEndOld $treeEndNew 'tree chooser menu sound'
+
+    $loaderHeaderUiPath = Join-Path $NcmmRoot 'host_patch\ncmm_loader.h'
+    if(Test-Path $loaderHeaderUiPath -PathType Leaf){
+        $loaderHeaderUi = Normalize-Lf ([IO.File]::ReadAllText($loaderHeaderUiPath))
+        if(-not $loaderHeaderUi.Contains('std::string version_label();')){
+            $loaderHeaderUi = Replace-TextBlock $loaderHeaderUi 'std::string settings_menu_label();' @'
+std::string settings_menu_label();
+std::string version_label();
+'@ 'NCMM version label declaration'
+            Write-Utf8NoBom $loaderHeaderUiPath $loaderHeaderUi
+        }
+    }
+
     $loaderUi = $loaderUi.Replace('0.8.0','0.8.1')
     foreach($managerNeedle in @('module_setting_meta','manager_description','manager_setting_value','manager_adjust_setting','NCMM_MANAGER','MODULE DETAILS','СВЕДЕНИЯ О МОДЕ','return "0.8.1";')){
         if(-not $loaderUi.Contains($managerNeedle)){throw "NCMM manager generated source missing: $managerNeedle"}
