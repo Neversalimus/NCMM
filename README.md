@@ -45,6 +45,10 @@ Every Runtime build now runs the production `SetupCore` against isolated CDDA-sh
 
 Bootstrap has a separate lifecycle harness covering certified-host selection, incompatible bindings, first and second healthy launches, host crash/auto-disable, reset recovery and fail-closed marker failures. A failed matrix blocks the Runtime release. A separate nightly/manual **Real Installation Matrix** downloads an official Windows CDDA release and runs the same production SetupCore plus Survivor/AWS selection changes against the real extracted game tree before restoring the original vanilla executable.
 
+Module semantics are release-gated as well. AWS must expose all 48 typed geography settings with matching worldgen bindings, valid min/max/defaults, exact boundary behavior and 32 deterministic randomized setting sets. Survivor Progression walks all 369 perks from the release DLL, verifies direct effects, amplifiers, conditional-mod inactivity, 106 consumed effect IDs, cleanup/respec, all-perks-at-max aggregation and 24 deterministic mixed-perk combinations.
+
+The real-CDDA layer then creates three deterministic randomized AWS worlds, saves and reloads every world option from disk, generates a real overmap, creates a real avatar, and verifies representative Survivor effects through actual CDDA Character methods (primary stats, speed, stamina, dodge, melee hit and movement cost) before proving full cleanup back to baseline.
+
 ## Compatibility model
 
 NCMM does not trust a folder name or launcher version. Runtime validates the vanilla executable SHA-256, CDDA source commit, Loader API, NCMM version and Host patch revision against the certified feed. A Host is published only after source-contract preflight and Windows/MSVC certification for the exact upstream CDDA release.
