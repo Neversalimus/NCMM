@@ -15958,6 +15958,12 @@ loaded_mod *find_loaded_by_id( const char *module_id )
     # NCMM 0.8.1 UI polish: keep payload-generated Host source identical to the
     # checked-in Host. Use CDDA's native menu_move SFX so soundpack/volume rules
     # remain entirely owned by the game.
+    # Gameplay smoke calls worldfactory::get_mod_manager(); worldfactory.h only
+    # forward-declares mod_manager, so the generated Host needs the complete type.
+    if(-not $loaderUi.Contains('#include "mod_manager.h"')){
+        $loaderUi = Replace-TextBlock $loaderUi '#include "game.h"' ('#include "game.h"' + "`n" + '#include "mod_manager.h"') 'NCMM gameplay smoke mod_manager include'
+    }
+
     if(-not $loaderUi.Contains('#include "sounds.h"')){
         $soundIncludeNew = @'
 #include "output.h"

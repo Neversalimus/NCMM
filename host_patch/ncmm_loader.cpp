@@ -5,6 +5,7 @@
 #include "avatar.h"
 #include "creature.h"
 #include "game.h"
+#include "mod_manager.h"
 #include "event_bus.h"
 #include "event_subscriber.h"
 #include "type_id.h"
