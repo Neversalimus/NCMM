@@ -1,6 +1,8 @@
 #include "ncmm_api.h"
 #include "ncmm_fault_policy.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -243,38 +245,140 @@ size_t modifier_definition_count = 0;
 size_t event_subscription_count = 0;
 std::set<std::string> registered_setting_ids;
 
-int world_setting_register_bool_fn( const char *, const char *, const char *, const char *,
-                                    int, uint32_t )
+enum class smoke_setting_kind {
+    boolean,
+    integer,
+    floating,
+    enumeration
+};
+
+struct smoke_setting_meta {
+    smoke_setting_kind kind = smoke_setting_kind::integer;
+    double min_value = 0.0;
+    double max_value = 0.0;
+    double default_value = 0.0;
+    double step = 0.0;
+    uint32_t scope = 0;
+    std::vector<std::string> choices;
+    std::string default_string;
+};
+
+struct smoke_worldgen_binding {
+    std::string setting_id;
+    uint32_t type = 0;
+};
+
+std::map<std::string, smoke_setting_meta> setting_meta;
+std::map<std::string, int64_t> setting_i64_values;
+std::map<std::string, double> setting_f64_values;
+std::map<std::string, std::string> setting_string_values;
+std::map<std::string, smoke_worldgen_binding> worldgen_bindings;
+std::set<std::string> active_world_mods;
+
+int world_setting_register_bool_fn( const char *, const char *setting_id, const char *, const char *,
+                                    int default_value, uint32_t scope )
 {
+    if( setting_id == nullptr || *setting_id == '\0' ) return 0;
+    smoke_setting_meta meta;
+    meta.kind = smoke_setting_kind::boolean;
+    meta.min_value = 0.0;
+    meta.max_value = 1.0;
+    meta.default_value = default_value ? 1.0 : 0.0;
+    meta.step = 1.0;
+    meta.scope = scope;
+    setting_meta[setting_id] = meta;
+    setting_i64_values[setting_id] = default_value ? 1 : 0;
+    registered_setting_ids.insert( setting_id );
     return 1;
 }
 
-int world_setting_register_int_fn( const char *, const char *, const char *, const char *,
-                                   int, int, int, uint32_t )
+int world_setting_register_int_fn( const char *, const char *setting_id, const char *, const char *,
+                                   int min_value, int max_value, int default_value, uint32_t scope )
 {
+    if( setting_id == nullptr || *setting_id == '\0' || min_value > max_value ||
+        default_value < min_value || default_value > max_value ) return 0;
+    smoke_setting_meta meta;
+    meta.kind = smoke_setting_kind::integer;
+    meta.min_value = min_value;
+    meta.max_value = max_value;
+    meta.default_value = default_value;
+    meta.step = 1.0;
+    meta.scope = scope;
+    setting_meta[setting_id] = meta;
+    setting_i64_values[setting_id] = default_value;
+    registered_setting_ids.insert( setting_id );
     return 1;
 }
 
-int world_setting_register_float_fn( const char *, const char *, const char *, const char *,
-                                     double, double, double, double, uint32_t )
+int world_setting_register_float_fn( const char *, const char *setting_id, const char *, const char *,
+                                     double min_value, double max_value, double default_value,
+                                     double step, uint32_t scope )
 {
+    if( setting_id == nullptr || *setting_id == '\0' || min_value > max_value ||
+        default_value < min_value || default_value > max_value || step <= 0.0 ) return 0;
+    smoke_setting_meta meta;
+    meta.kind = smoke_setting_kind::floating;
+    meta.min_value = min_value;
+    meta.max_value = max_value;
+    meta.default_value = default_value;
+    meta.step = step;
+    meta.scope = scope;
+    setting_meta[setting_id] = meta;
+    setting_f64_values[setting_id] = default_value;
+    registered_setting_ids.insert( setting_id );
     return 1;
 }
 
 int world_setting_register_enum_fn( const char *, const char *setting_id, const char *, const char *,
-                                    const char *const *, const char *const *, size_t,
-                                    const char *, uint32_t )
+                                    const char *const *value_ids, const char *const *display_names,
+                                    size_t count, const char *default_value, uint32_t scope )
 {
-    if( setting_id != nullptr ) {
-        registered_setting_ids.insert( setting_id );
+    if( setting_id == nullptr || *setting_id == '\0' || value_ids == nullptr ||
+        display_names == nullptr || count == 0 || default_value == nullptr ) return 0;
+    smoke_setting_meta meta;
+    meta.kind = smoke_setting_kind::enumeration;
+    meta.scope = scope;
+    meta.default_string = default_value;
+    bool found_default = false;
+    for( size_t i = 0; i < count; ++i ) {
+        if( value_ids[i] == nullptr || display_names[i] == nullptr ) return 0;
+        meta.choices.emplace_back( value_ids[i] );
+        if( meta.choices.back() == default_value ) found_default = true;
     }
+    if( !found_default ) return 0;
+    setting_meta[setting_id] = meta;
+    setting_string_values[setting_id] = default_value;
+    registered_setting_ids.insert( setting_id );
     return 1;
 }
 
-int world_setting_get_bool_fn( const char *, int fallback ) { return fallback; }
-int64_t world_setting_get_i64_fn( const char *, int64_t fallback ) { return fallback; }
-double world_setting_get_f64_fn( const char *, double fallback ) { return fallback; }
-const char *world_setting_get_string_fn( const char *, const char *fallback ) { return fallback; }
+int world_setting_get_bool_fn( const char *setting_id, int fallback )
+{
+    if( setting_id == nullptr ) return fallback;
+    const auto it = setting_i64_values.find( setting_id );
+    return it == setting_i64_values.end() ? fallback : ( it->second != 0 ? 1 : 0 );
+}
+
+int64_t world_setting_get_i64_fn( const char *setting_id, int64_t fallback )
+{
+    if( setting_id == nullptr ) return fallback;
+    const auto it = setting_i64_values.find( setting_id );
+    return it == setting_i64_values.end() ? fallback : it->second;
+}
+
+double world_setting_get_f64_fn( const char *setting_id, double fallback )
+{
+    if( setting_id == nullptr ) return fallback;
+    const auto it = setting_f64_values.find( setting_id );
+    return it == setting_f64_values.end() ? fallback : it->second;
+}
+
+const char *world_setting_get_string_fn( const char *setting_id, const char *fallback )
+{
+    if( setting_id == nullptr ) return fallback;
+    const auto it = setting_string_values.find( setting_id );
+    return it == setting_string_values.end() ? fallback : it->second.c_str();
+}
 
 int ui_tile_choose_fn( const char *, const char *const *, const char *const *, size_t, size_t )
 {
@@ -325,9 +429,24 @@ int ui_tree_choose_rpg_fn( const char *, const char *, const ncmm_ui_progress_v1
 }
 
 int64_t gameplay_metric_get_i64_fn( const char * ) { return 0; }
-int world_mod_active_fn( const char * ) { return 0; }
-size_t world_mod_count_fn() { return 0; }
-const char *world_mod_id_fn( size_t ) { return nullptr; }
+
+int world_mod_active_fn( const char *mod_id )
+{
+    return mod_id != nullptr && active_world_mods.count( mod_id ) != 0 ? 1 : 0;
+}
+
+size_t world_mod_count_fn()
+{
+    return active_world_mods.size();
+}
+
+const char *world_mod_id_fn( size_t index )
+{
+    if( index >= active_world_mods.size() ) return nullptr;
+    auto it = active_world_mods.begin();
+    std::advance( it, static_cast<long>( index ) );
+    return it->c_str();
+}
 
 int event_available_v2_fn( uint32_t event_id )
 {
@@ -379,15 +498,49 @@ double runtime_hook_value_v2_fn( const char *, const char *, const char *, const
     return 0.0;
 }
 
-int worldgen_hook_bind_setting_v2_fn( const char *, const char *, const char *, uint32_t )
+int worldgen_hook_bind_setting_v2_fn( const char *, const char *hook_id,
+                                          const char *setting_id, uint32_t type )
 {
+    if( hook_id == nullptr || *hook_id == '\0' || setting_id == nullptr || *setting_id == '\0' ) {
+        return 0;
+    }
+    smoke_worldgen_binding binding;
+    binding.setting_id = setting_id;
+    binding.type = type;
+    worldgen_bindings[hook_id] = binding;
     ++worldgen_binding_count;
     return 1;
 }
 
-int worldgen_hook_bool_v2_fn( const char *, int fallback ) { return fallback; }
-int64_t worldgen_hook_i64_v2_fn( const char *, int64_t fallback ) { return fallback; }
-double worldgen_hook_f64_v2_fn( const char *, double fallback ) { return fallback; }
+int worldgen_hook_bool_v2_fn( const char *hook_id, int fallback )
+{
+    if( hook_id == nullptr ) return fallback;
+    const auto binding = worldgen_bindings.find( hook_id );
+    if( binding == worldgen_bindings.end() || binding->second.type != NCMM_WORLDGEN_BOOL_V2 ) {
+        return fallback;
+    }
+    return world_setting_get_bool_fn( binding->second.setting_id.c_str(), fallback );
+}
+
+int64_t worldgen_hook_i64_v2_fn( const char *hook_id, int64_t fallback )
+{
+    if( hook_id == nullptr ) return fallback;
+    const auto binding = worldgen_bindings.find( hook_id );
+    if( binding == worldgen_bindings.end() || binding->second.type != NCMM_WORLDGEN_INT_V2 ) {
+        return fallback;
+    }
+    return world_setting_get_i64_fn( binding->second.setting_id.c_str(), fallback );
+}
+
+double worldgen_hook_f64_v2_fn( const char *hook_id, double fallback )
+{
+    if( hook_id == nullptr ) return fallback;
+    const auto binding = worldgen_bindings.find( hook_id );
+    if( binding == worldgen_bindings.end() || binding->second.type != NCMM_WORLDGEN_FLOAT_V2 ) {
+        return fallback;
+    }
+    return world_setting_get_f64_fn( binding->second.setting_id.c_str(), fallback );
+}
 
 const char *current_module_id_v2_fn() { return "smoke_host"; }
 int module_is_loaded_v2_fn( const char * ) { return 0; }
