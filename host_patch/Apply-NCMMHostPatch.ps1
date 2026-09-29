@@ -88,6 +88,7 @@ if (Test-Path $marker) {
         @($c,'options_manager::ncmm_set_worldgen_string_choices'),
         @($sd,'ncmm::initialize();'),
         @($mm,'ncmm::settings_menu_label()'),
+        @($mm,'ncmm::version_label()'),
         @($mm,'ncmm::show_manager();'),
         @($mm,'ncmm::on_language_changed();'),
         @($mm,'ncmm::register_gameplay_actions( ctxt_default );'),
@@ -562,6 +563,25 @@ $mm = Replace-ExactlyOnce $mm @'
                     }
 '@ 'main-menu.ncmm-manager-action'
 
+
+$mm = Replace-ExactlyOnce $mm @'
+    int window_width = getmaxx( w_open );
+    int window_height = getmaxy( w_open );
+
+    // Draw horizontal line
+'@ @'
+    int window_width = getmaxx( w_open );
+    int window_height = getmaxy( w_open );
+
+    const std::string ncmm_version = ncmm::version_label();
+    const int ncmm_version_width = utf8_width( ncmm_version, true );
+    if( window_width > ncmm_version_width + 4 ) {
+        mvwprintz( w_open, point( window_width - ncmm_version_width - 2, 1 ),
+                   c_dark_gray, "%s", ncmm_version );
+    }
+
+    // Draw horizontal line
+'@ 'main-menu.ncmm-version-label'
 
 # NCMM 0.8.1 generic character modifier hooks.
 $ch = Replace-ExactlyOnce $ch '#include "npc.h"' ('#include "npc.h"' + "`n" + '#include "ncmm_loader.h"') 'character.include-ncmm'
