@@ -15913,12 +15913,57 @@ void show_manager()
 '@
     $loaderUi = Replace-CppRange $loaderUi 'void show_manager()' 'void on_turn()' $ncmmManagerSourceBlock04 'two-pane NCMM manager UI'
 
+    if(-not $loaderUi.Contains('loaded_mod *find_loaded_by_id(')){
+        $findLoadedByIdOld = @'
+loaded_mod *find_loaded_mutable( const std::filesystem::path &directory )
+{
+    const std::filesystem::path wanted = directory.lexically_normal();
+    for( loaded_mod &mod : loaded ) {
+        if( mod.directory.lexically_normal() == wanted ) {
+            return &mod;
+        }
+    }
+    return nullptr;
+}
+'@
+        $findLoadedByIdNew = @'
+loaded_mod *find_loaded_mutable( const std::filesystem::path &directory )
+{
+    const std::filesystem::path wanted = directory.lexically_normal();
+    for( loaded_mod &mod : loaded ) {
+        if( mod.directory.lexically_normal() == wanted ) {
+            return &mod;
+        }
+    }
+    return nullptr;
+}
+
+loaded_mod *find_loaded_by_id( const char *module_id )
+{
+    if( module_id == nullptr ) {
+        return nullptr;
+    }
+    for( loaded_mod &mod : loaded ) {
+        if( mod.descriptor != nullptr && mod.descriptor->id != nullptr &&
+            std::string( mod.descriptor->id ) == module_id ) {
+            return &mod;
+        }
+    }
+    return nullptr;
+}
+'@
+        $loaderUi = Replace-TextBlock $loaderUi $findLoadedByIdOld $findLoadedByIdNew 'NCMM gameplay smoke module id lookup'
+    }
+
     # NCMM 0.8.1 UI polish: keep payload-generated Host source identical to the
     # checked-in Host. Use CDDA's native menu_move SFX so soundpack/volume rules
     # remain entirely owned by the game.
     if(-not $loaderUi.Contains('#include "sounds.h"')){
         $soundIncludeNew = @'
 #include "output.h"
+#include "overmap.h"
+#include "overmapbuffer.h"
+#include "path_info.h"
 #include "sounds.h"
 '@
         $loaderUi = Replace-TextBlock $loaderUi '#include "output.h"' $soundIncludeNew 'NCMM native menu sound include'
@@ -15945,22 +15990,25 @@ std::string version_label()
         $loaderUi = Replace-TextBlock $loaderUi $versionLabelOld $versionLabelNew 'NCMM version label implementation'
     }
 
-    if(-not $loaderUi.Contains('bool runtime_smoke_requested()')){
+    if(-not $loaderUi.Contains('bool command_line_flag_present(')){
         $runtimeSmokeInitOld = @'
 void initialize()
 {
     std::filesystem::create_directories( game_root() / "ncmm" );
 '@
         $runtimeSmokeInitNew = @'
-bool runtime_smoke_requested()
+bool command_line_flag_present( const char *flag )
 {
 #ifdef _WIN32
+    if( flag == nullptr || *flag == '\0' ) {
+        return false;
+    }
     const char *raw = GetCommandLineA();
     if( raw == nullptr ) {
         return false;
     }
     const std::string command_line( raw );
-    const std::string needle = "--ncmm-runtime-smoke";
+    const std::string needle( flag );
     size_t pos = command_line.find( needle );
     while( pos != std::string::npos ) {
         const size_t end = pos + needle.size();
@@ -15977,6 +16025,330 @@ bool runtime_smoke_requested()
     }
 #endif
     return false;
+}
+
+bool runtime_smoke_requested()
+{
+    return command_line_flag_present( "--ncmm-runtime-smoke" );
+}
+
+bool gameplay_smoke_requested()
+{
+    return command_line_flag_present( "--ncmm-gameplay-smoke" );
+}
+
+uint32_t gameplay_smoke_rng_next( uint32_t &state )
+{
+    state = state * 1664525u + 1013904223u;
+    return state;
+}
+
+void write_gameplay_smoke_result( bool success, const std::string &reason,
+                                  size_t aws_settings, size_t aws_hooks,
+                                  size_t survivor_perks )
+{
+    std::filesystem::create_directories( game_root() / "ncmm" );
+    std::ofstream out( game_root() / "ncmm" / "gameplay-smoke.json",
+                       std::ios::binary | std::ios::trunc );
+    if( !out ) {
+        return;
+    }
+    out << "{\n"
+        << "  \"schema\": 1,\n"
+        << "  \"success\": " << ( success ? "true" : "false" ) << ",\n"
+        << "  \"reason\": \"" << reason << "\",\n"
+        << "  \"aws_settings\": " << aws_settings << ",\n"
+        << "  \"aws_hooks\": " << aws_hooks << ",\n"
+        << "  \"survivor_perks\": " << survivor_perks << "\n"
+        << "}\n";
+}
+
+int run_gameplay_smoke()
+{
+#ifndef _WIN32
+    write_gameplay_smoke_result( false, "windows_only", 0, 0, 0 );
+    return 96;
+#else
+    constexpr const char *aws_id = "advanced_world_settings";
+    constexpr const char *survivor_id = "survivor_progression";
+    constexpr const char *world_name = "NCMM Gameplay Smoke";
+
+    size_t aws_setting_count = 0;
+    size_t aws_hook_count = 0;
+    size_t survivor_perk_count = 0;
+
+    try {
+        loaded_mod *aws = find_loaded_by_id( aws_id );
+        loaded_mod *survivor = find_loaded_by_id( survivor_id );
+        if( aws == nullptr || survivor == nullptr || survivor->handle == nullptr ) {
+            write_gameplay_smoke_result( false, "required_module_missing", 0, 0, 0 );
+            return 97;
+        }
+
+        // Randomize every AWS NEW_MAP option through the real CDDA cOpt object.
+        // setNext() guarantees values remain legal for bool/int/float/select options.
+        std::map<std::string, std::string> expected_world_values;
+        uint32_t rng = 0xA75EED42u;
+        for( const auto &owner : world_setting_owners ) {
+            if( owner.second != aws_id ) {
+                continue;
+            }
+            const auto scope_it = world_setting_scopes.find( owner.first );
+            if( scope_it == world_setting_scopes.end() ||
+                scope_it->second < NCMM_WORLD_SETTING_NEW_MAP ||
+                !get_options().has_option( owner.first ) ) {
+                continue;
+            }
+
+            options_manager::cOpt &opt = get_options().get_option( owner.first );
+            const uint32_t advances = 1u + gameplay_smoke_rng_next( rng ) % 11u;
+            for( uint32_t i = 0; i < advances; ++i ) {
+                opt.setNext();
+            }
+            ++aws_setting_count;
+        }
+
+        if( aws_setting_count != 48 || !get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) ) {
+            write_gameplay_smoke_result( false, "aws_registration_count", aws_setting_count, 0, 0 );
+            return 98;
+        }
+        get_options().get_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ).setValue( "true" );
+
+        // Keep the only explicit min/max pair valid after independent randomization.
+        if( get_options().has_option( "NCMM_AWS_FLOODPLAIN_MIN" ) &&
+            get_options().has_option( "NCMM_AWS_FLOODPLAIN_MAX" ) ) {
+            options_manager::cOpt &min_opt = get_options().get_option( "NCMM_AWS_FLOODPLAIN_MIN" );
+            options_manager::cOpt &max_opt = get_options().get_option( "NCMM_AWS_FLOODPLAIN_MAX" );
+            if( min_opt.value_as<int>() > max_opt.value_as<int>() ) {
+                max_opt.setValue( min_opt.value_as<int>() );
+            }
+        }
+
+        for( const auto &owner : world_setting_owners ) {
+            if( owner.second == aws_id && get_options().has_option( owner.first ) ) {
+                expected_world_values[owner.first] = get_options().get_option( owner.first ).getValue();
+            }
+        }
+
+        const std::vector<mod_id> mods = world_generator->get_mod_manager().get_default_mods();
+        WORLD *world = world_generator->make_new_world( world_name, mods );
+        if( world == nullptr ) {
+            write_gameplay_smoke_result( false, "world_create_failed", aws_setting_count, 0, 0 );
+            return 99;
+        }
+
+        for( const auto &expected : expected_world_values ) {
+            const auto it = world->WORLD_OPTIONS.find( expected.first );
+            if( it == world->WORLD_OPTIONS.end() || it->second.getValue() != expected.second ) {
+                write_gameplay_smoke_result( false, "aws_world_copy_mismatch",
+                                             aws_setting_count, 0, 0 );
+                return 100;
+            }
+        }
+
+        if( !world->save() ) {
+            write_gameplay_smoke_result( false, "world_save_failed", aws_setting_count, 0, 0 );
+            return 101;
+        }
+
+        // Prove persistence by reloading the world through the real worldfactory.
+        world_generator->set_active_world( nullptr );
+        world_generator->init();
+        WORLD *reloaded = world_generator->get_world( world_name );
+        if( reloaded == nullptr ) {
+            write_gameplay_smoke_result( false, "world_reload_failed", aws_setting_count, 0, 0 );
+            return 102;
+        }
+        for( const auto &expected : expected_world_values ) {
+            const auto it = reloaded->WORLD_OPTIONS.find( expected.first );
+            if( it == reloaded->WORLD_OPTIONS.end() || it->second.getValue() != expected.second ) {
+                write_gameplay_smoke_result( false, "aws_world_reload_mismatch",
+                                             aws_setting_count, 0, 0 );
+                return 103;
+            }
+        }
+        world_generator->set_active_world( reloaded );
+
+        // Verify every real Host worldgen binding now reads the reloaded WORLD_OPTIONS.
+        for( const auto &binding : worldgen_bindings_v2 ) {
+            if( binding.second.module_id != aws_id ) {
+                continue;
+            }
+            const auto opt_it = reloaded->WORLD_OPTIONS.find( binding.second.setting_id );
+            if( opt_it == reloaded->WORLD_OPTIONS.end() ) {
+                write_gameplay_smoke_result( false, "aws_binding_option_missing",
+                                             aws_setting_count, aws_hook_count, 0 );
+                return 104;
+            }
+            const options_manager::cOpt &opt = opt_it->second;
+            bool matches = false;
+            if( binding.second.value_type == NCMM_WORLDGEN_BOOL_V2 ) {
+                matches = worldgen_hook_bool_v2( binding.first.c_str(), -7 ) ==
+                          ( opt.value_as<bool>() ? 1 : 0 );
+            } else if( binding.second.value_type == NCMM_WORLDGEN_INT_V2 ) {
+                matches = worldgen_hook_i64_v2( binding.first.c_str(), -777777 ) ==
+                          static_cast<int64_t>( opt.value_as<int>() );
+            } else if( binding.second.value_type == NCMM_WORLDGEN_FLOAT_V2 ) {
+                matches = std::abs( worldgen_hook_f64_v2( binding.first.c_str(), -777777.0 ) -
+                                    static_cast<double>( opt.value_as<float>() ) ) < 0.00001;
+            }
+            if( !matches ) {
+                write_gameplay_smoke_result( false, "aws_binding_value_mismatch",
+                                             aws_setting_count, aws_hook_count, 0 );
+                return 105;
+            }
+            ++aws_hook_count;
+        }
+        if( aws_hook_count != 48 ) {
+            write_gameplay_smoke_result( false, "aws_binding_count",
+                                         aws_setting_count, aws_hook_count, 0 );
+            return 106;
+        }
+
+        // Load the real world data and force one overmap generation.  Any bad AWS
+        // geography hook now fails/crashes inside the same path used by gameplay.
+        g->new_game = true;
+        g->load_core_data();
+        g->load_world_modfiles();
+        overmap_buffer.init_region_layout();
+        overmap_special_batch empty_specials( point_abs_om{} );
+        overmap_buffer.create_custom_overmap( point_abs_om{}, empty_specials );
+
+        get_avatar() = avatar();
+        get_avatar().create( character_type::NOW );
+        get_avatar().setID( g->assign_npc_id(), false );
+        g->new_game = false;
+        on_turn();
+
+        using perk_count_fn = size_t ( * )();
+        using perk_max_rank_fn = int ( * )( size_t );
+        using perk_reset_fn = int ( * )();
+        using perk_set_rank_fn = int ( * )( size_t, int );
+        using perk_recalc_fn = int ( * )();
+
+        const auto perk_count = reinterpret_cast<perk_count_fn>(
+                                    GetProcAddress( survivor->handle, "ncmm_test_perk_count_v1" ) );
+        const auto perk_max_rank = reinterpret_cast<perk_max_rank_fn>(
+                                       GetProcAddress( survivor->handle, "ncmm_test_perk_max_rank_v1" ) );
+        const auto perk_reset = reinterpret_cast<perk_reset_fn>(
+                                    GetProcAddress( survivor->handle, "ncmm_test_reset_all_perks_v1" ) );
+        const auto perk_set_rank = reinterpret_cast<perk_set_rank_fn>(
+                                       GetProcAddress( survivor->handle, "ncmm_test_set_perk_rank_v1" ) );
+        const auto perk_recalc = reinterpret_cast<perk_recalc_fn>(
+                                     GetProcAddress( survivor->handle, "ncmm_test_recalculate_v1" ) );
+        if( !perk_count || !perk_max_rank || !perk_reset || !perk_set_rank || !perk_recalc ) {
+            write_gameplay_smoke_result( false, "survivor_test_surface_missing",
+                                         aws_setting_count, aws_hook_count, 0 );
+            return 107;
+        }
+
+        module_call_scope survivor_scope( survivor_id );
+        survivor_perk_count = perk_count();
+        if( survivor_perk_count != 369 || !perk_reset() || !perk_recalc() ) {
+            write_gameplay_smoke_result( false, "survivor_catalog_or_reset",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 108;
+        }
+
+        const int base_str = get_avatar().get_str();
+        const int base_dex = get_avatar().get_dex();
+        const int base_per = get_avatar().get_per();
+        const int base_int = get_avatar().get_int();
+        const int base_speed = get_avatar().get_speed();
+        const int base_stamina = get_avatar().get_stamina_max();
+        const int base_run_cost = get_avatar().run_cost( 100, false );
+
+        // Diagnostic-only: activate every perk at max rank simultaneously.  This
+        // bypasses purchase/exclusivity constraints on purpose and validates the
+        // aggregate effect path of the exact release DLL against a real avatar.
+        for( size_t i = 0; i < survivor_perk_count; ++i ) {
+            const int rank = perk_max_rank( i );
+            if( rank < 1 || !perk_set_rank( i, rank ) ) {
+                write_gameplay_smoke_result( false, "survivor_grant_all_failed",
+                                             aws_setting_count, aws_hook_count, survivor_perk_count );
+                return 109;
+            }
+        }
+        if( !perk_recalc() ) {
+            write_gameplay_smoke_result( false, "survivor_recalculate_failed",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 110;
+        }
+
+        const auto expected_stat = []( int baseline, double modifier ) {
+            return baseline + static_cast<int>( std::lround( modifier ) );
+        };
+        if( get_avatar().get_str() != expected_stat( base_str, gameplay_modifier( "str_flat" ) ) ||
+            get_avatar().get_dex() != expected_stat( base_dex, gameplay_modifier( "dex_flat" ) ) ||
+            get_avatar().get_per() != expected_stat( base_per, gameplay_modifier( "per_flat" ) ) ||
+            get_avatar().get_int() != expected_stat( base_int, gameplay_modifier( "int_flat" ) ) ) {
+            write_gameplay_smoke_result( false, "survivor_real_primary_stat_mismatch",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 111;
+        }
+
+        const int expected_speed = std::max(
+                                       1, static_cast<int>( std::lround(
+                                               base_speed * std::max(
+                                                   0.1, 1.0 + gameplay_modifier( "speed_pct" ) / 100.0 ) ) ) );
+        if( get_avatar().get_speed() != expected_speed ) {
+            write_gameplay_smoke_result( false, "survivor_real_speed_mismatch",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 112;
+        }
+
+        const int expected_stamina = std::max(
+                                         1, static_cast<int>( std::lround(
+                                                 base_stamina * std::max(
+                                                     0.1, 1.0 + gameplay_modifier( "stamina_max_pct" ) / 100.0 ) ) ) );
+        if( get_avatar().get_stamina_max() != expected_stamina ) {
+            write_gameplay_smoke_result( false, "survivor_real_stamina_mismatch",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 113;
+        }
+
+        const int expected_run_cost = std::max(
+                                          1, static_cast<int>(
+                                              base_run_cost * std::max(
+                                                  0.25, 1.0 + gameplay_modifier( "move_cost_pct" ) / 100.0 ) ) );
+        if( get_avatar().run_cost( 100, false ) != expected_run_cost ) {
+            write_gameplay_smoke_result( false, "survivor_real_move_cost_mismatch",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 114;
+        }
+
+        // Reset must remove effects from the actual character, not only from the
+        // module's internal bookkeeping.
+        if( !perk_reset() || !perk_recalc() ||
+            get_avatar().get_str() != base_str ||
+            get_avatar().get_dex() != base_dex ||
+            get_avatar().get_per() != base_per ||
+            get_avatar().get_int() != base_int ||
+            get_avatar().get_speed() != base_speed ||
+            get_avatar().get_stamina_max() != base_stamina ||
+            get_avatar().run_cost( 100, false ) != base_run_cost ) {
+            write_gameplay_smoke_result( false, "survivor_real_cleanup_mismatch",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 115;
+        }
+
+        write_gameplay_smoke_result( true, "ok", aws_setting_count,
+                                     aws_hook_count, survivor_perk_count );
+        log_line( NCMM_LOG_INFO,
+                  "NCMM gameplay smoke PASS: real AWS world save/reload/overmap + Survivor 369-perk aggregate avatar effects." );
+        return 0;
+    } catch( const std::exception &err ) {
+        log_line( NCMM_LOG_ERROR, ( std::string( "NCMM gameplay smoke exception: " ) + err.what() ).c_str() );
+        write_gameplay_smoke_result( false, "exception", aws_setting_count,
+                                     aws_hook_count, survivor_perk_count );
+        return 116;
+    } catch( ... ) {
+        log_line( NCMM_LOG_ERROR, "NCMM gameplay smoke unknown exception." );
+        write_gameplay_smoke_result( false, "unknown_exception", aws_setting_count,
+                                     aws_hook_count, survivor_perk_count );
+        return 117;
+    }
+#endif
 }
 
 void initialize()
@@ -16194,10 +16566,24 @@ std::string version_label();
             $loaderHeaderUi = Replace-TextBlock $loaderHeaderUi 'std::string settings_menu_label();' $versionLabelDeclNew 'NCMM version label declaration'
             Write-Utf8NoBom $loaderHeaderUiPath $loaderHeaderUi
         }
+        if(-not $loaderHeaderUi.Contains('bool gameplay_smoke_requested();')){
+            $gameplaySmokeDeclOld = @'
+void mark_ready();
+void on_turn();
+'@
+            $gameplaySmokeDeclNew = @'
+void mark_ready();
+bool gameplay_smoke_requested();
+int run_gameplay_smoke();
+void on_turn();
+'@
+            $loaderHeaderUi = Replace-TextBlock $loaderHeaderUi $gameplaySmokeDeclOld $gameplaySmokeDeclNew 'NCMM gameplay smoke declarations'
+            Write-Utf8NoBom $loaderHeaderUiPath $loaderHeaderUi
+        }
     }
 
     $loaderUi = $loaderUi.Replace('0.8.0','0.8.1')
-    foreach($managerNeedle in @('module_setting_meta','manager_description','manager_setting_value','manager_adjust_setting','NCMM_MANAGER','MODULE DETAILS','СВЕДЕНИЯ О МОДЕ','return "0.8.1";','runtime_smoke_requested','--ncmm-runtime-smoke')){
+    foreach($managerNeedle in @('module_setting_meta','manager_description','manager_setting_value','manager_adjust_setting','NCMM_MANAGER','MODULE DETAILS','СВЕДЕНИЯ О МОДЕ','return "0.8.1";','runtime_smoke_requested','gameplay_smoke_requested','run_gameplay_smoke','--ncmm-runtime-smoke','--ncmm-gameplay-smoke','gameplay-smoke.json')){
         if(-not $loaderUi.Contains($managerNeedle)){throw "NCMM manager generated source missing: $managerNeedle"}
     }
     Write-Utf8NoBom $loaderUiPath $loaderUi
