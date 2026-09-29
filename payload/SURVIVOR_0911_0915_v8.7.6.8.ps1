@@ -13126,19 +13126,14 @@ std::vector<manager_entry> manager_entries()
             throw 'v8.7.6.6 manager support-text anchor missing.'
         }
 
-        $initOld = @'
-    write_modules_state();
-    mark_ready();
-'@
-        $initNew = @'
-    write_modules_state();
-    write_diagnostics_summary();
-    mark_ready();
-'@
-        if ($l.Contains($initOld)) {
-            $l = Replace-TextBlock $l $initOld $initNew 'v8.7.6.6 initialize diagnostics snapshot'
-        } elseif (-not $l.Contains($initNew)) {
-            throw 'v8.7.6.6 initialize diagnostics anchor missing.'
+        $readyCallOld = '    mark_ready();'
+        $readyCallNew = "    write_diagnostics_summary();`n    mark_ready();"
+        if (-not $l.Contains($readyCallNew)) {
+            $readyCallCount = ([regex]::Matches($l,[regex]::Escape($readyCallOld))).Count
+            if ($readyCallCount -ne 1) {
+                throw "v8.7.6.6 initialize diagnostics ready-call expected exactly once, found $readyCallCount"
+            }
+            $l = $l.Replace($readyCallOld,$readyCallNew)
         }
 
         $showOld = @'
