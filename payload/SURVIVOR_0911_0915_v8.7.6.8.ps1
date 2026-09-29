@@ -11180,7 +11180,7 @@ $cardBodyLinesOld875 = @'
 '@
 $cardBodyLinesNew875 = @'
                 const std::vector<std::string> folded = foldstring( card.body, card_width - 4 );
-                const size_t card_body_lines = detail_panel ? 1 : 3;
+                const size_t card_body_lines = detail_panel ? 2 : 3;
                 for( size_t line = 0; line < std::min<size_t>( card_body_lines, folded.size() ); ++line ) {
 '@
 $loader = Replace-TextBlock $loader $cardBodyLinesOld875 $cardBodyLinesNew875 'v8.7.5 lighter overview card body'
@@ -11284,7 +11284,7 @@ Write-Utf8NoBom $spPath $sp
 $loader875Audit = Normalize-Lf ([IO.File]::ReadAllText($loaderPath))
 foreach ($needle in @(
     'const bool detail_panel = ncmm_ui_sectioned_detail() && TERMX >= 108;',
-    'const size_t card_body_lines = detail_panel ? 1 : 3;',
+    'const size_t card_body_lines = detail_panel ? 2 : 3;',
     'tr_ui( "DETAIL", "ДЕТАЛИ" )',
     'folded[line] == "HOW TO GAIN XP:"'
 )) {
@@ -12634,6 +12634,7 @@ function Apply-NcmmRuntimeInfrastructureV8766([string]$Root) {
         foreach ($needle in @(
             'ncmm_get_option_bool_or',
             'NCMM v8.7.6.6 fail-safe accessor definitions',
+            'NCMM world settings Default/Experimental split',
             'https://github.com/Neversalimus/NCMM/issues',
             'manager_reason_text',
             'diagnostics.txt'
@@ -12973,6 +12974,245 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
 }
 '@
         $oc = Replace-CppRange $oc $registerStart $registerEnd $registerReplacement 'v8.7.6.6 world-setting stale-copy repair'
+        Write-Utf8NoBom $optionsCpp $oc
+    }
+
+    # Keep vanilla world settings and NCMM experimental worldgen settings on separate pages.
+    # This runs after the stale-copy repair so it upgrades both fresh and previously patched hosts.
+    $oc = Normalize-Lf ([IO.File]::ReadAllText($optionsCpp))
+    if (-not $oc.Contains('NCMM world settings Default/Experimental split')) {
+        $groupGuardOld = @'
+    if( group_id.empty() || !adding_to_group_.empty() ) {
+        return false;
+    }
+    for( Group &group : groups_ ) {
+'@
+        $groupGuardNew = @'
+    if( group_id.empty() || !adding_to_group_.empty() ) {
+        return false;
+    }
+    ncmm_ensure_experimental_page();
+    for( Group &group : groups_ ) {
+'@
+        $oc = Replace-TextBlock $oc $groupGuardOld $groupGuardNew 'world-settings split group page ensure'
+
+        $groupPageOld = @'
+    groups_.emplace_back( group_id, name, tooltip );
+    add_empty_line( "world_default" );
+    find_page( "world_default" ).items_.emplace_back(
+        ItemType::GroupHeader, group_id, group_id );
+'@
+        $groupPageNew = @'
+    groups_.emplace_back( group_id, name, tooltip );
+    add_empty_line( "ncmm_experimental" );
+    find_page( "ncmm_experimental" ).items_.emplace_back(
+        ItemType::GroupHeader, group_id, group_id );
+'@
+        $oc = Replace-TextBlock $oc $groupPageOld $groupPageNew 'world-settings split group destination'
+
+        $registerFind = '    auto it = options.find( name );'
+        if(([regex]::Matches($oc,[regex]::Escape($registerFind))).Count -ne 4) {
+            throw 'World-settings split expected four typed registration find anchors.'
+        }
+        $registerFindNew = @'
+    if( worldgen_visible ) {
+        ncmm_ensure_experimental_page();
+    }
+    auto it = options.find( name );
+'@
+        $oc = $oc.Replace($registerFind,(Normalize-Lf $registerFindNew).TrimEnd())
+
+        $registerAdd = 'add( name, "world_default",'
+        if(([regex]::Matches($oc,[regex]::Escape($registerAdd))).Count -ne 4) {
+            throw 'World-settings split expected four typed registration add anchors.'
+        }
+        $oc = $oc.Replace($registerAdd,'add( name, worldgen_visible ? "ncmm_experimental" : "world_default",')
+
+        $registerPageOld = @'
+    if( opt.sPage == "ncmm_experimental" ) {
+        opt.sPage = "world_default";
+    }
+    if( opt.sPage != "world_default" ) {
+'@
+        $registerPageNew = @'
+    if( opt.sPage == "world_default" || opt.sPage == "ncmm_experimental" ) {
+        opt.sPage = worldgen_visible ? "ncmm_experimental" : "world_default";
+    }
+    if( opt.sPage != ( worldgen_visible ? "ncmm_experimental" : "world_default" ) ) {
+'@
+        $registerPageOldNorm=(Normalize-Lf $registerPageOld).TrimEnd()
+        $registerPageNewNorm=(Normalize-Lf $registerPageNew).TrimEnd()
+        if(([regex]::Matches($oc,[regex]::Escape($registerPageOldNorm))).Count -ne 4) {
+            throw 'World-settings split expected four typed registration page anchors.'
+        }
+        $oc=$oc.Replace($registerPageOldNorm,$registerPageNewNorm)
+
+        $worldCopyPage='                w->second.sPage = "world_default";'
+        if(([regex]::Matches($oc,[regex]::Escape($worldCopyPage))).Count -ne 4) {
+            throw 'World-settings split expected four active-world page anchors.'
+        }
+        $oc=$oc.Replace($worldCopyPage,'                w->second.sPage = worldgen_visible ? "ncmm_experimental" : "world_default";')
+
+        $tabsInputOld = @'
+    if( with_tabs || !world_options_only ) {
+        ctxt.register_action( "NEXT_TAB" );
+        ctxt.register_action( "PREV_TAB" );
+    }
+'@
+        $tabsInputNew = @'
+    ctxt.register_action( "NEXT_TAB" );
+    ctxt.register_action( "PREV_TAB" );
+'@
+        $oc = Replace-TextBlock $oc $tabsInputOld $tabsInputNew 'world-settings split input'
+
+        $tabsDrawOld = @'
+        //Draw Tabs
+        int tab_x = 0;
+        if( !world_options_only ) {
+            mvwprintz( w_options_header, point( 7, 0 ), c_white, "" );
+            for( int i = 0; i < static_cast<int>( pages_.size() ); i++ ) {
+                wprintz( w_options_header, c_white, "[" );
+                if( ingame && i == iWorldOptPage ) {
+                    wprintz( w_options_header, iCurrentPage == i ? hilite( c_light_green ) : c_light_green,
+                             _( "Current world" ) );
+                } else {
+                    wprintz( w_options_header, iCurrentPage == i ? hilite( c_light_green ) : c_light_green,
+                             "%s", pages_[i].name_ );
+                }
+                wprintz( w_options_header, c_white, "]" );
+                wputch( w_options_header, BORDER_COLOR, LINE_OXOX );
+                tab_x++;
+                int tab_w = utf8_width( pages_[i].name_.translated(), true );
+                opt_tab_map.emplace( i, inclusive_rectangle<point>( point( 7 + tab_x, 0 ),
+                                     point( 6 + tab_x + tab_w, 0 ) ) );
+                tab_x += tab_w + 2;
+            }
+        }
+'@
+        $tabsDrawNew = @'
+        //Draw Tabs
+        int tab_x = 0;
+        if( !world_options_only ) {
+            mvwprintz( w_options_header, point( 7, 0 ), c_white, "" );
+            for( int i = 0; i < static_cast<int>( pages_.size() ); i++ ) {
+                wprintz( w_options_header, c_white, "[" );
+                if( ingame && i == iWorldOptPage ) {
+                    wprintz( w_options_header, iCurrentPage == i ? hilite( c_light_green ) : c_light_green,
+                             _( "Current world" ) );
+                } else {
+                    wprintz( w_options_header, iCurrentPage == i ? hilite( c_light_green ) : c_light_green,
+                             "%s", pages_[i].name_ );
+                }
+                wprintz( w_options_header, c_white, "]" );
+                wputch( w_options_header, BORDER_COLOR, LINE_OXOX );
+                tab_x++;
+                int tab_w = utf8_width( pages_[i].name_.translated(), true );
+                opt_tab_map.emplace( i, inclusive_rectangle<point>( point( 7 + tab_x, 0 ),
+                                     point( 6 + tab_x + tab_w, 0 ) ) );
+                tab_x += tab_w + 2;
+            }
+        } else {
+            mvwprintz( w_options_header, point( 7, 0 ), c_white, "" );
+            const auto draw_world_page_tab = [&]( int page_index, const char *raw_label ) {
+                if( page_index < 0 || page_index >= static_cast<int>( pages_.size() ) ) {
+                    return;
+                }
+                const std::string label = _( raw_label );
+                wprintz( w_options_header, c_white, "[" );
+                wprintz( w_options_header,
+                         iCurrentPage == page_index ? hilite( c_light_green ) : c_light_green,
+                         "%s", label );
+                wprintz( w_options_header, c_white, "]" );
+                wputch( w_options_header, BORDER_COLOR, LINE_OXOX );
+                tab_x++;
+                const int tab_w = utf8_width( label, true );
+                opt_tab_map.emplace( page_index,
+                                     inclusive_rectangle<point>( point( 7 + tab_x, 0 ),
+                                             point( 6 + tab_x + tab_w, 0 ) ) );
+                tab_x += tab_w + 2;
+            };
+            draw_world_page_tab( iWorldOptPage, "Default" );
+            draw_world_page_tab( iExperimentalPage, "Experimental" );
+        }
+'@
+        $oc = Replace-TextBlock $oc $tabsDrawOld $tabsDrawNew 'world-settings split tabs'
+
+        $outerNavOld = @'
+        if( world_options_only && ( action == "NEXT_TAB" || action == "PREV_TAB" || action == "QUIT" ) ) {
+            return action;
+        }
+'@
+        $outerNavNew = @'
+        if( world_options_only && action == "QUIT" ) {
+            return action;
+        }
+        if( world_options_only && with_tabs &&
+            ( action == "NEXT_TAB" || action == "PREV_TAB" ) ) {
+            return action;
+        }
+'@
+        $oc = Replace-TextBlock $oc $outerNavOld $outerNavNew 'world-settings split outer navigation'
+
+        $cycleOld = @'
+        } else if( action == "NEXT_TAB" ) {
+            iCurrentLine = 0;
+            iStartPos = 0;
+            recalc_startpos = true;
+            iCurrentPage++;
+            if( iCurrentPage >= static_cast<int>( pages_.size() ) ) {
+                iCurrentPage = 0;
+            }
+            sfx::play_variant_sound( "menu_move", "default", 100 );
+        } else if( action == "PREV_TAB" ) {
+            iCurrentLine = 0;
+            iStartPos = 0;
+            recalc_startpos = true;
+            iCurrentPage--;
+            if( iCurrentPage < 0 ) {
+                iCurrentPage = pages_.size() - 1;
+            }
+            sfx::play_variant_sound( "menu_move", "default", 100 );
+'@
+        $cycleNew = @'
+        } else if( action == "NEXT_TAB" ) {
+            iCurrentLine = 0;
+            iStartPos = 0;
+            recalc_startpos = true;
+            if( world_options_only ) {
+                iCurrentPage = iCurrentPage == iWorldOptPage &&
+                               iExperimentalPage >= 0 &&
+                               iExperimentalPage < static_cast<int>( pages_.size() ) ?
+                               iExperimentalPage : iWorldOptPage;
+            } else {
+                iCurrentPage++;
+                if( iCurrentPage >= static_cast<int>( pages_.size() ) ) {
+                    iCurrentPage = 0;
+                }
+            }
+            sfx::play_variant_sound( "menu_move", "default", 100 );
+        } else if( action == "PREV_TAB" ) {
+            iCurrentLine = 0;
+            iStartPos = 0;
+            recalc_startpos = true;
+            if( world_options_only ) {
+                iCurrentPage = iCurrentPage == iExperimentalPage ? iWorldOptPage : iExperimentalPage;
+                if( iCurrentPage < 0 || iCurrentPage >= static_cast<int>( pages_.size() ) ) {
+                    iCurrentPage = iWorldOptPage;
+                }
+            } else {
+                iCurrentPage--;
+                if( iCurrentPage < 0 ) {
+                    iCurrentPage = pages_.size() - 1;
+                }
+            }
+            sfx::play_variant_sound( "menu_move", "default", 100 );
+'@
+        $oc = Replace-TextBlock $oc $cycleOld $cycleNew 'world-settings split keyboard cycle'
+
+        $splitMarkerAnchor = 'void options_manager::ncmm_ensure_experimental_page()'
+        $oc = Replace-TextBlock $oc $splitMarkerAnchor (
+            '// NCMM world settings Default/Experimental split' + [Environment]::NewLine + $splitMarkerAnchor
+        ) 'world-settings split marker'
         Write-Utf8NoBom $optionsCpp $oc
     }
 

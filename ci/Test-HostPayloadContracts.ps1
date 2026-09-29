@@ -227,6 +227,16 @@ foreach($persistNeedle0831 in @(
 }
 if(([regex]::Matches($payload,[regex]::Escape('ncmm_apply_deferred_option_value( name, options[name] );'))).Count -ne 4){throw 'Expected deferred-value application on all four typed setting creation paths.'}
 if(([regex]::Matches($payload,[regex]::Escape('ncmm_apply_deferred_option_value( name, opt );'))).Count -ne 4){throw 'Expected deferred-value application on all four typed setting refresh paths.'}
+
+foreach($uiNeedle in @(
+    'NCMM world settings Default/Experimental split',
+    'draw_world_page_tab( iWorldOptPage, "Default" )',
+    'draw_world_page_tab( iExperimentalPage, "Experimental" )',
+    'worldgen_visible ? "ncmm_experimental" : "world_default"',
+    'const size_t card_body_lines = detail_panel ? 2 : 3;'
+)){
+    if(-not $payload.Contains($uiNeedle)){throw ('NCMM world-settings/card UI regression contract missing: '+$uiNeedle)}
+}
 $deferPos0831=$payload.IndexOf('name.rfind( "NCMM_", 0 ) == 0')
 $registerPos0831=$payload.IndexOf('bool options_manager::ncmm_register_world_bool(')
 if($deferPos0831 -lt 0 -or $registerPos0831 -lt 0 -or $deferPos0831 -gt $registerPos0831){throw 'Deferred NCMM deserialize gate must be generated before runtime setting registration implementations.'}

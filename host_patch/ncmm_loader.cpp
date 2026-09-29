@@ -1370,7 +1370,7 @@ int ui_card_choose( const char *title, const char *summary,
             }
             if( card.body != nullptr && card.body[0] != '\0' ) {
                 const std::vector<std::string> folded = foldstring( card.body, card_width - 4 );
-                const size_t card_body_lines = detail_panel ? 1 : 3;
+                const size_t card_body_lines = detail_panel ? 2 : 3;
                 for( size_t line = 0; line < std::min<size_t>( card_body_lines, folded.size() ); ++line ) {
                     ncmm_trim_and_print_literal( card_win,
                                                 point( 2, 3 + static_cast<int>( line ) ),

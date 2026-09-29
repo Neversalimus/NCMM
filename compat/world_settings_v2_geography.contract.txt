@@ -167,6 +167,163 @@ static void ncmm_apply_deferred_option_value( const std::string &name, options_m
 '@
     $c = Replace-WSOnce $c $experimentalPageOld $experimentalPageNew 'experimental show page index'
 
+
+    $tabsInputOld = @'
+    if( with_tabs || !world_options_only ) {
+        ctxt.register_action( "NEXT_TAB" );
+        ctxt.register_action( "PREV_TAB" );
+    }
+'@
+    $tabsInputNew = @'
+    ctxt.register_action( "NEXT_TAB" );
+    ctxt.register_action( "PREV_TAB" );
+'@
+    $c = Replace-WSOnce $c $tabsInputOld $tabsInputNew 'experimental subpage input'
+
+    $tabsDrawOld = @'
+        //Draw Tabs
+        int tab_x = 0;
+        if( !world_options_only ) {
+            mvwprintz( w_options_header, point( 7, 0 ), c_white, "" );
+            for( int i = 0; i < static_cast<int>( pages_.size() ); i++ ) {
+                wprintz( w_options_header, c_white, "[" );
+                if( ingame && i == iWorldOptPage ) {
+                    wprintz( w_options_header, iCurrentPage == i ? hilite( c_light_green ) : c_light_green,
+                             _( "Current world" ) );
+                } else {
+                    wprintz( w_options_header, iCurrentPage == i ? hilite( c_light_green ) : c_light_green,
+                             "%s", pages_[i].name_ );
+                }
+                wprintz( w_options_header, c_white, "]" );
+                wputch( w_options_header, BORDER_COLOR, LINE_OXOX );
+                tab_x++;
+                int tab_w = utf8_width( pages_[i].name_.translated(), true );
+                opt_tab_map.emplace( i, inclusive_rectangle<point>( point( 7 + tab_x, 0 ),
+                                     point( 6 + tab_x + tab_w, 0 ) ) );
+                tab_x += tab_w + 2;
+            }
+        }
+'@
+    $tabsDrawNew = @'
+        //Draw Tabs
+        int tab_x = 0;
+        if( !world_options_only ) {
+            mvwprintz( w_options_header, point( 7, 0 ), c_white, "" );
+            for( int i = 0; i < static_cast<int>( pages_.size() ); i++ ) {
+                wprintz( w_options_header, c_white, "[" );
+                if( ingame && i == iWorldOptPage ) {
+                    wprintz( w_options_header, iCurrentPage == i ? hilite( c_light_green ) : c_light_green,
+                             _( "Current world" ) );
+                } else {
+                    wprintz( w_options_header, iCurrentPage == i ? hilite( c_light_green ) : c_light_green,
+                             "%s", pages_[i].name_ );
+                }
+                wprintz( w_options_header, c_white, "]" );
+                wputch( w_options_header, BORDER_COLOR, LINE_OXOX );
+                tab_x++;
+                int tab_w = utf8_width( pages_[i].name_.translated(), true );
+                opt_tab_map.emplace( i, inclusive_rectangle<point>( point( 7 + tab_x, 0 ),
+                                     point( 6 + tab_x + tab_w, 0 ) ) );
+                tab_x += tab_w + 2;
+            }
+        } else {
+            mvwprintz( w_options_header, point( 7, 0 ), c_white, "" );
+            const auto draw_world_page_tab = [&]( int page_index, const char *raw_label ) {
+                if( page_index < 0 || page_index >= static_cast<int>( pages_.size() ) ) {
+                    return;
+                }
+                const std::string label = _( raw_label );
+                wprintz( w_options_header, c_white, "[" );
+                wprintz( w_options_header,
+                         iCurrentPage == page_index ? hilite( c_light_green ) : c_light_green,
+                         "%s", label );
+                wprintz( w_options_header, c_white, "]" );
+                wputch( w_options_header, BORDER_COLOR, LINE_OXOX );
+                tab_x++;
+                const int tab_w = utf8_width( label, true );
+                opt_tab_map.emplace( page_index,
+                                     inclusive_rectangle<point>( point( 7 + tab_x, 0 ),
+                                             point( 6 + tab_x + tab_w, 0 ) ) );
+                tab_x += tab_w + 2;
+            };
+            draw_world_page_tab( iWorldOptPage, "Default" );
+            draw_world_page_tab( iExperimentalPage, "Experimental" );
+        }
+'@
+    $c = Replace-WSOnce $c $tabsDrawOld $tabsDrawNew 'experimental subpage tabs'
+
+    $outerNavOld = @'
+        if( world_options_only && ( action == "NEXT_TAB" || action == "PREV_TAB" || action == "QUIT" ) ) {
+            return action;
+        }
+'@
+    $outerNavNew = @'
+        if( world_options_only && action == "QUIT" ) {
+            return action;
+        }
+        if( world_options_only && with_tabs &&
+            ( action == "NEXT_TAB" || action == "PREV_TAB" ) ) {
+            return action;
+        }
+'@
+    $c = Replace-WSOnce $c $outerNavOld $outerNavNew 'experimental subpage outer navigation'
+
+    $cycleOld = @'
+        } else if( action == "NEXT_TAB" ) {
+            iCurrentLine = 0;
+            iStartPos = 0;
+            recalc_startpos = true;
+            iCurrentPage++;
+            if( iCurrentPage >= static_cast<int>( pages_.size() ) ) {
+                iCurrentPage = 0;
+            }
+            sfx::play_variant_sound( "menu_move", "default", 100 );
+        } else if( action == "PREV_TAB" ) {
+            iCurrentLine = 0;
+            iStartPos = 0;
+            recalc_startpos = true;
+            iCurrentPage--;
+            if( iCurrentPage < 0 ) {
+                iCurrentPage = pages_.size() - 1;
+            }
+            sfx::play_variant_sound( "menu_move", "default", 100 );
+'@
+    $cycleNew = @'
+        } else if( action == "NEXT_TAB" ) {
+            iCurrentLine = 0;
+            iStartPos = 0;
+            recalc_startpos = true;
+            if( world_options_only ) {
+                iCurrentPage = iCurrentPage == iWorldOptPage &&
+                               iExperimentalPage >= 0 &&
+                               iExperimentalPage < static_cast<int>( pages_.size() ) ?
+                               iExperimentalPage : iWorldOptPage;
+            } else {
+                iCurrentPage++;
+                if( iCurrentPage >= static_cast<int>( pages_.size() ) ) {
+                    iCurrentPage = 0;
+                }
+            }
+            sfx::play_variant_sound( "menu_move", "default", 100 );
+        } else if( action == "PREV_TAB" ) {
+            iCurrentLine = 0;
+            iStartPos = 0;
+            recalc_startpos = true;
+            if( world_options_only ) {
+                iCurrentPage = iCurrentPage == iExperimentalPage ? iWorldOptPage : iExperimentalPage;
+                if( iCurrentPage < 0 || iCurrentPage >= static_cast<int>( pages_.size() ) ) {
+                    iCurrentPage = iWorldOptPage;
+                }
+            } else {
+                iCurrentPage--;
+                if( iCurrentPage < 0 ) {
+                    iCurrentPage = pages_.size() - 1;
+                }
+            }
+            sfx::play_variant_sound( "menu_move", "default", 100 );
+'@
+    $c = Replace-WSOnce $c $cycleOld $cycleNew 'experimental subpage keyboard cycle'
+
     # CDDA 0546 contains this world-container selector twice in options_manager::show():
     # once in the redraw callback and once in the input loop.  Treat the pair as one
     # source contract instead of using Replace-ExactlyOnce on the first occurrence.
