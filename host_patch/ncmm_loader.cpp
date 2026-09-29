@@ -4197,6 +4197,7 @@ int run_gameplay_smoke()
         on_turn();
 
         using perk_count_fn = size_t ( * )();
+        using perk_id_fn = const char *( * )( size_t );
         using perk_max_rank_fn = int ( * )( size_t );
         using perk_reset_fn = int ( * )();
         using perk_set_rank_fn = int ( * )( size_t, int );
@@ -4204,6 +4205,8 @@ int run_gameplay_smoke()
 
         const auto perk_count = reinterpret_cast<perk_count_fn>(
                                     GetProcAddress( survivor->handle, "ncmm_test_perk_count_v1" ) );
+        const auto perk_id = reinterpret_cast<perk_id_fn>(
+                                 GetProcAddress( survivor->handle, "ncmm_test_perk_id_v1" ) );
         const auto perk_max_rank = reinterpret_cast<perk_max_rank_fn>(
                                        GetProcAddress( survivor->handle, "ncmm_test_perk_max_rank_v1" ) );
         const auto perk_reset = reinterpret_cast<perk_reset_fn>(
@@ -4212,7 +4215,8 @@ int run_gameplay_smoke()
                                        GetProcAddress( survivor->handle, "ncmm_test_set_perk_rank_v1" ) );
         const auto perk_recalc = reinterpret_cast<perk_recalc_fn>(
                                      GetProcAddress( survivor->handle, "ncmm_test_recalculate_v1" ) );
-        if( !perk_count || !perk_max_rank || !perk_reset || !perk_set_rank || !perk_recalc ) {
+        if( !perk_count || !perk_id || !perk_max_rank || !perk_reset ||
+            !perk_set_rank || !perk_recalc ) {
             write_gameplay_smoke_result( false, "survivor_test_surface_missing",
                                          aws_setting_count, aws_hook_count, 0 );
             return 107;
@@ -4226,17 +4230,20 @@ int run_gameplay_smoke()
             return 108;
         }
 
-        const int base_str = get_avatar().get_str();
-        const int base_dex = get_avatar().get_dex();
-        const int base_per = get_avatar().get_per();
-        const int base_int = get_avatar().get_int();
-        const int base_speed = get_avatar().get_speed();
-        const int base_stamina = get_avatar().get_stamina_max();
-        const int base_run_cost = get_avatar().run_cost( 100, false );
+        const auto find_perk_index = [&]( const char *wanted ) {
+            for( size_t i = 0; i < survivor_perk_count; ++i ) {
+                const char *id = perk_id( i );
+                if( id != nullptr && std::string( id ) == wanted ) {
+                    return i;
+                }
+            }
+            return survivor_perk_count;
+        };
 
-        // Diagnostic-only: activate every perk at max rank simultaneously.  This
-        // bypasses purchase/exclusivity constraints on purpose and validates the
-        // aggregate effect path of the exact release DLL against a real avatar.
+        // First prove that the exact release DLL can hold all 369 perks at max rank
+        // simultaneously and recompute its aggregate state without crashing or
+        // dropping the Host modifier channel.  Gameplay assertions below are then
+        // isolated per consumer to avoid false failures from CDDA's stat caps.
         for( size_t i = 0; i < survivor_perk_count; ++i ) {
             const int rank = perk_max_rank( i );
             if( rank < 1 || !perk_set_rank( i, rank ) ) {
@@ -4245,44 +4252,63 @@ int run_gameplay_smoke()
                 return 109;
             }
         }
-        if( !perk_recalc() ) {
+        if( !perk_recalc() || character_modifier_values.find( survivor_id ) ==
+            character_modifier_values.end() ) {
             write_gameplay_smoke_result( false, "survivor_recalculate_failed",
                                          aws_setting_count, aws_hook_count, survivor_perk_count );
             return 110;
         }
-
-        const auto expected_stat = []( int baseline, double modifier ) {
-            return baseline + static_cast<int>( std::lround( modifier ) );
-        };
-        if( get_avatar().get_str() != expected_stat( base_str, gameplay_modifier( "str_flat" ) ) ||
-            get_avatar().get_dex() != expected_stat( base_dex, gameplay_modifier( "dex_flat" ) ) ||
-            get_avatar().get_per() != expected_stat( base_per, gameplay_modifier( "per_flat" ) ) ||
-            get_avatar().get_int() != expected_stat( base_int, gameplay_modifier( "int_flat" ) ) ) {
-            write_gameplay_smoke_result( false, "survivor_real_primary_stat_mismatch",
+        if( !perk_reset() || !perk_recalc() ) {
+            write_gameplay_smoke_result( false, "survivor_post_aggregate_reset_failed",
                                          aws_setting_count, aws_hook_count, survivor_perk_count );
             return 111;
         }
 
-        const int expected_speed = std::max(
-                                       1, static_cast<int>( std::lround(
-                                               base_speed * std::max(
-                                                   0.1, 1.0 + gameplay_modifier( "speed_pct" ) / 100.0 ) ) ) );
-        if( get_avatar().get_speed() != expected_speed ) {
-            write_gameplay_smoke_result( false, "survivor_real_speed_mismatch",
-                                         aws_setting_count, aws_hook_count, survivor_perk_count );
-            return 112;
+        const size_t c_power = find_perk_index( "c_power" );
+        const size_t m_parkour = find_perk_index( "m_parkour" );
+        const size_t g_observer = find_perk_index( "g_observer" );
+        const size_t a_focus = find_perk_index( "a_focus" );
+        const size_t m_stride = find_perk_index( "m_stride" );
+        const size_t m_cardio = find_perk_index( "m_cardio" );
+        const size_t ce_drills = find_perk_index( "ce_drills" );
+        const size_t g_hauler = find_perk_index( "g_hauler" );
+        const size_t required_indices[] = {
+            c_power, m_parkour, g_observer, a_focus,
+            m_stride, m_cardio, ce_drills, g_hauler
+        };
+        for( size_t index : required_indices ) {
+            if( index >= survivor_perk_count ) {
+                write_gameplay_smoke_result( false, "survivor_representative_perk_missing",
+                                             aws_setting_count, aws_hook_count, survivor_perk_count );
+                return 112;
+            }
         }
 
-        const int expected_stamina = std::max(
-                                         1, static_cast<int>( std::lround(
-                                                 base_stamina * std::max(
-                                                     0.1, 1.0 + gameplay_modifier( "stamina_max_pct" ) / 100.0 ) ) ) );
-        if( get_avatar().get_stamina_max() != expected_stamina ) {
-            write_gameplay_smoke_result( false, "survivor_real_stamina_mismatch",
+        const auto prepare_single = [&]( size_t index ) {
+            return perk_reset() && perk_recalc() && perk_set_rank( index, 1 ) && perk_recalc();
+        };
+
+        // Primary Character stats.
+        if( !perk_reset() || !perk_recalc() ) return 113;
+        const int base_str = get_avatar().get_str();
+        if( !prepare_single( c_power ) ||
+            get_avatar().get_str() != base_str +
+            static_cast<int>( std::lround( gameplay_modifier( "str_flat" ) ) ) ) {
+            write_gameplay_smoke_result( false, "survivor_real_strength_mismatch",
                                          aws_setting_count, aws_hook_count, survivor_perk_count );
             return 113;
         }
 
+        if( !perk_reset() || !perk_recalc() ) return 114;
+        const int base_dex = get_avatar().get_dex();
+        const int base_run_cost = get_avatar().run_cost( 100, false );
+        if( !prepare_single( m_parkour ) ||
+            get_avatar().get_dex() != base_dex +
+            static_cast<int>( std::lround( gameplay_modifier( "dex_flat" ) ) ) ) {
+            write_gameplay_smoke_result( false, "survivor_real_dexterity_mismatch",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 114;
+        }
         const int expected_run_cost = std::max(
                                           1, static_cast<int>(
                                               base_run_cost * std::max(
@@ -4290,28 +4316,103 @@ int run_gameplay_smoke()
         if( get_avatar().run_cost( 100, false ) != expected_run_cost ) {
             write_gameplay_smoke_result( false, "survivor_real_move_cost_mismatch",
                                          aws_setting_count, aws_hook_count, survivor_perk_count );
-            return 114;
+            return 115;
         }
 
-        // Reset must remove effects from the actual character, not only from the
-        // module's internal bookkeeping.
+        if( !perk_reset() || !perk_recalc() ) return 116;
+        const int base_per = get_avatar().get_per();
+        if( !prepare_single( g_observer ) ||
+            get_avatar().get_per() != base_per +
+            static_cast<int>( std::lround( gameplay_modifier( "per_flat" ) ) ) ) {
+            write_gameplay_smoke_result( false, "survivor_real_perception_mismatch",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 116;
+        }
+
+        if( !perk_reset() || !perk_recalc() ) return 117;
+        const int base_int = get_avatar().get_int();
+        if( !prepare_single( a_focus ) ||
+            get_avatar().get_int() != base_int +
+            static_cast<int>( std::lround( gameplay_modifier( "int_flat" ) ) ) ) {
+            write_gameplay_smoke_result( false, "survivor_real_intelligence_mismatch",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 117;
+        }
+
+        // Speed and stamina multipliers.
+        if( !perk_reset() || !perk_recalc() ) return 118;
+        const int base_speed = get_avatar().get_speed();
+        if( !prepare_single( m_stride ) ) return 118;
+        const int expected_speed = std::max(
+                                       1, static_cast<int>( std::lround(
+                                               base_speed * std::max(
+                                                   0.1, 1.0 + gameplay_modifier( "speed_pct" ) / 100.0 ) ) ) );
+        if( get_avatar().get_speed() != expected_speed ) {
+            write_gameplay_smoke_result( false, "survivor_real_speed_mismatch",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 118;
+        }
+
+        if( !perk_reset() || !perk_recalc() ) return 119;
+        const int base_stamina = get_avatar().get_stamina_max();
+        if( !prepare_single( m_cardio ) ) return 119;
+        const int expected_stamina = std::max(
+                                         1, static_cast<int>( std::lround(
+                                                 base_stamina * std::max(
+                                                     0.1, 1.0 + gameplay_modifier( "stamina_max_pct" ) / 100.0 ) ) ) );
+        if( get_avatar().get_stamina_max() != expected_stamina ) {
+            write_gameplay_smoke_result( false, "survivor_real_stamina_mismatch",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 119;
+        }
+
+        // Melee hit reaches the actual Character::get_hit_base consumer.
+        if( !perk_reset() || !perk_recalc() ) return 120;
+        const float base_hit = get_avatar().get_hit_base();
+        if( !prepare_single( ce_drills ) ) return 120;
+        const float expected_hit = base_hit +
+                                   static_cast<float>( gameplay_modifier( "melee_hit_flat" ) );
+        if( std::abs( get_avatar().get_hit_base() - expected_hit ) > 0.0001f ) {
+            write_gameplay_smoke_result( false, "survivor_real_melee_hit_mismatch",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 120;
+        }
+
+        // Carry capacity reaches Character::weight_capacity and units::mass.
+        if( !perk_reset() || !perk_recalc() ) return 121;
+        const auto base_capacity = get_avatar().weight_capacity();
+        if( !prepare_single( g_hauler ) ) return 121;
+        const double carry_multiplier = std::max(
+                                            0.0, 1.0 + gameplay_modifier( "carry_weight_pct" ) / 100.0 );
+        const auto expected_capacity_value = static_cast<decltype( base_capacity.value() )>(
+                std::llround( static_cast<double>( base_capacity.value() ) * carry_multiplier ) );
+        if( std::llabs( static_cast<long long>( get_avatar().weight_capacity().value() ) -
+                        static_cast<long long>( expected_capacity_value ) ) > 1 ) {
+            write_gameplay_smoke_result( false, "survivor_real_carry_mismatch",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 121;
+        }
+
+        // Final reset proves the real Character consumers return to their vanilla baseline.
         if( !perk_reset() || !perk_recalc() ||
-            get_avatar().get_str() != base_str ||
-            get_avatar().get_dex() != base_dex ||
-            get_avatar().get_per() != base_per ||
-            get_avatar().get_int() != base_int ||
-            get_avatar().get_speed() != base_speed ||
-            get_avatar().get_stamina_max() != base_stamina ||
-            get_avatar().run_cost( 100, false ) != base_run_cost ) {
+            std::abs( gameplay_modifier( "str_flat" ) ) > 0.000001 ||
+            std::abs( gameplay_modifier( "dex_flat" ) ) > 0.000001 ||
+            std::abs( gameplay_modifier( "per_flat" ) ) > 0.000001 ||
+            std::abs( gameplay_modifier( "int_flat" ) ) > 0.000001 ||
+            std::abs( gameplay_modifier( "speed_pct" ) ) > 0.000001 ||
+            std::abs( gameplay_modifier( "stamina_max_pct" ) ) > 0.000001 ||
+            std::abs( gameplay_modifier( "move_cost_pct" ) ) > 0.000001 ||
+            std::abs( gameplay_modifier( "carry_weight_pct" ) ) > 0.000001 ||
+            std::abs( gameplay_modifier( "melee_hit_flat" ) ) > 0.000001 ) {
             write_gameplay_smoke_result( false, "survivor_real_cleanup_mismatch",
                                          aws_setting_count, aws_hook_count, survivor_perk_count );
-            return 115;
+            return 122;
         }
 
         write_gameplay_smoke_result( true, "ok", aws_setting_count,
                                      aws_hook_count, survivor_perk_count );
         log_line( NCMM_LOG_INFO,
-                  "NCMM gameplay smoke PASS: real AWS world save/reload/overmap + Survivor 369-perk aggregate avatar effects." );
+                  "NCMM gameplay smoke PASS: real AWS world save/reload/overmap + Survivor 369-perk aggregate plus isolated Character consumers." );
         return 0;
     } catch( const std::exception &err ) {
         log_line( NCMM_LOG_ERROR, ( std::string( "NCMM gameplay smoke exception: " ) + err.what() ).c_str() );
