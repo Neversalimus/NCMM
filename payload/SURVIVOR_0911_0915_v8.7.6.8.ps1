@@ -17214,6 +17214,29 @@ extern "C" NCMM_EXPORT void ncmm_test_dispatch_event_v1( uint32_t event_id )
         if(-not $applyHostUi.Contains('NCMM Host API v1 / NCMM 0.8.1 module contract')){
             throw 'NCMM 0.8.1 host patch marker promotion failed.'
         }
+        if(-not $applyHostUi.Contains("'main-menu.ncmm-gameplay-smoke'")){
+            $gameplayApplyAnchor = [Text.Encoding]::UTF8.GetString(
+                [Convert]::FromBase64String('JG1tID0gUmVwbGFjZS1FeGFjdGx5T25jZSAkbW0gJyNpbmNsdWRlICJvcHRpb25zLmgiJyAoJyNpbmNsdWRlICJvcHRpb25zLmgiJyArICJgbiIgKyAnI2luY2x1ZGUgIm5jbW1fbG9hZGVyLmgiJykgJ21haW4tbWVudS5pbmNsdWRlLW5jbW0n'))
+            $gameplayApplyPatch = [Text.Encoding]::UTF8.GetString(
+                [Convert]::FromBase64String('JG1tID0gUmVwbGFjZS1FeGFjdGx5T25jZSAkbW0gQCcKICAgIHdvcmxkX2dlbmVyYXRvci0+c2V0X2FjdGl2ZV93b3JsZCggbnVsbHB0ciApOwogICAgd29ybGRfZ2VuZXJhdG9yLT5pbml0KCk7CgogICAgaW5pdF9zdHJpbmdzKCk7CidAIEAnCiAgICB3b3JsZF9nZW5lcmF0b3ItPnNldF9hY3RpdmVfd29ybGQoIG51bGxwdHIgKTsKICAgIHdvcmxkX2dlbmVyYXRvci0+aW5pdCgpOwoKICAgIGlmKCBuY21tOjpnYW1lcGxheV9zbW9rZV9yZXF1ZXN0ZWQoKSApIHsKICAgICAgICBzdGQ6OmV4aXQoIG5jbW06OnJ1bl9nYW1lcGxheV9zbW9rZSgpICk7CiAgICB9CgogICAgaW5pdF9zdHJpbmdzKCk7CidAICdtYWluLW1lbnUubmNtbS1nYW1lcGxheS1zbW9rZSc='))
+            if(-not $applyHostUi.Contains($gameplayApplyAnchor)){
+                throw 'NCMM gameplay smoke main-menu insertion anchor missing.'
+            }
+            $applyHostUi = $applyHostUi.Replace(
+                $gameplayApplyAnchor,
+                $gameplayApplyAnchor + "`n" + (Normalize-Lf $gameplayApplyPatch))
+        }
+        $gameplayCheckOld = [Text.Encoding]::UTF8.GetString(
+            [Convert]::FromBase64String('ICAgICAgICBAKCRtbSwnbmNtbTo6dmVyc2lvbl9sYWJlbCgpJyksCiAgICAgICAgQCgkbW0sJ25jbW06OnNob3dfbWFuYWdlcigpOycpLA=='))
+        $gameplayCheckNew = [Text.Encoding]::UTF8.GetString(
+            [Convert]::FromBase64String('ICAgICAgICBAKCRtbSwnbmNtbTo6dmVyc2lvbl9sYWJlbCgpJyksCiAgICAgICAgQCgkbW0sJ25jbW06OmdhbWVwbGF5X3Ntb2tlX3JlcXVlc3RlZCgpJyksCiAgICAgICAgQCgkbW0sJ25jbW06OnJ1bl9nYW1lcGxheV9zbW9rZSgpJyksCiAgICAgICAgQCgkbW0sJ25jbW06OnNob3dfbWFuYWdlcigpOycpLA=='))
+        if($applyHostUi.Contains($gameplayCheckOld)){
+            $applyHostUi = $applyHostUi.Replace($gameplayCheckOld,$gameplayCheckNew)
+        }
+        if(-not $applyHostUi.Contains("'main-menu.ncmm-gameplay-smoke'") -or
+           -not $applyHostUi.Contains("ncmm::run_gameplay_smoke()")){
+            throw 'NCMM gameplay smoke host patch generation failed.'
+        }
         Write-Utf8NoBom $applyHostUiPath $applyHostUi
     }
 
