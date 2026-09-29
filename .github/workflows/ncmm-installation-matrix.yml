@@ -136,6 +136,36 @@ jobs:
             throw 'Second real runtime smoke was misclassified as a crash.'
           }
 
+      - name: Run real AWS worldgen + Survivor gameplay smoke
+        shell: powershell
+        timeout-minutes: 12
+        run: |
+          $root = '${{ steps.game.outputs.root }}'
+          $exe = Join-Path $root 'cataclysm-tiles.exe'
+          $ncmm = Join-Path $root 'ncmm'
+          & $exe --ncmm-gameplay-smoke --ncmm-offline
+          if ($LASTEXITCODE -ne 0) {
+            throw "Real NCMM gameplay smoke failed with exit $LASTEXITCODE."
+          }
+          $resultPath = Join-Path $ncmm 'gameplay-smoke.json'
+          if (-not (Test-Path $resultPath -PathType Leaf)) {
+            throw 'Gameplay smoke did not publish gameplay-smoke.json.'
+          }
+          $result = Get-Content $resultPath -Raw | ConvertFrom-Json
+          if (-not [bool]$result.success) {
+            throw ("Gameplay smoke reported failure: " + [string]$result.reason)
+          }
+          if ([int]$result.aws_settings -ne 48 -or [int]$result.aws_hooks -ne 48) {
+            throw ("AWS gameplay coverage mismatch: settings=" + $result.aws_settings + " hooks=" + $result.aws_hooks)
+          }
+          if ([int]$result.survivor_perks -ne 369) {
+            throw ("Survivor gameplay coverage mismatch: " + $result.survivor_perks)
+          }
+          if (Test-Path (Join-Path $ncmm 'boot.pending')) {
+            throw 'Gameplay smoke left boot.pending.'
+          }
+          Write-Host ("Gameplay smoke PASS: AWS 48/48, Survivor " + $result.survivor_perks + "/369") -ForegroundColor Green
+
       - name: Verify certified Host + modules and restore vanilla
         shell: powershell
         run: |
@@ -165,7 +195,7 @@ jobs:
           foreach ($name in @(
             'installed-components.json','bootstrap.sha256','vanilla.sha256',
             'runtime.state.json','modules.state.json','host.binding.json',
-            'bootstrap.log','ncmm.log','boot.ready'
+            'gameplay-smoke.json','bootstrap.log','ncmm.log','boot.ready'
           )) {
             $path = Join-Path $root ('ncmm\' + $name)
             if (Test-Path $path -PathType Leaf) { Copy-Item $path (Join-Path $evidence $name) -Force }
@@ -174,6 +204,7 @@ jobs:
           "- CDDA: ${{ steps.release.outputs.tag }}" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- production SetupCore: install / module switch / reinstall" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- bootstrap -> certified Host -> AWS + Survivor -> boot.ready -> clean exit: two consecutive real launches" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "- gameplay smoke: real AWS world save/reload/overmap + Survivor 369-perk aggregate avatar effects" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- RestoreVanilla: verified by SHA-256" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       - name: Upload evidence
