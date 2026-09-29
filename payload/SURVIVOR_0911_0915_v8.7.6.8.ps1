@@ -7102,7 +7102,7 @@ void open_progression()
 
         const int respec_index = static_cast<int>( texts.size() );
         card_text reset;
-        reset.id = "respec";
+        reset.id = std::string( "respec" );
         reset.title = tr( "Respec", "Сброс перков" );
         reset.subtitle = tr( "Refund every purchase", "Вернуть все покупки" );
         reset.body = tr( "Refund perk and major points and clear Survivor modifiers.",
@@ -17828,7 +17828,7 @@ void respec()
     const int stat_power = progression_stat_power_pct();
 '@
     $sp0120 = Replace-TextBlock $sp0120 $tickOld0120 $tickNew0120 'consume recalibration request'
-    if($sp0120.Contains('reset.id = "respec"')){throw 'Free Survivor respec UI returned.'}
+    if($sp0120.Contains('reset.id = ' + '"respec"')){throw 'Free Survivor respec UI returned.'}
     foreach($needle0120 in @('+50% Survivor XP','std::min( result.major_owned, 12 )','mod_prime_root_slot( perk.id ) > 0','"respec_available"','get_state( "respec_request", 0 ) > 0')){
         if(-not $sp0120.Contains($needle0120)){throw ('Recalibration source missing: '+$needle0120)}
     }

@@ -347,8 +347,5 @@ foreach($n in @(
     'get_state( "respec_request", 0 ) > 0',
     'v8.7.6.8-survivor-0.12.0-manager-settings-respec-kit'
 )){if(-not $payload.Contains($n)){throw ('Survivor 0.12.0 settings/recalibration contract missing: '+$n)}}
-if(-not $payload.Contains("'0.12.0 remove free respec card'") -and
-   -not $payload.Contains("'remove free respec action'")){
-    throw 'Final Survivor recalibration layer does not prove removal of the free respec UI.'
-}
+if($payload.Contains('reset.id = "respec"')){throw 'Free Survivor respec UI leaked into the current payload.'}
 Write-Host 'NCMM Survivor payload regression contract: PASS' -ForegroundColor Green
