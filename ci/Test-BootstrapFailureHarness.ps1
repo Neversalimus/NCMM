@@ -29,7 +29,7 @@ $childOut = Join-Path $work 'BootstrapFailureChild.exe'
 $childSource = Join-Path $RepositoryRoot 'tests\BootstrapFailureChild.cs'
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $passed = 0
-$total = 16
+$total = 17
 
 function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
@@ -191,6 +191,20 @@ try {
         $state = Read-State $root
         Assert-Equal $state.selected_mode 'ERROR' 'Runtime smoke Host failure did not enter ERROR mode.'
         Assert-Equal $state.reason 'runtime_smoke_host_unavailable' 'Runtime smoke failure reason mismatch.'
+    }
+
+
+    Run-Scenario 'gameplay smoke also refuses vanilla fallback when Host is invalid' {
+        $root = New-Scenario 'gameplay-smoke-no-host'
+        $path = Join-Path $root 'ncmm\host.binding.json'
+        $binding = Get-Content $path -Raw | ConvertFrom-Json
+        $binding.ncmm_version = '__ncmm_stale_runtime__'
+        $binding | ConvertTo-Json | Set-Content $path -Encoding UTF8
+        [void](Invoke-Bootstrap $root @('--ncmm-runtime-smoke-gameplay','--ncmm-offline') 115)
+        Assert-True (-not (Test-Path (Join-Path $root 'child.log'))) 'Gameplay smoke unexpectedly launched vanilla.'
+        $state = Read-State $root
+        Assert-Equal $state.selected_mode 'ERROR' 'Gameplay smoke Host failure did not enter ERROR mode.'
+        Assert-Equal $state.reason 'runtime_smoke_host_unavailable' 'Gameplay smoke failure reason mismatch.'
     }
 
     Run-Scenario 'empty patch revision -> vanilla' {
