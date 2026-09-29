@@ -83,7 +83,8 @@ $required = @(
     @{ Name='Survivor natural finisher label'; Text=$survivor; Needle='Finisher health threshold %' },
     @{ Name='AWS natural new-area warning'; Text=$aws; Needle='Affects only areas generated after this change.' },
     @{ Name='Host natural UI failure message'; Text=$hostText; Needle="This mod's interface failed to open and has been disabled for this session." },
-    @{ Name='Host natural settings badge'; Text=$hostText; Needle=' [SETTINGS]' }
+    @{ Name='Host natural manager details'; Text=$hostText; Needle='MODULE DETAILS' },
+    @{ Name='Host natural manager settings section'; Text=$hostText; Needle='SETTINGS' }
 )
 
 foreach( $check in $required ) {

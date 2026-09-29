@@ -573,8 +573,8 @@ bool configure_progression_settings()
     if( !host2->world_setting_register_enum(
             module_id, stat_power_setting,
             russian() ? "Сила стат-перков" : "Stat perk strength",
-            russian() ? "Масштабирует прямые бонусы обычных стат-перков. Механические перки не затрагиваются." :
-                        "Scales direct bonuses from regular stat perks. Mechanical perks are not affected.",
+            russian() ? "Масштабирует прямые бонусы перков к характеристикам и пассивным параметрам. Механические перки не затрагиваются." :
+                        "Scales direct bonuses from perks that grant attributes and passive stats. Mechanical perks are not affected.",
             values, labels, count, "100", NCMM_WORLD_SETTING_LIVE ) ) {
         return false;
     }
