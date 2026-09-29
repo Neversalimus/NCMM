@@ -3126,6 +3126,7 @@ void open_progression()
             show_overview();
             continue;
         }
+
         if( choice == close_index || choice < 0 ) {
             return;
         }

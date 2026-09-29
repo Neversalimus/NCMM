@@ -1170,7 +1170,8 @@ bool survivor_semantic_matrix( void *lib )
             if( scaling( i ) == 1 ) {
                 scale = static_cast<double>( active_branches );
             } else if( scaling( i ) == 2 ) {
-                scale = static_cast<double>( major_owned );
+                // Production Survivor caps per-owned-major scaling at twelve majors.
+                scale = static_cast<double>( std::min( major_owned, 12 ) );
             }
             scale *= rank_multiplier( i, rank_value );
             if( kind( i ) == 0 ) {
