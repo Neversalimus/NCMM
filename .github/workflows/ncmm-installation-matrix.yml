@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'feed/index.json'
+      - '.github/workflows/ncmm-installation-matrix.yml'
   workflow_dispatch:
     inputs:
       upstream_tag:
