@@ -204,6 +204,177 @@ $rg = Normalize-Lf $rgOriginal
 $dh = Normalize-Lf $dhOriginal
 $dc = Normalize-Lf $dcOriginal
 
+# Ballistic Hit Chance: deterministic CDF for the exact dispersion model.
+$dh = Replace-ExactlyOnce $dh @'
+        double avg() const;
+'@ @'
+        double avg() const;
+
+        /** Deterministic CDF of roll(): P( dispersion roll < threshold ). */
+        double probability_below( double threshold ) const;
+'@ 'dispersion.probability-declaration'
+
+$dc = Replace-ExactlyOnce $dc '#include <algorithm>' @'
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+'@ 'dispersion.probability-includes'
+
+$dc = Replace-ExactlyOnce $dc @'
+double dispersion_sources::avg() const
+{
+    return max() / 2.0;
+}
+'@ @'
+double dispersion_sources::avg() const
+{
+    return max() / 2.0;
+}
+
+double dispersion_sources::probability_below( double threshold ) const
+{
+    if( !std::isfinite( threshold ) ) {
+        return threshold > 0.0 ? 1.0 : 0.0;
+    }
+    if( threshold <= 0.0 ) {
+        return 0.0;
+    }
+    // roll() clamps the final result to 3600 arcminutes.
+    if( threshold > 3600.0 ) {
+        return 1.0;
+    }
+
+    long double multiplier = 1.0L;
+    for( const double source : multipliers ) {
+        multiplier *= static_cast<long double>( source );
+    }
+    if( multiplier == 0.0L ) {
+        return 1.0;
+    }
+    // Supported weapon-dispersion multipliers are non-negative.
+    if( multiplier < 0.0L ) {
+        return 0.0;
+    }
+
+    const long double scaled_threshold =
+        static_cast<long double>( threshold ) / multiplier;
+
+    std::vector<long double> linear;
+    linear.reserve( linear_sources.size() );
+    for( const double source : linear_sources ) {
+        if( source > 0.0 ) {
+            linear.push_back( static_cast<long double>( source ) );
+        }
+    }
+
+    // Exact CDF for a sum of independent U( 0, a_i ) variables.
+    const auto uniform_sum_cdf = [&linear]( long double x ) -> long double {
+        if( linear.empty() ) {
+            return x > 0.0L ? 1.0L : 0.0L;
+        }
+        if( x <= 0.0L ) {
+            return 0.0L;
+        }
+
+        const std::size_t n = linear.size();
+        long double max_sum = 0.0L;
+        long double denominator = 1.0L;
+        for( const long double source : linear ) {
+            max_sum += source;
+            denominator *= source;
+        }
+        if( x >= max_sum ) {
+            return 1.0L;
+        }
+
+        long double factorial = 1.0L;
+        for( std::size_t i = 2; i <= n; ++i ) {
+            factorial *= static_cast<long double>( i );
+        }
+        denominator *= factorial;
+
+        // Current firearm paths have only a handful of linear sources.
+        if( n >= 63 ) {
+            return 0.0L;
+        }
+
+        const std::uint64_t combinations = std::uint64_t{ 1 } << n;
+        long double sum = 0.0L;
+        for( std::uint64_t mask = 0; mask < combinations; ++mask ) {
+            long double shift = 0.0L;
+            unsigned parity = 0;
+            for( std::size_t i = 0; i < n; ++i ) {
+                if( ( mask & ( std::uint64_t{ 1 } << i ) ) != 0 ) {
+                    shift += linear[i];
+                    parity ^= 1u;
+                }
+            }
+            const long double remainder = x - shift;
+            if( remainder <= 0.0L ) {
+                continue;
+            }
+            const long double term = std::pow( remainder, static_cast<int>( n ) );
+            sum += parity != 0u ? -term : term;
+        }
+        return std::clamp( sum / denominator, 0.0L, 1.0L );
+    };
+
+    if( normal_sources.empty() ) {
+        return static_cast<double>(
+                   std::clamp( uniform_sum_cdf( scaled_threshold ), 0.0L, 1.0L ) );
+    }
+
+    // Weapon paths have one clamped normal source: gun/ammo dispersion.
+    // rng_normal( 0, hi ) is N( hi/2, hi/4 ) clamped to [0, hi].
+    const long double hi = std::max(
+                               0.0L, static_cast<long double>( normal_sources.front() ) );
+    if( hi == 0.0L ) {
+        return static_cast<double>(
+                   std::clamp( uniform_sum_cdf( scaled_threshold ), 0.0L, 1.0L ) );
+    }
+
+    const long double mean = hi / 2.0L;
+    const long double sigma = hi / 4.0L;
+    const auto normal_cdf = [mean, sigma]( long double x ) -> long double {
+        constexpr long double sqrt_two =
+            1.414213562373095048801688724209698L;
+        return 0.5L * ( 1.0L + std::erf( ( x - mean ) /
+                                         ( sigma * sqrt_two ) ) );
+    };
+    const auto normal_pdf = [mean, sigma]( long double x ) -> long double {
+        constexpr long double sqrt_two_pi =
+            2.506628274631000502415765284811045L;
+        const long double z = ( x - mean ) / sigma;
+        return std::exp( -0.5L * z * z ) / ( sigma * sqrt_two_pi );
+    };
+
+    const long double mass_low = normal_cdf( 0.0L );
+    const long double mass_high = 1.0L - normal_cdf( hi );
+
+    // Simpson integration of the continuous interior. 128 panels are well
+    // below the visible 0.1% precision for supported firearm distributions.
+    constexpr int panels = 128;
+    const long double step = hi / static_cast<long double>( panels );
+    long double integral = 0.0L;
+    for( int i = 0; i <= panels; ++i ) {
+        const long double x = step * static_cast<long double>( i );
+        const long double value =
+            normal_pdf( x ) * uniform_sum_cdf( scaled_threshold - x );
+        const int weight = ( i == 0 || i == panels ) ? 1 :
+                           ( i % 2 == 0 ? 2 : 4 );
+        integral += static_cast<long double>( weight ) * value;
+    }
+    integral *= step / 3.0L;
+
+    const long double probability =
+        mass_low * uniform_sum_cdf( scaled_threshold ) +
+        integral +
+        mass_high * uniform_sum_cdf( scaled_threshold - hi );
+
+    return static_cast<double>( std::clamp( probability, 0.0L, 1.0L ) );
+}
+'@ 'dispersion.probability-implementation'
+
 $h = Replace-ExactlyOnce $h @'
             COPT_NO_SOUND_HIDE,
             /** Hide this option always, it should not be changed by user directly through UI. **/
