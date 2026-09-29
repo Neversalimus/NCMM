@@ -16455,7 +16455,9 @@ calculated_effects calculate_owned_effects()
         }
         result.modifiers["sp_damage_dealt_pct"] += momentum_stacks * damage_per_stack;
         result.modifiers["speed_pct"] += momentum_stacks * speed_per_stack;
-    }    result.xp_bonus_pct = std::max( 0, std::min( 5000, result.xp_bonus_pct ) );
+    }    // Prime drawbacks may intentionally reduce Survivor XP.  Keep the
+    // effective multiplier non-negative while preserving declared penalties.
+    result.xp_bonus_pct = std::max( -100, std::min( 5000, result.xp_bonus_pct ) );
     return result;
 }
 '@
@@ -16626,8 +16628,169 @@ extern "C" NCMM_EXPORT void ncmm_on_locale_changed_v1( const ncmm_host_api_v1 *a
         if(-not $spUi.Contains($localeAnchor)){throw 'Survivor locale settings refresh anchor missing.'}
         $spUi = $spUi.Replace($localeAnchor,$localeHandler + $localeAnchor)
     }
+    if(-not $spUi.Contains('ncmm_test_perk_count_v1')){
+        $semanticOpenUi = @'
+extern "C" NCMM_EXPORT void ncmm_open_ui_v1( const ncmm_host_api_v1 *api )
+{
+    if( api != nullptr ) {
+        host = api;
+    }
+    open_progression();
+}
+'@
+        $semanticExports = @'
+// Diagnostic-only semantic test surface.  These exports are intentionally outside
+// the NCMM runtime ABI: production Host never resolves them.  CI loads the exact
+// release DLL and uses them to prove every perk definition reaches the normal
+// state/recalculation path instead of testing a duplicated model.
+extern "C" NCMM_EXPORT size_t ncmm_test_perk_count_v1()
+{
+    return sizeof( perks ) / sizeof( perks[0] );
+}
+
+extern "C" NCMM_EXPORT const char *ncmm_test_perk_id_v1( size_t index )
+{
+    return index < ncmm_test_perk_count_v1() ? perks[index].id : nullptr;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_perk_branch_v1( size_t index )
+{
+    return index < ncmm_test_perk_count_v1() ? static_cast<int>( perks[index].branch ) : -1;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_perk_currency_v1( size_t index )
+{
+    return index < ncmm_test_perk_count_v1() ? static_cast<int>( perks[index].currency ) : -1;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_perk_kind_v1( size_t index )
+{
+    return index < ncmm_test_perk_count_v1() ?
+           static_cast<int>( effective_kind( perks[index] ) ) : -1;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_perk_scaling_v1( size_t index )
+{
+    return index < ncmm_test_perk_count_v1() ?
+           static_cast<int>( perks[index].scaling ) : -1;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_perk_integration_v1( size_t index )
+{
+    return index < ncmm_test_perk_count_v1() && integration_perk( perks[index] ) ? 1 : 0;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_perk_max_rank_v1( size_t index )
+{
+    return index < ncmm_test_perk_count_v1() ? perk_max_rank( perks[index] ) : 0;
+}
+
+extern "C" NCMM_EXPORT double ncmm_test_perk_rank_multiplier_v1( size_t index, int rank )
+{
+    return index < ncmm_test_perk_count_v1() ?
+           perk_rank_multiplier_for( perks[index], rank ) : 0.0;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_perk_effect_count_v1( size_t index )
+{
+    return index < ncmm_test_perk_count_v1() ? perks[index].effect_count : 0;
+}
+
+extern "C" NCMM_EXPORT const char *ncmm_test_perk_effect_id_v1( size_t index, int effect_index )
+{
+    if( index >= ncmm_test_perk_count_v1() || effect_index < 0 ||
+        effect_index >= perks[index].effect_count ) {
+        return nullptr;
+    }
+    return perks[index].effects[effect_index].id;
+}
+
+extern "C" NCMM_EXPORT double ncmm_test_perk_effect_value_v1( size_t index, int effect_index )
+{
+    if( index >= ncmm_test_perk_count_v1() || effect_index < 0 ||
+        effect_index >= perks[index].effect_count ) {
+        return 0.0;
+    }
+    return perks[index].effects[effect_index].value;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_perk_xp_bonus_v1( size_t index )
+{
+    return index < ncmm_test_perk_count_v1() ? perks[index].xp_bonus_pct : 0;
+}
+
+extern "C" NCMM_EXPORT double ncmm_test_perk_branch_amp_v1( size_t index )
+{
+    return index < ncmm_test_perk_count_v1() ? perks[index].branch_amp_pct : 0.0;
+}
+
+extern "C" NCMM_EXPORT double ncmm_test_perk_global_amp_v1( size_t index )
+{
+    return index < ncmm_test_perk_count_v1() ? perks[index].global_amp_pct : 0.0;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_reset_all_perks_v1()
+{
+    if( !character_available() ) {
+        return 0;
+    }
+    for( const perk_def &perk : perks ) {
+        set_state( perk_key( perk ), 0 );
+    }
+    const char *state_keys[] = {
+        "spec_combat", "spec_survival", "spec_mobility", "spec_crafting",
+        "spec_scavenging", "spec_mastery",
+        "prime_magiclysm", "prime_mindovermatter", "prime_xedra_evolved",
+        "prime_aftershock_exoplanet", "prime_aftershock_prime",
+        "prime_secronom", "prime_secronom_plus",
+        "momentum_stacks", "momentum_turns"
+    };
+    for( const char *key : state_keys ) {
+        set_state( key, 0 );
+    }
+    effects_dirty = true;
+    recalculate_effects();
+    return 1;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_set_perk_rank_v1( size_t index, int rank )
+{
+    if( index >= ncmm_test_perk_count_v1() || !character_available() ) {
+        return 0;
+    }
+    const perk_def &perk = perks[index];
+    const int bounded = std::max( 0, std::min( perk_max_rank( perk ), rank ) );
+    set_state( perk_key( perk ), bounded );
+    effects_dirty = true;
+    recalculate_effects();
+    return perk_rank( perk ) == bounded ? 1 : 0;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_recalculate_v1()
+{
+    if( !character_available() ) {
+        return 0;
+    }
+    effects_dirty = true;
+    recalculate_effects();
+    return effects_dirty ? 0 : 1;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_current_xp_bonus_v1()
+{
+    return current_xp_bonus_pct;
+}
+
+extern "C" NCMM_EXPORT void ncmm_test_dispatch_event_v1( uint32_t event_id )
+{
+    survivor_reactive_event_v2( event_id, nullptr );
+}
+'@
+        $spUi = Replace-TextBlock $spUi $semanticOpenUi ($semanticOpenUi + "`n`n" + $semanticExports) 'Survivor semantic diagnostic exports'
+    }
+
     $spUi = $spUi.Replace('0.11.3','0.12.0')
-    foreach($settingNeedle in @('NCMM_SP_XP_RATE','NCMM_SP_STAT_POWER','scale_configured_xp','configure_progression_settings','progression_xp_rate_pct','progression_stat_power_pct','settings.typed.v2','Survivor Progression v0.12.0')){
+    foreach($settingNeedle in @('NCMM_SP_XP_RATE','NCMM_SP_STAT_POWER','scale_configured_xp','configure_progression_settings','progression_xp_rate_pct','progression_stat_power_pct','settings.typed.v2','Survivor Progression v0.12.0','ncmm_test_perk_count_v1','ncmm_test_set_perk_rank_v1')){
         if(-not $spUi.Contains($settingNeedle)){throw "Survivor settings generated source missing: $settingNeedle"}
     }
     Write-Utf8NoBom $spUiPath $spUi
