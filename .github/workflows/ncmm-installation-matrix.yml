@@ -1,6 +1,11 @@
 name: NCMM Real Installation Matrix
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'feed/index.json'
   workflow_dispatch:
     inputs:
       upstream_tag:
@@ -94,6 +99,28 @@ jobs:
             -Mode Real `
             -GameRoot '${{ steps.game.outputs.root }}'
 
+      - name: Launch installed bootstrap into certified Host runtime smoke
+        shell: powershell
+        timeout-minutes: 5
+        run: |
+          $root = '${{ steps.game.outputs.root }}'
+          $exe = Join-Path $root 'cataclysm-tiles.exe'
+          if (-not (Test-Path $exe -PathType Leaf)) { throw "Installed NCMM bootstrap is missing: $exe" }
+          & $exe --ncmm-runtime-smoke --ncmm-refresh
+          if ($LASTEXITCODE -ne 0) {
+            throw "Real NCMM runtime smoke failed with exit $LASTEXITCODE."
+          }
+
+      - name: Verify certified Host + modules and restore vanilla
+        shell: powershell
+        run: |
+          ./ci/Test-InstallationMatrix.ps1 `
+            -RepositoryRoot "$env:GITHUB_WORKSPACE" `
+            -PayloadRoot "$env:GITHUB_WORKSPACE/dist/runtime/payload" `
+            -Mode Real `
+            -RealPhase PostRuntime `
+            -GameRoot '${{ steps.game.outputs.root }}'
+
       - name: Publish real-install evidence
         if: always()
         shell: powershell
@@ -110,13 +137,19 @@ jobs:
               } else { Copy-Item $path (Join-Path $evidence $name) -Force }
             }
           }
-          foreach ($name in @('installed-components.json','bootstrap.sha256','vanilla.sha256')) {
+          foreach ($name in @(
+            'installed-components.json','bootstrap.sha256','vanilla.sha256',
+            'runtime.state.json','modules.state.json','host.binding.json',
+            'bootstrap.log','ncmm.log','boot.ready'
+          )) {
             $path = Join-Path $root ('ncmm\' + $name)
             if (Test-Path $path -PathType Leaf) { Copy-Item $path (Join-Path $evidence $name) -Force }
           }
-          "## NCMM real installation smoke" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "## NCMM real runtime smoke" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- CDDA: ${{ steps.release.outputs.tag }}" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "- production SetupCore: PASS if previous step succeeded" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "- production SetupCore: install / module switch / reinstall" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "- bootstrap -> certified Host -> AWS + Survivor -> boot.ready -> clean exit" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "- RestoreVanilla: verified by SHA-256" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       - name: Upload evidence
         if: always()
