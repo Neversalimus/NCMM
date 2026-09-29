@@ -223,7 +223,10 @@ foreach ($requiredLoaderFragment in @(
     'module.lifecycle.v1',
     'module_setting_meta',
     'manager_adjust_setting',
-    'NCMM_MANAGER'
+    'NCMM_MANAGER',
+    'runtime_smoke_requested',
+    '--ncmm-runtime-smoke',
+    'NCMM runtime smoke reached Host ready state'
 )) {
     if (-not $loaderSource.Contains($requiredLoaderFragment)) {
         throw "NCMM $hostVersion loader hardening invariant missing: $requiredLoaderFragment"
@@ -273,6 +276,8 @@ foreach ($requiredBootstrapFragment in @(
     'rejected_patch_revision',
     'recoveryBlockedHost',
     'boot.ready proves the previous host reached ready state',
+    'runtime_smoke_host_unavailable',
+    '--ncmm-runtime-smoke',
     'stale boot.pending still exists before host launch'
 )) {
     if (-not $bootstrapSourceText.Contains($requiredBootstrapFragment)) {
