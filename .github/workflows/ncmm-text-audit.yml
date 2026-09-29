@@ -2,7 +2,7 @@ name: NCMM Player-Facing Text Audit
 
 on:
   push:
-    branches: [main, feature/real-module-gameplay-smoke]
+    branches: [main]
     paths:
       - 'mods/SurvivorProgression/**'
       - 'mods/AdvancedWorldSettings/**'
