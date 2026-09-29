@@ -2658,7 +2658,6 @@ void respec()
     for( const perk_def &perk : perks ) {
         if( perk_rank( perk ) > 0 ) set_state( perk_key( perk ), 0 );
     }
-
     set_state( "perk_points", get_state( "perk_points", 0 ) + refund_perk );
     set_state( "major_points", get_state( "major_points", 0 ) + refund_major );
     set_state( "fast_learner", 0 );
@@ -2680,6 +2679,7 @@ void respec()
                  "Рекалибровка Survivor завершена. Возвращено: " ) +
              std::to_string( refund_perk ) + "P / " + std::to_string( refund_major ) + "M" );
 }
+
 std::vector<std::string> active_supported_integration_mods()
 {
     static const std::array<const char *, 7> supported = {{
