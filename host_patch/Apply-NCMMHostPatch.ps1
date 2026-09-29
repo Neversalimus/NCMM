@@ -89,6 +89,8 @@ if (Test-Path $marker) {
         @($sd,'ncmm::initialize();'),
         @($mm,'ncmm::settings_menu_label()'),
         @($mm,'ncmm::version_label()'),
+        @($mm,'ncmm::gameplay_smoke_requested()'),
+        @($mm,'ncmm::run_gameplay_smoke()'),
         @($mm,'ncmm::show_manager();'),
         @($mm,'ncmm::on_language_changed();'),
         @($mm,'ncmm::register_gameplay_actions( ctxt_default );'),
@@ -525,6 +527,22 @@ $ha = Replace-ExactlyOnce $ha @'
 '@ 'gameplay.dispatch-ncmm-actions'
 
 $mm = Replace-ExactlyOnce $mm '#include "options.h"' ('#include "options.h"' + "`n" + '#include "ncmm_loader.h"') 'main-menu.include-ncmm'
+$mm = Replace-ExactlyOnce $mm @'
+    world_generator->set_active_world( nullptr );
+    world_generator->init();
+
+    init_strings();
+'@ @'
+    world_generator->set_active_world( nullptr );
+    world_generator->init();
+
+    if( ncmm::gameplay_smoke_requested() ) {
+        std::exit( ncmm::run_gameplay_smoke() );
+    }
+
+    init_strings();
+'@ 'main-menu.ncmm-gameplay-smoke'
+
 $mm = Replace-ExactlyOnce $mm @'
     vSettingsSubItems.emplace_back( pgettext( "Main Menu|Settings", "<I|i>mGui Demo Screen" ) );
 '@ @'
