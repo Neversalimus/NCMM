@@ -29,7 +29,7 @@ $childOut = Join-Path $work 'BootstrapFailureChild.exe'
 $childSource = Join-Path $RepositoryRoot 'tests\BootstrapFailureChild.cs'
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $passed = 0
-$total = 14
+$total = 15
 
 function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
@@ -136,6 +136,23 @@ try {
         Assert-True (-not (Test-Path (Join-Path $root 'ncmm\boot.pending'))) 'Host left boot.pending.'
         Assert-True (Test-Path (Join-Path $root 'ncmm\boot.ready')) 'Host did not publish boot.ready.'
         Assert-Equal (Read-State $root).selected_mode 'NCMM_HOST' 'State did not record NCMM_HOST.'
+    }
+
+
+    Run-Scenario 'first + second normal host launch stay healthy' {
+        $root = New-Scenario 'two-normal-launches'
+        [void](Invoke-Bootstrap $root @('--ncmm-offline','--test-host-ready') 0)
+        Assert-Equal (Last-Child $root) 'cataclysm-tiles.ncmm.exe' 'First normal launch did not use Host.'
+        Assert-True (-not (Test-Path (Join-Path $root 'ncmm\boot.pending'))) 'First normal launch left boot.pending.'
+        Assert-True (Test-Path (Join-Path $root 'ncmm\boot.ready')) 'First normal launch did not publish boot.ready.'
+        Assert-True (-not (Test-Path (Join-Path $root 'ncmm\ncmm.auto_disabled'))) 'First normal launch auto-disabled Host.'
+
+        [void](Invoke-Bootstrap $root @('--ncmm-offline','--test-host-ready') 0)
+        Assert-Equal (Last-Child $root) 'cataclysm-tiles.ncmm.exe' 'Second normal launch did not use Host.'
+        Assert-True (-not (Test-Path (Join-Path $root 'ncmm\boot.pending'))) 'Second normal launch left boot.pending.'
+        Assert-True (Test-Path (Join-Path $root 'ncmm\boot.ready')) 'Second normal launch did not publish boot.ready.'
+        Assert-True (-not (Test-Path (Join-Path $root 'ncmm\ncmm.auto_disabled'))) 'Second normal launch was misclassified as a crash.'
+        Assert-Equal (Read-State $root).selected_mode 'NCMM_HOST' 'Second launch state did not remain NCMM_HOST.'
     }
 
     Run-Scenario 'manual disable -> vanilla' {
