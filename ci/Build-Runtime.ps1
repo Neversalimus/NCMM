@@ -294,6 +294,51 @@ Remove-Item $spBuild -Recurse -Force -ErrorAction SilentlyContinue
 $zip = Join-Path (Split-Path $OutputRoot -Parent) ("NCMM_Runtime_v$hostVersion.zip")
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $OutputRoot '*') -DestinationPath $zip -CompressionLevel Optimal
+
+# Full distribution bundle: ready-to-run runtime at the archive root plus
+# standalone component packages for granular installs and repairs.
+$fullStage = Join-Path (Split-Path $OutputRoot -Parent) '_full_package'
+Remove-Item $fullStage -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $fullStage | Out-Null
+Copy-Item (Join-Path $OutputRoot '*') $fullStage -Recurse -Force
+
+$packagesDir = Join-Path $fullStage 'packages'
+New-Item -ItemType Directory -Force -Path $packagesDir | Out-Null
+Copy-Item $zip (Join-Path $packagesDir (Split-Path $zip -Leaf)) -Force
+Copy-Item $awsModuleZip (Join-Path $packagesDir (Split-Path $awsModuleZip -Leaf)) -Force
+Copy-Item $survivorModuleZip (Join-Path $packagesDir (Split-Path $survivorModuleZip -Leaf)) -Force
+
+$releaseManifest = [ordered]@{
+    schema = 1
+    product = 'NCMM Full'
+    host_runtime_version = $hostVersion
+    recommended_entry = 'NCMM_Setup.exe'
+    bundled_installer = $true
+    modules = @(
+        [ordered]@{ id='advanced_world_settings'; version=$awsVersion; package=(Split-Path $awsModuleZip -Leaf) },
+        [ordered]@{ id='survivor_progression'; version=$survivorVersion; package=(Split-Path $survivorModuleZip -Leaf) }
+    )
+}
+$releaseManifest | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $fullStage 'release-manifest.json') -Encoding UTF8
+
+$fullReadme = @(
+    "NCMM Full $hostVersion",
+    '====================',
+    'Recommended: extract this archive and run NCMM_Setup.exe.',
+    '',
+    "Included directly: NCMM Runtime / Host bootstrap and installer, Advanced World Settings $awsVersion, Survivor Progression $survivorVersion.",
+    '',
+    'Standalone packages are preserved in the packages folder.',
+    'The installer always installs/repairs NCMM and lets you select AWS and Survivor independently.'
+) -join [Environment]::NewLine
+Set-Content (Join-Path $fullStage 'FULL_RELEASE.txt') -Value $fullReadme -Encoding UTF8
+
+$fullZip = Join-Path (Split-Path $OutputRoot -Parent) ("NCMM_Full_v$hostVersion.zip")
+if (Test-Path $fullZip) { Remove-Item $fullZip -Force }
+Compress-Archive -Path (Join-Path $fullStage '*') -DestinationPath $fullZip -CompressionLevel Optimal
+Remove-Item $fullStage -Recurse -Force -ErrorAction SilentlyContinue
+
+Write-Output $fullZip
 Write-Output $zip
 Write-Output $awsModuleZip
 Write-Output $survivorModuleZip
