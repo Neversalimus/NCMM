@@ -1,7 +1,7 @@
 {
   "id": "survivor_progression",
   "name": "Survivor Progression",
-  "version": "0.11.3",
+  "version": "0.12.0",
   "loader_api": 1,
   "api_major": 1,
   "api_min_minor": 9,
@@ -23,6 +23,7 @@
     "ui.theme.v1",
     "active_mods.registry.v2",
     "host_api.v2.core",
+    "settings.typed.v2",
     "events.core.v2",
     "character.modifiers.v2",
     "runtime_hooks.registry.v2",

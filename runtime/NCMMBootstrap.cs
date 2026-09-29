@@ -79,7 +79,7 @@ internal sealed class RuntimeState
 internal static class NCMMBootstrap
 {
     private const int LoaderApi = 1;
-    private const string RuntimeVersion = "0.8.0";
+    private const string RuntimeVersion = "0.8.1";
     private const string DefaultFeedUrl = "https://raw.githubusercontent.com/Neversalimus/NCMM/main/feed/index.json";
 
     private static string Root;

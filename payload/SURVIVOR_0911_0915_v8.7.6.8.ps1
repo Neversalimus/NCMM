@@ -485,14 +485,14 @@ function Wait-Unlocked([string]$Path,[int]$Seconds=20) {
 }
 
 function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[string]$ReleaseRoot) {
-    $out = Join-Path $ReleaseRoot "0.11.3"
+    $out = Join-Path $ReleaseRoot "0.12.0"
     $src = Join-Path $SourceRoot "src\survivor_progression.cpp"
     $manifest = Join-Path $SourceRoot "mod.json"
     $sdkHeader = Join-Path $SdkRoot "ncmm_api.h"
     $dll = Join-Path $out "ncmm_mod.dll"
     $obj = Join-Path $out "survivor_progression.obj"
     $cmd = Join-Path $out "build.cmd"
-    $cacheMarker = Join-Path $ReleaseRoot ".survivor_0113_combo_edge_build.sha256"
+    $cacheMarker = Join-Path $ReleaseRoot ".survivor_0120_manager_settings_build.sha256"
 
     foreach ($p in @($src,$manifest,$sdkHeader,$Vs.CL)) {
         if (-not (Test-Path $p -PathType Leaf)) {
@@ -504,7 +504,7 @@ function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[stri
     $compileRecipe = '/nologo /std:c++17 /EHsc /O2 /MT /LD + SDK include + survivor source'
     $sourceManifestSha = Hash-File $manifest
     $fingerprint = Hash-Text ((@(
-        "v8.7.6.8-survivor-0.11.3-combinatorial-edge-api2",
+        "v8.7.6.8-survivor-0.12.0-manager-settings",
         (Hash-File $src),
         $sourceManifestSha,
         (Hash-File $sdkHeader),
@@ -523,7 +523,7 @@ function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[stri
         $cacheLines[1].Trim() -eq (Hash-File $dll) -and
         $cacheLines[2].Trim() -eq $sourceManifestSha -and
         (Hash-File $cachedManifest) -eq $sourceManifestSha) {
-        Write-Host "Survivor 0.11.3 module build cache: HIT (DLL + manifest verified)" -ForegroundColor Green
+        Write-Host "Survivor 0.12.0 module build cache: HIT (DLL + manifest verified)" -ForegroundColor Green
         return $out
     }
 
@@ -539,22 +539,25 @@ exit /b %ERRORLEVEL%
 "@
     [IO.File]::WriteAllText($cmd,$cmdText,[Text.Encoding]::ASCII)
 
-    Write-Host "Compiling Survivor 0.11.3..." -ForegroundColor Cyan
+    Write-Host "Compiling Survivor 0.12.0..." -ForegroundColor Cyan
     $compilerOutput = @(& cmd.exe /d /c "`"$cmd`"" 2>&1)
     $compilerCode = $LASTEXITCODE
     foreach ($line in $compilerOutput) {
         Write-Host ([string]$line)
     }
     if ($compilerCode -ne 0 -or -not (Test-Path $dll -PathType Leaf)) {
-        throw "Survivor 0.11.3 compile failed with exit code $compilerCode"
+        throw "Survivor 0.12.0 compile failed with exit code $compilerCode"
     }
 
     Copy-Item $manifest (Join-Path $out "mod.json") -Force
+    foreach($about in Get-ChildItem $SourceRoot -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
+        Copy-Item $about.FullName (Join-Path $out $about.Name) -Force
+    }
     Remove-Item $obj,$cmd -Force -ErrorAction SilentlyContinue
     $dllSha = Hash-File $dll
     Write-Utf8NoBom $cacheMarker ($fingerprint + "`n" + $dllSha + "`n" + $sourceManifestSha + "`n")
 
-    $zip = Join-Path $ReleaseRoot "SurvivorProgression_0.11.3_LOCAL.zip"
+    $zip = Join-Path $ReleaseRoot "SurvivorProgression_0.12.0_LOCAL.zip"
     Remove-Item $zip -Force -ErrorAction SilentlyContinue
     Compress-Archive -Path (Join-Path $out "*") -DestinationPath $zip -Force
     return $out
@@ -625,6 +628,9 @@ exit /b %ERRORLEVEL%
     }
 
     Copy-Item $manifest (Join-Path $out "mod.json") -Force
+    foreach($about in Get-ChildItem $sourceRoot -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
+        Copy-Item $about.FullName (Join-Path $out $about.Name) -Force
+    }
     Remove-Item $obj,$cmdFile -Force -ErrorAction SilentlyContinue
     $dllSha = Hash-File $dll
     Write-Utf8NoBom $cacheMarker ($fingerprint + "`n" + $dllSha + "`n" + $manifestSha + "`n")
@@ -15222,6 +15228,1135 @@ if(-not $manifestEdgeAudit0113.Contains('"version": "0.11.3"')) { throw 'Survivo
 if(-not $spEdgeAudit0113.Contains('constexpr int state_schema = 8;')) { throw 'Survivor 0.11.3 state schema changed unexpectedly.' }
 Write-Host "Survivor 0.11.3 Combinatorial Edge Polish module audit: PASS (323+ nodes preserved)" -ForegroundColor Green
 
+
+function Apply-NcmmManagerUiV1Source {
+    Write-Host "Applying NCMM 0.8.1 two-pane manager + Survivor 0.12.0 live balance settings..." -ForegroundColor Cyan
+    $loaderUiPath = Join-Path $NcmmRoot 'host_patch\ncmm_loader.cpp'
+    $spUiPath = $spPath
+    $spUiManifestPath = $manifestPath
+    foreach($requiredUi in @($loaderUiPath,$spUiPath,$spUiManifestPath)){
+        if(-not(Test-Path $requiredUi -PathType Leaf)){throw "NCMM manager/settings source missing: $requiredUi"}
+    }
+
+    $loaderUi = Normalize-Lf ([IO.File]::ReadAllText($loaderUiPath))
+    $loaderUi = Replace-CppRange $loaderUi 'std::map<std::string, std::string> world_setting_owners;' 'std::map<std::string, size_t> manifest_id_counts;' @'
+std::map<std::string, std::string> world_setting_owners;
+std::map<std::string, uint32_t> world_setting_scopes;
+std::string world_setting_string_cache;
+
+struct module_setting_meta {
+    std::string module_id;
+    std::string setting_id;
+    std::string name;
+    std::string tooltip;
+    std::string type;
+    uint32_t scope = NCMM_WORLD_SETTING_LIVE;
+    double min_value = 0.0;
+    double max_value = 0.0;
+    double step = 1.0;
+    std::vector<std::pair<std::string, std::string>> choices;
+};
+std::vector<module_setting_meta> module_settings;
+'@ 'manager typed-setting metadata globals'
+    $loaderUi = Replace-CppRange $loaderUi 'int world_setting_register_bool(' 'int world_setting_get_bool(' @'
+void remember_module_setting( const module_setting_meta &meta )
+{
+    auto existing = std::find_if( module_settings.begin(), module_settings.end(),
+    [&]( const module_setting_meta &entry ) {
+        return entry.module_id == meta.module_id && entry.setting_id == meta.setting_id;
+    } );
+    if( existing != module_settings.end() ) {
+        *existing = meta;
+    } else {
+        module_settings.push_back( meta );
+    }
+}
+
+bool manager_visible_setting_scope( uint32_t scope )
+{
+    return scope == NCMM_WORLD_SETTING_LIVE || scope == NCMM_WORLD_SETTING_RELOAD;
+}
+
+int world_setting_register_bool( const char *module_id, const char *setting_id,
+                                 const char *display_name, const char *tooltip,
+                                 int default_value, uint32_t scope )
+{
+    if( !display_name || !tooltip || !claim_world_setting( module_id, setting_id, scope ) ) {
+        return 0;
+    }
+    const int registered = get_options().ncmm_register_world_bool(
+                               setting_id, to_translation( display_name ),
+                               to_translation( tooltip ), default_value != 0 ) ? 1 : 0;
+    if( registered && manager_visible_setting_scope( scope ) ) {
+        module_setting_meta meta;
+        meta.module_id = module_id;
+        meta.setting_id = setting_id;
+        meta.name = display_name;
+        meta.tooltip = tooltip;
+        meta.type = "bool";
+        meta.scope = scope;
+        remember_module_setting( meta );
+    }
+    return registered;
+}
+
+int world_setting_register_int( const char *module_id, const char *setting_id,
+                                const char *display_name, const char *tooltip,
+                                int min_value, int max_value, int default_value, uint32_t scope )
+{
+    if( !display_name || !tooltip || !claim_world_setting( module_id, setting_id, scope ) ) {
+        return 0;
+    }
+    const int registered = get_options().ncmm_register_world_int(
+                               setting_id, to_translation( display_name ),
+                               to_translation( tooltip ), min_value, max_value, default_value ) ? 1 : 0;
+    if( registered && manager_visible_setting_scope( scope ) ) {
+        module_setting_meta meta;
+        meta.module_id = module_id;
+        meta.setting_id = setting_id;
+        meta.name = display_name;
+        meta.tooltip = tooltip;
+        meta.type = "int";
+        meta.scope = scope;
+        meta.min_value = min_value;
+        meta.max_value = max_value;
+        meta.step = 1.0;
+        remember_module_setting( meta );
+    }
+    return registered;
+}
+
+int world_setting_register_float( const char *module_id, const char *setting_id,
+                                  const char *display_name, const char *tooltip,
+                                  double min_value, double max_value, double default_value,
+                                  double step, uint32_t scope )
+{
+    if( !display_name || !tooltip || !std::isfinite( min_value ) || !std::isfinite( max_value ) ||
+        !std::isfinite( default_value ) || !std::isfinite( step ) ||
+        !claim_world_setting( module_id, setting_id, scope ) ) {
+        return 0;
+    }
+    const int registered = get_options().ncmm_register_world_float(
+                               setting_id, to_translation( display_name ),
+                               to_translation( tooltip ), static_cast<float>( min_value ),
+                               static_cast<float>( max_value ), static_cast<float>( default_value ),
+                               static_cast<float>( step ) ) ? 1 : 0;
+    if( registered && manager_visible_setting_scope( scope ) ) {
+        module_setting_meta meta;
+        meta.module_id = module_id;
+        meta.setting_id = setting_id;
+        meta.name = display_name;
+        meta.tooltip = tooltip;
+        meta.type = "float";
+        meta.scope = scope;
+        meta.min_value = min_value;
+        meta.max_value = max_value;
+        meta.step = step;
+        remember_module_setting( meta );
+    }
+    return registered;
+}
+
+int world_setting_register_enum( const char *module_id, const char *setting_id,
+                                 const char *display_name, const char *tooltip,
+                                 const char *const *value_ids, const char *const *display_names,
+                                 size_t count, const char *default_value, uint32_t scope )
+{
+    if( !display_name || !tooltip || !value_ids || !display_names || !default_value ||
+        count == 0 || count > 64 || !claim_world_setting( module_id, setting_id, scope ) ) {
+        return 0;
+    }
+    std::vector<options_manager::id_and_option> items;
+    items.reserve( count );
+    for( size_t i = 0; i < count; ++i ) {
+        if( !value_ids[i] || !display_names[i] ) {
+            return 0;
+        }
+        items.emplace_back( value_ids[i], to_translation( display_names[i] ) );
+    }
+    const int registered = get_options().ncmm_register_world_enum(
+                               setting_id, to_translation( display_name ),
+                               to_translation( tooltip ), items, default_value ) ? 1 : 0;
+    if( registered && manager_visible_setting_scope( scope ) ) {
+        module_setting_meta meta;
+        meta.module_id = module_id;
+        meta.setting_id = setting_id;
+        meta.name = display_name;
+        meta.tooltip = tooltip;
+        meta.type = "enum";
+        meta.scope = scope;
+        for( size_t i = 0; i < count; ++i ) {
+            meta.choices.emplace_back( value_ids[i], display_names[i] );
+        }
+        remember_module_setting( meta );
+    }
+    return registered;
+}
+'@ 'manager typed-setting registration metadata'
+    $loaderUi = Replace-CppRange $loaderUi 'struct manager_entry {' '#ifdef _WIN32' @'
+struct manager_entry {
+    std::filesystem::path directory;
+    std::string id;
+    std::string name;
+    std::string version;
+    std::string description;
+    std::string default_hotkey;
+    std::string runtime_state;
+    std::string reason;
+    bool disabled = false;
+    bool loaded_now = false;
+};
+
+std::string manager_description( const std::filesystem::path &directory )
+{
+    const std::filesystem::path localized = directory /
+        ( russian_ui() ? "about.ru.txt" : "about.en.txt" );
+    std::string result = read_text_file( localized );
+    if( result.empty() && russian_ui() ) {
+        result = read_text_file( directory / "about.en.txt" );
+    }
+    while( !result.empty() && ( result.back() == '\n' || result.back() == '\r' ) ) {
+        result.pop_back();
+    }
+    return result;
+}
+
+std::vector<manager_entry> manager_entries()
+{
+    std::vector<manager_entry> result;
+    const std::filesystem::path mods_root = game_root() / "code_mods";
+    if( !std::filesystem::exists( mods_root ) ) {
+        return result;
+    }
+
+    std::vector<std::filesystem::path> dirs;
+    for( const auto &entry : std::filesystem::directory_iterator( mods_root ) ) {
+        if( entry.is_directory() && std::filesystem::exists( entry.path() / "ncmm_mod.dll" ) ) {
+            dirs.push_back( entry.path() );
+        }
+    }
+    std::sort( dirs.begin(), dirs.end() );
+
+    for( const std::filesystem::path &dir : dirs ) {
+        manager_entry entry;
+        entry.directory = dir;
+        entry.disabled = std::filesystem::exists( dir / "disabled" );
+        const loaded_mod *runtime = find_loaded( dir );
+        const module_state *state = find_module_state( dir );
+        entry.loaded_now = runtime != nullptr;
+        if( state ) {
+            entry.runtime_state = state->state;
+            entry.reason = state->reason;
+        }
+
+        if( runtime && runtime->descriptor ) {
+            entry.id = runtime->descriptor->id ? runtime->descriptor->id : "";
+            entry.name = runtime->descriptor->name ? runtime->descriptor->name : dir.filename().string();
+            entry.version = runtime->descriptor->version ? runtime->descriptor->version : "";
+            entry.default_hotkey = runtime->default_hotkey;
+        } else if( state ) {
+            entry.id = state->id;
+            entry.name = state->name;
+            entry.version = state->version;
+            entry.default_hotkey = state->default_hotkey;
+        } else {
+            const manifest_contract manifest = read_manifest( dir );
+            entry.id = manifest.id;
+            entry.name = manifest.name;
+            entry.version = manifest.version;
+            entry.default_hotkey = manifest.ui_hotkey;
+            if( entry.name.empty() ) {
+                entry.name = dir.filename().string();
+            }
+        }
+        entry.description = manager_description( dir );
+        result.push_back( entry );
+    }
+    return result;
+}
+'@ 'manager entry metadata and descriptions'
+    $loaderUi = Replace-CppRange $loaderUi 'void show_manager()' 'void on_turn()' @'
+std::string manager_state_label( const manager_entry &entry )
+{
+    if( entry.disabled ) return tr_ui( "OFF", "ВЫКЛ" );
+    if( entry.runtime_state == "runtime_fault" || entry.runtime_state == "failed" ) {
+        return tr_ui( "ON / error", "ВКЛ / ошибка" );
+    }
+    if( entry.runtime_state == "suspended" ) {
+        return tr_ui( "ON / needs attention", "ВКЛ / требует внимания" );
+    }
+    if( entry.loaded_now ) return tr_ui( "ON / loaded", "ВКЛ / загружен" );
+    if( entry.runtime_state == "rejected" ) {
+        return tr_ui( "ON / incompatible", "ВКЛ / несовместим" );
+    }
+    return tr_ui( "ON / restart required", "ВКЛ / нужен перезапуск" );
+}
+
+std::vector<const module_setting_meta *> manager_settings_for( const std::string &module_id )
+{
+    std::vector<const module_setting_meta *> result;
+    for( const module_setting_meta &setting : module_settings ) {
+        if( setting.module_id == module_id ) {
+            result.push_back( &setting );
+        }
+    }
+    return result;
+}
+
+std::string manager_setting_value( const module_setting_meta &setting )
+{
+    if( !get_options().has_option( setting.setting_id ) ) {
+        return tr_ui( "unavailable", "недоступно" );
+    }
+    if( setting.type == "bool" ) {
+        return world_setting_get_bool( setting.setting_id.c_str(), 0 ) ?
+               tr_ui( "On", "Вкл" ) : tr_ui( "Off", "Выкл" );
+    }
+    if( setting.type == "int" ) {
+        return std::to_string( world_setting_get_i64( setting.setting_id.c_str(), 0 ) );
+    }
+    if( setting.type == "float" ) {
+        std::ostringstream out;
+        out << world_setting_get_f64( setting.setting_id.c_str(), 0.0 );
+        return out.str();
+    }
+    const std::string current = world_setting_get_string( setting.setting_id.c_str(), "" );
+    for( const auto &choice : setting.choices ) {
+        if( choice.first == current ) {
+            return choice.second;
+        }
+    }
+    return current;
+}
+
+bool manager_adjust_setting( const module_setting_meta &setting, int direction )
+{
+    if( direction == 0 || !get_options().has_option( setting.setting_id ) ) {
+        return false;
+    }
+    options_manager::cOpt &opt = get_options().get_option( setting.setting_id );
+    if( setting.type == "bool" ) {
+        const bool current = world_setting_get_bool( setting.setting_id.c_str(), 0 ) != 0;
+        opt.setValue( current ? "false" : "true" );
+        return true;
+    }
+    if( setting.type == "int" ) {
+        const int64_t current = world_setting_get_i64( setting.setting_id.c_str(), 0 );
+        const int64_t next = std::max<int64_t>( static_cast<int64_t>( setting.min_value ),
+                             std::min<int64_t>( static_cast<int64_t>( setting.max_value ),
+                                               current + direction * static_cast<int64_t>( setting.step ) ) );
+        opt.setValue( std::to_string( next ) );
+        return next != current;
+    }
+    if( setting.type == "float" ) {
+        const double current = world_setting_get_f64( setting.setting_id.c_str(), 0.0 );
+        const double next = std::max( setting.min_value,
+                                     std::min( setting.max_value,
+                                               current + direction * setting.step ) );
+        std::ostringstream value;
+        value << next;
+        opt.setValue( value.str() );
+        return std::abs( next - current ) > 0.000001;
+    }
+    if( setting.type == "enum" && !setting.choices.empty() ) {
+        const std::string current = world_setting_get_string( setting.setting_id.c_str(),
+                                    setting.choices.front().first.c_str() );
+        size_t index = 0;
+        for( size_t i = 0; i < setting.choices.size(); ++i ) {
+            if( setting.choices[i].first == current ) {
+                index = i;
+                break;
+            }
+        }
+        if( direction < 0 && index > 0 ) --index;
+        if( direction > 0 && index + 1 < setting.choices.size() ) ++index;
+        opt.setValue( setting.choices[index].first );
+        return setting.choices[index].first != current;
+    }
+    return false;
+}
+
+bool manager_open_module_ui( const manager_entry &entry )
+{
+    loaded_mod *runtime = find_loaded_mutable( entry.directory );
+    if( runtime == nullptr || runtime->open_ui == nullptr ) {
+        return false;
+    }
+    if( !ensure_state_migrated( *runtime ) ) {
+        popup( tr_ui( "This mod could not load its saved data safely. Open NCMM diagnostics for details.",
+                      "Не удалось безопасно загрузить сохранённые данные этого мода. Подробности — в диагностике NCMM." ) );
+        return true;
+    }
+    try {
+        module_call_scope scope( runtime->descriptor && runtime->descriptor->id ?
+                                 runtime->descriptor->id : nullptr );
+        runtime->open_ui( &api );
+    } catch( ... ) {
+        quarantine_runtime_callback( *runtime, runtime_callback_kind::ui, "ui_exception" );
+        log_line( NCMM_LOG_WARN, ( "Module UI callback failed: " + entry.name ).c_str() );
+        popup( tr_ui( "This mod's interface failed to open and has been disabled for this session.",
+                      "Интерфейс мода не открылся и отключён до перезапуска игры." ) );
+    }
+    return true;
+}
+
+void manager_toggle_module( const manager_entry &entry )
+{
+    const std::filesystem::path marker = entry.directory / "disabled";
+    std::error_code ec;
+    if( entry.disabled ) {
+        std::filesystem::remove( marker, ec );
+        if( ec ) {
+            popup( tr_ui( "Could not enable the mod.", "Не удалось включить мод." ) );
+        } else {
+            popup( tr_ui( "Mod enabled. Restart CDDA to apply.",
+                          "Мод включён. Перезапустите CDDA для применения." ) );
+        }
+        return;
+    }
+
+    std::ofstream out( marker, std::ios::trunc );
+    if( !out ) {
+        popup( tr_ui( "Could not disable the mod.", "Не удалось выключить мод." ) );
+        return;
+    }
+    out << "Disabled by NCMM Mod Configuration. Restart required.\n";
+    out.close();
+    popup( tr_ui( "Mod disabled. Restart CDDA to apply.",
+                  "Мод выключен. Перезапустите CDDA для применения." ) );
+}
+
+void show_manager()
+{
+    write_diagnostics_summary();
+    while( true ) {
+        const std::vector<manager_entry> entries = manager_entries();
+        if( entries.empty() ) {
+            popup( tr_ui( "No NCMM mods are installed.", "Моды NCMM не установлены." ) );
+            return;
+        }
+
+        if( TERMX < 78 || TERMY < 20 ) {
+            uilist menu;
+            menu.text = tr_ui( "NCMM — Mod Configuration", "NCMM — Настройка модов" );
+            for( int i = 0; i < static_cast<int>( entries.size() ); ++i ) {
+                menu.addentry( i, true, MENU_AUTOASSIGN,
+                               "[" + manager_state_label( entries[i] ) + "] " +
+                               entries[i].name + "  " + entries[i].version );
+            }
+            menu.query();
+            if( menu.ret < 0 || menu.ret >= static_cast<int>( entries.size() ) ) return;
+            const manager_entry &entry = entries[menu.ret];
+            loaded_mod *runtime = find_loaded_mutable( entry.directory );
+            uilist action;
+            action.text = entry.name;
+            int open_index = -1;
+            if( runtime != nullptr && runtime->open_ui != nullptr ) {
+                open_index = 0;
+                action.addentry( 0, true, MENU_AUTOASSIGN,
+                                 tr_ui( "Open mod interface", "Открыть интерфейс мода" ) );
+            }
+            const int toggle_index = open_index == 0 ? 1 : 0;
+            action.addentry( toggle_index, true, MENU_AUTOASSIGN,
+                             entry.disabled ? tr_ui( "Enable mod", "Включить мод" ) :
+                             tr_ui( "Disable mod", "Выключить мод" ) );
+            action.query();
+            if( open_index >= 0 && action.ret == open_index ) manager_open_module_ui( entry );
+            else if( action.ret == toggle_index ) manager_toggle_module( entry );
+            continue;
+        }
+
+        const int frame_width = std::min( TERMX - 2, 118 );
+        const int frame_height = std::min( TERMY - 2, 32 );
+        const int left_width = std::max( 26, std::min( 36, frame_width / 3 ) );
+        const int divider_x = left_width + 1;
+        const int right_x = divider_x + 2;
+        const int right_width = frame_width - right_x - 2;
+        const int list_top = 3;
+        const int list_bottom = frame_height - 3;
+        const int visible_modules = std::max( 1, list_bottom - list_top + 1 );
+        const point origin( ( TERMX - frame_width ) / 2, ( TERMY - frame_height ) / 2 );
+        catacurses::window frame = catacurses::newwin( frame_height, frame_width, origin );
+
+        input_context ctxt( "NCMM_MANAGER", keyboard_mode::keychar );
+        ctxt.register_cardinal();
+        ctxt.register_action( "NEXT_TAB" );
+        ctxt.register_action( "CONFIRM" );
+        ctxt.register_action( "QUIT" );
+        ctxt.register_action( "HELP_KEYBINDINGS" );
+
+        int selected_module = 0;
+        int first_module = 0;
+        int focus = 0;
+        int selected_detail = 0;
+
+        auto keep_module_visible = [&]() {
+            if( selected_module < first_module ) first_module = selected_module;
+            if( selected_module >= first_module + visible_modules ) {
+                first_module = selected_module - visible_modules + 1;
+            }
+            first_module = std::max( 0, std::min( first_module,
+                            std::max( 0, static_cast<int>( entries.size() ) - visible_modules ) ) );
+        };
+
+        while( true ) {
+            const manager_entry &entry = entries[static_cast<size_t>( selected_module )];
+            const std::vector<const module_setting_meta *> settings = manager_settings_for( entry.id );
+            loaded_mod *runtime = find_loaded_mutable( entry.directory );
+            const bool has_open = runtime != nullptr && runtime->open_ui != nullptr;
+            const int detail_count = static_cast<int>( settings.size() ) + ( has_open ? 1 : 0 ) + 1;
+            selected_detail = std::max( 0, std::min( selected_detail, detail_count - 1 ) );
+
+            ui_adaptor ui;
+            ui.position_from_window( frame );
+            ui.on_redraw( [&]( const ui_adaptor & ) {
+                werase( frame );
+                draw_border( frame, BORDER_COLOR );
+                ncmm_trim_and_print_literal( frame, point( 2, 1 ), left_width - 2,
+                                            focus == 0 ? c_light_green : c_white,
+                                            tr_ui( "NCMM MODS", "МОДЫ NCMM" ) );
+                ncmm_trim_and_print_literal( frame, point( right_x, 1 ), right_width,
+                                            focus == 1 ? c_light_green : c_white,
+                                            tr_ui( "MODULE DETAILS", "СВЕДЕНИЯ О МОДЕ" ) );
+
+                for( int y = 1; y < frame_height - 1; ++y ) {
+                    mvwprintz( frame, point( divider_x, y ), BORDER_COLOR, "|" );
+                }
+
+                for( int row = 0; row < visible_modules; ++row ) {
+                    const int index = first_module + row;
+                    if( index >= static_cast<int>( entries.size() ) ) break;
+                    const manager_entry &candidate = entries[static_cast<size_t>( index )];
+                    const bool active = index == selected_module;
+                    std::string label = ( active ? "> " : "  " ) + candidate.name;
+                    ncmm_trim_and_print_literal( frame, point( 2, list_top + row ),
+                                                left_width - 3,
+                                                active ? ( focus == 0 ? c_light_green : c_cyan ) :
+                                                c_light_gray, label );
+                }
+
+                int y = 3;
+                ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                            c_white, entry.name );
+                ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                            c_light_gray,
+                                            tr_ui( "Version: ", "Версия: " ) + entry.version );
+                ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                            entry.loaded_now ? c_light_green : c_yellow,
+                                            tr_ui( "Status: ", "Статус: " ) +
+                                            manager_state_label( entry ) );
+                if( !entry.id.empty() ) {
+                    ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                                c_dark_gray, "ID: " + entry.id );
+                }
+                if( !entry.default_hotkey.empty() ) {
+                    ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                                c_dark_gray,
+                                                tr_ui( "Hotkey: ", "Горячая клавиша: " ) +
+                                                entry.default_hotkey );
+                }
+                if( !entry.reason.empty() && entry.reason != "ok" ) {
+                    ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                                c_light_red, manager_reason_text( entry.reason ) );
+                }
+
+                if( !entry.description.empty() ) {
+                    const std::vector<std::string> desc = foldstring( entry.description, right_width );
+                    for( size_t i = 0; i < std::min<size_t>( 3, desc.size() ) &&
+                         y < frame_height - 8; ++i ) {
+                        ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                                    c_light_gray, desc[i] );
+                    }
+                }
+                ++y;
+                ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                            c_white,
+                                            tr_ui( "SETTINGS", "НАСТРОЙКИ" ) );
+
+                int detail_index = 0;
+                for( const module_setting_meta *setting : settings ) {
+                    if( y >= frame_height - 4 ) break;
+                    const bool active = focus == 1 && detail_index == selected_detail;
+                    const std::string row = ( active ? "> " : "  " ) + setting->name +
+                                            "  < " + manager_setting_value( *setting ) + " >";
+                    ncmm_trim_and_print_literal( frame, point( right_x, y++ ), right_width,
+                                                active ? c_light_green : c_light_gray, row );
+                    ++detail_index;
+                }
+
+                if( has_open && y < frame_height - 3 ) {
+                    const bool active = focus == 1 && detail_index == selected_detail;
+                    ncmm_trim_and_print_literal(
+                        frame, point( right_x, y++ ), right_width,
+                        active ? c_light_green : c_cyan,
+                        ( active ? "> " : "  " ) +
+                        tr_ui( "[Open mod interface]", "[Открыть интерфейс мода]" ) );
+                    ++detail_index;
+                }
+                if( y < frame_height - 3 ) {
+                    const bool active = focus == 1 && detail_index == selected_detail;
+                    ncmm_trim_and_print_literal(
+                        frame, point( right_x, y++ ), right_width,
+                        active ? c_light_green : c_yellow,
+                        ( active ? "> " : "  " ) +
+                        ( entry.disabled ? tr_ui( "[Enable mod]", "[Включить мод]" ) :
+                          tr_ui( "[Disable mod]", "[Выключить мод]" ) ) );
+                }
+
+                ncmm_trim_and_print_literal(
+                    frame, point( 2, frame_height - 2 ), frame_width - 4, c_dark_gray,
+                    tr_ui( "Up/Down: select  Tab: panel  Left/Right: change  Enter: action  Esc: close",
+                           "Вверх/вниз: выбор  Tab: панель  Влево/вправо: изменить  Enter: действие  Esc: выход" ) );
+                wnoutrefresh( frame );
+            } );
+
+            ui_manager::redraw();
+            const std::string action = ctxt.handle_input();
+
+            if( action == "QUIT" ) return;
+            if( action == "NEXT_TAB" || ( focus == 0 && action == "RIGHT" ) ||
+                ( focus == 1 && action == "LEFT" && settings.empty() ) ) {
+                focus = 1 - focus;
+                continue;
+            }
+            if( focus == 0 ) {
+                if( action == "UP" && selected_module > 0 ) {
+                    --selected_module;
+                    selected_detail = 0;
+                    keep_module_visible();
+                } else if( action == "DOWN" &&
+                           selected_module + 1 < static_cast<int>( entries.size() ) ) {
+                    ++selected_module;
+                    selected_detail = 0;
+                    keep_module_visible();
+                } else if( action == "CONFIRM" ) {
+                    focus = 1;
+                }
+                continue;
+            }
+
+            if( action == "UP" && selected_detail > 0 ) {
+                --selected_detail;
+                continue;
+            }
+            if( action == "DOWN" && selected_detail + 1 < detail_count ) {
+                ++selected_detail;
+                continue;
+            }
+
+            if( selected_detail < static_cast<int>( settings.size() ) ) {
+                if( action == "LEFT" ) {
+                    manager_adjust_setting( *settings[static_cast<size_t>( selected_detail )], -1 );
+                } else if( action == "RIGHT" || action == "CONFIRM" ) {
+                    manager_adjust_setting( *settings[static_cast<size_t>( selected_detail )], 1 );
+                }
+                continue;
+            }
+
+            int action_index = static_cast<int>( settings.size() );
+            if( has_open ) {
+                if( selected_detail == action_index && action == "CONFIRM" ) {
+                    manager_open_module_ui( entry );
+                    continue;
+                }
+                ++action_index;
+            }
+            if( selected_detail == action_index && action == "CONFIRM" ) {
+                manager_toggle_module( entry );
+                break;
+            }
+            if( action == "LEFT" ) {
+                focus = 0;
+            }
+        }
+    }
+}
+'@ 'two-pane NCMM manager UI'
+    $loaderUi = $loaderUi.Replace('0.8.0','0.8.1')
+    foreach($managerNeedle in @('module_setting_meta','manager_description','manager_setting_value','manager_adjust_setting','NCMM_MANAGER','MODULE DETAILS','СВЕДЕНИЯ О МОДЕ','return "0.8.1";')){
+        if(-not $loaderUi.Contains($managerNeedle)){throw "NCMM manager generated source missing: $managerNeedle"}
+    }
+    Write-Utf8NoBom $loaderUiPath $loaderUi
+
+    $spUi = Normalize-Lf ([IO.File]::ReadAllText($spUiPath))
+    if(-not $spUi.Contains('#include <cstdlib>')){
+        $spUi = Replace-TextBlock $spUi '#include <cstdint>' ("#include <cstdint>" + "`n" + "#include <cstdlib>") 'Survivor settings strtol include'
+    }
+    if(-not $spUi.Contains('    "settings.typed.v2",')){
+        $spUi = Replace-TextBlock $spUi '    "host_api.v2.core",' ('    "host_api.v2.core",' + "`n" + '    "settings.typed.v2",') 'Survivor typed settings capability'
+    }
+    if(-not $spUi.Contains('int last_stat_power_pct = -1;')){
+        $spUi = Replace-TextBlock $spUi 'int current_xp_bonus_pct = 0;' ('int current_xp_bonus_pct = 0;' + "`n" + 'int last_stat_power_pct = -1;') 'Survivor settings runtime cache'
+    }
+    $spUi = Replace-CppRange $spUi 'std::string tr( const char *en, const char *ru )' 'bool active_world_mod(' @'
+std::string tr( const char *en, const char *ru )
+{
+    return russian() ? ru : en;
+}
+
+constexpr const char *xp_rate_setting = "NCMM_SP_XP_RATE";
+constexpr const char *stat_power_setting = "NCMM_SP_STAT_POWER";
+
+int progression_percent_setting( const char *setting_id, int fallback )
+{
+    if( host2 == nullptr || host2->world_setting_get_string == nullptr ) {
+        return fallback;
+    }
+    const char *raw = host2->world_setting_get_string( setting_id, "" );
+    if( raw == nullptr || raw[0] == '\0' ) {
+        return fallback;
+    }
+    char *end = nullptr;
+    const long value = std::strtol( raw, &end, 10 );
+    if( end == raw || ( end != nullptr && *end != '\0' ) ) {
+        return fallback;
+    }
+    return static_cast<int>( std::max<long>( 25, std::min<long>( 300, value ) ) );
+}
+
+int progression_xp_rate_pct()
+{
+    return progression_percent_setting( xp_rate_setting, 100 );
+}
+
+int progression_stat_power_pct()
+{
+    return progression_percent_setting( stat_power_setting, 100 );
+}
+
+bool configure_progression_settings()
+{
+    if( host2 == nullptr || host2->world_setting_register_enum == nullptr ||
+        host2->world_setting_get_string == nullptr ) {
+        return false;
+    }
+    static const char *values[] = {
+        "25", "50", "75", "100", "125", "150", "175", "200", "225", "250", "275", "300"
+    };
+    static const char *labels[] = {
+        "25%", "50%", "75%", "100%", "125%", "150%", "175%", "200%", "225%", "250%", "275%", "300%"
+    };
+    const size_t count = sizeof( values ) / sizeof( values[0] );
+    if( !host2->world_setting_register_enum(
+            module_id, xp_rate_setting,
+            russian() ? "Получение опыта" : "Experience gain",
+            russian() ? "Множитель опыта веток и общего уровня Survivor после антифарма. 100% сохраняет стандартный баланс." :
+                        "Multiplier for branch XP and the global Survivor level after anti-farm adjustments. 100% keeps the default balance.",
+            values, labels, count, "100", NCMM_WORLD_SETTING_LIVE ) ) {
+        return false;
+    }
+    if( !host2->world_setting_register_enum(
+            module_id, stat_power_setting,
+            russian() ? "Сила стат-перков" : "Stat perk strength",
+            russian() ? "Масштабирует прямые бонусы обычных стат-перков. Механические перки не затрагиваются." :
+                        "Scales direct bonuses from regular stat perks. Mechanical perks are not affected.",
+            values, labels, count, "100", NCMM_WORLD_SETTING_LIVE ) ) {
+        return false;
+    }
+    return true;
+}
+'@ 'Survivor configurable balance helpers'
+    $spUi = Replace-CppRange $spUi 'int64_t anti_farm_adjust( branch_id branch, int64_t raw )' 'int branch_owned_count(' @'
+int64_t scale_configured_xp( branch_id branch, int64_t adjusted )
+{
+    if( adjusted <= 0 ) {
+        return 0;
+    }
+    const int64_t rate = progression_xp_rate_pct();
+    const std::string key = branch_state_key( branch, "rate_fraction" );
+    int64_t fraction = std::max<int64_t>( 0, get_state( key, 0 ) ) % 100;
+    if( adjusted > ( std::numeric_limits<int64_t>::max() - fraction ) /
+        std::max<int64_t>( 1, rate ) ) {
+        adjusted = ( std::numeric_limits<int64_t>::max() - fraction ) /
+                   std::max<int64_t>( 1, rate );
+    }
+    const int64_t scaled = adjusted * rate + fraction;
+    set_state( key, scaled % 100 );
+    return scaled / 100;
+}
+
+int64_t anti_farm_adjust( branch_id branch, int64_t raw )
+{
+    if( raw <= 0 ) {
+        set_state( branch_state_key( branch, "streak" ), 0 );
+        return 0;
+    }
+
+    int64_t streak = std::max<int64_t>( 0,
+        get_state( branch_state_key( branch, "streak" ), 0 ) );
+    streak = std::min<int64_t>( 12, streak + 1 );
+    set_state( branch_state_key( branch, "streak" ), streak );
+
+    const int efficiency = branch_xp_efficiency_pct( branch );
+    int64_t adjusted = raw * efficiency / 100;
+    if( adjusted == 0 && raw >= 5 && efficiency >= 20 ) {
+        adjusted = 1;
+    }
+
+    int64_t fatigue_gain = branch == branch_id::mastery ?
+                           raw * 3 : raw * 8;
+    fatigue_gain += std::max<int64_t>( 0, streak - 2 ) * 6;
+    fatigue_gain = std::min<int64_t>( 180, fatigue_gain );
+
+    set_state( branch_state_key( branch, "fatigue" ),
+               std::min<int64_t>( 1000, branch_fatigue( branch ) + fatigue_gain ) );
+    return scale_configured_xp( branch, adjusted );
+}
+'@ 'Survivor post-anti-farm XP rate'
+    $spUi = Replace-CppRange $spUi 'std::string ranked_effect_summary( const perk_def &perk, int rank )' 'std::string perk_description(' @'
+std::string ranked_effect_summary( const perk_def &perk, int rank )
+{
+    if( rank <= 0 ) {
+        return {};
+    }
+
+    double multiplier = perk_rank_multiplier_for( perk, rank );
+    if( effective_kind( perk ) == perk_kind::stat ) {
+        multiplier *= static_cast<double>( progression_stat_power_pct() ) / 100.0;
+    }
+    std::vector<std::string> parts;
+    for( int i = 0; i < perk.effect_count; ++i ) {
+        if( perk.effects[i].id == nullptr ) {
+            continue;
+        }
+        const double value = perk.effects[i].value * multiplier;
+        const std::string sign = value > 0.0 ? "+" : "";
+        parts.push_back( effect_label( perk.effects[i].id ) + ": " +
+                         sign + format_number( value ) );
+    }
+    if( perk.xp_bonus_pct != 0 ) {
+        const int value = static_cast<int>(
+                              std::llround( static_cast<double>( perk.xp_bonus_pct ) * multiplier ) );
+        parts.push_back( tr( "Survivor XP: +", "Опыт Survivor: +" ) +
+                         std::to_string( value ) + "%" );
+    }
+
+    std::string result;
+    for( size_t i = 0; i < parts.size(); ++i ) {
+        if( i != 0 ) {
+            result += ", ";
+        }
+        result += parts[i];
+    }
+    return result;
+}
+'@ 'Survivor configured perk summary'
+    $spUi = Replace-CppRange $spUi 'calculated_effects calculate_owned_effects()' 'std::map<std::string, double> owned_effect_totals()' @'
+calculated_effects calculate_owned_effects()
+{
+    calculated_effects result;
+    std::array<bool, 6> branch_active = {{ false, false, false, false, false, false }};
+
+    // Pass 1: one ownership lookup per perk.  The old implementation scanned the
+    // full catalog once per branch, then again for majors and amplifier effects.
+    for( const perk_def &perk : perks ) {
+        if( !perk_world_available( perk ) ) {
+            continue;
+        }
+        const int rank = perk_rank( perk );
+        if( rank <= 0 ) {
+            continue;
+        }
+        if( !integration_perk( perk ) ) {
+            branch_active[branch_index( perk.branch )] = true;
+        }
+        if( perk.currency == currency_id::major ) {
+            ++result.major_owned;
+        }
+        if( effective_kind( perk ) == perk_kind::effect ) {
+            const double rank_scale = perk_rank_multiplier_for( perk, rank );
+            result.branch_amp[branch_index( perk.branch )] +=
+                perk.branch_amp_pct * rank_scale / 100.0;
+            result.global_amp += perk.global_amp_pct * rank_scale / 100.0;
+        }
+    }
+    for( bool active : branch_active ) {
+        if( active ) {
+            ++result.active_branches;
+        }
+    }
+
+    // Pass 2: resolve scaling after active-branch and major totals are known.
+    for( const perk_def &perk : perks ) {
+        if( !perk_world_available( perk ) ) {
+            continue;
+        }
+        const int rank = perk_rank( perk );
+        if( rank <= 0 ) {
+            continue;
+        }
+
+        double scale = 1.0;
+        if( perk.scaling == perk_scaling::per_active_branch ) {
+            scale = static_cast<double>( result.active_branches );
+        } else if( perk.scaling == perk_scaling::per_owned_major ) {
+            scale = static_cast<double>( result.major_owned );
+        }
+
+        scale *= perk_rank_multiplier_for( perk, rank );
+
+        if( effective_kind( perk ) == perk_kind::stat ) {
+            scale *= result.global_amp * result.branch_amp[branch_index( perk.branch )];
+            scale *= static_cast<double>( progression_stat_power_pct() ) / 100.0;
+        }
+
+        result.xp_bonus_pct += static_cast<int>( std::llround( perk.xp_bonus_pct * scale ) );
+        for( int i = 0; i < perk.effect_count; ++i ) {
+            if( perk.effects[i].id != nullptr ) {
+                result.modifiers[perk.effects[i].id] += perk.effects[i].value * scale;
+            }
+        }
+    }
+
+    auto owns_id = []( const char *id ) {
+        const perk_def *perk = find_perk( id );
+        return perk != nullptr && owned( *perk );
+    };
+    int64_t momentum_stack_cap = owns_id( "cr_relentless_momentum" ) ? 5 : 3;
+    if( owns_id( "ar_momentum_engine" ) ) momentum_stack_cap += 2;
+    const int64_t momentum_turn_cap = owns_id( "cr_relentless_momentum" ) ? 20 : 12;
+    const int64_t momentum_stacks = std::min<int64_t>( momentum_stack_cap,
+                                      std::max<int64_t>( 0, get_state( "momentum_stacks", 0 ) ) );
+    const int64_t momentum_turns = std::min<int64_t>( momentum_turn_cap,
+                                     std::max<int64_t>( 0, get_state( "momentum_turns", 0 ) ) );
+    if( momentum_stacks > 0 && momentum_turns > 0 && owns_id( "cr_predator_momentum" ) ) {
+        double damage_per_stack = 3.0;
+        double speed_per_stack = 1.0;
+        if( owns_id( "ar_momentum_engine" ) ) {
+            damage_per_stack += 1.0;
+            speed_per_stack += 1.0;
+        }
+        result.modifiers["sp_damage_dealt_pct"] += momentum_stacks * damage_per_stack;
+        result.modifiers["speed_pct"] += momentum_stacks * speed_per_stack;
+    }    result.xp_bonus_pct = std::max( 0, std::min( 5000, result.xp_bonus_pct ) );
+    return result;
+}
+'@ 'Survivor configured stat effects'
+    $spUi = Replace-CppRange $spUi 'void award_global_xp( int64_t raw_gained )' 'int64_t award_branch_xp(' @'
+void award_global_xp( int64_t raw_gained )
+{
+    if( raw_gained <= 0 || !character_available() ) {
+        return;
+    }
+
+    int64_t fraction = get_state( "xp_fraction", 0 );
+    const int64_t multiplier = std::max<int64_t>( 0, 100 + current_xp_bonus_pct );
+    if( raw_gained > ( std::numeric_limits<int64_t>::max() - fraction ) /
+        std::max<int64_t>( 1, multiplier ) ) {
+        raw_gained = ( std::numeric_limits<int64_t>::max() - fraction ) /
+                     std::max<int64_t>( 1, multiplier );
+    }
+    fraction += raw_gained * multiplier;
+    int64_t gained = fraction / 100;
+    fraction %= 100;
+    set_state( "xp_fraction", fraction );
+    if( gained <= 0 ) {
+        return;
+    }
+
+    int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
+    int64_t xp = std::max<int64_t>( 0, get_state( "xp", 0 ) ) + gained;
+    int64_t perk_points = get_state( "perk_points", 0 );
+    int64_t major_points = get_state( "major_points", 0 );
+    int64_t major_awarded = get_state( "major_awarded", 0 );
+    int64_t levels_gained = 0;
+    int64_t majors_gained = 0;
+
+    while( xp >= xp_to_next( level ) && level < std::numeric_limits<int64_t>::max() ) {
+        xp -= xp_to_next( level );
+        ++level;
+        ++perk_points;
+        ++levels_gained;
+        if( level % 5 == 0 ) {
+            ++major_points;
+            ++major_awarded;
+            ++majors_gained;
+        }
+    }
+
+    set_state( "level", level );
+    set_state( "xp", xp );
+    set_state( "perk_points", perk_points );
+    set_state( "major_points", major_points );
+    set_state( "major_awarded", major_awarded );
+
+    if( levels_gained > 0 ) {
+        std::string text = tr( "Survivor level up! +", "Новый уровень Survivor! +" ) +
+                           std::to_string( levels_gained ) +
+                           tr( " perk point(s).", " очк. перков." );
+        if( majors_gained > 0 ) {
+            text += tr( " +", " +" ) + std::to_string( majors_gained ) +
+                    tr( " major point(s).", " больших очк." );
+        }
+        message( text );
+    }
+}
+'@ 'Survivor configured global XP'
+    $spUi = Replace-CppRange $spUi 'void tick()' 'bool survivor_has_perk_id(' @'
+void tick()
+{
+    const bool available = character_available();
+    if( !available ) {
+        if( last_character_available ) {
+            clear_runtime_modifiers();
+            effects_dirty = true;
+        }
+        last_character_available = false;
+        turn_accumulator = 0;
+        return;
+    }
+
+    if( !last_character_available ) {
+        last_character_available = true;
+        migrate_state();
+        prime_metric_baselines();
+        effects_dirty = true;
+    }
+    const int stat_power = progression_stat_power_pct();
+    if( stat_power != last_stat_power_pct ) {
+        last_stat_power_pct = stat_power;
+        effects_dirty = true;
+    }
+    if( effects_dirty ) {
+        recalculate_effects();
+    }
+
+    ++turn_accumulator;
+    if( turn_accumulator < 60 ) {
+        return;
+    }
+    turn_accumulator -= 60;
+    poll_branch_xp();
+}
+'@ 'Survivor live settings refresh'
+    $spUi = Replace-CppRange $spUi 'int init( const ncmm_host_api_v1 *api )' 'const ncmm_mod_descriptor_v1 descriptor = {' @'
+int init( const ncmm_host_api_v1 *api )
+{
+    if( api == nullptr || api->abi_version != NCMM_ABI_VERSION || api->query_interface == nullptr ) return 0;
+    host2 = static_cast<const ncmm_host_api_v2_core *>(
+                api->query_interface( NCMM_HOST_API_V2_CORE_ID, 2u, 0u ) );
+    if( host2 == nullptr || host2->api_major != 2u || !configure_host_api2_runtime_hooks() ) return 0;
+    if( api == nullptr || api->abi_version != NCMM_ABI_VERSION ) {
+        return 0;
+    }
+    if( !api->get_api_version_major || !api->get_api_version_minor ||
+        api->get_api_version_major() != NCMM_API_VERSION_MAJOR ||
+        api->get_api_version_minor() < NCMM_API_VERSION_MINOR ) {
+        return 0;
+    }
+    for( const char *capability : required_caps ) {
+        if( !api->has_capability || !api->has_capability( capability ) ) {
+            return 0;
+        }
+    }
+    if( !api->character_state_available || !api->character_state_get_i64 ||
+        !api->character_state_set_i64 || !api->character_modifier_set ||
+        !api->character_modifier_clear_module || !api->ui_choose || !api->ui_tile_choose ||
+        !api->ui_card_choose || !api->ui_tree_choose ||
+        !api->gameplay_metric_get_i64 || !api->world_mod_active || !api->world_mod_count || !api->world_mod_id || !api->ui_card_choose_themed || !api->ui_tree_choose_themed || !api->ui_tree_choose_rpg || !api->ui_message ) {
+        return 0;
+    }
+
+    host = api;
+    if( !configure_progression_settings() ) {
+        return 0;
+    }
+    last_stat_power_pct = progression_stat_power_pct();
+    api->log( NCMM_LOG_INFO,
+              "Survivor Progression 0.12.0 initialized: branch bars / exclusive specializations / conditional deep mod integrations." );
+    return 1;
+}
+
+void shutdown()
+{
+    clear_runtime_modifiers();
+    if( host2 != nullptr && host2->event_unsubscribe_all ) host2->event_unsubscribe_all( module_id );
+    host = nullptr;
+    host2 = nullptr;
+    turn_accumulator = 0;
+    last_character_available = false;
+    effects_dirty = true;
+    current_xp_bonus_pct = 0;
+    last_stat_power_pct = -1;
+}
+'@ 'Survivor settings registration lifecycle'
+    if(-not $spUi.Contains('extern "C" NCMM_EXPORT void ncmm_on_locale_changed_v1')){
+        $localeAnchor = 'extern "C" NCMM_EXPORT void ncmm_on_turn_v1( const ncmm_host_api_v1 *api )'
+        $localeHandler = @'
+extern "C" NCMM_EXPORT void ncmm_on_locale_changed_v1( const ncmm_host_api_v1 *api )
+{
+    if( api != nullptr ) {
+        host = api;
+    }
+    configure_progression_settings();
+}
+
+'@
+        if(-not $spUi.Contains($localeAnchor)){throw 'Survivor locale settings refresh anchor missing.'}
+        $spUi = $spUi.Replace($localeAnchor,$localeHandler + $localeAnchor)
+    }
+    $spUi = $spUi.Replace('0.11.3','0.12.0')
+    foreach($settingNeedle in @('NCMM_SP_XP_RATE','NCMM_SP_STAT_POWER','scale_configured_xp','configure_progression_settings','progression_xp_rate_pct','progression_stat_power_pct','settings.typed.v2','Survivor Progression v0.12.0')){
+        if(-not $spUi.Contains($settingNeedle)){throw "Survivor settings generated source missing: $settingNeedle"}
+    }
+    Write-Utf8NoBom $spUiPath $spUi
+
+    $spUiManifest = Normalize-Lf ([IO.File]::ReadAllText($spUiManifestPath))
+    if(-not $spUiManifest.Contains('"settings.typed.v2"')){
+        $spUiManifest = $spUiManifest.Replace('    "host_api.v2.core",',
+            '    "host_api.v2.core",' + "`n" + '    "settings.typed.v2",')
+    }
+    $spUiManifest = $spUiManifest.Replace('"version": "0.11.3"','"version": "0.12.0"')
+    Write-Utf8NoBom $spUiManifestPath $spUiManifest
+
+    $runtimeUiPath = Join-Path $NcmmRoot 'runtime\NCMMBootstrap.cs'
+    if(Test-Path $runtimeUiPath -PathType Leaf){
+        $runtimeUi = Normalize-Lf ([IO.File]::ReadAllText($runtimeUiPath))
+        $runtimeUi = $runtimeUi.Replace('private const string RuntimeVersion = "0.8.0";',
+                                        'private const string RuntimeVersion = "0.8.1";')
+        if(-not $runtimeUi.Contains('private const string RuntimeVersion = "0.8.1";')){
+            throw 'NCMM 0.8.1 bootstrap source promotion failed.'
+        }
+        Write-Utf8NoBom $runtimeUiPath $runtimeUi
+    }
+
+    $setupCoreUiPath = Join-Path $NcmmRoot 'runtime\NCMMSetupCore.cs'
+    if(Test-Path $setupCoreUiPath -PathType Leaf){
+        $setupCoreUi = Normalize-Lf ([IO.File]::ReadAllText($setupCoreUiPath))
+        $setupCoreUi = $setupCoreUi.Replace('internal const string RuntimeVersion = "0.8.0";',
+                                            'internal const string RuntimeVersion = "0.8.1";')
+        Write-Utf8NoBom $setupCoreUiPath $setupCoreUi
+    }
+
+    $applyHostUiPath = Join-Path $NcmmRoot 'host_patch\Apply-NCMMHostPatch.ps1'
+    if(Test-Path $applyHostUiPath -PathType Leaf){
+        $applyHostUi = Normalize-Lf ([IO.File]::ReadAllText($applyHostUiPath)).Replace('0.8.0','0.8.1')
+        if(-not $applyHostUi.Contains('NCMM Host API v1 / NCMM 0.8.1 module contract')){
+            throw 'NCMM 0.8.1 host patch marker promotion failed.'
+        }
+        Write-Utf8NoBom $applyHostUiPath $applyHostUi
+    }
+
+    $smokeUiPath = Join-Path $NcmmRoot 'tests\smoke_host.cpp'
+    if(Test-Path $smokeUiPath -PathType Leaf){
+        $smokeUi = Normalize-Lf ([IO.File]::ReadAllText($smokeUiPath))
+        $smokeUi = $smokeUi.Replace('0.8.0-smoke','0.8.1-smoke').Replace('0.11.3','0.12.0')
+        Write-Utf8NoBom $smokeUiPath $smokeUi
+    }
+
+    $survivorAboutEn = "Character progression system with independent activity XP branches, perks, specializations and optional integrations with supported content mods.`n"
+    $survivorAboutRu = "Система развития персонажа с отдельными ветками опыта за действия, перками, специализациями и интеграциями с поддерживаемыми контентными модами.`n"
+    Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\SurvivorProgression\about.en.txt') $survivorAboutEn
+    Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\SurvivorProgression\about.ru.txt') $survivorAboutRu
+    Write-Utf8NoBom (Join-Path $Source0910 'about.en.txt') $survivorAboutEn
+    Write-Utf8NoBom (Join-Path $Source0910 'about.ru.txt') $survivorAboutRu
+    Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\AdvancedWorldSettings\about.en.txt') "Expanded world-generation and calendar controls, including cities, terrain, water, roads and time settings.`n"
+    Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\AdvancedWorldSettings\about.ru.txt') "Расширенные настройки генерации мира и календаря: города, ландшафт, вода, дороги и параметры времени.`n"
+    Write-Host "NCMM 0.8.1 manager + Survivor 0.12.0 settings: READY" -ForegroundColor Green
+}
+
+Apply-NcmmManagerUiV1Source
+
 function Apply-AwsHostApi20Migration {
     Write-Host "Migrating Advanced World Settings 0.6.1 -> 0.6.2 Host API 2.0..." -ForegroundColor Cyan
     $aws = [IO.File]::ReadAllText($awsPath)
@@ -15358,7 +16493,7 @@ int init( const ncmm_host_api_v1 *api ) {
 }
 
 Apply-AwsHostApi20Migration
-Set-InfrastructureTransactionPhase "api2_migrate" "passed" "Host 0.8.0 + Survivor 0.11.3 + AWS 0.6.2 migrations complete"
+Set-InfrastructureTransactionPhase "api2_migrate" "passed" "Host 0.8.1 + Survivor 0.12.0 + AWS 0.6.2 migrations complete"
 
 $awsMigrationAudit = [IO.File]::ReadAllText($awsPath)
 $awsManifestMigrationAudit = [IO.File]::ReadAllText($awsManifestPath)
@@ -15617,11 +16752,11 @@ std::string rpg_detail_body( const perk_def &perk, const std::string &body,
 
 Apply-PlayerFacingCopyPolishFinal
 
-# NCMM Infrastructure 0.8.0 deep probe: execute the exact host/source transform stack
+# NCMM Infrastructure 0.8.3.1 deep probe: execute the exact host/source transform stack
 # without resolving Visual Studio, compiling binaries, touching the target runtime, or installing files.
 if ($HostSourceProbeOnly) {
     Write-Host ""
-    Write-Host "=== NCMM Infrastructure 0.8.0 DEEP SOURCE PROBE ===" -ForegroundColor Cyan
+    Write-Host "=== NCMM Infrastructure 0.8.3.1 DEEP SOURCE PROBE ===" -ForegroundColor Cyan
     $probeRevScript = Join-Path $NcmmRoot "ci\Get-PatchRevision.ps1"
     $probePatchRevision = (& $probeRevScript -RepositoryRoot $NcmmRoot).Trim()
     if ($probePatchRevision -notmatch '^[0-9a-f]{64}$') {
@@ -15650,7 +16785,7 @@ if ($HostSourceProbeOnly) {
 
     $probeReport = [ordered]@{
         schema = 1
-        infrastructure = "0.8.0"
+        infrastructure = "0.8.3.1"
         status = "DEEP_SOURCE_PASS"
         source_commit = $CddaCommit
         source_tag = $CddaTag
@@ -15670,7 +16805,7 @@ if ($HostSourceProbeOnly) {
     exit 0
 }
 
-# Build Survivor 0.11.3 after deterministic 0.9.15 generation, 0.9.16 API2 migration, 0.10 Mechanical Perks, 0.11 Reactive Mechanics, 0.11.1/0.11.2 polish and 0.11.3 combinatorial edge audits succeeded.
+# Build Survivor 0.12.0 after the preserved 0.11.3 gameplay stack plus NCMM-managed live balance settings.
 Write-Host ""
 Set-InfrastructureTransactionPhase "source_preflight" "passed" "legacy generation and API2 module migrations passed"
 Set-InfrastructureTransactionPhase "compile" "running" "resolving toolchain and compiling modules/host"
@@ -15747,7 +16882,7 @@ function Compile-NCMMBootstrap([string]$RepoRoot,[string]$OutputRoot) {
     $out = Join-Path $OutputRoot "cataclysm-tiles.ncmm-bootstrap.exe"
     Remove-Item $out -Force -ErrorAction SilentlyContinue
 
-    Write-Host "Compiling matching NCMM 0.8.0 bootstrap runtime..." -ForegroundColor Cyan
+    Write-Host "Compiling matching NCMM 0.8.1 bootstrap runtime..." -ForegroundColor Cyan
     & $csc /nologo /target:winexe /optimize+ /platform:x64 `
         /reference:System.Web.Extensions.dll `
         /out:$out `
@@ -15941,6 +17076,9 @@ try {
     $installedModuleManifest = Join-Path $spDir "mod.json"
     Copy-Item $releaseModuleDll $installedModuleDll -Force
     Copy-Item $releaseModuleManifest $installedModuleManifest -Force
+    foreach($about in Get-ChildItem $release0110 -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
+        Copy-Item $about.FullName (Join-Path $spDir $about.Name) -Force
+    }
     $releaseAwsDll = Join-Path $releaseAWS "ncmm_mod.dll"
     $releaseAwsManifest = Join-Path $releaseAWS "mod.json"
     Remove-Item $awsDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -15949,6 +17087,9 @@ try {
     $installedAwsManifest = Join-Path $awsDir "mod.json"
     Copy-Item $releaseAwsDll $installedAwsDll -Force
     Copy-Item $releaseAwsManifest $installedAwsManifest -Force
+    foreach($about in Get-ChildItem $releaseAWS -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
+        Copy-Item $about.FullName (Join-Path $awsDir $about.Name) -Force
+    }
 
     if ((Hash-File $installedBootstrap) -ne (Hash-File $builtBootstrap)) {
         throw "Installed bootstrap hash mismatch after copy."
@@ -15975,7 +17116,7 @@ try {
         source_commit = $runtimeSourceCommit
         upstream_tag = $CddaTag
         patch_revision = $newPatchRevision
-        ncmm_version = "0.8.0"
+        ncmm_version = "0.8.1"
         loader_api = 1
         installed_utc = [DateTime]::UtcNow.ToString("o")
     }
@@ -15986,7 +17127,7 @@ try {
     Write-Utf8NoBom (Join-Path $GameRoot "ncmm\vanilla.sha256") ($actualVanillaSha + "`n")
     Write-Utf8NoBom (Join-Path $GameRoot "ncmm\recipe_profiler_support.v1") ("recipe_dictionary.finalize timing support v1`n")
     Write-Utf8NoBom (Join-Path $GameRoot "ncmm\runtime_infrastructure.v8766") ("safe-options + diagnostics + NCMM support routing`n")
-    Write-Utf8NoBom (Join-Path $GameRoot "ncmm\host_api_v2.core") ("NCMM Host 0.8.0 | legacy API 1.9 | Host API 2.0 Core`n")
+    Write-Utf8NoBom (Join-Path $GameRoot "ncmm\host_api_v2.core") ("NCMM Host 0.8.1 | legacy API 1.9 | Host API 2.0 Core`n")
 
     Write-Host "Binding inputs:"
     Write-Host "  bootstrap SHA: $bootstrapSha"
@@ -16036,12 +17177,12 @@ try {
     $migrationReport = [ordered]@{
         schema = 1
         installer = "v8.7.6.8"
-        infrastructure = "0.8.0"
+        infrastructure = "0.8.3.1"
         adapter_cache_key = $CddaCacheKey
         source_commit = $runtimeSourceCommit
         source_changed = (([string]$oldBinding.source_commit).Trim().ToLowerInvariant() -ne $runtimeSourceCommit.Trim().ToLowerInvariant())
         previous_ncmm_version = [string]$oldBinding.ncmm_version
-        current_ncmm_version = "0.8.0"
+        current_ncmm_version = "0.8.1"
         previous_patch_revision = [string]$oldBinding.patch_revision
         current_patch_revision = $newPatchRevision
         expected_previous_survivor_schema_max = 7
@@ -16059,13 +17200,13 @@ try {
 
     $compatibilityReport = [ordered]@{
         schema = 2
-        infrastructure = "0.8.0"
+        infrastructure = "0.8.3.1"
         adapter_cache_key = $CddaCacheKey
         status = $(if ($TargetSupportMode -eq "exact") { "verified_target_exact" } else { "verified_target_structural_reuse" })
         adapter_support = $TargetSupportMode
         source_commit = $runtimeSourceCommit
         source_tag = $CddaTag
-        ncmm_version = "0.8.0"
+        ncmm_version = "0.8.1"
         ncmm_api = "1.9"
         host_api_v2 = "2.0"
         loader_api = 1
@@ -16074,7 +17215,7 @@ try {
         ui_theme_api = "ui.theme.v1"
         ui_layout_api = "ui.layout.v1"
         active_mod_registry = "active_mods.registry.v2"
-        survivor = "0.11.3"
+        survivor = "0.12.0"
         survivor_schema = 8
         aws = "0.6.2"
         validation = "host/bootstrap diagnostics passed"
@@ -16086,7 +17227,7 @@ try {
 
     $installReport = [ordered]@{
         installer = "v8.7.6.8"
-        infrastructure = "0.8.0"
+        infrastructure = "0.8.3.1"
         adapter_cache_key = $CddaCacheKey
         adapter_support = $TargetSupportMode
         install_mode = $(if ($freshVanillaInstall) { "fresh_vanilla" } else { "upgrade_existing_ncmm" })
@@ -16100,9 +17241,9 @@ try {
         source_cache_mode = "immutable_pristine_plus_incremental_worktree"
         cdda_commit = $runtimeSourceCommit
         cdda_tag = $CddaTag
-        ncmm_version = "0.8.0"
+        ncmm_version = "0.8.1"
         ncmm_api = "1.9"
-        survivor_version = "0.11.3"
+        survivor_version = "0.12.0"
         aws_version = "0.6.2"
         patch_revision = $newPatchRevision
         bootstrap_sha256 = $bootstrapSha
@@ -16118,10 +17259,10 @@ try {
     Write-Utf8NoBom $installReportPath (($installReport | ConvertTo-Json -Depth 5) + "`n")
 
     Write-Host ""
-    Write-Host "=== SURVIVOR 0.11.3 COMBINATORIAL EDGE POLISH / HOST API 2.0 INSTALLED ===" -ForegroundColor Green
+    Write-Host "=== SURVIVOR 0.12.0 LIVE SETTINGS / NCMM HOST 0.8.1 INSTALLED ===" -ForegroundColor Green
     Write-Host "0.9.11: complete obstacle-safe neutral connectors + real branch bars"
     Write-Host "0.9.12: activity-diversity branch XP + branch level-up feedback"
-    Write-Host "0.9.13: active_mods.v1; Host 0.8.0 exposes legacy API 1.9 + Host API 2.0 Core"
+    Write-Host "0.9.13: active_mods.v1; Host API 2.0 Core foundation"
     Write-Host "0.9.15: 39 exclusive Prime roots; compact 3-choice Prime rows; horizontal tree viewport; sectioned RPG details"
     Write-Host "0.9.16: Survivor mechanics migrated to Host API 2.0 generic runtime hooks; state schema remains 8"
     Write-Host "0.10.0: 27 mechanical nodes appended; crit, defense, dodge/block attempts and ranked 1-5% full-damage avoidance"
@@ -16129,6 +17270,7 @@ try {
     Write-Host "0.11.1: semantic polish; counter precedence, zero-XP anti-farm, self-damage guard, accurate craft UI estimate and lockpick floors"
     Write-Host "0.11.2: edge polish; hostile-only auto-riposte/kill rewards, damaging-crit gate, Momentum lifecycle clamps/respec reset and lockpick null safety"
     Write-Host "0.11.3: combinatorial edge polish; isolated riposte refund, executed-counter fallback, hostile NPC kill parity, hostile-only reactive damage/crit rewards, overflow-safe self-healing Momentum and monotonic craft-failure saves"
+    Write-Host "0.12.0: NCMM-managed live XP rate and stat-perk strength settings; gameplay mechanics remain on the 0.11.3 baseline"
     Write-Host "Integrated worlds: Magiclysm / Mind Over Matter / Xedra Evolved / Aftershock Exoplanet / Aftershock Prime / Secronom / Secronom+"
     Write-Host "Advanced World Settings 0.6.2: Host API 2.0 typed settings + generic geography hooks; custom geography stays under Experimental"
     Write-Host "Snapshots:"
@@ -16146,7 +17288,7 @@ try {
     Write-Host "Installed. Start Cataclysm normally. Open NCMM with F2; custom geography is under Experimental and Survivor uses themed branch UI."
 } catch {
     Write-Host ""
-    Write-Host "Install validation failed. Restoring pre-0.11.3 runtime files..." -ForegroundColor Red
+    Write-Host "Install validation failed. Restoring pre-0.12.0 runtime files..." -ForegroundColor Red
 
     try {
         Stop-TargetGameProcesses $GameRoot

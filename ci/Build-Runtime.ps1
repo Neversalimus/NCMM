@@ -46,6 +46,9 @@ function New-NcmmModuleArchive {
     New-Item -ItemType Directory -Force -Path $moduleDest | Out-Null
     Copy-Item (Join-Path $source 'ncmm_mod.dll') (Join-Path $moduleDest 'ncmm_mod.dll') -Force
     Copy-Item (Join-Path $source 'mod.json') (Join-Path $moduleDest 'mod.json') -Force
+    foreach($about in Get-ChildItem $source -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
+        Copy-Item $about.FullName (Join-Path $moduleDest $about.Name) -Force
+    }
     $descriptor = Join-Path $RepositoryRoot ('components\' + $ComponentId + '.json')
     Copy-Item $descriptor (Join-Path $stage 'component.json') -Force
 
@@ -129,6 +132,9 @@ if ($LASTEXITCODE -ne 0) { throw 'NCMM/AWS fail-closed smoke test failed.' }
 
 Copy-Item $aws.FullName (Join-Path $payload 'code_mods\AdvancedWorldSettings\ncmm_mod.dll') -Force
 Copy-Item (Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings\mod.json') (Join-Path $payload 'code_mods\AdvancedWorldSettings\mod.json') -Force
+foreach($about in Get-ChildItem (Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings') -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
+    Copy-Item $about.FullName (Join-Path $payload 'code_mods\AdvancedWorldSettings' $about.Name) -Force
+}
 
 $manifest = $awsManifestSource
 if ($manifest.loader_api -ne 1) { throw 'AWS manifest loader_api must be 1.' }
@@ -159,6 +165,9 @@ if ($LASTEXITCODE -ne 0) { throw 'Survivor Progression vertical-slice smoke test
 
 Copy-Item $sp.FullName (Join-Path $payload 'code_mods\SurvivorProgression\ncmm_mod.dll') -Force
 Copy-Item (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') (Join-Path $payload 'code_mods\SurvivorProgression\mod.json') -Force
+foreach($about in Get-ChildItem (Join-Path $RepositoryRoot 'mods\SurvivorProgression') -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
+    Copy-Item $about.FullName (Join-Path $payload 'code_mods\SurvivorProgression' $about.Name) -Force
+}
 
 $spManifest = $survivorManifestSource
 if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable' -or
@@ -169,7 +178,7 @@ foreach ($required in @(
     'core.v1','events.turn.v1','character_state.v1','character.modifiers.v1',
     'ui.basic.v1','ui.tiles.v1','ui.cards.v1','ui.tree.v1','gameplay.metrics.v1',
     'active_mods.v1','ui.theme.v1','active_mods.registry.v2','host_api.v2.core',
-    'events.core.v2','character.modifiers.v2','runtime_hooks.registry.v2',
+    'settings.typed.v2','events.core.v2','character.modifiers.v2','runtime_hooks.registry.v2',
     'ui.layout.v1','module_hotkeys.v1','module_hotkeys.context.v1',
     'api.versioning.v1','state.migration.v1','module.lifecycle.v1'
 )) {
@@ -201,7 +210,10 @@ foreach ($requiredLoaderFragment in @(
     'ensure_state_migrated',
     'state_migration_failed',
     'api.versioning.v1',
-    'module.lifecycle.v1'
+    'module.lifecycle.v1',
+    'module_setting_meta',
+    'manager_adjust_setting',
+    'NCMM_MANAGER'
 )) {
     if (-not $loaderSource.Contains($requiredLoaderFragment)) {
         throw "NCMM $hostVersion loader hardening invariant missing: $requiredLoaderFragment"

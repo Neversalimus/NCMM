@@ -92,7 +92,7 @@ const char *get_locale_fn()
 
 const char *get_host_version_fn()
 {
-    return "0.8.0-smoke";
+    return "0.8.1-smoke";
 }
 
 uint32_t get_loader_api_fn()
@@ -241,6 +241,7 @@ size_t worldgen_binding_count = 0;
 size_t runtime_hook_binding_count = 0;
 size_t modifier_definition_count = 0;
 size_t event_subscription_count = 0;
+std::set<std::string> registered_setting_ids;
 
 int world_setting_register_bool_fn( const char *, const char *, const char *, const char *,
                                     int, uint32_t )
@@ -260,10 +261,13 @@ int world_setting_register_float_fn( const char *, const char *, const char *, c
     return 1;
 }
 
-int world_setting_register_enum_fn( const char *, const char *, const char *, const char *,
+int world_setting_register_enum_fn( const char *, const char *setting_id, const char *, const char *,
                                     const char *const *, const char *const *, size_t,
                                     const char *, uint32_t )
 {
+    if( setting_id != nullptr ) {
+        registered_setting_ids.insert( setting_id );
+    }
     return 1;
 }
 
@@ -411,7 +415,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 1 ) {
         // Buy Combat -> Power Training.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.11.3" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.12.0" ) != std::string::npos ) {
             ++ui_stage;
             return 0;
         }
@@ -428,7 +432,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 2 ) {
         // Buy Mastery -> Fast Learner.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.11.3" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.12.0" ) != std::string::npos ) {
             ++ui_stage;
             return 5;
         }
@@ -445,7 +449,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 3 ) {
         // Root -> Respec all perks -> confirm.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.11.3" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.12.0" ) != std::string::npos ) {
             ++ui_stage;
             return 7;
         }
@@ -656,7 +660,7 @@ int main( int argc, char **argv )
             std::cerr << "Survivor Progression callback export missing\n";
             return 9;
         }
-        if( std::strcmp( desc->version, "0.11.3" ) != 0 ) {
+        if( std::strcmp( desc->version, "0.12.0" ) != 0 ) {
             std::cerr << "Survivor Progression descriptor version mismatch\n";
             return 21;
         }
@@ -676,7 +680,12 @@ int main( int argc, char **argv )
         }
 
         on_turn( &api );
-        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.11.3 Host API 2.0 registration + schema migration)\n";
+        if( registered_setting_ids.count( "NCMM_SP_XP_RATE" ) == 0 ||
+        registered_setting_ids.count( "NCMM_SP_STAT_POWER" ) == 0 ) {
+        std::cerr << "Survivor Progression did not register both live balance settings\n";
+        return 38;
+    }
+    std::cout << "NCMM smoke test: PASS (Survivor Progression 0.12.0 Host API 2.0 registration + schema migration)\n";
         return 0;
     }
 

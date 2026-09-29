@@ -41,7 +41,7 @@ jobs:
       - name: Validate NCMM version consistency
         shell: pwsh
         run: |
-          ./ci/Test-VersionConsistency.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE" -LegacyFeedVersion '0.7.1'
+          ./ci/Test-VersionConsistency.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE" -LegacyFeedVersion '0.8.0'
 
       - name: Feed auditor self-test
         shell: pwsh
@@ -52,7 +52,7 @@ jobs:
         shell: pwsh
         run: |
           $CurrentSourceVersion = (./ci/Get-NcmmCurrentVersion.ps1 -RepositoryRoot .).Trim()
-          $LegacyFeedVersion = '0.7.1'
+          $LegacyFeedVersion = '0.8.0'
           $currentRevision = (./ci/Get-PatchRevision.ps1 -RepositoryRoot .).Trim()
           $feed = Get-Content ./feed/index.json -Raw | ConvertFrom-Json
           $feedVersion = [string]$feed.runtime_version

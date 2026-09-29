@@ -154,7 +154,7 @@ internal sealed class DiagnosticsReport
 
 internal static partial class SetupCore
 {
-    internal const string RuntimeVersion = "0.8.0";
+    internal const string RuntimeVersion = "0.8.1";
 
     internal static string Sha256(string path)
     {

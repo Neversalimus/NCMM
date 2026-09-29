@@ -56,8 +56,8 @@
     },
     {
       "path": "ci\\Test-ComponentCatalog.ps1",
-      "sha256": "20ba6711a25eec75d5e5bf2b9653003351e0d4a885e1581c8a29f429af5c2f18",
-      "bytes": 9571
+      "sha256": "92e6a3ac228bb4380a5a90cb7c4ab699b04ef501d39300a991f767ac21b8a18c",
+      "bytes": 9591
     },
     {
       "path": "ci\\Test-GoldenRegression.ps1",
@@ -66,8 +66,8 @@
     },
     {
       "path": "ci\\Test-HostPayloadContracts.ps1",
-      "sha256": "cb09462270d1f1a2ff287c9581f39e5a658ba6b0e46f65229922b9db76f711d4",
-      "bytes": 18407
+      "sha256": "b428d259900f7c45acf3bb636804fcc8f054c83da1bfd3d99baa870926bc98fe",
+      "bytes": 18699
     },
     {
       "path": "ci\\Test-Infrastructure0821.ps1",
@@ -86,8 +86,8 @@
     },
     {
       "path": "ci\\Test-SurvivorPayloadContracts.ps1",
-      "sha256": "3384b96ef508cc02d6afd0fbf43f8e4d20dfaf0a26def415c43a1e18873a897c",
-      "bytes": 22775
+      "sha256": "18662247ee80204aeb6997d443ec91920213aef6c494a0003393615fff3ab1cf",
+      "bytes": 23166
     },
     {
       "path": "ci\\Watch-CDDAExperimental.ps1",
@@ -96,8 +96,8 @@
     },
     {
       "path": "compat\\compatibility.manifest.json",
-      "sha256": "34a6e149b2afca2deca67c441a8b7ee3ce8091d190827745547e85b5efe2067b",
-      "bytes": 6502
+      "sha256": "72bac1e608a0a1526f77ca8614c87d913c81376554169c1b6577270650c207f9",
+      "bytes": 6404
     },
     {
       "path": "compat\\contracts.json",
@@ -121,7 +121,7 @@
     },
     {
       "path": "compat\\update\\index.json",
-      "sha256": "e54ab64b3f4f91657cd5e787a7b3f3befdfa101f826cd0b46cddd546ae93f3cd",
+      "sha256": "d2dc78c67a92f46948ea6c9b5cf807567238a5a7bda818e590d4d53581dc76d9",
       "bytes": 917
     },
     {
@@ -131,12 +131,12 @@
     },
     {
       "path": "components\\index.json",
-      "sha256": "56e9b508d4acfbfdf79819fffe70e77cae2c81d47b97e44c5e156fa483f88ba6",
-      "bytes": 3894
+      "sha256": "a27fb0b63fde37f874c7bfcda67bdbc94c606950acff82e429d1e50374ae32af",
+      "bytes": 3962
     },
     {
       "path": "components\\ncmm_host.json",
-      "sha256": "88c5b9453d20383448749bb159c2647013d7de30aeeb0e688cc289cc3eacefa0",
+      "sha256": "f609a79a713655c20cfe584994e2e7fc39d7f108f9def269e20551c778094494",
       "bytes": 803
     },
     {
@@ -156,8 +156,8 @@
     },
     {
       "path": "components\\survivor_progression.json",
-      "sha256": "5f1404cc73bc974e74b90cd53feced2abb251d1508abb1b3a99634551c4ffae3",
-      "bytes": 749
+      "sha256": "7b746821cd47340b71811dc252bc82a7ba54bc345a06d37ad85fb890c6945177",
+      "bytes": 805
     },
     {
       "path": "golden\\fixtures\\full_stack.json",
@@ -321,8 +321,8 @@
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-      "sha256": "615984b094400beeb689e8b5081686b5ffcbc82a1025fcdf4d206711ec610a06",
-      "bytes": 974571
+      "sha256": "11f23fc0292063f3ecf41ed17bfd81829e10b839566652e95c4bc131bdac25e5",
+      "bytes": 1027384
     },
     {
       "path": "pipeline\\pipeline.manifest.json",
@@ -331,8 +331,8 @@
     },
     {
       "path": "README.txt",
-      "sha256": "20c0f5e93c37ec5cd3d35f24bcaa244e03e748e640f0e52929f6cf2da9815b3e",
-      "bytes": 9032
+      "sha256": "199bda8a3fe180c6ae20801e524710a684a67793f9b3144ed878f33754c981fc",
+      "bytes": 10222
     },
     {
       "path": "sdk\\HOST_API_2_CORE_CONTRACT.md",

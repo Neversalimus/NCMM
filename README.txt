@@ -1,3 +1,16 @@
+Survivor Progression 0.12.0 + NCMM Host 0.8.1 — Mod Manager & Live Balance Settings
+---------------------------------------------------------------------
+- NCMM Mod Configuration is now a two-pane manager: installed mods on the left, selected module details and actions on the right.
+- The details panel shows module version, runtime status, id, hotkey, localized description and Host-managed LIVE/RELOAD settings.
+- Survivor Progression exposes two live balance controls through the existing typed-settings persistence layer:
+  * Experience gain: 25%..300% in 25% steps, applied after branch anti-farm adjustments.
+  * Stat perk strength: 25%..300% in 25% steps, scaling direct stat-perk effects only; mechanical perks are unchanged.
+- Survivor Progression is 0.12.0. Its state schema remains 8 and the 0.11.3 gameplay/perk baseline is preserved.
+- NCMM Host is 0.8.1. Loader ABI 1, legacy semantic API 1.9 and Host API 2.0 Core remain compatible.
+- Advanced World Settings remains 0.6.2; its NEW_MAP settings stay in the Experimental world-settings page rather than the live module-settings list.
+- Narrow terminals keep a compact fallback menu.
+- Module descriptions are packaged as optional about.en.txt / about.ru.txt sidecars; older Hosts ignore them safely.
+
 Survivor Progression 0.11.3 — Combinatorial Edge Polish
 ---------------------------------------------------------------------
 - Builds on the complete 0.10.0 Mechanical Perks pass; no existing perk node is removed.
@@ -47,11 +60,11 @@ NCMM Host API 2.0 Core — on Infrastructure 0.8.3.1
 This package keeps the 0.8.3.1 staged installer and Host API 2.0 baseline, runs the preserved 0.10.0 Mechanical Perks transform, then advances Survivor Progression through 0.11.0 Reactive Mechanics + Technical Mastery, applies the 0.11.1 semantic polish pass, and finishes with the 0.11.2 edge-case hardening pass and 0.11.3 combinatorial interaction pass.
 
 Compatibility model
-- NCMM Host: 0.8.0
+- NCMM Host: 0.8.1
 - Loader ABI: 1 (unchanged)
 - Legacy semantic API bridge: 1.9 (existing v1 modules remain compatible)
 - Host API 2.0 Core: queried through api->query_interface("ncmm.host_api.v2.core", 2, 0)
-- Survivor Progression 0.11.3 keeps every prior node and adds no schema migration; it layers combinatorial-safe riposte accounting, hostile NPC kill parity, Momentum saturation/self-healing and crafting failure-point/UI consistency over the 0.11.2 edge hardening.
+- Survivor Progression 0.12.0 keeps every prior node and state schema 8; it preserves the 0.11.3 gameplay baseline and adds Host-managed live XP/stat-perk balance controls.
 - Advanced World Settings 0.6.2 is migrated to Host API 2.0 typed settings/worldgen bindings. CDDA geography source now sees only generic geography.* Host hooks; NCMM_AWS_* IDs remain inside the AWS module.
 
 Core 2.0 domains
