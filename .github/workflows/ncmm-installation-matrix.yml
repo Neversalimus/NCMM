@@ -1,6 +1,9 @@
 name: NCMM Real Installation Matrix
 
 on:
+  push:
+    paths:
+      - '.github/workflows/ncmm-installation-matrix.yml'
   workflow_dispatch:
     inputs:
       upstream_tag:
