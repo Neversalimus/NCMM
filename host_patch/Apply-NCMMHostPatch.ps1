@@ -398,6 +398,10 @@ $mn = Replace-ExactlyOnce $mn @'
 
     initialize_imgui();
 '@ @'
+    if( cli.ncmm_gameplay_smoke ) {
+        init_colors();
+    }
+
     g = std::make_unique<game>();
     load_static_game_data( cli );
 
