@@ -225,7 +225,10 @@ foreach ($requiredLoaderFragment in @(
     'manager_adjust_setting',
     'NCMM_MANAGER',
     'runtime_smoke_requested',
+    'gameplay_smoke_requested',
+    'run_gameplay_smoke',
     '--ncmm-runtime-smoke',
+    '--ncmm-gameplay-smoke',
     'NCMM runtime smoke reached Host ready state'
 )) {
     if (-not $loaderSource.Contains($requiredLoaderFragment)) {
@@ -277,7 +280,9 @@ foreach ($requiredBootstrapFragment in @(
     'recoveryBlockedHost',
     'boot.ready proves the previous host reached ready state',
     'runtime_smoke_host_unavailable',
+    'gameplay_smoke_host_unavailable',
     '--ncmm-runtime-smoke',
+    '--ncmm-gameplay-smoke',
     'stale boot.pending still exists before host launch'
 )) {
     if (-not $bootstrapSourceText.Contains($requiredBootstrapFragment)) {
