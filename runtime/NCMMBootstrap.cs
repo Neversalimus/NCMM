@@ -537,7 +537,8 @@ internal static class NCMMBootstrap
             else if (String.Equals(arg, "--ncmm-offline", StringComparison.OrdinalIgnoreCase)) offline = true;
             else if (String.Equals(arg, "--ncmm-refresh", StringComparison.OrdinalIgnoreCase)) refresh = true;
             else if (String.Equals(arg, "--ncmm-diagnose", StringComparison.OrdinalIgnoreCase)) diagnosticsOnly = true;
-            else if (String.Equals(arg, "--ncmm-runtime-smoke", StringComparison.OrdinalIgnoreCase))
+            else if (String.Equals(arg, "--ncmm-runtime-smoke", StringComparison.OrdinalIgnoreCase) ||
+                     String.Equals(arg, "--ncmm-runtime-smoke-gameplay", StringComparison.OrdinalIgnoreCase))
             {
                 runtimeSmoke = true;
                 forwarded.Add(arg);

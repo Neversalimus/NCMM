@@ -226,7 +226,11 @@ foreach ($requiredLoaderFragment in @(
     'NCMM_MANAGER',
     'runtime_smoke_requested',
     '--ncmm-runtime-smoke',
-    'NCMM runtime smoke reached Host ready state'
+    'NCMM runtime smoke reached Host ready state',
+    'run_module_gameplay_smoke',
+    'registered_world_settings',
+    'AWS persisted world option mismatch after reload',
+    'survivor_real_character_checks'
 )) {
     if (-not $loaderSource.Contains($requiredLoaderFragment)) {
         throw "NCMM $hostVersion loader hardening invariant missing: $requiredLoaderFragment"
@@ -278,6 +282,7 @@ foreach ($requiredBootstrapFragment in @(
     'boot.ready proves the previous host reached ready state',
     'runtime_smoke_host_unavailable',
     '--ncmm-runtime-smoke',
+    '--ncmm-runtime-smoke-gameplay',
     'stale boot.pending still exists before host launch'
 )) {
     if (-not $bootstrapSourceText.Contains($requiredBootstrapFragment)) {
@@ -288,6 +293,15 @@ foreach ($requiredBootstrapFragment in @(
 $hostPatchSource = Get-Content (Join-Path $RepositoryRoot 'host_patch\Apply-NCMMHostPatch.ps1') -Raw
 if ($hostPatchSource.Contains("if (`$LASTEXITCODE -ne 0) { throw 'NCMM source-contract preflight failed.' }")) {
     throw "NCMM $hostVersion regression: PowerShell source-contract preflight still inspects stale LASTEXITCODE."
+}
+foreach ($requiredGameplaySmokeFragment in @(
+    '--ncmm-runtime-smoke-gameplay',
+    'ncmm::run_module_gameplay_smoke',
+    'init_colors();'
+)) {
+    if (-not $hostPatchSource.Contains($requiredGameplaySmokeFragment)) {
+        throw "NCMM $hostVersion real gameplay smoke patch invariant missing: $requiredGameplaySmokeFragment"
+    }
 }
 
 @"
