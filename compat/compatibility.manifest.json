@@ -80,7 +80,7 @@
       },
       {
         "id": "advanced_world_settings",
-        "version": "0.6.2"
+        "version": "0.6.3"
       },
       {
         "id": "recipe_finalize_profiler",
@@ -148,7 +148,7 @@
       "runtime_hook_registry",
       "worldgen_binding_registry"
     ],
-    "module_migration_status": "Survivor 0.12.0 and AWS 0.6.2 use Host API 2.0; Survivor 0.12.0 adds Host-managed live balance settings and the two-pane NCMM manager while preserving the 0.11.3 gameplay contracts.",
+    "module_migration_status": "Survivor 0.12.0 and AWS 0.6.3 use Host API 2.0; Survivor 0.12.0 adds Host-managed live balance settings and the two-pane NCMM manager while preserving the 0.11.3 gameplay contracts.",
     "survivor_migration": "runtime_hook_registry_v2 + dynamic_modifier_ownership; no Survivor-specific identifiers remain in patched CDDA source",
     "aws_migration": "typed_world_settings_v2 + worldgen_binding_registry_v2; final patched CDDA geography sources contain no NCMM_AWS_* identifiers"
   },

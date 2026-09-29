@@ -96,7 +96,7 @@
     },
     {
       "path": "compat\\compatibility.manifest.json",
-      "sha256": "72bac1e608a0a1526f77ca8614c87d913c81376554169c1b6577270650c207f9",
+      "sha256": "4085b7c258ab4ece34d4ddb5be38c7f6a94ba970f5d31a6de0bb20433c9238c9",
       "bytes": 6404
     },
     {
@@ -121,7 +121,7 @@
     },
     {
       "path": "compat\\update\\index.json",
-      "sha256": "d2dc78c67a92f46948ea6c9b5cf807567238a5a7bda818e590d4d53581dc76d9",
+      "sha256": "d4c17e136fdd188cedd6f1949c8ed7545000dacace9a6201a61385f9ad90c424",
       "bytes": 917
     },
     {

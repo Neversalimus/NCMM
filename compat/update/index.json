@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "channel": "experimental",
-  "generated_utc": "2026-09-28T11:36:00Z",
+  "generated_utc": "2026-09-29T22:15:00Z",
   "infrastructure_version": "0.8.3.1",
   "policy": {
     "auto_apply": false,
@@ -20,7 +20,7 @@
         "ncmm_infrastructure": "0.8.3.1",
         "ncmm_host": "0.8.1",
         "survivor_progression": "0.12.0",
-        "advanced_world_settings": "0.6.2",
+        "advanced_world_settings": "0.6.3",
         "recipe_finalize_profiler": "0.1.1"
       },
       "minimum_updater": "0.8.3"
