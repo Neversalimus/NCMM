@@ -43,7 +43,7 @@ The repository checkout also contains `NCMM.cmd`, the maintainer/development ent
 
 Every Runtime build now runs the production `SetupCore` against isolated CDDA-shaped installations before packages are published. The installation matrix currently covers clean installs with no modules / Survivor / AWS / both, module removal and re-enable, idempotent reinstall, previous-runtime update, corrupted DLL repair, corrupt-manifest fail-closed behavior, invalid payload/selection, rollback at multiple install phases, and recovery after a hard interrupted process.
 
-Bootstrap has a separate lifecycle harness covering certified-host selection, incompatible bindings, first and second healthy launches, host crash/auto-disable, reset recovery and fail-closed marker failures. A failed matrix blocks the Runtime release.
+Bootstrap has a separate lifecycle harness covering certified-host selection, incompatible bindings, first and second healthy launches, host crash/auto-disable, reset recovery and fail-closed marker failures. A failed matrix blocks the Runtime release. A separate nightly/manual **Real Installation Matrix** downloads an official Windows CDDA release and runs the same production SetupCore plus Survivor/AWS selection changes against the real extracted game tree before restoring the original vanilla executable.
 
 ## Compatibility model
 
