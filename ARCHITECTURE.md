@@ -99,6 +99,14 @@ Persistent per-character module state uses the Host state API and explicit schem
 
 Survivor Progression currently uses state schema 8.
 
+## Automated semantic and gameplay proof
+
+NCMM separates fast semantic coverage from expensive real-engine coverage.
+
+- The Runtime build loads the actual AWS and Survivor release DLLs into the smoke Host. AWS must expose 48 typed geography settings/bindings and survive boundary plus deterministic randomized cases. Survivor must cover all 369 perk definitions, direct effects, XP, amplifiers, conditional integrations, cleanup/respec, stateful momentum, an all-perks-max stress state and deterministic mixed combinations.
+- The real module gameplay smoke runs only against a compiled NCMM Host and an official CDDA Windows tree. It creates a randomized AWS world, saves and reloads it, generates an overmap, creates a real avatar, exercises all 369 Survivor perks through the release DLL/Host path, and checks representative effects through real CDDA `Character` methods.
+- Evidence is emitted as `ncmm/module-gameplay-smoke-<seed>.json` so CI can prove the world, module catalog and cleanup state rather than accepting exit code 0 alone.
+
 ## Certification and compatibility
 
 NCMM compatibility is identity-based, not launcher-based. A Host is usable only when the relevant runtime/loader contract, CDDA source commit, vanilla executable SHA and patch revision all match the certified metadata.
