@@ -689,14 +689,15 @@ internal static class NCMMBootstrap
 
         if ((runtimeSmoke || gameplaySmoke) && !useHost)
         {
+            int smokeExitCode = gameplaySmoke ? 116 : 115;
             State.selected_mode = "ERROR";
             State.reason = gameplaySmoke ? "gameplay_smoke_host_unavailable" : "runtime_smoke_host_unavailable";
             State.host_status = State.host_valid ? "valid_but_blocked" : "invalid_or_missing";
-            State.last_exit_code = gameplaySmoke ? 116 : 115;
+            State.last_exit_code = smokeExitCode;
             WriteRuntimeState();
             Log((gameplaySmoke ? "Gameplay" : "Runtime") +
                 " smoke requires a certified NCMM Host; refusing vanilla fallback.");
-            return State.last_exit_code;
+            return smokeExitCode;
         }
 
         if (useHost)
