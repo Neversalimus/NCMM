@@ -3497,6 +3497,11 @@ std::string version_label()
     return std::string( "NCMM " ) + get_host_version();
 }
 
+std::string localized_text( const char *english, const char *russian )
+{
+    return tr_ui( english ? english : "", russian ? russian : "" );
+}
+
 void register_gameplay_actions( input_context &ctxt )
 {
     const std::string manager_name = tr_ui( "NCMM / Mod Configuration",
