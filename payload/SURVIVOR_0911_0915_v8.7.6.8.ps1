@@ -13136,21 +13136,13 @@ std::vector<manager_entry> manager_entries()
             $l = $l.Replace($readyCallOld,$readyCallNew)
         }
 
-        $showOld = @'
-void show_manager()
-{
-    while( true ) {
-'@
-        $showNew = @'
-void show_manager()
-{
-    write_diagnostics_summary();
-    while( true ) {
-'@
-        if ($l.Contains($showOld)) {
-            $l = Replace-TextBlock $l $showOld $showNew 'v8.7.6.6 manager refresh diagnostics snapshot'
-        } elseif (-not $l.Contains($showNew)) {
-            throw 'v8.7.6.6 manager diagnostics refresh anchor missing.'
+        $showOld = "void show_manager()`n{"
+        $showNew = "void show_manager()`n{`n    write_diagnostics_summary();"
+        if (-not $l.Contains($showNew)) {
+            if (-not $l.Contains($showOld)) {
+                throw 'v8.7.6.6 manager diagnostics refresh anchor missing.'
+            }
+            $l = $l.Replace($showOld,$showNew)
         }
         Write-Utf8NoBom $loaderCpp $l
     }
