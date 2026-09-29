@@ -16786,7 +16786,7 @@ extern "C" NCMM_EXPORT void ncmm_test_dispatch_event_v1( uint32_t event_id )
     survivor_reactive_event_v2( event_id, nullptr );
 }
 '@
-        $spUi = Replace-TextBlock $spUi $semanticOpenUi ($semanticOpenUi + "`n`n" + $semanticExports) 'Survivor semantic diagnostic exports'
+        $spUi = Replace-TextBlock $spUi $semanticOpenUi ($semanticOpenUi + "`n`n`n" + $semanticExports) 'Survivor semantic diagnostic exports'
     }
 
     $spUi = $spUi.Replace('0.11.3','0.12.0')
