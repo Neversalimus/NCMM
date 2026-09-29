@@ -4804,7 +4804,6 @@ void load_module_data()
         loader.load_data_from_path( cata_path{ cata_path::root_path::unknown, data_dir }, source );
     }
 }
-
 void mark_ready()
 {
     const std::filesystem::path directory = game_root() / "ncmm";
