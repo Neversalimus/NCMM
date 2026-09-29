@@ -54,6 +54,8 @@ State schemas 0–7 remain migration inputs supported by the current module cont
 
 The 0.12.0 update preserves the 0.11.3 gameplay/perk baseline and adds manager-integrated balance controls. Existing perk nodes were not removed merely to equalize branch sizes; branch counts are intentionally allowed to differ.
 
+CI treats the perk catalog as executable behavior, not just data. The fast semantic matrix walks all 369 perk definitions, checks direct modifiers, XP effects, amplifiers, conditional integrations, stateful momentum behavior, cleanup/respec, an all-perks-max stress state and deterministic mixed combinations. The real gameplay smoke then creates an actual CDDA avatar and exercises the whole catalog through the released DLL and Host, with representative primary-stat, speed, stamina, dodge, hit and movement checks against real Character methods.
+
 ## Development invariant
 
 When extending Survivor, prefer a generic Host capability or hook that can serve multiple modules. A new Survivor-specific CDDA source patch should be treated as a design failure unless the engine truly lacks a reusable domain primitive.
