@@ -638,7 +638,7 @@ int world_setting_register_bool( const char *module_id, const char *setting_id,
                                setting_id, to_translation( display_name ),
                                to_translation( tooltip ), default_value != 0,
                                scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
-    if( registered && manager_visible_setting_scope( scope ) ) {
+    if( registered ) {
         module_setting_meta meta;
         meta.module_id = module_id;
         meta.setting_id = setting_id;
@@ -646,7 +646,13 @@ int world_setting_register_bool( const char *module_id, const char *setting_id,
         meta.tooltip = tooltip;
         meta.type = "bool";
         meta.scope = scope;
-        remember_module_setting( meta );
+        meta.min_value = 0.0;
+        meta.max_value = 1.0;
+        meta.step = 1.0;
+        remember_registered_world_setting( meta );
+        if( manager_visible_setting_scope( scope ) ) {
+            remember_module_setting( meta );
+        }
     }
     return registered;
 }
@@ -662,7 +668,7 @@ int world_setting_register_int( const char *module_id, const char *setting_id,
                                setting_id, to_translation( display_name ),
                                to_translation( tooltip ), min_value, max_value, default_value,
                                scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
-    if( registered && manager_visible_setting_scope( scope ) ) {
+    if( registered ) {
         module_setting_meta meta;
         meta.module_id = module_id;
         meta.setting_id = setting_id;
@@ -673,7 +679,10 @@ int world_setting_register_int( const char *module_id, const char *setting_id,
         meta.min_value = min_value;
         meta.max_value = max_value;
         meta.step = 1.0;
-        remember_module_setting( meta );
+        remember_registered_world_setting( meta );
+        if( manager_visible_setting_scope( scope ) ) {
+            remember_module_setting( meta );
+        }
     }
     return registered;
 }
@@ -694,7 +703,7 @@ int world_setting_register_float( const char *module_id, const char *setting_id,
                                static_cast<float>( max_value ), static_cast<float>( default_value ),
                                static_cast<float>( step ),
                                scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
-    if( registered && manager_visible_setting_scope( scope ) ) {
+    if( registered ) {
         module_setting_meta meta;
         meta.module_id = module_id;
         meta.setting_id = setting_id;
@@ -705,7 +714,10 @@ int world_setting_register_float( const char *module_id, const char *setting_id,
         meta.min_value = min_value;
         meta.max_value = max_value;
         meta.step = step;
-        remember_module_setting( meta );
+        remember_registered_world_setting( meta );
+        if( manager_visible_setting_scope( scope ) ) {
+            remember_module_setting( meta );
+        }
     }
     return registered;
 }
@@ -731,7 +743,7 @@ int world_setting_register_enum( const char *module_id, const char *setting_id,
                                setting_id, to_translation( display_name ),
                                to_translation( tooltip ), items, default_value,
                                scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
-    if( registered && manager_visible_setting_scope( scope ) ) {
+    if( registered ) {
         module_setting_meta meta;
         meta.module_id = module_id;
         meta.setting_id = setting_id;
@@ -742,7 +754,10 @@ int world_setting_register_enum( const char *module_id, const char *setting_id,
         for( size_t i = 0; i < count; ++i ) {
             meta.choices.emplace_back( value_ids[i], display_names[i] );
         }
-        remember_module_setting( meta );
+        remember_registered_world_setting( meta );
+        if( manager_visible_setting_scope( scope ) ) {
+            remember_module_setting( meta );
+        }
     }
     return registered;
 }
