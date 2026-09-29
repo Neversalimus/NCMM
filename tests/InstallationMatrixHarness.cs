@@ -260,6 +260,28 @@ internal static class InstallationMatrixHarness
         return 0;
     }
 
+    private static Dictionary<string, object> ReadJsonObject(string path)
+    {
+        AssertTrue(File.Exists(path), "required JSON state is missing: " + path);
+        object value = new JavaScriptSerializer().DeserializeObject(File.ReadAllText(path));
+        Dictionary<string, object> result = value as Dictionary<string, object>;
+        AssertTrue(result != null, "JSON state root is not an object: " + path);
+        return result;
+    }
+
+    private static string JsonString(Dictionary<string, object> value, string key)
+    {
+        object raw;
+        return value.TryGetValue(key, out raw) && raw != null ? Convert.ToString(raw) : "";
+    }
+
+    private static int JsonInt(Dictionary<string, object> value, string key, int fallback)
+    {
+        object raw;
+        if (!value.TryGetValue(key, out raw) || raw == null) return fallback;
+        try { return Convert.ToInt32(raw); } catch { return fallback; }
+    }
+
     private static int RealInstallSmoke(string gameRoot, string payload)
     {
         gameRoot = Path.GetFullPath(gameRoot);
@@ -277,11 +299,65 @@ internal static class InstallationMatrixHarness
         SetupCore.Install(gameRoot, payload, new string[] { AwsId, SurvivorId });
         AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId);
 
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("NCMM Real CDDA Install Preparation: PASS");
+        Console.ResetColor();
+        return 0;
+    }
+
+    private static int RealRuntimeVerifyAndRestore(string gameRoot)
+    {
+        gameRoot = Path.GetFullPath(gameRoot);
+        string exe = Path.Combine(gameRoot, "cataclysm-tiles.exe");
+        string vanilla = Path.Combine(gameRoot, "cataclysm-tiles.vanilla.exe");
+        AssertTrue(File.Exists(exe), "bootstrap disappeared before runtime verification");
+        AssertTrue(File.Exists(vanilla), "vanilla backup disappeared before runtime verification");
+        string originalVanilla = Sha256(vanilla);
+
+        string ncmm = Path.Combine(gameRoot, "ncmm");
+        AssertTrue(File.Exists(Path.Combine(ncmm, "boot.ready")),
+                   "real Host smoke did not publish boot.ready");
+        AssertTrue(!File.Exists(Path.Combine(ncmm, "boot.pending")),
+                   "real Host smoke left boot.pending");
+
+        Dictionary<string, object> runtime = ReadJsonObject(Path.Combine(ncmm, "runtime.state.json"));
+        AssertEqual(JsonString(runtime, "selected_mode"), "NCMM_HOST",
+                    "real runtime smoke did not select certified Host");
+        AssertEqual(JsonString(runtime, "reason"), "child_exit_0",
+                    "real runtime smoke did not finish with clean child exit");
+        AssertTrue(JsonInt(runtime, "last_exit_code", -1) == 0,
+                   "real runtime smoke child exit code was not zero");
+
+        Dictionary<string, object> modules = ReadJsonObject(Path.Combine(ncmm, "modules.state.json"));
+        object rawModules;
+        AssertTrue(modules.TryGetValue("modules", out rawModules), "modules.state.json has no modules array");
+        object[] moduleArray = rawModules as object[];
+        AssertTrue(moduleArray != null, "modules.state.json modules field is not an array");
+
+        Dictionary<string, Dictionary<string, object>> byId =
+            new Dictionary<string, Dictionary<string, object>>(StringComparer.Ordinal);
+        foreach (object item in moduleArray)
+        {
+            Dictionary<string, object> module = item as Dictionary<string, object>;
+            if (module == null) continue;
+            string id = JsonString(module, "id");
+            if (!String.IsNullOrEmpty(id)) byId[id] = module;
+        }
+
+        foreach (string id in new string[] { AwsId, SurvivorId })
+        {
+            AssertTrue(byId.ContainsKey(id), "real Host did not report module: " + id);
+            Dictionary<string, object> module = byId[id];
+            AssertEqual(JsonString(module, "state"), "loaded", "module did not load: " + id);
+            AssertEqual(JsonString(module, "lifecycle"), "active", "module lifecycle is not active: " + id);
+        }
+
         SetupCore.RestoreVanilla(gameRoot);
-        AssertEqual(Sha256(exe), originalVanilla, "RestoreVanilla did not restore official executable bytes");
+        AssertEqual(Sha256(exe), originalVanilla,
+                    "RestoreVanilla did not restore official executable bytes after real runtime smoke");
 
         Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine("NCMM Real CDDA Install Smoke: PASS");
+        Console.WriteLine("NCMM Real Runtime Smoke: PASS (certified Host + AWS + Survivor + clean exit)");
         Console.ResetColor();
         return 0;
     }
@@ -292,10 +368,13 @@ internal static class InstallationMatrixHarness
             return ChildInstall(args);
         if (args.Length == 3 && String.Equals(args[0], "--real-install-smoke", StringComparison.Ordinal))
             return RealInstallSmoke(args[1], args[2]);
+        if (args.Length == 2 && String.Equals(args[0], "--real-runtime-verify", StringComparison.Ordinal))
+            return RealRuntimeVerifyAndRestore(args[1]);
         if (args.Length != 1)
         {
             Console.Error.WriteLine("usage: NCMM_InstallationMatrix_Harness.exe <payload-root>");
             Console.Error.WriteLine("   or: NCMM_InstallationMatrix_Harness.exe --real-install-smoke <game-root> <payload-root>");
+            Console.Error.WriteLine("   or: NCMM_InstallationMatrix_Harness.exe --real-runtime-verify <game-root>");
             return 2;
         }
 
