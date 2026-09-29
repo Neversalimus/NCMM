@@ -171,20 +171,13 @@ foreach($about in Get-ChildItem (Join-Path $RepositoryRoot 'mods\SurvivorProgres
 
 # Exercise the same production SetupCore used by NCMM_Setup.exe against isolated
 # synthetic CDDA installations.  This is a lifecycle/install matrix, not a file-presence check.
-$installMatrixOut = Join-Path $OutputRoot 'NCMM_InstallationMatrix_Harness.exe'
-$installMatrixSource = Join-Path $RepositoryRoot 'tests\InstallationMatrixHarness.cs'
-& $csc /nologo /target:exe /optimize+ /platform:x64 /main:InstallationMatrixHarness `
-    /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll `
-    /out:$installMatrixOut `
-    $setupCoreSource $installMatrixSource
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path $installMatrixOut)) {
-    throw 'NCMM installation matrix harness compilation failed.'
-}
-& $installMatrixOut $payload
+& (Join-Path $RepositoryRoot 'ci\Test-InstallationMatrix.ps1') `
+    -RepositoryRoot $RepositoryRoot `
+    -PayloadRoot $payload `
+    -Mode Synthetic
 if ($LASTEXITCODE -ne 0) {
     throw 'NCMM installation lifecycle matrix failed.'
 }
-Remove-Item $installMatrixOut -Force -ErrorAction SilentlyContinue
 
 $spManifest = $survivorManifestSource
 if ($spManifest.loader_api -ne 1 -or $spManifest.failure_policy -ne 'disable' -or
