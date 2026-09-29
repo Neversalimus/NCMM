@@ -34,6 +34,7 @@ on:
       - '.github/workflows/ncmm-host.yml'
 
 permissions:
+  actions: write
   contents: write
 
 env:
@@ -575,4 +576,14 @@ jobs:
             git add "$index" "$rejected"
             git commit -m 'NCMM: update certified host feed'
             git push
+
+            seed_tag=$(sed '/^[[:space:]]*$/d' ci/seed-hosts.txt | head -n1)
+            if [ -n "$seed_tag" ] && jq -e --arg tag "$seed_tag" --arg rev "$PATCH_REVISION" --arg ver "$NCMM_VERSION" \
+              '.hosts[]? | select((.upstream_tag // "") == $tag and (.patch_revision // "") == $rev and (.ncmm_version // "") == $ver)' \
+              "$index" >/dev/null; then
+              echo "Dispatching real installation lifecycle for $seed_tag"
+              gh workflow run ncmm-installation-matrix.yml --ref main -f "upstream_tag=$seed_tag"
+            else
+              echo "Certified seed is not present in the updated feed; real installation lifecycle not dispatched."
+            fi
           fi
