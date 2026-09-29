@@ -98,7 +98,28 @@ jobs:
           }
           if (-not (Test-Path $zipPath -PathType Leaf)) { throw 'Downloaded CDDA archive is missing.' }
 
-          if ($expectedDigest -match '^sha256:([0-9a-fA-F]{64})
+          if (-not [string]::IsNullOrWhiteSpace($expectedDigest)) {
+            if (-not $expectedDigest.StartsWith('sha256:') -or $expectedDigest.Length -ne 71) {
+              throw "Unexpected official CDDA asset digest format: $expectedDigest"
+            }
+            $actualDigest = 'sha256:' + (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actualDigest -ne $expectedDigest.ToLowerInvariant()) {
+              throw "Official CDDA archive digest mismatch: $actualDigest != $expectedDigest"
+            }
+            Write-Host "Official CDDA archive digest: VERIFIED"
+          }
+
+          Remove-Item $extract -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $extract | Out-Null
+          $tar = Get-Command tar.exe -ErrorAction SilentlyContinue
+          if ($tar) {
+            & $tar.Source -xf $zipPath -C $extract
+            if ($LASTEXITCODE -ne 0) { throw "tar.exe could not extract $asset" }
+          } else {
+            Expand-Archive -LiteralPath $zipPath -DestinationPath $extract -Force
+          }
+          $exe = @(Get-ChildItem $extract -Filter 'cataclysm-tiles.exe' -File -Recurse)
+          if ($exe.Count -ne 1) { throw "Expected exactly one cataclysm-tiles.exe, found $($exe.Count)." }
           $root = $exe[0].Directory.FullName
           "root=$root" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           Write-Host "Official CDDA extracted to: $root"
