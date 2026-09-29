@@ -12,6 +12,7 @@ on:
   push:
     branches:
       - main
+      - feature/real-module-gameplay-smoke-v2
     paths:
       - 'host_patch/**'
       - 'sdk/**'
@@ -91,7 +92,10 @@ jobs:
           fi
           echo "patch_revision=$patch_revision" >> "$GITHUB_OUTPUT"
 
-          if [ -n "${REQUESTED_TAG:-}" ]; then
+          if [ "$GITHUB_REF_NAME" = "feature/real-module-gameplay-smoke-v2" ]; then
+            tags=$(awk 'NF { print; exit }' ci/seed-hosts.txt)
+            echo "Feature Host smoke: limiting certification to required seed $tags"
+          elif [ -n "${REQUESTED_TAG:-}" ]; then
             tags=$(printf '%s\n' "$REQUESTED_TAG")
           else
             gh api 'repos/CleverRaven/Cataclysm-DDA/releases?per_page=40' \
