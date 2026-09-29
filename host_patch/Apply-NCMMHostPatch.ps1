@@ -375,6 +375,126 @@ double dispersion_sources::probability_below( double threshold ) const
 }
 '@ 'dispersion.probability-implementation'
 
+
+$rg = Replace-ExactlyOnce $rg '#include "npc.h"' @'
+#include "npc.h"
+#include "ncmm_loader.h"
+'@ 'ranged.include-ncmm'
+
+$rg = Replace-ExactlyOnce $rg @'
+static const flag_id json_flag_SINGLE_ACTION( "SINGLE_ACTION" );
+'@ @'
+static const flag_id json_flag_SINGLE_ACTION( "SINGLE_ACTION" );
+static const flag_id json_flag_HARDTOHIT( "HARDTOHIT" );
+'@ 'ranged.hard-to-hit-flag'
+
+$rg = Replace-ExactlyOnce $rg @'
+    int chance_to_hit; // all hit probabilities summed up for sorting
+    double confidence;
+    double steadiness;
+'@ @'
+    int chance_to_hit; // all hit probabilities summed up for sorting
+    double confidence;
+    double steadiness;
+    double exact_hit_probability = -1.0;
+'@ 'ranged.prediction-field'
+
+$rg = Replace-ExactlyOnce $rg @'
+Target_attributes::Target_attributes( int rng, double target_size, float light_target,
+                                      bool can_see )
+{
+    range = rng;
+    size = target_size;
+    size_in_moa = target_size_in_moa( range, size );
+    light = light_target;
+    visible = can_see;
+}
+
+/*
+* struct used to hold the information on entire aim_type prediction;
+'@ @'
+Target_attributes::Target_attributes( int rng, double target_size, float light_target,
+                                      bool can_see )
+{
+    range = rng;
+    size = target_size;
+    size_in_moa = target_size_in_moa( range, size );
+    light = light_target;
+    visible = can_see;
+}
+
+static bool ncmm_hit_probability_enabled()
+{
+    return ncmm::runtime_setting_hook_bool( "targeting.hit_probability.enabled", 0 ) != 0;
+}
+
+static bool ncmm_hit_probability_decimal()
+{
+    return ncmm::runtime_setting_hook_bool( "targeting.hit_probability.decimal", 0 ) != 0;
+}
+
+static std::string ncmm_hit_probability_text( double probability )
+{
+    probability = std::clamp( probability, 0.0, 1.0 );
+    const char *color = probability >= 0.85 ? "green" :
+                        probability >= 0.60 ? "light_green" :
+                        probability >= 0.35 ? "yellow" : "light_red";
+    const double percent = probability * 100.0;
+    return ncmm_hit_probability_decimal() ?
+           string_format( "<color_%s>%.1f%%</color>", color, percent ) :
+           string_format( "<color_%s>%.0f%%</color>", color, percent );
+}
+
+static double ncmm_exact_hit_probability( const dispersion_sources &dispersion,
+        const Target_attributes &target, const Creature *target_critter )
+{
+    double probability = dispersion.probability_below( target.size_in_moa );
+
+    // HARDTOHIT rolls dispersion twice and keeps the worse result.
+    if( target_critter != nullptr && target_critter->as_character() != nullptr &&
+        target_critter->as_character()->has_flag( json_flag_HARDTOHIT ) ) {
+        probability *= probability;
+    }
+
+    // RANGE_DODGE applies to firearms too. Gun projectiles use speed 1000,
+    // so the separate slow-projectile dodge roll does not apply here.
+    if( target_critter != nullptr ) {
+        const double range_dodge = std::clamp(
+                                       target_critter->calculate_by_enchantment(
+                                           1.0, enchant_vals::mod::RANGE_DODGE ) - 1.0,
+                                       0.0, 1.0 );
+        probability *= 1.0 - range_dodge;
+    }
+
+    return std::clamp( probability, 0.0, 1.0 );
+}
+
+static bool ncmm_projectile_is_wide( const item &weapon )
+{
+    const auto &effects = weapon.ammo_effects();
+    return effects.count( ammo_effect_WIDE ) != 0 ||
+           effects.count( ammo_effect_SHOT ) != 0 ||
+           effects.count( ammo_effect_BOUNCE ) != 0 ||
+           ( weapon.has_ammo_data() && weapon.ammo_data()->phase == phase_id::LIQUID );
+}
+
+static Target_attributes ncmm_gun_target_attributes( const Character &you,
+        const item &weapon, const tripoint_bub_ms &pos )
+{
+    Target_attributes result( you.pos_bub(), pos );
+    Creature *target_critter = get_creature_tracker().creature_at( pos );
+    if( target_critter != nullptr && target_critter->as_monster() != nullptr &&
+        ncmm_projectile_is_wide( weapon ) ) {
+        result.size = occupied_tile_fraction( target_critter->get_size() );
+        result.size_in_moa = target_size_in_moa( result.range, result.size );
+    }
+    return result;
+}
+
+/*
+* struct used to hold the information on entire aim_type prediction;
+'@ 'ranged.exact-probability-helpers'
+
 $h = Replace-ExactlyOnce $h @'
             COPT_NO_SOUND_HIDE,
             /** Hide this option always, it should not be changed by user directly through UI. **/
