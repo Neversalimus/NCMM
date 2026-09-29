@@ -530,6 +530,7 @@ internal static class NCMMBootstrap
         bool refresh = false;
         bool diagnosticsOnly = false;
         bool runtimeSmoke = false;
+        bool gameplaySmoke = false;
         foreach (string arg in args)
         {
             if (String.Equals(arg, "--ncmm-vanilla", StringComparison.OrdinalIgnoreCase)) forceVanilla = true;
@@ -540,6 +541,11 @@ internal static class NCMMBootstrap
             else if (String.Equals(arg, "--ncmm-runtime-smoke", StringComparison.OrdinalIgnoreCase))
             {
                 runtimeSmoke = true;
+                forwarded.Add(arg);
+            }
+            else if (String.Equals(arg, "--ncmm-gameplay-smoke", StringComparison.OrdinalIgnoreCase))
+            {
+                gameplaySmoke = true;
                 forwarded.Add(arg);
             }
             else forwarded.Add(arg);
@@ -681,15 +687,16 @@ internal static class NCMMBootstrap
             }
         }
 
-        if (runtimeSmoke && !useHost)
+        if ((runtimeSmoke || gameplaySmoke) && !useHost)
         {
             State.selected_mode = "ERROR";
-            State.reason = "runtime_smoke_host_unavailable";
+            State.reason = gameplaySmoke ? "gameplay_smoke_host_unavailable" : "runtime_smoke_host_unavailable";
             State.host_status = State.host_valid ? "valid_but_blocked" : "invalid_or_missing";
-            State.last_exit_code = 115;
+            State.last_exit_code = gameplaySmoke ? 116 : 115;
             WriteRuntimeState();
-            Log("Runtime smoke requires a certified NCMM Host; refusing vanilla fallback.");
-            return 115;
+            Log((gameplaySmoke ? "Gameplay" : "Runtime") +
+                " smoke requires a certified NCMM Host; refusing vanilla fallback.");
+            return State.last_exit_code;
         }
 
         if (useHost)
