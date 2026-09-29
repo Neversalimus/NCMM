@@ -3730,6 +3730,11 @@ extern "C" NCMM_EXPORT int ncmm_test_perk_scaling_v1( size_t index )
            static_cast<int>( perks[index].scaling ) : -1;
 }
 
+extern "C" NCMM_EXPORT int ncmm_test_perk_integration_v1( size_t index )
+{
+    return index < ncmm_test_perk_count_v1() && integration_perk( perks[index] ) ? 1 : 0;
+}
+
 extern "C" NCMM_EXPORT int ncmm_test_perk_max_rank_v1( size_t index )
 {
     return index < ncmm_test_perk_count_v1() ? perk_max_rank( perks[index] ) : 0;
