@@ -226,7 +226,9 @@ foreach ($requiredLoaderFragment in @(
     'NCMM_MANAGER',
     'runtime_smoke_requested',
     '--ncmm-runtime-smoke',
-    'NCMM runtime smoke reached Host ready state'
+    'NCMM runtime smoke reached Host ready state',
+    'run_module_gameplay_smoke',
+    'module-gameplay-smoke-'
 )) {
     if (-not $loaderSource.Contains($requiredLoaderFragment)) {
         throw "NCMM $hostVersion loader hardening invariant missing: $requiredLoaderFragment"
@@ -278,6 +280,7 @@ foreach ($requiredBootstrapFragment in @(
     'boot.ready proves the previous host reached ready state',
     'runtime_smoke_host_unavailable',
     '--ncmm-runtime-smoke',
+    '--ncmm-runtime-smoke-gameplay',
     'stale boot.pending still exists before host launch'
 )) {
     if (-not $bootstrapSourceText.Contains($requiredBootstrapFragment)) {
