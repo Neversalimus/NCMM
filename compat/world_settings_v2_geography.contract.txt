@@ -30,11 +30,11 @@ param([string]$Root)
             $optionsH = @('ncmm_register_world_bool','ncmm_register_world_int','ncmm_register_world_float','ncmm_register_world_enum')
             $optionsCpp = @('options_manager::ncmm_register_world_bool','options_manager::ncmm_register_world_enum','options_manager::ncmm_ensure_experimental_page','ncmm_world_scoped_page( iCurrentPage )','ncmm::on_language_changed();','ncmm_deferred_option_values','name.rfind( "NCMM_", 0 ) == 0')
             $worldFactoryPath = @('opts.get_option( name ).getPage() == "ncmm_experimental"')
-            $cityPath = @('NCMM_AWS_CUSTOM_GEOGRAPHY','NCMM_AWS_CITY_SIZE','NCMM_AWS_CITY_SPACING','NCMM_AWS_MAX_URBANITY','NCMM_AWS_MEGACITY','NCMM_AWS_SHOP_RADIUS','NCMM_AWS_PARK_RADIUS')
-            $overmapPath = @('NCMM_AWS_ENABLE_FORESTS','ncmm_disable_forests','NCMM_AWS_ENABLE_SWAMPS','NCMM_AWS_RAVINE_COUNT','NCMM_AWS_TRAIL_CHANCE','NCMM_AWS_PLACE_SPECIALS')
+            $cityPath = @('NCMM_AWS_CUSTOM_GEOGRAPHY','NCMM_AWS_CITY_SIZE','NCMM_AWS_CITY_SPACING','NCMM_AWS_MAX_URBANITY','NCMM_AWS_MEGACITY','NCMM_AWS_SHOP_RADIUS','NCMM_AWS_PARK_RADIUS','shop_radius == 0','park_radius == 0')
+            $overmapPath = @('NCMM_AWS_ENABLE_FORESTS','ncmm_disable_forests','NCMM_AWS_ENABLE_SWAMPS','NCMM_AWS_RAVINE_COUNT','NCMM_AWS_TRAIL_CHANCE','NCMM_AWS_PLACE_SPECIALS','ncmm_place_railroads','-OVERMAP_DEPTH')
             $overmapHPath = @('void set_options( int row_override = -1')
             $waterPath = @('NCMM_AWS_RIVER_FREQUENCY','NCMM_AWS_LAKE_THRESHOLD','NCMM_AWS_OCEAN_THRESHOLD')
-            $highwayPath = @('NCMM_AWS_HIGHWAY_GRID_ROW','NCMM_AWS_HIGHWAY_STRAIGHTNESS','ncmm_custom_grid','ncmm_lakes_enabled','ncmm_oceans_disabled')
+            $highwayPath = @('NCMM_AWS_HIGHWAY_GRID_ROW','NCMM_AWS_HIGHWAY_STRAIGHTNESS','ncmm_custom_grid','ncmm_lakes_enabled','ncmm_oceans_disabled','std::min( row_separation, column_separation ) / 4')
         }
         foreach ($entry in $checks.GetEnumerator()) {
             $body = Read-WS $entry.Key
@@ -542,6 +542,12 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
 
     int shop_sigma = ncmm_geo ? get_option<int>( "NCMM_AWS_SHOP_SIGMA" ) : city_spec.shop_sigma;
     int park_sigma = ncmm_geo ? get_option<int>( "NCMM_AWS_PARK_SIGMA" ) : city_spec.park_sigma;
+    if( ncmm_geo && shop_radius == 0 ) {
+        shop_sigma = 0;
+    }
+    if( ncmm_geo && park_radius == 0 ) {
+        park_sigma = 0;
+    }
 '@
     $city = Replace-WSOnce $city $buildingMixOld $buildingMixNew 'city shop/park distribution'
     Write-WS $cityPath $city
@@ -558,6 +564,9 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
     const auto geo_enabled = [&]( const char *id ) {
         return !ncmm_geo || !get_options().has_option( id ) || get_option<bool>( id );
     };
+    const bool ncmm_place_railroads = ncmm_geo ?
+                                         geo_enabled( "NCMM_AWS_PLACE_RAILROADS" ) :
+                                         settings->place_railroads;
     if( settings->neighbor_connections && geo_enabled( "NCMM_AWS_NEIGHBOR_CONNECTIONS" ) ) {
         populate_connections_out_from_neighbors( neighbor_overmaps );
     }
@@ -598,7 +607,7 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
         place_forest_trails();
     }
     if( settings->place_railroads_before_roads ) {
-        if( settings->place_railroads && geo_enabled( "NCMM_AWS_PLACE_RAILROADS" ) ) {
+        if( ncmm_place_railroads ) {
             place_railroads( neighbor_overmaps );
         }
         if( settings->place_roads && geo_enabled( "NCMM_AWS_PLACE_ROADS" ) ) {
@@ -608,7 +617,7 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
         if( settings->place_roads && geo_enabled( "NCMM_AWS_PLACE_ROADS" ) ) {
             place_roads( neighbor_overmaps );
         }
-        if( settings->place_railroads && geo_enabled( "NCMM_AWS_PLACE_RAILROADS" ) ) {
+        if( ncmm_place_railroads ) {
             place_railroads( neighbor_overmaps );
         }
     }
@@ -898,7 +907,9 @@ void overmap::place_ravines()
     };
     const int ravine_range = ncmm_geo ? get_option<int>( "NCMM_AWS_RAVINE_RANGE" ) : settings_ravine.ravine_range;
     const int ravine_width = ncmm_geo ? get_option<int>( "NCMM_AWS_RAVINE_WIDTH" ) : settings_ravine.ravine_width;
-    const int ravine_depth = ncmm_geo ? get_option<int>( "NCMM_AWS_RAVINE_DEPTH" ) : settings_ravine.ravine_depth;
+    const int ravine_depth = ncmm_geo ?
+                             std::max( -OVERMAP_DEPTH, std::min( -1, get_option<int>( "NCMM_AWS_RAVINE_DEPTH" ) ) ) :
+                             settings_ravine.ravine_depth;
     for( int n = 0; n < num_ravines; n++ ) {
         const point_rel_omt offset( rng( -ravine_range, ravine_range ), rng( -ravine_range, ravine_range ) );
         const point_om_omt origin( rng( 0, OMAPX ), rng( 0, OMAPY ) );
@@ -1033,7 +1044,7 @@ void highway_intersection_grid::set_options( int row_override, int column_overri
                         get_option<int>( "HIGHWAY_GRID_COLUMN_SEPARATION" );
     max_offset_variance = variance_override >= 0 ? variance_override :
                           get_option<int>( "HIGHWAY_GRID_VARIANCE" );
-    const int safe_limit = std::max( 0, std::min( row_separation, column_separation ) / 2 - 1 );
+    const int safe_limit = std::max( 0, std::min( row_separation, column_separation ) / 4 );
     max_offset_variance = std::min( max_offset_variance, safe_limit );
 }
 '@

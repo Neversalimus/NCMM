@@ -683,6 +683,89 @@ bool aws_semantic_matrix()
         }
     }
 
+    const auto custom_it = setting_meta.find( "NCMM_AWS_CUSTOM_GEOGRAPHY" );
+    const auto railroad_it = setting_meta.find( "NCMM_AWS_PLACE_RAILROADS" );
+    const auto ravine_depth_it = setting_meta.find( "NCMM_AWS_RAVINE_DEPTH" );
+    if( custom_it == setting_meta.end() || custom_it->second.kind != smoke_setting_kind::boolean ||
+        custom_it->second.default_value != 0.0 ) {
+        std::cerr << "AWS custom geography must remain opt-in by default\n";
+        return false;
+    }
+    if( railroad_it == setting_meta.end() || railroad_it->second.kind != smoke_setting_kind::boolean ||
+        railroad_it->second.default_value != 0.0 ) {
+        std::cerr << "AWS railroad default must preserve vanilla default-region OFF semantics\n";
+        return false;
+    }
+    if( ravine_depth_it == setting_meta.end() || ravine_depth_it->second.kind != smoke_setting_kind::integer ||
+        ravine_depth_it->second.min_value != -10.0 || ravine_depth_it->second.max_value != -1.0 ||
+        ravine_depth_it->second.default_value != -3.0 ) {
+        std::cerr << "AWS ravine depth range must stay within supported overmap Z bounds\n";
+        return false;
+    }
+
+    const std::map<std::string, std::string> expected_binding_ids = {
+        { "geography.custom.enabled", "NCMM_AWS_CUSTOM_GEOGRAPHY" },
+        { "geography.city.size", "NCMM_AWS_CITY_SIZE" },
+        { "geography.city.spacing", "NCMM_AWS_CITY_SPACING" },
+        { "geography.city.max_urbanity", "NCMM_AWS_MAX_URBANITY" },
+        { "geography.city.megacity", "NCMM_AWS_MEGACITY" },
+        { "geography.city.shop_radius", "NCMM_AWS_SHOP_RADIUS" },
+        { "geography.city.shop_sigma", "NCMM_AWS_SHOP_SIGMA" },
+        { "geography.city.park_radius", "NCMM_AWS_PARK_RADIUS" },
+        { "geography.city.park_sigma", "NCMM_AWS_PARK_SIGMA" },
+        { "geography.roads.enabled", "NCMM_AWS_PLACE_ROADS" },
+        { "geography.railroads.enabled", "NCMM_AWS_PLACE_RAILROADS" },
+        { "geography.specials.enabled", "NCMM_AWS_PLACE_SPECIALS" },
+        { "geography.neighbor_connections.enabled", "NCMM_AWS_NEIGHBOR_CONNECTIONS" },
+        { "geography.forests.enabled", "NCMM_AWS_ENABLE_FORESTS" },
+        { "geography.forests.threshold", "NCMM_AWS_FOREST_THRESHOLD" },
+        { "geography.forests.thick_threshold", "NCMM_AWS_FOREST_THICK_THRESHOLD" },
+        { "geography.swamps.enabled", "NCMM_AWS_ENABLE_SWAMPS" },
+        { "geography.swamps.adjacent_threshold", "NCMM_AWS_SWAMP_ADJ_THRESHOLD" },
+        { "geography.swamps.isolated_threshold", "NCMM_AWS_SWAMP_ISOLATED_THRESHOLD" },
+        { "geography.swamps.floodplain_min", "NCMM_AWS_FLOODPLAIN_MIN" },
+        { "geography.swamps.floodplain_max", "NCMM_AWS_FLOODPLAIN_MAX" },
+        { "geography.trails.enabled", "NCMM_AWS_ENABLE_TRAILS" },
+        { "geography.trails.chance", "NCMM_AWS_TRAIL_CHANCE" },
+        { "geography.trails.min_forest", "NCMM_AWS_TRAIL_MIN_FOREST" },
+        { "geography.trails.trailhead_chance", "NCMM_AWS_TRAILHEAD_CHANCE" },
+        { "geography.trails.road_distance", "NCMM_AWS_TRAILHEAD_ROAD_DISTANCE" },
+        { "geography.rivers.enabled", "NCMM_AWS_ENABLE_RIVERS" },
+        { "geography.rivers.scale", "NCMM_AWS_RIVER_SCALE" },
+        { "geography.rivers.frequency", "NCMM_AWS_RIVER_FREQUENCY" },
+        { "geography.rivers.branch_chance", "NCMM_AWS_RIVER_BRANCH_CHANCE" },
+        { "geography.rivers.remerge_chance", "NCMM_AWS_RIVER_REMERGE_CHANCE" },
+        { "geography.rivers.branch_scale_decrease", "NCMM_AWS_RIVER_BRANCH_SCALE_DECREASE" },
+        { "geography.lakes.enabled", "NCMM_AWS_ENABLE_LAKES" },
+        { "geography.lakes.threshold", "NCMM_AWS_LAKE_THRESHOLD" },
+        { "geography.lakes.min_size", "NCMM_AWS_LAKE_MIN_SIZE" },
+        { "geography.oceans.enabled", "NCMM_AWS_ENABLE_OCEANS" },
+        { "geography.oceans.threshold", "NCMM_AWS_OCEAN_THRESHOLD" },
+        { "geography.oceans.min_size", "NCMM_AWS_OCEAN_MIN_SIZE" },
+        { "geography.highways.enabled", "NCMM_AWS_ENABLE_HIGHWAYS" },
+        { "geography.highways.grid_row", "NCMM_AWS_HIGHWAY_GRID_ROW" },
+        { "geography.highways.grid_column", "NCMM_AWS_HIGHWAY_GRID_COLUMN" },
+        { "geography.highways.grid_variance", "NCMM_AWS_HIGHWAY_GRID_VARIANCE" },
+        { "geography.highways.straightness", "NCMM_AWS_HIGHWAY_STRAIGHTNESS" },
+        { "geography.ravines.enabled", "NCMM_AWS_ENABLE_RAVINES" },
+        { "geography.ravines.count", "NCMM_AWS_RAVINE_COUNT" },
+        { "geography.ravines.range", "NCMM_AWS_RAVINE_RANGE" },
+        { "geography.ravines.width", "NCMM_AWS_RAVINE_WIDTH" },
+        { "geography.ravines.depth", "NCMM_AWS_RAVINE_DEPTH" },
+    };
+    if( expected_binding_ids.size() != worldgen_bindings.size() ) {
+        std::cerr << "AWS exact binding identity count mismatch\n";
+        return false;
+    }
+    for( const auto &expected : expected_binding_ids ) {
+        const auto actual = worldgen_bindings.find( expected.first );
+        if( actual == worldgen_bindings.end() || actual->second.setting_id != expected.second ) {
+            std::cerr << "AWS binding identity mismatch: " << expected.first << " -> "
+                      << expected.second << '\n';
+            return false;
+        }
+    }
+
     for( const auto &entry : worldgen_bindings ) {
         const auto setting = setting_meta.find( entry.second.setting_id );
         if( setting == setting_meta.end() ) {
@@ -848,7 +931,7 @@ bool aws_semantic_matrix()
         }
     }
 
-    std::cout << "AWS semantic matrix: PASS (48/48 typed geography bindings, min/max boundaries, 32 deterministic randomized cases)\n";
+    std::cout << "AWS semantic matrix: PASS (48/48 exact typed geography bindings, semantic invariants, min/max boundaries, 32 deterministic randomized cases)\n";
     return true;
 }
 
@@ -1462,14 +1545,14 @@ int main( int argc, char **argv )
             std::cerr << "fixed-time selector choices are incorrect\n";
             return 14;
         }
-        if( std::strcmp( desc->version, "0.6.2" ) != 0 || worldgen_binding_count < 40 ) {
+        if( std::strcmp( desc->version, "0.6.3" ) != 0 || worldgen_binding_count < 40 ) {
             std::cerr << "AWS Host API 2.0 registration coverage failed\n";
             return 22;
         }
         if( !aws_semantic_matrix() ) {
             return 39;
         }
-        std::cout << "NCMM smoke test: PASS (AWS 0.6.2 legacy controls + Host API 2.0 geography bindings)\n";
+        std::cout << "NCMM smoke test: PASS (AWS 0.6.3 legacy controls + Host API 2.0 geography bindings)\n";
         return 0;
     }
 

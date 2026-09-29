@@ -93,7 +93,7 @@ bool geography( const ncmm_host_api_v1 *api, bool ru ) {
     if( !begin( "aws_geo_city", "Cities and infrastructure", "Города и инфраструктура",
                 "Affects only areas generated after this change.",
                 "Влияет только на новые области, созданные после изменения." ) ) return false;
-    ok &= reg_bool( api,ru,"NCMM_AWS_CUSTOM_GEOGRAPHY","Use custom geography","Использовать свою географию","Leave this off to use the world's normal geography. Turn it on to customize areas generated from now on.","Оставьте выключенным для обычной географии мира. Включите, чтобы настраивать области, которые будут созданы после изменения.",false );
+    ok &= reg_bool( api,ru,"NCMM_AWS_CUSTOM_GEOGRAPHY","Use custom geography","Использовать свою географию","Leave this off to use the world's normal geography. Turn it on to customize newly generated areas. This overrides default-region geography values, including changes from region-overlay mods.","Оставьте выключенным для обычной географии мира. Включите, чтобы настраивать новые области. При этом значения географии региона default, включая изменения region-overlay модов, переопределяются.",false );
     ok &= reg_int( api,ru,"NCMM_AWS_CITY_SIZE","Base city size","Базовый размер города","0 disables random cities; default 8.","0 отключает случайные города; стандарт 8.",0,32,8 );
     ok &= reg_int( api,ru,"NCMM_AWS_CITY_SPACING","City spacing","Расстояние между городами","Higher values produce fewer cities; default 4.","Чем выше значение, тем реже города; стандарт 4.",0,8,4 );
     ok &= reg_int( api,ru,"NCMM_AWS_MAX_URBANITY","Maximum city growth","Максимальный рост городов","Limits how strongly regional generation can enlarge cities; default 8.","Ограничивает, насколько сильно региональные настройки могут увеличивать города; стандарт 8.",1,16,8 );
@@ -103,7 +103,7 @@ bool geography( const ncmm_host_api_v1 *api, bool ru ) {
     ok &= reg_int( api,ru,"NCMM_AWS_PARK_RADIUS","Park radius","Радиус парков","Controls how far from the city center parks may appear. Larger values spread parks farther out; 0 prevents parks from being placed by this rule. CDDA 0546 default is 20.","Определяет, насколько далеко от центра города могут появляться парки. Чем выше значение, тем дальше они распространяются; 0 запрещает размещение парков по этому правилу. Стандарт CDDA 0546 — 20.",0,200,20 );
     ok &= reg_int( api,ru,"NCMM_AWS_PARK_SIGMA","Park spread","Разброс парков","Controls how widely parks are scattered around the city center. CDDA 0546 default is 80.","Определяет, насколько широко парки распределяются вокруг центра города. Стандарт CDDA 0546 — 80.",0,200,80 );
     ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_ROADS","Generate roads","Генерировать дороги","Disables new inter-city roads when off.","Отключает новые межгородские дороги.",true );
-    ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_RAILROADS","Generate railroads","Генерировать железные дороги","Disables new railroads when off.","Отключает новые железные дороги.",true );
+    ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_RAILROADS","Generate railroads","Генерировать железные дороги","Controls railroad generation while custom geography is active. Vanilla CDDA 0546 default is off.","Управляет генерацией железных дорог при включённой своей географии. В стандартной CDDA 0546 по умолчанию выключено.",false );
     ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_SPECIALS","Generate special locations","Генерировать особые локации","Controls placement of new special locations.","Управляет размещением новых особых локаций.",true );
     ok &= reg_bool( api,ru,"NCMM_AWS_NEIGHBOR_CONNECTIONS","Connect neighboring map regions","Связывать соседние области карты","Keeps roads, rail lines and rivers continuous across map-region borders.","Сохраняет непрерывность дорог, железных дорог и рек между областями карты.",true );
     end(); if( !ok ) return false;
@@ -149,13 +149,13 @@ bool geography( const ncmm_host_api_v1 *api, bool ru ) {
     ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_HIGHWAYS","Generate highways","Генерировать шоссе","Turns highway generation on or off in new areas.","Включает или отключает шоссе в новых областях.",true );
     ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_ROW","Highway row separation","Расстояние между горизонтальными шоссе","Distance between highway rows, measured in map regions. Default 8.","Расстояние между рядами шоссе в областях карты. Стандарт 8.",2,32,8 );
     ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_COLUMN","Highway column separation","Расстояние между вертикальными шоссе","Distance between highway columns, measured in map regions. Default 10.","Расстояние между колоннами шоссе в областях карты. Стандарт 10.",2,32,10 );
-    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_VARIANCE","Highway alignment variation","Разброс линий шоссе","How far highway intersections may shift from the grid. Default 2.","Насколько перекрёстки могут смещаться относительно сетки. Стандарт 2.",0,7,2 );
-    ok &= reg_float( api,ru,"NCMM_AWS_HIGHWAY_STRAIGHTNESS","Highway straightness chance","Прямолинейность шоссе","Chance for new highway endpoints to align. Default 0.60.","Шанс выравнивания новых участков шоссе. Стандарт 0,60.",0.0,1.0,0.60,0.05 );
+    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_VARIANCE","Highway alignment variation","Разброс линий шоссе","How far highway intersections may shift from the grid. For safety the effective value is clamped to at most one quarter of the tighter grid spacing. Default 2.","Насколько перекрёстки могут смещаться относительно сетки. Для безопасности фактическое значение ограничивается четвертью меньшего шага сетки. Стандарт 2.",0,7,2 );
+    ok &= reg_float( api,ru,"NCMM_AWS_HIGHWAY_STRAIGHTNESS","Highway endpoint randomness","Разброс концов шоссе","Higher = more random endpoint placement; lower = straighter alignment. CDDA 0546 underlying default is 0.60.","Выше = более случайное размещение концов шоссе; ниже = более прямое выравнивание. Базовое значение CDDA 0546 — 0,60.",0.0,1.0,0.60,0.05 );
     ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_RAVINES","Generate ravines","Генерировать овраги","Turns ravines on or off where the current region supports them.","Включает или отключает овраги там, где текущий регион их поддерживает.",true );
     ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_COUNT","Ravines per map region","Оврагов на область карты","0 disables ravines. Default region value is 0.","0 отключает овраги. В стандартном регионе по умолчанию 0.",0,16,0 );
     ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_RANGE","Ravine length range","Длина оврага","Path displacement range. Default 45.","Диапазон смещения пути. Стандарт 45.",1,120,45 );
     ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_WIDTH","Ravine width","Ширина оврага","Ravine width control. CDDA 0546 default is 3.","Управление шириной оврага. Стандарт CDDA 0546 — 3.",1,10,3 );
-    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_DEPTH","Ravine depth Z-level","Глубина оврага по Z","Negative Z-level for ravine floor. Default -3.","Отрицательный Z-уровень дна оврага. Стандарт -3.",-20,-1,-3 );
+    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_DEPTH","Ravine depth Z-level","Глубина оврага по Z","Negative Z-level for ravine floor. Current supported CDDA hosts have 10 overmap levels below ground, so the safe range is -10 to -1. Default -3.","Отрицательный Z-уровень дна оврага. В текущих поддерживаемых версиях CDDA есть 10 уровней овермапа вниз, поэтому безопасный диапазон — от -10 до -1. Стандарт -3.",-10,-1,-3 );
     end();
     return ok;
 }
@@ -269,16 +269,16 @@ int init( const ncmm_host_api_v1 *api ) {
         if( !api->has_capability || !api->has_capability( capability ) ) return 0;
     }
     if( api->get_api_version_major && api->get_api_version_minor ) {
-        if( api->get_api_version_major() != 1 || api->get_api_version_minor() < 7 ) return 0;
+        if( api->get_api_version_major() != 1 || api->get_api_version_minor() < 9 ) return 0;
     }
     if( !expose_all( api, true ) || !bind_geography_hooks_v2() ) return 0;
-    api->log( NCMM_LOG_INFO, "Advanced World Settings 0.6.2 initialized: Host API 2.0 typed settings + generic geography hooks active." );
+    api->log( NCMM_LOG_INFO, "Advanced World Settings 0.6.3 initialized: Host API 2.0 typed settings + generic geography hooks active." );
     return 1;
 }
 void shutdown() { host2 = nullptr; }
 
 const ncmm_mod_descriptor_v1 descriptor = {
-    NCMM_ABI_VERSION, module_id, "Advanced World Settings", "0.6.2",
+    NCMM_ABI_VERSION, module_id, "Advanced World Settings", "0.6.3",
     required_caps, sizeof( required_caps ) / sizeof( required_caps[0] ), &init, &shutdown
 };
 }

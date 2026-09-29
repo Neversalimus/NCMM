@@ -581,7 +581,7 @@ function Compile-AdvancedWorldSettings([string]$RepoRoot,[string]$SdkRoot,[objec
     $src = Join-Path $sourceRoot "src\aws.cpp"
     $manifest = Join-Path $sourceRoot "mod.json"
     $sdkHeader = Join-Path $SdkRoot "ncmm_api.h"
-    $out = Join-Path $ReleaseRoot "AdvancedWorldSettings_0.6.2"
+    $out = Join-Path $ReleaseRoot "AdvancedWorldSettings_0.6.3"
     $dll = Join-Path $out "ncmm_mod.dll"
     $obj = Join-Path $out "advanced_world_settings.obj"
     $cmdFile = Join-Path $out "build.cmd"
@@ -594,10 +594,10 @@ function Compile-AdvancedWorldSettings([string]$RepoRoot,[string]$SdkRoot,[objec
     }
 
     $compilerIdentity = [string](Get-Item $Vs.CL).VersionInfo.FileVersion
-    $compileRecipe = '/nologo /std:c++17 /EHsc /O2 /MT /LD + SDK include + AWS 0.6.2 Host API2 source'
+    $compileRecipe = '/nologo /std:c++17 /EHsc /O2 /MT /LD + SDK include + AWS 0.6.3 Host API2 source'
     $manifestSha = Hash-File $manifest
     $fingerprint = Hash-Text ((@(
-        "aws-0.6.2-host-api2-worldgen-bindings",
+        "aws-0.6.3-host-api2-worldgen-bindings",
         (Hash-File $src),
         $manifestSha,
         (Hash-File $sdkHeader),
@@ -616,7 +616,7 @@ function Compile-AdvancedWorldSettings([string]$RepoRoot,[string]$SdkRoot,[objec
         $cacheLines[1].Trim() -eq (Hash-File $dll) -and
         $cacheLines[2].Trim() -eq $manifestSha -and
         (Hash-File $cachedManifest) -eq $manifestSha) {
-        Write-Host "Advanced World Settings 0.6.2 build cache: HIT" -ForegroundColor Green
+        Write-Host "Advanced World Settings 0.6.3 build cache: HIT" -ForegroundColor Green
         return $out
     }
 
@@ -631,12 +631,12 @@ exit /b %ERRORLEVEL%
 "@
     [IO.File]::WriteAllText($cmdFile,$cmdText,[Text.Encoding]::ASCII)
 
-    Write-Host "Compiling Advanced World Settings 0.6.2 / Host API 2.0 World Settings..." -ForegroundColor Cyan
+    Write-Host "Compiling Advanced World Settings 0.6.3 / Host API 2.0 World Settings..." -ForegroundColor Cyan
     $compilerOutput = @(& cmd.exe /d /c "`"$cmdFile`"" 2>&1)
     $compilerCode = $LASTEXITCODE
     foreach ($line in $compilerOutput) { Write-Host ([string]$line) }
     if ($compilerCode -ne 0 -or -not (Test-Path $dll -PathType Leaf)) {
-        throw "Advanced World Settings 0.6.2 compile failed with exit code $compilerCode"
+        throw "Advanced World Settings 0.6.3 compile failed with exit code $compilerCode"
     }
 
     Copy-Item $manifest (Join-Path $out "mod.json") -Force
@@ -3035,11 +3035,11 @@ function Apply-WorldSettingsV2Patch([string]$Root) {
             $optionsH = @('ncmm_register_world_bool','ncmm_register_world_int','ncmm_register_world_float','ncmm_register_world_enum')
             $optionsCpp = @('options_manager::ncmm_register_world_bool','options_manager::ncmm_register_world_enum','options_manager::ncmm_ensure_experimental_page','ncmm_world_scoped_page( iCurrentPage )','ncmm::on_language_changed();','ncmm_deferred_option_values','name.rfind( "NCMM_", 0 ) == 0')
             $worldFactoryPath = @('opts.get_option( name ).getPage() == "ncmm_experimental"')
-            $cityPath = @('NCMM_AWS_CUSTOM_GEOGRAPHY','NCMM_AWS_CITY_SIZE','NCMM_AWS_CITY_SPACING','NCMM_AWS_MAX_URBANITY','NCMM_AWS_MEGACITY','NCMM_AWS_SHOP_RADIUS','NCMM_AWS_PARK_RADIUS')
-            $overmapPath = @('NCMM_AWS_ENABLE_FORESTS','ncmm_disable_forests','NCMM_AWS_ENABLE_SWAMPS','NCMM_AWS_RAVINE_COUNT','NCMM_AWS_TRAIL_CHANCE','NCMM_AWS_PLACE_SPECIALS')
+            $cityPath = @('NCMM_AWS_CUSTOM_GEOGRAPHY','NCMM_AWS_CITY_SIZE','NCMM_AWS_CITY_SPACING','NCMM_AWS_MAX_URBANITY','NCMM_AWS_MEGACITY','NCMM_AWS_SHOP_RADIUS','NCMM_AWS_PARK_RADIUS','shop_radius == 0','park_radius == 0')
+            $overmapPath = @('NCMM_AWS_ENABLE_FORESTS','ncmm_disable_forests','NCMM_AWS_ENABLE_SWAMPS','NCMM_AWS_RAVINE_COUNT','NCMM_AWS_TRAIL_CHANCE','NCMM_AWS_PLACE_SPECIALS','ncmm_place_railroads','-OVERMAP_DEPTH')
             $overmapHPath = @('void set_options( int row_override = -1')
             $waterPath = @('NCMM_AWS_RIVER_FREQUENCY','NCMM_AWS_LAKE_THRESHOLD','NCMM_AWS_OCEAN_THRESHOLD')
-            $highwayPath = @('NCMM_AWS_HIGHWAY_GRID_ROW','NCMM_AWS_HIGHWAY_STRAIGHTNESS','ncmm_custom_grid','ncmm_lakes_enabled','ncmm_oceans_disabled')
+            $highwayPath = @('NCMM_AWS_HIGHWAY_GRID_ROW','NCMM_AWS_HIGHWAY_STRAIGHTNESS','ncmm_custom_grid','ncmm_lakes_enabled','ncmm_oceans_disabled','std::min( row_separation, column_separation ) / 4')
         }
         foreach ($entry in $checks.GetEnumerator()) {
             $body = Read-WS $entry.Key
@@ -3544,6 +3544,12 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
 
     int shop_sigma = ncmm_geo ? get_option<int>( "NCMM_AWS_SHOP_SIGMA" ) : city_spec.shop_sigma;
     int park_sigma = ncmm_geo ? get_option<int>( "NCMM_AWS_PARK_SIGMA" ) : city_spec.park_sigma;
+    if( ncmm_geo && shop_radius == 0 ) {
+        shop_sigma = 0;
+    }
+    if( ncmm_geo && park_radius == 0 ) {
+        park_sigma = 0;
+    }
 '@
     $city = Replace-WSOnce $city $buildingMixOld $buildingMixNew 'city shop/park distribution'
     Write-WS $cityPath $city
@@ -3560,6 +3566,9 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
     const auto geo_enabled = [&]( const char *id ) {
         return !ncmm_geo || !get_options().has_option( id ) || get_option<bool>( id );
     };
+    const bool ncmm_place_railroads = ncmm_geo ?
+                                         geo_enabled( "NCMM_AWS_PLACE_RAILROADS" ) :
+                                         settings->place_railroads;
     if( settings->neighbor_connections && geo_enabled( "NCMM_AWS_NEIGHBOR_CONNECTIONS" ) ) {
         populate_connections_out_from_neighbors( neighbor_overmaps );
     }
@@ -3600,7 +3609,7 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
         place_forest_trails();
     }
     if( settings->place_railroads_before_roads ) {
-        if( settings->place_railroads && geo_enabled( "NCMM_AWS_PLACE_RAILROADS" ) ) {
+        if( ncmm_place_railroads ) {
             place_railroads( neighbor_overmaps );
         }
         if( settings->place_roads && geo_enabled( "NCMM_AWS_PLACE_ROADS" ) ) {
@@ -3610,7 +3619,7 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
         if( settings->place_roads && geo_enabled( "NCMM_AWS_PLACE_ROADS" ) ) {
             place_roads( neighbor_overmaps );
         }
-        if( settings->place_railroads && geo_enabled( "NCMM_AWS_PLACE_RAILROADS" ) ) {
+        if( ncmm_place_railroads ) {
             place_railroads( neighbor_overmaps );
         }
     }
@@ -3900,7 +3909,9 @@ void overmap::place_ravines()
     };
     const int ravine_range = ncmm_geo ? get_option<int>( "NCMM_AWS_RAVINE_RANGE" ) : settings_ravine.ravine_range;
     const int ravine_width = ncmm_geo ? get_option<int>( "NCMM_AWS_RAVINE_WIDTH" ) : settings_ravine.ravine_width;
-    const int ravine_depth = ncmm_geo ? get_option<int>( "NCMM_AWS_RAVINE_DEPTH" ) : settings_ravine.ravine_depth;
+    const int ravine_depth = ncmm_geo ?
+                             std::max( -OVERMAP_DEPTH, std::min( -1, get_option<int>( "NCMM_AWS_RAVINE_DEPTH" ) ) ) :
+                             settings_ravine.ravine_depth;
     for( int n = 0; n < num_ravines; n++ ) {
         const point_rel_omt offset( rng( -ravine_range, ravine_range ), rng( -ravine_range, ravine_range ) );
         const point_om_omt origin( rng( 0, OMAPX ), rng( 0, OMAPY ) );
@@ -4035,7 +4046,7 @@ void highway_intersection_grid::set_options( int row_override, int column_overri
                         get_option<int>( "HIGHWAY_GRID_COLUMN_SEPARATION" );
     max_offset_variance = variance_override >= 0 ? variance_override :
                           get_option<int>( "HIGHWAY_GRID_VARIANCE" );
-    const int safe_limit = std::max( 0, std::min( row_separation, column_separation ) / 2 - 1 );
+    const int safe_limit = std::max( 0, std::min( row_separation, column_separation ) / 4 );
     max_offset_variance = std::min( max_offset_variance, safe_limit );
 }
 '@
@@ -9754,7 +9765,7 @@ bool geography( const ncmm_host_api_v1 *api, bool ru ) {
     if( !begin( "aws_geo_city", "Cities and infrastructure", "Города и инфраструктура",
                 "Affects only areas generated after this change.",
                 "Влияет только на новые области, созданные после изменения." ) ) return false;
-    ok &= reg_bool( api,ru,"NCMM_AWS_CUSTOM_GEOGRAPHY","Use custom geography","Использовать свою географию","Leave this off to use the world's normal geography. Turn it on to customize areas generated from now on.","Оставьте выключенным для обычной географии мира. Включите, чтобы настраивать области, которые будут созданы после изменения.",false );
+    ok &= reg_bool( api,ru,"NCMM_AWS_CUSTOM_GEOGRAPHY","Use custom geography","Использовать свою географию","Leave this off to use the world's normal geography. Turn it on to customize newly generated areas. This overrides default-region geography values, including changes from region-overlay mods.","Оставьте выключенным для обычной географии мира. Включите, чтобы настраивать новые области. При этом значения географии региона default, включая изменения region-overlay модов, переопределяются.",false );
     ok &= reg_int( api,ru,"NCMM_AWS_CITY_SIZE","Base city size","Базовый размер города","0 disables random cities; default 8.","0 отключает случайные города; стандарт 8.",0,32,8 );
     ok &= reg_int( api,ru,"NCMM_AWS_CITY_SPACING","City spacing","Расстояние между городами","Higher values produce fewer cities; default 4.","Чем выше значение, тем реже города; стандарт 4.",0,8,4 );
     ok &= reg_int( api,ru,"NCMM_AWS_MAX_URBANITY","Maximum city growth","Максимальный рост городов","Limits how strongly regional generation can enlarge cities; default 8.","Ограничивает, насколько сильно региональные настройки могут увеличивать города; стандарт 8.",1,16,8 );
@@ -9764,7 +9775,7 @@ bool geography( const ncmm_host_api_v1 *api, bool ru ) {
     ok &= reg_int( api,ru,"NCMM_AWS_PARK_RADIUS","Park radius","Радиус парков","Controls how far from the city center parks may appear. Larger values spread parks farther out; 0 prevents parks from being placed by this rule. CDDA 0546 default is 20.","Определяет, насколько далеко от центра города могут появляться парки. Чем выше значение, тем дальше они распространяются; 0 запрещает размещение парков по этому правилу. Стандарт CDDA 0546 — 20.",0,200,20 );
     ok &= reg_int( api,ru,"NCMM_AWS_PARK_SIGMA","Park spread","Разброс парков","Controls how widely parks are scattered around the city center. CDDA 0546 default is 80.","Определяет, насколько широко парки распределяются вокруг центра города. Стандарт CDDA 0546 — 80.",0,200,80 );
     ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_ROADS","Generate roads","Генерировать дороги","Disables new inter-city roads when off.","Отключает новые межгородские дороги.",true );
-    ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_RAILROADS","Generate railroads","Генерировать железные дороги","Disables new railroads when off.","Отключает новые железные дороги.",true );
+    ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_RAILROADS","Generate railroads","Генерировать железные дороги","Controls railroad generation while custom geography is active. Vanilla CDDA 0546 default is off.","Управляет генерацией железных дорог при включённой своей географии. В стандартной CDDA 0546 по умолчанию выключено.",false );
     ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_SPECIALS","Generate special locations","Генерировать особые локации","Controls placement of new special locations.","Управляет размещением новых особых локаций.",true );
     ok &= reg_bool( api,ru,"NCMM_AWS_NEIGHBOR_CONNECTIONS","Connect neighboring map regions","Связывать соседние области карты","Keeps roads, rail lines and rivers continuous across map-region borders.","Сохраняет непрерывность дорог, железных дорог и рек между областями карты.",true );
     end(); if( !ok ) return false;
@@ -9810,13 +9821,13 @@ bool geography( const ncmm_host_api_v1 *api, bool ru ) {
     ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_HIGHWAYS","Generate highways","Генерировать шоссе","Turns highway generation on or off in new areas.","Включает или отключает шоссе в новых областях.",true );
     ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_ROW","Highway row separation","Расстояние между горизонтальными шоссе","Distance between highway rows, measured in map regions. Default 8.","Расстояние между рядами шоссе в областях карты. Стандарт 8.",2,32,8 );
     ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_COLUMN","Highway column separation","Расстояние между вертикальными шоссе","Distance between highway columns, measured in map regions. Default 10.","Расстояние между колоннами шоссе в областях карты. Стандарт 10.",2,32,10 );
-    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_VARIANCE","Highway alignment variation","Разброс линий шоссе","How far highway intersections may shift from the grid. Default 2.","Насколько перекрёстки могут смещаться относительно сетки. Стандарт 2.",0,7,2 );
-    ok &= reg_float( api,ru,"NCMM_AWS_HIGHWAY_STRAIGHTNESS","Highway straightness chance","Прямолинейность шоссе","Chance for new highway endpoints to align. Default 0.60.","Шанс выравнивания новых участков шоссе. Стандарт 0,60.",0.0,1.0,0.60,0.05 );
+    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_VARIANCE","Highway alignment variation","Разброс линий шоссе","How far highway intersections may shift from the grid. For safety the effective value is clamped to at most one quarter of the tighter grid spacing. Default 2.","Насколько перекрёстки могут смещаться относительно сетки. Для безопасности фактическое значение ограничивается четвертью меньшего шага сетки. Стандарт 2.",0,7,2 );
+    ok &= reg_float( api,ru,"NCMM_AWS_HIGHWAY_STRAIGHTNESS","Highway endpoint randomness","Разброс концов шоссе","Higher = more random endpoint placement; lower = straighter alignment. CDDA 0546 underlying default is 0.60.","Выше = более случайное размещение концов шоссе; ниже = более прямое выравнивание. Базовое значение CDDA 0546 — 0,60.",0.0,1.0,0.60,0.05 );
     ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_RAVINES","Generate ravines","Генерировать овраги","Turns ravines on or off where the current region supports them.","Включает или отключает овраги там, где текущий регион их поддерживает.",true );
     ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_COUNT","Ravines per map region","Оврагов на область карты","0 disables ravines. Default region value is 0.","0 отключает овраги. В стандартном регионе по умолчанию 0.",0,16,0 );
     ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_RANGE","Ravine length range","Длина оврага","Path displacement range. Default 45.","Диапазон смещения пути. Стандарт 45.",1,120,45 );
     ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_WIDTH","Ravine width","Ширина оврага","Ravine width control. CDDA 0546 default is 3.","Управление шириной оврага. Стандарт CDDA 0546 — 3.",1,10,3 );
-    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_DEPTH","Ravine depth Z-level","Глубина оврага по Z","Negative Z-level for ravine floor. Default -3.","Отрицательный Z-уровень дна оврага. Стандарт -3.",-20,-1,-3 );
+    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_DEPTH","Ravine depth Z-level","Глубина оврага по Z","Negative Z-level for ravine floor. Current supported CDDA hosts have 10 overmap levels below ground, so the safe range is -10 to -1. Default -3.","Отрицательный Z-уровень дна оврага. В текущих поддерживаемых версиях CDDA есть 10 уровней овермапа вниз, поэтому безопасный диапазон — от -10 до -1. Стандарт -3.",-10,-1,-3 );
     end();
     return ok;
 }
@@ -12238,7 +12249,7 @@ foreach ($needle in @('NCMM_AWS_CUSTOM_GEOGRAPHY','NCMM_AWS_CITY_SIZE','NCMM_AWS
     if (-not $awsAudit.Contains($needle)) { throw "AWS 0.6 geography setting missing: $needle" }
     if (-not $worldSettingsContractAudit.Contains($needle)) { throw "World Settings v2 geography contract missing: $needle" }
 }
-foreach ($needle in @('ncmm_disable_forests','ncmm_custom_grid','ncmm_lakes_enabled','ncmm_oceans_disabled','set_options( int row_override')) {
+foreach ($needle in @('ncmm_disable_forests','ncmm_custom_grid','ncmm_lakes_enabled','ncmm_oceans_disabled','set_options( int row_override','ncmm_place_railroads','shop_radius == 0','park_radius == 0','-OVERMAP_DEPTH','std::min( row_separation, column_separation ) / 4')) {
     if (-not $worldSettingsContractAudit.Contains($needle)) {
         throw "World Settings v2 consistency guard missing from geography contract: $needle"
     }
@@ -14031,7 +14042,7 @@ function Apply-AwsWorldgenHostApi20([string]$Root) {
         @{ Old='NCMM_AWS_PARK_RADIUS'; Hook='geography.city.park_radius'; Type='int'; Default='20' },
         @{ Old='NCMM_AWS_PARK_SIGMA'; Hook='geography.city.park_sigma'; Type='int'; Default='80' },
         @{ Old='NCMM_AWS_PLACE_ROADS'; Hook='geography.roads.enabled'; Type='bool'; Default='true' },
-        @{ Old='NCMM_AWS_PLACE_RAILROADS'; Hook='geography.railroads.enabled'; Type='bool'; Default='true' },
+        @{ Old='NCMM_AWS_PLACE_RAILROADS'; Hook='geography.railroads.enabled'; Type='bool'; Default='false' },
         @{ Old='NCMM_AWS_PLACE_SPECIALS'; Hook='geography.specials.enabled'; Type='bool'; Default='true' },
         @{ Old='NCMM_AWS_NEIGHBOR_CONNECTIONS'; Hook='geography.neighbor_connections.enabled'; Type='bool'; Default='true' },
         @{ Old='NCMM_AWS_ENABLE_FORESTS'; Hook='geography.forests.enabled'; Type='bool'; Default='true' },
@@ -17933,20 +17944,21 @@ void load_module_data()
 Apply-SurvivorRecalibration0120
 
 function Apply-AwsHostApi20Migration {
-    Write-Host "Migrating Advanced World Settings 0.6.1 -> 0.6.2 Host API 2.0..." -ForegroundColor Cyan
+    Write-Host "Migrating Advanced World Settings 0.6.1 -> 0.6.3 Host API 2.0..." -ForegroundColor Cyan
     $aws = [IO.File]::ReadAllText($awsPath)
     $manifest = [IO.File]::ReadAllText($awsManifestPath)
-    if($aws.Contains('Advanced World Settings 0.6.2 initialized') -and $manifest.Contains('"version": "0.6.2"')) {
-        Write-Host "Advanced World Settings 0.6.2 Host API 2.0 migration already present." -ForegroundColor Green
+    if($aws.Contains('Advanced World Settings 0.6.3 initialized') -and $manifest.Contains('"version": "0.6.3"')) {
+        Write-Host "Advanced World Settings 0.6.3 Host API 2.0 migration already present." -ForegroundColor Green
         return
     }
-    if(-not $aws.Contains('constexpr const char *module_id = "advanced_world_settings";')) { throw 'AWS 0.6.2 module anchor missing.' }
+    if(-not $aws.Contains('constexpr const char *module_id = "advanced_world_settings";')) { throw 'AWS 0.6.3 module anchor missing.' }
     $aws = $aws.Replace('constexpr const char *module_id = "advanced_world_settings";',
                         'constexpr const char *module_id = "advanced_world_settings";' + "`n" + 'const ncmm_host_api_v2_core *host2 = nullptr;')
-    if(-not $aws.Contains('"world_options.experimental.v1", "locale.v1", "module_contract.v1", "api.versioning.v1"')) { throw 'AWS 0.6.2 capability anchor missing.' }
+    if(-not $aws.Contains('"world_options.experimental.v1", "locale.v1", "module_contract.v1", "api.versioning.v1"')) { throw 'AWS 0.6.3 capability anchor missing.' }
     $aws = $aws.Replace('"world_options.experimental.v1", "locale.v1", "module_contract.v1", "api.versioning.v1"',
                         '"world_options.experimental.v1", "locale.v1", "module_contract.v1", "api.versioning.v1",' + "`n" +
                         '    "host_api.v2.core", "settings.typed.v2", "worldgen.bindings.v2"')
+    $aws = $aws.Replace('api->get_api_version_minor() < 7','api->get_api_version_minor() < 9')
 
     $aws = $aws.Replace('return api->world_setting_register_bool( module_id, id, tr( ru, en, ru_name ),',
                         'return host2->world_setting_register_bool( module_id, id, tr( ru, en, ru_name ),')
@@ -18023,7 +18035,7 @@ bool bind_geography_hooks_v2()
 
 '@
     $exposeAnchor = 'int expose_all( const ncmm_host_api_v1 *api, bool log_errors )'
-    if(-not $aws.Contains($exposeAnchor)) { throw 'AWS 0.6.2 geography binding insertion anchor missing.' }
+    if(-not $aws.Contains($exposeAnchor)) { throw 'AWS 0.6.3 geography binding insertion anchor missing.' }
     $aws = $aws.Replace($exposeAnchor,$bindingCode + $exposeAnchor)
 
     $initOld = @'
@@ -18037,25 +18049,25 @@ int init( const ncmm_host_api_v1 *api ) {
                 api->query_interface( NCMM_HOST_API_V2_CORE_ID, 2u, 0u ) );
     if( host2 == nullptr || host2->api_major != 2u || !host2->worldgen_hook_bind_setting ) return 0;
 '@
-    $aws = Replace-TextBlock $aws $initOld $initNew 'AWS 0.6.2 API2 init bridge'
+    $aws = Replace-TextBlock $aws $initOld $initNew 'AWS 0.6.3 API2 init bridge'
     $aws = $aws.Replace('    if( !expose_all( api, true ) ) return 0;' + "`n" +
                         '    api->log( NCMM_LOG_INFO, "Advanced World Settings 0.6.1 initialized: vanilla controls + experimental geography page active." );',
                         '    if( !expose_all( api, true ) || !bind_geography_hooks_v2() ) return 0;' + "`n" +
-                        '    api->log( NCMM_LOG_INFO, "Advanced World Settings 0.6.2 initialized: Host API 2.0 typed settings + generic geography hooks active." );')
+                        '    api->log( NCMM_LOG_INFO, "Advanced World Settings 0.6.3 initialized: Host API 2.0 typed settings + generic geography hooks active." );')
     $aws = $aws.Replace('void shutdown() {}','void shutdown() { host2 = nullptr; }')
     $aws = $aws.Replace('NCMM_ABI_VERSION, module_id, "Advanced World Settings", "0.6.1",',
-                        'NCMM_ABI_VERSION, module_id, "Advanced World Settings", "0.6.2",')
+                        'NCMM_ABI_VERSION, module_id, "Advanced World Settings", "0.6.3",')
     Write-Utf8NoBom $awsPath $aws
 
     try {
         $manifestObj = $manifest | ConvertFrom-Json
     } catch {
-        throw ('AWS 0.6.2 manifest JSON parse failed before migration: ' + $_.Exception.Message)
+        throw ('AWS 0.6.3 manifest JSON parse failed before migration: ' + $_.Exception.Message)
     }
-    if([string]$manifestObj.id -ne 'advanced_world_settings') { throw 'AWS 0.6.2 manifest module id mismatch.' }
-    if([string]$manifestObj.version -ne '0.6.1') { throw ('AWS 0.6.2 manifest source version mismatch: ' + [string]$manifestObj.version) }
-    if([int]$manifestObj.api_min_minor -ne 7) { throw ('AWS 0.6.2 manifest source API mismatch: expected 1.7, found 1.' + [string]$manifestObj.api_min_minor) }
-    $manifestObj.version = '0.6.2'
+    if([string]$manifestObj.id -ne 'advanced_world_settings') { throw 'AWS 0.6.3 manifest module id mismatch.' }
+    if([string]$manifestObj.version -ne '0.6.1') { throw ('AWS 0.6.3 manifest source version mismatch: ' + [string]$manifestObj.version) }
+    if([int]$manifestObj.api_min_minor -ne 7) { throw ('AWS 0.6.3 manifest source API mismatch: expected 1.7, found 1.' + [string]$manifestObj.api_min_minor) }
+    $manifestObj.version = '0.6.3'
     $manifestObj.api_min_minor = 9
     $manifestRequires = @($manifestObj.requires)
     foreach($requiredCapability in @('host_api.v2.core','settings.typed.v2','worldgen.bindings.v2')) {
@@ -18064,31 +18076,32 @@ int init( const ncmm_host_api_v1 *api ) {
     $manifestObj.requires = @($manifestRequires)
     $manifest = ($manifestObj | ConvertTo-Json -Depth 8) + "`n"
     Write-Utf8NoBom $awsManifestPath $manifest
-    Write-Host "Advanced World Settings 0.6.2 Host API 2.0 migration: READY" -ForegroundColor Green
+    Write-Host "Advanced World Settings 0.6.3 Host API 2.0 migration: READY" -ForegroundColor Green
 }
 
 Apply-AwsHostApi20Migration
-Set-InfrastructureTransactionPhase "api2_migrate" "passed" "Host 0.8.1 + Survivor 0.12.0 + AWS 0.6.2 migrations complete"
+Set-InfrastructureTransactionPhase "api2_migrate" "passed" "Host 0.8.1 + Survivor 0.12.0 + AWS 0.6.3 migrations complete"
 
 $awsMigrationAudit = [IO.File]::ReadAllText($awsPath)
 $awsManifestMigrationAudit = [IO.File]::ReadAllText($awsManifestPath)
-foreach($needle in @('const ncmm_host_api_v2_core *host2 = nullptr;','bind_geography_hooks_v2','NCMM_HOST_API_V2_CORE_ID','worldgen_hook_bind_setting','Advanced World Settings 0.6.2 initialized','host2 = nullptr;')) { if(-not $awsMigrationAudit.Contains($needle)){ throw "AWS 0.6.2 API2 audit missing: $needle" } }
-try { $awsManifestMigrationObj = $awsManifestMigrationAudit | ConvertFrom-Json } catch { throw ('AWS 0.6.2 migrated manifest JSON invalid: ' + $_.Exception.Message) }
-if([string]$awsManifestMigrationObj.id -ne 'advanced_world_settings' -or [string]$awsManifestMigrationObj.version -ne '0.6.2' -or [int]$awsManifestMigrationObj.api_major -ne 1 -or [int]$awsManifestMigrationObj.api_min_minor -ne 9) {
-    throw 'AWS 0.6.2 migrated manifest identity/API audit failed.'
+foreach($needle in @('const ncmm_host_api_v2_core *host2 = nullptr;','bind_geography_hooks_v2','NCMM_HOST_API_V2_CORE_ID','worldgen_hook_bind_setting','Advanced World Settings 0.6.3 initialized','host2 = nullptr;')) { if(-not $awsMigrationAudit.Contains($needle)){ throw "AWS 0.6.3 API2 audit missing: $needle" } }
+if(-not $awsMigrationAudit.Contains('get_api_version_minor() < 9')) { throw 'AWS 0.6.3 final API minor guard is not 1.9.' }
+try { $awsManifestMigrationObj = $awsManifestMigrationAudit | ConvertFrom-Json } catch { throw ('AWS 0.6.3 migrated manifest JSON invalid: ' + $_.Exception.Message) }
+if([string]$awsManifestMigrationObj.id -ne 'advanced_world_settings' -or [string]$awsManifestMigrationObj.version -ne '0.6.3' -or [int]$awsManifestMigrationObj.api_major -ne 1 -or [int]$awsManifestMigrationObj.api_min_minor -ne 9) {
+    throw 'AWS 0.6.3 migrated manifest identity/API audit failed.'
 }
 $awsManifestRequiresAudit = @($awsManifestMigrationObj.requires)
 foreach($needle in @('host_api.v2.core','settings.typed.v2','worldgen.bindings.v2')) {
-    if(@($awsManifestRequiresAudit | Where-Object { $_ -eq $needle }).Count -ne 1) { throw "AWS 0.6.2 manifest capability count invalid: $needle" }
-    if(-not $awsMigrationAudit.Contains('"' + $needle + '"')) { throw "AWS 0.6.2 C++ required capability missing: $needle" }
+    if(@($awsManifestRequiresAudit | Where-Object { $_ -eq $needle }).Count -ne 1) { throw "AWS 0.6.3 manifest capability count invalid: $needle" }
+    if(-not $awsMigrationAudit.Contains('"' + $needle + '"')) { throw "AWS 0.6.3 C++ required capability missing: $needle" }
 }
 $awsBindingMatches20 = [regex]::Matches($awsMigrationAudit,'\{ "(geography\.[^"]+)", "(NCMM_AWS_[A-Z0-9_]+)", NCMM_WORLDGEN_(?:BOOL|INT|FLOAT)_V2 \}')
-if($awsBindingMatches20.Count -ne 48) { throw "AWS 0.6.2 expected exactly 48 geography bindings, found $($awsBindingMatches20.Count)." }
+if($awsBindingMatches20.Count -ne 48) { throw "AWS 0.6.3 expected exactly 48 geography bindings, found $($awsBindingMatches20.Count)." }
 $awsBindingHooks20 = @($awsBindingMatches20 | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
 $awsBindingSettings20 = @($awsBindingMatches20 | ForEach-Object { $_.Groups[2].Value } | Sort-Object -Unique)
-if($awsBindingHooks20.Count -ne 48 -or $awsBindingSettings20.Count -ne 48) { throw 'AWS 0.6.2 geography binding IDs are not unique.' }
-if(([regex]::Matches($awsMigrationAudit,[regex]::Escape('worldgen_hook_bind_setting'))).Count -lt 2) { throw 'AWS 0.6.2 worldgen binding API not wired.' }
-Write-Host "Advanced World Settings 0.6.2 Host API 2.0 module audit: PASS (48/48 unique geography bindings)" -ForegroundColor Green
+if($awsBindingHooks20.Count -ne 48 -or $awsBindingSettings20.Count -ne 48) { throw 'AWS 0.6.3 geography binding IDs are not unique.' }
+if(([regex]::Matches($awsMigrationAudit,[regex]::Escape('worldgen_hook_bind_setting'))).Count -lt 2) { throw 'AWS 0.6.3 worldgen binding API not wired.' }
+Write-Host "Advanced World Settings 0.6.3 Host API 2.0 module audit: PASS (48/48 unique geography bindings)" -ForegroundColor Green
 
 
 
@@ -18794,7 +18807,7 @@ try {
         active_mod_registry = "active_mods.registry.v2"
         survivor = "0.12.0"
         survivor_schema = 8
-        aws = "0.6.2"
+        aws = "0.6.3"
         validation = "host/bootstrap diagnostics passed"
         generated_utc = [DateTime]::UtcNow.ToString("o")
     }
@@ -18821,7 +18834,7 @@ try {
         ncmm_version = "0.8.1"
         ncmm_api = "1.9"
         survivor_version = "0.12.0"
-        aws_version = "0.6.2"
+        aws_version = "0.6.3"
         patch_revision = $newPatchRevision
         bootstrap_sha256 = $bootstrapSha
         vanilla_sha256 = $actualVanillaSha
@@ -18849,7 +18862,7 @@ try {
     Write-Host "0.11.3: combinatorial edge polish; isolated riposte refund, executed-counter fallback, hostile NPC kill parity, hostile-only reactive damage/crit rewards, overflow-safe self-healing Momentum and monotonic craft-failure saves"
     Write-Host "0.12.0: NCMM-managed live XP rate and stat-perk strength settings; gameplay mechanics remain on the 0.11.3 baseline"
     Write-Host "Integrated worlds: Magiclysm / Mind Over Matter / Xedra Evolved / Aftershock Exoplanet / Aftershock Prime / Secronom / Secronom+"
-    Write-Host "Advanced World Settings 0.6.2: Host API 2.0 typed settings + generic geography hooks; custom geography stays under Experimental"
+    Write-Host "Advanced World Settings 0.6.3: Host API 2.0 typed settings + generic geography hooks; custom geography stays under Experimental"
     Write-Host "Snapshots:"
     Write-Host "  $Snap0911"
     Write-Host "  $Snap0912"

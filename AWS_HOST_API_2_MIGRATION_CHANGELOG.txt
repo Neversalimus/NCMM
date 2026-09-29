@@ -1,4 +1,4 @@
-NCMM Advanced World Settings 0.6.2 — Host API 2.0 Migration
+NCMM Advanced World Settings 0.6.3 — Host API 2.0 Migration
 
 - AWS now acquires Host API 2.0 through the legacy ABI-v1 query_interface bridge.
 - Typed synthetic world settings are registered through Host API 2.0.
@@ -6,4 +6,11 @@ NCMM Advanced World Settings 0.6.2 — Host API 2.0 Migration
 - Final patched CDDA geography sources contain no NCMM_AWS_* setting IDs.
 - World Settings UI/grouping remains provided by the generic NCMM Host integration layer.
 - Host 0.8.0 + Survivor 0.9.16 remain unchanged in gameplay semantics.
-- AWS version 0.6.2; no world-setting IDs were renamed, preserving existing world option state.
+- AWS version 0.6.3; no world-setting IDs were renamed, preserving existing world option state.
+
+- 0.6.3 semantic hardening: railroads are a real custom-geography switch with vanilla-preserving default OFF.
+- Ravine depth is limited to supported overmap Z levels (-10..-1) and defensively clamped in worldgen.
+- Shop/park radius 0 now truly disables the corresponding distribution rule by suppressing sigma spillover.
+- Highway grid variance is conservatively clamped to one quarter of the tighter grid spacing.
+- Highway straightness UI now describes the actual upstream 0546 endpoint-randomness behavior without changing vanilla parity.
+- Smoke coverage now validates exact 48/48 hook identities plus critical semantic defaults/ranges.
