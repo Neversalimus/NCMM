@@ -337,6 +337,7 @@ foreach($n in @(
     'configure_progression_settings',
     'progression_xp_rate_pct',
     'progression_stat_power_pct',
+    'ncmm_on_locale_changed_v1',
     'settings.typed.v2'
 )){if(-not $payload.Contains($n)){throw ('Survivor 0.12.0 settings contract missing: '+$n)}}
 Write-Host 'NCMM Survivor payload regression contract: PASS' -ForegroundColor Green
