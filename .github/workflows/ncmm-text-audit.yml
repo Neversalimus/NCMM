@@ -88,7 +88,7 @@ jobs:
                     [Environment]::NewLine + [Environment]::NewLine
           $text = $text.Substring(0,$a) + $bypass + $text.Substring($b)
 
-          $stopMarker = '# NCMM Infrastructure 0.8.0 deep probe: execute the exact host/source transform stack'
+          $stopMarker = '# NCMM Infrastructure 0.8.3.1 deep probe: execute the exact host/source transform stack'
           $stop = $text.IndexOf($stopMarker)
           if($stop -lt 0){throw 'Source-generation stop marker missing.'}
           $stopCode = 'Write-Host "Copy-audit source generation complete." -ForegroundColor Green' +

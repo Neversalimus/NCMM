@@ -133,7 +133,7 @@ if ($LASTEXITCODE -ne 0) { throw 'NCMM/AWS fail-closed smoke test failed.' }
 Copy-Item $aws.FullName (Join-Path $payload 'code_mods\AdvancedWorldSettings\ncmm_mod.dll') -Force
 Copy-Item (Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings\mod.json') (Join-Path $payload 'code_mods\AdvancedWorldSettings\mod.json') -Force
 foreach($about in Get-ChildItem (Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings') -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
-    Copy-Item $about.FullName (Join-Path $payload 'code_mods\AdvancedWorldSettings' $about.Name) -Force
+    Copy-Item $about.FullName (Join-Path (Join-Path $payload 'code_mods\AdvancedWorldSettings') $about.Name) -Force
 }
 
 $manifest = $awsManifestSource
@@ -166,7 +166,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Survivor Progression vertical-slice smoke test
 Copy-Item $sp.FullName (Join-Path $payload 'code_mods\SurvivorProgression\ncmm_mod.dll') -Force
 Copy-Item (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') (Join-Path $payload 'code_mods\SurvivorProgression\mod.json') -Force
 foreach($about in Get-ChildItem (Join-Path $RepositoryRoot 'mods\SurvivorProgression') -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
-    Copy-Item $about.FullName (Join-Path $payload 'code_mods\SurvivorProgression' $about.Name) -Force
+    Copy-Item $about.FullName (Join-Path (Join-Path $payload 'code_mods\SurvivorProgression') $about.Name) -Force
 }
 
 $spManifest = $survivorManifestSource
