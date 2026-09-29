@@ -2896,7 +2896,6 @@ loaded_mod *find_loaded_mutable( const std::filesystem::path &directory )
     return nullptr;
 }
 
-
 loaded_mod *find_loaded_by_id( const char *module_id )
 {
     if( module_id == nullptr ) {
