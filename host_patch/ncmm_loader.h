@@ -8,6 +8,7 @@ class input_context;
 namespace ncmm
 {
 void initialize();
+void load_module_data();
 void shutdown();
 void mark_ready();
 bool gameplay_smoke_requested();

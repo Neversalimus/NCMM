@@ -64,7 +64,7 @@ foreach($reactiveNeedle0110 in @(
     'Survivor Progression 0.11.2 Reactive Edge-Case Polish: READY',
     'Survivor Progression 0.11.3 Combinatorial Edge Polish: READY',
     '.survivor_0120_manager_settings_build.sha256',
-    'v8.7.6.8-survivor-0.12.0-manager-settings',
+    'v8.7.6.8-survivor-0.12.0-manager-settings-respec-kit',
     '.ncmm_reactive_mechanics_0112',
     '.ncmm_reactive_mechanics_0113',
     'NCMM_EVENT_PLAYER_KILL_V2 = 6u',
@@ -339,6 +339,13 @@ foreach($n in @(
     'scale_configured_xp',
     'progression_stat_power_pct',
     'ncmm_on_locale_changed_v1',
-    'settings.typed.v2'
-)){if(-not $payload.Contains($n)){throw ('Survivor 0.12.0 settings contract missing: '+$n)}}
+    'settings.typed.v2',
+    'Apply-SurvivorRecalibration0120',
+    'Apply-NcmmModuleDataBridge0120',
+    'ncmm_survivor_recalibration_kit',
+    'std::min( result.major_owned, 12 )',
+    'get_state( "respec_request", 0 ) > 0',
+    'v8.7.6.8-survivor-0.12.0-manager-settings-respec-kit'
+)){if(-not $payload.Contains($n)){throw ('Survivor 0.12.0 settings/recalibration contract missing: '+$n)}}
+if($payload.Contains('reset.id = "respec"')){throw 'Free Survivor respec UI leaked into the current payload.'}
 Write-Host 'NCMM Survivor payload regression contract: PASS' -ForegroundColor Green

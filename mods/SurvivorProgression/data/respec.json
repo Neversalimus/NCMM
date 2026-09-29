@@ -1,0 +1,71 @@
+[
+  {
+    "id": "ncmm_survivor_recalibration_kit",
+    "type": "ITEM",
+    "subtypes": [ "TOOL" ],
+    "category": "tools",
+    "name": { "str": "Survivor recalibration kit" },
+    "description": "A single-use diagnostic and neurotraining package assembled from scavenged electronics.  Activating it performs a full Survivor Progression recalibration: every purchased perk rank is removed and all spent perk and major points are refunded.  Survivor levels and earned XP are not changed.",
+    "weight": "350 g",
+    "volume": "500 ml",
+    "material": [ "plastic", "steel" ],
+    "symbol": ";",
+    "color": "light_cyan",
+    "use_action": {
+      "type": "effect_on_conditions",
+      "menu_text": "Recalibrate Survivor perks",
+      "effect_on_conditions": [
+        {
+          "id": "EOC_NCMM_SURVIVOR_RECALIBRATION_KIT",
+          "effect": {
+            "if": {
+              "compare_string": [
+                "1",
+                { "u_val": "ncmm.survivor_progression.respec_available" }
+              ]
+            },
+            "then": {
+              "if": {
+                "u_query": "Consume the recalibration kit and reset all purchased Survivor perks?  Every purchased rank will be refunded as perk or major points.  Survivor levels and earned XP will remain unchanged.",
+                "default": false
+              },
+              "then": [
+                {
+                  "set_string_var": "1",
+                  "target_var": { "u_val": "ncmm.survivor_progression.respec_request" }
+                },
+                { "u_consume_item": { "context_val": "id" } },
+                {
+                  "u_message": "The recalibration sequence starts.  Your Survivor build will reset on the next game turn.",
+                  "type": "good"
+                }
+              ]
+            },
+            "else": {
+              "u_message": "You have no purchased Survivor perks to recalibrate.",
+              "type": "info"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "type": "recipe",
+    "activity_level": "LIGHT_EXERCISE",
+    "result": "ncmm_survivor_recalibration_kit",
+    "category": "CC_OTHER",
+    "subcategory": "CSC_OTHER_OTHER",
+    "skill_used": "electronics",
+    "difficulty": 6,
+    "skills_required": [ [ "fabrication", 4 ] ],
+    "time": "3 h",
+    "autolearn": [ [ "electronics", 6 ], [ "fabrication", 4 ] ],
+    "using": [ [ "soldering_standard", 30 ] ],
+    "components": [
+      [ [ "e_scrap", 30 ] ],
+      [ [ "cable", 20 ] ],
+      [ [ "scrap", 10 ] ]
+    ]
+  }
+]

@@ -164,7 +164,7 @@ const perk_def perks[] = {
     { "g_mule", branch_id::scavenging, 4, 15, currency_id::perk, "g_endurance", "", "Human Mule", "Вьючный человек", "+15% carry, +1 STR", "+15% грузоподъёмности, +1 к силе", {{ { "carry_weight_pct", 15 }, { "str_flat", 1 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0 },
     { "g_raider", branch_id::scavenging, 5, 20, currency_id::major, "g_pathfinder", "g_mule", "Veteran Scavenger", "Опытный добытчик", "+1 PER, +15% carry, +3% speed", "+1 к восприятию, +15% грузоподъёмности, +3% скорости", {{ { "per_flat", 1 }, { "carry_weight_pct", 15 }, { "speed_pct", 3 }, { nullptr, 0.0 } }}, 3, 0 },
     { "g_legend", branch_id::scavenging, 6, 30, currency_id::major, "g_raider", "", "Wasteland Scavenger", "Легенда пустошей", "+1 PER, +20% carry, -5% move cost, +3% speed", "+1 к восприятию, +20% грузоподъёмности, -5% стоимости движения, +3% скорости", {{ { "per_flat", 1 }, { "carry_weight_pct", 20 }, { "move_cost_pct", -5 }, { "speed_pct", 3 } }}, 4, 0 },
-    { "a_fast", branch_id::mastery, 1, 1, currency_id::perk, "", "", "Fast Learner", "Быстрый ученик", "+100% Survivor XP", "+100% опыта Survivor", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 100 },
+    { "a_fast", branch_id::mastery, 1, 1, currency_id::perk, "", "", "Fast Learner", "Быстрый ученик", "+50% Survivor XP", "+50% опыта Survivor", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 50 },
     { "a_focus", branch_id::mastery, 1, 1, currency_id::perk, "", "", "Focused Mind", "Собранный ум", "+1 Intelligence", "+1 к интеллекту", {{ { "int_flat", 1 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0 },
     { "a_adapt", branch_id::mastery, 2, 5, currency_id::perk, "a_fast", "", "Adaptive Learning", "Адаптивное обучение", "+25% Survivor XP", "+25% опыта Survivor", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 25 },
     { "a_balance", branch_id::mastery, 2, 5, currency_id::perk, "a_focus", "", "Balanced Growth", "Сбалансированное развитие", "+1 STR, +1 DEX", "+1 к силе, +1 к ловкости", {{ { "str_flat", 1 }, { "dex_flat", 1 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0 },
@@ -467,8 +467,8 @@ const perk_def perks[] = {
     { "fm_field_maintenance", branch_id::crafting, 5, 24, currency_id::perk, "fm_precision_assembly", "f_master", "Field Maintenance", "Полевая эксплуатация", "+8% crafting speed and +10% carrying capacity.", "+8% скорости крафта и +10% грузоподъёмности.", {{ { "craft_speed_pct", 8 }, { "carry_weight_pct", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "fm_masterwork_discipline", branch_id::crafting, 6, 34, currency_id::major, "fm_field_maintenance", "f_genius", "Masterful Worksmanship", "Высшее мастерство", "+12% crafting, +10% reading and +1 INT.", "+12% крафта, +10% чтения и +1 ИНТ.", {{ { "craft_speed_pct", 12 }, { "read_speed_pct", 10 }, { "int_flat", 1 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
 
-    { "gm_weakpoint_eye", branch_id::scavenging, 4, 17, currency_id::perk, "g_awareness", "ge_cache", "Weakpoint Eye", "Глаз на уязвимости", "+1 point melee critical chance and +5% projectile critical multiplier.", "+1 пункт шанса крита в ближнем бою и +5% множителя критического урона снарядов.", {{ { "sp_melee_crit_chance_pct", 1 }, { "sp_ranged_crit_damage_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
-    { "gm_scrap_armor_instinct", branch_id::scavenging, 5, 23, currency_id::perk, "g_mule", "ge_instinct", "Scrap Armor Instinct", "Инстинкт бронесборщика", "Incoming damage reduction +2% and carrying capacity +5%.", "-2% входящего урона и +5% грузоподъёмности.", {{ { "sp_damage_taken_pct", 2 }, { "carry_weight_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "gm_weakpoint_eye", branch_id::scavenging, 4, 18, currency_id::perk, "g_awareness", "ge_cache", "Weakpoint Eye", "Глаз на уязвимости", "+1 point melee critical chance and +5% projectile critical multiplier.", "+1 пункт шанса крита в ближнем бою и +5% множителя критического урона снарядов.", {{ { "sp_melee_crit_chance_pct", 1 }, { "sp_ranged_crit_damage_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "gm_scrap_armor_instinct", branch_id::scavenging, 5, 26, currency_id::perk, "g_mule", "ge_instinct", "Scrap Armor Instinct", "Инстинкт бронесборщика", "Incoming damage reduction +2% and carrying capacity +5%.", "-2% входящего урона и +5% грузоподъёмности.", {{ { "sp_damage_taken_pct", 2 }, { "carry_weight_pct", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "gm_escape_route", branch_id::scavenging, 6, 33, currency_id::major, "gm_weakpoint_eye", "gm_scrap_armor_instinct", "Escape Route", "Маршрут отхода", "+1 free dodge, +3% speed and -2% move cost.", "+1 бесплатное уклонение, +3% скорости и -2% стоимости движения.", {{ { "sp_free_dodge_attempts_bonus", 1 }, { "speed_pct", 3 }, { "move_cost_pct", -2 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
 
     { "am_combat_synthesis", branch_id::mastery, 4, 19, currency_id::perk, "a_insight", "ae_integrate", "Battle Sense", "Боевое чутьё", "+1 point melee critical chance; melee and ranged critical damage +5%.", "+1 пункт шанса крита; критический урон ближнего и дальнего боя +5%.", {{ { "sp_melee_crit_chance_pct", 1 }, { "sp_melee_crit_damage_pct", 5 }, { "sp_ranged_crit_damage_pct", 5 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
@@ -490,7 +490,7 @@ const perk_def perks[] = {
     { "mr_reactive_step", branch_id::mobility, 5, 27, currency_id::perk, "mr_slipstream", "mm_perfect_step", "Reactive Step", "Ответный шаг", "Successful dodges gain +10 percentage points of riposte chance; ripostes refund 25% of their move cost.", "Успешные уклонения получают +10 процентных пунктов шанса рипоста; рипосты возвращают 25% стоимости хода.", {{ { "sp_riposte_chance_pct", 10 }, { "sp_riposte_refund_pct", 25 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "mr_kinetic_chain", branch_id::mobility, 6, 36, currency_id::major, "mr_breath_return", "mm_combat_flow", "Kinetic Chain", "Кинетическая цепь", "Criticals return 5 moves; hostile monster kills that grant XP return 10 moves.", "Криты возвращают 5 ед. хода; убийства враждебных монстров, за которые начисляется опыт, — 10 ед. хода.", {{ { "sp_on_crit_moves", 5 }, { "sp_on_kill_moves", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
 
-    { "fr_quality_control", branch_id::crafting, 4, 19, currency_id::perk, "fm_precision_assembly", "fe_theory", "Quality Control", "Контроль качества", "+0.25 to crafting success checks; the displayed success chance uses the same bonus.", "+0,25 к проверкам успеха крафта; отображаемый шанс успеха учитывает тот же бонус.", {{ { "sp_craft_success_roll_flat", 0.25 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "fr_quality_control", branch_id::crafting, 4, 26, currency_id::perk, "fm_precision_assembly", "fe_theory", "Quality Control", "Контроль качества", "+0.25 to crafting success checks; the displayed success chance uses the same bonus.", "+0,25 к проверкам успеха крафта; отображаемый шанс успеха учитывает тот же бонус.", {{ { "sp_craft_success_roll_flat", 0.25 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "fr_second_measure", branch_id::crafting, 5, 24, currency_id::perk, "fr_quality_control", "f_master", "Measure Twice", "Семь раз отмерь", "10% chance to prevent a crafting failure before it causes defects, destroys components or removes progress. The next failure check still advances normally.", "10% шанс предотвратить ошибку крафта до появления дефекта, потери компонентов или прогресса. Следующая проверка ошибки всё равно сдвигается вперёд.", {{ { "sp_craft_failure_save_pct", 10 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "fr_material_discipline", branch_id::crafting, 5, 26, currency_id::perk, "fm_field_maintenance", "fr_quality_control", "Careful Handling", "Бережная работа", "Each component threatened by a crafting failure has a 25% chance to survive.", "Каждый компонент, которому грозит уничтожение при ошибке крафта, имеет 25% шанс сохраниться.", {{ { "sp_craft_component_loss_reduction_pct", 25 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "fr_failure_analysis", branch_id::crafting, 5, 28, currency_id::perk, "fr_second_measure", "fr_material_discipline", "Failure Analysis", "Анализ ошибок", "Lose 35% less progress when crafting fails.", "При ошибке крафта теряется на 35% меньше прогресса.", {{ { "sp_craft_progress_loss_reduction_pct", 35 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
@@ -498,12 +498,12 @@ const perk_def perks[] = {
 
     { "gr_trap_reader", branch_id::scavenging, 3, 14, currency_id::perk, "g_awareness", "ge_field", "Trap Reader", "Чтение ловушек", "+2 to trap detection checks.", "+2 к проверкам обнаружения ловушек.", {{ { "sp_trap_detection_flat", 2 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "gr_lock_whisperer", branch_id::scavenging, 4, 19, currency_id::perk, "gr_trap_reader", "g_pathfinder", "Lock Whisperer", "Шёпот замков", "+2 to lockpicking checks.", "+2 к проверкам взлома.", {{ { "sp_lockpick_roll_flat", 2 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "gr_quick_entry", branch_id::scavenging, 4, 21, currency_id::perk, "gr_lock_whisperer", "ge_network", "Quick Entry", "Быстрый вход", "Lockpicking is 20% faster, but cannot go below 30 seconds with normal picks or 5 seconds with perfect picks.", "Взлом на 20% быстрее, но не может занять меньше 30 секунд обычной отмычкой или 5 секунд идеальной.", {{ { "sp_lockpick_time_reduction_pct", 20 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "gr_quick_entry", branch_id::scavenging, 4, 22, currency_id::perk, "gr_lock_whisperer", "ge_network", "Quick Entry", "Быстрый вход", "Lockpicking is 20% faster, but cannot go below 30 seconds with normal picks or 5 seconds with perfect picks.", "Взлом на 20% быстрее, но не может занять меньше 30 секунд обычной отмычкой или 5 секунд идеальной.", {{ { "sp_lockpick_time_reduction_pct", 20 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "gr_gentle_tools", branch_id::scavenging, 5, 27, currency_id::perk, "gr_lock_whisperer", "gm_scrap_armor_instinct", "Gentle Tools", "Бережный инструмент", "50% chance to keep your lockpick from being damaged or destroyed after a severe failure.", "50% шанс сохранить отмычку от повреждения или уничтожения после тяжёлой неудачи.", {{ { "sp_lockpick_tool_protection_pct", 50 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "gr_alarm_bypass", branch_id::scavenging, 6, 35, currency_id::major, "gr_quick_entry", "gr_gentle_tools", "Alarm Bypass", "Обход сигнализации", "25% chance to prevent an alarm from triggering after attempting an alarmed lock.", "25% шанс не дать сигнализации сработать после попытки взлома защищённого замка.", {{ { "sp_lockpick_alarm_avoid_pct", 25 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
 
     { "ar_reactive_synthesis", branch_id::mastery, 5, 28, currency_id::perk, "am_combat_synthesis", "ae_integrate", "Reflex Chain", "Цепная реакция", "Dodges, melee criticals and hostile monster kills that grant XP return 5 moves.", "Уклонения, критические удары в ближнем бою и убийства враждебных монстров, за которые начисляется опыт, возвращают 5 ед. хода.", {{ { "sp_on_dodge_moves", 5 }, { "sp_on_crit_moves", 5 }, { "sp_on_kill_moves", 5 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
-    { "ar_momentum_engine", branch_id::mastery, 6, 38, currency_id::major, "ar_reactive_synthesis", "am_apex_adaptation", "Unbroken Momentum", "Непрерывный импульс", "With Predator Momentum, each stack gains another +1% damage and +1% speed, and the maximum increases by 2 stacks.", "С Импульсом хищника каждый заряд даёт ещё +1% урона и +1% скорости, а максимум увеличивается на 2 заряда.", {{ { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 0, 0, perk_kind::effect },
+    { "ar_momentum_engine", branch_id::mastery, 6, 40, currency_id::major, "ar_reactive_synthesis", "am_apex_adaptation", "Unbroken Momentum", "Непрерывный импульс", "With Predator Momentum, each stack gains another +1% damage and +1% speed, and the maximum increases by 2 stacks.", "С Импульсом хищника каждый заряд даёт ещё +1% урона и +1% скорости, а максимум увеличивается на 2 заряда.", {{ { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 0, 0, perk_kind::effect },
     { "ar_perfect_process", branch_id::mastery, 6, 40, currency_id::major, "ar_reactive_synthesis", "ae_ascendant", "Masterful Work", "Работа мастера", "+5% chance to prevent a crafting failure, +10% component protection and 15% less progress loss.", "+5% шанс предотвратить ошибку крафта, +10% защиты компонентов и на 15% меньше потери прогресса.", {{ { "sp_craft_failure_save_pct", 5 }, { "sp_craft_component_loss_reduction_pct", 10 }, { "sp_craft_progress_loss_reduction_pct", 15 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect }
 };
 
@@ -988,11 +988,12 @@ uint32_t integration_theme_color( const std::string &mod_id )
     return NCMM_UI_COLOR_DEFAULT;
 }
 
+int mod_prime_root_slot( const char *raw_id );
+
 bool prime_visual_perk( const perk_def &perk )
 {
     const std::string id = perk.id ? perk.id : "";
-    const std::string name = perk.name_en ? perk.name_en : "";
-    return id.rfind( "spc_", 0 ) == 0 || name.find( "Prime" ) != std::string::npos;
+    return id.rfind( "spc_", 0 ) == 0 || mod_prime_root_slot( perk.id ) > 0;
 }
 
 uint32_t rpg_border_style_for( const perk_def &perk )
@@ -1722,7 +1723,9 @@ calculated_effects calculate_owned_effects()
         if( perk.scaling == perk_scaling::per_active_branch ) {
             scale = static_cast<double>( result.active_branches );
         } else if( perk.scaling == perk_scaling::per_owned_major ) {
-            scale = static_cast<double>( result.major_owned );
+            // Long-running characters keep progressing, but major-scaling perks
+            // deliberately stop at twelve owned major perks.
+            scale = static_cast<double>( std::min( result.major_owned, 12 ) );
         }
 
         scale *= perk_rank_multiplier_for( perk, rank );
@@ -1955,6 +1958,12 @@ void recalculate_effects()
     }
 
     const calculated_effects calculated = calculate_owned_effects();
+
+    int64_t purchased_ranks = 0;
+    for( const perk_def &perk : perks ) {
+        purchased_ranks += std::max( 0, perk_rank( perk ) );
+    }
+    set_state( "respec_available", purchased_ranks > 0 ? 1 : 0 );
 
     host->character_modifier_clear_module( module_id );
     for( const auto &entry : calculated.modifiers ) {
@@ -2634,40 +2643,20 @@ void respec()
     int64_t refund_major = 0;
     for( const perk_def &perk : perks ) {
         const int rank = perk_rank( perk );
-        if( rank <= 0 ) {
-            continue;
-        }
-        if( perk.currency == currency_id::perk ) {
-            refund_perk += rank;
-        } else {
-            refund_major += rank;
-        }
+        if( rank <= 0 ) continue;
+        if( perk.currency == currency_id::perk ) refund_perk += rank;
+        else refund_major += rank;
     }
 
+    set_state( "respec_request", 0 );
     if( refund_perk == 0 && refund_major == 0 ) {
+        set_state( "respec_available", 0 );
         message( tr( "No Survivor perks to reset.", "Нет перков Survivor для сброса." ) );
         return;
     }
 
-    std::string title = tr(
-        "Respec all Survivor perks?\nRefund: ",
-        "Сбросить все перки Survivor?\nВозврат: " );
-    title += std::to_string( refund_perk ) + "P / " + std::to_string( refund_major ) + "M";
-    title += tr( "\nRanked perks refund every purchased rank.",
-                 "\nМногоуровневые перки возвращают очко за каждый купленный ранг." );
-
-    std::string yes = tr( "Respec", "Сбросить" );
-    std::string no = tr( "Cancel", "Отмена" );
-    const char *entries[] = { yes.c_str(), no.c_str() };
-    const int choice = host->ui_choose ? host->ui_choose( title.c_str(), entries, 2 ) : -1;
-    if( choice != 0 ) {
-        return;
-    }
-
     for( const perk_def &perk : perks ) {
-        if( perk_rank( perk ) > 0 ) {
-            set_state( perk_key( perk ), 0 );
-        }
+        if( perk_rank( perk ) > 0 ) set_state( perk_key( perk ), 0 );
     }
 
     set_state( "perk_points", get_state( "perk_points", 0 ) + refund_perk );
@@ -2685,13 +2674,14 @@ void respec()
     }
     set_state( "momentum_stacks", 0 );
     set_state( "momentum_turns", 0 );
+    set_state( "respec_available", 0 );
     effects_dirty = true;
     recalculate_effects();
 
-    message( tr( "Survivor perks reset. Refunded: ", "Перки Survivor сброшены. Возвращено: " ) +
+    message( tr( "Survivor recalibration complete. Refunded: ",
+                 "Рекалибровка Survivor завершена. Возвращено: " ) +
              std::to_string( refund_perk ) + "P / " + std::to_string( refund_major ) + "M" );
 }
-
 std::vector<std::string> active_supported_integration_mods()
 {
     static const std::array<const char *, 7> supported = {{
@@ -3065,17 +3055,6 @@ void open_progression()
         overview.icon_key = "survivor/action/overview";
         texts.push_back( std::move( overview ) );
 
-        const int respec_index = static_cast<int>( texts.size() );
-        card_text reset;
-        reset.id = "respec";
-        reset.title = tr( "Respec", "Сброс перков" );
-        reset.subtitle = tr( "Refund every purchase", "Вернуть все покупки" );
-        reset.body = tr( "Refund perk and major points and clear Survivor modifiers.",
-                         "Вернуть очки и снять модификаторы Survivor." );
-        reset.badge = tr( "ACTION", "ДЕЙСТВИЕ" );
-        reset.icon_key = "survivor/action/respec";
-        texts.push_back( std::move( reset ) );
-
         const int close_index = static_cast<int>( texts.size() );
         card_text close;
         close.id = "close";
@@ -3148,10 +3127,6 @@ void open_progression()
         }
         if( choice == overview_index ) {
             show_overview();
-            continue;
-        }
-        if( choice == respec_index ) {
-            respec();
             continue;
         }
         if( choice == close_index || choice < 0 ) {
@@ -3401,6 +3376,9 @@ void tick()
         migrate_state();
         prime_metric_baselines();
         effects_dirty = true;
+    }
+    if( get_state( "respec_request", 0 ) > 0 ) {
+        respec();
     }
     const int stat_power = progression_stat_power_pct();
     if( stat_power != last_stat_power_pct ) {

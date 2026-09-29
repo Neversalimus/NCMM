@@ -488,6 +488,7 @@ function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[stri
     $out = Join-Path $ReleaseRoot "0.12.0"
     $src = Join-Path $SourceRoot "src\survivor_progression.cpp"
     $manifest = Join-Path $SourceRoot "mod.json"
+    $dataRoot = Join-Path $SourceRoot "data"
     $sdkHeader = Join-Path $SdkRoot "ncmm_api.h"
     $dll = Join-Path $out "ncmm_mod.dll"
     $obj = Join-Path $out "survivor_progression.obj"
@@ -503,10 +504,18 @@ function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[stri
     $compilerIdentity = [string](Get-Item $Vs.CL).VersionInfo.FileVersion
     $compileRecipe = '/nologo /std:c++17 /EHsc /O2 /MT /LD + SDK include + survivor source'
     $sourceManifestSha = Hash-File $manifest
+    $dataFingerprint = "none"
+    if(Test-Path $dataRoot -PathType Container){
+        $dataParts = @(Get-ChildItem $dataRoot -File -Recurse | Sort-Object FullName | ForEach-Object {
+            $_.FullName.Substring($dataRoot.Length) + ":" + (Hash-File $_.FullName)
+        })
+        $dataFingerprint = Hash-Text ($dataParts -join "|")
+    }
     $fingerprint = Hash-Text ((@(
-        "v8.7.6.8-survivor-0.12.0-manager-settings",
+        "v8.7.6.8-survivor-0.12.0-manager-settings-respec-kit",
         (Hash-File $src),
         $sourceManifestSha,
+        $dataFingerprint,
         (Hash-File $sdkHeader),
         $compileRecipe,
         $compilerIdentity,
@@ -550,6 +559,9 @@ exit /b %ERRORLEVEL%
     }
 
     Copy-Item $manifest (Join-Path $out "mod.json") -Force
+    if(Test-Path $dataRoot -PathType Container){
+        Copy-Item $dataRoot (Join-Path $out "data") -Recurse -Force
+    }
     foreach($about in Get-ChildItem $SourceRoot -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
         Copy-Item $about.FullName (Join-Path $out $about.Name) -Force
     }
@@ -17641,6 +17653,285 @@ extern "C" NCMM_EXPORT void ncmm_test_dispatch_event_v1( uint32_t event_id )
 
 Apply-NcmmManagerUiV1Source
 
+function Apply-NcmmModuleDataBridge0120 {
+    param([string]$SourceRoot)
+    $gameIo0120 = Join-Path $SourceRoot 'src\game_io.cpp'
+    if(-not(Test-Path $gameIo0120 -PathType Leaf)){throw "NCMM module-data bridge source missing: $gameIo0120"}
+    $text0120 = Normalize-Lf ([IO.File]::ReadAllText($gameIo0120))
+    if($text0120.Contains('ncmm::load_module_data();')){
+        if(-not $text0120.Contains('#include "ncmm_loader.h"')){throw 'NCMM module-data bridge call exists without loader include.'}
+        return
+    }
+    $text0120 = Replace-TextBlock $text0120 '#include "mod_manager.h"' ('#include "mod_manager.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'module-data game_io include'
+    $oldLoad0120 = @'
+    load_mod_interaction_data_from_dir( PATH_INFO::world_base_save_path() / "mods" /
+                                        "mod_interactions", "custom" );
+
+    DynamicDataLoader::get_instance().finalize_loaded_data();
+'@
+    $newLoad0120 = @'
+    load_mod_interaction_data_from_dir( PATH_INFO::world_base_save_path() / "mods" /
+                                        "mod_interactions", "custom" );
+
+    ncmm::load_module_data();
+    DynamicDataLoader::get_instance().finalize_loaded_data();
+'@
+    $text0120 = Replace-TextBlock $text0120 $oldLoad0120 $newLoad0120 'module-data load before finalization'
+    Write-Utf8NoBom $gameIo0120 $text0120
+}
+
+function Apply-SurvivorRecalibration0120 {
+    Write-Host "Applying Survivor 0.12.0 recalibration kit + balance polish..." -ForegroundColor Cyan
+    $sp0120 = Normalize-Lf ([IO.File]::ReadAllText($spPath))
+
+    $fastOld0120 = '{ "a_fast", branch_id::mastery, 1, 1, currency_id::perk, "", "", "Fast Learner", "Быстрый ученик", "+100% Survivor XP", "+100% опыта Survivor", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 100 },'
+    $fastNew0120 = '{ "a_fast", branch_id::mastery, 1, 1, currency_id::perk, "", "", "Fast Learner", "Быстрый ученик", "+50% Survivor XP", "+50% опыта Survivor", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 50 },'
+    $sp0120 = Replace-TextBlock $sp0120 $fastOld0120 $fastNew0120 'Fast Learner +50'
+
+    foreach($gate0120 in @(
+        @('{ "gm_weakpoint_eye", branch_id::scavenging, 4, 17,','{ "gm_weakpoint_eye", branch_id::scavenging, 4, 18,'),
+        @('{ "gm_scrap_armor_instinct", branch_id::scavenging, 5, 23,','{ "gm_scrap_armor_instinct", branch_id::scavenging, 5, 26,'),
+        @('{ "fr_quality_control", branch_id::crafting, 4, 19,','{ "fr_quality_control", branch_id::crafting, 4, 26,'),
+        @('{ "gr_quick_entry", branch_id::scavenging, 4, 21,','{ "gr_quick_entry", branch_id::scavenging, 4, 22,'),
+        @('{ "ar_momentum_engine", branch_id::mastery, 6, 38,','{ "ar_momentum_engine", branch_id::mastery, 6, 40,')
+    )){
+        $sp0120 = Replace-TextBlock $sp0120 $gate0120[0] $gate0120[1] 'Survivor level-gate correction'
+    }
+
+    $majorOld0120 = @'
+        } else if( perk.scaling == perk_scaling::per_owned_major ) {
+            scale = static_cast<double>( result.major_owned );
+        }
+'@
+    $majorNew0120 = @'
+        } else if( perk.scaling == perk_scaling::per_owned_major ) {
+            // Long-running characters keep progressing, but major-scaling perks
+            // deliberately stop at twelve owned major perks.
+            scale = static_cast<double>( std::min( result.major_owned, 12 ) );
+        }
+'@
+    $sp0120 = Replace-TextBlock $sp0120 $majorOld0120 $majorNew0120 'bounded major scaling'
+
+    $primeOld0120 = @'
+bool prime_visual_perk( const perk_def &perk )
+{
+    const std::string id = perk.id ? perk.id : "";
+    const std::string name = perk.name_en ? perk.name_en : "";
+    return id.rfind( "spc_", 0 ) == 0 || name.find( "Prime" ) != std::string::npos;
+}
+'@
+    $primeNew0120 = @'
+int mod_prime_root_slot( const char *raw_id );
+
+bool prime_visual_perk( const perk_def &perk )
+{
+    const std::string id = perk.id ? perk.id : "";
+    return id.rfind( "spc_", 0 ) == 0 || mod_prime_root_slot( perk.id ) > 0;
+}
+'@
+    $sp0120 = Replace-TextBlock $sp0120 $primeOld0120 $primeNew0120 'Prime visual identity'
+
+    $recalcOld0120 = @'
+    const calculated_effects calculated = calculate_owned_effects();
+
+    host->character_modifier_clear_module( module_id );
+'@
+    $recalcNew0120 = @'
+    const calculated_effects calculated = calculate_owned_effects();
+
+    int64_t purchased_ranks = 0;
+    for( const perk_def &perk : perks ) {
+        purchased_ranks += std::max( 0, perk_rank( perk ) );
+    }
+    set_state( "respec_available", purchased_ranks > 0 ? 1 : 0 );
+
+    host->character_modifier_clear_module( module_id );
+'@
+    $sp0120 = Replace-TextBlock $sp0120 $recalcOld0120 $recalcNew0120 'recalibration availability state'
+
+    $newRespec0120 = @'
+void respec()
+{
+    int64_t refund_perk = 0;
+    int64_t refund_major = 0;
+    for( const perk_def &perk : perks ) {
+        const int rank = perk_rank( perk );
+        if( rank <= 0 ) continue;
+        if( perk.currency == currency_id::perk ) refund_perk += rank;
+        else refund_major += rank;
+    }
+
+    set_state( "respec_request", 0 );
+    if( refund_perk == 0 && refund_major == 0 ) {
+        set_state( "respec_available", 0 );
+        message( tr( "No Survivor perks to reset.", "Нет перков Survivor для сброса." ) );
+        return;
+    }
+
+    for( const perk_def &perk : perks ) {
+        if( perk_rank( perk ) > 0 ) set_state( perk_key( perk ), 0 );
+    }
+    set_state( "perk_points", get_state( "perk_points", 0 ) + refund_perk );
+    set_state( "major_points", get_state( "major_points", 0 ) + refund_major );
+    set_state( "fast_learner", 0 );
+    for( branch_id branch : all_branches ) set_state( specialization_state_key( branch ), 0 );
+    for( const char *key : {
+             "prime_magiclysm", "prime_mindovermatter", "prime_xedra_evolved",
+             "prime_aftershock_exoplanet", "prime_aftershock_prime",
+             "prime_secronom", "prime_secronom_plus"
+         } ) {
+        set_state( key, 0 );
+    }
+    set_state( "momentum_stacks", 0 );
+    set_state( "momentum_turns", 0 );
+    set_state( "respec_available", 0 );
+    effects_dirty = true;
+    recalculate_effects();
+    message( tr( "Survivor recalibration complete. Refunded: ",
+                 "Рекалибровка Survivor завершена. Возвращено: " ) +
+             std::to_string( refund_perk ) + "P / " + std::to_string( refund_major ) + "M" );
+}
+'@
+    $sp0120 = Replace-CppRange $sp0120 'void respec()' 'std::vector<std::string> active_supported_integration_mods()' $newRespec0120 'item-only respec'
+
+    $cardStart0120 = $sp0120.IndexOf('        const int respec_index = static_cast<int>( texts.size() );')
+    $cardEnd0120 = $sp0120.IndexOf('        const int close_index', $cardStart0120)
+    if($cardStart0120 -lt 0 -or $cardEnd0120 -lt 0){throw 'Free respec card anchor missing.'}
+    $sp0120 = $sp0120.Remove($cardStart0120,$cardEnd0120-$cardStart0120)
+    $handler0120 = @'
+        if( choice == respec_index ) {
+            respec();
+            continue;
+        }
+'@
+    $sp0120 = Replace-TextBlock $sp0120 $handler0120 '' 'remove free respec action'
+
+    $tickOld0120 = @'
+    if( !last_character_available ) {
+        last_character_available = true;
+        migrate_state();
+        prime_metric_baselines();
+        effects_dirty = true;
+    }
+    const int stat_power = progression_stat_power_pct();
+'@
+    $tickNew0120 = @'
+    if( !last_character_available ) {
+        last_character_available = true;
+        migrate_state();
+        prime_metric_baselines();
+        effects_dirty = true;
+    }
+    if( get_state( "respec_request", 0 ) > 0 ) {
+        respec();
+    }
+    const int stat_power = progression_stat_power_pct();
+'@
+    $sp0120 = Replace-TextBlock $sp0120 $tickOld0120 $tickNew0120 'consume recalibration request'
+    if($sp0120.Contains('reset.id = "respec"')){throw 'Free Survivor respec UI returned.'}
+    foreach($needle0120 in @('+50% Survivor XP','std::min( result.major_owned, 12 )','mod_prime_root_slot( perk.id ) > 0','"respec_available"','get_state( "respec_request", 0 ) > 0')){
+        if(-not $sp0120.Contains($needle0120)){throw ('Recalibration source missing: '+$needle0120)}
+    }
+    Write-Utf8NoBom $spPath $sp0120
+    Copy-Item $spPath (Join-Path $NcmmRoot 'mods\SurvivorProgression\src\survivor_progression.cpp') -Force
+
+    $data0120 = @'
+[
+  {
+    "id": "ncmm_survivor_recalibration_kit",
+    "type": "ITEM",
+    "subtypes": [ "TOOL" ],
+    "category": "tools",
+    "name": { "str": "Survivor recalibration kit" },
+    "description": "A single-use diagnostic and neurotraining package assembled from scavenged electronics.  Activating it performs a full Survivor Progression recalibration: every purchased perk rank is removed and all spent perk and major points are refunded.  Survivor levels and earned XP are not changed.",
+    "weight": "350 g",
+    "volume": "500 ml",
+    "material": [ "plastic", "steel" ],
+    "symbol": ";",
+    "color": "light_cyan",
+    "use_action": {
+      "type": "effect_on_conditions",
+      "menu_text": "Recalibrate Survivor perks",
+      "effect_on_conditions": [
+        {
+          "id": "EOC_NCMM_SURVIVOR_RECALIBRATION_KIT",
+          "effect": {
+            "if": { "compare_string": [ "1", { "u_val": "ncmm.survivor_progression.respec_available" } ] },
+            "then": {
+              "if": {
+                "u_query": "Consume the recalibration kit and reset all purchased Survivor perks?  Every purchased rank will be refunded as perk or major points.  Survivor levels and earned XP will remain unchanged.",
+                "default": false
+              },
+              "then": [
+                { "set_string_var": "1", "target_var": { "u_val": "ncmm.survivor_progression.respec_request" } },
+                { "u_consume_item": { "context_val": "id" } },
+                { "u_message": "The recalibration sequence starts.  Your Survivor build will reset on the next game turn.", "type": "good" }
+              ]
+            },
+            "else": { "u_message": "You have no purchased Survivor perks to recalibrate.", "type": "info" }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "type": "recipe",
+    "activity_level": "LIGHT_EXERCISE",
+    "result": "ncmm_survivor_recalibration_kit",
+    "category": "CC_OTHER",
+    "subcategory": "CSC_OTHER_OTHER",
+    "skill_used": "electronics",
+    "difficulty": 6,
+    "skills_required": [ [ "fabrication", 4 ] ],
+    "time": "3 h",
+    "autolearn": [ [ "electronics", 6 ], [ "fabrication", 4 ] ],
+    "using": [ [ "soldering_standard", 30 ] ],
+    "components": [ [ [ "e_scrap", 30 ] ], [ [ "cable", 20 ] ], [ [ "scrap", 10 ] ] ]
+  }
+]
+'@
+    foreach($root0120 in @($Source0910,(Join-Path $NcmmRoot 'mods\SurvivorProgression'))){
+        $dir0120 = Join-Path $root0120 'data'
+        New-Item -ItemType Directory -Force $dir0120 | Out-Null
+        Write-Utf8NoBom (Join-Path $dir0120 'respec.json') ($data0120 + [Environment]::NewLine)
+    }
+
+    $loaderPath0120 = Join-Path $NcmmRoot 'host_patch\ncmm_loader.cpp'
+    $loader0120 = Normalize-Lf ([IO.File]::ReadAllText($loaderPath0120))
+    if(-not $loader0120.Contains('#include "init.h"')){
+        $loader0120 = Replace-TextBlock $loader0120 '#include "input_context.h"' ('#include "input_context.h"' + [Environment]::NewLine + '#include "init.h"') 'module-data loader include'
+    }
+    if(-not $loader0120.Contains('void load_module_data()')){
+        $loadFn0120 = @'
+void load_module_data()
+{
+    DynamicDataLoader &loader = DynamicDataLoader::get_instance();
+    for( const loaded_mod &runtime : loaded ) {
+        if( runtime.descriptor == nullptr || runtime.descriptor->id == nullptr ) continue;
+        const std::filesystem::path data_dir = runtime.directory / "data";
+        if( !std::filesystem::exists( data_dir ) || !std::filesystem::is_directory( data_dir ) ) continue;
+        const std::string source = "ncmm:" + std::string( runtime.descriptor->id );
+        log_line( NCMM_LOG_INFO, ( "Loading module data: " + source + " -> " + data_dir.string() ).c_str() );
+        loader.load_data_from_path( cata_path{ cata_path::root_path::unknown, data_dir }, source );
+    }
+}
+
+'@
+        $loader0120 = Replace-TextBlock $loader0120 'void mark_ready()' ($loadFn0120 + 'void mark_ready()') 'module-data loader'
+    }
+    Write-Utf8NoBom $loaderPath0120 $loader0120
+
+    $headerPath0120 = Join-Path $NcmmRoot 'host_patch\ncmm_loader.h'
+    $header0120 = Normalize-Lf ([IO.File]::ReadAllText($headerPath0120))
+    if(-not $header0120.Contains('void load_module_data();')){
+        $header0120 = Replace-TextBlock $header0120 'void initialize();' ('void initialize();' + [Environment]::NewLine + 'void load_module_data();') 'module-data declaration'
+    }
+    Write-Utf8NoBom $headerPath0120 $header0120
+    Write-Host "Survivor recalibration kit / XP balance / bounded major scaling: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorRecalibration0120
+
 function Apply-AwsHostApi20Migration {
     Write-Host "Migrating Advanced World Settings 0.6.1 -> 0.6.2 Host API 2.0..." -ForegroundColor Cyan
     $aws = [IO.File]::ReadAllText($awsPath)
@@ -18113,6 +18404,7 @@ Ensure-VcpkgCache $VcpkgRoot $BuildRoot $VcpkgCommit $bootstrapGit
 
 $patchScript = Join-Path $NcmmRoot "host_patch\Apply-NCMMHostPatch.ps1"
 & $patchScript -SourceRoot $CddaRoot
+Apply-NcmmModuleDataBridge0120 $CddaRoot
 if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_host_v1_patched") -PathType Leaf)) {
     throw "Apply-NCMMHostPatch marker missing."
 }
@@ -18359,6 +18651,10 @@ try {
     Copy-Item $releaseModuleManifest $installedModuleManifest -Force
     foreach($about in Get-ChildItem $release0110 -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
         Copy-Item $about.FullName (Join-Path $spDir $about.Name) -Force
+    }
+    $releaseSurvivorData = Join-Path $release0110 "data"
+    if(Test-Path $releaseSurvivorData -PathType Container){
+        Copy-Item $releaseSurvivorData (Join-Path $spDir "data") -Recurse -Force
     }
     $releaseAwsDll = Join-Path $releaseAWS "ncmm_mod.dll"
     $releaseAwsManifest = Join-Path $releaseAWS "mod.json"
