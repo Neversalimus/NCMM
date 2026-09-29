@@ -15945,6 +15945,69 @@ std::string version_label()
         $loaderUi = Replace-TextBlock $loaderUi $versionLabelOld $versionLabelNew 'NCMM version label implementation'
     }
 
+    if(-not $loaderUi.Contains('bool runtime_smoke_requested()')){
+        $runtimeSmokeInitOld = @'
+void initialize()
+{
+    std::filesystem::create_directories( game_root() / "ncmm" );
+'@
+        $runtimeSmokeInitNew = @'
+bool runtime_smoke_requested()
+{
+#ifdef _WIN32
+    const char *raw = GetCommandLineA();
+    if( raw == nullptr ) {
+        return false;
+    }
+    const std::string command_line( raw );
+    const std::string needle = "--ncmm-runtime-smoke";
+    size_t pos = command_line.find( needle );
+    while( pos != std::string::npos ) {
+        const size_t end = pos + needle.size();
+        const bool left_boundary = pos == 0 ||
+                                   std::isspace( static_cast<unsigned char>( command_line[pos - 1] ) ) ||
+                                   command_line[pos - 1] == '"';
+        const bool right_boundary = end == command_line.size() ||
+                                    std::isspace( static_cast<unsigned char>( command_line[end] ) ) ||
+                                    command_line[end] == '"';
+        if( left_boundary && right_boundary ) {
+            return true;
+        }
+        pos = command_line.find( needle, end );
+    }
+#endif
+    return false;
+}
+
+void initialize()
+{
+    std::filesystem::create_directories( game_root() / "ncmm" );
+'@
+        $loaderUi = Replace-TextBlock $loaderUi $runtimeSmokeInitOld $runtimeSmokeInitNew 'NCMM runtime smoke request helper'
+    }
+
+    if(-not $loaderUi.Contains('NCMM runtime smoke reached Host ready state')){
+        $runtimeSmokeReadyOld = @'
+    dispatch_event_v2( NCMM_EVENT_HOST_READY_V2 );
+    write_modules_state();
+    mark_ready();
+}
+'@
+        $runtimeSmokeReadyNew = @'
+    dispatch_event_v2( NCMM_EVENT_HOST_READY_V2 );
+    write_modules_state();
+    mark_ready();
+
+    if( runtime_smoke_requested() ) {
+        log_line( NCMM_LOG_INFO,
+                  "NCMM runtime smoke reached Host ready state; exiting before main menu." );
+        std::exit( 0 );
+    }
+}
+'@
+        $loaderUi = Replace-TextBlock $loaderUi $runtimeSmokeReadyOld $runtimeSmokeReadyNew 'NCMM runtime smoke exit'
+    }
+
     $tileLoopOld = @'
     while( true ) {
         ui_manager::redraw();
@@ -16134,7 +16197,7 @@ std::string version_label();
     }
 
     $loaderUi = $loaderUi.Replace('0.8.0','0.8.1')
-    foreach($managerNeedle in @('module_setting_meta','manager_description','manager_setting_value','manager_adjust_setting','NCMM_MANAGER','MODULE DETAILS','СВЕДЕНИЯ О МОДЕ','return "0.8.1";')){
+    foreach($managerNeedle in @('module_setting_meta','manager_description','manager_setting_value','manager_adjust_setting','NCMM_MANAGER','MODULE DETAILS','СВЕДЕНИЯ О МОДЕ','return "0.8.1";','runtime_smoke_requested','--ncmm-runtime-smoke')){
         if(-not $loaderUi.Contains($managerNeedle)){throw "NCMM manager generated source missing: $managerNeedle"}
     }
     Write-Utf8NoBom $loaderUiPath $loaderUi
