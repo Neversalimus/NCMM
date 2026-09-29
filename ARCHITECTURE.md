@@ -1,244 +1,128 @@
-# NCMM architecture — current source stack
+# NCMM architecture
 
-Current architecture baseline: Infrastructure 0.8.3.1, Host 0.8.0, semantic Host API 1.9, queried Host API 2.0 Core, Survivor Progression 0.11.3 and Advanced World Settings 0.6.2.
+Current baseline: Infrastructure 0.8.3.1, Runtime / Host 0.8.1, Loader ABI 1, semantic Host API 1.9, queried Host API 2.0 Core, Survivor Progression 0.12.0 and Advanced World Settings 0.6.2.
 
-The binary Host ABI / Loader API remains v1. Host API 2.0 is queried additively through the ABI-v1 `query_interface` tail, so the 2.0 Core layer does not replace the stable v1 binary prefix.
+The important design rule is separation: CDDA-facing source integration belongs to the certified Host; gameplay modules consume NCMM APIs and do not patch CDDA independently.
 
 ```text
-Any launcher / manual shortcut
-             |
-             v
-    cataclysm-tiles.exe
-       [NCMM Bootstrap]
-             |
-   SHA256(vanilla exe) + VERSION.txt commit
-             |
-       local binding valid?
-       /              \
-     yes               no
-      |                 |
-      |          HTTPS certified feed
-      |                 |
-      |            exact SHA entry?
-      |             /         \
-      |           yes          no/error
-      |            |              |
-      |        download host       |
-      |        verify SHA256       |
-      |            |              |
-      +------------+              |
-             |                    |
-             v                    v
-  cataclysm-tiles.ncmm.exe   vanilla executable
-       [NCMM Host]
-             |
- Host API v1 + queried Host API 2.0 Core
-             |
-   Module Contract v1 preflight
-   mod.json <-> DLL descriptor
-             |
-         code_mods/*
-          /         \
-         v           v
-AdvancedWorldSettings  SurvivorProgression
-      [optional]          [optional]
-
-Additional native modules can be bundled independently as long as their manifests
-declare a compatible Loader API / Host capability contract.
-
-Runtime writes ncmm/runtime.state.json.
-Host writes ncmm/modules.state.json.
+Launcher / shortcut
+        |
+        v
+cataclysm-tiles.exe
+ [NCMM bootstrap]
+        |
+        | exact vanilla exe SHA + VERSION.txt source commit
+        v
+ local binding valid? ---- no ----> certified feed
+        |                         exact executable match?
+       yes                              |
+        |                              yes
+        |                               |
+        +----------------------- verified Host
+                                        |
+                                        v
+                         cataclysm-tiles.ncmm.exe
+                              [NCMM Host]
+                                        |
+                        Loader ABI v1 + Host API 1.9
+                        + queried Host API 2.0 Core
+                                        |
+                    manifest / capability / state preflight
+                                        |
+                            code_mods / native modules
+                              /                   \
+                             v                     v
+             Advanced World Settings      Survivor Progression
 ```
 
 ## Trust boundaries
 
-1. **Bootstrap** owns executable selection and fallback. It does not inspect CDDA internals.
-2. **Certified host** is built from the exact upstream source tag and is bound to exact official vanilla executable SHA values.
-3. **Host API** is a narrow C ABI. Mods do not receive STL types or raw CDDA object pointers.
-4. **Code mods** are manifest-preflighted before `LoadLibrary`, then descriptor-cross-checked and independently disabled on contract failure.
-5. **Runtime diagnostics** persist machine-readable bootstrap/host/module state without weakening fail-closed behavior.
-6. **State publication** uses staged/replace semantics; crash-loop markers distinguish a host that actually started from a `Process.Start` failure.
-7. **Manifest hardening** rejects oversized/incomplete manifests, duplicate IDs, duplicate requirements and unsupported failure policy before module initialization.
-8. Native DLLs are trusted code. A bug after successful initialization can still crash the process; NCMM cannot sandbox arbitrary native code. Script/WASM sandboxing is a future layer.
+1. **Bootstrap** selects vanilla or the certified Host. It validates executable identity and does not need to understand gameplay internals.
+2. **Certified Host** is built from an exact upstream CDDA release after source-contract preflight. Feed entries bind a Host to exact source/executable identity and patch revision.
+3. **Host API** is a narrow C ABI. Modules do not receive STL objects or arbitrary CDDA pointers.
+4. **Module Contract** validates `mod.json`, Loader/API requirements, capability requirements, module identity and the DLL descriptor before normal gameplay callbacks are allowed.
+5. **Module state** is namespaced and migration-aware. A broken or incompatible module can be disabled/suspended without redefining the whole runtime contract.
+6. **Runtime publication** uses explicit state files and crash-loop markers. Failure to prove a safe Host launch falls back to vanilla.
+7. Native DLLs remain trusted native code. NCMM contains and validates known failure paths, but it is not a security sandbox for arbitrary machine code.
 
-## Host API
+## API layers
 
-The stable binary prefix remains `ncmm_host_api_v1`. Additive v1 tail capabilities cover module contracts, versioning, world settings, UI, active-world mod discovery and state access. Host 0.8.0 additionally exposes **Host API 2.0 Core** through `query_interface("ncmm.host_api.v2.core", 2, 0)`.
+### Loader ABI v1
 
-Current 2.0 Core domains include:
-- event subscriptions;
-- typed world settings;
-- active-world mod and module lifecycle queries;
-- dynamic character modifiers;
-- generic runtime-hook bindings;
-- generic world-generation setting bindings.
+`ncmm_host_api_v1` remains the stable binary prefix. Existing correctly written v1 modules stay binary-compatible. Additive v1-tail fields expose Host identity, capabilities, world settings, UI, active-world mod discovery, state migration and related services.
 
-Survivor Progression 0.11.3 uses the generic runtime-hook/modifier/event surfaces. Advanced World Settings 0.6.2 uses typed settings plus generic geography bindings. Module-specific identifiers remain inside their modules instead of becoming CDDA-facing Host API primitives.
+### Semantic Host API 1.9
 
-`module_contract.v1` still validates `mod.json` before loading native code and cross-checks the manifest against the DLL descriptor after load. `host_info.v1` still exposes host/loader identity and the enumerable capability registry through the binary-compatible v1 tail.
+The semantic v1 surface is capability-gated. Modules declare their minimum API/capability requirements in `mod.json`; the Host rejects unsupported combinations before normal initialization.
 
-## Compatibility rule
+### Host API 2.0 Core
 
-NCMM does not guess by folder name or launcher version.
+Host API 2.0 is obtained additively through:
 
-A host is usable only when:
+```cpp
+api->query_interface( "ncmm.host_api.v2.core", 2, 0 )
+```
 
-- runtime loader API matches;
-- `VERSION.txt` source commit matches feed metadata;
-- vanilla executable SHA is present in the certified feed;
-- downloaded host SHA matches feed metadata;
-- host reaches the ready marker after module initialization.
+Current Core domains are:
 
-Failure of any check results in vanilla execution.
+- `events.core.v2` — generic lifecycle/gameplay event subscriptions;
+- `settings.typed.v2` — typed bool/int/float/enum settings;
+- `active_mods.registry.v2` — active world-mod enumeration;
+- `module.lifecycle.query.v2` — module state/version queries;
+- `character.modifiers.v2` — built-in and module-owned numeric modifiers;
+- `runtime_hooks.registry.v2` — generic runtime hook + selector + modifier rules;
+- `worldgen.bindings.v2` — generic world-generation hook to typed-setting bindings.
 
-## v0.5 compatibility boundary
+Survivor Progression and Advanced World Settings both use the Host API 2.0 substrate while retaining the stable Loader ABI v1 entry path.
 
-The source-contract registry is checked before source mutation. A certified host therefore carries
-an explicit set of source contracts that passed for its exact upstream tag. Code-mods consume only
-NCMM capabilities; the first gameplay consumer, Survivor Progression, never includes CDDA headers.
+## Settings model
 
-Character persistence is implemented behind `character_state.v1`; the module sees only namespaced
-integer keys while the host adapts that contract to CDDA's serialized character values.
-The turn source hook is isolated behind `events.turn.v1`.
+NCMM typed settings have an explicit scope. The Host owns persistence and presentation rules; modules own names, defaults, ranges and semantics.
 
-## 0.5.1 gameplay input bridge
+- **LIVE / RELOAD** settings are presented in the NCMM module manager.
+- **NEW_MAP / NEW_WORLD** settings are surfaced in CDDA's world-options UI, including world creation.
+- World-generation settings use CDDA's existing `WORLD_OPTIONS` persistence rather than a parallel NCMM save file.
 
-NCMM registers namespaced gameplay actions instead of polling raw keys. The host supplies stable defaults
-(`F2` for the NCMM manager and a manifest `ui_hotkey` for module UI), while CDDA's own keybinding system
-owns user overrides and persistence. `handle_action.cpp` dispatches an NCMM action before conversion to
-the native `action_id`, so opening NCMM UI consumes no game turn.
+This separation prevents a module's balance controls from polluting world creation while keeping true world-generation controls available where the player expects them.
 
-`COPT_WORLDGEN_ONLY` remains hidden from global/default options, but becomes visible in the active
-world's Current World tab. CDDA's existing `options_manager::show(true)` path remains responsible for
-saving `WORLD_OPTIONS` and applying option changes.
+## Input and UI
 
-The compatibility registry now includes `gameplay_input.source.v1`; host certification therefore fails
-closed before touching input integration points that no longer match the reviewed contract.
+NCMM registers namespaced actions through CDDA's normal input system. Default keys such as F1/F2 are defaults only; player remaps remain owned by CDDA.
 
-## 0.5.2 dual-mode input + world-options layout
+The Host owns common UI primitives (choice, tiles, cards, tree layouts, theme/layout extensions and the two-pane module manager). Modules provide data and callbacks. UI sounds use CDDA's existing SFX mechanism rather than a separate NCMM audio layer.
 
-NCMM keyboard defaults now mirror CDDA `keyboard_any`: the same logical default is registered for
-both `keyboard_code` and `keyboard_char`. User overrides remain owned by CDDA's normal keybinding
-manager. This is necessary because DEFAULTMODE may fall back from keycode to keychar at runtime.
+## Module lifecycle and persistence
 
-`world_options.layout.v1` adds generic host-owned layout primitives for existing hidden world options:
-collapsible groups and a string-choice adapter. Modules still do not own CDDA world storage; the
-underlying option IDs and WORLD_OPTIONS serialization remain native CDDA state.
+Before loading a module, the Host checks its manifest and required capabilities. After loading, the DLL descriptor is cross-checked against the manifest.
 
-## 0.6.0 character.modifiers.v1
+Persistent per-character module state uses the Host state API and explicit schema versions. `state.migration.v1` runs migrations inside the owning module scope. Unsupported newer/older state, migration failure or quarantined runtime callbacks suspend only the affected module and clear its runtime modifiers where required.
 
-Gameplay modifiers are host-owned runtime state. Modules submit a namespaced value through the stable ABI;
-the host validates the modifier id against a fixed allowlist and aggregates values across loaded modules.
-CDDA source hooks only query the aggregate and only alter the avatar path, leaving NPC simulation untouched.
+Survivor Progression currently uses state schema 8.
 
-Persistence remains the module's responsibility through `character_state.v1`. This deliberately avoids
-serializing host modifier internals and makes module disable/uninstall behavior clean on restart.
+## Certification and compatibility
 
-## 0.6.1 modifier hardening
+NCMM compatibility is identity-based, not launcher-based. A Host is usable only when the relevant runtime/loader contract, CDDA source commit, vanilla executable SHA and patch revision all match the certified metadata.
 
-`character.modifiers.v1` remains the same ABI capability. The host now applies a per-modifier input policy,
-requires a registered module id, and clears a module namespace around failed initialization/shutdown.
-These are containment rules only; no new CDDA object pointers or module-visible internals are exposed.
+The CI pipeline therefore:
 
-Positive healing bonuses are applied only to positive healing rates, so a perk cannot amplify an unrelated
-negative degeneration rate. Survivor 0.8.1 adds UI/diagnostic polish without changing perk balance.
+1. selects an exact upstream CDDA release;
+2. validates source contracts before mutation;
+3. applies the Host patch;
+4. builds on Windows/MSVC;
+5. runs certification/regression checks;
+6. binds the resulting Host to official vanilla executable SHA values;
+7. publishes immutable Host assets and updates the feed only after integrity checks pass.
 
-## 0.6.2 callback-scoped ownership and ready publication
+A new CDDA experimental can therefore be accepted automatically when contracts still match, or rejected safely without teaching the bootstrap to guess.
 
-State/modifier namespace ownership is enforced by the host callback boundary rather than trusting the
-module-supplied module_id string. During init, turn, locale, UI and shutdown callbacks the loader binds
-a thread-local active module identity; namespaced state/modifier operations reject any different id and
-reject calls made outside a host callback scope.
+## Runtime state
 
-Descriptor/init callbacks are exception-contained. `boot.ready` is staged and atomically published before
-`boot.pending` is removed, so a readiness-publication failure remains fail-closed for the next bootstrap.
-The ABI and existing capability names remain unchanged.
+`ncmm/runtime.state.json` records bootstrap/runtime identity and launch state. `ncmm/modules.state.json` records Host capabilities and per-module state/reasons. Diagnostics correlate those files with the current executable, binding and installed module set.
 
-## 0.6.3 certification and crash-loop invariants
+Crash-loop markers use a two-phase model: `boot.pending` means a Host launch began; `boot.ready` proves Host/module initialization reached the ready point. Ambiguous or invalid state fails closed.
 
-Certification identity now spans host source patch inputs and host packaging logic. Published host assets use
-a patch-revision-qualified release tag; the publisher verifies GitHub's asset digest before committing a feed
-entry. A current-revision rejection removes older feed entries for the same upstream tag.
+## Repository lineage
 
-Runtime host bindings are versioned with `ncmm_version`, `loader_api`, and `patch_revision`. Bootstrap accepts
-offline local hosts only when the binding matches the current runtime/loader contract, and online feed entries
-must match the feed's current patch revision.
+NCMM originally lived under `ncmm-platform/` in `Neversalimus/Cataclysm`. The standalone `Neversalimus/NCMM` repository replayed the meaningful NCMM history and became the sole canonical source/feed/release repository at the 0.7.1 cutover. The legacy Cataclysm repository is no longer part of the active build pipeline.
 
-Crash-loop markers form a two-phase state: `boot.pending` means launch in progress, while `boot.ready` proves
-module initialization completed. `pending + ready` is treated as cleanup failure rather than a crash; ambiguous
-marker cleanup fails closed to vanilla for that run.
-
-## 0.6.3.1 text-encoding invariant
-
-Repository text consumed by GitHub Actions, PowerShell, C#, JSON and native builds is guarded as UTF-8.
-Workflow YAML is stricter and must be BOM-free because workflow parsing occurs before any CI step can run.
-Other NCMM text files may retain one UTF-8 BOM for Windows PowerShell compatibility, but multiple BOMs,
-UTF-16/UTF-32 and embedded U+FEFF are rejected.
-
-The invariant is enforced in three layers: EditorConfig at edit time, package/pre-commit validation, and
-both runtime/host build entry points. This hotfix intentionally does not change the 0.6.3 runtime/host protocol.
-
-## 0.6.4 executable failure harness
-
-Bootstrap safety is now tested as an executable state machine. CI compiles the production bootstrap and launches
-it inside isolated temporary game roots containing deterministic synthetic vanilla/host child executables.
-The harness asserts process selection, exit propagation, runtime.state.json and crash-loop marker transitions.
-
-The suite is offline by construction and does not depend on GitHub/network availability. Its purpose is to catch
-regressions in fail-closed behavior before runtime packaging: invalid bindings must select vanilla, host crashes
-must become auto-disable on the next launch, successful ready publication must not be treated as a crash, and
-filesystem failures while persisting/cleaning recovery markers must never cause an unsafe host launch.
-
-## 0.6.5 feed integrity and runtime callback quarantine
-
-Certified-host publication is now guarded by a feed-integrity auditor. Feed entries must be revision-coherent,
-use immutable patch-revision-qualified GitHub release URLs, and match GitHub's published asset digest. The host
-publisher audits the staged feed before committing it, while a separate scheduled/push workflow re-audits the
-published feed online.
-
-Runtime callback failures are isolated per callback. A first C++ exception in turn, locale, or UI execution
-quarantines that callback for the remainder of the process, clears all gameplay modifiers registered by the
-module, and blocks subsequent modifier writes from the quarantined module. The native DLL stays loaded so the
-host never unloads code that may still have live function/static state. `modules.state.json` is atomically
-updated to `runtime_fault` with a machine-readable reason. The pure quarantine state machine lives in
-`ncmm_fault_policy.h` and is exercised by the runtime smoke executable.
-
-## 0.6.6 manifest identity and Diagnostics 2.0
-
-Module Contract v1 manifest parsing is no longer substring-based. `ncmm_manifest_policy.h` owns a small,
-bounded schema parser for the exact v1 manifest fields. Duplicate JSON keys, malformed strings/types,
-overflow, missing required fields and trailing content fail before `LoadLibrary`. Descriptor capability
-lists are independently normalized and duplicate-checked before equality with the manifest contract.
-
-Duplicate identity is defined across enabled modules only. Disabled module directories remain visible in
-state/diagnostics but do not reserve or conflict with an active module ID. Two enabled directories with the
-same ID reject symmetrically. Runtime identity reservation happens only after descriptor/capability validation
-and is released if init throws or returns failure.
-
-`modules.state.json` schema 2 adds the module directory basename. Diagnostics 2.0 correlates executable SHA,
-binding identity, bootstrap runtime state, host module state and a fresh `code_mods` scan. It exports a
-bounded text snapshot to `ncmm/diagnostics-latest.txt`; custom feed URLs are stripped of query/fragment and
-raw log contents are not embedded. The diagnostics harness runs against synthetic installations in Runtime CI.
-
-## 0.7.0 API stabilization and state migration
-
-NCMM 0.7 keeps `NCMM_ABI_VERSION=1` and `NCMM_LOADER_API_VERSION=1`. The existing
-`ncmm_host_api_v1` prefix is unchanged; API 1.1 is a capability-gated tail extension, so correctly
-written older v1 code-mods remain binary compatible.
-
-`api.versioning.v1` exposes semantic API major/minor values independently from the NCMM runtime
-release number. A 0.7-aware manifest may declare `api_major` and `api_min_minor`; an incompatible
-major or unavailable minimum minor is rejected before `LoadLibrary` side effects.
-
-`state.migration.v1` standardizes persistent module-state upgrades. A module declares `state_schema`
-and `state_min_supported` and exports `ncmm_migrate_state_v1`. Before gameplay/UI callbacks touch an
-available character, the host checks the namespaced `schema`. Supported older state is migrated inside
-the normal module ownership scope. Newer/too-old state, callback failure, exception, or failure to commit
-the target schema suspends only that module and clears its runtime modifiers.
-
-`module.lifecycle.v1` adds an explicit `lifecycle` value to `modules.state.json` schema 3. Legacy
-`state` is retained for diagnostics compatibility. Normal modules are `active`; migration/runtime-fault
-modules are `suspended`; disabled/rejected modules are `disabled`.
-
-Survivor Progression 0.9.0 is the first production consumer: persistent schema 3, migration from schemas
-0–2, semantic API 1.1 requirement, and remap-safe level-up messaging. Perk balance is unchanged.
+Historical package snapshots that still matter for reproducibility live under `checkpoints/`; current documentation is intentionally kept in this file and the two root README files instead of duplicating version-by-version architecture narratives.
