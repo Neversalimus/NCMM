@@ -239,4 +239,40 @@ foreach($n in @(
     'NCMM_MANAGER',
     'MODULE DETAILS'
 )){if(-not $payload.Contains($n)){throw ('NCMM manager/settings payload contract missing: '+$n)}}
+
+
+# Real gameplay smoke must remain generated from the portable payload as well as
+# present in the checked-in Host source.  This guards the semantic QA path itself.
+foreach($gameplaySmokeNeedle in @(
+    'bool gameplay_smoke_requested()',
+    'int run_gameplay_smoke()',
+    '--ncmm-gameplay-smoke',
+    'gameplay-smoke.json',
+    'NCMM Gameplay Smoke',
+    'aws_setting_count != 48',
+    'aws_hook_count != 48',
+    'survivor_perk_count != 369',
+    'overmap_buffer.create_custom_overmap',
+    'ncmm_test_perk_count_v1',
+    'main-menu.ncmm-gameplay-smoke'
+)){
+    if(-not $payload.Contains($gameplaySmokeNeedle)){
+        throw ('NCMM real gameplay smoke payload contract missing: '+$gameplaySmokeNeedle)
+    }
+}
+$gameplayHost=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp'))
+foreach($gameplayHostNeedle in @(
+    'bool gameplay_smoke_requested()',
+    'int run_gameplay_smoke()',
+    'world->save()',
+    'world_generator->get_world( world_name )',
+    'overmap_buffer.create_custom_overmap',
+    'survivor_perk_count != 369',
+    'survivor_real_strength_mismatch',
+    'survivor_real_carry_mismatch'
+)){
+    if(-not $gameplayHost.Contains($gameplayHostNeedle)){
+        throw ('NCMM real gameplay smoke Host contract missing: '+$gameplayHostNeedle)
+    }
+}
 Write-Host 'NCMM Host/AWS payload regression contract: PASS' -ForegroundColor Green
