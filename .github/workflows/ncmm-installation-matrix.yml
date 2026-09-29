@@ -157,7 +157,13 @@ jobs:
           $eventName = '${{ github.event_name }}'
           $changed = @()
           if ($eventName -eq 'push') {
-            $changed = @(git diff-tree --no-commit-id --name-only -r HEAD)
+            $event = Get-Content $env:GITHUB_EVENT_PATH -Raw | ConvertFrom-Json
+            foreach ($commit in @($event.commits)) {
+              $changed += @($commit.added)
+              $changed += @($commit.modified)
+              $changed += @($commit.removed)
+            }
+            $changed = @($changed | Where-Object { $_ } | Select-Object -Unique)
           }
           $workflowOnlySelfTest = $eventName -eq 'push' -and
                                   ($changed -contains '.github/workflows/ncmm-installation-matrix.yml') -and
