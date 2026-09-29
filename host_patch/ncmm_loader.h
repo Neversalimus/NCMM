@@ -20,6 +20,7 @@ bool handle_gameplay_action( const std::string &action );
 void show_manager();
 std::string settings_menu_label();
 std::string version_label();
+std::string localized_text( const char *english, const char *russian );
 
 
 /** Aggregate runtime gameplay modifier registered by loaded NCMM modules. */
