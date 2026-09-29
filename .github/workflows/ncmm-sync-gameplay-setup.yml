@@ -1,0 +1,98 @@
+name: NCMM One-Shot Gameplay Setup Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ncmm-sync-gameplay-setup.yml'
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: ncmm-one-shot-gameplay-setup-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Sync real gameplay setup into canonical payload
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $path = Join-Path $env:GITHUB_WORKSPACE 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1'
+          $text = [IO.File]::ReadAllText($path)
+
+          function Replace-Once([string]$Text,[string]$Old,[string]$New,[string]$Label) {
+            $first = $Text.IndexOf($Old,[StringComparison]::Ordinal)
+            if($first -lt 0){ throw "Generator sync anchor missing: $Label" }
+            $second = $Text.IndexOf($Old,$first + $Old.Length,[StringComparison]::Ordinal)
+            if($second -ge 0){ throw "Generator sync anchor is ambiguous: $Label" }
+            return $Text.Substring(0,$first) + $New + $Text.Substring($first + $Old.Length)
+          }
+
+          $old = @'
+                  // Load the real world data and force one overmap generation.  Any bad AWS
+                  // geography hook now fails/crashes inside the same path used by gameplay.
+                  log_line( NCMM_LOG_INFO,
+                            "NCMM gameplay smoke checkpoint: AWS save/reload + 48 bindings PASS; loading core data." );
+                  g->new_game = true;
+                  g->load_core_data();
+                  log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: core data loaded." );
+                  g->load_world_modfiles();
+                  log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: world modfiles loaded." );
+                  overmap_buffer.init_region_layout();
+                  log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: region layout initialized; generating overmap." );
+          '@
+          $new = @'
+                  // Enter the same world initialization path used for a real new character.
+                  // game::setup() owns the ordering constraints around calendar state, mod
+                  // validation, core/mod loading, and DynamicDataLoader finalization.
+                  log_line( NCMM_LOG_INFO,
+                            "NCMM gameplay smoke checkpoint: AWS save/reload + 48 bindings PASS; running game setup." );
+                  g->setup();
+                  log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: game setup complete." );
+                  overmap_buffer.init_region_layout();
+                  log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: region layout initialized; generating overmap." );
+          '@
+          $text = Replace-Once $text $old $new 'real gameplay setup'
+
+          [IO.File]::WriteAllText($path,$text,(New-Object Text.UTF8Encoding($true)))
+          Write-Host 'Canonical gameplay smoke generator synchronized to game::setup().' -ForegroundColor Green
+
+      - name: Refresh package integrity
+        shell: powershell
+        run: |
+          .\ci\Regenerate-PackageIntegrity.ps1 -PackageRoot "$env:GITHUB_WORKSPACE"
+          .\ci\Regenerate-PackageIntegrity.ps1 -PackageRoot "$env:GITHUB_WORKSPACE" -Check
+
+      - name: Commit synchronized source and remove one-shot workflow
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Remove-Item '.github/workflows/ncmm-sync-gameplay-setup.yml' -Force
+          git config user.name 'NCMM Maintenance Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add payload/SURVIVOR_0911_0915_v8.7.6.8.ps1 compat/package.integrity.json .github/workflows/ncmm-sync-gameplay-setup.yml
+          git commit -m 'ci: sync real gameplay setup generator'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Dispatch validation and fresh 0546 certification
+        shell: powershell
+        run: |
+          gh workflow run ncmm-text-audit.yml --ref main
+          gh workflow run ncmm-runtime.yml --ref main
+          gh workflow run ncmm-host.yml --ref main -f upstream_tag=cdda-experimental-2026-09-23-0546
+          Write-Host 'Dispatched Text Audit, Runtime, and fresh 0546 certification.' -ForegroundColor Green
