@@ -142,9 +142,9 @@ jobs:
           $ncmm = Join-Path $root 'ncmm'
           if (-not (Test-Path $exe -PathType Leaf)) { throw "Installed NCMM bootstrap is missing: $exe" }
 
-          & $exe --ncmm-runtime-smoke --ncmm-refresh
-          if ($LASTEXITCODE -ne 0) {
-            throw "First real NCMM runtime smoke failed with exit $LASTEXITCODE."
+          $firstSmoke = Start-Process -FilePath $exe -ArgumentList @('--ncmm-runtime-smoke','--ncmm-refresh') -Wait -PassThru
+          if ($firstSmoke.ExitCode -ne 0) {
+            throw "First real NCMM runtime smoke failed with exit $($firstSmoke.ExitCode)."
           }
           if (Test-Path (Join-Path $ncmm 'boot.pending')) {
             throw 'First real runtime smoke left boot.pending.'
@@ -156,9 +156,9 @@ jobs:
             throw 'First real runtime smoke unexpectedly auto-disabled NCMM.'
           }
 
-          & $exe --ncmm-runtime-smoke --ncmm-offline
-          if ($LASTEXITCODE -ne 0) {
-            throw "Second real NCMM runtime smoke failed with exit $LASTEXITCODE."
+          $secondSmoke = Start-Process -FilePath $exe -ArgumentList @('--ncmm-runtime-smoke','--ncmm-offline') -Wait -PassThru
+          if ($secondSmoke.ExitCode -ne 0) {
+            throw "Second real NCMM runtime smoke failed with exit $($secondSmoke.ExitCode)."
           }
           if (Test-Path (Join-Path $ncmm 'boot.pending')) {
             throw 'Second real runtime smoke left boot.pending.'
@@ -177,9 +177,9 @@ jobs:
           $root = '${{ steps.game.outputs.root }}'
           $exe = Join-Path $root 'cataclysm-tiles.exe'
           $ncmm = Join-Path $root 'ncmm'
-          & $exe --ncmm-gameplay-smoke --ncmm-offline
-          if ($LASTEXITCODE -ne 0) {
-            throw "Real NCMM gameplay smoke failed with exit $LASTEXITCODE."
+          $gameplaySmoke = Start-Process -FilePath $exe -ArgumentList @('--ncmm-gameplay-smoke','--ncmm-offline') -Wait -PassThru
+          if ($gameplaySmoke.ExitCode -ne 0) {
+            throw "Real NCMM gameplay smoke failed with exit $($gameplaySmoke.ExitCode)."
           }
           $resultPath = Join-Path $ncmm 'gameplay-smoke.json'
           if (-not (Test-Path $resultPath -PathType Leaf)) {
