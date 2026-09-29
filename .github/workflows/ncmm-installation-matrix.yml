@@ -164,7 +164,34 @@ jobs:
           if (Test-Path (Join-Path $ncmm 'boot.pending')) {
             throw 'Gameplay smoke left boot.pending.'
           }
-          Write-Host ("Gameplay smoke PASS: AWS 48/48, Survivor " + $result.survivor_perks + "/369") -ForegroundColor Green
+
+          $worldRoot = Join-Path $root 'save\NCMM Gameplay Smoke'
+          if (-not (Test-Path $worldRoot -PathType Container)) {
+            throw "AWS gameplay smoke did not create the expected world directory: $worldRoot"
+          }
+          $worldOptions = Join-Path $worldRoot 'worldoptions.json'
+          if (-not (Test-Path $worldOptions -PathType Leaf)) {
+            throw "AWS gameplay smoke did not persist worldoptions.json: $worldOptions"
+          }
+          $worldOptionsText = Get-Content $worldOptions -Raw
+          foreach ($settingId in @(
+            'NCMM_AWS_CUSTOM_GEOGRAPHY',
+            'NCMM_AWS_CITY_SIZE',
+            'NCMM_AWS_FOREST_THRESHOLD',
+            'NCMM_AWS_ENABLE_RIVERS',
+            'NCMM_AWS_LAKE_MIN_SIZE',
+            'NCMM_AWS_ENABLE_HIGHWAYS',
+            'NCMM_AWS_RAVINE_DEPTH'
+          )) {
+            if (-not $worldOptionsText.Contains($settingId)) {
+              throw "Persisted AWS world options are missing $settingId."
+            }
+          }
+          $generatedWorldFiles = @(Get-ChildItem $worldRoot -File -Recurse -ErrorAction Stop)
+          if ($generatedWorldFiles.Count -lt 2) {
+            throw "AWS gameplay smoke world has too little persisted/generated content: $($generatedWorldFiles.Count) files."
+          }
+          Write-Host ("Gameplay smoke PASS: AWS 48/48 + persisted world, Survivor " + $result.survivor_perks + "/369") -ForegroundColor Green
 
       - name: Verify certified Host + modules and restore vanilla
         shell: powershell
@@ -200,11 +227,26 @@ jobs:
             $path = Join-Path $root ('ncmm\' + $name)
             if (Test-Path $path -PathType Leaf) { Copy-Item $path (Join-Path $evidence $name) -Force }
           }
+          $worldRoot = Join-Path $root 'save\NCMM Gameplay Smoke'
+          $worldOptions = Join-Path $worldRoot 'worldoptions.json'
+          if (Test-Path $worldOptions -PathType Leaf) {
+            Copy-Item $worldOptions (Join-Path $evidence 'aws-gameplay-worldoptions.json') -Force
+          }
+          if (Test-Path $worldRoot -PathType Container) {
+            $manifest = Get-ChildItem $worldRoot -File -Recurse | ForEach-Object {
+              [PSCustomObject]@{
+                path = $_.FullName.Substring($worldRoot.Length).TrimStart('\')
+                bytes = $_.Length
+                sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              }
+            }
+            $manifest | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $evidence 'aws-gameplay-world-files.json') -Encoding UTF8
+          }
           "## NCMM real runtime smoke" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- CDDA: ${{ steps.release.outputs.tag }}" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- production SetupCore: install / module switch / reinstall" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- bootstrap -> certified Host -> AWS + Survivor -> boot.ready -> clean exit: two consecutive real launches" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "- gameplay smoke: real AWS world save/reload/overmap + Survivor 369-perk aggregate avatar effects" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "- gameplay smoke: real AWS randomized world save/reload/overmap + persisted world evidence + Survivor 369-perk aggregate/consumer effects" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- RestoreVanilla: verified by SHA-256" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       - name: Upload evidence
