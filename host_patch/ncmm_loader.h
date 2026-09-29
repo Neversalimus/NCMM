@@ -10,6 +10,8 @@ namespace ncmm
 void initialize();
 void shutdown();
 void mark_ready();
+bool gameplay_smoke_requested();
+int run_gameplay_smoke();
 void on_turn();
 void on_language_changed();
 void register_gameplay_actions( input_context &ctxt );
