@@ -146,13 +146,13 @@ foreach($legacyCleanupProbe in @(
     }
 }
 if(-not $payload.Contains('\}[ \t]*,?[ \t]*\r?\n?')){throw 'Host API 2.0 optional-comma legacy cleanup pattern missing.'}
-# AWS 0.6.2 manifest migration must follow the real generated 0.6.1 manifest contract:
+# AWS 0.6.3 manifest migration must follow the real generated 0.6.1 manifest contract:
 # API 1.7 and requires ending in api.versioning.v1.  It must not depend on ui.theme.v1.
-foreach($n in @('[int]$manifestObj.api_min_minor -ne 7','$manifestObj.api_min_minor = 9',"'host_api.v2.core','settings.typed.v2','worldgen.bindings.v2'",'AWS 0.6.2 expected exactly 48 geography bindings')){
-    if(-not $payload.Contains($n)){throw ('AWS 0.6.2 semantic manifest/binding migration contract missing: '+$n)}
+foreach($n in @('[int]$manifestObj.api_min_minor -ne 7','$manifestObj.api_min_minor = 9',"'host_api.v2.core','settings.typed.v2','worldgen.bindings.v2'",'AWS 0.6.3 expected exactly 48 geography bindings')){
+    if(-not $payload.Contains($n)){throw ('AWS 0.6.3 semantic manifest/binding migration contract missing: '+$n)}
 }
-$staleAwsMigration='AWS 0.6.2 manifest capability anchor missing.'
-if($payload.Contains($staleAwsMigration)){throw ('Stale AWS 0.6.2 manifest migration contract returned: '+$staleAwsMigration)}
+$staleAwsMigration='AWS 0.6.3 manifest capability anchor missing.'
+if($payload.Contains($staleAwsMigration)){throw ('Stale AWS 0.6.3 manifest migration contract returned: '+$staleAwsMigration)}
 $awsManifestProbeText = @'
 {
   "id": "advanced_world_settings",
@@ -166,11 +166,11 @@ $awsManifestProbeText = @'
 }
 '@
 $awsManifestProbe = $awsManifestProbeText | ConvertFrom-Json
-$awsManifestProbe.version='0.6.2';$awsManifestProbe.api_min_minor=9;$awsManifestProbeReq=@($awsManifestProbe.requires)
+$awsManifestProbe.version='0.6.3';$awsManifestProbe.api_min_minor=9;$awsManifestProbeReq=@($awsManifestProbe.requires)
 foreach($cap in @('host_api.v2.core','settings.typed.v2','worldgen.bindings.v2')){if($awsManifestProbeReq -notcontains $cap){$awsManifestProbeReq += $cap}}
 $awsManifestProbe.requires=@($awsManifestProbeReq);$awsManifestProbeRoundTrip=(($awsManifestProbe|ConvertTo-Json -Depth 8)|ConvertFrom-Json)
-if([string]$awsManifestProbeRoundTrip.version -ne '0.6.2' -or [int]$awsManifestProbeRoundTrip.api_min_minor -ne 9){throw 'AWS 0.6.2 semantic manifest migration regression failed.'}
-foreach($cap in @('host_api.v2.core','settings.typed.v2','worldgen.bindings.v2')){if(@($awsManifestProbeRoundTrip.requires|Where-Object{$_ -eq $cap}).Count -ne 1){throw ('AWS 0.6.2 semantic manifest capability regression failed: '+$cap)}}
+if([string]$awsManifestProbeRoundTrip.version -ne '0.6.3' -or [int]$awsManifestProbeRoundTrip.api_min_minor -ne 9){throw 'AWS 0.6.3 semantic manifest migration regression failed.'}
+foreach($cap in @('host_api.v2.core','settings.typed.v2','worldgen.bindings.v2')){if(@($awsManifestProbeRoundTrip.requires|Where-Object{$_ -eq $cap}).Count -ne 1){throw ('AWS 0.6.3 semantic manifest capability regression failed: '+$cap)}}
 
 $b=[IO.File]::ReadAllBytes((Join-Path $PackageRoot 'NCMM.cmd'));if($b.Length -ge 3 -and $b[0]-eq 0xEF -and $b[1]-eq 0xBB -and $b[2]-eq 0xBF){throw 'NCMM.cmd must not contain UTF-8 BOM.'}
 $cmdText=[IO.File]::ReadAllText((Join-Path $PackageRoot 'NCMM.cmd'))
