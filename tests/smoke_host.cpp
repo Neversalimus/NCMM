@@ -630,6 +630,446 @@ T symbol( void *lib, const char *name )
     return reinterpret_cast<T>( dlsym( lib, name ) );
 #endif
 }
+
+
+bool nearly_equal( double left, double right, double epsilon = 1.0e-8 )
+{
+    const double scale = std::max( 1.0, std::max( std::fabs( left ), std::fabs( right ) ) );
+    return std::fabs( left - right ) <= epsilon * scale;
+}
+
+uint32_t semantic_rng_next( uint32_t &state )
+{
+    state = state * 1664525u + 1013904223u;
+    return state;
+}
+
+bool aws_semantic_matrix()
+{
+    if( setting_meta.size() != 48 || worldgen_bindings.size() != 48 ||
+        worldgen_binding_count != 48 ) {
+        std::cerr << "AWS semantic coverage mismatch: settings=" << setting_meta.size()
+                  << " bindings=" << worldgen_bindings.size()
+                  << " calls=" << worldgen_binding_count << '\n';
+        return false;
+    }
+
+    for( const auto &entry : setting_meta ) {
+        const smoke_setting_meta &meta = entry.second;
+        if( meta.scope != NCMM_WORLD_SETTING_NEW_MAP ) {
+            std::cerr << "AWS setting has wrong scope: " << entry.first << '\n';
+            return false;
+        }
+        if( meta.kind == smoke_setting_kind::integer ||
+            meta.kind == smoke_setting_kind::floating ) {
+            if( meta.min_value > meta.max_value ||
+                meta.default_value < meta.min_value ||
+                meta.default_value > meta.max_value ) {
+                std::cerr << "AWS setting range/default invalid: " << entry.first << '\n';
+                return false;
+            }
+        }
+    }
+
+    for( const auto &entry : worldgen_bindings ) {
+        const auto setting = setting_meta.find( entry.second.setting_id );
+        if( setting == setting_meta.end() ) {
+            std::cerr << "AWS worldgen binding references unregistered setting: "
+                      << entry.first << " -> " << entry.second.setting_id << '\n';
+            return false;
+        }
+        const smoke_setting_kind kind = setting->second.kind;
+        const bool type_ok =
+            ( kind == smoke_setting_kind::boolean && entry.second.type == NCMM_WORLDGEN_BOOL_V2 ) ||
+            ( kind == smoke_setting_kind::integer && entry.second.type == NCMM_WORLDGEN_INT_V2 ) ||
+            ( kind == smoke_setting_kind::floating && entry.second.type == NCMM_WORLDGEN_FLOAT_V2 );
+        if( !type_ok ) {
+            std::cerr << "AWS worldgen binding type mismatch: " << entry.first << '\n';
+            return false;
+        }
+    }
+
+    // Defaults must already flow through the bound Host hook surface.
+    for( const auto &entry : worldgen_bindings ) {
+        const smoke_setting_meta &meta = setting_meta.at( entry.second.setting_id );
+        if( entry.second.type == NCMM_WORLDGEN_BOOL_V2 ) {
+            const int actual = worldgen_hook_bool_v2_fn( entry.first.c_str(), -9 );
+            if( actual != static_cast<int>( meta.default_value != 0.0 ) ) {
+                std::cerr << "AWS default bool binding mismatch: " << entry.first << '\n';
+                return false;
+            }
+        } else if( entry.second.type == NCMM_WORLDGEN_INT_V2 ) {
+            const int64_t actual = worldgen_hook_i64_v2_fn( entry.first.c_str(), -999999 );
+            if( actual != static_cast<int64_t>( meta.default_value ) ) {
+                std::cerr << "AWS default int binding mismatch: " << entry.first << '\n';
+                return false;
+            }
+        } else if( entry.second.type == NCMM_WORLDGEN_FLOAT_V2 ) {
+            const double actual = worldgen_hook_f64_v2_fn( entry.first.c_str(), -999999.0 );
+            if( !nearly_equal( actual, meta.default_value ) ) {
+                std::cerr << "AWS default float binding mismatch: " << entry.first << '\n';
+                return false;
+            }
+        }
+    }
+
+    // Deterministic property-style coverage.  The seed is stable so failures are
+    // reproducible, while each case exercises a different valid world-setting set.
+    uint32_t rng = 0xA7C0FFEEu;
+    constexpr int random_cases = 32;
+    for( int case_index = 0; case_index < random_cases; ++case_index ) {
+        for( const auto &entry : setting_meta ) {
+            const std::string &id = entry.first;
+            const smoke_setting_meta &meta = entry.second;
+            if( meta.kind == smoke_setting_kind::boolean ) {
+                setting_i64_values[id] = static_cast<int64_t>( semantic_rng_next( rng ) & 1u );
+            } else if( meta.kind == smoke_setting_kind::integer ) {
+                const int64_t lo = static_cast<int64_t>( meta.min_value );
+                const int64_t hi = static_cast<int64_t>( meta.max_value );
+                const uint64_t span = static_cast<uint64_t>( hi - lo ) + 1u;
+                setting_i64_values[id] = lo + static_cast<int64_t>(
+                                             static_cast<uint64_t>( semantic_rng_next( rng ) ) % span );
+            } else if( meta.kind == smoke_setting_kind::floating ) {
+                const double steps_raw = ( meta.max_value - meta.min_value ) / meta.step;
+                const uint32_t steps = static_cast<uint32_t>( std::floor( steps_raw + 1.0e-9 ) );
+                const uint32_t pick = steps == 0 ? 0 : semantic_rng_next( rng ) % ( steps + 1u );
+                setting_f64_values[id] = std::min( meta.max_value,
+                                                  meta.min_value + meta.step * pick );
+            } else if( meta.kind == smoke_setting_kind::enumeration && !meta.choices.empty() ) {
+                const size_t pick = semantic_rng_next( rng ) % meta.choices.size();
+                setting_string_values[id] = meta.choices[pick];
+            }
+        }
+
+        // Keep related minimum/maximum controls semantically valid as a pair.
+        auto flood_min = setting_i64_values.find( "NCMM_AWS_FLOODPLAIN_MIN" );
+        auto flood_max = setting_i64_values.find( "NCMM_AWS_FLOODPLAIN_MAX" );
+        if( flood_min != setting_i64_values.end() && flood_max != setting_i64_values.end() &&
+            flood_min->second > flood_max->second ) {
+            std::swap( flood_min->second, flood_max->second );
+        }
+
+        for( const auto &entry : worldgen_bindings ) {
+            const std::string &hook = entry.first;
+            const std::string &setting_id = entry.second.setting_id;
+            if( entry.second.type == NCMM_WORLDGEN_BOOL_V2 ) {
+                const int expected = setting_i64_values.at( setting_id ) != 0 ? 1 : 0;
+                if( worldgen_hook_bool_v2_fn( hook.c_str(), -9 ) != expected ) {
+                    std::cerr << "AWS randomized bool mismatch case=" << case_index
+                              << " hook=" << hook << '\n';
+                    return false;
+                }
+            } else if( entry.second.type == NCMM_WORLDGEN_INT_V2 ) {
+                const int64_t expected = setting_i64_values.at( setting_id );
+                if( worldgen_hook_i64_v2_fn( hook.c_str(), -999999 ) != expected ) {
+                    std::cerr << "AWS randomized int mismatch case=" << case_index
+                              << " hook=" << hook << '\n';
+                    return false;
+                }
+            } else if( entry.second.type == NCMM_WORLDGEN_FLOAT_V2 ) {
+                const double expected = setting_f64_values.at( setting_id );
+                if( !nearly_equal( worldgen_hook_f64_v2_fn( hook.c_str(), -999999.0 ), expected ) ) {
+                    std::cerr << "AWS randomized float mismatch case=" << case_index
+                              << " hook=" << hook << '\n';
+                    return false;
+                }
+            }
+        }
+    }
+
+    std::cout << "AWS semantic matrix: PASS (48/48 typed geography bindings, 32 deterministic randomized cases)\n";
+    return true;
+}
+
+using sp_test_count_fn = size_t (*)();
+using sp_test_id_fn = const char *(*)( size_t );
+using sp_test_int_index_fn = int (*)( size_t );
+using sp_test_double_index_fn = double (*)( size_t );
+using sp_test_rank_multiplier_fn = double (*)( size_t, int );
+using sp_test_effect_id_fn = const char *(*)( size_t, int );
+using sp_test_effect_value_fn = double (*)( size_t, int );
+using sp_test_reset_fn = int (*)();
+using sp_test_set_rank_fn = int (*)( size_t, int );
+using sp_test_recalculate_fn = int (*)();
+using sp_test_current_xp_fn = int (*)();
+using sp_test_dispatch_event_fn = void (*)( uint32_t );
+
+double survivor_modifier_value( const std::string &id )
+{
+    const auto it = modifiers.find( std::string( "survivor_progression:" ) + id );
+    return it == modifiers.end() ? 0.0 : it->second;
+}
+
+bool survivor_modifiers_empty()
+{
+    const std::string prefix = "survivor_progression:";
+    for( const auto &entry : modifiers ) {
+        if( entry.first.rfind( prefix, 0 ) == 0 && !nearly_equal( entry.second, 0.0 ) ) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool survivor_semantic_matrix( void *lib )
+{
+    const auto count = symbol<sp_test_count_fn>( lib, "ncmm_test_perk_count_v1" );
+    const auto perk_id = symbol<sp_test_id_fn>( lib, "ncmm_test_perk_id_v1" );
+    const auto branch = symbol<sp_test_int_index_fn>( lib, "ncmm_test_perk_branch_v1" );
+    const auto currency = symbol<sp_test_int_index_fn>( lib, "ncmm_test_perk_currency_v1" );
+    const auto kind = symbol<sp_test_int_index_fn>( lib, "ncmm_test_perk_kind_v1" );
+    const auto scaling = symbol<sp_test_int_index_fn>( lib, "ncmm_test_perk_scaling_v1" );
+    const auto integration = symbol<sp_test_int_index_fn>( lib, "ncmm_test_perk_integration_v1" );
+    const auto max_rank = symbol<sp_test_int_index_fn>( lib, "ncmm_test_perk_max_rank_v1" );
+    const auto rank_multiplier = symbol<sp_test_rank_multiplier_fn>(
+                                     lib, "ncmm_test_perk_rank_multiplier_v1" );
+    const auto effect_count = symbol<sp_test_int_index_fn>( lib, "ncmm_test_perk_effect_count_v1" );
+    const auto effect_id = symbol<sp_test_effect_id_fn>( lib, "ncmm_test_perk_effect_id_v1" );
+    const auto effect_value = symbol<sp_test_effect_value_fn>( lib, "ncmm_test_perk_effect_value_v1" );
+    const auto xp_bonus = symbol<sp_test_int_index_fn>( lib, "ncmm_test_perk_xp_bonus_v1" );
+    const auto branch_amp = symbol<sp_test_double_index_fn>( lib, "ncmm_test_perk_branch_amp_v1" );
+    const auto global_amp = symbol<sp_test_double_index_fn>( lib, "ncmm_test_perk_global_amp_v1" );
+    const auto reset = symbol<sp_test_reset_fn>( lib, "ncmm_test_reset_all_perks_v1" );
+    const auto set_rank = symbol<sp_test_set_rank_fn>( lib, "ncmm_test_set_perk_rank_v1" );
+    const auto recalculate = symbol<sp_test_recalculate_fn>( lib, "ncmm_test_recalculate_v1" );
+    const auto current_xp = symbol<sp_test_current_xp_fn>( lib, "ncmm_test_current_xp_bonus_v1" );
+    const auto dispatch_event = symbol<sp_test_dispatch_event_fn>(
+                                    lib, "ncmm_test_dispatch_event_v1" );
+
+    if( !count || !perk_id || !branch || !currency || !kind || !scaling || !integration ||
+        !max_rank || !rank_multiplier || !effect_count || !effect_id || !effect_value ||
+        !xp_bonus || !branch_amp || !global_amp || !reset || !set_rank || !recalculate ||
+        !current_xp || !dispatch_event ) {
+        std::cerr << "Survivor semantic diagnostic export missing\n";
+        return false;
+    }
+
+    const size_t perk_count = count();
+    if( perk_count != 369 ) {
+        std::cerr << "Survivor perk catalog count changed unexpectedly: " << perk_count << '\n';
+        return false;
+    }
+
+    active_world_mods = {
+        "magiclysm", "mindovermatter", "xedra_evolved", "aftershock_exoplanet",
+        "aftershock_prime", "secronom", "secronom_lore_expansion"
+    };
+
+    std::map<std::string, size_t> index;
+    std::set<std::string> unique_ids;
+    for( size_t i = 0; i < perk_count; ++i ) {
+        const char *raw = perk_id( i );
+        if( raw == nullptr || *raw == '\0' || !unique_ids.insert( raw ).second ) {
+            std::cerr << "Survivor perk id is empty or duplicated at index " << i << '\n';
+            return false;
+        }
+        index[raw] = i;
+        if( branch( i ) < 0 || branch( i ) > 5 || currency( i ) < 0 || currency( i ) > 1 ||
+            kind( i ) < 0 || kind( i ) > 1 || scaling( i ) < 0 || scaling( i ) > 2 ||
+            max_rank( i ) < 1 || effect_count( i ) < 0 || effect_count( i ) > 4 ) {
+            std::cerr << "Survivor perk metadata invalid: " << raw << '\n';
+            return false;
+        }
+        for( int e = 0; e < effect_count( i ); ++e ) {
+            const char *eid = effect_id( i, e );
+            if( eid == nullptr || *eid == '\0' || nearly_equal( effect_value( i, e ), 0.0 ) ) {
+                std::cerr << "Survivor perk has invalid declared effect: " << raw << '\n';
+                return false;
+            }
+        }
+    }
+
+    const auto find_index = [&]( const char *id ) -> size_t {
+        const auto it = index.find( id );
+        return it == index.end() ? perk_count : it->second;
+    };
+    const size_t c_power = find_index( "c_power" );
+    const size_t c_veteran = find_index( "c_veteran" );
+    const size_t s_survivor = find_index( "s_survivor" );
+    const size_t predator = find_index( "cr_predator_momentum" );
+    const size_t relentless = find_index( "cr_relentless_momentum" );
+    const size_t momentum_engine = find_index( "ar_momentum_engine" );
+    if( c_power >= perk_count || c_veteran >= perk_count || s_survivor >= perk_count ||
+        predator >= perk_count || relentless >= perk_count || momentum_engine >= perk_count ) {
+        std::cerr << "Survivor semantic fixtures are missing from catalog\n";
+        return false;
+    }
+
+    size_t direct_cases = 0;
+    size_t amplifier_cases = 0;
+    size_t special_cases = 0;
+    const std::set<std::string> special_ids = {
+        "cr_predator_momentum", "ar_momentum_engine"
+    };
+
+    for( size_t i = 0; i < perk_count; ++i ) {
+        const std::string id = perk_id( i );
+        const int effects = effect_count( i );
+        const int xp = xp_bonus( i );
+        const double b_amp = branch_amp( i );
+        const double g_amp = global_amp( i );
+        const bool direct = effects > 0 || xp != 0;
+        const bool amplifier = !nearly_equal( b_amp, 0.0 ) || !nearly_equal( g_amp, 0.0 );
+        const bool special = special_ids.count( id ) != 0;
+
+        if( !direct && !amplifier && !special ) {
+            std::cerr << "Survivor perk has no covered semantic path: " << id << '\n';
+            return false;
+        }
+
+        if( direct ) {
+            ++direct_cases;
+            for( int rank = 1; rank <= max_rank( i ); ++rank ) {
+                if( !reset() ) return false;
+
+                double scale_count = 1.0;
+                if( scaling( i ) == 1 ) {
+                    if( integration( i ) != 0 ) {
+                        if( !set_rank( c_power, 1 ) ) return false;
+                    }
+                    scale_count = 1.0;
+                } else if( scaling( i ) == 2 ) {
+                    const size_t reference_major = id == "c_veteran" ? s_survivor : c_veteran;
+                    if( !set_rank( reference_major, 1 ) ) return false;
+                    scale_count = currency( i ) == 1 ? 2.0 : 1.0;
+                }
+
+                std::map<std::string, double> baseline_modifiers = modifiers;
+                const int baseline_xp = current_xp();
+                if( !set_rank( i, rank ) || !recalculate() ) {
+                    std::cerr << "Survivor could not activate/recalculate perk: " << id
+                              << " rank=" << rank << '\n';
+                    return false;
+                }
+
+                const double rank_scale = rank_multiplier( i, rank );
+                const double expected_scale = rank_scale * scale_count;
+                for( int e = 0; e < effects; ++e ) {
+                    const std::string eid = effect_id( i, e );
+                    const std::string key = std::string( "survivor_progression:" ) + eid;
+                    const auto before_it = baseline_modifiers.find( key );
+                    const double before = before_it == baseline_modifiers.end() ? 0.0 : before_it->second;
+                    const double actual_delta = survivor_modifier_value( eid ) - before;
+                    const double expected_delta = effect_value( i, e ) * expected_scale;
+                    if( !nearly_equal( actual_delta, expected_delta, 1.0e-7 ) ) {
+                        std::cerr << "Survivor effect mismatch perk=" << id << " rank=" << rank
+                                  << " effect=" << eid << " expected_delta=" << expected_delta
+                                  << " actual_delta=" << actual_delta << '\n';
+                        return false;
+                    }
+                }
+
+                const int expected_xp_delta = static_cast<int>(
+                                                  std::llround( xp * expected_scale ) );
+                if( current_xp() - baseline_xp != expected_xp_delta ) {
+                    std::cerr << "Survivor XP effect mismatch perk=" << id << " rank=" << rank
+                              << " expected_delta=" << expected_xp_delta
+                              << " actual_delta=" << ( current_xp() - baseline_xp ) << '\n';
+                    return false;
+                }
+
+                if( !reset() || !survivor_modifiers_empty() || current_xp() != 0 ) {
+                    std::cerr << "Survivor perk cleanup failed after " << id << '\n';
+                    return false;
+                }
+            }
+        }
+
+        if( amplifier ) {
+            ++amplifier_cases;
+            if( !reset() ) return false;
+            const char *reference_ids[] = {
+                "c_power", "s_hardy", "m_light", "f_hands", "g_observer", "a_focus"
+            };
+            const int ref_branch = std::max( 0, std::min( 5, branch( i ) ) );
+            const size_t reference = find_index( reference_ids[ref_branch] );
+            if( reference >= perk_count || effect_count( reference ) <= 0 ) {
+                std::cerr << "Survivor amplifier reference missing for " << id << '\n';
+                return false;
+            }
+            if( !set_rank( reference, 1 ) ) return false;
+            const std::string ref_effect = effect_id( reference, 0 );
+            const double baseline = survivor_modifier_value( ref_effect );
+            if( nearly_equal( baseline, 0.0 ) ) {
+                std::cerr << "Survivor amplifier baseline is zero for " << id << '\n';
+                return false;
+            }
+
+            const int amp_rank = max_rank( i );
+            if( !set_rank( i, amp_rank ) ) return false;
+            const double amp_scale = rank_multiplier( i, amp_rank );
+            const double expected_factor = ( 1.0 + g_amp * amp_scale / 100.0 ) *
+                                           ( 1.0 + b_amp * amp_scale / 100.0 );
+            const double expected = baseline * expected_factor;
+            const double actual = survivor_modifier_value( ref_effect );
+            if( !nearly_equal( actual, expected, 1.0e-7 ) ) {
+                std::cerr << "Survivor amplifier mismatch perk=" << id
+                          << " expected=" << expected << " actual=" << actual << '\n';
+                return false;
+            }
+            if( !reset() || !survivor_modifiers_empty() ) {
+                std::cerr << "Survivor amplifier cleanup failed after " << id << '\n';
+                return false;
+            }
+        }
+
+        if( special ) {
+            ++special_cases;
+        }
+    }
+
+    // Stateful event mechanic: Predator Momentum must cap, apply, expire, and
+    // interact with both Relentless Momentum and Unbroken Momentum.
+    if( !reset() || !set_rank( predator, 1 ) ) return false;
+    for( int i = 0; i < 5; ++i ) dispatch_event( NCMM_EVENT_PLAYER_KILL_V2 );
+    const std::string prefix = "survivor_progression:";
+    if( character_state[prefix + "momentum_stacks"] != 3 ||
+        character_state[prefix + "momentum_turns"] != 12 ||
+        !nearly_equal( survivor_modifier_value( "sp_damage_dealt_pct" ), 9.0 ) ||
+        !nearly_equal( survivor_modifier_value( "speed_pct" ), 3.0 ) ) {
+        std::cerr << "Survivor Predator Momentum base behavior failed\n";
+        return false;
+    }
+    for( int i = 0; i < 12; ++i ) dispatch_event( NCMM_EVENT_TURN_V2 );
+    if( character_state[prefix + "momentum_stacks"] != 0 ||
+        character_state[prefix + "momentum_turns"] != 0 ||
+        !nearly_equal( survivor_modifier_value( "sp_damage_dealt_pct" ), 0.0 ) ||
+        !nearly_equal( survivor_modifier_value( "speed_pct" ), 0.0 ) ) {
+        std::cerr << "Survivor Predator Momentum expiry failed\n";
+        return false;
+    }
+
+    if( !reset() || !set_rank( predator, 1 ) || !set_rank( relentless, 1 ) ) return false;
+    for( int i = 0; i < 8; ++i ) dispatch_event( NCMM_EVENT_PLAYER_KILL_V2 );
+    if( character_state[prefix + "momentum_stacks"] != 5 ||
+        character_state[prefix + "momentum_turns"] != 20 ||
+        !nearly_equal( survivor_modifier_value( "sp_damage_dealt_pct" ), 15.0 ) ||
+        !nearly_equal( survivor_modifier_value( "speed_pct" ), 5.0 ) ) {
+        std::cerr << "Survivor Relentless Momentum interaction failed\n";
+        return false;
+    }
+
+    if( !reset() || !set_rank( predator, 1 ) || !set_rank( momentum_engine, 1 ) ) return false;
+    for( int i = 0; i < 8; ++i ) dispatch_event( NCMM_EVENT_PLAYER_KILL_V2 );
+    if( character_state[prefix + "momentum_stacks"] != 5 ||
+        character_state[prefix + "momentum_turns"] != 12 ||
+        !nearly_equal( survivor_modifier_value( "sp_damage_dealt_pct" ), 20.0 ) ||
+        !nearly_equal( survivor_modifier_value( "speed_pct" ), 10.0 ) ) {
+        std::cerr << "Survivor Unbroken Momentum interaction failed\n";
+        return false;
+    }
+
+    if( !reset() || !survivor_modifiers_empty() || current_xp() != 0 ) {
+        std::cerr << "Survivor final semantic cleanup failed\n";
+        return false;
+    }
+
+    std::cout << "Survivor semantic matrix: PASS (" << perk_count
+              << "/369 perks covered; direct=" << direct_cases
+              << ", amplifiers=" << amplifier_cases
+              << ", stateful=" << special_cases << ")\n";
+    return true;
+}
 }
 
 int main( int argc, char **argv )
