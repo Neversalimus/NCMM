@@ -2674,7 +2674,6 @@ void respec()
     set_state( "respec_available", 0 );
     effects_dirty = true;
     recalculate_effects();
-
     message( tr( "Survivor recalibration complete. Refunded: ",
                  "Рекалибровка Survivor завершена. Возвращено: " ) +
              std::to_string( refund_perk ) + "P / " + std::to_string( refund_major ) + "M" );
