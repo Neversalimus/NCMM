@@ -12,6 +12,7 @@
 #include "input_context.h"
 #include "options.h"
 #include "output.h"
+#include "sounds.h"
 #include "system_locale.h"
 #include "uilist.h"
 #include "ui_manager.h"
@@ -1064,6 +1065,7 @@ int ui_tile_choose( const char *title, const char *const *labels,
     while( true ) {
         ui_manager::redraw();
         const std::string action = ctxt.handle_input();
+        const int previous_selected = selected;
         const int col = selected % columns;
         const int row = selected / columns;
 
@@ -1088,6 +1090,9 @@ int ui_tile_choose( const char *title, const char *const *labels,
             return selected;
         } else if( action == "QUIT" ) {
             return -1;
+        }
+        if( selected != previous_selected ) {
+            sfx::play_variant_sound( "menu_move", "default", 100 );
         }
     }
 }
@@ -1386,6 +1391,7 @@ int ui_card_choose( const char *title, const char *summary,
         keep_visible();
         ui_manager::redraw();
         const std::string action = ctxt.handle_input();
+        const int previous_selected = selected;
 
         if( action == "MOUSE_MOVE" || action == "SELECT" ) {
             const std::optional<point> mouse = ctxt.get_coordinates_text( frame );
@@ -1393,6 +1399,9 @@ int ui_card_choose( const char *title, const char *summary,
                 const int hit = card_at( *mouse );
                 if( hit >= 0 ) {
                     selected = hit;
+                    if( selected != previous_selected ) {
+                        sfx::play_variant_sound( "menu_move", "default", 100 );
+                    }
                     if( action == "SELECT" ) {
                         return selected;
                     }
@@ -1428,6 +1437,9 @@ int ui_card_choose( const char *title, const char *summary,
             return selected;
         } else if( action == "QUIT" ) {
             return -1;
+        }
+        if( selected != previous_selected ) {
+            sfx::play_variant_sound( "menu_move", "default", 100 );
         }
     }
 }
@@ -2139,6 +2151,7 @@ int ui_tree_choose( const char *title, const char *summary,
         keep_visible();
         ui_manager::redraw();
         const std::string action = ctxt.handle_input();
+        const int previous_selected = selected;
 
         if( action == "MOUSE_MOVE" || action == "SELECT" ) {
             const std::optional<point> mouse = ctxt.get_coordinates_text( frame );
@@ -2146,6 +2159,9 @@ int ui_tree_choose( const char *title, const char *summary,
                 const int hit = node_at( *mouse );
                 if( hit >= 0 ) {
                     selected = hit;
+                    if( selected != previous_selected ) {
+                        sfx::play_variant_sound( "menu_move", "default", 100 );
+                    }
                     if( action == "SELECT" ) return selected;
                 }
             }
@@ -2165,6 +2181,10 @@ int ui_tree_choose( const char *title, const char *summary,
         else if( action == "NEXT_TAB" ) return NCMM_UI_TREE_SHOW_CARDS;
         else if( action == "CONFIRM" ) return selected;
         else if( action == "QUIT" ) return NCMM_UI_TREE_CANCEL;
+
+        if( selected != previous_selected ) {
+            sfx::play_variant_sound( "menu_move", "default", 100 );
+        }
     }
 }
 
@@ -3368,6 +3388,11 @@ double gameplay_modifier( const char *modifier_id )
 std::string settings_menu_label()
 {
     return tr_ui( "<N|n>CMM / Mod Configuration", "<N|n>CMM / Настройка модов" );
+}
+
+std::string version_label()
+{
+    return std::string( "NCMM " ) + get_host_version();
 }
 
 void register_gameplay_actions( input_context &ctxt )
