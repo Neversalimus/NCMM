@@ -15576,6 +15576,14 @@ bool manager_adjust_setting( const module_setting_meta &setting, int direction )
     return false;
 }
 
+bool manager_persist_settings()
+{
+    if( world_generator != nullptr && world_generator->active_world != nullptr ) {
+        return world_generator->active_world->save();
+    }
+    return get_options().save();
+}
+
 bool manager_open_module_ui( const manager_entry &entry )
 {
     loaded_mod *runtime = find_loaded_mutable( entry.directory );
@@ -15629,9 +15637,23 @@ void manager_toggle_module( const manager_entry &entry )
 void show_manager()
 {
     write_diagnostics_summary();
+    bool settings_dirty = false;
+    const auto persist_settings = [&]() {
+        if( !settings_dirty ) {
+            return true;
+        }
+        if( manager_persist_settings() ) {
+            settings_dirty = false;
+            return true;
+        }
+        popup( tr_ui( "Could not save NCMM settings.",
+                      "Не удалось сохранить настройки NCMM." ) );
+        return false;
+    };
     while( true ) {
         const std::vector<manager_entry> entries = manager_entries();
         if( entries.empty() ) {
+            persist_settings();
             popup( tr_ui( "No NCMM mods are installed.", "Моды NCMM не установлены." ) );
             return;
         }
@@ -15645,7 +15667,12 @@ void show_manager()
                                entries[i].name + "  " + entries[i].version );
             }
             menu.query();
-            if( menu.ret < 0 || menu.ret >= static_cast<int>( entries.size() ) ) return;
+            if( menu.ret < 0 || menu.ret >= static_cast<int>( entries.size() ) ) {
+                if( persist_settings() ) {
+                    return;
+                }
+                continue;
+            }
             const manager_entry &entry = entries[menu.ret];
             loaded_mod *runtime = find_loaded_mutable( entry.directory );
             uilist action;
@@ -15813,7 +15840,12 @@ void show_manager()
             ui_manager::redraw();
             const std::string action = ctxt.handle_input();
 
-            if( action == "QUIT" ) return;
+            if( action == "QUIT" ) {
+                if( persist_settings() ) {
+                    return;
+                }
+                continue;
+            }
             if( action == "NEXT_TAB" || ( focus == 0 && action == "RIGHT" ) ||
                 ( focus == 1 && action == "LEFT" && settings.empty() ) ) {
                 focus = 1 - focus;
@@ -15846,9 +15878,13 @@ void show_manager()
 
             if( selected_detail < static_cast<int>( settings.size() ) ) {
                 if( action == "LEFT" ) {
-                    manager_adjust_setting( *settings[static_cast<size_t>( selected_detail )], -1 );
+                    settings_dirty = manager_adjust_setting(
+                                         *settings[static_cast<size_t>( selected_detail )], -1 ) ||
+                                     settings_dirty;
                 } else if( action == "RIGHT" || action == "CONFIRM" ) {
-                    manager_adjust_setting( *settings[static_cast<size_t>( selected_detail )], 1 );
+                    settings_dirty = manager_adjust_setting(
+                                         *settings[static_cast<size_t>( selected_detail )], 1 ) ||
+                                     settings_dirty;
                 }
                 continue;
             }

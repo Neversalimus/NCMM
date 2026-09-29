@@ -235,6 +235,7 @@ foreach($n in @(
     'Apply-NcmmManagerUiV1Source',
     'module_setting_meta',
     'manager_adjust_setting',
+    'manager_persist_settings',
     'NCMM_MANAGER',
     'MODULE DETAILS'
 )){if(-not $payload.Contains($n)){throw ('NCMM manager/settings payload contract missing: '+$n)}}
