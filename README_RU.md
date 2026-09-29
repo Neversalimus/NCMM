@@ -45,6 +45,10 @@ Git, Visual Studio, CMake и MSYS2 игроку не нужны. Если для
 
 Отдельный bootstrap lifecycle harness проверяет выбор certified Host, несовместимые bindings, первый и второй нормальный запуск, crash/auto-disable, reset/recovery и fail-closed при ошибках crash-loop markers. Ошибка любой из этих проверок блокирует публикацию Runtime. Дополнительный nightly/manual **Real Installation Matrix** скачивает официальный Windows-релиз CDDA и прогоняет тот же production SetupCore и переключение Survivor/AWS уже по реальному распакованному дереву игры, после чего проверяет восстановление исходного vanilla exe.
 
+Семантика модулей тоже является release-gate. AWS обязан зарегистрировать все 48 типизированных geography-настроек с соответствующими worldgen bindings, корректными min/max/default, точными граничными значениями и 32 детерминированными случайными наборами. Survivor Progression проходит все 369 перков прямо из release DLL: проверяет прямые эффекты, усилители, неактивность интеграций без нужного мода, 106 реально потребляемых effect ID, cleanup/respec, совместный расчёт всех перков на максимальном ранге и 24 детерминированные смешанные комбинации.
+
+Real-CDDA слой затем создаёт три детерминированных случайных мира AWS, сохраняет и заново загружает все world options с диска, генерирует настоящий overmap, создаёт настоящего avatar и проверяет репрезентативные эффекты Survivor через реальные методы CDDA Character (основные статы, speed, stamina, dodge, melee hit и move cost), после чего требует полного возврата к baseline.
+
 ## Совместимость и безопасность
 
 NCMM не определяет совместимость по имени папки или версии лаунчера. Runtime сверяет SHA-256 vanilla exe, source commit CDDA, Loader API, версию NCMM и patch revision Host с certified feed. Host публикуется только после source-contract preflight и Windows/MSVC-сертификации конкретного upstream release.
