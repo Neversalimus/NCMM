@@ -16236,6 +16236,21 @@ void shutdown()
     last_stat_power_pct = -1;
 }
 '@ 'Survivor settings registration lifecycle'
+    if(-not $spUi.Contains('extern "C" NCMM_EXPORT void ncmm_on_locale_changed_v1')){
+        $localeAnchor = 'extern "C" NCMM_EXPORT void ncmm_on_turn_v1( const ncmm_host_api_v1 *api )'
+        $localeHandler = @'
+extern "C" NCMM_EXPORT void ncmm_on_locale_changed_v1( const ncmm_host_api_v1 *api )
+{
+    if( api != nullptr ) {
+        host = api;
+    }
+    configure_progression_settings();
+}
+
+'@
+        if(-not $spUi.Contains($localeAnchor)){throw 'Survivor locale settings refresh anchor missing.'}
+        $spUi = $spUi.Replace($localeAnchor,$localeHandler + $localeAnchor)
+    }
     $spUi = $spUi.Replace('0.11.3','0.12.0')
     foreach($settingNeedle in @('NCMM_SP_XP_RATE','NCMM_SP_STAT_POWER','configure_progression_settings','progression_xp_rate_pct','progression_stat_power_pct','settings.typed.v2','Survivor Progression v0.12.0')){
         if(-not $spUi.Contains($settingNeedle)){throw "Survivor settings generated source missing: $settingNeedle"}
