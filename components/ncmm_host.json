@@ -25,6 +25,7 @@
     "events.core.v2",
     "settings.typed.v2",
     "character.modifiers.v2",
+    "runtime_settings.bindings.v2",
     "runtime_hooks.registry.v2",
     "worldgen.bindings.v2",
     "module.lifecycle.query.v2"
