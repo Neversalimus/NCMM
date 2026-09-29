@@ -94,8 +94,10 @@ jobs:
           if [ -n "${REQUESTED_TAG:-}" ]; then
             tags=$(printf '%s\n' "$REQUESTED_TAG")
           else
+            # A release tag can appear before the Windows binaries finish uploading.
+            # Defer those tags instead of turning an incomplete upstream release into a false NCMM failure.
             gh api 'repos/CleverRaven/Cataclysm-DDA/releases?per_page=40' \
-              --jq '.[] | select(.tag_name | startswith("cdda-experimental-")) | .tag_name' > /tmp/upstream_tags.txt
+              --jq '.[] | select(.tag_name | startswith("cdda-experimental-")) | select(any(.assets[]?; (.name | startswith("cdda-windows-with-graphics-x64-")) or (.name | startswith("cdda-windows-with-graphics-and-sounds-x64-")))) | .tag_name' > /tmp/upstream_tags.txt
 
             cat ci/seed-hosts.txt /tmp/upstream_tags.txt 2>/dev/null | awk 'NF && !seen[$0]++' > /tmp/candidates.txt
 
