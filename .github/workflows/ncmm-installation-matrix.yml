@@ -25,7 +25,7 @@ concurrency:
 jobs:
   real-install-smoke:
     runs-on: windows-2022
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -136,6 +136,35 @@ jobs:
             throw 'Second real runtime smoke was misclassified as a crash.'
           }
 
+      - name: Run AWS + Survivor real gameplay matrix
+        shell: powershell
+        timeout-minutes: 12
+        run: |
+          $root = '${{ steps.game.outputs.root }}'
+          $exe = Join-Path $root 'cataclysm-tiles.exe'
+          $ncmm = Join-Path $root 'ncmm'
+          $seeds = @('NCMM-AWS-REAL-A','NCMM-AWS-REAL-B','NCMM-AWS-REAL-C')
+          foreach ($seed in $seeds) {
+            Write-Host "Real module gameplay smoke seed: $seed"
+            & $exe --ncmm-runtime-smoke-gameplay --ncmm-offline --seed $seed
+            if ($LASTEXITCODE -ne 0) {
+              throw "Real module gameplay smoke failed for seed $seed with exit $LASTEXITCODE."
+            }
+            if (Test-Path (Join-Path $ncmm 'boot.pending')) {
+              throw "Gameplay smoke $seed left boot.pending."
+            }
+            if (-not (Test-Path (Join-Path $ncmm 'boot.ready'))) {
+              throw "Gameplay smoke $seed did not publish boot.ready."
+            }
+            if (Test-Path (Join-Path $ncmm 'ncmm.auto_disabled')) {
+              throw "Gameplay smoke $seed unexpectedly auto-disabled NCMM."
+            }
+          }
+          $evidence = @(Get-ChildItem $ncmm -Filter 'module-gameplay-smoke-*.json' -File)
+          if ($evidence.Count -ne $seeds.Count) {
+            throw "Expected $($seeds.Count) gameplay evidence files, found $($evidence.Count)."
+          }
+
       - name: Verify certified Host + modules and restore vanilla
         shell: powershell
         run: |
@@ -170,10 +199,13 @@ jobs:
             $path = Join-Path $root ('ncmm\' + $name)
             if (Test-Path $path -PathType Leaf) { Copy-Item $path (Join-Path $evidence $name) -Force }
           }
+          Get-ChildItem (Join-Path $root 'ncmm') -Filter 'module-gameplay-smoke-*.json' -File -ErrorAction SilentlyContinue |
+            ForEach-Object { Copy-Item $_.FullName (Join-Path $evidence $_.Name) -Force }
           "## NCMM real runtime smoke" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- CDDA: ${{ steps.release.outputs.tag }}" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- production SetupCore: install / module switch / reinstall" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- bootstrap -> certified Host -> AWS + Survivor -> boot.ready -> clean exit: two consecutive real launches" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "- gameplay: 3 deterministic randomized AWS worlds + real overmap generation + 9 real Survivor Character checks per world" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- RestoreVanilla: verified by SHA-256" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       - name: Upload evidence
