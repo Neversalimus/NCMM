@@ -236,6 +236,6 @@ foreach($n in @(
     'module_setting_meta',
     'manager_adjust_setting',
     'NCMM_MANAGER',
-    'MODULE DETAILS',
+    'MODULE DETAILS'
 )){if(-not $payload.Contains($n)){throw ('NCMM manager/settings payload contract missing: '+$n)}}
 Write-Host 'NCMM Host/AWS payload regression contract: PASS' -ForegroundColor Green

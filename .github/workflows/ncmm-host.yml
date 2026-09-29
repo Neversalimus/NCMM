@@ -163,7 +163,7 @@ jobs:
       - name: Validate NCMM build version consistency
         shell: pwsh
         run: |
-          ./ncmmrepo/ci/Test-VersionConsistency.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE/ncmmrepo" -LegacyFeedVersion '0.7.1'
+          ./ncmmrepo/ci/Test-VersionConsistency.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE/ncmmrepo" -LegacyFeedVersion '0.8.0'
 
       - name: Resolve exact CDDA source commit
         id: source
