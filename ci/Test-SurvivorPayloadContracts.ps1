@@ -4,7 +4,7 @@ $PackageRoot=(Resolve-Path $PackageRoot).Path
 $payload=[IO.File]::ReadAllText((Join-Path $PackageRoot 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1'))
 
 # Survivor Progression 0.10.0 Mechanical Perks regression contracts.
-# Historical gameplay/content contracts stay pinned here; build-cache marker/fingerprint are version-current and are checked by the 0.11.3 block below.
+# Historical gameplay/content contracts stay pinned here; build-cache marker/fingerprint are version-current and are checked by the 0.12.0 block below.
 $survivor0100=Get-Content (Join-Path $PackageRoot 'components\survivor_progression.json') -Raw|ConvertFrom-Json
 if([string]$survivor0100.version -ne '0.12.0'){throw 'Survivor 0.12.0 component identity mismatch.'}
 $contracts0100=Get-Content (Join-Path $PackageRoot 'compat\contracts.json') -Raw|ConvertFrom-Json
@@ -63,8 +63,8 @@ foreach($reactiveNeedle0110 in @(
     'Survivor Progression 0.11.1 Reactive Mechanics Polish: READY',
     'Survivor Progression 0.11.2 Reactive Edge-Case Polish: READY',
     'Survivor Progression 0.11.3 Combinatorial Edge Polish: READY',
-    '.survivor_0113_combo_edge_build.sha256',
-    'v8.7.6.8-survivor-0.11.3-combinatorial-edge-api2',
+    '.survivor_0120_manager_settings_build.sha256',
+    'v8.7.6.8-survivor-0.12.0-manager-settings',
     '.ncmm_reactive_mechanics_0112',
     '.ncmm_reactive_mechanics_0113',
     'NCMM_EVENT_PLAYER_KILL_V2 = 6u',
