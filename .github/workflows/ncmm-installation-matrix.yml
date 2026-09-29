@@ -128,6 +128,7 @@ jobs:
           Write-Host "Official CDDA extracted to: $root"
 
       - name: Run production SetupCore on official CDDA
+        id: setup_core
         shell: powershell
         run: |
           ./ci/Test-InstallationMatrix.ps1 `
@@ -190,6 +191,7 @@ jobs:
           throw "Certified Host feed is not ready for vanilla SHA $vanillaSha."
 
       - name: Launch certified Host twice through installed bootstrap
+        id: runtime_smoke
         if: steps.host_ready.outputs.ready == 'true'
         shell: powershell
         timeout-minutes: 8
@@ -228,6 +230,7 @@ jobs:
           }
 
       - name: Run real AWS worldgen + Survivor gameplay smoke
+        id: gameplay_smoke
         if: steps.host_ready.outputs.ready == 'true'
         shell: powershell
         timeout-minutes: 12
@@ -235,55 +238,94 @@ jobs:
           $root = '${{ steps.game.outputs.root }}'
           $exe = Join-Path $root 'cataclysm-tiles.exe'
           $ncmm = Join-Path $root 'ncmm'
-          $gameplaySmoke = Start-Process -FilePath $exe -ArgumentList @('--ncmm-gameplay-smoke','--ncmm-offline') -Wait -PassThru
-          if ($gameplaySmoke.ExitCode -ne 0) {
-            throw "Real NCMM gameplay smoke failed with exit $($gameplaySmoke.ExitCode)."
-          }
-          $resultPath = Join-Path $ncmm 'gameplay-smoke.json'
-          if (-not (Test-Path $resultPath -PathType Leaf)) {
-            throw 'Gameplay smoke did not publish gameplay-smoke.json.'
-          }
-          $result = Get-Content $resultPath -Raw | ConvertFrom-Json
-          if (-not [bool]$result.success) {
-            throw ("Gameplay smoke reported failure: " + [string]$result.reason)
-          }
-          if ([int]$result.aws_settings -ne 48 -or [int]$result.aws_hooks -ne 48) {
-            throw ("AWS gameplay coverage mismatch: settings=" + $result.aws_settings + " hooks=" + $result.aws_hooks)
-          }
-          if ([int]$result.survivor_perks -ne 369) {
-            throw ("Survivor gameplay coverage mismatch: " + $result.survivor_perks)
-          }
-          if (Test-Path (Join-Path $ncmm 'boot.pending')) {
-            throw 'Gameplay smoke left boot.pending.'
-          }
 
-          $worldRoot = Join-Path $root 'save\NCMM Gameplay Smoke'
-          if (-not (Test-Path $worldRoot -PathType Container)) {
-            throw "AWS gameplay smoke did not create the expected world directory: $worldRoot"
-          }
-          $worldOptions = Join-Path $worldRoot 'worldoptions.json'
-          if (-not (Test-Path $worldOptions -PathType Leaf)) {
-            throw "AWS gameplay smoke did not persist worldoptions.json: $worldOptions"
-          }
-          $worldOptionsText = Get-Content $worldOptions -Raw
-          foreach ($settingId in @(
-            'NCMM_AWS_CUSTOM_GEOGRAPHY',
-            'NCMM_AWS_CITY_SIZE',
-            'NCMM_AWS_FOREST_THRESHOLD',
-            'NCMM_AWS_ENABLE_RIVERS',
-            'NCMM_AWS_LAKE_MIN_SIZE',
-            'NCMM_AWS_ENABLE_HIGHWAYS',
-            'NCMM_AWS_RAVINE_DEPTH'
-          )) {
-            if (-not $worldOptionsText.Contains($settingId)) {
-              throw "Persisted AWS world options are missing $settingId."
+          function Show-NcmmGameplayDiagnostics {
+            Write-Host '--- NCMM gameplay smoke diagnostics ---' -ForegroundColor Yellow
+            foreach ($name in @('runtime.state.json','gameplay-smoke.json')) {
+              $path = Join-Path $ncmm $name
+              if (Test-Path $path -PathType Leaf) {
+                Write-Host ("[" + $name + "]")
+                Get-Content $path -Raw -ErrorAction Continue | Write-Host
+              }
+            }
+            foreach ($name in @('bootstrap.log','ncmm.log')) {
+              $path = Join-Path $ncmm $name
+              if (Test-Path $path -PathType Leaf) {
+                Write-Host ("[" + $name + " - last 120 lines]")
+                Get-Content $path -Tail 120 -ErrorAction Continue | Write-Host
+              }
             }
           }
-          $generatedWorldFiles = @(Get-ChildItem $worldRoot -File -Recurse -ErrorAction Stop)
-          if ($generatedWorldFiles.Count -lt 2) {
-            throw "AWS gameplay smoke world has too little persisted/generated content: $($generatedWorldFiles.Count) files."
+
+          $timer = [System.Diagnostics.Stopwatch]::StartNew()
+          try {
+            # Inner deadline preserves diagnostics and lets RestoreVanilla run.
+            # The GitHub step timeout remains a hard backstop.
+            $gameplaySmoke = Start-Process -FilePath $exe -ArgumentList @('--ncmm-gameplay-smoke','--ncmm-offline') -PassThru
+            if (-not $gameplaySmoke.WaitForExit(480000)) {
+              Stop-Process -Id $gameplaySmoke.Id -Force -ErrorAction SilentlyContinue
+              $gameplaySmoke.WaitForExit()
+              throw 'Real NCMM gameplay smoke exceeded the 8-minute internal deadline.'
+            }
+            if ($gameplaySmoke.ExitCode -ne 0) {
+              throw "Real NCMM gameplay smoke failed with exit $($gameplaySmoke.ExitCode)."
+            }
+
+            $resultPath = Join-Path $ncmm 'gameplay-smoke.json'
+            if (-not (Test-Path $resultPath -PathType Leaf)) {
+              throw 'Gameplay smoke did not publish gameplay-smoke.json.'
+            }
+            $result = Get-Content $resultPath -Raw | ConvertFrom-Json
+            if (-not [bool]$result.success) {
+              throw ("Gameplay smoke reported failure: " + [string]$result.reason)
+            }
+            if ([int]$result.aws_settings -ne 48 -or [int]$result.aws_hooks -ne 48) {
+              throw ("AWS gameplay coverage mismatch: settings=" + $result.aws_settings + " hooks=" + $result.aws_hooks)
+            }
+            if ([int]$result.survivor_perks -ne 369) {
+              throw ("Survivor gameplay coverage mismatch: " + $result.survivor_perks)
+            }
+            if (Test-Path (Join-Path $ncmm 'boot.pending')) {
+              throw 'Gameplay smoke left boot.pending.'
+            }
+
+            $worldRoot = Join-Path $root 'save\NCMM Gameplay Smoke'
+            if (-not (Test-Path $worldRoot -PathType Container)) {
+              throw "AWS gameplay smoke did not create the expected world directory: $worldRoot"
+            }
+            $worldOptions = Join-Path $worldRoot 'worldoptions.json'
+            if (-not (Test-Path $worldOptions -PathType Leaf)) {
+              throw "AWS gameplay smoke did not persist worldoptions.json: $worldOptions"
+            }
+            $worldOptionsText = Get-Content $worldOptions -Raw
+            foreach ($settingId in @(
+              'NCMM_AWS_CUSTOM_GEOGRAPHY',
+              'NCMM_AWS_CITY_SIZE',
+              'NCMM_AWS_FOREST_THRESHOLD',
+              'NCMM_AWS_ENABLE_RIVERS',
+              'NCMM_AWS_LAKE_MIN_SIZE',
+              'NCMM_AWS_ENABLE_HIGHWAYS',
+              'NCMM_AWS_RAVINE_DEPTH'
+            )) {
+              if (-not $worldOptionsText.Contains($settingId)) {
+                throw "Persisted AWS world options are missing $settingId."
+              }
+            }
+            $generatedWorldFiles = @(Get-ChildItem $worldRoot -File -Recurse -ErrorAction Stop)
+            if ($generatedWorldFiles.Count -lt 2) {
+              throw "AWS gameplay smoke world has too little persisted/generated content: $($generatedWorldFiles.Count) files."
+            }
+
+            $timer.Stop()
+            $elapsedSeconds = [math]::Round($timer.Elapsed.TotalSeconds, 1)
+            "elapsed_seconds=$elapsedSeconds" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host ("Gameplay smoke PASS in " + $elapsedSeconds + "s: AWS 48/48 + persisted world, Survivor " + $result.survivor_perks + "/369") -ForegroundColor Green
+          } catch {
+            $timer.Stop()
+            Write-Host ("Gameplay smoke failed after " + [math]::Round($timer.Elapsed.TotalSeconds, 1) + "s: " + $_.Exception.Message) -ForegroundColor Red
+            Show-NcmmGameplayDiagnostics
+            throw
           }
-          Write-Host ("Gameplay smoke PASS: AWS 48/48 + persisted world, Survivor " + $result.survivor_perks + "/369") -ForegroundColor Green
 
       - name: Verify certified Host + modules and restore vanilla
         id: restore
@@ -338,12 +380,15 @@ jobs:
           }
           "## NCMM real runtime smoke" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- CDDA: ${{ steps.release.outputs.tag }}" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "- production SetupCore: install / module switch / reinstall" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "- production SetupCore: ${{ steps.setup_core.outcome }} (install / module switch / reinstall)" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           if ('${{ steps.host_ready.outputs.ready }}' -eq 'true') {
-            "- bootstrap -> certified Host -> AWS + Survivor -> boot.ready -> clean exit: two consecutive real launches" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-            "- gameplay smoke: real AWS randomized world save/reload/overmap + persisted world evidence + Survivor 369-perk aggregate/consumer effects" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            "- certified Host launches: ${{ steps.runtime_smoke.outcome }} (two consecutive bootstrap launches)" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            $gameplayDetail = if ('${{ steps.gameplay_smoke.outputs.elapsed_seconds }}') {
+              " in ${{ steps.gameplay_smoke.outputs.elapsed_seconds }}s"
+            } else { "" }
+            "- gameplay smoke: ${{ steps.gameplay_smoke.outcome }}$gameplayDetail (AWS 48/48 + persisted world + Survivor 369/369)" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
             if ('${{ steps.restore.outcome }}' -eq 'success') {
-              "- RestoreVanilla: verified by SHA-256" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+              "- RestoreVanilla: success, verified by SHA-256" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
             } else {
               "- RestoreVanilla: NOT verified (step outcome: ${{ steps.restore.outcome }})" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
             }
