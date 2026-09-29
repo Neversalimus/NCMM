@@ -56,8 +56,8 @@
     },
     {
       "path": "ci\\Test-ComponentCatalog.ps1",
-      "sha256": "92e6a3ac228bb4380a5a90cb7c4ab699b04ef501d39300a991f767ac21b8a18c",
-      "bytes": 9591
+      "sha256": "ded4205bf5d7bb129a50055d035d9c1158604b1ec42a9eb98e46d4d0c4ffc85b",
+      "bytes": 10428
     },
     {
       "path": "ci\\Test-GoldenRegression.ps1",
@@ -96,13 +96,13 @@
     },
     {
       "path": "compat\\compatibility.manifest.json",
-      "sha256": "4085b7c258ab4ece34d4ddb5be38c7f6a94ba970f5d31a6de0bb20433c9238c9",
-      "bytes": 6404
+      "sha256": "d314ae66467e6a8e5334f45e1245b09caa14b07718d871002b3c707dfd7880bc",
+      "bytes": 6615
     },
     {
       "path": "compat\\contracts.json",
-      "sha256": "5091627e24dc0419bca8f97a025e7bbbec1423a04f0ee69affe19748e688d9a5",
-      "bytes": 8290
+      "sha256": "e8453da5e36e1e6c4e237d73d03c4d70d38319a5015fc81fcf509e7cf1a1e70e",
+      "bytes": 8771
     },
     {
       "path": "compat\\feed\\commits\\e262adb299a7613b4aedc5f12c08fe0413c56a84.json",
@@ -116,13 +116,13 @@
     },
     {
       "path": "compat\\package-files.txt",
-      "sha256": "0a7569f981118381bb5cc086b728bcf1c779a7f3328d490d7045430c1cc23c90",
-      "bytes": 3420
+      "sha256": "b7d6c11ebd6ccc72ae03906d5e9ea8d2c94e5cb9038dcbc3bb2ddaf4fe42afe1",
+      "bytes": 3361
     },
     {
       "path": "compat\\update\\index.json",
-      "sha256": "d4c17e136fdd188cedd6f1949c8ed7545000dacace9a6201a61385f9ad90c424",
-      "bytes": 917
+      "sha256": "8e07af1dcb8cf4be5d14f0e391117ba4304e997a552b5ec232dbaff911ca8897",
+      "bytes": 928
     },
     {
       "path": "components\\advanced_world_settings.json",
@@ -130,14 +130,19 @@
       "bytes": 635
     },
     {
+      "path": "components\\ballistic_hit_chance.json",
+      "sha256": "4a9451a54452a2db764ced0ea950d8dee62bd876a272ad177396e91561f1063f",
+      "bytes": 549
+    },
+    {
       "path": "components\\index.json",
-      "sha256": "884b01044c9519622332e8e5f59cf88f4993f1afadd4bd7004bc418be869eed2",
-      "bytes": 3962
+      "sha256": "15bc1ff3509cd755986abc8a48f71c7696a4fef5e7f235f15d2de73ecea885cb",
+      "bytes": 4551
     },
     {
       "path": "components\\ncmm_host.json",
-      "sha256": "f609a79a713655c20cfe584994e2e7fc39d7f108f9def269e20551c778094494",
-      "bytes": 803
+      "sha256": "7c8ccea6b9e6714097845809cf24eb82fd669bc219b685e3637acdab6fd4194f",
+      "bytes": 806
     },
     {
       "path": "components\\ncmm_infrastructure.json",
@@ -220,14 +225,14 @@
       "bytes": 1080
     },
     {
-      "path": "INFRASTRUCTURE_0.8.3.1_WORLD_SETTINGS_PERSISTENCE_CHANGELOG.txt",
-      "sha256": "89226ff3a6a416d89770c9256a6fab8e6f14fafaa9745c1621c43d0f5e962f75",
-      "bytes": 1625
-    },
-    {
       "path": "INFRASTRUCTURE_0.8.3_STAGED_INSTALLER_CHANGELOG.txt",
       "sha256": "5bfd65d32d053d6f5a5b11e048b1f11dfba1e322f4d58852bc15db612c824f01",
       "bytes": 1093
+    },
+    {
+      "path": "INFRASTRUCTURE_0.8.3.1_WORLD_SETTINGS_PERSISTENCE_CHANGELOG.txt",
+      "sha256": "89226ff3a6a416d89770c9256a6fab8e6f14fafaa9745c1621c43d0f5e962f75",
+      "bytes": 1625
     },
     {
       "path": "internal\\NCMM.Install.ps1",
@@ -280,16 +285,6 @@
       "bytes": 493
     },
     {
-      "path": "NCMM.cmd",
-      "sha256": "46e778aceab5921475dd04ee0ae59fe7bcab21105c1eeda91dfab6baa5e67c8c",
-      "bytes": 3749
-    },
-    {
-      "path": "NCMM.ps1",
-      "sha256": "66739bb1111fb15a7a092cdee5ecd1713a42e52bf2ab68bd7afb6e69075f6383",
-      "bytes": 9278
-    },
-    {
       "path": "NCMM_AWS_HOST_API_2_MIGRATION_AUDIT.txt",
       "sha256": "5be9b0553f345f090b72ba4cf687072a659627e48f5403c682dda6d1d0ab595b",
       "bytes": 1930
@@ -305,19 +300,29 @@
       "bytes": 1235
     },
     {
-      "path": "NCMM_INFRASTRUCTURE_0.8.3.1_AUDIT.txt",
-      "sha256": "90785debddebd5216a504033cdeec6a8e0d3796a384913b03c59308b755927ee",
-      "bytes": 4446
-    },
-    {
       "path": "NCMM_INFRASTRUCTURE_0.8.3_AUDIT.txt",
       "sha256": "7d84bd77f1dc763377bc3ed329eec1f24205dddce8b4f7c9e74b48990025c3a1",
       "bytes": 5228
     },
     {
+      "path": "NCMM_INFRASTRUCTURE_0.8.3.1_AUDIT.txt",
+      "sha256": "90785debddebd5216a504033cdeec6a8e0d3796a384913b03c59308b755927ee",
+      "bytes": 4446
+    },
+    {
       "path": "NCMM_SURVIVOR_HOST_API_2_MIGRATION_AUDIT.txt",
       "sha256": "51b62a7675d06c566036d8b258e20e7bdeb4d3e66f6dfe47a21611356d8f7ee0",
       "bytes": 2415
+    },
+    {
+      "path": "NCMM.cmd",
+      "sha256": "46e778aceab5921475dd04ee0ae59fe7bcab21105c1eeda91dfab6baa5e67c8c",
+      "bytes": 3749
+    },
+    {
+      "path": "NCMM.ps1",
+      "sha256": "66739bb1111fb15a7a092cdee5ecd1713a42e52bf2ab68bd7afb6e69075f6383",
+      "bytes": 9278
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
