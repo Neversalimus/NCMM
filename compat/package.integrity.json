@@ -56,8 +56,8 @@
     },
     {
       "path": "ci\\Test-ComponentCatalog.ps1",
-      "sha256": "ded4205bf5d7bb129a50055d035d9c1158604b1ec42a9eb98e46d4d0c4ffc85b",
-      "bytes": 10428
+      "sha256": "1cf0e4fa5f11f700af56e3fca9c50afa2aa4fa9dcd9238f5720289f07e892a8b",
+      "bytes": 10605
     },
     {
       "path": "ci\\Test-GoldenRegression.ps1",
@@ -96,13 +96,13 @@
     },
     {
       "path": "compat\\compatibility.manifest.json",
-      "sha256": "d314ae66467e6a8e5334f45e1245b09caa14b07718d871002b3c707dfd7880bc",
-      "bytes": 6615
+      "sha256": "b154f052d18aa68d60430d8172e2e18660d33140d591e5a813c1fb2261b759ad",
+      "bytes": 6806
     },
     {
       "path": "compat\\contracts.json",
-      "sha256": "e8453da5e36e1e6c4e237d73d03c4d70d38319a5015fc81fcf509e7cf1a1e70e",
-      "bytes": 8771
+      "sha256": "f87453d3ceca57b05e36fdf93f29e819a783ba28e194c523fe4383ec3b50ef56",
+      "bytes": 9064
     },
     {
       "path": "compat\\feed\\commits\\e262adb299a7613b4aedc5f12c08fe0413c56a84.json",
@@ -116,13 +116,13 @@
     },
     {
       "path": "compat\\package-files.txt",
-      "sha256": "b7d6c11ebd6ccc72ae03906d5e9ea8d2c94e5cb9038dcbc3bb2ddaf4fe42afe1",
-      "bytes": 3361
+      "sha256": "ca185fac993d86695dbd133866b9734a7725788bff8cdefc89213afed83f0a2f",
+      "bytes": 3458
     },
     {
       "path": "compat\\update\\index.json",
-      "sha256": "8e07af1dcb8cf4be5d14f0e391117ba4304e997a552b5ec232dbaff911ca8897",
-      "bytes": 928
+      "sha256": "03ee1762e1df06f5ca32eeca84cda2547dd8809c4b9657ff4d30d373c74509f8",
+      "bytes": 959
     },
     {
       "path": "components\\advanced_world_settings.json",
@@ -131,18 +131,18 @@
     },
     {
       "path": "components\\ballistic_hit_chance.json",
-      "sha256": "4a9451a54452a2db764ced0ea950d8dee62bd876a272ad177396e91561f1063f",
-      "bytes": 549
+      "sha256": "c58c62f0683cddb06ac7fe1f2f352dbe303c2b4cb5f730679baaf9b432a96763",
+      "bytes": 575
     },
     {
       "path": "components\\index.json",
-      "sha256": "15bc1ff3509cd755986abc8a48f71c7696a4fef5e7f235f15d2de73ecea885cb",
-      "bytes": 4551
+      "sha256": "a69bb91225b2e4dcabbc34498faa7ea9516184aecad7a955bbd322bf5b1b43b2",
+      "bytes": 4732
     },
     {
       "path": "components\\ncmm_host.json",
-      "sha256": "7c8ccea6b9e6714097845809cf24eb82fd669bc219b685e3637acdab6fd4194f",
-      "bytes": 806
+      "sha256": "9a9baad950264eab6fa61b1472dc8a2f0a7b74bc457c5458e2f9a68e59c32c47",
+      "bytes": 840
     },
     {
       "path": "components\\ncmm_infrastructure.json",
