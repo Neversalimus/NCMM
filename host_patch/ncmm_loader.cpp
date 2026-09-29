@@ -4280,6 +4280,8 @@ void initialize()
     loaded.clear();
     module_states.clear();
     module_ids.clear();
+    module_settings.clear();
+    registered_world_settings.clear();
     hotkey_registration_logged.clear();
     manifest_id_counts.clear();
     character_modifier_values.clear();
