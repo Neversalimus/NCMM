@@ -13024,23 +13024,14 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
         $oc = $oc.Substring(0,$groupFunctionStart) + $groupFunction + $oc.Substring($groupFunctionEnd)
 
         $registerFind = '    auto it = options.find( name );'
-        if(([regex]::Matches($oc,[regex]::Escape($registerFind))).Count -ne 4) {
-            throw 'World-settings split expected four typed registration find anchors.'
-        }
         $registerFindNew = @'
     if( worldgen_visible ) {
         ncmm_ensure_experimental_page();
     }
     auto it = options.find( name );
 '@
-        $oc = $oc.Replace($registerFind,(Normalize-Lf $registerFindNew).TrimEnd())
-
         $registerAdd = 'add( name, "world_default",'
-        if(([regex]::Matches($oc,[regex]::Escape($registerAdd))).Count -ne 4) {
-            throw 'World-settings split expected four typed registration add anchors.'
-        }
-        $oc = $oc.Replace($registerAdd,'add( name, worldgen_visible ? "ncmm_experimental" : "world_default",')
-
+        $registerAddNew = 'add( name, worldgen_visible ? "ncmm_experimental" : "world_default",'
         $registerPageOld = @'
     if( opt.sPage == "ncmm_experimental" ) {
         opt.sPage = "world_default";
@@ -13053,18 +13044,35 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
     }
     if( opt.sPage != ( worldgen_visible ? "ncmm_experimental" : "world_default" ) ) {
 '@
-        $registerPageOldNorm=(Normalize-Lf $registerPageOld).TrimEnd()
-        $registerPageNewNorm=(Normalize-Lf $registerPageNew).TrimEnd()
-        if(([regex]::Matches($oc,[regex]::Escape($registerPageOldNorm))).Count -ne 4) {
-            throw 'World-settings split expected four typed registration page anchors.'
+        $worldCopyPage = '                w->second.sPage = "world_default";'
+        $worldCopyPageNew = '                w->second.sPage = worldgen_visible ? "ncmm_experimental" : "world_default";'
+        $typedWorldSettingFunctions = @(
+            @{ Start='bool options_manager::ncmm_register_world_bool'; End='bool options_manager::ncmm_register_world_int' },
+            @{ Start='bool options_manager::ncmm_register_world_int'; End='bool options_manager::ncmm_register_world_float' },
+            @{ Start='bool options_manager::ncmm_register_world_float'; End='bool options_manager::ncmm_register_world_enum' },
+            @{ Start='bool options_manager::ncmm_register_world_enum'; End='void options_manager::update_global_locale()' }
+        )
+        foreach ($typedFunction in $typedWorldSettingFunctions) {
+            $typedStart = $oc.IndexOf([string]$typedFunction.Start,[StringComparison]::Ordinal)
+            $typedEnd = $oc.IndexOf([string]$typedFunction.End,$typedStart,[StringComparison]::Ordinal)
+            if ($typedStart -lt 0 -or $typedEnd -le $typedStart) {
+                throw ('World-settings split could not isolate typed registration function: '+[string]$typedFunction.Start)
+            }
+            $typedBody = $oc.Substring($typedStart,$typedEnd-$typedStart)
+            foreach ($typedReplacement in @(
+                @{ Old=$registerFind; New=(Normalize-Lf $registerFindNew).TrimEnd(); Name='find anchor' },
+                @{ Old=$registerAdd; New=$registerAddNew; Name='add anchor' },
+                @{ Old=(Normalize-Lf $registerPageOld).TrimEnd(); New=(Normalize-Lf $registerPageNew).TrimEnd(); Name='page anchor' },
+                @{ Old=$worldCopyPage; New=$worldCopyPageNew; Name='active-world page anchor' }
+            )) {
+                $typedCount = ([regex]::Matches($typedBody,[regex]::Escape([string]$typedReplacement.Old))).Count
+                if ($typedCount -ne 1) {
+                    throw ('World-settings split '+[string]$typedFunction.Start+' expected one '+[string]$typedReplacement.Name+', found '+$typedCount)
+                }
+                $typedBody = $typedBody.Replace([string]$typedReplacement.Old,[string]$typedReplacement.New)
+            }
+            $oc = $oc.Substring(0,$typedStart) + $typedBody + $oc.Substring($typedEnd)
         }
-        $oc=$oc.Replace($registerPageOldNorm,$registerPageNewNorm)
-
-        $worldCopyPage='                w->second.sPage = "world_default";'
-        if(([regex]::Matches($oc,[regex]::Escape($worldCopyPage))).Count -ne 4) {
-            throw 'World-settings split expected four active-world page anchors.'
-        }
-        $oc=$oc.Replace($worldCopyPage,'                w->second.sPage = worldgen_visible ? "ncmm_experimental" : "world_default";')
 
         $tabsInputOld = @'
     if( with_tabs || !world_options_only ) {
