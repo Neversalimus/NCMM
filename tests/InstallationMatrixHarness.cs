@@ -260,13 +260,42 @@ internal static class InstallationMatrixHarness
         return 0;
     }
 
+    private static int RealInstallSmoke(string gameRoot, string payload)
+    {
+        gameRoot = Path.GetFullPath(gameRoot);
+        payload = Path.GetFullPath(payload);
+        string exe = Path.Combine(gameRoot, "cataclysm-tiles.exe");
+        AssertTrue(File.Exists(exe), "real CDDA smoke target has no cataclysm-tiles.exe");
+        string originalVanilla = Sha256(exe);
+
+        SetupCore.Install(gameRoot, payload, new string[] { AwsId, SurvivorId });
+        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId);
+
+        SetupCore.Install(gameRoot, payload, new string[] { AwsId });
+        AssertInstalled(gameRoot, payload, originalVanilla, AwsId);
+
+        SetupCore.Install(gameRoot, payload, new string[] { AwsId, SurvivorId });
+        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId);
+
+        SetupCore.RestoreVanilla(gameRoot);
+        AssertEqual(Sha256(exe), originalVanilla, "RestoreVanilla did not restore official executable bytes");
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("NCMM Real CDDA Install Smoke: PASS");
+        Console.ResetColor();
+        return 0;
+    }
+
     private static int Main(string[] args)
     {
         if (args.Length > 0 && String.Equals(args[0], "--child-install", StringComparison.Ordinal))
             return ChildInstall(args);
+        if (args.Length == 3 && String.Equals(args[0], "--real-install-smoke", StringComparison.Ordinal))
+            return RealInstallSmoke(args[1], args[2]);
         if (args.Length != 1)
         {
             Console.Error.WriteLine("usage: NCMM_InstallationMatrix_Harness.exe <payload-root>");
+            Console.Error.WriteLine("   or: NCMM_InstallationMatrix_Harness.exe --real-install-smoke <game-root> <payload-root>");
             return 2;
         }
 
