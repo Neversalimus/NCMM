@@ -149,12 +149,22 @@ jobs:
           $vanillaSha = (Get-FileHash $vanilla -Algorithm SHA256).Hash.ToLowerInvariant()
           $feed = Get-Content feed/index.json -Raw | ConvertFrom-Json
           $entryProperty = @($feed.hosts.PSObject.Properties | Where-Object { $_.Name -eq $vanillaSha } | Select-Object -First 1)
-          $ready = $entryProperty.Count -eq 1
+          $expectedPatchRevision = (& ./ci/Get-PatchRevision.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE").Trim()
+          $expectedRuntimeVersion = (& ./ci/Get-NcmmCurrentVersion.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE").Trim()
+          $entry = if ($entryProperty.Count -eq 1) { $entryProperty[0].Value } else { $null }
+          $ready = $null -ne $entry -and
+                   [string]$entry.patch_revision -eq $expectedPatchRevision -and
+                   [string]$entry.ncmm_version -eq $expectedRuntimeVersion
           "ready=$($ready.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
           if ($ready) {
-            Write-Host "Certified Host feed entry is ready for vanilla SHA $vanillaSha." -ForegroundColor Green
+            Write-Host "Certified Host feed entry is ready for vanilla SHA $vanillaSha, patch $expectedPatchRevision, NCMM $expectedRuntimeVersion." -ForegroundColor Green
             exit 0
+          }
+          if ($null -ne $entry) {
+            Write-Host ("Feed entry is stale: patch=" + [string]$entry.patch_revision +
+                        " runtime=" + [string]$entry.ncmm_version +
+                        "; expected patch=$expectedPatchRevision runtime=$expectedRuntimeVersion") -ForegroundColor Yellow
           }
 
           $eventName = '${{ github.event_name }}'
