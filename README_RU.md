@@ -43,7 +43,7 @@ Git, Visual Studio, CMake и MSYS2 игроку не нужны. Если для
 
 Каждая Runtime-сборка теперь перед публикацией прогоняет production `SetupCore` на изолированных CDDA-подобных установках. Матрица проверяет чистую установку без модулей / только Survivor / только AWS / оба модуля, отключение и повторное включение модулей, безопасную переустановку, обновление предыдущего Runtime, ремонт повреждённого DLL, fail-closed при повреждённом manifest, неверный payload/selection, rollback на нескольких фазах установки и восстановление после жёсткого обрыва процесса.
 
-Отдельный bootstrap lifecycle harness проверяет выбор certified Host, несовместимые bindings, первый и второй нормальный запуск, crash/auto-disable, reset/recovery и fail-closed при ошибках crash-loop markers. Ошибка любой из этих проверок блокирует публикацию Runtime.
+Отдельный bootstrap lifecycle harness проверяет выбор certified Host, несовместимые bindings, первый и второй нормальный запуск, crash/auto-disable, reset/recovery и fail-closed при ошибках crash-loop markers. Ошибка любой из этих проверок блокирует публикацию Runtime. Дополнительный nightly/manual **Real Installation Matrix** скачивает официальный Windows-релиз CDDA и прогоняет тот же production SetupCore и переключение Survivor/AWS уже по реальному распакованному дереву игры, после чего проверяет восстановление исходного vanilla exe.
 
 ## Совместимость и безопасность
 
