@@ -1241,6 +1241,9 @@ int main( int argc, char **argv )
             std::cerr << "AWS Host API 2.0 registration coverage failed\n";
             return 22;
         }
+        if( !aws_semantic_matrix() ) {
+            return 39;
+        }
         std::cout << "NCMM smoke test: PASS (AWS 0.6.2 legacy controls + Host API 2.0 geography bindings)\n";
         return 0;
     }
@@ -1274,11 +1277,14 @@ int main( int argc, char **argv )
 
         on_turn( &api );
         if( registered_setting_ids.count( "NCMM_SP_XP_RATE" ) == 0 ||
-        registered_setting_ids.count( "NCMM_SP_STAT_POWER" ) == 0 ) {
-        std::cerr << "Survivor Progression did not register both live balance settings\n";
-        return 38;
-    }
-    std::cout << "NCMM smoke test: PASS (Survivor Progression 0.12.0 Host API 2.0 registration + schema migration)\n";
+            registered_setting_ids.count( "NCMM_SP_STAT_POWER" ) == 0 ) {
+            std::cerr << "Survivor Progression did not register both live balance settings\n";
+            return 38;
+        }
+        if( !survivor_semantic_matrix( lib ) ) {
+            return 40;
+        }
+        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.12.0 Host API 2.0 registration + schema migration)\n";
         return 0;
     }
 
