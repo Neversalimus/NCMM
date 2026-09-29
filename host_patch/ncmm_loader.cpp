@@ -3955,6 +3955,33 @@ void on_language_changed()
     }
 }
 
+bool runtime_smoke_requested()
+{
+#ifdef _WIN32
+    const char *raw = GetCommandLineA();
+    if( raw == nullptr ) {
+        return false;
+    }
+    const std::string command_line( raw );
+    const std::string needle = "--ncmm-runtime-smoke";
+    size_t pos = command_line.find( needle );
+    while( pos != std::string::npos ) {
+        const size_t end = pos + needle.size();
+        const bool left_boundary = pos == 0 ||
+                                   std::isspace( static_cast<unsigned char>( command_line[pos - 1] ) ) ||
+                                   command_line[pos - 1] == '"';
+        const bool right_boundary = end == command_line.size() ||
+                                    std::isspace( static_cast<unsigned char>( command_line[end] ) ) ||
+                                    command_line[end] == '"';
+        if( left_boundary && right_boundary ) {
+            return true;
+        }
+        pos = command_line.find( needle, end );
+    }
+#endif
+    return false;
+}
+
 void initialize()
 {
     std::filesystem::create_directories( game_root() / "ncmm" );
@@ -4036,6 +4063,12 @@ void initialize()
     dispatch_event_v2( NCMM_EVENT_HOST_READY_V2 );
     write_modules_state();
     mark_ready();
+
+    if( runtime_smoke_requested() ) {
+        log_line( NCMM_LOG_INFO,
+                  "NCMM runtime smoke reached Host ready state; exiting before main menu." );
+        std::exit( 0 );
+    }
 }
 
 void mark_ready()
