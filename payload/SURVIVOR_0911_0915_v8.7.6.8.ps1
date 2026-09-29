@@ -3052,17 +3052,18 @@ function Apply-WorldSettingsV2Patch([string]$Root) {
 
         /** NCMM World Settings API v2: create/update typed synthetic per-world settings. */
         bool ncmm_register_world_bool( const std::string &name, const translation &menu_text,
-                                       const translation &tooltip, bool default_value );
+                                       const translation &tooltip, bool default_value,
+                                       bool worldgen_visible );
         bool ncmm_register_world_int( const std::string &name, const translation &menu_text,
                                       const translation &tooltip, int min_value, int max_value,
-                                      int default_value );
+                                      int default_value, bool worldgen_visible );
         bool ncmm_register_world_float( const std::string &name, const translation &menu_text,
                                         const translation &tooltip, float min_value, float max_value,
-                                        float default_value, float step );
+                                        float default_value, float step, bool worldgen_visible );
         bool ncmm_register_world_enum( const std::string &name, const translation &menu_text,
                                        const translation &tooltip,
                                        const std::vector<id_and_option> &items,
-                                       const std::string &default_value );
+                                       const std::string &default_value, bool worldgen_visible );
 
         /** NCMM experimental per-world page used for non-vanilla world generation controls. */
         void ncmm_ensure_experimental_page();
@@ -3266,8 +3267,6 @@ bool options_manager::ncmm_begin_experimental_group( const std::string &group_id
     if( group_id.empty() || !adding_to_group_.empty() ) {
         return false;
     }
-    ncmm_ensure_experimental_page();
-
     for( Group &group : groups_ ) {
         if( group.id_ == group_id ) {
             group.name_ = name;
@@ -3278,33 +3277,33 @@ bool options_manager::ncmm_begin_experimental_group( const std::string &group_id
     }
 
     groups_.emplace_back( group_id, name, tooltip );
-    add_empty_line( "ncmm_experimental" );
-    find_page( "ncmm_experimental" ).items_.emplace_back(
+    add_empty_line( "world_default" );
+    find_page( "world_default" ).items_.emplace_back(
         ItemType::GroupHeader, group_id, group_id );
     adding_to_group_ = group_id;
     return true;
 }
 
 bool options_manager::ncmm_register_world_bool( const std::string &name,
-        const translation &menu_text, const translation &tooltip, bool default_value )
+        const translation &menu_text, const translation &tooltip, bool default_value,
+        bool worldgen_visible )
 {
     auto it = options.find( name );
     if( it == options.end() ) {
-        ncmm_ensure_experimental_page();
-        add( name, "ncmm_experimental", menu_text, tooltip, default_value, COPT_WORLDGEN_ONLY );
+        add( name, "world_default", menu_text, tooltip, default_value, worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE );
         ncmm_apply_deferred_option_value( name, options[name] );
         return true;
     }
     cOpt &opt = it->second;
-    if( opt.sPage == "world_default" ) {
-        opt.sPage = "ncmm_experimental";
+    if( opt.sPage == "ncmm_experimental" ) {
+        opt.sPage = "world_default";
     }
-    if( opt.sPage != "ncmm_experimental" || opt.eType != cOpt::CVT_BOOL ) {
+    if( opt.sPage != "world_default" || opt.eType != cOpt::CVT_BOOL ) {
         return false;
     }
     opt.sMenuText = menu_text;
     opt.sTooltip = tooltip;
-    opt.hide = COPT_WORLDGEN_ONLY;
+    opt.hide = worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE;
     opt.bDefault = default_value;
     ncmm_apply_deferred_option_value( name, opt );
     if( world_options.has_value() ) {
@@ -3312,8 +3311,8 @@ bool options_manager::ncmm_register_world_bool( const std::string &name,
         if( w != ( **world_options ).end() ) {
             w->second.sMenuText = menu_text;
             w->second.sTooltip = tooltip;
-            w->second.hide = COPT_WORLDGEN_ONLY;
-            w->second.sPage = "ncmm_experimental";
+            w->second.hide = worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE;
+            w->second.sPage = "world_default";
         }
     }
     return true;
@@ -3321,29 +3320,28 @@ bool options_manager::ncmm_register_world_bool( const std::string &name,
 
 bool options_manager::ncmm_register_world_int( const std::string &name,
         const translation &menu_text, const translation &tooltip, int min_value,
-        int max_value, int default_value )
+        int max_value, int default_value, bool worldgen_visible )
 {
     if( min_value > max_value || default_value < min_value || default_value > max_value ) {
         return false;
     }
     auto it = options.find( name );
     if( it == options.end() ) {
-        ncmm_ensure_experimental_page();
-        add( name, "ncmm_experimental", menu_text, tooltip, min_value, max_value, default_value,
-             COPT_WORLDGEN_ONLY );
+        add( name, "world_default", menu_text, tooltip, min_value, max_value, default_value,
+             worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE );
         ncmm_apply_deferred_option_value( name, options[name] );
         return true;
     }
     cOpt &opt = it->second;
-    if( opt.sPage == "world_default" ) {
-        opt.sPage = "ncmm_experimental";
+    if( opt.sPage == "ncmm_experimental" ) {
+        opt.sPage = "world_default";
     }
-    if( opt.sPage != "ncmm_experimental" || opt.eType != cOpt::CVT_INT ) {
+    if( opt.sPage != "world_default" || opt.eType != cOpt::CVT_INT ) {
         return false;
     }
     opt.sMenuText = menu_text;
     opt.sTooltip = tooltip;
-    opt.hide = COPT_WORLDGEN_ONLY;
+    opt.hide = worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE;
     opt.iMin = min_value;
     opt.iMax = max_value;
     opt.iDefault = default_value;
@@ -3354,8 +3352,8 @@ bool options_manager::ncmm_register_world_int( const std::string &name,
         if( w != ( **world_options ).end() ) {
             w->second.sMenuText = menu_text;
             w->second.sTooltip = tooltip;
-            w->second.hide = COPT_WORLDGEN_ONLY;
-            w->second.sPage = "ncmm_experimental";
+            w->second.hide = worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE;
+            w->second.sPage = "world_default";
             w->second.iMin = min_value;
             w->second.iMax = max_value;
             w->second.iDefault = default_value;
@@ -3367,29 +3365,28 @@ bool options_manager::ncmm_register_world_int( const std::string &name,
 
 bool options_manager::ncmm_register_world_float( const std::string &name,
         const translation &menu_text, const translation &tooltip, float min_value,
-        float max_value, float default_value, float step )
+        float max_value, float default_value, float step, bool worldgen_visible )
 {
     if( min_value > max_value || default_value < min_value || default_value > max_value || step <= 0.0f ) {
         return false;
     }
     auto it = options.find( name );
     if( it == options.end() ) {
-        ncmm_ensure_experimental_page();
-        add( name, "ncmm_experimental", menu_text, tooltip, min_value, max_value,
-             default_value, step, COPT_WORLDGEN_ONLY );
+        add( name, "world_default", menu_text, tooltip, min_value, max_value,
+             default_value, step, worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE );
         ncmm_apply_deferred_option_value( name, options[name] );
         return true;
     }
     cOpt &opt = it->second;
-    if( opt.sPage == "world_default" ) {
-        opt.sPage = "ncmm_experimental";
+    if( opt.sPage == "ncmm_experimental" ) {
+        opt.sPage = "world_default";
     }
-    if( opt.sPage != "ncmm_experimental" || opt.eType != cOpt::CVT_FLOAT ) {
+    if( opt.sPage != "world_default" || opt.eType != cOpt::CVT_FLOAT ) {
         return false;
     }
     opt.sMenuText = menu_text;
     opt.sTooltip = tooltip;
-    opt.hide = COPT_WORLDGEN_ONLY;
+    opt.hide = worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE;
     opt.fMin = min_value;
     opt.fMax = max_value;
     opt.fDefault = default_value;
@@ -3401,8 +3398,8 @@ bool options_manager::ncmm_register_world_float( const std::string &name,
         if( w != ( **world_options ).end() ) {
             w->second.sMenuText = menu_text;
             w->second.sTooltip = tooltip;
-            w->second.hide = COPT_WORLDGEN_ONLY;
-            w->second.sPage = "ncmm_experimental";
+            w->second.hide = worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE;
+            w->second.sPage = "world_default";
             w->second.fMin = min_value;
             w->second.fMax = max_value;
             w->second.fDefault = default_value;
@@ -3415,7 +3412,8 @@ bool options_manager::ncmm_register_world_float( const std::string &name,
 
 bool options_manager::ncmm_register_world_enum( const std::string &name,
         const translation &menu_text, const translation &tooltip,
-        const std::vector<id_and_option> &items, const std::string &default_value )
+        const std::vector<id_and_option> &items, const std::string &default_value,
+        bool worldgen_visible )
 {
     if( items.empty() ) {
         return false;
@@ -3430,21 +3428,20 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
     }
     auto it = options.find( name );
     if( it == options.end() ) {
-        ncmm_ensure_experimental_page();
-        add( name, "ncmm_experimental", menu_text, tooltip, items, default_value, COPT_WORLDGEN_ONLY );
+        add( name, "world_default", menu_text, tooltip, items, default_value, worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE );
         ncmm_apply_deferred_option_value( name, options[name] );
         return true;
     }
     cOpt &opt = it->second;
-    if( opt.sPage == "world_default" ) {
-        opt.sPage = "ncmm_experimental";
+    if( opt.sPage == "ncmm_experimental" ) {
+        opt.sPage = "world_default";
     }
-    if( opt.sPage != "ncmm_experimental" || opt.eType != cOpt::CVT_STRING ) {
+    if( opt.sPage != "world_default" || opt.eType != cOpt::CVT_STRING ) {
         return false;
     }
     opt.sMenuText = menu_text;
     opt.sTooltip = tooltip;
-    opt.hide = COPT_WORLDGEN_ONLY;
+    opt.hide = worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE;
     opt.sType = "string_select";
     opt.vItems = items;
     opt.sDefault = default_value;
@@ -3457,8 +3454,8 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
         if( w != ( **world_options ).end() ) {
             w->second.sMenuText = menu_text;
             w->second.sTooltip = tooltip;
-            w->second.hide = COPT_WORLDGEN_ONLY;
-            w->second.sPage = "ncmm_experimental";
+            w->second.hide = worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE;
+            w->second.sPage = "world_default";
             w->second.sType = "string_select";
             w->second.vItems = items;
             w->second.sDefault = default_value;
@@ -8865,7 +8862,8 @@ int world_setting_register_bool( const char *module_id, const char *setting_id,
         return 0;
     }
     return get_options().ncmm_register_world_bool( setting_id, to_translation( display_name ),
-            to_translation( tooltip ), default_value != 0 ) ? 1 : 0;
+            to_translation( tooltip ), default_value != 0,
+                               scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
 }
 
 int world_setting_register_int( const char *module_id, const char *setting_id,
@@ -8876,7 +8874,8 @@ int world_setting_register_int( const char *module_id, const char *setting_id,
         return 0;
     }
     return get_options().ncmm_register_world_int( setting_id, to_translation( display_name ),
-            to_translation( tooltip ), min_value, max_value, default_value ) ? 1 : 0;
+            to_translation( tooltip ), min_value, max_value, default_value,
+                               scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
 }
 
 int world_setting_register_float( const char *module_id, const char *setting_id,
@@ -8891,7 +8890,8 @@ int world_setting_register_float( const char *module_id, const char *setting_id,
     }
     return get_options().ncmm_register_world_float( setting_id, to_translation( display_name ),
             to_translation( tooltip ), static_cast<float>( min_value ), static_cast<float>( max_value ),
-            static_cast<float>( default_value ), static_cast<float>( step ) ) ? 1 : 0;
+            static_cast<float>( default_value ), static_cast<float>( step ),
+            scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
 }
 
 int world_setting_register_enum( const char *module_id, const char *setting_id,
@@ -8912,7 +8912,8 @@ int world_setting_register_enum( const char *module_id, const char *setting_id,
         items.emplace_back( value_ids[i], to_translation( display_names[i] ) );
     }
     return get_options().ncmm_register_world_enum( setting_id, to_translation( display_name ),
-            to_translation( tooltip ), items, default_value ) ? 1 : 0;
+            to_translation( tooltip ), items, default_value,
+                               scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
 }
 
 int world_setting_get_bool( const char *setting_id, int fallback )
@@ -12733,19 +12734,19 @@ float ncmm_get_option_float_or( const std::string &name, float fallback )
 // NCMM v8.7.6.6 stale world-option repair: existing world copies from older builds may
 // contain a default/VOID cOpt. Re-registering a module repairs type metadata in place.
 bool options_manager::ncmm_register_world_bool( const std::string &name,
-        const translation &menu_text, const translation &tooltip, bool default_value )
+        const translation &menu_text, const translation &tooltip, bool default_value,
+        bool worldgen_visible )
 {
     auto it = options.find( name );
     if( it == options.end() ) {
-        ncmm_ensure_experimental_page();
-        add( name, "ncmm_experimental", menu_text, tooltip, default_value, COPT_WORLDGEN_ONLY );
+        add( name, "world_default", menu_text, tooltip, default_value, worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE );
         return true;
     }
     cOpt &opt = it->second;
-    if( opt.sPage == "world_default" ) {
-        opt.sPage = "ncmm_experimental";
+    if( opt.sPage == "ncmm_experimental" ) {
+        opt.sPage = "world_default";
     }
-    if( opt.sPage != "ncmm_experimental" ) {
+    if( opt.sPage != "world_default" ) {
         return false;
     }
     if( opt.eType != cOpt::CVT_BOOL ) {
@@ -12755,7 +12756,7 @@ bool options_manager::ncmm_register_world_bool( const std::string &name,
     }
     opt.sMenuText = menu_text;
     opt.sTooltip = tooltip;
-    opt.hide = COPT_WORLDGEN_ONLY;
+    opt.hide = worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE;
     opt.bDefault = default_value;
     if( world_options.has_value() ) {
         auto w = ( **world_options ).find( name );
@@ -12765,8 +12766,8 @@ bool options_manager::ncmm_register_world_bool( const std::string &name,
             } else {
                 w->second.sMenuText = menu_text;
                 w->second.sTooltip = tooltip;
-                w->second.hide = COPT_WORLDGEN_ONLY;
-                w->second.sPage = "ncmm_experimental";
+                w->second.hide = worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE;
+                w->second.sPage = "world_default";
                 w->second.bDefault = default_value;
             }
         }
@@ -12776,23 +12777,22 @@ bool options_manager::ncmm_register_world_bool( const std::string &name,
 
 bool options_manager::ncmm_register_world_int( const std::string &name,
         const translation &menu_text, const translation &tooltip, int min_value,
-        int max_value, int default_value )
+        int max_value, int default_value, bool worldgen_visible )
 {
     if( min_value > max_value || default_value < min_value || default_value > max_value ) {
         return false;
     }
     auto it = options.find( name );
     if( it == options.end() ) {
-        ncmm_ensure_experimental_page();
-        add( name, "ncmm_experimental", menu_text, tooltip, min_value, max_value, default_value,
-             COPT_WORLDGEN_ONLY );
+        add( name, "world_default", menu_text, tooltip, min_value, max_value, default_value,
+             worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE );
         return true;
     }
     cOpt &opt = it->second;
-    if( opt.sPage == "world_default" ) {
-        opt.sPage = "ncmm_experimental";
+    if( opt.sPage == "ncmm_experimental" ) {
+        opt.sPage = "world_default";
     }
-    if( opt.sPage != "ncmm_experimental" ) {
+    if( opt.sPage != "world_default" ) {
         return false;
     }
     if( opt.eType != cOpt::CVT_INT ) {
@@ -12805,7 +12805,7 @@ bool options_manager::ncmm_register_world_int( const std::string &name,
     }
     opt.sMenuText = menu_text;
     opt.sTooltip = tooltip;
-    opt.hide = COPT_WORLDGEN_ONLY;
+    opt.hide = worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE;
     opt.iMin = min_value;
     opt.iMax = max_value;
     opt.iDefault = default_value;
@@ -12818,8 +12818,8 @@ bool options_manager::ncmm_register_world_int( const std::string &name,
             } else {
                 w->second.sMenuText = menu_text;
                 w->second.sTooltip = tooltip;
-                w->second.hide = COPT_WORLDGEN_ONLY;
-                w->second.sPage = "ncmm_experimental";
+                w->second.hide = worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE;
+                w->second.sPage = "world_default";
                 w->second.iMin = min_value;
                 w->second.iMax = max_value;
                 w->second.iDefault = default_value;
@@ -12832,23 +12832,22 @@ bool options_manager::ncmm_register_world_int( const std::string &name,
 
 bool options_manager::ncmm_register_world_float( const std::string &name,
         const translation &menu_text, const translation &tooltip, float min_value,
-        float max_value, float default_value, float step )
+        float max_value, float default_value, float step, bool worldgen_visible )
 {
     if( min_value > max_value || default_value < min_value || default_value > max_value || step <= 0.0f ) {
         return false;
     }
     auto it = options.find( name );
     if( it == options.end() ) {
-        ncmm_ensure_experimental_page();
-        add( name, "ncmm_experimental", menu_text, tooltip, min_value, max_value,
-             default_value, step, COPT_WORLDGEN_ONLY );
+        add( name, "world_default", menu_text, tooltip, min_value, max_value,
+             default_value, step, worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE );
         return true;
     }
     cOpt &opt = it->second;
-    if( opt.sPage == "world_default" ) {
-        opt.sPage = "ncmm_experimental";
+    if( opt.sPage == "ncmm_experimental" ) {
+        opt.sPage = "world_default";
     }
-    if( opt.sPage != "ncmm_experimental" ) {
+    if( opt.sPage != "world_default" ) {
         return false;
     }
     if( opt.eType != cOpt::CVT_FLOAT ) {
@@ -12858,7 +12857,7 @@ bool options_manager::ncmm_register_world_float( const std::string &name,
     }
     opt.sMenuText = menu_text;
     opt.sTooltip = tooltip;
-    opt.hide = COPT_WORLDGEN_ONLY;
+    opt.hide = worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE;
     opt.fMin = min_value;
     opt.fMax = max_value;
     opt.fDefault = default_value;
@@ -12872,8 +12871,8 @@ bool options_manager::ncmm_register_world_float( const std::string &name,
             } else {
                 w->second.sMenuText = menu_text;
                 w->second.sTooltip = tooltip;
-                w->second.hide = COPT_WORLDGEN_ONLY;
-                w->second.sPage = "ncmm_experimental";
+                w->second.hide = worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE;
+                w->second.sPage = "world_default";
                 w->second.fMin = min_value;
                 w->second.fMax = max_value;
                 w->second.fDefault = default_value;
@@ -12887,7 +12886,8 @@ bool options_manager::ncmm_register_world_float( const std::string &name,
 
 bool options_manager::ncmm_register_world_enum( const std::string &name,
         const translation &menu_text, const translation &tooltip,
-        const std::vector<id_and_option> &items, const std::string &default_value )
+        const std::vector<id_and_option> &items, const std::string &default_value,
+        bool worldgen_visible )
 {
     if( items.empty() ) {
         return false;
@@ -12902,15 +12902,14 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
     }
     auto it = options.find( name );
     if( it == options.end() ) {
-        ncmm_ensure_experimental_page();
-        add( name, "ncmm_experimental", menu_text, tooltip, items, default_value, COPT_WORLDGEN_ONLY );
+        add( name, "world_default", menu_text, tooltip, items, default_value, worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE );
         return true;
     }
     cOpt &opt = it->second;
-    if( opt.sPage == "world_default" ) {
-        opt.sPage = "ncmm_experimental";
+    if( opt.sPage == "ncmm_experimental" ) {
+        opt.sPage = "world_default";
     }
-    if( opt.sPage != "ncmm_experimental" ) {
+    if( opt.sPage != "world_default" ) {
         return false;
     }
     if( opt.eType != cOpt::CVT_STRING ) {
@@ -12919,7 +12918,7 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
     }
     opt.sMenuText = menu_text;
     opt.sTooltip = tooltip;
-    opt.hide = COPT_WORLDGEN_ONLY;
+    opt.hide = worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE;
     opt.sType = "string_select";
     opt.vItems = items;
     opt.sDefault = default_value;
@@ -12935,8 +12934,8 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
             } else {
                 w->second.sMenuText = menu_text;
                 w->second.sTooltip = tooltip;
-                w->second.hide = COPT_WORLDGEN_ONLY;
-                w->second.sPage = "ncmm_experimental";
+                w->second.hide = worldgen_visible ? COPT_WORLDGEN_ONLY : COPT_ALWAYS_HIDE;
+                w->second.sPage = "world_default";
                 w->second.sType = "string_select";
                 w->second.vItems = items;
                 w->second.sDefault = default_value;
@@ -15284,7 +15283,8 @@ int world_setting_register_bool( const char *module_id, const char *setting_id,
     }
     const int registered = get_options().ncmm_register_world_bool(
                                setting_id, to_translation( display_name ),
-                               to_translation( tooltip ), default_value != 0 ) ? 1 : 0;
+                               to_translation( tooltip ), default_value != 0,
+                               scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
     if( registered && manager_visible_setting_scope( scope ) ) {
         module_setting_meta meta;
         meta.module_id = module_id;
@@ -15307,7 +15307,8 @@ int world_setting_register_int( const char *module_id, const char *setting_id,
     }
     const int registered = get_options().ncmm_register_world_int(
                                setting_id, to_translation( display_name ),
-                               to_translation( tooltip ), min_value, max_value, default_value ) ? 1 : 0;
+                               to_translation( tooltip ), min_value, max_value, default_value,
+                               scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
     if( registered && manager_visible_setting_scope( scope ) ) {
         module_setting_meta meta;
         meta.module_id = module_id;
@@ -15338,7 +15339,8 @@ int world_setting_register_float( const char *module_id, const char *setting_id,
                                setting_id, to_translation( display_name ),
                                to_translation( tooltip ), static_cast<float>( min_value ),
                                static_cast<float>( max_value ), static_cast<float>( default_value ),
-                               static_cast<float>( step ) ) ? 1 : 0;
+                               static_cast<float>( step ),
+                               scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
     if( registered && manager_visible_setting_scope( scope ) ) {
         module_setting_meta meta;
         meta.module_id = module_id;
@@ -15374,7 +15376,8 @@ int world_setting_register_enum( const char *module_id, const char *setting_id,
     }
     const int registered = get_options().ncmm_register_world_enum(
                                setting_id, to_translation( display_name ),
-                               to_translation( tooltip ), items, default_value ) ? 1 : 0;
+                               to_translation( tooltip ), items, default_value,
+                               scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
     if( registered && manager_visible_setting_scope( scope ) ) {
         module_setting_meta meta;
         meta.module_id = module_id;
