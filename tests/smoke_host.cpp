@@ -247,6 +247,8 @@ size_t runtime_hook_binding_count = 0;
 size_t modifier_definition_count = 0;
 size_t event_subscription_count = 0;
 std::set<std::string> registered_setting_ids;
+std::set<std::string> defined_v2_modifiers;
+std::multimap<std::string, std::string> runtime_hooks_by_modifier;
 
 enum class smoke_setting_kind {
     boolean,
@@ -471,8 +473,10 @@ int event_subscribe_v2_fn( const char *, uint32_t event_id, ncmm_event_callback_
 
 int event_unsubscribe_all_v2_fn( const char * ) { return 1; }
 
-int modifier_define_v2_fn( const char *, const char *, double, double )
+int modifier_define_v2_fn( const char *, const char *modifier_id, double, double )
 {
+    if( modifier_id == nullptr || *modifier_id == '\0' ) return 0;
+    defined_v2_modifiers.insert( modifier_id );
     ++modifier_definition_count;
     return 1;
 }
@@ -489,9 +493,13 @@ int modifier_clear_v2_fn( const char *module_id )
 
 double modifier_get_total_v2_fn( const char * ) { return 0.0; }
 
-int runtime_hook_bind_modifier_v2_fn( const char *, const char *, uint32_t,
-                                      const char *, const char * )
+int runtime_hook_bind_modifier_v2_fn( const char *, const char *hook_id, uint32_t,
+                                      const char *, const char *modifier_id )
 {
+    if( hook_id == nullptr || *hook_id == '\0' || modifier_id == nullptr || *modifier_id == '\0' ) {
+        return 0;
+    }
+    runtime_hooks_by_modifier.emplace( modifier_id, hook_id );
     ++runtime_hook_binding_count;
     return 1;
 }
@@ -858,6 +866,27 @@ bool survivor_semantic_matrix( void *lib )
         "aftershock_prime", "secronom", "secronom_lore_expansion"
     };
 
+    // Conditional integrations must be inert when their content mod is absent,
+    // even if corrupt/legacy state claims the perk is owned.
+    const std::set<std::string> all_supported_world_mods = active_world_mods;
+    size_t integration_inert_cases = 0;
+    active_world_mods.clear();
+    for( size_t i = 0; i < perk_count; ++i ) {
+        if( integration( i ) == 0 ) continue;
+        ++integration_inert_cases;
+        if( !reset() || !set_rank( i, 1 ) || !recalculate() ) {
+            std::cerr << "Survivor integration inert-state setup failed: " << perk_id( i ) << '\n';
+            return false;
+        }
+        if( !survivor_modifiers_empty() || current_xp() != 0 ) {
+            std::cerr << "Survivor integration perk leaked without required world mod: "
+                      << perk_id( i ) << '\n';
+            return false;
+        }
+    }
+    active_world_mods = all_supported_world_mods;
+    if( !reset() ) return false;
+
     std::map<std::string, size_t> index;
     std::set<std::string> unique_ids;
     for( size_t i = 0; i < perk_count; ++i ) {
@@ -879,6 +908,29 @@ bool survivor_semantic_matrix( void *lib )
                 std::cerr << "Survivor perk has invalid declared effect: " << raw << '\n';
                 return false;
             }
+        }
+    }
+
+    const std::set<std::string> legacy_character_modifiers = {
+        "str_flat", "dex_flat", "per_flat", "int_flat", "speed_pct", "move_cost_pct",
+        "stamina_max_pct", "carry_weight_pct", "dodge_flat", "melee_hit_flat",
+        "healing_pct", "read_speed_pct", "craft_speed_pct"
+    };
+    std::set<std::string> declared_effect_ids;
+    for( size_t i = 0; i < perk_count; ++i ) {
+        for( int e = 0; e < effect_count( i ); ++e ) {
+            declared_effect_ids.insert( effect_id( i, e ) );
+        }
+    }
+    for( const std::string &effect : declared_effect_ids ) {
+        if( legacy_character_modifiers.count( effect ) != 0 ) continue;
+        if( defined_v2_modifiers.count( effect ) == 0 ) {
+            std::cerr << "Survivor effect has no Host v2 modifier definition: " << effect << '\n';
+            return false;
+        }
+        if( runtime_hooks_by_modifier.count( effect ) == 0 ) {
+            std::cerr << "Survivor effect has no consuming runtime hook: " << effect << '\n';
+            return false;
         }
     }
 
@@ -1070,7 +1122,9 @@ bool survivor_semantic_matrix( void *lib )
     std::cout << "Survivor semantic matrix: PASS (" << perk_count
               << "/369 perks covered; direct=" << direct_cases
               << ", amplifiers=" << amplifier_cases
-              << ", stateful=" << special_cases << ")\n";
+              << ", stateful=" << special_cases
+              << ", conditional-inert=" << integration_inert_cases
+              << ", consumed-effects=" << declared_effect_ids.size() << ")\n";
     return true;
 }
 }
