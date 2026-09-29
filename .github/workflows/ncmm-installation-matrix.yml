@@ -178,6 +178,9 @@ jobs:
             if ($proof.aws_world_reloaded -ne $true) { throw "AWS world was not reloaded: $($file.Name)" }
             if ($proof.aws_overmap_generated -ne $true) { throw "AWS overmap was not generated: $($file.Name)" }
             if ([int]$proof.survivor_catalog -ne 369) { throw "Survivor catalog coverage mismatch: $($file.Name)" }
+            if ([int]$proof.survivor_perks_exercised -ne 369) { throw "Survivor full-catalog gameplay coverage mismatch: $($file.Name)" }
+            if ([int]$proof.survivor_effect_assertions -le 0) { throw "Survivor real Host effect assertions missing: $($file.Name)" }
+            if ([int]$proof.survivor_integrations_inert -le 0) { throw "Survivor conditional integration coverage missing: $($file.Name)" }
             if ([int]$proof.survivor_real_character_checks -ne 9) { throw "Survivor real Character coverage mismatch: $($file.Name)" }
             if ($proof.survivor_cleanup -ne $true) { throw "Survivor cleanup failed: $($file.Name)" }
             if ([string]::IsNullOrWhiteSpace([string]$proof.world) -or
@@ -233,7 +236,7 @@ jobs:
           "- CDDA: ${{ steps.release.outputs.tag }}" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- production SetupCore: install / module switch / reinstall" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- bootstrap -> certified Host -> AWS + Survivor -> boot.ready -> clean exit: two consecutive real launches" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "- gameplay: 3 deterministic randomized AWS worlds + real overmap generation + 9 real Survivor Character checks per world" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "- gameplay: 3 deterministic randomized AWS worlds + real overmap generation + all 369 Survivor perks exercised through the real Host + 9 direct Character checks per world" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- RestoreVanilla: verified by SHA-256" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       - name: Upload evidence
