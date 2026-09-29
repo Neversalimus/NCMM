@@ -157,13 +157,14 @@ jobs:
           $eventName = '${{ github.event_name }}'
           $changed = @()
           if ($eventName -eq 'push') {
-            $event = Get-Content $env:GITHUB_EVENT_PATH -Raw | ConvertFrom-Json
-            foreach ($commit in @($event.commits)) {
-              $changed += @($commit.added)
-              $changed += @($commit.modified)
-              $changed += @($commit.removed)
+            $changed = @(
+              gh api "repos/$env:GITHUB_REPOSITORY/commits/$env:GITHUB_SHA" --jq '.files[].filename'
+            )
+            if ($LASTEXITCODE -ne 0) {
+              throw "Could not resolve changed files for $env:GITHUB_SHA."
             }
             $changed = @($changed | Where-Object { $_ } | Select-Object -Unique)
+            Write-Host ("Push files: " + ($changed -join ', '))
           }
           $workflowOnlySelfTest = $eventName -eq 'push' -and
                                   ($changed -contains '.github/workflows/ncmm-installation-matrix.yml') -and
