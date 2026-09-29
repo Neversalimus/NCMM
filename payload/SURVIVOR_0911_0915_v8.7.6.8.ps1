@@ -77,10 +77,6 @@ function Start-TunedProcess(
         Write-Host "Could not lower build process priority; continuing with OS default." -ForegroundColor DarkYellow
     }
 
-    # PowerShell 5.1 can occasionally expose an empty ExitCode through a returned
-    # Process wrapper even though the native process has already completed.  Capture
-    # the exit status inside this function after an explicit wait/refresh and return
-    # a stable value object instead of leaking the live Process instance to callers.
     [void]$proc.WaitForExit()
     $proc.Refresh()
     $exitCode = $null
@@ -100,9 +96,6 @@ function Start-TunedProcess(
 }
 
 $script:BuildTuning = Resolve-BuildTuning $BuildProfile
-# vcpkg and cl.exe both honor environment-level concurrency caps.  Keep the
-# MSBuild property too, but CL_MPCount in the environment is the authoritative
-# guard when a project emits bare /MP.
 $env:VCPKG_MAX_CONCURRENCY = [string]$script:BuildTuning.VcpkgJobs
 $env:CL_MPCount = [string]$script:BuildTuning.ClMpCount
 Write-Host ("Build profile: {0} | logical {1} | target {2} | MSBuild nodes {3} | CL /MP {4} | priority {5}" -f `
@@ -164,9 +157,6 @@ function Normalize-Lf([string]$Text) {
 }
 
 function Replace-TextBlock([string]$Text,[string]$Old,[string]$New,[string]$Name) {
-    # Exact block replacement with newline normalization on BOTH the source and
-    # PowerShell here-string anchors.  Windows PowerShell here-strings are CRLF
-    # even when the downloaded C++ source is LF.
     $Text = Normalize-Lf $Text
     $Old = (Normalize-Lf $Old).TrimEnd()
     $New = (Normalize-Lf $New).TrimEnd()
@@ -178,9 +168,6 @@ function Replace-TextBlock([string]$Text,[string]$Old,[string]$New,[string]$Name
 }
 
 function Replace-CppRange([string]$Text,[string]$Start,[string]$End,[string]$Replacement,[string]$Name) {
-    # Source files downloaded from GitHub are LF, while Windows PowerShell here-strings
-    # inherit CRLF from this installer.  Normalize both sides before contract matching so
-    # multiline markers cannot fail only because of newline encoding.
     $Text = Normalize-Lf $Text
     $Start = Normalize-Lf $Start
     $End = Normalize-Lf $End
@@ -192,7 +179,6 @@ function Replace-CppRange([string]$Text,[string]$Start,[string]$End,[string]$Rep
     return $Text.Substring(0,$a) + $Replacement.TrimEnd() + "`n`n" + $Text.Substring($b)
 }
 
-# Regression guard for the v8.1.2 Windows CRLF/LF contract bug.
 $eolProbeText = "BEGIN`nSTART`nEND_A`nEND_B`nTAIL"
 $eolProbeEnd = "END_A`r`nEND_B"
 $eolProbeResult = Replace-CppRange $eolProbeText "START" $eolProbeEnd "REPLACED" "installer EOL-normalization self-test"
@@ -284,8 +270,6 @@ function Find-Vs {
     $diagnostics = New-Object System.Collections.Generic.List[string]
     $roots = New-Object System.Collections.Generic.List[string]
 
-    # Developer Command Prompt / PATH fallback.  This catches portable/custom
-    # installations even when vswhere/registry metadata is incomplete.
     $pathCl = Get-Command cl.exe -ErrorAction SilentlyContinue
     $pathMsbuild = Get-Command MSBuild.exe -ErrorAction SilentlyContinue
     if ($pathCl) {
@@ -365,9 +349,6 @@ function Find-Vs {
             continue
         }
 
-        # Generic Visual Studio major-version discovery.
-        # Current installs may use folders such as "18\Community" rather than
-        # the old "2022\Community" layout.
         foreach ($baseRelative in @(
             "Program Files\Microsoft Visual Studio",
             "Program Files (x86)\Microsoft Visual Studio",
@@ -391,7 +372,6 @@ function Find-Vs {
                 }
         }
 
-        # Legacy/custom shorthand folders.
         foreach ($edition in @("Community","BuildTools","Professional","Enterprise")) {
             foreach ($relative in @(
                 "VS2022\$edition",
@@ -644,8 +624,6 @@ function Download-Archive([string]$Url,[string]$OutFile) {
         New-Item -ItemType Directory -Force -Path $parent | Out-Null
     }
 
-    # PowerShell 5.1 parsing guard: never mix Test-Path cmdlet arguments and
-    # boolean operators in the same unparenthesized command expression.
     if ([IO.File]::Exists($OutFile)) {
         $existingLength = (Get-Item -LiteralPath $OutFile).Length
         if ($existingLength -gt 10000) {
@@ -653,7 +631,6 @@ function Download-Archive([string]$Url,[string]$OutFile) {
             return
         }
 
-        # A previous interrupted download should not poison the next run.
         Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
     }
 
@@ -716,7 +693,6 @@ function Test-PristineCddaCache([string]$Root,[string]$Commit,[string]$VcpkgBase
         if ([string]$meta.'builtin-baseline' -ne $VcpkgBaseline) { return $false }
     } catch { return $false }
 
-    # A pristine cache is immutable. Any NCMM marker/helper invalidates it.
     foreach ($patchMarker in @(
         '.ncmm_host_v1_patched',
         '.ncmm_world_settings_v2_patched',
@@ -766,16 +742,12 @@ function Invoke-RobocopyTree([string]$Source,[string]$Destination) {
     New-Item -ItemType Directory -Force -Path $Destination | Out-Null
     & $robocopy $Source $Destination /E /COPY:DAT /DCOPY:DAT /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
     $code = $LASTEXITCODE
-    # Robocopy uses 0..7 for successful/no-op/copy-difference outcomes.
     if ($code -ge 8) {
         throw "robocopy source-cache sync failed with exit code ${code}: $Source -> $Destination"
     }
 }
 
 function Ensure-CddaBuildCache([string]$Root,[string]$BuildRoot,[string]$Commit,[string]$VcpkgBaseline,[string]$CacheKey) {
-    # NCMM Infrastructure 0.8.0: cache identity is adapter/commit scoped.
-    # Each supported or structurally-reused experimental receives its own immutable
-    # pristine tree and incremental patched worktree, avoiding cross-build contamination.
     $pristine = Join-Path $BuildRoot ($CacheKey + "_pristine")
     $downloads = Join-Path $BuildRoot "downloads"
     New-Item -ItemType Directory -Force -Path $downloads | Out-Null
@@ -828,9 +800,6 @@ function Ensure-CddaBuildCache([string]$Root,[string]$BuildRoot,[string]$Commit,
         Remove-Item $workSrc -Recurse -Force -ErrorAction SilentlyContinue
         Invoke-RobocopyTree (Join-Path $pristine "src") $workSrc
 
-        # Build metadata is normally restored transactionally, but refresh the
-        # small files that our build path may temporarily touch. Do not delete
-        # msvc-full-features: it contains expensive incremental/vcpkg caches.
         foreach ($relative in @(
             'msvc-full-features\Cataclysm-common.props',
             'msvc-full-features\Cataclysm-vcpkg-static.sln',
@@ -860,7 +829,6 @@ function Ensure-CddaBuildCache([string]$Root,[string]$BuildRoot,[string]$Commit,
     }
     Write-Utf8NoBom $workMarker ($Commit + "`n")
 
-    # Final guard: a reset working tree must not contain NCMM C++ signatures.
     foreach ($probe in @(
         @{ Path = 'src\ncmm_loader.cpp'; Needle = '' },
         @{ Path = 'src\magic.cpp'; Needle = 'ncmm_spell_source_of' },
@@ -995,8 +963,6 @@ function Ensure-VcpkgCache([string]$Root,[string]$BuildRoot,[string]$Commit,[str
     $exe = Join-Path $Root "vcpkg.exe"
     $gitHead = Join-Path $Root ".git\HEAD"
 
-    # v12 created a depth-1 repository. Repair it in-place so the expensive
-    # bootstrap/download work is reused instead of deleting C:\NCMMBuild\vcpkg.
     if (Test-Path $gitHead -PathType Leaf) {
         Ensure-VcpkgFullHistory $Root $GitExe
     }
@@ -1040,9 +1006,6 @@ function Ensure-VcpkgCache([string]$Root,[string]$BuildRoot,[string]$Commit,[str
         & $GitExe -C $Root remote add origin "https://github.com/microsoft/vcpkg.git"
         if ($LASTEXITCODE -ne 0) { throw "git remote add failed for vcpkg." }
 
-        # v13: vcpkg versioning cannot work from a shallow clone because
-        # versions/baseline.json may reference historical port git trees.
-        # Fetch the normal remote refs with full history.
         & $GitExe -C $Root fetch origin
         if ($LASTEXITCODE -ne 0) {
             throw "Could not fetch full vcpkg history."
@@ -1253,25 +1216,11 @@ function Build-Host-NoPdb([string]$CddaRoot,[string]$VcpkgRoot,[string]$BuildRoo
 
     Ensure-CddaVcpkgDependencies $CddaRoot $VcpkgRoot $BuildRoot
 
-    # Hotfix 16: the upstream Cataclysm-libMZ project discovers sources through a wildcard.
-    # Live Hotfix 15 proved that relying on wildcard/incremental evaluation is insufficient for
-    # a newly generated NCMM translation unit: ncmm_loader.obj and the MZ archive were deleted,
-    # yet MSBuild recreated the archive without compiling ncmm_loader.cpp.  Make loader membership
-    # deterministic for this build by excluding it from the wildcard and adding one explicit
-    # ClCompile item.  The project file is restored byte-for-byte in the build finally block.
-    #
-    # The working source tree is reset transactionally while objwin is deliberately preserved, so
-    # an older ncmm_loader.obj can be newer than the freshly copied source and MSBuild
-    # may skip the loader translation unit.  That leaves the old Host symbols linkable
-    # while every new Host API 2.0 generic hook becomes an unresolved external.
-    # Force the loader TU and its static archive to be recreated on every host cache miss.
     $loaderSourcePath = Join-Path $CddaRoot "src\ncmm_loader.cpp"
     if (-not (Test-Path $loaderSourcePath -PathType Leaf)) {
         throw "NCMM host loader source missing before MSBuild: $loaderSourcePath"
     }
 
-    # Hotfix 16: deterministic project membership.  Do not depend on MSBuild expanding
-    # the upstream ..\src\*.cpp wildcard to include a generated source file.
     $mzProjectPath = Join-Path $CddaRoot "msvc-full-features\Cataclysm-libMZ-vcpkg-static.vcxproj"
     if (-not (Test-Path $mzProjectPath -PathType Leaf)) {
         throw "Cataclysm-libMZ project missing before NCMM explicit loader integration: $mzProjectPath"
@@ -1322,8 +1271,6 @@ function Build-Host-NoPdb([string]$CddaRoot,[string]$VcpkgRoot,[string]$BuildRoo
     (Get-Item -LiteralPath $loaderSourcePath).LastWriteTimeUtc = [DateTime]::UtcNow
     Write-Host ("Host loader cache invalidation: removed {0} ncmm_loader.obj file(s); MZ archive reset; explicit project item armed." -f $loaderObjCandidates.Count) -ForegroundColor DarkCyan
 
-    # A cache miss must never be allowed to fall back to a host executable produced
-    # by an older patch/build.  Remove the exact output before invoking MSBuild.
     Remove-Item $builtHostPath -Force -ErrorAction SilentlyContinue
     if (Test-Path $builtHostPath -PathType Leaf) {
         throw "Could not remove stale host build output before MSBuild: $builtHostPath"
@@ -1364,8 +1311,6 @@ function Build-Host-NoPdb([string]$CddaRoot,[string]$VcpkgRoot,[string]$BuildRoo
         Write-Utf8NoBom $propsPath $patched
         Write-Utf8NoBom $mzProjectPath $mzProjectPatched
 
-        # Re-read the actual project bytes that MSBuild will consume.  This is a hard gate,
-        # not just a check of the in-memory replacement string.
         $mzProjectBuildText = [IO.File]::ReadAllText($mzProjectPath)
         if (([regex]::Matches($mzProjectBuildText,[regex]::Escape($explicitLoaderItem))).Count -ne 1 -or
             -not $mzProjectBuildText.Contains('..\src\ncmm_loader.cpp')) {
@@ -1417,9 +1362,6 @@ function Build-Host-NoPdb([string]$CddaRoot,[string]$VcpkgRoot,[string]$BuildRoo
     if (Test-Path $stdout) { $outText = Get-Content $stdout -Raw -ErrorAction SilentlyContinue }
     if (Test-Path $stderr) { $errText = Get-Content $stderr -Raw -ErrorAction SilentlyContinue }
 
-    # Never trust ExitCode alone.  MSBuild/PowerShell wrappers can surface zero even
-    # while compiler failures were emitted to redirected output.  Canonical errors
-    # in either log are authoritative and always fail the build.
     $combinedExitProbe = $outText + "`n" + $errText
     $hasArtifactLine = $combinedExitProbe -match '(?im)^\s*Cataclysm-vcpkg-static\.vcxproj\s*->\s*.*cataclysm-tiles\.exe\s*$'
     $loaderCompiledThisRun = $combinedExitProbe -match '(?im)^\s*ncmm_loader\.cpp\s*$'
@@ -1440,9 +1382,6 @@ function Build-Host-NoPdb([string]$CddaRoot,[string]$VcpkgRoot,[string]$BuildRoo
         }
     }
 
-    # Hotfix 16 requires proof that the explicitly integrated ncmm_loader translation unit was
-    # actually compiled in this invocation.  Without that evidence a stale loader object
-    # could silently reintroduce the exact Host API 2.0 unresolved-symbol failure.
     if ($code -eq 0 -and -not $loaderCompiledThisRun) {
         Write-Host "MSBuild did not compile explicitly integrated ncmm_loader.cpp; rejecting the build." -ForegroundColor Red
         $code = -995
@@ -1460,8 +1399,6 @@ function Build-Host-NoPdb([string]$CddaRoot,[string]$VcpkgRoot,[string]$BuildRoo
         }
     }
 
-    # The expected output was deleted before MSBuild, so existence now proves that
-    # this run recreated it.  Also reject implausibly old timestamps.
     if ($code -eq 0) {
         if (-not (Test-Path $builtHostPath -PathType Leaf)) {
             Write-Host "MSBuild reported success but did not recreate the expected host executable." -ForegroundColor Red
@@ -1889,8 +1826,6 @@ std::set<tripoint_bub_ms> spell::effect_area( const tripoint_bub_ms &source,
     return effect_area( spell_effect::override_parameters( *this, caster ), source, target );
 }
 '@
-    # End at in_aoe intentionally: old v8 accidentally deleted the two effect_area definitions.
-    # Including them in the replacement repairs already-v8-patched caches as well as pristine source.
     $magic = Replace-V82Range $magic 'int spell::aoe( const Creature &caster ) const' 'bool spell::in_aoe(' $aoe 'magic.aoe-and-effect-area'
 
     $inAoeOld = @'
@@ -1967,9 +1902,6 @@ int spell::duration( const Creature &caster ) const
 '@
     $magic = Replace-V82Range $magic 'int spell::duration( const Creature &caster ) const' 'std::string spell::duration_string' $duration 'magic.duration'
 
-    # CDDA exposes one known_magic mana pool for the avatar. Magiclysm and Xedra
-    # therefore intentionally contribute to the same maximum/regeneration pool.
-    # Source-scoped spell cost/power/range/etc. remain isolated per mod.
     $maxManaShared = @'
 int known_magic::max_mana( const Character &guy ) const
 {
@@ -2061,8 +1993,6 @@ float Character::get_skill_level( const skill_id &ident, const item &context ) c
         if ($magic.Contains($forbidden) -or $knowledge.Contains($forbidden)) { throw "Host API 2.0 generic magic/skill source contains module token: $forbidden" }
     }
 
-    # Survivor 0.11.0 mechanical-perk hooks are generic Host API 2.0 contracts.
-    # CDDA knows only hook names; all modifier ownership/value semantics stay in modules.
     $character = Read-V82 $characterPath
     if( -not $character.Contains('#include "ncmm_loader.h"') ) {
         $character = Replace-V82Once $character '#include "character.h"' ('#include "character.h"' + "`n" + '#include "ncmm_loader.h"') 'character.include-ncmm'
@@ -2299,7 +2229,6 @@ function Apply-NcmmReactiveMechanics0112([string]$Root) {
     }
     Remove-Item $marker -Force -ErrorAction SilentlyContinue
 
-    # Successful dodge: immediate flow rewards plus guarded automatic riposte.
     $character = Read-0111 $characterPath
     if(-not $character.Contains('#include "ncmm_loader.h"')) { throw 'Survivor 0.11.2 requires v3 character runtime hooks first.' }
     $dodgeOld = @'
@@ -2370,7 +2299,6 @@ function Apply-NcmmReactiveMechanics0112([string]$Root) {
     $character = Replace-0111 $character $dodgeOld $dodgeNew 'character.after-dodge-riposte'
     Write-0111 $characterPath $character
 
-    # Melee critical: immediate move/stamina surge; static crit chance/damage remains in v3 hook layer.
     $melee = Read-0111 $meleePath
     $critOld = @'
             if( critical_hit ) {
@@ -2397,7 +2325,6 @@ function Apply-NcmmReactiveMechanics0112([string]$Root) {
     $melee = Replace-0111 $melee $critOld $critNew 'melee.after-crit-effects'
     Write-0111 $meleePath $melee
 
-    # Generic outgoing damage and low-health execution window.
     $creature = Read-0111 $creaturePath
     $damageOld = @'
     damage_instance d = dam; // copy, since we will mutate in absorb_hit
@@ -2431,7 +2358,6 @@ function Apply-NcmmReactiveMechanics0112([string]$Root) {
     $creature = Replace-0111 $creature $damageOld $damageNew 'creature.execute-and-momentum-damage'
     Write-0111 $creaturePath $creature
 
-    # Player-attributed kill: immediate recovery hooks + generic API2 event for module-owned momentum state.
     $monster = Read-0111 $monsterPath
     if(-not $monster.Contains('#include "ncmm_loader.h"')) {
         $monster = Replace-0111 $monster '#include "monster.h"' ('#include "monster.h"' + "`n" + '#include "ncmm_loader.h"') 'monster.include-ncmm'
@@ -2487,7 +2413,6 @@ void runtime_player_kill_notify()
     $monster = Replace-0111 $monster $killOld $killNew 'monster.player-kill-event'
     Write-0111 $monsterPath $monster
 
-    # Crafting: real outcome control, not just speed bonuses.
     $crafting = Read-0111 $craftingPath
     if(-not $crafting.Contains('#include "ncmm_loader.h"')) {
         $crafting = Replace-0111 $crafting '#include "crafting.h"' ('#include "crafting.h"' + "`n" + '#include "ncmm_loader.h"') 'crafting.include-ncmm'
@@ -2595,7 +2520,6 @@ float Character::recipe_success_chance( const recipe &making ) const
     $crafting = Replace-0111 $crafting $progressOld $progressNew 'crafting.progress-loss-hook'
     Write-0111 $craftingPath $crafting
 
-    # Scavenging technical surface: lockpicking and hazard recognition.
     $activity = Read-0111 $activityActorPath
     if(-not $activity.Contains('#include "ncmm_loader.h"')) {
         $activity = Replace-0111 $activity '#include "activity_actor_definitions.h"' ('#include "activity_actor_definitions.h"' + "`n" + '#include "ncmm_loader.h"') 'activity-actor.include-ncmm'
@@ -2742,7 +2666,6 @@ function Apply-NcmmReactiveMechanics0113([string]$Root) {
     }
     Remove-Item $marker -Force -ErrorAction SilentlyContinue
 
-    # Riposte refund is based on pre-attack base melee cost, not net moves after nested crit/kill rewards.
     $character = Read-0113 $characterPath
     if(-not $character.Contains('#include "item.h"')) {
         $character = Replace-0113 $character '#include "item_location.h"' ('#include "item.h"' + "`n" + '#include "item_location.h"') 'character.explicit-item-include'
@@ -2789,7 +2712,6 @@ function Apply-NcmmReactiveMechanics0113([string]$Root) {
     $character = Replace-0113 $character $riposteOld0113 $riposteNew0113 'character.riposte-refund-isolation'
     Write-0113 $characterPath $character
 
-    # Snapshot hostility before damage so crit rewards cannot be farmed by striking neutral/friendly targets.
     $melee = Read-0113 $meleePath
     $hostilityAnchor0113 = '    const bool hits = hit_spread >= 0;'
     $hostilityNew0113 = @'
@@ -2807,7 +2729,6 @@ function Apply-NcmmReactiveMechanics0113([string]$Root) {
     $melee = Replace-0113 $melee 'if( is_avatar() && dam > 0 && !t.is_hallucination() ) {' 'if( is_avatar() && ncmm_hostile_target_before && dam > 0 && !t.is_hallucination() ) {' 'melee.hostile-crit-reward'
     Write-0113 $meleePath $melee
 
-    # Momentum/general reactive damage and Execute are combat rewards: never amplify friendly/neutral damage.
     $creature = Read-0113 $creaturePath
     $damageOld0113 = @'
         const double general_bonus = ncmm::runtime_hook_modifier( "combat.damage_dealt_pct" );
@@ -2843,8 +2764,6 @@ function Apply-NcmmReactiveMechanics0113([string]$Root) {
     $creature = Replace-0113 $creature $damageOld0113 $damageNew0113 'creature.hostile-reactive-damage'
     Write-0113 $creaturePath $creature
 
-    # Hostile human NPC kills are real combat kills too. Snapshot hostility before npc::die()
-    # detaches faction state, then emit the same generic player-kill event after actual death.
     $npc = Read-0113 $npcPath
     if(-not $npc.Contains('#include "ncmm_loader.h"')) {
         $npc = Replace-0113 $npc '#include "npc.h"' ('#include "npc.h"' + "`n" + '#include "ncmm_loader.h"') 'npc.include-ncmm'
@@ -2900,8 +2819,6 @@ void npc::die( map *here, Creature *nkiller )
     $npc = Replace-0113 $npc $npcKillOld0113 $npcKillNew0113 'npc.hostile-player-kill-event'
     Write-0113 $npcPath $npc
 
-    # A cancelled craft failure must advance its failure point monotonically, even after a zero roll.
-    # Also keep the catastrophic-failure UI estimate aware of cancellation perks.
     $crafting = Read-0113 $craftingPath
     $failureSaveOld0113 = @'
         if( ncmm_failure_save > 0.0 && rng_float( 0.0, 100.0 ) < ncmm_failure_save ) {
@@ -3039,8 +2956,6 @@ function Apply-WorldSettingsV2Patch([string]$Root) {
         return
     }
 
-    # options_manager: typed synthetic per-world settings. They live on ncmm_experimental,
-    # are copied into WORLD_OPTIONS, and persist through the same world-save path as world_default.
     $h = Read-WS $optionsH
     $declAnchor = @'
         bool ncmm_set_worldgen_string_choices( const std::string &name,
@@ -3076,9 +2991,6 @@ function Apply-WorldSettingsV2Patch([string]$Root) {
 
     $c = Read-WS $optionsCpp
 
-    # Infrastructure 0.8.3.1: NCMM modules register synthetic settings after options.json is loaded.
-    # Persisted NCMM_* values therefore must be deferred instead of creating a placeholder VOID cOpt.
-    # Otherwise a subsequent module registration sees an existing option with the wrong type/page and init fails.
     $deferredStateOld = @'
 static const std::string blank_value( 1, 001 ); // because "" might be valid
 '@
@@ -3119,8 +3031,6 @@ static void ncmm_apply_deferred_option_value( const std::string &name, options_m
 '@
     $c = Replace-WSOnce $c $deserializeDeferredOld $deserializeDeferredNew 'defer unknown persisted NCMM options'
 
-    # v8.7.5: changing USE_LANG inside the options screen must notify NCMM modules too.
-    # The host already exposes ncmm::on_language_changed(), but options.cpp did not dispatch it.
     if (-not $c.Contains('#include "ncmm_loader.h"')) {
         $c = Replace-WSOnce $c '#include "mapsharing.h"' ('#include "mapsharing.h"' + "`n" + '#include "ncmm_loader.h"') 'options locale include'
     }
@@ -3141,8 +3051,6 @@ static void ncmm_apply_deferred_option_value( const std::string &name, options_m
         $c = Replace-WSOnce $c $localeDispatchOld875 $localeDispatchNew875 'options locale dispatch'
     }
 
-    # NCMM 0.7.3: synthetic non-vanilla settings live on a dedicated Experimental page
-    # while retaining the same per-world serialization semantics as world_default.
     $experimentalPageOld = @'
     const int iWorldOptPage = std::find_if( pages_.begin(), pages_.end(), [&]( const Page & p ) {
         return p.id_ == "world_default";
@@ -3161,9 +3069,6 @@ static void ncmm_apply_deferred_option_value( const std::string &name, options_m
 '@
     $c = Replace-WSOnce $c $experimentalPageOld $experimentalPageNew 'experimental show page index'
 
-    # CDDA 0546 contains this world-container selector twice in options_manager::show():
-    # once in the redraw callback and once in the input loop.  Treat the pair as one
-    # source contract instead of using Replace-ExactlyOnce on the first occurrence.
     $showContainerOld = @'
         options_manager::options_container &cOPTIONS = ( ingame || world_options_only ) &&
                 iCurrentPage == iWorldOptPage ?
@@ -3471,9 +3376,6 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
     $c = Replace-WSOnce $c 'void options_manager::update_global_locale()' ($registerImpl + 'void options_manager::update_global_locale()') 'options implementation'
     Write-WS $optionsCpp $c
 
-    # Infrastructure 0.8.3.1: world saves serialize NCMM experimental settings through WORLD_OPTIONS,
-    # but vanilla 0546 restores only entries on world_default. Treat ncmm_experimental as the same
-    # world-scoped persistence domain so existing worlds retain their AWS values.
     $wf = Read-WS $worldFactoryPath
     $worldLoadOld = @'
         if( opts.has_option( name ) && opts.get_option( name ).getPage() == "world_default" ) {
@@ -3490,7 +3392,6 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
     $wf = Replace-WSOnce $wf $worldLoadOld $worldLoadNew 'restore experimental settings from world save'
     Write-WS $worldFactoryPath $wf
 
-    # City size/spacing/urbanity. Applied only to the default world region.
     $city = Read-WS $cityPath
     if (-not $city.Contains('#include "options.h"')) {
         $city = Replace-WSOnce $city '#include "omdata.h"' ('#include "omdata.h"' + "`n" + '#include "options.h"') 'city options include'
@@ -3740,7 +3641,6 @@ void overmap::place_swamps()
 '@
     $om = Replace-WSRange $om 'void overmap::place_swamps()' 'void overmap::place_roads(' $swampNew 'swamp and floodplain controls'
 
-    # Existing road/rail/trailhead checks must honor a city-size override of zero.
     $roadNeedle = 'int op_city_size = settings->get_settings_city().city_size;'
     $roadCount = ([regex]::Matches($om,[regex]::Escape($roadNeedle))).Count
     if ($roadCount -ne 3) { throw "World Settings v2 expected three city-size urbanity/road/rail checks, found $roadCount" }
@@ -4062,7 +3962,6 @@ void highway_intersection_grid::set_options( int row_override, int column_overri
     $highway = Replace-WSOnce $highway $straightOld $straightNew 'highway straightness local'
     $highway = $highway.Replace('x_in_y( highway_settings.straightness_chance, 1.0 )','x_in_y( ncmm_highway_straightness, 1.0 )')
 
-    # Lake-aware highway intersection avoidance follows the same world lake controls.
     $lakeAvoidOld = @'
             const region_settings_lake &lake_settings = settings.get_settings_lake();
             val_emplaced.first->second =
@@ -4395,8 +4294,6 @@ if ($HostSourceProbeOnly) {
     }
 }
 
-# v4 portability fix: this can be a completely fresh PC.  The build root must
-# exist before Find-Vs() writes its diagnostic report or before source bootstrap.
 New-Item -ItemType Directory -Force -Path $BuildRoot | Out-Null
 
 $SeedBranch = "survivor-099-mouse-graphical-tree-validation"
@@ -4463,7 +4360,6 @@ function Test-ExactSeed([string]$Destination,[string]$Commit,[string]$MarkerPath
         $sdkText = [IO.File]::ReadAllText($sdk)
         $moduleText = [IO.File]::ReadAllText($module)
 
-        # Validate REAL 0.9.9 features, not one fragile comment string.
         foreach ($needle in @(
             "int ui_tree_choose(",
             "LINE_XXXX",
@@ -4554,8 +4450,6 @@ $src099Manifest = Join-Path $Seed099 "mods\SurvivorProgression\mod.json"
 $src099Loader = Join-Path $Seed099 "host_patch\ncmm_loader.cpp"
 $src099Sdk = Join-Path $Seed099 "sdk\ncmm_api.h"
 
-# IMPORTANT: never patch the immutable seed itself.
-# Every run starts from a clean mutable work copy.
 Write-Host "Preparing clean 0.9.10 working copy..." -ForegroundColor Cyan
 Remove-Item $Work0910 -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $Work0910 | Out-Null
@@ -4574,7 +4468,6 @@ foreach ($p in @(
     }
 }
 
-# Fresh module source copied from exact 0.9.9, then advanced cumulatively through 0.9.10 -> 0.9.14.
 Remove-Item $Source0910 -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force (Join-Path $Source0910 "src") | Out-Null
 Copy-Item (Join-Path $NcmmRoot "mods\SurvivorProgression\src\survivor_progression.cpp") `
@@ -4784,10 +4677,6 @@ $newConnectors = @'
 $loader = Replace-CppRange $loader $connectorStart $connectorEnd $newConnectors "0.9.10 safe connector routing"
 Write-Utf8NoBom $loaderPath $loader
 
-# ---------------------------------------------------------------------------
-# Module: ranked foundational perks. Existing p_<perk> state becomes rank value.
-# Existing 0/1 saves remain valid: 1 simply means rank I.
-# ---------------------------------------------------------------------------
 $spPath = Join-Path $Source0910 "src\survivor_progression.cpp"
 $sp = [IO.File]::ReadAllText($spPath)
 
@@ -5432,7 +5321,6 @@ void respec()
 '@
 $sp = Replace-CppRange $sp "void respec()" "void open_progression()" $newRespec "ranked respec"
 
-# Keep the log/descriptor version synchronized even if snapshot had extra text.
 $sp = $sp.Replace(
     "anti-farm branch XP / 120 perks / 6 integrated RPG trees.",
     "branch progression / perk ranks / anti-farm XP."
@@ -5445,9 +5333,6 @@ $manifest = [IO.File]::ReadAllText($manifestPath)
 $manifest = $manifest.Replace('"version": "0.9.9"','"version": "0.9.10"')
 Write-Utf8NoBom $manifestPath $manifest
 
-# ===========================================================================
-# Survivor Progression 0.9.11 -> 0.9.14 cumulative feature train
-# ===========================================================================
 function Save-SurvivorSourceSnapshot([string]$SnapshotRoot,[string]$VersionLabel) {
     $sdkSource = Join-Path $NcmmRoot "sdk\ncmm_api.h"
     $inputs = @($loaderPath,$sdkSource,$spPath,$manifestPath)
@@ -5483,9 +5368,6 @@ function Save-SurvivorSourceSnapshot([string]$SnapshotRoot,[string]$VersionLabel
     Write-Host "${VersionLabel} source snapshot: $SnapshotRoot" -ForegroundColor DarkGray
 }
 
-# ---------------------------------------------------------------------------
-# 0.9.11 — Tree Clarity + real branch progress bar
-# ---------------------------------------------------------------------------
 Write-Host "Applying Survivor 0.9.11: Tree Clarity + Branch Bar..." -ForegroundColor Cyan
 $loader = [IO.File]::ReadAllText($loaderPath)
 
@@ -5703,7 +5585,6 @@ if ($progressCount -ne 2) {
 }
 $loader = $loader.Replace($oldProgressLine,$newProgressLine.TrimEnd())
 
-# Structural guard: none of the 0.9.10 semantic routing tail may survive.
 foreach ($obsolete in @(
     "style_for_node",
     "const int style = style_for_node( to );",
@@ -5727,9 +5608,6 @@ $manifest = [IO.File]::ReadAllText($manifestPath).Replace('"version": "0.9.10"',
 Write-Utf8NoBom $manifestPath $manifest
 Save-SurvivorSourceSnapshot $Snap0911 "0.9.11"
 
-# ---------------------------------------------------------------------------
-# 0.9.12 — Branch progression expansion: diversity + branch level notices
-# ---------------------------------------------------------------------------
 Write-Host "Applying Survivor 0.9.12: Branch Progression Expansion..." -ForegroundColor Cyan
 $sp = [IO.File]::ReadAllText($spPath)
 
@@ -5851,9 +5729,6 @@ $manifest = [IO.File]::ReadAllText($manifestPath).Replace('"version": "0.9.11"',
 Write-Utf8NoBom $manifestPath $manifest
 Save-SurvivorSourceSnapshot $Snap0912 "0.9.12"
 
-# ---------------------------------------------------------------------------
-# 0.9.13 — Active-mod integration API v1
-# ---------------------------------------------------------------------------
 Write-Host "Applying Survivor 0.9.13: Active-Mod Integration Framework..." -ForegroundColor Cyan
 $sdkPath = Join-Path $NcmmRoot "sdk\ncmm_api.h"
 $sdk = [IO.File]::ReadAllText($sdkPath)
@@ -5895,7 +5770,6 @@ $loader = $loader.Replace('    &ui_tree_choose,' + "`n" + '    &gameplay_metric_
                           '    &ui_tree_choose,' + "`n" + '    &gameplay_metric_get_i64,' + "`n" + '    &world_mod_active' + "`n" + '};')
 Write-Utf8NoBom $loaderPath $loader
 
-# Keep the smoke host source-compatible with the additive API tail.
 $smokePath = Join-Path $NcmmRoot "tests\smoke_host.cpp"
 if (Test-Path $smokePath -PathType Leaf) {
     $smoke = [IO.File]::ReadAllText($smokePath)
@@ -5963,16 +5837,12 @@ $manifest = $manifest.Replace('    "gameplay.metrics.v1",', '    "gameplay.metri
 Write-Utf8NoBom $manifestPath $manifest
 Save-SurvivorSourceSnapshot $Snap0913 "0.9.13"
 
-# ---------------------------------------------------------------------------
-# 0.9.14 — Exclusive specializations + deep conditional mod integrations
-# ---------------------------------------------------------------------------
 Write-Host "Applying Survivor 0.9.14: Specializations + Deep Mod Integrations..." -ForegroundColor Cyan
 $sp = [IO.File]::ReadAllText($spPath)
 if (-not $sp.Contains('#include <string_view>')) {
     $sp = Replace-Once $sp '#include <string>' ('#include <string>' + "`n" + '#include <string_view>') '0.9.14 string_view include'
 }
 
-# Schema 7 stores specialization choice per branch. Existing rank state is unchanged.
 $sp = $sp.Replace('constexpr int state_schema = 6;','constexpr int state_schema = 7;')
 
 $extraPerks0914 = @'
@@ -6194,7 +6064,6 @@ const perk_def *find_perk( const char *id )
 
 $sp = Replace-CppRange $sp "const perk_def *find_perk( const char *id )" "int64_t xp_to_next( int64_t level )" $findPerk0914 "0.9.14 conditional find_perk"
 
-# Only visible/active-world perks contribute to UI counts and active effects.
 $counts0914 = @'
 int branch_owned_count( branch_id branch )
 {
@@ -6413,16 +6282,12 @@ std::string perk_kind_label( const perk_def &perk )
 '@
 $sp = Replace-CppRange $sp "std::string perk_kind_label( const perk_def &perk )" "std::string branch_icon_key( branch_id branch )" $perkKind0914 "0.9.14 perk badges"
 
-# Hide integration nodes when their parent world mod is not active.
 $sp = $sp.Replace('        for( const perk_def &perk : perks ) {' + "`n" + '            if( perk.branch != branch ) {',
                   '        for( const perk_def &perk : perks ) {' + "`n" + '            if( perk.branch != branch || !perk_world_available( perk ) ) {')
 
-# UI total uses only perks that can exist in the active world.
 $sp = $sp.Replace('const int total_perks = static_cast<int>( sizeof( perks ) / sizeof( perks[0] ) );',
                   'const int total_perks = visible_perk_count();')
 
-# Respec also clears exclusive branch commitments; hidden integration purchases are
-# deliberately still refunded because perk_rank() reads raw saved rank state.
 $respecNeedle = '    set_state( "fast_learner", 0 );' + "`n" + '    effects_dirty = true;'
 $respecReplacement = @'
     set_state( "fast_learner", 0 );
@@ -6434,7 +6299,6 @@ $respecReplacement = @'
 if (-not $sp.Contains($respecNeedle)) { throw "0.9.14 respec specialization anchor not found." }
 $sp = Replace-TextBlock $sp $respecNeedle $respecReplacement "0.9.14 respec specialization state"
 
-# Initialize/sanitize specialization slots during schema-7 migration.
 $migrateNeedle = '        set_state( branch_state_key( branch, "xp" ),' + "`n" +
                  '                   std::max<int64_t>( 0, get_state( branch_state_key( branch, "xp" ), 0 ) ) );' + "`n" +
                  '    }'
@@ -6449,7 +6313,6 @@ $migrateReplacement = @'
 if (-not $sp.Contains($migrateNeedle)) { throw "0.9.14 migration specialization anchor not found." }
 $sp = Replace-TextBlock $sp $migrateNeedle $migrateReplacement "0.9.14 migration specialization state"
 
-# Deep integrations also affect EARNED thematic branch XP, never passive time XP.
 $poll0914 = @'
 int integration_branch_xp_bonus_pct( branch_id branch )
 {
@@ -6535,7 +6398,6 @@ void poll_branch_xp()
 '@
 $sp = Replace-CppRange $sp "void poll_branch_xp()" "void tick()" $poll0914 "0.9.14 thematic mod XP integration"
 
-# Overview explicitly lists detected integrations.
 $overviewAnchor = '    out += "\n" + tr( "Major points: every 5 levels, with no level cap.",' + "`n" +
                   '                       "Большие очки: каждые 5 уровней, без ограничения уровня." );'
 $overviewInsert = @'
@@ -6562,7 +6424,6 @@ $overviewInsert = @'
 if (-not $sp.Contains($overviewAnchor)) { throw "0.9.14 overview integration anchor not found." }
 $sp = Replace-TextBlock $sp $overviewAnchor $overviewInsert "0.9.14 overview integrations"
 
-# Detail window explains exclusive and mod-dependent nodes.
 $detailAnchor = '        title += "\n" + tr( "Cost per rank: ", "Цена за ранг: " ) + cost_text( perk );'
 $detailReplacement = @'
         title += "\n" + tr( "Cost per rank: ", "Цена за ранг: " ) + cost_text( perk );
@@ -6577,16 +6438,8 @@ $detailReplacement = @'
 if (-not $sp.Contains($detailAnchor)) { throw "0.9.14 detail integration anchor not found." }
 $sp = Replace-TextBlock $sp $detailAnchor $detailReplacement "0.9.14 detail integrations"
 
-# ---------------------------------------------------------------------------
-# v7 — logical tree navigation + dedicated active-mod branches
-# ---------------------------------------------------------------------------
 Write-Host "Applying v7 UI correction: logical arrows + dedicated mod branches..." -ForegroundColor Cyan
 
-# Tree keyboard navigation is now based on DECLARED logical rows/columns, not on
-# the auto-routed connector geometry.  Vertical input moves exactly one occupied
-# logical row at a time; horizontal input stays on the current row and moves to
-# the nearest declared column.  This makes every node reachable without random
-# multi-row jumps caused by parent-centering of layout_x2.
 $loader = [IO.File]::ReadAllText($loaderPath)
 $oldTreeNav = @'
     auto select_direction = [&]( int row_sign, int col_sign ) {
@@ -6689,8 +6542,6 @@ $loader = $loader.Replace(
 )
 Write-Utf8NoBom $loaderPath $loader
 
-# Base Survivor branch counters no longer absorb active-mod integration nodes.
-# Integration purchases still remain part of global purchased/visible totals.
 $countsV7 = @'
 int branch_owned_count( branch_id branch )
 {
@@ -7176,25 +7027,15 @@ $manifest = [IO.File]::ReadAllText($manifestPath).Replace('"version": "0.9.13"',
 $manifest = $manifest.Replace('"state_schema": 6','"state_schema": 7')
 Write-Utf8NoBom $manifestPath $manifest
 
-# ---------------------------------------------------------------------------
-# v8 — audited mod-native progression redesign (still Survivor 0.9.14)
-# ---------------------------------------------------------------------------
 Write-Host "Applying v8.7.6.6 base: Prime specializations + registry + World Settings API v2..." -ForegroundColor Cyan
 $sp = [IO.File]::ReadAllText($spPath)
 
-# Replace the old four-per-mod generic-stat integrations. IDs that existed in v7
-# are deliberately reused in the new 20-node trees so purchased ranks remain valid.
 $legacyIntegrationIds = @(
     'mg_arcane_focus','mg_battlemage','mg_ritual_craft','mg_wayfarer',
     'mom_mental_focus','mom_kinetic_control','mom_combat_focus','mom_neural_reserve',
     'xe_anomaly_method','xe_field_agent','xe_dimensional_hunter','xe_occult_engineer',
     'af_systems_operator','af_expedition_logistics','af_combat_technician','af_conditioning'
 )
-# v8.4 hotfix: scope legacy removal to actual perk_def rows.
-# v8.3 used a broad line regex and therefore also matched ranked-perk metadata such as
-#     { "mg_arcane_focus", 5, 0.125 }, ...
-# which made one real perk definition look like two matches.  Requiring branch_id::
-# keeps the rank table intact while removing only the 0.9.14 legacy perk row.
 foreach ($legacyId in $legacyIntegrationIds) {
     $pattern = '(?m)^[ \t]*\{ "' + [regex]::Escape($legacyId) + '",\s*branch_id::.*\r?\n'
     $rx = New-Object System.Text.RegularExpressions.Regex($pattern)
@@ -7356,9 +7197,6 @@ $perkArrayEndV8 = $sp.IndexOf("`n};",$perkArrayStartV8)
 if ($perkArrayEndV8 -lt 0) { throw 'v8 perk array end not found.' }
 $sp = $sp.Insert($perkArrayEndV8,"`n" + $modPerksV8.TrimEnd())
 
-# v8.2: integration ownership is an exact typed registry generated from the
-# canonical mod-perk block.  Stable save IDs remain strings, but runtime logic
-# no longer treats arbitrary mg_/mom_/xe_/af_ prefixes as executable metadata.
 $integrationEntriesV82 = New-Object System.Collections.Generic.List[string]
 foreach ($lineV82 in (Normalize-Lf $modPerksV8).Split("`n")) {
     if ($lineV82 -match '^\s*\{\s*"((mg|mom|xe|af|afp|sec|secx)_[^"]+)"') {
@@ -7392,7 +7230,6 @@ $($integrationEntriesV82.ToArray() -join "`n")
 "@
 $sp = Replace-CppRange $sp 'integration_id perk_integration( const perk_def &perk )' 'bool integration_perk( const perk_def &perk )' $integrationRegistryV82 'v8.3 exact integration registry'
 
-# v8.2: cache immutable perk state keys once instead of allocating "p_<id>" on every ownership query.
 $perkKeyV82 = @'
 const std::string &perk_key( const perk_def &perk )
 {
@@ -7563,7 +7400,6 @@ void show_perk_detail( const perk_def &perk )
 '@
 $sp = Replace-CppRange $sp 'void show_perk_detail( const perk_def &perk )' 'int branch_unlocked_count(' $detailV8 'v8 mod detail gating'
 
-# Human-readable labels for the new native modifier surface.
 $effectLabelAnchor = '    if( id == "craft_speed_pct" ) return tr( "Crafting %", "Крафт %" );' + "`n" + '    return id;'
 $effectLabelV8 = @'
     if( id == "craft_speed_pct" ) return tr( "Crafting %", "Крафт %" );
@@ -7810,14 +7646,8 @@ void show_integration_branch( const std::string &mod_id )
 '@
 $sp = Replace-CppRange $sp 'const char *integration_anchor_id( const std::string &mod_id )' 'void open_progression()' $integrationUiV8 'v8 20-node mod UI'
 
-# ---------------------------------------------------------------------------
-# v8.7.3 — Survivor UI Theme API adoption + compact tree presentation
-# ---------------------------------------------------------------------------
 Write-Host "Applying v8.7.6.6 base: themed Survivor branches + compact tree tiles..." -ForegroundColor Cyan
 
-# Survivor requires the additive API 1.7 theme capability.  The legacy card/tree
-# entry points remain in the ABI for older modules, but Survivor 0.9.14 now opts
-# into the explicit themed entry points generated later in this installer.
 if (-not $sp.Contains('    "active_mods.v1",')) { throw 'v8.7.3 Survivor active_mods capability anchor missing.' }
 $sp = $sp.Replace('    "active_mods.v1",', '    "active_mods.v1",' + "`n" + '    "ui.theme.v1",')
 
@@ -8047,7 +7877,6 @@ $initUiNew = '!api->gameplay_metric_get_i64 || !api->world_mod_active || !api->u
 if (-not $sp.Contains($initUiOld)) { throw 'v8.7.3 Survivor themed API init-check anchor missing.' }
 $sp = $sp.Replace($initUiOld,$initUiNew)
 
-# Keep module manifest aligned with the new host dependency.
 $manifest = [IO.File]::ReadAllText($manifestPath)
 if (-not $manifest.Contains('"api_min_minor": 5')) { throw 'v8.7.3 Survivor manifest API 1.5 anchor missing.' }
 $manifest = $manifest.Replace('"api_min_minor": 5','"api_min_minor": 7')
@@ -8055,13 +7884,8 @@ if (-not $manifest.Contains('    "active_mods.v1",')) { throw 'v8.7.3 Survivor m
 $manifest = $manifest.Replace('    "active_mods.v1",', '    "active_mods.v1",' + "`n" + '    "ui.theme.v1",')
 Write-Utf8NoBom $manifestPath $manifest
 
-# ---------------------------------------------------------------------------
-# 0.9.15 — Prime specialization tradeoffs (core + every supported mod branch)
-# ---------------------------------------------------------------------------
 Write-Host "Applying Survivor 0.9.15: Prime Specialization Tradeoffs..." -ForegroundColor Cyan
 
-# New persisted per-mod Prime commitments require schema 8.  Existing perk IDs and
-# the six core specialization-state keys are retained, so 0.9.14 saves migrate in place.
 if (-not $sp.Contains('constexpr int state_schema = 7;')) { throw '0.9.15 expected state schema 7.' }
 $sp = $sp.Replace('constexpr int state_schema = 7;','constexpr int state_schema = 8;')
 if (-not $sp.Contains('#include <map>')) { throw '0.9.15 C++ include anchor missing.' }
@@ -8129,7 +7953,6 @@ $modPrimePerks0915 = @'
     { "secx_prime_vessel", branch_id::mastery, 9, 45, currency_id::major, "secx_flesh_architect", "", "Prime Flesh Vessel", "Прайм: Сосуд плоти", "Energy cost -25%, failure chance -20%, duration +30%; Flesh Weaving -1.5.", "Стоимость энергии -25%, шанс провала -20%, длительность +30%; Flesh Weaving -1,5.", {{ { "secx_spell_cost_pct", -25 }, { "secx_fail_pct", -20 }, { "secx_duration_pct", 30 }, { "secx_flesh_craft_flat", -1.5 } }}, 4, 0, perk_kind::effect }
 '@
 
-# Append exactly three Prime choices to each of the seven conditional mod branches.
 $primeArrayStart = $sp.IndexOf('const perk_def perks[] = {')
 if ($primeArrayStart -lt 0) { throw '0.9.15 perk array start missing.' }
 $primeArrayEnd = $sp.IndexOf("`n};",$primeArrayStart)
@@ -8427,7 +8250,6 @@ std::pair<int, int> integration_tree_position( size_t i )
 $sp = Replace-CppRange $sp 'std::pair<int, int> integration_tree_position( size_t i )' 'void show_integration_branch( const std::string &mod_id )' $integrationPos0915 '0.9.15 mod Prime tree row'
 $sp = $sp.Replace('        mod_perks.reserve( 20 );','        mod_perks.reserve( 24 );')
 
-# Clear and migrate the seven independent mod-Prime commitments.
 $respecPrimeAnchor = '    for( branch_id branch : all_branches ) {' + "`n" + '        set_state( specialization_state_key( branch ), 0 );' + "`n" + '    }' + "`n" + '    effects_dirty = true;'
 $respecPrimeNew = @'
     for( branch_id branch : all_branches ) {
@@ -8461,8 +8283,6 @@ $migratePrimeNew = @'
 if (-not $sp.Contains($migratePrimeAnchor)) { throw '0.9.15 migration schema anchor missing.' }
 $sp = Replace-TextBlock $sp $migratePrimeAnchor $migratePrimeNew '0.9.15 migrate mod Prime states'
 
-# API 1.8 active-mod registry will be added below; Survivor consumes it to build
-# mod tabs from one generic host registry instead of seven hand-coded activity checks.
 if (-not $sp.Contains('    "ui.theme.v1",')) { throw '0.9.15 Survivor UI theme capability anchor missing.' }
 $sp = $sp.Replace('    "ui.theme.v1",', '    "ui.theme.v1",' + "`n" + '    "active_mods.registry.v2",')
 
@@ -8502,8 +8322,6 @@ $hardcodedMods0915 = @'
         add_mod_branch( "secronom" );
         add_mod_branch( "secronom_lore_expansion" );
 '@
-# Earlier exact C++ transforms normalize $sp to LF. Windows PowerShell here-strings
-# remain CRLF, so a raw String.Contains check can fail even though the block is present.
 $hardcodedMods0915 = Normalize-Lf $hardcodedMods0915
 $registryMods0915 = @'
         for( const std::string &mod_id : active_supported_integration_mods() ) {
@@ -8518,7 +8336,6 @@ $initPrimeNew = '!api->gameplay_metric_get_i64 || !api->world_mod_active || !api
 if (-not $sp.Contains($initPrimeOld)) { throw '0.9.15 registry API init-check anchor missing.' }
 $sp = $sp.Replace($initPrimeOld,$initPrimeNew)
 
-# Promote module version after all 0.9.15 transforms.
 $sp = $sp.Replace('"0.9.14"','"0.9.15"')
 $sp = $sp.Replace('Survivor Progression v0.9.14','Survivor Progression v0.9.15')
 $sp = $sp.Replace('Survivor Progression 0.9.14 initialized:','Survivor Progression 0.9.15 initialized:')
@@ -8536,7 +8353,6 @@ Write-Utf8NoBom $manifestPath $manifest
 Write-Utf8NoBom $spPath $sp
 Save-SurvivorSourceSnapshot $Snap0915 "0.9.15"
 
-# The host accepts the new modifier IDs without changing the ABI/API tail.
 $loader = [IO.File]::ReadAllText($loaderPath)
 $modifierAnchor = '    { "craft_speed_pct", { -90.0, 500.0 } }' + "`n" + '};'
 $modifierSurfaceV8 = @'
@@ -8612,9 +8428,6 @@ $modifierSurfaceV8 = @'
 '@
 $loader = Replace-TextBlock $loader $modifierAnchor $modifierSurfaceV8 "v8 host modifier surface"
 
-# v8.2: modifier reads occur from hot spell/skill paths, while writes happen only
-# on load/purchase/respec.  Maintain aggregate totals on write so gameplay_modifier
-# is O(log M), not O(number_of_modules * map_lookup) for every spell query.
 $eraseCountV82 = ([regex]::Matches($loader,[regex]::Escape('character_modifier_values.erase('))).Count
 if ($eraseCountV82 -ne 7) { throw "v8.2 expected exactly seven module-modifier erase sites, found $eraseCountV82" }
 $loader = $loader.Replace('character_modifier_values.erase(','erase_module_modifiers(')
@@ -8741,9 +8554,6 @@ Write-Utf8NoBom $loaderHeaderPathV82 $loaderHeaderV82
 Write-Utf8NoBom $loaderPath $loader
 
 
-# ---------------------------------------------------------------------------
-# World Settings API v2 + Advanced World Settings 0.6.1
-# ---------------------------------------------------------------------------
 Write-Host "Applying NCMM World Settings API v2 + geographic settings..." -ForegroundColor Cyan
 $sdk = [IO.File]::ReadAllText($sdkPath)
 if (-not $sdk.Contains('#define NCMM_API_VERSION_MINOR 5u')) {
@@ -8986,9 +8796,6 @@ if (-not $loader.Contains($apiTailOld)) { throw 'World Settings v2 host API init
 $loader = $loader.Replace($apiTailOld,$apiTailNew.TrimEnd())
 Write-Utf8NoBom $loaderPath $loader
 
-# ---------------------------------------------------------------------------
-# NCMM Host API 1.7 / NCMM 0.7.3 — themed UI + experimental world page
-# ---------------------------------------------------------------------------
 Write-Host "Applying NCMM 0.7.3 UI Theme API + Experimental World page..." -ForegroundColor Cyan
 $sdk = [IO.File]::ReadAllText($sdkPath)
 if (-not $sdk.Contains('#define NCMM_API_VERSION_MINOR 6u')) {
@@ -9052,9 +8859,6 @@ $ui17Tail = @'
 $sdk = Replace-TextBlock $sdk $wsStringTail $ui17Tail 'NCMM 0.7.3 SDK tail'
 Write-Utf8NoBom $sdkPath $sdk
 
-# Keep the repository smoke host aligned with API 1.7 as well.  This matters for
-# future CI/publishing: aggregate initialization with a shorter tail would compile,
-# but Survivor would correctly reject the null themed callbacks at runtime.
 $smokePath17 = Join-Path $NcmmRoot 'tests\smoke_host.cpp'
 if (Test-Path $smokePath17 -PathType Leaf) {
     $smoke17 = [IO.File]::ReadAllText($smokePath17)
@@ -9178,10 +8982,8 @@ if (-not $loader.Contains('    "world_settings.v2",')) { throw 'NCMM 0.7.3 world
 $loader = $loader.Replace('    "world_settings.v2",',
     '    "world_settings.v2",' + "`n" + '    "world_options.experimental.v1",' + "`n" + '    "ui.theme.v1",')
 
-# Keep runtime host metadata synchronized with the new additive API tail.
 $loader = $loader.Replace('return "0.7.2";','return "0.7.3";')
 $loader = $loader.Replace('"host_version": "0.7.2"','"host_version": "0.7.3"')
-# modules.state.json writes a C++ escaped JSON literal, so refresh that spelling too.
 $loader = $loader.Replace('\"host_version\": \"0.7.2\"','\"host_version\": \"0.7.3\"')
 
 $themeGlobalsAnchor = 'thread_local std::string active_module_id;'
@@ -9251,7 +9053,6 @@ class ncmm_ui_theme_scope
 '@
 $loader = Replace-TextBlock $loader $themeGlobalsAnchor $themeGlobals 'NCMM 0.7.3 UI theme globals'
 
-# Theme card borders/titles while retaining old semantics for unthemed modules.
 $cardStyleOld = @'
             const nc_color border = active ? c_light_green :
                                     owned ? c_cyan :
@@ -9341,9 +9142,6 @@ $treeStyleNew = @'
 $loader = Replace-TextBlock $loader $treeStyleOld $treeStyleNew 'NCMM 0.7.3 themed tree nodes'
 
 
-# A persistent accent marker makes themed tiles readable even when their dark
-# interior matches the game's black background.  Keep the selected marker as
-# '>' and use '*' only for non-selected STRONG_BORDER themes.
 $cardMarkerOld = @'
             if( active ) {
                 mvwprintz( card_win, point( 1, 1 ), c_light_green, ">" );
@@ -9368,8 +9166,6 @@ $treeMarkerNew = @'
 '@
 $loader = Replace-TextBlock $loader $treeMarkerOld $treeMarkerNew 'NCMM 0.7.3 tree contrast marker'
 
-# Branch identity should read at the window level as well as on each tile.
-# Both card/tree renderers use this exact header call in the pinned host.
 $hostTitleOld = '        ncmm_trim_and_print_literal( frame, point( 2, 1 ), frame_width - 4, c_white, title );'
 $hostTitleNew = '        ncmm_trim_and_print_literal( frame, point( 2, 1 ), frame_width - 4,' + "`n" +
                 '                                    ncmm_ui_theme_enabled() ? ncmm_ui_theme_accent() : c_white, title );'
@@ -9389,7 +9185,6 @@ $detailTitleNew = @'
 '@
 $loader = Replace-TextBlock $loader $detailTitleOld $detailTitleNew 'NCMM 0.7.3 themed detail title'
 
-# The two progress bars (cards/tree) inherit branch accent when a theme is active.
 $loader = $loader.Replace(
     'frame_width - 4,' + "`n" + '                                        c_light_green, line );',
     'frame_width - 4,' + "`n" + '                                        ncmm_ui_theme_enabled() ? ncmm_ui_theme_accent() : c_light_green, line );' )
@@ -9472,9 +9267,6 @@ $api17New = @'
 $loader = Replace-TextBlock $loader $api17Old $api17New 'NCMM 0.7.3 host API initializer'
 Write-Utf8NoBom $loaderPath $loader
 
-# ---------------------------------------------------------------------------
-# NCMM Host API 1.8 / NCMM 0.7.4 — active-mod registry + runtime coherence
-# ---------------------------------------------------------------------------
 Write-Host "Applying NCMM 0.7.4 Active-Mod Registry API..." -ForegroundColor Cyan
 $sdk = [IO.File]::ReadAllText($sdkPath)
 if (-not $sdk.Contains('#define NCMM_API_VERSION_MINOR 7u')) { throw 'NCMM 0.7.4 expected API 1.7 before registry extension.' }
@@ -9546,8 +9338,6 @@ $api18New = @'
 $loader = Replace-TextBlock $loader $api18Old $api18New 'NCMM 0.7.4 host API registry initializer'
 Write-Utf8NoBom $loaderPath $loader
 
-# Fix the bootstrap/runtime version drift left by the 1.7 UI pass: the seed runtime
-# still says 0.7.2 unless explicitly transformed.  Keep binding/loader/bootstrap coherent.
 $runtimeBootstrapPath18 = Join-Path $NcmmRoot 'runtime\NCMMBootstrap.cs'
 if (-not (Test-Path $runtimeBootstrapPath18 -PathType Leaf)) { throw 'NCMM 0.7.4 bootstrap source missing.' }
 $runtime18 = [IO.File]::ReadAllText($runtimeBootstrapPath18)
@@ -9560,9 +9350,6 @@ if ($runtime18.Contains('private const string RuntimeVersion = "0.7.2";')) {
 }
 Write-Utf8NoBom $runtimeBootstrapPath18 $runtime18
 
-# The base host-patch script still carries its historical 0.7.2 marker in the seed.
-# Promote every version marker/message in that script to the final 0.7.4 host version
-# so an installed source tree never claims a different NCMM version than loader/runtime.
 $applyHostPath18 = Join-Path $NcmmRoot 'host_patch\Apply-NCMMHostPatch.ps1'
 if (-not (Test-Path $applyHostPath18 -PathType Leaf)) { throw 'NCMM 0.7.4 host patch script missing.' }
 $applyHost18 = [IO.File]::ReadAllText($applyHostPath18)
@@ -9576,9 +9363,6 @@ if ($applyHost18.Contains('0.7.2') -or -not $applyHost18.Contains('NCMM Host API
 }
 Write-Utf8NoBom $applyHostPath18 $applyHost18
 
-# Runtime/bootstrap behavior is part of the installed NCMM contract, so bind it
-# into patch_revision as well.  This closes the old gap where a bootstrap-only
-# change could ship under an unchanged host patch revision.
 $revRuntimePath18 = Join-Path $NcmmRoot 'ci\Get-PatchRevision.ps1'
 $revRuntime18 = [IO.File]::ReadAllText($revRuntimePath18)
 if (-not $revRuntime18.Contains("'runtime/NCMMBootstrap.cs'")) {
@@ -9588,8 +9372,6 @@ if (-not $revRuntime18.Contains("'runtime/NCMMBootstrap.cs'")) {
     Write-Utf8NoBom $revRuntimePath18 $revRuntime18
 }
 
-# Keep smoke host ABI/API tail complete.  A zero-length registry is enough for the
-# generic smoke path; dedicated checks below verify count/id behavior separately.
 $smokePath18 = Join-Path $NcmmRoot 'tests\smoke_host.cpp'
 if (Test-Path $smokePath18 -PathType Leaf) {
     $smoke18 = [IO.File]::ReadAllText($smokePath18)
@@ -9630,10 +9412,6 @@ const char *world_mod_id_registry_fn( size_t )
         &world_mod_id_registry_fn
     };
 '@
-    # Replace-TextBlock normalizes LF/CRLF and trims the here-string edge.  Do not
-    # preflight this block with raw .Contains(): the preceding API 1.7 pass intentionally
-    # inserted its initializer with TrimEnd(), so a Windows here-string carries one extra
-    # trailing CRLF and produces a false 'anchor missing' on otherwise-correct source.
     $smoke18 = Replace-TextBlock $smoke18 $smokeApi18Old $smokeApi18New 'NCMM API 1.8 smoke initializer'
     $smoke18 = $smoke18.Replace('return "0.7.3-smoke";','return "0.7.4-smoke";')
     $smoke18 = $smoke18.Replace('migrate( &api, 2, 7 )','migrate( &api, 2, 8 )')
@@ -9904,9 +9682,6 @@ if (-not $revTextWS.Contains('compat/world_settings_v2_geography.contract.txt'))
     Write-Utf8NoBom $revPathWS $revTextWS
 }
 
-# Bind the v8 engine-hook implementation into the NCMM patch revision.  The
-# hook is executed by this cumulative installer, but its exact function body is
-# stored in the working repository and hashed alongside the normal host patch.
 $mechanicsContractPath = Join-Path $NcmmRoot "compat\survivor_mod_mechanics_v82.contract.txt"
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -9921,12 +9696,9 @@ if (-not $revTextV8.Contains('compat/survivor_mod_mechanics_v82.contract.txt')) 
     Write-Utf8NoBom $revPathV8 $revTextV8
 }
 
-# Final source root mirrors what will be compiled and what GitHub should receive.
 Copy-Item $spPath (Join-Path $NcmmRoot "mods\SurvivorProgression\src\survivor_progression.cpp") -Force
 Copy-Item $manifestPath (Join-Path $NcmmRoot "mods\SurvivorProgression\mod.json") -Force
 Save-SurvivorSourceSnapshot $Snap0914 "0.9.14"
-# v8 adds an engine-hook source contract that the older snapshot helper did not
-# know about.  Preserve it explicitly with the exact patch-revision inputs.
 New-Item -ItemType Directory -Force (Join-Path $Snap0914 "compat") | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $Snap0914 "ci") | Out-Null
 Copy-Item $mechanicsContractPath (Join-Path $Snap0914 "compat\survivor_mod_mechanics_v82.contract.txt") -Force
@@ -9939,9 +9711,6 @@ Copy-Item $awsPath (Join-Path $Snap0914 "mods\AdvancedWorldSettings\src\aws.cpp"
 Copy-Item $awsManifestPath (Join-Path $Snap0914 "mods\AdvancedWorldSettings\mod.json") -Force
 
 
-# ---------------------------------------------------------------------------
-# v8.7 — RPG Visual Pass / UI host layout extension (additive on top of API 1.8)
-# ---------------------------------------------------------------------------
 Write-Host "Applying v8.7 RPG Visual Pass + UI host layout extensions..." -ForegroundColor Cyan
 
 $sdk = [IO.File]::ReadAllText($sdkPath)
@@ -10726,16 +10495,8 @@ if (-not $manifest.Contains('"ui.layout.v1"')) {
 Write-Utf8NoBom $manifestPath $manifest
 
 
-# ---------------------------------------------------------------------------
-# v8.7.3 — Prime row visibility + real horizontal viewport + section rendering
-# ---------------------------------------------------------------------------
 Write-Host "Applying v8.7.5 overview frame + Prime layout/text + locale refresh..." -ForegroundColor Cyan
 
-# The three Prime choices were laid out at logical columns 0/2/4.  With 30-char
-# RPG nodes that expands to three nodes separated by an entire lane, so the third
-# choice could sit behind the fixed detail pane while still remaining keyboard-selectable.
-# Prime rows use compact adjacent columns 0/1/2; the rest of each branch keeps its
-# established topology.
 $sp = [IO.File]::ReadAllText($spPath)
 $primeCoreLayoutOld871 = @'
     // 20..22 are exclusive specialization roots; 23..25 their capstones.
@@ -10772,8 +10533,6 @@ $primeModLayoutNew871 = @'
 '@
 $sp = Replace-TextBlock $sp $primeModLayoutOld871 $primeModLayoutNew871 'v8.7.3 compact mod Prime row'
 
-# Make sectioned detail text actually separate the positive and negative halves
-# of Prime tradeoffs instead of repeating the full sentence twice.
 $rpgDetailOld871 = @'
 std::string rpg_detail_body( const perk_def &perk, const std::string &body,
                              const std::string &requires_text )
@@ -10834,8 +10593,6 @@ Write-Utf8NoBom $spPath $sp
 
 $loader = [IO.File]::ReadAllText($loaderPath)
 
-# Preserve declared Prime lanes during the host's parent-centering pass.
-# Without this, different Prime choices that share parents can be recentered onto the same x-position.
 $primeLaneOld875 = @'
     for( int pass = 0; pass < 3; ++pass ) {
         for( size_t i = 0; i < node_count; ++i ) {
@@ -10851,10 +10608,6 @@ $primeLaneNew875 = @'
 '@
 $loader = Replace-TextBlock $loader $primeLaneOld875 $primeLaneNew875 'v8.7.5 preserve Prime lanes'
 
-# HOTFIX13: parent-centering is useful for singleton rows but can collapse siblings onto
-# the same physical x coordinate.  That makes cards overlap and node_at() returns only the
-# first hit, leaving a visually present node impossible to click.  Deconflict every row that
-# contains multiple nodes back onto declared logical lanes, while retaining centered singleton rows.
 $treeRowDeconflictOld013 = @'
     }
 
@@ -10893,8 +10646,6 @@ $treeRowDeconflictNew013 = @'
 '@
 $loader = Replace-TextBlock $loader $treeRowDeconflictOld013 $treeRowDeconflictNew013 'HOTFIX13 tree row physical deconfliction'
 
-# A real horizontal viewport: keyboard navigation now automatically pans the tree
-# so the selected node cannot remain logically selected outside the visible canvas.
 $treeViewportOld871 = @'
     int selected = 0;
     int first_row = 0;
@@ -10978,8 +10729,6 @@ $treeViewportNew871 = @'
 '@
 $loader = Replace-TextBlock $loader $treeViewportOld871 $treeViewportNew871 'v8.7.3 horizontal tree viewport'
 
-# Actual per-node border glyph styling.  Prime nodes now look different even on
-# monochrome terminals; Major nodes keep the normal box glyphs but their color/marker.
 $treeBorderOld871 = @'
             wattron( frame, border );
             mvwhline( frame, point( x + 1, y ), LINE_OXOX, node_width - 2 );
@@ -11030,8 +10779,6 @@ $treeBorderNew871 = @'
 '@
 $loader = Replace-TextBlock $loader $treeBorderOld871 $treeBorderNew871 'v8.7.3 Prime border glyphs'
 
-# Section headers in the detail pane receive semantic colors rather than rendering
-# as one undifferentiated gray paragraph.
 $detailBodyOld871 = @'
         if( detail.body && detail.body[0] != '\0' ) {
             const std::vector<std::string> folded = foldstring( detail.body, detail_width - 3 );
@@ -11077,7 +10824,6 @@ foreach($layoutNeedle013 in @(
 }
 Write-Utf8NoBom $loaderPath $loader
 
-# Final guards for the exact regression reported from the live v8.7.0 UI.
 $sp871Audit = Normalize-Lf ([IO.File]::ReadAllText($spPath))
 foreach ($needle in @(
     'return { 12, static_cast<int>( branch_index - 20 ) };',
@@ -11099,9 +10845,6 @@ foreach ($needle in @(
 }
 
 
-# ---------------------------------------------------------------------------
-# v8.7.5 — real overview detail frame + lighter overview cards
-# ---------------------------------------------------------------------------
 Write-Host "Applying v8.7.5 real overview detail frame..." -ForegroundColor Cyan
 
 $loader = [IO.File]::ReadAllText($loaderPath)
@@ -11257,7 +11000,6 @@ $overviewModBodyNew875 = @'
 $sp = Replace-TextBlock $sp $overviewModBodyOld875 $overviewModBodyNew875 'v8.7.5 overview mod detail text'
 Write-Utf8NoBom $spPath $sp
 
-# Exact v8.7.5 visual/clarity guards.
 $loader875Audit = Normalize-Lf ([IO.File]::ReadAllText($loaderPath))
 foreach ($needle in @(
     'const bool detail_panel = ncmm_ui_sectioned_detail() && TERMX >= 108;',
@@ -11276,9 +11018,6 @@ foreach ($needle in @(
     if (-not $sp875Audit.Contains($needle)) { throw "v8.7.5 overview clarity audit missing: $needle" }
 }
 
-# ---------------------------------------------------------------------------
-# v8.7.6.1 — Clarity Pass: reasons, next unlocks, dependency focus, viewport cues
-# ---------------------------------------------------------------------------
 Write-Host "Applying v8.7.6.8 Clarity Pass + cache-marker hardening..." -ForegroundColor Cyan
 
 $sp = [IO.File]::ReadAllText($spPath)
@@ -11586,10 +11325,6 @@ $treeStyleNew876 = @'
 '@
 $loader = Replace-TextBlock $loader $treeStyleOld876 $treeStyleNew876 'v8.7.6.1 dependency node focus'
 
-# The marker expression itself exists in both card and tree renderers.  Anchor
-# on the complete TREE rendering block, including mvwprintz(frame,...).  The card
-# renderer uses card_win, so this contract is unique and independent of where the
-# preceding text-color calculation sits in the function.
 $treeMarkerOld876 = @'
             const char *marker = active ? ">" :
                                  border_style == NCMM_UI_BORDER_PRIME ? "*" :
@@ -11666,7 +11401,6 @@ $treeFooterNew876 = @'
 $loader = Replace-TextBlock $loader $treeFooterOld876 $treeFooterNew876 'v8.7.6.1 offscreen indicators and context controls'
 Write-Utf8NoBom $loaderPath $loader
 
-# v8.7.6.1 structural guards: fail before MSVC if any clarity feature drifted.
 $sp876Audit = Normalize-Lf ([IO.File]::ReadAllText($spPath))
 foreach ($needle in @(
     'std::string perk_lock_reason( const perk_def &perk )',
@@ -11691,9 +11425,6 @@ foreach ($needle in @(
     if (-not $loader876Audit.Contains($needle)) { throw "v8.7.6.1 host clarity audit missing: $needle" }
 }
 
-# Refresh the final 0.9.15 snapshot AFTER API 1.8/runtime/contracts are complete.
-# The earlier stage snapshot intentionally captured the content transform boundary;
-# this second call changes its fingerprint and makes the published snapshot exact.
 Save-SurvivorSourceSnapshot $Snap0915 "0.9.15"
 New-Item -ItemType Directory -Force (Join-Path $Snap0915 "compat") | Out-Null
 New-Item -ItemType Directory -Force (Join-Path $Snap0915 "ci") | Out-Null
@@ -11715,7 +11446,6 @@ New-Item -ItemType Directory -Force (Join-Path $Snap0915 "mods\AdvancedWorldSett
 Copy-Item $awsPath (Join-Path $Snap0915 "mods\AdvancedWorldSettings\src\aws.cpp") -Force
 Copy-Item $awsManifestPath (Join-Path $Snap0915 "mods\AdvancedWorldSettings\mod.json") -Force
 
-# Final cumulative audit.
 $loaderAudit = [IO.File]::ReadAllText($loaderPath)
 $spAudit = [IO.File]::ReadAllText($spPath)
 $sdkAudit = [IO.File]::ReadAllText($sdkPath)
@@ -11737,10 +11467,6 @@ if ($applyHostAudit.Contains('0.7.2') -or
     -not $applyHostAudit.Contains('NCMM Host API v1 / NCMM 0.7.4 module contract')) {
     throw 'NCMM host patch marker/version drift detected: expected 0.7.4 everywhere.'
 }
-# Host API 2.0 migration boundary:
-# the CDDA/Host mechanics contract must contain ONLY generic integration hooks.
-# Survivor-specific modifier IDs stay in the generated Survivor module and are
-# audited there instead of being required from the Host/CDDA source contract.
 foreach ($needle in @(
     'ncmm_spell_source_modifier',
     'ncmm_shared_mana_modifier',
@@ -11851,19 +11577,12 @@ if (-not $manifestAudit.Contains('"version": "0.9.15"') -or
     -not $manifestAudit.Contains('"state_schema": 8')) {
     throw "0.9.15 manifest/API 1.8 audit failed."
 }
-# Count node DEFINITIONS only inside the perk array.  v8.1 counted every quoted
-# mg_/mom_/xe_/af_/afp_/sec_/secx_ reference (prerequisites and modifier IDs included), so a valid
-# 80-node tree was incorrectly reported as 207 integration nodes.
 $perkAuditStart = $spAudit.IndexOf('const perk_def perks[] = {')
 if ($perkAuditStart -lt 0) { throw "Perk-array audit start not found." }
 $perkAuditEnd = $spAudit.IndexOf("`n};", $perkAuditStart)
 if ($perkAuditEnd -lt 0) { throw "Perk-array audit end not found." }
 $perkAudit = $spAudit.Substring($perkAuditStart, $perkAuditEnd - $perkAuditStart)
 
-# v8.7.3: validate the separator BETWEEN consecutive perk initializers.
-# A comma may legally be attached to the previous initializer OR placed alone on the
-# following line (the historical core/effect boundary uses the latter form).  The
-# previous v8.6.6.4 audit incorrectly rejected that valid standalone-comma layout.
 $perkDefinitionMatches8665 = [regex]::Matches(
     $perkAudit,
     '(?m)^[ \t]*\{ "[^"]+",\s*branch_id::.*$'
@@ -11914,8 +11633,6 @@ foreach ($prefix in @("mg_","mom_","xe_","af_","afp_","sec_","secx_")) {
     $prefixCount = @($integrationIdsAudit | Where-Object { $_.StartsWith($prefix) }).Count
     if ($prefixCount -ne 23) { throw "Expected 23 $prefix mod integration node definitions, found $prefixCount" }
 }
-# v8.7.3 graph invariant: every integration is exactly one 23-node connected DAG (20 base + 3 Prime),
-# prerequisites stay inside the same mod prefix, and all nodes are reachable from its root.
 $integrationDefinitionLines = [regex]::Matches(
     $perkAudit,
     '(?m)^[ \t]*\{ "((?:mg_|mom_|xe_|af_|afp_|sec_|secx_)[^"]+)",\s*branch_id::mastery,\s*\d+,\s*\d+,\s*currency_id::(?:perk|major),\s*"([^"]*)",\s*"([^"]*)",'
@@ -11994,10 +11711,6 @@ if ($loaderAudit.Contains("style_for_node")) {
 }
 $connectorAuditNormalized = Normalize-Lf $loaderAudit
 $connectorAuditStart = $connectorAuditNormalized.IndexOf("        // 0.9.11: obstacle-safe dependency graph.")
-# Audit against the connector's OWN stable tail, not the following node renderer.
-# The old range ended on a multiline CRLF here-string describing the next renderer;
-# generated C++ is normalized to LF, so Windows PowerShell 5.1 could report a false
-# "range not found" even though the complete BFS connector was present and valid.
 $connectorAuditTailMarker = Normalize-Lf @'
         for( int y = header_height; y < frame_height - footer_height; ++y ) {
             for( int x = 1; x < divider_x; ++x ) {
@@ -12027,7 +11740,6 @@ foreach ($forbidden in @("c_yellow","c_magenta","c_cyan","style_for_node")) {
 if (-not $connectorAudit.Contains("Only expose the border tees after a COMPLETE connector exists.")) {
     throw "0.9.11 complete-route border-stub guard missing."
 }
-# v8.2 technical invariants.
 foreach ($needle in @(
     'std::map<std::string, double, std::less<>> character_modifier_totals;',
     'void erase_module_modifiers( const std::string &module_id )',
@@ -12054,8 +11766,6 @@ foreach ($sharedMana in @('mg_mana_max_pct','mg_mana_regen_pct','xe_mana_max_pct
 foreach ($needle in @('std::string_view','specialization_root_slot','std::map<std::string_view, const perk_def *> index','std::map<std::string_view, std::string> keys','std::map<std::string_view, integration_id> registry','const std::string &perk_key')) {
     if (-not $spAudit.Contains($needle)) { throw "v8.2 Survivor structure audit missing: $needle" }
 }
-# v8.2.2 regression guard: the cached perk-key optimization must never consume
-# the ranked-perk helper block that follows perk_key() in the generated source.
 $rankHelperDefsV822 = @(
     'struct ranked_perk_rule {',
     'const ranked_perk_rule *ranked_perk_rule_for( const perk_def &perk )',
@@ -12099,8 +11809,6 @@ if ($spAudit.Contains('id.rfind( "mg_"') -or $spAudit.Contains('id.rfind( "mom_"
     throw 'v8.2 integration classification still depends on namespace-prefix heuristics.'
 }
 $loaderHeaderAuditV82 = [IO.File]::ReadAllText((Join-Path $NcmmRoot 'host_patch\ncmm_loader.h'))
-# Host API 2.0 replaces the old contextual-Metaphysics bridge with a generic
-# source-mod context.  The concrete Survivor modifier IDs are module-owned.
 foreach ($needle in @('ncmm_spell_source_scope','runtime_source_mod_swap','ncmm_spell_skill_level')) {
     if (-not $mechanicsContractAudit.Contains($needle)) {
         throw "Host API 2.0 source-context mechanics contract missing: $needle"
@@ -12241,7 +11949,6 @@ if (-not $revisionScriptAudit.Contains('compat/world_settings_v2_geography.contr
     throw 'World Settings v2 geography contract is not bound into patch revision.'
 }
 
-# v8.7.3 Prime/registry integrity gate.
 if (-not $sdkAudit.Contains('"active_mods.registry.v2"') -and -not $loaderAudit.Contains('"active_mods.registry.v2"')) {
     throw 'NCMM API 1.8 active_mods.registry.v2 capability missing.'
 }
@@ -12300,12 +12007,6 @@ Write-Host "  0.9.15 Prime tradeoffs: 18 core Prime roots + 21 mod Prime roots; 
 Write-Host "  World Settings API v2 / NCMM API 1.8 + active_mods.registry.v2 + Advanced World Settings 0.6.1"
 Write-Host "  Locale refresh: changing USE_LANG now redispatches NCMM locale callbacks and refreshes world-option labels"
 
-# ---------------------------------------------------------------------------
-# Optional Recipe Finalization Profiler support.
-# Dormant unless code_mods\NCMM_Recipe_Finalization_Profiler\profile.enabled exists
-# and that module directory is not disabled.  No gameplay data or recipe semantics
-# are changed; the hook only records timing around existing finalize calls.
-# ---------------------------------------------------------------------------
 function Apply-RecipeFinalizeProfilerSupportPatch([string]$SourceRoot) {
     $recipeDictPath = Join-Path $SourceRoot 'src\recipe_dictionary.cpp'
     $supportMarker = Join-Path $SourceRoot '.ncmm_recipe_finalize_profiler_v1'
@@ -12584,13 +12285,6 @@ void recipe_dictionary::check_consistency()
     Write-Host 'Recipe finalization profiler support: READY (dormant until profiler module is enabled)' -ForegroundColor Green
 }
 
-# ---------------------------------------------------------------------------
-# v8.7.6.6 Runtime Infrastructure hardening.
-# - type-safe NCMM world-option reads for geography switches
-# - NCMM-aware debug/support routing
-# - human-readable manager failure reasons
-# - durable diagnostics summary
-# ---------------------------------------------------------------------------
 function Apply-NcmmRuntimeInfrastructureV8766([string]$Root) {
     $marker = Join-Path $Root '.ncmm_runtime_infra_v8766'
     $optionsH = Join-Path $Root 'src\options.h'
@@ -12632,8 +12326,6 @@ function Apply-NcmmRuntimeInfrastructureV8766([string]$Root) {
         }
     }
 
-    # Shared fail-safe getters. They never call value_as<T>() unless the option really has that type,
-    # preventing VOID-option debug storms if an NCMM setting is missing or registration is partial.
     $h = Normalize-Lf ([IO.File]::ReadAllText($optionsH))
     if (-not $h.Contains('bool ncmm_get_option_bool_or( const std::string &name, bool fallback );')) {
         $getterAnchor = @'
@@ -12662,13 +12354,8 @@ float ncmm_get_option_float_or( const std::string &name, float fallback );
         Write-Utf8NoBom $optionsH $h
     }
 
-    # Repair stale/partial active-world copies transactionally on re-registration.
-    # This is the root fix for cOpt::value_as<bool>() being called on a VOID copy after older builds.
     $oc = Normalize-Lf ([IO.File]::ReadAllText($optionsCpp))
 
-    # MSVC requires explicit cOpt::value_as<T> specializations to be seen before any
-    # translation-unit call can instantiate those template arguments.  The old inline
-    # header helpers called value_as<bool/int/float>() too early and caused C2908/C2910.
     if (-not $oc.Contains('NCMM v8.7.6.6 fail-safe accessor definitions')) {
         $valueAsIntAnchor = @'
 template<>
@@ -12953,8 +12640,6 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
         Write-Utf8NoBom $optionsCpp $oc
     }
 
-    # Harden every NCMM geography boolean read. Defaults are deliberately conservative:
-    # custom geography defaults OFF; feature switches default ON so missing settings preserve vanilla output.
     $boolReplacements = [ordered]@{
         'get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" )' = 'ncmm_get_option_bool_or( "NCMM_AWS_CUSTOM_GEOGRAPHY", false )'
         'get_option<bool>( "NCMM_AWS_MEGACITY" )' = 'ncmm_get_option_bool_or( "NCMM_AWS_MEGACITY", false )'
@@ -12980,7 +12665,6 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
         }
     }
 
-    # NCMM-modified builds should never tell users only to report to upstream CDDA.
     $d = Normalize-Lf ([IO.File]::ReadAllText($debugCpp))
     if (-not $d.Contains('NCMM/code-mod support: https://github.com/Neversalimus/NCMM/issues')) {
         $repAnchor = 'static repetition_folder rep_folder;'
@@ -13017,7 +12701,6 @@ static repetition_folder rep_folder;
         Write-Utf8NoBom $debugCpp $d
     }
 
-    # Human-readable manager diagnostics and a durable support snapshot.
     $l = Normalize-Lf ([IO.File]::ReadAllText($loaderCpp))
     if (-not $l.Contains('std::string manager_reason_text')) {
         $managerAnchor = 'std::vector<manager_entry> manager_entries()'
@@ -13089,12 +12772,8 @@ std::vector<manager_entry> manager_entries()
         $reasonOld = '                label += " - " + entry.reason;'
         $reasonNew = '                label += " - " + manager_reason_text( entry.reason );'
         if ($l.Contains($reasonOld)) {
-            # Legacy manager already exposed raw reason text: preserve its layout and translate the reason.
             $l = Replace-TextBlock $l $reasonOld $reasonNew 'v8.7.6.6 manager readable failure reason'
         } elseif (-not $l.Contains('manager_reason_text( entry.reason )')) {
-            # Intermediate Host 0.8 manager had neither a translated reason nor the new details panel.
-            # Restore the useful detail only for that legacy shape. Host 0.8.1 renders the reason in
-            # the right-hand details panel already, so no source rewrite is needed there.
             $reasonBlockOld = @'
             const loaded_mod *runtime = find_loaded( entry.directory );
             if( runtime != nullptr && runtime->open_ui != nullptr ) {
@@ -13151,9 +12830,6 @@ std::vector<manager_entry> manager_entries()
     Write-Host 'NCMM v8.7.6.6 runtime infrastructure: READY' -ForegroundColor Green
 }
 
-# ---------------------------------------------------------------------------
-# NCMM Host API 2.0 Core -- dual-stack bridge, generic runtime registries
-# ---------------------------------------------------------------------------
 function Apply-NcmmHostApi20Core {
     Write-Host "Applying NCMM Host 0.8.0 / Host API 2.0 Core..." -ForegroundColor Cyan
     $sdk20Path = Join-Path $NcmmRoot 'sdk\ncmm_api.h'
@@ -13313,11 +12989,6 @@ typedef struct ncmm_host_api_v2_core {
         $loader20 = $loader20.Replace('#include "avatar.h"','#include "avatar.h"' + "`n" + '#include "creature.h"')
     }
 
-    # HOTFIX13: character state is not safe during new-character construction.
-    # active_world exists before chargen has finished, so the old availability predicate could
-    # expose get_avatar().get_values() while Magiclysm/MoM/Xedra EVENT EOCs were still building it.
-    # game::do_turn clears g->new_game immediately before ncmm::on_turn(), so this becomes true
-    # on the first real gameplay turn without delaying normal WORLD_LOADED delivery.
     $characterStateOld013 = @'
 int character_state_available()
 {
@@ -13741,10 +13412,6 @@ double worldgen_hook_f64( const char *hook_id, double fallback )
 
 '@
         if(-not $loader20.Contains('double gameplay_modifier( const char *modifier_id )')){throw 'Host API 2.0 public hook anchor missing.'}
-        # HOTFIX17: public API2 hook definitions must be inserted only after the legacy
-        # contextual_metaphysics block has been removed.  Inserting them here would put
-        # them inside the later cleanup range [contextual_metaphysics_swap, gameplay_modifier)
-        # and silently delete all eight definitions before the host source is written.
 
         $apiOld20 = @'
     &world_mod_count,
@@ -13814,17 +13481,13 @@ const void *query_interface_v2( const char *interface_id, uint32_t min_major, ui
 }
 
 '@
-        # Keep declaration order simple and standard C++: forward-declare only the query function,
-        # define the legacy v1 table, then define the v2 table that points back to v1.
         if(-not $loader20.Contains('const ncmm_host_api_v1 api = {')){throw 'Host API 2.0 legacy API table anchor missing.'}
         $queryDecl20 = 'const void *query_interface_v2( const char *interface_id, uint32_t min_major, uint32_t min_minor );' + "`n`n"
         $loader20 = $loader20.Replace('const ncmm_host_api_v1 api = {',$queryDecl20 + 'const ncmm_host_api_v1 api = {')
         $loader20 = Replace-TextBlock $loader20 $apiOld20 ($apiNew20 + "`n" + $v2ApiImpl20) 'Host API 2.0 legacy bridge initializer'
 
-        # Every failed/retried init must lose v2 contracts as well as values.
         $loader20 = $loader20.Replace('erase_module_modifiers( manifest.id );','clear_module_runtime_v2( manifest.id );')
 
-        # Core event dispatch uses existing safe Host hook points; no module-specific CDDA patch is introduced here.
         $onTurnPatch20 = @'
 void on_turn()
 {
@@ -13853,7 +13516,6 @@ void shutdown()
 #ifdef _WIN32
 '@
         $loader20 = $loader20.Replace('void shutdown()' + "`n" + '{' + "`n" + '#ifdef _WIN32', $shutdownPatch20.TrimEnd())
-        # Clear all v2 registries on host re-entry/shutdown. Existing modifier value clearing remains intact.
         $clearSeq20 = '    character_modifier_totals.clear();' + "`n" + '    contextual_metaphysics_bonus = 0.0;'
         $clearSeq20New = $clearSeq20 + "`n" + '    for( const auto &owned : modifier_owners_v2 ) {' + "`n" + '        character_modifier_limits.erase( owned.first );' + "`n" + '    }' + "`n" + '    modifier_owners_v2.clear();' + "`n" + '    event_subscriptions_v2.clear();' + "`n" + '    runtime_hook_rules_v2.clear();' + "`n" + '    worldgen_bindings_v2.clear();' + "`n" + '    runtime_source_mod_context_v2.clear();' + "`n" + '    api_v2_world_announced = false;'
         $clearCount20 = ([regex]::Matches($loader20,[regex]::Escape($clearSeq20))).Count
@@ -13866,8 +13528,6 @@ void shutdown()
             $loader20 = $loader20.Replace($apiVersionDiag20,
                 $apiVersionDiag20 + "`n" + '    out << "host_api_v2_core=2.0\n";')
         }
-        # Survivor 0.9.16 owns integration modifiers through Host API 2.0.
-        # Remove legacy module-specific IDs from Host policy before writing the host source.
         $legacyDynamicIds20 = @(
             'mg_spellcraft_flat','mom_metaphysics_flat','xe_deduction_flat','xe_gramarye_flat','af_smartgun_flat','af_metaphysics_flat',
             'mg_mana_max_pct','mg_mana_regen_pct','xe_mana_max_pct','xe_mana_regen_pct',
@@ -13898,9 +13558,6 @@ void shutdown()
         }
         if($loader20.Contains('contextual_metaphysics_')) { throw 'Host API 2.0 output still embeds legacy contextual Metaphysics state.' }
 
-        # HOTFIX17: the legacy cleanup above deliberately removes everything between
-        # contextual_metaphysics_swap() and gameplay_modifier().  Insert the new public
-        # Host API 2.0 runtime/worldgen definitions only after that destructive cleanup.
         $publicAnchor20 = 'double gameplay_modifier( const char *modifier_id )'
         if(-not $loader20.Contains($publicAnchor20)){throw 'Host API 2.0 post-cleanup public hook anchor missing.'}
         $publicHookDefinitionNeedles20 = @(
@@ -14262,14 +13919,11 @@ function Apply-SurvivorMechanicalPerks0100 {
     { "am_reflex_memory", branch_id::mastery, 5, 27, currency_id::perk, "a_polymath", "ae_longgame", "Reflex Memory", "Память рефлексов", "One dodge per refresh costs no stamina; +2% speed.", "Одно уклонение до восстановления попыток не тратит выносливость; +2% скорости.", {{ { "sp_free_dodge_attempts_bonus", 1 }, { "speed_pct", 2 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "am_apex_adaptation", branch_id::mastery, 6, 40, currency_id::major, "a_transcendent", "am_survival_synthesis", "Total Adaptation", "Полная адаптация", "Incoming damage -2%, +1 point melee crit chance, +5% melee crit damage and +5% ranged crit damage.", "-2% входящего урона, +1 пункт шанса крита, +5% критического урона ближнего и дальнего боя.", {{ { "sp_damage_taken_pct", 2 }, { "sp_melee_crit_chance_pct", 1 }, { "sp_melee_crit_damage_pct", 5 }, { "sp_ranged_crit_damage_pct", 5 } }}, 4, 0, perk_kind::effect }
 '@
-    # 0.9.15's final mod-Prime perk is intentionally comma-less while it is the array tail.
-    # 0.10.0 appends 27 mechanical perks, so turn the old tail into a non-final record first.
     $perkPrefix0100 = "`n"
     $perkArrayPrefix0100 = $sp.Substring(0,$perkArrayEnd0100).TrimEnd()
     if(-not $perkArrayPrefix0100.EndsWith(',')) { $perkPrefix0100 = ",`n" }
     $sp = $sp.Insert($perkArrayEnd0100,$perkPrefix0100 + (Normalize-Lf $mechanicalPerks0100).TrimEnd())
 
-    # Compile-shape preflight: 0.9.15 Prime -> 0.10.0 Mechanical must be a valid initializer-list boundary.
     $firstMechanicalPos0100 = $sp.IndexOf('{ "cm_critical_eye"',$perkArrayStart0100)
     if($firstMechanicalPos0100 -lt 0) { throw 'Survivor 0.10.0 first mechanical perk missing after insertion.' }
     $separatorProbe0100 = $sp.Substring(0,$firstMechanicalPos0100).TrimEnd()
@@ -14277,14 +13931,12 @@ function Apply-SurvivorMechanicalPerks0100 {
         throw 'Survivor 0.10.0 perk-array separator missing before cm_critical_eye.'
     }
 
-    # Defy Fate is one node with five purchasable ranks: 1/2/3/4/5% full avoidance.
     $rankAnchor0100 = '        { "c_conditioning", 5, 0.125 }, { "s_field", 3, 0.50 },'
     if(-not $sp.Contains($rankAnchor0100)) { throw 'Survivor 0.10.0 ranked-perk anchor missing.' }
     $sp = $sp.Replace($rankAnchor0100,
         '        { "c_conditioning", 5, 0.125 }, { "s_field", 3, 0.50 },' + "`n" +
         '        { "sm_defy_fate", 5, 1.0 },')
 
-    # Human-readable labels for mechanical Host API 2.0 modifiers.
     $effectFnStart0100 = $sp.IndexOf('std::string effect_label( const char *raw )')
     if($effectFnStart0100 -lt 0) { $effectFnStart0100 = $sp.IndexOf('std::string effect_label(') }
     if($effectFnStart0100 -lt 0) { throw 'Survivor 0.10.0 effect-label function missing.' }
@@ -14302,7 +13954,6 @@ function Apply-SurvivorMechanicalPerks0100 {
 '@
     $sp = $sp.Insert($effectReturn0100,$mechanicalLabels0100)
 
-    # The module owns all concrete modifier IDs; the Host/CDDA side sees only generic hook names.
     $dynamicLoop0100 = '    for( const char *id : dynamic_modifiers ) if( !host2->modifier_define( module_id, id, -1000.0, 1000.0 ) ) return false;'
     if(-not $sp.Contains($dynamicLoop0100)) { throw 'Survivor 0.10.0 dynamic modifier loop anchor missing.' }
     $mechanicalModifierSetup0100 = @'
@@ -14399,7 +14050,6 @@ function Apply-SurvivorReactiveMechanics0110 {
     $perkCountBefore0110 = [regex]::Matches($perkArrayBefore0110,'(?m)^\s*\{\s*"[^"]+"\s*,\s*branch_id::').Count
     if($perkCountBefore0110 -lt 298) { throw "Survivor 0.11.0 baseline perk count unexpectedly low: $perkCountBefore0110" }
 
-    # Deliberately unequal branch expansion: mechanics follow branch identity, not artificial node symmetry.
     $reactivePerks0110 = @'
     { "cr_riposte", branch_id::combat, 4, 20, currency_id::perk, "cm_second_reaction", "ce_tactics", "Riposte", "Рипост", "Reactive: every successful dodge has a 20% chance to launch one guarded automatic melee counterattack.", "Реакция: каждое успешное уклонение даёт 20% шанс на одну защищённую автоматическую контратаку в ближнем бою.", {{ { "sp_riposte_chance_pct", 20 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "cr_counterflow", branch_id::combat, 5, 25, currency_id::perk, "cr_riposte", "c_veteran", "Counterflow", "Поток контратаки", "Ripostes refund 50% of the moves they spend; successful dodges also return 5 moves.", "Рипост возвращает 50% потраченных ходов; успешное уклонение также возвращает 5 ходов.", {{ { "sp_riposte_refund_pct", 50 }, { "sp_on_dodge_moves", 5 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
@@ -14432,15 +14082,11 @@ function Apply-SurvivorReactiveMechanics0110 {
     { "ar_momentum_engine", branch_id::mastery, 6, 38, currency_id::major, "ar_reactive_synthesis", "am_apex_adaptation", "Unbroken Momentum", "Непрерывный импульс", "With Predator Momentum, each stack gains another +1% damage and +1% speed, and the maximum increases by 2 stacks.", "С Импульсом хищника каждый заряд даёт ещё +1% урона и +1% скорости, а максимум увеличивается на 2 заряда.", {{ { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 0, 0, perk_kind::effect },
     { "ar_perfect_process", branch_id::mastery, 6, 40, currency_id::major, "ar_reactive_synthesis", "ae_ascendant", "Masterful Work", "Работа мастера", "+5% chance to prevent a crafting failure, +10% component protection and 15% less progress loss.", "+5% шанс предотвратить ошибку крафта, +10% защиты компонентов и на 15% меньше потери прогресса.", {{ { "sp_craft_failure_save_pct", 5 }, { "sp_craft_component_loss_reduction_pct", 10 }, { "sp_craft_progress_loss_reduction_pct", 15 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect }
 '@
-    # Append safely even when the previous layer's final perk intentionally has no trailing comma.
-    # 0.10.0 ends with am_apex_adaptation without a comma because it was the final array element;
-    # 0.11.0 turns it into a non-final element, so supply exactly one separator when needed.
     $perkPrefix0110 = "`n"
     $perkArrayPrefix0110 = $sp.Substring(0,$perkArrayEnd0110).TrimEnd()
     if(-not $perkArrayPrefix0110.EndsWith(',')) { $perkPrefix0110 = ",`n" }
     $sp = $sp.Insert($perkArrayEnd0110,$perkPrefix0110 + (Normalize-Lf $reactivePerks0110).TrimEnd())
 
-    # Compile-shape preflight: node counting alone cannot detect a missing comma between two records.
     $firstReactivePos0110 = $sp.IndexOf('{ "cr_riposte"',$perkArrayStart0110)
     if($firstReactivePos0110 -lt 0) { throw 'Survivor 0.11.0 first reactive perk missing after insertion.' }
     $separatorProbe0110 = $sp.Substring(0,$firstReactivePos0110).TrimEnd()
@@ -14448,7 +14094,6 @@ function Apply-SurvivorReactiveMechanics0110 {
         throw 'Survivor 0.11.0 perk-array separator missing before cr_riposte.'
     }
 
-    # Labels are visible in Overview active-effects output.
     $effectFnStart0110 = $sp.IndexOf('std::string effect_label( const std::string &id )')
     if($effectFnStart0110 -lt 0) { $effectFnStart0110 = $sp.IndexOf('std::string effect_label(') }
     if($effectFnStart0110 -lt 0) { throw 'Survivor 0.11.0 effect-label function missing.' }
@@ -14478,7 +14123,6 @@ function Apply-SurvivorReactiveMechanics0110 {
 '@
     $sp = $sp.Insert($effectReturn0110,(Normalize-Lf $labels0110))
 
-    # Expand module-owned mechanical modifiers while keeping all concrete perk IDs out of Host/CDDA.
     $mechArrayOld0110 = @'
     const char *mechanical_modifiers[] = {
         "sp_melee_crit_chance_pct", "sp_melee_crit_damage_pct", "sp_ranged_crit_damage_pct",
@@ -14531,7 +14175,6 @@ function Apply-SurvivorReactiveMechanics0110 {
 '@
     $sp = Replace-TextBlock $sp $bindEnd0110 $bindEndNew0110 'Survivor 0.11.0 mechanical binding tail'
 
-    # Module-owned Momentum state. Host only exposes a generic kill event and modifier registry.
     $configAnchor0110 = 'bool configure_host_api2_runtime_hooks()'
     $configPos0110 = $sp.IndexOf($configAnchor0110)
     if($configPos0110 -lt 0) { throw 'Survivor 0.11.0 API2 configure function missing.' }
@@ -14580,9 +14223,6 @@ void survivor_reactive_event_v2( uint32_t event_id, void * )
 '@
     $sp = $sp.Insert($configPos0110,(Normalize-Lf $eventCode0110))
 
-    # Anchor inside the API2 configure function structurally instead of matching its entire tail.
-    # The generated 0.10.0 source can carry mixed newline styles after source bootstrap/transforms,
-    # so an exact multi-line here-string is intentionally avoided here.
     $configCrimsonAnchor0110 = '    for( const char *sp : crimson_species ) if( !bind("combat.damage_to_species_pct",NCMM_SELECTOR_TARGET_SPECIES_V2,sp,"sec_crimson_damage_pct") || !bind("combat.resist_from_species_pct",NCMM_SELECTOR_SOURCE_SPECIES_V2,sp,"sec_crimson_resist_pct") ) return false;'
     $configCrimsonPos0110 = $sp.IndexOf($configCrimsonAnchor0110,$configPos0110)
     if($configCrimsonPos0110 -lt 0) { throw 'Survivor 0.11.0 configure crimson binding anchor missing.' }
@@ -14599,8 +14239,6 @@ void survivor_reactive_event_v2( uint32_t event_id, void * )
 '@
     $sp = $sp.Insert($configReturnPos0110,(Normalize-Lf $configSubscribe0110))
 
-    # Momentum contributes runtime values only while stacks are alive.
-    # Insert structurally inside calculate_owned_effects(); do not depend on CRLF/LF or its whole tail.
     $calcFnAnchor0110 = 'calculated_effects calculate_owned_effects()'
     $calcFnPos0110 = $sp.IndexOf($calcFnAnchor0110)
     if($calcFnPos0110 -lt 0) { throw 'Survivor 0.11.0 calculated-effects function missing.' }
@@ -14627,7 +14265,6 @@ void survivor_reactive_event_v2( uint32_t event_id, void * )
 '@
     $sp = $sp.Insert($calcXpPos0110,(Normalize-Lf $calcMomentum0110))
 
-    # Clean event subscription on module shutdown. Scope the insertion to shutdown() so another host reset cannot match.
     $shutdownFnAnchor0110 = 'void shutdown()'
     $shutdownFnPos0110 = $sp.IndexOf($shutdownFnAnchor0110)
     if($shutdownFnPos0110 -lt 0) { throw 'Survivor 0.11.0 shutdown function missing.' }
@@ -14638,7 +14275,6 @@ void survivor_reactive_event_v2( uint32_t event_id, void * )
     $sp = $sp.Insert($shutdownHostPos0110,
         '    if( host2 != nullptr && host2->event_unsubscribe_all ) host2->event_unsubscribe_all( module_id );' + "`n")
 
-    # Events are now an explicit module requirement.
     if(-not $sp.Contains('    "host_api.v2.core",')) { throw 'Survivor 0.11.0 required-capability anchor missing.' }
     if(-not $sp.Contains('    "events.core.v2",')) {
         $sp = $sp.Replace('    "host_api.v2.core",','    "host_api.v2.core",' + "`n" + '    "events.core.v2",')
@@ -14706,7 +14342,6 @@ function Apply-SurvivorReactivePolish0111 {
     if($perkStartBeforePolish0111 -lt 0 -or $perkEndBeforePolish0111 -lt 0) { throw 'Survivor 0.11.1 pre-polish perk-array boundary missing.' }
     $perkCountBeforePolish0111 = [regex]::Matches($sp.Substring($perkStartBeforePolish0111,$perkEndBeforePolish0111-$perkStartBeforePolish0111),'(?m)^\s*\{\s*"[^"]+"\s*,\s*branch_id::').Count
 
-    # Text polish mirrors hardened runtime semantics without changing topology or state schema.
     $sp = $sp.Replace(
         'Reactive: every successful dodge has a 20% chance to launch one guarded automatic melee counterattack.',
         'Reactive: after a successful dodge, if no martial-arts counter fires and you have combat stamina, gain a 20% chance for one guarded automatic melee counterattack.')
@@ -14762,7 +14397,6 @@ function Apply-SurvivorReactivePolish0111 {
         'уклонения, критические удары в ближнем бою и убийства возвращают по 5 ходов.',
         'уклонения и критические удары в ближнем бою возвращают 5 ед. хода; убийства монстров, дающие опыт, также возвращают 5 ед. хода.')
 
-    # Russian UX: CDDA "moves" are action points, not whole turns. Avoid implying +5/+10/+15 full turns.
     $sp = $sp.Replace('Рипост возвращает 50% потраченных ходов; успешное уклонение также возвращает 5 ходов.',
                       'Рипост возвращает 50% потраченных единиц хода; успешное уклонение также возвращает 5 ед. хода.')
     $sp = $sp.Replace('После каждого критического удара в ближнем бою: +10 ходов и восстановление 2% максимальной выносливости.',
@@ -14837,7 +14471,6 @@ function Apply-SurvivorReactiveEdgePolish0112 {
     $perkCountBefore0112 = [regex]::Matches($sp.Substring($perkStartBefore0112,$perkEndBefore0112-$perkStartBefore0112),'(?m)^\s*\{\s*"[^"]+"\s*,\s*branch_id::').Count
     if($perkCountBefore0112 -lt 323) { throw "Survivor 0.11.2 pre-polish node count unexpectedly low: $perkCountBefore0112" }
 
-    # Momentum is a transient combat state. Clamp corrupted/stale timers and clear it as soon as the owning perk is absent.
     $turnOld0112 = @'
     if( event_id == NCMM_EVENT_TURN_V2 ) {
         int64_t remaining = std::max<int64_t>( 0, get_state( "momentum_turns", 0 ) );
@@ -14884,7 +14517,6 @@ function Apply-SurvivorReactiveEdgePolish0112 {
 '@
     $sp = Replace-TextBlock $sp $turnOld0112 $turnNew0112 'Survivor 0.11.2 Momentum turn-handler'
 
-    # Clamp transient stack/timer reads to the currently-owned perk caps so corrupt/stale state can never amplify modifiers.
     $calcOld0112 = @'
     const int64_t momentum_stacks = std::max<int64_t>( 0, get_state( "momentum_stacks", 0 ) );
     const int64_t momentum_turns = std::max<int64_t>( 0, get_state( "momentum_turns", 0 ) );
@@ -14920,7 +14552,6 @@ function Apply-SurvivorReactiveEdgePolish0112 {
 '@
     $sp = Replace-TextBlock $sp $calcOld0112 $calcNew0112 'Survivor 0.11.2 Momentum modifier'
 
-    # A full respec must immediately destroy transient Momentum, preventing a buy -> stack -> respec -> rebuy carryover.
     $respecOld0112 = @'
     for( const char *key : {
              "prime_magiclysm", "prime_mindovermatter", "prime_xedra_evolved",
@@ -14945,7 +14576,6 @@ function Apply-SurvivorReactiveEdgePolish0112 {
 '@
     $sp = Replace-TextBlock $sp $respecOld0112 $respecNew0112 'Survivor 0.11.2 respec Momentum reset'
 
-    # Text now mirrors the edge-hardened runtime exactly.
     $sp = $sp.Replace(
         'Reactive: after a successful dodge, if no martial-arts counter fires and you have combat stamina, gain a 20% chance for one guarded automatic melee counterattack.',
         'Reactive: after a successful dodge, if no martial-arts counter fires and you have combat stamina, gain a 20% chance to counter the adjacent hostile attacker. Friendly, neutral and hallucination sources are never auto-targeted.')
@@ -15049,7 +14679,6 @@ function Apply-SurvivorCombinatorialEdgePolish0113 {
     $perkCountBefore0113 = [regex]::Matches($sp.Substring($perkStartBefore0113,$perkEndBefore0113-$perkStartBefore0113),'(?m)^\s*\{\s*"[^"]+"\s*,\s*branch_id::').Count
     if($perkCountBefore0113 -lt 323) { throw "Survivor 0.11.3 pre-polish node count unexpectedly low: $perkCountBefore0113" }
 
-    # Overflow-safe kill increments: clamp before +1 so hostile kill events cannot overflow tampered state.
     $killOld0113 = @'
     if( event_id == NCMM_EVENT_PLAYER_KILL_V2 ) {
         if( !survivor_has_perk_id( "cr_predator_momentum" ) ) return;
@@ -15084,7 +14713,6 @@ function Apply-SurvivorCombinatorialEdgePolish0113 {
 '@
     $sp = Replace-TextBlock $sp $killOld0113 $killNew0113 'Survivor 0.11.3 Momentum kill-handler'
 
-    # Self-heal persisted/tampered transient state, while avoiding a full effect recalculation for timer-only changes.
     $turnOld0113 = @'
     if( event_id == NCMM_EVENT_TURN_V2 ) {
         if( !survivor_has_perk_id( "cr_predator_momentum" ) ) {
@@ -15162,7 +14790,6 @@ function Apply-SurvivorCombinatorialEdgePolish0113 {
 '@
     $sp = Replace-TextBlock $sp $turnOld0113 $turnNew0113 'Survivor 0.11.3 Momentum turn self-heal'
 
-    # Text follows the refined runtime semantics.
     $sp = $sp.Replace(
         'Reactive: after a successful dodge, if no martial-arts counter fires and you have combat stamina, gain a 20% chance to counter the adjacent hostile attacker. Friendly, neutral and hallucination sources are never auto-targeted.',
         'Reactive: after a successful dodge on foot, if no martial-arts counter fires and you have combat stamina, gain a 20% chance to counter the adjacent hostile attacker. Friendly, neutral, hallucination and mounted cases are never auto-targeted.')
@@ -15214,7 +14841,6 @@ function Apply-SurvivorCombinatorialEdgePolish0113 {
 Apply-SurvivorCombinatorialEdgePolish0113
 $spEdgeAudit0113 = [IO.File]::ReadAllText($spPath)
 $manifestEdgeAudit0113 = [IO.File]::ReadAllText($manifestPath)
-# Module-only audit: engine-hook invariants are verified after Apply-NcmmReactiveMechanics0113.
 foreach($needle0113 in @(
     'Survivor Progression v0.11.3','cr_riposte','cr_counterflow','cr_critical_surge','cr_execution_protocol','cr_predator_momentum','fr_second_measure',
     'base move cost','damaging melee critical against a hostile target','Deal +60% damage to hostile targets at 18% health or less',
@@ -15913,9 +15539,6 @@ void show_manager()
 '@
     $loaderUi = Replace-CppRange $loaderUi 'void show_manager()' 'void on_turn()' $ncmmManagerSourceBlock04 'two-pane NCMM manager UI'
 
-    # NCMM 0.8.1 UI polish: keep payload-generated Host source identical to the
-    # checked-in Host. Use CDDA's native menu_move SFX so soundpack/volume rules
-    # remain entirely owned by the game.
     if(-not $loaderUi.Contains('#include "sounds.h"')){
         $soundIncludeNew = @'
 #include "output.h"
@@ -16007,6 +15630,643 @@ void initialize()
 '@
         $loaderUi = Replace-TextBlock $loaderUi $runtimeSmokeReadyOld $runtimeSmokeReadyNew 'NCMM runtime smoke exit'
     }
+
+    # CI gameplay-smoke source sync.
+$gameplayIncludesOld = @'
+#include "avatar.h"
+#include "creature.h"
+#include "game.h"
+#include "event_bus.h"
+#include "event_subscriber.h"
+#include "type_id.h"
+#include "input.h"
+#include "input_context.h"
+#include "options.h"
+#include "output.h"
+#include "sounds.h"
+#include "system_locale.h"
+#include "uilist.h"
+#include "ui_manager.h"
+#include "worldfactory.h"
+
+'@
+$gameplayIncludesNew = @'
+#include "avatar.h"
+#include "calendar.h"
+#include "color.h"
+#include "coordinates.h"
+#include "creature.h"
+#include "game.h"
+#include "map.h"
+#include "mod_manager.h"
+#include "overmap.h"
+#include "overmapbuffer.h"
+#include "path_info.h"
+#include "point.h"
+#include "rng.h"
+#include "event_bus.h"
+#include "event_subscriber.h"
+#include "type_id.h"
+#include "input.h"
+#include "input_context.h"
+#include "options.h"
+#include "output.h"
+#include "sounds.h"
+#include "system_locale.h"
+#include "uilist.h"
+#include "ui_manager.h"
+#include "weather.h"
+#include "worldfactory.h"
+
+'@
+    $loaderUi = Replace-TextBlock $loaderUi $gameplayIncludesOld $gameplayIncludesNew 'module gameplay smoke includes'
+$gameplayMetaOld = @'
+std::vector<module_setting_meta> module_settings;
+
+'@
+$gameplayMetaNew = @'
+std::vector<module_setting_meta> module_settings;
+std::vector<module_setting_meta> registered_world_settings;
+
+'@
+    $loaderUi = Replace-TextBlock $loaderUi $gameplayMetaOld $gameplayMetaNew 'module gameplay smoke setting metadata'
+$gameplayRememberOld = @'
+void remember_module_setting( const module_setting_meta &meta )
+{
+    auto existing = std::find_if( module_settings.begin(), module_settings.end(),
+    [&]( const module_setting_meta &entry ) {
+        return entry.module_id == meta.module_id && entry.setting_id == meta.setting_id;
+    } );
+    if( existing != module_settings.end() ) {
+        *existing = meta;
+    } else {
+        module_settings.push_back( meta );
+    }
+}
+
+'@
+$gameplayRememberNew = @'
+void remember_module_setting( const module_setting_meta &meta )
+{
+    auto existing = std::find_if( module_settings.begin(), module_settings.end(),
+    [&]( const module_setting_meta &entry ) {
+        return entry.module_id == meta.module_id && entry.setting_id == meta.setting_id;
+    } );
+    if( existing != module_settings.end() ) {
+        *existing = meta;
+    } else {
+        module_settings.push_back( meta );
+    }
+}
+
+void remember_registered_world_setting( const module_setting_meta &meta )
+{
+    auto existing = std::find_if( registered_world_settings.begin(), registered_world_settings.end(),
+    [&]( const module_setting_meta &entry ) {
+        return entry.module_id == meta.module_id && entry.setting_id == meta.setting_id;
+    } );
+    if( existing != registered_world_settings.end() ) {
+        *existing = meta;
+    } else {
+        registered_world_settings.push_back( meta );
+    }
+}
+
+'@
+    $loaderUi = Replace-TextBlock $loaderUi $gameplayRememberOld $gameplayRememberNew 'module gameplay smoke setting registry'
+$gameplayRegsOld = @'
+int world_setting_register_bool( const char *module_id, const char *setting_id,
+                                 const char *display_name, const char *tooltip,
+                                 int default_value, uint32_t scope )
+{
+    if( !display_name || !tooltip || !claim_world_setting( module_id, setting_id, scope ) ) {
+        return 0;
+    }
+    const int registered = get_options().ncmm_register_world_bool(
+                               setting_id, to_translation( display_name ),
+                               to_translation( tooltip ), default_value != 0,
+                               scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
+    if( registered && manager_visible_setting_scope( scope ) ) {
+        module_setting_meta meta;
+        meta.module_id = module_id;
+        meta.setting_id = setting_id;
+        meta.name = display_name;
+        meta.tooltip = tooltip;
+        meta.type = "bool";
+        meta.scope = scope;
+        remember_module_setting( meta );
+    }
+    return registered;
+}
+
+int world_setting_register_int( const char *module_id, const char *setting_id,
+                                const char *display_name, const char *tooltip,
+                                int min_value, int max_value, int default_value, uint32_t scope )
+{
+    if( !display_name || !tooltip || !claim_world_setting( module_id, setting_id, scope ) ) {
+        return 0;
+    }
+    const int registered = get_options().ncmm_register_world_int(
+                               setting_id, to_translation( display_name ),
+                               to_translation( tooltip ), min_value, max_value, default_value,
+                               scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
+    if( registered && manager_visible_setting_scope( scope ) ) {
+        module_setting_meta meta;
+        meta.module_id = module_id;
+        meta.setting_id = setting_id;
+        meta.name = display_name;
+        meta.tooltip = tooltip;
+        meta.type = "int";
+        meta.scope = scope;
+        meta.min_value = min_value;
+        meta.max_value = max_value;
+        meta.step = 1.0;
+        remember_module_setting( meta );
+    }
+    return registered;
+}
+
+int world_setting_register_float( const char *module_id, const char *setting_id,
+                                  const char *display_name, const char *tooltip,
+                                  double min_value, double max_value, double default_value,
+                                  double step, uint32_t scope )
+{
+    if( !display_name || !tooltip || !std::isfinite( min_value ) || !std::isfinite( max_value ) ||
+        !std::isfinite( default_value ) || !std::isfinite( step ) ||
+        !claim_world_setting( module_id, setting_id, scope ) ) {
+        return 0;
+    }
+    const int registered = get_options().ncmm_register_world_float(
+                               setting_id, to_translation( display_name ),
+                               to_translation( tooltip ), static_cast<float>( min_value ),
+                               static_cast<float>( max_value ), static_cast<float>( default_value ),
+                               static_cast<float>( step ),
+                               scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
+    if( registered && manager_visible_setting_scope( scope ) ) {
+        module_setting_meta meta;
+        meta.module_id = module_id;
+        meta.setting_id = setting_id;
+        meta.name = display_name;
+        meta.tooltip = tooltip;
+        meta.type = "float";
+        meta.scope = scope;
+        meta.min_value = min_value;
+        meta.max_value = max_value;
+        meta.step = step;
+        remember_module_setting( meta );
+    }
+    return registered;
+}
+
+int world_setting_register_enum( const char *module_id, const char *setting_id,
+                                 const char *display_name, const char *tooltip,
+                                 const char *const *value_ids, const char *const *display_names,
+                                 size_t count, const char *default_value, uint32_t scope )
+{
+    if( !display_name || !tooltip || !value_ids || !display_names || !default_value ||
+        count == 0 || count > 64 || !claim_world_setting( module_id, setting_id, scope ) ) {
+        return 0;
+    }
+    std::vector<options_manager::id_and_option> items;
+    items.reserve( count );
+    for( size_t i = 0; i < count; ++i ) {
+        if( !value_ids[i] || !display_names[i] ) {
+            return 0;
+        }
+        items.emplace_back( value_ids[i], to_translation( display_names[i] ) );
+    }
+    const int registered = get_options().ncmm_register_world_enum(
+                               setting_id, to_translation( display_name ),
+                               to_translation( tooltip ), items, default_value,
+                               scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
+    if( registered && manager_visible_setting_scope( scope ) ) {
+        module_setting_meta meta;
+        meta.module_id = module_id;
+        meta.setting_id = setting_id;
+        meta.name = display_name;
+        meta.tooltip = tooltip;
+        meta.type = "enum";
+        meta.scope = scope;
+        for( size_t i = 0; i < count; ++i ) {
+            meta.choices.emplace_back( value_ids[i], display_names[i] );
+        }
+        remember_module_setting( meta );
+    }
+    return registered;
+}
+
+'@
+$gameplayRegsNew = @'
+int world_setting_register_bool( const char *module_id, const char *setting_id,
+                                 const char *display_name, const char *tooltip,
+                                 int default_value, uint32_t scope )
+{
+    if( !display_name || !tooltip || !claim_world_setting( module_id, setting_id, scope ) ) {
+        return 0;
+    }
+    const int registered = get_options().ncmm_register_world_bool(
+                               setting_id, to_translation( display_name ),
+                               to_translation( tooltip ), default_value != 0,
+                               scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
+    if( registered ) {
+        module_setting_meta meta;
+        meta.module_id = module_id;
+        meta.setting_id = setting_id;
+        meta.name = display_name;
+        meta.tooltip = tooltip;
+        meta.type = "bool";
+        meta.scope = scope;
+        meta.min_value = 0.0;
+        meta.max_value = 1.0;
+        meta.step = 1.0;
+        remember_registered_world_setting( meta );
+        if( manager_visible_setting_scope( scope ) ) {
+            remember_module_setting( meta );
+        }
+    }
+    return registered;
+}
+
+int world_setting_register_int( const char *module_id, const char *setting_id,
+                                const char *display_name, const char *tooltip,
+                                int min_value, int max_value, int default_value, uint32_t scope )
+{
+    if( !display_name || !tooltip || !claim_world_setting( module_id, setting_id, scope ) ) {
+        return 0;
+    }
+    const int registered = get_options().ncmm_register_world_int(
+                               setting_id, to_translation( display_name ),
+                               to_translation( tooltip ), min_value, max_value, default_value,
+                               scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
+    if( registered ) {
+        module_setting_meta meta;
+        meta.module_id = module_id;
+        meta.setting_id = setting_id;
+        meta.name = display_name;
+        meta.tooltip = tooltip;
+        meta.type = "int";
+        meta.scope = scope;
+        meta.min_value = min_value;
+        meta.max_value = max_value;
+        meta.step = 1.0;
+        remember_registered_world_setting( meta );
+        if( manager_visible_setting_scope( scope ) ) {
+            remember_module_setting( meta );
+        }
+    }
+    return registered;
+}
+
+int world_setting_register_float( const char *module_id, const char *setting_id,
+                                  const char *display_name, const char *tooltip,
+                                  double min_value, double max_value, double default_value,
+                                  double step, uint32_t scope )
+{
+    if( !display_name || !tooltip || !std::isfinite( min_value ) || !std::isfinite( max_value ) ||
+        !std::isfinite( default_value ) || !std::isfinite( step ) ||
+        !claim_world_setting( module_id, setting_id, scope ) ) {
+        return 0;
+    }
+    const int registered = get_options().ncmm_register_world_float(
+                               setting_id, to_translation( display_name ),
+                               to_translation( tooltip ), static_cast<float>( min_value ),
+                               static_cast<float>( max_value ), static_cast<float>( default_value ),
+                               static_cast<float>( step ),
+                               scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
+    if( registered ) {
+        module_setting_meta meta;
+        meta.module_id = module_id;
+        meta.setting_id = setting_id;
+        meta.name = display_name;
+        meta.tooltip = tooltip;
+        meta.type = "float";
+        meta.scope = scope;
+        meta.min_value = min_value;
+        meta.max_value = max_value;
+        meta.step = step;
+        remember_registered_world_setting( meta );
+        if( manager_visible_setting_scope( scope ) ) {
+            remember_module_setting( meta );
+        }
+    }
+    return registered;
+}
+
+int world_setting_register_enum( const char *module_id, const char *setting_id,
+                                 const char *display_name, const char *tooltip,
+                                 const char *const *value_ids, const char *const *display_names,
+                                 size_t count, const char *default_value, uint32_t scope )
+{
+    if( !display_name || !tooltip || !value_ids || !display_names || !default_value ||
+        count == 0 || count > 64 || !claim_world_setting( module_id, setting_id, scope ) ) {
+        return 0;
+    }
+    std::vector<options_manager::id_and_option> items;
+    items.reserve( count );
+    for( size_t i = 0; i < count; ++i ) {
+        if( !value_ids[i] || !display_names[i] ) {
+            return 0;
+        }
+        items.emplace_back( value_ids[i], to_translation( display_names[i] ) );
+    }
+    const int registered = get_options().ncmm_register_world_enum(
+                               setting_id, to_translation( display_name ),
+                               to_translation( tooltip ), items, default_value,
+                               scope >= NCMM_WORLD_SETTING_NEW_MAP ) ? 1 : 0;
+    if( registered ) {
+        module_setting_meta meta;
+        meta.module_id = module_id;
+        meta.setting_id = setting_id;
+        meta.name = display_name;
+        meta.tooltip = tooltip;
+        meta.type = "enum";
+        meta.scope = scope;
+        for( size_t i = 0; i < count; ++i ) {
+            meta.choices.emplace_back( value_ids[i], display_names[i] );
+        }
+        remember_registered_world_setting( meta );
+        if( manager_visible_setting_scope( scope ) ) {
+            remember_module_setting( meta );
+        }
+    }
+    return registered;
+}
+
+'@
+    $loaderUi = Replace-TextBlock $loaderUi $gameplayRegsOld $gameplayRegsNew 'module gameplay smoke typed registration tracking'
+$gameplayClearOld = @'
+    active_module_id.clear();
+    loaded.clear();
+    module_states.clear();
+    module_ids.clear();
+    hotkey_registration_logged.clear();
+    manifest_id_counts.clear();'@
+$gameplayClearNew = @'
+    active_module_id.clear();
+    loaded.clear();
+    module_states.clear();
+    module_ids.clear();
+    module_settings.clear();
+    registered_world_settings.clear();
+    hotkey_registration_logged.clear();
+    manifest_id_counts.clear();'@
+    $loaderUi = Replace-TextBlock $loaderUi $gameplayClearOld $gameplayClearNew 'module gameplay smoke reentry reset'
+$gameplayPublicOld = @'
+} // namespace
+
+double runtime_hook_modifier( const char *hook_id, const char *subject_id,'@
+$gameplayPublicNew = @'
+} // namespace
+
+int run_module_gameplay_smoke( uint32_t seed )
+{
+#ifndef _WIN32
+    ( void )seed;
+    return 190;
+#else
+    loaded_mod *aws = nullptr;
+    loaded_mod *survivor = nullptr;
+    for( loaded_mod &mod : loaded ) {
+        if( mod.descriptor == nullptr || mod.descriptor->id == nullptr ) continue;
+        const std::string id = mod.descriptor->id;
+        if( id == "advanced_world_settings" ) aws = &mod;
+        if( id == "survivor_progression" ) survivor = &mod;
+    }
+    if( aws == nullptr || survivor == nullptr ) {
+        log_line( NCMM_LOG_ERROR, "NCMM gameplay smoke requires both AWS and Survivor Progression." );
+        return 191;
+    }
+
+    uint32_t state = seed ^ 0xA71C5EEDu;
+    const auto next_random = [&state]() {
+        state = state * 1664525u + 1013904223u;
+        return state;
+    };
+
+    std::map<std::string, std::string> aws_expected;
+    size_t aws_setting_count = 0;
+    for( const module_setting_meta &meta : registered_world_settings ) {
+        if( meta.module_id != "advanced_world_settings" ||
+            meta.scope < NCMM_WORLD_SETTING_NEW_MAP ) {
+            continue;
+        }
+        if( !get_options().has_option( meta.setting_id ) ) {
+            log_line( NCMM_LOG_ERROR, ( "AWS smoke missing registered option: " + meta.setting_id ).c_str() );
+            return 192;
+        }
+        options_manager::cOpt &opt = get_options().get_option( meta.setting_id );
+        if( meta.type == "bool" ) {
+            const bool value = meta.setting_id == "NCMM_AWS_CUSTOM_GEOGRAPHY" ?
+                               true : ( next_random() & 1u ) != 0u;
+            opt.setValue( value ? "true" : "false" );
+        } else if( meta.type == "int" ) {
+            const int lo = static_cast<int>( std::lround( meta.min_value ) );
+            const int hi = static_cast<int>( std::lround( meta.max_value ) );
+            const uint32_t span = static_cast<uint32_t>( std::max( 1, hi - lo + 1 ) );
+            opt.setValue( lo + static_cast<int>( next_random() % span ) );
+        } else if( meta.type == "float" ) {
+            const double step = meta.step > 0.0 ? meta.step : 1.0;
+            const int steps = std::max( 0, static_cast<int>(
+                                           std::floor( ( meta.max_value - meta.min_value ) / step + 1.0e-9 ) ) );
+            const int pick = steps == 0 ? 0 : static_cast<int>( next_random() %
+                             static_cast<uint32_t>( steps + 1 ) );
+            const double value = std::min( meta.max_value, meta.min_value + step * pick );
+            opt.setValue( static_cast<float>( value ) );
+        } else if( meta.type == "enum" && !meta.choices.empty() ) {
+            const size_t pick = static_cast<size_t>( next_random() ) % meta.choices.size();
+            opt.setValue( meta.choices[pick].first );
+        }
+        aws_expected[meta.setting_id] = opt.getValue();
+        ++aws_setting_count;
+    }
+    if( aws_setting_count != 48 ) {
+        log_line( NCMM_LOG_ERROR,
+                  ( "AWS gameplay smoke expected 48 NEW_MAP settings, got " +
+                    std::to_string( aws_setting_count ) ).c_str() );
+        return 193;
+    }
+
+    // Preserve the module's only cross-setting invariant after independent randomization.
+    if( get_options().has_option( "NCMM_AWS_FLOODPLAIN_MIN" ) &&
+        get_options().has_option( "NCMM_AWS_FLOODPLAIN_MAX" ) ) {
+        options_manager::cOpt &min_opt = get_options().get_option( "NCMM_AWS_FLOODPLAIN_MIN" );
+        options_manager::cOpt &max_opt = get_options().get_option( "NCMM_AWS_FLOODPLAIN_MAX" );
+        int min_value = min_opt.value_as<int>();
+        int max_value = max_opt.value_as<int>();
+        if( min_value > max_value ) {
+            std::swap( min_value, max_value );
+            min_opt.setValue( min_value );
+            max_opt.setValue( max_value );
+        }
+        aws_expected["NCMM_AWS_FLOODPLAIN_MIN"] = min_opt.getValue();
+        aws_expected["NCMM_AWS_FLOODPLAIN_MAX"] = max_opt.getValue();
+    }
+
+    if( world_generator == nullptr ) {
+        log_line( NCMM_LOG_ERROR, "AWS gameplay smoke has no world generator." );
+        return 194;
+    }
+    world_generator->set_active_world( nullptr );
+    world_generator->init();
+
+    const std::string world_name = "NCMM_AWS_SMOKE_" + std::to_string( seed );
+    if( world_generator->has_world( world_name ) ) {
+        world_generator->delete_world( world_name, true );
+    }
+    const std::vector<mod_id> mods = world_generator->get_mod_manager().get_default_mods();
+    WORLD *world = world_generator->make_new_world( world_name, mods );
+    if( world == nullptr ) {
+        log_line( NCMM_LOG_ERROR, "AWS gameplay smoke could not create test world." );
+        return 195;
+    }
+    world_generator->set_active_world( world );
+
+    for( const auto &expected : aws_expected ) {
+        const auto it = world->WORLD_OPTIONS.find( expected.first );
+        if( it == world->WORLD_OPTIONS.end() || it->second.getValue() != expected.second ) {
+            log_line( NCMM_LOG_ERROR,
+                      ( "AWS world option did not survive world creation: " + expected.first ).c_str() );
+            return 196;
+        }
+    }
+    if( !world->save() ) {
+        log_line( NCMM_LOG_ERROR, "AWS gameplay smoke could not persist test world." );
+        return 197;
+    }
+
+    g->new_game = true;
+    calendar::set_eternal_season( get_option<bool>( "ETERNAL_SEASON" ) );
+    calendar::set_season_length( get_option<int>( "SEASON_LENGTH" ) );
+    g->load_core_data();
+    g->load_world_modfiles();
+    overmap_buffer.init_region_layout();
+
+    get_avatar() = avatar();
+    get_avatar().create( character_type::NOW );
+    get_avatar().setID( g->assign_npc_id(), false );
+    get_map() = map();
+
+    overmap_special_batch empty_specials( point_abs_om{} );
+    overmap_buffer.create_custom_overmap( point_abs_om{}, empty_specials );
+    map &here = get_map();
+    here.load( tripoint_abs_sm( here.get_abs_sub() ), false );
+    get_avatar().move_to( tripoint_abs_ms::zero );
+    get_weather().update_weather();
+
+    g->new_game = false;
+    on_turn();
+
+    using test_count_fn = size_t (*)();
+    using test_id_fn = const char *(*)( size_t );
+    using test_reset_fn = int (*)();
+    using test_set_rank_fn = int (*)( size_t, int );
+
+    const auto test_count = reinterpret_cast<test_count_fn>(
+                                GetProcAddress( survivor->handle, "ncmm_test_perk_count_v1" ) );
+    const auto test_id = reinterpret_cast<test_id_fn>(
+                             GetProcAddress( survivor->handle, "ncmm_test_perk_id_v1" ) );
+    const auto test_reset = reinterpret_cast<test_reset_fn>(
+                                GetProcAddress( survivor->handle, "ncmm_test_reset_all_perks_v1" ) );
+    const auto test_set_rank = reinterpret_cast<test_set_rank_fn>(
+                                   GetProcAddress( survivor->handle, "ncmm_test_set_perk_rank_v1" ) );
+    if( test_count == nullptr || test_id == nullptr || test_reset == nullptr ||
+        test_set_rank == nullptr || test_count() != 369 ) {
+        log_line( NCMM_LOG_ERROR, "Survivor gameplay smoke diagnostic surface is incomplete." );
+        return 198;
+    }
+
+    const auto find_perk = [&]( const char *id ) -> size_t {
+        for( size_t i = 0; i < test_count(); ++i ) {
+            const char *candidate = test_id( i );
+            if( candidate != nullptr && std::string( candidate ) == id ) return i;
+        }
+        return test_count();
+    };
+    const auto reset_perks = [&]() {
+        module_call_scope scope( "survivor_progression" );
+        return test_reset() != 0;
+    };
+    const auto grant = [&]( const char *id ) {
+        const size_t index = find_perk( id );
+        if( index >= test_count() ) return false;
+        module_call_scope scope( "survivor_progression" );
+        return test_set_rank( index, 1 ) != 0;
+    };
+
+    if( !reset_perks() ) return 199;
+
+    avatar &you = get_avatar();
+    const int base_str = you.get_str();
+    const int base_dex = you.get_dex();
+    const int base_per = you.get_per();
+    const int base_int = you.get_int();
+    const int base_speed = you.get_speed();
+    const int base_stamina = you.get_stamina_max();
+    const float base_dodge = you.get_dodge();
+    const float base_hit = you.get_hit_base();
+    const int base_move = you.run_cost( 100, false );
+
+    if( !grant( "c_power" ) || you.get_str() != base_str + 1 ) return 200;
+    if( !reset_perks() || !grant( "c_reflexes" ) || you.get_dex() != base_dex + 1 ) return 201;
+    if( !reset_perks() || !grant( "s_instinct" ) || you.get_per() != base_per + 1 ) return 202;
+    if( !reset_perks() || !grant( "a_focus" ) || you.get_int() != base_int + 1 ) return 203;
+
+    if( !reset_perks() || !grant( "c_tempo" ) ||
+        you.get_speed() != std::max( 1, static_cast<int>( std::lround( base_speed * 1.03 ) ) ) ) {
+        return 204;
+    }
+    if( !reset_perks() || !grant( "c_conditioning" ) ||
+        you.get_stamina_max() != std::max( 1, static_cast<int>( std::lround( base_stamina * 1.08 ) ) ) ) {
+        return 205;
+    }
+    if( !reset_perks() || !grant( "c_footwork" ) ||
+        std::abs( you.get_dodge() - ( base_dodge + 0.5f ) ) > 0.0001f ) {
+        return 206;
+    }
+    if( !reset_perks() || !grant( "c_precision" ) ||
+        std::abs( you.get_hit_base() - ( base_hit + 0.5f ) ) > 0.0001f ) {
+        return 207;
+    }
+    if( !reset_perks() || !grant( "m_light" ) ||
+        you.run_cost( 100, false ) != std::max( 1, static_cast<int>( base_move * 0.97 ) ) ) {
+        return 208;
+    }
+
+    if( !reset_perks() || you.get_str() != base_str || you.get_dex() != base_dex ||
+        you.get_per() != base_per || you.get_int() != base_int ||
+        you.get_speed() != base_speed || you.get_stamina_max() != base_stamina ||
+        std::abs( you.get_dodge() - base_dodge ) > 0.0001f ||
+        std::abs( you.get_hit_base() - base_hit ) > 0.0001f ||
+        you.run_cost( 100, false ) != base_move ) {
+        log_line( NCMM_LOG_ERROR, "Survivor gameplay smoke cleanup did not return to baseline." );
+        return 209;
+    }
+
+    const std::filesystem::path evidence = game_root() / "ncmm" /
+                                           ( "module-gameplay-smoke-" + std::to_string( seed ) + ".json" );
+    std::ofstream out( evidence, std::ios::trunc );
+    out << "{\n"
+        << "  \"schema\": 1,\n"
+        << "  \"seed\": " << seed << ",\n"
+        << "  \"world\": \"" << json_escape( world_name ) << "\",\n"
+        << "  \"aws_settings\": " << aws_setting_count << ",\n"
+        << "  \"aws_world_saved\": true,\n"
+        << "  \"aws_overmap_generated\": true,\n"
+        << "  \"survivor_catalog\": " << test_count() << ",\n"
+        << "  \"survivor_real_character_checks\": 9,\n"
+        << "  \"survivor_cleanup\": true\n"
+        << "}\n";
+    out.close();
+    if( !out ) return 210;
+
+    log_line( NCMM_LOG_INFO,
+              "NCMM module gameplay smoke PASS: AWS randomized world + overmap; Survivor real Character effects + cleanup." );
+    return 0;
+#endif
+}
+
+double runtime_hook_modifier( const char *hook_id, const char *subject_id,'@
+    $loaderUi = Replace-TextBlock $loaderUi $gameplayPublicOld $gameplayPublicNew 'module gameplay smoke real CDDA runner'
 
     $tileLoopOld = @'
     while( true ) {
@@ -17157,7 +17417,6 @@ std::string rpg_detail_body( const perk_def &perk, const std::string &body,
         $sp = $sp.Replace([string]$pair[0],[string]$pair[1])
     }
 
-    # Fix the remaining terse generated Russian stat phrases without changing values.
     $grammar = @(
         @('([+-]\d+(?:[.,]\d+)?%) максимум выносливости(?=[,;." ])','$1 максимальной выносливости'),
         @('([+-]\d+(?:[.,]\d+)?%) скорость(?=[,;." ])','$1 скорости'),
@@ -17243,8 +17502,6 @@ std::string rpg_detail_body( const perk_def &perk, const std::string &body,
 
 Apply-PlayerFacingCopyPolishFinal
 
-# NCMM Infrastructure 0.8.3.1 deep probe: execute the exact host/source transform stack
-# without resolving Visual Studio, compiling binaries, touching the target runtime, or installing files.
 if ($HostSourceProbeOnly) {
     Write-Host ""
     Write-Host "=== NCMM Infrastructure 0.8.3.1 DEEP SOURCE PROBE ===" -ForegroundColor Cyan
@@ -17296,7 +17553,6 @@ if ($HostSourceProbeOnly) {
     exit 0
 }
 
-# Build Survivor 0.12.0 after the preserved 0.11.3 gameplay stack plus NCMM-managed live balance settings.
 Write-Host ""
 Set-InfrastructureTransactionPhase "source_preflight" "passed" "legacy generation and API2 module migrations passed"
 Set-InfrastructureTransactionPhase "compile" "running" "resolving toolchain and compiling modules/host"
@@ -17306,7 +17562,6 @@ Write-Host "Visual Studio: $($vs.Root)"
 $release0110 = Compile-Survivor $Source0910 (Join-Path $NcmmRoot "sdk") $vs $ReleaseRoot
 $releaseAWS = Compile-AdvancedWorldSettings $NcmmRoot (Join-Path $NcmmRoot "sdk") $vs $ReleaseRoot
 
-# 0.9.11-0.9.15 snapshots were emitted at their stage boundaries; 0.9.15 was refreshed after API 1.8/contracts.
 $revScript = Join-Path $NcmmRoot "ci\Get-PatchRevision.ps1"
 $newPatchRevision = (& $revScript -RepositoryRoot $NcmmRoot).Trim()
 if ($newPatchRevision -notmatch '^[0-9a-f]{64}$') {
@@ -17314,7 +17569,6 @@ if ($newPatchRevision -notmatch '^[0-9a-f]{64}$') {
 }
 Write-Host "Patch revision: $newPatchRevision"
 
-# Refresh cached patched CDDA source and link local host without PDB.
 Ensure-BuildFreeSpace $BuildRoot 12
 Ensure-CddaBuildCache $CddaRoot $BuildRoot $CddaCommit $VcpkgCommit $CddaCacheKey
 $bootstrapGit = Find-BootstrapGit $vs.Root
@@ -17355,8 +17609,6 @@ if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_runtime_infra_v8766") -PathType 
 Assert-NcmmPatchedSourceIntegrity $CddaRoot
 Set-InfrastructureTransactionPhase "cdda_patch" "passed" "generic Host API2 CDDA integration (including mechanical perk hooks) and patched-source audit passed"
 
-# v8.2: vcpkg dependency verification/install is invoked inside Build-Host-NoPdb only
-# when the exact host fingerprint/binary cache cannot be reused.
 
 function Compile-NCMMBootstrap([string]$RepoRoot,[string]$OutputRoot) {
     $source = Join-Path $RepoRoot "runtime\NCMMBootstrap.cs"
@@ -17421,7 +17673,6 @@ $builtHost = Build-Host-NoPdb $CddaRoot $VcpkgRoot $BuildRoot $vs $newPatchRevis
 $builtBootstrap = Compile-NCMMBootstrap $NcmmRoot $ReleaseRoot
 
 
-# Transactional install.
 Set-InfrastructureTransactionPhase "compile" "passed" "module and host compilation completed"
 Set-InfrastructureTransactionPhase "install" "running" "entering transactional runtime install"
 $bindingPath = Join-Path $GameRoot "ncmm\host.binding.json"
@@ -17548,8 +17799,6 @@ try {
     New-Item -ItemType Directory -Force (Join-Path $GameRoot "ncmm") | Out-Null
     New-Item -ItemType Directory -Force (Join-Path $GameRoot "code_mods") | Out-Null
     if ($freshVanillaInstall) {
-        # On a new CatLauncher build the launch executable is still vanilla. Preserve it
-        # before installing the NCMM bootstrap, then certify the copy byte-for-byte.
         Copy-Item $installedBootstrap $vanillaExe -Force
         if ((Hash-File $vanillaExe).ToLowerInvariant() -ne $actualVanillaSha) {
             throw "Fresh vanilla backup hash mismatch before bootstrap install."
