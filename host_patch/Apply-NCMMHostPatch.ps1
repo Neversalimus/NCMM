@@ -400,6 +400,61 @@ $rg = Replace-ExactlyOnce $rg @'
 '@ 'ranged.prediction-field'
 
 $rg = Replace-ExactlyOnce $rg @'
+        if( prediction.is_default ) {
+            prediction.moves += aim_to_selected.moves;
+            prediction.steadiness = selected_steadiness;
+        } else {
+            // predict how long it'll take to reach from current recoil
+            // to the current aim mode's threshold.
+            const recoil_prediction aim_to_type = ( aim_type == ui.get_selected_aim_type() ) ? aim_to_selected :
+                                                  predict_recoil( you, weapon, target, ui.get_sight_dispersion(), aim_type, you.recoil );
+            prediction.steadiness = calc_steadiness( you, weapon, pos, aim_to_type.recoil );
+        }
+
+        // make a copy of the given dispersion, apply the aiming and calculate hit confidence
+'@ @'
+        double predicted_recoil_for_shot = you.recoil;
+        if( prediction.is_default ) {
+            prediction.moves += aim_to_selected.moves;
+            prediction.steadiness = selected_steadiness;
+            predicted_recoil_for_shot = aim_to_selected.recoil;
+        } else {
+            // predict how long it'll take to reach from current recoil
+            // to the current aim mode's threshold.
+            const recoil_prediction aim_to_type = ( aim_type == ui.get_selected_aim_type() ) ? aim_to_selected :
+                                                  predict_recoil( you, weapon, target, ui.get_sight_dispersion(), aim_type, you.recoil );
+            prediction.steadiness = calc_steadiness( you, weapon, pos, aim_to_type.recoil );
+            predicted_recoil_for_shot = aim_to_type.recoil;
+        }
+
+        // make a copy of the given dispersion, apply the aiming and calculate hit confidence
+'@ 'ranged.predicted-recoil'
+
+$rg = Replace-ExactlyOnce $rg @'
+        current_dispersion.add_range( aim_type.has_threshold ? aim_type.threshold :
+                                      aim_to_selected.recoil );
+
+        // this loop fills in the "confidence" values; the chances of great/good/graze outcomes
+        prediction.confidence = confidence_estimate( target, current_dispersion );
+'@ @'
+        current_dispersion.add_range( aim_type.has_threshold ? aim_type.threshold :
+                                      aim_to_selected.recoil );
+
+        if( ncmm_hit_probability_enabled() ) {
+            // Actual fire_gun() combines character and vehicle recoil into one
+            // uniform dispersion source via recoil_total().
+            dispersion_sources exact_dispersion = you.get_weapon_dispersion( weapon );
+            exact_dispersion.add_range( predicted_recoil_for_shot + you.recoil_vehicle() );
+            Creature *target_critter = get_creature_tracker().creature_at( pos );
+            prediction.exact_hit_probability =
+                ncmm_exact_hit_probability( exact_dispersion, target, target_critter );
+        }
+
+        // this loop fills in the "confidence" values; the chances of great/good/graze outcomes
+        prediction.confidence = confidence_estimate( target, current_dispersion );
+'@ 'ranged.exact-in-prediction'
+
+$rg = Replace-ExactlyOnce $rg @'
 Target_attributes::Target_attributes( int rng, double target_size, float light_target,
                                       bool can_see )
 {
