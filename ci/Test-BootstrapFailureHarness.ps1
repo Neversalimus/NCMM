@@ -29,7 +29,7 @@ $childOut = Join-Path $work 'BootstrapFailureChild.exe'
 $childSource = Join-Path $RepositoryRoot 'tests\BootstrapFailureChild.cs'
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $passed = 0
-$total = 15
+$total = 16
 
 function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
@@ -177,6 +177,20 @@ try {
         $binding | ConvertTo-Json | Set-Content $path -Encoding UTF8
         [void](Invoke-Bootstrap $root @('--ncmm-offline','--test-host-ready') 0)
         Assert-Equal (Last-Child $root) 'cataclysm-tiles.vanilla.exe' 'Stale runtime binding was accepted.'
+    }
+
+
+    Run-Scenario 'runtime smoke refuses vanilla fallback when Host is invalid' {
+        $root = New-Scenario 'runtime-smoke-no-host'
+        $path = Join-Path $root 'ncmm\host.binding.json'
+        $binding = Get-Content $path -Raw | ConvertFrom-Json
+        $binding.ncmm_version = '__ncmm_stale_runtime__'
+        $binding | ConvertTo-Json | Set-Content $path -Encoding UTF8
+        [void](Invoke-Bootstrap $root @('--ncmm-runtime-smoke','--ncmm-offline') 115)
+        Assert-True (-not (Test-Path (Join-Path $root 'child.log'))) 'Runtime smoke unexpectedly launched vanilla.'
+        $state = Read-State $root
+        Assert-Equal $state.selected_mode 'ERROR' 'Runtime smoke Host failure did not enter ERROR mode.'
+        Assert-Equal $state.reason 'runtime_smoke_host_unavailable' 'Runtime smoke failure reason mismatch.'
     }
 
     Run-Scenario 'empty patch revision -> vanilla' {
