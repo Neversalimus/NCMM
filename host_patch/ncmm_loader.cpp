@@ -26,6 +26,7 @@
 #include "system_locale.h"
 #include "uilist.h"
 #include "ui_manager.h"
+#include "weather.h"
 #include "worldfactory.h"
 
 #include <algorithm>
@@ -3339,6 +3340,252 @@ void load_one( const std::filesystem::path &library )
 }
 #endif
 } // namespace
+
+int run_module_gameplay_smoke( uint32_t seed )
+{
+#ifndef _WIN32
+    ( void )seed;
+    return 190;
+#else
+    loaded_mod *aws = nullptr;
+    loaded_mod *survivor = nullptr;
+    for( loaded_mod &mod : loaded ) {
+        if( mod.descriptor == nullptr || mod.descriptor->id == nullptr ) continue;
+        const std::string id = mod.descriptor->id;
+        if( id == "advanced_world_settings" ) aws = &mod;
+        if( id == "survivor_progression" ) survivor = &mod;
+    }
+    if( aws == nullptr || survivor == nullptr ) {
+        log_line( NCMM_LOG_ERROR, "NCMM gameplay smoke requires both AWS and Survivor Progression." );
+        return 191;
+    }
+
+    uint32_t state = seed ^ 0xA71C5EEDu;
+    const auto next_random = [&state]() {
+        state = state * 1664525u + 1013904223u;
+        return state;
+    };
+
+    std::map<std::string, std::string> aws_expected;
+    size_t aws_setting_count = 0;
+    for( const module_setting_meta &meta : registered_world_settings ) {
+        if( meta.module_id != "advanced_world_settings" ||
+            meta.scope < NCMM_WORLD_SETTING_NEW_MAP ) {
+            continue;
+        }
+        if( !get_options().has_option( meta.setting_id ) ) {
+            log_line( NCMM_LOG_ERROR, ( "AWS smoke missing registered option: " + meta.setting_id ).c_str() );
+            return 192;
+        }
+        options_manager::cOpt &opt = get_options().get_option( meta.setting_id );
+        if( meta.type == "bool" ) {
+            const bool value = meta.setting_id == "NCMM_AWS_CUSTOM_GEOGRAPHY" ?
+                               true : ( next_random() & 1u ) != 0u;
+            opt.setValue( value ? "true" : "false" );
+        } else if( meta.type == "int" ) {
+            const int lo = static_cast<int>( std::lround( meta.min_value ) );
+            const int hi = static_cast<int>( std::lround( meta.max_value ) );
+            const uint32_t span = static_cast<uint32_t>( std::max( 1, hi - lo + 1 ) );
+            opt.setValue( lo + static_cast<int>( next_random() % span ) );
+        } else if( meta.type == "float" ) {
+            const double step = meta.step > 0.0 ? meta.step : 1.0;
+            const int steps = std::max( 0, static_cast<int>(
+                                           std::floor( ( meta.max_value - meta.min_value ) / step + 1.0e-9 ) ) );
+            const int pick = steps == 0 ? 0 : static_cast<int>( next_random() %
+                             static_cast<uint32_t>( steps + 1 ) );
+            const double value = std::min( meta.max_value, meta.min_value + step * pick );
+            opt.setValue( static_cast<float>( value ) );
+        } else if( meta.type == "enum" && !meta.choices.empty() ) {
+            const size_t pick = static_cast<size_t>( next_random() ) % meta.choices.size();
+            opt.setValue( meta.choices[pick].first );
+        }
+        aws_expected[meta.setting_id] = opt.getValue();
+        ++aws_setting_count;
+    }
+    if( aws_setting_count != 48 ) {
+        log_line( NCMM_LOG_ERROR,
+                  ( "AWS gameplay smoke expected 48 NEW_MAP settings, got " +
+                    std::to_string( aws_setting_count ) ).c_str() );
+        return 193;
+    }
+
+    // Preserve the module's only cross-setting invariant after independent randomization.
+    if( get_options().has_option( "NCMM_AWS_FLOODPLAIN_MIN" ) &&
+        get_options().has_option( "NCMM_AWS_FLOODPLAIN_MAX" ) ) {
+        options_manager::cOpt &min_opt = get_options().get_option( "NCMM_AWS_FLOODPLAIN_MIN" );
+        options_manager::cOpt &max_opt = get_options().get_option( "NCMM_AWS_FLOODPLAIN_MAX" );
+        int min_value = min_opt.value_as<int>();
+        int max_value = max_opt.value_as<int>();
+        if( min_value > max_value ) {
+            std::swap( min_value, max_value );
+            min_opt.setValue( min_value );
+            max_opt.setValue( max_value );
+        }
+        aws_expected["NCMM_AWS_FLOODPLAIN_MIN"] = min_opt.getValue();
+        aws_expected["NCMM_AWS_FLOODPLAIN_MAX"] = max_opt.getValue();
+    }
+
+    if( world_generator == nullptr ) {
+        log_line( NCMM_LOG_ERROR, "AWS gameplay smoke has no world generator." );
+        return 194;
+    }
+    world_generator->set_active_world( nullptr );
+    world_generator->init();
+
+    const std::string world_name = "NCMM_AWS_SMOKE_" + std::to_string( seed );
+    if( world_generator->has_world( world_name ) ) {
+        world_generator->delete_world( world_name, true );
+    }
+    const std::vector<mod_id> mods = world_generator->get_mod_manager().get_default_mods();
+    WORLD *world = world_generator->make_new_world( world_name, mods );
+    if( world == nullptr ) {
+        log_line( NCMM_LOG_ERROR, "AWS gameplay smoke could not create test world." );
+        return 195;
+    }
+    world_generator->set_active_world( world );
+
+    for( const auto &expected : aws_expected ) {
+        const auto it = world->WORLD_OPTIONS.find( expected.first );
+        if( it == world->WORLD_OPTIONS.end() || it->second.getValue() != expected.second ) {
+            log_line( NCMM_LOG_ERROR,
+                      ( "AWS world option did not survive world creation: " + expected.first ).c_str() );
+            return 196;
+        }
+    }
+    if( !world->save() ) {
+        log_line( NCMM_LOG_ERROR, "AWS gameplay smoke could not persist test world." );
+        return 197;
+    }
+
+    g->new_game = true;
+    calendar::set_eternal_season( get_option<bool>( "ETERNAL_SEASON" ) );
+    calendar::set_season_length( get_option<int>( "SEASON_LENGTH" ) );
+    g->load_core_data();
+    g->load_world_modfiles();
+    overmap_buffer.init_region_layout();
+
+    get_avatar() = avatar();
+    get_avatar().create( character_type::NOW );
+    get_avatar().setID( g->assign_npc_id(), false );
+    get_map() = map();
+
+    overmap_special_batch empty_specials( point_abs_om{} );
+    overmap_buffer.create_custom_overmap( point_abs_om{}, empty_specials );
+    map &here = get_map();
+    here.load( tripoint_abs_sm( here.get_abs_sub() ), false );
+    get_avatar().move_to( tripoint_abs_ms::zero );
+    get_weather().update_weather();
+
+    g->new_game = false;
+    on_turn();
+
+    using test_count_fn = size_t (*)();
+    using test_id_fn = const char *(*)( size_t );
+    using test_reset_fn = int (*)();
+    using test_set_rank_fn = int (*)( size_t, int );
+
+    const auto test_count = reinterpret_cast<test_count_fn>(
+                                GetProcAddress( survivor->handle, "ncmm_test_perk_count_v1" ) );
+    const auto test_id = reinterpret_cast<test_id_fn>(
+                             GetProcAddress( survivor->handle, "ncmm_test_perk_id_v1" ) );
+    const auto test_reset = reinterpret_cast<test_reset_fn>(
+                                GetProcAddress( survivor->handle, "ncmm_test_reset_all_perks_v1" ) );
+    const auto test_set_rank = reinterpret_cast<test_set_rank_fn>(
+                                   GetProcAddress( survivor->handle, "ncmm_test_set_perk_rank_v1" ) );
+    if( test_count == nullptr || test_id == nullptr || test_reset == nullptr ||
+        test_set_rank == nullptr || test_count() != 369 ) {
+        log_line( NCMM_LOG_ERROR, "Survivor gameplay smoke diagnostic surface is incomplete." );
+        return 198;
+    }
+
+    const auto find_perk = [&]( const char *id ) -> size_t {
+        for( size_t i = 0; i < test_count(); ++i ) {
+            const char *candidate = test_id( i );
+            if( candidate != nullptr && std::string( candidate ) == id ) return i;
+        }
+        return test_count();
+    };
+    const auto reset_perks = [&]() {
+        module_call_scope scope( "survivor_progression" );
+        return test_reset() != 0;
+    };
+    const auto grant = [&]( const char *id ) {
+        const size_t index = find_perk( id );
+        if( index >= test_count() ) return false;
+        module_call_scope scope( "survivor_progression" );
+        return test_set_rank( index, 1 ) != 0;
+    };
+
+    if( !reset_perks() ) return 199;
+
+    avatar &you = get_avatar();
+    const int base_str = you.get_str();
+    const int base_dex = you.get_dex();
+    const int base_per = you.get_per();
+    const int base_int = you.get_int();
+    const int base_speed = you.get_speed();
+    const int base_stamina = you.get_stamina_max();
+    const float base_dodge = you.get_dodge();
+    const float base_hit = you.get_hit_base();
+    const int base_move = you.run_cost( 100, false );
+
+    if( !grant( "c_power" ) || you.get_str() != base_str + 1 ) return 200;
+    if( !reset_perks() || !grant( "c_reflexes" ) || you.get_dex() != base_dex + 1 ) return 201;
+    if( !reset_perks() || !grant( "s_instinct" ) || you.get_per() != base_per + 1 ) return 202;
+    if( !reset_perks() || !grant( "a_focus" ) || you.get_int() != base_int + 1 ) return 203;
+
+    if( !reset_perks() || !grant( "c_tempo" ) ||
+        you.get_speed() != std::max( 1, static_cast<int>( std::lround( base_speed * 1.03 ) ) ) ) {
+        return 204;
+    }
+    if( !reset_perks() || !grant( "c_conditioning" ) ||
+        you.get_stamina_max() != std::max( 1, static_cast<int>( std::lround( base_stamina * 1.08 ) ) ) ) {
+        return 205;
+    }
+    if( !reset_perks() || !grant( "c_footwork" ) ||
+        std::abs( you.get_dodge() - ( base_dodge + 0.5f ) ) > 0.0001f ) {
+        return 206;
+    }
+    if( !reset_perks() || !grant( "c_precision" ) ||
+        std::abs( you.get_hit_base() - ( base_hit + 0.5f ) ) > 0.0001f ) {
+        return 207;
+    }
+    if( !reset_perks() || !grant( "m_light" ) ||
+        you.run_cost( 100, false ) != std::max( 1, static_cast<int>( base_move * 0.97 ) ) ) {
+        return 208;
+    }
+
+    if( !reset_perks() || you.get_str() != base_str || you.get_dex() != base_dex ||
+        you.get_per() != base_per || you.get_int() != base_int ||
+        you.get_speed() != base_speed || you.get_stamina_max() != base_stamina ||
+        std::abs( you.get_dodge() - base_dodge ) > 0.0001f ||
+        std::abs( you.get_hit_base() - base_hit ) > 0.0001f ||
+        you.run_cost( 100, false ) != base_move ) {
+        log_line( NCMM_LOG_ERROR, "Survivor gameplay smoke cleanup did not return to baseline." );
+        return 209;
+    }
+
+    const std::filesystem::path evidence = game_root() / "ncmm" / "module-gameplay-smoke.json";
+    std::ofstream out( evidence, std::ios::trunc );
+    out << "{\n"
+        << "  \"schema\": 1,\n"
+        << "  \"seed\": " << seed << ",\n"
+        << "  \"world\": \"" << json_escape( world_name ) << "\",\n"
+        << "  \"aws_settings\": " << aws_setting_count << ",\n"
+        << "  \"aws_world_saved\": true,\n"
+        << "  \"aws_overmap_generated\": true,\n"
+        << "  \"survivor_catalog\": " << test_count() << ",\n"
+        << "  \"survivor_real_character_checks\": 9,\n"
+        << "  \"survivor_cleanup\": true\n"
+        << "}\n";
+    out.close();
+    if( !out ) return 210;
+
+    log_line( NCMM_LOG_INFO,
+              "NCMM module gameplay smoke PASS: AWS randomized world + overmap; Survivor real Character effects + cleanup." );
+    return 0;
+#endif
+}
 
 double runtime_hook_modifier( const char *hook_id, const char *subject_id,
                               const char *source_mod_id, const char *source_species_id,
