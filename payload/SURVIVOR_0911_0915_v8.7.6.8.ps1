@@ -15940,8 +15940,8 @@ bool configure_progression_settings()
     if( !host2->world_setting_register_enum(
             module_id, xp_rate_setting,
             russian() ? "Получение опыта" : "Experience gain",
-            russian() ? "Множитель опыта Survivor после антифарма. 100% сохраняет стандартный баланс." :
-                        "Multiplier for Survivor XP after anti-farm adjustments. 100% keeps the default balance.",
+            russian() ? "Множитель опыта веток и общего уровня Survivor после антифарма. 100% сохраняет стандартный баланс." :
+                        "Multiplier for branch XP and the global Survivor level after anti-farm adjustments. 100% keeps the default balance.",
             values, labels, count, "100", NCMM_WORLD_SETTING_LIVE ) ) {
         return false;
     }
@@ -15956,6 +15956,53 @@ bool configure_progression_settings()
     return true;
 }
 '@ 'Survivor configurable balance helpers'
+    $spUi = Replace-CppRange $spUi 'int64_t anti_farm_adjust( branch_id branch, int64_t raw )' 'int branch_owned_count(' @'
+int64_t scale_configured_xp( branch_id branch, int64_t adjusted )
+{
+    if( adjusted <= 0 ) {
+        return 0;
+    }
+    const int64_t rate = progression_xp_rate_pct();
+    const std::string key = branch_state_key( branch, "rate_fraction" );
+    int64_t fraction = std::max<int64_t>( 0, get_state( key, 0 ) ) % 100;
+    if( adjusted > ( std::numeric_limits<int64_t>::max() - fraction ) /
+        std::max<int64_t>( 1, rate ) ) {
+        adjusted = ( std::numeric_limits<int64_t>::max() - fraction ) /
+                   std::max<int64_t>( 1, rate );
+    }
+    const int64_t scaled = adjusted * rate + fraction;
+    set_state( key, scaled % 100 );
+    return scaled / 100;
+}
+
+int64_t anti_farm_adjust( branch_id branch, int64_t raw )
+{
+    if( raw <= 0 ) {
+        set_state( branch_state_key( branch, "streak" ), 0 );
+        return 0;
+    }
+
+    int64_t streak = std::max<int64_t>( 0,
+        get_state( branch_state_key( branch, "streak" ), 0 ) );
+    streak = std::min<int64_t>( 12, streak + 1 );
+    set_state( branch_state_key( branch, "streak" ), streak );
+
+    const int efficiency = branch_xp_efficiency_pct( branch );
+    int64_t adjusted = raw * efficiency / 100;
+    if( adjusted == 0 && raw >= 5 && efficiency >= 20 ) {
+        adjusted = 1;
+    }
+
+    int64_t fatigue_gain = branch == branch_id::mastery ?
+                           raw * 3 : raw * 8;
+    fatigue_gain += std::max<int64_t>( 0, streak - 2 ) * 6;
+    fatigue_gain = std::min<int64_t>( 180, fatigue_gain );
+
+    set_state( branch_state_key( branch, "fatigue" ),
+               std::min<int64_t>( 1000, branch_fatigue( branch ) + fatigue_gain ) );
+    return scale_configured_xp( branch, adjusted );
+}
+'@ 'Survivor post-anti-farm XP rate'
     $spUi = Replace-CppRange $spUi 'std::string ranked_effect_summary( const perk_def &perk, int rank )' 'std::string perk_description(' @'
 std::string ranked_effect_summary( const perk_def &perk, int rank )
 {
@@ -16093,10 +16140,7 @@ void award_global_xp( int64_t raw_gained )
     }
 
     int64_t fraction = get_state( "xp_fraction", 0 );
-    const int64_t perk_multiplier = std::max<int64_t>( 0, 100 + current_xp_bonus_pct );
-    const int64_t multiplier = std::max<int64_t>(
-                                   0, ( static_cast<int64_t>( progression_xp_rate_pct() ) *
-                                        perk_multiplier + 50 ) / 100 );
+    const int64_t multiplier = std::max<int64_t>( 0, 100 + current_xp_bonus_pct );
     if( raw_gained > ( std::numeric_limits<int64_t>::max() - fraction ) /
         std::max<int64_t>( 1, multiplier ) ) {
         raw_gained = ( std::numeric_limits<int64_t>::max() - fraction ) /
@@ -16147,7 +16191,7 @@ void award_global_xp( int64_t raw_gained )
         message( text );
     }
 }
-'@ 'Survivor configured XP rate'
+'@ 'Survivor configured global XP'
     $spUi = Replace-CppRange $spUi 'void tick()' 'bool survivor_has_perk_id(' @'
 void tick()
 {
@@ -16252,7 +16296,7 @@ extern "C" NCMM_EXPORT void ncmm_on_locale_changed_v1( const ncmm_host_api_v1 *a
         $spUi = $spUi.Replace($localeAnchor,$localeHandler + $localeAnchor)
     }
     $spUi = $spUi.Replace('0.11.3','0.12.0')
-    foreach($settingNeedle in @('NCMM_SP_XP_RATE','NCMM_SP_STAT_POWER','configure_progression_settings','progression_xp_rate_pct','progression_stat_power_pct','settings.typed.v2','Survivor Progression v0.12.0')){
+    foreach($settingNeedle in @('NCMM_SP_XP_RATE','NCMM_SP_STAT_POWER','scale_configured_xp','configure_progression_settings','progression_xp_rate_pct','progression_stat_power_pct','settings.typed.v2','Survivor Progression v0.12.0')){
         if(-not $spUi.Contains($settingNeedle)){throw "Survivor settings generated source missing: $settingNeedle"}
     }
     Write-Utf8NoBom $spUiPath $spUi
