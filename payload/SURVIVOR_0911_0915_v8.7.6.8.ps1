@@ -13008,7 +13008,20 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
     find_page( "ncmm_experimental" ).items_.emplace_back(
         ItemType::GroupHeader, group_id, group_id );
 '@
-        $oc = Replace-TextBlock $oc $groupPageOld $groupPageNew 'world-settings split group destination'
+        $groupFunctionStart = $oc.IndexOf('bool options_manager::ncmm_begin_experimental_group', [StringComparison]::Ordinal)
+        $groupFunctionEnd = $oc.IndexOf('bool options_manager::ncmm_register_world_bool', $groupFunctionStart, [StringComparison]::Ordinal)
+        if ($groupFunctionStart -lt 0 -or $groupFunctionEnd -le $groupFunctionStart) {
+            throw 'World-settings split could not isolate ncmm_begin_experimental_group.'
+        }
+        $groupFunction = $oc.Substring($groupFunctionStart, $groupFunctionEnd - $groupFunctionStart)
+        $groupPageOldNorm = (Normalize-Lf $groupPageOld).TrimEnd()
+        $groupPageNewNorm = (Normalize-Lf $groupPageNew).TrimEnd()
+        $groupDestinationCount = ([regex]::Matches($groupFunction,[regex]::Escape($groupPageOldNorm))).Count
+        if ($groupDestinationCount -ne 1) {
+            throw "World-settings split expected one experimental-group destination, found $groupDestinationCount"
+        }
+        $groupFunction = $groupFunction.Replace($groupPageOldNorm,$groupPageNewNorm)
+        $oc = $oc.Substring(0,$groupFunctionStart) + $groupFunction + $oc.Substring($groupFunctionEnd)
 
         $registerFind = '    auto it = options.find( name );'
         if(([regex]::Matches($oc,[regex]::Escape($registerFind))).Count -ne 4) {
