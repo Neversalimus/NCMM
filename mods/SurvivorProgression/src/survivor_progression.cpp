@@ -1760,7 +1760,9 @@ calculated_effects calculate_owned_effects()
         }
         result.modifiers["sp_damage_dealt_pct"] += momentum_stacks * damage_per_stack;
         result.modifiers["speed_pct"] += momentum_stacks * speed_per_stack;
-    }    result.xp_bonus_pct = std::max( 0, std::min( 5000, result.xp_bonus_pct ) );
+    }    // Prime drawbacks may intentionally reduce Survivor XP.  Keep the
+    // effective multiplier non-negative while preserving declared penalties.
+    result.xp_bonus_pct = std::max( -100, std::min( 5000, result.xp_bonus_pct ) );
     return result;
 }
 
