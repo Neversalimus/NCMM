@@ -3654,6 +3654,14 @@ extern "C" NCMM_EXPORT int ncmm_migrate_state_v1( const ncmm_host_api_v1 *api,
     return get_state( "schema", 0 ) == state_schema ? 1 : 0;
 }
 
+extern "C" NCMM_EXPORT void ncmm_on_locale_changed_v1( const ncmm_host_api_v1 *api )
+{
+    if( api != nullptr ) {
+        host = api;
+    }
+    configure_progression_settings();
+}
+
 extern "C" NCMM_EXPORT void ncmm_on_turn_v1( const ncmm_host_api_v1 *api )
 {
     if( api != nullptr ) {
