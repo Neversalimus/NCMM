@@ -15924,12 +15924,13 @@ void show_manager()
     }
 
     if(-not $loaderUi.Contains('std::string version_label()')){
-        $loaderUi = Replace-TextBlock $loaderUi @'
+        $versionLabelOld = @'
 std::string settings_menu_label()
 {
     return tr_ui( "<N|n>CMM / Mod Configuration", "<N|n>CMM / Настройка модов" );
 }
-'@ @'
+'@
+        $versionLabelNew = @'
 std::string settings_menu_label()
 {
     return tr_ui( "<N|n>CMM / Mod Configuration", "<N|n>CMM / Настройка модов" );
@@ -15939,7 +15940,8 @@ std::string version_label()
 {
     return std::string( "NCMM " ) + get_host_version();
 }
-'@ 'NCMM version label implementation'
+'@
+        $loaderUi = Replace-TextBlock $loaderUi $versionLabelOld $versionLabelNew 'NCMM version label implementation'
     }
 
     $tileLoopOld = @'
