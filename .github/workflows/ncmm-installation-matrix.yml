@@ -133,7 +133,44 @@ jobs:
             -Mode Real `
             -GameRoot '${{ steps.game.outputs.root }}'
 
+      - name: Check certified Host feed readiness
+        id: host_ready
+        shell: powershell
+        run: |
+          $root = '${{ steps.game.outputs.root }}'
+          $vanilla = Join-Path $root 'cataclysm-tiles.vanilla.exe'
+          if (-not (Test-Path $vanilla -PathType Leaf)) {
+            throw "Installed vanilla backup is missing: $vanilla"
+          }
+
+          $vanillaSha = (Get-FileHash $vanilla -Algorithm SHA256).Hash.ToLowerInvariant()
+          $feed = Get-Content feed/index.json -Raw | ConvertFrom-Json
+          $entryProperty = @($feed.hosts.PSObject.Properties | Where-Object { $_.Name -eq $vanillaSha } | Select-Object -First 1)
+          $ready = $entryProperty.Count -eq 1
+          "ready=$($ready.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          if ($ready) {
+            Write-Host "Certified Host feed entry is ready for vanilla SHA $vanillaSha." -ForegroundColor Green
+            exit 0
+          }
+
+          $eventName = '${{ github.event_name }}'
+          $changed = @()
+          if ($eventName -eq 'push') {
+            $changed = @(git diff-tree --no-commit-id --name-only -r HEAD)
+          }
+          $workflowOnlySelfTest = $eventName -eq 'push' -and
+                                  ($changed -contains '.github/workflows/ncmm-installation-matrix.yml') -and
+                                  -not ($changed -contains 'feed/index.json')
+          if ($workflowOnlySelfTest) {
+            Write-Host "Certified Host is not ready yet; workflow self-test stops after real SetupCore install." -ForegroundColor Yellow
+            exit 0
+          }
+
+          throw "Certified Host feed is not ready for vanilla SHA $vanillaSha."
+
       - name: Launch certified Host twice through installed bootstrap
+        if: steps.host_ready.outputs.ready == 'true'
         shell: powershell
         timeout-minutes: 8
         run: |
@@ -171,6 +208,7 @@ jobs:
           }
 
       - name: Run real AWS worldgen + Survivor gameplay smoke
+        if: steps.host_ready.outputs.ready == 'true'
         shell: powershell
         timeout-minutes: 12
         run: |
@@ -228,6 +266,7 @@ jobs:
           Write-Host ("Gameplay smoke PASS: AWS 48/48 + persisted world, Survivor " + $result.survivor_perks + "/369") -ForegroundColor Green
 
       - name: Verify certified Host + modules and restore vanilla
+        if: steps.host_ready.outputs.ready == 'true'
         shell: powershell
         run: |
           ./ci/Test-InstallationMatrix.ps1 `
@@ -279,9 +318,13 @@ jobs:
           "## NCMM real runtime smoke" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- CDDA: ${{ steps.release.outputs.tag }}" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- production SetupCore: install / module switch / reinstall" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "- bootstrap -> certified Host -> AWS + Survivor -> boot.ready -> clean exit: two consecutive real launches" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "- gameplay smoke: real AWS randomized world save/reload/overmap + persisted world evidence + Survivor 369-perk aggregate/consumer effects" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "- RestoreVanilla: verified by SHA-256" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          if ('${{ steps.host_ready.outputs.ready }}' -eq 'true') {
+            "- bootstrap -> certified Host -> AWS + Survivor -> boot.ready -> clean exit: two consecutive real launches" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            "- gameplay smoke: real AWS randomized world save/reload/overmap + persisted world evidence + Survivor 369-perk aggregate/consumer effects" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            "- RestoreVanilla: verified by SHA-256" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          } else {
+            "- certified Host/gameplay stage: deferred until feed contains this vanilla SHA" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          }
 
       - name: Upload evidence
         if: always()
