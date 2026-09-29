@@ -4100,6 +4100,28 @@ int run_gameplay_smoke()
             }
         }
 
+        // The semantic matrix owns min/max stress.  The real lifecycle should
+        // exercise a representative randomized world instead of accidentally
+        // turning one overmap into a worst-case ravine benchmark.
+        if( get_options().has_option( "NCMM_AWS_RAVINE_COUNT" ) &&
+            get_options().get_option( "NCMM_AWS_RAVINE_COUNT" ).value_as<int>() > 1 ) {
+            get_options().get_option( "NCMM_AWS_RAVINE_COUNT" ).setValue( 1 );
+        }
+        if( get_options().has_option( "NCMM_AWS_RAVINE_RANGE" ) &&
+            get_options().get_option( "NCMM_AWS_RAVINE_RANGE" ).value_as<int>() > 45 ) {
+            get_options().get_option( "NCMM_AWS_RAVINE_RANGE" ).setValue( 45 );
+        }
+        if( get_options().has_option( "NCMM_AWS_RAVINE_WIDTH" ) &&
+            get_options().get_option( "NCMM_AWS_RAVINE_WIDTH" ).value_as<int>() > 3 ) {
+            get_options().get_option( "NCMM_AWS_RAVINE_WIDTH" ).setValue( 3 );
+        }
+        if( get_options().has_option( "NCMM_AWS_RAVINE_DEPTH" ) &&
+            get_options().get_option( "NCMM_AWS_RAVINE_DEPTH" ).value_as<int>() < -3 ) {
+            get_options().get_option( "NCMM_AWS_RAVINE_DEPTH" ).setValue( -3 );
+        }
+        log_line( NCMM_LOG_INFO,
+                  "NCMM gameplay smoke: randomized AWS profile normalized for representative-cost ravine generation." );
+
         for( const auto &owner : world_setting_owners ) {
             if( owner.second == aws_id && get_options().has_option( owner.first ) ) {
                 expected_world_values[owner.first] = get_options().get_option( owner.first ).getValue();
@@ -4183,18 +4205,25 @@ int run_gameplay_smoke()
 
         // Load the real world data and force one overmap generation.  Any bad AWS
         // geography hook now fails/crashes inside the same path used by gameplay.
+        log_line( NCMM_LOG_INFO,
+                  "NCMM gameplay smoke checkpoint: AWS save/reload + 48 bindings PASS; loading core data." );
         g->new_game = true;
         g->load_core_data();
+        log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: core data loaded." );
         g->load_world_modfiles();
+        log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: world modfiles loaded." );
         overmap_buffer.init_region_layout();
+        log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: region layout initialized; generating overmap." );
         overmap_special_batch empty_specials( point_abs_om{} );
         overmap_buffer.create_custom_overmap( point_abs_om{}, empty_specials );
+        log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: overmap generation complete." );
 
         get_avatar() = avatar();
         get_avatar().create( character_type::NOW );
         get_avatar().setID( g->assign_npc_id(), false );
         g->new_game = false;
         on_turn();
+        log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: real avatar initialized." );
 
         using perk_count_fn = size_t ( * )();
         using perk_id_fn = const char *( * )( size_t );
@@ -4224,6 +4253,7 @@ int run_gameplay_smoke()
 
         module_call_scope survivor_scope( survivor_id );
         survivor_perk_count = perk_count();
+        log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: Survivor test surface resolved." );
         if( survivor_perk_count != 369 || !perk_reset() || !perk_recalc() ) {
             write_gameplay_smoke_result( false, "survivor_catalog_or_reset",
                                          aws_setting_count, aws_hook_count, survivor_perk_count );
@@ -4258,6 +4288,7 @@ int run_gameplay_smoke()
                                          aws_setting_count, aws_hook_count, survivor_perk_count );
             return 110;
         }
+        log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: Survivor 369-perk aggregate recompute PASS." );
         if( !perk_reset() || !perk_recalc() ) {
             write_gameplay_smoke_result( false, "survivor_post_aggregate_reset_failed",
                                          aws_setting_count, aws_hook_count, survivor_perk_count );

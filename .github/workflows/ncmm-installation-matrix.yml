@@ -276,7 +276,8 @@ jobs:
           Write-Host ("Gameplay smoke PASS: AWS 48/48 + persisted world, Survivor " + $result.survivor_perks + "/369") -ForegroundColor Green
 
       - name: Verify certified Host + modules and restore vanilla
-        if: steps.host_ready.outputs.ready == 'true'
+        id: restore
+        if: always() && steps.host_ready.outputs.ready == 'true'
         shell: powershell
         run: |
           ./ci/Test-InstallationMatrix.ps1 `
@@ -331,7 +332,11 @@ jobs:
           if ('${{ steps.host_ready.outputs.ready }}' -eq 'true') {
             "- bootstrap -> certified Host -> AWS + Survivor -> boot.ready -> clean exit: two consecutive real launches" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
             "- gameplay smoke: real AWS randomized world save/reload/overmap + persisted world evidence + Survivor 369-perk aggregate/consumer effects" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-            "- RestoreVanilla: verified by SHA-256" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            if ('${{ steps.restore.outcome }}' -eq 'success') {
+              "- RestoreVanilla: verified by SHA-256" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            } else {
+              "- RestoreVanilla: NOT verified (step outcome: ${{ steps.restore.outcome }})" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            }
           } else {
             "- certified Host/gameplay stage: deferred until feed contains this vanilla SHA" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           }
