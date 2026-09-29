@@ -15,6 +15,7 @@ on:
       - 'ci/Test-BootstrapFailureHarness.ps1'
       - 'ci/Test-ComponentCatalog.ps1'
       - 'ci/Test-InstallerTransaction.ps1'
+      - 'ci/Test-InstallationMatrix.ps1'
       - 'ci/Test-HostPayloadContracts.ps1'
       - 'ci/Test-SurvivorPayloadContracts.ps1'
       - 'ci/Test-Infrastructure083.ps1'
