@@ -39,4 +39,10 @@ bool worldgen_hook_bound( const char *hook_id );
 int worldgen_hook_bool( const char *hook_id, int fallback );
 int64_t worldgen_hook_i64( const char *hook_id, int64_t fallback );
 double worldgen_hook_f64( const char *hook_id, double fallback );
+
+/** Generic LIVE/RELOAD typed-setting hooks consumed by engine UI/runtime code. */
+bool runtime_setting_hook_bound( const char *hook_id );
+int runtime_setting_hook_bool( const char *hook_id, int fallback );
+int64_t runtime_setting_hook_i64( const char *hook_id, int64_t fallback );
+double runtime_setting_hook_f64( const char *hook_id, double fallback );
 } // namespace ncmm
