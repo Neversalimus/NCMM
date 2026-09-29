@@ -99,16 +99,41 @@ jobs:
             -Mode Real `
             -GameRoot '${{ steps.game.outputs.root }}'
 
-      - name: Launch installed bootstrap into certified Host runtime smoke
+      - name: Launch certified Host twice through installed bootstrap
         shell: powershell
-        timeout-minutes: 5
+        timeout-minutes: 8
         run: |
           $root = '${{ steps.game.outputs.root }}'
           $exe = Join-Path $root 'cataclysm-tiles.exe'
+          $ncmm = Join-Path $root 'ncmm'
           if (-not (Test-Path $exe -PathType Leaf)) { throw "Installed NCMM bootstrap is missing: $exe" }
+
           & $exe --ncmm-runtime-smoke --ncmm-refresh
           if ($LASTEXITCODE -ne 0) {
-            throw "Real NCMM runtime smoke failed with exit $LASTEXITCODE."
+            throw "First real NCMM runtime smoke failed with exit $LASTEXITCODE."
+          }
+          if (Test-Path (Join-Path $ncmm 'boot.pending')) {
+            throw 'First real runtime smoke left boot.pending.'
+          }
+          if (-not (Test-Path (Join-Path $ncmm 'boot.ready'))) {
+            throw 'First real runtime smoke did not publish boot.ready.'
+          }
+          if (Test-Path (Join-Path $ncmm 'ncmm.auto_disabled')) {
+            throw 'First real runtime smoke unexpectedly auto-disabled NCMM.'
+          }
+
+          & $exe --ncmm-runtime-smoke --ncmm-offline
+          if ($LASTEXITCODE -ne 0) {
+            throw "Second real NCMM runtime smoke failed with exit $LASTEXITCODE."
+          }
+          if (Test-Path (Join-Path $ncmm 'boot.pending')) {
+            throw 'Second real runtime smoke left boot.pending.'
+          }
+          if (-not (Test-Path (Join-Path $ncmm 'boot.ready'))) {
+            throw 'Second real runtime smoke did not publish boot.ready.'
+          }
+          if (Test-Path (Join-Path $ncmm 'ncmm.auto_disabled')) {
+            throw 'Second real runtime smoke was misclassified as a crash.'
           }
 
       - name: Verify certified Host + modules and restore vanilla
@@ -148,7 +173,7 @@ jobs:
           "## NCMM real runtime smoke" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- CDDA: ${{ steps.release.outputs.tag }}" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- production SetupCore: install / module switch / reinstall" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "- bootstrap -> certified Host -> AWS + Survivor -> boot.ready -> clean exit" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "- bootstrap -> certified Host -> AWS + Survivor -> boot.ready -> clean exit: two consecutive real launches" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- RestoreVanilla: verified by SHA-256" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       - name: Upload evidence
