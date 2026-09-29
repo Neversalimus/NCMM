@@ -2662,9 +2662,7 @@ void respec()
     set_state( "perk_points", get_state( "perk_points", 0 ) + refund_perk );
     set_state( "major_points", get_state( "major_points", 0 ) + refund_major );
     set_state( "fast_learner", 0 );
-    for( branch_id branch : all_branches ) {
-        set_state( specialization_state_key( branch ), 0 );
-    }
+    for( branch_id branch : all_branches ) set_state( specialization_state_key( branch ), 0 );
     for( const char *key : {
              "prime_magiclysm", "prime_mindovermatter", "prime_xedra_evolved",
              "prime_aftershock_exoplanet", "prime_aftershock_prime",
