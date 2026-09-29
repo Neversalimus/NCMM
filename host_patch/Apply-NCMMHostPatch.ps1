@@ -623,6 +623,93 @@ $rg = Replace-ExactlyOnce $rg @'
             target, pos, load_loc );
 '@ 'ranged.adjust-target-size'
 
+
+$rg = Replace-ExactlyOnce $rg @'
+    str = string_format( _( "Recoil: %s" ), str );
+    nc_color clr = c_light_gray;
+    print_colored_text( w_target, point( 1, text_y++ ), clr, clr, str );
+}
+
+void target_ui::panel_spell_info( int &text_y )
+'@ @'
+    str = string_format( _( "Recoil: %s" ), str );
+    nc_color clr = c_light_gray;
+    print_colored_text( w_target, point( 1, text_y++ ), clr, clr, str );
+
+    if( mode == TargetMode::Fire && ncmm_hit_probability_enabled() &&
+        relevant != nullptr && !relevant->gun_current_mode().melee() ) {
+        const gun_mode current_mode = relevant->gun_current_mode();
+        const item &weapon = *current_mode;
+        const Target_attributes target = ncmm_gun_target_attributes( *you, weapon, dst );
+        Creature *target_critter = get_creature_tracker().creature_at( dst );
+
+        const auto probability_at_recoil = [&]( double raw_recoil ) {
+            dispersion_sources exact_dispersion = you->get_weapon_dispersion( weapon );
+            exact_dispersion.add_range( raw_recoil + you->recoil_vehicle() );
+            return ncmm_exact_hit_probability( exact_dispersion, target, target_critter );
+        };
+
+        const double current_probability = probability_at_recoil( you->recoil );
+        const std::string current_line =
+            ncmm::localized_text( "Hit now", "Попадание сейчас" ) + ": " +
+            ncmm_hit_probability_text( current_probability );
+        print_colored_text( w_target, point( 1, text_y++ ), clr, clr, current_line );
+
+        if( current_mode.qty > 1 ) {
+            map &here = get_map();
+            bool bipod = here.has_flag_ter_or_furn(
+                              ter_furn_flag::TFLAG_MOUNTABLE, you->pos_bub( here ) ) ||
+                          you->is_prone();
+            if( !bipod ) {
+                if( const optional_vpart_position vp = here.veh_at( you->pos_abs() ) ) {
+                    bipod = vp->vehicle().has_part( you->pos_abs(), "MOUNTABLE" );
+                }
+            }
+
+            const double absorb =
+                std::min( you->get_skill_level( weapon.gun_skill() ),
+                          static_cast<float>( MAX_SKILL ) ) /
+                static_cast<double>( MAX_SKILL * 2 );
+            const int recoil_per_shot = weapon.gun_recoil( *you, bipod );
+            const int immediate_recoil = static_cast<int>(
+                you->calculate_by_enchantment( 5.0, enchant_vals::mod::RECOIL_MODIFIER ) *
+                ( recoil_per_shot * ( 1.0 - absorb ) ) );
+            const bool volley = current_mode.flags.count( "VOLLEY" ) != 0;
+
+            std::vector<double> probabilities;
+            probabilities.reserve( current_mode.qty );
+            double predicted_recoil = you->recoil;
+            for( int shot = 0; shot < current_mode.qty; ++shot ) {
+                probabilities.push_back( probability_at_recoil( predicted_recoil ) );
+                if( !volley ) {
+                    predicted_recoil += immediate_recoil;
+                }
+            }
+
+            std::string burst = ncmm::localized_text( "Burst", "Очередь" ) + ": ";
+            const int shown_front =
+                std::min<int>( static_cast<int>( probabilities.size() ), 5 );
+            for( int i = 0; i < shown_front; ++i ) {
+                if( i > 0 ) {
+                    burst += " / ";
+                }
+                burst += ncmm_hit_probability_text( probabilities[i] );
+            }
+            if( probabilities.size() > 6 ) {
+                burst += " / … / ";
+                burst += ncmm_hit_probability_text( probabilities.back() );
+            } else if( probabilities.size() == 6 ) {
+                burst += " / ";
+                burst += ncmm_hit_probability_text( probabilities.back() );
+            }
+            print_colored_text( w_target, point( 1, text_y++ ), clr, clr, burst );
+        }
+    }
+}
+
+void target_ui::panel_spell_info( int &text_y )
+'@ 'ranged.current-and-burst'
+
 $h = Replace-ExactlyOnce $h @'
             COPT_NO_SOUND_HIDE,
             /** Hide this option always, it should not be changed by user directly through UI. **/
