@@ -143,6 +143,30 @@ internal sealed class SetupInstalledComponents
     public List<SetupInstalledComponent> components { get; set; }
 }
 
+internal sealed class SetupTransactionState
+{
+    public int schema { get; set; }
+    public string transaction_id { get; set; }
+    public string game_root { get; set; }
+    public string backup_root { get; set; }
+    public string phase { get; set; }
+    public string created_utc { get; set; }
+}
+
+internal sealed class SetupSnapshotEntry
+{
+    public string relative_path { get; set; }
+    public bool existed { get; set; }
+    public bool directory { get; set; }
+}
+
+internal sealed class SetupSnapshotManifest
+{
+    public int schema { get; set; }
+    public string game_root { get; set; }
+    public List<SetupSnapshotEntry> entries { get; set; }
+}
+
 internal sealed class DiagnosticsReport
 {
     internal string Summary { get; set; }
@@ -278,6 +302,252 @@ internal static partial class SetupCore
                 "Refusing to overwrite module directory owned by a different module: " + destination);
     }
 
+
+    private const string SetupPendingFile = ".ncmm-setup.pending.json";
+    private const string SetupTransactionPrefix = ".ncmm-setup-tx-";
+
+    private static void CopyDirectoryTree(string source, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (string file in Directory.GetFiles(source))
+            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), true);
+        foreach (string directory in Directory.GetDirectories(source))
+            CopyDirectoryTree(directory, Path.Combine(destination, Path.GetFileName(directory)));
+    }
+
+    private static void DeletePath(string path)
+    {
+        if (File.Exists(path))
+        {
+            File.SetAttributes(path, FileAttributes.Normal);
+            File.Delete(path);
+        }
+        else if (Directory.Exists(path))
+        {
+            foreach (string file in Directory.GetFiles(path, "*", SearchOption.AllDirectories))
+            {
+                try { File.SetAttributes(file, FileAttributes.Normal); } catch { }
+            }
+            Directory.Delete(path, true);
+        }
+    }
+
+    private static void WriteJsonAtomic(string path, object value)
+    {
+        string directory = Path.GetDirectoryName(path);
+        if (!String.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+        string staged = path + ".tmp-" + Guid.NewGuid().ToString("N");
+        string json = new JavaScriptSerializer().Serialize(value) + Environment.NewLine;
+        File.WriteAllText(staged, json, new UTF8Encoding(false));
+        if (File.Exists(path)) File.Replace(staged, path, null);
+        else File.Move(staged, path);
+    }
+
+    private static string SetupPendingPath(string gameRoot)
+    {
+        return Path.Combine(gameRoot, SetupPendingFile);
+    }
+
+    private static void AssertTransactionPathSafe(string gameRoot, string backupRoot)
+    {
+        string root = Path.GetFullPath(gameRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                      + Path.DirectorySeparatorChar;
+        string backup = Path.GetFullPath(backupRoot);
+        if (!backup.StartsWith(root, StringComparison.OrdinalIgnoreCase) ||
+            !Path.GetFileName(backup).StartsWith(SetupTransactionPrefix, StringComparison.Ordinal))
+            throw new InvalidOperationException("Unsafe NCMM setup transaction backup path: " + backupRoot);
+    }
+
+    private static List<string> GetManagedSetupPaths(string payloadRoot)
+    {
+        List<string> paths = new List<string>();
+        paths.Add("cataclysm-tiles.exe");
+        paths.Add("cataclysm-tiles.vanilla.exe");
+        paths.Add("ncmm");
+
+        string payloadMods = Path.Combine(payloadRoot, "code_mods");
+        foreach (SetupBundledModule module in DiscoverBundledModules(payloadMods))
+            paths.Add(Path.Combine("code_mods", module.DirectoryName));
+
+        return paths.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static SetupTransactionState BeginSetupTransaction(string gameRoot, string payloadRoot)
+    {
+        string transactionId = Guid.NewGuid().ToString("N");
+        string backupRoot = Path.Combine(gameRoot, SetupTransactionPrefix + transactionId);
+        string snapshotRoot = Path.Combine(backupRoot, "snapshot");
+        Directory.CreateDirectory(snapshotRoot);
+
+        SetupSnapshotManifest snapshot = new SetupSnapshotManifest();
+        snapshot.schema = 1;
+        snapshot.game_root = gameRoot;
+        snapshot.entries = new List<SetupSnapshotEntry>();
+
+        foreach (string relativePath in GetManagedSetupPaths(payloadRoot))
+        {
+            string source = Path.Combine(gameRoot, relativePath);
+            bool isDirectory = Directory.Exists(source);
+            bool exists = isDirectory || File.Exists(source);
+            SetupSnapshotEntry entry = new SetupSnapshotEntry();
+            entry.relative_path = relativePath;
+            entry.existed = exists;
+            entry.directory = isDirectory;
+            snapshot.entries.Add(entry);
+
+            if (!exists) continue;
+            string destination = Path.Combine(snapshotRoot, relativePath);
+            if (isDirectory) CopyDirectoryTree(source, destination);
+            else
+            {
+                string parent = Path.GetDirectoryName(destination);
+                if (!String.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
+                File.Copy(source, destination, true);
+            }
+        }
+
+        WriteJsonAtomic(Path.Combine(backupRoot, "snapshot.json"), snapshot);
+
+        SetupTransactionState state = new SetupTransactionState();
+        state.schema = 1;
+        state.transaction_id = transactionId;
+        state.game_root = gameRoot;
+        state.backup_root = backupRoot;
+        state.phase = "snapshot_complete";
+        state.created_utc = DateTime.UtcNow.ToString("o");
+        WriteJsonAtomic(SetupPendingPath(gameRoot), state);
+        MaybeInjectSetupFailure(state.phase);
+        return state;
+    }
+
+    private static SetupTransactionState ReadPendingSetupTransaction(string gameRoot)
+    {
+        string pending = SetupPendingPath(gameRoot);
+        if (!File.Exists(pending)) return null;
+        SetupTransactionState state;
+        try
+        {
+            state = new JavaScriptSerializer().Deserialize<SetupTransactionState>(File.ReadAllText(pending));
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("NCMM setup transaction marker is corrupt; refusing to continue.", ex);
+        }
+        if (state == null || state.schema != 1 || String.IsNullOrWhiteSpace(state.transaction_id) ||
+            String.IsNullOrWhiteSpace(state.game_root) || String.IsNullOrWhiteSpace(state.backup_root))
+            throw new InvalidOperationException("NCMM setup transaction marker is incomplete; refusing to continue.");
+
+        string expectedRoot = Path.GetFullPath(gameRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string markerRoot = Path.GetFullPath(state.game_root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (!String.Equals(expectedRoot, markerRoot, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("NCMM setup transaction marker targets a different game root.");
+        AssertTransactionPathSafe(gameRoot, state.backup_root);
+        return state;
+    }
+
+    private static void RestoreSetupTransaction(SetupTransactionState state)
+    {
+        AssertTransactionPathSafe(state.game_root, state.backup_root);
+        string manifestPath = Path.Combine(state.backup_root, "snapshot.json");
+        if (!File.Exists(manifestPath))
+            throw new InvalidOperationException("NCMM setup rollback snapshot is missing.");
+
+        SetupSnapshotManifest snapshot =
+            new JavaScriptSerializer().Deserialize<SetupSnapshotManifest>(File.ReadAllText(manifestPath));
+        if (snapshot == null || snapshot.schema != 1 || snapshot.entries == null)
+            throw new InvalidOperationException("NCMM setup rollback snapshot is invalid.");
+
+        string expectedRoot = Path.GetFullPath(state.game_root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string snapshotGameRoot = Path.GetFullPath(snapshot.game_root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (!String.Equals(expectedRoot, snapshotGameRoot, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("NCMM setup rollback snapshot targets a different game root.");
+
+        string snapshotRoot = Path.Combine(state.backup_root, "snapshot");
+        foreach (SetupSnapshotEntry entry in snapshot.entries)
+        {
+            if (entry == null || String.IsNullOrWhiteSpace(entry.relative_path))
+                throw new InvalidOperationException("NCMM setup rollback snapshot contains an invalid path.");
+
+            string target = Path.GetFullPath(Path.Combine(state.game_root, entry.relative_path));
+            string rootPrefix = expectedRoot + Path.DirectorySeparatorChar;
+            if (!target.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("NCMM setup rollback path escapes the game root.");
+
+            DeletePath(target);
+            if (!entry.existed) continue;
+
+            string source = Path.Combine(snapshotRoot, entry.relative_path);
+            if (entry.directory)
+            {
+                if (!Directory.Exists(source))
+                    throw new InvalidOperationException("NCMM setup rollback directory snapshot is missing: " + entry.relative_path);
+                CopyDirectoryTree(source, target);
+            }
+            else
+            {
+                if (!File.Exists(source))
+                    throw new InvalidOperationException("NCMM setup rollback file snapshot is missing: " + entry.relative_path);
+                string parent = Path.GetDirectoryName(target);
+                if (!String.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
+                File.Copy(source, target, true);
+            }
+        }
+    }
+
+    private static void CleanupSetupTransaction(SetupTransactionState state)
+    {
+        string pending = SetupPendingPath(state.game_root);
+        if (File.Exists(pending)) File.Delete(pending);
+        if (Directory.Exists(state.backup_root)) DeletePath(state.backup_root);
+    }
+
+    internal static bool RecoverPendingSetupTransaction(string gameRoot)
+    {
+        gameRoot = Path.GetFullPath(gameRoot.Trim());
+        SetupTransactionState state = ReadPendingSetupTransaction(gameRoot);
+        if (state == null) return false;
+
+        if (!String.Equals(state.phase, "committed", StringComparison.Ordinal))
+            RestoreSetupTransaction(state);
+        CleanupSetupTransaction(state);
+        return true;
+    }
+
+    private static void UpdateSetupTransactionPhase(string gameRoot, string phase)
+    {
+        SetupTransactionState state = ReadPendingSetupTransaction(gameRoot);
+        if (state == null)
+            throw new InvalidOperationException("NCMM setup transaction marker disappeared during install.");
+        state.phase = phase;
+        WriteJsonAtomic(SetupPendingPath(gameRoot), state);
+        MaybeInjectSetupFailure(phase);
+    }
+
+    private static void MaybeInjectSetupFailure(string phase)
+    {
+        if (!String.Equals(Environment.GetEnvironmentVariable("NCMM_SETUP_MATRIX_TEST_MODE"), "1",
+                           StringComparison.Ordinal))
+            return;
+
+        string throwPhase = Environment.GetEnvironmentVariable("NCMM_SETUP_MATRIX_THROW_PHASE");
+        if (String.Equals(throwPhase, phase, StringComparison.Ordinal))
+            throw new IOException("Injected NCMM setup failure at phase: " + phase);
+
+        string abortPhase = Environment.GetEnvironmentVariable("NCMM_SETUP_MATRIX_ABORT_PHASE");
+        if (String.Equals(abortPhase, phase, StringComparison.Ordinal))
+            Environment.Exit(86);
+    }
+
+    private static void CommitSetupTransaction(string gameRoot)
+    {
+        SetupTransactionState state = ReadPendingSetupTransaction(gameRoot);
+        if (state == null)
+            throw new InvalidOperationException("NCMM setup transaction marker disappeared before commit.");
+        state.phase = "committed";
+        WriteJsonAtomic(SetupPendingPath(gameRoot), state);
+        CleanupSetupTransaction(state);
+    }
+
     private static void RemoveManagedModuleFiles(string destination, string expectedId)
     {
         if (!Directory.Exists(destination)) return;
@@ -304,6 +574,42 @@ internal static partial class SetupCore
     }
 
     internal static InstallResult Install(string gameRoot, string payloadRoot, IEnumerable<string> selectedModuleIds)
+    {
+        gameRoot = Path.GetFullPath(gameRoot.Trim());
+        payloadRoot = Path.GetFullPath(payloadRoot.Trim());
+
+        RecoverPendingSetupTransaction(gameRoot);
+        SetupTransactionState transaction = BeginSetupTransaction(gameRoot, payloadRoot);
+        try
+        {
+            InstallResult result = InstallCore(gameRoot, payloadRoot, selectedModuleIds);
+            UpdateSetupTransactionPhase(gameRoot, "ready_to_commit");
+            CommitSetupTransaction(gameRoot);
+            return result;
+        }
+        catch (Exception installError)
+        {
+            try
+            {
+                SetupTransactionState pending = ReadPendingSetupTransaction(gameRoot);
+                if (pending != null)
+                {
+                    RestoreSetupTransaction(pending);
+                    CleanupSetupTransaction(pending);
+                }
+            }
+            catch (Exception rollbackError)
+            {
+                throw new InvalidOperationException(
+                    "NCMM setup failed and rollback also failed. Install error: " + installError.Message +
+                    " | Rollback error: " + rollbackError.Message,
+                    new AggregateException(installError, rollbackError));
+            }
+            throw;
+        }
+    }
+
+    private static InstallResult InstallCore(string gameRoot, string payloadRoot, IEnumerable<string> selectedModuleIds)
     {
         gameRoot = Path.GetFullPath(gameRoot.Trim());
         DetectedInstallation target = DescribeInstallation(gameRoot);
@@ -391,6 +697,7 @@ internal static partial class SetupCore
         File.WriteAllText(installedHashFile, bootstrapHash.ToLowerInvariant() + Environment.NewLine, Encoding.ASCII);
         File.WriteAllText(Path.Combine(ncmm, "vanilla.sha256"),
             vanillaHash.ToLowerInvariant() + Environment.NewLine, Encoding.ASCII);
+        UpdateSetupTransactionPhase(gameRoot, "bootstrap_installed");
 
         List<string> installedIds = new List<string>();
         List<SetupInstalledComponent> componentState = new List<SetupInstalledComponent>();
@@ -430,6 +737,7 @@ internal static partial class SetupCore
         string installedStateJson = new JavaScriptSerializer().Serialize(installedState);
         File.WriteAllText(Path.Combine(ncmm, "installed-components.json"),
             installedStateJson + Environment.NewLine, new UTF8Encoding(false));
+        UpdateSetupTransactionPhase(gameRoot, "modules_installed");
 
         string autoDisabled = Path.Combine(ncmm, "ncmm.auto_disabled");
         string pending = Path.Combine(ncmm, "boot.pending");
