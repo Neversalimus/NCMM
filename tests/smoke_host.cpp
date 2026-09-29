@@ -2,6 +2,7 @@
 #include "ncmm_fault_policy.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -724,6 +725,65 @@ bool aws_semantic_matrix()
         }
     }
 
+    const auto verify_bound_values = [&]( const char *label ) {
+        for( const auto &entry : worldgen_bindings ) {
+            const std::string &hook = entry.first;
+            const std::string &setting_id = entry.second.setting_id;
+            if( entry.second.type == NCMM_WORLDGEN_BOOL_V2 ) {
+                const int expected = setting_i64_values.at( setting_id ) != 0 ? 1 : 0;
+                if( worldgen_hook_bool_v2_fn( hook.c_str(), -9 ) != expected ) {
+                    std::cerr << "AWS " << label << " bool mismatch hook=" << hook << '\n';
+                    return false;
+                }
+            } else if( entry.second.type == NCMM_WORLDGEN_INT_V2 ) {
+                const int64_t expected = setting_i64_values.at( setting_id );
+                if( worldgen_hook_i64_v2_fn( hook.c_str(), -999999 ) != expected ) {
+                    std::cerr << "AWS " << label << " int mismatch hook=" << hook << '\n';
+                    return false;
+                }
+            } else if( entry.second.type == NCMM_WORLDGEN_FLOAT_V2 ) {
+                const double expected = setting_f64_values.at( setting_id );
+                if( !nearly_equal( worldgen_hook_f64_v2_fn( hook.c_str(), -999999.0 ), expected ) ) {
+                    std::cerr << "AWS " << label << " float mismatch hook=" << hook << '\n';
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
+
+    // Exercise both ends of every registered numeric range.  Random cases alone
+    // are unlikely to hit exact boundaries such as ravine depth -20 or lake size 1000.
+    for( const auto &entry : setting_meta ) {
+        const std::string &id = entry.first;
+        const smoke_setting_meta &meta = entry.second;
+        if( meta.kind == smoke_setting_kind::boolean ) {
+            setting_i64_values[id] = 0;
+        } else if( meta.kind == smoke_setting_kind::integer ) {
+            setting_i64_values[id] = static_cast<int64_t>( meta.min_value );
+        } else if( meta.kind == smoke_setting_kind::floating ) {
+            setting_f64_values[id] = meta.min_value;
+        } else if( meta.kind == smoke_setting_kind::enumeration && !meta.choices.empty() ) {
+            setting_string_values[id] = meta.choices.front();
+        }
+    }
+    if( !verify_bound_values( "minimum-boundary" ) ) return false;
+
+    for( const auto &entry : setting_meta ) {
+        const std::string &id = entry.first;
+        const smoke_setting_meta &meta = entry.second;
+        if( meta.kind == smoke_setting_kind::boolean ) {
+            setting_i64_values[id] = 1;
+        } else if( meta.kind == smoke_setting_kind::integer ) {
+            setting_i64_values[id] = static_cast<int64_t>( meta.max_value );
+        } else if( meta.kind == smoke_setting_kind::floating ) {
+            setting_f64_values[id] = meta.max_value;
+        } else if( meta.kind == smoke_setting_kind::enumeration && !meta.choices.empty() ) {
+            setting_string_values[id] = meta.choices.back();
+        }
+    }
+    if( !verify_bound_values( "maximum-boundary" ) ) return false;
+
     // Deterministic property-style coverage.  The seed is stable so failures are
     // reproducible, while each case exercises a different valid world-setting set.
     uint32_t rng = 0xA7C0FFEEu;
@@ -788,7 +848,7 @@ bool aws_semantic_matrix()
         }
     }
 
-    std::cout << "AWS semantic matrix: PASS (48/48 typed geography bindings, 32 deterministic randomized cases)\n";
+    std::cout << "AWS semantic matrix: PASS (48/48 typed geography bindings, min/max boundaries, 32 deterministic randomized cases)\n";
     return true;
 }
 
@@ -1073,6 +1133,112 @@ bool survivor_semantic_matrix( void *lib )
         }
     }
 
+    // Full-catalog and deterministic combination stress.  This intentionally bypasses
+    // purchase/exclusivity rules: the purpose is to prove the released DLL can
+    // combine every declared perk effect without silent loss or stale modifiers.
+    const auto verify_rank_vector = [&]( const std::vector<int> &ranks, const char *label ) {
+        if( ranks.size() != perk_count || !reset() ) return false;
+
+        std::array<bool, 6> active_branch = {{ false, false, false, false, false, false }};
+        int active_branches = 0;
+        int major_owned = 0;
+        std::array<double, 6> branch_factor = {{ 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 }};
+        double global_factor = 1.0;
+
+        for( size_t i = 0; i < perk_count; ++i ) {
+            if( ranks[i] <= 0 ) continue;
+            if( integration( i ) == 0 ) active_branch[branch( i )] = true;
+            if( currency( i ) == 1 ) ++major_owned;
+            if( kind( i ) == 1 ) {
+                const double rm = rank_multiplier( i, ranks[i] );
+                branch_factor[branch( i )] += branch_amp( i ) * rm / 100.0;
+                global_factor += global_amp( i ) * rm / 100.0;
+            }
+        }
+        for( bool active : active_branch ) if( active ) ++active_branches;
+
+        std::map<std::string, double> expected_modifiers;
+        int expected_xp = 0;
+        const double stat_power = static_cast<double>(
+                                      world_setting_get_i64_fn( "NCMM_SP_STAT_POWER", 100 ) ) / 100.0;
+
+        for( size_t i = 0; i < perk_count; ++i ) {
+            const int rank_value = ranks[i];
+            if( rank_value <= 0 ) continue;
+
+            double scale = 1.0;
+            if( scaling( i ) == 1 ) {
+                scale = static_cast<double>( active_branches );
+            } else if( scaling( i ) == 2 ) {
+                scale = static_cast<double>( major_owned );
+            }
+            scale *= rank_multiplier( i, rank_value );
+            if( kind( i ) == 0 ) {
+                scale *= global_factor * branch_factor[branch( i )] * stat_power;
+            }
+
+            expected_xp += static_cast<int>( std::llround( xp_bonus( i ) * scale ) );
+            for( int e = 0; e < effect_count( i ); ++e ) {
+                expected_modifiers[effect_id( i, e )] += effect_value( i, e ) * scale;
+            }
+        }
+        expected_xp = std::max( -100, std::min( 5000, expected_xp ) );
+
+        for( size_t i = 0; i < perk_count; ++i ) {
+            if( ranks[i] > 0 && !set_rank( i, ranks[i] ) ) {
+                std::cerr << "Survivor " << label << " could not set perk=" << perk_id( i )
+                          << " rank=" << ranks[i] << '\n';
+                return false;
+            }
+        }
+        if( !recalculate() ) return false;
+
+        for( const std::string &effect : declared_effect_ids ) {
+            const auto expected_it = expected_modifiers.find( effect );
+            const double expected = expected_it == expected_modifiers.end() ? 0.0 : expected_it->second;
+            const double actual = survivor_modifier_value( effect );
+            if( !nearly_equal( actual, expected, 1.0e-7 ) ) {
+                std::cerr << "Survivor " << label << " aggregate mismatch effect=" << effect
+                          << " expected=" << expected << " actual=" << actual << '\n';
+                return false;
+            }
+        }
+        if( current_xp() != expected_xp ) {
+            std::cerr << "Survivor " << label << " aggregate XP mismatch expected="
+                      << expected_xp << " actual=" << current_xp() << '\n';
+            return false;
+        }
+
+        if( !reset() || !survivor_modifiers_empty() || current_xp() != 0 ) {
+            std::cerr << "Survivor " << label << " aggregate cleanup failed\n";
+            return false;
+        }
+        return true;
+    };
+
+    std::vector<int> all_max_ranks( perk_count, 0 );
+    for( size_t i = 0; i < perk_count; ++i ) all_max_ranks[i] = max_rank( i );
+    if( !verify_rank_vector( all_max_ranks, "all-perks-max-rank" ) ) return false;
+
+    uint32_t combo_rng = 0x51A7C0DEu;
+    constexpr int combination_cases = 24;
+    for( int combo = 0; combo < combination_cases; ++combo ) {
+        std::vector<int> ranks( perk_count, 0 );
+        for( size_t i = 0; i < perk_count; ++i ) {
+            const uint32_t draw = semantic_rng_next( combo_rng );
+            if( ( draw & 3u ) == 0u ) {
+                const int cap = max_rank( i );
+                ranks[i] = 1 + static_cast<int>( semantic_rng_next( combo_rng ) %
+                                                static_cast<uint32_t>( cap ) );
+            }
+        }
+        if( !verify_rank_vector( ranks, "deterministic-combination" ) ) {
+            std::cerr << "Survivor deterministic combination seed=0x51A7C0DE case="
+                      << combo << '\n';
+            return false;
+        }
+    }
+
     // Stateful event mechanic: Predator Momentum must cap, apply, expire, and
     // interact with both Relentless Momentum and Unbroken Momentum.
     if( !reset() || !set_rank( predator, 1 ) ) return false;
@@ -1124,7 +1290,8 @@ bool survivor_semantic_matrix( void *lib )
               << ", amplifiers=" << amplifier_cases
               << ", stateful=" << special_cases
               << ", conditional-inert=" << integration_inert_cases
-              << ", consumed-effects=" << declared_effect_ids.size() << ")\n";
+              << ", consumed-effects=" << declared_effect_ids.size()
+              << ", all-perks-max=PASS, deterministic-combinations=24)\n";
     return true;
 }
 }
