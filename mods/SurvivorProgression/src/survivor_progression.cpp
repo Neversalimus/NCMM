@@ -3677,7 +3677,6 @@ extern "C" NCMM_EXPORT void ncmm_on_locale_changed_v1( const ncmm_host_api_v1 *a
     }
     configure_progression_settings();
 }
-
 extern "C" NCMM_EXPORT void ncmm_on_turn_v1( const ncmm_host_api_v1 *api )
 {
     if( api != nullptr ) {
