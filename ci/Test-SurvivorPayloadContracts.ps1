@@ -336,6 +336,7 @@ foreach($n in @(
     'NCMM_SP_STAT_POWER',
     'configure_progression_settings',
     'progression_xp_rate_pct',
+    'scale_configured_xp',
     'progression_stat_power_pct',
     'ncmm_on_locale_changed_v1',
     'settings.typed.v2'
