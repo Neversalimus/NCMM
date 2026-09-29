@@ -3457,6 +3457,25 @@ int run_module_gameplay_smoke( uint32_t seed )
         return 197;
     }
 
+    // Prove the values reached the real worldoptions file, not just the in-memory
+    // WORLD copy created from current defaults.
+    world_generator->set_active_world( nullptr );
+    world_generator->init();
+    world = world_generator->get_world( world_name );
+    if( world == nullptr ) {
+        log_line( NCMM_LOG_ERROR, "AWS gameplay smoke could not reload persisted test world." );
+        return 211;
+    }
+    world_generator->set_active_world( world );
+    for( const auto &expected : aws_expected ) {
+        const auto it = world->WORLD_OPTIONS.find( expected.first );
+        if( it == world->WORLD_OPTIONS.end() || it->second.getValue() != expected.second ) {
+            log_line( NCMM_LOG_ERROR,
+                      ( "AWS persisted world option mismatch after reload: " + expected.first ).c_str() );
+            return 212;
+        }
+    }
+
     g->new_game = true;
     calendar::set_eternal_season( get_option<bool>( "ETERNAL_SEASON" ) );
     calendar::set_season_length( get_option<int>( "SEASON_LENGTH" ) );
@@ -3574,6 +3593,7 @@ int run_module_gameplay_smoke( uint32_t seed )
         << "  \"world\": \"" << json_escape( world_name ) << "\",\n"
         << "  \"aws_settings\": " << aws_setting_count << ",\n"
         << "  \"aws_world_saved\": true,\n"
+        << "  \"aws_world_reloaded\": true,\n"
         << "  \"aws_overmap_generated\": true,\n"
         << "  \"survivor_catalog\": " << test_count() << ",\n"
         << "  \"survivor_real_character_checks\": 9,\n"
@@ -3583,7 +3603,7 @@ int run_module_gameplay_smoke( uint32_t seed )
     if( !out ) return 210;
 
     log_line( NCMM_LOG_INFO,
-              "NCMM module gameplay smoke PASS: AWS randomized world + overmap; Survivor real Character effects + cleanup." );
+              "NCMM module gameplay smoke PASS: AWS randomized world save/reload + overmap; Survivor real Character effects + cleanup." );
     return 0;
 #endif
 }
