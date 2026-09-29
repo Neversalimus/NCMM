@@ -1,0 +1,1 @@
+Shows the real ballistic hit probability while aiming, including per-aim-mode values and burst recoil prediction.
