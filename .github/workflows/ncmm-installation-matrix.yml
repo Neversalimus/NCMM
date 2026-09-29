@@ -45,7 +45,9 @@ jobs:
         run: |
           ./ci/Build-Runtime.ps1 `
             -RepositoryRoot "$env:GITHUB_WORKSPACE" `
-            -OutputRoot "$env:GITHUB_WORKSPACE/dist/runtime"
+            -OutputRoot "$env:GITHUB_WORKSPACE/dist/runtime" `
+            -SkipTextEncoding `
+            -PayloadOnly
 
       - name: Resolve official CDDA Windows asset
         id: release

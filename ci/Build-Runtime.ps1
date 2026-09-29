@@ -1,11 +1,15 @@
 param(
     [Parameter(Mandatory=$true)][string]$RepositoryRoot,
-    [Parameter(Mandatory=$true)][string]$OutputRoot
+    [Parameter(Mandatory=$true)][string]$OutputRoot,
+    [switch]$SkipTextEncoding,
+    [switch]$PayloadOnly
 )
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = (Resolve-Path $RepositoryRoot).Path
 $encodingGuard = Join-Path $RepositoryRoot 'ci\Test-TextEncoding.ps1'
-& $encodingGuard -RepoRoot $RepositoryRoot
+if (-not $SkipTextEncoding) {
+    & $encodingGuard -RepoRoot $RepositoryRoot
+}
 New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 $payload = Join-Path $OutputRoot 'payload'
 New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\AdvancedWorldSettings') | Out-Null
@@ -85,29 +89,33 @@ $bootstrapSource = Join-Path $RepositoryRoot 'runtime\NCMMBootstrap.cs'
     $bootstrapSource
 if ($LASTEXITCODE -ne 0) { throw 'Bootstrap compilation failed.' }
 
-$setupOut = Join-Path $OutputRoot 'NCMM_Setup.exe'
 $setupCoreSource = Join-Path $RepositoryRoot 'runtime\NCMMSetupCore.cs'
 $setupDiagnosticsSource = Join-Path $RepositoryRoot 'runtime\NCMMSetupDiagnostics.cs'
 $setupSource = Join-Path $RepositoryRoot 'runtime\NCMMSetup.cs'
-& $csc /nologo /target:winexe /optimize+ /platform:x64 `
-    /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll `
-    /out:$setupOut `
-    $setupCoreSource $setupDiagnosticsSource $setupSource
-if ($LASTEXITCODE -ne 0) { throw 'Setup compilation failed.' }
+if (-not $PayloadOnly) {
+    $setupOut = Join-Path $OutputRoot 'NCMM_Setup.exe'
+    & $csc /nologo /target:winexe /optimize+ /platform:x64 `
+        /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll `
+        /out:$setupOut `
+        $setupCoreSource $setupDiagnosticsSource $setupSource
+    if ($LASTEXITCODE -ne 0) { throw 'Setup compilation failed.' }
 
-$diagnosticsHarnessOut = Join-Path $OutputRoot 'NCMM_Diagnostics2_Harness.exe'
-$diagnosticsHarnessSource = Join-Path $RepositoryRoot 'tests\DiagnosticsHarness.cs'
-& $csc /nologo /target:exe /optimize+ /platform:x64 /main:DiagnosticsHarness `
-    /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll `
-    /out:$diagnosticsHarnessOut `
-    $setupCoreSource $setupDiagnosticsSource $setupSource $diagnosticsHarnessSource
-if ($LASTEXITCODE -ne 0) { throw 'Diagnostics 2.0 harness compilation failed.' }
-& $diagnosticsHarnessOut
-if ($LASTEXITCODE -ne 0) { throw 'Diagnostics 2.0 harness failed.' }
-Remove-Item $diagnosticsHarnessOut -Force -ErrorAction SilentlyContinue
+    $diagnosticsHarnessOut = Join-Path $OutputRoot 'NCMM_Diagnostics2_Harness.exe'
+    $diagnosticsHarnessSource = Join-Path $RepositoryRoot 'tests\DiagnosticsHarness.cs'
+    & $csc /nologo /target:exe /optimize+ /platform:x64 /main:DiagnosticsHarness `
+        /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll `
+        /out:$diagnosticsHarnessOut `
+        $setupCoreSource $setupDiagnosticsSource $setupSource $diagnosticsHarnessSource
+    if ($LASTEXITCODE -ne 0) { throw 'Diagnostics 2.0 harness compilation failed.' }
+    & $diagnosticsHarnessOut
+    if ($LASTEXITCODE -ne 0) { throw 'Diagnostics 2.0 harness failed.' }
+    Remove-Item $diagnosticsHarnessOut -Force -ErrorAction SilentlyContinue
 
-$failureHarness = Join-Path $RepositoryRoot 'ci\Test-BootstrapFailureHarness.ps1'
-& $failureHarness -RepositoryRoot $RepositoryRoot -BootstrapExe $bootstrapOut
+    $failureHarness = Join-Path $RepositoryRoot 'ci\Test-BootstrapFailureHarness.ps1'
+    & $failureHarness -RepositoryRoot $RepositoryRoot -BootstrapExe $bootstrapOut
+} else {
+    Write-Host 'Build-Runtime payload-only mode: release-only C# harnesses and bootstrap failure matrix skipped.' -ForegroundColor DarkGray
+}
 
 $awsBuild = Join-Path $OutputRoot '_aws_build'
 cmake -S (Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings') -B $awsBuild -A x64
@@ -170,13 +178,16 @@ foreach($about in Get-ChildItem (Join-Path $RepositoryRoot 'mods\SurvivorProgres
 }
 
 # Exercise the same production SetupCore used by NCMM_Setup.exe against isolated
-# synthetic CDDA installations.  This is a lifecycle/install matrix, not a file-presence check.
-& (Join-Path $RepositoryRoot 'ci\Test-InstallationMatrix.ps1') `
-    -RepositoryRoot $RepositoryRoot `
-    -PayloadRoot $payload `
-    -Mode Synthetic
-if ($LASTEXITCODE -ne 0) {
-    throw 'NCMM installation lifecycle matrix failed.'
+# synthetic CDDA installations. The real-install workflow immediately exercises SetupCore
+# against official CDDA, so payload-only builds avoid repeating this development matrix.
+if (-not $PayloadOnly) {
+    & (Join-Path $RepositoryRoot 'ci\Test-InstallationMatrix.ps1') `
+        -RepositoryRoot $RepositoryRoot `
+        -PayloadRoot $payload `
+        -Mode Synthetic
+    if ($LASTEXITCODE -ne 0) {
+        throw 'NCMM installation lifecycle matrix failed.'
+    }
 }
 
 $spManifest = $survivorManifestSource
@@ -197,8 +208,10 @@ foreach ($required in @(
     }
 }
 
-$awsModuleZip = New-NcmmModuleArchive -Folder 'AdvancedWorldSettings' -ComponentId 'advanced_world_settings' -Version $awsVersion
-$survivorModuleZip = New-NcmmModuleArchive -Folder 'SurvivorProgression' -ComponentId 'survivor_progression' -Version $survivorVersion
+if (-not $PayloadOnly) {
+    $awsModuleZip = New-NcmmModuleArchive -Folder 'AdvancedWorldSettings' -ComponentId 'advanced_world_settings' -Version $awsVersion
+    $survivorModuleZip = New-NcmmModuleArchive -Folder 'SurvivorProgression' -ComponentId 'survivor_progression' -Version $survivorVersion
+}
 
 # Current NCMM loader hardening is intentionally source-structural: Runtime CI
 # guards the invariants even before the certified-host workflow compiles them.
@@ -295,6 +308,10 @@ if ($hostPatchSource.Contains("if (`$LASTEXITCODE -ne 0) { throw 'NCMM source-co
     throw "NCMM $hostVersion regression: PowerShell source-contract preflight still inspects stale LASTEXITCODE."
 }
 
+Remove-Item $awsBuild -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item $spBuild -Recurse -Force -ErrorAction SilentlyContinue
+
+if (-not $PayloadOnly) {
 @"
 NCMM $hostVersion Runtime
 ===============
@@ -309,8 +326,6 @@ No compiler, Git, CMake, or MSYS2 is required on the player's PC.
 If no exact certified host exists for the installed CDDA executable, NCMM starts vanilla CDDA.
 "@ | Set-Content (Join-Path $OutputRoot 'README.txt') -Encoding UTF8
 
-Remove-Item $awsBuild -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item $spBuild -Recurse -Force -ErrorAction SilentlyContinue
 $zip = Join-Path (Split-Path $OutputRoot -Parent) ("NCMM_Runtime_v$hostVersion.zip")
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $OutputRoot '*') -DestinationPath $zip -CompressionLevel Optimal
@@ -362,3 +377,8 @@ Write-Output $fullZip
 Write-Output $zip
 Write-Output $awsModuleZip
 Write-Output $survivorModuleZip
+
+} else {
+    Write-Host 'Build-Runtime payload-only mode: release archives were not generated.' -ForegroundColor DarkGray
+    Write-Output $payload
+}
