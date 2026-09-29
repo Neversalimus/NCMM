@@ -329,6 +329,13 @@ typedef enum ncmm_worldgen_value_type_v2 {
     NCMM_WORLDGEN_FLOAT_V2 = 3u
 } ncmm_worldgen_value_type_v2;
 
+/* Generic typed-setting value kinds used by runtime setting bindings. */
+typedef enum ncmm_setting_value_type_v2 {
+    NCMM_SETTING_BOOL_V2 = 1u,
+    NCMM_SETTING_INT_V2 = 2u,
+    NCMM_SETTING_FLOAT_V2 = 3u
+} ncmm_setting_value_type_v2;
+
 typedef void ( *ncmm_event_callback_v2 )( uint32_t event_id, void *user_data );
 
 typedef struct ncmm_host_api_v2_core {
@@ -403,6 +410,17 @@ typedef struct ncmm_host_api_v2_core {
     int ( *worldgen_hook_bool )( const char *hook_id, int fallback );
     int64_t ( *worldgen_hook_i64 )( const char *hook_id, int64_t fallback );
     double ( *worldgen_hook_f64 )( const char *hook_id, double fallback );
+
+    /*
+     * Host API 2.0 additive tail: bind module-owned LIVE/RELOAD typed settings
+     * to generic engine-facing runtime hook IDs. Consumers must gate this tail
+     * with capability runtime_settings.bindings.v2 and struct_size.
+     */
+    int ( *runtime_hook_bind_setting )( const char *module_id, const char *hook_id,
+                                        const char *setting_id, uint32_t value_type );
+    int ( *runtime_hook_bool )( const char *hook_id, int fallback );
+    int64_t ( *runtime_hook_i64 )( const char *hook_id, int64_t fallback );
+    double ( *runtime_hook_f64 )( const char *hook_id, double fallback );
 } ncmm_host_api_v2_core;
 typedef int ( *ncmm_mod_init_v1 )( const ncmm_host_api_v1 *api );
 typedef void ( *ncmm_mod_shutdown_v1 )( void );
