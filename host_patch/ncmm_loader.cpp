@@ -4796,18 +4796,12 @@ void load_module_data()
 {
     DynamicDataLoader &loader = DynamicDataLoader::get_instance();
     for( const loaded_mod &runtime : loaded ) {
-        if( runtime.descriptor == nullptr || runtime.descriptor->id == nullptr ) {
-            continue;
-        }
+        if( runtime.descriptor == nullptr || runtime.descriptor->id == nullptr ) continue;
         const std::filesystem::path data_dir = runtime.directory / "data";
-        if( !std::filesystem::exists( data_dir ) || !std::filesystem::is_directory( data_dir ) ) {
-            continue;
-        }
+        if( !std::filesystem::exists( data_dir ) || !std::filesystem::is_directory( data_dir ) ) continue;
         const std::string source = "ncmm:" + std::string( runtime.descriptor->id );
-        log_line( NCMM_LOG_INFO,
-                  ( "Loading module data: " + source + " -> " + data_dir.string() ).c_str() );
-        loader.load_data_from_path(
-            cata_path{ cata_path::root_path::unknown, data_dir }, source );
+        log_line( NCMM_LOG_INFO, ( "Loading module data: " + source + " -> " + data_dir.string() ).c_str() );
+        loader.load_data_from_path( cata_path{ cata_path::root_path::unknown, data_dir }, source );
     }
 }
 
