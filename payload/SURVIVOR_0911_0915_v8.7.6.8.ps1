@@ -485,14 +485,14 @@ function Wait-Unlocked([string]$Path,[int]$Seconds=20) {
 }
 
 function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[string]$ReleaseRoot) {
-    $out = Join-Path $ReleaseRoot "0.11.3"
+    $out = Join-Path $ReleaseRoot "0.12.0"
     $src = Join-Path $SourceRoot "src\survivor_progression.cpp"
     $manifest = Join-Path $SourceRoot "mod.json"
     $sdkHeader = Join-Path $SdkRoot "ncmm_api.h"
     $dll = Join-Path $out "ncmm_mod.dll"
     $obj = Join-Path $out "survivor_progression.obj"
     $cmd = Join-Path $out "build.cmd"
-    $cacheMarker = Join-Path $ReleaseRoot ".survivor_0113_combo_edge_build.sha256"
+    $cacheMarker = Join-Path $ReleaseRoot ".survivor_0120_manager_settings_build.sha256"
 
     foreach ($p in @($src,$manifest,$sdkHeader,$Vs.CL)) {
         if (-not (Test-Path $p -PathType Leaf)) {
@@ -504,7 +504,7 @@ function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[stri
     $compileRecipe = '/nologo /std:c++17 /EHsc /O2 /MT /LD + SDK include + survivor source'
     $sourceManifestSha = Hash-File $manifest
     $fingerprint = Hash-Text ((@(
-        "v8.7.6.8-survivor-0.11.3-combinatorial-edge-api2",
+        "v8.7.6.8-survivor-0.12.0-manager-settings",
         (Hash-File $src),
         $sourceManifestSha,
         (Hash-File $sdkHeader),
@@ -523,7 +523,7 @@ function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[stri
         $cacheLines[1].Trim() -eq (Hash-File $dll) -and
         $cacheLines[2].Trim() -eq $sourceManifestSha -and
         (Hash-File $cachedManifest) -eq $sourceManifestSha) {
-        Write-Host "Survivor 0.11.3 module build cache: HIT (DLL + manifest verified)" -ForegroundColor Green
+        Write-Host "Survivor 0.12.0 module build cache: HIT (DLL + manifest verified)" -ForegroundColor Green
         return $out
     }
 
@@ -539,22 +539,25 @@ exit /b %ERRORLEVEL%
 "@
     [IO.File]::WriteAllText($cmd,$cmdText,[Text.Encoding]::ASCII)
 
-    Write-Host "Compiling Survivor 0.11.3..." -ForegroundColor Cyan
+    Write-Host "Compiling Survivor 0.12.0..." -ForegroundColor Cyan
     $compilerOutput = @(& cmd.exe /d /c "`"$cmd`"" 2>&1)
     $compilerCode = $LASTEXITCODE
     foreach ($line in $compilerOutput) {
         Write-Host ([string]$line)
     }
     if ($compilerCode -ne 0 -or -not (Test-Path $dll -PathType Leaf)) {
-        throw "Survivor 0.11.3 compile failed with exit code $compilerCode"
+        throw "Survivor 0.12.0 compile failed with exit code $compilerCode"
     }
 
     Copy-Item $manifest (Join-Path $out "mod.json") -Force
+    foreach($about in Get-ChildItem $SourceRoot -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
+        Copy-Item $about.FullName (Join-Path $out $about.Name) -Force
+    }
     Remove-Item $obj,$cmd -Force -ErrorAction SilentlyContinue
     $dllSha = Hash-File $dll
     Write-Utf8NoBom $cacheMarker ($fingerprint + "`n" + $dllSha + "`n" + $sourceManifestSha + "`n")
 
-    $zip = Join-Path $ReleaseRoot "SurvivorProgression_0.11.3_LOCAL.zip"
+    $zip = Join-Path $ReleaseRoot "SurvivorProgression_0.12.0_LOCAL.zip"
     Remove-Item $zip -Force -ErrorAction SilentlyContinue
     Compress-Archive -Path (Join-Path $out "*") -DestinationPath $zip -Force
     return $out
@@ -625,6 +628,9 @@ exit /b %ERRORLEVEL%
     }
 
     Copy-Item $manifest (Join-Path $out "mod.json") -Force
+    foreach($about in Get-ChildItem $sourceRoot -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
+        Copy-Item $about.FullName (Join-Path $out $about.Name) -Force
+    }
     Remove-Item $obj,$cmdFile -Force -ErrorAction SilentlyContinue
     $dllSha = Hash-File $dll
     Write-Utf8NoBom $cacheMarker ($fingerprint + "`n" + $dllSha + "`n" + $manifestSha + "`n")
@@ -16244,6 +16250,41 @@ void shutdown()
     $spUiManifest = $spUiManifest.Replace('"version": "0.11.3"','"version": "0.12.0"')
     Write-Utf8NoBom $spUiManifestPath $spUiManifest
 
+    $runtimeUiPath = Join-Path $NcmmRoot 'runtime\NCMMBootstrap.cs'
+    if(Test-Path $runtimeUiPath -PathType Leaf){
+        $runtimeUi = Normalize-Lf ([IO.File]::ReadAllText($runtimeUiPath))
+        $runtimeUi = $runtimeUi.Replace('private const string RuntimeVersion = "0.8.0";',
+                                        'private const string RuntimeVersion = "0.8.1";')
+        if(-not $runtimeUi.Contains('private const string RuntimeVersion = "0.8.1";')){
+            throw 'NCMM 0.8.1 bootstrap source promotion failed.'
+        }
+        Write-Utf8NoBom $runtimeUiPath $runtimeUi
+    }
+
+    $setupCoreUiPath = Join-Path $NcmmRoot 'runtime\NCMMSetupCore.cs'
+    if(Test-Path $setupCoreUiPath -PathType Leaf){
+        $setupCoreUi = Normalize-Lf ([IO.File]::ReadAllText($setupCoreUiPath))
+        $setupCoreUi = $setupCoreUi.Replace('internal const string RuntimeVersion = "0.8.0";',
+                                            'internal const string RuntimeVersion = "0.8.1";')
+        Write-Utf8NoBom $setupCoreUiPath $setupCoreUi
+    }
+
+    $applyHostUiPath = Join-Path $NcmmRoot 'host_patch\Apply-NCMMHostPatch.ps1'
+    if(Test-Path $applyHostUiPath -PathType Leaf){
+        $applyHostUi = Normalize-Lf ([IO.File]::ReadAllText($applyHostUiPath)).Replace('0.8.0','0.8.1')
+        if(-not $applyHostUi.Contains('NCMM Host API v1 / NCMM 0.8.1 module contract')){
+            throw 'NCMM 0.8.1 host patch marker promotion failed.'
+        }
+        Write-Utf8NoBom $applyHostUiPath $applyHostUi
+    }
+
+    $smokeUiPath = Join-Path $NcmmRoot 'tests\smoke_host.cpp'
+    if(Test-Path $smokeUiPath -PathType Leaf){
+        $smokeUi = Normalize-Lf ([IO.File]::ReadAllText($smokeUiPath))
+        $smokeUi = $smokeUi.Replace('0.8.0-smoke','0.8.1-smoke').Replace('0.11.3','0.12.0')
+        Write-Utf8NoBom $smokeUiPath $smokeUi
+    }
+
     Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\SurvivorProgression\about.en.txt') "Character progression system with independent activity XP branches, perks, specializations and optional integrations with supported content mods.`n"
     Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\SurvivorProgression\about.ru.txt') "Система развития персонажа с отдельными ветками опыта за действия, перками, специализациями и интеграциями с поддерживаемыми контентными модами.`n"
     Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\AdvancedWorldSettings\about.en.txt') "Expanded world-generation and calendar controls, including cities, terrain, water, roads and time settings.`n"
@@ -16389,7 +16430,7 @@ int init( const ncmm_host_api_v1 *api ) {
 }
 
 Apply-AwsHostApi20Migration
-Set-InfrastructureTransactionPhase "api2_migrate" "passed" "Host 0.8.0 + Survivor 0.11.3 + AWS 0.6.2 migrations complete"
+Set-InfrastructureTransactionPhase "api2_migrate" "passed" "Host 0.8.1 + Survivor 0.12.0 + AWS 0.6.2 migrations complete"
 
 $awsMigrationAudit = [IO.File]::ReadAllText($awsPath)
 $awsManifestMigrationAudit = [IO.File]::ReadAllText($awsManifestPath)
@@ -16648,11 +16689,11 @@ std::string rpg_detail_body( const perk_def &perk, const std::string &body,
 
 Apply-PlayerFacingCopyPolishFinal
 
-# NCMM Infrastructure 0.8.0 deep probe: execute the exact host/source transform stack
+# NCMM Infrastructure 0.8.3.1 deep probe: execute the exact host/source transform stack
 # without resolving Visual Studio, compiling binaries, touching the target runtime, or installing files.
 if ($HostSourceProbeOnly) {
     Write-Host ""
-    Write-Host "=== NCMM Infrastructure 0.8.0 DEEP SOURCE PROBE ===" -ForegroundColor Cyan
+    Write-Host "=== NCMM Infrastructure 0.8.3.1 DEEP SOURCE PROBE ===" -ForegroundColor Cyan
     $probeRevScript = Join-Path $NcmmRoot "ci\Get-PatchRevision.ps1"
     $probePatchRevision = (& $probeRevScript -RepositoryRoot $NcmmRoot).Trim()
     if ($probePatchRevision -notmatch '^[0-9a-f]{64}$') {
@@ -16681,7 +16722,7 @@ if ($HostSourceProbeOnly) {
 
     $probeReport = [ordered]@{
         schema = 1
-        infrastructure = "0.8.0"
+        infrastructure = "0.8.3.1"
         status = "DEEP_SOURCE_PASS"
         source_commit = $CddaCommit
         source_tag = $CddaTag
@@ -16701,7 +16742,7 @@ if ($HostSourceProbeOnly) {
     exit 0
 }
 
-# Build Survivor 0.11.3 after deterministic 0.9.15 generation, 0.9.16 API2 migration, 0.10 Mechanical Perks, 0.11 Reactive Mechanics, 0.11.1/0.11.2 polish and 0.11.3 combinatorial edge audits succeeded.
+# Build Survivor 0.12.0 after the preserved 0.11.3 gameplay stack plus NCMM-managed live balance settings.
 Write-Host ""
 Set-InfrastructureTransactionPhase "source_preflight" "passed" "legacy generation and API2 module migrations passed"
 Set-InfrastructureTransactionPhase "compile" "running" "resolving toolchain and compiling modules/host"
@@ -16778,7 +16819,7 @@ function Compile-NCMMBootstrap([string]$RepoRoot,[string]$OutputRoot) {
     $out = Join-Path $OutputRoot "cataclysm-tiles.ncmm-bootstrap.exe"
     Remove-Item $out -Force -ErrorAction SilentlyContinue
 
-    Write-Host "Compiling matching NCMM 0.8.0 bootstrap runtime..." -ForegroundColor Cyan
+    Write-Host "Compiling matching NCMM 0.8.1 bootstrap runtime..." -ForegroundColor Cyan
     & $csc /nologo /target:winexe /optimize+ /platform:x64 `
         /reference:System.Web.Extensions.dll `
         /out:$out `
@@ -16972,6 +17013,9 @@ try {
     $installedModuleManifest = Join-Path $spDir "mod.json"
     Copy-Item $releaseModuleDll $installedModuleDll -Force
     Copy-Item $releaseModuleManifest $installedModuleManifest -Force
+    foreach($about in Get-ChildItem $release0110 -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
+        Copy-Item $about.FullName (Join-Path $spDir $about.Name) -Force
+    }
     $releaseAwsDll = Join-Path $releaseAWS "ncmm_mod.dll"
     $releaseAwsManifest = Join-Path $releaseAWS "mod.json"
     Remove-Item $awsDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -16980,6 +17024,9 @@ try {
     $installedAwsManifest = Join-Path $awsDir "mod.json"
     Copy-Item $releaseAwsDll $installedAwsDll -Force
     Copy-Item $releaseAwsManifest $installedAwsManifest -Force
+    foreach($about in Get-ChildItem $releaseAWS -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
+        Copy-Item $about.FullName (Join-Path $awsDir $about.Name) -Force
+    }
 
     if ((Hash-File $installedBootstrap) -ne (Hash-File $builtBootstrap)) {
         throw "Installed bootstrap hash mismatch after copy."
@@ -17006,7 +17053,7 @@ try {
         source_commit = $runtimeSourceCommit
         upstream_tag = $CddaTag
         patch_revision = $newPatchRevision
-        ncmm_version = "0.8.0"
+        ncmm_version = "0.8.1"
         loader_api = 1
         installed_utc = [DateTime]::UtcNow.ToString("o")
     }
@@ -17017,7 +17064,7 @@ try {
     Write-Utf8NoBom (Join-Path $GameRoot "ncmm\vanilla.sha256") ($actualVanillaSha + "`n")
     Write-Utf8NoBom (Join-Path $GameRoot "ncmm\recipe_profiler_support.v1") ("recipe_dictionary.finalize timing support v1`n")
     Write-Utf8NoBom (Join-Path $GameRoot "ncmm\runtime_infrastructure.v8766") ("safe-options + diagnostics + NCMM support routing`n")
-    Write-Utf8NoBom (Join-Path $GameRoot "ncmm\host_api_v2.core") ("NCMM Host 0.8.0 | legacy API 1.9 | Host API 2.0 Core`n")
+    Write-Utf8NoBom (Join-Path $GameRoot "ncmm\host_api_v2.core") ("NCMM Host 0.8.1 | legacy API 1.9 | Host API 2.0 Core`n")
 
     Write-Host "Binding inputs:"
     Write-Host "  bootstrap SHA: $bootstrapSha"
@@ -17067,12 +17114,12 @@ try {
     $migrationReport = [ordered]@{
         schema = 1
         installer = "v8.7.6.8"
-        infrastructure = "0.8.0"
+        infrastructure = "0.8.3.1"
         adapter_cache_key = $CddaCacheKey
         source_commit = $runtimeSourceCommit
         source_changed = (([string]$oldBinding.source_commit).Trim().ToLowerInvariant() -ne $runtimeSourceCommit.Trim().ToLowerInvariant())
         previous_ncmm_version = [string]$oldBinding.ncmm_version
-        current_ncmm_version = "0.8.0"
+        current_ncmm_version = "0.8.1"
         previous_patch_revision = [string]$oldBinding.patch_revision
         current_patch_revision = $newPatchRevision
         expected_previous_survivor_schema_max = 7
@@ -17090,13 +17137,13 @@ try {
 
     $compatibilityReport = [ordered]@{
         schema = 2
-        infrastructure = "0.8.0"
+        infrastructure = "0.8.3.1"
         adapter_cache_key = $CddaCacheKey
         status = $(if ($TargetSupportMode -eq "exact") { "verified_target_exact" } else { "verified_target_structural_reuse" })
         adapter_support = $TargetSupportMode
         source_commit = $runtimeSourceCommit
         source_tag = $CddaTag
-        ncmm_version = "0.8.0"
+        ncmm_version = "0.8.1"
         ncmm_api = "1.9"
         host_api_v2 = "2.0"
         loader_api = 1
@@ -17105,7 +17152,7 @@ try {
         ui_theme_api = "ui.theme.v1"
         ui_layout_api = "ui.layout.v1"
         active_mod_registry = "active_mods.registry.v2"
-        survivor = "0.11.3"
+        survivor = "0.12.0"
         survivor_schema = 8
         aws = "0.6.2"
         validation = "host/bootstrap diagnostics passed"
@@ -17117,7 +17164,7 @@ try {
 
     $installReport = [ordered]@{
         installer = "v8.7.6.8"
-        infrastructure = "0.8.0"
+        infrastructure = "0.8.3.1"
         adapter_cache_key = $CddaCacheKey
         adapter_support = $TargetSupportMode
         install_mode = $(if ($freshVanillaInstall) { "fresh_vanilla" } else { "upgrade_existing_ncmm" })
@@ -17131,9 +17178,9 @@ try {
         source_cache_mode = "immutable_pristine_plus_incremental_worktree"
         cdda_commit = $runtimeSourceCommit
         cdda_tag = $CddaTag
-        ncmm_version = "0.8.0"
+        ncmm_version = "0.8.1"
         ncmm_api = "1.9"
-        survivor_version = "0.11.3"
+        survivor_version = "0.12.0"
         aws_version = "0.6.2"
         patch_revision = $newPatchRevision
         bootstrap_sha256 = $bootstrapSha
@@ -17149,10 +17196,10 @@ try {
     Write-Utf8NoBom $installReportPath (($installReport | ConvertTo-Json -Depth 5) + "`n")
 
     Write-Host ""
-    Write-Host "=== SURVIVOR 0.11.3 COMBINATORIAL EDGE POLISH / HOST API 2.0 INSTALLED ===" -ForegroundColor Green
+    Write-Host "=== SURVIVOR 0.12.0 LIVE SETTINGS / NCMM HOST 0.8.1 INSTALLED ===" -ForegroundColor Green
     Write-Host "0.9.11: complete obstacle-safe neutral connectors + real branch bars"
     Write-Host "0.9.12: activity-diversity branch XP + branch level-up feedback"
-    Write-Host "0.9.13: active_mods.v1; Host 0.8.0 exposes legacy API 1.9 + Host API 2.0 Core"
+    Write-Host "0.9.13: active_mods.v1; Host API 2.0 Core foundation"
     Write-Host "0.9.15: 39 exclusive Prime roots; compact 3-choice Prime rows; horizontal tree viewport; sectioned RPG details"
     Write-Host "0.9.16: Survivor mechanics migrated to Host API 2.0 generic runtime hooks; state schema remains 8"
     Write-Host "0.10.0: 27 mechanical nodes appended; crit, defense, dodge/block attempts and ranked 1-5% full-damage avoidance"
@@ -17160,6 +17207,7 @@ try {
     Write-Host "0.11.1: semantic polish; counter precedence, zero-XP anti-farm, self-damage guard, accurate craft UI estimate and lockpick floors"
     Write-Host "0.11.2: edge polish; hostile-only auto-riposte/kill rewards, damaging-crit gate, Momentum lifecycle clamps/respec reset and lockpick null safety"
     Write-Host "0.11.3: combinatorial edge polish; isolated riposte refund, executed-counter fallback, hostile NPC kill parity, hostile-only reactive damage/crit rewards, overflow-safe self-healing Momentum and monotonic craft-failure saves"
+    Write-Host "0.12.0: NCMM-managed live XP rate and stat-perk strength settings; gameplay mechanics remain on the 0.11.3 baseline"
     Write-Host "Integrated worlds: Magiclysm / Mind Over Matter / Xedra Evolved / Aftershock Exoplanet / Aftershock Prime / Secronom / Secronom+"
     Write-Host "Advanced World Settings 0.6.2: Host API 2.0 typed settings + generic geography hooks; custom geography stays under Experimental"
     Write-Host "Snapshots:"
@@ -17177,7 +17225,7 @@ try {
     Write-Host "Installed. Start Cataclysm normally. Open NCMM with F2; custom geography is under Experimental and Survivor uses themed branch UI."
 } catch {
     Write-Host ""
-    Write-Host "Install validation failed. Restoring pre-0.11.3 runtime files..." -ForegroundColor Red
+    Write-Host "Install validation failed. Restoring pre-0.12.0 runtime files..." -ForegroundColor Red
 
     try {
         Stop-TargetGameProcesses $GameRoot
