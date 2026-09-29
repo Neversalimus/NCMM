@@ -14839,6 +14839,7 @@ function Apply-SurvivorCombinatorialEdgePolish0113 {
 }
 
 Apply-SurvivorCombinatorialEdgePolish0113
+# Module-only audit: engine-hook invariants are verified after Apply-NcmmReactiveMechanics0113.
 $spEdgeAudit0113 = [IO.File]::ReadAllText($spPath)
 $manifestEdgeAudit0113 = [IO.File]::ReadAllText($manifestPath)
 foreach($needle0113 in @(
