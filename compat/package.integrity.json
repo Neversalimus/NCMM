@@ -26,8 +26,8 @@
     },
     {
       "path": "AWS_HOST_API_2_MIGRATION_CHANGELOG.txt",
-      "sha256": "4ced56e1e74cd5c389beacea3ebc7583a2e978977a36169d5dfd19ff7876cbad",
-      "bytes": 631
+      "sha256": "8e01fff28beafb6ee78728babdf4aeeb529a7ef28744298d6070ae7306e52b2b",
+      "bytes": 1280
     },
     {
       "path": "ci\\Build-UpdateRelease.ps1",
@@ -126,7 +126,7 @@
     },
     {
       "path": "components\\advanced_world_settings.json",
-      "sha256": "9e6111f07abac7bbe9e242d858fdbf7d44ea8fa9342efb54b3f8d8d5227ca4eb",
+      "sha256": "93b14371648cebe19f03ba96b843158b491ef0988f49c72146d1bd43b2a13133",
       "bytes": 635
     },
     {
@@ -291,8 +291,8 @@
     },
     {
       "path": "NCMM_AWS_HOST_API_2_MIGRATION_AUDIT.txt",
-      "sha256": "0be05212ae5c67a09412cfa4ed6a0694232fb91f1e7ebe68b38e2d087fecf50c",
-      "bytes": 1689
+      "sha256": "5be9b0553f345f090b72ba4cf687072a659627e48f5403c682dda6d1d0ab595b",
+      "bytes": 1930
     },
     {
       "path": "NCMM_HOST_API_2.0_CORE_AUDIT.txt",
@@ -321,8 +321,8 @@
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-      "sha256": "e6094c6ea24a9e88a2d1158bfbdf22b0cc6f87d2a933eb6307dc732556842c19",
-      "bytes": 1103442
+      "sha256": "743f6494336541547aea8a3b405ffade813f27fd32295f762c0072ec84ed1f36",
+      "bytes": 1105382
     },
     {
       "path": "pipeline\\pipeline.manifest.json",
