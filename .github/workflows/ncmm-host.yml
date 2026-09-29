@@ -12,6 +12,7 @@ on:
   push:
     branches:
       - main
+      - feature/real-module-gameplay-smoke
     paths:
       - 'host_patch/**'
       - 'sdk/**'
@@ -91,7 +92,10 @@ jobs:
           fi
           echo "patch_revision=$patch_revision" >> "$GITHUB_OUTPUT"
 
-          if [ -n "${REQUESTED_TAG:-}" ]; then
+          if [ "$GITHUB_REF_NAME" = "feature/real-module-gameplay-smoke" ]; then
+            tags=$(awk 'NF { print; exit }' ci/seed-hosts.txt)
+            echo "Feature module gameplay smoke: limiting Host build to required seed $tags"
+          elif [ -n "${REQUESTED_TAG:-}" ]; then
             tags=$(printf '%s\n' "$REQUESTED_TAG")
           else
             gh api 'repos/CleverRaven/Cataclysm-DDA/releases?per_page=40' \
@@ -396,6 +400,134 @@ jobs:
               throw "Required seed host $tag failed NCMM $env:NCMM_VERSION certification."
           }
           Write-Host "Non-seed host $tag is unsupported by the current source contracts."
+
+  module-gameplay-smoke:
+    needs: [discover, build]
+    if: github.ref == 'refs/heads/feature/real-module-gameplay-smoke' && needs.discover.result == 'success' && needs.build.result == 'success'
+    runs-on: windows-2022
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout gameplay feature
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build current Runtime modules
+        shell: powershell
+        run: |
+          ./ci/Build-Runtime.ps1 `
+            -RepositoryRoot "$env:GITHUB_WORKSPACE" `
+            -OutputRoot "$env:GITHUB_WORKSPACE/dist/runtime"
+
+      - name: Download branch Host artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ncmm-result-*
+          path: host-results
+          merge-multiple: true
+
+      - name: Resolve and extract official seed CDDA
+        id: game
+        shell: powershell
+        run: |
+          $tag = @(Get-Content ci/seed-hosts.txt | ForEach-Object { $_.Trim() } | Where-Object { $_ })[0]
+          if ([string]::IsNullOrWhiteSpace($tag)) { throw 'Required seed host is missing.' }
+          $release = (& gh api "repos/CleverRaven/Cataclysm-DDA/releases/tags/$tag") | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw "Could not resolve official CDDA release $tag." }
+          $asset = @($release.assets | Where-Object {
+            $_.name -like 'cdda-windows-with-graphics-x64-*.zip'
+          } | Sort-Object name | Select-Object -First 1)
+          if (-not $asset) {
+            $asset = @($release.assets | Where-Object {
+              $_.name -like 'cdda-windows-with-graphics-and-sounds-x64-*.zip'
+            } | Sort-Object name | Select-Object -First 1)
+          }
+          if (-not $asset) { throw "No official Windows graphics asset found for $tag." }
+
+          $download = Join-Path $env:RUNNER_TEMP 'ncmm-module-gameplay-download'
+          $extract = Join-Path $env:RUNNER_TEMP 'ncmm-module-gameplay-cdda'
+          New-Item -ItemType Directory -Force -Path $download,$extract | Out-Null
+          & gh release download $tag -R CleverRaven/Cataclysm-DDA -p ([string]$asset.name) -D $download --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download official CDDA seed package.' }
+          $zip = Get-ChildItem $download -Filter '*.zip' -File | Select-Object -First 1
+          Expand-Archive -LiteralPath $zip.FullName -DestinationPath $extract -Force
+          $exe = @(Get-ChildItem $extract -Filter 'cataclysm-tiles.exe' -File -Recurse)
+          if ($exe.Count -ne 1) { throw "Expected one official cataclysm-tiles.exe, found $($exe.Count)." }
+          "root=$($exe[0].Directory.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Assemble branch Host + release modules
+        shell: powershell
+        run: |
+          $root = '${{ steps.game.outputs.root }}'
+          $host = @(Get-ChildItem "$env:GITHUB_WORKSPACE/host-results" -Filter 'cataclysm-tiles.ncmm.exe' -File -Recurse)
+          if ($host.Count -ne 1) { throw "Expected one branch Host artifact, found $($host.Count)." }
+          Copy-Item $host[0].FullName (Join-Path $root 'cataclysm-tiles.ncmm.exe') -Force
+
+          $sourceMods = Join-Path $env:GITHUB_WORKSPACE 'dist/runtime/payload/code_mods'
+          $targetMods = Join-Path $root 'code_mods'
+          New-Item -ItemType Directory -Force -Path $targetMods | Out-Null
+          foreach ($dir in @('AdvancedWorldSettings','SurvivorProgression')) {
+            $src = Join-Path $sourceMods $dir
+            if (-not (Test-Path $src -PathType Container)) { throw "Runtime module missing: $dir" }
+            Copy-Item $src $targetMods -Recurse -Force
+          }
+
+      - name: Run three real AWS worlds and full Survivor catalog
+        shell: powershell
+        timeout-minutes: 15
+        run: |
+          $root = '${{ steps.game.outputs.root }}'
+          $host = Join-Path $root 'cataclysm-tiles.ncmm.exe'
+          $seeds = @('NCMM-AWS-REAL-A','NCMM-AWS-REAL-B','NCMM-AWS-REAL-C')
+          Push-Location $root
+          try {
+            foreach ($seed in $seeds) {
+              Write-Host "Module gameplay smoke seed: $seed"
+              & $host --ncmm-runtime-smoke-gameplay --seed $seed
+              if ($LASTEXITCODE -ne 0) {
+                throw "Module gameplay smoke failed for seed $seed with exit $LASTEXITCODE."
+              }
+            }
+          } finally {
+            Pop-Location
+          }
+
+          $evidence = @(Get-ChildItem (Join-Path $root 'ncmm') -Filter 'module-gameplay-smoke-*.json' -File)
+          if ($evidence.Count -ne $seeds.Count) {
+            throw "Expected $($seeds.Count) gameplay evidence files, found $($evidence.Count)."
+          }
+          foreach ($file in $evidence) {
+            $proof = Get-Content $file.FullName -Raw | ConvertFrom-Json
+            if ([int]$proof.schema -ne 1) { throw "Evidence schema mismatch: $($file.Name)" }
+            if ([int]$proof.aws_settings -ne 48 -or $proof.aws_world_saved -ne $true -or
+                $proof.aws_world_reloaded -ne $true -or $proof.aws_overmap_generated -ne $true) {
+              throw "AWS gameplay evidence failed: $($file.Name)"
+            }
+            if ([int]$proof.survivor_catalog -ne 369 -or
+                [int]$proof.survivor_perks_exercised -ne 369 -or
+                [int]$proof.survivor_effect_assertions -le 0 -or
+                [int]$proof.survivor_integrations_inert -le 0 -or
+                [int]$proof.survivor_real_character_checks -ne 9 -or
+                $proof.survivor_cleanup -ne $true) {
+              throw "Survivor gameplay evidence failed: $($file.Name)"
+            }
+          }
+          Write-Host "NCMM real module gameplay matrix: PASS ($($evidence.Count) worlds)." -ForegroundColor Green
+
+      - name: Upload module gameplay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ncmm-module-gameplay-evidence
+          path: |
+            ${{ steps.game.outputs.root }}/ncmm/module-gameplay-smoke-*.json
+            ${{ steps.game.outputs.root }}/ncmm/ncmm.log
+            ${{ steps.game.outputs.root }}/ncmm/modules.state.json
+          if-no-files-found: warn
 
   publish:
     needs: [discover, build]
