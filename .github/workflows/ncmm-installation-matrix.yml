@@ -160,41 +160,9 @@ jobs:
               throw "Gameplay smoke $seed unexpectedly auto-disabled NCMM."
             }
           }
-          $evidence = @(Get-ChildItem $ncmm -Filter 'module-gameplay-smoke-*.json' -File)
-          if ($evidence.Count -ne $seeds.Count) {
-            throw "Expected $($seeds.Count) gameplay evidence files, found $($evidence.Count)."
-          }
-
-          $seenSeeds = @{}
-          foreach ($file in $evidence) {
-            try {
-              $proof = Get-Content $file.FullName -Raw | ConvertFrom-Json
-            } catch {
-              throw "Gameplay evidence is not valid JSON: $($file.FullName)"
-            }
-            if ([int]$proof.schema -ne 1) { throw "Gameplay evidence schema mismatch: $($file.Name)" }
-            if ([int]$proof.aws_settings -ne 48) { throw "AWS setting coverage mismatch: $($file.Name)" }
-            if ($proof.aws_world_saved -ne $true) { throw "AWS world was not saved: $($file.Name)" }
-            if ($proof.aws_world_reloaded -ne $true) { throw "AWS world was not reloaded: $($file.Name)" }
-            if ($proof.aws_overmap_generated -ne $true) { throw "AWS overmap was not generated: $($file.Name)" }
-            if ([int]$proof.survivor_catalog -ne 369) { throw "Survivor catalog coverage mismatch: $($file.Name)" }
-            if ([int]$proof.survivor_perks_exercised -ne 369) { throw "Survivor full-catalog gameplay coverage mismatch: $($file.Name)" }
-            if ([int]$proof.survivor_effect_assertions -le 0) { throw "Survivor real Host effect assertions missing: $($file.Name)" }
-            if ([int]$proof.survivor_integrations_inert -le 0) { throw "Survivor conditional integration coverage missing: $($file.Name)" }
-            if ([int]$proof.survivor_real_character_checks -ne 9) { throw "Survivor real Character coverage mismatch: $($file.Name)" }
-            if ($proof.survivor_cleanup -ne $true) { throw "Survivor cleanup failed: $($file.Name)" }
-            if ([string]::IsNullOrWhiteSpace([string]$proof.world) -or
-                -not ([string]$proof.world).StartsWith('NCMM_AWS_SMOKE_')) {
-              throw "Gameplay evidence world name is invalid: $($file.Name)"
-            }
-            $seedKey = [string]$proof.seed
-            if ($seenSeeds.ContainsKey($seedKey)) { throw "Duplicate gameplay evidence seed: $seedKey" }
-            $seenSeeds[$seedKey] = $true
-          }
-          if ($seenSeeds.Count -ne $seeds.Count) {
-            throw "Gameplay evidence did not contain $($seeds.Count) distinct seeds."
-          }
-          Write-Host "Real AWS + Survivor gameplay evidence: PASS ($($evidence.Count) worlds)"
+          ./ci/Test-ModuleGameplayEvidence.ps1 `
+            -EvidenceDirectory $ncmm `
+            -ExpectedWorlds $seeds.Count
 
       - name: Verify certified Host + modules and restore vanilla
         shell: powershell
