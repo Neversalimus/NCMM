@@ -16300,8 +16300,12 @@ extern "C" NCMM_EXPORT void ncmm_on_locale_changed_v1( const ncmm_host_api_v1 *a
         Write-Utf8NoBom $smokeUiPath $smokeUi
     }
 
-    Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\SurvivorProgression\about.en.txt') "Character progression system with independent activity XP branches, perks, specializations and optional integrations with supported content mods.`n"
-    Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\SurvivorProgression\about.ru.txt') "Система развития персонажа с отдельными ветками опыта за действия, перками, специализациями и интеграциями с поддерживаемыми контентными модами.`n"
+    $survivorAboutEn = "Character progression system with independent activity XP branches, perks, specializations and optional integrations with supported content mods.`n"
+    $survivorAboutRu = "Система развития персонажа с отдельными ветками опыта за действия, перками, специализациями и интеграциями с поддерживаемыми контентными модами.`n"
+    Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\SurvivorProgression\about.en.txt') $survivorAboutEn
+    Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\SurvivorProgression\about.ru.txt') $survivorAboutRu
+    Write-Utf8NoBom (Join-Path $Source0910 'about.en.txt') $survivorAboutEn
+    Write-Utf8NoBom (Join-Path $Source0910 'about.ru.txt') $survivorAboutRu
     Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\AdvancedWorldSettings\about.en.txt') "Expanded world-generation and calendar controls, including cities, terrain, water, roads and time settings.`n"
     Write-Utf8NoBom (Join-Path $NcmmRoot 'mods\AdvancedWorldSettings\about.ru.txt') "Расширенные настройки генерации мира и календаря: города, ландшафт, вода, дороги и параметры времени.`n"
     Write-Host "NCMM 0.8.1 manager + Survivor 0.12.0 settings: READY" -ForegroundColor Green
