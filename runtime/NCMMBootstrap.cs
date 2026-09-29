@@ -529,6 +529,7 @@ internal static class NCMMBootstrap
         bool offline = false;
         bool refresh = false;
         bool diagnosticsOnly = false;
+        bool runtimeSmoke = false;
         foreach (string arg in args)
         {
             if (String.Equals(arg, "--ncmm-vanilla", StringComparison.OrdinalIgnoreCase)) forceVanilla = true;
@@ -536,6 +537,11 @@ internal static class NCMMBootstrap
             else if (String.Equals(arg, "--ncmm-offline", StringComparison.OrdinalIgnoreCase)) offline = true;
             else if (String.Equals(arg, "--ncmm-refresh", StringComparison.OrdinalIgnoreCase)) refresh = true;
             else if (String.Equals(arg, "--ncmm-diagnose", StringComparison.OrdinalIgnoreCase)) diagnosticsOnly = true;
+            else if (String.Equals(arg, "--ncmm-runtime-smoke", StringComparison.OrdinalIgnoreCase))
+            {
+                runtimeSmoke = true;
+                forwarded.Add(arg);
+            }
             else forwarded.Add(arg);
         }
 
@@ -673,6 +679,17 @@ internal static class NCMMBootstrap
                 useHost = false;
                 Log("Host validation failed: " + ex.Message);
             }
+        }
+
+        if (runtimeSmoke && !useHost)
+        {
+            State.selected_mode = "ERROR";
+            State.reason = "runtime_smoke_host_unavailable";
+            State.host_status = State.host_valid ? "valid_but_blocked" : "invalid_or_missing";
+            State.last_exit_code = 115;
+            WriteRuntimeState();
+            Log("Runtime smoke requires a certified NCMM Host; refusing vanilla fallback.");
+            return 115;
         }
 
         if (useHost)
