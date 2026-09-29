@@ -3416,6 +3416,7 @@ void tick()
     turn_accumulator -= 60;
     poll_branch_xp();
 }
+
 bool survivor_has_perk_id( const char *id )
 {
     const perk_def *perk = find_perk( id );
