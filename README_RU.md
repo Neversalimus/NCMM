@@ -39,6 +39,12 @@ Git, Visual Studio, CMake и MSYS2 игроку не нужны. Если для
 - В текущем main-коде навигация по интерфейсу перков использует штатный звук CDDA `menu_move`, а в главном меню выводится компактная подпись `NCMM 0.8.1`.
 - Ошибка отдельного модуля по возможности изолируется и отражается в machine-readable runtime/module state вместо тихой загрузки несовместимого кода.
 
+## Автоматический installation lifecycle
+
+Каждая Runtime-сборка теперь перед публикацией прогоняет production `SetupCore` на изолированных CDDA-подобных установках. Матрица проверяет чистую установку без модулей / только Survivor / только AWS / оба модуля, отключение и повторное включение модулей, безопасную переустановку, обновление предыдущего Runtime, ремонт повреждённого DLL, fail-closed при повреждённом manifest, неверный payload/selection, rollback на нескольких фазах установки и восстановление после жёсткого обрыва процесса.
+
+Отдельный bootstrap lifecycle harness проверяет выбор certified Host, несовместимые bindings, первый и второй нормальный запуск, crash/auto-disable, reset/recovery и fail-closed при ошибках crash-loop markers. Ошибка любой из этих проверок блокирует публикацию Runtime.
+
 ## Совместимость и безопасность
 
 NCMM не определяет совместимость по имени папки или версии лаунчера. Runtime сверяет SHA-256 vanilla exe, source commit CDDA, Loader API, версию NCMM и patch revision Host с certified feed. Host публикуется только после source-contract preflight и Windows/MSVC-сертификации конкретного upstream release.
