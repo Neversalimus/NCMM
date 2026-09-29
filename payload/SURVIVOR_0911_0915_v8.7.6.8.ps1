@@ -16178,19 +16178,61 @@ int run_module_gameplay_smoke( uint32_t seed )
 
     using test_count_fn = size_t (*)();
     using test_id_fn = const char *(*)( size_t );
+    using test_int_index_fn = int (*)( size_t );
+    using test_double_index_fn = double (*)( size_t );
+    using test_rank_multiplier_fn = double (*)( size_t, int );
+    using test_effect_id_fn = const char *(*)( size_t, int );
+    using test_effect_value_fn = double (*)( size_t, int );
     using test_reset_fn = int (*)();
     using test_set_rank_fn = int (*)( size_t, int );
+    using test_recalculate_fn = int (*)();
+    using test_current_xp_fn = int (*)();
 
     const auto test_count = reinterpret_cast<test_count_fn>(
                                 GetProcAddress( survivor->handle, "ncmm_test_perk_count_v1" ) );
     const auto test_id = reinterpret_cast<test_id_fn>(
                              GetProcAddress( survivor->handle, "ncmm_test_perk_id_v1" ) );
+    const auto test_currency = reinterpret_cast<test_int_index_fn>(
+                                   GetProcAddress( survivor->handle, "ncmm_test_perk_currency_v1" ) );
+    const auto test_kind = reinterpret_cast<test_int_index_fn>(
+                               GetProcAddress( survivor->handle, "ncmm_test_perk_kind_v1" ) );
+    const auto test_scaling = reinterpret_cast<test_int_index_fn>(
+                                  GetProcAddress( survivor->handle, "ncmm_test_perk_scaling_v1" ) );
+    const auto test_integration = reinterpret_cast<test_int_index_fn>(
+                                      GetProcAddress( survivor->handle, "ncmm_test_perk_integration_v1" ) );
+    const auto test_max_rank = reinterpret_cast<test_int_index_fn>(
+                                   GetProcAddress( survivor->handle, "ncmm_test_perk_max_rank_v1" ) );
+    const auto test_rank_multiplier = reinterpret_cast<test_rank_multiplier_fn>(
+                                          GetProcAddress( survivor->handle, "ncmm_test_perk_rank_multiplier_v1" ) );
+    const auto test_effect_count = reinterpret_cast<test_int_index_fn>(
+                                      GetProcAddress( survivor->handle, "ncmm_test_perk_effect_count_v1" ) );
+    const auto test_effect_id = reinterpret_cast<test_effect_id_fn>(
+                                   GetProcAddress( survivor->handle, "ncmm_test_perk_effect_id_v1" ) );
+    const auto test_effect_value = reinterpret_cast<test_effect_value_fn>(
+                                      GetProcAddress( survivor->handle, "ncmm_test_perk_effect_value_v1" ) );
+    const auto test_xp_bonus = reinterpret_cast<test_int_index_fn>(
+                                  GetProcAddress( survivor->handle, "ncmm_test_perk_xp_bonus_v1" ) );
+    const auto test_branch_amp = reinterpret_cast<test_double_index_fn>(
+                                    GetProcAddress( survivor->handle, "ncmm_test_perk_branch_amp_v1" ) );
+    const auto test_global_amp = reinterpret_cast<test_double_index_fn>(
+                                    GetProcAddress( survivor->handle, "ncmm_test_perk_global_amp_v1" ) );
     const auto test_reset = reinterpret_cast<test_reset_fn>(
                                 GetProcAddress( survivor->handle, "ncmm_test_reset_all_perks_v1" ) );
     const auto test_set_rank = reinterpret_cast<test_set_rank_fn>(
                                    GetProcAddress( survivor->handle, "ncmm_test_set_perk_rank_v1" ) );
-    if( test_count == nullptr || test_id == nullptr || test_reset == nullptr ||
-        test_set_rank == nullptr || test_count() != 369 ) {
+    const auto test_recalculate = reinterpret_cast<test_recalculate_fn>(
+                                      GetProcAddress( survivor->handle, "ncmm_test_recalculate_v1" ) );
+    const auto test_current_xp = reinterpret_cast<test_current_xp_fn>(
+                                     GetProcAddress( survivor->handle, "ncmm_test_current_xp_bonus_v1" ) );
+    if( test_count == nullptr || test_id == nullptr || test_currency == nullptr ||
+        test_kind == nullptr || test_scaling == nullptr || test_integration == nullptr ||
+        test_max_rank == nullptr || test_rank_multiplier == nullptr ||
+        test_effect_count == nullptr || test_effect_id == nullptr ||
+        test_effect_value == nullptr || test_xp_bonus == nullptr ||
+        test_branch_amp == nullptr || test_global_amp == nullptr ||
+        test_reset == nullptr || test_set_rank == nullptr ||
+        test_recalculate == nullptr || test_current_xp == nullptr ||
+        test_count() != 369 ) {
         log_line( NCMM_LOG_ERROR, "Survivor gameplay smoke diagnostic surface is incomplete." );
         return 198;
     }
@@ -16262,6 +16304,106 @@ int run_module_gameplay_smoke( uint32_t seed )
         return 209;
     }
 
+    // Exercise the complete catalog through the exact released DLL and real Host.
+    // Perks are isolated so mutually-exclusive branches cannot mask each other.
+    const size_t reference_major_a = find_perk( "c_veteran" );
+    const size_t reference_major_b = find_perk( "s_survivor" );
+    if( reference_major_a >= test_count() || reference_major_b >= test_count() ) {
+        log_line( NCMM_LOG_ERROR, "Survivor gameplay smoke reference majors are missing." );
+        return 213;
+    }
+
+    size_t survivor_perks_exercised = 0;
+    size_t survivor_effect_assertions = 0;
+    size_t survivor_integration_inert = 0;
+    for( size_t i = 0; i < test_count(); ++i ) {
+        if( !reset_perks() ) return 214;
+        ++survivor_perks_exercised;
+
+        const int rank = std::max( 1, test_max_rank( i ) );
+        const bool integration = test_integration( i ) != 0;
+        if( integration ) {
+            module_call_scope scope( "survivor_progression" );
+            if( test_set_rank( i, rank ) == 0 || test_recalculate() == 0 ) return 215;
+            bool leaked = test_current_xp() != 0;
+            for( int effect = 0; effect < test_effect_count( i ); ++effect ) {
+                const char *effect_name = test_effect_id( i, effect );
+                if( effect_name != nullptr && std::abs( gameplay_modifier( effect_name ) ) > 0.000001 ) {
+                    leaked = true;
+                }
+            }
+            if( leaked ) {
+                log_line( NCMM_LOG_ERROR,
+                          ( "Survivor integration perk leaked without dependency: " +
+                            std::string( test_id( i ) ? test_id( i ) : "<null>" ) ).c_str() );
+                return 216;
+            }
+            ++survivor_integration_inert;
+            continue;
+        }
+
+        double scaling_count = 1.0;
+        if( test_scaling( i ) == 2 && test_currency( i ) != 1 ) {
+            const size_t reference = i == reference_major_a ? reference_major_b : reference_major_a;
+            module_call_scope scope( "survivor_progression" );
+            if( test_set_rank( reference, 1 ) == 0 || test_recalculate() == 0 ) return 217;
+            scaling_count = 1.0;
+        } else if( test_scaling( i ) == 1 ) {
+            scaling_count = 1.0;
+        }
+
+        std::map<std::string, double> baseline_effects;
+        for( int effect = 0; effect < test_effect_count( i ); ++effect ) {
+            const char *effect_name = test_effect_id( i, effect );
+            if( effect_name != nullptr ) baseline_effects[effect_name] = gameplay_modifier( effect_name );
+        }
+        const int baseline_xp = test_current_xp();
+
+        {
+            module_call_scope scope( "survivor_progression" );
+            if( test_set_rank( i, rank ) == 0 || test_recalculate() == 0 ) return 218;
+        }
+
+        double scale = test_rank_multiplier( i, rank ) * scaling_count;
+        if( test_kind( i ) == 0 ) {
+            scale *= static_cast<double>( world_setting_get_i64( "NCMM_SP_STAT_POWER", 100 ) ) / 100.0;
+        }
+
+        for( int effect = 0; effect < test_effect_count( i ); ++effect ) {
+            const char *effect_name = test_effect_id( i, effect );
+            if( effect_name == nullptr ) return 219;
+            const double before = baseline_effects[effect_name];
+            const double expected_delta = test_effect_value( i, effect ) * scale;
+            const double actual_delta = gameplay_modifier( effect_name ) - before;
+            if( std::abs( actual_delta - expected_delta ) >
+                0.000001 * std::max( 1.0, std::abs( expected_delta ) ) ) {
+                log_line( NCMM_LOG_ERROR,
+                          ( "Survivor real Host effect mismatch: perk=" +
+                            std::string( test_id( i ) ? test_id( i ) : "<null>" ) +
+                            " effect=" + effect_name ).c_str() );
+                return 220;
+            }
+            ++survivor_effect_assertions;
+        }
+
+        const int expected_xp_delta = static_cast<int>(
+                                          std::llround( test_xp_bonus( i ) * scale ) );
+        if( test_current_xp() - baseline_xp != expected_xp_delta ) {
+            log_line( NCMM_LOG_ERROR,
+                      ( "Survivor real Host XP mismatch: perk=" +
+                        std::string( test_id( i ) ? test_id( i ) : "<null>" ) ).c_str() );
+            return 221;
+        }
+
+        // Amplifier-only perks still need a real Host state transition even when they
+        // have no direct modifier. Their detailed multiplicative contract is covered
+        // by the fast semantic matrix on every Runtime build.
+        ( void )test_branch_amp( i );
+        ( void )test_global_amp( i );
+    }
+
+    if( survivor_perks_exercised != 369 || !reset_perks() ) return 222;
+
     const std::filesystem::path evidence = game_root() / "ncmm" /
                                            ( "module-gameplay-smoke-" + std::to_string( seed ) + ".json" );
     std::ofstream out( evidence, std::ios::trunc );
@@ -16274,6 +16416,9 @@ int run_module_gameplay_smoke( uint32_t seed )
         << "  \"aws_world_reloaded\": true,\n"
         << "  \"aws_overmap_generated\": true,\n"
         << "  \"survivor_catalog\": " << test_count() << ",\n"
+        << "  \"survivor_perks_exercised\": " << survivor_perks_exercised << ",\n"
+        << "  \"survivor_effect_assertions\": " << survivor_effect_assertions << ",\n"
+        << "  \"survivor_integrations_inert\": " << survivor_integration_inert << ",\n"
         << "  \"survivor_real_character_checks\": 9,\n"
         << "  \"survivor_cleanup\": true\n"
         << "}\n";
@@ -16281,7 +16426,7 @@ int run_module_gameplay_smoke( uint32_t seed )
     if( !out ) return 210;
 
     log_line( NCMM_LOG_INFO,
-              "NCMM module gameplay smoke PASS: AWS randomized world + overmap; Survivor real Character effects + cleanup." );
+              "NCMM module gameplay smoke PASS: AWS randomized world + overmap; Survivor full catalog + real Character effects + cleanup." );
     return 0;
 #endif
 }
