@@ -3565,7 +3565,8 @@ int run_module_gameplay_smoke( uint32_t seed )
         return 209;
     }
 
-    const std::filesystem::path evidence = game_root() / "ncmm" / "module-gameplay-smoke.json";
+    const std::filesystem::path evidence = game_root() / "ncmm" /
+                                           ( "module-gameplay-smoke-" + std::to_string( seed ) + ".json" );
     std::ofstream out( evidence, std::ios::trunc );
     out << "{\n"
         << "  \"schema\": 1,\n"
