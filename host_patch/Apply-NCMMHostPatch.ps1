@@ -17,10 +17,14 @@ $characterHealthCpp = Join-Path $src 'character_health.cpp'
 $meleeCpp = Join-Path $src 'melee.cpp'
 $knowledgeCpp = Join-Path $src 'character_knowledge.cpp'
 $craftingCpp = Join-Path $src 'crafting.cpp'
+$rangedCpp = Join-Path $src 'ranged.cpp'
+$dispersionH = Join-Path $src 'dispersion.h'
+$dispersionCpp = Join-Path $src 'dispersion.cpp'
 $marker = Join-Path $SourceRoot '.ncmm_host_v1_patched'
 
 foreach ($f in @($optionsH,$optionsCpp,$sdl,$mainMenu,$doTurn,$inputH,$inputCpp,$handleAction,
-                  $characterCpp,$characterHealthCpp,$meleeCpp,$knowledgeCpp,$craftingCpp)) {
+                  $characterCpp,$characterHealthCpp,$meleeCpp,$knowledgeCpp,$craftingCpp,
+                  $rangedCpp,$dispersionH,$dispersionCpp)) {
     if (-not (Test-Path $f)) { throw "Required source file missing: $f" }
 }
 
@@ -78,6 +82,9 @@ if (Test-Path $marker) {
     $me = Read-Utf8 $meleeCpp
     $kn = Read-Utf8 $knowledgeCpp
     $cr = Read-Utf8 $craftingCpp
+    $rg = Read-Utf8 $rangedCpp
+    $dh = Read-Utf8 $dispersionH
+    $dc = Read-Utf8 $dispersionCpp
     $checks = @(
         @($h,'COPT_WORLDGEN_ONLY'),
         @($h,'ncmm_begin_worldgen_group'),
@@ -105,7 +112,11 @@ if (Test-Path $marker) {
         @($hh,'ncmm::gameplay_modifier( "stamina_max_pct" )'),
         @($me,'ncmm::gameplay_modifier( "dodge_flat" )'),
         @($kn,'ncmm::gameplay_modifier( "read_speed_pct" )'),
-        @($cr,'ncmm::gameplay_modifier( "craft_speed_pct" )')
+        @($cr,'ncmm::gameplay_modifier( "craft_speed_pct" )'),
+        @($rg,'targeting.hit_probability.enabled'),
+        @($rg,'exact_hit_probability'),
+        @($dh,'probability_below'),
+        @($dc,'dispersion_sources::probability_below')
     )
     foreach ($x in $checks) {
         if (-not $x[0].Contains($x[1])) {
@@ -156,6 +167,9 @@ $hhOriginal = Read-Utf8 $characterHealthCpp
 $meOriginal = Read-Utf8 $meleeCpp
 $knOriginal = Read-Utf8 $knowledgeCpp
 $crOriginal = Read-Utf8 $craftingCpp
+$rgOriginal = Read-Utf8 $rangedCpp
+$dhOriginal = Read-Utf8 $dispersionH
+$dcOriginal = Read-Utf8 $dispersionCpp
 $hSig = NonAscii-Signature $hOriginal
 $cSig = NonAscii-Signature $cOriginal
 $sdSig = NonAscii-Signature $sdOriginal
@@ -169,6 +183,9 @@ $hhSig = NonAscii-Signature $hhOriginal
 $meSig = NonAscii-Signature $meOriginal
 $knSig = NonAscii-Signature $knOriginal
 $crSig = NonAscii-Signature $crOriginal
+$rgSig = NonAscii-Signature $rgOriginal
+$dhSig = NonAscii-Signature $dhOriginal
+$dcSig = NonAscii-Signature $dcOriginal
 
 $h = Normalize-Lf $hOriginal
 $c = Normalize-Lf $cOriginal
@@ -183,6 +200,9 @@ $hh = Normalize-Lf $hhOriginal
 $me = Normalize-Lf $meOriginal
 $kn = Normalize-Lf $knOriginal
 $cr = Normalize-Lf $crOriginal
+$rg = Normalize-Lf $rgOriginal
+$dh = Normalize-Lf $dhOriginal
+$dc = Normalize-Lf $dcOriginal
 
 $h = Replace-ExactlyOnce $h @'
             COPT_NO_SOUND_HIDE,
@@ -843,6 +863,9 @@ Write-Utf8 $characterHealthCpp $hh
 Write-Utf8 $meleeCpp $me
 Write-Utf8 $knowledgeCpp $kn
 Write-Utf8 $craftingCpp $cr
+Write-Utf8 $rangedCpp $rg
+Write-Utf8 $dispersionH $dh
+Write-Utf8 $dispersionCpp $dc
 
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.h') (Join-Path $src 'ncmm_loader.h') -Force
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.cpp') (Join-Path $src 'ncmm_loader.cpp') -Force
@@ -863,6 +886,9 @@ $hh2 = Read-Utf8 $characterHealthCpp
 $me2 = Read-Utf8 $meleeCpp
 $kn2 = Read-Utf8 $knowledgeCpp
 $cr2 = Read-Utf8 $craftingCpp
+$rg2 = Read-Utf8 $rangedCpp
+$dh2 = Read-Utf8 $dispersionH
+$dc2 = Read-Utf8 $dispersionCpp
 
 if ((NonAscii-Signature $h2) -ne $hSig) { throw 'UTF-8 preservation check failed for options.h' }
 if ((NonAscii-Signature $c2) -ne $cSig) { throw 'UTF-8 preservation check failed for options.cpp' }
@@ -877,6 +903,9 @@ if ((NonAscii-Signature $hh2) -ne $hhSig) { throw 'UTF-8 preservation check fail
 if ((NonAscii-Signature $me2) -ne $meSig) { throw 'UTF-8 preservation check failed for melee.cpp' }
 if ((NonAscii-Signature $kn2) -ne $knSig) { throw 'UTF-8 preservation check failed for character_knowledge.cpp' }
 if ((NonAscii-Signature $cr2) -ne $crSig) { throw 'UTF-8 preservation check failed for crafting.cpp' }
+if ((NonAscii-Signature $rg2) -ne $rgSig) { throw 'UTF-8 preservation check failed for ranged.cpp' }
+if ((NonAscii-Signature $dh2) -ne $dhSig) { throw 'UTF-8 preservation check failed for dispersion.h' }
+if ((NonAscii-Signature $dc2) -ne $dcSig) { throw 'UTF-8 preservation check failed for dispersion.cpp' }
 
 foreach ($needle in @('COPT_WORLDGEN_ONLY','ncmm_begin_worldgen_group','ncmm_set_worldgen_string_choices')) {
     if (-not $h2.Contains($needle)) { throw "Post-check failed: $needle" }
@@ -896,6 +925,11 @@ foreach ($needle in @('input_manager::ncmm_register_default_action','input_manag
 foreach ($needle in @('ncmm::register_gameplay_actions( ctxt );','ncmm::handle_gameplay_action( action )')) {
     if (-not $ha2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
+foreach ($needle in @('targeting.hit_probability.enabled','exact_hit_probability','ncmm_hit_probability_text','Hit now')) {
+    if (-not $rg2.Contains($needle)) { throw "Post-check failed: $needle" }
+}
+if (-not $dh2.Contains('probability_below')) { throw 'Post-check failed: dispersion probability declaration' }
+if (-not $dc2.Contains('dispersion_sources::probability_below')) { throw 'Post-check failed: dispersion probability implementation' }
 
 Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.8.1 module contract`n" -Encoding ASCII
 Write-Host 'NCMM 0.8.1 host patch applied and UTF-8 preservation verified.'
