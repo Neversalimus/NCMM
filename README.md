@@ -39,6 +39,12 @@ The repository checkout also contains `NCMM.cmd`, the maintainer/development ent
 - Current main-source UI polish uses CDDA's native `menu_move` sound for NCMM perk navigation and displays a compact `NCMM 0.8.1` label in the main menu.
 - Module failures are isolated where possible and reported through machine-readable runtime/module state instead of silently loading incompatible code.
 
+## Automated installation lifecycle
+
+Every Runtime build now runs the production `SetupCore` against isolated CDDA-shaped installations before packages are published. The installation matrix currently covers clean installs with no modules / Survivor / AWS / both, module removal and re-enable, idempotent reinstall, previous-runtime update, corrupted DLL repair, corrupt-manifest fail-closed behavior, invalid payload/selection, rollback at multiple install phases, and recovery after a hard interrupted process.
+
+Bootstrap has a separate lifecycle harness covering certified-host selection, incompatible bindings, first and second healthy launches, host crash/auto-disable, reset recovery and fail-closed marker failures. A failed matrix blocks the Runtime release.
+
 ## Compatibility model
 
 NCMM does not trust a folder name or launcher version. Runtime validates the vanilla executable SHA-256, CDDA source commit, Loader API, NCMM version and Host patch revision against the certified feed. A Host is published only after source-contract preflight and Windows/MSVC certification for the exact upstream CDDA release.
