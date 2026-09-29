@@ -18,6 +18,10 @@ void show_manager();
 std::string settings_menu_label();
 std::string version_label();
 
+/** CI-only real-gameplay smoke. Creates a temporary world, exercises AWS worldgen,
+ *  then verifies representative Survivor modifiers against real CDDA character methods. */
+int run_module_gameplay_smoke( uint32_t seed );
+
 
 /** Aggregate runtime gameplay modifier registered by loaded NCMM modules. */
 double gameplay_modifier( const char *modifier_id );
