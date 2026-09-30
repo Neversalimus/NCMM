@@ -689,7 +689,12 @@ void target_ui::panel_spell_info( int &text_y )
 
             std::vector<double> probabilities;
             probabilities.reserve( current_mode.qty );
-            double predicted_recoil = you->recoil;
+            // FIRE first aims to the UI-selected mode before the burst begins.
+            // Start the sequence at that predicted recoil so the first value
+            // matches the default FIRE row rather than the hypothetical snap shot.
+            double predicted_recoil = predict_recoil(
+                                          *you, weapon, target, sight_dispersion,
+                                          get_selected_aim_type(), you->recoil ).recoil;
             for( int shot = 0; shot < current_mode.qty; ++shot ) {
                 probabilities.push_back( probability_at_recoil( predicted_recoil ) );
                 if( !volley ) {
