@@ -708,8 +708,8 @@ uint32_t semantic_rng_next( uint32_t &state )
 
 bool aws_semantic_matrix()
 {
-    if( setting_meta.size() != 48 || worldgen_bindings.size() != 48 ||
-        worldgen_binding_count != 48 ) {
+    if( setting_meta.size() != 50 || worldgen_bindings.size() != 50 ||
+        worldgen_binding_count != 50 ) {
         std::cerr << "AWS semantic coverage mismatch: settings=" << setting_meta.size()
                   << " bindings=" << worldgen_bindings.size()
                   << " calls=" << worldgen_binding_count << '\n';
@@ -753,8 +753,37 @@ bool aws_semantic_matrix()
         return false;
     }
 
+    const char *scope_ids[] = {
+        "NCMM_AWS_SCOPE_CITIES",
+        "NCMM_AWS_SCOPE_ECOLOGY",
+        "NCMM_AWS_SCOPE_WATER",
+        "NCMM_AWS_SCOPE_TRANSPORT"
+    };
+    for( const char *scope_id : scope_ids ) {
+        const auto scope = setting_meta.find( scope_id );
+        if( scope == setting_meta.end() ||
+            scope->second.kind != smoke_setting_kind::boolean ||
+            scope->second.default_value != 1.0 ) {
+            std::cerr << "AWS selective scope missing or not backward-compatible: "
+                      << scope_id << '\n';
+            return false;
+        }
+    }
+
+    if( setting_meta.count( "NCMM_AWS_PLACE_SPECIALS" ) != 0 ||
+        setting_meta.count( "NCMM_AWS_NEIGHBOR_CONNECTIONS" ) != 0 ||
+        worldgen_bindings.count( "geography.specials.enabled" ) != 0 ||
+        worldgen_bindings.count( "geography.neighbor_connections.enabled" ) != 0 ) {
+        std::cerr << "AWS unsafe worldgen suppression controls must not be exposed\n";
+        return false;
+    }
+
     const std::map<std::string, std::string> expected_binding_ids = {
         { "geography.custom.enabled", "NCMM_AWS_CUSTOM_GEOGRAPHY" },
+        { "geography.scope.cities.enabled", "NCMM_AWS_SCOPE_CITIES" },
+        { "geography.scope.ecology.enabled", "NCMM_AWS_SCOPE_ECOLOGY" },
+        { "geography.scope.water.enabled", "NCMM_AWS_SCOPE_WATER" },
+        { "geography.scope.transport.enabled", "NCMM_AWS_SCOPE_TRANSPORT" },
         { "geography.city.size", "NCMM_AWS_CITY_SIZE" },
         { "geography.city.spacing", "NCMM_AWS_CITY_SPACING" },
         { "geography.city.max_urbanity", "NCMM_AWS_MAX_URBANITY" },
@@ -765,8 +794,6 @@ bool aws_semantic_matrix()
         { "geography.city.park_sigma", "NCMM_AWS_PARK_SIGMA" },
         { "geography.roads.enabled", "NCMM_AWS_PLACE_ROADS" },
         { "geography.railroads.enabled", "NCMM_AWS_PLACE_RAILROADS" },
-        { "geography.specials.enabled", "NCMM_AWS_PLACE_SPECIALS" },
-        { "geography.neighbor_connections.enabled", "NCMM_AWS_NEIGHBOR_CONNECTIONS" },
         { "geography.forests.enabled", "NCMM_AWS_ENABLE_FORESTS" },
         { "geography.forests.threshold", "NCMM_AWS_FOREST_THRESHOLD" },
         { "geography.forests.thick_threshold", "NCMM_AWS_FOREST_THICK_THRESHOLD" },
@@ -981,7 +1008,7 @@ bool aws_semantic_matrix()
         }
     }
 
-    std::cout << "AWS semantic matrix: PASS (48/48 exact typed geography bindings, semantic invariants, min/max boundaries, 32 deterministic randomized cases)\n";
+    std::cout << "AWS semantic matrix: PASS (50/50 exact typed geography bindings, selective scopes, protected worldgen invariants, min/max boundaries, 32 deterministic randomized cases)\n";
     return true;
 }
 
@@ -1599,14 +1626,14 @@ int main( int argc, char **argv )
             std::cerr << "fixed-time selector choices are incorrect\n";
             return 14;
         }
-        if( std::strcmp( desc->version, "0.6.3" ) != 0 || worldgen_binding_count < 40 ) {
+        if( std::strcmp( desc->version, "0.6.4" ) != 0 || worldgen_binding_count != 50 ) {
             std::cerr << "AWS Host API 2.0 registration coverage failed\n";
             return 22;
         }
         if( !aws_semantic_matrix() ) {
             return 39;
         }
-        std::cout << "NCMM smoke test: PASS (AWS 0.6.3 legacy controls + Host API 2.0 geography bindings)\n";
+        std::cout << "NCMM smoke test: PASS (AWS 0.6.4 selective scopes + Host API 2.0 geography bindings)\n";
         return 0;
     }
 
