@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -693,6 +694,197 @@ T symbol( void *lib, const char *name )
 #endif
 }
 
+
+// EBM-specific fault injection delegates successful calls to the shared host mocks.
+namespace equipment_body_map_smoke
+{
+size_t setting_calls = 0;
+size_t binding_calls = 0;
+size_t fail_setting_call = 0;
+size_t fail_binding_call = 0;
+const char *locale = "en";
+std::map<std::string, std::string> labels;
+
+int register_bool( const char *module, const char *id, const char *label,
+                   const char *tooltip, int value, uint32_t scope )
+{
+    ++setting_calls;
+    if( setting_calls == fail_setting_call ) return 0;
+    if( !module || std::strcmp( module, "equipment_body_map" ) != 0 ||
+        !id || !label || !tooltip || !*tooltip ) return 0;
+    labels[id] = label;
+    return world_setting_register_bool_fn( module, id, label, tooltip, value, scope );
+}
+
+int bind_setting( const char *module, const char *hook, const char *id, uint32_t type )
+{
+    ++binding_calls;
+    if( binding_calls == fail_binding_call ) return 0;
+    if( !module || std::strcmp( module, "equipment_body_map" ) != 0 ) return 0;
+    return runtime_hook_bind_setting_v2_fn( module, hook, id, type );
+}
+
+const char *get_locale() { return locale; }
+uint32_t old_api_minor() { return 8u; }
+int missing_runtime_capability( const char *cap )
+{
+    return cap && std::strcmp( cap, "runtime_settings.bindings.v2" ) != 0 &&
+           has_capability_fn( cap );
+}
+
+bool check( bool condition, const char *scenario, const char *detail )
+{
+    if( !condition ) {
+        std::cerr << "Equipment Body Map [" << scenario << "]: " << detail << '\n';
+    }
+    return condition;
+}
+
+bool state_matches( size_t settings, size_t bindings )
+{
+    const std::array<const char *, 2> ids = { "NCMM_EBM_ENABLED", "NCMM_EBM_SHOW_LAYERS" };
+    const std::array<const char *, 2> hooks = {
+        "inventory.body_map.enabled", "inventory.body_map.show_layers"
+    };
+    if( registered_setting_ids.size() != settings || setting_meta.size() != settings ||
+        setting_i64_values.size() != settings || labels.size() != settings ||
+        runtime_setting_bindings.size() != bindings || runtime_setting_binding_count != bindings ) {
+        return false;
+    }
+    for( size_t i = 0; i < settings; ++i ) {
+        if( registered_setting_ids.count( ids[i] ) != 1 || setting_meta.count( ids[i] ) != 1 ||
+            setting_i64_values.count( ids[i] ) != 1 || labels.count( ids[i] ) != 1 ) return false;
+        const auto &meta = setting_meta.at( ids[i] );
+        if( meta.kind != smoke_setting_kind::boolean || meta.default_value != 1.0 ||
+            meta.scope != NCMM_WORLD_SETTING_LIVE || setting_i64_values.at( ids[i] ) != 1 ) return false;
+    }
+    for( size_t i = 0; i < bindings; ++i ) {
+        const auto binding = runtime_setting_bindings.find( hooks[i] );
+        if( binding == runtime_setting_bindings.end() || binding->second.setting_id != ids[i] ||
+            binding->second.type != NCMM_SETTING_BOOL_V2 ||
+            runtime_hook_bool_setting_v2_fn( hooks[i], 0 ) != 1 ) return false;
+    }
+    return true;
+}
+
+bool run( void *lib, const ncmm_mod_descriptor_v1 *desc, ncmm_host_api_v1 api )
+{
+    const auto on_locale = symbol<ncmm_on_locale_changed_v1_fn>( lib, NCMM_LOCALE_ENTRYPOINT );
+    if( !check( desc->id && std::strcmp( desc->id, "equipment_body_map" ) == 0 &&
+                desc->version && std::strcmp( desc->version, "0.1.0" ) == 0 &&
+                desc->init && desc->shutdown && on_locale, "descriptor",
+                "expected id/version, init/shutdown and locale export" ) ) return false;
+
+    const auto original_core = smoke_host2;
+    // Restore shared API state even if an assertion fails.
+    struct cleanup {
+        const ncmm_mod_descriptor_v1 *desc;
+        ncmm_host_api_v2_core core;
+        ~cleanup() { desc->shutdown(); smoke_host2 = core; }
+    } restore{ desc, original_core };
+    const auto original_api = api;
+    const auto reset = [&]() {
+        desc->shutdown();
+        smoke_host2 = original_core;
+        api = original_api;
+        api.get_locale = &get_locale;
+        smoke_host2.legacy_v1 = &api;
+        smoke_host2.world_setting_register_bool = &register_bool;
+        smoke_host2.runtime_hook_bind_setting = &bind_setting;
+        setting_calls = binding_calls = fail_setting_call = fail_binding_call = 0;
+        locale = "en";
+        labels.clear();
+        registered_setting_ids.clear();
+        setting_meta.clear();
+        setting_i64_values.clear();
+        runtime_setting_bindings.clear();
+        runtime_setting_binding_count = 0;
+    };
+    enum class fault { capability, short_tail, null_bind, null_bool, null_register,
+                       first_setting, second_setting, first_binding, second_binding, old_api };
+    struct test_case {
+        const char *name;
+        fault injection;
+        size_t settings;
+        size_t bindings;
+        size_t setting_attempts;
+        size_t binding_attempts;
+    };
+    // Failed calls do not mutate the mock host. Successful earlier registrations
+    // remain: this API exposes no setting/binding rollback operation to the module.
+    const test_case cases[] = {
+        { "missing runtime capability", fault::capability, 0, 0, 0, 0 },
+        { "short v2 tail", fault::short_tail, 0, 0, 0, 0 },
+        { "null runtime bind", fault::null_bind, 0, 0, 0, 0 },
+        { "null runtime bool", fault::null_bool, 0, 0, 0, 0 },
+        { "null setting register", fault::null_register, 0, 0, 0, 0 },
+        { "first setting failure", fault::first_setting, 0, 0, 1, 0 },
+        { "second setting failure", fault::second_setting, 1, 0, 2, 0 },
+        { "first binding failure", fault::first_binding, 2, 0, 2, 1 },
+        { "second binding failure", fault::second_binding, 2, 1, 2, 2 },
+        { "API 1.8", fault::old_api, 0, 0, 0, 0 }
+    };
+    for( const auto &test : cases ) {
+        // The existing --missing-contract invocation also exercises module init,
+        // rather than returning at the harness capability preflight.
+        if( simulate_missing_contract && test.injection != fault::capability ) continue;
+        reset();
+        switch( test.injection ) {
+            case fault::capability: api.has_capability = &missing_runtime_capability; break;
+            case fault::short_tail:
+                smoke_host2.struct_size = offsetof( ncmm_host_api_v2_core, runtime_hook_f64 ) +
+                                          sizeof( smoke_host2.runtime_hook_f64 ) - 1;
+                break;
+            case fault::null_bind: smoke_host2.runtime_hook_bind_setting = nullptr; break;
+            case fault::null_bool: smoke_host2.runtime_hook_bool = nullptr; break;
+            case fault::null_register: smoke_host2.world_setting_register_bool = nullptr; break;
+            case fault::first_setting: fail_setting_call = 1; break;
+            case fault::second_setting: fail_setting_call = 2; break;
+            case fault::first_binding: fail_binding_call = 1; break;
+            case fault::second_binding: fail_binding_call = 2; break;
+            case fault::old_api: api.get_api_version_minor = &old_api_minor; break;
+        }
+        if( !check( desc->init( &api ) == 0, test.name, "init must reject host" ) ||
+            !check( setting_calls == test.setting_attempts && binding_calls == test.binding_attempts,
+                    test.name, "unexpected registration attempts / failure was not short-circuited" ) ||
+            !check( state_matches( test.settings, test.bindings ), test.name,
+                    "unexpected partial host state after init failure" ) ) return false;
+        locale = "ru";
+        on_locale( &api );
+        desc->shutdown();
+        on_locale( &api );
+        if( !check( setting_calls == test.setting_attempts && binding_calls == test.binding_attempts &&
+                    state_matches( test.settings, test.bindings ), test.name,
+                    "locale/shutdown changed registrations after rejected init" ) ) return false;
+        std::cout << "Equipment Body Map [" << test.name << "]: PASS\n";
+    }
+    if( simulate_missing_contract ) return true;
+
+    reset();
+    if( !check( desc->init( &api ) == 1, "happy path", "init failed" ) ||
+        !check( setting_calls == 2 && binding_calls == 2 && state_matches( 2, 2 ),
+                "happy path", "expected exactly two true LIVE bool settings and matching bindings" ) ||
+        !check( labels.at( "NCMM_EBM_ENABLED" ) == "Show equipment body map" &&
+                labels.at( "NCMM_EBM_SHOW_LAYERS" ) == "Show selected item layers",
+                "EN metadata", "English labels missing" ) ) return false;
+    locale = "ru";
+    on_locale( &api );
+    if( !check( setting_calls == 4 && binding_calls == 2 && state_matches( 2, 2 ),
+                "EN -> RU", "metadata must be re-registered without rebinding" ) ||
+        !check( labels.at( "NCMM_EBM_ENABLED" ) == "Показывать схему экипировки" &&
+                labels.at( "NCMM_EBM_SHOW_LAYERS" ) == "Показывать слои выбранной вещи",
+                "EN -> RU", "Russian labels were not passed to host" ) ) return false;
+    desc->shutdown();
+    locale = "en";
+    on_locale( &api );
+    if( !check( setting_calls == 4 && binding_calls == 2 && state_matches( 2, 2 ) &&
+                labels.at( "NCMM_EBM_ENABLED" ) == "Показывать схему экипировки" &&
+                labels.at( "NCMM_EBM_SHOW_LAYERS" ) == "Показывать слои выбранной вещи",
+                "shutdown", "locale callback must be inert after shutdown" ) ) return false;
+    std::cout << "Equipment Body Map [happy path, EN -> RU, shutdown]: PASS\n";
+    return true;
+}
+} // namespace equipment_body_map_smoke
 
 bool nearly_equal( double left, double right, double epsilon = 1.0e-8 )
 {
@@ -1592,6 +1784,12 @@ int main( int argc, char **argv )
     smoke_host2.runtime_hook_i64 = &runtime_hook_i64_setting_v2_fn;
     smoke_host2.runtime_hook_f64 = &runtime_hook_f64_setting_v2_fn;
 
+    if( std::strcmp( desc->id, "equipment_body_map" ) == 0 ) {
+        if( !equipment_body_map_smoke::run( lib, desc, api ) ) return 44;
+        std::cout << "NCMM smoke test: PASS (Equipment Body Map Host API failure/lifecycle matrix)\n";
+        return 0;
+    }
+
     for( size_t i = 0; i < desc->required_capability_count; ++i ) {
         if( !api.has_capability( desc->required_capabilities[i] ) ) {
             if( simulate_missing_contract ) {
@@ -1656,28 +1854,6 @@ int main( int argc, char **argv )
             return 43;
         }
         std::cout << "NCMM smoke test: PASS (Ballistic Hit Chance 0.1.0 runtime bindings)\n";
-        return 0;
-    }
-
-    if( std::strcmp( desc->id, "equipment_body_map" ) == 0 ) {
-        if( std::strcmp( desc->version, "0.1.0" ) != 0 ) {
-            std::cerr << "Equipment Body Map descriptor version mismatch\n";
-            return 44;
-        }
-        if( registered_setting_ids.count( "NCMM_EBM_ENABLED" ) == 0 ||
-            registered_setting_ids.count( "NCMM_EBM_SHOW_LAYERS" ) == 0 ||
-            runtime_setting_binding_count != 2 ||
-            runtime_setting_bindings.count( "inventory.body_map.enabled" ) == 0 ||
-            runtime_setting_bindings.count( "inventory.body_map.show_layers" ) == 0 ) {
-            std::cerr << "Equipment Body Map runtime setting registration failed\n";
-            return 45;
-        }
-        if( runtime_hook_bool_setting_v2_fn( "inventory.body_map.enabled", 0 ) != 1 ||
-            runtime_hook_bool_setting_v2_fn( "inventory.body_map.show_layers", 0 ) != 1 ) {
-            std::cerr << "Equipment Body Map default setting values failed\n";
-            return 46;
-        }
-        std::cout << "NCMM smoke test: PASS (Equipment Body Map 0.1.0 runtime bindings)\n";
         return 0;
     }
 
