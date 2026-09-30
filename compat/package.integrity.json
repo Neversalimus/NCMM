@@ -66,8 +66,8 @@
     },
     {
       "path": "ci\\Test-HostPayloadContracts.ps1",
-      "sha256": "753e57d5f698f9b8535d144bfd0de4d0202f23eab4c410f643a71e646cd84c21",
-      "bytes": 20740
+      "sha256": "4611308f1adc82700c922eb70ea930eeacec07c6fef4e59ba7ca2fd76560f98a",
+      "bytes": 21735
     },
     {
       "path": "ci\\Test-Infrastructure0821.ps1",
@@ -96,8 +96,8 @@
     },
     {
       "path": "compat\\compatibility.manifest.json",
-      "sha256": "05b66081e54db570929d7edd3439dd2e23183a1118b03a5bfe460c3af81a9021",
-      "bytes": 6806
+      "sha256": "283adb0cf314ba22d95ffdb3e81cd05d364a97125a87fbbf78e4be996f98b524",
+      "bytes": 6807
     },
     {
       "path": "compat\\contracts.json",
@@ -121,13 +121,13 @@
     },
     {
       "path": "compat\\update\\index.json",
-      "sha256": "56e5a28eb9bfdb640afae91261f2a680cf345860c76f8baa83e28afaeb2bc817",
-      "bytes": 959
+      "sha256": "d0a931a752fe6f9fa29e6b818116a9e0febba47bc17e694a51e873ef8df8ccac",
+      "bytes": 928
     },
     {
       "path": "components\\advanced_world_settings.json",
-      "sha256": "93b14371648cebe19f03ba96b843158b491ef0988f49c72146d1bd43b2a13133",
-      "bytes": 635
+      "sha256": "a19e4379139dd1a28063991eedd86d033f7dac918dd6c3ea83aa2a6af5fc5ab9",
+      "bytes": 606
     },
     {
       "path": "components\\ballistic_hit_chance.json",
@@ -136,8 +136,8 @@
     },
     {
       "path": "components\\index.json",
-      "sha256": "29f227a14d529abe0f599af6fa8ec7fcab7116b144055867aaba08b88c6fe9f1",
-      "bytes": 4732
+      "sha256": "dc81707e589fec37cac0c3e94f6fb6872f206a1929803d536865891d02491af2",
+      "bytes": 4551
     },
     {
       "path": "components\\ncmm_host.json",
@@ -326,8 +326,8 @@
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-      "sha256": "806d90312eb307e5e50d31b4eda497928959150b36f34cb2c47efa71780db8a0",
-      "bytes": 1708821
+      "sha256": "bd9870b0c5b2419646cd11134c5793f7d31a0cabe07b7be3dc849cea06e6d7be",
+      "bytes": 1703894
     },
     {
       "path": "pipeline\\pipeline.manifest.json",
