@@ -508,7 +508,8 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
         }
         const int line_width = utf8_width( line, true );
         const int x = panel_x + 1 + std::max( 0, ( content_width - line_width ) / 2 );
-        print_colored_text( w, point( x, y++ ), c_light_gray, c_light_gray, line );
+        nc_color current_color = c_light_gray;
+        print_colored_text( w, point( x, y++ ), current_color, c_light_gray, line );
     }
 
     if( y < bottom - 1 ) {
