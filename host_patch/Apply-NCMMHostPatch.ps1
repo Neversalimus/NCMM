@@ -598,14 +598,25 @@ $rg = Replace-ExactlyOnce $rg @'
 
             print_colored_text( w, point( 1, line_number++ ), col, col, desc );
 '@ @'
-            std::string desc = time ==  0 ?
-                               string_format( "<color_white>[%s]</color> <color_%s>%s %s</color> | %s: <color_light_blue>%3d</color>",
-                                              out.hotkey, col_hl, out.name, _( "Aim" ), _( "Moves to fire" ), out.moves ) :
-                               string_format( "<color_white>[%s]</color> <color_%s>%s %s</color> | %s: <color_light_blue>%3d</color> (%d)",
-                                              out.hotkey, col_hl, out.name, _( "Aim" ), _( "Moves to fire" ), out.moves, time );
+            std::string desc;
             if( out.exact_hit_probability >= 0.0 ) {
-                desc += " | " + ncmm::localized_text( "Hit", u8"\u041F\u043E\u043F\u0430\u0434\u0430\u043D\u0438\u0435" ) + ": " +
-                        ncmm_hit_probability_text( out.exact_hit_probability );
+                // Keep the exact-probability row compact enough for the normal
+                // right-side targeting panel. The vanilla verbose labels plus
+                // an appended hit percentage overflow at ~45-50 columns.
+                desc = string_format(
+                           "<color_white>[%s]</color> <color_%s>%s</color> | %s | <color_light_blue>%d</color>",
+                           out.hotkey, col_hl, out.name,
+                           ncmm_hit_probability_text( out.exact_hit_probability ),
+                           out.moves );
+                if( time != 0 ) {
+                    desc += string_format( " (%d)", time );
+                }
+            } else {
+                desc = time == 0 ?
+                       string_format( "<color_white>[%s]</color> <color_%s>%s %s</color> | %s: <color_light_blue>%3d</color>",
+                                      out.hotkey, col_hl, out.name, _( "Aim" ), _( "Moves to fire" ), out.moves ) :
+                       string_format( "<color_white>[%s]</color> <color_%s>%s %s</color> | %s: <color_light_blue>%3d</color> (%d)",
+                                      out.hotkey, col_hl, out.name, _( "Aim" ), _( "Moves to fire" ), out.moves, time );
             }
 
             print_colored_text( w, point( 1, line_number++ ), col, col, desc );
