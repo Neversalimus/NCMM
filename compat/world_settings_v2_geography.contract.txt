@@ -716,8 +716,7 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
     calculate_forestosity();
     const bool ncmm_geo = settings->id.str() == "default" &&
                           get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) &&
-                          get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) &&
-                          get_options().has_option( "NCMM_AWS_CITY_SIZE" );
+                          get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" );
     const auto geo_enabled = [&]( const char *id ) {
         return !ncmm_geo || !get_options().has_option( id ) || get_option<bool>( id );
     };
@@ -1002,15 +1001,16 @@ void overmap::place_forest_trails()
     $trailheadNew = @'
 void overmap::place_forest_trailheads()
 {
-    const bool ncmm_geo = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_CITY_SIZE" );
-    const int city_size = ncmm_geo ? get_option<int>( "NCMM_AWS_CITY_SIZE" ) : settings->get_settings_city().city_size;
+    const bool ncmm_geo_city = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_CITY_SIZE" );
+    const bool ncmm_geo_trails = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_TRAILHEAD_CHANCE" );
+    const int city_size = ncmm_geo_city ? get_option<int>( "NCMM_AWS_CITY_SIZE" ) : settings->get_settings_city().city_size;
     if( city_size <= 0 ) {
         return;
     }
     const region_settings_forest_trail &settings_forest_trail = settings->get_settings_forest_trail();
-    const int trailhead_chance = ncmm_geo && get_options().has_option( "NCMM_AWS_TRAILHEAD_CHANCE" ) ?
+    const int trailhead_chance = ncmm_geo_trails ?
                                  get_option<int>( "NCMM_AWS_TRAILHEAD_CHANCE" ) : settings_forest_trail.trailhead_chance;
-    const int road_distance = ncmm_geo && get_options().has_option( "NCMM_AWS_TRAILHEAD_ROAD_DISTANCE" ) ?
+    const int road_distance = ncmm_geo_trails && get_options().has_option( "NCMM_AWS_TRAILHEAD_ROAD_DISTANCE" ) ?
                               get_option<int>( "NCMM_AWS_TRAILHEAD_ROAD_DISTANCE" ) : settings_forest_trail.trailhead_road_distance;
 
     const auto trailhead_close_to_road = [&]( const tripoint_om_omt & trailhead ) {
