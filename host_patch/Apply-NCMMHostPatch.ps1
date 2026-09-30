@@ -20,11 +20,15 @@ $craftingCpp = Join-Path $src 'crafting.cpp'
 $rangedCpp = Join-Path $src 'ranged.cpp'
 $dispersionH = Join-Path $src 'dispersion.h'
 $dispersionCpp = Join-Path $src 'dispersion.cpp'
+$inventoryUiH = Join-Path $src 'inventory_ui.h'
+$inventoryUiCpp = Join-Path $src 'inventory_ui.cpp'
+$gameInventoryCpp = Join-Path $src 'game_inventory.cpp'
 $marker = Join-Path $SourceRoot '.ncmm_host_v1_patched'
 
 foreach ($f in @($optionsH,$optionsCpp,$sdl,$mainMenu,$doTurn,$inputH,$inputCpp,$handleAction,
                   $characterCpp,$characterHealthCpp,$meleeCpp,$knowledgeCpp,$craftingCpp,
-                  $rangedCpp,$dispersionH,$dispersionCpp)) {
+                  $rangedCpp,$dispersionH,$dispersionCpp,$inventoryUiH,$inventoryUiCpp,
+                  $gameInventoryCpp)) {
     if (-not (Test-Path $f)) { throw "Required source file missing: $f" }
 }
 
@@ -85,6 +89,9 @@ if (Test-Path $marker) {
     $rg = Read-Utf8 $rangedCpp
     $dh = Read-Utf8 $dispersionH
     $dc = Read-Utf8 $dispersionCpp
+    $iuh = Read-Utf8 $inventoryUiH
+    $iuc = Read-Utf8 $inventoryUiCpp
+    $gic = Read-Utf8 $gameInventoryCpp
     $checks = @(
         @($h,'COPT_WORLDGEN_ONLY'),
         @($h,'ncmm_begin_worldgen_group'),
@@ -116,7 +123,11 @@ if (Test-Path $marker) {
         @($rg,'targeting.hit_probability.enabled'),
         @($rg,'exact_hit_probability'),
         @($dh,'probability_below'),
-        @($dc,'dispersion_sources::probability_below')
+        @($dc,'dispersion_sources::probability_below'),
+        @($iuh,'set_equipment_body_map'),
+        @($iuc,'inventory.body_map.enabled'),
+        @($iuc,'draw_equipment_body_map'),
+        @($gic,'set_equipment_body_map();')
     )
     foreach ($x in $checks) {
         if (-not $x[0].Contains($x[1])) {
@@ -170,6 +181,9 @@ $crOriginal = Read-Utf8 $craftingCpp
 $rgOriginal = Read-Utf8 $rangedCpp
 $dhOriginal = Read-Utf8 $dispersionH
 $dcOriginal = Read-Utf8 $dispersionCpp
+$iuhOriginal = Read-Utf8 $inventoryUiH
+$iucOriginal = Read-Utf8 $inventoryUiCpp
+$gicOriginal = Read-Utf8 $gameInventoryCpp
 $hSig = NonAscii-Signature $hOriginal
 $cSig = NonAscii-Signature $cOriginal
 $sdSig = NonAscii-Signature $sdOriginal
@@ -186,6 +200,9 @@ $crSig = NonAscii-Signature $crOriginal
 $rgSig = NonAscii-Signature $rgOriginal
 $dhSig = NonAscii-Signature $dhOriginal
 $dcSig = NonAscii-Signature $dcOriginal
+$iuhSig = NonAscii-Signature $iuhOriginal
+$iucSig = NonAscii-Signature $iucOriginal
+$gicSig = NonAscii-Signature $gicOriginal
 
 $h = Normalize-Lf $hOriginal
 $c = Normalize-Lf $cOriginal
@@ -203,6 +220,9 @@ $cr = Normalize-Lf $crOriginal
 $rg = Normalize-Lf $rgOriginal
 $dh = Normalize-Lf $dhOriginal
 $dc = Normalize-Lf $dcOriginal
+$iuh = Normalize-Lf $iuhOriginal
+$iuc = Normalize-Lf $iucOriginal
+$gic = Normalize-Lf $gicOriginal
 
 # Ballistic Hit Chance: deterministic CDF for the exact dispersion model.
 $dh = Replace-ExactlyOnce $dh @'
@@ -1408,6 +1428,9 @@ Write-Utf8 $craftingCpp $cr
 Write-Utf8 $rangedCpp $rg
 Write-Utf8 $dispersionH $dh
 Write-Utf8 $dispersionCpp $dc
+Write-Utf8 $inventoryUiH $iuh
+Write-Utf8 $inventoryUiCpp $iuc
+Write-Utf8 $gameInventoryCpp $gic
 
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.h') (Join-Path $src 'ncmm_loader.h') -Force
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.cpp') (Join-Path $src 'ncmm_loader.cpp') -Force
@@ -1431,6 +1454,9 @@ $cr2 = Read-Utf8 $craftingCpp
 $rg2 = Read-Utf8 $rangedCpp
 $dh2 = Read-Utf8 $dispersionH
 $dc2 = Read-Utf8 $dispersionCpp
+$iuh2 = Read-Utf8 $inventoryUiH
+$iuc2 = Read-Utf8 $inventoryUiCpp
+$gic2 = Read-Utf8 $gameInventoryCpp
 
 if ((NonAscii-Signature $h2) -ne $hSig) { throw 'UTF-8 preservation check failed for options.h' }
 if ((NonAscii-Signature $c2) -ne $cSig) { throw 'UTF-8 preservation check failed for options.cpp' }
@@ -1448,6 +1474,9 @@ if ((NonAscii-Signature $cr2) -ne $crSig) { throw 'UTF-8 preservation check fail
 if ((NonAscii-Signature $rg2) -ne $rgSig) { throw 'UTF-8 preservation check failed for ranged.cpp' }
 if ((NonAscii-Signature $dh2) -ne $dhSig) { throw 'UTF-8 preservation check failed for dispersion.h' }
 if ((NonAscii-Signature $dc2) -ne $dcSig) { throw 'UTF-8 preservation check failed for dispersion.cpp' }
+if ((NonAscii-Signature $iuh2) -ne $iuhSig) { throw 'UTF-8 preservation check failed for inventory_ui.h' }
+if ((NonAscii-Signature $iuc2) -ne $iucSig) { throw 'UTF-8 preservation check failed for inventory_ui.cpp' }
+if ((NonAscii-Signature $gic2) -ne $gicSig) { throw 'UTF-8 preservation check failed for game_inventory.cpp' }
 
 foreach ($needle in @('COPT_WORLDGEN_ONLY','ncmm_begin_worldgen_group','ncmm_set_worldgen_string_choices')) {
     if (-not $h2.Contains($needle)) { throw "Post-check failed: $needle" }
@@ -1472,6 +1501,13 @@ foreach ($needle in @('targeting.hit_probability.enabled','exact_hit_probability
 }
 if (-not $dh2.Contains('probability_below')) { throw 'Post-check failed: dispersion probability declaration' }
 if (-not $dc2.Contains('dispersion_sources::probability_below')) { throw 'Post-check failed: dispersion probability implementation' }
+foreach ($needle in @('set_equipment_body_map','equipment_body_map_reserved_width')) {
+    if (-not $iuh2.Contains($needle)) { throw "Post-check failed: $needle" }
+}
+foreach ($needle in @('inventory.body_map.enabled','inventory.body_map.show_layers','draw_equipment_body_map','get_bodygraph_lines')) {
+    if (-not $iuc2.Contains($needle)) { throw "Post-check failed: $needle" }
+}
+if (-not $gic2.Contains('set_equipment_body_map();')) { throw 'Post-check failed: normal inventory body-map opt-in' }
 
 Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.8.2 module contract`n" -Encoding ASCII
 Write-Host 'NCMM 0.8.2 host patch applied and UTF-8 preservation verified.'
