@@ -116,8 +116,8 @@
     },
     {
       "path": "compat\\package-files.txt",
-      "sha256": "ca185fac993d86695dbd133866b9734a7725788bff8cdefc89213afed83f0a2f",
-      "bytes": 3458
+      "sha256": "8ccbd0ac15c8b7aef3a360b233d86b43bdcc19e8cc0b153d928680e9727e6558",
+      "bytes": 3494
     },
     {
       "path": "compat\\update\\index.json",
@@ -135,9 +135,14 @@
       "bytes": 575
     },
     {
+      "path": "components\\equipment_body_map.json",
+      "sha256": "2838064d46c0f6faf5b7cd9640c2f0465f5e2f56deca628095f2346cdf36ca94",
+      "bytes": 567
+    },
+    {
       "path": "components\\index.json",
-      "sha256": "29f227a14d529abe0f599af6fa8ec7fcab7116b144055867aaba08b88c6fe9f1",
-      "bytes": 4732
+      "sha256": "9a81b218dc136c33c84fb431103965a9b33aefe0c08afd7b0b8e06727aaa3221",
+      "bytes": 5449
     },
     {
       "path": "components\\ncmm_host.json",
