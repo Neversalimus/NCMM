@@ -309,10 +309,10 @@ bool inventory_selector::equipment_body_map_requested() const
 
 void inventory_selector::prepare_layout( size_t client_width, size_t client_height )
 {
-    constexpr size_t body_map_width = 36;
-    constexpr size_t min_inventory_width = 52;
+    constexpr size_t body_map_width = 44;
+    constexpr size_t min_inventory_width = 60;
     constexpr size_t body_map_gap = 1;
-    const bool body_map_fits = client_height >= 18 &&
+    const bool body_map_fits = client_height >= 28 &&
                                client_width >= body_map_width + body_map_gap +
                                min_inventory_width;
     equipment_body_map_reserved_width =
@@ -366,7 +366,7 @@ size_t inventory_selector::get_layout_width() const
     if( equipment_body_map_reserved_width > 0 ) {
         // Keep enough real inventory space that the second layout pass cannot
         // make the panel disappear after get_layout_width() shrinks the window.
-        content_width = std::max<size_t>( content_width, 52 );
+        content_width = std::max<size_t>( content_width, 60 );
         return content_width + equipment_body_map_reserved_width + 1;
     }
     return content_width;
@@ -440,10 +440,13 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
     int y = border + get_header_height() + 1;
     const int bottom = getmaxy( w ) - border;
 
-    center_print( w, y++, c_light_cyan,
-                  ncmm::localized_text(
-                      "EQUIPMENT",
-                      u8"\u042D\u041A\u0418\u041F\u0418\u0420\u041E\u0412\u041A\u0410" ) );
+    const std::string heading =
+        ncmm::localized_text(
+            "EQUIPMENT",
+            u8"\u042D\u041A\u0418\u041F\u0418\u0420\u041E\u0412\u041A\u0410" );
+    const int heading_x = panel_x + 1 +
+                          std::max( 0, ( content_width - utf8_width( heading, true ) ) / 2 );
+    trim_and_print( w, point( heading_x, y++ ), content_width, c_light_cyan, heading );
 
     const inventory_entry &highlighted = get_highlighted();
     const item *selected = highlighted.is_item() ? highlighted.any_item().get_item() : nullptr;
@@ -455,8 +458,14 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
                 return true;
             }
         }
+
+        // item::covers( sub_bodypart ) intentionally falls back to true for
+        // some legacy armor without sub_data. For a visualization this would
+        // paint unrelated graph fragments, so compare the actual covered
+        // sub-bodypart set instead.
+        const std::vector<sub_bodypart_id> covered = it.get_covered_sub_body_parts();
         for( const sub_bodypart_id &sbp : part.sub_bodyparts ) {
-            if( it.covers( sbp ) ) {
+            if( std::find( covered.begin(), covered.end(), sbp ) != covered.end() ) {
                 return true;
             }
         }
@@ -491,7 +500,8 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
     };
 
     const std::vector<std::string> graph_lines =
-        get_bodygraph_lines( u, bodygraph_cb, ncmm_equipment_bodygraph );
+        get_bodygraph_lines( u, bodygraph_cb, ncmm_equipment_bodygraph,
+                             content_width, 20 );
     for( const std::string &line : graph_lines ) {
         if( y >= bottom - 4 ) {
             break;
