@@ -54,13 +54,14 @@ bool register_settings( const ncmm_host_api_v1 *api )
 
     if( !host2->world_setting_register_bool(
             module_id, "NCMM_BHC_ENABLED",
-            tr( ru, "Show exact hit chance", "Показывать точный шанс попадания" ),
+            tr( ru, "Show ballistic hit chance", "Показывать баллистический шанс попадания" ),
             tr( ru,
-                "Shows deterministic probability from the same dispersion model used by firearm projectiles. "
-                "The value is conditional on the shot being fired; jams and weapon failures are not included.",
-                "Показывает детерминированную вероятность из той же модели разброса, которую используют "
-                "огнестрельные снаряды. Значение считается при условии, что выстрел произошёл; осечки и "
-                "неисправности оружия не учитываются." ),
+                "Shows deterministic trajectory probability from the firearm dispersion model and target evasion. "
+                "The value is conditional on the shot being fired; jams, weapon failures, intervening obstacles, "
+                "and per-pellet multishot spread are not folded into the percentage.",
+                "Показывает детерминированную вероятность траектории по модели разброса оружия и уклонения цели. "
+                "Значение считается при условии, что выстрел произошёл; осечки, неисправности оружия, препятствия "
+                "на линии огня и индивидуальный разброс дроби/мультиснарядов в процент не включаются." ),
             1, NCMM_WORLD_SETTING_LIVE ) ) {
         return false;
     }
