@@ -37,7 +37,7 @@
     {
       "id": "ncmm_host",
       "name": "NCMM Host",
-      "version": "0.8.1",
+      "version": "0.8.2",
       "kind": "native_host",
       "atomic_group": "host-runtime",
       "delivery": "source_build",
@@ -143,7 +143,7 @@
       "dependencies": [
         {
           "component": "ncmm_host",
-          "min_version": "0.8.1"
+          "min_version": "0.8.2"
         },
         {
           "capability": "host_api.v2.core"
