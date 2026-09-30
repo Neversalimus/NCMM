@@ -694,15 +694,15 @@ void target_ui::panel_spell_info( int &text_y )
                                          0, std::min( current_mode.qty,
                                                  weapon.shots_remaining( here, you ) ) );
             if( actual_shots > 0 ) {
-                // FIRE first aims to the UI-selected mode before the burst begins.
-                // Start the sequence at that predicted recoil so the first value
-                // matches the default FIRE row rather than the hypothetical snap shot.
-                const double initial_recoil = predict_recoil(
-                                                  *you, weapon, target, sight_dispersion,
-                                                  get_selected_aim_type(), you->recoil ).recoil;
+                // This line is the immediate-burst counterpart of "Hit now":
+                // it starts from current recoil. Future aim-mode rows below remain
+                // responsible for showing the result after additional aiming.
+                const double initial_recoil = you->recoil;
 
                 std::string burst =
-                    ncmm::localized_text( "Burst", u8"\u041E\u0447\u0435\u0440\u0435\u0434\u044C" ) + ": ";
+                    ncmm::localized_text(
+                        "Burst now",
+                        u8"\u041E\u0447\u0435\u0440\u0435\u0434\u044C \u0441\u0435\u0439\u0447\u0430\u0441" ) + ": ";
                 const int shown_front = std::min( actual_shots, 5 );
                 for( int shot = 0; shot < shown_front; ++shot ) {
                     if( shot > 0 ) {
