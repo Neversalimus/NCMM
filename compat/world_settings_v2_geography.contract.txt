@@ -720,8 +720,9 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
     const auto geo_enabled = [&]( const char *id ) {
         return !ncmm_geo || !get_options().has_option( id ) || get_option<bool>( id );
     };
-    const bool ncmm_place_railroads = ncmm_geo ?
-                                         geo_enabled( "NCMM_AWS_PLACE_RAILROADS" ) :
+    const bool ncmm_place_railroads = ncmm_geo &&
+                                         get_options().has_option( "NCMM_AWS_PLACE_RAILROADS" ) ?
+                                         get_option<bool>( "NCMM_AWS_PLACE_RAILROADS" ) :
                                          settings->place_railroads;
     if( settings->neighbor_connections && geo_enabled( "NCMM_AWS_NEIGHBOR_CONNECTIONS" ) ) {
         populate_connections_out_from_neighbors( neighbor_overmaps );
