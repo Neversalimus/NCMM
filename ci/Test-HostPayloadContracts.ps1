@@ -201,6 +201,17 @@ if(-not $payload.Contains('Remove-AwsLineContaining $aws ''NCMM_AWS_NEIGHBOR_CON
     throw 'AWS 0.6.4 protected neighbor-connection control removal missing.'
 }
 
+foreach($railroadFallbackNeedle064 in @(
+    'const bool ncmm_place_railroads = ncmm_geo &&',
+    'get_options().has_option( "NCMM_AWS_PLACE_RAILROADS" ) ?',
+    'get_option<bool>( "NCMM_AWS_PLACE_RAILROADS" ) :',
+    'settings->place_railroads;'
+)){
+    if(-not $payload.Contains($railroadFallbackNeedle064)){
+        throw ('AWS 0.6.4 railroad region-fallback contract missing: '+$railroadFallbackNeedle064)
+    }
+}
+
 $b=[IO.File]::ReadAllBytes((Join-Path $PackageRoot 'NCMM.cmd'));if($b.Length -ge 3 -and $b[0]-eq 0xEF -and $b[1]-eq 0xBB -and $b[2]-eq 0xBF){throw 'NCMM.cmd must not contain UTF-8 BOM.'}
 $cmdText=[IO.File]::ReadAllText((Join-Path $PackageRoot 'NCMM.cmd'))
 foreach($bad in @(' -Command ','^|%%{','SHIFT ','%*')){if($cmdText.Contains($bad)){throw ('NCMM.cmd unsafe CMD/PowerShell bridge token: '+$bad)}}
