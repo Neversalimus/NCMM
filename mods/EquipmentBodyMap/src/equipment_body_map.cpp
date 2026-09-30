@@ -8,6 +8,10 @@ namespace
 {
 constexpr const char *module_id = "equipment_body_map";
 constexpr const char *module_version = "0.1.0";
+constexpr const char *setting_enabled = "NCMM_EBM_ENABLED";
+constexpr const char *setting_show_layers = "NCMM_EBM_SHOW_LAYERS";
+constexpr const char *runtime_hook_enabled = "inventory.body_map.enabled";
+constexpr const char *runtime_hook_show_layers = "inventory.body_map.show_layers";
 
 const ncmm_host_api_v2_core *host2 = nullptr;
 
@@ -53,7 +57,7 @@ bool register_settings( const ncmm_host_api_v1 *api )
     const bool ru = russian( api );
 
     if( !host2->world_setting_register_bool(
-            module_id, "NCMM_EBM_ENABLED",
+            module_id, setting_enabled,
             tr( ru, "Show equipment body map", "Показывать схему экипировки" ),
             tr( ru,
                 "Adds a body-map panel to the normal inventory. Worn-item density is shown on the anatomy graph and the selected item's coverage is highlighted.",
@@ -63,7 +67,7 @@ bool register_settings( const ncmm_host_api_v1 *api )
     }
 
     if( !host2->world_setting_register_bool(
-            module_id, "NCMM_EBM_SHOW_LAYERS",
+            module_id, setting_show_layers,
             tr( ru, "Show selected item layers", "Показывать слои выбранной вещи" ),
             tr( ru,
                 "Shows the armor layer names for the currently selected wearable item in the body-map panel.",
@@ -81,11 +85,11 @@ bool bind_runtime_settings()
         return false;
     }
     return host2->runtime_hook_bind_setting(
-               module_id, "inventory.body_map.enabled",
-               "NCMM_EBM_ENABLED", NCMM_SETTING_BOOL_V2 ) != 0 &&
+               module_id, runtime_hook_enabled,
+               setting_enabled, NCMM_SETTING_BOOL_V2 ) != 0 &&
            host2->runtime_hook_bind_setting(
-               module_id, "inventory.body_map.show_layers",
-               "NCMM_EBM_SHOW_LAYERS", NCMM_SETTING_BOOL_V2 ) != 0;
+               module_id, runtime_hook_show_layers,
+               setting_show_layers, NCMM_SETTING_BOOL_V2 ) != 0;
 }
 
 int init( const ncmm_host_api_v1 *api )
