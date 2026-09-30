@@ -647,8 +647,9 @@ void target_ui::panel_spell_info( int &text_y )
     nc_color clr = c_light_gray;
     print_colored_text( w_target, point( 1, text_y++ ), clr, clr, str );
 
-    if( mode == TargetMode::Fire && ncmm_hit_probability_enabled() &&
-        relevant != nullptr && !relevant->gun_current_mode().melee() ) {
+    if( mode == TargetMode::Fire && status == Status::Good && src != dst &&
+        ncmm_hit_probability_enabled() && relevant != nullptr &&
+        !relevant->gun_current_mode().melee() ) {
         const gun_mode current_mode = relevant->gun_current_mode();
         const item &weapon = *current_mode;
         const Target_attributes target = ncmm_gun_target_attributes( *you, weapon, dst );
