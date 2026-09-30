@@ -569,7 +569,7 @@ $rg = Replace-ExactlyOnce $rg @'
             } else {
                 std::string aim_label = string_format( _( "%s %s:" ), out.name, _( "Aim" ) );
                 if( out.exact_hit_probability >= 0.0 ) {
-                    aim_label += " " + ncmm::localized_text( "Hit", "Попадание" ) + ": " +
+                    aim_label += " " + ncmm::localized_text( "Hit", u8"\u041F\u043E\u043F\u0430\u0434\u0430\u043D\u0438\u0435" ) + ": " +
                                  ncmm_hit_probability_text( out.exact_hit_probability );
                 }
                 print_colored_text( w, point( 1, line_number ), col, col, aim_label );
@@ -591,7 +591,7 @@ $rg = Replace-ExactlyOnce $rg @'
                                string_format( "<color_white>[%s]</color> <color_%s>%s %s</color> | %s: <color_light_blue>%3d</color> (%d)",
                                               out.hotkey, col_hl, out.name, _( "Aim" ), _( "Moves to fire" ), out.moves, time );
             if( out.exact_hit_probability >= 0.0 ) {
-                desc += " | " + ncmm::localized_text( "Hit", "Попадание" ) + ": " +
+                desc += " | " + ncmm::localized_text( "Hit", u8"\u041F\u043E\u043F\u0430\u0434\u0430\u043D\u0438\u0435" ) + ": " +
                         ncmm_hit_probability_text( out.exact_hit_probability );
             }
 
@@ -651,7 +651,7 @@ void target_ui::panel_spell_info( int &text_y )
 
         const double current_probability = probability_at_recoil( you->recoil );
         const std::string current_line =
-            ncmm::localized_text( "Hit now", "Попадание сейчас" ) + ": " +
+            ncmm::localized_text( "Hit now", u8"\u041F\u043E\u043F\u0430\u0434\u0430\u043D\u0438\u0435 \u0441\u0435\u0439\u0447\u0430\u0441" ) + ": " +
             ncmm_hit_probability_text( current_probability );
         print_colored_text( w_target, point( 1, text_y++ ), clr, clr, current_line );
 
@@ -686,7 +686,7 @@ void target_ui::panel_spell_info( int &text_y )
                 }
             }
 
-            std::string burst = ncmm::localized_text( "Burst", "Очередь" ) + ": ";
+            std::string burst = ncmm::localized_text( "Burst", u8"\u041E\u0447\u0435\u0440\u0435\u0434\u044C" ) + ": ";
             const int shown_front =
                 std::min<int>( static_cast<int>( probabilities.size() ), 5 );
             for( int i = 0; i < shown_front; ++i ) {
@@ -696,7 +696,7 @@ void target_ui::panel_spell_info( int &text_y )
                 burst += ncmm_hit_probability_text( probabilities[i] );
             }
             if( probabilities.size() > 6 ) {
-                burst += " / … / ";
+                burst += " / ... / ";
                 burst += ncmm_hit_probability_text( probabilities.back() );
             } else if( probabilities.size() == 6 ) {
                 burst += " / ";
