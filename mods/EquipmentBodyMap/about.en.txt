@@ -1,0 +1,1 @@
+Adds a live equipment body map to the normal inventory. The body graph reflects worn-item coverage and highlights the currently selected item's coverage.
