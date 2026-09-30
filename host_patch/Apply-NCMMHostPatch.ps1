@@ -385,7 +385,7 @@ $rg = Replace-ExactlyOnce $rg @'
 static const flag_id json_flag_SINGLE_ACTION( "SINGLE_ACTION" );
 '@ @'
 static const flag_id json_flag_SINGLE_ACTION( "SINGLE_ACTION" );
-static const flag_id json_flag_HARDTOHIT( "HARDTOHIT" );
+static const json_character_flag json_flag_HARDTOHIT( "HARDTOHIT" );
 '@ 'ranged.hard-to-hit-flag'
 
 $rg = Replace-ExactlyOnce $rg @'
