@@ -74,7 +74,9 @@ int has_capability_fn( const char *cap )
     if( cap == nullptr ) {
         return 0;
     }
-    if( simulate_missing_contract && std::strcmp( cap, "world_options.v1" ) == 0 ) {
+    if( simulate_missing_contract &&
+        ( std::strcmp( cap, "world_options.v1" ) == 0 ||
+          std::strcmp( cap, "runtime_settings.bindings.v2" ) == 0 ) ) {
         return 0;
     }
     static const std::set<std::string> capabilities = {
@@ -86,7 +88,8 @@ int has_capability_fn( const char *cap )
         "events.core.v2", "character.modifiers.v2", "runtime_hooks.registry.v2",
         "ui.layout.v1", "module_hotkeys.v1", "module_hotkeys.context.v1",
         "ingame_manager.v1", "api.versioning.v1", "state.migration.v1",
-        "module.lifecycle.v1", "settings.typed.v2", "worldgen.bindings.v2"
+        "module.lifecycle.v1", "settings.typed.v2", "worldgen.bindings.v2",
+        "runtime_settings.bindings.v2"
     };
     return capabilities.count( cap ) != 0 ? 1 : 0;
 }
@@ -98,7 +101,7 @@ const char *get_locale_fn()
 
 const char *get_host_version_fn()
 {
-    return "0.8.1-smoke";
+    return "0.8.2-smoke";
 }
 
 uint32_t get_loader_api_fn()
@@ -125,7 +128,8 @@ const char *smoke_caps[] = {
     "events.core.v2", "character.modifiers.v2", "runtime_hooks.registry.v2",
     "ui.layout.v1", "module_hotkeys.v1", "module_hotkeys.context.v1",
     "ingame_manager.v1", "api.versioning.v1", "state.migration.v1",
-    "module.lifecycle.v1", "settings.typed.v2", "worldgen.bindings.v2"
+    "module.lifecycle.v1", "settings.typed.v2", "worldgen.bindings.v2",
+    "runtime_settings.bindings.v2"
 };
 
 size_t get_capability_count_fn()
@@ -244,6 +248,7 @@ int modifier_clear_fn( const char *module_id )
 }
 
 size_t worldgen_binding_count = 0;
+size_t runtime_setting_binding_count = 0;
 size_t runtime_hook_binding_count = 0;
 size_t modifier_definition_count = 0;
 size_t event_subscription_count = 0;
@@ -279,6 +284,7 @@ std::map<std::string, int64_t> setting_i64_values;
 std::map<std::string, double> setting_f64_values;
 std::map<std::string, std::string> setting_string_values;
 std::map<std::string, smoke_worldgen_binding> worldgen_bindings;
+std::map<std::string, smoke_worldgen_binding> runtime_setting_bindings;
 std::set<std::string> active_world_mods;
 
 int world_setting_register_bool_fn( const char *, const char *setting_id, const char *, const char *,
@@ -549,6 +555,50 @@ double worldgen_hook_f64_v2_fn( const char *hook_id, double fallback )
     if( hook_id == nullptr ) return fallback;
     const auto binding = worldgen_bindings.find( hook_id );
     if( binding == worldgen_bindings.end() || binding->second.type != NCMM_WORLDGEN_FLOAT_V2 ) {
+        return fallback;
+    }
+    return world_setting_get_f64_fn( binding->second.setting_id.c_str(), fallback );
+}
+
+int runtime_hook_bind_setting_v2_fn( const char *, const char *hook_id,
+                                     const char *setting_id, uint32_t type )
+{
+    if( hook_id == nullptr || *hook_id == '\0' || setting_id == nullptr || *setting_id == '\0' ) {
+        return 0;
+    }
+    smoke_worldgen_binding binding;
+    binding.setting_id = setting_id;
+    binding.type = type;
+    runtime_setting_bindings[hook_id] = binding;
+    ++runtime_setting_binding_count;
+    return 1;
+}
+
+int runtime_hook_bool_setting_v2_fn( const char *hook_id, int fallback )
+{
+    if( hook_id == nullptr ) return fallback;
+    const auto binding = runtime_setting_bindings.find( hook_id );
+    if( binding == runtime_setting_bindings.end() || binding->second.type != NCMM_SETTING_BOOL_V2 ) {
+        return fallback;
+    }
+    return world_setting_get_bool_fn( binding->second.setting_id.c_str(), fallback );
+}
+
+int64_t runtime_hook_i64_setting_v2_fn( const char *hook_id, int64_t fallback )
+{
+    if( hook_id == nullptr ) return fallback;
+    const auto binding = runtime_setting_bindings.find( hook_id );
+    if( binding == runtime_setting_bindings.end() || binding->second.type != NCMM_SETTING_INT_V2 ) {
+        return fallback;
+    }
+    return world_setting_get_i64_fn( binding->second.setting_id.c_str(), fallback );
+}
+
+double runtime_hook_f64_setting_v2_fn( const char *hook_id, double fallback )
+{
+    if( hook_id == nullptr ) return fallback;
+    const auto binding = runtime_setting_bindings.find( hook_id );
+    if( binding == runtime_setting_bindings.end() || binding->second.type != NCMM_SETTING_FLOAT_V2 ) {
         return fallback;
     }
     return world_setting_get_f64_fn( binding->second.setting_id.c_str(), fallback );
@@ -1510,6 +1560,10 @@ int main( int argc, char **argv )
     smoke_host2.worldgen_hook_bool = &worldgen_hook_bool_v2_fn;
     smoke_host2.worldgen_hook_i64 = &worldgen_hook_i64_v2_fn;
     smoke_host2.worldgen_hook_f64 = &worldgen_hook_f64_v2_fn;
+    smoke_host2.runtime_hook_bind_setting = &runtime_hook_bind_setting_v2_fn;
+    smoke_host2.runtime_hook_bool = &runtime_hook_bool_setting_v2_fn;
+    smoke_host2.runtime_hook_i64 = &runtime_hook_i64_setting_v2_fn;
+    smoke_host2.runtime_hook_f64 = &runtime_hook_f64_setting_v2_fn;
 
     for( size_t i = 0; i < desc->required_capability_count; ++i ) {
         if( !api.has_capability( desc->required_capabilities[i] ) ) {
@@ -1553,6 +1607,28 @@ int main( int argc, char **argv )
             return 39;
         }
         std::cout << "NCMM smoke test: PASS (AWS 0.6.3 legacy controls + Host API 2.0 geography bindings)\n";
+        return 0;
+    }
+
+    if( std::strcmp( desc->id, "ballistic_hit_chance" ) == 0 ) {
+        if( std::strcmp( desc->version, "0.1.0" ) != 0 ) {
+            std::cerr << "Ballistic Hit Chance descriptor version mismatch\n";
+            return 41;
+        }
+        if( registered_setting_ids.count( "NCMM_BHC_ENABLED" ) == 0 ||
+            registered_setting_ids.count( "NCMM_BHC_DECIMAL" ) == 0 ||
+            runtime_setting_binding_count != 2 ||
+            runtime_setting_bindings.count( "targeting.hit_probability.enabled" ) == 0 ||
+            runtime_setting_bindings.count( "targeting.hit_probability.decimal" ) == 0 ) {
+            std::cerr << "Ballistic Hit Chance runtime setting registration failed\n";
+            return 42;
+        }
+        if( runtime_hook_bool_setting_v2_fn( "targeting.hit_probability.enabled", 0 ) != 1 ||
+            runtime_hook_bool_setting_v2_fn( "targeting.hit_probability.decimal", 1 ) != 0 ) {
+            std::cerr << "Ballistic Hit Chance default setting values failed\n";
+            return 43;
+        }
+        std::cout << "NCMM smoke test: PASS (Ballistic Hit Chance 0.1.0 runtime bindings)\n";
         return 0;
     }
 

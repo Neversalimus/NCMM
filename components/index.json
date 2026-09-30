@@ -17,6 +17,9 @@
     ],
     "optional-diagnostics": [
       "recipe_finalize_profiler"
+    ],
+    "ballistic-hit-chance": [
+      "ballistic_hit_chance"
     ]
   },
   "components": [
@@ -34,7 +37,7 @@
     {
       "id": "ncmm_host",
       "name": "NCMM Host",
-      "version": "0.8.1",
+      "version": "0.8.2",
       "kind": "native_host",
       "atomic_group": "host-runtime",
       "delivery": "source_build",
@@ -57,6 +60,7 @@
         "events.core.v2",
         "settings.typed.v2",
         "character.modifiers.v2",
+        "runtime_settings.bindings.v2",
         "runtime_hooks.registry.v2",
         "worldgen.bindings.v2",
         "module.lifecycle.query.v2"
@@ -127,6 +131,31 @@
         }
       ],
       "descriptor": "components/advanced_world_settings.json"
+    },
+    {
+      "id": "ballistic_hit_chance",
+      "name": "Ballistic Hit Chance",
+      "version": "0.1.0",
+      "kind": "native_module",
+      "atomic_group": "ballistic-hit-chance",
+      "delivery": "source_build",
+      "required": false,
+      "dependencies": [
+        {
+          "component": "ncmm_host",
+          "min_version": "0.8.2"
+        },
+        {
+          "capability": "host_api.v2.core"
+        },
+        {
+          "capability": "settings.typed.v2"
+        },
+        {
+          "capability": "runtime_settings.bindings.v2"
+        }
+      ],
+      "descriptor": "components/ballistic_hit_chance.json"
     },
     {
       "id": "recipe_finalize_profiler",

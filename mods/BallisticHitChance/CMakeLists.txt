@@ -1,0 +1,14 @@
+cmake_minimum_required(VERSION 3.20)
+project(BallisticHitChance LANGUAGES CXX)
+
+add_library(ncmm_mod SHARED src/ballistic_hit_chance.cpp)
+target_compile_features(ncmm_mod PRIVATE cxx_std_17)
+target_include_directories(ncmm_mod PRIVATE ../../sdk)
+target_compile_definitions(ncmm_mod PRIVATE NCMM_MOD_BUILD)
+
+if(MSVC)
+  set_property(TARGET ncmm_mod PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  target_compile_options(ncmm_mod PRIVATE /EHsc)
+endif()
+
+set_target_properties(ncmm_mod PROPERTIES PREFIX "" OUTPUT_NAME "ncmm_mod")

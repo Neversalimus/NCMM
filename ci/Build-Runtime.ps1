@@ -14,18 +14,23 @@ New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 $payload = Join-Path $OutputRoot 'payload'
 New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\AdvancedWorldSettings') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\SurvivorProgression') | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\BallisticHitChance') | Out-Null
 
 $awsManifestPath = Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings\mod.json'
 $survivorManifestPath = Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json'
+$ballisticManifestPath = Join-Path $RepositoryRoot 'mods\BallisticHitChance\mod.json'
 $awsManifestSource = Get-Content $awsManifestPath -Raw | ConvertFrom-Json
 $survivorManifestSource = Get-Content $survivorManifestPath -Raw | ConvertFrom-Json
+$ballisticManifestSource = Get-Content $ballisticManifestPath -Raw | ConvertFrom-Json
 $hostVersion = (& (Join-Path $RepositoryRoot 'ci\Get-NcmmCurrentVersion.ps1') -RepositoryRoot $RepositoryRoot).Trim()
 $awsVersion = [string]$awsManifestSource.version
 $survivorVersion = [string]$survivorManifestSource.version
+$ballisticVersion = [string]$ballisticManifestSource.version
 foreach($pair in @(
     @{Name='Host';Value=$hostVersion},
     @{Name='Advanced World Settings';Value=$awsVersion},
-    @{Name='Survivor Progression';Value=$survivorVersion}
+    @{Name='Survivor Progression';Value=$survivorVersion},
+    @{Name='Ballistic Hit Chance';Value=$ballisticVersion}
 )){
     if([string]::IsNullOrWhiteSpace([string]$pair.Value) -or [string]$pair.Value -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$'){
         throw ("Invalid {0} version: {1}" -f $pair.Name,$pair.Value)
@@ -68,8 +73,12 @@ function New-NcmmModuleArchive {
 
     $zipName = if ($ComponentId -eq 'advanced_world_settings') {
         "NCMM_AdvancedWorldSettings_v$Version.zip"
-    } else {
+    } elseif ($ComponentId -eq 'survivor_progression') {
         "NCMM_SurvivorProgression_v$Version.zip"
+    } elseif ($ComponentId -eq 'ballistic_hit_chance') {
+        "NCMM_BallisticHitChance_v$Version.zip"
+    } else {
+        throw "Unknown native module component id: $ComponentId"
     }
     $zipPath = Join-Path (Split-Path $OutputRoot -Parent) $zipName
     if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
@@ -144,6 +153,42 @@ foreach($about in Get-ChildItem (Join-Path $RepositoryRoot 'mods\AdvancedWorldSe
     Copy-Item $about.FullName (Join-Path (Join-Path $payload 'code_mods\AdvancedWorldSettings') $about.Name) -Force
 }
 
+$bhcBuild = Join-Path $OutputRoot '_ballistic_hit_chance_build'
+cmake -S (Join-Path $RepositoryRoot 'mods\BallisticHitChance') -B $bhcBuild -A x64
+if ($LASTEXITCODE -ne 0) { throw 'Ballistic Hit Chance CMake configure failed.' }
+cmake --build $bhcBuild --config Release
+if ($LASTEXITCODE -ne 0) { throw 'Ballistic Hit Chance build failed.' }
+$bhc = Get-ChildItem $bhcBuild -Filter 'ncmm_mod.dll' -Recurse -File | Select-Object -First 1
+if (-not $bhc) { throw 'Ballistic Hit Chance ncmm_mod.dll not found after build.' }
+
+& $smoke.FullName $bhc.FullName
+if ($LASTEXITCODE -ne 0) { throw 'Ballistic Hit Chance module contract smoke test failed.' }
+& $smoke.FullName $bhc.FullName '--missing-contract'
+if ($LASTEXITCODE -ne 0) { throw 'Ballistic Hit Chance fail-closed smoke test failed.' }
+
+Copy-Item $bhc.FullName (Join-Path $payload 'code_mods\BallisticHitChance\ncmm_mod.dll') -Force
+Copy-Item $ballisticManifestPath (Join-Path $payload 'code_mods\BallisticHitChance\mod.json') -Force
+foreach($about in Get-ChildItem (Join-Path $RepositoryRoot 'mods\BallisticHitChance') -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
+    Copy-Item $about.FullName (Join-Path (Join-Path $payload 'code_mods\BallisticHitChance') $about.Name) -Force
+}
+
+$bhcManifest = $ballisticManifestSource
+if ($bhcManifest.loader_api -ne 1 -or $bhcManifest.failure_policy -ne 'disable' -or
+    [string]$bhcManifest.version -ne $ballisticVersion) {
+    throw "Ballistic Hit Chance manifest contract invalid for version $ballisticVersion."
+}
+foreach ($required in @(
+    'core.v1','locale.v1','api.versioning.v1','host_api.v2.core',
+    'settings.typed.v2','runtime_settings.bindings.v2'
+)) {
+    if (-not ($bhcManifest.requires -contains $required)) {
+        throw "Ballistic Hit Chance manifest missing $required"
+    }
+}
+if (($bhcManifest.requires | Select-Object -Unique).Count -ne $bhcManifest.requires.Count) {
+    throw 'Ballistic Hit Chance manifest contains duplicate capability requirements.'
+}
+
 $manifest = $awsManifestSource
 if ($manifest.loader_api -ne 1) { throw 'AWS manifest loader_api must be 1.' }
 if ($manifest.failure_policy -ne 'disable') { throw 'AWS manifest failure_policy must be disable.' }
@@ -211,6 +256,7 @@ foreach ($required in @(
 if (-not $PayloadOnly) {
     $awsModuleZip = New-NcmmModuleArchive -Folder 'AdvancedWorldSettings' -ComponentId 'advanced_world_settings' -Version $awsVersion
     $survivorModuleZip = New-NcmmModuleArchive -Folder 'SurvivorProgression' -ComponentId 'survivor_progression' -Version $survivorVersion
+    $ballisticModuleZip = New-NcmmModuleArchive -Folder 'BallisticHitChance' -ComponentId 'ballistic_hit_chance' -Version $ballisticVersion
 }
 
 # Current NCMM loader hardening is intentionally source-structural: Runtime CI
@@ -310,6 +356,7 @@ if ($hostPatchSource.Contains("if (`$LASTEXITCODE -ne 0) { throw 'NCMM source-co
 
 Remove-Item $awsBuild -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $spBuild -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item $bhcBuild -Recurse -Force -ErrorAction SilentlyContinue
 
 if (-not $PayloadOnly) {
 @"
@@ -317,11 +364,11 @@ NCMM $hostVersion Runtime
 ===============
 1. Run NCMM_Setup.exe.
 2. Select the CDDA folder containing cataclysm-tiles.exe.
-3. Choose optional components: Advanced World Settings and/or Survivor Progression.
+3. Choose optional components: Advanced World Settings, Survivor Progression, and/or Ballistic Hit Chance.
 4. Click "Install / Repair selected".
 5. Launch CDDA normally from CatLauncher, Catapult, or a shortcut.
 
-The Host/runtime is required. Advanced World Settings and Survivor Progression are independent optional modules.
+The Host/runtime is required. Advanced World Settings, Survivor Progression, and Ballistic Hit Chance are independent optional modules.
 No compiler, Git, CMake, or MSYS2 is required on the player's PC.
 If no exact certified host exists for the installed CDDA executable, NCMM starts vanilla CDDA.
 "@ | Set-Content (Join-Path $OutputRoot 'README.txt') -Encoding UTF8
@@ -342,6 +389,7 @@ New-Item -ItemType Directory -Force -Path $packagesDir | Out-Null
 Copy-Item $zip (Join-Path $packagesDir (Split-Path $zip -Leaf)) -Force
 Copy-Item $awsModuleZip (Join-Path $packagesDir (Split-Path $awsModuleZip -Leaf)) -Force
 Copy-Item $survivorModuleZip (Join-Path $packagesDir (Split-Path $survivorModuleZip -Leaf)) -Force
+Copy-Item $ballisticModuleZip (Join-Path $packagesDir (Split-Path $ballisticModuleZip -Leaf)) -Force
 
 $releaseManifest = [ordered]@{
     schema = 1
@@ -351,7 +399,8 @@ $releaseManifest = [ordered]@{
     bundled_installer = $true
     modules = @(
         [ordered]@{ id='advanced_world_settings'; version=$awsVersion; package=(Split-Path $awsModuleZip -Leaf) },
-        [ordered]@{ id='survivor_progression'; version=$survivorVersion; package=(Split-Path $survivorModuleZip -Leaf) }
+        [ordered]@{ id='survivor_progression'; version=$survivorVersion; package=(Split-Path $survivorModuleZip -Leaf) },
+        [ordered]@{ id='ballistic_hit_chance'; version=$ballisticVersion; package=(Split-Path $ballisticModuleZip -Leaf) }
     )
 }
 $releaseManifest | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $fullStage 'release-manifest.json') -Encoding UTF8
@@ -361,10 +410,10 @@ $fullReadme = @(
     '====================',
     'Recommended: extract this archive and run NCMM_Setup.exe.',
     '',
-    "Included directly: NCMM Runtime / Host bootstrap and installer, Advanced World Settings $awsVersion, Survivor Progression $survivorVersion.",
+    "Included directly: NCMM Runtime / Host bootstrap and installer, Advanced World Settings $awsVersion, Survivor Progression $survivorVersion, Ballistic Hit Chance $ballisticVersion.",
     '',
     'Standalone packages are preserved in the packages folder.',
-    'The installer always installs/repairs NCMM and lets you select AWS and Survivor independently.'
+    'The installer always installs/repairs NCMM and lets you select AWS, Survivor, and Ballistic Hit Chance independently.'
 ) -join [Environment]::NewLine
 Set-Content (Join-Path $fullStage 'FULL_RELEASE.txt') -Value $fullReadme -Encoding UTF8
 
@@ -377,6 +426,7 @@ Write-Output $fullZip
 Write-Output $zip
 Write-Output $awsModuleZip
 Write-Output $survivorModuleZip
+Write-Output $ballisticModuleZip
 
 } else {
     Write-Host 'Build-Runtime payload-only mode: release archives were not generated.' -ForegroundColor DarkGray

@@ -17,10 +17,14 @@ $characterHealthCpp = Join-Path $src 'character_health.cpp'
 $meleeCpp = Join-Path $src 'melee.cpp'
 $knowledgeCpp = Join-Path $src 'character_knowledge.cpp'
 $craftingCpp = Join-Path $src 'crafting.cpp'
+$rangedCpp = Join-Path $src 'ranged.cpp'
+$dispersionH = Join-Path $src 'dispersion.h'
+$dispersionCpp = Join-Path $src 'dispersion.cpp'
 $marker = Join-Path $SourceRoot '.ncmm_host_v1_patched'
 
 foreach ($f in @($optionsH,$optionsCpp,$sdl,$mainMenu,$doTurn,$inputH,$inputCpp,$handleAction,
-                  $characterCpp,$characterHealthCpp,$meleeCpp,$knowledgeCpp,$craftingCpp)) {
+                  $characterCpp,$characterHealthCpp,$meleeCpp,$knowledgeCpp,$craftingCpp,
+                  $rangedCpp,$dispersionH,$dispersionCpp)) {
     if (-not (Test-Path $f)) { throw "Required source file missing: $f" }
 }
 
@@ -61,8 +65,8 @@ function NonAscii-Signature([string]$Text) {
 
 if (Test-Path $marker) {
     $markerText = [System.IO.File]::ReadAllText($marker)
-    if (-not $markerText.Contains('NCMM 0.8.1')) {
-        throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.8.1.'
+    if (-not $markerText.Contains('NCMM 0.8.2')) {
+        throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.8.2.'
     }
 
     $h = Read-Utf8 $optionsH
@@ -78,6 +82,9 @@ if (Test-Path $marker) {
     $me = Read-Utf8 $meleeCpp
     $kn = Read-Utf8 $knowledgeCpp
     $cr = Read-Utf8 $craftingCpp
+    $rg = Read-Utf8 $rangedCpp
+    $dh = Read-Utf8 $dispersionH
+    $dc = Read-Utf8 $dispersionCpp
     $checks = @(
         @($h,'COPT_WORLDGEN_ONLY'),
         @($h,'ncmm_begin_worldgen_group'),
@@ -105,7 +112,11 @@ if (Test-Path $marker) {
         @($hh,'ncmm::gameplay_modifier( "stamina_max_pct" )'),
         @($me,'ncmm::gameplay_modifier( "dodge_flat" )'),
         @($kn,'ncmm::gameplay_modifier( "read_speed_pct" )'),
-        @($cr,'ncmm::gameplay_modifier( "craft_speed_pct" )')
+        @($cr,'ncmm::gameplay_modifier( "craft_speed_pct" )'),
+        @($rg,'targeting.hit_probability.enabled'),
+        @($rg,'exact_hit_probability'),
+        @($dh,'probability_below'),
+        @($dc,'dispersion_sources::probability_below')
     )
     foreach ($x in $checks) {
         if (-not $x[0].Contains($x[1])) {
@@ -132,8 +143,8 @@ Copy-Item (Join-Path $PSScriptRoot 'ncmm_manifest_policy.h') (Join-Path $src 'nc
     if (-not $kn.Contains('ncmm::gameplay_modifier( "read_speed_pct" )')) { throw 'Post-check failed: read_speed_pct' }
     if (-not $cr.Contains('ncmm::gameplay_modifier( "craft_speed_pct" )')) { throw 'Post-check failed: craft_speed_pct' }
 
-    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.8.1 module contract`n" -Encoding ASCII
-    Write-Host 'Existing NCMM upstream patch verified; v0.8.1 loader/API refreshed.'
+    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.8.2 module contract`n" -Encoding ASCII
+    Write-Host 'Existing NCMM upstream patch verified; v0.8.2 loader/API refreshed.'
     exit 0
 }
 
@@ -156,6 +167,9 @@ $hhOriginal = Read-Utf8 $characterHealthCpp
 $meOriginal = Read-Utf8 $meleeCpp
 $knOriginal = Read-Utf8 $knowledgeCpp
 $crOriginal = Read-Utf8 $craftingCpp
+$rgOriginal = Read-Utf8 $rangedCpp
+$dhOriginal = Read-Utf8 $dispersionH
+$dcOriginal = Read-Utf8 $dispersionCpp
 $hSig = NonAscii-Signature $hOriginal
 $cSig = NonAscii-Signature $cOriginal
 $sdSig = NonAscii-Signature $sdOriginal
@@ -169,6 +183,9 @@ $hhSig = NonAscii-Signature $hhOriginal
 $meSig = NonAscii-Signature $meOriginal
 $knSig = NonAscii-Signature $knOriginal
 $crSig = NonAscii-Signature $crOriginal
+$rgSig = NonAscii-Signature $rgOriginal
+$dhSig = NonAscii-Signature $dhOriginal
+$dcSig = NonAscii-Signature $dcOriginal
 
 $h = Normalize-Lf $hOriginal
 $c = Normalize-Lf $cOriginal
@@ -183,6 +200,551 @@ $hh = Normalize-Lf $hhOriginal
 $me = Normalize-Lf $meOriginal
 $kn = Normalize-Lf $knOriginal
 $cr = Normalize-Lf $crOriginal
+$rg = Normalize-Lf $rgOriginal
+$dh = Normalize-Lf $dhOriginal
+$dc = Normalize-Lf $dcOriginal
+
+# Ballistic Hit Chance: deterministic CDF for the exact dispersion model.
+$dh = Replace-ExactlyOnce $dh @'
+        double avg() const;
+'@ @'
+        double avg() const;
+
+        /** Deterministic CDF of roll(): P( dispersion roll < threshold ). */
+        double probability_below( double threshold ) const;
+'@ 'dispersion.probability-declaration'
+
+$dc = Replace-ExactlyOnce $dc '#include <algorithm>' @'
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+'@ 'dispersion.probability-includes'
+
+$dc = Replace-ExactlyOnce $dc @'
+double dispersion_sources::avg() const
+{
+    return max() / 2.0;
+}
+'@ @'
+double dispersion_sources::avg() const
+{
+    return max() / 2.0;
+}
+
+double dispersion_sources::probability_below( double threshold ) const
+{
+    if( !std::isfinite( threshold ) ) {
+        return threshold > 0.0 ? 1.0 : 0.0;
+    }
+    if( threshold <= 0.0 ) {
+        return 0.0;
+    }
+    // roll() clamps the final result to 3600 arcminutes.
+    if( threshold > 3600.0 ) {
+        return 1.0;
+    }
+
+    long double multiplier = 1.0L;
+    for( const double source : multipliers ) {
+        multiplier *= static_cast<long double>( source );
+    }
+    if( multiplier == 0.0L ) {
+        return 1.0;
+    }
+    // Supported weapon-dispersion multipliers are non-negative.
+    if( multiplier < 0.0L ) {
+        return 0.0;
+    }
+
+    const long double scaled_threshold =
+        static_cast<long double>( threshold ) / multiplier;
+
+    std::vector<long double> linear;
+    linear.reserve( linear_sources.size() );
+    for( const double source : linear_sources ) {
+        if( source > 0.0 ) {
+            linear.push_back( static_cast<long double>( source ) );
+        }
+    }
+
+    // Exact CDF for a sum of independent U( 0, a_i ) variables.
+    const auto uniform_sum_cdf = [&linear]( long double x ) -> long double {
+        if( linear.empty() ) {
+            return x > 0.0L ? 1.0L : 0.0L;
+        }
+        if( x <= 0.0L ) {
+            return 0.0L;
+        }
+
+        const std::size_t n = linear.size();
+        long double max_sum = 0.0L;
+        long double denominator = 1.0L;
+        for( const long double source : linear ) {
+            max_sum += source;
+            denominator *= source;
+        }
+        if( x >= max_sum ) {
+            return 1.0L;
+        }
+
+        long double factorial = 1.0L;
+        for( std::size_t i = 2; i <= n; ++i ) {
+            factorial *= static_cast<long double>( i );
+        }
+        denominator *= factorial;
+
+        // Current firearm paths have only a handful of linear sources.
+        if( n >= 63 ) {
+            return 0.0L;
+        }
+
+        const std::uint64_t combinations = std::uint64_t{ 1 } << n;
+        long double sum = 0.0L;
+        for( std::uint64_t mask = 0; mask < combinations; ++mask ) {
+            long double shift = 0.0L;
+            unsigned parity = 0;
+            for( std::size_t i = 0; i < n; ++i ) {
+                if( ( mask & ( std::uint64_t{ 1 } << i ) ) != 0 ) {
+                    shift += linear[i];
+                    parity ^= 1u;
+                }
+            }
+            const long double remainder = x - shift;
+            if( remainder <= 0.0L ) {
+                continue;
+            }
+            const long double term = std::pow( remainder, static_cast<int>( n ) );
+            sum += parity != 0u ? -term : term;
+        }
+        return std::clamp( sum / denominator, 0.0L, 1.0L );
+    };
+
+    if( normal_sources.empty() ) {
+        return static_cast<double>(
+                   std::clamp( uniform_sum_cdf( scaled_threshold ), 0.0L, 1.0L ) );
+    }
+
+    // Weapon paths have one clamped normal source: gun/ammo dispersion.
+    // rng_normal( 0, hi ) is N( hi/2, hi/4 ) clamped to [0, hi].
+    const long double hi = std::max(
+                               0.0L, static_cast<long double>( normal_sources.front() ) );
+    if( hi == 0.0L ) {
+        return static_cast<double>(
+                   std::clamp( uniform_sum_cdf( scaled_threshold ), 0.0L, 1.0L ) );
+    }
+
+    const long double mean = hi / 2.0L;
+    const long double sigma = hi / 4.0L;
+    const auto normal_cdf = [mean, sigma]( long double x ) -> long double {
+        constexpr long double sqrt_two =
+            1.414213562373095048801688724209698L;
+        return 0.5L * ( 1.0L + std::erf( ( x - mean ) /
+                                         ( sigma * sqrt_two ) ) );
+    };
+    const auto normal_pdf = [mean, sigma]( long double x ) -> long double {
+        constexpr long double sqrt_two_pi =
+            2.506628274631000502415765284811045L;
+        const long double z = ( x - mean ) / sigma;
+        return std::exp( -0.5L * z * z ) / ( sigma * sqrt_two_pi );
+    };
+
+    // With no positive uniform sources the clamped-normal CDF is available
+    // directly; avoiding numerical integration also preserves the endpoint
+    // atom at hi under the strict hit condition ( dispersion < threshold ).
+    if( linear.empty() ) {
+        if( scaled_threshold > hi ) {
+            return 1.0;
+        }
+        return static_cast<double>(
+                   std::clamp( normal_cdf( scaled_threshold ), 0.0L, 1.0L ) );
+    }
+
+    const long double mass_low = normal_cdf( 0.0L );
+    const long double mass_high = 1.0L - normal_cdf( hi );
+
+    // Simpson integration of the continuous interior. 256 panels are well
+    // below the visible 0.1% precision for supported firearm distributions.
+    constexpr int panels = 256;
+    const long double step = hi / static_cast<long double>( panels );
+    long double integral = 0.0L;
+    for( int i = 0; i <= panels; ++i ) {
+        const long double x = step * static_cast<long double>( i );
+        const long double value =
+            normal_pdf( x ) * uniform_sum_cdf( scaled_threshold - x );
+        const int weight = ( i == 0 || i == panels ) ? 1 :
+                           ( i % 2 == 0 ? 2 : 4 );
+        integral += static_cast<long double>( weight ) * value;
+    }
+    integral *= step / 3.0L;
+
+    const long double probability =
+        mass_low * uniform_sum_cdf( scaled_threshold ) +
+        integral +
+        mass_high * uniform_sum_cdf( scaled_threshold - hi );
+
+    return static_cast<double>( std::clamp( probability, 0.0L, 1.0L ) );
+}
+'@ 'dispersion.probability-implementation'
+
+
+$rg = Replace-ExactlyOnce $rg '#include "npc.h"' @'
+#include "npc.h"
+#include "ncmm_loader.h"
+'@ 'ranged.include-ncmm'
+
+$rg = Replace-ExactlyOnce $rg @'
+static const flag_id json_flag_SINGLE_ACTION( "SINGLE_ACTION" );
+'@ @'
+static const flag_id json_flag_SINGLE_ACTION( "SINGLE_ACTION" );
+static const json_character_flag json_flag_HARDTOHIT( "HARDTOHIT" );
+'@ 'ranged.hard-to-hit-flag'
+
+$rg = Replace-ExactlyOnce $rg @'
+    int chance_to_hit; // all hit probabilities summed up for sorting
+    double confidence;
+    double steadiness;
+'@ @'
+    int chance_to_hit; // all hit probabilities summed up for sorting
+    double confidence;
+    double steadiness;
+    double exact_hit_probability = -1.0;
+'@ 'ranged.prediction-field'
+
+$rg = Replace-ExactlyOnce $rg @'
+        if( prediction.is_default ) {
+            prediction.moves += aim_to_selected.moves;
+            prediction.steadiness = selected_steadiness;
+        } else {
+            // predict how long it'll take to reach from current recoil
+            // to the current aim mode's threshold.
+            const recoil_prediction aim_to_type = ( aim_type == ui.get_selected_aim_type() ) ? aim_to_selected :
+                                                  predict_recoil( you, weapon, target, ui.get_sight_dispersion(), aim_type, you.recoil );
+            prediction.steadiness = calc_steadiness( you, weapon, pos, aim_to_type.recoil );
+        }
+
+        // make a copy of the given dispersion, apply the aiming and calculate hit confidence
+'@ @'
+        double predicted_recoil_for_shot = you.recoil;
+        if( prediction.is_default ) {
+            prediction.moves += aim_to_selected.moves;
+            prediction.steadiness = selected_steadiness;
+            predicted_recoil_for_shot = aim_to_selected.recoil;
+        } else {
+            // predict how long it'll take to reach from current recoil
+            // to the current aim mode's threshold.
+            const recoil_prediction aim_to_type = ( aim_type == ui.get_selected_aim_type() ) ? aim_to_selected :
+                                                  predict_recoil( you, weapon, target, ui.get_sight_dispersion(), aim_type, you.recoil );
+            prediction.steadiness = calc_steadiness( you, weapon, pos, aim_to_type.recoil );
+            predicted_recoil_for_shot = aim_to_type.recoil;
+        }
+
+        // make a copy of the given dispersion, apply the aiming and calculate hit confidence
+'@ 'ranged.predicted-recoil'
+
+$rg = Replace-ExactlyOnce $rg @'
+        current_dispersion.add_range( aim_type.has_threshold ? aim_type.threshold :
+                                      aim_to_selected.recoil );
+
+        // this loop fills in the "confidence" values; the chances of great/good/graze outcomes
+        prediction.confidence = confidence_estimate( target, current_dispersion );
+'@ @'
+        current_dispersion.add_range( aim_type.has_threshold ? aim_type.threshold :
+                                      aim_to_selected.recoil );
+
+        if( ncmm_hit_probability_enabled() ) {
+            // Actual fire_gun() combines character and vehicle recoil into one
+            // uniform dispersion source via recoil_total().
+            dispersion_sources exact_dispersion = you.get_weapon_dispersion( weapon );
+            exact_dispersion.add_range( predicted_recoil_for_shot + you.recoil_vehicle() );
+            Creature *target_critter = get_creature_tracker().creature_at( pos );
+            prediction.exact_hit_probability =
+                ncmm_exact_hit_probability( exact_dispersion, target, target_critter );
+        }
+
+        // this loop fills in the "confidence" values; the chances of great/good/graze outcomes
+        prediction.confidence = confidence_estimate( target, current_dispersion );
+'@ 'ranged.exact-in-prediction'
+
+$rg = Replace-ExactlyOnce $rg @'
+Target_attributes::Target_attributes( int rng, double target_size, float light_target,
+                                      bool can_see )
+{
+    range = rng;
+    size = target_size;
+    size_in_moa = target_size_in_moa( range, size );
+    light = light_target;
+    visible = can_see;
+}
+
+/*
+* struct used to hold the information on entire aim_type prediction;
+'@ @'
+Target_attributes::Target_attributes( int rng, double target_size, float light_target,
+                                      bool can_see )
+{
+    range = rng;
+    size = target_size;
+    size_in_moa = target_size_in_moa( range, size );
+    light = light_target;
+    visible = can_see;
+}
+
+static bool ncmm_hit_probability_enabled()
+{
+    return ncmm::runtime_setting_hook_bool( "targeting.hit_probability.enabled", 0 ) != 0;
+}
+
+static bool ncmm_hit_probability_decimal()
+{
+    return ncmm::runtime_setting_hook_bool( "targeting.hit_probability.decimal", 0 ) != 0;
+}
+
+static std::string ncmm_hit_probability_text( double probability )
+{
+    probability = std::clamp( probability, 0.0, 1.0 );
+    const char *color = probability >= 0.85 ? "green" :
+                        probability >= 0.60 ? "light_green" :
+                        probability >= 0.35 ? "yellow" : "light_red";
+    const double percent = probability * 100.0;
+    return ncmm_hit_probability_decimal() ?
+           string_format( "<color_%s>%.1f%%</color>", color, percent ) :
+           string_format( "<color_%s>%.0f%%</color>", color, percent );
+}
+
+static double ncmm_exact_hit_probability( const dispersion_sources &dispersion,
+        const Target_attributes &target, const Creature *target_critter )
+{
+    double probability = dispersion.probability_below( target.size_in_moa );
+
+    // HARDTOHIT rolls dispersion twice and keeps the worse result.
+    if( target_critter != nullptr && target_critter->as_character() != nullptr &&
+        target_critter->as_character()->has_flag( json_flag_HARDTOHIT ) ) {
+        probability *= probability;
+    }
+
+    // RANGE_DODGE applies to firearms too. Gun projectiles use speed 1000,
+    // so the separate slow-projectile dodge roll does not apply here.
+    if( target_critter != nullptr ) {
+        const double range_dodge = std::clamp(
+                                       target_critter->calculate_by_enchantment(
+                                           1.0, enchant_vals::mod::RANGE_DODGE ) - 1.0,
+                                       0.0, 1.0 );
+        probability *= 1.0 - range_dodge;
+    }
+
+    return std::clamp( probability, 0.0, 1.0 );
+}
+
+static bool ncmm_projectile_is_wide( const item &weapon )
+{
+    const auto &effects = weapon.ammo_effects();
+    return effects.count( ammo_effect_WIDE ) != 0 ||
+           effects.count( ammo_effect_SHOT ) != 0 ||
+           effects.count( ammo_effect_BOUNCE ) != 0 ||
+           ( weapon.has_ammo_data() && weapon.ammo_data()->phase == phase_id::LIQUID );
+}
+
+static Target_attributes ncmm_gun_target_attributes( const Character &you,
+        const item &weapon, const tripoint_bub_ms &pos )
+{
+    Target_attributes result( you.pos_bub(), pos );
+    Creature *target_critter = get_creature_tracker().creature_at( pos );
+    if( target_critter != nullptr && target_critter->as_monster() != nullptr &&
+        ncmm_projectile_is_wide( weapon ) ) {
+        result.size = occupied_tile_fraction( target_critter->get_size() );
+        result.size_in_moa = target_size_in_moa( result.range, result.size );
+    }
+    return result;
+}
+
+/*
+* struct used to hold the information on entire aim_type prediction;
+'@ 'ranged.exact-probability-helpers'
+
+
+$rg = Replace-ExactlyOnce $rg @'
+    // Start printing by available width of aim window
+    if( narrow ) {
+'@ @'
+    // Ballistic Hit Chance gets a dedicated compact layout.  Replacing the
+    // five-column confidence table avoids overlap on 34-42 column sidebars.
+    if( narrow && ncmm_hit_probability_enabled() ) {
+        for( const aim_type_prediction &out : sorted ) {
+            if( out.exact_hit_probability < 0.0 ) {
+                continue;
+            }
+            const std::string col_hl = out.is_default ? "light_green" : "light_gray";
+            const int pct_x = std::max( 1, width - 11 );
+            trim_and_print( w, point( 1, line_number ), std::max( 1, pct_x - 2 ),
+                            color_from_string( col_hl ), out.name );
+            print_colored_text( w, point( pct_x, line_number ), col, col,
+                                ncmm_hit_probability_text( out.exact_hit_probability ) );
+            right_print( w, line_number++, 1, c_light_blue,
+                         string_format( "%d", out.moves ) );
+        }
+        return line_number;
+    }
+
+    // Start printing by available width of aim window
+    if( narrow ) {
+'@ 'ranged.compact-exact-hit-table'
+
+$rg = Replace-ExactlyOnce $rg @'
+            std::string desc = time ==  0 ?
+                               string_format( "<color_white>[%s]</color> <color_%s>%s %s</color> | %s: <color_light_blue>%3d</color>",
+                                              out.hotkey, col_hl, out.name, _( "Aim" ), _( "Moves to fire" ), out.moves ) :
+                               string_format( "<color_white>[%s]</color> <color_%s>%s %s</color> | %s: <color_light_blue>%3d</color> (%d)",
+                                              out.hotkey, col_hl, out.name, _( "Aim" ), _( "Moves to fire" ), out.moves, time );
+
+            print_colored_text( w, point( 1, line_number++ ), col, col, desc );
+'@ @'
+            std::string desc;
+            if( out.exact_hit_probability >= 0.0 ) {
+                // Keep the exact-probability row compact enough for the normal
+                // right-side targeting panel. The vanilla verbose labels plus
+                // an appended hit percentage overflow at ~45-50 columns.
+                desc = string_format(
+                           "<color_white>[%s]</color> <color_%s>%s</color> | %s | <color_light_blue>%d</color>",
+                           out.hotkey, col_hl, out.name,
+                           ncmm_hit_probability_text( out.exact_hit_probability ),
+                           out.moves );
+                if( time != 0 ) {
+                    desc += string_format( " (%d)", time );
+                }
+            } else {
+                desc = time == 0 ?
+                       string_format( "<color_white>[%s]</color> <color_%s>%s %s</color> | %s: <color_light_blue>%3d</color>",
+                                      out.hotkey, col_hl, out.name, _( "Aim" ), _( "Moves to fire" ), out.moves ) :
+                       string_format( "<color_white>[%s]</color> <color_%s>%s %s</color> | %s: <color_light_blue>%3d</color> (%d)",
+                                      out.hotkey, col_hl, out.name, _( "Aim" ), _( "Moves to fire" ), out.moves, time );
+            }
+
+            print_colored_text( w, point( 1, line_number++ ), col, col, desc );
+'@ 'ranged.full-hit'
+
+$rg = Replace-ExactlyOnce $rg @'
+    // This is absolute accuracy for the player.
+    // TODO: push the calculations duplicated from Creature::deal_projectile_attack() and
+    // Creature::projectile_attack() into shared methods.
+    // Dodge doesn't affect gun attacks
+
+    dispersion_sources dispersion = you.get_weapon_dispersion( weapon );
+'@ @'
+    // Legacy confidence UI remains intact. Ballistic Hit Chance separately
+    // mirrors projectile dispersion, HARDTOHIT and RANGE_DODGE.
+
+    dispersion_sources dispersion = you.get_weapon_dispersion( weapon );
+'@ 'ranged.aim-comment'
+
+$rg = Replace-ExactlyOnce $rg @'
+    const std::vector<aim_type_prediction> aim_chances = calculate_ranged_chances( ui, you,
+            target_ui::TargetMode::Fire, ctxt, weapon, dispersion, confidence_config,
+            Target_attributes( you.pos_bub(), pos ), pos, load_loc );
+'@ @'
+    const Target_attributes target = ncmm_gun_target_attributes( you, weapon, pos );
+    const std::vector<aim_type_prediction> aim_chances = calculate_ranged_chances( ui, you,
+            target_ui::TargetMode::Fire, ctxt, weapon, dispersion, confidence_config,
+            target, pos, load_loc );
+'@ 'ranged.adjust-target-size'
+
+
+$rg = Replace-ExactlyOnce $rg @'
+    str = string_format( _( "Recoil: %s" ), str );
+    nc_color clr = c_light_gray;
+    print_colored_text( w_target, point( 1, text_y++ ), clr, clr, str );
+}
+
+void target_ui::panel_spell_info( int &text_y )
+'@ @'
+    str = string_format( _( "Recoil: %s" ), str );
+    nc_color clr = c_light_gray;
+    print_colored_text( w_target, point( 1, text_y++ ), clr, clr, str );
+
+    if( mode == TargetMode::Fire && status == Status::Good && src != dst &&
+        ncmm_hit_probability_enabled() && relevant != nullptr &&
+        !relevant->gun_current_mode().melee() ) {
+        const gun_mode current_mode = relevant->gun_current_mode();
+        const item &weapon = *current_mode;
+        const Target_attributes target = ncmm_gun_target_attributes( *you, weapon, dst );
+        Creature *target_critter = get_creature_tracker().creature_at( dst );
+
+        const auto probability_at_recoil = [&]( double raw_recoil ) {
+            dispersion_sources exact_dispersion = you->get_weapon_dispersion( weapon );
+            exact_dispersion.add_range( raw_recoil + you->recoil_vehicle() );
+            return ncmm_exact_hit_probability( exact_dispersion, target, target_critter );
+        };
+
+        const double current_probability = probability_at_recoil( you->recoil );
+        const std::string current_line =
+            ncmm::localized_text( "Hit now", u8"\u041F\u043E\u043F\u0430\u0434\u0430\u043D\u0438\u0435 \u0441\u0435\u0439\u0447\u0430\u0441" ) + ": " +
+            ncmm_hit_probability_text( current_probability );
+        print_colored_text( w_target, point( 1, text_y++ ), clr, clr, current_line );
+
+        if( current_mode.qty > 1 ) {
+            map &here = get_map();
+            bool bipod = here.has_flag_ter_or_furn(
+                              ter_furn_flag::TFLAG_MOUNTABLE, you->pos_bub( here ) ) ||
+                          you->is_prone();
+            if( !bipod ) {
+                if( const optional_vpart_position vp = here.veh_at( you->pos_abs() ) ) {
+                    bipod = vp->vehicle().has_part( you->pos_abs(), "MOUNTABLE" );
+                }
+            }
+
+            const double absorb =
+                std::min( you->get_skill_level( weapon.gun_skill() ),
+                          static_cast<float>( MAX_SKILL ) ) /
+                static_cast<double>( MAX_SKILL * 2 );
+            const int recoil_per_shot = weapon.gun_recoil( *you, bipod );
+            const int immediate_recoil = static_cast<int>(
+                you->calculate_by_enchantment( 5.0, enchant_vals::mod::RECOIL_MODIFIER ) *
+                ( recoil_per_shot * ( 1.0 - absorb ) ) );
+            const bool volley = current_mode.flags.count( "VOLLEY" ) != 0;
+
+            // Match fire_gun(): the selected burst may be shortened by the
+            // ammunition/energy actually available at the moment of firing.
+            const int actual_shots = std::max(
+                                         0, std::min( current_mode.qty,
+                                                 weapon.shots_remaining( here, you ) ) );
+            if( actual_shots > 0 ) {
+                // This line is the immediate-burst counterpart of "Hit now":
+                // it starts from current recoil. Future aim-mode rows below remain
+                // responsible for showing the result after additional aiming.
+                const double initial_recoil = you->recoil;
+
+                std::string burst =
+                    ncmm::localized_text(
+                        "Burst now",
+                        u8"\u041E\u0447\u0435\u0440\u0435\u0434\u044C \u0441\u0435\u0439\u0447\u0430\u0441" ) + ": ";
+                const int shown_front = std::min( actual_shots, 5 );
+                for( int shot = 0; shot < shown_front; ++shot ) {
+                    if( shot > 0 ) {
+                        burst += " / ";
+                    }
+                    const double shot_recoil = initial_recoil +
+                                               ( volley ? 0.0 :
+                                                 static_cast<double>( immediate_recoil ) * shot );
+                    burst += ncmm_hit_probability_text(
+                                 probability_at_recoil( shot_recoil ) );
+                }
+
+                if( actual_shots > 5 ) {
+                    burst += actual_shots > 6 ? " / ... / " : " / ";
+                    const double last_recoil = initial_recoil +
+                                               ( volley ? 0.0 :
+                                                 static_cast<double>( immediate_recoil ) *
+                                                 ( actual_shots - 1 ) );
+                    burst += ncmm_hit_probability_text(
+                                 probability_at_recoil( last_recoil ) );
+                }
+                print_colored_text( w_target, point( 1, text_y++ ), clr, clr, burst );
+            }
+        }
+    }
+}
+
+void target_ui::panel_spell_info( int &text_y )
+'@ 'ranged.current-and-burst'
 
 $h = Replace-ExactlyOnce $h @'
             COPT_NO_SOUND_HIDE,
@@ -601,7 +1163,7 @@ $mm = Replace-ExactlyOnce $mm @'
     // Draw horizontal line
 '@ 'main-menu.ncmm-version-label'
 
-# NCMM 0.8.1 generic character modifier hooks.
+# NCMM generic character modifier hooks.
 $ch = Replace-ExactlyOnce $ch '#include "npc.h"' ('#include "npc.h"' + "`n" + '#include "ncmm_loader.h"') 'character.include-ncmm'
 $ch = Replace-ExactlyOnce $ch @'
 int Character::get_str() const
@@ -843,6 +1405,9 @@ Write-Utf8 $characterHealthCpp $hh
 Write-Utf8 $meleeCpp $me
 Write-Utf8 $knowledgeCpp $kn
 Write-Utf8 $craftingCpp $cr
+Write-Utf8 $rangedCpp $rg
+Write-Utf8 $dispersionH $dh
+Write-Utf8 $dispersionCpp $dc
 
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.h') (Join-Path $src 'ncmm_loader.h') -Force
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.cpp') (Join-Path $src 'ncmm_loader.cpp') -Force
@@ -863,6 +1428,9 @@ $hh2 = Read-Utf8 $characterHealthCpp
 $me2 = Read-Utf8 $meleeCpp
 $kn2 = Read-Utf8 $knowledgeCpp
 $cr2 = Read-Utf8 $craftingCpp
+$rg2 = Read-Utf8 $rangedCpp
+$dh2 = Read-Utf8 $dispersionH
+$dc2 = Read-Utf8 $dispersionCpp
 
 if ((NonAscii-Signature $h2) -ne $hSig) { throw 'UTF-8 preservation check failed for options.h' }
 if ((NonAscii-Signature $c2) -ne $cSig) { throw 'UTF-8 preservation check failed for options.cpp' }
@@ -877,6 +1445,9 @@ if ((NonAscii-Signature $hh2) -ne $hhSig) { throw 'UTF-8 preservation check fail
 if ((NonAscii-Signature $me2) -ne $meSig) { throw 'UTF-8 preservation check failed for melee.cpp' }
 if ((NonAscii-Signature $kn2) -ne $knSig) { throw 'UTF-8 preservation check failed for character_knowledge.cpp' }
 if ((NonAscii-Signature $cr2) -ne $crSig) { throw 'UTF-8 preservation check failed for crafting.cpp' }
+if ((NonAscii-Signature $rg2) -ne $rgSig) { throw 'UTF-8 preservation check failed for ranged.cpp' }
+if ((NonAscii-Signature $dh2) -ne $dhSig) { throw 'UTF-8 preservation check failed for dispersion.h' }
+if ((NonAscii-Signature $dc2) -ne $dcSig) { throw 'UTF-8 preservation check failed for dispersion.cpp' }
 
 foreach ($needle in @('COPT_WORLDGEN_ONLY','ncmm_begin_worldgen_group','ncmm_set_worldgen_string_choices')) {
     if (-not $h2.Contains($needle)) { throw "Post-check failed: $needle" }
@@ -896,6 +1467,11 @@ foreach ($needle in @('input_manager::ncmm_register_default_action','input_manag
 foreach ($needle in @('ncmm::register_gameplay_actions( ctxt );','ncmm::handle_gameplay_action( action )')) {
     if (-not $ha2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
+foreach ($needle in @('targeting.hit_probability.enabled','exact_hit_probability','ncmm_hit_probability_text','Hit now')) {
+    if (-not $rg2.Contains($needle)) { throw "Post-check failed: $needle" }
+}
+if (-not $dh2.Contains('probability_below')) { throw 'Post-check failed: dispersion probability declaration' }
+if (-not $dc2.Contains('dispersion_sources::probability_below')) { throw 'Post-check failed: dispersion probability implementation' }
 
-Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.8.1 module contract`n" -Encoding ASCII
-Write-Host 'NCMM 0.8.1 host patch applied and UTF-8 preservation verified.'
+Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.8.2 module contract`n" -Encoding ASCII
+Write-Host 'NCMM 0.8.2 host patch applied and UTF-8 preservation verified.'

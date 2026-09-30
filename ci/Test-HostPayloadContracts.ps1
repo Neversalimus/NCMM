@@ -23,10 +23,12 @@ foreach($badPsQuoteEscape in @( "\'.\'", "\'\\n\'" )){
     }
 }
 
-if([string]$m.host_version -ne '0.8.1' -or [string]$m.ncmm_api -ne '1.9' -or [string]$m.host_api_v2 -ne '2.0'){throw 'Host API 2.0 Core manifest identity mismatch.'}
-foreach($cap in @('host_api.v2.core','events.core.v2','settings.typed.v2','character.modifiers.v2','runtime_hooks.registry.v2','worldgen.bindings.v2','module.lifecycle.query.v2')){if(@($m.self_test.required_capabilities) -notcontains $cap){throw "Host API 2.0 required capability missing: $cap"}}
 $hostComponent=Get-Content (Join-Path $PackageRoot 'components\ncmm_host.json') -Raw|ConvertFrom-Json
-if([string]$hostComponent.version -ne '0.8.1' -or @($hostComponent.provides) -notcontains 'host_api_v2:2.0'){throw 'Host API 2.0 component catalog mismatch.'}
+$expectedHostVersion=([string]$hostComponent.version).Trim()
+if($expectedHostVersion -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$'){throw "Invalid Host component version: $expectedHostVersion"}
+if([string]$m.host_version -ne $expectedHostVersion -or [string]$m.ncmm_api -ne '1.9' -or [string]$m.host_api_v2 -ne '2.0'){throw 'Host API 2.0 Core manifest identity mismatch.'}
+foreach($cap in @('host_api.v2.core','events.core.v2','settings.typed.v2','character.modifiers.v2','runtime_settings.bindings.v2','runtime_hooks.registry.v2','worldgen.bindings.v2','module.lifecycle.query.v2')){if(@($m.self_test.required_capabilities) -notcontains $cap){throw "Host API 2.0 required capability missing: $cap"}}
+if(@($hostComponent.provides) -notcontains 'host_api_v2:2.0' -or @($hostComponent.provides) -notcontains 'runtime_settings.bindings.v2'){throw 'Host API 2.0 component catalog mismatch.'}
 foreach($n in @('function Apply-NcmmHostApi20Core','#define NCMM_HOST_API_V2_CORE_MAJOR 2u','typedef struct ncmm_host_api_v2_core {','const ncmm_host_api_v2_core api_v2_core = {','runtime_hook_bind_modifier_v2','worldgen_hook_bind_setting_v2','Apply-NcmmHostApi20Core')){if(-not $payload.Contains($n)){throw "Host API 2.0 payload contract missing: $n"}}
 # Patched-source audit must distinguish the required query_interface_v2 forward declaration
 # from its single implementation.  A raw substring count is intentionally invalid because both

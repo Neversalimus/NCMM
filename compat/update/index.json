@@ -18,10 +18,11 @@
       "package_sha256": null,
       "components": {
         "ncmm_infrastructure": "0.8.3.1",
-        "ncmm_host": "0.8.1",
+        "ncmm_host": "0.8.2",
         "survivor_progression": "0.12.0",
         "advanced_world_settings": "0.6.3",
-        "recipe_finalize_profiler": "0.1.1"
+        "recipe_finalize_profiler": "0.1.1",
+        "ballistic_hit_chance": "0.1.0"
       },
       "minimum_updater": "0.8.3"
     }

@@ -11,8 +11,10 @@ internal static class InstallationMatrixHarness
 {
     private const string AwsId = "advanced_world_settings";
     private const string SurvivorId = "survivor_progression";
+    private const string BallisticId = "ballistic_hit_chance";
     private const string AwsDir = "AdvancedWorldSettings";
     private const string SurvivorDir = "SurvivorProgression";
+    private const string BallisticDir = "BallisticHitChance";
 
     private static int passed;
     private static int total;
@@ -115,6 +117,7 @@ internal static class InstallationMatrixHarness
     {
         if (id == AwsId) return AwsDir;
         if (id == SurvivorId) return SurvivorDir;
+        if (id == BallisticId) return BallisticDir;
         throw new InvalidOperationException("Unknown test module id: " + id);
     }
 
@@ -136,7 +139,7 @@ internal static class InstallationMatrixHarness
         expectedState.AddRange(expectedModuleIds);
         AssertSet(ids, expectedState.ToArray());
 
-        foreach (string id in new string[] { AwsId, SurvivorId })
+        foreach (string id in new string[] { AwsId, SurvivorId, BallisticId })
         {
             string dirName = ModuleDirectory(id);
             string installedDir = Path.Combine(root, "code_mods", dirName);
@@ -290,14 +293,14 @@ internal static class InstallationMatrixHarness
         AssertTrue(File.Exists(exe), "real CDDA smoke target has no cataclysm-tiles.exe");
         string originalVanilla = Sha256(exe);
 
-        SetupCore.Install(gameRoot, payload, new string[] { AwsId, SurvivorId });
-        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId);
+        SetupCore.Install(gameRoot, payload, new string[] { AwsId, SurvivorId, BallisticId });
+        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId, BallisticId);
 
-        SetupCore.Install(gameRoot, payload, new string[] { AwsId });
-        AssertInstalled(gameRoot, payload, originalVanilla, AwsId);
+        SetupCore.Install(gameRoot, payload, new string[] { AwsId, BallisticId });
+        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, BallisticId);
 
-        SetupCore.Install(gameRoot, payload, new string[] { AwsId, SurvivorId });
-        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId);
+        SetupCore.Install(gameRoot, payload, new string[] { AwsId, SurvivorId, BallisticId });
+        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId, BallisticId);
 
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("NCMM Real CDDA Install Preparation: PASS");
@@ -346,7 +349,7 @@ internal static class InstallationMatrixHarness
                 if (!String.IsNullOrEmpty(id)) byId[id] = module;
             }
 
-            foreach (string id in new string[] { AwsId, SurvivorId })
+            foreach (string id in new string[] { AwsId, SurvivorId, BallisticId })
             {
                 AssertTrue(byId.ContainsKey(id), "real Host did not report module: " + id);
                 Dictionary<string, object> module = byId[id];
@@ -362,7 +365,7 @@ internal static class InstallationMatrixHarness
         }
 
         Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine("NCMM Real Runtime Smoke: PASS (certified Host + AWS + Survivor + clean exit)");
+        Console.WriteLine("NCMM Real Runtime Smoke: PASS (certified Host + AWS + Survivor + Ballistic Hit Chance + clean exit)");
         Console.ResetColor();
         return 0;
     }
@@ -411,11 +414,37 @@ internal static class InstallationMatrixHarness
                 AssertInstalled(root, payload, original, AwsId);
             });
 
+            Run("clean CDDA -> Ballistic Hit Chance only", delegate {
+                string root = NewGame(work, "clean-ballistic", "vanilla-ballistic");
+                string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
+                SetupCore.Install(root, payload, new string[] { BallisticId });
+                AssertInstalled(root, payload, original, BallisticId);
+            });
+
+            Run("clean CDDA -> all optional modules", delegate {
+                string root = NewGame(work, "clean-all", "vanilla-all");
+                string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
+                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId, BallisticId });
+                AssertInstalled(root, payload, original, AwsId, SurvivorId, BallisticId);
+            });
+
             Run("clean CDDA -> Survivor + AWS", delegate {
                 string root = NewGame(work, "clean-full", "vanilla-full");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
                 SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId });
                 AssertInstalled(root, payload, original, AwsId, SurvivorId);
+            });
+
+            Run("disable Ballistic Hit Chance -> AWS + Survivor remain", delegate {
+                string root = NewGame(work, "disable-ballistic", "vanilla-disable-ballistic");
+                string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
+                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId, BallisticId });
+                string ballisticDir = Path.Combine(root, "code_mods", BallisticDir);
+                File.WriteAllText(Path.Combine(ballisticDir, "user-note.txt"), "preserve me\n", Encoding.UTF8);
+                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId });
+                AssertInstalled(root, payload, original, AwsId, SurvivorId);
+                AssertTrue(File.Exists(Path.Combine(ballisticDir, "user-note.txt")),
+                           "deselecting Ballistic Hit Chance removed user-owned module files");
             });
 
             Run("disable Survivor -> AWS remains", delegate {

@@ -20,7 +20,7 @@ if([int]$catalog.schema -ne 1 -or [string]$catalog.infrastructure_version -ne '0
 $components=@($catalog.components)
 $ids=@($components|ForEach-Object{[string]$_.id})
 if(@($ids|Select-Object -Unique).Count -ne $ids.Count){throw 'Component catalog contains duplicate ids.'}
-foreach($id in @('ncmm_infrastructure','ncmm_host','survivor_progression','advanced_world_settings','recipe_finalize_profiler')){
+foreach($id in @('ncmm_infrastructure','ncmm_host','survivor_progression','advanced_world_settings','ballistic_hit_chance','recipe_finalize_profiler')){
     if(@($components|Where-Object{[string]$_.id -eq $id}).Count -ne 1){throw "Component missing/duplicate: $id"}
 }
 
@@ -69,13 +69,15 @@ foreach($component in $components){
 $hostComponent=@($components|Where-Object{$_.id -eq 'ncmm_host'})[0]
 $survivor=@($components|Where-Object{$_.id -eq 'survivor_progression'})[0]
 $aws=@($components|Where-Object{$_.id -eq 'advanced_world_settings'})[0]
+$ballistic=@($components|Where-Object{$_.id -eq 'ballistic_hit_chance'})[0]
 if(-not [bool]$hostComponent.required){throw 'NCMM Host must remain required.'}
-if([bool]$survivor.required -or [bool]$aws.required){throw 'Gameplay modules must remain independently optional.'}
-if([string]$survivor.atomic_group -eq [string]$aws.atomic_group){throw 'Survivor and AWS must not share an atomic group.'}
+if([bool]$survivor.required -or [bool]$aws.required -or [bool]$ballistic.required){throw 'Gameplay modules must remain independently optional.'}
+if(@([string]$survivor.atomic_group,[string]$aws.atomic_group,[string]$ballistic.atomic_group|Select-Object -Unique).Count -ne 3){throw 'Optional gameplay modules must keep separate atomic groups.'}
 
 $moduleManifests=@{
     survivor_progression='mods\SurvivorProgression\mod.json'
     advanced_world_settings='mods\AdvancedWorldSettings\mod.json'
+    ballistic_hit_chance='mods\BallisticHitChance\mod.json'
 }
 foreach($id in $moduleManifests.Keys){
     $component=@($components|Where-Object{$_.id -eq $id})[0]
@@ -117,10 +119,11 @@ try{
         source_commit='e262adb299a7613b4aedc5f12c08fe0413c56a84'
     }|ConvertTo-Json)+"`n")
     Write-NcmmUtf8NoBom (Join-Path $tmp 'ncmm\modules.state.json') (([ordered]@{
-        capabilities=@('api.versioning.v1','active_mods.registry.v2','world_settings.v2','host_api.v2.core','settings.typed.v2','character.modifiers.v2','runtime_hooks.registry.v2')
+        capabilities=@('api.versioning.v1','active_mods.registry.v2','world_settings.v2','host_api.v2.core','settings.typed.v2','character.modifiers.v2','runtime_hooks.registry.v2','runtime_settings.bindings.v2')
         modules=@(
             @{id='survivor_progression';version=[string]$survivor.version},
-            @{id='advanced_world_settings';version=[string]$aws.version}
+            @{id='advanced_world_settings';version=[string]$aws.version},
+            @{id='ballistic_hit_chance';version=[string]$ballistic.version}
         )
     }|ConvertTo-Json -Depth 6)+"`n")
 
@@ -128,6 +131,13 @@ try{
     if($plan.expanded -notcontains 'survivor_progression'){throw 'Survivor missing from independent update plan.'}
     if($plan.expanded -contains 'advanced_world_settings'){throw 'AWS was incorrectly pulled into Survivor update plan.'}
     if($plan.expanded -contains 'recipe_finalize_profiler'){throw 'Optional profiler was incorrectly pulled into Survivor update plan.'}
+    if($plan.expanded -contains 'ballistic_hit_chance'){throw 'Ballistic Hit Chance was incorrectly pulled into Survivor update plan.'}
+
+    $ballisticPlan=Resolve-NcmmDependencyPlan $PackageRoot $tmp $feed @('ballistic_hit_chance')
+    if($ballisticPlan.expanded -notcontains 'ballistic_hit_chance'){throw 'Ballistic Hit Chance missing from independent update plan.'}
+    foreach($other in @('survivor_progression','advanced_world_settings','recipe_finalize_profiler')){
+        if($ballisticPlan.expanded -contains $other){throw "Unrelated component '$other' was incorrectly pulled into Ballistic Hit Chance update plan."}
+    }
 
     Remove-Item (Join-Path $tmp 'ncmm\host.binding.json') -Force
     $planWithoutHost=Resolve-NcmmDependencyPlan $PackageRoot $tmp $feed @('survivor_progression')

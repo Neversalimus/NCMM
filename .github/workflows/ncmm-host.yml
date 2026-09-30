@@ -64,7 +64,7 @@ jobs:
       - name: Validate NCMM version consistency
         shell: pwsh
         run: |
-          ./ci/Test-VersionConsistency.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE" -LegacyFeedVersion '0.8.0'
+          ./ci/Test-VersionConsistency.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE" -LegacyFeedVersion '0.8.1'
 
       - name: Feed auditor self-test
         shell: pwsh
@@ -168,7 +168,7 @@ jobs:
       - name: Validate NCMM build version consistency
         shell: pwsh
         run: |
-          ./ncmmrepo/ci/Test-VersionConsistency.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE/ncmmrepo" -LegacyFeedVersion '0.8.0'
+          ./ncmmrepo/ci/Test-VersionConsistency.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE/ncmmrepo" -LegacyFeedVersion '0.8.1'
 
       - name: Resolve exact CDDA source commit
         id: source

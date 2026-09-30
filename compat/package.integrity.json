@@ -56,8 +56,8 @@
     },
     {
       "path": "ci\\Test-ComponentCatalog.ps1",
-      "sha256": "92e6a3ac228bb4380a5a90cb7c4ab699b04ef501d39300a991f767ac21b8a18c",
-      "bytes": 9591
+      "sha256": "1cf0e4fa5f11f700af56e3fca9c50afa2aa4fa9dcd9238f5720289f07e892a8b",
+      "bytes": 10605
     },
     {
       "path": "ci\\Test-GoldenRegression.ps1",
@@ -66,8 +66,8 @@
     },
     {
       "path": "ci\\Test-HostPayloadContracts.ps1",
-      "sha256": "00c1307753f4991b0cf9a07255dba9b80609186b47b578f09a5ce6aecaf68dcd",
-      "bytes": 20480
+      "sha256": "753e57d5f698f9b8535d144bfd0de4d0202f23eab4c410f643a71e646cd84c21",
+      "bytes": 20740
     },
     {
       "path": "ci\\Test-Infrastructure0821.ps1",
@@ -96,13 +96,13 @@
     },
     {
       "path": "compat\\compatibility.manifest.json",
-      "sha256": "4085b7c258ab4ece34d4ddb5be38c7f6a94ba970f5d31a6de0bb20433c9238c9",
-      "bytes": 6404
+      "sha256": "05b66081e54db570929d7edd3439dd2e23183a1118b03a5bfe460c3af81a9021",
+      "bytes": 6806
     },
     {
       "path": "compat\\contracts.json",
-      "sha256": "5091627e24dc0419bca8f97a025e7bbbec1423a04f0ee69affe19748e688d9a5",
-      "bytes": 8290
+      "sha256": "f87453d3ceca57b05e36fdf93f29e819a783ba28e194c523fe4383ec3b50ef56",
+      "bytes": 9064
     },
     {
       "path": "compat\\feed\\commits\\e262adb299a7613b4aedc5f12c08fe0413c56a84.json",
@@ -116,13 +116,13 @@
     },
     {
       "path": "compat\\package-files.txt",
-      "sha256": "0a7569f981118381bb5cc086b728bcf1c779a7f3328d490d7045430c1cc23c90",
-      "bytes": 3420
+      "sha256": "ca185fac993d86695dbd133866b9734a7725788bff8cdefc89213afed83f0a2f",
+      "bytes": 3458
     },
     {
       "path": "compat\\update\\index.json",
-      "sha256": "d4c17e136fdd188cedd6f1949c8ed7545000dacace9a6201a61385f9ad90c424",
-      "bytes": 917
+      "sha256": "56e5a28eb9bfdb640afae91261f2a680cf345860c76f8baa83e28afaeb2bc817",
+      "bytes": 959
     },
     {
       "path": "components\\advanced_world_settings.json",
@@ -130,14 +130,19 @@
       "bytes": 635
     },
     {
+      "path": "components\\ballistic_hit_chance.json",
+      "sha256": "3a030ff73100a06079b52297db0c520253e536f35afc8cf5a8b06e3eb543506b",
+      "bytes": 575
+    },
+    {
       "path": "components\\index.json",
-      "sha256": "884b01044c9519622332e8e5f59cf88f4993f1afadd4bd7004bc418be869eed2",
-      "bytes": 3962
+      "sha256": "29f227a14d529abe0f599af6fa8ec7fcab7116b144055867aaba08b88c6fe9f1",
+      "bytes": 4732
     },
     {
       "path": "components\\ncmm_host.json",
-      "sha256": "f609a79a713655c20cfe584994e2e7fc39d7f108f9def269e20551c778094494",
-      "bytes": 803
+      "sha256": "26c7727f4ef540af1a3ce0f7ccb59ef620ced5ee1f7392f16a67c61edfde9531",
+      "bytes": 840
     },
     {
       "path": "components\\ncmm_infrastructure.json",
@@ -211,8 +216,8 @@
     },
     {
       "path": "HOST_API_2.0_CORE_CHANGELOG.txt",
-      "sha256": "82f6e3df4caf02f1aae4f0b14304986766331cb566e860f21ce4b3b79aba1b18",
-      "bytes": 1119
+      "sha256": "9a7c2e816147bc5ead42f44a3255d9dc8bf327348cd0d45b3285381e56efcc68",
+      "bytes": 1524
     },
     {
       "path": "INFRASTRUCTURE_0.8.2.1_CHANGELOG.txt",
@@ -220,14 +225,14 @@
       "bytes": 1080
     },
     {
-      "path": "INFRASTRUCTURE_0.8.3.1_WORLD_SETTINGS_PERSISTENCE_CHANGELOG.txt",
-      "sha256": "89226ff3a6a416d89770c9256a6fab8e6f14fafaa9745c1621c43d0f5e962f75",
-      "bytes": 1625
-    },
-    {
       "path": "INFRASTRUCTURE_0.8.3_STAGED_INSTALLER_CHANGELOG.txt",
       "sha256": "5bfd65d32d053d6f5a5b11e048b1f11dfba1e322f4d58852bc15db612c824f01",
       "bytes": 1093
+    },
+    {
+      "path": "INFRASTRUCTURE_0.8.3.1_WORLD_SETTINGS_PERSISTENCE_CHANGELOG.txt",
+      "sha256": "89226ff3a6a416d89770c9256a6fab8e6f14fafaa9745c1621c43d0f5e962f75",
+      "bytes": 1625
     },
     {
       "path": "internal\\NCMM.Install.ps1",
@@ -280,16 +285,6 @@
       "bytes": 493
     },
     {
-      "path": "NCMM.cmd",
-      "sha256": "46e778aceab5921475dd04ee0ae59fe7bcab21105c1eeda91dfab6baa5e67c8c",
-      "bytes": 3749
-    },
-    {
-      "path": "NCMM.ps1",
-      "sha256": "66739bb1111fb15a7a092cdee5ecd1713a42e52bf2ab68bd7afb6e69075f6383",
-      "bytes": 9278
-    },
-    {
       "path": "NCMM_AWS_HOST_API_2_MIGRATION_AUDIT.txt",
       "sha256": "5be9b0553f345f090b72ba4cf687072a659627e48f5403c682dda6d1d0ab595b",
       "bytes": 1930
@@ -305,19 +300,29 @@
       "bytes": 1235
     },
     {
-      "path": "NCMM_INFRASTRUCTURE_0.8.3.1_AUDIT.txt",
-      "sha256": "90785debddebd5216a504033cdeec6a8e0d3796a384913b03c59308b755927ee",
-      "bytes": 4446
-    },
-    {
       "path": "NCMM_INFRASTRUCTURE_0.8.3_AUDIT.txt",
       "sha256": "7d84bd77f1dc763377bc3ed329eec1f24205dddce8b4f7c9e74b48990025c3a1",
       "bytes": 5228
     },
     {
+      "path": "NCMM_INFRASTRUCTURE_0.8.3.1_AUDIT.txt",
+      "sha256": "90785debddebd5216a504033cdeec6a8e0d3796a384913b03c59308b755927ee",
+      "bytes": 4446
+    },
+    {
       "path": "NCMM_SURVIVOR_HOST_API_2_MIGRATION_AUDIT.txt",
       "sha256": "51b62a7675d06c566036d8b258e20e7bdeb4d3e66f6dfe47a21611356d8f7ee0",
       "bytes": 2415
+    },
+    {
+      "path": "NCMM.cmd",
+      "sha256": "46e778aceab5921475dd04ee0ae59fe7bcab21105c1eeda91dfab6baa5e67c8c",
+      "bytes": 3749
+    },
+    {
+      "path": "NCMM.ps1",
+      "sha256": "66739bb1111fb15a7a092cdee5ecd1713a42e52bf2ab68bd7afb6e69075f6383",
+      "bytes": 9278
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
@@ -331,13 +336,13 @@
     },
     {
       "path": "README.txt",
-      "sha256": "26d222b9fad48fb921d4f1c934992f1b23d45620982b7cee263ca72f6290803f",
-      "bytes": 1979
+      "sha256": "c0a2de24e7f0fb5a686e2d416c9bfd3ddfcc1c4bfddf9fa0ece787954df90ceb",
+      "bytes": 2031
     },
     {
       "path": "sdk\\HOST_API_2_CORE_CONTRACT.md",
-      "sha256": "473df0e1d661bbc17d81019fd7726974f48db31fa8dbb459ca0286f812c9ae2a",
-      "bytes": 2830
+      "sha256": "e3c402b40237493a308bf25975db86a8e7f390013ad2b57afd03526e5bd6da7b",
+      "bytes": 3132
     },
     {
       "path": "SURVIVOR_0.10.0_MECHANICAL_PERKS_AUDIT.txt",

@@ -126,6 +126,7 @@ struct ncmm_worldgen_binding_v2_internal {
 std::vector<ncmm_event_subscription_v2_internal> event_subscriptions_v2;
 std::vector<ncmm_runtime_hook_rule_v2_internal> runtime_hook_rules_v2;
 std::map<std::string, ncmm_worldgen_binding_v2_internal, std::less<>> worldgen_bindings_v2;
+std::map<std::string, ncmm_worldgen_binding_v2_internal, std::less<>> runtime_setting_bindings_v2;
 thread_local std::string api_v2_string_cache;
 thread_local std::string runtime_source_mod_context_v2;
 bool api_v2_world_announced = false;
@@ -436,6 +437,7 @@ const char *const host_capabilities[] = {
     "api.versioning.v1",
     "module.lifecycle.query.v2",
     "worldgen.bindings.v2",
+    "runtime_settings.bindings.v2",
     "runtime_hooks.registry.v2",
     "character.modifiers.v2",
     "settings.typed.v2",
@@ -510,7 +512,7 @@ int has_capability( const char *capability )
 
 const char *get_host_version()
 {
-    return "0.8.1";
+    return "0.8.2";
 }
 
 uint32_t get_loader_api()
@@ -2318,6 +2320,9 @@ void clear_module_runtime_v2( const std::string &module_id )
     for( auto it = worldgen_bindings_v2.begin(); it != worldgen_bindings_v2.end(); ) {
         if( it->second.module_id == module_id ) it = worldgen_bindings_v2.erase( it ); else ++it;
     }
+    for( auto it = runtime_setting_bindings_v2.begin(); it != runtime_setting_bindings_v2.end(); ) {
+        if( it->second.module_id == module_id ) it = runtime_setting_bindings_v2.erase( it ); else ++it;
+    }
 }
 
 const char *current_module_id_v2()
@@ -2531,6 +2536,52 @@ double worldgen_hook_f64_v2( const char *hook_id, double fallback )
     return world_setting_get_f64( it->second.setting_id.c_str(), fallback );
 }
 
+int runtime_hook_bind_setting_v2( const char *module_id, const char *hook_id,
+                                  const char *setting_id, uint32_t value_type )
+{
+    if( !active_module_matches( module_id ) || module_ids.count( module_id ) == 0 ||
+        !api_v2_token_safe( hook_id ) || !safe_world_setting_id( setting_id ) ||
+        value_type < NCMM_SETTING_BOOL_V2 || value_type > NCMM_SETTING_FLOAT_V2 ) return 0;
+    const auto owner = world_setting_owners.find( setting_id );
+    if( owner == world_setting_owners.end() || owner->second != module_id ) return 0;
+    const auto existing = runtime_setting_bindings_v2.find( hook_id );
+    if( existing != runtime_setting_bindings_v2.end() ) {
+        return existing->second.module_id == module_id &&
+               existing->second.setting_id == setting_id &&
+               existing->second.value_type == value_type ? 1 : 0;
+    }
+    runtime_setting_bindings_v2.emplace(
+        hook_id, ncmm_worldgen_binding_v2_internal{ module_id, setting_id, value_type } );
+    return 1;
+}
+
+int runtime_hook_bool_v2( const char *hook_id, int fallback )
+{
+    const auto it = hook_id ? runtime_setting_bindings_v2.find( hook_id ) :
+                    runtime_setting_bindings_v2.end();
+    if( it == runtime_setting_bindings_v2.end() ||
+        it->second.value_type != NCMM_SETTING_BOOL_V2 ) return fallback;
+    return world_setting_get_bool( it->second.setting_id.c_str(), fallback );
+}
+
+int64_t runtime_hook_i64_v2( const char *hook_id, int64_t fallback )
+{
+    const auto it = hook_id ? runtime_setting_bindings_v2.find( hook_id ) :
+                    runtime_setting_bindings_v2.end();
+    if( it == runtime_setting_bindings_v2.end() ||
+        it->second.value_type != NCMM_SETTING_INT_V2 ) return fallback;
+    return world_setting_get_i64( it->second.setting_id.c_str(), fallback );
+}
+
+double runtime_hook_f64_v2( const char *hook_id, double fallback )
+{
+    const auto it = hook_id ? runtime_setting_bindings_v2.find( hook_id ) :
+                    runtime_setting_bindings_v2.end();
+    if( it == runtime_setting_bindings_v2.end() ||
+        it->second.value_type != NCMM_SETTING_FLOAT_V2 ) return fallback;
+    return world_setting_get_f64( it->second.setting_id.c_str(), fallback );
+}
+
 double modifier_get_total_v2( const char *modifier_id )
 {
     return gameplay_modifier( modifier_id );
@@ -2661,7 +2712,11 @@ const ncmm_host_api_v2_core api_v2_core = {
     &worldgen_hook_bind_setting_v2,
     &worldgen_hook_bool_v2,
     &worldgen_hook_i64_v2,
-    &worldgen_hook_f64_v2
+    &worldgen_hook_f64_v2,
+    &runtime_hook_bind_setting_v2,
+    &runtime_hook_bool_v2,
+    &runtime_hook_i64_v2,
+    &runtime_hook_f64_v2
 };
 
 const void *query_interface_v2( const char *interface_id, uint32_t min_major, uint32_t min_minor )
@@ -2837,7 +2892,7 @@ void write_modules_state()
 
     out << "{\n"
         << "  \"schema\": 3,\n"
-        << "  \"host_version\": \"0.8.1\",\n"
+        << "  \"host_version\": \"0.8.2\",\n"
         << "  \"loader_api\": " << NCMM_LOADER_API_VERSION << ",\n"
         << "  \"api_version\": {\"major\":" << NCMM_API_VERSION_MAJOR
         << ",\"minor\":" << NCMM_API_VERSION_MINOR << "},\n"
@@ -3403,6 +3458,23 @@ double worldgen_hook_f64( const char *hook_id, double fallback )
 {
     return worldgen_hook_f64_v2( hook_id, fallback );
 }
+bool runtime_setting_hook_bound( const char *hook_id )
+{
+    return hook_id != nullptr &&
+           runtime_setting_bindings_v2.find( hook_id ) != runtime_setting_bindings_v2.end();
+}
+int runtime_setting_hook_bool( const char *hook_id, int fallback )
+{
+    return runtime_hook_bool_v2( hook_id, fallback );
+}
+int64_t runtime_setting_hook_i64( const char *hook_id, int64_t fallback )
+{
+    return runtime_hook_i64_v2( hook_id, fallback );
+}
+double runtime_setting_hook_f64( const char *hook_id, double fallback )
+{
+    return runtime_hook_f64_v2( hook_id, fallback );
+}
 double gameplay_modifier( const char *modifier_id )
 {
     if( modifier_id == nullptr || character_modifier_limits.find( modifier_id ) == character_modifier_limits.end() ) {
@@ -3423,6 +3495,11 @@ std::string settings_menu_label()
 std::string version_label()
 {
     return std::string( "NCMM " ) + get_host_version();
+}
+
+std::string localized_text( const char *english, const char *russian )
+{
+    return tr_ui( english ? english : "", russian ? russian : "" );
 }
 
 void register_gameplay_actions( input_context &ctxt )

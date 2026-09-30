@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "ncmm_host",
   "name": "NCMM Host",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "kind": "native_host",
   "atomic_group": "host-runtime",
   "delivery": "source_build",
@@ -25,6 +25,7 @@
     "events.core.v2",
     "settings.typed.v2",
     "character.modifiers.v2",
+    "runtime_settings.bindings.v2",
     "runtime_hooks.registry.v2",
     "worldgen.bindings.v2",
     "module.lifecycle.query.v2"

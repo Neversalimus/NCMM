@@ -1,0 +1,17 @@
+{
+  "id": "ballistic_hit_chance",
+  "name": "Ballistic Hit Chance",
+  "version": "0.1.0",
+  "loader_api": 1,
+  "api_major": 1,
+  "api_min_minor": 9,
+  "requires": [
+    "core.v1",
+    "locale.v1",
+    "api.versioning.v1",
+    "host_api.v2.core",
+    "settings.typed.v2",
+    "runtime_settings.bindings.v2"
+  ],
+  "failure_policy": "disable"
+}

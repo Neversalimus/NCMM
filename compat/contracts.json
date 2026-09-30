@@ -261,6 +261,33 @@
           ]
         }
       ]
+    },
+    {
+      "id": "ballistic_targeting.source.v1",
+      "files": [
+        {
+          "path": "src/dispersion.h",
+          "required": [
+            "double avg() const;"
+          ]
+        },
+        {
+          "path": "src/dispersion.cpp",
+          "required": [
+            "double dispersion_sources::roll() const",
+            "double dispersion_sources::avg() const"
+          ]
+        },
+        {
+          "path": "src/ranged.cpp",
+          "required": [
+            "struct aim_type_prediction",
+            "static std::vector<aim_type_prediction> calculate_ranged_chances(",
+            "void target_ui::panel_recoil( int &text_y )",
+            "static int print_aim( const target_ui &ui"
+          ]
+        }
+      ]
     }
   ]
 }

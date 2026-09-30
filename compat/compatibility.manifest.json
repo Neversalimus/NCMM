@@ -1,7 +1,7 @@
 {
   "schema": 4,
   "infrastructure_version": "0.8.3.1",
-  "host_version": "0.8.1",
+  "host_version": "0.8.2",
   "ncmm_api": "1.9",
   "loader_api": 1,
   "base_adapter": "base-cdda-2026-series-v1",
@@ -42,7 +42,8 @@
       "cataclysm-tiles.ncmm.exe",
       "ncmm",
       "code_mods/SurvivorProgression",
-      "code_mods/AdvancedWorldSettings"
+      "code_mods/AdvancedWorldSettings",
+      "code_mods/BallisticHitChance"
     ],
     "backup_folder": "NCMM_Infrastructure_Backups",
     "pending_marker": "ncmm/transaction.pending.json",
@@ -68,6 +69,7 @@
       "events.core.v2",
       "settings.typed.v2",
       "character.modifiers.v2",
+      "runtime_settings.bindings.v2",
       "runtime_hooks.registry.v2",
       "worldgen.bindings.v2",
       "module.lifecycle.query.v2"
@@ -85,6 +87,10 @@
       {
         "id": "recipe_finalize_profiler",
         "version": "0.1.1"
+      },
+      {
+        "id": "ballistic_hit_chance",
+        "version": "0.1.0"
       }
     ]
   },
@@ -146,11 +152,13 @@
       "module_lifecycle_query",
       "character_modifiers",
       "runtime_hook_registry",
+      "runtime_setting_binding_registry",
       "worldgen_binding_registry"
     ],
-    "module_migration_status": "Survivor 0.12.0 and AWS 0.6.3 use Host API 2.0; Survivor 0.12.0 adds Host-managed live balance settings and the two-pane NCMM manager while preserving the 0.11.3 gameplay contracts.",
+    "module_migration_status": "Survivor 0.12.0, AWS 0.6.3, and Ballistic Hit Chance 0.1.0 use Host API 2.0; Ballistic Hit Chance uses generic live typed-setting bindings for targeting UI controls.",
     "survivor_migration": "runtime_hook_registry_v2 + dynamic_modifier_ownership; no Survivor-specific identifiers remain in patched CDDA source",
-    "aws_migration": "typed_world_settings_v2 + worldgen_binding_registry_v2; final patched CDDA geography sources contain no NCMM_AWS_* identifiers"
+    "aws_migration": "typed_world_settings_v2 + worldgen_binding_registry_v2; final patched CDDA geography sources contain no NCMM_AWS_* identifiers",
+    "ballistic_hit_chance": "runtime_setting_binding_registry_v2 + generic targeting.hit_probability hooks; module-specific NCMM_BHC_* identifiers remain module-owned and do not leak into patched CDDA source"
   },
   "verification": {
     "offline_install": {

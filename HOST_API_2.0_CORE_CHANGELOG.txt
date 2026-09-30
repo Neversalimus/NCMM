@@ -12,3 +12,10 @@ NCMM Host API 2.0 Core
 - Added Host-owned internal runtime_hook_modifier/worldgen_hook_* bridge functions for the next Survivor/AWS migration pass.
 - Existing Survivor 0.9.15 and AWS 0.6.1 remain on legacy ABI v1 in this release; no claim of completed migration.
 - Existing module-specific CDDA source patches are intentionally untouched until the migration pass, so this Core release changes API infrastructure, not gameplay semantics.
+
+NCMM Host 0.8.2
+
+- Added runtime_settings.bindings.v2 as an additive Host API 2.0 Core tail.
+- Added generic targeting.hit_probability runtime hooks for Ballistic Hit Chance.
+- Kept Loader ABI v1 and Host API 2.0 major/minor unchanged; consumers gate the additive tail with capability + struct_size.
+- Added deterministic firearm-dispersion probability support to the certified Host source patch.
