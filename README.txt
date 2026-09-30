@@ -1,18 +1,19 @@
-NCMM 0.8.1 / Infrastructure 0.8.3.1
+NCMM 0.8.2 / Infrastructure 0.8.3.1
 ========================================
 
 Current bundled modules:
   Survivor Progression 0.12.0
-  Advanced World Settings 0.6.2
+  Advanced World Settings 0.6.3
+  Ballistic Hit Chance 0.1.0
 
 PLAYER PACKAGE
 --------------
-Use NCMM_Full_v0.8.1.zip from the ncmm-runtime-v0.8.1 release.
+Use NCMM_Full_v0.8.2.zip from the ncmm-runtime-v0.8.2 release.
 
 1. Extract the archive outside the CDDA game directory.
 2. Run NCMM_Setup.exe.
 3. Select the CDDA installation.
-4. Select Advanced World Settings and/or Survivor Progression.
+4. Select Advanced World Settings, Survivor Progression and/or Ballistic Hit Chance.
 5. Click Install / Repair selected.
 6. Launch CDDA normally.
 
@@ -29,7 +30,7 @@ Advanced World Settings exposes NEW_MAP / NEW_WORLD controls through CDDA's
 world-options UI, including world creation.
 
 Current main-source polish also uses CDDA's native menu_move sound for NCMM
-perk navigation and displays NCMM 0.8.1 in the main menu.
+perk navigation and displays NCMM 0.8.2 in the main menu.
 
 DEVELOPER / SOURCE CHECKOUT
 ---------------------------
