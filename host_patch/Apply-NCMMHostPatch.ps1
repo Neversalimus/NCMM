@@ -563,29 +563,31 @@ static Target_attributes ncmm_gun_target_attributes( const Character &you,
 
 
 $rg = Replace-ExactlyOnce $rg @'
-            if( display_numbers ) {
-                t_aims[aim_iter] = string_format( "<color_dark_gray>%s:</color>", out.name );
-                t_confidence[( aim_iter * 5 ) + 4] = string_format( "<color_light_blue>%d</color>", out.moves );
-            } else {
-                print_colored_text( w, point( 1, line_number ), col, col, string_format( _( "%s %s:" ), out.name,
-                                    _( "Aim" ) ) );
-                right_print( w, line_number++, 1, c_light_blue, _( "Moves" ) );
+    // Start printing by available width of aim window
+    if( narrow ) {
 '@ @'
-            if( display_numbers ) {
-                t_aims[aim_iter] = string_format( "<color_dark_gray>%s:</color>", out.name );
-                if( out.exact_hit_probability >= 0.0 ) {
-                    t_aims[aim_iter] += " " + ncmm_hit_probability_text( out.exact_hit_probability );
-                }
-                t_confidence[( aim_iter * 5 ) + 4] = string_format( "<color_light_blue>%d</color>", out.moves );
-            } else {
-                std::string aim_label = string_format( _( "%s %s:" ), out.name, _( "Aim" ) );
-                if( out.exact_hit_probability >= 0.0 ) {
-                    aim_label += " " + ncmm::localized_text( "Hit", u8"\u041F\u043E\u043F\u0430\u0434\u0430\u043D\u0438\u0435" ) + ": " +
-                                 ncmm_hit_probability_text( out.exact_hit_probability );
-                }
-                print_colored_text( w, point( 1, line_number ), col, col, aim_label );
-                right_print( w, line_number++, 1, c_light_blue, _( "Moves" ) );
-'@ 'ranged.narrow-hit'
+    // Ballistic Hit Chance gets a dedicated compact layout.  Replacing the
+    // five-column confidence table avoids overlap on 34-42 column sidebars.
+    if( narrow && ncmm_hit_probability_enabled() ) {
+        for( const aim_type_prediction &out : sorted ) {
+            if( out.exact_hit_probability < 0.0 ) {
+                continue;
+            }
+            const std::string col_hl = out.is_default ? "light_green" : "light_gray";
+            const int pct_x = std::max( 1, width - 11 );
+            trim_and_print( w, point( 1, line_number ), std::max( 1, pct_x - 2 ),
+                            color_from_string( col_hl ), out.name );
+            print_colored_text( w, point( pct_x, line_number ), col, col,
+                                ncmm_hit_probability_text( out.exact_hit_probability ) );
+            right_print( w, line_number++, 1, c_light_blue,
+                         string_format( "%d", out.moves ) );
+        }
+        return line_number;
+    }
+
+    // Start printing by available width of aim window
+    if( narrow ) {
+'@ 'ranged.compact-exact-hit-table'
 
 $rg = Replace-ExactlyOnce $rg @'
             std::string desc = time ==  0 ?
