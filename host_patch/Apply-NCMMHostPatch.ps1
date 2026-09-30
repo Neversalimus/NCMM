@@ -264,7 +264,7 @@ $iuh = Replace-ExactlyOnce $iuh @'
         bool display_stats = true;
         bool use_invlet = true;
         bool equipment_body_map = false;
-        size_t equipment_body_map_reserved_width = 0;
+        size_t equipment_body_map_reserved_height = 0;
 '@ 'inventory.body-map-state'
 
 $iuc = Replace-ExactlyOnce $iuc '#include "basecamp.h"' @'
@@ -304,11 +304,6 @@ void inventory_selector::prepare_layout( size_t client_width, size_t client_heig
 '@ @'
 bool inventory_selector::equipment_body_map_requested() const
 {
-    // The module owns the runtime hook.  Existing worlds can legitimately lack
-    // a persisted value for a newly introduced live setting, so once the hook
-    // is bound we fall back to the module-declared default (enabled) instead of
-    // silently hiding the whole panel.  An explicitly saved OFF value is still
-    // respected.
     return equipment_body_map &&
            ncmm::runtime_setting_hook_bound( "inventory.body_map.enabled" ) &&
            ncmm::runtime_setting_hook_bool( "inventory.body_map.enabled", 1 ) != 0;
@@ -316,80 +311,50 @@ bool inventory_selector::equipment_body_map_requested() const
 
 void inventory_selector::prepare_layout( size_t client_width, size_t client_height )
 {
-    constexpr size_t body_map_width = 32;
-    constexpr size_t compact_body_map_width = 20;
-    constexpr size_t min_inventory_width = 60;
-    constexpr size_t body_map_gap = 1;
-    const bool body_map_fits = client_height >= 24 &&
-                               client_width >= body_map_width + body_map_gap +
-                               min_inventory_width;
-    const bool compact_body_map_fits = client_height >= 16 &&
-                                       client_width >= compact_body_map_width + body_map_gap +
-                                       min_inventory_width;
-    equipment_body_map_reserved_width = 0;
-    if( equipment_body_map_requested() ) {
-        if( body_map_fits ) {
-            equipment_body_map_reserved_width = body_map_width;
-        } else if( compact_body_map_fits ) {
-            equipment_body_map_reserved_width = compact_body_map_width;
+    constexpr size_t full_body_map_height = 16;
+    constexpr size_t compact_body_map_height = 10;
+    constexpr size_t min_worn_list_height = 7;
+
+    equipment_body_map_reserved_height = 0;
+    if( equipment_body_map_requested() && !own_gear_column.empty() ) {
+        if( client_height >= full_body_map_height + min_worn_list_height ) {
+            equipment_body_map_reserved_height = full_body_map_height;
+        } else if( client_height >= compact_body_map_height + min_worn_list_height ) {
+            equipment_body_map_reserved_height = compact_body_map_height;
         }
     }
-    const size_t layout_width = equipment_body_map_reserved_width > 0 ?
-                                client_width - equipment_body_map_reserved_width - body_map_gap :
-                                client_width;
 
     // This block adds categories and should go before any width evaluations
     const bool initial = get_active_column().get_highlighted_index() == static_cast<size_t>( -1 );
 '@ 'inventory.body-map-layout-reserve'
 
 $iuc = Replace-ExactlyOnce $iuc @'
+    for( inventory_column *&elem : columns ) {
+        elem->set_height( client_height );
+        elem->prepare_paging( filter );
+        elem->reset_width( columns );
+    }
+'@ @'
+    for( inventory_column *&elem : columns ) {
+        const size_t column_height =
+            elem == &own_gear_column && equipment_body_map_reserved_height > 0 ?
+            client_height - equipment_body_map_reserved_height : client_height;
+        elem->set_height( column_height );
+        elem->prepare_paging( filter );
+        elem->reset_width( columns );
+    }
+'@ 'inventory.body-map-worn-column-height'
+$iuc = Replace-ExactlyOnce $iuc @'
     // Handle screen overflow
     rearrange_columns( client_width );
 '@ @'
-    // Handle screen overflow inside the inventory portion; the optional body
-    // map owns its reserved right-hand strip.
-    rearrange_columns( layout_width );
+    // Keep vanilla horizontal layout.  The body map only consumes vertical
+    // space inside the existing worn-items column.
+    rearrange_columns( client_width );
+    if( !own_gear_column.visible() || own_gear_column.get_width() < 12 ) {
+        equipment_body_map_reserved_height = 0;
+    }
 '@ 'inventory.body-map-rearrange-width'
-
-$iuc = Replace-ExactlyOnce $iuc @'
-    if( visible_columns.size() == 1 && are_columns_centered( client_width ) ) {
-        visible_columns.front()->set_width( client_width );
-    }
-'@ @'
-    if( visible_columns.size() == 1 && are_columns_centered( layout_width ) ) {
-        visible_columns.front()->set_width( layout_width );
-    }
-'@ 'inventory.body-map-single-column-width'
-
-$iuc = Replace-ExactlyOnce $iuc @'
-size_t inventory_selector::get_layout_width() const
-{
-    const size_t min_hud_width = std::max( get_header_min_width(), get_footer_min_width() );
-    const auto visible_columns = get_visible_columns();
-    const size_t gaps = visible_columns.size() > 1 ? normal_column_gap * ( visible_columns.size() - 1 )
-                        : 0;
-
-    return std::max( get_columns_width( visible_columns ) + gaps, min_hud_width );
-}
-'@ @'
-size_t inventory_selector::get_layout_width() const
-{
-    const size_t min_hud_width = std::max( get_header_min_width(), get_footer_min_width() );
-    const auto visible_columns = get_visible_columns();
-    const size_t gaps = visible_columns.size() > 1 ? normal_column_gap * ( visible_columns.size() - 1 )
-                        : 0;
-
-    size_t content_width = std::max( get_columns_width( visible_columns ) + gaps, min_hud_width );
-    if( equipment_body_map_reserved_width > 0 ) {
-        // Keep enough real inventory space that the second layout pass cannot
-        // make the panel disappear after get_layout_width() shrinks the window.
-        content_width = std::max<size_t>( content_width, 60 );
-        return content_width + equipment_body_map_reserved_width + 1;
-    }
-    return content_width;
-}
-'@ 'inventory.body-map-layout-width'
-
 $iuc = Replace-ExactlyOnce $iuc @'
     draw_frame( w_inv );
     draw_header( w_inv );
@@ -404,16 +369,6 @@ $iuc = Replace-ExactlyOnce $iuc @'
 '@ 'inventory.body-map-refresh'
 
 $iuc = Replace-ExactlyOnce $iuc @'
-    const int screen_width = getmaxx( w ) - 2 * ( border + 1 );
-    const bool centered = are_columns_centered( screen_width );
-'@ @'
-    const int body_map_extra = equipment_body_map_reserved_width > 0 ?
-                               static_cast<int>( equipment_body_map_reserved_width ) + 1 : 0;
-    const int screen_width = getmaxx( w ) - 2 * ( border + 1 ) - body_map_extra;
-    const bool centered = are_columns_centered( screen_width );
-'@ 'inventory.body-map-column-width'
-
-$iuc = Replace-ExactlyOnce $iuc @'
 void inventory_selector::draw_frame( const catacurses::window &w ) const
 {
     draw_border( w );
@@ -433,41 +388,65 @@ void inventory_selector::draw_frame( const catacurses::window &w ) const
     wattron( w, BORDER_COLOR );
     mvwhline( w, point( 0, y ), LINE_XXXO, 1 );
     mvwhline( w, point( getmaxx( w ) - border, y ), LINE_XOXX, 1 );
-    if( equipment_body_map_reserved_width > 0 ) {
-        const int separator_x = getmaxx( w ) - border -
-                                static_cast<int>( equipment_body_map_reserved_width ) - 1;
-        const int separator_height = std::max( 0, getmaxy( w ) - y - 2 );
-        if( separator_height > 0 ) {
-            mvwvline( w, point( separator_x, y + 1 ), BORDER_COLOR, LINE_XOXO,
-                      separator_height );
-        }
-    }
     wattroff( w, BORDER_COLOR );
 }
 
 void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) const
 {
-    if( equipment_body_map_reserved_width == 0 || !equipment_body_map_requested() ) {
+    if( equipment_body_map_reserved_height == 0 || !equipment_body_map_requested() ||
+        !own_gear_column.visible() ) {
         return;
     }
 
-    const int panel_width = static_cast<int>( equipment_body_map_reserved_width );
-    const int panel_x = getmaxx( w ) - border - panel_width;
+    const auto visible_columns = get_visible_columns();
+    const int screen_width = getmaxx( w ) - 2 * ( border + 1 );
+    const bool centered = are_columns_centered( screen_width );
+    const int free_space = screen_width - get_columns_width( visible_columns );
+    const int max_gap = visible_columns.size() > 1 ?
+                        free_space / static_cast<int>( visible_columns.size() - 1 ) :
+                        free_space;
+    const int gap = centered ? max_gap : std::min<int>( max_gap, normal_column_gap );
+    const int gap_rounding_error = centered && visible_columns.size() > 1 ?
+                                   free_space % static_cast<int>( visible_columns.size() - 1 ) : 0;
+
+    int panel_x = border + 1;
+    bool found_worn_column = false;
+    for( size_t i = 0; i < visible_columns.size(); ++i ) {
+        inventory_column *elem = visible_columns[i];
+        if( i + 1 == visible_columns.size() ) {
+            panel_x += gap_rounding_error;
+        }
+        if( elem == &own_gear_column ) {
+            found_worn_column = true;
+            break;
+        }
+        panel_x += static_cast<int>( elem->get_width() ) + gap;
+    }
+    if( !found_worn_column ) {
+        return;
+    }
+
+    const int panel_width = static_cast<int>( own_gear_column.get_width() );
+    if( panel_width < 12 ) {
+        return;
+    }
+
+    const int footer_y = getmaxy( w ) - border;
+    const int panel_top = footer_y - static_cast<int>( equipment_body_map_reserved_height );
     const int content_width = std::max( 1, panel_width - 2 );
-    int y = border + get_header_height() + 1;
-    const int bottom = getmaxy( w ) - border;
+
+    mvwhline( w, point( panel_x, panel_top ), c_dark_gray, LINE_OXOX, panel_width );
 
     const std::string heading =
-        ncmm::localized_text(
-            "EQUIPMENT",
-            u8"\u042D\u041A\u0418\u041F\u0418\u0420\u041E\u0412\u041A\u0410" );
+        ncmm::localized_text( "EQUIPMENT", u8"\u042D\u041A\u0418\u041F\u0418\u0420\u041E\u0412\u041A\u0410" );
     const int heading_x = panel_x + 1 +
                           std::max( 0, ( content_width - utf8_width( heading, true ) ) / 2 );
+    int y = panel_top + 1;
     trim_and_print( w, point( heading_x, y++ ), content_width, c_light_cyan, heading );
 
     const inventory_entry &highlighted = get_highlighted();
     const item *selected = highlighted.is_item() ? highlighted.any_item().get_item() : nullptr;
-    std::vector<item_location> worn_items = u.worn.top_items_loc( u );
+    const std::vector<item_location> worn_items = u.worn.top_items_loc( u );
 
     const auto item_covers_graph_part = []( const item & it, const bodygraph_part & part ) {
         for( const bodypart_id &bp : part.bodyparts ) {
@@ -475,11 +454,6 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
                 return true;
             }
         }
-
-        // item::covers( sub_bodypart ) intentionally falls back to true for
-        // some legacy armor without sub_data. For a visualization this would
-        // paint unrelated graph fragments, so compare the actual covered
-        // sub-bodypart set instead.
         const std::vector<sub_bodypart_id> covered = it.get_covered_sub_body_parts();
         for( const sub_bodypart_id &sbp : part.sub_bodyparts ) {
             if( std::find( covered.begin(), covered.end(), sbp ) != covered.end() ) {
@@ -516,16 +490,16 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
         return colorize( sym, color );
     };
 
-    const bool compact_body_map = equipment_body_map_reserved_width <= 20;
-    const bodygraph_id &bodygraph = compact_body_map ?
+    const bool compact = equipment_body_map_reserved_height <= 10 || panel_width < 18;
+    const bodygraph_id &bodygraph = compact ?
                                     ncmm_equipment_bodygraph_compact :
                                     ncmm_equipment_bodygraph;
-    const int bodygraph_height = compact_body_map ? 7 : 13;
+    const int bodygraph_height = compact ? 7 : 13;
     const std::vector<std::string> graph_lines =
-        get_bodygraph_lines( u, bodygraph_cb, bodygraph,
-                             content_width, bodygraph_height );
+        get_bodygraph_lines( u, bodygraph_cb, bodygraph, content_width, bodygraph_height );
+
     for( const std::string &line : graph_lines ) {
-        if( y >= bottom - 4 ) {
+        if( y >= footer_y ) {
             break;
         }
         const int line_width = utf8_width( line, true );
@@ -534,86 +508,25 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
         print_colored_text( w, point( x, y++ ), current_color, c_light_gray, line );
     }
 
-    if( y < bottom - 1 ) {
-        mvwhline( w, point( panel_x + 1, y++ ), c_dark_gray, LINE_OXOX, content_width );
-    }
-
-    if( selected != nullptr && y < bottom - 1 ) {
-        std::string selected_line =
-            ncmm::localized_text(
-                "Selected",
-                u8"\u0412\u044B\u0431\u0440\u0430\u043D\u043E" ) +
-            ": " + selected->tname();
-        trim_and_print( w, point( panel_x + 1, y++ ), content_width, c_yellow, selected_line );
-
-        if( selected->is_armor() &&
-            ncmm::runtime_setting_hook_bool( "inventory.body_map.show_layers", 1 ) != 0 &&
-            y < bottom - 1 ) {
-            std::string layers;
-            for( const layer_level layer : selected->get_layer() ) {
-                if( !layers.empty() ) {
-                    layers += " / ";
-                }
-                layers += item::layer_to_string( layer );
-            }
+    if( selected != nullptr && selected->is_armor() &&
+        ncmm::runtime_setting_hook_bool( "inventory.body_map.show_layers", 1 ) != 0 &&
+        y < footer_y ) {
+        std::string layers;
+        for( const layer_level layer : selected->get_layer() ) {
             if( !layers.empty() ) {
-                const std::string layer_line =
-                    ncmm::localized_text(
-                        "Layers",
-                        u8"\u0421\u043B\u043E\u0438" ) +
-                    ": " + layers;
-                trim_and_print( w, point( panel_x + 1, y++ ), content_width,
-                                c_light_gray, layer_line );
+                layers += " / ";
             }
+            layers += item::layer_to_string( layer );
         }
-    }
-
-    if( y < bottom - 1 ) {
-        const std::string worn_label =
-            ncmm::localized_text(
-                "WORN BY BODY PART",
-                u8"\u041D\u0410\u0414\u0415\u0422\u041E \u041D\u0410 \u0427\u0410\u0421\u0422\u042F\u0425 \u0422\u0415\u041B\u0410" );
-        trim_and_print( w, point( panel_x + 1, y++ ), content_width, c_light_cyan, worn_label );
-    }
-
-    int undisplayed_parts = 0;
-    for( const bodypart_id &bp : u.get_all_body_parts() ) {
-        std::vector<std::string> names;
-        for( const item_location &loc : worn_items ) {
-            if( loc && loc->covers( bp ) ) {
-                names.push_back( loc->tname() );
-            }
+        if( !layers.empty() ) {
+            const std::string layer_line =
+                ncmm::localized_text( "Layer", u8"\u0421\u043B\u043E\u0439" ) + ": " + layers;
+            trim_and_print( w, point( panel_x + 1, y ), content_width,
+                            c_light_gray, layer_line );
         }
-        if( names.empty() ) {
-            continue;
-        }
-
-        if( y >= bottom - 1 ) {
-            ++undisplayed_parts;
-            continue;
-        }
-
-        std::string summary = names.front();
-        if( names.size() > 1 ) {
-            summary += string_format( " +%d", static_cast<int>( names.size() ) - 1 );
-        }
-        const std::string row =
-            string_format( "%s [%d] %s", uppercase_first_letter( bp->name.translated() ),
-                           static_cast<int>( names.size() ), summary );
-        trim_and_print( w, point( panel_x + 1, y++ ), content_width, c_light_gray, row );
-    }
-
-    if( undisplayed_parts > 0 && bottom - 1 > border + get_header_height() ) {
-        const std::string more =
-            string_format( "+%d %s", undisplayed_parts,
-                           ncmm::localized_text(
-                               "more",
-                               u8"\u0435\u0449\u0451" ).c_str() );
-        trim_and_print( w, point( panel_x + 1, bottom - 1 ), content_width, c_dark_gray, more );
     }
 }
 '@ 'inventory.body-map-frame-and-render'
-
 $gic = Replace-ExactlyOnce $gic @'
     inventory_pick_selector inv_s( you, inv_s_p );
 
@@ -1902,7 +1815,7 @@ foreach ($needle in @('targeting.hit_probability.enabled','exact_hit_probability
 }
 if (-not $dh2.Contains('probability_below')) { throw 'Post-check failed: dispersion probability declaration' }
 if (-not $dc2.Contains('dispersion_sources::probability_below')) { throw 'Post-check failed: dispersion probability implementation' }
-foreach ($needle in @('set_equipment_body_map','equipment_body_map_reserved_width')) {
+foreach ($needle in @('set_equipment_body_map','equipment_body_map_reserved_height')) {
     if (-not $iuh2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 foreach ($needle in @('inventory.body_map.enabled','inventory.body_map.show_layers','draw_equipment_body_map','get_bodygraph_lines')) {
