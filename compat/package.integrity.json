@@ -96,8 +96,8 @@
     },
     {
       "path": "compat\\compatibility.manifest.json",
-      "sha256": "e53ec05f62210685d8c7fb13d6ab4e5cd4f4779b27824e0bb38488b8090a748f",
-      "bytes": 6615
+      "sha256": "05b66081e54db570929d7edd3439dd2e23183a1118b03a5bfe460c3af81a9021",
+      "bytes": 6806
     },
     {
       "path": "compat\\contracts.json",
@@ -121,8 +121,8 @@
     },
     {
       "path": "compat\\update\\index.json",
-      "sha256": "f960d406f3afe13139cbd7191f410ed10318dbca73d6639fdda6b85e14db3f16",
-      "bytes": 928
+      "sha256": "56e5a28eb9bfdb640afae91261f2a680cf345860c76f8baa83e28afaeb2bc817",
+      "bytes": 959
     },
     {
       "path": "components\\advanced_world_settings.json",
@@ -131,18 +131,18 @@
     },
     {
       "path": "components\\ballistic_hit_chance.json",
-      "sha256": "2a8bd2a797681cad1620b489356a1e3ed933d720f44f5fed0b36417b403b8242",
-      "bytes": 549
+      "sha256": "3a030ff73100a06079b52297db0c520253e536f35afc8cf5a8b06e3eb543506b",
+      "bytes": 575
     },
     {
       "path": "components\\index.json",
-      "sha256": "c2c1acc55dcbcad2e19c4f740d42b1fab53516554fad5088d791642a55e7119c",
-      "bytes": 4551
+      "sha256": "29f227a14d529abe0f599af6fa8ec7fcab7116b144055867aaba08b88c6fe9f1",
+      "bytes": 4732
     },
     {
       "path": "components\\ncmm_host.json",
-      "sha256": "aafa21c7141317b39db37f8aca4f5debdf5b830d0a6d2d52b2649e35a200a57b",
-      "bytes": 806
+      "sha256": "26c7727f4ef540af1a3ce0f7ccb59ef620ced5ee1f7392f16a67c61edfde9531",
+      "bytes": 840
     },
     {
       "path": "components\\ncmm_infrastructure.json",
@@ -216,8 +216,8 @@
     },
     {
       "path": "HOST_API_2.0_CORE_CHANGELOG.txt",
-      "sha256": "808adfc7b8751668dd4cfc0f30006c09537a3ac2a1508f93a1c2b26c74cc1df1",
-      "bytes": 1503
+      "sha256": "9a7c2e816147bc5ead42f44a3255d9dc8bf327348cd0d45b3285381e56efcc68",
+      "bytes": 1524
     },
     {
       "path": "INFRASTRUCTURE_0.8.2.1_CHANGELOG.txt",
@@ -336,13 +336,13 @@
     },
     {
       "path": "README.txt",
-      "sha256": "0a76113d14b97ad72cf84a0a78f8b6d353a1ff74f450e1601e964183cb59a932",
-      "bytes": 1976
+      "sha256": "c0a2de24e7f0fb5a686e2d416c9bfd3ddfcc1c4bfddf9fa0ece787954df90ceb",
+      "bytes": 2031
     },
     {
       "path": "sdk\\HOST_API_2_CORE_CONTRACT.md",
-      "sha256": "224c2270cc0bdf95ecaf8640c8bd7e4de459cb9ec5faa95af44debc438f4a525",
-      "bytes": 3079
+      "sha256": "e3c402b40237493a308bf25975db86a8e7f390013ad2b57afd03526e5bd6da7b",
+      "bytes": 3132
     },
     {
       "path": "SURVIVOR_0.10.0_MECHANICAL_PERKS_AUDIT.txt",
