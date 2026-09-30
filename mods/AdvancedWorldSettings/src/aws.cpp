@@ -91,9 +91,10 @@ bool geography( const ncmm_host_api_v1 *api, bool ru ) {
     auto end = [&]() { api->worldgen_group_end(); };
 
     if( !begin( "aws_geo_city", "Cities and infrastructure", "Города и инфраструктура",
-                "Affects only areas generated after this change.",
-                "Влияет только на новые области, созданные после изменения." ) ) return false;
-    ok &= reg_bool( api,ru,"NCMM_AWS_CUSTOM_GEOGRAPHY","Use custom geography","Использовать свою географию","Leave this off to use the world's normal geography. Turn it on to customize newly generated areas. This overrides default-region geography values, including changes from region-overlay mods.","Оставьте выключенным для обычной географии мира. Включите, чтобы настраивать новые области. При этом значения географии региона default, включая изменения region-overlay модов, переопределяются.",false );
+                "Selective overrides for the default region. Turn this scope off to inherit city and road settings from the active region definition and region-overlay mods.",
+                "Выборочные переопределения стандартного региона. Выключите эту область, чтобы наследовать настройки городов и дорог из активного региона и region-overlay модов." ) ) return false;
+    ok &= reg_bool( api,ru,"NCMM_AWS_CUSTOM_GEOGRAPHY","Use custom geography","Использовать свою географию","Master switch for AWS geography overrides in the default region. Other regions and alternate dimensions keep their own region definitions.","Главный переключатель географических переопределений AWS в стандартном регионе. Другие регионы и альтернативные измерения сохраняют свои region definitions.",false );
+    ok &= reg_bool( api,ru,"NCMM_AWS_SCOPE_CITIES","Override cities and infrastructure","Переопределять города и инфраструктуру","When off, city, road and railroad values are inherited from the active default-region settings, including region-overlay changes. Default ON preserves existing AWS worlds.","Если выключено, города, дороги и железные дороги наследуют значения активного стандартного региона, включая изменения region-overlay. Включено по умолчанию для совместимости со старыми мирами AWS.",true );
     ok &= reg_int( api,ru,"NCMM_AWS_CITY_SIZE","Base city size","Базовый размер города","0 disables random cities; default 8.","0 отключает случайные города; стандарт 8.",0,32,8 );
     ok &= reg_int( api,ru,"NCMM_AWS_CITY_SPACING","City spacing","Расстояние между городами","Higher values produce fewer cities; default 4.","Чем выше значение, тем реже города; стандарт 4.",0,8,4 );
     ok &= reg_int( api,ru,"NCMM_AWS_MAX_URBANITY","Maximum city growth","Максимальный рост городов","Limits how strongly regional generation can enlarge cities; default 8.","Ограничивает, насколько сильно региональные настройки могут увеличивать города; стандарт 8.",1,16,8 );
@@ -102,15 +103,14 @@ bool geography( const ncmm_host_api_v1 *api, bool ru ) {
     ok &= reg_int( api,ru,"NCMM_AWS_SHOP_SIGMA","Shop spread","Разброс магазинов","Controls how widely shops are scattered around the city center. CDDA 0546 default is 50.","Определяет, насколько широко магазины распределяются вокруг центра города. Стандарт CDDA 0546 — 50.",0,200,50 );
     ok &= reg_int( api,ru,"NCMM_AWS_PARK_RADIUS","Park radius","Радиус парков","Controls how far from the city center parks may appear. Larger values spread parks farther out; 0 prevents parks from being placed by this rule. CDDA 0546 default is 20.","Определяет, насколько далеко от центра города могут появляться парки. Чем выше значение, тем дальше они распространяются; 0 запрещает размещение парков по этому правилу. Стандарт CDDA 0546 — 20.",0,200,20 );
     ok &= reg_int( api,ru,"NCMM_AWS_PARK_SIGMA","Park spread","Разброс парков","Controls how widely parks are scattered around the city center. CDDA 0546 default is 80.","Определяет, насколько широко парки распределяются вокруг центра города. Стандарт CDDA 0546 — 80.",0,200,80 );
-    ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_ROADS","Generate roads","Генерировать дороги","Disables new inter-city roads when off.","Отключает новые межгородские дороги.",true );
-    ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_RAILROADS","Generate railroads","Генерировать железные дороги","Controls railroad generation while custom geography is active. Vanilla CDDA 0546 default is off.","Управляет генерацией железных дорог при включённой своей географии. В стандартной CDDA 0546 по умолчанию выключено.",false );
-    ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_SPECIALS","Generate special locations","Генерировать особые локации","Controls placement of new special locations.","Управляет размещением новых особых локаций.",true );
-    ok &= reg_bool( api,ru,"NCMM_AWS_NEIGHBOR_CONNECTIONS","Connect neighboring map regions","Связывать соседние области карты","Keeps roads, rail lines and rivers continuous across map-region borders.","Сохраняет непрерывность дорог, железных дорог и рек между областями карты.",true );
+    ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_ROADS","Generate roads","Генерировать дороги","Advanced: disabling roads can break connectivity and access to generated content. Prefer leaving this on unless testing a deliberately disconnected world.","Расширенная настройка: отключение дорог может нарушить связность мира и доступ к сгенерированному контенту. Рекомендуется оставить включённой, если вы специально не тестируете разорванный мир.",true );
+    ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_RAILROADS","Generate railroads","Генерировать железные дороги","When custom geography is enabled, directly enables or disables railroad generation in new default-region areas. Off matches the current CDDA default region.","При включённой своей географии напрямую включает или отключает железные дороги в новых областях стандартного региона. Выключено соответствует текущему стандартному региону CDDA.",false );
     end(); if( !ok ) return false;
 
     if( !begin( "aws_geo_forest", "Forests, swamps and trails", "Леса, болота и тропы",
-                "Lower threshold values generate more of the selected terrain in new areas.",
-                "Чем ниже порог, тем больше соответствующего ландшафта появится в новых областях." ) ) return false;
+                "Selective ecology overrides for newly generated default-region areas.",
+                "Выборочные переопределения экологии для новых областей стандартного региона." ) ) return false;
+    ok &= reg_bool( api,ru,"NCMM_AWS_SCOPE_ECOLOGY","Override forests, swamps and trails","Переопределять леса, болота и тропы","When off, ecology values are inherited from the active region definition and region-overlay mods. Default ON preserves existing AWS worlds.","Если выключено, параметры экологии наследуются из активного региона и region-overlay модов. Включено по умолчанию для совместимости со старыми мирами AWS.",true );
     ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_FORESTS","Generate forests","Генерировать леса","Turns forest generation on or off in new areas.","Включает или отключает леса в новых областях.",true );
     ok &= reg_float( api,ru,"NCMM_AWS_FOREST_THRESHOLD","Forest threshold","Порог леса","Lower = more forest. CDDA 0546 default is 0.20.","Ниже = больше леса. Стандарт CDDA 0546 — 0,20.",0.0,1.0,0.20,0.01 );
     ok &= reg_float( api,ru,"NCMM_AWS_FOREST_THICK_THRESHOLD","Dense forest threshold","Порог густого леса","Lower = more dense forest. CDDA 0546 default is 0.25.","Ниже = больше густого леса. Стандарт CDDA 0546 — 0,25.",0.0,1.0,0.25,0.01 );
@@ -127,8 +127,9 @@ bool geography( const ncmm_host_api_v1 *api, bool ru ) {
     end(); if( !ok ) return false;
 
     if( !begin( "aws_geo_water", "Rivers, lakes and oceans", "Реки, озёра и океаны",
-                "Controls rivers, lakes and oceans in newly generated areas.",
-                "Настройки рек, озёр и океанов в новых областях." ) ) return false;
+                "Selective water-generation overrides for newly generated default-region areas.",
+                "Выборочные переопределения водной генерации для новых областей стандартного региона." ) ) return false;
+    ok &= reg_bool( api,ru,"NCMM_AWS_SCOPE_WATER","Override rivers, lakes and oceans","Переопределять реки, озёра и океаны","When off, water-generation values are inherited from the active region definition and region-overlay mods. Default ON preserves existing AWS worlds.","Если выключено, параметры водной генерации наследуются из активного региона и region-overlay модов. Включено по умолчанию для совместимости со старыми мирами AWS.",true );
     ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_RIVERS","Generate rivers","Генерировать реки","Turns river generation on or off in new areas.","Включает или отключает реки в новых областях.",true );
     ok &= reg_int( api,ru,"NCMM_AWS_RIVER_SCALE","River width scale","Масштаб ширины рек","0 disables rivers; default region value is 1.","0 отключает реки; стандарт региона 1.",0,5,1 );
     ok &= reg_float( api,ru,"NCMM_AWS_RIVER_FREQUENCY","River frequency","Частота рек","Higher = fewer new major rivers. Default 1.5.","Выше = меньше новых крупных рек. Стандарт 1,5.",1.0,8.0,1.5,0.1 );
@@ -144,18 +145,19 @@ bool geography( const ncmm_host_api_v1 *api, bool ru ) {
     end(); if( !ok ) return false;
 
     if( !begin( "aws_geo_transport", "Highways and ravines", "Шоссе и овраги",
-                "Controls highways and ravines in newly generated areas.",
-                "Настройки шоссе и оврагов в новых областях." ) ) return false;
+                "Experimental transport overrides. Ravines do not fully resolve intersections with lakes, rivers, roads or highways.",
+                "Экспериментальные транспортные переопределения. Овраги пока не умеют корректно разрешать все пересечения с озёрами, реками, дорогами и шоссе." ) ) return false;
+    ok &= reg_bool( api,ru,"NCMM_AWS_SCOPE_TRANSPORT","Override highways and ravines","Переопределять шоссе и овраги","When off, highway and ravine values are inherited from the active region definition. Default ON preserves existing AWS worlds.","Если выключено, параметры шоссе и оврагов наследуются из активного региона. Включено по умолчанию для совместимости со старыми мирами AWS.",true );
     ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_HIGHWAYS","Generate highways","Генерировать шоссе","Turns highway generation on or off in new areas.","Включает или отключает шоссе в новых областях.",true );
     ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_ROW","Highway row separation","Расстояние между горизонтальными шоссе","Distance between highway rows, measured in map regions. Default 8.","Расстояние между рядами шоссе в областях карты. Стандарт 8.",2,32,8 );
     ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_COLUMN","Highway column separation","Расстояние между вертикальными шоссе","Distance between highway columns, measured in map regions. Default 10.","Расстояние между колоннами шоссе в областях карты. Стандарт 10.",2,32,10 );
-    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_VARIANCE","Highway alignment variation","Разброс линий шоссе","How far highway intersections may shift from the grid. For safety the effective value is clamped to at most one quarter of the tighter grid spacing. Default 2.","Насколько перекрёстки могут смещаться относительно сетки. Для безопасности фактическое значение ограничивается четвертью меньшего шага сетки. Стандарт 2.",0,7,2 );
-    ok &= reg_float( api,ru,"NCMM_AWS_HIGHWAY_STRAIGHTNESS","Highway endpoint randomness","Разброс концов шоссе","Higher = more random endpoint placement; lower = straighter alignment. CDDA 0546 underlying default is 0.60.","Выше = более случайное размещение концов шоссе; ниже = более прямое выравнивание. Базовое значение CDDA 0546 — 0,60.",0.0,1.0,0.60,0.05 );
-    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_RAVINES","Generate ravines","Генерировать овраги","Turns ravines on or off where the current region supports them.","Включает или отключает овраги там, где текущий регион их поддерживает.",true );
+    ok &= reg_int( api,ru,"NCMM_AWS_HIGHWAY_GRID_VARIANCE","Highway alignment variation","Разброс линий шоссе","How far highway intersections may shift from the grid. The Host clamps this to at most one quarter of the smaller grid separation for safety. Default 2.","Насколько перекрёстки могут смещаться относительно сетки. Для безопасности Host ограничивает значение четвертью меньшего шага сетки. Стандарт 2.",0,7,2 );
+    ok &= reg_float( api,ru,"NCMM_AWS_HIGHWAY_STRAIGHTNESS","Highway endpoint randomness","Случайность концов шоссе","Chance to choose a random border endpoint instead of trying to align with a neighboring highway. Higher = less alignment. CDDA default is 0.60.","Шанс выбрать случайную точку на границе вместо попытки выровнять шоссе с соседней областью. Выше = меньше выравнивания. Стандарт CDDA — 0,60.",0.0,1.0,0.60,0.05 );
+    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_RAVINES","Generate ravines (unsupported combinations)","Генерировать овраги (неподдерживаемые комбинации)","Experimental: ravines may carve through lakes, rivers, roads or highways without producing valid crossings. Use only if you accept malformed intersections.","Экспериментально: овраги могут прорезать озёра, реки, дороги или шоссе без корректных переходов. Используйте только если допускаете некорректные пересечения.",true );
     ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_COUNT","Ravines per map region","Оврагов на область карты","0 disables ravines. Default region value is 0.","0 отключает овраги. В стандартном регионе по умолчанию 0.",0,16,0 );
     ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_RANGE","Ravine length range","Длина оврага","Path displacement range. Default 45.","Диапазон смещения пути. Стандарт 45.",1,120,45 );
     ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_WIDTH","Ravine width","Ширина оврага","Ravine width control. CDDA 0546 default is 3.","Управление шириной оврага. Стандарт CDDA 0546 — 3.",1,10,3 );
-    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_DEPTH","Ravine depth Z-level","Глубина оврага по Z","Negative Z-level for ravine floor. Current supported CDDA hosts have 10 overmap levels below ground, so the safe range is -10 to -1. Default -3.","Отрицательный Z-уровень дна оврага. В текущих поддерживаемых версиях CDDA есть 10 уровней овермапа вниз, поэтому безопасный диапазон — от -10 до -1. Стандарт -3.",-10,-1,-3 );
+    ok &= reg_int( api,ru,"NCMM_AWS_RAVINE_DEPTH","Ravine depth Z-level","Глубина оврага по Z","Negative Z-level for ravine floor. Current certified CDDA hosts support down to -10. Default -3.","Отрицательный Z-уровень дна оврага. Текущие сертифицированные версии CDDA поддерживают глубину до -10. Стандарт -3.",-10,-1,-3 );
     end();
     return ok;
 }
@@ -171,6 +173,10 @@ bool bind_geography_hooks_v2()
     if( host2 == nullptr || !host2->worldgen_hook_bind_setting ) return false;
     const geography_binding_v2 bindings[] = {
         { "geography.custom.enabled", "NCMM_AWS_CUSTOM_GEOGRAPHY", NCMM_WORLDGEN_BOOL_V2 },
+        { "geography.scope.cities.enabled", "NCMM_AWS_SCOPE_CITIES", NCMM_WORLDGEN_BOOL_V2 },
+        { "geography.scope.ecology.enabled", "NCMM_AWS_SCOPE_ECOLOGY", NCMM_WORLDGEN_BOOL_V2 },
+        { "geography.scope.water.enabled", "NCMM_AWS_SCOPE_WATER", NCMM_WORLDGEN_BOOL_V2 },
+        { "geography.scope.transport.enabled", "NCMM_AWS_SCOPE_TRANSPORT", NCMM_WORLDGEN_BOOL_V2 },
         { "geography.city.size", "NCMM_AWS_CITY_SIZE", NCMM_WORLDGEN_INT_V2 },
         { "geography.city.spacing", "NCMM_AWS_CITY_SPACING", NCMM_WORLDGEN_INT_V2 },
         { "geography.city.max_urbanity", "NCMM_AWS_MAX_URBANITY", NCMM_WORLDGEN_INT_V2 },
@@ -181,8 +187,6 @@ bool bind_geography_hooks_v2()
         { "geography.city.park_sigma", "NCMM_AWS_PARK_SIGMA", NCMM_WORLDGEN_INT_V2 },
         { "geography.roads.enabled", "NCMM_AWS_PLACE_ROADS", NCMM_WORLDGEN_BOOL_V2 },
         { "geography.railroads.enabled", "NCMM_AWS_PLACE_RAILROADS", NCMM_WORLDGEN_BOOL_V2 },
-        { "geography.specials.enabled", "NCMM_AWS_PLACE_SPECIALS", NCMM_WORLDGEN_BOOL_V2 },
-        { "geography.neighbor_connections.enabled", "NCMM_AWS_NEIGHBOR_CONNECTIONS", NCMM_WORLDGEN_BOOL_V2 },
         { "geography.forests.enabled", "NCMM_AWS_ENABLE_FORESTS", NCMM_WORLDGEN_BOOL_V2 },
         { "geography.forests.threshold", "NCMM_AWS_FOREST_THRESHOLD", NCMM_WORLDGEN_FLOAT_V2 },
         { "geography.forests.thick_threshold", "NCMM_AWS_FOREST_THICK_THRESHOLD", NCMM_WORLDGEN_FLOAT_V2 },
@@ -272,13 +276,13 @@ int init( const ncmm_host_api_v1 *api ) {
         if( api->get_api_version_major() != 1 || api->get_api_version_minor() < 9 ) return 0;
     }
     if( !expose_all( api, true ) || !bind_geography_hooks_v2() ) return 0;
-    api->log( NCMM_LOG_INFO, "Advanced World Settings 0.6.3 initialized: Host API 2.0 typed settings + generic geography hooks active." );
+    api->log( NCMM_LOG_INFO, "Advanced World Settings 0.6.4 initialized: Host API 2.0 typed settings + generic geography hooks active." );
     return 1;
 }
 void shutdown() { host2 = nullptr; }
 
 const ncmm_mod_descriptor_v1 descriptor = {
-    NCMM_ABI_VERSION, module_id, "Advanced World Settings", "0.6.3",
+    NCMM_ABI_VERSION, module_id, "Advanced World Settings", "0.6.4",
     required_caps, sizeof( required_caps ) / sizeof( required_caps[0] ), &init, &shutdown
 };
 }
