@@ -304,8 +304,14 @@ void inventory_selector::prepare_layout( size_t client_width, size_t client_heig
 '@ @'
 bool inventory_selector::equipment_body_map_requested() const
 {
+    // The module owns the runtime hook.  Existing worlds can legitimately lack
+    // a persisted value for a newly introduced live setting, so once the hook
+    // is bound we fall back to the module-declared default (enabled) instead of
+    // silently hiding the whole panel.  An explicitly saved OFF value is still
+    // respected.
     return equipment_body_map &&
-           ncmm::runtime_setting_hook_bool( "inventory.body_map.enabled", 0 ) != 0;
+           ncmm::runtime_setting_hook_bound( "inventory.body_map.enabled" ) &&
+           ncmm::runtime_setting_hook_bool( "inventory.body_map.enabled", 1 ) != 0;
 }
 
 void inventory_selector::prepare_layout( size_t client_width, size_t client_height )
