@@ -12,9 +12,11 @@ internal static class InstallationMatrixHarness
     private const string AwsId = "advanced_world_settings";
     private const string SurvivorId = "survivor_progression";
     private const string BallisticId = "ballistic_hit_chance";
+    private const string EquipmentBodyMapId = "equipment_body_map";
     private const string AwsDir = "AdvancedWorldSettings";
     private const string SurvivorDir = "SurvivorProgression";
     private const string BallisticDir = "BallisticHitChance";
+    private const string EquipmentBodyMapDir = "EquipmentBodyMap";
 
     private static int passed;
     private static int total;
@@ -118,6 +120,7 @@ internal static class InstallationMatrixHarness
         if (id == AwsId) return AwsDir;
         if (id == SurvivorId) return SurvivorDir;
         if (id == BallisticId) return BallisticDir;
+        if (id == EquipmentBodyMapId) return EquipmentBodyMapDir;
         throw new InvalidOperationException("Unknown test module id: " + id);
     }
 
@@ -139,7 +142,7 @@ internal static class InstallationMatrixHarness
         expectedState.AddRange(expectedModuleIds);
         AssertSet(ids, expectedState.ToArray());
 
-        foreach (string id in new string[] { AwsId, SurvivorId, BallisticId })
+        foreach (string id in new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId })
         {
             string dirName = ModuleDirectory(id);
             string installedDir = Path.Combine(root, "code_mods", dirName);
@@ -293,14 +296,14 @@ internal static class InstallationMatrixHarness
         AssertTrue(File.Exists(exe), "real CDDA smoke target has no cataclysm-tiles.exe");
         string originalVanilla = Sha256(exe);
 
-        SetupCore.Install(gameRoot, payload, new string[] { AwsId, SurvivorId, BallisticId });
-        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId, BallisticId);
+        SetupCore.Install(gameRoot, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId });
+        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId, BallisticId, EquipmentBodyMapId);
 
-        SetupCore.Install(gameRoot, payload, new string[] { AwsId, BallisticId });
-        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, BallisticId);
+        SetupCore.Install(gameRoot, payload, new string[] { AwsId, BallisticId, EquipmentBodyMapId });
+        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, BallisticId, EquipmentBodyMapId);
 
-        SetupCore.Install(gameRoot, payload, new string[] { AwsId, SurvivorId, BallisticId });
-        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId, BallisticId);
+        SetupCore.Install(gameRoot, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId });
+        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId, BallisticId, EquipmentBodyMapId);
 
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("NCMM Real CDDA Install Preparation: PASS");
@@ -349,7 +352,7 @@ internal static class InstallationMatrixHarness
                 if (!String.IsNullOrEmpty(id)) byId[id] = module;
             }
 
-            foreach (string id in new string[] { AwsId, SurvivorId, BallisticId })
+            foreach (string id in new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId })
             {
                 AssertTrue(byId.ContainsKey(id), "real Host did not report module: " + id);
                 Dictionary<string, object> module = byId[id];
@@ -365,7 +368,7 @@ internal static class InstallationMatrixHarness
         }
 
         Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine("NCMM Real Runtime Smoke: PASS (certified Host + AWS + Survivor + Ballistic Hit Chance + clean exit)");
+        Console.WriteLine("NCMM Real Runtime Smoke: PASS (certified Host + AWS + Survivor + Ballistic Hit Chance + Equipment Body Map + clean exit)");
         Console.ResetColor();
         return 0;
     }
@@ -421,11 +424,18 @@ internal static class InstallationMatrixHarness
                 AssertInstalled(root, payload, original, BallisticId);
             });
 
+            Run("clean CDDA -> Equipment Body Map only", delegate {
+                string root = NewGame(work, "clean-equipment-body-map", "vanilla-equipment-body-map");
+                string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
+                SetupCore.Install(root, payload, new string[] { EquipmentBodyMapId });
+                AssertInstalled(root, payload, original, EquipmentBodyMapId);
+            });
+
             Run("clean CDDA -> all optional modules", delegate {
                 string root = NewGame(work, "clean-all", "vanilla-all");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId, BallisticId });
-                AssertInstalled(root, payload, original, AwsId, SurvivorId, BallisticId);
+                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId });
+                AssertInstalled(root, payload, original, AwsId, SurvivorId, BallisticId, EquipmentBodyMapId);
             });
 
             Run("clean CDDA -> Survivor + AWS", delegate {
@@ -438,7 +448,7 @@ internal static class InstallationMatrixHarness
             Run("disable Ballistic Hit Chance -> AWS + Survivor remain", delegate {
                 string root = NewGame(work, "disable-ballistic", "vanilla-disable-ballistic");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId, BallisticId });
+                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId });
                 string ballisticDir = Path.Combine(root, "code_mods", BallisticDir);
                 File.WriteAllText(Path.Combine(ballisticDir, "user-note.txt"), "preserve me\n", Encoding.UTF8);
                 SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId });
