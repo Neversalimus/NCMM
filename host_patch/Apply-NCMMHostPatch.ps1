@@ -290,7 +290,8 @@ static const itype_id itype_water_faucet( "water_faucet" );
 '@ @'
 static const item_category_id item_category_WEAPON_HELD( "WEAPON_HELD" );
 
-static const bodygraph_id ncmm_equipment_bodygraph( "full_body_iteminfo" );
+static const bodygraph_id ncmm_equipment_bodygraph( "full_body_widget" );
+static const bodygraph_id ncmm_equipment_bodygraph_compact( "compact_full_body_widget" );
 
 static const itype_id itype_water_faucet( "water_faucet" );
 '@ 'inventory.body-map-bodygraph-id'
@@ -309,14 +310,24 @@ bool inventory_selector::equipment_body_map_requested() const
 
 void inventory_selector::prepare_layout( size_t client_width, size_t client_height )
 {
-    constexpr size_t body_map_width = 44;
+    constexpr size_t body_map_width = 32;
+    constexpr size_t compact_body_map_width = 20;
     constexpr size_t min_inventory_width = 60;
     constexpr size_t body_map_gap = 1;
-    const bool body_map_fits = client_height >= 28 &&
+    const bool body_map_fits = client_height >= 24 &&
                                client_width >= body_map_width + body_map_gap +
                                min_inventory_width;
-    equipment_body_map_reserved_width =
-        equipment_body_map_requested() && body_map_fits ? body_map_width : 0;
+    const bool compact_body_map_fits = client_height >= 16 &&
+                                       client_width >= compact_body_map_width + body_map_gap +
+                                       min_inventory_width;
+    equipment_body_map_reserved_width = 0;
+    if( equipment_body_map_requested() ) {
+        if( body_map_fits ) {
+            equipment_body_map_reserved_width = body_map_width;
+        } else if( compact_body_map_fits ) {
+            equipment_body_map_reserved_width = compact_body_map_width;
+        }
+    }
     const size_t layout_width = equipment_body_map_reserved_width > 0 ?
                                 client_width - equipment_body_map_reserved_width - body_map_gap :
                                 client_width;
@@ -499,9 +510,14 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
         return colorize( sym, color );
     };
 
+    const bool compact_body_map = equipment_body_map_reserved_width <= 20;
+    const bodygraph_id &bodygraph = compact_body_map ?
+                                    ncmm_equipment_bodygraph_compact :
+                                    ncmm_equipment_bodygraph;
+    const int bodygraph_height = compact_body_map ? 7 : 13;
     const std::vector<std::string> graph_lines =
-        get_bodygraph_lines( u, bodygraph_cb, ncmm_equipment_bodygraph,
-                             content_width, 20 );
+        get_bodygraph_lines( u, bodygraph_cb, bodygraph,
+                             content_width, bodygraph_height );
     for( const std::string &line : graph_lines ) {
         if( y >= bottom - 4 ) {
             break;
