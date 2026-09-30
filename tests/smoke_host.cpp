@@ -101,7 +101,7 @@ const char *get_locale_fn()
 
 const char *get_host_version_fn()
 {
-    return "0.8.1-smoke";
+    return "0.8.2-smoke";
 }
 
 uint32_t get_loader_api_fn()
