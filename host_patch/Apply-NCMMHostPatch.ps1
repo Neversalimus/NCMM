@@ -348,12 +348,23 @@ double dispersion_sources::probability_below( double threshold ) const
         return std::exp( -0.5L * z * z ) / ( sigma * sqrt_two_pi );
     };
 
+    // With no positive uniform sources the clamped-normal CDF is available
+    // directly; avoiding numerical integration also preserves the endpoint
+    // atom at hi under the strict hit condition ( dispersion < threshold ).
+    if( linear.empty() ) {
+        if( scaled_threshold > hi ) {
+            return 1.0;
+        }
+        return static_cast<double>(
+                   std::clamp( normal_cdf( scaled_threshold ), 0.0L, 1.0L ) );
+    }
+
     const long double mass_low = normal_cdf( 0.0L );
     const long double mass_high = 1.0L - normal_cdf( hi );
 
-    // Simpson integration of the continuous interior. 128 panels are well
+    // Simpson integration of the continuous interior. 256 panels are well
     // below the visible 0.1% precision for supported firearm distributions.
-    constexpr int panels = 128;
+    constexpr int panels = 256;
     const long double step = hi / static_cast<long double>( panels );
     long double integral = 0.0L;
     for( int i = 0; i <= panels; ++i ) {
