@@ -1,6 +1,6 @@
 # NCMM Host API 2.0 Core contract
 
-NCMM Host 0.8.1 keeps **Loader ABI v1**. Existing compatible modules still enter through `ncmm_get_descriptor_v1` and the stable `ncmm_host_api_v1` prefix.
+NCMM Host 0.8.2 keeps **Loader ABI v1**. Existing compatible modules still enter through `ncmm_get_descriptor_v1` and the stable `ncmm_host_api_v1` prefix.
 
 Host API 2.0 Core is an additive queried interface, not a replacement ABI. A module that requires capability `host_api.v2.core` obtains it through the v1 tail:
 
@@ -23,6 +23,7 @@ A consumer must respect `struct_size` before using future additive tail fields.
 - `character.modifiers.v2` — built-in and module-owned dynamic numeric modifiers.
 - `runtime_hooks.registry.v2` — generic hook + selector + modifier rules.
 - `worldgen.bindings.v2` — generic world-generation hook to typed-setting bindings.
+- `runtime_settings.bindings.v2` — generic LIVE/RELOAD typed-setting bindings consumed by runtime/UI hooks.
 
 The stable v1 API remains responsible for the legacy binary entry path, module manifest contract, ownership scope, persistent character state and compatible additive services.
 
@@ -30,7 +31,9 @@ The stable v1 API remains responsible for the legacy binary entry path, module m
 
 **Survivor Progression 0.12.0** uses Host API 2.0 events, typed settings, character modifiers and generic runtime-hook infrastructure while keeping its perk IDs and integration registry inside the module.
 
-**Advanced World Settings 0.6.2** uses typed settings and generic world-generation bindings. Its `NCMM_AWS_*` setting IDs remain module-owned; CDDA-facing Host hooks use generic geography domains.
+**Advanced World Settings 0.6.3** uses typed settings and generic world-generation bindings. Its `NCMM_AWS_*` setting IDs remain module-owned; CDDA-facing Host hooks use generic geography domains.
+
+**Ballistic Hit Chance 0.1.0** uses generic runtime-setting bindings. Its `NCMM_BHC_*` setting IDs remain module-owned; patched CDDA only sees generic `targeting.hit_probability.*` hooks.
 
 Both modules therefore use Host API 2.0 through the Loader ABI v1 compatibility path. Module-specific gameplay concepts are not promoted into the Host API unless they represent a genuinely reusable engine domain.
 
