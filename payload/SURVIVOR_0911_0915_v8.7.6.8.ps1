@@ -3561,13 +3561,13 @@ bool options_manager::ncmm_register_world_enum( const std::string &name,
     calculate_forestosity();
     const bool ncmm_geo = settings->id.str() == "default" &&
                           get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) &&
-                          get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) &&
-                          get_options().has_option( "NCMM_AWS_CITY_SIZE" );
+                          get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" );
     const auto geo_enabled = [&]( const char *id ) {
         return !ncmm_geo || !get_options().has_option( id ) || get_option<bool>( id );
     };
-    const bool ncmm_place_railroads = ncmm_geo ?
-                                         geo_enabled( "NCMM_AWS_PLACE_RAILROADS" ) :
+    const bool ncmm_place_railroads = ncmm_geo &&
+                                         get_options().has_option( "NCMM_AWS_PLACE_RAILROADS" ) ?
+                                         get_option<bool>( "NCMM_AWS_PLACE_RAILROADS" ) :
                                          settings->place_railroads;
     if( settings->neighbor_connections && geo_enabled( "NCMM_AWS_NEIGHBOR_CONNECTIONS" ) ) {
         populate_connections_out_from_neighbors( neighbor_overmaps );
@@ -3847,15 +3847,16 @@ void overmap::place_forest_trails()
     $trailheadNew = @'
 void overmap::place_forest_trailheads()
 {
-    const bool ncmm_geo = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_CITY_SIZE" );
-    const int city_size = ncmm_geo ? get_option<int>( "NCMM_AWS_CITY_SIZE" ) : settings->get_settings_city().city_size;
+    const bool ncmm_geo_city = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_CITY_SIZE" );
+    const bool ncmm_geo_trails = settings->id.str() == "default" && get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_option<bool>( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) && get_options().has_option( "NCMM_AWS_TRAILHEAD_CHANCE" );
+    const int city_size = ncmm_geo_city ? get_option<int>( "NCMM_AWS_CITY_SIZE" ) : settings->get_settings_city().city_size;
     if( city_size <= 0 ) {
         return;
     }
     const region_settings_forest_trail &settings_forest_trail = settings->get_settings_forest_trail();
-    const int trailhead_chance = ncmm_geo && get_options().has_option( "NCMM_AWS_TRAILHEAD_CHANCE" ) ?
+    const int trailhead_chance = ncmm_geo_trails ?
                                  get_option<int>( "NCMM_AWS_TRAILHEAD_CHANCE" ) : settings_forest_trail.trailhead_chance;
-    const int road_distance = ncmm_geo && get_options().has_option( "NCMM_AWS_TRAILHEAD_ROAD_DISTANCE" ) ?
+    const int road_distance = ncmm_geo_trails && get_options().has_option( "NCMM_AWS_TRAILHEAD_ROAD_DISTANCE" ) ?
                               get_option<int>( "NCMM_AWS_TRAILHEAD_ROAD_DISTANCE" ) : settings_forest_trail.trailhead_road_distance;
 
     const auto trailhead_close_to_road = [&]( const tripoint_om_omt & trailhead ) {
@@ -18363,6 +18364,175 @@ $awsBindingSettings20 = @($awsBindingMatches20 | ForEach-Object { $_.Groups[2].V
 if($awsBindingHooks20.Count -ne 48 -or $awsBindingSettings20.Count -ne 48) { throw 'AWS 0.6.3 geography binding IDs are not unique.' }
 if(([regex]::Matches($awsMigrationAudit,[regex]::Escape('worldgen_hook_bind_setting'))).Count -lt 2) { throw 'AWS 0.6.3 worldgen binding API not wired.' }
 Write-Host "Advanced World Settings 0.6.3 Host API 2.0 module audit: PASS (48/48 unique geography bindings)" -ForegroundColor Green
+
+
+
+function Apply-AwsSelectiveScopes064 {
+    Write-Host "Applying Advanced World Settings 0.6.4 selective-scope safety pass..." -ForegroundColor Cyan
+
+    function Insert-AwsLineAfter([string]$Body,[string]$Needle,[string]$Line,[string]$Name) {
+        if($Body.Contains($Line)) { return $Body }
+        $at = $Body.IndexOf($Needle,[StringComparison]::Ordinal)
+        if($at -lt 0) { throw "AWS 0.6.4 insert anchor missing: $Name" }
+        $lineEnd = $Body.IndexOf([char]10,$at)
+        if($lineEnd -lt 0) { throw "AWS 0.6.4 insert line end missing: $Name" }
+        return $Body.Substring(0,$lineEnd + 1) + $Line + [char]10 + $Body.Substring($lineEnd + 1)
+    }
+    function Insert-AwsLineBefore([string]$Body,[string]$Needle,[string]$Line,[string]$Name) {
+        if($Body.Contains($Line)) { return $Body }
+        $at = $Body.IndexOf($Needle,[StringComparison]::Ordinal)
+        if($at -lt 0) { throw "AWS 0.6.4 insert anchor missing: $Name" }
+        $lineStart = $Body.LastIndexOf([char]10,$at)
+        if($lineStart -lt 0) { $lineStart = 0 } else { $lineStart++ }
+        return $Body.Substring(0,$lineStart) + $Line + [char]10 + $Body.Substring($lineStart)
+    }
+    function Remove-AwsLineContaining([string]$Body,[string]$Needle,[string]$Name) {
+        $at = $Body.IndexOf($Needle,[StringComparison]::Ordinal)
+        if($at -lt 0) { return $Body }
+        $lineStart = $Body.LastIndexOf([char]10,$at)
+        if($lineStart -lt 0) { $lineStart = 0 } else { $lineStart++ }
+        $lineEnd = $Body.IndexOf([char]10,$at)
+        if($lineEnd -lt 0) { $lineEnd = $Body.Length - 1 }
+        return $Body.Remove($lineStart,$lineEnd - $lineStart + 1)
+    }
+    function Replace-AwsLineContaining([string]$Body,[string]$Needle,[string]$Line,[string]$Name) {
+        $at = $Body.IndexOf($Needle,[StringComparison]::Ordinal)
+        if($at -lt 0) { throw "AWS 0.6.4 replace anchor missing: $Name" }
+        $lineStart = $Body.LastIndexOf([char]10,$at)
+        if($lineStart -lt 0) { $lineStart = 0 } else { $lineStart++ }
+        $lineEnd = $Body.IndexOf([char]10,$at)
+        if($lineEnd -lt 0) { $lineEnd = $Body.Length }
+        return $Body.Substring(0,$lineStart) + $Line + $Body.Substring($lineEnd)
+    }
+
+    $aws = Normalize-Lf ([IO.File]::ReadAllText($awsPath))
+
+    $masterLine = '    ok &= reg_bool( api,ru,"NCMM_AWS_CUSTOM_GEOGRAPHY","Use custom geography","Использовать свою географию","Master switch for AWS geography overrides in the default region. Other regions and alternate dimensions keep their own region definitions.","Главный переключатель географических переопределений AWS в стандартном регионе. Другие регионы и альтернативные измерения сохраняют свои region definitions.",false );'
+    $aws = Replace-AwsLineContaining $aws 'NCMM_AWS_CUSTOM_GEOGRAPHY","Use custom geography"' $masterLine 'custom geography tooltip'
+
+    $cityScope = '    ok &= reg_bool( api,ru,"NCMM_AWS_SCOPE_CITIES","Override cities and infrastructure","Переопределять города и инфраструктуру","When off, city, road and railroad values are inherited from the active default-region settings, including region-overlay changes. Default ON preserves existing AWS worlds.","Если выключено, города, дороги и железные дороги наследуют значения активного стандартного региона, включая изменения region-overlay. Включено по умолчанию для совместимости со старыми мирами AWS.",true );'
+    $ecologyScope = '    ok &= reg_bool( api,ru,"NCMM_AWS_SCOPE_ECOLOGY","Override forests, swamps and trails","Переопределять леса, болота и тропы","When off, ecology values are inherited from the active region definition and region-overlay mods. Default ON preserves existing AWS worlds.","Если выключено, параметры экологии наследуются из активного региона и region-overlay модов. Включено по умолчанию для совместимости со старыми мирами AWS.",true );'
+    $waterScope = '    ok &= reg_bool( api,ru,"NCMM_AWS_SCOPE_WATER","Override rivers, lakes and oceans","Переопределять реки, озёра и океаны","When off, water-generation values are inherited from the active region definition and region-overlay mods. Default ON preserves existing AWS worlds.","Если выключено, параметры водной генерации наследуются из активного региона и region-overlay модов. Включено по умолчанию для совместимости со старыми мирами AWS.",true );'
+    $transportScope = '    ok &= reg_bool( api,ru,"NCMM_AWS_SCOPE_TRANSPORT","Override highways and ravines","Переопределять шоссе и овраги","When off, highway and ravine values are inherited from the active region definition. Default ON preserves existing AWS worlds.","Если выключено, параметры шоссе и оврагов наследуются из активного региона. Включено по умолчанию для совместимости со старыми мирами AWS.",true );'
+    $aws = Insert-AwsLineAfter $aws 'NCMM_AWS_CUSTOM_GEOGRAPHY","Use custom geography"' $cityScope 'cities scope'
+    $aws = Insert-AwsLineBefore $aws 'NCMM_AWS_ENABLE_FORESTS","Generate forests"' $ecologyScope 'ecology scope'
+    $aws = Insert-AwsLineBefore $aws 'NCMM_AWS_ENABLE_RIVERS","Generate rivers"' $waterScope 'water scope'
+    $aws = Insert-AwsLineBefore $aws 'NCMM_AWS_ENABLE_HIGHWAYS","Generate highways"' $transportScope 'transport scope'
+
+    $roadLine = '    ok &= reg_bool( api,ru,"NCMM_AWS_PLACE_ROADS","Generate roads","Генерировать дороги","Advanced: disabling roads can break connectivity and access to generated content. Prefer leaving this on unless testing a deliberately disconnected world.","Расширенная настройка: отключение дорог может нарушить связность мира и доступ к сгенерированному контенту. Рекомендуется оставить включённой, если вы специально не тестируете разорванный мир.",true );'
+    $ravineLine = '    ok &= reg_bool( api,ru,"NCMM_AWS_ENABLE_RAVINES","Generate ravines (unsupported combinations)","Генерировать овраги (неподдерживаемые комбинации)","Experimental: ravines may carve through lakes, rivers, roads or highways without producing valid crossings. Use only if you accept malformed intersections.","Экспериментально: овраги могут прорезать озёра, реки, дороги или шоссе без корректных переходов. Используйте только если допускаете некорректные пересечения.",true );'
+    $aws = Replace-AwsLineContaining $aws 'NCMM_AWS_PLACE_ROADS","Generate roads"' $roadLine 'roads warning'
+    $aws = Replace-AwsLineContaining $aws 'NCMM_AWS_ENABLE_RAVINES","Generate ravines"' $ravineLine 'ravine warning'
+
+    $aws = Remove-AwsLineContaining $aws 'NCMM_AWS_PLACE_SPECIALS","Generate special locations"' 'specials setting'
+    $aws = Remove-AwsLineContaining $aws 'NCMM_AWS_NEIGHBOR_CONNECTIONS","Connect neighboring map regions"' 'neighbor setting'
+    $aws = Remove-AwsLineContaining $aws '"geography.specials.enabled", "NCMM_AWS_PLACE_SPECIALS"' 'specials binding'
+    $aws = Remove-AwsLineContaining $aws '"geography.neighbor_connections.enabled", "NCMM_AWS_NEIGHBOR_CONNECTIONS"' 'neighbor binding'
+
+    $cityBinding = '        { "geography.scope.cities.enabled", "NCMM_AWS_SCOPE_CITIES", NCMM_WORLDGEN_BOOL_V2 },'
+    $ecologyBinding = '        { "geography.scope.ecology.enabled", "NCMM_AWS_SCOPE_ECOLOGY", NCMM_WORLDGEN_BOOL_V2 },'
+    $waterBinding = '        { "geography.scope.water.enabled", "NCMM_AWS_SCOPE_WATER", NCMM_WORLDGEN_BOOL_V2 },'
+    $transportBinding = '        { "geography.scope.transport.enabled", "NCMM_AWS_SCOPE_TRANSPORT", NCMM_WORLDGEN_BOOL_V2 },'
+    $aws = Insert-AwsLineAfter $aws '{ "geography.custom.enabled", "NCMM_AWS_CUSTOM_GEOGRAPHY", NCMM_WORLDGEN_BOOL_V2 },' $transportBinding 'transport scope binding'
+    $aws = Insert-AwsLineAfter $aws '{ "geography.custom.enabled", "NCMM_AWS_CUSTOM_GEOGRAPHY", NCMM_WORLDGEN_BOOL_V2 },' $waterBinding 'water scope binding'
+    $aws = Insert-AwsLineAfter $aws '{ "geography.custom.enabled", "NCMM_AWS_CUSTOM_GEOGRAPHY", NCMM_WORLDGEN_BOOL_V2 },' $ecologyBinding 'ecology scope binding'
+    $aws = Insert-AwsLineAfter $aws '{ "geography.custom.enabled", "NCMM_AWS_CUSTOM_GEOGRAPHY", NCMM_WORLDGEN_BOOL_V2 },' $cityBinding 'cities scope binding'
+
+    $aws = $aws.Replace('Advanced World Settings 0.6.3 initialized: Host API 2.0 typed settings + generic geography hooks active.',
+                        'Advanced World Settings 0.6.4 initialized: selective geography scopes + protected worldgen invariants active.')
+    $aws = $aws.Replace('NCMM_ABI_VERSION, module_id, "Advanced World Settings", "0.6.3",',
+                        'NCMM_ABI_VERSION, module_id, "Advanced World Settings", "0.6.4",')
+    Write-Utf8NoBom $awsPath $aws
+
+    $manifestObj = Get-Content $awsManifestPath -Raw | ConvertFrom-Json
+    if([string]$manifestObj.id -ne 'advanced_world_settings') { throw 'AWS 0.6.4 manifest id mismatch.' }
+    $manifestObj.version = '0.6.4'
+    Write-Utf8NoBom $awsManifestPath (($manifestObj | ConvertTo-Json -Depth 8) + [char]10)
+
+    $loader = Normalize-Lf ([IO.File]::ReadAllText($loaderPath))
+    if(-not $loader.Contains('bool worldgen_hook_scope_enabled( const char *hook_id )')) {
+        $oldBound = @'
+bool worldgen_hook_bound( const char *hook_id )
+{
+    return hook_id != nullptr && worldgen_bindings_v2.find( hook_id ) != worldgen_bindings_v2.end();
+}
+'@
+        $newBound = @'
+bool worldgen_scope_hook_enabled( const char *scope_hook_id )
+{
+    const auto it = scope_hook_id ? worldgen_bindings_v2.find( scope_hook_id ) :
+                    worldgen_bindings_v2.end();
+    if( it == worldgen_bindings_v2.end() ||
+        it->second.value_type != NCMM_WORLDGEN_BOOL_V2 ) {
+        return true;
+    }
+    return world_setting_get_bool( it->second.setting_id.c_str(), 1 ) != 0;
+}
+
+bool worldgen_hook_scope_enabled( const char *hook_id )
+{
+    if( hook_id == nullptr ) {
+        return false;
+    }
+    const std::string id( hook_id );
+    if( id == "geography.custom.enabled" || id.rfind( "geography.scope.", 0 ) == 0 ) {
+        return true;
+    }
+
+    const char *scope_hook = nullptr;
+    if( id.rfind( "geography.city.", 0 ) == 0 ||
+        id.rfind( "geography.roads.", 0 ) == 0 ||
+        id.rfind( "geography.railroads.", 0 ) == 0 ) {
+        scope_hook = "geography.scope.cities.enabled";
+    } else if( id.rfind( "geography.forests.", 0 ) == 0 ||
+               id.rfind( "geography.swamps.", 0 ) == 0 ||
+               id.rfind( "geography.trails.", 0 ) == 0 ) {
+        scope_hook = "geography.scope.ecology.enabled";
+    } else if( id.rfind( "geography.rivers.", 0 ) == 0 ||
+               id.rfind( "geography.lakes.", 0 ) == 0 ||
+               id.rfind( "geography.oceans.", 0 ) == 0 ) {
+        scope_hook = "geography.scope.water.enabled";
+    } else if( id.rfind( "geography.highways.", 0 ) == 0 ||
+               id.rfind( "geography.ravines.", 0 ) == 0 ) {
+        scope_hook = "geography.scope.transport.enabled";
+    }
+    return scope_hook == nullptr || worldgen_scope_hook_enabled( scope_hook );
+}
+
+bool worldgen_hook_bound( const char *hook_id )
+{
+    return hook_id != nullptr &&
+           worldgen_bindings_v2.find( hook_id ) != worldgen_bindings_v2.end() &&
+           worldgen_hook_scope_enabled( hook_id );
+}
+'@
+        $loader = Replace-TextBlock $loader $oldBound $newBound 'AWS 0.6.4 scope-aware worldgen registry'
+    }
+    $loader = $loader.Replace('aws_setting_count != 48','aws_setting_count != 50')
+    $loader = $loader.Replace('aws_hook_count != 48','aws_hook_count != 50')
+    $loader = $loader.Replace('AWS save/reload + 48 bindings PASS','AWS save/reload + 50 bindings PASS')
+    Write-Utf8NoBom $loaderPath $loader
+
+    $awsAudit064 = [IO.File]::ReadAllText($awsPath)
+    $manifestAudit064 = Get-Content $awsManifestPath -Raw | ConvertFrom-Json
+    $loaderAudit064 = [IO.File]::ReadAllText($loaderPath)
+    foreach($needle in @('NCMM_AWS_SCOPE_CITIES','NCMM_AWS_SCOPE_ECOLOGY','NCMM_AWS_SCOPE_WATER','NCMM_AWS_SCOPE_TRANSPORT',
+                         'geography.scope.cities.enabled','geography.scope.ecology.enabled','geography.scope.water.enabled','geography.scope.transport.enabled')) {
+        if(-not $awsAudit064.Contains($needle)) { throw "AWS 0.6.4 scope audit missing: $needle" }
+    }
+    foreach($removed in @('NCMM_AWS_PLACE_SPECIALS","Generate special locations"','NCMM_AWS_NEIGHBOR_CONNECTIONS","Connect neighboring map regions"',
+                           '"geography.specials.enabled", "NCMM_AWS_PLACE_SPECIALS"','"geography.neighbor_connections.enabled", "NCMM_AWS_NEIGHBOR_CONNECTIONS"')) {
+        if($awsAudit064.Contains($removed)) { throw "AWS 0.6.4 protected worldgen control still exposed: $removed" }
+    }
+    $bindings064 = [regex]::Matches($awsAudit064,'\{ "(geography\.[^"]+)", "(NCMM_AWS_[A-Z0-9_]+)", NCMM_WORLDGEN_(?:BOOL|INT|FLOAT)_V2 \}')
+    if($bindings064.Count -ne 50) { throw "AWS 0.6.4 expected exactly 50 geography bindings, found $($bindings064.Count)." }
+    if([string]$manifestAudit064.version -ne '0.6.4') { throw 'AWS 0.6.4 manifest version audit failed.' }
+    if(-not $loaderAudit064.Contains('worldgen_hook_scope_enabled')) { throw 'AWS 0.6.4 Host scope registry audit failed.' }
+
+    Write-Host "Advanced World Settings 0.6.4 selective-scope safety pass: PASS (50/50 bindings)" -ForegroundColor Green
+}
+
+Apply-AwsSelectiveScopes064
 
 
 

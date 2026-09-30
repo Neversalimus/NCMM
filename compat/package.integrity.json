@@ -66,8 +66,8 @@
     },
     {
       "path": "ci\\Test-HostPayloadContracts.ps1",
-      "sha256": "753e57d5f698f9b8535d144bfd0de4d0202f23eab4c410f643a71e646cd84c21",
-      "bytes": 20740
+      "sha256": "d9dbfbbc0d83ffc6608806c0f7cbb8e6c3863ef55098c1e0627773bafadd5cc8",
+      "bytes": 22485
     },
     {
       "path": "ci\\Test-Infrastructure0821.ps1",
@@ -96,8 +96,8 @@
     },
     {
       "path": "compat\\compatibility.manifest.json",
-      "sha256": "3fccfd987b0bf5408c5497164af0d1d8eff83f7bb2be75cb20706b86b16f6945",
-      "bytes": 7118
+      "sha256": "9b2e752a36e419c6278f6f8eaf23d158394c00944707d8dc9962106e46b7ec99",
+      "bytes": 7427
     },
     {
       "path": "compat\\contracts.json",
@@ -121,12 +121,12 @@
     },
     {
       "path": "compat\\update\\index.json",
-      "sha256": "dd54fe9fb5095eb28b83b9dc8015a74f256efe2bb404c3d31fe11fc22a1c3799",
+      "sha256": "173107790f4116e2e82fd611e9b703ae72ade548851df84848362a6c13f6e492",
       "bytes": 999
     },
     {
       "path": "components\\advanced_world_settings.json",
-      "sha256": "93b14371648cebe19f03ba96b843158b491ef0988f49c72146d1bd43b2a13133",
+      "sha256": "e7c06724339f019832088617ac83519cdfc348b4873ab54bbb3bdd9101c7345a",
       "bytes": 635
     },
     {
@@ -135,13 +135,8 @@
       "bytes": 575
     },
     {
-      "path": "components\\equipment_body_map.json",
-      "sha256": "2838064d46c0f6faf5b7cd9640c2f0465f5e2f56deca628095f2346cdf36ca94",
-      "bytes": 567
-    },
-    {
       "path": "components\\index.json",
-      "sha256": "9a81b218dc136c33c84fb431103965a9b33aefe0c08afd7b0b8e06727aaa3221",
+      "sha256": "5e50bf212cac25a42f1fa9c3bfc155234025fb5683b344e6297379c289ad7597",
       "bytes": 5449
     },
     {
@@ -331,8 +326,8 @@
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-      "sha256": "806d90312eb307e5e50d31b4eda497928959150b36f34cb2c47efa71780db8a0",
-      "bytes": 1708821
+      "sha256": "c2a6e96ac5323cbfce86646aff288b047313a81cdb123ae54cfd06b9dd54c9a0",
+      "bytes": 1723432
     },
     {
       "path": "pipeline\\pipeline.manifest.json",
@@ -493,6 +488,11 @@
       "path": "V8_7_RPG_VISUAL_PASS_NOTES.txt",
       "sha256": "dd5dee3a76ab1cfb9b6f1f09eda3b4aba8a327ff624f30d1fb36c7b8e7e9f9bf",
       "bytes": 2669
+    },
+    {
+      "path": "components\\equipment_body_map.json",
+      "sha256": "2838064d46c0f6faf5b7cd9640c2f0465f5e2f56deca628095f2346cdf36ca94",
+      "bytes": 567
     }
   ]
 }

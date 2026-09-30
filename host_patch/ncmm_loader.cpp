@@ -3442,9 +3442,57 @@ double runtime_hook_modifier_for_creatures( const char *hook_id,
     return std::max( -100000.0, std::min( 100000.0, total ) );
 }
 
+bool worldgen_scope_hook_enabled( const char *scope_hook_id )
+{
+    const auto it = scope_hook_id ? worldgen_bindings_v2.find( scope_hook_id ) :
+                    worldgen_bindings_v2.end();
+    if( it == worldgen_bindings_v2.end() ||
+        it->second.value_type != NCMM_WORLDGEN_BOOL_V2 ) {
+        // Backward compatibility: older AWS builds did not publish scope hooks.
+        return true;
+    }
+    return world_setting_get_bool( it->second.setting_id.c_str(), 1 ) != 0;
+}
+
+bool worldgen_hook_scope_enabled( const char *hook_id )
+{
+    if( hook_id == nullptr ) {
+        return false;
+    }
+
+    const std::string id( hook_id );
+    // The master switch and the scope switches themselves must always remain
+    // queryable. Scope filtering applies only to concrete geography hooks.
+    if( id == "geography.custom.enabled" || id.rfind( "geography.scope.", 0 ) == 0 ) {
+        return true;
+    }
+
+    const char *scope_hook = nullptr;
+    if( id.rfind( "geography.city.", 0 ) == 0 ||
+        id.rfind( "geography.roads.", 0 ) == 0 ||
+        id.rfind( "geography.railroads.", 0 ) == 0 ) {
+        scope_hook = "geography.scope.cities.enabled";
+    } else if( id.rfind( "geography.forests.", 0 ) == 0 ||
+               id.rfind( "geography.swamps.", 0 ) == 0 ||
+               id.rfind( "geography.trails.", 0 ) == 0 ) {
+        scope_hook = "geography.scope.ecology.enabled";
+    } else if( id.rfind( "geography.rivers.", 0 ) == 0 ||
+               id.rfind( "geography.lakes.", 0 ) == 0 ||
+               id.rfind( "geography.oceans.", 0 ) == 0 ) {
+        scope_hook = "geography.scope.water.enabled";
+    } else if( id.rfind( "geography.highways.", 0 ) == 0 ||
+               id.rfind( "geography.ravines.", 0 ) == 0 ) {
+        scope_hook = "geography.scope.transport.enabled";
+    }
+
+    return scope_hook == nullptr || worldgen_scope_hook_enabled( scope_hook );
+}
+
 bool worldgen_hook_bound( const char *hook_id )
 {
-    return hook_id != nullptr && worldgen_bindings_v2.find( hook_id ) != worldgen_bindings_v2.end();
+    return hook_id != nullptr &&
+           worldgen_bindings_v2.find( hook_id ) != worldgen_bindings_v2.end() &&
+           worldgen_hook_scope_enabled( hook_id );
 }
 int worldgen_hook_bool( const char *hook_id, int fallback )
 {
@@ -4407,10 +4455,59 @@ int run_gameplay_smoke()
             ++aws_setting_count;
         }
 
-        if( aws_setting_count != 48 || !get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) ) {
+        if( aws_setting_count != 50 || !get_options().has_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ) ) {
             write_gameplay_smoke_result( false, "aws_registration_count", aws_setting_count, 0, 0 );
             return 98;
         }
+
+        // Real-Host regression coverage for selective geography scopes. Turning
+        // a scope off must make its concrete hooks appear unbound so patched
+        // worldgen falls back to active region_settings / region-overlay values.
+        struct aws_scope_probe {
+            const char *setting_id;
+            const char *scope_hook;
+            const char *concrete_hook;
+        };
+        const aws_scope_probe scope_probes[] = {
+            { "NCMM_AWS_SCOPE_CITIES", "geography.scope.cities.enabled", "geography.city.size" },
+            { "NCMM_AWS_SCOPE_ECOLOGY", "geography.scope.ecology.enabled", "geography.forests.threshold" },
+            { "NCMM_AWS_SCOPE_WATER", "geography.scope.water.enabled", "geography.lakes.threshold" },
+            { "NCMM_AWS_SCOPE_TRANSPORT", "geography.scope.transport.enabled", "geography.highways.grid_row" }
+        };
+        for( const aws_scope_probe &probe : scope_probes ) {
+            if( !get_options().has_option( probe.setting_id ) ) {
+                write_gameplay_smoke_result( false, "aws_scope_setting_missing",
+                                             aws_setting_count, 0, 0 );
+                return 123;
+            }
+            options_manager::cOpt &scope_opt = get_options().get_option( probe.setting_id );
+            const std::string original_value = scope_opt.getValue();
+
+            scope_opt.setValue( "false" );
+            const bool scope_queryable = worldgen_hook_bound( probe.scope_hook );
+            const bool concrete_bound_when_off = worldgen_hook_bound( probe.concrete_hook );
+
+            scope_opt.setValue( "true" );
+            const bool concrete_bound_when_on = worldgen_hook_bound( probe.concrete_hook );
+
+            scope_opt.setValue( original_value );
+            if( !scope_queryable || concrete_bound_when_off || !concrete_bound_when_on ) {
+                write_gameplay_smoke_result( false, "aws_scope_fallback_mismatch",
+                                             aws_setting_count, 0, 0 );
+                return 124;
+            }
+        }
+
+        if( worldgen_hook_bound( "geography.specials.enabled" ) ||
+            worldgen_hook_bound( "geography.neighbor_connections.enabled" ) ) {
+            write_gameplay_smoke_result( false, "aws_protected_hook_exposed",
+                                         aws_setting_count, 0, 0 );
+            return 125;
+        }
+
+        log_line( NCMM_LOG_INFO,
+                  "NCMM gameplay smoke checkpoint: AWS selective scope fallback + protected hooks PASS." );
+
         get_options().get_option( "NCMM_AWS_CUSTOM_GEOGRAPHY" ).setValue( "true" );
 
         // Keep the only explicit min/max pair valid after independent randomization.
@@ -4520,7 +4617,7 @@ int run_gameplay_smoke()
             }
             ++aws_hook_count;
         }
-        if( aws_hook_count != 48 ) {
+        if( aws_hook_count != 50 ) {
             write_gameplay_smoke_result( false, "aws_binding_count",
                                          aws_setting_count, aws_hook_count, 0 );
             return 106;
@@ -4530,7 +4627,7 @@ int run_gameplay_smoke()
         // game::setup() owns the ordering constraints around calendar state, mod
         // validation, core/mod loading, and DynamicDataLoader finalization.
         log_line( NCMM_LOG_INFO,
-                  "NCMM gameplay smoke checkpoint: AWS save/reload + 48 bindings PASS; running game setup." );
+                  "NCMM gameplay smoke checkpoint: AWS save/reload + 50 bindings PASS; running game setup." );
         g->setup();
         log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: game setup complete." );
         overmap_buffer.init_region_layout();

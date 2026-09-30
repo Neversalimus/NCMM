@@ -174,6 +174,44 @@ $awsManifestProbe.requires=@($awsManifestProbeReq);$awsManifestProbeRoundTrip=((
 if([string]$awsManifestProbeRoundTrip.version -ne '0.6.3' -or [int]$awsManifestProbeRoundTrip.api_min_minor -ne 9){throw 'AWS 0.6.3 semantic manifest migration regression failed.'}
 foreach($cap in @('host_api.v2.core','settings.typed.v2','worldgen.bindings.v2')){if(@($awsManifestProbeRoundTrip.requires|Where-Object{$_ -eq $cap}).Count -ne 1){throw ('AWS 0.6.3 semantic manifest capability regression failed: '+$cap)}}
 
+# AWS 0.6.4 selective-scope safety contract. The historical 0.6.3 migration
+# above remains intentional; this pass hardens it without rewriting old fixtures.
+foreach($n in @(
+    'function Apply-AwsSelectiveScopes064',
+    'AWS 0.6.4 expected exactly 50 geography bindings',
+    'NCMM_AWS_SCOPE_CITIES',
+    'NCMM_AWS_SCOPE_ECOLOGY',
+    'NCMM_AWS_SCOPE_WATER',
+    'NCMM_AWS_SCOPE_TRANSPORT',
+    'geography.scope.cities.enabled',
+    'geography.scope.ecology.enabled',
+    'geography.scope.water.enabled',
+    'geography.scope.transport.enabled',
+    'worldgen_hook_scope_enabled',
+    'const bool ncmm_geo_trails',
+    'aws_setting_count != 50',
+    'aws_hook_count != 50'
+)){
+    if(-not $payload.Contains($n)){throw ('AWS 0.6.4 selective-scope contract missing: '+$n)}
+}
+if(-not $payload.Contains('Remove-AwsLineContaining $aws ''NCMM_AWS_PLACE_SPECIALS","Generate special locations"''')){
+    throw 'AWS 0.6.4 protected special-location control removal missing.'
+}
+if(-not $payload.Contains('Remove-AwsLineContaining $aws ''NCMM_AWS_NEIGHBOR_CONNECTIONS","Connect neighboring map regions"''')){
+    throw 'AWS 0.6.4 protected neighbor-connection control removal missing.'
+}
+
+foreach($railroadFallbackNeedle064 in @(
+    'const bool ncmm_place_railroads = ncmm_geo &&',
+    'get_options().has_option( "NCMM_AWS_PLACE_RAILROADS" ) ?',
+    'get_option<bool>( "NCMM_AWS_PLACE_RAILROADS" ) :',
+    'settings->place_railroads;'
+)){
+    if(-not $payload.Contains($railroadFallbackNeedle064)){
+        throw ('AWS 0.6.4 railroad region-fallback contract missing: '+$railroadFallbackNeedle064)
+    }
+}
+
 $b=[IO.File]::ReadAllBytes((Join-Path $PackageRoot 'NCMM.cmd'));if($b.Length -ge 3 -and $b[0]-eq 0xEF -and $b[1]-eq 0xBB -and $b[2]-eq 0xBF){throw 'NCMM.cmd must not contain UTF-8 BOM.'}
 $cmdText=[IO.File]::ReadAllText((Join-Path $PackageRoot 'NCMM.cmd'))
 foreach($bad in @(' -Command ','^|%%{','SHIFT ','%*')){if($cmdText.Contains($bad)){throw ('NCMM.cmd unsafe CMD/PowerShell bridge token: '+$bad)}}
@@ -261,8 +299,8 @@ foreach($gameplaySmokeNeedle in @(
     '--ncmm-gameplay-smoke',
     'gameplay-smoke.json',
     'NCMM Gameplay Smoke',
-    'aws_setting_count != 48',
-    'aws_hook_count != 48',
+    'aws_setting_count != 50',
+    'aws_hook_count != 50',
     'survivor_perk_count != 369',
     'overmap_buffer.create_custom_overmap',
     'ncmm_test_perk_count_v1',
@@ -279,6 +317,9 @@ foreach($gameplayHostNeedle in @(
     'world->save()',
     'world_generator->get_world( world_name )',
     'overmap_buffer.create_custom_overmap',
+    'worldgen_hook_scope_enabled',
+    'aws_scope_fallback_mismatch',
+    'aws_protected_hook_exposed',
     'survivor_perk_count != 369',
     'survivor_real_strength_mismatch',
     'survivor_real_carry_mismatch'
