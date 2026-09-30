@@ -7,12 +7,13 @@ NCMM (Neversalimus Code Mod Manager) is a native code-mod/runtime platform for C
 | Component | Version |
 | --- | --- |
 | NCMM Infrastructure | 0.8.3.1 |
-| NCMM Runtime / Host | 0.8.1 |
+| NCMM Runtime / Host | 0.8.2 |
 | Loader ABI | 1 |
 | Legacy semantic Host API | 1.9 |
 | Queried Host API | 2.0 Core |
 | Survivor Progression | 0.12.0 |
-| Advanced World Settings | 0.6.2 |
+| Advanced World Settings | 0.6.3 |
+| Ballistic Hit Chance | 0.1.0 |
 
 Survivor Progression keeps state schema 8. The current source contains 369 perk nodes and conditionally exposes mod-specific progression for supported active world mods.
 
@@ -20,7 +21,7 @@ Survivor Progression keeps state schema 8. The current source contains 369 perk 
 
 For players, use the **Full** release package.
 
-1. Download `NCMM_Full_v0.8.1.zip` from the `ncmm-runtime-v0.8.1` release.
+1. Download `NCMM_Full_v0.8.2.zip` from the `ncmm-runtime-v0.8.2` release.
 2. Extract it anywhere outside the CDDA game directory.
 3. Run `NCMM_Setup.exe`.
 4. Select the CDDA installation and the optional modules you want.
@@ -36,7 +37,8 @@ The repository checkout also contains `NCMM.cmd`, the maintainer/development ent
 - **NCMM Mod Configuration** is integrated into CDDA's settings menu. The current manager uses a two-pane layout: modules on the left, version/status/description/hotkey/settings on the right.
 - **Survivor Progression** opens with F1 by default and remains remappable through CDDA. Version 0.12.0 adds Host-managed live controls for experience gain and direct stat-perk strength without changing the 0.11.3 perk-state schema.
 - **Advanced World Settings** exposes NCMM-owned world-generation controls through CDDA's world-options UI. NEW_MAP / NEW_WORLD settings are available during world creation; LIVE / RELOAD settings stay in the NCMM manager.
-- Current main-source UI polish uses CDDA's native `menu_move` sound for NCMM perk navigation and displays a compact `NCMM 0.8.1` label in the main menu.
+- **Ballistic Hit Chance** adds live ballistic hit probabilities to firearm targeting: current-shot probability, per-aim-mode probability, and compact burst prediction using the active fire mode and recoil growth.
+- Current main-source UI polish uses CDDA's native `menu_move` sound for NCMM perk navigation and displays a compact `NCMM 0.8.2` label in the main menu.
 - Module failures are isolated where possible and reported through machine-readable runtime/module state instead of silently loading incompatible code.
 
 ## Automated installation lifecycle
