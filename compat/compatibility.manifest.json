@@ -1,7 +1,7 @@
 {
   "schema": 4,
   "infrastructure_version": "0.8.3.1",
-  "host_version": "0.8.1",
+  "host_version": "0.8.2",
   "ncmm_api": "1.9",
   "loader_api": 1,
   "base_adapter": "base-cdda-2026-series-v1",
