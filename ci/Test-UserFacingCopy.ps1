@@ -81,7 +81,7 @@ $required = @(
     @{ Name='Survivor natural lockpicking bonus label'; Text=$survivor; Needle='Lockpicking bonus' },
     @{ Name='Survivor natural trap-detection label'; Text=$survivor; Needle='Trap detection bonus' },
     @{ Name='Survivor natural finisher label'; Text=$survivor; Needle='Finisher health threshold %' },
-    @{ Name='AWS natural new-area warning'; Text=$aws; Needle='Affects only areas generated after this change.' },
+    @{ Name='Host natural new-area scope label'; Text=$hostText; Needle='newly generated areas' },
     @{ Name='Host natural UI failure message'; Text=$hostText; Needle="This mod's interface failed to open and has been disabled for this session." },
     @{ Name='Host natural manager details'; Text=$hostText; Needle='MODULE DETAILS' },
     @{ Name='Host natural manager settings section'; Text=$hostText; Needle='SETTINGS' }
