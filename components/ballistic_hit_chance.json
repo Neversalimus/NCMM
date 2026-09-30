@@ -10,7 +10,7 @@
   "dependencies": [
     {
       "component": "ncmm_host",
-      "min_version": "0.8.1"
+      "min_version": "0.8.2"
     },
     {
       "capability": "host_api.v2.core"
