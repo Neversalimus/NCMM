@@ -1632,6 +1632,28 @@ int main( int argc, char **argv )
         return 0;
     }
 
+    if( std::strcmp( desc->id, "equipment_body_map" ) == 0 ) {
+        if( std::strcmp( desc->version, "0.1.0" ) != 0 ) {
+            std::cerr << "Equipment Body Map descriptor version mismatch\n";
+            return 44;
+        }
+        if( registered_setting_ids.count( "NCMM_EBM_ENABLED" ) == 0 ||
+            registered_setting_ids.count( "NCMM_EBM_SHOW_LAYERS" ) == 0 ||
+            runtime_setting_binding_count != 2 ||
+            runtime_setting_bindings.count( "inventory.body_map.enabled" ) == 0 ||
+            runtime_setting_bindings.count( "inventory.body_map.show_layers" ) == 0 ) {
+            std::cerr << "Equipment Body Map runtime setting registration failed\n";
+            return 45;
+        }
+        if( runtime_hook_bool_setting_v2_fn( "inventory.body_map.enabled", 0 ) != 1 ||
+            runtime_hook_bool_setting_v2_fn( "inventory.body_map.show_layers", 0 ) != 1 ) {
+            std::cerr << "Equipment Body Map default setting values failed\n";
+            return 46;
+        }
+        std::cout << "NCMM smoke test: PASS (Equipment Body Map 0.1.0 runtime bindings)\n";
+        return 0;
+    }
+
     if( std::strcmp( desc->id, "survivor_progression" ) == 0 ) {
         auto on_turn = symbol<ncmm_on_turn_v1_fn>( lib, NCMM_TURN_ENTRYPOINT );
         auto open_ui = symbol<ncmm_open_ui_v1_fn>( lib, NCMM_OPEN_UI_ENTRYPOINT );
