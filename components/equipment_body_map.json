@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "id": "equipment_body_map",
+  "name": "Equipment Body Map",
+  "version": "0.1.0",
+  "kind": "native_module",
+  "atomic_group": "equipment-body-map",
+  "delivery": "source_build",
+  "required": false,
+  "dependencies": [
+    {
+      "component": "ncmm_host",
+      "min_version": "0.8.2"
+    },
+    {
+      "capability": "host_api.v2.core"
+    },
+    {
+      "capability": "settings.typed.v2"
+    },
+    {
+      "capability": "runtime_settings.bindings.v2"
+    }
+  ],
+  "descriptor": "components/equipment_body_map.json"
+}

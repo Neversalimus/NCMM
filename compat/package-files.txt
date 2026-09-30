@@ -24,6 +24,7 @@ compat\package-files.txt
 compat\update\index.json
 components\advanced_world_settings.json
 components\ballistic_hit_chance.json
+components\equipment_body_map.json
 components\index.json
 components\ncmm_host.json
 components\ncmm_infrastructure.json

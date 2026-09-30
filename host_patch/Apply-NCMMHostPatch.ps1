@@ -20,11 +20,15 @@ $craftingCpp = Join-Path $src 'crafting.cpp'
 $rangedCpp = Join-Path $src 'ranged.cpp'
 $dispersionH = Join-Path $src 'dispersion.h'
 $dispersionCpp = Join-Path $src 'dispersion.cpp'
+$inventoryUiH = Join-Path $src 'inventory_ui.h'
+$inventoryUiCpp = Join-Path $src 'inventory_ui.cpp'
+$gameInventoryCpp = Join-Path $src 'game_inventory.cpp'
 $marker = Join-Path $SourceRoot '.ncmm_host_v1_patched'
 
 foreach ($f in @($optionsH,$optionsCpp,$sdl,$mainMenu,$doTurn,$inputH,$inputCpp,$handleAction,
                   $characterCpp,$characterHealthCpp,$meleeCpp,$knowledgeCpp,$craftingCpp,
-                  $rangedCpp,$dispersionH,$dispersionCpp)) {
+                  $rangedCpp,$dispersionH,$dispersionCpp,$inventoryUiH,$inventoryUiCpp,
+                  $gameInventoryCpp)) {
     if (-not (Test-Path $f)) { throw "Required source file missing: $f" }
 }
 
@@ -85,6 +89,9 @@ if (Test-Path $marker) {
     $rg = Read-Utf8 $rangedCpp
     $dh = Read-Utf8 $dispersionH
     $dc = Read-Utf8 $dispersionCpp
+    $iuh = Read-Utf8 $inventoryUiH
+    $iuc = Read-Utf8 $inventoryUiCpp
+    $gic = Read-Utf8 $gameInventoryCpp
     $checks = @(
         @($h,'COPT_WORLDGEN_ONLY'),
         @($h,'ncmm_begin_worldgen_group'),
@@ -116,7 +123,11 @@ if (Test-Path $marker) {
         @($rg,'targeting.hit_probability.enabled'),
         @($rg,'exact_hit_probability'),
         @($dh,'probability_below'),
-        @($dc,'dispersion_sources::probability_below')
+        @($dc,'dispersion_sources::probability_below'),
+        @($iuh,'set_equipment_body_map'),
+        @($iuc,'inventory.body_map.enabled'),
+        @($iuc,'draw_equipment_body_map'),
+        @($gic,'set_equipment_body_map();')
     )
     foreach ($x in $checks) {
         if (-not $x[0].Contains($x[1])) {
@@ -170,6 +181,9 @@ $crOriginal = Read-Utf8 $craftingCpp
 $rgOriginal = Read-Utf8 $rangedCpp
 $dhOriginal = Read-Utf8 $dispersionH
 $dcOriginal = Read-Utf8 $dispersionCpp
+$iuhOriginal = Read-Utf8 $inventoryUiH
+$iucOriginal = Read-Utf8 $inventoryUiCpp
+$gicOriginal = Read-Utf8 $gameInventoryCpp
 $hSig = NonAscii-Signature $hOriginal
 $cSig = NonAscii-Signature $cOriginal
 $sdSig = NonAscii-Signature $sdOriginal
@@ -186,6 +200,9 @@ $crSig = NonAscii-Signature $crOriginal
 $rgSig = NonAscii-Signature $rgOriginal
 $dhSig = NonAscii-Signature $dhOriginal
 $dcSig = NonAscii-Signature $dcOriginal
+$iuhSig = NonAscii-Signature $iuhOriginal
+$iucSig = NonAscii-Signature $iucOriginal
+$gicSig = NonAscii-Signature $gicOriginal
 
 $h = Normalize-Lf $hOriginal
 $c = Normalize-Lf $cOriginal
@@ -203,6 +220,323 @@ $cr = Normalize-Lf $crOriginal
 $rg = Normalize-Lf $rgOriginal
 $dh = Normalize-Lf $dhOriginal
 $dc = Normalize-Lf $dcOriginal
+$iuh = Normalize-Lf $iuhOriginal
+$iuc = Normalize-Lf $iucOriginal
+$gic = Normalize-Lf $gicOriginal
+
+# Equipment Body Map: opt-in normal-inventory panel driven by generic runtime hooks.
+$iuh = Replace-ExactlyOnce $iuh @'
+        /** Specify whether the header should show stats (weight and volume). */
+        void set_display_stats( bool display_stats ) {
+            this->display_stats = display_stats;
+        }
+'@ @'
+        /** Specify whether the header should show stats (weight and volume). */
+        void set_display_stats( bool display_stats ) {
+            this->display_stats = display_stats;
+        }
+        /** Enable the optional equipment body-map panel for this selector. */
+        void set_equipment_body_map( bool enabled = true ) {
+            equipment_body_map = enabled;
+        }
+'@ 'inventory.body-map-public-opt-in'
+
+$iuh = Replace-ExactlyOnce $iuh @'
+        void draw_header( const catacurses::window &w ) const;
+        void draw_footer( const catacurses::window &w ) const;
+        void draw_columns( const catacurses::window &w );
+        void draw_frame( const catacurses::window &w ) const;
+'@ @'
+        void draw_header( const catacurses::window &w ) const;
+        void draw_footer( const catacurses::window &w ) const;
+        void draw_columns( const catacurses::window &w );
+        void draw_frame( const catacurses::window &w ) const;
+        void draw_equipment_body_map( const catacurses::window &w ) const;
+        bool equipment_body_map_requested() const;
+'@ 'inventory.body-map-private-methods'
+
+$iuh = Replace-ExactlyOnce $iuh @'
+        bool is_empty = true;
+        bool display_stats = true;
+        bool use_invlet = true;
+'@ @'
+        bool is_empty = true;
+        bool display_stats = true;
+        bool use_invlet = true;
+        bool equipment_body_map = false;
+        size_t equipment_body_map_reserved_height = 0;
+'@ 'inventory.body-map-state'
+
+$iuc = Replace-ExactlyOnce $iuc '#include "basecamp.h"' @'
+#include "basecamp.h"
+#include "bodygraph.h"
+#include "bodypart.h"
+'@ 'inventory.body-map-includes-a'
+
+$iuc = Replace-ExactlyOnce $iuc '#include "messages.h"' @'
+#include "messages.h"
+#include "ncmm_loader.h"
+'@ 'inventory.body-map-includes-b'
+
+$iuc = Replace-ExactlyOnce $iuc '#include "string_input_popup.h"' @'
+#include "string_input_popup.h"
+#include "subbodypart.h"
+'@ 'inventory.body-map-includes-c'
+
+$iuc = Replace-ExactlyOnce $iuc @'
+static const item_category_id item_category_WEAPON_HELD( "WEAPON_HELD" );
+
+static const itype_id itype_water_faucet( "water_faucet" );
+'@ @'
+static const item_category_id item_category_WEAPON_HELD( "WEAPON_HELD" );
+
+static const bodygraph_id ncmm_equipment_bodygraph( "full_body_widget" );
+static const bodygraph_id ncmm_equipment_bodygraph_compact( "compact_full_body_widget" );
+
+static const itype_id itype_water_faucet( "water_faucet" );
+'@ 'inventory.body-map-bodygraph-id'
+
+$iuc = Replace-ExactlyOnce $iuc @'
+void inventory_selector::prepare_layout( size_t client_width, size_t client_height )
+{
+    // This block adds categories and should go before any width evaluations
+    const bool initial = get_active_column().get_highlighted_index() == static_cast<size_t>( -1 );
+'@ @'
+bool inventory_selector::equipment_body_map_requested() const
+{
+    return equipment_body_map &&
+           ncmm::runtime_setting_hook_bound( "inventory.body_map.enabled" ) &&
+           ncmm::runtime_setting_hook_bool( "inventory.body_map.enabled", 1 ) != 0;
+}
+
+void inventory_selector::prepare_layout( size_t client_width, size_t client_height )
+{
+    constexpr size_t full_body_map_height = 16;
+    constexpr size_t compact_body_map_height = 10;
+    constexpr size_t min_worn_list_height = 7;
+
+    equipment_body_map_reserved_height = 0;
+    if( equipment_body_map_requested() && !own_gear_column.empty() ) {
+        if( client_height >= full_body_map_height + min_worn_list_height ) {
+            equipment_body_map_reserved_height = full_body_map_height;
+        } else if( client_height >= compact_body_map_height + min_worn_list_height ) {
+            equipment_body_map_reserved_height = compact_body_map_height;
+        }
+    }
+
+    // This block adds categories and should go before any width evaluations
+    const bool initial = get_active_column().get_highlighted_index() == static_cast<size_t>( -1 );
+'@ 'inventory.body-map-layout-reserve'
+
+$iuc = Replace-ExactlyOnce $iuc @'
+    for( inventory_column *&elem : columns ) {
+        elem->set_height( client_height );
+        elem->prepare_paging( filter );
+        elem->reset_width( columns );
+    }
+'@ @'
+    for( inventory_column *&elem : columns ) {
+        const size_t column_height =
+            elem == &own_gear_column && equipment_body_map_reserved_height > 0 ?
+            client_height - equipment_body_map_reserved_height : client_height;
+        elem->set_height( column_height );
+        elem->prepare_paging( filter );
+        elem->reset_width( columns );
+    }
+'@ 'inventory.body-map-worn-column-height'
+$iuc = Replace-ExactlyOnce $iuc @'
+    // Handle screen overflow
+    rearrange_columns( client_width );
+'@ @'
+    // Keep vanilla horizontal layout.  The body map only consumes vertical
+    // space inside the existing worn-items column.
+    rearrange_columns( client_width );
+    if( !own_gear_column.visible() || own_gear_column.get_width() < 12 ) {
+        equipment_body_map_reserved_height = 0;
+    }
+'@ 'inventory.body-map-rearrange-width'
+$iuc = Replace-ExactlyOnce $iuc @'
+    draw_frame( w_inv );
+    draw_header( w_inv );
+    draw_columns( w_inv );
+    draw_footer( w_inv );
+'@ @'
+    draw_frame( w_inv );
+    draw_header( w_inv );
+    draw_columns( w_inv );
+    draw_equipment_body_map( w_inv );
+    draw_footer( w_inv );
+'@ 'inventory.body-map-refresh'
+
+$iuc = Replace-ExactlyOnce $iuc @'
+void inventory_selector::draw_frame( const catacurses::window &w ) const
+{
+    draw_border( w );
+
+    const int y = border + get_header_height();
+    wattron( w, BORDER_COLOR );
+    mvwhline( w, point( 0, y ), LINE_XXXO, 1 );
+    mvwhline( w, point( getmaxx( w ) - border, y ), LINE_XOXX, 1 );
+    wattroff( w, BORDER_COLOR );
+}
+'@ @'
+void inventory_selector::draw_frame( const catacurses::window &w ) const
+{
+    draw_border( w );
+
+    const int y = border + get_header_height();
+    wattron( w, BORDER_COLOR );
+    mvwhline( w, point( 0, y ), LINE_XXXO, 1 );
+    mvwhline( w, point( getmaxx( w ) - border, y ), LINE_XOXX, 1 );
+    wattroff( w, BORDER_COLOR );
+}
+
+void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) const
+{
+    if( equipment_body_map_reserved_height == 0 || !equipment_body_map_requested() ||
+        !own_gear_column.visible() ) {
+        return;
+    }
+
+    const auto visible_columns = get_visible_columns();
+    const int screen_width = getmaxx( w ) - 2 * ( border + 1 );
+    const bool centered = are_columns_centered( screen_width );
+    const int free_space = screen_width - get_columns_width( visible_columns );
+    const int max_gap = visible_columns.size() > 1 ?
+                        free_space / static_cast<int>( visible_columns.size() - 1 ) :
+                        free_space;
+    const int gap = centered ? max_gap : std::min<int>( max_gap, normal_column_gap );
+    const int gap_rounding_error = centered && visible_columns.size() > 1 ?
+                                   free_space % static_cast<int>( visible_columns.size() - 1 ) : 0;
+
+    int panel_x = border + 1;
+    bool found_worn_column = false;
+    for( size_t i = 0; i < visible_columns.size(); ++i ) {
+        inventory_column *elem = visible_columns[i];
+        if( i + 1 == visible_columns.size() ) {
+            panel_x += gap_rounding_error;
+        }
+        if( elem == &own_gear_column ) {
+            found_worn_column = true;
+            break;
+        }
+        panel_x += static_cast<int>( elem->get_width() ) + gap;
+    }
+    if( !found_worn_column ) {
+        return;
+    }
+
+    const int panel_width = static_cast<int>( own_gear_column.get_width() );
+    if( panel_width < 12 ) {
+        return;
+    }
+
+    const int footer_y = getmaxy( w ) - border;
+    const int panel_top = footer_y - static_cast<int>( equipment_body_map_reserved_height );
+    const int content_width = std::max( 1, panel_width - 2 );
+
+    mvwhline( w, point( panel_x, panel_top ), c_dark_gray, LINE_OXOX, panel_width );
+
+    const std::string heading =
+        ncmm::localized_text( "EQUIPMENT", u8"\u042D\u041A\u0418\u041F\u0418\u0420\u041E\u0412\u041A\u0410" );
+    const int heading_x = panel_x + 1 +
+                          std::max( 0, ( content_width - utf8_width( heading, true ) ) / 2 );
+    int y = panel_top + 1;
+    trim_and_print( w, point( heading_x, y++ ), content_width, c_light_cyan, heading );
+
+    const inventory_entry &highlighted = get_highlighted();
+    const item *selected = highlighted.is_item() ? highlighted.any_item().get_item() : nullptr;
+    const std::vector<item_location> worn_items = u.worn.top_items_loc( u );
+
+    const auto item_covers_graph_part = []( const item & it, const bodygraph_part & part ) {
+        for( const bodypart_id &bp : part.bodyparts ) {
+            if( it.covers( bp ) ) {
+                return true;
+            }
+        }
+        const std::vector<sub_bodypart_id> covered = it.get_covered_sub_body_parts();
+        for( const sub_bodypart_id &sbp : part.sub_bodyparts ) {
+            if( std::find( covered.begin(), covered.end(), sbp ) != covered.end() ) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    const auto bodygraph_cb = [&]( const bodygraph_part * part, std::string sym ) {
+        if( part == nullptr ) {
+            return sym;
+        }
+
+        const bool selected_covers = selected != nullptr && selected->is_armor() &&
+                                     item_covers_graph_part( *selected, *part );
+        int worn_density = 0;
+        for( const item_location &loc : worn_items ) {
+            if( loc && item_covers_graph_part( *loc, *part ) ) {
+                ++worn_density;
+            }
+        }
+
+        nc_color color = c_dark_gray;
+        if( selected_covers ) {
+            color = c_yellow;
+        } else if( worn_density >= 3 ) {
+            color = c_cyan;
+        } else if( worn_density == 2 ) {
+            color = c_light_blue;
+        } else if( worn_density == 1 ) {
+            color = c_light_gray;
+        }
+        return colorize( sym, color );
+    };
+
+    const bool compact = equipment_body_map_reserved_height <= 10 || panel_width < 18;
+    const bodygraph_id &bodygraph = compact ?
+                                    ncmm_equipment_bodygraph_compact :
+                                    ncmm_equipment_bodygraph;
+    const int bodygraph_height = compact ? 7 : 13;
+    const std::vector<std::string> graph_lines =
+        get_bodygraph_lines( u, bodygraph_cb, bodygraph, content_width, bodygraph_height );
+
+    for( const std::string &line : graph_lines ) {
+        if( y >= footer_y ) {
+            break;
+        }
+        const int line_width = utf8_width( line, true );
+        const int x = panel_x + 1 + std::max( 0, ( content_width - line_width ) / 2 );
+        nc_color current_color = c_light_gray;
+        print_colored_text( w, point( x, y++ ), current_color, c_light_gray, line );
+    }
+
+    if( selected != nullptr && selected->is_armor() &&
+        ncmm::runtime_setting_hook_bool( "inventory.body_map.show_layers", 1 ) != 0 &&
+        y < footer_y ) {
+        std::string layers;
+        for( const layer_level layer : selected->get_layer() ) {
+            if( !layers.empty() ) {
+                layers += " / ";
+            }
+            layers += item::layer_to_string( layer );
+        }
+        if( !layers.empty() ) {
+            const std::string layer_line =
+                ncmm::localized_text( "Layer", u8"\u0421\u043B\u043E\u0439" ) + ": " + layers;
+            trim_and_print( w, point( panel_x + 1, y ), content_width,
+                            c_light_gray, layer_line );
+        }
+    }
+}
+'@ 'inventory.body-map-frame-and-render'
+$gic = Replace-ExactlyOnce $gic @'
+    inventory_pick_selector inv_s( you, inv_s_p );
+
+    inv_s.set_title( _( "Inventory" ) );
+'@ @'
+    inventory_pick_selector inv_s( you, inv_s_p );
+    inv_s.set_equipment_body_map();
+
+    inv_s.set_title( _( "Inventory" ) );
+'@ 'inventory.body-map-normal-inventory-only'
 
 # Ballistic Hit Chance: deterministic CDF for the exact dispersion model.
 $dh = Replace-ExactlyOnce $dh @'
@@ -1408,6 +1742,9 @@ Write-Utf8 $craftingCpp $cr
 Write-Utf8 $rangedCpp $rg
 Write-Utf8 $dispersionH $dh
 Write-Utf8 $dispersionCpp $dc
+Write-Utf8 $inventoryUiH $iuh
+Write-Utf8 $inventoryUiCpp $iuc
+Write-Utf8 $gameInventoryCpp $gic
 
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.h') (Join-Path $src 'ncmm_loader.h') -Force
 Copy-Item (Join-Path $PSScriptRoot 'ncmm_loader.cpp') (Join-Path $src 'ncmm_loader.cpp') -Force
@@ -1431,6 +1768,9 @@ $cr2 = Read-Utf8 $craftingCpp
 $rg2 = Read-Utf8 $rangedCpp
 $dh2 = Read-Utf8 $dispersionH
 $dc2 = Read-Utf8 $dispersionCpp
+$iuh2 = Read-Utf8 $inventoryUiH
+$iuc2 = Read-Utf8 $inventoryUiCpp
+$gic2 = Read-Utf8 $gameInventoryCpp
 
 if ((NonAscii-Signature $h2) -ne $hSig) { throw 'UTF-8 preservation check failed for options.h' }
 if ((NonAscii-Signature $c2) -ne $cSig) { throw 'UTF-8 preservation check failed for options.cpp' }
@@ -1448,6 +1788,9 @@ if ((NonAscii-Signature $cr2) -ne $crSig) { throw 'UTF-8 preservation check fail
 if ((NonAscii-Signature $rg2) -ne $rgSig) { throw 'UTF-8 preservation check failed for ranged.cpp' }
 if ((NonAscii-Signature $dh2) -ne $dhSig) { throw 'UTF-8 preservation check failed for dispersion.h' }
 if ((NonAscii-Signature $dc2) -ne $dcSig) { throw 'UTF-8 preservation check failed for dispersion.cpp' }
+if ((NonAscii-Signature $iuh2) -ne $iuhSig) { throw 'UTF-8 preservation check failed for inventory_ui.h' }
+if ((NonAscii-Signature $iuc2) -ne $iucSig) { throw 'UTF-8 preservation check failed for inventory_ui.cpp' }
+if ((NonAscii-Signature $gic2) -ne $gicSig) { throw 'UTF-8 preservation check failed for game_inventory.cpp' }
 
 foreach ($needle in @('COPT_WORLDGEN_ONLY','ncmm_begin_worldgen_group','ncmm_set_worldgen_string_choices')) {
     if (-not $h2.Contains($needle)) { throw "Post-check failed: $needle" }
@@ -1472,6 +1815,13 @@ foreach ($needle in @('targeting.hit_probability.enabled','exact_hit_probability
 }
 if (-not $dh2.Contains('probability_below')) { throw 'Post-check failed: dispersion probability declaration' }
 if (-not $dc2.Contains('dispersion_sources::probability_below')) { throw 'Post-check failed: dispersion probability implementation' }
+foreach ($needle in @('set_equipment_body_map','equipment_body_map_reserved_height')) {
+    if (-not $iuh2.Contains($needle)) { throw "Post-check failed: $needle" }
+}
+foreach ($needle in @('inventory.body_map.enabled','inventory.body_map.show_layers','draw_equipment_body_map','get_bodygraph_lines')) {
+    if (-not $iuc2.Contains($needle)) { throw "Post-check failed: $needle" }
+}
+if (-not $gic2.Contains('set_equipment_body_map();')) { throw 'Post-check failed: normal inventory body-map opt-in' }
 
 Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.8.2 module contract`n" -Encoding ASCII
 Write-Host 'NCMM 0.8.2 host patch applied and UTF-8 preservation verified.'

@@ -22,7 +22,8 @@
         "survivor_progression": "0.12.0",
         "advanced_world_settings": "0.6.4",
         "recipe_finalize_profiler": "0.1.1",
-        "ballistic_hit_chance": "0.1.0"
+        "ballistic_hit_chance": "0.1.0",
+        "equipment_body_map": "0.1.0"
       },
       "minimum_updater": "0.8.3"
     }

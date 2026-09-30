@@ -43,7 +43,8 @@
       "ncmm",
       "code_mods/SurvivorProgression",
       "code_mods/AdvancedWorldSettings",
-      "code_mods/BallisticHitChance"
+      "code_mods/BallisticHitChance",
+      "code_mods/EquipmentBodyMap"
     ],
     "backup_folder": "NCMM_Infrastructure_Backups",
     "pending_marker": "ncmm/transaction.pending.json",
@@ -90,6 +91,10 @@
       },
       {
         "id": "ballistic_hit_chance",
+        "version": "0.1.0"
+      },
+      {
+        "id": "equipment_body_map",
         "version": "0.1.0"
       }
     ]
@@ -155,10 +160,11 @@
       "runtime_setting_binding_registry",
       "worldgen_binding_registry"
     ],
-    "module_migration_status": "Survivor 0.12.0, AWS 0.6.4, and Ballistic Hit Chance 0.1.0 use Host API 2.0; AWS 0.6.4 adds selective default-region geography scopes and protects mandatory specials/neighbor connectivity; Ballistic Hit Chance uses generic live typed-setting bindings for targeting UI controls.",
+    "module_migration_status": "Survivor 0.12.0, AWS 0.6.4, Ballistic Hit Chance 0.1.0, and Equipment Body Map 0.1.0 use Host API 2.0; AWS 0.6.4 adds selective default-region geography scopes and protects mandatory specials/neighbor connectivity; Ballistic Hit Chance uses generic live typed-setting bindings for targeting UI controls. Equipment Body Map uses generic inventory.body_map live typed-setting bindings.",
     "survivor_migration": "runtime_hook_registry_v2 + dynamic_modifier_ownership; no Survivor-specific identifiers remain in patched CDDA source",
     "aws_migration": "typed_world_settings_v2 + scope-aware worldgen_binding_registry_v2; final patched CDDA geography sources contain no NCMM_AWS_* identifiers; disabled AWS scopes inherit region_settings/region-overlay values.",
-    "ballistic_hit_chance": "runtime_setting_binding_registry_v2 + generic targeting.hit_probability hooks; module-specific NCMM_BHC_* identifiers remain module-owned and do not leak into patched CDDA source"
+    "ballistic_hit_chance": "runtime_setting_binding_registry_v2 + generic targeting.hit_probability hooks; module-specific NCMM_BHC_* identifiers remain module-owned and do not leak into patched CDDA source",
+    "equipment_body_map": "runtime_setting_binding_registry_v2 + generic inventory.body_map hooks; module-specific NCMM_EBM_* identifiers remain module-owned and do not leak into patched CDDA source"
   },
   "verification": {
     "offline_install": {
