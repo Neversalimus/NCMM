@@ -121,8 +121,8 @@
     },
     {
       "path": "compat\\update\\index.json",
-      "sha256": "56e5a28eb9bfdb640afae91261f2a680cf345860c76f8baa83e28afaeb2bc817",
-      "bytes": 959
+      "sha256": "dd54fe9fb5095eb28b83b9dc8015a74f256efe2bb404c3d31fe11fc22a1c3799",
+      "bytes": 999
     },
     {
       "path": "components\\advanced_world_settings.json",
