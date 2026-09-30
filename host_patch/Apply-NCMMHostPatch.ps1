@@ -65,8 +65,8 @@ function NonAscii-Signature([string]$Text) {
 
 if (Test-Path $marker) {
     $markerText = [System.IO.File]::ReadAllText($marker)
-    if (-not $markerText.Contains('NCMM 0.8.1')) {
-        throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.8.1.'
+    if (-not $markerText.Contains('NCMM 0.8.2')) {
+        throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.8.2.'
     }
 
     $h = Read-Utf8 $optionsH
@@ -143,8 +143,8 @@ Copy-Item (Join-Path $PSScriptRoot 'ncmm_manifest_policy.h') (Join-Path $src 'nc
     if (-not $kn.Contains('ncmm::gameplay_modifier( "read_speed_pct" )')) { throw 'Post-check failed: read_speed_pct' }
     if (-not $cr.Contains('ncmm::gameplay_modifier( "craft_speed_pct" )')) { throw 'Post-check failed: craft_speed_pct' }
 
-    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.8.1 module contract`n" -Encoding ASCII
-    Write-Host 'Existing NCMM upstream patch verified; v0.8.1 loader/API refreshed.'
+    Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.8.2 module contract`n" -Encoding ASCII
+    Write-Host 'Existing NCMM upstream patch verified; v0.8.2 loader/API refreshed.'
     exit 0
 }
 
@@ -688,38 +688,44 @@ void target_ui::panel_spell_info( int &text_y )
                 ( recoil_per_shot * ( 1.0 - absorb ) ) );
             const bool volley = current_mode.flags.count( "VOLLEY" ) != 0;
 
-            std::vector<double> probabilities;
-            probabilities.reserve( current_mode.qty );
-            // FIRE first aims to the UI-selected mode before the burst begins.
-            // Start the sequence at that predicted recoil so the first value
-            // matches the default FIRE row rather than the hypothetical snap shot.
-            double predicted_recoil = predict_recoil(
-                                          *you, weapon, target, sight_dispersion,
-                                          get_selected_aim_type(), you->recoil ).recoil;
-            for( int shot = 0; shot < current_mode.qty; ++shot ) {
-                probabilities.push_back( probability_at_recoil( predicted_recoil ) );
-                if( !volley ) {
-                    predicted_recoil += immediate_recoil;
-                }
-            }
+            // Match fire_gun(): the selected burst may be shortened by the
+            // ammunition/energy actually available at the moment of firing.
+            const int actual_shots = std::max(
+                                         0, std::min( current_mode.qty,
+                                                 weapon.shots_remaining( here, you ) ) );
+            if( actual_shots > 0 ) {
+                // FIRE first aims to the UI-selected mode before the burst begins.
+                // Start the sequence at that predicted recoil so the first value
+                // matches the default FIRE row rather than the hypothetical snap shot.
+                const double initial_recoil = predict_recoil(
+                                                  *you, weapon, target, sight_dispersion,
+                                                  get_selected_aim_type(), you->recoil ).recoil;
 
-            std::string burst = ncmm::localized_text( "Burst", u8"\u041E\u0447\u0435\u0440\u0435\u0434\u044C" ) + ": ";
-            const int shown_front =
-                std::min<int>( static_cast<int>( probabilities.size() ), 5 );
-            for( int i = 0; i < shown_front; ++i ) {
-                if( i > 0 ) {
-                    burst += " / ";
+                std::string burst =
+                    ncmm::localized_text( "Burst", u8"\u041E\u0447\u0435\u0440\u0435\u0434\u044C" ) + ": ";
+                const int shown_front = std::min( actual_shots, 5 );
+                for( int shot = 0; shot < shown_front; ++shot ) {
+                    if( shot > 0 ) {
+                        burst += " / ";
+                    }
+                    const double shot_recoil = initial_recoil +
+                                               ( volley ? 0.0 :
+                                                 static_cast<double>( immediate_recoil ) * shot );
+                    burst += ncmm_hit_probability_text(
+                                 probability_at_recoil( shot_recoil ) );
                 }
-                burst += ncmm_hit_probability_text( probabilities[i] );
+
+                if( actual_shots > 5 ) {
+                    burst += actual_shots > 6 ? " / ... / " : " / ";
+                    const double last_recoil = initial_recoil +
+                                               ( volley ? 0.0 :
+                                                 static_cast<double>( immediate_recoil ) *
+                                                 ( actual_shots - 1 ) );
+                    burst += ncmm_hit_probability_text(
+                                 probability_at_recoil( last_recoil ) );
+                }
+                print_colored_text( w_target, point( 1, text_y++ ), clr, clr, burst );
             }
-            if( probabilities.size() > 6 ) {
-                burst += " / ... / ";
-                burst += ncmm_hit_probability_text( probabilities.back() );
-            } else if( probabilities.size() == 6 ) {
-                burst += " / ";
-                burst += ncmm_hit_probability_text( probabilities.back() );
-            }
-            print_colored_text( w_target, point( 1, text_y++ ), clr, clr, burst );
         }
     }
 }
@@ -1144,7 +1150,7 @@ $mm = Replace-ExactlyOnce $mm @'
     // Draw horizontal line
 '@ 'main-menu.ncmm-version-label'
 
-# NCMM 0.8.1 generic character modifier hooks.
+# NCMM generic character modifier hooks.
 $ch = Replace-ExactlyOnce $ch '#include "npc.h"' ('#include "npc.h"' + "`n" + '#include "ncmm_loader.h"') 'character.include-ncmm'
 $ch = Replace-ExactlyOnce $ch @'
 int Character::get_str() const
@@ -1454,5 +1460,5 @@ foreach ($needle in @('targeting.hit_probability.enabled','exact_hit_probability
 if (-not $dh2.Contains('probability_below')) { throw 'Post-check failed: dispersion probability declaration' }
 if (-not $dc2.Contains('dispersion_sources::probability_below')) { throw 'Post-check failed: dispersion probability implementation' }
 
-Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.8.1 module contract`n" -Encoding ASCII
-Write-Host 'NCMM 0.8.1 host patch applied and UTF-8 preservation verified.'
+Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.8.2 module contract`n" -Encoding ASCII
+Write-Host 'NCMM 0.8.2 host patch applied and UTF-8 preservation verified.'
