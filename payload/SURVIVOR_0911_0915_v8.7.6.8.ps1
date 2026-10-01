@@ -18539,6 +18539,34 @@ Apply-AwsSelectiveScopes064
 function Apply-PlayerFacingCopyPolishFinal {
     Write-Host "Applying final player-facing copy polish..." -ForegroundColor Cyan
 
+    # Keep the payload generator authoritative for the final AWS 0.6.4 player-facing copy.
+    $aws = Normalize-Lf ([IO.File]::ReadAllText($awsPath))
+    foreach($pair in @(
+        @('Affects only areas generated after this change.','Selective overrides for the default region. Turn this scope off to inherit city and road settings from the active region definition and region-overlay mods.'),
+        @('Влияет только на новые области, созданные после изменения.','Выборочные переопределения стандартного региона. Выключите эту область, чтобы наследовать настройки городов и дорог из активного региона и region-overlay модов.'),
+        @('Controls railroad generation while custom geography is active. Vanilla CDDA 0546 default is off.','When custom geography is enabled, directly enables or disables railroad generation in new default-region areas. Off matches the current CDDA default region.'),
+        @('Управляет генерацией железных дорог при включённой своей географии. В стандартной CDDA 0546 по умолчанию выключено.','При включённой своей географии напрямую включает или отключает железные дороги в новых областях стандартного региона. Выключено соответствует текущему стандартному региону CDDA.'),
+        @('Lower threshold values generate more of the selected terrain in new areas.','Selective ecology overrides for newly generated default-region areas.'),
+        @('Чем ниже порог, тем больше соответствующего ландшафта появится в новых областях.','Выборочные переопределения экологии для новых областей стандартного региона.'),
+        @('Controls rivers, lakes and oceans in newly generated areas.','Selective water-generation overrides for newly generated default-region areas.'),
+        @('Настройки рек, озёр и океанов в новых областях.','Выборочные переопределения водной генерации для новых областей стандартного региона.'),
+        @('Controls highways and ravines in newly generated areas.','Experimental transport overrides. Ravines do not fully resolve intersections with lakes, rivers, roads or highways.'),
+        @('Настройки шоссе и оврагов в новых областях.','Экспериментальные транспортные переопределения. Овраги пока не умеют корректно разрешать все пересечения с озёрами, реками, дорогами и шоссе.'),
+        @('How far highway intersections may shift from the grid. For safety the effective value is clamped to at most one quarter of the tighter grid spacing. Default 2.','How far highway intersections may shift from the grid. The Host clamps this to at most one quarter of the smaller grid separation for safety. Default 2.'),
+        @('Насколько перекрёстки могут смещаться относительно сетки. Для безопасности фактическое значение ограничивается четвертью меньшего шага сетки. Стандарт 2.','Насколько перекрёстки могут смещаться относительно сетки. Для безопасности Host ограничивает значение четвертью меньшего шага сетки. Стандарт 2.'),
+        @('Higher = more random endpoint placement; lower = straighter alignment. CDDA 0546 underlying default is 0.60.','Chance to choose a random border endpoint instead of trying to align with a neighboring highway. Higher = less alignment. CDDA default is 0.60.'),
+        @('Выше = более случайное размещение концов шоссе; ниже = более прямое выравнивание. Базовое значение CDDA 0546 — 0,60.','Шанс выбрать случайную точку на границе вместо попытки выровнять шоссе с соседней областью. Выше = меньше выравнивания. Стандарт CDDA — 0,60.'),
+        @('Negative Z-level for ravine floor. Current supported CDDA hosts have 10 overmap levels below ground, so the safe range is -10 to -1. Default -3.','Negative Z-level for ravine floor. Current certified CDDA hosts support down to -10. Default -3.'),
+        @('Отрицательный Z-уровень дна оврага. В текущих поддерживаемых версиях CDDA есть 10 уровней овермапа вниз, поэтому безопасный диапазон — от -10 до -1. Стандарт -3.','Отрицательный Z-уровень дна оврага. Текущие сертифицированные версии CDDA поддерживают глубину до -10. Стандарт -3.'),
+        @('Advanced World Settings 0.6.4 initialized: selective geography scopes + protected worldgen invariants active.','Advanced World Settings 0.6.4 initialized: Host API 2.0 typed settings + generic geography hooks active.')
+    )) {
+        if(-not $aws.Contains([string]$pair[0])) {
+            throw ("Final AWS copy polish anchor missing: " + [string]$pair[0])
+        }
+        $aws = $aws.Replace([string]$pair[0],[string]$pair[1])
+    }
+    Write-Utf8NoBom $awsPath $aws
+
     $sp = Normalize-Lf ([IO.File]::ReadAllText($spPath))
     $detailFunction = @'
 std::string rpg_detail_body( const perk_def &perk, const std::string &body,

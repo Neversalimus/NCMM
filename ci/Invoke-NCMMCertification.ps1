@@ -12,7 +12,7 @@ $PackageRoot=Split-Path $PSScriptRoot -Parent
 . (Join-Path $PackageRoot 'tools\NCMM.Infrastructure.Common.ps1')
 $compatManifest=Get-Content (Join-Path $PackageRoot 'compat\\compatibility.manifest.json') -Raw|ConvertFrom-Json
 $infrastructureVersion=([string]$compatManifest.infrastructure_version).Trim()
-if($infrastructureVersion -notmatch '^\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?$'){throw ('Invalid infrastructure version: '+$infrastructureVersion)}
+if($infrastructureVersion -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$'){throw ('Invalid infrastructure version: '+$infrastructureVersion)}
 $catalog=Get-Content (Join-Path $PackageRoot 'components\\index.json') -Raw|ConvertFrom-Json
 $componentVersions=[ordered]@{};foreach($cc in @($catalog.components)){$componentVersions[[string]$cc.id]=[string]$cc.version}
 $hostVersion=[string]$componentVersions['ncmm_host']
