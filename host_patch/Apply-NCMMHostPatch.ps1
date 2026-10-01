@@ -132,7 +132,7 @@ if (Test-Path $marker) {
         @($iuc,'Explicit human-shaped paper doll.'),
         @($iuc,'NCMM_BODY_MAP_FOCUS'),
         @($iuc,'inventory.body_map.right_arrow_gear'),
-        @($iuc,'inventory.body-map-safe-right-arrow-alias'),
+        @($iuc,'res.action == "ANY_INPUT" && ch == KEY_RIGHT'),
         @($gic,'set_equipment_body_map();'),
         @($iuc,'ncmm::inventory_symbols_enabled( get_option<bool>( "ITEM_SYMBOLS" ) )'),
         @($iuc,'ncmm::inventory_item_symbol( *entry.any_item() )'),
@@ -2116,7 +2116,7 @@ if (-not $dc2.Contains('dispersion_sources::probability_below')) { throw 'Post-c
 foreach ($needle in @('set_equipment_body_map','equipment_body_map_reserved_height')) {
     if (-not $iuh2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
-foreach ($needle in @('inventory.body_map.enabled','inventory.body_map.show_layers','inventory.body_map.right_arrow_gear','draw_equipment_body_map','Explicit human-shaped paper doll.','NCMM_BODY_MAP_FOCUS')) {
+foreach ($needle in @('inventory.body_map.enabled','inventory.body_map.show_layers','inventory.body_map.right_arrow_gear','res.action == "ANY_INPUT" && ch == KEY_RIGHT','draw_equipment_body_map','Explicit human-shaped paper doll.','NCMM_BODY_MAP_FOCUS')) {
     if (-not $iuc2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 if (-not $gic2.Contains('set_equipment_body_map();')) { throw 'Post-check failed: normal inventory body-map opt-in' }
