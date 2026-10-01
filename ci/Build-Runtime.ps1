@@ -509,10 +509,10 @@ $fullReadme = @(
     '====================',
     'Recommended: extract this archive and run NCMM_Setup.exe.',
     '',
-    "Included directly: NCMM Runtime / Host bootstrap and installer, Advanced World Settings $awsVersion, Survivor Progression $survivorVersion, Ballistic Hit Chance $ballisticVersion, Equipment Body Map $equipmentBodyMapVersion.",
+    "Included directly: NCMM Runtime / Host bootstrap and installer, Advanced World Settings $awsVersion, Survivor Progression $survivorVersion, Ballistic Hit Chance $ballisticVersion, Equipment Body Map $equipmentBodyMapVersion, Item Glyphs $itemGlyphsVersion.",
     '',
     'Standalone packages are preserved in the packages folder.',
-    'The installer always installs/repairs NCMM and lets you select AWS, Survivor, Ballistic Hit Chance, and Equipment Body Map independently.'
+    'The installer always installs/repairs NCMM and lets you select AWS, Survivor, Ballistic Hit Chance, Equipment Body Map, and Item Glyphs independently.'
 ) -join [Environment]::NewLine
 Set-Content (Join-Path $fullStage 'FULL_RELEASE.txt') -Value $fullReadme -Encoding UTF8
 
@@ -527,6 +527,7 @@ Write-Output $awsModuleZip
 Write-Output $survivorModuleZip
 Write-Output $ballisticModuleZip
 Write-Output $equipmentBodyMapModuleZip
+Write-Output $itemGlyphsModuleZip
 
 } else {
     Write-Host 'Build-Runtime payload-only mode: release archives were not generated.' -ForegroundColor DarkGray
