@@ -9,6 +9,19 @@ $m=Get-Content (Join-Path $PackageRoot 'compat\compatibility.manifest.json') -Ra
 $pipeline083=Get-Content (Join-Path $PackageRoot 'pipeline\pipeline.manifest.json') -Raw|ConvertFrom-Json
 if([string]$pipeline083.infrastructure -ne '0.8.3.1' -or [string]$pipeline083.transaction_gate -ne 'offline_install_verification'){throw 'Staged pipeline manifest invalid.'}
 if([int]$m.schema -ne 4 -or [string]$m.infrastructure_version -ne '0.8.3.1'){throw 'Compatibility manifest schema/version mismatch.'}
+# Certification must accept the same infrastructure version declared by the package.
+# Extract the actual guard pattern so an accidental PowerShell over-escape is caught here.
+$certificationSource=[IO.File]::ReadAllText((Join-Path $PackageRoot 'ci\Invoke-NCMMCertification.ps1'))
+$guardPrefix='$infrastructureVersion -notmatch '''
+$guardStart=$certificationSource.IndexOf($guardPrefix,[StringComparison]::Ordinal)
+if($guardStart -lt 0){throw 'Certification infrastructure-version guard missing.'}
+$patternStart=$guardStart+$guardPrefix.Length
+$patternEnd=$certificationSource.IndexOf("'",$patternStart,[StringComparison]::Ordinal)
+if($patternEnd -le $patternStart){throw 'Certification infrastructure-version pattern missing.'}
+$certificationVersionPattern=$certificationSource.Substring($patternStart,$patternEnd-$patternStart)
+if(([string]$m.infrastructure_version) -notmatch $certificationVersionPattern){
+    throw ('Certification infrastructure-version guard rejects current version: '+[string]$m.infrastructure_version)
+}
 $exact=& (Join-Path $PackageRoot 'adapters\cdda_2026_09_23_0546.ps1') -Mode Describe
 if([string]$exact.commit -ne 'e262adb299a7613b4aedc5f12c08fe0413c56a84' -or [string]$exact.support -ne 'exact'){throw 'Exact 0546 adapter identity drift.'}
 $base=Get-NcmmBaseAdapter $PackageRoot;if(-not $base -or [string]$base.id -ne 'base-cdda-2026-series-v1'){throw 'Inherited base adapter resolution failed.'}

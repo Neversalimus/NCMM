@@ -76,8 +76,8 @@
     },
     {
       "path": "ci\\Test-Infrastructure083.ps1",
-      "sha256": "db2963b6ff3d04786e091ed3283195b32da7326b924ae95d8a0cbd939c8be20a",
-      "bytes": 4980
+      "sha256": "5a35a998ff2be8a23bb53bd82fe1522ebde1c1c1b3e21380ac9a114394bf9dad",
+      "bytes": 6021
     },
     {
       "path": "ci\\Test-InstallerTransaction.ps1",
