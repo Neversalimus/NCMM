@@ -348,4 +348,17 @@ foreach($n in @(
     'v8.7.6.8-survivor-0.12.0-manager-settings-respec-kit'
 )){if(-not $payload.Contains($n)){throw ('Survivor 0.12.0 settings/recalibration contract missing: '+$n)}}
 if($payload.Contains('reset.id = "respec"')){throw 'Free Survivor respec UI leaked into the current payload.'}
+
+# Balance hotfix: passive movement remains a valid Mobility source, but its base rate
+# is intentionally half of the original 1 XP / 150 movement events.
+$survivorSource=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\src\survivor_progression.cpp'))
+foreach($balanceNeedle in @(
+    'constexpr int64_t mobility_steps_per_xp = 300;',
+    'steps / mobility_steps_per_xp',
+    'steps % mobility_steps_per_xp'
+)){if(-not $survivorSource.Contains($balanceNeedle)){throw ('Survivor Mobility XP nerf contract missing: '+$balanceNeedle)}}
+if($survivorSource.Contains('steps / 150') -or $survivorSource.Contains('steps % 150')){
+    throw 'Stale Survivor Mobility XP 1/150 rate returned.'
+}
+
 Write-Host 'NCMM Survivor payload regression contract: PASS' -ForegroundColor Green
