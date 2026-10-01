@@ -10,8 +10,10 @@ constexpr const char *module_id = "equipment_body_map";
 constexpr const char *module_version = "0.1.0";
 constexpr const char *setting_enabled = "NCMM_EBM_ENABLED";
 constexpr const char *setting_show_layers = "NCMM_EBM_SHOW_LAYERS";
+constexpr const char *setting_right_arrow_gear = "NCMM_EBM_RIGHT_ARROW_GEAR";
 constexpr const char *runtime_hook_enabled = "inventory.body_map.enabled";
 constexpr const char *runtime_hook_show_layers = "inventory.body_map.show_layers";
+constexpr const char *runtime_hook_right_arrow_gear = "inventory.body_map.right_arrow_gear";
 
 const ncmm_host_api_v2_core *host2 = nullptr;
 
@@ -76,6 +78,17 @@ bool register_settings( const ncmm_host_api_v1 *api )
         return false;
     }
 
+    if( !host2->world_setting_register_bool(
+            module_id, setting_right_arrow_gear,
+            tr( ru, "Right arrow: jump to equipped gear",
+                "Стрелка вправо: переход к экипировке" ),
+            tr( ru,
+                "In the normal inventory only, treats an otherwise unhandled Right Arrow as a jump from the main inventory column to wielded/worn gear. It never overrides a recognized CDDA action or user binding. Disable this to keep pure vanilla Right Arrow behavior.",
+                "Только в обычном инвентаре: если стрелка вправо иначе не распознана, она переводит из основной колонки инвентаря к предмету в руках и надетой экипировке. Уже распознанные действия CDDA и пользовательские назначения никогда не перехватываются. Отключите, чтобы полностью сохранить ванильное поведение стрелки вправо." ),
+            1, NCMM_WORLD_SETTING_LIVE ) ) {
+        return false;
+    }
+
     return true;
 }
 
@@ -89,7 +102,10 @@ bool bind_runtime_settings()
                setting_enabled, NCMM_SETTING_BOOL_V2 ) != 0 &&
            host2->runtime_hook_bind_setting(
                module_id, runtime_hook_show_layers,
-               setting_show_layers, NCMM_SETTING_BOOL_V2 ) != 0;
+               setting_show_layers, NCMM_SETTING_BOOL_V2 ) != 0 &&
+           host2->runtime_hook_bind_setting(
+               module_id, runtime_hook_right_arrow_gear,
+               setting_right_arrow_gear, NCMM_SETTING_BOOL_V2 ) != 0;
 }
 
 int init( const ncmm_host_api_v1 *api )

@@ -742,9 +742,12 @@ bool check( bool condition, const char *scenario, const char *detail )
 
 bool state_matches( size_t settings, size_t bindings )
 {
-    const std::array<const char *, 2> ids = { "NCMM_EBM_ENABLED", "NCMM_EBM_SHOW_LAYERS" };
-    const std::array<const char *, 2> hooks = {
-        "inventory.body_map.enabled", "inventory.body_map.show_layers"
+    const std::array<const char *, 3> ids = {
+        "NCMM_EBM_ENABLED", "NCMM_EBM_SHOW_LAYERS", "NCMM_EBM_RIGHT_ARROW_GEAR"
+    };
+    const std::array<const char *, 3> hooks = {
+        "inventory.body_map.enabled", "inventory.body_map.show_layers",
+        "inventory.body_map.right_arrow_gear"
     };
     if( registered_setting_ids.size() != settings || setting_meta.size() != settings ||
         setting_i64_values.size() != settings || labels.size() != settings ||
@@ -801,7 +804,8 @@ bool run( void *lib, const ncmm_mod_descriptor_v1 *desc, ncmm_host_api_v1 api )
         runtime_setting_binding_count = 0;
     };
     enum class fault { capability, short_tail, null_bind, null_bool, null_register,
-                       first_setting, second_setting, first_binding, second_binding, old_api };
+                       first_setting, second_setting, third_setting,
+                       first_binding, second_binding, third_binding, old_api };
     struct test_case {
         const char *name;
         fault injection;
@@ -820,8 +824,10 @@ bool run( void *lib, const ncmm_mod_descriptor_v1 *desc, ncmm_host_api_v1 api )
         { "null setting register", fault::null_register, 0, 0, 0, 0 },
         { "first setting failure", fault::first_setting, 0, 0, 1, 0 },
         { "second setting failure", fault::second_setting, 1, 0, 2, 0 },
-        { "first binding failure", fault::first_binding, 2, 0, 2, 1 },
-        { "second binding failure", fault::second_binding, 2, 1, 2, 2 },
+        { "third setting failure", fault::third_setting, 2, 0, 3, 0 },
+        { "first binding failure", fault::first_binding, 3, 0, 3, 1 },
+        { "second binding failure", fault::second_binding, 3, 1, 3, 2 },
+        { "third binding failure", fault::third_binding, 3, 2, 3, 3 },
         { "API 1.8", fault::old_api, 0, 0, 0, 0 }
     };
     for( const auto &test : cases ) {
@@ -840,8 +846,10 @@ bool run( void *lib, const ncmm_mod_descriptor_v1 *desc, ncmm_host_api_v1 api )
             case fault::null_register: smoke_host2.world_setting_register_bool = nullptr; break;
             case fault::first_setting: fail_setting_call = 1; break;
             case fault::second_setting: fail_setting_call = 2; break;
+            case fault::third_setting: fail_setting_call = 3; break;
             case fault::first_binding: fail_binding_call = 1; break;
             case fault::second_binding: fail_binding_call = 2; break;
+            case fault::third_binding: fail_binding_call = 3; break;
             case fault::old_api: api.get_api_version_minor = &old_api_minor; break;
         }
         if( !check( desc->init( &api ) == 0, test.name, "init must reject host" ) ||
@@ -862,24 +870,27 @@ bool run( void *lib, const ncmm_mod_descriptor_v1 *desc, ncmm_host_api_v1 api )
 
     reset();
     if( !check( desc->init( &api ) == 1, "happy path", "init failed" ) ||
-        !check( setting_calls == 2 && binding_calls == 2 && state_matches( 2, 2 ),
-                "happy path", "expected exactly two true LIVE bool settings and matching bindings" ) ||
+        !check( setting_calls == 3 && binding_calls == 3 && state_matches( 3, 3 ),
+                "happy path", "expected exactly three true LIVE bool settings and matching bindings" ) ||
         !check( labels.at( "NCMM_EBM_ENABLED" ) == "Show equipment body map" &&
-                labels.at( "NCMM_EBM_SHOW_LAYERS" ) == "Show selected item layers",
+                labels.at( "NCMM_EBM_SHOW_LAYERS" ) == "Show selected item layers" &&
+                labels.at( "NCMM_EBM_RIGHT_ARROW_GEAR" ) == "Right arrow: jump to equipped gear",
                 "EN metadata", "English labels missing" ) ) return false;
     locale = "ru";
     on_locale( &api );
-    if( !check( setting_calls == 4 && binding_calls == 2 && state_matches( 2, 2 ),
+    if( !check( setting_calls == 6 && binding_calls == 3 && state_matches( 3, 3 ),
                 "EN -> RU", "metadata must be re-registered without rebinding" ) ||
         !check( labels.at( "NCMM_EBM_ENABLED" ) == "Показывать схему экипировки" &&
-                labels.at( "NCMM_EBM_SHOW_LAYERS" ) == "Показывать слои выбранной вещи",
+                labels.at( "NCMM_EBM_SHOW_LAYERS" ) == "Показывать слои выбранной вещи" &&
+                labels.at( "NCMM_EBM_RIGHT_ARROW_GEAR" ) == "Стрелка вправо: переход к экипировке",
                 "EN -> RU", "Russian labels were not passed to host" ) ) return false;
     desc->shutdown();
     locale = "en";
     on_locale( &api );
-    if( !check( setting_calls == 4 && binding_calls == 2 && state_matches( 2, 2 ) &&
+    if( !check( setting_calls == 6 && binding_calls == 3 && state_matches( 3, 3 ) &&
                 labels.at( "NCMM_EBM_ENABLED" ) == "Показывать схему экипировки" &&
-                labels.at( "NCMM_EBM_SHOW_LAYERS" ) == "Показывать слои выбранной вещи",
+                labels.at( "NCMM_EBM_SHOW_LAYERS" ) == "Показывать слои выбранной вещи" &&
+                labels.at( "NCMM_EBM_RIGHT_ARROW_GEAR" ) == "Стрелка вправо: переход к экипировке",
                 "shutdown", "locale callback must be inert after shutdown" ) ) return false;
     std::cout << "Equipment Body Map [happy path, EN -> RU, shutdown]: PASS\n";
     return true;

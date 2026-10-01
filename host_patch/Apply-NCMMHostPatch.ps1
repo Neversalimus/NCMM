@@ -131,6 +131,8 @@ if (Test-Path $marker) {
         @($iuc,'draw_equipment_body_map'),
         @($iuc,'Explicit human-shaped paper doll.'),
         @($iuc,'NCMM_BODY_MAP_FOCUS'),
+        @($iuc,'inventory.body_map.right_arrow_gear'),
+        @($iuc,'res.action == "ANY_INPUT" && ch == KEY_RIGHT'),
         @($gic,'set_equipment_body_map();'),
         @($iuc,'ncmm::inventory_symbols_enabled( get_option<bool>( "ITEM_SYMBOLS" ) )'),
         @($iuc,'ncmm::inventory_item_symbol( *entry.any_item() )'),
@@ -409,6 +411,28 @@ $iuc = Replace-ExactlyOnce $iuc @'
     draw_equipment_body_map( w_inv );
     draw_footer( w_inv );
 '@ 'inventory.body-map-refresh'
+
+$iuc = Replace-ExactlyOnce $iuc @'
+    inventory_input res{ action, ch, nullptr };
+
+    if( res.action == "SELECT" || res.action == "COORDINATE" || res.action == "MOUSE_MOVE" ||
+'@ @'
+    inventory_input res{ action, ch, nullptr };
+
+    // EBM compatibility alias: only consume Right Arrow when CDDA did not resolve
+    // it to any real action.  Restrict it to the normal inventory's main column,
+    // so user remaps, multiselect/drop menus, map columns and gear-column input
+    // always keep their native behavior.
+    if( res.action == "ANY_INPUT" && ch == KEY_RIGHT &&
+        equipment_body_map_requested() && &get_active_column() == &own_inv_column &&
+        own_gear_column.visible() && own_gear_column.activatable() &&
+        ncmm::runtime_setting_hook_bound( "inventory.body_map.right_arrow_gear" ) &&
+        ncmm::runtime_setting_hook_bool( "inventory.body_map.right_arrow_gear", 1 ) != 0 ) {
+        res.action = "PREV_COLUMN";
+    }
+
+    if( res.action == "SELECT" || res.action == "COORDINATE" || res.action == "MOUSE_MOVE" ||
+'@ 'inventory.body-map-safe-right-arrow-alias'
 
 $iuc = Replace-ExactlyOnce $iuc @'
             if( window_contains_point_relative( w_inv, p ) ) {
@@ -2093,7 +2117,7 @@ if (-not $dc2.Contains('dispersion_sources::probability_below')) { throw 'Post-c
 foreach ($needle in @('set_equipment_body_map','equipment_body_map_reserved_height')) {
     if (-not $iuh2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
-foreach ($needle in @('inventory.body_map.enabled','inventory.body_map.show_layers','draw_equipment_body_map','Explicit human-shaped paper doll.','NCMM_BODY_MAP_FOCUS')) {
+foreach ($needle in @('inventory.body_map.enabled','inventory.body_map.show_layers','inventory.body_map.right_arrow_gear','res.action == "ANY_INPUT" && ch == KEY_RIGHT','draw_equipment_body_map','Explicit human-shaped paper doll.','NCMM_BODY_MAP_FOCUS')) {
     if (-not $iuc2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 if (-not $gic2.Contains('set_equipment_body_map();')) { throw 'Post-check failed: normal inventory body-map opt-in' }
