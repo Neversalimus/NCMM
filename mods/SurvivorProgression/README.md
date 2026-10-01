@@ -46,6 +46,10 @@ NCMM Mod Configuration exposes two Host-managed settings:
 
 The controls use the existing typed-settings persistence layer and do not change state schema 8.
 
+### Mobility XP balance hotfix
+
+Movement now grants 1 raw Mobility XP per 300 movement events instead of 150, a 50% reduction to passive travel XP. This changes only the Mobility movement source; combat, healing, crafting, scavenging and skill-level XP are unchanged. Existing XP-rate settings and XP perks still scale the resulting award normally.
+
 ## Compatibility and migration
 
 The module enters through Loader ABI v1, requires semantic Host API 1.9 capabilities and uses Host API 2.0 Core services for current generic events/settings/modifier/runtime-hook behavior.
