@@ -36,8 +36,8 @@
     },
     {
       "path": "ci\\Invoke-NCMMCertification.ps1",
-      "sha256": "8d3be2ac9d2edc060f45baf95a27a74fb9528f285307f3e2d037f07abbfaa87d",
-      "bytes": 18097
+      "sha256": "106948bc6ac2b21b8511329f9280472264663ef4ffffbb9dae3ca102a9939773",
+      "bytes": 9481
     },
     {
       "path": "ci\\Promote-CertificateToFeed.ps1",
@@ -331,8 +331,8 @@
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-      "sha256": "19886b41be2505ae0c77de162d1b73fabd77daabd9f6497c52d2aae8ca84adb2",
-      "bytes": 1709938
+      "sha256": "74d02ec01b64202fbb6678e52824aa6f102f9e101735f0f807f973bfd75c3424",
+      "bytes": 1729400
     },
     {
       "path": "pipeline\\pipeline.manifest.json",
