@@ -120,6 +120,14 @@
           ]
         },
         {
+          "path": "src/player_display.cpp",
+          "required": [
+            "static std::vector<speedlist_entry> get_speedlist_entries(",
+            "for( const run_cost_effect &effect : you.run_cost_effects( movecost ) ) {",
+            "move_cost = static_cast<int>( movecost );"
+          ]
+        },
+        {
           "path": "src/character_health.cpp",
           "required": [
             "int Character::get_stamina_max() const",
