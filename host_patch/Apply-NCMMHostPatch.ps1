@@ -2093,7 +2093,7 @@ if (-not $dc2.Contains('dispersion_sources::probability_below')) { throw 'Post-c
 foreach ($needle in @('set_equipment_body_map','equipment_body_map_reserved_height')) {
     if (-not $iuh2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
-foreach ($needle in @('inventory.body_map.enabled','inventory.body_map.show_layers','draw_equipment_body_map','get_bodygraph_lines')) {
+foreach ($needle in @('inventory.body_map.enabled','inventory.body_map.show_layers','draw_equipment_body_map','Explicit human-shaped paper doll.','NCMM_BODY_MAP_FOCUS')) {
     if (-not $iuc2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 if (-not $gic2.Contains('set_equipment_body_map();')) { throw 'Post-check failed: normal inventory body-map opt-in' }
