@@ -129,6 +129,8 @@ if (Test-Path $marker) {
         @($iuh,'set_equipment_body_map'),
         @($iuc,'inventory.body_map.enabled'),
         @($iuc,'draw_equipment_body_map'),
+        @($iuc,'Explicit human-shaped paper doll.'),
+        @($iuc,'NCMM_BODY_MAP_FOCUS'),
         @($gic,'set_equipment_body_map();'),
         @($iuc,'ncmm::inventory_symbols_enabled( get_option<bool>( "ITEM_SYMBOLS" ) )'),
         @($iuc,'ncmm::inventory_item_symbol( *entry.any_item() )'),
@@ -323,11 +325,11 @@ $iuh = Replace-ExactlyOnce $iuh @'
         bool use_invlet = true;
         bool equipment_body_map = false;
         size_t equipment_body_map_reserved_height = 0;
+        int equipment_body_map_focus = -1;
 '@ 'inventory.body-map-state'
 
 $iuc = Replace-ExactlyOnce $iuc '#include "basecamp.h"' @'
 #include "basecamp.h"
-#include "bodygraph.h"
 #include "bodypart.h"
 '@ 'inventory.body-map-includes-a'
 
@@ -335,24 +337,6 @@ $iuc = Replace-ExactlyOnce $iuc '#include "messages.h"' @'
 #include "messages.h"
 #include "ncmm_loader.h"
 '@ 'inventory.body-map-includes-b'
-
-$iuc = Replace-ExactlyOnce $iuc '#include "string_input_popup.h"' @'
-#include "string_input_popup.h"
-#include "subbodypart.h"
-'@ 'inventory.body-map-includes-c'
-
-$iuc = Replace-ExactlyOnce $iuc @'
-static const item_category_id item_category_WEAPON_HELD( "WEAPON_HELD" );
-
-static const itype_id itype_water_faucet( "water_faucet" );
-'@ @'
-static const item_category_id item_category_WEAPON_HELD( "WEAPON_HELD" );
-
-static const bodygraph_id ncmm_equipment_bodygraph( "full_body_widget" );
-static const bodygraph_id ncmm_equipment_bodygraph_compact( "compact_full_body_widget" );
-
-static const itype_id itype_water_faucet( "water_faucet" );
-'@ 'inventory.body-map-bodygraph-id'
 
 $iuc = Replace-ExactlyOnce $iuc @'
 void inventory_selector::prepare_layout( size_t client_width, size_t client_height )
@@ -369,8 +353,8 @@ bool inventory_selector::equipment_body_map_requested() const
 
 void inventory_selector::prepare_layout( size_t client_width, size_t client_height )
 {
-    constexpr size_t full_body_map_height = 16;
-    constexpr size_t compact_body_map_height = 10;
+    constexpr size_t full_body_map_height = 17;
+    constexpr size_t compact_body_map_height = 11;
     constexpr size_t min_worn_list_height = 7;
 
     equipment_body_map_reserved_height = 0;
@@ -406,10 +390,10 @@ $iuc = Replace-ExactlyOnce $iuc @'
     // Handle screen overflow
     rearrange_columns( client_width );
 '@ @'
-    // Keep vanilla horizontal layout.  The body map only consumes vertical
-    // space inside the existing worn-items column.
+    // Keep vanilla horizontal layout.  The paper doll consumes vertical space
+    // only inside the existing worn-items column.
     rearrange_columns( client_width );
-    if( !own_gear_column.visible() || own_gear_column.get_width() < 12 ) {
+    if( !own_gear_column.visible() || own_gear_column.get_width() < 20 ) {
         equipment_body_map_reserved_height = 0;
     }
 '@ 'inventory.body-map-rearrange-width'
@@ -425,6 +409,123 @@ $iuc = Replace-ExactlyOnce $iuc @'
     draw_equipment_body_map( w_inv );
     draw_footer( w_inv );
 '@ 'inventory.body-map-refresh'
+
+$iuc = Replace-ExactlyOnce $iuc @'
+            if( window_contains_point_relative( w_inv, p ) ) {
+                res.entry = find_entry_by_coordinate( p );
+'@ @'
+            if( window_contains_point_relative( w_inv, p ) ) {
+                if( equipment_body_map_reserved_height > 0 && equipment_body_map_requested() &&
+                    own_gear_column.visible() &&
+                    ( res.action == "SELECT" || res.action == "MOUSE_MOVE" ) ) {
+                    const auto visible_columns = get_visible_columns();
+                    const int screen_width = getmaxx( w_inv ) - 2 * ( border + 1 );
+                    const bool centered = are_columns_centered( screen_width );
+                    const int free_space = screen_width - get_columns_width( visible_columns );
+                    const int max_gap = visible_columns.size() > 1 ?
+                                        free_space / static_cast<int>( visible_columns.size() - 1 ) :
+                                        free_space;
+                    const int gap = centered ? max_gap : std::min<int>( max_gap, normal_column_gap );
+                    const int gap_rounding_error = centered && visible_columns.size() > 1 ?
+                                                   free_space % static_cast<int>( visible_columns.size() - 1 ) : 0;
+                    int panel_x = border + 1;
+                    bool found_worn_column = false;
+                    for( size_t i = 0; i < visible_columns.size(); ++i ) {
+                        inventory_column *elem = visible_columns[i];
+                        if( i + 1 == visible_columns.size() ) {
+                            panel_x += gap_rounding_error;
+                        }
+                        if( elem == &own_gear_column ) {
+                            found_worn_column = true;
+                            break;
+                        }
+                        panel_x += static_cast<int>( elem->get_width() ) + gap;
+                    }
+                    if( found_worn_column ) {
+                        const int panel_width = static_cast<int>( own_gear_column.get_width() );
+                        const int content_x = panel_x + 1;
+                        const int content_width = std::max( 1, panel_width - 2 );
+                        const int panel_top = getmaxy( w_inv ) - border -
+                                              static_cast<int>( equipment_body_map_reserved_height );
+                        const bool compact = equipment_body_map_reserved_height <= 11 || panel_width < 38;
+                        const int third = std::max( 6, content_width / 3 );
+                        const int left_x = content_x;
+                        const int center_x = content_x + ( content_width - third ) / 2;
+                        const int right_x = content_x + content_width - third;
+                        const auto inside = [&]( int x, int width ) {
+                            return p.x >= x && p.x < x + width;
+                        };
+
+                        int focus = -1;
+                        int row = panel_top + 2;
+                        if( p.y == row && inside( center_x, third ) ) {
+                            focus = 0;
+                        }
+                        ++row;
+                        if( !compact ) {
+                            if( p.y == row && inside( center_x, third ) ) {
+                                focus = 1;
+                            }
+                            ++row;
+                            if( p.y == row && inside( center_x, third ) ) {
+                                focus = 2;
+                            }
+                            ++row;
+                        } else {
+                            const int half = std::max( 5, content_width / 2 );
+                            if( p.y == row ) {
+                                if( inside( content_x, half ) ) {
+                                    focus = 1;
+                                } else if( inside( content_x + content_width - half, half ) ) {
+                                    focus = 2;
+                                }
+                            }
+                            ++row;
+                        }
+                        if( p.y == row ) {
+                            if( inside( left_x, third ) ) {
+                                focus = 4;
+                            } else if( inside( center_x, third ) ) {
+                                focus = 3;
+                            } else if( inside( right_x, third ) ) {
+                                focus = 5;
+                            }
+                        }
+                        ++row;
+                        if( p.y == row ) {
+                            if( inside( left_x, third ) ) {
+                                focus = 6;
+                            } else if( inside( right_x, third ) ) {
+                                focus = 7;
+                            }
+                        }
+                        ++row;
+                        if( p.y == row ) {
+                            if( inside( left_x, third ) ) {
+                                focus = 8;
+                            } else if( inside( right_x, third ) ) {
+                                focus = 9;
+                            }
+                        }
+                        ++row;
+                        if( p.y == row ) {
+                            if( inside( left_x, third ) ) {
+                                focus = 10;
+                            } else if( inside( right_x, third ) ) {
+                                focus = 11;
+                            }
+                        }
+
+                        if( focus >= 0 ) {
+                            equipment_body_map_focus = focus;
+                            res.action = "NCMM_BODY_MAP_FOCUS";
+                            res.entry = nullptr;
+                            return res;
+                        }
+                    }
+                }
+                res.entry = find_entry_by_coordinate( p );
+'@ 'inventory.body-map-hit-test'
 
 $iuc = Replace-ExactlyOnce $iuc @'
 void inventory_selector::draw_frame( const catacurses::window &w ) const
@@ -485,19 +586,21 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
     }
 
     const int panel_width = static_cast<int>( own_gear_column.get_width() );
-    if( panel_width < 12 ) {
+    if( panel_width < 20 ) {
         return;
     }
 
     const int footer_y = getmaxy( w ) - border;
     const int panel_top = footer_y - static_cast<int>( equipment_body_map_reserved_height );
+    const int content_x = panel_x + 1;
     const int content_width = std::max( 1, panel_width - 2 );
+    const bool compact = equipment_body_map_reserved_height <= 11 || panel_width < 38;
 
     mvwhline( w, point( panel_x, panel_top ), c_dark_gray, LINE_OXOX, panel_width );
 
     const std::string heading =
         ncmm::localized_text( "EQUIPMENT", u8"\u042D\u041A\u0418\u041F\u0418\u0420\u041E\u0412\u041A\u0410" );
-    const int heading_x = panel_x + 1 +
+    const int heading_x = content_x +
                           std::max( 0, ( content_width - utf8_width( heading, true ) ) / 2 );
     int y = panel_top + 1;
     trim_and_print( w, point( heading_x, y++ ), content_width, c_light_cyan, heading );
@@ -506,64 +609,174 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
     const item *selected = highlighted.is_item() ? highlighted.any_item().get_item() : nullptr;
     const std::vector<item_location> worn_items = u.worn.top_items_loc( u );
 
-    const auto item_covers_graph_part = []( const item & it, const bodygraph_part & part ) {
-        for( const bodypart_id &bp : part.bodyparts ) {
-            if( it.covers( bp ) ) {
-                return true;
-            }
-        }
-        const std::vector<sub_bodypart_id> covered = it.get_covered_sub_body_parts();
-        for( const sub_bodypart_id &sbp : part.sub_bodyparts ) {
-            if( std::find( covered.begin(), covered.end(), sbp ) != covered.end() ) {
-                return true;
-            }
-        }
-        return false;
-    };
-
-    const auto bodygraph_cb = [&]( const bodygraph_part * part, std::string sym ) {
-        if( part == nullptr ) {
-            return sym;
-        }
-
-        const bool selected_covers = selected != nullptr && selected->is_armor() &&
-                                     item_covers_graph_part( *selected, *part );
-        int worn_density = 0;
+    const auto worn_count = [&]( const bodypart_str_id & part ) {
+        const bodypart_id bp = part.id();
+        int count = 0;
         for( const item_location &loc : worn_items ) {
-            if( loc && item_covers_graph_part( *loc, *part ) ) {
-                ++worn_density;
+            if( loc && loc->covers( bp ) ) {
+                ++count;
             }
         }
-
-        nc_color color = c_dark_gray;
-        if( selected_covers ) {
-            color = c_yellow;
-        } else if( worn_density >= 3 ) {
-            color = c_cyan;
-        } else if( worn_density == 2 ) {
-            color = c_light_blue;
-        } else if( worn_density == 1 ) {
-            color = c_light_gray;
+        return count;
+    };
+    const auto selected_covers = [&]( const bodypart_str_id & part ) {
+        return selected != nullptr && selected->is_armor() && selected->covers( part.id() );
+    };
+    const auto zone_color = [&]( int zone_index, const bodypart_str_id & part ) {
+        if( equipment_body_map_focus == zone_index ) {
+            return c_light_green;
         }
-        return colorize( sym, color );
+        if( selected_covers( part ) ) {
+            return c_yellow;
+        }
+        const int count = worn_count( part );
+        if( count >= 3 ) {
+            return c_cyan;
+        }
+        if( count == 2 ) {
+            return c_light_blue;
+        }
+        if( count == 1 ) {
+            return c_light_gray;
+        }
+        return c_dark_gray;
+    };
+    const auto zone_text = [&]( const bodypart_str_id & part,
+                                const std::string & label, int width ) {
+        const std::string count = std::to_string( worn_count( part ) );
+        const int room = std::max( 1, width - utf8_width( count, true ) - 2 );
+        return trim_by_length( label, room ) + "[" + count + "]";
+    };
+    const auto print_zone = [&]( int zone_index, int x, int row, int width,
+                                 const bodypart_str_id & part,
+                                 const std::string & label ) {
+        if( row >= footer_y || width <= 0 ) {
+            return;
+        }
+        trim_and_print( w, point( x, row ), width, zone_color( zone_index, part ),
+                        zone_text( part, label, width ) );
     };
 
-    const bool compact = equipment_body_map_reserved_height <= 10 || panel_width < 18;
-    const bodygraph_id &bodygraph = compact ?
-                                    ncmm_equipment_bodygraph_compact :
-                                    ncmm_equipment_bodygraph;
-    const int bodygraph_height = compact ? 7 : 13;
-    const std::vector<std::string> graph_lines =
-        get_bodygraph_lines( u, bodygraph_cb, bodygraph, content_width, bodygraph_height );
+    const std::string head = ncmm::localized_text( "HEAD", u8"\u0413\u041E\u041B\u041E\u0412\u0410" );
+    const std::string eyes = ncmm::localized_text( "EYES", u8"\u0413\u041B\u0410\u0417\u0410" );
+    const std::string mouth = ncmm::localized_text( "MOUTH", u8"\u0420\u041E\u0422" );
+    const std::string torso = ncmm::localized_text( "TORSO", u8"\u0422\u041E\u0420\u0421" );
+    const std::string arm_l = ncmm::localized_text( "L ARM", u8"\u041B.\u0420\u0423\u041A\u0410" );
+    const std::string arm_r = ncmm::localized_text( "R ARM", u8"\u041F.\u0420\u0423\u041A\u0410" );
+    const std::string hand_l = ncmm::localized_text( "L HAND", u8"\u041B.\u041A\u0418\u0421\u0422\u042C" );
+    const std::string hand_r = ncmm::localized_text( "R HAND", u8"\u041F.\u041A\u0418\u0421\u0422\u042C" );
+    const std::string leg_l = ncmm::localized_text( "L LEG", u8"\u041B.\u041D\u041E\u0413\u0410" );
+    const std::string leg_r = ncmm::localized_text( "R LEG", u8"\u041F.\u041D\u041E\u0413\u0410" );
+    const std::string foot_l = ncmm::localized_text( "L FOOT", u8"\u041B.\u0421\u0422\u041E\u041F\u0410" );
+    const std::string foot_r = ncmm::localized_text( "R FOOT", u8"\u041F.\u0421\u0422\u041E\u041F\u0410" );
 
-    for( const std::string &line : graph_lines ) {
-        if( y >= footer_y ) {
-            break;
+    const int third = std::max( 6, content_width / 3 );
+    const int left_x = content_x;
+    const int center_x = content_x + ( content_width - third ) / 2;
+    const int right_x = content_x + content_width - third;
+
+    // Explicit human-shaped paper doll.  Counts are the number of worn top-level
+    // items that actually cover each CDDA body part.  A highlighted armor item
+    // paints every body part it covers yellow.
+    print_zone( 0, center_x, y++, third, body_part_head, head );
+    if( !compact ) {
+        print_zone( 1, center_x, y++, third, body_part_eyes, eyes );
+        print_zone( 2, center_x, y++, third, body_part_mouth, mouth );
+    } else {
+        const int half = std::max( 5, content_width / 2 );
+        print_zone( 1, content_x, y, half, body_part_eyes, eyes );
+        print_zone( 2, content_x + content_width - half, y++, half, body_part_mouth, mouth );
+    }
+
+    print_zone( 4, left_x, y, third, body_part_arm_l, arm_l );
+    print_zone( 3, center_x, y, third, body_part_torso, torso );
+    print_zone( 5, right_x, y++, third, body_part_arm_r, arm_r );
+
+    print_zone( 6, left_x, y, third, body_part_hand_l, hand_l );
+    print_zone( 7, right_x, y++, third, body_part_hand_r, hand_r );
+
+    print_zone( 8, left_x, y, third, body_part_leg_l, leg_l );
+    print_zone( 9, right_x, y++, third, body_part_leg_r, leg_r );
+
+    print_zone( 10, left_x, y, third, body_part_foot_l, foot_l );
+    print_zone( 11, right_x, y++, third, body_part_foot_r, foot_r );
+
+    if( equipment_body_map_focus >= 0 && y < footer_y ) {
+        const bodypart_str_id *focused_part = nullptr;
+        const std::string *focused_label = nullptr;
+        switch( equipment_body_map_focus ) {
+            case 0: focused_part = &body_part_head; focused_label = &head; break;
+            case 1: focused_part = &body_part_eyes; focused_label = &eyes; break;
+            case 2: focused_part = &body_part_mouth; focused_label = &mouth; break;
+            case 3: focused_part = &body_part_torso; focused_label = &torso; break;
+            case 4: focused_part = &body_part_arm_l; focused_label = &arm_l; break;
+            case 5: focused_part = &body_part_arm_r; focused_label = &arm_r; break;
+            case 6: focused_part = &body_part_hand_l; focused_label = &hand_l; break;
+            case 7: focused_part = &body_part_hand_r; focused_label = &hand_r; break;
+            case 8: focused_part = &body_part_leg_l; focused_label = &leg_l; break;
+            case 9: focused_part = &body_part_leg_r; focused_label = &leg_r; break;
+            case 10: focused_part = &body_part_foot_l; focused_label = &foot_l; break;
+            case 11: focused_part = &body_part_foot_r; focused_label = &foot_r; break;
+            default: break;
         }
-        const int line_width = utf8_width( line, true );
-        const int x = panel_x + 1 + std::max( 0, ( content_width - line_width ) / 2 );
-        nc_color current_color = c_light_gray;
-        print_colored_text( w, point( x, y++ ), current_color, c_light_gray, line );
+        if( focused_part != nullptr && focused_label != nullptr ) {
+            std::string items;
+            const bodypart_id focused_id = focused_part->id();
+            for( const item_location &loc : worn_items ) {
+                if( loc && loc->covers( focused_id ) ) {
+                    if( !items.empty() ) {
+                        items += "; ";
+                    }
+                    items += loc->display_name();
+                }
+            }
+            if( items.empty() ) {
+                items = ncmm::localized_text( "nothing", u8"\u043D\u0438\u0447\u0435\u0433\u043E" );
+            }
+            const std::string focus_line = *focused_label + ": " + items;
+            trim_and_print( w, point( content_x, y++ ), content_width,
+                            c_light_green, focus_line );
+        }
+    }
+
+    if( !compact && selected != nullptr && y < footer_y ) {
+        ++y;
+        const std::string selected_label =
+            ncmm::localized_text( "Selected", u8"\u0412\u044B\u0431\u0440\u0430\u043D\u043E" ) +
+            ": " + selected->display_name();
+        trim_and_print( w, point( content_x, y++ ), content_width, c_light_gray, selected_label );
+
+        if( selected->is_armor() && y < footer_y ) {
+            std::string coverage;
+            const auto append_coverage = [&]( const bodypart_str_id & part,
+                                              const std::string & label ) {
+                if( selected->covers( part.id() ) ) {
+                    if( !coverage.empty() ) {
+                        coverage += ", ";
+                    }
+                    coverage += label;
+                }
+            };
+            append_coverage( body_part_head, head );
+            append_coverage( body_part_eyes, eyes );
+            append_coverage( body_part_mouth, mouth );
+            append_coverage( body_part_torso, torso );
+            append_coverage( body_part_arm_l, arm_l );
+            append_coverage( body_part_arm_r, arm_r );
+            append_coverage( body_part_hand_l, hand_l );
+            append_coverage( body_part_hand_r, hand_r );
+            append_coverage( body_part_leg_l, leg_l );
+            append_coverage( body_part_leg_r, leg_r );
+            append_coverage( body_part_foot_l, foot_l );
+            append_coverage( body_part_foot_r, foot_r );
+            if( !coverage.empty() ) {
+                const std::string coverage_line =
+                    ncmm::localized_text( "Covers", u8"\u041F\u043E\u043A\u0440\u044B\u0432\u0430\u0435\u0442" ) +
+                    ": " + coverage;
+                trim_and_print( w, point( content_x, y++ ), content_width,
+                                c_yellow, coverage_line );
+            }
+        }
     }
 
     if( selected != nullptr && selected->is_armor() &&
@@ -579,7 +792,7 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
         if( !layers.empty() ) {
             const std::string layer_line =
                 ncmm::localized_text( "Layer", u8"\u0421\u043B\u043E\u0439" ) + ": " + layers;
-            trim_and_print( w, point( panel_x + 1, y ), content_width,
+            trim_and_print( w, point( content_x, y ), content_width,
                             c_light_gray, layer_line );
         }
     }
