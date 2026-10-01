@@ -19,6 +19,7 @@ namespace
 {
 const char *const module_id = "survivor_progression";
 constexpr int state_schema = 8;
+constexpr int64_t mobility_steps_per_xp = 300;
 
 const char *required_caps[] = {
     "core.v1",
@@ -3316,8 +3317,8 @@ void poll_branch_xp()
 
     int64_t steps = metric_delta( "mobility.steps", "metric_mobility_steps" );
     steps += get_state( "mobility_step_remainder", 0 );
-    int64_t mobility_gain = std::min<int64_t>( steps / 150, 3 );
-    set_state( "mobility_step_remainder", steps % 150 );
+    int64_t mobility_gain = std::min<int64_t>( steps / mobility_steps_per_xp, 3 );
+    set_state( "mobility_step_remainder", steps % mobility_steps_per_xp );
 
     const int64_t crafts = metric_delta( "crafting.completed", "metric_crafting_completed" );
     int64_t crafting_gain = std::min<int64_t>( crafts * 3, 12 );
