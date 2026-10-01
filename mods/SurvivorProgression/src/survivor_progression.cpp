@@ -1570,7 +1570,7 @@ std::string effect_label( const std::string &id )
     if( id.find( "range_pct" ) != std::string::npos ) return tr( "Range %", "Дальность %" );
     if( id.find( "aoe_pct" ) != std::string::npos ) return tr( "Area %", "Площадь %" );
     if( id.find( "duration_pct" ) != std::string::npos ) return tr( "Duration %", "Длительность %" );
-    if( id == "sp_melee_crit_chance_pct" ) return tr( "Melee critical chance points", "Пункты шанса крита в ближнем бою" );
+    if( id == "sp_melee_crit_chance_pct" ) return tr( "Melee critical chance", "Шанс крита в ближнем бою" );
     if( id == "sp_melee_crit_damage_pct" ) return tr( "Melee critical damage %", "Критический урон ближнего боя %" );
     if( id == "sp_ranged_crit_damage_pct" ) return tr( "Projectile critical damage %", "Критический урон снарядов %" );
     if( id == "sp_damage_avoid_pct" ) return tr( "Full damage avoidance %", "Полное избегание урона %" );
@@ -1658,7 +1658,8 @@ std::string ranked_effect_summary( const perk_def &perk, int rank )
     if( perk.xp_bonus_pct != 0 ) {
         const int value = static_cast<int>(
                               std::llround( static_cast<double>( perk.xp_bonus_pct ) * multiplier ) );
-        parts.push_back( tr( "Survivor XP: +", "Опыт Survivor: +" ) +
+        const std::string sign = value > 0 ? "+" : "";
+        parts.push_back( tr( "Survivor XP: ", "Опыт Survivor: " ) + sign +
                          std::to_string( value ) + "%" );
     }
 
@@ -1694,10 +1695,11 @@ std::string ranked_effect_next_summary( const perk_def &perk, int current_rank, 
         const int next_value = static_cast<int>( std::llround(
                                    static_cast<double>( perk.xp_bonus_pct ) * next_multiplier ) );
         const int delta = next_value - current_value;
-        const std::string sign = delta > 0 ? "+" : "";
-        parts.push_back( tr( "Survivor XP: +", "Опыт Survivor: +" ) +
-                         std::to_string( next_value ) + "% (" + sign + std::to_string( delta ) +
-                         tr( " pp)", " п.п.)" ) );
+        const std::string value_sign = next_value > 0 ? "+" : "";
+        const std::string delta_sign = delta > 0 ? "+" : "";
+        parts.push_back( tr( "Survivor XP: ", "Опыт Survivor: " ) + value_sign +
+                         std::to_string( next_value ) + "% (" + delta_sign +
+                         std::to_string( delta ) + tr( " pp)", " п.п.)" ) );
     }
 
     std::string result;
@@ -1734,6 +1736,7 @@ std::string perk_description( const perk_def &perk )
     }
     return result;
 }
+
 struct calculated_effects {
     std::map<std::string, double> modifiers;
     int xp_bonus_pct = 0;
