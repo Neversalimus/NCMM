@@ -4737,7 +4737,8 @@ int run_gameplay_smoke()
         }
 
         const size_t c_power = find_perk_index( "c_power" );
-        const size_t m_parkour = find_perk_index( "m_parkour" );
+        const size_t c_reflexes = find_perk_index( "c_reflexes" );
+        const size_t m_light = find_perk_index( "m_light" );
         const size_t g_observer = find_perk_index( "g_observer" );
         const size_t a_focus = find_perk_index( "a_focus" );
         const size_t m_stride = find_perk_index( "m_stride" );
@@ -4745,7 +4746,7 @@ int run_gameplay_smoke()
         const size_t ce_drills = find_perk_index( "ce_drills" );
         const size_t g_hauler = find_perk_index( "g_hauler" );
         const size_t required_indices[] = {
-            c_power, m_parkour, g_observer, a_focus,
+            c_power, c_reflexes, m_light, g_observer, a_focus,
             m_stride, m_cardio, ce_drills, g_hauler
         };
         for( size_t index : required_indices ) {
@@ -4773,19 +4774,38 @@ int run_gameplay_smoke()
 
         if( !perk_reset() || !perk_recalc() ) return 114;
         const int base_dex = get_avatar().get_dex();
-        const int base_run_cost = get_avatar().run_cost( 100, false );
-        if( !prepare_single( m_parkour ) ||
+        if( !prepare_single( c_reflexes ) ||
             get_avatar().get_dex() != base_dex +
             static_cast<int>( std::lround( gameplay_modifier( "dex_flat" ) ) ) ) {
             write_gameplay_smoke_result( false, "survivor_real_dexterity_mismatch",
                                          aws_setting_count, aws_hook_count, survivor_perk_count );
             return 114;
         }
-        const int expected_run_cost = std::max(
-                                          1, static_cast<int>(
-                                              base_run_cost * std::max(
-                                                  0.25, 1.0 + gameplay_modifier( "move_cost_pct" ) / 100.0 ) ) );
-        if( get_avatar().run_cost( 100, false ) != expected_run_cost ) {
+
+        // Test move cost independently from DEX. Character::run_cost performs its
+        // internal calculation in float and exposes only a truncated int, so the
+        // exact pre-modifier fractional part is intentionally hidden from this
+        // black-box smoke. Derive the tight integer interval that can result from
+        // any hidden fraction in [base, base + 1) instead of assuming it was zero.
+        if( !perk_reset() || !perk_recalc() ) return 115;
+        const int base_run_cost = get_avatar().run_cost( 100, false );
+        if( !prepare_single( m_light ) ) return 115;
+        const double move_multiplier = std::max(
+                                           0.25, 1.0 + gameplay_modifier( "move_cost_pct" ) / 100.0 );
+        const int expected_run_cost_min = std::max(
+                                              1, static_cast<int>( base_run_cost * move_multiplier ) );
+        const int expected_run_cost_max = std::max(
+                                              expected_run_cost_min,
+                                              static_cast<int>( std::ceil(
+                                                      ( base_run_cost + 1.0 ) * move_multiplier ) ) - 1 );
+        const int actual_run_cost = get_avatar().run_cost( 100, false );
+        if( actual_run_cost < expected_run_cost_min || actual_run_cost > expected_run_cost_max ) {
+            log_line( NCMM_LOG_WARN,
+                      ( "Survivor move-cost smoke: base=" + std::to_string( base_run_cost ) +
+                        " modifier=" + std::to_string( gameplay_modifier( "move_cost_pct" ) ) +
+                        " expected=[" + std::to_string( expected_run_cost_min ) + "," +
+                        std::to_string( expected_run_cost_max ) + "] actual=" +
+                        std::to_string( actual_run_cost ) ).c_str() );
             write_gameplay_smoke_result( false, "survivor_real_move_cost_mismatch",
                                          aws_setting_count, aws_hook_count, survivor_perk_count );
             return 115;
