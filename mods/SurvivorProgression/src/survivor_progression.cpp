@@ -1544,8 +1544,12 @@ std::string effect_label( const std::string &id )
     if( id == "read_speed_pct" ) return tr( "Reading %", "Чтение %" );
     if( id == "craft_speed_pct" ) return tr( "Crafting %", "Крафт %" );
     if( id == "mg_spellcraft_flat" ) return "Magiclysm Spellcraft";
+    if( id == "mg_mana_max_pct" ) return tr( "Maximum mana %", "Максимум маны %" );
+    if( id == "mg_mana_regen_pct" ) return tr( "Mana regeneration %", "Регенерация маны %" );
     if( id == "mom_metaphysics_flat" ) return "MoM channeling Metaphysics";
     if( id == "xe_deduction_flat" ) return "Xedra Deduction";
+    if( id == "xe_mana_max_pct" ) return tr( "Maximum mana %", "Максимум маны %" );
+    if( id == "xe_mana_regen_pct" ) return tr( "Mana regeneration %", "Регенерация маны %" );
     if( id == "xe_gramarye_flat" ) return "Xedra Gramarye";
     if( id == "af_smartgun_flat" ) return "Aftershock Smartgun";
     if( id == "af_metaphysics_flat" ) return "Aftershock Exoplanet channeling Metaphysics";
@@ -1595,31 +1599,105 @@ std::string effect_label( const std::string &id )
     if( id == "sp_trap_detection_flat" ) return tr( "Trap detection bonus", "Бонус к обнаружению ловушек" );    return id;
 }
 
+bool effect_is_percentage( const std::string &id )
+{
+    return id.size() >= 4 && id.compare( id.size() - 4, 4, "_pct" ) == 0;
+}
+
+std::string effect_display_label( const std::string &id )
+{
+    std::string label = effect_label( id );
+    if( effect_is_percentage( id ) && label.size() >= 2 &&
+        label.compare( label.size() - 2, 2, " %" ) == 0 ) {
+        label.resize( label.size() - 2 );
+    }
+    return label;
+}
+
+std::string effect_value_text( const std::string &id, double value )
+{
+    const std::string sign = value > 0.0 ? "+" : "";
+    return sign + format_number( value ) + ( effect_is_percentage( id ) ? "%" : "" );
+}
+
+std::string effect_delta_text( const std::string &id, double delta )
+{
+    const std::string sign = delta > 0.0 ? "+" : "";
+    std::string result = sign + format_number( delta );
+    if( effect_is_percentage( id ) ) {
+        result += tr( " pp", " п.п." );
+    }
+    return result;
+}
+
+double ranked_effect_multiplier( const perk_def &perk, int rank )
+{
+    double multiplier = perk_rank_multiplier_for( perk, rank );
+    if( effective_kind( perk ) == perk_kind::stat ) {
+        multiplier *= static_cast<double>( progression_stat_power_pct() ) / 100.0;
+    }
+    return multiplier;
+}
+
 std::string ranked_effect_summary( const perk_def &perk, int rank )
 {
     if( rank <= 0 ) {
         return {};
     }
 
-    double multiplier = perk_rank_multiplier_for( perk, rank );
-    if( effective_kind( perk ) == perk_kind::stat ) {
-        multiplier *= static_cast<double>( progression_stat_power_pct() ) / 100.0;
-    }
+    const double multiplier = ranked_effect_multiplier( perk, rank );
     std::vector<std::string> parts;
     for( int i = 0; i < perk.effect_count; ++i ) {
         if( perk.effects[i].id == nullptr ) {
             continue;
         }
+        const std::string id = perk.effects[i].id;
         const double value = perk.effects[i].value * multiplier;
-        const std::string sign = value > 0.0 ? "+" : "";
-        parts.push_back( effect_label( perk.effects[i].id ) + ": " +
-                         sign + format_number( value ) );
+        parts.push_back( effect_display_label( id ) + ": " + effect_value_text( id, value ) );
     }
     if( perk.xp_bonus_pct != 0 ) {
         const int value = static_cast<int>(
                               std::llround( static_cast<double>( perk.xp_bonus_pct ) * multiplier ) );
         parts.push_back( tr( "Survivor XP: +", "Опыт Survivor: +" ) +
                          std::to_string( value ) + "%" );
+    }
+
+    std::string result;
+    for( size_t i = 0; i < parts.size(); ++i ) {
+        if( i != 0 ) {
+            result += ", ";
+        }
+        result += parts[i];
+    }
+    return result;
+}
+
+std::string ranked_effect_next_summary( const perk_def &perk, int current_rank, int next_rank )
+{
+    const double current_multiplier = ranked_effect_multiplier( perk, current_rank );
+    const double next_multiplier = ranked_effect_multiplier( perk, next_rank );
+    std::vector<std::string> parts;
+    for( int i = 0; i < perk.effect_count; ++i ) {
+        if( perk.effects[i].id == nullptr ) {
+            continue;
+        }
+        const std::string id = perk.effects[i].id;
+        const double current_value = perk.effects[i].value * current_multiplier;
+        const double next_value = perk.effects[i].value * next_multiplier;
+        const double delta = next_value - current_value;
+        parts.push_back( effect_display_label( id ) + ": " + effect_value_text( id, next_value ) +
+                         " (" + effect_delta_text( id, delta ) + ")" );
+    }
+    if( perk.xp_bonus_pct != 0 ) {
+        const int current_value = static_cast<int>( std::llround(
+                                      static_cast<double>( perk.xp_bonus_pct ) * current_multiplier ) );
+        const int next_value = static_cast<int>( std::llround(
+                                   static_cast<double>( perk.xp_bonus_pct ) * next_multiplier ) );
+        const int delta = next_value - current_value;
+        const std::string sign = delta > 0 ? "+" : "";
+        parts.push_back( tr( "Survivor XP: +", "Опыт Survivor: +" ) +
+                         std::to_string( next_value ) + "% (" + sign + std::to_string( delta ) +
+                         tr( " pp)", " п.п.)" ) );
     }
 
     std::string result;
@@ -1649,8 +1727,10 @@ std::string perk_description( const perk_def &perk )
                   ranked_effect_summary( perk, rank );
     }
     if( rank < max_rank ) {
-        result += "\n" + tr( "Next: ", "Следующий: " ) +
-                  ranked_effect_summary( perk, rank + 1 );
+        result += "\n" + tr( "Next rank ", "Следующий ранг " ) + rank_roman( rank + 1 ) + ": " +
+                  ranked_effect_next_summary( perk, rank, rank + 1 );
+    } else {
+        result += "\n" + tr( "Maximum rank reached.", "Максимальный ранг." );
     }
     return result;
 }
@@ -2627,8 +2707,8 @@ void show_overview()
         out += "\n" + tr( "none", "нет" );
     } else {
         for( const auto &entry : totals ) {
-            const std::string sign = entry.second > 0.0 ? "+" : "";
-            out += "\n" + effect_label( entry.first ) + ": " + sign + format_number( entry.second );
+            out += "\n" + effect_display_label( entry.first ) + ": " +
+                   effect_value_text( entry.first, entry.second );
         }
         if( current_xp_bonus_pct != 0 ) {
             out += "\n" + tr( "Survivor XP: +", "Опыт Survivor: +" ) +
