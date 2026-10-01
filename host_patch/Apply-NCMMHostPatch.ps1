@@ -13,6 +13,7 @@ $inputH = Join-Path $src 'input.h'
 $inputCpp = Join-Path $src 'input.cpp'
 $handleAction = Join-Path $src 'handle_action.cpp'
 $characterCpp = Join-Path $src 'character.cpp'
+$playerDisplayCpp = Join-Path $src 'player_display.cpp'
 $characterHealthCpp = Join-Path $src 'character_health.cpp'
 $meleeCpp = Join-Path $src 'melee.cpp'
 $knowledgeCpp = Join-Path $src 'character_knowledge.cpp'
@@ -27,7 +28,7 @@ $advancedInvCpp = Join-Path $src 'advanced_inv.cpp'
 $marker = Join-Path $SourceRoot '.ncmm_host_v1_patched'
 
 foreach ($f in @($optionsH,$optionsCpp,$sdl,$mainMenu,$doTurn,$inputH,$inputCpp,$handleAction,
-                  $characterCpp,$characterHealthCpp,$meleeCpp,$knowledgeCpp,$craftingCpp,
+                  $characterCpp,$playerDisplayCpp,$characterHealthCpp,$meleeCpp,$knowledgeCpp,$craftingCpp,
                   $rangedCpp,$dispersionH,$dispersionCpp,$inventoryUiH,$inventoryUiCpp,
                   $gameInventoryCpp,$advancedInvCpp)) {
     if (-not (Test-Path $f)) { throw "Required source file missing: $f" }
@@ -68,6 +69,37 @@ function NonAscii-Signature([string]$Text) {
     return $sb.ToString()
 }
 
+function Patch-PlayerDisplayMoveCost([string]$Text) {
+    $Text = Normalize-Lf $Text
+    if (-not $Text.Contains('#include "ncmm_loader.h"')) {
+        $Text = Replace-ExactlyOnce $Text '#include "mutation.h"' @'
+#include "mutation.h"
+#include "ncmm_loader.h"
+'@ 'player-display.include-ncmm'
+    }
+    if ($Text.Contains('const double ncmm_move_cost_pct = ncmm::gameplay_modifier( "move_cost_pct" );')) {
+        return $Text
+    }
+    return Replace-ExactlyOnce $Text @'
+    move_cost = static_cast<int>( movecost );
+
+    return entries;
+'@ @'
+    const double ncmm_move_cost_pct = ncmm::gameplay_modifier( "move_cost_pct" );
+    if( std::abs( ncmm_move_cost_pct ) >= 0.01 ) {
+        const int display_pct = static_cast<int>( std::lround( ncmm_move_cost_pct ) );
+        if( display_pct != 0 ) {
+            entries.push_back( { false, "Survivor", display_pct, true } );
+        }
+        movecost *= static_cast<float>( std::max(
+                                           0.25, 1.0 + ncmm_move_cost_pct / 100.0 ) );
+    }
+    move_cost = std::max( 1, static_cast<int>( movecost ) );
+
+    return entries;
+'@ 'player-display.move-cost'
+}
+
 if (Test-Path $marker) {
     $markerText = [System.IO.File]::ReadAllText($marker)
     if (-not $markerText.Contains('NCMM 0.8.2')) {
@@ -83,6 +115,7 @@ if (Test-Path $marker) {
     $ic = Read-Utf8 $inputCpp
     $ha = Read-Utf8 $handleAction
     $ch = Read-Utf8 $characterCpp
+    $pd = Read-Utf8 $playerDisplayCpp
     $hh = Read-Utf8 $characterHealthCpp
     $me = Read-Utf8 $meleeCpp
     $kn = Read-Utf8 $knowledgeCpp
@@ -94,6 +127,8 @@ if (Test-Path $marker) {
     $iuc = Read-Utf8 $inventoryUiCpp
     $gic = Read-Utf8 $gameInventoryCpp
     $aic = Read-Utf8 $advancedInvCpp
+    $pd = Patch-PlayerDisplayMoveCost $pd
+    Write-Utf8 $playerDisplayCpp $pd
     $checks = @(
         @($h,'COPT_WORLDGEN_ONLY'),
         @($h,'ncmm_begin_worldgen_group'),
@@ -118,6 +153,8 @@ if (Test-Path $marker) {
         @($ha,'ncmm::handle_gameplay_action( action )'),
         @($ch,'ncmm::gameplay_modifier( "str_flat" )'),
         @($ch,'ncmm::gameplay_modifier( "speed_pct" )'),
+        @($pd,'const double ncmm_move_cost_pct = ncmm::gameplay_modifier( "move_cost_pct" );'),
+        @($pd,'entries.push_back( { false, "Survivor", display_pct, true } );'),
         @($hh,'ncmm::gameplay_modifier( "stamina_max_pct" )'),
         @($me,'ncmm::gameplay_modifier( "dodge_flat" )'),
         @($kn,'ncmm::gameplay_modifier( "read_speed_pct" )'),
@@ -169,6 +206,9 @@ Copy-Item (Join-Path $PSScriptRoot 'ncmm_item_glyphs.h') (Join-Path $src 'ncmm_i
     if (-not $me.Contains('ncmm::gameplay_modifier( "dodge_flat" )')) { throw 'Post-check failed: dodge_flat' }
     if (-not $kn.Contains('ncmm::gameplay_modifier( "read_speed_pct" )')) { throw 'Post-check failed: read_speed_pct' }
     if (-not $cr.Contains('ncmm::gameplay_modifier( "craft_speed_pct" )')) { throw 'Post-check failed: craft_speed_pct' }
+    foreach ($needle in @('const double ncmm_move_cost_pct = ncmm::gameplay_modifier( "move_cost_pct" );','entries.push_back( { false, "Survivor", display_pct, true } );')) {
+        if (-not $pd.Contains($needle)) { throw "Post-check failed: $needle" }
+    }
 
     Set-Content -Path $marker -Value "NCMM Host API v1 / NCMM 0.8.2 module contract`n" -Encoding ASCII
     Write-Host 'Existing NCMM upstream patch verified; v0.8.2 loader/API refreshed.'
@@ -190,6 +230,7 @@ $ihOriginal = Read-Utf8 $inputH
 $icOriginal = Read-Utf8 $inputCpp
 $haOriginal = Read-Utf8 $handleAction
 $chOriginal = Read-Utf8 $characterCpp
+$pdOriginal = Read-Utf8 $playerDisplayCpp
 $hhOriginal = Read-Utf8 $characterHealthCpp
 $meOriginal = Read-Utf8 $meleeCpp
 $knOriginal = Read-Utf8 $knowledgeCpp
@@ -210,6 +251,7 @@ $ihSig = NonAscii-Signature $ihOriginal
 $icSig = NonAscii-Signature $icOriginal
 $haSig = NonAscii-Signature $haOriginal
 $chSig = NonAscii-Signature $chOriginal
+$pdSig = NonAscii-Signature $pdOriginal
 $hhSig = NonAscii-Signature $hhOriginal
 $meSig = NonAscii-Signature $meOriginal
 $knSig = NonAscii-Signature $knOriginal
@@ -231,6 +273,7 @@ $ih = Normalize-Lf $ihOriginal
 $ic = Normalize-Lf $icOriginal
 $ha = Normalize-Lf $haOriginal
 $ch = Normalize-Lf $chOriginal
+$pd = Normalize-Lf $pdOriginal
 $hh = Normalize-Lf $hhOriginal
 $me = Normalize-Lf $meOriginal
 $kn = Normalize-Lf $knOriginal
@@ -243,6 +286,8 @@ $iuc = Normalize-Lf $iucOriginal
 $gic = Normalize-Lf $gicOriginal
 $aic = Normalize-Lf $aicOriginal
 
+
+$pd = Patch-PlayerDisplayMoveCost $pd
 
 # Item Glyphs reuses the existing two-cell symbol slot in both inventory UIs.
 $iuc = Replace-ExactlyOnce $iuc @'
@@ -2030,6 +2075,7 @@ Write-Utf8 $inputH $ih
 Write-Utf8 $inputCpp $ic
 Write-Utf8 $handleAction $ha
 Write-Utf8 $characterCpp $ch
+Write-Utf8 $playerDisplayCpp $pd
 Write-Utf8 $characterHealthCpp $hh
 Write-Utf8 $meleeCpp $me
 Write-Utf8 $knowledgeCpp $kn
@@ -2058,6 +2104,7 @@ $ih2 = Read-Utf8 $inputH
 $ic2 = Read-Utf8 $inputCpp
 $ha2 = Read-Utf8 $handleAction
 $ch2 = Read-Utf8 $characterCpp
+$pd2 = Read-Utf8 $playerDisplayCpp
 $hh2 = Read-Utf8 $characterHealthCpp
 $me2 = Read-Utf8 $meleeCpp
 $kn2 = Read-Utf8 $knowledgeCpp
@@ -2079,6 +2126,7 @@ if ((NonAscii-Signature $ih2) -ne $ihSig) { throw 'UTF-8 preservation check fail
 if ((NonAscii-Signature $ic2) -ne $icSig) { throw 'UTF-8 preservation check failed for input.cpp' }
 if ((NonAscii-Signature $ha2) -ne $haSig) { throw 'UTF-8 preservation check failed for handle_action.cpp' }
 if ((NonAscii-Signature $ch2) -ne $chSig) { throw 'UTF-8 preservation check failed for character.cpp' }
+if ((NonAscii-Signature $pd2) -ne $pdSig) { throw 'UTF-8 preservation check failed for player_display.cpp' }
 if ((NonAscii-Signature $hh2) -ne $hhSig) { throw 'UTF-8 preservation check failed for character_health.cpp' }
 if ((NonAscii-Signature $me2) -ne $meSig) { throw 'UTF-8 preservation check failed for melee.cpp' }
 if ((NonAscii-Signature $kn2) -ne $knSig) { throw 'UTF-8 preservation check failed for character_knowledge.cpp' }
@@ -2108,6 +2156,9 @@ foreach ($needle in @('input_manager::ncmm_register_default_action','input_manag
 }
 foreach ($needle in @('ncmm::register_gameplay_actions( ctxt );','ncmm::handle_gameplay_action( action )')) {
     if (-not $ha2.Contains($needle)) { throw "Post-check failed: $needle" }
+}
+foreach ($needle in @('const double ncmm_move_cost_pct = ncmm::gameplay_modifier( "move_cost_pct" );','entries.push_back( { false, "Survivor", display_pct, true } );','move_cost = std::max( 1, static_cast<int>( movecost ) );')) {
+    if (-not $pd2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 foreach ($needle in @('targeting.hit_probability.enabled','exact_hit_probability','ncmm_hit_probability_text','Hit now')) {
     if (-not $rg2.Contains($needle)) { throw "Post-check failed: $needle" }
