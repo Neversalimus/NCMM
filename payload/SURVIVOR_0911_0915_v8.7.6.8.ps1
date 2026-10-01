@@ -17961,6 +17961,23 @@ function Apply-SurvivorRecalibration0120 {
     $fastNew0120 = '{ "a_fast", branch_id::mastery, 1, 1, currency_id::perk, "", "", "Fast Learner", "Быстрый ученик", "+50% Survivor XP", "+50% опыта Survivor", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 50 },'
     $sp0120 = Replace-TextBlock $sp0120 $fastOld0120 $fastNew0120 'Fast Learner +50'
 
+    $mobilityConstOld0120 = 'constexpr int state_schema = 8;'
+    $mobilityConstNew0120 = @'
+constexpr int state_schema = 8;
+constexpr int64_t mobility_steps_per_xp = 300;
+'@
+    $sp0120 = Replace-TextBlock $sp0120 $mobilityConstOld0120 $mobilityConstNew0120 'Mobility XP step threshold constant'
+
+    $mobilityRateOld0120 = @'
+    int64_t mobility_gain = std::min<int64_t>( steps / 150, 3 );
+    set_state( "mobility_step_remainder", steps % 150 );
+'@
+    $mobilityRateNew0120 = @'
+    int64_t mobility_gain = std::min<int64_t>( steps / mobility_steps_per_xp, 3 );
+    set_state( "mobility_step_remainder", steps % mobility_steps_per_xp );
+'@
+    $sp0120 = Replace-TextBlock $sp0120 $mobilityRateOld0120 $mobilityRateNew0120 'Mobility XP 1 per 300 movement events'
+
     foreach($gate0120 in @(
         @('{ "gm_weakpoint_eye", branch_id::scavenging, 4, 17,','{ "gm_weakpoint_eye", branch_id::scavenging, 4, 18,'),
         @('{ "gm_scrap_armor_instinct", branch_id::scavenging, 5, 23,','{ "gm_scrap_armor_instinct", branch_id::scavenging, 5, 26,'),
@@ -18102,7 +18119,7 @@ void respec()
 '@
     $sp0120 = Replace-TextBlock $sp0120 $tickOld0120 $tickNew0120 'consume recalibration request'
     if($sp0120.Contains('reset.id = ' + '"respec"')){throw 'Free Survivor respec UI returned.'}
-    foreach($needle0120 in @('+50% Survivor XP','std::min( result.major_owned, 12 )','mod_prime_root_slot( perk.id ) > 0','"respec_available"','get_state( "respec_request", 0 ) > 0')){
+    foreach($needle0120 in @('+50% Survivor XP','constexpr int64_t mobility_steps_per_xp = 300;','steps / mobility_steps_per_xp','steps % mobility_steps_per_xp','std::min( result.major_owned, 12 )','mod_prime_root_slot( perk.id ) > 0','"respec_available"','get_state( "respec_request", 0 ) > 0')){
         if(-not $sp0120.Contains($needle0120)){throw ('Recalibration source missing: '+$needle0120)}
     }
     Write-Utf8NoBom $spPath $sp0120
