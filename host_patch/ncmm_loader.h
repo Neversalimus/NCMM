@@ -4,6 +4,7 @@ class Creature;
 #include <string>
 
 class input_context;
+class item;
 
 namespace ncmm
 {
@@ -46,4 +47,7 @@ bool runtime_setting_hook_bound( const char *hook_id );
 int runtime_setting_hook_bool( const char *hook_id, int fallback );
 int64_t runtime_setting_hook_i64( const char *hook_id, int64_t fallback );
 double runtime_setting_hook_f64( const char *hook_id, double fallback );
+// Internal CDDA UI helpers; not part of the module API/ABI.
+bool inventory_symbols_enabled( bool vanilla_symbols );
+std::string inventory_item_symbol( const item &it );
 } // namespace ncmm

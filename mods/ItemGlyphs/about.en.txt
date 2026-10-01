@@ -1,0 +1,3 @@
+Item Glyphs 0.1.0
+
+Shows semantic item glyphs in Inventory, Pickup, Trade and Advanced Inventory. Unknown items keep their usual symbol. Disable Semantic item glyphs to use the normal Item symbols option.

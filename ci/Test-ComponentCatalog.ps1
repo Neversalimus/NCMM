@@ -78,6 +78,7 @@ $moduleManifests=@{
     survivor_progression='mods\SurvivorProgression\mod.json'
     advanced_world_settings='mods\AdvancedWorldSettings\mod.json'
     ballistic_hit_chance='mods\BallisticHitChance\mod.json'
+    item_glyphs='mods\ItemGlyphs\mod.json'
 }
 foreach($id in $moduleManifests.Keys){
     $component=@($components|Where-Object{$_.id -eq $id})[0]

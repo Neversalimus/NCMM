@@ -56,8 +56,8 @@
     },
     {
       "path": "ci\\Test-ComponentCatalog.ps1",
-      "sha256": "1cf0e4fa5f11f700af56e3fca9c50afa2aa4fa9dcd9238f5720289f07e892a8b",
-      "bytes": 10605
+      "sha256": "b53ec2729fbb0cb3f8d1e7a5ee90b7cd086ff39f5f0c16ef471a2de0d6151e08",
+      "bytes": 10471
     },
     {
       "path": "ci\\Test-GoldenRegression.ps1",
@@ -96,13 +96,13 @@
     },
     {
       "path": "compat\\compatibility.manifest.json",
-      "sha256": "9b2e752a36e419c6278f6f8eaf23d158394c00944707d8dc9962106e46b7ec99",
-      "bytes": 7427
+      "sha256": "c50408f80add024b181482afae8e5865d5b4f52b2fa5b2212698f9ad5c62a695",
+      "bytes": 7333
     },
     {
       "path": "compat\\contracts.json",
-      "sha256": "f87453d3ceca57b05e36fdf93f29e819a783ba28e194c523fe4383ec3b50ef56",
-      "bytes": 9064
+      "sha256": "f29fa08e8119489fd4003abc0e5ce96b54410a8f206be33d2d9e65360210857b",
+      "bytes": 9926
     },
     {
       "path": "compat\\feed\\commits\\e262adb299a7613b4aedc5f12c08fe0413c56a84.json",
@@ -116,12 +116,12 @@
     },
     {
       "path": "compat\\package-files.txt",
-      "sha256": "8ccbd0ac15c8b7aef3a360b233d86b43bdcc19e8cc0b153d928680e9727e6558",
-      "bytes": 3494
+      "sha256": "361ac6544d779fb5434427fec49b56d699f8f6a5c3579be86557b6ea84b245e4",
+      "bytes": 3424
     },
     {
       "path": "compat\\update\\index.json",
-      "sha256": "173107790f4116e2e82fd611e9b703ae72ade548851df84848362a6c13f6e492",
+      "sha256": "2fd4c94790d3a2eddb929ee29a5ce3fd7f999fe8ae0f1077c66f21e00da91ace",
       "bytes": 999
     },
     {
@@ -136,8 +136,13 @@
     },
     {
       "path": "components\\index.json",
-      "sha256": "5e50bf212cac25a42f1fa9c3bfc155234025fb5683b344e6297379c289ad7597",
-      "bytes": 5449
+      "sha256": "65f74267efa26bc651322f5a283abc877597d40854bf737e95bc2d679b442808",
+      "bytes": 5887
+    },
+    {
+      "path": "components\\item_glyphs.json",
+      "sha256": "d3fc15877c7ccf6374cbca3d058fab7f5a901f185bc14af23d19124fb8ba3ef4",
+      "bytes": 513
     },
     {
       "path": "components\\ncmm_host.json",

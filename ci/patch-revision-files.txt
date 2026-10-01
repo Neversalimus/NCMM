@@ -9,6 +9,7 @@ host_patch/ncmm_loader.h
 host_patch/ncmm_loader.cpp
 host_patch/ncmm_fault_policy.h
 host_patch/ncmm_manifest_policy.h
+host_patch/ncmm_item_glyphs.h
 compat/contracts.json
 ci/Test-SourceContracts.ps1
 ci/host-patch-stack.json

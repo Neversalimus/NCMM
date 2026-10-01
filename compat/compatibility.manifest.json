@@ -44,7 +44,8 @@
       "code_mods/SurvivorProgression",
       "code_mods/AdvancedWorldSettings",
       "code_mods/BallisticHitChance",
-      "code_mods/EquipmentBodyMap"
+      "code_mods/EquipmentBodyMap",
+      "code_mods/ItemGlyphs"
     ],
     "backup_folder": "NCMM_Infrastructure_Backups",
     "pending_marker": "ncmm/transaction.pending.json",
@@ -95,6 +96,10 @@
       },
       {
         "id": "equipment_body_map",
+        "version": "0.1.0"
+      },
+      {
+        "id": "item_glyphs",
         "version": "0.1.0"
       }
     ]
