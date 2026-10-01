@@ -6,6 +6,11 @@ $ErrorActionPreference = 'Stop'
 $SourceRoot = (Resolve-Path $SourceRoot).Path
 $RegistryPath = (Resolve-Path $RegistryPath).Path
 
+function Normalize-Lf([string]$Value) {
+    if ($null -eq $Value) { return '' }
+    return $Value.Replace("`r`n", "`n").Replace("`r", "`n")
+}
+
 $registry = Get-Content $RegistryPath -Raw | ConvertFrom-Json
 if ($null -eq $registry -or $registry.schema -ne 1 -or $null -eq $registry.contracts) {
     throw 'Unsupported or invalid NCMM source-contract registry.'
@@ -22,9 +27,13 @@ foreach ($contract in $registry.contracts) {
             $missing.Add("missing_file:$($file.path)")
             continue
         }
-        $text = [IO.File]::ReadAllText($path)
+        # Source contracts describe text anchors, not checkout-specific byte
+        # representation. Normalize only in memory so LF-authored registry
+        # anchors also match Windows CRLF upstream checkouts.
+        $text = Normalize-Lf ([IO.File]::ReadAllText($path))
         foreach ($needle in $file.required) {
-            if (-not $text.Contains([string]$needle)) {
+            $expected = Normalize-Lf ([string]$needle)
+            if (-not $text.Contains($expected)) {
                 $missing.Add("$($file.path):$needle")
             }
         }
