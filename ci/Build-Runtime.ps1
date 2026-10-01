@@ -16,26 +16,31 @@ New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\Advance
 New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\SurvivorProgression') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\BallisticHitChance') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\EquipmentBodyMap') | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $payload 'code_mods\ItemGlyphs') | Out-Null
 
 $awsManifestPath = Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings\mod.json'
 $survivorManifestPath = Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json'
 $ballisticManifestPath = Join-Path $RepositoryRoot 'mods\BallisticHitChance\mod.json'
 $equipmentBodyMapManifestPath = Join-Path $RepositoryRoot 'mods\EquipmentBodyMap\mod.json'
+$itemGlyphsManifestPath = Join-Path $RepositoryRoot 'mods\ItemGlyphs\mod.json'
 $awsManifestSource = Get-Content $awsManifestPath -Raw | ConvertFrom-Json
 $survivorManifestSource = Get-Content $survivorManifestPath -Raw | ConvertFrom-Json
 $ballisticManifestSource = Get-Content $ballisticManifestPath -Raw | ConvertFrom-Json
 $equipmentBodyMapManifestSource = Get-Content $equipmentBodyMapManifestPath -Raw | ConvertFrom-Json
+$itemGlyphsManifestSource = Get-Content $itemGlyphsManifestPath -Raw | ConvertFrom-Json
 $hostVersion = (& (Join-Path $RepositoryRoot 'ci\Get-NcmmCurrentVersion.ps1') -RepositoryRoot $RepositoryRoot).Trim()
 $awsVersion = [string]$awsManifestSource.version
 $survivorVersion = [string]$survivorManifestSource.version
 $ballisticVersion = [string]$ballisticManifestSource.version
 $equipmentBodyMapVersion = [string]$equipmentBodyMapManifestSource.version
+$itemGlyphsVersion = [string]$itemGlyphsManifestSource.version
 foreach($pair in @(
     @{Name='Host';Value=$hostVersion},
     @{Name='Advanced World Settings';Value=$awsVersion},
     @{Name='Survivor Progression';Value=$survivorVersion},
     @{Name='Ballistic Hit Chance';Value=$ballisticVersion},
-    @{Name='Equipment Body Map';Value=$equipmentBodyMapVersion}
+    @{Name='Equipment Body Map';Value=$equipmentBodyMapVersion},
+    @{Name='Item Glyphs';Value=$itemGlyphsVersion}
 )){
     if([string]::IsNullOrWhiteSpace([string]$pair.Value) -or [string]$pair.Value -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$'){
         throw ("Invalid {0} version: {1}" -f $pair.Name,$pair.Value)
@@ -84,6 +89,8 @@ function New-NcmmModuleArchive {
         "NCMM_BallisticHitChance_v$Version.zip"
     } elseif ($ComponentId -eq 'equipment_body_map') {
         "NCMM_EquipmentBodyMap_v$Version.zip"
+    } elseif ($ComponentId -eq 'item_glyphs') {
+        "NCMM_ItemGlyphs_v$Version.zip"
     } else {
         throw "Unknown native module component id: $ComponentId"
     }
@@ -232,6 +239,47 @@ if (($ebmManifest.requires | Select-Object -Unique).Count -ne $ebmManifest.requi
     throw 'Equipment Body Map manifest contains duplicate capability requirements.'
 }
 
+$igBuild = Join-Path $OutputRoot '_item_glyphs_build'
+cmake -S (Join-Path $RepositoryRoot 'mods\ItemGlyphs') -B $igBuild -A x64
+if ($LASTEXITCODE -ne 0) { throw 'Item Glyphs CMake configure failed.' }
+cmake --build $igBuild --config Release
+if ($LASTEXITCODE -ne 0) { throw 'Item Glyphs build failed.' }
+$ig = Get-ChildItem $igBuild -Filter 'ncmm_mod.dll' -Recurse -File | Select-Object -First 1
+if (-not $ig) { throw 'Item Glyphs ncmm_mod.dll not found after build.' }
+
+& $smoke.FullName $ig.FullName
+if ($LASTEXITCODE -ne 0) { throw 'Item Glyphs module contract smoke test failed.' }
+& $smoke.FullName $ig.FullName '--missing-contract'
+if ($LASTEXITCODE -ne 0) { throw 'Item Glyphs fail-closed smoke test failed.' }
+
+Copy-Item $ig.FullName (Join-Path $payload 'code_mods\ItemGlyphs\ncmm_mod.dll') -Force
+Copy-Item $itemGlyphsManifestPath (Join-Path $payload 'code_mods\ItemGlyphs\mod.json') -Force
+foreach($about in Get-ChildItem (Join-Path $RepositoryRoot 'mods\ItemGlyphs') -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
+    Copy-Item $about.FullName (Join-Path (Join-Path $payload 'code_mods\ItemGlyphs') $about.Name) -Force
+}
+
+$igManifest = $itemGlyphsManifestSource
+if ($igManifest.loader_api -ne 1 -or $igManifest.failure_policy -ne 'disable' -or
+    [string]$igManifest.version -ne $itemGlyphsVersion) {
+    throw "Item Glyphs manifest contract invalid for version $itemGlyphsVersion."
+}
+foreach ($required in @(
+    'core.v1','locale.v1','api.versioning.v1','host_api.v2.core',
+    'settings.typed.v2','runtime_settings.bindings.v2'
+)) {
+    if (-not ($igManifest.requires -contains $required)) {
+        throw "Item Glyphs manifest missing $required"
+    }
+}
+if (($igManifest.requires | Select-Object -Unique).Count -ne $igManifest.requires.Count) {
+    throw 'Item Glyphs manifest contains duplicate capability requirements.'
+}
+
+$glyphTest = Get-ChildItem $igBuild -Filter 'ncmm_item_glyphs_test.exe' -Recurse -File | Select-Object -First 1
+if (-not $glyphTest) { throw 'Item Glyphs classifier test executable missing.' }
+& $glyphTest.FullName
+if ($LASTEXITCODE -ne 0) { throw 'Item Glyphs classifier/policy test failed.' }
+
 $manifest = $awsManifestSource
 if ($manifest.loader_api -ne 1) { throw 'AWS manifest loader_api must be 1.' }
 if ($manifest.failure_policy -ne 'disable') { throw 'AWS manifest failure_policy must be disable.' }
@@ -301,6 +349,7 @@ if (-not $PayloadOnly) {
     $survivorModuleZip = New-NcmmModuleArchive -Folder 'SurvivorProgression' -ComponentId 'survivor_progression' -Version $survivorVersion
     $ballisticModuleZip = New-NcmmModuleArchive -Folder 'BallisticHitChance' -ComponentId 'ballistic_hit_chance' -Version $ballisticVersion
     $equipmentBodyMapModuleZip = New-NcmmModuleArchive -Folder 'EquipmentBodyMap' -ComponentId 'equipment_body_map' -Version $equipmentBodyMapVersion
+    $itemGlyphsModuleZip = New-NcmmModuleArchive -Folder 'ItemGlyphs' -ComponentId 'item_glyphs' -Version $itemGlyphsVersion
 }
 
 # Current NCMM loader hardening is intentionally source-structural: Runtime CI
@@ -402,6 +451,7 @@ Remove-Item $awsBuild -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $spBuild -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $bhcBuild -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $ebmBuild -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item $igBuild -Recurse -Force -ErrorAction SilentlyContinue
 
 if (-not $PayloadOnly) {
 @"
@@ -409,11 +459,11 @@ NCMM $hostVersion Runtime
 ===============
 1. Run NCMM_Setup.exe.
 2. Select the CDDA folder containing cataclysm-tiles.exe.
-3. Choose optional components: Advanced World Settings, Survivor Progression, Ballistic Hit Chance, and/or Equipment Body Map.
+3. Choose optional components: Advanced World Settings, Survivor Progression, Ballistic Hit Chance, Equipment Body Map, and/or Item Glyphs.
 4. Click "Install / Repair selected".
 5. Launch CDDA normally from CatLauncher, Catapult, or a shortcut.
 
-The Host/runtime is required. Advanced World Settings, Survivor Progression, Ballistic Hit Chance, and Equipment Body Map are independent optional modules.
+The Host/runtime is required. Advanced World Settings, Survivor Progression, Ballistic Hit Chance, Equipment Body Map, and Item Glyphs are independent optional modules.
 No compiler, Git, CMake, or MSYS2 is required on the player's PC.
 If no exact certified host exists for the installed CDDA executable, NCMM starts vanilla CDDA.
 "@ | Set-Content (Join-Path $OutputRoot 'README.txt') -Encoding UTF8
@@ -436,6 +486,7 @@ Copy-Item $awsModuleZip (Join-Path $packagesDir (Split-Path $awsModuleZip -Leaf)
 Copy-Item $survivorModuleZip (Join-Path $packagesDir (Split-Path $survivorModuleZip -Leaf)) -Force
 Copy-Item $ballisticModuleZip (Join-Path $packagesDir (Split-Path $ballisticModuleZip -Leaf)) -Force
 Copy-Item $equipmentBodyMapModuleZip (Join-Path $packagesDir (Split-Path $equipmentBodyMapModuleZip -Leaf)) -Force
+Copy-Item $itemGlyphsModuleZip (Join-Path $packagesDir (Split-Path $itemGlyphsModuleZip -Leaf)) -Force
 
 $releaseManifest = [ordered]@{
     schema = 1
@@ -447,7 +498,8 @@ $releaseManifest = [ordered]@{
         [ordered]@{ id='advanced_world_settings'; version=$awsVersion; package=(Split-Path $awsModuleZip -Leaf) },
         [ordered]@{ id='survivor_progression'; version=$survivorVersion; package=(Split-Path $survivorModuleZip -Leaf) },
         [ordered]@{ id='ballistic_hit_chance'; version=$ballisticVersion; package=(Split-Path $ballisticModuleZip -Leaf) },
-        [ordered]@{ id='equipment_body_map'; version=$equipmentBodyMapVersion; package=(Split-Path $equipmentBodyMapModuleZip -Leaf) }
+        [ordered]@{ id='equipment_body_map'; version=$equipmentBodyMapVersion; package=(Split-Path $equipmentBodyMapModuleZip -Leaf) },
+        [ordered]@{ id='item_glyphs'; version=$itemGlyphsVersion; package=(Split-Path $itemGlyphsModuleZip -Leaf) }
     )
 }
 $releaseManifest | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $fullStage 'release-manifest.json') -Encoding UTF8
@@ -457,10 +509,10 @@ $fullReadme = @(
     '====================',
     'Recommended: extract this archive and run NCMM_Setup.exe.',
     '',
-    "Included directly: NCMM Runtime / Host bootstrap and installer, Advanced World Settings $awsVersion, Survivor Progression $survivorVersion, Ballistic Hit Chance $ballisticVersion, Equipment Body Map $equipmentBodyMapVersion.",
+    "Included directly: NCMM Runtime / Host bootstrap and installer, Advanced World Settings $awsVersion, Survivor Progression $survivorVersion, Ballistic Hit Chance $ballisticVersion, Equipment Body Map $equipmentBodyMapVersion, Item Glyphs $itemGlyphsVersion.",
     '',
     'Standalone packages are preserved in the packages folder.',
-    'The installer always installs/repairs NCMM and lets you select AWS, Survivor, Ballistic Hit Chance, and Equipment Body Map independently.'
+    'The installer always installs/repairs NCMM and lets you select AWS, Survivor, Ballistic Hit Chance, Equipment Body Map, and Item Glyphs independently.'
 ) -join [Environment]::NewLine
 Set-Content (Join-Path $fullStage 'FULL_RELEASE.txt') -Value $fullReadme -Encoding UTF8
 
@@ -475,6 +527,7 @@ Write-Output $awsModuleZip
 Write-Output $survivorModuleZip
 Write-Output $ballisticModuleZip
 Write-Output $equipmentBodyMapModuleZip
+Write-Output $itemGlyphsModuleZip
 
 } else {
     Write-Host 'Build-Runtime payload-only mode: release archives were not generated.' -ForegroundColor DarkGray

@@ -1790,6 +1790,41 @@ int main( int argc, char **argv )
         return 0;
     }
 
+    if( std::strcmp( desc->id, "item_glyphs" ) == 0 ) {
+        if( !desc->version || std::strcmp( desc->version, "0.1.0" ) != 0 ||
+            !desc->init || !desc->shutdown ) {
+            std::cerr << "Item Glyphs descriptor mismatch\n";
+            return 47;
+        }
+        const int initialized = desc->init( &api );
+        if( simulate_missing_contract ) {
+            if( initialized != 0 || !registered_setting_ids.empty() ||
+                !setting_meta.empty() || !runtime_setting_bindings.empty() ||
+                runtime_setting_binding_count != 0 ) {
+                std::cerr << "Item Glyphs missing-capability init must fail without registrations\n";
+                return 48;
+            }
+        } else {
+            const auto binding = runtime_setting_bindings.find( "inventory.item_glyphs.enabled" );
+            const auto setting = setting_meta.find( "NCMM_IG_ENABLED" );
+            if( initialized != 1 || registered_setting_ids != std::set<std::string>{ "NCMM_IG_ENABLED" } ||
+                setting_meta.size() != 1 || setting == setting_meta.end() ||
+                setting->second.kind != smoke_setting_kind::boolean ||
+                setting->second.default_value != 1 || setting->second.scope != NCMM_WORLD_SETTING_LIVE ||
+                runtime_setting_bindings.size() != 1 || runtime_setting_binding_count != 1 ||
+                binding == runtime_setting_bindings.end() ||
+                binding->second.setting_id != "NCMM_IG_ENABLED" || binding->second.type != NCMM_SETTING_BOOL_V2 ||
+                runtime_hook_bool_setting_v2_fn( "inventory.item_glyphs.enabled", 0 ) != 1 ) {
+                std::cerr << "Item Glyphs setting/binding/default contract failed\n";
+                return 49;
+            }
+        }
+        desc->shutdown();
+        std::cout << "NCMM smoke test: PASS (Item Glyphs 0.1.0 "
+                  << ( simulate_missing_contract ? "missing capability" : "runtime binding" ) << ")\n";
+        return 0;
+    }
+
     for( size_t i = 0; i < desc->required_capability_count; ++i ) {
         if( !api.has_capability( desc->required_capabilities[i] ) ) {
             if( simulate_missing_contract ) {

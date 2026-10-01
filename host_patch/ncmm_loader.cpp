@@ -1,4 +1,8 @@
 #include "ncmm_loader.h"
+#include "ncmm_item_glyphs.h"
+#include "item.h"
+#include "item_category.h"
+#include "itype.h"
 #include "ncmm_api.h"
 #include "ncmm_fault_policy.h"
 #include "ncmm_manifest_policy.h"
@@ -3506,6 +3510,25 @@ double worldgen_hook_f64( const char *hook_id, double fallback )
 {
     return worldgen_hook_f64_v2( hook_id, fallback );
 }
+namespace
+{
+bool semantic_item_glyphs_enabled()
+{
+    return runtime_setting_hook_bound( "inventory.item_glyphs.enabled" ) &&
+           runtime_setting_hook_bool( "inventory.item_glyphs.enabled", 0 ) != 0;
+}
+}
+
+bool inventory_symbols_enabled( bool vanilla_symbols )
+{
+    return item_glyphs::symbol_slot_enabled( semantic_item_glyphs_enabled(), vanilla_symbols );
+}
+
+std::string inventory_item_symbol( const item &it )
+{
+    return item_glyphs::symbol( it, semantic_item_glyphs_enabled() );
+}
+
 bool runtime_setting_hook_bound( const char *hook_id )
 {
     return hook_id != nullptr &&

@@ -288,6 +288,35 @@
           ]
         }
       ]
+    },
+    {
+      "id": "item_glyphs.source.v1",
+      "files": [
+        {
+          "path": "src/inventory_ui.cpp",
+          "required": [
+            "    if( get_option<bool>( \"ITEM_SYMBOLS\" ) ) {\n        res += 2;\n    }",
+            "            if( get_option<bool>( \"ITEM_SYMBOLS\" ) ) {\n                const nc_color color = entry.any_item()->color();\n                mvwputch( win, point( xx, yy ), color, entry.any_item()->symbol() );\n                xx += 2;\n            }"
+          ]
+        },
+        {
+          "path": "src/advanced_inv.cpp",
+          "required": [
+            "#include \"advanced_inv.h\"",
+            "        if( get_option<bool>( \"ITEM_SYMBOLS\" ) ) {\n            item_name = string_format( \"%s %s\", it.symbol(), item_name );\n        }"
+          ]
+        },
+        {
+          "path": "src/item.h",
+          "required": [
+            "bool is_dangerous() const;",
+            "bool is_medical_tool() const;",
+            "bool is_vehicle_battery() const;",
+            "bool is_estorage() const;",
+            "const item_category &get_category_shallow() const;"
+          ]
+        }
+      ]
     }
   ]
 }
