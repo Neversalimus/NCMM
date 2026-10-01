@@ -425,6 +425,7 @@ $iuc = Replace-ExactlyOnce $iuc @'
     // always keep their native behavior.
     if( res.action == "ANY_INPUT" && ch == KEY_RIGHT &&
         equipment_body_map_requested() && &get_active_column() == &own_inv_column &&
+        own_gear_column.visible() && own_gear_column.activatable() &&
         ncmm::runtime_setting_hook_bound( "inventory.body_map.right_arrow_gear" ) &&
         ncmm::runtime_setting_hook_bool( "inventory.body_map.right_arrow_gear", 1 ) != 0 ) {
         res.action = "PREV_COLUMN";
