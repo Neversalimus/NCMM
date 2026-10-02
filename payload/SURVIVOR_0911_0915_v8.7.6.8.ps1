@@ -485,7 +485,7 @@ function Wait-Unlocked([string]$Path,[int]$Seconds=20) {
 }
 
 function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[string]$ReleaseRoot) {
-    $out = Join-Path $ReleaseRoot "0.12.0"
+    $out = Join-Path $ReleaseRoot "0.12.1"
     $src = Join-Path $SourceRoot "src\survivor_progression.cpp"
     $manifest = Join-Path $SourceRoot "mod.json"
     $dataRoot = Join-Path $SourceRoot "data"
@@ -493,7 +493,7 @@ function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[stri
     $dll = Join-Path $out "ncmm_mod.dll"
     $obj = Join-Path $out "survivor_progression.obj"
     $cmd = Join-Path $out "build.cmd"
-    $cacheMarker = Join-Path $ReleaseRoot ".survivor_0120_manager_settings_build.sha256"
+    $cacheMarker = Join-Path $ReleaseRoot ".survivor_0121_mana_vamp_build.sha256"
 
     foreach ($p in @($src,$manifest,$sdkHeader,$Vs.CL)) {
         if (-not (Test-Path $p -PathType Leaf)) {
@@ -512,7 +512,7 @@ function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[stri
         $dataFingerprint = Hash-Text ($dataParts -join "|")
     }
     $fingerprint = Hash-Text ((@(
-        "v8.7.6.8-survivor-0.12.0-manager-settings-respec-kit",
+        "v8.7.6.8-survivor-0.12.1-mana-vampirism",
         (Hash-File $src),
         $sourceManifestSha,
         $dataFingerprint,
@@ -532,7 +532,7 @@ function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[stri
         $cacheLines[1].Trim() -eq (Hash-File $dll) -and
         $cacheLines[2].Trim() -eq $sourceManifestSha -and
         (Hash-File $cachedManifest) -eq $sourceManifestSha) {
-        Write-Host "Survivor 0.12.0 module build cache: HIT (DLL + manifest verified)" -ForegroundColor Green
+        Write-Host "Survivor 0.12.1 module build cache: HIT (DLL + manifest verified)" -ForegroundColor Green
         return $out
     }
 
@@ -548,14 +548,14 @@ exit /b %ERRORLEVEL%
 "@
     [IO.File]::WriteAllText($cmd,$cmdText,[Text.Encoding]::ASCII)
 
-    Write-Host "Compiling Survivor 0.12.0..." -ForegroundColor Cyan
+    Write-Host "Compiling Survivor 0.12.1..." -ForegroundColor Cyan
     $compilerOutput = @(& cmd.exe /d /c "`"$cmd`"" 2>&1)
     $compilerCode = $LASTEXITCODE
     foreach ($line in $compilerOutput) {
         Write-Host ([string]$line)
     }
     if ($compilerCode -ne 0 -or -not (Test-Path $dll -PathType Leaf)) {
-        throw "Survivor 0.12.0 compile failed with exit code $compilerCode"
+        throw "Survivor 0.12.1 compile failed with exit code $compilerCode"
     }
 
     Copy-Item $manifest (Join-Path $out "mod.json") -Force
@@ -569,7 +569,7 @@ exit /b %ERRORLEVEL%
     $dllSha = Hash-File $dll
     Write-Utf8NoBom $cacheMarker ($fingerprint + "`n" + $dllSha + "`n" + $sourceManifestSha + "`n")
 
-    $zip = Join-Path $ReleaseRoot "SurvivorProgression_0.12.0_LOCAL.zip"
+    $zip = Join-Path $ReleaseRoot "SurvivorProgression_0.12.1_LOCAL.zip"
     Remove-Item $zip -Force -ErrorAction SilentlyContinue
     Compress-Archive -Path (Join-Path $out "*") -DestinationPath $zip -Force
     return $out
