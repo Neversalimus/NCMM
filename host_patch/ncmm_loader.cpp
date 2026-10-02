@@ -1111,7 +1111,7 @@ bool virtual_item_can_assign_internal( const char *module_id, const char *slot_i
     const item &candidate = *loc;
     if( loc == you.get_wielded_item() || you.is_worn( candidate ) ||
         candidate.is_null() || candidate.has_flag( flag_INTEGRATED ) ||
-        candidate.has_flag( flag_PSEUDO ) ) {
+        candidate.has_flag( flag_PSEUDO ) || candidate.is_two_handed( you ) ) {
         return false;
     }
 
@@ -3685,6 +3685,36 @@ bool virtual_item_clear( const char *module_id, const char *slot_id )
     }
     virtual_item_clear_internal( module_id, slot_id );
     return true;
+}
+
+bool release_virtual_item( item &it )
+{
+    const std::string marker = it.get_var( virtual_item_marker_key, "" );
+    const std::size_t separator = marker.find( ':' );
+    if( separator == std::string::npos || separator == 0 ||
+        separator + 1 >= marker.size() ) {
+        return false;
+    }
+
+    const std::string module_id = marker.substr( 0, separator );
+    const std::string slot_id = marker.substr( separator + 1 );
+    if( !safe_state_token( module_id.c_str() ) ||
+        !safe_virtual_slot_id( slot_id.c_str() ) ) {
+        it.erase_var( virtual_item_marker_key );
+        return false;
+    }
+
+    item *bound = virtual_item_for_slot_internal(
+                      module_id.c_str(), slot_id.c_str() );
+    if( bound == &it ) {
+        virtual_item_clear_internal( module_id.c_str(), slot_id.c_str() );
+        return true;
+    }
+
+    // A stale/copied marker must never survive transfer out of the character.
+    // Do not clear another item's live slot if this object no longer owns it.
+    it.erase_var( virtual_item_marker_key );
+    return false;
 }
 
 bool is_virtual_item( const item &it )
