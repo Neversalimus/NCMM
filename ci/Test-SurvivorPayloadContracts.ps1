@@ -490,7 +490,14 @@ foreach($needle0140 in @(
     'const bool ncmm_virtual_focus =',
     'consider_virtual_shield',
     'ncmm::is_virtual_item( *shield )',
-    'Apply-SurvivorVirtualItemSlots0140 $CddaRoot'
+    'Apply-SurvivorVirtualItemSlots0140 $CddaRoot',
+    'function Apply-SurvivorVirtualItemContext0140',
+    'assign to Mana Hand III',
+    'release from Mana Hand IV',
+    'ncmm::virtual_item_can_assign(',
+    'ncmm::virtual_item_assign(',
+    'ncmm::virtual_item_clear(',
+    'Apply-SurvivorVirtualItemContext0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
