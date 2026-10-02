@@ -293,6 +293,8 @@ const perk_def perks[] = {
     { "mg_resonant_reserve", branch_id::mastery, 7, 30, currency_id::perk, "mg_mana_mastery", "mg_high_thaumaturgy", "Resonant Reserve", "Резонансный резерв", "Maximum mana +10%, spell duration +8%.", "Максимум маны +10%, длительность +8%.", {{ { "mg_mana_max_pct", 10 }, { "mg_duration_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "mg_archmage", branch_id::mastery, 8, 40, currency_id::major, "mg_efficient_theory", "mg_combat_weave", "Archmage", "Архимаг", "+0.75 Spellcraft, -5% failure, +8% potency, +8% spell XP.", "+0,75 Spellcraft, -5% провала, +8% мощности, +8% опыта заклинаний.", {{ { "mg_spellcraft_flat", 0.75 }, { "mg_fail_pct", -5 }, { "mg_spell_power_pct", 8 }, { "mg_spell_xp_pct", 8 } }}, 4, 0, perk_kind::effect },
     { "mg_mana_vampirism", branch_id::mastery, 9, 40, currency_id::perk, "mg_archmage", "", "Mana Vampirism", "Вампиризм маны", "Magiclysm: restore mana equal to 1% of actual melee damage dealt per rank (1-5%).", "Magiclysm: восстанавливает ману в размере 1% от фактически нанесённого урона в ближнем бою за ранг (1-5%).", {{ { "mg_melee_mana_vamp_pct", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "mg_mana_hand_3", branch_id::mastery, 9, 42, currency_id::perk, "mg_archmage", "", "Third Mana Hand", "Третья рука маны", "Magiclysm: manifest one unencumbered virtual hand. It can perform somatic casting while your physical hands are occupied and reduces hand/arm encumbrance contribution to spellcasting.", "Magiclysm: создаёт одну свободную от стеснения виртуальную руку. Она позволяет выполнять соматику, когда физические руки заняты, и снижает влияние стеснения рук на заклинания.", {{ { "mg_virtual_hand_count", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "mg_mana_hand_4", branch_id::mastery, 10, 48, currency_id::perk, "mg_mana_hand_3", "", "Fourth Mana Hand", "Четвёртая рука маны", "Magiclysm: manifest a second unencumbered virtual hand. Together the two mana hands halve the physical hand/arm encumbrance contribution to spellcasting.", "Magiclysm: создаёт вторую свободную от стеснения виртуальную руку. Вместе две руки маны вдвое уменьшают влияние стеснения физических рук на заклинания.", {{ { "mg_virtual_hand_count", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
 
     { "mom_mental_focus", branch_id::mastery, 1, 2, currency_id::perk, "", "", "Psionic Focus", "Псионический фокус", "Mind Over Matter powers: +0.5 effective Metaphysics while channeling.", "Силы Mind Over Matter: +0,5 к эффективной Metaphysics при ченнелинге.", {{ { "mom_metaphysics_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "mom_still_mind", branch_id::mastery, 2, 5, currency_id::perk, "mom_mental_focus", "", "Still Mind", "Спокойный разум", "Mind Over Matter: power failure chance -6%.", "Mind Over Matter: шанс провала псионических сил -6%.", {{ { "mom_fail_pct", -6 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
@@ -781,6 +783,8 @@ integration_id perk_integration( const perk_def &perk )
         { "mg_resonant_reserve", integration_id::magiclysm },
         { "mg_archmage", integration_id::magiclysm },
         { "mg_mana_vampirism", integration_id::magiclysm },
+        { "mg_mana_hand_3", integration_id::magiclysm },
+        { "mg_mana_hand_4", integration_id::magiclysm },
         { "mom_mental_focus", integration_id::mindovermatter },
         { "mom_still_mind", integration_id::mindovermatter },
         { "mom_neural_reserve", integration_id::mindovermatter },
@@ -1557,6 +1561,7 @@ std::string effect_label( const std::string &id )
     if( id == "mg_mana_max_pct" ) return tr( "Maximum mana %", "Максимум маны %" );
     if( id == "mg_mana_regen_pct" ) return tr( "Mana regeneration %", "Регенерация маны %" );
     if( id == "mg_melee_mana_vamp_pct" ) return tr( "Melee mana vampirism %", "Вампиризм маны в ближнем бою %" );
+    if( id == "mg_virtual_hand_count" ) return tr( "Virtual mana hands", "Виртуальные руки маны" );
     if( id == "mom_metaphysics_flat" ) return "MoM channeling Metaphysics";
     if( id == "xe_deduction_flat" ) return "Xedra Deduction";
     if( id == "xe_mana_max_pct" ) return tr( "Maximum mana %", "Максимум маны %" );
@@ -2677,7 +2682,7 @@ void show_overview()
     const int normal_owned = owned_count( currency_id::perk );
     const int major_owned = owned_count( currency_id::major );
 
-    std::string out = "Survivor Progression v0.12.1\n";
+    std::string out = "Survivor Progression v0.13.0\n";
     out += tr( "Level ", "Уровень " ) + std::to_string( level );
     out += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
     out += "\nP " + std::to_string( perk_points ) + " | M " + std::to_string( major_points );
@@ -3162,7 +3167,7 @@ void open_progression()
                                 owned_count( currency_id::major );
         const int total_perks = visible_perk_count();
 
-        std::string title = "Survivor Progression v0.12.1";
+        std::string title = "Survivor Progression v0.13.0";
         std::string summary =
             tr( "Level ", "Уровень " ) + std::to_string( level ) +
             " | P " + std::to_string( perk_points ) +
@@ -3581,7 +3586,7 @@ bool configure_host_api2_runtime_hooks()
 {
     if( host2 == nullptr || !host2->modifier_define || !host2->runtime_hook_bind_modifier ) return false;
     const char *dynamic_modifiers[] = {
-        "mg_spell_cost_pct","mg_cast_time_pct","mg_fail_pct","mg_spell_xp_pct","mg_spell_power_pct","mg_range_pct","mg_aoe_pct","mg_duration_pct","mg_mana_max_pct","mg_mana_regen_pct","mg_spellcraft_flat","mg_melee_mana_vamp_pct",
+        "mg_spell_cost_pct","mg_cast_time_pct","mg_fail_pct","mg_spell_xp_pct","mg_spell_power_pct","mg_range_pct","mg_aoe_pct","mg_duration_pct","mg_mana_max_pct","mg_mana_regen_pct","mg_spellcraft_flat","mg_melee_mana_vamp_pct","mg_virtual_hand_count",
         "mom_spell_cost_pct","mom_cast_time_pct","mom_fail_pct","mom_spell_xp_pct","mom_spell_power_pct","mom_range_pct","mom_aoe_pct","mom_duration_pct","mom_metaphysics_flat",
         "xe_spell_cost_pct","xe_cast_time_pct","xe_fail_pct","xe_spell_xp_pct","xe_spell_power_pct","xe_range_pct","xe_aoe_pct","xe_duration_pct","xe_mana_max_pct","xe_mana_regen_pct","xe_deduction_flat","xe_gramarye_flat",
         "af_spell_cost_pct","af_cast_time_pct","af_fail_pct","af_spell_xp_pct","af_spell_power_pct","af_range_pct","af_aoe_pct","af_duration_pct","af_metaphysics_flat","af_smartgun_flat",
@@ -3650,7 +3655,8 @@ bool configure_host_api2_runtime_hooks()
             !bind("spell.duration_pct",NCMM_SELECTOR_SOURCE_MOD_V2,src.mod,(p+"_duration_pct").c_str()) ) return false;
         if( src.area && !bind("spell.area_pct",NCMM_SELECTOR_SOURCE_MOD_V2,src.mod,(p+"_aoe_pct").c_str()) ) return false;
     }
-    if( !bind("magic.mana.max_pct",NCMM_SELECTOR_ANY_V2,nullptr,"mg_mana_max_pct") ||
+    if( !bind("magic.virtual_hand_count",NCMM_SELECTOR_SOURCE_MOD_V2,"magiclysm","mg_virtual_hand_count") ||
+        !bind("magic.mana.max_pct",NCMM_SELECTOR_ANY_V2,nullptr,"mg_mana_max_pct") ||
         !bind("magic.mana.max_pct",NCMM_SELECTOR_ANY_V2,nullptr,"xe_mana_max_pct") ||
         !bind("magic.mana.regen_pct",NCMM_SELECTOR_ANY_V2,nullptr,"mg_mana_regen_pct") ||
         !bind("magic.mana.regen_pct",NCMM_SELECTOR_ANY_V2,nullptr,"xe_mana_regen_pct") ||
@@ -3710,7 +3716,7 @@ int init( const ncmm_host_api_v1 *api )
     }
     last_stat_power_pct = progression_stat_power_pct();
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.12.1 initialized: branch bars / exclusive specializations / conditional deep mod integrations." );
+              "Survivor Progression 0.13.0 initialized: branch bars / exclusive specializations / conditional deep mod integrations." );
     return 1;
 }
 
@@ -3731,7 +3737,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     module_id,
     "Survivor Progression",
-    "0.12.1",
+    "0.13.0",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,
