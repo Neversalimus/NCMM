@@ -121,7 +121,7 @@
     },
     {
       "path": "compat\\update\\index.json",
-      "sha256": "46ab4bdad29bbe0fa95d11d8888b48abc62e7f5a87591e8e2aa2f896b622d1f4",
+      "sha256": "fca7d709b0329f1750979ba8834fe9fa3c44cf1993941e28b82e76e2c9e57284",
       "bytes": 1032
     },
     {
@@ -136,7 +136,7 @@
     },
     {
       "path": "components\\index.json",
-      "sha256": "979a3814d2da5511dcc2d6174c410a92cb4ec775997723bf15415ad82347a60f",
+      "sha256": "122b931fa8777070b0e72a8191591f65759a899a3efab7639b1473e68498c630",
       "bytes": 6124
     },
     {
