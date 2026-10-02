@@ -1421,9 +1421,13 @@ std::string branch_efficiency_text( branch_id branch )
 void decay_branch_fatigue()
 {
     for( branch_id branch : all_branches ) {
+        const int64_t fatigue = branch_fatigue( branch );
+        if( fatigue <= 0 ) {
+            continue;
+        }
         const int64_t decay = branch == branch_id::mastery ? 20 : 14;
         set_state( branch_state_key( branch, "fatigue" ),
-                   std::max<int64_t>( 0, branch_fatigue( branch ) - decay ) );
+                   std::max<int64_t>( 0, fatigue - decay ) );
     }
 }
 
@@ -1448,7 +1452,10 @@ int64_t scale_configured_xp( branch_id branch, int64_t adjusted )
 int64_t anti_farm_adjust( branch_id branch, int64_t raw )
 {
     if( raw <= 0 ) {
-        set_state( branch_state_key( branch, "streak" ), 0 );
+        const std::string streak_key = branch_state_key( branch, "streak" );
+        if( get_state( streak_key, 0 ) != 0 ) {
+            set_state( streak_key, 0 );
+        }
         return 0;
     }
 
@@ -3334,7 +3341,9 @@ int64_t metric_delta( const char *metric, const char *baseline_key )
 {
     const int64_t now = metric_now( metric );
     const int64_t before = get_state( baseline_key, -1 );
-    set_state( baseline_key, now );
+    if( before != now ) {
+        set_state( baseline_key, now );
+    }
     if( before < 0 || now < before ) {
         return 0;
     }
@@ -3398,14 +3407,22 @@ void poll_branch_xp()
     int64_t combat_gain = std::min<int64_t>( std::max<int64_t>( kills, ( kill_xp + 49 ) / 50 ), 25 );
 
     int64_t healing = metric_delta( "survival.healing", "metric_survival_healing" );
-    healing += get_state( "survival_heal_remainder", 0 );
+    const int64_t old_heal_remainder = get_state( "survival_heal_remainder", 0 );
+    healing += old_heal_remainder;
     int64_t survival_gain = std::min<int64_t>( healing / 10, 8 );
-    set_state( "survival_heal_remainder", healing % 10 );
+    const int64_t new_heal_remainder = healing % 10;
+    if( new_heal_remainder != old_heal_remainder ) {
+        set_state( "survival_heal_remainder", new_heal_remainder );
+    }
 
     int64_t steps = metric_delta( "mobility.steps", "metric_mobility_steps" );
-    steps += get_state( "mobility_step_remainder", 0 );
+    const int64_t old_step_remainder = get_state( "mobility_step_remainder", 0 );
+    steps += old_step_remainder;
     int64_t mobility_gain = std::min<int64_t>( steps / mobility_steps_per_xp, 3 );
-    set_state( "mobility_step_remainder", steps % mobility_steps_per_xp );
+    const int64_t new_step_remainder = steps % mobility_steps_per_xp;
+    if( new_step_remainder != old_step_remainder ) {
+        set_state( "mobility_step_remainder", new_step_remainder );
+    }
 
     const int64_t crafts = metric_delta( "crafting.completed", "metric_crafting_completed" );
     int64_t crafting_gain = std::min<int64_t>( crafts * 3, 12 );
@@ -3436,11 +3453,13 @@ void poll_branch_xp()
     activity_total += award_branch_xp( branch_id::crafting, crafting_gain );
     activity_total += award_branch_xp( branch_id::scavenging, scavenging_gain );
 
-    int64_t mastery_fraction = get_state( "mastery_share_fraction", 0 );
-    mastery_fraction += activity_total * 10;
+    const int64_t old_mastery_fraction = get_state( "mastery_share_fraction", 0 );
+    int64_t mastery_fraction = old_mastery_fraction + activity_total * 10;
     mastery_gain += mastery_fraction / 100;
     mastery_fraction %= 100;
-    set_state( "mastery_share_fraction", mastery_fraction );
+    if( mastery_fraction != old_mastery_fraction ) {
+        set_state( "mastery_share_fraction", mastery_fraction );
+    }
     award_branch_xp( branch_id::mastery, mastery_gain );
 }
 
