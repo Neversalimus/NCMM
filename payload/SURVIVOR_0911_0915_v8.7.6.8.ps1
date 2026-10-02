@@ -18757,6 +18757,213 @@ std::string rpg_detail_body( const perk_def &perk, const std::string &body,
     foreach($rule in $grammar) {
         $sp = [regex]::Replace($sp,[string]$rule[0],[string]$rule[1])
     }
+
+    # Keep the installer payload authoritative for the checked-in ranked-effect UI.
+    # The blocking source/package audit regenerates Survivor from this payload and
+    # compares it byte-for-byte with mods/SurvivorProgression/src.
+    $mgManaLabel = '    if( id == "mg_mana_max_pct" ) return tr( "Maximum mana %", "Максимум маны %" );'
+    if(-not $sp.Contains($mgManaLabel)) {
+        $mgAnchor = '    if( id == "mg_spellcraft_flat" ) return "Magiclysm Spellcraft";'
+        $mgExpanded = @'
+    if( id == "mg_spellcraft_flat" ) return "Magiclysm Spellcraft";
+    if( id == "mg_mana_max_pct" ) return tr( "Maximum mana %", "Максимум маны %" );
+    if( id == "mg_mana_regen_pct" ) return tr( "Mana regeneration %", "Регенерация маны %" );
+'@
+        $sp = Replace-TextBlock $sp $mgAnchor $mgExpanded 'rank-display Magiclysm mana labels'
+    }
+
+    $xeManaLabel = '    if( id == "xe_mana_max_pct" ) return tr( "Maximum mana %", "Максимум маны %" );'
+    if(-not $sp.Contains($xeManaLabel)) {
+        $xeAnchor = '    if( id == "xe_deduction_flat" ) return "Xedra Deduction";'
+        $xeExpanded = @'
+    if( id == "xe_deduction_flat" ) return "Xedra Deduction";
+    if( id == "xe_mana_max_pct" ) return tr( "Maximum mana %", "Максимум маны %" );
+    if( id == "xe_mana_regen_pct" ) return tr( "Mana regeneration %", "Регенерация маны %" );
+'@
+        $sp = Replace-TextBlock $sp $xeAnchor $xeExpanded 'rank-display Xedra mana labels'
+    }
+
+    $critOld = '    if( id == "sp_melee_crit_chance_pct" ) return tr( "Melee critical chance points", "Пункты шанса крита в ближнем бою" );'
+    $critNew = '    if( id == "sp_melee_crit_chance_pct" ) return tr( "Melee critical chance", "Шанс крита в ближнем бою" );'
+    if($sp.Contains($critOld)) {
+        $sp = Replace-TextBlock $sp $critOld $critNew 'rank-display melee crit label'
+    }
+
+    if(-not $sp.Contains('std::string ranked_effect_next_summary(')) {
+        if($sp.Contains('bool effect_is_percentage( const std::string &id )')) {
+            throw 'Partial ranked-effect display helper set detected before payload synchronization.'
+        }
+        $rankDisplayBlock = @'
+bool effect_is_percentage( const std::string &id )
+{
+    return id.size() >= 4 && id.compare( id.size() - 4, 4, "_pct" ) == 0;
+}
+
+std::string effect_display_label( const std::string &id )
+{
+    std::string label = effect_label( id );
+    if( effect_is_percentage( id ) && label.size() >= 2 &&
+        label.compare( label.size() - 2, 2, " %" ) == 0 ) {
+        label.resize( label.size() - 2 );
+    }
+    return label;
+}
+
+std::string effect_value_text( const std::string &id, double value )
+{
+    const std::string sign = value > 0.0 ? "+" : "";
+    return sign + format_number( value ) + ( effect_is_percentage( id ) ? "%" : "" );
+}
+
+std::string effect_delta_text( const std::string &id, double delta )
+{
+    const std::string sign = delta > 0.0 ? "+" : "";
+    std::string result = sign + format_number( delta );
+    if( effect_is_percentage( id ) ) {
+        result += tr( " pp", " п.п." );
+    }
+    return result;
+}
+
+double ranked_effect_multiplier( const perk_def &perk, int rank )
+{
+    double multiplier = perk_rank_multiplier_for( perk, rank );
+    if( effective_kind( perk ) == perk_kind::stat ) {
+        multiplier *= static_cast<double>( progression_stat_power_pct() ) / 100.0;
+    }
+    return multiplier;
+}
+
+std::string ranked_effect_summary( const perk_def &perk, int rank )
+{
+    if( rank <= 0 ) {
+        return {};
+    }
+
+    const double multiplier = ranked_effect_multiplier( perk, rank );
+    std::vector<std::string> parts;
+    for( int i = 0; i < perk.effect_count; ++i ) {
+        if( perk.effects[i].id == nullptr ) {
+            continue;
+        }
+        const std::string id = perk.effects[i].id;
+        const double value = perk.effects[i].value * multiplier;
+        parts.push_back( effect_display_label( id ) + ": " + effect_value_text( id, value ) );
+    }
+    if( perk.xp_bonus_pct != 0 ) {
+        const int value = static_cast<int>(
+                              std::llround( static_cast<double>( perk.xp_bonus_pct ) * multiplier ) );
+        const std::string sign = value > 0 ? "+" : "";
+        parts.push_back( tr( "Survivor XP: ", "Опыт Survivor: " ) + sign +
+                         std::to_string( value ) + "%" );
+    }
+
+    std::string result;
+    for( size_t i = 0; i < parts.size(); ++i ) {
+        if( i != 0 ) {
+            result += ", ";
+        }
+        result += parts[i];
+    }
+    return result;
+}
+
+std::string ranked_effect_next_summary( const perk_def &perk, int current_rank, int next_rank )
+{
+    const double current_multiplier = ranked_effect_multiplier( perk, current_rank );
+    const double next_multiplier = ranked_effect_multiplier( perk, next_rank );
+    std::vector<std::string> parts;
+    for( int i = 0; i < perk.effect_count; ++i ) {
+        if( perk.effects[i].id == nullptr ) {
+            continue;
+        }
+        const std::string id = perk.effects[i].id;
+        const double current_value = perk.effects[i].value * current_multiplier;
+        const double next_value = perk.effects[i].value * next_multiplier;
+        const double delta = next_value - current_value;
+        parts.push_back( effect_display_label( id ) + ": " + effect_value_text( id, next_value ) +
+                         " (" + effect_delta_text( id, delta ) + ")" );
+    }
+    if( perk.xp_bonus_pct != 0 ) {
+        const int current_value = static_cast<int>( std::llround(
+                                      static_cast<double>( perk.xp_bonus_pct ) * current_multiplier ) );
+        const int next_value = static_cast<int>( std::llround(
+                                   static_cast<double>( perk.xp_bonus_pct ) * next_multiplier ) );
+        const int delta = next_value - current_value;
+        const std::string value_sign = next_value > 0 ? "+" : "";
+        const std::string delta_sign = delta > 0 ? "+" : "";
+        parts.push_back( tr( "Survivor XP: ", "Опыт Survivor: " ) + value_sign +
+                         std::to_string( next_value ) + "% (" + delta_sign +
+                         std::to_string( delta ) + tr( " pp)", " п.п.)" ) );
+    }
+
+    std::string result;
+    for( size_t i = 0; i < parts.size(); ++i ) {
+        if( i != 0 ) {
+            result += ", ";
+        }
+        result += parts[i];
+    }
+    return result;
+}
+
+std::string perk_description( const perk_def &perk )
+{
+    std::string result = russian() ? perk.desc_ru : perk.desc_en;
+    const int max_rank = perk_max_rank( perk );
+    if( max_rank <= 1 ) {
+        return result;
+    }
+
+    const int rank = perk_rank( perk );
+    result += "\n" + tr( "Rank ", "Ранг " ) + std::to_string( rank ) + "/" +
+              std::to_string( max_rank );
+
+    if( rank > 0 ) {
+        result += "\n" + tr( "Current: ", "Сейчас: " ) +
+                  ranked_effect_summary( perk, rank );
+    }
+    if( rank < max_rank ) {
+        result += "\n" + tr( "Next rank ", "Следующий ранг " ) + rank_roman( rank + 1 ) + ": " +
+                  ranked_effect_next_summary( perk, rank, rank + 1 );
+    } else {
+        result += "\n" + tr( "Maximum rank reached.", "Максимальный ранг." );
+    }
+    return result;
+}
+'@
+        $sp = Replace-CppRange $sp 'std::string ranked_effect_summary( const perk_def &perk, int rank )' `
+            'struct calculated_effects {' $rankDisplayBlock 'Survivor exact next-rank display'
+    }
+
+    $overviewOld = @'
+        for( const auto &entry : totals ) {
+            const std::string sign = entry.second > 0.0 ? "+" : "";
+            out += "\n" + effect_label( entry.first ) + ": " + sign + format_number( entry.second );
+        }
+'@
+    $overviewNew = @'
+        for( const auto &entry : totals ) {
+            out += "\n" + effect_display_label( entry.first ) + ": " +
+                   effect_value_text( entry.first, entry.second );
+        }
+'@
+    if($sp.Contains((Normalize-Lf $overviewOld).TrimEnd())) {
+        $sp = Replace-TextBlock $sp $overviewOld $overviewNew 'rank-display active effects'
+    }
+
+    foreach($rankDisplayNeedle in @(
+        'std::string ranked_effect_next_summary(',
+        'tr( "Maximum rank reached.", "Максимальный ранг." )',
+        'if( id == "mg_mana_max_pct" ) return tr( "Maximum mana %", "Максимум маны %" );',
+        'if( id == "xe_mana_max_pct" ) return tr( "Maximum mana %", "Максимум маны %" );',
+        'effect_value_text( entry.first, entry.second )'
+    )) {
+        if(-not $sp.Contains($rankDisplayNeedle)) {
+            throw ("Ranked-effect display payload synchronization failed: " + $rankDisplayNeedle)
+        }
+    }
+
     Write-Utf8NoBom $spPath $sp
     Copy-Item $spPath (Join-Path $NcmmRoot "mods\SurvivorProgression\src\survivor_progression.cpp") -Force
     Copy-Item $manifestPath (Join-Path $NcmmRoot "mods\SurvivorProgression\mod.json") -Force
