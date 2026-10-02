@@ -455,7 +455,9 @@ foreach($needle0140 in @(
     'virtual_item_for_slot_internal',
     'virtual_item_marker_key = "ncmm_virtual_slot"',
     'candidate->uid().get_value()',
-    'game_menus::inv::titled_filter_menu'
+    'game_menus::inv::titled_filter_menu',
+    'candidate.is_two_handed( you )',
+    'release_virtual_item( item &it )'
 )){
     if(-not $hostVirtual0140.Contains($needle0140)){
         throw ('Survivor 0.14.0 Host virtual-item contract missing: '+$needle0140)
@@ -500,9 +502,13 @@ foreach($needle0140 in @(
     'Apply-SurvivorVirtualItemContext0140 $CddaRoot',
     'function Apply-SurvivorManaHandSpellcastingAid0140',
     'ncmm_virtual_wield_flags',
-    'flag_id( "MAGIC_FOCUS" )',
     'flag_id( "SPELLCASTING_AID" )',
-    'Apply-SurvivorManaHandSpellcastingAid0140 $CddaRoot'
+    'const int ncmm_virtual_hands =',
+    '"magic.virtual_hand_count", nullptr, "magiclysm"',
+    'Apply-SurvivorManaHandSpellcastingAid0140 $CddaRoot',
+    'function Apply-SurvivorVirtualItemLifecycle0140',
+    'ncmm::release_virtual_item( *target() );',
+    'Apply-SurvivorVirtualItemLifecycle0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
@@ -510,6 +516,18 @@ foreach($needle0140 in @(
 }
 if($payload.Contains('item_location::type::mana_hand')){
     throw 'Virtual Mana Hand slots must not introduce a synthetic item_location type.'
+}
+
+$manaAidStart0140=$payload.IndexOf('function Apply-SurvivorManaHandSpellcastingAid0140')
+$manaAidEnd0140=$payload.IndexOf('function Apply-SurvivorVirtualItemLifecycle0140',$manaAidStart0140)
+if($manaAidStart0140 -lt 0 -or $manaAidEnd0140 -le $manaAidStart0140){throw 'Mana Hand spellcasting-aid hardening section missing.'}
+$manaAidSection0140=$payload.Substring($manaAidStart0140,$manaAidEnd0140-$manaAidStart0140)
+if($manaAidSection0140.Contains('flag_id( "MAGIC_FOCUS" )')){
+    throw 'Mana Hand spellcasting-aid bridge leaked MAGIC_FOCUS back into global wielded semantics.'
+}
+foreach($sourcePath0140 in @('src/game.cpp','src/talker_character.cpp','src/item_location.cpp')){
+    $sourceEntry0140=@($contracts0140.contracts|Where-Object{$_.id -eq 'magic_virtual_slots.source.v1'}).files|Where-Object{$_.path -eq $sourcePath0140}
+    if(@($sourceEntry0140).Count -ne 1){throw ('Mana Hand source contract missing hardening path: '+$sourcePath0140)}
 }
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate
