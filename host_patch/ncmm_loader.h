@@ -50,4 +50,8 @@ double runtime_setting_hook_f64( const char *hook_id, double fallback );
 // Internal CDDA UI helpers; not part of the module API/ABI.
 bool inventory_symbols_enabled( bool vanilla_symbols );
 std::string inventory_item_symbol( const item &it );
+
+/* Engine-side read-only bridge for Host API 2.1 logical item slots. */
+item *virtual_item_for_slot( const char *module_id, const char *slot_id );
+bool is_virtual_item( const item &it );
 } // namespace ncmm
