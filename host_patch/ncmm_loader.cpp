@@ -137,6 +137,9 @@ std::map<std::string, ncmm_worldgen_binding_v2_internal, std::less<>> worldgen_b
 std::map<std::string, ncmm_worldgen_binding_v2_internal, std::less<>> runtime_setting_bindings_v2;
 thread_local std::string api_v2_string_cache;
 thread_local std::string runtime_source_mod_context_v2;
+thread_local const Character *virtual_melee_context_owner = nullptr;
+thread_local item *virtual_melee_context_weapon = nullptr;
+thread_local bool virtual_melee_context_running = false;
 bool api_v2_world_announced = false;
 
 void erase_module_modifiers( const std::string &module_id )
@@ -3696,6 +3699,9 @@ bool virtual_item_clear( const char *module_id, const char *slot_id )
 
 bool release_virtual_item( item &it )
 {
+    if( virtual_melee_context_running && virtual_melee_context_weapon == &it ) {
+        virtual_melee_context_weapon = nullptr;
+    }
     const std::string marker = it.get_var( virtual_item_marker_key, "" );
     const std::size_t separator = marker.find( ':' );
     if( separator == std::string::npos || separator == 0 ||
@@ -3743,6 +3749,43 @@ bool is_virtual_item( const item &it )
     }
 
     return virtual_item_for_slot_internal( module_id.c_str(), slot_id.c_str() ) == &it;
+}
+
+bool virtual_melee_context_begin( Character &who, item &weapon )
+{
+    if( virtual_melee_context_running ) {
+        return false;
+    }
+    virtual_melee_context_owner = &who;
+    virtual_melee_context_weapon = &weapon;
+    virtual_melee_context_running = true;
+    return true;
+}
+
+void virtual_melee_context_end( Character &who )
+{
+    if( !virtual_melee_context_running || virtual_melee_context_owner != &who ) {
+        return;
+    }
+    virtual_melee_context_weapon = nullptr;
+    virtual_melee_context_owner = nullptr;
+    virtual_melee_context_running = false;
+}
+
+bool virtual_melee_context_active( const Character &who )
+{
+    return virtual_melee_context_running && virtual_melee_context_owner == &who;
+}
+
+item *virtual_melee_context_item( const Character &who )
+{
+    return virtual_melee_context_active( who ) ? virtual_melee_context_weapon : nullptr;
+}
+
+bool virtual_melee_context_is_wielding( const Character &who, const item &it )
+{
+    return virtual_melee_context_active( who ) &&
+           virtual_melee_context_weapon == &it;
 }
 
 bool virtual_item_secondary_melee_enabled( const item &it )
