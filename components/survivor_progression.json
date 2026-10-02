@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "survivor_progression",
   "name": "Survivor Progression",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "kind": "native_module",
   "atomic_group": "survivor-progression",
   "delivery": "source_build",
