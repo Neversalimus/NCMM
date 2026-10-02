@@ -1597,6 +1597,7 @@ function Apply-NcmmRuntimeGameplayHooksV2([string]$Root) {
     $characterProbe = Read-V82 $characterPath; $characterHealthProbe = Read-V82 $characterHealthPath
     $meleeProbe = Read-V82 $meleePath; $rangedProbe = Read-V82 $rangedPath
     $complete = $magicProbe.Contains('static const char *ncmm_spell_hook_id(') -and
+                $magicProbe.Contains('NCMM effective RANDOM_DAMAGE tooltip') -and
                 $knowledgeProbe.Contains('static float ncmm_runtime_skill_bonus( const skill_id &ident )') -and
                 $creatureProbe.Contains('combat.damage_to_species_pct') -and
                 $creatureProbe.Contains('combat.damage_taken_pct') -and
@@ -1867,6 +1868,44 @@ double spell::damage_dot( const Creature &caster ) const
 }
 '@
     $magic = Replace-V82Range $magic 'double spell::damage_dot( const Creature &caster ) const' 'damage_over_time_data spell::damage_over_time' $damageDot 'magic.spell-dot-power'
+
+    $damageString = @'
+std::string spell::damage_string( const Character &caster ) const
+{
+    std::string damage_string;
+    const_dialogue d( get_const_talker_for( caster ), nullptr );
+    if( has_flag( spell_flag::RANDOM_DAMAGE ) ) {
+        // NCMM effective RANDOM_DAMAGE tooltip: mirror spell::damage() endpoint math so
+        // source-scoped spell-power perks are visible before the spell is cast.
+        const int leveled_damage = min_leveled_damage( caster );
+        const int configured_damage = static_cast<int>( type->max_damage.evaluate( d ) );
+        const int raw_low = std::min( leveled_damage, configured_damage );
+        const int raw_high = std::max( leveled_damage, configured_damage );
+        const double power_multiplier = caster.is_avatar() ?
+                                        ncmm_spell_multiplier( *this, ncmm_spell_modifier::power, 0.0 ) : 1.0;
+        const auto effective_endpoint = [this, power_multiplier]( int value ) {
+            const int vanilla_damage = static_cast<int>( value * temp_damage_multiplyer );
+            return static_cast<int>( std::lround( vanilla_damage * power_multiplier ) );
+        };
+        const int effective_a = effective_endpoint( raw_low );
+        const int effective_b = effective_endpoint( raw_high );
+        damage_string = string_format( "%d-%d", std::min( effective_a, effective_b ),
+                                       std::max( effective_a, effective_b ) );
+    } else {
+        const int dmg = damage( caster );
+        if( dmg >= 0 ) {
+            damage_string = string_format( "%d", dmg );
+        } else {
+            damage_string = string_format( "+%d", std::abs( dmg ) );
+        }
+    }
+    if( has_flag( spell_flag::PERCENTAGE_DAMAGE ) ) {
+        damage_string = string_format( "%s%% %s", damage_string, _( "of current HP" ) );
+    }
+    return damage_string;
+}
+'@
+    $magic = Replace-V82Range $magic 'std::string spell::damage_string( const Character &caster ) const' 'std::optional<tripoint_bub_ms> spell::select_target' $damageString 'magic.random-damage-tooltip'
 
     $aoe = @'
 int spell::aoe( const Creature &caster ) const
