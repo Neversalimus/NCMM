@@ -51,7 +51,10 @@ foreach($n in @('function Apply-NcmmHostApi20Core','#define NCMM_HOST_API_V2_COR
 # Patched-source audit must distinguish the required query_interface_v2 forward declaration
 # from its single implementation.  A raw substring count is intentionally invalid because both
 # declaration and definition begin with the same function name/signature.
-foreach($n in @('#define NCMM_HOST_API_V2_CORE_MINOR 1u','NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2','NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2','virtual_item_choose','virtual_item_clear','virtual_item_name','virtual_item_uid','character.virtual_items.v1')){if(-not $payload.Contains($n)){throw "Host API 2.1 virtual-item extension contract missing: $n"}}
+$sdkCurrent=Get-Content (Join-Path $PackageRoot 'sdk\ncmm_api.h') -Raw
+$hostSourceCurrent=Get-Content (Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp') -Raw
+foreach($n in @('#define NCMM_HOST_API_V2_CORE_MINOR 1u','NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2','NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2','virtual_item_choose','virtual_item_clear','virtual_item_name','virtual_item_uid')){if(-not $sdkCurrent.Contains($n)){throw "Host API 2.1 SDK virtual-item extension contract missing: $n"}}
+foreach($n in @('character.virtual_items.v1','virtual_item_choose_v2','virtual_item_for_slot_internal','virtual_item_marker_key = "ncmm_virtual_slot"')){if(-not $hostSourceCurrent.Contains($n)){throw "Host API 2.1 Host virtual-item extension contract missing: $n"}}
 if($payload.Contains("Needle = 'const void *query_interface_v2('; Expected = 1; Name = 'Host API 2.0 query interface'")){throw 'Stale ambiguous Host API 2.0 query-interface count audit returned.'}
 foreach($n in @('Host API 2.0 query interface declaration','Host API 2.0 query interface definition','Host API 2.0 legacy v1 query-interface bridge','Host API 2.0 query-interface declaration/legacy-table/definition order is invalid.')){
     if(-not $payload.Contains($n)){throw ('Host API 2.0 structural query-interface audit missing: '+$n)}
