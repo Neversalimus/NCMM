@@ -1092,7 +1092,7 @@ int virtual_item_choose_v2( const char *module_id, const char *slot_id,
     }
 
     avatar &you = get_avatar();
-    const item_location chosen = game_menus::inv::titled_filter_menu(
+    item_location chosen = game_menus::inv::titled_filter_menu(
         [&]( const item_location & loc ) {
             if( !loc || !loc.held_by( you ) ) {
                 return false;
