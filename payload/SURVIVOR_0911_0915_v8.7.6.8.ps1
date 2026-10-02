@@ -1607,6 +1607,7 @@ function Apply-NcmmRuntimeGameplayHooksV2([string]$Root) {
                 $characterProbe.Contains('combat.block_attempts_bonus') -and
                 $meleeProbe.Contains('combat.melee_crit_chance_pct') -and
                 $meleeProbe.Contains('combat.melee_crit_damage_pct') -and
+                $meleeProbe.Contains('combat.melee_mana_vamp_pct') -and
                 $rangedProbe.Contains('combat.ranged_crit_damage_pct')
     if ($complete) {
         if (-not (Test-Path $marker -PathType Leaf)) { Set-Content -Path $marker -Value "Recovered Host API 2.0 runtime-hook marker`n" -Encoding ASCII }
@@ -2218,6 +2219,45 @@ float Character::get_skill_level( const skill_id &ident, const item &context ) c
         $melee = Replace-V82Once $melee $meleeDamageVanilla $meleeDamageMechanical 'melee.crit-damage-hook'
     } elseif( -not $melee.Contains('combat.melee_crit_damage_pct') ) {
         throw 'Host API 2.0 melee critical-damage hook is neither pristine nor already patched.'
+    }
+
+    $manaVampVanilla = @'
+            int dam = dealt_dam.total_damage();
+            melee::melee_stats.damage_amount += dam;
+'@
+    $manaVampMechanical = @'
+            int dam = dealt_dam.total_damage();
+            if( is_avatar() && !t.is_hallucination() ) {
+                const int ncmm_melee_damage = std::max( 0, dam ) +
+                                              std::max( 0, dealt_special_dam.total_damage() );
+                const double ncmm_mana_vamp_pct = std::clamp(
+                        ncmm::runtime_hook_modifier( "combat.melee_mana_vamp_pct" ), 0.0, 100.0 );
+                static double ncmm_mana_vamp_fraction = 0.0;
+                static double ncmm_mana_vamp_last_pct = 0.0;
+                if( std::abs( ncmm_mana_vamp_pct - ncmm_mana_vamp_last_pct ) > 1.0e-9 ) {
+                    ncmm_mana_vamp_fraction = 0.0;
+                    ncmm_mana_vamp_last_pct = ncmm_mana_vamp_pct;
+                }
+                if( ncmm_mana_vamp_pct <= 0.0 ||
+                    magic->available_mana() >= magic->max_mana( *this ) ) {
+                    ncmm_mana_vamp_fraction = 0.0;
+                } else if( ncmm_melee_damage > 0 ) {
+                    const double exact_recovery = ncmm_mana_vamp_fraction +
+                                                  ncmm_melee_damage * ncmm_mana_vamp_pct / 100.0;
+                    const int recovered_mana =
+                        static_cast<int>( std::floor( exact_recovery + 1.0e-9 ) );
+                    ncmm_mana_vamp_fraction = exact_recovery - recovered_mana;
+                    if( recovered_mana > 0 ) {
+                        magic->mod_mana( *this, recovered_mana );
+                    }
+                }
+            }
+            melee::melee_stats.damage_amount += dam;
+'@
+    if( Test-V82Contains $melee $manaVampVanilla ) {
+        $melee = Replace-V82Once $melee $manaVampVanilla $manaVampMechanical 'melee.mana-vampirism-hook'
+    } elseif( -not $melee.Contains('combat.melee_mana_vamp_pct') ) {
+        throw 'Host API 2.0 melee mana-vampirism hook is neither pristine nor already patched.'
     }
 
     $ranged = Read-V82 $rangedPath
@@ -19003,7 +19043,79 @@ std::string perk_description( const perk_def &perk )
         }
     }
 
+    # Survivor 0.12.1 — late-game Magiclysm mana vampirism.
+    if(-not $sp.Contains('{ "mg_mana_vampirism", branch_id::mastery')) {
+        $mgArchmage0121 = '{ "mg_archmage", branch_id::mastery, 8, 40, currency_id::major, "mg_efficient_theory", "mg_combat_weave", "Archmage", "Архимаг", "+0.75 Spellcraft, -5% failure, +8% potency, +8% spell XP.", "+0,75 Spellcraft, -5% провала, +8% мощности, +8% опыта заклинаний.", {{ { "mg_spellcraft_flat", 0.75 }, { "mg_fail_pct", -5 }, { "mg_spell_power_pct", 8 }, { "mg_spell_xp_pct", 8 } }}, 4, 0, perk_kind::effect },'
+        $mgVamp0121 = $mgArchmage0121 + [Environment]::NewLine +
+            '    { "mg_mana_vampirism", branch_id::mastery, 9, 40, currency_id::perk, "mg_archmage", "", "Mana Vampirism", "Вампиризм маны", "Magiclysm: restore mana equal to 1% of actual melee damage dealt per rank (1-5%).", "Magiclysm: восстанавливает ману в размере 1% от фактически нанесённого урона в ближнем бою за ранг (1-5%).", {{ { "mg_melee_mana_vamp_pct", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },'
+        $sp = Replace-TextBlock $sp $mgArchmage0121 $mgVamp0121 'Magiclysm mana-vamp perk'
+    }
+    if(-not $sp.Contains('{ "mg_mana_vampirism", 5, 1.0 }')) {
+        $rankOld0121 = '        { "mg_mana_sensitivity", 3, 0.25 }, { "mg_mana_regeneration", 3, 0.25 },'
+        $rankNew0121 = $rankOld0121 + [Environment]::NewLine +
+                       '        { "mg_mana_vampirism", 5, 1.0 },'
+        $sp = Replace-TextBlock $sp $rankOld0121 $rankNew0121 'Magiclysm mana-vamp rank rule'
+    }
+    if(-not $sp.Contains('{ "mg_mana_vampirism", integration_id::magiclysm }')) {
+        $registryOld0121 = '        { "mg_archmage", integration_id::magiclysm },'
+        $registryNew0121 = $registryOld0121 + [Environment]::NewLine +
+                           '        { "mg_mana_vampirism", integration_id::magiclysm },'
+        $sp = Replace-TextBlock $sp $registryOld0121 $registryNew0121 'Magiclysm mana-vamp integration registry'
+    }
+    if(-not $sp.Contains('if( id == "mg_melee_mana_vamp_pct" )')) {
+        $labelOld0121 = '    if( id == "mg_mana_regen_pct" ) return tr( "Mana regeneration %", "Регенерация маны %" );'
+        $labelNew0121 = $labelOld0121 + [Environment]::NewLine +
+                        '    if( id == "mg_melee_mana_vamp_pct" ) return tr( "Melee mana vampirism %", "Вампиризм маны в ближнем бою %" );'
+        $sp = Replace-TextBlock $sp $labelOld0121 $labelNew0121 'Magiclysm mana-vamp label'
+    }
+    if(-not $sp.Contains('"mg_spellcraft_flat","mg_melee_mana_vamp_pct"')) {
+        $modsOld0121 = '"mg_spell_cost_pct","mg_cast_time_pct","mg_fail_pct","mg_spell_xp_pct","mg_spell_power_pct","mg_range_pct","mg_aoe_pct","mg_duration_pct","mg_mana_max_pct","mg_mana_regen_pct","mg_spellcraft_flat",'
+        $modsNew0121 = '"mg_spell_cost_pct","mg_cast_time_pct","mg_fail_pct","mg_spell_xp_pct","mg_spell_power_pct","mg_range_pct","mg_aoe_pct","mg_duration_pct","mg_mana_max_pct","mg_mana_regen_pct","mg_spellcraft_flat","mg_melee_mana_vamp_pct",'
+        $sp = Replace-TextBlock $sp $modsOld0121 $modsNew0121 'Magiclysm mana-vamp modifier definition'
+    }
+    if(-not $sp.Contains('!bind("combat.melee_mana_vamp_pct"')) {
+        $bindOld0121 = '        !bind("combat.melee_crit_damage_pct",NCMM_SELECTOR_ANY_V2,nullptr,"sp_melee_crit_damage_pct") ||'
+        $bindNew0121 = $bindOld0121 + [Environment]::NewLine +
+                       '        !bind("combat.melee_mana_vamp_pct",NCMM_SELECTOR_ANY_V2,nullptr,"mg_melee_mana_vamp_pct") ||'
+        $sp = Replace-TextBlock $sp $bindOld0121 $bindNew0121 'Magiclysm mana-vamp runtime binding'
+    }
+
+    $sp = $sp.Replace('Survivor Progression v0.12.0','Survivor Progression v0.12.1')
+    $sp = $sp.Replace('Survivor Progression 0.12.0 initialized:','Survivor Progression 0.12.1 initialized:')
+    $descriptorOld0121 = @'
+    "0.12.0",
+    required_caps,
+'@
+    $descriptorNew0121 = @'
+    "0.12.1",
+    required_caps,
+'@
+    if($sp.Contains((Normalize-Lf $descriptorOld0121).TrimEnd())) {
+        $sp = Replace-TextBlock $sp $descriptorOld0121 $descriptorNew0121 'Survivor 0.12.1 descriptor version'
+    } elseif(-not $sp.Contains((Normalize-Lf $descriptorNew0121).TrimEnd())) {
+        throw 'Survivor 0.12.1 descriptor version contract missing.'
+    }
+
+    foreach($manaVampNeedle0121 in @(
+        '{ "mg_mana_vampirism", branch_id::mastery, 9, 40',
+        '{ "mg_mana_vampirism", 5, 1.0 }',
+        '{ "mg_mana_vampirism", integration_id::magiclysm }',
+        '"mg_melee_mana_vamp_pct"',
+        '!bind("combat.melee_mana_vamp_pct"'
+    )) {
+        if(-not $sp.Contains($manaVampNeedle0121)) {
+            throw ("Magiclysm mana-vamp payload synchronization failed: " + $manaVampNeedle0121)
+        }
+    }
+
     Write-Utf8NoBom $spPath $sp
+    $manifestFinal0121 = [IO.File]::ReadAllText($manifestPath)
+    if($manifestFinal0121.Contains('"version": "0.12.0"')) {
+        $manifestFinal0121 = $manifestFinal0121.Replace('"version": "0.12.0"','"version": "0.12.1"')
+        Write-Utf8NoBom $manifestPath $manifestFinal0121
+    } elseif(-not $manifestFinal0121.Contains('"version": "0.12.1"')) {
+        throw 'Survivor 0.12.1 final manifest version contract missing.'
+    }
     Copy-Item $spPath (Join-Path $NcmmRoot "mods\SurvivorProgression\src\survivor_progression.cpp") -Force
     Copy-Item $manifestPath (Join-Path $NcmmRoot "mods\SurvivorProgression\mod.json") -Force
 
