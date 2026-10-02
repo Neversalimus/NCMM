@@ -1104,6 +1104,7 @@ int virtual_item_choose_v2( const char *module_id, const char *slot_id,
     }
 
     avatar &you = get_avatar();
+    const std::string module_prefix = std::string( module_id ) + ":";
     item_location chosen = game_menus::inv::titled_filter_menu(
         [&]( const item_location & loc ) {
             if( !loc || !loc.held_by( you ) ) {
@@ -1113,6 +1114,12 @@ int virtual_item_choose_v2( const char *module_id, const char *slot_id,
             if( loc == you.get_wielded_item() || you.is_worn( candidate ) ||
                 candidate.is_null() || candidate.has_flag( flag_INTEGRATED ) ||
                 candidate.has_flag( flag_PSEUDO ) ) {
+                return false;
+            }
+            const std::string existing_marker =
+                candidate.get_var( virtual_item_marker_key, "" );
+            if( !existing_marker.empty() &&
+                existing_marker.rfind( module_prefix, 0 ) != 0 ) {
                 return false;
             }
             if( ( flags & NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 ) != 0u &&
@@ -1140,7 +1147,6 @@ int virtual_item_choose_v2( const char *module_id, const char *slot_id,
 
     const std::string new_marker = virtual_item_marker( module_id, slot_id );
     const std::string previous_marker = selected->get_var( virtual_item_marker_key, "" );
-    const std::string module_prefix = std::string( module_id ) + ":";
     if( previous_marker.rfind( module_prefix, 0 ) == 0 && previous_marker != new_marker ) {
         const std::string old_slot = previous_marker.substr( module_prefix.size() );
         if( safe_virtual_slot_id( old_slot.c_str() ) ) {
@@ -3627,7 +3633,21 @@ item *virtual_item_for_slot( const char *module_id, const char *slot_id )
 
 bool is_virtual_item( const item &it )
 {
-    return !it.get_var( virtual_item_marker_key, "" ).empty();
+    const std::string marker = it.get_var( virtual_item_marker_key, "" );
+    const std::size_t separator = marker.find( ':' );
+    if( separator == std::string::npos || separator == 0 ||
+        separator + 1 >= marker.size() ) {
+        return false;
+    }
+
+    const std::string module_id = marker.substr( 0, separator );
+    const std::string slot_id = marker.substr( separator + 1 );
+    if( !safe_state_token( module_id.c_str() ) ||
+        !safe_virtual_slot_id( slot_id.c_str() ) ) {
+        return false;
+    }
+
+    return virtual_item_for_slot_internal( module_id.c_str(), slot_id.c_str() ) == &it;
 }
 
 double runtime_hook_modifier( const char *hook_id, const char *subject_id,
