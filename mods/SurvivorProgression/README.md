@@ -70,3 +70,10 @@ Magiclysm's Third and Fourth Mana Hand perks can bind real carried items to logi
 An occupied Mana Hand is no longer a free somatic hand. A bound MAGIC_FOCUS still satisfies focus casting, and a supported blocking item participates in the normal shield-selection and wear path. Releasing the slot or resetting the perks removes only the logical binding; the real item stays where CDDA already stores it.
 
 The reusable capability is `character.virtual_items.v1` in the additive Host API 2.1 tail, so later modules can reuse the same logical-slot primitive without adding another synthetic `item_location` type.
+
+## Mana Hand utility items
+
+A real item bound to Mana Hand III or IV can satisfy CDDA's item-local `need_wielding` requirement while the corresponding perk is actually active. This covers transform actions, item-cast spells such as Magiclysm wands, and effect-on-condition activations without making the item globally wielded.
+
+The utility bridge deliberately does **not** modify `Character::is_wielding`, weapon categories, gun handling, holsters, gunmods, or secondary melee attacks. Those remain separate integration layers.
+

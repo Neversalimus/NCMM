@@ -395,6 +395,16 @@
             "class item_location::impl::item_in_container",
             "container->remove_item( *target() );"
           ]
+        },
+        {
+          "path": "src/iuse_actor.cpp",
+          "required": [
+            "ret_val<void> iuse_transform::can_use( const Character &p, const item &it,",
+            "if( need_wielding && !p.is_wielding( it ) ) {",
+            "std::optional<int> cast_spell_actor::use( Character *p, item &it,",
+            "if( need_wielding && !p->is_wielding( it ) ) {",
+            "std::optional<int> effect_on_conditions_actor::use( Character *p, item &it,"
+          ]
         }
       ]
     }

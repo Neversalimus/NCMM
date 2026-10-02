@@ -508,7 +508,14 @@ foreach($needle0140 in @(
     'Apply-SurvivorManaHandSpellcastingAid0140 $CddaRoot',
     'function Apply-SurvivorVirtualItemLifecycle0140',
     'ncmm::release_virtual_item( *target() );',
-    'Apply-SurvivorVirtualItemLifecycle0140 $CddaRoot'
+    'Apply-SurvivorVirtualItemLifecycle0140 $CddaRoot',
+    'function Apply-SurvivorManaHandUtility0140',
+    'bool ncmm_mana_hand_holds_item( const Character &who, const item &it )',
+    'ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_3" ) == &it',
+    'ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_4" ) == &it',
+    'if( need_wielding && !p.is_wielding( it ) && !ncmm_mana_hand_holds_item( p, it ) ) {',
+    'if( need_wielding && !p->is_wielding( it ) && !ncmm_mana_hand_holds_item( *p, it ) ) {',
+    'Apply-SurvivorManaHandUtility0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
@@ -525,9 +532,27 @@ $manaAidSection0140=$payload.Substring($manaAidStart0140,$manaAidEnd0140-$manaAi
 if($manaAidSection0140.Contains('flag_id( "MAGIC_FOCUS" )')){
     throw 'Mana Hand spellcasting-aid bridge leaked MAGIC_FOCUS back into global wielded semantics.'
 }
-foreach($sourcePath0140 in @('src/game.cpp','src/talker_character.cpp','src/item_location.cpp')){
+foreach($sourcePath0140 in @('src/game.cpp','src/talker_character.cpp','src/item_location.cpp','src/iuse_actor.cpp')){
     $sourceEntry0140=@($contracts0140.contracts|Where-Object{$_.id -eq 'magic_virtual_slots.source.v1'}).files|Where-Object{$_.path -eq $sourcePath0140}
     if(@($sourceEntry0140).Count -ne 1){throw ('Mana Hand source contract missing hardening path: '+$sourcePath0140)}
+}
+
+$manaUtilityStart0140=$payload.IndexOf('function Apply-SurvivorManaHandUtility0140')
+if($manaUtilityStart0140 -lt 0){throw 'Mana Hand utility transform section missing.'}
+$manaUtilitySection0140=$payload.Substring($manaUtilityStart0140,[Math]::Min(12000,$payload.Length-$manaUtilityStart0140))
+if($manaUtilitySection0140.Contains('bool Character::is_wielding')){
+    throw 'Mana Hand utility must not patch global Character::is_wielding semantics.'
+}
+foreach($utilityNeedle0140 in @(
+    '"magic.virtual_hand_count", nullptr, "magiclysm"',
+    'hand_count >= 1',
+    'hand_count >= 2',
+    'ncmm_mana_hand_holds_item( p, it )',
+    'ncmm_mana_hand_holds_item( *p, it )'
+)){
+    if(-not $manaUtilitySection0140.Contains($utilityNeedle0140)){
+        throw ('Mana Hand utility regression contract missing: '+$utilityNeedle0140)
+    }
 }
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate

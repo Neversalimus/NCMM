@@ -20017,6 +20017,100 @@ function Apply-SurvivorVirtualItemLifecycle0140([string]$Root) {
 
 Apply-SurvivorVirtualItemLifecycle0140 $CddaRoot
 
+
+function Apply-SurvivorManaHandUtility0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 Mana Hand utility-item support..." -ForegroundColor Cyan
+    $src0140util = Join-Path $Root 'src'
+    $iuse0140utilPath = Join-Path $src0140util 'iuse_actor.cpp'
+    if(-not(Test-Path $iuse0140utilPath -PathType Leaf)) {
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+            Write-Host "Survivor 0.14.0 Mana Hand utility transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+            return
+        }
+        throw ('Mana Hand utility source missing: '+$iuse0140utilPath)
+    }
+
+    $iuse0140util = Normalize-Lf ([IO.File]::ReadAllText($iuse0140utilPath))
+    if(-not $iuse0140util.Contains('#include "ncmm_loader.h"')) {
+        if(-not $iuse0140util.Contains('#include "item_location.h"')) {
+            throw 'Mana Hand utility include anchor missing.'
+        }
+        $iuse0140util = Replace-TextBlock $iuse0140util '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand utility include'
+    }
+
+    if(-not $iuse0140util.Contains('bool ncmm_mana_hand_holds_item')) {
+        $helperAnchor0140util = '#include "vitamin.h"'
+        if(-not $iuse0140util.Contains($helperAnchor0140util)) {
+            throw 'Mana Hand utility helper anchor missing.'
+        }
+        $helper0140util = @'
+#include "vitamin.h"
+
+namespace
+{
+bool ncmm_mana_hand_holds_item( const Character &who, const item &it )
+{
+    if( !who.is_avatar() ) {
+        return false;
+    }
+
+    const int hand_count = std::max( 0, std::min( 2, static_cast<int>( std::lround(
+                                         ncmm::runtime_hook_modifier(
+                                             "magic.virtual_hand_count", nullptr, "magiclysm",
+                                             nullptr, nullptr ) ) ) ) );
+    if( hand_count >= 1 &&
+        ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_3" ) == &it ) {
+        return true;
+    }
+    return hand_count >= 2 &&
+           ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_4" ) == &it;
+}
+} // namespace
+'@
+        $iuse0140util = Replace-TextBlock $iuse0140util $helperAnchor0140util $helper0140util 'Mana Hand utility helper'
+    }
+
+    $transformOld0140util = 'if( need_wielding && !p.is_wielding( it ) ) {'
+    $transformNew0140util = 'if( need_wielding && !p.is_wielding( it ) && !ncmm_mana_hand_holds_item( p, it ) ) {'
+    $transformCount0140util = ([regex]::Matches($iuse0140util,[regex]::Escape($transformOld0140util))).Count
+    if($transformCount0140util -eq 1) {
+        $iuse0140util = $iuse0140util.Replace($transformOld0140util,$transformNew0140util)
+    } elseif($transformCount0140util -ne 0 -and -not $iuse0140util.Contains($transformNew0140util)) {
+        throw ('Unexpected Mana Hand utility transform can_use anchor count: '+$transformCount0140util)
+    }
+
+    $pointerOld0140util = 'if( need_wielding && !p->is_wielding( it ) ) {'
+    $pointerNew0140util = 'if( need_wielding && !p->is_wielding( it ) && !ncmm_mana_hand_holds_item( *p, it ) ) {'
+    $pointerCount0140util = ([regex]::Matches($iuse0140util,[regex]::Escape($pointerOld0140util))).Count
+    if($pointerCount0140util -eq 2) {
+        $iuse0140util = $iuse0140util.Replace($pointerOld0140util,$pointerNew0140util)
+    } elseif($pointerCount0140util -ne 0 -and -not $iuse0140util.Contains($pointerNew0140util)) {
+        throw ('Unexpected Mana Hand utility pointer-use anchor count: '+$pointerCount0140util)
+    }
+
+    Write-Utf8NoBom $iuse0140utilPath $iuse0140util
+    $utilityOutput0140 = [IO.File]::ReadAllText($iuse0140utilPath)
+    foreach($needle0140util in @(
+        '#include "ncmm_loader.h"',
+        'bool ncmm_mana_hand_holds_item( const Character &who, const item &it )',
+        '"magic.virtual_hand_count", nullptr, "magiclysm"',
+        'ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_3" ) == &it',
+        'ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_4" ) == &it',
+        'if( need_wielding && !p.is_wielding( it ) && !ncmm_mana_hand_holds_item( p, it ) ) {',
+        'if( need_wielding && !p->is_wielding( it ) && !ncmm_mana_hand_holds_item( *p, it ) ) {'
+    )) {
+        if(-not $utilityOutput0140.Contains($needle0140util)) {
+            throw ('Survivor 0.14.0 Mana Hand utility output missing: '+$needle0140util)
+        }
+    }
+    if(([regex]::Matches($utilityOutput0140,[regex]::Escape('if( need_wielding && !p->is_wielding( it ) && !ncmm_mana_hand_holds_item( *p, it ) ) {'))).Count -ne 2) {
+        throw 'Survivor 0.14.0 Mana Hand utility must patch cast-spell and EOC need_wielding gates exactly once each.'
+    }
+    Write-Host "Survivor 0.14.0 Mana Hand utility-item support: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandUtility0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -20026,6 +20120,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorVirtualItemSlots0140 -
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorVirtualItemContext0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandSpellcastingAid0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorVirtualItemLifecycle0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandUtility0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
