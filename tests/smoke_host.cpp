@@ -1279,7 +1279,7 @@ bool survivor_semantic_matrix( void *lib )
     }
 
     const size_t perk_count = count();
-    if( perk_count != 370 ) {
+    if( perk_count != 372 ) {
         std::cerr << "Survivor perk catalog count changed unexpectedly: " << perk_count << '\n';
         return false;
     }
@@ -1671,7 +1671,7 @@ bool survivor_semantic_matrix( void *lib )
     }
 
     std::cout << "Survivor semantic matrix: PASS (" << perk_count
-              << "/370 perks covered; direct=" << direct_cases
+              << "/372 perks covered; direct=" << direct_cases
               << ", amplifiers=" << amplifier_cases
               << ", stateful=" << special_cases
               << ", conditional-inert=" << integration_inert_cases
