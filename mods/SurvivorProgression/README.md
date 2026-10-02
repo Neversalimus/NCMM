@@ -82,7 +82,7 @@ The utility bridge deliberately does **not** modify `Character::is_wielding`, we
 
 A one-handed melee item held by Mana Hand III or IV can be explicitly opted into a secondary strike from the item context menu. The feature is off by default so shields, focuses, and utility items are never consumed or worn down as weapons unless the player enables it.
 
-Each enabled Mana Hand performs its own vanilla melee attack after the primary manual attack if the target is still alive and adjacent. The secondary attack pays its normal move and stamina cost and additionally spends mana equal to `ceil(attack_speed / 10)`, clamped to 5–50 mana. Secondary attacks use vanilla hit, crit, armor, damage, item wear, enchantments, events, and skill training, but do not select weapon techniques or trigger another Mana Hand attack.
+Each enabled Mana Hand performs its own vanilla melee attack after the primary manual attack if the target is still alive and adjacent. The secondary attack pays its normal move and stamina cost and additionally spends mana equal to `ceil(attack_speed / 10)`, clamped to 5–50 mana. Secondary attacks use vanilla hit, crit, armor, damage, item wear, enchantments, combat events, and skill training, but do not select weapon techniques, use miss-recovery techniques, fire martial-art on-miss/on-crit/on-kill/on-attack chains, or trigger another Mana Hand attack.
 
 Guns and items that CDDA considers two-handed are excluded. Releasing or reassigning the item clears the secondary-strike opt-in.
 
