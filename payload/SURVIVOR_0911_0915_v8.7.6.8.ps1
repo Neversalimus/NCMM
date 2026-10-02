@@ -485,7 +485,7 @@ function Wait-Unlocked([string]$Path,[int]$Seconds=20) {
 }
 
 function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[string]$ReleaseRoot) {
-    $out = Join-Path $ReleaseRoot "0.12.1"
+    $out = Join-Path $ReleaseRoot "0.13.0"
     $src = Join-Path $SourceRoot "src\survivor_progression.cpp"
     $manifest = Join-Path $SourceRoot "mod.json"
     $dataRoot = Join-Path $SourceRoot "data"
@@ -493,7 +493,7 @@ function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[stri
     $dll = Join-Path $out "ncmm_mod.dll"
     $obj = Join-Path $out "survivor_progression.obj"
     $cmd = Join-Path $out "build.cmd"
-    $cacheMarker = Join-Path $ReleaseRoot ".survivor_0121_mana_vamp_build.sha256"
+    $cacheMarker = Join-Path $ReleaseRoot ".survivor_0130_mana_hands_build.sha256"
 
     foreach ($p in @($src,$manifest,$sdkHeader,$Vs.CL)) {
         if (-not (Test-Path $p -PathType Leaf)) {
@@ -512,7 +512,7 @@ function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[stri
         $dataFingerprint = Hash-Text ($dataParts -join "|")
     }
     $fingerprint = Hash-Text ((@(
-        "v8.7.6.8-survivor-0.12.1-mana-vampirism",
+        "v8.7.6.8-survivor-0.13.0-mana-hands",
         (Hash-File $src),
         $sourceManifestSha,
         $dataFingerprint,
@@ -532,7 +532,7 @@ function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[stri
         $cacheLines[1].Trim() -eq (Hash-File $dll) -and
         $cacheLines[2].Trim() -eq $sourceManifestSha -and
         (Hash-File $cachedManifest) -eq $sourceManifestSha) {
-        Write-Host "Survivor 0.12.1 module build cache: HIT (DLL + manifest verified)" -ForegroundColor Green
+        Write-Host "Survivor 0.13.0 module build cache: HIT (DLL + manifest verified)" -ForegroundColor Green
         return $out
     }
 
@@ -548,14 +548,14 @@ exit /b %ERRORLEVEL%
 "@
     [IO.File]::WriteAllText($cmd,$cmdText,[Text.Encoding]::ASCII)
 
-    Write-Host "Compiling Survivor 0.12.1..." -ForegroundColor Cyan
+    Write-Host "Compiling Survivor 0.13.0..." -ForegroundColor Cyan
     $compilerOutput = @(& cmd.exe /d /c "`"$cmd`"" 2>&1)
     $compilerCode = $LASTEXITCODE
     foreach ($line in $compilerOutput) {
         Write-Host ([string]$line)
     }
     if ($compilerCode -ne 0 -or -not (Test-Path $dll -PathType Leaf)) {
-        throw "Survivor 0.12.1 compile failed with exit code $compilerCode"
+        throw "Survivor 0.13.0 compile failed with exit code $compilerCode"
     }
 
     Copy-Item $manifest (Join-Path $out "mod.json") -Force
@@ -569,7 +569,7 @@ exit /b %ERRORLEVEL%
     $dllSha = Hash-File $dll
     Write-Utf8NoBom $cacheMarker ($fingerprint + "`n" + $dllSha + "`n" + $sourceManifestSha + "`n")
 
-    $zip = Join-Path $ReleaseRoot "SurvivorProgression_0.12.1_LOCAL.zip"
+    $zip = Join-Path $ReleaseRoot "SurvivorProgression_0.13.0_LOCAL.zip"
     Remove-Item $zip -Force -ErrorAction SilentlyContinue
     Compress-Archive -Path (Join-Path $out "*") -DestinationPath $zip -Force
     return $out
@@ -19238,13 +19238,85 @@ int64_t metric_delta( const char *metric, const char *baseline_key )
 '@
     $sp = Replace-TextBlock $sp $masteryOldPerf0121 $masteryNewPerf0121 'Survivor unchanged mastery remainder'
 
+    # Survivor 0.13.0 — Magiclysm virtual mana hands.
+    # These are spellcasting manipulators, not anatomical body parts: they never
+    # enter HP, clothing, wounds or item-location state.
+    if(-not $sp.Contains('{ "mg_mana_hand_3", branch_id::mastery')) {
+        $manaVampLine0130 = '    { "mg_mana_vampirism", branch_id::mastery, 9, 40, currency_id::perk, "mg_archmage", "", "Mana Vampirism", "Вампиризм маны", "Magiclysm: restore mana equal to 1% of actual melee damage dealt per rank (1-5%).", "Magiclysm: восстанавливает ману в размере 1% от фактически нанесённого урона в ближнем бою за ранг (1-5%).", {{ { "mg_melee_mana_vamp_pct", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },'
+        $manaHands0130 = $manaVampLine0130 + [Environment]::NewLine +
+            '    { "mg_mana_hand_3", branch_id::mastery, 9, 42, currency_id::perk, "mg_archmage", "", "Third Mana Hand", "Третья рука маны", "Magiclysm: manifest one unencumbered virtual hand. It can perform somatic casting while your physical hands are occupied and reduces hand/arm encumbrance contribution to spellcasting.", "Magiclysm: создаёт одну свободную от стеснения виртуальную руку. Она позволяет выполнять соматику, когда физические руки заняты, и снижает влияние стеснения рук на заклинания.", {{ { "mg_virtual_hand_count", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },' + [Environment]::NewLine +
+            '    { "mg_mana_hand_4", branch_id::mastery, 10, 48, currency_id::perk, "mg_mana_hand_3", "", "Fourth Mana Hand", "Четвёртая рука маны", "Magiclysm: manifest a second unencumbered virtual hand. Together the two mana hands halve the physical hand/arm encumbrance contribution to spellcasting.", "Magiclysm: создаёт вторую свободную от стеснения виртуальную руку. Вместе две руки маны вдвое уменьшают влияние стеснения физических рук на заклинания.", {{ { "mg_virtual_hand_count", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },'
+        $sp = Replace-TextBlock $sp $manaVampLine0130 $manaHands0130 'Magiclysm third/fourth mana hand perks'
+    }
+
+    if(-not $sp.Contains('if( id == "mg_virtual_hand_count" )')) {
+        $handLabelOld0130 = '    if( id == "mg_melee_mana_vamp_pct" ) return tr( "Melee mana vampirism %", "Вампиризм маны в ближнем бою %" );'
+        $handLabelNew0130 = $handLabelOld0130 + [Environment]::NewLine +
+                            '    if( id == "mg_virtual_hand_count" ) return tr( "Virtual mana hands", "Виртуальные руки маны" );'
+        $sp = Replace-TextBlock $sp $handLabelOld0130 $handLabelNew0130 'Mana-hand effect label'
+    }
+
+    if(-not $sp.Contains('{ "mg_mana_hand_3", integration_id::magiclysm }')) {
+        $handRegistryOld0130 = '        { "mg_mana_vampirism", integration_id::magiclysm },'
+        $handRegistryNew0130 = $handRegistryOld0130 + [Environment]::NewLine +
+                               '        { "mg_mana_hand_3", integration_id::magiclysm },' + [Environment]::NewLine +
+                               '        { "mg_mana_hand_4", integration_id::magiclysm },'
+        $sp = Replace-TextBlock $sp $handRegistryOld0130 $handRegistryNew0130 'Mana-hand integration registry'
+    }
+
+    if(-not $sp.Contains('"mg_melee_mana_vamp_pct","mg_virtual_hand_count"')) {
+        $handModsOld0130 = '"mg_spellcraft_flat","mg_melee_mana_vamp_pct",'
+        $handModsNew0130 = '"mg_spellcraft_flat","mg_melee_mana_vamp_pct","mg_virtual_hand_count",'
+        $sp = Replace-TextBlock $sp $handModsOld0130 $handModsNew0130 'Mana-hand modifier definition'
+    }
+
+    if(-not $sp.Contains('!bind("magic.virtual_hand_count"')) {
+        $handBindOld0130 = '    if( !bind("magic.mana.max_pct",NCMM_SELECTOR_ANY_V2,nullptr,"mg_mana_max_pct") ||'
+        $handBindNew0130 = '    if( !bind("magic.virtual_hand_count",NCMM_SELECTOR_SOURCE_MOD_V2,"magiclysm","mg_virtual_hand_count") ||' + [Environment]::NewLine +
+                           '        !bind("magic.mana.max_pct",NCMM_SELECTOR_ANY_V2,nullptr,"mg_mana_max_pct") ||'
+        $sp = Replace-TextBlock $sp $handBindOld0130 $handBindNew0130 'Mana-hand source-scoped runtime binding'
+    }
+
+    $sp = $sp.Replace('Survivor Progression v0.12.1','Survivor Progression v0.13.0')
+    $sp = $sp.Replace('Survivor Progression 0.12.1 initialized:','Survivor Progression 0.13.0 initialized:')
+    $descriptorOld0130 = @'
+    "0.12.1",
+    required_caps,
+'@
+    $descriptorNew0130 = @'
+    "0.13.0",
+    required_caps,
+'@
+    if($sp.Contains((Normalize-Lf $descriptorOld0130).TrimEnd())) {
+        $sp = Replace-TextBlock $sp $descriptorOld0130 $descriptorNew0130 'Survivor 0.13.0 descriptor version'
+    } elseif(-not $sp.Contains((Normalize-Lf $descriptorNew0130).TrimEnd())) {
+        throw 'Survivor 0.13.0 descriptor version contract missing.'
+    }
+
+    foreach($manaHandNeedle0130 in @(
+        '{ "mg_mana_hand_3", branch_id::mastery, 9, 42',
+        '{ "mg_mana_hand_4", branch_id::mastery, 10, 48',
+        '{ "mg_mana_hand_3", integration_id::magiclysm }',
+        '{ "mg_mana_hand_4", integration_id::magiclysm }',
+        '"mg_virtual_hand_count"',
+        '!bind("magic.virtual_hand_count",NCMM_SELECTOR_SOURCE_MOD_V2,"magiclysm","mg_virtual_hand_count")',
+        'Survivor Progression v0.13.0'
+    )) {
+        if(-not $sp.Contains($manaHandNeedle0130)) {
+            throw ("Magiclysm mana-hand payload synchronization failed: " + $manaHandNeedle0130)
+        }
+    }
+
     Write-Utf8NoBom $spPath $sp
-    $manifestFinal0121 = [IO.File]::ReadAllText($manifestPath)
-    if($manifestFinal0121.Contains('"version": "0.12.0"')) {
-        $manifestFinal0121 = $manifestFinal0121.Replace('"version": "0.12.0"','"version": "0.12.1"')
-        Write-Utf8NoBom $manifestPath $manifestFinal0121
-    } elseif(-not $manifestFinal0121.Contains('"version": "0.12.1"')) {
-        throw 'Survivor 0.12.1 final manifest version contract missing.'
+    $manifestFinal0130 = [IO.File]::ReadAllText($manifestPath)
+    if($manifestFinal0130.Contains('"version": "0.12.0"')) {
+        $manifestFinal0130 = $manifestFinal0130.Replace('"version": "0.12.0"','"version": "0.13.0"')
+        Write-Utf8NoBom $manifestPath $manifestFinal0130
+    } elseif($manifestFinal0130.Contains('"version": "0.12.1"')) {
+        $manifestFinal0130 = $manifestFinal0130.Replace('"version": "0.12.1"','"version": "0.13.0"')
+        Write-Utf8NoBom $manifestPath $manifestFinal0130
+    } elseif(-not $manifestFinal0130.Contains('"version": "0.13.0"')) {
+        throw 'Survivor 0.13.0 final manifest version contract missing.'
     }
     Copy-Item $spPath (Join-Path $NcmmRoot "mods\SurvivorProgression\src\survivor_progression.cpp") -Force
     Copy-Item $manifestPath (Join-Path $NcmmRoot "mods\SurvivorProgression\mod.json") -Force
@@ -19301,6 +19373,145 @@ int64_t metric_delta( const char *metric, const char *baseline_key )
 }
 
 Apply-PlayerFacingCopyPolishFinal
+
+function Apply-SurvivorManaHands0130([string]$Root) {
+    Write-Host "Applying Survivor 0.13.0 Magiclysm virtual mana hands..." -ForegroundColor Cyan
+    $src0130 = Join-Path $Root 'src'
+    $magic0130Path = Join-Path $src0130 'magic.cpp'
+    $handle0130Path = Join-Path $src0130 'handle_action.cpp'
+    foreach($required0130 in @($magic0130Path,$handle0130Path)){
+        if(-not(Test-Path $required0130 -PathType Leaf)){throw ('Mana-hands source missing: '+$required0130)}
+    }
+
+    $magic0130 = Normalize-Lf ([IO.File]::ReadAllText($magic0130Path))
+    if(-not $magic0130.Contains('#include "ncmm_loader.h"')) {
+        throw 'Mana-hands require the generic NCMM magic runtime bridge before the 0.13.0 pass.'
+    }
+    if(-not $magic0130.Contains('static int ncmm_virtual_hand_count(')) {
+        $handHelperAnchor0130 = 'enum class ncmm_shared_mana_modifier_kind { maximum, regeneration };'
+        $handHelper0130 = @'
+static int ncmm_virtual_hand_count( const spell &sp, const Character &guy )
+{
+    if( !guy.is_avatar() ) {
+        return 0;
+    }
+    const std::string source = sp.get_src().str();
+    const double raw = ncmm::runtime_hook_modifier(
+                           "magic.virtual_hand_count", nullptr,
+                           source.empty() ? nullptr : source.c_str(), nullptr, nullptr );
+    return std::max( 0, std::min( 2, static_cast<int>( std::lround( raw ) ) ) );
+}
+
+static int ncmm_virtual_limb_encumbrance_average( const spell &sp, const Character &guy,
+        bp_type limb_type )
+{
+    const int virtual_hands = ncmm_virtual_hand_count( sp, guy );
+    const int physical_average = guy.avg_encumb_of_limb_type( limb_type );
+    if( virtual_hands <= 0 || physical_average <= 0 ) {
+        return physical_average;
+    }
+    const int physical_limbs = static_cast<int>(
+                                   guy.get_all_body_parts_of_type(
+                                       limb_type, get_body_part_flags::primary_type ).size() );
+    if( physical_limbs <= 0 ) {
+        return 0;
+    }
+    return static_cast<int>( std::lround(
+                                 static_cast<double>( physical_average * physical_limbs ) /
+                                 static_cast<double>( physical_limbs + virtual_hands ) ) );
+}
+
+enum class ncmm_shared_mana_modifier_kind { maximum, regeneration };
+'@
+        if(-not $magic0130.Contains($handHelperAnchor0130)){throw 'Mana-hands magic helper anchor missing.'}
+        $magic0130 = Replace-TextBlock $magic0130 $handHelperAnchor0130 $handHelper0130 'mana-hands magic helper'
+    }
+
+    $handsEncOld0130 = @'
+        const int hands_encumb = std::max( 0,
+                                           guy.avg_encumb_of_limb_type( bp_type::hand ) - 5 );
+'@
+    $handsEncNew0130 = @'
+        const int hands_encumb = std::max( 0,
+                                           ncmm_virtual_limb_encumbrance_average(
+                                               *this, guy, bp_type::hand ) - 5 );
+'@
+    if($magic0130.Contains((Normalize-Lf $handsEncOld0130).TrimEnd())) {
+        $magic0130 = Replace-TextBlock $magic0130 $handsEncOld0130 $handsEncNew0130 'mana-hands spell cost encumbrance'
+    } elseif(-not $magic0130.Contains('ncmm_virtual_limb_encumbrance_average(' + [Environment]::NewLine + '                                               *this, guy, bp_type::hand ) - 5')) {
+        throw 'Mana-hands spell cost anchor/output missing.'
+    }
+
+    $armsEncOld0130 = @'
+            const int arms_encumb = std::max( 0,
+                                              guy.avg_encumb_of_limb_type( bp_type::arm ) - 10 );
+'@
+    $armsEncNew0130 = @'
+            const int arms_encumb = std::max( 0,
+                                              ncmm_virtual_limb_encumbrance_average(
+                                                  *this, guy, bp_type::arm ) - 10 );
+'@
+    $armsOldNorm0130 = (Normalize-Lf $armsEncOld0130).TrimEnd()
+    $armsNewNorm0130 = (Normalize-Lf $armsEncNew0130).TrimEnd()
+    $armsHits0130 = ([regex]::Matches($magic0130,[regex]::Escape($armsOldNorm0130))).Count
+    if($armsHits0130 -eq 2) {
+        $magic0130 = $magic0130.Replace($armsOldNorm0130,$armsNewNorm0130)
+    } elseif($armsHits0130 -ne 0 -or ([regex]::Matches($magic0130,[regex]::Escape($armsNewNorm0130))).Count -ne 2) {
+        throw ('Mana-hands expected two somatic arm-encumbrance sites, found old='+$armsHits0130)
+    }
+    Write-Utf8NoBom $magic0130Path $magic0130
+
+    $handle0130 = Normalize-Lf ([IO.File]::ReadAllText($handle0130Path))
+    if(-not $handle0130.Contains('#include "ncmm_loader.h"')) {
+        if(-not $handle0130.Contains('#include "magic.h"')){throw 'Mana-hands handle_action include anchor missing.'}
+        $handle0130 = Replace-TextBlock $handle0130 '#include "magic.h"' ('#include "magic.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'mana-hands handle include'
+    }
+    if(-not $handle0130.Contains('const int ncmm_virtual_hands =')) {
+        $freeHandOld0130 = @'
+    if( is_armed() && !sp.no_hands() && !has_flag( json_flag_SUBTLE_SPELL ) &&
+        !get_wielded_item()->has_flag( flag_MAGIC_FOCUS ) && !sp.check_if_component_in_hand( *this ) ) {
+'@
+        $freeHandNew0130 = @'
+    const std::string ncmm_spell_source = sp.get_src().str();
+    const int ncmm_virtual_hands = is_avatar() ?
+                                   std::max( 0, std::min( 2, static_cast<int>( std::lround(
+                                           ncmm::runtime_hook_modifier(
+                                               "magic.virtual_hand_count", nullptr,
+                                               ncmm_spell_source.empty() ? nullptr : ncmm_spell_source.c_str(),
+                                               nullptr, nullptr ) ) ) ) ) : 0;
+    if( is_armed() && ncmm_virtual_hands <= 0 && !sp.no_hands() &&
+        !has_flag( json_flag_SUBTLE_SPELL ) &&
+        !get_wielded_item()->has_flag( flag_MAGIC_FOCUS ) && !sp.check_if_component_in_hand( *this ) ) {
+'@
+        $handle0130 = Replace-TextBlock $handle0130 $freeHandOld0130 $freeHandNew0130 'mana-hands free-hand casting'
+    }
+    Write-Utf8NoBom $handle0130Path $handle0130
+
+    foreach($needle0130 in @(
+        'static int ncmm_virtual_hand_count(',
+        '"magic.virtual_hand_count"',
+        'ncmm_virtual_limb_encumbrance_average('
+    )){
+        if(-not ([IO.File]::ReadAllText($magic0130Path)).Contains($needle0130)){throw ('Mana-hands magic output missing: '+$needle0130)}
+    }
+    foreach($needle0130 in @(
+        '#include "ncmm_loader.h"',
+        'const int ncmm_virtual_hands =',
+        'is_armed() && ncmm_virtual_hands <= 0'
+    )){
+        if(-not ([IO.File]::ReadAllText($handle0130Path)).Contains($needle0130)){throw ('Mana-hands handle output missing: '+$needle0130)}
+    }
+    Write-Host "Survivor 0.13.0 Magiclysm virtual mana hands: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHands0130 $CddaRoot
+
+# Keep the patch-revision contract aware of the additive 0.13.0 engine transform.
+$mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0113 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHands0130 -CommandType Function).Definition
+Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
 # This legacy cumulative payload predates the additive runtime-settings API tail.
