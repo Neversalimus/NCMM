@@ -372,6 +372,29 @@
             "item_location Character::best_shield()",
             "bool Character::block_hit( Creature *source, bodypart_id &bp_hit, damage_instance &dam )"
           ]
+        },
+        {
+          "path": "src/game.cpp",
+          "required": [
+            "addentry( '=', pgettext( \"action\", \"reassign\" ), hint_rating::good );",
+            "switch( cMenu ) {"
+          ]
+        },
+        {
+          "path": "src/talker_character.cpp",
+          "required": [
+            "bool talker_character_const::wielded_with_flag( const flag_id &flag ) const",
+            "return me_chr_const->get_wielded_item() && me_chr_const->get_wielded_item()->has_flag( flag );"
+          ]
+        },
+        {
+          "path": "src/item_location.cpp",
+          "required": [
+            "class item_location::impl::item_on_person",
+            "who->remove_item( *what );",
+            "class item_location::impl::item_in_container",
+            "container->remove_item( *target() );"
+          ]
         }
       ]
     }
