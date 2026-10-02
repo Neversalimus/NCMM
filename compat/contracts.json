@@ -348,6 +348,32 @@
           ]
         }
       ]
+    },
+    {
+      "id": "magic_virtual_slots.source.v1",
+      "files": [
+        {
+          "path": "src/game_inventory.cpp",
+          "required": [
+            "item_location game_menus::inv::titled_filter_menu( const item_location_filter &filter,",
+            "inventory_pick_selector inv_s( u, preset );"
+          ]
+        },
+        {
+          "path": "src/handle_action.cpp",
+          "required": [
+            "bool Character::cast_spell( spell &sp, bool fake_spell,",
+            "You need your hands free to cast this spell!"
+          ]
+        },
+        {
+          "path": "src/melee.cpp",
+          "required": [
+            "item_location Character::best_shield()",
+            "bool Character::block_hit( Creature *source, bodypart_id &bp_hit, damage_instance &dam )"
+          ]
+        }
+      ]
     }
   ]
 }

@@ -37,6 +37,7 @@ const char *required_caps[] = {
     "ui.theme.v1",
     "active_mods.registry.v2",
     "host_api.v2.core",
+    "character.virtual_items.v1",
     "settings.typed.v2",
     "events.core.v2",
     "character.modifiers.v2",
@@ -293,8 +294,8 @@ const perk_def perks[] = {
     { "mg_resonant_reserve", branch_id::mastery, 7, 30, currency_id::perk, "mg_mana_mastery", "mg_high_thaumaturgy", "Resonant Reserve", "Резонансный резерв", "Maximum mana +10%, spell duration +8%.", "Максимум маны +10%, длительность +8%.", {{ { "mg_mana_max_pct", 10 }, { "mg_duration_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "mg_archmage", branch_id::mastery, 8, 40, currency_id::major, "mg_efficient_theory", "mg_combat_weave", "Archmage", "Архимаг", "+0.75 Spellcraft, -5% failure, +8% potency, +8% spell XP.", "+0,75 Spellcraft, -5% провала, +8% мощности, +8% опыта заклинаний.", {{ { "mg_spellcraft_flat", 0.75 }, { "mg_fail_pct", -5 }, { "mg_spell_power_pct", 8 }, { "mg_spell_xp_pct", 8 } }}, 4, 0, perk_kind::effect },
     { "mg_mana_vampirism", branch_id::mastery, 9, 40, currency_id::perk, "mg_archmage", "", "Mana Vampirism", "Вампиризм маны", "Magiclysm: restore mana equal to 1% of actual melee damage dealt per rank (1-5%).", "Magiclysm: восстанавливает ману в размере 1% от фактически нанесённого урона в ближнем бою за ранг (1-5%).", {{ { "mg_melee_mana_vamp_pct", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "mg_mana_hand_3", branch_id::mastery, 9, 42, currency_id::perk, "mg_archmage", "", "Third Mana Hand", "Третья рука маны", "Magiclysm: manifest one unencumbered virtual hand. It can perform somatic casting while your physical hands are occupied and reduces hand/arm encumbrance contribution to spellcasting.", "Magiclysm: создаёт одну свободную от стеснения виртуальную руку. Она позволяет выполнять соматику, когда физические руки заняты, и снижает влияние стеснения рук на заклинания.", {{ { "mg_virtual_hand_count", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "mg_mana_hand_4", branch_id::mastery, 10, 48, currency_id::perk, "mg_mana_hand_3", "", "Fourth Mana Hand", "Четвёртая рука маны", "Magiclysm: manifest a second unencumbered virtual hand. Together the two mana hands halve the physical hand/arm encumbrance contribution to spellcasting.", "Magiclysm: создаёт вторую свободную от стеснения виртуальную руку. Вместе две руки маны вдвое уменьшают влияние стеснения физических рук на заклинания.", {{ { "mg_virtual_hand_count", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "mg_mana_hand_3", branch_id::mastery, 9, 42, currency_id::perk, "mg_archmage", "", "Third Mana Hand", "Третья рука маны", "Magiclysm: manifest one unencumbered virtual hand. It can hold one real carried item without moving or duplicating it; shields can block and a magic focus counts as held. An empty mana hand can perform somatic casting while physical hands are occupied.", "Magiclysm: создаёт одну свободную от стеснения виртуальную руку. Она может удерживать один реальный предмет персонажа без перемещения и копирования; щит может блокировать, а магический фокус считается удерживаемым. Пустая рука маны может выполнять соматику, когда физические руки заняты.", {{ { "mg_virtual_hand_count", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "mg_mana_hand_4", branch_id::mastery, 10, 48, currency_id::perk, "mg_mana_hand_3", "", "Fourth Mana Hand", "Четвёртая рука маны", "Magiclysm: manifest a second unencumbered virtual hand with its own logical item slot. Together the two mana hands halve physical hand/arm encumbrance contribution to spellcasting; occupied hands are not free for somatic casting unless they hold a magic focus.", "Magiclysm: создаёт вторую свободную от стеснения виртуальную руку со своим логическим слотом предмета. Вместе две руки маны вдвое уменьшают влияние стеснения физических рук; занятая рука не считается свободной для соматики, если только не удерживает магический фокус.", {{ { "mg_virtual_hand_count", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
 
     { "mom_mental_focus", branch_id::mastery, 1, 2, currency_id::perk, "", "", "Psionic Focus", "Псионический фокус", "Mind Over Matter powers: +0.5 effective Metaphysics while channeling.", "Силы Mind Over Matter: +0,5 к эффективной Metaphysics при ченнелинге.", {{ { "mom_metaphysics_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "mom_still_mind", branch_id::mastery, 2, 5, currency_id::perk, "mom_mental_focus", "", "Still Mind", "Спокойный разум", "Mind Over Matter: power failure chance -6%.", "Mind Over Matter: шанс провала псионических сил -6%.", {{ { "mom_fail_pct", -6 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
@@ -2284,6 +2285,37 @@ bool purchase_perk( const perk_def &perk )
     return true;
 }
 
+const char *mana_hand_slot_id( const perk_def &perk )
+{
+    if( std::string_view( perk.id ) == "mg_mana_hand_3" ) return "mana_hand_3";
+    if( std::string_view( perk.id ) == "mg_mana_hand_4" ) return "mana_hand_4";
+    return nullptr;
+}
+
+bool mana_hand_perk( const perk_def &perk )
+{
+    return mana_hand_slot_id( perk ) != nullptr;
+}
+
+std::string mana_hand_item_name( const perk_def &perk )
+{
+    const char *slot_id = mana_hand_slot_id( perk );
+    if( slot_id == nullptr || host2 == nullptr || host2->virtual_item_name == nullptr ) {
+        return {};
+    }
+    const char *raw = host2->virtual_item_name( module_id, slot_id );
+    return raw != nullptr ? std::string( raw ) : std::string();
+}
+
+void clear_mana_hand_slots()
+{
+    if( host2 == nullptr || host2->virtual_item_clear == nullptr ) {
+        return;
+    }
+    host2->virtual_item_clear( module_id, "mana_hand_3" );
+    host2->virtual_item_clear( module_id, "mana_hand_4" );
+}
+
 void show_perk_detail( const perk_def &perk )
 {
     while( true ) {
@@ -2324,6 +2356,54 @@ void show_perk_detail( const perk_def &perk )
         else buy = tr( "Purchase", "Купить" );
 
         std::string back = tr( "Back", "Назад" );
+        if( maxed && mana_hand_perk( perk ) ) {
+            const std::string held = mana_hand_item_name( perk );
+            title += "\n" + tr( "Virtual slot: ", "Виртуальный слот: " ) +
+                     ( held.empty() ? tr( "empty", "пусто" ) : held );
+            title += "\n" + tr(
+                         "The item remains in its real CDDA location. Replacing or releasing the slot never creates a copy.",
+                         "Предмет остаётся в своём реальном месте CDDA. Замена или освобождение слота не создаёт копию." );
+
+            std::string equip = held.empty() ?
+                                tr( "Equip carried item", "Экипировать предмет" ) :
+                                tr( "Replace held item", "Заменить предмет" );
+            std::string release = tr( "Release virtual item", "Освободить предмет" );
+            const char *slot_id = mana_hand_slot_id( perk );
+            if( held.empty() ) {
+                const char *entries[] = { equip.c_str(), back.c_str() };
+                const int choice = host->ui_choose ? host->ui_choose( title.c_str(), entries, 2 ) : -1;
+                if( choice != 0 ) return;
+                const std::string picker_title =
+                    tr( "Choose item for ", "Выберите предмет для " ) + perk_display_name( perk );
+                if( host2->virtual_item_choose ) {
+                    host2->virtual_item_choose(
+                        module_id, slot_id, picker_title.c_str(),
+                        NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
+                        NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 );
+                }
+                continue;
+            }
+
+            const char *entries[] = { equip.c_str(), release.c_str(), back.c_str() };
+            const int choice = host->ui_choose ? host->ui_choose( title.c_str(), entries, 3 ) : -1;
+            if( choice == 0 ) {
+                const std::string picker_title =
+                    tr( "Choose item for ", "Выберите предмет для " ) + perk_display_name( perk );
+                if( host2->virtual_item_choose ) {
+                    host2->virtual_item_choose(
+                        module_id, slot_id, picker_title.c_str(),
+                        NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
+                        NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 );
+                }
+                continue;
+            }
+            if( choice == 1 && host2->virtual_item_clear ) {
+                host2->virtual_item_clear( module_id, slot_id );
+                continue;
+            }
+            return;
+        }
+
         const char *entries[] = { buy.c_str(), back.c_str() };
         const int choice = host->ui_choose ? host->ui_choose( title.c_str(), entries, 2 ) : -1;
         if( choice != 0 || maxed ) return;
@@ -2682,7 +2762,7 @@ void show_overview()
     const int normal_owned = owned_count( currency_id::perk );
     const int major_owned = owned_count( currency_id::major );
 
-    std::string out = "Survivor Progression v0.13.0\n";
+    std::string out = "Survivor Progression v0.14.0\n";
     out += tr( "Level ", "Уровень " ) + std::to_string( level );
     out += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
     out += "\nP " + std::to_string( perk_points ) + " | M " + std::to_string( major_points );
@@ -2755,6 +2835,7 @@ void respec()
         return;
     }
 
+    clear_mana_hand_slots();
     for( const perk_def &perk : perks ) {
         if( perk_rank( perk ) > 0 ) set_state( perk_key( perk ), 0 );
     }
@@ -3167,7 +3248,7 @@ void open_progression()
                                 owned_count( currency_id::major );
         const int total_perks = visible_perk_count();
 
-        std::string title = "Survivor Progression v0.13.0";
+        std::string title = "Survivor Progression v0.14.0";
         std::string summary =
             tr( "Level ", "Уровень " ) + std::to_string( level ) +
             " | P " + std::to_string( perk_points ) +
@@ -3687,8 +3768,11 @@ int init( const ncmm_host_api_v1 *api )
 {
     if( api == nullptr || api->abi_version != NCMM_ABI_VERSION || api->query_interface == nullptr ) return 0;
     host2 = static_cast<const ncmm_host_api_v2_core *>(
-                api->query_interface( NCMM_HOST_API_V2_CORE_ID, 2u, 0u ) );
-    if( host2 == nullptr || host2->api_major != 2u || !configure_host_api2_runtime_hooks() ) return 0;
+                api->query_interface( NCMM_HOST_API_V2_CORE_ID, 2u, 1u ) );
+    if( host2 == nullptr || host2->api_major != 2u ||
+        host2->api_minor < 1u || host2->virtual_item_choose == nullptr ||
+        host2->virtual_item_clear == nullptr || host2->virtual_item_name == nullptr ||
+        host2->virtual_item_uid == nullptr || !configure_host_api2_runtime_hooks() ) return 0;
     if( api == nullptr || api->abi_version != NCMM_ABI_VERSION ) {
         return 0;
     }
@@ -3716,7 +3800,7 @@ int init( const ncmm_host_api_v1 *api )
     }
     last_stat_power_pct = progression_stat_power_pct();
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.13.0 initialized: branch bars / exclusive specializations / conditional deep mod integrations." );
+              "Survivor Progression 0.14.0 initialized: branch bars / exclusive specializations / conditional deep mod integrations." );
     return 1;
 }
 
@@ -3737,7 +3821,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     module_id,
     "Survivor Progression",
-    "0.13.0",
+    "0.14.0",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,
@@ -3881,6 +3965,7 @@ extern "C" NCMM_EXPORT int ncmm_test_reset_all_perks_v1()
     if( !character_available() ) {
         return 0;
     }
+    clear_mana_hand_slots();
     for( const perk_def &perk : perks ) {
         set_state( perk_key( perk ), 0 );
     }

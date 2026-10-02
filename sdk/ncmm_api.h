@@ -23,7 +23,7 @@ extern "C" {
 #define NCMM_HOST_API_V2_CORE_ID "ncmm.host_api.v2.core"
 #define NCMM_HOST_API_V2_CORE_ABI 2u
 #define NCMM_HOST_API_V2_CORE_MAJOR 2u
-#define NCMM_HOST_API_V2_CORE_MINOR 0u
+#define NCMM_HOST_API_V2_CORE_MINOR 1u
 /* capability: world_settings.v2 */
 #define NCMM_ENTRYPOINT "ncmm_get_descriptor_v1"
 #define NCMM_LOCALE_ENTRYPOINT "ncmm_on_locale_changed_v1"
@@ -336,6 +336,11 @@ typedef enum ncmm_setting_value_type_v2 {
     NCMM_SETTING_FLOAT_V2 = 3u
 } ncmm_setting_value_type_v2;
 
+typedef enum ncmm_virtual_item_flags_v2 {
+    NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 = 1u << 0,
+    NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 = 1u << 1
+} ncmm_virtual_item_flags_v2;
+
 typedef void ( *ncmm_event_callback_v2 )( uint32_t event_id, void *user_data );
 
 typedef struct ncmm_host_api_v2_core {
@@ -421,6 +426,17 @@ typedef struct ncmm_host_api_v2_core {
     int ( *runtime_hook_bool )( const char *hook_id, int fallback );
     int64_t ( *runtime_hook_i64 )( const char *hook_id, int64_t fallback );
     double ( *runtime_hook_f64 )( const char *hook_id, double fallback );
+
+    /*
+     * Host API 2.1 additive tail: logical item slots keep real CDDA items in their
+     * vanilla locations and bind them by a persistent marker + item UID.
+     * capability: character.virtual_items.v1
+     */
+    int ( *virtual_item_choose )( const char *module_id, const char *slot_id,
+                                  const char *title, uint32_t flags );
+    int ( *virtual_item_clear )( const char *module_id, const char *slot_id );
+    const char *( *virtual_item_name )( const char *module_id, const char *slot_id );
+    int64_t ( *virtual_item_uid )( const char *module_id, const char *slot_id );
 } ncmm_host_api_v2_core;
 typedef int ( *ncmm_mod_init_v1 )( const ncmm_host_api_v1 *api );
 typedef void ( *ncmm_mod_shutdown_v1 )( void );

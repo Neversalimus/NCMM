@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "survivor_progression",
   "name": "Survivor Progression",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "kind": "native_module",
   "atomic_group": "survivor-progression",
   "delivery": "source_build",
@@ -20,6 +20,9 @@
     },
     {
       "capability": "host_api.v2.core"
+    },
+    {
+      "capability": "character.virtual_items.v1"
     },
     {
       "capability": "settings.typed.v2"
