@@ -958,6 +958,7 @@ int character_state_set_i64( const char *module_id, const char *key, int64_t val
 }
 
 constexpr const char *virtual_item_marker_key = "ncmm_virtual_slot";
+constexpr const char *virtual_item_secondary_melee_key = "ncmm_virtual_secondary_melee";
 
 bool safe_virtual_slot_id( const char *slot_id )
 {
@@ -1036,6 +1037,7 @@ item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id
     if( uid_match != nullptr &&
         ( uid_match == get_avatar().get_wielded_item().get_item() || get_avatar().is_worn( *uid_match ) ) ) {
         uid_match->erase_var( virtual_item_marker_key );
+        uid_match->erase_var( virtual_item_secondary_melee_key );
         virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
         return nullptr;
     }
@@ -1051,6 +1053,7 @@ item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id
         for( item *duplicate : marker_matches ) {
             if( duplicate != uid_match ) {
                 duplicate->erase_var( virtual_item_marker_key );
+                duplicate->erase_var( virtual_item_secondary_melee_key );
             }
         }
         return uid_match;
@@ -1060,6 +1063,7 @@ item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id
         item *resolved = marker_matches.front();
         if( resolved == get_avatar().get_wielded_item().get_item() || get_avatar().is_worn( *resolved ) ) {
             resolved->erase_var( virtual_item_marker_key );
+            resolved->erase_var( virtual_item_secondary_melee_key );
             virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
             return nullptr;
         }
@@ -1070,6 +1074,7 @@ item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id
     if( !marker_matches.empty() ) {
         for( item *duplicate : marker_matches ) {
             duplicate->erase_var( virtual_item_marker_key );
+            duplicate->erase_var( virtual_item_secondary_melee_key );
         }
     }
     if( wanted_uid != 0 || !marker_matches.empty() ) {
@@ -1090,6 +1095,7 @@ void virtual_item_clear_internal( const char *module_id, const char *slot_id )
         if( candidate != nullptr &&
             candidate->get_var( virtual_item_marker_key, "" ) == wanted_marker ) {
             candidate->erase_var( virtual_item_marker_key );
+            candidate->erase_var( virtual_item_secondary_melee_key );
         }
     }
     virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
@@ -1162,6 +1168,7 @@ bool virtual_item_assign_internal( const char *module_id, const char *slot_id,
     }
 
     virtual_item_clear_internal( module_id, slot_id );
+    selected->erase_var( virtual_item_secondary_melee_key );
     selected->set_var( virtual_item_marker_key, new_marker );
     virtual_item_state_set_uid_internal(
         module_id, slot_id, selected->uid().get_value() );
@@ -3701,6 +3708,7 @@ bool release_virtual_item( item &it )
     if( !safe_state_token( module_id.c_str() ) ||
         !safe_virtual_slot_id( slot_id.c_str() ) ) {
         it.erase_var( virtual_item_marker_key );
+        it.erase_var( virtual_item_secondary_melee_key );
         return false;
     }
 
@@ -3714,6 +3722,7 @@ bool release_virtual_item( item &it )
     // A stale/copied marker must never survive transfer out of the character.
     // Do not clear another item's live slot if this object no longer owns it.
     it.erase_var( virtual_item_marker_key );
+    it.erase_var( virtual_item_secondary_melee_key );
     return false;
 }
 
@@ -3734,6 +3743,26 @@ bool is_virtual_item( const item &it )
     }
 
     return virtual_item_for_slot_internal( module_id.c_str(), slot_id.c_str() ) == &it;
+}
+
+bool virtual_item_secondary_melee_enabled( const item &it )
+{
+    return is_virtual_item( it ) &&
+           it.get_var( virtual_item_secondary_melee_key, "" ) == "1";
+}
+
+bool virtual_item_set_secondary_melee( item &it, bool enabled )
+{
+    if( !is_virtual_item( it ) ) {
+        it.erase_var( virtual_item_secondary_melee_key );
+        return false;
+    }
+    if( enabled ) {
+        it.set_var( virtual_item_secondary_melee_key, "1" );
+    } else {
+        it.erase_var( virtual_item_secondary_melee_key );
+    }
+    return true;
 }
 
 double runtime_hook_modifier( const char *hook_id, const char *subject_id,
