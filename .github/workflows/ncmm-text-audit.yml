@@ -33,6 +33,7 @@ on:
       - 'runtime/NCMMSetupDiagnostics.cs'
       - 'tests/DiagnosticsHarness.cs'
       - '.github/workflows/ncmm-text-audit.yml'
+  pull_request:
   workflow_dispatch:
 
 permissions:
