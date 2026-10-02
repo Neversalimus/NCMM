@@ -616,9 +616,7 @@ foreach($secondaryNeedle0140 in @(
     'ncmm::virtual_melee_context_is_wielding( *this, target )',
     'ncmm_run_mana_hand_secondary_melee( *this, t );',
     'NCMM Mana Hand secondary strikes do not trigger martial-art event chains.',
-    'ncmm::virtual_melee_context_active( *this ) ? tec_none.obj()',
-    'Mana Hand secondary-melee context menu upgrade',
-    'Mana Hand secondary-melee context handler upgrade'
+    'ncmm::virtual_melee_context_active( *this ) ? tec_none.obj()'
 )){
     if(-not $manaSecondarySection0140.Contains($secondaryNeedle0140)){
         throw ('Mana Hand secondary-melee regression contract missing: '+$secondaryNeedle0140)
@@ -635,6 +633,8 @@ if(([regex]::Matches($manaSecondarySection0140,[regex]::Escape('if( !ncmm::virtu
 foreach($upgradeNeedle0140 in @(
     '$secondaryMenuOld0140ctx = @''',
     '$secondarySwitchOld0140ctx = @''',
+    'Mana Hand secondary-melee context menu upgrade',
+    'Mana Hand secondary-melee context handler upgrade',
     'item *ncmm_bound3 = ncmm_mana_hands_now >= 1 ?',
     'item *ncmm_bound4 = ncmm_mana_hands_now >= 2 ?'
 )){
