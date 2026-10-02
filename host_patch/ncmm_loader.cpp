@@ -1095,6 +1095,79 @@ void virtual_item_clear_internal( const char *module_id, const char *slot_id )
     virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
 }
 
+bool virtual_item_can_assign_internal( const char *module_id, const char *slot_id,
+                                       const item_location &loc, uint32_t flags )
+{
+    if( !character_state_available() || !safe_state_token( module_id ) ||
+        !safe_virtual_slot_id( slot_id ) || module_ids.count( module_id ) == 0 ) {
+        return false;
+    }
+
+    avatar &you = get_avatar();
+    if( !loc || !loc.held_by( you ) ) {
+        return false;
+    }
+
+    const item &candidate = *loc;
+    if( loc == you.get_wielded_item() || you.is_worn( candidate ) ||
+        candidate.is_null() || candidate.has_flag( flag_INTEGRATED ) ||
+        candidate.has_flag( flag_PSEUDO ) ) {
+        return false;
+    }
+
+    const std::string module_prefix = std::string( module_id ) + ":";
+    const std::string existing_marker =
+        candidate.get_var( virtual_item_marker_key, "" );
+    if( !existing_marker.empty() &&
+        existing_marker.rfind( module_prefix, 0 ) != 0 ) {
+        return false;
+    }
+
+    if( ( flags & NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 ) != 0u &&
+        candidate.count_by_charges() ) {
+        return false;
+    }
+    if( ( flags & NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 ) != 0u &&
+        ( candidate.made_of( phase_id::LIQUID ) ||
+          candidate.made_of( phase_id::GAS ) ) ) {
+        return false;
+    }
+    return true;
+}
+
+bool virtual_item_assign_internal( const char *module_id, const char *slot_id,
+                                   const item_location &loc, uint32_t flags )
+{
+    if( !virtual_item_can_assign_internal( module_id, slot_id, loc, flags ) ) {
+        return false;
+    }
+
+    item *selected = loc.get_item();
+    if( selected == nullptr ) {
+        return false;
+    }
+
+    const std::string new_marker = virtual_item_marker( module_id, slot_id );
+    const std::string module_prefix = std::string( module_id ) + ":";
+    const std::string previous_marker =
+        selected->get_var( virtual_item_marker_key, "" );
+    if( previous_marker.rfind( module_prefix, 0 ) == 0 &&
+        previous_marker != new_marker ) {
+        const std::string old_slot =
+            previous_marker.substr( module_prefix.size() );
+        if( safe_virtual_slot_id( old_slot.c_str() ) ) {
+            virtual_item_state_set_uid_internal(
+                module_id, old_slot.c_str(), 0 );
+        }
+    }
+
+    virtual_item_clear_internal( module_id, slot_id );
+    selected->set_var( virtual_item_marker_key, new_marker );
+    virtual_item_state_set_uid_internal(
+        module_id, slot_id, selected->uid().get_value() );
+    return true;
+}
+
 int virtual_item_choose_v2( const char *module_id, const char *slot_id,
                             const char *title, uint32_t flags )
 {
@@ -1104,34 +1177,10 @@ int virtual_item_choose_v2( const char *module_id, const char *slot_id,
     }
 
     avatar &you = get_avatar();
-    const std::string module_prefix = std::string( module_id ) + ":";
     item_location chosen = game_menus::inv::titled_filter_menu(
         [&]( const item_location & loc ) {
-            if( !loc || !loc.held_by( you ) ) {
-                return false;
-            }
-            const item &candidate = *loc;
-            if( loc == you.get_wielded_item() || you.is_worn( candidate ) ||
-                candidate.is_null() || candidate.has_flag( flag_INTEGRATED ) ||
-                candidate.has_flag( flag_PSEUDO ) ) {
-                return false;
-            }
-            const std::string existing_marker =
-                candidate.get_var( virtual_item_marker_key, "" );
-            if( !existing_marker.empty() &&
-                existing_marker.rfind( module_prefix, 0 ) != 0 ) {
-                return false;
-            }
-            if( ( flags & NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 ) != 0u &&
-                candidate.count_by_charges() ) {
-                return false;
-            }
-            if( ( flags & NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 ) != 0u &&
-                ( candidate.made_of( phase_id::LIQUID ) ||
-                  candidate.made_of( phase_id::GAS ) ) ) {
-                return false;
-            }
-            return true;
+            return virtual_item_can_assign_internal(
+                       module_id, slot_id, loc, flags );
         }, you, title, -1,
         tr_ui( "No eligible carried item is available.",
                "Нет подходящего предмета у персонажа." ) );
@@ -1139,25 +1188,8 @@ int virtual_item_choose_v2( const char *module_id, const char *slot_id,
     if( !chosen ) {
         return 0;
     }
-
-    item *selected = chosen.get_item();
-    if( selected == nullptr ) {
-        return 0;
-    }
-
-    const std::string new_marker = virtual_item_marker( module_id, slot_id );
-    const std::string previous_marker = selected->get_var( virtual_item_marker_key, "" );
-    if( previous_marker.rfind( module_prefix, 0 ) == 0 && previous_marker != new_marker ) {
-        const std::string old_slot = previous_marker.substr( module_prefix.size() );
-        if( safe_virtual_slot_id( old_slot.c_str() ) ) {
-            virtual_item_state_set_uid_internal( module_id, old_slot.c_str(), 0 );
-        }
-    }
-
-    virtual_item_clear_internal( module_id, slot_id );
-    selected->set_var( virtual_item_marker_key, new_marker );
-    virtual_item_state_set_uid_internal( module_id, slot_id, selected->uid().get_value() );
-    return 1;
+    return virtual_item_assign_internal(
+               module_id, slot_id, chosen, flags ) ? 1 : 0;
 }
 
 int virtual_item_clear_v2( const char *module_id, const char *slot_id )
@@ -3629,6 +3661,30 @@ void load_one( const std::filesystem::path &library )
 item *virtual_item_for_slot( const char *module_id, const char *slot_id )
 {
     return virtual_item_for_slot_internal( module_id, slot_id );
+}
+
+bool virtual_item_can_assign( const char *module_id, const char *slot_id,
+                              const item_location &loc, uint32_t flags )
+{
+    return virtual_item_can_assign_internal(
+               module_id, slot_id, loc, flags );
+}
+
+bool virtual_item_assign( const char *module_id, const char *slot_id,
+                          const item_location &loc, uint32_t flags )
+{
+    return virtual_item_assign_internal(
+               module_id, slot_id, loc, flags );
+}
+
+bool virtual_item_clear( const char *module_id, const char *slot_id )
+{
+    if( !character_state_available() || !safe_state_token( module_id ) ||
+        !safe_virtual_slot_id( slot_id ) || module_ids.count( module_id ) == 0 ) {
+        return false;
+    }
+    virtual_item_clear_internal( module_id, slot_id );
+    return true;
 }
 
 bool is_virtual_item( const item &it )
