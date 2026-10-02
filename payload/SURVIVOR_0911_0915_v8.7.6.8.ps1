@@ -19874,6 +19874,125 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
         $game0140ctx = Replace-TextBlock $game0140ctx $switchOld0140ctx $switchNew0140ctx 'Mana Hand context handlers'
     }
 
+
+    # Upgrade path: older 0.14.0 installs already contain III/IV actions.
+    # Add the secondary-strike UI independently instead of requiring a clean game.cpp.
+    if(-not $game0140ctx.Contains('enable Mana Hand secondary strike')) {
+        $secondaryMenuOld0140ctx = @'
+                if( ncmm_mana4_item == &oThisItem ) {
+                    addentry( '4', ncmm::localized_text(
+                                  "release from Mana Hand IV",
+                                  "освободить четвёртую руку маны" ), hint_rating::good );
+                } else if( ncmm_mana_hands >= 2 &&
+                           ncmm::virtual_item_can_assign(
+                               "survivor_progression", "mana_hand_4",
+                               locThisItem, ncmm_mana_slot_flags ) ) {
+                    addentry( '4', ncmm::localized_text(
+                                  "assign to Mana Hand IV",
+                                  "назначить четвёртой руке маны" ), hint_rating::good );
+                }
+
+                if( bHPR ) {
+'@
+        $secondaryMenuNew0140ctx = @'
+                if( ncmm_mana4_item == &oThisItem ) {
+                    addentry( '4', ncmm::localized_text(
+                                  "release from Mana Hand IV",
+                                  "освободить четвёртую руку маны" ), hint_rating::good );
+                } else if( ncmm_mana_hands >= 2 &&
+                           ncmm::virtual_item_can_assign(
+                               "survivor_progression", "mana_hand_4",
+                               locThisItem, ncmm_mana_slot_flags ) ) {
+                    addentry( '4', ncmm::localized_text(
+                                  "assign to Mana Hand IV",
+                                  "назначить четвёртой руке маны" ), hint_rating::good );
+                }
+
+                const bool ncmm_mana_bound_here =
+                    ncmm_mana3_item == &oThisItem || ncmm_mana4_item == &oThisItem;
+                const bool ncmm_secondary_melee_eligible =
+                    ncmm_mana_bound_here && oThisItem.is_melee() && !oThisItem.is_gun() &&
+                    !oThisItem.is_two_handed( u );
+                if( ncmm_secondary_melee_eligible ) {
+                    const bool ncmm_secondary_enabled =
+                        ncmm::virtual_item_secondary_melee_enabled( oThisItem );
+                    addentry( 'M', ncmm::localized_text(
+                                  ncmm_secondary_enabled ?
+                                  "disable Mana Hand secondary strike" :
+                                  "enable Mana Hand secondary strike",
+                                  ncmm_secondary_enabled ?
+                                  "отключить дополнительный удар рукой маны" :
+                                  "включить дополнительный удар рукой маны" ),
+                              hint_rating::good );
+                }
+
+                if( bHPR ) {
+'@
+        $game0140ctx = Replace-TextBlock $game0140ctx $secondaryMenuOld0140ctx $secondaryMenuNew0140ctx 'Mana Hand secondary-melee context menu upgrade'
+    }
+
+    if(-not $game0140ctx.Contains('Mana Hand secondary strike enabled. It uses normal attack time and stamina plus mana.')) {
+        $secondarySwitchOld0140ctx = @'
+                    } else {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "That item cannot be assigned to this Mana Hand.",
+                                     "Этот предмет нельзя назначить этой руке маны." ).c_str() );
+                    }
+                    break;
+                }
+                case 'a': {
+'@
+        $secondarySwitchNew0140ctx = @'
+                    } else {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "That item cannot be assigned to this Mana Hand.",
+                                     "Этот предмет нельзя назначить этой руке маны." ).c_str() );
+                    }
+                    break;
+                }
+                case 'M': {
+                    const int ncmm_mana_hands_now = static_cast<int>(
+                                                        ncmm::runtime_hook_modifier(
+                                                            "magic.virtual_hand_count", nullptr,
+                                                            "magiclysm", nullptr, nullptr ) );
+                    item *ncmm_bound3 = ncmm_mana_hands_now >= 1 ?
+                                        ncmm::virtual_item_for_slot(
+                                            "survivor_progression", "mana_hand_3" ) : nullptr;
+                    item *ncmm_bound4 = ncmm_mana_hands_now >= 2 ?
+                                        ncmm::virtual_item_for_slot(
+                                            "survivor_progression", "mana_hand_4" ) : nullptr;
+                    if( ncmm_bound3 != &oThisItem && ncmm_bound4 != &oThisItem ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "This item is not held by an available Mana Hand.",
+                                     "Этот предмет не удерживается доступной рукой маны." ).c_str() );
+                        break;
+                    }
+                    if( !oThisItem.is_melee() || oThisItem.is_gun() ||
+                        oThisItem.is_two_handed( u ) ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "This item is not eligible for a Mana Hand secondary strike.",
+                                     "Этот предмет нельзя использовать для дополнительного удара рукой маны." ).c_str() );
+                        break;
+                    }
+                    const bool ncmm_enable_secondary =
+                        !ncmm::virtual_item_secondary_melee_enabled( oThisItem );
+                    if( ncmm::virtual_item_set_secondary_melee(
+                            oThisItem, ncmm_enable_secondary ) ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     ncmm_enable_secondary ?
+                                     "Mana Hand secondary strike enabled. It uses normal attack time and stamina plus mana." :
+                                     "Mana Hand secondary strike disabled.",
+                                     ncmm_enable_secondary ?
+                                     "Дополнительный удар рукой маны включён. Он расходует обычное время и выносливость атаки, а также ману." :
+                                     "Дополнительный удар рукой маны отключён." ).c_str() );
+                    }
+                    break;
+                }
+                case 'a': {
+'@
+        $game0140ctx = Replace-TextBlock $game0140ctx $secondarySwitchOld0140ctx $secondarySwitchNew0140ctx 'Mana Hand secondary-melee context handler upgrade'
+    }
+
     Write-Utf8NoBom $game0140ctxPath $game0140ctx
     foreach($needle0140ctx in @(
         '#include "ncmm_api.h"',
