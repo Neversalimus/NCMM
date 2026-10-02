@@ -497,7 +497,12 @@ foreach($needle0140 in @(
     'ncmm::virtual_item_can_assign(',
     'ncmm::virtual_item_assign(',
     'ncmm::virtual_item_clear(',
-    'Apply-SurvivorVirtualItemContext0140 $CddaRoot'
+    'Apply-SurvivorVirtualItemContext0140 $CddaRoot',
+    'function Apply-SurvivorManaHandSpellcastingAid0140',
+    'ncmm_virtual_wield_flags',
+    'flag_id( "MAGIC_FOCUS" )',
+    'flag_id( "SPELLCASTING_AID" )',
+    'Apply-SurvivorManaHandSpellcastingAid0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
