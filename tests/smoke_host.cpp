@@ -631,7 +631,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 1 ) {
         // Buy Combat -> Power Training.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.13.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.14.0" ) != std::string::npos ) {
             ++ui_stage;
             return 0;
         }
@@ -648,7 +648,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 2 ) {
         // Buy Mastery -> Fast Learner.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.13.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.14.0" ) != std::string::npos ) {
             ++ui_stage;
             return 5;
         }
@@ -665,7 +665,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 3 ) {
         // Root -> Respec all perks -> confirm.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.13.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.14.0" ) != std::string::npos ) {
             ++ui_stage;
             return 7;
         }
@@ -1932,7 +1932,7 @@ int main( int argc, char **argv )
             std::cerr << "Survivor Progression callback export missing\n";
             return 9;
         }
-        if( std::strcmp( desc->version, "0.13.0" ) != 0 ) {
+        if( std::strcmp( desc->version, "0.14.0" ) != 0 ) {
             std::cerr << "Survivor Progression descriptor version mismatch\n";
             return 21;
         }
@@ -1986,7 +1986,7 @@ int main( int argc, char **argv )
         if( !survivor_semantic_matrix( lib ) ) {
             return 40;
         }
-        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.13.0 Host API 2.0 registration + schema migration)\n";
+        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.14.0 Host API 2.0 registration + schema migration)\n";
         return 0;
     }
 

@@ -1,4 +1,4 @@
-# Survivor Progression 0.12.0
+# Survivor Progression 0.14.0
 
 Survivor Progression is an optional NCMM native module that adds persistent character progression, perk trees, mechanical perk effects and conditional integrations with supported world mods.
 
@@ -7,7 +7,7 @@ It requires NCMM Host 0.8.1 and keeps persistent state schema **8**.
 ## Current system
 
 - 30 normal Survivor levels with persistent XP and perk currencies.
-- 369 perk nodes in the current source.
+- 372 perk nodes in the current source.
 - Core branches: Combat, Survival, Mobility, Crafting, Scavenging and Mastery.
 - Additional mod-specific progression is shown only when the matching world mod is active.
 - F1 opens the progression UI by default; the action is remappable through CDDA.
@@ -61,3 +61,8 @@ The 0.12.0 update preserves the 0.11.3 gameplay/perk baseline and adds manager-i
 ## Development invariant
 
 When extending Survivor, prefer a generic Host capability or hook that can serve multiple modules. A new Survivor-specific CDDA source patch should be treated as a design failure unless the engine truly lacks a reusable domain primitive.
+
+
+## 0.14.0 Mana Hand virtual slots
+
+Magiclysm's Third and Fourth Mana Hand perks now support safe logical item assignments without moving or duplicating items. Assigned focuses and blocking items remain in their normal CDDA inventory locations; NCMM stores only a serialized slot marker and persistent item UID, reconciles copied/moved instances, and clears stale assignments when the item or perk is no longer available. Mana-hand focuses participate in Magiclysm casting checks, while assigned blocking items participate in the normal shield-selection path.
