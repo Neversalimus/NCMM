@@ -2,6 +2,10 @@
 #include "ncmm_item_glyphs.h"
 #include "item.h"
 #include "item_category.h"
+#include "item_location.h"
+#include "character.h"
+#include "flag.h"
+#include "game_inventory.h"
 #include "itype.h"
 #include "ncmm_api.h"
 #include "ncmm_fault_policy.h"
@@ -442,6 +446,7 @@ const char *const host_capabilities[] = {
     "module.lifecycle.query.v2",
     "worldgen.bindings.v2",
     "runtime_settings.bindings.v2",
+    "character.virtual_items.v1",
     "runtime_hooks.registry.v2",
     "character.modifiers.v2",
     "settings.typed.v2",
@@ -950,6 +955,218 @@ int character_state_set_i64( const char *module_id, const char *key, int64_t val
     get_avatar().get_values()[character_state_key( module_id, key )] =
         diag_value( std::to_string( value ) );
     return 1;
+}
+
+constexpr const char *virtual_item_marker_key = "ncmm_virtual_slot";
+
+bool safe_virtual_slot_id( const char *slot_id )
+{
+    return safe_state_token( slot_id ) && std::string( slot_id ).size() <= 48;
+}
+
+std::string virtual_item_marker( const char *module_id, const char *slot_id )
+{
+    return std::string( module_id ) + ":" + slot_id;
+}
+
+std::string virtual_item_state_key( const char *slot_id )
+{
+    return "vslot_" + std::string( slot_id );
+}
+
+int64_t virtual_item_state_uid_internal( const char *module_id, const char *slot_id )
+{
+    if( !character_state_available() || !safe_state_token( module_id ) ||
+        !safe_virtual_slot_id( slot_id ) ) {
+        return 0;
+    }
+    const auto &values = get_avatar().get_values();
+    const auto it = values.find( character_state_key( module_id,
+                                 virtual_item_state_key( slot_id ).c_str() ) );
+    if( it == values.end() || !it->second.is_str() ) {
+        return 0;
+    }
+    try {
+        std::size_t consumed = 0;
+        const std::string &raw = it->second.str();
+        const long long parsed = std::stoll( raw, &consumed, 10 );
+        return consumed == raw.size() ? std::max<int64_t>( 0, parsed ) : 0;
+    } catch( ... ) {
+        return 0;
+    }
+}
+
+void virtual_item_state_set_uid_internal( const char *module_id, const char *slot_id, int64_t uid )
+{
+    if( !character_state_available() || !safe_state_token( module_id ) ||
+        !safe_virtual_slot_id( slot_id ) ) {
+        return;
+    }
+    get_avatar().get_values()[character_state_key(
+        module_id, virtual_item_state_key( slot_id ).c_str() )] =
+            diag_value( std::to_string( std::max<int64_t>( 0, uid ) ) );
+}
+
+item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id )
+{
+    if( !character_state_available() || !safe_state_token( module_id ) ||
+        !safe_virtual_slot_id( slot_id ) || module_ids.count( module_id ) == 0 ) {
+        return nullptr;
+    }
+
+    const std::string wanted_marker = virtual_item_marker( module_id, slot_id );
+    const int64_t wanted_uid = virtual_item_state_uid_internal( module_id, slot_id );
+    item *uid_match = nullptr;
+    std::vector<item *> marker_matches;
+
+    for( item_location loc : get_avatar().all_items_loc() ) {
+        item *candidate = loc.get_item();
+        if( candidate == nullptr || candidate->is_null() ) {
+            continue;
+        }
+        const std::string marker = candidate->get_var( virtual_item_marker_key, "" );
+        if( wanted_uid > 0 && candidate->uid().get_value() == wanted_uid ) {
+            uid_match = candidate;
+        }
+        if( marker == wanted_marker ) {
+            marker_matches.push_back( candidate );
+        }
+    }
+
+    if( uid_match != nullptr ) {
+        const std::string marker = uid_match->get_var( virtual_item_marker_key, "" );
+        if( marker.empty() ) {
+            uid_match->set_var( virtual_item_marker_key, wanted_marker );
+        } else if( marker != wanted_marker ) {
+            virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
+            return nullptr;
+        }
+        for( item *duplicate : marker_matches ) {
+            if( duplicate != uid_match ) {
+                duplicate->erase_var( virtual_item_marker_key );
+            }
+        }
+        return uid_match;
+    }
+
+    if( marker_matches.size() == 1 ) {
+        item *resolved = marker_matches.front();
+        virtual_item_state_set_uid_internal( module_id, slot_id, resolved->uid().get_value() );
+        return resolved;
+    }
+
+    if( marker_matches.size() > 1 ) {
+        for( item *duplicate : marker_matches ) {
+            duplicate->erase_var( virtual_item_marker_key );
+        }
+    }
+    if( wanted_uid != 0 || !marker_matches.empty() ) {
+        virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
+    }
+    return nullptr;
+}
+
+void virtual_item_clear_internal( const char *module_id, const char *slot_id )
+{
+    if( !character_state_available() || !safe_state_token( module_id ) ||
+        !safe_virtual_slot_id( slot_id ) ) {
+        return;
+    }
+    const std::string wanted_marker = virtual_item_marker( module_id, slot_id );
+    for( item_location loc : get_avatar().all_items_loc() ) {
+        item *candidate = loc.get_item();
+        if( candidate != nullptr &&
+            candidate->get_var( virtual_item_marker_key, "" ) == wanted_marker ) {
+            candidate->erase_var( virtual_item_marker_key );
+        }
+    }
+    virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
+}
+
+int virtual_item_choose_v2( const char *module_id, const char *slot_id,
+                            const char *title, uint32_t flags )
+{
+    if( !active_module_matches( module_id ) || !safe_virtual_slot_id( slot_id ) ||
+        title == nullptr || !character_state_available() ) {
+        return 0;
+    }
+
+    avatar &you = get_avatar();
+    const item_location chosen = game_menus::inv::titled_filter_menu(
+        [&]( const item_location & loc ) {
+            if( !loc || !loc.held_by( you ) ) {
+                return false;
+            }
+            const item &candidate = *loc;
+            if( candidate.is_null() || candidate.has_flag( flag_INTEGRATED ) ||
+                candidate.has_flag( flag_PSEUDO ) ) {
+                return false;
+            }
+            if( ( flags & NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 ) != 0u &&
+                candidate.count_by_charges() ) {
+                return false;
+            }
+            if( ( flags & NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 ) != 0u &&
+                ( candidate.made_of( phase_id::LIQUID ) ||
+                  candidate.made_of( phase_id::GAS ) ) ) {
+                return false;
+            }
+            return true;
+        }, you, title, -1,
+        tr_ui( "No eligible carried item is available.",
+               "Нет подходящего предмета у персонажа." ) );
+
+    if( !chosen ) {
+        return 0;
+    }
+
+    item *selected = chosen.get_item();
+    if( selected == nullptr ) {
+        return 0;
+    }
+
+    const std::string new_marker = virtual_item_marker( module_id, slot_id );
+    const std::string previous_marker = selected->get_var( virtual_item_marker_key, "" );
+    const std::string module_prefix = std::string( module_id ) + ":";
+    if( previous_marker.rfind( module_prefix, 0 ) == 0 && previous_marker != new_marker ) {
+        const std::string old_slot = previous_marker.substr( module_prefix.size() );
+        if( safe_virtual_slot_id( old_slot.c_str() ) ) {
+            virtual_item_state_set_uid_internal( module_id, old_slot.c_str(), 0 );
+        }
+    }
+
+    virtual_item_clear_internal( module_id, slot_id );
+    selected->set_var( virtual_item_marker_key, new_marker );
+    virtual_item_state_set_uid_internal( module_id, slot_id, selected->uid().get_value() );
+    return 1;
+}
+
+int virtual_item_clear_v2( const char *module_id, const char *slot_id )
+{
+    if( !active_module_matches( module_id ) || !safe_virtual_slot_id( slot_id ) ) {
+        return 0;
+    }
+    virtual_item_clear_internal( module_id, slot_id );
+    return 1;
+}
+
+const char *virtual_item_name_v2( const char *module_id, const char *slot_id )
+{
+    if( !active_module_matches( module_id ) || !safe_virtual_slot_id( slot_id ) ) {
+        return "";
+    }
+    item *bound = virtual_item_for_slot_internal( module_id, slot_id );
+    api_v2_string_cache = bound != nullptr ? bound->display_name() : "";
+    return api_v2_string_cache.c_str();
+}
+
+int64_t virtual_item_uid_v2( const char *module_id, const char *slot_id )
+{
+    if( !active_module_matches( module_id ) || !safe_virtual_slot_id( slot_id ) ) {
+        return 0;
+    }
+    item *bound = virtual_item_for_slot_internal( module_id, slot_id );
+    return bound != nullptr ? bound->uid().get_value() : 0;
 }
 
 int64_t gameplay_metric_get_i64( const char *metric_id )
@@ -2720,7 +2937,11 @@ const ncmm_host_api_v2_core api_v2_core = {
     &runtime_hook_bind_setting_v2,
     &runtime_hook_bool_v2,
     &runtime_hook_i64_v2,
-    &runtime_hook_f64_v2
+    &runtime_hook_f64_v2,
+    &virtual_item_choose_v2,
+    &virtual_item_clear_v2,
+    &virtual_item_name_v2,
+    &virtual_item_uid_v2
 };
 
 const void *query_interface_v2( const char *interface_id, uint32_t min_major, uint32_t min_minor )
@@ -3385,6 +3606,16 @@ void load_one( const std::filesystem::path &library )
 }
 #endif
 } // namespace
+
+item *virtual_item_for_slot( const char *module_id, const char *slot_id )
+{
+    return virtual_item_for_slot_internal( module_id, slot_id );
+}
+
+bool is_virtual_item( const item &it )
+{
+    return !it.get_var( virtual_item_marker_key, "" ).empty();
+}
 
 double runtime_hook_modifier( const char *hook_id, const char *subject_id,
                               const char *source_mod_id, const char *source_species_id,
