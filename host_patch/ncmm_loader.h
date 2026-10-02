@@ -5,6 +5,7 @@ class Creature;
 
 class input_context;
 class item;
+class item_location;
 
 namespace ncmm
 {
@@ -51,7 +52,12 @@ double runtime_setting_hook_f64( const char *hook_id, double fallback );
 bool inventory_symbols_enabled( bool vanilla_symbols );
 std::string inventory_item_symbol( const item &it );
 
-/* Engine-side read-only bridge for Host API 2.1 logical item slots. */
+/* Engine-side bridge for Host API 2.1 logical item slots. */
 item *virtual_item_for_slot( const char *module_id, const char *slot_id );
+bool virtual_item_can_assign( const char *module_id, const char *slot_id,
+                              const item_location &loc, uint32_t flags );
+bool virtual_item_assign( const char *module_id, const char *slot_id,
+                          const item_location &loc, uint32_t flags );
+bool virtual_item_clear( const char *module_id, const char *slot_id );
 bool is_virtual_item( const item &it );
 } // namespace ncmm
