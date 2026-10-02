@@ -19929,7 +19929,7 @@ bool talker_character_const::wielded_with_flag( const flag_id &flag ) const
     if($bridgeStart0140aid -ge 0) {
         $bridgeEnd0140aid = $talkerOutput0140aid.IndexOf('bool talker_character_const::wielded_with_weapon_category', $bridgeStart0140aid)
         if($bridgeEnd0140aid -gt $bridgeStart0140aid -and
-           $talkerOutput0140aid.Substring($bridgeStart0140aid, $bridgeEnd0140aid-$bridgeStart0140aid).Contains('flag_id( "MAGIC_FOCUS" )')) {
+           $talkerOutput0140aid.Substring($bridgeStart0140aid, $bridgeEnd0140aid-$bridgeStart0140aid).Contains(('flag_id( "MAGIC_'+'FOCUS" )'))) {
             throw 'Mana Hand spellcasting-aid bridge must not export MAGIC_FOCUS as globally wielded.'
         }
     }
