@@ -3706,6 +3706,7 @@ bool release_virtual_item( item &it )
     const std::size_t separator = marker.find( ':' );
     if( separator == std::string::npos || separator == 0 ||
         separator + 1 >= marker.size() ) {
+        it.erase_var( virtual_item_secondary_melee_key );
         return false;
     }
 
