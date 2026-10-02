@@ -1033,6 +1033,13 @@ item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id
         }
     }
 
+    if( uid_match != nullptr &&
+        ( uid_match == get_avatar().get_wielded_item().get_item() || get_avatar().is_worn( *uid_match ) ) ) {
+        uid_match->erase_var( virtual_item_marker_key );
+        virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
+        return nullptr;
+    }
+
     if( uid_match != nullptr ) {
         const std::string marker = uid_match->get_var( virtual_item_marker_key, "" );
         if( marker.empty() ) {
@@ -1049,13 +1056,18 @@ item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id
         return uid_match;
     }
 
-    if( marker_matches.size() == 1 ) {
+    if( wanted_uid > 0 && marker_matches.size() == 1 ) {
         item *resolved = marker_matches.front();
+        if( resolved == get_avatar().get_wielded_item().get_item() || get_avatar().is_worn( *resolved ) ) {
+            resolved->erase_var( virtual_item_marker_key );
+            virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
+            return nullptr;
+        }
         virtual_item_state_set_uid_internal( module_id, slot_id, resolved->uid().get_value() );
         return resolved;
     }
 
-    if( marker_matches.size() > 1 ) {
+    if( !marker_matches.empty() ) {
         for( item *duplicate : marker_matches ) {
             duplicate->erase_var( virtual_item_marker_key );
         }
@@ -1098,7 +1110,8 @@ int virtual_item_choose_v2( const char *module_id, const char *slot_id,
                 return false;
             }
             const item &candidate = *loc;
-            if( candidate.is_null() || candidate.has_flag( flag_INTEGRATED ) ||
+            if( loc == you.get_wielded_item() || you.is_worn( candidate ) ||
+                candidate.is_null() || candidate.has_flag( flag_INTEGRATED ) ||
                 candidate.has_flag( flag_PSEUDO ) ) {
                 return false;
             }
