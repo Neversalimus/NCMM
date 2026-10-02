@@ -1279,7 +1279,7 @@ bool survivor_semantic_matrix( void *lib )
     }
 
     const size_t perk_count = count();
-    if( perk_count != 369 ) {
+    if( perk_count != 370 ) {
         std::cerr << "Survivor perk catalog count changed unexpectedly: " << perk_count << '\n';
         return false;
     }
@@ -1331,6 +1331,27 @@ bool survivor_semantic_matrix( void *lib )
                 std::cerr << "Survivor perk has invalid declared effect: " << raw << '\n';
                 return false;
             }
+        }
+    }
+
+    const auto mana_vamp_it = index.find( "mg_mana_vampirism" );
+    if( mana_vamp_it == index.end() ) {
+        std::cerr << "Survivor Magiclysm mana-vampirism perk missing from catalog\n";
+        return false;
+    }
+    const size_t mana_vamp = mana_vamp_it->second;
+    if( integration( mana_vamp ) == 0 || max_rank( mana_vamp ) != 5 ||
+        effect_count( mana_vamp ) != 1 ||
+        std::strcmp( effect_id( mana_vamp, 0 ), "mg_melee_mana_vamp_pct" ) != 0 ||
+        !nearly_equal( effect_value( mana_vamp, 0 ), 1.0 ) ) {
+        std::cerr << "Survivor Magiclysm mana-vampirism metadata mismatch\n";
+        return false;
+    }
+    for( int rank = 1; rank <= 5; ++rank ) {
+        if( !nearly_equal( rank_multiplier( mana_vamp, rank ), static_cast<double>( rank ) ) ) {
+            std::cerr << "Survivor Magiclysm mana-vampirism rank scaling mismatch at rank "
+                      << rank << '\n';
+            return false;
         }
     }
 
@@ -1650,7 +1671,7 @@ bool survivor_semantic_matrix( void *lib )
     }
 
     std::cout << "Survivor semantic matrix: PASS (" << perk_count
-              << "/369 perks covered; direct=" << direct_cases
+              << "/370 perks covered; direct=" << direct_cases
               << ", amplifiers=" << amplifier_cases
               << ", stateful=" << special_cases
               << ", conditional-inert=" << integration_inert_cases
