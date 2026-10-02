@@ -19691,12 +19691,160 @@ item_location Character::best_shield()
 
 Apply-SurvivorVirtualItemSlots0140 $CddaRoot
 
+function Apply-SurvivorVirtualItemContext0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 Mana Hand inventory context actions..." -ForegroundColor Cyan
+    $src0140ctx = Join-Path $Root 'src'
+    $game0140ctxPath = Join-Path $src0140ctx 'game.cpp'
+    if(-not(Test-Path $game0140ctxPath -PathType Leaf)) {
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+            Write-Host "Survivor 0.14.0 Mana Hand context transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+            return
+        }
+        throw ('Mana Hand context source missing: '+$game0140ctxPath)
+    }
+
+    $game0140ctx = Normalize-Lf ([IO.File]::ReadAllText($game0140ctxPath))
+    if(-not $game0140ctx.Contains('#include "ncmm_loader.h"')) {
+        if(-not $game0140ctx.Contains('#include "game.h"')) { throw 'Mana Hand context game include anchor missing.' }
+        $game0140ctx = Replace-TextBlock $game0140ctx '#include "game.h"' ('#include "game.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"' + [Environment]::NewLine + '#include "ncmm_api.h"') 'Mana Hand context includes'
+    } elseif(-not $game0140ctx.Contains('#include "ncmm_api.h"')) {
+        $game0140ctx = Replace-TextBlock $game0140ctx '#include "ncmm_loader.h"' ('#include "ncmm_loader.h"' + [Environment]::NewLine + '#include "ncmm_api.h"') 'Mana Hand context API include'
+    }
+
+    if(-not $game0140ctx.Contains('assign to Mana Hand III')) {
+        $menuOld0140ctx = @'
+                addentry( '=', pgettext( "action", "reassign" ), hint_rating::good );
+
+                if( bHPR ) {
+'@
+        $menuNew0140ctx = @'
+                addentry( '=', pgettext( "action", "reassign" ), hint_rating::good );
+
+                const int ncmm_mana_hands = static_cast<int>(
+                                                ncmm::runtime_hook_modifier(
+                                                    "magic.virtual_hand_count", nullptr,
+                                                    "magiclysm", nullptr, nullptr ) );
+                constexpr uint32_t ncmm_mana_slot_flags =
+                    NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
+                    NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2;
+                item *ncmm_mana3_item = ncmm_mana_hands >= 1 ?
+                                        ncmm::virtual_item_for_slot(
+                                            "survivor_progression", "mana_hand_3" ) : nullptr;
+                item *ncmm_mana4_item = ncmm_mana_hands >= 2 ?
+                                        ncmm::virtual_item_for_slot(
+                                            "survivor_progression", "mana_hand_4" ) : nullptr;
+
+                if( ncmm_mana3_item == &oThisItem ) {
+                    addentry( '3', ncmm::localized_text(
+                                  "release from Mana Hand III",
+                                  "освободить третью руку маны" ), hint_rating::good );
+                } else if( ncmm_mana_hands >= 1 &&
+                           ncmm::virtual_item_can_assign(
+                               "survivor_progression", "mana_hand_3",
+                               locThisItem, ncmm_mana_slot_flags ) ) {
+                    addentry( '3', ncmm::localized_text(
+                                  "assign to Mana Hand III",
+                                  "назначить третьей руке маны" ), hint_rating::good );
+                }
+                if( ncmm_mana4_item == &oThisItem ) {
+                    addentry( '4', ncmm::localized_text(
+                                  "release from Mana Hand IV",
+                                  "освободить четвёртую руку маны" ), hint_rating::good );
+                } else if( ncmm_mana_hands >= 2 &&
+                           ncmm::virtual_item_can_assign(
+                               "survivor_progression", "mana_hand_4",
+                               locThisItem, ncmm_mana_slot_flags ) ) {
+                    addentry( '4', ncmm::localized_text(
+                                  "assign to Mana Hand IV",
+                                  "назначить четвёртой руке маны" ), hint_rating::good );
+                }
+
+                if( bHPR ) {
+'@
+        $game0140ctx = Replace-TextBlock $game0140ctx $menuOld0140ctx $menuNew0140ctx 'Mana Hand context entries'
+    }
+
+    if(-not $game0140ctx.Contains("case '3':") -or -not $game0140ctx.Contains("case '4':")) {
+        $switchOld0140ctx = @'
+            switch( cMenu ) {
+                case 'a': {
+'@
+        $switchNew0140ctx = @'
+            switch( cMenu ) {
+                case '3':
+                case '4': {
+                    const int ncmm_hand = cMenu == '3' ? 3 : 4;
+                    const char *ncmm_slot = ncmm_hand == 3 ? "mana_hand_3" : "mana_hand_4";
+                    item *ncmm_bound = ncmm::virtual_item_for_slot(
+                                           "survivor_progression", ncmm_slot );
+                    if( ncmm_bound == &oThisItem ) {
+                        ncmm::virtual_item_clear( "survivor_progression", ncmm_slot );
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "Mana Hand released the item.",
+                                     "Рука маны освободила предмет." ).c_str() );
+                        break;
+                    }
+
+                    const int ncmm_mana_hands_now = static_cast<int>(
+                                                        ncmm::runtime_hook_modifier(
+                                                            "magic.virtual_hand_count", nullptr,
+                                                            "magiclysm", nullptr, nullptr ) );
+                    if( ( ncmm_hand == 3 && ncmm_mana_hands_now < 1 ) ||
+                        ( ncmm_hand == 4 && ncmm_mana_hands_now < 2 ) ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "That Mana Hand is not available.",
+                                     "Эта рука маны недоступна." ).c_str() );
+                        break;
+                    }
+
+                    constexpr uint32_t ncmm_mana_slot_flags =
+                        NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
+                        NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2;
+                    if( ncmm::virtual_item_assign(
+                            "survivor_progression", ncmm_slot,
+                            locThisItem, ncmm_mana_slot_flags ) ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "Mana Hand takes hold of the item.",
+                                     "Рука маны удерживает предмет." ).c_str() );
+                    } else {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "That item cannot be assigned to this Mana Hand.",
+                                     "Этот предмет нельзя назначить этой руке маны." ).c_str() );
+                    }
+                    break;
+                }
+                case 'a': {
+'@
+        $game0140ctx = Replace-TextBlock $game0140ctx $switchOld0140ctx $switchNew0140ctx 'Mana Hand context handlers'
+    }
+
+    Write-Utf8NoBom $game0140ctxPath $game0140ctx
+    foreach($needle0140ctx in @(
+        '#include "ncmm_api.h"',
+        'assign to Mana Hand III',
+        'release from Mana Hand IV',
+        'ncmm::virtual_item_can_assign(',
+        'ncmm::virtual_item_assign(',
+        'ncmm::virtual_item_clear(',
+        "case '3':",
+        "case '4':"
+    )) {
+        if(-not ([IO.File]::ReadAllText($game0140ctxPath)).Contains($needle0140ctx)) {
+            throw ('Survivor 0.14.0 Mana Hand context output missing: '+$needle0140ctx)
+        }
+    }
+    Write-Host "Survivor 0.14.0 Mana Hand inventory context actions: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorVirtualItemContext0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0113 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHands0130 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorVirtualItemSlots0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorVirtualItemContext0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
