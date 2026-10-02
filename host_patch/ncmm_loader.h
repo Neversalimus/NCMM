@@ -61,4 +61,6 @@ bool virtual_item_assign( const char *module_id, const char *slot_id,
 bool virtual_item_clear( const char *module_id, const char *slot_id );
 bool release_virtual_item( item &it );
 bool is_virtual_item( const item &it );
+bool virtual_item_secondary_melee_enabled( const item &it );
+bool virtual_item_set_secondary_melee( item &it, bool enabled );
 } // namespace ncmm
