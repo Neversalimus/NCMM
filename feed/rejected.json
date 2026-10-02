@@ -14,6 +14,18 @@
     "cdda-experimental-2026-10-01-1040": {
       "source_commit": "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83",
       "recorded_utc": "2026-10-02T18:19:41.6639001Z"
+    },
+    "cdda-experimental-2026-10-01-2054": {
+      "source_commit": "8517a5f335082f1bb4e67f8e01e2e7138797c68c",
+      "recorded_utc": "2026-10-02T20:48:34.0442505Z"
+    },
+    "cdda-experimental-2026-10-01-2001": {
+      "source_commit": "3b801279ef7d34951324d413d033dc0a97f8e00f",
+      "recorded_utc": "2026-10-02T20:48:41.3090532Z"
+    },
+    "cdda-experimental-2026-10-02-1831": {
+      "source_commit": "f41a50e6a5a5ec16bd5c98bdfcc5d0349a2ada74",
+      "recorded_utc": "2026-10-02T20:48:35.2119494Z"
     }
   }
 }
