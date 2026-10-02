@@ -631,7 +631,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 1 ) {
         // Buy Combat -> Power Training.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.12.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.12.1" ) != std::string::npos ) {
             ++ui_stage;
             return 0;
         }
@@ -648,7 +648,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 2 ) {
         // Buy Mastery -> Fast Learner.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.12.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.12.1" ) != std::string::npos ) {
             ++ui_stage;
             return 5;
         }
@@ -665,7 +665,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 3 ) {
         // Root -> Respec all perks -> confirm.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.12.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.12.1" ) != std::string::npos ) {
             ++ui_stage;
             return 7;
         }
@@ -1911,7 +1911,7 @@ int main( int argc, char **argv )
             std::cerr << "Survivor Progression callback export missing\n";
             return 9;
         }
-        if( std::strcmp( desc->version, "0.12.0" ) != 0 ) {
+        if( std::strcmp( desc->version, "0.12.1" ) != 0 ) {
             std::cerr << "Survivor Progression descriptor version mismatch\n";
             return 21;
         }
@@ -1919,6 +1919,19 @@ int main( int argc, char **argv )
             event_subscription_count < 3 ) {
             std::cerr << "Survivor Host API 2.0 runtime registration failed\n";
             return 23;
+        }
+
+        bool mana_vamp_hook_registered = false;
+        const auto mana_vamp_range = runtime_hooks_by_modifier.equal_range( "mg_melee_mana_vamp_pct" );
+        for( auto it = mana_vamp_range.first; it != mana_vamp_range.second; ++it ) {
+            if( it->second == "combat.melee_mana_vamp_pct" ) {
+                mana_vamp_hook_registered = true;
+                break;
+            }
+        }
+        if( !mana_vamp_hook_registered ) {
+            std::cerr << "Survivor Magiclysm mana-vampirism runtime hook missing\n";
+            return 51;
         }
 
         const std::string prefix = "survivor_progression:";
@@ -1939,7 +1952,7 @@ int main( int argc, char **argv )
         if( !survivor_semantic_matrix( lib ) ) {
             return 40;
         }
-        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.12.0 Host API 2.0 registration + schema migration)\n";
+        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.12.1 Host API 2.0 registration + schema migration)\n";
         return 0;
     }
 
