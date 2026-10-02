@@ -325,6 +325,29 @@
           ]
         }
       ]
+    },
+    {
+      "id": "magic_virtual_hands.source.v1",
+      "files": [
+        {
+          "path": "src/magic.cpp",
+          "required": [
+            "int spell::energy_cost( const Character &guy ) const",
+            "int spell::casting_time( const Character &guy ) const",
+            "float spell::spell_fail( const Character &guy ) const",
+            "guy.avg_encumb_of_limb_type( bp_type::hand ) - 5",
+            "guy.avg_encumb_of_limb_type( bp_type::arm ) - 10"
+          ]
+        },
+        {
+          "path": "src/handle_action.cpp",
+          "required": [
+            "bool Character::cast_spell( spell &sp, bool fake_spell,",
+            "if( is_armed() && !sp.no_hands() && !has_flag( json_flag_SUBTLE_SPELL ) &&",
+            "You need your hands free to cast this spell!"
+          ]
+        }
+      ]
     }
   ]
 }
