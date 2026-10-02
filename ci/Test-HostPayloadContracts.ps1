@@ -5,6 +5,24 @@ $m=Get-Content (Join-Path $PackageRoot 'compat\compatibility.manifest.json') -Ra
 $common083=[IO.File]::ReadAllText((Join-Path $PackageRoot 'tools\NCMM.Infrastructure.Common.ps1'))
 
 $payload=[IO.File]::ReadAllText((Join-Path $PackageRoot 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1'));foreach($n in @('[switch]$HostSourceProbeOnly','Set-InfrastructureTransactionPhase "compile"','Set-InfrastructureTransactionPhase "install"','DEEP_SOURCE_PASS')){if(-not $payload.Contains($n)){throw "Payload contract missing: $n"}}
+
+# RANDOM_DAMAGE tooltip regression: runtime spell-power hooks must affect both the
+# real cast and the pre-cast spell description.  The complete-gate probe forces
+# already-patched source caches to receive this newer UI hook as well.
+foreach($n in @(
+    'NCMM effective RANDOM_DAMAGE tooltip',
+    '$magicProbe.Contains(''NCMM effective RANDOM_DAMAGE tooltip'')',
+    '''magic.random-damage-tooltip''',
+    'const int vanilla_damage = static_cast<int>( value * temp_damage_multiplyer );',
+    'ncmm_spell_multiplier( *this, ncmm_spell_modifier::power, 0.0 )'
+)){
+    if(-not $payload.Contains($n)){throw ('Random spell-damage tooltip contract missing: '+$n)}
+}
+$tooltipProbeLow=[Math]::Round([Math]::Truncate(31.0)*1.06,0,[MidpointRounding]::AwayFromZero)
+$tooltipProbeHigh=[Math]::Round([Math]::Truncate(63.0)*1.06,0,[MidpointRounding]::AwayFromZero)
+if($tooltipProbeLow -ne 33 -or $tooltipProbeHigh -ne 67){
+    throw 'Random spell-damage tooltip regression fixture failed for 31-63 at +6% power.'
+}
 foreach($badHere in @("'@.TrimEnd(",'"@.TrimEnd(',"'@ @'",'"@ @"')){if($payload.Contains($badHere)){throw ('PowerShell 5.1 unsafe here-string composition: '+$badHere)}}
 # Windows PowerShell 5.1 requires a here-string closing marker to be the only token on its line.
 $payloadLines=$payload -split "`r?`n"
