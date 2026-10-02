@@ -4,9 +4,9 @@ $PackageRoot=(Resolve-Path $PackageRoot).Path
 $payload=[IO.File]::ReadAllText((Join-Path $PackageRoot 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1'))
 
 # Survivor Progression 0.10.0 Mechanical Perks regression contracts.
-# Historical gameplay/content contracts stay pinned here; build-cache marker/fingerprint are version-current and are checked by the 0.12.1 block below.
+# Historical gameplay/content contracts stay pinned here; build-cache marker/fingerprint are version-current and are checked by the 0.13.0 block below.
 $survivor0100=Get-Content (Join-Path $PackageRoot 'components\survivor_progression.json') -Raw|ConvertFrom-Json
-if([string]$survivor0100.version -ne '0.12.1'){throw 'Survivor 0.12.1 component identity mismatch.'}
+if([string]$survivor0100.version -ne '0.13.0'){throw 'Survivor 0.13.0 component identity mismatch.'}
 $contracts0100=Get-Content (Join-Path $PackageRoot 'compat\contracts.json') -Raw|ConvertFrom-Json
 if(@($contracts0100.contracts|Where-Object{$_.id -eq 'mechanical_combat_hooks.source.v1'}).Count -ne 1){throw 'Mechanical combat source contract missing.'}
 foreach($mechanicalNeedle0100 in @(
@@ -47,7 +47,7 @@ foreach($ref0110 in @(
 # Survivor Progression 0.11.0 Reactive Mechanics + Technical Mastery regression contracts,
 # plus 0.11.1 semantic polish, 0.11.2 edge hardening and 0.11.3 combinatorial edge polish. The 25-node 0.11.0 layer remains intact; no polish pass removes nodes.
 $survivor0110=Get-Content (Join-Path $PackageRoot 'components\survivor_progression.json') -Raw|ConvertFrom-Json
-if([string]$survivor0110.version -ne '0.12.1'){throw 'Survivor 0.12.1 component identity mismatch.'}
+if([string]$survivor0110.version -ne '0.13.0'){throw 'Survivor 0.13.0 component identity mismatch.'}
 $contracts0110=Get-Content (Join-Path $PackageRoot 'compat\contracts.json') -Raw|ConvertFrom-Json
 if(@($contracts0110.contracts|Where-Object{$_.id -eq 'reactive_technical_hooks.source.v4'}).Count -ne 1){throw 'Reactive/technical source contract missing.'}
 foreach($reactiveNeedle0110 in @(
@@ -63,8 +63,8 @@ foreach($reactiveNeedle0110 in @(
     'Survivor Progression 0.11.1 Reactive Mechanics Polish: READY',
     'Survivor Progression 0.11.2 Reactive Edge-Case Polish: READY',
     'Survivor Progression 0.11.3 Combinatorial Edge Polish: READY',
-    '.survivor_0121_mana_vamp_build.sha256',
-    'v8.7.6.8-survivor-0.12.1-mana-vampirism',
+    '.survivor_0130_mana_hands_build.sha256',
+    'v8.7.6.8-survivor-0.13.0-mana-hands',
     '.ncmm_reactive_mechanics_0112',
     '.ncmm_reactive_mechanics_0113',
     'NCMM_EVENT_PLAYER_KILL_V2 = 6u',
@@ -345,11 +345,11 @@ foreach($n in @(
     'ncmm_survivor_recalibration_kit',
     'std::min( result.major_owned, 12 )',
     'get_state( "respec_request", 0 ) > 0',
-    'v8.7.6.8-survivor-0.12.1-mana-vampirism'
-)){if(-not $payload.Contains($n)){throw ('Survivor 0.12.1 settings/recalibration contract missing: '+$n)}}
+    'v8.7.6.8-survivor-0.13.0-mana-hands'
+)){if(-not $payload.Contains($n)){throw ('Survivor 0.13.0 settings/recalibration contract missing: '+$n)}}
 if($payload.Contains('reset.id = "respec"')){throw 'Free Survivor respec UI leaked into the current payload.'}
 
-# Survivor 0.12.1: high-level Magiclysm mana vampirism.
+# Survivor 0.13.0: high-level Magiclysm mana vampirism.
 $survivorSource0121=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\src\survivor_progression.cpp'))
 foreach($manaVampNeedle0121 in @(
     '{ "mg_mana_vampirism", branch_id::mastery, 9, 40, currency_id::perk, "mg_archmage"',
@@ -362,11 +362,11 @@ foreach($manaVampNeedle0121 in @(
     'ncmm_mana_vamp_fraction',
     'magic->mod_mana( *this, recovered_mana )',
     '!t.is_hallucination()',
-    'Survivor Progression v0.12.1',
-    '"0.12.1",'
+    'Survivor Progression v0.13.0',
+    '"0.13.0",'
 )){
     if(-not ($payload.Contains($manaVampNeedle0121) -or $survivorSource0121.Contains($manaVampNeedle0121))){
-        throw ('Survivor 0.12.1 mana-vampirism contract missing: '+$manaVampNeedle0121)
+        throw ('Survivor 0.13.0 mana-vampirism contract missing: '+$manaVampNeedle0121)
     }
 }
 
@@ -387,6 +387,59 @@ foreach($hit0121 in 1..5){
 if($restored0121 -ne 1 -or [Math]::Abs($fraction0121) -gt 1.0e-8){
     throw 'Mana-vamp fractional-carry fixture failed: five 20-damage rank-I hits must restore exactly 1 mana.'
 }
+
+# Survivor 0.13.0: Magiclysm virtual third/fourth mana hands.
+$contracts0130=Get-Content (Join-Path $PackageRoot 'compat\contracts.json') -Raw|ConvertFrom-Json
+if(@($contracts0130.contracts|Where-Object{$_.id -eq 'magic_virtual_hands.source.v1'}).Count -ne 1){
+    throw 'Magic virtual-hands source contract missing.'
+}
+$adapter0130=[IO.File]::ReadAllText((Join-Path $PackageRoot 'adapters\cdda_2026_09_23_0546.ps1'))
+foreach($ref0130 in @(
+    "'src/magic.cpp' = 'acd1ca60046ec8ad3a8d483497031ddd9eb8feaf'",
+    "'src/handle_action.cpp' = '8a3ebf77fd6a631677a99ddc2d6f9880fcedc9b5'"
+)){if(-not $adapter0130.Contains($ref0130)){throw ('Mana-hands exact adapter reference missing: '+$ref0130)}}
+
+$survivorSource0130=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\src\survivor_progression.cpp'))
+foreach($handNeedle0130 in @(
+    '{ "mg_mana_hand_3", branch_id::mastery, 9, 42, currency_id::perk, "mg_archmage"',
+    '{ "mg_mana_hand_4", branch_id::mastery, 10, 48, currency_id::perk, "mg_mana_hand_3"',
+    '{ "mg_mana_hand_3", integration_id::magiclysm }',
+    '{ "mg_mana_hand_4", integration_id::magiclysm }',
+    'mg_virtual_hand_count',
+    '!bind("magic.virtual_hand_count",NCMM_SELECTOR_SOURCE_MOD_V2,"magiclysm","mg_virtual_hand_count")',
+    'Survivor Progression v0.13.0',
+    '"0.13.0",'
+)){
+    if(-not $survivorSource0130.Contains($handNeedle0130)){
+        throw ('Survivor 0.13.0 mana-hand module contract missing: '+$handNeedle0130)
+    }
+}
+foreach($payloadNeedle0130 in @(
+    'function Apply-SurvivorManaHands0130',
+    'static int ncmm_virtual_hand_count(',
+    'ncmm_virtual_limb_encumbrance_average(',
+    '"magic.virtual_hand_count"',
+    'const int ncmm_virtual_hands =',
+    'is_armed() && ncmm_virtual_hands <= 0',
+    '.survivor_0130_mana_hands_build.sha256',
+    'v8.7.6.8-survivor-0.13.0-mana-hands'
+)){
+    if(-not $payload.Contains($payloadNeedle0130)){
+        throw ('Survivor 0.13.0 mana-hand payload contract missing: '+$payloadNeedle0130)
+    }
+}
+
+# Encumbrance dilution is anatomy-aware: virtual hands are zero-encumbrance limbs
+# added to the actual physical limb count rather than assuming a two-armed human.
+function Test-ManaHandAverage0130([int]$Average,[int]$Physical,[int]$Virtual){
+    if($Virtual -le 0 -or $Average -le 0){return $Average}
+    if($Physical -le 0){return 0}
+    return [int][Math]::Round(($Average*$Physical)/[double]($Physical+$Virtual))
+}
+if((Test-ManaHandAverage0130 30 2 1) -ne 20){throw 'Third mana hand 2-arm encumbrance fixture failed.'}
+if((Test-ManaHandAverage0130 30 2 2) -ne 15){throw 'Fourth mana hand 2-arm encumbrance fixture failed.'}
+if((Test-ManaHandAverage0130 30 4 1) -ne 24){throw 'Third mana hand multi-arm encumbrance fixture failed.'}
+if((Test-ManaHandAverage0130 30 4 2) -ne 20){throw 'Fourth mana hand multi-arm encumbrance fixture failed.'}
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate
 # is intentionally half of the original 1 XP / 150 movement events.
