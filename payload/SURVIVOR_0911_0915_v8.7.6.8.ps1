@@ -19514,11 +19514,527 @@ enum class ncmm_shared_mana_modifier_kind { maximum, regeneration };
 
 Apply-SurvivorManaHands0130 $CddaRoot
 
-# Keep the patch-revision contract aware of the additive 0.13.0 engine transform.
+# 0.14.0 keeps the 0.13.0 perks but adds safe logical item assignments to mana hands.
+# The item never leaves the vanilla Character item graph.  The slot stores only a marker
+# on the existing item plus its persistent UID, so save/load, pockets, wear and damage
+# remain owned by CDDA.
+function Apply-SurvivorManaHandSlots0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 Mana Hand virtual item slots..." -ForegroundColor Cyan
+    $src0140 = Join-Path $Root 'src'
+    $game0140Path = Join-Path $src0140 'game.cpp'
+    $handle0140Path = Join-Path $src0140 'handle_action.cpp'
+    $melee0140Path = Join-Path $src0140 'melee.cpp'
+    $talker0140Path = Join-Path $src0140 'talker_character.cpp'
+    $slotHeaderPath = Join-Path $src0140 'ncmm_virtual_slots.h'
+    $missing0140 = @($game0140Path,$handle0140Path,$melee0140Path,$talker0140Path) |
+                   Where-Object { -not(Test-Path $_ -PathType Leaf) }
+    if($missing0140.Count -gt 0) {
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+            Write-Host "Survivor 0.14.0 virtual-slot engine transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+            return
+        }
+        throw ('Mana-hand virtual-slot source missing: '+($missing0140 -join ', '))
+    }
+
+    $header0140 = @'
+#pragma once
+#ifndef CATA_SRC_NCMM_VIRTUAL_SLOTS_H
+#define CATA_SRC_NCMM_VIRTUAL_SLOTS_H
+
+#include <algorithm>
+#include <cstdint>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "character.h"
+#include "flag.h"
+#include "item.h"
+#include "item_location.h"
+#include "melee.h"
+#include "ncmm_loader.h"
+
+namespace ncmm
+{
+inline constexpr const char *virtual_slot_var = "ncmm_virtual_slot";
+inline constexpr const char *mana_hand_3_slot = "survivor.magiclysm.mana_hand_3";
+inline constexpr const char *mana_hand_4_slot = "survivor.magiclysm.mana_hand_4";
+inline constexpr const char *mana_hand_3_uid_key = "ncmm_virtual_slot_uid_survivor_magiclysm_mana_hand_3";
+inline constexpr const char *mana_hand_4_uid_key = "ncmm_virtual_slot_uid_survivor_magiclysm_mana_hand_4";
+
+inline const char *mana_hand_slot_id( int hand )
+{
+    return hand == 3 ? mana_hand_3_slot : hand == 4 ? mana_hand_4_slot : "";
+}
+
+inline const char *mana_hand_uid_key( int hand )
+{
+    return hand == 3 ? mana_hand_3_uid_key : hand == 4 ? mana_hand_4_uid_key : "";
+}
+
+inline int mana_hand_capacity( const char *source_mod = "magiclysm" )
+{
+    const double raw = runtime_hook_modifier(
+                           "magic.virtual_hand_count", nullptr, source_mod, nullptr, nullptr );
+    return std::max( 0, std::min( 2, static_cast<int>( std::lround( raw ) ) ) );
+}
+
+inline bool mana_hand_available( int hand )
+{
+    const int capacity = mana_hand_capacity( "magiclysm" );
+    return hand == 3 ? capacity >= 1 : hand == 4 && capacity >= 2;
+}
+
+inline bool character_carries_location( Character &who, const item_location &loc )
+{
+    if( !loc ) {
+        return false;
+    }
+    for( const item_location &candidate : who.all_items_loc() ) {
+        if( candidate && candidate == loc ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+inline int64_t stored_slot_uid( const Character &who, int hand )
+{
+    const char *key = mana_hand_uid_key( hand );
+    if( key[0] == '\0' ) {
+        return 0;
+    }
+    const diag_value *value = who.maybe_get_value( key );
+    if( value == nullptr ) {
+        return 0;
+    }
+    try {
+        return std::stoll( value->str() );
+    } catch( ... ) {
+        return 0;
+    }
+}
+
+inline void clear_mana_hand( Character &who, int hand )
+{
+    const char *slot = mana_hand_slot_id( hand );
+    const char *key = mana_hand_uid_key( hand );
+    if( slot[0] == '\0' || key[0] == '\0' ) {
+        return;
+    }
+    for( item_location loc : who.all_items_loc() ) {
+        if( loc && loc->get_var( virtual_slot_var, "" ) == slot ) {
+            loc->erase_var( virtual_slot_var );
+        }
+    }
+    who.remove_value( key );
+}
+
+inline item_location resolve_mana_hand( Character &who, int hand, bool require_available = true )
+{
+    if( hand != 3 && hand != 4 ) {
+        return item_location();
+    }
+    if( require_available && !mana_hand_available( hand ) ) {
+        clear_mana_hand( who, hand );
+        return item_location();
+    }
+
+    const char *slot = mana_hand_slot_id( hand );
+    const char *key = mana_hand_uid_key( hand );
+    const int64_t expected_uid = stored_slot_uid( who, hand );
+    std::vector<item_location> marked;
+    item_location chosen;
+
+    for( item_location loc : who.all_items_loc() ) {
+        if( !loc || loc->get_var( virtual_slot_var, "" ) != slot ) {
+            continue;
+        }
+        marked.push_back( loc );
+        if( expected_uid > 0 && loc->uid().get_value() == expected_uid ) {
+            chosen = loc;
+        }
+    }
+
+    if( !chosen && !marked.empty() ) {
+        chosen = marked.front();
+    }
+
+    if( chosen ) {
+        for( item_location loc : marked ) {
+            if( loc && loc != chosen ) {
+                loc->erase_var( virtual_slot_var );
+            }
+        }
+        who.set_value( key, std::to_string( chosen->uid().get_value() ) );
+    } else {
+        who.remove_value( key );
+    }
+    return chosen;
+}
+
+inline bool mana_hand_item_supported( const item &it )
+{
+    static const flag_id magic_focus( "MAGIC_FOCUS" );
+    static const flag_id spellcasting_aid( "SPELLCASTING_AID" );
+    if( it.count_by_charges() ) {
+        return false;
+    }
+    int block = melee::blocking_ability( it );
+    // blocking_ability==2 is the worn-only fallback for BLOCK_WHILE_WORN;
+    // a virtual hand must not turn worn-only armor into a held shield.
+    if( block == 2 ) {
+        block = 0;
+    }
+    return it.has_flag( magic_focus ) || it.has_flag( spellcasting_aid ) || block > 0;
+}
+
+inline bool can_assign_mana_hand( Character &who, const item_location &loc, int hand )
+{
+    if( !mana_hand_available( hand ) || !loc || !character_carries_location( who, loc ) ||
+        !mana_hand_item_supported( *loc ) ) {
+        return false;
+    }
+    if( who.get_wielded_item() && loc == who.get_wielded_item() ) {
+        return false;
+    }
+    if( who.is_worn( *loc ) ) {
+        return false;
+    }
+    return true;
+}
+
+inline bool assign_mana_hand( Character &who, const item_location &loc, int hand )
+{
+    if( !can_assign_mana_hand( who, loc, hand ) ) {
+        return false;
+    }
+
+    const std::string previous = loc->get_var( virtual_slot_var, "" );
+    if( previous == mana_hand_3_slot ) {
+        clear_mana_hand( who, 3 );
+    } else if( previous == mana_hand_4_slot ) {
+        clear_mana_hand( who, 4 );
+    } else if( !previous.empty() ) {
+        loc->erase_var( virtual_slot_var );
+    }
+
+    clear_mana_hand( who, hand );
+    loc->set_var( virtual_slot_var, mana_hand_slot_id( hand ) );
+    who.set_value( mana_hand_uid_key( hand ), std::to_string( loc->uid().get_value() ) );
+    return true;
+}
+
+inline item_location mana_hand_item( Character &who, int hand )
+{
+    return resolve_mana_hand( who, hand, true );
+}
+
+inline int mana_hand_occupied_count( Character &who, const char *source_mod = "magiclysm" )
+{
+    const int capacity = mana_hand_capacity( source_mod );
+    int occupied = 0;
+    if( capacity >= 1 && resolve_mana_hand( who, 3, false ) ) {
+        ++occupied;
+    }
+    if( capacity >= 2 && resolve_mana_hand( who, 4, false ) ) {
+        ++occupied;
+    }
+    return occupied;
+}
+
+inline int mana_hand_free_count( Character &who, const char *source_mod = "magiclysm" )
+{
+    const int capacity = mana_hand_capacity( source_mod );
+    return std::max( 0, capacity - mana_hand_occupied_count( who, source_mod ) );
+}
+
+inline bool mana_hand_has_flag( Character &who, const flag_id &flag,
+                                const char *source_mod = "magiclysm" )
+{
+    const int capacity = mana_hand_capacity( source_mod );
+    if( capacity >= 1 ) {
+        item_location loc = resolve_mana_hand( who, 3, false );
+        if( loc && loc->has_flag( flag ) ) {
+            return true;
+        }
+    }
+    if( capacity >= 2 ) {
+        item_location loc = resolve_mana_hand( who, 4, false );
+        if( loc && loc->has_flag( flag ) ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+inline bool is_mana_hand_item( Character &who, const item_location &loc )
+{
+    if( !loc ) {
+        return false;
+    }
+    for( int hand : { 3, 4 } ) {
+        item_location assigned = resolve_mana_hand( who, hand, false );
+        if( assigned && assigned == loc ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+} // namespace ncmm
+
+#endif // CATA_SRC_NCMM_VIRTUAL_SLOTS_H
+'@
+    Write-Utf8NoBom $slotHeaderPath $header0140
+
+    $game0140 = Normalize-Lf ([IO.File]::ReadAllText($game0140Path))
+    if(-not $game0140.Contains('#include "ncmm_virtual_slots.h"')) {
+        $game0140 = Replace-TextBlock $game0140 '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_virtual_slots.h"') 'mana-slot game include'
+    }
+    $menuAnchor0140 = @'
+                addentry( '=', pgettext( "action", "reassign" ), hint_rating::good );
+
+                if( bHPR ) {
+'@
+    $menuNew0140 = @'
+                addentry( '=', pgettext( "action", "reassign" ), hint_rating::good );
+
+                const std::string ncmm_virtual_slot = oThisItem.get_var( ncmm::virtual_slot_var, "" );
+                const bool ncmm_mana3_assigned = ncmm_virtual_slot == ncmm::mana_hand_3_slot;
+                const bool ncmm_mana4_assigned = ncmm_virtual_slot == ncmm::mana_hand_4_slot;
+                if( ncmm_mana3_assigned ) {
+                    addentry( '3', _( "release from Mana Hand III" ), hint_rating::good );
+                } else if( ncmm::can_assign_mana_hand( u, locThisItem, 3 ) ) {
+                    addentry( '3', _( "assign to Mana Hand III" ), hint_rating::good );
+                }
+                if( ncmm_mana4_assigned ) {
+                    addentry( '4', _( "release from Mana Hand IV" ), hint_rating::good );
+                } else if( ncmm::can_assign_mana_hand( u, locThisItem, 4 ) ) {
+                    addentry( '4', _( "assign to Mana Hand IV" ), hint_rating::good );
+                }
+
+                if( bHPR ) {
+'@
+    if($game0140.Contains((Normalize-Lf $menuAnchor0140).TrimEnd())) {
+        $game0140 = Replace-TextBlock $game0140 $menuAnchor0140 $menuNew0140 'mana-slot inventory actions'
+    } elseif(-not $game0140.Contains('assign to Mana Hand III')) {
+        throw 'Mana-slot inventory action anchor/output missing.'
+    }
+
+    $switchAnchor0140 = @'
+            switch( cMenu ) {
+                case 'a': {
+'@
+    $switchNew0140 = @'
+            switch( cMenu ) {
+                case '3':
+                case '4': {
+                    const int ncmm_hand = cMenu == '3' ? 3 : 4;
+                    const std::string ncmm_expected = ncmm::mana_hand_slot_id( ncmm_hand );
+                    if( oThisItem.get_var( ncmm::virtual_slot_var, "" ) == ncmm_expected ) {
+                        ncmm::clear_mana_hand( u, ncmm_hand );
+                        add_msg( m_info, _( "You release the %s from Mana Hand %s." ),
+                                 oThisItem.tname(), ncmm_hand == 3 ? "III" : "IV" );
+                    } else if( ncmm::assign_mana_hand( u, locThisItem, ncmm_hand ) ) {
+                        add_msg( m_info, _( "Mana Hand %s takes hold of the %s." ),
+                                 ncmm_hand == 3 ? "III" : "IV", oThisItem.tname() );
+                    } else {
+                        add_msg( m_info, _( "That item cannot be assigned to this mana hand." ) );
+                    }
+                    break;
+                }
+                case 'a': {
+'@
+    if($game0140.Contains((Normalize-Lf $switchAnchor0140).TrimEnd())) {
+        $game0140 = Replace-TextBlock $game0140 $switchAnchor0140 $switchNew0140 'mana-slot inventory switch'
+    } elseif(-not $game0140.Contains("case '3':")) {
+        throw 'Mana-slot inventory switch anchor/output missing.'
+    }
+    Write-Utf8NoBom $game0140Path $game0140
+
+    $handle0140 = Normalize-Lf ([IO.File]::ReadAllText($handle0140Path))
+    if(-not $handle0140.Contains('#include "ncmm_virtual_slots.h"')) {
+        if(-not $handle0140.Contains('#include "ncmm_loader.h"')){throw 'Mana-slot handle include anchor missing.'}
+        $handle0140 = Replace-TextBlock $handle0140 '#include "ncmm_loader.h"' ('#include "ncmm_loader.h"' + [Environment]::NewLine + '#include "ncmm_virtual_slots.h"') 'mana-slot handle include'
+    }
+    $freeOld0140 = @'
+    const std::string ncmm_spell_source = sp.get_src().str();
+    const int ncmm_virtual_hands = is_avatar() ?
+                                   std::max( 0, std::min( 2, static_cast<int>( std::lround(
+                                           ncmm::runtime_hook_modifier(
+                                               "magic.virtual_hand_count", nullptr,
+                                               ncmm_spell_source.empty() ? nullptr : ncmm_spell_source.c_str(),
+                                               nullptr, nullptr ) ) ) ) ) : 0;
+    if( is_armed() && ncmm_virtual_hands <= 0 && !sp.no_hands() &&
+        !has_flag( json_flag_SUBTLE_SPELL ) &&
+        !get_wielded_item()->has_flag( flag_MAGIC_FOCUS ) && !sp.check_if_component_in_hand( *this ) ) {
+'@
+    $freeNew0140 = @'
+    const std::string ncmm_spell_source = sp.get_src().str();
+    const char *ncmm_spell_source_id = ncmm_spell_source.empty() ? nullptr : ncmm_spell_source.c_str();
+    const int ncmm_virtual_hands = is_avatar() ?
+                                   ncmm::mana_hand_free_count( *this, ncmm_spell_source_id ) : 0;
+    const bool ncmm_virtual_focus = is_avatar() &&
+                                    ncmm::mana_hand_has_flag( *this, flag_MAGIC_FOCUS,
+                                                             ncmm_spell_source_id );
+    if( is_armed() && ncmm_virtual_hands <= 0 && !ncmm_virtual_focus && !sp.no_hands() &&
+        !has_flag( json_flag_SUBTLE_SPELL ) &&
+        !get_wielded_item()->has_flag( flag_MAGIC_FOCUS ) && !sp.check_if_component_in_hand( *this ) ) {
+'@
+    if($handle0140.Contains((Normalize-Lf $freeOld0140).TrimEnd())) {
+        $handle0140 = Replace-TextBlock $handle0140 $freeOld0140 $freeNew0140 'mana-slot occupied casting'
+    } elseif(-not $handle0140.Contains('ncmm::mana_hand_free_count')) {
+        throw 'Mana-slot occupied-casting anchor/output missing.'
+    }
+    Write-Utf8NoBom $handle0140Path $handle0140
+
+    $melee0140 = Normalize-Lf ([IO.File]::ReadAllText($melee0140Path))
+    if(-not $melee0140.Contains('#include "ncmm_virtual_slots.h"')) {
+        $melee0140 = Replace-TextBlock $melee0140 '#include "melee.h"' ('#include "melee.h"' + [Environment]::NewLine + '#include "ncmm_virtual_slots.h"') 'mana-slot melee include'
+    }
+    $shieldOld0140 = @'
+item_location Character::best_shield()
+{
+    int best_value = melee::blocking_ability( weapon );
+    best_value = best_value == 2 ? 0 : best_value;
+    item_location best = best_value > 0 ? get_wielded_item() : item_location();
+    item *best_worn = worn.best_shield();
+    if( best_worn && melee::blocking_ability( *best_worn ) >= best_value ) {
+        best = item_location( *this, best_worn );
+    }
+    return best;
+}
+'@
+    $shieldNew0140 = @'
+item_location Character::best_shield()
+{
+    int best_value = melee::blocking_ability( weapon );
+    best_value = best_value == 2 ? 0 : best_value;
+    item_location best = best_value > 0 ? get_wielded_item() : item_location();
+    item *best_worn = worn.best_shield();
+    if( best_worn && melee::blocking_ability( *best_worn ) >= best_value ) {
+        best_value = melee::blocking_ability( *best_worn );
+        best = item_location( *this, best_worn );
+    }
+    if( is_avatar() ) {
+        for( int hand : { 3, 4 } ) {
+            item_location virtual_shield = ncmm::mana_hand_item( *this, hand );
+            if( !virtual_shield ) {
+                continue;
+            }
+            int virtual_value = melee::blocking_ability( *virtual_shield );
+            virtual_value = virtual_value == 2 ? 0 : virtual_value;
+            if( virtual_value > 0 && virtual_value >= best_value ) {
+                best_value = virtual_value;
+                best = virtual_shield;
+            }
+        }
+    }
+    return best;
+}
+'@
+    if($melee0140.Contains((Normalize-Lf $shieldOld0140).TrimEnd())) {
+        $melee0140 = Replace-TextBlock $melee0140 $shieldOld0140 $shieldNew0140 'mana-slot shield selection'
+    } elseif(-not $melee0140.Contains('item_location virtual_shield = ncmm::mana_hand_item')) {
+        throw 'Mana-slot shield-selection anchor/output missing.'
+    }
+
+    $blockOld0140 = @'
+    const bool has_shield = !!shield;
+    bool worn_shield = has_shield && shield->has_flag( flag_BLOCK_WHILE_WORN );
+
+    bool conductive_shield = false;
+    bool unarmed = !is_armed();
+'@
+    $blockNew0140 = @'
+    const bool has_shield = !!shield;
+    const bool ncmm_virtual_shield = has_shield && is_avatar() &&
+                                     ncmm::is_mana_hand_item( *this, shield );
+    bool worn_shield = has_shield && !ncmm_virtual_shield &&
+                       shield->has_flag( flag_BLOCK_WHILE_WORN );
+
+    bool conductive_shield = false;
+    bool unarmed = !is_armed() && !ncmm_virtual_shield;
+'@
+    if($melee0140.Contains((Normalize-Lf $blockOld0140).TrimEnd())) {
+        $melee0140 = Replace-TextBlock $melee0140 $blockOld0140 $blockNew0140 'mana-slot held shield semantics'
+    } elseif(-not $melee0140.Contains('const bool ncmm_virtual_shield')) {
+        throw 'Mana-slot held-shield anchor/output missing.'
+    }
+    Write-Utf8NoBom $melee0140Path $melee0140
+
+    $talker0140 = Normalize-Lf ([IO.File]::ReadAllText($talker0140Path))
+    if(-not $talker0140.Contains('#include "ncmm_virtual_slots.h"')) {
+        $talker0140 = Replace-TextBlock $talker0140 '#include "talker_character.h"' ('#include "talker_character.h"' + [Environment]::NewLine + '#include "ncmm_virtual_slots.h"') 'mana-slot talker include'
+    }
+    $talkerOld0140 = @'
+bool talker_character_const::wielded_with_flag( const flag_id &flag ) const
+{
+    return me_chr_const->get_wielded_item() && me_chr_const->get_wielded_item()->has_flag( flag );
+}
+'@
+    $talkerNew0140 = @'
+bool talker_character_const::wielded_with_flag( const flag_id &flag ) const
+{
+    if( me_chr_const->get_wielded_item() && me_chr_const->get_wielded_item()->has_flag( flag ) ) {
+        return true;
+    }
+    if( !me_chr_const->is_avatar() ) {
+        return false;
+    }
+    const std::string flag_name = flag.str();
+    if( flag_name != "MAGIC_FOCUS" && flag_name != "SPELLCASTING_AID" ) {
+        return false;
+    }
+    return ncmm::mana_hand_has_flag( *const_cast<Character *>( me_chr_const ), flag, "magiclysm" );
+}
+'@
+    if($talker0140.Contains((Normalize-Lf $talkerOld0140).TrimEnd())) {
+        $talker0140 = Replace-TextBlock $talker0140 $talkerOld0140 $talkerNew0140 'mana-slot wielded focus bridge'
+    } elseif(-not $talker0140.Contains('flag_name != "MAGIC_FOCUS"')) {
+        throw 'Mana-slot focus bridge anchor/output missing.'
+    }
+    Write-Utf8NoBom $talker0140Path $talker0140
+
+    foreach($check0140 in @(
+        @{Path=$slotHeaderPath; Needle='inline bool assign_mana_hand('},
+        @{Path=$slotHeaderPath; Needle='inline item_location resolve_mana_hand('},
+        @{Path=$game0140Path; Needle='assign to Mana Hand III'},
+        @{Path=$handle0140Path; Needle='ncmm::mana_hand_free_count'},
+        @{Path=$melee0140Path; Needle='const bool ncmm_virtual_shield'},
+        @{Path=$talker0140Path; Needle='flag_name != "MAGIC_FOCUS" && flag_name != "SPELLCASTING_AID"'}
+    )) {
+        if(-not ([IO.File]::ReadAllText($check0140.Path)).Contains($check0140.Needle)) {
+            throw ('Survivor 0.14.0 virtual-slot output missing: '+$check0140.Needle)
+        }
+    }
+    Write-Host "Survivor 0.14.0 Mana Hand virtual item slots: READY" -ForegroundColor Green
+}
+
+# The copy-audit produces module files without a CDDA tree, so bump the canonical
+# generated module independently of the engine-side transform.
+$sp0140 = Normalize-Lf ([IO.File]::ReadAllText($spPath))
+if($sp0140.Contains('0.13.0')) {
+    $sp0140 = $sp0140.Replace('0.13.0','0.14.0')
+    Write-Utf8NoBom $spPath $sp0140
+}
+$manifest0140 = Normalize-Lf ([IO.File]::ReadAllText($manifestPath))
+if($manifest0140.Contains('"version": "0.13.0"')) {
+    $manifest0140 = $manifest0140.Replace('"version": "0.13.0"','"version": "0.14.0"')
+    Write-Utf8NoBom $manifestPath $manifest0140
+}
+Copy-Item $spPath (Join-Path $NcmmRoot "mods\SurvivorProgression\src\survivor_progression.cpp") -Force
+Copy-Item $manifestPath (Join-Path $NcmmRoot "mods\SurvivorProgression\mod.json") -Force
+
+Apply-SurvivorManaHandSlots0140 $CddaRoot
+
+# Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0113 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHands0130 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandSlots0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
