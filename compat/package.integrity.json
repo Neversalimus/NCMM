@@ -86,8 +86,8 @@
     },
     {
       "path": "ci\\Test-SurvivorPayloadContracts.ps1",
-      "sha256": "7f339f960a19738be2d875c77ef5841243b44e6b1bcf86cd54ac6536561ab53a",
-      "bytes": 28851
+      "sha256": "7f0b8085f23f11de18b202a5a2e574cff168f3329a702d78562ca5428601658e",
+      "bytes": 30294
     },
     {
       "path": "ci\\Watch-CDDAExperimental.ps1",
@@ -101,8 +101,8 @@
     },
     {
       "path": "compat\\contracts.json",
-      "sha256": "67d5c3ba3de7054012e3eff82fc074a602de30db964bcd0935ff8eca84744d7c",
-      "bytes": 11426
+      "sha256": "c532accae16306d95aa889b12a81bdd9a60b28cc07388b0177c8fd27c5e7e09a",
+      "bytes": 12227
     },
     {
       "path": "compat\\feed\\commits\\e262adb299a7613b4aedc5f12c08fe0413c56a84.json",
@@ -136,7 +136,7 @@
     },
     {
       "path": "components\\index.json",
-      "sha256": "aaee45cb4a827cbef1471f44c56f84e99dac52a69b127264097783d8f1d9b904",
+      "sha256": "4bf05699b5aad668fc191ce0ace7a2e7f815e15fdbaa10bb55f3aa4850ca749a",
       "bytes": 6124
     },
     {
@@ -166,7 +166,7 @@
     },
     {
       "path": "components\\survivor_progression.json",
-      "sha256": "feadc26bbb7e250efb457c63067ea8387a0c69ad1f40526ca1d75640495dc416",
+      "sha256": "6fe1bf389aca14959732b068e9cf156df515fee56f6d0d6d5b59221d4a112340",
       "bytes": 805
     },
     {
@@ -331,8 +331,8 @@
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-      "sha256": "59f0e450884721eb2f970dc1e1ab670181ec98c01d66666b74f9ea10e059e245",
-      "bytes": 1841707
+      "sha256": "f08d55d6e0efc7fa29397b39056e1e90a54741080a7925219eb7280f89f70806",
+      "bytes": 1863152
     },
     {
       "path": "pipeline\\pipeline.manifest.json",
