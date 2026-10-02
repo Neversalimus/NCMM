@@ -548,6 +548,36 @@ foreach($sourcePath0140 in @('src/game.cpp','src/talker_character.cpp','src/item
     if(@($sourceEntry0140).Count -ne 1){throw ('Mana Hand source contract missing hardening path: '+$sourcePath0140)}
 }
 
+$manaContextStart0140=$payload.IndexOf('function Apply-SurvivorVirtualItemContext0140')
+$manaContextEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandSpellcastingAid0140',$manaContextStart0140)
+if($manaContextStart0140 -lt 0 -or $manaContextEnd0140 -le $manaContextStart0140){throw 'Mana Hand context transform boundary missing.'}
+$manaContextSection0140=$payload.Substring($manaContextStart0140,$manaContextEnd0140-$manaContextStart0140)
+$contextOldStart0140=$manaContextSection0140.IndexOf('$switchOld0140ctx = @''')
+$contextNewStart0140=$manaContextSection0140.IndexOf('$switchNew0140ctx = @''',$contextOldStart0140)
+$contextApplyStart0140=$manaContextSection0140.IndexOf('$game0140ctx = Replace-TextBlock',$contextNewStart0140)
+if($contextOldStart0140 -lt 0 -or $contextNewStart0140 -le $contextOldStart0140 -or $contextApplyStart0140 -le $contextNewStart0140){
+    throw 'Mana Hand context switch transform structure missing.'
+}
+$contextOld0140=$manaContextSection0140.Substring($contextOldStart0140,$contextNewStart0140-$contextOldStart0140)
+$contextNew0140=$manaContextSection0140.Substring($contextNewStart0140,$contextApplyStart0140-$contextNewStart0140)
+foreach($oldNeedle0140 in @('switch( cMenu ) {',"case 'a': {")){
+    if(-not $contextOld0140.Contains($oldNeedle0140)){throw ('Mana Hand context old switch anchor missing: '+$oldNeedle0140)}
+}
+foreach($forbiddenOld0140 in @("case '3':","case '4':","case 'M':")){
+    if($contextOld0140.Contains($forbiddenOld0140)){throw ('Mana Hand context old switch anchor already contains injected action: '+$forbiddenOld0140)}
+}
+foreach($newNeedle0140 in @(
+    "case '3':",
+    "case '4':",
+    "case 'M':",
+    'const int ncmm_mana_hands_now = static_cast<int>(',
+    'item *ncmm_bound3 = ncmm_mana_hands_now >= 1 ?',
+    'item *ncmm_bound4 = ncmm_mana_hands_now >= 2 ?',
+    'This item is not held by an available Mana Hand.'
+)){
+    if(-not $contextNew0140.Contains($newNeedle0140)){throw ('Mana Hand context generated switch missing: '+$newNeedle0140)}
+}
+
 $manaUtilityStart0140=$payload.IndexOf('function Apply-SurvivorManaHandUtility0140')
 $manaSecondaryStart0140=$payload.IndexOf('function Apply-SurvivorManaHandSecondaryMelee0140',$manaUtilityStart0140)
 if($manaUtilityStart0140 -lt 0 -or $manaSecondaryStart0140 -le $manaUtilityStart0140){throw 'Mana Hand utility/secondary transform boundary missing.'}
