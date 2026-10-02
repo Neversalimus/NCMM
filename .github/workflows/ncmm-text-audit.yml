@@ -1,4 +1,4 @@
-name: NCMM Player-Facing Text Audit
+name: Blocking · NCMM Source/Package Audit
 
 on:
   push:
