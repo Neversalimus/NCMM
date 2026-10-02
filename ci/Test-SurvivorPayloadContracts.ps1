@@ -614,7 +614,11 @@ foreach($secondaryNeedle0140 in @(
     'ncmm::virtual_melee_context_item( *this )',
     'ncmm::virtual_melee_context_item( c )',
     'ncmm::virtual_melee_context_is_wielding( *this, target )',
-    'ncmm_run_mana_hand_secondary_melee( *this, t );'
+    'ncmm_run_mana_hand_secondary_melee( *this, t );',
+    'NCMM Mana Hand secondary strikes do not trigger martial-art event chains.',
+    'ncmm::virtual_melee_context_active( *this ) ? tec_none.obj()',
+    'Mana Hand secondary-melee context menu upgrade',
+    'Mana Hand secondary-melee context handler upgrade'
 )){
     if(-not $manaSecondarySection0140.Contains($secondaryNeedle0140)){
         throw ('Mana Hand secondary-melee regression contract missing: '+$secondaryNeedle0140)
@@ -623,6 +627,20 @@ foreach($secondaryNeedle0140 in @(
 if($manaSecondarySection0140.Contains('set_wielded_item(') -or
    $manaSecondarySection0140.Contains('u.wield(')){
     throw 'Mana Hand secondary melee must not move the virtual item into Character::weapon.'
+}
+
+if(([regex]::Matches($manaSecondarySection0140,[regex]::Escape('if( !ncmm::virtual_melee_context_active( *this ) ) {'))).Count -lt 4){
+    throw 'Mana Hand secondary melee must suppress all martial-art event chains while scoped.'
+}
+foreach($upgradeNeedle0140 in @(
+    '$secondaryMenuOld0140ctx = @''',
+    '$secondarySwitchOld0140ctx = @''',
+    'item *ncmm_bound3 = ncmm_mana_hands_now >= 1 ?',
+    'item *ncmm_bound4 = ncmm_mana_hands_now >= 2 ?'
+)){
+    if(-not $manaContextSection0140.Contains($upgradeNeedle0140)){
+        throw ('Mana Hand context update-path regression contract missing: '+$upgradeNeedle0140)
+    }
 }
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate
