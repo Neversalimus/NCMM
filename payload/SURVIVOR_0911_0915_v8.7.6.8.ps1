@@ -485,7 +485,7 @@ function Wait-Unlocked([string]$Path,[int]$Seconds=20) {
 }
 
 function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[string]$ReleaseRoot) {
-    $out = Join-Path $ReleaseRoot "0.13.0"
+    $out = Join-Path $ReleaseRoot "0.14.0"
     $src = Join-Path $SourceRoot "src\survivor_progression.cpp"
     $manifest = Join-Path $SourceRoot "mod.json"
     $dataRoot = Join-Path $SourceRoot "data"
@@ -512,7 +512,7 @@ function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[stri
         $dataFingerprint = Hash-Text ($dataParts -join "|")
     }
     $fingerprint = Hash-Text ((@(
-        "v8.7.6.8-survivor-0.13.0-mana-hands",
+        "v8.7.6.8-survivor-0.14.0-mana-hands",
         (Hash-File $src),
         $sourceManifestSha,
         $dataFingerprint,
@@ -532,7 +532,7 @@ function Compile-Survivor([string]$SourceRoot,[string]$SdkRoot,[object]$Vs,[stri
         $cacheLines[1].Trim() -eq (Hash-File $dll) -and
         $cacheLines[2].Trim() -eq $sourceManifestSha -and
         (Hash-File $cachedManifest) -eq $sourceManifestSha) {
-        Write-Host "Survivor 0.13.0 module build cache: HIT (DLL + manifest verified)" -ForegroundColor Green
+        Write-Host "Survivor 0.14.0 module build cache: HIT (DLL + manifest verified)" -ForegroundColor Green
         return $out
     }
 
@@ -548,14 +548,14 @@ exit /b %ERRORLEVEL%
 "@
     [IO.File]::WriteAllText($cmd,$cmdText,[Text.Encoding]::ASCII)
 
-    Write-Host "Compiling Survivor 0.13.0..." -ForegroundColor Cyan
+    Write-Host "Compiling Survivor 0.14.0..." -ForegroundColor Cyan
     $compilerOutput = @(& cmd.exe /d /c "`"$cmd`"" 2>&1)
     $compilerCode = $LASTEXITCODE
     foreach ($line in $compilerOutput) {
         Write-Host ([string]$line)
     }
     if ($compilerCode -ne 0 -or -not (Test-Path $dll -PathType Leaf)) {
-        throw "Survivor 0.13.0 compile failed with exit code $compilerCode"
+        throw "Survivor 0.14.0 compile failed with exit code $compilerCode"
     }
 
     Copy-Item $manifest (Join-Path $out "mod.json") -Force
@@ -569,7 +569,7 @@ exit /b %ERRORLEVEL%
     $dllSha = Hash-File $dll
     Write-Utf8NoBom $cacheMarker ($fingerprint + "`n" + $dllSha + "`n" + $sourceManifestSha + "`n")
 
-    $zip = Join-Path $ReleaseRoot "SurvivorProgression_0.13.0_LOCAL.zip"
+    $zip = Join-Path $ReleaseRoot "SurvivorProgression_0.14.0_LOCAL.zip"
     Remove-Item $zip -Force -ErrorAction SilentlyContinue
     Compress-Archive -Path (Join-Path $out "*") -DestinationPath $zip -Force
     return $out
@@ -19542,6 +19542,7 @@ function Apply-SurvivorManaHandSlots0140([string]$Root) {
 #define CATA_SRC_NCMM_VIRTUAL_SLOTS_H
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <string>
 #include <string_view>

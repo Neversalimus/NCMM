@@ -441,6 +441,40 @@ if((Test-ManaHandAverage0130 30 2 2) -ne 15){throw 'Fourth mana hand 2-arm encum
 if((Test-ManaHandAverage0130 30 4 1) -ne 24){throw 'Third mana hand multi-arm encumbrance fixture failed.'}
 if((Test-ManaHandAverage0130 30 4 2) -ne 20){throw 'Fourth mana hand multi-arm encumbrance fixture failed.'}
 
+# Survivor 0.14.0: Mana Hand logical item-slot regression contract.
+$contracts0140=Get-Content (Join-Path $PackageRoot 'compat\contracts.json') -Raw|ConvertFrom-Json
+if(@($contracts0140.contracts|Where-Object{$_.id -eq 'magic_virtual_slots.source.v1'}).Count -ne 1){
+    throw 'Magic virtual-slot source contract missing.'
+}
+foreach($slotNeedle0140 in @(
+    'function Apply-SurvivorManaHandSlots0140',
+    'ncmm_virtual_slots.h',
+    'inline item_location resolve_mana_hand(',
+    'inline bool assign_mana_hand(',
+    'inline int mana_hand_free_count(',
+    'ncmm_virtual_slot',
+    'uid().get_value()',
+    'assign to Mana Hand III',
+    'assign to Mana Hand IV',
+    'ncmm::mana_hand_free_count',
+    'const bool ncmm_virtual_shield',
+    'SPELLCASTING_AID',
+    'Apply-SurvivorManaHandSlots0140 $CddaRoot',
+    '(Get-Command Apply-SurvivorManaHandSlots0140 -CommandType Function).Definition',
+    'v8.7.6.8-survivor-0.14.0-mana-hands',
+    'SurvivorProgression_0.14.0_LOCAL.zip'
+)){
+    if(-not $payload.Contains($slotNeedle0140)){
+        throw ('Survivor 0.14.0 virtual-slot payload contract missing: '+$slotNeedle0140)
+    }
+}
+if($payload.Contains('item_location::type::mana_hand')){
+    throw 'Survivor virtual slots must not introduce a synthetic item_location type.'
+}
+if(-not $payload.Contains('#include <cmath>')){
+    throw 'Survivor virtual-slot helper must include <cmath> for std::lround.'
+}
+
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate
 # is intentionally half of the original 1 XP / 150 movement events.
 $survivorSource=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\src\survivor_progression.cpp'))
