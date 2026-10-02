@@ -86,7 +86,7 @@ int has_capability_fn( const char *cap )
         "compatibility.v1", "events.turn.v1", "character_state.v1", "character.modifiers.v1",
         "ui.basic.v1", "ui.tiles.v1", "ui.cards.v1", "ui.tree.v1", "gameplay.metrics.v1",
         "active_mods.v1", "ui.theme.v1", "active_mods.registry.v2", "host_api.v2.core",
-        "events.core.v2", "character.modifiers.v2", "runtime_hooks.registry.v2",
+        "character.virtual_items.v1", "events.core.v2", "character.modifiers.v2", "runtime_hooks.registry.v2",
         "ui.layout.v1", "module_hotkeys.v1", "module_hotkeys.context.v1",
         "ingame_manager.v1", "api.versioning.v1", "state.migration.v1",
         "module.lifecycle.v1", "settings.typed.v2", "worldgen.bindings.v2",
@@ -609,6 +609,10 @@ const char *current_module_id_v2_fn() { return "smoke_host"; }
 int module_is_loaded_v2_fn( const char * ) { return 0; }
 const char *module_version_v2_fn( const char * ) { return nullptr; }
 const char *module_state_v2_fn( const char * ) { return nullptr; }
+int virtual_item_choose_v2_fn( const char *, const char *, const char *, uint32_t ) { return 0; }
+int virtual_item_clear_v2_fn( const char *, const char * ) { return 1; }
+const char *virtual_item_name_v2_fn( const char *, const char * ) { return ""; }
+int64_t virtual_item_uid_v2_fn( const char *, const char * ) { return 0; }
 
 ncmm_host_api_v2_core smoke_host2{};
 
@@ -631,7 +635,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 1 ) {
         // Buy Combat -> Power Training.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.13.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.14.0" ) != std::string::npos ) {
             ++ui_stage;
             return 0;
         }
@@ -648,7 +652,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 2 ) {
         // Buy Mastery -> Fast Learner.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.13.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.14.0" ) != std::string::npos ) {
             ++ui_stage;
             return 5;
         }
@@ -665,7 +669,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 3 ) {
         // Root -> Respec all perks -> confirm.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.13.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.14.0" ) != std::string::npos ) {
             ++ui_stage;
             return 7;
         }
@@ -1815,6 +1819,10 @@ int main( int argc, char **argv )
     smoke_host2.runtime_hook_bool = &runtime_hook_bool_setting_v2_fn;
     smoke_host2.runtime_hook_i64 = &runtime_hook_i64_setting_v2_fn;
     smoke_host2.runtime_hook_f64 = &runtime_hook_f64_setting_v2_fn;
+    smoke_host2.virtual_item_choose = &virtual_item_choose_v2_fn;
+    smoke_host2.virtual_item_clear = &virtual_item_clear_v2_fn;
+    smoke_host2.virtual_item_name = &virtual_item_name_v2_fn;
+    smoke_host2.virtual_item_uid = &virtual_item_uid_v2_fn;
 
     if( std::strcmp( desc->id, "equipment_body_map" ) == 0 ) {
         if( !equipment_body_map_smoke::run( lib, desc, api ) ) return 44;
@@ -1932,13 +1940,13 @@ int main( int argc, char **argv )
             std::cerr << "Survivor Progression callback export missing\n";
             return 9;
         }
-        if( std::strcmp( desc->version, "0.13.0" ) != 0 ) {
+        if( std::strcmp( desc->version, "0.14.0" ) != 0 ) {
             std::cerr << "Survivor Progression descriptor version mismatch\n";
             return 21;
         }
         if( modifier_definition_count == 0 || runtime_hook_binding_count == 0 ||
             event_subscription_count < 3 ) {
-            std::cerr << "Survivor Host API 2.0 runtime registration failed\n";
+            std::cerr << "Survivor Host API 2.1 runtime registration failed\n";
             return 23;
         }
 
@@ -1986,7 +1994,7 @@ int main( int argc, char **argv )
         if( !survivor_semantic_matrix( lib ) ) {
             return 40;
         }
-        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.13.0 Host API 2.0 registration + schema migration)\n";
+        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.14.0 Host API 2.1 registration + schema migration)\n";
         return 0;
     }
 
