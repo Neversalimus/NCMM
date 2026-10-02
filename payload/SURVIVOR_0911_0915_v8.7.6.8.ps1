@@ -20570,11 +20570,16 @@ const ma_technique miss_recovery =
         'who.magic->mod_mana( who, -mana_cost )',
         'ncmm::virtual_melee_context_item( *this )',
         'ncmm::virtual_melee_context_item( c )',
-        'ncmm_run_mana_hand_secondary_melee( *this, t );'
+        'ncmm_run_mana_hand_secondary_melee( *this, t );',
+        'NCMM Mana Hand secondary strikes do not trigger martial-art event chains.',
+        'ncmm::virtual_melee_context_active( *this ) ? tec_none.obj()'
     )) {
         if(-not $meleeOut0140.Contains($needle0140melee)) {
             throw ('Survivor 0.14.0 secondary-melee output missing: '+$needle0140melee)
         }
+    }
+    if(([regex]::Matches($meleeOut0140,[regex]::Escape('if( !ncmm::virtual_melee_context_active( *this ) ) {'))).Count -lt 4) {
+        throw 'Survivor 0.14.0 secondary-melee martial-art event guards missing.'
     }
     foreach($needle0140inv in @(
         '#include "ncmm_loader.h"',
