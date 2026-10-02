@@ -80,7 +80,7 @@
     "optional_modules": [
       {
         "id": "survivor_progression",
-        "version": "0.12.0"
+        "version": "0.12.1"
       },
       {
         "id": "advanced_world_settings",
