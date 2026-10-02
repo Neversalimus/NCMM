@@ -77,3 +77,12 @@ A real item bound to Mana Hand III or IV can satisfy CDDA's item-local `need_wie
 
 The utility bridge deliberately does **not** modify `Character::is_wielding`, weapon categories, gun handling, holsters, gunmods, or secondary melee attacks. Those remain separate integration layers.
 
+
+## Mana Hand secondary melee
+
+A one-handed melee item held by Mana Hand III or IV can be explicitly opted into a secondary strike from the item context menu. The feature is off by default so shields, focuses, and utility items are never consumed or worn down as weapons unless the player enables it.
+
+Each enabled Mana Hand performs its own vanilla melee attack after the primary manual attack if the target is still alive and adjacent. The secondary attack pays its normal move and stamina cost and additionally spends mana equal to `ceil(attack_speed / 10)`, clamped to 5–50 mana. Secondary attacks use vanilla hit, crit, armor, damage, item wear, enchantments, events, and skill training, but do not select weapon techniques or trigger another Mana Hand attack.
+
+Guns and items that CDDA considers two-handed are excluded. Releasing or reassigning the item clears the secondary-strike opt-in.
+
