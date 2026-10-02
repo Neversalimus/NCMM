@@ -19838,6 +19838,86 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
 
 Apply-SurvivorVirtualItemContext0140 $CddaRoot
 
+function Apply-SurvivorManaHandSpellcastingAid0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 Mana Hand spellcasting-aid compatibility..." -ForegroundColor Cyan
+    $src0140aid = Join-Path $Root 'src'
+    $talker0140aidPath = Join-Path $src0140aid 'talker_character.cpp'
+    if(-not(Test-Path $talker0140aidPath -PathType Leaf)) {
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+            Write-Host "Survivor 0.14.0 spellcasting-aid transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+            return
+        }
+        throw ('Mana Hand spellcasting-aid source missing: '+$talker0140aidPath)
+    }
+
+    $talker0140aid = Normalize-Lf ([IO.File]::ReadAllText($talker0140aidPath))
+    if(-not $talker0140aid.Contains('#include "ncmm_loader.h"')) {
+        if(-not $talker0140aid.Contains('#include "item_location.h"')) {
+            throw 'Mana Hand spellcasting-aid include anchor missing.'
+        }
+        $talker0140aid = Replace-TextBlock $talker0140aid '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand spellcasting-aid include'
+    }
+
+    if(-not $talker0140aid.Contains('ncmm_virtual_wield_flags')) {
+        $oldWieldFlag0140aid = @'
+bool talker_character_const::wielded_with_flag( const flag_id &flag ) const
+{
+    return me_chr_const->get_wielded_item() && me_chr_const->get_wielded_item()->has_flag( flag );
+}
+'@
+        $newWieldFlag0140aid = @'
+bool talker_character_const::wielded_with_flag( const flag_id &flag ) const
+{
+    if( me_chr_const->get_wielded_item() &&
+        me_chr_const->get_wielded_item()->has_flag( flag ) ) {
+        return true;
+    }
+
+    // Mana Hands are real logical manipulators, but they must not globally turn
+    // arbitrary virtual-slot items into "wielded" weapons for JSON conditions.
+    // Only the two spellcasting flags whose semantics are explicitly hand-held
+    // are bridged here.
+    static const std::set<flag_id> ncmm_virtual_wield_flags = {
+        flag_id( "MAGIC_FOCUS" ),
+        flag_id( "SPELLCASTING_AID" )
+    };
+    if( !me_chr_const->is_avatar() ||
+        ncmm_virtual_wield_flags.count( flag ) == 0 ) {
+        return false;
+    }
+
+    item *ncmm_mana3 = ncmm::virtual_item_for_slot(
+                           "survivor_progression", "mana_hand_3" );
+    if( ncmm_mana3 != nullptr && ncmm_mana3->has_flag( flag ) ) {
+        return true;
+    }
+    item *ncmm_mana4 = ncmm::virtual_item_for_slot(
+                           "survivor_progression", "mana_hand_4" );
+    return ncmm_mana4 != nullptr && ncmm_mana4->has_flag( flag );
+}
+'@
+        $talker0140aid = Replace-TextBlock $talker0140aid $oldWieldFlag0140aid $newWieldFlag0140aid 'Mana Hand spellcasting-aid wield bridge'
+    }
+
+    Write-Utf8NoBom $talker0140aidPath $talker0140aid
+    foreach($needle0140aid in @(
+        '#include "ncmm_loader.h"',
+        'ncmm_virtual_wield_flags',
+        'flag_id( "MAGIC_FOCUS" )',
+        'flag_id( "SPELLCASTING_AID" )',
+        'ncmm::virtual_item_for_slot(',
+        '"survivor_progression", "mana_hand_3"',
+        '"survivor_progression", "mana_hand_4"'
+    )) {
+        if(-not ([IO.File]::ReadAllText($talker0140aidPath)).Contains($needle0140aid)) {
+            throw ('Survivor 0.14.0 Mana Hand spellcasting-aid output missing: '+$needle0140aid)
+        }
+    }
+    Write-Host "Survivor 0.14.0 Mana Hand spellcasting-aid compatibility: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandSpellcastingAid0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -19845,6 +19925,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0113 -Com
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHands0130 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorVirtualItemSlots0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorVirtualItemContext0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandSpellcastingAid0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
