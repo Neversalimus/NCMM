@@ -136,8 +136,8 @@
     },
     {
       "path": "components\\index.json",
-      "sha256": "aaee45cb4a827cbef1471f44c56f84e99dac52a69b127264097783d8f1d9b904",
-      "bytes": 6124
+      "sha256": "34bfd5e8a7899b79eca2f3e9115b3b4b33d49796541bcd78704c6f60d7df5ff0",
+      "bytes": 6240
     },
     {
       "path": "components\\item_glyphs.json",
@@ -146,8 +146,8 @@
     },
     {
       "path": "components\\ncmm_host.json",
-      "sha256": "26c7727f4ef540af1a3ce0f7ccb59ef620ced5ee1f7392f16a67c61edfde9531",
-      "bytes": 840
+      "sha256": "3a0d4f99075add3f11710b7998a317dfb2b8a35d1e93743a9d35ac0486776faf",
+      "bytes": 875
     },
     {
       "path": "components\\ncmm_infrastructure.json",
@@ -166,8 +166,8 @@
     },
     {
       "path": "components\\survivor_progression.json",
-      "sha256": "feadc26bbb7e250efb457c63067ea8387a0c69ad1f40526ca1d75640495dc416",
-      "bytes": 805
+      "sha256": "e04b6686de96b4f6979f4057aa9b581b86d126c0f57ff3a3f9d5c7833bbef6ed",
+      "bytes": 870
     },
     {
       "path": "golden\\fixtures\\full_stack.json",
@@ -331,8 +331,8 @@
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-      "sha256": "59f0e450884721eb2f970dc1e1ab670181ec98c01d66666b74f9ea10e059e245",
-      "bytes": 1841707
+      "sha256": "0e7209496aa9b7b55396d0f869225b85b32bb4773ff2416ef9ac7be919ebcbd1",
+      "bytes": 2292543
     },
     {
       "path": "pipeline\\pipeline.manifest.json",
