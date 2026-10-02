@@ -370,7 +370,11 @@
           "path": "src/melee.cpp",
           "required": [
             "item_location Character::best_shield()",
-            "bool Character::block_hit( Creature *source, bodypart_id &bp_hit, damage_instance &dam )"
+            "bool Character::block_hit( Creature *source, bodypart_id &bp_hit, damage_instance &dam )",
+            "item_location Character::used_weapon() const",
+            "static const std::set<weapon_category_id> &wielded_weapon_categories( const Character &c )",
+            "bool Character::melee_attack( Creature &t, bool allow_special, const matec_id &force_technique,",
+            "return melee_attack_abstract( t, allow_special, force_technique, allow_unarmed, forced_movecost );"
           ]
         },
         {
@@ -404,6 +408,13 @@
             "std::optional<int> cast_spell_actor::use( Character *p, item &it,",
             "if( need_wielding && !p->is_wielding( it ) ) {",
             "std::optional<int> effect_on_conditions_actor::use( Character *p, item &it,"
+          ]
+        },
+        {
+          "path": "src/character_inventory.cpp",
+          "required": [
+            "bool Character::is_wielding( const item &target ) const",
+            "return &weapon == &target;"
           ]
         }
       ]
