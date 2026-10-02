@@ -59,5 +59,6 @@ bool virtual_item_can_assign( const char *module_id, const char *slot_id,
 bool virtual_item_assign( const char *module_id, const char *slot_id,
                           const item_location &loc, uint32_t flags );
 bool virtual_item_clear( const char *module_id, const char *slot_id );
+bool release_virtual_item( item &it );
 bool is_virtual_item( const item &it );
 } // namespace ncmm
