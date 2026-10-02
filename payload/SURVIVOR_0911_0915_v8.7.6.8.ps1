@@ -19379,8 +19379,16 @@ function Apply-SurvivorManaHands0130([string]$Root) {
     $src0130 = Join-Path $Root 'src'
     $magic0130Path = Join-Path $src0130 'magic.cpp'
     $handle0130Path = Join-Path $src0130 'handle_action.cpp'
-    foreach($required0130 in @($magic0130Path,$handle0130Path)){
-        if(-not(Test-Path $required0130 -PathType Leaf)){throw ('Mana-hands source missing: '+$required0130)}
+    $missing0130 = @($magic0130Path,$handle0130Path) | Where-Object { -not(Test-Path $_ -PathType Leaf) }
+    if($missing0130.Count -gt 0){
+        # The blocking copy-audit deliberately generates only NCMM/module source and
+        # replaces GameRoot with RUNNER_TEMP; no CDDA source tree exists in that pass.
+        # Keep module generation deterministic there, but fail closed everywhere else.
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)){
+            Write-Host "Survivor 0.13.0 mana-hands engine transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+            return
+        }
+        throw ('Mana-hands source missing: '+($missing0130 -join ', '))
     }
 
     $magic0130 = Normalize-Lf ([IO.File]::ReadAllText($magic0130Path))
