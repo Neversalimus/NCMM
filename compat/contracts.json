@@ -333,7 +333,7 @@
           "path": "src/magic.cpp",
           "required": [
             "int spell::energy_cost( const Character &guy ) const",
-            "int spell::casting_time( const Character &guy ) const",
+            "int spell::casting_time( const Character &guy, bool ignore_encumb ) const",
             "float spell::spell_fail( const Character &guy ) const",
             "guy.avg_encumb_of_limb_type( bp_type::hand ) - 5",
             "guy.avg_encumb_of_limb_type( bp_type::arm ) - 10"

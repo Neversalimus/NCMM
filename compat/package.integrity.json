@@ -101,8 +101,8 @@
     },
     {
       "path": "compat\\contracts.json",
-      "sha256": "b22ee393646fa8f1dead850698baea420d8b65c2ca5073046734836a38751174",
-      "bytes": 12274
+      "sha256": "9003e224b751dd25689c7738db01be346302be4564dcf063f9a31220703f13fc",
+      "bytes": 12294
     },
     {
       "path": "compat\\feed\\commits\\e262adb299a7613b4aedc5f12c08fe0413c56a84.json",
