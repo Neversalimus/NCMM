@@ -19759,6 +19759,24 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                                   "назначить четвёртой руке маны" ), hint_rating::good );
                 }
 
+                const bool ncmm_mana_bound_here =
+                    ncmm_mana3_item == &oThisItem || ncmm_mana4_item == &oThisItem;
+                const bool ncmm_secondary_melee_eligible =
+                    ncmm_mana_bound_here && oThisItem.is_melee() && !oThisItem.is_gun() &&
+                    !oThisItem.is_two_handed( u );
+                if( ncmm_secondary_melee_eligible ) {
+                    const bool ncmm_secondary_enabled =
+                        ncmm::virtual_item_secondary_melee_enabled( oThisItem );
+                    addentry( 'M', ncmm::localized_text(
+                                  ncmm_secondary_enabled ?
+                                  "disable Mana Hand secondary strike" :
+                                  "enable Mana Hand secondary strike",
+                                  ncmm_secondary_enabled ?
+                                  "отключить дополнительный удар рукой маны" :
+                                  "включить дополнительный удар рукой маны" ),
+                              hint_rating::good );
+                }
+
                 if( bHPR ) {
 '@
         $game0140ctx = Replace-TextBlock $game0140ctx $menuOld0140ctx $menuNew0140ctx 'Mana Hand context entries'
@@ -19767,6 +19785,38 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
     if(-not $game0140ctx.Contains("case '3':") -or -not $game0140ctx.Contains("case '4':")) {
         $switchOld0140ctx = @'
             switch( cMenu ) {
+                case 'M': {
+                    item *ncmm_bound3 = ncmm::virtual_item_for_slot(
+                                            "survivor_progression", "mana_hand_3" );
+                    item *ncmm_bound4 = ncmm::virtual_item_for_slot(
+                                            "survivor_progression", "mana_hand_4" );
+                    if( ncmm_bound3 != &oThisItem && ncmm_bound4 != &oThisItem ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "This item is not held by a Mana Hand.",
+                                     "Этот предмет не удерживается рукой маны." ).c_str() );
+                        break;
+                    }
+                    if( !oThisItem.is_melee() || oThisItem.is_gun() ||
+                        oThisItem.is_two_handed( u ) ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "This item is not eligible for a Mana Hand secondary strike.",
+                                     "Этот предмет нельзя использовать для дополнительного удара рукой маны." ).c_str() );
+                        break;
+                    }
+                    const bool ncmm_enable_secondary =
+                        !ncmm::virtual_item_secondary_melee_enabled( oThisItem );
+                    if( ncmm::virtual_item_set_secondary_melee(
+                            oThisItem, ncmm_enable_secondary ) ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     ncmm_enable_secondary ?
+                                     "Mana Hand secondary strike enabled. It uses normal attack time and stamina plus mana." :
+                                     "Mana Hand secondary strike disabled.",
+                                     ncmm_enable_secondary ?
+                                     "Дополнительный удар рукой маны включён. Он расходует обычное время и выносливость атаки, а также ману." :
+                                     "Дополнительный удар рукой маны отключён." ).c_str() );
+                    }
+                    break;
+                }
                 case 'a': {
 '@
         $switchNew0140ctx = @'
@@ -19827,7 +19877,11 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
         'ncmm::virtual_item_assign(',
         'ncmm::virtual_item_clear(',
         "case '3':",
-        "case '4':"
+        "case '4':",
+        "enable Mana Hand secondary strike",
+        "virtual_item_secondary_melee_enabled",
+        "virtual_item_set_secondary_melee",
+        "case 'M':"
     )) {
         if(-not ([IO.File]::ReadAllText($game0140ctxPath)).Contains($needle0140ctx)) {
             throw ('Survivor 0.14.0 Mana Hand context output missing: '+$needle0140ctx)
@@ -20111,6 +20165,252 @@ bool ncmm_mana_hand_holds_item( const Character &who, const item &it )
 
 Apply-SurvivorManaHandUtility0140 $CddaRoot
 
+
+function Apply-SurvivorManaHandSecondaryMelee0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 Mana Hand secondary-melee support..." -ForegroundColor Cyan
+    $src0140melee = Join-Path $Root 'src'
+    $melee0140Path = Join-Path $src0140melee 'melee.cpp'
+    $inventory0140Path = Join-Path $src0140melee 'character_inventory.cpp'
+    foreach($required0140 in @($melee0140Path,$inventory0140Path)) {
+        if(-not(Test-Path $required0140 -PathType Leaf)) {
+            if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+                Write-Host "Survivor 0.14.0 secondary-melee transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+                return
+            }
+            throw ('Mana Hand secondary-melee source missing: '+$required0140)
+        }
+    }
+
+    $melee0140 = Normalize-Lf ([IO.File]::ReadAllText($melee0140Path))
+    if(-not $melee0140.Contains('#include "ncmm_loader.h"')) {
+        if(-not $melee0140.Contains('#include "item_location.h"')) {
+            throw 'Mana Hand secondary-melee include anchor missing.'
+        }
+        $melee0140 = Replace-TextBlock $melee0140 '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand secondary-melee include'
+    }
+
+    if(-not $melee0140.Contains('class ncmm_virtual_melee_scope')) {
+        $usedWeaponAnchor0140 = @'
+item_location Character::used_weapon() const
+{
+    return martial_arts_data->selected_force_unarmed() ? item_location() : get_wielded_item();
+}
+'@
+        $usedWeaponNew0140 = @'
+namespace
+{
+class ncmm_virtual_melee_scope
+{
+    public:
+        ncmm_virtual_melee_scope( Character &who, item &weapon ) : who_( who ),
+            active_( ncmm::virtual_melee_context_begin( who, weapon ) )
+        {
+            if( active_ ) {
+                who_.recalculate_enchantment_cache();
+            }
+        }
+
+        ~ncmm_virtual_melee_scope()
+        {
+            if( active_ ) {
+                ncmm::virtual_melee_context_end( who_ );
+                who_.recalculate_enchantment_cache();
+            }
+        }
+
+        bool active() const {
+            return active_;
+        }
+
+    private:
+        Character &who_;
+        bool active_;
+};
+
+int ncmm_mana_hand_count_for_melee()
+{
+    return std::max( 0, std::min( 2, static_cast<int>( std::lround(
+                                      ncmm::runtime_hook_modifier(
+                                          "magic.virtual_hand_count", nullptr, "magiclysm",
+                                          nullptr, nullptr ) ) ) ) );
+}
+
+int ncmm_secondary_melee_mana_cost( Character &who, const item &weapon )
+{
+    return std::clamp( ( who.attack_speed( weapon ) + 9 ) / 10, 5, 50 );
+}
+
+void ncmm_run_mana_hand_secondary_melee( Character &who, Creature &target )
+{
+    if( !who.is_avatar() || who.is_mounted() || target.is_dead_state() ||
+        ncmm::virtual_melee_context_active( who ) ) {
+        return;
+    }
+
+    const int hand_count = ncmm_mana_hand_count_for_melee();
+    const char *slots[2] = { "mana_hand_3", "mana_hand_4" };
+    bool lacked_mana = false;
+
+    for( int i = 0; i < hand_count && i < 2; ++i ) {
+        item *weapon = ncmm::virtual_item_for_slot( "survivor_progression", slots[i] );
+        if( weapon == nullptr || !ncmm::virtual_item_secondary_melee_enabled( *weapon ) ||
+            !weapon->is_melee() || weapon->is_gun() || weapon->is_two_handed( who ) ) {
+            continue;
+        }
+
+        ncmm_virtual_melee_scope scope( who, *weapon );
+        if( !scope.active() ) {
+            return;
+        }
+
+        const int mana_cost = ncmm_secondary_melee_mana_cost( who, *weapon );
+        if( who.magic->available_mana() < mana_cost ) {
+            lacked_mana = true;
+            continue;
+        }
+
+        const bool attacked = who.melee_attack( target, false );
+        if( attacked ) {
+            who.magic->mod_mana( who, -mana_cost );
+        }
+        if( target.is_dead_state() ) {
+            break;
+        }
+    }
+
+    if( lacked_mana ) {
+        who.add_msg_if_player( m_info, "%s", ncmm::localized_text(
+                                   "Not enough mana for one or more Mana Hand secondary strikes.",
+                                   "Недостаточно маны для одного или нескольких дополнительных ударов руками маны." ).c_str() );
+    }
+}
+} // namespace
+
+item_location Character::used_weapon() const
+{
+    if( ncmm::virtual_melee_context_active( *this ) ) {
+        item *virtual_weapon = ncmm::virtual_melee_context_item( *this );
+        return virtual_weapon != nullptr ?
+               item_location( *const_cast<Character *>( this ), virtual_weapon ) :
+               item_location();
+    }
+    return martial_arts_data->selected_force_unarmed() ? item_location() : get_wielded_item();
+}
+'@
+        $melee0140 = Replace-TextBlock $melee0140 $usedWeaponAnchor0140 $usedWeaponNew0140 'Mana Hand secondary-melee used weapon'
+    }
+
+    if(-not $melee0140.Contains('ncmm::virtual_melee_context_item( c )')) {
+        $categoriesOld0140 = @'
+static const std::set<weapon_category_id> &wielded_weapon_categories( const Character &c )
+{
+    static const std::set<weapon_category_id> unarmed{ weapon_category_UNARMED };
+    if( c.get_wielded_item() ) {
+        return c.get_wielded_item()->typeId()->weapon_category;
+    }
+    return unarmed;
+}
+'@
+        $categoriesNew0140 = @'
+static const std::set<weapon_category_id> &wielded_weapon_categories( const Character &c )
+{
+    static const std::set<weapon_category_id> unarmed{ weapon_category_UNARMED };
+    if( ncmm::virtual_melee_context_active( c ) ) {
+        item *virtual_weapon = ncmm::virtual_melee_context_item( c );
+        return virtual_weapon != nullptr ? virtual_weapon->typeId()->weapon_category : unarmed;
+    }
+    if( c.get_wielded_item() ) {
+        return c.get_wielded_item()->typeId()->weapon_category;
+    }
+    return unarmed;
+}
+'@
+        $melee0140 = Replace-TextBlock $melee0140 $categoriesOld0140 $categoriesNew0140 'Mana Hand secondary-melee categories'
+    }
+
+    if(-not $melee0140.Contains('ncmm_run_mana_hand_secondary_melee( *this, t );')) {
+        $attackOld0140 = @'
+    return melee_attack_abstract( t, allow_special, force_technique, allow_unarmed, forced_movecost );
+}
+'@
+        $attackNew0140 = @'
+    const bool ncmm_attack_result =
+        melee_attack_abstract( t, allow_special, force_technique, allow_unarmed, forced_movecost );
+    if( ncmm_attack_result && allow_special && is_avatar() && !t.is_dead_state() &&
+        !ncmm::virtual_melee_context_active( *this ) ) {
+        ncmm_run_mana_hand_secondary_melee( *this, t );
+    }
+    return ncmm_attack_result;
+}
+'@
+        $attackCount0140 = ([regex]::Matches($melee0140,[regex]::Escape($attackOld0140))).Count
+        if($attackCount0140 -ne 1) {
+            throw ('Unexpected Mana Hand melee wrapper anchor count: '+$attackCount0140)
+        }
+        $melee0140 = Replace-TextBlock $melee0140 $attackOld0140 $attackNew0140 'Mana Hand secondary-melee wrapper'
+    }
+
+    $inventory0140 = Normalize-Lf ([IO.File]::ReadAllText($inventory0140Path))
+    if(-not $inventory0140.Contains('#include "ncmm_loader.h"')) {
+        if(-not $inventory0140.Contains('#include "item_location.h"')) {
+            throw 'Mana Hand secondary-melee inventory include anchor missing.'
+        }
+        $inventory0140 = Replace-TextBlock $inventory0140 '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand secondary-melee inventory include'
+    }
+    if(-not $inventory0140.Contains('virtual_melee_context_is_wielding')) {
+        $isWieldingOld0140 = @'
+bool Character::is_wielding( const item &target ) const
+{
+    return &weapon == &target;
+}
+'@
+        $isWieldingNew0140 = @'
+bool Character::is_wielding( const item &target ) const
+{
+    return &weapon == &target ||
+           ncmm::virtual_melee_context_is_wielding( *this, target );
+}
+'@
+        $inventory0140 = Replace-TextBlock $inventory0140 $isWieldingOld0140 $isWieldingNew0140 'Mana Hand scoped is_wielding'
+    }
+
+    Write-Utf8NoBom $melee0140Path $melee0140
+    Write-Utf8NoBom $inventory0140Path $inventory0140
+
+    $meleeOut0140 = [IO.File]::ReadAllText($melee0140Path)
+    $inventoryOut0140 = [IO.File]::ReadAllText($inventory0140Path)
+    foreach($needle0140melee in @(
+        '#include "ncmm_loader.h"',
+        'class ncmm_virtual_melee_scope',
+        'ncmm::virtual_melee_context_begin( who, weapon )',
+        '"magic.virtual_hand_count", nullptr, "magiclysm"',
+        'std::clamp( ( who.attack_speed( weapon ) + 9 ) / 10, 5, 50 )',
+        '!ncmm::virtual_item_secondary_melee_enabled( *weapon )',
+        'weapon->is_gun()',
+        'weapon->is_two_handed( who )',
+        'who.melee_attack( target, false )',
+        'who.magic->mod_mana( who, -mana_cost )',
+        'ncmm::virtual_melee_context_item( *this )',
+        'ncmm::virtual_melee_context_item( c )',
+        'ncmm_run_mana_hand_secondary_melee( *this, t );'
+    )) {
+        if(-not $meleeOut0140.Contains($needle0140melee)) {
+            throw ('Survivor 0.14.0 secondary-melee output missing: '+$needle0140melee)
+        }
+    }
+    foreach($needle0140inv in @(
+        '#include "ncmm_loader.h"',
+        'ncmm::virtual_melee_context_is_wielding( *this, target )'
+    )) {
+        if(-not $inventoryOut0140.Contains($needle0140inv)) {
+            throw ('Survivor 0.14.0 scoped is_wielding output missing: '+$needle0140inv)
+        }
+    }
+    Write-Host "Survivor 0.14.0 Mana Hand secondary-melee support: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandSecondaryMelee0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -20121,6 +20421,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorVirtualItemContext0140
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandSpellcastingAid0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorVirtualItemLifecycle0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandUtility0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandSecondaryMelee0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
