@@ -44,13 +44,14 @@ foreach($badPsQuoteEscape in @( "\'.\'", "\'\\n\'" )){
 $hostComponent=Get-Content (Join-Path $PackageRoot 'components\ncmm_host.json') -Raw|ConvertFrom-Json
 $expectedHostVersion=([string]$hostComponent.version).Trim()
 if($expectedHostVersion -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$'){throw "Invalid Host component version: $expectedHostVersion"}
-if([string]$m.host_version -ne $expectedHostVersion -or [string]$m.ncmm_api -ne '1.9' -or [string]$m.host_api_v2 -ne '2.0'){throw 'Host API 2.0 Core manifest identity mismatch.'}
-foreach($cap in @('host_api.v2.core','events.core.v2','settings.typed.v2','character.modifiers.v2','runtime_settings.bindings.v2','runtime_hooks.registry.v2','worldgen.bindings.v2','module.lifecycle.query.v2')){if(@($m.self_test.required_capabilities) -notcontains $cap){throw "Host API 2.0 required capability missing: $cap"}}
-if(@($hostComponent.provides) -notcontains 'host_api_v2:2.0' -or @($hostComponent.provides) -notcontains 'runtime_settings.bindings.v2'){throw 'Host API 2.0 component catalog mismatch.'}
+if([string]$m.host_version -ne $expectedHostVersion -or [string]$m.ncmm_api -ne '1.9' -or [string]$m.host_api_v2 -ne '2.1'){throw 'Host API 2.1 Core manifest identity mismatch.'}
+foreach($cap in @('host_api.v2.core','character.virtual_items.v1','events.core.v2','settings.typed.v2','character.modifiers.v2','runtime_settings.bindings.v2','runtime_hooks.registry.v2','worldgen.bindings.v2','module.lifecycle.query.v2')){if(@($m.self_test.required_capabilities) -notcontains $cap){throw "Host API 2.1 required capability missing: $cap"}}
+if(@($hostComponent.provides) -notcontains 'host_api_v2:2.1' -or @($hostComponent.provides) -notcontains 'character.virtual_items.v1' -or @($hostComponent.provides) -notcontains 'runtime_settings.bindings.v2'){throw 'Host API 2.1 component catalog mismatch.'}
 foreach($n in @('function Apply-NcmmHostApi20Core','#define NCMM_HOST_API_V2_CORE_MAJOR 2u','typedef struct ncmm_host_api_v2_core {','const ncmm_host_api_v2_core api_v2_core = {','runtime_hook_bind_modifier_v2','worldgen_hook_bind_setting_v2','Apply-NcmmHostApi20Core')){if(-not $payload.Contains($n)){throw "Host API 2.0 payload contract missing: $n"}}
 # Patched-source audit must distinguish the required query_interface_v2 forward declaration
 # from its single implementation.  A raw substring count is intentionally invalid because both
 # declaration and definition begin with the same function name/signature.
+foreach($n in @('#define NCMM_HOST_API_V2_CORE_MINOR 1u','NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2','NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2','virtual_item_choose','virtual_item_clear','virtual_item_name','virtual_item_uid','character.virtual_items.v1')){if(-not $payload.Contains($n)){throw "Host API 2.1 virtual-item extension contract missing: $n"}}
 if($payload.Contains("Needle = 'const void *query_interface_v2('; Expected = 1; Name = 'Host API 2.0 query interface'")){throw 'Stale ambiguous Host API 2.0 query-interface count audit returned.'}
 foreach($n in @('Host API 2.0 query interface declaration','Host API 2.0 query interface definition','Host API 2.0 legacy v1 query-interface bridge','Host API 2.0 query-interface declaration/legacy-table/definition order is invalid.')){
     if(-not $payload.Contains($n)){throw ('Host API 2.0 structural query-interface audit missing: '+$n)}
