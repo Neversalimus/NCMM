@@ -20499,6 +20499,59 @@ bool Character::is_wielding( const item &target ) const
         $inventory0140 = Replace-TextBlock $inventory0140 $isWieldingOld0140 $isWieldingNew0140 'Mana Hand scoped is_wielding'
     }
 
+
+    if(-not $melee0140.Contains('NCMM Mana Hand secondary strikes do not trigger martial-art event chains.')) {
+        $missRecoveryOld0140 = 'const ma_technique miss_recovery = martial_arts_data->get_miss_recovery( *this );'
+        $missRecoveryNew0140 = @'
+const ma_technique miss_recovery =
+            ncmm::virtual_melee_context_active( *this ) ? tec_none.obj() :
+            martial_arts_data->get_miss_recovery( *this );
+'@
+        $missRecoveryCount0140 = ([regex]::Matches($melee0140,[regex]::Escape($missRecoveryOld0140))).Count
+        if($missRecoveryCount0140 -ne 2) {
+            throw ('Unexpected Mana Hand miss-recovery anchor count: '+$missRecoveryCount0140)
+        }
+        $melee0140 = $melee0140.Replace($missRecoveryOld0140,$missRecoveryNew0140)
+
+        $maOnMissOld0140 = '        martial_arts_data->ma_onmiss_effects( *this );'
+        $maOnMissNew0140 = @'
+        // NCMM Mana Hand secondary strikes do not trigger martial-art event chains.
+        if( !ncmm::virtual_melee_context_active( *this ) ) {
+            martial_arts_data->ma_onmiss_effects( *this );
+        }
+'@
+        $maOnCritOld0140 = '                martial_arts_data->ma_oncrit_effects( *this );'
+        $maOnCritNew0140 = @'
+                if( !ncmm::virtual_melee_context_active( *this ) ) {
+                    martial_arts_data->ma_oncrit_effects( *this );
+                }
+'@
+        $maOnKillOld0140 = '            martial_arts_data->ma_onkill_effects( *this );'
+        $maOnKillNew0140 = @'
+            if( !ncmm::virtual_melee_context_active( *this ) ) {
+                martial_arts_data->ma_onkill_effects( *this );
+            }
+'@
+        $maOnAttackOld0140 = '    martial_arts_data->ma_onattack_effects( *this );'
+        $maOnAttackNew0140 = @'
+    if( !ncmm::virtual_melee_context_active( *this ) ) {
+        martial_arts_data->ma_onattack_effects( *this );
+    }
+'@
+        foreach($pair0140 in @(
+            @($maOnMissOld0140,$maOnMissNew0140,'on-miss'),
+            @($maOnCritOld0140,$maOnCritNew0140,'on-crit'),
+            @($maOnKillOld0140,$maOnKillNew0140,'on-kill'),
+            @($maOnAttackOld0140,$maOnAttackNew0140,'on-attack')
+        )) {
+            $count0140 = ([regex]::Matches($melee0140,[regex]::Escape([string]$pair0140[0]))).Count
+            if($count0140 -ne 1) {
+                throw ('Unexpected Mana Hand '+$pair0140[2]+' anchor count: '+$count0140)
+            }
+            $melee0140 = $melee0140.Replace([string]$pair0140[0],[string]$pair0140[1])
+        }
+    }
+
     Write-Utf8NoBom $melee0140Path $melee0140
     Write-Utf8NoBom $inventory0140Path $inventory0140
 
