@@ -4,9 +4,9 @@ $PackageRoot=(Resolve-Path $PackageRoot).Path
 $payload=[IO.File]::ReadAllText((Join-Path $PackageRoot 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1'))
 
 # Survivor Progression 0.10.0 Mechanical Perks regression contracts.
-# Historical gameplay/content contracts stay pinned here; build-cache marker/fingerprint are version-current and are checked by the 0.12.0 block below.
+# Historical gameplay/content contracts stay pinned here; build-cache marker/fingerprint are version-current and are checked by the 0.12.1 block below.
 $survivor0100=Get-Content (Join-Path $PackageRoot 'components\survivor_progression.json') -Raw|ConvertFrom-Json
-if([string]$survivor0100.version -ne '0.12.0'){throw 'Survivor 0.12.0 component identity mismatch.'}
+if([string]$survivor0100.version -ne '0.12.1'){throw 'Survivor 0.12.1 component identity mismatch.'}
 $contracts0100=Get-Content (Join-Path $PackageRoot 'compat\contracts.json') -Raw|ConvertFrom-Json
 if(@($contracts0100.contracts|Where-Object{$_.id -eq 'mechanical_combat_hooks.source.v1'}).Count -ne 1){throw 'Mechanical combat source contract missing.'}
 foreach($mechanicalNeedle0100 in @(
@@ -47,7 +47,7 @@ foreach($ref0110 in @(
 # Survivor Progression 0.11.0 Reactive Mechanics + Technical Mastery regression contracts,
 # plus 0.11.1 semantic polish, 0.11.2 edge hardening and 0.11.3 combinatorial edge polish. The 25-node 0.11.0 layer remains intact; no polish pass removes nodes.
 $survivor0110=Get-Content (Join-Path $PackageRoot 'components\survivor_progression.json') -Raw|ConvertFrom-Json
-if([string]$survivor0110.version -ne '0.12.0'){throw 'Survivor 0.12.0 component identity mismatch.'}
+if([string]$survivor0110.version -ne '0.12.1'){throw 'Survivor 0.12.1 component identity mismatch.'}
 $contracts0110=Get-Content (Join-Path $PackageRoot 'compat\contracts.json') -Raw|ConvertFrom-Json
 if(@($contracts0110.contracts|Where-Object{$_.id -eq 'reactive_technical_hooks.source.v4'}).Count -ne 1){throw 'Reactive/technical source contract missing.'}
 foreach($reactiveNeedle0110 in @(
@@ -63,8 +63,8 @@ foreach($reactiveNeedle0110 in @(
     'Survivor Progression 0.11.1 Reactive Mechanics Polish: READY',
     'Survivor Progression 0.11.2 Reactive Edge-Case Polish: READY',
     'Survivor Progression 0.11.3 Combinatorial Edge Polish: READY',
-    '.survivor_0120_manager_settings_build.sha256',
-    'v8.7.6.8-survivor-0.12.0-manager-settings-respec-kit',
+    '.survivor_0121_mana_vamp_build.sha256',
+    'v8.7.6.8-survivor-0.12.1-mana-vampirism',
     '.ncmm_reactive_mechanics_0112',
     '.ncmm_reactive_mechanics_0113',
     'NCMM_EVENT_PLAYER_KILL_V2 = 6u',
@@ -345,9 +345,48 @@ foreach($n in @(
     'ncmm_survivor_recalibration_kit',
     'std::min( result.major_owned, 12 )',
     'get_state( "respec_request", 0 ) > 0',
-    'v8.7.6.8-survivor-0.12.0-manager-settings-respec-kit'
-)){if(-not $payload.Contains($n)){throw ('Survivor 0.12.0 settings/recalibration contract missing: '+$n)}}
+    'v8.7.6.8-survivor-0.12.1-mana-vampirism'
+)){if(-not $payload.Contains($n)){throw ('Survivor 0.12.1 settings/recalibration contract missing: '+$n)}}
 if($payload.Contains('reset.id = "respec"')){throw 'Free Survivor respec UI leaked into the current payload.'}
+
+# Survivor 0.12.1: high-level Magiclysm mana vampirism.
+$survivorSource0121=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\src\survivor_progression.cpp'))
+foreach($manaVampNeedle0121 in @(
+    '{ "mg_mana_vampirism", branch_id::mastery, 9, 40, currency_id::perk, "mg_archmage"',
+    '{ "mg_mana_vampirism", 5, 1.0 }',
+    '{ "mg_mana_vampirism", integration_id::magiclysm }',
+    'mg_melee_mana_vamp_pct',
+    'combat.melee_mana_vamp_pct',
+    'melee.mana-vampirism-hook',
+    'dealt_special_dam.total_damage()',
+    'ncmm_mana_vamp_fraction',
+    'magic->mod_mana( *this, recovered_mana )',
+    '!t.is_hallucination()',
+    'Survivor Progression v0.12.1',
+    '"0.12.1",'
+)){
+    if(-not ($payload.Contains($manaVampNeedle0121) -or $survivorSource0121.Contains($manaVampNeedle0121))){
+        throw ('Survivor 0.12.1 mana-vampirism contract missing: '+$manaVampNeedle0121)
+    }
+}
+
+# Exact rank semantics: 1/2/3/4/5 percent. Fractional carry makes low-damage
+# rank-I attacks useful instead of rounding every sub-1-mana hit to zero.
+foreach($pct0121 in 1..5){
+    $gain0121=[int][Math]::Floor((100.0*$pct0121/100.0)+1.0e-9)
+    if($gain0121 -ne $pct0121){throw ('Mana-vamp rank fixture failed at '+$pct0121+'%')}
+}
+$fraction0121=0.0
+$restored0121=0
+foreach($hit0121 in 1..5){
+    $exact0121=$fraction0121+(20.0*1.0/100.0)
+    $gain0121=[int][Math]::Floor($exact0121+1.0e-9)
+    $fraction0121=$exact0121-$gain0121
+    $restored0121+=$gain0121
+}
+if($restored0121 -ne 1 -or [Math]::Abs($fraction0121) -gt 1.0e-8){
+    throw 'Mana-vamp fractional-carry fixture failed: five 20-damage rank-I hits must restore exactly 1 mana.'
+}
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate
 # is intentionally half of the original 1 XP / 150 movement events.
