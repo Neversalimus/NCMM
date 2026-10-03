@@ -23837,7 +23837,8 @@ function Apply-SurvivorManaHandAutoMining0140([string]$Root) {
         '"mana_hand_4"',
         'candidate->has_flag( flag_DIG_TOOL )',
         'candidate->type->can_use( "PICKAXE" )',
-        'weapon = ncmm_mana_hand_auto_mining_tool( "mana_hand_3" );'
+        'weapon = ncmm_mana_hand_auto_mining_tool( "mana_hand_3" );',
+        'you.invoke_item( &*weapon, "PICKAXE", dest_loc );'
     )) {
         if(-not $mineOutput0140.Contains($needle0140mine)) {
             throw ('Survivor 0.14.0 Mana Hand auto-mining output missing: '+$needle0140mine)
