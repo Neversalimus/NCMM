@@ -493,7 +493,6 @@ foreach($needle0140 in @(
     'host2->virtual_item_secondary_melee_enabled',
     'host2->virtual_item_set_secondary_melee',
     'Secondary strike: ',
-    'Дополнительный удар: ',
     'Enable secondary strike',
     'Disable secondary strike',
     'constexpr const char *mana_hand_pair_slot_id = "mana_hands_34";',
