@@ -1343,6 +1343,28 @@ int virtual_item_set_secondary_melee_v2( const char *module_id, const char *slot
     return virtual_item_set_secondary_melee( *bound, enabled != 0 ) ? 1 : 0;
 }
 
+int virtual_item_primary_melee_enabled_v2( const char *module_id, const char *slot_id )
+{
+    if( !active_module_matches( module_id ) || !safe_virtual_slot_id( slot_id ) ) {
+        return 0;
+    }
+    item *bound = virtual_item_for_slot_internal( module_id, slot_id );
+    return bound != nullptr && virtual_item_primary_melee_enabled( *bound ) ? 1 : 0;
+}
+
+int virtual_item_set_primary_melee_v2( const char *module_id, const char *slot_id,
+        int enabled )
+{
+    if( !active_module_matches( module_id ) || !safe_virtual_slot_id( slot_id ) ) {
+        return 0;
+    }
+    item *bound = virtual_item_for_slot_internal( module_id, slot_id );
+    if( bound == nullptr ) {
+        return 0;
+    }
+    return virtual_item_set_primary_melee( *bound, enabled != 0 ) ? 1 : 0;
+}
+
 int64_t gameplay_metric_get_i64( const char *metric_id )
 {
     if( metric_id == nullptr || active_module_id.empty() || !character_state_available() ) {
@@ -3117,7 +3139,9 @@ const ncmm_host_api_v2_core api_v2_core = {
     &virtual_item_name_v2,
     &virtual_item_uid_v2,
     &virtual_item_secondary_melee_enabled_v2,
-    &virtual_item_set_secondary_melee_v2
+    &virtual_item_set_secondary_melee_v2,
+    &virtual_item_primary_melee_enabled_v2,
+    &virtual_item_set_primary_melee_v2
 };
 
 const void *query_interface_v2( const char *interface_id, uint32_t min_major, uint32_t min_minor )
