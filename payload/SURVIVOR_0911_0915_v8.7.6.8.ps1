@@ -22073,6 +22073,266 @@ function Apply-SurvivorManaHandGunControls0140([string]$Root) {
 
 Apply-SurvivorManaHandGunControls0140 $CddaRoot
 
+
+function Apply-SurvivorManaHandPrimaryMelee0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 primary Mana Hand melee support..." -ForegroundColor Cyan
+    $src0140pm = Join-Path $Root 'src'
+    $game0140pmPath = Join-Path $src0140pm 'game.cpp'
+    $melee0140pmPath = Join-Path $src0140pm 'melee.cpp'
+    foreach($required0140pm in @($game0140pmPath,$melee0140pmPath)) {
+        if(-not(Test-Path $required0140pm -PathType Leaf)) {
+            if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+                Write-Host "Survivor 0.14.0 primary melee transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+                return
+            }
+            throw ('Primary Mana Hand melee source missing: '+$required0140pm)
+        }
+    }
+
+    $game0140pm = Normalize-Lf ([IO.File]::ReadAllText($game0140pmPath))
+    if(-not $game0140pm.Contains('use as primary Mana Hand melee')) {
+        $menuAnchor0140pm = @'
+                if( ncmm_secondary_melee_eligible ) {
+                    const bool ncmm_secondary_enabled =
+'@
+        $menuNew0140pm = @'
+                if( ncmm_secondary_melee_eligible ) {
+                    const bool ncmm_primary_enabled =
+                        ncmm::virtual_item_primary_melee_enabled( oThisItem );
+                    addentry( 'P', ncmm::localized_text(
+                                  ncmm_primary_enabled ?
+                                  "stop using as primary Mana Hand melee" :
+                                  "use as primary Mana Hand melee",
+                                  ncmm_primary_enabled ?
+                                  "не использовать как основное оружие руки маны" :
+                                  "использовать как основное оружие руки маны" ),
+                              hint_rating::good );
+                }
+
+                if( ncmm_secondary_melee_eligible ) {
+                    const bool ncmm_secondary_enabled =
+'@
+        $menuCount0140pm = ([regex]::Matches($game0140pm,[regex]::Escape($menuAnchor0140pm))).Count
+        if($menuCount0140pm -ne 1) {
+            throw ('Unexpected primary Mana Hand menu anchor count: '+$menuCount0140pm)
+        }
+        $game0140pm = Replace-TextBlock $game0140pm $menuAnchor0140pm $menuNew0140pm 'primary Mana Hand melee menu'
+
+        $handlerAnchor0140pm = @'
+                case 'M': {
+'@
+        $handlerNew0140pm = @'
+                case 'P': {
+                    const int ncmm_mana_hands_now = static_cast<int>(
+                                                        ncmm::runtime_hook_modifier(
+                                                            "magic.virtual_hand_count", nullptr,
+                                                            "magiclysm", nullptr, nullptr ) );
+                    item *ncmm_bound3 = ncmm_mana_hands_now >= 1 ?
+                                        ncmm::virtual_item_for_slot(
+                                            "survivor_progression", "mana_hand_3" ) : nullptr;
+                    item *ncmm_bound4 = ncmm_mana_hands_now >= 2 ?
+                                        ncmm::virtual_item_for_slot(
+                                            "survivor_progression", "mana_hand_4" ) : nullptr;
+                    item *ncmm_bound_pair = ncmm_mana_hands_now >= 2 ?
+                                            ncmm::virtual_item_for_slot(
+                                                "survivor_progression", "mana_hands_34" ) : nullptr;
+                    if( ncmm_bound3 != &oThisItem && ncmm_bound4 != &oThisItem &&
+                        ncmm_bound_pair != &oThisItem ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "This item is not held by an available Mana Hand.",
+                                     "Этот предмет не удерживается доступной рукой маны." ).c_str() );
+                        break;
+                    }
+                    const bool ncmm_pair_primary = ncmm_bound_pair == &oThisItem;
+                    if( !oThisItem.is_melee() || oThisItem.is_gun() ||
+                        ( ncmm_pair_primary != oThisItem.is_two_handed( u ) ) ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "This item is not eligible for primary Mana Hand melee.",
+                                     "Этот предмет нельзя использовать как основное оружие руки маны." ).c_str() );
+                        break;
+                    }
+                    const bool ncmm_enable_primary =
+                        !ncmm::virtual_item_primary_melee_enabled( oThisItem );
+                    if( ncmm::virtual_item_set_primary_melee(
+                            oThisItem, ncmm_enable_primary ) ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     ncmm_enable_primary ?
+                                     "Primary Mana Hand melee enabled. Physical wielded weapons keep priority." :
+                                     "Primary Mana Hand melee disabled.",
+                                     ncmm_enable_primary ?
+                                     "Основное оружие руки маны включено. Физически удерживаемое оружие остаётся приоритетным." :
+                                     "Основное оружие руки маны отключено." ).c_str() );
+                    }
+                    break;
+                }
+                case 'M': {
+'@
+        $handlerCount0140pm = ([regex]::Matches($game0140pm,[regex]::Escape($handlerAnchor0140pm))).Count
+        if($handlerCount0140pm -ne 1) {
+            throw ('Unexpected primary Mana Hand handler anchor count: '+$handlerCount0140pm)
+        }
+        $game0140pm = Replace-TextBlock $game0140pm $handlerAnchor0140pm $handlerNew0140pm 'primary Mana Hand melee handler'
+    }
+    Write-Utf8NoBom $game0140pmPath $game0140pm
+
+    $melee0140pm = Normalize-Lf ([IO.File]::ReadAllText($melee0140pmPath))
+    if(-not $melee0140pm.Contains('ncmm_primary_mana_hand_melee_weapon')) {
+        $scopeOld0140pm = @'
+        ncmm_virtual_melee_scope( Character &who, item &weapon ) : who_( who ),
+            active_( ncmm::virtual_melee_context_begin( who, weapon ) )
+'@
+        $scopeNew0140pm = @'
+        ncmm_virtual_melee_scope( Character &who, item &weapon,
+                                  bool suppress_martial_arts = true ) : who_( who ),
+            active_( ncmm::virtual_melee_context_begin(
+                         who, weapon, suppress_martial_arts ) )
+'@
+        $melee0140pm = Replace-TextBlock $melee0140pm $scopeOld0140pm $scopeNew0140pm 'primary Mana Hand melee scope mode'
+
+        $costAnchor0140pm = @'
+int ncmm_secondary_melee_mana_cost( Character &who, const item &weapon )
+{
+    return std::clamp( ( who.attack_speed( weapon ) + 9 ) / 10, 5, 50 );
+}
+'@
+        $costNew0140pm = @'
+int ncmm_secondary_melee_mana_cost( Character &who, const item &weapon )
+{
+    return std::clamp( ( who.attack_speed( weapon ) + 9 ) / 10, 5, 50 );
+}
+
+item *ncmm_primary_mana_hand_melee_weapon( Character &who )
+{
+    if( !who.is_avatar() || who.is_mounted() || who.get_wielded_item() ||
+        who.martial_arts_data->selected_force_unarmed() ) {
+        return nullptr;
+    }
+
+    const int hand_count = ncmm_mana_hand_count_for_melee();
+    if( hand_count >= 2 ) {
+        item *paired = ncmm::virtual_item_for_slot(
+                           "survivor_progression", "mana_hands_34" );
+        if( paired != nullptr && ncmm::virtual_item_primary_melee_enabled( *paired ) &&
+            paired->is_melee() && !paired->is_gun() && paired->is_two_handed( who ) ) {
+            return paired;
+        }
+    }
+
+    const char *slots[2] = { "mana_hand_3", "mana_hand_4" };
+    for( int i = 0; i < hand_count && i < 2; ++i ) {
+        item *candidate = ncmm::virtual_item_for_slot(
+                              "survivor_progression", slots[i] );
+        if( candidate != nullptr &&
+            ncmm::virtual_item_primary_melee_enabled( *candidate ) &&
+            candidate->is_melee() && !candidate->is_gun() &&
+            !candidate->is_two_handed( who ) ) {
+            return candidate;
+        }
+    }
+    return nullptr;
+}
+'@
+        $melee0140pm = Replace-TextBlock $melee0140pm $costAnchor0140pm $costNew0140pm 'primary Mana Hand melee selector'
+
+        $missOld0140pm = 'ncmm::virtual_melee_context_active( *this ) ? tec_none.obj() :'
+        $missNew0140pm = 'ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ? tec_none.obj() :'
+        if(-not $melee0140pm.Contains($missOld0140pm)) {
+            throw 'Primary Mana Hand miss-recovery suppression anchor missing.'
+        }
+        $melee0140pm = $melee0140pm.Replace($missOld0140pm,$missNew0140pm)
+
+        $guardOld0140pm = 'if( !ncmm::virtual_melee_context_active( *this ) ) {'
+        $guardNew0140pm = 'if( !ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ) {'
+        $guardCount0140pm = ([regex]::Matches($melee0140pm,[regex]::Escape($guardOld0140pm))).Count
+        if($guardCount0140pm -lt 4) {
+            throw ('Primary Mana Hand martial-art guard anchor count too small: '+$guardCount0140pm)
+        }
+        $melee0140pm = $melee0140pm.Replace($guardOld0140pm,$guardNew0140pm)
+
+        $wrapperOld0140pm = @'
+    const bool ncmm_attack_result =
+        melee_attack_abstract( t, allow_special, force_technique, allow_unarmed, forced_movecost );
+    if( ncmm_attack_result && allow_special && is_avatar() && !t.is_dead_state() &&
+        !ncmm::virtual_melee_context_active( *this ) ) {
+        ncmm_run_mana_hand_secondary_melee( *this, t );
+    }
+    return ncmm_attack_result;
+'@
+        $wrapperNew0140pm = @'
+    if( allow_special && is_avatar() &&
+        !ncmm::virtual_melee_context_active( *this ) &&
+        !get_wielded_item() ) {
+        item *ncmm_primary_weapon = ncmm_primary_mana_hand_melee_weapon( *this );
+        if( ncmm_primary_weapon != nullptr ) {
+            const int ncmm_primary_mana_cost =
+                ncmm_secondary_melee_mana_cost( *this, *ncmm_primary_weapon );
+            if( magic->available_mana() < ncmm_primary_mana_cost ) {
+                add_msg_if_player( m_info, "%s", ncmm::localized_text(
+                                       "Not enough mana to attack with the primary Mana Hand weapon.",
+                                       "Недостаточно маны для атаки основным оружием руки маны." ).c_str() );
+                return false;
+            }
+
+            bool ncmm_primary_result = false;
+            {
+                ncmm_virtual_melee_scope ncmm_primary_scope(
+                    *this, *ncmm_primary_weapon, false );
+                if( !ncmm_primary_scope.active() ) {
+                    return false;
+                }
+                ncmm_primary_result = melee_attack_abstract(
+                                          t, allow_special, force_technique,
+                                          allow_unarmed, forced_movecost );
+            }
+            if( ncmm_primary_result ) {
+                magic->mod_mana( *this, -ncmm_primary_mana_cost );
+            }
+            if( ncmm_primary_result && !t.is_dead_state() ) {
+                ncmm_run_mana_hand_secondary_melee( *this, t );
+            }
+            return ncmm_primary_result;
+        }
+    }
+
+    const bool ncmm_attack_result =
+        melee_attack_abstract( t, allow_special, force_technique, allow_unarmed, forced_movecost );
+    if( ncmm_attack_result && allow_special && is_avatar() && !t.is_dead_state() &&
+        !ncmm::virtual_melee_context_active( *this ) ) {
+        ncmm_run_mana_hand_secondary_melee( *this, t );
+    }
+    return ncmm_attack_result;
+'@
+        $wrapperCount0140pm = ([regex]::Matches($melee0140pm,[regex]::Escape($wrapperOld0140pm))).Count
+        if($wrapperCount0140pm -ne 1) {
+            throw ('Unexpected primary Mana Hand melee wrapper count: '+$wrapperCount0140pm)
+        }
+        $melee0140pm = Replace-TextBlock $melee0140pm $wrapperOld0140pm $wrapperNew0140pm 'primary Mana Hand melee wrapper'
+    }
+    Write-Utf8NoBom $melee0140pmPath $melee0140pm
+
+    $gameOut0140pm = [IO.File]::ReadAllText($game0140pmPath)
+    $meleeOut0140pm = [IO.File]::ReadAllText($melee0140pmPath)
+    foreach($needle0140pm in @(
+        'use as primary Mana Hand melee',
+        "case 'P':",
+        'ncmm::virtual_item_set_primary_melee(',
+        'ncmm_primary_mana_hand_melee_weapon',
+        'ncmm::virtual_item_primary_melee_enabled',
+        'ncmm::virtual_melee_context_suppresses_martial_arts',
+        'ncmm_primary_scope( *this, *ncmm_primary_weapon, false )',
+        'Not enough mana to attack with the primary Mana Hand weapon.',
+        'magic->mod_mana( *this, -ncmm_primary_mana_cost )'
+    )) {
+        if(-not ($gameOut0140pm.Contains($needle0140pm) -or
+                 $meleeOut0140pm.Contains($needle0140pm))) {
+            throw ('Survivor 0.14.0 primary Mana Hand melee output missing: '+$needle0140pm)
+        }
+    }
+    Write-Host "Survivor 0.14.0 primary Mana Hand melee support: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandPrimaryMelee0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -22090,6 +22350,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandPairedRanged01
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandReloadAndShoot0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandFireAction0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandGunControls0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandPrimaryMelee0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
