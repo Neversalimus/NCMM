@@ -5180,17 +5180,22 @@ int run_gameplay_smoke()
         }
 
         std::vector<mod_id> mods = world_generator->get_mod_manager().get_default_mods();
-        const mod_id magiclysm_smoke_mod( "magiclysm" );
+        const std::array<mod_id, 3> magiclysm_smoke_mods = {
+            mod_id( "dda" ), mod_id( "no_npc_food" ), mod_id( "magiclysm" )
+        };
         const auto &usable_mods = world_generator->get_mod_manager().get_usable_mods();
-        if( std::find( usable_mods.begin(), usable_mods.end(),
-                       magiclysm_smoke_mod ) == usable_mods.end() ) {
-            write_gameplay_smoke_result( false, "magiclysm_smoke_mod_unavailable",
-                                         aws_setting_count, 0, 0 );
-            return 157;
+        for( const mod_id &required_mod : magiclysm_smoke_mods ) {
+            if( std::find( usable_mods.begin(), usable_mods.end(),
+                           required_mod ) == usable_mods.end() ) {
+                write_gameplay_smoke_result( false, "magiclysm_smoke_dependency_unavailable",
+                                             aws_setting_count, 0, 0 );
+                return 157;
+            }
+            if( std::find( mods.begin(), mods.end(), required_mod ) == mods.end() ) {
+                mods.push_back( required_mod );
+            }
         }
-        if( std::find( mods.begin(), mods.end(), magiclysm_smoke_mod ) == mods.end() ) {
-            mods.push_back( magiclysm_smoke_mod );
-        }
+        const mod_id magiclysm_smoke_mod( "magiclysm" );
         WORLD *world = world_generator->make_new_world( world_name, mods );
         if( world == nullptr ) {
             write_gameplay_smoke_result( false, "world_create_failed", aws_setting_count, 0, 0 );
