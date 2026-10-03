@@ -1054,6 +1054,15 @@ bool virtual_item_candidate_runtime_valid( const item &candidate, uint32_t flags
 {
     avatar &you = get_avatar();
     const bool candidate_two_handed = candidate.is_two_handed( you );
+    bool candidate_requires_two_hand_use = candidate_two_handed;
+    if( candidate.is_gun() ) {
+        for( const std::pair<const gun_mode_id, gun_mode> &mode : candidate.gun_all_modes() ) {
+            if( mode.second && mode.second->has_flag( flag_FIRE_TWOHAND ) ) {
+                candidate_requires_two_hand_use = true;
+                break;
+            }
+        }
+    }
     if( candidate.is_null() ||
         &candidate == you.get_wielded_item().get_item() || you.is_worn( candidate ) ||
         candidate.has_flag( flag_INTEGRATED ) || candidate.has_flag( flag_PSEUDO ) ||
@@ -1063,6 +1072,10 @@ bool virtual_item_candidate_runtime_valid( const item &candidate, uint32_t flags
     }
     if( ( flags & NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2 ) != 0u &&
         !candidate_two_handed ) {
+        return false;
+    }
+    if( ( flags & NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HAND_USE_V2 ) != 0u &&
+        !candidate_requires_two_hand_use ) {
         return false;
     }
     if( ( flags & NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2 ) != 0u &&
