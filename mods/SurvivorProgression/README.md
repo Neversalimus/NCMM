@@ -87,6 +87,15 @@ Each enabled Mana Hand performs its own vanilla melee attack after the primary m
 Guns and items that CDDA considers two-handed are excluded. Releasing or reassigning the item clears the secondary-strike opt-in.
 
 
+## Mana Hand primary melee
+
+A bound non-gun melee item can be explicitly selected as the primary Mana Hand weapon from the item context menu. It is used for normal manual melee attacks only when the character is not physically wielding an item and the selected martial-art style is not forcing unarmed attacks. A physical wielded item always keeps vanilla priority.
+
+Primary Mana Hand attacks use the normal vanilla melee pipeline, including weapon techniques and martial-art on-miss/on-crit/on-kill/on-attack chains. They pay the weapon's normal move and stamina costs plus the same mana cost used by a secondary strike: `ceil(attack_speed / 10)`, clamped to 5–50 mana. If there is not enough mana, the attack is cancelled instead of silently falling back to an unarmed strike.
+
+Primary and secondary modes are mutually exclusive for the same virtual item. Other eligible Mana Hands may still perform their enabled secondary strikes after a successful primary Mana Hand attack.
+
+
 ## Mana Hand paired grip
 
 With Fourth Mana Hand unlocked, Mana Hands III+IV can jointly hold one real two-handed item through the dedicated `mana_hands_34` logical slot, including a firearm. The paired item has one marker and one persistent UID; it is not duplicated across the two single-hand slots and never leaves the vanilla CDDA item graph.
