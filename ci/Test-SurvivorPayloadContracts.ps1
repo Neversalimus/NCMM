@@ -460,7 +460,11 @@ foreach($needle0140 in @(
     'NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2',
     'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
     'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2',
-    'release_virtual_item( item &it )'
+    'release_virtual_item( item &it )',
+    'virtual_item_primary_melee_key = "ncmm_virtual_primary_melee"',
+    'virtual_item_primary_melee_enabled( const item &it )',
+    'virtual_item_set_primary_melee( item &it, bool enabled )',
+    'virtual_melee_context_suppresses_martial_arts( const Character &who )'
 )){
     if(-not $hostVirtual0140.Contains($needle0140)){
         throw ('Survivor 0.14.0 Host virtual-item contract missing: '+$needle0140)
@@ -580,7 +584,16 @@ foreach($needle0140 in @(
     'Burst-fire which Mana Hand weapon?',
     'Change firing mode on which Mana Hand weapon?',
     'Set default ammo for which Mana Hand weapon?',
-    'Apply-SurvivorManaHandGunControls0140 $CddaRoot'
+    'Apply-SurvivorManaHandGunControls0140 $CddaRoot',
+    'function Apply-SurvivorManaHandPrimaryMelee0140',
+    'use as primary Mana Hand melee',
+    "case 'P':",
+    'ncmm::virtual_item_set_primary_melee(',
+    'ncmm_primary_mana_hand_melee_weapon',
+    'ncmm::virtual_melee_context_suppresses_martial_arts',
+    'ncmm_primary_scope( *this, *ncmm_primary_weapon, false )',
+    'Not enough mana to attack with the primary Mana Hand weapon.',
+    'Apply-SurvivorManaHandPrimaryMelee0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
