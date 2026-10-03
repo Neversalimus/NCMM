@@ -467,7 +467,7 @@ foreach($needle0140 in @(
     }
 }
 foreach($needle0140 in @(
-    '#define NCMM_HOST_API_V2_CORE_MINOR 1u',
+    '#define NCMM_HOST_API_V2_CORE_MINOR 2u',
     'NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2',
     'NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2',
     'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
