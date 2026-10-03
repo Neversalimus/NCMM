@@ -21023,6 +21023,12 @@ function Apply-SurvivorManaHandRanged0140([string]$Root) {
     Write-Utf8NoBom $defs0140rangePath $defs0140range
 
     $actor0140range = Normalize-Lf ([IO.File]::ReadAllText($actor0140rangePath))
+    if(-not $actor0140range.Contains('#include "ncmm_loader.h"')) {
+        if(-not $actor0140range.Contains('#include "item_location.h"')) {
+            throw 'Mana Hand ranged activity include anchor missing.'
+        }
+        $actor0140range = Replace-TextBlock $actor0140range '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand ranged activity include'
+    }
     if(-not $actor0140range.Contains('aim_activity_actor aim_activity_actor::use_item_location')) {
         $actorCtorOld0140range = @'
 aim_activity_actor aim_activity_actor::use_wielded()
@@ -21112,7 +21118,24 @@ item_location aim_activity_actor::get_weapon()
 item_location aim_activity_actor::get_weapon()
 {
     if( ncmm_real_weapon ) {
-        return ncmm_real_weapon;
+        item *ncmm_candidate = ncmm_real_weapon.get_item();
+        if( ncmm_candidate == nullptr ) {
+            return item_location();
+        }
+        const int ncmm_ranged_hand_count = std::max( 0, std::min( 2, static_cast<int>( std::lround(
+                                              ncmm::runtime_hook_modifier(
+                                                  "magic.virtual_hand_count", nullptr, "magiclysm",
+                                                  nullptr, nullptr ) ) ) ) );
+        item *ncmm_hand3 = ncmm_ranged_hand_count >= 1 ?
+                           ncmm::virtual_item_for_slot(
+                               "survivor_progression", "mana_hand_3" ) : nullptr;
+        item *ncmm_hand4 = ncmm_ranged_hand_count >= 2 ?
+                           ncmm::virtual_item_for_slot(
+                               "survivor_progression", "mana_hand_4" ) : nullptr;
+        if( ncmm_candidate == ncmm_hand3 || ncmm_candidate == ncmm_hand4 ) {
+            return ncmm_real_weapon;
+        }
+        return item_location();
     }
     if( fake_weapon.has_value() ) {
 '@
@@ -21276,6 +21299,10 @@ item_location aim_activity_actor::get_weapon()
         @($defs0140rangePath,'item_location ncmm_real_weapon;'),
         @($defs0140rangePath,'use_item_location( const item_location &weapon )'),
         @($actor0140rangePath,'aim_activity_actor::use_item_location'),
+        @($actor0140rangePath,'#include "ncmm_loader.h"'),
+        @($actor0140rangePath,'const int ncmm_ranged_hand_count ='),
+        @($actor0140rangePath,'"survivor_progression", "mana_hand_3"'),
+        @($actor0140rangePath,'"survivor_progression", "mana_hand_4"'),
         @($actor0140rangePath,'jsout.member( "ncmm_real_weapon", ncmm_real_weapon );'),
         @($actor0140rangePath,'data.read( "ncmm_real_weapon", actor.ncmm_real_weapon );'),
         @($actor0140rangePath,'ncmm_virtual_shot_mana_cost'),
