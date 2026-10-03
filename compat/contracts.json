@@ -135,6 +135,15 @@
           ]
         },
         {
+          "path": "src/avatar_action.cpp",
+          "required": [
+            "void avatar_action::autoattack( avatar &you, map &m )",
+            "const item_location weapon = you.get_wielded_item();",
+            "int reach = weapon ? weapon->reach_range( you ).first : std::max( 1,",
+            "you.reach_attack( best.pos_bub() );"
+          ]
+        },
+        {
           "path": "src/melee.cpp",
           "required": [
             "float Character::get_dodge() const"
