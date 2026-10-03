@@ -100,6 +100,8 @@ Primary and secondary modes are mutually exclusive for the same virtual item. Ot
 
 Primary Mana Hand melee also participates in CDDA reach attacks. A spear, whip, polearm, or other reach-capable primary virtual weapon uses the normal reach targeting UI, obstacle/thin-fence handling, weapon wear, stamina/move cost, techniques, and the same 5–50 mana primary-attack cost. Physical wielded reach weapons and force-unarmed martial-art styles keep vanilla priority.
 
+The normal smash/bash action also uses the selected Primary Mana Hand melee weapon when the physical wield slot is empty. Bash damage, weapon wear, move/stamina costs and enchantment-aware melee damage stay on the vanilla path; the action costs the same 5–50 mana scale when a virtual primary weapon actually smashes something. If a fragile virtual weapon shatters, its real item is removed from its original `item_location` and the magical hand absorbs the break instead of injuring a physical hand.
+
 ## Mana Hand paired grip
 
 With Fourth Mana Hand unlocked, Mana Hands III+IV can jointly hold one real two-handed item through the dedicated `mana_hands_34` logical slot, including a firearm. The paired item has one marker and one persistent UID; it is not duplicated across the two single-hand slots and never leaves the vanilla CDDA item graph.
