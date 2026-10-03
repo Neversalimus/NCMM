@@ -21768,8 +21768,8 @@ function Apply-SurvivorManaHandFireAction0140([string]$Root) {
             throw ('Survivor 0.14.0 Mana Hand FIRE action output missing: '+$needle0140fire)
         }
     }
-    if($fireOutput0140.Contains('ncmm_selected_gun.obtain(') -or
-       $fireOutput0140.Contains('wield( ncmm_selected_gun')) {
+    if($fireOutput0140.Contains(('ncmm_selected_gun.'+'obtain(')) -or
+       $fireOutput0140.Contains(('wield( ncmm_'+'selected_gun'))) {
         throw 'Mana Hand FIRE action must not obtain or physically wield the virtual gun.'
     }
 
