@@ -398,7 +398,9 @@
             "if( weapon && weapon->has_flag( flag_DIG_TOOL ) ) {",
             "void avatar_action::mend( avatar &you, item_location loc )",
             "if( you.is_armed() ) {",
-            "you.mend_item( item_location( loc ) );"
+            "you.mend_item( item_location( loc ) );",
+            "bool avatar_action::move( avatar &you, map &m, const tripoint_rel_ms &d )",
+            "!( you.get_wielded_item() && you.get_wielded_item()->has_flag( flag_CRUTCHES ) )"
           ]
         },
         {
@@ -456,7 +458,9 @@
           "required": [
             "std::map<damage_type_id, int> Character::smash_ability() const",
             "} else if( get_wielded_item() ) {",
-            "for( const damage_unit &dam : get_wielded_item()->base_damage_melee() ) {"
+            "for( const damage_unit &dam : get_wielded_item()->base_damage_melee() ) {",
+            "bool Character::is_on_ground() const",
+            "return ( !enough_working_legs() && !weapon.has_flag( flag_CRUTCHES ) ) ||"
           ]
         },
         {

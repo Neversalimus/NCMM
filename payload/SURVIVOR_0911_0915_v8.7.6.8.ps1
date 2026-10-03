@@ -24140,6 +24140,146 @@ void avatar_action::mend( avatar &you, item_location loc )
 
 Apply-SurvivorManaHandMend0140 $CddaRoot
 
+
+function Apply-SurvivorManaHandCrutches0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 Mana Hand crutch support..." -ForegroundColor Cyan
+    $src0140crutch = Join-Path $Root 'src'
+    $avatar0140crutchPath = Join-Path $src0140crutch 'avatar_action.cpp'
+    $character0140crutchPath = Join-Path $src0140crutch 'character.cpp'
+    foreach($required0140crutch in @($avatar0140crutchPath,$character0140crutchPath)) {
+        if(-not(Test-Path $required0140crutch -PathType Leaf)) {
+            if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+                Write-Host "Survivor 0.14.0 Mana Hand crutch transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+                return
+            }
+            throw ('Mana Hand crutch source missing: '+$required0140crutch)
+        }
+    }
+
+    $helper0140crutch = @'
+static bool ncmm_mana_hand_has_crutches( const Character &who )
+{
+    if( !who.is_avatar() ) {
+        return false;
+    }
+
+    const int hand_count = std::max( 0, std::min( 2, static_cast<int>(
+                                   ncmm::runtime_hook_modifier(
+                                       "magic.virtual_hand_count", nullptr, "magiclysm",
+                                       nullptr, nullptr ) ) ) );
+    if( hand_count >= 2 ) {
+        item *paired = ncmm::virtual_item_for_slot(
+                           "survivor_progression", "mana_hands_34" );
+        if( paired != nullptr ) {
+            return paired->has_flag( flag_CRUTCHES );
+        }
+    }
+
+    if( hand_count >= 1 ) {
+        item *hand3 = ncmm::virtual_item_for_slot(
+                          "survivor_progression", "mana_hand_3" );
+        if( hand3 != nullptr && hand3->has_flag( flag_CRUTCHES ) ) {
+            return true;
+        }
+    }
+    if( hand_count >= 2 ) {
+        item *hand4 = ncmm::virtual_item_for_slot(
+                          "survivor_progression", "mana_hand_4" );
+        if( hand4 != nullptr && hand4->has_flag( flag_CRUTCHES ) ) {
+            return true;
+        }
+    }
+    return false;
+}
+'@
+
+    $avatar0140crutch = Normalize-Lf ([IO.File]::ReadAllText($avatar0140crutchPath))
+    if(-not $avatar0140crutch.Contains('#include "ncmm_loader.h"')) {
+        if(-not $avatar0140crutch.Contains('#include "item_location.h"')) {
+            throw 'Mana Hand crutch avatar include anchor missing.'
+        }
+        $avatar0140crutch = Replace-TextBlock $avatar0140crutch '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand crutch avatar include'
+    }
+    if(-not $avatar0140crutch.Contains('ncmm_mana_hand_has_crutches')) {
+        $moveHeadOld0140crutch = @'
+bool avatar_action::move( avatar &you, map &m, const tripoint_rel_ms &d )
+'@
+        $moveHeadNew0140crutch = $helper0140crutch + [Environment]::NewLine + @'
+bool avatar_action::move( avatar &you, map &m, const tripoint_rel_ms &d )
+'@
+        $avatar0140crutch = Replace-TextBlock $avatar0140crutch $moveHeadOld0140crutch $moveHeadNew0140crutch 'Mana Hand crutch movement helper'
+
+        $moveOld0140crutch = @'
+    // If any leg broken without crutches and not already on the ground topple over
+    if( ( !you.enough_working_legs() && !you.is_prone() &&
+          !( you.get_wielded_item() && you.get_wielded_item()->has_flag( flag_CRUTCHES ) ) ) ) {
+'@
+        $moveNew0140crutch = @'
+    // If any leg broken without crutches and not already on the ground topple over
+    if( ( !you.enough_working_legs() && !you.is_prone() &&
+          !( ( you.get_wielded_item() &&
+               you.get_wielded_item()->has_flag( flag_CRUTCHES ) ) ||
+             ncmm_mana_hand_has_crutches( you ) ) ) ) {
+'@
+        $avatar0140crutch = Replace-TextBlock $avatar0140crutch $moveOld0140crutch $moveNew0140crutch 'Mana Hand crutch movement support'
+    }
+    Write-Utf8NoBom $avatar0140crutchPath $avatar0140crutch
+
+    $character0140crutch = Normalize-Lf ([IO.File]::ReadAllText($character0140crutchPath))
+    if(-not $character0140crutch.Contains('#include "ncmm_loader.h"')) {
+        $character0140crutch = Replace-TextBlock $character0140crutch '#include "character.h"' ('#include "character.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand crutch character include'
+    }
+    if(-not $character0140crutch.Contains('ncmm_mana_hand_has_crutches')) {
+        $groundOld0140crutch = @'
+bool Character::is_on_ground() const
+{
+    return ( !enough_working_legs() && !weapon.has_flag( flag_CRUTCHES ) ) ||
+           has_effect( effect_downed ) || is_prone();
+}
+'@
+        $groundNew0140crutch = $helper0140crutch + [Environment]::NewLine + @'
+bool Character::is_on_ground() const
+{
+    const bool has_crutches = weapon.has_flag( flag_CRUTCHES ) ||
+                              ncmm_mana_hand_has_crutches( *this );
+    return ( !enough_working_legs() && !has_crutches ) ||
+           has_effect( effect_downed ) || is_prone();
+}
+'@
+        $character0140crutch = Replace-TextBlock $character0140crutch $groundOld0140crutch $groundNew0140crutch 'Mana Hand crutch ground-state support'
+    }
+    Write-Utf8NoBom $character0140crutchPath $character0140crutch
+
+    $crutchAvatarOutput0140 = [IO.File]::ReadAllText($avatar0140crutchPath)
+    $crutchCharacterOutput0140 = [IO.File]::ReadAllText($character0140crutchPath)
+    foreach($needle0140crutch in @(
+        'ncmm_mana_hand_has_crutches',
+        '"magic.virtual_hand_count", nullptr, "magiclysm"',
+        '"survivor_progression", "mana_hands_34"',
+        '"survivor_progression", "mana_hand_3"',
+        '"survivor_progression", "mana_hand_4"',
+        'has_flag( flag_CRUTCHES )',
+        'ncmm_mana_hand_has_crutches( you )'
+    )) {
+        if(-not $crutchAvatarOutput0140.Contains($needle0140crutch)) {
+            throw ('Survivor 0.14.0 Mana Hand crutch avatar output missing: '+$needle0140crutch)
+        }
+    }
+    foreach($needle0140crutch in @(
+        'ncmm_mana_hand_has_crutches',
+        'const bool has_crutches = weapon.has_flag( flag_CRUTCHES ) ||',
+        'ncmm_mana_hand_has_crutches( *this )',
+        'return ( !enough_working_legs() && !has_crutches ) ||'
+    )) {
+        if(-not $crutchCharacterOutput0140.Contains($needle0140crutch)) {
+            throw ('Survivor 0.14.0 Mana Hand crutch character output missing: '+$needle0140crutch)
+        }
+    }
+    Write-Host "Survivor 0.14.0 Mana Hand crutch support: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandCrutches0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -24165,6 +24305,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandThrow0140 -Com
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandAutoMining0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandTargetPractice0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandMend0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandCrutches0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
