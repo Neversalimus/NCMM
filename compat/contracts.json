@@ -367,7 +367,13 @@
             "static void fire()",
             "const item_location weapon = you.get_wielded_item();",
             "avatar_action::fire_wielded_weapon( you );",
-            "// try firing turrets"
+            "// try firing turrets",
+            "item_location weapon = player_character.get_wielded_item();",
+            "case ACTION_RELOAD_WEAPON:",
+            "case ACTION_RELOAD_WIELDED:",
+            "case ACTION_FIRE_BURST: {",
+            "case ACTION_SELECT_FIRE_MODE:",
+            "case ACTION_SELECT_DEFAULT_AMMO:"
           ]
         },
         {

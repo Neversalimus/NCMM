@@ -21778,6 +21778,301 @@ function Apply-SurvivorManaHandFireAction0140([string]$Root) {
 
 Apply-SurvivorManaHandFireAction0140 $CddaRoot
 
+function Apply-SurvivorManaHandGunControls0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 standard Mana Hand gun controls..." -ForegroundColor Cyan
+    $handle0140ctrlPath = Join-Path (Join-Path $Root 'src') 'handle_action.cpp'
+    if(-not(Test-Path $handle0140ctrlPath -PathType Leaf)) {
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+            Write-Host "Survivor 0.14.0 standard gun-control transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+            return
+        }
+        throw ('Mana Hand standard gun-control source missing: '+$handle0140ctrlPath)
+    }
+
+    $handle0140ctrl = Normalize-Lf ([IO.File]::ReadAllText($handle0140ctrlPath))
+    if(-not $handle0140ctrl.Contains('#include "ncmm_loader.h"')) {
+        throw 'Mana Hand standard gun controls require the existing ncmm_loader include.'
+    }
+
+    if(-not $handle0140ctrl.Contains('ncmm_select_mana_hand_gun_control')) {
+        $helperOld0140ctrl = @'
+    item_location weapon = player_character.get_wielded_item();
+    const bool in_shell = player_character.has_active_mutation( trait_SHELL2 )
+'@
+        $helperNew0140ctrl = @'
+    item_location weapon = player_character.get_wielded_item();
+
+    const auto ncmm_select_mana_hand_gun_control =
+    [&]( bool require_reloadable, const char *prompt_en, const char *prompt_ru ) -> item_location {
+        const int ncmm_hand_count = std::max( 0, std::min( 2, static_cast<int>( std::lround(
+                                        ncmm::runtime_hook_modifier(
+                                            "magic.virtual_hand_count", nullptr, "magiclysm",
+                                            nullptr, nullptr ) ) ) ) );
+        std::vector<item_location> candidates;
+        std::vector<std::string> labels;
+
+        const auto add_candidate =
+        [&]( item *candidate, const char *label_en, const char *label_ru ) {
+            if( candidate == nullptr || !candidate->is_gun() || candidate->is_gunmod() ||
+                ( require_reloadable && !candidate->is_reloadable() ) ) {
+                return;
+            }
+            item_location loc( player_character, candidate );
+            if( !loc ) {
+                return;
+            }
+            candidates.emplace_back( loc );
+            labels.emplace_back(
+                ncmm::localized_text( label_en, label_ru ) + ": " + candidate->tname() );
+        };
+
+        item *paired = ncmm_hand_count >= 2 ?
+                       ncmm::virtual_item_for_slot(
+                           "survivor_progression", "mana_hands_34" ) : nullptr;
+        if( paired != nullptr ) {
+            add_candidate( paired, "Mana Hands III+IV", "Руки маны III+IV" );
+        } else {
+            if( ncmm_hand_count >= 1 ) {
+                add_candidate(
+                    ncmm::virtual_item_for_slot(
+                        "survivor_progression", "mana_hand_3" ),
+                    "Mana Hand III", "Рука маны III" );
+            }
+            if( ncmm_hand_count >= 2 ) {
+                add_candidate(
+                    ncmm::virtual_item_for_slot(
+                        "survivor_progression", "mana_hand_4" ),
+                    "Mana Hand IV", "Рука маны IV" );
+            }
+        }
+
+        if( candidates.empty() ) {
+            return item_location();
+        }
+        if( candidates.size() == 1 ) {
+            return candidates.front();
+        }
+
+        const int selected = uilist(
+                                 ncmm::localized_text( prompt_en, prompt_ru ), labels );
+        if( selected < 0 || selected >= static_cast<int>( candidates.size() ) ) {
+            return item_location();
+        }
+        return candidates[selected];
+    };
+
+    const bool in_shell = player_character.has_active_mutation( trait_SHELL2 )
+'@
+        $handle0140ctrl = Replace-TextBlock $handle0140ctrl $helperOld0140ctrl $helperNew0140ctrl 'Mana Hand standard gun-control selector'
+
+        $reloadWeaponOld0140ctrl = @'
+        case ACTION_RELOAD_WEAPON:
+            reload_weapon();
+            break;
+'@
+        $reloadWeaponNew0140ctrl = @'
+        case ACTION_RELOAD_WEAPON: {
+            if( weapon && weapon->is_gun() && !weapon->is_gunmod() ) {
+                reload_weapon();
+                break;
+            }
+            item_location ncmm_reload_gun = ncmm_select_mana_hand_gun_control(
+                                                true,
+                                                "Reload which Mana Hand weapon?",
+                                                "Какое оружие в руке маны перезарядить?" );
+            if( ncmm_reload_gun ) {
+                reload( ncmm_reload_gun, false, false );
+            } else {
+                reload_weapon();
+            }
+            break;
+        }
+'@
+        $handle0140ctrl = Replace-TextBlock $handle0140ctrl $reloadWeaponOld0140ctrl $reloadWeaponNew0140ctrl 'Mana Hand reload-weapon action'
+
+        $reloadWieldedOld0140ctrl = @'
+        case ACTION_RELOAD_WIELDED:
+            reload_wielded();
+            break;
+'@
+        $reloadWieldedNew0140ctrl = @'
+        case ACTION_RELOAD_WIELDED: {
+            if( weapon && weapon->is_reloadable() ) {
+                reload_wielded();
+                break;
+            }
+            item_location ncmm_reload_gun = ncmm_select_mana_hand_gun_control(
+                                                true,
+                                                "Reload which Mana Hand weapon?",
+                                                "Какое оружие в руке маны перезарядить?" );
+            if( ncmm_reload_gun ) {
+                reload( ncmm_reload_gun, false );
+            } else {
+                reload_wielded();
+            }
+            break;
+        }
+'@
+        $handle0140ctrl = Replace-TextBlock $handle0140ctrl $reloadWieldedOld0140ctrl $reloadWieldedNew0140ctrl 'Mana Hand reload-wielded action'
+
+        $burstOld0140ctrl = @'
+        case ACTION_FIRE_BURST: {
+            if( weapon ) {
+                if( weapon->gun_set_mode( gun_mode_BURST ) || weapon->gun_set_mode( gun_mode_AUTO ) ) {
+                    avatar_action::fire_wielded_weapon( player_character );
+                }
+            }
+            break;
+        }
+'@
+        $burstNew0140ctrl = @'
+        case ACTION_FIRE_BURST: {
+            if( weapon && weapon->is_gun() && !weapon->is_gunmod() ) {
+                if( weapon->gun_set_mode( gun_mode_BURST ) || weapon->gun_set_mode( gun_mode_AUTO ) ) {
+                    avatar_action::fire_wielded_weapon( player_character );
+                }
+                break;
+            }
+
+            item_location ncmm_burst_gun = ncmm_select_mana_hand_gun_control(
+                                               false,
+                                               "Burst-fire which Mana Hand weapon?",
+                                               "Из какого оружия в руке маны стрелять очередью?" );
+            if( ncmm_burst_gun &&
+                ( ncmm_burst_gun->gun_set_mode( gun_mode_BURST ) ||
+                  ncmm_burst_gun->gun_set_mode( gun_mode_AUTO ) ) ) {
+                player_character.assign_activity(
+                    aim_activity_actor::use_item_location( ncmm_burst_gun ) );
+            }
+            break;
+        }
+'@
+        $handle0140ctrl = Replace-TextBlock $handle0140ctrl $burstOld0140ctrl $burstNew0140ctrl 'Mana Hand burst-fire action'
+
+        $modeOld0140ctrl = @'
+        case ACTION_SELECT_FIRE_MODE:
+            if( weapon && weapon->is_gun() && !weapon->is_gunmod() ) {
+                if( weapon->gun_all_modes().size() > 1 ) {
+                    weapon->gun_cycle_mode();
+                } else {
+                    add_msg( m_info, _( "Your %s has only one firing mode." ), weapon->tname() );
+                }
+            }
+            break;
+'@
+        $modeNew0140ctrl = @'
+        case ACTION_SELECT_FIRE_MODE: {
+            item_location ncmm_mode_gun;
+            item_location *mode_weapon = &weapon;
+            if( !( weapon && weapon->is_gun() && !weapon->is_gunmod() ) ) {
+                ncmm_mode_gun = ncmm_select_mana_hand_gun_control(
+                                    false,
+                                    "Change firing mode on which Mana Hand weapon?",
+                                    "У какого оружия в руке маны сменить режим огня?" );
+                mode_weapon = &ncmm_mode_gun;
+            }
+            if( *mode_weapon && ( *mode_weapon )->is_gun() && !( *mode_weapon )->is_gunmod() ) {
+                if( ( *mode_weapon )->gun_all_modes().size() > 1 ) {
+                    ( *mode_weapon )->gun_cycle_mode();
+                } else {
+                    add_msg( m_info, _( "Your %s has only one firing mode." ),
+                             ( *mode_weapon )->tname() );
+                }
+            }
+            break;
+        }
+'@
+        $handle0140ctrl = Replace-TextBlock $handle0140ctrl $modeOld0140ctrl $modeNew0140ctrl 'Mana Hand select-fire-mode action'
+
+        $ammoOld0140ctrl = @'
+        case ACTION_SELECT_DEFAULT_AMMO:
+            if( weapon && weapon->is_gun() && !weapon->is_gunmod() ) {
+                if( weapon->has_flag( flag_RELOAD_ONE ) ||
+                    weapon->has_flag( flag_RELOAD_AND_SHOOT ) ) {
+                    item::reload_option opt = player_character.select_ammo( weapon, false );
+                    if( !opt ) {
+                        break;
+                    } else if( player_character.ammo_location && opt.ammo == player_character.ammo_location ) {
+                        player_character.add_msg_if_player( _( "Cleared ammo preferences for %s." ), weapon->tname() );
+                        player_character.ammo_location = item_location();
+                    } else if( player_character.has_item( *opt.ammo ) ) {
+                        player_character.add_msg_if_player( _( "Selected %s as default ammo for %s." ), opt.ammo->tname(),
+                                                            weapon->tname() );
+                        player_character.ammo_location = opt.ammo;
+                    } else {
+                        player_character.add_msg_if_player(
+                            _( "You need to keep that ammo on you to select it as default ammo." ) );
+                    }
+                }
+            }
+            break;
+'@
+        $ammoNew0140ctrl = @'
+        case ACTION_SELECT_DEFAULT_AMMO: {
+            item_location ncmm_ammo_gun;
+            item_location *ammo_weapon = &weapon;
+            if( !( weapon && weapon->is_gun() && !weapon->is_gunmod() ) ) {
+                ncmm_ammo_gun = ncmm_select_mana_hand_gun_control(
+                                    false,
+                                    "Set default ammo for which Mana Hand weapon?",
+                                    "Для какого оружия в руке маны выбрать боеприпас?" );
+                ammo_weapon = &ncmm_ammo_gun;
+            }
+            if( *ammo_weapon && ( *ammo_weapon )->is_gun() && !( *ammo_weapon )->is_gunmod() ) {
+                if( ( *ammo_weapon )->has_flag( flag_RELOAD_ONE ) ||
+                    ( *ammo_weapon )->has_flag( flag_RELOAD_AND_SHOOT ) ) {
+                    item::reload_option opt = player_character.select_ammo( *ammo_weapon, false );
+                    if( !opt ) {
+                        break;
+                    } else if( player_character.ammo_location &&
+                               opt.ammo == player_character.ammo_location ) {
+                        player_character.add_msg_if_player(
+                            _( "Cleared ammo preferences for %s." ),
+                            ( *ammo_weapon )->tname() );
+                        player_character.ammo_location = item_location();
+                    } else if( player_character.has_item( *opt.ammo ) ) {
+                        player_character.add_msg_if_player(
+                            _( "Selected %s as default ammo for %s." ),
+                            opt.ammo->tname(), ( *ammo_weapon )->tname() );
+                        player_character.ammo_location = opt.ammo;
+                    } else {
+                        player_character.add_msg_if_player(
+                            _( "You need to keep that ammo on you to select it as default ammo." ) );
+                    }
+                }
+            }
+            break;
+        }
+'@
+        $handle0140ctrl = Replace-TextBlock $handle0140ctrl $ammoOld0140ctrl $ammoNew0140ctrl 'Mana Hand default-ammo action'
+    }
+
+    Write-Utf8NoBom $handle0140ctrlPath $handle0140ctrl
+    $controlOutput0140 = [IO.File]::ReadAllText($handle0140ctrlPath)
+    foreach($needle0140ctrl in @(
+        'ncmm_select_mana_hand_gun_control',
+        'Reload which Mana Hand weapon?',
+        'Burst-fire which Mana Hand weapon?',
+        'Change firing mode on which Mana Hand weapon?',
+        'Set default ammo for which Mana Hand weapon?',
+        'aim_activity_actor::use_item_location( ncmm_burst_gun )',
+        'reload( ncmm_reload_gun, false, false );',
+        'reload( ncmm_reload_gun, false );'
+    )) {
+        if(-not $controlOutput0140.Contains($needle0140ctrl)) {
+            throw ('Survivor 0.14.0 standard Mana Hand gun-control output missing: '+$needle0140ctrl)
+        }
+    }
+    if($controlOutput0140.Contains(('wield( ncmm_'+'reload_gun')) -or
+       $controlOutput0140.Contains(('obtain( ncmm_'+'reload_gun'))) {
+        throw 'Mana Hand standard gun controls must not physically wield or obtain the virtual gun.'
+    }
+
+    Write-Host "Survivor 0.14.0 standard Mana Hand gun controls: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandGunControls0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -21794,6 +22089,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandRanged0140 -Co
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandPairedRanged0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandReloadAndShoot0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandFireAction0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandGunControls0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
