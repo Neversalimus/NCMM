@@ -1069,6 +1069,15 @@ bool virtual_item_candidate_runtime_valid( const item &candidate, uint32_t flags
         candidate.is_gun() ) {
         return false;
     }
+    if( ( flags & NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 ) != 0u &&
+        candidate.count_by_charges() ) {
+        return false;
+    }
+    if( ( flags & NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 ) != 0u &&
+        ( candidate.made_of( phase_id::LIQUID ) ||
+          candidate.made_of( phase_id::GAS ) ) ) {
+        return false;
+    }
     return true;
 }
 
