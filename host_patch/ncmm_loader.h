@@ -28,6 +28,7 @@ std::string localized_text( const char *english, const char *russian );
 
 /** Aggregate runtime gameplay modifier registered by loaded NCMM modules. */
 double gameplay_modifier( const char *modifier_id );
+void gameplay_metric_add( const char *metric_id, int64_t delta );
 
 /** Host-owned generic integration points. Individual modules register rules/bindings through API 2.0. */
 double runtime_hook_modifier( const char *hook_id, const char *subject_id = nullptr,
