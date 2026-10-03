@@ -11,7 +11,7 @@
   "provides": [
     "loader_api:1",
     "ncmm_api:1.9",
-    "host_api_v2:2.1",
+    "host_api_v2:2.2",
     "api.versioning.v1",
     "active_mods.v1",
     "active_mods.registry.v2",
