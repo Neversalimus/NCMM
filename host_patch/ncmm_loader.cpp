@@ -978,6 +978,11 @@ std::string virtual_item_state_key( const char *slot_id )
     return "vslot_" + std::string( slot_id );
 }
 
+std::string virtual_item_flags_state_key( const char *slot_id )
+{
+    return "vslotf_" + std::string( slot_id );
+}
+
 int64_t virtual_item_state_uid_internal( const char *module_id, const char *slot_id )
 {
     if( !character_state_available() || !safe_state_token( module_id ) ||
@@ -1011,6 +1016,62 @@ void virtual_item_state_set_uid_internal( const char *module_id, const char *slo
             diag_value( std::to_string( std::max<int64_t>( 0, uid ) ) );
 }
 
+int64_t virtual_item_state_flags_internal( const char *module_id, const char *slot_id )
+{
+    if( !character_state_available() || !safe_state_token( module_id ) ||
+        !safe_virtual_slot_id( slot_id ) ) {
+        return -1;
+    }
+    const auto &values = get_avatar().get_values();
+    const auto it = values.find( character_state_key(
+                             module_id, virtual_item_flags_state_key( slot_id ).c_str() ) );
+    if( it == values.end() || !it->second.is_str() ) {
+        return -1;
+    }
+    try {
+        std::size_t consumed = 0;
+        const std::string &raw = it->second.str();
+        const long long parsed = std::stoll( raw, &consumed, 10 );
+        return consumed == raw.size() && parsed >= 0 ? parsed : -1;
+    } catch( ... ) {
+        return -1;
+    }
+}
+
+void virtual_item_state_set_flags_internal( const char *module_id, const char *slot_id,
+        uint32_t flags )
+{
+    if( !character_state_available() || !safe_state_token( module_id ) ||
+        !safe_virtual_slot_id( slot_id ) ) {
+        return;
+    }
+    get_avatar().get_values()[character_state_key(
+        module_id, virtual_item_flags_state_key( slot_id ).c_str() )] =
+            diag_value( std::to_string( static_cast<uint64_t>( flags ) ) );
+}
+
+bool virtual_item_candidate_runtime_valid( const item &candidate, uint32_t flags )
+{
+    avatar &you = get_avatar();
+    const bool candidate_two_handed = candidate.is_two_handed( you );
+    if( candidate.is_null() ||
+        &candidate == you.get_wielded_item().get_item() || you.is_worn( candidate ) ||
+        candidate.has_flag( flag_INTEGRATED ) || candidate.has_flag( flag_PSEUDO ) ||
+        ( candidate_two_handed &&
+          ( flags & NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 ) == 0u ) ) {
+        return false;
+    }
+    if( ( flags & NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2 ) != 0u &&
+        !candidate_two_handed ) {
+        return false;
+    }
+    if( ( flags & NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2 ) != 0u &&
+        candidate.is_gun() ) {
+        return false;
+    }
+    return true;
+}
+
 item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id )
 {
     if( !character_state_available() || !safe_state_token( module_id ) ||
@@ -1020,6 +1081,9 @@ item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id
 
     const std::string wanted_marker = virtual_item_marker( module_id, slot_id );
     const int64_t wanted_uid = virtual_item_state_uid_internal( module_id, slot_id );
+    const int64_t stored_flags_raw = virtual_item_state_flags_internal( module_id, slot_id );
+    const uint32_t stored_flags = stored_flags_raw >= 0 ?
+                                  static_cast<uint32_t>( stored_flags_raw ) : 0u;
     item *uid_match = nullptr;
     std::vector<item *> marker_matches;
 
@@ -1038,10 +1102,11 @@ item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id
     }
 
     if( uid_match != nullptr &&
-        ( uid_match == get_avatar().get_wielded_item().get_item() || get_avatar().is_worn( *uid_match ) ) ) {
+        !virtual_item_candidate_runtime_valid( *uid_match, stored_flags ) ) {
         uid_match->erase_var( virtual_item_marker_key );
         uid_match->erase_var( virtual_item_secondary_melee_key );
         virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
+        virtual_item_state_set_flags_internal( module_id, slot_id, 0u );
         return nullptr;
     }
 
@@ -1051,6 +1116,7 @@ item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id
             uid_match->set_var( virtual_item_marker_key, wanted_marker );
         } else if( marker != wanted_marker ) {
             virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
+            virtual_item_state_set_flags_internal( module_id, slot_id, 0u );
             return nullptr;
         }
         for( item *duplicate : marker_matches ) {
@@ -1064,10 +1130,11 @@ item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id
 
     if( wanted_uid > 0 && marker_matches.size() == 1 ) {
         item *resolved = marker_matches.front();
-        if( resolved == get_avatar().get_wielded_item().get_item() || get_avatar().is_worn( *resolved ) ) {
+        if( !virtual_item_candidate_runtime_valid( *resolved, stored_flags ) ) {
             resolved->erase_var( virtual_item_marker_key );
             resolved->erase_var( virtual_item_secondary_melee_key );
             virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
+            virtual_item_state_set_flags_internal( module_id, slot_id, 0u );
             return nullptr;
         }
         virtual_item_state_set_uid_internal( module_id, slot_id, resolved->uid().get_value() );
@@ -1082,6 +1149,7 @@ item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id
     }
     if( wanted_uid != 0 || !marker_matches.empty() ) {
         virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
+        virtual_item_state_set_flags_internal( module_id, slot_id, 0u );
     }
     return nullptr;
 }
@@ -1102,6 +1170,7 @@ void virtual_item_clear_internal( const char *module_id, const char *slot_id )
         }
     }
     virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
+    virtual_item_state_set_flags_internal( module_id, slot_id, 0u );
 }
 
 bool virtual_item_can_assign_internal( const char *module_id, const char *slot_id,
@@ -1118,20 +1187,7 @@ bool virtual_item_can_assign_internal( const char *module_id, const char *slot_i
     }
 
     const item &candidate = *loc;
-    const bool candidate_two_handed = candidate.is_two_handed( you );
-    if( loc == you.get_wielded_item() || you.is_worn( candidate ) ||
-        candidate.is_null() || candidate.has_flag( flag_INTEGRATED ) ||
-        candidate.has_flag( flag_PSEUDO ) ||
-        ( candidate_two_handed &&
-          ( flags & NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 ) == 0u ) ) {
-        return false;
-    }
-    if( ( flags & NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2 ) != 0u &&
-        !candidate_two_handed ) {
-        return false;
-    }
-    if( ( flags & NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2 ) != 0u &&
-        candidate.is_gun() ) {
+    if( !virtual_item_candidate_runtime_valid( candidate, flags ) ) {
         return false;
     }
 
@@ -1179,6 +1235,8 @@ bool virtual_item_assign_internal( const char *module_id, const char *slot_id,
         if( safe_virtual_slot_id( old_slot.c_str() ) ) {
             virtual_item_state_set_uid_internal(
                 module_id, old_slot.c_str(), 0 );
+            virtual_item_state_set_flags_internal(
+                module_id, old_slot.c_str(), 0u );
         }
     }
 
@@ -1187,6 +1245,7 @@ bool virtual_item_assign_internal( const char *module_id, const char *slot_id,
     selected->set_var( virtual_item_marker_key, new_marker );
     virtual_item_state_set_uid_internal(
         module_id, slot_id, selected->uid().get_value() );
+    virtual_item_state_set_flags_internal( module_id, slot_id, flags );
     return true;
 }
 
