@@ -611,6 +611,10 @@ foreach($needle0140 in @(
     'ncmm_primary_scope( *this, *ncmm_primary_weapon, false )',
     'Not enough mana to attack with the primary Mana Hand weapon.',
     'Apply-SurvivorManaHandPrimaryMelee0140 $CddaRoot',
+    'function Apply-SurvivorManaHandMartialArts0140',
+    'ncmm_primary_mana_hand_martial_weapon',
+    'bool valid_weapon = ma.weapon_valid( martial_weapon );',
+    'Apply-SurvivorManaHandMartialArts0140 $CddaRoot',
     'function Apply-SurvivorManaHandReachMelee0140',
     'ncmm_primary_mana_hand_reach_weapon',
     'ncmm_primary_mana_hand_has_reach',
@@ -634,7 +638,7 @@ $manaAidSection0140=$payload.Substring($manaAidStart0140,$manaAidEnd0140-$manaAi
 if($manaAidSection0140.Contains('flag_id( "MAGIC_FOCUS" )')){
     throw 'Mana Hand spellcasting-aid bridge leaked MAGIC_FOCUS back into global wielded semantics.'
 }
-foreach($sourcePath0140 in @('src/game.cpp','src/talker_character.cpp','src/item_location.cpp','src/iuse_actor.cpp','src/melee.cpp','src/character_inventory.cpp','src/activity_actor_definitions.h','src/activity_actor.cpp','src/ranged.cpp')){
+foreach($sourcePath0140 in @('src/game.cpp','src/talker_character.cpp','src/item_location.cpp','src/iuse_actor.cpp','src/melee.cpp','src/martialarts.cpp','src/character_inventory.cpp','src/activity_actor_definitions.h','src/activity_actor.cpp','src/ranged.cpp')){
     $sourceEntry0140=@($contracts0140.contracts|Where-Object{$_.id -eq 'magic_virtual_slots.source.v1'}).files|Where-Object{$_.path -eq $sourcePath0140}
     if(@($sourceEntry0140).Count -ne 1){throw ('Mana Hand source contract missing hardening path: '+$sourcePath0140)}
 }
@@ -938,9 +942,32 @@ if(-not $survivorVirtual0140.Contains('including firearms.')){
 }
 
 $manaPrimaryStart0140=$payload.IndexOf('function Apply-SurvivorManaHandPrimaryMelee0140')
-$manaReachStart0140=$payload.IndexOf('function Apply-SurvivorManaHandReachMelee0140',$manaPrimaryStart0140)
-if($manaPrimaryStart0140 -lt 0 -or $manaReachStart0140 -le $manaPrimaryStart0140){
-    throw 'Primary Mana Hand reach transform boundary missing.'
+$manaMartialStart0140=$payload.IndexOf('function Apply-SurvivorManaHandMartialArts0140',$manaPrimaryStart0140)
+$manaReachStart0140=$payload.IndexOf('function Apply-SurvivorManaHandReachMelee0140',$manaMartialStart0140)
+if($manaPrimaryStart0140 -lt 0 -or $manaMartialStart0140 -le $manaPrimaryStart0140 -or
+   $manaReachStart0140 -le $manaMartialStart0140){
+    throw 'Primary Mana Hand martial-arts/reach transform boundary missing.'
+}
+$manaMartialSection0140=$payload.Substring($manaMartialStart0140,$manaReachStart0140-$manaMartialStart0140)
+foreach($martialNeedle0140 in @(
+    'item_location ncmm_primary_mana_hand_martial_weapon( const Character &who )',
+    'ncmm::virtual_melee_context_active( who )',
+    '"magic.virtual_hand_count", nullptr, "magiclysm"',
+    '"survivor_progression", "mana_hands_34"',
+    'ncmm::virtual_item_primary_melee_enabled( *paired )',
+    'const item_location weapon = ncmm_primary_mana_hand_martial_weapon( u );',
+    'bool is_armed = weapon || u.is_armed();',
+    'ncmm_primary_mana_hand_martial_weapon( owner ), owner',
+    'bool valid_weapon = ma.weapon_valid( martial_weapon );',
+    'item *weapon = martial_weapon.get_item();'
+)){
+    if(-not $manaMartialSection0140.Contains($martialNeedle0140)){
+        throw ('Mana Hand martial-arts regression contract missing: '+$martialNeedle0140)
+    }
+}
+if($manaMartialSection0140.Contains('set_wielded_item(') -or
+   $manaMartialSection0140.Contains('.obtain(')){
+    throw 'Mana Hand martial-arts parity must not physically wield or move the virtual weapon.'
 }
 $manaReachEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaReachStart0140)
 if($manaReachEnd0140 -le $manaReachStart0140){throw 'Primary Mana Hand reach transform end missing.'}

@@ -22358,6 +22358,188 @@ item *ncmm_primary_mana_hand_melee_weapon( Character &who )
 
 Apply-SurvivorManaHandPrimaryMelee0140 $CddaRoot
 
+function Apply-SurvivorManaHandMartialArts0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 primary Mana Hand martial-arts parity..." -ForegroundColor Cyan
+    $src0140ma = Join-Path $Root 'src'
+    $martial0140maPath = Join-Path $src0140ma 'martialarts.cpp'
+    if(-not(Test-Path $martial0140maPath -PathType Leaf)) {
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+            Write-Host "Survivor 0.14.0 Mana Hand martial-arts transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+            return
+        }
+        throw ('Primary Mana Hand martial-arts source missing: '+$martial0140maPath)
+    }
+
+    $martial0140ma = Normalize-Lf ([IO.File]::ReadAllText($martial0140maPath))
+    if(-not $martial0140ma.Contains('#include "ncmm_loader.h"')) {
+        if(-not $martial0140ma.Contains('#include "item_location.h"')) {
+            throw 'Primary Mana Hand martial-arts include anchor missing.'
+        }
+        $martial0140ma = Replace-TextBlock $martial0140ma '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Primary Mana Hand martial-arts include'
+    }
+
+    if(-not $martial0140ma.Contains('ncmm_primary_mana_hand_martial_weapon')) {
+        $factoryOld0140ma = @'
+generic_factory<weapon_category> weapon_category_factory( "weapon category" );
+generic_factory<ma_technique> ma_techniques( "martial art technique" );
+generic_factory<martialart> martialarts( "martial art style" );
+generic_factory<ma_buff> ma_buffs( "martial art buff" );
+generic_factory<attack_vector> attack_vector_factory( "attack vector" );
+'@
+        $factoryNew0140ma = @'
+generic_factory<weapon_category> weapon_category_factory( "weapon category" );
+generic_factory<ma_technique> ma_techniques( "martial art technique" );
+generic_factory<martialart> martialarts( "martial art style" );
+generic_factory<ma_buff> ma_buffs( "martial art buff" );
+generic_factory<attack_vector> attack_vector_factory( "attack vector" );
+
+item_location ncmm_primary_mana_hand_martial_weapon( const Character &who )
+{
+    if( ncmm::virtual_melee_context_active( who ) ) {
+        item *context_weapon = ncmm::virtual_melee_context_item( who );
+        return context_weapon != nullptr ?
+               item_location( *const_cast<Character *>( &who ), context_weapon ) :
+               item_location();
+    }
+
+    item_location physical = who.get_wielded_item();
+    if( physical || !who.is_avatar() || who.is_mounted() ||
+        who.martial_arts_data->selected_force_unarmed() ) {
+        return physical;
+    }
+
+    const int hand_count = std::clamp( static_cast<int>(
+                                       ncmm::runtime_hook_modifier(
+                                           "magic.virtual_hand_count", nullptr, "magiclysm",
+                                           nullptr, nullptr ) ), 0, 2 );
+    if( hand_count >= 2 ) {
+        item *paired = ncmm::virtual_item_for_slot(
+                           "survivor_progression", "mana_hands_34" );
+        if( paired != nullptr &&
+            ncmm::virtual_item_primary_melee_enabled( *paired ) &&
+            paired->is_melee() && !paired->is_gun() &&
+            paired->is_two_handed( who ) ) {
+            return item_location( *const_cast<Character *>( &who ), paired );
+        }
+    }
+
+    const char *slots[2] = { "mana_hand_3", "mana_hand_4" };
+    for( int i = 0; i < hand_count && i < 2; ++i ) {
+        item *candidate = ncmm::virtual_item_for_slot(
+                              "survivor_progression", slots[i] );
+        if( candidate != nullptr &&
+            ncmm::virtual_item_primary_melee_enabled( *candidate ) &&
+            candidate->is_melee() && !candidate->is_gun() &&
+            !candidate->is_two_handed( who ) ) {
+            return item_location( *const_cast<Character *>( &who ), candidate );
+        }
+    }
+    return item_location();
+}
+'@
+        $martial0140ma = Replace-TextBlock $martial0140ma $factoryOld0140ma $factoryNew0140ma 'Primary Mana Hand martial-arts resolver'
+
+        $requirementsOld0140ma = @'
+    const item_location weapon = u.get_wielded_item();
+    bool melee_style = u.martial_arts_data->selected_strictly_melee();
+    bool is_armed = u.is_armed();
+'@
+        $requirementsNew0140ma = @'
+    const item_location weapon = ncmm_primary_mana_hand_martial_weapon( u );
+    bool melee_style = u.martial_arts_data->selected_strictly_melee();
+    bool is_armed = weapon || u.is_armed();
+'@
+        $martial0140ma = Replace-TextBlock $martial0140ma $requirementsOld0140ma $requirementsNew0140ma 'Primary Mana Hand martial-art requirements'
+
+        $defensiveOld0140ma = @'
+    for( const matec_id &candidate_id : ma_data->get_all_techniques( owner.get_wielded_item(),
+            owner ) ) {
+'@
+        $defensiveNew0140ma = @'
+    for( const matec_id &candidate_id : ma_data->get_all_techniques(
+            ncmm_primary_mana_hand_martial_weapon( owner ), owner ) ) {
+'@
+        $martial0140ma = Replace-TextBlock $martial0140ma $defensiveOld0140ma $defensiveNew0140ma 'Primary Mana Hand defensive martial-art techniques'
+
+        $vectorOld0140ma = @'
+    const std::vector<bodypart_id> anat = user.get_all_body_parts();
+    const bool armed = user.is_armed();
+    martialart ma = style_selected.obj();
+    bool valid_weapon = ma.weapon_valid( user.get_wielded_item() );
+'@
+        $vectorNew0140ma = @'
+    const std::vector<bodypart_id> anat = user.get_all_body_parts();
+    const item_location martial_weapon =
+        ncmm_primary_mana_hand_martial_weapon( user );
+    const bool armed = martial_weapon || user.is_armed();
+    martialart ma = style_selected.obj();
+    bool valid_weapon = ma.weapon_valid( martial_weapon );
+'@
+        $martial0140ma = Replace-TextBlock $martial0140ma $vectorOld0140ma $vectorNew0140ma 'Primary Mana Hand martial-art attack vector state'
+        $martial0140ma = Replace-TextBlock $martial0140ma '            item *weapon = user.get_wielded_item().get_item();' '            item *weapon = martial_weapon.get_item();' 'Primary Mana Hand martial-art attack vector weapon'
+
+        $messageOld0140ma = @'
+void character_martial_arts::martialart_use_message( const Character &owner ) const
+{
+    martialart ma = style_selected.obj();
+    if( ma.force_unarmed || ma.weapon_valid( owner.get_wielded_item() ) ) {
+        owner.add_msg_if_player( m_info, "%s", ma.get_initiate_avatar_message() );
+    } else if( ma.strictly_melee && !owner.is_armed() ) {
+        owner.add_msg_if_player( m_bad, _( "%s cannot be used unarmed." ), ma.name );
+    } else if( ma.strictly_unarmed && owner.is_armed() ) {
+        owner.add_msg_if_player( m_bad, _( "%s cannot be used with weapons." ), ma.name );
+    } else {
+        owner.add_msg_if_player( m_bad, _( "The %1$s is not a valid %2$s weapon." ),
+                                 owner.get_wielded_item()->tname( 1, false ), ma.name );
+    }
+}
+'@
+        $messageNew0140ma = @'
+void character_martial_arts::martialart_use_message( const Character &owner ) const
+{
+    martialart ma = style_selected.obj();
+    const item_location martial_weapon =
+        ncmm_primary_mana_hand_martial_weapon( owner );
+    const bool armed = martial_weapon || owner.is_armed();
+    if( ma.force_unarmed || ma.weapon_valid( martial_weapon ) ) {
+        owner.add_msg_if_player( m_info, "%s", ma.get_initiate_avatar_message() );
+    } else if( ma.strictly_melee && !armed ) {
+        owner.add_msg_if_player( m_bad, _( "%s cannot be used unarmed." ), ma.name );
+    } else if( ma.strictly_unarmed && armed ) {
+        owner.add_msg_if_player( m_bad, _( "%s cannot be used with weapons." ), ma.name );
+    } else if( martial_weapon ) {
+        owner.add_msg_if_player( m_bad, _( "The %1$s is not a valid %2$s weapon." ),
+                                 martial_weapon->tname( 1, false ), ma.name );
+    }
+}
+'@
+        $martial0140ma = Replace-TextBlock $martial0140ma $messageOld0140ma $messageNew0140ma 'Primary Mana Hand martial-art style message'
+    }
+
+    Write-Utf8NoBom $martial0140maPath $martial0140ma
+    $martialOut0140ma = [IO.File]::ReadAllText($martial0140maPath)
+    foreach($needle0140ma in @(
+        '#include "ncmm_loader.h"',
+        'item_location ncmm_primary_mana_hand_martial_weapon( const Character &who )',
+        'ncmm::virtual_melee_context_active( who )',
+        '"survivor_progression", "mana_hands_34"',
+        'ncmm::virtual_item_primary_melee_enabled( *paired )',
+        'const item_location weapon = ncmm_primary_mana_hand_martial_weapon( u );',
+        'bool is_armed = weapon || u.is_armed();',
+        'ncmm_primary_mana_hand_martial_weapon( owner ), owner',
+        'const item_location martial_weapon =',
+        'bool valid_weapon = ma.weapon_valid( martial_weapon );',
+        'item *weapon = martial_weapon.get_item();'
+    )) {
+        if(-not $martialOut0140ma.Contains($needle0140ma)) {
+            throw ('Survivor 0.14.0 primary Mana Hand martial-arts output missing: '+$needle0140ma)
+        }
+    }
+    Write-Host "Survivor 0.14.0 primary Mana Hand martial-arts parity: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandMartialArts0140 $CddaRoot
+
 function Apply-SurvivorManaHandReachMelee0140([string]$Root) {
     Write-Host "Applying Survivor 0.14.0 primary Mana Hand reach-melee support..." -ForegroundColor Cyan
     $src0140reach = Join-Path $Root 'src'

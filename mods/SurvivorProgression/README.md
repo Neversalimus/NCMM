@@ -93,6 +93,8 @@ A bound non-gun melee item can be explicitly selected as the primary Mana Hand w
 
 Primary Mana Hand attacks use the normal vanilla melee pipeline, including weapon techniques and martial-art on-miss/on-crit/on-kill/on-attack chains. They pay the weapon's normal move and stamina costs plus the same mana cost used by a secondary strike: `ceil(attack_speed / 10)`, clamped to 5–50 mana. If there is not enough mana, the attack is cancelled instead of silently falling back to an unarmed strike.
 
+Weapon-specific martial arts resolve the selected primary virtual weapon for technique requirements, defensive technique lookup, weapon attack vectors, and style-use validation. This keeps a Mana Hand sword/spear compatible with styles that require that weapon without globally pretending that the item is physically wielded.
+
 Primary and secondary modes are mutually exclusive for the same virtual item. Other eligible Mana Hands may still perform their enabled secondary strikes after a successful primary Mana Hand attack.
 
 
