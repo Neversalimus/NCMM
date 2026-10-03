@@ -21323,6 +21323,254 @@ item_location aim_activity_actor::get_weapon()
 
 Apply-SurvivorManaHandRanged0140 $CddaRoot
 
+function Apply-SurvivorManaHandPairedRanged0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 paired Mana Hand ranged support..." -ForegroundColor Cyan
+    $src0140pr = Join-Path $Root 'src'
+    $actor0140prPath = Join-Path $src0140pr 'activity_actor.cpp'
+    $game0140prPath = Join-Path $src0140pr 'game.cpp'
+    $ranged0140prPath = Join-Path $src0140pr 'ranged.cpp'
+    foreach($required0140pr in @($actor0140prPath,$game0140prPath,$ranged0140prPath)) {
+        if(-not(Test-Path $required0140pr -PathType Leaf)) {
+            if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+                Write-Host "Survivor 0.14.0 paired ranged transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+                return
+            }
+            throw ('Paired Mana Hand ranged source missing: '+$required0140pr)
+        }
+    }
+
+    $game0140pr = Normalize-Lf ([IO.File]::ReadAllText($game0140prPath))
+    $pairMenuFlagsOld0140pr = @'
+                constexpr uint32_t ncmm_mana_pair_flags =
+                    ncmm_mana_slot_flags |
+                    NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
+                    NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2 |
+                    NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2;
+'@
+    $pairMenuFlagsNew0140pr = @'
+                constexpr uint32_t ncmm_mana_pair_flags =
+                    ncmm_mana_slot_flags |
+                    NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
+                    NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;
+'@
+    if($game0140pr.Contains($pairMenuFlagsOld0140pr)) {
+        $game0140pr = Replace-TextBlock $game0140pr $pairMenuFlagsOld0140pr $pairMenuFlagsNew0140pr 'paired Mana Hand firearm menu flags'
+    } elseif(-not $game0140pr.Contains($pairMenuFlagsNew0140pr)) {
+        throw 'Paired Mana Hand firearm menu flags anchor missing.'
+    }
+
+    $pairHandlerFlagsOld0140pr = @'
+                    constexpr uint32_t ncmm_pair_flags =
+                        NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
+                        NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 |
+                        NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
+                        NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2 |
+                        NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2;
+'@
+    $pairHandlerFlagsNew0140pr = @'
+                    constexpr uint32_t ncmm_pair_flags =
+                        NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
+                        NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 |
+                        NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
+                        NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;
+'@
+    if($game0140pr.Contains($pairHandlerFlagsOld0140pr)) {
+        $game0140pr = Replace-TextBlock $game0140pr $pairHandlerFlagsOld0140pr $pairHandlerFlagsNew0140pr 'paired Mana Hand firearm handler flags'
+    } elseif(-not $game0140pr.Contains($pairHandlerFlagsNew0140pr)) {
+        throw 'Paired Mana Hand firearm handler flags anchor missing.'
+    }
+
+    $game0140pr = $game0140pr.Replace(
+        'Both Mana Hands must be free and the item must be a non-firearm two-handed item.',
+        'Both Mana Hands must be free and the item must be two-handed.' )
+    $game0140pr = $game0140pr.Replace(
+        'Обе руки маны должны быть свободны, а предмет должен быть двуручным и не огнестрельным.',
+        'Обе руки маны должны быть свободны, а предмет должен быть двуручным.' )
+
+    $menuOld0140pr = @'
+                const bool ncmm_mana_ranged_eligible =
+                    ncmm_mana_single_bound_here && oThisItem.is_gun() &&
+                    !oThisItem.is_gunmod() && !oThisItem.is_two_handed( u );
+'@
+    $menuNew0140pr = @'
+                const bool ncmm_mana_ranged_single =
+                    ncmm_mana_single_bound_here && oThisItem.is_gun() &&
+                    !oThisItem.is_gunmod() && !oThisItem.is_two_handed( u );
+                const bool ncmm_mana_ranged_pair =
+                    ncmm_mana_pair_bound_here && oThisItem.is_gun() &&
+                    !oThisItem.is_gunmod() && oThisItem.is_two_handed( u );
+                const bool ncmm_mana_ranged_eligible =
+                    ncmm_mana_ranged_single || ncmm_mana_ranged_pair;
+'@
+    if($game0140pr.Contains($menuOld0140pr)) {
+        $game0140pr = Replace-TextBlock $game0140pr $menuOld0140pr $menuNew0140pr 'paired Mana Hand ranged menu eligibility'
+    } elseif(-not $game0140pr.Contains('const bool ncmm_mana_ranged_pair =')) {
+        throw 'Paired Mana Hand ranged menu eligibility anchor missing.'
+    }
+
+    $handlerOld0140pr = @'
+                    item *ncmm_bound4 = ncmm_mana_hands_now >= 2 ?
+                                        ncmm::virtual_item_for_slot(
+                                            "survivor_progression", "mana_hand_4" ) : nullptr;
+                    if( ( ncmm_bound3 != &oThisItem && ncmm_bound4 != &oThisItem ) ||
+                        !oThisItem.is_gun() || oThisItem.is_gunmod() ||
+                        oThisItem.is_two_handed( u ) ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "That item is not a usable one-handed Mana Hand firearm.",
+                                     "Этот предмет нельзя использовать как одноручное оружие в руке маны." ).c_str() );
+                        break;
+                    }
+'@
+    $handlerNew0140pr = @'
+                    item *ncmm_bound4 = ncmm_mana_hands_now >= 2 ?
+                                        ncmm::virtual_item_for_slot(
+                                            "survivor_progression", "mana_hand_4" ) : nullptr;
+                    item *ncmm_bound_pair = ncmm_mana_hands_now >= 2 ?
+                                            ncmm::virtual_item_for_slot(
+                                                "survivor_progression", "mana_hands_34" ) : nullptr;
+                    const bool ncmm_ranged_single =
+                        ( ncmm_bound3 == &oThisItem || ncmm_bound4 == &oThisItem ) &&
+                        !oThisItem.is_two_handed( u );
+                    const bool ncmm_ranged_pair =
+                        ncmm_bound_pair == &oThisItem && oThisItem.is_two_handed( u );
+                    if( !( ncmm_ranged_single || ncmm_ranged_pair ) ||
+                        !oThisItem.is_gun() || oThisItem.is_gunmod() ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "That item is not a usable Mana Hand firearm.",
+                                     "Этот предмет нельзя использовать как оружие в руках маны." ).c_str() );
+                        break;
+                    }
+'@
+    if($game0140pr.Contains($handlerOld0140pr)) {
+        $game0140pr = Replace-TextBlock $game0140pr $handlerOld0140pr $handlerNew0140pr 'paired Mana Hand ranged handler eligibility'
+    } elseif(-not $game0140pr.Contains('const bool ncmm_ranged_pair =')) {
+        throw 'Paired Mana Hand ranged handler anchor missing.'
+    }
+    Write-Utf8NoBom $game0140prPath $game0140pr
+
+    $actor0140pr = Normalize-Lf ([IO.File]::ReadAllText($actor0140prPath))
+    $resolverOld0140pr = @'
+        item *ncmm_hand4 = ncmm_ranged_hand_count >= 2 ?
+                           ncmm::virtual_item_for_slot(
+                               "survivor_progression", "mana_hand_4" ) : nullptr;
+        if( ncmm_candidate == ncmm_hand3 || ncmm_candidate == ncmm_hand4 ) {
+            return ncmm_real_weapon;
+        }
+'@
+    $resolverNew0140pr = @'
+        item *ncmm_hand4 = ncmm_ranged_hand_count >= 2 ?
+                           ncmm::virtual_item_for_slot(
+                               "survivor_progression", "mana_hand_4" ) : nullptr;
+        item *ncmm_pair = ncmm_ranged_hand_count >= 2 ?
+                          ncmm::virtual_item_for_slot(
+                              "survivor_progression", "mana_hands_34" ) : nullptr;
+        if( ncmm_candidate == ncmm_hand3 || ncmm_candidate == ncmm_hand4 ||
+            ncmm_candidate == ncmm_pair ) {
+            return ncmm_real_weapon;
+        }
+'@
+    if($actor0140pr.Contains($resolverOld0140pr)) {
+        $actor0140pr = Replace-TextBlock $actor0140pr $resolverOld0140pr $resolverNew0140pr 'paired Mana Hand aim revalidation'
+    } elseif(-not $actor0140pr.Contains('item *ncmm_pair = ncmm_ranged_hand_count >= 2 ?')) {
+        throw 'Paired Mana Hand aim revalidation anchor missing.'
+    }
+    Write-Utf8NoBom $actor0140prPath $actor0140pr
+
+    $ranged0140pr = Normalize-Lf ([IO.File]::ReadAllText($ranged0140prPath))
+    if(-not $ranged0140pr.Contains('ncmm_virtual_mana_paired_gun_mode')) {
+        $ranged0140pr = Replace-TextBlock $ranged0140pr '    bool ncmm_virtual_mana_gun_mode = false;' ('    bool ncmm_virtual_mana_gun_mode = false;' + [Environment]::NewLine + '    bool ncmm_virtual_mana_paired_gun_mode = false;') 'paired Mana Hand ranged state'
+
+        $scanOld0140pr = @'
+        }
+    }
+
+    if( ncmm_virtual_mana_gun_mode &&
+        ( gmode->is_two_handed( you ) || gmode->has_flag( flag_FIRE_TWOHAND ) ||
+          gmode->has_flag( flag_RELOAD_AND_SHOOT ) ) ) {
+        messages.push_back( _( "This firing mode needs handling that a single Mana Hand cannot provide." ) );
+        result = false;
+    }
+'@
+        $scanNew0140pr = @'
+        }
+
+        if( ncmm_hand_count >= 2 ) {
+            item *ncmm_pair_base =
+                ncmm::virtual_item_for_slot( "survivor_progression", "mana_hands_34" );
+            if( ncmm_pair_base != nullptr && ncmm_pair_base->is_gun() ) {
+                if( ncmm_mode_item == ncmm_pair_base ) {
+                    ncmm_virtual_mana_gun_mode = true;
+                    ncmm_virtual_mana_paired_gun_mode = true;
+                } else {
+                    for( item *ncmm_mod : ncmm_pair_base->gunmods() ) {
+                        if( ncmm_mod == ncmm_mode_item ) {
+                            ncmm_virtual_mana_gun_mode = true;
+                            ncmm_virtual_mana_paired_gun_mode = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if( ncmm_virtual_mana_gun_mode && gmode->has_flag( flag_RELOAD_AND_SHOOT ) ) {
+        messages.push_back( _( "Reload-and-shoot firing modes are not yet supported by Mana Hands." ) );
+        result = false;
+    }
+
+    if( ncmm_virtual_mana_gun_mode && !ncmm_virtual_mana_paired_gun_mode &&
+        ( gmode->is_two_handed( you ) || gmode->has_flag( flag_FIRE_TWOHAND ) ) ) {
+        messages.push_back( _( "This firing mode needs paired Mana Hands III+IV." ) );
+        result = false;
+    }
+'@
+        $ranged0140pr = Replace-TextBlock $ranged0140pr $scanOld0140pr $scanNew0140pr 'paired Mana Hand ranged mode ownership'
+
+        $drivingOld0140pr = @'
+    if( vp && vp->vehicle().player_in_control( m, you ) && ( gmode->is_two_handed( you ) ||
+            gmode->has_flag( flag_FIRE_TWOHAND ) ) ) {
+'@
+        $drivingNew0140pr = @'
+    if( vp && vp->vehicle().player_in_control( m, you ) &&
+        !ncmm_virtual_mana_paired_gun_mode && ( gmode->is_two_handed( you ) ||
+            gmode->has_flag( flag_FIRE_TWOHAND ) ) ) {
+'@
+        $ranged0140pr = Replace-TextBlock $ranged0140pr $drivingOld0140pr $drivingNew0140pr 'paired Mana Hand driving two-hand gate'
+
+        $armsOld0140pr = @'
+    if( gmode->has_flag( flag_FIRE_TWOHAND ) && ( !you.has_two_arms_lifting() ||
+            you.worn_with_flag( flag_RESTRICT_HANDS ) ) ) {
+'@
+        $armsNew0140pr = @'
+    if( gmode->has_flag( flag_FIRE_TWOHAND ) && !ncmm_virtual_mana_paired_gun_mode &&
+        ( !you.has_two_arms_lifting() || you.worn_with_flag( flag_RESTRICT_HANDS ) ) ) {
+'@
+        $ranged0140pr = Replace-TextBlock $ranged0140pr $armsOld0140pr $armsNew0140pr 'paired Mana Hand physical-arm firing gate'
+    }
+    Write-Utf8NoBom $ranged0140prPath $ranged0140pr
+
+    foreach($check0140pr in @(
+        @($game0140prPath,'const bool ncmm_mana_ranged_pair ='),
+        @($game0140prPath,'const bool ncmm_ranged_pair ='),
+        @($game0140prPath,'"survivor_progression", "mana_hands_34"'),
+        @($actor0140prPath,'item *ncmm_pair = ncmm_ranged_hand_count >= 2 ?'),
+        @($actor0140prPath,'ncmm_candidate == ncmm_pair'),
+        @($ranged0140prPath,'bool ncmm_virtual_mana_paired_gun_mode = false;'),
+        @($ranged0140prPath,'"survivor_progression", "mana_hands_34"'),
+        @($ranged0140prPath,'!ncmm_virtual_mana_paired_gun_mode &&'),
+        @($ranged0140prPath,'Reload-and-shoot firing modes are not yet supported by Mana Hands.')
+    )) {
+        $output0140pr = [IO.File]::ReadAllText([string]$check0140pr[0])
+        if(-not $output0140pr.Contains([string]$check0140pr[1])) {
+            throw ('Survivor 0.14.0 paired ranged output missing: '+$check0140pr[1])
+        }
+    }
+    Write-Host "Survivor 0.14.0 paired Mana Hand ranged support: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandPairedRanged0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -21336,6 +21584,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandUtility0140 -C
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandSecondaryMelee0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandPairedGrip0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandRanged0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandPairedRanged0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
