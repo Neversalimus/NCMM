@@ -339,9 +339,12 @@ foreach($gameplaySmokeNeedle in @(
     'NCMM Gameplay Smoke',
     'aws_setting_count != 50',
     'aws_hook_count != 50',
-    'survivor_perk_count != 369',
+    'survivor_perk_count < survivor_minimum_perk_count',
     'overmap_buffer.create_custom_overmap',
     'ncmm_test_perk_count_v1',
+    'constexpr size_t survivor_minimum_perk_count = 372;',
+    'find_perk_index( "mg_mana_hand_3" )',
+    'find_perk_index( "mg_mana_hand_4" )',
     'main-menu.ncmm-gameplay-smoke'
 )){
     if(-not $payload.Contains($gameplaySmokeNeedle)){
@@ -358,7 +361,10 @@ foreach($gameplayHostNeedle in @(
     'worldgen_hook_scope_enabled',
     'aws_scope_fallback_mismatch',
     'aws_protected_hook_exposed',
-    'survivor_perk_count != 369',
+    'survivor_perk_count < survivor_minimum_perk_count',
+    'constexpr size_t survivor_minimum_perk_count = 372;',
+    'find_perk_index( "mg_mana_hand_3" )',
+    'find_perk_index( "mg_mana_hand_4" )',
     'survivor_real_strength_mismatch',
     'survivor_real_carry_mismatch'
 )){
