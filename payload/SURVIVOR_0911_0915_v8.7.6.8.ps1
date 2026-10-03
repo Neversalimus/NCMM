@@ -24280,6 +24280,218 @@ bool Character::is_on_ground() const
 
 Apply-SurvivorManaHandCrutches0140 $CddaRoot
 
+
+function Apply-SurvivorManaHandHeldUtilities0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 Mana Hand held-utility support..." -ForegroundColor Cyan
+    $src0140held = Join-Path $Root 'src'
+    $weather0140heldPath = Join-Path $src0140held 'weather.cpp'
+    $item0140heldPath = Join-Path $src0140held 'item.cpp'
+    $suffer0140heldPath = Join-Path $src0140held 'suffer.cpp'
+    $container0140heldPath = Join-Path $src0140held 'item_container.cpp'
+    foreach($required0140held in @($weather0140heldPath,$item0140heldPath,$suffer0140heldPath,$container0140heldPath)) {
+        if(-not(Test-Path $required0140held -PathType Leaf)) {
+            if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+                Write-Host "Survivor 0.14.0 Mana Hand held-utility transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+                return
+            }
+            throw ('Mana Hand held-utility source missing: '+$required0140held)
+        }
+    }
+
+    $rainHelper0140held = @'
+static bool ncmm_mana_hand_holds_flag( const Character &who, const flag_id &flag )
+{
+    if( !who.is_avatar() ) {
+        return false;
+    }
+    int hand_count = static_cast<int>(
+                         ncmm::runtime_hook_modifier(
+                             "magic.virtual_hand_count", nullptr, "magiclysm",
+                             nullptr, nullptr ) );
+    hand_count = hand_count < 0 ? 0 : ( hand_count > 2 ? 2 : hand_count );
+
+    if( hand_count >= 2 ) {
+        item *paired = ncmm::virtual_item_for_slot(
+                           "survivor_progression", "mana_hands_34" );
+        if( paired != nullptr ) {
+            return paired->has_flag( flag );
+        }
+    }
+    if( hand_count >= 1 ) {
+        item *hand3 = ncmm::virtual_item_for_slot(
+                          "survivor_progression", "mana_hand_3" );
+        if( hand3 != nullptr && hand3->has_flag( flag ) ) {
+            return true;
+        }
+    }
+    if( hand_count >= 2 ) {
+        item *hand4 = ncmm::virtual_item_for_slot(
+                          "survivor_progression", "mana_hand_4" );
+        if( hand4 != nullptr && hand4->has_flag( flag ) ) {
+            return true;
+        }
+    }
+    return false;
+}
+'@
+
+    $weather0140held = Normalize-Lf ([IO.File]::ReadAllText($weather0140heldPath))
+    if(-not $weather0140held.Contains('#include "ncmm_loader.h"')) {
+        $weather0140held = Replace-TextBlock $weather0140held '#include "character.h"' ('#include "character.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand rain weather include'
+    }
+    if(-not $weather0140held.Contains('ncmm_mana_hand_holds_flag')) {
+        $weatherHeadOld0140held = @'
+void wet_character( Character &target, int amount )
+'@
+        $weatherHeadNew0140held = $rainHelper0140held + [Environment]::NewLine + @'
+void wet_character( Character &target, int amount )
+'@
+        $weather0140held = Replace-TextBlock $weather0140held $weatherHeadOld0140held $weatherHeadNew0140held 'Mana Hand rain weather helper'
+        $weatherOld0140held = @'
+    item_location weapon = target.get_wielded_item();
+    if( amount <= 0 || target.has_trait( trait_FEATHERS ) ||
+        ( weapon && weapon->has_flag( json_flag_RAIN_PROTECT ) ) ||
+        ( !one_in( 50 ) && target.worn_with_flag( json_flag_RAINPROOF ) ) ) {
+'@
+        $weatherNew0140held = @'
+    item_location weapon = target.get_wielded_item();
+    const bool ncmm_rain_protected =
+        ( weapon && weapon->has_flag( json_flag_RAIN_PROTECT ) ) ||
+        ncmm_mana_hand_holds_flag( target, json_flag_RAIN_PROTECT );
+    if( amount <= 0 || target.has_trait( trait_FEATHERS ) ||
+        ncmm_rain_protected ||
+        ( !one_in( 50 ) && target.worn_with_flag( json_flag_RAINPROOF ) ) ) {
+'@
+        $weather0140held = Replace-TextBlock $weather0140held $weatherOld0140held $weatherNew0140held 'Mana Hand rain weather protection'
+    }
+    Write-Utf8NoBom $weather0140heldPath $weather0140held
+
+    $item0140held = Normalize-Lf ([IO.File]::ReadAllText($item0140heldPath))
+    if(-not $item0140held.Contains('#include "ncmm_loader.h"')) {
+        $item0140held = Replace-TextBlock $item0140held '#include "character.h"' ('#include "character.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand rain item include'
+    }
+    if(-not $item0140held.Contains('ncmm_mana_hand_holds_flag')) {
+        $itemHeadOld0140held = @'
+bool item::process_extinguish( map &here, Character *carrier, const tripoint_bub_ms &pos )
+'@
+        $itemHeadNew0140held = $rainHelper0140held + [Environment]::NewLine + @'
+bool item::process_extinguish( map &here, Character *carrier, const tripoint_bub_ms &pos )
+'@
+        $item0140held = Replace-TextBlock $item0140held $itemHeadOld0140held $itemHeadNew0140held 'Mana Hand rain item helper'
+        $itemOld0140held = @'
+    if( !extinguish ||
+        ( in_inv && precipitation && carrier->get_wielded_item() &&
+          carrier->get_wielded_item()->has_flag( flag_RAIN_PROTECT ) ) ) {
+'@
+        $itemNew0140held = @'
+    if( !extinguish ||
+        ( in_inv && precipitation &&
+          ( ( carrier->get_wielded_item() &&
+              carrier->get_wielded_item()->has_flag( flag_RAIN_PROTECT ) ) ||
+            ncmm_mana_hand_holds_flag( *carrier, flag_RAIN_PROTECT ) ) ) ) {
+'@
+        $item0140held = Replace-TextBlock $item0140held $itemOld0140held $itemNew0140held 'Mana Hand rain carried-item protection'
+    }
+    Write-Utf8NoBom $item0140heldPath $item0140held
+
+    $suffer0140held = Normalize-Lf ([IO.File]::ReadAllText($suffer0140heldPath))
+    if(-not $suffer0140held.Contains('#include "ncmm_loader.h"')) {
+        $suffer0140held = Replace-TextBlock $suffer0140held '#include "character.h"' ('#include "character.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand rain sunburn include'
+    }
+    if(-not $suffer0140held.Contains('ncmm_mana_hand_holds_flag')) {
+        $sufferHeadOld0140held = @'
+void suffer::from_sunburn( Character &you, bool severe )
+'@
+        $sufferHeadNew0140held = $rainHelper0140held + [Environment]::NewLine + @'
+void suffer::from_sunburn( Character &you, bool severe )
+'@
+        $suffer0140held = Replace-TextBlock $suffer0140held $sufferHeadOld0140held $sufferHeadNew0140held 'Mana Hand sunburn helper'
+        $sufferOld0140held = @'
+        } else if( !you.has_flag( json_flag_SUNBURN_SUPERNATURAL ) && ( ( you.get_wielded_item() &&
+                   you.get_wielded_item()->has_flag( flag_RAIN_PROTECT ) )
+'@
+        $sufferNew0140held = @'
+        } else if( !you.has_flag( json_flag_SUNBURN_SUPERNATURAL ) &&
+                   ( ( ( you.get_wielded_item() &&
+                         you.get_wielded_item()->has_flag( flag_RAIN_PROTECT ) ) ||
+                       ncmm_mana_hand_holds_flag( you, flag_RAIN_PROTECT ) )
+'@
+        $suffer0140held = Replace-TextBlock $suffer0140held $sufferOld0140held $sufferNew0140held 'Mana Hand sunburn umbrella protection'
+    }
+    Write-Utf8NoBom $suffer0140heldPath $suffer0140held
+
+    $container0140held = Normalize-Lf ([IO.File]::ReadAllText($container0140heldPath))
+    if(-not $container0140held.Contains('#include "ncmm_loader.h"')) {
+        $container0140held = Replace-TextBlock $container0140held '#include "character.h"' ('#include "character.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand bucket include'
+    }
+    if(-not $container0140held.Contains('ncmm_mana_hand_holds_item')) {
+        $bucketHeadOld0140held = @'
+int item::get_remaining_capacity_for_liquid( const item &liquid, const Character &p,
+        rem_cap_return *err ) const
+'@
+        $bucketHeadNew0140held = @'
+static bool ncmm_mana_hand_holds_item( const Character &who, const item *candidate )
+{
+    if( !who.is_avatar() || candidate == nullptr ) {
+        return false;
+    }
+    int hand_count = static_cast<int>(
+                         ncmm::runtime_hook_modifier(
+                             "magic.virtual_hand_count", nullptr, "magiclysm",
+                             nullptr, nullptr ) );
+    hand_count = hand_count < 0 ? 0 : ( hand_count > 2 ? 2 : hand_count );
+
+    if( hand_count >= 2 ) {
+        item *paired = ncmm::virtual_item_for_slot(
+                           "survivor_progression", "mana_hands_34" );
+        if( paired != nullptr ) {
+            return paired == candidate;
+        }
+    }
+    if( hand_count >= 1 &&
+        ncmm::virtual_item_for_slot(
+            "survivor_progression", "mana_hand_3" ) == candidate ) {
+        return true;
+    }
+    return hand_count >= 2 &&
+           ncmm::virtual_item_for_slot(
+               "survivor_progression", "mana_hand_4" ) == candidate;
+}
+
+int item::get_remaining_capacity_for_liquid( const item &liquid, const Character &p,
+        rem_cap_return *err ) const
+'@
+        $container0140held = Replace-TextBlock $container0140held $bucketHeadOld0140held $bucketHeadNew0140held 'Mana Hand bucket helper'
+        $bucketOld0140held = @'
+    const bool allow_bucket = ( p.get_wielded_item() && this == &*p.get_wielded_item() ) ||
+                              !p.has_item( *this );
+'@
+        $bucketNew0140held = @'
+    const bool allow_bucket =
+        ( p.get_wielded_item() && this == &*p.get_wielded_item() ) ||
+        ncmm_mana_hand_holds_item( p, this ) ||
+        !p.has_item( *this );
+'@
+        $container0140held = Replace-TextBlock $container0140held $bucketOld0140held $bucketNew0140held 'Mana Hand bucket held state'
+    }
+    Write-Utf8NoBom $container0140heldPath $container0140held
+
+    foreach($check0140held in @(
+        @($weather0140heldPath,'ncmm_rain_protected'),
+        @($item0140heldPath,'ncmm_mana_hand_holds_flag( *carrier, flag_RAIN_PROTECT )'),
+        @($suffer0140heldPath,'ncmm_mana_hand_holds_flag( you, flag_RAIN_PROTECT )'),
+        @($container0140heldPath,'ncmm_mana_hand_holds_item( p, this )')
+    )) {
+        $output0140held = [IO.File]::ReadAllText($check0140held[0])
+        if(-not $output0140held.Contains($check0140held[1])) {
+            throw ('Survivor 0.14.0 Mana Hand held-utility output missing: '+$check0140held[1])
+        }
+    }
+    Write-Host "Survivor 0.14.0 Mana Hand held-utility support: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandHeldUtilities0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -24306,6 +24518,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandAutoMining0140
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandTargetPractice0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandMend0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandCrutches0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandHeldUtilities0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.

@@ -645,7 +645,11 @@ foreach($needle0140 in @(
     'Apply-SurvivorManaHandMend0140 $CddaRoot',
     'function Apply-SurvivorManaHandCrutches0140',
     'ncmm_mana_hand_has_crutches',
-    'Apply-SurvivorManaHandCrutches0140 $CddaRoot'
+    'Apply-SurvivorManaHandCrutches0140 $CddaRoot',
+    'function Apply-SurvivorManaHandHeldUtilities0140',
+    'ncmm_mana_hand_holds_flag',
+    'ncmm_mana_hand_holds_item',
+    'Apply-SurvivorManaHandHeldUtilities0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
@@ -662,7 +666,7 @@ $manaAidSection0140=$payload.Substring($manaAidStart0140,$manaAidEnd0140-$manaAi
 if($manaAidSection0140.Contains('flag_id( "MAGIC_FOCUS" )')){
     throw 'Mana Hand spellcasting-aid bridge leaked MAGIC_FOCUS back into global wielded semantics.'
 }
-foreach($sourcePath0140 in @('src/game.cpp','src/talker_character.cpp','src/item_location.cpp','src/iuse_actor.cpp','src/melee.cpp','src/martialarts.cpp','src/character.cpp','src/character_inventory.cpp','src/activity_actor_definitions.h','src/activity_actor.cpp','src/ranged.cpp','src/avatar_action.cpp')){
+foreach($sourcePath0140 in @('src/game.cpp','src/talker_character.cpp','src/item_location.cpp','src/iuse_actor.cpp','src/melee.cpp','src/martialarts.cpp','src/character.cpp','src/character_inventory.cpp','src/activity_actor_definitions.h','src/activity_actor.cpp','src/ranged.cpp','src/avatar_action.cpp','src/weather.cpp','src/item.cpp','src/suffer.cpp','src/item_container.cpp')){
     $sourceEntry0140=@($contracts0140.contracts|Where-Object{$_.id -eq 'magic_virtual_slots.source.v1'}).files|Where-Object{$_.path -eq $sourcePath0140}
     if(@($sourceEntry0140).Count -ne 1){throw ('Mana Hand source contract missing hardening path: '+$sourcePath0140)}
 }
@@ -1183,7 +1187,7 @@ if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandMend0140 -CommandT
 
 
 $manaCrutchStart0140=$payload.IndexOf('function Apply-SurvivorManaHandCrutches0140',$manaMendStart0140)
-$manaCrutchEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaCrutchStart0140)
+$manaCrutchEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandHeldUtilities0140',$manaCrutchStart0140)
 if($manaCrutchStart0140 -le $manaMendStart0140 -or $manaCrutchEnd0140 -le $manaCrutchStart0140){throw 'Mana Hand crutch transform boundary missing.'}
 $manaCrutchSection0140=$payload.Substring($manaCrutchStart0140,$manaCrutchEnd0140-$manaCrutchStart0140)
 foreach($crutchNeedle0140 in @(
@@ -1202,6 +1206,32 @@ if($manaCrutchSection0140.Contains('set_wielded_item(') -or
     throw 'Mana Hand crutch support must not move the real virtual item into Character::weapon.'
 }
 if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandCrutches0140 -CommandType Function).Definition')){throw 'Mana Hand crutch transform missing from mechanics patch revision.'}
+
+
+$manaHeldStart0140=$payload.IndexOf('function Apply-SurvivorManaHandHeldUtilities0140',$manaCrutchStart0140)
+$manaHeldEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaHeldStart0140)
+if($manaHeldStart0140 -le $manaCrutchStart0140 -or $manaHeldEnd0140 -le $manaHeldStart0140){throw 'Mana Hand held-utility transform boundary missing.'}
+$manaHeldSection0140=$payload.Substring($manaHeldStart0140,$manaHeldEnd0140-$manaHeldStart0140)
+foreach($heldNeedle0140 in @(
+    'ncmm_mana_hand_holds_flag',
+    'ncmm_mana_hand_holds_item',
+    'ncmm_rain_protected',
+    'ncmm_mana_hand_holds_flag( *carrier, flag_RAIN_PROTECT )',
+    'ncmm_mana_hand_holds_flag( you, flag_RAIN_PROTECT )',
+    'ncmm_mana_hand_holds_item( p, this )',
+    '"survivor_progression", "mana_hands_34"',
+    '"survivor_progression", "mana_hand_3"',
+    '"survivor_progression", "mana_hand_4"'
+)){if(-not $manaHeldSection0140.Contains($heldNeedle0140)){throw ('Mana Hand held-utility regression contract missing: '+$heldNeedle0140)}}
+if($manaHeldSection0140.Contains('wielded_with_flag(')){
+    throw 'Mana Hand held utilities must not broaden generic wielded flag semantics.'
+}
+if($manaHeldSection0140.Contains('set_wielded_item(') -or
+   $manaHeldSection0140.Contains('you.wield(') -or
+   $manaHeldSection0140.Contains('.obtain(')){
+    throw 'Mana Hand held utilities must not move the real virtual item into Character::weapon.'
+}
+if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandHeldUtilities0140 -CommandType Function).Definition')){throw 'Mana Hand held-utility transform missing from mechanics patch revision.'}
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate
 # is intentionally half of the original 1 XP / 150 movement events.
