@@ -864,7 +864,8 @@ foreach($controlNeedle0140 in @(
 }
 if($manaGunControlsSection0140.Contains('set_wielded_item(') -or
    $manaGunControlsSection0140.Contains('u.wield(') -or
-   $manaGunControlsSection0140.Contains('obtain( ncmm_')){
+   $manaGunControlsSection0140.Contains('ncmm_reload_gun.obtain(') -or
+   $manaGunControlsSection0140.Contains('ncmm_burst_gun.obtain(')){
     throw 'Mana Hand standard gun controls must keep the real gun in its vanilla item_location.'
 }
 
