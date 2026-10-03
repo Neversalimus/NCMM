@@ -20975,6 +20975,327 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
 
 Apply-SurvivorManaHandPairedGrip0140 $CddaRoot
 
+function Apply-SurvivorManaHandRanged0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 Mana Hand ranged support..." -ForegroundColor Cyan
+    $src0140range = Join-Path $Root 'src'
+    $defs0140rangePath = Join-Path $src0140range 'activity_actor_definitions.h'
+    $actor0140rangePath = Join-Path $src0140range 'activity_actor.cpp'
+    $game0140rangePath = Join-Path $src0140range 'game.cpp'
+    $ranged0140rangePath = Join-Path $src0140range 'ranged.cpp'
+    foreach($required0140range in @(
+        $defs0140rangePath,$actor0140rangePath,$game0140rangePath,$ranged0140rangePath
+    )) {
+        if(-not(Test-Path $required0140range -PathType Leaf)) {
+            if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+                Write-Host "Survivor 0.14.0 Mana Hand ranged transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+                return
+            }
+            throw ('Mana Hand ranged source missing: '+$required0140range)
+        }
+    }
+
+    $defs0140range = Normalize-Lf ([IO.File]::ReadAllText($defs0140rangePath))
+    if(-not $defs0140range.Contains('item_location ncmm_real_weapon;')) {
+        $defsFieldOld0140range = @'
+        std::optional<item> fake_weapon;
+        std::vector<tripoint_bub_ms> fin_trajectory;
+'@
+        $defsFieldNew0140range = @'
+        std::optional<item> fake_weapon;
+        item_location ncmm_real_weapon;
+        std::vector<tripoint_bub_ms> fin_trajectory;
+'@
+        $defs0140range = Replace-TextBlock $defs0140range $defsFieldOld0140range $defsFieldNew0140range 'Mana Hand ranged aim item_location field'
+
+        $defsCtorOld0140range = @'
+        /** Aiming wielded gun */
+        static aim_activity_actor use_wielded();
+'@
+        $defsCtorNew0140range = @'
+        /** Aiming wielded gun */
+        static aim_activity_actor use_wielded();
+
+        /** Aiming a real gun held in a logical Mana Hand. */
+        static aim_activity_actor use_item_location( const item_location &weapon );
+'@
+        $defs0140range = Replace-TextBlock $defs0140range $defsCtorOld0140range $defsCtorNew0140range 'Mana Hand ranged aim constructor'
+    }
+    Write-Utf8NoBom $defs0140rangePath $defs0140range
+
+    $actor0140range = Normalize-Lf ([IO.File]::ReadAllText($actor0140rangePath))
+    if(-not $actor0140range.Contains('aim_activity_actor aim_activity_actor::use_item_location')) {
+        $actorCtorOld0140range = @'
+aim_activity_actor aim_activity_actor::use_wielded()
+{
+    return aim_activity_actor();
+}
+'@
+        $actorCtorNew0140range = @'
+aim_activity_actor aim_activity_actor::use_wielded()
+{
+    return aim_activity_actor();
+}
+
+aim_activity_actor aim_activity_actor::use_item_location( const item_location &weapon )
+{
+    aim_activity_actor act = aim_activity_actor();
+    act.ncmm_real_weapon = weapon;
+    return act;
+}
+'@
+        $actor0140range = Replace-TextBlock $actor0140range $actorCtorOld0140range $actorCtorNew0140range 'Mana Hand ranged aim constructor implementation'
+    }
+
+    if(-not $actor0140range.Contains('if( ncmm_real_weapon ) {')) {
+        $reloadOld0140range = @'
+        if( reload_requested ) {
+            // Reload the gun / select different arrows
+            // May assign ACT_RELOAD
+            g->reload_wielded( true );
+        }
+'@
+        $reloadNew0140range = @'
+        if( reload_requested ) {
+            // Reload the same real Mana Hand gun without temporarily wielding it.
+            if( ncmm_real_weapon ) {
+                item::reload_option opt = get_avatar().select_ammo( ncmm_real_weapon, true );
+                if( opt ) {
+                    who.assign_activity( reload_activity_actor( std::move( opt ) ) );
+                }
+            } else {
+                // Vanilla wielded/fake-gun path.
+                g->reload_wielded( true );
+            }
+        }
+'@
+        $actor0140range = Replace-TextBlock $actor0140range $reloadOld0140range $reloadNew0140range 'Mana Hand ranged reload target'
+
+        $reentryOld0140range = @'
+    aim_actor.fake_weapon = this->fake_weapon;
+    aim_actor.initial_view_offset = this->initial_view_offset;
+'@
+        $reentryNew0140range = @'
+    aim_actor.fake_weapon = this->fake_weapon;
+    aim_actor.ncmm_real_weapon = this->ncmm_real_weapon;
+    aim_actor.initial_view_offset = this->initial_view_offset;
+'@
+        $actor0140range = Replace-TextBlock $actor0140range $reentryOld0140range $reentryNew0140range 'Mana Hand ranged aim reentry'
+
+        $serializeOld0140range = @'
+    jsout.member( "fake_weapon", fake_weapon );
+    jsout.member( "fin_trajectory", fin_trajectory );
+'@
+        $serializeNew0140range = @'
+    jsout.member( "fake_weapon", fake_weapon );
+    jsout.member( "ncmm_real_weapon", ncmm_real_weapon );
+    jsout.member( "fin_trajectory", fin_trajectory );
+'@
+        $actor0140range = Replace-TextBlock $actor0140range $serializeOld0140range $serializeNew0140range 'Mana Hand ranged aim serialization'
+
+        $deserializeOld0140range = @'
+    data.read( "fake_weapon", actor.fake_weapon );
+    data.read( "fin_trajectory", actor.fin_trajectory );
+'@
+        $deserializeNew0140range = @'
+    data.read( "fake_weapon", actor.fake_weapon );
+    data.read( "ncmm_real_weapon", actor.ncmm_real_weapon );
+    data.read( "fin_trajectory", actor.fin_trajectory );
+'@
+        $actor0140range = Replace-TextBlock $actor0140range $deserializeOld0140range $deserializeNew0140range 'Mana Hand ranged aim deserialization'
+
+        $resolverOld0140range = @'
+item_location aim_activity_actor::get_weapon()
+{
+    if( fake_weapon.has_value() ) {
+'@
+        $resolverNew0140range = @'
+item_location aim_activity_actor::get_weapon()
+{
+    if( ncmm_real_weapon ) {
+        return ncmm_real_weapon;
+    }
+    if( fake_weapon.has_value() ) {
+'@
+        $actor0140range = Replace-TextBlock $actor0140range $resolverOld0140range $resolverNew0140range 'Mana Hand ranged aim weapon resolver'
+    }
+
+    if(-not $actor0140range.Contains('ncmm_virtual_shot_mana_cost')) {
+        $fireOld0140range = @'
+    gun_mode gun = weapon->gun_current_mode();
+    who.fire_gun( here, fin_trajectory.back(), gun.qty, *gun, reload_loc );
+
+    if( !get_option<bool>( "AIM_AFTER_FIRING" ) ||
+'@
+        $fireNew0140range = @'
+    gun_mode gun = weapon->gun_current_mode();
+    if( ncmm_real_weapon ) {
+        const int ncmm_planned_shots = std::max( 1, gun.qty );
+        const int ncmm_virtual_shot_mana_cost = std::min( 100, ncmm_planned_shots * 5 );
+        if( who.magic->available_mana() < ncmm_virtual_shot_mana_cost ) {
+            who.add_msg_if_player( m_bad, _( "You do not have enough mana to steady the Mana Hand firearm." ) );
+            restore_view();
+            return;
+        }
+        const int ncmm_fired = who.fire_gun( here, fin_trajectory.back(), gun.qty, *gun, reload_loc );
+        if( ncmm_fired > 0 ) {
+            who.magic->mod_mana( who, -std::min( 100, ncmm_fired * 5 ) );
+        }
+    } else {
+        who.fire_gun( here, fin_trajectory.back(), gun.qty, *gun, reload_loc );
+    }
+
+    if( !get_option<bool>( "AIM_AFTER_FIRING" ) ||
+'@
+        $actor0140range = Replace-TextBlock $actor0140range $fireOld0140range $fireNew0140range 'Mana Hand ranged mana cost'
+    }
+    Write-Utf8NoBom $actor0140rangePath $actor0140range
+
+    $ranged0140range = Normalize-Lf ([IO.File]::ReadAllText($ranged0140rangePath))
+    if(-not $ranged0140range.Contains('#include "ncmm_loader.h"')) {
+        if(-not $ranged0140range.Contains('#include "item_location.h"')) {
+            throw 'Mana Hand ranged include anchor missing.'
+        }
+        $ranged0140range = Replace-TextBlock $ranged0140range '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand ranged include'
+    }
+
+    if(-not $ranged0140range.Contains('ncmm_virtual_mana_gun_mode')) {
+        $commonOld0140range = @'
+{
+    bool result = true;
+    if( you.has_trait( trait_BRAWLER ) ) {
+'@
+        $commonNew0140range = @'
+{
+    bool result = true;
+
+    bool ncmm_virtual_mana_gun_mode = false;
+    if( you.is_avatar() ) {
+        const int ncmm_hand_count = std::max( 0, std::min( 2, static_cast<int>( std::lround(
+                                        ncmm::runtime_hook_modifier(
+                                            "magic.virtual_hand_count", nullptr, "magiclysm",
+                                            nullptr, nullptr ) ) ) ) );
+        const item *ncmm_mode_item = gmode ? &*gmode : nullptr;
+        const char *ncmm_slots[2] = { "mana_hand_3", "mana_hand_4" };
+        for( int ncmm_i = 0; ncmm_i < ncmm_hand_count && ncmm_i < 2 && !ncmm_virtual_mana_gun_mode;
+             ++ncmm_i ) {
+            item *ncmm_base = ncmm::virtual_item_for_slot( "survivor_progression",
+                               ncmm_slots[ncmm_i] );
+            if( ncmm_base == nullptr || !ncmm_base->is_gun() ) {
+                continue;
+            }
+            if( ncmm_mode_item == ncmm_base ) {
+                ncmm_virtual_mana_gun_mode = true;
+                break;
+            }
+            for( item *ncmm_mod : ncmm_base->gunmods() ) {
+                if( ncmm_mod == ncmm_mode_item ) {
+                    ncmm_virtual_mana_gun_mode = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if( ncmm_virtual_mana_gun_mode &&
+        ( gmode->is_two_handed( you ) || gmode->has_flag( flag_FIRE_TWOHAND ) ||
+          gmode->has_flag( flag_RELOAD_AND_SHOOT ) ) ) {
+        messages.push_back( _( "This firing mode needs handling that a single Mana Hand cannot provide." ) );
+        result = false;
+    }
+
+    if( you.has_trait( trait_BRAWLER ) ) {
+'@
+        $ranged0140range = Replace-TextBlock $ranged0140range $commonOld0140range $commonNew0140range 'Mana Hand ranged mode restrictions'
+    }
+    Write-Utf8NoBom $ranged0140rangePath $ranged0140range
+
+    $game0140range = Normalize-Lf ([IO.File]::ReadAllText($game0140rangePath))
+    if(-not $game0140range.Contains('fire with Mana Hand')) {
+        $menuOld0140range = @'
+                const bool ncmm_secondary_melee_eligible =
+                    oThisItem.is_melee() && !oThisItem.is_gun() &&
+                    ( ( ncmm_mana_single_bound_here && !oThisItem.is_two_handed( u ) ) ||
+                      ( ncmm_mana_pair_bound_here && oThisItem.is_two_handed( u ) ) );
+'@
+        $menuNew0140range = @'
+                const bool ncmm_secondary_melee_eligible =
+                    oThisItem.is_melee() && !oThisItem.is_gun() &&
+                    ( ( ncmm_mana_single_bound_here && !oThisItem.is_two_handed( u ) ) ||
+                      ( ncmm_mana_pair_bound_here && oThisItem.is_two_handed( u ) ) );
+                const bool ncmm_mana_ranged_eligible =
+                    ncmm_mana_single_bound_here && oThisItem.is_gun() &&
+                    !oThisItem.is_gunmod() && !oThisItem.is_two_handed( u );
+                if( ncmm_mana_ranged_eligible ) {
+                    addentry( 'g', ncmm::localized_text(
+                                  "fire with Mana Hand",
+                                  "стрелять рукой маны" ), hint_rating::good );
+                }
+'@
+        $game0140range = Replace-TextBlock $game0140range $menuOld0140range $menuNew0140range 'Mana Hand ranged context entry'
+
+        $handlerOld0140range = @'
+                case '5': {
+'@
+        $handlerNew0140range = @'
+                case 'g': {
+                    const int ncmm_mana_hands_now = static_cast<int>(
+                                                        ncmm::runtime_hook_modifier(
+                                                            "magic.virtual_hand_count", nullptr,
+                                                            "magiclysm", nullptr, nullptr ) );
+                    item *ncmm_bound3 = ncmm_mana_hands_now >= 1 ?
+                                        ncmm::virtual_item_for_slot(
+                                            "survivor_progression", "mana_hand_3" ) : nullptr;
+                    item *ncmm_bound4 = ncmm_mana_hands_now >= 2 ?
+                                        ncmm::virtual_item_for_slot(
+                                            "survivor_progression", "mana_hand_4" ) : nullptr;
+                    if( ( ncmm_bound3 != &oThisItem && ncmm_bound4 != &oThisItem ) ||
+                        !oThisItem.is_gun() || oThisItem.is_gunmod() ||
+                        oThisItem.is_two_handed( u ) ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "That item is not a usable one-handed Mana Hand firearm.",
+                                     "Этот предмет нельзя использовать как одноручное оружие в руке маны." ).c_str() );
+                        break;
+                    }
+                    if( !oThisItem.uses_firing_requirements() && oThisItem.has_ammo_data() &&
+                        !oThisItem.ammo_types().count( oThisItem.loaded_ammo().ammo_type() ) ) {
+                        add_msg( m_info,
+                                 _( "The %s can't be fired while loaded with incompatible ammunition %s" ),
+                                 oThisItem.tname(), oThisItem.ammo_current()->nname( 1 ) );
+                        break;
+                    }
+                    u.assign_activity( aim_activity_actor::use_item_location( locThisItem ) );
+                    break;
+                }
+                case '5': {
+'@
+        $game0140range = Replace-TextBlock $game0140range $handlerOld0140range $handlerNew0140range 'Mana Hand ranged context handler'
+    }
+    Write-Utf8NoBom $game0140rangePath $game0140range
+
+    foreach($rangeCheck0140 in @(
+        @($defs0140rangePath,'item_location ncmm_real_weapon;'),
+        @($defs0140rangePath,'use_item_location( const item_location &weapon )'),
+        @($actor0140rangePath,'aim_activity_actor::use_item_location'),
+        @($actor0140rangePath,'jsout.member( "ncmm_real_weapon", ncmm_real_weapon );'),
+        @($actor0140rangePath,'data.read( "ncmm_real_weapon", actor.ncmm_real_weapon );'),
+        @($actor0140rangePath,'ncmm_virtual_shot_mana_cost'),
+        @($ranged0140rangePath,'ncmm_virtual_mana_gun_mode'),
+        @($ranged0140rangePath,'gmode->has_flag( flag_RELOAD_AND_SHOOT )'),
+        @($game0140rangePath,'fire with Mana Hand'),
+        @($game0140rangePath,"case 'g':"),
+        @($game0140rangePath,'aim_activity_actor::use_item_location( locThisItem )')
+    )) {
+        $rangeOutput0140 = [IO.File]::ReadAllText([string]$rangeCheck0140[0])
+        if(-not $rangeOutput0140.Contains([string]$rangeCheck0140[1])) {
+            throw ('Survivor 0.14.0 Mana Hand ranged output missing: '+$rangeCheck0140[1])
+        }
+    }
+
+    Write-Host "Survivor 0.14.0 Mana Hand ranged support: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandRanged0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -20987,6 +21308,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorVirtualItemLifecycle01
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandUtility0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandSecondaryMelee0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandPairedGrip0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandRanged0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.

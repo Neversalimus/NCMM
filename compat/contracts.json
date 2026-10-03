@@ -416,6 +416,33 @@
             "bool Character::is_wielding( const item &target ) const",
             "return &weapon == &target;"
           ]
+        },
+        {
+          "path": "src/activity_actor_definitions.h",
+          "required": [
+            "class aim_activity_actor : public activity_actor",
+            "std::optional<item> fake_weapon;",
+            "static aim_activity_actor use_wielded();",
+            "item_location get_weapon();"
+          ]
+        },
+        {
+          "path": "src/activity_actor.cpp",
+          "required": [
+            "aim_activity_actor aim_activity_actor::use_wielded()",
+            "if( reload_requested ) {",
+            "g->reload_wielded( true );",
+            "jsout.member( \"fake_weapon\", fake_weapon );",
+            "data.read( \"fake_weapon\", actor.fake_weapon );",
+            "item_location aim_activity_actor::get_weapon()"
+          ]
+        },
+        {
+          "path": "src/ranged.cpp",
+          "required": [
+            "bool gunmode_checks_common( avatar &you, const map &m, std::vector<std::string> &messages,",
+            "if( gmode->has_flag( flag_FIRE_TWOHAND ) && ( !you.has_two_arms_lifting() ||"
+          ]
         }
       ]
     }

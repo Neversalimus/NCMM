@@ -552,7 +552,15 @@ foreach($needle0140 in @(
     'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2',
     "case '5':",
     'item *ncmm_paired_weapon =',
-    'Apply-SurvivorManaHandPairedGrip0140 $CddaRoot'
+    'Apply-SurvivorManaHandPairedGrip0140 $CddaRoot',
+    'function Apply-SurvivorManaHandRanged0140',
+    'item_location ncmm_real_weapon;',
+    'aim_activity_actor::use_item_location',
+    'ncmm_virtual_shot_mana_cost',
+    'ncmm_virtual_mana_gun_mode',
+    'fire with Mana Hand',
+    "case 'g':",
+    'Apply-SurvivorManaHandRanged0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
@@ -569,7 +577,7 @@ $manaAidSection0140=$payload.Substring($manaAidStart0140,$manaAidEnd0140-$manaAi
 if($manaAidSection0140.Contains('flag_id( "MAGIC_FOCUS" )')){
     throw 'Mana Hand spellcasting-aid bridge leaked MAGIC_FOCUS back into global wielded semantics.'
 }
-foreach($sourcePath0140 in @('src/game.cpp','src/talker_character.cpp','src/item_location.cpp','src/iuse_actor.cpp','src/melee.cpp','src/character_inventory.cpp')){
+foreach($sourcePath0140 in @('src/game.cpp','src/talker_character.cpp','src/item_location.cpp','src/iuse_actor.cpp','src/melee.cpp','src/character_inventory.cpp','src/activity_actor_definitions.h','src/activity_actor.cpp','src/ranged.cpp')){
     $sourceEntry0140=@($contracts0140.contracts|Where-Object{$_.id -eq 'magic_virtual_slots.source.v1'}).files|Where-Object{$_.path -eq $sourcePath0140}
     if(@($sourceEntry0140).Count -ne 1){throw ('Mana Hand source contract missing hardening path: '+$sourcePath0140)}
 }
@@ -669,9 +677,9 @@ foreach($upgradeNeedle0140 in @(
     }
 }
 
-$manaPairEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaPairStart0140)
-if($manaPairEnd0140 -le $manaPairStart0140){throw 'Mana Hand paired-grip transform end missing.'}
-$manaPairSection0140=$payload.Substring($manaPairStart0140,$manaPairEnd0140-$manaPairStart0140)
+$manaRangeStart0140=$payload.IndexOf('function Apply-SurvivorManaHandRanged0140',$manaPairStart0140)
+if($manaRangeStart0140 -le $manaPairStart0140){throw 'Mana Hand ranged transform boundary missing.'}
+$manaPairSection0140=$payload.Substring($manaPairStart0140,$manaRangeStart0140-$manaPairStart0140)
 foreach($pairNeedle0140 in @(
     'item *ncmm_mana_hands_34 = ncmm_virtual_hands >= 2 ?',
     'ncmm_mana_hands_34 != nullptr ? 2 :',
@@ -699,6 +707,39 @@ if($manaPairSection0140.Contains('item_location::type::mana_hand') -or
    $manaPairSection0140.Contains('set_wielded_item(') -or
    $manaPairSection0140.Contains('u.wield(')){
     throw 'Mana Hand paired grip must not synthesize locations or move the real item.'
+}
+
+$manaRangeEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaRangeStart0140)
+if($manaRangeEnd0140 -le $manaRangeStart0140){throw 'Mana Hand ranged transform end missing.'}
+$manaRangeSection0140=$payload.Substring($manaRangeStart0140,$manaRangeEnd0140-$manaRangeStart0140)
+foreach($rangeNeedle0140 in @(
+    'item_location ncmm_real_weapon;',
+    'static aim_activity_actor use_item_location( const item_location &weapon );',
+    'aim_activity_actor aim_activity_actor::use_item_location( const item_location &weapon )',
+    'act.ncmm_real_weapon = weapon;',
+    'jsout.member( "ncmm_real_weapon", ncmm_real_weapon );',
+    'data.read( "ncmm_real_weapon", actor.ncmm_real_weapon );',
+    'aim_actor.ncmm_real_weapon = this->ncmm_real_weapon;',
+    'item::reload_option opt = get_avatar().select_ammo( ncmm_real_weapon, true );',
+    'const int ncmm_virtual_shot_mana_cost = std::min( 100, ncmm_planned_shots * 5 );',
+    'who.magic->mod_mana( who, -std::min( 100, ncmm_fired * 5 ) );',
+    'ncmm_virtual_mana_gun_mode',
+    'gmode->has_flag( flag_FIRE_TWOHAND )',
+    'gmode->has_flag( flag_RELOAD_AND_SHOOT )',
+    'fire with Mana Hand',
+    "case 'g':",
+    'aim_activity_actor::use_item_location( locThisItem )'
+)){
+    if(-not $manaRangeSection0140.Contains($rangeNeedle0140)){
+        throw ('Mana Hand ranged regression contract missing: '+$rangeNeedle0140)
+    }
+}
+if($manaRangeSection0140.Contains('set_wielded_item(') -or
+   $manaRangeSection0140.Contains('u.wield(')){
+    throw 'Mana Hand ranged support must not move the gun into Character::weapon.'
+}
+if($manaRangeSection0140.Contains('"mana_hands_34"')){
+    throw 'Mana Hand ranged v1 must not enable paired two-handed firearms.'
 }
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate
