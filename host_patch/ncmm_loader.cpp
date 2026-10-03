@@ -1118,9 +1118,20 @@ bool virtual_item_can_assign_internal( const char *module_id, const char *slot_i
     }
 
     const item &candidate = *loc;
+    const bool candidate_two_handed = candidate.is_two_handed( you );
     if( loc == you.get_wielded_item() || you.is_worn( candidate ) ||
         candidate.is_null() || candidate.has_flag( flag_INTEGRATED ) ||
-        candidate.has_flag( flag_PSEUDO ) || candidate.is_two_handed( you ) ) {
+        candidate.has_flag( flag_PSEUDO ) ||
+        ( candidate_two_handed &&
+          ( flags & NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 ) == 0u ) ) {
+        return false;
+    }
+    if( ( flags & NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2 ) != 0u &&
+        !candidate_two_handed ) {
+        return false;
+    }
+    if( ( flags & NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2 ) != 0u &&
+        candidate.is_gun() ) {
         return false;
     }
 
