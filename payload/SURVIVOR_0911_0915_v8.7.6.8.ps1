@@ -20182,7 +20182,32 @@ function Apply-SurvivorVirtualItemLifecycle0140([string]$Root) {
             container->on_contents_changed();
         }
 '@
-        $itemLocation0140life = Replace-TextBlock $itemLocation0140life $containerOld0140life $containerNew0140life 'Mana Hand lifecycle contained-item removal'
+        $container1831Old0140life = @'
+        void remove_item() override {
+            const bool container_empty = container.remove_items_with( [&]( const item & filter ) ->bool {return &filter == &*target(); },
+                                         INT_MAX ).empty();
+            if( container_empty ) {
+                debugmsg( "improper item_loction parent when attempting to remove item." );
+            }
+        }
+'@
+        $container1831New0140life = @'
+        void remove_item() override {
+            ncmm::release_virtual_item( *target() );
+            const bool container_empty = container.remove_items_with( [&]( const item & filter ) ->bool {return &filter == &*target(); },
+                                         INT_MAX ).empty();
+            if( container_empty ) {
+                debugmsg( "improper item_loction parent when attempting to remove item." );
+            }
+        }
+'@
+        if($itemLocation0140life.Contains($containerOld0140life)) {
+            $itemLocation0140life = Replace-TextBlock $itemLocation0140life $containerOld0140life $containerNew0140life 'Mana Hand lifecycle contained-item removal legacy'
+        } elseif($itemLocation0140life.Contains($container1831Old0140life)) {
+            $itemLocation0140life = Replace-TextBlock $itemLocation0140life $container1831Old0140life $container1831New0140life 'Mana Hand lifecycle contained-item removal 1831'
+        } else {
+            throw 'Mana Hand lifecycle contained-item removal anchor missing for supported CDDA source.'
+        }
     }
 
     Write-Utf8NoBom $itemLocation0140lifePath $itemLocation0140life
@@ -20191,7 +20216,7 @@ function Apply-SurvivorVirtualItemLifecycle0140([string]$Root) {
         '#include "ncmm_loader.h"',
         'ncmm::release_virtual_item( *target() );',
         'who->remove_item( *what );',
-        'container->remove_item( *target() );'
+        'class item_location::impl::item_in_container'
     )) {
         if(-not $lifeOutput0140.Contains($needle0140life)) {
             throw ('Survivor 0.14.0 Mana Hand lifecycle output missing: '+$needle0140life)
