@@ -914,7 +914,7 @@ if($manaFireSection0140.Contains('set_wielded_item(') -or
     throw 'Mana Hand FIRE action must keep the real gun in its vanilla item_location.'
 }
 
-$manaGunControlsEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaGunControlsStart0140)
+$manaGunControlsEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandPrimaryMelee0140',$manaGunControlsStart0140)
 if($manaGunControlsEnd0140 -le $manaGunControlsStart0140){throw 'Mana Hand standard gun-control transform end missing.'}
 $manaGunControlsSection0140=$payload.Substring($manaGunControlsStart0140,$manaGunControlsEnd0140-$manaGunControlsStart0140)
 foreach($controlNeedle0140 in @(
