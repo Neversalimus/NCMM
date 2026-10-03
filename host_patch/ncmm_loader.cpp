@@ -5179,7 +5179,18 @@ int run_gameplay_smoke()
             }
         }
 
-        const std::vector<mod_id> mods = world_generator->get_mod_manager().get_default_mods();
+        std::vector<mod_id> mods = world_generator->get_mod_manager().get_default_mods();
+        const mod_id magiclysm_smoke_mod( "magiclysm" );
+        const auto &usable_mods = world_generator->get_mod_manager().get_usable_mods();
+        if( std::find( usable_mods.begin(), usable_mods.end(),
+                       magiclysm_smoke_mod ) == usable_mods.end() ) {
+            write_gameplay_smoke_result( false, "magiclysm_smoke_mod_unavailable",
+                                         aws_setting_count, 0, 0 );
+            return 157;
+        }
+        if( std::find( mods.begin(), mods.end(), magiclysm_smoke_mod ) == mods.end() ) {
+            mods.push_back( magiclysm_smoke_mod );
+        }
         WORLD *world = world_generator->make_new_world( world_name, mods );
         if( world == nullptr ) {
             write_gameplay_smoke_result( false, "world_create_failed", aws_setting_count, 0, 0 );
@@ -5215,6 +5226,12 @@ int run_gameplay_smoke()
                                              aws_setting_count, 0, 0 );
                 return 103;
             }
+        }
+        if( std::find( reloaded->active_mod_order.begin(), reloaded->active_mod_order.end(),
+                       magiclysm_smoke_mod ) == reloaded->active_mod_order.end() ) {
+            write_gameplay_smoke_result( false, "magiclysm_smoke_mod_missing",
+                                         aws_setting_count, 0, 0 );
+            return 158;
         }
         world_generator->set_active_world( reloaded );
 
