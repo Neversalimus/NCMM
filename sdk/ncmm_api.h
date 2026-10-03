@@ -23,7 +23,7 @@ extern "C" {
 #define NCMM_HOST_API_V2_CORE_ID "ncmm.host_api.v2.core"
 #define NCMM_HOST_API_V2_CORE_ABI 2u
 #define NCMM_HOST_API_V2_CORE_MAJOR 2u
-#define NCMM_HOST_API_V2_CORE_MINOR 1u
+#define NCMM_HOST_API_V2_CORE_MINOR 2u
 /* capability: world_settings.v2 */
 #define NCMM_ENTRYPOINT "ncmm_get_descriptor_v1"
 #define NCMM_LOCALE_ENTRYPOINT "ncmm_on_locale_changed_v1"
@@ -440,6 +440,16 @@ typedef struct ncmm_host_api_v2_core {
     int ( *virtual_item_clear )( const char *module_id, const char *slot_id );
     const char *( *virtual_item_name )( const char *module_id, const char *slot_id );
     int64_t ( *virtual_item_uid )( const char *module_id, const char *slot_id );
+
+    /*
+     * Host API 2.2 additive tail: optional virtual-item behavior state.
+     * Modules can query/toggle secondary melee for the item currently bound
+     * to a logical slot without accessing engine item pointers.
+     */
+    int ( *virtual_item_secondary_melee_enabled )( const char *module_id,
+            const char *slot_id );
+    int ( *virtual_item_set_secondary_melee )( const char *module_id,
+            const char *slot_id, int enabled );
 } ncmm_host_api_v2_core;
 typedef int ( *ncmm_mod_init_v1 )( const ncmm_host_api_v1 *api );
 typedef void ( *ncmm_mod_shutdown_v1 )( void );
