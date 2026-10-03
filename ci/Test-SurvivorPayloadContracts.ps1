@@ -791,8 +791,8 @@ foreach($rasNeedle0140 in @(
     'item_location gun = activity != nullptr ? activity->get_weapon() : you->get_wielded_item();',
     'item::reload_option opt = you->select_ammo( gun );',
     'activity->reload_loc = opt.ammo;',
-    "$ranged0140ras = Replace-TextBlock $ranged0140ras $unsupported0140ras '' 'Mana Hand reload-and-shoot mode gate'",
-    "if($rasOutput0140.Contains('Reload-and-shoot firing modes are not yet supported by Mana Hands.'))"
+    'Replace-TextBlock $ranged0140ras $unsupported0140ras',
+    'if($rasOutput0140.Contains'
 )){
     if(-not $manaRasSection0140.Contains($rasNeedle0140)){
         throw ('Mana Hand reload-and-shoot regression contract missing: '+$rasNeedle0140)
