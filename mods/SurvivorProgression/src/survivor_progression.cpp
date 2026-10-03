@@ -2324,6 +2324,27 @@ std::string paired_mana_hand_item_name()
     return virtual_item_name_for_slot( mana_hand_pair_slot_id );
 }
 
+bool virtual_item_secondary_controls_available()
+{
+    return host2 != nullptr && host2->api_minor >= 2u &&
+           host2->struct_size >= sizeof( ncmm_host_api_v2_core ) &&
+           host2->virtual_item_secondary_melee_enabled != nullptr &&
+           host2->virtual_item_set_secondary_melee != nullptr;
+}
+
+bool virtual_item_secondary_enabled_for_slot( const char *slot_id )
+{
+    return virtual_item_secondary_controls_available() && slot_id != nullptr &&
+           host2->virtual_item_secondary_melee_enabled( module_id, slot_id ) != 0;
+}
+
+bool virtual_item_set_secondary_for_slot( const char *slot_id, bool enabled )
+{
+    return virtual_item_secondary_controls_available() && slot_id != nullptr &&
+           host2->virtual_item_set_secondary_melee(
+               module_id, slot_id, enabled ? 1 : 0 ) != 0;
+}
+
 void clear_mana_hand_slots()
 {
     if( host2 == nullptr || host2->virtual_item_clear == nullptr ) {
@@ -2381,12 +2402,44 @@ void show_perk_detail( const perk_def &perk )
                 title += "\n" + tr(
                              "Both Mana Hands are occupied by one real two-handed item. The item remains in its normal CDDA location.",
                              "Обе руки маны заняты одним реальным двуручным предметом. Предмет остаётся в своём обычном месте CDDA." );
+                const bool secondary_controls = virtual_item_secondary_controls_available();
+                const bool secondary_enabled =
+                    virtual_item_secondary_enabled_for_slot( mana_hand_pair_slot_id );
+                if( secondary_controls ) {
+                    title += "\n" + tr( "Secondary strike: ", "Дополнительный удар: " ) +
+                             ( secondary_enabled ? tr( "ON", "ВКЛ" ) : tr( "OFF", "ВЫКЛ" ) );
+                }
+                std::string toggle_pair_secondary = secondary_enabled ?
+                    tr( "Disable secondary strike", "Отключить дополнительный удар" ) :
+                    tr( "Enable secondary strike", "Включить дополнительный удар" );
                 std::string release_pair = tr( "Release paired virtual item", "Освободить парный виртуальный предмет" );
-                const char *pair_entries[] = { release_pair.c_str(), back.c_str() };
-                const int pair_choice = host->ui_choose ? host->ui_choose( title.c_str(), pair_entries, 2 ) : -1;
-                if( pair_choice == 0 && host2->virtual_item_clear ) {
-                    host2->virtual_item_clear( module_id, mana_hand_pair_slot_id );
-                    continue;
+
+                int pair_choice = -1;
+                if( secondary_controls ) {
+                    const char *pair_entries[] = {
+                        toggle_pair_secondary.c_str(), release_pair.c_str(), back.c_str()
+                    };
+                    pair_choice = host->ui_choose ? host->ui_choose( title.c_str(), pair_entries, 3 ) : -1;
+                    if( pair_choice == 0 ) {
+                        if( !virtual_item_set_secondary_for_slot(
+                                mana_hand_pair_slot_id, !secondary_enabled ) ) {
+                            message( tr(
+                                "This item cannot be used for a Mana Hand secondary strike.",
+                                "Этот предмет нельзя использовать для дополнительного удара рукой маны." ) );
+                        }
+                        continue;
+                    }
+                    if( pair_choice == 1 && host2->virtual_item_clear ) {
+                        host2->virtual_item_clear( module_id, mana_hand_pair_slot_id );
+                        continue;
+                    }
+                } else {
+                    const char *pair_entries[] = { release_pair.c_str(), back.c_str() };
+                    pair_choice = host->ui_choose ? host->ui_choose( title.c_str(), pair_entries, 2 ) : -1;
+                    if( pair_choice == 0 && host2->virtual_item_clear ) {
+                        host2->virtual_item_clear( module_id, mana_hand_pair_slot_id );
+                        continue;
+                    }
                 }
                 return;
             }
@@ -2450,22 +2503,64 @@ void show_perk_detail( const perk_def &perk )
                 continue;
             }
 
-            const char *entries[] = { equip.c_str(), release.c_str(), back.c_str() };
-            const int choice = host->ui_choose ? host->ui_choose( title.c_str(), entries, 3 ) : -1;
-            if( choice == 0 ) {
-                const std::string picker_title =
-                    tr( "Choose item for ", "Выберите предмет для " ) + perk_display_name( perk );
-                if( host2->virtual_item_choose ) {
-                    host2->virtual_item_choose(
-                        module_id, slot_id, picker_title.c_str(),
-                        NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
-                        NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 );
-                }
-                continue;
+            const bool secondary_controls = virtual_item_secondary_controls_available();
+            const bool secondary_enabled =
+                secondary_controls && virtual_item_secondary_enabled_for_slot( slot_id );
+            if( secondary_controls ) {
+                title += "\n" + tr( "Secondary strike: ", "Дополнительный удар: " ) +
+                         ( secondary_enabled ? tr( "ON", "ВКЛ" ) : tr( "OFF", "ВЫКЛ" ) );
             }
-            if( choice == 1 && host2->virtual_item_clear ) {
-                host2->virtual_item_clear( module_id, slot_id );
-                continue;
+            std::string toggle_secondary = secondary_enabled ?
+                tr( "Disable secondary strike", "Отключить дополнительный удар" ) :
+                tr( "Enable secondary strike", "Включить дополнительный удар" );
+
+            int choice = -1;
+            if( secondary_controls ) {
+                const char *entries[] = {
+                    equip.c_str(), toggle_secondary.c_str(), release.c_str(), back.c_str()
+                };
+                choice = host->ui_choose ? host->ui_choose( title.c_str(), entries, 4 ) : -1;
+                if( choice == 0 ) {
+                    const std::string picker_title =
+                        tr( "Choose item for ", "Выберите предмет для " ) + perk_display_name( perk );
+                    if( host2->virtual_item_choose ) {
+                        host2->virtual_item_choose(
+                            module_id, slot_id, picker_title.c_str(),
+                            NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
+                            NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 );
+                    }
+                    continue;
+                }
+                if( choice == 1 ) {
+                    if( !virtual_item_set_secondary_for_slot( slot_id, !secondary_enabled ) ) {
+                        message( tr(
+                            "This item cannot be used for a Mana Hand secondary strike.",
+                            "Этот предмет нельзя использовать для дополнительного удара рукой маны." ) );
+                    }
+                    continue;
+                }
+                if( choice == 2 && host2->virtual_item_clear ) {
+                    host2->virtual_item_clear( module_id, slot_id );
+                    continue;
+                }
+            } else {
+                const char *entries[] = { equip.c_str(), release.c_str(), back.c_str() };
+                choice = host->ui_choose ? host->ui_choose( title.c_str(), entries, 3 ) : -1;
+                if( choice == 0 ) {
+                    const std::string picker_title =
+                        tr( "Choose item for ", "Выберите предмет для " ) + perk_display_name( perk );
+                    if( host2->virtual_item_choose ) {
+                        host2->virtual_item_choose(
+                            module_id, slot_id, picker_title.c_str(),
+                            NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
+                            NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 );
+                    }
+                    continue;
+                }
+                if( choice == 1 && host2->virtual_item_clear ) {
+                    host2->virtual_item_clear( module_id, slot_id );
+                    continue;
+                }
             }
             return;
         }
