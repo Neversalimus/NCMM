@@ -89,15 +89,13 @@ Guns and items that CDDA considers two-handed are excluded. Releasing or reassig
 
 ## Mana Hand paired grip
 
-With Fourth Mana Hand unlocked, Mana Hands III+IV can jointly hold one real two-handed non-firearm item through the dedicated `mana_hands_34` logical slot. The paired item has one marker and one persistent UID; it is not duplicated across the two single-hand slots and never leaves the vanilla CDDA item graph.
+With Fourth Mana Hand unlocked, Mana Hands III+IV can jointly hold one real two-handed item through the dedicated `mana_hands_34` logical slot, including a firearm. The paired item has one marker and one persistent UID; it is not duplicated across the two single-hand slots and never leaves the vanilla CDDA item graph.
 
-A paired item consumes both virtual hands for somatic casting. MAGIC_FOCUS, SPELLCASTING_AID, blocking, item-local utility activation, and opt-in secondary melee all recognize the paired grip once. The pair can only be assigned while Mana Hand III and IV are both otherwise empty, and single-hand assignment is blocked until the pair is released.
-
-Firearms remain intentionally excluded from virtual paired grip because aiming, recoil, reload, fire modes, and ammunition ownership still depend on CDDA's physical wielded-weapon model.
+A paired item consumes both virtual hands for somatic casting. MAGIC_FOCUS, SPELLCASTING_AID, blocking, item-local utility activation, opt-in secondary melee, and paired ranged firing all recognize the same real item once. The pair can only be assigned while Mana Hand III and IV are both otherwise empty, and single-hand assignment is blocked until the pair is released.
 
 ## Mana Hand ranged firearms
 
-A real one-handed firearm bound to Mana Hand III or IV can be fired explicitly from the item context menu without moving or copying the gun into the physical wield slot. The normal CDDA aim UI, recoil, ammunition, gun modes, faults, UPS/bionic power checks, projectile events and reload activity remain in control.
+A real one-handed firearm bound to Mana Hand III or IV, or a real two-handed firearm bound to paired Mana Hands III+IV, can be fired explicitly from the item context menu without moving or copying the gun into the physical wield slot. The normal CDDA aim UI, recoil, ammunition, gun modes, faults, UPS/bionic power checks, projectile events and reload activity remain in control.
 
-Ranged v1 intentionally rejects firing modes that are two-handed, use `FIRE_TWOHAND`, or use `RELOAD_AND_SHOOT`; paired III+IV firearms remain unsupported. Reload requests from the aim UI target the same real virtual gun through its `item_location`. Firing through a Mana Hand costs 5 mana per projectile actually fired, capped at 100 mana per burst.
+Single-hand virtual guns still reject two-handed modes and `FIRE_TWOHAND`; the paired III+IV grip satisfies those handling requirements. `RELOAD_AND_SHOOT` remains intentionally unsupported because CDDA's ammo-switch path for those weapons still resolves `Character::get_wielded_item()`. Reload requests for supported modes target the same real virtual gun through its `item_location`. Firing through Mana Hands costs 5 mana per projectile actually fired, capped at 100 mana per burst.
 
