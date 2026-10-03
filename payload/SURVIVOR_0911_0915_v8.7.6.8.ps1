@@ -22393,19 +22393,27 @@ generic_factory<martialart> martialarts( "martial art style" );
 generic_factory<ma_buff> ma_buffs( "martial art buff" );
 generic_factory<attack_vector> attack_vector_factory( "attack vector" );
 
-item_location ncmm_primary_mana_hand_martial_weapon( const Character &who )
+item_location ncmm_mana_hand_martial_context_weapon( const Character &who )
 {
+    item_location physical = who.get_wielded_item();
+    if( physical ) {
+        return physical;
+    }
     if( ncmm::virtual_melee_context_active( who ) ) {
         item *context_weapon = ncmm::virtual_melee_context_item( who );
         return context_weapon != nullptr ?
                item_location( *const_cast<Character *>( &who ), context_weapon ) :
                item_location();
     }
+    return item_location();
+}
 
-    item_location physical = who.get_wielded_item();
-    if( physical || !who.is_avatar() || who.is_mounted() ||
+item_location ncmm_primary_mana_hand_martial_weapon( const Character &who )
+{
+    item_location active_weapon = ncmm_mana_hand_martial_context_weapon( who );
+    if( active_weapon || !who.is_avatar() || who.is_mounted() ||
         who.martial_arts_data->selected_force_unarmed() ) {
-        return physical;
+        return active_weapon;
     }
 
     const int hand_count = std::clamp( static_cast<int>(
@@ -22445,19 +22453,57 @@ item_location ncmm_primary_mana_hand_martial_weapon( const Character &who )
     bool is_armed = u.is_armed();
 '@
         $requirementsNew0140ma = @'
-    const item_location weapon = ncmm_primary_mana_hand_martial_weapon( u );
+    const item_location weapon = ncmm_mana_hand_martial_context_weapon( u );
     bool melee_style = u.martial_arts_data->selected_strictly_melee();
     bool is_armed = weapon || u.is_armed();
 '@
         $martial0140ma = Replace-TextBlock $martial0140ma $requirementsOld0140ma $requirementsNew0140ma 'Primary Mana Hand martial-art requirements'
 
         $defensiveOld0140ma = @'
+static ma_technique get_valid_technique( const Character &owner, bool ma_technique::*  purpose )
+{
+    const auto &ma_data = owner.martial_arts_data;
+
     for( const matec_id &candidate_id : ma_data->get_all_techniques( owner.get_wielded_item(),
             owner ) ) {
+        ma_technique candidate = candidate_id.obj();
+
+        if( candidate.*purpose && candidate.is_valid_character( owner ) ) {
+            return candidate;
+        }
+    }
+
+    return tec_none.obj();
+}
 '@
         $defensiveNew0140ma = @'
+static ma_technique get_valid_technique( const Character &owner, bool ma_technique::*  purpose )
+{
+    const auto &ma_data = owner.martial_arts_data;
+    item_location martial_weapon =
+        ncmm_primary_mana_hand_martial_weapon( owner );
+    Character &mutable_owner = *const_cast<Character *>( &owner );
+    const bool virtual_scope =
+        martial_weapon && !owner.get_wielded_item() &&
+        !ncmm::virtual_melee_context_active( owner ) &&
+        ncmm::virtual_melee_context_begin( mutable_owner, *martial_weapon, false );
+
+    ma_technique result = tec_none.obj();
     for( const matec_id &candidate_id : ma_data->get_all_techniques(
-            ncmm_primary_mana_hand_martial_weapon( owner ), owner ) ) {
+            martial_weapon, owner ) ) {
+        ma_technique candidate = candidate_id.obj();
+
+        if( candidate.*purpose && candidate.is_valid_character( owner ) ) {
+            result = candidate;
+            break;
+        }
+    }
+
+    if( virtual_scope ) {
+        ncmm::virtual_melee_context_end( mutable_owner );
+    }
+    return result;
+}
 '@
         $martial0140ma = Replace-TextBlock $martial0140ma $defensiveOld0140ma $defensiveNew0140ma 'Primary Mana Hand defensive martial-art techniques'
 
@@ -22520,13 +22566,16 @@ void character_martial_arts::martialart_use_message( const Character &owner ) co
     $martialOut0140ma = [IO.File]::ReadAllText($martial0140maPath)
     foreach($needle0140ma in @(
         '#include "ncmm_loader.h"',
+        'item_location ncmm_mana_hand_martial_context_weapon( const Character &who )',
         'item_location ncmm_primary_mana_hand_martial_weapon( const Character &who )',
         'ncmm::virtual_melee_context_active( who )',
+        'const item_location weapon = ncmm_mana_hand_martial_context_weapon( u );',
+        'const bool virtual_scope =',
         '"survivor_progression", "mana_hands_34"',
         'ncmm::virtual_item_primary_melee_enabled( *paired )',
-        'const item_location weapon = ncmm_primary_mana_hand_martial_weapon( u );',
         'bool is_armed = weapon || u.is_armed();',
-        'ncmm_primary_mana_hand_martial_weapon( owner ), owner',
+        'ncmm::virtual_melee_context_begin( mutable_owner, *martial_weapon, false )',
+        'martial_weapon, owner',
         'const item_location martial_weapon =',
         'bool valid_weapon = ma.weapon_valid( martial_weapon );',
         'item *weapon = martial_weapon.get_item();'

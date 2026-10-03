@@ -954,14 +954,17 @@ if($manaPrimaryStart0140 -lt 0 -or $manaMartialStart0140 -le $manaPrimaryStart01
 }
 $manaMartialSection0140=$payload.Substring($manaMartialStart0140,$manaReachStart0140-$manaMartialStart0140)
 foreach($martialNeedle0140 in @(
+    'item_location ncmm_mana_hand_martial_context_weapon( const Character &who )',
     'item_location ncmm_primary_mana_hand_martial_weapon( const Character &who )',
     'ncmm::virtual_melee_context_active( who )',
+    'const item_location weapon = ncmm_mana_hand_martial_context_weapon( u );',
+    'const bool virtual_scope =',
     '"magic.virtual_hand_count", nullptr, "magiclysm"',
     '"survivor_progression", "mana_hands_34"',
     'ncmm::virtual_item_primary_melee_enabled( *paired )',
-    'const item_location weapon = ncmm_primary_mana_hand_martial_weapon( u );',
     'bool is_armed = weapon || u.is_armed();',
-    'ncmm_primary_mana_hand_martial_weapon( owner ), owner',
+    'ncmm::virtual_melee_context_begin( mutable_owner, *martial_weapon, false )',
+    'martial_weapon, owner',
     'bool valid_weapon = ma.weapon_valid( martial_weapon );',
     'item *weapon = martial_weapon.get_item();'
 )){
@@ -972,6 +975,17 @@ foreach($martialNeedle0140 in @(
 if($manaMartialSection0140.Contains('set_wielded_item(') -or
    $manaMartialSection0140.Contains('.obtain(')){
     throw 'Mana Hand martial-arts parity must not physically wield or move the virtual weapon.'
+}
+$requirementsHotStart0140=$manaMartialSection0140.IndexOf('$requirementsNew0140ma = @''')
+$requirementsHotEnd0140=$manaMartialSection0140.IndexOf("'@",$requirementsHotStart0140)
+if($requirementsHotStart0140 -lt 0 -or $requirementsHotEnd0140 -le $requirementsHotStart0140){
+    throw 'Mana Hand martial-arts hot-path contract boundary missing.'
+}
+$requirementsHot0140=$manaMartialSection0140.Substring($requirementsHotStart0140,$requirementsHotEnd0140-$requirementsHotStart0140)
+if($requirementsHot0140.Contains('ncmm_primary_mana_hand_martial_weapon') -or
+   $requirementsHot0140.Contains('virtual_item_for_slot') -or
+   $requirementsHot0140.Contains('runtime_hook_modifier')){
+    throw 'Mana Hand martial-art requirements regressed to inventory-scanning slot resolution.'
 }
 $manaSmashStart0140=$payload.IndexOf('function Apply-SurvivorManaHandSmash0140',$manaReachStart0140)
 if($manaSmashStart0140 -le $manaReachStart0140){throw 'Primary Mana Hand smash transform boundary missing.'}

@@ -86,8 +86,8 @@
     },
     {
       "path": "ci\\Test-SurvivorPayloadContracts.ps1",
-      "sha256": "3c00df6c76dbc19ebea6a540fddf2ceec8f400f30fa34657218a6de415250140",
-      "bytes": 60299
+      "sha256": "33e96719e461bba8ae3e2402b9906d9a7383761a6e92f71d4c34f5be7a642497",
+      "bytes": 61256
     },
     {
       "path": "ci\\Watch-CDDAExperimental.ps1",
@@ -331,8 +331,8 @@
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-      "sha256": "41b8922d313a7f81e4ed9ae2cd9dd4b0ace00e044ad78188a4a1ed97ea527751",
-      "bytes": 2525781
+      "sha256": "08cf2dba1494ce5b27fece0b134ca8ae7d73f6e75898dcb69a5c5b4afdc8a1ba",
+      "bytes": 2527470
     },
     {
       "path": "pipeline\\pipeline.manifest.json",
