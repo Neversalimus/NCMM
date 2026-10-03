@@ -573,7 +573,14 @@ foreach($needle0140 in @(
     'ncmm_mana_fire_candidates',
     'Fire which Mana Hand weapon?',
     'aim_activity_actor::use_item_location( ncmm_selected_gun )',
-    'Apply-SurvivorManaHandFireAction0140 $CddaRoot'
+    'Apply-SurvivorManaHandFireAction0140 $CddaRoot',
+    'function Apply-SurvivorManaHandGunControls0140',
+    'ncmm_select_mana_hand_gun_control',
+    'Reload which Mana Hand weapon?',
+    'Burst-fire which Mana Hand weapon?',
+    'Change firing mode on which Mana Hand weapon?',
+    'Set default ammo for which Mana Hand weapon?',
+    'Apply-SurvivorManaHandGunControls0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
@@ -809,8 +816,9 @@ if($manaRasSection0140.Contains('set_wielded_item(') -or
     throw 'Mana Hand reload-and-shoot support must not move the real gun into Character::weapon.'
 }
 
-$manaFireEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaFireStart0140)
-if($manaFireEnd0140 -le $manaFireStart0140){throw 'Mana Hand FIRE action transform end missing.'}
+$manaGunControlsStart0140=$payload.IndexOf('function Apply-SurvivorManaHandGunControls0140',$manaFireStart0140)
+if($manaGunControlsStart0140 -le $manaFireStart0140){throw 'Mana Hand standard gun-control transform boundary missing.'}
+$manaFireEnd0140=$manaGunControlsStart0140
 $manaFireSection0140=$payload.Substring($manaFireStart0140,$manaFireEnd0140-$manaFireStart0140)
 foreach($fireNeedle0140 in @(
     'const bool ncmm_physical_ranged_ready =',
@@ -830,6 +838,34 @@ if($manaFireSection0140.Contains('set_wielded_item(') -or
    $manaFireSection0140.Contains('u.wield(') -or
    $manaFireSection0140.Contains('ncmm_selected_gun.obtain(')){
     throw 'Mana Hand FIRE action must keep the real gun in its vanilla item_location.'
+}
+
+$manaGunControlsEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaGunControlsStart0140)
+if($manaGunControlsEnd0140 -le $manaGunControlsStart0140){throw 'Mana Hand standard gun-control transform end missing.'}
+$manaGunControlsSection0140=$payload.Substring($manaGunControlsStart0140,$manaGunControlsEnd0140-$manaGunControlsStart0140)
+foreach($controlNeedle0140 in @(
+    'ncmm_select_mana_hand_gun_control',
+    '"survivor_progression", "mana_hands_34"',
+    '"survivor_progression", "mana_hand_3"',
+    '"survivor_progression", "mana_hand_4"',
+    'Reload which Mana Hand weapon?',
+    'reload( ncmm_reload_gun, false, false );',
+    'reload( ncmm_reload_gun, false );',
+    'Burst-fire which Mana Hand weapon?',
+    'aim_activity_actor::use_item_location( ncmm_burst_gun )',
+    'Change firing mode on which Mana Hand weapon?',
+    'gun_cycle_mode();',
+    'Set default ammo for which Mana Hand weapon?',
+    'player_character.select_ammo( *ammo_weapon, false )'
+)){
+    if(-not $manaGunControlsSection0140.Contains($controlNeedle0140)){
+        throw ('Mana Hand standard gun-control regression contract missing: '+$controlNeedle0140)
+    }
+}
+if($manaGunControlsSection0140.Contains('set_wielded_item(') -or
+   $manaGunControlsSection0140.Contains('u.wield(') -or
+   $manaGunControlsSection0140.Contains('obtain( ncmm_')){
+    throw 'Mana Hand standard gun controls must keep the real gun in its vanilla item_location.'
 }
 
 $pairPickerStart0140=$survivorVirtual0140.IndexOf('Choose two-handed item for Mana Hands III+IV')
