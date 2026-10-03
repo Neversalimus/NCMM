@@ -140,6 +140,7 @@ thread_local std::string runtime_source_mod_context_v2;
 thread_local const Character *virtual_melee_context_owner = nullptr;
 thread_local item *virtual_melee_context_weapon = nullptr;
 thread_local bool virtual_melee_context_running = false;
+thread_local bool virtual_melee_context_suppress_martial_arts = true;
 bool api_v2_world_announced = false;
 
 void erase_module_modifiers( const std::string &module_id )
@@ -962,6 +963,7 @@ int character_state_set_i64( const char *module_id, const char *key, int64_t val
 
 constexpr const char *virtual_item_marker_key = "ncmm_virtual_slot";
 constexpr const char *virtual_item_secondary_melee_key = "ncmm_virtual_secondary_melee";
+constexpr const char *virtual_item_primary_melee_key = "ncmm_virtual_primary_melee";
 
 bool safe_virtual_slot_id( const char *slot_id )
 {
@@ -1132,6 +1134,7 @@ item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id
             if( duplicate != uid_match ) {
                 duplicate->erase_var( virtual_item_marker_key );
                 duplicate->erase_var( virtual_item_secondary_melee_key );
+            duplicate->erase_var( virtual_item_primary_melee_key );
             }
         }
         return uid_match;
@@ -1154,6 +1157,7 @@ item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id
         for( item *duplicate : marker_matches ) {
             duplicate->erase_var( virtual_item_marker_key );
             duplicate->erase_var( virtual_item_secondary_melee_key );
+            duplicate->erase_var( virtual_item_primary_melee_key );
         }
     }
     if( wanted_uid != 0 || !marker_matches.empty() ) {
@@ -1176,6 +1180,7 @@ void virtual_item_clear_internal( const char *module_id, const char *slot_id )
             candidate->get_var( virtual_item_marker_key, "" ) == wanted_marker ) {
             candidate->erase_var( virtual_item_marker_key );
             candidate->erase_var( virtual_item_secondary_melee_key );
+            candidate->erase_var( virtual_item_primary_melee_key );
         }
     }
     virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
@@ -3814,6 +3819,7 @@ bool release_virtual_item( item &it )
     if( separator == std::string::npos || separator == 0 ||
         separator + 1 >= marker.size() ) {
         it.erase_var( virtual_item_secondary_melee_key );
+        it.erase_var( virtual_item_primary_melee_key );
         return false;
     }
 
@@ -3823,6 +3829,7 @@ bool release_virtual_item( item &it )
         !safe_virtual_slot_id( slot_id.c_str() ) ) {
         it.erase_var( virtual_item_marker_key );
         it.erase_var( virtual_item_secondary_melee_key );
+        it.erase_var( virtual_item_primary_melee_key );
         return false;
     }
 
@@ -3859,13 +3866,15 @@ bool is_virtual_item( const item &it )
     return virtual_item_for_slot_internal( module_id.c_str(), slot_id.c_str() ) == &it;
 }
 
-bool virtual_melee_context_begin( Character &who, item &weapon )
+bool virtual_melee_context_begin( Character &who, item &weapon,
+                                 bool suppress_martial_arts )
 {
     if( virtual_melee_context_running ) {
         return false;
     }
     virtual_melee_context_owner = &who;
     virtual_melee_context_weapon = &weapon;
+    virtual_melee_context_suppress_martial_arts = suppress_martial_arts;
     virtual_melee_context_running = true;
     return true;
 }
@@ -3877,12 +3886,19 @@ void virtual_melee_context_end( Character &who )
     }
     virtual_melee_context_weapon = nullptr;
     virtual_melee_context_owner = nullptr;
+    virtual_melee_context_suppress_martial_arts = true;
     virtual_melee_context_running = false;
 }
 
 bool virtual_melee_context_active( const Character &who )
 {
     return virtual_melee_context_running && virtual_melee_context_owner == &who;
+}
+
+bool virtual_melee_context_suppresses_martial_arts( const Character &who )
+{
+    return virtual_melee_context_active( who ) &&
+           virtual_melee_context_suppress_martial_arts;
 }
 
 item *virtual_melee_context_item( const Character &who )
@@ -3902,13 +3918,45 @@ bool virtual_item_secondary_melee_enabled( const item &it )
            it.get_var( virtual_item_secondary_melee_key, "" ) == "1";
 }
 
+bool virtual_item_primary_melee_enabled( const item &it )
+{
+    return is_virtual_item( it ) &&
+           it.get_var( virtual_item_primary_melee_key, "" ) == "1";
+}
+
+bool virtual_item_set_primary_melee( item &it, bool enabled )
+{
+    if( !is_virtual_item( it ) ) {
+        it.erase_var( virtual_item_primary_melee_key );
+        return false;
+    }
+    if( enabled && ( !it.is_melee() || it.is_gun() ) ) {
+        return false;
+    }
+    if( enabled ) {
+        for( item_location loc : get_avatar().all_items_loc() ) {
+            item *candidate = loc.get_item();
+            if( candidate != nullptr && candidate != &it ) {
+                candidate->erase_var( virtual_item_primary_melee_key );
+            }
+        }
+        it.erase_var( virtual_item_secondary_melee_key );
+        it.set_var( virtual_item_primary_melee_key, "1" );
+    } else {
+        it.erase_var( virtual_item_primary_melee_key );
+    }
+    return true;
+}
+
 bool virtual_item_set_secondary_melee( item &it, bool enabled )
 {
     if( !is_virtual_item( it ) ) {
         it.erase_var( virtual_item_secondary_melee_key );
+        it.erase_var( virtual_item_primary_melee_key );
         return false;
     }
     if( enabled ) {
+        it.erase_var( virtual_item_primary_melee_key );
         it.set_var( virtual_item_secondary_melee_key, "1" );
     } else {
         it.erase_var( virtual_item_secondary_melee_key );
