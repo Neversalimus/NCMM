@@ -441,7 +441,9 @@
           "path": "src/ranged.cpp",
           "required": [
             "bool gunmode_checks_common( avatar &you, const map &m, std::vector<std::string> &messages,",
-            "if( gmode->has_flag( flag_FIRE_TWOHAND ) && ( !you.has_two_arms_lifting() ||"
+            "if( gmode->has_flag( flag_FIRE_TWOHAND ) && ( !you.has_two_arms_lifting() ||",
+            "bool target_ui::action_switch_ammo()",
+            "item_location gun = you->get_wielded_item();"
           ]
         }
       ]
