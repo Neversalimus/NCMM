@@ -633,7 +633,10 @@ foreach($needle0140 in @(
     'function Apply-SurvivorManaHandThrow0140',
     'ncmm_is_mana_hand_throw_item',
     'ncmm_select_mana_hand_throw_item',
-    'Apply-SurvivorManaHandThrow0140 $CddaRoot'
+    'Apply-SurvivorManaHandThrow0140 $CddaRoot',
+    'function Apply-SurvivorManaHandAutoMining0140',
+    'ncmm_mana_hand_auto_mining_tool',
+    'Apply-SurvivorManaHandAutoMining0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
@@ -1074,7 +1077,7 @@ if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandAutoattack0140 -Co
 
 
 $manaThrowStart0140=$payload.IndexOf('function Apply-SurvivorManaHandThrow0140',$manaAutoStart0140)
-$manaThrowEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaThrowStart0140)
+$manaThrowEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandAutoMining0140',$manaThrowStart0140)
 if($manaThrowStart0140 -le $manaAutoStart0140 -or $manaThrowEnd0140 -le $manaThrowStart0140){throw 'Mana Hand throw transform boundary missing.'}
 $manaThrowSection0140=$payload.Substring($manaThrowStart0140,$manaThrowEnd0140-$manaThrowStart0140)
 foreach($throwNeedle0140 in @(
@@ -1096,6 +1099,31 @@ if($manaThrowSection0140.Contains('set_wielded_item(') -or
     throw 'Mana Hand throw must not move the virtual item into Character::weapon.'
 }
 if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandThrow0140 -CommandType Function).Definition')){throw 'Mana Hand throw transform missing from mechanics patch revision.'}
+
+
+$manaMineStart0140=$payload.IndexOf('function Apply-SurvivorManaHandAutoMining0140',$manaThrowStart0140)
+$manaMineEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaMineStart0140)
+if($manaMineStart0140 -le $manaThrowStart0140 -or $manaMineEnd0140 -le $manaMineStart0140){throw 'Mana Hand auto-mining transform boundary missing.'}
+$manaMineSection0140=$payload.Substring($manaMineStart0140,$manaMineEnd0140-$manaMineStart0140)
+foreach($mineNeedle0140 in @(
+    'ncmm_mana_hand_auto_mining_tool',
+    '"magic.virtual_hand_count", nullptr, "magiclysm"',
+    '"survivor_progression", slot',
+    '"mana_hands_34"',
+    '"mana_hand_3"',
+    '"mana_hand_4"',
+    'candidate->has_flag( flag_DIG_TOOL )',
+    'candidate->type->can_use( "PICKAXE" )',
+    'item_location weapon = you.get_wielded_item();',
+    'if( !weapon ) {',
+    'you.invoke_item( &*weapon, "PICKAXE", dest_loc );'
+)){if(-not $manaMineSection0140.Contains($mineNeedle0140)){throw ('Mana Hand auto-mining regression contract missing: '+$mineNeedle0140)}}
+if($manaMineSection0140.Contains('set_wielded_item(') -or
+   $manaMineSection0140.Contains('you.wield(') -or
+   $manaMineSection0140.Contains('.obtain(')){
+    throw 'Mana Hand auto-mining must not move the real tool into Character::weapon.'
+}
+if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandAutoMining0140 -CommandType Function).Definition')){throw 'Mana Hand auto-mining transform missing from mechanics patch revision.'}
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate
 # is intentionally half of the original 1 XP / 150 movement events.
