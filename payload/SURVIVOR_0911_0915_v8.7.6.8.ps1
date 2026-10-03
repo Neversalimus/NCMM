@@ -20182,7 +20182,32 @@ function Apply-SurvivorVirtualItemLifecycle0140([string]$Root) {
             container->on_contents_changed();
         }
 '@
-        $itemLocation0140life = Replace-TextBlock $itemLocation0140life $containerOld0140life $containerNew0140life 'Mana Hand lifecycle contained-item removal'
+        $container1831Old0140life = @'
+        void remove_item() override {
+            const bool container_empty = container.remove_items_with( [&]( const item & filter ) ->bool {return &filter == &*target(); },
+                                         INT_MAX ).empty();
+            if( container_empty ) {
+                debugmsg( "improper item_loction parent when attempting to remove item." );
+            }
+        }
+'@
+        $container1831New0140life = @'
+        void remove_item() override {
+            ncmm::release_virtual_item( *target() );
+            const bool container_empty = container.remove_items_with( [&]( const item & filter ) ->bool {return &filter == &*target(); },
+                                         INT_MAX ).empty();
+            if( container_empty ) {
+                debugmsg( "improper item_loction parent when attempting to remove item." );
+            }
+        }
+'@
+        if($itemLocation0140life.Contains($containerOld0140life)) {
+            $itemLocation0140life = Replace-TextBlock $itemLocation0140life $containerOld0140life $containerNew0140life 'Mana Hand lifecycle contained-item removal legacy'
+        } elseif($itemLocation0140life.Contains($container1831Old0140life)) {
+            $itemLocation0140life = Replace-TextBlock $itemLocation0140life $container1831Old0140life $container1831New0140life 'Mana Hand lifecycle contained-item removal 1831'
+        } else {
+            throw 'Mana Hand lifecycle contained-item removal anchor missing for supported CDDA source.'
+        }
     }
 
     Write-Utf8NoBom $itemLocation0140lifePath $itemLocation0140life
@@ -20191,7 +20216,7 @@ function Apply-SurvivorVirtualItemLifecycle0140([string]$Root) {
         '#include "ncmm_loader.h"',
         'ncmm::release_virtual_item( *target() );',
         'who->remove_item( *what );',
-        'container->remove_item( *target() );'
+        'class item_location::impl::item_in_container'
     )) {
         if(-not $lifeOutput0140.Contains($needle0140life)) {
             throw ('Survivor 0.14.0 Mana Hand lifecycle output missing: '+$needle0140life)
@@ -22333,6 +22358,480 @@ item *ncmm_primary_mana_hand_melee_weapon( Character &who )
 
 Apply-SurvivorManaHandPrimaryMelee0140 $CddaRoot
 
+
+function Apply-SurvivorManaHandReachMelee0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 primary Mana Hand reach-melee support..." -ForegroundColor Cyan
+    $src0140reach = Join-Path $Root 'src'
+    $handle0140reachPath = Join-Path $src0140reach 'handle_action.cpp'
+    $melee0140reachPath = Join-Path $src0140reach 'melee.cpp'
+    foreach($required0140reach in @($handle0140reachPath,$melee0140reachPath)) {
+        if(-not(Test-Path $required0140reach -PathType Leaf)) {
+            if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+                Write-Host "Survivor 0.14.0 reach-melee transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+                return
+            }
+            throw ('Primary Mana Hand reach-melee source missing: '+$required0140reach)
+        }
+    }
+
+    $handle0140reach = Normalize-Lf ([IO.File]::ReadAllText($handle0140reachPath))
+    if(-not $handle0140reach.Contains('ncmm_primary_mana_hand_reach_weapon')) {
+        $reachHelperOld0140 = @'
+// Perform a reach attack
+static void reach_attack( avatar &you )
+{
+    g->temp_exit_fullscreen();
+
+    target_handler::trajectory traj;
+    if( you.get_wielded_item() ) {
+        traj = target_handler::mode_reach( you, you.get_wielded_item() );
+    } else {
+        traj = target_handler::mode_unarmed_reach( you );
+    }
+
+    if( !traj.empty() ) {
+        you.reach_attack( traj.back() );
+    }
+    g->reenter_fullscreen();
+}
+'@
+        $reachHelperNew0140 = @'
+namespace
+{
+class ncmm_virtual_reach_scope
+{
+    public:
+        ncmm_virtual_reach_scope( avatar &who, item &weapon ) : who_( who ),
+            active_( ncmm::virtual_melee_context_begin( who, weapon, false ) )
+        {
+            if( active_ ) {
+                who_.recalculate_enchantment_cache();
+            }
+        }
+
+        ~ncmm_virtual_reach_scope()
+        {
+            if( active_ ) {
+                ncmm::virtual_melee_context_end( who_ );
+                who_.recalculate_enchantment_cache();
+            }
+        }
+
+        bool active() const {
+            return active_;
+        }
+
+    private:
+        avatar &who_;
+        bool active_;
+};
+
+item *ncmm_primary_mana_hand_reach_weapon( avatar &you )
+{
+    if( you.get_wielded_item() || you.is_mounted() ||
+        you.martial_arts_data->selected_force_unarmed() ) {
+        return nullptr;
+    }
+
+    const int hand_count = std::clamp( static_cast<int>(
+                                       ncmm::runtime_hook_modifier(
+                                           "magic.virtual_hand_count", nullptr, "magiclysm",
+                                           nullptr, nullptr ) ), 0, 2 );
+    if( hand_count >= 2 ) {
+        item *paired = ncmm::virtual_item_for_slot(
+                           "survivor_progression", "mana_hands_34" );
+        if( paired != nullptr &&
+            ncmm::virtual_item_primary_melee_enabled( *paired ) &&
+            paired->is_melee() && !paired->is_gun() &&
+            paired->is_two_handed( you ) ) {
+            return paired;
+        }
+    }
+
+    const char *slots[2] = { "mana_hand_3", "mana_hand_4" };
+    for( int i = 0; i < hand_count && i < 2; ++i ) {
+        item *candidate = ncmm::virtual_item_for_slot(
+                              "survivor_progression", slots[i] );
+        if( candidate != nullptr &&
+            ncmm::virtual_item_primary_melee_enabled( *candidate ) &&
+            candidate->is_melee() && !candidate->is_gun() &&
+            !candidate->is_two_handed( you ) ) {
+            return candidate;
+        }
+    }
+    return nullptr;
+}
+
+bool ncmm_primary_mana_hand_has_reach( avatar &you, item &weapon )
+{
+    ncmm_virtual_reach_scope scope( you, weapon );
+    return scope.active() && weapon.current_reach_range( you ).first > 1;
+}
+} // namespace
+
+// Perform a reach attack
+static void reach_attack( avatar &you )
+{
+    g->temp_exit_fullscreen();
+
+    target_handler::trajectory traj;
+    if( you.get_wielded_item() ) {
+        traj = target_handler::mode_reach( you, you.get_wielded_item() );
+    } else if( item *ncmm_reach_weapon = ncmm_primary_mana_hand_reach_weapon( you ) ) {
+        ncmm_virtual_reach_scope scope( you, *ncmm_reach_weapon );
+        if( scope.active() ) {
+            traj = target_handler::mode_reach(
+                       you, item_location( you, ncmm_reach_weapon ) );
+        }
+    } else {
+        traj = target_handler::mode_unarmed_reach( you );
+    }
+
+    if( !traj.empty() ) {
+        you.reach_attack( traj.back() );
+    }
+    g->reenter_fullscreen();
+}
+'@
+        $handle0140reach = Replace-TextBlock $handle0140reach $reachHelperOld0140 $reachHelperNew0140 'Mana Hand reach target selection'
+
+        $fireOld0140reach = @'
+    if( weapon && !weapon->is_gun() && weapon->current_reach_range( you ).first > 1 ) {
+        reach_attack( you );
+        return;
+    }
+    if( !weapon &&
+        static_cast<int>( you.calculate_by_enchantment( 1,
+                          enchant_vals::mod::MELEE_RANGE_MODIFIER ) ) > 1 ) {
+'@
+        $fireNew0140reach = @'
+    if( weapon && !weapon->is_gun() && weapon->current_reach_range( you ).first > 1 ) {
+        reach_attack( you );
+        return;
+    }
+    if( !weapon ) {
+        item *ncmm_reach_weapon = ncmm_primary_mana_hand_reach_weapon( you );
+        if( ncmm_reach_weapon != nullptr &&
+            ncmm_primary_mana_hand_has_reach( you, *ncmm_reach_weapon ) ) {
+            reach_attack( you );
+            return;
+        }
+    }
+    if( !weapon &&
+        static_cast<int>( you.calculate_by_enchantment( 1,
+                          enchant_vals::mod::MELEE_RANGE_MODIFIER ) ) > 1 ) {
+'@
+        $fireCount0140reach = ([regex]::Matches($handle0140reach,[regex]::Escape($fireOld0140reach))).Count
+        if($fireCount0140reach -ne 1) {
+            throw ('Unexpected Mana Hand reach FIRE anchor count: '+$fireCount0140reach)
+        }
+        $handle0140reach = Replace-TextBlock $handle0140reach $fireOld0140reach $fireNew0140reach 'Mana Hand reach FIRE dispatch'
+    }
+    Write-Utf8NoBom $handle0140reachPath $handle0140reach
+
+    $melee0140reach = Normalize-Lf ([IO.File]::ReadAllText($melee0140reachPath))
+    if(-not $melee0140reach.Contains('ncmm_primary_reach_weapon')) {
+        $canReachOld0140 = @'
+bool Character::can_reach_attack( const Creature &target ) const
+{
+    if( pos_bub().z() == target.pos_bub().z() ) {
+        return true;
+    }
+    if( get_map().on_matching_stairs( pos_bub(), target.pos_bub() ) ) {
+        return true;
+    }
+
+    item_location maybe_weapon = get_wielded_item();
+    int vert_reach = 0;
+    if( maybe_weapon ) {
+        vert_reach = maybe_weapon->current_reach_range( *this ).second;
+    } else {
+        vert_reach = null_item_reference().current_reach_range( *this ).second;
+    }
+
+    if( std::abs( pos_bub().z() - target.pos_bub().z() ) > vert_reach ) {
+        return false;
+    }
+    return true;
+}
+'@
+        $canReachNew0140 = @'
+bool Character::can_reach_attack( const Creature &target ) const
+{
+    if( pos_bub().z() == target.pos_bub().z() ) {
+        return true;
+    }
+    if( get_map().on_matching_stairs( pos_bub(), target.pos_bub() ) ) {
+        return true;
+    }
+
+    item_location maybe_weapon =
+        ncmm::virtual_melee_context_active( *this ) ? used_weapon() : get_wielded_item();
+    if( !maybe_weapon && is_avatar() &&
+        !martial_arts_data->selected_force_unarmed() ) {
+        Character &mutable_self = *const_cast<Character *>( this );
+        item *ncmm_primary_reach_weapon =
+            ncmm_primary_mana_hand_melee_weapon( mutable_self );
+        if( ncmm_primary_reach_weapon != nullptr ) {
+            maybe_weapon = item_location( mutable_self, ncmm_primary_reach_weapon );
+        }
+    }
+
+    int vert_reach = 0;
+    if( maybe_weapon ) {
+        vert_reach = maybe_weapon->current_reach_range( *this ).second;
+    } else {
+        vert_reach = null_item_reference().current_reach_range( *this ).second;
+    }
+
+    if( std::abs( pos_bub().z() - target.pos_bub().z() ) > vert_reach ) {
+        return false;
+    }
+    return true;
+}
+'@
+        $canReachCount0140 = ([regex]::Matches($melee0140reach,[regex]::Escape($canReachOld0140))).Count
+        if($canReachCount0140 -ne 1) {
+            throw ('Unexpected Mana Hand can_reach_attack anchor count: '+$canReachCount0140)
+        }
+        $melee0140reach = Replace-TextBlock $melee0140reach $canReachOld0140 $canReachNew0140 'Mana Hand vertical reach selection'
+
+        $reachAttackOld0140 = @'
+void Character::reach_attack( const tripoint_bub_ms &p, int forced_movecost )
+{
+    static const matec_id no_technique_id( "" );
+    matec_id force_technique = no_technique_id;
+    /** @EFFECT_MELEE >5 allows WHIP_DISARM technique */
+    if( weapon.has_flag( flag_WHIP ) && ( get_skill_level( skill_melee ) > 5 ) && one_in( 3 ) ) {
+        force_technique = WHIP_DISARM;
+    }
+
+    // Fighting is hard work
+    set_activity_level( EXTRA_EXERCISE );
+
+    creature_tracker &creatures = get_creature_tracker();
+    Creature *critter = creatures.creature_at( p );
+    // Original target size, used when there are monsters in front of our target
+    const int target_size = critter != nullptr ? static_cast<int>( critter->get_size() ) : 2;
+    // Reset last target pos
+    last_target_pos = std::nullopt;
+    // Max out recoil
+    recoil = MAX_RECOIL;
+
+    int move_cost = attack_speed( weapon );
+    float skill = std::min( 10.0f, get_skill_level( skill_melee ) );
+    int t = 0;
+    map &here = get_map();
+    std::vector<tripoint_bub_ms> path = line_to( pos_bub(), p, t, 0 );
+    path.pop_back(); // Last point is our critter
+    for( const tripoint_bub_ms &path_point : path ) {
+        // Possibly hit some unintended target instead
+        Creature *inter = creatures.creature_at( path_point );
+        /** @EFFECT_MELEE decreases chance of hitting intervening target on reach attack */
+        if( inter != nullptr &&
+            !x_in_y( ( target_size * target_size + 1 ) * skill,
+                     ( inter->get_size() * inter->get_size() + 1 ) * 10 ) ) {
+            // Even if we miss here, low roll means weapon is pushed away or something like that
+            if( inter->has_effect( effect_pet ) || ( inter->is_npc() &&
+                    inter->as_npc()->is_friendly( get_player_character() ) ) ) {
+                if( query_yn( _( "Your attack may cause accidental injury, continue?" ) ) ) {
+                    critter = inter;
+                    break;
+                } else {
+                    return;
+                }
+            }
+            critter = inter;
+            break;
+        } else if( here.impassable( path_point ) &&
+                   // Fences etc. Spears can stab through those
+                   !( weapon.has_flag( flag_SPEAR ) &&
+                      here.has_flag( ter_furn_flag::TFLAG_THIN_OBSTACLE, path_point ) ) ) {
+            /** @ARM_STR increases bash effects when reach attacking past something */
+            here.bash( path_point, get_arm_str() + weapon.damage_melee( damage_bash ) );
+            handle_melee_wear( get_wielded_item() );
+            reduce_moves_from_attack( forced_movecost, move_cost );
+            return;
+        }
+    }
+
+    if( critter == nullptr ) {
+        add_msg_if_player( _( "You swing at the air." ) );
+
+        const ma_technique miss_recovery = martial_arts_data->get_miss_recovery( *this );
+
+        if( miss_recovery.id != tec_none ) {
+            move_cost /= 3; // "Probing" is faster than a regular miss
+            // Communicate this with a different message?
+        }
+
+        const int total_stamina = enchantment_cache->modify_value(
+                                      enchant_vals::mod::MELEE_STAMINA_CONSUMPTION, get_total_melee_stamina_cost() );
+        burn_energy_arms( std::min( -50, total_stamina ) );
+
+        reduce_moves_from_attack( forced_movecost, move_cost );
+        return;
+    }
+
+    reach_attacking = true;
+    melee_attack_abstract( *critter, true, force_technique, false, forced_movecost );
+    reach_attacking = false;
+}
+'@
+        $reachAttackNew0140 = @'
+void Character::reach_attack( const tripoint_bub_ms &p, int forced_movecost )
+{
+    item *ncmm_primary_reach_weapon = nullptr;
+    if( is_avatar() && !get_wielded_item() &&
+        !martial_arts_data->selected_force_unarmed() ) {
+        ncmm_primary_reach_weapon = ncmm_primary_mana_hand_melee_weapon( *this );
+    }
+
+    std::unique_ptr<ncmm_virtual_melee_scope> ncmm_reach_scope;
+    int ncmm_reach_mana_cost = 0;
+    if( ncmm_primary_reach_weapon != nullptr ) {
+        ncmm_reach_scope = std::make_unique<ncmm_virtual_melee_scope>(
+                               *this, *ncmm_primary_reach_weapon, false );
+        if( !ncmm_reach_scope->active() ) {
+            return;
+        }
+        ncmm_reach_mana_cost =
+            ncmm_secondary_melee_mana_cost( *this, *ncmm_primary_reach_weapon );
+        if( magic->available_mana() < ncmm_reach_mana_cost ) {
+            add_msg_if_player( m_info, "%s", ncmm::localized_text(
+                                   "Not enough mana for a primary Mana Hand reach attack.",
+                                   "Недостаточно маны для дальней атаки основным оружием руки маны." ).c_str() );
+            return;
+        }
+    }
+
+    item_location reach_weapon = used_weapon();
+    item &reach_item = reach_weapon ? *reach_weapon : null_item_reference();
+
+    static const matec_id no_technique_id( "" );
+    matec_id force_technique = no_technique_id;
+    /** @EFFECT_MELEE >5 allows WHIP_DISARM technique */
+    if( reach_item.has_flag( flag_WHIP ) && ( get_skill_level( skill_melee ) > 5 ) && one_in( 3 ) ) {
+        force_technique = WHIP_DISARM;
+    }
+
+    // Fighting is hard work
+    set_activity_level( EXTRA_EXERCISE );
+
+    creature_tracker &creatures = get_creature_tracker();
+    Creature *critter = creatures.creature_at( p );
+    // Original target size, used when there are monsters in front of our target
+    const int target_size = critter != nullptr ? static_cast<int>( critter->get_size() ) : 2;
+    // Reset last target pos
+    last_target_pos = std::nullopt;
+    // Max out recoil
+    recoil = MAX_RECOIL;
+
+    int move_cost = attack_speed( reach_item );
+    float skill = std::min( 10.0f, get_skill_level( skill_melee ) );
+    int t = 0;
+    map &here = get_map();
+    std::vector<tripoint_bub_ms> path = line_to( pos_bub(), p, t, 0 );
+    path.pop_back(); // Last point is our critter
+    for( const tripoint_bub_ms &path_point : path ) {
+        // Possibly hit some unintended target instead
+        Creature *inter = creatures.creature_at( path_point );
+        /** @EFFECT_MELEE decreases chance of hitting intervening target on reach attack */
+        if( inter != nullptr &&
+            !x_in_y( ( target_size * target_size + 1 ) * skill,
+                     ( inter->get_size() * inter->get_size() + 1 ) * 10 ) ) {
+            // Even if we miss here, low roll means weapon is pushed away or something like that
+            if( inter->has_effect( effect_pet ) || ( inter->is_npc() &&
+                    inter->as_npc()->is_friendly( get_player_character() ) ) ) {
+                if( query_yn( _( "Your attack may cause accidental injury, continue?" ) ) ) {
+                    critter = inter;
+                    break;
+                } else {
+                    return;
+                }
+            }
+            critter = inter;
+            break;
+        } else if( here.impassable( path_point ) &&
+                   // Fences etc. Spears can stab through those
+                   !( reach_item.has_flag( flag_SPEAR ) &&
+                      here.has_flag( ter_furn_flag::TFLAG_THIN_OBSTACLE, path_point ) ) ) {
+            /** @ARM_STR increases bash effects when reach attacking past something */
+            here.bash( path_point, get_arm_str() + reach_item.damage_melee( damage_bash ) );
+            handle_melee_wear( reach_weapon );
+            reduce_moves_from_attack( forced_movecost, move_cost );
+            if( ncmm_primary_reach_weapon != nullptr ) {
+                magic->mod_mana( *this, -ncmm_reach_mana_cost );
+            }
+            return;
+        }
+    }
+
+    if( critter == nullptr ) {
+        add_msg_if_player( _( "You swing at the air." ) );
+
+        const ma_technique miss_recovery = martial_arts_data->get_miss_recovery( *this );
+
+        if( miss_recovery.id != tec_none ) {
+            move_cost /= 3; // "Probing" is faster than a regular miss
+            // Communicate this with a different message?
+        }
+
+        const int total_stamina = enchantment_cache->modify_value(
+                                      enchant_vals::mod::MELEE_STAMINA_CONSUMPTION,
+                                      get_total_melee_stamina_cost( &reach_item ) );
+        burn_energy_arms( std::min( -50, total_stamina ) );
+
+        reduce_moves_from_attack( forced_movecost, move_cost );
+        if( ncmm_primary_reach_weapon != nullptr ) {
+            magic->mod_mana( *this, -ncmm_reach_mana_cost );
+        }
+        return;
+    }
+
+    reach_attacking = true;
+    const bool ncmm_reach_attacked =
+        melee_attack_abstract( *critter, true, force_technique, false, forced_movecost );
+    reach_attacking = false;
+    if( ncmm_reach_attacked && ncmm_primary_reach_weapon != nullptr ) {
+        magic->mod_mana( *this, -ncmm_reach_mana_cost );
+    }
+}
+'@
+        $reachAttackCount0140 = ([regex]::Matches($melee0140reach,[regex]::Escape($reachAttackOld0140))).Count
+        if($reachAttackCount0140 -ne 1) {
+            throw ('Unexpected Mana Hand reach_attack anchor count: '+$reachAttackCount0140)
+        }
+        $melee0140reach = Replace-TextBlock $melee0140reach $reachAttackOld0140 $reachAttackNew0140 'Mana Hand primary reach attack pipeline'
+    }
+    Write-Utf8NoBom $melee0140reachPath $melee0140reach
+
+    $handleOut0140reach = [IO.File]::ReadAllText($handle0140reachPath)
+    $meleeOut0140reach = [IO.File]::ReadAllText($melee0140reachPath)
+    foreach($needle0140reach in @(
+        'ncmm_primary_mana_hand_reach_weapon',
+        'ncmm_virtual_reach_scope',
+        'ncmm_primary_mana_hand_has_reach',
+        'target_handler::mode_reach(',
+        'item_location( you, ncmm_reach_weapon )',
+        'item *ncmm_primary_reach_weapon = nullptr;',
+        'ncmm_primary_mana_hand_melee_weapon( *this )',
+        'std::make_unique<ncmm_virtual_melee_scope>',
+        'item_location reach_weapon = used_weapon();',
+        'get_total_melee_stamina_cost( &reach_item )',
+        'Not enough mana for a primary Mana Hand reach attack.',
+        'magic->mod_mana( *this, -ncmm_reach_mana_cost )'
+    )) {
+        if(-not ($handleOut0140reach.Contains($needle0140reach) -or
+                 $meleeOut0140reach.Contains($needle0140reach))) {
+            throw ('Survivor 0.14.0 Mana Hand reach output missing: '+$needle0140reach)
+        }
+    }
+    Write-Host "Survivor 0.14.0 primary Mana Hand reach-melee support: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandReachMelee0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -22351,6 +22850,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandReloadAndShoot
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandFireAction0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandGunControls0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandPrimaryMelee0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandReachMelee0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
