@@ -295,7 +295,7 @@ const perk_def perks[] = {
     { "mg_archmage", branch_id::mastery, 8, 40, currency_id::major, "mg_efficient_theory", "mg_combat_weave", "Archmage", "Архимаг", "+0.75 Spellcraft, -5% failure, +8% potency, +8% spell XP.", "+0,75 Spellcraft, -5% провала, +8% мощности, +8% опыта заклинаний.", {{ { "mg_spellcraft_flat", 0.75 }, { "mg_fail_pct", -5 }, { "mg_spell_power_pct", 8 }, { "mg_spell_xp_pct", 8 } }}, 4, 0, perk_kind::effect },
     { "mg_mana_vampirism", branch_id::mastery, 9, 40, currency_id::perk, "mg_archmage", "", "Mana Vampirism", "Вампиризм маны", "Magiclysm: restore mana equal to 1% of actual melee damage dealt per rank (1-5%).", "Magiclysm: восстанавливает ману в размере 1% от фактически нанесённого урона в ближнем бою за ранг (1-5%).", {{ { "mg_melee_mana_vamp_pct", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "mg_mana_hand_3", branch_id::mastery, 9, 42, currency_id::perk, "mg_archmage", "", "Third Mana Hand", "Третья рука маны", "Magiclysm: manifest one unencumbered virtual hand. It can hold one real carried item without moving or duplicating it; shields can block and a magic focus counts as held. An empty mana hand can perform somatic casting while physical hands are occupied.", "Magiclysm: создаёт одну свободную от стеснения виртуальную руку. Она может удерживать один реальный предмет персонажа без перемещения и копирования; щит может блокировать, а магический фокус считается удерживаемым. Пустая рука маны может выполнять соматику, когда физические руки заняты.", {{ { "mg_virtual_hand_count", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "mg_mana_hand_4", branch_id::mastery, 10, 48, currency_id::perk, "mg_mana_hand_3", "", "Fourth Mana Hand", "Четвёртая рука маны", "Magiclysm: manifest a second unencumbered virtual hand with its own logical item slot. Together Mana Hands III+IV can also hold one real non-firearm two-handed item as a paired grip. Occupied hands are not free for somatic casting unless they hold a magic focus.", "Magiclysm: создаёт вторую свободную от стеснения виртуальную руку со своим логическим слотом. Вместе руки маны III+IV также могут удерживать один реальный двуручный предмет, кроме огнестрела, парным хватом. Занятые руки не считаются свободными для соматики, если только не удерживают магический фокус.", {{ { "mg_virtual_hand_count", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "mg_mana_hand_4", branch_id::mastery, 10, 48, currency_id::perk, "mg_mana_hand_3", "", "Fourth Mana Hand", "Четвёртая рука маны", "Magiclysm: manifest a second unencumbered virtual hand with its own logical item slot. Together Mana Hands III+IV can hold one real item that requires two-hand use, including supported firearms, as a paired grip. Occupied hands are not free for somatic casting unless they hold a magic focus.", "Magiclysm: создаёт вторую свободную от стеснения виртуальную руку со своим логическим слотом. Вместе руки маны III+IV могут удерживать парным хватом один реальный предмет, требующий двух рук, включая поддерживаемое огнестрельное оружие. Занятые руки не считаются свободными для соматики, если только не удерживают магический фокус.", {{ { "mg_virtual_hand_count", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
 
     { "mom_mental_focus", branch_id::mastery, 1, 2, currency_id::perk, "", "", "Psionic Focus", "Псионический фокус", "Mind Over Matter powers: +0.5 effective Metaphysics while channeling.", "Силы Mind Over Matter: +0,5 к эффективной Metaphysics при ченнелинге.", {{ { "mom_metaphysics_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "mom_still_mind", branch_id::mastery, 2, 5, currency_id::perk, "mom_mental_focus", "", "Still Mind", "Спокойный разум", "Mind Over Matter: power failure chance -6%.", "Mind Over Matter: шанс провала псионических сил -6%.", {{ { "mom_fail_pct", -6 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
@@ -2400,8 +2400,8 @@ void show_perk_detail( const perk_def &perk )
             if( !paired.empty() ) {
                 title += "\n" + tr( "Paired virtual grip III+IV: ", "Парный виртуальный хват III+IV: " ) + paired;
                 title += "\n" + tr(
-                             "Both Mana Hands are occupied by one real two-handed item. The item remains in its normal CDDA location.",
-                             "Обе руки маны заняты одним реальным двуручным предметом. Предмет остаётся в своём обычном месте CDDA." );
+                             "Both Mana Hands are occupied by one real item that requires paired two-hand use. The item remains in its normal CDDA location.",
+                             "Обе руки маны заняты одним реальным предметом, требующим парного двуручного хвата. Предмет остаётся в своём обычном месте CDDA." );
                 const bool secondary_controls = virtual_item_secondary_controls_available();
                 const bool secondary_enabled =
                     virtual_item_secondary_enabled_for_slot( mana_hand_pair_slot_id );
@@ -2462,8 +2462,8 @@ void show_perk_detail( const perk_def &perk )
                     !virtual_item_slot_occupied( "mana_hand_3" ) &&
                     !virtual_item_slot_occupied( "mana_hand_4" );
                 std::string equip_pair = tr(
-                    "Equip two-handed item with Mana Hands III+IV",
-                    "Экипировать двуручный предмет руками маны III+IV" );
+                    "Equip paired-use item with Mana Hands III+IV",
+                    "Экипировать предмет для парного хвата руками маны III+IV" );
 
                 int choice = -1;
                 if( fourth_hand && both_single_slots_empty ) {
@@ -2478,16 +2478,15 @@ void show_perk_detail( const perk_def &perk )
 
                 if( choice == 1 && fourth_hand && both_single_slots_empty ) {
                     const std::string picker_title =
-                        tr( "Choose two-handed item for Mana Hands III+IV",
-                            "Выберите двуручный предмет для рук маны III+IV" );
+                        tr( "Choose item requiring both Mana Hands III+IV",
+                            "Выберите предмет, требующий обе руки маны III+IV" );
                     if( host2->virtual_item_choose ) {
                         host2->virtual_item_choose(
                             module_id, mana_hand_pair_slot_id, picker_title.c_str(),
                             NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
                             NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 |
                             NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
-                            NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2 |
-                            NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2 );
+                            NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HAND_USE_V2 );
                     }
                     continue;
                 }
