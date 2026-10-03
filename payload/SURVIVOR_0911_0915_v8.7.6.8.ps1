@@ -21571,6 +21571,78 @@ function Apply-SurvivorManaHandPairedRanged0140([string]$Root) {
 
 Apply-SurvivorManaHandPairedRanged0140 $CddaRoot
 
+function Apply-SurvivorManaHandReloadAndShoot0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 Mana Hand reload-and-shoot support..." -ForegroundColor Cyan
+    $ranged0140rasPath = Join-Path (Join-Path $Root 'src') 'ranged.cpp'
+    if(-not(Test-Path $ranged0140rasPath -PathType Leaf)) {
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+            Write-Host "Survivor 0.14.0 reload-and-shoot transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+            return
+        }
+        throw ('Mana Hand reload-and-shoot source missing: '+$ranged0140rasPath)
+    }
+
+    $ranged0140ras = Normalize-Lf ([IO.File]::ReadAllText($ranged0140rasPath))
+
+    if(-not $ranged0140ras.Contains('ncmm_mana_hand_ras_switch')) {
+        $switchOld0140ras = @'
+    } else if( mode == TargetMode::Fire && relevant->has_flag( flag_RELOAD_AND_SHOOT ) ) {
+        item_location gun = you->get_wielded_item();
+        item::reload_option opt = you->select_ammo( gun );
+        if( opt ) {
+            activity->reload_loc = opt.ammo;
+            update_ammo_range_from_gun_mode();
+        }
+'@
+        $switchNew0140ras = @'
+    } else if( mode == TargetMode::Fire && relevant->has_flag( flag_RELOAD_AND_SHOOT ) ) {
+        // ncmm_mana_hand_ras_switch: use the real aim-activity weapon instead of
+        // assuming every reload-and-shoot weapon is physically wielded.
+        item_location gun = activity != nullptr ? activity->get_weapon() : you->get_wielded_item();
+        if( !gun ) {
+            return false;
+        }
+        item::reload_option opt = you->select_ammo( gun );
+        if( opt ) {
+            activity->reload_loc = opt.ammo;
+            update_ammo_range_from_gun_mode();
+        }
+'@
+        $ranged0140ras = Replace-TextBlock $ranged0140ras $switchOld0140ras $switchNew0140ras 'Mana Hand reload-and-shoot ammo switch'
+    }
+
+    $unsupported0140ras = @'
+    if( ncmm_virtual_mana_gun_mode && gmode->has_flag( flag_RELOAD_AND_SHOOT ) ) {
+        messages.push_back( _( "Reload-and-shoot firing modes are not yet supported by Mana Hands." ) );
+        result = false;
+    }
+
+'@
+    if($ranged0140ras.Contains($unsupported0140ras)) {
+        $ranged0140ras = Replace-TextBlock $ranged0140ras $unsupported0140ras '' 'Mana Hand reload-and-shoot mode gate'
+    }
+
+    Write-Utf8NoBom $ranged0140rasPath $ranged0140ras
+    $rasOutput0140 = [IO.File]::ReadAllText($ranged0140rasPath)
+    foreach($needle0140ras in @(
+        'ncmm_mana_hand_ras_switch',
+        'item_location gun = activity != nullptr ? activity->get_weapon() : you->get_wielded_item();',
+        'item::reload_option opt = you->select_ammo( gun );',
+        'activity->reload_loc = opt.ammo;'
+    )) {
+        if(-not $rasOutput0140.Contains($needle0140ras)) {
+            throw ('Survivor 0.14.0 reload-and-shoot output missing: '+$needle0140ras)
+        }
+    }
+    if($rasOutput0140.Contains('Reload-and-shoot firing modes are not yet supported by Mana Hands.')) {
+        throw 'Survivor 0.14.0 reload-and-shoot support left the temporary Mana Hand rejection in ranged.cpp.'
+    }
+
+    Write-Host "Survivor 0.14.0 Mana Hand reload-and-shoot support: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandReloadAndShoot0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -21585,6 +21657,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandSecondaryMelee
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandPairedGrip0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandRanged0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandPairedRanged0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandReloadAndShoot0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
