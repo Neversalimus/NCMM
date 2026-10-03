@@ -1151,7 +1151,12 @@ bool virtual_item_assign_internal( const char *module_id, const char *slot_id,
         return false;
     }
 
-    item *selected = loc.get_item();
+    // `item_location::get_item()` is const-correct on older certified CDDA
+    // seeds, so a const item_location yields const item*.  Keep the public/internal
+    // validation input const, but mutate the same real item through a copied mutable
+    // handle instead of casting away constness.
+    item_location mutable_loc = loc;
+    item *selected = mutable_loc.get_item();
     if( selected == nullptr ) {
         return false;
     }
