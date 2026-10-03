@@ -564,7 +564,11 @@ foreach($needle0140 in @(
     'function Apply-SurvivorManaHandPairedRanged0140',
     'ncmm_virtual_mana_paired_gun_mode',
     'Reload-and-shoot firing modes are not yet supported by Mana Hands.',
-    'Apply-SurvivorManaHandPairedRanged0140 $CddaRoot'
+    'Apply-SurvivorManaHandPairedRanged0140 $CddaRoot',
+    'function Apply-SurvivorManaHandReloadAndShoot0140',
+    'ncmm_mana_hand_ras_switch',
+    'activity != nullptr ? activity->get_weapon() : you->get_wielded_item()',
+    'Apply-SurvivorManaHandReloadAndShoot0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
@@ -752,8 +756,9 @@ if($manaRangeSection0140.Contains('"mana_hands_34"')){
     throw 'Mana Hand ranged v1 base layer must remain single-hand only; paired support belongs to the additive paired-ranged layer.'
 }
 
-$manaPairedRangeEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaPairedRangeStart0140)
-if($manaPairedRangeEnd0140 -le $manaPairedRangeStart0140){throw 'Paired Mana Hand ranged transform end missing.'}
+$manaRasStart0140=$payload.IndexOf('function Apply-SurvivorManaHandReloadAndShoot0140',$manaPairedRangeStart0140)
+if($manaRasStart0140 -le $manaPairedRangeStart0140){throw 'Mana Hand reload-and-shoot transform boundary missing.'}
+$manaPairedRangeEnd0140=$manaRasStart0140
 $manaPairedRangeSection0140=$payload.Substring($manaPairedRangeStart0140,$manaPairedRangeEnd0140-$manaPairedRangeStart0140)
 foreach($pairedRangeNeedle0140 in @(
     'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;',
@@ -776,6 +781,26 @@ if($manaPairedRangeSection0140.Contains('set_wielded_item(') -or
    $manaPairedRangeSection0140.Contains('u.wield(') -or
    $manaPairedRangeSection0140.Contains('item_location::type::mana_hand')){
     throw 'Paired Mana Hand ranged support must keep the real gun in its vanilla item_location.'
+}
+
+$manaRasEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaRasStart0140)
+if($manaRasEnd0140 -le $manaRasStart0140){throw 'Mana Hand reload-and-shoot transform end missing.'}
+$manaRasSection0140=$payload.Substring($manaRasStart0140,$manaRasEnd0140-$manaRasStart0140)
+foreach($rasNeedle0140 in @(
+    'ncmm_mana_hand_ras_switch',
+    'item_location gun = activity != nullptr ? activity->get_weapon() : you->get_wielded_item();',
+    'item::reload_option opt = you->select_ammo( gun );',
+    'activity->reload_loc = opt.ammo;',
+    'Replace-TextBlock $ranged0140ras $unsupported0140ras',
+    'if($rasOutput0140.Contains'
+)){
+    if(-not $manaRasSection0140.Contains($rasNeedle0140)){
+        throw ('Mana Hand reload-and-shoot regression contract missing: '+$rasNeedle0140)
+    }
+}
+if($manaRasSection0140.Contains('set_wielded_item(') -or
+   $manaRasSection0140.Contains('u.wield(')){
+    throw 'Mana Hand reload-and-shoot support must not move the real gun into Character::weapon.'
 }
 
 $pairPickerStart0140=$survivorVirtual0140.IndexOf('Choose two-handed item for Mana Hands III+IV')
