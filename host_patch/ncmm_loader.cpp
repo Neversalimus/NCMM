@@ -5556,7 +5556,7 @@ int run_gameplay_smoke()
         log_line( NCMM_LOG_INFO,
                   ( "NCMM gameplay smoke checkpoint: Mana Hands " +
                     std::to_string( mana_hands_check_count ) +
-                    "/12 real binding/state checks PASS." ).c_str() );
+                    "/13 real binding/state checks PASS." ).c_str() );
 
         // Primary Character stats.
         if( !perk_reset() || !perk_recalc() ) return 113;
