@@ -86,3 +86,11 @@ Each enabled Mana Hand performs its own vanilla melee attack after the primary m
 
 Guns and items that CDDA considers two-handed are excluded. Releasing or reassigning the item clears the secondary-strike opt-in.
 
+
+## Mana Hand paired grip
+
+With Fourth Mana Hand unlocked, Mana Hands III+IV can jointly hold one real two-handed non-firearm item through the dedicated `mana_hands_34` logical slot. The paired item has one marker and one persistent UID; it is not duplicated across the two single-hand slots and never leaves the vanilla CDDA item graph.
+
+A paired item consumes both virtual hands for somatic casting. MAGIC_FOCUS, SPELLCASTING_AID, blocking, item-local utility activation, and opt-in secondary melee all recognize the paired grip once. The pair can only be assigned while Mana Hand III and IV are both otherwise empty, and single-hand assignment is blocked until the pair is released.
+
+Firearms remain intentionally excluded from virtual paired grip because aiming, recoil, reload, fire modes, and ammunition ownership still depend on CDDA's physical wielded-weapon model.
