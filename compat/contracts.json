@@ -480,7 +480,12 @@
             "g->reload_wielded( true );",
             "jsout.member( \"fake_weapon\", fake_weapon );",
             "data.read( \"fake_weapon\", actor.fake_weapon );",
-            "item_location aim_activity_actor::get_weapon()"
+            "item_location aim_activity_actor::get_weapon()",
+            "bool target_practice_activity_actor::get_gun( Character &who )",
+            "if( !who.is_wielding( *gun_loc ) ) {",
+            "bool target_practice_activity_actor::check_weapon_valid( Character &who )",
+            "if( !who.is_wielding( *gun ) ) {",
+            "void target_practice_activity_actor::fire_shot( Character &who, player_activity &act )"
           ]
         },
         {

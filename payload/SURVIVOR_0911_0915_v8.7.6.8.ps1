@@ -23849,6 +23849,150 @@ function Apply-SurvivorManaHandAutoMining0140([string]$Root) {
 
 Apply-SurvivorManaHandAutoMining0140 $CddaRoot
 
+
+function Apply-SurvivorManaHandTargetPractice0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 Mana Hand target-practice support..." -ForegroundColor Cyan
+    $actor0140practicePath = Join-Path (Join-Path $Root 'src') 'activity_actor.cpp'
+    if(-not(Test-Path $actor0140practicePath -PathType Leaf)) {
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+            Write-Host "Survivor 0.14.0 Mana Hand target-practice transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+            return
+        }
+        throw ('Mana Hand target-practice source missing: '+$actor0140practicePath)
+    }
+
+    $actor0140practice = Normalize-Lf ([IO.File]::ReadAllText($actor0140practicePath))
+    if(-not $actor0140practice.Contains('#include "ncmm_loader.h"')) {
+        if(-not $actor0140practice.Contains('#include "item_location.h"')) {
+            throw 'Mana Hand target-practice include anchor missing.'
+        }
+        $actor0140practice = Replace-TextBlock $actor0140practice '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand target-practice include'
+    }
+
+    if(-not $actor0140practice.Contains('ncmm_target_practice_mana_hand_gun')) {
+        $helperOld0140practice = @'
+bool target_practice_activity_actor::check_character( Character &who )
+'@
+        $helperNew0140practice = @'
+static bool ncmm_target_practice_mana_hand_gun( Character &who, const item *gun )
+{
+    if( !who.is_avatar() || gun == nullptr || who.get_wielded_item() ) {
+        return false;
+    }
+
+    const int hand_count = std::max( 0, std::min( 2, static_cast<int>(
+                                   ncmm::runtime_hook_modifier(
+                                       "magic.virtual_hand_count", nullptr, "magiclysm",
+                                       nullptr, nullptr ) ) ) );
+    if( hand_count >= 2 &&
+        ncmm::virtual_item_for_slot(
+            "survivor_progression", "mana_hands_34" ) == gun ) {
+        return true;
+    }
+    if( hand_count >= 1 &&
+        ncmm::virtual_item_for_slot(
+            "survivor_progression", "mana_hand_3" ) == gun ) {
+        return true;
+    }
+    return hand_count >= 2 &&
+           ncmm::virtual_item_for_slot(
+               "survivor_progression", "mana_hand_4" ) == gun;
+}
+
+bool target_practice_activity_actor::check_character( Character &who )
+'@
+        $actor0140practice = Replace-TextBlock $actor0140practice $helperOld0140practice $helperNew0140practice 'Mana Hand target-practice binding helper'
+
+        $startOld0140practice = @'
+    if( !who.is_wielding( *gun_loc ) ) {
+        who.wield( gun_loc );
+        // who.wield() invalidates location, so locate it back
+        gun_loc = who.get_wielded_item();
+    }
+'@
+        $startNew0140practice = @'
+    const bool ncmm_virtual_target_gun =
+        ncmm_target_practice_mana_hand_gun( who, gun_loc.get_item() );
+    if( !ncmm_virtual_target_gun && !who.is_wielding( *gun_loc ) ) {
+        who.wield( gun_loc );
+        // who.wield() invalidates location, so locate it back
+        gun_loc = who.get_wielded_item();
+    }
+'@
+        $actor0140practice = Replace-TextBlock $actor0140practice $startOld0140practice $startNew0140practice 'Mana Hand target-practice start wield bypass'
+
+        $validOld0140practice = @'
+    if( !who.is_wielding( *gun ) ) {
+        who.add_msg_if_player( m_bad, _( "You aren't holding your weapon anymore." ) );
+        return false;
+    }
+'@
+        $validNew0140practice = @'
+    if( !who.is_wielding( *gun ) &&
+        !ncmm_target_practice_mana_hand_gun( who, gun ) ) {
+        who.add_msg_if_player( m_bad, _( "You aren't holding your weapon anymore." ) );
+        return false;
+    }
+'@
+        $actor0140practice = Replace-TextBlock $actor0140practice $validOld0140practice $validNew0140practice 'Mana Hand target-practice validity'
+
+        $fireOld0140practice = @'
+    // Simulate max aim
+    who.recoil = 0;
+
+    int shots_fired = who.fire_gun( here, target_local, 1, *gun );
+
+    if( shots_fired > 0 ) {
+        rounds_fired++;
+'@
+        $fireNew0140practice = @'
+    // Simulate max aim
+    who.recoil = 0;
+
+    const bool ncmm_virtual_target_gun =
+        ncmm_target_practice_mana_hand_gun( who, gun );
+    constexpr int ncmm_target_practice_mana_cost = 5;
+    if( ncmm_virtual_target_gun &&
+        who.magic->available_mana() < ncmm_target_practice_mana_cost ) {
+        who.add_msg_if_player(
+            m_bad, _( "You do not have enough mana to continue target practice with a Mana Hand firearm." ) );
+        finish( act, who );
+        return;
+    }
+
+    int shots_fired = who.fire_gun( here, target_local, 1, *gun );
+
+    if( shots_fired > 0 ) {
+        rounds_fired++;
+        if( ncmm_virtual_target_gun ) {
+            who.magic->mod_mana( who, -ncmm_target_practice_mana_cost );
+        }
+'@
+        $actor0140practice = Replace-TextBlock $actor0140practice $fireOld0140practice $fireNew0140practice 'Mana Hand target-practice mana firing'
+    }
+
+    Write-Utf8NoBom $actor0140practicePath $actor0140practice
+    $practiceOutput0140 = [IO.File]::ReadAllText($actor0140practicePath)
+    foreach($needle0140practice in @(
+        'ncmm_target_practice_mana_hand_gun',
+        '"survivor_progression", "mana_hands_34"',
+        '"survivor_progression", "mana_hand_3"',
+        '"survivor_progression", "mana_hand_4"',
+        'const bool ncmm_virtual_target_gun =',
+        'if( !ncmm_virtual_target_gun && !who.is_wielding( *gun_loc ) )',
+        '!ncmm_target_practice_mana_hand_gun( who, gun )',
+        'constexpr int ncmm_target_practice_mana_cost = 5;',
+        'who.magic->mod_mana( who, -ncmm_target_practice_mana_cost );'
+    )) {
+        if(-not $practiceOutput0140.Contains($needle0140practice)) {
+            throw ('Survivor 0.14.0 Mana Hand target-practice output missing: '+$needle0140practice)
+        }
+    }
+    Write-Host "Survivor 0.14.0 Mana Hand target-practice support: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandTargetPractice0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -23872,6 +24016,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandSmash0140 -Com
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandAutoattack0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandThrow0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandAutoMining0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandTargetPractice0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
