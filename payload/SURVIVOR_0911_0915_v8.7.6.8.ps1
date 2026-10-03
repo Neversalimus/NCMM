@@ -23085,7 +23085,6 @@ namespace
 item *ncmm_primary_mana_hand_smash_weapon( avatar &you )
 {
     if( you.get_wielded_item() || you.is_mounted() ||
-        you.martial_arts_data->selected_force_unarmed() ||
         ncmm::virtual_melee_context_active( you ) ) {
         return nullptr;
     }
@@ -23125,7 +23124,7 @@ class ncmm_mana_hand_smash_scope
         ncmm_mana_hand_smash_scope( avatar &who, item *weapon, bool &did_smash )
             : who_( who ), did_smash_( did_smash ),
               active_( weapon != nullptr &&
-                       ncmm::virtual_melee_context_begin( who, *weapon, false ) )
+                       ncmm::virtual_melee_context_begin( who, *weapon, true ) )
         {
             if( active_ ) {
                 who_.recalculate_enchantment_cache();
@@ -23247,7 +23246,7 @@ avatar::smash_result avatar::smash( tripoint_bub_ms &smashp )
         'ncmm_smash_weapon->base_damage_melee()',
         'item *ncmm_primary_mana_hand_smash_weapon( avatar &you )',
         'class ncmm_mana_hand_smash_scope',
-        'ncmm::virtual_melee_context_begin( who, *weapon, false )',
+        'ncmm::virtual_melee_context_begin( who, *weapon, true )',
         'Not enough mana to smash with the primary Mana Hand weapon.',
         'item_location ncmm_smash_location = ncmm_smash_weapon != nullptr ?',
         'if( !has_weapon() && ncmm_smash_weapon == nullptr )',
@@ -23282,6 +23281,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandFireAction0140
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandGunControls0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandPrimaryMelee0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandReachMelee0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandSmash0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.

@@ -1008,7 +1008,7 @@ foreach($smashNeedle0140 in @(
     'ncmm::virtual_melee_context_item( *this )',
     'item *ncmm_primary_mana_hand_smash_weapon( avatar &you )',
     'class ncmm_mana_hand_smash_scope',
-    'ncmm::virtual_melee_context_begin( who, *weapon, false )',
+    'ncmm::virtual_melee_context_begin( who, *weapon, true )',
     'std::clamp( ( attack_speed( *ncmm_smash_weapon ) + 9 ) / 10, 5, 50 )',
     'Not enough mana to smash with the primary Mana Hand weapon.',
     'if( !has_weapon() && ncmm_smash_weapon == nullptr )',
@@ -1023,6 +1023,12 @@ if($manaSmashSection0140.Contains('set_wielded_item(') -or
    $manaSmashSection0140.Contains('u.wield(') -or
    $manaSmashSection0140.Contains('.obtain(')){
     throw 'Mana Hand smash must not move the real item into Character::weapon.'
+}
+if($manaSmashSection0140.Contains('selected_force_unarmed()')){
+    throw 'Mana Hand smash must not inherit martial-art force-unarmed semantics.'
+}
+if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandSmash0140 -CommandType Function).Definition')){
+    throw 'Mana Hand smash transform missing from mechanics patch revision.'
 }
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate
