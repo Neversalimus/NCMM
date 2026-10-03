@@ -568,7 +568,12 @@ foreach($needle0140 in @(
     'function Apply-SurvivorManaHandReloadAndShoot0140',
     'ncmm_mana_hand_ras_switch',
     'activity != nullptr ? activity->get_weapon() : you->get_wielded_item()',
-    'Apply-SurvivorManaHandReloadAndShoot0140 $CddaRoot'
+    'Apply-SurvivorManaHandReloadAndShoot0140 $CddaRoot',
+    'function Apply-SurvivorManaHandFireAction0140',
+    'ncmm_mana_fire_candidates',
+    'Fire which Mana Hand weapon?',
+    'aim_activity_actor::use_item_location( ncmm_selected_gun )',
+    'Apply-SurvivorManaHandFireAction0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
@@ -783,8 +788,9 @@ if($manaPairedRangeSection0140.Contains('set_wielded_item(') -or
     throw 'Paired Mana Hand ranged support must keep the real gun in its vanilla item_location.'
 }
 
-$manaRasEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaRasStart0140)
-if($manaRasEnd0140 -le $manaRasStart0140){throw 'Mana Hand reload-and-shoot transform end missing.'}
+$manaFireStart0140=$payload.IndexOf('function Apply-SurvivorManaHandFireAction0140',$manaRasStart0140)
+if($manaFireStart0140 -le $manaRasStart0140){throw 'Mana Hand FIRE action transform boundary missing.'}
+$manaRasEnd0140=$manaFireStart0140
 $manaRasSection0140=$payload.Substring($manaRasStart0140,$manaRasEnd0140-$manaRasStart0140)
 foreach($rasNeedle0140 in @(
     'ncmm_mana_hand_ras_switch',
@@ -801,6 +807,29 @@ foreach($rasNeedle0140 in @(
 if($manaRasSection0140.Contains('set_wielded_item(') -or
    $manaRasSection0140.Contains('u.wield(')){
     throw 'Mana Hand reload-and-shoot support must not move the real gun into Character::weapon.'
+}
+
+$manaFireEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaFireStart0140)
+if($manaFireEnd0140 -le $manaFireStart0140){throw 'Mana Hand FIRE action transform end missing.'}
+$manaFireSection0140=$payload.Substring($manaFireStart0140,$manaFireEnd0140-$manaFireStart0140)
+foreach($fireNeedle0140 in @(
+    'const bool ncmm_physical_ranged_ready =',
+    'std::vector<item_location> ncmm_mana_fire_candidates;',
+    '"survivor_progression", "mana_hands_34"',
+    '"survivor_progression", "mana_hand_3"',
+    '"survivor_progression", "mana_hand_4"',
+    'Fire which Mana Hand weapon?',
+    'you.has_trait( trait_GUNSHY ) && ncmm_selected_gun->is_firearm()',
+    'aim_activity_actor::use_item_location( ncmm_selected_gun )'
+)){
+    if(-not $manaFireSection0140.Contains($fireNeedle0140)){
+        throw ('Mana Hand FIRE action regression contract missing: '+$fireNeedle0140)
+    }
+}
+if($manaFireSection0140.Contains('set_wielded_item(') -or
+   $manaFireSection0140.Contains('u.wield(') -or
+   $manaFireSection0140.Contains('ncmm_selected_gun.obtain(')){
+    throw 'Mana Hand FIRE action must keep the real gun in its vanilla item_location.'
 }
 
 $pairPickerStart0140=$survivorVirtual0140.IndexOf('Choose two-handed item for Mana Hands III+IV')

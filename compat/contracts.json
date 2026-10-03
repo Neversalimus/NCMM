@@ -363,7 +363,11 @@
           "path": "src/handle_action.cpp",
           "required": [
             "bool Character::cast_spell( spell &sp, bool fake_spell,",
-            "You need your hands free to cast this spell!"
+            "You need your hands free to cast this spell!",
+            "static void fire()",
+            "const item_location weapon = you.get_wielded_item();",
+            "avatar_action::fire_wielded_weapon( you );",
+            "// try firing turrets"
           ]
         },
         {

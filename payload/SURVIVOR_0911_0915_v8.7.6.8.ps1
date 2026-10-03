@@ -21643,6 +21643,141 @@ function Apply-SurvivorManaHandReloadAndShoot0140([string]$Root) {
 
 Apply-SurvivorManaHandReloadAndShoot0140 $CddaRoot
 
+function Apply-SurvivorManaHandFireAction0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 Mana Hand FIRE action integration..." -ForegroundColor Cyan
+    $handle0140firePath = Join-Path (Join-Path $Root 'src') 'handle_action.cpp'
+    if(-not(Test-Path $handle0140firePath -PathType Leaf)) {
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+            Write-Host "Survivor 0.14.0 Mana Hand FIRE action transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+            return
+        }
+        throw ('Mana Hand FIRE action source missing: '+$handle0140firePath)
+    }
+
+    $handle0140fire = Normalize-Lf ([IO.File]::ReadAllText($handle0140firePath))
+    if(-not $handle0140fire.Contains('#include "ncmm_loader.h"')) {
+        throw 'Mana Hand FIRE action requires the existing ncmm_loader include.'
+    }
+
+    if(-not $handle0140fire.Contains('ncmm_mana_fire_candidates')) {
+        $fireOld0140 = @'
+    if( you.has_trait( trait_GUNSHY ) && weapon && weapon->is_firearm() ) {
+        add_msg( m_bad, _( "You refuse to use firearms." ) );
+        return;
+    }
+    if( you.has_flag( json_flag_TEMPORARY_SHAPESHIFT_NO_HANDS ) ) {
+'@
+        $fireNew0140 = @'
+    if( you.has_trait( trait_GUNSHY ) && weapon && weapon->is_firearm() ) {
+        add_msg( m_bad, _( "You refuse to use firearms." ) );
+        return;
+    }
+
+    // A physically wielded ranged weapon keeps vanilla priority.  Otherwise,
+    // expose live Mana Hand guns through the normal FIRE action without moving
+    // or copying the real item into Character::weapon.
+    const bool ncmm_physical_ranged_ready =
+        weapon && weapon->is_gun() && !weapon->gun_current_mode().melee();
+    if( !ncmm_physical_ranged_ready ) {
+        const int ncmm_mana_fire_hand_count = static_cast<int>(
+                ncmm::runtime_hook_modifier(
+                    "magic.virtual_hand_count", nullptr, "magiclysm",
+                    nullptr, nullptr ) );
+        std::vector<item_location> ncmm_mana_fire_candidates;
+        std::vector<std::string> ncmm_mana_fire_labels;
+
+        const auto ncmm_add_mana_fire_candidate =
+        [&]( item *candidate, const char *label_en, const char *label_ru ) {
+            if( candidate == nullptr || !candidate->is_gun() ||
+                candidate->is_gunmod() || candidate->gun_current_mode().melee() ) {
+                return;
+            }
+            item_location loc( you, candidate );
+            if( !loc ) {
+                return;
+            }
+            ncmm_mana_fire_candidates.emplace_back( loc );
+            ncmm_mana_fire_labels.emplace_back(
+                ncmm::localized_text( label_en, label_ru ) + ": " + candidate->tname() );
+        };
+
+        item *ncmm_mana_fire_pair = ncmm_mana_fire_hand_count >= 2 ?
+                                    ncmm::virtual_item_for_slot(
+                                        "survivor_progression", "mana_hands_34" ) : nullptr;
+        if( ncmm_mana_fire_pair != nullptr ) {
+            ncmm_add_mana_fire_candidate(
+                ncmm_mana_fire_pair, "Mana Hands III+IV", "Руки маны III+IV" );
+        } else {
+            if( ncmm_mana_fire_hand_count >= 1 ) {
+                ncmm_add_mana_fire_candidate(
+                    ncmm::virtual_item_for_slot(
+                        "survivor_progression", "mana_hand_3" ),
+                    "Mana Hand III", "Рука маны III" );
+            }
+            if( ncmm_mana_fire_hand_count >= 2 ) {
+                ncmm_add_mana_fire_candidate(
+                    ncmm::virtual_item_for_slot(
+                        "survivor_progression", "mana_hand_4" ),
+                    "Mana Hand IV", "Рука маны IV" );
+            }
+        }
+
+        if( !ncmm_mana_fire_candidates.empty() ) {
+            int selected = 0;
+            if( ncmm_mana_fire_candidates.size() > 1 ) {
+                selected = uilist(
+                    ncmm::localized_text(
+                        "Fire which Mana Hand weapon?",
+                        "Из какого оружия в руке маны стрелять?" ),
+                    ncmm_mana_fire_labels );
+            }
+            if( selected < 0 ||
+                selected >= static_cast<int>( ncmm_mana_fire_candidates.size() ) ) {
+                return;
+            }
+
+            item_location ncmm_selected_gun = ncmm_mana_fire_candidates[selected];
+            if( you.has_trait( trait_GUNSHY ) && ncmm_selected_gun->is_firearm() ) {
+                add_msg( m_bad, _( "You refuse to use firearms." ) );
+                return;
+            }
+
+            you.assign_activity(
+                aim_activity_actor::use_item_location( ncmm_selected_gun ) );
+            return;
+        }
+    }
+
+    if( you.has_flag( json_flag_TEMPORARY_SHAPESHIFT_NO_HANDS ) ) {
+'@
+        $handle0140fire = Replace-TextBlock $handle0140fire $fireOld0140 $fireNew0140 'Mana Hand normal FIRE action'
+    }
+
+    Write-Utf8NoBom $handle0140firePath $handle0140fire
+    $fireOutput0140 = [IO.File]::ReadAllText($handle0140firePath)
+    foreach($needle0140fire in @(
+        'const bool ncmm_physical_ranged_ready =',
+        'std::vector<item_location> ncmm_mana_fire_candidates;',
+        '"survivor_progression", "mana_hands_34"',
+        '"survivor_progression", "mana_hand_3"',
+        '"survivor_progression", "mana_hand_4"',
+        'Fire which Mana Hand weapon?',
+        'aim_activity_actor::use_item_location( ncmm_selected_gun )'
+    )) {
+        if(-not $fireOutput0140.Contains($needle0140fire)) {
+            throw ('Survivor 0.14.0 Mana Hand FIRE action output missing: '+$needle0140fire)
+        }
+    }
+    if($fireOutput0140.Contains(('ncmm_selected_gun.'+'obtain(')) -or
+       $fireOutput0140.Contains(('wield( ncmm_'+'selected_gun'))) {
+        throw 'Mana Hand FIRE action must not obtain or physically wield the virtual gun.'
+    }
+
+    Write-Host "Survivor 0.14.0 Mana Hand FIRE action integration: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandFireAction0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -21658,6 +21793,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandPairedGrip0140
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandRanged0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandPairedRanged0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandReloadAndShoot0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandFireAction0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
