@@ -23769,6 +23769,86 @@ void avatar_action::plthrow_wielded( avatar &you,
 
 Apply-SurvivorManaHandThrow0140 $CddaRoot
 
+
+function Apply-SurvivorManaHandAutoMining0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 Mana Hand auto-mining support..." -ForegroundColor Cyan
+    $avatar0140minePath = Join-Path (Join-Path $Root 'src') 'avatar_action.cpp'
+    if(-not(Test-Path $avatar0140minePath -PathType Leaf)) {
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+            Write-Host "Survivor 0.14.0 Mana Hand auto-mining transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+            return
+        }
+        throw ('Mana Hand auto-mining source missing: '+$avatar0140minePath)
+    }
+
+    $avatar0140mine = Normalize-Lf ([IO.File]::ReadAllText($avatar0140minePath))
+    if(-not $avatar0140mine.Contains('#include "ncmm_loader.h"')) {
+        $avatar0140mine = Replace-TextBlock $avatar0140mine '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand auto-mining include'
+    }
+
+    if(-not $avatar0140mine.Contains('ncmm_mana_hand_auto_mining_tool')) {
+        $mineOld0140 = @'
+    item_location weapon = you.get_wielded_item();
+    if( m.has_flag( ter_furn_flag::TFLAG_MINEABLE, dest_loc ) && g->mostseen == 0 &&
+'@
+        $mineNew0140 = @'
+    item_location weapon = you.get_wielded_item();
+    if( !weapon ) {
+        const int ncmm_mining_hand_count = std::clamp( static_cast<int>(
+                ncmm::runtime_hook_modifier(
+                    "magic.virtual_hand_count", nullptr, "magiclysm",
+                    nullptr, nullptr ) ), 0, 2 );
+        const auto ncmm_mana_hand_auto_mining_tool =
+        [&]( const char *slot ) -> item_location {
+            item *candidate = ncmm::virtual_item_for_slot(
+                                  "survivor_progression", slot );
+            if( candidate != nullptr && candidate->has_flag( flag_DIG_TOOL ) &&
+                candidate->type->can_use( "PICKAXE" ) ) {
+                return item_location( you, candidate );
+            }
+            return item_location();
+        };
+
+        if( ncmm_mining_hand_count >= 2 ) {
+            weapon = ncmm_mana_hand_auto_mining_tool( "mana_hands_34" );
+        }
+        if( !weapon && ncmm_mining_hand_count >= 1 ) {
+            weapon = ncmm_mana_hand_auto_mining_tool( "mana_hand_3" );
+        }
+        if( !weapon && ncmm_mining_hand_count >= 2 ) {
+            weapon = ncmm_mana_hand_auto_mining_tool( "mana_hand_4" );
+        }
+    }
+    if( m.has_flag( ter_furn_flag::TFLAG_MINEABLE, dest_loc ) && g->mostseen == 0 &&
+'@
+        $mineCount0140 = ([regex]::Matches($avatar0140mine,[regex]::Escape($mineOld0140))).Count
+        if($mineCount0140 -ne 1) { throw ('Unexpected Mana Hand auto-mining anchor count: '+$mineCount0140) }
+        $avatar0140mine = Replace-TextBlock $avatar0140mine $mineOld0140 $mineNew0140 'Mana Hand auto-mining tool selection'
+    }
+
+    Write-Utf8NoBom $avatar0140minePath $avatar0140mine
+    $mineOutput0140 = [IO.File]::ReadAllText($avatar0140minePath)
+    foreach($needle0140mine in @(
+        'ncmm_mana_hand_auto_mining_tool',
+        '"magic.virtual_hand_count", nullptr, "magiclysm"',
+        '"survivor_progression", slot',
+        '"mana_hands_34"',
+        '"mana_hand_3"',
+        '"mana_hand_4"',
+        'candidate->has_flag( flag_DIG_TOOL )',
+        'candidate->type->can_use( "PICKAXE" )',
+        'weapon = ncmm_mana_hand_auto_mining_tool( "mana_hand_3" );',
+        'you.invoke_item( &*weapon, "PICKAXE", dest_loc );'
+    )) {
+        if(-not $mineOutput0140.Contains($needle0140mine)) {
+            throw ('Survivor 0.14.0 Mana Hand auto-mining output missing: '+$needle0140mine)
+        }
+    }
+    Write-Host "Survivor 0.14.0 Mana Hand auto-mining support: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandAutoMining0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -23791,6 +23871,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandReachMelee0140
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandSmash0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandAutoattack0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandThrow0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandAutoMining0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
