@@ -20994,40 +20994,43 @@ function Apply-SurvivorManaHandRanged0140([string]$Root) {
         }
     }
 
-    # Aim activity can own a real carried gun through item_location without
-    # moving/copying the item into Character::weapon.
     $defs0140range = Normalize-Lf ([IO.File]::ReadAllText($defs0140rangePath))
     if(-not $defs0140range.Contains('item_location ncmm_real_weapon;')) {
-        $defs0140range = Replace-TextBlock $defs0140range @'
+        $defsFieldOld0140range = @'
         std::optional<item> fake_weapon;
         std::vector<tripoint_bub_ms> fin_trajectory;
-'@ @'
+'@
+        $defsFieldNew0140range = @'
         std::optional<item> fake_weapon;
         item_location ncmm_real_weapon;
         std::vector<tripoint_bub_ms> fin_trajectory;
-'@ 'Mana Hand ranged aim item_location field'
+'@
+        $defs0140range = Replace-TextBlock $defs0140range $defsFieldOld0140range $defsFieldNew0140range 'Mana Hand ranged aim item_location field'
 
-        $defs0140range = Replace-TextBlock $defs0140range @'
+        $defsCtorOld0140range = @'
         /** Aiming wielded gun */
         static aim_activity_actor use_wielded();
-'@ @'
+'@
+        $defsCtorNew0140range = @'
         /** Aiming wielded gun */
         static aim_activity_actor use_wielded();
 
         /** Aiming a real gun held in a logical Mana Hand. */
         static aim_activity_actor use_item_location( const item_location &weapon );
-'@ 'Mana Hand ranged aim constructor'
+'@
+        $defs0140range = Replace-TextBlock $defs0140range $defsCtorOld0140range $defsCtorNew0140range 'Mana Hand ranged aim constructor'
     }
     Write-Utf8NoBom $defs0140rangePath $defs0140range
 
     $actor0140range = Normalize-Lf ([IO.File]::ReadAllText($actor0140rangePath))
     if(-not $actor0140range.Contains('aim_activity_actor aim_activity_actor::use_item_location')) {
-        $actor0140range = Replace-TextBlock $actor0140range @'
+        $actorCtorOld0140range = @'
 aim_activity_actor aim_activity_actor::use_wielded()
 {
     return aim_activity_actor();
 }
-'@ @'
+'@
+        $actorCtorNew0140range = @'
 aim_activity_actor aim_activity_actor::use_wielded()
 {
     return aim_activity_actor();
@@ -21039,17 +21042,19 @@ aim_activity_actor aim_activity_actor::use_item_location( const item_location &w
     act.ncmm_real_weapon = weapon;
     return act;
 }
-'@ 'Mana Hand ranged aim constructor implementation'
+'@
+        $actor0140range = Replace-TextBlock $actor0140range $actorCtorOld0140range $actorCtorNew0140range 'Mana Hand ranged aim constructor implementation'
     }
 
     if(-not $actor0140range.Contains('if( ncmm_real_weapon ) {')) {
-        $actor0140range = Replace-TextBlock $actor0140range @'
+        $reloadOld0140range = @'
         if( reload_requested ) {
             // Reload the gun / select different arrows
             // May assign ACT_RELOAD
             g->reload_wielded( true );
         }
-'@ @'
+'@
+        $reloadNew0140range = @'
         if( reload_requested ) {
             // Reload the same real Mana Hand gun without temporarily wielding it.
             if( ncmm_real_weapon ) {
@@ -21062,56 +21067,66 @@ aim_activity_actor aim_activity_actor::use_item_location( const item_location &w
                 g->reload_wielded( true );
             }
         }
-'@ 'Mana Hand ranged reload target'
+'@
+        $actor0140range = Replace-TextBlock $actor0140range $reloadOld0140range $reloadNew0140range 'Mana Hand ranged reload target'
 
-        $actor0140range = Replace-TextBlock $actor0140range @'
+        $reentryOld0140range = @'
     aim_actor.fake_weapon = this->fake_weapon;
     aim_actor.initial_view_offset = this->initial_view_offset;
-'@ @'
+'@
+        $reentryNew0140range = @'
     aim_actor.fake_weapon = this->fake_weapon;
     aim_actor.ncmm_real_weapon = this->ncmm_real_weapon;
     aim_actor.initial_view_offset = this->initial_view_offset;
-'@ 'Mana Hand ranged aim reentry'
+'@
+        $actor0140range = Replace-TextBlock $actor0140range $reentryOld0140range $reentryNew0140range 'Mana Hand ranged aim reentry'
 
-        $actor0140range = Replace-TextBlock $actor0140range @'
+        $serializeOld0140range = @'
     jsout.member( "fake_weapon", fake_weapon );
     jsout.member( "fin_trajectory", fin_trajectory );
-'@ @'
+'@
+        $serializeNew0140range = @'
     jsout.member( "fake_weapon", fake_weapon );
     jsout.member( "ncmm_real_weapon", ncmm_real_weapon );
     jsout.member( "fin_trajectory", fin_trajectory );
-'@ 'Mana Hand ranged aim serialization'
+'@
+        $actor0140range = Replace-TextBlock $actor0140range $serializeOld0140range $serializeNew0140range 'Mana Hand ranged aim serialization'
 
-        $actor0140range = Replace-TextBlock $actor0140range @'
+        $deserializeOld0140range = @'
     data.read( "fake_weapon", actor.fake_weapon );
     data.read( "fin_trajectory", actor.fin_trajectory );
-'@ @'
+'@
+        $deserializeNew0140range = @'
     data.read( "fake_weapon", actor.fake_weapon );
     data.read( "ncmm_real_weapon", actor.ncmm_real_weapon );
     data.read( "fin_trajectory", actor.fin_trajectory );
-'@ 'Mana Hand ranged aim deserialization'
+'@
+        $actor0140range = Replace-TextBlock $actor0140range $deserializeOld0140range $deserializeNew0140range 'Mana Hand ranged aim deserialization'
 
-        $actor0140range = Replace-TextBlock $actor0140range @'
+        $resolverOld0140range = @'
 item_location aim_activity_actor::get_weapon()
 {
     if( fake_weapon.has_value() ) {
-'@ @'
+'@
+        $resolverNew0140range = @'
 item_location aim_activity_actor::get_weapon()
 {
     if( ncmm_real_weapon ) {
         return ncmm_real_weapon;
     }
     if( fake_weapon.has_value() ) {
-'@ 'Mana Hand ranged aim weapon resolver'
+'@
+        $actor0140range = Replace-TextBlock $actor0140range $resolverOld0140range $resolverNew0140range 'Mana Hand ranged aim weapon resolver'
     }
 
     if(-not $actor0140range.Contains('ncmm_virtual_shot_mana_cost')) {
-        $actor0140range = Replace-TextBlock $actor0140range @'
+        $fireOld0140range = @'
     gun_mode gun = weapon->gun_current_mode();
     who.fire_gun( here, fin_trajectory.back(), gun.qty, *gun, reload_loc );
 
     if( !get_option<bool>( "AIM_AFTER_FIRING" ) ||
-'@ @'
+'@
+        $fireNew0140range = @'
     gun_mode gun = weapon->gun_current_mode();
     if( ncmm_real_weapon ) {
         const int ncmm_planned_shots = std::max( 1, gun.qty );
@@ -21130,11 +21145,11 @@ item_location aim_activity_actor::get_weapon()
     }
 
     if( !get_option<bool>( "AIM_AFTER_FIRING" ) ||
-'@ 'Mana Hand ranged mana cost'
+'@
+        $actor0140range = Replace-TextBlock $actor0140range $fireOld0140range $fireNew0140range 'Mana Hand ranged mana cost'
     }
     Write-Utf8NoBom $actor0140rangePath $actor0140range
 
-    # Virtual Mana Hand guns may only use true one-handed, non-RAS modes.
     $ranged0140range = Normalize-Lf ([IO.File]::ReadAllText($ranged0140rangePath))
     if(-not $ranged0140range.Contains('#include "ncmm_loader.h"')) {
         if(-not $ranged0140range.Contains('#include "item_location.h"')) {
@@ -21144,7 +21159,7 @@ item_location aim_activity_actor::get_weapon()
     }
 
     if(-not $ranged0140range.Contains('ncmm_virtual_mana_gun_mode')) {
-        $commonAnchor0140range = @'
+        $commonOld0140range = @'
 {
     bool result = true;
     if( you.has_trait( trait_BRAWLER ) ) {
@@ -21190,14 +21205,13 @@ item_location aim_activity_actor::get_weapon()
 
     if( you.has_trait( trait_BRAWLER ) ) {
 '@
-        $ranged0140range = Replace-TextBlock $ranged0140range $commonAnchor0140range $commonNew0140range 'Mana Hand ranged mode restrictions'
+        $ranged0140range = Replace-TextBlock $ranged0140range $commonOld0140range $commonNew0140range 'Mana Hand ranged mode restrictions'
     }
     Write-Utf8NoBom $ranged0140rangePath $ranged0140range
 
-    # Context action: explicitly aim/fire the bound one-handed virtual gun.
     $game0140range = Normalize-Lf ([IO.File]::ReadAllText($game0140rangePath))
     if(-not $game0140range.Contains('fire with Mana Hand')) {
-        $menuAnchor0140range = @'
+        $menuOld0140range = @'
                 const bool ncmm_secondary_melee_eligible =
                     oThisItem.is_melee() && !oThisItem.is_gun() &&
                     ( ( ncmm_mana_single_bound_here && !oThisItem.is_two_handed( u ) ) ||
@@ -21217,9 +21231,9 @@ item_location aim_activity_actor::get_weapon()
                                   "стрелять рукой маны" ), hint_rating::good );
                 }
 '@
-        $game0140range = Replace-TextBlock $game0140range $menuAnchor0140range $menuNew0140range 'Mana Hand ranged context entry'
+        $game0140range = Replace-TextBlock $game0140range $menuOld0140range $menuNew0140range 'Mana Hand ranged context entry'
 
-        $handlerAnchor0140range = @'
+        $handlerOld0140range = @'
                 case '5': {
 '@
         $handlerNew0140range = @'
@@ -21254,7 +21268,7 @@ item_location aim_activity_actor::get_weapon()
                 }
                 case '5': {
 '@
-        $game0140range = Replace-TextBlock $game0140range $handlerAnchor0140range $handlerNew0140range 'Mana Hand ranged context handler'
+        $game0140range = Replace-TextBlock $game0140range $handlerOld0140range $handlerNew0140range 'Mana Hand ranged context handler'
     }
     Write-Utf8NoBom $game0140rangePath $game0140range
 
