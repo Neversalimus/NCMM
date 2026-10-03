@@ -610,7 +610,14 @@ foreach($needle0140 in @(
     'ncmm::virtual_melee_context_suppresses_martial_arts',
     'ncmm_primary_scope( *this, *ncmm_primary_weapon, false )',
     'Not enough mana to attack with the primary Mana Hand weapon.',
-    'Apply-SurvivorManaHandPrimaryMelee0140 $CddaRoot'
+    'Apply-SurvivorManaHandPrimaryMelee0140 $CddaRoot',
+    'function Apply-SurvivorManaHandReachMelee0140',
+    'ncmm_primary_mana_hand_reach_weapon',
+    'ncmm_primary_mana_hand_has_reach',
+    'item_location( you, ncmm_reach_weapon )',
+    'item_location reach_weapon = used_weapon();',
+    'Not enough mana for a primary Mana Hand reach attack.',
+    'Apply-SurvivorManaHandReachMelee0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
@@ -907,6 +914,38 @@ if($pairPickerSection0140.Contains('NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2')){
 }
 if(-not $survivorVirtual0140.Contains('including firearms.')){
     throw 'Fourth Mana Hand description does not document paired firearm support.'
+}
+
+$manaPrimaryStart0140=$payload.IndexOf('function Apply-SurvivorManaHandPrimaryMelee0140',$manaGunControlsStart0140)
+$manaReachStart0140=$payload.IndexOf('function Apply-SurvivorManaHandReachMelee0140',$manaPrimaryStart0140)
+if($manaPrimaryStart0140 -lt 0 -or $manaReachStart0140 -le $manaPrimaryStart0140){
+    throw 'Primary Mana Hand reach transform boundary missing.'
+}
+$manaReachEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaReachStart0140)
+if($manaReachEnd0140 -le $manaReachStart0140){throw 'Primary Mana Hand reach transform end missing.'}
+$manaReachSection0140=$payload.Substring($manaReachStart0140,$manaReachEnd0140-$manaReachStart0140)
+foreach($reachNeedle0140 in @(
+    'class ncmm_virtual_reach_scope',
+    'ncmm::virtual_melee_context_begin( who, weapon, false )',
+    'ncmm_primary_mana_hand_reach_weapon',
+    'ncmm_primary_mana_hand_has_reach',
+    'target_handler::mode_reach(',
+    'item_location( you, ncmm_reach_weapon )',
+    'ncmm_primary_mana_hand_melee_weapon( *this )',
+    'std::make_unique<ncmm_virtual_melee_scope>',
+    'item_location reach_weapon = used_weapon();',
+    'handle_melee_wear( reach_weapon );',
+    'get_total_melee_stamina_cost( &reach_item )',
+    'magic->mod_mana( *this, -ncmm_reach_mana_cost )'
+)){
+    if(-not $manaReachSection0140.Contains($reachNeedle0140)){
+        throw ('Mana Hand reach-melee regression contract missing: '+$reachNeedle0140)
+    }
+}
+if($manaReachSection0140.Contains('set_wielded_item(') -or
+   $manaReachSection0140.Contains('u.wield(') -or
+   $manaReachSection0140.Contains('.obtain(')){
+    throw 'Mana Hand reach melee must not move the real item into Character::weapon.'
 }
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate
