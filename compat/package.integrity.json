@@ -86,8 +86,8 @@
     },
     {
       "path": "ci\\Test-SurvivorPayloadContracts.ps1",
-      "sha256": "1ce2a73275af12b37d70cd114e0e0915038f4f6264c01957bbb1fcd44b086bb1",
-      "bytes": 42453
+      "sha256": "e2e8788e282af513bfae71303d1bbdeee13c5e7ae86f70acf808044dc7924b7f",
+      "bytes": 44596
     },
     {
       "path": "ci\\Watch-CDDAExperimental.ps1",
@@ -101,8 +101,8 @@
     },
     {
       "path": "compat\\contracts.json",
-      "sha256": "615c721c14ed80f7118466b694b44a312907371135432e68121149b71efb64f9",
-      "bytes": 14253
+      "sha256": "66d49d3b834e670cdb6b39e6acad1deabcc982cc43faf823ec9bcbb7fa860ff0",
+      "bytes": 15328
     },
     {
       "path": "compat\\feed\\commits\\e262adb299a7613b4aedc5f12c08fe0413c56a84.json",
@@ -331,8 +331,8 @@
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-      "sha256": "b4edfa0c5b9a5542f71f77e50d47582dea127fbc47b482bd4a3a833374c5e5ec",
-      "bytes": 2389213
+      "sha256": "fd6355cf8c1e29d48fc323a471335451229761b7a9ccc26c80a58d624ef321fd",
+      "bytes": 2403879
     },
     {
       "path": "pipeline\\pipeline.manifest.json",
