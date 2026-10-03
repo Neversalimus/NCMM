@@ -23,7 +23,7 @@ extern "C" {
 #define NCMM_HOST_API_V2_CORE_ID "ncmm.host_api.v2.core"
 #define NCMM_HOST_API_V2_CORE_ABI 2u
 #define NCMM_HOST_API_V2_CORE_MAJOR 2u
-#define NCMM_HOST_API_V2_CORE_MINOR 2u
+#define NCMM_HOST_API_V2_CORE_MINOR 3u
 /* capability: world_settings.v2 */
 #define NCMM_ENTRYPOINT "ncmm_get_descriptor_v1"
 #define NCMM_LOCALE_ENTRYPOINT "ncmm_on_locale_changed_v1"
@@ -450,7 +450,27 @@ typedef struct ncmm_host_api_v2_core {
             const char *slot_id );
     int ( *virtual_item_set_secondary_melee )( const char *module_id,
             const char *slot_id, int enabled );
+
+    /*
+     * Host API 2.3 additive tail: primary virtual-item melee behavior.
+     * The Host owns eligibility/mutual exclusion; modules only query/toggle
+     * the behavior for the item currently bound to a logical slot.
+     */
+    int ( *virtual_item_primary_melee_enabled )( const char *module_id,
+            const char *slot_id );
+    int ( *virtual_item_set_primary_melee )( const char *module_id,
+            const char *slot_id, int enabled );
 } ncmm_host_api_v2_core;
+
+#define NCMM_HOST_API_V2_CORE_SIZE_2_1 \
+    ( offsetof( ncmm_host_api_v2_core, virtual_item_uid ) + \
+      sizeof( ( ( ncmm_host_api_v2_core * )0 )->virtual_item_uid ) )
+#define NCMM_HOST_API_V2_CORE_SIZE_2_2 \
+    ( offsetof( ncmm_host_api_v2_core, virtual_item_set_secondary_melee ) + \
+      sizeof( ( ( ncmm_host_api_v2_core * )0 )->virtual_item_set_secondary_melee ) )
+#define NCMM_HOST_API_V2_CORE_SIZE_2_3 \
+    ( offsetof( ncmm_host_api_v2_core, virtual_item_set_primary_melee ) + \
+      sizeof( ( ( ncmm_host_api_v2_core * )0 )->virtual_item_set_primary_melee ) )
 typedef int ( *ncmm_mod_init_v1 )( const ncmm_host_api_v1 *api );
 typedef void ( *ncmm_mod_shutdown_v1 )( void );
 typedef void ( *ncmm_on_locale_changed_v1_fn )( const ncmm_host_api_v1 *api );
