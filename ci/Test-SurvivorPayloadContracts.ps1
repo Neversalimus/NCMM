@@ -515,7 +515,18 @@ foreach($needle0140 in @(
     'ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_4" ) == &it',
     'if( need_wielding && !p.is_wielding( it ) && !ncmm_mana_hand_holds_item( p, it ) ) {',
     'if( need_wielding && !p->is_wielding( it ) && !ncmm_mana_hand_holds_item( *p, it ) ) {',
-    'Apply-SurvivorManaHandUtility0140 $CddaRoot'
+    'Apply-SurvivorManaHandUtility0140 $CddaRoot',
+    'function Apply-SurvivorManaHandSecondaryMelee0140',
+    'class ncmm_virtual_melee_scope',
+    'virtual_melee_context_begin( who, weapon )',
+    'std::clamp( ( who.attack_speed( weapon ) + 9 ) / 10, 5, 50 )',
+    'virtual_item_secondary_melee_enabled( *weapon )',
+    'who.melee_attack( target, false )',
+    'who.magic->mod_mana( who, -mana_cost )',
+    'virtual_melee_context_is_wielding( *this, target )',
+    'ncmm_run_mana_hand_secondary_melee( *this, t );',
+    'enable Mana Hand secondary strike',
+    'Apply-SurvivorManaHandSecondaryMelee0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
@@ -532,16 +543,47 @@ $manaAidSection0140=$payload.Substring($manaAidStart0140,$manaAidEnd0140-$manaAi
 if($manaAidSection0140.Contains('flag_id( "MAGIC_FOCUS" )')){
     throw 'Mana Hand spellcasting-aid bridge leaked MAGIC_FOCUS back into global wielded semantics.'
 }
-foreach($sourcePath0140 in @('src/game.cpp','src/talker_character.cpp','src/item_location.cpp','src/iuse_actor.cpp')){
+foreach($sourcePath0140 in @('src/game.cpp','src/talker_character.cpp','src/item_location.cpp','src/iuse_actor.cpp','src/melee.cpp','src/character_inventory.cpp')){
     $sourceEntry0140=@($contracts0140.contracts|Where-Object{$_.id -eq 'magic_virtual_slots.source.v1'}).files|Where-Object{$_.path -eq $sourcePath0140}
     if(@($sourceEntry0140).Count -ne 1){throw ('Mana Hand source contract missing hardening path: '+$sourcePath0140)}
 }
 
+$manaContextStart0140=$payload.IndexOf('function Apply-SurvivorVirtualItemContext0140')
+$manaContextEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandSpellcastingAid0140',$manaContextStart0140)
+if($manaContextStart0140 -lt 0 -or $manaContextEnd0140 -le $manaContextStart0140){throw 'Mana Hand context transform boundary missing.'}
+$manaContextSection0140=$payload.Substring($manaContextStart0140,$manaContextEnd0140-$manaContextStart0140)
+$contextOldStart0140=$manaContextSection0140.IndexOf('$switchOld0140ctx = @''')
+$contextNewStart0140=$manaContextSection0140.IndexOf('$switchNew0140ctx = @''',$contextOldStart0140)
+$contextApplyStart0140=$manaContextSection0140.IndexOf('$game0140ctx = Replace-TextBlock',$contextNewStart0140)
+if($contextOldStart0140 -lt 0 -or $contextNewStart0140 -le $contextOldStart0140 -or $contextApplyStart0140 -le $contextNewStart0140){
+    throw 'Mana Hand context switch transform structure missing.'
+}
+$contextOld0140=$manaContextSection0140.Substring($contextOldStart0140,$contextNewStart0140-$contextOldStart0140)
+$contextNew0140=$manaContextSection0140.Substring($contextNewStart0140,$contextApplyStart0140-$contextNewStart0140)
+foreach($oldNeedle0140 in @('switch( cMenu ) {',"case 'a': {")){
+    if(-not $contextOld0140.Contains($oldNeedle0140)){throw ('Mana Hand context old switch anchor missing: '+$oldNeedle0140)}
+}
+foreach($forbiddenOld0140 in @("case '3':","case '4':","case 'M':")){
+    if($contextOld0140.Contains($forbiddenOld0140)){throw ('Mana Hand context old switch anchor already contains injected action: '+$forbiddenOld0140)}
+}
+foreach($newNeedle0140 in @(
+    "case '3':",
+    "case '4':",
+    "case 'M':",
+    'const int ncmm_mana_hands_now = static_cast<int>(',
+    'item *ncmm_bound3 = ncmm_mana_hands_now >= 1 ?',
+    'item *ncmm_bound4 = ncmm_mana_hands_now >= 2 ?',
+    'This item is not held by an available Mana Hand.'
+)){
+    if(-not $contextNew0140.Contains($newNeedle0140)){throw ('Mana Hand context generated switch missing: '+$newNeedle0140)}
+}
+
 $manaUtilityStart0140=$payload.IndexOf('function Apply-SurvivorManaHandUtility0140')
-if($manaUtilityStart0140 -lt 0){throw 'Mana Hand utility transform section missing.'}
-$manaUtilitySection0140=$payload.Substring($manaUtilityStart0140,[Math]::Min(12000,$payload.Length-$manaUtilityStart0140))
+$manaSecondaryStart0140=$payload.IndexOf('function Apply-SurvivorManaHandSecondaryMelee0140',$manaUtilityStart0140)
+if($manaUtilityStart0140 -lt 0 -or $manaSecondaryStart0140 -le $manaUtilityStart0140){throw 'Mana Hand utility/secondary transform boundary missing.'}
+$manaUtilitySection0140=$payload.Substring($manaUtilityStart0140,$manaSecondaryStart0140-$manaUtilityStart0140)
 if($manaUtilitySection0140.Contains('bool Character::is_wielding')){
-    throw 'Mana Hand utility must not patch global Character::is_wielding semantics.'
+    throw 'Mana Hand utility layer must not patch Character::is_wielding semantics.'
 }
 foreach($utilityNeedle0140 in @(
     '"magic.virtual_hand_count", nullptr, "magiclysm"',
@@ -552,6 +594,52 @@ foreach($utilityNeedle0140 in @(
 )){
     if(-not $manaUtilitySection0140.Contains($utilityNeedle0140)){
         throw ('Mana Hand utility regression contract missing: '+$utilityNeedle0140)
+    }
+}
+
+$manaSecondaryEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaSecondaryStart0140)
+if($manaSecondaryEnd0140 -le $manaSecondaryStart0140){throw 'Mana Hand secondary-melee transform end missing.'}
+$manaSecondarySection0140=$payload.Substring($manaSecondaryStart0140,$manaSecondaryEnd0140-$manaSecondaryStart0140)
+foreach($secondaryNeedle0140 in @(
+    'class ncmm_virtual_melee_scope',
+    'ncmm::virtual_melee_context_begin( who, weapon )',
+    'who_.recalculate_enchantment_cache();',
+    '"magic.virtual_hand_count", nullptr, "magiclysm"',
+    'std::clamp( ( who.attack_speed( weapon ) + 9 ) / 10, 5, 50 )',
+    '!ncmm::virtual_item_secondary_melee_enabled( *weapon )',
+    'weapon->is_gun()',
+    'weapon->is_two_handed( who )',
+    'who.melee_attack( target, false )',
+    'who.magic->mod_mana( who, -mana_cost )',
+    'ncmm::virtual_melee_context_item( *this )',
+    'ncmm::virtual_melee_context_item( c )',
+    'ncmm::virtual_melee_context_is_wielding( *this, target )',
+    'ncmm_run_mana_hand_secondary_melee( *this, t );',
+    'NCMM Mana Hand secondary strikes do not trigger martial-art event chains.',
+    'ncmm::virtual_melee_context_active( *this ) ? tec_none.obj()'
+)){
+    if(-not $manaSecondarySection0140.Contains($secondaryNeedle0140)){
+        throw ('Mana Hand secondary-melee regression contract missing: '+$secondaryNeedle0140)
+    }
+}
+if($manaSecondarySection0140.Contains('set_wielded_item(') -or
+   $manaSecondarySection0140.Contains('u.wield(')){
+    throw 'Mana Hand secondary melee must not move the virtual item into Character::weapon.'
+}
+
+if(([regex]::Matches($manaSecondarySection0140,[regex]::Escape('if( !ncmm::virtual_melee_context_active( *this ) ) {'))).Count -lt 4){
+    throw 'Mana Hand secondary melee must suppress all martial-art event chains while scoped.'
+}
+foreach($upgradeNeedle0140 in @(
+    '$secondaryMenuOld0140ctx = @''',
+    '$secondarySwitchOld0140ctx = @''',
+    'Mana Hand secondary-melee context menu upgrade',
+    'Mana Hand secondary-melee context handler upgrade',
+    'item *ncmm_bound3 = ncmm_mana_hands_now >= 1 ?',
+    'item *ncmm_bound4 = ncmm_mana_hands_now >= 2 ?'
+)){
+    if(-not $manaContextSection0140.Contains($upgradeNeedle0140)){
+        throw ('Mana Hand context update-path regression contract missing: '+$upgradeNeedle0140)
     }
 }
 

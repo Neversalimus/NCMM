@@ -1,4 +1,5 @@
 class Creature;
+class Character;
 #pragma once
 #include <cstdint>
 #include <string>
@@ -61,4 +62,11 @@ bool virtual_item_assign( const char *module_id, const char *slot_id,
 bool virtual_item_clear( const char *module_id, const char *slot_id );
 bool release_virtual_item( item &it );
 bool is_virtual_item( const item &it );
+bool virtual_melee_context_begin( Character &who, item &weapon );
+void virtual_melee_context_end( Character &who );
+bool virtual_melee_context_active( const Character &who );
+item *virtual_melee_context_item( const Character &who );
+bool virtual_melee_context_is_wielding( const Character &who, const item &it );
+bool virtual_item_secondary_melee_enabled( const item &it );
+bool virtual_item_set_secondary_melee( item &it, bool enabled );
 } // namespace ncmm
