@@ -373,7 +373,10 @@
             "case ACTION_RELOAD_WIELDED:",
             "case ACTION_FIRE_BURST: {",
             "case ACTION_SELECT_FIRE_MODE:",
-            "case ACTION_SELECT_DEFAULT_AMMO:"
+            "case ACTION_SELECT_DEFAULT_AMMO:",
+            "static void reach_attack( avatar &you )",
+            "target_handler::mode_reach( you, you.get_wielded_item() );",
+            "if( weapon && !weapon->is_gun() && weapon->current_reach_range( you ).first > 1 ) {"
           ]
         },
         {
@@ -384,7 +387,12 @@
             "item_location Character::used_weapon() const",
             "static const std::set<weapon_category_id> &wielded_weapon_categories( const Character &c )",
             "bool Character::melee_attack( Creature &t, bool allow_special, const matec_id &force_technique,",
-            "return melee_attack_abstract( t, allow_special, force_technique, allow_unarmed, forced_movecost );"
+            "return melee_attack_abstract( t, allow_special, force_technique, allow_unarmed, forced_movecost );",
+            "bool Character::can_reach_attack( const Creature &target ) const",
+            "void Character::reach_attack( const tripoint_bub_ms &p, int forced_movecost )",
+            "int move_cost = attack_speed( weapon );",
+            "handle_melee_wear( get_wielded_item() );",
+            "get_total_melee_stamina_cost()"
           ]
         },
         {
@@ -407,7 +415,8 @@
             "class item_location::impl::item_on_person",
             "who->remove_item( *what );",
             "class item_location::impl::item_in_container",
-            "container->remove_item( *target() );"
+            "item_location parent_item() const override {",
+            "void remove_item() override {"
           ]
         },
         {
