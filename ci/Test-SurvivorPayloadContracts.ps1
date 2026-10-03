@@ -621,7 +621,11 @@ foreach($needle0140 in @(
     'item_location( you, ncmm_reach_weapon )',
     'item_location reach_weapon = used_weapon();',
     'Not enough mana for a primary Mana Hand reach attack.',
-    'Apply-SurvivorManaHandReachMelee0140 $CddaRoot'
+    'Apply-SurvivorManaHandReachMelee0140 $CddaRoot',
+    'function Apply-SurvivorManaHandSmash0140',
+    'ncmm_primary_mana_hand_smash_weapon',
+    'Not enough mana to smash with the primary Mana Hand weapon.',
+    'Apply-SurvivorManaHandSmash0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
@@ -638,7 +642,7 @@ $manaAidSection0140=$payload.Substring($manaAidStart0140,$manaAidEnd0140-$manaAi
 if($manaAidSection0140.Contains('flag_id( "MAGIC_FOCUS" )')){
     throw 'Mana Hand spellcasting-aid bridge leaked MAGIC_FOCUS back into global wielded semantics.'
 }
-foreach($sourcePath0140 in @('src/game.cpp','src/talker_character.cpp','src/item_location.cpp','src/iuse_actor.cpp','src/melee.cpp','src/martialarts.cpp','src/character_inventory.cpp','src/activity_actor_definitions.h','src/activity_actor.cpp','src/ranged.cpp')){
+foreach($sourcePath0140 in @('src/game.cpp','src/talker_character.cpp','src/item_location.cpp','src/iuse_actor.cpp','src/melee.cpp','src/martialarts.cpp','src/character.cpp','src/character_inventory.cpp','src/activity_actor_definitions.h','src/activity_actor.cpp','src/ranged.cpp')){
     $sourceEntry0140=@($contracts0140.contracts|Where-Object{$_.id -eq 'magic_virtual_slots.source.v1'}).files|Where-Object{$_.path -eq $sourcePath0140}
     if(@($sourceEntry0140).Count -ne 1){throw ('Mana Hand source contract missing hardening path: '+$sourcePath0140)}
 }
@@ -969,9 +973,9 @@ if($manaMartialSection0140.Contains('set_wielded_item(') -or
    $manaMartialSection0140.Contains('.obtain(')){
     throw 'Mana Hand martial-arts parity must not physically wield or move the virtual weapon.'
 }
-$manaReachEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaReachStart0140)
-if($manaReachEnd0140 -le $manaReachStart0140){throw 'Primary Mana Hand reach transform end missing.'}
-$manaReachSection0140=$payload.Substring($manaReachStart0140,$manaReachEnd0140-$manaReachStart0140)
+$manaSmashStart0140=$payload.IndexOf('function Apply-SurvivorManaHandSmash0140',$manaReachStart0140)
+if($manaSmashStart0140 -le $manaReachStart0140){throw 'Primary Mana Hand smash transform boundary missing.'}
+$manaReachSection0140=$payload.Substring($manaReachStart0140,$manaSmashStart0140-$manaReachStart0140)
 foreach($reachNeedle0140 in @(
     'class ncmm_virtual_reach_scope',
     'ncmm::virtual_melee_context_begin( who, weapon, false )',
@@ -994,6 +998,31 @@ if($manaReachSection0140.Contains('set_wielded_item(') -or
    $manaReachSection0140.Contains('u.wield(') -or
    $manaReachSection0140.Contains('.obtain(')){
     throw 'Mana Hand reach melee must not move the real item into Character::weapon.'
+}
+
+$manaSmashEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaSmashStart0140)
+if($manaSmashEnd0140 -le $manaSmashStart0140){throw 'Primary Mana Hand smash transform end missing.'}
+$manaSmashSection0140=$payload.Substring($manaSmashStart0140,$manaSmashEnd0140-$manaSmashStart0140)
+foreach($smashNeedle0140 in @(
+    'item_location ncmm_smash_weapon = get_wielded_item();',
+    'ncmm::virtual_melee_context_item( *this )',
+    'item *ncmm_primary_mana_hand_smash_weapon( avatar &you )',
+    'class ncmm_mana_hand_smash_scope',
+    'ncmm::virtual_melee_context_begin( who, *weapon, false )',
+    'std::clamp( ( attack_speed( *ncmm_smash_weapon ) + 9 ) / 10, 5, 50 )',
+    'Not enough mana to smash with the primary Mana Hand weapon.',
+    'if( !has_weapon() && ncmm_smash_weapon == nullptr )',
+    'weapon.remove_item();',
+    'The magical hand, not either physical hand, absorbed the break.'
+)){
+    if(-not $manaSmashSection0140.Contains($smashNeedle0140)){
+        throw ('Mana Hand smash regression contract missing: '+$smashNeedle0140)
+    }
+}
+if($manaSmashSection0140.Contains('set_wielded_item(') -or
+   $manaSmashSection0140.Contains('u.wield(') -or
+   $manaSmashSection0140.Contains('.obtain(')){
+    throw 'Mana Hand smash must not move the real item into Character::weapon.'
 }
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate

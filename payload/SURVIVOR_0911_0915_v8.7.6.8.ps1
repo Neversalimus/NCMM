@@ -23013,6 +23013,256 @@ void Character::reach_attack( const tripoint_bub_ms &p, int forced_movecost )
 
 Apply-SurvivorManaHandReachMelee0140 $CddaRoot
 
+function Apply-SurvivorManaHandSmash0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 primary Mana Hand smash support..." -ForegroundColor Cyan
+    $src0140smash = Join-Path $Root 'src'
+    $character0140smashPath = Join-Path $src0140smash 'character.cpp'
+    $handle0140smashPath = Join-Path $src0140smash 'handle_action.cpp'
+    foreach($required0140smash in @($character0140smashPath,$handle0140smashPath)) {
+        if(-not(Test-Path $required0140smash -PathType Leaf)) {
+            if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+                Write-Host "Survivor 0.14.0 Mana Hand smash transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+                return
+            }
+            throw ('Primary Mana Hand smash source missing: '+$required0140smash)
+        }
+    }
+
+    $character0140smash = Normalize-Lf ([IO.File]::ReadAllText($character0140smashPath))
+    if(-not $character0140smash.Contains('#include "ncmm_loader.h"')) {
+        $character0140smash = Replace-TextBlock $character0140smash '#include "character.h"' ('#include "character.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Primary Mana Hand smash character include'
+    }
+    if(-not $character0140smash.Contains('ncmm_smash_weapon')) {
+        $abilityOld0140smash = @'
+    bonus += enchantment_cache->get_value_add( enchant_vals::mod::SMASH_BONUS );
+    if( is_mounted() ) {
+        auto *mon = mounted_creature.get();
+        bonus += mon->mech_str_addition() + mon->type->melee_dice * mon->type->melee_sides;
+    } else if( get_wielded_item() ) {
+        for( const damage_unit &dam : get_wielded_item()->base_damage_melee() ) {
+'@
+        $abilityNew0140smash = @'
+    bonus += enchantment_cache->get_value_add( enchant_vals::mod::SMASH_BONUS );
+    item_location ncmm_smash_weapon = get_wielded_item();
+    if( ncmm::virtual_melee_context_active( *this ) ) {
+        item *ncmm_virtual_smash_weapon =
+            ncmm::virtual_melee_context_item( *this );
+        if( ncmm_virtual_smash_weapon != nullptr ) {
+            ncmm_smash_weapon =
+                item_location( *const_cast<Character *>( this ),
+                               ncmm_virtual_smash_weapon );
+        }
+    }
+    if( is_mounted() ) {
+        auto *mon = mounted_creature.get();
+        bonus += mon->mech_str_addition() + mon->type->melee_dice * mon->type->melee_sides;
+    } else if( ncmm_smash_weapon ) {
+        for( const damage_unit &dam : ncmm_smash_weapon->base_damage_melee() ) {
+'@
+        $character0140smash = Replace-TextBlock $character0140smash $abilityOld0140smash $abilityNew0140smash 'Primary Mana Hand smash ability weapon'
+    }
+    Write-Utf8NoBom $character0140smashPath $character0140smash
+
+    $handle0140smash = Normalize-Lf ([IO.File]::ReadAllText($handle0140smashPath))
+    if(-not $handle0140smash.Contains('#include "ncmm_loader.h"')) {
+        $handle0140smash = Replace-TextBlock $handle0140smash '#include "game.h" // IWYU pragma: associated' ('#include "game.h" // IWYU pragma: associated' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Primary Mana Hand smash handle include'
+    }
+
+    if(-not $handle0140smash.Contains('ncmm_primary_mana_hand_smash_weapon')) {
+        $smashHeadOld0140smash = @'
+avatar::smash_result avatar::smash( tripoint_bub_ms &smashp )
+{
+    avatar::smash_result ret;
+    ret.can_smash = false;
+    ret.did_smash = false;
+    ret.success = false;
+
+    map &here = get_map();
+'@
+        $smashHeadNew0140smash = @'
+namespace
+{
+item *ncmm_primary_mana_hand_smash_weapon( avatar &you )
+{
+    if( you.get_wielded_item() || you.is_mounted() ||
+        you.martial_arts_data->selected_force_unarmed() ||
+        ncmm::virtual_melee_context_active( you ) ) {
+        return nullptr;
+    }
+
+    const int hand_count = std::clamp( static_cast<int>(
+                                       ncmm::runtime_hook_modifier(
+                                           "magic.virtual_hand_count", nullptr, "magiclysm",
+                                           nullptr, nullptr ) ), 0, 2 );
+    if( hand_count >= 2 ) {
+        item *paired = ncmm::virtual_item_for_slot(
+                           "survivor_progression", "mana_hands_34" );
+        if( paired != nullptr &&
+            ncmm::virtual_item_primary_melee_enabled( *paired ) &&
+            paired->is_melee() && !paired->is_gun() &&
+            paired->is_two_handed( you ) ) {
+            return paired;
+        }
+    }
+
+    const char *slots[2] = { "mana_hand_3", "mana_hand_4" };
+    for( int i = 0; i < hand_count && i < 2; ++i ) {
+        item *candidate = ncmm::virtual_item_for_slot(
+                              "survivor_progression", slots[i] );
+        if( candidate != nullptr &&
+            ncmm::virtual_item_primary_melee_enabled( *candidate ) &&
+            candidate->is_melee() && !candidate->is_gun() &&
+            !candidate->is_two_handed( you ) ) {
+            return candidate;
+        }
+    }
+    return nullptr;
+}
+
+class ncmm_mana_hand_smash_scope
+{
+    public:
+        ncmm_mana_hand_smash_scope( avatar &who, item *weapon, bool &did_smash )
+            : who_( who ), did_smash_( did_smash ),
+              active_( weapon != nullptr &&
+                       ncmm::virtual_melee_context_begin( who, *weapon, false ) )
+        {
+            if( active_ ) {
+                who_.recalculate_enchantment_cache();
+            }
+        }
+
+        ~ncmm_mana_hand_smash_scope()
+        {
+            if( active_ ) {
+                ncmm::virtual_melee_context_end( who_ );
+                who_.recalculate_enchantment_cache();
+                if( did_smash_ && mana_cost_ > 0 ) {
+                    who_.magic->mod_mana( who_, -mana_cost_ );
+                }
+            }
+        }
+
+        bool active() const {
+            return active_;
+        }
+
+        void set_mana_cost( int mana_cost ) {
+            mana_cost_ = mana_cost;
+        }
+
+    private:
+        avatar &who_;
+        bool &did_smash_;
+        bool active_;
+        int mana_cost_ = 0;
+};
+} // namespace
+
+avatar::smash_result avatar::smash( tripoint_bub_ms &smashp )
+{
+    avatar::smash_result ret;
+    ret.can_smash = false;
+    ret.did_smash = false;
+    ret.success = false;
+
+    item *ncmm_smash_weapon =
+        ncmm_primary_mana_hand_smash_weapon( *this );
+    ncmm_mana_hand_smash_scope ncmm_smash_scope(
+        *this, ncmm_smash_weapon, ret.did_smash );
+    if( ncmm_smash_weapon != nullptr ) {
+        if( !ncmm_smash_scope.active() ) {
+            return ret;
+        }
+        const int ncmm_smash_mana_cost =
+            std::clamp( ( attack_speed( *ncmm_smash_weapon ) + 9 ) / 10, 5, 50 );
+        if( magic->available_mana() < ncmm_smash_mana_cost ) {
+            add_msg_if_player( m_info, "%s", ncmm::localized_text(
+                                   "Not enough mana to smash with the primary Mana Hand weapon.",
+                                   "Недостаточно маны, чтобы ломать основным оружием руки маны." ).c_str() );
+            return ret;
+        }
+        ncmm_smash_scope.set_mana_cost( ncmm_smash_mana_cost );
+    }
+
+    map &here = get_map();
+'@
+        $handle0140smash = Replace-TextBlock $handle0140smash $smashHeadOld0140smash $smashHeadNew0140smash 'Primary Mana Hand smash scope'
+
+        $moveOld0140smash = @'
+    const int move_cost = !is_armed() ? 80 :
+                          get_wielded_item()->attack_time( *this ) * 0.8;
+'@
+        $moveNew0140smash = @'
+    item_location ncmm_smash_location = ncmm_smash_weapon != nullptr ?
+                                        item_location( *this, ncmm_smash_weapon ) :
+                                        get_wielded_item();
+    const int move_cost = !ncmm_smash_location ? 80 :
+                          ncmm_smash_location->attack_time( *this ) * 0.8;
+'@
+        $handle0140smash = Replace-TextBlock $handle0140smash $moveOld0140smash $moveNew0140smash 'Primary Mana Hand smash move cost'
+
+        $handle0140smash = Replace-TextBlock $handle0140smash '    if( !has_weapon() ) {' '    if( !has_weapon() && ncmm_smash_weapon == nullptr ) {' 'Primary Mana Hand smash body-part message'
+
+        $glassOld0140smash = @'
+                    deal_damage( nullptr, bodypart_id( "hand_r" ), damage_instance( damage_cut,
+                                 rng( 0,
+                                      vol ) ) );
+                    if( vol > 20 ) {
+                        // Hurt left arm too, if it was big
+                        deal_damage( nullptr, bodypart_id( "hand_l" ), damage_instance( damage_cut,
+                                     rng( 0, static_cast<int>( vol * .5 ) ) ) );
+                    }
+                    remove_weapon();
+                    check_dead_state( &here );
+'@
+        $glassNew0140smash = @'
+                    if( ncmm_smash_weapon != nullptr ) {
+                        // A shattered virtual weapon is removed from its real item_location.
+                        // The magical hand, not either physical hand, absorbed the break.
+                        weapon.remove_item();
+                    } else {
+                        deal_damage( nullptr, bodypart_id( "hand_r" ), damage_instance( damage_cut,
+                                     rng( 0,
+                                          vol ) ) );
+                        if( vol > 20 ) {
+                            // Hurt left arm too, if it was big
+                            deal_damage( nullptr, bodypart_id( "hand_l" ), damage_instance( damage_cut,
+                                         rng( 0, static_cast<int>( vol * .5 ) ) ) );
+                        }
+                        remove_weapon();
+                        check_dead_state( &here );
+                    }
+'@
+        $handle0140smash = Replace-TextBlock $handle0140smash $glassOld0140smash $glassNew0140smash 'Primary Mana Hand smash glass removal'
+    }
+    Write-Utf8NoBom $handle0140smashPath $handle0140smash
+
+    $characterOut0140smash = [IO.File]::ReadAllText($character0140smashPath)
+    $handleOut0140smash = [IO.File]::ReadAllText($handle0140smashPath)
+    foreach($needle0140smash in @(
+        'item_location ncmm_smash_weapon = get_wielded_item();',
+        'ncmm::virtual_melee_context_item( *this )',
+        'else if( ncmm_smash_weapon )',
+        'ncmm_smash_weapon->base_damage_melee()',
+        'item *ncmm_primary_mana_hand_smash_weapon( avatar &you )',
+        'class ncmm_mana_hand_smash_scope',
+        'ncmm::virtual_melee_context_begin( who, *weapon, false )',
+        'Not enough mana to smash with the primary Mana Hand weapon.',
+        'item_location ncmm_smash_location = ncmm_smash_weapon != nullptr ?',
+        'if( !has_weapon() && ncmm_smash_weapon == nullptr )',
+        'weapon.remove_item();'
+    )) {
+        if(-not ($characterOut0140smash.Contains($needle0140smash) -or
+                 $handleOut0140smash.Contains($needle0140smash))) {
+            throw ('Survivor 0.14.0 primary Mana Hand smash output missing: '+$needle0140smash)
+        }
+    }
+    Write-Host "Survivor 0.14.0 primary Mana Hand smash support: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandSmash0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition

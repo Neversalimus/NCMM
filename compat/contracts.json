@@ -376,7 +376,11 @@
             "case ACTION_SELECT_DEFAULT_AMMO:",
             "static void reach_attack( avatar &you )",
             "target_handler::mode_reach( you, you.get_wielded_item() );",
-            "if( weapon && !weapon->is_gun() && weapon->current_reach_range( you ).first > 1 ) {"
+            "if( weapon && !weapon->is_gun() && weapon->current_reach_range( you ).first > 1 ) {",
+            "avatar::smash_result avatar::smash( tripoint_bub_ms &smashp )",
+            "const int move_cost = !is_armed() ? 80 :",
+            "std::map<damage_type_id, int> smash_damage = smash_ability();",
+            "item_location weapon = used_weapon();"
           ]
         },
         {
@@ -427,6 +431,14 @@
             "std::optional<int> cast_spell_actor::use( Character *p, item &it,",
             "if( need_wielding && !p->is_wielding( it ) ) {",
             "std::optional<int> effect_on_conditions_actor::use( Character *p, item &it,"
+          ]
+        },
+        {
+          "path": "src/character.cpp",
+          "required": [
+            "std::map<damage_type_id, int> Character::smash_ability() const",
+            "} else if( get_wielded_item() ) {",
+            "for( const damage_unit &dam : get_wielded_item()->base_damage_melee() ) {"
           ]
         },
         {
