@@ -23993,6 +23993,153 @@ bool target_practice_activity_actor::check_character( Character &who )
 
 Apply-SurvivorManaHandTargetPractice0140 $CddaRoot
 
+
+function Apply-SurvivorManaHandMend0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 Mana Hand mend support..." -ForegroundColor Cyan
+    $avatar0140mendPath = Join-Path (Join-Path $Root 'src') 'avatar_action.cpp'
+    if(-not(Test-Path $avatar0140mendPath -PathType Leaf)) {
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+            Write-Host "Survivor 0.14.0 Mana Hand mend transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+            return
+        }
+        throw ('Mana Hand mend source missing: '+$avatar0140mendPath)
+    }
+
+    $avatar0140mend = Normalize-Lf ([IO.File]::ReadAllText($avatar0140mendPath))
+    if(-not $avatar0140mend.Contains('#include "ncmm_loader.h"')) {
+        if(-not $avatar0140mend.Contains('#include "item_location.h"')) {
+            throw 'Mana Hand mend include anchor missing.'
+        }
+        $avatar0140mend = Replace-TextBlock $avatar0140mend '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand mend include'
+    }
+
+    if(-not $avatar0140mend.Contains('ncmm_select_mana_hand_mend_item')) {
+        $helperOld0140mend = @'
+void avatar_action::mend( avatar &you, item_location loc )
+'@
+        $helperNew0140mend = @'
+static item_location ncmm_select_mana_hand_mend_item( avatar &you, bool &had_candidates )
+{
+    had_candidates = false;
+    if( you.get_wielded_item() ) {
+        return item_location();
+    }
+
+    const int hand_count = std::max( 0, std::min( 2, static_cast<int>(
+                                   ncmm::runtime_hook_modifier(
+                                       "magic.virtual_hand_count", nullptr, "magiclysm",
+                                       nullptr, nullptr ) ) ) );
+    std::vector<item_location> candidates;
+    std::vector<std::string> labels;
+
+    const auto add_candidate =
+    [&]( item *candidate, const char *label_en, const char *label_ru ) {
+        if( candidate == nullptr ) {
+            return;
+        }
+        item_location candidate_loc( you, candidate );
+        if( !candidate_loc ) {
+            return;
+        }
+        candidates.emplace_back( candidate_loc );
+        labels.emplace_back(
+            ncmm::localized_text( label_en, label_ru ) + ": " + candidate->tname() );
+    };
+
+    item *paired = hand_count >= 2 ?
+                   ncmm::virtual_item_for_slot(
+                       "survivor_progression", "mana_hands_34" ) : nullptr;
+    if( paired != nullptr ) {
+        add_candidate( paired, "Mana Hands III+IV", "Руки маны III+IV" );
+    } else {
+        if( hand_count >= 1 ) {
+            add_candidate(
+                ncmm::virtual_item_for_slot(
+                    "survivor_progression", "mana_hand_3" ),
+                "Mana Hand III", "Рука маны III" );
+        }
+        if( hand_count >= 2 ) {
+            add_candidate(
+                ncmm::virtual_item_for_slot(
+                    "survivor_progression", "mana_hand_4" ),
+                "Mana Hand IV", "Рука маны IV" );
+        }
+    }
+
+    had_candidates = !candidates.empty();
+    if( candidates.empty() ) {
+        return item_location();
+    }
+    if( candidates.size() == 1 ) {
+        return candidates.front();
+    }
+
+    const int selected = uilist(
+                             ncmm::localized_text(
+                                 "Mend which Mana Hand item?",
+                                 "Какой предмет в руке маны починить?" ),
+                             labels );
+    if( selected < 0 || selected >= static_cast<int>( candidates.size() ) ) {
+        return item_location();
+    }
+    return candidates[selected];
+}
+
+void avatar_action::mend( avatar &you, item_location loc )
+'@
+        $avatar0140mend = Replace-TextBlock $avatar0140mend $helperOld0140mend $helperNew0140mend 'Mana Hand mend selector'
+
+        $fallbackOld0140mend = @'
+    if( !loc ) {
+        if( you.is_armed() ) {
+            loc = you.get_wielded_item();
+        } else {
+            add_msg( m_info, _( "You're not wielding anything." ) );
+            return;
+        }
+    }
+'@
+        $fallbackNew0140mend = @'
+    if( !loc ) {
+        if( you.is_armed() ) {
+            loc = you.get_wielded_item();
+        } else {
+            bool ncmm_had_mend_candidates = false;
+            loc = ncmm_select_mana_hand_mend_item( you, ncmm_had_mend_candidates );
+            if( !loc ) {
+                add_msg( m_info, ncmm_had_mend_candidates ?
+                         _( "Never mind." ) : _( "You're not wielding anything." ) );
+                return;
+            }
+        }
+    }
+'@
+        $avatar0140mend = Replace-TextBlock $avatar0140mend $fallbackOld0140mend $fallbackNew0140mend 'Mana Hand mend wielded fallback'
+    }
+
+    Write-Utf8NoBom $avatar0140mendPath $avatar0140mend
+    $mendOutput0140 = [IO.File]::ReadAllText($avatar0140mendPath)
+    foreach($needle0140mend in @(
+        'ncmm_select_mana_hand_mend_item',
+        '"magic.virtual_hand_count", nullptr, "magiclysm"',
+        '"survivor_progression", "mana_hands_34"',
+        '"survivor_progression", "mana_hand_3"',
+        '"survivor_progression", "mana_hand_4"',
+        'Mend which Mana Hand item?',
+        'if( you.is_armed() )',
+        'loc = you.get_wielded_item();',
+        'loc = ncmm_select_mana_hand_mend_item( you, ncmm_had_mend_candidates );',
+        'you.mend_item( item_location( loc ) );'
+    )) {
+        if(-not $mendOutput0140.Contains($needle0140mend)) {
+            throw ('Survivor 0.14.0 Mana Hand mend output missing: '+$needle0140mend)
+        }
+    }
+    Write-Host "Survivor 0.14.0 Mana Hand mend support: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandMend0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -24017,6 +24164,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandAutoattack0140
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandThrow0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandAutoMining0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandTargetPractice0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandMend0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.

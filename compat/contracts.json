@@ -395,7 +395,10 @@
             "item_location weapon = in_mech ? loc : you.get_wielded_item();",
             "void avatar_action::plthrow_wielded( avatar &you,",
             "if( m.has_flag( ter_furn_flag::TFLAG_MINEABLE, dest_loc ) && g->mostseen == 0 &&",
-            "if( weapon && weapon->has_flag( flag_DIG_TOOL ) ) {"
+            "if( weapon && weapon->has_flag( flag_DIG_TOOL ) ) {",
+            "void avatar_action::mend( avatar &you, item_location loc )",
+            "if( you.is_armed() ) {",
+            "you.mend_item( item_location( loc ) );"
           ]
         },
         {
