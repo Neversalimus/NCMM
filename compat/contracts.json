@@ -457,6 +457,19 @@
           ]
         },
         {
+          "path": "src/martialarts.cpp",
+          "required": [
+            "bool ma_requirements::is_valid_character( const Character &u ) const",
+            "const item_location weapon = u.get_wielded_item();",
+            "static ma_technique get_valid_technique( const Character &owner",
+            "ma_data->get_all_techniques( owner.get_wielded_item(),",
+            "character_martial_arts::choose_attack_vector( const Character &user,",
+            "bool valid_weapon = ma.weapon_valid( user.get_wielded_item() );",
+            "item *weapon = user.get_wielded_item().get_item();",
+            "void character_martial_arts::martialart_use_message( const Character &owner ) const"
+          ]
+        },
+        {
           "path": "src/ranged.cpp",
           "required": [
             "bool gunmode_checks_common( avatar &you, const map &m, std::vector<std::string> &messages,",
