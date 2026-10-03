@@ -636,7 +636,10 @@ foreach($needle0140 in @(
     'Apply-SurvivorManaHandThrow0140 $CddaRoot',
     'function Apply-SurvivorManaHandAutoMining0140',
     'ncmm_mana_hand_auto_mining_tool',
-    'Apply-SurvivorManaHandAutoMining0140 $CddaRoot'
+    'Apply-SurvivorManaHandAutoMining0140 $CddaRoot',
+    'function Apply-SurvivorManaHandTargetPractice0140',
+    'ncmm_target_practice_mana_hand_gun',
+    'Apply-SurvivorManaHandTargetPractice0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
@@ -1102,7 +1105,7 @@ if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandThrow0140 -Command
 
 
 $manaMineStart0140=$payload.IndexOf('function Apply-SurvivorManaHandAutoMining0140',$manaThrowStart0140)
-$manaMineEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaMineStart0140)
+$manaMineEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandTargetPractice0140',$manaMineStart0140)
 if($manaMineStart0140 -le $manaThrowStart0140 -or $manaMineEnd0140 -le $manaMineStart0140){throw 'Mana Hand auto-mining transform boundary missing.'}
 $manaMineSection0140=$payload.Substring($manaMineStart0140,$manaMineEnd0140-$manaMineStart0140)
 foreach($mineNeedle0140 in @(
@@ -1124,6 +1127,30 @@ if($manaMineSection0140.Contains('set_wielded_item(') -or
     throw 'Mana Hand auto-mining must not move the real tool into Character::weapon.'
 }
 if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandAutoMining0140 -CommandType Function).Definition')){throw 'Mana Hand auto-mining transform missing from mechanics patch revision.'}
+
+
+$manaPracticeStart0140=$payload.IndexOf('function Apply-SurvivorManaHandTargetPractice0140',$manaMineStart0140)
+$manaPracticeEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaPracticeStart0140)
+if($manaPracticeStart0140 -le $manaMineStart0140 -or $manaPracticeEnd0140 -le $manaPracticeStart0140){throw 'Mana Hand target-practice transform boundary missing.'}
+$manaPracticeSection0140=$payload.Substring($manaPracticeStart0140,$manaPracticeEnd0140-$manaPracticeStart0140)
+foreach($practiceNeedle0140 in @(
+    'ncmm_target_practice_mana_hand_gun',
+    '"magic.virtual_hand_count", nullptr, "magiclysm"',
+    '"survivor_progression", "mana_hands_34"',
+    '"survivor_progression", "mana_hand_3"',
+    '"survivor_progression", "mana_hand_4"',
+    'if( !ncmm_virtual_target_gun && !who.is_wielding( *gun_loc ) )',
+    '!ncmm_target_practice_mana_hand_gun( who, gun )',
+    'constexpr int ncmm_target_practice_mana_cost = 5;',
+    'who.magic->available_mana() < ncmm_target_practice_mana_cost',
+    'who.magic->mod_mana( who, -ncmm_target_practice_mana_cost );'
+)){if(-not $manaPracticeSection0140.Contains($practiceNeedle0140)){throw ('Mana Hand target-practice regression contract missing: '+$practiceNeedle0140)}}
+if($manaPracticeSection0140.Contains('set_wielded_item(') -or
+   $manaPracticeSection0140.Contains('.obtain(')){
+    throw 'Mana Hand target practice must not move the real virtual gun into Character::weapon.'
+}
+if(-not $payload.Contains('(Get-Command Apply-SurvivManaHandTargetPractice0140 -CommandType Function).Definition') -and
+   -not $payload.Contains('(Get-Command Apply-SurvivorManaHandTargetPractice0140 -CommandType Function).Definition')){throw 'Mana Hand target-practice transform missing from mechanics patch revision.'}
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate
 # is intentionally half of the original 1 XP / 150 movement events.
