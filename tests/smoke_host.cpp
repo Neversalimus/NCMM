@@ -613,6 +613,8 @@ int virtual_item_choose_v2_fn( const char *, const char *, const char *, uint32_
 int virtual_item_clear_v2_fn( const char *, const char * ) { return 1; }
 const char *virtual_item_name_v2_fn( const char *, const char * ) { return ""; }
 int64_t virtual_item_uid_v2_fn( const char *, const char * ) { return 0; }
+int virtual_item_secondary_melee_enabled_v2_fn( const char *, const char * ) { return 0; }
+int virtual_item_set_secondary_melee_v2_fn( const char *, const char *, int ) { return 1; }
 
 ncmm_host_api_v2_core smoke_host2{};
 
@@ -1823,6 +1825,10 @@ int main( int argc, char **argv )
     smoke_host2.virtual_item_clear = &virtual_item_clear_v2_fn;
     smoke_host2.virtual_item_name = &virtual_item_name_v2_fn;
     smoke_host2.virtual_item_uid = &virtual_item_uid_v2_fn;
+    smoke_host2.virtual_item_secondary_melee_enabled =
+        &virtual_item_secondary_melee_enabled_v2_fn;
+    smoke_host2.virtual_item_set_secondary_melee =
+        &virtual_item_set_secondary_melee_v2_fn;
 
     if( std::strcmp( desc->id, "equipment_body_map" ) == 0 ) {
         if( !equipment_body_map_smoke::run( lib, desc, api ) ) return 44;

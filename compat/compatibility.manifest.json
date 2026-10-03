@@ -150,9 +150,9 @@
     "automatic_user_release": false
   },
   "exact_seed_adapter": "cdda-2026-09-23-0546-e262adb2",
-  "host_api_v2": "2.1",
+  "host_api_v2": "2.2",
   "host_api_2_core": {
-    "version": "2.1",
+    "version": "2.2",
     "delivery": "query_interface_over_legacy_abi_v1",
     "legacy_api": "1.9",
     "module_binary_compatibility": "existing ABI-v1 modules preserved",
@@ -167,7 +167,7 @@
       "runtime_setting_binding_registry",
       "worldgen_binding_registry"
     ],
-    "module_migration_status": "Survivor 0.14.0 uses Host API 2.1 logical virtual-item slots plus the existing generic runtime hooks; AWS 0.6.4, Ballistic Hit Chance 0.1.0, and Equipment Body Map 0.1.0 remain on the compatible Host API 2.x prefix.",
+    "module_migration_status": "Survivor 0.14.0 uses Host API 2.2 logical virtual-item slots plus the existing generic runtime hooks; AWS 0.6.4, Ballistic Hit Chance 0.1.0, and Equipment Body Map 0.1.0 remain on the compatible Host API 2.x prefix.",
     "survivor_migration": "runtime_hook_registry_v2 + character.virtual_items.v1 + dynamic_modifier_ownership; virtual slots keep real CDDA items in the vanilla item graph and bind them by marker + persistent UID.",
     "aws_migration": "typed_world_settings_v2 + scope-aware worldgen_binding_registry_v2; final patched CDDA geography sources contain no NCMM_AWS_* identifiers; disabled AWS scopes inherit region_settings/region-overlay values.",
     "ballistic_hit_chance": "runtime_setting_binding_registry_v2 + generic targeting.hit_probability hooks; module-specific NCMM_BHC_* identifiers remain module-owned and do not leak into patched CDDA source",
