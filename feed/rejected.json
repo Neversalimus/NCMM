@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "loader_api": 1,
-  "patch_revision": "b4531cf94ff65a4de35c8492f27e3f55937cee39c6ebbedba0ea10f18507ca70",
+  "patch_revision": "048cbf1e79ed20ba82c7aab27c9c5f92d5ba169f96e65386de1630de2d64231c",
   "rejected": {
     "cdda-experimental-2026-10-02-1831": {
       "source_commit": "f41a50e6a5a5ec16bd5c98bdfcc5d0349a2ada74",
-      "recorded_utc": "2026-10-03T12:37:46.3576857Z"
+      "recorded_utc": "2026-10-03T13:20:54.5254214Z"
     }
   }
 }
