@@ -1151,7 +1151,8 @@ bool virtual_item_assign_internal( const char *module_id, const char *slot_id,
         return false;
     }
 
-    item *selected = loc.get_item();
+    item_location mutable_loc = loc;
+    item *selected = mutable_loc.get_item();
     if( selected == nullptr ) {
         return false;
     }
