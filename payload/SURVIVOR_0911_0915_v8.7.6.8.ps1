@@ -22203,8 +22203,7 @@ int ncmm_secondary_melee_mana_cost( Character &who, const item &weapon )
 
 item *ncmm_primary_mana_hand_melee_weapon( Character &who )
 {
-    if( !who.is_avatar() || who.is_mounted() || who.get_wielded_item() ||
-        who.martial_arts_data->selected_force_unarmed() ) {
+    if( !who.is_avatar() || who.is_mounted() || who.get_wielded_item() ) {
         return nullptr;
     }
 
@@ -22261,7 +22260,8 @@ item *ncmm_primary_mana_hand_melee_weapon( Character &who )
         $wrapperNew0140pm = @'
     if( allow_special && is_avatar() &&
         !ncmm::virtual_melee_context_active( *this ) &&
-        !get_wielded_item() ) {
+        !get_wielded_item() &&
+        !martial_arts_data->selected_force_unarmed() ) {
         item *ncmm_primary_weapon = ncmm_primary_mana_hand_melee_weapon( *this );
         if( ncmm_primary_weapon != nullptr ) {
             const int ncmm_primary_mana_cost =
