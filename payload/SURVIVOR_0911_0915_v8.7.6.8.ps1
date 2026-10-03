@@ -23536,6 +23536,239 @@ void avatar_action::autoattack( avatar &you, map &m )
 
 Apply-SurvivorManaHandAutoattack0140 $CddaRoot
 
+
+function Apply-SurvivorManaHandThrow0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 Mana Hand throw support..." -ForegroundColor Cyan
+    $avatar0140throwPath = Join-Path (Join-Path $Root 'src') 'avatar_action.cpp'
+    if(-not(Test-Path $avatar0140throwPath -PathType Leaf)) {
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+            Write-Host "Survivor 0.14.0 Mana Hand throw transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+            return
+        }
+        throw ('Mana Hand throw source missing: '+$avatar0140throwPath)
+    }
+
+    $avatar0140throw = Normalize-Lf ([IO.File]::ReadAllText($avatar0140throwPath))
+    if(-not $avatar0140throw.Contains('#include "ncmm_loader.h"')) {
+        $avatar0140throw = Replace-TextBlock $avatar0140throw '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand throw include'
+    }
+
+    if(-not $avatar0140throw.Contains('ncmm_select_mana_hand_throw_item')) {
+        $helperOld0140throw = @'
+void avatar_action::plthrow( avatar &you, item_location loc,
+'@
+        $helperNew0140throw = @'
+namespace
+{
+bool ncmm_is_mana_hand_throw_item( avatar &you, item *candidate )
+{
+    if( candidate == nullptr || you.get_wielded_item() ) {
+        return false;
+    }
+
+    const int hand_count = std::clamp( static_cast<int>(
+                                       ncmm::runtime_hook_modifier(
+                                           "magic.virtual_hand_count", nullptr, "magiclysm",
+                                           nullptr, nullptr ) ), 0, 2 );
+    if( hand_count >= 2 ) {
+        item *paired = ncmm::virtual_item_for_slot(
+                           "survivor_progression", "mana_hands_34" );
+        if( paired != nullptr ) {
+            return paired == candidate;
+        }
+    }
+
+    if( hand_count >= 1 &&
+        ncmm::virtual_item_for_slot(
+            "survivor_progression", "mana_hand_3" ) == candidate ) {
+        return true;
+    }
+    return hand_count >= 2 &&
+           ncmm::virtual_item_for_slot(
+               "survivor_progression", "mana_hand_4" ) == candidate;
+}
+
+item_location ncmm_select_mana_hand_throw_item( avatar &you )
+{
+    const int hand_count = std::clamp( static_cast<int>(
+                                       ncmm::runtime_hook_modifier(
+                                           "magic.virtual_hand_count", nullptr, "magiclysm",
+                                           nullptr, nullptr ) ), 0, 2 );
+    std::vector<item_location> candidates;
+    std::vector<std::string> labels;
+
+    const auto add_candidate =
+    [&]( item *candidate, const char *label_en, const char *label_ru ) {
+        if( candidate == nullptr ) {
+            return;
+        }
+        item_location loc( you, candidate );
+        if( !loc ) {
+            return;
+        }
+        candidates.emplace_back( loc );
+        labels.emplace_back(
+            ncmm::localized_text( label_en, label_ru ) + ": " + candidate->tname() );
+    };
+
+    item *paired = hand_count >= 2 ?
+                   ncmm::virtual_item_for_slot(
+                       "survivor_progression", "mana_hands_34" ) : nullptr;
+    if( paired != nullptr ) {
+        add_candidate( paired, "Mana Hands III+IV", "Руки маны III+IV" );
+    } else {
+        if( hand_count >= 1 ) {
+            add_candidate(
+                ncmm::virtual_item_for_slot(
+                    "survivor_progression", "mana_hand_3" ),
+                "Mana Hand III", "Рука маны III" );
+        }
+        if( hand_count >= 2 ) {
+            add_candidate(
+                ncmm::virtual_item_for_slot(
+                    "survivor_progression", "mana_hand_4" ),
+                "Mana Hand IV", "Рука маны IV" );
+        }
+    }
+
+    if( candidates.empty() ) {
+        return item_location();
+    }
+    if( candidates.size() == 1 ) {
+        return candidates.front();
+    }
+
+    const int selected = uilist(
+                             ncmm::localized_text(
+                                 "Throw from which Mana Hand?",
+                                 "Из какой руки маны бросить предмет?" ),
+                             labels );
+    if( selected < 0 || selected >= static_cast<int>( candidates.size() ) ) {
+        return item_location();
+    }
+    return candidates[selected];
+}
+} // namespace
+
+void avatar_action::plthrow( avatar &you, item_location loc,
+'@
+        $avatar0140throw = Replace-TextBlock $avatar0140throw $helperOld0140throw $helperNew0140throw 'Mana Hand throw helpers'
+
+        $locOld0140throw = @'
+    if( !loc ) {
+        add_msg( _( "Never mind." ) );
+        return;
+    }
+
+    // Bypass check for whether we can wield an item if we're inside a mech
+    if( !in_mech ) {
+'@
+        $locNew0140throw = @'
+    if( !loc ) {
+        add_msg( _( "Never mind." ) );
+        return;
+    }
+
+    const bool ncmm_virtual_throw =
+        ncmm_is_mana_hand_throw_item( you, loc.get_item() );
+
+    // A real Mana Hand binding is already holding the item, so do not route it
+    // through the physical can_wield()/wield() path.
+    if( !in_mech && !ncmm_virtual_throw ) {
+'@
+        $avatar0140throw = Replace-TextBlock $avatar0140throw $locOld0140throw $locNew0140throw 'Mana Hand throw wield precheck'
+        $avatar0140throw = Replace-TextBlock $avatar0140throw '    if( you.is_wielding( *orig ) && orig->has_flag( flag_NO_UNWIELD ) ) {' '    if( ( you.is_wielding( *orig ) || ncmm_virtual_throw ) && orig->has_flag( flag_NO_UNWIELD ) ) {' 'Mana Hand throw NO_UNWIELD semantics'
+
+        $wieldOld0140throw = @'
+    if( !in_mech ) {
+        if( !you.is_wielding( *orig ) ) {
+            if( !you.wield( *orig ) ) {
+                return;
+            }
+        }
+    }
+'@
+        $wieldNew0140throw = @'
+    if( !in_mech && !ncmm_virtual_throw ) {
+        if( !you.is_wielding( *orig ) ) {
+            if( !you.wield( *orig ) ) {
+                return;
+            }
+        }
+    }
+'@
+        $avatar0140throw = Replace-TextBlock $avatar0140throw $wieldOld0140throw $wieldNew0140throw 'Mana Hand throw physical-wield bypass'
+        $avatar0140throw = Replace-TextBlock $avatar0140throw '    item_location weapon = in_mech ? loc : you.get_wielded_item();' '    item_location weapon = ( in_mech || ncmm_virtual_throw ) ? loc : you.get_wielded_item();' 'Mana Hand throw target item location'
+
+        $removeOld0140throw = @'
+        if( in_mech ) {
+            loc.remove_item();
+        } else {
+            you.remove_weapon();
+        }
+'@
+        $removeNew0140throw = @'
+        if( in_mech || ncmm_virtual_throw ) {
+            // item_location::remove_item drives the existing Mana Hand lifecycle cleanup.
+            loc.remove_item();
+        } else {
+            you.remove_weapon();
+        }
+'@
+        $avatar0140throw = Replace-TextBlock $avatar0140throw $removeOld0140throw $removeNew0140throw 'Mana Hand throw real-item removal'
+
+        $wieldedOld0140throw = @'
+void avatar_action::plthrow_wielded( avatar &you,
+                                     const std::optional<tripoint_bub_ms> &blind_throw_from_pos )
+{
+    item_location weapon = you.get_wielded_item();
+    if( !weapon ) {
+        add_msg( _( "You aren't holding something you can throw." ) );
+        return;
+    }
+    avatar_action::plthrow( you, weapon, blind_throw_from_pos );
+}
+'@
+        $wieldedNew0140throw = @'
+void avatar_action::plthrow_wielded( avatar &you,
+                                     const std::optional<tripoint_bub_ms> &blind_throw_from_pos )
+{
+    item_location weapon = you.get_wielded_item();
+    if( !weapon ) {
+        weapon = ncmm_select_mana_hand_throw_item( you );
+    }
+    if( !weapon ) {
+        add_msg( _( "You aren't holding something you can throw." ) );
+        return;
+    }
+    avatar_action::plthrow( you, weapon, blind_throw_from_pos );
+}
+'@
+        $avatar0140throw = Replace-TextBlock $avatar0140throw $wieldedOld0140throw $wieldedNew0140throw 'Mana Hand throw-wielded action'
+    }
+
+    Write-Utf8NoBom $avatar0140throwPath $avatar0140throw
+    $throwOutput0140 = [IO.File]::ReadAllText($avatar0140throwPath)
+    foreach($needle0140throw in @(
+        'ncmm_is_mana_hand_throw_item',
+        'ncmm_select_mana_hand_throw_item',
+        'Throw from which Mana Hand?',
+        'const bool ncmm_virtual_throw =',
+        'if( !in_mech && !ncmm_virtual_throw )',
+        'item_location weapon = ( in_mech || ncmm_virtual_throw ) ? loc : you.get_wielded_item();',
+        'if( in_mech || ncmm_virtual_throw )',
+        'item_location::remove_item drives the existing Mana Hand lifecycle cleanup.',
+        'weapon = ncmm_select_mana_hand_throw_item( you );'
+    )) {
+        if(-not $throwOutput0140.Contains($needle0140throw)) {
+            throw ('Survivor 0.14.0 Mana Hand throw output missing: '+$needle0140throw)
+        }
+    }
+    Write-Host "Survivor 0.14.0 Mana Hand throw support: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandThrow0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -23557,6 +23790,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandPrimaryMelee01
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandReachMelee0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandSmash0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandAutoattack0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandThrow0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
