@@ -1116,6 +1116,7 @@ item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id
         !virtual_item_candidate_runtime_valid( *uid_match, stored_flags ) ) {
         uid_match->erase_var( virtual_item_marker_key );
         uid_match->erase_var( virtual_item_secondary_melee_key );
+        uid_match->erase_var( virtual_item_primary_melee_key );
         virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
         virtual_item_state_set_flags_internal( module_id, slot_id, 0u );
         return nullptr;
@@ -1134,7 +1135,7 @@ item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id
             if( duplicate != uid_match ) {
                 duplicate->erase_var( virtual_item_marker_key );
                 duplicate->erase_var( virtual_item_secondary_melee_key );
-            duplicate->erase_var( virtual_item_primary_melee_key );
+                duplicate->erase_var( virtual_item_primary_melee_key );
             }
         }
         return uid_match;
@@ -1145,6 +1146,7 @@ item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id
         if( !virtual_item_candidate_runtime_valid( *resolved, stored_flags ) ) {
             resolved->erase_var( virtual_item_marker_key );
             resolved->erase_var( virtual_item_secondary_melee_key );
+            resolved->erase_var( virtual_item_primary_melee_key );
             virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
             virtual_item_state_set_flags_internal( module_id, slot_id, 0u );
             return nullptr;
@@ -1256,6 +1258,7 @@ bool virtual_item_assign_internal( const char *module_id, const char *slot_id,
 
     virtual_item_clear_internal( module_id, slot_id );
     selected->erase_var( virtual_item_secondary_melee_key );
+    selected->erase_var( virtual_item_primary_melee_key );
     selected->set_var( virtual_item_marker_key, new_marker );
     virtual_item_state_set_uid_internal(
         module_id, slot_id, selected->uid().get_value() );
@@ -3844,6 +3847,7 @@ bool release_virtual_item( item &it )
     // Do not clear another item's live slot if this object no longer owns it.
     it.erase_var( virtual_item_marker_key );
     it.erase_var( virtual_item_secondary_melee_key );
+    it.erase_var( virtual_item_primary_melee_key );
     return false;
 }
 
