@@ -632,6 +632,27 @@ foreach($sourcePath0140 in @('src/game.cpp','src/talker_character.cpp','src/item
     if(@($sourceEntry0140).Count -ne 1){throw ('Mana Hand source contract missing hardening path: '+$sourcePath0140)}
 }
 
+$manaLifecycleStart0140=$payload.IndexOf('function Apply-SurvivorVirtualItemLifecycle0140')
+$manaUtilityStart0140=$payload.IndexOf('function Apply-SurvivorManaHandUtility0140',$manaLifecycleStart0140)
+if($manaLifecycleStart0140 -lt 0 -or $manaUtilityStart0140 -le $manaLifecycleStart0140){
+    throw 'Mana Hand lifecycle transform boundary missing.'
+}
+$manaLifecycleSection0140=$payload.Substring($manaLifecycleStart0140,$manaUtilityStart0140-$manaLifecycleStart0140)
+foreach($lifeNeedle0140 in @(
+    '$container1831Old0140life',
+    'container.remove_items_with(',
+    'Mana Hand lifecycle contained-item removal legacy',
+    'Mana Hand lifecycle contained-item removal 1831'
+)){
+    if(-not $manaLifecycleSection0140.Contains($lifeNeedle0140)){
+        throw ('Mana Hand lifecycle portability regression contract missing: '+$lifeNeedle0140)
+    }
+}
+$itemLocationContract0140=@($contracts0140.contracts|Where-Object{$_.id -eq 'magic_virtual_slots.source.v1'}).files|Where-Object{$_.path -eq 'src/item_location.cpp'}
+if(@($itemLocationContract0140.required) -contains 'container->remove_item( *target() );'){
+    throw 'Mana Hand lifecycle source contract regressed to the pre-1831 container-removal implementation detail.'
+}
+
 $manaContextStart0140=$payload.IndexOf('function Apply-SurvivorVirtualItemContext0140')
 $manaContextEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandSpellcastingAid0140',$manaContextStart0140)
 if($manaContextStart0140 -lt 0 -or $manaContextEnd0140 -le $manaContextStart0140){throw 'Mana Hand context transform boundary missing.'}

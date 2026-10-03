@@ -407,7 +407,8 @@
             "class item_location::impl::item_on_person",
             "who->remove_item( *what );",
             "class item_location::impl::item_in_container",
-            "container->remove_item( *target() );"
+            "item_location parent_item() const override {",
+            "void remove_item() override {"
           ]
         },
         {
