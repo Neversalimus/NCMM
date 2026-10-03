@@ -52,7 +52,7 @@ Movement now grants 1 raw Mobility XP per 300 movement events instead of 150, a 
 
 ## Compatibility and migration
 
-The module enters through Loader ABI v1, requires semantic Host API 1.9 capabilities and uses Host API 2.1 Core services for current generic events/settings/modifier/runtime-hook behavior.
+The module enters through Loader ABI v1, requires semantic Host API 1.9 capabilities and uses additive Host API 2.x Core services for generic events/settings/modifiers/runtime hooks and virtual-item behavior. Host API 2.2 exposes secondary-melee controls; Host API 2.3 additionally exposes primary-melee controls.
 
 State schemas 0–7 remain migration inputs supported by the current module contract. A save with an unsupported/newer schema is suspended rather than guessed or overwritten.
 
@@ -89,7 +89,7 @@ Guns and items that CDDA considers two-handed are excluded. Releasing or reassig
 
 ## Mana Hand primary melee
 
-A bound non-gun melee item can be explicitly selected as the primary Mana Hand weapon from the item context menu. It is used for normal manual melee attacks only when the character is not physically wielding an item and the selected martial-art style is not forcing unarmed attacks. A physical wielded item always keeps vanilla priority.
+A bound non-gun melee item can be explicitly selected as the primary Mana Hand weapon from the item context menu or directly from the Survivor Mana Hand detail UI when Host API 2.3 controls are available. It is used for normal manual melee attacks only when the character is not physically wielding an item and the selected martial-art style is not forcing unarmed attacks. A physical wielded item always keeps vanilla priority.
 
 Primary Mana Hand attacks use the normal vanilla melee pipeline, including weapon techniques and martial-art on-miss/on-crit/on-kill/on-attack chains. They pay the weapon's normal move and stamina costs plus the same mana cost used by a secondary strike: `ceil(attack_speed / 10)`, clamped to 5–50 mana. If there is not enough mana, the attack is cancelled instead of silently falling back to an unarmed strike.
 
