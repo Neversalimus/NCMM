@@ -4945,7 +4945,7 @@ uint32_t gameplay_smoke_rng_next( uint32_t &state )
 
 void write_gameplay_smoke_result( bool success, const std::string &reason,
                                   size_t aws_settings, size_t aws_hooks,
-                                  size_t survivor_perks )
+                                  size_t survivor_perks, size_t mana_hand_checks = 0 )
 {
     std::filesystem::create_directories( game_root() / "ncmm" );
     std::ofstream out( game_root() / "ncmm" / "gameplay-smoke.json",
@@ -4959,7 +4959,8 @@ void write_gameplay_smoke_result( bool success, const std::string &reason,
         << "  \"reason\": \"" << reason << "\",\n"
         << "  \"aws_settings\": " << aws_settings << ",\n"
         << "  \"aws_hooks\": " << aws_hooks << ",\n"
-        << "  \"survivor_perks\": " << survivor_perks << "\n"
+        << "  \"survivor_perks\": " << survivor_perks << ",\n"
+        << "  \"mana_hand_checks\": " << mana_hand_checks << "\n"
         << "}\n";
 }
 
@@ -4976,6 +4977,7 @@ int run_gameplay_smoke()
     size_t aws_setting_count = 0;
     size_t aws_hook_count = 0;
     size_t survivor_perk_count = 0;
+    size_t mana_hand_check_count = 0;
 
     try {
         loaded_mod *aws = find_loaded_by_id( aws_id );
@@ -5437,22 +5439,190 @@ int run_gameplay_smoke()
             return 122;
         }
 
+        const auto mana_hand_fail = [&]( const char *reason, int code ) {
+            write_gameplay_smoke_result( false, reason, aws_setting_count,
+                                         aws_hook_count, survivor_perk_count,
+                                         mana_hand_check_count );
+            return code;
+        };
+
+        // Mana Hands are invasive enough that source-contract checks are not sufficient.
+        // Exercise their real Host state, real CDDA item graph and the patched removal hook.
+        if( !perk_reset() || !perk_recalc() ||
+            !perk_set_rank( mg_mana_hand_3, 1 ) ||
+            !perk_set_rank( mg_mana_hand_4, 1 ) || !perk_recalc() ) {
+            return mana_hand_fail( "mana_hands_perk_enable_failed", 126 );
+        }
+        if( std::abs( runtime_hook_modifier(
+                          "magic.virtual_hand_count", nullptr, "magiclysm",
+                          nullptr, nullptr ) - 2.0 ) > 0.000001 ) {
+            return mana_hand_fail( "mana_hands_runtime_count_mismatch", 126 );
+        }
+        ++mana_hand_check_count;
+
+        const itype_id mana_melee_id( "machete" );
+        const itype_id mana_gun_id( "glock_19" );
+        const itype_id mana_pair_id( "long_pole" );
+        if( !item::type_is_defined( mana_melee_id ) ||
+            !item::type_is_defined( mana_gun_id ) ||
+            !item::type_is_defined( mana_pair_id ) ) {
+            return mana_hand_fail( "mana_hands_fixture_item_missing", 127 );
+        }
+
+        avatar &mana_you = get_avatar();
+        item_location mana_melee = mana_you.i_add(
+                                       item( mana_melee_id, calendar::turn ) );
+        item_location mana_gun = mana_you.i_add(
+                                     item( mana_gun_id, calendar::turn ) );
+        item_location mana_pair = mana_you.i_add(
+                                      item( mana_pair_id, calendar::turn ) );
+        if( !mana_melee || !mana_gun || !mana_pair ||
+            !mana_melee->is_melee() || mana_melee->is_gun() ||
+            mana_melee->is_two_handed( mana_you ) ||
+            !mana_gun->is_gun() || mana_gun->is_two_handed( mana_you ) ||
+            !mana_pair->is_two_handed( mana_you ) ) {
+            return mana_hand_fail( "mana_hands_fixture_shape_mismatch", 127 );
+        }
+        ++mana_hand_check_count;
+
+        constexpr uint32_t mana_single_flags =
+            NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
+            NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2;
+        constexpr uint32_t mana_pair_flags =
+            mana_single_flags |
+            NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
+            NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;
+
+        if( virtual_item_can_assign_internal(
+                survivor_id, "mana_hand_3", mana_pair, mana_single_flags ) ) {
+            return mana_hand_fail( "mana_hands_single_accepted_two_handed", 128 );
+        }
+        ++mana_hand_check_count;
+
+        item *mana_melee_ptr = mana_melee.get_item();
+        if( mana_melee_ptr == nullptr ||
+            !virtual_item_assign_internal(
+                survivor_id, "mana_hand_3", mana_melee, mana_single_flags ) ||
+            virtual_item_for_slot_internal(
+                survivor_id, "mana_hand_3" ) != mana_melee_ptr ||
+            virtual_item_uid_v2(
+                survivor_id, "mana_hand_3" ) != mana_melee_ptr->uid().get_value() ||
+            !is_virtual_item( *mana_melee_ptr ) ) {
+            return mana_hand_fail( "mana_hands_single_bind_failed", 129 );
+        }
+        ++mana_hand_check_count;
+
+        item mana_duplicate_item = *mana_melee_ptr;
+        const int64_t mana_original_uid = mana_melee_ptr->uid().get_value();
+        item_location mana_duplicate = mana_you.i_add( mana_duplicate_item );
+        if( !mana_duplicate ||
+            mana_duplicate->uid().get_value() == mana_original_uid ||
+            virtual_item_for_slot_internal(
+                survivor_id, "mana_hand_3" ) != mana_melee_ptr ||
+            !mana_duplicate->get_var( virtual_item_marker_key, "" ).empty() ) {
+            return mana_hand_fail( "mana_hands_duplicate_reconcile_failed", 130 );
+        }
+        ++mana_hand_check_count;
+
+        if( !virtual_item_assign_internal(
+                survivor_id, "mana_hand_4", mana_melee, mana_single_flags ) ||
+            virtual_item_for_slot_internal( survivor_id, "mana_hand_3" ) != nullptr ||
+            virtual_item_for_slot_internal(
+                survivor_id, "mana_hand_4" ) != mana_melee_ptr ||
+            virtual_item_secondary_melee_enabled_v2(
+                survivor_id, "mana_hand_4" ) != 0 ) {
+            return mana_hand_fail( "mana_hands_reassign_failed", 131 );
+        }
+        ++mana_hand_check_count;
+
+        if( virtual_item_set_secondary_melee_v2(
+                survivor_id, "mana_hand_4", 1 ) != 1 ||
+            virtual_item_secondary_melee_enabled_v2(
+                survivor_id, "mana_hand_4" ) != 1 ) {
+            return mana_hand_fail( "mana_hands_secondary_toggle_failed", 132 );
+        }
+        ++mana_hand_check_count;
+
+        if( virtual_item_clear_v2( survivor_id, "mana_hand_4" ) != 1 ||
+            virtual_item_for_slot_internal(
+                survivor_id, "mana_hand_4" ) != nullptr ||
+            virtual_item_uid_v2( survivor_id, "mana_hand_4" ) != 0 ||
+            !mana_melee->get_var( virtual_item_marker_key, "" ).empty() ||
+            !mana_melee->get_var(
+                virtual_item_secondary_melee_key, "" ).empty() ||
+            !mana_melee.held_by( mana_you ) ) {
+            return mana_hand_fail( "mana_hands_clear_preserve_item_failed", 133 );
+        }
+        ++mana_hand_check_count;
+
+        if( !virtual_item_assign_internal(
+                survivor_id, "mana_hand_3", mana_gun, mana_single_flags ) ||
+            virtual_item_for_slot_internal(
+                survivor_id, "mana_hand_3" ) != mana_gun.get_item() ||
+            virtual_item_set_secondary_melee_v2(
+                survivor_id, "mana_hand_3", 1 ) != 0 ) {
+            return mana_hand_fail( "mana_hands_gun_bind_policy_failed", 134 );
+        }
+        ++mana_hand_check_count;
+
+        mana_gun.remove_item();
+        if( virtual_item_for_slot_internal(
+                survivor_id, "mana_hand_3" ) != nullptr ||
+            virtual_item_uid_v2( survivor_id, "mana_hand_3" ) != 0 ) {
+            return mana_hand_fail( "mana_hands_remove_lifecycle_failed", 135 );
+        }
+        ++mana_hand_check_count;
+
+        if( !virtual_item_assign_internal(
+                survivor_id, "mana_hands_34", mana_pair, mana_pair_flags ) ||
+            virtual_item_for_slot_internal(
+                survivor_id, "mana_hands_34" ) != mana_pair.get_item() ||
+            virtual_item_uid_v2(
+                survivor_id, "mana_hands_34" ) !=
+            mana_pair->uid().get_value() ) {
+            return mana_hand_fail( "mana_hands_paired_bind_failed", 136 );
+        }
+        ++mana_hand_check_count;
+
+        if( !perk_reset() || !perk_recalc() ||
+            virtual_item_for_slot_internal(
+                survivor_id, "mana_hand_3" ) != nullptr ||
+            virtual_item_for_slot_internal(
+                survivor_id, "mana_hand_4" ) != nullptr ||
+            virtual_item_for_slot_internal(
+                survivor_id, "mana_hands_34" ) != nullptr ||
+            std::abs( runtime_hook_modifier(
+                          "magic.virtual_hand_count", nullptr, "magiclysm",
+                          nullptr, nullptr ) ) > 0.000001 ) {
+            return mana_hand_fail( "mana_hands_final_reset_failed", 137 );
+        }
+        ++mana_hand_check_count;
+
+        constexpr size_t expected_mana_hand_checks = 12;
+        if( mana_hand_check_count != expected_mana_hand_checks ) {
+            return mana_hand_fail( "mana_hands_check_count_mismatch", 138 );
+        }
+
         write_gameplay_smoke_result( true, "ok", aws_setting_count,
-                                     aws_hook_count, survivor_perk_count );
+                                     aws_hook_count, survivor_perk_count,
+                                     mana_hand_check_count );
         log_line( NCMM_LOG_INFO,
                   ( "NCMM gameplay smoke PASS: real AWS world save/reload/overmap + Survivor " +
                     std::to_string( survivor_perk_count ) +
-                    "-perk aggregate plus isolated Character consumers." ).c_str() );
+                    "-perk aggregate + " + std::to_string( mana_hand_check_count ) +
+                    " real Mana Hand checks." ).c_str() );
         return 0;
     } catch( const std::exception &err ) {
         log_line( NCMM_LOG_ERROR, ( std::string( "NCMM gameplay smoke exception: " ) + err.what() ).c_str() );
         write_gameplay_smoke_result( false, "exception", aws_setting_count,
-                                     aws_hook_count, survivor_perk_count );
+                                     aws_hook_count, survivor_perk_count,
+                                     mana_hand_check_count );
         return 116;
     } catch( ... ) {
         log_line( NCMM_LOG_ERROR, "NCMM gameplay smoke unknown exception." );
         write_gameplay_smoke_result( false, "unknown_exception", aws_setting_count,
-                                     aws_hook_count, survivor_perk_count );
+                                     aws_hook_count, survivor_perk_count,
+                                     mana_hand_check_count );
         return 117;
     }
 #endif
