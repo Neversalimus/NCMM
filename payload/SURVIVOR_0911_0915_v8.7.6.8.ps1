@@ -22264,20 +22264,20 @@ item *ncmm_primary_mana_hand_melee_weapon( Character &who )
         !martial_arts_data->selected_force_unarmed() ) {
         item *ncmm_primary_weapon = ncmm_primary_mana_hand_melee_weapon( *this );
         if( ncmm_primary_weapon != nullptr ) {
-            const int ncmm_primary_mana_cost =
-                ncmm_secondary_melee_mana_cost( *this, *ncmm_primary_weapon );
-            if( magic->available_mana() < ncmm_primary_mana_cost ) {
-                add_msg_if_player( m_info, "%s", ncmm::localized_text(
-                                       "Not enough mana to attack with the primary Mana Hand weapon.",
-                                       "Недостаточно маны для атаки основным оружием руки маны." ).c_str() );
-                return false;
-            }
-
             bool ncmm_primary_result = false;
+            int ncmm_primary_mana_cost = 0;
             {
                 ncmm_virtual_melee_scope ncmm_primary_scope(
                     *this, *ncmm_primary_weapon, false );
                 if( !ncmm_primary_scope.active() ) {
+                    return false;
+                }
+                ncmm_primary_mana_cost =
+                    ncmm_secondary_melee_mana_cost( *this, *ncmm_primary_weapon );
+                if( magic->available_mana() < ncmm_primary_mana_cost ) {
+                    add_msg_if_player( m_info, "%s", ncmm::localized_text(
+                                           "Not enough mana to attack with the primary Mana Hand weapon.",
+                                           "Недостаточно маны для атаки основным оружием руки маны." ).c_str() );
                     return false;
                 }
                 ncmm_primary_result = melee_attack_abstract(
