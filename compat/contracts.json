@@ -516,6 +516,35 @@
             "bool target_ui::action_switch_ammo()",
             "item_location gun = you->get_wielded_item();"
           ]
+        },
+        {
+          "path": "src/weather.cpp",
+          "required": [
+            "void wet_character( Character &target, int amount )",
+            "item_location weapon = target.get_wielded_item();",
+            "( weapon && weapon->has_flag( json_flag_RAIN_PROTECT ) ) ||"
+          ]
+        },
+        {
+          "path": "src/item.cpp",
+          "required": [
+            "bool item::process_extinguish( map &here, Character *carrier, const tripoint_bub_ms &pos )",
+            "carrier->get_wielded_item()->has_flag( flag_RAIN_PROTECT ) ) ) {"
+          ]
+        },
+        {
+          "path": "src/suffer.cpp",
+          "required": [
+            "void suffer::from_sunburn( Character &you, bool severe )",
+            "you.get_wielded_item()->has_flag( flag_RAIN_PROTECT ) )"
+          ]
+        },
+        {
+          "path": "src/item_container.cpp",
+          "required": [
+            "int item::get_remaining_capacity_for_liquid( const item &liquid, const Character &p,",
+            "const bool allow_bucket = ( p.get_wielded_item() && this == &*p.get_wielded_item() ) ||"
+          ]
         }
       ]
     }
