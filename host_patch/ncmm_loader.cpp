@@ -364,15 +364,6 @@ class gameplay_metric_subscriber : public event_subscriber
                             std::max( 0, e.get<int>( "damage" ) );
                     }
                     break;
-                case event_type::character_finished_activity:
-                    if( e.get<character_id>( "character" ) == gameplay_avatar_id &&
-                        !e.get<bool>( "canceled" ) ) {
-                        const std::string activity = e.get<activity_id>( "activity" ).str();
-                        if( activity == "ACT_CRAFT" || activity == "ACT_MULTIPLE_CRAFT" ) {
-                            ++gameplay_metric_values["crafting.completed"];
-                        }
-                    }
-                    break;
                 case event_type::gains_skill_level:
                     if( e.get<character_id>( "character" ) == gameplay_avatar_id ) {
                         ++gameplay_metric_values["mastery.skill_levels"];
@@ -1364,6 +1355,14 @@ int virtual_item_set_primary_melee_v2( const char *module_id, const char *slot_i
         return 0;
     }
     return virtual_item_set_primary_melee( *bound, enabled != 0 ) ? 1 : 0;
+}
+
+void gameplay_metric_add( const char *metric_id, int64_t delta )
+{
+    if( metric_id == nullptr || metric_id[0] == '\0' || delta <= 0 ) {
+        return;
+    }
+    gameplay_metric_values[metric_id] += delta;
 }
 
 int64_t gameplay_metric_get_i64( const char *metric_id )
