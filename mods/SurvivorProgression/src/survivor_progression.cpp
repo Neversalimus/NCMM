@@ -2327,7 +2327,7 @@ std::string paired_mana_hand_item_name()
 bool virtual_item_secondary_controls_available()
 {
     return host2 != nullptr && host2->api_minor >= 2u &&
-           host2->struct_size >= sizeof( ncmm_host_api_v2_core ) &&
+           host2->struct_size >= NCMM_HOST_API_V2_CORE_SIZE_2_2 &&
            host2->virtual_item_secondary_melee_enabled != nullptr &&
            host2->virtual_item_set_secondary_melee != nullptr;
 }
@@ -2342,6 +2342,27 @@ bool virtual_item_set_secondary_for_slot( const char *slot_id, bool enabled )
 {
     return virtual_item_secondary_controls_available() && slot_id != nullptr &&
            host2->virtual_item_set_secondary_melee(
+               module_id, slot_id, enabled ? 1 : 0 ) != 0;
+}
+
+bool virtual_item_primary_controls_available()
+{
+    return host2 != nullptr && host2->api_minor >= 3u &&
+           host2->struct_size >= NCMM_HOST_API_V2_CORE_SIZE_2_3 &&
+           host2->virtual_item_primary_melee_enabled != nullptr &&
+           host2->virtual_item_set_primary_melee != nullptr;
+}
+
+bool virtual_item_primary_enabled_for_slot( const char *slot_id )
+{
+    return virtual_item_primary_controls_available() && slot_id != nullptr &&
+           host2->virtual_item_primary_melee_enabled( module_id, slot_id ) != 0;
+}
+
+bool virtual_item_set_primary_for_slot( const char *slot_id, bool enabled )
+{
+    return virtual_item_primary_controls_available() && slot_id != nullptr &&
+           host2->virtual_item_set_primary_melee(
                module_id, slot_id, enabled ? 1 : 0 ) != 0;
 }
 
@@ -2402,25 +2423,66 @@ void show_perk_detail( const perk_def &perk )
                 title += "\n" + tr(
                              "Both Mana Hands are occupied by one real two-handed item. The item remains in its normal CDDA location.",
                              "Обе руки маны заняты одним реальным двуручным предметом. Предмет остаётся в своём обычном месте CDDA." );
+                const bool primary_controls = virtual_item_primary_controls_available();
+                const bool primary_enabled =
+                    primary_controls && virtual_item_primary_enabled_for_slot( mana_hand_pair_slot_id );
                 const bool secondary_controls = virtual_item_secondary_controls_available();
                 const bool secondary_enabled =
-                    virtual_item_secondary_enabled_for_slot( mana_hand_pair_slot_id );
+                    secondary_controls && virtual_item_secondary_enabled_for_slot( mana_hand_pair_slot_id );
+                if( primary_controls ) {
+                    title += "\n" + tr( "Primary melee: ", "Основное оружие: " ) +
+                             ( primary_enabled ? tr( "ON", "ВКЛ" ) : tr( "OFF", "ВЫКЛ" ) );
+                }
                 if( secondary_controls ) {
                     title += "\n" + tr( "Secondary strike: ", "Дополнительный удар: " ) +
                              ( secondary_enabled ? tr( "ON", "ВКЛ" ) : tr( "OFF", "ВЫКЛ" ) );
                 }
-                std::string toggle_pair_secondary = secondary_enabled ?
+
+                const std::string toggle_pair_primary = primary_enabled ?
+                    tr( "Disable primary Mana Hand melee", "Отключить основное оружие руки маны" ) :
+                    tr( "Enable primary Mana Hand melee", "Включить основное оружие руки маны" );
+                const std::string toggle_pair_secondary = secondary_enabled ?
                     tr( "Disable secondary strike", "Отключить дополнительный удар" ) :
                     tr( "Enable secondary strike", "Включить дополнительный удар" );
-                std::string release_pair = tr( "Release paired virtual item", "Освободить парный виртуальный предмет" );
+                const std::string release_pair =
+                    tr( "Release paired virtual item", "Освободить парный виртуальный предмет" );
 
-                int pair_choice = -1;
+                std::vector<std::string> pair_labels;
+                std::vector<int> pair_actions;
+                if( primary_controls ) {
+                    pair_labels.push_back( toggle_pair_primary );
+                    pair_actions.push_back( 1 );
+                }
                 if( secondary_controls ) {
-                    const char *pair_entries[] = {
-                        toggle_pair_secondary.c_str(), release_pair.c_str(), back.c_str()
-                    };
-                    pair_choice = host->ui_choose ? host->ui_choose( title.c_str(), pair_entries, 3 ) : -1;
-                    if( pair_choice == 0 ) {
+                    pair_labels.push_back( toggle_pair_secondary );
+                    pair_actions.push_back( 2 );
+                }
+                pair_labels.push_back( release_pair );
+                pair_actions.push_back( 3 );
+                pair_labels.push_back( back );
+                pair_actions.push_back( 4 );
+
+                std::vector<const char *> pair_entries;
+                pair_entries.reserve( pair_labels.size() );
+                for( const std::string &label : pair_labels ) {
+                    pair_entries.push_back( label.c_str() );
+                }
+
+                const int pair_choice = host->ui_choose ?
+                    host->ui_choose( title.c_str(), pair_entries.data(), pair_entries.size() ) : -1;
+                if( pair_choice < 0 || static_cast<size_t>( pair_choice ) >= pair_actions.size() ) {
+                    return;
+                }
+                switch( pair_actions[static_cast<size_t>( pair_choice )] ) {
+                    case 1:
+                        if( !virtual_item_set_primary_for_slot(
+                                mana_hand_pair_slot_id, !primary_enabled ) ) {
+                            message( tr(
+                                "This item cannot be used as the primary Mana Hand melee weapon.",
+                                "Этот предмет нельзя использовать как основное оружие руки маны." ) );
+                        }
+                        continue;
+                    case 2:
                         if( !virtual_item_set_secondary_for_slot(
                                 mana_hand_pair_slot_id, !secondary_enabled ) ) {
                             message( tr(
@@ -2428,18 +2490,14 @@ void show_perk_detail( const perk_def &perk )
                                 "Этот предмет нельзя использовать для дополнительного удара рукой маны." ) );
                         }
                         continue;
-                    }
-                    if( pair_choice == 1 && host2->virtual_item_clear ) {
-                        host2->virtual_item_clear( module_id, mana_hand_pair_slot_id );
-                        continue;
-                    }
-                } else {
-                    const char *pair_entries[] = { release_pair.c_str(), back.c_str() };
-                    pair_choice = host->ui_choose ? host->ui_choose( title.c_str(), pair_entries, 2 ) : -1;
-                    if( pair_choice == 0 && host2->virtual_item_clear ) {
-                        host2->virtual_item_clear( module_id, mana_hand_pair_slot_id );
-                        continue;
-                    }
+                    case 3:
+                        if( host2->virtual_item_clear ) {
+                            host2->virtual_item_clear( module_id, mana_hand_pair_slot_id );
+                            continue;
+                        }
+                        return;
+                    default:
+                        return;
                 }
                 return;
             }
@@ -2502,24 +2560,58 @@ void show_perk_detail( const perk_def &perk )
                 continue;
             }
 
+            const bool primary_controls = virtual_item_primary_controls_available();
+            const bool primary_enabled =
+                primary_controls && virtual_item_primary_enabled_for_slot( slot_id );
             const bool secondary_controls = virtual_item_secondary_controls_available();
             const bool secondary_enabled =
                 secondary_controls && virtual_item_secondary_enabled_for_slot( slot_id );
+            if( primary_controls ) {
+                title += "\n" + tr( "Primary melee: ", "Основное оружие: " ) +
+                         ( primary_enabled ? tr( "ON", "ВКЛ" ) : tr( "OFF", "ВЫКЛ" ) );
+            }
             if( secondary_controls ) {
                 title += "\n" + tr( "Secondary strike: ", "Дополнительный удар: " ) +
                          ( secondary_enabled ? tr( "ON", "ВКЛ" ) : tr( "OFF", "ВЫКЛ" ) );
             }
-            std::string toggle_secondary = secondary_enabled ?
+
+            const std::string toggle_primary = primary_enabled ?
+                tr( "Disable primary Mana Hand melee", "Отключить основное оружие руки маны" ) :
+                tr( "Enable primary Mana Hand melee", "Включить основное оружие руки маны" );
+            const std::string toggle_secondary = secondary_enabled ?
                 tr( "Disable secondary strike", "Отключить дополнительный удар" ) :
                 tr( "Enable secondary strike", "Включить дополнительный удар" );
 
-            int choice = -1;
+            std::vector<std::string> labels;
+            std::vector<int> actions;
+            labels.push_back( equip );
+            actions.push_back( 1 );
+            if( primary_controls ) {
+                labels.push_back( toggle_primary );
+                actions.push_back( 2 );
+            }
             if( secondary_controls ) {
-                const char *entries[] = {
-                    equip.c_str(), toggle_secondary.c_str(), release.c_str(), back.c_str()
-                };
-                choice = host->ui_choose ? host->ui_choose( title.c_str(), entries, 4 ) : -1;
-                if( choice == 0 ) {
+                labels.push_back( toggle_secondary );
+                actions.push_back( 3 );
+            }
+            labels.push_back( release );
+            actions.push_back( 4 );
+            labels.push_back( back );
+            actions.push_back( 5 );
+
+            std::vector<const char *> entries;
+            entries.reserve( labels.size() );
+            for( const std::string &label : labels ) {
+                entries.push_back( label.c_str() );
+            }
+
+            const int choice = host->ui_choose ?
+                host->ui_choose( title.c_str(), entries.data(), entries.size() ) : -1;
+            if( choice < 0 || static_cast<size_t>( choice ) >= actions.size() ) {
+                return;
+            }
+            switch( actions[static_cast<size_t>( choice )] ) {
+                case 1: {
                     const std::string picker_title =
                         tr( "Choose item for ", "Выберите предмет для " ) + perk_display_name( perk );
                     if( host2->virtual_item_choose ) {
@@ -2530,36 +2622,28 @@ void show_perk_detail( const perk_def &perk )
                     }
                     continue;
                 }
-                if( choice == 1 ) {
+                case 2:
+                    if( !virtual_item_set_primary_for_slot( slot_id, !primary_enabled ) ) {
+                        message( tr(
+                            "This item cannot be used as the primary Mana Hand melee weapon.",
+                            "Этот предмет нельзя использовать как основное оружие руки маны." ) );
+                    }
+                    continue;
+                case 3:
                     if( !virtual_item_set_secondary_for_slot( slot_id, !secondary_enabled ) ) {
                         message( tr(
                             "This item cannot be used for a Mana Hand secondary strike.",
                             "Этот предмет нельзя использовать для дополнительного удара рукой маны." ) );
                     }
                     continue;
-                }
-                if( choice == 2 && host2->virtual_item_clear ) {
-                    host2->virtual_item_clear( module_id, slot_id );
-                    continue;
-                }
-            } else {
-                const char *entries[] = { equip.c_str(), release.c_str(), back.c_str() };
-                choice = host->ui_choose ? host->ui_choose( title.c_str(), entries, 3 ) : -1;
-                if( choice == 0 ) {
-                    const std::string picker_title =
-                        tr( "Choose item for ", "Выберите предмет для " ) + perk_display_name( perk );
-                    if( host2->virtual_item_choose ) {
-                        host2->virtual_item_choose(
-                            module_id, slot_id, picker_title.c_str(),
-                            NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
-                            NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 );
+                case 4:
+                    if( host2->virtual_item_clear ) {
+                        host2->virtual_item_clear( module_id, slot_id );
+                        continue;
                     }
-                    continue;
-                }
-                if( choice == 1 && host2->virtual_item_clear ) {
-                    host2->virtual_item_clear( module_id, slot_id );
-                    continue;
-                }
+                    return;
+                default:
+                    return;
             }
             return;
         }
