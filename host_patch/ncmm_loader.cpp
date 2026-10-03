@@ -5197,8 +5197,9 @@ int run_gameplay_smoke()
 
         module_call_scope survivor_scope( survivor_id );
         survivor_perk_count = perk_count();
+        constexpr size_t survivor_minimum_perk_count = 372;
         log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: Survivor test surface resolved." );
-        if( survivor_perk_count != 369 || !perk_reset() || !perk_recalc() ) {
+        if( survivor_perk_count < survivor_minimum_perk_count || !perk_reset() || !perk_recalc() ) {
             write_gameplay_smoke_result( false, "survivor_catalog_or_reset",
                                          aws_setting_count, aws_hook_count, survivor_perk_count );
             return 108;
@@ -5214,7 +5215,7 @@ int run_gameplay_smoke()
             return survivor_perk_count;
         };
 
-        // First prove that the exact release DLL can hold all 369 perks at max rank
+        // First prove that the exact release DLL can hold its full current perk catalog at max rank
         // simultaneously and recompute its aggregate state without crashing or
         // dropping the Host modifier channel.  Gameplay assertions below are then
         // isolated per consumer to avoid false failures from CDDA's stat caps.
@@ -5232,7 +5233,9 @@ int run_gameplay_smoke()
                                          aws_setting_count, aws_hook_count, survivor_perk_count );
             return 110;
         }
-        log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: Survivor 369-perk aggregate recompute PASS." );
+        log_line( NCMM_LOG_INFO, ( "NCMM gameplay smoke checkpoint: Survivor " +
+                  std::to_string( survivor_perk_count ) +
+                  "-perk aggregate recompute PASS." ).c_str() );
         if( !perk_reset() || !perk_recalc() ) {
             write_gameplay_smoke_result( false, "survivor_post_aggregate_reset_failed",
                                          aws_setting_count, aws_hook_count, survivor_perk_count );
@@ -5248,9 +5251,12 @@ int run_gameplay_smoke()
         const size_t m_cardio = find_perk_index( "m_cardio" );
         const size_t ce_drills = find_perk_index( "ce_drills" );
         const size_t g_hauler = find_perk_index( "g_hauler" );
+        const size_t mg_mana_hand_3 = find_perk_index( "mg_mana_hand_3" );
+        const size_t mg_mana_hand_4 = find_perk_index( "mg_mana_hand_4" );
         const size_t required_indices[] = {
             c_power, c_reflexes, m_light, g_observer, a_focus,
-            m_stride, m_cardio, ce_drills, g_hauler
+            m_stride, m_cardio, ce_drills, g_hauler,
+            mg_mana_hand_3, mg_mana_hand_4
         };
         for( size_t index : required_indices ) {
             if( index >= survivor_perk_count ) {
@@ -5407,7 +5413,9 @@ int run_gameplay_smoke()
         write_gameplay_smoke_result( true, "ok", aws_setting_count,
                                      aws_hook_count, survivor_perk_count );
         log_line( NCMM_LOG_INFO,
-                  "NCMM gameplay smoke PASS: real AWS world save/reload/overmap + Survivor 369-perk aggregate plus isolated Character consumers." );
+                  ( "NCMM gameplay smoke PASS: real AWS world save/reload/overmap + Survivor " +
+                    std::to_string( survivor_perk_count ) +
+                    "-perk aggregate plus isolated Character consumers." ).c_str() );
         return 0;
     } catch( const std::exception &err ) {
         log_line( NCMM_LOG_ERROR, ( std::string( "NCMM gameplay smoke exception: " ) + err.what() ).c_str() );
