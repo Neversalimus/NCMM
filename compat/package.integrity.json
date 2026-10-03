@@ -66,8 +66,8 @@
     },
     {
       "path": "ci\\Test-HostPayloadContracts.ps1",
-      "sha256": "d441c0f692d61be74d1f9cb5347c3e65bf40bd9f4420ae19563c9bcd59ab6b95",
-      "bytes": 26916
+      "sha256": "19d0282867f601b3b433d582298d551e7ef50772118d963c02567bedc629e340",
+      "bytes": 27283
     },
     {
       "path": "ci\\Test-Infrastructure0821.ps1",
@@ -86,8 +86,8 @@
     },
     {
       "path": "ci\\Test-SurvivorPayloadContracts.ps1",
-      "sha256": "ab24e53053efe85fa7633c39c3577c8d7fc1b07381abde0ab079d2e6575a124b",
-      "bytes": 42030
+      "sha256": "f03e98408ef5f7336cf30e316e3383f58cdb07863891d39b7190cfddad797b39",
+      "bytes": 42501
     },
     {
       "path": "ci\\Watch-CDDAExperimental.ps1",
@@ -96,7 +96,7 @@
     },
     {
       "path": "compat\\compatibility.manifest.json",
-      "sha256": "cf7ec22684197ed46f746264096baa0f3c89adbd2912cb9b04cb9c45bd914ad0",
+      "sha256": "dec6f1a7fcc6f18592e46989017344f76d6e42cafea8f37cd275aa8ff4b6a6d7",
       "bytes": 7507
     },
     {
@@ -136,7 +136,7 @@
     },
     {
       "path": "components\\index.json",
-      "sha256": "34bfd5e8a7899b79eca2f3e9115b3b4b33d49796541bcd78704c6f60d7df5ff0",
+      "sha256": "42ba00ca5b35f19838880e72234443d1011c86a6f42ca7bee7222074793290bd",
       "bytes": 6240
     },
     {
@@ -146,7 +146,7 @@
     },
     {
       "path": "components\\ncmm_host.json",
-      "sha256": "3a0d4f99075add3f11710b7998a317dfb2b8a35d1e93743a9d35ac0486776faf",
+      "sha256": "a4c8b7b00409c4544891aa0b007693206230c2de14dd7d7b38c4ca1e2428d588",
       "bytes": 875
     },
     {
@@ -331,8 +331,8 @@
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-      "sha256": "f53a4b9afd3c176c44281b5a5fafc9f90992252a9871b80a46afa70a3eb6cadd",
-      "bytes": 2379785
+      "sha256": "11035c92b929552c520b1a5fabb0c6e885064ae0e5c1329d7c10426dfad0201a",
+      "bytes": 2382205
     },
     {
       "path": "pipeline\\pipeline.manifest.json",
