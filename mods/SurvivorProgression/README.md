@@ -99,3 +99,10 @@ A real one-handed firearm bound to Mana Hand III or IV, or a real two-handed fir
 
 Single-hand virtual guns still reject two-handed modes and `FIRE_TWOHAND`; the paired III+IV grip satisfies those handling requirements. `RELOAD_AND_SHOOT` weapons are supported through the same real `item_location`: the aim activity loads/unloads the bound gun normally, and ammo switching resolves the activity weapon instead of assuming `Character::get_wielded_item()`. Reload requests target the same real virtual gun. Firing through Mana Hands costs 5 mana per projectile actually fired, capped at 100 mana per burst.
 
+
+## Mana Hand standard firearm controls
+
+When no physically wielded firearm has priority, the normal reload-weapon, reload-wielded, burst-fire, select-fire-mode, and select-default-ammo actions can target a real firearm held by Mana Hand III, Mana Hand IV, or the paired III+IV grip. If two single-hand guns are available, the action asks which one to use.
+
+These actions keep the gun in its original vanilla `item_location`; they do not obtain, copy, or temporarily move it into `Character::weapon`. A physically wielded gun keeps vanilla priority.
+
