@@ -4,6 +4,7 @@
 #include "item_category.h"
 #include "item_location.h"
 #include "character.h"
+#include "character_attire.h"
 #include "flag.h"
 #include "game_inventory.h"
 #include "itype.h"
@@ -5021,7 +5022,7 @@ uint32_t gameplay_smoke_rng_next( uint32_t &state )
 
 void write_gameplay_smoke_result( bool success, const std::string &reason,
                                   size_t aws_settings, size_t aws_hooks,
-                                  size_t survivor_perks )
+                                  size_t survivor_perks, size_t mana_hands_checks = 0 )
 {
     std::filesystem::create_directories( game_root() / "ncmm" );
     std::ofstream out( game_root() / "ncmm" / "gameplay-smoke.json",
@@ -5035,7 +5036,8 @@ void write_gameplay_smoke_result( bool success, const std::string &reason,
         << "  \"reason\": \"" << reason << "\",\n"
         << "  \"aws_settings\": " << aws_settings << ",\n"
         << "  \"aws_hooks\": " << aws_hooks << ",\n"
-        << "  \"survivor_perks\": " << survivor_perks << "\n"
+        << "  \"survivor_perks\": " << survivor_perks << ",\n"
+        << "  \"mana_hands_checks\": " << mana_hands_checks << "\n"
         << "}\n";
 }
 
@@ -5373,6 +5375,189 @@ int run_gameplay_smoke()
             return perk_reset() && perk_recalc() && perk_set_rank( index, 1 ) && perk_recalc();
         };
 
+        // Real Mana Hands regression surface.  This exercises the same marker+UID
+        // backend used by gameplay without opening any UI and without moving or
+        // copying the bound item out of CDDA's normal item graph.
+        size_t mana_hands_check_count = 0;
+        const auto mana_hands_fail = [&]( const char *reason, int code ) {
+            write_gameplay_smoke_result( false, reason, aws_setting_count, aws_hook_count,
+                                         survivor_perk_count, mana_hands_check_count );
+            return code;
+        };
+        const auto virtual_hand_count = [&]() {
+            return static_cast<int>( std::lround( runtime_hook_modifier(
+                                         "magic.virtual_hand_count", nullptr, "magiclysm",
+                                         nullptr, nullptr ) ) );
+        };
+
+        if( !perk_reset() || !perk_recalc() || virtual_hand_count() != 0 ) {
+            return mana_hands_fail( "mana_hands_hook_baseline", 126 );
+        }
+        ++mana_hands_check_count;
+
+        if( !perk_set_rank( mg_mana_hand_3, 1 ) || !perk_recalc() ||
+            virtual_hand_count() != 1 ) {
+            return mana_hands_fail( "mana_hands_hook_third", 127 );
+        }
+        ++mana_hands_check_count;
+
+        if( !perk_set_rank( mg_mana_hand_4, 1 ) || !perk_recalc() ||
+            virtual_hand_count() != 2 ) {
+            return mana_hands_fail( "mana_hands_hook_fourth", 128 );
+        }
+        ++mana_hands_check_count;
+
+        const auto backpack = get_avatar().worn.wear_item(
+                                  get_avatar(), item( itype_id( "backpack" ) ),
+                                  false, true, true, true );
+        if( !backpack.has_value() ) {
+            return mana_hands_fail( "mana_hands_backpack_setup", 129 );
+        }
+        item_location hatchet = get_avatar().i_add(
+                                    item( itype_id( "hatchet" ) ),
+                                    true, nullptr, nullptr, false, false );
+        item_location gun = get_avatar().i_add(
+                                item( itype_id( "glock_19" ) ),
+                                true, nullptr, nullptr, false, false );
+        if( !hatchet || !gun || !hatchet->is_melee() || hatchet->is_gun() ||
+            hatchet->is_two_handed( get_avatar() ) || !gun->is_gun() ||
+            gun->is_two_handed( get_avatar() ) ) {
+            return mana_hands_fail( "mana_hands_probe_items", 130 );
+        }
+        ++mana_hands_check_count;
+
+        constexpr uint32_t mana_single_flags =
+            NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
+            NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2;
+        if( !virtual_item_assign_internal( survivor_id, "mana_hand_3",
+                                           hatchet, mana_single_flags ) ||
+            !virtual_item_assign_internal( survivor_id, "mana_hand_4",
+                                           gun, mana_single_flags ) ||
+            virtual_item_for_slot_internal( survivor_id, "mana_hand_3" ) != hatchet.get_item() ||
+            virtual_item_for_slot_internal( survivor_id, "mana_hand_4" ) != gun.get_item() ||
+            virtual_item_state_uid_internal( survivor_id, "mana_hand_3" ) !=
+            hatchet->uid().get_value() ||
+            virtual_item_state_uid_internal( survivor_id, "mana_hand_4" ) !=
+            gun->uid().get_value() ) {
+            return mana_hands_fail( "mana_hands_single_bind", 131 );
+        }
+        ++mana_hands_check_count;
+
+        const int64_t hatchet_uid = hatchet->uid().get_value();
+        virtual_item_state_set_uid_internal( survivor_id, "mana_hand_3",
+                                             hatchet_uid + 1000003 );
+        if( virtual_item_for_slot_internal( survivor_id, "mana_hand_3" ) !=
+            hatchet.get_item() ||
+            virtual_item_state_uid_internal( survivor_id, "mana_hand_3" ) != hatchet_uid ) {
+            return mana_hands_fail( "mana_hands_uid_reconcile", 132 );
+        }
+        ++mana_hands_check_count;
+
+        item duplicate_hatchet = *hatchet;
+        item_location duplicate_loc = get_avatar().i_add(
+                                          duplicate_hatchet, true, nullptr, nullptr,
+                                          false, false );
+        if( !duplicate_loc ||
+            duplicate_loc->get_var( virtual_item_marker_key, "" ) !=
+            virtual_item_marker( survivor_id, "mana_hand_3" ) ) {
+            return mana_hands_fail( "mana_hands_duplicate_setup", 133 );
+        }
+        if( virtual_item_for_slot_internal( survivor_id, "mana_hand_3" ) !=
+            hatchet.get_item() ||
+            !duplicate_loc->get_var( virtual_item_marker_key, "" ).empty() ||
+            virtual_item_secondary_melee_enabled( *duplicate_loc ) ||
+            virtual_item_primary_melee_enabled( *duplicate_loc ) ) {
+            return mana_hands_fail( "mana_hands_duplicate_cleanup", 134 );
+        }
+        ++mana_hands_check_count;
+
+        if( !virtual_item_set_secondary_melee_v2(
+                survivor_id, "mana_hand_3", 1 ) ||
+            virtual_item_secondary_melee_enabled_v2(
+                survivor_id, "mana_hand_3" ) != 1 ||
+            virtual_item_primary_melee_enabled_v2(
+                survivor_id, "mana_hand_3" ) != 0 ||
+            !virtual_item_set_primary_melee_v2(
+                survivor_id, "mana_hand_3", 1 ) ||
+            virtual_item_primary_melee_enabled_v2(
+                survivor_id, "mana_hand_3" ) != 1 ||
+            virtual_item_secondary_melee_enabled_v2(
+                survivor_id, "mana_hand_3" ) != 0 ) {
+            return mana_hands_fail( "mana_hands_melee_mode_exclusivity", 135 );
+        }
+        ++mana_hands_check_count;
+
+        if( virtual_item_set_secondary_melee_v2(
+                survivor_id, "mana_hand_4", 1 ) != 0 ||
+            virtual_item_set_primary_melee_v2(
+                survivor_id, "mana_hand_4", 1 ) != 0 ) {
+            return mana_hands_fail( "mana_hands_gun_melee_mode_rejected", 136 );
+        }
+        ++mana_hands_check_count;
+
+        virtual_item_clear_internal( survivor_id, "mana_hand_3" );
+        virtual_item_clear_internal( survivor_id, "mana_hand_4" );
+        if( virtual_item_for_slot_internal( survivor_id, "mana_hand_3" ) != nullptr ||
+            virtual_item_for_slot_internal( survivor_id, "mana_hand_4" ) != nullptr ||
+            !hatchet->get_var( virtual_item_marker_key, "" ).empty() ||
+            !gun->get_var( virtual_item_marker_key, "" ).empty() ||
+            virtual_item_primary_melee_enabled( *hatchet ) ||
+            virtual_item_secondary_melee_enabled( *hatchet ) ) {
+            return mana_hands_fail( "mana_hands_single_clear", 137 );
+        }
+        ++mana_hands_check_count;
+
+        item paired_probe( itype_id( "hatchet" ) );
+        paired_probe.set_flag( flag_id( "ALWAYS_TWOHAND" ) );
+        item_location paired_loc = get_avatar().i_add(
+                                       paired_probe, true, nullptr, nullptr,
+                                       false, false );
+        constexpr uint32_t mana_pair_flags =
+            mana_single_flags |
+            NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
+            NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;
+        if( !paired_loc || !paired_loc->is_two_handed( get_avatar() ) ||
+            virtual_item_can_assign_internal(
+                survivor_id, "mana_hand_3", paired_loc, mana_single_flags ) ||
+            !virtual_item_assign_internal(
+                survivor_id, "mana_hands_34", paired_loc, mana_pair_flags ) ||
+            virtual_item_for_slot_internal(
+                survivor_id, "mana_hands_34" ) != paired_loc.get_item() ) {
+            return mana_hands_fail( "mana_hands_paired_bind", 138 );
+        }
+        ++mana_hands_check_count;
+
+        if( !virtual_item_set_secondary_melee_v2(
+                survivor_id, "mana_hands_34", 1 ) ||
+            virtual_item_secondary_melee_enabled_v2(
+                survivor_id, "mana_hands_34" ) != 1 ||
+            !virtual_item_set_primary_melee_v2(
+                survivor_id, "mana_hands_34", 1 ) ||
+            virtual_item_primary_melee_enabled_v2(
+                survivor_id, "mana_hands_34" ) != 1 ||
+            virtual_item_secondary_melee_enabled_v2(
+                survivor_id, "mana_hands_34" ) != 0 ) {
+            return mana_hands_fail( "mana_hands_paired_melee_modes", 139 );
+        }
+        ++mana_hands_check_count;
+
+        paired_loc->set_flag( flag_id( "INTEGRATED" ) );
+        if( virtual_item_for_slot_internal(
+                survivor_id, "mana_hands_34" ) != nullptr ||
+            !paired_loc->get_var( virtual_item_marker_key, "" ).empty() ||
+            virtual_item_primary_melee_enabled( *paired_loc ) ||
+            virtual_item_secondary_melee_enabled( *paired_loc ) ||
+            virtual_item_state_uid_internal(
+                survivor_id, "mana_hands_34" ) != 0 ) {
+            return mana_hands_fail( "mana_hands_stale_cleanup", 140 );
+        }
+        ++mana_hands_check_count;
+
+        log_line( NCMM_LOG_INFO,
+                  ( "NCMM gameplay smoke checkpoint: Mana Hands " +
+                    std::to_string( mana_hands_check_count ) +
+                    "/12 real binding/state checks PASS." ).c_str() );
+
         // Primary Character stats.
         if( !perk_reset() || !perk_recalc() ) return 113;
         const int base_str = get_avatar().get_str();
@@ -5514,11 +5699,13 @@ int run_gameplay_smoke()
         }
 
         write_gameplay_smoke_result( true, "ok", aws_setting_count,
-                                     aws_hook_count, survivor_perk_count );
+                                     aws_hook_count, survivor_perk_count,
+                                     mana_hands_check_count );
         log_line( NCMM_LOG_INFO,
                   ( "NCMM gameplay smoke PASS: real AWS world save/reload/overmap + Survivor " +
                     std::to_string( survivor_perk_count ) +
-                    "-perk aggregate plus isolated Character consumers." ).c_str() );
+                    "-perk aggregate, isolated Character consumers, and Mana Hands " +
+                    std::to_string( mana_hands_check_count ) + "/12." ).c_str() );
         return 0;
     } catch( const std::exception &err ) {
         log_line( NCMM_LOG_ERROR, ( std::string( "NCMM gameplay smoke exception: " ) + err.what() ).c_str() );
