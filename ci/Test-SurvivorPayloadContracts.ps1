@@ -629,7 +629,11 @@ foreach($needle0140 in @(
     'function Apply-SurvivorManaHandAutoattack0140',
     'ncmm_primary_mana_hand_autoattack_weapon',
     'ncmm_primary_mana_hand_autoattack_reach',
-    'Apply-SurvivorManaHandAutoattack0140 $CddaRoot'
+    'Apply-SurvivorManaHandAutoattack0140 $CddaRoot',
+    'function Apply-SurvivorManaHandThrow0140',
+    'ncmm_is_mana_hand_throw_item',
+    'ncmm_select_mana_hand_throw_item',
+    'Apply-SurvivorManaHandThrow0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
@@ -910,7 +914,7 @@ if($manaFireSection0140.Contains('set_wielded_item(') -or
     throw 'Mana Hand FIRE action must keep the real gun in its vanilla item_location.'
 }
 
-$manaGunControlsEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaGunControlsStart0140)
+$manaGunControlsEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandPrimaryMelee0140',$manaGunControlsStart0140)
 if($manaGunControlsEnd0140 -le $manaGunControlsStart0140){throw 'Mana Hand standard gun-control transform end missing.'}
 $manaGunControlsSection0140=$payload.Substring($manaGunControlsStart0140,$manaGunControlsEnd0140-$manaGunControlsStart0140)
 foreach($controlNeedle0140 in @(
@@ -1050,7 +1054,7 @@ if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandSmash0140 -Command
 }
 
 $manaAutoStart0140=$payload.IndexOf('function Apply-SurvivorManaHandAutoattack0140',$manaSmashStart0140)
-$manaAutoEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaAutoStart0140)
+$manaAutoEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandThrow0140',$manaAutoStart0140)
 if($manaAutoStart0140 -le $manaSmashStart0140 -or $manaAutoEnd0140 -le $manaAutoStart0140){throw 'Primary Mana Hand autoattack transform boundary missing.'}
 $manaAutoSection0140=$payload.Substring($manaAutoStart0140,$manaAutoEnd0140-$manaAutoStart0140)
 foreach($autoNeedle0140 in @(
@@ -1067,6 +1071,31 @@ foreach($autoNeedle0140 in @(
 )){if(-not $manaAutoSection0140.Contains($autoNeedle0140)){throw ('Mana Hand autoattack regression contract missing: '+$autoNeedle0140)}}
 if($manaAutoSection0140.Contains('set_wielded_item(') -or $manaAutoSection0140.Contains('you.wield(') -or $manaAutoSection0140.Contains('.obtain(')){throw 'Mana Hand autoattack must not move the real item into Character::weapon.'}
 if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandAutoattack0140 -CommandType Function).Definition')){throw 'Mana Hand autoattack transform missing from mechanics patch revision.'}
+
+
+$manaThrowStart0140=$payload.IndexOf('function Apply-SurvivorManaHandThrow0140',$manaAutoStart0140)
+$manaThrowEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaThrowStart0140)
+if($manaThrowStart0140 -le $manaAutoStart0140 -or $manaThrowEnd0140 -le $manaThrowStart0140){throw 'Mana Hand throw transform boundary missing.'}
+$manaThrowSection0140=$payload.Substring($manaThrowStart0140,$manaThrowEnd0140-$manaThrowStart0140)
+foreach($throwNeedle0140 in @(
+    'ncmm_is_mana_hand_throw_item',
+    'ncmm_select_mana_hand_throw_item',
+    '"survivor_progression", "mana_hands_34"',
+    '"survivor_progression", "mana_hand_3"',
+    '"survivor_progression", "mana_hand_4"',
+    'const bool ncmm_virtual_throw =',
+    'if( !in_mech && !ncmm_virtual_throw )',
+    'item_location weapon = ( in_mech || ncmm_virtual_throw ) ? loc : you.get_wielded_item();',
+    'if( in_mech || ncmm_virtual_throw )',
+    'loc.remove_item();',
+    'weapon = ncmm_select_mana_hand_throw_item( you );',
+    'Throw from which Mana Hand?'
+)){if(-not $manaThrowSection0140.Contains($throwNeedle0140)){throw ('Mana Hand throw regression contract missing: '+$throwNeedle0140)}}
+if($manaThrowSection0140.Contains('set_wielded_item(') -or
+   $manaThrowSection0140.Contains('.obtain(')){
+    throw 'Mana Hand throw must not move the virtual item into Character::weapon.'
+}
+if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandThrow0140 -CommandType Function).Definition')){throw 'Mana Hand throw transform missing from mechanics patch revision.'}
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate
 # is intentionally half of the original 1 XP / 150 movement events.
