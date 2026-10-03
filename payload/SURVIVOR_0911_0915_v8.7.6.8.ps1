@@ -23311,6 +23311,231 @@ avatar::smash_result avatar::smash( tripoint_bub_ms &smashp )
 
 Apply-SurvivorManaHandSmash0140 $CddaRoot
 
+function Apply-SurvivorManaHandAutoattack0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 Primary Mana Hand autoattack parity..." -ForegroundColor Cyan
+    $src0140auto = Join-Path $Root 'src'
+    $avatar0140autoPath = Join-Path $src0140auto 'avatar_action.cpp'
+    if(-not(Test-Path $avatar0140autoPath -PathType Leaf)) {
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+            Write-Host "Survivor 0.14.0 Mana Hand autoattack transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+            return
+        }
+        throw ('Primary Mana Hand autoattack source missing: '+$avatar0140autoPath)
+    }
+    $avatar0140auto = Normalize-Lf ([IO.File]::ReadAllText($avatar0140autoPath))
+    if(-not $avatar0140auto.Contains('#include "ncmm_loader.h"')) {
+        $avatar0140auto = Replace-TextBlock $avatar0140auto '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Primary Mana Hand autoattack include'
+    }
+    if(-not $avatar0140auto.Contains('ncmm_primary_mana_hand_autoattack_weapon')) {
+        $autoOld0140 = @'
+void avatar_action::autoattack( avatar &you, map &m )
+{
+    if( you.has_flag( json_flag_CANNOT_ATTACK ) ) {
+        add_msg( m_info, _( "You are incapable of attacking!" ) );
+        return;
+    }
+    const item_location weapon = you.get_wielded_item();
+    int reach = weapon ? weapon->reach_range( you ).first : std::max( 1,
+                static_cast<int>( you.calculate_by_enchantment( 1, enchant_vals::mod::MELEE_RANGE_MODIFIER ) ) );
+    std::vector<Creature *> critters = you.get_targetable_creatures( reach, true );
+    critters.erase( std::remove_if( critters.begin(), critters.end(), [&you,
+    reach]( const Creature * c ) {
+        if( reach == 1 && !you.is_adjacent( c, true ) ) {
+            return true;
+        }
+        if( !you.can_reach_attack( *c ) ) { // target on different z-level
+            return true;
+        }
+        if( !c->is_npc() ) {
+            return false;
+        }
+        return !dynamic_cast<const npc &>( *c ).is_enemy();
+    } ), critters.end() );
+    if( critters.empty() ) {
+        add_msg( m_info, _( "No hostile creature in reach.  Waiting a turn." ) );
+        if( g->check_safe_mode_allowed() ) {
+            you.pause();
+        }
+        return;
+    }
+
+    Creature &best = **std::max_element( critters.begin(), critters.end(),
+    []( const Creature * l, const Creature * r ) {
+        return rate_critter( *l ) > rate_critter( *r );
+    } );
+
+    const tripoint_rel_ms diff = best.pos_bub() - you.pos_bub();
+    if( std::abs( diff.x() ) <= 1 && std::abs( diff.y() ) <= 1 && diff.z() == 0 ) {
+        move( you, m, tripoint_rel_ms( diff.xy(), 0 ) );
+        return;
+    }
+
+    if( weapon && !you.used_weapon() && !weapon->is_gun() ) {
+        add_msg( m_info, _( "You can't use reach attacks while forcing yourself to fight unarmed." ) );
+        return;
+    } else {
+        you.reach_attack( best.pos_bub() );
+    }
+}
+'@
+        $autoNew0140 = @'
+namespace
+{
+class ncmm_mana_hand_autoattack_scope
+{
+    public:
+        ncmm_mana_hand_autoattack_scope( avatar &who, item &weapon ) : who_( who ),
+            active_( ncmm::virtual_melee_context_begin( who, weapon, false ) )
+        {
+            if( active_ ) {
+                who_.recalculate_enchantment_cache();
+            }
+        }
+        ~ncmm_mana_hand_autoattack_scope()
+        {
+            if( active_ ) {
+                ncmm::virtual_melee_context_end( who_ );
+                who_.recalculate_enchantment_cache();
+            }
+        }
+        bool active() const {
+            return active_;
+        }
+    private:
+        avatar &who_;
+        bool active_;
+};
+
+item *ncmm_primary_mana_hand_autoattack_weapon( avatar &you )
+{
+    if( you.get_wielded_item() || you.is_mounted() ||
+        you.martial_arts_data->selected_force_unarmed() ) {
+        return nullptr;
+    }
+    const int hand_count = std::clamp( static_cast<int>(
+                                       ncmm::runtime_hook_modifier(
+                                           "magic.virtual_hand_count", nullptr, "magiclysm",
+                                           nullptr, nullptr ) ), 0, 2 );
+    if( hand_count >= 2 ) {
+        item *paired = ncmm::virtual_item_for_slot(
+                           "survivor_progression", "mana_hands_34" );
+        if( paired != nullptr &&
+            ncmm::virtual_item_primary_melee_enabled( *paired ) &&
+            paired->is_melee() && !paired->is_gun() &&
+            paired->is_two_handed( you ) ) {
+            return paired;
+        }
+    }
+    const char *slots[2] = { "mana_hand_3", "mana_hand_4" };
+    for( int i = 0; i < hand_count && i < 2; ++i ) {
+        item *candidate = ncmm::virtual_item_for_slot(
+                              "survivor_progression", slots[i] );
+        if( candidate != nullptr &&
+            ncmm::virtual_item_primary_melee_enabled( *candidate ) &&
+            candidate->is_melee() && !candidate->is_gun() &&
+            !candidate->is_two_handed( you ) ) {
+            return candidate;
+        }
+    }
+    return nullptr;
+}
+
+int ncmm_primary_mana_hand_autoattack_reach( avatar &you, item &weapon )
+{
+    ncmm_mana_hand_autoattack_scope scope( you, weapon );
+    if( !scope.active() ) {
+        return std::max( 1, static_cast<int>(
+                             you.calculate_by_enchantment(
+                                 1, enchant_vals::mod::MELEE_RANGE_MODIFIER ) ) );
+    }
+    return std::max( 1, weapon.reach_range( you ).first );
+}
+} // namespace
+
+void avatar_action::autoattack( avatar &you, map &m )
+{
+    if( you.has_flag( json_flag_CANNOT_ATTACK ) ) {
+        add_msg( m_info, _( "You are incapable of attacking!" ) );
+        return;
+    }
+    const item_location weapon = you.get_wielded_item();
+    item *ncmm_autoattack_weapon = nullptr;
+    int reach = 1;
+    if( weapon ) {
+        reach = weapon->reach_range( you ).first;
+    } else if( ( ncmm_autoattack_weapon = ncmm_primary_mana_hand_autoattack_weapon( you ) ) != nullptr ) {
+        reach = ncmm_primary_mana_hand_autoattack_reach( you, *ncmm_autoattack_weapon );
+    } else {
+        reach = std::max( 1, static_cast<int>(
+                              you.calculate_by_enchantment(
+                                  1, enchant_vals::mod::MELEE_RANGE_MODIFIER ) ) );
+    }
+    std::vector<Creature *> critters = you.get_targetable_creatures( reach, true );
+    critters.erase( std::remove_if( critters.begin(), critters.end(), [&you,
+    reach]( const Creature * c ) {
+        if( reach == 1 && !you.is_adjacent( c, true ) ) {
+            return true;
+        }
+        if( !you.can_reach_attack( *c ) ) {
+            return true;
+        }
+        if( !c->is_npc() ) {
+            return false;
+        }
+        return !dynamic_cast<const npc &>( *c ).is_enemy();
+    } ), critters.end() );
+    if( critters.empty() ) {
+        add_msg( m_info, _( "No hostile creature in reach.  Waiting a turn." ) );
+        if( g->check_safe_mode_allowed() ) {
+            you.pause();
+        }
+        return;
+    }
+
+    Creature &best = **std::max_element( critters.begin(), critters.end(),
+    []( const Creature * l, const Creature * r ) {
+        return rate_critter( *l ) > rate_critter( *r );
+    } );
+
+    const tripoint_rel_ms diff = best.pos_bub() - you.pos_bub();
+    if( std::abs( diff.x() ) <= 1 && std::abs( diff.y() ) <= 1 && diff.z() == 0 ) {
+        move( you, m, tripoint_rel_ms( diff.xy(), 0 ) );
+        return;
+    }
+
+    if( weapon && !you.used_weapon() && !weapon->is_gun() ) {
+        add_msg( m_info, _( "You can't use reach attacks while forcing yourself to fight unarmed." ) );
+        return;
+    } else {
+        you.reach_attack( best.pos_bub() );
+    }
+}
+'@
+        $autoCount0140 = ([regex]::Matches($avatar0140auto,[regex]::Escape($autoOld0140))).Count
+        if($autoCount0140 -ne 1) { throw ('Unexpected Primary Mana Hand autoattack anchor count: '+$autoCount0140) }
+        $avatar0140auto = Replace-TextBlock $avatar0140auto $autoOld0140 $autoNew0140 'Primary Mana Hand autoattack reach selection'
+    }
+    Write-Utf8NoBom $avatar0140autoPath $avatar0140auto
+    $autoOutput0140 = [IO.File]::ReadAllText($avatar0140autoPath)
+    foreach($needle0140auto in @(
+        '#include "ncmm_loader.h"',
+        'class ncmm_mana_hand_autoattack_scope',
+        'ncmm_primary_mana_hand_autoattack_weapon',
+        'ncmm_primary_mana_hand_autoattack_reach',
+        '"survivor_progression", "mana_hands_34"',
+        '"survivor_progression", slots[i]',
+        'ncmm::virtual_item_primary_melee_enabled',
+        'ncmm::virtual_melee_context_begin( who, weapon, false )',
+        'item *ncmm_autoattack_weapon = nullptr;',
+        'you.reach_attack( best.pos_bub() );'
+    )) {
+        if(-not $autoOutput0140.Contains($needle0140auto)) { throw ('Survivor 0.14.0 Mana Hand autoattack output missing: '+$needle0140auto) }
+    }
+    Write-Host "Survivor 0.14.0 Primary Mana Hand autoattack parity: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandAutoattack0140 $CddaRoot
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -23331,6 +23556,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandGunControls014
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandPrimaryMelee0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandReachMelee0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandSmash0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandAutoattack0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
