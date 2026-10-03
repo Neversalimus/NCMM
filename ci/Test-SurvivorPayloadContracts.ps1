@@ -1149,8 +1149,7 @@ if($manaPracticeSection0140.Contains('set_wielded_item(') -or
    $manaPracticeSection0140.Contains('.obtain(')){
     throw 'Mana Hand target practice must not move the real virtual gun into Character::weapon.'
 }
-if(-not $payload.Contains('(Get-Command Apply-SurvivManaHandTargetPractice0140 -CommandType Function).Definition') -and
-   -not $payload.Contains('(Get-Command Apply-SurvivorManaHandTargetPractice0140 -CommandType Function).Definition')){throw 'Mana Hand target-practice transform missing from mechanics patch revision.'}
+if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandTargetPractice0140 -CommandType Function).Definition')){throw 'Mana Hand target-practice transform missing from mechanics patch revision.'}
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate
 # is intentionally half of the original 1 XP / 150 movement events.
