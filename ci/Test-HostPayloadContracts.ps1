@@ -53,9 +53,24 @@ foreach($n in @('function Apply-NcmmHostApi20Core','#define NCMM_HOST_API_V2_COR
 # declaration and definition begin with the same function name/signature.
 $sdkCurrent=Get-Content (Join-Path $PackageRoot 'sdk\ncmm_api.h') -Raw
 $hostSourceCurrent=Get-Content (Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp') -Raw
-foreach($n in @('#define NCMM_HOST_API_V2_CORE_MINOR 1u','NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2','NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2','virtual_item_choose','virtual_item_clear','virtual_item_name','virtual_item_uid')){if(-not $sdkCurrent.Contains($n)){throw "Host API 2.1 SDK virtual-item extension contract missing: $n"}}
-foreach($n in @('character.virtual_items.v1','virtual_item_choose_v2','virtual_item_for_slot_internal','virtual_item_can_assign_internal','virtual_item_assign_internal','item_location mutable_loc = loc;','item *selected = mutable_loc.get_item();','virtual_item_can_assign( const char *module_id','virtual_item_assign( const char *module_id','virtual_item_clear( const char *module_id','release_virtual_item( item &it )','virtual_item_secondary_melee_key = "ncmm_virtual_secondary_melee"','virtual_item_secondary_melee_enabled( const item &it )','virtual_item_set_secondary_melee( item &it, bool enabled )','virtual_melee_context_begin( Character &who, item &weapon )','virtual_melee_context_end( Character &who )','virtual_melee_context_is_wielding( const Character &who, const item &it )','candidate.is_two_handed( you )','virtual_item_marker_key = "ncmm_virtual_slot"','existing_marker.rfind( module_prefix, 0 ) != 0','virtual_item_for_slot_internal( module_id.c_str(), slot_id.c_str() ) == &it')){if(-not $hostSourceCurrent.Contains($n)){throw "Host API 2.1 Host virtual-item extension contract missing: $n"}}
+foreach($n in @('#define NCMM_HOST_API_V2_CORE_MINOR 1u','NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2','NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2','NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2','virtual_item_choose','virtual_item_clear','virtual_item_name','virtual_item_uid')){if(-not $sdkCurrent.Contains($n)){throw "Host API 2.1 SDK virtual-item extension contract missing: $n"}}
+foreach($n in @('character.virtual_items.v1','virtual_item_choose_v2','virtual_item_for_slot_internal','virtual_item_can_assign_internal','virtual_item_assign_internal','item_location mutable_loc = loc;','item *selected = mutable_loc.get_item();','virtual_item_can_assign( const char *module_id','virtual_item_assign( const char *module_id','virtual_item_clear( const char *module_id','release_virtual_item( item &it )','virtual_item_secondary_melee_key = "ncmm_virtual_secondary_melee"','virtual_item_secondary_melee_enabled( const item &it )','virtual_item_set_secondary_melee( item &it, bool enabled )','virtual_melee_context_begin( Character &who, item &weapon )','virtual_melee_context_end( Character &who )','virtual_melee_context_is_wielding( const Character &who, const item &it )','const bool candidate_two_handed = candidate.is_two_handed( you );','NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2','virtual_item_marker_key = "ncmm_virtual_slot"','existing_marker.rfind( module_prefix, 0 ) != 0','virtual_item_for_slot_internal( module_id.c_str(), slot_id.c_str() ) == &it')){if(-not $hostSourceCurrent.Contains($n)){throw "Host API 2.1 Host virtual-item extension contract missing: $n"}}
 if($hostSourceCurrent.Contains('return !it.get_var( virtual_item_marker_key, "" ).empty();')){throw 'Unsafe marker-only virtual-item identity check returned.'}
+$runtimeValidStart=$hostSourceCurrent.IndexOf('bool virtual_item_candidate_runtime_valid( const item &candidate, uint32_t flags )')
+$runtimeValidEnd=$hostSourceCurrent.IndexOf('item *virtual_item_for_slot_internal(', $runtimeValidStart)
+if($runtimeValidStart -lt 0 -or $runtimeValidEnd -le $runtimeValidStart){throw 'Virtual-item runtime-validity function boundary missing.'}
+$runtimeValidSection=$hostSourceCurrent.Substring($runtimeValidStart,$runtimeValidEnd-$runtimeValidStart)
+foreach($n in @(
+    'NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2',
+    'candidate.count_by_charges()',
+    'NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2',
+    'candidate.made_of( phase_id::LIQUID )',
+    'candidate.made_of( phase_id::GAS )',
+    'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
+    'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2'
+)){
+    if(-not $runtimeValidSection.Contains($n)){throw ('Virtual-item persisted restriction runtime check missing: '+$n)}
+}
 if($payload.Contains("Needle = 'const void *query_interface_v2('; Expected = 1; Name = 'Host API 2.0 query interface'")){throw 'Stale ambiguous Host API 2.0 query-interface count audit returned.'}
 foreach($n in @('Host API 2.0 query interface declaration','Host API 2.0 query interface definition','Host API 2.0 legacy v1 query-interface bridge','Host API 2.0 query-interface declaration/legacy-table/definition order is invalid.')){
     if(-not $payload.Contains($n)){throw ('Host API 2.0 structural query-interface audit missing: '+$n)}
@@ -324,9 +339,12 @@ foreach($gameplaySmokeNeedle in @(
     'NCMM Gameplay Smoke',
     'aws_setting_count != 50',
     'aws_hook_count != 50',
-    'survivor_perk_count != 369',
+    'survivor_perk_count < survivor_minimum_perk_count',
     'overmap_buffer.create_custom_overmap',
     'ncmm_test_perk_count_v1',
+    'constexpr size_t survivor_minimum_perk_count = 372;',
+    'find_perk_index( "mg_mana_hand_3" )',
+    'find_perk_index( "mg_mana_hand_4" )',
     'main-menu.ncmm-gameplay-smoke'
 )){
     if(-not $payload.Contains($gameplaySmokeNeedle)){
@@ -343,7 +361,10 @@ foreach($gameplayHostNeedle in @(
     'worldgen_hook_scope_enabled',
     'aws_scope_fallback_mismatch',
     'aws_protected_hook_exposed',
-    'survivor_perk_count != 369',
+    'survivor_perk_count < survivor_minimum_perk_count',
+    'constexpr size_t survivor_minimum_perk_count = 372;',
+    'find_perk_index( "mg_mana_hand_3" )',
+    'find_perk_index( "mg_mana_hand_4" )',
     'survivor_real_strength_mismatch',
     'survivor_real_carry_mismatch'
 )){

@@ -338,7 +338,10 @@ typedef enum ncmm_setting_value_type_v2 {
 
 typedef enum ncmm_virtual_item_flags_v2 {
     NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 = 1u << 0,
-    NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 = 1u << 1
+    NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 = 1u << 1,
+    NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 = 1u << 2,
+    NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2 = 1u << 3,
+    NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2 = 1u << 4
 } ncmm_virtual_item_flags_v2;
 
 typedef void ( *ncmm_event_callback_v2 )( uint32_t event_id, void *user_data );

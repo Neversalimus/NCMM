@@ -456,7 +456,10 @@ foreach($needle0140 in @(
     'virtual_item_marker_key = "ncmm_virtual_slot"',
     'candidate->uid().get_value()',
     'game_menus::inv::titled_filter_menu',
-    'candidate.is_two_handed( you )',
+    'const bool candidate_two_handed = candidate.is_two_handed( you );',
+    'NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2',
+    'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
+    'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2',
     'release_virtual_item( item &it )'
 )){
     if(-not $hostVirtual0140.Contains($needle0140)){
@@ -466,6 +469,9 @@ foreach($needle0140 in @(
 foreach($needle0140 in @(
     '#define NCMM_HOST_API_V2_CORE_MINOR 1u',
     'NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2',
+    'NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2',
+    'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
+    'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2',
     'virtual_item_choose',
     'virtual_item_clear',
     'virtual_item_name',
@@ -479,6 +485,9 @@ foreach($needle0140 in @(
     'host2->virtual_item_choose',
     'host2->virtual_item_clear',
     'host2->virtual_item_name',
+    'constexpr const char *mana_hand_pair_slot_id = "mana_hands_34";',
+    'host2->virtual_item_clear( module_id, mana_hand_pair_slot_id );',
+    'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
     'api->query_interface( NCMM_HOST_API_V2_CORE_ID, 2u, 1u )',
     '"0.14.0"'
 )){
@@ -526,7 +535,14 @@ foreach($needle0140 in @(
     'virtual_melee_context_is_wielding( *this, target )',
     'ncmm_run_mana_hand_secondary_melee( *this, t );',
     'enable Mana Hand secondary strike',
-    'Apply-SurvivorManaHandSecondaryMelee0140 $CddaRoot'
+    'Apply-SurvivorManaHandSecondaryMelee0140 $CddaRoot',
+    'function Apply-SurvivorManaHandPairedGrip0140',
+    '"mana_hands_34"',
+    'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
+    'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2',
+    "case '5':",
+    'item *ncmm_paired_weapon =',
+    'Apply-SurvivorManaHandPairedGrip0140 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
@@ -597,9 +613,9 @@ foreach($utilityNeedle0140 in @(
     }
 }
 
-$manaSecondaryEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaSecondaryStart0140)
-if($manaSecondaryEnd0140 -le $manaSecondaryStart0140){throw 'Mana Hand secondary-melee transform end missing.'}
-$manaSecondarySection0140=$payload.Substring($manaSecondaryStart0140,$manaSecondaryEnd0140-$manaSecondaryStart0140)
+$manaPairStart0140=$payload.IndexOf('function Apply-SurvivorManaHandPairedGrip0140',$manaSecondaryStart0140)
+if($manaPairStart0140 -le $manaSecondaryStart0140){throw 'Mana Hand paired-grip transform boundary missing.'}
+$manaSecondarySection0140=$payload.Substring($manaSecondaryStart0140,$manaPairStart0140-$manaSecondaryStart0140)
 foreach($secondaryNeedle0140 in @(
     'class ncmm_virtual_melee_scope',
     'ncmm::virtual_melee_context_begin( who, weapon )',
@@ -641,6 +657,38 @@ foreach($upgradeNeedle0140 in @(
     if(-not $manaContextSection0140.Contains($upgradeNeedle0140)){
         throw ('Mana Hand context update-path regression contract missing: '+$upgradeNeedle0140)
     }
+}
+
+$manaPairEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaPairStart0140)
+if($manaPairEnd0140 -le $manaPairStart0140){throw 'Mana Hand paired-grip transform end missing.'}
+$manaPairSection0140=$payload.Substring($manaPairStart0140,$manaPairEnd0140-$manaPairStart0140)
+foreach($pairNeedle0140 in @(
+    'item *ncmm_mana_hands_34 = ncmm_virtual_hands >= 2 ?',
+    'ncmm_mana_hands_34 != nullptr ? 2 :',
+    'consider_virtual_shield( "mana_hands_34" );',
+    'item *ncmm_pair = ncmm_virtual_hands >= 2 ?',
+    '"mana_hands_34" ) == &it',
+    'item *ncmm_mana_pair_item = ncmm_mana_hands >= 2 ?',
+    'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
+    'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2',
+    "case '5':",
+    'ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 1',
+    'ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 2',
+    'item *ncmm_paired_weapon =',
+    'ncmm_paired_weapon->is_two_handed( who )',
+    '!ncmm_paired_weapon->is_gun()'
+)){
+    if(-not $manaPairSection0140.Contains($pairNeedle0140)){
+        throw ('Mana Hand paired-grip regression contract missing: '+$pairNeedle0140)
+    }
+}
+if(([regex]::Matches($manaPairSection0140,[regex]::Escape('"mana_hands_34"'))).Count -lt 8){
+    throw 'Mana Hand paired grip must use one dedicated pair slot across all integrations.'
+}
+if($manaPairSection0140.Contains('item_location::type::mana_hand') -or
+   $manaPairSection0140.Contains('set_wielded_item(') -or
+   $manaPairSection0140.Contains('u.wield(')){
+    throw 'Mana Hand paired grip must not synthesize locations or move the real item.'
 }
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate

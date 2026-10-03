@@ -295,7 +295,7 @@ const perk_def perks[] = {
     { "mg_archmage", branch_id::mastery, 8, 40, currency_id::major, "mg_efficient_theory", "mg_combat_weave", "Archmage", "Архимаг", "+0.75 Spellcraft, -5% failure, +8% potency, +8% spell XP.", "+0,75 Spellcraft, -5% провала, +8% мощности, +8% опыта заклинаний.", {{ { "mg_spellcraft_flat", 0.75 }, { "mg_fail_pct", -5 }, { "mg_spell_power_pct", 8 }, { "mg_spell_xp_pct", 8 } }}, 4, 0, perk_kind::effect },
     { "mg_mana_vampirism", branch_id::mastery, 9, 40, currency_id::perk, "mg_archmage", "", "Mana Vampirism", "Вампиризм маны", "Magiclysm: restore mana equal to 1% of actual melee damage dealt per rank (1-5%).", "Magiclysm: восстанавливает ману в размере 1% от фактически нанесённого урона в ближнем бою за ранг (1-5%).", {{ { "mg_melee_mana_vamp_pct", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "mg_mana_hand_3", branch_id::mastery, 9, 42, currency_id::perk, "mg_archmage", "", "Third Mana Hand", "Третья рука маны", "Magiclysm: manifest one unencumbered virtual hand. It can hold one real carried item without moving or duplicating it; shields can block and a magic focus counts as held. An empty mana hand can perform somatic casting while physical hands are occupied.", "Magiclysm: создаёт одну свободную от стеснения виртуальную руку. Она может удерживать один реальный предмет персонажа без перемещения и копирования; щит может блокировать, а магический фокус считается удерживаемым. Пустая рука маны может выполнять соматику, когда физические руки заняты.", {{ { "mg_virtual_hand_count", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "mg_mana_hand_4", branch_id::mastery, 10, 48, currency_id::perk, "mg_mana_hand_3", "", "Fourth Mana Hand", "Четвёртая рука маны", "Magiclysm: manifest a second unencumbered virtual hand with its own logical item slot. Together the two mana hands halve physical hand/arm encumbrance contribution to spellcasting; occupied hands are not free for somatic casting unless they hold a magic focus.", "Magiclysm: создаёт вторую свободную от стеснения виртуальную руку со своим логическим слотом предмета. Вместе две руки маны вдвое уменьшают влияние стеснения физических рук; занятая рука не считается свободной для соматики, если только не удерживает магический фокус.", {{ { "mg_virtual_hand_count", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "mg_mana_hand_4", branch_id::mastery, 10, 48, currency_id::perk, "mg_mana_hand_3", "", "Fourth Mana Hand", "Четвёртая рука маны", "Magiclysm: manifest a second unencumbered virtual hand with its own logical item slot. Together Mana Hands III+IV can also hold one real non-firearm two-handed item as a paired grip. Occupied hands are not free for somatic casting unless they hold a magic focus.", "Magiclysm: создаёт вторую свободную от стеснения виртуальную руку со своим логическим слотом. Вместе руки маны III+IV также могут удерживать один реальный двуручный предмет, кроме огнестрела, парным хватом. Занятые руки не считаются свободными для соматики, если только не удерживают магический фокус.", {{ { "mg_virtual_hand_count", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
 
     { "mom_mental_focus", branch_id::mastery, 1, 2, currency_id::perk, "", "", "Psionic Focus", "Псионический фокус", "Mind Over Matter powers: +0.5 effective Metaphysics while channeling.", "Силы Mind Over Matter: +0,5 к эффективной Metaphysics при ченнелинге.", {{ { "mom_metaphysics_flat", 0.5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "mom_still_mind", branch_id::mastery, 2, 5, currency_id::perk, "mom_mental_focus", "", "Still Mind", "Спокойный разум", "Mind Over Matter: power failure chance -6%.", "Mind Over Matter: шанс провала псионических сил -6%.", {{ { "mom_fail_pct", -6 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
@@ -2285,6 +2285,8 @@ bool purchase_perk( const perk_def &perk )
     return true;
 }
 
+constexpr const char *mana_hand_pair_slot_id = "mana_hands_34";
+
 const char *mana_hand_slot_id( const perk_def &perk )
 {
     if( std::string_view( perk.id ) == "mg_mana_hand_3" ) return "mana_hand_3";
@@ -2297,14 +2299,29 @@ bool mana_hand_perk( const perk_def &perk )
     return mana_hand_slot_id( perk ) != nullptr;
 }
 
-std::string mana_hand_item_name( const perk_def &perk )
+std::string virtual_item_name_for_slot( const char *slot_id )
 {
-    const char *slot_id = mana_hand_slot_id( perk );
     if( slot_id == nullptr || host2 == nullptr || host2->virtual_item_name == nullptr ) {
         return {};
     }
     const char *raw = host2->virtual_item_name( module_id, slot_id );
     return raw != nullptr ? std::string( raw ) : std::string();
+}
+
+bool virtual_item_slot_occupied( const char *slot_id )
+{
+    return slot_id != nullptr && host2 != nullptr && host2->virtual_item_uid != nullptr &&
+           host2->virtual_item_uid( module_id, slot_id ) > 0;
+}
+
+std::string mana_hand_item_name( const perk_def &perk )
+{
+    return virtual_item_name_for_slot( mana_hand_slot_id( perk ) );
+}
+
+std::string paired_mana_hand_item_name()
+{
+    return virtual_item_name_for_slot( mana_hand_pair_slot_id );
 }
 
 void clear_mana_hand_slots()
@@ -2314,6 +2331,7 @@ void clear_mana_hand_slots()
     }
     host2->virtual_item_clear( module_id, "mana_hand_3" );
     host2->virtual_item_clear( module_id, "mana_hand_4" );
+    host2->virtual_item_clear( module_id, mana_hand_pair_slot_id );
 }
 
 void show_perk_detail( const perk_def &perk )
@@ -2357,6 +2375,22 @@ void show_perk_detail( const perk_def &perk )
 
         std::string back = tr( "Back", "Назад" );
         if( maxed && mana_hand_perk( perk ) ) {
+            const std::string paired = paired_mana_hand_item_name();
+            if( !paired.empty() ) {
+                title += "\n" + tr( "Paired virtual grip III+IV: ", "Парный виртуальный хват III+IV: " ) + paired;
+                title += "\n" + tr(
+                             "Both Mana Hands are occupied by one real two-handed item. The item remains in its normal CDDA location.",
+                             "Обе руки маны заняты одним реальным двуручным предметом. Предмет остаётся в своём обычном месте CDDA." );
+                std::string release_pair = tr( "Release paired virtual item", "Освободить парный виртуальный предмет" );
+                const char *pair_entries[] = { release_pair.c_str(), back.c_str() };
+                const int pair_choice = host->ui_choose ? host->ui_choose( title.c_str(), pair_entries, 2 ) : -1;
+                if( pair_choice == 0 && host2->virtual_item_clear ) {
+                    host2->virtual_item_clear( module_id, mana_hand_pair_slot_id );
+                    continue;
+                }
+                return;
+            }
+
             const std::string held = mana_hand_item_name( perk );
             title += "\n" + tr( "Virtual slot: ", "Виртуальный слот: " ) +
                      ( held.empty() ? tr( "empty", "пусто" ) : held );
@@ -2370,9 +2404,41 @@ void show_perk_detail( const perk_def &perk )
             std::string release = tr( "Release virtual item", "Освободить предмет" );
             const char *slot_id = mana_hand_slot_id( perk );
             if( held.empty() ) {
-                const char *entries[] = { equip.c_str(), back.c_str() };
-                const int choice = host->ui_choose ? host->ui_choose( title.c_str(), entries, 2 ) : -1;
-                if( choice != 0 ) return;
+                const bool fourth_hand = std::string_view( perk.id ) == "mg_mana_hand_4";
+                const bool both_single_slots_empty =
+                    !virtual_item_slot_occupied( "mana_hand_3" ) &&
+                    !virtual_item_slot_occupied( "mana_hand_4" );
+                std::string equip_pair = tr(
+                    "Equip two-handed item with Mana Hands III+IV",
+                    "Экипировать двуручный предмет руками маны III+IV" );
+
+                int choice = -1;
+                if( fourth_hand && both_single_slots_empty ) {
+                    const char *entries[] = { equip.c_str(), equip_pair.c_str(), back.c_str() };
+                    choice = host->ui_choose ? host->ui_choose( title.c_str(), entries, 3 ) : -1;
+                    if( choice == 2 || choice < 0 ) return;
+                } else {
+                    const char *entries[] = { equip.c_str(), back.c_str() };
+                    choice = host->ui_choose ? host->ui_choose( title.c_str(), entries, 2 ) : -1;
+                    if( choice != 0 ) return;
+                }
+
+                if( choice == 1 && fourth_hand && both_single_slots_empty ) {
+                    const std::string picker_title =
+                        tr( "Choose two-handed item for Mana Hands III+IV",
+                            "Выберите двуручный предмет для рук маны III+IV" );
+                    if( host2->virtual_item_choose ) {
+                        host2->virtual_item_choose(
+                            module_id, mana_hand_pair_slot_id, picker_title.c_str(),
+                            NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
+                            NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 |
+                            NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
+                            NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2 |
+                            NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2 );
+                    }
+                    continue;
+                }
+
                 const std::string picker_title =
                     tr( "Choose item for ", "Выберите предмет для " ) + perk_display_name( perk );
                 if( host2->virtual_item_choose ) {
