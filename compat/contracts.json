@@ -389,7 +389,11 @@
             "void avatar_action::autoattack( avatar &you, map &m )",
             "const item_location weapon = you.get_wielded_item();",
             "int reach = weapon ? weapon->reach_range( you ).first : std::max( 1,",
-            "you.reach_attack( best.pos_bub() );"
+            "you.reach_attack( best.pos_bub() );",
+            "void avatar_action::plthrow( avatar &you, item_location loc,",
+            "if( !you.is_wielding( *orig ) ) {",
+            "item_location weapon = in_mech ? loc : you.get_wielded_item();",
+            "void avatar_action::plthrow_wielded( avatar &you,"
           ]
         },
         {
