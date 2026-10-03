@@ -475,7 +475,9 @@ foreach($needle0140 in @(
     'virtual_item_choose',
     'virtual_item_clear',
     'virtual_item_name',
-    'virtual_item_uid'
+    'virtual_item_uid',
+    'virtual_item_secondary_melee_enabled',
+    'virtual_item_set_secondary_melee'
 )){
     if(-not $sdkVirtual0140.Contains($needle0140)){
         throw ('Survivor 0.14.0 SDK virtual-item contract missing: '+$needle0140)
@@ -485,6 +487,15 @@ foreach($needle0140 in @(
     'host2->virtual_item_choose',
     'host2->virtual_item_clear',
     'host2->virtual_item_name',
+    'virtual_item_secondary_controls_available()',
+    'host2->api_minor >= 2u',
+    'host2->struct_size >= sizeof( ncmm_host_api_v2_core )',
+    'host2->virtual_item_secondary_melee_enabled',
+    'host2->virtual_item_set_secondary_melee',
+    'Secondary strike: ',
+    'Дополнительный удар: ',
+    'Enable secondary strike',
+    'Disable secondary strike',
     'constexpr const char *mana_hand_pair_slot_id = "mana_hands_34";',
     'host2->virtual_item_clear( module_id, mana_hand_pair_slot_id );',
     'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
