@@ -1018,7 +1018,7 @@ if($manaReachSection0140.Contains('set_wielded_item(') -or
     throw 'Mana Hand reach melee must not move the real item into Character::weapon.'
 }
 
-$manaSmashEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaSmashStart0140)
+$manaSmashEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandAutoattack0140',$manaSmashStart0140)
 if($manaSmashEnd0140 -le $manaSmashStart0140){throw 'Primary Mana Hand smash transform end missing.'}
 $manaSmashSection0140=$payload.Substring($manaSmashStart0140,$manaSmashEnd0140-$manaSmashStart0140)
 foreach($smashNeedle0140 in @(
