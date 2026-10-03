@@ -66,8 +66,8 @@
     },
     {
       "path": "ci\\Test-HostPayloadContracts.ps1",
-      "sha256": "085146babf3cc1fca201b686bb7a7e68160380523459d997229afdfcf10d6d34",
-      "bytes": 27532
+      "sha256": "87ada7805305fab55625cc5e6661b53a3b5e619f40cff5f14fa778b20c35bab3",
+      "bytes": 27946
     },
     {
       "path": "ci\\Test-Infrastructure0821.ps1",
@@ -86,8 +86,8 @@
     },
     {
       "path": "ci\\Test-SurvivorPayloadContracts.ps1",
-      "sha256": "0ed0fbbb995524f1d88aecee991a56bbdb566c7790e66c70ebae72b09440fc6b",
-      "bytes": 52730
+      "sha256": "fd3ecfaef5e1d1ce6e2f4c575e77aa1982080ba17971029aa4667ef4979aa01f",
+      "bytes": 53538
     },
     {
       "path": "ci\\Watch-CDDAExperimental.ps1",
@@ -96,8 +96,8 @@
     },
     {
       "path": "compat\\compatibility.manifest.json",
-      "sha256": "dec6f1a7fcc6f18592e46989017344f76d6e42cafea8f37cd275aa8ff4b6a6d7",
-      "bytes": 7507
+      "sha256": "45c04fb9ccb5d1424f308c55705e671a7dfb5f1c77671a629ff898c84e89d690",
+      "bytes": 7610
     },
     {
       "path": "compat\\contracts.json",
@@ -136,7 +136,7 @@
     },
     {
       "path": "components\\index.json",
-      "sha256": "42ba00ca5b35f19838880e72234443d1011c86a6f42ca7bee7222074793290bd",
+      "sha256": "7b309f634795497394f79fc88817e078aa6c1c45eea2d884581ba72847790a95",
       "bytes": 6240
     },
     {
@@ -146,7 +146,7 @@
     },
     {
       "path": "components\\ncmm_host.json",
-      "sha256": "a4c8b7b00409c4544891aa0b007693206230c2de14dd7d7b38c4ca1e2428d588",
+      "sha256": "283ba78ac7d77fd3e2bcfd65caf2a62a070710c95bab018962b39a2bbfca65ea",
       "bytes": 875
     },
     {
@@ -331,8 +331,8 @@
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-      "sha256": "a8068416cd5b8c7467771c87d8609259e18a771d8ff2a213b3938ccc385feb15",
-      "bytes": 2460969
+      "sha256": "68bd6ec0b488f3ad4be9e4585fe2dd7a51a69ca97ff4f165d6422108ab03e080",
+      "bytes": 2469565
     },
     {
       "path": "pipeline\\pipeline.manifest.json",
@@ -346,8 +346,8 @@
     },
     {
       "path": "sdk\\HOST_API_2_CORE_CONTRACT.md",
-      "sha256": "e3c402b40237493a308bf25975db86a8e7f390013ad2b57afd03526e5bd6da7b",
-      "bytes": 3132
+      "sha256": "8dbcaa9e0a4bb7aeb35d5612d2203937f2dda10450b1bc79a414be72ef8a28c1",
+      "bytes": 3504
     },
     {
       "path": "SURVIVOR_0.10.0_MECHANICAL_PERKS_AUDIT.txt",

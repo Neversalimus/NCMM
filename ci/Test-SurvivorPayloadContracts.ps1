@@ -464,6 +464,10 @@ foreach($needle0140 in @(
     'virtual_item_primary_melee_key = "ncmm_virtual_primary_melee"',
     'virtual_item_primary_melee_enabled( const item &it )',
     'virtual_item_set_primary_melee( item &it, bool enabled )',
+    'virtual_item_primary_melee_enabled_v2( const char *module_id, const char *slot_id )',
+    'virtual_item_set_primary_melee_v2( const char *module_id, const char *slot_id,',
+    '&virtual_item_primary_melee_enabled_v2',
+    '&virtual_item_set_primary_melee_v2',
     'virtual_melee_context_suppresses_martial_arts( const Character &who )'
 )){
     if(-not $hostVirtual0140.Contains($needle0140)){
@@ -471,7 +475,10 @@ foreach($needle0140 in @(
     }
 }
 foreach($needle0140 in @(
-    '#define NCMM_HOST_API_V2_CORE_MINOR 2u',
+    '#define NCMM_HOST_API_V2_CORE_MINOR 3u',
+    'NCMM_HOST_API_V2_CORE_SIZE_2_1',
+    'NCMM_HOST_API_V2_CORE_SIZE_2_2',
+    'NCMM_HOST_API_V2_CORE_SIZE_2_3',
     'NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2',
     'NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2',
     'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
@@ -481,7 +488,9 @@ foreach($needle0140 in @(
     'virtual_item_name',
     'virtual_item_uid',
     'virtual_item_secondary_melee_enabled',
-    'virtual_item_set_secondary_melee'
+    'virtual_item_set_secondary_melee',
+    'virtual_item_primary_melee_enabled',
+    'virtual_item_set_primary_melee'
 )){
     if(-not $sdkVirtual0140.Contains($needle0140)){
         throw ('Survivor 0.14.0 SDK virtual-item contract missing: '+$needle0140)
@@ -493,9 +502,17 @@ foreach($needle0140 in @(
     'host2->virtual_item_name',
     'virtual_item_secondary_controls_available()',
     'host2->api_minor >= 2u',
-    'host2->struct_size >= sizeof( ncmm_host_api_v2_core )',
+    'host2->struct_size >= NCMM_HOST_API_V2_CORE_SIZE_2_2',
     'host2->virtual_item_secondary_melee_enabled',
     'host2->virtual_item_set_secondary_melee',
+    'virtual_item_primary_controls_available()',
+    'host2->api_minor >= 3u',
+    'host2->struct_size >= NCMM_HOST_API_V2_CORE_SIZE_2_3',
+    'host2->virtual_item_primary_melee_enabled',
+    'host2->virtual_item_set_primary_melee',
+    'Primary melee: ',
+    'Enable primary Mana Hand melee',
+    'Disable primary Mana Hand melee',
     'Secondary strike: ',
     'Enable secondary strike',
     'Disable secondary strike',
