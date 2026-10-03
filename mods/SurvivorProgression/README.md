@@ -95,6 +95,8 @@ Primary Mana Hand attacks use the normal vanilla melee pipeline, including weapo
 
 Primary and secondary modes are mutually exclusive for the same virtual item. Other eligible Mana Hands may still perform their enabled secondary strikes after a successful primary Mana Hand attack.
 
+Primary Mana Hand melee also participates in CDDA reach attacks. A spear, whip, polearm, or other reach-capable primary virtual weapon uses the normal reach targeting UI, obstacle/thin-fence handling, weapon wear, stamina/move cost, techniques, and the same 5–50 mana primary-attack cost. Physical wielded reach weapons and force-unarmed martial-art styles keep vanilla priority.
+
 
 ## Mana Hand paired grip
 
