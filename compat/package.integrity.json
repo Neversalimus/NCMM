@@ -86,7 +86,7 @@
     },
     {
       "path": "ci\\Test-SurvivorPayloadContracts.ps1",
-      "sha256": "c1bb7a6572fec18f9126b6b2a678bfdb16f3768d6c4b2ddbf86618807ff5b62f",
+      "sha256": "96669d9282a31758e2b4d2207f8999ac57fcd75611da0722225a74863ce71762",
       "bytes": 59957
     },
     {
@@ -101,7 +101,7 @@
     },
     {
       "path": "compat\\contracts.json",
-      "sha256": "44299909041eb0bfb5986582b31439ffd154dfb854b4206b5f4c665d57a8747c",
+      "sha256": "662699126a28d2c3cd41b0d298a04b92601f740c3f459b68bee069fe90db7cba",
       "bytes": 17886
     },
     {
@@ -331,7 +331,7 @@
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-      "sha256": "6112b131151b74fdeb0d77eaa34f54f3d176144b2bba27ab5559807e65adf763",
+      "sha256": "5063c3ccc818755f30043348db0a281e22a301f0337a6ed161df0dc7d2da2024",
       "bytes": 2525732
     },
     {
