@@ -603,6 +603,9 @@ foreach($needle0140 in @(
     'ncmm::virtual_item_can_assign(',
     'ncmm::virtual_item_assign(',
     'ncmm::virtual_item_clear(',
+    'ncmm::mana_hand_inventory_action_visible( locThisItem )',
+    'ncmm::mana_hand_inventory_action( locThisItem )',
+    "case 'H':",
     'Apply-SurvivorVirtualItemContext0140 $CddaRoot',
     'function Apply-SurvivorManaHandSpellcastingAid0140',
     'ncmm_virtual_wield_flags',
@@ -806,6 +809,19 @@ foreach($newNeedle0140 in @(
     'This item is not held by an available Mana Hand.'
 )){
     if(-not $contextNew0140.Contains($newNeedle0140)){throw ('Mana Hand context generated switch missing: '+$newNeedle0140)}
+}
+
+foreach($directManaNeedle0151 in @(
+    'ncmm::mana_hand_inventory_action_visible( locThisItem )',
+    'addentry( ''H'', ncmm::localized_text(',
+    '"Mana Hand"',
+    '"Рука маны"',
+    "case 'H':",
+    'ncmm::mana_hand_inventory_action( locThisItem );'
+)){
+    if(-not $manaContextSection0140.Contains($directManaNeedle0151)){
+        throw ('Mana Hand direct inventory UX regression missing: '+$directManaNeedle0151)
+    }
 }
 
 $manaUtilityStart0140=$payload.IndexOf('function Apply-SurvivorManaHandUtility0140')
@@ -1345,6 +1361,24 @@ foreach($craftMetricNeedle0140 in @(
 )){if(-not $craftMetricSection0140.Contains($craftMetricNeedle0140)){throw ('Survivor exact craft-completion metric regression missing: '+$craftMetricNeedle0140)}}
 if(-not $payload.Contains('(Get-Command Apply-SurvivorCraftCompletionMetric0140 -CommandType Function).Definition')){throw 'Craft-completion metric transform missing from mechanics patch revision.'}
 if(([regex]::Matches($payload,[regex]::Escape('Apply-SurvivorCraftCompletionMetric0140 $CddaRoot'))).Count -ne 2){throw 'Craft-completion metric must be applied in both deep-probe and normal build paths.'}
+
+$vehicleMetricStart0151=$payload.IndexOf('function Apply-SurvivorVehicleCraftingMetric0151',$craftMetricStart0140)
+if($vehicleMetricStart0151 -le $craftMetricStart0140){throw 'Vehicle-work Crafting XP transform missing.'}
+$vehicleMetricEnd0151=$payload.IndexOf('function Apply-SurvivorXpBalance0140',$vehicleMetricStart0151)
+if($vehicleMetricEnd0151 -le $vehicleMetricStart0151){throw 'Vehicle-work Crafting XP transform boundary missing.'}
+$vehicleMetricSection0151=$payload.Substring($vehicleMetricStart0151,$vehicleMetricEnd0151-$vehicleMetricStart0151)
+foreach($vehicleNeedle0151 in @(
+    'src'') ''activity_actor.cpp''',
+    '// NCMM Survivor Crafting XP: successful vehicle install.',
+    '// NCMM Survivor Crafting XP: successful vehicle removal.',
+    'ncmm::gameplay_metric_record_completed_craft( you );'
+)){
+    if(-not $vehicleMetricSection0151.Contains($vehicleNeedle0151)){
+        throw ('Vehicle-work Crafting XP regression missing: '+$vehicleNeedle0151)
+    }
+}
+if(-not $payload.Contains('(Get-Command Apply-SurvivorVehicleCraftingMetric0151 -CommandType Function).Definition')){throw 'Vehicle-work Crafting XP transform missing from mechanics patch revision.'}
+if(([regex]::Matches($payload,[regex]::Escape('Apply-SurvivorVehicleCraftingMetric0151 $CddaRoot'))).Count -ne 2){throw 'Vehicle-work Crafting XP must be applied in both deep-probe and normal build paths.'}
 
 $xpBalanceStart0140=$payload.IndexOf('function Apply-SurvivorXpBalance0140',$craftMetricStart0140)
 $xpBalanceEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$xpBalanceStart0140)
