@@ -6052,10 +6052,68 @@ int run_gameplay_smoke()
         }
         ++mana_hands_check_count;
 
+        // Regression for the real player flow: a long/two-handed item may be
+        // physically wielded precisely because it cannot fit any ordinary pocket.
+        // Mana Hands must be able to transfer that item atomically into the
+        // private forbidden carrier, then restore it without duplication/loss.
+        item wield_transfer_probe( itype_id( "hatchet" ) );
+        wield_transfer_probe.set_flag( flag_id( "ALWAYS_TWOHAND" ) );
+        item_location wield_transfer_loc = get_avatar().i_add(
+                                               wield_transfer_probe, true, nullptr, nullptr,
+                                               false, false );
+        if( !wield_transfer_loc ||
+            !get_avatar().wield( wield_transfer_loc ) ||
+            !get_avatar().is_armed() ||
+            !get_avatar().get_wielded_item()->is_two_handed( get_avatar() ) ) {
+            return mana_hands_fail( "mana_hands_wield_transfer_setup", 148 );
+        }
+        ++mana_hands_check_count;
+
+        item_location physical_pair = get_avatar().get_wielded_item();
+        const int64_t wield_transfer_uid = physical_pair->uid().get_value();
+        if( !virtual_item_can_assign_internal(
+                survivor_id, "mana_hands_34", physical_pair, mana_pair_flags ) ||
+            !virtual_item_assign_internal(
+                survivor_id, "mana_hands_34", physical_pair, mana_pair_flags ) ||
+            get_avatar().is_armed() ) {
+            return mana_hands_fail( "mana_hands_wield_transfer_bind", 149 );
+        }
+        item *wield_transfer_bound =
+            virtual_item_for_slot_internal( survivor_id, "mana_hands_34" );
+        item_location wield_transfer_bound_loc;
+        for( item_location probe_loc : get_avatar().all_items_loc() ) {
+            if( probe_loc.get_item() == wield_transfer_bound ) {
+                wield_transfer_bound_loc = probe_loc;
+                break;
+            }
+        }
+        if( wield_transfer_bound == nullptr || !wield_transfer_bound_loc ||
+            wield_transfer_bound->uid().get_value() != wield_transfer_uid ||
+            !item_location_inside_mana_hand_carrier( wield_transfer_bound_loc ) ||
+            virtual_item_state_uid_internal(
+                survivor_id, "mana_hands_34" ) != wield_transfer_uid ) {
+            return mana_hands_fail( "mana_hands_wield_transfer_carrier", 150 );
+        }
+        ++mana_hands_check_count;
+
+        virtual_item_clear_internal( survivor_id, "mana_hands_34" );
+        if( !get_avatar().is_armed() ||
+            get_avatar().get_wielded_item()->uid().get_value() != wield_transfer_uid ||
+            !get_avatar().get_wielded_item()->get_var(
+                virtual_item_marker_key, "" ).empty() ||
+            virtual_item_state_uid_internal(
+                survivor_id, "mana_hands_34" ) != 0 ) {
+            return mana_hands_fail( "mana_hands_wield_transfer_release", 151 );
+        }
+        if( !get_avatar().wield( item_location() ) ) {
+            return mana_hands_fail( "mana_hands_wield_transfer_cleanup", 152 );
+        }
+        ++mana_hands_check_count;
+
         log_line( NCMM_LOG_INFO,
                   ( "NCMM gameplay smoke checkpoint: Mana Hands " +
                     std::to_string( mana_hands_check_count ) +
-                    "/13 real binding/state checks PASS." ).c_str() );
+                    "/16 real binding/state checks PASS." ).c_str() );
 
         size_t dimensional_pouch_check_count = 0;
         const auto dimensional_pouch_fail = [&]( const char *reason, int code ) {
@@ -6254,7 +6312,7 @@ int run_gameplay_smoke()
                     std::to_string( survivor_perk_count ) +
                     "-perk aggregate, isolated Character consumers, Mana Hands " +
                     std::to_string( mana_hands_check_count ) +
-                    "/13, and Dimensional Pouch " +
+                    "/16, and Dimensional Pouch " +
                     std::to_string( dimensional_pouch_check_count ) + "/4." ).c_str() );
         return 0;
     } catch( const std::exception &err ) {
