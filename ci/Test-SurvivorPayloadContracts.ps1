@@ -349,7 +349,7 @@ foreach($n in @(
 )){if(-not $payload.Contains($n)){throw ('Survivor 0.13.0 settings/recalibration contract missing: '+$n)}}
 if($payload.Contains('reset.id = "respec"')){throw 'Free Survivor respec UI leaked into the current payload.'}
 
-# Survivor 0.14.0: high-level Magiclysm mana vampirism.
+# Survivor 0.14.0 feature retained in 0.15.0: high-level Magiclysm mana vampirism.
 $survivorSource0121=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\src\survivor_progression.cpp'))
 foreach($manaVampNeedle0121 in @(
     '{ "mg_mana_vampirism", branch_id::mastery, 9, 40, currency_id::perk, "mg_archmage"',
@@ -362,8 +362,8 @@ foreach($manaVampNeedle0121 in @(
     'ncmm_mana_vamp_fraction',
     'magic->mod_mana( *this, recovered_mana )',
     '!t.is_hallucination()',
-    'Survivor Progression v0.14.0',
-    '"0.14.0",'
+    'Survivor Progression 0.15.0 initialized:',
+    '"0.15.0",'
 )){
     if(-not ($payload.Contains($manaVampNeedle0121) -or $survivorSource0121.Contains($manaVampNeedle0121))){
         throw ('Survivor 0.14.0 mana-vampirism contract missing: '+$manaVampNeedle0121)
