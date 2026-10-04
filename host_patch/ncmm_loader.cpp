@@ -5959,7 +5959,9 @@ void initialize()
     modifier_owners_v2.clear();
     event_subscriptions_v2.clear();
     runtime_hook_rules_v2.clear();
+    runtime_hook_rule_indices_v2.clear();
     worldgen_bindings_v2.clear();
+    runtime_setting_bindings_v2.clear();
     runtime_source_mod_context_v2.clear();
     api_v2_world_announced = false;
     gameplay_metric_values.clear();
@@ -6184,7 +6186,9 @@ void shutdown()
     modifier_owners_v2.clear();
     event_subscriptions_v2.clear();
     runtime_hook_rules_v2.clear();
+    runtime_hook_rule_indices_v2.clear();
     worldgen_bindings_v2.clear();
+    runtime_setting_bindings_v2.clear();
     runtime_source_mod_context_v2.clear();
     api_v2_world_announced = false;
     active_module_id.clear();
