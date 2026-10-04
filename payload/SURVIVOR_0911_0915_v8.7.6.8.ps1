@@ -2234,9 +2234,16 @@ float Character::get_skill_level( const skill_id &ident, const item &context ) c
                         ncmm::runtime_hook_modifier( "combat.melee_mana_vamp_pct" ), 0.0, 100.0 );
                 static double ncmm_mana_vamp_fraction = 0.0;
                 static double ncmm_mana_vamp_last_pct = 0.0;
-                if( std::abs( ncmm_mana_vamp_pct - ncmm_mana_vamp_last_pct ) > 1.0e-9 ) {
+                static const Character *ncmm_mana_vamp_owner = nullptr;
+                static auto ncmm_mana_vamp_owner_id = getID();
+                const auto ncmm_current_mana_vamp_owner_id = getID();
+                if( ncmm_mana_vamp_owner != this ||
+                    ncmm_mana_vamp_owner_id != ncmm_current_mana_vamp_owner_id ||
+                    std::abs( ncmm_mana_vamp_pct - ncmm_mana_vamp_last_pct ) > 1.0e-9 ) {
                     ncmm_mana_vamp_fraction = 0.0;
                     ncmm_mana_vamp_last_pct = ncmm_mana_vamp_pct;
+                    ncmm_mana_vamp_owner = this;
+                    ncmm_mana_vamp_owner_id = ncmm_current_mana_vamp_owner_id;
                 }
                 if( ncmm_mana_vamp_pct <= 0.0 ||
                     magic->available_mana() >= magic->max_mana( *this ) ) {
@@ -21178,7 +21185,7 @@ item_location aim_activity_actor::get_weapon()
     gun_mode gun = weapon->gun_current_mode();
     if( ncmm_real_weapon ) {
         const int ncmm_planned_shots = std::max( 1, gun.qty );
-        const int ncmm_virtual_shot_mana_cost = std::min( 100, ncmm_planned_shots * 5 );
+        const int ncmm_virtual_shot_mana_cost = ncmm_planned_shots * 5;
         if( who.magic->available_mana() < ncmm_virtual_shot_mana_cost ) {
             who.add_msg_if_player( m_bad, _( "You do not have enough mana to steady the Mana Hand firearm." ) );
             restore_view();
@@ -21186,7 +21193,7 @@ item_location aim_activity_actor::get_weapon()
         }
         const int ncmm_fired = who.fire_gun( here, fin_trajectory.back(), gun.qty, *gun, reload_loc );
         if( ncmm_fired > 0 ) {
-            who.magic->mod_mana( who, -std::min( 100, ncmm_fired * 5 ) );
+            who.magic->mod_mana( who, -( ncmm_fired * 5 ) );
         }
     } else {
         who.fire_gun( here, fin_trajectory.back(), gun.qty, *gun, reload_loc );
@@ -23793,7 +23800,9 @@ function Apply-SurvivorManaHandAutoMining0140([string]$Root) {
 '@
         $mineNew0140 = @'
     item_location weapon = you.get_wielded_item();
-    if( !weapon ) {
+    if( !weapon &&
+        m.has_flag( ter_furn_flag::TFLAG_MINEABLE, dest_loc ) &&
+        g->mostseen == 0 ) {
         const int ncmm_mining_hand_count = std::clamp( static_cast<int>(
                 ncmm::runtime_hook_modifier(
                     "magic.virtual_hand_count", nullptr, "magiclysm",
@@ -24240,9 +24249,9 @@ bool Character::is_on_ground() const
         $groundNew0140crutch = $helper0140crutch + [Environment]::NewLine + @'
 bool Character::is_on_ground() const
 {
-    const bool has_crutches = weapon.has_flag( flag_CRUTCHES ) ||
-                              ncmm_mana_hand_has_crutches( *this );
-    return ( !enough_working_legs() && !has_crutches ) ||
+    return ( !enough_working_legs() &&
+             !weapon.has_flag( flag_CRUTCHES ) &&
+             !ncmm_mana_hand_has_crutches( *this ) ) ||
            has_effect( effect_downed ) || is_prone();
 }
 '@
@@ -24267,9 +24276,9 @@ bool Character::is_on_ground() const
     }
     foreach($needle0140crutch in @(
         'ncmm_mana_hand_has_crutches',
-        'const bool has_crutches = weapon.has_flag( flag_CRUTCHES ) ||',
-        'ncmm_mana_hand_has_crutches( *this )',
-        'return ( !enough_working_legs() && !has_crutches ) ||'
+        '!weapon.has_flag( flag_CRUTCHES ) &&',
+        '!ncmm_mana_hand_has_crutches( *this ) ) ||',
+        'return ( !enough_working_legs() &&'
     )) {
         if(-not $crutchCharacterOutput0140.Contains($needle0140crutch)) {
             throw ('Survivor 0.14.0 Mana Hand crutch character output missing: '+$needle0140crutch)
@@ -24355,11 +24364,9 @@ void wet_character( Character &target, int amount )
 '@
         $weatherNew0140held = @'
     item_location weapon = target.get_wielded_item();
-    const bool ncmm_rain_protected =
-        ( weapon && weapon->has_flag( json_flag_RAIN_PROTECT ) ) ||
-        ncmm_mana_hand_holds_flag( target, json_flag_RAIN_PROTECT );
     if( amount <= 0 || target.has_trait( trait_FEATHERS ) ||
-        ncmm_rain_protected ||
+        ( weapon && weapon->has_flag( json_flag_RAIN_PROTECT ) ) ||
+        ncmm_mana_hand_holds_flag( target, json_flag_RAIN_PROTECT ) ||
         ( !one_in( 50 ) && target.worn_with_flag( json_flag_RAINPROOF ) ) ) {
 '@
         $weather0140held = Replace-TextBlock $weather0140held $weatherOld0140held $weatherNew0140held 'Mana Hand rain weather protection'
@@ -24477,7 +24484,7 @@ int item::get_remaining_capacity_for_liquid( const item &liquid, const Character
     Write-Utf8NoBom $container0140heldPath $container0140held
 
     foreach($check0140held in @(
-        @($weather0140heldPath,'ncmm_rain_protected'),
+        @($weather0140heldPath,'ncmm_mana_hand_holds_flag( target, json_flag_RAIN_PROTECT )'),
         @($item0140heldPath,'ncmm_mana_hand_holds_flag( *carrier, flag_RAIN_PROTECT )'),
         @($suffer0140heldPath,'ncmm_mana_hand_holds_flag( you, flag_RAIN_PROTECT )'),
         @($container0140heldPath,'ncmm_mana_hand_holds_item( p, this )')
