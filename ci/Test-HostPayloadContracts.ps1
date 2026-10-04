@@ -146,6 +146,8 @@ foreach($n in @(
 }
 if($hostSourceCurrent.Contains('!you.is_armed() && you.wield( loc )')){throw 'Mana Hand release regressed to zero-move pocket obtain_cost path.'}
 if($hostSourceCurrent.Contains('item moved = *selected;') -and $hostSourceCurrent.Contains('loc.remove_item();')){throw 'Mana Hand wield transfer regressed to general item_location removal instead of Character::remove_weapon().'}
+if(-not $hostSourceCurrent.Contains('if( !loc.held_by( you ) && !physically_wielded )')){throw 'Mana Hand wield eligibility lost the exact-current-weapon ownership fallback.'}
+if(-not $hostSourceCurrent.Contains('Mana Hand wield eligibility rejected candidate: two_handed=')){throw 'Mana Hand wield eligibility diagnostics are missing.'}
 if($hostSourceCurrent.Contains('you.wield( *stored, 0 )')){throw 'Mana Hand release regressed to avatar overload hiding the Character obtain-cost override.'}
 if($hostSourceCurrent.Contains('return !it.get_var( virtual_item_marker_key, "" ).empty();')){throw 'Unsafe marker-only virtual-item identity check returned.'}
 $runtimeValidStart=$hostSourceCurrent.IndexOf('bool virtual_item_candidate_valid_impl( const item &candidate, uint32_t flags,')
