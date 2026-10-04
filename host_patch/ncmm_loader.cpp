@@ -1155,8 +1155,16 @@ item_location stash_wielded_item_for_mana_hand( item_location loc )
         return item_location();
     }
 
-    item moved = *selected;
-    loc.remove_item();
+    // This helper only accepts the currently wielded item.  Use CDDA's dedicated
+    // weapon-removal path instead of asking an item_location to rediscover/remove
+    // the weapon through the general visitable graph.  The returned value is a
+    // detached item copy with a fresh UID; the final carrier UID is recorded below
+    // by virtual_item_assign_internal().
+    item moved = you.remove_weapon();
+    if( moved.is_null() ) {
+        return item_location();
+    }
+
     item *inserted = nullptr;
     destination->add( moved, &inserted );
     carrier.on_contents_changed();
@@ -6076,12 +6084,21 @@ int run_gameplay_smoke()
         ++mana_hands_check_count;
 
         item_location physical_pair = get_avatar().get_wielded_item();
-        const int64_t wield_transfer_uid = physical_pair->uid().get_value();
-        if( !virtual_item_can_assign_internal(
-                survivor_id, "mana_hands_34", physical_pair, mana_pair_flags ) ||
-            !virtual_item_assign_internal(
-                survivor_id, "mana_hands_34", physical_pair, mana_pair_flags ) ||
-            get_avatar().is_armed() ) {
+        const int64_t wield_transfer_source_uid = physical_pair->uid().get_value();
+        const bool wield_transfer_can_assign = virtual_item_can_assign_internal(
+                survivor_id, "mana_hands_34", physical_pair, mana_pair_flags );
+        const bool wield_transfer_assigned = wield_transfer_can_assign &&
+                virtual_item_assign_internal(
+                    survivor_id, "mana_hands_34", physical_pair, mana_pair_flags );
+        const bool wield_transfer_unarmed = !get_avatar().is_armed();
+        if( !wield_transfer_can_assign || !wield_transfer_assigned ||
+            !wield_transfer_unarmed ) {
+            log_line( NCMM_LOG_WARN,
+                      ( "Mana Hand wield transfer bind: can_assign=" +
+                        std::to_string( wield_transfer_can_assign ? 1 : 0 ) +
+                        " assigned=" + std::to_string( wield_transfer_assigned ? 1 : 0 ) +
+                        " unarmed=" + std::to_string( wield_transfer_unarmed ? 1 : 0 ) +
+                        " source_uid=" + std::to_string( wield_transfer_source_uid ) ).c_str() );
             return mana_hands_fail( "mana_hands_wield_transfer_bind", 149 );
         }
         item *wield_transfer_bound =
@@ -6093,11 +6110,19 @@ int run_gameplay_smoke()
                 break;
             }
         }
+        const int64_t wield_transfer_bound_uid = wield_transfer_bound != nullptr ?
+                wield_transfer_bound->uid().get_value() : 0;
         if( wield_transfer_bound == nullptr || !wield_transfer_bound_loc ||
-            wield_transfer_bound->uid().get_value() != wield_transfer_uid ||
+            wield_transfer_bound_uid <= 0 ||
             !item_location_inside_mana_hand_carrier( wield_transfer_bound_loc ) ||
             virtual_item_state_uid_internal(
-                survivor_id, "mana_hands_34" ) != wield_transfer_uid ) {
+                survivor_id, "mana_hands_34" ) != wield_transfer_bound_uid ) {
+            log_line( NCMM_LOG_WARN,
+                      ( "Mana Hand carrier verification: source_uid=" +
+                        std::to_string( wield_transfer_source_uid ) +
+                        " bound_uid=" + std::to_string( wield_transfer_bound_uid ) +
+                        " state_uid=" + std::to_string( virtual_item_state_uid_internal(
+                            survivor_id, "mana_hands_34" ) ) ).c_str() );
             return mana_hands_fail( "mana_hands_wield_transfer_carrier", 150 );
         }
         ++mana_hands_check_count;
