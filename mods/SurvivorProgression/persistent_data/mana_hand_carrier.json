@@ -1,0 +1,43 @@
+[
+  {
+    "id": "ncmm_survivor_mana_hand_carrier",
+    "type": "ITEM",
+    "subtypes": [ "ARMOR" ],
+    "category": "armor",
+    "name": { "str_sp": "mana hand anchor" },
+    "description": "An invisible internal anchor used by Survivor Progression to keep items held by Mana Hands in the normal CDDA item graph.  Its pockets are forbidden to normal inventory actions.",
+    "weight": "0 g",
+    "volume": "1 ml",
+    "longest_side": "1 cm",
+    "price": "0 cent",
+    "price_postapoc": "0 cent",
+    "material": [ "cotton" ],
+    "symbol": "x",
+    "color": "magenta",
+    "flags": [ "INTEGRATED", "UNBREAKABLE", "PERSONAL", "NO_SALVAGE", "ZERO_WEIGHT", "HIDDEN_ITEM" ],
+    "max_worn": 1,
+    "pocket_data": [
+      {
+        "pocket_type": "CONTAINER",
+        "rigid": true,
+        "forbidden": true,
+        "holster": true,
+        "max_contains_volume": "500 L",
+        "max_contains_weight": "500 kg",
+        "max_item_length": "5 m",
+        "moves": 0
+      },
+      {
+        "pocket_type": "CONTAINER",
+        "rigid": true,
+        "forbidden": true,
+        "holster": true,
+        "max_contains_volume": "500 L",
+        "max_contains_weight": "500 kg",
+        "max_item_length": "5 m",
+        "moves": 0
+      }
+    ],
+    "armor": [ { "covers": [ "torso" ], "coverage": 0, "encumbrance": 0 } ]
+  }
+]
