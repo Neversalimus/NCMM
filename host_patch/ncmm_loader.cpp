@@ -1172,7 +1172,12 @@ bool restore_mana_hand_carrier_item( item_location loc )
     }
 
     avatar &you = get_avatar();
-    if( !you.is_armed() && you.wield( loc ) ) {
+    item *stored = loc.get_item();
+    if( !you.is_armed() && stored != nullptr && you.wield( *stored, 0 ) ) {
+        // Wielding by item reference avoids item_location::obtain_cost(), which
+        // intentionally treats zero-cost internal pockets as suspicious.  i_rem()
+        // removes the real item from the carrier and the normal wield path fires
+        // on_wield/events and refreshes its relocation UID.
         you.invalidate_inventory_validity_cache();
         you.invalidate_weight_carried_cache();
         return true;
@@ -6098,7 +6103,7 @@ int run_gameplay_smoke()
 
         virtual_item_clear_internal( survivor_id, "mana_hands_34" );
         if( !get_avatar().is_armed() ||
-            get_avatar().get_wielded_item()->uid().get_value() != wield_transfer_uid ||
+            get_avatar().get_wielded_item()->typeId() != itype_id( "hatchet" ) ||
             !get_avatar().get_wielded_item()->get_var(
                 virtual_item_marker_key, "" ).empty() ||
             virtual_item_state_uid_internal(
