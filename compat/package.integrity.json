@@ -96,8 +96,8 @@
     },
     {
       "path": "compat\\compatibility.manifest.json",
-      "sha256": "45c04fb9ccb5d1424f308c55705e671a7dfb5f1c77671a629ff898c84e89d690",
-      "bytes": 7610
+      "sha256": "9d1004b5e69b29fbdc5a259a1ce6217ee0bcdeee4c8e871f37311674559311d3",
+      "bytes": 7656
     },
     {
       "path": "compat\\contracts.json",
