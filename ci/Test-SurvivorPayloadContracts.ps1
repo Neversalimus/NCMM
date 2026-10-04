@@ -390,7 +390,7 @@ if($restored0121 -ne 1 -or [Math]::Abs($fraction0121) -gt 1.0e-8){
 
 # Survivor 0.15.0: Magiclysm Dimensional Pouch.
 $survivorSource0150=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\src\survivor_progression.cpp'))
-$dimensionalPouchDataPath0150=Join-Path $PackageRoot 'mods\SurvivorProgression\data\dimensional_pouch.json'
+$dimensionalPouchDataPath0150=Join-Path $PackageRoot 'mods\SurvivorProgression\persistent_data\dimensional_pouch.json'
 if(-not(Test-Path $dimensionalPouchDataPath0150 -PathType Leaf)){throw 'Survivor 0.15.0 Dimensional Pouch data file missing.'}
 $dimensionalPouchData0150=[IO.File]::ReadAllText($dimensionalPouchDataPath0150)
 foreach($pouchNeedle0150 in @(
@@ -423,6 +423,7 @@ foreach($payloadNeedle0150 in @(
     'mg_dimensional_pouch_rank',
     'ncmm_survivor_dimensional_pouch',
     'dimensional_pouch.json',
+    'persistent_data',
     'Survivor 0.15.0 Dimensional Pouch: READY'
 )){
     if(-not $payload.Contains($payloadNeedle0150)){

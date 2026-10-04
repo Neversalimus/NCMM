@@ -6012,6 +6012,59 @@ void load_module_data()
 {
     dimensional_pouch_last_rank = -1;
     DynamicDataLoader &loader = DynamicDataLoader::get_instance();
+
+    std::set<std::string> persistent_module_ids;
+    const auto load_persistent_data = [&]( const std::filesystem::path &directory,
+                                           const std::string &module_id ) {
+        if( module_id.empty() || persistent_module_ids.count( module_id ) != 0 ) {
+            return;
+        }
+        const std::filesystem::path persistent_dir = directory / "persistent_data";
+        if( !std::filesystem::exists( persistent_dir ) ||
+            !std::filesystem::is_directory( persistent_dir ) ) {
+            return;
+        }
+        const std::string source = "ncmm:persistent:" + module_id;
+        log_line( NCMM_LOG_INFO,
+                  ( "Loading persistent module data: " + source + " -> " +
+                    persistent_dir.string() ).c_str() );
+        loader.load_data_from_path(
+            cata_path{ cata_path::root_path::unknown, persistent_dir }, source );
+        persistent_module_ids.insert( module_id );
+    };
+
+    // Persistent definitions are save-compatibility data: load them even when the
+    // owning code module is disabled, rejected or temporarily fails to load.
+    // Prefer the active module directory when one exists, then fall back to any
+    // installed copy with the same manifest id.
+    for( const loaded_mod &runtime : loaded ) {
+        if( runtime.descriptor == nullptr || runtime.descriptor->id == nullptr ) continue;
+        load_persistent_data( runtime.directory, runtime.descriptor->id );
+    }
+
+#ifdef _WIN32
+    const std::filesystem::path mods_root = game_root() / "code_mods";
+    if( std::filesystem::exists( mods_root ) ) {
+        std::vector<std::filesystem::path> directories;
+        for( const auto &entry : std::filesystem::directory_iterator( mods_root ) ) {
+            if( entry.is_directory() && std::filesystem::exists( entry.path() / "mod.json" ) ) {
+                directories.push_back( entry.path() );
+            }
+        }
+        std::sort( directories.begin(), directories.end() );
+        for( const std::filesystem::path &directory : directories ) {
+            std::string parse_reason;
+            const manifest_contract manifest = read_manifest( directory, &parse_reason );
+            if( !parse_reason.empty() || !valid_module_id_v1( manifest.id ) ) {
+                continue;
+            }
+            load_persistent_data( directory, manifest.id );
+        }
+    }
+#endif
+
+    // Active module data remains activation-scoped.  Disabling Survivor therefore
+    // disables its recipe/EOC content while keeping only save-critical definitions.
     for( const loaded_mod &runtime : loaded ) {
         if( runtime.descriptor == nullptr || runtime.descriptor->id == nullptr ) continue;
         const std::filesystem::path data_dir = runtime.directory / "data";
@@ -6021,6 +6074,7 @@ void load_module_data()
         loader.load_data_from_path( cata_path{ cata_path::root_path::unknown, data_dir }, source );
     }
 }
+
 void mark_ready()
 {
     const std::filesystem::path directory = game_root() / "ncmm";
