@@ -57,6 +57,8 @@ std::string inventory_item_symbol( const item &it );
 
 /* Engine-side bridge for Host API 2.1 logical item slots. */
 item *virtual_item_for_slot( const char *module_id, const char *slot_id );
+bool virtual_item_matches_slot( const item &candidate, const char *module_id,
+                                const char *slot_id );
 bool virtual_item_can_assign( const char *module_id, const char *slot_id,
                               const item_location &loc, uint32_t flags );
 bool virtual_item_assign( const char *module_id, const char *slot_id,
