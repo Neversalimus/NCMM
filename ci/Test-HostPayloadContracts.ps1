@@ -80,7 +80,7 @@ $smokeSourceLf=$smokeSourceCurrent.Replace("`r`n","`n").Replace("`r","`n")
 $canonicalSmokeLf=$canonicalSmokeText.Replace("`r`n","`n").Replace("`r","`n")
 if($canonicalSmokeLf -cne $smokeSourceLf){throw 'Canonical smoke_host payload is stale versus tests/smoke_host.cpp.'}
 foreach($n in @('#define NCMM_HOST_API_V2_CORE_MINOR 3u','NCMM_HOST_API_V2_CORE_SIZE_2_1','NCMM_HOST_API_V2_CORE_SIZE_2_2','NCMM_HOST_API_V2_CORE_SIZE_2_3','NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2','NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2','NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2','virtual_item_choose','virtual_item_clear','virtual_item_name','virtual_item_uid','virtual_item_secondary_melee_enabled','virtual_item_set_secondary_melee','virtual_item_primary_melee_enabled','virtual_item_set_primary_melee')){if(-not $sdkCurrent.Contains($n)){throw "Host API 2.3 SDK virtual-item extension contract missing: $n"}}
-foreach($n in @('character.virtual_items.v1','virtual_item_choose_v2','virtual_item_for_slot_internal','virtual_item_matches_slot( const item &candidate','candidate.uid().get_value() != wanted_uid','virtual_item_candidate_runtime_valid( candidate, stored_flags )','virtual_item_can_assign_internal','virtual_item_assign_internal','item_location mutable_loc = loc;','item *selected = mutable_loc.get_item();','virtual_item_can_assign( const char *module_id','virtual_item_assign( const char *module_id','virtual_item_clear( const char *module_id','release_virtual_item( item &it )','virtual_item_secondary_melee_key = "ncmm_virtual_secondary_melee"','virtual_item_secondary_melee_enabled( const item &it )','virtual_item_set_secondary_melee( item &it, bool enabled )','virtual_item_secondary_melee_enabled_v2( const char *module_id, const char *slot_id )','virtual_item_set_secondary_melee_v2( const char *module_id, const char *slot_id,','!bound->is_melee() || bound->is_gun()','&virtual_item_secondary_melee_enabled_v2','&virtual_item_set_secondary_melee_v2','virtual_item_primary_melee_enabled_v2( const char *module_id, const char *slot_id )','virtual_item_set_primary_melee_v2( const char *module_id, const char *slot_id,','&virtual_item_primary_melee_enabled_v2','&virtual_item_set_primary_melee_v2','virtual_melee_context_begin( Character &who, item &weapon,','virtual_melee_context_end( Character &who )','virtual_melee_context_suppresses_martial_arts( const Character &who )','virtual_melee_context_is_wielding( const Character &who, const item &it )','virtual_item_primary_melee_key = "ncmm_virtual_primary_melee"','virtual_item_primary_melee_enabled( const item &it )','virtual_item_set_primary_melee( item &it, bool enabled )','const bool candidate_two_handed = candidate.is_two_handed( you );','NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2','virtual_item_marker_key = "ncmm_virtual_slot"','existing_marker.rfind( module_prefix, 0 ) != 0','virtual_item_for_slot_internal( module_id.c_str(), slot_id.c_str() ) == &it','mana_hand_inventory_action_visible( const item_location &loc )','mana_hand_inventory_action( item_location loc )','gameplay_modifier( "mg_virtual_hand_count" )','Hold in Mana Hand III')){if(-not $hostSourceCurrent.Contains($n)){throw "Host API 2.1 Host virtual-item extension contract missing: $n"}}
+foreach($n in @('character.virtual_items.v1','virtual_item_choose_v2','virtual_item_for_slot_internal','virtual_item_matches_slot( const item &candidate','candidate.uid().get_value() != wanted_uid','virtual_item_candidate_runtime_valid( candidate, stored_flags )','virtual_item_can_assign_internal','virtual_item_assign_internal','item_location mutable_loc = loc;','item *selected = mutable_loc.get_item();','virtual_item_can_assign( const char *module_id','virtual_item_assign( const char *module_id','virtual_item_clear( const char *module_id','release_virtual_item( item &it )','virtual_item_secondary_melee_key = "ncmm_virtual_secondary_melee"','virtual_item_secondary_melee_enabled( const item &it )','virtual_item_set_secondary_melee( item &it, bool enabled )','virtual_item_secondary_melee_enabled_v2( const char *module_id, const char *slot_id )','virtual_item_set_secondary_melee_v2( const char *module_id, const char *slot_id,','!bound->is_melee() || bound->is_gun()','&virtual_item_secondary_melee_enabled_v2','&virtual_item_set_secondary_melee_v2','virtual_item_primary_melee_enabled_v2( const char *module_id, const char *slot_id )','virtual_item_set_primary_melee_v2( const char *module_id, const char *slot_id,','&virtual_item_primary_melee_enabled_v2','&virtual_item_set_primary_melee_v2','virtual_melee_context_begin( Character &who, item &weapon,','virtual_melee_context_end( Character &who )','virtual_melee_context_suppresses_martial_arts( const Character &who )','virtual_melee_context_is_wielding( const Character &who, const item &it )','virtual_item_primary_melee_key = "ncmm_virtual_primary_melee"','virtual_item_primary_melee_enabled( const item &it )','virtual_item_set_primary_melee( item &it, bool enabled )','const bool candidate_two_handed = candidate.is_two_handed( you );','NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2','virtual_item_marker_key = "ncmm_virtual_slot"','existing_marker.rfind( module_prefix, 0 ) != 0','virtual_item_for_slot_internal( module_id.c_str(), slot_id.c_str() ) == &it','mana_hand_inventory_action_visible( const item_location &loc )','mana_hand_inventory_action( item_location loc )','gameplay_modifier( "mg_virtual_hand_count" )','Hold in Mana Hand III','mana_hand_carrier_type_id( "ncmm_survivor_mana_hand_carrier" )','stash_wielded_item_for_mana_hand','restore_mana_hand_carrier_item','pocket->is_forbidden()','survivor_wield_transfer','sync_mana_hand_carrier','get_map().add_item_or_charges')){if(-not $hostSourceCurrent.Contains($n)){throw "Host API 2.1 Host virtual-item extension contract missing: $n"}}
 foreach($n in @(
     'bool virtual_item_matches_slot( const item &candidate, const char *module_id,',
     'bool mana_hand_inventory_action_visible( const item_location &loc );',
@@ -130,17 +130,24 @@ foreach($n in @(
     '"mana_hands_paired_bind"',
     '"mana_hands_paired_melee_modes"',
     '"mana_hands_stale_cleanup"',
+    '"mana_hands_wield_transfer_setup"',
+    '"mana_hands_wield_transfer_bind"',
+    '"mana_hands_wield_transfer_carrier"',
+    '"mana_hands_wield_transfer_release"',
     'item( itype_id( "hatchet" ) )',
     'item( itype_id( "glock_19" ) )',
     'paired_probe.set_flag( flag_id( "ALWAYS_TWOHAND" ) )',
+    'wield_transfer_probe.set_flag( flag_id( "ALWAYS_TWOHAND" ) )',
+    'item_location_inside_mana_hand_carrier( wield_transfer_bound_loc )',
+    '/16 real binding/state checks PASS.',
     'NCMM gameplay smoke checkpoint: Mana Hands '
 )){
     if(-not $hostSourceCurrent.Contains($n)){throw ('Real Mana Hands gameplay smoke contract missing: '+$n)}
 }
 if($hostSourceCurrent.Contains('return !it.get_var( virtual_item_marker_key, "" ).empty();')){throw 'Unsafe marker-only virtual-item identity check returned.'}
-$runtimeValidStart=$hostSourceCurrent.IndexOf('bool virtual_item_candidate_runtime_valid( const item &candidate, uint32_t flags )')
-$runtimeValidEnd=$hostSourceCurrent.IndexOf('item *virtual_item_for_slot_internal(', $runtimeValidStart)
-if($runtimeValidStart -lt 0 -or $runtimeValidEnd -le $runtimeValidStart){throw 'Virtual-item runtime-validity function boundary missing.'}
+$runtimeValidStart=$hostSourceCurrent.IndexOf('bool virtual_item_candidate_valid_impl( const item &candidate, uint32_t flags,')
+$runtimeValidEnd=$hostSourceCurrent.IndexOf('item_location mana_hand_carrier_location(', $runtimeValidStart)
+if($runtimeValidStart -lt 0 -or $runtimeValidEnd -le $runtimeValidStart){throw 'Virtual-item shared runtime-validity function boundary missing.'}
 $runtimeValidSection=$hostSourceCurrent.Substring($runtimeValidStart,$runtimeValidEnd-$runtimeValidStart)
 foreach($n in @(
     'NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2',
@@ -149,9 +156,18 @@ foreach($n in @(
     'candidate.made_of( phase_id::LIQUID )',
     'candidate.made_of( phase_id::GAS )',
     'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
-    'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2'
+    'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2',
+    '!allow_physical_wielded'
 )){
     if(-not $runtimeValidSection.Contains($n)){throw ('Virtual-item persisted restriction runtime check missing: '+$n)}
+}
+foreach($n in @(
+    'return virtual_item_candidate_valid_impl( candidate, flags, false );',
+    'physically_wielded && std::string_view( module_id ) == survivor_module_id',
+    'virtual_item_candidate_valid_impl(',
+    'candidate, flags, survivor_wield_transfer )'
+)){
+    if(-not $hostSourceCurrent.Contains($n)){throw ('Mana Hand wield-transfer isolation contract missing: '+$n)}
 }
 if($payload.Contains("Needle = 'const void *query_interface_v2('; Expected = 1; Name = 'Host API 2.0 query interface'")){throw 'Stale ambiguous Host API 2.0 query-interface count audit returned.'}
 foreach($n in @('Host API 2.0 query interface declaration','Host API 2.0 query interface definition','Host API 2.0 legacy v1 query-interface bridge','Host API 2.0 query-interface declaration/legacy-table/definition order is invalid.')){
