@@ -3885,6 +3885,159 @@ bool virtual_item_clear( const char *module_id, const char *slot_id )
     return true;
 }
 
+namespace
+{
+constexpr const char *survivor_module_id = "survivor_progression";
+constexpr const char *mana_hand_3_slot_id = "mana_hand_3";
+constexpr const char *mana_hand_4_slot_id = "mana_hand_4";
+constexpr const char *mana_hands_pair_slot_id = "mana_hands_34";
+
+int survivor_mana_hand_count()
+{
+    if( module_ids.count( survivor_module_id ) == 0 || !character_state_available() ) {
+        return 0;
+    }
+    return std::max( 0, std::min( 2, static_cast<int>( std::lround(
+                         gameplay_modifier( "mg_virtual_hand_count" ) ) ) ) );
+}
+
+bool survivor_mana_hand_marker( const item &candidate )
+{
+    const std::string marker = candidate.get_var( virtual_item_marker_key, "" );
+    return marker == virtual_item_marker( survivor_module_id, mana_hand_3_slot_id ) ||
+           marker == virtual_item_marker( survivor_module_id, mana_hand_4_slot_id ) ||
+           marker == virtual_item_marker( survivor_module_id, mana_hands_pair_slot_id );
+}
+} // namespace
+
+bool mana_hand_inventory_action_visible( const item_location &loc )
+{
+    const int hand_count = survivor_mana_hand_count();
+    if( hand_count <= 0 || !loc || !loc.held_by( get_avatar() ) ) {
+        return false;
+    }
+    const item &candidate = *loc;
+    if( survivor_mana_hand_marker( candidate ) ) {
+        return true;
+    }
+
+    constexpr uint32_t single_flags =
+        NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
+        NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2;
+    if( virtual_item_can_assign_internal(
+            survivor_module_id, mana_hand_3_slot_id, loc, single_flags ) ) {
+        return true;
+    }
+    if( hand_count >= 2 &&
+        virtual_item_can_assign_internal(
+            survivor_module_id, mana_hand_4_slot_id, loc, single_flags ) ) {
+        return true;
+    }
+
+    constexpr uint32_t pair_flags =
+        single_flags |
+        NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
+        NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;
+    return hand_count >= 2 && virtual_item_can_assign_internal(
+               survivor_module_id, mana_hands_pair_slot_id, loc, pair_flags );
+}
+
+bool mana_hand_inventory_action( item_location loc )
+{
+    if( !mana_hand_inventory_action_visible( loc ) ) {
+        return false;
+    }
+
+    const int hand_count = survivor_mana_hand_count();
+    item *candidate = loc.get_item();
+    if( candidate == nullptr ) {
+        return false;
+    }
+
+    constexpr uint32_t single_flags =
+        NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
+        NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2;
+    constexpr uint32_t pair_flags =
+        single_flags |
+        NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
+        NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;
+
+    enum class mana_action : int {
+        hand3,
+        hand4,
+        paired,
+        release,
+        cancel
+    };
+
+    std::vector<mana_action> actions;
+    uilist menu;
+    menu.text = tr_ui( "Mana Hands — ", "Руки маны — " ) + candidate->display_name();
+
+    const std::string current_marker =
+        candidate->get_var( virtual_item_marker_key, "" );
+    if( survivor_mana_hand_marker( *candidate ) ) {
+        menu.addentry( static_cast<int>( actions.size() ), true, MENU_AUTOASSIGN,
+                       tr_ui( "Release from Mana Hand", "Освободить из руки маны" ) );
+        actions.push_back( mana_action::release );
+    }
+
+    if( virtual_item_can_assign_internal(
+            survivor_module_id, mana_hand_3_slot_id, loc, single_flags ) &&
+        current_marker != virtual_item_marker( survivor_module_id, mana_hand_3_slot_id ) ) {
+        menu.addentry( static_cast<int>( actions.size() ), true, MENU_AUTOASSIGN,
+                       tr_ui( "Hold in Mana Hand III", "Взять в третью руку маны" ) );
+        actions.push_back( mana_action::hand3 );
+    }
+
+    if( hand_count >= 2 &&
+        virtual_item_can_assign_internal(
+            survivor_module_id, mana_hand_4_slot_id, loc, single_flags ) &&
+        current_marker != virtual_item_marker( survivor_module_id, mana_hand_4_slot_id ) ) {
+        menu.addentry( static_cast<int>( actions.size() ), true, MENU_AUTOASSIGN,
+                       tr_ui( "Hold in Mana Hand IV", "Взять в четвёртую руку маны" ) );
+        actions.push_back( mana_action::hand4 );
+    }
+
+    if( hand_count >= 2 &&
+        virtual_item_can_assign_internal(
+            survivor_module_id, mana_hands_pair_slot_id, loc, pair_flags ) &&
+        current_marker != virtual_item_marker( survivor_module_id, mana_hands_pair_slot_id ) ) {
+        menu.addentry( static_cast<int>( actions.size() ), true, MENU_AUTOASSIGN,
+                       tr_ui( "Grip with Mana Hands III+IV",
+                              "Взять двумя руками маны III+IV" ) );
+        actions.push_back( mana_action::paired );
+    }
+
+    menu.addentry( static_cast<int>( actions.size() ), true, MENU_AUTOASSIGN,
+                   tr_ui( "Cancel", "Отмена" ) );
+    actions.push_back( mana_action::cancel );
+    menu.query();
+    if( menu.ret < 0 || static_cast<size_t>( menu.ret ) >= actions.size() ) {
+        return false;
+    }
+
+    switch( actions[static_cast<size_t>( menu.ret )] ) {
+        case mana_action::hand3:
+            virtual_item_clear_internal( survivor_module_id, mana_hands_pair_slot_id );
+            return virtual_item_assign_internal(
+                       survivor_module_id, mana_hand_3_slot_id, loc, single_flags );
+        case mana_action::hand4:
+            virtual_item_clear_internal( survivor_module_id, mana_hands_pair_slot_id );
+            return virtual_item_assign_internal(
+                       survivor_module_id, mana_hand_4_slot_id, loc, single_flags );
+        case mana_action::paired:
+            virtual_item_clear_internal( survivor_module_id, mana_hand_3_slot_id );
+            virtual_item_clear_internal( survivor_module_id, mana_hand_4_slot_id );
+            return virtual_item_assign_internal(
+                       survivor_module_id, mana_hands_pair_slot_id, loc, pair_flags );
+        case mana_action::release:
+            return release_virtual_item( *candidate );
+        default:
+            return false;
+    }
+}
+
 bool release_virtual_item( item &it )
 {
     if( virtual_melee_context_running && virtual_melee_context_weapon == &it ) {
