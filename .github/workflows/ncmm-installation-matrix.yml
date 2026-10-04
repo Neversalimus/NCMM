@@ -353,37 +353,41 @@ jobs:
           $root = '${{ steps.game.outputs.root }}'
           $evidence = Join-Path $env:GITHUB_WORKSPACE 'dist/real-install-evidence'
           New-Item -ItemType Directory -Force -Path $evidence | Out-Null
-          foreach ($name in @('VERSION.txt','cataclysm-tiles.exe','cataclysm-tiles.vanilla.exe')) {
-            $path = Join-Path $root $name
-            if (Test-Path $path -PathType Leaf) {
-              if ($name -like '*.exe') {
-                $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
-                Set-Content (Join-Path $evidence ($name + '.sha256.txt')) -Value $hash -Encoding Ascii
-              } else { Copy-Item $path (Join-Path $evidence $name) -Force }
-            }
-          }
-          foreach ($name in @(
-            'installed-components.json','bootstrap.sha256','vanilla.sha256',
-            'runtime.state.json','modules.state.json','host.binding.json',
-            'gameplay-smoke.json','bootstrap.log','ncmm.log','boot.ready'
-          )) {
-            $path = Join-Path $root ('ncmm\' + $name)
-            if (Test-Path $path -PathType Leaf) { Copy-Item $path (Join-Path $evidence $name) -Force }
-          }
-          $worldRoot = Join-Path $root 'save\NCMM Gameplay Smoke'
-          $worldOptions = Join-Path $worldRoot 'worldoptions.json'
-          if (Test-Path $worldOptions -PathType Leaf) {
-            Copy-Item $worldOptions (Join-Path $evidence 'aws-gameplay-worldoptions.json') -Force
-          }
-          if (Test-Path $worldRoot -PathType Container) {
-            $manifest = Get-ChildItem $worldRoot -File -Recurse | ForEach-Object {
-              [PSCustomObject]@{
-                path = $_.FullName.Substring($worldRoot.Length).TrimStart('\')
-                bytes = $_.Length
-                sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if (-not [string]::IsNullOrWhiteSpace($root) -and (Test-Path $root -PathType Container)) {
+            foreach ($name in @('VERSION.txt','cataclysm-tiles.exe','cataclysm-tiles.vanilla.exe')) {
+              $path = Join-Path $root $name
+              if (Test-Path $path -PathType Leaf) {
+                if ($name -like '*.exe') {
+                  $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
+                  Set-Content (Join-Path $evidence ($name + '.sha256.txt')) -Value $hash -Encoding Ascii
+                } else { Copy-Item $path (Join-Path $evidence $name) -Force }
               }
             }
-            $manifest | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $evidence 'aws-gameplay-world-files.json') -Encoding UTF8
+            foreach ($name in @(
+              'installed-components.json','bootstrap.sha256','vanilla.sha256',
+              'runtime.state.json','modules.state.json','host.binding.json',
+              'gameplay-smoke.json','bootstrap.log','ncmm.log','boot.ready'
+            )) {
+              $path = Join-Path $root ('ncmm\' + $name)
+              if (Test-Path $path -PathType Leaf) { Copy-Item $path (Join-Path $evidence $name) -Force }
+            }
+            $worldRoot = Join-Path $root 'save\NCMM Gameplay Smoke'
+            $worldOptions = Join-Path $worldRoot 'worldoptions.json'
+            if (Test-Path $worldOptions -PathType Leaf) {
+              Copy-Item $worldOptions (Join-Path $evidence 'aws-gameplay-worldoptions.json') -Force
+            }
+            if (Test-Path $worldRoot -PathType Container) {
+              $manifest = Get-ChildItem $worldRoot -File -Recurse | ForEach-Object {
+                [PSCustomObject]@{
+                  path = $_.FullName.Substring($worldRoot.Length).TrimStart('\')
+                  bytes = $_.Length
+                  sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+                }
+              }
+              $manifest | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $evidence 'aws-gameplay-world-files.json') -Encoding UTF8
+            }
+          } else {
+            Write-Host 'Official CDDA root is unavailable; preserving the primary build failure without a secondary evidence error.' -ForegroundColor Yellow
           }
           "## NCMM real runtime smoke" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "- CDDA: ${{ steps.release.outputs.tag }}" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
