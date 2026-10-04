@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'runtime/**'
+      - 'README.txt'
       - 'mods/**'
       - 'components/**'
       - 'sdk/**'
