@@ -32,8 +32,7 @@ on:
       - 'tools/NCMM.Update.Common.ps1'
       - 'tests/**'
       - 'feed/index.json'
-      - 'host_patch/ncmm_fault_policy.h'
-      - 'host_patch/ncmm_manifest_policy.h'
+      - 'host_patch/**'
       - '.editorconfig'
       - '.github/workflows/ncmm-runtime.yml'
 
@@ -67,8 +66,7 @@ on:
       - 'tools/NCMM.Update.Common.ps1'
       - 'tests/**'
       - 'feed/index.json'
-      - 'host_patch/ncmm_fault_policy.h'
-      - 'host_patch/ncmm_manifest_policy.h'
+      - 'host_patch/**'
       - '.editorconfig'
       - '.github/workflows/ncmm-runtime.yml'
 permissions:
