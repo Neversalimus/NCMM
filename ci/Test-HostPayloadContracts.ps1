@@ -53,7 +53,7 @@ foreach($n in @('function Apply-NcmmHostApi20Core','#define NCMM_HOST_API_V2_COR
 # declaration and definition begin with the same function name/signature.
 $sdkCurrent=Get-Content (Join-Path $PackageRoot 'sdk\ncmm_api.h') -Raw
 $hostHeaderCurrent=Get-Content (Join-Path $PackageRoot 'host_patch\ncmm_loader.h') -Raw
-$hostSourceCurrent=Get-Content (Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp') -Raw
+$hostSourceCurrent=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp'))
 
 # Canonical files embedded in the cumulative payload must stay synchronized with
 # the checked-in sources. This closes the gap where static package checks passed
@@ -65,7 +65,7 @@ $hostSourceLf=$hostSourceCurrent.Replace("`r`n","`n").Replace("`r","`n")
 $canonicalHostLf=$canonicalHostText.Replace("`r`n","`n").Replace("`r","`n")
 if($canonicalHostLf -cne $hostSourceLf){throw 'Canonical Host payload is stale versus host_patch/ncmm_loader.cpp.'}
 
-$smokeSourceCurrent=Get-Content (Join-Path $PackageRoot 'tests\smoke_host.cpp') -Raw
+$smokeSourceCurrent=[IO.File]::ReadAllText((Join-Path $PackageRoot 'tests\smoke_host.cpp'))
 $canonicalSmokeMatch=[regex]::Match($payload,"Write-NcmmCanonicalPayloadFile 'tests\\smoke_host\.cpp' '([^']+)'")
 if(-not $canonicalSmokeMatch.Success){throw 'Canonical smoke_host payload entry missing.'}
 $canonicalSmokeText=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($canonicalSmokeMatch.Groups[1].Value))
