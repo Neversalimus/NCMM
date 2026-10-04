@@ -25,6 +25,8 @@ std::string settings_menu_label();
 std::string version_label();
 std::string localized_text( const char *english, const char *russian );
 
+/** Record one successfully completed craft for gameplay.metrics.v1. */
+void gameplay_metric_record_completed_craft( const Character &who );
 
 /** Aggregate runtime gameplay modifier registered by loaded NCMM modules. */
 double gameplay_modifier( const char *modifier_id );

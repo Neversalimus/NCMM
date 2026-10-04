@@ -1209,7 +1209,7 @@ if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandCrutches0140 -Comm
 
 
 $manaHeldStart0140=$payload.IndexOf('function Apply-SurvivorManaHandHeldUtilities0140',$manaCrutchStart0140)
-$manaHeldEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$manaHeldStart0140)
+$manaHeldEnd0140=$payload.IndexOf('function Apply-SurvivorCraftCompletionMetric0140',$manaHeldStart0140)
 if($manaHeldStart0140 -le $manaCrutchStart0140 -or $manaHeldEnd0140 -le $manaHeldStart0140){throw 'Mana Hand held-utility transform boundary missing.'}
 $manaHeldSection0140=$payload.Substring($manaHeldStart0140,$manaHeldEnd0140-$manaHeldStart0140)
 foreach($heldNeedle0140 in @(
@@ -1233,6 +1233,36 @@ if($manaHeldSection0140.Contains('set_wielded_item(') -or
 }
 if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandHeldUtilities0140 -CommandType Function).Definition')){throw 'Mana Hand held-utility transform missing from mechanics patch revision.'}
 
+
+$craftMetricStart0140=$payload.IndexOf('function Apply-SurvivorCraftCompletionMetric0140',$manaHeldStart0140)
+$craftMetricEnd0140=$payload.IndexOf('function Apply-SurvivorXpBalance0140',$craftMetricStart0140)
+if($craftMetricStart0140 -le $manaHeldStart0140 -or $craftMetricEnd0140 -le $craftMetricStart0140){throw 'Survivor craft-completion metric transform boundary missing.'}
+$craftMetricSection0140=$payload.Substring($craftMetricStart0140,$craftMetricEnd0140-$craftMetricStart0140)
+foreach($craftMetricNeedle0140 in @(
+    'void Character::complete_craft( item &craft, const std::optional<tripoint_bub_ms> &loc )',
+    'eoc->activate_activation_only( d, "a recipe", "crafting", "recipe" );',
+    'ncmm::gameplay_metric_record_completed_craft( *this );'
+)){if(-not $craftMetricSection0140.Contains($craftMetricNeedle0140)){throw ('Survivor exact craft-completion metric regression missing: '+$craftMetricNeedle0140)}}
+if(-not $payload.Contains('(Get-Command Apply-SurvivorCraftCompletionMetric0140 -CommandType Function).Definition')){throw 'Craft-completion metric transform missing from mechanics patch revision.'}
+if(([regex]::Matches($payload,[regex]::Escape('Apply-SurvivorCraftCompletionMetric0140 $CddaRoot'))).Count -ne 2){throw 'Craft-completion metric must be applied in both deep-probe and normal build paths.'}
+
+$xpBalanceStart0140=$payload.IndexOf('function Apply-SurvivorXpBalance0140',$craftMetricStart0140)
+$xpBalanceEnd0140=$payload.IndexOf('# Keep the patch-revision contract aware',$xpBalanceStart0140)
+if($xpBalanceStart0140 -le $craftMetricStart0140 -or $xpBalanceEnd0140 -le $xpBalanceStart0140){throw 'Survivor XP-balance transform boundary missing.'}
+$xpBalanceSection0140=$payload.Substring($xpBalanceStart0140,$xpBalanceEnd0140-$xpBalanceStart0140)
+foreach($xpBalanceNeedle0140 in @(
+    'case branch_id::survival: return 200;',
+    'case branch_id::mobility: return 115;',
+    'case branch_id::scavenging: return 80;',
+    '"balance_fraction"',
+    'const int64_t adjusted = anti_farm_adjust( branch, raw_gained );',
+    'const int64_t gained = apply_branch_xp_balance( branch, adjusted );',
+    'void gameplay_metric_record_completed_craft( const Character &who )',
+    '++gameplay_metric_values["crafting.completed"];'
+)){if(-not $xpBalanceSection0140.Contains($xpBalanceNeedle0140)){throw ('Survivor XP-balance regression missing: '+$xpBalanceNeedle0140)}}
+if(-not $payload.Contains('(Get-Command Apply-SurvivorXpBalance0140 -CommandType Function).Definition')){throw 'XP-balance transform missing from mechanics patch revision.'}
+if(([regex]::Matches($payload,[regex]::Escape('Apply-SurvivorXpBalance0140'))).Count -lt 2){throw 'XP-balance transform is not applied after canonical module sync.'}
+
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate
 # is intentionally half of the original 1 XP / 150 movement events.
 $survivorSource=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\src\survivor_progression.cpp'))
@@ -1244,5 +1274,23 @@ foreach($balanceNeedle in @(
 if($survivorSource.Contains('steps / 150') -or $survivorSource.Contains('steps % 150')){
     throw 'Stale Survivor Mobility XP 1/150 rate returned.'
 }
+
+foreach($balanceNeedle0140 in @(
+    'int branch_xp_balance_pct( branch_id branch )',
+    'case branch_id::survival: return 200;',
+    'case branch_id::mobility: return 115;',
+    'case branch_id::scavenging: return 80;',
+    '"balance_fraction"',
+    'const int64_t adjusted = anti_farm_adjust( branch, raw_gained );',
+    'const int64_t gained = apply_branch_xp_balance( branch, adjusted );'
+)){if(-not $survivorSource.Contains($balanceNeedle0140)){throw ('Survivor long-run XP balance contract missing: '+$balanceNeedle0140)}}
+if($survivorSource.Contains('const int64_t gained = anti_farm_adjust( branch, raw_gained );')){
+    throw 'Stale pre-balance branch XP award path returned.'
+}
+$craftContract0140=@($contracts0100.contracts|Where-Object{$_.id -eq 'reactive_technical_hooks.source.v4'}).files|Where-Object{$_.path -eq 'src/crafting.cpp'}
+foreach($craftContractNeedle0140 in @(
+    'void Character::complete_craft( item &craft, const std::optional<tripoint_bub_ms> &loc )',
+    'eoc->activate_activation_only( d, "a recipe", "crafting", "recipe" );'
+)){if(-not @($craftContract0140.required) -contains $craftContractNeedle0140){throw ('Craft completion source contract missing: '+$craftContractNeedle0140)}}
 
 Write-Host 'NCMM Survivor payload regression contract: PASS' -ForegroundColor Green
