@@ -2,9 +2,11 @@ NCMM 0.8.2 / Infrastructure 0.8.3.1
 ========================================
 
 Current bundled modules:
-  Survivor Progression 0.12.0
-  Advanced World Settings 0.6.3
+  Survivor Progression 0.14.0
+  Advanced World Settings 0.6.4
   Ballistic Hit Chance 0.1.0
+  Equipment Body Map 0.1.0
+  Item Glyphs 0.1.0
 
 PLAYER PACKAGE
 --------------
@@ -13,9 +15,13 @@ Use NCMM_Full_v0.8.2.zip from the ncmm-runtime-v0.8.2 release.
 1. Extract the archive outside the CDDA game directory.
 2. Run NCMM_Setup.exe.
 3. Select the CDDA installation.
-4. Select Advanced World Settings, Survivor Progression and/or Ballistic Hit Chance.
+4. Select the modules you want: Advanced World Settings, Survivor Progression,
+   Ballistic Hit Chance, Equipment Body Map and/or Item Glyphs.
 5. Click Install / Repair selected.
 6. Launch CDDA normally.
+
+To update an existing NCMM installation, extract the latest Full package and run
+Install / Repair selected again. A separate uninstall is not required.
 
 No compiler, Git, CMake or MSYS2 is required for normal installation.
 If the installed CDDA executable has no exact certified Host, NCMM fails closed
@@ -28,6 +34,8 @@ Survivor Progression opens on F1 by default and exposes live XP/stat-perk
 balance settings through the manager.
 Advanced World Settings exposes NEW_MAP / NEW_WORLD controls through CDDA's
 world-options UI, including world creation.
+Equipment Body Map adds live worn-item coverage to the normal inventory.
+Item Glyphs adds semantic symbols to Inventory, Pickup, Trade and Advanced Inventory.
 
 Current main-source polish also uses CDDA's native menu_move sound for NCMM
 perk navigation and displays NCMM 0.8.2 in the main menu.
