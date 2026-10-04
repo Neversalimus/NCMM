@@ -3,6 +3,7 @@
 #include "item.h"
 #include "item_category.h"
 #include "item_location.h"
+#include "map.h"
 #include "character.h"
 #include "character_attire.h"
 #include "flag.h"
@@ -147,6 +148,7 @@ thread_local bool virtual_melee_context_running = false;
 thread_local bool virtual_melee_context_suppress_martial_arts = true;
 bool api_v2_world_announced = false;
 int dimensional_pouch_last_rank = -1;
+int mana_hand_carrier_last_count = -1;
 
 void erase_module_modifiers( const std::string &module_id )
 {
@@ -1048,12 +1050,23 @@ void virtual_item_state_set_flags_internal( const char *module_id, const char *s
             diag_value( std::to_string( static_cast<uint64_t>( flags ) ) );
 }
 
-bool virtual_item_candidate_runtime_valid( const item &candidate, uint32_t flags )
+namespace
+{
+constexpr const char *survivor_module_id = "survivor_progression";
+constexpr const char *mana_hand_3_slot_id = "mana_hand_3";
+constexpr const char *mana_hand_4_slot_id = "mana_hand_4";
+constexpr const char *mana_hands_pair_slot_id = "mana_hands_34";
+const itype_id mana_hand_carrier_type_id( "ncmm_survivor_mana_hand_carrier" );
+
+bool virtual_item_candidate_valid_impl( const item &candidate, uint32_t flags,
+                                        bool allow_physical_wielded )
 {
     avatar &you = get_avatar();
     const bool candidate_two_handed = candidate.is_two_handed( you );
     if( candidate.is_null() ||
-        &candidate == you.get_wielded_item().get_item() || you.is_worn( candidate ) ||
+        ( !allow_physical_wielded &&
+          &candidate == you.get_wielded_item().get_item() ) ||
+        you.is_worn( candidate ) ||
         candidate.has_flag( flag_INTEGRATED ) || candidate.has_flag( flag_PSEUDO ) ||
         ( candidate_two_handed &&
           ( flags & NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 ) == 0u ) ) {
@@ -1077,6 +1090,114 @@ bool virtual_item_candidate_runtime_valid( const item &candidate, uint32_t flags
         return false;
     }
     return true;
+}
+
+item_location mana_hand_carrier_location( avatar &you )
+{
+    for( item_location loc : you.top_items_loc() ) {
+        if( loc && loc->typeId() == mana_hand_carrier_type_id ) {
+            return loc;
+        }
+    }
+    return item_location();
+}
+
+item_location ensure_mana_hand_carrier( avatar &you )
+{
+    item_location carrier = mana_hand_carrier_location( you );
+    if( carrier ) {
+        return carrier;
+    }
+    if( !mana_hand_carrier_type_id.is_valid() ) {
+        return item_location();
+    }
+    const auto worn = you.worn.wear_item( you, item( mana_hand_carrier_type_id ),
+                                         false, true, true, true );
+    if( !worn.has_value() ) {
+        return item_location();
+    }
+    return mana_hand_carrier_location( you );
+}
+
+bool item_location_inside_mana_hand_carrier( item_location loc )
+{
+    while( loc && loc.has_parent() ) {
+        loc = loc.parent_item();
+        if( loc && loc->typeId() == mana_hand_carrier_type_id ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+item_location stash_wielded_item_for_mana_hand( item_location loc )
+{
+    avatar &you = get_avatar();
+    item *selected = loc.get_item();
+    if( selected == nullptr || selected != you.get_wielded_item().get_item() ) {
+        return loc;
+    }
+
+    item_location carrier = ensure_mana_hand_carrier( you );
+    if( !carrier ) {
+        return item_location();
+    }
+
+    item_pocket *destination = nullptr;
+    for( item_pocket *pocket : carrier->get_container_pockets() ) {
+        if( pocket != nullptr && pocket->is_forbidden() &&
+            pocket->all_items_top().empty() ) {
+            destination = pocket;
+            break;
+        }
+    }
+    if( destination == nullptr ) {
+        return item_location();
+    }
+
+    item moved = *selected;
+    loc.remove_item();
+    item *inserted = nullptr;
+    destination->add( moved, &inserted );
+    carrier.on_contents_changed();
+    you.invalidate_inventory_validity_cache();
+    you.invalidate_weight_carried_cache();
+    return inserted != nullptr ? item_location( carrier, inserted ) : item_location();
+}
+
+bool restore_mana_hand_carrier_item( item_location loc )
+{
+    if( !loc || !item_location_inside_mana_hand_carrier( loc ) ) {
+        return false;
+    }
+
+    avatar &you = get_avatar();
+    if( !you.is_armed() && you.wield( loc ) ) {
+        you.invalidate_inventory_validity_cache();
+        you.invalidate_weight_carried_cache();
+        return true;
+    }
+
+    item moved = *loc;
+    item_location regular = you.try_add( moved, nullptr, nullptr, false, false );
+    if( regular ) {
+        loc.remove_item();
+        you.invalidate_inventory_validity_cache();
+        you.invalidate_weight_carried_cache();
+        return true;
+    }
+
+    loc.remove_item();
+    get_map().add_item_or_charges( you.pos_bub(), moved );
+    you.invalidate_inventory_validity_cache();
+    you.invalidate_weight_carried_cache();
+    return true;
+}
+} // namespace
+
+bool virtual_item_candidate_runtime_valid( const item &candidate, uint32_t flags )
+{
+    return virtual_item_candidate_valid_impl( candidate, flags, false );
 }
 
 item *virtual_item_for_slot_internal( const char *module_id, const char *slot_id )
@@ -1172,13 +1293,24 @@ void virtual_item_clear_internal( const char *module_id, const char *slot_id )
         return;
     }
     const std::string wanted_marker = virtual_item_marker( module_id, slot_id );
+    std::vector<item_location> matches;
     for( item_location loc : get_avatar().all_items_loc() ) {
         item *candidate = loc.get_item();
         if( candidate != nullptr &&
             candidate->get_var( virtual_item_marker_key, "" ) == wanted_marker ) {
-            candidate->erase_var( virtual_item_marker_key );
-            candidate->erase_var( virtual_item_secondary_melee_key );
-            candidate->erase_var( virtual_item_primary_melee_key );
+            matches.push_back( loc );
+        }
+    }
+    for( item_location loc : matches ) {
+        item *candidate = loc.get_item();
+        if( candidate == nullptr ) {
+            continue;
+        }
+        candidate->erase_var( virtual_item_marker_key );
+        candidate->erase_var( virtual_item_secondary_melee_key );
+        candidate->erase_var( virtual_item_primary_melee_key );
+        if( item_location_inside_mana_hand_carrier( loc ) ) {
+            restore_mana_hand_carrier_item( loc );
         }
     }
     virtual_item_state_set_uid_internal( module_id, slot_id, 0 );
@@ -1199,7 +1331,15 @@ bool virtual_item_can_assign_internal( const char *module_id, const char *slot_i
     }
 
     const item &candidate = *loc;
-    if( !virtual_item_candidate_runtime_valid( candidate, flags ) ) {
+    const bool physically_wielded =
+        &candidate == you.get_wielded_item().get_item();
+    const bool survivor_wield_transfer =
+        physically_wielded && std::string_view( module_id ) == survivor_module_id;
+    if( !virtual_item_candidate_valid_impl(
+            candidate, flags, survivor_wield_transfer ) ) {
+        return false;
+    }
+    if( survivor_wield_transfer && !mana_hand_carrier_type_id.is_valid() ) {
         return false;
     }
 
@@ -1253,6 +1393,14 @@ bool virtual_item_assign_internal( const char *module_id, const char *slot_id,
     }
 
     virtual_item_clear_internal( module_id, slot_id );
+    if( selected == get_avatar().get_wielded_item().get_item() &&
+        std::string_view( module_id ) == survivor_module_id ) {
+        mutable_loc = stash_wielded_item_for_mana_hand( mutable_loc );
+        selected = mutable_loc.get_item();
+        if( selected == nullptr ) {
+            return false;
+        }
+    }
     selected->erase_var( virtual_item_secondary_melee_key );
     selected->erase_var( virtual_item_primary_melee_key );
     selected->set_var( virtual_item_marker_key, new_marker );
@@ -3887,11 +4035,6 @@ bool virtual_item_clear( const char *module_id, const char *slot_id )
 
 namespace
 {
-constexpr const char *survivor_module_id = "survivor_progression";
-constexpr const char *mana_hand_3_slot_id = "mana_hand_3";
-constexpr const char *mana_hand_4_slot_id = "mana_hand_4";
-constexpr const char *mana_hands_pair_slot_id = "mana_hands_34";
-
 int survivor_mana_hand_count()
 {
     if( module_ids.count( survivor_module_id ) == 0 || !character_state_available() ) {
@@ -3989,8 +4132,8 @@ bool mana_hand_inventory_action( item_location loc )
         avatar &you = get_avatar();
         std::string reason;
         if( candidate == you.get_wielded_item().get_item() ) {
-            reason = tr_ui( "Put the item into your inventory first; a physical and Mana Hand cannot hold the same item.",
-                            "Сначала уберите предмет в инвентарь: физическая рука и рука маны не могут держать один предмет одновременно." );
+            reason = tr_ui( "This wielded item cannot be transferred to the available Mana Hand configuration.",
+                            "Этот предмет в физической руке нельзя передать текущей конфигурации рук маны." );
         } else if( you.is_worn( *candidate ) ) {
             reason = tr_ui( "Take the item off first.",
                             "Сначала снимите предмет." );
@@ -4372,6 +4515,43 @@ double gameplay_modifier( const char *modifier_id )
 namespace
 {
 const itype_id dimensional_pouch_type_id( "ncmm_survivor_dimensional_pouch" );
+
+void sync_mana_hand_carrier()
+{
+    if( !character_state_available() ) {
+        return;
+    }
+
+    const int hand_count = std::max( 0, std::min( 2, static_cast<int>(
+                                  std::lround( gameplay_modifier(
+                                          "mg_virtual_hand_count" ) ) ) ) );
+    if( hand_count == mana_hand_carrier_last_count ) {
+        return;
+    }
+
+    avatar &who = get_avatar();
+    if( hand_count <= 0 ) {
+        virtual_item_clear_internal( survivor_module_id, mana_hand_3_slot_id );
+        virtual_item_clear_internal( survivor_module_id, mana_hand_4_slot_id );
+        virtual_item_clear_internal( survivor_module_id, mana_hands_pair_slot_id );
+        std::list<item> removed = who.remove_worn_items_with( []( item &candidate ) {
+            return candidate.typeId() == mana_hand_carrier_type_id;
+        } );
+        for( item &carrier : removed ) {
+            carrier.spill_contents( who.pos_bub() );
+        }
+        mana_hand_carrier_last_count = 0;
+        return;
+    }
+
+    item_location carrier = ensure_mana_hand_carrier( who );
+    if( !carrier || carrier->get_container_pockets().size() < 2 ) {
+        log_line( NCMM_LOG_WARN,
+                  "Mana Hand perk is active but its internal carrier is unavailable or invalid." );
+        return;
+    }
+    mana_hand_carrier_last_count = hand_count;
+}
 
 bool configure_dimensional_pouch_type( int rank )
 {
@@ -5243,6 +5423,7 @@ void on_turn()
             }
         }
     }
+    sync_mana_hand_carrier();
     sync_dimensional_pouch();
 }
 
@@ -5871,10 +6052,68 @@ int run_gameplay_smoke()
         }
         ++mana_hands_check_count;
 
+        // Regression for the real player flow: a long/two-handed item may be
+        // physically wielded precisely because it cannot fit any ordinary pocket.
+        // Mana Hands must be able to transfer that item atomically into the
+        // private forbidden carrier, then restore it without duplication/loss.
+        item wield_transfer_probe( itype_id( "hatchet" ) );
+        wield_transfer_probe.set_flag( flag_id( "ALWAYS_TWOHAND" ) );
+        item_location wield_transfer_loc = get_avatar().i_add(
+                                               wield_transfer_probe, true, nullptr, nullptr,
+                                               false, false );
+        if( !wield_transfer_loc ||
+            !get_avatar().wield( wield_transfer_loc ) ||
+            !get_avatar().is_armed() ||
+            !get_avatar().get_wielded_item()->is_two_handed( get_avatar() ) ) {
+            return mana_hands_fail( "mana_hands_wield_transfer_setup", 148 );
+        }
+        ++mana_hands_check_count;
+
+        item_location physical_pair = get_avatar().get_wielded_item();
+        const int64_t wield_transfer_uid = physical_pair->uid().get_value();
+        if( !virtual_item_can_assign_internal(
+                survivor_id, "mana_hands_34", physical_pair, mana_pair_flags ) ||
+            !virtual_item_assign_internal(
+                survivor_id, "mana_hands_34", physical_pair, mana_pair_flags ) ||
+            get_avatar().is_armed() ) {
+            return mana_hands_fail( "mana_hands_wield_transfer_bind", 149 );
+        }
+        item *wield_transfer_bound =
+            virtual_item_for_slot_internal( survivor_id, "mana_hands_34" );
+        item_location wield_transfer_bound_loc;
+        for( item_location probe_loc : get_avatar().all_items_loc() ) {
+            if( probe_loc.get_item() == wield_transfer_bound ) {
+                wield_transfer_bound_loc = probe_loc;
+                break;
+            }
+        }
+        if( wield_transfer_bound == nullptr || !wield_transfer_bound_loc ||
+            wield_transfer_bound->uid().get_value() != wield_transfer_uid ||
+            !item_location_inside_mana_hand_carrier( wield_transfer_bound_loc ) ||
+            virtual_item_state_uid_internal(
+                survivor_id, "mana_hands_34" ) != wield_transfer_uid ) {
+            return mana_hands_fail( "mana_hands_wield_transfer_carrier", 150 );
+        }
+        ++mana_hands_check_count;
+
+        virtual_item_clear_internal( survivor_id, "mana_hands_34" );
+        if( !get_avatar().is_armed() ||
+            get_avatar().get_wielded_item()->uid().get_value() != wield_transfer_uid ||
+            !get_avatar().get_wielded_item()->get_var(
+                virtual_item_marker_key, "" ).empty() ||
+            virtual_item_state_uid_internal(
+                survivor_id, "mana_hands_34" ) != 0 ) {
+            return mana_hands_fail( "mana_hands_wield_transfer_release", 151 );
+        }
+        if( !get_avatar().unwield() ) {
+            return mana_hands_fail( "mana_hands_wield_transfer_cleanup", 152 );
+        }
+        ++mana_hands_check_count;
+
         log_line( NCMM_LOG_INFO,
                   ( "NCMM gameplay smoke checkpoint: Mana Hands " +
                     std::to_string( mana_hands_check_count ) +
-                    "/13 real binding/state checks PASS." ).c_str() );
+                    "/16 real binding/state checks PASS." ).c_str() );
 
         size_t dimensional_pouch_check_count = 0;
         const auto dimensional_pouch_fail = [&]( const char *reason, int code ) {
@@ -6073,7 +6312,7 @@ int run_gameplay_smoke()
                     std::to_string( survivor_perk_count ) +
                     "-perk aggregate, isolated Character consumers, Mana Hands " +
                     std::to_string( mana_hands_check_count ) +
-                    "/13, and Dimensional Pouch " +
+                    "/16, and Dimensional Pouch " +
                     std::to_string( dimensional_pouch_check_count ) + "/4." ).c_str() );
         return 0;
     } catch( const std::exception &err ) {
@@ -6184,6 +6423,7 @@ void initialize()
 void load_module_data()
 {
     dimensional_pouch_last_rank = -1;
+    mana_hand_carrier_last_count = -1;
     DynamicDataLoader &loader = DynamicDataLoader::get_instance();
 
     std::set<std::string> persistent_module_ids;

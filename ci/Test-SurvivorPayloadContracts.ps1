@@ -393,6 +393,9 @@ $survivorSource0150=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\Survivo
 $dimensionalPouchDataPath0150=Join-Path $PackageRoot 'mods\SurvivorProgression\persistent_data\dimensional_pouch.json'
 if(-not(Test-Path $dimensionalPouchDataPath0150 -PathType Leaf)){throw 'Survivor 0.15.0 Dimensional Pouch data file missing.'}
 $dimensionalPouchData0150=[IO.File]::ReadAllText($dimensionalPouchDataPath0150)
+$manaHandCarrierDataPath0151=Join-Path $PackageRoot 'mods\SurvivorProgression\persistent_data\mana_hand_carrier.json'
+if(-not(Test-Path $manaHandCarrierDataPath0151 -PathType Leaf)){throw 'Survivor 0.15.0 Mana Hand carrier data file missing.'}
+$manaHandCarrierData0151=[IO.File]::ReadAllText($manaHandCarrierDataPath0151)
 foreach($pouchNeedle0150 in @(
     '{ "mg_dimensional_pouch", branch_id::mastery, 8, 35, currency_id::perk, "mg_resonant_reserve"',
     '{ "mg_dimensional_pouch", 5, 1.0 }',
@@ -417,12 +420,28 @@ foreach($pouchDataNeedle0150 in @(
         throw ('Survivor 0.15.0 Dimensional Pouch data contract missing: '+$pouchDataNeedle0150)
     }
 }
+foreach($carrierDataNeedle0151 in @(
+    '"id": "ncmm_survivor_mana_hand_carrier"',
+    '"INTEGRATED"',
+    '"HIDDEN_ITEM"',
+    '"forbidden": true',
+    '"holster": true',
+    '"max_item_length": "5 m"'
+)){
+    if(-not $manaHandCarrierData0151.Contains($carrierDataNeedle0151)){
+        throw ('Survivor 0.15.0 Mana Hand carrier data contract missing: '+$carrierDataNeedle0151)
+    }
+}
 foreach($payloadNeedle0150 in @(
     'function Apply-SurvivorDimensionalPouch0150',
     'mg_dimensional_pouch',
     'mg_dimensional_pouch_rank',
     'ncmm_survivor_dimensional_pouch',
     'dimensional_pouch.json',
+    'ncmm_survivor_mana_hand_carrier',
+    'mana_hand_carrier.json',
+    'stash_wielded_item_for_mana_hand',
+    'restore_mana_hand_carrier_item',
     'persistent_data',
     'Survivor 0.15.0 Dimensional Pouch: READY'
 )){
@@ -513,8 +532,13 @@ $hostVirtual0140=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm
 foreach($uxNeedle0151 in @(
     'return survivor_mana_hand_count() > 0 && loc && loc.held_by( get_avatar() );',
     'This is a two-handed item. It requires both Mana Hands III+IV',
-    'Put the item into your inventory first; a physical and Mana Hand cannot hold the same item.',
-    'This item type cannot be held by a Mana Hand.'
+    'This wielded item cannot be transferred to the available Mana Hand configuration.',
+    'This item type cannot be held by a Mana Hand.',
+    'mana_hand_carrier_type_id( "ncmm_survivor_mana_hand_carrier" )',
+    'stash_wielded_item_for_mana_hand',
+    'restore_mana_hand_carrier_item',
+    'physically_wielded && std::string_view( module_id ) == survivor_module_id',
+    'pocket->is_forbidden()'
 )){
     if(-not $hostVirtual0140.Contains($uxNeedle0151)){
         throw ('Mana Hand discoverability contract missing: '+$uxNeedle0151)
