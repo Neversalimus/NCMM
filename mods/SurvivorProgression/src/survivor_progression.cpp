@@ -3715,6 +3715,33 @@ int integration_branch_xp_bonus_pct( branch_id branch )
     return std::min( bonus, 20 );
 }
 
+int activity_branch_balance_pct( branch_id branch )
+{
+    switch( branch ) {
+        case branch_id::survival: return 200;
+        case branch_id::mobility: return 115;
+        case branch_id::scavenging: return 80;
+        default: return 100;
+    }
+}
+
+int64_t apply_activity_branch_balance( branch_id branch, int64_t raw )
+{
+    if( raw <= 0 ) return 0;
+    const int balance_pct = activity_branch_balance_pct( branch );
+    if( balance_pct == 100 ) return raw;
+
+    const std::string key = branch_state_key( branch, "balance_fraction" );
+    const int64_t old_fraction = std::max<int64_t>( 0, get_state( key, 0 ) );
+    const int64_t scaled = raw * balance_pct + old_fraction;
+    const int64_t result = scaled / 100;
+    const int64_t new_fraction = scaled % 100;
+    if( new_fraction != old_fraction ) {
+        set_state( key, new_fraction );
+    }
+    return result;
+}
+
 int64_t scale_activity_xp( branch_id branch, int64_t raw, int diversity_bonus_pct )
 {
     if( raw <= 0 ) return 0;
@@ -3768,6 +3795,10 @@ void poll_branch_xp()
     active += crafting_gain > 0 ? 1 : 0;
     active += scavenging_gain > 0 ? 1 : 0;
     const int diversity_bonus = activity_diversity_bonus_pct( active );
+
+    survival_gain = apply_activity_branch_balance( branch_id::survival, survival_gain );
+    mobility_gain = apply_activity_branch_balance( branch_id::mobility, mobility_gain );
+    scavenging_gain = apply_activity_branch_balance( branch_id::scavenging, scavenging_gain );
 
     combat_gain = scale_activity_xp( branch_id::combat, combat_gain, diversity_bonus );
     survival_gain = scale_activity_xp( branch_id::survival, survival_gain, diversity_bonus );
