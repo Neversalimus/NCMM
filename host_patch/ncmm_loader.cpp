@@ -31,6 +31,7 @@
 #include "uilist.h"
 #include "ui_manager.h"
 #include "worldfactory.h"
+#include "units.h"
 
 #include <algorithm>
 #include <cctype>
@@ -143,6 +144,7 @@ thread_local item *virtual_melee_context_weapon = nullptr;
 thread_local bool virtual_melee_context_running = false;
 thread_local bool virtual_melee_context_suppress_martial_arts = true;
 bool api_v2_world_announced = false;
+int dimensional_pouch_last_rank = -1;
 
 void erase_module_modifiers( const std::string &module_id )
 {
@@ -4195,6 +4197,92 @@ double gameplay_modifier( const char *modifier_id )
     return std::max( -500.0, std::min( 500.0, it->second ) );
 }
 
+namespace
+{
+const itype_id dimensional_pouch_type_id( "ncmm_survivor_dimensional_pouch" );
+
+bool configure_dimensional_pouch_type( int rank )
+{
+    if( rank < 1 || rank > 5 || !dimensional_pouch_type_id.is_valid() ) {
+        return false;
+    }
+
+    itype &type = const_cast<itype &>( dimensional_pouch_type_id.obj() );
+    if( type.pockets.size() != 1 ) {
+        return false;
+    }
+
+    int capacity_ml = 0;
+    int max_length_mm = 0;
+    switch( rank ) {
+        case 1:
+            capacity_ml = 5000;
+            max_length_mm = 1200;
+            break;
+        case 2:
+            capacity_ml = 10000;
+            max_length_mm = 1200;
+            break;
+        case 3:
+            capacity_ml = 20000;
+            max_length_mm = 1500;
+            break;
+        case 4:
+            capacity_ml = 50000;
+            max_length_mm = 1500;
+            break;
+        case 5:
+            capacity_ml = 120000;
+            max_length_mm = 2000;
+            break;
+    }
+
+    pocket_data &pocket = type.pockets.front();
+    pocket.raw_volume_capacity = units::from_milliliter( capacity_ml );
+    pocket.max_item_length = units::from_millimeter( max_length_mm );
+    return true;
+}
+
+void sync_dimensional_pouch()
+{
+    if( !character_state_available() ) {
+        return;
+    }
+
+    const int rank = std::max( 0, std::min( 5, static_cast<int>(
+                               std::lround( gameplay_modifier( "mg_dimensional_pouch_rank" ) ) ) ) );
+    if( rank == dimensional_pouch_last_rank ) {
+        return;
+    }
+    dimensional_pouch_last_rank = rank;
+
+    avatar &who = get_avatar();
+    if( rank <= 0 ) {
+        std::list<item> removed = who.remove_worn_items_with( []( item &candidate ) {
+            return candidate.typeId() == dimensional_pouch_type_id;
+        } );
+        for( item &pouch : removed ) {
+            pouch.spill_contents( who.pos_bub() );
+        }
+        return;
+    }
+
+    if( !configure_dimensional_pouch_type( rank ) ) {
+        log_line( NCMM_LOG_WARN,
+                  "Dimensional Pouch perk is active but its item definition is unavailable or invalid." );
+        return;
+    }
+
+    if( !who.is_wearing( dimensional_pouch_type_id ) ) {
+        const auto worn = who.worn.wear_item( who, item( dimensional_pouch_type_id ),
+                                             false, true, true, true );
+        if( !worn.has_value() ) {
+            log_line( NCMM_LOG_WARN, "Could not attach the Survivor Dimensional Pouch." );
+        }
+    }
+}
+} // namespace
+
 std::string settings_menu_label()
 {
     return tr_ui( "<N|n>CMM / Mod Configuration", "<N|n>CMM / Настройка модов" );
@@ -4981,6 +5069,7 @@ void on_turn()
             }
         }
     }
+    sync_dimensional_pouch();
 }
 
 void on_language_changed()
@@ -5052,7 +5141,8 @@ uint32_t gameplay_smoke_rng_next( uint32_t &state )
 
 void write_gameplay_smoke_result( bool success, const std::string &reason,
                                   size_t aws_settings, size_t aws_hooks,
-                                  size_t survivor_perks, size_t mana_hands_checks = 0 )
+                                  size_t survivor_perks, size_t mana_hands_checks = 0,
+                                  size_t dimensional_pouch_checks = 0 )
 {
     std::filesystem::create_directories( game_root() / "ncmm" );
     std::ofstream out( game_root() / "ncmm" / "gameplay-smoke.json",
@@ -5067,7 +5157,8 @@ void write_gameplay_smoke_result( bool success, const std::string &reason,
         << "  \"aws_settings\": " << aws_settings << ",\n"
         << "  \"aws_hooks\": " << aws_hooks << ",\n"
         << "  \"survivor_perks\": " << survivor_perks << ",\n"
-        << "  \"mana_hands_checks\": " << mana_hands_checks << "\n"
+        << "  \"mana_hands_checks\": " << mana_hands_checks << ",\n"
+        << "  \"dimensional_pouch_checks\": " << dimensional_pouch_checks << "\n"
         << "}\n";
 }
 
@@ -5354,7 +5445,7 @@ int run_gameplay_smoke()
 
         module_call_scope survivor_scope( survivor_id );
         survivor_perk_count = perk_count();
-        constexpr size_t survivor_minimum_perk_count = 372;
+        constexpr size_t survivor_minimum_perk_count = 373;
         log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: Survivor test surface resolved." );
         if( survivor_perk_count < survivor_minimum_perk_count || !perk_reset() || !perk_recalc() ) {
             write_gameplay_smoke_result( false, "survivor_catalog_or_reset",
@@ -5410,10 +5501,11 @@ int run_gameplay_smoke()
         const size_t g_hauler = find_perk_index( "g_hauler" );
         const size_t mg_mana_hand_3 = find_perk_index( "mg_mana_hand_3" );
         const size_t mg_mana_hand_4 = find_perk_index( "mg_mana_hand_4" );
+        const size_t mg_dimensional_pouch = find_perk_index( "mg_dimensional_pouch" );
         const size_t required_indices[] = {
             c_power, c_reflexes, m_light, g_observer, a_focus,
             m_stride, m_cardio, ce_drills, g_hauler,
-            mg_mana_hand_3, mg_mana_hand_4
+            mg_mana_hand_3, mg_mana_hand_4, mg_dimensional_pouch
         };
         for( size_t index : required_indices ) {
             if( index >= survivor_perk_count ) {
@@ -5610,6 +5702,54 @@ int run_gameplay_smoke()
                     std::to_string( mana_hands_check_count ) +
                     "/13 real binding/state checks PASS." ).c_str() );
 
+        size_t dimensional_pouch_check_count = 0;
+        const auto dimensional_pouch_fail = [&]( const char *reason, int code ) {
+            write_gameplay_smoke_result( false, reason, aws_setting_count, aws_hook_count,
+                                         survivor_perk_count, mana_hands_check_count,
+                                         dimensional_pouch_check_count );
+            return code;
+        };
+        if( !dimensional_pouch_type_id.is_valid() ||
+            dimensional_pouch_type_id.obj().pockets.size() != 1 ) {
+            return dimensional_pouch_fail( "dimensional_pouch_item_missing", 141 );
+        }
+        ++dimensional_pouch_check_count;
+
+        if( !perk_reset() || !perk_recalc() ||
+            !perk_set_rank( mg_dimensional_pouch, 1 ) || !perk_recalc() ) {
+            return dimensional_pouch_fail( "dimensional_pouch_rank1_setup", 142 );
+        }
+        sync_dimensional_pouch();
+        const pocket_data &rank1_pocket = dimensional_pouch_type_id.obj().pockets.front();
+        if( !get_avatar().is_wearing( dimensional_pouch_type_id ) ||
+            rank1_pocket.raw_volume_capacity != units::from_milliliter( 5000 ) ||
+            rank1_pocket.max_item_length != units::from_millimeter( 1200 ) ) {
+            return dimensional_pouch_fail( "dimensional_pouch_rank1_shape", 143 );
+        }
+        ++dimensional_pouch_check_count;
+
+        if( !perk_set_rank( mg_dimensional_pouch, 5 ) || !perk_recalc() ) {
+            return dimensional_pouch_fail( "dimensional_pouch_rank5_setup", 144 );
+        }
+        sync_dimensional_pouch();
+        const pocket_data &rank5_pocket = dimensional_pouch_type_id.obj().pockets.front();
+        if( rank5_pocket.raw_volume_capacity != units::from_milliliter( 120000 ) ||
+            rank5_pocket.max_item_length != units::from_millimeter( 2000 ) ) {
+            return dimensional_pouch_fail( "dimensional_pouch_rank5_shape", 145 );
+        }
+        ++dimensional_pouch_check_count;
+
+        if( !perk_reset() || !perk_recalc() ) {
+            return dimensional_pouch_fail( "dimensional_pouch_reset_setup", 146 );
+        }
+        sync_dimensional_pouch();
+        if( get_avatar().is_wearing( dimensional_pouch_type_id ) ) {
+            return dimensional_pouch_fail( "dimensional_pouch_reset_cleanup", 147 );
+        }
+        ++dimensional_pouch_check_count;
+        log_line( NCMM_LOG_INFO,
+                  "NCMM gameplay smoke checkpoint: Dimensional Pouch 4/4 rank/item checks PASS." );
+
         // Primary Character stats.
         if( !perk_reset() || !perk_recalc() ) return 113;
         const int base_str = get_avatar().get_str();
@@ -5752,12 +5892,15 @@ int run_gameplay_smoke()
 
         write_gameplay_smoke_result( true, "ok", aws_setting_count,
                                      aws_hook_count, survivor_perk_count,
-                                     mana_hands_check_count );
+                                     mana_hands_check_count,
+                                     dimensional_pouch_check_count );
         log_line( NCMM_LOG_INFO,
                   ( "NCMM gameplay smoke PASS: real AWS world save/reload/overmap + Survivor " +
                     std::to_string( survivor_perk_count ) +
-                    "-perk aggregate, isolated Character consumers, and Mana Hands " +
-                    std::to_string( mana_hands_check_count ) + "/12." ).c_str() );
+                    "-perk aggregate, isolated Character consumers, Mana Hands " +
+                    std::to_string( mana_hands_check_count ) +
+                    "/13, and Dimensional Pouch " +
+                    std::to_string( dimensional_pouch_check_count ) + "/4." ).c_str() );
         return 0;
     } catch( const std::exception &err ) {
         log_line( NCMM_LOG_ERROR, ( std::string( "NCMM gameplay smoke exception: " ) + err.what() ).c_str() );
@@ -5864,6 +6007,7 @@ void initialize()
 
 void load_module_data()
 {
+    dimensional_pouch_last_rank = -1;
     DynamicDataLoader &loader = DynamicDataLoader::get_instance();
     for( const loaded_mod &runtime : loaded ) {
         if( runtime.descriptor == nullptr || runtime.descriptor->id == nullptr ) continue;
