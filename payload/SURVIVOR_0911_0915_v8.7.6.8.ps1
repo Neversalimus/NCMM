@@ -24492,6 +24492,240 @@ int item::get_remaining_capacity_for_liquid( const item &liquid, const Character
 
 Apply-SurvivorManaHandHeldUtilities0140 $CddaRoot
 
+
+function Apply-SurvivorCraftCompletionMetric0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 exact craft-completion metric..." -ForegroundColor Cyan
+    $craftMetricPath = Join-Path (Join-Path $Root 'src') 'crafting.cpp'
+    if(-not(Test-Path $craftMetricPath -PathType Leaf)) {
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+            Write-Host "Survivor craft-completion metric transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+            return
+        }
+        throw ('Craft-completion metric source missing: '+$craftMetricPath)
+    }
+
+    $craftMetric = Normalize-Lf ([IO.File]::ReadAllText($craftMetricPath))
+    if(-not $craftMetric.Contains('#include "ncmm_loader.h"')) {
+        if(-not $craftMetric.Contains('#include "crafting.h"')) {
+            throw 'Craft-completion metric include anchor missing.'
+        }
+        $craftMetric = Replace-TextBlock $craftMetric '#include "crafting.h"' ('#include "crafting.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'craft-completion metric include'
+    }
+
+    if(-not $craftMetric.Contains('ncmm::gameplay_metric_record_completed_craft( *this );')) {
+        $craftCompleteOld0140 = @'
+    for( const effect_on_condition_id &eoc : making.result_eocs ) {
+        dialogue d( get_talker_for( *this ), nullptr );
+        for( int i = 0; i < batch_size; i++ ) {
+            eoc->activate_activation_only( d, "a recipe", "crafting", "recipe" );
+        }
+    }
+}
+'@
+        $craftCompleteNew0140 = @'
+    for( const effect_on_condition_id &eoc : making.result_eocs ) {
+        dialogue d( get_talker_for( *this ), nullptr );
+        for( int i = 0; i < batch_size; i++ ) {
+            eoc->activate_activation_only( d, "a recipe", "crafting", "recipe" );
+        }
+    }
+
+    ncmm::gameplay_metric_record_completed_craft( *this );
+}
+'@
+        $craftMetric = Replace-TextBlock $craftMetric $craftCompleteOld0140 $craftCompleteNew0140 'successful complete_craft metric'
+    }
+
+    Write-Utf8NoBom $craftMetricPath $craftMetric
+    $craftMetricOutput = [IO.File]::ReadAllText($craftMetricPath)
+    foreach($needle0140craft in @(
+        'void Character::complete_craft( item &craft, const std::optional<tripoint_bub_ms> &loc )',
+        'eoc->activate_activation_only( d, "a recipe", "crafting", "recipe" );',
+        'ncmm::gameplay_metric_record_completed_craft( *this );'
+    )) {
+        if(-not $craftMetricOutput.Contains($needle0140craft)) {
+            throw ('Survivor exact craft-completion metric output missing: '+$needle0140craft)
+        }
+    }
+    Write-Host "Survivor 0.14.0 exact craft-completion metric: READY" -ForegroundColor Green
+}
+
+function Apply-SurvivorXpBalance0140 {
+    Write-Host "Applying Survivor 0.14.0 long-run XP balance..." -ForegroundColor Cyan
+
+    $hostHeaderBalancePath = Join-Path $NcmmRoot 'host_patch\ncmm_loader.h'
+    $hostLoaderBalancePath = Join-Path $NcmmRoot 'host_patch\ncmm_loader.cpp'
+    foreach($requiredBalancePath in @($hostHeaderBalancePath,$hostLoaderBalancePath,$spPath)) {
+        if(-not(Test-Path $requiredBalancePath -PathType Leaf)) {
+            throw ('Survivor XP balance source missing: '+$requiredBalancePath)
+        }
+    }
+
+    $hostHeaderBalance = Normalize-Lf ([IO.File]::ReadAllText($hostHeaderBalancePath))
+    if(-not $hostHeaderBalance.Contains('gameplay_metric_record_completed_craft')) {
+        $hostHeaderOld0140 = @'
+std::string localized_text( const char *english, const char *russian );
+
+
+/** Aggregate runtime gameplay modifier registered by loaded NCMM modules. */
+'@
+        $hostHeaderNew0140 = @'
+std::string localized_text( const char *english, const char *russian );
+
+/** Record one successfully completed craft for gameplay.metrics.v1. */
+void gameplay_metric_record_completed_craft( const Character &who );
+
+/** Aggregate runtime gameplay modifier registered by loaded NCMM modules. */
+'@
+        $hostHeaderBalance = Replace-TextBlock $hostHeaderBalance $hostHeaderOld0140 $hostHeaderNew0140 'craft metric header bridge'
+    }
+    Write-Utf8NoBom $hostHeaderBalancePath $hostHeaderBalance
+
+    $hostLoaderBalance = Normalize-Lf ([IO.File]::ReadAllText($hostLoaderBalancePath))
+    $oldActivityMetric0140 = @'
+                case event_type::character_finished_activity:
+                    if( e.get<character_id>( "character" ) == gameplay_avatar_id &&
+                        !e.get<bool>( "canceled" ) ) {
+                        const std::string activity = e.get<activity_id>( "activity" ).str();
+                        if( activity == "ACT_CRAFT" || activity == "ACT_MULTIPLE_CRAFT" ) {
+                            ++gameplay_metric_values["crafting.completed"];
+                        }
+                    }
+                    break;
+'@
+    if($hostLoaderBalance.Contains($oldActivityMetric0140)) {
+        $hostLoaderBalance = Replace-TextBlock $hostLoaderBalance $oldActivityMetric0140 '' 'remove ambiguous activity craft metric'
+    }
+    if(-not $hostLoaderBalance.Contains('void gameplay_metric_record_completed_craft( const Character &who )')) {
+        $craftMetricPublicOld0140 = @'
+} // namespace
+
+item *virtual_item_for_slot( const char *module_id, const char *slot_id )
+'@
+        $craftMetricPublicNew0140 = @'
+} // namespace
+
+void gameplay_metric_record_completed_craft( const Character &who )
+{
+    if( !who.is_avatar() ) {
+        return;
+    }
+    if( !gameplay_avatar_id_ready ) {
+        gameplay_avatar_id = who.getID();
+        gameplay_avatar_id_ready = true;
+    }
+    if( who.getID() != gameplay_avatar_id ) {
+        return;
+    }
+    ++gameplay_metric_values["crafting.completed"];
+}
+
+item *virtual_item_for_slot( const char *module_id, const char *slot_id )
+'@
+        $hostLoaderBalance = Replace-TextBlock $hostLoaderBalance $craftMetricPublicOld0140 $craftMetricPublicNew0140 'exact craft metric host bridge'
+    }
+    Write-Utf8NoBom $hostLoaderBalancePath $hostLoaderBalance
+
+    $spBalance = Normalize-Lf ([IO.File]::ReadAllText($spPath))
+    if(-not $spBalance.Contains('int branch_xp_balance_pct( branch_id branch )')) {
+        $branchBalanceOld0140 = @'
+int branch_owned_count( branch_id branch )
+'@
+        $branchBalanceNew0140 = @'
+int branch_xp_balance_pct( branch_id branch )
+{
+    switch( branch ) {
+        case branch_id::survival: return 200;
+        case branch_id::mobility: return 115;
+        case branch_id::scavenging: return 80;
+        default: return 100;
+    }
+}
+
+int64_t apply_branch_xp_balance( branch_id branch, int64_t raw )
+{
+    if( raw <= 0 ) {
+        return 0;
+    }
+    const int64_t rate = branch_xp_balance_pct( branch );
+    if( rate == 100 ) {
+        return raw;
+    }
+    const std::string key = branch_state_key( branch, "balance_fraction" );
+    int64_t fraction = std::max<int64_t>( 0, get_state( key, 0 ) ) % 100;
+    if( raw > ( std::numeric_limits<int64_t>::max() - fraction ) /
+        std::max<int64_t>( 1, rate ) ) {
+        raw = ( std::numeric_limits<int64_t>::max() - fraction ) /
+              std::max<int64_t>( 1, rate );
+    }
+    const int64_t scaled = raw * rate + fraction;
+    set_state( key, scaled % 100 );
+    return scaled / 100;
+}
+
+int branch_owned_count( branch_id branch )
+'@
+        $spBalance = Replace-TextBlock $spBalance $branchBalanceOld0140 $branchBalanceNew0140 'branch-specific XP balance'
+
+        $awardBalanceOld0140 = @'
+int64_t award_branch_xp( branch_id branch, int64_t raw_gained )
+{
+    const int64_t gained = anti_farm_adjust( branch, raw_gained );
+    if( gained <= 0 ) {
+'@
+        $awardBalanceNew0140 = @'
+int64_t award_branch_xp( branch_id branch, int64_t raw_gained )
+{
+    const int64_t adjusted = anti_farm_adjust( branch, raw_gained );
+    const int64_t gained = apply_branch_xp_balance( branch, adjusted );
+    if( gained <= 0 ) {
+'@
+        $spBalance = Replace-TextBlock $spBalance $awardBalanceOld0140 $awardBalanceNew0140 'branch XP balance application'
+    }
+    Write-Utf8NoBom $spPath $spBalance
+    Copy-Item $spPath (Join-Path $NcmmRoot 'mods\SurvivorProgression\src\survivor_progression.cpp') -Force
+
+    $contractsBalancePath = Join-Path $NcmmRoot 'compat\contracts.json'
+    if(Test-Path $contractsBalancePath -PathType Leaf) {
+        $contractsBalance = Normalize-Lf ([IO.File]::ReadAllText($contractsBalancePath))
+        if(-not $contractsBalance.Contains('void Character::complete_craft( item &craft, const std::optional<tripoint_bub_ms> &loc )')) {
+            $contractCraftOld0140 = @'
+            "float Character::item_destruction_chance( const recipe &making ) const"
+'@
+            $contractCraftNew0140 = @'
+            "float Character::item_destruction_chance( const recipe &making ) const",
+            "void Character::complete_craft( item &craft, const std::optional<tripoint_bub_ms> &loc )",
+            "eoc->activate_activation_only( d, \"a recipe\", \"crafting\", \"recipe\" );"
+'@
+            $contractsBalance = Replace-TextBlock $contractsBalance $contractCraftOld0140 $contractCraftNew0140 'craft-completion source contracts'
+            Write-Utf8NoBom $contractsBalancePath $contractsBalance
+        }
+    }
+
+    foreach($needle0140balance in @(
+        'void gameplay_metric_record_completed_craft( const Character &who );',
+        'void gameplay_metric_record_completed_craft( const Character &who )',
+        '++gameplay_metric_values["crafting.completed"];'
+    )) {
+        if(-not $hostHeaderBalance.Contains($needle0140balance) -and
+           -not $hostLoaderBalance.Contains($needle0140balance)) {
+            throw ('Survivor craft metric Host output missing: '+$needle0140balance)
+        }
+    }
+    foreach($needle0140balance in @(
+        'case branch_id::survival: return 200;',
+        'case branch_id::mobility: return 115;',
+        'case branch_id::scavenging: return 80;',
+        '"balance_fraction"',
+        'apply_branch_xp_balance( branch, adjusted )'
+    )) {
+        if(-not $spBalance.Contains($needle0140balance)) {
+            throw ('Survivor XP balance output missing: '+$needle0140balance)
+        }
+    }
+    Write-Host "Survivor 0.14.0 long-run XP balance: READY" -ForegroundColor Green
+}
+
 # Keep the patch-revision contract aware of the additive 0.13.0/0.14.0 engine transforms.
 $mechanicsDefinition = (Get-Command Apply-NcmmRuntimeGameplayHooksV2 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-NcmmReactiveMechanics0112 -CommandType Function).Definition
@@ -24519,6 +24753,8 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandTargetPractice
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandMend0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandCrutches0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandHeldUtilities0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorCraftCompletionMetric0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorXpBalance0140 -CommandType Function).Definition
 Write-Utf8NoBom $mechanicsContractPath ("NCMM Host API 2.0 generic runtime gameplay hooks; Survivor bindings live in module DLL`n" + $mechanicsDefinition + "`n")
 
 # Host 0.8.2 / Ballistic Hit Chance canonicalization.
@@ -24580,6 +24816,8 @@ Copy-Item $spPath (Join-Path $NcmmRoot "mods\SurvivorProgression\src\survivor_pr
 Copy-Item $manifestPath (Join-Path $NcmmRoot "mods\SurvivorProgression\mod.json") -Force
 Write-Host "Survivor 0.14.0 virtual-item canonical module sync: READY" -ForegroundColor Green
 
+Apply-SurvivorXpBalance0140
+
 # NCMM Infrastructure 0.8.3.1 deep probe: execute the exact host/source transform stack
 # without resolving Visual Studio, compiling binaries, touching the target runtime, or installing files.
 if ($HostSourceProbeOnly) {
@@ -24602,6 +24840,7 @@ if ($HostSourceProbeOnly) {
     if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_runtime_gameplay_hooks_v2") -PathType Leaf)) { throw "Deep probe: Host runtime gameplay-hooks marker missing." }
     Apply-NcmmReactiveMechanics0112 $CddaRoot
     Apply-NcmmReactiveMechanics0113 $CddaRoot
+    Apply-SurvivorCraftCompletionMetric0140 $CddaRoot
     Assert-NcmmReactiveMechanics0113Source $CddaRoot
     if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_reactive_mechanics_0112") -PathType Leaf)) { throw "Deep probe: Survivor 0.11.2 reactive edge marker missing." }
     if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_reactive_mechanics_0113") -PathType Leaf)) { throw "Deep probe: Survivor 0.11.3 combinatorial edge marker missing." }
@@ -24675,6 +24914,7 @@ if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_runtime_gameplay_hooks_v2") -Pat
 }
 Apply-NcmmReactiveMechanics0112 $CddaRoot
 Apply-NcmmReactiveMechanics0113 $CddaRoot
+Apply-SurvivorCraftCompletionMetric0140 $CddaRoot
 Assert-NcmmReactiveMechanics0113Source $CddaRoot
 if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_reactive_mechanics_0112") -PathType Leaf)) {
     throw "Survivor 0.11.2 reactive edge marker missing."

@@ -364,15 +364,6 @@ class gameplay_metric_subscriber : public event_subscriber
                             std::max( 0, e.get<int>( "damage" ) );
                     }
                     break;
-                case event_type::character_finished_activity:
-                    if( e.get<character_id>( "character" ) == gameplay_avatar_id &&
-                        !e.get<bool>( "canceled" ) ) {
-                        const std::string activity = e.get<activity_id>( "activity" ).str();
-                        if( activity == "ACT_CRAFT" || activity == "ACT_MULTIPLE_CRAFT" ) {
-                            ++gameplay_metric_values["crafting.completed"];
-                        }
-                    }
-                    break;
                 case event_type::gains_skill_level:
                     if( e.get<character_id>( "character" ) == gameplay_avatar_id ) {
                         ++gameplay_metric_values["mastery.skill_levels"];
@@ -3807,6 +3798,21 @@ void load_one( const std::filesystem::path &library )
 }
 #endif
 } // namespace
+
+void gameplay_metric_record_completed_craft( const Character &who )
+{
+    if( !who.is_avatar() ) {
+        return;
+    }
+    if( !gameplay_avatar_id_ready ) {
+        gameplay_avatar_id = who.getID();
+        gameplay_avatar_id_ready = true;
+    }
+    if( who.getID() != gameplay_avatar_id ) {
+        return;
+    }
+    ++gameplay_metric_values["crafting.completed"];
+}
 
 item *virtual_item_for_slot( const char *module_id, const char *slot_id )
 {

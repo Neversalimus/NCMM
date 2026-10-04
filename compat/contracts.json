@@ -249,7 +249,9 @@
             "bool item::handle_craft_failure( Character &crafter )",
             "float Character::recipe_success_chance( const recipe &making ) const",
             "return normal_roll_chance( data.center, data.stddev, 1.f + data.final_difficulty );",
-            "float Character::item_destruction_chance( const recipe &making ) const"
+            "float Character::item_destruction_chance( const recipe &making ) const",
+            "void Character::complete_craft( item &craft, const std::optional<tripoint_bub_ms> &loc )",
+            "eoc->activate_activation_only( d, \"a recipe\", \"crafting\", \"recipe\" );"
           ]
         },
         {

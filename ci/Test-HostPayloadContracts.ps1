@@ -52,9 +52,25 @@ foreach($n in @('function Apply-NcmmHostApi20Core','#define NCMM_HOST_API_V2_COR
 # from its single implementation.  A raw substring count is intentionally invalid because both
 # declaration and definition begin with the same function name/signature.
 $sdkCurrent=Get-Content (Join-Path $PackageRoot 'sdk\ncmm_api.h') -Raw
+$hostHeaderCurrent=Get-Content (Join-Path $PackageRoot 'host_patch\ncmm_loader.h') -Raw
 $hostSourceCurrent=Get-Content (Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp') -Raw
 foreach($n in @('#define NCMM_HOST_API_V2_CORE_MINOR 3u','NCMM_HOST_API_V2_CORE_SIZE_2_1','NCMM_HOST_API_V2_CORE_SIZE_2_2','NCMM_HOST_API_V2_CORE_SIZE_2_3','NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2','NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2','NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2','virtual_item_choose','virtual_item_clear','virtual_item_name','virtual_item_uid','virtual_item_secondary_melee_enabled','virtual_item_set_secondary_melee','virtual_item_primary_melee_enabled','virtual_item_set_primary_melee')){if(-not $sdkCurrent.Contains($n)){throw "Host API 2.3 SDK virtual-item extension contract missing: $n"}}
 foreach($n in @('character.virtual_items.v1','virtual_item_choose_v2','virtual_item_for_slot_internal','virtual_item_can_assign_internal','virtual_item_assign_internal','item_location mutable_loc = loc;','item *selected = mutable_loc.get_item();','virtual_item_can_assign( const char *module_id','virtual_item_assign( const char *module_id','virtual_item_clear( const char *module_id','release_virtual_item( item &it )','virtual_item_secondary_melee_key = "ncmm_virtual_secondary_melee"','virtual_item_secondary_melee_enabled( const item &it )','virtual_item_set_secondary_melee( item &it, bool enabled )','virtual_item_secondary_melee_enabled_v2( const char *module_id, const char *slot_id )','virtual_item_set_secondary_melee_v2( const char *module_id, const char *slot_id,','!bound->is_melee() || bound->is_gun()','&virtual_item_secondary_melee_enabled_v2','&virtual_item_set_secondary_melee_v2','virtual_item_primary_melee_enabled_v2( const char *module_id, const char *slot_id )','virtual_item_set_primary_melee_v2( const char *module_id, const char *slot_id,','&virtual_item_primary_melee_enabled_v2','&virtual_item_set_primary_melee_v2','virtual_melee_context_begin( Character &who, item &weapon,','virtual_melee_context_end( Character &who )','virtual_melee_context_suppresses_martial_arts( const Character &who )','virtual_melee_context_is_wielding( const Character &who, const item &it )','virtual_item_primary_melee_key = "ncmm_virtual_primary_melee"','virtual_item_primary_melee_enabled( const item &it )','virtual_item_set_primary_melee( item &it, bool enabled )','const bool candidate_two_handed = candidate.is_two_handed( you );','NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2','virtual_item_marker_key = "ncmm_virtual_slot"','existing_marker.rfind( module_prefix, 0 ) != 0','virtual_item_for_slot_internal( module_id.c_str(), slot_id.c_str() ) == &it')){if(-not $hostSourceCurrent.Contains($n)){throw "Host API 2.1 Host virtual-item extension contract missing: $n"}}
+foreach($n in @(
+    'void gameplay_metric_record_completed_craft( const Character &who );'
+)){
+    if(-not $hostHeaderCurrent.Contains($n)){throw ('Gameplay metrics craft-completion header contract missing: '+$n)}
+}
+foreach($n in @(
+    'void gameplay_metric_record_completed_craft( const Character &who )',
+    '++gameplay_metric_values["crafting.completed"];'
+)){
+    if(-not $hostSourceCurrent.Contains($n)){throw ('Gameplay metrics craft-completion source contract missing: '+$n)}
+}
+if($hostSourceCurrent.Contains('case event_type::character_finished_activity:')){
+    throw 'Ambiguous canceled activity craft metric path returned.'
+}
+
 foreach($n in @(
     'size_t mana_hands_check_count = 0;',
     'mana_hands_checks',

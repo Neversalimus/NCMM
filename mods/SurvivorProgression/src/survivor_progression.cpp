@@ -1485,6 +1485,37 @@ int64_t anti_farm_adjust( branch_id branch, int64_t raw )
     return scale_configured_xp( branch, adjusted );
 }
 
+int branch_xp_balance_pct( branch_id branch )
+{
+    switch( branch ) {
+        case branch_id::survival: return 200;
+        case branch_id::mobility: return 115;
+        case branch_id::scavenging: return 80;
+        default: return 100;
+    }
+}
+
+int64_t apply_branch_xp_balance( branch_id branch, int64_t raw )
+{
+    if( raw <= 0 ) {
+        return 0;
+    }
+    const int64_t rate = branch_xp_balance_pct( branch );
+    if( rate == 100 ) {
+        return raw;
+    }
+    const std::string key = branch_state_key( branch, "balance_fraction" );
+    int64_t fraction = std::max<int64_t>( 0, get_state( key, 0 ) ) % 100;
+    if( raw > ( std::numeric_limits<int64_t>::max() - fraction ) /
+        std::max<int64_t>( 1, rate ) ) {
+        raw = ( std::numeric_limits<int64_t>::max() - fraction ) /
+              std::max<int64_t>( 1, rate );
+    }
+    const int64_t scaled = raw * rate + fraction;
+    set_state( key, scaled % 100 );
+    return scaled / 100;
+}
+
 int branch_owned_count( branch_id branch )
 {
     int result = 0;
@@ -3619,7 +3650,8 @@ void award_global_xp( int64_t raw_gained )
 
 int64_t award_branch_xp( branch_id branch, int64_t raw_gained )
 {
-    const int64_t gained = anti_farm_adjust( branch, raw_gained );
+    const int64_t adjusted = anti_farm_adjust( branch, raw_gained );
+    const int64_t gained = apply_branch_xp_balance( branch, adjusted );
     if( gained <= 0 ) {
         return 0;
     }
