@@ -14,6 +14,7 @@
     "Apply-NcmmReactiveMechanics0112",
     "Apply-NcmmReactiveMechanics0113",
     "Assert-NcmmReactiveMechanics0113Source",
+    "Apply-NcmmCraftCompletionMetric0140",
     "Apply-RecipeFinalizeProfilerSupportPatch",
     "Apply-NcmmRuntimeInfrastructureV8766"
   ]
