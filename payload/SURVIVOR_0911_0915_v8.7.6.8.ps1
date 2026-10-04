@@ -711,15 +711,48 @@ function Expand-SingleRootZip([string]$Zip,[string]$Destination,[string]$Expecte
     Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
 }
 
+function Get-MissingCddaSourceSentinels([string]$Root) {
+    $required = @(
+        'msvc-full-features\Cataclysm-vcpkg-static.sln',
+        'msvc-full-features\vcpkg.json',
+        'src\options.cpp',
+        'src\options.h',
+        'src\magic.cpp',
+        'src\handle_action.cpp',
+        'src\game.cpp',
+        'src\talker_character.cpp',
+        'src\item_location.cpp',
+        'src\iuse_actor.cpp',
+        'src\melee.cpp',
+        'src\martialarts.cpp',
+        'src\character.cpp',
+        'src\character_health.cpp',
+        'src\character_inventory.cpp',
+        'src\character_knowledge.cpp',
+        'src\creature.cpp',
+        'src\monster.cpp',
+        'src\crafting.cpp',
+        'src\activity_actor_definitions.h',
+        'src\activity_actor.cpp',
+        'src\ranged.cpp',
+        'src\avatar_action.cpp',
+        'src\weather.cpp',
+        'src\item.cpp',
+        'src\suffer.cpp',
+        'src\item_container.cpp',
+        'src\worldfactory.cpp',
+        'src\recipe_dictionary.cpp'
+    )
+    @($required | Where-Object {
+        -not (Test-Path (Join-Path $Root $_) -PathType Leaf)
+    })
+}
+
 function Test-PristineCddaCache([string]$Root,[string]$Commit,[string]$VcpkgBaseline) {
     $marker = Join-Path $Root ".ncmm_pristine_source_sha"
-    $solution = Join-Path $Root "msvc-full-features\Cataclysm-vcpkg-static.sln"
     $manifest = Join-Path $Root "msvc-full-features\vcpkg.json"
-    $optionsCpp = Join-Path $Root "src\options.cpp"
     if (-not (Test-Path $marker -PathType Leaf) -or
-        -not (Test-Path $solution -PathType Leaf) -or
-        -not (Test-Path $manifest -PathType Leaf) -or
-        -not (Test-Path $optionsCpp -PathType Leaf)) {
+        @(Get-MissingCddaSourceSentinels $Root).Count -ne 0) {
         return $false
     }
     if ((Get-Content $marker -Raw).Trim() -ne $Commit) { return $false }
@@ -794,18 +827,31 @@ function Ensure-CddaBuildCache([string]$Root,[string]$BuildRoot,[string]$Commit,
     $zip = Join-Path $downloads ("cdda_" + $Commit + ".zip")
 
     if (-not (Test-PristineCddaCache $pristine $Commit $VcpkgBaseline)) {
-        Write-Host "" 
-        Write-Host "Preparing immutable exact CDDA 0546 source cache..." -ForegroundColor Cyan
-        Download-Archive ("https://github.com/CleverRaven/Cataclysm-DDA/archive/" + $Commit + ".zip") $zip
-        Expand-SingleRootZip $zip $pristine "msvc-full-features\Cataclysm-vcpkg-static.sln"
-        $manifest = Join-Path $pristine "msvc-full-features\vcpkg.json"
-        $meta = Get-Content $manifest -Raw | ConvertFrom-Json
-        if ([string]$meta.'builtin-baseline' -ne $VcpkgBaseline) {
-            throw "CDDA pristine-source vcpkg baseline mismatch. Expected $VcpkgBaseline, got $($meta.'builtin-baseline')."
+        Write-Host ""
+        Write-Host "Preparing immutable exact CDDA source cache..." -ForegroundColor Cyan
+        $pristineReady = $false
+        for ($sourceAttempt = 1; $sourceAttempt -le 2 -and -not $pristineReady; ++$sourceAttempt) {
+            if ($sourceAttempt -eq 2) {
+                Write-Host "Incomplete CDDA source cache detected; invalidating cached ZIP and retrying exact download once..." -ForegroundColor Yellow
+                Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
+            }
+            Download-Archive ("https://github.com/CleverRaven/Cataclysm-DDA/archive/" + $Commit + ".zip") $zip
+            Expand-SingleRootZip $zip $pristine "msvc-full-features\Cataclysm-vcpkg-static.sln"
+            $manifest = Join-Path $pristine "msvc-full-features\vcpkg.json"
+            $meta = Get-Content $manifest -Raw | ConvertFrom-Json
+            if ([string]$meta.'builtin-baseline' -ne $VcpkgBaseline) {
+                throw "CDDA pristine-source vcpkg baseline mismatch. Expected $VcpkgBaseline, got $($meta.'builtin-baseline')."
+            }
+            Write-Utf8NoBom (Join-Path $pristine ".ncmm_pristine_source_sha") ($Commit + "`n")
+            $pristineReady = Test-PristineCddaCache $pristine $Commit $VcpkgBaseline
+            if (-not $pristineReady) {
+                $missing = @(Get-MissingCddaSourceSentinels $pristine)
+                Write-Host ("Fresh CDDA source archive failed completeness validation: " + ($missing -join ', ')) -ForegroundColor Yellow
+                Remove-Item $pristine -Recurse -Force -ErrorAction SilentlyContinue
+            }
         }
-        Write-Utf8NoBom (Join-Path $pristine ".ncmm_pristine_source_sha") ($Commit + "`n")
-        if (-not (Test-PristineCddaCache $pristine $Commit $VcpkgBaseline)) {
-            throw "Fresh exact CDDA pristine cache failed contamination/integrity validation."
+        if (-not $pristineReady) {
+            throw "Fresh exact CDDA pristine cache failed contamination/source-completeness validation after retry."
         }
         Write-Host "Immutable CDDA source cache: READY" -ForegroundColor Green
     } else {
@@ -869,6 +915,10 @@ function Ensure-CddaBuildCache([string]$Root,[string]$BuildRoot,[string]$Commit,
         '.ncmm_pristine_source_sha'
     )) {
         Remove-Item (Join-Path $Root $patchMarker) -Force -ErrorAction SilentlyContinue
+    }
+    $missingWorkingSource = @(Get-MissingCddaSourceSentinels $Root)
+    if ($missingWorkingSource.Count -ne 0) {
+        throw ("CDDA working source incomplete after pristine sync: " + ($missingWorkingSource -join ', '))
     }
     Write-Utf8NoBom $workMarker ($Commit + "`n")
 
