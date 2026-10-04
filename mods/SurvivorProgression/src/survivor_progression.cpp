@@ -3041,7 +3041,7 @@ void show_overview()
     const int normal_owned = owned_count( currency_id::perk );
     const int major_owned = owned_count( currency_id::major );
 
-    std::string out = "Survivor Progression v0.14.0\n";
+    std::string out = "Survivor Progression v0.15.0\n";
     out += tr( "Level ", "Уровень " ) + std::to_string( level );
     out += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
     out += "\nP " + std::to_string( perk_points ) + " | M " + std::to_string( major_points );
@@ -3527,7 +3527,7 @@ void open_progression()
                                 owned_count( currency_id::major );
         const int total_perks = visible_perk_count();
 
-        std::string title = "Survivor Progression v0.14.0";
+        std::string title = "Survivor Progression v0.15.0";
         std::string summary =
             tr( "Level ", "Уровень " ) + std::to_string( level ) +
             " | P " + std::to_string( perk_points ) +
