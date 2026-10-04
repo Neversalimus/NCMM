@@ -513,8 +513,8 @@ $hostVirtual0140=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm
 foreach($uxNeedle0151 in @(
     'return survivor_mana_hand_count() > 0 && loc && loc.held_by( get_avatar() );',
     'This is a two-handed item. It requires both Mana Hands III+IV',
-    'Сначала уберите предмет в инвентарь',
-    'Предмет этого типа нельзя удерживать рукой маны.'
+    'Put the item into your inventory first; a physical and Mana Hand cannot hold the same item simultaneously.',
+    'This item type cannot be held by a Mana Hand.'
 )){
     if(-not $hostVirtual0140.Contains($uxNeedle0151)){
         throw ('Mana Hand discoverability contract missing: '+$uxNeedle0151)
