@@ -4255,7 +4255,6 @@ void sync_dimensional_pouch()
     if( rank == dimensional_pouch_last_rank ) {
         return;
     }
-    dimensional_pouch_last_rank = rank;
 
     avatar &who = get_avatar();
     if( rank <= 0 ) {
@@ -4265,6 +4264,7 @@ void sync_dimensional_pouch()
         for( item &pouch : removed ) {
             pouch.spill_contents( who.pos_bub() );
         }
+        dimensional_pouch_last_rank = 0;
         return;
     }
 
@@ -4279,8 +4279,10 @@ void sync_dimensional_pouch()
                                              false, true, true, true );
         if( !worn.has_value() ) {
             log_line( NCMM_LOG_WARN, "Could not attach the Survivor Dimensional Pouch." );
+            return;
         }
     }
+    dimensional_pouch_last_rank = rank;
 }
 } // namespace
 
