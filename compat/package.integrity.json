@@ -341,8 +341,8 @@
     },
     {
       "path": "README.txt",
-      "sha256": "c0a2de24e7f0fb5a686e2d416c9bfd3ddfcc1c4bfddf9fa0ece787954df90ceb",
-      "bytes": 2031
+      "sha256": "a93ff67201f11bae441fdccc02954f37b09b3b1ff9cad37a7efea3eae6c468f1",
+      "bytes": 2456
     },
     {
       "path": "sdk\\HOST_API_2_CORE_CONTRACT.md",
