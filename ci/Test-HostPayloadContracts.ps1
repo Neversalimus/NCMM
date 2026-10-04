@@ -54,6 +54,24 @@ foreach($n in @('function Apply-NcmmHostApi20Core','#define NCMM_HOST_API_V2_COR
 $sdkCurrent=Get-Content (Join-Path $PackageRoot 'sdk\ncmm_api.h') -Raw
 $hostHeaderCurrent=Get-Content (Join-Path $PackageRoot 'host_patch\ncmm_loader.h') -Raw
 $hostSourceCurrent=Get-Content (Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp') -Raw
+
+# Canonical files embedded in the cumulative payload must stay synchronized with
+# the checked-in sources. This closes the gap where static package checks passed
+# while certification regenerated an older Host or smoke harness.
+$canonicalHostMatch=[regex]::Match($payload,"Write-NcmmCanonicalPayloadFile 'host_patch\\ncmm_loader\.cpp' '([^']+)'")
+if(-not $canonicalHostMatch.Success){throw 'Canonical Host payload entry missing.'}
+$canonicalHostText=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($canonicalHostMatch.Groups[1].Value))
+$hostSourceLf=$hostSourceCurrent.Replace("`r`n","`n").Replace("`r","`n")
+$canonicalHostLf=$canonicalHostText.Replace("`r`n","`n").Replace("`r","`n")
+if($canonicalHostLf -cne $hostSourceLf){throw 'Canonical Host payload is stale versus host_patch/ncmm_loader.cpp.'}
+
+$smokeSourceCurrent=Get-Content (Join-Path $PackageRoot 'tests\smoke_host.cpp') -Raw
+$canonicalSmokeMatch=[regex]::Match($payload,"Write-NcmmCanonicalPayloadFile 'tests\\smoke_host\.cpp' '([^']+)'")
+if(-not $canonicalSmokeMatch.Success){throw 'Canonical smoke_host payload entry missing.'}
+$canonicalSmokeText=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($canonicalSmokeMatch.Groups[1].Value))
+$smokeSourceLf=$smokeSourceCurrent.Replace("`r`n","`n").Replace("`r","`n")
+$canonicalSmokeLf=$canonicalSmokeText.Replace("`r`n","`n").Replace("`r","`n")
+if($canonicalSmokeLf -cne $smokeSourceLf){throw 'Canonical smoke_host payload is stale versus tests/smoke_host.cpp.'}
 foreach($n in @('#define NCMM_HOST_API_V2_CORE_MINOR 3u','NCMM_HOST_API_V2_CORE_SIZE_2_1','NCMM_HOST_API_V2_CORE_SIZE_2_2','NCMM_HOST_API_V2_CORE_SIZE_2_3','NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2','NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2','NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2','virtual_item_choose','virtual_item_clear','virtual_item_name','virtual_item_uid','virtual_item_secondary_melee_enabled','virtual_item_set_secondary_melee','virtual_item_primary_melee_enabled','virtual_item_set_primary_melee')){if(-not $sdkCurrent.Contains($n)){throw "Host API 2.3 SDK virtual-item extension contract missing: $n"}}
 foreach($n in @('character.virtual_items.v1','virtual_item_choose_v2','virtual_item_for_slot_internal','virtual_item_matches_slot( const item &candidate','candidate.uid().get_value() != wanted_uid','virtual_item_candidate_runtime_valid( candidate, stored_flags )','virtual_item_can_assign_internal','virtual_item_assign_internal','item_location mutable_loc = loc;','item *selected = mutable_loc.get_item();','virtual_item_can_assign( const char *module_id','virtual_item_assign( const char *module_id','virtual_item_clear( const char *module_id','release_virtual_item( item &it )','virtual_item_secondary_melee_key = "ncmm_virtual_secondary_melee"','virtual_item_secondary_melee_enabled( const item &it )','virtual_item_set_secondary_melee( item &it, bool enabled )','virtual_item_secondary_melee_enabled_v2( const char *module_id, const char *slot_id )','virtual_item_set_secondary_melee_v2( const char *module_id, const char *slot_id,','!bound->is_melee() || bound->is_gun()','&virtual_item_secondary_melee_enabled_v2','&virtual_item_set_secondary_melee_v2','virtual_item_primary_melee_enabled_v2( const char *module_id, const char *slot_id )','virtual_item_set_primary_melee_v2( const char *module_id, const char *slot_id,','&virtual_item_primary_melee_enabled_v2','&virtual_item_set_primary_melee_v2','virtual_melee_context_begin( Character &who, item &weapon,','virtual_melee_context_end( Character &who )','virtual_melee_context_suppresses_martial_arts( const Character &who )','virtual_melee_context_is_wielding( const Character &who, const item &it )','virtual_item_primary_melee_key = "ncmm_virtual_primary_melee"','virtual_item_primary_melee_enabled( const item &it )','virtual_item_set_primary_melee( item &it, bool enabled )','const bool candidate_two_handed = candidate.is_two_handed( you );','NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2','NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2','virtual_item_marker_key = "ncmm_virtual_slot"','existing_marker.rfind( module_prefix, 0 ) != 0','virtual_item_for_slot_internal( module_id.c_str(), slot_id.c_str() ) == &it')){if(-not $hostSourceCurrent.Contains($n)){throw "Host API 2.1 Host virtual-item extension contract missing: $n"}}
 foreach($n in @(
