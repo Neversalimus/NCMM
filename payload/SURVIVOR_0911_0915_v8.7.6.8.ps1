@@ -24685,23 +24685,6 @@ int64_t award_branch_xp( branch_id branch, int64_t raw_gained )
     Write-Utf8NoBom $spPath $spBalance
     Copy-Item $spPath (Join-Path $NcmmRoot 'mods\SurvivorProgression\src\survivor_progression.cpp') -Force
 
-    $contractsBalancePath = Join-Path $NcmmRoot 'compat\contracts.json'
-    if(Test-Path $contractsBalancePath -PathType Leaf) {
-        $contractsBalance = Normalize-Lf ([IO.File]::ReadAllText($contractsBalancePath))
-        if(-not $contractsBalance.Contains('void Character::complete_craft( item &craft, const std::optional<tripoint_bub_ms> &loc )')) {
-            $contractCraftOld0140 = @'
-            "float Character::item_destruction_chance( const recipe &making ) const"
-'@
-            $contractCraftNew0140 = @'
-            "float Character::item_destruction_chance( const recipe &making ) const",
-            "void Character::complete_craft( item &craft, const std::optional<tripoint_bub_ms> &loc )",
-            "eoc->activate_activation_only( d, \"a recipe\", \"crafting\", \"recipe\" );"
-'@
-            $contractsBalance = Replace-TextBlock $contractsBalance $contractCraftOld0140 $contractCraftNew0140 'craft-completion source contracts'
-            Write-Utf8NoBom $contractsBalancePath $contractsBalance
-        }
-    }
-
     foreach($needle0140balance in @(
         'void gameplay_metric_record_completed_craft( const Character &who );',
         'void gameplay_metric_record_completed_craft( const Character &who )',
