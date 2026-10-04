@@ -292,6 +292,7 @@ const perk_def perks[] = {
     { "mg_efficient_theory", branch_id::mastery, 7, 30, currency_id::perk, "mg_mana_mastery", "mg_ritual_craft", "Efficient Theory", "Эффективная теория", "Spell cost -5%, spell XP +8%.", "Стоимость -5%, опыт заклинаний +8%.", {{ { "mg_spell_cost_pct", -5 }, { "mg_spell_xp_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "mg_combat_weave", branch_id::mastery, 7, 30, currency_id::perk, "mg_ritual_craft", "mg_high_thaumaturgy", "Combat Weave", "Боевое плетение", "Casting time -5%, spell potency +8%.", "Время сотворения -5%, мощность +8%.", {{ { "mg_cast_time_pct", -5 }, { "mg_spell_power_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
     { "mg_resonant_reserve", branch_id::mastery, 7, 30, currency_id::perk, "mg_mana_mastery", "mg_high_thaumaturgy", "Resonant Reserve", "Резонансный резерв", "Maximum mana +10%, spell duration +8%.", "Максимум маны +10%, длительность +8%.", {{ { "mg_mana_max_pct", 10 }, { "mg_duration_pct", 8 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
+    { "mg_dimensional_pouch", branch_id::mastery, 8, 35, currency_id::perk, "mg_resonant_reserve", "", "Dimensional Pouch", "Пространственный карман", "Magiclysm: manifest a personal extradimensional storage pocket. Rank 1: 5 L / 120 cm; rank 2: 10 L / 120 cm; rank 3: 20 L / 150 cm; rank 4: 50 L / 150 cm; rank 5: 120 L / 200 cm. Contents keep their normal weight.", "Magiclysm: создаёт личный внепространственный карман. Ранг 1: 5 л / 120 см; ранг 2: 10 л / 120 см; ранг 3: 20 л / 150 см; ранг 4: 50 л / 150 см; ранг 5: 120 л / 200 см. Содержимое сохраняет обычный вес.", {{ { "mg_dimensional_pouch_rank", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "mg_archmage", branch_id::mastery, 8, 40, currency_id::major, "mg_efficient_theory", "mg_combat_weave", "Archmage", "Архимаг", "+0.75 Spellcraft, -5% failure, +8% potency, +8% spell XP.", "+0,75 Spellcraft, -5% провала, +8% мощности, +8% опыта заклинаний.", {{ { "mg_spellcraft_flat", 0.75 }, { "mg_fail_pct", -5 }, { "mg_spell_power_pct", 8 }, { "mg_spell_xp_pct", 8 } }}, 4, 0, perk_kind::effect },
     { "mg_mana_vampirism", branch_id::mastery, 9, 40, currency_id::perk, "mg_archmage", "", "Mana Vampirism", "Вампиризм маны", "Magiclysm: restore mana equal to 1% of actual melee damage dealt per rank (1-5%).", "Magiclysm: восстанавливает ману в размере 1% от фактически нанесённого урона в ближнем бою за ранг (1-5%).", {{ { "mg_melee_mana_vamp_pct", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "mg_mana_hand_3", branch_id::mastery, 9, 42, currency_id::perk, "mg_archmage", "", "Third Mana Hand", "Третья рука маны", "Magiclysm: manifest one unencumbered virtual hand. It can hold one real carried item without moving or duplicating it; shields can block and a magic focus counts as held. An empty mana hand can perform somatic casting while physical hands are occupied.", "Magiclysm: создаёт одну свободную от стеснения виртуальную руку. Она может удерживать один реальный предмет персонажа без перемещения и копирования; щит может блокировать, а магический фокус считается удерживаемым. Пустая рука маны может выполнять соматику, когда физические руки заняты.", {{ { "mg_virtual_hand_count", 1 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
@@ -652,6 +653,7 @@ const ranked_perk_rule *ranked_perk_rule_for( const perk_def &perk )
         { "mg_arcane_focus", 5, 0.125 }, { "mg_spellcraft_drills", 5, 0.125 },
         { "mg_mana_sensitivity", 3, 0.25 }, { "mg_mana_regeneration", 3, 0.25 },
         { "mg_mana_vampirism", 5, 1.0 },
+        { "mg_dimensional_pouch", 5, 1.0 },
         { "mom_mental_focus", 5, 0.125 }, { "mom_metaphysical_method", 5, 0.125 },
         { "mom_neural_reserve", 3, 0.25 }, { "mom_channel_discipline", 3, 0.25 },
         { "xe_anomaly_method", 5, 0.125 }, { "xe_gramarye_studies", 5, 0.125 },
@@ -784,6 +786,7 @@ integration_id perk_integration( const perk_def &perk )
         { "mg_resonant_reserve", integration_id::magiclysm },
         { "mg_archmage", integration_id::magiclysm },
         { "mg_mana_vampirism", integration_id::magiclysm },
+        { "mg_dimensional_pouch", integration_id::magiclysm },
         { "mg_mana_hand_3", integration_id::magiclysm },
         { "mg_mana_hand_4", integration_id::magiclysm },
         { "mom_mental_focus", integration_id::mindovermatter },
@@ -1593,6 +1596,7 @@ std::string effect_label( const std::string &id )
     if( id == "mg_mana_max_pct" ) return tr( "Maximum mana %", "Максимум маны %" );
     if( id == "mg_mana_regen_pct" ) return tr( "Mana regeneration %", "Регенерация маны %" );
     if( id == "mg_melee_mana_vamp_pct" ) return tr( "Melee mana vampirism %", "Вампиризм маны в ближнем бою %" );
+    if( id == "mg_dimensional_pouch_rank" ) return tr( "Dimensional Pouch rank", "Ранг пространственного кармана" );
     if( id == "mg_virtual_hand_count" ) return tr( "Virtual mana hands", "Виртуальные руки маны" );
     if( id == "mom_metaphysics_flat" ) return "MoM channeling Metaphysics";
     if( id == "xe_deduction_flat" ) return "Xedra Deduction";
@@ -3037,7 +3041,7 @@ void show_overview()
     const int normal_owned = owned_count( currency_id::perk );
     const int major_owned = owned_count( currency_id::major );
 
-    std::string out = "Survivor Progression v0.14.0\n";
+    std::string out = "Survivor Progression v0.15.0\n";
     out += tr( "Level ", "Уровень " ) + std::to_string( level );
     out += " | XP " + std::to_string( xp ) + "/" + std::to_string( xp_to_next( level ) );
     out += "\nP " + std::to_string( perk_points ) + " | M " + std::to_string( major_points );
@@ -3523,7 +3527,7 @@ void open_progression()
                                 owned_count( currency_id::major );
         const int total_perks = visible_perk_count();
 
-        std::string title = "Survivor Progression v0.14.0";
+        std::string title = "Survivor Progression v0.15.0";
         std::string summary =
             tr( "Level ", "Уровень " ) + std::to_string( level ) +
             " | P " + std::to_string( perk_points ) +
@@ -3943,7 +3947,7 @@ bool configure_host_api2_runtime_hooks()
 {
     if( host2 == nullptr || !host2->modifier_define || !host2->runtime_hook_bind_modifier ) return false;
     const char *dynamic_modifiers[] = {
-        "mg_spell_cost_pct","mg_cast_time_pct","mg_fail_pct","mg_spell_xp_pct","mg_spell_power_pct","mg_range_pct","mg_aoe_pct","mg_duration_pct","mg_mana_max_pct","mg_mana_regen_pct","mg_spellcraft_flat","mg_melee_mana_vamp_pct","mg_virtual_hand_count",
+        "mg_spell_cost_pct","mg_cast_time_pct","mg_fail_pct","mg_spell_xp_pct","mg_spell_power_pct","mg_range_pct","mg_aoe_pct","mg_duration_pct","mg_mana_max_pct","mg_mana_regen_pct","mg_spellcraft_flat","mg_melee_mana_vamp_pct","mg_dimensional_pouch_rank","mg_virtual_hand_count",
         "mom_spell_cost_pct","mom_cast_time_pct","mom_fail_pct","mom_spell_xp_pct","mom_spell_power_pct","mom_range_pct","mom_aoe_pct","mom_duration_pct","mom_metaphysics_flat",
         "xe_spell_cost_pct","xe_cast_time_pct","xe_fail_pct","xe_spell_xp_pct","xe_spell_power_pct","xe_range_pct","xe_aoe_pct","xe_duration_pct","xe_mana_max_pct","xe_mana_regen_pct","xe_deduction_flat","xe_gramarye_flat",
         "af_spell_cost_pct","af_cast_time_pct","af_fail_pct","af_spell_xp_pct","af_spell_power_pct","af_range_pct","af_aoe_pct","af_duration_pct","af_metaphysics_flat","af_smartgun_flat",
@@ -4076,7 +4080,7 @@ int init( const ncmm_host_api_v1 *api )
     }
     last_stat_power_pct = progression_stat_power_pct();
     api->log( NCMM_LOG_INFO,
-              "Survivor Progression 0.14.0 initialized: branch bars / exclusive specializations / conditional deep mod integrations." );
+              "Survivor Progression 0.15.0 initialized: branch bars / exclusive specializations / conditional deep mod integrations." );
     return 1;
 }
 
@@ -4097,7 +4101,7 @@ const ncmm_mod_descriptor_v1 descriptor = {
     NCMM_ABI_VERSION,
     module_id,
     "Survivor Progression",
-    "0.14.0",
+    "0.15.0",
     required_caps,
     sizeof( required_caps ) / sizeof( required_caps[0] ),
     &init,

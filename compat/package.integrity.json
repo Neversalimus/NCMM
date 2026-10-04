@@ -66,8 +66,8 @@
     },
     {
       "path": "ci\\Test-HostPayloadContracts.ps1",
-      "sha256": "0e5941e6ef5e68a695cd6665fd0fdc3811a13c9e59f95f7f5c6c3854f0c4d5ed",
-      "bytes": 29638
+      "sha256": "b32b698ef4d4abcbfdf2e1d27a343a264c375aa7b45453ad774f0a730e112dba",
+      "bytes": 29814
     },
     {
       "path": "ci\\Test-Infrastructure0821.ps1",
@@ -86,8 +86,8 @@
     },
     {
       "path": "ci\\Test-SurvivorPayloadContracts.ps1",
-      "sha256": "d14736fe9d37f4a33039a1c49dd8ce02628134722b23bd0a0148a251f73f0bd5",
-      "bytes": 80585
+      "sha256": "5c3ccb511ffffd1c290161f68d5cff2afe9ebe5bc1240023340236e445a604fe",
+      "bytes": 83437
     },
     {
       "path": "ci\\Watch-CDDAExperimental.ps1",
@@ -96,8 +96,8 @@
     },
     {
       "path": "compat\\compatibility.manifest.json",
-      "sha256": "45c04fb9ccb5d1424f308c55705e671a7dfb5f1c77671a629ff898c84e89d690",
-      "bytes": 7610
+      "sha256": "9d1004b5e69b29fbdc5a259a1ce6217ee0bcdeee4c8e871f37311674559311d3",
+      "bytes": 7656
     },
     {
       "path": "compat\\contracts.json",
@@ -121,7 +121,7 @@
     },
     {
       "path": "compat\\update\\index.json",
-      "sha256": "5b543dbeb355cd8d52bb26c498f3bd3d9ed6a8eff3bb252befcce4d1c3011248",
+      "sha256": "153f08f66f84843fdf1262acb9e6478baca742d69089493755a3f762c94b7498",
       "bytes": 1032
     },
     {
@@ -136,7 +136,7 @@
     },
     {
       "path": "components\\index.json",
-      "sha256": "7b309f634795497394f79fc88817e078aa6c1c45eea2d884581ba72847790a95",
+      "sha256": "c9d5f8029839167b67c8f06c3aaa6b3894a9b76c5a541c7be28a372e49f41039",
       "bytes": 6240
     },
     {
@@ -166,7 +166,7 @@
     },
     {
       "path": "components\\survivor_progression.json",
-      "sha256": "e04b6686de96b4f6979f4057aa9b581b86d126c0f57ff3a3f9d5c7833bbef6ed",
+      "sha256": "d89a63d3779b3472d19f7e24e616137b84587db94f6f221ded6cf3af6d9d6846",
       "bytes": 870
     },
     {
@@ -331,8 +331,8 @@
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-      "sha256": "a506b7e419ff07f6f5f3e43c4816029ed8a55d1cfa478d6bb72bf81f695a6e34",
-      "bytes": 2595139
+      "sha256": "67e0904576bbac275351c9f212e6300886b432e1406219921d103af33f810a0f",
+      "bytes": 2619107
     },
     {
       "path": "pipeline\\pipeline.manifest.json",
@@ -341,8 +341,8 @@
     },
     {
       "path": "README.txt",
-      "sha256": "a93ff67201f11bae441fdccc02954f37b09b3b1ff9cad37a7efea3eae6c468f1",
-      "bytes": 2456
+      "sha256": "a850a1ce7a5cd050597db497cb73da908da54cd5e67e1428c28447bae3290d0c",
+      "bytes": 2612
     },
     {
       "path": "sdk\\HOST_API_2_CORE_CONTRACT.md",

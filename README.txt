@@ -2,7 +2,7 @@ NCMM 0.8.2 / Infrastructure 0.8.3.1
 ========================================
 
 Current bundled modules:
-  Survivor Progression 0.14.0
+  Survivor Progression 0.15.0
   Advanced World Settings 0.6.4
   Ballistic Hit Chance 0.1.0
   Equipment Body Map 0.1.0
@@ -32,6 +32,8 @@ CURRENT UI
 NCMM Mod Configuration uses a two-pane module manager.
 Survivor Progression opens on F1 by default and exposes live XP/stat-perk
 balance settings through the manager.
+Magiclysm progression includes Mana Hands III/IV and the five-rank level-35
+Dimensional Pouch (5/10/20/50/120 L, max item length 120/120/150/150/200 cm).
 Advanced World Settings exposes NEW_MAP / NEW_WORLD controls through CDDA's
 world-options UI, including world creation.
 Equipment Body Map adds live worn-item coverage to the normal inventory.

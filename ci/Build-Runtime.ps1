@@ -68,6 +68,14 @@ function New-NcmmModuleArchive {
     foreach($about in Get-ChildItem $source -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
         Copy-Item $about.FullName (Join-Path $moduleDest $about.Name) -Force
     }
+    $dataSource = Join-Path $source 'data'
+    if (Test-Path $dataSource -PathType Container) {
+        Copy-Item $dataSource (Join-Path $moduleDest 'data') -Recurse -Force
+    }
+    $persistentDataSource = Join-Path $source 'persistent_data'
+    if (Test-Path $persistentDataSource -PathType Container) {
+        Copy-Item $persistentDataSource (Join-Path $moduleDest 'persistent_data') -Recurse -Force
+    }
     $descriptor = Join-Path $RepositoryRoot ('components\' + $ComponentId + '.json')
     Copy-Item $descriptor (Join-Path $stage 'component.json') -Force
 
@@ -312,6 +320,17 @@ Copy-Item (Join-Path $RepositoryRoot 'mods\SurvivorProgression\mod.json') (Join-
 foreach($about in Get-ChildItem (Join-Path $RepositoryRoot 'mods\SurvivorProgression') -Filter 'about.*.txt' -File -ErrorAction SilentlyContinue){
     Copy-Item $about.FullName (Join-Path (Join-Path $payload 'code_mods\SurvivorProgression') $about.Name) -Force
 }
+$survivorData = Join-Path $RepositoryRoot 'mods\SurvivorProgression\data'
+if (Test-Path $survivorData -PathType Container) {
+    Copy-Item $survivorData (Join-Path $payload 'code_mods\SurvivorProgression\data') -Recurse -Force
+}
+$survivorPersistentData = Join-Path $RepositoryRoot 'mods\SurvivorProgression\persistent_data'
+if (Test-Path $survivorPersistentData -PathType Container) {
+    Copy-Item $survivorPersistentData (Join-Path $payload 'code_mods\SurvivorProgression\persistent_data') -Recurse -Force
+}
+if (-not (Test-Path (Join-Path $payload 'code_mods\SurvivorProgression\persistent_data\dimensional_pouch.json') -PathType Leaf)) {
+    throw 'Survivor Progression persistent Dimensional Pouch data was not packaged.'
+}
 
 # Exercise the same production SetupCore used by NCMM_Setup.exe against isolated
 # synthetic CDDA installations. The real-install workflow immediately exercises SetupCore
@@ -379,6 +398,10 @@ foreach ($requiredLoaderFragment in @(
     'runtime_smoke_requested',
     'gameplay_smoke_requested',
     'run_gameplay_smoke',
+    'load_module_data',
+    'sync_dimensional_pouch',
+    'mg_dimensional_pouch_rank',
+    'ncmm_survivor_dimensional_pouch',
     '--ncmm-runtime-smoke',
     '--ncmm-gameplay-smoke',
     'NCMM runtime smoke reached Host ready state'
