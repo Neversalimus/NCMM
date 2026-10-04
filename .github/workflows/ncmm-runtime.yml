@@ -2,6 +2,12 @@ name: NCMM Runtime
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish release assets after a verified Real Installation Matrix pass'
+        required: false
+        type: boolean
+        default: false
   push:
     paths:
       - 'runtime/**'
@@ -198,7 +204,7 @@ jobs:
           }
 
       - name: Publish runtime release
-        if: github.ref == 'refs/heads/main' && steps.host_feed.outputs.ready == 'true'
+        if: github.ref == 'refs/heads/main' && steps.host_feed.outputs.ready == 'true' && github.event_name == 'workflow_dispatch' && inputs.publish == true
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
@@ -218,7 +224,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload full/runtime/module packages.' }
 
       - name: Publish Advanced World Settings release
-        if: github.ref == 'refs/heads/main' && steps.host_feed.outputs.ready == 'true'
+        if: github.ref == 'refs/heads/main' && steps.host_feed.outputs.ready == 'true' && github.event_name == 'workflow_dispatch' && inputs.publish == true
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
@@ -237,7 +243,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload AWS module package.' }
 
       - name: Publish Survivor Progression release
-        if: github.ref == 'refs/heads/main' && steps.host_feed.outputs.ready == 'true'
+        if: github.ref == 'refs/heads/main' && steps.host_feed.outputs.ready == 'true' && github.event_name == 'workflow_dispatch' && inputs.publish == true
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
