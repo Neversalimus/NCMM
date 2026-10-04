@@ -81,7 +81,7 @@
     "optional_modules": [
       {
         "id": "survivor_progression",
-        "version": "0.14.0"
+        "version": "0.15.0"
       },
       {
         "id": "advanced_world_settings",
@@ -167,7 +167,7 @@
       "runtime_setting_binding_registry",
       "worldgen_binding_registry"
     ],
-    "module_migration_status": "Survivor 0.14.0 uses Host API 2.3 logical virtual-item behavior controls plus the existing generic runtime hooks; AWS 0.6.4, Ballistic Hit Chance 0.1.0, and Equipment Body Map 0.1.0 remain on the compatible Host API 2.x prefix.",
+    "module_migration_status": "Survivor 0.15.0 uses Host API 2.3 logical virtual-item behavior controls, the integrated Dimensional Pouch data bridge, and the existing generic runtime hooks; AWS 0.6.4, Ballistic Hit Chance 0.1.0, and Equipment Body Map 0.1.0 remain on the compatible Host API 2.x prefix.",
     "survivor_migration": "runtime_hook_registry_v2 + character.virtual_items.v1 + dynamic_modifier_ownership; virtual slots keep real CDDA items in the vanilla item graph, bind them by marker + persistent UID, and expose additive secondary/primary melee behavior controls through Host API 2.2/2.3 tails.",
     "aws_migration": "typed_world_settings_v2 + scope-aware worldgen_binding_registry_v2; final patched CDDA geography sources contain no NCMM_AWS_* identifiers; disabled AWS scopes inherit region_settings/region-overlay values.",
     "ballistic_hit_chance": "runtime_setting_binding_registry_v2 + generic targeting.hit_probability hooks; module-specific NCMM_BHC_* identifiers remain module-owned and do not leak into patched CDDA source",
