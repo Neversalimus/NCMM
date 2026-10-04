@@ -7,6 +7,7 @@ $src = Join-Path $SourceRoot 'src'
 $optionsH = Join-Path $src 'options.h'
 $optionsCpp = Join-Path $src 'options.cpp'
 $sdl = Join-Path $src 'sdltiles.cpp'
+$gameIoCpp = Join-Path $src 'game_io.cpp'
 $mainMenu = Join-Path $src 'main_menu.cpp'
 $doTurn = Join-Path $src 'do_turn.cpp'
 $inputH = Join-Path $src 'input.h'
@@ -27,7 +28,7 @@ $gameInventoryCpp = Join-Path $src 'game_inventory.cpp'
 $advancedInvCpp = Join-Path $src 'advanced_inv.cpp'
 $marker = Join-Path $SourceRoot '.ncmm_host_v1_patched'
 
-foreach ($f in @($optionsH,$optionsCpp,$sdl,$mainMenu,$doTurn,$inputH,$inputCpp,$handleAction,
+foreach ($f in @($optionsH,$optionsCpp,$sdl,$gameIoCpp,$mainMenu,$doTurn,$inputH,$inputCpp,$handleAction,
                   $characterCpp,$playerDisplayCpp,$characterHealthCpp,$meleeCpp,$knowledgeCpp,$craftingCpp,
                   $rangedCpp,$dispersionH,$dispersionCpp,$inventoryUiH,$inventoryUiCpp,
                   $gameInventoryCpp,$advancedInvCpp)) {
@@ -109,6 +110,7 @@ if (Test-Path $marker) {
     $h = Read-Utf8 $optionsH
     $c = Read-Utf8 $optionsCpp
     $sd = Read-Utf8 $sdl
+    $gio = Read-Utf8 $gameIoCpp
     $mm = Read-Utf8 $mainMenu
     $dt = Read-Utf8 $doTurn
     $ih = Read-Utf8 $inputH
@@ -138,6 +140,8 @@ if (Test-Path $marker) {
         @($c,'options_manager::ncmm_begin_worldgen_group'),
         @($c,'options_manager::ncmm_set_worldgen_string_choices'),
         @($sd,'ncmm::initialize();'),
+        @($gio,'#include "ncmm_loader.h"'),
+        @($gio,'ncmm::load_module_data();'),
         @($mm,'ncmm::settings_menu_label()'),
         @($mm,'ncmm::version_label()'),
         @($mm,'ncmm::gameplay_smoke_requested()'),
@@ -224,6 +228,7 @@ $contractScript = Join-Path (Split-Path $PSScriptRoot -Parent) 'ci\Test-SourceCo
 $hOriginal = Read-Utf8 $optionsH
 $cOriginal = Read-Utf8 $optionsCpp
 $sdOriginal = Read-Utf8 $sdl
+$gioOriginal = Read-Utf8 $gameIoCpp
 $mmOriginal = Read-Utf8 $mainMenu
 $dtOriginal = Read-Utf8 $doTurn
 $ihOriginal = Read-Utf8 $inputH
@@ -245,6 +250,7 @@ $aicOriginal = Read-Utf8 $advancedInvCpp
 $hSig = NonAscii-Signature $hOriginal
 $cSig = NonAscii-Signature $cOriginal
 $sdSig = NonAscii-Signature $sdOriginal
+$gioSig = NonAscii-Signature $gioOriginal
 $mmSig = NonAscii-Signature $mmOriginal
 $dtSig = NonAscii-Signature $dtOriginal
 $ihSig = NonAscii-Signature $ihOriginal
@@ -267,6 +273,7 @@ $aicSig = NonAscii-Signature $aicOriginal
 $h = Normalize-Lf $hOriginal
 $c = Normalize-Lf $cOriginal
 $sd = Normalize-Lf $sdOriginal
+$gio = Normalize-Lf $gioOriginal
 $mm = Normalize-Lf $mmOriginal
 $dt = Normalize-Lf $dtOriginal
 $ih = Normalize-Lf $ihOriginal
@@ -288,6 +295,27 @@ $aic = Normalize-Lf $aicOriginal
 
 
 $pd = Patch-PlayerDisplayMoveCost $pd
+
+if (-not $gio.Contains('#include "ncmm_loader.h"')) {
+    $gio = Replace-ExactlyOnce $gio '#include "mod_manager.h"' @'
+#include "mod_manager.h"
+#include "ncmm_loader.h"
+'@ 'module-data.game-io-include'
+}
+if (-not $gio.Contains('ncmm::load_module_data();')) {
+    $gio = Replace-ExactlyOnce $gio @'
+    load_mod_interaction_data_from_dir( PATH_INFO::world_base_save_path() / "mods" /
+                                        "mod_interactions", "custom" );
+
+    DynamicDataLoader::get_instance().finalize_loaded_data();
+'@ @'
+    load_mod_interaction_data_from_dir( PATH_INFO::world_base_save_path() / "mods" /
+                                        "mod_interactions", "custom" );
+
+    ncmm::load_module_data();
+    DynamicDataLoader::get_instance().finalize_loaded_data();
+'@ 'module-data.load-before-finalize'
+}
 
 # Item Glyphs reuses the existing two-cell symbol slot in both inventory UIs.
 $iuc = Replace-ExactlyOnce $iuc @'
@@ -2069,6 +2097,7 @@ $cr = Replace-ExactlyOnce $cr @'
 Write-Utf8 $optionsH $h
 Write-Utf8 $optionsCpp $c
 Write-Utf8 $sdl $sd
+Write-Utf8 $gameIoCpp $gio
 Write-Utf8 $mainMenu $mm
 Write-Utf8 $doTurn $dt
 Write-Utf8 $inputH $ih
@@ -2098,6 +2127,7 @@ Copy-Item (Join-Path (Split-Path $PSScriptRoot -Parent) 'sdk\ncmm_api.h') (Join-
 $h2 = Read-Utf8 $optionsH
 $c2 = Read-Utf8 $optionsCpp
 $sd2 = Read-Utf8 $sdl
+$gio2 = Read-Utf8 $gameIoCpp
 $mm2 = Read-Utf8 $mainMenu
 $dt2 = Read-Utf8 $doTurn
 $ih2 = Read-Utf8 $inputH
@@ -2120,6 +2150,7 @@ $aic2 = Read-Utf8 $advancedInvCpp
 if ((NonAscii-Signature $h2) -ne $hSig) { throw 'UTF-8 preservation check failed for options.h' }
 if ((NonAscii-Signature $c2) -ne $cSig) { throw 'UTF-8 preservation check failed for options.cpp' }
 if ((NonAscii-Signature $sd2) -ne $sdSig) { throw 'UTF-8 preservation check failed for sdltiles.cpp' }
+if ((NonAscii-Signature $gio2) -ne $gioSig) { throw 'UTF-8 preservation check failed for game_io.cpp' }
 if ((NonAscii-Signature $mm2) -ne $mmSig) { throw 'UTF-8 preservation check failed for main_menu.cpp' }
 if ((NonAscii-Signature $dt2) -ne $dtSig) { throw 'UTF-8 preservation check failed for do_turn.cpp' }
 if ((NonAscii-Signature $ih2) -ne $ihSig) { throw 'UTF-8 preservation check failed for input.h' }
@@ -2146,6 +2177,9 @@ foreach ($needle in @('case COPT_WORLDGEN_ONLY:','is_hidden( world_options_only 
     if (-not $c2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
 if (-not $sd2.Contains('ncmm::initialize();')) { throw 'Post-check failed: ncmm::initialize' }
+foreach ($needle in @('#include "ncmm_loader.h"','ncmm::load_module_data();')) {
+    if (-not $gio2.Contains($needle)) { throw "Post-check failed in game_io.cpp: $needle" }
+}
 foreach ($needle in @('ncmm::settings_menu_label()','ncmm::show_manager();','ncmm::on_language_changed();','ncmm::register_gameplay_actions( ctxt_default );')) {
     if (-not $mm2.Contains($needle)) { throw "Post-check failed: $needle" }
 }
