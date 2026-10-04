@@ -331,6 +331,9 @@ if (Test-Path $survivorPersistentData -PathType Container) {
 if (-not (Test-Path (Join-Path $payload 'code_mods\SurvivorProgression\persistent_data\dimensional_pouch.json') -PathType Leaf)) {
     throw 'Survivor Progression persistent Dimensional Pouch data was not packaged.'
 }
+if (-not (Test-Path (Join-Path $payload 'code_mods\SurvivorProgression\persistent_data\mana_hand_carrier.json') -PathType Leaf)) {
+    throw 'Survivor Progression persistent Mana Hand carrier data was not packaged.'
+}
 
 # Exercise the same production SetupCore used by NCMM_Setup.exe against isolated
 # synthetic CDDA installations. The real-install workflow immediately exercises SetupCore

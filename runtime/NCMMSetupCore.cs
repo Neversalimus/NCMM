@@ -712,10 +712,13 @@ internal static partial class SetupCore
             {
                 Directory.CreateDirectory(destination);
                 AssertSafeModuleDestination(destination, module.Manifest.id);
-                File.Copy(Path.Combine(module.SourceDirectory, "ncmm_mod.dll"),
-                    Path.Combine(destination, "ncmm_mod.dll"), true);
-                File.Copy(Path.Combine(module.SourceDirectory, "mod.json"),
-                    Path.Combine(destination, "mod.json"), true);
+
+                // A native module is a directory payload, not just a DLL + manifest.
+                // Survivor, for example, ships data/ and persistent_data/ definitions
+                // that must be present before Host module-data loading/finalization.
+                // Copy the complete packaged module tree while preserving unrelated
+                // user-created files already present in the destination.
+                CopyDirectoryTree(module.SourceDirectory, destination);
                 installedIds.Add(module.Manifest.id);
                 componentState.Add(new SetupInstalledComponent {
                     id = module.Manifest.id,
