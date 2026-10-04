@@ -72,6 +72,19 @@ if($hostSourceCurrent.Contains('case event_type::character_finished_activity:'))
     throw 'Ambiguous canceled activity craft metric path returned.'
 }
 
+# Runtime event routing and hook lookup are gameplay hot paths. Keep event delivery
+# subscription-specific and index hook rules by hook id instead of scanning the
+# full registry on every combat/spell query.
+foreach($n in @(
+    's.event_id != event_id',
+    'runtime_hook_rule_indices_v2',
+    'runtime_hook_rule_indices_v2[hook_id].push_back( runtime_hook_rules_v2.size() - 1 );',
+    'const auto hook_it = runtime_hook_rule_indices_v2.find( hook_id );',
+    'for( const size_t index : hook_it->second )'
+)){
+    if(-not $hostSourceCurrent.Contains($n)){throw ('Runtime hot-path optimization contract missing: '+$n)}
+}
+
 foreach($n in @(
     'size_t mana_hands_check_count = 0;',
     'mana_hands_checks',
