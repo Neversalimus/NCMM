@@ -1173,11 +1173,12 @@ bool restore_mana_hand_carrier_item( item_location loc )
 
     avatar &you = get_avatar();
     item *stored = loc.get_item();
-    if( !you.is_armed() && stored != nullptr && you.wield( *stored, 0 ) ) {
-        // Wielding by item reference avoids item_location::obtain_cost(), which
-        // intentionally treats zero-cost internal pockets as suspicious.  i_rem()
-        // removes the real item from the carrier and the normal wield path fires
-        // on_wield/events and refreshes its relocation UID.
+    if( !you.is_armed() && stored != nullptr && you.Character::wield( *stored, 0 ) ) {
+        // Call Character::wield(item&, obtain_cost) explicitly: avatar's overload set
+        // hides the base overload that accepts an obtain-cost override. This removes
+        // the real item through Character::i_rem without asking the forbidden internal
+        // pocket for item_location::obtain_cost(), while keeping normal wield hooks,
+        // events and relocation UID refresh.
         you.invalidate_inventory_validity_cache();
         you.invalidate_weight_carried_cache();
         return true;

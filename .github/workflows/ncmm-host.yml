@@ -441,23 +441,36 @@ jobs:
           fi
 
           current_feed_version=$(jq -r '.runtime_version // ""' "$index")
-          if [ "$current_feed_version" != "$NCMM_VERSION" ]; then
-            echo "Transactional cutover: current feed is $current_feed_version; every required seed must certify before $NCMM_VERSION replaces it."
-            while IFS= read -r seed; do
-              [ -z "$seed" ] && continue
-              seed_ok=0
-              while IFS= read -r meta; do
-                if [ "$(jq -r '.upstream_tag' "$meta")" = "$seed" ]; then
-                  seed_ok=1
-                  break
-                fi
-              done < <(find results -type f -name host.json)
-              if [ "$seed_ok" -ne 1 ]; then
-                echo "Required seed host $seed did not certify; preserving existing $current_feed_version feed." >&2
-                exit 1
-              fi
-            done < <(sed '/^[[:space:]]*$/d' ci/seed-hosts.txt)
+          if [ ! -d results ]; then
+            echo "No certification result artifacts were downloaded; preserving the existing feed." >&2
+            exit 1
           fi
+
+          certified_result_count=$(find results -type f -name host.json | wc -l | tr -d '[:space:]')
+          if [ "$certified_result_count" -eq 0 ]; then
+            echo "No certified Host artifacts were produced; preserving the existing feed." >&2
+            exit 1
+          fi
+
+          if [ "$current_feed_version" != "$NCMM_VERSION" ]; then
+            echo "Transactional runtime-version cutover: current feed is $current_feed_version; every required seed must certify before $NCMM_VERSION replaces it."
+          else
+            echo "Transactional patch-revision cutover for NCMM $NCMM_VERSION: every required seed must certify before the feed revision changes."
+          fi
+          while IFS= read -r seed; do
+            [ -z "$seed" ] && continue
+            seed_ok=0
+            while IFS= read -r meta; do
+              if [ "$(jq -r '.upstream_tag' "$meta")" = "$seed" ]; then
+                seed_ok=1
+                break
+              fi
+            done < <(find results -type f -name host.json)
+            if [ "$seed_ok" -ne 1 ]; then
+              echo "Required seed host $seed did not certify; preserving the existing feed unchanged." >&2
+              exit 1
+            fi
+          done < <(sed '/^[[:space:]]*$/d' ci/seed-hosts.txt)
 
           jq --arg rev "$PATCH_REVISION" --arg ver "$NCMM_VERSION" \
              '.schema=1 | .loader_api=1 | .runtime_version=$ver | .patch_revision=$rev |
