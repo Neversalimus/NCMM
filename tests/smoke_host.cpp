@@ -1372,6 +1372,9 @@ bool survivor_semantic_matrix( void *lib )
         "stamina_max_pct", "carry_weight_pct", "dodge_flat", "melee_hit_flat",
         "healing_pct", "read_speed_pct", "craft_speed_pct"
     };
+    const std::set<std::string> host_consumed_modifiers = {
+        "mg_dimensional_pouch_rank"
+    };
     std::set<std::string> declared_effect_ids;
     for( size_t i = 0; i < perk_count; ++i ) {
         for( int e = 0; e < effect_count( i ); ++e ) {
@@ -1384,8 +1387,9 @@ bool survivor_semantic_matrix( void *lib )
             std::cerr << "Survivor effect has no Host v2 modifier definition: " << effect << '\n';
             return false;
         }
-        if( runtime_hooks_by_modifier.count( effect ) == 0 ) {
-            std::cerr << "Survivor effect has no consuming runtime hook: " << effect << '\n';
+        if( runtime_hooks_by_modifier.count( effect ) == 0 &&
+            host_consumed_modifiers.count( effect ) == 0 ) {
+            std::cerr << "Survivor effect has no consuming runtime hook or Host consumer: " << effect << '\n';
             return false;
         }
     }
