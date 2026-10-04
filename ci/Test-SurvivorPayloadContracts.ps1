@@ -1330,4 +1330,25 @@ foreach($craftContractNeedle0140 in @(
     'eoc->activate_activation_only( d, "a recipe", "crafting", "recipe" );'
 )){if(-not @($craftContract0140.required) -contains $craftContractNeedle0140){throw ('Craft completion source contract missing: '+$craftContractNeedle0140)}}
 
+# Certification/source-cache hardening: a cached archive is not trusted merely
+# because options.cpp and the VS solution exist.  Mana Hands and other host
+# transforms require the full touched-source sentinel set, and an incomplete
+# cached ZIP gets one forced redownload before certification fails.
+foreach($sourceCacheNeedle in @(
+    'function Get-MissingCddaSourceSentinels([string]$Root)',
+    "'src\\magic.cpp'",
+    "'src\\handle_action.cpp'",
+    'Incomplete CDDA source cache detected; invalidating cached ZIP and retrying exact download once...',
+    'Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue',
+    'Fresh exact CDDA pristine cache failed contamination/source-completeness validation after retry.',
+    'CDDA working source incomplete after pristine sync:'
+)){
+    if(-not $payload.Contains($sourceCacheNeedle)){
+        throw ('CDDA source-cache self-healing regression missing: '+$sourceCacheNeedle)
+    }
+}
+if(([regex]::Matches($payload,[regex]::Escape('Get-MissingCddaSourceSentinels'))).Count -lt 3){
+    throw 'CDDA source-completeness helper is not wired into pristine validation and working-tree validation.'
+}
+
 Write-Host 'NCMM Survivor payload regression contract: PASS' -ForegroundColor Green
