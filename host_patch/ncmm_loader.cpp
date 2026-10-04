@@ -3819,6 +3819,30 @@ item *virtual_item_for_slot( const char *module_id, const char *slot_id )
     return virtual_item_for_slot_internal( module_id, slot_id );
 }
 
+bool virtual_item_matches_slot( const item &candidate, const char *module_id,
+                                const char *slot_id )
+{
+    if( !character_state_available() || !safe_state_token( module_id ) ||
+        !safe_virtual_slot_id( slot_id ) || module_ids.count( module_id ) == 0 ) {
+        return false;
+    }
+
+    const int64_t wanted_uid = virtual_item_state_uid_internal( module_id, slot_id );
+    if( wanted_uid <= 0 || candidate.uid().get_value() != wanted_uid ) {
+        return false;
+    }
+    if( candidate.get_var( virtual_item_marker_key, "" ) !=
+        virtual_item_marker( module_id, slot_id ) ) {
+        return false;
+    }
+
+    const int64_t stored_flags_raw =
+        virtual_item_state_flags_internal( module_id, slot_id );
+    const uint32_t stored_flags = stored_flags_raw >= 0 ?
+                                  static_cast<uint32_t>( stored_flags_raw ) : 0u;
+    return virtual_item_candidate_runtime_valid( candidate, stored_flags );
+}
+
 bool virtual_item_can_assign( const char *module_id, const char *slot_id,
                               const item_location &loc, uint32_t flags )
 {
