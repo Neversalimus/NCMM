@@ -1336,8 +1336,8 @@ foreach($craftContractNeedle0140 in @(
 # cached ZIP gets one forced redownload before certification fails.
 foreach($sourceCacheNeedle in @(
     'function Get-MissingCddaSourceSentinels([string]$Root)',
-    "'src\\magic.cpp'",
-    "'src\\handle_action.cpp'",
+    "'src\magic.cpp'",
+    "'src\handle_action.cpp'",
     'Incomplete CDDA source cache detected; invalidating cached ZIP and retrying exact download once...',
     'Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue',
     'Fresh exact CDDA pristine cache failed contamination/source-completeness validation after retry.',
