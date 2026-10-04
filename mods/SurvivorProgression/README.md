@@ -1,4 +1,4 @@
-# Survivor Progression 0.14.0
+# Survivor Progression 0.15.0
 
 Survivor Progression is an optional NCMM native module that adds persistent character progression, perk trees, mechanical perk effects and conditional integrations with supported world mods.
 
@@ -7,7 +7,7 @@ It requires NCMM Host 0.8.2 and keeps persistent state schema **8**.
 ## Current system
 
 - 30 normal Survivor levels with persistent XP and perk currencies.
-- 372 perk nodes in the current source.
+- 373 perk nodes in the current source.
 - Core branches: Combat, Survival, Mobility, Crafting, Scavenging and Mastery.
 - Additional mod-specific progression is shown only when the matching world mod is active.
 - F1 opens the progression UI by default; the action is remappable through CDDA.
@@ -62,6 +62,20 @@ The 0.12.0 update preserves the 0.11.3 gameplay/perk baseline and adds manager-i
 
 When extending Survivor, prefer a generic Host capability or hook that can serve multiple modules. A new Survivor-specific CDDA source patch should be treated as a design failure unless the engine truly lacks a reusable domain primitive.
 
+
+## 0.15.0 Dimensional Pouch
+
+Magiclysm gains a five-rank **Dimensional Pouch** perk at Survivor level 35, after Resonant Reserve. It manifests one ordinary CDDA integrated container, so inventory movement, pocket rules and save/load stay on the vanilla item system rather than a separate virtual inventory.
+
+| Rank | Capacity | Maximum item length |
+| ---: | ---: | ---: |
+| 1 | 5 L | 120 cm |
+| 2 | 10 L | 120 cm |
+| 3 | 20 L | 150 cm |
+| 4 | 50 L | 150 cm |
+| 5 | 120 L | 200 cm |
+
+Contents keep their normal weight. Changing rank updates the same pocket in place. Removing/resetting the perk removes the integrated pouch; any remaining contents are spilled at the character's position rather than deleted.
 
 ## 0.14.0 Mana Hand virtual slots
 
