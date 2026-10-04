@@ -40,6 +40,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <list>
 #include <map>
 #include <set>
 #include <sstream>
