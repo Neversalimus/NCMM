@@ -815,7 +815,6 @@ foreach($directManaNeedle0151 in @(
     'ncmm::mana_hand_inventory_action_visible( locThisItem )',
     'addentry( ''H'', ncmm::localized_text(',
     '"Mana Hand"',
-    '"Рука маны"',
     "case 'H':",
     'ncmm::mana_hand_inventory_action( locThisItem );'
 )){
