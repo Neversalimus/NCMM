@@ -23894,18 +23894,18 @@ static bool ncmm_target_practice_mana_hand_gun( Character &who, const item *gun 
                                        "magic.virtual_hand_count", nullptr, "magiclysm",
                                        nullptr, nullptr ) ) ) );
     if( hand_count >= 2 &&
-        ncmm::virtual_item_for_slot(
-            "survivor_progression", "mana_hands_34" ) == gun ) {
+        ncmm::virtual_item_matches_slot(
+            *gun, "survivor_progression", "mana_hands_34" ) ) {
         return true;
     }
     if( hand_count >= 1 &&
-        ncmm::virtual_item_for_slot(
-            "survivor_progression", "mana_hand_3" ) == gun ) {
+        ncmm::virtual_item_matches_slot(
+            *gun, "survivor_progression", "mana_hand_3" ) ) {
         return true;
     }
     return hand_count >= 2 &&
-           ncmm::virtual_item_for_slot(
-               "survivor_progression", "mana_hand_4" ) == gun;
+           ncmm::virtual_item_matches_slot(
+               *gun, "survivor_progression", "mana_hand_4" );
 }
 
 bool target_practice_activity_actor::check_character( Character &who )
