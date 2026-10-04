@@ -1,0 +1,30 @@
+[
+  {
+    "id": "ncmm_survivor_dimensional_pouch",
+    "type": "ITEM",
+    "subtypes": [ "ARMOR" ],
+    "category": "armor",
+    "name": { "str_sp": "dimensional pouch" },
+    "description": "A stable extradimensional storage fold anchored to your body by Survivor Progression.  Its visible opening is tiny, but the space beyond it is much larger.  Items stored inside keep their normal weight.",
+    "weight": "0 g",
+    "volume": "1 ml",
+    "longest_side": "1 cm",
+    "price": "0 cent",
+    "price_postapoc": "0 cent",
+    "material": [ "cotton" ],
+    "symbol": "x",
+    "color": "magenta",
+    "flags": [ "INTEGRATED", "UNBREAKABLE", "PERSONAL", "NO_SALVAGE", "ZERO_WEIGHT", "TARDIS" ],
+    "max_worn": 1,
+    "pocket_data": [
+      {
+        "pocket_type": "CONTAINER",
+        "rigid": true,
+        "max_contains_volume": "120 L",
+        "max_item_length": "200 cm",
+        "moves": 120
+      }
+    ],
+    "armor": [ { "covers": [ "torso" ], "coverage": 0, "encumbrance": 0 } ]
+  }
+]
