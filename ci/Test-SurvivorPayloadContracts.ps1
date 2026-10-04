@@ -510,6 +510,16 @@ if(@($contracts0140.contracts|Where-Object{$_.id -eq 'magic_virtual_slots.source
     throw 'Magic virtual-slot source contract missing.'
 }
 $hostVirtual0140=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp'))
+foreach($uxNeedle0151 in @(
+    'return survivor_mana_hand_count() > 0 && loc && loc.held_by( get_avatar() );',
+    'This is a two-handed item. It requires both Mana Hands III+IV',
+    'Сначала уберите предмет в инвентарь',
+    'Предмет этого типа нельзя удерживать рукой маны.'
+)){
+    if(-not $hostVirtual0140.Contains($uxNeedle0151)){
+        throw ('Mana Hand discoverability contract missing: '+$uxNeedle0151)
+    }
+}
 $sdkVirtual0140=[IO.File]::ReadAllText((Join-Path $PackageRoot 'sdk\ncmm_api.h'))
 $survivorVirtual0140=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\src\survivor_progression.cpp'))
 foreach($needle0140 in @(
@@ -607,6 +617,11 @@ foreach($needle0140 in @(
     'ncmm::mana_hand_inventory_action( locThisItem )',
     "case 'H':",
     'Apply-SurvivorVirtualItemContext0140 $CddaRoot',
+    'function Apply-SurvivorVehicleCraftingXp0151',
+    'NCMM Survivor vehicle install Crafting XP',
+    'NCMM Survivor vehicle removal Crafting XP',
+    'ncmm::gameplay_metric_record_completed_craft( you );',
+    'Apply-SurvivorVehicleCraftingXp0151 $CddaRoot',
     'function Apply-SurvivorManaHandSpellcastingAid0140',
     'ncmm_virtual_wield_flags',
     'flag_id( "SPELLCASTING_AID" )',
