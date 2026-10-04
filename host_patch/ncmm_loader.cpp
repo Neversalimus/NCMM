@@ -6105,7 +6105,7 @@ int run_gameplay_smoke()
                 survivor_id, "mana_hands_34" ) != 0 ) {
             return mana_hands_fail( "mana_hands_wield_transfer_release", 151 );
         }
-        if( !get_avatar().wield( item_location() ) ) {
+        if( !get_avatar().unwield() ) {
             return mana_hands_fail( "mana_hands_wield_transfer_cleanup", 152 );
         }
         ++mana_hands_check_count;
