@@ -24582,19 +24582,18 @@ void gameplay_metric_record_completed_craft( const Character &who );
     Write-Utf8NoBom $hostHeaderBalancePath $hostHeaderBalance
 
     $hostLoaderBalance = Normalize-Lf ([IO.File]::ReadAllText($hostLoaderBalancePath))
-    $oldActivityMetric0140 = @'
-                case event_type::character_finished_activity:
-                    if( e.get<character_id>( "character" ) == gameplay_avatar_id &&
-                        !e.get<bool>( "canceled" ) ) {
-                        const std::string activity = e.get<activity_id>( "activity" ).str();
-                        if( activity == "ACT_CRAFT" || activity == "ACT_MULTIPLE_CRAFT" ) {
-                            ++gameplay_metric_values["crafting.completed"];
-                        }
-                    }
-                    break;
-'@
-    if($hostLoaderBalance.Contains($oldActivityMetric0140)) {
-        $hostLoaderBalance = Replace-TextBlock $hostLoaderBalance $oldActivityMetric0140 '' 'remove ambiguous activity craft metric'
+    $activityMetricStart0140 = $hostLoaderBalance.IndexOf('                case event_type::character_finished_activity:')
+    if($activityMetricStart0140 -ge 0) {
+        $activityMetricEnd0140 = $hostLoaderBalance.IndexOf('                case event_type::gains_skill_level:', $activityMetricStart0140)
+        if($activityMetricEnd0140 -le $activityMetricStart0140) {
+            throw 'Could not isolate ambiguous activity craft metric block.'
+        }
+        $hostLoaderBalance = $hostLoaderBalance.Remove(
+            $activityMetricStart0140,
+            $activityMetricEnd0140 - $activityMetricStart0140 )
+    }
+    if($hostLoaderBalance.Contains('case event_type::character_finished_activity:')) {
+        throw 'Ambiguous canceled activity craft metric path survived canonical transform.'
     }
     if(-not $hostLoaderBalance.Contains('void gameplay_metric_record_completed_craft( const Character &who )')) {
         $craftMetricPublicOld0140 = @'
