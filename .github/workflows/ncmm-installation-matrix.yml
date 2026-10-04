@@ -6,7 +6,12 @@ on:
       - main
     paths:
       - 'feed/index.json'
+      - 'runtime/**'
+      - 'mods/**'
+      - 'ci/Build-Runtime.ps1'
+      - 'tests/InstallationMatrixHarness.cs'
       - '.github/workflows/ncmm-installation-matrix.yml'
+      - '.github/workflows/ncmm-runtime.yml'
   workflow_dispatch:
     # Certified Hosts dispatches this explicitly after publishing a ready seed feed.
     inputs:
@@ -19,6 +24,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: ncmm-real-installation-matrix
@@ -345,6 +351,16 @@ jobs:
             -Mode Real `
             -RealPhase PostRuntime `
             -GameRoot '${{ steps.game.outputs.root }}'
+
+      - name: Dispatch verified runtime release
+        if: success() && steps.setup_core.outcome == 'success' && steps.host_ready.outputs.ready == 'true' && steps.runtime_smoke.outcome == 'success' && steps.gameplay_smoke.outcome == 'success' && steps.restore.outcome == 'success'
+        shell: powershell
+        run: |
+          gh workflow run ncmm-runtime.yml --ref main -f publish=true
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not dispatch verified NCMM Runtime release publication.'
+          }
+          Write-Host 'Verified Real Installation Matrix passed; runtime release publication dispatched.' -ForegroundColor Green
 
       - name: Publish real-install evidence
         if: always()
