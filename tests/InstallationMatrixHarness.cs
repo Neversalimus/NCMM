@@ -124,6 +124,19 @@ internal static class InstallationMatrixHarness
         throw new InvalidOperationException("Unknown test module id: " + id);
     }
 
+    private static void AssertPayloadModuleTreeInstalled(string payloadDir, string installedDir, string moduleId)
+    {
+        foreach (string payloadFile in Directory.GetFiles(payloadDir, "*", SearchOption.AllDirectories))
+        {
+            string relative = Relative(payloadDir, payloadFile);
+            string installedFile = Path.Combine(installedDir, relative);
+            AssertTrue(File.Exists(installedFile),
+                       "packaged module file missing after install: " + moduleId + " | " + relative);
+            AssertEqual(Sha256(installedFile), Sha256(payloadFile),
+                        "packaged module file hash mismatch after install: " + moduleId + " | " + relative);
+        }
+    }
+
     private static void AssertInstalled(string root, string payload, string originalVanillaHash,
                                         params string[] expectedModuleIds)
     {
@@ -152,12 +165,7 @@ internal static class InstallationMatrixHarness
                        "module installed-state mismatch: " + id);
             if (expected)
             {
-                AssertEqual(Sha256(Path.Combine(installedDir, "ncmm_mod.dll")),
-                            Sha256(Path.Combine(payloadDir, "ncmm_mod.dll")),
-                            "module DLL hash mismatch: " + id);
-                AssertEqual(Sha256(Path.Combine(installedDir, "mod.json")),
-                            Sha256(Path.Combine(payloadDir, "mod.json")),
-                            "module manifest hash mismatch: " + id);
+                AssertPayloadModuleTreeInstalled(payloadDir, installedDir, id);
             }
         }
 
