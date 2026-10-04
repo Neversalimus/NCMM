@@ -24366,8 +24366,8 @@ void wet_character( Character &target, int amount )
     item_location weapon = target.get_wielded_item();
     if( amount <= 0 || target.has_trait( trait_FEATHERS ) ||
         ( weapon && weapon->has_flag( json_flag_RAIN_PROTECT ) ) ||
-        ncmm_mana_hand_holds_flag( target, json_flag_RAIN_PROTECT ) ||
-        ( !one_in( 50 ) && target.worn_with_flag( json_flag_RAINPROOF ) ) ) {
+        ( !one_in( 50 ) && target.worn_with_flag( json_flag_RAINPROOF ) ) ||
+        ncmm_mana_hand_holds_flag( target, json_flag_RAIN_PROTECT ) ) {
 '@
         $weather0140held = Replace-TextBlock $weather0140held $weatherOld0140held $weatherNew0140held 'Mana Hand rain weather protection'
     }

@@ -1249,6 +1249,12 @@ foreach($heldNeedle0140 in @(
     '"survivor_progression", "mana_hand_3"',
     '"survivor_progression", "mana_hand_4"'
 )){if(-not $manaHeldSection0140.Contains($heldNeedle0140)){throw ('Mana Hand held-utility regression contract missing: '+$heldNeedle0140)}}
+$rainproofGuardPos0140=$manaHeldSection0140.IndexOf('( !one_in( 50 ) && target.worn_with_flag( json_flag_RAINPROOF ) )')
+$virtualUmbrellaPos0140=$manaHeldSection0140.IndexOf('ncmm_mana_hand_holds_flag( target, json_flag_RAIN_PROTECT )')
+if($rainproofGuardPos0140 -lt 0 -or $virtualUmbrellaPos0140 -lt 0 -or
+   $rainproofGuardPos0140 -gt $virtualUmbrellaPos0140){
+    throw 'Mana Hand umbrella lookup must remain after the cheap vanilla RAINPROOF guard.'
+}
 if($manaHeldSection0140.Contains('wielded_with_flag(')){
     throw 'Mana Hand held utilities must not broaden generic wielded flag semantics.'
 }
