@@ -6,7 +6,7 @@ $payload=[IO.File]::ReadAllText((Join-Path $PackageRoot 'payload\SURVIVOR_0911_0
 # Survivor Progression 0.10.0 Mechanical Perks regression contracts.
 # Historical gameplay/content contracts stay pinned here; build-cache marker/fingerprint are version-current and are checked by the 0.13.0 block below.
 $survivor0100=Get-Content (Join-Path $PackageRoot 'components\survivor_progression.json') -Raw|ConvertFrom-Json
-if([string]$survivor0100.version -ne '0.14.0'){throw 'Survivor 0.14.0 component identity mismatch.'}
+if([string]$survivor0100.version -ne '0.15.0'){throw 'Survivor 0.15.0 component identity mismatch.'}
 $contracts0100=Get-Content (Join-Path $PackageRoot 'compat\contracts.json') -Raw|ConvertFrom-Json
 if(@($contracts0100.contracts|Where-Object{$_.id -eq 'mechanical_combat_hooks.source.v1'}).Count -ne 1){throw 'Mechanical combat source contract missing.'}
 foreach($mechanicalNeedle0100 in @(
@@ -47,7 +47,7 @@ foreach($ref0110 in @(
 # Survivor Progression 0.11.0 Reactive Mechanics + Technical Mastery regression contracts,
 # plus 0.11.1 semantic polish, 0.11.2 edge hardening and 0.11.3 combinatorial edge polish. The 25-node 0.11.0 layer remains intact; no polish pass removes nodes.
 $survivor0110=Get-Content (Join-Path $PackageRoot 'components\survivor_progression.json') -Raw|ConvertFrom-Json
-if([string]$survivor0110.version -ne '0.14.0'){throw 'Survivor 0.14.0 component identity mismatch.'}
+if([string]$survivor0110.version -ne '0.15.0'){throw 'Survivor 0.15.0 component identity mismatch.'}
 $contracts0110=Get-Content (Join-Path $PackageRoot 'compat\contracts.json') -Raw|ConvertFrom-Json
 if(@($contracts0110.contracts|Where-Object{$_.id -eq 'reactive_technical_hooks.source.v4'}).Count -ne 1){throw 'Reactive/technical source contract missing.'}
 foreach($reactiveNeedle0110 in @(
@@ -388,6 +388,68 @@ if($restored0121 -ne 1 -or [Math]::Abs($fraction0121) -gt 1.0e-8){
     throw 'Mana-vamp fractional-carry fixture failed: five 20-damage rank-I hits must restore exactly 1 mana.'
 }
 
+# Survivor 0.15.0: Magiclysm Dimensional Pouch.
+$survivorSource0150=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\src\survivor_progression.cpp'))
+$dimensionalPouchDataPath0150=Join-Path $PackageRoot 'mods\SurvivorProgression\data\dimensional_pouch.json'
+if(-not(Test-Path $dimensionalPouchDataPath0150 -PathType Leaf)){throw 'Survivor 0.15.0 Dimensional Pouch data file missing.'}
+$dimensionalPouchData0150=[IO.File]::ReadAllText($dimensionalPouchDataPath0150)
+foreach($pouchNeedle0150 in @(
+    '{ "mg_dimensional_pouch", branch_id::mastery, 8, 35, currency_id::perk, "mg_resonant_reserve"',
+    '{ "mg_dimensional_pouch", 5, 1.0 }',
+    '{ "mg_dimensional_pouch", integration_id::magiclysm }',
+    'mg_dimensional_pouch_rank',
+    'Survivor Progression 0.15.0 initialized:',
+    '"0.15.0",'
+)){
+    if(-not $survivorSource0150.Contains($pouchNeedle0150)){
+        throw ('Survivor 0.15.0 Dimensional Pouch source contract missing: '+$pouchNeedle0150)
+    }
+}
+foreach($pouchDataNeedle0150 in @(
+    '"id": "ncmm_survivor_dimensional_pouch"',
+    '"INTEGRATED"',
+    '"TARDIS"',
+    '"pocket_type": "CONTAINER"',
+    '"max_contains_volume": "120 L"',
+    '"max_item_length": "200 cm"'
+)){
+    if(-not $dimensionalPouchData0150.Contains($pouchDataNeedle0150)){
+        throw ('Survivor 0.15.0 Dimensional Pouch data contract missing: '+$pouchDataNeedle0150)
+    }
+}
+foreach($payloadNeedle0150 in @(
+    'function Apply-SurvivorDimensionalPouch0150',
+    'mg_dimensional_pouch',
+    'mg_dimensional_pouch_rank',
+    'ncmm_survivor_dimensional_pouch',
+    'dimensional_pouch.json',
+    'Survivor 0.15.0 Dimensional Pouch: READY'
+)){
+    if(-not $payload.Contains($payloadNeedle0150)){
+        throw ('Survivor 0.15.0 Dimensional Pouch payload contract missing: '+$payloadNeedle0150)
+    }
+}
+$expectedPouchRanks0150=@(
+    [pscustomobject]@{Rank=1;Liters=5;LengthCm=120},
+    [pscustomobject]@{Rank=2;Liters=10;LengthCm=120},
+    [pscustomobject]@{Rank=3;Liters=20;LengthCm=150},
+    [pscustomobject]@{Rank=4;Liters=50;LengthCm=150},
+    [pscustomobject]@{Rank=5;Liters=120;LengthCm=200}
+)
+if($expectedPouchRanks0150.Count -ne 5 -or
+   $expectedPouchRanks0150[0].Liters -ne 5 -or
+   $expectedPouchRanks0150[1].Liters -ne 10 -or
+   $expectedPouchRanks0150[2].Liters -ne 20 -or
+   $expectedPouchRanks0150[3].Liters -ne 50 -or
+   $expectedPouchRanks0150[4].Liters -ne 120 -or
+   $expectedPouchRanks0150[0].LengthCm -ne 120 -or
+   $expectedPouchRanks0150[1].LengthCm -ne 120 -or
+   $expectedPouchRanks0150[2].LengthCm -ne 150 -or
+   $expectedPouchRanks0150[3].LengthCm -ne 150 -or
+   $expectedPouchRanks0150[4].LengthCm -ne 200){
+    throw 'Survivor 0.15.0 Dimensional Pouch rank table drift.'
+}
+
 # Survivor 0.14.0: Magiclysm virtual third/fourth mana hands.
 $contracts0130=Get-Content (Join-Path $PackageRoot 'compat\contracts.json') -Raw|ConvertFrom-Json
 if(@($contracts0130.contracts|Where-Object{$_.id -eq 'magic_virtual_hands.source.v1'}).Count -ne 1){
@@ -407,8 +469,8 @@ foreach($handNeedle0130 in @(
     '{ "mg_mana_hand_4", integration_id::magiclysm }',
     'mg_virtual_hand_count',
     '!bind("magic.virtual_hand_count",NCMM_SELECTOR_SOURCE_MOD_V2,"magiclysm","mg_virtual_hand_count")',
-    'Survivor Progression v0.14.0',
-    '"0.14.0",'
+    'Survivor Progression v0.15.0',
+    '"0.15.0",'
 )){
     if(-not $survivorSource0130.Contains($handNeedle0130)){
         throw ('Survivor 0.14.0 mana-hand module contract missing: '+$handNeedle0130)
@@ -521,7 +583,7 @@ foreach($needle0140 in @(
     'host2->virtual_item_clear( module_id, mana_hand_pair_slot_id );',
     'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
     'api->query_interface( NCMM_HOST_API_V2_CORE_ID, 2u, 1u )',
-    '"0.14.0"'
+    '"0.15.0"'
 )){
     if(-not $survivorVirtual0140.Contains($needle0140)){
         throw ('Survivor 0.14.0 module virtual-item contract missing: '+$needle0140)
