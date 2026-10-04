@@ -658,6 +658,28 @@ foreach($needle0140 in @(
 if($payload.Contains('item_location::type::mana_hand')){
     throw 'Virtual Mana Hand slots must not introduce a synthetic item_location type.'
 }
+foreach($manaAccountingNeedle0140 in @(
+    'const int ncmm_virtual_shot_mana_cost = ncmm_planned_shots * 5;',
+    'who.magic->mod_mana( who, -( ncmm_fired * 5 ) );'
+)){
+    if(-not $payload.Contains($manaAccountingNeedle0140)){
+        throw ('Mana Hand ranged exact per-shot mana accounting missing: '+$manaAccountingNeedle0140)
+    }
+}
+if($payload.Contains('std::min( 100, ncmm_planned_shots * 5 )') -or
+   $payload.Contains('std::min( 100, ncmm_fired * 5 )')){
+    throw 'Mana Hand firearm mana cost must not cap long bursts at 100 mana.'
+}
+foreach($manaVampOwnerNeedle0140 in @(
+    'static const Character *ncmm_mana_vamp_owner = nullptr;',
+    'static auto ncmm_mana_vamp_owner_id = getID();',
+    'ncmm_mana_vamp_owner != this ||',
+    'ncmm_mana_vamp_owner_id != ncmm_current_mana_vamp_owner_id'
+)){
+    if(-not $payload.Contains($manaVampOwnerNeedle0140)){
+        throw ('Mana-vamp per-character fractional carry guard missing: '+$manaVampOwnerNeedle0140)
+    }
+}
 
 $manaAidStart0140=$payload.IndexOf('function Apply-SurvivorManaHandSpellcastingAid0140')
 $manaAidEnd0140=$payload.IndexOf('function Apply-SurvivorVirtualItemLifecycle0140',$manaAidStart0140)
@@ -1128,7 +1150,9 @@ foreach($mineNeedle0140 in @(
     'candidate->has_flag( flag_DIG_TOOL )',
     'candidate->type->can_use( "PICKAXE" )',
     'item_location weapon = you.get_wielded_item();',
-    'if( !weapon ) {',
+    'if( !weapon &&',
+    'm.has_flag( ter_furn_flag::TFLAG_MINEABLE, dest_loc ) &&',
+    'g->mostseen == 0 ) {',
     'you.invoke_item( &*weapon, "PICKAXE", dest_loc );'
 )){if(-not $manaMineSection0140.Contains($mineNeedle0140)){throw ('Mana Hand auto-mining regression contract missing: '+$mineNeedle0140)}}
 if($manaMineSection0140.Contains('set_wielded_item(') -or
@@ -1197,8 +1221,9 @@ foreach($crutchNeedle0140 in @(
     '"survivor_progression", "mana_hand_3"',
     '"survivor_progression", "mana_hand_4"',
     'ncmm_mana_hand_has_crutches( you )',
-    'const bool has_crutches = weapon.has_flag( flag_CRUTCHES ) ||',
-    'ncmm_mana_hand_has_crutches( *this )'
+    'return ( !enough_working_legs() &&',
+    '!weapon.has_flag( flag_CRUTCHES ) &&',
+    '!ncmm_mana_hand_has_crutches( *this ) ) ||'
 )){if(-not $manaCrutchSection0140.Contains($crutchNeedle0140)){throw ('Mana Hand crutch regression contract missing: '+$crutchNeedle0140)}}
 if($manaCrutchSection0140.Contains('set_wielded_item(') -or
    $manaCrutchSection0140.Contains('you.wield(') -or
@@ -1215,7 +1240,8 @@ $manaHeldSection0140=$payload.Substring($manaHeldStart0140,$manaHeldEnd0140-$man
 foreach($heldNeedle0140 in @(
     'ncmm_mana_hand_holds_flag',
     'ncmm_mana_hand_holds_item',
-    'ncmm_rain_protected',
+    'amount <= 0 || target.has_trait( trait_FEATHERS ) ||',
+    'ncmm_mana_hand_holds_flag( target, json_flag_RAIN_PROTECT )',
     'ncmm_mana_hand_holds_flag( *carrier, flag_RAIN_PROTECT )',
     'ncmm_mana_hand_holds_flag( you, flag_RAIN_PROTECT )',
     'ncmm_mana_hand_holds_item( p, this )',
