@@ -11,13 +11,13 @@ NCMM (Neversalimus Code Mod Manager) is a native code-mod/runtime platform for C
 | Loader ABI | 1 |
 | Legacy semantic Host API | 1.9 |
 | Queried Host API | 2.0 Core |
-| Survivor Progression | 0.14.0 |
+| Survivor Progression | 0.15.0 |
 | Advanced World Settings | 0.6.4 |
 | Ballistic Hit Chance | 0.1.0 |
 | Equipment Body Map | 0.1.0 |
 | Item Glyphs | 0.1.0 |
 
-Survivor Progression keeps state schema 8. The current source contains 372 perk nodes and conditionally exposes mod-specific progression for supported active world mods.
+Survivor Progression keeps state schema 8. The current source contains 373 perk nodes and conditionally exposes mod-specific progression for supported active world mods.
 
 ## Install
 
@@ -39,7 +39,7 @@ The repository checkout also contains `NCMM.cmd`, the maintainer/development ent
 ## Player-facing features
 
 - **NCMM Mod Configuration** is integrated into CDDA's settings menu. The current manager uses a two-pane layout: modules on the left, version/status/description/hotkey/settings on the right.
-- **Survivor Progression 0.14.0** opens with F1 by default and remains remappable through CDDA. It keeps state schema 8, includes Host-managed live XP/stat-perk controls, and adds Magiclysm Mana Hand III/IV virtual item slots with melee, ranged and utility integrations that keep real items in CDDA's normal item graph.
+- **Survivor Progression 0.15.0** opens with F1 by default and remains remappable through CDDA. It keeps state schema 8, includes Host-managed live XP/stat-perk controls, Magiclysm Mana Hand III/IV integrations, and the level-35 five-rank Dimensional Pouch (5/10/20/50/120 L; 120/120/150/150/200 cm) implemented as a normal integrated CDDA pocket.
 - **Advanced World Settings 0.6.4** exposes NCMM-owned world-generation controls through CDDA's world-options UI. NEW_MAP / NEW_WORLD settings are available during world creation; LIVE / RELOAD settings stay in the NCMM manager.
 - **Ballistic Hit Chance 0.1.0** adds live ballistic hit probabilities to firearm targeting: current-shot probability, per-aim-mode probability, and compact burst prediction using the active fire mode and recoil growth.
 - **Equipment Body Map 0.1.0** adds a live body map to the normal inventory, reflecting worn-item coverage and highlighting the selected item's coverage.
@@ -51,7 +51,7 @@ The repository checkout also contains `NCMM.cmd`, the maintainer/development ent
 
 Every Runtime build now runs the production `SetupCore` against isolated CDDA-shaped installations before packages are published. The installation matrix currently covers clean installs with no modules / Survivor / AWS / both, module removal and re-enable, idempotent reinstall, previous-runtime update, corrupted DLL repair, corrupt-manifest fail-closed behavior, invalid payload/selection, rollback at multiple install phases, and recovery after a hard interrupted process.
 
-Bootstrap has a separate lifecycle harness covering certified-host selection, incompatible bindings, first and second healthy launches, host crash/auto-disable, reset recovery and fail-closed marker failures. A failed matrix blocks the Runtime release. A separate nightly/manual **Real Installation Matrix** downloads an official Windows CDDA release and runs the same production SetupCore plus Survivor/AWS selection changes against the real extracted game tree before restoring the original vanilla executable. Module QA is semantic rather than load-only: AWS validates all 48 typed geography settings/bindings, min/max boundaries and deterministic randomized cases; Survivor validates all 372 perks, modifier consumers, cleanup/respec behavior, conditional integrations, full-catalog max-rank aggregation and deterministic perk combinations. The real gameplay smoke also creates, saves and reloads a randomized AWS world, generates an overmap, and applies Survivor effects to a real CDDA avatar before checking cleanup.
+Bootstrap has a separate lifecycle harness covering certified-host selection, incompatible bindings, first and second healthy launches, host crash/auto-disable, reset recovery and fail-closed marker failures. A failed matrix blocks the Runtime release. A separate nightly/manual **Real Installation Matrix** downloads an official Windows CDDA release and runs the same production SetupCore plus Survivor/AWS selection changes against the real extracted game tree before restoring the original vanilla executable. Module QA is semantic rather than load-only: AWS validates all 48 typed geography settings/bindings, min/max boundaries and deterministic randomized cases; Survivor validates all 373 perks, modifier consumers, cleanup/respec behavior, conditional integrations, full-catalog max-rank aggregation and deterministic perk combinations. The real gameplay smoke also creates, saves and reloads a randomized AWS world, generates an overmap, and applies Survivor effects to a real CDDA avatar before checking cleanup.
 
 ## Compatibility model
 
