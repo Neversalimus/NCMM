@@ -513,7 +513,7 @@ $hostVirtual0140=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm
 foreach($uxNeedle0151 in @(
     'return survivor_mana_hand_count() > 0 && loc && loc.held_by( get_avatar() );',
     'This is a two-handed item. It requires both Mana Hands III+IV',
-    'Put the item into your inventory first; a physical and Mana Hand cannot hold the same item simultaneously.',
+    'Put the item into your inventory first; a physical and Mana Hand cannot hold the same item.',
     'This item type cannot be held by a Mana Hand.'
 )){
     if(-not $hostVirtual0140.Contains($uxNeedle0151)){
