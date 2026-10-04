@@ -453,6 +453,7 @@ foreach($needle0140 in @(
     'character.virtual_items.v1',
     'virtual_item_choose_v2',
     'virtual_item_for_slot_internal',
+    'virtual_item_matches_slot( const item &candidate',
     'virtual_item_marker_key = "ncmm_virtual_slot"',
     'candidate->uid().get_value()',
     'game_menus::inv::titled_filter_menu',
@@ -1169,6 +1170,7 @@ if($manaPracticeStart0140 -le $manaMineStart0140 -or $manaPracticeEnd0140 -le $m
 $manaPracticeSection0140=$payload.Substring($manaPracticeStart0140,$manaPracticeEnd0140-$manaPracticeStart0140)
 foreach($practiceNeedle0140 in @(
     'ncmm_target_practice_mana_hand_gun',
+    'ncmm::virtual_item_matches_slot(',
     '"magic.virtual_hand_count", nullptr, "magiclysm"',
     '"survivor_progression", "mana_hands_34"',
     '"survivor_progression", "mana_hand_3"',
@@ -1179,6 +1181,9 @@ foreach($practiceNeedle0140 in @(
     'who.magic->available_mana() < ncmm_target_practice_mana_cost',
     'who.magic->mod_mana( who, -ncmm_target_practice_mana_cost );'
 )){if(-not $manaPracticeSection0140.Contains($practiceNeedle0140)){throw ('Mana Hand target-practice regression contract missing: '+$practiceNeedle0140)}}
+if($manaPracticeSection0140.Contains('virtual_item_for_slot(')){
+    throw 'Mana Hand target practice must use O(1) slot identity validation, not full inventory reconciliation.'
+}
 if($manaPracticeSection0140.Contains('set_wielded_item(') -or
    $manaPracticeSection0140.Contains('.obtain(')){
     throw 'Mana Hand target practice must not move the real virtual gun into Character::weapon.'
