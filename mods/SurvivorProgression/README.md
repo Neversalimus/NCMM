@@ -112,7 +112,7 @@ A paired item consumes both virtual hands for somatic casting. MAGIC_FOCUS, SPEL
 
 A real one-handed firearm bound to Mana Hand III or IV, or a real two-handed firearm bound to paired Mana Hands III+IV, can be fired without moving or copying the gun into the physical wield slot. The item context action remains available, and the normal FIRE command now uses a bound Mana Hand gun whenever no physically wielded ranged weapon has priority; if III and IV each hold a gun, FIRE asks which one to use. The normal CDDA aim UI, recoil, ammunition, gun modes, faults, UPS/bionic power checks, projectile events and reload activity remain in control.
 
-Single-hand virtual guns still reject two-handed modes and `FIRE_TWOHAND`; the paired III+IV grip satisfies those handling requirements. `RELOAD_AND_SHOOT` weapons are supported through the same real `item_location`: the aim activity loads/unloads the bound gun normally, and ammo switching resolves the activity weapon instead of assuming `Character::get_wielded_item()`. Reload requests target the same real virtual gun. Firing through Mana Hands costs 5 mana per projectile actually fired, capped at 100 mana per burst.
+Single-hand virtual guns still reject two-handed modes and `FIRE_TWOHAND`; the paired III+IV grip satisfies those handling requirements. `RELOAD_AND_SHOOT` weapons are supported through the same real `item_location`: the aim activity loads/unloads the bound gun normally, and ammo switching resolves the activity weapon instead of assuming `Character::get_wielded_item()`. Reload requests target the same real virtual gun. Firing through Mana Hands costs exactly 5 mana per projectile actually fired, with no burst cap.
 
 
 ## Mana Hand standard firearm controls
