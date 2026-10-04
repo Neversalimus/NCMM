@@ -1348,8 +1348,8 @@ bool virtual_item_can_assign_internal( const char *module_id, const char *slot_i
     // predicate is not reliable enough for this transition point.  Treat the
     // exact current weapon as owned by the avatar, but do not broaden this
     // exception to any other external location.
-    item *location_item = loc.get_item();
-    item *wielded_item = you.get_wielded_item().get_item();
+    const item *location_item = loc.get_item();
+    const item *wielded_item = you.get_wielded_item().get_item();
     const bool physically_wielded =
         location_item != nullptr && location_item == wielded_item;
     if( !loc.held_by( you ) && !physically_wielded ) {
