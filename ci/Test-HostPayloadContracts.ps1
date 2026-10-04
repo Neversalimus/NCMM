@@ -103,6 +103,13 @@ foreach($n in @(
     if(-not $hostSourceCurrent.Contains($n)){throw ('Runtime hot-path optimization contract missing: '+$n)}
 }
 
+if(([regex]::Matches($hostSourceCurrent,[regex]::Escape('runtime_hook_rule_indices_v2.clear();'))).Count -lt 3){
+    throw 'Runtime hook index is not cleared across module removal + Host lifecycle.'
+}
+if(([regex]::Matches($hostSourceCurrent,[regex]::Escape('runtime_setting_bindings_v2.clear();'))).Count -ne 2){
+    throw 'Runtime setting bindings are not cleared across Host initialize/shutdown.'
+}
+
 foreach($n in @(
     'size_t mana_hands_check_count = 0;',
     'mana_hands_checks',
