@@ -1340,20 +1340,40 @@ bool virtual_item_can_assign_internal( const char *module_id, const char *slot_i
     }
 
     avatar &you = get_avatar();
-    if( !loc || !loc.held_by( you ) ) {
+    if( !loc ) {
+        return false;
+    }
+
+    // A freshly-wielded item can have an item_location whose generic carrier
+    // predicate is not reliable enough for this transition point.  Treat the
+    // exact current weapon as owned by the avatar, but do not broaden this
+    // exception to any other external location.
+    item *location_item = loc.get_item();
+    item *wielded_item = you.get_wielded_item().get_item();
+    const bool physically_wielded =
+        location_item != nullptr && location_item == wielded_item;
+    if( !loc.held_by( you ) && !physically_wielded ) {
         return false;
     }
 
     const item &candidate = *loc;
-    const bool physically_wielded =
-        &candidate == you.get_wielded_item().get_item();
     const bool survivor_wield_transfer =
         physically_wielded && std::string_view( module_id ) == survivor_module_id;
     if( !virtual_item_candidate_valid_impl(
             candidate, flags, survivor_wield_transfer ) ) {
+        if( survivor_wield_transfer ) {
+            log_line( NCMM_LOG_WARN,
+                      ( "Mana Hand wield eligibility rejected candidate: two_handed=" +
+                        std::to_string( candidate.is_two_handed( you ) ? 1 : 0 ) +
+                        " integrated=" + std::to_string( candidate.has_flag( flag_INTEGRATED ) ? 1 : 0 ) +
+                        " pseudo=" + std::to_string( candidate.has_flag( flag_PSEUDO ) ? 1 : 0 ) +
+                        " gun=" + std::to_string( candidate.is_gun() ? 1 : 0 ) +
+                        " charges=" + std::to_string( candidate.count_by_charges() ? 1 : 0 ) ).c_str() );
+        }
         return false;
     }
     if( survivor_wield_transfer && !mana_hand_carrier_type_id.is_valid() ) {
+        log_line( NCMM_LOG_WARN, "Mana Hand wield eligibility rejected: carrier type is unavailable." );
         return false;
     }
 
