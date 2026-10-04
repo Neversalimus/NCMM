@@ -136,6 +136,7 @@ struct ncmm_worldgen_binding_v2_internal {
 };
 std::vector<ncmm_event_subscription_v2_internal> event_subscriptions_v2;
 std::vector<ncmm_runtime_hook_rule_v2_internal> runtime_hook_rules_v2;
+std::map<std::string, std::vector<size_t>, std::less<>> runtime_hook_rule_indices_v2;
 std::map<std::string, ncmm_worldgen_binding_v2_internal, std::less<>> worldgen_bindings_v2;
 std::map<std::string, ncmm_worldgen_binding_v2_internal, std::less<>> runtime_setting_bindings_v2;
 thread_local std::string api_v2_string_cache;
@@ -2721,6 +2722,10 @@ void clear_module_runtime_v2( const std::string &module_id )
     [&]( const ncmm_event_subscription_v2_internal &s ) { return s.module_id == module_id; } ), event_subscriptions_v2.end() );
     runtime_hook_rules_v2.erase( std::remove_if( runtime_hook_rules_v2.begin(), runtime_hook_rules_v2.end(),
     [&]( const ncmm_runtime_hook_rule_v2_internal &r ) { return r.module_id == module_id; } ), runtime_hook_rules_v2.end() );
+    runtime_hook_rule_indices_v2.clear();
+    for( size_t i = 0; i < runtime_hook_rules_v2.size(); ++i ) {
+        runtime_hook_rule_indices_v2[runtime_hook_rules_v2[i].hook_id].push_back( i );
+    }
     for( auto it = modifier_owners_v2.begin(); it != modifier_owners_v2.end(); ) {
         if( it->second == module_id ) {
             character_modifier_limits.erase( it->first );
@@ -2782,20 +2787,25 @@ void dispatch_event_v2( uint32_t event_id )
 {
     if( !event_available_v2( event_id ) || event_subscriptions_v2.empty() ) return;
     const auto snapshot = event_subscriptions_v2;
-    std::set<std::string> failed;
+    std::vector<std::string> failed;
     for( const auto &s : snapshot ) {
-        if( s.callback == nullptr || module_ids.count( s.module_id ) == 0 ) continue;
+        if( s.event_id != event_id || s.callback == nullptr ||
+            module_ids.count( s.module_id ) == 0 ) continue;
         try {
             module_call_scope scope( s.module_id.c_str() );
             s.callback( event_id, s.user_data );
         } catch( ... ) {
-            failed.insert( s.module_id );
+            if( std::find( failed.begin(), failed.end(), s.module_id ) == failed.end() ) {
+                failed.push_back( s.module_id );
+            }
             log_line( NCMM_LOG_WARN, ( "Host API 2.0 event callback failed: " + s.module_id ).c_str() );
         }
     }
     if( !failed.empty() ) {
         event_subscriptions_v2.erase( std::remove_if( event_subscriptions_v2.begin(), event_subscriptions_v2.end(),
-        [&]( const ncmm_event_subscription_v2_internal &s ) { return failed.count( s.module_id ) != 0; } ), event_subscriptions_v2.end() );
+        [&]( const ncmm_event_subscription_v2_internal &s ) {
+            return std::find( failed.begin(), failed.end(), s.module_id ) != failed.end();
+        } ), event_subscriptions_v2.end() );
     }
 }
 
@@ -2874,6 +2884,7 @@ int runtime_hook_bind_modifier_v2( const char *module_id, const char *hook_id,
             r.modifier_id == modifier_id ) return 1;
     }
     runtime_hook_rules_v2.push_back( { module_id, hook_id, selector_kind, selector, modifier_id } );
+    runtime_hook_rule_indices_v2[hook_id].push_back( runtime_hook_rules_v2.size() - 1 );
     return 1;
 }
 
@@ -2899,10 +2910,14 @@ double runtime_hook_value_v2( const char *hook_id, const char *subject_id,
     // avatar is fully established. Runtime gameplay modifiers stay neutral until the
     // first real turn announces the world.
     if( !api_v2_world_announced || !character_state_available() || !api_v2_token_safe( hook_id ) ) return 0.0;
+    const auto hook_it = runtime_hook_rule_indices_v2.find( hook_id );
+    if( hook_it == runtime_hook_rule_indices_v2.end() ) return 0.0;
     double total = 0.0;
     std::set<std::string> counted;
-    for( const auto &r : runtime_hook_rules_v2 ) {
-        if( r.hook_id != hook_id || !runtime_rule_matches_v2( r, subject_id, source_mod_id,
+    for( const size_t index : hook_it->second ) {
+        if( index >= runtime_hook_rules_v2.size() ) continue;
+        const auto &r = runtime_hook_rules_v2[index];
+        if( !runtime_rule_matches_v2( r, subject_id, source_mod_id,
                 source_species_id, target_species_id ) ) continue;
         const auto module_it = character_modifier_values.find( r.module_id );
         if( module_it == character_modifier_values.end() ) continue;
@@ -4056,10 +4071,13 @@ double runtime_hook_modifier_for_creatures( const char *hook_id,
 {
     // HOTFIX13: never expose combat/runtime modifier state during chargen or pre-world load.
     if( !api_v2_world_announced || !character_state_available() || !api_v2_token_safe( hook_id ) ) return 0.0;
+    const auto hook_it = runtime_hook_rule_indices_v2.find( hook_id );
+    if( hook_it == runtime_hook_rule_indices_v2.end() ) return 0.0;
     double total = 0.0;
     std::set<std::string> counted;
-    for( const auto &r : runtime_hook_rules_v2 ) {
-        if( r.hook_id != hook_id ) continue;
+    for( const size_t index : hook_it->second ) {
+        if( index >= runtime_hook_rules_v2.size() ) continue;
+        const auto &r = runtime_hook_rules_v2[index];
         bool match = false;
         switch( r.selector_kind ) {
             case NCMM_SELECTOR_ANY_V2: match = true; break;
@@ -5941,7 +5959,9 @@ void initialize()
     modifier_owners_v2.clear();
     event_subscriptions_v2.clear();
     runtime_hook_rules_v2.clear();
+    runtime_hook_rule_indices_v2.clear();
     worldgen_bindings_v2.clear();
+    runtime_setting_bindings_v2.clear();
     runtime_source_mod_context_v2.clear();
     api_v2_world_announced = false;
     gameplay_metric_values.clear();
@@ -6166,7 +6186,9 @@ void shutdown()
     modifier_owners_v2.clear();
     event_subscriptions_v2.clear();
     runtime_hook_rules_v2.clear();
+    runtime_hook_rule_indices_v2.clear();
     worldgen_bindings_v2.clear();
+    runtime_setting_bindings_v2.clear();
     runtime_source_mod_context_v2.clear();
     api_v2_world_announced = false;
     active_module_id.clear();

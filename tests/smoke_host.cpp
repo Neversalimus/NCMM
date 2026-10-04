@@ -643,7 +643,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 1 ) {
         // Buy Combat -> Power Training.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.14.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.15.0" ) != std::string::npos ) {
             ++ui_stage;
             return 0;
         }
@@ -660,7 +660,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 2 ) {
         // Buy Mastery -> Fast Learner.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.14.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.15.0" ) != std::string::npos ) {
             ++ui_stage;
             return 5;
         }
@@ -677,7 +677,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 3 ) {
         // Root -> Respec all perks -> confirm.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.14.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.15.0" ) != std::string::npos ) {
             ++ui_stage;
             return 7;
         }
@@ -1291,7 +1291,7 @@ bool survivor_semantic_matrix( void *lib )
     }
 
     const size_t perk_count = count();
-    if( perk_count != 372 ) {
+    if( perk_count != 373 ) {
         std::cerr << "Survivor perk catalog count changed unexpectedly: " << perk_count << '\n';
         return false;
     }
@@ -1372,6 +1372,9 @@ bool survivor_semantic_matrix( void *lib )
         "stamina_max_pct", "carry_weight_pct", "dodge_flat", "melee_hit_flat",
         "healing_pct", "read_speed_pct", "craft_speed_pct"
     };
+    const std::set<std::string> host_consumed_modifiers = {
+        "mg_dimensional_pouch_rank"
+    };
     std::set<std::string> declared_effect_ids;
     for( size_t i = 0; i < perk_count; ++i ) {
         for( int e = 0; e < effect_count( i ); ++e ) {
@@ -1384,8 +1387,9 @@ bool survivor_semantic_matrix( void *lib )
             std::cerr << "Survivor effect has no Host v2 modifier definition: " << effect << '\n';
             return false;
         }
-        if( runtime_hooks_by_modifier.count( effect ) == 0 ) {
-            std::cerr << "Survivor effect has no consuming runtime hook: " << effect << '\n';
+        if( runtime_hooks_by_modifier.count( effect ) == 0 &&
+            host_consumed_modifiers.count( effect ) == 0 ) {
+            std::cerr << "Survivor effect has no consuming runtime hook or Host consumer: " << effect << '\n';
             return false;
         }
     }
@@ -1956,7 +1960,7 @@ int main( int argc, char **argv )
             std::cerr << "Survivor Progression callback export missing\n";
             return 9;
         }
-        if( std::strcmp( desc->version, "0.14.0" ) != 0 ) {
+        if( std::strcmp( desc->version, "0.15.0" ) != 0 ) {
             std::cerr << "Survivor Progression descriptor version mismatch\n";
             return 21;
         }
@@ -2010,7 +2014,7 @@ int main( int argc, char **argv )
         if( !survivor_semantic_matrix( lib ) ) {
             return 40;
         }
-        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.14.0 Host API 2.1 registration + schema migration)\n";
+        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.15.0 Host API 2.1 registration + schema migration)\n";
         return 0;
     }
 
