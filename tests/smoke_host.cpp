@@ -643,7 +643,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 1 ) {
         // Buy Combat -> Power Training.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.14.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.15.0" ) != std::string::npos ) {
             ++ui_stage;
             return 0;
         }
@@ -660,7 +660,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 2 ) {
         // Buy Mastery -> Fast Learner.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.14.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.15.0" ) != std::string::npos ) {
             ++ui_stage;
             return 5;
         }
@@ -677,7 +677,7 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
 
     if( ui_script == 3 ) {
         // Root -> Respec all perks -> confirm.
-        if( ui_stage == 0 && t.find( "Survivor Progression v0.14.0" ) != std::string::npos ) {
+        if( ui_stage == 0 && t.find( "Survivor Progression v0.15.0" ) != std::string::npos ) {
             ++ui_stage;
             return 7;
         }
@@ -1291,7 +1291,7 @@ bool survivor_semantic_matrix( void *lib )
     }
 
     const size_t perk_count = count();
-    if( perk_count != 372 ) {
+    if( perk_count != 373 ) {
         std::cerr << "Survivor perk catalog count changed unexpectedly: " << perk_count << '\n';
         return false;
     }
@@ -1956,7 +1956,7 @@ int main( int argc, char **argv )
             std::cerr << "Survivor Progression callback export missing\n";
             return 9;
         }
-        if( std::strcmp( desc->version, "0.14.0" ) != 0 ) {
+        if( std::strcmp( desc->version, "0.15.0" ) != 0 ) {
             std::cerr << "Survivor Progression descriptor version mismatch\n";
             return 21;
         }
@@ -2010,7 +2010,7 @@ int main( int argc, char **argv )
         if( !survivor_semantic_matrix( lib ) ) {
             return 40;
         }
-        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.14.0 Host API 2.1 registration + schema migration)\n";
+        std::cout << "NCMM smoke test: PASS (Survivor Progression 0.15.0 Host API 2.1 registration + schema migration)\n";
         return 0;
     }
 
