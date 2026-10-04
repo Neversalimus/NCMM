@@ -3912,34 +3912,10 @@ bool survivor_mana_hand_marker( const item &candidate )
 
 bool mana_hand_inventory_action_visible( const item_location &loc )
 {
-    const int hand_count = survivor_mana_hand_count();
-    if( hand_count <= 0 || !loc || !loc.held_by( get_avatar() ) ) {
-        return false;
-    }
-    const item &candidate = *loc;
-    if( survivor_mana_hand_marker( candidate ) ) {
-        return true;
-    }
-
-    constexpr uint32_t single_flags =
-        NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
-        NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2;
-    if( virtual_item_can_assign_internal(
-            survivor_module_id, mana_hand_3_slot_id, loc, single_flags ) ) {
-        return true;
-    }
-    if( hand_count >= 2 &&
-        virtual_item_can_assign_internal(
-            survivor_module_id, mana_hand_4_slot_id, loc, single_flags ) ) {
-        return true;
-    }
-
-    constexpr uint32_t pair_flags =
-        single_flags |
-        NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
-        NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;
-    return hand_count >= 2 && virtual_item_can_assign_internal(
-               survivor_module_id, mana_hands_pair_slot_id, loc, pair_flags );
+    // Keep the action visible for every carried item once a Mana Hand exists.
+    // Eligibility is explained inside the submenu instead of silently hiding the
+    // feature for wielded, worn, charged or two-handed items.
+    return survivor_mana_hand_count() > 0 && loc && loc.held_by( get_avatar() );
 }
 
 bool mana_hand_inventory_action( item_location loc )
@@ -4007,6 +3983,30 @@ bool mana_hand_inventory_action( item_location loc )
                        tr_ui( "Grip with Mana Hands III+IV",
                               "Взять двумя руками маны III+IV" ) );
         actions.push_back( mana_action::paired );
+    }
+
+    if( actions.empty() ) {
+        avatar &you = get_avatar();
+        std::string reason;
+        if( candidate == you.get_wielded_item().get_item() ) {
+            reason = tr_ui( "Put the item into your inventory first; a physical and Mana Hand cannot hold the same item.",
+                            "Сначала уберите предмет в инвентарь: физическая рука и рука маны не могут держать один предмет одновременно." );
+        } else if( you.is_worn( *candidate ) ) {
+            reason = tr_ui( "Take the item off first.",
+                            "Сначала снимите предмет." );
+        } else if( candidate->is_two_handed( you ) && hand_count < 2 ) {
+            reason = tr_ui( "This is a two-handed item. It requires both Mana Hands III+IV (Fourth Mana Hand).",
+                            "Это двуручный предмет. Для него нужны обе руки маны III+IV (перк «Четвёртая рука маны»)." );
+        } else if( candidate->count_by_charges() ||
+                   candidate->made_of( phase_id::LIQUID ) ||
+                   candidate->made_of( phase_id::GAS ) ) {
+            reason = tr_ui( "This item type cannot be held by a Mana Hand.",
+                            "Предмет этого типа нельзя удерживать рукой маны." );
+        } else {
+            reason = tr_ui( "This item is not eligible for the available Mana Hand.",
+                            "Этот предмет нельзя назначить доступной руке маны." );
+        }
+        menu.addentry( -1, false, MENU_AUTOASSIGN, reason );
     }
 
     menu.addentry( static_cast<int>( actions.size() ), true, MENU_AUTOASSIGN,
