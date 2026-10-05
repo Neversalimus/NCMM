@@ -22555,7 +22555,8 @@ item *ncmm_primary_mana_hand_melee_weapon( Character &who )
         'ncmm_primary_mana_hand_melee_weapon',
         'ncmm::virtual_item_primary_melee_enabled',
         'ncmm::virtual_melee_context_suppresses_martial_arts',
-        'ncmm_primary_scope( *this, *ncmm_primary_weapon, false )',
+        'ncmm_virtual_melee_scope ncmm_primary_scope(',
+        '*this, *ncmm_primary_weapon, false );',
         'Not enough mana to attack with the primary Mana Hand weapon.',
         'magic->mod_mana( *this, -ncmm_primary_mana_cost )'
     )) {
