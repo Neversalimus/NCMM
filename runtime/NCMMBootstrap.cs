@@ -76,6 +76,14 @@ internal sealed class RuntimeState
     public int? last_exit_code { get; set; }
 }
 
+internal sealed class FileHashCacheEntry
+{
+    public long length { get; set; }
+    public long last_write_utc_ticks { get; set; }
+    public long creation_utc_ticks { get; set; }
+    public string sha256 { get; set; }
+}
+
 internal static class NCMMBootstrap
 {
     private const int LoaderApi = 1;
@@ -88,6 +96,8 @@ internal static class NCMMBootstrap
     private static string FeedStatus = "not_checked";
     private static readonly RuntimeState State = new RuntimeState();
     private static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
+    private static Dictionary<string, FileHashCacheEntry> HashCache;
+    private static bool HashCacheLoaded;
 
     private static void Log(string message)
     {
@@ -101,16 +111,89 @@ internal static class NCMMBootstrap
         catch { }
     }
 
+    private static void EnsureHashCacheLoaded()
+    {
+        if (HashCacheLoaded) return;
+        HashCacheLoaded = true;
+        HashCache = new Dictionary<string, FileHashCacheEntry>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            if (String.IsNullOrEmpty(NcmmDir)) return;
+            string path = Path.Combine(NcmmDir, "hash-cache.json");
+            if (!File.Exists(path)) return;
+            Dictionary<string, FileHashCacheEntry> loaded =
+                Json.Deserialize<Dictionary<string, FileHashCacheEntry>>(File.ReadAllText(path));
+            if (loaded == null) return;
+            foreach (KeyValuePair<string, FileHashCacheEntry> pair in loaded)
+                HashCache[pair.Key] = pair.Value;
+        }
+        catch (Exception ex)
+        {
+            Log("SHA256 cache read failed: " + ex.Message);
+        }
+    }
+
+    private static void SaveHashCache()
+    {
+        try
+        {
+            if (HashCache == null || String.IsNullOrEmpty(NcmmDir)) return;
+            string path = Path.Combine(NcmmDir, "hash-cache.json");
+            string temp = path + ".tmp";
+            File.WriteAllText(temp, Json.Serialize(HashCache), Encoding.UTF8);
+            PublishFileAtomic(temp, path);
+        }
+        catch (Exception ex)
+        {
+            Log("SHA256 cache write failed: " + ex.Message);
+        }
+    }
+
     private static string Sha256(string path)
     {
+        FileInfo before = new FileInfo(path);
+        before.Refresh();
+        if (!before.Exists) throw new FileNotFoundException("File is missing.", path);
+        string fullPath = Path.GetFullPath(path);
+        EnsureHashCacheLoaded();
+
+        FileHashCacheEntry cached;
+        if (HashCache != null && HashCache.TryGetValue(fullPath, out cached) && cached != null &&
+            cached.length == before.Length &&
+            cached.last_write_utc_ticks == before.LastWriteTimeUtc.Ticks &&
+            cached.creation_utc_ticks == before.CreationTimeUtc.Ticks &&
+            !String.IsNullOrEmpty(cached.sha256) && cached.sha256.Length == 64)
+        {
+            Log("SHA256 cache hit: " + Path.GetFileName(path));
+            return cached.sha256.ToLowerInvariant();
+        }
+
+        string result;
         using (FileStream stream = File.OpenRead(path))
         using (SHA256 sha = SHA256.Create())
         {
             byte[] hash = sha.ComputeHash(stream);
             StringBuilder sb = new StringBuilder(hash.Length * 2);
             foreach (byte b in hash) sb.Append(b.ToString("x2"));
-            return sb.ToString();
+            result = sb.ToString();
         }
+
+        FileInfo after = new FileInfo(path);
+        after.Refresh();
+        if (HashCache != null && after.Exists &&
+            before.Length == after.Length &&
+            before.LastWriteTimeUtc.Ticks == after.LastWriteTimeUtc.Ticks &&
+            before.CreationTimeUtc.Ticks == after.CreationTimeUtc.Ticks)
+        {
+            HashCache[fullPath] = new FileHashCacheEntry {
+                length = after.Length,
+                last_write_utc_ticks = after.LastWriteTimeUtc.Ticks,
+                creation_utc_ticks = after.CreationTimeUtc.Ticks,
+                sha256 = result
+            };
+            SaveHashCache();
+        }
+        return result;
     }
 
     private static string TrySha256(string path)
