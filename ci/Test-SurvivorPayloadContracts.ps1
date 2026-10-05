@@ -754,6 +754,7 @@ foreach($needle0140 in @(
     'Not enough mana to smash with the primary Mana Hand weapon.',
     'Apply-SurvivorManaHandSmash0140 $CddaRoot',
     'function Apply-SurvivorManaHandAutoattack0140',
+    '#include "character_martial_arts.h"',
     'ncmm_primary_mana_hand_autoattack_weapon',
     'ncmm_primary_mana_hand_autoattack_reach',
     'Apply-SurvivorManaHandAutoattack0140 $CddaRoot',
@@ -787,6 +788,13 @@ foreach($needle0140 in @(
 if($payload.Contains('item_location::type::mana_hand')){
     throw 'Virtual Mana Hand slots must not introduce a synthetic item_location type.'
 }
+
+$autoattackStart0140=$payload.IndexOf('function Apply-SurvivorManaHandAutoattack0140')
+$autoattackEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandThrow0140',$autoattackStart0140)
+if($autoattackStart0140 -lt 0 -or $autoattackEnd0140 -le $autoattackStart0140){throw 'Mana Hand autoattack transform boundary missing.'}
+$autoattackSection0140=$payload.Substring($autoattackStart0140,$autoattackEnd0140-$autoattackStart0140)
+if(-not $autoattackSection0140.Contains('#include "character_martial_arts.h"')){throw 'Mana Hand autoattack must include the complete character_martial_arts type.'}
+if($autoattackSection0140.Contains('#include "martialarts.h"')){throw 'Mana Hand autoattack uses incomplete martial-arts header.'}
 
 $vehicleXpStart0151=$payload.IndexOf('function Apply-SurvivorVehicleCraftingXp0151')
 $vehicleXpEnd0151=$payload.IndexOf('function Apply-SurvivorManaHandSpellcastingAid0140',$vehicleXpStart0151)
@@ -1323,7 +1331,7 @@ $manaAutoEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandThrow0140',$ma
 if($manaAutoStart0140 -le $manaSmashStart0140 -or $manaAutoEnd0140 -le $manaAutoStart0140){throw 'Primary Mana Hand autoattack transform boundary missing.'}
 $manaAutoSection0140=$payload.Substring($manaAutoStart0140,$manaAutoEnd0140-$manaAutoStart0140)
 foreach($autoNeedle0140 in @(
-    '#include "martialarts.h"',
+    '#include "character_martial_arts.h"',
     'class ncmm_mana_hand_autoattack_scope',
     'ncmm_primary_mana_hand_autoattack_weapon',
     'ncmm_primary_mana_hand_autoattack_reach',
@@ -1337,8 +1345,11 @@ foreach($autoNeedle0140 in @(
 )){if(-not $manaAutoSection0140.Contains($autoNeedle0140)){throw ('Mana Hand autoattack regression contract missing: '+$autoNeedle0140)}}
 if($manaAutoSection0140.Contains('set_wielded_item(') -or $manaAutoSection0140.Contains('you.wield(') -or $manaAutoSection0140.Contains('.obtain(')){throw 'Mana Hand autoattack must not move the real item into Character::weapon.'}
 if($manaAutoSection0140.Contains('you.martial_arts_data->selected_force_unarmed()') -and
-   -not $manaAutoSection0140.Contains('#include "martialarts.h"')){
+   -not $manaAutoSection0140.Contains('#include "character_martial_arts.h"')){
     throw 'Mana Hand autoattack directly uses character_martial_arts without its complete type include.'
+}
+if($manaAutoSection0140.Contains('#include "martialarts.h"')){
+    throw 'Mana Hand autoattack regression contract rejects the incomplete martialarts.h include.'
 }
 if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandAutoattack0140 -CommandType Function).Definition')){throw 'Mana Hand autoattack transform missing from mechanics patch revision.'}
 

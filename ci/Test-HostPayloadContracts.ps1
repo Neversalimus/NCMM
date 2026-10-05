@@ -117,6 +117,12 @@ foreach($n in @('function Apply-NcmmHostApi20Core','#define NCMM_HOST_API_V2_COR
 $sdkCurrent=Get-Content (Join-Path $PackageRoot 'sdk\ncmm_api.h') -Raw
 $hostHeaderCurrent=Get-Content (Join-Path $PackageRoot 'host_patch\ncmm_loader.h') -Raw
 $hostSourceCurrent=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp'))
+if(([regex]::Matches($hostSourceCurrent,[regex]::Escape('remove_worn_items_with( []( const item &candidate )'))).Count -ne 2){
+    throw 'Host worn-item cleanup predicates must use const item& for cross-version CDDA compatibility.'
+}
+if($hostSourceCurrent.Contains('remove_worn_items_with( []( item &candidate )')){
+    throw 'Host worn-item cleanup still uses legacy mutable predicate signature.'
+}
 $manaHandCarrierCurrent=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\persistent_data\mana_hand_carrier.json'))
 if(([regex]::Matches($manaHandCarrierCurrent,[regex]::Escape('"max_item_length": "5 meter"'))).Count -ne 2){
     throw 'Mana Hand carrier must use CDDA-supported meter length units for both internal pockets.'
