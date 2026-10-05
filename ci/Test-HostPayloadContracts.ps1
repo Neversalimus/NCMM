@@ -33,6 +33,7 @@ $requiredManaHostLayers=@(
     'Apply-SurvivorManaHandReloadAndShoot0140',
     'Apply-SurvivorManaHandFireAction0140',
     'Apply-SurvivorManaHandGunControls0140',
+    'Apply-SurvivorManaHandReloadCarrier0153',
     'Apply-SurvivorManaHandPrimaryMelee0140',
     'Apply-SurvivorManaHandMartialArts0140',
     'Apply-SurvivorManaHandReachMelee0140',
