@@ -24683,6 +24683,77 @@ int item::get_remaining_capacity_for_liquid( const item &liquid, const Character
 Apply-SurvivorManaHandHeldUtilities0140 $CddaRoot
 
 
+
+function Apply-SurvivorManaHandDirectCount0152([string]$Root) {
+    Write-Host "Applying Survivor 0.15.2 Mana Hand direct combat-count reconciliation..." -ForegroundColor Cyan
+    $src0152direct = Join-Path $Root 'src'
+    $sourceNames0152direct = @(
+        'game.cpp',
+        'talker_character.cpp',
+        'iuse_actor.cpp',
+        'melee.cpp',
+        'martialarts.cpp',
+        'handle_action.cpp',
+        'activity_actor.cpp',
+        'ranged.cpp',
+        'avatar_action.cpp',
+        'character.cpp',
+        'weather.cpp',
+        'item.cpp',
+        'suffer.cpp',
+        'item_container.cpp'
+    )
+    $legacyPattern0152direct =
+        'ncmm::runtime_hook_modifier\(\s*"magic\.virtual_hand_count",\s*nullptr,\s*"magiclysm",\s*nullptr,\s*nullptr\s*\)'
+    $directExpression0152 = 'ncmm::gameplay_modifier( "mg_virtual_hand_count" )'
+    $replacementCount0152 = 0
+
+    foreach($sourceName0152direct in $sourceNames0152direct) {
+        $sourcePath0152direct = Join-Path $src0152direct $sourceName0152direct
+        if(-not(Test-Path $sourcePath0152direct -PathType Leaf)) {
+            continue
+        }
+        $sourceText0152direct = Normalize-Lf ([IO.File]::ReadAllText($sourcePath0152direct))
+        $matchCount0152direct = ([regex]::Matches(
+                                    $sourceText0152direct,
+                                    $legacyPattern0152direct)).Count
+        if($matchCount0152direct -gt 0) {
+            $sourceText0152direct = [regex]::Replace(
+                                       $sourceText0152direct,
+                                       $legacyPattern0152direct,
+                                       $directExpression0152)
+            Write-Utf8NoBom $sourcePath0152direct $sourceText0152direct
+            $replacementCount0152 += $matchCount0152direct
+        }
+    }
+
+    $meleePath0152direct = Join-Path $src0152direct 'melee.cpp'
+    if(Test-Path $meleePath0152direct -PathType Leaf) {
+        $meleeText0152direct = Normalize-Lf ([IO.File]::ReadAllText($meleePath0152direct))
+        if(-not $meleeText0152direct.Contains('ncmm_primary_mana_hand_melee_weapon') -or
+           -not $meleeText0152direct.Contains($directExpression0152)) {
+            throw 'Mana Hand primary melee is not using direct virtual-hand count after reconciliation.'
+        }
+    }
+
+    foreach($sourceName0152direct in $sourceNames0152direct) {
+        $sourcePath0152direct = Join-Path $src0152direct $sourceName0152direct
+        if(-not(Test-Path $sourcePath0152direct -PathType Leaf)) {
+            continue
+        }
+        $sourceText0152direct = Normalize-Lf ([IO.File]::ReadAllText($sourcePath0152direct))
+        if([regex]::IsMatch($sourceText0152direct,$legacyPattern0152direct)) {
+            throw ('Source-scoped Mana Hand count survived direct-count reconciliation: '+$sourceName0152direct)
+        }
+    }
+
+    Write-Host ("Survivor 0.15.2 Mana Hand direct count: READY ("+
+                $replacementCount0152+" source-scoped calls reconciled)") -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandDirectCount0152 $CddaRoot
+
+
 function Apply-SurvivorCraftCompletionMetric0140([string]$Root) {
     Write-Host "Applying Survivor 0.14.0 exact craft-completion metric..." -ForegroundColor Cyan
     $craftMetricPath = Join-Path (Join-Path $Root 'src') 'crafting.cpp'
@@ -25061,6 +25132,7 @@ $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandTargetPractice
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandMend0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandCrutches0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandHeldUtilities0140 -CommandType Function).Definition
+$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorManaHandDirectCount0152 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorCraftCompletionMetric0140 -CommandType Function).Definition
 $mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorVehicleCraftingMetric0151 -CommandType Function).Definition
 function Apply-SurvivorDimensionalPouch0150 {
@@ -25276,6 +25348,7 @@ if ($HostSourceProbeOnly) {
     Apply-NcmmReactiveMechanics0113 $CddaRoot
     Apply-SurvivorCraftCompletionMetric0140 $CddaRoot
     Apply-SurvivorVehicleCraftingMetric0151 $CddaRoot
+    Apply-SurvivorManaHandDirectCount0152 $CddaRoot
     Assert-NcmmReactiveMechanics0113Source $CddaRoot
     if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_reactive_mechanics_0112") -PathType Leaf)) { throw "Deep probe: Survivor 0.11.2 reactive edge marker missing." }
     if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_reactive_mechanics_0113") -PathType Leaf)) { throw "Deep probe: Survivor 0.11.3 combinatorial edge marker missing." }
@@ -25351,6 +25424,7 @@ Apply-NcmmReactiveMechanics0112 $CddaRoot
 Apply-NcmmReactiveMechanics0113 $CddaRoot
 Apply-SurvivorCraftCompletionMetric0140 $CddaRoot
 Apply-SurvivorVehicleCraftingMetric0151 $CddaRoot
+    Apply-SurvivorManaHandDirectCount0152 $CddaRoot
 Assert-NcmmReactiveMechanics0113Source $CddaRoot
 if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_reactive_mechanics_0112") -PathType Leaf)) {
     throw "Survivor 0.11.2 reactive edge marker missing."
