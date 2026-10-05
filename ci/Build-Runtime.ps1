@@ -461,7 +461,11 @@ foreach ($requiredBootstrapFragment in @(
     'gameplay_smoke_host_unavailable',
     '--ncmm-runtime-smoke',
     '--ncmm-gameplay-smoke',
-    'stale boot.pending still exists before host launch'
+    'stale boot.pending still exists before host launch',
+    'private sealed class ShaCacheEntry',
+    'private static readonly Dictionary<string, ShaCacheEntry> Sha256Cache',
+    'InvalidateSha256(destination);',
+    'cached.LastWriteUtcTicks == info.LastWriteTimeUtc.Ticks'
 )) {
     if (-not $bootstrapSourceText.Contains($requiredBootstrapFragment)) {
         throw "NCMM $hostVersion bootstrap hardening invariant missing: $requiredBootstrapFragment"
