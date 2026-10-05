@@ -89,6 +89,16 @@ internal static class NCMMBootstrap
     private static readonly RuntimeState State = new RuntimeState();
     private static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
 
+    private sealed class ShaCacheEntry
+    {
+        public long Length;
+        public long LastWriteUtcTicks;
+        public string Hash;
+    }
+
+    private static readonly Dictionary<string, ShaCacheEntry> Sha256Cache =
+        new Dictionary<string, ShaCacheEntry>(StringComparer.OrdinalIgnoreCase);
+
     private static void Log(string message)
     {
         try
@@ -101,16 +111,41 @@ internal static class NCMMBootstrap
         catch { }
     }
 
+    private static void InvalidateSha256(string path)
+    {
+        if (String.IsNullOrEmpty(path)) return;
+        try { Sha256Cache.Remove(Path.GetFullPath(path)); } catch { }
+    }
+
     private static string Sha256(string path)
     {
-        using (FileStream stream = File.OpenRead(path))
+        string fullPath = Path.GetFullPath(path);
+        FileInfo info = new FileInfo(fullPath);
+        ShaCacheEntry cached;
+        if (Sha256Cache.TryGetValue(fullPath, out cached) &&
+            cached.Length == info.Length &&
+            cached.LastWriteUtcTicks == info.LastWriteTimeUtc.Ticks)
+        {
+            return cached.Hash;
+        }
+
+        string result;
+        using (FileStream stream = File.OpenRead(fullPath))
         using (SHA256 sha = SHA256.Create())
         {
             byte[] hash = sha.ComputeHash(stream);
             StringBuilder sb = new StringBuilder(hash.Length * 2);
             foreach (byte b in hash) sb.Append(b.ToString("x2"));
-            return sb.ToString();
+            result = sb.ToString();
         }
+
+        info.Refresh();
+        Sha256Cache[fullPath] = new ShaCacheEntry {
+            Length = info.Length,
+            LastWriteUtcTicks = info.LastWriteTimeUtc.Ticks,
+            Hash = result
+        };
+        return result;
     }
 
     private static string TrySha256(string path)
@@ -140,6 +175,7 @@ internal static class NCMMBootstrap
         {
             File.Move(staged, destination);
         }
+        InvalidateSha256(destination);
     }
 
     private static void RefreshStateFiles()
