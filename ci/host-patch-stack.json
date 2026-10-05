@@ -5,7 +5,9 @@
     "Write-Utf8NoBom",
     "Replace-TextBlock",
     "Replace-CppRange",
-    "Normalize-Path"
+    "Normalize-Path",
+    "Test-TextBlock",
+    "Count-TextBlock"
   ],
   "layers": [
     "Apply-WorldSettingsV2Patch",
