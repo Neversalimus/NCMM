@@ -1138,10 +1138,13 @@ item_location stash_wielded_item_for_mana_hand( item_location loc )
         return loc;
     }
 
+    log_line( NCMM_LOG_INFO, "Mana Hand transfer stage: stash begin." );
     item_location carrier = ensure_mana_hand_carrier( you );
     if( !carrier ) {
+        log_line( NCMM_LOG_WARN, "Mana Hand transfer stage: carrier ensure failed." );
         return item_location();
     }
+    log_line( NCMM_LOG_INFO, "Mana Hand transfer stage: carrier ready." );
 
     item_pocket *destination = nullptr;
     for( item_pocket *pocket : carrier->get_container_pockets() ) {
@@ -1160,14 +1163,19 @@ item_location stash_wielded_item_for_mana_hand( item_location loc )
     // the weapon through the general visitable graph.  The returned value is a
     // detached item copy with a fresh UID; the final carrier UID is recorded below
     // by virtual_item_assign_internal().
+    log_line( NCMM_LOG_INFO, "Mana Hand transfer stage: remove_weapon begin." );
     item moved = you.remove_weapon();
+    log_line( NCMM_LOG_INFO, "Mana Hand transfer stage: remove_weapon complete." );
     if( moved.is_null() ) {
         return item_location();
     }
 
     item *inserted = nullptr;
+    log_line( NCMM_LOG_INFO, "Mana Hand transfer stage: carrier insert begin." );
     destination->add( moved, &inserted );
+    log_line( NCMM_LOG_INFO, "Mana Hand transfer stage: carrier insert complete." );
     carrier.on_contents_changed();
+    log_line( NCMM_LOG_INFO, "Mana Hand transfer stage: carrier contents changed." );
     you.invalidate_inventory_validity_cache();
     you.invalidate_weight_carried_cache();
     return inserted != nullptr ? item_location( carrier, inserted ) : item_location();
@@ -1181,17 +1189,24 @@ bool restore_mana_hand_carrier_item( item_location loc )
 
     avatar &you = get_avatar();
     item *stored = loc.get_item();
-    if( !you.is_armed() && stored != nullptr && you.Character::wield( *stored, 0 ) ) {
+    log_line( NCMM_LOG_INFO, "Mana Hand transfer stage: restore begin." );
+    if( !you.is_armed() && stored != nullptr ) {
+        log_line( NCMM_LOG_INFO, "Mana Hand transfer stage: restore wield begin." );
+        const bool restored_to_hand = you.Character::wield( *stored, 0 );
+        log_line( NCMM_LOG_INFO, "Mana Hand transfer stage: restore wield complete." );
+        if( restored_to_hand ) {
         // Call Character::wield(item&, obtain_cost) explicitly: avatar's overload set
         // hides the base overload that accepts an obtain-cost override. This removes
         // the real item through Character::i_rem without asking the forbidden internal
         // pocket for item_location::obtain_cost(), while keeping normal wield hooks,
         // events and relocation UID refresh.
-        you.invalidate_inventory_validity_cache();
-        you.invalidate_weight_carried_cache();
-        return true;
+            you.invalidate_inventory_validity_cache();
+            you.invalidate_weight_carried_cache();
+            return true;
+        }
     }
 
+    log_line( NCMM_LOG_INFO, "Mana Hand transfer stage: restore inventory fallback." );
     item moved = *loc;
     item_location regular = you.try_add( moved, nullptr, nullptr, false, false );
     if( regular ) {
