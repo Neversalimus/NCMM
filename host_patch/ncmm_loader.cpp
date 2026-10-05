@@ -4571,7 +4571,7 @@ void sync_mana_hand_carrier()
         virtual_item_clear_internal( survivor_module_id, mana_hand_3_slot_id );
         virtual_item_clear_internal( survivor_module_id, mana_hand_4_slot_id );
         virtual_item_clear_internal( survivor_module_id, mana_hands_pair_slot_id );
-        std::list<item> removed = who.remove_worn_items_with( []( item &candidate ) {
+        std::list<item> removed = who.remove_worn_items_with( []( const item &candidate ) {
             return candidate.typeId() == mana_hand_carrier_type_id;
         } );
         for( item &carrier : removed ) {
@@ -4665,7 +4665,7 @@ void sync_dimensional_pouch()
 
     avatar &who = get_avatar();
     if( rank <= 0 ) {
-        std::list<item> removed = who.remove_worn_items_with( []( item &candidate ) {
+        std::list<item> removed = who.remove_worn_items_with( []( const item &candidate ) {
             return candidate.typeId() == dimensional_pouch_type_id;
         } );
         for( item &pouch : removed ) {
