@@ -4212,7 +4212,19 @@ bool mana_hand_inventory_action( item_location loc )
             return virtual_item_assign_internal(
                        survivor_module_id, mana_hands_pair_slot_id, loc, pair_flags );
         case mana_action::release:
-            return release_virtual_item( *candidate );
+            if( virtual_item_for_slot_internal( survivor_module_id, mana_hand_3_slot_id ) == candidate ) {
+                virtual_item_clear_internal( survivor_module_id, mana_hand_3_slot_id );
+                return true;
+            }
+            if( virtual_item_for_slot_internal( survivor_module_id, mana_hand_4_slot_id ) == candidate ) {
+                virtual_item_clear_internal( survivor_module_id, mana_hand_4_slot_id );
+                return true;
+            }
+            if( virtual_item_for_slot_internal( survivor_module_id, mana_hands_pair_slot_id ) == candidate ) {
+                virtual_item_clear_internal( survivor_module_id, mana_hands_pair_slot_id );
+                return true;
+            }
+            return false;
         default:
             return false;
     }
@@ -4245,7 +4257,14 @@ bool release_virtual_item( item &it )
     item *bound = virtual_item_for_slot_internal(
                       module_id.c_str(), slot_id.c_str() );
     if( bound == &it ) {
-        virtual_item_clear_internal( module_id.c_str(), slot_id.c_str() );
+        // Vanilla is already moving/removing this item. Detach logical ownership only.
+        // Explicit Mana Hand release still uses virtual_item_clear_internal() and restores
+        // a carrier-held item to the physical hand/inventory/ground.
+        it.erase_var( virtual_item_marker_key );
+        it.erase_var( virtual_item_secondary_melee_key );
+        it.erase_var( virtual_item_primary_melee_key );
+        virtual_item_state_set_uid_internal( module_id.c_str(), slot_id.c_str(), 0 );
+        virtual_item_state_set_flags_internal( module_id.c_str(), slot_id.c_str(), 0u );
         return true;
     }
 

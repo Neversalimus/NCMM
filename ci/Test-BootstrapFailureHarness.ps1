@@ -153,6 +153,9 @@ try {
         Assert-True (Test-Path (Join-Path $root 'ncmm\boot.ready')) 'Second normal launch did not publish boot.ready.'
         Assert-True (-not (Test-Path (Join-Path $root 'ncmm\ncmm.auto_disabled'))) 'Second normal launch was misclassified as a crash.'
         Assert-Equal (Read-State $root).selected_mode 'NCMM_HOST' 'Second launch state did not remain NCMM_HOST.'
+        $bootstrapLog = Get-Content (Join-Path $root 'ncmm\bootstrap.log') -Raw
+        Assert-True ($bootstrapLog.Contains('SHA256 cache hit: cataclysm-tiles.vanilla.exe')) 'Second launch did not reuse cached vanilla SHA256.'
+        Assert-True ($bootstrapLog.Contains('SHA256 cache hit: cataclysm-tiles.ncmm.exe')) 'Second launch did not reuse cached Host SHA256.'
     }
 
     Run-Scenario 'manual disable -> vanilla' {

@@ -425,7 +425,9 @@
           "path": "src/game.cpp",
           "required": [
             "addentry( '=', pgettext( \"action\", \"reassign\" ), hint_rating::good );",
-            "switch( cMenu ) {"
+            "switch( cMenu ) {",
+            "void game::reload( item_location &loc, bool prompt, bool empty )",
+            "if( !u.has_item( *loc ) && !loc->has_flag( flag_ALLOWS_REMOTE_USE ) ) {"
           ]
         },
         {
