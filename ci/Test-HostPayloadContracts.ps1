@@ -488,11 +488,21 @@ foreach($gameplayHostNeedle in @(
     'find_perk_index( "mg_mana_hand_4" )',
     'find_perk_index( "mg_dimensional_pouch" )',
     'dimensional_pouch_check_count',
+    'pocket_data *dimensional_pouch_container_pocket()',
+    'pocket.type != pocket_type::CONTAINER',
+    'pocket_data *pocket = dimensional_pouch_container_pocket();',
+    'dimensional_pouch_pocket = dimensional_pouch_container_pocket();',
     'survivor_real_strength_mismatch',
     'survivor_real_carry_mismatch'
 )){
     if(-not $gameplayHost.Contains($gameplayHostNeedle)){
         throw ('NCMM real gameplay smoke Host contract missing: '+$gameplayHostNeedle)
     }
+}
+if($gameplayHost.Contains('dimensional_pouch_type_id.obj().pockets.size() != 1')){
+    throw 'Dimensional Pouch regressed to raw itype pocket-count validation; CDDA adds MIGRATION pockets during finalize.'
+}
+if($gameplayHost.Contains('dimensional_pouch_type_id.obj().pockets.front()')){
+    throw 'Dimensional Pouch regressed to raw itype pocket ordering instead of selecting the CONTAINER pocket.'
 }
 Write-Host 'NCMM Host/AWS payload regression contract: PASS' -ForegroundColor Green
