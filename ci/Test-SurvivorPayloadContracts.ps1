@@ -1246,6 +1246,27 @@ if($manaReachSection0140.Contains('set_wielded_item(') -or
     throw 'Mana Hand reach melee must not move the real item into Character::weapon.'
 }
 
+foreach($reachBlockMarker0140 in @(
+    '$reachAttackOld0140 = @''',
+    '$reachAttackNew0140 = @'''
+)){
+    $reachBlockStart0140=$manaReachSection0140.IndexOf($reachBlockMarker0140)
+    if($reachBlockStart0140 -lt 0){
+        throw ('Mana Hand reach transform block missing: '+$reachBlockMarker0140)
+    }
+    $reachBlockEnd0140=$manaReachSection0140.IndexOf("'@",$reachBlockStart0140+$reachBlockMarker0140.Length)
+    if($reachBlockEnd0140 -le $reachBlockStart0140){
+        throw ('Mana Hand reach transform block end missing: '+$reachBlockMarker0140)
+    }
+    $reachBlock0140=$manaReachSection0140.Substring(
+        $reachBlockStart0140,$reachBlockEnd0140-$reachBlockStart0140)
+    if(-not $reachBlock0140.Contains(
+        'ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ? tec_none.obj() :')){
+        throw ('Mana Hand reach transform must preserve the primary/secondary martial-art guard: '+
+               $reachBlockMarker0140)
+    }
+}
+
 $manaSmashEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandAutoattack0140',$manaSmashStart0140)
 if($manaSmashEnd0140 -le $manaSmashStart0140){throw 'Primary Mana Hand smash transform end missing.'}
 $manaSmashSection0140=$payload.Substring($manaSmashStart0140,$manaSmashEnd0140-$manaSmashStart0140)

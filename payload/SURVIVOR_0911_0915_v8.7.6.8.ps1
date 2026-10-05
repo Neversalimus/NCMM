@@ -23100,7 +23100,9 @@ void Character::reach_attack( const tripoint_bub_ms &p, int forced_movecost )
     if( critter == nullptr ) {
         add_msg_if_player( _( "You swing at the air." ) );
 
-        const ma_technique miss_recovery = martial_arts_data->get_miss_recovery( *this );
+        const ma_technique miss_recovery =
+            ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ? tec_none.obj() :
+            martial_arts_data->get_miss_recovery( *this );
 
         if( miss_recovery.id != tec_none ) {
             move_cost /= 3; // "Probing" is faster than a regular miss
@@ -23212,7 +23214,9 @@ void Character::reach_attack( const tripoint_bub_ms &p, int forced_movecost )
     if( critter == nullptr ) {
         add_msg_if_player( _( "You swing at the air." ) );
 
-        const ma_technique miss_recovery = martial_arts_data->get_miss_recovery( *this );
+        const ma_technique miss_recovery =
+            ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ? tec_none.obj() :
+            martial_arts_data->get_miss_recovery( *this );
 
         if( miss_recovery.id != tec_none ) {
             move_cost /= 3; // "Probing" is faster than a regular miss
