@@ -21,8 +21,10 @@ internal sealed class MainForm : Form
     private readonly Button browseButton = new Button();
     private readonly CheckBox hostComponent = new CheckBox();
     private readonly CheckedListBox moduleComponents = new CheckedListBox();
+    private readonly Label operationStatus = new Label();
     private readonly string payloadRoot;
     private int detectedInstallations;
+    private bool operationActive;
 
     internal MainForm()
     {
@@ -152,10 +154,23 @@ internal sealed class MainForm : Form
         repairStateButton.Click += delegate { RepairState(); };
         Controls.Add(repairStateButton);
 
+        operationStatus.Left = 20;
+        operationStatus.Top = 386;
+        operationStatus.Width = 860;
+        operationStatus.Height = 30;
+        operationStatus.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        operationStatus.BorderStyle = BorderStyle.FixedSingle;
+        operationStatus.TextAlign = ContentAlignment.MiddleLeft;
+        operationStatus.Font = new Font(operationStatus.Font, FontStyle.Bold);
+        operationStatus.Text = "READY - no install operation is running.";
+        operationStatus.ForeColor = Color.DarkSlateGray;
+        operationStatus.BackColor = Color.White;
+        Controls.Add(operationStatus);
+
         log.Left = 20;
-        log.Top = 390;
+        log.Top = 426;
         log.Width = 860;
-        log.Height = 235;
+        log.Height = 199;
         log.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         log.Multiline = true;
         log.ScrollBars = ScrollBars.Vertical;
@@ -186,6 +201,26 @@ internal sealed class MainForm : Form
     private void Append(string text)
     {
         log.AppendText(DateTime.Now.ToString("HH:mm:ss") + "  " + text + Environment.NewLine);
+    }
+
+    private void SetInstallerBusy(bool busy)
+    {
+        operationActive = busy;
+        installButton.Enabled = !busy;
+        restoreButton.Enabled = !busy;
+        diagnosticsButton.Enabled = !busy;
+        repairStateButton.Enabled = !busy;
+        browseButton.Enabled = !busy;
+        pathBox.Enabled = !busy;
+        moduleComponents.Enabled = !busy;
+        UseWaitCursor = busy;
+    }
+
+    private void SetOperationStatus(string text, Color color)
+    {
+        operationStatus.Text = text;
+        operationStatus.ForeColor = color;
+        operationStatus.Refresh();
     }
 
     private DetectedInstallation SelectedInstallation()
@@ -328,29 +363,51 @@ internal sealed class MainForm : Form
 
     private void Install()
     {
+        if (operationActive) return;
+
+        bool busy = false;
         try
         {
             DetectedInstallation target = SelectedInstallation();
             string selection = SelectedComponentSummary();
             if (!ConfirmTarget(target, "Install / Repair: " + selection)) return;
 
+            SetInstallerBusy(true);
+            busy = true;
+            SetOperationStatus(
+                "INSTALLING / VERIFYING - do not launch CDDA until this changes to INSTALL COMPLETE.",
+                Color.DarkOrange);
+            Append("Install / Repair started: " + selection + ".");
+            Application.DoEvents();
+
             InstallResult result = SetupCore.Install(target.PathValue, payloadRoot, SelectedModuleIds());
+            if (!result.CompletionVerified)
+                throw new InvalidOperationException(
+                    "Installer returned without the final completion verification.");
+
             Append("Installed successfully: " + selection + ".");
+            Append("Post-install verification: PASS.");
             Append("Unselected bundled modules were safely deactivated; user-owned files were preserved.");
             Append("Target: " + result.BuildLabel + " | " + result.GameRoot);
             Append("Bootstrap SHA256: " + result.BootstrapSha256.ToUpperInvariant());
             Append("Vanilla SHA256: " + result.VanillaSha256.ToUpperInvariant());
+            Append("INSTALL COMPLETE & VERIFIED. No setup work remains; this window may stay open.");
+
+            SetOperationStatus(
+                "INSTALL COMPLETE & VERIFIED - safe to launch CDDA. This installer may stay open.",
+                Color.DarkGreen);
 
             string modules = result.InstalledModuleIds == null || result.InstalledModuleIds.Count == 0
                 ? "none (Host only)"
                 : String.Join(", ", result.InstalledModuleIds.ToArray());
 
             string message =
-                "NCMM installed successfully.\n\n" +
+                "NCMM install is COMPLETE and VERIFIED.\n\n" +
                 "Target build: " + result.BuildLabel + "\n" +
                 "Path: " + result.GameRoot + "\n" +
                 "Optional modules: " + modules + "\n\n" +
-                "You can launch CDDA normally.";
+                "No setup work continues in the background.\n" +
+                "You can launch CDDA now and leave this installer open.";
 
             MessageBox.Show(this, message, "NCMM " + SetupCore.RuntimeVersion,
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -358,8 +415,15 @@ internal sealed class MainForm : Form
         catch (Exception ex)
         {
             Append("INSTALL FAILED: " + ex.Message);
+            SetOperationStatus(
+                "INSTALL FAILED - do not assume NCMM is installed. Review the error below.",
+                Color.DarkRed);
             MessageBox.Show(this, ex.Message, "NCMM install failed",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            if (busy) SetInstallerBusy(false);
         }
     }
 
