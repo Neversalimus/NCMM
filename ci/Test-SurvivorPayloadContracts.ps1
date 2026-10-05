@@ -424,6 +424,7 @@ foreach($carrierDataNeedle0151 in @(
     '"id": "ncmm_survivor_mana_hand_carrier"',
     '"INTEGRATED"',
     '"HIDDEN_ITEM"',
+    '"TARDIS"',
     '"forbidden": true',
     '"holster": true',
     '"max_item_length": "5 meter"'
@@ -446,6 +447,7 @@ foreach($payloadNeedle0150 in @(
     'dimensional_pouch.json',
     'ncmm_survivor_mana_hand_carrier',
     'mana_hand_carrier.json',
+    '"flags": [ "INTEGRATED", "UNBREAKABLE", "PERSONAL", "NO_SALVAGE", "ZERO_WEIGHT", "HIDDEN_ITEM", "TARDIS" ]',
     'stash_wielded_item_for_mana_hand',
     'restore_mana_hand_carrier_item',
     'persistent_data',
