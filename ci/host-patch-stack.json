@@ -45,6 +45,7 @@
     "Apply-SurvivorCraftCompletionMetric0140",
     "Apply-SurvivorVehicleCraftingMetric0151",
     "Apply-SurvivorManaHandDirectCount0152",
+    "Apply-SurvivorActionWeaponSelection0154",
     "Assert-NcmmReactiveMechanics0113Source",
     "Apply-RecipeFinalizeProfilerSupportPatch",
     "Apply-NcmmRuntimeInfrastructureV8766"

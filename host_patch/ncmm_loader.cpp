@@ -4090,6 +4090,86 @@ bool survivor_mana_hand_marker( const item &candidate )
 }
 } // namespace
 
+bool ranged_weapon_capable( const item &weapon, ranged_weapon_action action )
+{
+    if( !weapon.is_gun() || weapon.is_gunmod() ) {
+        return false;
+    }
+    if( action == ranged_weapon_action::fire ) {
+        const gun_mode mode = weapon.gun_current_mode();
+        return mode && !mode.melee();
+    }
+    return action != ranged_weapon_action::reload || weapon.is_reloadable();
+}
+
+std::vector<item_location> ranged_weapon_candidates( avatar &who, ranged_weapon_action action )
+{
+    // Slot priority is meaningful only after checking the action's capability.
+    // Do not use used_weapon(): it implements melee/force-unarmed semantics.
+    item_location physical = who.get_wielded_item();
+    if( physical && ranged_weapon_capable( *physical, action ) ) {
+        return { physical };
+    }
+    std::vector<item_location> result;
+    if( &who != &get_avatar() ) {
+        return result;
+    }
+    const int hand_count = survivor_mana_hand_count();
+    const auto add = [&]( item *candidate ) {
+        if( candidate != nullptr && ranged_weapon_capable( *candidate, action ) ) {
+            result.emplace_back( who, candidate );
+        }
+    };
+    // Resolve only on an explicit action, never on an aim tick. Once selected,
+    // aim owns the item_location and validates its binding without a slot scan.
+    item *paired = hand_count >= 2 ?
+                   virtual_item_for_slot( survivor_module_id, mana_hands_pair_slot_id ) : nullptr;
+    if( paired != nullptr ) {
+        add( paired );
+    } else {
+        if( hand_count >= 1 ) {
+            add( virtual_item_for_slot( survivor_module_id, mana_hand_3_slot_id ) );
+        }
+        if( hand_count >= 2 ) {
+            add( virtual_item_for_slot( survivor_module_id, mana_hand_4_slot_id ) );
+        }
+    }
+    return result;
+}
+
+std::string ranged_weapon_label( const item &weapon )
+{
+    const std::string marker = weapon.get_var( virtual_item_marker_key, "" );
+    const std::string label = marker == virtual_item_marker( survivor_module_id,
+                              mana_hands_pair_slot_id ) ?
+                              localized_text( "Mana Hands III+IV", "Руки маны III+IV" ) :
+                              marker == virtual_item_marker( survivor_module_id, mana_hand_3_slot_id ) ?
+                              localized_text( "Mana Hand III", "Рука маны III" ) :
+                              localized_text( "Mana Hand IV", "Рука маны IV" );
+    return label + ": " + weapon.tname();
+}
+
+item_location select_ranged_weapon( avatar &who, ranged_weapon_action action,
+                                    const char *prompt_en, const char *prompt_ru )
+{
+    const std::vector<item_location> candidates = ranged_weapon_candidates( who, action );
+    if( candidates.empty() ) {
+        return item_location();
+    }
+    if( candidates.size() == 1 ) {
+        return candidates.front();
+    }
+    std::vector<std::string> labels;
+    for( const item_location &candidate : candidates ) {
+        labels.emplace_back( ranged_weapon_label( *candidate ) );
+    }
+    const int selected = uilist( localized_text( prompt_en, prompt_ru ), labels );
+    if( selected < 0 || selected >= static_cast<int>( candidates.size() ) ) {
+        return item_location();
+    }
+    return candidates[selected];
+}
+
 bool mana_hand_inventory_action_visible( const item_location &loc )
 {
     // Keep the action visible for every carried item once a Mana Hand exists.

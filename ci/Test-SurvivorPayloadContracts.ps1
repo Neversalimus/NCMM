@@ -1656,3 +1656,4 @@ if(([regex]::Matches($payload,[regex]::Escape('Get-MissingCddaSourceSentinels'))
 }
 
 Write-Host 'NCMM Survivor payload regression contract: PASS' -ForegroundColor Green
+& (Join-Path $PSScriptRoot 'Test-ManaActionWeaponContracts.ps1') -PackageRoot $PackageRoot
