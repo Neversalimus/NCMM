@@ -884,6 +884,21 @@ foreach($directManaNeedle0151 in @(
     }
 }
 
+
+$manaUxOldStart0151=$manaContextSection0140.IndexOf('$manaUxMenuOld0151 = @''')
+$manaUxNewStart0151=$manaContextSection0140.IndexOf('$manaUxMenuNew0151 = @''',$manaUxOldStart0151)
+if($manaUxOldStart0151 -lt 0 -or $manaUxNewStart0151 -le $manaUxOldStart0151){
+    throw 'Mana Hand direct inventory clean-source menu transform structure missing.'
+}
+$manaUxOld0151=$manaContextSection0140.Substring($manaUxOldStart0151,$manaUxNewStart0151-$manaUxOldStart0151)
+if(-not $manaUxOld0151.Contains('const int ncmm_mana_hands = static_cast<int>(')){
+    throw 'Mana Hand direct inventory action must anchor after the generated III/IV menu on clean source.'
+}
+if($manaUxOld0151.Contains('if( bHPR ) {')){
+    throw 'Mana Hand direct inventory action regressed to the consumed vanilla bHPR anchor.'
+}
+
+
 $manaUtilityStart0140=$payload.IndexOf('function Apply-SurvivorManaHandUtility0140')
 $manaSecondaryStart0140=$payload.IndexOf('function Apply-SurvivorManaHandSecondaryMelee0140',$manaUtilityStart0140)
 if($manaUtilityStart0140 -lt 0 -or $manaSecondaryStart0140 -le $manaUtilityStart0140){throw 'Mana Hand utility/secondary transform boundary missing.'}
