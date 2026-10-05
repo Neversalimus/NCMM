@@ -20078,7 +20078,7 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
         $manaUxMenuOld0151 = @'
                 addentry( '=', pgettext( "action", "reassign" ), hint_rating::good );
 
-                if( bHPR ) {
+                const int ncmm_mana_hands = static_cast<int>(
 '@
         $manaUxMenuNew0151 = @'
                 addentry( '=', pgettext( "action", "reassign" ), hint_rating::good );
@@ -20088,7 +20088,7 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                                   "Рука маны" ), hint_rating::good );
                 }
 
-                if( bHPR ) {
+                const int ncmm_mana_hands = static_cast<int>(
 '@
         $game0140ctx = Replace-TextBlock $game0140ctx $manaUxMenuOld0151 $manaUxMenuNew0151 'Mana Hand direct inventory action'
     }
