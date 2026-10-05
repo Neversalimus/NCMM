@@ -68,6 +68,8 @@ bool mana_hand_inventory_action_visible( const item_location &loc );
 bool mana_hand_inventory_action( item_location loc );
 bool release_virtual_item( item &it );
 bool is_virtual_item( const item &it );
+item_location virtual_item_location( Character &who, item &it );
+bool virtual_item_wield_physical( Character &who, item &it );
 bool virtual_melee_context_begin( Character &who, item &weapon,
                                  bool suppress_martial_arts = true );
 void virtual_melee_context_end( Character &who );
