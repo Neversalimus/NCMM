@@ -830,6 +830,10 @@ $manaLifecycleSection0140=$payload.Substring($manaLifecycleStart0140,$manaUtilit
 foreach($lifeNeedle0140 in @(
     '$container1831Old0140life',
     'container.remove_items_with(',
+    '$containerOldNorm0140life = (Normalize-Lf $containerOld0140life).TrimEnd()',
+    '$container1831OldNorm0140life = (Normalize-Lf $container1831Old0140life).TrimEnd()',
+    '$itemLocation0140life.Contains($containerOldNorm0140life)',
+    '$itemLocation0140life.Contains($container1831OldNorm0140life)',
     'Mana Hand lifecycle contained-item removal legacy',
     'Mana Hand lifecycle contained-item removal 1831'
 )){
