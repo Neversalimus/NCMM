@@ -439,6 +439,12 @@ if($manaHandCarrierData0151.Contains('"max_item_length": "5 m"')){
 if(([regex]::Matches($manaHandCarrierData0151,[regex]::Escape('"max_item_length": "5 meter"'))).Count -ne 2){
     throw 'Survivor 0.15.0 Mana Hand carrier must expose exactly two 5 meter internal pockets.'
 }
+if(([regex]::Matches($manaHandCarrierData0151,[regex]::Escape('"moves": 1'))).Count -ne 2){
+    throw 'Survivor Mana Hand carrier must expose two nonzero-cost internal pockets.'
+}
+if($manaHandCarrierData0151.Contains('"moves": 0')){
+    throw 'Survivor Mana Hand carrier zero-move obtain_cost regression returned.'
+}
 foreach($payloadNeedle0150 in @(
     'function Apply-SurvivorDimensionalPouch0150',
     'mg_dimensional_pouch',
@@ -1182,7 +1188,10 @@ foreach($controlNeedle0140 in @(
     'Change firing mode on which Mana Hand weapon?',
     'gun_cycle_mode();',
     'Set default ammo for which Mana Hand weapon?',
-    'player_character.select_ammo( *ammo_weapon, false )'
+    'player_character.select_ammo( *ammo_weapon, false )',
+    'function Apply-SurvivorManaHandReloadCarrier0153',
+    '!ncmm::is_virtual_item( *loc )',
+    'Apply-SurvivorManaHandReloadCarrier0153 $CddaRoot'
 )){
     if(-not $manaGunControlsSection0140.Contains($controlNeedle0140)){
         throw ('Mana Hand standard gun-control regression contract missing: '+$controlNeedle0140)
@@ -1262,6 +1271,8 @@ foreach($reachNeedle0140 in @(
     'item_location reach_weapon = used_weapon();',
     'handle_melee_wear( reach_weapon );',
     'get_total_melee_stamina_cost( &reach_item )',
+    'const bool ncmm_allow_virtual_reach_weapon = ncmm_primary_reach_weapon != nullptr;',
+    'ncmm_allow_virtual_reach_weapon, forced_movecost',
     'magic->mod_mana( *this, -ncmm_reach_mana_cost )'
 )){
     if(-not $manaReachSection0140.Contains($reachNeedle0140)){
@@ -1293,6 +1304,10 @@ foreach($reachBlockMarker0140 in @(
         throw ('Mana Hand reach transform must preserve the primary/secondary martial-art guard: '+
                $reachBlockMarker0140)
     }
+}
+
+if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandReloadCarrier0153 -CommandType Function).Definition')){
+    throw 'Mana Hand reload-in-place transform missing from mechanics patch revision.'
 }
 
 $manaSmashEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandAutoattack0140',$manaSmashStart0140)
