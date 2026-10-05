@@ -574,4 +574,16 @@ if($gameplayHost.Contains('dimensional_pouch_type_id.obj().pockets.size() != 1')
 if($gameplayHost.Contains('dimensional_pouch_type_id.obj().pockets.front()')){
     throw 'Dimensional Pouch regressed to raw itype pocket ordering instead of selecting the CONTAINER pocket.'
 }
+foreach($manaLocationNeedle in @(
+    'item_location virtual_item_location( Character &who, item &it )',
+    'item_location carrier = mana_hand_carrier_location( you );',
+    'return item_location( carrier, &it );',
+    'bool virtual_item_wield_physical( Character &who, item &it )',
+    'virtual_item_state_set_uid_internal( module_id.c_str(), slot_id.c_str(), 0 );',
+    'if( who.wield( it, 0 ) )'
+)){
+    if(-not $gameplayHost.Contains($manaLocationNeedle)){
+        throw ('Mana Hand canonical-location/physical-wield Host contract missing: '+$manaLocationNeedle)
+    }
+}
 Write-Host 'NCMM Host/AWS payload regression contract: PASS' -ForegroundColor Green
