@@ -41,9 +41,9 @@ jobs:
           path: |
             ${{ runner.temp }}\NCMMBuild\vcpkg
             ${{ runner.temp }}\NCMMBuild\downloads
-          key: ncmm-cert-${{ runner.os }}-${{ inputs.commit }}
+          key: ncmm-cert-v2-${{ runner.os }}-${{ inputs.commit }}
           restore-keys: |
-            ncmm-cert-${{ runner.os }}-
+            ncmm-cert-v2-${{ runner.os }}-
 
       - name: Verify PowerShell package contract
         shell: powershell
