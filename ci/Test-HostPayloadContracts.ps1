@@ -6,6 +6,67 @@ $common083=[IO.File]::ReadAllText((Join-Path $PackageRoot 'tools\NCMM.Infrastruc
 
 $payload=[IO.File]::ReadAllText((Join-Path $PackageRoot 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1'));foreach($n in @('[switch]$HostSourceProbeOnly','Set-InfrastructureTransactionPhase "compile"','Set-InfrastructureTransactionPhase "install"','DEEP_SOURCE_PASS')){if(-not $payload.Contains($n)){throw "Payload contract missing: $n"}}
 
+
+# Certified Hosts must apply every engine transform required by current Mana Hands.
+# A module-only/generic Host can successfully hold the item while combat still falls
+# back to fists, so this is a release-blocking parity contract rather than UI coverage.
+$certifiedHostStackPath=Join-Path $PackageRoot 'ci\host-patch-stack.json'
+$certifiedHostStack=Get-Content $certifiedHostStackPath -Raw|ConvertFrom-Json
+if(@($certifiedHostStack.helpers) -notcontains 'Normalize-Path'){
+    throw 'Certified Host patch stack is missing Normalize-Path required by Mana Hand transforms.'
+}
+$requiredManaHostLayers=@(
+    'Apply-NcmmRuntimeGameplayHooksV2',
+    'Apply-SurvivorManaHands0130',
+    'Apply-SurvivorVirtualItemSlots0140',
+    'Apply-SurvivorVirtualItemContext0140',
+    'Apply-SurvivorVehicleCraftingXp0151',
+    'Apply-SurvivorManaHandSpellcastingAid0140',
+    'Apply-SurvivorVirtualItemLifecycle0140',
+    'Apply-SurvivorManaHandUtility0140',
+    'Apply-SurvivorManaHandSecondaryMelee0140',
+    'Apply-SurvivorManaHandPairedGrip0140',
+    'Apply-SurvivorManaHandRanged0140',
+    'Apply-SurvivorManaHandPairedRanged0140',
+    'Apply-SurvivorManaHandReloadAndShoot0140',
+    'Apply-SurvivorManaHandFireAction0140',
+    'Apply-SurvivorManaHandGunControls0140',
+    'Apply-SurvivorManaHandPrimaryMelee0140',
+    'Apply-SurvivorManaHandMartialArts0140',
+    'Apply-SurvivorManaHandReachMelee0140',
+    'Apply-SurvivorManaHandSmash0140',
+    'Apply-SurvivorManaHandAutoattack0140',
+    'Apply-SurvivorManaHandThrow0140',
+    'Apply-SurvivorManaHandAutoMining0140',
+    'Apply-SurvivorManaHandTargetPractice0140',
+    'Apply-SurvivorManaHandMend0140',
+    'Apply-SurvivorManaHandCrutches0140',
+    'Apply-SurvivorManaHandHeldUtilities0140',
+    'Apply-SurvivorCraftCompletionMetric0140',
+    'Apply-SurvivorVehicleCraftingMetric0151',
+    'Apply-SurvivorManaHandDirectCount0152'
+)
+$actualCertifiedLayers=@($certifiedHostStack.layers|ForEach-Object{[string]$_})
+$previousLayerIndex=-1
+foreach($requiredLayer in $requiredManaHostLayers){
+    $layerIndex=[Array]::IndexOf([string[]]$actualCertifiedLayers,$requiredLayer)
+    if($layerIndex -lt 0){
+        throw ('Certified Host is missing required Mana Hand engine layer: '+$requiredLayer)
+    }
+    if($layerIndex -le $previousLayerIndex){
+        throw ('Certified Host Mana Hand engine layer order regression: '+$requiredLayer)
+    }
+    $previousLayerIndex=$layerIndex
+    if(-not $payload.Contains('function '+$requiredLayer)){
+        throw ('Certified Host layer has no canonical payload definition: '+$requiredLayer)
+    }
+}
+if([Array]::IndexOf([string[]]$actualCertifiedLayers,'Apply-SurvivorManaHandDirectCount0152') -lt
+   [Array]::IndexOf([string[]]$actualCertifiedLayers,'Apply-SurvivorManaHandPrimaryMelee0140')){
+    throw 'Mana Hand direct-count reconciliation must run after primary melee injection.'
+}
+
+
 # RANDOM_DAMAGE tooltip regression: runtime spell-power hooks must affect both the
 # real cast and the pre-cast spell description.  The complete-gate probe forces
 # already-patched source caches to receive this newer UI hook as well.
