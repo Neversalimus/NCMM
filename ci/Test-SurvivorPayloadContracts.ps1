@@ -662,8 +662,8 @@ foreach($needle0140 in @(
     "case 'H':",
     'Apply-SurvivorVirtualItemContext0140 $CddaRoot',
     'function Apply-SurvivorVehicleCraftingXp0151',
-    'NCMM Survivor vehicle install Crafting XP',
-    'NCMM Survivor vehicle removal Crafting XP',
+    '// NCMM Survivor Crafting XP: successful vehicle install.',
+    '// NCMM Survivor Crafting XP: successful vehicle removal.',
     'ncmm::gameplay_metric_record_completed_craft( you );',
     'Apply-SurvivorVehicleCraftingXp0151 $CddaRoot',
     'function Apply-SurvivorManaHandSpellcastingAid0140',
@@ -786,6 +786,26 @@ foreach($needle0140 in @(
 }
 if($payload.Contains('item_location::type::mana_hand')){
     throw 'Virtual Mana Hand slots must not introduce a synthetic item_location type.'
+}
+
+$vehicleXpStart0151=$payload.IndexOf('function Apply-SurvivorVehicleCraftingXp0151')
+$vehicleXpEnd0151=$payload.IndexOf('function Apply-SurvivorManaHandSpellcastingAid0140',$vehicleXpStart0151)
+if($vehicleXpStart0151 -lt 0 -or $vehicleXpEnd0151 -le $vehicleXpStart0151){
+    throw 'Early vehicle Crafting XP transform boundary missing.'
+}
+$vehicleXpSection0151=$payload.Substring($vehicleXpStart0151,$vehicleXpEnd0151-$vehicleXpStart0151)
+foreach($vehicleXpNeedle0151 in @(
+    '// NCMM Survivor Crafting XP: successful vehicle install.',
+    '// NCMM Survivor Crafting XP: successful vehicle removal.',
+    'ncmm::gameplay_metric_record_completed_craft( you );'
+)){
+    if(-not $vehicleXpSection0151.Contains($vehicleXpNeedle0151)){
+        throw ('Early vehicle Crafting XP canonical marker missing: '+$vehicleXpNeedle0151)
+    }
+}
+if($vehicleXpSection0151.Contains('NCMM Survivor vehicle install Crafting XP') -or
+   $vehicleXpSection0151.Contains('NCMM Survivor vehicle removal Crafting XP')){
+    throw 'Vehicle Crafting XP transforms must share canonical idempotence markers.'
 }
 foreach($manaAccountingNeedle0140 in @(
     'const int ncmm_virtual_shot_mana_cost = ncmm_planned_shots * 5;',

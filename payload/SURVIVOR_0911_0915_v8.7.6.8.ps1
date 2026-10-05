@@ -20175,7 +20175,7 @@ function Apply-SurvivorVehicleCraftingXp0151([string]$Root) {
         $activity0151 = Replace-TextBlock $activity0151 '#include "activity_actor_definitions.h"' ('#include "activity_actor_definitions.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'vehicle-crafting-xp.include'
     }
 
-    if(-not $activity0151.Contains('NCMM Survivor vehicle install Crafting XP')) {
+    if(-not $activity0151.Contains('// NCMM Survivor Crafting XP: successful vehicle install.')) {
         $installOld0151 = @'
             for( const auto &sk : vpinfo.install_skills ) {
                 you.practice( sk.first, veh_utils::calc_xp_gain( vpinfo, sk.first, you ) );
@@ -20187,7 +20187,7 @@ function Apply-SurvivorVehicleCraftingXp0151([string]$Root) {
             for( const auto &sk : vpinfo.install_skills ) {
                 you.practice( sk.first, veh_utils::calc_xp_gain( vpinfo, sk.first, you ) );
             }
-            // NCMM Survivor vehicle install Crafting XP: only after install_part succeeded.
+            // NCMM Survivor Crafting XP: successful vehicle install.
             ncmm::gameplay_metric_record_completed_craft( you );
             here.add_vehicle_to_cache( &veh );
             break;
@@ -20195,7 +20195,7 @@ function Apply-SurvivorVehicleCraftingXp0151([string]$Root) {
         $activity0151 = Replace-TextBlock $activity0151 $installOld0151 $installNew0151 'vehicle-crafting-xp.install'
     }
 
-    if(-not $activity0151.Contains('NCMM Survivor vehicle removal Crafting XP')) {
+    if(-not $activity0151.Contains('// NCMM Survivor Crafting XP: successful vehicle removal.')) {
         $removeOld0151 = @'
             if( you.is_npc() ) {
                 for( const item_location &itl : locs ) {
@@ -20210,7 +20210,7 @@ function Apply-SurvivorVehicleCraftingXp0151([string]$Root) {
                     you.may_activity_occupancy_after_end_items_loc.push_back( itl );
                 }
             }
-            // NCMM Survivor vehicle removal Crafting XP: reached only after a successful removal.
+            // NCMM Survivor Crafting XP: successful vehicle removal.
             ncmm::gameplay_metric_record_completed_craft( you );
             break;
 '@
@@ -20219,8 +20219,8 @@ function Apply-SurvivorVehicleCraftingXp0151([string]$Root) {
 
     Write-Utf8NoBom $activity0151Path $activity0151
     foreach($needle0151 in @(
-        'NCMM Survivor vehicle install Crafting XP',
-        'NCMM Survivor vehicle removal Crafting XP',
+        '// NCMM Survivor Crafting XP: successful vehicle install.',
+        '// NCMM Survivor Crafting XP: successful vehicle removal.',
         'ncmm::gameplay_metric_record_completed_craft( you );'
     )) {
         if(-not ([IO.File]::ReadAllText($activity0151Path)).Contains($needle0151)) {
