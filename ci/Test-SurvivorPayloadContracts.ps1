@@ -775,7 +775,9 @@ foreach($needle0140 in @(
     'function Apply-SurvivorManaHandHeldUtilities0140',
     'ncmm_mana_hand_holds_flag',
     'ncmm_mana_hand_holds_item',
-    'Apply-SurvivorManaHandHeldUtilities0140 $CddaRoot'
+    'Apply-SurvivorManaHandHeldUtilities0140 $CddaRoot',
+    'function Apply-SurvivorManaHandDirectCount0152',
+    'Apply-SurvivorManaHandDirectCount0152 $CddaRoot'
 )){
     if(-not $payload.Contains($needle0140)){
         throw ('Survivor 0.14.0 virtual-item payload contract missing: '+$needle0140)
@@ -1406,6 +1408,35 @@ if($manaHeldSection0140.Contains('set_wielded_item(') -or
     throw 'Mana Hand held utilities must not move the real virtual item into Character::weapon.'
 }
 if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandHeldUtilities0140 -CommandType Function).Definition')){throw 'Mana Hand held-utility transform missing from mechanics patch revision.'}
+
+
+# Mana Hand direct-count reconciliation contract:
+# gameplay/slot ownership and combat selection must read the same aggregate modifier.
+$manaDirectStart0152=$payload.IndexOf('function Apply-SurvivorManaHandDirectCount0152',$manaHeldStart0140)
+$manaDirectEnd0152=$payload.IndexOf('function Apply-SurvivorCraftCompletionMetric0140',$manaDirectStart0152)
+if($manaDirectStart0152 -le $manaHeldStart0140 -or $manaDirectEnd0152 -le $manaDirectStart0152){
+    throw 'Mana Hand direct-count reconciliation transform boundary missing.'
+}
+$manaDirectSection0152=$payload.Substring($manaDirectStart0152,$manaDirectEnd0152-$manaDirectStart0152)
+foreach($directNeedle0152 in @(
+    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
+    '$legacyPattern0152direct',
+    'ncmm_primary_mana_hand_melee_weapon',
+    'Source-scoped Mana Hand count survived direct-count reconciliation'
+)){
+    if(-not $manaDirectSection0152.Contains($directNeedle0152)){
+        throw ('Mana Hand direct-count reconciliation contract missing: '+$directNeedle0152)
+    }
+}
+if($manaDirectSection0152.Contains("'magic.cpp'")){
+    throw 'Mana Hand direct-count reconciliation must not rewrite spell-source selection.'
+}
+if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandDirectCount0152 -CommandType Function).Definition')){
+    throw 'Mana Hand direct-count reconciliation missing from mechanics patch revision.'
+}
+if(([regex]::Matches($payload,[regex]::Escape('Apply-SurvivorManaHandDirectCount0152 $CddaRoot'))).Count -lt 3){
+    throw 'Mana Hand direct-count reconciliation must run during initial transform, deep probe, and normal build.'
+}
 
 
 $craftMetricStart0140=$payload.IndexOf('function Apply-SurvivorCraftCompletionMetric0140',$manaHeldStart0140)
