@@ -12,8 +12,10 @@ $payload=[IO.File]::ReadAllText((Join-Path $PackageRoot 'payload\SURVIVOR_0911_0
 # back to fists, so this is a release-blocking parity contract rather than UI coverage.
 $certifiedHostStackPath=Join-Path $PackageRoot 'ci\host-patch-stack.json'
 $certifiedHostStack=Get-Content $certifiedHostStackPath -Raw|ConvertFrom-Json
-if(@($certifiedHostStack.helpers) -notcontains 'Normalize-Path'){
-    throw 'Certified Host patch stack is missing Normalize-Path required by Mana Hand transforms.'
+foreach($requiredHelper in @('Normalize-Path','Test-TextBlock','Count-TextBlock')){
+    if(@($certifiedHostStack.helpers) -notcontains $requiredHelper){
+        throw ('Certified Host patch stack is missing helper required by Mana Hand transforms: '+$requiredHelper)
+    }
 }
 $requiredManaHostLayers=@(
     'Apply-NcmmRuntimeGameplayHooksV2',

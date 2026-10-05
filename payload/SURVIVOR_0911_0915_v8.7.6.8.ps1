@@ -177,6 +177,18 @@ function Replace-TextBlock([string]$Text,[string]$Old,[string]$New,[string]$Name
     return $Text.Replace($Old,$New)
 }
 
+function Test-TextBlock([string]$Text,[string]$Block) {
+    $Text = Normalize-Lf $Text
+    $Block = (Normalize-Lf $Block).TrimEnd()
+    return $Text.Contains($Block)
+}
+
+function Count-TextBlock([string]$Text,[string]$Block) {
+    $Text = Normalize-Lf $Text
+    $Block = (Normalize-Lf $Block).TrimEnd()
+    return ([regex]::Matches($Text,[regex]::Escape($Block))).Count
+}
+
 function Replace-CppRange([string]$Text,[string]$Start,[string]$End,[string]$Replacement,[string]$Name) {
     # Source files downloaded from GitHub are LF, while Windows PowerShell here-strings
     # inherit CRLF from this installer.  Normalize both sides before contract matching so
@@ -205,6 +217,13 @@ $blockProbeNew = "gamma`r`ndelta"
 $blockProbeResult = Replace-TextBlock $blockProbeText $blockProbeOld $blockProbeNew "installer block EOL-normalization self-test"
 if (-not $blockProbeResult.Contains("gamma`ndelta")) {
     throw "Installer block EOL-normalization self-test failed."
+}
+
+if(-not (Test-TextBlock "HEAD`nalpha`nbeta`nTAIL" "alpha`r`nbeta")) {
+    throw "Test-TextBlock EOL-normalization self-test failed."
+}
+if((Count-TextBlock "HEAD`nalpha`nbeta`nTAIL" "alpha`r`nbeta") -ne 1) {
+    throw "Count-TextBlock EOL-normalization self-test failed."
 }
 
 function Test-VsRoot([string]$Root) {
@@ -20694,7 +20713,7 @@ static const std::set<weapon_category_id> &wielded_weapon_categories( const Char
     return ncmm_attack_result;
 }
 '@
-        $attackCount0140 = ([regex]::Matches($melee0140,[regex]::Escape($attackOld0140))).Count
+        $attackCount0140 = Count-TextBlock $melee0140 $attackOld0140
         if($attackCount0140 -ne 1) {
             throw ('Unexpected Mana Hand melee wrapper anchor count: '+$attackCount0140)
         }
@@ -21017,7 +21036,7 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
                 } else if( ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 1 &&
                            ncmm::virtual_item_can_assign(
 '@
-        $single3Count0140pair = ([regex]::Matches($game0140pair,[regex]::Escape($single3Old0140pair))).Count
+        $single3Count0140pair = Count-TextBlock $game0140pair $single3Old0140pair
         if($single3Count0140pair -ne 1) {
             throw ('Unexpected Mana Hand III pair-gate anchor count: '+$single3Count0140pair)
         }
@@ -21570,9 +21589,9 @@ function Apply-SurvivorManaHandPairedRanged0140([string]$Root) {
                     NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
                     NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;
 '@
-    if($game0140pr.Contains($pairMenuFlagsOld0140pr)) {
+    if(Test-TextBlock $game0140pr $pairMenuFlagsOld0140pr) {
         $game0140pr = Replace-TextBlock $game0140pr $pairMenuFlagsOld0140pr $pairMenuFlagsNew0140pr 'paired Mana Hand firearm menu flags'
-    } elseif(-not $game0140pr.Contains($pairMenuFlagsNew0140pr)) {
+    } elseif(-not (Test-TextBlock $game0140pr $pairMenuFlagsNew0140pr)) {
         throw 'Paired Mana Hand firearm menu flags anchor missing.'
     }
 
@@ -21591,9 +21610,9 @@ function Apply-SurvivorManaHandPairedRanged0140([string]$Root) {
                         NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
                         NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;
 '@
-    if($game0140pr.Contains($pairHandlerFlagsOld0140pr)) {
+    if(Test-TextBlock $game0140pr $pairHandlerFlagsOld0140pr) {
         $game0140pr = Replace-TextBlock $game0140pr $pairHandlerFlagsOld0140pr $pairHandlerFlagsNew0140pr 'paired Mana Hand firearm handler flags'
-    } elseif(-not $game0140pr.Contains($pairHandlerFlagsNew0140pr)) {
+    } elseif(-not (Test-TextBlock $game0140pr $pairHandlerFlagsNew0140pr)) {
         throw 'Paired Mana Hand firearm handler flags anchor missing.'
     }
 
@@ -21619,7 +21638,7 @@ function Apply-SurvivorManaHandPairedRanged0140([string]$Root) {
                 const bool ncmm_mana_ranged_eligible =
                     ncmm_mana_ranged_single || ncmm_mana_ranged_pair;
 '@
-    if($game0140pr.Contains($menuOld0140pr)) {
+    if(Test-TextBlock $game0140pr $menuOld0140pr) {
         $game0140pr = Replace-TextBlock $game0140pr $menuOld0140pr $menuNew0140pr 'paired Mana Hand ranged menu eligibility'
     } elseif(-not $game0140pr.Contains('const bool ncmm_mana_ranged_pair =')) {
         throw 'Paired Mana Hand ranged menu eligibility anchor missing.'
@@ -21658,7 +21677,7 @@ function Apply-SurvivorManaHandPairedRanged0140([string]$Root) {
                         break;
                     }
 '@
-    if($game0140pr.Contains($handlerOld0140pr)) {
+    if(Test-TextBlock $game0140pr $handlerOld0140pr) {
         $game0140pr = Replace-TextBlock $game0140pr $handlerOld0140pr $handlerNew0140pr 'paired Mana Hand ranged handler eligibility'
     } elseif(-not $game0140pr.Contains('const bool ncmm_ranged_pair =')) {
         throw 'Paired Mana Hand ranged handler anchor missing.'
@@ -21686,7 +21705,7 @@ function Apply-SurvivorManaHandPairedRanged0140([string]$Root) {
             return ncmm_real_weapon;
         }
 '@
-    if($actor0140pr.Contains($resolverOld0140pr)) {
+    if(Test-TextBlock $actor0140pr $resolverOld0140pr) {
         $actor0140pr = Replace-TextBlock $actor0140pr $resolverOld0140pr $resolverNew0140pr 'paired Mana Hand aim revalidation'
     } elseif(-not $actor0140pr.Contains('item *ncmm_pair = ncmm_ranged_hand_count >= 2 ?')) {
         throw 'Paired Mana Hand aim revalidation anchor missing.'
@@ -21835,7 +21854,7 @@ function Apply-SurvivorManaHandReloadAndShoot0140([string]$Root) {
     }
 
 '@
-    if($ranged0140ras.Contains($unsupported0140ras)) {
+    if(Test-TextBlock $ranged0140ras $unsupported0140ras) {
         $ranged0140ras = Replace-TextBlock $ranged0140ras $unsupported0140ras '' 'Mana Hand reload-and-shoot mode gate'
     }
 
@@ -22329,7 +22348,7 @@ function Apply-SurvivorManaHandPrimaryMelee0140([string]$Root) {
                 if( ncmm_secondary_melee_eligible ) {
                     const bool ncmm_secondary_enabled =
 '@
-        $menuCount0140pm = ([regex]::Matches($game0140pm,[regex]::Escape($menuAnchor0140pm))).Count
+        $menuCount0140pm = Count-TextBlock $game0140pm $menuAnchor0140pm
         if($menuCount0140pm -ne 1) {
             throw ('Unexpected primary Mana Hand menu anchor count: '+$menuCount0140pm)
         }
@@ -22384,7 +22403,7 @@ function Apply-SurvivorManaHandPrimaryMelee0140([string]$Root) {
                 }
                 case 'M': {
 '@
-        $handlerCount0140pm = ([regex]::Matches($game0140pm,[regex]::Escape($handlerAnchor0140pm))).Count
+        $handlerCount0140pm = Count-TextBlock $game0140pm $handlerAnchor0140pm
         if($handlerCount0140pm -ne 1) {
             throw ('Unexpected primary Mana Hand handler anchor count: '+$handlerCount0140pm)
         }
@@ -22519,7 +22538,7 @@ item *ncmm_primary_mana_hand_melee_weapon( Character &who )
     }
     return ncmm_attack_result;
 '@
-        $wrapperCount0140pm = ([regex]::Matches($melee0140pm,[regex]::Escape($wrapperOld0140pm))).Count
+        $wrapperCount0140pm = Count-TextBlock $melee0140pm $wrapperOld0140pm
         if($wrapperCount0140pm -ne 1) {
             throw ('Unexpected primary Mana Hand melee wrapper count: '+$wrapperCount0140pm)
         }
@@ -22943,7 +22962,7 @@ static void reach_attack( avatar &you )
         static_cast<int>( you.calculate_by_enchantment( 1,
                           enchant_vals::mod::MELEE_RANGE_MODIFIER ) ) > 1 ) {
 '@
-        $fireCount0140reach = ([regex]::Matches($handle0140reach,[regex]::Escape($fireOld0140reach))).Count
+        $fireCount0140reach = Count-TextBlock $handle0140reach $fireOld0140reach
         if($fireCount0140reach -ne 1) {
             throw ('Unexpected Mana Hand reach FIRE anchor count: '+$fireCount0140reach)
         }
@@ -23012,7 +23031,7 @@ bool Character::can_reach_attack( const Creature &target ) const
     return true;
 }
 '@
-        $canReachCount0140 = ([regex]::Matches($melee0140reach,[regex]::Escape($canReachOld0140))).Count
+        $canReachCount0140 = Count-TextBlock $melee0140reach $canReachOld0140
         if($canReachCount0140 -ne 1) {
             throw ('Unexpected Mana Hand can_reach_attack anchor count: '+$canReachCount0140)
         }
@@ -23220,7 +23239,7 @@ void Character::reach_attack( const tripoint_bub_ms &p, int forced_movecost )
     }
 }
 '@
-        $reachAttackCount0140 = ([regex]::Matches($melee0140reach,[regex]::Escape($reachAttackOld0140))).Count
+        $reachAttackCount0140 = Count-TextBlock $melee0140reach $reachAttackOld0140
         if($reachAttackCount0140 -ne 1) {
             throw ('Unexpected Mana Hand reach_attack anchor count: '+$reachAttackCount0140)
         }
@@ -23703,7 +23722,7 @@ void avatar_action::autoattack( avatar &you, map &m )
     }
 }
 '@
-        $autoCount0140 = ([regex]::Matches($avatar0140auto,[regex]::Escape($autoOld0140))).Count
+        $autoCount0140 = Count-TextBlock $avatar0140auto $autoOld0140
         if($autoCount0140 -ne 1) { throw ('Unexpected Primary Mana Hand autoattack anchor count: '+$autoCount0140) }
         $avatar0140auto = Replace-TextBlock $avatar0140auto $autoOld0140 $autoNew0140 'Primary Mana Hand autoattack reach selection'
     }
@@ -24015,7 +24034,7 @@ function Apply-SurvivorManaHandAutoMining0140([string]$Root) {
     }
     if( m.has_flag( ter_furn_flag::TFLAG_MINEABLE, dest_loc ) && g->mostseen == 0 &&
 '@
-        $mineCount0140 = ([regex]::Matches($avatar0140mine,[regex]::Escape($mineOld0140))).Count
+        $mineCount0140 = Count-TextBlock $avatar0140mine $mineOld0140
         if($mineCount0140 -ne 1) { throw ('Unexpected Mana Hand auto-mining anchor count: '+$mineCount0140) }
         $avatar0140mine = Replace-TextBlock $avatar0140mine $mineOld0140 $mineNew0140 'Mana Hand auto-mining tool selection'
     }
