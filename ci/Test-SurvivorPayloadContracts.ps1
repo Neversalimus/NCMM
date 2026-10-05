@@ -529,6 +529,18 @@ if(@($contracts0140.contracts|Where-Object{$_.id -eq 'magic_virtual_slots.source
     throw 'Magic virtual-slot source contract missing.'
 }
 $hostVirtual0140=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp'))
+if(-not $hostVirtual0140.Contains('absolute_path.lexically_normal().lexically_relative( game_root().lexically_normal() )')){
+    throw 'NCMM module-data bridge no longer converts absolute module directories into CWD-relative cata_path values.'
+}
+if($hostVirtual0140.Contains('cata_path{ cata_path::root_path::unknown, persistent_dir }') -or
+   $hostVirtual0140.Contains('cata_path{ cata_path::root_path::unknown, data_dir }')){
+    throw 'NCMM module-data bridge regressed to wrapping absolute filesystem paths directly in root_path::unknown.'
+}
+if(-not $hostVirtual0140.Contains('Refusing persistent module data path outside the game root:') -or
+   -not $hostVirtual0140.Contains('Refusing active module data path outside the game root:')){
+    throw 'NCMM module-data path containment guards are missing.'
+}
+
 foreach($uxNeedle0151 in @(
     'return survivor_mana_hand_count() > 0 && loc && loc.held_by( get_avatar() );',
     'This is a two-handed item. It requires both Mana Hands III+IV',

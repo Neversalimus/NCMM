@@ -6477,6 +6477,25 @@ void load_module_data()
     mana_hand_carrier_last_count = -1;
     DynamicDataLoader &loader = DynamicDataLoader::get_instance();
 
+    // DynamicDataLoader's cata_path contract requires root_path::unknown paths to
+    // stay relative to the process CWD.  NCMM module directories are discovered as
+    // absolute filesystem paths, so passing them directly can make CDDA's file
+    // enumerator re-relativize JSON entries against an empty logical root and
+    // produce an empty path (" does not exist.").  Keep the filesystem validation
+    // absolute, but convert the path back under the game root before loading JSON.
+    const auto module_data_path = []( const std::filesystem::path &absolute_path ) {
+        const std::filesystem::path relative =
+            absolute_path.lexically_normal().lexically_relative( game_root().lexically_normal() );
+        if( relative.empty() || relative.is_absolute() ) {
+            return cata_path{};
+        }
+        const auto first = relative.begin();
+        if( first != relative.end() && first->generic_u8string() == ".." ) {
+            return cata_path{};
+        }
+        return cata_path{ cata_path::root_path::unknown, relative };
+    };
+
     std::set<std::string> persistent_module_ids;
     const auto load_persistent_data = [&]( const std::filesystem::path &directory,
                                            const std::string &module_id ) {
@@ -6488,12 +6507,18 @@ void load_module_data()
             !std::filesystem::is_directory( persistent_dir ) ) {
             return;
         }
+        const cata_path persistent_path = module_data_path( persistent_dir );
+        if( persistent_path.empty() ) {
+            log_line( NCMM_LOG_WARN,
+                      ( "Refusing persistent module data path outside the game root: " +
+                        persistent_dir.string() ).c_str() );
+            return;
+        }
         const std::string source = "ncmm:persistent:" + module_id;
         log_line( NCMM_LOG_INFO,
                   ( "Loading persistent module data: " + source + " -> " +
                     persistent_dir.string() ).c_str() );
-        loader.load_data_from_path(
-            cata_path{ cata_path::root_path::unknown, persistent_dir }, source );
+        loader.load_data_from_path( persistent_path, source );
         persistent_module_ids.insert( module_id );
     };
 
@@ -6533,9 +6558,16 @@ void load_module_data()
         if( runtime.descriptor == nullptr || runtime.descriptor->id == nullptr ) continue;
         const std::filesystem::path data_dir = runtime.directory / "data";
         if( !std::filesystem::exists( data_dir ) || !std::filesystem::is_directory( data_dir ) ) continue;
+        const cata_path data_path = module_data_path( data_dir );
+        if( data_path.empty() ) {
+            log_line( NCMM_LOG_WARN,
+                      ( "Refusing active module data path outside the game root: " +
+                        data_dir.string() ).c_str() );
+            continue;
+        }
         const std::string source = "ncmm:" + std::string( runtime.descriptor->id );
         log_line( NCMM_LOG_INFO, ( "Loading module data: " + source + " -> " + data_dir.string() ).c_str() );
-        loader.load_data_from_path( cata_path{ cata_path::root_path::unknown, data_dir }, source );
+        loader.load_data_from_path( data_path, source );
     }
 }
 
