@@ -25159,7 +25159,7 @@ function Apply-SurvivorDimensionalPouch0150 {
         "holster": true,
         "max_contains_volume": "500 L",
         "max_contains_weight": "500 kg",
-        "max_item_length": "5 m",
+        "max_item_length": "5 meter",
         "moves": 0
       },
       {
@@ -25169,7 +25169,7 @@ function Apply-SurvivorDimensionalPouch0150 {
         "holster": true,
         "max_contains_volume": "500 L",
         "max_contains_weight": "500 kg",
-        "max_item_length": "5 m",
+        "max_item_length": "5 meter",
         "moves": 0
       }
     ],
