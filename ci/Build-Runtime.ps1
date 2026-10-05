@@ -149,6 +149,7 @@ if (-not $PayloadOnly) {
 }
 
 $awsBuild = Join-Path $OutputRoot '_aws_build'
+& (Join-Path $RepositoryRoot 'ci\Test-ManaActionWeaponContracts.ps1') -PackageRoot $RepositoryRoot -RunBehavior
 cmake -S (Join-Path $RepositoryRoot 'mods\AdvancedWorldSettings') -B $awsBuild -A x64
 if ($LASTEXITCODE -ne 0) { throw 'AWS CMake configure failed.' }
 cmake --build $awsBuild --config Release

@@ -101,6 +101,9 @@ foreach ($layer in $engineLayers) {
     & $layer $UpstreamRoot
 }
 
+& (Join-Path $RepositoryRoot 'ci\Test-ManaActionWeaponContracts.ps1') `
+    -PackageRoot $RepositoryRoot -PatchedSourceRoot $UpstreamRoot
+
 $buildTimer = [Diagnostics.Stopwatch]::StartNew()
 $commonPropsPath = Join-Path $UpstreamRoot 'msvc-full-features\Cataclysm-common.props'
 $commonPropsOriginalBytes = $null

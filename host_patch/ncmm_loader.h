@@ -3,10 +3,12 @@ class Character;
 #pragma once
 #include <cstdint>
 #include <string>
+#include <vector>
 
 class input_context;
 class item;
 class item_location;
+class avatar;
 
 namespace ncmm
 {
@@ -57,6 +59,16 @@ std::string inventory_item_symbol( const item &it );
 
 /* Engine-side bridge for Host API 2.1 logical item slots. */
 item *virtual_item_for_slot( const char *module_id, const char *slot_id );
+/** Action-specific gun selection. Never obtains or physically wields an item.
+ * fire requires a ranged mode; controls also accept guns in a melee mode.
+ * Empty guns remain candidates so aim can reload them in place.
+ */
+enum class ranged_weapon_action { fire, controls, reload };
+bool ranged_weapon_capable( const item &weapon, ranged_weapon_action action );
+std::vector<item_location> ranged_weapon_candidates( avatar &who, ranged_weapon_action action );
+item_location select_ranged_weapon( avatar &who, ranged_weapon_action action,
+                                    const char *prompt_en, const char *prompt_ru );
+std::string ranged_weapon_label( const item &weapon );
 bool virtual_item_matches_slot( const item &candidate, const char *module_id,
                                 const char *slot_id );
 bool virtual_item_can_assign( const char *module_id, const char *slot_id,
