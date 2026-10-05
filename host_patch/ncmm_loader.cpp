@@ -4276,6 +4276,83 @@ bool is_virtual_item( const item &it )
     return virtual_item_for_slot_internal( module_id.c_str(), slot_id.c_str() ) == &it;
 }
 
+item_location virtual_item_location( Character &who, item &it )
+{
+    if( who.is_avatar() ) {
+        avatar &you = get_avatar();
+        item_location carrier = mana_hand_carrier_location( you );
+        if( carrier && carrier->has_item( it ) ) {
+            return item_location( carrier, &it );
+        }
+    }
+    return item_location( who, &it );
+}
+
+bool virtual_item_wield_physical( Character &who, item &it )
+{
+    if( !who.is_avatar() ) {
+        return false;
+    }
+
+    const std::string marker = it.get_var( virtual_item_marker_key, "" );
+    const std::size_t separator = marker.find( ':' );
+    if( separator == std::string::npos || separator == 0 ||
+        separator + 1 >= marker.size() ) {
+        return false;
+    }
+
+    const std::string module_id = marker.substr( 0, separator );
+    const std::string slot_id = marker.substr( separator + 1 );
+    if( !safe_state_token( module_id.c_str() ) ||
+        !safe_virtual_slot_id( slot_id.c_str() ) ||
+        virtual_item_for_slot_internal( module_id.c_str(), slot_id.c_str() ) != &it ||
+        !who.can_wield( it ).success() ) {
+        return false;
+    }
+
+    const int64_t stored_uid =
+        virtual_item_state_uid_internal( module_id.c_str(), slot_id.c_str() );
+    const int64_t stored_flags_raw =
+        virtual_item_state_flags_internal( module_id.c_str(), slot_id.c_str() );
+    const uint32_t stored_flags = stored_flags_raw < 0 ? 0u :
+                                  static_cast<uint32_t>( stored_flags_raw );
+    const bool secondary =
+        it.get_var( virtual_item_secondary_melee_key, "" ) == "1";
+    const bool primary =
+        it.get_var( virtual_item_primary_melee_key, "" ) == "1";
+
+    // Clear logical ownership before Character::wield() removes the real item
+    // from its current pocket.  This avoids item_location::obtain_cost() on the
+    // hidden carrier and prevents lifecycle cleanup from restoring it mid-transfer.
+    virtual_item_state_set_uid_internal( module_id.c_str(), slot_id.c_str(), 0 );
+    virtual_item_state_set_flags_internal( module_id.c_str(), slot_id.c_str(), 0u );
+    it.erase_var( virtual_item_marker_key );
+    it.erase_var( virtual_item_secondary_melee_key );
+    it.erase_var( virtual_item_primary_melee_key );
+
+    if( who.wield( it, 0 ) ) {
+        return true;
+    }
+
+    // Fail closed: if vanilla refused the wield and the real item is still
+    // owned by the character, restore its exact logical binding.
+    if( who.has_item( it ) ) {
+        it.set_var( virtual_item_marker_key, marker );
+        if( secondary ) {
+            it.set_var( virtual_item_secondary_melee_key, "1" );
+        }
+        if( primary ) {
+            it.set_var( virtual_item_primary_melee_key, "1" );
+        }
+        virtual_item_state_set_uid_internal(
+            module_id.c_str(), slot_id.c_str(),
+            stored_uid > 0 ? stored_uid : it.uid().get_value() );
+        virtual_item_state_set_flags_internal(
+            module_id.c_str(), slot_id.c_str(), stored_flags );
+    }
+    return false;
+}
+
 bool virtual_melee_context_begin( Character &who, item &weapon,
                                  bool suppress_martial_arts )
 {
