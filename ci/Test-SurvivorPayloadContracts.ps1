@@ -1640,4 +1640,26 @@ if(([regex]::Matches($payload,[regex]::Escape('Get-MissingCddaSourceSentinels'))
     throw 'CDDA source-completeness helper is not wired into pristine validation and working-tree validation.'
 }
 
+# Mana Hands hidden-carrier/runtime regression hardening (2026-10-05).
+foreach($manaRuntimeNeedle in @(
+    'ncmm::virtual_item_location( *const_cast<Character *>( this ), *virtual_weapon )',
+    'item_location loc = ncmm::virtual_item_location( player_character, *candidate );',
+    'item_location loc = ncmm::virtual_item_location( you, *candidate );',
+    'ncmm::virtual_item_wield_physical( *this, *loc )',
+    'ncmm_primary_reach_weapon != nullptr, forced_movecost'
+)){
+    if(-not $payload.Contains($manaRuntimeNeedle)){
+        throw ('Mana Hand canonical-location/reach regression contract missing: '+$manaRuntimeNeedle)
+    }
+}
+$carrierData=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\persistent_data\mana_hand_carrier.json'))
+if(([regex]::Matches($carrierData,[regex]::Escape('"moves": 1'))).Count -ne 2){
+    throw 'Mana Hand hidden carrier must expose a nonzero retrieval cost in both internal pockets.'
+}
+if($carrierData.Contains('"moves": 0')){
+    throw 'Mana Hand hidden carrier zero-cost obtain regression returned.'
+}
+if(-not $payload.Contains('bool Character::wield( item_location loc, bool remove_old )')){
+    throw 'Mana Hand physical-wield lifecycle transform is missing the Character::wield anchor.'
+}
 Write-Host 'NCMM Survivor payload regression contract: PASS' -ForegroundColor Green
