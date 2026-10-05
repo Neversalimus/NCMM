@@ -20391,9 +20391,11 @@ function Apply-SurvivorVirtualItemLifecycle0140([string]$Root) {
             }
         }
 '@
-        if($itemLocation0140life.Contains($containerOld0140life)) {
+        $containerOldNorm0140life = (Normalize-Lf $containerOld0140life).TrimEnd()
+        $container1831OldNorm0140life = (Normalize-Lf $container1831Old0140life).TrimEnd()
+        if($itemLocation0140life.Contains($containerOldNorm0140life)) {
             $itemLocation0140life = Replace-TextBlock $itemLocation0140life $containerOld0140life $containerNew0140life 'Mana Hand lifecycle contained-item removal legacy'
-        } elseif($itemLocation0140life.Contains($container1831Old0140life)) {
+        } elseif($itemLocation0140life.Contains($container1831OldNorm0140life)) {
             $itemLocation0140life = Replace-TextBlock $itemLocation0140life $container1831Old0140life $container1831New0140life 'Mana Hand lifecycle contained-item removal 1831'
         } else {
             throw 'Mana Hand lifecycle contained-item removal anchor missing for supported CDDA source.'
