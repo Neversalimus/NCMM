@@ -54,6 +54,17 @@ foreach($n in @('function Apply-NcmmHostApi20Core','#define NCMM_HOST_API_V2_COR
 $sdkCurrent=Get-Content (Join-Path $PackageRoot 'sdk\ncmm_api.h') -Raw
 $hostHeaderCurrent=Get-Content (Join-Path $PackageRoot 'host_patch\ncmm_loader.h') -Raw
 $hostSourceCurrent=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp'))
+$manaHandCarrierCurrent=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\persistent_data\mana_hand_carrier.json'))
+if(([regex]::Matches($manaHandCarrierCurrent,[regex]::Escape('"max_item_length": "5 meter"'))).Count -ne 2){
+    throw 'Mana Hand carrier must use CDDA-supported meter length units for both internal pockets.'
+}
+if($manaHandCarrierCurrent.Contains('"max_item_length": "5 m"')){
+    throw 'Mana Hand carrier uses unsupported abbreviated meter unit.'
+}
+if(([regex]::Matches($payload,[regex]::Escape('"max_item_length": "5 meter"'))).Count -lt 2){
+    throw 'Cumulative payload Mana Hand carrier length unit is stale.'
+}
+
 
 # Canonical files embedded in the cumulative payload must stay synchronized with
 # the checked-in sources. This closes the gap where static package checks passed

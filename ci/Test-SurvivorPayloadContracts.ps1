@@ -426,11 +426,17 @@ foreach($carrierDataNeedle0151 in @(
     '"HIDDEN_ITEM"',
     '"forbidden": true',
     '"holster": true',
-    '"max_item_length": "5 m"'
+    '"max_item_length": "5 meter"'
 )){
     if(-not $manaHandCarrierData0151.Contains($carrierDataNeedle0151)){
         throw ('Survivor 0.15.0 Mana Hand carrier data contract missing: '+$carrierDataNeedle0151)
     }
+}
+if($manaHandCarrierData0151.Contains('"max_item_length": "5 m"')){
+    throw 'Survivor 0.15.0 Mana Hand carrier uses unsupported abbreviated meter unit.'
+}
+if(([regex]::Matches($manaHandCarrierData0151,[regex]::Escape('"max_item_length": "5 meter"'))).Count -ne 2){
+    throw 'Survivor 0.15.0 Mana Hand carrier must expose exactly two 5 meter internal pockets.'
 }
 foreach($payloadNeedle0150 in @(
     'function Apply-SurvivorDimensionalPouch0150',
