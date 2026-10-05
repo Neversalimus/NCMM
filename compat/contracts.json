@@ -418,7 +418,10 @@
             "void Character::reach_attack( const tripoint_bub_ms &p, int forced_movecost )",
             "int move_cost = attack_speed( weapon );",
             "handle_melee_wear( get_wielded_item() );",
-            "get_total_melee_stamina_cost()"
+            "get_total_melee_stamina_cost()",
+            "item_location cur_weapon = allow_unarmed ? used_weapon() : get_wielded_item();",
+            "roll_all_damage( critical_hit, d, false, cur_weap, vector_id, contact_area, &t, target_bp );",
+            "sfx::generate_melee_sound( cur_weap, pos_bub(), t.pos_bub(), false, false );"
           ]
         },
         {
