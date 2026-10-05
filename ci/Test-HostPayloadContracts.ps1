@@ -250,7 +250,7 @@ $transferReleaseStart=$hostSourceCurrent.IndexOf('bool release_virtual_item( ite
 $transferReleaseEnd=$hostSourceCurrent.IndexOf('bool is_virtual_item( const item &it )',$transferReleaseStart)
 if($transferReleaseStart -lt 0 -or $transferReleaseEnd -le $transferReleaseStart){throw 'Virtual-item transfer-release function boundary missing.'}
 $transferReleaseSection=$hostSourceCurrent.Substring($transferReleaseStart,$transferReleaseEnd-$transferReleaseStart)
-if($transferReleaseSection.Contains('virtual_item_clear_internal(')){throw 'Vanilla item transfer must not recursively restore a Mana Hand carrier item.'}
+if($transferReleaseSection.Contains('virtual_item_clear_internal( module_id.c_str(), slot_id.c_str() );')){throw 'Vanilla item transfer must not recursively restore a Mana Hand carrier item.'}
 foreach($n in @(
     'it.erase_var( virtual_item_marker_key );',
     'virtual_item_state_set_uid_internal( module_id.c_str(), slot_id.c_str(), 0 );',
