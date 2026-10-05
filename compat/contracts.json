@@ -469,7 +469,9 @@
           "path": "src/character_inventory.cpp",
           "required": [
             "bool Character::is_wielding( const item &target ) const",
-            "return &weapon == &target;"
+            "return &weapon == &target;",
+            "bool Character::wield( item_location loc, bool remove_old )",
+            "loc.obtain_cost( *this )"
           ]
         },
         {
