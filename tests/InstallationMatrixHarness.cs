@@ -175,13 +175,21 @@ internal static class InstallationMatrixHarness
                    "setup transaction backup leaked after success");
     }
 
+    private static InstallResult InstallVerified(string root, string payload, IEnumerable<string> selected)
+    {
+        InstallResult result = SetupCore.Install(root, payload, selected);
+        AssertTrue(result != null && result.CompletionVerified,
+                   "installer returned before completion verification");
+        return result;
+    }
+
     private static void ExpectInstallFailure(string root, string payload, IEnumerable<string> selected,
                                              string messageFragment)
     {
         bool failed = false;
         try
         {
-            SetupCore.Install(root, payload, selected);
+            InstallVerified(root, payload, selected);
         }
         catch (Exception ex)
         {
@@ -224,7 +232,7 @@ internal static class InstallationMatrixHarness
     {
         string root = NewGame(work, "throw-" + phase, "vanilla-" + phase);
         string originalHash = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-        SetupCore.Install(root, payload, new string[] { SurvivorId });
+        InstallVerified(root, payload, new string[] { SurvivorId });
         AssertInstalled(root, payload, originalHash, SurvivorId);
         string before = FingerprintTree(root);
 
@@ -247,7 +255,7 @@ internal static class InstallationMatrixHarness
     {
         string root = NewGame(work, "abort-" + phase, "vanilla-abort-" + phase);
         string originalHash = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-        SetupCore.Install(root, payload, new string[] { SurvivorId });
+        InstallVerified(root, payload, new string[] { SurvivorId });
         AssertInstalled(root, payload, originalHash, SurvivorId);
         string before = FingerprintTree(root);
 
@@ -260,7 +268,7 @@ internal static class InstallationMatrixHarness
         AssertTrue(recovered, "pending setup transaction was not recovered");
         AssertEqual(FingerprintTree(root), before, "hard-abort recovery was not byte-identical at " + phase);
 
-        SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId });
+        InstallVerified(root, payload, new string[] { AwsId, SurvivorId });
         AssertInstalled(root, payload, originalHash, AwsId, SurvivorId);
     }
 
@@ -270,7 +278,7 @@ internal static class InstallationMatrixHarness
         string root = args[1];
         string payload = args[2];
         string[] selected = args.Skip(3).ToArray();
-        SetupCore.Install(root, payload, selected);
+        InstallVerified(root, payload, selected);
         return 0;
     }
 
@@ -304,13 +312,13 @@ internal static class InstallationMatrixHarness
         AssertTrue(File.Exists(exe), "real CDDA smoke target has no cataclysm-tiles.exe");
         string originalVanilla = Sha256(exe);
 
-        SetupCore.Install(gameRoot, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId });
+        InstallVerified(gameRoot, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId });
         AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId, BallisticId, EquipmentBodyMapId);
 
-        SetupCore.Install(gameRoot, payload, new string[] { AwsId, BallisticId, EquipmentBodyMapId });
+        InstallVerified(gameRoot, payload, new string[] { AwsId, BallisticId, EquipmentBodyMapId });
         AssertInstalled(gameRoot, payload, originalVanilla, AwsId, BallisticId, EquipmentBodyMapId);
 
-        SetupCore.Install(gameRoot, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId });
+        InstallVerified(gameRoot, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId });
         AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId, BallisticId, EquipmentBodyMapId);
 
         Console.ForegroundColor = ConsoleColor.Green;
@@ -407,59 +415,59 @@ internal static class InstallationMatrixHarness
             Run("clean CDDA -> NCMM without modules", delegate {
                 string root = NewGame(work, "clean-none", "vanilla-none");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-                SetupCore.Install(root, payload, new string[0]);
+                InstallVerified(root, payload, new string[0]);
                 AssertInstalled(root, payload, original);
             });
 
             Run("clean CDDA -> Survivor only", delegate {
                 string root = NewGame(work, "clean-survivor", "vanilla-survivor");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-                SetupCore.Install(root, payload, new string[] { SurvivorId });
+                InstallVerified(root, payload, new string[] { SurvivorId });
                 AssertInstalled(root, payload, original, SurvivorId);
             });
 
             Run("clean CDDA -> AWS only", delegate {
                 string root = NewGame(work, "clean-aws", "vanilla-aws");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-                SetupCore.Install(root, payload, new string[] { AwsId });
+                InstallVerified(root, payload, new string[] { AwsId });
                 AssertInstalled(root, payload, original, AwsId);
             });
 
             Run("clean CDDA -> Ballistic Hit Chance only", delegate {
                 string root = NewGame(work, "clean-ballistic", "vanilla-ballistic");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-                SetupCore.Install(root, payload, new string[] { BallisticId });
+                InstallVerified(root, payload, new string[] { BallisticId });
                 AssertInstalled(root, payload, original, BallisticId);
             });
 
             Run("clean CDDA -> Equipment Body Map only", delegate {
                 string root = NewGame(work, "clean-equipment-body-map", "vanilla-equipment-body-map");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-                SetupCore.Install(root, payload, new string[] { EquipmentBodyMapId });
+                InstallVerified(root, payload, new string[] { EquipmentBodyMapId });
                 AssertInstalled(root, payload, original, EquipmentBodyMapId);
             });
 
             Run("clean CDDA -> all optional modules", delegate {
                 string root = NewGame(work, "clean-all", "vanilla-all");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId });
+                InstallVerified(root, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId });
                 AssertInstalled(root, payload, original, AwsId, SurvivorId, BallisticId, EquipmentBodyMapId);
             });
 
             Run("clean CDDA -> Survivor + AWS", delegate {
                 string root = NewGame(work, "clean-full", "vanilla-full");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId });
+                InstallVerified(root, payload, new string[] { AwsId, SurvivorId });
                 AssertInstalled(root, payload, original, AwsId, SurvivorId);
             });
 
             Run("disable Ballistic Hit Chance -> AWS + Survivor remain", delegate {
                 string root = NewGame(work, "disable-ballistic", "vanilla-disable-ballistic");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId });
+                InstallVerified(root, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId });
                 string ballisticDir = Path.Combine(root, "code_mods", BallisticDir);
                 File.WriteAllText(Path.Combine(ballisticDir, "user-note.txt"), "preserve me\n", Encoding.UTF8);
-                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId });
+                InstallVerified(root, payload, new string[] { AwsId, SurvivorId });
                 AssertInstalled(root, payload, original, AwsId, SurvivorId);
                 AssertTrue(File.Exists(Path.Combine(ballisticDir, "user-note.txt")),
                            "deselecting Ballistic Hit Chance removed user-owned module files");
@@ -468,10 +476,10 @@ internal static class InstallationMatrixHarness
             Run("disable Survivor -> AWS remains", delegate {
                 string root = NewGame(work, "disable-survivor", "vanilla-disable");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId });
+                InstallVerified(root, payload, new string[] { AwsId, SurvivorId });
                 string survivorDir = Path.Combine(root, "code_mods", SurvivorDir);
                 File.WriteAllText(Path.Combine(survivorDir, "user-note.txt"), "preserve me\n", Encoding.UTF8);
-                SetupCore.Install(root, payload, new string[] { AwsId });
+                InstallVerified(root, payload, new string[] { AwsId });
                 AssertInstalled(root, payload, original, AwsId);
                 AssertTrue(File.Exists(Path.Combine(survivorDir, "user-note.txt")),
                            "deselecting Survivor removed user-owned module files");
@@ -480,11 +488,11 @@ internal static class InstallationMatrixHarness
             Run("re-enable Survivor after removal", delegate {
                 string root = NewGame(work, "reenable-survivor", "vanilla-reenable");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId });
+                InstallVerified(root, payload, new string[] { AwsId, SurvivorId });
                 string survivorDir = Path.Combine(root, "code_mods", SurvivorDir);
                 File.WriteAllText(Path.Combine(survivorDir, "disabled.note"), "persist\n", Encoding.UTF8);
-                SetupCore.Install(root, payload, new string[] { AwsId });
-                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId });
+                InstallVerified(root, payload, new string[] { AwsId });
+                InstallVerified(root, payload, new string[] { AwsId, SurvivorId });
                 AssertInstalled(root, payload, original, AwsId, SurvivorId);
                 AssertTrue(File.Exists(Path.Combine(survivorDir, "disabled.note")),
                            "re-enable lost preserved user file");
@@ -493,10 +501,10 @@ internal static class InstallationMatrixHarness
             Run("same-version reinstall is safe and idempotent", delegate {
                 string root = NewGame(work, "reinstall", "vanilla-reinstall");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId });
+                InstallVerified(root, payload, new string[] { AwsId, SurvivorId });
                 int backupsBefore = Directory.GetFiles(Path.Combine(root, "ncmm"),
                     "cataclysm-tiles.vanilla.backup-*.exe").Length;
-                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId });
+                InstallVerified(root, payload, new string[] { AwsId, SurvivorId });
                 int backupsAfter = Directory.GetFiles(Path.Combine(root, "ncmm"),
                     "cataclysm-tiles.vanilla.backup-*.exe").Length;
                 AssertInstalled(root, payload, original, AwsId, SurvivorId);
@@ -512,25 +520,25 @@ internal static class InstallationMatrixHarness
                 string oldBootstrapHash = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
                 File.WriteAllText(Path.Combine(root, "ncmm", "bootstrap.sha256"),
                     oldBootstrapHash + Environment.NewLine, Encoding.ASCII);
-                SetupCore.Install(root, payload, new string[] { SurvivorId });
+                InstallVerified(root, payload, new string[] { SurvivorId });
                 AssertInstalled(root, payload, original, SurvivorId);
             });
 
             Run("corrupted Survivor DLL is repaired by reinstall", delegate {
                 string root = NewGame(work, "repair-dll", "vanilla-repair-dll");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-                SetupCore.Install(root, payload, new string[] { SurvivorId });
+                InstallVerified(root, payload, new string[] { SurvivorId });
                 string dll = Path.Combine(root, "code_mods", SurvivorDir, "ncmm_mod.dll");
                 File.AppendAllText(dll, "corruption", Encoding.ASCII);
                 AssertTrue(Sha256(dll) != Sha256(Path.Combine(payload, "code_mods", SurvivorDir, "ncmm_mod.dll")),
                            "DLL corruption fixture failed");
-                SetupCore.Install(root, payload, new string[] { SurvivorId });
+                InstallVerified(root, payload, new string[] { SurvivorId });
                 AssertInstalled(root, payload, original, SurvivorId);
             });
 
             Run("corrupted managed manifest fails closed and rolls back", delegate {
                 string root = NewGame(work, "corrupt-manifest", "vanilla-corrupt-manifest");
-                SetupCore.Install(root, payload, new string[] { AwsId, SurvivorId });
+                InstallVerified(root, payload, new string[] { AwsId, SurvivorId });
                 string manifest = Path.Combine(root, "code_mods", SurvivorDir, "mod.json");
                 File.WriteAllText(manifest, "{broken-json", Encoding.ASCII);
                 string before = FingerprintTree(root);
