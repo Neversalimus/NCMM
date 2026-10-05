@@ -145,6 +145,8 @@ foreach($n in @(
     '"mana_hands_wield_transfer_bind"',
     '"mana_hands_wield_transfer_carrier"',
     '"mana_hands_wield_transfer_release"',
+    '"mana_hands_wield_transfer_cleanup"',
+    'item wield_transfer_cleanup = get_avatar().remove_weapon();',
     'item( itype_id( "hatchet" ) )',
     'item( itype_id( "glock_19" ) )',
     'paired_probe.set_flag( flag_id( "ALWAYS_TWOHAND" ) )',
@@ -156,6 +158,7 @@ foreach($n in @(
     if(-not $hostSourceCurrent.Contains($n)){throw ('Real Mana Hands gameplay smoke contract missing: '+$n)}
 }
 if($hostSourceCurrent.Contains('!you.is_armed() && you.wield( loc )')){throw 'Mana Hand release regressed to zero-move pocket obtain_cost path.'}
+if($hostSourceCurrent.Contains('if( !get_avatar().unwield() )')){throw 'Headless Mana Hands smoke cleanup regressed to interactive Character::unwield()/dispose_item UI.'}
 if($hostSourceCurrent.Contains('item moved = *selected;') -and $hostSourceCurrent.Contains('loc.remove_item();')){throw 'Mana Hand wield transfer regressed to general item_location removal instead of Character::remove_weapon().'}
 if(-not $hostSourceCurrent.Contains('if( !loc.held_by( you ) && !physically_wielded )')){throw 'Mana Hand wield eligibility lost the exact-current-weapon ownership fallback.'}
 if(-not $hostSourceCurrent.Contains('const item *location_item = loc.get_item();')){throw 'Mana Hand wield eligibility lost const-correct item_location access.'}
