@@ -22734,7 +22734,7 @@ static ma_technique get_valid_technique( const Character &owner, bool ma_techniq
     bool valid_weapon = ma.weapon_valid( martial_weapon );
 '@
         $martial0140ma = Replace-TextBlock $martial0140ma $vectorOld0140ma $vectorNew0140ma 'Primary Mana Hand martial-art attack vector state'
-        $martial0140ma = Replace-TextBlock $martial0140ma '            item *weapon = user.get_wielded_item().get_item();' '            item *weapon = martial_weapon.get_item();' 'Primary Mana Hand martial-art attack vector weapon'
+        $martial0140ma = Replace-TextBlock $martial0140ma '            item *weapon = user.get_wielded_item().get_item();' '            const item *weapon = martial_weapon.get_item();' 'Primary Mana Hand martial-art attack vector weapon'
 
         $messageOld0140ma = @'
 void character_martial_arts::martialart_use_message( const Character &owner ) const
@@ -22790,7 +22790,7 @@ void character_martial_arts::martialart_use_message( const Character &owner ) co
         'martial_weapon, owner',
         'const item_location martial_weapon =',
         'bool valid_weapon = ma.weapon_valid( martial_weapon );',
-        'item *weapon = martial_weapon.get_item();'
+        'const item *weapon = martial_weapon.get_item();'
     )) {
         if(-not $martialOut0140ma.Contains($needle0140ma)) {
             throw ('Survivor 0.14.0 primary Mana Hand martial-arts output missing: '+$needle0140ma)
@@ -23540,7 +23540,10 @@ function Apply-SurvivorManaHandAutoattack0140([string]$Root) {
     }
     $avatar0140auto = Normalize-Lf ([IO.File]::ReadAllText($avatar0140autoPath))
     if(-not $avatar0140auto.Contains('#include "ncmm_loader.h"')) {
-        $avatar0140auto = Replace-TextBlock $avatar0140auto '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Primary Mana Hand autoattack include'
+        $avatar0140auto = Replace-TextBlock $avatar0140auto '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Primary Mana Hand autoattack NCMM include'
+    }
+    if(-not $avatar0140auto.Contains('#include "martialarts.h"')) {
+        $avatar0140auto = Replace-TextBlock $avatar0140auto '#include "magic_enchantment.h"' ('#include "magic_enchantment.h"' + [Environment]::NewLine + '#include "martialarts.h"') 'Primary Mana Hand autoattack martial-arts include'
     }
     if(-not $avatar0140auto.Contains('ncmm_primary_mana_hand_autoattack_weapon')) {
         $autoOld0140 = @'
@@ -23735,6 +23738,7 @@ void avatar_action::autoattack( avatar &you, map &m )
     $autoOutput0140 = [IO.File]::ReadAllText($avatar0140autoPath)
     foreach($needle0140auto in @(
         '#include "ncmm_loader.h"',
+        '#include "martialarts.h"',
         'class ncmm_mana_hand_autoattack_scope',
         'ncmm_primary_mana_hand_autoattack_weapon',
         'ncmm_primary_mana_hand_autoattack_reach',
