@@ -467,7 +467,20 @@ jobs:
               fi
             done < <(find results -type f -name host.json)
             if [ "$seed_ok" -ne 1 ]; then
-              echo "Required seed host $seed did not certify; preserving the existing feed unchanged." >&2
+              feed_seed_ok=$(jq -r --arg seed "$seed" --arg rev "$PATCH_REVISION" --arg ver "$NCMM_VERSION" '
+                [ .hosts[]? | select(
+                    (.upstream_tag // "") == $seed and
+                    (.patch_revision // "") == $rev and
+                    (.ncmm_version // "") == $ver
+                  ) ] | length
+              ' "$index")
+              if [ "$feed_seed_ok" -gt 0 ]; then
+                seed_ok=1
+                echo "Required seed host $seed is already certified in the current feed; preserving it."
+              fi
+            fi
+            if [ "$seed_ok" -ne 1 ]; then
+              echo "Required seed host $seed did not certify and has no current feed entry; preserving the existing feed unchanged." >&2
               exit 1
             fi
           done < <(sed '/^[[:space:]]*$/d' ci/seed-hosts.txt)

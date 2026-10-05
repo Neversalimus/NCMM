@@ -25149,7 +25149,7 @@ function Apply-SurvivorDimensionalPouch0150 {
     "material": [ "cotton" ],
     "symbol": "x",
     "color": "magenta",
-    "flags": [ "INTEGRATED", "UNBREAKABLE", "PERSONAL", "NO_SALVAGE", "ZERO_WEIGHT", "HIDDEN_ITEM" ],
+    "flags": [ "INTEGRATED", "UNBREAKABLE", "PERSONAL", "NO_SALVAGE", "ZERO_WEIGHT", "HIDDEN_ITEM", "TARDIS" ],
     "max_worn": 1,
     "pocket_data": [
       {
