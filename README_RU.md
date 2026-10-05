@@ -19,6 +19,17 @@ NCMM (Neversalimus Code Mod Manager) — платформа для native/code-�
 
 Survivor Progression сохраняет state schema 8. В текущем исходнике 373 узла перков; ветки интеграций для поддерживаемых модов появляются только при наличии соответствующих активных world-модов.
 
+### Проверенный релизный снимок — 2026-10-05
+
+Текущий Full-пакет `ncmm-runtime-v0.8.2` был повторно опубликован после исправлений сертификации Mana Hands.
+
+- SHA-256 `NCMM_Full_v0.8.2.zip`: `1b10291ad41ddd0794cd49a299c71e63836729ab99d5d5d4b3e072f24eaed1a7`
+- Patch revision certified Host feed: `8f7cdda53cf643483a85c5bbb1fe29ac1c6a46e4e6af17bf176c2f667d7eaeaa`
+- Сертифицированные experimental CDDA: `2026-09-23-0546`, `2026-10-01-1040`, `2026-10-05-1423`.
+- Release gate: Certified Hosts, Real Installation Matrix и Runtime publication успешно пройдены для этого снимка.
+
+Эти номера сборок фиксируют проверенный снимок; совместимость Runtime по-прежнему определяется точной идентичностью, а не диапазоном версий.
+
 ## Установка
 
 Для обычного игрока нужен пакет **Full**.

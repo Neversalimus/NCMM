@@ -1,6 +1,6 @@
 # NCMM architecture
 
-Current baseline: Infrastructure 0.8.3.1, Runtime / Host 0.8.1, Loader ABI 1, semantic Host API 1.9, queried Host API 2.0 Core, Survivor Progression 0.12.0 and Advanced World Settings 0.6.2.
+Current baseline: Infrastructure 0.8.3.1, Runtime / Host 0.8.2, Loader ABI 1, semantic Host API 1.9, queried Host API 2.0 Core, Survivor Progression 0.15.0 and Advanced World Settings 0.6.4.
 
 The important design rule is separation: CDDA-facing source integration belongs to the certified Host; gameplay modules consume NCMM APIs and do not patch CDDA independently.
 
@@ -112,6 +112,8 @@ The CI pipeline therefore:
 5. runs certification/regression checks;
 6. binds the resulting Host to official vanilla executable SHA values;
 7. publishes immutable Host assets and updates the feed only after integrity checks pass.
+
+Verified release snapshot (2026-10-05): patch revision `8f7cdda53cf643483a85c5bbb1fe29ac1c6a46e4e6af17bf176c2f667d7eaeaa` is certified for `cdda-experimental-2026-09-23-0546`, `cdda-experimental-2026-10-01-1040` and `cdda-experimental-2026-10-05-1423`. The same snapshot passed the Real Installation Matrix and the final Runtime publication gate.
 
 A new CDDA experimental can therefore be accepted automatically when contracts still match, or rejected safely without teaching the bootstrap to guess.
 

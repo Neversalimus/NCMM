@@ -19,6 +19,17 @@ NCMM (Neversalimus Code Mod Manager) is a native code-mod/runtime platform for C
 
 Survivor Progression keeps state schema 8. The current source contains 373 perk nodes and conditionally exposes mod-specific progression for supported active world mods.
 
+### Verified release snapshot — 2026-10-05
+
+The current `ncmm-runtime-v0.8.2` Full bundle was republished after the Mana Hands certification fixes.
+
+- `NCMM_Full_v0.8.2.zip` SHA-256: `1b10291ad41ddd0794cd49a299c71e63836729ab99d5d5d4b3e072f24eaed1a7`
+- Certified Host feed patch revision: `8f7cdda53cf643483a85c5bbb1fe29ac1c6a46e4e6af17bf176c2f667d7eaeaa`
+- Certified CDDA experimentals: `2026-09-23-0546`, `2026-10-01-1040`, `2026-10-05-1423`.
+- Release gate: Certified Hosts, Real Installation Matrix and Runtime publication all passed for this snapshot.
+
+These build labels document the verified snapshot; runtime compatibility remains exact identity-based rather than a version range.
+
 ## Install
 
 For players, use the **Full** release package.

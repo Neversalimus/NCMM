@@ -58,6 +58,8 @@ State schemas 0–7 remain migration inputs supported by the current module cont
 
 The 0.12.0 update preserves the 0.11.3 gameplay/perk baseline and adds manager-integrated balance controls. Existing perk nodes were not removed merely to equalize branch sizes; branch counts are intentionally allowed to differ.
 
+Certified release snapshot (2026-10-05): the current Mana Hand transform/lifecycle stack passed Windows/MSVC certification on `2026-09-23-0546`, `2026-10-01-1040` and `2026-10-05-1423` under Host patch revision `8f7cdda53cf643483a85c5bbb1fe29ac1c6a46e4e6af17bf176c2f667d7eaeaa`, including the primary/secondary/reach/ranged layers and hidden-carrier lifecycle contracts.
+
 ## Development invariant
 
 When extending Survivor, prefer a generic Host capability or hook that can serve multiple modules. A new Survivor-specific CDDA source patch should be treated as a design failure unless the engine truly lacks a reusable domain primitive.
@@ -79,9 +81,9 @@ Contents keep their normal weight. Changing rank updates the same pocket in plac
 
 ## 0.14.0 Mana Hand virtual slots
 
-Magiclysm's Third and Fourth Mana Hand perks can bind real carried items to logical virtual slots through the vanilla CDDA inventory selector. The item never leaves the vanilla item graph and is never duplicated: the Host stores a namespaced marker on the item plus its persistent UID and reconciles stale or copied identities safely.
+Magiclysm's Third and Fourth Mana Hand perks can bind real carried items to logical virtual slots through the vanilla CDDA inventory selector, and they can also take the currently wielded item directly. For a wielded assignment the Host uses CDDA's weapon-removal path, places the single real item in an internal integrated Mana Hand carrier, and then records the relocated item's persistent UID. There is no second live copy and no synthetic `item_location`; the item remains inside CDDA's normal item graph.
 
-An occupied Mana Hand is no longer a free somatic hand. A bound MAGIC_FOCUS still satisfies focus casting, and a supported blocking item participates in the normal shield-selection and wear path. Releasing the slot or resetting the perks removes only the logical binding; the real item stays where CDDA already stores it.
+An occupied Mana Hand is no longer a free somatic hand. A bound MAGIC_FOCUS still satisfies focus casting, and a supported blocking item participates in the normal shield-selection and wear path. Releasing a carrier-held item restores it to an empty physical hand when possible, otherwise to ordinary inventory; if neither can accept it, the item is dropped at the character's position. Resetting the Mana Hand perks clears the logical slots and spills any remaining carrier contents rather than deleting them.
 
 The reusable capability is `character.virtual_items.v1` in the additive Host API 2.1 tail, so later modules can reuse the same logical-slot primitive without adding another synthetic `item_location` type.
 
