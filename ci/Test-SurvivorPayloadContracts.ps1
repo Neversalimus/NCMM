@@ -846,6 +846,32 @@ if(@($itemLocationContract0140.required) -contains 'container->remove_item( *tar
     throw 'Mana Hand lifecycle source contract regressed to the pre-1831 container-removal implementation detail.'
 }
 
+# Multiline clean-source matching used by certified Mana Hand layers must be EOL-safe.
+foreach($eolSafeNeedle0140 in @(
+    'function Test-TextBlock([string]$Text,[string]$Block)',
+    'function Count-TextBlock([string]$Text,[string]$Block)',
+    '$attackCount0140 = Count-TextBlock $melee0140 $attackOld0140',
+    '$single3Count0140pair = Count-TextBlock $game0140pair $single3Old0140pair',
+    '$menuCount0140pm = Count-TextBlock $game0140pm $menuAnchor0140pm',
+    '$handlerCount0140pm = Count-TextBlock $game0140pm $handlerAnchor0140pm',
+    '$wrapperCount0140pm = Count-TextBlock $melee0140pm $wrapperOld0140pm',
+    '$fireCount0140reach = Count-TextBlock $handle0140reach $fireOld0140reach',
+    '$canReachCount0140 = Count-TextBlock $melee0140reach $canReachOld0140',
+    '$reachAttackCount0140 = Count-TextBlock $melee0140reach $reachAttackOld0140',
+    '$autoCount0140 = Count-TextBlock $avatar0140auto $autoOld0140',
+    '$mineCount0140 = Count-TextBlock $avatar0140mine $mineOld0140',
+    'if(Test-TextBlock $game0140pr $pairMenuFlagsOld0140pr)',
+    'if(Test-TextBlock $game0140pr $pairHandlerFlagsOld0140pr)',
+    'if(Test-TextBlock $game0140pr $menuOld0140pr)',
+    'if(Test-TextBlock $game0140pr $handlerOld0140pr)',
+    'if(Test-TextBlock $actor0140pr $resolverOld0140pr)',
+    'if(Test-TextBlock $ranged0140ras $unsupported0140ras)'
+)){
+    if(-not $payload.Contains($eolSafeNeedle0140)){
+        throw ('Mana Hand certified-host EOL-safe matching contract missing: '+$eolSafeNeedle0140)
+    }
+}
+
 $manaContextStart0140=$payload.IndexOf('function Apply-SurvivorVirtualItemContext0140')
 $manaContextEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandSpellcastingAid0140',$manaContextStart0140)
 if($manaContextStart0140 -lt 0 -or $manaContextEnd0140 -le $manaContextStart0140){throw 'Mana Hand context transform boundary missing.'}
