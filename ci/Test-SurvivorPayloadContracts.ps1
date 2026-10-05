@@ -829,6 +829,10 @@ if($manaLifecycleStart0140 -lt 0 -or $manaUtilityStart0140 -le $manaLifecycleSta
 $manaLifecycleSection0140=$payload.Substring($manaLifecycleStart0140,$manaUtilityStart0140-$manaLifecycleStart0140)
 foreach($lifeNeedle0140 in @(
     '$container1831Old0140life',
+    '$containerOldNorm0140life = (Normalize-Lf $containerOld0140life).TrimEnd()',
+    '$container1831OldNorm0140life = (Normalize-Lf $container1831Old0140life).TrimEnd()',
+    'Contains($containerOldNorm0140life)',
+    'Contains($container1831OldNorm0140life)',
     'container.remove_items_with(',
     'Mana Hand lifecycle contained-item removal legacy',
     'Mana Hand lifecycle contained-item removal 1831'
