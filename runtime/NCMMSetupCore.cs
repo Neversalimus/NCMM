@@ -42,6 +42,7 @@ internal sealed class InstallResult
     internal string BootstrapSha256 { get; set; }
     internal string VanillaSha256 { get; set; }
     internal List<string> InstalledModuleIds { get; set; }
+    internal bool CompletionVerified { get; set; }
 }
 
 internal sealed class SetupHostBinding
@@ -568,6 +569,117 @@ internal static partial class SetupCore
             Directory.Delete(destination);
     }
 
+    private static void VerifyPackagedDirectory(string sourceRoot, string destinationRoot)
+    {
+        string sourcePrefix = Path.GetFullPath(sourceRoot)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
+            Path.DirectorySeparatorChar;
+        foreach (string sourceFile in Directory.GetFiles(sourceRoot, "*", SearchOption.AllDirectories))
+        {
+            string fullSource = Path.GetFullPath(sourceFile);
+            if (!fullSource.StartsWith(sourcePrefix, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Installer verification source escaped payload root.");
+
+            string relative = fullSource.Substring(sourcePrefix.Length);
+            string destinationFile = Path.Combine(destinationRoot, relative);
+            if (!File.Exists(destinationFile))
+                throw new InvalidOperationException(
+                    "Post-install verification failed; packaged module file is missing: " + relative);
+
+            FileInfo sourceInfo = new FileInfo(sourceFile);
+            FileInfo destinationInfo = new FileInfo(destinationFile);
+            if (sourceInfo.Length != destinationInfo.Length ||
+                !String.Equals(Sha256(sourceFile), Sha256(destinationFile), StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    "Post-install verification failed; packaged module file differs: " + relative);
+        }
+    }
+
+    private static void VerifyInstalledPayload(string gameRoot, string payloadRoot, InstallResult result)
+    {
+        if (result == null)
+            throw new InvalidOperationException("Post-install verification received no install result.");
+
+        string exe = Path.Combine(gameRoot, "cataclysm-tiles.exe");
+        string vanilla = Path.Combine(gameRoot, "cataclysm-tiles.vanilla.exe");
+        string ncmm = Path.Combine(gameRoot, "ncmm");
+        string payloadMods = Path.Combine(payloadRoot, "code_mods");
+
+        if (!File.Exists(exe) ||
+            !String.Equals(Sha256(exe), result.BootstrapSha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Post-install verification failed for NCMM bootstrap.");
+        if (!File.Exists(vanilla) ||
+            !String.Equals(Sha256(vanilla), result.VanillaSha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Post-install verification failed for vanilla backup.");
+
+        string recordedBootstrap = Path.Combine(ncmm, "bootstrap.sha256");
+        string recordedVanilla = Path.Combine(ncmm, "vanilla.sha256");
+        if (!File.Exists(recordedBootstrap) ||
+            !String.Equals(File.ReadAllText(recordedBootstrap).Trim(), result.BootstrapSha256,
+                           StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Post-install verification failed for bootstrap.sha256.");
+        if (!File.Exists(recordedVanilla) ||
+            !String.Equals(File.ReadAllText(recordedVanilla).Trim(), result.VanillaSha256,
+                           StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Post-install verification failed for vanilla.sha256.");
+
+        HashSet<string> expectedIds = new HashSet<string>(
+            result.InstalledModuleIds ?? new List<string>(), StringComparer.Ordinal);
+        foreach (SetupBundledModule module in DiscoverBundledModules(payloadMods))
+        {
+            bool expected = expectedIds.Contains(module.Manifest.id);
+            bool installed = IsModuleInstalled(gameRoot, module.DirectoryName, module.Manifest.id);
+            if (installed != expected)
+                throw new InvalidOperationException(
+                    "Post-install verification failed for module state: " + module.Manifest.id);
+            if (expected)
+            {
+                VerifyPackagedDirectory(
+                    module.SourceDirectory,
+                    Path.Combine(gameRoot, "code_mods", module.DirectoryName));
+            }
+        }
+
+        string installedStatePath = Path.Combine(ncmm, "installed-components.json");
+        if (!File.Exists(installedStatePath))
+            throw new InvalidOperationException("Post-install verification failed; installed-components.json is missing.");
+
+        SetupInstalledComponents installedState;
+        try
+        {
+            installedState = new JavaScriptSerializer()
+                .Deserialize<SetupInstalledComponents>(File.ReadAllText(installedStatePath));
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                "Post-install verification failed; installed-components.json is invalid.", ex);
+        }
+
+        if (installedState == null || installedState.schema != 1 ||
+            !String.Equals(installedState.runtime_version, RuntimeVersion, StringComparison.Ordinal) ||
+            installedState.components == null)
+            throw new InvalidOperationException("Post-install verification failed for installed component state.");
+
+        HashSet<string> stateIds = new HashSet<string>(
+            installedState.components.Where(component => component != null)
+                .Select(component => component.id),
+            StringComparer.Ordinal);
+        if (!stateIds.Contains("ncmm_host") || stateIds.Count != expectedIds.Count + 1 ||
+            expectedIds.Any(id => !stateIds.Contains(id)))
+            throw new InvalidOperationException("Post-install verification found an installed component mismatch.");
+    }
+
+    private static void VerifySetupFinalized(string gameRoot, SetupTransactionState transaction)
+    {
+        if (File.Exists(SetupPendingPath(gameRoot)))
+            throw new InvalidOperationException(
+                "Post-install verification failed; setup transaction marker still exists.");
+        if (transaction != null && Directory.Exists(transaction.backup_root))
+            throw new InvalidOperationException(
+                "Post-install verification failed; setup transaction backup still exists.");
+    }
+
     internal static InstallResult Install(string gameRoot, string payloadRoot)
     {
         return Install(gameRoot, payloadRoot, null);
@@ -583,8 +695,11 @@ internal static partial class SetupCore
         try
         {
             InstallResult result = InstallCore(gameRoot, payloadRoot, selectedModuleIds);
+            VerifyInstalledPayload(gameRoot, payloadRoot, result);
             UpdateSetupTransactionPhase(gameRoot, "ready_to_commit");
             CommitSetupTransaction(gameRoot);
+            VerifySetupFinalized(gameRoot, transaction);
+            result.CompletionVerified = true;
             return result;
         }
         catch (Exception installError)
