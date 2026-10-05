@@ -4590,14 +4590,34 @@ void sync_mana_hand_carrier()
     mana_hand_carrier_last_count = hand_count;
 }
 
-bool configure_dimensional_pouch_type( int rank )
+pocket_data *dimensional_pouch_container_pocket()
 {
-    if( rank < 1 || rank > 5 || !dimensional_pouch_type_id.is_valid() ) {
-        return false;
+    if( !dimensional_pouch_type_id.is_valid() ) {
+        return nullptr;
     }
 
     itype &type = const_cast<itype &>( dimensional_pouch_type_id.obj() );
-    if( type.pockets.size() != 1 ) {
+    pocket_data *container = nullptr;
+    for( pocket_data &pocket : type.pockets ) {
+        if( pocket.type != pocket_type::CONTAINER ) {
+            continue;
+        }
+        if( container != nullptr ) {
+            return nullptr;
+        }
+        container = &pocket;
+    }
+    return container;
+}
+
+bool configure_dimensional_pouch_type( int rank )
+{
+    if( rank < 1 || rank > 5 ) {
+        return false;
+    }
+
+    pocket_data *pocket = dimensional_pouch_container_pocket();
+    if( pocket == nullptr ) {
         return false;
     }
 
@@ -4626,9 +4646,8 @@ bool configure_dimensional_pouch_type( int rank )
             break;
     }
 
-    pocket_data &pocket = type.pockets.front();
-    pocket.raw_volume_capacity = units::from_milliliter( capacity_ml );
-    pocket.max_item_length = units::from_millimeter( max_length_mm );
+    pocket->raw_volume_capacity = units::from_milliliter( capacity_ml );
+    pocket->max_item_length = units::from_millimeter( max_length_mm );
     return true;
 }
 
@@ -6180,8 +6199,8 @@ int run_gameplay_smoke()
                                          dimensional_pouch_check_count );
             return code;
         };
-        if( !dimensional_pouch_type_id.is_valid() ||
-            dimensional_pouch_type_id.obj().pockets.size() != 1 ) {
+        pocket_data *dimensional_pouch_pocket = dimensional_pouch_container_pocket();
+        if( dimensional_pouch_pocket == nullptr ) {
             return dimensional_pouch_fail( "dimensional_pouch_item_missing", 141 );
         }
         ++dimensional_pouch_check_count;
@@ -6191,10 +6210,11 @@ int run_gameplay_smoke()
             return dimensional_pouch_fail( "dimensional_pouch_rank1_setup", 142 );
         }
         sync_dimensional_pouch();
-        const pocket_data &rank1_pocket = dimensional_pouch_type_id.obj().pockets.front();
-        if( !get_avatar().is_wearing( dimensional_pouch_type_id ) ||
-            rank1_pocket.raw_volume_capacity != units::from_milliliter( 5000 ) ||
-            rank1_pocket.max_item_length != units::from_millimeter( 1200 ) ) {
+        dimensional_pouch_pocket = dimensional_pouch_container_pocket();
+        if( dimensional_pouch_pocket == nullptr ||
+            !get_avatar().is_wearing( dimensional_pouch_type_id ) ||
+            dimensional_pouch_pocket->raw_volume_capacity != units::from_milliliter( 5000 ) ||
+            dimensional_pouch_pocket->max_item_length != units::from_millimeter( 1200 ) ) {
             return dimensional_pouch_fail( "dimensional_pouch_rank1_shape", 143 );
         }
         ++dimensional_pouch_check_count;
@@ -6203,9 +6223,10 @@ int run_gameplay_smoke()
             return dimensional_pouch_fail( "dimensional_pouch_rank5_setup", 144 );
         }
         sync_dimensional_pouch();
-        const pocket_data &rank5_pocket = dimensional_pouch_type_id.obj().pockets.front();
-        if( rank5_pocket.raw_volume_capacity != units::from_milliliter( 120000 ) ||
-            rank5_pocket.max_item_length != units::from_millimeter( 2000 ) ) {
+        dimensional_pouch_pocket = dimensional_pouch_container_pocket();
+        if( dimensional_pouch_pocket == nullptr ||
+            dimensional_pouch_pocket->raw_volume_capacity != units::from_milliliter( 120000 ) ||
+            dimensional_pouch_pocket->max_item_length != units::from_millimeter( 2000 ) ) {
             return dimensional_pouch_fail( "dimensional_pouch_rank5_shape", 145 );
         }
         ++dimensional_pouch_check_count;
