@@ -127,6 +127,15 @@ $manaHandCarrierCurrent=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\Sur
 if(([regex]::Matches($manaHandCarrierCurrent,[regex]::Escape('"max_item_length": "5 meter"'))).Count -ne 2){
     throw 'Mana Hand carrier must use CDDA-supported meter length units for both internal pockets.'
 }
+if(([regex]::Matches($manaHandCarrierCurrent,[regex]::Escape('"moves": 1'))).Count -ne 2){
+    throw 'Mana Hand carrier must use a nonzero obtain cost for both internal pockets.'
+}
+if($manaHandCarrierCurrent.Contains('"moves": 0')){
+    throw 'Mana Hand carrier zero-move pockets trigger item_location::obtain_cost debug errors.'
+}
+if(([regex]::Matches($payload,[regex]::Escape('"moves": 1'))).Count -lt 2){
+    throw 'Cumulative payload Mana Hand carrier obtain cost is stale.'
+}
 if($manaHandCarrierCurrent.Contains('"max_item_length": "5 m"')){
     throw 'Mana Hand carrier uses unsupported abbreviated meter unit.'
 }
@@ -235,6 +244,22 @@ if(-not $hostSourceCurrent.Contains('const item *wielded_item = you.get_wielded_
 if(-not $hostSourceCurrent.Contains('Mana Hand wield eligibility rejected candidate: two_handed=')){throw 'Mana Hand wield eligibility diagnostics are missing.'}
 if($hostSourceCurrent.Contains('you.wield( *stored, 0 )')){throw 'Mana Hand release regressed to avatar overload hiding the Character obtain-cost override.'}
 if($hostSourceCurrent.Contains('return !it.get_var( virtual_item_marker_key, "" ).empty();')){throw 'Unsafe marker-only virtual-item identity check returned.'}
+
+$transferReleaseStart=$hostSourceCurrent.IndexOf('bool release_virtual_item( item &it )')
+$transferReleaseEnd=$hostSourceCurrent.IndexOf('bool is_virtual_item( const item &it )',$transferReleaseStart)
+if($transferReleaseStart -lt 0 -or $transferReleaseEnd -le $transferReleaseStart){throw 'Virtual-item transfer-release function boundary missing.'}
+$transferReleaseSection=$hostSourceCurrent.Substring($transferReleaseStart,$transferReleaseEnd-$transferReleaseStart)
+if($transferReleaseSection.Contains('virtual_item_clear_internal(')){throw 'Vanilla item transfer must not recursively restore a Mana Hand carrier item.'}
+foreach($n in @(
+    'it.erase_var( virtual_item_marker_key );',
+    'virtual_item_state_set_uid_internal( module_id.c_str(), slot_id.c_str(), 0 );',
+    'virtual_item_state_set_flags_internal( module_id.c_str(), slot_id.c_str(), 0u );'
+)){if(-not $transferReleaseSection.Contains($n)){throw ('Virtual-item transfer detach contract missing: '+$n)}}
+foreach($n in @(
+    'virtual_item_clear_internal( survivor_module_id, mana_hand_3_slot_id );',
+    'virtual_item_clear_internal( survivor_module_id, mana_hand_4_slot_id );',
+    'virtual_item_clear_internal( survivor_module_id, mana_hands_pair_slot_id );'
+)){if(-not $hostSourceCurrent.Contains($n)){throw ('Explicit Mana Hand release restore contract missing: '+$n)}}
 $runtimeValidStart=$hostSourceCurrent.IndexOf('bool virtual_item_candidate_valid_impl( const item &candidate, uint32_t flags,')
 $runtimeValidEnd=$hostSourceCurrent.IndexOf('item_location mana_hand_carrier_location(', $runtimeValidStart)
 if($runtimeValidStart -lt 0 -or $runtimeValidEnd -le $runtimeValidStart){throw 'Virtual-item shared runtime-validity function boundary missing.'}
