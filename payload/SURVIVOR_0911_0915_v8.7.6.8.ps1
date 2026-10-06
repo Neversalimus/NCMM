@@ -23399,43 +23399,15 @@ bool ncmm_is_mana_hand_throw_item( avatar &you, item *candidate )
 
 item_location ncmm_select_mana_hand_throw_item( avatar &you )
 {
-    const int hand_count = std::clamp( static_cast<int>(
-                                       ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ), 0, 2 );
     std::vector<item_location> candidates;
     std::vector<std::string> labels;
-
-    const auto add_candidate =
-    [&]( item *candidate, const char *label_en, const char *label_ru ) {
-        if( candidate == nullptr ) {
-            return;
-        }
+    for( item *candidate : ncmm::active_mana_hand_items( you ) ) {
         item_location loc( you, candidate );
         if( !loc ) {
-            return;
+            continue;
         }
         candidates.emplace_back( loc );
-        labels.emplace_back(
-            ncmm::localized_text( label_en, label_ru ) + ": " + candidate->tname() );
-    };
-
-    item *paired = hand_count >= 2 ?
-                   ncmm::virtual_item_for_slot(
-                       "survivor_progression", "mana_hands_34" ) : nullptr;
-    if( paired != nullptr ) {
-        add_candidate( paired, "Mana Hands III+IV", "Руки маны III+IV" );
-    } else {
-        if( hand_count >= 1 ) {
-            add_candidate(
-                ncmm::virtual_item_for_slot(
-                    "survivor_progression", "mana_hand_3" ),
-                "Mana Hand III", "Рука маны III" );
-        }
-        if( hand_count >= 2 ) {
-            add_candidate(
-                ncmm::virtual_item_for_slot(
-                    "survivor_progression", "mana_hand_4" ),
-                "Mana Hand IV", "Рука маны IV" );
-        }
+        labels.emplace_back( ncmm::mana_hand_item_label( *candidate ) );
     }
 
     if( candidates.empty() ) {
@@ -23816,43 +23788,15 @@ static item_location ncmm_select_mana_hand_mend_item( avatar &you, bool &had_can
         return item_location();
     }
 
-    const int hand_count = std::max( 0, std::min( 2, static_cast<int>(
-                                   ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ) ) );
     std::vector<item_location> candidates;
     std::vector<std::string> labels;
-
-    const auto add_candidate =
-    [&]( item *candidate, const char *label_en, const char *label_ru ) {
-        if( candidate == nullptr ) {
-            return;
-        }
+    for( item *candidate : ncmm::active_mana_hand_items( you ) ) {
         item_location candidate_loc( you, candidate );
         if( !candidate_loc ) {
-            return;
+            continue;
         }
         candidates.emplace_back( candidate_loc );
-        labels.emplace_back(
-            ncmm::localized_text( label_en, label_ru ) + ": " + candidate->tname() );
-    };
-
-    item *paired = hand_count >= 2 ?
-                   ncmm::virtual_item_for_slot(
-                       "survivor_progression", "mana_hands_34" ) : nullptr;
-    if( paired != nullptr ) {
-        add_candidate( paired, "Mana Hands III+IV", "Руки маны III+IV" );
-    } else {
-        if( hand_count >= 1 ) {
-            add_candidate(
-                ncmm::virtual_item_for_slot(
-                    "survivor_progression", "mana_hand_3" ),
-                "Mana Hand III", "Рука маны III" );
-        }
-        if( hand_count >= 2 ) {
-            add_candidate(
-                ncmm::virtual_item_for_slot(
-                    "survivor_progression", "mana_hand_4" ),
-                "Mana Hand IV", "Рука маны IV" );
-        }
+        labels.emplace_back( ncmm::mana_hand_item_label( *candidate ) );
     }
 
     had_candidates = !candidates.empty();
