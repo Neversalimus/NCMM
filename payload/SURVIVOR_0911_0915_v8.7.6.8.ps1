@@ -19571,75 +19571,12 @@ enum class ncmm_shared_mana_modifier_kind { maximum, regeneration };
         if(-not $handle0130.Contains('#include "magic.h"')){throw 'Mana-hands handle_action include anchor missing.'}
         $handle0130 = Replace-TextBlock $handle0130 '#include "magic.h"' ('#include "magic.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'mana-hands handle include'
     }
-    if(-not $handle0130.Contains('const int ncmm_virtual_hands =')) {
+    if(-not $handle0130.Contains('const int ncmm_virtual_free_hands =')) {
         $freeHandOld0130 = @'
     if( is_armed() && !sp.no_hands() && !has_flag( json_flag_SUBTLE_SPELL ) &&
         !get_wielded_item()->has_flag( flag_MAGIC_FOCUS ) && !sp.check_if_component_in_hand( *this ) ) {
 '@
         $freeHandNew0130 = @'
-    const std::string ncmm_spell_source = sp.get_src().str();
-    const int ncmm_virtual_hands = is_avatar() ?
-                                   std::max( 0, std::min( 2, static_cast<int>( std::lround(
-                                           ncmm::runtime_hook_modifier(
-                                               "magic.virtual_hand_count", nullptr,
-                                               ncmm_spell_source.empty() ? nullptr : ncmm_spell_source.c_str(),
-                                               nullptr, nullptr ) ) ) ) ) : 0;
-    if( is_armed() && ncmm_virtual_hands <= 0 && !sp.no_hands() &&
-        !has_flag( json_flag_SUBTLE_SPELL ) &&
-        !get_wielded_item()->has_flag( flag_MAGIC_FOCUS ) && !sp.check_if_component_in_hand( *this ) ) {
-'@
-        $handle0130 = Replace-TextBlock $handle0130 $freeHandOld0130 $freeHandNew0130 'mana-hands free-hand casting'
-    }
-    Write-Utf8NoBom $handle0130Path $handle0130
-
-    foreach($needle0130 in @(
-        'static int ncmm_virtual_hand_count(',
-        '"magic.virtual_hand_count"',
-        'ncmm_virtual_limb_encumbrance_average('
-    )){
-        if(-not ([IO.File]::ReadAllText($magic0130Path)).Contains($needle0130)){throw ('Mana-hands magic output missing: '+$needle0130)}
-    }
-    foreach($needle0130 in @(
-        '#include "ncmm_loader.h"',
-        'const int ncmm_virtual_hands =',
-        'is_armed() && ncmm_virtual_hands <= 0'
-    )){
-        if(-not ([IO.File]::ReadAllText($handle0130Path)).Contains($needle0130)){throw ('Mana-hands handle output missing: '+$needle0130)}
-    }
-    Write-Host "Survivor 0.13.0 Magiclysm virtual mana hands: READY" -ForegroundColor Green
-}
-
-Apply-SurvivorManaHands0130 $CddaRoot
-
-function Apply-SurvivorVirtualItemSlots0140([string]$Root) {
-    Write-Host "Applying Survivor 0.14.0 Magiclysm virtual item slots..." -ForegroundColor Cyan
-    $src0140 = Join-Path $Root 'src'
-    $handle0140Path = Join-Path $src0140 'handle_action.cpp'
-    $melee0140Path = Join-Path $src0140 'melee.cpp'
-    $missing0140 = @($handle0140Path,$melee0140Path) | Where-Object { -not(Test-Path $_ -PathType Leaf) }
-    if($missing0140.Count -gt 0){
-        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)){
-            Write-Host "Survivor 0.14.0 virtual-item engine transform deferred during copy-audit source generation." -ForegroundColor DarkGray
-            return
-        }
-        throw ('Virtual-item source missing: '+($missing0140 -join ', '))
-    }
-
-    $handle0140 = Normalize-Lf ([IO.File]::ReadAllText($handle0140Path))
-    if(-not $handle0140.Contains('const int ncmm_virtual_free_hands =')) {
-        $handleOld0140 = @'
-    const std::string ncmm_spell_source = sp.get_src().str();
-    const int ncmm_virtual_hands = is_avatar() ?
-                                   std::max( 0, std::min( 2, static_cast<int>( std::lround(
-                                           ncmm::runtime_hook_modifier(
-                                               "magic.virtual_hand_count", nullptr,
-                                               ncmm_spell_source.empty() ? nullptr : ncmm_spell_source.c_str(),
-                                               nullptr, nullptr ) ) ) ) ) : 0;
-    if( is_armed() && ncmm_virtual_hands <= 0 && !sp.no_hands() &&
-        !has_flag( json_flag_SUBTLE_SPELL ) &&
-        !get_wielded_item()->has_flag( flag_MAGIC_FOCUS ) && !sp.check_if_component_in_hand( *this ) ) {
-'@
-        $handleNew0140 = @'
     const std::string ncmm_spell_source = sp.get_src().str();
     const int ncmm_virtual_hands = is_avatar() ?
                                    std::max( 0, std::min( 2, static_cast<int>( std::lround(
@@ -19670,9 +19607,46 @@ function Apply-SurvivorVirtualItemSlots0140([string]$Root) {
         !has_flag( json_flag_SUBTLE_SPELL ) &&
         !get_wielded_item()->has_flag( flag_MAGIC_FOCUS ) && !sp.check_if_component_in_hand( *this ) ) {
 '@
-        $handle0140 = Replace-TextBlock $handle0140 $handleOld0140 $handleNew0140 'Mana-hand occupied/focus semantics'
+        $handle0130 = Replace-TextBlock $handle0130 $freeHandOld0130 $freeHandNew0130 'mana-hands free-hand casting'
     }
-    Write-Utf8NoBom $handle0140Path $handle0140
+    Write-Utf8NoBom $handle0130Path $handle0130
+
+    foreach($needle0130 in @(
+        'static int ncmm_virtual_hand_count(',
+        '"magic.virtual_hand_count"',
+        'ncmm_virtual_limb_encumbrance_average('
+    )){
+        if(-not ([IO.File]::ReadAllText($magic0130Path)).Contains($needle0130)){throw ('Mana-hands magic output missing: '+$needle0130)}
+    }
+    foreach($needle0130 in @(
+        '#include "ncmm_loader.h"',
+        'const int ncmm_virtual_hands =',
+        'is_armed() && ncmm_virtual_free_hands <= 0 && !ncmm_virtual_focus'
+    )){
+        if(-not ([IO.File]::ReadAllText($handle0130Path)).Contains($needle0130)){throw ('Mana-hands handle output missing: '+$needle0130)}
+    }
+    Write-Host "Survivor 0.13.0 Magiclysm virtual mana hands: READY" -ForegroundColor Green
+}
+
+Apply-SurvivorManaHands0130 $CddaRoot
+
+function Apply-SurvivorVirtualItemSlots0140([string]$Root) {
+    Write-Host "Applying Survivor 0.14.0 Magiclysm virtual item slots..." -ForegroundColor Cyan
+    $src0140 = Join-Path $Root 'src'
+    $handle0140Path = Join-Path $src0140 'handle_action.cpp'
+    $melee0140Path = Join-Path $src0140 'melee.cpp'
+    $missing0140 = @($handle0140Path,$melee0140Path) | Where-Object { -not(Test-Path $_ -PathType Leaf) }
+    if($missing0140.Count -gt 0){
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)){
+            Write-Host "Survivor 0.14.0 virtual-item engine transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+            return
+        }
+        throw ('Virtual-item source missing: '+($missing0140 -join ', '))
+    }
+
+    # Spellcasting occupancy/focus semantics are final in ManaHands0130.
+    # This layer only verifies handle_action.cpp and owns the melee/shield additions below.
+    $handle0140 = Normalize-Lf ([IO.File]::ReadAllText($handle0140Path))
 
     $melee0140 = Normalize-Lf ([IO.File]::ReadAllText($melee0140Path))
     if(-not $melee0140.Contains('#include "ncmm_loader.h"')) {
