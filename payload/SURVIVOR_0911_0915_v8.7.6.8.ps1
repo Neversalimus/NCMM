@@ -23948,31 +23948,8 @@ function Apply-SurvivorManaHandCrutches0140([string]$Root) {
     $helper0140crutch = @'
 static bool ncmm_mana_hand_has_crutches( const Character &who )
 {
-    if( !who.is_avatar() ) {
-        return false;
-    }
-
-    const int hand_count = std::max( 0, std::min( 2, static_cast<int>(
-                                   ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ) ) );
-    if( hand_count >= 2 ) {
-        item *paired = ncmm::virtual_item_for_slot(
-                           "survivor_progression", "mana_hands_34" );
-        if( paired != nullptr ) {
-            return paired->has_flag( flag_CRUTCHES );
-        }
-    }
-
-    if( hand_count >= 1 ) {
-        item *hand3 = ncmm::virtual_item_for_slot(
-                          "survivor_progression", "mana_hand_3" );
-        if( hand3 != nullptr && hand3->has_flag( flag_CRUTCHES ) ) {
-            return true;
-        }
-    }
-    if( hand_count >= 2 ) {
-        item *hand4 = ncmm::virtual_item_for_slot(
-                          "survivor_progression", "mana_hand_4" );
-        if( hand4 != nullptr && hand4->has_flag( flag_CRUTCHES ) ) {
+    for( item *candidate : ncmm::active_mana_hand_items( who ) ) {
+        if( candidate->has_flag( flag_CRUTCHES ) ) {
             return true;
         }
     }
@@ -24041,10 +24018,7 @@ bool Character::is_on_ground() const
     $crutchCharacterOutput0140 = [IO.File]::ReadAllText($character0140crutchPath)
     foreach($needle0140crutch in @(
         'ncmm_mana_hand_has_crutches',
-        'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
-        '"survivor_progression", "mana_hands_34"',
-        '"survivor_progression", "mana_hand_3"',
-        '"survivor_progression", "mana_hand_4"',
+        'ncmm::active_mana_hand_items( who )',
         'has_flag( flag_CRUTCHES )',
         'ncmm_mana_hand_has_crutches( you )'
     )) {
@@ -24088,31 +24062,8 @@ function Apply-SurvivorManaHandHeldUtilities0140([string]$Root) {
     $rainHelper0140held = @'
 static bool ncmm_mana_hand_holds_flag( const Character &who, const flag_id &flag )
 {
-    if( !who.is_avatar() ) {
-        return false;
-    }
-    int hand_count = static_cast<int>(
-                         ncmm::gameplay_modifier( "mg_virtual_hand_count" ) );
-    hand_count = hand_count < 0 ? 0 : ( hand_count > 2 ? 2 : hand_count );
-
-    if( hand_count >= 2 ) {
-        item *paired = ncmm::virtual_item_for_slot(
-                           "survivor_progression", "mana_hands_34" );
-        if( paired != nullptr ) {
-            return paired->has_flag( flag );
-        }
-    }
-    if( hand_count >= 1 ) {
-        item *hand3 = ncmm::virtual_item_for_slot(
-                          "survivor_progression", "mana_hand_3" );
-        if( hand3 != nullptr && hand3->has_flag( flag ) ) {
-            return true;
-        }
-    }
-    if( hand_count >= 2 ) {
-        item *hand4 = ncmm::virtual_item_for_slot(
-                          "survivor_progression", "mana_hand_4" );
-        if( hand4 != nullptr && hand4->has_flag( flag ) ) {
+    for( item *candidate : ncmm::active_mana_hand_items( who ) ) {
+        if( candidate->has_flag( flag ) ) {
             return true;
         }
     }
@@ -24240,6 +24191,7 @@ int item::get_remaining_capacity_for_liquid( const item &liquid, const Character
 
     foreach($check0140held in @(
         @($weather0140heldPath,'ncmm_mana_hand_holds_flag( target, json_flag_RAIN_PROTECT )'),
+        @($weather0140heldPath,'ncmm::active_mana_hand_items( who )'),
         @($item0140heldPath,'ncmm_mana_hand_holds_flag( *carrier, flag_RAIN_PROTECT )'),
         @($suffer0140heldPath,'ncmm_mana_hand_holds_flag( you, flag_RAIN_PROTECT )'),
         @($container0140heldPath,'ncmm_mana_hand_holds_item( p, this )'),
