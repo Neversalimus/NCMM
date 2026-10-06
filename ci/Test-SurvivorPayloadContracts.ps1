@@ -910,8 +910,8 @@ foreach($eolSafeNeedle0140 in @(
     '$menuCount0140pm = Count-TextBlock $game0140pm $menuAnchor0140pm',
     '$handlerCount0140pm = Count-TextBlock $game0140pm $handlerAnchor0140pm',
     '$fireCount0140reach = Count-TextBlock $handle0140reach $fireOld0140reach',
-    '$canReachCount0140 = Count-TextBlock $melee0140reach $canReachOld0140',
-    '$reachAttackCount0140 = Count-TextBlock $melee0140reach $reachAttackOld0140',
+    '$canReachCount0140final = Count-TextBlock $melee0140 $canReachOld0140final',
+    '$reachAttackCount0140final = Count-TextBlock $melee0140 $reachAttackOld0140final',
     '$autoCount0140 = Count-TextBlock $avatar0140auto $autoOld0140',
     '$mineCount0140 = Count-TextBlock $avatar0140mine $mineOld0140',
     'if(-not (Test-TextBlock $game0140pr $pairMenuFlags0140pr))',
@@ -1139,6 +1139,18 @@ foreach($secondaryNeedle0140 in @(
     'ncmm_virtual_melee_scope ncmm_primary_scope(',
     '*this, *ncmm_primary_weapon, false );',
     'Not enough mana to attack with the primary Mana Hand weapon.',
+    '$canReachCount0140final = Count-TextBlock $melee0140 $canReachOld0140final',
+    '$reachAttackCount0140final = Count-TextBlock $melee0140 $reachAttackOld0140final',
+    'Mana Hand final vertical reach selection',
+    'Mana Hand final primary reach attack pipeline',
+    'item *ncmm_primary_reach_weapon = nullptr;',
+    'std::make_unique<ncmm_virtual_melee_scope>',
+    'item_location reach_weapon = used_weapon();',
+    'handle_melee_wear( reach_weapon );',
+    'get_total_melee_stamina_cost( &reach_item )',
+    'const bool ncmm_allow_virtual_reach_weapon = ncmm_primary_reach_weapon != nullptr;',
+    'ncmm_allow_virtual_reach_weapon, forced_movecost',
+    'Not enough mana for a primary Mana Hand reach attack.',
     'NCMM Mana Hand secondary strikes do not trigger martial-art event chains.',
     'ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ? tec_none.obj()'
 )){
@@ -1165,6 +1177,26 @@ foreach($secondarySelectorForbidden0140 in @(
 
 if(([regex]::Matches($manaSecondarySection0140,[regex]::Escape('if( !ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ) {'))).Count -lt 4){
     throw 'Mana Hand secondary melee must suppress martial-art event chains only for suppressing virtual scopes.'
+}
+foreach($secondaryReachBlockMarker0140 in @(
+    '$reachAttackOld0140final = @''',
+    '$reachAttackNew0140final = @'''
+)){
+    $secondaryReachBlockStart0140=$manaSecondarySection0140.IndexOf($secondaryReachBlockMarker0140)
+    if($secondaryReachBlockStart0140 -lt 0){
+        throw ('Final Mana Hand reach base-layer block missing: '+$secondaryReachBlockMarker0140)
+    }
+    $secondaryReachBlockEnd0140=$manaSecondarySection0140.IndexOf("'@",$secondaryReachBlockStart0140+$secondaryReachBlockMarker0140.Length)
+    if($secondaryReachBlockEnd0140 -le $secondaryReachBlockStart0140){
+        throw ('Final Mana Hand reach base-layer block end missing: '+$secondaryReachBlockMarker0140)
+    }
+    $secondaryReachBlock0140=$manaSecondarySection0140.Substring(
+        $secondaryReachBlockStart0140,$secondaryReachBlockEnd0140-$secondaryReachBlockStart0140)
+    if(-not $secondaryReachBlock0140.Contains(
+        'ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ? tec_none.obj() :')){
+        throw ('Final Mana Hand reach base layer must preserve martial-art guard: '+
+               $secondaryReachBlockMarker0140)
+    }
 }
 foreach($upgradeNeedle0140 in @(
     '$secondaryMenuOld0140ctx = @''',
@@ -1581,17 +1613,16 @@ foreach($reachNeedle0140 in @(
     'target_handler::mode_reach(',
     'item_location( you, ncmm_reach_weapon )',
     'return ncmm::primary_mana_hand_melee_weapon( you );',
-    'ncmm::primary_mana_hand_melee_weapon( *this )',
+    '$melee0140reach = [IO.File]::ReadAllText($melee0140reachPath)',
+    'Primary Mana Hand reach pipeline missing final base-layer boundary:',
+    'item *ncmm_primary_reach_weapon = nullptr;',
     'std::make_unique<ncmm_virtual_melee_scope>',
     'item_location reach_weapon = used_weapon();',
-    'handle_melee_wear( reach_weapon );',
     'get_total_melee_stamina_cost( &reach_item )',
-    'const bool ncmm_allow_virtual_reach_weapon = ncmm_primary_reach_weapon != nullptr;',
-    'ncmm_allow_virtual_reach_weapon, forced_movecost',
-    'magic->mod_mana( *this, -ncmm_reach_mana_cost )'
+    'Not enough mana for a primary Mana Hand reach attack.'
 )){
     if(-not $manaReachSection0140.Contains($reachNeedle0140)){
-        throw ('Mana Hand reach-melee regression contract missing: '+$reachNeedle0140)
+        throw ('Mana Hand reach-melee verifier contract missing: '+$reachNeedle0140)
     }
 }
 if($manaReachSection0140.Contains('set_wielded_item(') -or
@@ -1599,25 +1630,17 @@ if($manaReachSection0140.Contains('set_wielded_item(') -or
    $manaReachSection0140.Contains('.obtain(')){
     throw 'Mana Hand reach melee must not move the real item into Character::weapon.'
 }
-
-foreach($reachBlockMarker0140 in @(
-    '$reachAttackOld0140 = @''',
-    '$reachAttackNew0140 = @'''
+foreach($reachMutationForbidden0140 in @(
+    'Normalize-Lf ([IO.File]::ReadAllText($melee0140reachPath))',
+    'Replace-TextBlock $melee0140reach',
+    'Write-Utf8NoBom $melee0140reachPath',
+    '$canReachOld0140 =',
+    '$canReachNew0140 =',
+    '$reachAttackOld0140 =',
+    '$reachAttackNew0140 ='
 )){
-    $reachBlockStart0140=$manaReachSection0140.IndexOf($reachBlockMarker0140)
-    if($reachBlockStart0140 -lt 0){
-        throw ('Mana Hand reach transform block missing: '+$reachBlockMarker0140)
-    }
-    $reachBlockEnd0140=$manaReachSection0140.IndexOf("'@",$reachBlockStart0140+$reachBlockMarker0140.Length)
-    if($reachBlockEnd0140 -le $reachBlockStart0140){
-        throw ('Mana Hand reach transform block end missing: '+$reachBlockMarker0140)
-    }
-    $reachBlock0140=$manaReachSection0140.Substring(
-        $reachBlockStart0140,$reachBlockEnd0140-$reachBlockStart0140)
-    if(-not $reachBlock0140.Contains(
-        'ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ? tec_none.obj() :')){
-        throw ('Mana Hand reach transform must preserve the primary/secondary martial-art guard: '+
-               $reachBlockMarker0140)
+    if($manaReachSection0140.Contains($reachMutationForbidden0140)){
+        throw ('Mana Hand ReachMelee regressed to late melee.cpp mutation: '+$reachMutationForbidden0140)
     }
 }
 
