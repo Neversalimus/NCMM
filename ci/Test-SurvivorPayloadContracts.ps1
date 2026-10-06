@@ -1604,7 +1604,8 @@ foreach($directNeedle0152 in @(
     '$verifiedCount0152direct',
     'ncmm::primary_mana_hand_melee_weapon',
     'Legacy source-scoped Mana Hand count survived source generation',
-    'Mana Hand direct count: VERIFIED'
+    'Mana Hand direct count: VERIFIED',
+    'direct-count verifier deferred during copy-audit source generation.'
 )){
     if(-not $manaDirectSection0152.Contains($directNeedle0152)){
         throw ('Mana Hand direct-count verifier contract missing: '+$directNeedle0152)
