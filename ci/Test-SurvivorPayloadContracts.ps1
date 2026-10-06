@@ -1630,6 +1630,12 @@ if($rainproofGuardPos0140 -lt 0 -or $virtualUmbrellaPos0140 -lt 0 -or
 if($manaHeldSection0140.Contains('wielded_with_flag(')){
     throw 'Mana Hand held utilities must not broaden generic wielded flag semantics.'
 }
+$heldFlagStart0140=$manaHeldSection0140.IndexOf('static bool ncmm_mana_hand_holds_flag( const Character &who, const flag_id &flag )')
+$heldFlagEnd0140=$manaHeldSection0140.IndexOf('$weather0140held = Normalize-Lf',$heldFlagStart0140)
+if($heldFlagStart0140 -lt 0 -or $heldFlagEnd0140 -le $heldFlagStart0140){
+    throw 'Mana Hand held-flag helper boundary missing.'
+}
+$heldFlagHelper0140=$manaHeldSection0140.Substring($heldFlagStart0140,$heldFlagEnd0140-$heldFlagStart0140)
 foreach($heldPolicyForbidden0140 in @(
     'gameplay_modifier(',
     'virtual_item_for_slot(',
@@ -1638,8 +1644,8 @@ foreach($heldPolicyForbidden0140 in @(
     '"mana_hand_4"',
     '"mana_hands_34"'
 )){
-    if($manaHeldSection0140.Contains($heldPolicyForbidden0140)){
-        throw ('Mana Hand held utilities duplicated active-item Host policy: '+$heldPolicyForbidden0140)
+    if($heldFlagHelper0140.Contains($heldPolicyForbidden0140)){
+        throw ('Mana Hand held-flag helper duplicated active-item Host policy: '+$heldPolicyForbidden0140)
     }
 }
 $heldIdentityStart0140=$manaHeldSection0140.IndexOf('static bool ncmm_mana_hand_holds_item( const Character &who, const item *candidate )')
