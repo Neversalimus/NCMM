@@ -4134,6 +4134,30 @@ item *primary_mana_hand_melee_weapon( Character &who )
     return nullptr;
 }
 
+mana_hand_ranged_owner mana_hand_ranged_item_owner( const avatar &who, const item &weapon )
+{
+    if( &who != &get_avatar() || !weapon.is_gun() || weapon.is_gunmod() ) {
+        return mana_hand_ranged_owner::none;
+    }
+
+    const int hand_count = survivor_mana_hand_count();
+    const bool two_handed = weapon.is_two_handed( who );
+    if( hand_count >= 2 && two_handed &&
+        virtual_item_matches_slot(
+            weapon, survivor_module_id, mana_hands_pair_slot_id ) ) {
+        return mana_hand_ranged_owner::paired;
+    }
+
+    if( !two_handed &&
+        ( ( hand_count >= 1 && virtual_item_matches_slot(
+                weapon, survivor_module_id, mana_hand_3_slot_id ) ) ||
+          ( hand_count >= 2 && virtual_item_matches_slot(
+                weapon, survivor_module_id, mana_hand_4_slot_id ) ) ) ) {
+        return mana_hand_ranged_owner::single;
+    }
+    return mana_hand_ranged_owner::none;
+}
+
 mana_hand_ranged_owner mana_hand_ranged_mode_owner( const avatar &who, const item *mode_item )
 {
     if( &who != &get_avatar() || mode_item == nullptr ) {
@@ -4172,17 +4196,8 @@ mana_hand_ranged_owner mana_hand_ranged_mode_owner( const avatar &who, const ite
 
 bool ranged_weapon_binding_valid( const avatar &who, const item &weapon )
 {
-    if( &who != &get_avatar() ||
-        !ranged_weapon_capable( weapon, ranged_weapon_action::fire ) ) {
-        return false;
-    }
-
-    const int hand_count = survivor_mana_hand_count();
-    return ( hand_count >= 1 &&
-             virtual_item_matches_slot( weapon, survivor_module_id, mana_hand_3_slot_id ) ) ||
-           ( hand_count >= 2 &&
-             ( virtual_item_matches_slot( weapon, survivor_module_id, mana_hand_4_slot_id ) ||
-               virtual_item_matches_slot( weapon, survivor_module_id, mana_hands_pair_slot_id ) ) );
+    return ranged_weapon_capable( weapon, ranged_weapon_action::fire ) &&
+           mana_hand_ranged_item_owner( who, weapon ) != mana_hand_ranged_owner::none;
 }
 
 std::vector<item_location> ranged_weapon_candidates( avatar &who, ranged_weapon_action action )

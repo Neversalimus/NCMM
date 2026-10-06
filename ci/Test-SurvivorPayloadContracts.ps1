@@ -903,8 +903,7 @@ foreach($eolSafeNeedle0140 in @(
     '$mineCount0140 = Count-TextBlock $avatar0140mine $mineOld0140',
     'if(Test-TextBlock $game0140pr $pairMenuFlagsOld0140pr)',
     'if(Test-TextBlock $game0140pr $pairHandlerFlagsOld0140pr)',
-    'if(Test-TextBlock $game0140pr $menuOld0140pr)',
-    'if(Test-TextBlock $game0140pr $handlerOld0140pr)',
+    "if(-not `$game0140pr.Contains('ncmm::mana_hand_ranged_item_owner( u, oThisItem )'))",
     "if(-not `$actor0140pr.Contains('ncmm::ranged_weapon_binding_valid( get_avatar(), *ncmm_candidate )'))",
     'if(Test-TextBlock $ranged0140ras $unsupported0140ras)'
 )){
@@ -1090,6 +1089,7 @@ foreach($rangeNeedle0140 in @(
     'ncmm_virtual_mana_paired_gun_mode',
     'gmode->has_flag( flag_FIRE_TWOHAND )',
     'gmode->has_flag( flag_RELOAD_AND_SHOOT )',
+    'ncmm::mana_hand_ranged_item_owner( u, oThisItem )',
     'fire with Mana Hand',
     "case 'g':",
     'aim_activity_actor::use_item_location( locThisItem )'
@@ -1103,7 +1103,7 @@ if($manaRangeSection0140.Contains('set_wielded_item(') -or
     throw 'Mana Hand ranged support must not move the gun into Character::weapon.'
 }
 if($manaRangeSection0140.Contains('"mana_hands_34"')){
-    throw 'Mana Hand ranged v1 base layer must remain single-hand only; paired support belongs to the additive paired-ranged layer.'
+    throw 'Base Mana Hand ranged layer duplicated paired slot IDs instead of using Host ownership.'
 }
 
 $manaRasStart0140=$payload.IndexOf('function Apply-SurvivorManaHandReloadAndShoot0140',$manaPairedRangeStart0140)
@@ -1112,9 +1112,9 @@ $manaPairedRangeEnd0140=$manaRasStart0140
 $manaPairedRangeSection0140=$payload.Substring($manaPairedRangeStart0140,$manaPairedRangeEnd0140-$manaPairedRangeStart0140)
 foreach($pairedRangeNeedle0140 in @(
     'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;',
-    'const bool ncmm_mana_ranged_pair =',
-    'const bool ncmm_ranged_pair =',
     '"survivor_progression", "mana_hands_34"',
+    'Paired Mana Hand ranged item-owner boundary missing.',
+    'ncmm::mana_hand_ranged_item_owner( u, oThisItem )',
     'Paired Mana Hand aim Host-resolver boundary missing.',
     'Paired Mana Hand ranged Host-owner boundary missing:',
     'ncmm::mana_hand_ranged_mode_owner( you, gmode ? &*gmode : nullptr )',
@@ -1134,8 +1134,15 @@ if($manaPairedRangeSection0140.Contains('set_wielded_item(') -or
 if($manaPairedRangeSection0140.Contains('$ranged0140pr = Replace-TextBlock')){
     throw 'Paired Mana Hand layer must not rewrite ranged.cpp ownership semantics.'
 }
+if($manaPairedRangeSection0140.Contains('$menuOld0140pr') -or
+   $manaPairedRangeSection0140.Contains('$handlerOld0140pr') -or
+   $manaPairedRangeSection0140.Contains('paired Mana Hand ranged menu eligibility') -or
+   $manaPairedRangeSection0140.Contains('paired Mana Hand ranged handler eligibility')){
+    throw 'Paired Mana Hand layer must not rewrite game.cpp ranged ownership semantics.'
+}
 foreach($finalRangeNeedle0140 in @(
     '// NCMM paired Mana Hand physical-hand exemptions.',
+    'ncmm::mana_hand_ranged_item_owner( u, oThisItem )',
     'ncmm::mana_hand_ranged_mode_owner( you, gmode ? &*gmode : nullptr )',
     'ncmm_ranged_owner == ncmm::mana_hand_ranged_owner::paired'
 )){
