@@ -1062,17 +1062,47 @@ foreach($directManaNeedle0151 in @(
 }
 
 
-$manaUxOldStart0151=$manaContextSection0140.IndexOf('$manaUxMenuOld0151 = @''')
-$manaUxNewStart0151=$manaContextSection0140.IndexOf('$manaUxMenuNew0151 = @''',$manaUxOldStart0151)
-if($manaUxOldStart0151 -lt 0 -or $manaUxNewStart0151 -le $manaUxOldStart0151){
-    throw 'Mana Hand direct inventory clean-source menu transform structure missing.'
+$directMenuStart0151=$manaContextSection0140.IndexOf('$menuNew0140ctx = @''')
+$directMenuEnd0151=$manaContextSection0140.IndexOf("'@",$directMenuStart0151+24)
+$directSwitchStart0151=$manaContextSection0140.IndexOf('$switchNew0140ctx = @''')
+$directSwitchEnd0151=$manaContextSection0140.IndexOf("'@",$directSwitchStart0151+26)
+if($directMenuStart0151 -lt 0 -or $directMenuEnd0151 -le $directMenuStart0151 -or
+   $directSwitchStart0151 -lt 0 -or $directSwitchEnd0151 -le $directSwitchStart0151){
+    throw 'Mana Hand direct inventory base context template boundary missing.'
 }
-$manaUxOld0151=$manaContextSection0140.Substring($manaUxOldStart0151,$manaUxNewStart0151-$manaUxOldStart0151)
-if(-not $manaUxOld0151.Contains('const int ncmm_mana_hands = static_cast<int>(')){
-    throw 'Mana Hand direct inventory action must anchor after the generated III/IV menu on clean source.'
+$directMenu0151=$manaContextSection0140.Substring(
+    $directMenuStart0151,$directMenuEnd0151-$directMenuStart0151)
+$directSwitch0151=$manaContextSection0140.Substring(
+    $directSwitchStart0151,$directSwitchEnd0151-$directSwitchStart0151)
+foreach($directMenuNeedle0151 in @(
+    'ncmm::mana_hand_inventory_action_visible( locThisItem )',
+    'addentry( ''H'', ncmm::localized_text(',
+    '"Mana Hand"'
+)){
+    if(-not $directMenu0151.Contains($directMenuNeedle0151)){
+        throw ('Mana Hand direct inventory action missing from base menu: '+$directMenuNeedle0151)
+    }
 }
-if($manaUxOld0151.Contains('if( bHPR ) {')){
-    throw 'Mana Hand direct inventory action regressed to the consumed vanilla bHPR anchor.'
+foreach($directSwitchNeedle0151 in @(
+    "case 'H':",
+    'ncmm::mana_hand_inventory_action( locThisItem );',
+    "case '3':"
+)){
+    if(-not $directSwitch0151.Contains($directSwitchNeedle0151)){
+        throw ('Mana Hand direct inventory handler missing from base switch: '+$directSwitchNeedle0151)
+    }
+}
+foreach($obsoleteDirectRewrite0151 in @(
+    '$manaUxMenuOld0151 = @''',
+    '$manaUxMenuNew0151 = @''',
+    '$manaUxSwitchOld0151 = @''',
+    '$manaUxSwitchNew0151 = @''',
+    'Mana Hand direct inventory action''',
+    'Mana Hand direct inventory handler'''
+)){
+    if($manaContextSection0140.Contains($obsoleteDirectRewrite0151)){
+        throw ('Mana Hand context still rewrites final direct inventory UI: '+$obsoleteDirectRewrite0151)
+    }
 }
 
 
