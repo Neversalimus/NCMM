@@ -20827,7 +20827,6 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
 
     # Secondary strikes are final in the base layer through Host active-item
     # enumeration and ownership. PairedGrip must not append a pair-only strike.
-    Write-Utf8NoBom $melee0140pairPath $melee0140pair
 
     # SPELLCASTING_AID and need_wielding held semantics are already final in their base layers.
     # PairedGrip must not reopen those sources or rewrite their Host-owned active-item scans.
