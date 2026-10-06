@@ -24458,124 +24458,33 @@ function Apply-SurvivorXpBalance0140 {
     }
 
     $hostHeaderBalance = Normalize-Lf ([IO.File]::ReadAllText($hostHeaderBalancePath))
-    if(-not $hostHeaderBalance.Contains('gameplay_metric_record_completed_craft')) {
-        $hostHeaderOld0140 = @'
-std::string localized_text( const char *english, const char *russian );
-
-
-/** Aggregate runtime gameplay modifier registered by loaded NCMM modules. */
-'@
-        $hostHeaderNew0140 = @'
-std::string localized_text( const char *english, const char *russian );
-
-/** Record one successfully completed craft for gameplay.metrics.v1. */
-void gameplay_metric_record_completed_craft( const Character &who );
-
-/** Aggregate runtime gameplay modifier registered by loaded NCMM modules. */
-'@
-        $hostHeaderBalance = Replace-TextBlock $hostHeaderBalance $hostHeaderOld0140 $hostHeaderNew0140 'craft metric header bridge'
-    }
-    if(-not $hostHeaderBalance.Contains('virtual_item_matches_slot( const item &candidate')) {
-        $fastSlotHeaderOld0140 = @'
-item *virtual_item_for_slot( const char *module_id, const char *slot_id );
-bool virtual_item_can_assign( const char *module_id, const char *slot_id,
-'@
-        $fastSlotHeaderNew0140 = @'
-item *virtual_item_for_slot( const char *module_id, const char *slot_id );
-bool virtual_item_matches_slot( const item &candidate, const char *module_id,
-                                const char *slot_id );
-bool virtual_item_can_assign( const char *module_id, const char *slot_id,
-'@
-        $hostHeaderBalance = Replace-TextBlock $hostHeaderBalance $fastSlotHeaderOld0140 $fastSlotHeaderNew0140 'fast virtual-slot match header bridge'
-    }
-    Write-Utf8NoBom $hostHeaderBalancePath $hostHeaderBalance
-
     $hostLoaderBalance = Normalize-Lf ([IO.File]::ReadAllText($hostLoaderBalancePath))
-    $activityMetricStart0140 = $hostLoaderBalance.IndexOf('                case event_type::character_finished_activity:')
-    if($activityMetricStart0140 -ge 0) {
-        $activityMetricEnd0140 = $hostLoaderBalance.IndexOf('                case event_type::gains_skill_level:', $activityMetricStart0140)
-        if($activityMetricEnd0140 -le $activityMetricStart0140) {
-            throw 'Could not isolate ambiguous activity craft metric block.'
+
+    # Host 0.8.2 canonical sync runs before this Survivor balance pass.
+    # Verify the shared Host bridges here; do not mutate Host sources from a
+    # module-owned gameplay-balance transform.
+    foreach($hostHeaderNeedle0140 in @(
+        'void gameplay_metric_record_completed_craft( const Character &who );',
+        'bool virtual_item_matches_slot( const item &candidate, const char *module_id,'
+    )) {
+        if(-not $hostHeaderBalance.Contains($hostHeaderNeedle0140)) {
+            throw ('Survivor XP balance canonical Host header missing: '+$hostHeaderNeedle0140)
         }
-        $hostLoaderBalance = $hostLoaderBalance.Remove(
-            $activityMetricStart0140,
-            $activityMetricEnd0140 - $activityMetricStart0140 )
     }
     if($hostLoaderBalance.Contains('case event_type::character_finished_activity:')) {
-        throw 'Ambiguous canceled activity craft metric path survived canonical transform.'
+        throw 'Ambiguous canceled activity craft metric path survived canonical Host sync.'
     }
-    if(-not $hostLoaderBalance.Contains('void gameplay_metric_record_completed_craft( const Character &who )')) {
-        $craftMetricPublicOld0140 = @'
-} // namespace
-
-item *virtual_item_for_slot( const char *module_id, const char *slot_id )
-'@
-        $craftMetricPublicNew0140 = @'
-} // namespace
-
-void gameplay_metric_record_completed_craft( const Character &who )
-{
-    if( !who.is_avatar() ) {
-        return;
+    foreach($hostLoaderNeedle0140 in @(
+        'void gameplay_metric_record_completed_craft( const Character &who )',
+        '++gameplay_metric_values["crafting.completed"];',
+        'bool virtual_item_matches_slot( const item &candidate, const char *module_id,',
+        'candidate.uid().get_value() != wanted_uid',
+        'virtual_item_candidate_runtime_valid( candidate, stored_flags )'
+    )) {
+        if(-not $hostLoaderBalance.Contains($hostLoaderNeedle0140)) {
+            throw ('Survivor XP balance canonical Host source missing: '+$hostLoaderNeedle0140)
+        }
     }
-    if( !gameplay_avatar_id_ready ) {
-        gameplay_avatar_id = who.getID();
-        gameplay_avatar_id_ready = true;
-    }
-    if( who.getID() != gameplay_avatar_id ) {
-        return;
-    }
-    ++gameplay_metric_values["crafting.completed"];
-}
-
-item *virtual_item_for_slot( const char *module_id, const char *slot_id )
-'@
-        $hostLoaderBalance = Replace-TextBlock $hostLoaderBalance $craftMetricPublicOld0140 $craftMetricPublicNew0140 'exact craft metric host bridge'
-    }
-    if(-not $hostLoaderBalance.Contains('bool virtual_item_matches_slot( const item &candidate')) {
-        $fastSlotSourceOld0140 = @'
-item *virtual_item_for_slot( const char *module_id, const char *slot_id )
-{
-    return virtual_item_for_slot_internal( module_id, slot_id );
-}
-
-bool virtual_item_can_assign( const char *module_id, const char *slot_id,
-'@
-        $fastSlotSourceNew0140 = @'
-item *virtual_item_for_slot( const char *module_id, const char *slot_id )
-{
-    return virtual_item_for_slot_internal( module_id, slot_id );
-}
-
-bool virtual_item_matches_slot( const item &candidate, const char *module_id,
-                                const char *slot_id )
-{
-    if( !character_state_available() || !safe_state_token( module_id ) ||
-        !safe_virtual_slot_id( slot_id ) || module_ids.count( module_id ) == 0 ) {
-        return false;
-    }
-
-    const int64_t wanted_uid = virtual_item_state_uid_internal( module_id, slot_id );
-    if( wanted_uid <= 0 || candidate.uid().get_value() != wanted_uid ) {
-        return false;
-    }
-    if( candidate.get_var( virtual_item_marker_key, "" ) !=
-        virtual_item_marker( module_id, slot_id ) ) {
-        return false;
-    }
-
-    const int64_t stored_flags_raw =
-        virtual_item_state_flags_internal( module_id, slot_id );
-    const uint32_t stored_flags = stored_flags_raw >= 0 ?
-                                  static_cast<uint32_t>( stored_flags_raw ) : 0u;
-    return virtual_item_candidate_runtime_valid( candidate, stored_flags );
-}
-
-bool virtual_item_can_assign( const char *module_id, const char *slot_id,
-'@
-        $hostLoaderBalance = Replace-TextBlock $hostLoaderBalance $fastSlotSourceOld0140 $fastSlotSourceNew0140 'fast virtual-slot match source bridge'
-    }
-    Write-Utf8NoBom $hostLoaderBalancePath $hostLoaderBalance
 
     $spBalance = Normalize-Lf ([IO.File]::ReadAllText($spPath))
     if(-not $spBalance.Contains('int branch_xp_balance_pct( branch_id branch )')) {
