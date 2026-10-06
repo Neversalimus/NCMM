@@ -19831,11 +19831,15 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                                   "назначить четвёртой руке маны" ), hint_rating::good );
                 }
 
-                const bool ncmm_mana_bound_here =
-                    ncmm_mana3_item == &oThisItem || ncmm_mana4_item == &oThisItem;
+                const ncmm::mana_hand_item_slot ncmm_secondary_slot =
+                    ncmm::mana_hand_item_slot_of( u, oThisItem );
+                const bool ncmm_secondary_bound =
+                    ncmm_secondary_slot != ncmm::mana_hand_item_slot::none;
+                const bool ncmm_pair_secondary =
+                    ncmm_secondary_slot == ncmm::mana_hand_item_slot::paired;
                 const bool ncmm_secondary_melee_eligible =
-                    ncmm_mana_bound_here && oThisItem.is_melee() && !oThisItem.is_gun() &&
-                    !oThisItem.is_two_handed( u );
+                    ncmm_secondary_bound && oThisItem.is_melee() && !oThisItem.is_gun() &&
+                    ( ncmm_pair_secondary == oThisItem.is_two_handed( u ) );
                 if( ncmm_secondary_melee_eligible ) {
                     const bool ncmm_secondary_enabled =
                         ncmm::virtual_item_secondary_melee_enabled( oThisItem );
@@ -19905,22 +19909,18 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                     break;
                 }
                 case 'M': {
-                    const int ncmm_mana_hands_now = static_cast<int>(
-                                                        ncmm::gameplay_modifier( "mg_virtual_hand_count" ) );
-                    item *ncmm_bound3 = ncmm_mana_hands_now >= 1 ?
-                                        ncmm::virtual_item_for_slot(
-                                            "survivor_progression", "mana_hand_3" ) : nullptr;
-                    item *ncmm_bound4 = ncmm_mana_hands_now >= 2 ?
-                                        ncmm::virtual_item_for_slot(
-                                            "survivor_progression", "mana_hand_4" ) : nullptr;
-                    if( ncmm_bound3 != &oThisItem && ncmm_bound4 != &oThisItem ) {
+                    const ncmm::mana_hand_item_slot ncmm_secondary_slot =
+                        ncmm::mana_hand_item_slot_of( u, oThisItem );
+                    if( ncmm_secondary_slot == ncmm::mana_hand_item_slot::none ) {
                         add_msg( m_info, "%s", ncmm::localized_text(
                                      "This item is not held by an available Mana Hand.",
                                      "Этот предмет не удерживается доступной рукой маны." ).c_str() );
                         break;
                     }
+                    const bool ncmm_pair_secondary =
+                        ncmm_secondary_slot == ncmm::mana_hand_item_slot::paired;
                     if( !oThisItem.is_melee() || oThisItem.is_gun() ||
-                        oThisItem.is_two_handed( u ) ) {
+                        ( ncmm_pair_secondary != oThisItem.is_two_handed( u ) ) ) {
                         add_msg( m_info, "%s", ncmm::localized_text(
                                      "This item is not eligible for a Mana Hand secondary strike.",
                                      "Этот предмет нельзя использовать для дополнительного удара рукой маны." ).c_str() );
@@ -20116,11 +20116,15 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
         $game0140ctx = Replace-TextBlock $game0140ctx $single4Old0140ctxPair $single4New0140ctxPair 'Mana Hand IV final pair gate'
 
         $menuInsertOld0140ctxPair = @'
-                const bool ncmm_mana_bound_here =
-                    ncmm_mana3_item == &oThisItem || ncmm_mana4_item == &oThisItem;
+                const ncmm::mana_hand_item_slot ncmm_secondary_slot =
+                    ncmm::mana_hand_item_slot_of( u, oThisItem );
+                const bool ncmm_secondary_bound =
+                    ncmm_secondary_slot != ncmm::mana_hand_item_slot::none;
+                const bool ncmm_pair_secondary =
+                    ncmm_secondary_slot == ncmm::mana_hand_item_slot::paired;
                 const bool ncmm_secondary_melee_eligible =
-                    ncmm_mana_bound_here && oThisItem.is_melee() && !oThisItem.is_gun() &&
-                    !oThisItem.is_two_handed( u );
+                    ncmm_secondary_bound && oThisItem.is_melee() && !oThisItem.is_gun() &&
+                    ( ncmm_pair_secondary == oThisItem.is_two_handed( u ) );
 '@
         $menuInsertNew0140ctxPair = @'
                 if( ncmm_mana_pair_item == &oThisItem ) {
@@ -20137,14 +20141,15 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                                   "назначить парному хвату рук маны III+IV" ), hint_rating::good );
                 }
 
-                const bool ncmm_mana_single_bound_here =
-                    ncmm_mana3_item == &oThisItem || ncmm_mana4_item == &oThisItem;
-                const bool ncmm_mana_pair_bound_here =
-                    ncmm_mana_pair_item == &oThisItem;
+                const ncmm::mana_hand_item_slot ncmm_secondary_slot =
+                    ncmm::mana_hand_item_slot_of( u, oThisItem );
+                const bool ncmm_secondary_bound =
+                    ncmm_secondary_slot != ncmm::mana_hand_item_slot::none;
+                const bool ncmm_pair_secondary =
+                    ncmm_secondary_slot == ncmm::mana_hand_item_slot::paired;
                 const bool ncmm_secondary_melee_eligible =
-                    oThisItem.is_melee() && !oThisItem.is_gun() &&
-                    ( ( ncmm_mana_single_bound_here && !oThisItem.is_two_handed( u ) ) ||
-                      ( ncmm_mana_pair_bound_here && oThisItem.is_two_handed( u ) ) );
+                    ncmm_secondary_bound && oThisItem.is_melee() && !oThisItem.is_gun() &&
+                    ( ncmm_pair_secondary == oThisItem.is_two_handed( u ) );
 '@
         $game0140ctx = Replace-TextBlock $game0140ctx $menuInsertOld0140ctxPair $menuInsertNew0140ctxPair 'Mana Hand final pair context menu'
 
@@ -20297,16 +20302,26 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
     # Ranged0140 later verifies game.cpp while retaining aim/activity/ranged.cpp transforms.
     if(-not $game0140ctx.Contains('fire with Mana Hand')) {
         $rangedMenuAnchor0140ctx = @'
+                const ncmm::mana_hand_item_slot ncmm_secondary_slot =
+                    ncmm::mana_hand_item_slot_of( u, oThisItem );
+                const bool ncmm_secondary_bound =
+                    ncmm_secondary_slot != ncmm::mana_hand_item_slot::none;
+                const bool ncmm_pair_secondary =
+                    ncmm_secondary_slot == ncmm::mana_hand_item_slot::paired;
                 const bool ncmm_secondary_melee_eligible =
-                    oThisItem.is_melee() && !oThisItem.is_gun() &&
-                    ( ( ncmm_mana_single_bound_here && !oThisItem.is_two_handed( u ) ) ||
-                      ( ncmm_mana_pair_bound_here && oThisItem.is_two_handed( u ) ) );
+                    ncmm_secondary_bound && oThisItem.is_melee() && !oThisItem.is_gun() &&
+                    ( ncmm_pair_secondary == oThisItem.is_two_handed( u ) );
 '@
         $rangedMenuNew0140ctx = @'
+                const ncmm::mana_hand_item_slot ncmm_secondary_slot =
+                    ncmm::mana_hand_item_slot_of( u, oThisItem );
+                const bool ncmm_secondary_bound =
+                    ncmm_secondary_slot != ncmm::mana_hand_item_slot::none;
+                const bool ncmm_pair_secondary =
+                    ncmm_secondary_slot == ncmm::mana_hand_item_slot::paired;
                 const bool ncmm_secondary_melee_eligible =
-                    oThisItem.is_melee() && !oThisItem.is_gun() &&
-                    ( ( ncmm_mana_single_bound_here && !oThisItem.is_two_handed( u ) ) ||
-                      ( ncmm_mana_pair_bound_here && oThisItem.is_two_handed( u ) ) );
+                    ncmm_secondary_bound && oThisItem.is_melee() && !oThisItem.is_gun() &&
+                    ( ncmm_pair_secondary == oThisItem.is_two_handed( u ) );
                 const bool ncmm_mana_ranged_eligible =
                     ncmm::mana_hand_ranged_item_owner( u, oThisItem ) !=
                     ncmm::mana_hand_ranged_owner::none;
