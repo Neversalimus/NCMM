@@ -907,7 +907,7 @@ foreach($eolSafeNeedle0140 in @(
     'function Test-TextBlock([string]$Text,[string]$Block)',
     'function Count-TextBlock([string]$Text,[string]$Block)',
     '$attackCount0140 = Count-TextBlock $melee0140 $attackOld0140',
-    '$single3Count0140pair = Count-TextBlock $game0140pair $single3Old0140pair',
+    '$single3Count0140ctxPair = Count-TextBlock $game0140ctx $single3Old0140ctxPair',
     '$menuCount0140pm = Count-TextBlock $game0140pm $menuAnchor0140pm',
     '$handlerCount0140pm = Count-TextBlock $game0140pm $handlerAnchor0140pm',
     '$wrapperCount0140pm = Count-TextBlock $melee0140pm $wrapperOld0140pm',
