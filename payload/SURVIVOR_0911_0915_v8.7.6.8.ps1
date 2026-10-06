@@ -20690,8 +20690,10 @@ namespace
 class ncmm_virtual_melee_scope
 {
     public:
-        ncmm_virtual_melee_scope( Character &who, item &weapon ) : who_( who ),
-            active_( ncmm::virtual_melee_context_begin( who, weapon ) )
+        ncmm_virtual_melee_scope( Character &who, item &weapon,
+                                  bool suppress_martial_arts = true ) : who_( who ),
+            active_( ncmm::virtual_melee_context_begin(
+                         who, weapon, suppress_martial_arts ) )
         {
             if( active_ ) {
                 who_.recalculate_enchantment_cache();
@@ -20818,6 +20820,42 @@ static const std::set<weapon_category_id> &wielded_weapon_categories( const Char
 }
 '@
         $attackNew0140 = @'
+    if( allow_special && is_avatar() &&
+        !ncmm::virtual_melee_context_active( *this ) &&
+        !get_wielded_item() &&
+        !martial_arts_data->selected_force_unarmed() ) {
+        item *ncmm_primary_weapon = ncmm::primary_mana_hand_melee_weapon( *this );
+        if( ncmm_primary_weapon != nullptr ) {
+            bool ncmm_primary_result = false;
+            int ncmm_primary_mana_cost = 0;
+            {
+                ncmm_virtual_melee_scope ncmm_primary_scope(
+                    *this, *ncmm_primary_weapon, false );
+                if( !ncmm_primary_scope.active() ) {
+                    return false;
+                }
+                ncmm_primary_mana_cost =
+                    ncmm_secondary_melee_mana_cost( *this, *ncmm_primary_weapon );
+                if( magic->available_mana() < ncmm_primary_mana_cost ) {
+                    add_msg_if_player( m_info, "%s", ncmm::localized_text(
+                                           "Not enough mana to attack with the primary Mana Hand weapon.",
+                                           "Недостаточно маны для атаки основным оружием руки маны." ).c_str() );
+                    return false;
+                }
+                ncmm_primary_result = melee_attack_abstract(
+                                          t, allow_special, force_technique,
+                                          allow_unarmed, forced_movecost );
+            }
+            if( ncmm_primary_result ) {
+                magic->mod_mana( *this, -ncmm_primary_mana_cost );
+            }
+            if( ncmm_primary_result && !t.is_dead_state() ) {
+                ncmm_run_mana_hand_secondary_melee( *this, t );
+            }
+            return ncmm_primary_result;
+        }
+    }
+
     const bool ncmm_attack_result =
         melee_attack_abstract( t, allow_special, force_technique, allow_unarmed, forced_movecost );
     if( ncmm_attack_result && allow_special && is_avatar() && !t.is_dead_state() &&
@@ -20863,7 +20901,7 @@ bool Character::is_wielding( const item &target ) const
         $missRecoveryOld0140 = 'const ma_technique miss_recovery = martial_arts_data->get_miss_recovery( *this );'
         $missRecoveryNew0140 = @'
 const ma_technique miss_recovery =
-            ncmm::virtual_melee_context_active( *this ) ? tec_none.obj() :
+            ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ? tec_none.obj() :
             martial_arts_data->get_miss_recovery( *this );
 '@
         $missRecoveryCount0140 = ([regex]::Matches($melee0140,[regex]::Escape($missRecoveryOld0140))).Count
@@ -20875,25 +20913,25 @@ const ma_technique miss_recovery =
         $maOnMissOld0140 = '        martial_arts_data->ma_onmiss_effects( *this );'
         $maOnMissNew0140 = @'
         // NCMM Mana Hand secondary strikes do not trigger martial-art event chains.
-        if( !ncmm::virtual_melee_context_active( *this ) ) {
+        if( !ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ) {
             martial_arts_data->ma_onmiss_effects( *this );
         }
 '@
         $maOnCritOld0140 = '                martial_arts_data->ma_oncrit_effects( *this );'
         $maOnCritNew0140 = @'
-                if( !ncmm::virtual_melee_context_active( *this ) ) {
+                if( !ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ) {
                     martial_arts_data->ma_oncrit_effects( *this );
                 }
 '@
         $maOnKillOld0140 = '            martial_arts_data->ma_onkill_effects( *this );'
         $maOnKillNew0140 = @'
-            if( !ncmm::virtual_melee_context_active( *this ) ) {
+            if( !ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ) {
                 martial_arts_data->ma_onkill_effects( *this );
             }
 '@
         $maOnAttackOld0140 = '    martial_arts_data->ma_onattack_effects( *this );'
         $maOnAttackNew0140 = @'
-    if( !ncmm::virtual_melee_context_active( *this ) ) {
+    if( !ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ) {
         martial_arts_data->ma_onattack_effects( *this );
     }
 '@
@@ -20919,7 +20957,9 @@ const ma_technique miss_recovery =
     foreach($needle0140melee in @(
         '#include "ncmm_loader.h"',
         'class ncmm_virtual_melee_scope',
-        'ncmm::virtual_melee_context_begin( who, weapon )',
+        'bool suppress_martial_arts = true',
+        'ncmm::virtual_melee_context_begin(',
+        'who, weapon, suppress_martial_arts',
         'ncmm::active_mana_hand_items( who )',
         'ncmm::mana_hand_item_slot_of( who, *weapon )',
         'ncmm::mana_hand_item_slot::paired',
@@ -20932,14 +20972,18 @@ const ma_technique miss_recovery =
         'ncmm::virtual_melee_context_item( *this )',
         'ncmm::virtual_melee_context_item( c )',
         'ncmm_run_mana_hand_secondary_melee( *this, t );',
+        'ncmm::primary_mana_hand_melee_weapon( *this )',
+        'ncmm_virtual_melee_scope ncmm_primary_scope(',
+        '*this, *ncmm_primary_weapon, false );',
+        'Not enough mana to attack with the primary Mana Hand weapon.',
         'NCMM Mana Hand secondary strikes do not trigger martial-art event chains.',
-        'ncmm::virtual_melee_context_active( *this ) ? tec_none.obj()'
+        'ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ? tec_none.obj()'
     )) {
         if(-not $meleeOut0140.Contains($needle0140melee)) {
             throw ('Survivor 0.14.0 secondary-melee output missing: '+$needle0140melee)
         }
     }
-    if(([regex]::Matches($meleeOut0140,[regex]::Escape('if( !ncmm::virtual_melee_context_active( *this ) ) {'))).Count -lt 4) {
+    if(([regex]::Matches($meleeOut0140,[regex]::Escape('if( !ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ) {'))).Count -lt 4) {
         throw 'Survivor 0.14.0 secondary-melee martial-art event guards missing.'
     }
     foreach($needle0140inv in @(
@@ -21943,106 +21987,22 @@ function Apply-SurvivorManaHandPrimaryMelee0140([string]$Root) {
     }
     Write-Utf8NoBom $game0140pmPath $game0140pm
 
-    $melee0140pm = Normalize-Lf ([IO.File]::ReadAllText($melee0140pmPath))
-    if(-not $melee0140pm.Contains('ncmm::primary_mana_hand_melee_weapon')) {
-        $scopeOld0140pm = @'
-        ncmm_virtual_melee_scope( Character &who, item &weapon ) : who_( who ),
-            active_( ncmm::virtual_melee_context_begin( who, weapon ) )
-'@
-        $scopeNew0140pm = @'
-        ncmm_virtual_melee_scope( Character &who, item &weapon,
-                                  bool suppress_martial_arts = true ) : who_( who ),
-            active_( ncmm::virtual_melee_context_begin(
-                         who, weapon, suppress_martial_arts ) )
-'@
-        $melee0140pm = Replace-TextBlock $melee0140pm $scopeOld0140pm $scopeNew0140pm 'primary Mana Hand melee scope mode'
-
-        $costAnchor0140pm = @'
-int ncmm_secondary_melee_mana_cost( Character &who, const item &weapon )
-{
-    return std::clamp( ( who.attack_speed( weapon ) + 9 ) / 10, 5, 50 );
-}
-'@
-        if(-not $melee0140pm.Contains($costAnchor0140pm)) {
-            throw 'Primary Mana Hand melee cost anchor missing.'
-        }
-
-        $missOld0140pm = 'ncmm::virtual_melee_context_active( *this ) ? tec_none.obj() :'
-        $missNew0140pm = 'ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ? tec_none.obj() :'
-        if(-not $melee0140pm.Contains($missOld0140pm)) {
-            throw 'Primary Mana Hand miss-recovery suppression anchor missing.'
-        }
-        $melee0140pm = $melee0140pm.Replace($missOld0140pm,$missNew0140pm)
-
-        $guardOld0140pm = 'if( !ncmm::virtual_melee_context_active( *this ) ) {'
-        $guardNew0140pm = 'if( !ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ) {'
-        $guardCount0140pm = ([regex]::Matches($melee0140pm,[regex]::Escape($guardOld0140pm))).Count
-        if($guardCount0140pm -lt 4) {
-            throw ('Primary Mana Hand martial-art guard anchor count too small: '+$guardCount0140pm)
-        }
-        $melee0140pm = $melee0140pm.Replace($guardOld0140pm,$guardNew0140pm)
-
-        $wrapperOld0140pm = @'
-    const bool ncmm_attack_result =
-        melee_attack_abstract( t, allow_special, force_technique, allow_unarmed, forced_movecost );
-    if( ncmm_attack_result && allow_special && is_avatar() && !t.is_dead_state() &&
-        !ncmm::virtual_melee_context_active( *this ) ) {
-        ncmm_run_mana_hand_secondary_melee( *this, t );
-    }
-    return ncmm_attack_result;
-'@
-        $wrapperNew0140pm = @'
-    if( allow_special && is_avatar() &&
-        !ncmm::virtual_melee_context_active( *this ) &&
-        !get_wielded_item() &&
-        !martial_arts_data->selected_force_unarmed() ) {
-        item *ncmm_primary_weapon = ncmm::primary_mana_hand_melee_weapon( *this );
-        if( ncmm_primary_weapon != nullptr ) {
-            bool ncmm_primary_result = false;
-            int ncmm_primary_mana_cost = 0;
-            {
-                ncmm_virtual_melee_scope ncmm_primary_scope(
-                    *this, *ncmm_primary_weapon, false );
-                if( !ncmm_primary_scope.active() ) {
-                    return false;
-                }
-                ncmm_primary_mana_cost =
-                    ncmm_secondary_melee_mana_cost( *this, *ncmm_primary_weapon );
-                if( magic->available_mana() < ncmm_primary_mana_cost ) {
-                    add_msg_if_player( m_info, "%s", ncmm::localized_text(
-                                           "Not enough mana to attack with the primary Mana Hand weapon.",
-                                           "Недостаточно маны для атаки основным оружием руки маны." ).c_str() );
-                    return false;
-                }
-                ncmm_primary_result = melee_attack_abstract(
-                                          t, allow_special, force_technique,
-                                          allow_unarmed, forced_movecost );
-            }
-            if( ncmm_primary_result ) {
-                magic->mod_mana( *this, -ncmm_primary_mana_cost );
-            }
-            if( ncmm_primary_result && !t.is_dead_state() ) {
-                ncmm_run_mana_hand_secondary_melee( *this, t );
-            }
-            return ncmm_primary_result;
+    $melee0140pm = [IO.File]::ReadAllText($melee0140pmPath)
+    foreach($primaryPipelineNeedle0140pm in @(
+        'ncmm_virtual_melee_scope( Character &who, item &weapon,',
+        'bool suppress_martial_arts = true',
+        'ncmm::virtual_melee_context_begin(',
+        'who, weapon, suppress_martial_arts',
+        'ncmm::primary_mana_hand_melee_weapon( *this )',
+        'ncmm_virtual_melee_scope ncmm_primary_scope(',
+        '*this, *ncmm_primary_weapon, false );',
+        'ncmm::virtual_melee_context_suppresses_martial_arts( *this )',
+        'Not enough mana to attack with the primary Mana Hand weapon.'
+    )) {
+        if(-not $melee0140pm.Contains($primaryPipelineNeedle0140pm)) {
+            throw ('Primary Mana Hand melee pipeline missing final base-layer boundary: '+$primaryPipelineNeedle0140pm)
         }
     }
-
-    const bool ncmm_attack_result =
-        melee_attack_abstract( t, allow_special, force_technique, allow_unarmed, forced_movecost );
-    if( ncmm_attack_result && allow_special && is_avatar() && !t.is_dead_state() &&
-        !ncmm::virtual_melee_context_active( *this ) ) {
-        ncmm_run_mana_hand_secondary_melee( *this, t );
-    }
-    return ncmm_attack_result;
-'@
-        $wrapperCount0140pm = Count-TextBlock $melee0140pm $wrapperOld0140pm
-        if($wrapperCount0140pm -ne 1) {
-            throw ('Unexpected primary Mana Hand melee wrapper count: '+$wrapperCount0140pm)
-        }
-        $melee0140pm = Replace-TextBlock $melee0140pm $wrapperOld0140pm $wrapperNew0140pm 'primary Mana Hand melee wrapper'
-    }
-    Write-Utf8NoBom $melee0140pmPath $melee0140pm
 
     $gameOut0140pm = [IO.File]::ReadAllText($game0140pmPath)
     $meleeOut0140pm = [IO.File]::ReadAllText($melee0140pmPath)
