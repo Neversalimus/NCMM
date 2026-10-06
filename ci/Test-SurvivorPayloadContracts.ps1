@@ -1593,7 +1593,7 @@ if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandHeldUtilities0140 
 # Mana Hand direct-count reconciliation contract:
 # gameplay/slot ownership and combat selection must read the same aggregate modifier.
 $manaDirectStart0152=$payload.IndexOf('function Apply-SurvivorManaHandDirectCount0152',$manaHeldStart0140)
-$manaDirectEnd0152=$payload.IndexOf('function Apply-SurvivorCraftCompletionMetric0140',$manaDirectStart0152)
+$manaDirectEnd0152=$payload.IndexOf('function Apply-SurvivorActionWeaponSelection0154',$manaDirectStart0152)
 if($manaDirectStart0152 -le $manaHeldStart0140 -or $manaDirectEnd0152 -le $manaDirectStart0152){
     throw 'Mana Hand direct-count reconciliation transform boundary missing.'
 }
