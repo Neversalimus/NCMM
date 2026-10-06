@@ -909,7 +909,7 @@ foreach($eolSafeNeedle0140 in @(
     '$single3Count0140ctxPair = Count-TextBlock $game0140ctx $single3Old0140ctxPair',
     '$primaryMenuCount0140ctx = Count-TextBlock $game0140ctx $primaryMenuAnchor0140ctx',
     '$primaryHandlerCount0140ctx = Count-TextBlock $game0140ctx $primaryHandlerAnchor0140ctx',
-    '$fireCount0140reach = Count-TextBlock $handle0140reach $fireOld0140reach',
+    '$fireCount0140reach = Count-TextBlock $handle0140fire $fireOld0140reach',
     '$canReachCount0140final = Count-TextBlock $melee0140 $canReachOld0140final',
     '$reachAttackCount0140final = Count-TextBlock $melee0140 $reachAttackOld0140final',
     '$autoCount0140 = Count-TextBlock $avatar0140auto $autoOld0140',
@@ -1434,6 +1434,15 @@ if($manaGunControlsStart0140 -le $manaFireStart0140){throw 'Mana Hand standard g
 $manaFireEnd0140=$manaGunControlsStart0140
 $manaFireSection0140=$payload.Substring($manaFireStart0140,$manaFireEnd0140-$manaFireStart0140)
 foreach($fireNeedle0140 in @(
+    '$reachHelperOld0140fire = @''',
+    '$reachHelperNew0140fire = @''',
+    '$fireCount0140reach = Count-TextBlock $handle0140fire $fireOld0140reach',
+    'final Mana Hand reach target selection',
+    'final Mana Hand reach FIRE dispatch',
+    'class ncmm_virtual_reach_scope',
+    'ncmm_primary_mana_hand_reach_weapon',
+    'ncmm_primary_mana_hand_has_reach',
+    'return ncmm::primary_mana_hand_melee_weapon( you );',
     'const auto ncmm_fire_candidates =',
     'if( ncmm_fire_candidates.empty() )',
     'const bool ncmm_physical_ranged_ready =',
@@ -1455,6 +1464,9 @@ if($manaFireSection0140.Contains('set_wielded_item(') -or
 }
 if($manaFireSection0140.Contains('ncmm_mana_fire_candidates')){
     throw 'Mana Hand FIRE action must reuse the base-layer ranged candidate gate instead of resolving candidates twice.'
+}
+if($manaFireSection0140.Contains('before ReachMelee later rewrites')){
+    throw 'Mana Hand FIRE base layer still documents a late ReachMelee rewrite dependency.'
 }
 $fireHostStart0140=$manaFireSection0140.IndexOf('$fireNew0140 = @''')
 $fireHostEnd0140=$manaFireSection0140.IndexOf("'@",$fireHostStart0140+20)
@@ -1644,6 +1656,8 @@ $manaSmashStart0140=$payload.IndexOf('function Apply-SurvivorManaHandSmash0140',
 if($manaSmashStart0140 -le $manaReachStart0140){throw 'Primary Mana Hand smash transform boundary missing.'}
 $manaReachSection0140=$payload.Substring($manaReachStart0140,$manaSmashStart0140-$manaReachStart0140)
 foreach($reachNeedle0140 in @(
+    '$handle0140reach = [IO.File]::ReadAllText($handle0140reachPath)',
+    'Primary Mana Hand reach dispatch missing final FIRE base-layer boundary:',
     'class ncmm_virtual_reach_scope',
     'ncmm::virtual_melee_context_begin( who, weapon, false )',
     'ncmm_primary_mana_hand_reach_weapon',
@@ -1651,6 +1665,7 @@ foreach($reachNeedle0140 in @(
     'target_handler::mode_reach(',
     'item_location( you, ncmm_reach_weapon )',
     'return ncmm::primary_mana_hand_melee_weapon( you );',
+    'if( ncmm_fire_candidates.empty() )',
     '$melee0140reach = [IO.File]::ReadAllText($melee0140reachPath)',
     'Primary Mana Hand reach pipeline missing final base-layer boundary:',
     'item *ncmm_primary_reach_weapon = nullptr;',
@@ -1669,6 +1684,13 @@ if($manaReachSection0140.Contains('set_wielded_item(') -or
     throw 'Mana Hand reach melee must not move the real item into Character::weapon.'
 }
 foreach($reachMutationForbidden0140 in @(
+    'Normalize-Lf ([IO.File]::ReadAllText($handle0140reachPath))',
+    'Replace-TextBlock $handle0140reach',
+    'Write-Utf8NoBom $handle0140reachPath',
+    '$reachHelperOld0140 =',
+    '$reachHelperNew0140 =',
+    '$fireOld0140reach = @''',
+    '$fireNew0140reach = @''',
     'Normalize-Lf ([IO.File]::ReadAllText($melee0140reachPath))',
     'Replace-TextBlock $melee0140reach',
     'Write-Utf8NoBom $melee0140reachPath',
