@@ -19647,17 +19647,25 @@ function Apply-SurvivorVirtualItemSlots0140([string]$Root) {
                                                "magic.virtual_hand_count", nullptr,
                                                ncmm_spell_source.empty() ? nullptr : ncmm_spell_source.c_str(),
                                                nullptr, nullptr ) ) ) ) ) : 0;
-    item *ncmm_mana_hand_3 = ncmm_virtual_hands >= 1 ?
-                             ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_3" ) : nullptr;
-    item *ncmm_mana_hand_4 = ncmm_virtual_hands >= 2 ?
-                             ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_4" ) : nullptr;
-    const int ncmm_virtual_occupied_hands =
-        ( ncmm_mana_hand_3 != nullptr ? 1 : 0 ) + ( ncmm_mana_hand_4 != nullptr ? 1 : 0 );
+    int ncmm_virtual_occupied_hands = 0;
+    bool ncmm_virtual_focus = false;
+    for( item *candidate : ncmm::active_mana_hand_items( *this ) ) {
+        const ncmm::mana_hand_item_slot slot =
+            ncmm::mana_hand_item_slot_of( *this, *candidate );
+        const int required_source_hands =
+            slot == ncmm::mana_hand_item_slot::hand3 ? 1 :
+            ( slot == ncmm::mana_hand_item_slot::hand4 ||
+              slot == ncmm::mana_hand_item_slot::paired ) ? 2 : 0;
+        if( required_source_hands <= 0 || ncmm_virtual_hands < required_source_hands ) {
+            continue;
+        }
+        ncmm_virtual_occupied_hands +=
+            slot == ncmm::mana_hand_item_slot::paired ? 2 : 1;
+        ncmm_virtual_focus = ncmm_virtual_focus ||
+                             candidate->has_flag( flag_MAGIC_FOCUS );
+    }
     const int ncmm_virtual_free_hands =
         std::max( 0, ncmm_virtual_hands - ncmm_virtual_occupied_hands );
-    const bool ncmm_virtual_focus =
-        ( ncmm_mana_hand_3 != nullptr && ncmm_mana_hand_3->has_flag( flag_MAGIC_FOCUS ) ) ||
-        ( ncmm_mana_hand_4 != nullptr && ncmm_mana_hand_4->has_flag( flag_MAGIC_FOCUS ) );
     if( is_armed() && ncmm_virtual_free_hands <= 0 && !ncmm_virtual_focus && !sp.no_hands() &&
         !has_flag( json_flag_SUBTLE_SPELL ) &&
         !get_wielded_item()->has_flag( flag_MAGIC_FOCUS ) && !sp.check_if_component_in_hand( *this ) ) {
@@ -19764,8 +19772,11 @@ item_location Character::best_shield()
 
     foreach($needle0140 in @(
         'const int ncmm_virtual_free_hands =',
-        'const bool ncmm_virtual_focus =',
-        'ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_3" )'
+        'bool ncmm_virtual_focus = false;',
+        'ncmm::active_mana_hand_items( *this )',
+        'ncmm::mana_hand_item_slot_of( *this, *candidate )',
+        'ncmm::mana_hand_item_slot::paired',
+        'required_source_hands'
     )){
         if(-not ([IO.File]::ReadAllText($handle0140Path)).Contains($needle0140)){
             throw ('Mana-hand handle_action 0.14.0 output missing: '+$needle0140)
@@ -20807,11 +20818,10 @@ Apply-SurvivorManaHandSecondaryMelee0140 $CddaRoot
 function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
     Write-Host "Applying Survivor 0.14.0 Mana Hand paired-grip support..." -ForegroundColor Cyan
     $src0140pair = Join-Path $Root 'src'
-    $handle0140pairPath = Join-Path $src0140pair 'handle_action.cpp'
     $melee0140pairPath = Join-Path $src0140pair 'melee.cpp'
     $game0140pairPath = Join-Path $src0140pair 'game.cpp'
     foreach($required0140pair in @(
-        $handle0140pairPath,$melee0140pairPath,$game0140pairPath
+        $melee0140pairPath,$game0140pairPath
     )) {
         if(-not(Test-Path $required0140pair -PathType Leaf)) {
             if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
@@ -20822,41 +20832,8 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
         }
     }
 
-    # Casting occupancy/focus: one paired item consumes both virtual hands.
-    $handle0140pair = Normalize-Lf ([IO.File]::ReadAllText($handle0140pairPath))
-    if(-not $handle0140pair.Contains('ncmm_mana_hands_34')) {
-        $handleOld0140pair = @'
-    item *ncmm_mana_hand_3 = ncmm_virtual_hands >= 1 ?
-                             ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_3" ) : nullptr;
-    item *ncmm_mana_hand_4 = ncmm_virtual_hands >= 2 ?
-                             ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_4" ) : nullptr;
-    const int ncmm_virtual_occupied_hands =
-        ( ncmm_mana_hand_3 != nullptr ? 1 : 0 ) + ( ncmm_mana_hand_4 != nullptr ? 1 : 0 );
-    const int ncmm_virtual_free_hands =
-        std::max( 0, ncmm_virtual_hands - ncmm_virtual_occupied_hands );
-    const bool ncmm_virtual_focus =
-        ( ncmm_mana_hand_3 != nullptr && ncmm_mana_hand_3->has_flag( flag_MAGIC_FOCUS ) ) ||
-        ( ncmm_mana_hand_4 != nullptr && ncmm_mana_hand_4->has_flag( flag_MAGIC_FOCUS ) );
-'@
-        $handleNew0140pair = @'
-    item *ncmm_mana_hand_3 = ncmm_virtual_hands >= 1 ?
-                             ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_3" ) : nullptr;
-    item *ncmm_mana_hand_4 = ncmm_virtual_hands >= 2 ?
-                             ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_4" ) : nullptr;
-    item *ncmm_mana_hands_34 = ncmm_virtual_hands >= 2 ?
-                               ncmm::virtual_item_for_slot( "survivor_progression", "mana_hands_34" ) : nullptr;
-    const int ncmm_virtual_occupied_hands = ncmm_mana_hands_34 != nullptr ? 2 :
-        ( ncmm_mana_hand_3 != nullptr ? 1 : 0 ) + ( ncmm_mana_hand_4 != nullptr ? 1 : 0 );
-    const int ncmm_virtual_free_hands =
-        std::max( 0, ncmm_virtual_hands - ncmm_virtual_occupied_hands );
-    const bool ncmm_virtual_focus =
-        ( ncmm_mana_hands_34 != nullptr && ncmm_mana_hands_34->has_flag( flag_MAGIC_FOCUS ) ) ||
-        ( ncmm_mana_hand_3 != nullptr && ncmm_mana_hand_3->has_flag( flag_MAGIC_FOCUS ) ) ||
-        ( ncmm_mana_hand_4 != nullptr && ncmm_mana_hand_4->has_flag( flag_MAGIC_FOCUS ) );
-'@
-        $handle0140pair = Replace-TextBlock $handle0140pair $handleOld0140pair $handleNew0140pair 'Mana Hand paired casting occupancy'
-    }
-    Write-Utf8NoBom $handle0140pairPath $handle0140pair
+    # Spellcasting occupancy/focus is final in VirtualItemSlots through Host
+    # active-item enumeration plus source-specific hand availability.
 
     # Shield selection: paired grip contributes one real candidate, not two copies.
     $melee0140pair = Normalize-Lf ([IO.File]::ReadAllText($melee0140pairPath))
@@ -21038,8 +21015,6 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
     Write-Utf8NoBom $game0140pairPath $game0140pair
 
     foreach($pairCheck0140 in @(
-        @($handle0140pairPath,'ncmm_mana_hands_34'),
-        @($handle0140pairPath,'"mana_hands_34"'),
         @($melee0140pairPath,'consider_virtual_shield( "mana_hands_34" );'),
         @($game0140pairPath,'ncmm_mana_pair_item'),
         @($game0140pairPath,"case '5':"),
