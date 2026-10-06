@@ -1221,6 +1221,44 @@ if(-not $manaContextSection0140.Contains('Compatibility path: upgrade older 0.14
     throw 'Primary Mana Hand compatibility path comment/boundary missing.'
 }
 
+$rangedCleanMenuStart0140=$manaContextSection0140.IndexOf('$menuNew0140ctx = @''')
+$rangedCleanMenuEnd0140=$manaContextSection0140.IndexOf("'@",$rangedCleanMenuStart0140+22)
+$rangedCleanSwitchStart0140=$manaContextSection0140.IndexOf('$switchNew0140ctx = @''')
+$rangedCleanSwitchEnd0140=$manaContextSection0140.IndexOf("'@",$rangedCleanSwitchStart0140+24)
+if($rangedCleanMenuStart0140 -lt 0 -or $rangedCleanMenuEnd0140 -le $rangedCleanMenuStart0140 -or
+   $rangedCleanSwitchStart0140 -lt 0 -or $rangedCleanSwitchEnd0140 -le $rangedCleanSwitchStart0140){
+    throw 'Mana Hand ranged clean-base context template boundary missing.'
+}
+$rangedCleanMenu0140=$manaContextSection0140.Substring(
+    $rangedCleanMenuStart0140,$rangedCleanMenuEnd0140-$rangedCleanMenuStart0140)
+$rangedCleanSwitch0140=$manaContextSection0140.Substring(
+    $rangedCleanSwitchStart0140,$rangedCleanSwitchEnd0140-$rangedCleanSwitchStart0140)
+foreach($rangedCleanMenuNeedle0140 in @(
+    'const bool ncmm_mana_ranged_eligible =',
+    'ncmm::mana_hand_ranged_item_owner( u, oThisItem )',
+    'ncmm::mana_hand_ranged_owner::none',
+    "addentry( 'g'",
+    'fire with Mana Hand'
+)){
+    if(-not $rangedCleanMenu0140.Contains($rangedCleanMenuNeedle0140)){
+        throw ('Mana Hand ranged clean-base menu missing: '+$rangedCleanMenuNeedle0140)
+    }
+}
+foreach($rangedCleanSwitchNeedle0140 in @(
+    "case 'g': {",
+    'ncmm::mana_hand_ranged_item_owner( u, oThisItem )',
+    'ncmm::mana_hand_ranged_owner::none',
+    'oThisItem.uses_firing_requirements()',
+    'aim_activity_actor::use_item_location( locThisItem )'
+)){
+    if(-not $rangedCleanSwitch0140.Contains($rangedCleanSwitchNeedle0140)){
+        throw ('Mana Hand ranged clean-base handler missing: '+$rangedCleanSwitchNeedle0140)
+    }
+}
+if(-not $manaContextSection0140.Contains('context actions but predate the ranged entry and handler.')){
+    throw 'Mana Hand ranged compatibility path comment/boundary missing.'
+}
+
 foreach($primaryContextNeedle0140 in @(
     '$primaryMenuAnchor0140ctx = @''',
     '$primaryHandlerAnchor0140ctx = @''',

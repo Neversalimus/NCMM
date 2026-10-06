@@ -19861,6 +19861,15 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                 const bool ncmm_secondary_melee_eligible =
                     ncmm_secondary_bound && oThisItem.is_melee() && !oThisItem.is_gun() &&
                     ( ncmm_pair_secondary == oThisItem.is_two_handed( u ) );
+                const bool ncmm_mana_ranged_eligible =
+                    ncmm::mana_hand_ranged_item_owner( u, oThisItem ) !=
+                    ncmm::mana_hand_ranged_owner::none;
+                if( ncmm_mana_ranged_eligible ) {
+                    addentry( 'g', ncmm::localized_text(
+                                  "fire with Mana Hand",
+                                  "стрелять рукой маны" ), hint_rating::good );
+                }
+
                 if( ncmm_secondary_melee_eligible ) {
                     const bool ncmm_primary_enabled =
                         ncmm::virtual_item_primary_melee_enabled( oThisItem );
@@ -19948,6 +19957,24 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                                      "That item cannot be assigned to this Mana Hand.",
                                      "Этот предмет нельзя назначить этой руке маны." ).c_str() );
                     }
+                    break;
+                }
+                case 'g': {
+                    if( ncmm::mana_hand_ranged_item_owner( u, oThisItem ) ==
+                        ncmm::mana_hand_ranged_owner::none ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "That item is not a usable Mana Hand firearm.",
+                                     "Этот предмет нельзя использовать как оружие в руках маны." ).c_str() );
+                        break;
+                    }
+                    if( !oThisItem.uses_firing_requirements() && oThisItem.has_ammo_data() &&
+                        !oThisItem.ammo_types().count( oThisItem.loaded_ammo().ammo_type() ) ) {
+                        add_msg( m_info,
+                                 _( "The %s can't be fired while loaded with incompatible ammunition %s" ),
+                                 oThisItem.tname(), oThisItem.ammo_current()->nname( 1 ) );
+                        break;
+                    }
+                    u.assign_activity( aim_activity_actor::use_item_location( locThisItem ) );
                     break;
                 }
                 case '5': {
@@ -20412,7 +20439,9 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
         $game0140ctx = Replace-TextBlock $game0140ctx $primaryHandlerAnchor0140ctx $primaryHandlerNew0140ctx 'final primary Mana Hand melee handler'
     }
 
-    # Mana Hand ranged context is final in this base layer.
+    # Mana Hand ranged context is final in the clean menu/switch templates above.
+    # Compatibility path: upgrade older 0.14.0 sources that already contain Mana Hand
+    # context actions but predate the ranged entry and handler.
     # Ranged0140 later verifies game.cpp while retaining aim/activity/ranged.cpp transforms.
     if(-not $game0140ctx.Contains('fire with Mana Hand')) {
         $rangedMenuAnchor0140ctx = @'
