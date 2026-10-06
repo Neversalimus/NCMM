@@ -20561,12 +20561,6 @@ class ncmm_virtual_melee_scope
         bool active_;
 };
 
-int ncmm_mana_hand_count_for_melee()
-{
-    return std::max( 0, std::min( 2, static_cast<int>( std::lround(
-                                      ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ) ) ) );
-}
-
 int ncmm_secondary_melee_mana_cost( Character &who, const item &weapon )
 {
     return std::clamp( ( who.attack_speed( weapon ) + 9 ) / 10, 5, 50 );
@@ -20579,14 +20573,15 @@ void ncmm_run_mana_hand_secondary_melee( Character &who, Creature &target )
         return;
     }
 
-    const int hand_count = ncmm_mana_hand_count_for_melee();
-    const char *slots[2] = { "mana_hand_3", "mana_hand_4" };
     bool lacked_mana = false;
 
-    for( int i = 0; i < hand_count && i < 2; ++i ) {
-        item *weapon = ncmm::virtual_item_for_slot( "survivor_progression", slots[i] );
-        if( weapon == nullptr || !ncmm::virtual_item_secondary_melee_enabled( *weapon ) ||
-            !weapon->is_melee() || weapon->is_gun() || weapon->is_two_handed( who ) ) {
+    for( item *weapon : ncmm::active_mana_hand_items( who ) ) {
+        const bool ncmm_paired_secondary =
+            ncmm::mana_hand_item_slot_of( who, *weapon ) ==
+            ncmm::mana_hand_item_slot::paired;
+        if( !ncmm::virtual_item_secondary_melee_enabled( *weapon ) ||
+            !weapon->is_melee() || weapon->is_gun() ||
+            ( ncmm_paired_secondary != weapon->is_two_handed( who ) ) ) {
             continue;
         }
 
@@ -20768,7 +20763,9 @@ const ma_technique miss_recovery =
         '#include "ncmm_loader.h"',
         'class ncmm_virtual_melee_scope',
         'ncmm::virtual_melee_context_begin( who, weapon )',
-        'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
+        'ncmm::active_mana_hand_items( who )',
+        'ncmm::mana_hand_item_slot_of( who, *weapon )',
+        'ncmm::mana_hand_item_slot::paired',
         'std::clamp( ( who.attack_speed( weapon ) + 9 ) / 10, 5, 50 )',
         '!ncmm::virtual_item_secondary_melee_enabled( *weapon )',
         'weapon->is_gun()',
@@ -20873,49 +20870,8 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
         $melee0140pair = Replace-TextBlock $melee0140pair $shieldOld0140pair $shieldNew0140pair 'Mana Hand paired shield'
     }
 
-    # Secondary melee: a paired two-handed non-gun item gets exactly one scoped strike.
-    if(-not $melee0140pair.Contains('ncmm_paired_weapon')) {
-        $secondaryOld0140pair = @'
-        if( target.is_dead_state() ) {
-            break;
-        }
-    }
-
-    if( lacked_mana ) {
-'@
-        $secondaryNew0140pair = @'
-        if( target.is_dead_state() ) {
-            break;
-        }
-    }
-
-    if( hand_count >= 2 && !target.is_dead_state() ) {
-        item *ncmm_paired_weapon =
-            ncmm::virtual_item_for_slot( "survivor_progression", "mana_hands_34" );
-        if( ncmm_paired_weapon != nullptr &&
-            ncmm::virtual_item_secondary_melee_enabled( *ncmm_paired_weapon ) &&
-            ncmm_paired_weapon->is_melee() && !ncmm_paired_weapon->is_gun() &&
-            ncmm_paired_weapon->is_two_handed( who ) ) {
-            ncmm_virtual_melee_scope scope( who, *ncmm_paired_weapon );
-            if( scope.active() ) {
-                const int mana_cost =
-                    ncmm_secondary_melee_mana_cost( who, *ncmm_paired_weapon );
-                if( who.magic->available_mana() >= mana_cost ) {
-                    const bool attacked = who.melee_attack( target, false );
-                    if( attacked ) {
-                        who.magic->mod_mana( who, -mana_cost );
-                    }
-                } else {
-                    lacked_mana = true;
-                }
-            }
-        }
-    }
-
-    if( lacked_mana ) {
-'@
-        $melee0140pair = Replace-TextBlock $melee0140pair $secondaryOld0140pair $secondaryNew0140pair 'Mana Hand paired secondary melee'
-    }
+    # Secondary melee is final in the base layer through Host active-item enumeration.
+    # PairedGrip must not reopen melee.cpp to append a separate paired strike.
     Write-Utf8NoBom $melee0140pairPath $melee0140pair
 
     # SPELLCASTING_AID and need_wielding held semantics are already final in their base layers.
@@ -21109,7 +21065,6 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
         @($handle0140pairPath,'ncmm_mana_hands_34'),
         @($handle0140pairPath,'"mana_hands_34"'),
         @($melee0140pairPath,'consider_virtual_shield( "mana_hands_34" );'),
-        @($melee0140pairPath,'item *ncmm_paired_weapon ='),
         @($game0140pairPath,'ncmm_mana_pair_item'),
         @($game0140pairPath,"case '5':"),
         @($game0140pairPath,'"mana_hands_34"')
