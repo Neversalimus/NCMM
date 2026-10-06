@@ -66,7 +66,11 @@ if($PatchedSourceRoot) {
     if($fire.IndexOf('ncmm::ranged_weapon_candidates(') -gt $fire.IndexOf('reach_attack( you )')) {
         throw 'Physical reach intercepted F before ranged capability resolution.'
     }
+    Require $fire 'ncmm::select_ranged_weapon('
     Require $fire 'aim_activity_actor::use_item_location( ncmm_selected_gun )'
+    Require $handle 'return ncmm::select_ranged_weapon('
+    Require $handle 'ncmm::ranged_weapon_action::reload'
+    Require $handle 'ncmm::ranged_weapon_action::controls'
     Require $entry 'ncmm::select_ranged_weapon('
     Require $entry 'aim_activity_actor::use_item_location( weapon )'
     Require $aim 'ncmm::ranged_weapon_binding_valid('
