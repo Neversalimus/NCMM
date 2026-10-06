@@ -58,6 +58,7 @@ constexpr const char *mana_hand_3_slot_id = "mana_hand_3";
 constexpr const char *mana_hand_4_slot_id = "mana_hand_4";
 constexpr const char *mana_hands_pair_slot_id = "mana_hands_34";
 enum class ranged_weapon_action { fire, controls, reload };
+enum class mana_hand_item_slot { none, hand3, hand4, paired };
 enum class mana_hand_ranged_owner { none, single, paired };
 int survivor_mana_hand_count() { return hand_count; }
 item *virtual_item_for_slot( const char *, const char *slot ) {
@@ -110,6 +111,9 @@ int main() {
           "empty physical hands + Mana III firearm");
     check(ncmm::ranged_weapon_binding_valid(player, pistol),
           "selected Mana III firearm binding remains valid");
+    check(ncmm::mana_hand_item_slot_of(player, pistol) ==
+              ncmm::mana_hand_item_slot::hand3,
+          "generic ownership identifies Mana Hand III");
     check(ncmm::mana_hand_ranged_item_owner(player, pistol) ==
               ncmm::mana_hand_ranged_owner::single,
           "single Mana Hand owns its bound firearm");
@@ -125,6 +129,9 @@ int main() {
     pair = &rifle;
     guns = ncmm::ranged_weapon_candidates(player, fire);
     check(guns.size() == 1 && guns[0].value == &rifle, "physical melee + paired III+IV firearm");
+    check(ncmm::mana_hand_item_slot_of(player, rifle) ==
+              ncmm::mana_hand_item_slot::paired,
+          "generic ownership identifies paired Mana Hands");
     check(ncmm::mana_hand_ranged_item_owner(player, rifle) ==
               ncmm::mana_hand_ranged_owner::paired,
           "paired Mana Hands own their bound firearm");
@@ -148,6 +155,9 @@ int main() {
     guns = ncmm::ranged_weapon_candidates(player, fire);
     check(guns.size() == 2 && guns[0].value == &pistol && guns[1].value == &rifle,
           "two independent Mana guns retain selector order");
+    check(ncmm::mana_hand_item_slot_of(player, rifle) ==
+              ncmm::mana_hand_item_slot::hand4,
+          "generic ownership remains action-neutral for a two-handed item in Mana IV");
     check(ncmm::mana_hand_ranged_item_owner(player, rifle) ==
               ncmm::mana_hand_ranged_owner::none,
           "two-handed firearm cannot masquerade as a single Mana Hand binding");
@@ -168,6 +178,9 @@ int main() {
     check(!ncmm::ranged_weapon_capable(pistol, fire), "standalone gunmod is rejected");
     hand_count = 0;
     check(ncmm::ranged_weapon_candidates(player, fire).empty(), "unavailable Mana Hands cannot fire");
+    check(ncmm::mana_hand_item_slot_of(player, pistol) ==
+              ncmm::mana_hand_item_slot::none,
+          "generic ownership follows active Mana Hand count");
     check(!ncmm::ranged_weapon_binding_valid(player, pistol),
           "aim binding invalidates when Mana Hands become unavailable");
     std::cout << "Mana action weapon resolver behavior: PASS\n";
