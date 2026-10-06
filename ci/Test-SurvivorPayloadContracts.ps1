@@ -697,6 +697,9 @@ foreach($needle0140 in @(
     'function Apply-SurvivorManaHandSecondaryMelee0140',
     'class ncmm_virtual_melee_scope',
     'virtual_melee_context_begin( who, weapon )',
+    'ncmm::active_mana_hand_items( who )',
+    'ncmm::mana_hand_item_slot_of( who, *weapon )',
+    'ncmm::mana_hand_item_slot::paired',
     'std::clamp( ( who.attack_speed( weapon ) + 9 ) / 10, 5, 50 )',
     'virtual_item_secondary_melee_enabled( *weapon )',
     'who.melee_attack( target, false )',
@@ -710,7 +713,6 @@ foreach($needle0140 in @(
     'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
     'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2',
     "case '5':",
-    'item *ncmm_paired_weapon =',
     'Apply-SurvivorManaHandPairedGrip0140 $CddaRoot',
     'function Apply-SurvivorManaHandRanged0140',
     'item_location ncmm_real_weapon;',
@@ -1006,7 +1008,10 @@ foreach($secondaryNeedle0140 in @(
     'class ncmm_virtual_melee_scope',
     'ncmm::virtual_melee_context_begin( who, weapon )',
     'who_.recalculate_enchantment_cache();',
-    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
+    'ncmm::active_mana_hand_items( who )',
+    'ncmm::mana_hand_item_slot_of( who, *weapon )',
+    'ncmm::mana_hand_item_slot::none',
+    'ncmm::mana_hand_item_slot::paired',
     'std::clamp( ( who.attack_speed( weapon ) + 9 ) / 10, 5, 50 )',
     '!ncmm::virtual_item_secondary_melee_enabled( *weapon )',
     'weapon->is_gun()',
@@ -1027,6 +1032,18 @@ foreach($secondaryNeedle0140 in @(
 if($manaSecondarySection0140.Contains('set_wielded_item(') -or
    $manaSecondarySection0140.Contains('u.wield(')){
     throw 'Mana Hand secondary melee must not move the virtual item into Character::weapon.'
+}
+foreach($secondarySelectorForbidden0140 in @(
+    'ncmm_mana_hand_count_for_melee',
+    'gameplay_modifier( "mg_virtual_hand_count" )',
+    'virtual_item_for_slot(',
+    '"mana_hand_3"',
+    '"mana_hand_4"',
+    '"mana_hands_34"'
+)){
+    if($manaSecondarySection0140.Contains($secondarySelectorForbidden0140)){
+        throw ('Mana Hand secondary strikes duplicated Host active-item/ownership policy: '+$secondarySelectorForbidden0140)
+    }
 }
 
 if(([regex]::Matches($manaSecondarySection0140,[regex]::Escape('if( !ncmm::virtual_melee_context_active( *this ) ) {'))).Count -lt 4){
@@ -1057,17 +1074,23 @@ foreach($pairNeedle0140 in @(
     'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2',
     "case '5':",
     'ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 1',
-    'ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 2',
-    'item *ncmm_paired_weapon =',
-    'ncmm_paired_weapon->is_two_handed( who )',
-    '!ncmm_paired_weapon->is_gun()'
+    'ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 2'
 )){
     if(-not $manaPairSection0140.Contains($pairNeedle0140)){
         throw ('Mana Hand paired-grip regression contract missing: '+$pairNeedle0140)
     }
 }
-foreach($obsoletePairRewrite0140 in @('talker0140pair','iuse0140pair','Mana Hand paired spellcasting aid','Mana Hand paired utility')){
-    if($manaPairSection0140.Contains($obsoletePairRewrite0140)){throw ('PairedGrip still rewrites final held consumers: '+$obsoletePairRewrite0140)}
+foreach($obsoletePairRewrite0140 in @(
+    'talker0140pair',
+    'iuse0140pair',
+    'Mana Hand paired spellcasting aid',
+    'Mana Hand paired utility',
+    '$secondaryOld0140pair',
+    '$secondaryNew0140pair',
+    'Mana Hand paired secondary melee',
+    'ncmm_paired_weapon'
+)){
+    if($manaPairSection0140.Contains($obsoletePairRewrite0140)){throw ('PairedGrip still rewrites a final base consumer: '+$obsoletePairRewrite0140)}
 }
 if(([regex]::Matches($manaPairSection0140,[regex]::Escape('"mana_hands_34"'))).Count -lt 6){
     throw 'Mana Hand paired grip must use one dedicated pair slot across all integrations.'
