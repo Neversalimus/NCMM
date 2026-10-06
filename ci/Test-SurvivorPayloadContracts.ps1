@@ -1580,15 +1580,24 @@ if($manaCrutchStart0140 -le $manaMendStart0140 -or $manaCrutchEnd0140 -le $manaC
 $manaCrutchSection0140=$payload.Substring($manaCrutchStart0140,$manaCrutchEnd0140-$manaCrutchStart0140)
 foreach($crutchNeedle0140 in @(
     'ncmm_mana_hand_has_crutches',
-    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
-    '"survivor_progression", "mana_hands_34"',
-    '"survivor_progression", "mana_hand_3"',
-    '"survivor_progression", "mana_hand_4"',
+    'ncmm::active_mana_hand_items( who )',
     'ncmm_mana_hand_has_crutches( you )',
     'return ( !enough_working_legs() &&',
     '!weapon.has_flag( flag_CRUTCHES ) &&',
     '!ncmm_mana_hand_has_crutches( *this ) ) ||'
 )){if(-not $manaCrutchSection0140.Contains($crutchNeedle0140)){throw ('Mana Hand crutch regression contract missing: '+$crutchNeedle0140)}}
+foreach($crutchPolicyForbidden0140 in @(
+    'gameplay_modifier(',
+    'virtual_item_for_slot(',
+    'virtual_item_matches_slot(',
+    '"mana_hand_3"',
+    '"mana_hand_4"',
+    '"mana_hands_34"'
+)){
+    if($manaCrutchSection0140.Contains($crutchPolicyForbidden0140)){
+        throw ('Mana Hand crutch support duplicated active-item Host policy: '+$crutchPolicyForbidden0140)
+    }
+}
 if($manaCrutchSection0140.Contains('set_wielded_item(') -or
    $manaCrutchSection0140.Contains('you.wield(') -or
    $manaCrutchSection0140.Contains('.obtain(')){
@@ -1610,9 +1619,7 @@ foreach($heldNeedle0140 in @(
     'ncmm_mana_hand_holds_flag( you, flag_RAIN_PROTECT )',
     'ncmm_mana_hand_holds_item( p, this )',
     'ncmm::mana_hand_item_slot_of( who, *candidate )',
-    '"survivor_progression", "mana_hands_34"',
-    '"survivor_progression", "mana_hand_3"',
-    '"survivor_progression", "mana_hand_4"'
+    'ncmm::active_mana_hand_items( who )'
 )){if(-not $manaHeldSection0140.Contains($heldNeedle0140)){throw ('Mana Hand held-utility regression contract missing: '+$heldNeedle0140)}}
 $rainproofGuardPos0140=$manaHeldSection0140.IndexOf('( !one_in( 50 ) && target.worn_with_flag( json_flag_RAINPROOF ) )')
 $virtualUmbrellaPos0140=$manaHeldSection0140.IndexOf('ncmm_mana_hand_holds_flag( target, json_flag_RAIN_PROTECT )')
@@ -1622,6 +1629,18 @@ if($rainproofGuardPos0140 -lt 0 -or $virtualUmbrellaPos0140 -lt 0 -or
 }
 if($manaHeldSection0140.Contains('wielded_with_flag(')){
     throw 'Mana Hand held utilities must not broaden generic wielded flag semantics.'
+}
+foreach($heldPolicyForbidden0140 in @(
+    'gameplay_modifier(',
+    'virtual_item_for_slot(',
+    'virtual_item_matches_slot(',
+    '"mana_hand_3"',
+    '"mana_hand_4"',
+    '"mana_hands_34"'
+)){
+    if($manaHeldSection0140.Contains($heldPolicyForbidden0140)){
+        throw ('Mana Hand held utilities duplicated active-item Host policy: '+$heldPolicyForbidden0140)
+    }
 }
 $heldIdentityStart0140=$manaHeldSection0140.IndexOf('static bool ncmm_mana_hand_holds_item( const Character &who, const item *candidate )')
 $heldIdentityEnd0140=$manaHeldSection0140.IndexOf('int item::get_remaining_capacity_for_liquid',$heldIdentityStart0140)
