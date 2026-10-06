@@ -1513,20 +1513,28 @@ $manaMineEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandTargetPractice
 if($manaMineStart0140 -le $manaThrowStart0140 -or $manaMineEnd0140 -le $manaMineStart0140){throw 'Mana Hand auto-mining transform boundary missing.'}
 $manaMineSection0140=$payload.Substring($manaMineStart0140,$manaMineEnd0140-$manaMineStart0140)
 foreach($mineNeedle0140 in @(
-    'ncmm_mana_hand_auto_mining_tool',
-    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
-    '"survivor_progression", slot',
-    '"mana_hands_34"',
-    '"mana_hand_3"',
-    '"mana_hand_4"',
+    'ncmm::active_mana_hand_items( you )',
     'candidate->has_flag( flag_DIG_TOOL )',
     'candidate->type->can_use( "PICKAXE" )',
+    'weapon = item_location( you, candidate );',
     'item_location weapon = you.get_wielded_item();',
     'if( !weapon &&',
     'm.has_flag( ter_furn_flag::TFLAG_MINEABLE, dest_loc ) &&',
     'g->mostseen == 0 ) {',
     'you.invoke_item( &*weapon, "PICKAXE", dest_loc );'
 )){if(-not $manaMineSection0140.Contains($mineNeedle0140)){throw ('Mana Hand auto-mining regression contract missing: '+$mineNeedle0140)}}
+foreach($mineForbidden0140 in @(
+    'gameplay_modifier(',
+    'virtual_item_for_slot(',
+    '"mana_hand_3"',
+    '"mana_hand_4"',
+    '"mana_hands_34"',
+    'ncmm_mana_hand_auto_mining_tool'
+)){
+    if($manaMineSection0140.Contains($mineForbidden0140)){
+        throw ('Mana Hand auto-mining duplicated Host active-item policy: '+$mineForbidden0140)
+    }
+}
 if($manaMineSection0140.Contains('set_wielded_item(') -or
    $manaMineSection0140.Contains('you.wield(') -or
    $manaMineSection0140.Contains('.obtain(')){
