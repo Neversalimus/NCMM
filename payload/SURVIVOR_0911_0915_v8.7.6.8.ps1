@@ -21819,70 +21819,25 @@ function Apply-SurvivorManaHandFireAction0140([string]$Root) {
         return;
     }
 
-    // A physically wielded ranged weapon keeps vanilla priority.  Otherwise,
-    // expose live Mana Hand guns through the normal FIRE action without moving
-    // or copying the real item into Character::weapon.
+    // Physical ranged weapons retain vanilla priority. Mana Hand candidate
+    // ownership/eligibility lives in the Host resolver.
     const bool ncmm_physical_ranged_ready =
-        weapon && weapon->is_gun() && !weapon->gun_current_mode().melee();
+        weapon && ncmm::ranged_weapon_capable(
+                      *weapon, ncmm::ranged_weapon_action::fire );
     if( !ncmm_physical_ranged_ready ) {
-        const int ncmm_mana_fire_hand_count = static_cast<int>(
-                ncmm::runtime_hook_modifier(
-                    "magic.virtual_hand_count", nullptr, "magiclysm",
-                    nullptr, nullptr ) );
-        std::vector<item_location> ncmm_mana_fire_candidates;
-        std::vector<std::string> ncmm_mana_fire_labels;
-
-        const auto ncmm_add_mana_fire_candidate =
-        [&]( item *candidate, const char *label_en, const char *label_ru ) {
-            if( candidate == nullptr || !candidate->is_gun() ||
-                candidate->is_gunmod() || candidate->gun_current_mode().melee() ) {
-                return;
-            }
-            item_location loc( you, candidate );
-            if( !loc ) {
-                return;
-            }
-            ncmm_mana_fire_candidates.emplace_back( loc );
-            ncmm_mana_fire_labels.emplace_back(
-                ncmm::localized_text( label_en, label_ru ) + ": " + candidate->tname() );
-        };
-
-        item *ncmm_mana_fire_pair = ncmm_mana_fire_hand_count >= 2 ?
-                                    ncmm::virtual_item_for_slot(
-                                        "survivor_progression", "mana_hands_34" ) : nullptr;
-        if( ncmm_mana_fire_pair != nullptr ) {
-            ncmm_add_mana_fire_candidate(
-                ncmm_mana_fire_pair, "Mana Hands III+IV", "Руки маны III+IV" );
-        } else {
-            if( ncmm_mana_fire_hand_count >= 1 ) {
-                ncmm_add_mana_fire_candidate(
-                    ncmm::virtual_item_for_slot(
-                        "survivor_progression", "mana_hand_3" ),
-                    "Mana Hand III", "Рука маны III" );
-            }
-            if( ncmm_mana_fire_hand_count >= 2 ) {
-                ncmm_add_mana_fire_candidate(
-                    ncmm::virtual_item_for_slot(
-                        "survivor_progression", "mana_hand_4" ),
-                    "Mana Hand IV", "Рука маны IV" );
-            }
-        }
-
+        const auto ncmm_mana_fire_candidates =
+            ncmm::ranged_weapon_candidates(
+                you, ncmm::ranged_weapon_action::fire );
         if( !ncmm_mana_fire_candidates.empty() ) {
-            int selected = 0;
-            if( ncmm_mana_fire_candidates.size() > 1 ) {
-                selected = uilist(
-                    ncmm::localized_text(
-                        "Fire which Mana Hand weapon?",
-                        "Из какого оружия в руке маны стрелять?" ),
-                    ncmm_mana_fire_labels );
-            }
-            if( selected < 0 ||
-                selected >= static_cast<int>( ncmm_mana_fire_candidates.size() ) ) {
+            item_location ncmm_selected_gun = ncmm::select_ranged_weapon(
+                                                  you,
+                                                  ncmm::ranged_weapon_action::fire,
+                                                  "Fire which Mana Hand weapon?",
+                                                  "Из какого оружия в руке маны стрелять?" );
+            // Empty with known candidates means the user canceled the selector.
+            if( !ncmm_selected_gun ) {
                 return;
             }
-
-            item_location ncmm_selected_gun = ncmm_mana_fire_candidates[selected];
             if( you.has_trait( trait_GUNSHY ) && ncmm_selected_gun->is_firearm() ) {
                 add_msg( m_bad, _( "You refuse to use firearms." ) );
                 return;
@@ -21903,10 +21858,9 @@ function Apply-SurvivorManaHandFireAction0140([string]$Root) {
     $fireOutput0140 = [IO.File]::ReadAllText($handle0140firePath)
     foreach($needle0140fire in @(
         'const bool ncmm_physical_ranged_ready =',
-        'std::vector<item_location> ncmm_mana_fire_candidates;',
-        '"survivor_progression", "mana_hands_34"',
-        '"survivor_progression", "mana_hand_3"',
-        '"survivor_progression", "mana_hand_4"',
+        'ncmm::ranged_weapon_capable(',
+        'ncmm::ranged_weapon_candidates(',
+        'ncmm::select_ranged_weapon(',
         'Fire which Mana Hand weapon?',
         'aim_activity_actor::use_item_location( ncmm_selected_gun )'
     )) {
@@ -21950,61 +21904,11 @@ function Apply-SurvivorManaHandGunControls0140([string]$Root) {
 
     const auto ncmm_select_mana_hand_gun_control =
     [&]( bool require_reloadable, const char *prompt_en, const char *prompt_ru ) -> item_location {
-        const int ncmm_hand_count = std::max( 0, std::min( 2, static_cast<int>( std::lround(
-                                        ncmm::runtime_hook_modifier(
-                                            "magic.virtual_hand_count", nullptr, "magiclysm",
-                                            nullptr, nullptr ) ) ) ) );
-        std::vector<item_location> candidates;
-        std::vector<std::string> labels;
-
-        const auto add_candidate =
-        [&]( item *candidate, const char *label_en, const char *label_ru ) {
-            if( candidate == nullptr || !candidate->is_gun() || candidate->is_gunmod() ||
-                ( require_reloadable && !candidate->is_reloadable() ) ) {
-                return;
-            }
-            item_location loc( player_character, candidate );
-            if( !loc ) {
-                return;
-            }
-            candidates.emplace_back( loc );
-            labels.emplace_back(
-                ncmm::localized_text( label_en, label_ru ) + ": " + candidate->tname() );
-        };
-
-        item *paired = ncmm_hand_count >= 2 ?
-                       ncmm::virtual_item_for_slot(
-                           "survivor_progression", "mana_hands_34" ) : nullptr;
-        if( paired != nullptr ) {
-            add_candidate( paired, "Mana Hands III+IV", "Руки маны III+IV" );
-        } else {
-            if( ncmm_hand_count >= 1 ) {
-                add_candidate(
-                    ncmm::virtual_item_for_slot(
-                        "survivor_progression", "mana_hand_3" ),
-                    "Mana Hand III", "Рука маны III" );
-            }
-            if( ncmm_hand_count >= 2 ) {
-                add_candidate(
-                    ncmm::virtual_item_for_slot(
-                        "survivor_progression", "mana_hand_4" ),
-                    "Mana Hand IV", "Рука маны IV" );
-            }
-        }
-
-        if( candidates.empty() ) {
-            return item_location();
-        }
-        if( candidates.size() == 1 ) {
-            return candidates.front();
-        }
-
-        const int selected = uilist(
-                                 ncmm::localized_text( prompt_en, prompt_ru ), labels );
-        if( selected < 0 || selected >= static_cast<int>( candidates.size() ) ) {
-            return item_location();
-        }
-        return candidates[selected];
+        return ncmm::select_ranged_weapon(
+                   player_character,
+                   require_reloadable ? ncmm::ranged_weapon_action::reload :
+                   ncmm::ranged_weapon_action::controls,
+                   prompt_en, prompt_ru );
     };
 
     const bool in_shell = player_character.has_active_mutation( trait_SHELL2 )
@@ -22197,6 +22101,9 @@ function Apply-SurvivorManaHandGunControls0140([string]$Root) {
     $controlOutput0140 = [IO.File]::ReadAllText($handle0140ctrlPath)
     foreach($needle0140ctrl in @(
         'ncmm_select_mana_hand_gun_control',
+        'ncmm::select_ranged_weapon(',
+        'ncmm::ranged_weapon_action::reload',
+        'ncmm::ranged_weapon_action::controls',
         'Reload which Mana Hand weapon?',
         'Burst-fire which Mana Hand weapon?',
         'Change firing mode on which Mana Hand weapon?',
@@ -24706,8 +24613,8 @@ function Apply-SurvivorActionWeaponSelection0154([string]$Root) {
     }
     $handle = Normalize-Lf ([IO.File]::ReadAllText($handlePath))
     if(-not $handle.Contains('ncmm_fire_candidates')) {
-        # FIRE is overloaded with reach. Resolve ranged capability before any
-        # reach/force-unarmed early return, without changing melee's resolver.
+        # FIRE is overloaded with reach. Resolve ranged capability after all
+        # reach transforms, before any reach/force-unarmed early return.
         $start = $handle.IndexOf('    // try reach weapon')
         $end = $handle.IndexOf('    if( you.has_trait( trait_BRAWLER ) )', $start)
         if($start -lt 0 -or $end -le $start) { throw 'FIRE reach dispatch anchors missing.' }
@@ -24720,37 +24627,20 @@ function Apply-SurvivorActionWeaponSelection0154([string]$Root) {
     if( ncmm_fire_candidates.empty() ) {
 '@
         $handle = $handle.Substring(0,$start) + $prefix + "`n" + $reach + "    }`n" + $handle.Substring($end)
-
-        $start = $handle.IndexOf('    // A physically wielded ranged weapon keeps vanilla priority.')
-        $end = $handle.IndexOf('        if( !ncmm_mana_fire_candidates.empty() ) {', $start)
-        if($start -lt 0 -or $end -le $start) { throw 'Mana FIRE candidate anchors missing.' }
-        $candidates = @'
-    const bool ncmm_physical_ranged_ready = weapon &&
-        ncmm::ranged_weapon_capable( *weapon, ncmm::ranged_weapon_action::fire );
-    if( !ncmm_physical_ranged_ready ) {
-        const auto &ncmm_mana_fire_candidates = ncmm_fire_candidates;
-        std::vector<std::string> ncmm_mana_fire_labels;
-        for( const item_location &candidate : ncmm_mana_fire_candidates ) {
-            ncmm_mana_fire_labels.emplace_back( ncmm::ranged_weapon_label( *candidate ) );
-        }
-
-'@
-        $handle = $handle.Substring(0,$start) + $candidates + "`n" + $handle.Substring($end)
-
-        $start = $handle.IndexOf('    const auto ncmm_select_mana_hand_gun_control =')
-        $end = $handle.IndexOf('    const bool in_shell =', $start)
-        if($start -lt 0 -or $end -le $start) { throw 'Mana gun-control selector anchors missing.' }
-        $controls = @'
-    const auto ncmm_select_mana_hand_gun_control =
-    [&]( bool require_reloadable, const char *prompt_en, const char *prompt_ru ) -> item_location {
-        return ncmm::select_ranged_weapon( player_character,
-                                          require_reloadable ? ncmm::ranged_weapon_action::reload :
-                                          ncmm::ranged_weapon_action::controls, prompt_en, prompt_ru );
-    };
-
-'@
-        $handle = $handle.Substring(0,$start) + $controls + "`n" + $handle.Substring($end)
         Write-Utf8NoBom $handlePath $handle
+    }
+
+    foreach($actionBoundary in @(
+        'const auto ncmm_mana_fire_candidates =',
+        'ncmm::ranged_weapon_candidates(',
+        'item_location ncmm_selected_gun = ncmm::select_ranged_weapon(',
+        'return ncmm::select_ranged_weapon(',
+        'ncmm::ranged_weapon_action::reload',
+        'ncmm::ranged_weapon_action::controls'
+    )) {
+        if(-not $handle.Contains($actionBoundary)) {
+            throw ('Mana action Host-selector boundary missing: '+$actionBoundary)
+        }
     }
 
     $avatarPath = Join-Path $src 'avatar_action.cpp'
