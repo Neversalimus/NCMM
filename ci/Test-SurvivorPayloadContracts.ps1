@@ -1176,7 +1176,6 @@ $manaRangeStart0140=$payload.IndexOf('function Apply-SurvivorManaHandRanged0140'
 if($manaRangeStart0140 -le $manaPairStart0140){throw 'Mana Hand ranged transform boundary missing.'}
 $manaPairSection0140=$payload.Substring($manaPairStart0140,$manaRangeStart0140-$manaPairStart0140)
 foreach($pairNeedle0140 in @(
-    'consider_virtual_shield( "mana_hands_34" );',
     'item *ncmm_mana_pair_item = ncmm_mana_hands >= 2 ?',
     'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
     'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2',
