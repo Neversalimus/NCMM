@@ -909,7 +909,6 @@ foreach($eolSafeNeedle0140 in @(
     '$single3Count0140ctxPair = Count-TextBlock $game0140ctx $single3Old0140ctxPair',
     '$menuCount0140pm = Count-TextBlock $game0140pm $menuAnchor0140pm',
     '$handlerCount0140pm = Count-TextBlock $game0140pm $handlerAnchor0140pm',
-    '$wrapperCount0140pm = Count-TextBlock $melee0140pm $wrapperOld0140pm',
     '$fireCount0140reach = Count-TextBlock $handle0140reach $fireOld0140reach',
     '$canReachCount0140 = Count-TextBlock $melee0140reach $canReachOld0140',
     '$reachAttackCount0140 = Count-TextBlock $melee0140reach $reachAttackOld0140',
