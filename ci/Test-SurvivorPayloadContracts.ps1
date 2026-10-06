@@ -1097,8 +1097,8 @@ foreach($obsoleteDirectRewrite0151 in @(
     '$manaUxMenuNew0151 = @''',
     '$manaUxSwitchOld0151 = @''',
     '$manaUxSwitchNew0151 = @''',
-    'Mana Hand direct inventory action''',
-    'Mana Hand direct inventory handler'''
+    'Mana Hand direct inventory action',
+    'Mana Hand direct inventory handler'
 )){
     if($manaContextSection0140.Contains($obsoleteDirectRewrite0151)){
         throw ('Mana Hand context still rewrites final direct inventory UI: '+$obsoleteDirectRewrite0151)
