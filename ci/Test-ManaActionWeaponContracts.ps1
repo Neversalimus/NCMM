@@ -29,6 +29,8 @@ $capable=Get-CppFunction $hostSource 'bool ranged_weapon_capable('
 $resolver=Get-CppFunction $hostSource 'std::vector<item_location> ranged_weapon_candidates('
 $binding=Get-CppFunction $hostSource 'bool ranged_weapon_binding_valid('
 $activeItems=Get-CppFunction $hostSource 'std::vector<item *> active_mana_hand_items('
+$itemLabel=Get-CppFunction $hostSource 'std::string mana_hand_item_label('
+$rangedLabel=Get-CppFunction $hostSource 'std::string ranged_weapon_label('
 $itemSlot=Get-CppFunction $hostSource 'mana_hand_item_slot mana_hand_item_slot_of('
 $itemOwner=Get-CppFunction $hostSource 'mana_hand_ranged_owner mana_hand_ranged_item_owner('
 $owner=Get-CppFunction $hostSource 'mana_hand_ranged_owner mana_hand_ranged_mode_owner('
@@ -44,6 +46,17 @@ Require $activeItems 'mana_hand_3_slot_id'
 Require $activeItems 'mana_hand_4_slot_id'
 Require $activeItems 'result.push_back( paired )'
 Require $activeItems 'return result'
+Require $itemLabel 'virtual_item_marker_key'
+Require $itemLabel 'mana_hands_pair_slot_id'
+Require $itemLabel 'mana_hand_3_slot_id'
+Require $itemLabel 'Mana Hands III+IV'
+Require $itemLabel 'Mana Hand III'
+Require $itemLabel 'Mana Hand IV'
+Require $itemLabel 'candidate.tname()'
+Require $rangedLabel 'return mana_hand_item_label( weapon );'
+foreach($forbiddenRangedLabelPolicy in @('virtual_item_marker_key', 'mana_hands_pair_slot_id', 'mana_hand_3_slot_id', 'Mana Hands III+IV', 'Mana Hand III', 'Mana Hand IV')) {
+    if($rangedLabel.Contains($forbiddenRangedLabelPolicy)){throw ('Ranged label duplicated generic Mana Hand label policy: '+$forbiddenRangedLabelPolicy)}
+}
 foreach($forbiddenResolverPolicy in @('survivor_mana_hand_count()', 'virtual_item_for_slot(', 'mana_hand_3_slot_id', 'mana_hand_4_slot_id', 'mana_hands_pair_slot_id')) {
     if($resolver.Contains($forbiddenResolverPolicy)){throw ('Ranged resolver duplicated active Mana Hand enumeration policy: '+$forbiddenResolverPolicy)}
 }

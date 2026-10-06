@@ -177,9 +177,16 @@ foreach($n in @(
     'bool virtual_item_matches_slot( const item &candidate, const char *module_id,',
     'bool mana_hand_inventory_action_visible( const item_location &loc );',
     'bool mana_hand_inventory_action( item_location loc );',
+    'std::string mana_hand_item_label( const item &candidate );',
     'void gameplay_metric_record_completed_craft( const Character &who );'
 )){
     if(-not $hostHeaderCurrent.Contains($n)){throw ('Gameplay metrics craft-completion header contract missing: '+$n)}
+}
+foreach($n in @(
+    'std::string mana_hand_item_label( const item &candidate )',
+    'return label + ": " + candidate.tname();'
+)){
+    if(-not $hostSourceCurrent.Contains($n)){throw ('Mana Hand action-label source contract missing: '+$n)}
 }
 foreach($n in @(
     'void gameplay_metric_record_completed_craft( const Character &who )',
