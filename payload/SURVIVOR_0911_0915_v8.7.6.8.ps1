@@ -19805,12 +19805,19 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                 item *ncmm_mana4_item = ncmm_mana_hands >= 2 ?
                                         ncmm::virtual_item_for_slot(
                                             "survivor_progression", "mana_hand_4" ) : nullptr;
+                item *ncmm_mana_pair_item = ncmm_mana_hands >= 2 ?
+                                           ncmm::virtual_item_for_slot(
+                                               "survivor_progression", "mana_hands_34" ) : nullptr;
+                constexpr uint32_t ncmm_mana_pair_flags =
+                    ncmm_mana_slot_flags |
+                    NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
+                    NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;
 
                 if( ncmm_mana3_item == &oThisItem ) {
                     addentry( '3', ncmm::localized_text(
                                   "release from Mana Hand III",
                                   "освободить третью руку маны" ), hint_rating::good );
-                } else if( ncmm_mana_hands >= 1 &&
+                } else if( ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 1 &&
                            ncmm::virtual_item_can_assign(
                                "survivor_progression", "mana_hand_3",
                                locThisItem, ncmm_mana_slot_flags ) ) {
@@ -19822,13 +19829,27 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                     addentry( '4', ncmm::localized_text(
                                   "release from Mana Hand IV",
                                   "освободить четвёртую руку маны" ), hint_rating::good );
-                } else if( ncmm_mana_hands >= 2 &&
+                } else if( ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 2 &&
                            ncmm::virtual_item_can_assign(
                                "survivor_progression", "mana_hand_4",
                                locThisItem, ncmm_mana_slot_flags ) ) {
                     addentry( '4', ncmm::localized_text(
                                   "assign to Mana Hand IV",
                                   "назначить четвёртой руке маны" ), hint_rating::good );
+                }
+
+                if( ncmm_mana_pair_item == &oThisItem ) {
+                    addentry( '5', ncmm::localized_text(
+                                  "release paired Mana Hands III+IV",
+                                  "освободить парный хват рук маны III+IV" ), hint_rating::good );
+                } else if( ncmm_mana_hands >= 2 && ncmm_mana_pair_item == nullptr &&
+                           ncmm_mana3_item == nullptr && ncmm_mana4_item == nullptr &&
+                           ncmm::virtual_item_can_assign(
+                               "survivor_progression", "mana_hands_34",
+                               locThisItem, ncmm_mana_pair_flags ) ) {
+                    addentry( '5', ncmm::localized_text(
+                                  "assign to paired Mana Hands III+IV",
+                                  "назначить парному хвату рук маны III+IV" ), hint_rating::good );
                 }
 
                 const ncmm::mana_hand_item_slot ncmm_secondary_slot =
@@ -19892,6 +19913,14 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                         break;
                     }
 
+                    if( ncmm::virtual_item_for_slot(
+                            "survivor_progression", "mana_hands_34" ) != nullptr ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "Release the paired Mana Hands item first.",
+                                     "Сначала освободите предмет из парного хвата рук маны." ).c_str() );
+                        break;
+                    }
+
                     constexpr uint32_t ncmm_mana_slot_flags =
                         NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
                         NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2;
@@ -19906,6 +19935,45 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                                      "That item cannot be assigned to this Mana Hand.",
                                      "Этот предмет нельзя назначить этой руке маны." ).c_str() );
                     }
+                    break;
+                }
+                case '5': {
+                    const int ncmm_mana_hands_now = static_cast<int>(
+                                                        ncmm::gameplay_modifier( "mg_virtual_hand_count" ) );
+                    item *ncmm_pair = ncmm_mana_hands_now >= 2 ?
+                                      ncmm::virtual_item_for_slot(
+                                          "survivor_progression", "mana_hands_34" ) : nullptr;
+                    if( ncmm_pair == &oThisItem ) {
+                        ncmm::virtual_item_clear( "survivor_progression", "mana_hands_34" );
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "Paired Mana Hands released the item.",
+                                     "Парный хват рук маны освободил предмет." ).c_str() );
+                        break;
+                    }
+                    item *ncmm_single3 = ncmm_mana_hands_now >= 1 ?
+                                         ncmm::virtual_item_for_slot(
+                                             "survivor_progression", "mana_hand_3" ) : nullptr;
+                    item *ncmm_single4 = ncmm_mana_hands_now >= 2 ?
+                                         ncmm::virtual_item_for_slot(
+                                             "survivor_progression", "mana_hand_4" ) : nullptr;
+                    constexpr uint32_t ncmm_pair_flags =
+                        NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
+                        NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 |
+                        NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
+                        NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;
+                    if( ncmm_mana_hands_now < 2 || ncmm_pair != nullptr ||
+                        ncmm_single3 != nullptr || ncmm_single4 != nullptr ||
+                        !ncmm::virtual_item_assign(
+                            "survivor_progression", "mana_hands_34",
+                            locThisItem, ncmm_pair_flags ) ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "Both Mana Hands must be free and the item must be two-handed.",
+                                     "Обе руки маны должны быть свободны, а предмет должен быть двуручным." ).c_str() );
+                        break;
+                    }
+                    add_msg( m_info, "%s", ncmm::localized_text(
+                                 "Mana Hands III+IV take a paired grip on the item.",
+                                 "Руки маны III+IV удерживают предмет парным хватом." ).c_str() );
                     break;
                 }
                 case 'M': {
@@ -20066,9 +20134,9 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
     # The stable Host-owned Mana Hand inventory action is final in the base
     # context menu/switch templates above; later context upgrades must not rewrite it.
 
-    # Paired-grip inventory context is final in this base layer.
-    # This keeps pair assignment/release and single-hand exclusion in the same owner
-    # as the III/IV context actions instead of rewriting game.cpp from PairedGrip.
+    # Paired-grip inventory context is final in the clean menu/switch templates above.
+    # Compatibility path: upgrade older 0.14.0 sources that already contain III/IV
+    # context actions but predate the paired-grip entries and exclusion gates.
     if(-not $game0140ctx.Contains('ncmm_mana_pair_item')) {
         $pointerOld0140ctxPair = @'
                 item *ncmm_mana4_item = ncmm_mana_hands >= 2 ?
