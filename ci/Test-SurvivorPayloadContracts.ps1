@@ -663,7 +663,7 @@ foreach($needle0140 in @(
     'ncmm::active_mana_hand_items( *this )',
     'ncmm::mana_hand_item_slot_of( *this, *candidate )',
     'required_source_hands',
-    'consider_virtual_shield',
+    'melee::blocking_ability( *candidate )',
     'ncmm::is_virtual_item( *shield )',
     'Apply-SurvivorVirtualItemSlots0140 $CddaRoot',
     'function Apply-SurvivorVirtualItemContext0140',
