@@ -1171,10 +1171,9 @@ $manaFireEnd0140=$manaGunControlsStart0140
 $manaFireSection0140=$payload.Substring($manaFireStart0140,$manaFireEnd0140-$manaFireStart0140)
 foreach($fireNeedle0140 in @(
     'const bool ncmm_physical_ranged_ready =',
-    'std::vector<item_location> ncmm_mana_fire_candidates;',
-    '"survivor_progression", "mana_hands_34"',
-    '"survivor_progression", "mana_hand_3"',
-    '"survivor_progression", "mana_hand_4"',
+    'ncmm::ranged_weapon_capable(',
+    'ncmm::ranged_weapon_candidates(',
+    'ncmm::select_ranged_weapon(',
     'Fire which Mana Hand weapon?',
     'you.has_trait( trait_GUNSHY ) && ncmm_selected_gun->is_firearm()',
     'aim_activity_actor::use_item_location( ncmm_selected_gun )'
@@ -1188,15 +1187,33 @@ if($manaFireSection0140.Contains('set_wielded_item(') -or
    $manaFireSection0140.Contains('ncmm_selected_gun.obtain(')){
     throw 'Mana Hand FIRE action must keep the real gun in its vanilla item_location.'
 }
+$fireHostStart0140=$manaFireSection0140.IndexOf('$fireNew0140 = @''')
+$fireHostEnd0140=$manaFireSection0140.IndexOf("'@",$fireHostStart0140+20)
+if($fireHostStart0140 -lt 0 -or $fireHostEnd0140 -le $fireHostStart0140){
+    throw 'Mana Hand FIRE Host-selector block missing.'
+}
+$fireHostBlock0140=$manaFireSection0140.Substring(
+    $fireHostStart0140,$fireHostEnd0140-$fireHostStart0140)
+foreach($fireHostForbidden0140 in @(
+    'runtime_hook_modifier(',
+    'virtual_item_for_slot(',
+    '"mana_hand_3"',
+    '"mana_hand_4"',
+    '"mana_hands_34"'
+)){
+    if($fireHostBlock0140.Contains($fireHostForbidden0140)){
+        throw ('Mana Hand FIRE duplicated Host slot policy: '+$fireHostForbidden0140)
+    }
+}
 
 $manaGunControlsEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandPrimaryMelee0140',$manaGunControlsStart0140)
 if($manaGunControlsEnd0140 -le $manaGunControlsStart0140){throw 'Mana Hand standard gun-control transform end missing.'}
 $manaGunControlsSection0140=$payload.Substring($manaGunControlsStart0140,$manaGunControlsEnd0140-$manaGunControlsStart0140)
 foreach($controlNeedle0140 in @(
     'ncmm_select_mana_hand_gun_control',
-    '"survivor_progression", "mana_hands_34"',
-    '"survivor_progression", "mana_hand_3"',
-    '"survivor_progression", "mana_hand_4"',
+    'return ncmm::select_ranged_weapon(',
+    'ncmm::ranged_weapon_action::reload',
+    'ncmm::ranged_weapon_action::controls',
     'Reload which Mana Hand weapon?',
     'reload( ncmm_reload_gun, false, false );',
     'reload( ncmm_reload_gun, false );',
@@ -1219,6 +1236,24 @@ if($manaGunControlsSection0140.Contains('set_wielded_item(') -or
    $manaGunControlsSection0140.Contains('ncmm_reload_gun.obtain(') -or
    $manaGunControlsSection0140.Contains('ncmm_burst_gun.obtain(')){
     throw 'Mana Hand standard gun controls must keep the real gun in its vanilla item_location.'
+}
+$controlHostStart0140=$manaGunControlsSection0140.IndexOf('$helperNew0140ctrl = @''')
+$controlHostEnd0140=$manaGunControlsSection0140.IndexOf("'@",$controlHostStart0140+20)
+if($controlHostStart0140 -lt 0 -or $controlHostEnd0140 -le $controlHostStart0140){
+    throw 'Mana Hand gun-control Host-selector helper missing.'
+}
+$controlHostBlock0140=$manaGunControlsSection0140.Substring(
+    $controlHostStart0140,$controlHostEnd0140-$controlHostStart0140)
+foreach($controlHostForbidden0140 in @(
+    'runtime_hook_modifier(',
+    'virtual_item_for_slot(',
+    '"mana_hand_3"',
+    '"mana_hand_4"',
+    '"mana_hands_34"'
+)){
+    if($controlHostBlock0140.Contains($controlHostForbidden0140)){
+        throw ('Mana Hand gun controls duplicated Host slot policy: '+$controlHostForbidden0140)
+    }
 }
 
 $pairPickerStart0140=$survivorVirtual0140.IndexOf('Choose two-handed item for Mana Hands III+IV')
