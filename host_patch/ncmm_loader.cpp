@@ -4266,16 +4266,21 @@ std::vector<item_location> ranged_weapon_candidates( avatar &who, ranged_weapon_
     return result;
 }
 
-std::string ranged_weapon_label( const item &weapon )
+std::string mana_hand_item_label( const item &candidate )
 {
-    const std::string marker = weapon.get_var( virtual_item_marker_key, "" );
+    const std::string marker = candidate.get_var( virtual_item_marker_key, "" );
     const std::string label = marker == virtual_item_marker( survivor_module_id,
                               mana_hands_pair_slot_id ) ?
                               localized_text( "Mana Hands III+IV", "Руки маны III+IV" ) :
                               marker == virtual_item_marker( survivor_module_id, mana_hand_3_slot_id ) ?
                               localized_text( "Mana Hand III", "Рука маны III" ) :
                               localized_text( "Mana Hand IV", "Рука маны IV" );
-    return label + ": " + weapon.tname();
+    return label + ": " + candidate.tname();
+}
+
+std::string ranged_weapon_label( const item &weapon )
+{
+    return mana_hand_item_label( weapon );
 }
 
 item_location select_ranged_weapon( avatar &who, ranged_weapon_action action,
