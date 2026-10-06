@@ -744,7 +744,7 @@ foreach($needle0140 in @(
     'use as primary Mana Hand melee',
     "case 'P':",
     'ncmm::virtual_item_set_primary_melee(',
-    'ncmm_primary_mana_hand_melee_weapon',
+    'ncmm::primary_mana_hand_melee_weapon',
     'ncmm::virtual_melee_context_suppresses_martial_arts',
     'ncmm_virtual_melee_scope ncmm_primary_scope(',
     '*this, *ncmm_primary_weapon, false );',
@@ -1272,7 +1272,7 @@ foreach($reachNeedle0140 in @(
     'ncmm_primary_mana_hand_has_reach',
     'target_handler::mode_reach(',
     'item_location( you, ncmm_reach_weapon )',
-    'ncmm_primary_mana_hand_melee_weapon( *this )',
+    'ncmm::primary_mana_hand_melee_weapon( *this )',
     'std::make_unique<ncmm_virtual_melee_scope>',
     'item_location reach_weapon = used_weapon();',
     'handle_melee_wear( reach_weapon );',
@@ -1545,7 +1545,7 @@ $manaDirectSection0152=$payload.Substring($manaDirectStart0152,$manaDirectEnd015
 foreach($directNeedle0152 in @(
     'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
     '$legacyPattern0152direct',
-    'ncmm_primary_mana_hand_melee_weapon',
+    'ncmm::primary_mana_hand_melee_weapon',
     'Source-scoped Mana Hand count survived direct-count reconciliation'
 )){
     if(-not $manaDirectSection0152.Contains($directNeedle0152)){
