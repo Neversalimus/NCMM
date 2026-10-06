@@ -1519,6 +1519,7 @@ if($manaGunControlsStart0140 -le $manaFireStart0140){throw 'Mana Hand standard g
 $manaFireEnd0140=$manaGunControlsStart0140
 $manaFireSection0140=$payload.Substring($manaFireStart0140,$manaFireEnd0140-$manaFireStart0140)
 foreach($fireNeedle0140 in @(
+    'Mana Hand FIRE include',
     '$reachHelperOld0140fire = @''',
     '$reachHelperNew0140fire = @''',
     '$fireCount0140reach = Count-TextBlock $handle0140fire $fireOld0140reach',
@@ -1553,6 +1554,9 @@ if($manaFireSection0140.Contains('ncmm_mana_fire_candidates')){
 if($manaFireSection0140.Contains('before ReachMelee later rewrites')){
     throw 'Mana Hand FIRE base layer still documents a late ReachMelee rewrite dependency.'
 }
+if($manaFireSection0140.Contains('requires the existing ncmm_loader include.')){
+    throw 'Mana Hand FIRE action regressed to an earlier-layer include dependency.'
+}
 $fireHostStart0140=$manaFireSection0140.IndexOf('$fireNew0140 = @''')
 $fireHostEnd0140=$manaFireSection0140.IndexOf("'@",$fireHostStart0140+20)
 if($fireHostStart0140 -lt 0 -or $fireHostEnd0140 -le $fireHostStart0140){
@@ -1576,6 +1580,7 @@ $manaGunControlsEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandPrimary
 if($manaGunControlsEnd0140 -le $manaGunControlsStart0140){throw 'Mana Hand standard gun-control transform end missing.'}
 $manaGunControlsSection0140=$payload.Substring($manaGunControlsStart0140,$manaGunControlsEnd0140-$manaGunControlsStart0140)
 foreach($controlNeedle0140 in @(
+    'Mana Hand gun-control include',
     'ncmm_select_mana_hand_gun_control',
     'return ncmm::select_ranged_weapon(',
     'ncmm::ranged_weapon_action::reload',
@@ -1590,6 +1595,7 @@ foreach($controlNeedle0140 in @(
     'Set default ammo for which Mana Hand weapon?',
     'player_character.select_ammo( *ammo_weapon, false )',
     'function Apply-SurvivorManaHandReloadCarrier0153',
+    'Mana Hand reload-in-place include',
     '!ncmm::is_virtual_item( *loc )',
     'Apply-SurvivorManaHandReloadCarrier0153 $CddaRoot'
 )){
@@ -1602,6 +1608,14 @@ if($manaGunControlsSection0140.Contains('set_wielded_item(') -or
    $manaGunControlsSection0140.Contains('ncmm_reload_gun.obtain(') -or
    $manaGunControlsSection0140.Contains('ncmm_burst_gun.obtain(')){
     throw 'Mana Hand standard gun controls must keep the real gun in its vanilla item_location.'
+}
+foreach($includeOrderDependency0140 in @(
+    'require the existing ncmm_loader include.',
+    'requires the existing ncmm_loader include.'
+)){
+    if($manaGunControlsSection0140.Contains($includeOrderDependency0140)){
+        throw ('Mana Hand action layer regressed to an earlier-layer include dependency: '+$includeOrderDependency0140)
+    }
 }
 $controlHostStart0140=$manaGunControlsSection0140.IndexOf('$helperNew0140ctrl = @''')
 $controlHostEnd0140=$manaGunControlsSection0140.IndexOf("'@",$controlHostStart0140+20)
