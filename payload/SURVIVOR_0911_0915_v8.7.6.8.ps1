@@ -19862,6 +19862,19 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                     ncmm_secondary_bound && oThisItem.is_melee() && !oThisItem.is_gun() &&
                     ( ncmm_pair_secondary == oThisItem.is_two_handed( u ) );
                 if( ncmm_secondary_melee_eligible ) {
+                    const bool ncmm_primary_enabled =
+                        ncmm::virtual_item_primary_melee_enabled( oThisItem );
+                    addentry( 'P', ncmm::localized_text(
+                                  ncmm_primary_enabled ?
+                                  "stop using as primary Mana Hand melee" :
+                                  "use as primary Mana Hand melee",
+                                  ncmm_primary_enabled ?
+                                  "не использовать как основное оружие руки маны" :
+                                  "использовать как основное оружие руки маны" ),
+                              hint_rating::good );
+                }
+
+                if( ncmm_secondary_melee_eligible ) {
                     const bool ncmm_secondary_enabled =
                         ncmm::virtual_item_secondary_melee_enabled( oThisItem );
                     addentry( 'M', ncmm::localized_text(
@@ -19974,6 +19987,38 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                     add_msg( m_info, "%s", ncmm::localized_text(
                                  "Mana Hands III+IV take a paired grip on the item.",
                                  "Руки маны III+IV удерживают предмет парным хватом." ).c_str() );
+                    break;
+                }
+                case 'P': {
+                    const ncmm::mana_hand_item_slot ncmm_primary_slot =
+                        ncmm::mana_hand_item_slot_of( u, oThisItem );
+                    if( ncmm_primary_slot == ncmm::mana_hand_item_slot::none ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "This item is not held by an available Mana Hand.",
+                                     "Этот предмет не удерживается доступной рукой маны." ).c_str() );
+                        break;
+                    }
+                    const bool ncmm_pair_primary =
+                        ncmm_primary_slot == ncmm::mana_hand_item_slot::paired;
+                    if( !oThisItem.is_melee() || oThisItem.is_gun() ||
+                        ( ncmm_pair_primary != oThisItem.is_two_handed( u ) ) ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "This item is not eligible for primary Mana Hand melee.",
+                                     "Этот предмет нельзя использовать как основное оружие руки маны." ).c_str() );
+                        break;
+                    }
+                    const bool ncmm_enable_primary =
+                        !ncmm::virtual_item_primary_melee_enabled( oThisItem );
+                    if( ncmm::virtual_item_set_primary_melee(
+                            oThisItem, ncmm_enable_primary ) ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     ncmm_enable_primary ?
+                                     "Primary Mana Hand melee enabled. Physical wielded weapons keep priority." :
+                                     "Primary Mana Hand melee disabled.",
+                                     ncmm_enable_primary ?
+                                     "Основное оружие руки маны включено. Физически удерживаемое оружие остаётся приоритетным." :
+                                     "Основное оружие руки маны отключено." ).c_str() );
+                    }
                     break;
                 }
                 case 'M': {
@@ -20291,8 +20336,9 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
         $game0140ctx = Replace-TextBlock $game0140ctx $caseMAnchor0140ctxPair $case5New0140ctxPair 'Mana Hand final paired context handler'
     }
 
-    # Primary Mana Hand melee context is final in this base layer.
-    # PrimaryMelee later verifies game.cpp instead of rewriting SecondaryMelee context text.
+    # Primary Mana Hand melee context is final in the clean menu/switch templates above.
+    # Compatibility path: upgrade older 0.14.0 sources that already contain Mana Hand
+    # context actions but predate the primary-melee entry and handler.
     if(-not $game0140ctx.Contains('use as primary Mana Hand melee')) {
         $primaryMenuAnchor0140ctx = @'
                 if( ncmm_secondary_melee_eligible ) {
