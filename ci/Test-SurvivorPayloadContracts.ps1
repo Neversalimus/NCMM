@@ -965,6 +965,36 @@ foreach($spellOccupancyForbidden0140 in @(
     }
 }
 
+$shieldTemplateStart0140=$manaSlotsSection0140.IndexOf('$bestShieldNew0140 = @''')
+$shieldTemplateEnd0140=$manaSlotsSection0140.IndexOf("'@",$shieldTemplateStart0140+24)
+if($shieldTemplateStart0140 -lt 0 -or $shieldTemplateEnd0140 -le $shieldTemplateStart0140){
+    throw 'Mana Hand final shield-selection template boundary missing.'
+}
+$shieldTemplate0140=$manaSlotsSection0140.Substring(
+    $shieldTemplateStart0140,$shieldTemplateEnd0140-$shieldTemplateStart0140)
+foreach($shieldNeedle0140 in @(
+    'ncmm::active_mana_hand_items( *this )',
+    'melee::blocking_ability( *candidate )',
+    'value > best_value',
+    'item_location( *this, candidate )'
+)){
+    if(-not $shieldTemplate0140.Contains($shieldNeedle0140)){
+        throw ('Mana Hand final shield-selection contract missing: '+$shieldNeedle0140)
+    }
+}
+foreach($shieldForbidden0140 in @(
+    'virtual_item_for_slot(',
+    'gameplay_modifier(',
+    '"mana_hand_3"',
+    '"mana_hand_4"',
+    '"mana_hands_34"',
+    'consider_virtual_shield'
+)){
+    if($shieldTemplate0140.Contains($shieldForbidden0140)){
+        throw ('Mana Hand shield selection duplicated active-item slot policy: '+$shieldForbidden0140)
+    }
+}
+
 $manaContextStart0140=$payload.IndexOf('function Apply-SurvivorVirtualItemContext0140')
 $manaContextEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandSpellcastingAid0140',$manaContextStart0140)
 if($manaContextStart0140 -lt 0 -or $manaContextEnd0140 -le $manaContextStart0140){throw 'Mana Hand context transform boundary missing.'}
