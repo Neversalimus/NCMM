@@ -21015,8 +21015,6 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
     Write-Utf8NoBom $game0140pairPath $game0140pair
 
     foreach($pairCheck0140 in @(
-        @($handle0140pairPath,'ncmm_mana_hands_34'),
-        @($handle0140pairPath,'"mana_hands_34"'),
         @($melee0140pairPath,'consider_virtual_shield( "mana_hands_34" );'),
         @($game0140pairPath,'ncmm_mana_pair_item'),
         @($game0140pairPath,"case '5':"),
