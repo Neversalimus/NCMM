@@ -68,6 +68,9 @@ enum class ranged_weapon_action { fire, controls, reload };
 bool ranged_weapon_capable( const item &weapon, ranged_weapon_action action );
 /** Primary melee resolver for logical Mana Hands. Physical wielded items keep priority. */
 item *primary_mana_hand_melee_weapon( Character &who );
+enum class mana_hand_ranged_owner { none, single, paired };
+/** Identify whether a firing-mode item belongs to a single or paired Mana Hand gun. */
+mana_hand_ranged_owner mana_hand_ranged_mode_owner( const avatar &who, const item *mode_item );
 /** Validate an already-selected Mana Hand firearm without inventory or slot reselection. */
 bool ranged_weapon_binding_valid( const avatar &who, const item &weapon );
 std::vector<item_location> ranged_weapon_candidates( avatar &who, ranged_weapon_action action );

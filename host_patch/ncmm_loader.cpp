@@ -4134,6 +4134,42 @@ item *primary_mana_hand_melee_weapon( Character &who )
     return nullptr;
 }
 
+mana_hand_ranged_owner mana_hand_ranged_mode_owner( const avatar &who, const item *mode_item )
+{
+    if( &who != &get_avatar() || mode_item == nullptr ) {
+        return mana_hand_ranged_owner::none;
+    }
+
+    const auto owns_mode = [&]( item *base ) {
+        if( base == nullptr || !base->is_gun() ) {
+            return false;
+        }
+        if( base == mode_item ) {
+            return true;
+        }
+        for( item *mod : base->gunmods() ) {
+            if( mod == mode_item ) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    const int hand_count = survivor_mana_hand_count();
+    if( hand_count >= 2 &&
+        owns_mode( virtual_item_for_slot( survivor_module_id, mana_hands_pair_slot_id ) ) ) {
+        return mana_hand_ranged_owner::paired;
+    }
+
+    const char *slots[2] = { mana_hand_3_slot_id, mana_hand_4_slot_id };
+    for( int i = 0; i < hand_count && i < 2; ++i ) {
+        if( owns_mode( virtual_item_for_slot( survivor_module_id, slots[i] ) ) ) {
+            return mana_hand_ranged_owner::single;
+        }
+    }
+    return mana_hand_ranged_owner::none;
+}
+
 bool ranged_weapon_binding_valid( const avatar &who, const item &weapon )
 {
     if( &who != &get_avatar() ||

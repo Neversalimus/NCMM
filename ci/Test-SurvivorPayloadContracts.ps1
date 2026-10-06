@@ -1084,7 +1084,10 @@ foreach($rangeNeedle0140 in @(
     'item::reload_option opt = get_avatar().select_ammo( ncmm_real_weapon, true );',
     'const int ncmm_virtual_shot_mana_cost = ncmm_planned_shots * 5;',
     'who.magic->mod_mana( who, -( ncmm_fired * 5 ) );',
+    'ncmm::mana_hand_ranged_mode_owner( you, gmode ? &*gmode : nullptr )',
+    'ncmm::mana_hand_ranged_owner::paired',
     'ncmm_virtual_mana_gun_mode',
+    'ncmm_virtual_mana_paired_gun_mode',
     'gmode->has_flag( flag_FIRE_TWOHAND )',
     'gmode->has_flag( flag_RELOAD_AND_SHOOT )',
     'fire with Mana Hand',
@@ -1113,11 +1116,11 @@ foreach($pairedRangeNeedle0140 in @(
     'const bool ncmm_ranged_pair =',
     '"survivor_progression", "mana_hands_34"',
     'Paired Mana Hand aim Host-resolver boundary missing.',
-    'bool ncmm_virtual_mana_paired_gun_mode = false;',
-    'item *ncmm_pair_base =',
+    'Paired Mana Hand ranged Host-owner boundary missing:',
+    'ncmm::mana_hand_ranged_mode_owner( you, gmode ? &*gmode : nullptr )',
+    'ncmm::mana_hand_ranged_owner::paired',
     '!ncmm_virtual_mana_paired_gun_mode &&',
-    'Reload-and-shoot firing modes are not yet supported by Mana Hands.',
-    'This firing mode needs paired Mana Hands III+IV.'
+    'Reload-and-shoot firing modes are not yet supported by Mana Hands.'
 )){
     if(-not $manaPairedRangeSection0140.Contains($pairedRangeNeedle0140)){
         throw ('Paired Mana Hand ranged regression contract missing: '+$pairedRangeNeedle0140)
@@ -1127,6 +1130,18 @@ if($manaPairedRangeSection0140.Contains('set_wielded_item(') -or
    $manaPairedRangeSection0140.Contains('u.wield(') -or
    $manaPairedRangeSection0140.Contains('item_location::type::mana_hand')){
     throw 'Paired Mana Hand ranged support must keep the real gun in its vanilla item_location.'
+}
+if($manaPairedRangeSection0140.Contains('$ranged0140pr = Replace-TextBlock')){
+    throw 'Paired Mana Hand layer must not rewrite ranged.cpp ownership semantics.'
+}
+foreach($finalRangeNeedle0140 in @(
+    '// NCMM paired Mana Hand physical-hand exemptions.',
+    'ncmm::mana_hand_ranged_mode_owner( you, gmode ? &*gmode : nullptr )',
+    'ncmm_ranged_owner == ncmm::mana_hand_ranged_owner::paired'
+)){
+    if(-not $manaRangeSection0140.Contains($finalRangeNeedle0140)){
+        throw ('Base ranged layer must emit final Host-owned paired semantics: '+$finalRangeNeedle0140)
+    }
 }
 
 $manaFireStart0140=$payload.IndexOf('function Apply-SurvivorManaHandFireAction0140',$manaRasStart0140)
