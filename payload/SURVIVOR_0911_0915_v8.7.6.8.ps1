@@ -21355,20 +21355,8 @@ item_location aim_activity_actor::get_weapon()
 {
     if( ncmm_real_weapon ) {
         item *ncmm_candidate = ncmm_real_weapon.get_item();
-        if( ncmm_candidate == nullptr ) {
-            return item_location();
-        }
-        const int ncmm_ranged_hand_count = std::max( 0, std::min( 2, static_cast<int>( std::lround(
-                                              ncmm::runtime_hook_modifier(
-                                                  "magic.virtual_hand_count", nullptr, "magiclysm",
-                                                  nullptr, nullptr ) ) ) ) );
-        item *ncmm_hand3 = ncmm_ranged_hand_count >= 1 ?
-                           ncmm::virtual_item_for_slot(
-                               "survivor_progression", "mana_hand_3" ) : nullptr;
-        item *ncmm_hand4 = ncmm_ranged_hand_count >= 2 ?
-                           ncmm::virtual_item_for_slot(
-                               "survivor_progression", "mana_hand_4" ) : nullptr;
-        if( ncmm_candidate == ncmm_hand3 || ncmm_candidate == ncmm_hand4 ) {
+        if( ncmm_candidate != nullptr &&
+            ncmm::ranged_weapon_binding_valid( get_avatar(), *ncmm_candidate ) ) {
             return ncmm_real_weapon;
         }
         return item_location();
@@ -21685,32 +21673,9 @@ function Apply-SurvivorManaHandPairedRanged0140([string]$Root) {
     Write-Utf8NoBom $game0140prPath $game0140pr
 
     $actor0140pr = Normalize-Lf ([IO.File]::ReadAllText($actor0140prPath))
-    $resolverOld0140pr = @'
-        item *ncmm_hand4 = ncmm_ranged_hand_count >= 2 ?
-                           ncmm::virtual_item_for_slot(
-                               "survivor_progression", "mana_hand_4" ) : nullptr;
-        if( ncmm_candidate == ncmm_hand3 || ncmm_candidate == ncmm_hand4 ) {
-            return ncmm_real_weapon;
-        }
-'@
-    $resolverNew0140pr = @'
-        item *ncmm_hand4 = ncmm_ranged_hand_count >= 2 ?
-                           ncmm::virtual_item_for_slot(
-                               "survivor_progression", "mana_hand_4" ) : nullptr;
-        item *ncmm_pair = ncmm_ranged_hand_count >= 2 ?
-                          ncmm::virtual_item_for_slot(
-                              "survivor_progression", "mana_hands_34" ) : nullptr;
-        if( ncmm_candidate == ncmm_hand3 || ncmm_candidate == ncmm_hand4 ||
-            ncmm_candidate == ncmm_pair ) {
-            return ncmm_real_weapon;
-        }
-'@
-    if(Test-TextBlock $actor0140pr $resolverOld0140pr) {
-        $actor0140pr = Replace-TextBlock $actor0140pr $resolverOld0140pr $resolverNew0140pr 'paired Mana Hand aim revalidation'
-    } elseif(-not $actor0140pr.Contains('item *ncmm_pair = ncmm_ranged_hand_count >= 2 ?')) {
-        throw 'Paired Mana Hand aim revalidation anchor missing.'
+    if(-not $actor0140pr.Contains('ncmm::ranged_weapon_binding_valid( get_avatar(), *ncmm_candidate )')) {
+        throw 'Paired Mana Hand aim Host-resolver boundary missing.'
     }
-    Write-Utf8NoBom $actor0140prPath $actor0140pr
 
     $ranged0140pr = Normalize-Lf ([IO.File]::ReadAllText($ranged0140prPath))
     if(-not $ranged0140pr.Contains('ncmm_virtual_mana_paired_gun_mode')) {
@@ -24875,23 +24840,10 @@ void avatar_action::fire_wielded_weapon( avatar &you )
 
     $actorPath = Join-Path $src 'activity_actor.cpp'
     $actor = Normalize-Lf ([IO.File]::ReadAllText($actorPath))
-    if(-not $actor.Contains('// NCMM validate the selected ranged capability without reselection.')) {
-        $start = $actor.IndexOf('item_location aim_activity_actor::get_weapon()')
-        $bindingStart = $actor.IndexOf('        const int ncmm_ranged_hand_count =', $start)
-        $bindingEnd = $actor.IndexOf('        return item_location();', $bindingStart)
-        if($start -lt 0 -or $bindingStart -lt $start -or $bindingEnd -le $bindingStart) {
-            throw 'Mana aim binding validation anchors missing.'
-        }
-        $binding = @'
-        // NCMM validate the selected ranged capability without reselection.
-        // Slot/count semantics live in the Host resolver, not in activity_actor.cpp.
-        if( ncmm::ranged_weapon_binding_valid( get_avatar(), *ncmm_candidate ) ) {
-            return ncmm_real_weapon;
-        }
-'@
-        $actor = $actor.Substring(0,$bindingStart) + $binding + "`n" + $actor.Substring($bindingEnd)
-        Write-Utf8NoBom $actorPath $actor
+    if(-not $actor.Contains('ncmm::ranged_weapon_binding_valid( get_avatar(), *ncmm_candidate )')) {
+        throw 'Mana aim Host-resolver boundary missing after ranged transforms.'
     }
+
     Write-Host 'Action-specific Mana Hand ranged selection: READY' -ForegroundColor Green
 }
 
