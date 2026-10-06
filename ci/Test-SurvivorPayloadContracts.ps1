@@ -907,8 +907,8 @@ foreach($eolSafeNeedle0140 in @(
     'function Count-TextBlock([string]$Text,[string]$Block)',
     '$attackCount0140 = Count-TextBlock $melee0140 $attackOld0140',
     '$single3Count0140ctxPair = Count-TextBlock $game0140ctx $single3Old0140ctxPair',
-    '$menuCount0140pm = Count-TextBlock $game0140pm $menuAnchor0140pm',
-    '$handlerCount0140pm = Count-TextBlock $game0140pm $handlerAnchor0140pm',
+    '$primaryMenuCount0140ctx = Count-TextBlock $game0140ctx $primaryMenuAnchor0140ctx',
+    '$primaryHandlerCount0140ctx = Count-TextBlock $game0140ctx $primaryHandlerAnchor0140ctx',
     '$fireCount0140reach = Count-TextBlock $handle0140reach $fireOld0140reach',
     '$canReachCount0140final = Count-TextBlock $melee0140 $canReachOld0140final',
     '$reachAttackCount0140final = Count-TextBlock $melee0140 $reachAttackOld0140final',
@@ -1088,6 +1088,30 @@ $pairContextFinalizePos0140=$manaContextSection0140.IndexOf('$pointerNew0140ctxP
 $pairContextWritePos0140=$manaContextSection0140.IndexOf('Write-Utf8NoBom $game0140ctxPath $game0140ctx')
 if($pairContextFinalizePos0140 -lt 0 -or $pairContextWritePos0140 -le $pairContextFinalizePos0140){
     throw 'Mana Hand paired context must finalize before the base game.cpp write.'
+}
+
+foreach($primaryContextNeedle0140 in @(
+    '$primaryMenuAnchor0140ctx = @''',
+    '$primaryHandlerAnchor0140ctx = @''',
+    '$primaryMenuCount0140ctx = Count-TextBlock $game0140ctx $primaryMenuAnchor0140ctx',
+    '$primaryHandlerCount0140ctx = Count-TextBlock $game0140ctx $primaryHandlerAnchor0140ctx',
+    'Mana Hand final primary Mana Hand melee menu',
+    'Mana Hand final primary Mana Hand melee handler',
+    'use as primary Mana Hand melee',
+    "case 'P':",
+    'ncmm::virtual_item_set_primary_melee(',
+    'ncmm::mana_hand_item_slot_of( u, oThisItem )',
+    'ncmm::mana_hand_item_slot::paired',
+    'This item is not held by an available Mana Hand.',
+    'This item is not eligible for primary Mana Hand melee.'
+)){
+    if(-not $manaContextSection0140.Contains($primaryContextNeedle0140)){
+        throw ('Primary Mana Hand final context missing from base layer: '+$primaryContextNeedle0140)
+    }
+}
+$primaryContextFinalizePos0140=$manaContextSection0140.IndexOf('$primaryMenuAnchor0140ctx = @''')
+if($primaryContextFinalizePos0140 -lt 0 -or $pairContextWritePos0140 -le $primaryContextFinalizePos0140){
+    throw 'Primary Mana Hand context must finalize before the base game.cpp write.'
 }
 
 
@@ -1519,16 +1543,17 @@ if($manaPrimaryStart0140 -lt 0 -or $manaMartialStart0140 -le $manaPrimaryStart01
     throw 'Primary Mana Hand martial-arts/reach transform boundary missing.'
 }
 $manaPrimarySection0140=$payload.Substring($manaPrimaryStart0140,$manaMartialStart0140-$manaPrimaryStart0140)
-foreach($primaryNeedle0140 in @(
-    'ncmm::mana_hand_item_slot_of( u, oThisItem )',
-    'ncmm::mana_hand_item_slot::none',
-    'ncmm::mana_hand_item_slot::paired',
+foreach($primaryVerifierNeedle0140 in @(
+    '$game0140pm = [IO.File]::ReadAllText($game0140pmPath)',
+    'Primary Mana Hand context missing final base-layer boundary:',
+    'use as primary Mana Hand melee',
+    "case 'P':",
     'ncmm::virtual_item_set_primary_melee(',
-    'This item is not held by an available Mana Hand.',
-    'This item is not eligible for primary Mana Hand melee.'
+    'ncmm::mana_hand_item_slot_of( u, oThisItem )',
+    'ncmm::mana_hand_item_slot::paired'
 )){
-    if(-not $manaPrimarySection0140.Contains($primaryNeedle0140)){
-        throw ('Primary Mana Hand handler regression contract missing: '+$primaryNeedle0140)
+    if(-not $manaPrimarySection0140.Contains($primaryVerifierNeedle0140)){
+        throw ('Primary Mana Hand context verifier contract missing: '+$primaryVerifierNeedle0140)
     }
 }
 foreach($primaryForbidden0140 in @(
@@ -1542,7 +1567,20 @@ foreach($primaryForbidden0140 in @(
     'item *ncmm_bound_pair'
 )){
     if($manaPrimarySection0140.Contains($primaryForbidden0140)){
-        throw ('Primary Mana Hand handler duplicated Host ownership policy: '+$primaryForbidden0140)
+        throw ('Primary Mana Hand verifier duplicated Host ownership policy: '+$primaryForbidden0140)
+    }
+}
+foreach($primaryGameMutationForbidden0140 in @(
+    'Normalize-Lf ([IO.File]::ReadAllText($game0140pmPath))',
+    'Replace-TextBlock $game0140pm',
+    'Write-Utf8NoBom $game0140pmPath',
+    '$menuAnchor0140pm',
+    '$menuNew0140pm',
+    '$handlerAnchor0140pm',
+    '$handlerNew0140pm'
+)){
+    if($manaPrimarySection0140.Contains($primaryGameMutationForbidden0140)){
+        throw ('Primary Mana Hand layer regressed to late game.cpp mutation: '+$primaryGameMutationForbidden0140)
     }
 }
 foreach($primaryPipelineNeedle0140 in @(
