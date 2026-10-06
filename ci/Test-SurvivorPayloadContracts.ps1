@@ -909,6 +909,8 @@ foreach($eolSafeNeedle0140 in @(
     '$single3Count0140ctxPair = Count-TextBlock $game0140ctx $single3Old0140ctxPair',
     '$primaryMenuCount0140ctx = Count-TextBlock $game0140ctx $primaryMenuAnchor0140ctx',
     '$primaryHandlerCount0140ctx = Count-TextBlock $game0140ctx $primaryHandlerAnchor0140ctx',
+    '$rangedMenuCount0140ctx = Count-TextBlock $game0140ctx $rangedMenuAnchor0140ctx',
+    '$rangedHandlerCount0140ctx = Count-TextBlock $game0140ctx $rangedHandlerAnchor0140ctx',
     '$fireCount0140reach = Count-TextBlock $handle0140fire $fireOld0140reach',
     '$canReachCount0140final = Count-TextBlock $melee0140 $canReachOld0140final',
     '$reachAttackCount0140final = Count-TextBlock $melee0140 $reachAttackOld0140final',
@@ -1112,6 +1114,28 @@ foreach($primaryContextNeedle0140 in @(
 $primaryContextFinalizePos0140=$manaContextSection0140.IndexOf('$primaryMenuAnchor0140ctx = @''')
 if($primaryContextFinalizePos0140 -lt 0 -or $pairContextWritePos0140 -le $primaryContextFinalizePos0140){
     throw 'Primary Mana Hand context must finalize before the base game.cpp write.'
+}
+
+foreach($rangedContextNeedle0140 in @(
+    '$rangedMenuAnchor0140ctx = @''',
+    '$rangedHandlerAnchor0140ctx = @''',
+    '$rangedMenuCount0140ctx = Count-TextBlock $game0140ctx $rangedMenuAnchor0140ctx',
+    '$rangedHandlerCount0140ctx = Count-TextBlock $game0140ctx $rangedHandlerAnchor0140ctx',
+    'final Mana Hand ranged context entry',
+    'final Mana Hand ranged context handler',
+    'ncmm::mana_hand_ranged_item_owner( u, oThisItem )',
+    'ncmm::mana_hand_ranged_owner::none',
+    'fire with Mana Hand',
+    "case 'g':",
+    'aim_activity_actor::use_item_location( locThisItem )'
+)){
+    if(-not $manaContextSection0140.Contains($rangedContextNeedle0140)){
+        throw ('Mana Hand final ranged context missing from base layer: '+$rangedContextNeedle0140)
+    }
+}
+$rangedContextFinalizePos0140=$manaContextSection0140.IndexOf('$rangedMenuAnchor0140ctx = @''')
+if($rangedContextFinalizePos0140 -lt 0 -or $pairContextWritePos0140 -le $rangedContextFinalizePos0140){
+    throw 'Mana Hand ranged context must finalize before the base game.cpp write.'
 }
 
 
@@ -1351,6 +1375,31 @@ if($manaRangeSection0140.Contains('"mana_hands_34"')){
 }
 if($manaRangeSection0140.Contains('Reload-and-shoot firing modes are not yet supported by Mana Hands.')){
     throw 'Base Mana Hand ranged layer reintroduced the temporary reload-and-shoot rejection.'
+}
+foreach($rangeContextVerifierNeedle0140 in @(
+    '$game0140range = [IO.File]::ReadAllText($game0140rangePath)',
+    'Mana Hand ranged context missing final base-layer boundary:',
+    'fire with Mana Hand',
+    "case 'g':",
+    'aim_activity_actor::use_item_location( locThisItem )',
+    'ncmm::mana_hand_ranged_item_owner( u, oThisItem )'
+)){
+    if(-not $manaRangeSection0140.Contains($rangeContextVerifierNeedle0140)){
+        throw ('Mana Hand ranged context verifier contract missing: '+$rangeContextVerifierNeedle0140)
+    }
+}
+foreach($rangeGameMutationForbidden0140 in @(
+    'Normalize-Lf ([IO.File]::ReadAllText($game0140rangePath))',
+    'Replace-TextBlock $game0140range',
+    'Write-Utf8NoBom $game0140rangePath',
+    '$menuOld0140range',
+    '$menuNew0140range',
+    '$handlerOld0140range',
+    '$handlerNew0140range'
+)){
+    if($manaRangeSection0140.Contains($rangeGameMutationForbidden0140)){
+        throw ('Mana Hand ranged layer regressed to late game.cpp mutation: '+$rangeGameMutationForbidden0140)
+    }
 }
 
 $manaRasStart0140=$payload.IndexOf('function Apply-SurvivorManaHandReloadAndShoot0140',$manaPairedRangeStart0140)
