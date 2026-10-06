@@ -20271,23 +20271,12 @@ bool talker_character_const::wielded_with_flag( const flag_id &flag ) const
         return false;
     }
 
-    const int ncmm_virtual_hands = std::max( 0, std::min( 2, static_cast<int>( std::lround(
-                                       ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ) ) ) );
-    if( ncmm_virtual_hands <= 0 ) {
-        return false;
+    for( item *candidate : ncmm::active_mana_hand_items( *me_chr_const ) ) {
+        if( candidate->has_flag( flag ) ) {
+            return true;
+        }
     }
-
-    item *ncmm_mana3 = ncmm::virtual_item_for_slot(
-                           "survivor_progression", "mana_hand_3" );
-    if( ncmm_virtual_hands >= 1 && ncmm_mana3 != nullptr &&
-        ncmm_mana3->has_flag( flag ) ) {
-        return true;
-    }
-
-    item *ncmm_mana4 = ncmm_virtual_hands >= 2 ?
-                       ncmm::virtual_item_for_slot(
-                           "survivor_progression", "mana_hand_4" ) : nullptr;
-    return ncmm_mana4 != nullptr && ncmm_mana4->has_flag( flag );
+    return false;
 }
 '@
         $talker0140aid = Replace-TextBlock $talker0140aid $oldWieldFlag0140aid $newWieldFlag0140aid 'Mana Hand spellcasting-aid wield bridge'
@@ -20298,12 +20287,8 @@ bool talker_character_const::wielded_with_flag( const flag_id &flag ) const
         '#include "ncmm_loader.h"',
         'ncmm_virtual_wield_flags',
         'flag_id( "SPELLCASTING_AID" )',
-        'const int ncmm_virtual_hands =',
-        'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
-        'ncmm_virtual_hands >= 2 ?',
-        'ncmm::virtual_item_for_slot(',
-        '"survivor_progression", "mana_hand_3"',
-        '"survivor_progression", "mana_hand_4"'
+        'ncmm::active_mana_hand_items( *me_chr_const )',
+        'candidate->has_flag( flag )'
     )) {
         if(-not ([IO.File]::ReadAllText($talker0140aidPath)).Contains($needle0140aid)) {
             throw ('Survivor 0.14.0 Mana Hand spellcasting-aid output missing: '+$needle0140aid)
@@ -20462,18 +20447,12 @@ namespace
 {
 bool ncmm_mana_hand_holds_item( const Character &who, const item &it )
 {
-    if( !who.is_avatar() ) {
-        return false;
+    for( item *candidate : ncmm::active_mana_hand_items( who ) ) {
+        if( candidate == &it ) {
+            return true;
+        }
     }
-
-    const int hand_count = std::max( 0, std::min( 2, static_cast<int>( std::lround(
-                                         ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ) ) ) );
-    if( hand_count >= 1 &&
-        ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_3" ) == &it ) {
-        return true;
-    }
-    return hand_count >= 2 &&
-           ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_4" ) == &it;
+    return false;
 }
 } // namespace
 '@
@@ -20503,9 +20482,8 @@ bool ncmm_mana_hand_holds_item( const Character &who, const item &it )
     foreach($needle0140util in @(
         '#include "ncmm_loader.h"',
         'bool ncmm_mana_hand_holds_item( const Character &who, const item &it )',
-        'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
-        'ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_3" ) == &it',
-        'ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_4" ) == &it',
+        'ncmm::active_mana_hand_items( who )',
+        'candidate == &it',
         'if( need_wielding && !p.is_wielding( it ) && !ncmm_mana_hand_holds_item( p, it ) ) {',
         'if( need_wielding && !p->is_wielding( it ) && !ncmm_mana_hand_holds_item( *p, it ) ) {'
     )) {
@@ -20829,12 +20807,9 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
     $src0140pair = Join-Path $Root 'src'
     $handle0140pairPath = Join-Path $src0140pair 'handle_action.cpp'
     $melee0140pairPath = Join-Path $src0140pair 'melee.cpp'
-    $talker0140pairPath = Join-Path $src0140pair 'talker_character.cpp'
-    $iuse0140pairPath = Join-Path $src0140pair 'iuse_actor.cpp'
     $game0140pairPath = Join-Path $src0140pair 'game.cpp'
     foreach($required0140pair in @(
-        $handle0140pairPath,$melee0140pairPath,$talker0140pairPath,
-        $iuse0140pairPath,$game0140pairPath
+        $handle0140pairPath,$melee0140pairPath,$game0140pairPath
     )) {
         if(-not(Test-Path $required0140pair -PathType Leaf)) {
             if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
@@ -20943,50 +20918,8 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
     }
     Write-Utf8NoBom $melee0140pairPath $melee0140pair
 
-    # SPELLCASTING_AID is item-local; paired grip should satisfy it too.
-    $talker0140pair = Normalize-Lf ([IO.File]::ReadAllText($talker0140pairPath))
-    if(-not $talker0140pair.Contains('ncmm_pair = ncmm_virtual_hands >= 2')) {
-        $talkerOld0140pair = @'
-    item *ncmm_mana4 = ncmm_virtual_hands >= 2 ?
-                       ncmm::virtual_item_for_slot(
-                           "survivor_progression", "mana_hand_4" ) : nullptr;
-    return ncmm_mana4 != nullptr && ncmm_mana4->has_flag( flag );
-'@
-        $talkerNew0140pair = @'
-    item *ncmm_mana4 = ncmm_virtual_hands >= 2 ?
-                       ncmm::virtual_item_for_slot(
-                           "survivor_progression", "mana_hand_4" ) : nullptr;
-    if( ncmm_mana4 != nullptr && ncmm_mana4->has_flag( flag ) ) {
-        return true;
-    }
-
-    item *ncmm_pair = ncmm_virtual_hands >= 2 ?
-                      ncmm::virtual_item_for_slot(
-                          "survivor_progression", "mana_hands_34" ) : nullptr;
-    return ncmm_pair != nullptr && ncmm_pair->has_flag( flag );
-'@
-        $talker0140pair = Replace-TextBlock $talker0140pair $talkerOld0140pair $talkerNew0140pair 'Mana Hand paired spellcasting aid'
-    }
-    Write-Utf8NoBom $talker0140pairPath $talker0140pair
-
-    # Utility actions using need_wielding recognize the pair only when both hands exist.
-    $iuse0140pair = Normalize-Lf ([IO.File]::ReadAllText($iuse0140pairPath))
-    if(-not $iuse0140pair.Contains('"mana_hands_34" ) == &it')) {
-        $iuseOld0140pair = @'
-    return hand_count >= 2 &&
-           ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_4" ) == &it;
-'@
-        $iuseNew0140pair = @'
-    if( hand_count >= 2 &&
-        ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_4" ) == &it ) {
-        return true;
-    }
-    return hand_count >= 2 &&
-           ncmm::virtual_item_for_slot( "survivor_progression", "mana_hands_34" ) == &it;
-'@
-        $iuse0140pair = Replace-TextBlock $iuse0140pair $iuseOld0140pair $iuseNew0140pair 'Mana Hand paired utility'
-    }
-    Write-Utf8NoBom $iuse0140pairPath $iuse0140pair
+    # SPELLCASTING_AID and need_wielding held semantics are already final in their base layers.
+    # PairedGrip must not reopen those sources or rewrite their Host-owned active-item scans.
 
     # Inventory context: pair action is explicit and single-hand assignment is blocked
     # while the pair owns both virtual hands.
