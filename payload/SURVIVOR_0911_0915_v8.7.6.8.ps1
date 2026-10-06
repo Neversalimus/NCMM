@@ -21473,7 +21473,33 @@ function Apply-SurvivorManaHandFireAction0140([string]$Root) {
         throw 'Mana Hand FIRE action requires the existing ncmm_loader include.'
     }
 
-    if(-not $handle0140fire.Contains('ncmm_mana_fire_candidates')) {
+    if(-not $handle0140fire.Contains('const auto ncmm_fire_candidates =')) {
+        # FIRE is overloaded with reach. Establish the ranged-capability gate
+        # before ReachMelee later rewrites the vanilla reach block in place.
+        $reachStart0140fire = $handle0140fire.IndexOf('    // try reach weapon')
+        $reachEnd0140fire = $handle0140fire.IndexOf(
+                                '    if( you.has_trait( trait_BRAWLER ) )',
+                                $reachStart0140fire )
+        if($reachStart0140fire -lt 0 -or $reachEnd0140fire -le $reachStart0140fire) {
+            throw 'Mana Hand FIRE base reach-dispatch anchors missing.'
+        }
+        $reachBlock0140fire = $handle0140fire.Substring(
+                                  $reachStart0140fire,
+                                  $reachEnd0140fire-$reachStart0140fire )
+        $reachPrefix0140fire = @'
+    const auto ncmm_fire_candidates = ncmm::ranged_weapon_candidates(
+                                         you, ncmm::ranged_weapon_action::fire );
+    // Reach is the fallback for F only when there is no ranged-capable weapon.
+    // Explicit melee, bump, autoattack and reach still use the melee path.
+    if( ncmm_fire_candidates.empty() ) {
+'@
+        $handle0140fire =
+            $handle0140fire.Substring(0,$reachStart0140fire) +
+            $reachPrefix0140fire + "`n" + $reachBlock0140fire + "    }`n" +
+            $handle0140fire.Substring($reachEnd0140fire)
+    }
+
+    if(-not $handle0140fire.Contains('aim_activity_actor::use_item_location( ncmm_selected_gun )')) {
         $fireOld0140 = @'
     if( you.has_trait( trait_GUNSHY ) && weapon && weapon->is_firearm() ) {
         add_msg( m_bad, _( "You refuse to use firearms." ) );
@@ -21492,29 +21518,24 @@ function Apply-SurvivorManaHandFireAction0140([string]$Root) {
     const bool ncmm_physical_ranged_ready =
         weapon && ncmm::ranged_weapon_capable(
                       *weapon, ncmm::ranged_weapon_action::fire );
-    if( !ncmm_physical_ranged_ready ) {
-        const auto ncmm_mana_fire_candidates =
-            ncmm::ranged_weapon_candidates(
-                you, ncmm::ranged_weapon_action::fire );
-        if( !ncmm_mana_fire_candidates.empty() ) {
-            item_location ncmm_selected_gun = ncmm::select_ranged_weapon(
-                                                  you,
-                                                  ncmm::ranged_weapon_action::fire,
-                                                  "Fire which Mana Hand weapon?",
-                                                  "Из какого оружия в руке маны стрелять?" );
-            // Empty with known candidates means the user canceled the selector.
-            if( !ncmm_selected_gun ) {
-                return;
-            }
-            if( you.has_trait( trait_GUNSHY ) && ncmm_selected_gun->is_firearm() ) {
-                add_msg( m_bad, _( "You refuse to use firearms." ) );
-                return;
-            }
-
-            you.assign_activity(
-                aim_activity_actor::use_item_location( ncmm_selected_gun ) );
+    if( !ncmm_physical_ranged_ready && !ncmm_fire_candidates.empty() ) {
+        item_location ncmm_selected_gun = ncmm::select_ranged_weapon(
+                                              you,
+                                              ncmm::ranged_weapon_action::fire,
+                                              "Fire which Mana Hand weapon?",
+                                              "Из какого оружия в руке маны стрелять?" );
+        // Empty with known candidates means the user canceled the selector.
+        if( !ncmm_selected_gun ) {
             return;
         }
+        if( you.has_trait( trait_GUNSHY ) && ncmm_selected_gun->is_firearm() ) {
+            add_msg( m_bad, _( "You refuse to use firearms." ) );
+            return;
+        }
+
+        you.assign_activity(
+            aim_activity_actor::use_item_location( ncmm_selected_gun ) );
+        return;
     }
 
     if( you.has_flag( json_flag_TEMPORARY_SHAPESHIFT_NO_HANDS ) ) {
@@ -21525,9 +21546,11 @@ function Apply-SurvivorManaHandFireAction0140([string]$Root) {
     Write-Utf8NoBom $handle0140firePath $handle0140fire
     $fireOutput0140 = [IO.File]::ReadAllText($handle0140firePath)
     foreach($needle0140fire in @(
+        'const auto ncmm_fire_candidates =',
+        'if( ncmm_fire_candidates.empty() )',
         'const bool ncmm_physical_ranged_ready =',
         'ncmm::ranged_weapon_capable(',
-        'ncmm::ranged_weapon_candidates(',
+        'if( !ncmm_physical_ranged_ready && !ncmm_fire_candidates.empty() )',
         'ncmm::select_ranged_weapon(',
         'Fire which Mana Hand weapon?',
         'aim_activity_actor::use_item_location( ncmm_selected_gun )'
@@ -23967,27 +23990,25 @@ function Apply-SurvivorActionWeaponSelection0154([string]$Root) {
         if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) { return }
         throw ('Action-specific weapon source missing: '+$handlePath)
     }
-    $handle = Normalize-Lf ([IO.File]::ReadAllText($handlePath))
-    if(-not $handle.Contains('ncmm_fire_candidates')) {
-        # FIRE is overloaded with reach. Resolve ranged capability after all
-        # reach transforms, before any reach/force-unarmed early return.
-        $start = $handle.IndexOf('    // try reach weapon')
-        $end = $handle.IndexOf('    if( you.has_trait( trait_BRAWLER ) )', $start)
-        if($start -lt 0 -or $end -le $start) { throw 'FIRE reach dispatch anchors missing.' }
-        $reach = $handle.Substring($start, $end - $start)
-        $prefix = @'
-    const auto ncmm_fire_candidates = ncmm::ranged_weapon_candidates(
-                                         you, ncmm::ranged_weapon_action::fire );
-    // Reach is the fallback for F only when there is no ranged-capable weapon.
-    // Explicit melee, bump, autoattack and reach still use the melee path.
-    if( ncmm_fire_candidates.empty() ) {
-'@
-        $handle = $handle.Substring(0,$start) + $prefix + "`n" + $reach + "    }`n" + $handle.Substring($end)
-        Write-Utf8NoBom $handlePath $handle
+    $handle = [IO.File]::ReadAllText($handlePath)
+    foreach($fireDispatchBoundary in @(
+        'const auto ncmm_fire_candidates =',
+        'if( ncmm_fire_candidates.empty() )',
+        'if( !ncmm_physical_ranged_ready && !ncmm_fire_candidates.empty() )'
+    )) {
+        if(-not $handle.Contains($fireDispatchBoundary)) {
+            throw ('Final Mana Hand FIRE dispatch boundary missing: '+$fireDispatchBoundary)
+        }
+    }
+    $fireFunctionStart = $handle.IndexOf('static void fire(')
+    $fireResolverPos = $handle.IndexOf('ncmm::ranged_weapon_candidates(', $fireFunctionStart)
+    $fireReachPos = $handle.IndexOf('reach_attack( you )', $fireFunctionStart)
+    if($fireFunctionStart -lt 0 -or $fireResolverPos -lt 0 -or $fireReachPos -lt 0 -or
+       $fireResolverPos -gt $fireReachPos) {
+        throw 'Physical reach intercepted F before base-layer ranged capability resolution.'
     }
 
     foreach($actionBoundary in @(
-        'const auto ncmm_mana_fire_candidates =',
         'ncmm::ranged_weapon_candidates(',
         'item_location ncmm_selected_gun = ncmm::select_ranged_weapon(',
         'return ncmm::select_ranged_weapon(',

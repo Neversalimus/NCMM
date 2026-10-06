@@ -732,7 +732,7 @@ foreach($needle0140 in @(
     'activity != nullptr ? activity->get_weapon() : you->get_wielded_item()',
     'Apply-SurvivorManaHandReloadAndShoot0140 $CddaRoot',
     'function Apply-SurvivorManaHandFireAction0140',
-    'ncmm_mana_fire_candidates',
+    'ncmm_fire_candidates',
     'Fire which Mana Hand weapon?',
     'aim_activity_actor::use_item_location( ncmm_selected_gun )',
     'Apply-SurvivorManaHandFireAction0140 $CddaRoot',
@@ -1373,9 +1373,11 @@ if($manaGunControlsStart0140 -le $manaFireStart0140){throw 'Mana Hand standard g
 $manaFireEnd0140=$manaGunControlsStart0140
 $manaFireSection0140=$payload.Substring($manaFireStart0140,$manaFireEnd0140-$manaFireStart0140)
 foreach($fireNeedle0140 in @(
+    'const auto ncmm_fire_candidates =',
+    'if( ncmm_fire_candidates.empty() )',
     'const bool ncmm_physical_ranged_ready =',
     'ncmm::ranged_weapon_capable(',
-    'ncmm::ranged_weapon_candidates(',
+    'if( !ncmm_physical_ranged_ready && !ncmm_fire_candidates.empty() )',
     'ncmm::select_ranged_weapon(',
     'Fire which Mana Hand weapon?',
     'you.has_trait( trait_GUNSHY ) && ncmm_selected_gun->is_firearm()',
@@ -1389,6 +1391,9 @@ if($manaFireSection0140.Contains('set_wielded_item(') -or
    $manaFireSection0140.Contains('u.wield(') -or
    $manaFireSection0140.Contains('ncmm_selected_gun.obtain(')){
     throw 'Mana Hand FIRE action must keep the real gun in its vanilla item_location.'
+}
+if($manaFireSection0140.Contains('ncmm_mana_fire_candidates')){
+    throw 'Mana Hand FIRE action must reuse the base-layer ranged candidate gate instead of resolving candidates twice.'
 }
 $fireHostStart0140=$manaFireSection0140.IndexOf('$fireNew0140 = @''')
 $fireHostEnd0140=$manaFireSection0140.IndexOf("'@",$fireHostStart0140+20)
@@ -1948,6 +1953,34 @@ if(([regex]::Matches($payload,[regex]::Escape('Apply-SurvivorManaHandDirectCount
     throw 'Mana Hand direct-count reconciliation must run during initial transform, deep probe, and normal build.'
 }
 
+$actionSelectionStart0154=$manaDirectEnd0152
+$actionSelectionEnd0154=$payload.IndexOf('function Apply-SurvivorManaHandsDirectUi0155',$actionSelectionStart0154)
+if($actionSelectionStart0154 -lt 0 -or $actionSelectionEnd0154 -le $actionSelectionStart0154){
+    throw 'ActionWeaponSelection 0.15.4 payload boundary missing.'
+}
+$actionSelectionSection0154=$payload.Substring(
+    $actionSelectionStart0154,$actionSelectionEnd0154-$actionSelectionStart0154)
+foreach($actionSelectionNeedle0154 in @(
+    'const auto ncmm_fire_candidates =',
+    'if( ncmm_fire_candidates.empty() )',
+    'Physical reach intercepted F before base-layer ranged capability resolution.',
+    '// NCMM action-specific ranged entry point.',
+    'aim_activity_actor::use_item_location( weapon )'
+)){
+    if(-not $actionSelectionSection0154.Contains($actionSelectionNeedle0154)){
+        throw ('ActionWeaponSelection final-boundary contract missing: '+$actionSelectionNeedle0154)
+    }
+}
+foreach($actionSelectionForbidden0154 in @(
+    'Write-Utf8NoBom $handlePath',
+    '$handle = $handle.Substring(',
+    '$reach = $handle.Substring(',
+    '$prefix = @'''
+)){
+    if($actionSelectionSection0154.Contains($actionSelectionForbidden0154)){
+        throw ('ActionWeaponSelection regressed to late handle_action mutation: '+$actionSelectionForbidden0154)
+    }
+}
 
 $craftMetricStart0140=$payload.IndexOf('function Apply-SurvivorCraftCompletionMetric0140',$manaHeldStart0140)
 $craftMetricEnd0140=$payload.IndexOf('function Apply-SurvivorXpBalance0140',$craftMetricStart0140)
