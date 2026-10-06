@@ -1185,6 +1185,42 @@ if($pairContextWritePos0140 -le $pairCleanMenuStart0140 -or
     throw 'Mana Hand paired clean-base context must be defined before the base game.cpp write.'
 }
 
+$primaryCleanMenuStart0140=$manaContextSection0140.IndexOf('$menuNew0140ctx = @''')
+$primaryCleanMenuEnd0140=$manaContextSection0140.IndexOf("'@",$primaryCleanMenuStart0140+22)
+$primaryCleanSwitchStart0140=$manaContextSection0140.IndexOf('$switchNew0140ctx = @''')
+$primaryCleanSwitchEnd0140=$manaContextSection0140.IndexOf("'@",$primaryCleanSwitchStart0140+24)
+if($primaryCleanMenuStart0140 -lt 0 -or $primaryCleanMenuEnd0140 -le $primaryCleanMenuStart0140 -or
+   $primaryCleanSwitchStart0140 -lt 0 -or $primaryCleanSwitchEnd0140 -le $primaryCleanSwitchStart0140){
+    throw 'Primary Mana Hand clean-base context template boundary missing.'
+}
+$primaryCleanMenu0140=$manaContextSection0140.Substring(
+    $primaryCleanMenuStart0140,$primaryCleanMenuEnd0140-$primaryCleanMenuStart0140)
+$primaryCleanSwitch0140=$manaContextSection0140.Substring(
+    $primaryCleanSwitchStart0140,$primaryCleanSwitchEnd0140-$primaryCleanSwitchStart0140)
+foreach($primaryCleanMenuNeedle0140 in @(
+    'const bool ncmm_primary_enabled =',
+    'ncmm::virtual_item_primary_melee_enabled( oThisItem )',
+    "addentry( 'P'",
+    'use as primary Mana Hand melee'
+)){
+    if(-not $primaryCleanMenu0140.Contains($primaryCleanMenuNeedle0140)){
+        throw ('Primary Mana Hand clean-base menu missing: '+$primaryCleanMenuNeedle0140)
+    }
+}
+foreach($primaryCleanSwitchNeedle0140 in @(
+    "case 'P': {",
+    'ncmm::mana_hand_item_slot_of( u, oThisItem )',
+    'ncmm::virtual_item_set_primary_melee(',
+    'Primary Mana Hand melee enabled. Physical wielded weapons keep priority.'
+)){
+    if(-not $primaryCleanSwitch0140.Contains($primaryCleanSwitchNeedle0140)){
+        throw ('Primary Mana Hand clean-base handler missing: '+$primaryCleanSwitchNeedle0140)
+    }
+}
+if(-not $manaContextSection0140.Contains('Compatibility path: upgrade older 0.14.0 sources that already contain Mana Hand')){
+    throw 'Primary Mana Hand compatibility path comment/boundary missing.'
+}
+
 foreach($primaryContextNeedle0140 in @(
     '$primaryMenuAnchor0140ctx = @''',
     '$primaryHandlerAnchor0140ctx = @''',
