@@ -27,13 +27,18 @@ function Require([string]$Text,[string]$Needle) {
 }
 $capable=Get-CppFunction $hostSource 'bool ranged_weapon_capable('
 $resolver=Get-CppFunction $hostSource 'std::vector<item_location> ranged_weapon_candidates('
-$melee=Get-CppFunction $payload 'item *ncmm_primary_mana_hand_melee_weapon('
+$binding=Get-CppFunction $hostSource 'bool ranged_weapon_binding_valid('
+$melee=Get-CppFunction $hostSource 'item *primary_mana_hand_melee_weapon('
 Require $capable '!weapon.is_gun() || weapon.is_gunmod()'
 Require $capable 'return mode && !mode.melee();'
 Require $resolver 'physical && ranged_weapon_capable( *physical, action )'
 Require $resolver 'ranged_weapon_capable( *candidate, action )'
 Require $resolver 'mana_hands_pair_slot_id'
+Require $binding 'ranged_weapon_capable( weapon, ranged_weapon_action::fire )'
+Require $binding 'virtual_item_matches_slot( weapon, survivor_module_id, mana_hand_3_slot_id )'
+Require $binding 'mana_hands_pair_slot_id'
 Require $melee 'who.get_wielded_item()'
+Require $melee 'survivor_mana_hand_count()'
 Require $melee 'candidate->is_melee() && !candidate->is_gun()'
 foreach($forbidden in @('all_items_loc(', '.obtain(', '.wield(', 'remove_weapon(')) {
     if($resolver.Contains($forbidden)){throw ('Ranged resolver must not scan/move items: '+$forbidden)}
@@ -58,9 +63,8 @@ if($PatchedSourceRoot) {
     Require $fire 'aim_activity_actor::use_item_location( ncmm_selected_gun )'
     Require $entry 'ncmm::select_ranged_weapon('
     Require $entry 'aim_activity_actor::use_item_location( weapon )'
-    Require $aim 'ncmm::ranged_weapon_capable('
-    Require $aim 'ncmm::virtual_item_matches_slot('
-    foreach($forbidden in @('all_items_loc(', 'virtual_item_for_slot(', 'select_ranged_weapon(')) {
+    Require $aim 'ncmm::ranged_weapon_binding_valid('
+    foreach($forbidden in @('all_items_loc(', 'virtual_item_for_slot(', 'select_ranged_weapon(', 'gameplay_modifier(', 'virtual_item_matches_slot(', 'mana_hand_3', 'mana_hand_4', 'mana_hands_34')) {
         if($aim.Contains($forbidden)){throw ('Aim must validate its selected item without reselection/scans: '+$forbidden)}
     }
     foreach($text in @($fire,$entry)) {
@@ -75,7 +79,7 @@ if($PatchedSourceRoot) {
 if($RunBehavior) {
     $work=Join-Path $env:TEMP ('ncmm-action-resolver-'+[guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $work|Out-Null
-    [IO.File]::WriteAllText((Join-Path $work 'ranged_resolvers.inc'),$capable+"`n"+$resolver)
+    [IO.File]::WriteAllText((Join-Path $work 'ranged_resolvers.inc'),$capable+"`n"+$resolver+"`n"+$binding)
     [IO.File]::WriteAllText((Join-Path $work 'primary_melee_resolver.inc'),$melee)
     Copy-Item (Join-Path $PackageRoot 'tests/mana_action_weapon_test.cpp') $work
     [IO.File]::WriteAllText((Join-Path $work 'CMakeLists.txt'),@'
