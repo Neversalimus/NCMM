@@ -22337,36 +22337,13 @@ item_location ncmm_mana_hand_martial_context_weapon( const Character &who )
 item_location ncmm_primary_mana_hand_martial_weapon( const Character &who )
 {
     item_location active_weapon = ncmm_mana_hand_martial_context_weapon( who );
-    if( active_weapon || !who.is_avatar() || who.is_mounted() ||
-        who.martial_arts_data->selected_force_unarmed() ) {
+    if( active_weapon || who.martial_arts_data->selected_force_unarmed() ) {
         return active_weapon;
     }
 
-    const int hand_count = std::clamp( static_cast<int>(
-                                       ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ), 0, 2 );
-    if( hand_count >= 2 ) {
-        item *paired = ncmm::virtual_item_for_slot(
-                           "survivor_progression", "mana_hands_34" );
-        if( paired != nullptr &&
-            ncmm::virtual_item_primary_melee_enabled( *paired ) &&
-            paired->is_melee() && !paired->is_gun() &&
-            paired->is_two_handed( who ) ) {
-            return item_location( *const_cast<Character *>( &who ), paired );
-        }
-    }
-
-    const char *slots[2] = { "mana_hand_3", "mana_hand_4" };
-    for( int i = 0; i < hand_count && i < 2; ++i ) {
-        item *candidate = ncmm::virtual_item_for_slot(
-                              "survivor_progression", slots[i] );
-        if( candidate != nullptr &&
-            ncmm::virtual_item_primary_melee_enabled( *candidate ) &&
-            candidate->is_melee() && !candidate->is_gun() &&
-            !candidate->is_two_handed( who ) ) {
-            return item_location( *const_cast<Character *>( &who ), candidate );
-        }
-    }
-    return item_location();
+    Character &mutable_who = *const_cast<Character *>( &who );
+    item *candidate = ncmm::primary_mana_hand_melee_weapon( mutable_who );
+    return candidate != nullptr ? item_location( mutable_who, candidate ) : item_location();
 }
 '@
         $martial0140ma = Replace-TextBlock $martial0140ma $factoryOld0140ma $factoryNew0140ma 'Primary Mana Hand martial-arts resolver'
@@ -22495,8 +22472,7 @@ void character_martial_arts::martialart_use_message( const Character &owner ) co
         'ncmm::virtual_melee_context_active( who )',
         'const item_location weapon = ncmm_mana_hand_martial_context_weapon( u );',
         'const bool virtual_scope =',
-        '"survivor_progression", "mana_hands_34"',
-        'ncmm::virtual_item_primary_melee_enabled( *paired )',
+        'ncmm::primary_mana_hand_melee_weapon( mutable_who )',
         'bool is_armed = weapon || u.is_armed();',
         'ncmm::virtual_melee_context_begin( mutable_owner, *martial_weapon, false )',
         'martial_weapon, owner',
@@ -22582,36 +22558,10 @@ class ncmm_virtual_reach_scope
 
 item *ncmm_primary_mana_hand_reach_weapon( avatar &you )
 {
-    if( you.get_wielded_item() || you.is_mounted() ||
-        you.martial_arts_data->selected_force_unarmed() ) {
+    if( you.martial_arts_data->selected_force_unarmed() ) {
         return nullptr;
     }
-
-    const int hand_count = std::clamp( static_cast<int>(
-                                       ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ), 0, 2 );
-    if( hand_count >= 2 ) {
-        item *paired = ncmm::virtual_item_for_slot(
-                           "survivor_progression", "mana_hands_34" );
-        if( paired != nullptr &&
-            ncmm::virtual_item_primary_melee_enabled( *paired ) &&
-            paired->is_melee() && !paired->is_gun() &&
-            paired->is_two_handed( you ) ) {
-            return paired;
-        }
-    }
-
-    const char *slots[2] = { "mana_hand_3", "mana_hand_4" };
-    for( int i = 0; i < hand_count && i < 2; ++i ) {
-        item *candidate = ncmm::virtual_item_for_slot(
-                              "survivor_progression", slots[i] );
-        if( candidate != nullptr &&
-            ncmm::virtual_item_primary_melee_enabled( *candidate ) &&
-            candidate->is_melee() && !candidate->is_gun() &&
-            !candidate->is_two_handed( you ) ) {
-            return candidate;
-        }
-    }
-    return nullptr;
+    return ncmm::primary_mana_hand_melee_weapon( you );
 }
 
 bool ncmm_primary_mana_hand_has_reach( avatar &you, item &weapon )
@@ -22972,6 +22922,7 @@ void Character::reach_attack( const tripoint_bub_ms &p, int forced_movecost )
         'ncmm_primary_mana_hand_has_reach',
         'target_handler::mode_reach(',
         'item_location( you, ncmm_reach_weapon )',
+        'return ncmm::primary_mana_hand_melee_weapon( you );',
         'item *ncmm_primary_reach_weapon = nullptr;',
         'ncmm::primary_mana_hand_melee_weapon( *this )',
         'std::make_unique<ncmm_virtual_melee_scope>',
@@ -23061,36 +23012,10 @@ namespace
 {
 item *ncmm_primary_mana_hand_smash_weapon( avatar &you )
 {
-    if( you.get_wielded_item() || you.is_mounted() ||
-        ncmm::virtual_melee_context_active( you ) ) {
+    if( ncmm::virtual_melee_context_active( you ) ) {
         return nullptr;
     }
-
-    const int hand_count = std::clamp( static_cast<int>(
-                                       ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ), 0, 2 );
-    if( hand_count >= 2 ) {
-        item *paired = ncmm::virtual_item_for_slot(
-                           "survivor_progression", "mana_hands_34" );
-        if( paired != nullptr &&
-            ncmm::virtual_item_primary_melee_enabled( *paired ) &&
-            paired->is_melee() && !paired->is_gun() &&
-            paired->is_two_handed( you ) ) {
-            return paired;
-        }
-    }
-
-    const char *slots[2] = { "mana_hand_3", "mana_hand_4" };
-    for( int i = 0; i < hand_count && i < 2; ++i ) {
-        item *candidate = ncmm::virtual_item_for_slot(
-                              "survivor_progression", slots[i] );
-        if( candidate != nullptr &&
-            ncmm::virtual_item_primary_melee_enabled( *candidate ) &&
-            candidate->is_melee() && !candidate->is_gun() &&
-            !candidate->is_two_handed( you ) ) {
-            return candidate;
-        }
-    }
-    return nullptr;
+    return ncmm::primary_mana_hand_melee_weapon( you );
 }
 
 class ncmm_mana_hand_smash_scope
@@ -23220,6 +23145,7 @@ avatar::smash_result avatar::smash( tripoint_bub_ms &smashp )
         'else if( ncmm_smash_weapon )',
         'ncmm_smash_weapon->base_damage_melee()',
         'item *ncmm_primary_mana_hand_smash_weapon( avatar &you )',
+        'return ncmm::primary_mana_hand_melee_weapon( you );',
         'class ncmm_mana_hand_smash_scope',
         'ncmm::virtual_melee_context_begin( who, *weapon, true )',
         'Not enough mana to smash with the primary Mana Hand weapon.',
@@ -23337,34 +23263,10 @@ class ncmm_mana_hand_autoattack_scope
 
 item *ncmm_primary_mana_hand_autoattack_weapon( avatar &you )
 {
-    if( you.get_wielded_item() || you.is_mounted() ||
-        you.martial_arts_data->selected_force_unarmed() ) {
+    if( you.martial_arts_data->selected_force_unarmed() ) {
         return nullptr;
     }
-    const int hand_count = std::clamp( static_cast<int>(
-                                       ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ), 0, 2 );
-    if( hand_count >= 2 ) {
-        item *paired = ncmm::virtual_item_for_slot(
-                           "survivor_progression", "mana_hands_34" );
-        if( paired != nullptr &&
-            ncmm::virtual_item_primary_melee_enabled( *paired ) &&
-            paired->is_melee() && !paired->is_gun() &&
-            paired->is_two_handed( you ) ) {
-            return paired;
-        }
-    }
-    const char *slots[2] = { "mana_hand_3", "mana_hand_4" };
-    for( int i = 0; i < hand_count && i < 2; ++i ) {
-        item *candidate = ncmm::virtual_item_for_slot(
-                              "survivor_progression", slots[i] );
-        if( candidate != nullptr &&
-            ncmm::virtual_item_primary_melee_enabled( *candidate ) &&
-            candidate->is_melee() && !candidate->is_gun() &&
-            !candidate->is_two_handed( you ) ) {
-            return candidate;
-        }
-    }
-    return nullptr;
+    return ncmm::primary_mana_hand_melee_weapon( you );
 }
 
 int ncmm_primary_mana_hand_autoattack_reach( avatar &you, item &weapon )
@@ -23450,9 +23352,7 @@ void avatar_action::autoattack( avatar &you, map &m )
         'class ncmm_mana_hand_autoattack_scope',
         'ncmm_primary_mana_hand_autoattack_weapon',
         'ncmm_primary_mana_hand_autoattack_reach',
-        '"survivor_progression", "mana_hands_34"',
-        '"survivor_progression", slots[i]',
-        'ncmm::virtual_item_primary_melee_enabled',
+        'return ncmm::primary_mana_hand_melee_weapon( you );',
         'ncmm::virtual_melee_context_begin( who, weapon, false )',
         'item *ncmm_autoattack_weapon = nullptr;',
         'you.reach_attack( best.pos_bub() );'
