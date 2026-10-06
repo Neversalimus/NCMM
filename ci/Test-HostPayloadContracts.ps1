@@ -47,7 +47,9 @@ $requiredManaHostLayers=@(
     'Apply-SurvivorManaHandHeldUtilities0140',
     'Apply-SurvivorCraftCompletionMetric0140',
     'Apply-SurvivorVehicleCraftingMetric0151',
-    'Apply-SurvivorManaHandDirectCount0152'
+    'Apply-SurvivorManaHandDirectCount0152',
+    'Apply-SurvivorActionWeaponSelection0154',
+    'Apply-SurvivorManaHandsDirectUi0155'
 )
 $actualCertifiedLayers=@($certifiedHostStack.layers|ForEach-Object{[string]$_})
 $previousLayerIndex=-1
@@ -600,4 +602,34 @@ if($gameplayHost.Contains('dimensional_pouch_type_id.obj().pockets.size() != 1')
 if($gameplayHost.Contains('dimensional_pouch_type_id.obj().pockets.front()')){
     throw 'Dimensional Pouch regressed to raw itype pocket ordering instead of selecting the CONTAINER pocket.'
 }
+
+# Mana Hands control item: exact-id activation bridge only.
+$manaUiSdk=[IO.File]::ReadAllText((Join-Path $PackageRoot 'sdk\ncmm_api.h'))
+$manaUiHost=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp'))
+$manaUiHeader=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm_loader.h'))
+foreach($needle0155ui in @(
+    '#define NCMM_ITEM_ACTIVATE_ENTRYPOINT "ncmm_on_item_activate_v1"',
+    'typedef int ( *ncmm_on_item_activate_v1_fn )'
+)){
+    if(-not $manaUiSdk.Contains($needle0155ui)){throw ('Mana Hands item callback SDK contract missing: '+$needle0155ui)}
+}
+foreach($needle0155ui in @(
+    'item_id != "ncmm_survivor_mana_hand_carrier"',
+    'find_loaded_by_id( "survivor_progression" )',
+    'mod->item_activate( &api, item_id.c_str() )',
+    'GetProcAddress( module, NCMM_ITEM_ACTIVATE_ENTRYPOINT )'
+)){
+    if(-not $manaUiHost.Contains($needle0155ui)){throw ('Mana Hands exact item activation Host contract missing: '+$needle0155ui)}
+}
+if(-not $manaUiHeader.Contains('bool handle_item_activation( const item_location &loc );')){
+    throw 'Mana Hands direct UI Host declaration missing.'
+}
+foreach($needle0155ui in @(
+    'function Apply-SurvivorManaHandsDirectUi0155',
+    'method.empty() && ncmm::handle_item_activation( loc )',
+    '// NCMM exact-id Mana Hands control item.'
+)){
+    if(-not $payload.Contains($needle0155ui)){throw ('Mana Hands direct UI payload contract missing: '+$needle0155ui)}
+}
+
 Write-Host 'NCMM Host/AWS payload regression contract: PASS' -ForegroundColor Green

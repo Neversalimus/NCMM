@@ -402,7 +402,9 @@
             "if( you.is_armed() ) {",
             "you.mend_item( item_location( loc ) );",
             "bool avatar_action::move( avatar &you, map &m, const tripoint_rel_ms &d )",
-            "!( you.get_wielded_item() && you.get_wielded_item()->has_flag( flag_CRUTCHES ) )"
+            "!( you.get_wielded_item() && you.get_wielded_item()->has_flag( flag_CRUTCHES ) )",
+            "void avatar_action::use_item( avatar &you, item_location &loc, std::string const &method )",
+            "if( !avatar_action::check_stealing( get_player_character(), *loc.get_item() ) ) {"
           ]
         },
         {

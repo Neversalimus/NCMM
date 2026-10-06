@@ -22,6 +22,7 @@ void on_turn();
 void on_language_changed();
 void register_gameplay_actions( input_context &ctxt );
 bool handle_gameplay_action( const std::string &action );
+bool handle_item_activation( const item_location &loc );
 void show_manager();
 std::string settings_menu_label();
 std::string version_label();

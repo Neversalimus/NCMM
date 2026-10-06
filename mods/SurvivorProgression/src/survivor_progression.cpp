@@ -2695,6 +2695,87 @@ void show_perk_detail( const perk_def &perk )
     }
 }
 
+void show_mana_hands_menu()
+{
+    if( !character_available() ) {
+        message( tr( "Mana Hands: load a character first.",
+                     "Руки маны: сначала загрузите персонажа." ) );
+        return;
+    }
+
+    migrate_state();
+    if( effects_dirty ) {
+        recalculate_effects();
+    }
+
+    const perk_def *third = find_perk( "mg_mana_hand_3" );
+    const perk_def *fourth = find_perk( "mg_mana_hand_4" );
+    if( third == nullptr || !owned( *third ) ) {
+        message( tr(
+                     "Mana Hands are not available yet. Unlock Third Mana Hand in the Magiclysm branch of Survivor Progression.",
+                     "Руки маны пока недоступны. Откройте «Третью руку маны» в ветке Magiclysm мода Survivor Progression." ) );
+        return;
+    }
+
+    while( true ) {
+        const std::string paired = paired_mana_hand_item_name();
+        std::string title = tr(
+                                "Mana Hands\nChoose a hand to equip, replace or release its held item.",
+                                "Руки маны\nВыберите руку, чтобы экипировать, заменить или освободить удерживаемый предмет." );
+        std::vector<std::string> labels;
+        std::vector<int> actions;
+
+        if( !paired.empty() ) {
+            labels.push_back(
+                tr( "Paired grip III+IV — ", "Парный хват III+IV — " ) + paired );
+            actions.push_back( 34 );
+        } else {
+            const std::string third_item = mana_hand_item_name( *third );
+            labels.push_back(
+                tr( "Mana Hand III — ", "Рука маны III — " ) +
+                ( third_item.empty() ? tr( "empty", "пусто" ) : third_item ) );
+            actions.push_back( 3 );
+
+            if( fourth != nullptr ) {
+                const bool fourth_owned = owned( *fourth );
+                const std::string fourth_item = fourth_owned ? mana_hand_item_name( *fourth ) : std::string();
+                labels.push_back(
+                    tr( "Mana Hand IV — ", "Рука маны IV — " ) +
+                    ( fourth_owned ?
+                      ( fourth_item.empty() ? tr( "empty", "пусто" ) : fourth_item ) :
+                      tr( "not acquired", "не получена" ) ) );
+                actions.push_back( 4 );
+            }
+        }
+
+        labels.push_back( tr( "Back", "Назад" ) );
+        actions.push_back( 0 );
+
+        std::vector<const char *> entries;
+        entries.reserve( labels.size() );
+        for( const std::string &label : labels ) {
+            entries.push_back( label.c_str() );
+        }
+
+        const int choice = host && host->ui_choose ?
+                           host->ui_choose( title.c_str(), entries.data(), entries.size() ) : -1;
+        if( choice < 0 || static_cast<size_t>( choice ) >= actions.size() ||
+            actions[static_cast<size_t>( choice )] == 0 ) {
+            return;
+        }
+
+        const int action = actions[static_cast<size_t>( choice )];
+        if( action == 3 ) {
+            show_perk_detail( *third );
+        } else if( action == 4 && fourth != nullptr ) {
+            show_perk_detail( *fourth );
+        } else if( action == 34 ) {
+            const perk_def *paired_owner = fourth != nullptr && owned( *fourth ) ? fourth : third;
+            show_perk_detail( *paired_owner );
+        }
+    }
+}
+
 int branch_unlocked_count( branch_id branch, int64_t )
 {
     const int64_t level = branch_level( branch );
@@ -4149,6 +4230,20 @@ extern "C" NCMM_EXPORT void ncmm_open_ui_v1( const ncmm_host_api_v1 *api )
     open_progression();
 }
 
+
+extern "C" NCMM_EXPORT int ncmm_on_item_activate_v1( const ncmm_host_api_v1 *api,
+        const char *item_type_id )
+{
+    if( api != nullptr ) {
+        host = api;
+    }
+    if( item_type_id == nullptr ||
+        std::string_view( item_type_id ) != "ncmm_survivor_mana_hand_carrier" ) {
+        return 0;
+    }
+    show_mana_hands_menu();
+    return 1;
+}
 
 // Diagnostic-only semantic test surface.  These exports are intentionally outside
 // the NCMM runtime ABI: production Host never resolves them.  CI loads the exact

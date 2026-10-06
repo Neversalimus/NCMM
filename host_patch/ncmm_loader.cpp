@@ -66,6 +66,7 @@ struct loaded_mod {
     ncmm_on_locale_changed_v1_fn locale_changed = nullptr;
     ncmm_on_turn_v1_fn on_turn = nullptr;
     ncmm_open_ui_v1_fn open_ui = nullptr;
+    ncmm_on_item_activate_v1_fn item_activate = nullptr;
     ncmm_migrate_state_v1_fn migrate_state = nullptr;
     uint32_t state_schema = 0;
     uint32_t state_min_supported = 0;
@@ -3609,6 +3610,7 @@ void quarantine_runtime_callback( loaded_mod &mod, runtime_callback_kind kind,
             break;
         case runtime_callback_kind::ui:
             mod.open_ui = nullptr;
+            mod.item_activate = nullptr;
             break;
     }
 
@@ -3942,6 +3944,8 @@ void load_one( const std::filesystem::path &library )
                        GetProcAddress( module, NCMM_TURN_ENTRYPOINT ) );
     auto open_ui = reinterpret_cast<ncmm_open_ui_v1_fn>(
                        GetProcAddress( module, NCMM_OPEN_UI_ENTRYPOINT ) );
+    auto item_activate = reinterpret_cast<ncmm_on_item_activate_v1_fn>(
+                             GetProcAddress( module, NCMM_ITEM_ACTIVATE_ENTRYPOINT ) );
     auto migrate_state = reinterpret_cast<ncmm_migrate_state_v1_fn>(
                              GetProcAddress( module, NCMM_MIGRATE_STATE_ENTRYPOINT ) );
 
@@ -3992,7 +3996,7 @@ void load_one( const std::filesystem::path &library )
     // Keep module identity and its preferred key as passive metadata.
     // Action IDs/default bindings are derived only when a gameplay input context exists.
     loaded.push_back( { module, desc, directory, locale_changed, on_turn, open_ui,
-                        migrate_state,
+                        item_activate, migrate_state,
                         manifest.state_contract_declared ? manifest.state_schema : 0u,
                         manifest.state_contract_declared ? manifest.state_min_supported : 0u,
                         false, false, manifest.ui_hotkey } );
@@ -4883,6 +4887,41 @@ bool handle_gameplay_action( const std::string &action )
     }
 
     return false;
+}
+
+bool handle_item_activation( const item_location &loc )
+{
+    if( !loc ) {
+        return false;
+    }
+
+    // Deliberately exact: no other item, flag, category or name reaches the module callback.
+    const std::string item_id = loc->typeId().str();
+    if( item_id != "ncmm_survivor_mana_hand_carrier" ) {
+        return false;
+    }
+
+    loaded_mod *mod = find_loaded_by_id( "survivor_progression" );
+    if( mod == nullptr || mod->item_activate == nullptr ||
+        mod->descriptor == nullptr || mod->descriptor->id == nullptr ) {
+        return false;
+    }
+    if( !ensure_state_migrated( *mod ) ) {
+        popup( tr_ui( "Survivor Progression could not load its saved data safely. Open NCMM diagnostics for details.",
+                      "Survivor Progression не смог безопасно загрузить сохранённые данные. Подробности — в диагностике NCMM." ) );
+        return true;
+    }
+
+    try {
+        module_call_scope scope( mod->descriptor->id );
+        return mod->item_activate( &api, item_id.c_str() ) != 0;
+    } catch( ... ) {
+        quarantine_runtime_callback( *mod, runtime_callback_kind::ui, "item_ui_exception" );
+        log_line( NCMM_LOG_WARN, "Mana Hands item UI callback failed; Survivor UI disabled for this session." );
+        popup( tr_ui( "Mana Hands could not open and the Survivor interface has been disabled for this session.",
+                      "Не удалось открыть «Руки маны»; интерфейс Survivor отключён до перезапуска игры." ) );
+        return true;
+    }
 }
 
 std::string manager_state_label( const manager_entry &entry )
