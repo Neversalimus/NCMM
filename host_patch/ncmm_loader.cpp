@@ -4134,28 +4134,44 @@ item *primary_mana_hand_melee_weapon( Character &who )
     return nullptr;
 }
 
+mana_hand_item_slot mana_hand_item_slot_of( const Character &who, const item &candidate )
+{
+    if( !who.is_avatar() ) {
+        return mana_hand_item_slot::none;
+    }
+
+    const int hand_count = survivor_mana_hand_count();
+    if( hand_count >= 2 &&
+        virtual_item_matches_slot(
+            candidate, survivor_module_id, mana_hands_pair_slot_id ) ) {
+        return mana_hand_item_slot::paired;
+    }
+    if( hand_count >= 1 &&
+        virtual_item_matches_slot(
+            candidate, survivor_module_id, mana_hand_3_slot_id ) ) {
+        return mana_hand_item_slot::hand3;
+    }
+    if( hand_count >= 2 &&
+        virtual_item_matches_slot(
+            candidate, survivor_module_id, mana_hand_4_slot_id ) ) {
+        return mana_hand_item_slot::hand4;
+    }
+    return mana_hand_item_slot::none;
+}
+
 mana_hand_ranged_owner mana_hand_ranged_item_owner( const avatar &who, const item &weapon )
 {
     if( &who != &get_avatar() || !weapon.is_gun() || weapon.is_gunmod() ) {
         return mana_hand_ranged_owner::none;
     }
 
-    const int hand_count = survivor_mana_hand_count();
-    const bool two_handed = weapon.is_two_handed( who );
-    if( hand_count >= 2 && two_handed &&
-        virtual_item_matches_slot(
-            weapon, survivor_module_id, mana_hands_pair_slot_id ) ) {
-        return mana_hand_ranged_owner::paired;
+    const mana_hand_item_slot slot = mana_hand_item_slot_of( who, weapon );
+    if( weapon.is_two_handed( who ) ) {
+        return slot == mana_hand_item_slot::paired ?
+               mana_hand_ranged_owner::paired : mana_hand_ranged_owner::none;
     }
-
-    if( !two_handed &&
-        ( ( hand_count >= 1 && virtual_item_matches_slot(
-                weapon, survivor_module_id, mana_hand_3_slot_id ) ) ||
-          ( hand_count >= 2 && virtual_item_matches_slot(
-                weapon, survivor_module_id, mana_hand_4_slot_id ) ) ) ) {
-        return mana_hand_ranged_owner::single;
-    }
-    return mana_hand_ranged_owner::none;
+    return slot == mana_hand_item_slot::hand3 || slot == mana_hand_item_slot::hand4 ?
+           mana_hand_ranged_owner::single : mana_hand_ranged_owner::none;
 }
 
 mana_hand_ranged_owner mana_hand_ranged_mode_owner( const avatar &who, const item *mode_item )
