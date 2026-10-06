@@ -905,7 +905,7 @@ foreach($eolSafeNeedle0140 in @(
     'if(Test-TextBlock $game0140pr $pairHandlerFlagsOld0140pr)',
     'if(Test-TextBlock $game0140pr $menuOld0140pr)',
     'if(Test-TextBlock $game0140pr $handlerOld0140pr)',
-    'if(Test-TextBlock $actor0140pr $resolverOld0140pr)',
+    "if(-not `$actor0140pr.Contains('ncmm::ranged_weapon_binding_valid( get_avatar(), *ncmm_candidate )'))",
     'if(Test-TextBlock $ranged0140ras $unsupported0140ras)'
 )){
     if(-not $payload.Contains($eolSafeNeedle0140)){
