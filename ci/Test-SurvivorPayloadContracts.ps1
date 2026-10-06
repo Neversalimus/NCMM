@@ -774,7 +774,7 @@ foreach($needle0140 in @(
     'ncmm_select_mana_hand_throw_item',
     'Apply-SurvivorManaHandThrow0140 $CddaRoot',
     'function Apply-SurvivorManaHandAutoMining0140',
-    'ncmm_mana_hand_auto_mining_tool',
+    'ncmm::active_mana_hand_items( you )',
     'Apply-SurvivorManaHandAutoMining0140 $CddaRoot',
     'function Apply-SurvivorManaHandTargetPractice0140',
     'ncmm_target_practice_mana_hand_gun',
