@@ -21884,9 +21884,136 @@ function Apply-SurvivorManaHandFireAction0140([string]$Root) {
         throw 'Mana Hand FIRE action requires the existing ncmm_loader include.'
     }
 
+    # Finalize the reach-aware F fallback in the FIRE base layer.
+    # ReachMelee later verifies this boundary instead of rewriting handle_action.cpp.
+    if(-not $handle0140fire.Contains('ncmm_primary_mana_hand_reach_weapon')) {
+        $reachHelperOld0140fire = @'
+// Perform a reach attack
+static void reach_attack( avatar &you )
+{
+    g->temp_exit_fullscreen();
+
+    target_handler::trajectory traj;
+    if( you.get_wielded_item() ) {
+        traj = target_handler::mode_reach( you, you.get_wielded_item() );
+    } else {
+        traj = target_handler::mode_unarmed_reach( you );
+    }
+
+    if( !traj.empty() ) {
+        you.reach_attack( traj.back() );
+    }
+    g->reenter_fullscreen();
+}
+'@
+        $reachHelperNew0140fire = @'
+namespace
+{
+class ncmm_virtual_reach_scope
+{
+    public:
+        ncmm_virtual_reach_scope( avatar &who, item &weapon ) : who_( who ),
+            active_( ncmm::virtual_melee_context_begin( who, weapon, false ) )
+        {
+            if( active_ ) {
+                who_.recalculate_enchantment_cache();
+            }
+        }
+
+        ~ncmm_virtual_reach_scope()
+        {
+            if( active_ ) {
+                ncmm::virtual_melee_context_end( who_ );
+                who_.recalculate_enchantment_cache();
+            }
+        }
+
+        bool active() const {
+            return active_;
+        }
+
+    private:
+        avatar &who_;
+        bool active_;
+};
+
+item *ncmm_primary_mana_hand_reach_weapon( avatar &you )
+{
+    if( you.martial_arts_data->selected_force_unarmed() ) {
+        return nullptr;
+    }
+    return ncmm::primary_mana_hand_melee_weapon( you );
+}
+
+bool ncmm_primary_mana_hand_has_reach( avatar &you, item &weapon )
+{
+    ncmm_virtual_reach_scope scope( you, weapon );
+    return scope.active() && weapon.current_reach_range( you ).first > 1;
+}
+} // namespace
+
+// Perform a reach attack
+static void reach_attack( avatar &you )
+{
+    g->temp_exit_fullscreen();
+
+    target_handler::trajectory traj;
+    if( you.get_wielded_item() ) {
+        traj = target_handler::mode_reach( you, you.get_wielded_item() );
+    } else if( item *ncmm_reach_weapon = ncmm_primary_mana_hand_reach_weapon( you ) ) {
+        ncmm_virtual_reach_scope scope( you, *ncmm_reach_weapon );
+        if( scope.active() ) {
+            traj = target_handler::mode_reach(
+                       you, item_location( you, ncmm_reach_weapon ) );
+        }
+    } else {
+        traj = target_handler::mode_unarmed_reach( you );
+    }
+
+    if( !traj.empty() ) {
+        you.reach_attack( traj.back() );
+    }
+    g->reenter_fullscreen();
+}
+'@
+        $handle0140fire = Replace-TextBlock $handle0140fire $reachHelperOld0140fire $reachHelperNew0140fire 'final Mana Hand reach target selection'
+
+        $fireOld0140reach = @'
+    if( weapon && !weapon->is_gun() && weapon->current_reach_range( you ).first > 1 ) {
+        reach_attack( you );
+        return;
+    }
+    if( !weapon &&
+        static_cast<int>( you.calculate_by_enchantment( 1,
+                          enchant_vals::mod::MELEE_RANGE_MODIFIER ) ) > 1 ) {
+'@
+        $fireNew0140reach = @'
+    if( weapon && !weapon->is_gun() && weapon->current_reach_range( you ).first > 1 ) {
+        reach_attack( you );
+        return;
+    }
+    if( !weapon ) {
+        item *ncmm_reach_weapon = ncmm_primary_mana_hand_reach_weapon( you );
+        if( ncmm_reach_weapon != nullptr &&
+            ncmm_primary_mana_hand_has_reach( you, *ncmm_reach_weapon ) ) {
+            reach_attack( you );
+            return;
+        }
+    }
+    if( !weapon &&
+        static_cast<int>( you.calculate_by_enchantment( 1,
+                          enchant_vals::mod::MELEE_RANGE_MODIFIER ) ) > 1 ) {
+'@
+        $fireCount0140reach = Count-TextBlock $handle0140fire $fireOld0140reach
+        if($fireCount0140reach -ne 1) {
+            throw ('Unexpected final Mana Hand reach FIRE anchor count: '+$fireCount0140reach)
+        }
+        $handle0140fire = Replace-TextBlock $handle0140fire $fireOld0140reach $fireNew0140reach 'final Mana Hand reach FIRE dispatch'
+    }
+
     if(-not $handle0140fire.Contains('const auto ncmm_fire_candidates =')) {
         # FIRE is overloaded with reach. Establish the ranged-capability gate
-        # before ReachMelee later rewrites the vanilla reach block in place.
+        # around the already-final reach-aware fallback in this base layer.
         $reachStart0140fire = $handle0140fire.IndexOf('    // try reach weapon')
         $reachEnd0140fire = $handle0140fire.IndexOf(
                                 '    if( you.has_trait( trait_BRAWLER ) )',
@@ -21957,6 +22084,10 @@ function Apply-SurvivorManaHandFireAction0140([string]$Root) {
     Write-Utf8NoBom $handle0140firePath $handle0140fire
     $fireOutput0140 = [IO.File]::ReadAllText($handle0140firePath)
     foreach($needle0140fire in @(
+        'class ncmm_virtual_reach_scope',
+        'ncmm_primary_mana_hand_reach_weapon',
+        'ncmm_primary_mana_hand_has_reach',
+        'return ncmm::primary_mana_hand_melee_weapon( you );',
         'const auto ncmm_fire_candidates =',
         'if( ncmm_fire_candidates.empty() )',
         'const bool ncmm_physical_ranged_ready =',
@@ -22555,132 +22686,20 @@ function Apply-SurvivorManaHandReachMelee0140([string]$Root) {
         }
     }
 
-    $handle0140reach = Normalize-Lf ([IO.File]::ReadAllText($handle0140reachPath))
-    if(-not $handle0140reach.Contains('ncmm_primary_mana_hand_reach_weapon')) {
-        $reachHelperOld0140 = @'
-// Perform a reach attack
-static void reach_attack( avatar &you )
-{
-    g->temp_exit_fullscreen();
-
-    target_handler::trajectory traj;
-    if( you.get_wielded_item() ) {
-        traj = target_handler::mode_reach( you, you.get_wielded_item() );
-    } else {
-        traj = target_handler::mode_unarmed_reach( you );
-    }
-
-    if( !traj.empty() ) {
-        you.reach_attack( traj.back() );
-    }
-    g->reenter_fullscreen();
-}
-'@
-        $reachHelperNew0140 = @'
-namespace
-{
-class ncmm_virtual_reach_scope
-{
-    public:
-        ncmm_virtual_reach_scope( avatar &who, item &weapon ) : who_( who ),
-            active_( ncmm::virtual_melee_context_begin( who, weapon, false ) )
-        {
-            if( active_ ) {
-                who_.recalculate_enchantment_cache();
-            }
-        }
-
-        ~ncmm_virtual_reach_scope()
-        {
-            if( active_ ) {
-                ncmm::virtual_melee_context_end( who_ );
-                who_.recalculate_enchantment_cache();
-            }
-        }
-
-        bool active() const {
-            return active_;
-        }
-
-    private:
-        avatar &who_;
-        bool active_;
-};
-
-item *ncmm_primary_mana_hand_reach_weapon( avatar &you )
-{
-    if( you.martial_arts_data->selected_force_unarmed() ) {
-        return nullptr;
-    }
-    return ncmm::primary_mana_hand_melee_weapon( you );
-}
-
-bool ncmm_primary_mana_hand_has_reach( avatar &you, item &weapon )
-{
-    ncmm_virtual_reach_scope scope( you, weapon );
-    return scope.active() && weapon.current_reach_range( you ).first > 1;
-}
-} // namespace
-
-// Perform a reach attack
-static void reach_attack( avatar &you )
-{
-    g->temp_exit_fullscreen();
-
-    target_handler::trajectory traj;
-    if( you.get_wielded_item() ) {
-        traj = target_handler::mode_reach( you, you.get_wielded_item() );
-    } else if( item *ncmm_reach_weapon = ncmm_primary_mana_hand_reach_weapon( you ) ) {
-        ncmm_virtual_reach_scope scope( you, *ncmm_reach_weapon );
-        if( scope.active() ) {
-            traj = target_handler::mode_reach(
-                       you, item_location( you, ncmm_reach_weapon ) );
-        }
-    } else {
-        traj = target_handler::mode_unarmed_reach( you );
-    }
-
-    if( !traj.empty() ) {
-        you.reach_attack( traj.back() );
-    }
-    g->reenter_fullscreen();
-}
-'@
-        $handle0140reach = Replace-TextBlock $handle0140reach $reachHelperOld0140 $reachHelperNew0140 'Mana Hand reach target selection'
-
-        $fireOld0140reach = @'
-    if( weapon && !weapon->is_gun() && weapon->current_reach_range( you ).first > 1 ) {
-        reach_attack( you );
-        return;
-    }
-    if( !weapon &&
-        static_cast<int>( you.calculate_by_enchantment( 1,
-                          enchant_vals::mod::MELEE_RANGE_MODIFIER ) ) > 1 ) {
-'@
-        $fireNew0140reach = @'
-    if( weapon && !weapon->is_gun() && weapon->current_reach_range( you ).first > 1 ) {
-        reach_attack( you );
-        return;
-    }
-    if( !weapon ) {
-        item *ncmm_reach_weapon = ncmm_primary_mana_hand_reach_weapon( you );
-        if( ncmm_reach_weapon != nullptr &&
-            ncmm_primary_mana_hand_has_reach( you, *ncmm_reach_weapon ) ) {
-            reach_attack( you );
-            return;
+    $handle0140reach = [IO.File]::ReadAllText($handle0140reachPath)
+    foreach($finalHandleReachNeedle0140reach in @(
+        'class ncmm_virtual_reach_scope',
+        'ncmm_primary_mana_hand_reach_weapon',
+        'ncmm_primary_mana_hand_has_reach',
+        'target_handler::mode_reach(',
+        'item_location( you, ncmm_reach_weapon )',
+        'return ncmm::primary_mana_hand_melee_weapon( you );',
+        'if( ncmm_fire_candidates.empty() )'
+    )) {
+        if(-not $handle0140reach.Contains($finalHandleReachNeedle0140reach)) {
+            throw ('Primary Mana Hand reach dispatch missing final FIRE base-layer boundary: '+$finalHandleReachNeedle0140reach)
         }
     }
-    if( !weapon &&
-        static_cast<int>( you.calculate_by_enchantment( 1,
-                          enchant_vals::mod::MELEE_RANGE_MODIFIER ) ) > 1 ) {
-'@
-        $fireCount0140reach = Count-TextBlock $handle0140reach $fireOld0140reach
-        if($fireCount0140reach -ne 1) {
-            throw ('Unexpected Mana Hand reach FIRE anchor count: '+$fireCount0140reach)
-        }
-        $handle0140reach = Replace-TextBlock $handle0140reach $fireOld0140reach $fireNew0140reach 'Mana Hand reach FIRE dispatch'
-    }
-    Write-Utf8NoBom $handle0140reachPath $handle0140reach
 
     $melee0140reach = [IO.File]::ReadAllText($melee0140reachPath)
     foreach($finalReachNeedle0140reach in @(
