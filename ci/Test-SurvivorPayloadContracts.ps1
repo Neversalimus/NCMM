@@ -911,6 +911,8 @@ foreach($eolSafeNeedle0140 in @(
     '$primaryHandlerCount0140ctx = Count-TextBlock $game0140ctx $primaryHandlerAnchor0140ctx',
     '$rangedMenuCount0140ctx = Count-TextBlock $game0140ctx $rangedMenuAnchor0140ctx',
     '$rangedHandlerCount0140ctx = Count-TextBlock $game0140ctx $rangedHandlerAnchor0140ctx',
+    '$avatarEntryCount0140range = Count-TextBlock $avatar0140range $avatarEntryOld0140range',
+    '$avatarActivityCount0140range = Count-TextBlock $avatar0140range $avatarActivityOld0140range',
     '$fireCount0140reach = Count-TextBlock $handle0140fire $fireOld0140reach',
     '$canReachCount0140final = Count-TextBlock $melee0140 $canReachOld0140final',
     '$reachAttackCount0140final = Count-TextBlock $melee0140 $reachAttackOld0140final',
@@ -1357,6 +1359,11 @@ foreach($rangeNeedle0140 in @(
     'ncmm_virtual_mana_paired_gun_mode',
     'gmode->has_flag( flag_FIRE_TWOHAND )',
     'gmode->has_flag( flag_RELOAD_AND_SHOOT )',
+    '$avatar0140rangePath = Join-Path $src0140range ''avatar_action.cpp''',
+    '// NCMM action-specific ranged entry point.',
+    'const item_location weapon = ncmm::select_ranged_weapon(',
+    'ncmm::ranged_weapon_action::fire',
+    'aim_activity_actor::use_item_location( weapon )',
     'ncmm::mana_hand_ranged_item_owner( u, oThisItem )',
     'fire with Mana Hand',
     "case 'g':",
@@ -1376,6 +1383,21 @@ if($manaRangeSection0140.Contains('"mana_hands_34"')){
 if($manaRangeSection0140.Contains('Reload-and-shoot firing modes are not yet supported by Mana Hands.')){
     throw 'Base Mana Hand ranged layer reintroduced the temporary reload-and-shoot rejection.'
 }
+foreach($rangeAvatarNeedle0140 in @(
+    '$avatarEntryOld0140range = @''',
+    '$avatarEntryNew0140range = @''',
+    '$avatarEntryCount0140range = Count-TextBlock $avatar0140range $avatarEntryOld0140range',
+    '$avatarActivityCount0140range = Count-TextBlock $avatar0140range $avatarActivityOld0140range',
+    'final Mana Hand ranged avatar entry',
+    'final Mana Hand ranged activity entry',
+    '// NCMM action-specific ranged entry point.',
+    'aim_activity_actor::use_item_location( weapon )'
+)){
+    if(-not $manaRangeSection0140.Contains($rangeAvatarNeedle0140)){
+        throw ('Mana Hand ranged avatar base-layer contract missing: '+$rangeAvatarNeedle0140)
+    }
+}
+
 foreach($rangeContextVerifierNeedle0140 in @(
     '$game0140range = [IO.File]::ReadAllText($game0140rangePath)',
     'Mana Hand ranged context missing final base-layer boundary:',
@@ -2122,24 +2144,34 @@ if($actionSelectionStart0154 -lt 0 -or $actionSelectionEnd0154 -le $actionSelect
 $actionSelectionSection0154=$payload.Substring(
     $actionSelectionStart0154,$actionSelectionEnd0154-$actionSelectionStart0154)
 foreach($actionSelectionNeedle0154 in @(
+    'Verifying action-specific Mana Hand ranged selection...',
+    '$avatar = [IO.File]::ReadAllText($avatarPath)',
+    '$actor = [IO.File]::ReadAllText($actorPath)',
     'const auto ncmm_fire_candidates =',
     'if( ncmm_fire_candidates.empty() )',
     'Physical reach intercepted F before base-layer ranged capability resolution.',
     '// NCMM action-specific ranged entry point.',
-    'aim_activity_actor::use_item_location( weapon )'
+    'const item_location weapon = ncmm::select_ranged_weapon(',
+    'aim_activity_actor::use_item_location( weapon )',
+    'Action-specific Mana Hand ranged selection: VERIFIED'
 )){
     if(-not $actionSelectionSection0154.Contains($actionSelectionNeedle0154)){
-        throw ('ActionWeaponSelection final-boundary contract missing: '+$actionSelectionNeedle0154)
+        throw ('ActionWeaponSelection final-boundary verifier contract missing: '+$actionSelectionNeedle0154)
     }
 }
 foreach($actionSelectionForbidden0154 in @(
+    'Replace-TextBlock',
+    'Write-Utf8NoBom',
+    'Normalize-Lf',
+    '$old = @''',
+    '$new = @''',
     'Write-Utf8NoBom $handlePath',
     '$handle = $handle.Substring(',
     '$reach = $handle.Substring(',
     '$prefix = @'''
 )){
     if($actionSelectionSection0154.Contains($actionSelectionForbidden0154)){
-        throw ('ActionWeaponSelection regressed to late handle_action mutation: '+$actionSelectionForbidden0154)
+        throw ('ActionWeaponSelection regressed to late source mutation: '+$actionSelectionForbidden0154)
     }
 }
 

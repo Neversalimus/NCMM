@@ -21466,10 +21466,12 @@ function Apply-SurvivorManaHandRanged0140([string]$Root) {
     $src0140range = Join-Path $Root 'src'
     $defs0140rangePath = Join-Path $src0140range 'activity_actor_definitions.h'
     $actor0140rangePath = Join-Path $src0140range 'activity_actor.cpp'
+    $avatar0140rangePath = Join-Path $src0140range 'avatar_action.cpp'
     $game0140rangePath = Join-Path $src0140range 'game.cpp'
     $ranged0140rangePath = Join-Path $src0140range 'ranged.cpp'
     foreach($required0140range in @(
-        $defs0140rangePath,$actor0140rangePath,$game0140rangePath,$ranged0140rangePath
+        $defs0140rangePath,$actor0140rangePath,$avatar0140rangePath,
+        $game0140rangePath,$ranged0140rangePath
     )) {
         if(-not(Test-Path $required0140range -PathType Leaf)) {
             if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
@@ -21708,6 +21710,50 @@ item_location aim_activity_actor::get_weapon()
     }
     Write-Utf8NoBom $ranged0140rangePath $ranged0140range
 
+    $avatar0140range = Normalize-Lf ([IO.File]::ReadAllText($avatar0140rangePath))
+    if(-not $avatar0140range.Contains('#include "ncmm_loader.h"')) {
+        if(-not $avatar0140range.Contains('#include "item_location.h"')) {
+            throw 'Mana Hand ranged avatar include anchor missing.'
+        }
+        $avatar0140range = Replace-TextBlock $avatar0140range '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand ranged avatar include'
+    }
+    if(-not $avatar0140range.Contains('// NCMM action-specific ranged entry point.')) {
+        $avatarEntryOld0140range = @'
+void avatar_action::fire_wielded_weapon( avatar &you )
+{
+    const item_location weapon = you.get_wielded_item();
+'@
+        $avatarEntryNew0140range = @'
+void avatar_action::fire_wielded_weapon( avatar &you )
+{
+    // NCMM action-specific ranged entry point.
+    const item_location weapon = ncmm::select_ranged_weapon(
+                                     you, ncmm::ranged_weapon_action::fire,
+                                     "Fire which Mana Hand weapon?",
+                                     "Из какого оружия в руке маны стрелять?" );
+'@
+        $avatarEntryCount0140range = Count-TextBlock $avatar0140range $avatarEntryOld0140range
+        if($avatarEntryCount0140range -ne 1) {
+            throw ('Unexpected Mana Hand ranged avatar entry count: '+$avatarEntryCount0140range)
+        }
+        $avatar0140range = Replace-TextBlock $avatar0140range $avatarEntryOld0140range $avatarEntryNew0140range 'final Mana Hand ranged avatar entry'
+
+        $avatarActivityOld0140range = '    you.assign_activity( aim_activity_actor::use_wielded() );'
+        $avatarActivityNew0140range = @'
+    if( weapon == you.get_wielded_item() ) {
+        you.assign_activity( aim_activity_actor::use_wielded() );
+    } else {
+        you.assign_activity( aim_activity_actor::use_item_location( weapon ) );
+    }
+'@
+        $avatarActivityCount0140range = Count-TextBlock $avatar0140range $avatarActivityOld0140range
+        if($avatarActivityCount0140range -ne 1) {
+            throw ('Unexpected Mana Hand ranged activity entry count: '+$avatarActivityCount0140range)
+        }
+        $avatar0140range = Replace-TextBlock $avatar0140range $avatarActivityOld0140range $avatarActivityNew0140range 'final Mana Hand ranged activity entry'
+    }
+    Write-Utf8NoBom $avatar0140rangePath $avatar0140range
+
     $game0140range = [IO.File]::ReadAllText($game0140rangePath)
     foreach($finalRangedContextNeedle0140range in @(
         'fire with Mana Hand',
@@ -21730,6 +21776,10 @@ item_location aim_activity_actor::get_weapon()
         @($actor0140rangePath,'jsout.member( "ncmm_real_weapon", ncmm_real_weapon );'),
         @($actor0140rangePath,'data.read( "ncmm_real_weapon", actor.ncmm_real_weapon );'),
         @($actor0140rangePath,'ncmm_virtual_shot_mana_cost'),
+        @($avatar0140rangePath,'// NCMM action-specific ranged entry point.'),
+        @($avatar0140rangePath,'ncmm::select_ranged_weapon('),
+        @($avatar0140rangePath,'ncmm::ranged_weapon_action::fire'),
+        @($avatar0140rangePath,'aim_activity_actor::use_item_location( weapon )'),
         @($ranged0140rangePath,'ncmm::mana_hand_ranged_mode_owner( you, gmode ? &*gmode : nullptr )'),
         @($ranged0140rangePath,'ncmm::mana_hand_ranged_owner::paired'),
         @($ranged0140rangePath,'ncmm_virtual_mana_paired_gun_mode'),
@@ -24024,13 +24074,18 @@ function Apply-SurvivorManaHandDirectCount0152([string]$Root) {
 Apply-SurvivorManaHandDirectCount0152 $CddaRoot
 
 function Apply-SurvivorActionWeaponSelection0154([string]$Root) {
-    Write-Host 'Applying action-specific Mana Hand ranged selection...' -ForegroundColor Cyan
+    Write-Host 'Verifying action-specific Mana Hand ranged selection...' -ForegroundColor Cyan
     $src = Join-Path $Root 'src'
     $handlePath = Join-Path $src 'handle_action.cpp'
-    if(-not(Test-Path $handlePath -PathType Leaf)) {
-        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) { return }
-        throw ('Action-specific weapon source missing: '+$handlePath)
+    $avatarPath = Join-Path $src 'avatar_action.cpp'
+    $actorPath = Join-Path $src 'activity_actor.cpp'
+    foreach($requiredActionSource0154 in @($handlePath,$avatarPath,$actorPath)) {
+        if(-not(Test-Path $requiredActionSource0154 -PathType Leaf)) {
+            if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) { return }
+            throw ('Action-specific weapon source missing: '+$requiredActionSource0154)
+        }
     }
+
     $handle = [IO.File]::ReadAllText($handlePath)
     foreach($fireDispatchBoundary in @(
         'const auto ncmm_fire_candidates =',
@@ -24061,43 +24116,25 @@ function Apply-SurvivorActionWeaponSelection0154([string]$Root) {
         }
     }
 
-    $avatarPath = Join-Path $src 'avatar_action.cpp'
-    $avatar = Normalize-Lf ([IO.File]::ReadAllText($avatarPath))
-    if(-not $avatar.Contains('// NCMM action-specific ranged entry point.')) {
-        $old = @'
-void avatar_action::fire_wielded_weapon( avatar &you )
-{
-    const item_location weapon = you.get_wielded_item();
-'@
-        $new = @'
-void avatar_action::fire_wielded_weapon( avatar &you )
-{
-    // NCMM action-specific ranged entry point.
-    const item_location weapon = ncmm::select_ranged_weapon(
-                                     you, ncmm::ranged_weapon_action::fire,
-                                     "Fire which Mana Hand weapon?",
-                                     "Из какого оружия в руке маны стрелять?" );
-'@
-        $avatar = Replace-TextBlock $avatar $old $new 'action-specific ranged entry point'
-        $old = '    you.assign_activity( aim_activity_actor::use_wielded() );'
-        $new = @'
-    if( weapon == you.get_wielded_item() ) {
-        you.assign_activity( aim_activity_actor::use_wielded() );
-    } else {
-        you.assign_activity( aim_activity_actor::use_item_location( weapon ) );
-    }
-'@
-        $avatar = Replace-TextBlock $avatar $old $new 'ranged activity retains selected item location'
-        Write-Utf8NoBom $avatarPath $avatar
+    $avatar = [IO.File]::ReadAllText($avatarPath)
+    foreach($avatarActionBoundary0154 in @(
+        '// NCMM action-specific ranged entry point.',
+        'const item_location weapon = ncmm::select_ranged_weapon(',
+        'ncmm::ranged_weapon_action::fire',
+        'if( weapon == you.get_wielded_item() )',
+        'aim_activity_actor::use_item_location( weapon )'
+    )) {
+        if(-not $avatar.Contains($avatarActionBoundary0154)) {
+            throw ('Final Mana Hand ranged avatar entry missing: '+$avatarActionBoundary0154)
+        }
     }
 
-    $actorPath = Join-Path $src 'activity_actor.cpp'
-    $actor = Normalize-Lf ([IO.File]::ReadAllText($actorPath))
+    $actor = [IO.File]::ReadAllText($actorPath)
     if(-not $actor.Contains('ncmm::ranged_weapon_binding_valid( get_avatar(), *ncmm_candidate )')) {
         throw 'Mana aim Host-resolver boundary missing after ranged transforms.'
     }
 
-    Write-Host 'Action-specific Mana Hand ranged selection: READY' -ForegroundColor Green
+    Write-Host 'Action-specific Mana Hand ranged selection: VERIFIED' -ForegroundColor Green
 }
 
 Apply-SurvivorActionWeaponSelection0154 $CddaRoot
