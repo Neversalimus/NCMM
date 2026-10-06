@@ -4163,7 +4163,7 @@ mana_hand_ranged_owner mana_hand_ranged_mode_owner( const avatar &who, const ite
 
     const char *slots[2] = { mana_hand_3_slot_id, mana_hand_4_slot_id };
     for( int i = 0; i < hand_count && i < 2; ++i ) {
-        if( owns_mode( virtual_item_for_slot( survivor_module_id, slots[i] ) ) {
+        if( owns_mode( virtual_item_for_slot( survivor_module_id, slots[i] ) ) ) {
             return mana_hand_ranged_owner::single;
         }
     }
