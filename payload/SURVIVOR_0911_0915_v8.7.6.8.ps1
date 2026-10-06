@@ -23499,7 +23499,7 @@ function Apply-SurvivorManaHandAutoMining0140([string]$Root) {
         $avatar0140mine = Replace-TextBlock $avatar0140mine '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand auto-mining include'
     }
 
-    if(-not $avatar0140mine.Contains('ncmm_mana_hand_auto_mining_tool')) {
+    if(-not $avatar0140mine.Contains('ncmm::active_mana_hand_items( you )')) {
         $mineOld0140 = @'
     item_location weapon = you.get_wielded_item();
     if( m.has_flag( ter_furn_flag::TFLAG_MINEABLE, dest_loc ) && g->mostseen == 0 &&
@@ -23509,27 +23509,12 @@ function Apply-SurvivorManaHandAutoMining0140([string]$Root) {
     if( !weapon &&
         m.has_flag( ter_furn_flag::TFLAG_MINEABLE, dest_loc ) &&
         g->mostseen == 0 ) {
-        const int ncmm_mining_hand_count = std::clamp( static_cast<int>(
-                ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ), 0, 2 );
-        const auto ncmm_mana_hand_auto_mining_tool =
-        [&]( const char *slot ) -> item_location {
-            item *candidate = ncmm::virtual_item_for_slot(
-                                  "survivor_progression", slot );
-            if( candidate != nullptr && candidate->has_flag( flag_DIG_TOOL ) &&
+        for( item *candidate : ncmm::active_mana_hand_items( you ) ) {
+            if( candidate->has_flag( flag_DIG_TOOL ) &&
                 candidate->type->can_use( "PICKAXE" ) ) {
-                return item_location( you, candidate );
+                weapon = item_location( you, candidate );
+                break;
             }
-            return item_location();
-        };
-
-        if( ncmm_mining_hand_count >= 2 ) {
-            weapon = ncmm_mana_hand_auto_mining_tool( "mana_hands_34" );
-        }
-        if( !weapon && ncmm_mining_hand_count >= 1 ) {
-            weapon = ncmm_mana_hand_auto_mining_tool( "mana_hand_3" );
-        }
-        if( !weapon && ncmm_mining_hand_count >= 2 ) {
-            weapon = ncmm_mana_hand_auto_mining_tool( "mana_hand_4" );
         }
     }
     if( m.has_flag( ter_furn_flag::TFLAG_MINEABLE, dest_loc ) && g->mostseen == 0 &&
@@ -23542,15 +23527,11 @@ function Apply-SurvivorManaHandAutoMining0140([string]$Root) {
     Write-Utf8NoBom $avatar0140minePath $avatar0140mine
     $mineOutput0140 = [IO.File]::ReadAllText($avatar0140minePath)
     foreach($needle0140mine in @(
-        'ncmm_mana_hand_auto_mining_tool',
-        'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
-        '"survivor_progression", slot',
-        '"mana_hands_34"',
-        '"mana_hand_3"',
-        '"mana_hand_4"',
+        'ncmm::active_mana_hand_items( you )',
         'candidate->has_flag( flag_DIG_TOOL )',
         'candidate->type->can_use( "PICKAXE" )',
-        'weapon = ncmm_mana_hand_auto_mining_tool( "mana_hand_3" );',
+        'weapon = item_location( you, candidate );',
+        'break;',
         'you.invoke_item( &*weapon, "PICKAXE", dest_loc );'
     )) {
         if(-not $mineOutput0140.Contains($needle0140mine)) {
