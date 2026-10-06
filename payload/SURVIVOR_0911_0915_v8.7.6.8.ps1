@@ -19704,9 +19704,7 @@ item_location Character::best_shield()
 
     if( is_avatar() ) {
         const int virtual_hands = std::max( 0, std::min( 2, static_cast<int>( std::lround(
-                                      ncmm::runtime_hook_modifier(
-                                          "magic.virtual_hand_count", nullptr, "magiclysm",
-                                          nullptr, nullptr ) ) ) ) );
+                                      ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ) ) ) );
         const auto consider_virtual_shield = [&]( const char *slot_id ) {
             item *candidate = ncmm::virtual_item_for_slot( "survivor_progression", slot_id );
             if( candidate == nullptr ) {
@@ -19818,9 +19816,7 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                 addentry( '=', pgettext( "action", "reassign" ), hint_rating::good );
 
                 const int ncmm_mana_hands = static_cast<int>(
-                                                ncmm::runtime_hook_modifier(
-                                                    "magic.virtual_hand_count", nullptr,
-                                                    "magiclysm", nullptr, nullptr ) );
+                                                ncmm::gameplay_modifier( "mg_virtual_hand_count" ) );
                 constexpr uint32_t ncmm_mana_slot_flags =
                     NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
                     NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2;
@@ -19901,9 +19897,7 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                     }
 
                     const int ncmm_mana_hands_now = static_cast<int>(
-                                                        ncmm::runtime_hook_modifier(
-                                                            "magic.virtual_hand_count", nullptr,
-                                                            "magiclysm", nullptr, nullptr ) );
+                                                        ncmm::gameplay_modifier( "mg_virtual_hand_count" ) );
                     if( ( ncmm_hand == 3 && ncmm_mana_hands_now < 1 ) ||
                         ( ncmm_hand == 4 && ncmm_mana_hands_now < 2 ) ) {
                         add_msg( m_info, "%s", ncmm::localized_text(
@@ -19930,9 +19924,7 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                 }
                 case 'M': {
                     const int ncmm_mana_hands_now = static_cast<int>(
-                                                        ncmm::runtime_hook_modifier(
-                                                            "magic.virtual_hand_count", nullptr,
-                                                            "magiclysm", nullptr, nullptr ) );
+                                                        ncmm::gameplay_modifier( "mg_virtual_hand_count" ) );
                     item *ncmm_bound3 = ncmm_mana_hands_now >= 1 ?
                                         ncmm::virtual_item_for_slot(
                                             "survivor_progression", "mana_hand_3" ) : nullptr;
@@ -20049,9 +20041,7 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                 }
                 case 'M': {
                     const int ncmm_mana_hands_now = static_cast<int>(
-                                                        ncmm::runtime_hook_modifier(
-                                                            "magic.virtual_hand_count", nullptr,
-                                                            "magiclysm", nullptr, nullptr ) );
+                                                        ncmm::gameplay_modifier( "mg_virtual_hand_count" ) );
                     item *ncmm_bound3 = ncmm_mana_hands_now >= 1 ?
                                         ncmm::virtual_item_for_slot(
                                             "survivor_progression", "mana_hand_3" ) : nullptr;
@@ -20282,9 +20272,7 @@ bool talker_character_const::wielded_with_flag( const flag_id &flag ) const
     }
 
     const int ncmm_virtual_hands = std::max( 0, std::min( 2, static_cast<int>( std::lround(
-                                       ncmm::runtime_hook_modifier(
-                                           "magic.virtual_hand_count", nullptr, "magiclysm",
-                                           nullptr, nullptr ) ) ) ) );
+                                       ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ) ) ) );
     if( ncmm_virtual_hands <= 0 ) {
         return false;
     }
@@ -20311,7 +20299,7 @@ bool talker_character_const::wielded_with_flag( const flag_id &flag ) const
         'ncmm_virtual_wield_flags',
         'flag_id( "SPELLCASTING_AID" )',
         'const int ncmm_virtual_hands =',
-        '"magic.virtual_hand_count", nullptr, "magiclysm"',
+        'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
         'ncmm_virtual_hands >= 2 ?',
         'ncmm::virtual_item_for_slot(',
         '"survivor_progression", "mana_hand_3"',
@@ -20479,9 +20467,7 @@ bool ncmm_mana_hand_holds_item( const Character &who, const item &it )
     }
 
     const int hand_count = std::max( 0, std::min( 2, static_cast<int>( std::lround(
-                                         ncmm::runtime_hook_modifier(
-                                             "magic.virtual_hand_count", nullptr, "magiclysm",
-                                             nullptr, nullptr ) ) ) ) );
+                                         ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ) ) ) );
     if( hand_count >= 1 &&
         ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_3" ) == &it ) {
         return true;
@@ -20517,7 +20503,7 @@ bool ncmm_mana_hand_holds_item( const Character &who, const item &it )
     foreach($needle0140util in @(
         '#include "ncmm_loader.h"',
         'bool ncmm_mana_hand_holds_item( const Character &who, const item &it )',
-        '"magic.virtual_hand_count", nullptr, "magiclysm"',
+        'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
         'ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_3" ) == &it',
         'ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_4" ) == &it',
         'if( need_wielding && !p.is_wielding( it ) && !ncmm_mana_hand_holds_item( p, it ) ) {',
@@ -20600,9 +20586,7 @@ class ncmm_virtual_melee_scope
 int ncmm_mana_hand_count_for_melee()
 {
     return std::max( 0, std::min( 2, static_cast<int>( std::lround(
-                                      ncmm::runtime_hook_modifier(
-                                          "magic.virtual_hand_count", nullptr, "magiclysm",
-                                          nullptr, nullptr ) ) ) ) );
+                                      ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ) ) ) );
 }
 
 int ncmm_secondary_melee_mana_cost( Character &who, const item &weapon )
@@ -20806,7 +20790,7 @@ const ma_technique miss_recovery =
         '#include "ncmm_loader.h"',
         'class ncmm_virtual_melee_scope',
         'ncmm::virtual_melee_context_begin( who, weapon )',
-        '"magic.virtual_hand_count", nullptr, "magiclysm"',
+        'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
         'std::clamp( ( who.attack_speed( weapon ) + 9 ) / 10, 5, 50 )',
         '!ncmm::virtual_item_secondary_melee_enabled( *weapon )',
         'weapon->is_gun()',
@@ -21115,9 +21099,7 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
         $case5New0140pair = @'
                 case '5': {
                     const int ncmm_mana_hands_now = static_cast<int>(
-                                                        ncmm::runtime_hook_modifier(
-                                                            "magic.virtual_hand_count", nullptr,
-                                                            "magiclysm", nullptr, nullptr ) );
+                                                        ncmm::gameplay_modifier( "mg_virtual_hand_count" ) );
                     item *ncmm_pair = ncmm_mana_hands_now >= 2 ?
                                       ncmm::virtual_item_for_slot(
                                           "survivor_progression", "mana_hands_34" ) : nullptr;
@@ -22128,9 +22110,7 @@ function Apply-SurvivorManaHandPrimaryMelee0140([string]$Root) {
         $handlerNew0140pm = @'
                 case 'P': {
                     const int ncmm_mana_hands_now = static_cast<int>(
-                                                        ncmm::runtime_hook_modifier(
-                                                            "magic.virtual_hand_count", nullptr,
-                                                            "magiclysm", nullptr, nullptr ) );
+                                                        ncmm::gameplay_modifier( "mg_virtual_hand_count" ) );
                     item *ncmm_bound3 = ncmm_mana_hands_now >= 1 ?
                                         ncmm::virtual_item_for_slot(
                                             "survivor_progression", "mana_hand_3" ) : nullptr;
@@ -22363,9 +22343,7 @@ item_location ncmm_primary_mana_hand_martial_weapon( const Character &who )
     }
 
     const int hand_count = std::clamp( static_cast<int>(
-                                       ncmm::runtime_hook_modifier(
-                                           "magic.virtual_hand_count", nullptr, "magiclysm",
-                                           nullptr, nullptr ) ), 0, 2 );
+                                       ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ), 0, 2 );
     if( hand_count >= 2 ) {
         item *paired = ncmm::virtual_item_for_slot(
                            "survivor_progression", "mana_hands_34" );
@@ -22610,9 +22588,7 @@ item *ncmm_primary_mana_hand_reach_weapon( avatar &you )
     }
 
     const int hand_count = std::clamp( static_cast<int>(
-                                       ncmm::runtime_hook_modifier(
-                                           "magic.virtual_hand_count", nullptr, "magiclysm",
-                                           nullptr, nullptr ) ), 0, 2 );
+                                       ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ), 0, 2 );
     if( hand_count >= 2 ) {
         item *paired = ncmm::virtual_item_for_slot(
                            "survivor_progression", "mana_hands_34" );
@@ -23091,9 +23067,7 @@ item *ncmm_primary_mana_hand_smash_weapon( avatar &you )
     }
 
     const int hand_count = std::clamp( static_cast<int>(
-                                       ncmm::runtime_hook_modifier(
-                                           "magic.virtual_hand_count", nullptr, "magiclysm",
-                                           nullptr, nullptr ) ), 0, 2 );
+                                       ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ), 0, 2 );
     if( hand_count >= 2 ) {
         item *paired = ncmm::virtual_item_for_slot(
                            "survivor_progression", "mana_hands_34" );
@@ -23368,9 +23342,7 @@ item *ncmm_primary_mana_hand_autoattack_weapon( avatar &you )
         return nullptr;
     }
     const int hand_count = std::clamp( static_cast<int>(
-                                       ncmm::runtime_hook_modifier(
-                                           "magic.virtual_hand_count", nullptr, "magiclysm",
-                                           nullptr, nullptr ) ), 0, 2 );
+                                       ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ), 0, 2 );
     if( hand_count >= 2 ) {
         item *paired = ncmm::virtual_item_for_slot(
                            "survivor_progression", "mana_hands_34" );
@@ -23523,9 +23495,7 @@ bool ncmm_is_mana_hand_throw_item( avatar &you, item *candidate )
     }
 
     const int hand_count = std::clamp( static_cast<int>(
-                                       ncmm::runtime_hook_modifier(
-                                           "magic.virtual_hand_count", nullptr, "magiclysm",
-                                           nullptr, nullptr ) ), 0, 2 );
+                                       ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ), 0, 2 );
     if( hand_count >= 2 ) {
         item *paired = ncmm::virtual_item_for_slot(
                            "survivor_progression", "mana_hands_34" );
@@ -23547,9 +23517,7 @@ bool ncmm_is_mana_hand_throw_item( avatar &you, item *candidate )
 item_location ncmm_select_mana_hand_throw_item( avatar &you )
 {
     const int hand_count = std::clamp( static_cast<int>(
-                                       ncmm::runtime_hook_modifier(
-                                           "magic.virtual_hand_count", nullptr, "magiclysm",
-                                           nullptr, nullptr ) ), 0, 2 );
+                                       ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ), 0, 2 );
     std::vector<item_location> candidates;
     std::vector<std::string> labels;
 
@@ -23753,9 +23721,7 @@ function Apply-SurvivorManaHandAutoMining0140([string]$Root) {
         m.has_flag( ter_furn_flag::TFLAG_MINEABLE, dest_loc ) &&
         g->mostseen == 0 ) {
         const int ncmm_mining_hand_count = std::clamp( static_cast<int>(
-                ncmm::runtime_hook_modifier(
-                    "magic.virtual_hand_count", nullptr, "magiclysm",
-                    nullptr, nullptr ) ), 0, 2 );
+                ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ), 0, 2 );
         const auto ncmm_mana_hand_auto_mining_tool =
         [&]( const char *slot ) -> item_location {
             item *candidate = ncmm::virtual_item_for_slot(
@@ -23788,7 +23754,7 @@ function Apply-SurvivorManaHandAutoMining0140([string]$Root) {
     $mineOutput0140 = [IO.File]::ReadAllText($avatar0140minePath)
     foreach($needle0140mine in @(
         'ncmm_mana_hand_auto_mining_tool',
-        '"magic.virtual_hand_count", nullptr, "magiclysm"',
+        'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
         '"survivor_progression", slot',
         '"mana_hands_34"',
         '"mana_hand_3"',
@@ -23839,9 +23805,7 @@ static bool ncmm_target_practice_mana_hand_gun( Character &who, const item *gun 
     }
 
     const int hand_count = std::max( 0, std::min( 2, static_cast<int>(
-                                   ncmm::runtime_hook_modifier(
-                                       "magic.virtual_hand_count", nullptr, "magiclysm",
-                                       nullptr, nullptr ) ) ) );
+                                   ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ) ) );
     if( hand_count >= 2 &&
         ncmm::virtual_item_matches_slot(
             *gun, "survivor_progression", "mana_hands_34" ) ) {
@@ -23984,9 +23948,7 @@ static item_location ncmm_select_mana_hand_mend_item( avatar &you, bool &had_can
     }
 
     const int hand_count = std::max( 0, std::min( 2, static_cast<int>(
-                                   ncmm::runtime_hook_modifier(
-                                       "magic.virtual_hand_count", nullptr, "magiclysm",
-                                       nullptr, nullptr ) ) ) );
+                                   ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ) ) );
     std::vector<item_location> candidates;
     std::vector<std::string> labels;
 
@@ -24079,7 +24041,7 @@ void avatar_action::mend( avatar &you, item_location loc )
     $mendOutput0140 = [IO.File]::ReadAllText($avatar0140mendPath)
     foreach($needle0140mend in @(
         'ncmm_select_mana_hand_mend_item',
-        '"magic.virtual_hand_count", nullptr, "magiclysm"',
+        'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
         '"survivor_progression", "mana_hands_34"',
         '"survivor_progression", "mana_hand_3"',
         '"survivor_progression", "mana_hand_4"',
@@ -24122,9 +24084,7 @@ static bool ncmm_mana_hand_has_crutches( const Character &who )
     }
 
     const int hand_count = std::max( 0, std::min( 2, static_cast<int>(
-                                   ncmm::runtime_hook_modifier(
-                                       "magic.virtual_hand_count", nullptr, "magiclysm",
-                                       nullptr, nullptr ) ) ) );
+                                   ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ) ) );
     if( hand_count >= 2 ) {
         item *paired = ncmm::virtual_item_for_slot(
                            "survivor_progression", "mana_hands_34" );
@@ -24212,7 +24172,7 @@ bool Character::is_on_ground() const
     $crutchCharacterOutput0140 = [IO.File]::ReadAllText($character0140crutchPath)
     foreach($needle0140crutch in @(
         'ncmm_mana_hand_has_crutches',
-        '"magic.virtual_hand_count", nullptr, "magiclysm"',
+        'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
         '"survivor_progression", "mana_hands_34"',
         '"survivor_progression", "mana_hand_3"',
         '"survivor_progression", "mana_hand_4"',
@@ -24263,9 +24223,7 @@ static bool ncmm_mana_hand_holds_flag( const Character &who, const flag_id &flag
         return false;
     }
     int hand_count = static_cast<int>(
-                         ncmm::runtime_hook_modifier(
-                             "magic.virtual_hand_count", nullptr, "magiclysm",
-                             nullptr, nullptr ) );
+                         ncmm::gameplay_modifier( "mg_virtual_hand_count" ) );
     hand_count = hand_count < 0 ? 0 : ( hand_count > 2 ? 2 : hand_count );
 
     if( hand_count >= 2 ) {
@@ -24392,9 +24350,7 @@ static bool ncmm_mana_hand_holds_item( const Character &who, const item *candida
         return false;
     }
     int hand_count = static_cast<int>(
-                         ncmm::runtime_hook_modifier(
-                             "magic.virtual_hand_count", nullptr, "magiclysm",
-                             nullptr, nullptr ) );
+                         ncmm::gameplay_modifier( "mg_virtual_hand_count" ) );
     hand_count = hand_count < 0 ? 0 : ( hand_count > 2 ? 2 : hand_count );
 
     if( hand_count >= 2 ) {
@@ -24451,7 +24407,7 @@ Apply-SurvivorManaHandHeldUtilities0140 $CddaRoot
 
 
 function Apply-SurvivorManaHandDirectCount0152([string]$Root) {
-    Write-Host "Applying Survivor 0.15.2 Mana Hand direct combat-count reconciliation..." -ForegroundColor Cyan
+    Write-Host "Verifying Survivor 0.15.2 Mana Hand direct combat-count sources..." -ForegroundColor Cyan
     $src0152direct = Join-Path $Root 'src'
     $sourceNames0152direct = @(
         'game.cpp',
@@ -24472,35 +24428,7 @@ function Apply-SurvivorManaHandDirectCount0152([string]$Root) {
     $legacyPattern0152direct =
         'ncmm::runtime_hook_modifier\(\s*"magic\.virtual_hand_count",\s*nullptr,\s*"magiclysm",\s*nullptr,\s*nullptr\s*\)'
     $directExpression0152 = 'ncmm::gameplay_modifier( "mg_virtual_hand_count" )'
-    $replacementCount0152 = 0
-
-    foreach($sourceName0152direct in $sourceNames0152direct) {
-        $sourcePath0152direct = Join-Path $src0152direct $sourceName0152direct
-        if(-not(Test-Path $sourcePath0152direct -PathType Leaf)) {
-            continue
-        }
-        $sourceText0152direct = Normalize-Lf ([IO.File]::ReadAllText($sourcePath0152direct))
-        $matchCount0152direct = ([regex]::Matches(
-                                    $sourceText0152direct,
-                                    $legacyPattern0152direct)).Count
-        if($matchCount0152direct -gt 0) {
-            $sourceText0152direct = [regex]::Replace(
-                                       $sourceText0152direct,
-                                       $legacyPattern0152direct,
-                                       $directExpression0152)
-            Write-Utf8NoBom $sourcePath0152direct $sourceText0152direct
-            $replacementCount0152 += $matchCount0152direct
-        }
-    }
-
-    $meleePath0152direct = Join-Path $src0152direct 'melee.cpp'
-    if(Test-Path $meleePath0152direct -PathType Leaf) {
-        $meleeText0152direct = Normalize-Lf ([IO.File]::ReadAllText($meleePath0152direct))
-        if(-not $meleeText0152direct.Contains('ncmm::primary_mana_hand_melee_weapon') -or
-           -not $meleeText0152direct.Contains($directExpression0152)) {
-            throw 'Mana Hand primary melee is not using direct virtual-hand count after reconciliation.'
-        }
-    }
+    $verifiedCount0152direct = 0
 
     foreach($sourceName0152direct in $sourceNames0152direct) {
         $sourcePath0152direct = Join-Path $src0152direct $sourceName0152direct
@@ -24509,12 +24437,28 @@ function Apply-SurvivorManaHandDirectCount0152([string]$Root) {
         }
         $sourceText0152direct = Normalize-Lf ([IO.File]::ReadAllText($sourcePath0152direct))
         if([regex]::IsMatch($sourceText0152direct,$legacyPattern0152direct)) {
-            throw ('Source-scoped Mana Hand count survived direct-count reconciliation: '+$sourceName0152direct)
+            throw ('Legacy source-scoped Mana Hand count survived source generation: '+$sourceName0152direct)
+        }
+        $verifiedCount0152direct += ([regex]::Matches(
+                                        $sourceText0152direct,
+                                        [regex]::Escape($directExpression0152))).Count
+    }
+
+    if($verifiedCount0152direct -le 0) {
+        throw 'Mana Hand direct-count verifier found no aggregate modifier reads in patched source.'
+    }
+
+    $meleePath0152direct = Join-Path $src0152direct 'melee.cpp'
+    if(Test-Path $meleePath0152direct -PathType Leaf) {
+        $meleeText0152direct = Normalize-Lf ([IO.File]::ReadAllText($meleePath0152direct))
+        if(-not $meleeText0152direct.Contains('ncmm::primary_mana_hand_melee_weapon') -or
+           -not $meleeText0152direct.Contains($directExpression0152)) {
+            throw 'Mana Hand primary melee is not using the final direct virtual-hand count.'
         }
     }
 
-    Write-Host ("Survivor 0.15.2 Mana Hand direct count: READY ("+
-                $replacementCount0152+" source-scoped calls reconciled)") -ForegroundColor Green
+    Write-Host ("Survivor 0.15.2 Mana Hand direct count: VERIFIED ("+
+                $verifiedCount0152direct+" aggregate reads)") -ForegroundColor Green
 }
 
 Apply-SurvivorManaHandDirectCount0152 $CddaRoot
