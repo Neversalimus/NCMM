@@ -1205,7 +1205,11 @@ foreach($obsoletePairRewrite0140 in @(
     '$handle0140pairPath',
     '$handleOld0140pair',
     '$handleNew0140pair',
-    'Mana Hand paired casting occupancy'
+    'Mana Hand paired casting occupancy',
+    '$melee0140pairPath',
+    '$shieldOld0140pair',
+    '$shieldNew0140pair',
+    'Mana Hand paired shield'
 )){
     if($manaPairSection0140.Contains($obsoletePairRewrite0140)){throw ('PairedGrip still rewrites a final base consumer: '+$obsoletePairRewrite0140)}
 }
