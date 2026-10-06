@@ -681,16 +681,16 @@ foreach($needle0140 in @(
     'function Apply-SurvivorManaHandSpellcastingAid0140',
     'ncmm_virtual_wield_flags',
     'flag_id( "SPELLCASTING_AID" )',
-    'const int ncmm_virtual_hands =',
-    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
+    'ncmm::active_mana_hand_items( *me_chr_const )',
+    'candidate->has_flag( flag )',
     'Apply-SurvivorManaHandSpellcastingAid0140 $CddaRoot',
     'function Apply-SurvivorVirtualItemLifecycle0140',
     'ncmm::release_virtual_item( *target() );',
     'Apply-SurvivorVirtualItemLifecycle0140 $CddaRoot',
     'function Apply-SurvivorManaHandUtility0140',
     'bool ncmm_mana_hand_holds_item( const Character &who, const item &it )',
-    'ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_3" ) == &it',
-    'ncmm::virtual_item_for_slot( "survivor_progression", "mana_hand_4" ) == &it',
+    'ncmm::active_mana_hand_items( who )',
+    'candidate == &it',
     'if( need_wielding && !p.is_wielding( it ) && !ncmm_mana_hand_holds_item( p, it ) ) {',
     'if( need_wielding && !p->is_wielding( it ) && !ncmm_mana_hand_holds_item( *p, it ) ) {',
     'Apply-SurvivorManaHandUtility0140 $CddaRoot',
@@ -856,6 +856,15 @@ $manaAidSection0140=$payload.Substring($manaAidStart0140,$manaAidEnd0140-$manaAi
 if($manaAidSection0140.Contains('flag_id( "MAGIC_FOCUS" )')){
     throw 'Mana Hand spellcasting-aid bridge leaked MAGIC_FOCUS back into global wielded semantics.'
 }
+foreach($aidNeedle0140 in @(
+    'ncmm::active_mana_hand_items( *me_chr_const )',
+    'candidate->has_flag( flag )'
+)){
+    if(-not $manaAidSection0140.Contains($aidNeedle0140)){throw ('Mana Hand spellcasting-aid Host enumeration missing: '+$aidNeedle0140)}
+}
+foreach($aidForbidden0140 in @('gameplay_modifier(', 'virtual_item_for_slot(', '"mana_hand_3"', '"mana_hand_4"', '"mana_hands_34"')){
+    if($manaAidSection0140.Contains($aidForbidden0140)){throw ('Mana Hand spellcasting-aid duplicated active-item policy: '+$aidForbidden0140)}
+}
 foreach($sourcePath0140 in @('src/game.cpp','src/talker_character.cpp','src/item_location.cpp','src/iuse_actor.cpp','src/melee.cpp','src/martialarts.cpp','src/character.cpp','src/character_inventory.cpp','src/activity_actor_definitions.h','src/activity_actor.cpp','src/ranged.cpp','src/avatar_action.cpp','src/weather.cpp','src/item.cpp','src/suffer.cpp','src/item_container.cpp')){
     $sourceEntry0140=@($contracts0140.contracts|Where-Object{$_.id -eq 'magic_virtual_slots.source.v1'}).files|Where-Object{$_.path -eq $sourcePath0140}
     if(@($sourceEntry0140).Count -ne 1){throw ('Mana Hand source contract missing hardening path: '+$sourcePath0140)}
@@ -975,15 +984,17 @@ if($manaUtilitySection0140.Contains('bool Character::is_wielding')){
     throw 'Mana Hand utility layer must not patch Character::is_wielding semantics.'
 }
 foreach($utilityNeedle0140 in @(
-    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
-    'hand_count >= 1',
-    'hand_count >= 2',
+    'ncmm::active_mana_hand_items( who )',
+    'candidate == &it',
     'ncmm_mana_hand_holds_item( p, it )',
     'ncmm_mana_hand_holds_item( *p, it )'
 )){
     if(-not $manaUtilitySection0140.Contains($utilityNeedle0140)){
         throw ('Mana Hand utility regression contract missing: '+$utilityNeedle0140)
     }
+}
+foreach($utilityForbidden0140 in @('gameplay_modifier(', 'virtual_item_for_slot(', '"mana_hand_3"', '"mana_hand_4"', '"mana_hands_34"')){
+    if($manaUtilitySection0140.Contains($utilityForbidden0140)){throw ('Mana Hand utility duplicated active-item policy: '+$utilityForbidden0140)}
 }
 
 $manaPairStart0140=$payload.IndexOf('function Apply-SurvivorManaHandPairedGrip0140',$manaSecondaryStart0140)
@@ -1039,8 +1050,6 @@ foreach($pairNeedle0140 in @(
     'item *ncmm_mana_hands_34 = ncmm_virtual_hands >= 2 ?',
     'ncmm_mana_hands_34 != nullptr ? 2 :',
     'consider_virtual_shield( "mana_hands_34" );',
-    'item *ncmm_pair = ncmm_virtual_hands >= 2 ?',
-    '"mana_hands_34" ) == &it',
     'item *ncmm_mana_pair_item = ncmm_mana_hands >= 2 ?',
     'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
     'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2',
@@ -1055,7 +1064,10 @@ foreach($pairNeedle0140 in @(
         throw ('Mana Hand paired-grip regression contract missing: '+$pairNeedle0140)
     }
 }
-if(([regex]::Matches($manaPairSection0140,[regex]::Escape('"mana_hands_34"'))).Count -lt 8){
+foreach($obsoletePairRewrite0140 in @('talker0140pair','iuse0140pair','Mana Hand paired spellcasting aid','Mana Hand paired utility')){
+    if($manaPairSection0140.Contains($obsoletePairRewrite0140)){throw ('PairedGrip still rewrites final held consumers: '+$obsoletePairRewrite0140)}
+}
+if(([regex]::Matches($manaPairSection0140,[regex]::Escape('"mana_hands_34"'))).Count -lt 6){
     throw 'Mana Hand paired grip must use one dedicated pair slot across all integrations.'
 }
 if($manaPairSection0140.Contains('item_location::type::mana_hand') -or
