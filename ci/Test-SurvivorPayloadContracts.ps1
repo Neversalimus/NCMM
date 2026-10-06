@@ -1280,25 +1280,35 @@ foreach($secondarySelectorForbidden0140 in @(
 if(([regex]::Matches($manaSecondarySection0140,[regex]::Escape('if( !ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ) {'))).Count -lt 4){
     throw 'Mana Hand secondary melee must suppress martial-art event chains only for suppressing virtual scopes.'
 }
-foreach($secondaryReachBlockMarker0140 in @(
-    '$reachAttackOld0140final = @''',
-    '$reachAttackNew0140final = @'''
-)){
-    $secondaryReachBlockStart0140=$manaSecondarySection0140.IndexOf($secondaryReachBlockMarker0140)
-    if($secondaryReachBlockStart0140 -lt 0){
-        throw ('Final Mana Hand reach base-layer block missing: '+$secondaryReachBlockMarker0140)
-    }
-    $secondaryReachBlockEnd0140=$manaSecondarySection0140.IndexOf("'@",$secondaryReachBlockStart0140+$secondaryReachBlockMarker0140.Length)
-    if($secondaryReachBlockEnd0140 -le $secondaryReachBlockStart0140){
-        throw ('Final Mana Hand reach base-layer block end missing: '+$secondaryReachBlockMarker0140)
-    }
-    $secondaryReachBlock0140=$manaSecondarySection0140.Substring(
-        $secondaryReachBlockStart0140,$secondaryReachBlockEnd0140-$secondaryReachBlockStart0140)
-    if(-not $secondaryReachBlock0140.Contains(
-        'ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ? tec_none.obj() :')){
-        throw ('Final Mana Hand reach base layer must preserve martial-art guard: '+
-               $secondaryReachBlockMarker0140)
-    }
+
+$secondaryReachOldStart0140=$manaSecondarySection0140.IndexOf('$reachAttackOld0140final = @''')
+$secondaryReachOldEnd0140=$manaSecondarySection0140.IndexOf("'@",$secondaryReachOldStart0140+31)
+$secondaryReachNewStart0140=$manaSecondarySection0140.IndexOf('$reachAttackNew0140final = @''',$secondaryReachOldEnd0140)
+$secondaryReachNewEnd0140=$manaSecondarySection0140.IndexOf("'@",$secondaryReachNewStart0140+31)
+$secondaryMartialGuardStart0140=$manaSecondarySection0140.IndexOf('$missRecoveryOld0140 =')
+if($secondaryReachOldStart0140 -lt 0 -or $secondaryReachOldEnd0140 -le $secondaryReachOldStart0140 -or
+   $secondaryReachNewStart0140 -le $secondaryReachOldEnd0140 -or
+   $secondaryReachNewEnd0140 -le $secondaryReachNewStart0140 -or
+   $secondaryMartialGuardStart0140 -le $secondaryReachNewEnd0140){
+    throw 'Final Mana Hand reach clean-anchor ordering/boundary missing.'
+}
+$secondaryReachOld0140=$manaSecondarySection0140.Substring(
+    $secondaryReachOldStart0140,$secondaryReachOldEnd0140-$secondaryReachOldStart0140)
+$secondaryReachNew0140=$manaSecondarySection0140.Substring(
+    $secondaryReachNewStart0140,$secondaryReachNewEnd0140-$secondaryReachNewStart0140)
+if(-not $secondaryReachOld0140.Contains(
+    'const ma_technique miss_recovery = martial_arts_data->get_miss_recovery( *this );')){
+    throw 'Final Mana Hand reach old template must anchor on clean vanilla miss recovery.'
+}
+if($secondaryReachOld0140.Contains('virtual_melee_context_suppresses_martial_arts')){
+    throw 'Final Mana Hand reach old template depends on an earlier Mana Hand transform.'
+}
+if(-not $secondaryReachNew0140.Contains(
+    'ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ? tec_none.obj() :')){
+    throw 'Final Mana Hand reach new template must preserve martial-art suppression.'
+}
+if(-not $manaSecondarySection0140.Contains('if($missRecoveryCount0140 -ne 1)')){
+    throw 'Mana Hand shared miss-recovery pass must run after reach finalization and match one vanilla site.'
 }
 foreach($upgradeNeedle0140 in @(
     '$secondaryMenuOld0140ctx = @''',
