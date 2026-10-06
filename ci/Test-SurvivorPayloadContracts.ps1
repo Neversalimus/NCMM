@@ -714,7 +714,6 @@ foreach($needle0140 in @(
     'function Apply-SurvivorManaHandPairedGrip0140',
     '"mana_hands_34"',
     'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
-    'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2',
     "case '5':",
     'Apply-SurvivorManaHandPairedGrip0140 $CddaRoot',
     'function Apply-SurvivorManaHandRanged0140',
