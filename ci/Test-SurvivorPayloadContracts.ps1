@@ -1673,8 +1673,8 @@ if($manaCarrier0155.Contains('"str_sp": "mana hand anchor"')){
 foreach($needle0155 in @(
     'void show_mana_hands_menu()',
     '"Mana Hands\nChoose a hand to equip, replace or release its held item."',
-    '"Mana Hand III — "',
-    '"Mana Hand IV — "',
+    '"Mana Hand III',
+    '"Mana Hand IV',
     'extern "C" NCMM_EXPORT int ncmm_on_item_activate_v1',
     'std::string_view( item_type_id ) != "ncmm_survivor_mana_hand_carrier"',
     'show_mana_hands_menu();'
