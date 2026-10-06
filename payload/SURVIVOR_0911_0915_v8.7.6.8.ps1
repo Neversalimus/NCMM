@@ -19711,13 +19711,7 @@ item_location Character::best_shield()
     }
 
     if( is_avatar() ) {
-        const int virtual_hands = std::max( 0, std::min( 2, static_cast<int>( std::lround(
-                                      ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ) ) ) );
-        const auto consider_virtual_shield = [&]( const char *slot_id ) {
-            item *candidate = ncmm::virtual_item_for_slot( "survivor_progression", slot_id );
-            if( candidate == nullptr ) {
-                return;
-            }
+        for( item *candidate : ncmm::active_mana_hand_items( *this ) ) {
             int value = melee::blocking_ability( *candidate );
             // BLOCK_WHILE_WORN alone does not become a held block technique.
             if( value == 2 ) {
@@ -19728,12 +19722,6 @@ item_location Character::best_shield()
                 best_value = value;
                 best = item_location( *this, candidate );
             }
-        };
-        if( virtual_hands >= 1 ) {
-            consider_virtual_shield( "mana_hand_3" );
-        }
-        if( virtual_hands >= 2 ) {
-            consider_virtual_shield( "mana_hand_4" );
         }
     }
 
@@ -19784,7 +19772,8 @@ item_location Character::best_shield()
     }
     foreach($needle0140 in @(
         '#include "ncmm_loader.h"',
-        'consider_virtual_shield',
+        'ncmm::active_mana_hand_items( *this )',
+        'melee::blocking_ability( *candidate )',
         'const bool virtual_shield =',
         'ncmm::is_virtual_item( *shield )'
     )){
@@ -20818,10 +20807,9 @@ Apply-SurvivorManaHandSecondaryMelee0140 $CddaRoot
 function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
     Write-Host "Applying Survivor 0.14.0 Mana Hand paired-grip support..." -ForegroundColor Cyan
     $src0140pair = Join-Path $Root 'src'
-    $melee0140pairPath = Join-Path $src0140pair 'melee.cpp'
     $game0140pairPath = Join-Path $src0140pair 'game.cpp'
     foreach($required0140pair in @(
-        $melee0140pairPath,$game0140pairPath
+        $game0140pairPath
     )) {
         if(-not(Test-Path $required0140pair -PathType Leaf)) {
             if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
@@ -20835,22 +20823,7 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
     # Spellcasting occupancy/focus is final in VirtualItemSlots through Host
     # active-item enumeration plus source-specific hand availability.
 
-    # Shield selection: paired grip contributes one real candidate, not two copies.
-    $melee0140pair = Normalize-Lf ([IO.File]::ReadAllText($melee0140pairPath))
-    if(-not $melee0140pair.Contains('consider_virtual_shield( "mana_hands_34" );')) {
-        $shieldOld0140pair = @'
-        if( virtual_hands >= 2 ) {
-            consider_virtual_shield( "mana_hand_4" );
-        }
-'@
-        $shieldNew0140pair = @'
-        if( virtual_hands >= 2 ) {
-            consider_virtual_shield( "mana_hand_4" );
-            consider_virtual_shield( "mana_hands_34" );
-        }
-'@
-        $melee0140pair = Replace-TextBlock $melee0140pair $shieldOld0140pair $shieldNew0140pair 'Mana Hand paired shield'
-    }
+    # Shield selection is final in VirtualItemSlots through Host active-item enumeration.
 
     # Secondary strikes are final in the base layer through Host active-item
     # enumeration and ownership. PairedGrip must not append a pair-only strike.
@@ -21015,7 +20988,6 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
     Write-Utf8NoBom $game0140pairPath $game0140pair
 
     foreach($pairCheck0140 in @(
-        @($melee0140pairPath,'consider_virtual_shield( "mana_hands_34" );'),
         @($game0140pairPath,'ncmm_mana_pair_item'),
         @($game0140pairPath,"case '5':"),
         @($game0140pairPath,'"mana_hands_34"')
