@@ -91,8 +91,8 @@
     },
     {
       "path": "ci\\Test-SurvivorPayloadContracts.ps1",
-      "sha256": "5e9152a1ef7bb3d642b6bb2e15e271b4502762c65d8b02d3989b12ce462b4b5f",
-      "bytes": 132406
+      "sha256": "3d6f7f5030f7beba67efbb3961841fe6111e54f60fa5da59f95309fcca64d7eb",
+      "bytes": 132402
     },
     {
       "path": "ci\\Watch-CDDAExperimental.ps1",
