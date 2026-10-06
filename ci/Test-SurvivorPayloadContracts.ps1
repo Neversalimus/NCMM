@@ -1312,13 +1312,43 @@ foreach($upgradeNeedle0140 in @(
         throw ('Mana Hand context update-path regression contract missing: '+$upgradeNeedle0140)
     }
 }
-$secondaryMenuPolicyStart0140=$manaContextSection0140.IndexOf('const ncmm::mana_hand_item_slot ncmm_secondary_slot =')
-$secondaryMenuPolicyEnd0140=$manaContextSection0140.IndexOf('if( ncmm_secondary_melee_eligible )',$secondaryMenuPolicyStart0140)
-if($secondaryMenuPolicyStart0140 -lt 0 -or $secondaryMenuPolicyEnd0140 -le $secondaryMenuPolicyStart0140){
-    throw 'Mana Hand secondary context-menu policy boundary missing.'
+$secondaryBaseMenuTemplateStart0140=$manaContextSection0140.IndexOf('$menuNew0140ctx = @''')
+$secondaryBaseMenuTemplateEnd0140=$manaContextSection0140.IndexOf("'@",$secondaryBaseMenuTemplateStart0140+22)
+$secondaryBaseSwitchTemplateStart0140=$manaContextSection0140.IndexOf('$switchNew0140ctx = @''')
+$secondaryBaseSwitchTemplateEnd0140=$manaContextSection0140.IndexOf("'@",$secondaryBaseSwitchTemplateStart0140+24)
+if($secondaryBaseMenuTemplateStart0140 -lt 0 -or
+   $secondaryBaseMenuTemplateEnd0140 -le $secondaryBaseMenuTemplateStart0140 -or
+   $secondaryBaseSwitchTemplateStart0140 -lt 0 -or
+   $secondaryBaseSwitchTemplateEnd0140 -le $secondaryBaseSwitchTemplateStart0140){
+    throw 'Mana Hand secondary clean-base context template boundary missing.'
 }
-$secondaryMenuPolicy0140=$manaContextSection0140.Substring(
+$secondaryBaseMenu0140=$manaContextSection0140.Substring(
+    $secondaryBaseMenuTemplateStart0140,
+    $secondaryBaseMenuTemplateEnd0140-$secondaryBaseMenuTemplateStart0140)
+$secondaryBaseSwitch0140=$manaContextSection0140.Substring(
+    $secondaryBaseSwitchTemplateStart0140,
+    $secondaryBaseSwitchTemplateEnd0140-$secondaryBaseSwitchTemplateStart0140)
+
+$secondaryMenuPolicyStart0140=$secondaryBaseMenu0140.IndexOf(
+    'const ncmm::mana_hand_item_slot ncmm_secondary_slot =')
+$secondaryMenuPolicyEnd0140=$secondaryBaseMenu0140.IndexOf(
+    'if( ncmm_secondary_melee_eligible )',$secondaryMenuPolicyStart0140)
+if($secondaryMenuPolicyStart0140 -lt 0 -or $secondaryMenuPolicyEnd0140 -le $secondaryMenuPolicyStart0140){
+    throw 'Mana Hand secondary clean-base context-menu policy boundary missing.'
+}
+$secondaryMenuPolicy0140=$secondaryBaseMenu0140.Substring(
     $secondaryMenuPolicyStart0140,$secondaryMenuPolicyEnd0140-$secondaryMenuPolicyStart0140)
+foreach($secondaryMenuNeedle0140 in @(
+    'ncmm::mana_hand_item_slot_of( u, oThisItem )',
+    'ncmm::mana_hand_item_slot::none',
+    'ncmm::mana_hand_item_slot::paired',
+    'ncmm_secondary_bound',
+    'ncmm_pair_secondary == oThisItem.is_two_handed( u )'
+)){
+    if(-not $secondaryMenuPolicy0140.Contains($secondaryMenuNeedle0140)){
+        throw ('Mana Hand secondary clean-base menu policy missing: '+$secondaryMenuNeedle0140)
+    }
+}
 foreach($secondaryContextForbidden0140 in @(
     'gameplay_modifier(',
     'virtual_item_for_slot(',
@@ -1327,18 +1357,28 @@ foreach($secondaryContextForbidden0140 in @(
     'item *ncmm_bound_pair'
 )){
     if($secondaryMenuPolicy0140.Contains($secondaryContextForbidden0140)){
-        throw ('Mana Hand secondary context-menu duplicated Host ownership policy: '+$secondaryContextForbidden0140)
+        throw ('Mana Hand secondary clean-base menu duplicated Host ownership policy: '+$secondaryContextForbidden0140)
     }
 }
-$secondarySwitchTemplateStart0140=$manaContextSection0140.IndexOf('$secondarySwitchNew0140ctx = @''')
-$secondarySwitchPolicyStart0140=$manaContextSection0140.IndexOf("case 'M': {",$secondarySwitchTemplateStart0140)
-$secondarySwitchPolicyEnd0140=$manaContextSection0140.IndexOf("case 'a': {",$secondarySwitchPolicyStart0140)
-if($secondarySwitchTemplateStart0140 -lt 0 -or $secondarySwitchPolicyStart0140 -le $secondarySwitchTemplateStart0140 -or
-   $secondarySwitchPolicyEnd0140 -le $secondarySwitchPolicyStart0140){
-    throw 'Mana Hand secondary context-handler policy boundary missing.'
+
+$secondarySwitchPolicyStart0140=$secondaryBaseSwitch0140.IndexOf("case 'M': {")
+$secondarySwitchPolicyEnd0140=$secondaryBaseSwitch0140.IndexOf(
+    "case 'a': {",$secondarySwitchPolicyStart0140)
+if($secondarySwitchPolicyStart0140 -lt 0 -or $secondarySwitchPolicyEnd0140 -le $secondarySwitchPolicyStart0140){
+    throw 'Mana Hand secondary clean-base context-handler policy boundary missing.'
 }
-$secondarySwitchPolicy0140=$manaContextSection0140.Substring(
+$secondarySwitchPolicy0140=$secondaryBaseSwitch0140.Substring(
     $secondarySwitchPolicyStart0140,$secondarySwitchPolicyEnd0140-$secondarySwitchPolicyStart0140)
+foreach($secondarySwitchNeedle0140 in @(
+    'ncmm::mana_hand_item_slot_of( u, oThisItem )',
+    'ncmm::mana_hand_item_slot::none',
+    'ncmm::mana_hand_item_slot::paired',
+    'ncmm_pair_secondary != oThisItem.is_two_handed( u )'
+)){
+    if(-not $secondarySwitchPolicy0140.Contains($secondarySwitchNeedle0140)){
+        throw ('Mana Hand secondary clean-base handler policy missing: '+$secondarySwitchNeedle0140)
+    }
+}
 foreach($secondaryContextForbidden0140 in @(
     'gameplay_modifier(',
     'virtual_item_for_slot(',
@@ -1347,7 +1387,39 @@ foreach($secondaryContextForbidden0140 in @(
     'item *ncmm_bound_pair'
 )){
     if($secondarySwitchPolicy0140.Contains($secondaryContextForbidden0140)){
-        throw ('Mana Hand secondary context-handler duplicated Host ownership policy: '+$secondaryContextForbidden0140)
+        throw ('Mana Hand secondary clean-base handler duplicated Host ownership policy: '+$secondaryContextForbidden0140)
+    }
+}
+
+$secondaryCompatMenuStart0140=$manaContextSection0140.IndexOf('$secondaryMenuNew0140ctx = @''')
+$secondaryCompatMenuEnd0140=$manaContextSection0140.IndexOf("'@",$secondaryCompatMenuStart0140+31)
+$secondaryCompatSwitchStart0140=$manaContextSection0140.IndexOf('$secondarySwitchNew0140ctx = @''')
+$secondaryCompatSwitchEnd0140=$manaContextSection0140.IndexOf("'@",$secondaryCompatSwitchStart0140+33)
+if($secondaryCompatMenuStart0140 -lt 0 -or $secondaryCompatMenuEnd0140 -le $secondaryCompatMenuStart0140 -or
+   $secondaryCompatSwitchStart0140 -lt 0 -or $secondaryCompatSwitchEnd0140 -le $secondaryCompatSwitchStart0140){
+    throw 'Mana Hand secondary compatibility upgrade template boundary missing.'
+}
+$secondaryCompatMenu0140=$manaContextSection0140.Substring(
+    $secondaryCompatMenuStart0140,$secondaryCompatMenuEnd0140-$secondaryCompatMenuStart0140)
+$secondaryCompatSwitch0140=$manaContextSection0140.Substring(
+    $secondaryCompatSwitchStart0140,$secondaryCompatSwitchEnd0140-$secondaryCompatSwitchStart0140)
+foreach($compatSecondaryNeedle0140 in @(
+    'ncmm::mana_hand_item_slot_of( u, oThisItem )',
+    'ncmm::mana_hand_item_slot::paired'
+)){
+    if(-not $secondaryCompatMenu0140.Contains($compatSecondaryNeedle0140) -or
+       -not $secondaryCompatSwitch0140.Contains($compatSecondaryNeedle0140)){
+        throw ('Mana Hand secondary compatibility policy missing: '+$compatSecondaryNeedle0140)
+    }
+}
+
+foreach($staleSecondaryContext0140 in @(
+    'ncmm_mana_bound_here',
+    'ncmm_mana_single_bound_here',
+    'ncmm_mana_pair_bound_here'
+)){
+    if($manaContextSection0140.Contains($staleSecondaryContext0140)){
+        throw ('Mana Hand context regressed to stale secondary ownership helper: '+$staleSecondaryContext0140)
     }
 }
 
