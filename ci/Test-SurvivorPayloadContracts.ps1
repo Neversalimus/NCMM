@@ -1290,9 +1290,7 @@ foreach($martialNeedle0140 in @(
     'ncmm::virtual_melee_context_active( who )',
     'const item_location weapon = ncmm_mana_hand_martial_context_weapon( u );',
     'const bool virtual_scope =',
-    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
-    '"survivor_progression", "mana_hands_34"',
-    'ncmm::virtual_item_primary_melee_enabled( *paired )',
+    'ncmm::primary_mana_hand_melee_weapon( mutable_who )',
     'bool is_armed = weapon || u.is_armed();',
     'ncmm::virtual_melee_context_begin( mutable_owner, *martial_weapon, false )',
     'martial_weapon, owner',
@@ -1328,6 +1326,7 @@ foreach($reachNeedle0140 in @(
     'ncmm_primary_mana_hand_has_reach',
     'target_handler::mode_reach(',
     'item_location( you, ncmm_reach_weapon )',
+    'return ncmm::primary_mana_hand_melee_weapon( you );',
     'ncmm::primary_mana_hand_melee_weapon( *this )',
     'std::make_unique<ncmm_virtual_melee_scope>',
     'item_location reach_weapon = used_weapon();',
@@ -1379,6 +1378,7 @@ foreach($smashNeedle0140 in @(
     'item_location ncmm_smash_weapon = get_wielded_item();',
     'ncmm::virtual_melee_context_item( *this )',
     'item *ncmm_primary_mana_hand_smash_weapon( avatar &you )',
+    'return ncmm::primary_mana_hand_melee_weapon( you );',
     'class ncmm_mana_hand_smash_scope',
     'ncmm::virtual_melee_context_begin( who, *weapon, true )',
     'std::clamp( ( attack_speed( *ncmm_smash_weapon ) + 9 ) / 10, 5, 50 )',
@@ -1412,10 +1412,7 @@ foreach($autoNeedle0140 in @(
     'class ncmm_mana_hand_autoattack_scope',
     'ncmm_primary_mana_hand_autoattack_weapon',
     'ncmm_primary_mana_hand_autoattack_reach',
-    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
-    '"survivor_progression", "mana_hands_34"',
-    '"survivor_progression", slots[i]',
-    'ncmm::virtual_item_primary_melee_enabled',
+    'return ncmm::primary_mana_hand_melee_weapon( you );',
     'ncmm::virtual_melee_context_begin( who, weapon, false )',
     'item *ncmm_autoattack_weapon = nullptr;',
     'you.reach_attack( best.pos_bub() );'
@@ -1430,6 +1427,24 @@ if($manaAutoSection0140.Contains('#include "martialarts.h"')){
 }
 if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandAutoattack0140 -CommandType Function).Definition')){throw 'Mana Hand autoattack transform missing from mechanics patch revision.'}
 
+foreach($primaryConsumer0140 in @(
+    $manaMartialSection0140,
+    $manaReachSection0140,
+    $manaSmashSection0140,
+    $manaAutoSection0140
+)){
+    foreach($duplicatedSelector0140 in @(
+        'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
+        'ncmm::virtual_item_for_slot(',
+        '"survivor_progression", "mana_hands_34"',
+        '"survivor_progression", slots[i]',
+        'ncmm::virtual_item_primary_melee_enabled'
+    )){
+        if($primaryConsumer0140.Contains($duplicatedSelector0140)){
+            throw ('Primary Mana Hand consumer duplicated Host selector policy: '+$duplicatedSelector0140)
+        }
+    }
+}
 
 $manaThrowStart0140=$payload.IndexOf('function Apply-SurvivorManaHandThrow0140',$manaAutoStart0140)
 $manaThrowEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandAutoMining0140',$manaThrowStart0140)
