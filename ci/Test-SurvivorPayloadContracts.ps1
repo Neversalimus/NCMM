@@ -907,7 +907,7 @@ foreach($eolSafeNeedle0140 in @(
     'function Test-TextBlock([string]$Text,[string]$Block)',
     'function Count-TextBlock([string]$Text,[string]$Block)',
     '$attackCount0140 = Count-TextBlock $melee0140 $attackOld0140',
-    '$single3Count0140pair = Count-TextBlock $game0140pair $single3Old0140pair',
+    '$single3Count0140ctxPair = Count-TextBlock $game0140ctx $single3Old0140ctxPair',
     '$menuCount0140pm = Count-TextBlock $game0140pm $menuAnchor0140pm',
     '$handlerCount0140pm = Count-TextBlock $game0140pm $handlerAnchor0140pm',
     '$wrapperCount0140pm = Count-TextBlock $melee0140pm $wrapperOld0140pm',
@@ -1052,6 +1052,27 @@ if($manaUxOld0151.Contains('if( bHPR ) {')){
 }
 
 
+foreach($pairContextNeedle0140 in @(
+    '$pointerNew0140ctxPair = @''',
+    'item *ncmm_mana_pair_item = ncmm_mana_hands >= 2 ?',
+    'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
+    'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2',
+    'ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 1',
+    'ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 2',
+    "case '5':",
+    'Mana Hand final paired context handler'
+)){
+    if(-not $manaContextSection0140.Contains($pairContextNeedle0140)){
+        throw ('Mana Hand final paired context missing from base layer: '+$pairContextNeedle0140)
+    }
+}
+$pairContextFinalizePos0140=$manaContextSection0140.IndexOf('$pointerNew0140ctxPair = @''')
+$pairContextWritePos0140=$manaContextSection0140.IndexOf('Write-Utf8NoBom $game0140ctxPath $game0140ctx')
+if($pairContextFinalizePos0140 -lt 0 -or $pairContextWritePos0140 -le $pairContextFinalizePos0140){
+    throw 'Mana Hand paired context must finalize before the base game.cpp write.'
+}
+
+
 $manaUtilityStart0140=$payload.IndexOf('function Apply-SurvivorManaHandUtility0140')
 $manaSecondaryStart0140=$payload.IndexOf('function Apply-SurvivorManaHandSecondaryMelee0140',$manaUtilityStart0140)
 if($manaUtilityStart0140 -lt 0 -or $manaSecondaryStart0140 -le $manaUtilityStart0140){throw 'Mana Hand utility/secondary transform boundary missing.'}
@@ -1175,51 +1196,38 @@ foreach($secondaryContextForbidden0140 in @(
 $manaRangeStart0140=$payload.IndexOf('function Apply-SurvivorManaHandRanged0140',$manaPairStart0140)
 if($manaRangeStart0140 -le $manaPairStart0140){throw 'Mana Hand ranged transform boundary missing.'}
 $manaPairSection0140=$payload.Substring($manaPairStart0140,$manaRangeStart0140-$manaPairStart0140)
-foreach($pairNeedle0140 in @(
-    'item *ncmm_mana_pair_item = ncmm_mana_hands >= 2 ?',
-    'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
-    'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2',
+foreach($pairVerifierNeedle0140 in @(
+    'Verifying Survivor 0.14.0 Mana Hand paired-grip context...',
+    '$game0140pair = [IO.File]::ReadAllText($game0140pairPath)',
+    'Survivor 0.14.0 paired-grip final context missing:',
+    'Survivor 0.14.0 Mana Hand paired-grip context: VERIFIED',
     "case '5':",
-    'ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 1',
-    'ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 2'
+    '"survivor_progression", "mana_hands_34"'
 )){
-    if(-not $manaPairSection0140.Contains($pairNeedle0140)){
-        throw ('Mana Hand paired-grip regression contract missing: '+$pairNeedle0140)
+    if(-not $manaPairSection0140.Contains($pairVerifierNeedle0140)){
+        throw ('Mana Hand paired-grip verifier contract missing: '+$pairVerifierNeedle0140)
     }
 }
-foreach($obsoletePairRewrite0140 in @(
-    'talker0140pair',
-    'iuse0140pair',
-    'Mana Hand paired spellcasting aid',
-    'Mana Hand paired utility',
-    '$secondaryOld0140pair',
-    '$secondaryNew0140pair',
-    'Mana Hand paired secondary melee',
-    'ncmm_paired_weapon',
-    '$mPointerOld0140pair',
-    '$mPointerNew0140pair',
-    '$mEligibilityOld0140pair',
-    '$mEligibilityNew0140pair',
-    'Mana Hand paired secondary pointer',
-    'Mana Hand paired secondary eligibility',
-    '$handle0140pairPath',
-    '$handleOld0140pair',
-    '$handleNew0140pair',
-    'Mana Hand paired casting occupancy',
-    '$melee0140pairPath',
-    '$shieldOld0140pair',
-    '$shieldNew0140pair',
-    'Mana Hand paired shield'
+foreach($pairMutationForbidden0140 in @(
+    'Replace-TextBlock',
+    'Write-Utf8NoBom',
+    'Normalize-Lf',
+    '$pointerOld0140pair',
+    '$pointerNew0140pair',
+    '$single3Old0140pair',
+    '$single4Old0140pair',
+    '$menuInsertOld0140pair',
+    '$singleHandlerAnchor0140pair',
+    '$case5New0140pair'
 )){
-    if($manaPairSection0140.Contains($obsoletePairRewrite0140)){throw ('PairedGrip still rewrites a final base consumer: '+$obsoletePairRewrite0140)}
-}
-if(([regex]::Matches($manaPairSection0140,[regex]::Escape('"mana_hands_34"'))).Count -lt 6){
-    throw 'Mana Hand paired grip must use one dedicated pair slot across all integrations.'
+    if($manaPairSection0140.Contains($pairMutationForbidden0140)){
+        throw ('PairedGrip verifier regressed to source mutation: '+$pairMutationForbidden0140)
+    }
 }
 if($manaPairSection0140.Contains('item_location::type::mana_hand') -or
    $manaPairSection0140.Contains('set_wielded_item(') -or
    $manaPairSection0140.Contains('u.wield(')){
-    throw 'Mana Hand paired grip must not synthesize locations or move the real item.'
+    throw 'Mana Hand paired grip verifier must not synthesize locations or move the real item.'
 }
 
 $manaPairedRangeStart0140=$payload.IndexOf('function Apply-SurvivorManaHandPairedRanged0140',$manaRangeStart0140)
