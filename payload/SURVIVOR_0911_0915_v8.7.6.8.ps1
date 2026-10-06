@@ -21034,8 +21034,8 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
                 case 'M': {
 '@
         $game0140pair = Replace-TextBlock $game0140pair $caseMAnchor0140pair $case5New0140pair 'Mana Hand paired context handler'
-
-            Write-Utf8NoBom $game0140pairPath $game0140pair
+    }
+    Write-Utf8NoBom $game0140pairPath $game0140pair
 
     foreach($pairCheck0140 in @(
         @($handle0140pairPath,'ncmm_mana_hands_34'),
