@@ -1452,6 +1452,7 @@ if($manaThrowStart0140 -le $manaAutoStart0140 -or $manaThrowEnd0140 -le $manaThr
 $manaThrowSection0140=$payload.Substring($manaThrowStart0140,$manaThrowEnd0140-$manaThrowStart0140)
 foreach($throwNeedle0140 in @(
     'ncmm_is_mana_hand_throw_item',
+    'ncmm::mana_hand_item_slot_of( you, *candidate )',
     'ncmm_select_mana_hand_throw_item',
     '"survivor_progression", "mana_hands_34"',
     '"survivor_progression", "mana_hand_3"',
@@ -1467,6 +1468,24 @@ foreach($throwNeedle0140 in @(
 if($manaThrowSection0140.Contains('set_wielded_item(') -or
    $manaThrowSection0140.Contains('.obtain(')){
     throw 'Mana Hand throw must not move the virtual item into Character::weapon.'
+}
+$throwIdentityStart0140=$manaThrowSection0140.IndexOf('bool ncmm_is_mana_hand_throw_item')
+$throwIdentityEnd0140=$manaThrowSection0140.IndexOf('item_location ncmm_select_mana_hand_throw_item',$throwIdentityStart0140)
+if($throwIdentityStart0140 -lt 0 -or $throwIdentityEnd0140 -le $throwIdentityStart0140){
+    throw 'Mana Hand throw identity helper boundary missing.'
+}
+$throwIdentity0140=$manaThrowSection0140.Substring($throwIdentityStart0140,$throwIdentityEnd0140-$throwIdentityStart0140)
+foreach($throwIdentityForbidden0140 in @(
+    'gameplay_modifier(',
+    'virtual_item_for_slot(',
+    'virtual_item_matches_slot(',
+    '"mana_hand_3"',
+    '"mana_hand_4"',
+    '"mana_hands_34"'
+)){
+    if($throwIdentity0140.Contains($throwIdentityForbidden0140)){
+        throw ('Mana Hand throw identity duplicated Host slot policy: '+$throwIdentityForbidden0140)
+    }
 }
 if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandThrow0140 -CommandType Function).Definition')){throw 'Mana Hand throw transform missing from mechanics patch revision.'}
 
@@ -1504,19 +1523,25 @@ if($manaPracticeStart0140 -le $manaMineStart0140 -or $manaPracticeEnd0140 -le $m
 $manaPracticeSection0140=$payload.Substring($manaPracticeStart0140,$manaPracticeEnd0140-$manaPracticeStart0140)
 foreach($practiceNeedle0140 in @(
     'ncmm_target_practice_mana_hand_gun',
-    'ncmm::virtual_item_matches_slot(',
-    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
-    '"survivor_progression", "mana_hands_34"',
-    '"survivor_progression", "mana_hand_3"',
-    '"survivor_progression", "mana_hand_4"',
+    'ncmm::mana_hand_item_slot_of( who, *gun )',
+    'ncmm::mana_hand_item_slot::none',
     'if( !ncmm_virtual_target_gun && !who.is_wielding( *gun_loc ) )',
     '!ncmm_target_practice_mana_hand_gun( who, gun )',
     'constexpr int ncmm_target_practice_mana_cost = 5;',
     'who.magic->available_mana() < ncmm_target_practice_mana_cost',
     'who.magic->mod_mana( who, -ncmm_target_practice_mana_cost );'
 )){if(-not $manaPracticeSection0140.Contains($practiceNeedle0140)){throw ('Mana Hand target-practice regression contract missing: '+$practiceNeedle0140)}}
-if($manaPracticeSection0140.Contains('virtual_item_for_slot(')){
-    throw 'Mana Hand target practice must use O(1) slot identity validation, not full inventory reconciliation.'
+foreach($practiceIdentityForbidden0140 in @(
+    'virtual_item_for_slot(',
+    'virtual_item_matches_slot(',
+    'gameplay_modifier(',
+    '"mana_hand_3"',
+    '"mana_hand_4"',
+    '"mana_hands_34"'
+)){
+    if($manaPracticeSection0140.Contains($practiceIdentityForbidden0140)){
+        throw ('Mana Hand target practice duplicated Host slot policy: '+$practiceIdentityForbidden0140)
+    }
 }
 if($manaPracticeSection0140.Contains('set_wielded_item(') -or
    $manaPracticeSection0140.Contains('.obtain(')){
@@ -1584,6 +1609,7 @@ foreach($heldNeedle0140 in @(
     'ncmm_mana_hand_holds_flag( *carrier, flag_RAIN_PROTECT )',
     'ncmm_mana_hand_holds_flag( you, flag_RAIN_PROTECT )',
     'ncmm_mana_hand_holds_item( p, this )',
+    'ncmm::mana_hand_item_slot_of( who, *candidate )',
     '"survivor_progression", "mana_hands_34"',
     '"survivor_progression", "mana_hand_3"',
     '"survivor_progression", "mana_hand_4"'
@@ -1596,6 +1622,24 @@ if($rainproofGuardPos0140 -lt 0 -or $virtualUmbrellaPos0140 -lt 0 -or
 }
 if($manaHeldSection0140.Contains('wielded_with_flag(')){
     throw 'Mana Hand held utilities must not broaden generic wielded flag semantics.'
+}
+$heldIdentityStart0140=$manaHeldSection0140.IndexOf('static bool ncmm_mana_hand_holds_item( const Character &who, const item *candidate )')
+$heldIdentityEnd0140=$manaHeldSection0140.IndexOf('int item::get_remaining_capacity_for_liquid',$heldIdentityStart0140)
+if($heldIdentityStart0140 -lt 0 -or $heldIdentityEnd0140 -le $heldIdentityStart0140){
+    throw 'Mana Hand held-item identity helper boundary missing.'
+}
+$heldIdentity0140=$manaHeldSection0140.Substring($heldIdentityStart0140,$heldIdentityEnd0140-$heldIdentityStart0140)
+foreach($heldIdentityForbidden0140 in @(
+    'gameplay_modifier(',
+    'virtual_item_for_slot(',
+    'virtual_item_matches_slot(',
+    '"mana_hand_3"',
+    '"mana_hand_4"',
+    '"mana_hands_34"'
+)){
+    if($heldIdentity0140.Contains($heldIdentityForbidden0140)){
+        throw ('Mana Hand held-item identity duplicated Host slot policy: '+$heldIdentityForbidden0140)
+    }
 }
 if($manaHeldSection0140.Contains('set_wielded_item(') -or
    $manaHeldSection0140.Contains('you.wield(') -or
