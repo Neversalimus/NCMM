@@ -1042,8 +1042,8 @@ foreach($newNeedle0140 in @(
     "case '4':",
     "case 'M':",
     'const int ncmm_mana_hands_now = static_cast<int>(',
-    'item *ncmm_bound3 = ncmm_mana_hands_now >= 1 ?',
-    'item *ncmm_bound4 = ncmm_mana_hands_now >= 2 ?',
+    'ncmm::mana_hand_item_slot_of( u, oThisItem )',
+    'ncmm::mana_hand_item_slot::paired',
     'This item is not held by an available Mana Hand.'
 )){
     if(-not $contextNew0140.Contains($newNeedle0140)){throw ('Mana Hand context generated switch missing: '+$newNeedle0140)}
