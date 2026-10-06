@@ -20269,6 +20269,81 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
         $game0140ctx = Replace-TextBlock $game0140ctx $caseMAnchor0140ctxPair $case5New0140ctxPair 'Mana Hand final paired context handler'
     }
 
+    # Primary Mana Hand melee context is final in this base layer.
+    # PrimaryMelee later verifies game.cpp instead of rewriting SecondaryMelee context text.
+    if(-not $game0140ctx.Contains('use as primary Mana Hand melee')) {
+        $primaryMenuAnchor0140ctx = @'
+                if( ncmm_secondary_melee_eligible ) {
+                    const bool ncmm_secondary_enabled =
+'@
+        $primaryMenuNew0140ctx = @'
+                if( ncmm_secondary_melee_eligible ) {
+                    const bool ncmm_primary_enabled =
+                        ncmm::virtual_item_primary_melee_enabled( oThisItem );
+                    addentry( 'P', ncmm::localized_text(
+                                  ncmm_primary_enabled ?
+                                  "stop using as primary Mana Hand melee" :
+                                  "use as primary Mana Hand melee",
+                                  ncmm_primary_enabled ?
+                                  "не использовать как основное оружие руки маны" :
+                                  "использовать как основное оружие руки маны" ),
+                              hint_rating::good );
+                }
+
+                if( ncmm_secondary_melee_eligible ) {
+                    const bool ncmm_secondary_enabled =
+'@
+        $primaryMenuCount0140ctx = Count-TextBlock $game0140ctx $primaryMenuAnchor0140ctx
+        if($primaryMenuCount0140ctx -ne 1) {
+            throw ('Unexpected primary Mana Hand menu anchor count: '+$primaryMenuCount0140ctx)
+        }
+        $game0140ctx = Replace-TextBlock $game0140ctx $primaryMenuAnchor0140ctx $primaryMenuNew0140ctx 'final primary Mana Hand melee menu'
+
+        $primaryHandlerAnchor0140ctx = @'
+                case 'M': {
+'@
+        $primaryHandlerNew0140ctx = @'
+                case 'P': {
+                    const ncmm::mana_hand_item_slot ncmm_primary_slot =
+                        ncmm::mana_hand_item_slot_of( u, oThisItem );
+                    if( ncmm_primary_slot == ncmm::mana_hand_item_slot::none ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "This item is not held by an available Mana Hand.",
+                                     "Этот предмет не удерживается доступной рукой маны." ).c_str() );
+                        break;
+                    }
+                    const bool ncmm_pair_primary =
+                        ncmm_primary_slot == ncmm::mana_hand_item_slot::paired;
+                    if( !oThisItem.is_melee() || oThisItem.is_gun() ||
+                        ( ncmm_pair_primary != oThisItem.is_two_handed( u ) ) ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "This item is not eligible for primary Mana Hand melee.",
+                                     "Этот предмет нельзя использовать как основное оружие руки маны." ).c_str() );
+                        break;
+                    }
+                    const bool ncmm_enable_primary =
+                        !ncmm::virtual_item_primary_melee_enabled( oThisItem );
+                    if( ncmm::virtual_item_set_primary_melee(
+                            oThisItem, ncmm_enable_primary ) ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     ncmm_enable_primary ?
+                                     "Primary Mana Hand melee enabled. Physical wielded weapons keep priority." :
+                                     "Primary Mana Hand melee disabled.",
+                                     ncmm_enable_primary ?
+                                     "Основное оружие руки маны включено. Физически удерживаемое оружие остаётся приоритетным." :
+                                     "Основное оружие руки маны отключено." ).c_str() );
+                    }
+                    break;
+                }
+                case 'M': {
+'@
+        $primaryHandlerCount0140ctx = Count-TextBlock $game0140ctx $primaryHandlerAnchor0140ctx
+        if($primaryHandlerCount0140ctx -ne 1) {
+            throw ('Unexpected primary Mana Hand handler anchor count: '+$primaryHandlerCount0140ctx)
+        }
+        $game0140ctx = Replace-TextBlock $game0140ctx $primaryHandlerAnchor0140ctx $primaryHandlerNew0140ctx 'final primary Mana Hand melee handler'
+    }
+
     Write-Utf8NoBom $game0140ctxPath $game0140ctx
     foreach($needle0140ctx in @(
         '#include "ncmm_api.h"',
@@ -20285,6 +20360,10 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
         'ncmm::mana_hand_item_slot_of( u, oThisItem )',
         'ncmm::mana_hand_item_slot::paired',
         "case 'M':",
+        'use as primary Mana Hand melee',
+        "case 'P':",
+        'ncmm::virtual_item_set_primary_melee(',
+        'ncmm::mana_hand_item_slot_of( u, oThisItem )',
         'ncmm::mana_hand_inventory_action_visible( locThisItem )',
         'ncmm::mana_hand_inventory_action( locThisItem )',
         "case 'H':"
@@ -22200,80 +22279,18 @@ function Apply-SurvivorManaHandPrimaryMelee0140([string]$Root) {
         }
     }
 
-    $game0140pm = Normalize-Lf ([IO.File]::ReadAllText($game0140pmPath))
-    if(-not $game0140pm.Contains('use as primary Mana Hand melee')) {
-        $menuAnchor0140pm = @'
-                if( ncmm_secondary_melee_eligible ) {
-                    const bool ncmm_secondary_enabled =
-'@
-        $menuNew0140pm = @'
-                if( ncmm_secondary_melee_eligible ) {
-                    const bool ncmm_primary_enabled =
-                        ncmm::virtual_item_primary_melee_enabled( oThisItem );
-                    addentry( 'P', ncmm::localized_text(
-                                  ncmm_primary_enabled ?
-                                  "stop using as primary Mana Hand melee" :
-                                  "use as primary Mana Hand melee",
-                                  ncmm_primary_enabled ?
-                                  "не использовать как основное оружие руки маны" :
-                                  "использовать как основное оружие руки маны" ),
-                              hint_rating::good );
-                }
-
-                if( ncmm_secondary_melee_eligible ) {
-                    const bool ncmm_secondary_enabled =
-'@
-        $menuCount0140pm = Count-TextBlock $game0140pm $menuAnchor0140pm
-        if($menuCount0140pm -ne 1) {
-            throw ('Unexpected primary Mana Hand menu anchor count: '+$menuCount0140pm)
+    $game0140pm = [IO.File]::ReadAllText($game0140pmPath)
+    foreach($primaryContextNeedle0140pm in @(
+        'use as primary Mana Hand melee',
+        "case 'P':",
+        'ncmm::virtual_item_set_primary_melee(',
+        'ncmm::mana_hand_item_slot_of( u, oThisItem )',
+        'ncmm::mana_hand_item_slot::paired'
+    )) {
+        if(-not $game0140pm.Contains($primaryContextNeedle0140pm)) {
+            throw ('Primary Mana Hand context missing final base-layer boundary: '+$primaryContextNeedle0140pm)
         }
-        $game0140pm = Replace-TextBlock $game0140pm $menuAnchor0140pm $menuNew0140pm 'primary Mana Hand melee menu'
-
-        $handlerAnchor0140pm = @'
-                case 'M': {
-'@
-        $handlerNew0140pm = @'
-                case 'P': {
-                    const ncmm::mana_hand_item_slot ncmm_primary_slot =
-                        ncmm::mana_hand_item_slot_of( u, oThisItem );
-                    if( ncmm_primary_slot == ncmm::mana_hand_item_slot::none ) {
-                        add_msg( m_info, "%s", ncmm::localized_text(
-                                     "This item is not held by an available Mana Hand.",
-                                     "Этот предмет не удерживается доступной рукой маны." ).c_str() );
-                        break;
-                    }
-                    const bool ncmm_pair_primary =
-                        ncmm_primary_slot == ncmm::mana_hand_item_slot::paired;
-                    if( !oThisItem.is_melee() || oThisItem.is_gun() ||
-                        ( ncmm_pair_primary != oThisItem.is_two_handed( u ) ) ) {
-                        add_msg( m_info, "%s", ncmm::localized_text(
-                                     "This item is not eligible for primary Mana Hand melee.",
-                                     "Этот предмет нельзя использовать как основное оружие руки маны." ).c_str() );
-                        break;
-                    }
-                    const bool ncmm_enable_primary =
-                        !ncmm::virtual_item_primary_melee_enabled( oThisItem );
-                    if( ncmm::virtual_item_set_primary_melee(
-                            oThisItem, ncmm_enable_primary ) ) {
-                        add_msg( m_info, "%s", ncmm::localized_text(
-                                     ncmm_enable_primary ?
-                                     "Primary Mana Hand melee enabled. Physical wielded weapons keep priority." :
-                                     "Primary Mana Hand melee disabled.",
-                                     ncmm_enable_primary ?
-                                     "Основное оружие руки маны включено. Физически удерживаемое оружие остаётся приоритетным." :
-                                     "Основное оружие руки маны отключено." ).c_str() );
-                    }
-                    break;
-                }
-                case 'M': {
-'@
-        $handlerCount0140pm = Count-TextBlock $game0140pm $handlerAnchor0140pm
-        if($handlerCount0140pm -ne 1) {
-            throw ('Unexpected primary Mana Hand handler anchor count: '+$handlerCount0140pm)
-        }
-        $game0140pm = Replace-TextBlock $game0140pm $handlerAnchor0140pm $handlerNew0140pm 'primary Mana Hand melee handler'
     }
-    Write-Utf8NoBom $game0140pmPath $game0140pm
 
     $melee0140pm = [IO.File]::ReadAllText($melee0140pmPath)
     foreach($primaryPipelineNeedle0140pm in @(
