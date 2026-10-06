@@ -1079,9 +1079,11 @@ foreach($secondaryContextForbidden0140 in @(
         throw ('Mana Hand secondary context-menu duplicated Host ownership policy: '+$secondaryContextForbidden0140)
     }
 }
-$secondarySwitchPolicyStart0140=$manaContextSection0140.IndexOf("case 'M': {")
+$secondarySwitchTemplateStart0140=$manaContextSection0140.IndexOf('$secondarySwitchNew0140ctx = @''')
+$secondarySwitchPolicyStart0140=$manaContextSection0140.IndexOf("case 'M': {",$secondarySwitchTemplateStart0140)
 $secondarySwitchPolicyEnd0140=$manaContextSection0140.IndexOf("case 'a': {",$secondarySwitchPolicyStart0140)
-if($secondarySwitchPolicyStart0140 -lt 0 -or $secondarySwitchPolicyEnd0140 -le $secondarySwitchPolicyStart0140){
+if($secondarySwitchTemplateStart0140 -lt 0 -or $secondarySwitchPolicyStart0140 -le $secondarySwitchTemplateStart0140 -or
+   $secondarySwitchPolicyEnd0140 -le $secondarySwitchPolicyStart0140){
     throw 'Mana Hand secondary context-handler policy boundary missing.'
 }
 $secondarySwitchPolicy0140=$manaContextSection0140.Substring(
