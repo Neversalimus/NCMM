@@ -20136,8 +20136,7 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                 constexpr uint32_t ncmm_mana_pair_flags =
                     ncmm_mana_slot_flags |
                     NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
-                    NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2 |
-                    NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2;
+                    NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;
 '@
         $game0140ctx = Replace-TextBlock $game0140ctx $pointerOld0140ctxPair $pointerNew0140ctxPair 'Mana Hand final pair context pointers'
 
@@ -20249,16 +20248,15 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
                         NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
                         NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 |
                         NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
-                        NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2 |
-                        NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2;
+                        NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;
                     if( ncmm_mana_hands_now < 2 || ncmm_pair != nullptr ||
                         ncmm_single3 != nullptr || ncmm_single4 != nullptr ||
                         !ncmm::virtual_item_assign(
                             "survivor_progression", "mana_hands_34",
                             locThisItem, ncmm_pair_flags ) ) {
                         add_msg( m_info, "%s", ncmm::localized_text(
-                                     "Both Mana Hands must be free and the item must be a non-firearm two-handed item.",
-                                     "Обе руки маны должны быть свободны, а предмет должен быть двуручным и не огнестрельным." ).c_str() );
+                                     "Both Mana Hands must be free and the item must be two-handed.",
+                                     "Обе руки маны должны быть свободны, а предмет должен быть двуручным." ).c_str() );
                         break;
                     }
                     add_msg( m_info, "%s", ncmm::localized_text(
@@ -20976,8 +20974,7 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
         '"survivor_progression", "mana_hands_34"',
         'ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 1',
         'ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 2',
-        'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
-        'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2'
+        'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2'
     )) {
         if(-not $game0140pair.Contains($pairNeedle0140)) {
             throw ('Survivor 0.14.0 paired-grip final context missing: '+$pairNeedle0140)
@@ -21319,7 +21316,7 @@ item_location aim_activity_actor::get_weapon()
 Apply-SurvivorManaHandRanged0140 $CddaRoot
 
 function Apply-SurvivorManaHandPairedRanged0140([string]$Root) {
-    Write-Host "Applying Survivor 0.14.0 paired Mana Hand ranged support..." -ForegroundColor Cyan
+    Write-Host "Verifying Survivor 0.14.0 paired Mana Hand ranged support..." -ForegroundColor Cyan
     $src0140pr = Join-Path $Root 'src'
     $actor0140prPath = Join-Path $src0140pr 'activity_actor.cpp'
     $game0140prPath = Join-Path $src0140pr 'game.cpp'
@@ -21327,72 +21324,48 @@ function Apply-SurvivorManaHandPairedRanged0140([string]$Root) {
     foreach($required0140pr in @($actor0140prPath,$game0140prPath,$ranged0140prPath)) {
         if(-not(Test-Path $required0140pr -PathType Leaf)) {
             if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
-                Write-Host "Survivor 0.14.0 paired ranged transform deferred during copy-audit source generation." -ForegroundColor DarkGray
+                Write-Host "Survivor 0.14.0 paired ranged verifier deferred during copy-audit source generation." -ForegroundColor DarkGray
                 return
             }
             throw ('Paired Mana Hand ranged source missing: '+$required0140pr)
         }
     }
 
-    $game0140pr = Normalize-Lf ([IO.File]::ReadAllText($game0140prPath))
-    $pairMenuFlagsOld0140pr = @'
-                constexpr uint32_t ncmm_mana_pair_flags =
-                    ncmm_mana_slot_flags |
-                    NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
-                    NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2 |
-                    NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2;
-'@
-    $pairMenuFlagsNew0140pr = @'
+    $game0140pr = [IO.File]::ReadAllText($game0140prPath)
+    $pairMenuFlags0140pr = @'
                 constexpr uint32_t ncmm_mana_pair_flags =
                     ncmm_mana_slot_flags |
                     NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
                     NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;
 '@
-    if(Test-TextBlock $game0140pr $pairMenuFlagsOld0140pr) {
-        $game0140pr = Replace-TextBlock $game0140pr $pairMenuFlagsOld0140pr $pairMenuFlagsNew0140pr 'paired Mana Hand firearm menu flags'
-    } elseif(-not (Test-TextBlock $game0140pr $pairMenuFlagsNew0140pr)) {
-        throw 'Paired Mana Hand firearm menu flags anchor missing.'
+    if(-not (Test-TextBlock $game0140pr $pairMenuFlags0140pr)) {
+        throw 'Paired Mana Hand final firearm menu flags missing.'
     }
 
-    $pairHandlerFlagsOld0140pr = @'
-                    constexpr uint32_t ncmm_pair_flags =
-                        NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
-                        NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 |
-                        NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
-                        NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2 |
-                        NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2;
-'@
-    $pairHandlerFlagsNew0140pr = @'
+    $pairHandlerFlags0140pr = @'
                     constexpr uint32_t ncmm_pair_flags =
                         NCMM_VIRTUAL_ITEM_REJECT_CHARGES_V2 |
                         NCMM_VIRTUAL_ITEM_REJECT_LIQUIDS_V2 |
                         NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2 |
                         NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;
 '@
-    if(Test-TextBlock $game0140pr $pairHandlerFlagsOld0140pr) {
-        $game0140pr = Replace-TextBlock $game0140pr $pairHandlerFlagsOld0140pr $pairHandlerFlagsNew0140pr 'paired Mana Hand firearm handler flags'
-    } elseif(-not (Test-TextBlock $game0140pr $pairHandlerFlagsNew0140pr)) {
-        throw 'Paired Mana Hand firearm handler flags anchor missing.'
+    if(-not (Test-TextBlock $game0140pr $pairHandlerFlags0140pr)) {
+        throw 'Paired Mana Hand final firearm handler flags missing.'
     }
-
-    $game0140pr = $game0140pr.Replace(
-        'Both Mana Hands must be free and the item must be a non-firearm two-handed item.',
-        'Both Mana Hands must be free and the item must be two-handed.' )
-    $game0140pr = $game0140pr.Replace(
-        'Обе руки маны должны быть свободны, а предмет должен быть двуручным и не огнестрельным.',
-        'Обе руки маны должны быть свободны, а предмет должен быть двуручным.' )
-
+    if($game0140pr.Contains('non-firearm two-handed item.') -or
+       $game0140pr.Contains('двуручным и не огнестрельным.')) {
+        throw 'Paired Mana Hand final context still rejects firearms in player-facing text.'
+    }
     if(-not $game0140pr.Contains('ncmm::mana_hand_ranged_item_owner( u, oThisItem )')) {
         throw 'Paired Mana Hand ranged item-owner boundary missing.'
     }
-    Write-Utf8NoBom $game0140prPath $game0140pr
 
-    $actor0140pr = Normalize-Lf ([IO.File]::ReadAllText($actor0140prPath))
+    $actor0140pr = [IO.File]::ReadAllText($actor0140prPath)
     if(-not $actor0140pr.Contains('ncmm::ranged_weapon_binding_valid( get_avatar(), *ncmm_candidate )')) {
         throw 'Paired Mana Hand aim Host-resolver boundary missing.'
     }
 
-    $ranged0140pr = Normalize-Lf ([IO.File]::ReadAllText($ranged0140prPath))
+    $ranged0140pr = [IO.File]::ReadAllText($ranged0140prPath)
     foreach($rangedBoundary0140pr in @(
         'ncmm::mana_hand_ranged_mode_owner( you, gmode ? &*gmode : nullptr )',
         'ncmm::mana_hand_ranged_owner::paired',
@@ -21417,10 +21390,11 @@ function Apply-SurvivorManaHandPairedRanged0140([string]$Root) {
             throw ('Survivor 0.14.0 paired ranged output missing: '+$check0140pr[1])
         }
     }
-    Write-Host "Survivor 0.14.0 paired Mana Hand ranged support: READY" -ForegroundColor Green
+    Write-Host "Survivor 0.14.0 paired Mana Hand ranged support: VERIFIED" -ForegroundColor Green
 }
 
 Apply-SurvivorManaHandPairedRanged0140 $CddaRoot
+
 
 function Apply-SurvivorManaHandReloadAndShoot0140([string]$Root) {
     Write-Host "Applying Survivor 0.14.0 Mana Hand reload-and-shoot support..." -ForegroundColor Cyan
