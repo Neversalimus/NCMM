@@ -1106,44 +1106,83 @@ foreach($obsoleteDirectRewrite0151 in @(
 }
 
 
-foreach($pairContextNeedle0140 in @(
-    '$pointerNew0140ctxPair = @''',
+$pairCleanMenuStart0140=$manaContextSection0140.IndexOf('$menuNew0140ctx = @''')
+$pairCleanMenuEnd0140=$manaContextSection0140.IndexOf("'@",$pairCleanMenuStart0140+22)
+$pairCleanSwitchStart0140=$manaContextSection0140.IndexOf('$switchNew0140ctx = @''')
+$pairCleanSwitchEnd0140=$manaContextSection0140.IndexOf("'@",$pairCleanSwitchStart0140+24)
+if($pairCleanMenuStart0140 -lt 0 -or $pairCleanMenuEnd0140 -le $pairCleanMenuStart0140 -or
+   $pairCleanSwitchStart0140 -lt 0 -or $pairCleanSwitchEnd0140 -le $pairCleanSwitchStart0140){
+    throw 'Mana Hand paired clean-base context template boundary missing.'
+}
+$pairCleanMenu0140=$manaContextSection0140.Substring(
+    $pairCleanMenuStart0140,$pairCleanMenuEnd0140-$pairCleanMenuStart0140)
+$pairCleanSwitch0140=$manaContextSection0140.Substring(
+    $pairCleanSwitchStart0140,$pairCleanSwitchEnd0140-$pairCleanSwitchStart0140)
+foreach($pairCleanMenuNeedle0140 in @(
     'item *ncmm_mana_pair_item = ncmm_mana_hands >= 2 ?',
+    'NCMM_VIRTUAL_ITEM_ALLOW_TWO_HANDED_V2',
     'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
     'ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 1',
     'ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 2',
-    "case '5':",
-    'Mana Hand final paired context handler'
+    "addentry( '5'",
+    '"survivor_progression", "mana_hands_34"'
 )){
-    if(-not $manaContextSection0140.Contains($pairContextNeedle0140)){
-        throw ('Mana Hand final paired context missing from base layer: '+$pairContextNeedle0140)
+    if(-not $pairCleanMenu0140.Contains($pairCleanMenuNeedle0140)){
+        throw ('Mana Hand paired clean-base menu missing: '+$pairCleanMenuNeedle0140)
     }
 }
-$pairMenuTemplateStart0140=$manaContextSection0140.IndexOf('$pointerNew0140ctxPair = @''')
-$pairMenuTemplateEnd0140=$manaContextSection0140.IndexOf("'@",$pairMenuTemplateStart0140+28)
-$pairHandlerTemplateStart0140=$manaContextSection0140.IndexOf('$case5New0140ctxPair = @''')
-$pairHandlerTemplateEnd0140=$manaContextSection0140.IndexOf("'@",$pairHandlerTemplateStart0140+28)
-if($pairMenuTemplateStart0140 -lt 0 -or $pairMenuTemplateEnd0140 -le $pairMenuTemplateStart0140 -or
-   $pairHandlerTemplateStart0140 -lt 0 -or $pairHandlerTemplateEnd0140 -le $pairHandlerTemplateStart0140){
-    throw 'Mana Hand final paired firearm template boundary missing.'
-}
-$pairMenuTemplate0140=$manaContextSection0140.Substring(
-    $pairMenuTemplateStart0140,$pairMenuTemplateEnd0140-$pairMenuTemplateStart0140)
-$pairHandlerTemplate0140=$manaContextSection0140.Substring(
-    $pairHandlerTemplateStart0140,$pairHandlerTemplateEnd0140-$pairHandlerTemplateStart0140)
-foreach($pairFirearmTemplate0140 in @($pairMenuTemplate0140,$pairHandlerTemplate0140)){
-    if($pairFirearmTemplate0140.Contains('NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2')){
-        throw 'Final paired Mana Hand context must allow firearms.'
+foreach($pairCleanSwitchNeedle0140 in @(
+    "case '5': {",
+    'Release the paired Mana Hands item first.',
+    'item *ncmm_pair = ncmm_mana_hands_now >= 2 ?',
+    'ncmm_pair == &oThisItem',
+    'Both Mana Hands must be free and the item must be two-handed.',
+    '"survivor_progression", "mana_hands_34"'
+)){
+    if(-not $pairCleanSwitch0140.Contains($pairCleanSwitchNeedle0140)){
+        throw ('Mana Hand paired clean-base handler missing: '+$pairCleanSwitchNeedle0140)
     }
 }
-if(-not $pairHandlerTemplate0140.Contains('Both Mana Hands must be free and the item must be two-handed.')){
-    throw 'Final paired Mana Hand handler still carries the pre-firearm message.'
+foreach($pairCleanTemplate0140 in @($pairCleanMenu0140,$pairCleanSwitch0140)){
+    if($pairCleanTemplate0140.Contains('NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2')){
+        throw 'Paired Mana Hand clean-base context must allow firearms.'
+    }
 }
 
-$pairContextFinalizePos0140=$manaContextSection0140.IndexOf('$pointerNew0140ctxPair = @''')
+foreach($pairCompatNeedle0140 in @(
+    'Compatibility path: upgrade older 0.14.0 sources',
+    "if(-not $game0140ctx.Contains('ncmm_mana_pair_item'))",
+    '$pointerOld0140ctxPair = @''',
+    '$pointerNew0140ctxPair = @''',
+    '$case5New0140ctxPair = @''',
+    'Mana Hand final paired context handler'
+)){
+    if(-not $manaContextSection0140.Contains($pairCompatNeedle0140)){
+        throw ('Mana Hand paired compatibility path missing: '+$pairCompatNeedle0140)
+    }
+}
+$pairCompatMenuStart0140=$manaContextSection0140.IndexOf('$pointerNew0140ctxPair = @''')
+$pairCompatMenuEnd0140=$manaContextSection0140.IndexOf("'@",$pairCompatMenuStart0140+28)
+$pairCompatHandlerStart0140=$manaContextSection0140.IndexOf('$case5New0140ctxPair = @''')
+$pairCompatHandlerEnd0140=$manaContextSection0140.IndexOf("'@",$pairCompatHandlerStart0140+28)
+if($pairCompatMenuStart0140 -lt 0 -or $pairCompatMenuEnd0140 -le $pairCompatMenuStart0140 -or
+   $pairCompatHandlerStart0140 -lt 0 -or $pairCompatHandlerEnd0140 -le $pairCompatHandlerStart0140){
+    throw 'Mana Hand paired compatibility template boundary missing.'
+}
+$pairCompatMenu0140=$manaContextSection0140.Substring(
+    $pairCompatMenuStart0140,$pairCompatMenuEnd0140-$pairCompatMenuStart0140)
+$pairCompatHandler0140=$manaContextSection0140.Substring(
+    $pairCompatHandlerStart0140,$pairCompatHandlerEnd0140-$pairCompatHandlerStart0140)
+foreach($pairCompatTemplate0140 in @($pairCompatMenu0140,$pairCompatHandler0140)){
+    if($pairCompatTemplate0140.Contains('NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2')){
+        throw 'Paired Mana Hand compatibility path must allow firearms.'
+    }
+}
+
 $pairContextWritePos0140=$manaContextSection0140.IndexOf('Write-Utf8NoBom $game0140ctxPath $game0140ctx')
-if($pairContextFinalizePos0140 -lt 0 -or $pairContextWritePos0140 -le $pairContextFinalizePos0140){
-    throw 'Mana Hand paired context must finalize before the base game.cpp write.'
+if($pairContextWritePos0140 -le $pairCleanMenuStart0140 -or
+   $pairContextWritePos0140 -le $pairCleanSwitchStart0140){
+    throw 'Mana Hand paired clean-base context must be defined before the base game.cpp write.'
 }
 
 foreach($primaryContextNeedle0140 in @(
