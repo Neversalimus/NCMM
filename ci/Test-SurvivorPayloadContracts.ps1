@@ -743,6 +743,8 @@ foreach($needle0140 in @(
     'use as primary Mana Hand melee',
     "case 'P':",
     'ncmm::virtual_item_set_primary_melee(',
+    'ncmm::mana_hand_item_slot_of( u, oThisItem )',
+    'ncmm::mana_hand_item_slot::paired',
     'ncmm::primary_mana_hand_melee_weapon',
     'ncmm::virtual_melee_context_suppresses_martial_arts',
     'ncmm_virtual_melee_scope ncmm_primary_scope(',
@@ -1294,6 +1296,33 @@ $manaReachStart0140=$payload.IndexOf('function Apply-SurvivorManaHandReachMelee0
 if($manaPrimaryStart0140 -lt 0 -or $manaMartialStart0140 -le $manaPrimaryStart0140 -or
    $manaReachStart0140 -le $manaMartialStart0140){
     throw 'Primary Mana Hand martial-arts/reach transform boundary missing.'
+}
+$manaPrimarySection0140=$payload.Substring($manaPrimaryStart0140,$manaMartialStart0140-$manaPrimaryStart0140)
+foreach($primaryNeedle0140 in @(
+    'ncmm::mana_hand_item_slot_of( u, oThisItem )',
+    'ncmm::mana_hand_item_slot::none',
+    'ncmm::mana_hand_item_slot::paired',
+    'ncmm::virtual_item_set_primary_melee(',
+    'This item is not held by an available Mana Hand.',
+    'This item is not eligible for primary Mana Hand melee.'
+)){
+    if(-not $manaPrimarySection0140.Contains($primaryNeedle0140)){
+        throw ('Primary Mana Hand handler regression contract missing: '+$primaryNeedle0140)
+    }
+}
+foreach($primaryForbidden0140 in @(
+    'gameplay_modifier( "mg_virtual_hand_count" )',
+    'virtual_item_for_slot(',
+    '"mana_hand_3"',
+    '"mana_hand_4"',
+    '"mana_hands_34"',
+    'item *ncmm_bound3',
+    'item *ncmm_bound4',
+    'item *ncmm_bound_pair'
+)){
+    if($manaPrimarySection0140.Contains($primaryForbidden0140)){
+        throw ('Primary Mana Hand handler duplicated Host ownership policy: '+$primaryForbidden0140)
+    }
 }
 $manaMartialSection0140=$payload.Substring($manaMartialStart0140,$manaReachStart0140-$manaMartialStart0140)
 foreach($martialNeedle0140 in @(
