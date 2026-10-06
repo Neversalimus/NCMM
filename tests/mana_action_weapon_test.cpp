@@ -110,6 +110,9 @@ int main() {
           "empty physical hands + Mana III firearm");
     check(ncmm::ranged_weapon_binding_valid(player, pistol),
           "selected Mana III firearm binding remains valid");
+    check(ncmm::mana_hand_ranged_item_owner(player, pistol) ==
+              ncmm::mana_hand_ranged_owner::single,
+          "single Mana Hand owns its bound firearm");
     check(ncmm::mana_hand_ranged_mode_owner(player, &pistol) ==
               ncmm::mana_hand_ranged_owner::single,
           "single Mana Hand owns its base firing mode");
@@ -122,6 +125,9 @@ int main() {
     pair = &rifle;
     guns = ncmm::ranged_weapon_candidates(player, fire);
     check(guns.size() == 1 && guns[0].value == &rifle, "physical melee + paired III+IV firearm");
+    check(ncmm::mana_hand_ranged_item_owner(player, rifle) ==
+              ncmm::mana_hand_ranged_owner::paired,
+          "paired Mana Hands own their bound firearm");
     check(ncmm::mana_hand_ranged_mode_owner(player, &rifle) ==
               ncmm::mana_hand_ranged_owner::paired,
           "paired Mana Hands own two-handed firing mode");
@@ -142,6 +148,9 @@ int main() {
     guns = ncmm::ranged_weapon_candidates(player, fire);
     check(guns.size() == 2 && guns[0].value == &pistol && guns[1].value == &rifle,
           "two independent Mana guns retain selector order");
+    check(ncmm::mana_hand_ranged_item_owner(player, rifle) ==
+              ncmm::mana_hand_ranged_owner::none,
+          "two-handed firearm cannot masquerade as a single Mana Hand binding");
     pistol.mode.melee_mode = true;
     check(!ncmm::ranged_weapon_capable(pistol, fire), "melee gun mode cannot intercept fire");
     check(ncmm::ranged_weapon_capable(pistol, ranged_weapon_action::controls),
