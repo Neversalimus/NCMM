@@ -699,7 +699,7 @@ foreach($needle0140 in @(
     'Apply-SurvivorManaHandUtility0140 $CddaRoot',
     'function Apply-SurvivorManaHandSecondaryMelee0140',
     'class ncmm_virtual_melee_scope',
-    'virtual_melee_context_begin( who, weapon )',
+    'who, weapon, suppress_martial_arts',
     'ncmm::active_mana_hand_items( who )',
     'ncmm::mana_hand_item_slot_of( who, *weapon )',
     'ncmm::mana_hand_item_slot::paired',
@@ -909,7 +909,6 @@ foreach($eolSafeNeedle0140 in @(
     '$single3Count0140ctxPair = Count-TextBlock $game0140ctx $single3Old0140ctxPair',
     '$menuCount0140pm = Count-TextBlock $game0140pm $menuAnchor0140pm',
     '$handlerCount0140pm = Count-TextBlock $game0140pm $handlerAnchor0140pm',
-    '$wrapperCount0140pm = Count-TextBlock $melee0140pm $wrapperOld0140pm',
     '$fireCount0140reach = Count-TextBlock $handle0140reach $fireOld0140reach',
     '$canReachCount0140 = Count-TextBlock $melee0140reach $canReachOld0140',
     '$reachAttackCount0140 = Count-TextBlock $melee0140reach $reachAttackOld0140',
@@ -1118,7 +1117,9 @@ if($manaPairStart0140 -le $manaSecondaryStart0140){throw 'Mana Hand paired-grip 
 $manaSecondarySection0140=$payload.Substring($manaSecondaryStart0140,$manaPairStart0140-$manaSecondaryStart0140)
 foreach($secondaryNeedle0140 in @(
     'class ncmm_virtual_melee_scope',
-    'ncmm::virtual_melee_context_begin( who, weapon )',
+    'bool suppress_martial_arts = true',
+    'ncmm::virtual_melee_context_begin(',
+    'who, weapon, suppress_martial_arts',
     'who_.recalculate_enchantment_cache();',
     'ncmm::active_mana_hand_items( who )',
     'ncmm::mana_hand_item_slot_of( who, *weapon )',
@@ -1134,8 +1135,12 @@ foreach($secondaryNeedle0140 in @(
     'ncmm::virtual_melee_context_item( c )',
     'ncmm::virtual_melee_context_is_wielding( *this, target )',
     'ncmm_run_mana_hand_secondary_melee( *this, t );',
+    'ncmm::primary_mana_hand_melee_weapon( *this )',
+    'ncmm_virtual_melee_scope ncmm_primary_scope(',
+    '*this, *ncmm_primary_weapon, false );',
+    'Not enough mana to attack with the primary Mana Hand weapon.',
     'NCMM Mana Hand secondary strikes do not trigger martial-art event chains.',
-    'ncmm::virtual_melee_context_active( *this ) ? tec_none.obj()'
+    'ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ? tec_none.obj()'
 )){
     if(-not $manaSecondarySection0140.Contains($secondaryNeedle0140)){
         throw ('Mana Hand secondary-melee regression contract missing: '+$secondaryNeedle0140)
@@ -1158,8 +1163,8 @@ foreach($secondarySelectorForbidden0140 in @(
     }
 }
 
-if(([regex]::Matches($manaSecondarySection0140,[regex]::Escape('if( !ncmm::virtual_melee_context_active( *this ) ) {'))).Count -lt 4){
-    throw 'Mana Hand secondary melee must suppress all martial-art event chains while scoped.'
+if(([regex]::Matches($manaSecondarySection0140,[regex]::Escape('if( !ncmm::virtual_melee_context_suppresses_martial_arts( *this ) ) {'))).Count -lt 4){
+    throw 'Mana Hand secondary melee must suppress martial-art event chains only for suppressing virtual scopes.'
 }
 foreach($upgradeNeedle0140 in @(
     '$secondaryMenuOld0140ctx = @''',
@@ -1506,6 +1511,30 @@ foreach($primaryForbidden0140 in @(
 )){
     if($manaPrimarySection0140.Contains($primaryForbidden0140)){
         throw ('Primary Mana Hand handler duplicated Host ownership policy: '+$primaryForbidden0140)
+    }
+}
+foreach($primaryPipelineNeedle0140 in @(
+    '$melee0140pm = [IO.File]::ReadAllText($melee0140pmPath)',
+    'Primary Mana Hand melee pipeline missing final base-layer boundary:',
+    'ncmm_virtual_melee_scope ncmm_primary_scope(',
+    '*this, *ncmm_primary_weapon, false );'
+)){
+    if(-not $manaPrimarySection0140.Contains($primaryPipelineNeedle0140)){
+        throw ('Primary Mana Hand final melee verifier contract missing: '+$primaryPipelineNeedle0140)
+    }
+}
+foreach($primaryMeleeMutationForbidden0140 in @(
+    '$scopeOld0140pm',
+    '$scopeNew0140pm',
+    '$wrapperOld0140pm',
+    '$wrapperNew0140pm',
+    'Replace-TextBlock $melee0140pm',
+    '$melee0140pm.Replace(',
+    'Write-Utf8NoBom $melee0140pmPath',
+    'Normalize-Lf ([IO.File]::ReadAllText($melee0140pmPath))'
+)){
+    if($manaPrimarySection0140.Contains($primaryMeleeMutationForbidden0140)){
+        throw ('Primary Mana Hand layer regressed to late melee.cpp mutation: '+$primaryMeleeMutationForbidden0140)
     }
 }
 $manaMartialSection0140=$payload.Substring($manaMartialStart0140,$manaReachStart0140-$manaMartialStart0140)
