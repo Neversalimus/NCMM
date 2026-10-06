@@ -68,6 +68,9 @@ enum class ranged_weapon_action { fire, controls, reload };
 bool ranged_weapon_capable( const item &weapon, ranged_weapon_action action );
 /** Primary melee resolver for logical Mana Hands. Physical wielded items keep priority. */
 item *primary_mana_hand_melee_weapon( Character &who );
+enum class mana_hand_item_slot { none, hand3, hand4, paired };
+/** Resolve which active logical Mana Hand slot owns an item, independent of action capability. */
+mana_hand_item_slot mana_hand_item_slot_of( const Character &who, const item &candidate );
 enum class mana_hand_ranged_owner { none, single, paired };
 /** Identify whether a bound firearm itself belongs to a single or paired Mana Hand slot. */
 mana_hand_ranged_owner mana_hand_ranged_item_owner( const avatar &who, const item &weapon );
