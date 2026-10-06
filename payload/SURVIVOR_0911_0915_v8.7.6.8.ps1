@@ -22040,25 +22040,16 @@ function Apply-SurvivorManaHandPrimaryMelee0140([string]$Root) {
 '@
         $handlerNew0140pm = @'
                 case 'P': {
-                    const int ncmm_mana_hands_now = static_cast<int>(
-                                                        ncmm::gameplay_modifier( "mg_virtual_hand_count" ) );
-                    item *ncmm_bound3 = ncmm_mana_hands_now >= 1 ?
-                                        ncmm::virtual_item_for_slot(
-                                            "survivor_progression", "mana_hand_3" ) : nullptr;
-                    item *ncmm_bound4 = ncmm_mana_hands_now >= 2 ?
-                                        ncmm::virtual_item_for_slot(
-                                            "survivor_progression", "mana_hand_4" ) : nullptr;
-                    item *ncmm_bound_pair = ncmm_mana_hands_now >= 2 ?
-                                            ncmm::virtual_item_for_slot(
-                                                "survivor_progression", "mana_hands_34" ) : nullptr;
-                    if( ncmm_bound3 != &oThisItem && ncmm_bound4 != &oThisItem &&
-                        ncmm_bound_pair != &oThisItem ) {
+                    const ncmm::mana_hand_item_slot ncmm_primary_slot =
+                        ncmm::mana_hand_item_slot_of( u, oThisItem );
+                    if( ncmm_primary_slot == ncmm::mana_hand_item_slot::none ) {
                         add_msg( m_info, "%s", ncmm::localized_text(
                                      "This item is not held by an available Mana Hand.",
                                      "Этот предмет не удерживается доступной рукой маны." ).c_str() );
                         break;
                     }
-                    const bool ncmm_pair_primary = ncmm_bound_pair == &oThisItem;
+                    const bool ncmm_pair_primary =
+                        ncmm_primary_slot == ncmm::mana_hand_item_slot::paired;
                     if( !oThisItem.is_melee() || oThisItem.is_gun() ||
                         ( ncmm_pair_primary != oThisItem.is_two_handed( u ) ) ) {
                         add_msg( m_info, "%s", ncmm::localized_text(
@@ -22197,6 +22188,8 @@ int ncmm_secondary_melee_mana_cost( Character &who, const item &weapon )
         'use as primary Mana Hand melee',
         "case 'P':",
         'ncmm::virtual_item_set_primary_melee(',
+        'ncmm::mana_hand_item_slot_of( u, oThisItem )',
+        'ncmm::mana_hand_item_slot::paired',
         'ncmm::primary_mana_hand_melee_weapon',
         'ncmm::virtual_item_primary_melee_enabled',
         'ncmm::virtual_melee_context_suppresses_martial_arts',
