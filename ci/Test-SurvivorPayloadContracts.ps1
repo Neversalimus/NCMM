@@ -1454,9 +1454,8 @@ foreach($throwNeedle0140 in @(
     'ncmm_is_mana_hand_throw_item',
     'ncmm::mana_hand_item_slot_of( you, *candidate )',
     'ncmm_select_mana_hand_throw_item',
-    '"survivor_progression", "mana_hands_34"',
-    '"survivor_progression", "mana_hand_3"',
-    '"survivor_progression", "mana_hand_4"',
+    'ncmm::active_mana_hand_items( you )',
+    'ncmm::mana_hand_item_label( *candidate )',
     'const bool ncmm_virtual_throw =',
     'if( !in_mech && !ncmm_virtual_throw )',
     'item_location weapon = ( in_mech || ncmm_virtual_throw ) ? loc : you.get_wielded_item();',
@@ -1486,6 +1485,13 @@ foreach($throwIdentityForbidden0140 in @(
     if($throwIdentity0140.Contains($throwIdentityForbidden0140)){
         throw ('Mana Hand throw identity duplicated Host slot policy: '+$throwIdentityForbidden0140)
     }
+}
+$throwPickerStart0140=$manaThrowSection0140.IndexOf('item_location ncmm_select_mana_hand_throw_item')
+$throwPickerEnd0140=$manaThrowSection0140.IndexOf('} // namespace',$throwPickerStart0140)
+if($throwPickerStart0140 -lt 0 -or $throwPickerEnd0140 -le $throwPickerStart0140){throw 'Mana Hand throw picker boundary missing.'}
+$throwPicker0140=$manaThrowSection0140.Substring($throwPickerStart0140,$throwPickerEnd0140-$throwPickerStart0140)
+foreach($throwPickerForbidden0140 in @('gameplay_modifier(', 'virtual_item_for_slot(', '"mana_hand_3"', '"mana_hand_4"', '"mana_hands_34"')){
+    if($throwPicker0140.Contains($throwPickerForbidden0140)){throw ('Mana Hand throw picker duplicated Host action policy: '+$throwPickerForbidden0140)}
 }
 if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandThrow0140 -CommandType Function).Definition')){throw 'Mana Hand throw transform missing from mechanics patch revision.'}
 
@@ -1556,16 +1562,17 @@ if($manaMendStart0140 -le $manaPracticeStart0140 -or $manaMendEnd0140 -le $manaM
 $manaMendSection0140=$payload.Substring($manaMendStart0140,$manaMendEnd0140-$manaMendStart0140)
 foreach($mendNeedle0140 in @(
     'ncmm_select_mana_hand_mend_item',
-    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
-    '"survivor_progression", "mana_hands_34"',
-    '"survivor_progression", "mana_hand_3"',
-    '"survivor_progression", "mana_hand_4"',
+    'ncmm::active_mana_hand_items( you )',
+    'ncmm::mana_hand_item_label( *candidate )',
     'Mend which Mana Hand item?',
     'if( you.is_armed() )',
     'loc = you.get_wielded_item();',
     'loc = ncmm_select_mana_hand_mend_item( you, ncmm_had_mend_candidates );',
     'you.mend_item( item_location( loc ) );'
 )){if(-not $manaMendSection0140.Contains($mendNeedle0140)){throw ('Mana Hand mend regression contract missing: '+$mendNeedle0140)}}
+foreach($mendPickerForbidden0140 in @('gameplay_modifier(', 'virtual_item_for_slot(', '"mana_hand_3"', '"mana_hand_4"', '"mana_hands_34"')){
+    if($manaMendSection0140.Contains($mendPickerForbidden0140)){throw ('Mana Hand mend picker duplicated Host action policy: '+$mendPickerForbidden0140)}
+}
 if($manaMendSection0140.Contains('set_wielded_item(') -or
    $manaMendSection0140.Contains('you.wield(') -or
    $manaMendSection0140.Contains('.obtain(')){
