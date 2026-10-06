@@ -425,6 +425,9 @@ foreach($carrierDataNeedle0151 in @(
     '"INTEGRATED"',
     '"HIDDEN_ITEM"',
     '"TARDIS"',
+    '"use_action": {',
+    '"type": "effect_on_conditions"',
+    '"effect_on_conditions": []',
     '"forbidden": true',
     '"holster": true',
     '"max_item_length": "5 meter"'
@@ -453,6 +456,9 @@ foreach($payloadNeedle0150 in @(
     'dimensional_pouch.json',
     'ncmm_survivor_mana_hand_carrier',
     'mana_hand_carrier.json',
+    '"use_action": {',
+    '"type": "effect_on_conditions"',
+    '"effect_on_conditions": []',
     '"flags": [ "INTEGRATED", "UNBREAKABLE", "PERSONAL", "NO_SALVAGE", "ZERO_WEIGHT", "HIDDEN_ITEM", "TARDIS" ]',
     'stash_wielded_item_for_mana_hand',
     'restore_mana_hand_carrier_item',
@@ -1663,7 +1669,11 @@ $survivorSource0155=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\Survivo
 foreach($needle0155 in @(
     '"id": "ncmm_survivor_mana_hand_carrier"',
     '"str_sp": "Mana Hands"',
-    'Activate it to manage Mana Hand III, Mana Hand IV and the paired III+IV grip.'
+    'Activate it to manage Mana Hand III, Mana Hand IV and the paired III+IV grip.',
+    '"use_action": {',
+    '"type": "effect_on_conditions"',
+    '"menu_text": "Manage Mana Hands"',
+    '"effect_on_conditions": []'
 )){
     if(-not $manaCarrier0155.Contains($needle0155)){throw ('Mana Hands carrier UX contract missing: '+$needle0155)}
 }
