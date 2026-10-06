@@ -21110,8 +21110,6 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
         @($handle0140pairPath,'"mana_hands_34"'),
         @($melee0140pairPath,'consider_virtual_shield( "mana_hands_34" );'),
         @($melee0140pairPath,'item *ncmm_paired_weapon ='),
-        @($talker0140pairPath,'item *ncmm_pair = ncmm_virtual_hands >= 2'),
-        @($iuse0140pairPath,'"mana_hands_34" ) == &it'),
         @($game0140pairPath,'ncmm_mana_pair_item'),
         @($game0140pairPath,"case '5':"),
         @($game0140pairPath,'"mana_hands_34"')
