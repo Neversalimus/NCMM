@@ -1054,11 +1054,47 @@ foreach($upgradeNeedle0140 in @(
     '$secondarySwitchOld0140ctx = @''',
     'Mana Hand secondary-melee context menu upgrade',
     'Mana Hand secondary-melee context handler upgrade',
-    'item *ncmm_bound3 = ncmm_mana_hands_now >= 1 ?',
-    'item *ncmm_bound4 = ncmm_mana_hands_now >= 2 ?'
+    'ncmm::mana_hand_item_slot_of( u, oThisItem )',
+    'ncmm::mana_hand_item_slot::paired'
 )){
     if(-not $manaContextSection0140.Contains($upgradeNeedle0140)){
         throw ('Mana Hand context update-path regression contract missing: '+$upgradeNeedle0140)
+    }
+}
+$secondaryMenuPolicyStart0140=$manaContextSection0140.IndexOf('const ncmm::mana_hand_item_slot ncmm_secondary_slot =')
+$secondaryMenuPolicyEnd0140=$manaContextSection0140.IndexOf('if( ncmm_secondary_melee_eligible )',$secondaryMenuPolicyStart0140)
+if($secondaryMenuPolicyStart0140 -lt 0 -or $secondaryMenuPolicyEnd0140 -le $secondaryMenuPolicyStart0140){
+    throw 'Mana Hand secondary context-menu policy boundary missing.'
+}
+$secondaryMenuPolicy0140=$manaContextSection0140.Substring(
+    $secondaryMenuPolicyStart0140,$secondaryMenuPolicyEnd0140-$secondaryMenuPolicyStart0140)
+foreach($secondaryContextForbidden0140 in @(
+    'gameplay_modifier(',
+    'virtual_item_for_slot(',
+    'item *ncmm_bound3',
+    'item *ncmm_bound4',
+    'item *ncmm_bound_pair'
+)){
+    if($secondaryMenuPolicy0140.Contains($secondaryContextForbidden0140)){
+        throw ('Mana Hand secondary context-menu duplicated Host ownership policy: '+$secondaryContextForbidden0140)
+    }
+}
+$secondarySwitchPolicyStart0140=$manaContextSection0140.IndexOf("case 'M': {")
+$secondarySwitchPolicyEnd0140=$manaContextSection0140.IndexOf("case 'a': {",$secondarySwitchPolicyStart0140)
+if($secondarySwitchPolicyStart0140 -lt 0 -or $secondarySwitchPolicyEnd0140 -le $secondarySwitchPolicyStart0140){
+    throw 'Mana Hand secondary context-handler policy boundary missing.'
+}
+$secondarySwitchPolicy0140=$manaContextSection0140.Substring(
+    $secondarySwitchPolicyStart0140,$secondarySwitchPolicyEnd0140-$secondarySwitchPolicyStart0140)
+foreach($secondaryContextForbidden0140 in @(
+    'gameplay_modifier(',
+    'virtual_item_for_slot(',
+    'item *ncmm_bound3',
+    'item *ncmm_bound4',
+    'item *ncmm_bound_pair'
+)){
+    if($secondarySwitchPolicy0140.Contains($secondaryContextForbidden0140)){
+        throw ('Mana Hand secondary context-handler duplicated Host ownership policy: '+$secondaryContextForbidden0140)
     }
 }
 
@@ -1088,7 +1124,13 @@ foreach($obsoletePairRewrite0140 in @(
     '$secondaryOld0140pair',
     '$secondaryNew0140pair',
     'Mana Hand paired secondary melee',
-    'ncmm_paired_weapon'
+    'ncmm_paired_weapon',
+    '$mPointerOld0140pair',
+    '$mPointerNew0140pair',
+    '$mEligibilityOld0140pair',
+    '$mEligibilityNew0140pair',
+    'Mana Hand paired secondary pointer',
+    'Mana Hand paired secondary eligibility'
 )){
     if($manaPairSection0140.Contains($obsoletePairRewrite0140)){throw ('PairedGrip still rewrites a final base consumer: '+$obsoletePairRewrite0140)}
 }
