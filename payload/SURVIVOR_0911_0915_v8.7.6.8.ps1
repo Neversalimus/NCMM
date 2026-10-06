@@ -25464,6 +25464,11 @@ function Apply-SurvivorDimensionalPouch0150 {
     "color": "magenta",
     "flags": [ "INTEGRATED", "UNBREAKABLE", "PERSONAL", "NO_SALVAGE", "ZERO_WEIGHT", "HIDDEN_ITEM", "TARDIS" ],
     "max_worn": 1,
+    "use_action": {
+      "type": "effect_on_conditions",
+      "menu_text": "Manage Mana Hands",
+      "effect_on_conditions": []
+    },
     "pocket_data": [
       {
         "pocket_type": "CONTAINER",
