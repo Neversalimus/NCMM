@@ -903,7 +903,7 @@ foreach($eolSafeNeedle0140 in @(
     'if(Test-TextBlock $game0140pr $pairMenuFlagsOld0140pr)',
     'if(Test-TextBlock $game0140pr $pairHandlerFlagsOld0140pr)',
     "if(-not `$game0140pr.Contains('ncmm::mana_hand_ranged_item_owner( u, oThisItem )'))",
-    "if(-not `$actor0140pr.Contains('ncmm::ranged_weapon_binding_valid( get_avatar(), *ncmm_candidate )'))",
+    "if(-not `$actor0140pr.Contains('ncmm::ranged_weapon_binding_valid( get_avatar(), *ncmm_candidate )'))"
 )){
     if(-not $payload.Contains($eolSafeNeedle0140)){
         throw ('Mana Hand certified-host EOL-safe matching contract missing: '+$eolSafeNeedle0140)
