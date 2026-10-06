@@ -91,10 +91,29 @@ foreach($forbidden in @('all_items_loc(', '.obtain(', '.wield(', 'remove_weapon(
     if($resolver.Contains($forbidden)){throw ('Ranged resolver must not scan/move items: '+$forbidden)}
 }
 $stack=Get-Content (Join-Path $PackageRoot 'ci/host-patch-stack.json') -Raw|ConvertFrom-Json
-$layerIndex=[Array]::IndexOf([string[]]$stack.layers,'Apply-SurvivorActionWeaponSelection0154')
+$fireIndex=[Array]::IndexOf([string[]]$stack.layers,'Apply-SurvivorManaHandFireAction0140')
 $reachIndex=[Array]::IndexOf([string[]]$stack.layers,'Apply-SurvivorManaHandReachMelee0140')
-if($layerIndex -le $reachIndex){throw 'Action resolution must reconcile the final reach dispatch.'}
+$layerIndex=[Array]::IndexOf([string[]]$stack.layers,'Apply-SurvivorActionWeaponSelection0154')
+if($fireIndex -lt 0 -or $reachIndex -lt 0 -or $layerIndex -lt 0 -or
+   $fireIndex -ge $reachIndex -or $layerIndex -le $reachIndex){
+    throw 'FIRE base dispatch must precede reach, with ActionWeaponSelection remaining a later verifier/entry-point layer.'
+}
 Require $payload 'Apply-SurvivorActionWeaponSelection0154 $CddaRoot'
+$actionStart=$payload.IndexOf('function Apply-SurvivorActionWeaponSelection0154')
+$actionEnd=$payload.IndexOf('function Apply-SurvivorManaHandsDirectUi0155',$actionStart)
+if($actionStart -lt 0 -or $actionEnd -le $actionStart){throw 'ActionWeaponSelection payload boundary missing.'}
+$actionSection=$payload.Substring($actionStart,$actionEnd-$actionStart)
+Require $actionSection 'Physical reach intercepted F before base-layer ranged capability resolution.'
+foreach($forbiddenActionMutation in @(
+    'Write-Utf8NoBom $handlePath',
+    '$handle = $handle.Substring(',
+    '$start = $handle.IndexOf(''    // try reach weapon'')',
+    '$reach = $handle.Substring('
+)){
+    if($actionSection.Contains($forbiddenActionMutation)){
+        throw ('ActionWeaponSelection regressed to late handle_action mutation: '+$forbiddenActionMutation)
+    }
+}
 
 if($PatchedSourceRoot) {
     $handle=[IO.File]::ReadAllText((Join-Path $PatchedSourceRoot 'src/handle_action.cpp'))
