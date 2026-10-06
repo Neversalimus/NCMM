@@ -19788,6 +19788,11 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
 '@
         $menuNew0140ctx = @'
                 addentry( '=', pgettext( "action", "reassign" ), hint_rating::good );
+                if( ncmm::mana_hand_inventory_action_visible( locThisItem ) ) {
+                    addentry( 'H', ncmm::localized_text(
+                                  "Mana Hand",
+                                  "Рука маны" ), hint_rating::good );
+                }
 
                 const int ncmm_mana_hands = static_cast<int>(
                                                 ncmm::gameplay_modifier( "mg_virtual_hand_count" ) );
@@ -19856,6 +19861,9 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
 '@
         $switchNew0140ctx = @'
             switch( cMenu ) {
+                case 'H':
+                    ncmm::mana_hand_inventory_action( locThisItem );
+                    break;
                 case '3':
                 case '4': {
                     const int ncmm_hand = cMenu == '3' ? 3 : 4;
@@ -20055,41 +20063,8 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
     }
 
 
-    # 0.15.1 UX hardening: expose one stable Mana Hand action whose availability
-    # is resolved by the Host from the actual purchased Survivor modifier.
-    if(-not $game0140ctx.Contains('ncmm::mana_hand_inventory_action_visible( locThisItem )')) {
-        $manaUxMenuOld0151 = @'
-                addentry( '=', pgettext( "action", "reassign" ), hint_rating::good );
-
-                const int ncmm_mana_hands = static_cast<int>(
-'@
-        $manaUxMenuNew0151 = @'
-                addentry( '=', pgettext( "action", "reassign" ), hint_rating::good );
-                if( ncmm::mana_hand_inventory_action_visible( locThisItem ) ) {
-                    addentry( 'H', ncmm::localized_text(
-                                  "Mana Hand",
-                                  "Рука маны" ), hint_rating::good );
-                }
-
-                const int ncmm_mana_hands = static_cast<int>(
-'@
-        $game0140ctx = Replace-TextBlock $game0140ctx $manaUxMenuOld0151 $manaUxMenuNew0151 'Mana Hand direct inventory action'
-    }
-
-    if(-not $game0140ctx.Contains("case 'H':")) {
-        $manaUxSwitchOld0151 = @'
-            switch( cMenu ) {
-                case '3':
-'@
-        $manaUxSwitchNew0151 = @'
-            switch( cMenu ) {
-                case 'H':
-                    ncmm::mana_hand_inventory_action( locThisItem );
-                    break;
-                case '3':
-'@
-        $game0140ctx = Replace-TextBlock $game0140ctx $manaUxSwitchOld0151 $manaUxSwitchNew0151 'Mana Hand direct inventory handler'
-    }
+    # The stable Host-owned Mana Hand inventory action is final in the base
+    # context menu/switch templates above; later context upgrades must not rewrite it.
 
     # Paired-grip inventory context is final in this base layer.
     # This keeps pair assignment/release and single-hand exclusion in the same owner
