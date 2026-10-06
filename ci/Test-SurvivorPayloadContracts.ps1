@@ -913,6 +913,7 @@ foreach($eolSafeNeedle0140 in @(
     '$rangedHandlerCount0140ctx = Count-TextBlock $game0140ctx $rangedHandlerAnchor0140ctx',
     '$avatarEntryCount0140range = Count-TextBlock $avatar0140range $avatarEntryOld0140range',
     '$avatarActivityCount0140range = Count-TextBlock $avatar0140range $avatarActivityOld0140range',
+    '$rasSwitchCount0140range = Count-TextBlock $ranged0140range $rasSwitchOld0140range',
     '$fireCount0140reach = Count-TextBlock $handle0140fire $fireOld0140reach',
     '$canReachCount0140final = Count-TextBlock $melee0140 $canReachOld0140final',
     '$reachAttackCount0140final = Count-TextBlock $melee0140 $reachAttackOld0140final',
@@ -1359,6 +1360,8 @@ foreach($rangeNeedle0140 in @(
     'ncmm_virtual_mana_paired_gun_mode',
     'gmode->has_flag( flag_FIRE_TWOHAND )',
     'gmode->has_flag( flag_RELOAD_AND_SHOOT )',
+    'ncmm_mana_hand_ras_switch',
+    'item_location gun = activity != nullptr ? activity->get_weapon() : you->get_wielded_item();',
     '$avatar0140rangePath = Join-Path $src0140range ''avatar_action.cpp''',
     '// NCMM action-specific ranged entry point.',
     'const item_location weapon = ncmm::select_ranged_weapon(',
@@ -1481,23 +1484,34 @@ if($manaFireStart0140 -le $manaRasStart0140){throw 'Mana Hand FIRE action transf
 $manaRasEnd0140=$manaFireStart0140
 $manaRasSection0140=$payload.Substring($manaRasStart0140,$manaRasEnd0140-$manaRasStart0140)
 foreach($rasNeedle0140 in @(
+    'Verifying Survivor 0.14.0 Mana Hand reload-and-shoot support...',
+    '$rasOutput0140 = [IO.File]::ReadAllText($ranged0140rasPath)',
     'ncmm_mana_hand_ras_switch',
     'item_location gun = activity != nullptr ? activity->get_weapon() : you->get_wielded_item();',
+    'if( !gun ) {',
     'item::reload_option opt = you->select_ammo( gun );',
     'activity->reload_loc = opt.ammo;',
-    'if($rasOutput0140.Contains'
+    'Mana Hand reload-and-shoot support: VERIFIED'
 )){
     if(-not $manaRasSection0140.Contains($rasNeedle0140)){
-        throw ('Mana Hand reload-and-shoot regression contract missing: '+$rasNeedle0140)
+        throw ('Mana Hand reload-and-shoot verifier contract missing: '+$rasNeedle0140)
+    }
+}
+foreach($rasMutationForbidden0140 in @(
+    'Replace-TextBlock',
+    'Write-Utf8NoBom',
+    'Normalize-Lf',
+    '$switchOld0140ras',
+    '$switchNew0140ras',
+    '$unsupported0140ras'
+)){
+    if($manaRasSection0140.Contains($rasMutationForbidden0140)){
+        throw ('Mana Hand reload-and-shoot verifier regressed to source mutation: '+$rasMutationForbidden0140)
     }
 }
 if($manaRasSection0140.Contains('set_wielded_item(') -or
    $manaRasSection0140.Contains('u.wield(')){
     throw 'Mana Hand reload-and-shoot support must not move the real gun into Character::weapon.'
-}
-if($manaRasSection0140.Contains('$unsupported0140ras') -or
-   $manaRasSection0140.Contains('Replace-TextBlock $ranged0140ras $unsupported0140ras')){
-    throw 'Mana Hand reload-and-shoot layer must not delete a temporary gate from an earlier transform.'
 }
 
 $manaGunControlsStart0140=$payload.IndexOf('function Apply-SurvivorManaHandGunControls0140',$manaFireStart0140)
