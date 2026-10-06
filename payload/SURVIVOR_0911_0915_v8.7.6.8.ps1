@@ -21422,11 +21422,6 @@ item_location aim_activity_actor::get_weapon()
     const bool ncmm_virtual_mana_paired_gun_mode =
         ncmm_ranged_owner == ncmm::mana_hand_ranged_owner::paired;
 
-    if( ncmm_virtual_mana_gun_mode && gmode->has_flag( flag_RELOAD_AND_SHOOT ) ) {
-        messages.push_back( _( "Reload-and-shoot firing modes are not yet supported by Mana Hands." ) );
-        result = false;
-    }
-
     if( ncmm_virtual_mana_gun_mode && !ncmm_virtual_mana_paired_gun_mode &&
         ( gmode->is_two_handed( you ) || gmode->has_flag( flag_FIRE_TWOHAND ) ) ) {
         messages.push_back( _( "This firing mode needs paired Mana Hands III+IV." ) );
@@ -21637,8 +21632,7 @@ function Apply-SurvivorManaHandPairedRanged0140([string]$Root) {
         @($actor0140prPath,'ncmm::ranged_weapon_binding_valid( get_avatar(), *ncmm_candidate )'),
         @($ranged0140prPath,'ncmm::mana_hand_ranged_mode_owner( you, gmode ? &*gmode : nullptr )'),
         @($ranged0140prPath,'ncmm::mana_hand_ranged_owner::paired'),
-        @($ranged0140prPath,'!ncmm_virtual_mana_paired_gun_mode &&'),
-        @($ranged0140prPath,'Reload-and-shoot firing modes are not yet supported by Mana Hands.')
+        @($ranged0140prPath,'!ncmm_virtual_mana_paired_gun_mode &&')
     )) {
         $output0140pr = [IO.File]::ReadAllText([string]$check0140pr[0])
         if(-not $output0140pr.Contains([string]$check0140pr[1])) {
@@ -21688,17 +21682,6 @@ function Apply-SurvivorManaHandReloadAndShoot0140([string]$Root) {
         }
 '@
         $ranged0140ras = Replace-TextBlock $ranged0140ras $switchOld0140ras $switchNew0140ras 'Mana Hand reload-and-shoot ammo switch'
-    }
-
-    $unsupported0140ras = @'
-    if( ncmm_virtual_mana_gun_mode && gmode->has_flag( flag_RELOAD_AND_SHOOT ) ) {
-        messages.push_back( _( "Reload-and-shoot firing modes are not yet supported by Mana Hands." ) );
-        result = false;
-    }
-
-'@
-    if(Test-TextBlock $ranged0140ras $unsupported0140ras) {
-        $ranged0140ras = Replace-TextBlock $ranged0140ras $unsupported0140ras '' 'Mana Hand reload-and-shoot mode gate'
     }
 
     Write-Utf8NoBom $ranged0140rasPath $ranged0140ras
