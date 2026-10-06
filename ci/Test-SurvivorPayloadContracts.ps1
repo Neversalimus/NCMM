@@ -916,8 +916,8 @@ foreach($eolSafeNeedle0140 in @(
     '$reachAttackCount0140 = Count-TextBlock $melee0140reach $reachAttackOld0140',
     '$autoCount0140 = Count-TextBlock $avatar0140auto $autoOld0140',
     '$mineCount0140 = Count-TextBlock $avatar0140mine $mineOld0140',
-    'if(Test-TextBlock $game0140pr $pairMenuFlagsOld0140pr)',
-    'if(Test-TextBlock $game0140pr $pairHandlerFlagsOld0140pr)',
+    'if(-not (Test-TextBlock $game0140pr $pairMenuFlags0140pr))',
+    'if(-not (Test-TextBlock $game0140pr $pairHandlerFlags0140pr))',
     "if(-not `$game0140pr.Contains('ncmm::mana_hand_ranged_item_owner( u, oThisItem )'))",
     "if(-not `$actor0140pr.Contains('ncmm::ranged_weapon_binding_valid( get_avatar(), *ncmm_candidate )'))"
 )){
@@ -1056,7 +1056,6 @@ foreach($pairContextNeedle0140 in @(
     '$pointerNew0140ctxPair = @''',
     'item *ncmm_mana_pair_item = ncmm_mana_hands >= 2 ?',
     'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
-    'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2',
     'ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 1',
     'ncmm_mana_pair_item == nullptr && ncmm_mana_hands >= 2',
     "case '5':",
@@ -1066,6 +1065,27 @@ foreach($pairContextNeedle0140 in @(
         throw ('Mana Hand final paired context missing from base layer: '+$pairContextNeedle0140)
     }
 }
+$pairMenuTemplateStart0140=$manaContextSection0140.IndexOf('$pointerNew0140ctxPair = @''')
+$pairMenuTemplateEnd0140=$manaContextSection0140.IndexOf("'@",$pairMenuTemplateStart0140+28)
+$pairHandlerTemplateStart0140=$manaContextSection0140.IndexOf('$case5New0140ctxPair = @''')
+$pairHandlerTemplateEnd0140=$manaContextSection0140.IndexOf("'@",$pairHandlerTemplateStart0140+28)
+if($pairMenuTemplateStart0140 -lt 0 -or $pairMenuTemplateEnd0140 -le $pairMenuTemplateStart0140 -or
+   $pairHandlerTemplateStart0140 -lt 0 -or $pairHandlerTemplateEnd0140 -le $pairHandlerTemplateStart0140){
+    throw 'Mana Hand final paired firearm template boundary missing.'
+}
+$pairMenuTemplate0140=$manaContextSection0140.Substring(
+    $pairMenuTemplateStart0140,$pairMenuTemplateEnd0140-$pairMenuTemplateStart0140)
+$pairHandlerTemplate0140=$manaContextSection0140.Substring(
+    $pairHandlerTemplateStart0140,$pairHandlerTemplateEnd0140-$pairHandlerTemplateStart0140)
+foreach($pairFirearmTemplate0140 in @($pairMenuTemplate0140,$pairHandlerTemplate0140)){
+    if($pairFirearmTemplate0140.Contains('NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2')){
+        throw 'Final paired Mana Hand context must allow firearms.'
+    }
+}
+if(-not $pairHandlerTemplate0140.Contains('Both Mana Hands must be free and the item must be two-handed.')){
+    throw 'Final paired Mana Hand handler still carries the pre-firearm message.'
+}
+
 $pairContextFinalizePos0140=$manaContextSection0140.IndexOf('$pointerNew0140ctxPair = @''')
 $pairContextWritePos0140=$manaContextSection0140.IndexOf('Write-Utf8NoBom $game0140ctxPath $game0140ctx')
 if($pairContextFinalizePos0140 -lt 0 -or $pairContextWritePos0140 -le $pairContextFinalizePos0140){
@@ -1278,33 +1298,41 @@ if($manaRasStart0140 -le $manaPairedRangeStart0140){throw 'Mana Hand reload-and-
 $manaPairedRangeEnd0140=$manaRasStart0140
 $manaPairedRangeSection0140=$payload.Substring($manaPairedRangeStart0140,$manaPairedRangeEnd0140-$manaPairedRangeStart0140)
 foreach($pairedRangeNeedle0140 in @(
-    'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2;',
-    '"survivor_progression", "mana_hands_34"',
+    'Verifying Survivor 0.14.0 paired Mana Hand ranged support...',
+    '$pairMenuFlags0140pr = @''',
+    '$pairHandlerFlags0140pr = @''',
+    'Paired Mana Hand final firearm menu flags missing.',
+    'Paired Mana Hand final firearm handler flags missing.',
     'Paired Mana Hand ranged item-owner boundary missing.',
     'ncmm::mana_hand_ranged_item_owner( u, oThisItem )',
     'Paired Mana Hand aim Host-resolver boundary missing.',
     'Paired Mana Hand ranged Host-owner boundary missing:',
     'ncmm::mana_hand_ranged_mode_owner( you, gmode ? &*gmode : nullptr )',
     'ncmm::mana_hand_ranged_owner::paired',
-    '!ncmm_virtual_mana_paired_gun_mode &&'
+    '!ncmm_virtual_mana_paired_gun_mode &&',
+    'Survivor 0.14.0 paired Mana Hand ranged support: VERIFIED'
 )){
     if(-not $manaPairedRangeSection0140.Contains($pairedRangeNeedle0140)){
-        throw ('Paired Mana Hand ranged regression contract missing: '+$pairedRangeNeedle0140)
+        throw ('Paired Mana Hand ranged verifier contract missing: '+$pairedRangeNeedle0140)
+    }
+}
+foreach($pairedRangeMutationForbidden0140 in @(
+    'Replace-TextBlock',
+    'Write-Utf8NoBom',
+    '$pairMenuFlagsOld0140pr',
+    '$pairMenuFlagsNew0140pr',
+    '$pairHandlerFlagsOld0140pr',
+    '$pairHandlerFlagsNew0140pr',
+    '.Replace('
+)){
+    if($manaPairedRangeSection0140.Contains($pairedRangeMutationForbidden0140)){
+        throw ('Paired Mana Hand ranged verifier regressed to source mutation: '+$pairedRangeMutationForbidden0140)
     }
 }
 if($manaPairedRangeSection0140.Contains('set_wielded_item(') -or
    $manaPairedRangeSection0140.Contains('u.wield(') -or
    $manaPairedRangeSection0140.Contains('item_location::type::mana_hand')){
-    throw 'Paired Mana Hand ranged support must keep the real gun in its vanilla item_location.'
-}
-if($manaPairedRangeSection0140.Contains('$ranged0140pr = Replace-TextBlock')){
-    throw 'Paired Mana Hand layer must not rewrite ranged.cpp ownership semantics.'
-}
-if($manaPairedRangeSection0140.Contains('$menuOld0140pr') -or
-   $manaPairedRangeSection0140.Contains('$handlerOld0140pr') -or
-   $manaPairedRangeSection0140.Contains('paired Mana Hand ranged menu eligibility') -or
-   $manaPairedRangeSection0140.Contains('paired Mana Hand ranged handler eligibility')){
-    throw 'Paired Mana Hand layer must not rewrite game.cpp ranged ownership semantics.'
+    throw 'Paired Mana Hand ranged verifier must keep the real gun in its vanilla item_location.'
 }
 foreach($finalRangeNeedle0140 in @(
     '// NCMM paired Mana Hand physical-hand exemptions.',
