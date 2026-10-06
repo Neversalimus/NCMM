@@ -699,7 +699,7 @@ foreach($needle0140 in @(
     'Apply-SurvivorManaHandUtility0140 $CddaRoot',
     'function Apply-SurvivorManaHandSecondaryMelee0140',
     'class ncmm_virtual_melee_scope',
-    'virtual_melee_context_begin( who, weapon )',
+    'who, weapon, suppress_martial_arts',
     'ncmm::active_mana_hand_items( who )',
     'ncmm::mana_hand_item_slot_of( who, *weapon )',
     'ncmm::mana_hand_item_slot::paired',
