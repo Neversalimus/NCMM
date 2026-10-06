@@ -2472,5 +2472,42 @@ foreach($needle0155 in @(
     if(-not $payload.Contains($needle0155)){throw ('Mana Hands activation payload contract missing: '+$needle0155)}
 }
 
+
+# Architecture guard: a Mana Hands transform may patch vanilla source, but its
+# *old* replacement templates must not depend on code emitted by another Mana
+# Hands transform.  VirtualItemContext0140 intentionally owns its own staged
+# upgrade path and does not match the Apply-SurvivorManaHand* namespace below.
+$manaTransformMatches0163=[regex]::Matches(
+    $payload,
+    '(?ms)^function (Apply-SurvivorManaHand[A-Za-z0-9_]+)\([^\r\n]*\) \{(.*?)(?=^function |\z)'
+)
+foreach($manaTransformMatch0163 in $manaTransformMatches0163){
+    $manaTransformName0163=$manaTransformMatch0163.Groups[1].Value
+    $manaTransformBody0163=$manaTransformMatch0163.Groups[2].Value
+    $oldTemplateMatches0163=[regex]::Matches(
+        $manaTransformBody0163,
+        "(?ms)\$[A-Za-z0-9_]*Old[A-Za-z0-9_]*\s*=\s*@'\r?\n(.*?)\r?\n'@"
+    )
+    foreach($oldTemplateMatch0163 in $oldTemplateMatches0163){
+        $oldTemplate0163=$oldTemplateMatch0163.Groups[1].Value
+        foreach($generatedMarker0163 in @(
+            'ncmm::',
+            'ncmm_',
+            'mana_hand',
+            'virtual_item'
+        )){
+            if($oldTemplate0163.Contains($generatedMarker0163)){
+                throw (
+                    'Mana Hands transform-on-transform anchor returned in '+
+                    $manaTransformName0163+': '+$generatedMarker0163
+                )
+            }
+        }
+    }
+}
+if($manaTransformMatches0163.Count -lt 10){
+    throw 'Mana Hands cross-transform architecture guard did not inspect the expected transform set.'
+}
+
 Write-Host 'NCMM Survivor payload regression contract: PASS' -ForegroundColor Green
 & (Join-Path $PSScriptRoot 'Test-ManaActionWeaponContracts.ps1') -PackageRoot $PackageRoot
