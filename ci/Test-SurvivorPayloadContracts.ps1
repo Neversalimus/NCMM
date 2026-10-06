@@ -682,7 +682,7 @@ foreach($needle0140 in @(
     'ncmm_virtual_wield_flags',
     'flag_id( "SPELLCASTING_AID" )',
     'const int ncmm_virtual_hands =',
-    '"magic.virtual_hand_count", nullptr, "magiclysm"',
+    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
     'Apply-SurvivorManaHandSpellcastingAid0140 $CddaRoot',
     'function Apply-SurvivorVirtualItemLifecycle0140',
     'ncmm::release_virtual_item( *target() );',
@@ -975,7 +975,7 @@ if($manaUtilitySection0140.Contains('bool Character::is_wielding')){
     throw 'Mana Hand utility layer must not patch Character::is_wielding semantics.'
 }
 foreach($utilityNeedle0140 in @(
-    '"magic.virtual_hand_count", nullptr, "magiclysm"',
+    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
     'hand_count >= 1',
     'hand_count >= 2',
     'ncmm_mana_hand_holds_item( p, it )',
@@ -993,7 +993,7 @@ foreach($secondaryNeedle0140 in @(
     'class ncmm_virtual_melee_scope',
     'ncmm::virtual_melee_context_begin( who, weapon )',
     'who_.recalculate_enchantment_cache();',
-    '"magic.virtual_hand_count", nullptr, "magiclysm"',
+    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
     'std::clamp( ( who.attack_speed( weapon ) + 9 ) / 10, 5, 50 )',
     '!ncmm::virtual_item_secondary_melee_enabled( *weapon )',
     'weapon->is_gun()',
@@ -1290,7 +1290,7 @@ foreach($martialNeedle0140 in @(
     'ncmm::virtual_melee_context_active( who )',
     'const item_location weapon = ncmm_mana_hand_martial_context_weapon( u );',
     'const bool virtual_scope =',
-    '"magic.virtual_hand_count", nullptr, "magiclysm"',
+    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
     '"survivor_progression", "mana_hands_34"',
     'ncmm::virtual_item_primary_melee_enabled( *paired )',
     'bool is_armed = weapon || u.is_armed();',
@@ -1412,7 +1412,7 @@ foreach($autoNeedle0140 in @(
     'class ncmm_mana_hand_autoattack_scope',
     'ncmm_primary_mana_hand_autoattack_weapon',
     'ncmm_primary_mana_hand_autoattack_reach',
-    '"magic.virtual_hand_count", nullptr, "magiclysm"',
+    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
     '"survivor_progression", "mana_hands_34"',
     '"survivor_progression", slots[i]',
     'ncmm::virtual_item_primary_melee_enabled',
@@ -1462,7 +1462,7 @@ if($manaMineStart0140 -le $manaThrowStart0140 -or $manaMineEnd0140 -le $manaMine
 $manaMineSection0140=$payload.Substring($manaMineStart0140,$manaMineEnd0140-$manaMineStart0140)
 foreach($mineNeedle0140 in @(
     'ncmm_mana_hand_auto_mining_tool',
-    '"magic.virtual_hand_count", nullptr, "magiclysm"',
+    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
     '"survivor_progression", slot',
     '"mana_hands_34"',
     '"mana_hand_3"',
@@ -1490,7 +1490,7 @@ $manaPracticeSection0140=$payload.Substring($manaPracticeStart0140,$manaPractice
 foreach($practiceNeedle0140 in @(
     'ncmm_target_practice_mana_hand_gun',
     'ncmm::virtual_item_matches_slot(',
-    '"magic.virtual_hand_count", nullptr, "magiclysm"',
+    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
     '"survivor_progression", "mana_hands_34"',
     '"survivor_progression", "mana_hand_3"',
     '"survivor_progression", "mana_hand_4"',
@@ -1516,7 +1516,7 @@ if($manaMendStart0140 -le $manaPracticeStart0140 -or $manaMendEnd0140 -le $manaM
 $manaMendSection0140=$payload.Substring($manaMendStart0140,$manaMendEnd0140-$manaMendStart0140)
 foreach($mendNeedle0140 in @(
     'ncmm_select_mana_hand_mend_item',
-    '"magic.virtual_hand_count", nullptr, "magiclysm"',
+    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
     '"survivor_progression", "mana_hands_34"',
     '"survivor_progression", "mana_hand_3"',
     '"survivor_progression", "mana_hand_4"',
@@ -1540,7 +1540,7 @@ if($manaCrutchStart0140 -le $manaMendStart0140 -or $manaCrutchEnd0140 -le $manaC
 $manaCrutchSection0140=$payload.Substring($manaCrutchStart0140,$manaCrutchEnd0140-$manaCrutchStart0140)
 foreach($crutchNeedle0140 in @(
     'ncmm_mana_hand_has_crutches',
-    '"magic.virtual_hand_count", nullptr, "magiclysm"',
+    'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
     '"survivor_progression", "mana_hands_34"',
     '"survivor_progression", "mana_hand_3"',
     '"survivor_progression", "mana_hand_4"',
@@ -1601,15 +1601,25 @@ $manaDirectSection0152=$payload.Substring($manaDirectStart0152,$manaDirectEnd015
 foreach($directNeedle0152 in @(
     'ncmm::gameplay_modifier( "mg_virtual_hand_count" )',
     '$legacyPattern0152direct',
+    '$verifiedCount0152direct',
     'ncmm::primary_mana_hand_melee_weapon',
-    'Source-scoped Mana Hand count survived direct-count reconciliation'
+    'Legacy source-scoped Mana Hand count survived source generation',
+    'Mana Hand direct count: VERIFIED'
 )){
     if(-not $manaDirectSection0152.Contains($directNeedle0152)){
-        throw ('Mana Hand direct-count reconciliation contract missing: '+$directNeedle0152)
+        throw ('Mana Hand direct-count verifier contract missing: '+$directNeedle0152)
     }
 }
+if($manaDirectSection0152.Contains('[regex]::Replace(') -or
+   $manaDirectSection0152.Contains('Write-Utf8NoBom')){
+    throw 'Mana Hand direct-count verifier must not mutate patched CDDA sources.'
+}
 if($manaDirectSection0152.Contains("'magic.cpp'")){
-    throw 'Mana Hand direct-count reconciliation must not rewrite spell-source selection.'
+    throw 'Mana Hand direct-count verifier must not inspect spell-source selection.'
+}
+$legacyDirectCall0152='ncmm::runtime_hook_modifier\(\s*"magic\.virtual_hand_count",\s*nullptr,\s*"magiclysm",\s*nullptr,\s*nullptr\s*\)'
+if([regex]::IsMatch($payload,$legacyDirectCall0152)){
+    throw 'Mana Hand source transforms still emit the legacy source-scoped hand-count call.'
 }
 if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandDirectCount0152 -CommandType Function).Definition')){
     throw 'Mana Hand direct-count reconciliation missing from mechanics patch revision.'
