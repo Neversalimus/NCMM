@@ -4106,6 +4106,49 @@ bool ranged_weapon_capable( const item &weapon, ranged_weapon_action action )
     return action != ranged_weapon_action::reload || weapon.is_reloadable();
 }
 
+item *primary_mana_hand_melee_weapon( Character &who )
+{
+    if( !who.is_avatar() || who.is_mounted() || who.get_wielded_item() ) {
+        return nullptr;
+    }
+
+    const int hand_count = survivor_mana_hand_count();
+    if( hand_count >= 2 ) {
+        item *paired = virtual_item_for_slot( survivor_module_id, mana_hands_pair_slot_id );
+        if( paired != nullptr && virtual_item_primary_melee_enabled( *paired ) &&
+            paired->is_melee() && !paired->is_gun() && paired->is_two_handed( who ) ) {
+            return paired;
+        }
+    }
+
+    const char *slots[2] = { mana_hand_3_slot_id, mana_hand_4_slot_id };
+    for( int i = 0; i < hand_count && i < 2; ++i ) {
+        item *candidate = virtual_item_for_slot( survivor_module_id, slots[i] );
+        if( candidate != nullptr &&
+            virtual_item_primary_melee_enabled( *candidate ) &&
+            candidate->is_melee() && !candidate->is_gun() &&
+            !candidate->is_two_handed( who ) ) {
+            return candidate;
+        }
+    }
+    return nullptr;
+}
+
+bool ranged_weapon_binding_valid( const avatar &who, const item &weapon )
+{
+    if( &who != &get_avatar() ||
+        !ranged_weapon_capable( weapon, ranged_weapon_action::fire ) ) {
+        return false;
+    }
+
+    const int hand_count = survivor_mana_hand_count();
+    return ( hand_count >= 1 &&
+             virtual_item_matches_slot( weapon, survivor_module_id, mana_hand_3_slot_id ) ) ||
+           ( hand_count >= 2 &&
+             ( virtual_item_matches_slot( weapon, survivor_module_id, mana_hand_4_slot_id ) ||
+               virtual_item_matches_slot( weapon, survivor_module_id, mana_hands_pair_slot_id ) ) );
+}
+
 std::vector<item_location> ranged_weapon_candidates( avatar &who, ranged_weapon_action action )
 {
     // Slot priority is meaningful only after checking the action's capability.
