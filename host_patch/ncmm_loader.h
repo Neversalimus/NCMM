@@ -66,6 +66,10 @@ item *virtual_item_for_slot( const char *module_id, const char *slot_id );
  */
 enum class ranged_weapon_action { fire, controls, reload };
 bool ranged_weapon_capable( const item &weapon, ranged_weapon_action action );
+/** Primary melee resolver for logical Mana Hands. Physical wielded items keep priority. */
+item *primary_mana_hand_melee_weapon( Character &who );
+/** Validate an already-selected Mana Hand firearm without inventory or slot reselection. */
+bool ranged_weapon_binding_valid( const avatar &who, const item &weapon );
 std::vector<item_location> ranged_weapon_candidates( avatar &who, ranged_weapon_action action );
 item_location select_ranged_weapon( avatar &who, ranged_weapon_action action,
                                     const char *prompt_en, const char *prompt_ru );
