@@ -22689,6 +22689,7 @@ function Apply-SurvivorManaHandReachMelee0140([string]$Root) {
     $handle0140reach = [IO.File]::ReadAllText($handle0140reachPath)
     foreach($finalHandleReachNeedle0140reach in @(
         'class ncmm_virtual_reach_scope',
+        'ncmm::virtual_melee_context_begin( who, weapon, false )',
         'ncmm_primary_mana_hand_reach_weapon',
         'ncmm_primary_mana_hand_has_reach',
         'target_handler::mode_reach(',
