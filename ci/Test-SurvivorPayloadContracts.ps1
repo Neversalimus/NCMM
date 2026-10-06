@@ -2510,6 +2510,11 @@ foreach($xpHostMutationForbidden0140 in @(
 }
 if(-not $payload.Contains('(Get-Command Apply-SurvivorXpBalance0140 -CommandType Function).Definition')){throw 'XP-balance transform missing from mechanics patch revision.'}
 if(([regex]::Matches($payload,[regex]::Escape('Apply-SurvivorXpBalance0140'))).Count -lt 2){throw 'XP-balance transform is not applied after canonical module sync.'}
+$canonicalHostSyncCall0140=$payload.LastIndexOf('Apply-NcmmBallisticHost082CanonicalSync')
+$xpBalanceApplyCall0140=$payload.LastIndexOf('Apply-SurvivorXpBalance0140')
+if($canonicalHostSyncCall0140 -lt 0 -or $xpBalanceApplyCall0140 -le $canonicalHostSyncCall0140){
+    throw 'XP-balance Host verifier must run after canonical Host synchronization.'
+}
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate
 # is intentionally half of the original 1 XP / 150 movement events.
