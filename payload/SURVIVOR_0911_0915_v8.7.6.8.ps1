@@ -23393,25 +23393,8 @@ bool ncmm_is_mana_hand_throw_item( avatar &you, item *candidate )
     if( candidate == nullptr || you.get_wielded_item() ) {
         return false;
     }
-
-    const int hand_count = std::clamp( static_cast<int>(
-                                       ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ), 0, 2 );
-    if( hand_count >= 2 ) {
-        item *paired = ncmm::virtual_item_for_slot(
-                           "survivor_progression", "mana_hands_34" );
-        if( paired != nullptr ) {
-            return paired == candidate;
-        }
-    }
-
-    if( hand_count >= 1 &&
-        ncmm::virtual_item_for_slot(
-            "survivor_progression", "mana_hand_3" ) == candidate ) {
-        return true;
-    }
-    return hand_count >= 2 &&
-           ncmm::virtual_item_for_slot(
-               "survivor_progression", "mana_hand_4" ) == candidate;
+    return ncmm::mana_hand_item_slot_of( you, *candidate ) !=
+           ncmm::mana_hand_item_slot::none;
 }
 
 item_location ncmm_select_mana_hand_throw_item( avatar &you )
@@ -23575,6 +23558,7 @@ void avatar_action::plthrow_wielded( avatar &you,
     $throwOutput0140 = [IO.File]::ReadAllText($avatar0140throwPath)
     foreach($needle0140throw in @(
         'ncmm_is_mana_hand_throw_item',
+        'ncmm::mana_hand_item_slot_of( you, *candidate )',
         'ncmm_select_mana_hand_throw_item',
         'Throw from which Mana Hand?',
         'const bool ncmm_virtual_throw =',
@@ -23703,22 +23687,8 @@ static bool ncmm_target_practice_mana_hand_gun( Character &who, const item *gun 
     if( !who.is_avatar() || gun == nullptr || who.get_wielded_item() ) {
         return false;
     }
-
-    const int hand_count = std::max( 0, std::min( 2, static_cast<int>(
-                                   ncmm::gameplay_modifier( "mg_virtual_hand_count" ) ) ) );
-    if( hand_count >= 2 &&
-        ncmm::virtual_item_matches_slot(
-            *gun, "survivor_progression", "mana_hands_34" ) ) {
-        return true;
-    }
-    if( hand_count >= 1 &&
-        ncmm::virtual_item_matches_slot(
-            *gun, "survivor_progression", "mana_hand_3" ) ) {
-        return true;
-    }
-    return hand_count >= 2 &&
-           ncmm::virtual_item_matches_slot(
-               *gun, "survivor_progression", "mana_hand_4" );
+    return ncmm::mana_hand_item_slot_of( who, *gun ) !=
+           ncmm::mana_hand_item_slot::none;
 }
 
 bool target_practice_activity_actor::check_character( Character &who )
@@ -23797,9 +23767,8 @@ bool target_practice_activity_actor::check_character( Character &who )
     $practiceOutput0140 = [IO.File]::ReadAllText($actor0140practicePath)
     foreach($needle0140practice in @(
         'ncmm_target_practice_mana_hand_gun',
-        '"survivor_progression", "mana_hands_34"',
-        '"survivor_progression", "mana_hand_3"',
-        '"survivor_progression", "mana_hand_4"',
+        'ncmm::mana_hand_item_slot_of( who, *gun )',
+        'ncmm::mana_hand_item_slot::none',
         'const bool ncmm_virtual_target_gun =',
         'if( !ncmm_virtual_target_gun && !who.is_wielding( *gun_loc ) )',
         '!ncmm_target_practice_mana_hand_gun( who, gun )',
@@ -24246,28 +24215,9 @@ int item::get_remaining_capacity_for_liquid( const item &liquid, const Character
         $bucketHeadNew0140held = @'
 static bool ncmm_mana_hand_holds_item( const Character &who, const item *candidate )
 {
-    if( !who.is_avatar() || candidate == nullptr ) {
-        return false;
-    }
-    int hand_count = static_cast<int>(
-                         ncmm::gameplay_modifier( "mg_virtual_hand_count" ) );
-    hand_count = hand_count < 0 ? 0 : ( hand_count > 2 ? 2 : hand_count );
-
-    if( hand_count >= 2 ) {
-        item *paired = ncmm::virtual_item_for_slot(
-                           "survivor_progression", "mana_hands_34" );
-        if( paired != nullptr ) {
-            return paired == candidate;
-        }
-    }
-    if( hand_count >= 1 &&
-        ncmm::virtual_item_for_slot(
-            "survivor_progression", "mana_hand_3" ) == candidate ) {
-        return true;
-    }
-    return hand_count >= 2 &&
-           ncmm::virtual_item_for_slot(
-               "survivor_progression", "mana_hand_4" ) == candidate;
+    return candidate != nullptr &&
+           ncmm::mana_hand_item_slot_of( who, *candidate ) !=
+           ncmm::mana_hand_item_slot::none;
 }
 
 int item::get_remaining_capacity_for_liquid( const item &liquid, const Character &p,
@@ -24292,7 +24242,8 @@ int item::get_remaining_capacity_for_liquid( const item &liquid, const Character
         @($weather0140heldPath,'ncmm_mana_hand_holds_flag( target, json_flag_RAIN_PROTECT )'),
         @($item0140heldPath,'ncmm_mana_hand_holds_flag( *carrier, flag_RAIN_PROTECT )'),
         @($suffer0140heldPath,'ncmm_mana_hand_holds_flag( you, flag_RAIN_PROTECT )'),
-        @($container0140heldPath,'ncmm_mana_hand_holds_item( p, this )')
+        @($container0140heldPath,'ncmm_mana_hand_holds_item( p, this )'),
+        @($container0140heldPath,'ncmm::mana_hand_item_slot_of( who, *candidate )')
     )) {
         $output0140held = [IO.File]::ReadAllText($check0140held[0])
         if(-not $output0140held.Contains($check0140held[1])) {
