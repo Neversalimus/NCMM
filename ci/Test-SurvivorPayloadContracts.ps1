@@ -1655,5 +1655,39 @@ if(([regex]::Matches($payload,[regex]::Escape('Get-MissingCddaSourceSentinels'))
     throw 'CDDA source-completeness helper is not wired into pristine validation and working-tree validation.'
 }
 
+
+# Mana Hands discoverability: the integrated control item is user-facing and opens
+# only the dedicated Mana Hands hub through its exact itype id.
+$manaCarrier0155=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\persistent_data\mana_hand_carrier.json'))
+$survivorSource0155=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\src\survivor_progression.cpp'))
+foreach($needle0155 in @(
+    '"id": "ncmm_survivor_mana_hand_carrier"',
+    '"str_sp": "Mana Hands"',
+    'Activate it to manage Mana Hand III, Mana Hand IV and the paired III+IV grip.'
+)){
+    if(-not $manaCarrier0155.Contains($needle0155)){throw ('Mana Hands carrier UX contract missing: '+$needle0155)}
+}
+if($manaCarrier0155.Contains('"str_sp": "mana hand anchor"')){
+    throw 'Technical mana hand anchor name leaked back into the player UI.'
+}
+foreach($needle0155 in @(
+    'void show_mana_hands_menu()',
+    '"Mana Hands\nChoose a hand to equip, replace or release its held item."',
+    '"Mana Hand III — "',
+    '"Mana Hand IV — "',
+    'extern "C" NCMM_EXPORT int ncmm_on_item_activate_v1',
+    'std::string_view( item_type_id ) != "ncmm_survivor_mana_hand_carrier"',
+    'show_mana_hands_menu();'
+)){
+    if(-not $survivorSource0155.Contains($needle0155)){throw ('Mana Hands dedicated UI contract missing: '+$needle0155)}
+}
+foreach($needle0155 in @(
+    'function Apply-SurvivorManaHandsDirectUi0155',
+    'Apply-SurvivorManaHandsDirectUi0155 $CddaRoot',
+    'method.empty() && ncmm::handle_item_activation( loc )'
+)){
+    if(-not $payload.Contains($needle0155)){throw ('Mana Hands activation payload contract missing: '+$needle0155)}
+}
+
 Write-Host 'NCMM Survivor payload regression contract: PASS' -ForegroundColor Green
 & (Join-Path $PSScriptRoot 'Test-ManaActionWeaponContracts.ps1') -PackageRoot $PackageRoot

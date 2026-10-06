@@ -24941,6 +24941,59 @@ void avatar_action::fire_wielded_weapon( avatar &you )
 Apply-SurvivorActionWeaponSelection0154 $CddaRoot
 
 
+function Apply-SurvivorManaHandsDirectUi0155([string]$Root) {
+    Write-Host 'Applying direct Mana Hands control UI activation...' -ForegroundColor Cyan
+    $avatarPath0155ui = Join-Path (Join-Path $Root 'src') 'avatar_action.cpp'
+    if(-not(Test-Path $avatarPath0155ui -PathType Leaf)) {
+        if($env:RUNNER_TEMP -and (Normalize-Path $GameRoot) -eq (Normalize-Path $env:RUNNER_TEMP)) {
+            Write-Host 'Mana Hands direct UI transform deferred during copy-audit source generation.' -ForegroundColor DarkGray
+            return
+        }
+        throw ('Mana Hands direct UI source missing: '+$avatarPath0155ui)
+    }
+
+    $avatar0155ui = Normalize-Lf ([IO.File]::ReadAllText($avatarPath0155ui))
+    if(-not $avatar0155ui.Contains('#include "ncmm_loader.h"')) {
+        $avatar0155ui = Replace-TextBlock $avatar0155ui '#include "avatar_action.h"' ('#include "avatar_action.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hands direct UI include'
+    }
+    if(-not $avatar0155ui.Contains('// NCMM exact-id Mana Hands control item.')) {
+        $useAnchor0155ui = @'
+    if( !avatar_action::check_stealing( get_player_character(), *loc.get_item() ) ) {
+'@
+        $useHook0155ui = @'
+    // NCMM exact-id Mana Hands control item. Generic activation only; named use methods stay vanilla.
+    if( method.empty() && ncmm::handle_item_activation( loc ) ) {
+        return;
+    }
+
+    if( !avatar_action::check_stealing( get_player_character(), *loc.get_item() ) ) {
+'@
+        $avatar0155ui = Replace-TextBlock $avatar0155ui $useAnchor0155ui $useHook0155ui 'Mana Hands direct UI activation'
+    }
+    Write-Utf8NoBom $avatarPath0155ui $avatar0155ui
+
+    $output0155ui = [IO.File]::ReadAllText($avatarPath0155ui)
+    foreach($needle0155ui in @(
+        'void avatar_action::use_item( avatar &you, item_location &loc, std::string const &method )',
+        '// NCMM exact-id Mana Hands control item.',
+        'method.empty() && ncmm::handle_item_activation( loc )',
+        'if( !avatar_action::check_stealing( get_player_character(), *loc.get_item() ) )'
+    )) {
+        if(-not $output0155ui.Contains($needle0155ui)) {
+            throw ('Mana Hands direct UI output missing: '+$needle0155ui)
+        }
+    }
+    $hookPos0155ui = $output0155ui.IndexOf('method.empty() && ncmm::handle_item_activation( loc )')
+    $stealPos0155ui = $output0155ui.IndexOf('if( !avatar_action::check_stealing( get_player_character(), *loc.get_item() ) )', $hookPos0155ui)
+    if($hookPos0155ui -lt 0 -or $stealPos0155ui -le $hookPos0155ui) {
+        throw 'Mana Hands direct UI must intercept before normal item obtain/use processing.'
+    }
+    Write-Host 'Direct Mana Hands control UI activation: READY' -ForegroundColor Green
+}
+
+Apply-SurvivorManaHandsDirectUi0155 $CddaRoot
+
+
 function Apply-SurvivorCraftCompletionMetric0140([string]$Root) {
     Write-Host "Applying Survivor 0.14.0 exact craft-completion metric..." -ForegroundColor Cyan
     $craftMetricPath = Join-Path (Join-Path $Root 'src') 'crafting.cpp'

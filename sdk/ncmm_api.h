@@ -29,6 +29,7 @@ extern "C" {
 #define NCMM_LOCALE_ENTRYPOINT "ncmm_on_locale_changed_v1"
 #define NCMM_TURN_ENTRYPOINT "ncmm_on_turn_v1"
 #define NCMM_OPEN_UI_ENTRYPOINT "ncmm_open_ui_v1"
+#define NCMM_ITEM_ACTIVATE_ENTRYPOINT "ncmm_on_item_activate_v1"
 #define NCMM_MIGRATE_STATE_ENTRYPOINT "ncmm_migrate_state_v1"
 
 typedef enum ncmm_log_level_v1 {
@@ -476,6 +477,8 @@ typedef void ( *ncmm_mod_shutdown_v1 )( void );
 typedef void ( *ncmm_on_locale_changed_v1_fn )( const ncmm_host_api_v1 *api );
 typedef void ( *ncmm_on_turn_v1_fn )( const ncmm_host_api_v1 *api );
 typedef void ( *ncmm_open_ui_v1_fn )( const ncmm_host_api_v1 *api );
+typedef int ( *ncmm_on_item_activate_v1_fn )( const ncmm_host_api_v1 *api,
+                                               const char *item_type_id );
 typedef int ( *ncmm_migrate_state_v1_fn )( const ncmm_host_api_v1 *api,
                                            uint32_t from_schema,
                                            uint32_t to_schema );
