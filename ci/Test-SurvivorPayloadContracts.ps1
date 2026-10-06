@@ -2491,10 +2491,30 @@ foreach($xpBalanceNeedle0140 in @(
     'const int64_t adjusted = anti_farm_adjust( branch, raw_gained );',
     'const int64_t gained = apply_branch_xp_balance( branch, adjusted );',
     'void gameplay_metric_record_completed_craft( const Character &who )',
-    '++gameplay_metric_values["crafting.completed"];'
+    '++gameplay_metric_values["crafting.completed"];',
+    'Host 0.8.2 canonical sync runs before this Survivor balance pass.',
+    'Survivor XP balance canonical Host header missing:',
+    'Survivor XP balance canonical Host source missing:',
+    'Ambiguous canceled activity craft metric path survived canonical Host sync.'
 )){if(-not $xpBalanceSection0140.Contains($xpBalanceNeedle0140)){throw ('Survivor XP-balance regression missing: '+$xpBalanceNeedle0140)}}
+foreach($xpHostMutationForbidden0140 in @(
+    '$hostHeaderBalance = Replace-TextBlock',
+    '$hostLoaderBalance = Replace-TextBlock',
+    'Write-Utf8NoBom $hostHeaderBalancePath',
+    'Write-Utf8NoBom $hostLoaderBalancePath',
+    '$hostLoaderBalance = $hostLoaderBalance.Remove('
+)){
+    if($xpBalanceSection0140.Contains($xpHostMutationForbidden0140)){
+        throw ('Survivor XP balance regressed to Host source mutation: '+$xpHostMutationForbidden0140)
+    }
+}
 if(-not $payload.Contains('(Get-Command Apply-SurvivorXpBalance0140 -CommandType Function).Definition')){throw 'XP-balance transform missing from mechanics patch revision.'}
 if(([regex]::Matches($payload,[regex]::Escape('Apply-SurvivorXpBalance0140'))).Count -lt 2){throw 'XP-balance transform is not applied after canonical module sync.'}
+$canonicalHostSyncCall0140=$payload.LastIndexOf('Apply-NcmmBallisticHost082CanonicalSync')
+$xpBalanceApplyCall0140=$payload.LastIndexOf('Apply-SurvivorXpBalance0140')
+if($canonicalHostSyncCall0140 -lt 0 -or $xpBalanceApplyCall0140 -le $canonicalHostSyncCall0140){
+    throw 'XP-balance Host verifier must run after canonical Host synchronization.'
+}
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate
 # is intentionally half of the original 1 XP / 150 movement events.
