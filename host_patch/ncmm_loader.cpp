@@ -4159,6 +4159,34 @@ mana_hand_item_slot mana_hand_item_slot_of( const Character &who, const item &ca
     return mana_hand_item_slot::none;
 }
 
+std::vector<item *> active_mana_hand_items( const Character &who )
+{
+    std::vector<item *> result;
+    if( !who.is_avatar() ) {
+        return result;
+    }
+
+    const int hand_count = survivor_mana_hand_count();
+    if( hand_count >= 2 ) {
+        item *paired = virtual_item_for_slot( survivor_module_id, mana_hands_pair_slot_id );
+        if( paired != nullptr ) {
+            result.push_back( paired );
+            return result;
+        }
+    }
+    if( hand_count >= 1 ) {
+        if( item *hand3 = virtual_item_for_slot( survivor_module_id, mana_hand_3_slot_id ) ) {
+            result.push_back( hand3 );
+        }
+    }
+    if( hand_count >= 2 ) {
+        if( item *hand4 = virtual_item_for_slot( survivor_module_id, mana_hand_4_slot_id ) ) {
+            result.push_back( hand4 );
+        }
+    }
+    return result;
+}
+
 mana_hand_ranged_owner mana_hand_ranged_item_owner( const avatar &who, const item &weapon )
 {
     if( &who != &get_avatar() || !weapon.is_gun() || weapon.is_gunmod() ) {
@@ -4228,24 +4256,11 @@ std::vector<item_location> ranged_weapon_candidates( avatar &who, ranged_weapon_
     if( &who != &get_avatar() ) {
         return result;
     }
-    const int hand_count = survivor_mana_hand_count();
-    const auto add = [&]( item *candidate ) {
-        if( candidate != nullptr && ranged_weapon_capable( *candidate, action ) ) {
-            result.emplace_back( who, candidate );
-        }
-    };
     // Resolve only on an explicit action, never on an aim tick. Once selected,
     // aim owns the item_location and validates its binding without a slot scan.
-    item *paired = hand_count >= 2 ?
-                   virtual_item_for_slot( survivor_module_id, mana_hands_pair_slot_id ) : nullptr;
-    if( paired != nullptr ) {
-        add( paired );
-    } else {
-        if( hand_count >= 1 ) {
-            add( virtual_item_for_slot( survivor_module_id, mana_hand_3_slot_id ) );
-        }
-        if( hand_count >= 2 ) {
-            add( virtual_item_for_slot( survivor_module_id, mana_hand_4_slot_id ) );
+    for( item *candidate : active_mana_hand_items( who ) ) {
+        if( ranged_weapon_capable( *candidate, action ) ) {
+            result.emplace_back( who, candidate );
         }
     }
     return result;

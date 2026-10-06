@@ -28,6 +28,7 @@ function Require([string]$Text,[string]$Needle) {
 $capable=Get-CppFunction $hostSource 'bool ranged_weapon_capable('
 $resolver=Get-CppFunction $hostSource 'std::vector<item_location> ranged_weapon_candidates('
 $binding=Get-CppFunction $hostSource 'bool ranged_weapon_binding_valid('
+$activeItems=Get-CppFunction $hostSource 'std::vector<item *> active_mana_hand_items('
 $itemSlot=Get-CppFunction $hostSource 'mana_hand_item_slot mana_hand_item_slot_of('
 $itemOwner=Get-CppFunction $hostSource 'mana_hand_ranged_owner mana_hand_ranged_item_owner('
 $owner=Get-CppFunction $hostSource 'mana_hand_ranged_owner mana_hand_ranged_mode_owner('
@@ -35,8 +36,17 @@ $melee=Get-CppFunction $hostSource 'item *primary_mana_hand_melee_weapon('
 Require $capable '!weapon.is_gun() || weapon.is_gunmod()'
 Require $capable 'return mode && !mode.melee();'
 Require $resolver 'physical && ranged_weapon_capable( *physical, action )'
+Require $resolver 'active_mana_hand_items( who )'
 Require $resolver 'ranged_weapon_capable( *candidate, action )'
-Require $resolver 'mana_hands_pair_slot_id'
+Require $activeItems 'survivor_mana_hand_count()'
+Require $activeItems 'mana_hands_pair_slot_id'
+Require $activeItems 'mana_hand_3_slot_id'
+Require $activeItems 'mana_hand_4_slot_id'
+Require $activeItems 'result.push_back( paired )'
+Require $activeItems 'return result'
+foreach($forbiddenResolverPolicy in @('survivor_mana_hand_count()', 'virtual_item_for_slot(', 'mana_hand_3_slot_id', 'mana_hand_4_slot_id', 'mana_hands_pair_slot_id')) {
+    if($resolver.Contains($forbiddenResolverPolicy)){throw ('Ranged resolver duplicated active Mana Hand enumeration policy: '+$forbiddenResolverPolicy)}
+}
 Require $binding 'ranged_weapon_capable( weapon, ranged_weapon_action::fire )'
 Require $binding 'mana_hand_ranged_item_owner( who, weapon )'
 Require $itemSlot 'survivor_mana_hand_count()'
@@ -114,7 +124,7 @@ if($PatchedSourceRoot) {
 if($RunBehavior) {
     $work=Join-Path $env:TEMP ('ncmm-action-resolver-'+[guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $work|Out-Null
-    [IO.File]::WriteAllText((Join-Path $work 'ranged_resolvers.inc'),$capable+"`n"+$itemSlot+"`n"+$itemOwner+"`n"+$owner+"`n"+$binding+"`n"+$resolver)
+    [IO.File]::WriteAllText((Join-Path $work 'ranged_resolvers.inc'),$capable+"`n"+$activeItems+"`n"+$itemSlot+"`n"+$itemOwner+"`n"+$owner+"`n"+$binding+"`n"+$resolver)
     [IO.File]::WriteAllText((Join-Path $work 'primary_melee_resolver.inc'),$melee)
     Copy-Item (Join-Path $PackageRoot 'tests/mana_action_weapon_test.cpp') $work
     [IO.File]::WriteAllText((Join-Path $work 'CMakeLists.txt'),@'

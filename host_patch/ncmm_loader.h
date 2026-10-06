@@ -71,6 +71,8 @@ item *primary_mana_hand_melee_weapon( Character &who );
 enum class mana_hand_item_slot { none, hand3, hand4, paired };
 /** Resolve which active logical Mana Hand slot owns an item, independent of action capability. */
 mana_hand_item_slot mana_hand_item_slot_of( const Character &who, const item &candidate );
+/** Active Mana Hand items with paired III+IV taking precedence over individual slots. */
+std::vector<item *> active_mana_hand_items( const Character &who );
 enum class mana_hand_ranged_owner { none, single, paired };
 /** Identify whether a bound firearm itself belongs to a single or paired Mana Hand slot. */
 mana_hand_ranged_owner mana_hand_ranged_item_owner( const avatar &who, const item &weapon );

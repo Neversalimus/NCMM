@@ -107,6 +107,9 @@ int main() {
     check(ncmm::primary_mana_hand_melee_weapon(player) == &mana_melee,
           "empty physical hand retains existing Mana primary melee");
     third = &pistol;
+    auto active_items = ncmm::active_mana_hand_items(player);
+    check(active_items.size() == 1 && active_items[0] == &pistol,
+          "active Mana Hand items expose Mana III");
     check(ncmm::ranged_weapon_candidates(player, fire)[0].value == &pistol,
           "empty physical hands + Mana III firearm");
     check(ncmm::ranged_weapon_binding_valid(player, pistol),
@@ -127,6 +130,9 @@ int main() {
           "single Mana Hand owns attached gunmod mode");
     player.physical = &sword;
     pair = &rifle;
+    active_items = ncmm::active_mana_hand_items(player);
+    check(active_items.size() == 1 && active_items[0] == &rifle,
+          "paired Mana Hands take precedence over individual slots");
     guns = ncmm::ranged_weapon_candidates(player, fire);
     check(guns.size() == 1 && guns[0].value == &rifle, "physical melee + paired III+IV firearm");
     check(ncmm::mana_hand_item_slot_of(player, rifle) ==
@@ -152,9 +158,17 @@ int main() {
     player.physical = &sword;
     third = &pistol;
     fourth = &rifle;
+    active_items = ncmm::active_mana_hand_items(player);
+    check(active_items.size() == 2 && active_items[0] == &pistol && active_items[1] == &rifle,
+          "active Mana Hand items retain III then IV order");
     guns = ncmm::ranged_weapon_candidates(player, fire);
     check(guns.size() == 2 && guns[0].value == &pistol && guns[1].value == &rifle,
           "two independent Mana guns retain selector order");
+    hand_count = 1;
+    active_items = ncmm::active_mana_hand_items(player);
+    check(active_items.size() == 1 && active_items[0] == &pistol,
+          "one active Mana Hand hides Mana IV");
+    hand_count = 2;
     check(ncmm::mana_hand_item_slot_of(player, rifle) ==
               ncmm::mana_hand_item_slot::hand4,
           "generic ownership remains action-neutral for a two-handed item in Mana IV");
