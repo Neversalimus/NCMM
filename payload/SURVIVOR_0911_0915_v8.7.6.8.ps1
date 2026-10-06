@@ -20344,6 +20344,66 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
         $game0140ctx = Replace-TextBlock $game0140ctx $primaryHandlerAnchor0140ctx $primaryHandlerNew0140ctx 'final primary Mana Hand melee handler'
     }
 
+    # Mana Hand ranged context is final in this base layer.
+    # Ranged0140 later verifies game.cpp while retaining aim/activity/ranged.cpp transforms.
+    if(-not $game0140ctx.Contains('fire with Mana Hand')) {
+        $rangedMenuAnchor0140ctx = @'
+                const bool ncmm_secondary_melee_eligible =
+                    oThisItem.is_melee() && !oThisItem.is_gun() &&
+                    ( ( ncmm_mana_single_bound_here && !oThisItem.is_two_handed( u ) ) ||
+                      ( ncmm_mana_pair_bound_here && oThisItem.is_two_handed( u ) ) );
+'@
+        $rangedMenuNew0140ctx = @'
+                const bool ncmm_secondary_melee_eligible =
+                    oThisItem.is_melee() && !oThisItem.is_gun() &&
+                    ( ( ncmm_mana_single_bound_here && !oThisItem.is_two_handed( u ) ) ||
+                      ( ncmm_mana_pair_bound_here && oThisItem.is_two_handed( u ) ) );
+                const bool ncmm_mana_ranged_eligible =
+                    ncmm::mana_hand_ranged_item_owner( u, oThisItem ) !=
+                    ncmm::mana_hand_ranged_owner::none;
+                if( ncmm_mana_ranged_eligible ) {
+                    addentry( 'g', ncmm::localized_text(
+                                  "fire with Mana Hand",
+                                  "стрелять рукой маны" ), hint_rating::good );
+                }
+'@
+        $rangedMenuCount0140ctx = Count-TextBlock $game0140ctx $rangedMenuAnchor0140ctx
+        if($rangedMenuCount0140ctx -ne 1) {
+            throw ('Unexpected Mana Hand ranged menu anchor count: '+$rangedMenuCount0140ctx)
+        }
+        $game0140ctx = Replace-TextBlock $game0140ctx $rangedMenuAnchor0140ctx $rangedMenuNew0140ctx 'final Mana Hand ranged context entry'
+
+        $rangedHandlerAnchor0140ctx = @'
+                case '5': {
+'@
+        $rangedHandlerNew0140ctx = @'
+                case 'g': {
+                    if( ncmm::mana_hand_ranged_item_owner( u, oThisItem ) ==
+                        ncmm::mana_hand_ranged_owner::none ) {
+                        add_msg( m_info, "%s", ncmm::localized_text(
+                                     "That item is not a usable Mana Hand firearm.",
+                                     "Этот предмет нельзя использовать как оружие в руках маны." ).c_str() );
+                        break;
+                    }
+                    if( !oThisItem.uses_firing_requirements() && oThisItem.has_ammo_data() &&
+                        !oThisItem.ammo_types().count( oThisItem.loaded_ammo().ammo_type() ) ) {
+                        add_msg( m_info,
+                                 _( "The %s can't be fired while loaded with incompatible ammunition %s" ),
+                                 oThisItem.tname(), oThisItem.ammo_current()->nname( 1 ) );
+                        break;
+                    }
+                    u.assign_activity( aim_activity_actor::use_item_location( locThisItem ) );
+                    break;
+                }
+                case '5': {
+'@
+        $rangedHandlerCount0140ctx = Count-TextBlock $game0140ctx $rangedHandlerAnchor0140ctx
+        if($rangedHandlerCount0140ctx -ne 1) {
+            throw ('Unexpected Mana Hand ranged handler anchor count: '+$rangedHandlerCount0140ctx)
+        }
+        $game0140ctx = Replace-TextBlock $game0140ctx $rangedHandlerAnchor0140ctx $rangedHandlerNew0140ctx 'final Mana Hand ranged context handler'
+    }
+
     Write-Utf8NoBom $game0140ctxPath $game0140ctx
     foreach($needle0140ctx in @(
         '#include "ncmm_api.h"',
@@ -20364,6 +20424,10 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
         "case 'P':",
         'ncmm::virtual_item_set_primary_melee(',
         'ncmm::mana_hand_item_slot_of( u, oThisItem )',
+        'fire with Mana Hand',
+        "case 'g':",
+        'aim_activity_actor::use_item_location( locThisItem )',
+        'ncmm::mana_hand_ranged_item_owner( u, oThisItem )',
         'ncmm::mana_hand_inventory_action_visible( locThisItem )',
         'ncmm::mana_hand_inventory_action( locThisItem )',
         "case 'H':"
@@ -21644,57 +21708,18 @@ item_location aim_activity_actor::get_weapon()
     }
     Write-Utf8NoBom $ranged0140rangePath $ranged0140range
 
-    $game0140range = Normalize-Lf ([IO.File]::ReadAllText($game0140rangePath))
-    if(-not $game0140range.Contains('fire with Mana Hand')) {
-        $menuOld0140range = @'
-                const bool ncmm_secondary_melee_eligible =
-                    oThisItem.is_melee() && !oThisItem.is_gun() &&
-                    ( ( ncmm_mana_single_bound_here && !oThisItem.is_two_handed( u ) ) ||
-                      ( ncmm_mana_pair_bound_here && oThisItem.is_two_handed( u ) ) );
-'@
-        $menuNew0140range = @'
-                const bool ncmm_secondary_melee_eligible =
-                    oThisItem.is_melee() && !oThisItem.is_gun() &&
-                    ( ( ncmm_mana_single_bound_here && !oThisItem.is_two_handed( u ) ) ||
-                      ( ncmm_mana_pair_bound_here && oThisItem.is_two_handed( u ) ) );
-                const bool ncmm_mana_ranged_eligible =
-                    ncmm::mana_hand_ranged_item_owner( u, oThisItem ) !=
-                    ncmm::mana_hand_ranged_owner::none;
-                if( ncmm_mana_ranged_eligible ) {
-                    addentry( 'g', ncmm::localized_text(
-                                  "fire with Mana Hand",
-                                  "стрелять рукой маны" ), hint_rating::good );
-                }
-'@
-        $game0140range = Replace-TextBlock $game0140range $menuOld0140range $menuNew0140range 'Mana Hand ranged context entry'
-
-        $handlerOld0140range = @'
-                case '5': {
-'@
-        $handlerNew0140range = @'
-                case 'g': {
-                    if( ncmm::mana_hand_ranged_item_owner( u, oThisItem ) ==
-                        ncmm::mana_hand_ranged_owner::none ) {
-                        add_msg( m_info, "%s", ncmm::localized_text(
-                                     "That item is not a usable Mana Hand firearm.",
-                                     "Этот предмет нельзя использовать как оружие в руках маны." ).c_str() );
-                        break;
-                    }
-                    if( !oThisItem.uses_firing_requirements() && oThisItem.has_ammo_data() &&
-                        !oThisItem.ammo_types().count( oThisItem.loaded_ammo().ammo_type() ) ) {
-                        add_msg( m_info,
-                                 _( "The %s can't be fired while loaded with incompatible ammunition %s" ),
-                                 oThisItem.tname(), oThisItem.ammo_current()->nname( 1 ) );
-                        break;
-                    }
-                    u.assign_activity( aim_activity_actor::use_item_location( locThisItem ) );
-                    break;
-                }
-                case '5': {
-'@
-        $game0140range = Replace-TextBlock $game0140range $handlerOld0140range $handlerNew0140range 'Mana Hand ranged context handler'
+    $game0140range = [IO.File]::ReadAllText($game0140rangePath)
+    foreach($finalRangedContextNeedle0140range in @(
+        'fire with Mana Hand',
+        "case 'g':",
+        'aim_activity_actor::use_item_location( locThisItem )',
+        'ncmm::mana_hand_ranged_item_owner( u, oThisItem )',
+        'ncmm::mana_hand_ranged_owner::none'
+    )) {
+        if(-not $game0140range.Contains($finalRangedContextNeedle0140range)) {
+            throw ('Mana Hand ranged context missing final base-layer boundary: '+$finalRangedContextNeedle0140range)
+        }
     }
-    Write-Utf8NoBom $game0140rangePath $game0140range
 
     foreach($rangeCheck0140 in @(
         @($defs0140rangePath,'item_location ncmm_real_weapon;'),
