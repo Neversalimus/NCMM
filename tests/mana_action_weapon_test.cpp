@@ -63,11 +63,15 @@ item *virtual_item_for_slot( const char *, const char *slot ) {
     return std::string(slot) == mana_hand_3_slot_id ? third : fourth;
 }
 bool virtual_item_primary_melee_enabled( const item &candidate ) { return candidate.primary; }
-// Production ranged capability and candidate resolver.
-#include "ranged_resolvers.inc"
+bool virtual_item_matches_slot( const item &candidate, const char *, const char *slot ) {
+    if( std::string(slot) == mana_hands_pair_slot_id ) { return &candidate == pair; }
+    if( std::string(slot) == mana_hand_3_slot_id ) { return &candidate == third; }
+    return std::string(slot) == mana_hand_4_slot_id && &candidate == fourth;
 }
-// Production primary melee resolver (separate action, not ranged selection).
+// Production action resolvers.
+#include "ranged_resolvers.inc"
 #include "primary_melee_resolver.inc"
+}
 
 void check(bool ok, const char *scenario) {
     if(!ok) { std::cerr << "FAIL: " << scenario << '\n'; std::exit(1); }
@@ -88,19 +92,21 @@ int main() {
     auto guns = ncmm::ranged_weapon_candidates(player, fire);
     check(guns.size() == 1 && guns[0].value == &pistol, "physical melee + Mana IV firearm");
     check(player.physical == &sword, "ranged resolution preserves physical melee");
-    check(ncmm_primary_mana_hand_melee_weapon(player) == nullptr,
+    check(ncmm::primary_mana_hand_melee_weapon(player) == nullptr,
           "Mana firearm never intercepts physical melee");
     third = &mana_melee;
-    check(ncmm_primary_mana_hand_melee_weapon(player) == nullptr,
+    check(ncmm::primary_mana_hand_melee_weapon(player) == nullptr,
           "physical melee remains primary with explicit Mana primary melee");
     fourth = nullptr;
     check(ncmm::ranged_weapon_candidates(player, fire).empty(), "Mana melee is not a gun");
     player.physical = nullptr;
-    check(ncmm_primary_mana_hand_melee_weapon(player) == &mana_melee,
+    check(ncmm::primary_mana_hand_melee_weapon(player) == &mana_melee,
           "empty physical hand retains existing Mana primary melee");
     third = &pistol;
     check(ncmm::ranged_weapon_candidates(player, fire)[0].value == &pistol,
           "empty physical hands + Mana III firearm");
+    check(ncmm::ranged_weapon_binding_valid(player, pistol),
+          "selected Mana III firearm binding remains valid");
     player.physical = &sword;
     pair = &rifle;
     guns = ncmm::ranged_weapon_candidates(player, fire);
@@ -139,5 +145,7 @@ int main() {
     check(!ncmm::ranged_weapon_capable(pistol, fire), "standalone gunmod is rejected");
     hand_count = 0;
     check(ncmm::ranged_weapon_candidates(player, fire).empty(), "unavailable Mana Hands cannot fire");
+    check(!ncmm::ranged_weapon_binding_valid(player, pistol),
+          "aim binding invalidates when Mana Hands become unavailable");
     std::cout << "Mana action weapon resolver behavior: PASS\n";
 }
