@@ -21960,7 +21960,10 @@ function Apply-SurvivorManaHandFireAction0140([string]$Root) {
 
     $handle0140fire = Normalize-Lf ([IO.File]::ReadAllText($handle0140firePath))
     if(-not $handle0140fire.Contains('#include "ncmm_loader.h"')) {
-        throw 'Mana Hand FIRE action requires the existing ncmm_loader include.'
+        if(-not $handle0140fire.Contains('#include "magic.h"')) {
+            throw 'Mana Hand FIRE include anchor missing.'
+        }
+        $handle0140fire = Replace-TextBlock $handle0140fire '#include "magic.h"' ('#include "magic.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand FIRE include'
     }
 
     # Finalize the reach-aware F fallback in the FIRE base layer.
@@ -22203,7 +22206,10 @@ function Apply-SurvivorManaHandGunControls0140([string]$Root) {
 
     $handle0140ctrl = Normalize-Lf ([IO.File]::ReadAllText($handle0140ctrlPath))
     if(-not $handle0140ctrl.Contains('#include "ncmm_loader.h"')) {
-        throw 'Mana Hand standard gun controls require the existing ncmm_loader include.'
+        if(-not $handle0140ctrl.Contains('#include "magic.h"')) {
+            throw 'Mana Hand gun-control include anchor missing.'
+        }
+        $handle0140ctrl = Replace-TextBlock $handle0140ctrl '#include "magic.h"' ('#include "magic.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand gun-control include'
     }
 
     if(-not $handle0140ctrl.Contains('ncmm_select_mana_hand_gun_control')) {
@@ -22450,7 +22456,10 @@ function Apply-SurvivorManaHandReloadCarrier0153([string]$Root) {
     }
     $game0153reload = Normalize-Lf ([IO.File]::ReadAllText($game0153reloadPath))
     if(-not $game0153reload.Contains('#include "ncmm_loader.h"')) {
-        throw 'Mana Hand reload-in-place guard requires the existing ncmm_loader include.'
+        if(-not $game0153reload.Contains('#include "game.h"')) {
+            throw 'Mana Hand reload-in-place include anchor missing.'
+        }
+        $game0153reload = Replace-TextBlock $game0153reload '#include "game.h"' ('#include "game.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand reload-in-place include'
     }
     if(-not $game0153reload.Contains('!ncmm::is_virtual_item( *loc )')) {
         $reloadObtainOld0153 = @'
