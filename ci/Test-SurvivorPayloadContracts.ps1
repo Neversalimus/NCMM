@@ -1151,7 +1151,7 @@ foreach($pairCleanTemplate0140 in @($pairCleanMenu0140,$pairCleanSwitch0140)){
 
 foreach($pairCompatNeedle0140 in @(
     'Compatibility path: upgrade older 0.14.0 sources',
-    "if(-not $game0140ctx.Contains('ncmm_mana_pair_item'))",
+    'if(-not $game0140ctx.Contains(''ncmm_mana_pair_item''))',
     '$pointerOld0140ctxPair = @''',
     '$pointerNew0140ctxPair = @''',
     '$case5New0140ctxPair = @''',
