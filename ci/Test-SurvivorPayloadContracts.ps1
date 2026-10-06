@@ -722,7 +722,6 @@ foreach($needle0140 in @(
     'Apply-SurvivorManaHandRanged0140 $CddaRoot',
     'function Apply-SurvivorManaHandPairedRanged0140',
     'ncmm_virtual_mana_paired_gun_mode',
-    'Reload-and-shoot firing modes are not yet supported by Mana Hands.',
     'Apply-SurvivorManaHandPairedRanged0140 $CddaRoot',
     'function Apply-SurvivorManaHandReloadAndShoot0140',
     'ncmm_mana_hand_ras_switch',
@@ -904,8 +903,7 @@ foreach($eolSafeNeedle0140 in @(
     'if(Test-TextBlock $game0140pr $pairMenuFlagsOld0140pr)',
     'if(Test-TextBlock $game0140pr $pairHandlerFlagsOld0140pr)',
     "if(-not `$game0140pr.Contains('ncmm::mana_hand_ranged_item_owner( u, oThisItem )'))",
-    "if(-not `$actor0140pr.Contains('ncmm::ranged_weapon_binding_valid( get_avatar(), *ncmm_candidate )'))",
-    'if(Test-TextBlock $ranged0140ras $unsupported0140ras)'
+    "if(-not `$actor0140pr.Contains('ncmm::ranged_weapon_binding_valid( get_avatar(), *ncmm_candidate )'))"
 )){
     if(-not $payload.Contains($eolSafeNeedle0140)){
         throw ('Mana Hand certified-host EOL-safe matching contract missing: '+$eolSafeNeedle0140)
@@ -1105,6 +1103,9 @@ if($manaRangeSection0140.Contains('set_wielded_item(') -or
 if($manaRangeSection0140.Contains('"mana_hands_34"')){
     throw 'Base Mana Hand ranged layer duplicated paired slot IDs instead of using Host ownership.'
 }
+if($manaRangeSection0140.Contains('Reload-and-shoot firing modes are not yet supported by Mana Hands.')){
+    throw 'Base Mana Hand ranged layer reintroduced the temporary reload-and-shoot rejection.'
+}
 
 $manaRasStart0140=$payload.IndexOf('function Apply-SurvivorManaHandReloadAndShoot0140',$manaPairedRangeStart0140)
 if($manaRasStart0140 -le $manaPairedRangeStart0140){throw 'Mana Hand reload-and-shoot transform boundary missing.'}
@@ -1119,8 +1120,7 @@ foreach($pairedRangeNeedle0140 in @(
     'Paired Mana Hand ranged Host-owner boundary missing:',
     'ncmm::mana_hand_ranged_mode_owner( you, gmode ? &*gmode : nullptr )',
     'ncmm::mana_hand_ranged_owner::paired',
-    '!ncmm_virtual_mana_paired_gun_mode &&',
-    'Reload-and-shoot firing modes are not yet supported by Mana Hands.'
+    '!ncmm_virtual_mana_paired_gun_mode &&'
 )){
     if(-not $manaPairedRangeSection0140.Contains($pairedRangeNeedle0140)){
         throw ('Paired Mana Hand ranged regression contract missing: '+$pairedRangeNeedle0140)
@@ -1160,7 +1160,6 @@ foreach($rasNeedle0140 in @(
     'item_location gun = activity != nullptr ? activity->get_weapon() : you->get_wielded_item();',
     'item::reload_option opt = you->select_ammo( gun );',
     'activity->reload_loc = opt.ammo;',
-    'Replace-TextBlock $ranged0140ras $unsupported0140ras',
     'if($rasOutput0140.Contains'
 )){
     if(-not $manaRasSection0140.Contains($rasNeedle0140)){
@@ -1170,6 +1169,10 @@ foreach($rasNeedle0140 in @(
 if($manaRasSection0140.Contains('set_wielded_item(') -or
    $manaRasSection0140.Contains('u.wield(')){
     throw 'Mana Hand reload-and-shoot support must not move the real gun into Character::weapon.'
+}
+if($manaRasSection0140.Contains('$unsupported0140ras') -or
+   $manaRasSection0140.Contains('Replace-TextBlock $ranged0140ras $unsupported0140ras')){
+    throw 'Mana Hand reload-and-shoot layer must not delete a temporary gate from an earlier transform.'
 }
 
 $manaGunControlsStart0140=$payload.IndexOf('function Apply-SurvivorManaHandGunControls0140',$manaFireStart0140)
