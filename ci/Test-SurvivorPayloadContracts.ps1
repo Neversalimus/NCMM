@@ -1131,6 +1131,18 @@ if($manaPairedRangeSection0140.Contains('set_wielded_item(') -or
    $manaPairedRangeSection0140.Contains('item_location::type::mana_hand')){
     throw 'Paired Mana Hand ranged support must keep the real gun in its vanilla item_location.'
 }
+if($manaPairedRangeSection0140.Contains('$ranged0140pr = Replace-TextBlock')){
+    throw 'Paired Mana Hand layer must not rewrite ranged.cpp ownership semantics.'
+}
+foreach($finalRangeNeedle0140 in @(
+    '// NCMM paired Mana Hand physical-hand exemptions.',
+    'ncmm::mana_hand_ranged_mode_owner( you, gmode ? &*gmode : nullptr )',
+    'ncmm_ranged_owner == ncmm::mana_hand_ranged_owner::paired'
+)){
+    if(-not $manaRangeSection0140.Contains($finalRangeNeedle0140)){
+        throw ('Base ranged layer must emit final Host-owned paired semantics: '+$finalRangeNeedle0140)
+    }
+}
 
 $manaFireStart0140=$payload.IndexOf('function Apply-SurvivorManaHandFireAction0140',$manaRasStart0140)
 if($manaFireStart0140 -le $manaRasStart0140){throw 'Mana Hand FIRE action transform boundary missing.'}
