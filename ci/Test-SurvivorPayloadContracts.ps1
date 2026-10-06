@@ -522,7 +522,10 @@ foreach($payloadNeedle0130 in @(
     'ncmm_virtual_limb_encumbrance_average(',
     '"magic.virtual_hand_count"',
     'const int ncmm_virtual_hands =',
-    'is_armed() && ncmm_virtual_hands <= 0',
+    'const int ncmm_virtual_free_hands =',
+    'ncmm::active_mana_hand_items( *this )',
+    'ncmm::mana_hand_item_slot_of( *this, *candidate )',
+    'is_armed() && ncmm_virtual_free_hands <= 0 && !ncmm_virtual_focus',
     '.survivor_0130_mana_hands_build.sha256',
     'v8.7.6.8-survivor-0.13.0-mana-hands'
 )){
@@ -935,12 +938,18 @@ if($manaSlotsStart0140 -lt 0 -or $manaSlotsEnd0140 -le $manaSlotsStart0140){
     throw 'Mana Hand virtual-slot transform boundary missing.'
 }
 $manaSlotsSection0140=$payload.Substring($manaSlotsStart0140,$manaSlotsEnd0140-$manaSlotsStart0140)
-$spellOccupancyStart0140=$manaSlotsSection0140.IndexOf('$handleNew0140 = @''')
-$spellOccupancyEnd0140=$manaSlotsSection0140.IndexOf("'@",$spellOccupancyStart0140+20)
-if($spellOccupancyStart0140 -lt 0 -or $spellOccupancyEnd0140 -le $spellOccupancyStart0140){
-    throw 'Mana Hand spellcasting occupancy template boundary missing.'
+$manaHandsStart0130=$payload.IndexOf('function Apply-SurvivorManaHands0130')
+$manaHandsEnd0130=$payload.IndexOf('function Apply-SurvivorVirtualItemSlots0140',$manaHandsStart0130)
+if($manaHandsStart0130 -lt 0 -or $manaHandsEnd0130 -le $manaHandsStart0130){
+    throw 'Mana Hand 0.13.0 base transform boundary missing.'
 }
-$spellOccupancy0140=$manaSlotsSection0140.Substring(
+$manaHandsSection0130=$payload.Substring($manaHandsStart0130,$manaHandsEnd0130-$manaHandsStart0130)
+$spellOccupancyStart0140=$manaHandsSection0130.IndexOf('$freeHandNew0130 = @''')
+$spellOccupancyEnd0140=$manaHandsSection0130.IndexOf("'@",$spellOccupancyStart0140+24)
+if($spellOccupancyStart0140 -lt 0 -or $spellOccupancyEnd0140 -le $spellOccupancyStart0140){
+    throw 'Mana Hand base spellcasting occupancy template boundary missing.'
+}
+$spellOccupancy0140=$manaHandsSection0130.Substring(
     $spellOccupancyStart0140,$spellOccupancyEnd0140-$spellOccupancyStart0140)
 foreach($spellOccupancyNeedle0140 in @(
     'ncmm::runtime_hook_modifier(',
@@ -951,10 +960,12 @@ foreach($spellOccupancyNeedle0140 in @(
     'ncmm::mana_hand_item_slot::paired',
     'required_source_hands',
     'ncmm_virtual_hands < required_source_hands',
-    'candidate->has_flag( flag_MAGIC_FOCUS )'
+    'candidate->has_flag( flag_MAGIC_FOCUS )',
+    'const int ncmm_virtual_free_hands =',
+    'is_armed() && ncmm_virtual_free_hands <= 0 && !ncmm_virtual_focus'
 )){
     if(-not $spellOccupancy0140.Contains($spellOccupancyNeedle0140)){
-        throw ('Mana Hand final spellcasting occupancy contract missing: '+$spellOccupancyNeedle0140)
+        throw ('Mana Hand final spellcasting occupancy contract missing from base layer: '+$spellOccupancyNeedle0140)
     }
 }
 foreach($spellOccupancyForbidden0140 in @(
@@ -965,6 +976,16 @@ foreach($spellOccupancyForbidden0140 in @(
 )){
     if($spellOccupancy0140.Contains($spellOccupancyForbidden0140)){
         throw ('Mana Hand spellcasting occupancy duplicated slot policy: '+$spellOccupancyForbidden0140)
+    }
+}
+foreach($obsoleteSpellRewrite0140 in @(
+    '$handleOld0140 = @''',
+    '$handleNew0140 = @''',
+    'Mana-hand occupied/focus semantics',
+    'Write-Utf8NoBom $handle0140Path $handle0140'
+)){
+    if($manaSlotsSection0140.Contains($obsoleteSpellRewrite0140)){
+        throw ('VirtualItemSlots still rewrites final spellcasting occupancy: '+$obsoleteSpellRewrite0140)
     }
 }
 
