@@ -663,7 +663,7 @@ foreach($needle0140 in @(
     'ncmm::active_mana_hand_items( *this )',
     'ncmm::mana_hand_item_slot_of( *this, *candidate )',
     'required_source_hands',
-    'consider_virtual_shield',
+    'melee::blocking_ability( *candidate )',
     'ncmm::is_virtual_item( *shield )',
     'Apply-SurvivorVirtualItemSlots0140 $CddaRoot',
     'function Apply-SurvivorVirtualItemContext0140',
@@ -965,6 +965,36 @@ foreach($spellOccupancyForbidden0140 in @(
     }
 }
 
+$shieldTemplateStart0140=$manaSlotsSection0140.IndexOf('$bestShieldNew0140 = @''')
+$shieldTemplateEnd0140=$manaSlotsSection0140.IndexOf("'@",$shieldTemplateStart0140+24)
+if($shieldTemplateStart0140 -lt 0 -or $shieldTemplateEnd0140 -le $shieldTemplateStart0140){
+    throw 'Mana Hand final shield-selection template boundary missing.'
+}
+$shieldTemplate0140=$manaSlotsSection0140.Substring(
+    $shieldTemplateStart0140,$shieldTemplateEnd0140-$shieldTemplateStart0140)
+foreach($shieldNeedle0140 in @(
+    'ncmm::active_mana_hand_items( *this )',
+    'melee::blocking_ability( *candidate )',
+    'value > best_value',
+    'item_location( *this, candidate )'
+)){
+    if(-not $shieldTemplate0140.Contains($shieldNeedle0140)){
+        throw ('Mana Hand final shield-selection contract missing: '+$shieldNeedle0140)
+    }
+}
+foreach($shieldForbidden0140 in @(
+    'virtual_item_for_slot(',
+    'gameplay_modifier(',
+    '"mana_hand_3"',
+    '"mana_hand_4"',
+    '"mana_hands_34"',
+    'consider_virtual_shield'
+)){
+    if($shieldTemplate0140.Contains($shieldForbidden0140)){
+        throw ('Mana Hand shield selection duplicated active-item slot policy: '+$shieldForbidden0140)
+    }
+}
+
 $manaContextStart0140=$payload.IndexOf('function Apply-SurvivorVirtualItemContext0140')
 $manaContextEnd0140=$payload.IndexOf('function Apply-SurvivorManaHandSpellcastingAid0140',$manaContextStart0140)
 if($manaContextStart0140 -lt 0 -or $manaContextEnd0140 -le $manaContextStart0140){throw 'Mana Hand context transform boundary missing.'}
@@ -1146,7 +1176,6 @@ $manaRangeStart0140=$payload.IndexOf('function Apply-SurvivorManaHandRanged0140'
 if($manaRangeStart0140 -le $manaPairStart0140){throw 'Mana Hand ranged transform boundary missing.'}
 $manaPairSection0140=$payload.Substring($manaPairStart0140,$manaRangeStart0140-$manaPairStart0140)
 foreach($pairNeedle0140 in @(
-    'consider_virtual_shield( "mana_hands_34" );',
     'item *ncmm_mana_pair_item = ncmm_mana_hands >= 2 ?',
     'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
     'NCMM_VIRTUAL_ITEM_REJECT_GUNS_V2',
@@ -1176,7 +1205,11 @@ foreach($obsoletePairRewrite0140 in @(
     '$handle0140pairPath',
     '$handleOld0140pair',
     '$handleNew0140pair',
-    'Mana Hand paired casting occupancy'
+    'Mana Hand paired casting occupancy',
+    '$melee0140pairPath',
+    '$shieldOld0140pair',
+    '$shieldNew0140pair',
+    'Mana Hand paired shield'
 )){
     if($manaPairSection0140.Contains($obsoletePairRewrite0140)){throw ('PairedGrip still rewrites a final base consumer: '+$obsoletePairRewrite0140)}
 }
