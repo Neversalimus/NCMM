@@ -187,6 +187,19 @@ $sdkCurrent=Get-Content (Join-Path $PackageRoot 'sdk\ncmm_api.h') -Raw
 $hostHeaderCurrent=Get-Content (Join-Path $PackageRoot 'host_patch\ncmm_loader.h') -Raw
 $hostSourceCurrent=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp'))
 
+foreach($largeTreeNeedle in @(
+    '"ui.tree.large.v1"',
+    'count > 512',
+    'node_count > 512',
+    'edge_count > 1024',
+    'nodes[i].row > 255',
+    'nodes[i].column > 31'
+)){
+    if(-not $hostSourceCurrent.Contains($largeTreeNeedle)){
+        throw ('Large tree Host contract missing: '+$largeTreeNeedle)
+    }
+}
+
 # Host API 2.x implementation is final in the checked-in canonical Host.  The
 # historical API2 compatibility stage may advance SDK/runtime package surfaces,
 # but must not synthesize or rewrite ncmm_loader.cpp/.h anymore.

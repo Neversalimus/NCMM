@@ -443,6 +443,7 @@ const char *const host_capabilities[] = {
     "ui.tiles.v1",
     "ui.cards.v1",
     "ui.tree.v1",
+    "ui.tree.large.v1",
     "gameplay.metrics.v1",
     "active_mods.v1",
     "active_mods.registry.v2",
@@ -1728,7 +1729,7 @@ int ui_card_choose( const char *title, const char *summary,
                     const ncmm_ui_progress_v1 *progress,
                     const ncmm_ui_card_v1 *cards, size_t count, size_t requested_columns )
 {
-    if( title == nullptr || cards == nullptr || count == 0 || count > 128 ||
+    if( title == nullptr || cards == nullptr || count == 0 || count > 512 ||
         requested_columns == 0 || requested_columns > 4 ) {
         return -1;
     }
@@ -2076,15 +2077,15 @@ int ui_tree_choose( const char *title, const char *summary,
                     const ncmm_ui_tree_node_v1 *nodes, size_t node_count,
                     const ncmm_ui_tree_edge_v1 *edges, size_t edge_count )
 {
-    if( title == nullptr || nodes == nullptr || node_count == 0 || node_count > 64 ||
-        edge_count > 128 || ( edge_count > 0 && edges == nullptr ) ) {
+    if( title == nullptr || nodes == nullptr || node_count == 0 || node_count > 512 ||
+        edge_count > 1024 || ( edge_count > 0 && edges == nullptr ) ) {
         return NCMM_UI_TREE_CANCEL;
     }
 
     int max_row = 0;
     for( size_t i = 0; i < node_count; ++i ) {
         if( nodes[i].title == nullptr || nodes[i].row < 0 || nodes[i].column < 0 ||
-            nodes[i].row > 31 || nodes[i].column > 7 ) {
+            nodes[i].row > 255 || nodes[i].column > 31 ) {
             return NCMM_UI_TREE_CANCEL;
         }
         max_row = std::max( max_row, nodes[i].row );
