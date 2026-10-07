@@ -511,6 +511,34 @@ $hostSourceLf=$hostSourceCurrent.Replace("`r`n","`n").Replace("`r","`n")
 $canonicalHostLf=$canonicalHostText.Replace("`r`n","`n").Replace("`r","`n")
 if($canonicalHostLf -cne $hostSourceLf){throw 'Canonical Host payload is stale versus host_patch/ncmm_loader.cpp.'}
 
+# API v2-owned Survivor modifiers must not be preclaimed by the legacy Host allowlist.
+# Preclaiming leaves modifier_owners_v2 empty and makes modifier_define_v2 reject
+# Survivor during real Host startup even though the standalone module smoke passes.
+$legacyModifierMatch=[regex]::Match(
+    $hostSourceLf,
+    'character_modifier_limits\s*=\s*\{(?<body>.*?)\n\};',
+    [Text.RegularExpressions.RegexOptions]::Singleline
+)
+if(-not $legacyModifierMatch.Success){throw 'Canonical Host legacy modifier table could not be isolated.'}
+$legacyModifierBody=$legacyModifierMatch.Groups['body'].Value
+$survivorSourceCurrent=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\src\survivor_progression.cpp'))
+foreach($lootModifier in @(
+    'sp_loot_ammo_pct',
+    'sp_loot_provisions_pct',
+    'sp_loot_medicine_pct',
+    'sp_loot_rare_pct'
+)){
+    if($legacyModifierBody.Contains('"'+$lootModifier+'"')){
+        throw ('Scavenging loot modifier is incorrectly preclaimed by legacy Host policy: '+$lootModifier)
+    }
+    if(-not $survivorSourceCurrent.Contains('"'+$lootModifier+'"')){
+        throw ('Scavenging loot modifier is missing from Survivor dynamic API v2 registration: '+$lootModifier)
+    }
+}
+if(-not $hostSourceLf.Contains('modifier_owners_v2[modifier_id] = module_id;')){
+    throw 'Host dynamic modifier ownership assignment is missing.'
+}
+
 $canonicalHeaderMatch=[regex]::Match($payload,"Write-NcmmCanonicalPayloadFile 'host_patch\\ncmm_loader\.h' '([^']+)'")
 if(-not $canonicalHeaderMatch.Success){throw 'Canonical Host header payload entry missing.'}
 $canonicalHeaderText=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($canonicalHeaderMatch.Groups[1].Value))
