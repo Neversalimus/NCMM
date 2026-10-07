@@ -95,6 +95,7 @@ $directCountSection0181=$payload.Substring(
     $directCountStart0181,$directCountEnd0181-$directCountStart0181)
 foreach($directCountNeedle0181 in @(
     '$canonicalHostPath0152direct',
+    '$hostDirectExpression0152',
     'int survivor_mana_hand_count()',
     'item *primary_mana_hand_melee_weapon( Character &who )',
     'const int hand_count = survivor_mana_hand_count();',
@@ -106,6 +107,10 @@ foreach($directCountNeedle0181 in @(
 }
 if($directCountSection0181.Contains('-not $meleeText0152direct.Contains($directExpression0152)')){
     throw 'Direct-count verifier regressed to requiring inline primary-melee aggregate reads.'
+}
+
+if($directCountSection0181.Contains('$countSection0152direct.Contains($directExpression0152)')){
+    throw 'Direct-count verifier regressed to using the source-qualified expression inside canonical Host.'
 }
 
 # Certified-host builds import selected cumulative-payload functions into
