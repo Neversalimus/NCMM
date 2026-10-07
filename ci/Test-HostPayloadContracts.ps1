@@ -448,10 +448,7 @@ foreach($n in @(
     'geography.scope.ecology.enabled',
     'geography.scope.water.enabled',
     'geography.scope.transport.enabled',
-    'worldgen_hook_scope_enabled',
-    'const bool ncmm_geo_trails',
-    'aws_setting_count != 50',
-    'aws_hook_count != 50'
+    'const bool ncmm_geo_trails'
 )){
     if(-not $payload.Contains($n)){throw ('AWS 0.6.4 selective-scope contract missing: '+$n)}
 }
@@ -460,6 +457,57 @@ if(-not $payload.Contains('Remove-AwsLineContaining $aws ''NCMM_AWS_PLACE_SPECIA
 }
 if(-not $payload.Contains('Remove-AwsLineContaining $aws ''NCMM_AWS_NEIGHBOR_CONNECTIONS","Connect neighboring map regions"''')){
     throw 'AWS 0.6.4 protected neighbor-connection control removal missing.'
+}
+
+
+# Scope-aware worldgen dispatch is final in the checked-in canonical Host.
+foreach($awsScopeHostNeedle0169 in @(
+    'bool worldgen_scope_hook_enabled( const char *scope_hook_id )',
+    'bool worldgen_hook_scope_enabled( const char *hook_id )',
+    'id.rfind( "geography.scope.", 0 ) == 0',
+    'scope_hook = "geography.scope.cities.enabled"',
+    'scope_hook = "geography.scope.ecology.enabled"',
+    'scope_hook = "geography.scope.water.enabled"',
+    'scope_hook = "geography.scope.transport.enabled"',
+    'return scope_hook == nullptr || worldgen_scope_hook_enabled( scope_hook );',
+    'worldgen_hook_scope_enabled( hook_id );',
+    'aws_setting_count != 50',
+    'aws_hook_count != 50'
+)){
+    if(-not $hostSourceCurrent.Contains($awsScopeHostNeedle0169)){
+        throw ('Canonical AWS selective-scope Host surface missing: '+$awsScopeHostNeedle0169)
+    }
+}
+
+$awsScopeStart0169=$payload.IndexOf('function Apply-AwsSelectiveScopes064')
+$awsScopeEnd0169=$payload.IndexOf('function Apply-PlayerFacingCopyPolishFinal',$awsScopeStart0169)
+if($awsScopeStart0169 -lt 0 -or $awsScopeEnd0169 -le $awsScopeStart0169){
+    throw 'AWS 0.6.4 selective-scope payload boundary missing.'
+}
+$awsScopeSection0169=$payload.Substring($awsScopeStart0169,$awsScopeEnd0169-$awsScopeStart0169)
+foreach($awsScopeNeedle0169 in @(
+    'AWS 0.6.4 expected exactly 50 geography bindings',
+    'NCMM_AWS_SCOPE_CITIES',
+    'NCMM_AWS_SCOPE_ECOLOGY',
+    'NCMM_AWS_SCOPE_WATER',
+    'NCMM_AWS_SCOPE_TRANSPORT',
+    'canonical Host.  This compatibility stage advances only the AWS module/manifest.'
+)){
+    if(-not $awsScopeSection0169.Contains($awsScopeNeedle0169)){
+        throw ('AWS selective-scope module contract missing: '+$awsScopeNeedle0169)
+    }
+}
+foreach($awsScopeForbidden0169 in @(
+    '$loader = Normalize-Lf ([IO.File]::ReadAllText($loaderPath))',
+    'Write-Utf8NoBom $loaderPath $loader',
+    '$loaderAudit064',
+    'worldgen_hook_scope_enabled',
+    'aws_setting_count != 50',
+    'aws_hook_count != 50'
+)){
+    if($awsScopeSection0169.Contains($awsScopeForbidden0169)){
+        throw ('AWS selective-scope migration still rewrites transient Host: '+$awsScopeForbidden0169)
+    }
 }
 
 foreach($railroadFallbackNeedle064 in @(
@@ -649,8 +697,6 @@ foreach($gameplaySmokeNeedle in @(
     '--ncmm-gameplay-smoke',
     'gameplay-smoke.json',
     'NCMM Gameplay Smoke',
-    'aws_setting_count != 50',
-    'aws_hook_count != 50',
     'survivor_perk_count < survivor_minimum_perk_count',
     'overmap_buffer.create_custom_overmap',
     'ncmm_test_perk_count_v1',
@@ -673,6 +719,8 @@ foreach($gameplayHostNeedle in @(
     'world_generator->get_world( world_name )',
     'overmap_buffer.create_custom_overmap',
     'worldgen_hook_scope_enabled',
+    'aws_setting_count != 50',
+    'aws_hook_count != 50',
     'aws_scope_fallback_mismatch',
     'aws_protected_hook_exposed',
     'survivor_perk_count < survivor_minimum_perk_count',

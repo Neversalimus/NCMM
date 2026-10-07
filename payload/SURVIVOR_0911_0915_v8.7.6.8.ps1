@@ -18641,73 +18641,11 @@ function Apply-AwsSelectiveScopes064 {
     $manifestObj.version = '0.6.4'
     Write-Utf8NoBom $awsManifestPath (($manifestObj | ConvertTo-Json -Depth 8) + [char]10)
 
-    $loader = Normalize-Lf ([IO.File]::ReadAllText($loaderPath))
-    if(-not $loader.Contains('bool worldgen_hook_scope_enabled( const char *hook_id )')) {
-        $oldBound = @'
-bool worldgen_hook_bound( const char *hook_id )
-{
-    return hook_id != nullptr && worldgen_bindings_v2.find( hook_id ) != worldgen_bindings_v2.end();
-}
-'@
-        $newBound = @'
-bool worldgen_scope_hook_enabled( const char *scope_hook_id )
-{
-    const auto it = scope_hook_id ? worldgen_bindings_v2.find( scope_hook_id ) :
-                    worldgen_bindings_v2.end();
-    if( it == worldgen_bindings_v2.end() ||
-        it->second.value_type != NCMM_WORLDGEN_BOOL_V2 ) {
-        return true;
-    }
-    return world_setting_get_bool( it->second.setting_id.c_str(), 1 ) != 0;
-}
-
-bool worldgen_hook_scope_enabled( const char *hook_id )
-{
-    if( hook_id == nullptr ) {
-        return false;
-    }
-    const std::string id( hook_id );
-    if( id == "geography.custom.enabled" || id.rfind( "geography.scope.", 0 ) == 0 ) {
-        return true;
-    }
-
-    const char *scope_hook = nullptr;
-    if( id.rfind( "geography.city.", 0 ) == 0 ||
-        id.rfind( "geography.roads.", 0 ) == 0 ||
-        id.rfind( "geography.railroads.", 0 ) == 0 ) {
-        scope_hook = "geography.scope.cities.enabled";
-    } else if( id.rfind( "geography.forests.", 0 ) == 0 ||
-               id.rfind( "geography.swamps.", 0 ) == 0 ||
-               id.rfind( "geography.trails.", 0 ) == 0 ) {
-        scope_hook = "geography.scope.ecology.enabled";
-    } else if( id.rfind( "geography.rivers.", 0 ) == 0 ||
-               id.rfind( "geography.lakes.", 0 ) == 0 ||
-               id.rfind( "geography.oceans.", 0 ) == 0 ) {
-        scope_hook = "geography.scope.water.enabled";
-    } else if( id.rfind( "geography.highways.", 0 ) == 0 ||
-               id.rfind( "geography.ravines.", 0 ) == 0 ) {
-        scope_hook = "geography.scope.transport.enabled";
-    }
-    return scope_hook == nullptr || worldgen_scope_hook_enabled( scope_hook );
-}
-
-bool worldgen_hook_bound( const char *hook_id )
-{
-    return hook_id != nullptr &&
-           worldgen_bindings_v2.find( hook_id ) != worldgen_bindings_v2.end() &&
-           worldgen_hook_scope_enabled( hook_id );
-}
-'@
-        $loader = Replace-TextBlock $loader $oldBound $newBound 'AWS 0.6.4 scope-aware worldgen registry'
-    }
-    $loader = $loader.Replace('aws_setting_count != 48','aws_setting_count != 50')
-    $loader = $loader.Replace('aws_hook_count != 48','aws_hook_count != 50')
-    $loader = $loader.Replace('AWS save/reload + 48 bindings PASS','AWS save/reload + 50 bindings PASS')
-    Write-Utf8NoBom $loaderPath $loader
+    # Scope filtering and gameplay-smoke 50/50 counters are final in the checked-in
+    # canonical Host.  This compatibility stage advances only the AWS module/manifest.
 
     $awsAudit064 = [IO.File]::ReadAllText($awsPath)
     $manifestAudit064 = Get-Content $awsManifestPath -Raw | ConvertFrom-Json
-    $loaderAudit064 = [IO.File]::ReadAllText($loaderPath)
     foreach($needle in @('NCMM_AWS_SCOPE_CITIES','NCMM_AWS_SCOPE_ECOLOGY','NCMM_AWS_SCOPE_WATER','NCMM_AWS_SCOPE_TRANSPORT',
                          'geography.scope.cities.enabled','geography.scope.ecology.enabled','geography.scope.water.enabled','geography.scope.transport.enabled')) {
         if(-not $awsAudit064.Contains($needle)) { throw "AWS 0.6.4 scope audit missing: $needle" }
@@ -18719,7 +18657,6 @@ bool worldgen_hook_bound( const char *hook_id )
     $bindings064 = [regex]::Matches($awsAudit064,'\{ "(geography\.[^"]+)", "(NCMM_AWS_[A-Z0-9_]+)", NCMM_WORLDGEN_(?:BOOL|INT|FLOAT)_V2 \}')
     if($bindings064.Count -ne 50) { throw "AWS 0.6.4 expected exactly 50 geography bindings, found $($bindings064.Count)." }
     if([string]$manifestAudit064.version -ne '0.6.4') { throw 'AWS 0.6.4 manifest version audit failed.' }
-    if(-not $loaderAudit064.Contains('worldgen_hook_scope_enabled')) { throw 'AWS 0.6.4 Host scope registry audit failed.' }
 
     Write-Host "Advanced World Settings 0.6.4 selective-scope safety pass: PASS (50/50 bindings)" -ForegroundColor Green
 }
