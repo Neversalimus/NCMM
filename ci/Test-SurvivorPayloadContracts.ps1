@@ -18,12 +18,23 @@ foreach($needle in @(
     '"Современный атлас", "Классические ветки"',
     'void show_modern_atlas()',
     'host->has_capability( "ui.tree.large.v1" )',
-    'constexpr int groups_per_row = 4',
-    'constexpr int group_column_span = 8',
-    'constexpr int group_row_span = 28',
+    'Survivor Progression · Atlas Overview',
+    'Choose a constellation, then develop it in a focused local tree.',
+    'node.row = static_cast<int>( i / 3 );',
+    'node.column = static_cast<int>( i % 3 );',
+    'show_branch( branches[static_cast<size_t>( choice )] );',
+    'show_integration_branch( mod_branches[static_cast<size_t>( mod_index )] );',
     'open_progression_legacy();'
 )) {
     if(-not $suspensionSource.Contains($needle)){throw "Survivor modern atlas contract missing: $needle"}
+}
+foreach($removedAtlasNeedle in @(
+    'constexpr int groups_per_row = 4',
+    'constexpr int group_column_span = 8',
+    'constexpr int group_row_span = 28',
+    'append_atlas_node'
+)) {
+    if($suspensionSource.Contains($removedAtlasNeedle)){throw "Old monolithic atlas layout survived redesign: $removedAtlasNeedle"}
 }
 
 foreach($needle in @(
@@ -94,7 +105,9 @@ $payload=[IO.File]::ReadAllText((Join-Path $PackageRoot 'payload\SURVIVOR_0911_0
 foreach($payloadAtlasNeedle in @(
     'function Apply-SurvivorModernAtlas0150',
     'Apply-SurvivorModernAtlas0150',
-    'Survivor 0.15.0 modern atlas + Legacy layout: READY',
+    'Survivor 0.15.0 two-level atlas + Legacy layout: READY',
+    'Survivor Progression · Atlas Overview',
+    'Choose a constellation, then develop it in a focused local tree.',
     'host->has_capability( "ui.tree.large.v1" )'
 )) {
     if(-not $payload.Contains($payloadAtlasNeedle)){throw "Survivor modern atlas cumulative payload missing: $payloadAtlasNeedle"}

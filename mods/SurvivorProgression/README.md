@@ -13,7 +13,7 @@ It requires NCMM Host 0.8.2 and keeps persistent state schema **8**.
 - Core branches: Combat, Survival, Mobility, Crafting, Scavenging and Mastery.
 - Additional mod-specific progression is shown only when the matching world mod is active.
 - F1 opens the progression UI by default; the action is remappable through CDDA.
-- The default **Modern atlas** lays every core branch and active mod integration out as color-coded constellations on one scrollable tree canvas. The **Legacy branches** setting restores the previous branch-card menu and per-branch trees without changing progression state or perk ownership.
+- The default **Modern atlas** is now two-level: a compact constellation overview shows only the six core branches plus active mod integrations, and Enter opens the selected branch in its focused local perk tree. The **Legacy branches** setting restores the previous branch-card menu and per-branch trees without changing progression state or perk ownership.
 - Full respec preserves the module's explicit refund rules and clears transient perk state when required.
 - Level-up feedback does not forcibly interrupt sleep/wait/activity.
 - UI navigation is Host-owned; current main-source Host uses CDDA's native `menu_move` SFX while moving between perk nodes/cards.
@@ -46,7 +46,7 @@ NCMM Mod Configuration exposes three Host-managed settings:
 | --- | --- | --- |
 | Experience gain | 25%–300%, step 25% | Scales Survivor XP after branch anti-farm adjustments. |
 | Stat perk strength | 25%–300%, step 25% | Scales direct stat-perk effects only. Mechanical perk behavior is unchanged. |
-| Perk tree layout | Modern atlas / Legacy branches | Chooses the unified PoE-like constellation canvas or restores the previous branch menu and local trees. |
+| Perk tree layout | Modern atlas / Legacy branches | Chooses the compact atlas overview → focused branch-tree workflow or restores the previous branch menu and local trees. |
 
 The controls use the existing typed-settings persistence layer and do not change state schema 8. Modern atlas is the default. If Survivor is launched on an older compatible Host without the large-tree capability, the UI safely falls back to Legacy branches even when Modern is selected.
 
