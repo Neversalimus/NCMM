@@ -448,7 +448,7 @@ foreach($n in @(
     'geography.scope.ecology.enabled',
     'geography.scope.water.enabled',
     'geography.scope.transport.enabled',
-    'const bool ncmm_geo_trails',
+    'const bool ncmm_geo_trails'
 )){
     if(-not $payload.Contains($n)){throw ('AWS 0.6.4 selective-scope contract missing: '+$n)}
 }
