@@ -66,8 +66,8 @@
     },
     {
       "path": "ci\\Test-HostPayloadContracts.ps1",
-      "sha256": "3121397d92c4e989b15fa7c3b0985d97cba91b761d86e2b11ace442159751bd9",
-      "bytes": 55223
+      "sha256": "b0514555db4dd78204d75692afaa0994c9d3f68ad5bf1461cffa52357270d018",
+      "bytes": 56682
     },
     {
       "path": "ci\\Test-Infrastructure0821.ps1",
