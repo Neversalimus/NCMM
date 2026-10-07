@@ -2,6 +2,20 @@
   "schema": 1,
   "contracts": [
     {
+      "id": "mapgen_scavenging_loot.source.v1",
+      "files": [
+        {
+          "path": "src/mapgen.cpp",
+          "required": [
+            "void map::generate( const tripoint_abs_omt &p, const time_point &when, bool save_results,",
+            "const tripoint_rel_sm pos( gridx, gridy, gridz );",
+            "pp_generator_aftershock_ruin.obj().execute( *this, omt_point, nullptr );",
+            "const weather_generator &wgen = get_weather().get_cur_weather_gen();"
+          ]
+        }
+      ]
+    },
+    {
       "id": "bodypart_encumbrance.source.v1",
       "files": [
         {
