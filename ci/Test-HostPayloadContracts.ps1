@@ -491,7 +491,7 @@ foreach($awsScopeNeedle0169 in @(
     'NCMM_AWS_SCOPE_ECOLOGY',
     'NCMM_AWS_SCOPE_WATER',
     'NCMM_AWS_SCOPE_TRANSPORT',
-    'checked-in canonical Host'
+    'canonical Host.  This compatibility stage advances only the AWS module/manifest.'
 )){
     if(-not $awsScopeSection0169.Contains($awsScopeNeedle0169)){
         throw ('AWS selective-scope module contract missing: '+$awsScopeNeedle0169)
