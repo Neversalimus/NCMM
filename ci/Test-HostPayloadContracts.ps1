@@ -592,11 +592,11 @@ if($deferPos0831 -lt 0 -or $registerPos0831 -lt 0 -or $deferPos0831 -gt $registe
 
 foreach($n in @(
     'Apply-NcmmManagerUiV1Source',
-    'module_setting_meta',
-    'manager_adjust_setting',
-    'manager_persist_settings',
-    'NCMM_MANAGER',
-    'MODULE DETAILS'
+    'settings.typed.v2',
+    'NCMM_SP_XP_RATE',
+    'NCMM_SP_STAT_POWER',
+    'configure_progression_settings()',
+    'NCMM 0.8.1 manager + Survivor 0.12.0 settings: READY'
 )){if(-not $payload.Contains($n)){throw ('NCMM manager/settings payload contract missing: '+$n)}}
 
 # The canonical checked-in Host, not the historical ManagerUi migration, owns
@@ -627,6 +627,39 @@ foreach($managerHeaderNeedle0167 in @(
 )){
     if(-not $hostHeaderCurrent.Contains($managerHeaderNeedle0167)){
         throw ('Canonical NCMM manager Host declaration missing: '+$managerHeaderNeedle0167)
+    }
+}
+
+$managerStageStart0170=$payload.IndexOf('function Apply-NcmmManagerUiV1Source')
+$managerStageEnd0170=$payload.IndexOf('function Apply-NcmmModuleDataBridge0120',$managerStageStart0170)
+if($managerStageStart0170 -lt 0 -or $managerStageEnd0170 -le $managerStageStart0170){
+    throw 'ManagerUi compatibility-stage payload boundary missing.'
+}
+$managerStage0170=$payload.Substring($managerStageStart0170,$managerStageEnd0170-$managerStageStart0170)
+foreach($managerStageNeedle0170 in @(
+    'checked-in canonical Host',
+    '$spUi = Normalize-Lf ([IO.File]::ReadAllText($spUiPath))',
+    'configure_progression_settings()',
+    'NCMM_SP_XP_RATE',
+    'NCMM_SP_STAT_POWER'
+)){
+    if(-not $managerStage0170.Contains($managerStageNeedle0170)){
+        throw ('ManagerUi compatibility-stage module contract missing: '+$managerStageNeedle0170)
+    }
+}
+foreach($managerStageForbidden0170 in @(
+    'host_patch\ncmm_loader.cpp',
+    'host_patch\ncmm_loader.h',
+    '$loaderUi =',
+    '$loaderHeaderUi =',
+    'Write-Utf8NoBom $loaderUiPath',
+    'Write-Utf8NoBom $loaderHeaderUiPath',
+    'module_setting_meta {',
+    'void show_manager()',
+    'NCMM_MANAGER'
+)){
+    if($managerStage0170.Contains($managerStageForbidden0170)){
+        throw ('ManagerUi compatibility stage still rewrites transient Host: '+$managerStageForbidden0170)
     }
 }
 
@@ -707,8 +740,9 @@ foreach($gameplaySmokeNeedle in @(
     'dimensional_pouch_check_count',
     'main-menu.ncmm-gameplay-smoke'
 )){
-    if(-not $payload.Contains($gameplaySmokeNeedle)){
-        throw ('NCMM real gameplay smoke payload contract missing: '+$gameplaySmokeNeedle)
+    if(-not $payload.Contains($gameplaySmokeNeedle) -and
+       -not $canonicalHostText.Contains($gameplaySmokeNeedle)){
+        throw ('NCMM real gameplay smoke portable-payload contract missing: '+$gameplaySmokeNeedle)
     }
 }
 $gameplayHost=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp'))
