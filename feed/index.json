@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "loader_api": 1,
-  "generated_utc": "2026-10-07T20:49:43Z",
+  "generated_utc": "2026-10-07T23:53:13Z",
   "runtime_version": "0.8.2",
   "patch_revision": "9a36655c2e95f17f935e091ba9e00ef97c6f5dd376c5a07fa23fce4e77f86509",
   "hosts": {
@@ -55,6 +55,60 @@
       "upstream_tag": "cdda-experimental-2026-10-01-1040",
       "host_url": "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-cdda-experimental-2026-10-01-1040-r9a36655c2e95/cataclysm-tiles.ncmm.exe",
       "host_sha256": "b1f6f30981edede19e9850d6bcb9ac7d53072b81451263bdf2c1ef981b923382",
+      "patch_revision": "9a36655c2e95f17f935e091ba9e00ef97c6f5dd376c5a07fa23fce4e77f86509",
+      "ncmm_version": "0.8.2",
+      "loader_api": 1
+    },
+    "769d44e3a51cce715d4b3c32c0e2f0f0c04f3a00d884bdd6d010e05569fc5849": {
+      "source_commit": "1cdfa03591745a8e0468073373242675307e0eb5",
+      "upstream_tag": "cdda-experimental-2026-10-06-1653",
+      "host_url": "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-cdda-experimental-2026-10-06-1653-r9a36655c2e95/cataclysm-tiles.ncmm.exe",
+      "host_sha256": "f723447ac85ebf9fe6f58af856285686e05537df2ae5bf417f7606bdb25cf903",
+      "patch_revision": "9a36655c2e95f17f935e091ba9e00ef97c6f5dd376c5a07fa23fce4e77f86509",
+      "ncmm_version": "0.8.2",
+      "loader_api": 1
+    },
+    "7951e4011814266c9b7a8bd0e4f170b72cf8dbe15010237aad80ad0bd49e41ca": {
+      "source_commit": "1cdfa03591745a8e0468073373242675307e0eb5",
+      "upstream_tag": "cdda-experimental-2026-10-06-1653",
+      "host_url": "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-cdda-experimental-2026-10-06-1653-r9a36655c2e95/cataclysm-tiles.ncmm.exe",
+      "host_sha256": "f723447ac85ebf9fe6f58af856285686e05537df2ae5bf417f7606bdb25cf903",
+      "patch_revision": "9a36655c2e95f17f935e091ba9e00ef97c6f5dd376c5a07fa23fce4e77f86509",
+      "ncmm_version": "0.8.2",
+      "loader_api": 1
+    },
+    "2b6eb5b67957a5e00c6bfd71752f44199766f25d71148b13771ba442ce9cf8af": {
+      "source_commit": "e065bc5b2a27f03098f7ce149ec12eebda6c20fa",
+      "upstream_tag": "cdda-experimental-2026-10-06-1205",
+      "host_url": "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-cdda-experimental-2026-10-06-1205-r9a36655c2e95/cataclysm-tiles.ncmm.exe",
+      "host_sha256": "e97fddacbbab5ba03615b4e35ce45cefd2610eff573af93c32b7ae4b83d2735b",
+      "patch_revision": "9a36655c2e95f17f935e091ba9e00ef97c6f5dd376c5a07fa23fce4e77f86509",
+      "ncmm_version": "0.8.2",
+      "loader_api": 1
+    },
+    "54e5948a73677507cc7b20badb9f70db66590bc0738fdde7a62fbf9713f8e517": {
+      "source_commit": "e065bc5b2a27f03098f7ce149ec12eebda6c20fa",
+      "upstream_tag": "cdda-experimental-2026-10-06-1205",
+      "host_url": "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-cdda-experimental-2026-10-06-1205-r9a36655c2e95/cataclysm-tiles.ncmm.exe",
+      "host_sha256": "e97fddacbbab5ba03615b4e35ce45cefd2610eff573af93c32b7ae4b83d2735b",
+      "patch_revision": "9a36655c2e95f17f935e091ba9e00ef97c6f5dd376c5a07fa23fce4e77f86509",
+      "ncmm_version": "0.8.2",
+      "loader_api": 1
+    },
+    "701bca54977a956b0e3388f3b0d55078eb31763d10bbde3c772964be7674720b": {
+      "source_commit": "f9f4fe689497d3a1f3117327ad47322c5f68791a",
+      "upstream_tag": "cdda-experimental-2026-10-07-2153",
+      "host_url": "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-cdda-experimental-2026-10-07-2153-r9a36655c2e95/cataclysm-tiles.ncmm.exe",
+      "host_sha256": "c094b8700c6506f358b0606ba5621a6b121e5af7945aed15b80173cdf890d68b",
+      "patch_revision": "9a36655c2e95f17f935e091ba9e00ef97c6f5dd376c5a07fa23fce4e77f86509",
+      "ncmm_version": "0.8.2",
+      "loader_api": 1
+    },
+    "127b2a165891b6e00507d708e85d320fb0b494f0d87e61cc809062d25232eb41": {
+      "source_commit": "f9f4fe689497d3a1f3117327ad47322c5f68791a",
+      "upstream_tag": "cdda-experimental-2026-10-07-2153",
+      "host_url": "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-cdda-experimental-2026-10-07-2153-r9a36655c2e95/cataclysm-tiles.ncmm.exe",
+      "host_sha256": "c094b8700c6506f358b0606ba5621a6b121e5af7945aed15b80173cdf890d68b",
       "patch_revision": "9a36655c2e95f17f935e091ba9e00ef97c6f5dd376c5a07fa23fce4e77f86509",
       "ncmm_version": "0.8.2",
       "loader_api": 1
