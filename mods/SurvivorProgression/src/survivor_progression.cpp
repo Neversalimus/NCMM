@@ -532,7 +532,6 @@ std::string tr( const char *en, const char *ru )
 
 constexpr const char *xp_rate_setting = "NCMM_SP_XP_RATE";
 constexpr const char *stat_power_setting = "NCMM_SP_STAT_POWER";
-constexpr const char *tree_layout_setting = "NCMM_SP_TREE_LAYOUT";
 
 int progression_percent_setting( const char *setting_id, int fallback )
 {
@@ -559,15 +558,6 @@ int progression_xp_rate_pct()
 int progression_stat_power_pct()
 {
     return progression_percent_setting( stat_power_setting, 100 );
-}
-
-bool modern_tree_layout()
-{
-    if( host2 == nullptr || host2->world_setting_get_string == nullptr ) {
-        return true;
-    }
-    const char *raw = host2->world_setting_get_string( tree_layout_setting, "modern" );
-    return raw == nullptr || std::string_view( raw ) != "legacy";
 }
 
 bool configure_progression_settings()
@@ -597,20 +587,6 @@ bool configure_progression_settings()
             russian() ? "Масштабирует прямые бонусы перков к характеристикам и пассивным параметрам. Механические перки не затрагиваются." :
                         "Scales direct bonuses from perks that grant attributes and passive stats. Mechanical perks are not affected.",
             values, labels, count, "100", NCMM_WORLD_SETTING_LIVE ) ) {
-        return false;
-    }
-
-    static const char *layout_values[] = { "modern", "legacy" };
-    static const char *layout_labels_en[] = { "Modern atlas", "Legacy branches" };
-    static const char *layout_labels_ru[] = { "Современный атлас", "Классические ветки" };
-    if( !host2->world_setting_register_enum(
-            module_id, tree_layout_setting,
-            russian() ? "Вид дерева перков" : "Perk tree layout",
-            russian() ?
-                "Современный атлас показывает все базовые и активные модовые созвездия на одном большом полотне. Классический режим возвращает прежнее меню веток и локальные деревья." :
-                "Modern atlas shows all base and active mod constellations on one large canvas. Legacy branches restores the previous branch menu and local trees.",
-            layout_values, russian() ? layout_labels_ru : layout_labels_en,
-            2, "modern", NCMM_WORLD_SETTING_LIVE ) ) {
         return false;
     }
     return true;
@@ -3541,7 +3517,7 @@ void show_integration_branch( const std::string &mod_id )
     }
 }
 
-void open_progression_legacy()
+void open_progression()
 {
     if( !character_available() ) {
         message( tr( "Survivor Progression: load a character first.",
@@ -3720,184 +3696,6 @@ void open_progression_legacy()
             return;
         }
     }
-}
-
-void show_modern_atlas()
-{
-    if( !character_available() ) {
-        message( tr( "Survivor Progression: load a character first.",
-                     "Survivor Progression: сначала загрузите персонажа." ) );
-        return;
-    }
-
-    migrate_state();
-    if( effects_dirty ) {
-        recalculate_effects();
-    }
-
-    while( true ) {
-        const int64_t survivor_level = std::max<int64_t>( 1, get_state( "level", 1 ) );
-        const int64_t survivor_xp = std::max<int64_t>( 0, get_state( "xp", 0 ) );
-        const int64_t survivor_next = xp_to_next( survivor_level );
-        const int64_t perk_points = get_state( "perk_points", 0 );
-        const int64_t major_points = get_state( "major_points", 0 );
-
-        const std::array<branch_id, 6> branches = {
-            branch_id::combat, branch_id::survival, branch_id::mobility,
-            branch_id::crafting, branch_id::scavenging, branch_id::mastery
-        };
-        const std::vector<std::string> mod_branches = active_supported_integration_mods();
-
-        std::vector<tree_node_text> tree_texts;
-        std::vector<uint32_t> item_accents;
-        std::vector<uint32_t> item_borders;
-        tree_texts.reserve( branches.size() + mod_branches.size() );
-        item_accents.reserve( branches.size() + mod_branches.size() );
-        item_borders.reserve( branches.size() + mod_branches.size() );
-
-        for( size_t i = 0; i < branches.size(); ++i ) {
-            const branch_id branch_id_value = branches[i];
-            const int64_t level = branch_level( branch_id_value );
-            const int64_t xp = branch_xp( branch_id_value );
-            const int64_t next = branch_xp_to_next( level );
-            const int owned_now = branch_owned_count( branch_id_value );
-            const int total_now = branch_total_count( branch_id_value );
-            const int ready_now = branch_unlocked_count( branch_id_value, level );
-
-            tree_node_text node;
-            node.card.id = std::string( "atlas_core_" ) + branch_name_en( branch_id_value );
-            node.card.title = "◆ " + branch_name( branch_id_value );
-            node.card.subtitle =
-                tr( "Lv ", "Ур. " ) + std::to_string( level ) +
-                "  ·  " + std::to_string( owned_now ) + "/" + std::to_string( total_now ) +
-                tr( " purchased", " куплено" );
-            node.card.badge =
-                ready_now > 0 ?
-                tr( "READY ", "ДОСТУПНО " ) + std::to_string( ready_now ) :
-                tr( "CORE BRANCH", "ОСНОВНАЯ ВЕТКА" );
-            node.card.body =
-                branch_focus( branch_id_value ) + "\n\n" +
-                tr( "PROGRESS", "ПРОГРЕСС" ) + "\n" +
-                tr( "Branch level: ", "Уровень ветки: " ) + std::to_string( level ) + "\n" +
-                "XP " + std::to_string( xp ) + "/" + std::to_string( next ) + "\n" +
-                tr( "Purchased: ", "Куплено: " ) + std::to_string( owned_now ) + "/" +
-                std::to_string( total_now ) + "\n" +
-                tr( "Available now: ", "Доступно сейчас: " ) + std::to_string( ready_now ) + "\n" +
-                tr( "Next unlock: ", "Следующее открытие: " ) +
-                branch_next_unlock_text( branch_id_value ) + "\n\n" +
-                tr( "HOW TO GAIN XP", "КАК КАЧАТЬ" ) + "\n" +
-                branch_xp_source( branch_id_value ) + "\n\n" +
-                tr( "Enter: open this branch tree.", "Enter: открыть дерево этой ветки." );
-            node.card.icon_key = branch_icon_key( branch_id_value );
-            node.card.flags = NCMM_UI_CARD_ACCENT;
-            node.row = static_cast<int>( i / 3 );
-            node.column = static_cast<int>( i % 3 );
-            tree_texts.push_back( std::move( node ) );
-            item_accents.push_back( branch_theme_color( branch_id_value ) );
-            item_borders.push_back( NCMM_UI_BORDER_MAJOR );
-        }
-
-        for( size_t i = 0; i < mod_branches.size(); ++i ) {
-            const std::string &mod_id = mod_branches[i];
-            const int owned_now = integration_owned_count( mod_id );
-            const int total_now = integration_total_count( mod_id );
-            const int ready_now = integration_ready_count( mod_id );
-
-            tree_node_text node;
-            node.card.id = std::string( "atlas_mod_" ) + mod_id;
-            node.card.title = "◇ " + integration_mod_display_name( mod_id );
-            node.card.subtitle =
-                tr( "Survivor Lv ", "Survivor ур. " ) + std::to_string( survivor_level ) +
-                "  ·  " + std::to_string( owned_now ) + "/" + std::to_string( total_now ) +
-                tr( " purchased", " куплено" );
-            node.card.badge =
-                ready_now > 0 ?
-                tr( "READY ", "ДОСТУПНО " ) + std::to_string( ready_now ) :
-                tr( "MOD CONSTELLATION", "МОДОВОЕ СОЗВЕЗДИЕ" );
-            node.card.body =
-                integration_mod_focus( mod_id ) + "\n\n" +
-                tr( "PROGRESS", "ПРОГРЕСС" ) + "\n" +
-                tr( "Uses overall Survivor level: ", "Использует общий уровень Survivor: " ) +
-                std::to_string( survivor_level ) + "\n" +
-                tr( "Purchased: ", "Куплено: " ) + std::to_string( owned_now ) + "/" +
-                std::to_string( total_now ) + "\n" +
-                tr( "Available now: ", "Доступно сейчас: " ) + std::to_string( ready_now ) + "\n" +
-                tr( "Next unlock: ", "Следующее открытие: " ) +
-                integration_next_unlock_text( mod_id ) + "\n\n" +
-                tr( "Enter: open this mod tree.", "Enter: открыть дерево этого мода." );
-            node.card.icon_key = std::string( "survivor/mod/" ) + mod_id;
-            node.card.flags = NCMM_UI_CARD_ACCENT | NCMM_UI_CARD_EFFECT;
-            const size_t atlas_index = branches.size() + i;
-            node.row = 2 + static_cast<int>( i / 3 );
-            node.column = static_cast<int>( i % 3 );
-            tree_texts.push_back( std::move( node ) );
-            item_accents.push_back( integration_theme_color( mod_id ) );
-            item_borders.push_back( NCMM_UI_BORDER_PRIME );
-        }
-
-        const int total_owned = owned_count( currency_id::perk ) +
-                                owned_count( currency_id::major );
-        const int total_perks = visible_perk_count();
-
-        std::string title = tr( "Survivor Progression · Atlas Overview",
-                                "Survivor Progression · Обзор атласа" );
-        std::string summary =
-            tr( "Choose a constellation, then develop it in a focused local tree.",
-                "Выберите созвездие, затем развивайте его в отдельном локальном дереве." ) +
-            tr( " | purchased ", " | куплено " ) +
-            std::to_string( total_owned ) + "/" + std::to_string( total_perks ) +
-            " | P " + std::to_string( perk_points ) +
-            " | M " + std::to_string( major_points ) +
-            tr( " | Enter: open | Tab: Legacy",
-                " | Enter: открыть | Tab: Legacy" );
-
-        std::string progress_label =
-            "XP " + std::to_string( survivor_xp ) + "/" + std::to_string( survivor_next ) +
-            tr( " -> Level ", " -> Уровень " ) + std::to_string( survivor_level + 1 );
-        ncmm_ui_progress_v1 progress{ progress_label.c_str(), survivor_xp, survivor_next };
-
-        std::vector<ncmm_ui_tree_node_v1> nodes = bind_tree_nodes( tree_texts );
-        const ncmm_ui_theme_ex_v1 theme{
-            NCMM_UI_COLOR_DEFAULT,
-            NCMM_UI_THEME_STRONG_BORDER | NCMM_UI_THEME_WIDE_NODES |
-            NCMM_UI_THEME_HORIZONTAL_VIEWPORT | NCMM_UI_THEME_SECTIONED_DETAIL,
-            30, 44, item_accents.data(), item_accents.size(),
-            item_borders.data(), item_borders.size()
-        };
-
-        const int choice = host->ui_tree_choose_rpg(
-                               title.c_str(), summary.c_str(), &progress,
-                               nodes.data(), nodes.size(), nullptr, 0, &theme );
-        if( choice == NCMM_UI_TREE_SHOW_CARDS ) {
-            open_progression_legacy();
-            return;
-        }
-        if( choice < 0 ) {
-            return;
-        }
-        if( choice < static_cast<int>( branches.size() ) ) {
-            show_branch( branches[static_cast<size_t>( choice )] );
-            continue;
-        }
-
-        const int mod_index = choice - static_cast<int>( branches.size() );
-        if( mod_index >= 0 && static_cast<size_t>( mod_index ) < mod_branches.size() ) {
-            show_integration_branch( mod_branches[static_cast<size_t>( mod_index )] );
-            continue;
-        }
-    }
-}
-
-void open_progression()
-{
-    const bool large_tree_available =
-        host != nullptr && host->has_capability != nullptr &&
-        host->has_capability( "ui.tree.large.v1" ) != 0;
-    if( modern_tree_layout() && large_tree_available && host->ui_tree_choose_rpg != nullptr ) {
-        show_modern_atlas();
-        return;
-    }
-    open_progression_legacy();
 }
 
 void award_global_xp( int64_t raw_gained )
