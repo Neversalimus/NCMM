@@ -354,7 +354,7 @@ if($canonicalHostWriterStages0177.Count -ne 0){
 # is allowed to advance module/data surfaces only. No later Host materialization,
 # replacement, deletion, or rewrite is permitted, including through path aliases
 # that were bound earlier in the file.
-$canonicalSyncPattern0178='(?m)^\\s*Apply-NcmmBallisticHost082CanonicalSync\\s*$'
+$canonicalSyncPattern0178='(?m)^\s*Apply-NcmmBallisticHost082CanonicalSync\s*$'
 $canonicalSyncMatches0178=[regex]::Matches($payload,$canonicalSyncPattern0178)
 $canonicalSyncCount0178=$canonicalSyncMatches0178.Count
 if($canonicalSyncCount0178 -ne 1){
