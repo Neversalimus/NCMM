@@ -2605,6 +2605,57 @@ foreach($needle0155 in @(
     if(-not $payload.Contains($needle0155)){throw ('Mana Hands activation payload contract missing: '+$needle0155)}
 }
 
+# VirtualItemContext0140 intentionally owns one self-contained legacy upgrade
+# path.  Keep that exception closed: only the known compatibility anchors may
+# depend on already-generated Mana Hand context text.
+$virtualContextLegacyAllowed0176=@(
+    'secondaryMenuOld0140ctx',
+    'secondarySwitchOld0140ctx',
+    'pointerOld0140ctxPair',
+    'single3Old0140ctxPair',
+    'single4Old0140ctxPair',
+    'menuInsertOld0140ctxPair',
+    'singleHandlerAnchor0140ctxPair',
+    'primaryMenuAnchor0140ctx',
+    'rangedMenuAnchor0140ctx'
+)
+$virtualContextLegacySeen0176=@()
+$virtualContextLegacyMatches0176=[regex]::Matches(
+    $manaContextSection0140,
+    "(?ms)\$([A-Za-z0-9_]*(?:Old|Anchor)[A-Za-z0-9_]*)\s*=\s*@'\r?\n(.*?)\r?\n'@"
+)
+foreach($virtualContextLegacyMatch0176 in $virtualContextLegacyMatches0176){
+    $virtualContextLegacyName0176=$virtualContextLegacyMatch0176.Groups[1].Value
+    $virtualContextLegacyBody0176=$virtualContextLegacyMatch0176.Groups[2].Value
+    $virtualContextLegacyGenerated0176=$false
+    foreach($virtualContextGeneratedMarker0176 in @(
+        'ncmm::',
+        'ncmm_',
+        'mana_hand',
+        'virtual_item'
+    )){
+        if($virtualContextLegacyBody0176.Contains($virtualContextGeneratedMarker0176)){
+            $virtualContextLegacyGenerated0176=$true
+            break
+        }
+    }
+    if(-not $virtualContextLegacyGenerated0176){
+        continue
+    }
+    if($virtualContextLegacyAllowed0176 -notcontains $virtualContextLegacyName0176){
+        throw (
+            'VirtualItemContext introduced an unreviewed generated compatibility anchor: '+
+            $virtualContextLegacyName0176
+        )
+    }
+    $virtualContextLegacySeen0176 += $virtualContextLegacyName0176
+}
+foreach($virtualContextLegacyExpected0176 in $virtualContextLegacyAllowed0176){
+    if($virtualContextLegacySeen0176 -notcontains $virtualContextLegacyExpected0176){
+        throw ('VirtualItemContext legacy anchor whitelist drifted: '+$virtualContextLegacyExpected0176)
+    }
+}
+
 # Architecture guard: a Mana Hands transform may patch vanilla source, but its
 # *old* replacement templates must not depend on code emitted by another Mana
 # Hands transform.  VirtualItemContext0140 intentionally owns its own staged
