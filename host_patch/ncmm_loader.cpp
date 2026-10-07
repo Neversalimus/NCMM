@@ -4935,7 +4935,10 @@ void apply_scavenging_loot_bonus( map &here, int submap_x, int submap_y, int z,
         for( int y = y_begin; y < y_begin + SEEY; ++y ) {
             const tripoint_bub_ms p( x, y, z );
             if( !here.has_flag_ter_or_furn( ter_furn_flag::TFLAG_CONTAINER, p ) ||
-                !here.can_put_items_ter_furn( p ) ) {
+                !here.can_put_items_ter_furn( p ) ||
+                here.has_flag( "FIRE_CONTAINER", p ) ||
+                here.has_flag( "LIQUIDCONT", p ) ||
+                here.has_flag( "USABLE_FIRE", p ) ) {
                 continue;
             }
 
