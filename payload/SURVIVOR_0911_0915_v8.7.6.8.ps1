@@ -22137,6 +22137,18 @@ function Apply-SurvivorDimensionalPouch0150 {
 function Apply-SurvivorScavengingLoot0150 {
     Write-Host "Applying Survivor 0.15.0 Scavenging container loot perks..." -ForegroundColor Cyan
     $lootSource0150 = Normalize-Lf ([IO.File]::ReadAllText($spPath))
+    $replaceLoot0150 = {
+        param([string]$Text,[string]$Old,[string]$New,[string]$Label)
+        $first = $Text.IndexOf($Old,[StringComparison]::Ordinal)
+        if($first -lt 0) {
+            throw ("Scavenging loot transform anchor missing: " + $Label)
+        }
+        $second = $Text.IndexOf($Old,$first + $Old.Length,[StringComparison]::Ordinal)
+        if($second -ge 0) {
+            throw ("Scavenging loot transform anchor is not unique: " + $Label)
+        }
+        return $Text.Substring(0,$first) + $New + $Text.Substring($first + $Old.Length)
+    }
     if($lootSource0150.Contains('"gl_ammo_scrounger"')) {
         return
     }
@@ -22150,12 +22162,12 @@ function Apply-SurvivorScavengingLoot0150 {
     { "gl_medical_scrounger", branch_id::scavenging, 5, 24, currency_id::perk, "gl_provision_scrounger", "", "Medical Scrounger", "Поиск медикаментов", "Newly generated storage containers can contain one additional medical item.", "В новых сгенерированных контейнерах хранения может появиться один дополнительный медицинский предмет.", {{ { "sp_loot_medicine_pct", 0.25 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect },
     { "gl_rare_find", branch_id::scavenging, 6, 30, currency_id::perk, "gl_medical_scrounger", "", "Rare Find", "Редкая находка", "Newly generated storage containers have a separate very small chance to contain one additional rare item.", "Новые сгенерированные контейнеры хранения имеют отдельный очень малый шанс получить один дополнительный редкий предмет.", {{ { "sp_loot_rare_pct", 0.02 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect },
 '@
-    $lootSource0150 = Replace-ExactlyOnce $lootSource0150 $legend0150 $lootPerks0150 'survivor.scavenging-loot-perks'
+    $lootSource0150 = & $replaceLoot0150 $lootSource0150 $legend0150 $lootPerks0150 'survivor.scavenging-loot-perks'
     $lootRuleAnchor0150 = '        { "g_route", 3, 1.0 / 3.0 }, { "a_adapt", 5, 0.20 },'
     $lootRuleReplacement0150 = $lootRuleAnchor0150 + "\`n" +
         '        { "gl_ammo_scrounger", 3, 0.0 }, { "gl_provision_scrounger", 3, 0.0 },' + "\`n" +
         '        { "gl_medical_scrounger", 3, 0.0 }, { "gl_rare_find", 3, 0.0 },'
-    $lootSource0150 = Replace-ExactlyOnce $lootSource0150 $lootRuleAnchor0150 $lootRuleReplacement0150 'survivor.scavenging-loot-ranks'
+    $lootSource0150 = & $replaceLoot0150 $lootSource0150 $lootRuleAnchor0150 $lootRuleReplacement0150 'survivor.scavenging-loot-ranks'
     $lootScaleAnchor0150 = @'
     rank = std::min( rank, perk_max_rank( perk ) );
     return 1.0 + static_cast<double>( rank - 1 ) * perk_extra_rank_scale( perk );
@@ -22174,14 +22186,14 @@ function Apply-SurvivorScavengingLoot0150 {
     }
     return 1.0 + static_cast<double>( rank - 1 ) * perk_extra_rank_scale( perk );
 '@
-    $lootSource0150 = Replace-ExactlyOnce $lootSource0150 $lootScaleAnchor0150 $lootScaleReplacement0150 'survivor.scavenging-loot-scale'
+    $lootSource0150 = & $replaceLoot0150 $lootSource0150 $lootScaleAnchor0150 $lootScaleReplacement0150 'survivor.scavenging-loot-scale'
     $lootLabelAnchor0150 = '    if( id == "sp_lockpick_alarm_avoid_pct" ) return tr( "Alarm bypass %", "Обход сигнализации %" );'
     $lootLabelReplacement0150 = $lootLabelAnchor0150 + "\`n" +
         '    if( id == "sp_loot_ammo_pct" ) return tr( "Bonus ammo per container %", "Бонусные боеприпасы в контейнере %" );' + "\`n" +
         '    if( id == "sp_loot_provisions_pct" ) return tr( "Bonus provisions per container %", "Бонусная провизия в контейнере %" );' + "\`n" +
         '    if( id == "sp_loot_medicine_pct" ) return tr( "Bonus medicine per container %", "Бонусные медикаменты в контейнере %" );' + "\`n" +
         '    if( id == "sp_loot_rare_pct" ) return tr( "Rare find per container %", "Редкая находка в контейнере %" );'
-    $lootSource0150 = Replace-ExactlyOnce $lootSource0150 $lootLabelAnchor0150 $lootLabelReplacement0150 'survivor.scavenging-loot-labels'
+    $lootSource0150 = & $replaceLoot0150 $lootSource0150 $lootLabelAnchor0150 $lootLabelReplacement0150 'survivor.scavenging-loot-labels'
     Write-Utf8NoBom $spPath $lootSource0150
     Write-Host "Survivor 0.15.0 Scavenging container loot perks: READY" -ForegroundColor Green
 }
