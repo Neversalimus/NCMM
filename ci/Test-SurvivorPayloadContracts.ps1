@@ -2763,5 +2763,57 @@ if($virtualContextGeneratedAnchors0165.Count -ne $virtualContextAllowedGenerated
     throw 'VirtualItemContext0140 generated-anchor allowlist count drifted.'
 }
 
+# Architecture guard: Survivor module transforms may inspect canonical Host
+# sources, but Host ownership stays with the NCMM infrastructure layer.  Track
+# host_patch path variables inside every Apply-Survivor* function and reject
+# writes through those variables or direct host_patch write expressions.
+$survivorTransformMatches0166=[regex]::Matches(
+    $payload,
+    '(?ms)^function (Apply-Survivor[A-Za-z0-9_]+)(?:\([^\r\n]*\))?\s*\{(.*?)(?=^function |\z)'
+)
+$survivorHostReaderCount0166=0
+foreach($survivorTransformMatch0166 in $survivorTransformMatches0166){
+    $survivorTransformName0166=$survivorTransformMatch0166.Groups[1].Value
+    $survivorTransformBody0166=$survivorTransformMatch0166.Groups[2].Value
+
+    $hostPathBindings0166=[regex]::Matches(
+        $survivorTransformBody0166,
+        "(?m)\x24([A-Za-z0-9_]+)\s*=\s*Join-Path\s+\x24NcmmRoot\s+'host_patch\\[^']+'"
+    )
+    foreach($hostPathBinding0166 in $hostPathBindings0166){
+        $survivorHostReaderCount0166++
+        $hostPathVariable0166=$hostPathBinding0166.Groups[1].Value
+        $escapedHostPathVariable0166=[regex]::Escape('$'+$hostPathVariable0166)
+        foreach($hostWritePattern0166 in @(
+            '(?m)Write-Utf8NoBom\s+'+$escapedHostPathVariable0166+'(?:\s|$)',
+            '(?m)\[IO\.File\]::(?:WriteAllText|WriteAllBytes|AppendAllText)\(\s*'+$escapedHostPathVariable0166,
+            '(?m)(?:Set-Content|Add-Content|Out-File)[^\r\n]*'+$escapedHostPathVariable0166
+        )){
+            if([regex]::IsMatch($survivorTransformBody0166,$hostWritePattern0166)){
+                throw (
+                    'Survivor transform attempted to mutate canonical Host path: '+
+                    $survivorTransformName0166+' / $'+$hostPathVariable0166
+                )
+            }
+        }
+    }
+
+    foreach($directHostWritePattern0166 in @(
+        "(?m)Write-Utf8NoBom\s+\(Join-Path\s+\x24NcmmRoot\s+'host_patch\\",
+        "(?m)\[IO\.File\]::(?:WriteAllText|WriteAllBytes|AppendAllText)\(\s*\(Join-Path\s+\x24NcmmRoot\s+'host_patch\\",
+        "(?m)(?:Set-Content|Add-Content|Out-File)[^\r\n]*Join-Path\s+\x24NcmmRoot\s+'host_patch\\"
+    )){
+        if([regex]::IsMatch($survivorTransformBody0166,$directHostWritePattern0166)){
+            throw ('Survivor transform contains direct canonical Host write: '+$survivorTransformName0166)
+        }
+    }
+}
+if($survivorTransformMatches0166.Count -lt 35){
+    throw 'Survivor Host-ownership guard did not inspect the expected transform set.'
+}
+if($survivorHostReaderCount0166 -lt 1){
+    throw 'Survivor Host-ownership guard no longer exercises the canonical Host read-only verifier path.'
+}
+
 Write-Host 'NCMM Survivor payload regression contract: PASS' -ForegroundColor Green
 & (Join-Path $PSScriptRoot 'Test-ManaActionWeaponContracts.ps1') -PackageRoot $PackageRoot
