@@ -21566,9 +21566,13 @@ function Apply-SurvivorManaHandDirectCount0152([string]$Root) {
     }
     $canonicalHost0152direct = Normalize-Lf ([IO.File]::ReadAllText($canonicalHostPath0152direct))
     $countStart0152direct = $canonicalHost0152direct.IndexOf('int survivor_mana_hand_count()',[StringComparison]::Ordinal)
-    $countEnd0152direct = $canonicalHost0152direct.IndexOf('bool survivor_mana_hand_marker(',$countStart0152direct,[StringComparison]::Ordinal)
+    $countEnd0152direct = if($countStart0152direct -ge 0) {
+        $canonicalHost0152direct.IndexOf('bool survivor_mana_hand_marker(',$countStart0152direct,[StringComparison]::Ordinal)
+    } else { -1 }
     $primaryStart0152direct = $canonicalHost0152direct.IndexOf('item *primary_mana_hand_melee_weapon( Character &who )',[StringComparison]::Ordinal)
-    $primaryEnd0152direct = $canonicalHost0152direct.IndexOf('mana_hand_item_slot mana_hand_item_slot_of(',$primaryStart0152direct,[StringComparison]::Ordinal)
+    $primaryEnd0152direct = if($primaryStart0152direct -ge 0) {
+        $canonicalHost0152direct.IndexOf('mana_hand_item_slot mana_hand_item_slot_of(',$primaryStart0152direct,[StringComparison]::Ordinal)
+    } else { -1 }
     if($countStart0152direct -lt 0 -or $countEnd0152direct -le $countStart0152direct -or
        $primaryStart0152direct -lt 0 -or $primaryEnd0152direct -le $primaryStart0152direct) {
         throw 'Mana Hand canonical Host ownership/count helper boundary missing.'
