@@ -1139,7 +1139,7 @@ foreach($gameplaySmokeNeedle in @(
     'survivor_perk_count < survivor_minimum_perk_count',
     'overmap_buffer.create_custom_overmap',
     'ncmm_test_perk_count_v1',
-    'constexpr size_t survivor_minimum_perk_count = 374;',
+    'constexpr size_t survivor_minimum_perk_count = 378;',
     'find_perk_index( "mg_mana_hand_3" )',
     'find_perk_index( "mg_mana_hand_4" )',
     'find_perk_index( "mg_dimensional_pouch" )',
@@ -1164,7 +1164,7 @@ foreach($gameplayHostNeedle in @(
     'aws_scope_fallback_mismatch',
     'aws_protected_hook_exposed',
     'survivor_perk_count < survivor_minimum_perk_count',
-    'constexpr size_t survivor_minimum_perk_count = 374;',
+    'constexpr size_t survivor_minimum_perk_count = 378;',
     'find_perk_index( "mg_mana_hand_3" )',
     'find_perk_index( "mg_mana_hand_4" )',
     'find_perk_index( "mg_dimensional_pouch" )',
@@ -1174,7 +1174,16 @@ foreach($gameplayHostNeedle in @(
     'pocket_data *pocket = dimensional_pouch_container_pocket();',
     'dimensional_pouch_pocket = dimensional_pouch_container_pocket();',
     'survivor_real_strength_mismatch',
-    'survivor_real_carry_mismatch'
+    'survivor_real_carry_mismatch',
+    'apply_scavenging_loot_bonus',
+    'scavenging_loot_chance_ppm',
+    'rng( 1, 1000000 ) <= ammo_ppm',
+    'ammo_common_boxed',
+    'SUS_fridge',
+    'drugs_pharmacy',
+    'book_martial_rare',
+    'arsenal_mics_rare',
+    'scavenging_container_loot'
 )){
     if(-not $gameplayHost.Contains($gameplayHostNeedle)){
         throw ('NCMM real gameplay smoke Host contract missing: '+$gameplayHostNeedle)
