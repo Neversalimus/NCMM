@@ -583,6 +583,64 @@ foreach($managerHeaderNeedle0167 in @(
 }
 
 
+# Player-facing copy is also final in the checked-in canonical Host.  The legacy
+# copy-polish stage must not rewrite transient Host sources before canonical sync.
+foreach($playerCopyHostNeedle0168 in @(
+    'No NCMM mods are installed.',
+    'ON / error',
+    'ON / needs attention',
+    'ON / incompatible',
+    'ON / restart required',
+    'Open mod interface',
+    'Disable mod',
+    'Mod disabled. Restart CDDA to apply.'
+)){
+    if(-not $hostSourceCurrent.Contains($playerCopyHostNeedle0168)){
+        throw ('Canonical NCMM player-facing Host copy missing: '+$playerCopyHostNeedle0168)
+    }
+}
+foreach($obsoletePlayerCopyHostNeedle0168 in @(
+    'No NCMM code mods are installed.',
+    'ON / quarantined',
+    'ON / suspended',
+    'ON / rejected',
+    'ON / not loaded',
+    'Disable module',
+    'Module disabled. Restart CDDA to apply.'
+)){
+    if($hostSourceCurrent.Contains($obsoletePlayerCopyHostNeedle0168)){
+        throw ('Canonical NCMM Host still contains obsolete manager copy: '+$obsoletePlayerCopyHostNeedle0168)
+    }
+}
+
+$playerCopyStart0168=$payload.IndexOf('function Apply-PlayerFacingCopyPolishFinal')
+$playerCopyEnd0168=$payload.IndexOf('function Apply-SurvivorManaHands0130',$playerCopyStart0168)
+if($playerCopyStart0168 -lt 0 -or $playerCopyEnd0168 -le $playerCopyStart0168){
+    throw 'Player-facing copy polish payload boundary missing.'
+}
+$playerCopySection0168=$payload.Substring($playerCopyStart0168,$playerCopyEnd0168-$playerCopyStart0168)
+foreach($playerCopyNeedle0168 in @(
+    'Write-Utf8NoBom $awsPath $aws',
+    'std::string rpg_detail_body( const perk_def &perk, const std::string &body,',
+    'Copy-Item $spPath',
+    'checked-in canonical Host owns final manager/player-facing copy'
+)){
+    if(-not $playerCopySection0168.Contains($playerCopyNeedle0168)){
+        throw ('Player-facing copy polish payload contract missing: '+$playerCopyNeedle0168)
+    }
+}
+foreach($playerCopyForbidden0168 in @(
+    '$loader = Normalize-Lf ([IO.File]::ReadAllText($loaderPath))',
+    'Write-Utf8NoBom $loaderPath $loader',
+    'No NCMM code mods are installed.',
+    'ON / quarantined'
+)){
+    if($playerCopySection0168.Contains($playerCopyForbidden0168)){
+        throw ('Player-facing copy polish still rewrites transient Host: '+$playerCopyForbidden0168)
+    }
+}
+
+
 # Real gameplay smoke must remain generated from the portable payload as well as
 # present in the checked-in Host source.  This guards the semantic QA path itself.
 foreach($gameplaySmokeNeedle in @(
