@@ -642,15 +642,26 @@ foreach($line18 in ($payloadHotfix18 -split "`r?`n")) {
         throw ('PS5.1 unsafe interpolated variable before colon: ' + $line18.Trim())
     }
 }
-if(-not $payloadHotfix18.Contains('${publicCount20}: $publicNeedle20')) { throw 'Hotfix18 braced publicCount20 diagnostic regression.' }
+# HOTFIX18 is now enforced generically above.  The old publicCount20 diagnostic
+# lived inside the retired Host source-mutator and must not return.
+if($payloadHotfix18.Contains('${publicCount20}: $publicNeedle20')) {
+    throw 'Retired Hotfix18 publicCount20 diagnostic returned with Host source mutation.'
+}
 
-# HOTFIX17 regression: legacy contextual cleanup must happen before Host API2 public-hook insertion.
-$payloadHotfix17 = Get-Content (Join-Path $PackageRoot 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1') -Raw
-$cleanupNeedle17 = "`$contextStart20 = `$loader20.IndexOf('double contextual_metaphysics_swap( double value )')"
-$cleanupPos17 = $payloadHotfix17.IndexOf($cleanupNeedle17)
-$insertNeedle17 = "`$loader20 = `$loader20.Replace(`$publicAnchor20,`$publicHooks20 + `$publicAnchor20)"
-$insertPos17 = $payloadHotfix17.IndexOf($insertNeedle17)
-if($cleanupPos17 -lt 0 -or $insertPos17 -lt 0 -or $cleanupPos17 -gt $insertPos17) { throw 'Hotfix17 Host API2 cleanup/insertion order regression.' }
+# HOTFIX17 is now architectural rather than ordering-sensitive: the checked-in
+# canonical Host owns the public hooks, while the API2 compatibility stage must
+# contain neither contextual cleanup nor post-cleanup hook reinsertion.
+foreach($retiredHotfix17Needle in @(
+    '$contextStart20',
+    '$publicHooks20',
+    '$publicAnchor20',
+    'post-cleanup public hook',
+    'contextual_metaphysics_swap( double value )'
+)) {
+    if($hostApi20Stage0171.Contains($retiredHotfix17Needle)) {
+        throw ('Retired Hotfix17 Host mutation returned to API2 compatibility stage: '+$retiredHotfix17Needle)
+    }
+}
 foreach($needle17 in @(
     'double runtime_hook_modifier( const char *hook_id, const char *subject_id,',
     'std::string runtime_source_mod_swap( const std::string &source_mod_id )',
@@ -661,7 +672,7 @@ foreach($needle17 in @(
     'int64_t worldgen_hook_i64( const char *hook_id, int64_t fallback )',
     'double worldgen_hook_f64( const char *hook_id, double fallback )'
 )) {
-    if(-not $payloadHotfix17.Contains($needle17)) { throw "Hotfix17 public hook fixture missing: $needle17" }
+    if(-not $hostSourceCurrent.Contains($needle17)) { throw "Canonical Host public hook contract missing: $needle17" }
 }
 
 
