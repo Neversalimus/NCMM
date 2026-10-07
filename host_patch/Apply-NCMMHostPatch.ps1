@@ -125,7 +125,7 @@ function Patch-BodypartEncumbrance([string]$Text) {
 
 function Patch-MapgenScavengingLoot([string]$Text) {
     $Text = Normalize-Lf $Text
-    if ($Text.Contains('ncmm::apply_scavenging_loot_bonus( *this, gridz, when')) { return $Text }
+    if ($Text.Contains('ncmm::apply_scavenging_loot_bonus( *this, ncmm_gridx, ncmm_gridy, gridz, when );')) { return $Text }
     $Text = Replace-ExactlyOnce $Text '#include "mapgen.h"' ('#include "mapgen.h"' + "`n" + '#include "ncmm_loader.h"') 'mapgen.include-ncmm'
     return Replace-ExactlyOnce $Text @'
                     if( omt->has_flag( oter_flags::pp_generate_ruined ) ) {
