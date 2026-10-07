@@ -18,6 +18,7 @@
 #include "ncmm_manifest_policy.h"
 #include "avatar.h"
 #include "creature.h"
+#include "coordinates.h"
 #include "bodypart.h"
 #include "npc.h"
 #include "game.h"
@@ -42,6 +43,7 @@
 #include "units.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstdint>
