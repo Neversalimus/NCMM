@@ -251,7 +251,7 @@ foreach($runtimeInfraStageForbidden0172 in @(
 function Find-CanonicalHostMutation0177([string]$Body) {
     $hostPathBindings0177=[regex]::Matches(
         $Body,
-        '(?m)\$([A-Za-z0-9_]+)\s*=\s*Join-Path\s+[^\r\n]+?\s+["'']host_patch[\\/]ncmm_loader\.(?:cpp|h)["'']'
+        '(?m)^\s*\$([A-Za-z0-9_]+)\s*=.*host_patch[\\/]ncmm_loader\.(?:cpp|h).*$'
     )
     foreach($hostPathBinding0177 in $hostPathBindings0177){
         $hostPathVariable0177=$hostPathBinding0177.Groups[1].Value
