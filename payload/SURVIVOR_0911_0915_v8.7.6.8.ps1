@@ -18104,6 +18104,32 @@ Apply-NcmmManagerUiV1Source
 
 function Apply-NcmmModuleDataBridge0120 {
     param([string]$SourceRoot)
+
+    # This bridge runs after Apply-NcmmBallisticHost082CanonicalSync.  Verify the
+    # canonical Host contract here instead of letting Survivor rewrite Host files.
+    $moduleDataHostSource0120 = Join-Path $NcmmRoot 'host_patch\ncmm_loader.cpp'
+    $moduleDataHostHeader0120 = Join-Path $NcmmRoot 'host_patch\ncmm_loader.h'
+    foreach($moduleDataHostPath0120 in @($moduleDataHostSource0120,$moduleDataHostHeader0120)) {
+        if(-not(Test-Path $moduleDataHostPath0120 -PathType Leaf)) {
+            throw ('NCMM module-data canonical Host source missing: '+$moduleDataHostPath0120)
+        }
+    }
+    $moduleDataHostSourceText0120 = Normalize-Lf ([IO.File]::ReadAllText($moduleDataHostSource0120))
+    $moduleDataHostHeaderText0120 = Normalize-Lf ([IO.File]::ReadAllText($moduleDataHostHeader0120))
+    foreach($moduleDataHostNeedle0120 in @(
+        '#include "init.h"',
+        'void load_module_data()',
+        'DynamicDataLoader &loader = DynamicDataLoader::get_instance();',
+        'loader.load_data_from_path( data_path, source );'
+    )) {
+        if(-not $moduleDataHostSourceText0120.Contains($moduleDataHostNeedle0120)) {
+            throw ('NCMM module-data canonical Host source contract missing: '+$moduleDataHostNeedle0120)
+        }
+    }
+    if(-not $moduleDataHostHeaderText0120.Contains('void load_module_data();')) {
+        throw 'NCMM module-data canonical Host header contract missing: void load_module_data();'
+    }
+
     $gameIo0120 = Join-Path $SourceRoot 'src\game_io.cpp'
     if(-not(Test-Path $gameIo0120 -PathType Leaf)){throw "NCMM module-data bridge source missing: $gameIo0120"}
     $text0120 = Normalize-Lf ([IO.File]::ReadAllText($gameIo0120))
@@ -18362,37 +18388,10 @@ void respec()
         Write-Utf8NoBom (Join-Path $dir0120 'respec.json') ($data0120 + [Environment]::NewLine)
     }
 
-    $loaderPath0120 = Join-Path $NcmmRoot 'host_patch\ncmm_loader.cpp'
-    $loader0120 = Normalize-Lf ([IO.File]::ReadAllText($loaderPath0120))
-    if(-not $loader0120.Contains('#include "init.h"')){
-        $loader0120 = Replace-TextBlock $loader0120 '#include "input_context.h"' ('#include "input_context.h"' + [Environment]::NewLine + '#include "init.h"') 'module-data loader include'
-    }
-    if(-not $loader0120.Contains('void load_module_data()')){
-        $loadFn0120 = @'
-void load_module_data()
-{
-    DynamicDataLoader &loader = DynamicDataLoader::get_instance();
-    for( const loaded_mod &runtime : loaded ) {
-        if( runtime.descriptor == nullptr || runtime.descriptor->id == nullptr ) continue;
-        const std::filesystem::path data_dir = runtime.directory / "data";
-        if( !std::filesystem::exists( data_dir ) || !std::filesystem::is_directory( data_dir ) ) continue;
-        const std::string source = "ncmm:" + std::string( runtime.descriptor->id );
-        log_line( NCMM_LOG_INFO, ( "Loading module data: " + source + " -> " + data_dir.string() ).c_str() );
-        loader.load_data_from_path( cata_path{ cata_path::root_path::unknown, data_dir }, source );
-    }
-}
-
-'@
-        $loader0120 = Replace-TextBlock $loader0120 'void mark_ready()' ($loadFn0120 + 'void mark_ready()') 'module-data loader'
-    }
-    Write-Utf8NoBom $loaderPath0120 $loader0120
-
-    $headerPath0120 = Join-Path $NcmmRoot 'host_patch\ncmm_loader.h'
-    $header0120 = Normalize-Lf ([IO.File]::ReadAllText($headerPath0120))
-    if(-not $header0120.Contains('void load_module_data();')){
-        $header0120 = Replace-TextBlock $header0120 'void initialize();' ('void initialize();' + [Environment]::NewLine + 'void load_module_data();') 'module-data declaration'
-    }
-    Write-Utf8NoBom $headerPath0120 $header0120
+    # The canonical Host is synchronized later in the cumulative payload.
+    # Do not mutate Host sources from this early Survivor balance transform;
+    # Apply-NcmmModuleDataBridge0120 verifies the canonical module-data bridge
+    # after Host synchronization, immediately before patching game_io.cpp.
     Write-Host "Survivor recalibration kit / XP balance / bounded major scaling: READY" -ForegroundColor Green
 }
 
