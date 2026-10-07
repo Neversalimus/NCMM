@@ -1011,6 +1011,20 @@ foreach($managerHostNeedle0167 in @(
         throw ('Canonical NCMM manager Host surface missing: '+$managerHostNeedle0167)
     }
 }
+# The manager entry factory must be a single definition.  A stray duplicate
+# signature compiles as neither a declaration nor a definition and previously
+# survived text-only Host contracts until the full MSVC certification build.
+$managerEntriesPattern0183='(?m)^std::vector<manager_entry> manager_entries\(\)\r?$'
+$managerEntriesCount0183=([regex]::Matches($hostSourceCurrent,$managerEntriesPattern0183)).Count
+if($managerEntriesCount0183 -ne 1){
+    throw ('Canonical Host manager_entries definition count must be 1, found '+$managerEntriesCount0183)
+}
+if(-not [regex]::IsMatch(
+        $hostSourceCurrent,
+        'std::vector<manager_entry> manager_entries\(\)\r?\n\{')){
+    throw 'Canonical Host manager_entries signature is not followed by its function body.'
+}
+
 foreach($managerHeaderNeedle0167 in @(
     'std::string settings_menu_label();',
     'std::string version_label();',
