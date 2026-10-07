@@ -3829,8 +3829,6 @@ void write_diagnostics_summary()
 }
 
 std::vector<manager_entry> manager_entries()
-
-std::vector<manager_entry> manager_entries()
 {
     std::vector<manager_entry> result;
     const std::filesystem::path mods_root = game_root() / "code_mods";
