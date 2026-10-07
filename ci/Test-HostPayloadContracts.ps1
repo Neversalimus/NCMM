@@ -249,31 +249,29 @@ foreach($runtimeInfraStageForbidden0172 in @(
 # compatibility stages; by the time an Apply-* stage runs, the checked-in/
 # embedded canonical Host is authoritative.
 function Find-CanonicalHostMutation0177([string]$Body) {
-    $hostPathBindings0177=[regex]::Matches(
-        $Body,
-        '(?m)^\s*\$([A-Za-z0-9_]+)\s*=.*host_patch[\\/]ncmm_loader\.(?:cpp|h).*$'
-    )
-    foreach($hostPathBinding0177 in $hostPathBindings0177){
-        $hostPathVariable0177=$hostPathBinding0177.Groups[1].Value
-        $escapedHostPathVariable0177=[regex]::Escape('$'+$hostPathVariable0177)
-        foreach($hostMutationPattern0177 in @(
-            '(?m)Write-Utf8NoBom\s+'+$escapedHostPathVariable0177+'(?=\s|$|[),;])',
-            '(?m)\[IO\.File\]::(?:WriteAllText|WriteAllBytes|WriteAllLines|AppendAllText|AppendAllLines|Create|CreateText|OpenWrite|Delete|Move|Copy|Replace)\([^\r\n]*'+$escapedHostPathVariable0177+'(?=\s|$|[),;])',
-            '(?m)(?:Set-Content|Add-Content|Clear-Content|Out-File|Remove-Item|Copy-Item|Move-Item|Rename-Item|New-Item)[^\r\n]*'+$escapedHostPathVariable0177+'(?=\s|$|[),;])'
-        )){
-            if([regex]::IsMatch($Body,$hostMutationPattern0177)){
-                return '$'+$hostPathVariable0177
+    $hostPathVariables0177=@()
+    $bodyLines0177=@($Body -split "\r?\n")
+    foreach($bodyLine0177 in $bodyLines0177){
+        if($bodyLine0177 -match '^\s*\$([A-Za-z0-9_]+)\s*=.*host_patch[\\/]ncmm_loader\.(?:cpp|h)'){
+            $hostVariable0177='$'+$Matches[1]
+            if($hostPathVariables0177 -notcontains $hostVariable0177){
+                $hostPathVariables0177+=@($hostVariable0177)
             }
         }
     }
 
-    foreach($directCanonicalHostMutation0177 in @(
-        '(?m)Write-Utf8NoBom[^\r\n]*host_patch[\\/]ncmm_loader\.(?:cpp|h)',
-        '(?m)\[IO\.File\]::(?:WriteAllText|WriteAllBytes|WriteAllLines|AppendAllText|AppendAllLines|Create|CreateText|OpenWrite|Delete|Move|Copy|Replace)\([^\r\n]*host_patch[\\/]ncmm_loader\.(?:cpp|h)',
-        '(?m)(?:Set-Content|Add-Content|Clear-Content|Out-File|Remove-Item|Copy-Item|Move-Item|Rename-Item|New-Item)[^\r\n]*host_patch[\\/]ncmm_loader\.(?:cpp|h)'
-    )){
-        if([regex]::IsMatch($Body,$directCanonicalHostMutation0177)){
+    $hostMutator0177='(?:Write-Utf8NoBom|Set-Content|Add-Content|Clear-Content|Out-File|Remove-Item|Copy-Item|Move-Item|Rename-Item|New-Item|\[IO\.File\]::(?:WriteAllText|WriteAllBytes|WriteAllLines|AppendAllText|AppendAllLines|Create|CreateText|OpenWrite|Delete|Move|Copy|Replace))'
+    foreach($bodyLine0177 in $bodyLines0177){
+        if($bodyLine0177 -notmatch $hostMutator0177){
+            continue
+        }
+        if($bodyLine0177 -match 'host_patch[\\/]ncmm_loader\.(?:cpp|h)'){
             return '<direct-path>'
+        }
+        foreach($hostPathVariable0177 in $hostPathVariables0177){
+            if($bodyLine0177.Contains($hostPathVariable0177)){
+                return $hostPathVariable0177
+            }
         }
     }
     return $null
