@@ -2622,7 +2622,7 @@ $virtualContextLegacyAllowed0176=@(
 $virtualContextLegacySeen0176=@()
 $virtualContextLegacyMatches0176=[regex]::Matches(
     $manaContextSection0140,
-    "(?ms)\$([A-Za-z0-9_]*(?:Old|Anchor)[A-Za-z0-9_]*)\s*=\s*@'\r?\n(.*?)\r?\n'@"
+    '(?ms)\$([A-Za-z0-9_]*(?:Old|Anchor)[A-Za-z0-9_]*)\s*=\s*@''\r?\n(.*?)\r?\n''@'
 )
 foreach($virtualContextLegacyMatch0176 in $virtualContextLegacyMatches0176){
     $virtualContextLegacyName0176=$virtualContextLegacyMatch0176.Groups[1].Value
