@@ -66,8 +66,8 @@
     },
     {
       "path": "ci\\Test-HostPayloadContracts.ps1",
-      "sha256": "43ddf562917096f800fa0f683b93c59948842cd3f5476ed90b24b73ca94b6882",
-      "bytes": 67727
+      "sha256": "ad64ca6561b74dd0087069087c1d17997ff90d071d0c292a61e9c03eb18631b1",
+      "bytes": 68473
     },
     {
       "path": "ci\\Test-Infrastructure0821.ps1",
@@ -336,8 +336,8 @@
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-      "sha256": "4f67031d8e0b6a0e8f1a44745dfdea9f3871a6e7433b311158e725a6496c537b",
-      "bytes": 2539585
+      "sha256": "026050e7178d941ad41fdddb9fc039ab0de955488e70fbe203e3486413ec834a",
+      "bytes": 2539587
     },
     {
       "path": "pipeline\\pipeline.manifest.json",
