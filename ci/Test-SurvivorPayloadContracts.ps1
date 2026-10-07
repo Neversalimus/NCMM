@@ -20,7 +20,8 @@ foreach($needle in @(
     '{ "sp_loot_medicine_pct", 0.25 }',
     '{ "sp_loot_rare_pct", 0.02 }',
     'loot_rank_scale[] = { 0.0, 1.0, 2.0, 4.0 }',
-    'rare_loot_rank_scale[] = { 0.0, 1.0, 2.5, 4.0 }'
+    'rare_loot_rank_scale[] = { 0.0, 1.0, 2.5, 4.0 }',
+    '"sp_loot_ammo_pct", "sp_loot_provisions_pct", "sp_loot_medicine_pct", "sp_loot_rare_pct"'
 )) {
     if(-not $suspensionSource.Contains($needle)){throw "Scavenging loot perk contract missing: $needle"}
 }
@@ -78,6 +79,8 @@ foreach($needle in @(
     'function Apply-SurvivorScavengingLoot0150',
     '$replaceLoot0150 = {',
     'Scavenging loot transform anchor missing:',
+    'survivor.scavenging-loot-modifier-definitions',
+    '"sp_loot_ammo_pct", "sp_loot_provisions_pct", "sp_loot_medicine_pct", "sp_loot_rare_pct"',
     'Apply-SurvivorScavengingLoot0150'
 )) {
     if(-not $payload.Contains($needle)){throw "Scavenging cumulative transform contract missing: $needle"}
