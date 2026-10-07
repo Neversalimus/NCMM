@@ -83,6 +83,31 @@ if($payload.Contains($autoMiningBroadGate0180)){
     throw 'Mana Hand auto-mining regressed to the shared Mana Hands helper as its idempotency gate.'
 }
 
+# Primary melee count ownership moved into the canonical Host resolver.  Keep
+# the late direct-count verifier aligned with that boundary instead of requiring
+# an obsolete gameplay_modifier() read to remain in melee.cpp.
+$directCountStart0181=$payload.IndexOf('function Apply-SurvivorManaHandDirectCount0152')
+$directCountEnd0181=$payload.IndexOf('function Apply-SurvivorActionWeaponSelection0154',$directCountStart0181)
+if($directCountStart0181 -lt 0 -or $directCountEnd0181 -le $directCountStart0181){
+    throw 'Mana Hand direct-count verifier payload boundary missing.'
+}
+$directCountSection0181=$payload.Substring(
+    $directCountStart0181,$directCountEnd0181-$directCountStart0181)
+foreach($directCountNeedle0181 in @(
+    '$canonicalHostPath0152direct',
+    'int survivor_mana_hand_count()',
+    'item *primary_mana_hand_melee_weapon( Character &who )',
+    'const int hand_count = survivor_mana_hand_count();',
+    'Host-owned weapon resolver'
+)){
+    if(-not $directCountSection0181.Contains($directCountNeedle0181)){
+        throw ('Host-owned primary melee direct-count verifier contract missing: '+$directCountNeedle0181)
+    }
+}
+if($directCountSection0181.Contains('-not $meleeText0152direct.Contains($directExpression0152)')){
+    throw 'Direct-count verifier regressed to requiring inline primary-melee aggregate reads.'
+}
+
 # Certified-host builds import selected cumulative-payload functions into
 # Build-HostPackage.ps1 rather than executing the payload top level. Preserve the
 # package-root context required by verifier-only layers before those functions run.
