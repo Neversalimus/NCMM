@@ -244,60 +244,108 @@ foreach($runtimeInfraStageForbidden0172 in @(
 }
 
 # Architecture guard: compatibility Apply-* stages may verify canonical Host
-# sources, but they may not reopen ncmm_loader.cpp/.h.  Historical source
-# construction lives outside Apply-* compatibility stages; by the time an
-# Apply-* stage runs, the checked-in/embedded canonical Host is authoritative.
-$applyStageMatches0173=[regex]::Matches(
-    $payload,
-    '(?ms)^function (Apply-[A-Za-z0-9_-]+)(?:\([^\r\n]*\))?\s*\{(.*?)(?=^function Apply-|\z)'
-)
-$canonicalHostWriterStages0173=@()
-foreach($applyStageMatch0173 in $applyStageMatches0173){
-    $applyStageName0173=$applyStageMatch0173.Groups[1].Value
-    $applyStageBody0173=$applyStageMatch0173.Groups[2].Value
-    $hostPathBindings0173=[regex]::Matches(
-        $applyStageBody0173,
-        '(?m)\$([A-Za-z0-9_]+)\s*=\s*Join-Path\s+\$NcmmRoot\s+["'']host_patch\\ncmm_loader\.(?:cpp|h)["'']'
-    )
-    foreach($hostPathBinding0173 in $hostPathBindings0173){
-        $hostPathVariable0173=$hostPathBinding0173.Groups[1].Value
-        $escapedHostPathVariable0173=[regex]::Escape('$'+$hostPathVariable0173)
-        foreach($hostWritePattern0173 in @(
-            '(?m)Write-Utf8NoBom\s+'+$escapedHostPathVariable0173+'(?:\s|$)',
-            '(?m)\[IO\.File\]::(?:WriteAllText|WriteAllBytes|AppendAllText)\(\s*'+$escapedHostPathVariable0173,
-            '(?m)(?:Set-Content|Add-Content|Out-File)[^\r\n]*'+$escapedHostPathVariable0173
-        )){
-            if([regex]::IsMatch($applyStageBody0173,$hostWritePattern0173)){
-                if($canonicalHostWriterStages0173 -notcontains $applyStageName0173){
-                    $canonicalHostWriterStages0173+=@($applyStageName0173)
-                }
-                throw (
-                    'Apply stage attempted to mutate canonical Host source: '+
-                    $applyStageName0173+' / $'+$hostPathVariable0173
-                )
+# sources, but they may not reopen, replace, remove, copy, move, or rewrite
+# ncmm_loader.cpp/.h.  Historical source construction lives outside Apply-*
+# compatibility stages; by the time an Apply-* stage runs, the checked-in/
+# embedded canonical Host is authoritative.
+function Find-CanonicalHostMutation0177([string]$Body) {
+    $hostPathVariables0177=@()
+    $bodyLines0177=@($Body -split "\r?\n")
+    foreach($bodyLine0177 in $bodyLines0177){
+        if($bodyLine0177 -match '^\s*\$([A-Za-z0-9_]+)\s*=.*host_patch[\\/]ncmm_loader\.(?:cpp|h)'){
+            $hostVariable0177='$'+$Matches[1]
+            if($hostPathVariables0177 -notcontains $hostVariable0177){
+                $hostPathVariables0177+=@($hostVariable0177)
             }
         }
     }
 
-    foreach($directCanonicalHostWritePattern0173 in @(
-        '(?m)Write-Utf8NoBom\s+\(Join-Path\s+\$NcmmRoot\s+["'']host_patch\\ncmm_loader\.(?:cpp|h)["'']',
-        '(?m)\[IO\.File\]::(?:WriteAllText|WriteAllBytes|AppendAllText)\(\s*\(Join-Path\s+\$NcmmRoot\s+["'']host_patch\\ncmm_loader\.(?:cpp|h)["'']'
-    )){
-        if([regex]::IsMatch($applyStageBody0173,$directCanonicalHostWritePattern0173)){
-            if($canonicalHostWriterStages0173 -notcontains $applyStageName0173){
-                $canonicalHostWriterStages0173+=@($applyStageName0173)
+    $hostMutator0177='(?:Write-Utf8NoBom|Set-Content|Add-Content|Clear-Content|Out-File|Remove-Item|Copy-Item|Move-Item|Rename-Item|New-Item|\[IO\.File\]::(?:WriteAllText|WriteAllBytes|WriteAllLines|AppendAllText|AppendAllLines|Create|CreateText|OpenWrite|Delete|Move|Copy|Replace))'
+    foreach($bodyLine0177 in $bodyLines0177){
+        if($bodyLine0177 -notmatch $hostMutator0177){
+            continue
+        }
+        if($bodyLine0177 -match 'host_patch[\\/]ncmm_loader\.(?:cpp|h)'){
+            return '<direct-path>'
+        }
+        foreach($hostPathVariable0177 in $hostPathVariables0177){
+            if($bodyLine0177.Contains($hostPathVariable0177)){
+                return $hostPathVariable0177
             }
-            throw ('Apply stage contains direct canonical Host write: '+$applyStageName0173)
         }
     }
+    return $null
 }
-if($applyStageMatches0173.Count -lt 40){
-    throw 'Canonical Host writer guard did not inspect the expected Apply-* stage set.'
+
+# Guard self-test: alternate roots and filesystem replacement operations must
+# remain covered, while read-only canonical Host verification stays allowed.
+$copyMutationFixture0177=@'
+$loader = Join-Path $Root 'host_patch\ncmm_loader.cpp'
+Copy-Item $replacement $loader -Force
+'@
+if($null -eq (Find-CanonicalHostMutation0177 $copyMutationFixture0177)){
+    throw 'Canonical Host mutation guard self-test missed bound Copy-Item.'
 }
-if($canonicalHostWriterStages0173.Count -ne 0){
+
+$moveMutationFixture0177=@'
+Move-Item -Path $replacement -Destination (Join-Path $PackageRoot 'host_patch\ncmm_loader.h') -Force
+'@
+if($null -eq (Find-CanonicalHostMutation0177 $moveMutationFixture0177)){
+    throw 'Canonical Host mutation guard self-test missed direct Move-Item.'
+}
+
+$readOnlyFixture0177=@'
+$loader = Join-Path $NcmmRoot 'host_patch\ncmm_loader.cpp'
+$source = [IO.File]::ReadAllText($loader)
+if(-not $source.Contains('initialize')) { throw 'missing' }
+'@
+if($null -ne (Find-CanonicalHostMutation0177 $readOnlyFixture0177)){
+    throw 'Canonical Host mutation guard self-test rejected read-only verification.'
+}
+
+$payloadTokens0177=$null
+$payloadParseErrors0177=$null
+$payloadAst0177=[System.Management.Automation.Language.Parser]::ParseInput(
+    $payload,
+    [ref]$payloadTokens0177,
+    [ref]$payloadParseErrors0177
+)
+if(@($payloadParseErrors0177).Count -ne 0){
     throw (
-        'Apply-stage canonical Host writer set must be empty: '+
-        ($canonicalHostWriterStages0173 -join ',')
+        'Canonical Host mutation guard could not parse cumulative payload: '+
+        (@($payloadParseErrors0177 | ForEach-Object { $_.Message }) -join '; ')
+    )
+}
+$applyStageAsts0177=@(
+    $payloadAst0177.FindAll(
+        {
+            param($node0177)
+            $node0177 -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $node0177.Name -like 'Apply-*'
+        },
+        $true
+    )
+)
+$canonicalHostWriterStages0177=@()
+foreach($applyStageAst0177 in $applyStageAsts0177){
+    $applyStageName0177=$applyStageAst0177.Name
+    $applyStageBody0177=$applyStageAst0177.Body.Extent.Text
+    $hostMutation0177=Find-CanonicalHostMutation0177 $applyStageBody0177
+    if($null -ne $hostMutation0177){
+        $canonicalHostWriterStages0177+=@($applyStageName0177)
+        throw (
+            'Apply stage attempted to mutate canonical Host source: '+
+            $applyStageName0177+' / '+$hostMutation0177
+        )
+    }
+}
+if($applyStageAsts0177.Count -lt 40){
+    throw 'Canonical Host mutation guard did not inspect the expected Apply-* stage set.'
+}
+if($canonicalHostWriterStages0177.Count -ne 0){
+    throw (
+        'Apply-stage canonical Host mutation set must be empty: '+
+        ($canonicalHostWriterStages0177 -join ',')
     )
 }
 
