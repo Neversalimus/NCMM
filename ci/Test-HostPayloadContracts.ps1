@@ -1183,6 +1183,9 @@ foreach($gameplayHostNeedle in @(
     'drugs_pharmacy',
     'book_martial_rare',
     'arsenal_mics_rare',
+    'here.has_flag( "FIRE_CONTAINER", p )',
+    'here.has_flag( "LIQUIDCONT", p )',
+    'here.has_flag( "USABLE_FIRE", p )',
     'scavenging_container_loot'
 )){
     if(-not $gameplayHost.Contains($gameplayHostNeedle)){
