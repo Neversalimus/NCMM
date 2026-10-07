@@ -19417,53 +19417,9 @@ int64_t metric_delta( const char *metric, const char *baseline_key )
     Copy-Item $spPath (Join-Path $NcmmRoot "mods\SurvivorProgression\src\survivor_progression.cpp") -Force
     Copy-Item $manifestPath (Join-Path $NcmmRoot "mods\SurvivorProgression\mod.json") -Force
 
-    $loader = Normalize-Lf ([IO.File]::ReadAllText($loaderPath))
-    foreach($pair in @(
-        @('No NCMM code mods are installed.','No NCMM mods are installed.'),
-        @('NCMM code-моды не установлены.','Моды NCMM не установлены.'),
-        @('NCMM — Mod Configuration\nIn game the manager is a normal remappable keybinding (F2 by default). Modules marked [UI] can be opened with Enter.',
-          'NCMM — Mod Configuration\nPress F2 to open this menu (the key can be changed in Controls). Press Enter to open settings for supported mods.'),
-        @('NCMM — Настройка модов\nВ игре менеджер — обычное переназначаемое действие (по умолчанию F2). Модули с [UI] открываются через Enter.',
-          'NCMM — Настройка модов\nF2 открывает это меню; клавишу можно изменить в управлении. Enter открывает настройки поддерживаемого мода.'),
-        @('ON / quarantined','ON / error'),
-        @('ВКЛ / карантин','ВКЛ / ошибка'),
-        @('ON / suspended','ON / needs attention'),
-        @('ВКЛ / приостановлен','ВКЛ / требует внимания'),
-        @('ON / rejected','ON / incompatible'),
-        @('ВКЛ / отклонён','ВКЛ / несовместим'),
-        @('ON / failed','ON / error'),
-        @('ON / not loaded','ON / restart required'),
-        @('ВКЛ / не загружен','ВКЛ / нужен перезапуск'),
-        @('label += " [UI]";','label += tr_ui( " [SETTINGS]", " [НАСТРОЙКИ]" );'),
-        @('Open module UI','Open settings'),
-        @('Disable module','Disable mod'),
-        @('Выключить модуль','Выключить мод'),
-        @('Module state migration is suspended for this character. See NCMM diagnostics.',
-          'This mod could not load its saved data safely. Open NCMM diagnostics for details.'),
-        @('Миграция состояния модуля приостановлена для этого персонажа. См. диагностику NCMM.',
-          'Не удалось безопасно загрузить сохранённые данные этого мода. Подробности — в диагностике NCMM.'),
-        @('Module UI callback failed and was quarantined for this session.',
-          'This mod''s interface failed to open and has been disabled for this session.'),
-        @('Ошибка callback интерфейса мода; callback помещён в карантин до перезапуска.',
-          'Интерфейс мода не открылся и отключён до перезапуска игры.'),
-        @('Could not enable the module.','Could not enable the mod.'),
-        @('Не удалось включить модуль.','Не удалось включить мод.'),
-        @('Module enabled. Restart CDDA to apply.','Mod enabled. Restart CDDA to apply.'),
-        @('Модуль включён. Перезапустите CDDA для применения.','Мод включён. Перезапустите CDDA для применения.'),
-        @('Could not disable the module.','Could not disable the mod.'),
-        @('Не удалось выключить модуль.','Не удалось выключить мод.'),
-        @('Module disabled. Restart CDDA to apply.','Mod disabled. Restart CDDA to apply.'),
-        @('Модуль выключен. Перезапустите CDDA для применения.','Мод выключен. Перезапустите CDDA для применения.')
-    )) {
-        $loader = $loader.Replace([string]$pair[0],[string]$pair[1])
-    }
-
-    $loader = [regex]::Replace(
-        $loader,
-        '(?ms)^[ \t]*if\( !entry\.reason\.empty\(\) && !entry\.disabled &&\s*\( !entry\.loaded_now \|\| entry\.runtime_state == "runtime_fault" \) \) \{\s*label \+= " - " \+ entry\.reason;\s*\}[ \t]*(?:\r?\n)?',
-        ''
-    )
-    Write-Utf8NoBom $loaderPath $loader
+    # The checked-in canonical Host owns final manager/player-facing copy.
+    # This historical polish stage only advances AWS/Survivor text; do not rewrite
+    # the transient 0.8.1 Host that will be replaced by canonical Host 0.8.2 later.
 
     Write-Host "Final player-facing copy polish: READY" -ForegroundColor Green
 }
