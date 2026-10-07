@@ -1,5 +1,7 @@
 class Creature;
 class Character;
+class map;
+class time_point;
 #pragma once
 #include <cstdint>
 #include <string>
@@ -33,6 +35,10 @@ void gameplay_metric_record_completed_craft( const Character &who );
 
 /** Aggregate runtime gameplay modifier registered by loaded NCMM modules. */
 double gameplay_modifier( const char *modifier_id );
+
+/** Apply fixed-rank Survivor Scavenging bonus loot to one freshly generated submap. */
+void apply_scavenging_loot_bonus( map &here, int submap_x, int submap_y, int z,
+                                  const time_point &birthday );
 
 /** Host-owned generic integration points. Individual modules register rules/bindings through API 2.0. */
 double runtime_hook_modifier( const char *hook_id, const char *subject_id = nullptr,
