@@ -1418,11 +1418,12 @@ bool survivor_semantic_matrix( void *lib )
     const std::set<std::string> legacy_character_modifiers = {
         "str_flat", "dex_flat", "per_flat", "int_flat", "speed_pct", "move_cost_pct",
         "stamina_max_pct", "carry_weight_pct", "dodge_flat", "melee_hit_flat", "encumbrance_pct",
-        "healing_pct", "read_speed_pct", "craft_speed_pct",
-        "sp_loot_ammo_pct", "sp_loot_provisions_pct", "sp_loot_medicine_pct", "sp_loot_rare_pct"
+        "healing_pct", "read_speed_pct", "craft_speed_pct"
     };
     const std::set<std::string> host_consumed_modifiers = {
-        "mg_dimensional_pouch_rank"
+        "mg_dimensional_pouch_rank",
+        "sp_loot_ammo_pct", "sp_loot_provisions_pct",
+        "sp_loot_medicine_pct", "sp_loot_rare_pct"
     };
     std::set<std::string> declared_effect_ids;
     for( size_t i = 0; i < perk_count; ++i ) {
