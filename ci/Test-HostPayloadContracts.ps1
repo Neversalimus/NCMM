@@ -1,4 +1,4 @@
-param([string]$PackageRoot=(Split-Path $PSScriptRoot -Parent))
+﻿param([string]$PackageRoot=(Split-Path $PSScriptRoot -Parent))
 $ErrorActionPreference='Stop'
 $PackageRoot=(Resolve-Path $PackageRoot).Path
 $m=Get-Content (Join-Path $PackageRoot 'compat\compatibility.manifest.json') -Raw|ConvertFrom-Json

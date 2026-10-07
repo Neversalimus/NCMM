@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$GameRoot = "",
     [string]$BuildRoot = "C:\NCMMBuild",
     [ValidateSet("Safe","Balanced","Maximum")]

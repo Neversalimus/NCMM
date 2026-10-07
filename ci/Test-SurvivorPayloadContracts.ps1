@@ -1,4 +1,4 @@
-param([string]$PackageRoot=(Split-Path $PSScriptRoot -Parent))
+﻿param([string]$PackageRoot=(Split-Path $PSScriptRoot -Parent))
 $ErrorActionPreference='Stop'
 $PackageRoot=(Resolve-Path $PackageRoot).Path
 $suspensionSource=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods/SurvivorProgression/src/survivor_progression.cpp'))
