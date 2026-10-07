@@ -105,7 +105,9 @@ $payload=[IO.File]::ReadAllText((Join-Path $PackageRoot 'payload\SURVIVOR_0911_0
 foreach($payloadAtlasNeedle in @(
     'function Apply-SurvivorModernAtlas0150',
     'Apply-SurvivorModernAtlas0150',
-    'Survivor 0.15.0 modern atlas + Legacy layout: READY',
+    'Survivor 0.15.0 two-level atlas + Legacy layout: READY',
+    'Survivor Progression · Atlas Overview',
+    'Choose a constellation, then develop it in a focused local tree.',
     'host->has_capability( "ui.tree.large.v1" )'
 )) {
     if(-not $payload.Contains($payloadAtlasNeedle)){throw "Survivor modern atlas cumulative payload missing: $payloadAtlasNeedle"}
