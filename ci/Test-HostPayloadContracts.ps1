@@ -71,6 +71,18 @@ if([Array]::IndexOf([string[]]$actualCertifiedLayers,'Apply-SurvivorManaHandDire
     throw 'Mana Hand direct-count reconciliation must run after primary melee injection.'
 }
 
+# Auto-mining runs after Mana Hand throw support, which already introduces the
+# shared active_mana_hand_items() helper into avatar_action.cpp. Its idempotency
+# gate must therefore key off an auto-mining-specific semantic marker.
+$autoMiningUniqueGate0180='if(-not $avatar0140mine.Contains(''candidate->type->can_use( "PICKAXE" )'')) {'
+$autoMiningBroadGate0180='if(-not $avatar0140mine.Contains(''ncmm::active_mana_hand_items( you )'')) {'
+if(-not $payload.Contains($autoMiningUniqueGate0180)){
+    throw 'Mana Hand auto-mining must use a transform-specific idempotency gate.'
+}
+if($payload.Contains($autoMiningBroadGate0180)){
+    throw 'Mana Hand auto-mining regressed to the shared Mana Hands helper as its idempotency gate.'
+}
+
 # Certified-host builds import selected cumulative-payload functions into
 # Build-HostPackage.ps1 rather than executing the payload top level. Preserve the
 # package-root context required by verifier-only layers before those functions run.
