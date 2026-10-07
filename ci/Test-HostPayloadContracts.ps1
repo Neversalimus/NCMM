@@ -108,6 +108,13 @@ if($directCountSection0181.Contains('-not $meleeText0152direct.Contains($directE
     throw 'Direct-count verifier regressed to requiring inline primary-melee aggregate reads.'
 }
 
+$hostLocalDirectCount0182='$hostDirectExpression0152 = ''gameplay_modifier( "mg_virtual_hand_count" )'''
+$hostLocalCountCheck0182='$countSection0152direct.Contains($hostDirectExpression0152)'
+if(-not $directCountSection0181.Contains($hostLocalDirectCount0182) -or
+   -not $directCountSection0181.Contains($hostLocalCountCheck0182)){
+    throw 'Direct-count verifier must use the namespace-local Host aggregate expression.'
+}
+
 # Certified-host builds import selected cumulative-payload functions into
 # Build-HostPackage.ps1 rather than executing the payload top level. Preserve the
 # package-root context required by verifier-only layers before those functions run.
