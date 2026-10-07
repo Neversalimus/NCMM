@@ -22189,6 +22189,16 @@ function Apply-SurvivorScavengingLoot0150 {
         '    if( id == "sp_loot_medicine_pct" ) return tr( "Bonus medicine per container %", "Бонусные медикаменты в контейнере %" );' + "`n" +
         '    if( id == "sp_loot_rare_pct" ) return tr( "Rare find per container %", "Редкая находка в контейнере %" );'
     $lootSource0150 = & $replaceLoot0150 $lootSource0150 $lootLabelAnchor0150 $lootLabelReplacement0150 'survivor.scavenging-loot-labels'
+    $lootModifierAnchor0150 = @'
+        "sp_lockpick_tool_protection_pct", "sp_lockpick_alarm_avoid_pct", "sp_trap_detection_flat"
+    };
+'@
+    $lootModifierReplacement0150 = @'
+        "sp_lockpick_tool_protection_pct", "sp_lockpick_alarm_avoid_pct", "sp_trap_detection_flat",
+        "sp_loot_ammo_pct", "sp_loot_provisions_pct", "sp_loot_medicine_pct", "sp_loot_rare_pct"
+    };
+'@
+    $lootSource0150 = & $replaceLoot0150 $lootSource0150 $lootModifierAnchor0150 $lootModifierReplacement0150 'survivor.scavenging-loot-modifier-definitions'
     Write-Utf8NoBom $spPath $lootSource0150
     Write-Host "Survivor 0.15.0 Scavenging container loot perks: READY" -ForegroundColor Green
 }
