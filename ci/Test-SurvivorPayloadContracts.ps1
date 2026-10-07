@@ -25,6 +25,15 @@ foreach($needle in @(
 )) {
     if(-not $suspensionSource.Contains($needle)){throw "Survivor modern atlas contract missing: $needle"}
 }
+
+foreach($payloadAtlasNeedle in @(
+    'function Apply-SurvivorModernAtlas0150',
+    'Apply-SurvivorModernAtlas0150',
+    'Survivor 0.15.0 modern atlas + Legacy layout: READY',
+    'host->has_capability( "ui.tree.large.v1" )'
+)) {
+    if(-not $payload.Contains($payloadAtlasNeedle)){throw "Survivor modern atlas cumulative payload missing: $payloadAtlasNeedle"}
+}
 foreach($needle in @(
     '"gl_ammo_scrounger", branch_id::scavenging, 3, 12, currency_id::perk, "g_awareness"',
     '"gl_provision_scrounger", branch_id::scavenging, 4, 18, currency_id::perk, "gl_ammo_scrounger"',
