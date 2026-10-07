@@ -113,13 +113,91 @@ if($expectedHostVersion -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$'){throw "Invalid Ho
 if([string]$m.host_version -ne $expectedHostVersion -or [string]$m.ncmm_api -ne '1.9' -or [string]$m.host_api_v2 -ne '2.3'){throw 'Host API 2.3 Core manifest identity mismatch.'}
 foreach($cap in @('host_api.v2.core','character.virtual_items.v1','events.core.v2','settings.typed.v2','character.modifiers.v2','runtime_settings.bindings.v2','runtime_hooks.registry.v2','worldgen.bindings.v2','module.lifecycle.query.v2')){if(@($m.self_test.required_capabilities) -notcontains $cap){throw "Host API 2.1 required capability missing: $cap"}}
 if(@($hostComponent.provides) -notcontains 'host_api_v2:2.3' -or @($hostComponent.provides) -notcontains 'character.virtual_items.v1' -or @($hostComponent.provides) -notcontains 'runtime_settings.bindings.v2'){throw 'Host API 2.3 component catalog mismatch.'}
-foreach($n in @('function Apply-NcmmHostApi20Core','#define NCMM_HOST_API_V2_CORE_MAJOR 2u','typedef struct ncmm_host_api_v2_core {','const ncmm_host_api_v2_core api_v2_core = {','runtime_hook_bind_modifier_v2','worldgen_hook_bind_setting_v2','Apply-NcmmHostApi20Core')){if(-not $payload.Contains($n)){throw "Host API 2.0 payload contract missing: $n"}}
+foreach($n in @(
+    'function Apply-NcmmHostApi20Core',
+    '#define NCMM_HOST_API_V2_CORE_MAJOR 2u',
+    'typedef struct ncmm_host_api_v2_core {',
+    'query_interface',
+    'checked-in canonical Host owns Host API 2.x implementation and declarations',
+    'Apply-NcmmHostApi20Core'
+)){if(-not $payload.Contains($n)){throw "Host API 2.0 compatibility-stage payload contract missing: $n"}}
 # Patched-source audit must distinguish the required query_interface_v2 forward declaration
 # from its single implementation.  A raw substring count is intentionally invalid because both
 # declaration and definition begin with the same function name/signature.
 $sdkCurrent=Get-Content (Join-Path $PackageRoot 'sdk\ncmm_api.h') -Raw
 $hostHeaderCurrent=Get-Content (Join-Path $PackageRoot 'host_patch\ncmm_loader.h') -Raw
 $hostSourceCurrent=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp'))
+
+# Host API 2.x implementation is final in the checked-in canonical Host.  The
+# historical API2 compatibility stage may advance SDK/runtime package surfaces,
+# but must not synthesize or rewrite ncmm_loader.cpp/.h anymore.
+foreach($hostApi20Needle0171 in @(
+    'const ncmm_host_api_v2_core api_v2_core = {',
+    'const void *query_interface_v2(',
+    'runtime_hook_bind_modifier_v2',
+    'worldgen_hook_bind_setting_v2',
+    'dispatch_event_v2',
+    '"host_api.v2.core"',
+    '"events.core.v2"',
+    '"settings.typed.v2"',
+    '"character.modifiers.v2"',
+    '"runtime_hooks.registry.v2"',
+    '"worldgen.bindings.v2"',
+    '"module.lifecycle.query.v2"',
+    'return g != nullptr && !g->new_game && world_generator != nullptr &&'
+)){
+    if(-not $hostSourceCurrent.Contains($hostApi20Needle0171)){
+        throw ('Canonical Host API 2.x source contract missing: '+$hostApi20Needle0171)
+    }
+}
+foreach($hostApi20HeaderNeedle0171 in @(
+    'double runtime_hook_modifier( const char *hook_id',
+    'void runtime_event_notify( uint32_t event_id );',
+    'bool worldgen_hook_bound( const char *hook_id );',
+    'int worldgen_hook_bool( const char *hook_id, int fallback );',
+    'int64_t worldgen_hook_i64( const char *hook_id, int64_t fallback );',
+    'double worldgen_hook_f64( const char *hook_id, double fallback );'
+)){
+    if(-not $hostHeaderCurrent.Contains($hostApi20HeaderNeedle0171)){
+        throw ('Canonical Host API 2.x header contract missing: '+$hostApi20HeaderNeedle0171)
+    }
+}
+
+$hostApi20StageStart0171=$payload.IndexOf('function Apply-NcmmHostApi20Core')
+$hostApi20StageEnd0171=$payload.IndexOf('function Apply-AwsWorldgenHostApi20',$hostApi20StageStart0171)
+if($hostApi20StageStart0171 -lt 0 -or $hostApi20StageEnd0171 -le $hostApi20StageStart0171){
+    throw 'Host API 2.0 compatibility-stage payload boundary missing.'
+}
+$hostApi20Stage0171=$payload.Substring($hostApi20StageStart0171,$hostApi20StageEnd0171-$hostApi20StageStart0171)
+foreach($hostApi20StageNeedle0171 in @(
+    '#define NCMM_API_VERSION_MINOR 9u',
+    '#define NCMM_HOST_API_V2_CORE_MAJOR 2u',
+    'typedef struct ncmm_host_api_v2_core {',
+    'private const string RuntimeVersion = "0.8.0";',
+    'NCMM Host API v1 / NCMM 0.8.0 module contract',
+    'checked-in canonical Host owns Host API 2.x implementation and declarations'
+)){
+    if(-not $hostApi20Stage0171.Contains($hostApi20StageNeedle0171)){
+        throw ('Host API 2.0 compatibility-stage contract missing: '+$hostApi20StageNeedle0171)
+    }
+}
+foreach($hostApi20StageForbidden0171 in @(
+    'host_patch\ncmm_loader.cpp',
+    'host_patch\ncmm_loader.h',
+    '$loader20 =',
+    '$header20 =',
+    'Write-Utf8NoBom $loader20Path',
+    'Write-Utf8NoBom $loader20HeaderPath',
+    'const ncmm_host_api_v2_core api_v2_core = {',
+    'runtime_hook_bind_modifier_v2',
+    'worldgen_hook_bind_setting_v2',
+    'dispatch_event_v2'
+)){
+    if($hostApi20Stage0171.Contains($hostApi20StageForbidden0171)){
+        throw ('Host API 2.0 compatibility stage still rewrites transient Host: '+$hostApi20StageForbidden0171)
+    }
+}
+
 if(([regex]::Matches($hostSourceCurrent,[regex]::Escape('remove_worn_items_with( []( const item &candidate )'))).Count -ne 2){
     throw 'Host worn-item cleanup predicates must use const item& for cross-version CDDA compatibility.'
 }
