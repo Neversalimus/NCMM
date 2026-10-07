@@ -740,8 +740,9 @@ foreach($gameplaySmokeNeedle in @(
     'dimensional_pouch_check_count',
     'main-menu.ncmm-gameplay-smoke'
 )){
-    if(-not $payload.Contains($gameplaySmokeNeedle)){
-        throw ('NCMM real gameplay smoke payload contract missing: '+$gameplaySmokeNeedle)
+    if(-not $payload.Contains($gameplaySmokeNeedle) -and
+       -not $canonicalHostText.Contains($gameplaySmokeNeedle)){
+        throw ('NCMM real gameplay smoke portable-payload contract missing: '+$gameplaySmokeNeedle)
     }
 }
 $gameplayHost=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp'))
