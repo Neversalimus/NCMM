@@ -7,7 +7,8 @@ It requires NCMM Host 0.8.2 and keeps persistent state schema **8**.
 ## Current system
 
 - 30 normal Survivor levels with persistent XP and perk currencies.
-- 373 perk nodes in the current source.
+- 374 perk nodes in the current source.
+- Mind Over Matter: **Telekinetic Suspension / Телекинетическая подвеска** follows Kinetic Control (tier 3, mastery level 9). Three perk-point ranks reduce final encumbrance on every body part by exactly 5% / 10% / 15%, rounded to the nearest integer after vanilla enchantments. The passive effect uses the centralized Host `encumbrance_pct` modifier and is not amplified by stat-power settings. NPCs and worlds without Mind Over Matter are unaffected. Rank reset takes effect immediately; existing schema-8 saves remain compatible.
 - Core branches: Combat, Survival, Mobility, Crafting, Scavenging and Mastery.
 - Additional mod-specific progression is shown only when the matching world mod is active.
 - F1 opens the progression UI by default; the action is remappable through CDDA.

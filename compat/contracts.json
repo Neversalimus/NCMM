@@ -2,6 +2,18 @@
   "schema": 1,
   "contracts": [
     {
+      "id": "bodypart_encumbrance.source.v1",
+      "files": [
+        {
+          "path": "src/bodypart.cpp",
+          "required": [
+            "int bodypart::get_final_encumbrance( const Creature &mon ) const",
+            "mon.enchantment_cache->modify_encumbrance( id, encumb_data.encumbrance )"
+          ]
+        }
+      ]
+    },
+    {
       "id": "world_options.source.v1",
       "files": [
         {

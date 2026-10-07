@@ -66,8 +66,8 @@
     },
     {
       "path": "ci\\Test-HostPayloadContracts.ps1",
-      "sha256": "3fc9448937d89e2777288395dc27d8637bd3e294dc0cb41a8f41bd9636f40836",
-      "bytes": 71057
+      "sha256": "47b3ffa7ea526257642bb8363634f460fb468e25820dfa9f89e79eacb0282fdd",
+      "bytes": 71060
     },
     {
       "path": "ci\\Test-Infrastructure0821.ps1",
@@ -91,8 +91,8 @@
     },
     {
       "path": "ci\\Test-SurvivorPayloadContracts.ps1",
-      "sha256": "e3990c4db0595126a0e3e93cfad91c93703d855e6b7f2c094f69a6e54ce812a0",
-      "bytes": 153828
+      "sha256": "13cb327d11b4ff5fb3ea7f1faca05a51e8f69415055069c4149df7411816b1ef",
+      "bytes": 155958
     },
     {
       "path": "ci\\Watch-CDDAExperimental.ps1",
@@ -106,8 +106,8 @@
     },
     {
       "path": "compat\\contracts.json",
-      "sha256": "5c2becc2b846f0c6e6a36a534467988261973f442500a61c6e39c544aa5f36db",
-      "bytes": 21290
+      "sha256": "02de93a549b5f2facbfc9bd6d27c86bc058cadf17474aee6c18bb8a9e3e19a68",
+      "bytes": 21647
     },
     {
       "path": "compat\\feed\\commits\\e262adb299a7613b4aedc5f12c08fe0413c56a84.json",
@@ -138,6 +138,11 @@
       "path": "components\\ballistic_hit_chance.json",
       "sha256": "3a030ff73100a06079b52297db0c520253e536f35afc8cf5a8b06e3eb543506b",
       "bytes": 575
+    },
+    {
+      "path": "components\\equipment_body_map.json",
+      "sha256": "2838064d46c0f6faf5b7cd9640c2f0465f5e2f56deca628095f2346cdf36ca94",
+      "bytes": 567
     },
     {
       "path": "components\\index.json",
@@ -336,8 +341,8 @@
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-      "sha256": "fa5908cbc074c81a3a8980ef5ba0c51854b6aadcaa391d73c3db867dfd7c912a",
-      "bytes": 2541837
+      "sha256": "6edf6fc2210248aaeaed30a7effe70a4073e72dfdd6ec268a914161b2155b3ae",
+      "bytes": 2549725
     },
     {
       "path": "pipeline\\pipeline.manifest.json",
@@ -498,11 +503,6 @@
       "path": "V8_7_RPG_VISUAL_PASS_NOTES.txt",
       "sha256": "dd5dee3a76ab1cfb9b6f1f09eda3b4aba8a327ff624f30d1fb36c7b8e7e9f9bf",
       "bytes": 2669
-    },
-    {
-      "path": "components\\equipment_body_map.json",
-      "sha256": "2838064d46c0f6faf5b7cd9640c2f0465f5e2f56deca628095f2346cdf36ca94",
-      "bytes": 567
     }
   ]
 }

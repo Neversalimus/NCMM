@@ -302,6 +302,7 @@ const perk_def perks[] = {
     { "mom_still_mind", branch_id::mastery, 2, 5, currency_id::perk, "mom_mental_focus", "", "Still Mind", "Спокойный разум", "Mind Over Matter: power failure chance -6%.", "Mind Over Matter: шанс провала псионических сил -6%.", {{ { "mom_fail_pct", -6 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "mom_neural_reserve", branch_id::mastery, 2, 5, currency_id::perk, "mom_mental_focus", "", "Neural Reserve", "Нейронный резерв", "Mind Over Matter: psionic stamina cost -5%.", "Mind Over Matter: затраты выносливости на псионику -5%.", {{ { "mom_spell_cost_pct", -5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "mom_kinetic_control", branch_id::mastery, 2, 5, currency_id::perk, "mom_mental_focus", "", "Kinetic Control", "Кинетический контроль", "Mind Over Matter: power range +5%.", "Mind Over Matter: дальность псионических сил +5%.", {{ { "mom_range_pct", 5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "mom_telekinetic_suspension", branch_id::mastery, 3, 9, currency_id::perk, "mom_kinetic_control", "", "Telekinetic Suspension", "Телекинетическая подвеска", "Mind Over Matter: a subtle telekinetic field supports your clothing and equipment, guiding them with your movements. Passively reduces encumbrance on every body part by 5% / 10% / 15% at ranks I / II / III, rounded to the nearest whole point. Does not reduce item weight or consume stamina.", "Mind Over Matter: слабое телекинетическое поле поддерживает одежду и снаряжение, подстраивая их под ваши движения. Пассивно снижает скованность каждой части тела на 5% / 10% / 15% на рангах I / II / III с округлением до целого. Не уменьшает вес предметов и не расходует выносливость.", {{ { "encumbrance_pct", -5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "mom_channel_discipline", branch_id::mastery, 3, 9, currency_id::perk, "mom_still_mind", "", "Channel Discipline", "Дисциплина канала", "Mind Over Matter: activation/casting time -5%.", "Mind Over Matter: время активации/применения -5%.", {{ { "mom_cast_time_pct", -5 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "mom_efficient_channel", branch_id::mastery, 3, 9, currency_id::perk, "mom_neural_reserve", "", "Efficient Channel", "Эффективный канал", "Mind Over Matter: psionic stamina cost -6%.", "Mind Over Matter: затраты выносливости на псионику -6%.", {{ { "mom_spell_cost_pct", -6 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "mom_psionic_pressure", branch_id::mastery, 3, 9, currency_id::perk, "mom_kinetic_control", "", "Psionic Pressure", "Псионическое давление", "Mind Over Matter: psionic power potency +6%.", "Mind Over Matter: мощность псионических сил +6%.", {{ { "mom_spell_power_pct", 6 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
@@ -656,6 +657,7 @@ const ranked_perk_rule *ranked_perk_rule_for( const perk_def &perk )
         { "mg_dimensional_pouch", 5, 1.0 },
         { "mom_mental_focus", 5, 0.125 }, { "mom_metaphysical_method", 5, 0.125 },
         { "mom_neural_reserve", 3, 0.25 }, { "mom_channel_discipline", 3, 0.25 },
+        { "mom_telekinetic_suspension", 3, 1.0 },
         { "xe_anomaly_method", 5, 0.125 }, { "xe_gramarye_studies", 5, 0.125 },
         { "xe_field_agent", 3, 0.25 }, { "xe_dimensional_model", 3, 0.25 },
         { "af_systems_operator", 5, 0.125 }, { "af_targeting_link", 5, 0.125 },
@@ -790,6 +792,7 @@ integration_id perk_integration( const perk_def &perk )
         { "mg_mana_hand_3", integration_id::magiclysm },
         { "mg_mana_hand_4", integration_id::magiclysm },
         { "mom_mental_focus", integration_id::mindovermatter },
+        { "mom_telekinetic_suspension", integration_id::mindovermatter },
         { "mom_still_mind", integration_id::mindovermatter },
         { "mom_neural_reserve", integration_id::mindovermatter },
         { "mom_kinetic_control", integration_id::mindovermatter },
@@ -1585,6 +1588,7 @@ std::string effect_label( const std::string &id )
     if( id == "int_flat" ) return tr( "INT", "ИНТ" );
     if( id == "speed_pct" ) return tr( "Speed %", "Скорость %" );
     if( id == "move_cost_pct" ) return tr( "Move cost %", "Стоимость движения %" );
+    if( id == "encumbrance_pct" ) return tr( "All body parts encumbrance %", "Скованность всех частей тела %" );
     if( id == "stamina_max_pct" ) return tr( "Max stamina %", "Макс. выносливость %" );
     if( id == "carry_weight_pct" ) return tr( "Carry %", "Грузоподъёмность %" );
     if( id == "dodge_flat" ) return tr( "Dodge", "Уклонение" );

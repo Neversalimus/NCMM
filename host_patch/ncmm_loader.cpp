@@ -14,6 +14,8 @@
 #include "ncmm_manifest_policy.h"
 #include "avatar.h"
 #include "creature.h"
+#include "bodypart.h"
+#include "npc.h"
 #include "game.h"
 #include "mod_manager.h"
 #include "event_bus.h"
@@ -411,6 +413,7 @@ std::map<std::string, std::pair<double, double>, std::less<>> character_modifier
     { "int_flat", { -20.0, 20.0 } },
     { "speed_pct", { -75.0, 200.0 } },
     { "move_cost_pct", { -75.0, 300.0 } },
+    { "encumbrance_pct", { -100.0, 500.0 } },
     { "stamina_max_pct", { -90.0, 500.0 } },
     { "carry_weight_pct", { -90.0, 500.0 } },
     { "dodge_flat", { -20.0, 20.0 } },
@@ -6040,8 +6043,9 @@ int run_gameplay_smoke()
         }
 
         std::vector<mod_id> mods = world_generator->get_mod_manager().get_default_mods();
-        const std::array<mod_id, 3> magiclysm_smoke_mods = {
-            mod_id( "dda" ), mod_id( "no_npc_food" ), mod_id( "magiclysm" )
+        const std::array<mod_id, 4> magiclysm_smoke_mods = {
+            mod_id( "dda" ), mod_id( "no_npc_food" ), mod_id( "magiclysm" ),
+            mod_id( "mindovermatter" )
         };
         const auto &usable_mods = world_generator->get_mod_manager().get_usable_mods();
         for( const mod_id &required_mod : magiclysm_smoke_mods ) {
@@ -6184,7 +6188,7 @@ int run_gameplay_smoke()
 
         module_call_scope survivor_scope( survivor_id );
         survivor_perk_count = perk_count();
-        constexpr size_t survivor_minimum_perk_count = 373;
+        constexpr size_t survivor_minimum_perk_count = 374;
         log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: Survivor test surface resolved." );
         if( survivor_perk_count < survivor_minimum_perk_count || !perk_reset() || !perk_recalc() ) {
             write_gameplay_smoke_result( false, "survivor_catalog_or_reset",
@@ -6201,6 +6205,48 @@ int run_gameplay_smoke()
             }
             return survivor_perk_count;
         };
+
+        const size_t suspension = find_perk_index( "mom_telekinetic_suspension" );
+        const auto suspension_fail = [&]() {
+            write_gameplay_smoke_result( false, "telekinetic_suspension_encumbrance",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 153;
+        };
+        if( suspension >= survivor_perk_count || perk_max_rank( suspension ) != 3 ) {
+            return suspension_fail();
+        }
+        npc encumbrance_npc;
+        const auto body_parts = get_avatar().get_all_body_parts();
+        if( body_parts.empty() ) return suspension_fail();
+        for( int rank : { 0, 1, 2, 3, 0 } ) {
+            if( !perk_set_rank( suspension, rank ) || !perk_recalc() ||
+                std::abs( gameplay_modifier( "encumbrance_pct" ) + 5.0 * rank ) > 0.000001 ) {
+                return suspension_fail();
+            }
+            for( int base : { 0, 1, 7, 20, 40, 100 } ) {
+                encumbrance_data fixture;
+                fixture.encumbrance = base;
+                for( const bodypart_id &bp : body_parts ) {
+                    get_avatar().set_part_encumbrance_data( bp, fixture );
+                    const int expected = ( base * ( 100 - 5 * rank ) + 50 ) / 100;
+                    // Both action accessor and direct limb-score consumer, twice:
+                    // no stale equipment cache or repeated multiplicative reduction.
+                    for( int repeat = 0; repeat < 2; ++repeat ) {
+                        if( get_avatar().encumb( bp ) != expected ||
+                            get_avatar().get_part( bp )->get_final_encumbrance( get_avatar() ) != expected ) {
+                            return suspension_fail();
+                        }
+                    }
+                    if( encumbrance_npc.has_part( bp ) ) {
+                        encumbrance_npc.set_part_encumbrance_data( bp, fixture );
+                        if( encumbrance_npc.encumb( bp ) != base ) return suspension_fail();
+                    }
+                }
+            }
+        }
+        get_avatar().calc_encumbrance();
+        if( !perk_reset() || !perk_recalc() ) return suspension_fail();
+        log_line( NCMM_LOG_INFO, "Telekinetic Suspension: all body parts, ranks 0/1/2/3/reset, rounding and NPC isolation PASS." );
 
         // First prove that the exact release DLL can hold its full current perk catalog at max rank
         // simultaneously and recompute its aggregate state without crashing or

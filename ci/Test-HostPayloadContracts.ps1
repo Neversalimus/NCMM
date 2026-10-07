@@ -1,4 +1,4 @@
-param([string]$PackageRoot=(Split-Path $PSScriptRoot -Parent))
+﻿param([string]$PackageRoot=(Split-Path $PSScriptRoot -Parent))
 $ErrorActionPreference='Stop'
 $PackageRoot=(Resolve-Path $PackageRoot).Path
 $m=Get-Content (Join-Path $PackageRoot 'compat\compatibility.manifest.json') -Raw|ConvertFrom-Json
@@ -1139,7 +1139,7 @@ foreach($gameplaySmokeNeedle in @(
     'survivor_perk_count < survivor_minimum_perk_count',
     'overmap_buffer.create_custom_overmap',
     'ncmm_test_perk_count_v1',
-    'constexpr size_t survivor_minimum_perk_count = 373;',
+    'constexpr size_t survivor_minimum_perk_count = 374;',
     'find_perk_index( "mg_mana_hand_3" )',
     'find_perk_index( "mg_mana_hand_4" )',
     'find_perk_index( "mg_dimensional_pouch" )',
@@ -1164,7 +1164,7 @@ foreach($gameplayHostNeedle in @(
     'aws_scope_fallback_mismatch',
     'aws_protected_hook_exposed',
     'survivor_perk_count < survivor_minimum_perk_count',
-    'constexpr size_t survivor_minimum_perk_count = 373;',
+    'constexpr size_t survivor_minimum_perk_count = 374;',
     'find_perk_index( "mg_mana_hand_3" )',
     'find_perk_index( "mg_mana_hand_4" )',
     'find_perk_index( "mg_dimensional_pouch" )',

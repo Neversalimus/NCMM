@@ -1291,7 +1291,7 @@ bool survivor_semantic_matrix( void *lib )
     }
 
     const size_t perk_count = count();
-    if( perk_count != 373 ) {
+    if( perk_count != 374 ) {
         std::cerr << "Survivor perk catalog count changed unexpectedly: " << perk_count << '\n';
         return false;
     }
@@ -1346,6 +1346,21 @@ bool survivor_semantic_matrix( void *lib )
         }
     }
 
+    const auto suspension_it = index.find( "mom_telekinetic_suspension" );
+    if( suspension_it == index.end() || max_rank( suspension_it->second ) != 3 ||
+        kind( suspension_it->second ) != 1 || integration( suspension_it->second ) == 0 ) {
+        std::cerr << "Telekinetic Suspension metadata mismatch\n";
+        return false;
+    }
+    for( int rank = 0; rank <= 3; ++rank ) {
+        if( !reset() || !set_rank( suspension_it->second, rank ) || !recalculate() ||
+            !nearly_equal( survivor_modifier_value( "encumbrance_pct" ), -5.0 * rank ) ) {
+            std::cerr << "Telekinetic Suspension exact rank effect mismatch\n";
+            return false;
+        }
+    }
+    if( !reset() || !recalculate() || !survivor_modifiers_empty() ) return false;
+
     const auto mana_vamp_it = index.find( "mg_mana_vampirism" );
     if( mana_vamp_it == index.end() ) {
         std::cerr << "Survivor Magiclysm mana-vampirism perk missing from catalog\n";
@@ -1369,7 +1384,7 @@ bool survivor_semantic_matrix( void *lib )
 
     const std::set<std::string> legacy_character_modifiers = {
         "str_flat", "dex_flat", "per_flat", "int_flat", "speed_pct", "move_cost_pct",
-        "stamina_max_pct", "carry_weight_pct", "dodge_flat", "melee_hit_flat",
+        "stamina_max_pct", "carry_weight_pct", "dodge_flat", "melee_hit_flat", "encumbrance_pct",
         "healing_pct", "read_speed_pct", "craft_speed_pct"
     };
     const std::set<std::string> host_consumed_modifiers = {
@@ -1687,7 +1702,7 @@ bool survivor_semantic_matrix( void *lib )
     }
 
     std::cout << "Survivor semantic matrix: PASS (" << perk_count
-              << "/372 perks covered; direct=" << direct_cases
+              << "/374 perks covered; direct=" << direct_cases
               << ", amplifiers=" << amplifier_cases
               << ", stateful=" << special_cases
               << ", conditional-inert=" << integration_inert_cases
