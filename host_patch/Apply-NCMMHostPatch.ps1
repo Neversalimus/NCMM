@@ -15,6 +15,7 @@ $inputCpp = Join-Path $src 'input.cpp'
 $handleAction = Join-Path $src 'handle_action.cpp'
 $characterCpp = Join-Path $src 'character.cpp'
 $bodypartCpp = Join-Path $src 'bodypart.cpp'
+$mapgenCpp = Join-Path $src 'mapgen.cpp'
 $playerDisplayCpp = Join-Path $src 'player_display.cpp'
 $characterHealthCpp = Join-Path $src 'character_health.cpp'
 $meleeCpp = Join-Path $src 'melee.cpp'
@@ -122,8 +123,47 @@ function Patch-BodypartEncumbrance([string]$Text) {
 '@ 'bodypart.encumbrance'
 }
 
+function Patch-MapgenScavengingLoot([string]$Text) {
+    $Text = Normalize-Lf $Text
+    if ($Text.Contains('ncmm::apply_scavenging_loot_bonus( *this, gridz, when')) { return $Text }
+    $Text = Replace-ExactlyOnce $Text '#include "mapgen.h"' ('#include "mapgen.h"' + "`n" + '#include "ncmm_loader.h"') 'mapgen.include-ncmm'
+    return Replace-ExactlyOnce $Text @'
+                    if( omt->has_flag( oter_flags::pp_generate_ruined ) ) {
+                        pp_generator_aftershock_ruin.obj().execute( *this, omt_point, nullptr );
+                    }
+                }
+            }
+        }
+    }
+
+    const weather_generator &wgen = get_weather().get_cur_weather_gen();
+'@ @'
+                    if( omt->has_flag( oter_flags::pp_generate_ruined ) ) {
+                        pp_generator_aftershock_ruin.obj().execute( *this, omt_point, nullptr );
+                    }
+                }
+            }
+        }
+
+        // Survivor Scavenging bonus loot is rolled once for each freshly generated
+        // 12x12 submap. Existing submaps are never re-rolled during partial OMT generation.
+        for( int ncmm_gridx = 0; ncmm_gridx <= 1; ++ncmm_gridx ) {
+            for( int ncmm_gridy = 0; ncmm_gridy <= 1; ++ncmm_gridy ) {
+                const tripoint_rel_sm ncmm_pos( ncmm_gridx, ncmm_gridy, gridz );
+                if( !generated.at( get_nonant( ncmm_pos ) ) || !save_results ) {
+                    ncmm::apply_scavenging_loot_bonus( *this, ncmm_gridx, ncmm_gridy, gridz, when );
+                }
+            }
+        }
+    }
+
+    const weather_generator &wgen = get_weather().get_cur_weather_gen();
+'@ 'mapgen.scavenging-loot'
+}
+
 if (Test-Path $marker) {
     Write-Utf8 $bodypartCpp (Patch-BodypartEncumbrance (Read-Utf8 $bodypartCpp))
+    Write-Utf8 $mapgenCpp (Patch-MapgenScavengingLoot (Read-Utf8 $mapgenCpp))
     $markerText = [System.IO.File]::ReadAllText($marker)
     if (-not $markerText.Contains('NCMM 0.8.2')) {
         throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.8.2.'
@@ -139,6 +179,7 @@ if (Test-Path $marker) {
     $ic = Read-Utf8 $inputCpp
     $ha = Read-Utf8 $handleAction
     $ch = Read-Utf8 $characterCpp
+    $mg = Read-Utf8 $mapgenCpp
     $pd = Read-Utf8 $playerDisplayCpp
     $hh = Read-Utf8 $characterHealthCpp
     $me = Read-Utf8 $meleeCpp
@@ -177,6 +218,7 @@ if (Test-Path $marker) {
         @($ic,'alternate_type'),
         @($ha,'ncmm::register_gameplay_actions( ctxt );'),
         @($ha,'ncmm::handle_gameplay_action( action )'),
+        @($mg,'ncmm::apply_scavenging_loot_bonus( *this, ncmm_gridx, ncmm_gridy, gridz, when );'),
         @($ch,'ncmm::gameplay_modifier( "str_flat" )'),
         @($ch,'ncmm::gameplay_modifier( "speed_pct" )'),
         @($pd,'const double ncmm_move_cost_pct = ncmm::gameplay_modifier( "move_cost_pct" );'),
@@ -247,6 +289,7 @@ $contractScript = Join-Path (Split-Path $PSScriptRoot -Parent) 'ci\Test-SourceCo
 # stale from an earlier git/gh command, so it must not gate this contract preflight.
 & $contractScript -SourceRoot $SourceRoot
 Write-Utf8 $bodypartCpp (Patch-BodypartEncumbrance (Read-Utf8 $bodypartCpp))
+Write-Utf8 $mapgenCpp (Patch-MapgenScavengingLoot (Read-Utf8 $mapgenCpp))
 
 $hOriginal = Read-Utf8 $optionsH
 $cOriginal = Read-Utf8 $optionsCpp
