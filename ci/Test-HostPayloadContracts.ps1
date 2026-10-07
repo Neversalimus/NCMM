@@ -244,15 +244,13 @@ foreach($runtimeInfraStageForbidden0172 in @(
 }
 
 # Architecture guard: compatibility Apply-* stages may verify canonical Host
-# sources, but they may not reopen ncmm_loader.cpp/.h.  The one deliberate
-# exception is Apply-WorldSettingsV2Patch: despite its historical name, that
-# stage is the legacy source-construction pipeline that evolves the immutable
-# 0.9.x seed before the canonical Host is emitted into the cumulative payload.
+# sources, but they may not reopen ncmm_loader.cpp/.h.  Historical source
+# construction lives outside Apply-* compatibility stages; by the time an
+# Apply-* stage runs, the checked-in/embedded canonical Host is authoritative.
 $applyStageMatches0173=[regex]::Matches(
     $payload,
     '(?ms)^function (Apply-[A-Za-z0-9_-]+)(?:\([^\r\n]*\))?\s*\{(.*?)(?=^function Apply-|\z)'
 )
-$allowedCanonicalHostWriter0173='Apply-WorldSettingsV2Patch'
 $canonicalHostWriterStages0173=@()
 foreach($applyStageMatch0173 in $applyStageMatches0173){
     $applyStageName0173=$applyStageMatch0173.Groups[1].Value
@@ -264,26 +262,19 @@ foreach($applyStageMatch0173 in $applyStageMatches0173){
     foreach($hostPathBinding0173 in $hostPathBindings0173){
         $hostPathVariable0173=$hostPathBinding0173.Groups[1].Value
         $escapedHostPathVariable0173=[regex]::Escape('$'+$hostPathVariable0173)
-        $writesCanonicalHost0173=$false
         foreach($hostWritePattern0173 in @(
             '(?m)Write-Utf8NoBom\s+'+$escapedHostPathVariable0173+'(?:\s|$)',
             '(?m)\[IO\.File\]::(?:WriteAllText|WriteAllBytes|AppendAllText)\(\s*'+$escapedHostPathVariable0173,
             '(?m)(?:Set-Content|Add-Content|Out-File)[^\r\n]*'+$escapedHostPathVariable0173
         )){
             if([regex]::IsMatch($applyStageBody0173,$hostWritePattern0173)){
-                $writesCanonicalHost0173=$true
-                break
-            }
-        }
-        if($writesCanonicalHost0173){
-            if($applyStageName0173 -ne $allowedCanonicalHostWriter0173){
+                if($canonicalHostWriterStages0173 -notcontains $applyStageName0173){
+                    $canonicalHostWriterStages0173+=@($applyStageName0173)
+                }
                 throw (
                     'Apply stage attempted to mutate canonical Host source: '+
                     $applyStageName0173+' / $'+$hostPathVariable0173
                 )
-            }
-            if($canonicalHostWriterStages0173 -notcontains $applyStageName0173){
-                $canonicalHostWriterStages0173+=@($applyStageName0173)
             }
         }
     }
@@ -293,25 +284,23 @@ foreach($applyStageMatch0173 in $applyStageMatches0173){
         '(?m)\[IO\.File\]::(?:WriteAllText|WriteAllBytes|AppendAllText)\(\s*\(Join-Path\s+\$NcmmRoot\s+["'']host_patch\\ncmm_loader\.(?:cpp|h)["'']'
     )){
         if([regex]::IsMatch($applyStageBody0173,$directCanonicalHostWritePattern0173)){
-            if($applyStageName0173 -ne $allowedCanonicalHostWriter0173){
-                throw ('Apply stage contains direct canonical Host write: '+$applyStageName0173)
-            }
             if($canonicalHostWriterStages0173 -notcontains $applyStageName0173){
                 $canonicalHostWriterStages0173+=@($applyStageName0173)
             }
+            throw ('Apply stage contains direct canonical Host write: '+$applyStageName0173)
         }
     }
 }
 if($applyStageMatches0173.Count -lt 40){
     throw 'Canonical Host writer guard did not inspect the expected Apply-* stage set.'
 }
-if($canonicalHostWriterStages0173.Count -ne 1 -or
-   $canonicalHostWriterStages0173[0] -ne $allowedCanonicalHostWriter0173){
+if($canonicalHostWriterStages0173.Count -ne 0){
     throw (
-        'Canonical Host writer allowlist drifted: '+
+        'Apply-stage canonical Host writer set must be empty: '+
         ($canonicalHostWriterStages0173 -join ',')
     )
 }
+
 
 if(([regex]::Matches($hostSourceCurrent,[regex]::Escape('remove_worn_items_with( []( const item &candidate )'))).Count -ne 2){
     throw 'Host worn-item cleanup predicates must use const item& for cross-version CDDA compatibility.'
