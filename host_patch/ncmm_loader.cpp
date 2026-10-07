@@ -3768,6 +3768,68 @@ std::string manager_description( const std::filesystem::path &directory )
     return result;
 }
 
+std::string manager_reason_text( const std::string &reason )
+{
+    if( reason.empty() || reason == "ok" ) {
+        return reason;
+    }
+    if( reason == "api_versioning_capability_required" ) {
+        return tr_ui( "manifest declares API version but does not require api.versioning.v1",
+                      "manifest объявляет версию API, но не требует api.versioning.v1" );
+    }
+    if( reason == "api_version_mismatch" ) {
+        return tr_ui( "module requires a different NCMM API version",
+                      "модулю требуется другая версия NCMM API" );
+    }
+    if( reason == "loader_api_mismatch" ) {
+        return tr_ui( "module requires a different loader API",
+                      "модулю требуется другая версия loader API" );
+    }
+    if( reason == "capability_contract_mismatch" ) {
+        return tr_ui( "mod.json and DLL capability lists do not match",
+                      "списки capabilities в mod.json и DLL не совпадают" );
+    }
+    if( reason == "manifest_descriptor_mismatch" ) {
+        return tr_ui( "mod.json and DLL id/version do not match",
+                      "id/версия в mod.json и DLL не совпадают" );
+    }
+    if( reason.rfind( "missing_capability:", 0 ) == 0 ) {
+        return tr_ui( "missing host capability: ", "нет возможности host: " ) +
+               reason.substr( std::string( "missing_capability:" ).size() );
+    }
+    return reason;
+}
+
+void write_diagnostics_summary()
+{
+    const std::filesystem::path path = game_root() / "ncmm" / "diagnostics.txt";
+    std::ofstream out( path, std::ios::trunc | std::ios::binary );
+    if( !out ) {
+        return;
+    }
+    out << "NCMM diagnostics\n";
+    out << "support=https://github.com/Neversalimus/NCMM/issues\n";
+    out << "host_version=" << get_host_version() << '\n';
+    out << "loader_api=" << get_loader_api() << '\n';
+    out << "api_version=" << get_api_version_major() << '.' << get_api_version_minor() << '\n';
+    out << "locale=" << current_locale() << '\n';
+    out << "capabilities=";
+    for( size_t i = 0; i < get_capability_count(); ++i ) {
+        if( i != 0 ) {
+            out << ',';
+        }
+        out << get_capability( i );
+    }
+    out << "\nmodules=" << module_states.size() << '\n';
+    for( const module_state &state : module_states ) {
+        out << state.id << " | " << state.version << " | " << state.state
+            << " | " << state.reason << " | " << state.directory.filename().string() << '\n';
+    }
+    out.flush();
+}
+
+std::vector<manager_entry> manager_entries()
+
 std::vector<manager_entry> manager_entries()
 {
     std::vector<manager_entry> result;
@@ -6758,6 +6820,7 @@ void initialize()
 
     dispatch_event_v2( NCMM_EVENT_HOST_READY_V2 );
     write_modules_state();
+    write_diagnostics_summary();
     mark_ready();
 
     if( runtime_smoke_requested() ) {

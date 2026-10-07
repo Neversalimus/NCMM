@@ -198,6 +198,51 @@ foreach($hostApi20StageForbidden0171 in @(
     }
 }
 
+# Runtime infrastructure may still patch CDDA options/debug sources, but its
+# manager diagnostics surface is final in the checked-in canonical Host.
+foreach($runtimeInfraHostNeedle0172 in @(
+    'std::string manager_reason_text( const std::string &reason )',
+    'void write_diagnostics_summary()',
+    'support=https://github.com/Neversalimus/NCMM/issues',
+    'manager_reason_text( entry.reason )',
+    'write_modules_state();' + "`n" + '    write_diagnostics_summary();' + "`n" + '    mark_ready();',
+    'void show_manager()' + "`n" + '{' + "`n" + '    write_diagnostics_summary();'
+)){
+    if(-not $hostSourceCurrent.Contains($runtimeInfraHostNeedle0172)){
+        throw ('Canonical runtime-infrastructure Host contract missing: '+$runtimeInfraHostNeedle0172)
+    }
+}
+$runtimeInfraStageStart0172=$payload.IndexOf('function Apply-NcmmRuntimeInfrastructureV8766')
+$runtimeInfraStageEnd0172=$payload.IndexOf('function Apply-NcmmHostApi20Core',$runtimeInfraStageStart0172)
+if($runtimeInfraStageStart0172 -lt 0 -or $runtimeInfraStageEnd0172 -le $runtimeInfraStageStart0172){
+    throw 'Runtime-infrastructure compatibility-stage payload boundary missing.'
+}
+$runtimeInfraStage0172=$payload.Substring($runtimeInfraStageStart0172,$runtimeInfraStageEnd0172-$runtimeInfraStageStart0172)
+foreach($runtimeInfraStageNeedle0172 in @(
+    'Manager diagnostics and readable failure reasons are canonical Host code.',
+    "'manager_reason_text'",
+    "'write_diagnostics_summary();'",
+    "'diagnostics.txt'"
+)){
+    if(-not $runtimeInfraStage0172.Contains($runtimeInfraStageNeedle0172)){
+        throw ('Runtime-infrastructure canonical Host verifier contract missing: '+$runtimeInfraStageNeedle0172)
+    }
+}
+foreach($runtimeInfraStageForbidden0172 in @(
+    'Write-Utf8NoBom $loaderCpp',
+    '$managerInfra = @''',
+    '$managerAnchor =',
+    '$readyCallOld =',
+    '$readyCallNew =',
+    '$showOld =',
+    '$showNew =',
+    '$l = Normalize-Lf ([IO.File]::ReadAllText($loaderCpp))'
+)){
+    if($runtimeInfraStage0172.Contains($runtimeInfraStageForbidden0172)){
+        throw ('Runtime infrastructure still rewrites transient Host diagnostics: '+$runtimeInfraStageForbidden0172)
+    }
+}
+
 if(([regex]::Matches($hostSourceCurrent,[regex]::Escape('remove_worn_items_with( []( const item &candidate )'))).Count -ne 2){
     throw 'Host worn-item cleanup predicates must use const item& for cross-version CDDA compatibility.'
 }
