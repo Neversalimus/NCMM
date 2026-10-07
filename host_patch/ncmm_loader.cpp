@@ -4863,12 +4863,6 @@ int scavenging_loot_chance_ppm( const char *modifier_id )
                      static_cast<int>( std::llround( percent * 10000.0 ) ) ) );
 }
 
-bool scavenging_loot_roll( const char *modifier_id )
-{
-    const int threshold_ppm = scavenging_loot_chance_ppm( modifier_id );
-    return threshold_ppm > 0 && rng( 1, 1000000 ) <= threshold_ppm;
-}
-
 bool spawn_scavenging_group_item( map &here, const tripoint_bub_ms &p,
                                   const item_group_id &group, const time_point &birthday )
 {
@@ -6302,7 +6296,7 @@ int run_gameplay_smoke()
 
         module_call_scope survivor_scope( survivor_id );
         survivor_perk_count = perk_count();
-        constexpr size_t survivor_minimum_perk_count = 374;
+        constexpr size_t survivor_minimum_perk_count = 378;
         log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: Survivor test surface resolved." );
         if( survivor_perk_count < survivor_minimum_perk_count || !perk_reset() || !perk_recalc() ) {
             write_gameplay_smoke_result( false, "survivor_catalog_or_reset",
@@ -6361,6 +6355,35 @@ int run_gameplay_smoke()
         get_avatar().calc_encumbrance();
         if( !perk_reset() || !perk_recalc() ) return suspension_fail();
         log_line( NCMM_LOG_INFO, "Telekinetic Suspension: all body parts, ranks 0/1/2/3/reset, rounding and NPC isolation PASS." );
+
+        const auto scavenging_loot_fail = [&]() {
+            write_gameplay_smoke_result( false, "scavenging_container_loot",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 154;
+        };
+        const auto verify_scavenging_loot = [&]( const char *perk_name, const char *modifier_name,
+                double rank1, double rank2, double rank3 ) {
+            const size_t perk_index = find_perk_index( perk_name );
+            if( perk_index >= survivor_perk_count || perk_max_rank( perk_index ) != 3 ) {
+                return false;
+            }
+            const double expected[] = { 0.0, rank1, rank2, rank3 };
+            for( int rank = 1; rank <= 3; ++rank ) {
+                if( !perk_reset() || !perk_set_rank( perk_index, rank ) || !perk_recalc() ||
+                    std::abs( gameplay_modifier( modifier_name ) - expected[rank] ) > 0.0000001 ) {
+                    return false;
+                }
+            }
+            return perk_reset() && perk_recalc();
+        };
+        if( !verify_scavenging_loot( "gl_ammo_scrounger", "sp_loot_ammo_pct", 0.25, 0.50, 1.00 ) ||
+            !verify_scavenging_loot( "gl_provision_scrounger", "sp_loot_provisions_pct", 0.25, 0.50, 1.00 ) ||
+            !verify_scavenging_loot( "gl_medical_scrounger", "sp_loot_medicine_pct", 0.25, 0.50, 1.00 ) ||
+            !verify_scavenging_loot( "gl_rare_find", "sp_loot_rare_pct", 0.02, 0.05, 0.08 ) ) {
+            return scavenging_loot_fail();
+        }
+        log_line( NCMM_LOG_INFO,
+                  "Scavenging container loot: exact 0.25/0.5/1 and 0.02/0.05/0.08 rank chances PASS." );
 
         // First prove that the exact release DLL can hold its full current perk catalog at max rank
         // simultaneously and recompute its aggregate state without crashing or
