@@ -350,6 +350,71 @@ if($canonicalHostWriterStages0177.Count -ne 0){
 }
 
 
+# Once the canonical Host sync has run, the remainder of the cumulative payload
+# is allowed to advance module/data surfaces only. No later Host materialization,
+# replacement, deletion, or rewrite is permitted, including through path aliases
+# that were bound earlier in the file.
+$canonicalSyncPattern0178='(?m)^\s*Apply-NcmmBallisticHost082CanonicalSync\s*$'
+$canonicalSyncMatches0178=[regex]::Matches($payload,$canonicalSyncPattern0178)
+$canonicalSyncCount0178=$canonicalSyncMatches0178.Count
+if($canonicalSyncCount0178 -ne 1){
+    throw ('Expected exactly one canonical Host sync invocation, found '+$canonicalSyncCount0178)
+}
+$canonicalSyncMatch0178=$canonicalSyncMatches0178[0]
+$postCanonicalPayload0178=$payload.Substring(
+    $canonicalSyncMatch0178.Index+$canonicalSyncMatch0178.Length
+)
+
+$allCanonicalHostAliases0178=@()
+foreach($payloadLine0178 in @($payload -split "\r?\n")){
+    if($payloadLine0178 -match '^\s*\$([A-Za-z0-9_]+)\s*=.*host_patch[\\/]ncmm_loader\.(?:cpp|h)'){
+        $alias0178='$'+$Matches[1]
+        if($allCanonicalHostAliases0178 -notcontains $alias0178){
+            $allCanonicalHostAliases0178+=@($alias0178)
+        }
+    }
+}
+$postCanonicalHostMutator0178='(?:Write-Utf8NoBom|Set-Content|Add-Content|Clear-Content|Out-File|Remove-Item|Copy-Item|Move-Item|Rename-Item|New-Item|\[IO\.File\]::(?:WriteAllText|WriteAllBytes|WriteAllLines|AppendAllText|AppendAllLines|Create|CreateText|OpenWrite|Delete|Move|Copy|Replace))'
+foreach($postCanonicalLine0178 in @($postCanonicalPayload0178 -split "\r?\n")){
+    if($postCanonicalLine0178 -match 'Write-NcmmCanonicalPayloadFile'){
+        throw 'Canonical payload writer is invoked after canonical Host sync.'
+    }
+    if($postCanonicalLine0178 -notmatch $postCanonicalHostMutator0178){
+        continue
+    }
+    if($postCanonicalLine0178 -match 'host_patch[\\/]ncmm_loader\.(?:cpp|h)'){
+        throw ('Direct canonical Host mutation appears after canonical sync: '+$postCanonicalLine0178.Trim())
+    }
+    foreach($postCanonicalAlias0178 in $allCanonicalHostAliases0178){
+        if($postCanonicalLine0178.Contains($postCanonicalAlias0178)){
+            throw (
+                'Canonical Host alias is mutated after canonical sync: '+
+                $postCanonicalAlias0178+' / '+$postCanonicalLine0178.Trim()
+            )
+        }
+    }
+}
+
+# Regression fixture: an alias bound before the sync boundary must still be
+# considered dangerous afterwards.
+$postSyncFixture0178=@'
+$loaderPath = Join-Path $NcmmRoot 'host_patch\ncmm_loader.cpp'
+Apply-NcmmBallisticHost082CanonicalSync
+Write-Utf8NoBom $loaderPath $loader
+'@
+$fixtureSyncMatch0178=[regex]::Match($postSyncFixture0178,$canonicalSyncPattern0178)
+if(-not $fixtureSyncMatch0178.Success){ throw 'Post-sync canonical Host guard fixture boundary missing.' }
+$fixtureTail0178=$postSyncFixture0178.Substring($fixtureSyncMatch0178.Index+$fixtureSyncMatch0178.Length)
+$fixtureCaught0178=$false
+foreach($fixtureLine0178 in @($fixtureTail0178 -split "\r?\n")){
+    if($fixtureLine0178 -match $postCanonicalHostMutator0178 -and $fixtureLine0178.Contains('$loaderPath')){
+        $fixtureCaught0178=$true
+    }
+}
+if(-not $fixtureCaught0178){
+    throw 'Post-sync canonical Host alias guard self-test failed.'
+}
+
 if(([regex]::Matches($hostSourceCurrent,[regex]::Escape('remove_worn_items_with( []( const item &candidate )'))).Count -ne 2){
     throw 'Host worn-item cleanup predicates must use const item& for cross-version CDDA compatibility.'
 }
