@@ -4070,7 +4070,8 @@ bool configure_host_api2_runtime_hooks()
         "sp_damage_dealt_pct", "sp_on_kill_moves", "sp_on_kill_stamina_pct",
         "sp_craft_success_roll_flat", "sp_craft_failure_save_pct", "sp_craft_component_loss_reduction_pct",
         "sp_craft_progress_loss_reduction_pct", "sp_lockpick_roll_flat", "sp_lockpick_time_reduction_pct",
-        "sp_lockpick_tool_protection_pct", "sp_lockpick_alarm_avoid_pct", "sp_trap_detection_flat"
+        "sp_lockpick_tool_protection_pct", "sp_lockpick_alarm_avoid_pct", "sp_trap_detection_flat",
+        "sp_loot_ammo_pct", "sp_loot_provisions_pct", "sp_loot_medicine_pct", "sp_loot_rare_pct"
     };
     for( const char *id : mechanical_modifiers ) if( !host2->modifier_define( module_id, id, -100.0, 100.0 ) ) return false;
     auto bind = [&]( const char *hook, uint32_t kind, const char *selector, const char *modifier ) {
