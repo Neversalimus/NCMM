@@ -10,6 +10,21 @@ foreach($needle in @(
 )) {
     if(-not $suspensionSource.Contains($needle)){throw "Telekinetic Suspension contract missing: $needle"}
 }
+
+foreach($needle in @(
+    'NCMM_SP_TREE_LAYOUT',
+    'bool modern_tree_layout()',
+    '"Modern atlas", "Legacy branches"',
+    '"Современный атлас", "Классические ветки"',
+    'void show_modern_atlas()',
+    'host->has_capability( "ui.tree.large.v1" )',
+    'constexpr int groups_per_row = 4',
+    'constexpr int group_column_span = 8',
+    'constexpr int group_row_span = 28',
+    'open_progression_legacy();'
+)) {
+    if(-not $suspensionSource.Contains($needle)){throw "Survivor modern atlas contract missing: $needle"}
+}
 foreach($needle in @(
     '"gl_ammo_scrounger", branch_id::scavenging, 3, 12, currency_id::perk, "g_awareness"',
     '"gl_provision_scrounger", branch_id::scavenging, 4, 18, currency_id::perk, "gl_ammo_scrounger"',
