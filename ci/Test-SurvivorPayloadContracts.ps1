@@ -349,6 +349,68 @@ foreach($n in @(
 )){if(-not $payload.Contains($n)){throw ('Survivor 0.13.0 settings/recalibration contract missing: '+$n)}}
 if($payload.Contains('reset.id = "respec"')){throw 'Free Survivor respec UI leaked into the current payload.'}
 
+$recalStart0120=$payload.IndexOf('function Apply-SurvivorRecalibration0120')
+$recalEnd0120=$payload.IndexOf('function Apply-AwsHostApi20Migration',$recalStart0120)
+if($recalStart0120 -lt 0 -or $recalEnd0120 -le $recalStart0120){
+    throw 'Survivor recalibration transform boundary missing.'
+}
+$recalSection0120=$payload.Substring($recalStart0120,$recalEnd0120-$recalStart0120)
+foreach($recalHostMutationForbidden0120 in @(
+    '$loaderPath0120 = Join-Path $NcmmRoot ''host_patch\ncmm_loader.cpp''',
+    '$headerPath0120 = Join-Path $NcmmRoot ''host_patch\ncmm_loader.h''',
+    'Replace-TextBlock $loader0120',
+    'Replace-TextBlock $header0120',
+    'Write-Utf8NoBom $loaderPath0120',
+    'Write-Utf8NoBom $headerPath0120'
+)){
+    if($recalSection0120.Contains($recalHostMutationForbidden0120)){
+        throw ('Survivor recalibration regressed to Host source mutation: '+$recalHostMutationForbidden0120)
+    }
+}
+foreach($recalVerifierNeedle0120 in @(
+    'The canonical Host is synchronized later in the cumulative payload.',
+    'Apply-NcmmModuleDataBridge0120 verifies the canonical module-data bridge'
+)){
+    if(-not $recalSection0120.Contains($recalVerifierNeedle0120)){
+        throw ('Survivor recalibration Host-verifier handoff missing: '+$recalVerifierNeedle0120)
+    }
+}
+
+$moduleBridgeStart0120=$payload.IndexOf('function Apply-NcmmModuleDataBridge0120')
+$moduleBridgeEnd0120=$payload.IndexOf('function Apply-SurvivorRecalibration0120',$moduleBridgeStart0120)
+if($moduleBridgeStart0120 -lt 0 -or $moduleBridgeEnd0120 -le $moduleBridgeStart0120){
+    throw 'NCMM module-data bridge transform boundary missing.'
+}
+$moduleBridgeSection0120=$payload.Substring($moduleBridgeStart0120,$moduleBridgeEnd0120-$moduleBridgeStart0120)
+foreach($moduleBridgeVerifierNeedle0120 in @(
+    'NCMM module-data canonical Host source missing:',
+    'NCMM module-data canonical Host source contract missing:',
+    'NCMM module-data canonical Host header contract missing:',
+    '#include "init.h"',
+    'void load_module_data()',
+    'loader.load_data_from_path( data_path, source );',
+    'void load_module_data();'
+)){
+    if(-not $moduleBridgeSection0120.Contains($moduleBridgeVerifierNeedle0120)){
+        throw ('NCMM module-data Host verifier contract missing: '+$moduleBridgeVerifierNeedle0120)
+    }
+}
+foreach($moduleBridgeHostMutationForbidden0120 in @(
+    'Write-Utf8NoBom $moduleDataHostSource0120',
+    'Write-Utf8NoBom $moduleDataHostHeader0120',
+    'Replace-TextBlock $moduleDataHostSourceText0120',
+    'Replace-TextBlock $moduleDataHostHeaderText0120'
+)){
+    if($moduleBridgeSection0120.Contains($moduleBridgeHostMutationForbidden0120)){
+        throw ('NCMM module-data verifier mutated canonical Host sources: '+$moduleBridgeHostMutationForbidden0120)
+    }
+}
+$canonicalHostSyncCall0120=$payload.LastIndexOf('Apply-NcmmBallisticHost082CanonicalSync')
+$moduleDataBridgeCall0120=$payload.LastIndexOf('Apply-NcmmModuleDataBridge0120 $CddaRoot')
+if($canonicalHostSyncCall0120 -lt 0 -or $moduleDataBridgeCall0120 -le $canonicalHostSyncCall0120){
+    throw 'NCMM module-data Host verifier must run after canonical Host synchronization.'
+}
+
 # Survivor 0.14.0 feature retained in 0.15.0: high-level Magiclysm mana vampirism.
 $survivorSource0121=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\src\survivor_progression.cpp'))
 foreach($manaVampNeedle0121 in @(
