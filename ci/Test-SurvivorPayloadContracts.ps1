@@ -2667,40 +2667,100 @@ foreach($needle0155 in @(
     if(-not $payload.Contains($needle0155)){throw ('Mana Hands activation payload contract missing: '+$needle0155)}
 }
 
-# Architecture guard: a Mana Hands transform may patch vanilla source, but its
-# *old* replacement templates must not depend on code emitted by another Mana
-# Hands transform.  VirtualItemContext0140 intentionally owns its own staged
-# upgrade path and does not match the Apply-SurvivorManaHand* namespace below.
-$manaTransformMatches0163=[regex]::Matches(
+# Architecture guard: Mana Hands transforms may patch vanilla source, but
+# generated-code anchors are forbidden unless they are an explicitly retained
+# VirtualItemContext0140 compatibility-upgrade boundary.
+$generatedManaMarkers0165=@(
+    'ncmm::',
+    'ncmm_',
+    'mana_hand',
+    'virtual_item'
+)
+
+$manaTransformMatches0165=[regex]::Matches(
     $payload,
     '(?ms)^function (Apply-SurvivorManaHand[A-Za-z0-9_]+)\([^\r\n]*\) \{(.*?)(?=^function |\z)'
 )
-foreach($manaTransformMatch0163 in $manaTransformMatches0163){
-    $manaTransformName0163=$manaTransformMatch0163.Groups[1].Value
-    $manaTransformBody0163=$manaTransformMatch0163.Groups[2].Value
-    $oldTemplateMatches0163=[regex]::Matches(
-        $manaTransformBody0163,
-        "(?ms)\$[A-Za-z0-9_]*Old[A-Za-z0-9_]*\s*=\s*@'\r?\n(.*?)\r?\n'@"
+foreach($manaTransformMatch0165 in $manaTransformMatches0165){
+    $manaTransformName0165=$manaTransformMatch0165.Groups[1].Value
+    $manaTransformBody0165=$manaTransformMatch0165.Groups[2].Value
+    $anchorTemplateMatches0165=[regex]::Matches(
+        $manaTransformBody0165,
+        "(?ms)\x24([A-Za-z0-9_]*(?:Old|Anchor)[A-Za-z0-9_]*)\s*=\s*@'\r?\n(.*?)\r?\n'@"
     )
-    foreach($oldTemplateMatch0163 in $oldTemplateMatches0163){
-        $oldTemplate0163=$oldTemplateMatch0163.Groups[1].Value
-        foreach($generatedMarker0163 in @(
-            'ncmm::',
-            'ncmm_',
-            'mana_hand',
-            'virtual_item'
-        )){
-            if($oldTemplate0163.Contains($generatedMarker0163)){
+    foreach($anchorTemplateMatch0165 in $anchorTemplateMatches0165){
+        $anchorTemplateName0165=$anchorTemplateMatch0165.Groups[1].Value
+        $anchorTemplateBody0165=$anchorTemplateMatch0165.Groups[2].Value
+        foreach($generatedMarker0165 in $generatedManaMarkers0165){
+            if($anchorTemplateBody0165.Contains($generatedMarker0165)){
                 throw (
                     'Mana Hands transform-on-transform anchor returned in '+
-                    $manaTransformName0163+': '+$generatedMarker0163
+                    $manaTransformName0165+'/'+$anchorTemplateName0165+': '+
+                    $generatedMarker0165
                 )
             }
         }
     }
 }
-if($manaTransformMatches0163.Count -lt 10){
+if($manaTransformMatches0165.Count -lt 10){
     throw 'Mana Hands cross-transform architecture guard did not inspect the expected transform set.'
+}
+
+$virtualContextArchitectureMatch0165=[regex]::Match(
+    $payload,
+    '(?ms)^function Apply-SurvivorVirtualItemContext0140\([^\r\n]*\) \{(.*?)(?=^function |\z)'
+)
+if(-not $virtualContextArchitectureMatch0165.Success){
+    throw 'VirtualItemContext0140 architecture-guard boundary missing.'
+}
+$virtualContextArchitectureBody0165=$virtualContextArchitectureMatch0165.Groups[1].Value
+$virtualContextAllowedGeneratedAnchors0165=@(
+    'secondaryMenuOld0140ctx',
+    'secondarySwitchOld0140ctx',
+    'pointerOld0140ctxPair',
+    'single3Old0140ctxPair',
+    'single4Old0140ctxPair',
+    'menuInsertOld0140ctxPair',
+    'singleHandlerAnchor0140ctxPair',
+    'primaryMenuAnchor0140ctx',
+    'rangedMenuAnchor0140ctx'
+)
+$virtualContextGeneratedAnchors0165=@()
+$virtualContextTemplateMatches0165=[regex]::Matches(
+    $virtualContextArchitectureBody0165,
+    "(?ms)\x24([A-Za-z0-9_]*(?:Old|Anchor)[A-Za-z0-9_]*)\s*=\s*@'\r?\n(.*?)\r?\n'@"
+)
+foreach($virtualContextTemplateMatch0165 in $virtualContextTemplateMatches0165){
+    $virtualContextTemplateName0165=$virtualContextTemplateMatch0165.Groups[1].Value
+    $virtualContextTemplateBody0165=$virtualContextTemplateMatch0165.Groups[2].Value
+    $virtualContextGenerated0165=$false
+    foreach($generatedMarker0165 in $generatedManaMarkers0165){
+        if($virtualContextTemplateBody0165.Contains($generatedMarker0165)){
+            $virtualContextGenerated0165=$true
+            break
+        }
+    }
+    if(-not $virtualContextGenerated0165){
+        continue
+    }
+    if($virtualContextAllowedGeneratedAnchors0165 -notcontains $virtualContextTemplateName0165){
+        throw (
+            'VirtualItemContext0140 gained an unapproved generated-code anchor: '+
+            $virtualContextTemplateName0165
+        )
+    }
+    $virtualContextGeneratedAnchors0165 += $virtualContextTemplateName0165
+}
+foreach($allowedContextAnchor0165 in $virtualContextAllowedGeneratedAnchors0165){
+    if($virtualContextGeneratedAnchors0165 -notcontains $allowedContextAnchor0165){
+        throw (
+            'VirtualItemContext0140 expected compatibility anchor missing: '+
+            $allowedContextAnchor0165
+        )
+    }
+}
+if($virtualContextGeneratedAnchors0165.Count -ne $virtualContextAllowedGeneratedAnchors0165.Count){
+    throw 'VirtualItemContext0140 generated-anchor allowlist count drifted.'
 }
 
 Write-Host 'NCMM Survivor payload regression contract: PASS' -ForegroundColor Green
