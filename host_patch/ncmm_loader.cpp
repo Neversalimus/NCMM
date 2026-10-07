@@ -6043,8 +6043,9 @@ int run_gameplay_smoke()
         }
 
         std::vector<mod_id> mods = world_generator->get_mod_manager().get_default_mods();
-        const std::array<mod_id, 3> magiclysm_smoke_mods = {
-            mod_id( "dda" ), mod_id( "no_npc_food" ), mod_id( "magiclysm" )
+        const std::array<mod_id, 4> magiclysm_smoke_mods = {
+            mod_id( "dda" ), mod_id( "no_npc_food" ), mod_id( "magiclysm" ),
+            mod_id( "mindovermatter" )
         };
         const auto &usable_mods = world_generator->get_mod_manager().get_usable_mods();
         for( const mod_id &required_mod : magiclysm_smoke_mods ) {
