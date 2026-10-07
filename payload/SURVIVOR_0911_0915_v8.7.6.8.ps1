@@ -20935,7 +20935,7 @@ function Apply-SurvivorManaHandAutoMining0140([string]$Root) {
         $avatar0140mine = Replace-TextBlock $avatar0140mine '#include "item_location.h"' ('#include "item_location.h"' + [Environment]::NewLine + '#include "ncmm_loader.h"') 'Mana Hand auto-mining include'
     }
 
-    if(-not $avatar0140mine.Contains('ncmm::active_mana_hand_items( you )')) {
+    if(-not $avatar0140mine.Contains('candidate->type->can_use( "PICKAXE" )')) {
         $mineOld0140 = @'
     item_location weapon = you.get_wielded_item();
     if( m.has_flag( ter_furn_flag::TFLAG_MINEABLE, dest_loc ) && g->mostseen == 0 &&
