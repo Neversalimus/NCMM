@@ -532,6 +532,7 @@ std::string tr( const char *en, const char *ru )
 
 constexpr const char *xp_rate_setting = "NCMM_SP_XP_RATE";
 constexpr const char *stat_power_setting = "NCMM_SP_STAT_POWER";
+constexpr const char *tree_layout_setting = "NCMM_SP_TREE_LAYOUT";
 
 int progression_percent_setting( const char *setting_id, int fallback )
 {
@@ -558,6 +559,15 @@ int progression_xp_rate_pct()
 int progression_stat_power_pct()
 {
     return progression_percent_setting( stat_power_setting, 100 );
+}
+
+bool modern_tree_layout()
+{
+    if( host2 == nullptr || host2->world_setting_get_string == nullptr ) {
+        return true;
+    }
+    const char *raw = host2->world_setting_get_string( tree_layout_setting, "modern" );
+    return raw == nullptr || std::string_view( raw ) != "legacy";
 }
 
 bool configure_progression_settings()
@@ -587,6 +597,20 @@ bool configure_progression_settings()
             russian() ? "Масштабирует прямые бонусы перков к характеристикам и пассивным параметрам. Механические перки не затрагиваются." :
                         "Scales direct bonuses from perks that grant attributes and passive stats. Mechanical perks are not affected.",
             values, labels, count, "100", NCMM_WORLD_SETTING_LIVE ) ) {
+        return false;
+    }
+
+    static const char *layout_values[] = { "modern", "legacy" };
+    static const char *layout_labels_en[] = { "Modern atlas", "Legacy branches" };
+    static const char *layout_labels_ru[] = { "Современный атлас", "Классические ветки" };
+    if( !host2->world_setting_register_enum(
+            module_id, tree_layout_setting,
+            russian() ? "Вид дерева перков" : "Perk tree layout",
+            russian() ?
+                "Современный атлас показывает все базовые и активные модовые созвездия на одном большом полотне. Классический режим возвращает прежнее меню веток и локальные деревья." :
+                "Modern atlas shows all base and active mod constellations on one large canvas. Legacy branches restores the previous branch menu and local trees.",
+            layout_values, russian() ? layout_labels_ru : layout_labels_en,
+            2, "modern", NCMM_WORLD_SETTING_LIVE ) ) {
         return false;
     }
     return true;
@@ -3517,7 +3541,7 @@ void show_integration_branch( const std::string &mod_id )
     }
 }
 
-void open_progression()
+void open_progression_legacy()
 {
     if( !character_available() ) {
         message( tr( "Survivor Progression: load a character first.",
@@ -3696,6 +3720,213 @@ void open_progression()
             return;
         }
     }
+}
+
+void show_modern_atlas()
+{
+    if( !character_available() ) {
+        message( tr( "Survivor Progression: load a character first.",
+                     "Survivor Progression: сначала загрузите персонажа." ) );
+        return;
+    }
+
+    migrate_state();
+    if( effects_dirty ) {
+        recalculate_effects();
+    }
+
+    while( true ) {
+        const int64_t survivor_level = std::max<int64_t>( 1, get_state( "level", 1 ) );
+        const int64_t survivor_xp = std::max<int64_t>( 0, get_state( "xp", 0 ) );
+        const int64_t survivor_next = xp_to_next( survivor_level );
+        const int64_t perk_points = get_state( "perk_points", 0 );
+        const int64_t major_points = get_state( "major_points", 0 );
+
+        std::vector<const perk_def *> atlas_perks;
+        std::vector<tree_node_text> tree_texts;
+        std::vector<uint32_t> item_accents;
+        std::vector<uint32_t> item_borders;
+        std::map<std::string, size_t> index_by_id;
+
+        atlas_perks.reserve( 512 );
+        tree_texts.reserve( 512 );
+        item_accents.reserve( 512 );
+        item_borders.reserve( 512 );
+
+        size_t group_index = 0;
+        auto atlas_position = []( size_t group, const std::pair<int, int> &local ) {
+            constexpr int groups_per_row = 4;
+            constexpr int group_column_span = 8;
+            constexpr int group_row_span = 28;
+            return std::pair<int, int>{
+                static_cast<int>( group / groups_per_row ) * group_row_span + local.first,
+                static_cast<int>( group % groups_per_row ) * group_column_span + local.second
+            };
+        };
+
+        auto append_atlas_node = [&]( const perk_def &perk, const std::string &group_name,
+                                      uint32_t accent, bool mod_group, size_t local_index,
+                                      const std::pair<int, int> &local_position ) {
+            const int rank = perk_rank( perk );
+            const int max_rank = perk_max_rank( perk );
+            const int64_t unlock_level = mod_group ? survivor_level : branch_level( perk.branch );
+            const bool unlocked = unlock_level >= perk.required_level && prerequisites_met( perk );
+            const bool enough = perk.currency == currency_id::perk ?
+                                perk_points > 0 : major_points > 0;
+
+            tree_node_text node;
+            node.card.id = perk.id;
+            node.card.title = perk_display_name( perk );
+            if( local_index == 0 ) {
+                node.card.title = "◆ " + group_name + " · " + node.card.title;
+            } else if( prime_visual_perk( perk ) ) {
+                node.card.title = "★ " + node.card.title;
+            }
+            node.card.subtitle =
+                ( mod_group ? tr( "Survivor L", "Survivor ур." ) : tr( "Branch L", "Ветка ур." ) ) +
+                std::to_string( perk.required_level ) +
+                " | " + ( perk.currency == currency_id::perk ? "1P" : "1M" );
+            if( max_rank > 1 && rank > 0 ) {
+                node.card.subtitle += " | R" + std::to_string( rank ) + "/" +
+                                      std::to_string( max_rank );
+            }
+            node.card.body =
+                tr( "CONSTELLATION:", "СОЗВЕЗДИЕ:" ) + "\n" + group_name + "\n\n" +
+                rpg_detail_body( perk, perk_description( perk ), prereq_text( perk ) ) +
+                "\n\n" + tr( "STATUS:", "СТАТУС:" ) + "\n" + perk_lock_reason( perk );
+            node.card.badge = compact_tree_badge( perk, unlocked, perk_points, major_points, mod_group );
+            node.card.icon_key = mod_group ?
+                                 std::string( "survivor/mod/" ) + integration_mod_id( perk ) + "/" + perk.id :
+                                 std::string( "survivor/perk/" ) + perk.id;
+
+            if( rank > 0 ) node.card.flags |= NCMM_UI_CARD_OWNED;
+            else if( !unlocked ) node.card.flags |= NCMM_UI_CARD_LOCKED;
+            if( perk.currency == currency_id::major ) node.card.flags |= NCMM_UI_CARD_MAJOR;
+            if( effective_kind( perk ) == perk_kind::effect ) node.card.flags |= NCMM_UI_CARD_EFFECT;
+
+            const std::pair<int, int> global = atlas_position( group_index, local_position );
+            node.row = global.first;
+            node.column = global.second;
+
+            const size_t atlas_index = atlas_perks.size();
+            atlas_perks.push_back( &perk );
+            tree_texts.push_back( std::move( node ) );
+            item_accents.push_back( accent );
+            item_borders.push_back( rpg_border_style_for( perk ) );
+            index_by_id[perk.id] = atlas_index;
+        };
+
+        for( branch_id branch : all_branches ) {
+            size_t local_index = 0;
+            for( const perk_def &perk : perks ) {
+                if( perk.branch != branch || integration_perk( perk ) || !perk_world_available( perk ) ) {
+                    continue;
+                }
+                append_atlas_node( perk, branch_name( branch ), branch_theme_color( branch ),
+                                   false, local_index, branch_tree_position( branch, local_index ) );
+                ++local_index;
+            }
+            ++group_index;
+        }
+
+        for( const std::string &mod_id : active_supported_integration_mods() ) {
+            std::vector<const perk_def *> mod_perks;
+            mod_perks.reserve( 32 );
+            const char *anchor_id = integration_anchor_id( mod_id );
+            const perk_def *anchor = find_perk( anchor_id );
+            if( anchor != nullptr && integration_perk( *anchor ) &&
+                mod_id == integration_mod_id( *anchor ) && perk_world_available( *anchor ) ) {
+                mod_perks.push_back( anchor );
+            }
+            for( const perk_def &perk : perks ) {
+                if( !integration_perk( perk ) || !perk_world_available( perk ) ||
+                    mod_id != integration_mod_id( perk ) || &perk == anchor ) {
+                    continue;
+                }
+                mod_perks.push_back( &perk );
+            }
+            for( size_t local_index = 0; local_index < mod_perks.size(); ++local_index ) {
+                append_atlas_node( *mod_perks[local_index], integration_mod_display_name( mod_id ),
+                                   integration_theme_color( mod_id ), true, local_index,
+                                   integration_tree_position( local_index ) );
+            }
+            if( !mod_perks.empty() ) {
+                ++group_index;
+            }
+        }
+
+        if( atlas_perks.empty() ) {
+            message( tr( "No Survivor perks are available.", "Нет доступных перков Survivor." ) );
+            return;
+        }
+
+        std::vector<ncmm_ui_tree_edge_v1> edges;
+        edges.reserve( atlas_perks.size() * 2 );
+        auto add_edge = [&]( const char *prereq, size_t to ) {
+            if( prereq == nullptr || prereq[0] == '\0' ) {
+                return;
+            }
+            const auto it = index_by_id.find( prereq );
+            if( it != index_by_id.end() ) {
+                edges.push_back( { it->second, to } );
+            }
+        };
+        for( size_t i = 0; i < atlas_perks.size(); ++i ) {
+            add_edge( atlas_perks[i]->prereq1, i );
+            add_edge( atlas_perks[i]->prereq2, i );
+        }
+
+        const int total_owned = owned_count( currency_id::perk ) +
+                                owned_count( currency_id::major );
+        std::string title = "Survivor Progression · Atlas";
+        std::string summary =
+            tr( "Modern atlas", "Современный атлас" ) +
+            tr( " | constellations ", " | созвездий " ) + std::to_string( group_index ) +
+            tr( " | purchased ", " | куплено " ) +
+            std::to_string( total_owned ) + "/" + std::to_string( atlas_perks.size() ) +
+            " | P " + std::to_string( perk_points ) +
+            " | M " + std::to_string( major_points ) +
+            tr( " | arrows/mouse: navigate | PgUp/PgDn: travel | Tab: legacy branches",
+                " | стрелки/мышь: навигация | PgUp/PgDn: переход | Tab: классические ветки" );
+
+        std::string progress_label =
+            "XP " + std::to_string( survivor_xp ) + "/" + std::to_string( survivor_next ) +
+            tr( " -> Level ", " -> Уровень " ) + std::to_string( survivor_level + 1 );
+        ncmm_ui_progress_v1 progress{ progress_label.c_str(), survivor_xp, survivor_next };
+
+        std::vector<ncmm_ui_tree_node_v1> nodes = bind_tree_nodes( tree_texts );
+        const ncmm_ui_theme_ex_v1 theme{
+            NCMM_UI_COLOR_DEFAULT,
+            NCMM_UI_THEME_STRONG_BORDER | NCMM_UI_THEME_WIDE_NODES |
+            NCMM_UI_THEME_HORIZONTAL_VIEWPORT | NCMM_UI_THEME_SECTIONED_DETAIL,
+            26, 42, item_accents.data(), item_accents.size(),
+            item_borders.data(), item_borders.size()
+        };
+
+        const int choice = host->ui_tree_choose_rpg(
+                               title.c_str(), summary.c_str(), &progress,
+                               nodes.data(), nodes.size(), edges.data(), edges.size(), &theme );
+        if( choice == NCMM_UI_TREE_SHOW_CARDS ) {
+            open_progression_legacy();
+            return;
+        }
+        if( choice < 0 || static_cast<size_t>( choice ) >= atlas_perks.size() ) {
+            return;
+        }
+        show_perk_detail( *atlas_perks[static_cast<size_t>( choice )] );
+    }
+}
+
+void open_progression()
+{
+    const bool large_tree_available =
+        host != nullptr && host->has_capability != nullptr &&
+        host->has_capability( "ui.tree.large.v1" ) != 0;
+    if( modern_tree_layout() && large_tree_available && host->ui_tree_choose_rpg != nullptr ) {
+        show_modern_atlas();
+        return;
+    }
+    open_progression_legacy();
 }
 
 void award_global_xp( int64_t raw_gained )
