@@ -166,6 +166,10 @@ const perk_def perks[] = {
     { "g_mule", branch_id::scavenging, 4, 15, currency_id::perk, "g_endurance", "", "Human Mule", "Вьючный человек", "+15% carry, +1 STR", "+15% грузоподъёмности, +1 к силе", {{ { "carry_weight_pct", 15 }, { "str_flat", 1 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 2, 0 },
     { "g_raider", branch_id::scavenging, 5, 20, currency_id::major, "g_pathfinder", "g_mule", "Veteran Scavenger", "Опытный добытчик", "+1 PER, +15% carry, +3% speed", "+1 к восприятию, +15% грузоподъёмности, +3% скорости", {{ { "per_flat", 1 }, { "carry_weight_pct", 15 }, { "speed_pct", 3 }, { nullptr, 0.0 } }}, 3, 0 },
     { "g_legend", branch_id::scavenging, 6, 30, currency_id::major, "g_raider", "", "Wasteland Scavenger", "Легенда пустошей", "+1 PER, +20% carry, -5% move cost, +3% speed", "+1 к восприятию, +20% грузоподъёмности, -5% стоимости движения, +3% скорости", {{ { "per_flat", 1 }, { "carry_weight_pct", 20 }, { "move_cost_pct", -5 }, { "speed_pct", 3 } }}, 4, 0 },
+    { "gl_ammo_scrounger", branch_id::scavenging, 3, 12, currency_id::perk, "g_awareness", "", "Ammunition Scrounger", "Поиск боеприпасов", "Newly generated storage containers can contain one additional ammo item.", "В новых сгенерированных контейнерах хранения может появиться один дополнительный предмет с боеприпасами.", {{ { "sp_loot_ammo_pct", 0.25 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect },
+    { "gl_provision_scrounger", branch_id::scavenging, 4, 18, currency_id::perk, "gl_ammo_scrounger", "", "Provision Scrounger", "Поиск провизии", "Newly generated storage containers can contain one additional food or drink item.", "В новых сгенерированных контейнерах хранения может появиться один дополнительный предмет еды или питья.", {{ { "sp_loot_provisions_pct", 0.25 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect },
+    { "gl_medical_scrounger", branch_id::scavenging, 5, 24, currency_id::perk, "gl_provision_scrounger", "", "Medical Scrounger", "Поиск медикаментов", "Newly generated storage containers can contain one additional medical item.", "В новых сгенерированных контейнерах хранения может появиться один дополнительный медицинский предмет.", {{ { "sp_loot_medicine_pct", 0.25 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect },
+    { "gl_rare_find", branch_id::scavenging, 6, 30, currency_id::perk, "gl_medical_scrounger", "", "Rare Find", "Редкая находка", "Newly generated storage containers have a separate very small chance to contain one additional rare item.", "Новые сгенерированные контейнеры хранения имеют отдельный очень малый шанс получить один дополнительный редкий предмет.", {{ { "sp_loot_rare_pct", 0.02 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0, perk_kind::effect },
     { "a_fast", branch_id::mastery, 1, 1, currency_id::perk, "", "", "Fast Learner", "Быстрый ученик", "+50% Survivor XP", "+50% опыта Survivor", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 50 },
     { "a_focus", branch_id::mastery, 1, 1, currency_id::perk, "", "", "Focused Mind", "Собранный ум", "+1 Intelligence", "+1 к интеллекту", {{ { "int_flat", 1 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 1, 0 },
     { "a_adapt", branch_id::mastery, 2, 5, currency_id::perk, "a_fast", "", "Adaptive Learning", "Адаптивное обучение", "+25% Survivor XP", "+25% опыта Survivor", {{ { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 }, { nullptr, 0.0 } }}, 0, 25 },
@@ -650,6 +654,8 @@ const ranked_perk_rule *ranked_perk_rule_for( const perk_def &perk )
         { "sm_defy_fate", 5, 1.0 },
         { "m_light", 5, 1.0 / 6.0 }, { "f_hands", 5, 0.40 },
         { "g_route", 3, 1.0 / 3.0 }, { "a_adapt", 5, 0.20 },
+        { "gl_ammo_scrounger", 3, 0.0 }, { "gl_provision_scrounger", 3, 0.0 },
+        { "gl_medical_scrounger", 3, 0.0 }, { "gl_rare_find", 3, 0.0 },
 
         { "mg_arcane_focus", 5, 0.125 }, { "mg_spellcraft_drills", 5, 0.125 },
         { "mg_mana_sensitivity", 3, 0.25 }, { "mg_mana_regeneration", 3, 0.25 },
@@ -711,6 +717,16 @@ double perk_rank_multiplier_for( const perk_def &perk, int rank )
         return 0.0;
     }
     rank = std::min( rank, perk_max_rank( perk ) );
+    const std::string id = perk.id ? perk.id : "";
+    if( id == "gl_ammo_scrounger" || id == "gl_provision_scrounger" ||
+        id == "gl_medical_scrounger" ) {
+        static constexpr double loot_rank_scale[] = { 0.0, 1.0, 2.0, 4.0 };
+        return loot_rank_scale[rank];
+    }
+    if( id == "gl_rare_find" ) {
+        static constexpr double rare_loot_rank_scale[] = { 0.0, 1.0, 2.5, 4.0 };
+        return rare_loot_rank_scale[rank];
+    }
     return 1.0 + static_cast<double>( rank - 1 ) * perk_extra_rank_scale( perk );
 }
 
@@ -1652,6 +1668,10 @@ std::string effect_label( const std::string &id )
     if( id == "sp_lockpick_time_reduction_pct" ) return tr( "Lockpicking time reduction %", "Сокращение времени взлома %" );
     if( id == "sp_lockpick_tool_protection_pct" ) return tr( "Lockpick protection %", "Сохранность отмычки %" );
     if( id == "sp_lockpick_alarm_avoid_pct" ) return tr( "Alarm bypass %", "Обход сигнализации %" );
+    if( id == "sp_loot_ammo_pct" ) return tr( "Bonus ammo per container %", "Бонусные боеприпасы в контейнере %" );
+    if( id == "sp_loot_provisions_pct" ) return tr( "Bonus provisions per container %", "Бонусная провизия в контейнере %" );
+    if( id == "sp_loot_medicine_pct" ) return tr( "Bonus medicine per container %", "Бонусные медикаменты в контейнере %" );
+    if( id == "sp_loot_rare_pct" ) return tr( "Rare find per container %", "Редкая находка в контейнере %" );
     if( id == "sp_trap_detection_flat" ) return tr( "Trap detection bonus", "Бонус к обнаружению ловушек" );    return id;
 }
 
@@ -4050,7 +4070,8 @@ bool configure_host_api2_runtime_hooks()
         "sp_damage_dealt_pct", "sp_on_kill_moves", "sp_on_kill_stamina_pct",
         "sp_craft_success_roll_flat", "sp_craft_failure_save_pct", "sp_craft_component_loss_reduction_pct",
         "sp_craft_progress_loss_reduction_pct", "sp_lockpick_roll_flat", "sp_lockpick_time_reduction_pct",
-        "sp_lockpick_tool_protection_pct", "sp_lockpick_alarm_avoid_pct", "sp_trap_detection_flat"
+        "sp_lockpick_tool_protection_pct", "sp_lockpick_alarm_avoid_pct", "sp_trap_detection_flat",
+        "sp_loot_ammo_pct", "sp_loot_provisions_pct", "sp_loot_medicine_pct", "sp_loot_rare_pct"
     };
     for( const char *id : mechanical_modifiers ) if( !host2->modifier_define( module_id, id, -100.0, 100.0 ) ) return false;
     auto bind = [&]( const char *hook, uint32_t kind, const char *selector, const char *modifier ) {

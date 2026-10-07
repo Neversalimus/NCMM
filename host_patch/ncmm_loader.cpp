@@ -3,7 +3,11 @@
 #include "item.h"
 #include "item_category.h"
 #include "item_location.h"
+#include "item_group.h"
+#include "calendar.h"
 #include "map.h"
+#include "map_scale_constants.h"
+#include "mapdata.h"
 #include "character.h"
 #include "character_attire.h"
 #include "flag.h"
@@ -14,6 +18,7 @@
 #include "ncmm_manifest_policy.h"
 #include "avatar.h"
 #include "creature.h"
+#include "coordinates.h"
 #include "bodypart.h"
 #include "npc.h"
 #include "game.h"
@@ -29,6 +34,7 @@
 #include "overmap.h"
 #include "overmapbuffer.h"
 #include "path_info.h"
+#include "rng.h"
 #include "sounds.h"
 #include "system_locale.h"
 #include "uilist.h"
@@ -37,6 +43,7 @@
 #include "units.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstdint>
@@ -414,6 +421,10 @@ std::map<std::string, std::pair<double, double>, std::less<>> character_modifier
     { "speed_pct", { -75.0, 200.0 } },
     { "move_cost_pct", { -75.0, 300.0 } },
     { "encumbrance_pct", { -100.0, 500.0 } },
+    { "sp_loot_ammo_pct", { 0.0, 100.0 } },
+    { "sp_loot_provisions_pct", { 0.0, 100.0 } },
+    { "sp_loot_medicine_pct", { 0.0, 100.0 } },
+    { "sp_loot_rare_pct", { 0.0, 100.0 } },
     { "stamina_max_pct", { -90.0, 500.0 } },
     { "carry_weight_pct", { -90.0, 500.0 } },
     { "dodge_flat", { -20.0, 20.0 } },
@@ -4847,6 +4858,108 @@ double gameplay_modifier( const char *modifier_id )
 
 namespace
 {
+int scavenging_loot_chance_ppm( const char *modifier_id )
+{
+    const double percent = std::max( 0.0, std::min( 100.0, gameplay_modifier( modifier_id ) ) );
+    return std::max( 0, std::min( 1000000,
+                     static_cast<int>( std::llround( percent * 10000.0 ) ) ) );
+}
+
+bool spawn_scavenging_group_item( map &here, const tripoint_bub_ms &p,
+                                  const item_group_id &group, const time_point &birthday )
+{
+    if( !item_group::group_is_defined( group ) ) {
+        return false;
+    }
+    item bonus = item_group::item_from( group, birthday );
+    if( bonus.is_null() ) {
+        return false;
+    }
+
+    for( const item &existing : here.i_at( p ) ) {
+        if( !existing.get_owner().is_null() ) {
+            bonus.set_owner( existing.get_owner() );
+            break;
+        }
+    }
+    bonus.randomize_rot();
+    bonus.preserve_location( project_to<coords::ms>( here.get_abs_sub() ) );
+    return !here.add_item( p, std::move( bonus ) ).is_null();
+}
+
+template<size_t N>
+bool spawn_scavenging_group_item( map &here, const tripoint_bub_ms &p,
+                                  const std::array<item_group_id, N> &groups,
+                                  const time_point &birthday )
+{
+    std::array<size_t, N> available = {};
+    size_t available_count = 0;
+    for( size_t i = 0; i < groups.size(); ++i ) {
+        if( item_group::group_is_defined( groups[i] ) ) {
+            available[available_count++] = i;
+        }
+    }
+    if( available_count == 0 ) {
+        return false;
+    }
+    const size_t picked = available[static_cast<size_t>( rng( 0, static_cast<int>( available_count - 1 ) ) )];
+    return spawn_scavenging_group_item( here, p, groups[picked], birthday );
+}
+} // namespace
+
+void apply_scavenging_loot_bonus( map &here, int submap_x, int submap_y, int z,
+                                  const time_point &birthday )
+{
+    const int ammo_ppm = scavenging_loot_chance_ppm( "sp_loot_ammo_pct" );
+    const int provisions_ppm = scavenging_loot_chance_ppm( "sp_loot_provisions_pct" );
+    const int medicine_ppm = scavenging_loot_chance_ppm( "sp_loot_medicine_pct" );
+    const int rare_ppm = scavenging_loot_chance_ppm( "sp_loot_rare_pct" );
+    if( ammo_ppm == 0 && provisions_ppm == 0 && medicine_ppm == 0 && rare_ppm == 0 ) {
+        return;
+    }
+
+    static const item_group_id ammo_group( "ammo_common_boxed" );
+    static const std::array<item_group_id, 2> provision_groups = {
+        item_group_id( "SUS_fridge" ), item_group_id( "vending_drink" )
+    };
+    static const item_group_id medicine_group( "drugs_pharmacy" );
+    static const std::array<item_group_id, 3> rare_groups = {
+        item_group_id( "drugs_rare" ),
+        item_group_id( "book_martial_rare" ),
+        item_group_id( "arsenal_mics_rare" )
+    };
+
+    const int x_begin = submap_x * SEEX;
+    const int y_begin = submap_y * SEEY;
+    for( int x = x_begin; x < x_begin + SEEX; ++x ) {
+        for( int y = y_begin; y < y_begin + SEEY; ++y ) {
+            const tripoint_bub_ms p( x, y, z );
+            if( !here.has_flag_ter_or_furn( ter_furn_flag::TFLAG_CONTAINER, p ) ||
+                !here.can_put_items_ter_furn( p ) ||
+                here.has_flag( "FIRE_CONTAINER", p ) ||
+                here.has_flag( "LIQUIDCONT", p ) ||
+                here.has_flag( "USABLE_FIRE", p ) ) {
+                continue;
+            }
+
+            if( ammo_ppm > 0 && rng( 1, 1000000 ) <= ammo_ppm ) {
+                spawn_scavenging_group_item( here, p, ammo_group, birthday );
+            }
+            if( provisions_ppm > 0 && rng( 1, 1000000 ) <= provisions_ppm ) {
+                spawn_scavenging_group_item( here, p, provision_groups, birthday );
+            }
+            if( medicine_ppm > 0 && rng( 1, 1000000 ) <= medicine_ppm ) {
+                spawn_scavenging_group_item( here, p, medicine_group, birthday );
+            }
+            if( rare_ppm > 0 && rng( 1, 1000000 ) <= rare_ppm ) {
+                spawn_scavenging_group_item( here, p, rare_groups, birthday );
+            }
+        }
+    }
+}
+
+namespace
+{
 const itype_id dimensional_pouch_type_id( "ncmm_survivor_dimensional_pouch" );
 
 void sync_mana_hand_carrier()
@@ -6188,7 +6301,7 @@ int run_gameplay_smoke()
 
         module_call_scope survivor_scope( survivor_id );
         survivor_perk_count = perk_count();
-        constexpr size_t survivor_minimum_perk_count = 374;
+        constexpr size_t survivor_minimum_perk_count = 378;
         log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: Survivor test surface resolved." );
         if( survivor_perk_count < survivor_minimum_perk_count || !perk_reset() || !perk_recalc() ) {
             write_gameplay_smoke_result( false, "survivor_catalog_or_reset",
@@ -6247,6 +6360,35 @@ int run_gameplay_smoke()
         get_avatar().calc_encumbrance();
         if( !perk_reset() || !perk_recalc() ) return suspension_fail();
         log_line( NCMM_LOG_INFO, "Telekinetic Suspension: all body parts, ranks 0/1/2/3/reset, rounding and NPC isolation PASS." );
+
+        const auto scavenging_loot_fail = [&]() {
+            write_gameplay_smoke_result( false, "scavenging_container_loot",
+                                         aws_setting_count, aws_hook_count, survivor_perk_count );
+            return 154;
+        };
+        const auto verify_scavenging_loot = [&]( const char *perk_name, const char *modifier_name,
+                double rank1, double rank2, double rank3 ) {
+            const size_t perk_index = find_perk_index( perk_name );
+            if( perk_index >= survivor_perk_count || perk_max_rank( perk_index ) != 3 ) {
+                return false;
+            }
+            const double expected[] = { 0.0, rank1, rank2, rank3 };
+            for( int rank = 1; rank <= 3; ++rank ) {
+                if( !perk_reset() || !perk_set_rank( perk_index, rank ) || !perk_recalc() ||
+                    std::abs( gameplay_modifier( modifier_name ) - expected[rank] ) > 0.0000001 ) {
+                    return false;
+                }
+            }
+            return perk_reset() && perk_recalc();
+        };
+        if( !verify_scavenging_loot( "gl_ammo_scrounger", "sp_loot_ammo_pct", 0.25, 0.50, 1.00 ) ||
+            !verify_scavenging_loot( "gl_provision_scrounger", "sp_loot_provisions_pct", 0.25, 0.50, 1.00 ) ||
+            !verify_scavenging_loot( "gl_medical_scrounger", "sp_loot_medicine_pct", 0.25, 0.50, 1.00 ) ||
+            !verify_scavenging_loot( "gl_rare_find", "sp_loot_rare_pct", 0.02, 0.05, 0.08 ) ) {
+            return scavenging_loot_fail();
+        }
+        log_line( NCMM_LOG_INFO,
+                  "Scavenging container loot: exact 0.25/0.5/1 and 0.02/0.05/0.08 rank chances PASS." );
 
         // First prove that the exact release DLL can hold its full current perk catalog at max rank
         // simultaneously and recompute its aggregate state without crashing or

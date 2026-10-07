@@ -1291,7 +1291,7 @@ bool survivor_semantic_matrix( void *lib )
     }
 
     const size_t perk_count = count();
-    if( perk_count != 374 ) {
+    if( perk_count != 378 ) {
         std::cerr << "Survivor perk catalog count changed unexpectedly: " << perk_count << '\n';
         return false;
     }
@@ -1361,6 +1361,39 @@ bool survivor_semantic_matrix( void *lib )
     }
     if( !reset() || !recalculate() || !survivor_modifiers_empty() ) return false;
 
+    struct scavenging_loot_fixture {
+        const char *perk;
+        const char *effect;
+        double rank1;
+        double rank2;
+        double rank3;
+    };
+    const scavenging_loot_fixture scavenging_loot_fixtures[] = {
+        { "gl_ammo_scrounger", "sp_loot_ammo_pct", 0.25, 0.50, 1.00 },
+        { "gl_provision_scrounger", "sp_loot_provisions_pct", 0.25, 0.50, 1.00 },
+        { "gl_medical_scrounger", "sp_loot_medicine_pct", 0.25, 0.50, 1.00 },
+        { "gl_rare_find", "sp_loot_rare_pct", 0.02, 0.05, 0.08 }
+    };
+    for( const scavenging_loot_fixture &fixture : scavenging_loot_fixtures ) {
+        const auto it = index.find( fixture.perk );
+        if( it == index.end() || max_rank( it->second ) != 3 || kind( it->second ) != 1 ||
+            integration( it->second ) != 0 || effect_count( it->second ) != 1 ||
+            std::strcmp( effect_id( it->second, 0 ), fixture.effect ) != 0 ) {
+            std::cerr << "Scavenging loot perk metadata mismatch: " << fixture.perk << '\n';
+            return false;
+        }
+        const double expected[] = { 0.0, fixture.rank1, fixture.rank2, fixture.rank3 };
+        for( int rank = 1; rank <= 3; ++rank ) {
+            if( !reset() || !set_rank( it->second, rank ) || !recalculate() ||
+                !nearly_equal( survivor_modifier_value( fixture.effect ), expected[rank], 1.0e-9 ) ) {
+                std::cerr << "Scavenging loot exact rank chance mismatch: " << fixture.perk
+                          << " rank=" << rank << '\n';
+                return false;
+            }
+        }
+    }
+    if( !reset() || !recalculate() || !survivor_modifiers_empty() ) return false;
+
     const auto mana_vamp_it = index.find( "mg_mana_vampirism" );
     if( mana_vamp_it == index.end() ) {
         std::cerr << "Survivor Magiclysm mana-vampirism perk missing from catalog\n";
@@ -1388,7 +1421,9 @@ bool survivor_semantic_matrix( void *lib )
         "healing_pct", "read_speed_pct", "craft_speed_pct"
     };
     const std::set<std::string> host_consumed_modifiers = {
-        "mg_dimensional_pouch_rank"
+        "mg_dimensional_pouch_rank",
+        "sp_loot_ammo_pct", "sp_loot_provisions_pct",
+        "sp_loot_medicine_pct", "sp_loot_rare_pct"
     };
     std::set<std::string> declared_effect_ids;
     for( size_t i = 0; i < perk_count; ++i ) {

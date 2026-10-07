@@ -10,13 +10,28 @@ foreach($needle in @(
 )) {
     if(-not $suspensionSource.Contains($needle)){throw "Telekinetic Suspension contract missing: $needle"}
 }
+foreach($needle in @(
+    '"gl_ammo_scrounger", branch_id::scavenging, 3, 12, currency_id::perk, "g_awareness"',
+    '"gl_provision_scrounger", branch_id::scavenging, 4, 18, currency_id::perk, "gl_ammo_scrounger"',
+    '"gl_medical_scrounger", branch_id::scavenging, 5, 24, currency_id::perk, "gl_provision_scrounger"',
+    '"gl_rare_find", branch_id::scavenging, 6, 30, currency_id::perk, "gl_medical_scrounger"',
+    '{ "sp_loot_ammo_pct", 0.25 }',
+    '{ "sp_loot_provisions_pct", 0.25 }',
+    '{ "sp_loot_medicine_pct", 0.25 }',
+    '{ "sp_loot_rare_pct", 0.02 }',
+    'loot_rank_scale[] = { 0.0, 1.0, 2.0, 4.0 }',
+    'rare_loot_rank_scale[] = { 0.0, 1.0, 2.5, 4.0 }',
+    '"sp_loot_ammo_pct", "sp_loot_provisions_pct", "sp_loot_medicine_pct", "sp_loot_rare_pct"'
+)) {
+    if(-not $suspensionSource.Contains($needle)){throw "Scavenging loot perk contract missing: $needle"}
+}
 # Use the production patch function against a vanilla fixture, including CRLF and
 # repeated application. Refuse an unknown upstream bodypart implementation.
 $patchPath=Join-Path $PackageRoot 'host_patch/Apply-NCMMHostPatch.ps1'
 $tokens=$null; $errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile($patchPath,[ref]$tokens,[ref]$errors)
 if($errors.Count){throw 'Host patch parse failure'}
-foreach($name in @('Normalize-Lf','Replace-ExactlyOnce','Patch-BodypartEncumbrance')) {
+foreach($name in @('Normalize-Lf','Replace-ExactlyOnce','Patch-BodypartEncumbrance','Patch-MapgenScavengingLoot')) {
     $definition=@($ast.FindAll({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $name},$true))
     if($definition.Count -ne 1){throw "Missing production function: $name"}
     Invoke-Expression $definition[0].Extent.Text
@@ -30,7 +45,49 @@ foreach($needle in @('!mon.is_avatar()', 'ncmm::gameplay_modifier( "encumbrance_
 $rejected=$false
 try { $null=Patch-BodypartEncumbrance ($fixture.Replace('modify_encumbrance','unknown_encumbrance')) } catch { $rejected=$true }
 if(-not $rejected){throw 'Unknown encumbrance source was silently accepted'}
+
+$mapgenFixture=@'
+#include "mapgen.h"
+                    if( omt->has_flag( oter_flags::pp_generate_ruined ) ) {
+                        pp_generator_aftershock_ruin.obj().execute( *this, omt_point, nullptr );
+                    }
+                }
+            }
+        }
+    }
+
+    const weather_generator &wgen = get_weather().get_cur_weather_gen();
+'@
+$mapgenPatched=Patch-MapgenScavengingLoot $mapgenFixture
+if((Patch-MapgenScavengingLoot $mapgenPatched) -cne $mapgenPatched){throw 'Scavenging mapgen patch not idempotent'}
+foreach($needle in @(
+    '#include "ncmm_loader.h"',
+    'const tripoint_rel_sm ncmm_pos( ncmm_gridx, ncmm_gridy, gridz );',
+    '!generated.at( get_nonant( ncmm_pos ) ) || !save_results',
+    'ncmm::apply_scavenging_loot_bonus( *this, ncmm_gridx, ncmm_gridy, gridz, when );'
+)) {
+    if(-not $mapgenPatched.Contains($needle)){throw "Scavenging mapgen consumer missing: $needle"}
+}
+$mapgenRejected=$false
+try { $null=Patch-MapgenScavengingLoot ($mapgenFixture.Replace('pp_generator_aftershock_ruin','unknown_post_process')) } catch { $mapgenRejected=$true }
+if(-not $mapgenRejected){throw 'Unknown mapgen source was silently accepted'}
+$contractsLoot=Get-Content (Join-Path $PackageRoot 'compat\contracts.json') -Raw|ConvertFrom-Json
+if(@($contractsLoot.contracts|Where-Object{$_.id -eq 'mapgen_scavenging_loot.source.v1'}).Count -ne 1){throw 'Scavenging mapgen source contract missing.'}
+
 $payload=[IO.File]::ReadAllText((Join-Path $PackageRoot 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1'))
+foreach($needle in @(
+    'function Apply-SurvivorScavengingLoot0150',
+    '$replaceLoot0150 = {',
+    'Scavenging loot transform anchor missing:',
+    'survivor.scavenging-loot-modifier-definitions',
+    '"sp_loot_ammo_pct", "sp_loot_provisions_pct", "sp_loot_medicine_pct", "sp_loot_rare_pct"',
+    'Apply-SurvivorScavengingLoot0150'
+)) {
+    if(-not $payload.Contains($needle)){throw "Scavenging cumulative transform contract missing: $needle"}
+}
+if($payload.Contains('Replace-ExactlyOnce $lootSource0150')) {
+    throw 'Scavenging cumulative transform still depends on external Replace-ExactlyOnce.'
+}
 
 # Survivor Progression 0.10.0 Mechanical Perks regression contracts.
 # Historical gameplay/content contracts stay pinned here; build-cache marker/fingerprint are version-current and are checked by the 0.13.0 block below.
