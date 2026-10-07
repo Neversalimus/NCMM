@@ -277,30 +277,43 @@ foreach($required011x in @(
     'Replace-TextBlock $sp $killOld0113 $killNew0113'
 )) { if(-not $payload.Contains($required011x)){ throw "Survivor 0.11.x normalized-transform contract missing: $required011x" } }
 
-# HOTFIX13: chargen lifecycle isolation + physical tree-row collision regression.
-foreach($lifecycleNeedle013 in @(
-    'HOTFIX13 chargen-safe character state availability',
+# HOTFIX13: chargen lifecycle isolation is canonical Host state; tree-row
+# collision repair remains a Survivor source transform.
+$hostSource013=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp'))
+foreach($hostLifecycleNeedle013 in @(
     'return g != nullptr && !g->new_game && world_generator != nullptr &&',
-    'if( !api_v2_world_announced || !character_state_available() || !api_v2_token_safe( hook_id ) ) return 0.0;',
+    'if( !api_v2_world_announced || !character_state_available() || !api_v2_token_safe( hook_id ) ) return 0.0;'
+)){
+    if(-not $hostSource013.Contains($hostLifecycleNeedle013)){
+        throw ('HOTFIX13 canonical Host lifecycle contract missing: '+$hostLifecycleNeedle013)
+    }
+}
+if(([regex]::Matches($hostSource013,[regex]::Escape('if( !api_v2_world_announced || !character_state_available() || !api_v2_token_safe( hook_id ) ) return 0.0;'))).Count -ne 2){
+    throw 'HOTFIX13 canonical Host runtime-hook lifecycle gate must cover both generic and Creature hook paths.'
+}
+foreach($retiredStateTransformNeedle013 in @(
+    '$characterStateOld013 = @''',
+    '$characterStateNew013 = @''',
+    'HOTFIX13 chargen-safe character state availability',
+    'HOTFIX13 generated Host character-state lifecycle guard missing.',
+    'HOTFIX13 generated Host retained chargen-unsafe character-state predicate.',
+    'HOTFIX13 generated Host runtime-hook lifecycle gates expected 2.'
+)){
+    if($payload.Contains($retiredStateTransformNeedle013)){
+        throw ('HOTFIX13 retired Host source transform/audit returned to payload: '+$retiredStateTransformNeedle013)
+    }
+}
+foreach($layoutNeedle013 in @(
     'HOTFIX13 tree row physical deconfliction',
     'std::map<int, std::vector<size_t>> ncmm_row_nodes;',
     'std::stable_sort( row_nodes.begin(), row_nodes.end()',
-    'next_x2 += 2;'
-)) { if(-not $payload.Contains($lifecycleNeedle013)){ throw ('HOTFIX13 lifecycle/layout contract missing: '+$lifecycleNeedle013) } }
-if(([regex]::Matches($payload,[regex]::Escape('if( !api_v2_world_announced || !character_state_available() || !api_v2_token_safe( hook_id ) ) return 0.0;'))).Count -lt 2){
-    throw 'HOTFIX13 runtime-hook lifecycle gate must cover both generic and Creature hook paths.'
-}
-foreach($stateTransformNeedle013 in @(
-    '$characterStateOld013 = @''',
-    '$characterStateNew013 = @''',
-    "Replace-TextBlock `$loader20 `$characterStateOld013 `$characterStateNew013 'HOTFIX13 chargen-safe character state availability'"
-)){if(-not $payload.Contains($stateTransformNeedle013)){throw ('HOTFIX13 character-state transform contract missing: '+$stateTransformNeedle013)}}
-foreach($generatedAudit013 in @(
-    'HOTFIX13 generated Host character-state lifecycle guard missing.',
-    'HOTFIX13 generated Host retained chargen-unsafe character-state predicate.',
-    'HOTFIX13 generated Host runtime-hook lifecycle gates expected 2.',
+    'next_x2 += 2;',
     'HOTFIX13 generated tree-layout audit missing:'
-)){if(-not $payload.Contains($generatedAudit013)){throw ('HOTFIX13 generated-source audit contract missing: '+$generatedAudit013)}}
+)){
+    if(-not $payload.Contains($layoutNeedle013)){
+        throw ('HOTFIX13 tree-layout contract missing: '+$layoutNeedle013)
+    }
+}
 
 # Model the exact post-routing row deconfliction invariant: a parent-centering collision
 # at x2=2 must be repaired to distinct physical lanes, including duplicate declared columns.

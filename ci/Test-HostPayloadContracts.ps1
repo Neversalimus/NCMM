@@ -113,13 +113,91 @@ if($expectedHostVersion -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$'){throw "Invalid Ho
 if([string]$m.host_version -ne $expectedHostVersion -or [string]$m.ncmm_api -ne '1.9' -or [string]$m.host_api_v2 -ne '2.3'){throw 'Host API 2.3 Core manifest identity mismatch.'}
 foreach($cap in @('host_api.v2.core','character.virtual_items.v1','events.core.v2','settings.typed.v2','character.modifiers.v2','runtime_settings.bindings.v2','runtime_hooks.registry.v2','worldgen.bindings.v2','module.lifecycle.query.v2')){if(@($m.self_test.required_capabilities) -notcontains $cap){throw "Host API 2.1 required capability missing: $cap"}}
 if(@($hostComponent.provides) -notcontains 'host_api_v2:2.3' -or @($hostComponent.provides) -notcontains 'character.virtual_items.v1' -or @($hostComponent.provides) -notcontains 'runtime_settings.bindings.v2'){throw 'Host API 2.3 component catalog mismatch.'}
-foreach($n in @('function Apply-NcmmHostApi20Core','#define NCMM_HOST_API_V2_CORE_MAJOR 2u','typedef struct ncmm_host_api_v2_core {','const ncmm_host_api_v2_core api_v2_core = {','runtime_hook_bind_modifier_v2','worldgen_hook_bind_setting_v2','Apply-NcmmHostApi20Core')){if(-not $payload.Contains($n)){throw "Host API 2.0 payload contract missing: $n"}}
+foreach($n in @(
+    'function Apply-NcmmHostApi20Core',
+    '#define NCMM_HOST_API_V2_CORE_MAJOR 2u',
+    'typedef struct ncmm_host_api_v2_core {',
+    'query_interface',
+    'checked-in canonical Host owns Host API 2.x implementation and declarations',
+    'Apply-NcmmHostApi20Core'
+)){if(-not $payload.Contains($n)){throw "Host API 2.0 compatibility-stage payload contract missing: $n"}}
 # Patched-source audit must distinguish the required query_interface_v2 forward declaration
 # from its single implementation.  A raw substring count is intentionally invalid because both
 # declaration and definition begin with the same function name/signature.
 $sdkCurrent=Get-Content (Join-Path $PackageRoot 'sdk\ncmm_api.h') -Raw
 $hostHeaderCurrent=Get-Content (Join-Path $PackageRoot 'host_patch\ncmm_loader.h') -Raw
 $hostSourceCurrent=[IO.File]::ReadAllText((Join-Path $PackageRoot 'host_patch\ncmm_loader.cpp'))
+
+# Host API 2.x implementation is final in the checked-in canonical Host.  The
+# historical API2 compatibility stage may advance SDK/runtime package surfaces,
+# but must not synthesize or rewrite ncmm_loader.cpp/.h anymore.
+foreach($hostApi20Needle0171 in @(
+    'const ncmm_host_api_v2_core api_v2_core = {',
+    'const void *query_interface_v2(',
+    'runtime_hook_bind_modifier_v2',
+    'worldgen_hook_bind_setting_v2',
+    'dispatch_event_v2',
+    '"host_api.v2.core"',
+    '"events.core.v2"',
+    '"settings.typed.v2"',
+    '"character.modifiers.v2"',
+    '"runtime_hooks.registry.v2"',
+    '"worldgen.bindings.v2"',
+    '"module.lifecycle.query.v2"',
+    'return g != nullptr && !g->new_game && world_generator != nullptr &&'
+)){
+    if(-not $hostSourceCurrent.Contains($hostApi20Needle0171)){
+        throw ('Canonical Host API 2.x source contract missing: '+$hostApi20Needle0171)
+    }
+}
+foreach($hostApi20HeaderNeedle0171 in @(
+    'double runtime_hook_modifier( const char *hook_id',
+    'void runtime_event_notify( uint32_t event_id );',
+    'bool worldgen_hook_bound( const char *hook_id );',
+    'int worldgen_hook_bool( const char *hook_id, int fallback );',
+    'int64_t worldgen_hook_i64( const char *hook_id, int64_t fallback );',
+    'double worldgen_hook_f64( const char *hook_id, double fallback );'
+)){
+    if(-not $hostHeaderCurrent.Contains($hostApi20HeaderNeedle0171)){
+        throw ('Canonical Host API 2.x header contract missing: '+$hostApi20HeaderNeedle0171)
+    }
+}
+
+$hostApi20StageStart0171=$payload.IndexOf('function Apply-NcmmHostApi20Core')
+$hostApi20StageEnd0171=$payload.IndexOf('function Apply-AwsWorldgenHostApi20',$hostApi20StageStart0171)
+if($hostApi20StageStart0171 -lt 0 -or $hostApi20StageEnd0171 -le $hostApi20StageStart0171){
+    throw 'Host API 2.0 compatibility-stage payload boundary missing.'
+}
+$hostApi20Stage0171=$payload.Substring($hostApi20StageStart0171,$hostApi20StageEnd0171-$hostApi20StageStart0171)
+foreach($hostApi20StageNeedle0171 in @(
+    '#define NCMM_API_VERSION_MINOR 9u',
+    '#define NCMM_HOST_API_V2_CORE_MAJOR 2u',
+    'typedef struct ncmm_host_api_v2_core {',
+    'private const string RuntimeVersion = "0.8.0";',
+    'NCMM Host API v1 / NCMM 0.8.0 module contract',
+    'checked-in canonical Host owns Host API 2.x implementation and declarations'
+)){
+    if(-not $hostApi20Stage0171.Contains($hostApi20StageNeedle0171)){
+        throw ('Host API 2.0 compatibility-stage contract missing: '+$hostApi20StageNeedle0171)
+    }
+}
+foreach($hostApi20StageForbidden0171 in @(
+    'host_patch\ncmm_loader.cpp',
+    'host_patch\ncmm_loader.h',
+    '$loader20 =',
+    '$header20 =',
+    'Write-Utf8NoBom $loader20Path',
+    'Write-Utf8NoBom $loader20HeaderPath',
+    'const ncmm_host_api_v2_core api_v2_core = {',
+    'runtime_hook_bind_modifier_v2',
+    'worldgen_hook_bind_setting_v2',
+    'dispatch_event_v2'
+)){
+    if($hostApi20Stage0171.Contains($hostApi20StageForbidden0171)){
+        throw ('Host API 2.0 compatibility stage still rewrites transient Host: '+$hostApi20StageForbidden0171)
+    }
+}
+
 if(([regex]::Matches($hostSourceCurrent,[regex]::Escape('remove_worn_items_with( []( const item &candidate )'))).Count -ne 2){
     throw 'Host worn-item cleanup predicates must use const item& for cross-version CDDA compatibility.'
 }
@@ -396,19 +474,46 @@ if($payload.Contains('v8 mechanics contract audit missing:')){throw 'Stale pre-H
 foreach($n in @('Host API 2.0 mechanics contract audit missing:','Survivor 0.9.15 mechanics audit missing:','Host API 2.0 mechanics optimization audit missing:')){
     if(-not $payload.Contains($n)){throw ('Host API 2.0 migration audit contract missing: '+$n)}
 }
-# Host API 2.0 legacy modifier cleanup must remove both ordinary map entries with a comma
-# and the final map entry without a comma.  secx_duration_pct exposed this PS/source-transform edge case.
-foreach($legacyCleanupProbe in @(
-    '    { "legacy_probe_a", { -1.0, 1.0 } },' + "`n",
-    '    { "legacy_probe_b", { -1.0, 1.0 } }' + "`n"
+# Legacy Survivor modifier-policy cleanup is no longer a source transform.  The
+# checked-in canonical Host must simply contain none of the retired policy IDs or
+# contextual Metaphysics state, and the compatibility stage must not reintroduce
+# the old regex cleanup machinery.
+foreach($legacyHostId0171 in @(
+    'mg_spellcraft_flat','mom_metaphysics_flat','xe_deduction_flat','xe_gramarye_flat',
+    'af_smartgun_flat','af_metaphysics_flat','mg_mana_max_pct','mg_mana_regen_pct',
+    'xe_mana_max_pct','xe_mana_regen_pct','mg_spell_cost_pct','mom_spell_cost_pct',
+    'xe_spell_cost_pct','af_spell_cost_pct','mg_cast_time_pct','mom_cast_time_pct',
+    'xe_cast_time_pct','af_cast_time_pct','mg_fail_pct','mom_fail_pct','xe_fail_pct',
+    'af_fail_pct','mg_spell_xp_pct','mom_spell_xp_pct','xe_spell_xp_pct','af_spell_xp_pct',
+    'mg_spell_power_pct','mom_spell_power_pct','xe_spell_power_pct','af_spell_power_pct',
+    'mg_range_pct','mom_range_pct','xe_range_pct','af_range_pct','mg_aoe_pct','mom_aoe_pct',
+    'xe_aoe_pct','af_aoe_pct','mg_duration_pct','mom_duration_pct','xe_duration_pct',
+    'af_duration_pct','afp_smartgun_flat','afp_spell_cost_pct','afp_cast_time_pct',
+    'afp_fail_pct','afp_spell_xp_pct','afp_spell_power_pct','afp_range_pct','afp_aoe_pct',
+    'afp_duration_pct','sec_damage_pct','sec_resist_pct','sec_elite_damage_pct',
+    'sec_elite_resist_pct','sec_crimson_damage_pct','sec_crimson_resist_pct',
+    'secx_flesh_craft_flat','secx_flesh_combat_flat','secx_spell_cost_pct',
+    'secx_cast_time_pct','secx_fail_pct','secx_spell_xp_pct','secx_spell_power_pct',
+    'secx_range_pct','secx_aoe_pct','secx_duration_pct'
 )){
-    $legacyCleanupId = if($legacyCleanupProbe.Contains('legacy_probe_a')){'legacy_probe_a'}else{'legacy_probe_b'}
-    $legacyCleanupPattern = '(?m)^[ \t]*\{ "' + [regex]::Escape($legacyCleanupId) + '", \{[^\r\n]+\} \}[ \t]*,?[ \t]*\r?\n?'
-    if([regex]::Matches($legacyCleanupProbe,$legacyCleanupPattern).Count -ne 1){
-        throw ('Host API 2.0 legacy modifier cleanup does not match final/no-comma map entry: '+$legacyCleanupId)
+    if($hostSourceCurrent.Contains('"'+$legacyHostId0171+'"')){
+        throw ('Canonical Host still embeds retired Survivor modifier policy: '+$legacyHostId0171)
     }
 }
-if(-not $payload.Contains('\}[ \t]*,?[ \t]*\r?\n?')){throw 'Host API 2.0 optional-comma legacy cleanup pattern missing.'}
+if($hostSourceCurrent.Contains('contextual_metaphysics_')){
+    throw 'Canonical Host still embeds retired contextual Metaphysics state.'
+}
+foreach($legacyCleanupStageNeedle0171 in @(
+    '$legacyDynamicIds20',
+    '$legacyCleanupPattern',
+    'duplicate legacy modifier policy',
+    '\}[ \t]*,?[ \t]*\r?\n?'
+)){
+    if($hostApi20Stage0171.Contains($legacyCleanupStageNeedle0171)){
+        throw ('Host API 2.0 compatibility stage retained obsolete Host cleanup machinery: '+$legacyCleanupStageNeedle0171)
+    }
+}
+
 # AWS 0.6.3 manifest migration must follow the real generated 0.6.1 manifest contract:
 # API 1.7 and requires ending in api.versioning.v1.  It must not depend on ui.theme.v1.
 foreach($n in @('[int]$manifestObj.api_min_minor -ne 7','$manifestObj.api_min_minor = 9',"'host_api.v2.core','settings.typed.v2','worldgen.bindings.v2'",'AWS 0.6.3 expected exactly 48 geography bindings')){
@@ -537,15 +642,26 @@ foreach($line18 in ($payloadHotfix18 -split "`r?`n")) {
         throw ('PS5.1 unsafe interpolated variable before colon: ' + $line18.Trim())
     }
 }
-if(-not $payloadHotfix18.Contains('${publicCount20}: $publicNeedle20')) { throw 'Hotfix18 braced publicCount20 diagnostic regression.' }
+# HOTFIX18 is now enforced generically above.  The old publicCount20 diagnostic
+# lived inside the retired Host source-mutator and must not return.
+if($payloadHotfix18.Contains('${publicCount20}: $publicNeedle20')) {
+    throw 'Retired Hotfix18 publicCount20 diagnostic returned with Host source mutation.'
+}
 
-# HOTFIX17 regression: legacy contextual cleanup must happen before Host API2 public-hook insertion.
-$payloadHotfix17 = Get-Content (Join-Path $PackageRoot 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1') -Raw
-$cleanupNeedle17 = "`$contextStart20 = `$loader20.IndexOf('double contextual_metaphysics_swap( double value )')"
-$cleanupPos17 = $payloadHotfix17.IndexOf($cleanupNeedle17)
-$insertNeedle17 = "`$loader20 = `$loader20.Replace(`$publicAnchor20,`$publicHooks20 + `$publicAnchor20)"
-$insertPos17 = $payloadHotfix17.IndexOf($insertNeedle17)
-if($cleanupPos17 -lt 0 -or $insertPos17 -lt 0 -or $cleanupPos17 -gt $insertPos17) { throw 'Hotfix17 Host API2 cleanup/insertion order regression.' }
+# HOTFIX17 is now architectural rather than ordering-sensitive: the checked-in
+# canonical Host owns the public hooks, while the API2 compatibility stage must
+# contain neither contextual cleanup nor post-cleanup hook reinsertion.
+foreach($retiredHotfix17Needle in @(
+    '$contextStart20',
+    '$publicHooks20',
+    '$publicAnchor20',
+    'post-cleanup public hook',
+    'contextual_metaphysics_swap( double value )'
+)) {
+    if($hostApi20Stage0171.Contains($retiredHotfix17Needle)) {
+        throw ('Retired Hotfix17 Host mutation returned to API2 compatibility stage: '+$retiredHotfix17Needle)
+    }
+}
 foreach($needle17 in @(
     'double runtime_hook_modifier( const char *hook_id, const char *subject_id,',
     'std::string runtime_source_mod_swap( const std::string &source_mod_id )',
@@ -556,7 +672,7 @@ foreach($needle17 in @(
     'int64_t worldgen_hook_i64( const char *hook_id, int64_t fallback )',
     'double worldgen_hook_f64( const char *hook_id, double fallback )'
 )) {
-    if(-not $payloadHotfix17.Contains($needle17)) { throw "Hotfix17 public hook fixture missing: $needle17" }
+    if(-not $hostSourceCurrent.Contains($needle17)) { throw "Canonical Host public hook contract missing: $needle17" }
 }
 
 
