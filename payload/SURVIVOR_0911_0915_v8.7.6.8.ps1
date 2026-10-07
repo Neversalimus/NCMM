@@ -21551,10 +21551,37 @@ function Apply-SurvivorManaHandDirectCount0152([string]$Root) {
     $meleePath0152direct = Join-Path $src0152direct 'melee.cpp'
     if(Test-Path $meleePath0152direct -PathType Leaf) {
         $meleeText0152direct = Normalize-Lf ([IO.File]::ReadAllText($meleePath0152direct))
-        if(-not $meleeText0152direct.Contains('ncmm::primary_mana_hand_melee_weapon') -or
-           -not $meleeText0152direct.Contains($directExpression0152)) {
-            throw 'Mana Hand primary melee is not using the final direct virtual-hand count.'
+        if(-not $meleeText0152direct.Contains('ncmm::primary_mana_hand_melee_weapon')) {
+            throw 'Mana Hand primary melee is not delegated to the Host-owned weapon resolver.'
         }
+    }
+
+    # Primary melee ownership/count policy is canonical Host code.  The engine
+    # handler delegates to primary_mana_hand_melee_weapon(); verify the Host helper
+    # reads the same final aggregate count instead of requiring an obsolete inline
+    # gameplay_modifier() read in melee.cpp.
+    $canonicalHostPath0152direct = Join-Path $NcmmRoot 'host_patch\ncmm_loader.cpp'
+    if(-not(Test-Path $canonicalHostPath0152direct -PathType Leaf)) {
+        throw 'Mana Hand direct-count verifier cannot find canonical Host source.'
+    }
+    $canonicalHost0152direct = Normalize-Lf ([IO.File]::ReadAllText($canonicalHostPath0152direct))
+    $countStart0152direct = $canonicalHost0152direct.IndexOf('int survivor_mana_hand_count()',[StringComparison]::Ordinal)
+    $countEnd0152direct = $canonicalHost0152direct.IndexOf('bool survivor_mana_hand_marker(',$countStart0152direct,[StringComparison]::Ordinal)
+    $primaryStart0152direct = $canonicalHost0152direct.IndexOf('item *primary_mana_hand_melee_weapon( Character &who )',[StringComparison]::Ordinal)
+    $primaryEnd0152direct = $canonicalHost0152direct.IndexOf('mana_hand_item_slot mana_hand_item_slot_of(',$primaryStart0152direct,[StringComparison]::Ordinal)
+    if($countStart0152direct -lt 0 -or $countEnd0152direct -le $countStart0152direct -or
+       $primaryStart0152direct -lt 0 -or $primaryEnd0152direct -le $primaryStart0152direct) {
+        throw 'Mana Hand canonical Host ownership/count helper boundary missing.'
+    }
+    $countSection0152direct = $canonicalHost0152direct.Substring(
+        $countStart0152direct,$countEnd0152direct-$countStart0152direct)
+    $primarySection0152direct = $canonicalHost0152direct.Substring(
+        $primaryStart0152direct,$primaryEnd0152direct-$primaryStart0152direct)
+    if(-not $countSection0152direct.Contains($directExpression0152)) {
+        throw 'Mana Hand Host count helper is not using the final direct virtual-hand count.'
+    }
+    if(-not $primarySection0152direct.Contains('const int hand_count = survivor_mana_hand_count();')) {
+        throw 'Mana Hand primary melee Host resolver is not using the canonical hand-count helper.'
     }
 
     Write-Host ("Survivor 0.15.2 Mana Hand direct count: VERIFIED ("+
