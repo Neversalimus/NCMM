@@ -303,14 +303,33 @@ if($null -ne (Find-CanonicalHostMutation0177 $readOnlyFixture0177)){
     throw 'Canonical Host mutation guard self-test rejected read-only verification.'
 }
 
-$applyStageMatches0177=[regex]::Matches(
+$payloadTokens0177=$null
+$payloadParseErrors0177=$null
+$payloadAst0177=[System.Management.Automation.Language.Parser]::ParseInput(
     $payload,
-    '(?ms)^function (Apply-[A-Za-z0-9_-]+)(?:\([^\r\n]*\))?\s*\{(.*?)(?=^function Apply-|\z)'
+    [ref]$payloadTokens0177,
+    [ref]$payloadParseErrors0177
+)
+if(@($payloadParseErrors0177).Count -ne 0){
+    throw (
+        'Canonical Host mutation guard could not parse cumulative payload: '+
+        (@($payloadParseErrors0177 | ForEach-Object { $_.Message }) -join '; ')
+    )
+}
+$applyStageAsts0177=@(
+    $payloadAst0177.FindAll(
+        {
+            param($node0177)
+            $node0177 -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $node0177.Name -like 'Apply-*'
+        },
+        $true
+    )
 )
 $canonicalHostWriterStages0177=@()
-foreach($applyStageMatch0177 in $applyStageMatches0177){
-    $applyStageName0177=$applyStageMatch0177.Groups[1].Value
-    $applyStageBody0177=$applyStageMatch0177.Groups[2].Value
+foreach($applyStageAst0177 in $applyStageAsts0177){
+    $applyStageName0177=$applyStageAst0177.Name
+    $applyStageBody0177=$applyStageAst0177.Body.Extent.Text
     $hostMutation0177=Find-CanonicalHostMutation0177 $applyStageBody0177
     if($null -ne $hostMutation0177){
         $canonicalHostWriterStages0177+=@($applyStageName0177)
@@ -320,7 +339,7 @@ foreach($applyStageMatch0177 in $applyStageMatches0177){
         )
     }
 }
-if($applyStageMatches0177.Count -lt 40){
+if($applyStageAsts0177.Count -lt 40){
     throw 'Canonical Host mutation guard did not inspect the expected Apply-* stage set.'
 }
 if($canonicalHostWriterStages0177.Count -ne 0){
