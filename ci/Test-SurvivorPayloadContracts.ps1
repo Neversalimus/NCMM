@@ -74,6 +74,17 @@ $contractsLoot=Get-Content (Join-Path $PackageRoot 'compat\contracts.json') -Raw
 if(@($contractsLoot.contracts|Where-Object{$_.id -eq 'mapgen_scavenging_loot.source.v1'}).Count -ne 1){throw 'Scavenging mapgen source contract missing.'}
 
 $payload=[IO.File]::ReadAllText((Join-Path $PackageRoot 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1'))
+foreach($needle in @(
+    'function Apply-SurvivorScavengingLoot0150',
+    '$replaceLoot0150 = {',
+    'Scavenging loot transform anchor missing:',
+    'Apply-SurvivorScavengingLoot0150'
+)) {
+    if(-not $payload.Contains($needle)){throw "Scavenging cumulative transform contract missing: $needle"}
+}
+if($payload.Contains('Replace-ExactlyOnce $lootSource0150')) {
+    throw 'Scavenging cumulative transform still depends on external Replace-ExactlyOnce.'
+}
 
 # Survivor Progression 0.10.0 Mechanical Perks regression contracts.
 # Historical gameplay/content contracts stay pinned here; build-cache marker/fingerprint are version-current and are checked by the 0.13.0 block below.
