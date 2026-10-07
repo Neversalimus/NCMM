@@ -474,19 +474,46 @@ if($payload.Contains('v8 mechanics contract audit missing:')){throw 'Stale pre-H
 foreach($n in @('Host API 2.0 mechanics contract audit missing:','Survivor 0.9.15 mechanics audit missing:','Host API 2.0 mechanics optimization audit missing:')){
     if(-not $payload.Contains($n)){throw ('Host API 2.0 migration audit contract missing: '+$n)}
 }
-# Host API 2.0 legacy modifier cleanup must remove both ordinary map entries with a comma
-# and the final map entry without a comma.  secx_duration_pct exposed this PS/source-transform edge case.
-foreach($legacyCleanupProbe in @(
-    '    { "legacy_probe_a", { -1.0, 1.0 } },' + "`n",
-    '    { "legacy_probe_b", { -1.0, 1.0 } }' + "`n"
+# Legacy Survivor modifier-policy cleanup is no longer a source transform.  The
+# checked-in canonical Host must simply contain none of the retired policy IDs or
+# contextual Metaphysics state, and the compatibility stage must not reintroduce
+# the old regex cleanup machinery.
+foreach($legacyHostId0171 in @(
+    'mg_spellcraft_flat','mom_metaphysics_flat','xe_deduction_flat','xe_gramarye_flat',
+    'af_smartgun_flat','af_metaphysics_flat','mg_mana_max_pct','mg_mana_regen_pct',
+    'xe_mana_max_pct','xe_mana_regen_pct','mg_spell_cost_pct','mom_spell_cost_pct',
+    'xe_spell_cost_pct','af_spell_cost_pct','mg_cast_time_pct','mom_cast_time_pct',
+    'xe_cast_time_pct','af_cast_time_pct','mg_fail_pct','mom_fail_pct','xe_fail_pct',
+    'af_fail_pct','mg_spell_xp_pct','mom_spell_xp_pct','xe_spell_xp_pct','af_spell_xp_pct',
+    'mg_spell_power_pct','mom_spell_power_pct','xe_spell_power_pct','af_spell_power_pct',
+    'mg_range_pct','mom_range_pct','xe_range_pct','af_range_pct','mg_aoe_pct','mom_aoe_pct',
+    'xe_aoe_pct','af_aoe_pct','mg_duration_pct','mom_duration_pct','xe_duration_pct',
+    'af_duration_pct','afp_smartgun_flat','afp_spell_cost_pct','afp_cast_time_pct',
+    'afp_fail_pct','afp_spell_xp_pct','afp_spell_power_pct','afp_range_pct','afp_aoe_pct',
+    'afp_duration_pct','sec_damage_pct','sec_resist_pct','sec_elite_damage_pct',
+    'sec_elite_resist_pct','sec_crimson_damage_pct','sec_crimson_resist_pct',
+    'secx_flesh_craft_flat','secx_flesh_combat_flat','secx_spell_cost_pct',
+    'secx_cast_time_pct','secx_fail_pct','secx_spell_xp_pct','secx_spell_power_pct',
+    'secx_range_pct','secx_aoe_pct','secx_duration_pct'
 )){
-    $legacyCleanupId = if($legacyCleanupProbe.Contains('legacy_probe_a')){'legacy_probe_a'}else{'legacy_probe_b'}
-    $legacyCleanupPattern = '(?m)^[ \t]*\{ "' + [regex]::Escape($legacyCleanupId) + '", \{[^\r\n]+\} \}[ \t]*,?[ \t]*\r?\n?'
-    if([regex]::Matches($legacyCleanupProbe,$legacyCleanupPattern).Count -ne 1){
-        throw ('Host API 2.0 legacy modifier cleanup does not match final/no-comma map entry: '+$legacyCleanupId)
+    if($hostSourceCurrent.Contains('"'+$legacyHostId0171+'"')){
+        throw ('Canonical Host still embeds retired Survivor modifier policy: '+$legacyHostId0171)
     }
 }
-if(-not $payload.Contains('\}[ \t]*,?[ \t]*\r?\n?')){throw 'Host API 2.0 optional-comma legacy cleanup pattern missing.'}
+if($hostSourceCurrent.Contains('contextual_metaphysics_')){
+    throw 'Canonical Host still embeds retired contextual Metaphysics state.'
+}
+foreach($legacyCleanupStageNeedle0171 in @(
+    '$legacyDynamicIds20',
+    '$legacyCleanupPattern',
+    'duplicate legacy modifier policy',
+    '\}[ \t]*,?[ \t]*\r?\n?'
+)){
+    if($hostApi20Stage0171.Contains($legacyCleanupStageNeedle0171)){
+        throw ('Host API 2.0 compatibility stage retained obsolete Host cleanup machinery: '+$legacyCleanupStageNeedle0171)
+    }
+}
+
 # AWS 0.6.3 manifest migration must follow the real generated 0.6.1 manifest contract:
 # API 1.7 and requires ending in api.versioning.v1.  It must not depend on ui.theme.v1.
 foreach($n in @('[int]$manifestObj.api_min_minor -ne 7','$manifestObj.api_min_minor = 9',"'host_api.v2.core','settings.typed.v2','worldgen.bindings.v2'",'AWS 0.6.3 expected exactly 48 geography bindings')){
