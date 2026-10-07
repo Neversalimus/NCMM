@@ -281,35 +281,28 @@ function Find-CanonicalHostMutation0177([string]$Body) {
 
 # Guard self-test: alternate roots and filesystem replacement operations must
 # remain covered, while read-only canonical Host verification stays allowed.
-$canonicalHostMutationFixtures0177=@(
-    [pscustomobject]@{
-        Body=@'
+$copyMutationFixture0177=@'
 $loader = Join-Path $Root 'host_patch\ncmm_loader.cpp'
 Copy-Item $replacement $loader -Force
 '@
-        ShouldFail=$true
-    },
-    [pscustomobject]@{
-        Body=@'
+if($null -eq (Find-CanonicalHostMutation0177 $copyMutationFixture0177)){
+    throw 'Canonical Host mutation guard self-test missed bound Copy-Item.'
+}
+
+$moveMutationFixture0177=@'
 Move-Item -Path $replacement -Destination (Join-Path $PackageRoot 'host_patch\ncmm_loader.h') -Force
 '@
-        ShouldFail=$true
-    },
-    [pscustomobject]@{
-        Body=@'
+if($null -eq (Find-CanonicalHostMutation0177 $moveMutationFixture0177)){
+    throw 'Canonical Host mutation guard self-test missed direct Move-Item.'
+}
+
+$readOnlyFixture0177=@'
 $loader = Join-Path $NcmmRoot 'host_patch\ncmm_loader.cpp'
 $source = [IO.File]::ReadAllText($loader)
 if(-not $source.Contains('initialize')) { throw 'missing' }
 '@
-        ShouldFail=$false
-    }
-)
-foreach($canonicalHostMutationFixture0177 in $canonicalHostMutationFixtures0177){
-    $fixtureMutation0177=Find-CanonicalHostMutation0177 $canonicalHostMutationFixture0177.Body
-    $fixtureShouldFail0177=[bool]$canonicalHostMutationFixture0177.ShouldFail
-    if($fixtureShouldFail0177 -ne ($null -ne $fixtureMutation0177)){
-        throw 'Canonical Host mutation guard self-test failed.'
-    }
+if($null -ne (Find-CanonicalHostMutation0177 $readOnlyFixture0177)){
+    throw 'Canonical Host mutation guard self-test rejected read-only verification.'
 }
 
 $applyStageMatches0177=[regex]::Matches(
