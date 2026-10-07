@@ -14,6 +14,7 @@ $inputH = Join-Path $src 'input.h'
 $inputCpp = Join-Path $src 'input.cpp'
 $handleAction = Join-Path $src 'handle_action.cpp'
 $characterCpp = Join-Path $src 'character.cpp'
+$bodypartCpp = Join-Path $src 'bodypart.cpp'
 $playerDisplayCpp = Join-Path $src 'player_display.cpp'
 $characterHealthCpp = Join-Path $src 'character_health.cpp'
 $meleeCpp = Join-Path $src 'melee.cpp'
@@ -101,7 +102,28 @@ function Patch-PlayerDisplayMoveCost([string]$Text) {
 '@ 'player-display.move-cost'
 }
 
+function Patch-BodypartEncumbrance([string]$Text) {
+    $Text = Normalize-Lf $Text
+    if ($Text.Contains('ncmm::gameplay_modifier( "encumbrance_pct" )')) { return $Text }
+    $Text = Replace-ExactlyOnce $Text '#include "bodypart.h"' ('#include "bodypart.h"' + "`n" + '#include "ncmm_loader.h"' + "`n" + '#include <cmath>') 'bodypart.include-ncmm'
+    return Replace-ExactlyOnce $Text @'
+    return std::max( 0.0, mon.enchantment_cache->modify_encumbrance( id, encumb_data.encumbrance ) );
+'@ @'
+    const int base_encumbrance = std::max( 0.0,
+                                mon.enchantment_cache->modify_encumbrance( id, encumb_data.encumbrance ) );
+    if( !mon.is_avatar() ) {
+        return base_encumbrance;
+    }
+    // Read the unmodified cache each time: rank changes/reset need no equipment
+    // refresh, and repeated queries cannot compound the reduction.
+    const double multiplier = std::max( 0.0,
+                              1.0 + ncmm::gameplay_modifier( "encumbrance_pct" ) / 100.0 );
+    return std::max( 0, static_cast<int>( std::lround( base_encumbrance * multiplier ) ) );
+'@ 'bodypart.encumbrance'
+}
+
 if (Test-Path $marker) {
+    Write-Utf8 $bodypartCpp (Patch-BodypartEncumbrance (Read-Utf8 $bodypartCpp))
     $markerText = [System.IO.File]::ReadAllText($marker)
     if (-not $markerText.Contains('NCMM 0.8.2')) {
         throw 'Older NCMM host patch marker detected; clean upstream source required for NCMM 0.8.2.'
@@ -224,6 +246,7 @@ $contractScript = Join-Path (Split-Path $PSScriptRoot -Parent) 'ci\Test-SourceCo
 # ErrorActionPreference=Stop. $LASTEXITCODE belongs to native processes and may be
 # stale from an earlier git/gh command, so it must not gate this contract preflight.
 & $contractScript -SourceRoot $SourceRoot
+Write-Utf8 $bodypartCpp (Patch-BodypartEncumbrance (Read-Utf8 $bodypartCpp))
 
 $hOriginal = Read-Utf8 $optionsH
 $cOriginal = Read-Utf8 $optionsCpp
@@ -1992,6 +2015,7 @@ int Character::run_cost( int base_cost, bool diag ) const
     return std::max( 1, static_cast<int>( movecost ) );
 }
 '@ 'character.move-cost'
+
 
 $hh = Replace-ExactlyOnce $hh '#include "npc.h"' ('#include "npc.h"' + "`n" + '#include "ncmm_loader.h"') 'health.include-ncmm'
 $hh = Replace-ExactlyOnce $hh @'

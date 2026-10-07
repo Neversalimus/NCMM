@@ -1,6 +1,35 @@
 param([string]$PackageRoot=(Split-Path $PSScriptRoot -Parent))
 $ErrorActionPreference='Stop'
 $PackageRoot=(Resolve-Path $PackageRoot).Path
+$suspensionSource=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods/SurvivorProgression/src/survivor_progression.cpp'))
+foreach($needle in @(
+    '"mom_telekinetic_suspension", branch_id::mastery, 3, 9, currency_id::perk, "mom_kinetic_control"',
+    '{ "mom_telekinetic_suspension", 3, 1.0 }',
+    '{ "encumbrance_pct", -5 }',
+    '"Telekinetic Suspension", "Телекинетическая подвеска"'
+)) {
+    if(-not $suspensionSource.Contains($needle)){throw "Telekinetic Suspension contract missing: $needle"}
+}
+# Use the production patch function against a vanilla fixture, including CRLF and
+# repeated application. Refuse an unknown upstream bodypart implementation.
+$patchPath=Join-Path $PackageRoot 'host_patch/Apply-NCMMHostPatch.ps1'
+$tokens=$null; $errors=$null
+$ast=[Management.Automation.Language.Parser]::ParseFile($patchPath,[ref]$tokens,[ref]$errors)
+if($errors.Count){throw 'Host patch parse failure'}
+foreach($name in @('Normalize-Lf','Replace-ExactlyOnce','Patch-BodypartEncumbrance')) {
+    $definition=@($ast.FindAll({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $name},$true))
+    if($definition.Count -ne 1){throw "Missing production function: $name"}
+    Invoke-Expression $definition[0].Extent.Text
+}
+$fixture="#include `"bodypart.h`"`r`nint bodypart::get_final_encumbrance( const Creature &mon ) const`r`n{`r`n    return std::max( 0.0, mon.enchantment_cache->modify_encumbrance( id, encumb_data.encumbrance ) );`r`n}`r`n"
+$patched=Patch-BodypartEncumbrance $fixture
+if((Patch-BodypartEncumbrance $patched) -cne $patched){throw 'Encumbrance patch not idempotent'}
+foreach($needle in @('!mon.is_avatar()', 'ncmm::gameplay_modifier( "encumbrance_pct" )', 'std::lround( base_encumbrance * multiplier )')) {
+    if(-not $patched.Contains($needle)){throw "Encumbrance consumer missing: $needle"}
+}
+$rejected=$false
+try { $null=Patch-BodypartEncumbrance ($fixture.Replace('modify_encumbrance','unknown_encumbrance')) } catch { $rejected=$true }
+if(-not $rejected){throw 'Unknown encumbrance source was silently accepted'}
 $payload=[IO.File]::ReadAllText((Join-Path $PackageRoot 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1'))
 
 # Survivor Progression 0.10.0 Mechanical Perks regression contracts.
