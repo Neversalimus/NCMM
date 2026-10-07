@@ -551,6 +551,37 @@ foreach($n in @(
     'MODULE DETAILS'
 )){if(-not $payload.Contains($n)){throw ('NCMM manager/settings payload contract missing: '+$n)}}
 
+# The canonical checked-in Host, not the historical ManagerUi migration, owns
+# the final manager surface.  Keep these semantics independently guarded before
+# pruning any legacy source-generation stage.
+foreach($managerHostNeedle0167 in @(
+    'struct module_setting_meta {',
+    'std::string manager_description( const std::filesystem::path &directory )',
+    'std::vector<const module_setting_meta *> manager_settings_for( const std::string &module_id )',
+    'std::string manager_setting_value( const module_setting_meta &setting )',
+    'bool manager_adjust_setting( const module_setting_meta &setting, int direction )',
+    'bool manager_persist_settings()',
+    'void show_manager()',
+    'input_context ctxt( "NCMM_MANAGER", keyboard_mode::keychar );',
+    'tr_ui( "MODULE DETAILS", "СВЕДЕНИЯ О МОДЕ" )',
+    'std::string settings_menu_label()',
+    'std::string version_label()'
+)){
+    if(-not $hostSourceCurrent.Contains($managerHostNeedle0167)){
+        throw ('Canonical NCMM manager Host surface missing: '+$managerHostNeedle0167)
+    }
+}
+foreach($managerHeaderNeedle0167 in @(
+    'std::string settings_menu_label();',
+    'std::string version_label();',
+    'void register_gameplay_actions( input_context &ctxt );',
+    'bool handle_gameplay_action( const std::string &action );'
+)){
+    if(-not $hostHeaderCurrent.Contains($managerHeaderNeedle0167)){
+        throw ('Canonical NCMM manager Host declaration missing: '+$managerHeaderNeedle0167)
+    }
+}
+
 
 # Real gameplay smoke must remain generated from the portable payload as well as
 # present in the checked-in Host source.  This guards the semantic QA path itself.
