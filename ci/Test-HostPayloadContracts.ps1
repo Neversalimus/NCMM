@@ -354,17 +354,15 @@ if($canonicalHostWriterStages0177.Count -ne 0){
 # is allowed to advance module/data surfaces only. No later Host materialization,
 # replacement, deletion, or rewrite is permitted, including through path aliases
 # that were bound earlier in the file.
-$canonicalSyncInvocation0178="`nApply-NcmmBallisticHost082CanonicalSync`n"
-$canonicalSyncCount0178=([regex]::Matches(
-    $payload,
-    [regex]::Escape($canonicalSyncInvocation0178)
-)).Count
+$canonicalSyncPattern0178='(?m)^\\s*Apply-NcmmBallisticHost082CanonicalSync\\s*$'
+$canonicalSyncMatches0178=[regex]::Matches($payload,$canonicalSyncPattern0178)
+$canonicalSyncCount0178=$canonicalSyncMatches0178.Count
 if($canonicalSyncCount0178 -ne 1){
     throw ('Expected exactly one canonical Host sync invocation, found '+$canonicalSyncCount0178)
 }
-$canonicalSyncAt0178=$payload.IndexOf($canonicalSyncInvocation0178,[StringComparison]::Ordinal)
+$canonicalSyncMatch0178=$canonicalSyncMatches0178[0]
 $postCanonicalPayload0178=$payload.Substring(
-    $canonicalSyncAt0178+$canonicalSyncInvocation0178.Length
+    $canonicalSyncMatch0178.Index+$canonicalSyncMatch0178.Length
 )
 
 $allCanonicalHostAliases0178=@()
@@ -404,10 +402,9 @@ $loaderPath = Join-Path $NcmmRoot 'host_patch\ncmm_loader.cpp'
 Apply-NcmmBallisticHost082CanonicalSync
 Write-Utf8NoBom $loaderPath $loader
 '@
-$fixtureSyncMarker0178="`nApply-NcmmBallisticHost082CanonicalSync`n"
-$fixtureSyncAt0178=$postSyncFixture0178.IndexOf($fixtureSyncMarker0178,[StringComparison]::Ordinal)
-if($fixtureSyncAt0178 -lt 0){ throw 'Post-sync canonical Host guard fixture boundary missing.' }
-$fixtureTail0178=$postSyncFixture0178.Substring($fixtureSyncAt0178+$fixtureSyncMarker0178.Length)
+$fixtureSyncMatch0178=[regex]::Match($postSyncFixture0178,$canonicalSyncPattern0178)
+if(-not $fixtureSyncMatch0178.Success){ throw 'Post-sync canonical Host guard fixture boundary missing.' }
+$fixtureTail0178=$postSyncFixture0178.Substring($fixtureSyncMatch0178.Index+$fixtureSyncMatch0178.Length)
 $fixtureCaught0178=$false
 foreach($fixtureLine0178 in @($fixtureTail0178 -split "\r?\n")){
     if($fixtureLine0178 -match $postCanonicalHostMutator0178 -and $fixtureLine0178.Contains('$loaderPath')){
