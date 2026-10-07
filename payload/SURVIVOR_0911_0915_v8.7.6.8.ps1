@@ -22164,16 +22164,12 @@ function Apply-SurvivorScavengingLoot0150 {
 '@
     $lootSource0150 = & $replaceLoot0150 $lootSource0150 $legend0150 $lootPerks0150 'survivor.scavenging-loot-perks'
     $lootRuleAnchor0150 = '        { "g_route", 3, 1.0 / 3.0 }, { "a_adapt", 5, 0.20 },'
-    $lootRuleReplacement0150 = $lootRuleAnchor0150 + "\`n" +
-        '        { "gl_ammo_scrounger", 3, 0.0 }, { "gl_provision_scrounger", 3, 0.0 },' + "\`n" +
+    $lootRuleReplacement0150 = $lootRuleAnchor0150 + "`n" +
+        '        { "gl_ammo_scrounger", 3, 0.0 }, { "gl_provision_scrounger", 3, 0.0 },' + "`n" +
         '        { "gl_medical_scrounger", 3, 0.0 }, { "gl_rare_find", 3, 0.0 },'
     $lootSource0150 = & $replaceLoot0150 $lootSource0150 $lootRuleAnchor0150 $lootRuleReplacement0150 'survivor.scavenging-loot-ranks'
-    $lootScaleAnchor0150 = @'
-    rank = std::min( rank, perk_max_rank( perk ) );
-    return 1.0 + static_cast<double>( rank - 1 ) * perk_extra_rank_scale( perk );
-'@
-    $lootScaleReplacement0150 = @'
-    rank = std::min( rank, perk_max_rank( perk ) );
+    $lootScaleAnchor0150 = '    rank = std::min( rank, perk_max_rank( perk ) );'
+    $lootScaleReplacement0150 = $lootScaleAnchor0150 + "`n" + @'
     const std::string id = perk.id ? perk.id : "";
     if( id == "gl_ammo_scrounger" || id == "gl_provision_scrounger" ||
         id == "gl_medical_scrounger" ) {
@@ -22184,14 +22180,13 @@ function Apply-SurvivorScavengingLoot0150 {
         static constexpr double rare_loot_rank_scale[] = { 0.0, 1.0, 2.5, 4.0 };
         return rare_loot_rank_scale[rank];
     }
-    return 1.0 + static_cast<double>( rank - 1 ) * perk_extra_rank_scale( perk );
 '@
     $lootSource0150 = & $replaceLoot0150 $lootSource0150 $lootScaleAnchor0150 $lootScaleReplacement0150 'survivor.scavenging-loot-scale'
     $lootLabelAnchor0150 = '    if( id == "sp_lockpick_alarm_avoid_pct" ) return tr( "Alarm bypass %", "Обход сигнализации %" );'
-    $lootLabelReplacement0150 = $lootLabelAnchor0150 + "\`n" +
-        '    if( id == "sp_loot_ammo_pct" ) return tr( "Bonus ammo per container %", "Бонусные боеприпасы в контейнере %" );' + "\`n" +
-        '    if( id == "sp_loot_provisions_pct" ) return tr( "Bonus provisions per container %", "Бонусная провизия в контейнере %" );' + "\`n" +
-        '    if( id == "sp_loot_medicine_pct" ) return tr( "Bonus medicine per container %", "Бонусные медикаменты в контейнере %" );' + "\`n" +
+    $lootLabelReplacement0150 = $lootLabelAnchor0150 + "`n" +
+        '    if( id == "sp_loot_ammo_pct" ) return tr( "Bonus ammo per container %", "Бонусные боеприпасы в контейнере %" );' + "`n" +
+        '    if( id == "sp_loot_provisions_pct" ) return tr( "Bonus provisions per container %", "Бонусная провизия в контейнере %" );' + "`n" +
+        '    if( id == "sp_loot_medicine_pct" ) return tr( "Bonus medicine per container %", "Бонусные медикаменты в контейнере %" );' + "`n" +
         '    if( id == "sp_loot_rare_pct" ) return tr( "Rare find per container %", "Редкая находка в контейнере %" );'
     $lootSource0150 = & $replaceLoot0150 $lootSource0150 $lootLabelAnchor0150 $lootLabelReplacement0150 'survivor.scavenging-loot-labels'
     Write-Utf8NoBom $spPath $lootSource0150
