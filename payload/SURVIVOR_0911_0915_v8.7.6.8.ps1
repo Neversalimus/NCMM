@@ -21523,6 +21523,7 @@ function Apply-SurvivorManaHandDirectCount0152([string]$Root) {
     $legacyPattern0152direct =
         'ncmm::runtime_hook_modifier\(\s*"magic\.virtual_hand_count",\s*nullptr,\s*"magiclysm",\s*nullptr,\s*nullptr\s*\)'
     $directExpression0152 = 'ncmm::gameplay_modifier( "mg_virtual_hand_count" )'
+    $hostDirectExpression0152 = 'gameplay_modifier( "mg_virtual_hand_count" )'
     $verifiedCount0152direct = 0
 
     foreach($sourceName0152direct in $sourceNames0152direct) {
@@ -21581,7 +21582,7 @@ function Apply-SurvivorManaHandDirectCount0152([string]$Root) {
         $countStart0152direct,$countEnd0152direct-$countStart0152direct)
     $primarySection0152direct = $canonicalHost0152direct.Substring(
         $primaryStart0152direct,$primaryEnd0152direct-$primaryStart0152direct)
-    if(-not $countSection0152direct.Contains($directExpression0152)) {
+    if(-not $countSection0152direct.Contains($hostDirectExpression0152)) {
         throw 'Mana Hand Host count helper is not using the final direct virtual-hand count.'
     }
     if(-not $primarySection0152direct.Contains('const int hand_count = survivor_mana_hand_count();')) {
