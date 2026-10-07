@@ -12805,6 +12805,7 @@ function Apply-NcmmRuntimeInfrastructureV8766([string]$Root) {
             'NCMM world settings Default/Experimental split',
             'https://github.com/Neversalimus/NCMM/issues',
             'manager_reason_text',
+            'write_diagnostics_summary();',
             'diagnostics.txt'
         )) {
             if (-not ($hCheck.Contains($needle) -or $oCheck.Contains($needle) -or $dCheck.Contains($needle) -or $lCheck.Contains($needle))) {
@@ -13469,134 +13470,10 @@ static repetition_folder rep_folder;
         Write-Utf8NoBom $debugCpp $d
     }
 
-    # Human-readable manager diagnostics and a durable support snapshot.
-    $l = Normalize-Lf ([IO.File]::ReadAllText($loaderCpp))
-    if (-not $l.Contains('std::string manager_reason_text')) {
-        $managerAnchor = 'std::vector<manager_entry> manager_entries()'
-        $managerInfra = @'
-std::string manager_reason_text( const std::string &reason )
-{
-    if( reason.empty() || reason == "ok" ) {
-        return reason;
-    }
-    if( reason == "api_versioning_capability_required" ) {
-        return tr_ui( "manifest declares API version but does not require api.versioning.v1",
-                      "manifest объявляет версию API, но не требует api.versioning.v1" );
-    }
-    if( reason == "api_version_mismatch" ) {
-        return tr_ui( "module requires a different NCMM API version",
-                      "модулю требуется другая версия NCMM API" );
-    }
-    if( reason == "loader_api_mismatch" ) {
-        return tr_ui( "module requires a different loader API",
-                      "модулю требуется другая версия loader API" );
-    }
-    if( reason == "capability_contract_mismatch" ) {
-        return tr_ui( "mod.json and DLL capability lists do not match",
-                      "списки capabilities в mod.json и DLL не совпадают" );
-    }
-    if( reason == "manifest_descriptor_mismatch" ) {
-        return tr_ui( "mod.json and DLL id/version do not match",
-                      "id/версия в mod.json и DLL не совпадают" );
-    }
-    if( reason.rfind( "missing_capability:", 0 ) == 0 ) {
-        return tr_ui( "missing host capability: ", "нет возможности host: " ) +
-               reason.substr( std::string( "missing_capability:" ).size() );
-    }
-    return reason;
-}
-
-void write_diagnostics_summary()
-{
-    const std::filesystem::path path = game_root() / "ncmm" / "diagnostics.txt";
-    std::ofstream out( path, std::ios::trunc | std::ios::binary );
-    if( !out ) {
-        return;
-    }
-    out << "NCMM diagnostics\n";
-    out << "support=https://github.com/Neversalimus/NCMM/issues\n";
-    out << "host_version=" << get_host_version() << '\n';
-    out << "loader_api=" << get_loader_api() << '\n';
-    out << "api_version=" << get_api_version_major() << '.' << get_api_version_minor() << '\n';
-    out << "locale=" << current_locale() << '\n';
-    out << "capabilities=";
-    for( size_t i = 0; i < get_capability_count(); ++i ) {
-        if( i != 0 ) {
-            out << ',';
-        }
-        out << get_capability( i );
-    }
-    out << "\nmodules=" << module_states.size() << '\n';
-    for( const module_state &state : module_states ) {
-        out << state.id << " | " << state.version << " | " << state.state
-            << " | " << state.reason << " | " << state.directory.filename().string() << '\n';
-    }
-    out.flush();
-}
-
-std::vector<manager_entry> manager_entries()
-'@
-        $l = Replace-TextBlock $l $managerAnchor $managerInfra 'v8.7.6.6 manager diagnostics infrastructure'
-
-        $reasonOld = '                label += " - " + entry.reason;'
-        $reasonNew = '                label += " - " + manager_reason_text( entry.reason );'
-        if ($l.Contains($reasonOld)) {
-            # Legacy manager already exposed raw reason text: preserve its layout and translate the reason.
-            $l = Replace-TextBlock $l $reasonOld $reasonNew 'v8.7.6.6 manager readable failure reason'
-        } elseif (-not $l.Contains('manager_reason_text( entry.reason )')) {
-            # Intermediate Host 0.8 manager had neither a translated reason nor the new details panel.
-            # Restore the useful detail only for that legacy shape. Host 0.8.1 renders the reason in
-            # the right-hand details panel already, so no source rewrite is needed there.
-            $reasonBlockOld = @'
-            const loaded_mod *runtime = find_loaded( entry.directory );
-            if( runtime != nullptr && runtime->open_ui != nullptr ) {
-                label += tr_ui( " [SETTINGS]", " [НАСТРОЙКИ]" );
-            }
-            menu.addentry( i, true, MENU_AUTOASSIGN, label );
-'@
-            $reasonBlockNew = @'
-            const loaded_mod *runtime = find_loaded( entry.directory );
-            if( runtime != nullptr && runtime->open_ui != nullptr ) {
-                label += tr_ui( " [SETTINGS]", " [НАСТРОЙКИ]" );
-            }
-            if( !entry.reason.empty() && entry.reason != "ok" ) {
-                label += " - " + manager_reason_text( entry.reason );
-            }
-            menu.addentry( i, true, MENU_AUTOASSIGN, label );
-'@
-            $l = Replace-TextBlock $l $reasonBlockOld $reasonBlockNew 'v8.7.6.6 manager readable failure reason current host'
-        }
-
-        $menuEnOld = 'NCMM — Mod Configuration\nPress F2 to open this menu (the key can be changed in Controls). Press Enter to open settings for supported mods.'
-        $menuEnNew = 'NCMM — Mod Configuration\nPress F2 to open this menu (the key can be changed in Controls). Press Enter to open settings for supported mods.\nSupport: https://github.com/Neversalimus/NCMM/issues'
-        $menuRuOld = 'NCMM — Настройка модов\nF2 открывает это меню; клавишу можно изменить в управлении. Enter открывает настройки поддерживаемого мода.'
-        $menuRuNew = 'NCMM — Настройка модов\nF2 открывает это меню; клавишу можно изменить в управлении. Enter открывает настройки поддерживаемого мода.\nПоддержка: https://github.com/Neversalimus/NCMM/issues'
-        if ($l.Contains($menuEnOld) -and $l.Contains($menuRuOld)) {
-            $l = $l.Replace($menuEnOld,$menuEnNew).Replace($menuRuOld,$menuRuNew)
-        } elseif (-not $l.Contains('input_context ctxt( "NCMM_MANAGER"')) {
-            throw 'v8.7.6.6 manager support-text anchor missing.'
-        }
-
-        $readyCallOld = '    mark_ready();'
-        $readyCallNew = "    write_diagnostics_summary();`n    mark_ready();"
-        if (-not $l.Contains($readyCallNew)) {
-            $readyCallCount = ([regex]::Matches($l,[regex]::Escape($readyCallOld))).Count
-            if ($readyCallCount -ne 1) {
-                throw "v8.7.6.6 initialize diagnostics ready-call expected exactly once, found $readyCallCount"
-            }
-            $l = $l.Replace($readyCallOld,$readyCallNew)
-        }
-
-        $showOld = "void show_manager()`n{"
-        $showNew = "void show_manager()`n{`n    write_diagnostics_summary();"
-        if (-not $l.Contains($showNew)) {
-            if (-not $l.Contains($showOld)) {
-                throw 'v8.7.6.6 manager diagnostics refresh anchor missing.'
-            }
-            $l = $l.Replace($showOld,$showNew)
-        }
-        Write-Utf8NoBom $loaderCpp $l
-    }
+    # Manager diagnostics and readable failure reasons are canonical Host code.
+    # This compatibility stage may patch CDDA options/debug sources, but it must not
+    # reopen or rewrite src/ncmm_loader.cpp.  The verifier below checks the copied
+    # canonical Host surface after source generation.
 
     & $verify
     Write-Utf8NoBom $marker "NCMM v8.7.6.6 runtime infrastructure\n"
