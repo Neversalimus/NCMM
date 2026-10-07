@@ -77,6 +77,11 @@ $payloadPath = Join-Path $RepositoryRoot 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps
 if (-not (Test-Path $payloadPath -PathType Leaf)) {
     throw "Canonical payload is missing: $payloadPath"
 }
+
+# Imported payload engine layers execute in this script scope rather than in the
+# cumulative payload's original top-level scope. Preserve the one package context
+# variable still intentionally consumed by a verifier-only layer.
+$script:NcmmRoot = $RepositoryRoot
 $stackManifestPath = Join-Path $RepositoryRoot 'ci\host-patch-stack.json'
 if (-not (Test-Path $stackManifestPath -PathType Leaf)) {
     throw "Certified-host patch stack manifest is missing: $stackManifestPath"
