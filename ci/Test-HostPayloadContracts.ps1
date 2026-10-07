@@ -71,6 +71,21 @@ if([Array]::IndexOf([string[]]$actualCertifiedLayers,'Apply-SurvivorManaHandDire
     throw 'Mana Hand direct-count reconciliation must run after primary melee injection.'
 }
 
+# Certified-host builds import selected cumulative-payload functions into
+# Build-HostPackage.ps1 rather than executing the payload top level. Preserve the
+# package-root context required by verifier-only layers before those functions run.
+$certifiedHostBuilder0179=[IO.File]::ReadAllText((Join-Path $PackageRoot 'ci\Build-HostPackage.ps1'))
+$certifiedHostContextBind0179='$script:NcmmRoot = $RepositoryRoot'
+$certifiedHostImport0179='Import-NcmmPayloadFunctions -PayloadPath $payloadPath -Names $payloadFunctions'
+$certifiedHostContextBindAt0179=$certifiedHostBuilder0179.IndexOf($certifiedHostContextBind0179,[StringComparison]::Ordinal)
+$certifiedHostImportAt0179=$certifiedHostBuilder0179.IndexOf($certifiedHostImport0179,[StringComparison]::Ordinal)
+if($certifiedHostContextBindAt0179 -lt 0){
+    throw 'Certified Host builder does not bind NcmmRoot for imported payload layers.'
+}
+if($certifiedHostImportAt0179 -lt 0 -or $certifiedHostContextBindAt0179 -gt $certifiedHostImportAt0179){
+    throw 'Certified Host payload context must be bound before payload functions are imported.'
+}
+
 
 # RANDOM_DAMAGE tooltip regression: runtime spell-power hooks must affect both the
 # real cast and the pre-cast spell description.  The complete-gate probe forces
