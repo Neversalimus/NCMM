@@ -563,7 +563,7 @@ foreach($managerHostNeedle0167 in @(
     'bool manager_persist_settings()',
     'void show_manager()',
     'input_context ctxt( "NCMM_MANAGER", keyboard_mode::keychar );',
-    'tr_ui( "MODULE DETAILS", "СВЕДЕНИЯ О МОДЕ" )',
+    'tr_ui( "MODULE DETAILS",',
     'std::string settings_menu_label()',
     'std::string version_label()'
 )){
