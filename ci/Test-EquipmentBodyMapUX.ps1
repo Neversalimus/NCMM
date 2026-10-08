@@ -24,6 +24,9 @@ Require ($source.Contains('loc->covers( bp )')) 'real worn-item coverage is miss
 Require ($source.Contains('equipment_body_map_focus = focus;')) 'anatomy focus is no longer interactive'
 Require ($source.Contains('equipment_body_map_reserved_height <= 11')) 'compact layout contract missing'
 Require ($source.Contains('equipment_body_map_reserved_height > 0 ?')) 'worn-column vertical reservation changed'
+Require ($source.Contains('equipment_body_map_reserved_height > 0 &&')) 'hidden panel must gate row reclamation'
+Require ($source.Contains('own_gear_column.set_height( client_height );')) 'hidden panel must restore full worn column height'
+Require ($source.Contains('own_gear_column.prepare_paging( filter );')) 'hidden panel must restore worn paging'
 Require ($source.Contains('set_equipment_body_map();')) 'only regular Inventory should opt into EBM'
 Require (-not $source.Contains('const int third = std::max( 6, content_width / 3 );')) 'old text-column pseudo doll returned'
 
