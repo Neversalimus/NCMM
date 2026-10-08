@@ -502,7 +502,7 @@ const perk_def perks[] = {
     { "mr_kinetic_chain", branch_id::mobility, 6, 36, currency_id::major, "mr_breath_return", "mm_combat_flow", "Kinetic Chain", "Кинетическая цепь", "Criticals return 5 moves; hostile monster kills that grant XP return 10 moves.", "Криты возвращают 5 ед. хода; убийства враждебных монстров, за которые начисляется опыт, — 10 ед. хода.", {{ { "sp_on_crit_moves", 5 }, { "sp_on_kill_moves", 10 }, { nullptr, 0 }, { nullptr, 0 } }}, 2, 0, perk_kind::effect },
 
     { "fr_quality_control", branch_id::crafting, 4, 26, currency_id::perk, "fm_precision_assembly", "fe_theory", "Quality Control", "Контроль качества", "+0.25 to crafting success checks; the displayed success chance uses the same bonus.", "+0,25 к проверкам успеха крафта; отображаемый шанс успеха учитывает тот же бонус.", {{ { "sp_craft_success_roll_flat", 0.25 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
-    { "fr_second_measure", branch_id::crafting, 5, 24, currency_id::perk, "fr_quality_control", "f_master", "Measure Twice", "Семь раз отмерь", "10% chance to prevent a crafting failure before it causes defects, destroys components or removes progress. The next failure check still advances normally.", "10% шанс предотвратить ошибку крафта до появления дефекта, потери компонентов или прогресса. Следующая проверка ошибки всё равно сдвигается вперёд.", {{ { "sp_craft_failure_save_pct", 10 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
+    { "fr_second_measure", branch_id::crafting, 5, 26, currency_id::perk, "fr_quality_control", "f_master", "Measure Twice", "Семь раз отмерь", "10% chance to prevent a crafting failure before it causes defects, destroys components or removes progress. The next failure check still advances normally.", "10% шанс предотвратить ошибку крафта до появления дефекта, потери компонентов или прогресса. Следующая проверка ошибки всё равно сдвигается вперёд.", {{ { "sp_craft_failure_save_pct", 10 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "fr_material_discipline", branch_id::crafting, 5, 26, currency_id::perk, "fm_field_maintenance", "fr_quality_control", "Careful Handling", "Бережная работа", "Each component threatened by a crafting failure has a 25% chance to survive.", "Каждый компонент, которому грозит уничтожение при ошибке крафта, имеет 25% шанс сохраниться.", {{ { "sp_craft_component_loss_reduction_pct", 25 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "fr_failure_analysis", branch_id::crafting, 5, 28, currency_id::perk, "fr_second_measure", "fr_material_discipline", "Failure Analysis", "Анализ ошибок", "Lose 35% less progress when crafting fails.", "При ошибке крафта теряется на 35% меньше прогресса.", {{ { "sp_craft_progress_loss_reduction_pct", 35 }, { nullptr, 0 }, { nullptr, 0 }, { nullptr, 0 } }}, 1, 0, perk_kind::effect },
     { "fr_zero_defect", branch_id::crafting, 6, 38, currency_id::major, "fr_failure_analysis", "fm_masterwork_discipline", "Flawless Work", "Безупречная работа", "+10% chance to prevent a crafting failure, +15% component protection and 20% less progress loss.", "+10% шанс предотвратить ошибку крафта, +15% защиты компонентов и на 20% меньше потери прогресса.", {{ { "sp_craft_failure_save_pct", 10 }, { "sp_craft_component_loss_reduction_pct", 15 }, { "sp_craft_progress_loss_reduction_pct", 20 }, { nullptr, 0 } }}, 3, 0, perk_kind::effect },
@@ -2147,9 +2147,10 @@ void migrate_state()
     }
 
     const int64_t schema = get_state( "schema", 0 );
-    if( schema >= state_schema ) {
+    if( schema > state_schema ) {
         return;
     }
+    const bool upgrading = schema < state_schema;
 
     int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
     set_state( "level", level );
@@ -2157,7 +2158,9 @@ void migrate_state()
     int64_t xp = std::max<int64_t>( 0, get_state( "xp", 0 ) );
     int64_t fraction = std::max<int64_t>( 0, get_state( "xp_fraction", 0 ) );
     if( fraction >= 100 ) {
-        xp += fraction / 100;
+        const int64_t carry = fraction / 100;
+        xp = xp > std::numeric_limits<int64_t>::max() - carry ?
+             std::numeric_limits<int64_t>::max() : xp + carry;
         fraction %= 100;
     }
     set_state( "xp", xp );
@@ -2165,37 +2168,83 @@ void migrate_state()
     set_state( "perk_points", std::max<int64_t>( 0, get_state( "perk_points", 0 ) ) );
     set_state( "major_points", std::max<int64_t>( 0, get_state( "major_points", 0 ) ) );
 
-    // Preserve the old 0.1.x Fast Learner purchase.
-    if( get_state( "fast_learner", 0 ) != 0 ) {
+    // Preserve the old 0.1.x Fast Learner purchase only while upgrading an older schema.
+    if( upgrading && get_state( "fast_learner", 0 ) != 0 ) {
         const perk_def *legacy = find_perk( "a_fast" );
         if( legacy != nullptr && !owned( *legacy ) ) {
             set_state( perk_key( *legacy ), 1 );
         }
     }
 
-    // Base major points continue every five levels forever.
+    // Base major points continue every five levels forever.  Older schemas may
+    // legitimately need missing awards materialized.  Current-schema repair only
+    // restores the accounting invariant so corrupted state cannot duplicate awards.
     const int64_t expected_major_awards = level / 5;
     int64_t major_awarded = std::max<int64_t>( 0, get_state( "major_awarded", 0 ) );
     int64_t major_points = get_state( "major_points", 0 );
-    if( major_awarded < expected_major_awards ) {
+    if( upgrading && major_awarded < expected_major_awards ) {
         major_points += expected_major_awards - major_awarded;
         major_awarded = expected_major_awards;
         set_state( "major_points", major_points );
+    } else {
+        major_awarded = expected_major_awards;
     }
     if( major_awarded > expected_major_awards ) {
         major_awarded = expected_major_awards;
     }
     set_state( "major_awarded", major_awarded );
 
+    // Clamp persisted perk ranks without changing any valid purchase.  This keeps a
+    // damaged save from manufacturing negative ranks or values above a declared cap.
+    for( const perk_def &perk : perks ) {
+        const int64_t raw_rank = get_state( perk_key( perk ), 0 );
+        const int64_t bounded_rank = std::max<int64_t>(
+            0, std::min<int64_t>( perk_max_rank( perk ), raw_rank ) );
+        if( raw_rank != bounded_rank ) {
+            set_state( perk_key( perk ), bounded_rank );
+        }
+    }
+
+    auto resolve_selector = []( int64_t current, int owned_mask ) -> int64_t {
+        if( owned_mask != 0 ) {
+            if( current >= 1 && current <= 3 &&
+                ( owned_mask & ( 1 << static_cast<int>( current - 1 ) ) ) != 0 ) {
+                return current;
+            }
+            for( int slot = 1; slot <= 3; ++slot ) {
+                if( ( owned_mask & ( 1 << ( slot - 1 ) ) ) != 0 ) {
+                    return slot;
+                }
+            }
+        }
+        return current >= 1 && current <= 3 ? current : 0;
+    };
+
     for( branch_id branch : all_branches ) {
         set_state( branch_state_key( branch, "level" ),
                    std::max<int64_t>( 1, get_state( branch_state_key( branch, "level" ), 1 ) ) );
         set_state( branch_state_key( branch, "xp" ),
                    std::max<int64_t>( 0, get_state( branch_state_key( branch, "xp" ), 0 ) ) );
-        const int64_t selected_spec = get_state( specialization_state_key( branch ), 0 );
-        set_state( specialization_state_key( branch ),
-                   selected_spec >= 1 && selected_spec <= 3 ? selected_spec : 0 );
+
+        int owned_mask = 0;
+        for( const perk_def &perk : perks ) {
+            if( perk.branch != branch ) {
+                continue;
+            }
+            const int slot = specialization_root_slot( perk.id );
+            if( slot > 0 && perk_rank( perk ) > 0 ) {
+                owned_mask |= 1 << ( slot - 1 );
+            }
+        }
+        const std::string spec_key = specialization_state_key( branch );
+        set_state( spec_key, resolve_selector( get_state( spec_key, 0 ), owned_mask ) );
+
+        for( const char *suffix : { "rate_fraction", "balance_fraction" } ) {
+            const std::string key = branch_state_key( branch, suffix );
+            set_state( key, std::max<int64_t>( 0, get_state( key, 0 ) ) % 100 );
+        }
     }
+
     for( const char *key : {
              "metric_combat_kills", "metric_combat_kill_xp", "metric_survival_healing",
              "metric_mobility_steps", "metric_crafting_completed", "metric_scavenging_omt",
@@ -2229,9 +2278,16 @@ void migrate_state()
              "prime_aftershock_exoplanet", "prime_aftershock_prime",
              "prime_secronom", "prime_secronom_plus"
          } ) {
-        const int64_t selected = get_state( key, 0 );
-        set_state( key, selected >= 1 && selected <= 3 ? selected : 0 );
+        int owned_mask = 0;
+        for( const perk_def &perk : perks ) {
+            const int slot = mod_prime_root_slot( perk.id );
+            if( slot > 0 && mod_prime_state_key( perk ) == key && perk_rank( perk ) > 0 ) {
+                owned_mask |= 1 << ( slot - 1 );
+            }
+        }
+        set_state( key, resolve_selector( get_state( key, 0 ), owned_mask ) );
     }
+
     set_state( "schema", state_schema );
     effects_dirty = true;
 }
@@ -4308,7 +4364,8 @@ extern "C" NCMM_EXPORT int ncmm_test_perk_scaling_v1( size_t index )
 
 extern "C" NCMM_EXPORT int ncmm_test_perk_integration_v1( size_t index )
 {
-    return index < ncmm_test_perk_count_v1() && integration_perk( perks[index] ) ? 1 : 0;
+    return index < ncmm_test_perk_count_v1() ?
+           static_cast<int>( perk_integration( perks[index] ) ) : -1;
 }
 
 extern "C" NCMM_EXPORT int ncmm_test_perk_max_rank_v1( size_t index )
@@ -4358,6 +4415,83 @@ extern "C" NCMM_EXPORT double ncmm_test_perk_branch_amp_v1( size_t index )
 extern "C" NCMM_EXPORT double ncmm_test_perk_global_amp_v1( size_t index )
 {
     return index < ncmm_test_perk_count_v1() ? perks[index].global_amp_pct : 0.0;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_perk_required_level_v1( size_t index )
+{
+    return index < ncmm_test_perk_count_v1() ? perks[index].required_level : -1;
+}
+
+extern "C" NCMM_EXPORT const char *ncmm_test_perk_prereq_v1( size_t index, int slot )
+{
+    if( index >= ncmm_test_perk_count_v1() ) {
+        return nullptr;
+    }
+    if( slot == 0 ) {
+        return perks[index].prereq1;
+    }
+    if( slot == 1 ) {
+        return perks[index].prereq2;
+    }
+    return nullptr;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_perk_tree_position_v1( size_t index, int *row, int *column )
+{
+    if( index >= ncmm_test_perk_count_v1() || row == nullptr || column == nullptr ) {
+        return 0;
+    }
+
+    const perk_def &perk = perks[index];
+    size_t ordinal = 0;
+    if( integration_perk( perk ) ) {
+        const integration_id integration = perk_integration( perk );
+        for( size_t i = 0; i < index; ++i ) {
+            if( perk_integration( perks[i] ) == integration ) {
+                ++ordinal;
+            }
+        }
+        const std::pair<int, int> position = integration_tree_position( ordinal );
+        *row = position.first;
+        *column = position.second;
+        return 1;
+    }
+
+    for( size_t i = 0; i < index; ++i ) {
+        if( !integration_perk( perks[i] ) && perks[i].branch == perk.branch ) {
+            ++ordinal;
+        }
+    }
+    const std::pair<int, int> position = branch_tree_position( perk.branch, ordinal );
+    *row = position.first;
+    *column = position.second;
+    return 1;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_purchase_perk_v1( size_t index )
+{
+    if( index >= ncmm_test_perk_count_v1() || !character_available() ) {
+        return 0;
+    }
+    return purchase_perk( perks[index] ) ? 1 : 0;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_respec_v1()
+{
+    if( !character_available() ) {
+        return 0;
+    }
+    respec();
+    return 1;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_sanitize_state_v1()
+{
+    if( !character_available() ) {
+        return 0;
+    }
+    migrate_state();
+    return get_state( "schema", 0 ) == state_schema ? 1 : 0;
 }
 
 extern "C" NCMM_EXPORT int ncmm_test_reset_all_perks_v1()
