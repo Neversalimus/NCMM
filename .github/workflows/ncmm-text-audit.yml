@@ -18,6 +18,7 @@ on:
       - 'ci/Test-SurvivorPayloadContracts.ps1'
       - 'ci/Regenerate-PackageIntegrity.ps1'
       - 'ci/Sync-CanonicalPayload.ps1'
+      - 'ci/Test-CanonicalPayloadSync.ps1'
       - 'tests/smoke_host.cpp'
       - 'runtime/NCMMBootstrap.cs'
       - 'compat/package-files.txt'
@@ -43,7 +44,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ncmm-player-facing-text-audit
+  group: ncmm-player-facing-text-audit-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -65,6 +66,11 @@ jobs:
         shell: powershell
         run: |
           .\ci\Sync-CanonicalPayload.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE" -Check
+
+      - name: Test canonical snapshot synchronization guards
+        shell: powershell
+        run: |
+          .\ci\Test-CanonicalPayloadSync.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE"
 
       - name: Validate package integrity freshness
         shell: powershell
