@@ -163,7 +163,7 @@ foreach($module in $nativeModules) {
         }
     }
     foreach($rel in $module.RequiredPayloadFiles) {
-        $required=Join-Path $destination ([string]$rel).Replace('/',[IO.Path]::DirectorySeparatorChar)
+        $required=Join-Path $destination (([string]$rel).Replace('/',[IO.Path]::DirectorySeparatorChar))
         if(-not(Test-Path $required -PathType Leaf)) {
             throw "Native module '$($module.Id)' required packaged file missing: $rel"
         }
