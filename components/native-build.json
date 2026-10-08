@@ -9,7 +9,8 @@
       "build_directory": "_aws_build",
       "missing_contract_smoke": true,
       "extra_smoke_executables": [],
-      "required_payload_files": []
+      "required_payload_files": [],
+      "smoke_profile": "semantic"
     },
     {
       "id": "ballistic_hit_chance",
@@ -18,7 +19,8 @@
       "build_directory": "_ballistic_hit_chance_build",
       "missing_contract_smoke": true,
       "extra_smoke_executables": [],
-      "required_payload_files": []
+      "required_payload_files": [],
+      "smoke_profile": "semantic"
     },
     {
       "id": "equipment_body_map",
@@ -27,7 +29,8 @@
       "build_directory": "_equipment_body_map_build",
       "missing_contract_smoke": true,
       "extra_smoke_executables": [],
-      "required_payload_files": []
+      "required_payload_files": [],
+      "smoke_profile": "semantic"
     },
     {
       "id": "item_glyphs",
@@ -38,7 +41,8 @@
       "extra_smoke_executables": [
         "ncmm_item_glyphs_test.exe"
       ],
-      "required_payload_files": []
+      "required_payload_files": [],
+      "smoke_profile": "semantic"
     },
     {
       "id": "survivor_progression",
@@ -50,7 +54,8 @@
       "required_payload_files": [
         "persistent_data/dimensional_pouch.json",
         "persistent_data/mana_hand_carrier.json"
-      ]
+      ],
+      "smoke_profile": "semantic"
     }
   ]
 }
