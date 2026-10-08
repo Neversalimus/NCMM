@@ -19,16 +19,18 @@ NCMM (Neversalimus Code Mod Manager) — платформа для native/code-�
 
 Survivor Progression сохраняет state schema 8. В текущем исходнике 378 узлов перков; ветки интеграций для поддерживаемых модов появляются только при наличии соответствующих активных world-модов.
 
-### Проверенный релизный снимок — 2026-10-05
+### Актуальная сертификация и релиз
 
-Текущий Full-пакет `ncmm-runtime-v0.8.2` был повторно опубликован после исправлений сертификации Mana Hands.
+Список поддерживаемых CDDA меняется независимо от версии Runtime. Проверяйте
+[актуальный Host feed по точному SHA](feed/index.json) и
+[Full-релиз](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-runtime-v0.8.2).
+Исторические SHA ZIP-файлов в README нельзя использовать для проверки текущих архивов:
+после сертификации файлы релиза могут перепубликоваться под прежним тегом.
 
-- SHA-256 `NCMM_Full_v0.8.2.zip`: `1b10291ad41ddd0794cd49a299c71e63836729ab99d5d5d4b3e072f24eaed1a7`
-- Patch revision certified Host feed: `8f7cdda53cf643483a85c5bbb1fe29ac1c6a46e4e6af17bf176c2f667d7eaeaa`
-- Сертифицированные experimental CDDA: `2026-09-23-0546`, `2026-10-01-1040`, `2026-10-05-1423`.
-- Release gate: Certified Hosts, Real Installation Matrix и Runtime publication успешно пройдены для этого снимка.
+На 2026-10-08 исправления установщика PR #172 прошли Runtime #1398,
+Source/Package Audit #711, Real Installation Matrix #126 и публикацию Runtime #1399.
+Более новые результаты доступны в [Actions](https://github.com/Neversalimus/NCMM/actions).
 
-Эти номера сборок фиксируют проверенный снимок; совместимость Runtime по-прежнему определяется точной идентичностью, а не диапазоном версий.
 
 ## Установка
 
