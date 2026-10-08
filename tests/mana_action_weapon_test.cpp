@@ -1,3 +1,4 @@
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -197,5 +198,51 @@ int main() {
           "generic ownership follows active Mana Hand count");
     check(!ncmm::ranged_weapon_binding_valid(player, pistol),
           "aim binding invalidates when Mana Hands become unavailable");
+    // These functions are extracted from the production Host, not reimplemented
+    // in this test. Protect the three common action paths against accidentally
+    // reintroducing repeated virtual-slot scans or pathological lookup cost.
+    // This is a resolver microbenchmark, not a CDDA turn/TPS benchmark.
+    constexpr int lookup_iterations = 40000;
+    constexpr long long lookup_budget_ms = 2500;
+    auto benchmark = [&]( const char *label, item *expected, int max_slot_reads ) {
+        for( int n = 0; n < 1000; ++n ) {
+            (void)ncmm::ranged_weapon_candidates( player, fire );
+        }
+        slot_reads = 0;
+        const auto started = std::chrono::steady_clock::now();
+        for( int n = 0; n < lookup_iterations; ++n ) {
+            const auto results = ncmm::ranged_weapon_candidates( player, fire );
+            check( results.size() == 1 && results[0].value == expected,
+                   "ranged resolver benchmark changed weapon selection" );
+        }
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now() - started ).count();
+        std::cout << "Mana resolver hot path " << label << ": " << ms << "ms / "
+                  << lookup_iterations << " selections, slot reads=" << slot_reads
+                  << " (budget " << lookup_budget_ms << "ms, "
+                  << max_slot_reads << " reads/selection)\n";
+        check( slot_reads <= max_slot_reads * lookup_iterations,
+               "ranged resolver repeated virtual slot lookup" );
+        check( ms <= lookup_budget_ms, "ranged resolver exceeded microbenchmark budget" );
+    };
+
+    hand_count = 2;
+    pistol.gunmod = false;
+    pistol.mode.valid = true;
+    pistol.mode.melee_mode = false;
+    pair = nullptr;
+    third = &rifle;
+    fourth = nullptr;
+    player.physical = &pistol;
+    benchmark( "physical-firearm", &pistol, 0 );
+
+    player.physical = &sword;
+    third = &pistol;
+    fourth = nullptr;
+    benchmark( "single-Mana-Hand", &pistol, 3 );
+
+    pair = &rifle;
+    benchmark( "paired-Mana-Hands", &rifle, 1 );
+
     std::cout << "Mana action weapon resolver behavior: PASS\n";
 }
