@@ -112,6 +112,9 @@ try {
     if($LASTEXITCODE -ne 0) { throw 'Generated module missing-capability smoke failed.' }
     & $SmokeHostExecutable $dll.FullName '--generic=wrong_module@1.2.3'
     if($LASTEXITCODE -eq 0) { throw 'Generated module smoke accepted wrong ID.' }
+    # The rejected-ID case intentionally returns nonzero; clear it before
+    # reporting the overall contract suite as PASS to outer PS5.1 callers.
+    $global:LASTEXITCODE=0
   }
   Write-Host ("NCMM SDK scaffolder: PASS ({0} deterministic files, {1} reject cases; compile={2})." -f $required.Count,$bad.Count,$Compile) -ForegroundColor Green
 } finally {
