@@ -117,7 +117,20 @@ if (-not $PayloadOnly) {
 & (Join-Path $RepositoryRoot 'ci\Test-ManaActionWeaponContracts.ps1') -PackageRoot $RepositoryRoot -RunBehavior
 if($LASTEXITCODE -ne 0) { throw 'Mana action resolver contract test failed.' }
 
-$smoke=$null
+# Shared runtime/manifest smoke belongs to the platform, not to AWS.
+$platformTestBuild=Join-Path $OutputRoot '_platform_tests_build'
+cmake -S (Join-Path $RepositoryRoot 'tests') -B $platformTestBuild -A x64
+if($LASTEXITCODE -ne 0) { throw 'NCMM platform smoke CMake configure failed.' }
+cmake --build $platformTestBuild --config Release
+if($LASTEXITCODE -ne 0) { throw 'NCMM platform smoke build failed.' }
+$smoke=Get-ChildItem $platformTestBuild -Filter 'ncmm_smoke_host.exe' -Recurse -File | Select-Object -First 1
+$manifestPolicyTest=Get-ChildItem $platformTestBuild -Filter 'ncmm_manifest_policy_test.exe' -Recurse -File | Select-Object -First 1
+if(-not $smoke -or -not $manifestPolicyTest) {
+    throw 'NCMM platform runtime/manifest smoke executable missing.'
+}
+& $manifestPolicyTest.FullName
+if($LASTEXITCODE -ne 0) { throw 'NCMM platform manifest policy test failed.' }
+
 foreach($module in $nativeModules) {
     $source=Join-Path $RepositoryRoot ('mods\' + $module.Folder)
     $build=Join-Path $OutputRoot $module.BuildDirectory
@@ -128,15 +141,6 @@ foreach($module in $nativeModules) {
     $dll=Get-ChildItem $build -Filter 'ncmm_mod.dll' -Recurse -File | Select-Object -First 1
     if(-not $dll) { throw "Native module DLL missing after build: $($module.Id)" }
 
-    # AWS provides the shared smoke_host binary. Preserve its existing first-build
-    # semantics; smoke all later modules against that same production test harness.
-    if($null -eq $smoke) {
-        if($module.Id -ne 'advanced_world_settings') {
-            throw 'Advanced World Settings must initialize shared smoke_host first.'
-        }
-        $smoke=Get-ChildItem $build -Filter 'ncmm_smoke_host.exe' -Recurse -File | Select-Object -First 1
-        if(-not $smoke) { throw 'Shared NCMM smoke host missing after AWS build.' }
-    }
     foreach($exeName in $module.ExtraSmokeExecutables) {
         $extra=Get-ChildItem $build -Filter ([string]$exeName) -Recurse -File | Select-Object -First 1
         if(-not $extra) { throw "Native module '$($module.Id)' extra test executable missing: $exeName" }
@@ -282,6 +286,7 @@ if ($hostPatchSource.Contains("if (`$LASTEXITCODE -ne 0) { throw 'NCMM source-co
 foreach($module in $nativeModules) {
     Remove-Item (Join-Path $OutputRoot $module.BuildDirectory) -Recurse -Force -ErrorAction SilentlyContinue
 }
+Remove-Item $platformTestBuild -Recurse -Force -ErrorAction SilentlyContinue
 
 if (-not $PayloadOnly) {
 @"
