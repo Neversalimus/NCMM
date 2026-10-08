@@ -824,33 +824,51 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
         }
     }
 
+    // Encumbrance is an independent condition: mutations and other non-clothing
+    // sources can restrict a body part even when no item covers it.  A selected
+    // armor or focus MUST NOT hide high encumbrance under cyan/green.
+    const auto enc_color = [&]( int zone ) -> nc_color {
+        if( !zone_present[zone] ) {
+            return c_dark_gray;
+        }
+        const int enc = encumbrance[zone];
+        return enc >= 70 ? c_red : enc >= 40 ? c_light_red :
+               enc >= 10 ? c_yellow : c_light_gray;
+    };
     const ncmm_doll_cell *cells = compact ? ncmm_doll_compact : ncmm_doll_full;
     const size_t cell_count = compact ? sizeof( ncmm_doll_compact ) / sizeof( ncmm_doll_cell ) :
                               sizeof( ncmm_doll_full ) / sizeof( ncmm_doll_cell );
-    // Explicit human-shaped paper doll.  Fill = clothes covering that body part;
-    // tint = current effective encumbrance; cyan = selected armor, green = focus.
+    bool focus_marker_drawn = false;
+    // Solid density = clothing layers, color = actual effective encumbrance.
+    // Only near-zero encumbrance permits focus / coverage tint; critical zones
+    // remain red regardless of equipment selection.
     for( size_t i = 0; i < cell_count; ++i ) {
         const ncmm_doll_cell &cell = cells[i];
         const int zone = cell.zone;
         const int count = worn_count[zone];
         const char *glyph = count == 0 ? cell.empty : count <= 2 ? cell.worn : cell.stacked;
-        nc_color tint = c_dark_gray;
+        nc_color tint = enc_color( zone );
         if( !zone_present[zone] ) {
             glyph = cell.empty;
-        } else if( count > 0 ) {
-            const int enc = encumbrance[zone];
-            tint = enc >= 70 ? c_red : enc >= 40 ? c_light_red :
-                   enc >= 10 ? c_yellow : c_light_gray;
-        }
-        if( selected_covers[zone] ) {
-            tint = c_light_cyan;
-        }
-        if( equipment_body_map_focus == zone ) {
-            tint = c_light_green;
+        } else if( encumbrance[zone] < 10 ) {
+            if( selected_covers[zone] ) {
+                tint = c_light_cyan;
+            }
+            if( equipment_body_map_focus == zone ) {
+                tint = c_light_green;
+            }
         }
         const int width = std::max( 0, content_x + content_width - doll_x - cell.x );
         if( width > 0 && doll_y + cell.y < footer_y ) {
             trim_and_print( w, point( doll_x + cell.x, doll_y + cell.y ), width, tint, glyph );
+            // A dedicated focus marker stays visible without recoloring critical
+            // encumbrance, and never overlaps any clickable anatomy cell.
+            if( equipment_body_map_focus == zone && !focus_marker_drawn &&
+                doll_x + ncmm_doll_width < content_x + content_width ) {
+                trim_and_print( w, point( doll_x + ncmm_doll_width, doll_y + cell.y ),
+                                1, c_light_green, ">" );
+                focus_marker_drawn = true;
+            }
         }
     }
 
@@ -871,7 +889,9 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
                                std::to_string( encumbrance[focus] ) :
                                ncmm::localized_text( "N/A", u8"\u2014" );
     const std::string enc_label = ncmm::localized_text( "Enc", u8"\u0421\u043A\u043E\u0432" );
-    const std::string worn_label = ncmm::localized_text( "worn", u8"\u0432\u0435\u0449\u0435\u0439" );
+    // The label precedes the count in every layout: "Надето: 3" never
+    // produces incorrect Russian inflections such as "3 вещей".
+    const std::string worn_label = ncmm::localized_text( "Worn", u8"\u041d\u0430\u0434\u0435\u0442\u043e" );
 
     // On a wide worn column the mannequin and a focused garment inspector
     // coexist.  Narrow layouts keep the complete doll and a two-line summary.
@@ -910,10 +930,13 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
     // must not hide the actual encumbrance and worn-item count.
     const std::string summary = compact || content_width < 33 ?
                                 enc_label + " " + number_of_enc + " | " +
-                                number_of_worn + " " + worn_label + " | " + labels[focus] :
+                                worn_label + " " + number_of_worn + " | " + labels[focus] :
                                 labels[focus] + "  " + enc_label + " " + number_of_enc +
-                                "  | " + number_of_worn + " " + worn_label;
-    trim_and_print( w, point( content_x, summary_y ), content_width, c_light_green, summary );
+                                "  | " + worn_label + " " + number_of_worn;
+    if( compact || content_width < 33 ) {
+        trim_and_print( w, point( content_x, summary_y ), content_width,
+                        c_light_green, summary );
+    }
 
     // Compact retains one line of actual worn clothing, even when inventory's
     // current selection is an unrelated item in another column.
@@ -967,6 +990,55 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
                                 content_width, c_light_gray, layers );
             }
         }
+        return;
+    }
+
+    // Wide full-height layout: use the previously redundant bottom summary and
+    // faint legend rows to compare all twelve body zones at a glance.  Per-zone
+    // colors are independent from clothing count and selection.  The rest of the
+    // panel still shows the selected part's actual worn-item names.
+    if( !compact && content_width >= 33 ) {
+        const std::string short_labels[] = {
+            ncmm::localized_text( "Head", u8"\u0413\u043e\u043b" ),
+            ncmm::localized_text( "Eyes", u8"\u0413\u043b" ),
+            ncmm::localized_text( "Mouth", u8"\u0420\u043e\u0442" ),
+            ncmm::localized_text( "Torso", u8"\u0422\u043e\u0440\u0441" ),
+            ncmm::localized_text( "L.arm", u8"\u041b.\u0440\u0443\u043a\u0430" ),
+            ncmm::localized_text( "R.arm", u8"\u041f.\u0440\u0443\u043a\u0430" ),
+            ncmm::localized_text( "L.hand", u8"\u041b.\u043a\u0438\u0441\u0442\u044c" ),
+            ncmm::localized_text( "R.hand", u8"\u041f.\u043a\u0438\u0441\u0442\u044c" ),
+            ncmm::localized_text( "L.leg", u8"\u041b.\u043d\u043e\u0433\u0430" ),
+            ncmm::localized_text( "R.leg", u8"\u041f.\u043d\u043e\u0433\u0430" ),
+            ncmm::localized_text( "L.foot", u8"\u041b.\u0441\u0442\u043e\u043f\u0430" ),
+            ncmm::localized_text( "R.foot", u8"\u041f.\u0441\u0442\u043e\u043f\u0430" )
+        };
+        const auto enc_row = [&]( int row, int first, int second, int third ) {
+            int x = content_x;
+            const int zones[] = { first, second, third };
+            for( const int zone : zones ) {
+                if( zone < 0 || x >= content_x + content_width ) {
+                    continue;
+                }
+                const bool focused = equipment_body_map_focus == zone ||
+                                     ( equipment_body_map_focus < 0 && focus == zone );
+                const std::string value = zone_present[zone] ?
+                                          std::to_string( encumbrance[zone] ) : "-";
+                const std::string label = ( focused ? ">" : "" ) +
+                                          short_labels[zone] + ":" + value;
+                const int available = content_x + content_width - x;
+                if( available < 3 ) {
+                    break;
+                }
+                trim_and_print( w, point( x, row ), available,
+                                enc_color( zone ), label );
+                x += utf8_width( label, true ) + 2;
+            }
+        };
+        enc_row( panel_top + 12, 0, 1, 2 );  // Head, eyes, mouth.
+        enc_row( panel_top + 13, 3, 4, 5 );  // Torso, both arms.
+        enc_row( panel_top + 14, 6, 7, -1 ); // Hands.
+        enc_row( panel_top + 15, 8, 9, -1 ); // Legs.
+        enc_row( panel_top + 16, 10, 11, -1 ); // Feet.
         return;
     }
 
