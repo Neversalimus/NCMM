@@ -32,7 +32,7 @@ function Require-NcmmZipFile($Index,[string]$Name) {
 function Read-NcmmZipJson($Index,[string]$Name) {
     Require-NcmmZipFile $Index $Name
     $stream=$Index[$Name].Open()
-    $reader=New-Object IO.StreamReader($stream,[Text.Encoding]::UTF8,$true)
+    $reader=[IO.StreamReader]::new($stream,[Text.Encoding]::UTF8,$true)
     try { return ($reader.ReadToEnd() | ConvertFrom-Json) }
     finally { $reader.Dispose() }
 }
@@ -48,7 +48,6 @@ try {
     $fullFiles=Get-NcmmZipIndex $full
     $runtimeFiles=Get-NcmmZipIndex $runtime
     Require-NcmmZipFile $fullFiles 'NCMM_Setup.exe'
-    Require-NcmmZipFile $fullFiles 'packages/' # directory entry is allowed to be empty, checked below
     Require-NcmmZipFile $runtimeFiles 'NCMM_Setup.exe'
     $manifest=Read-NcmmZipJson $fullFiles 'release-manifest.json'
     if([int]$manifest.schema -ne 1 -or [string]$manifest.host_runtime_version -ne $version) {
