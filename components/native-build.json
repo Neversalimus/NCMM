@@ -8,9 +8,7 @@
       "archive_stem": "AdvancedWorldSettings",
       "build_directory": "_aws_build",
       "missing_contract_smoke": true,
-      "extra_smoke_executables": [
-        "ncmm_manifest_policy_test.exe"
-      ],
+      "extra_smoke_executables": [],
       "required_payload_files": []
     },
     {
