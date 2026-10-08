@@ -83,12 +83,19 @@ def check_graph(graph: dict, require_catalog: bool = True) -> None:
 
 def check_prime_contracts(source: str, graph: dict) -> None:
     """Verify the 21 mod Prime roots against production gating and identity."""
+    # There is a forward declaration above the vanilla specialization resolver.
+    # Bind the actual function *definition*, never the first declaration.
+    definition = re.search(
+        r"int mod_prime_root_slot\(\s*const char \*raw_id\s*\)\s*\{", source
+    )
+    if definition is None:
+        raise ValueError("Production mod Prime slot resolver definition changed")
     try:
-        slot_body = source.split("int mod_prime_root_slot(", 1)[1].split(
+        slot_body = source[definition.end():].split(
             "bool mod_prime_specialization_root(", 1
         )[0]
     except IndexError as exc:
-        raise ValueError("Production mod Prime slot resolver changed") from exc
+        raise ValueError("Production mod Prime slot resolver boundary changed") from exc
     slots: dict[str, int] = {}
     for condition, slot in re.findall(
         r"if\s*\((.*?)\)\s*return\s+([123]);", slot_body, flags=re.DOTALL
