@@ -676,6 +676,21 @@ $iuc = Replace-ExactlyOnce $iuc @'
 '@ 'inventory.body-map-hit-test'
 
 $iuc = Replace-ExactlyOnce $iuc @'
+void inventory_selector::on_input( const inventory_input &input )
+{
+    if( input.action == "CATEGORY_SELECTION" ) {
+'@ @'
+void inventory_selector::on_input( const inventory_input &input )
+{
+    // A mannequin click only updates its focused zone.  Do not route it to
+    // inventory columns or inadvertently select / activate the underlying item.
+    if( input.action == "NCMM_BODY_MAP_FOCUS" ) {
+        return;
+    }
+    if( input.action == "CATEGORY_SELECTION" ) {
+'@ 'inventory.body-map-focus-only-noop'
+
+$iuc = Replace-ExactlyOnce $iuc @'
 void inventory_selector::draw_frame( const catacurses::window &w ) const
 {
     draw_border( w );
@@ -783,8 +798,15 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
     int worn_count[12] = {};
     int encumbrance[12] = {};
     bool selected_covers[12] = {};
+    bool zone_present[12] = {};
     for( int zone = 0; zone < 12; ++zone ) {
         const bodypart_id bp = parts[zone]->id();
+        // CDDA's Character::encumb emits a debug message for a missing limb.
+        // Mutation anatomy is valid gameplay, not an exceptional UI condition.
+        zone_present[zone] = u.has_part( bp, body_part_filter::equivalent );
+        if( !zone_present[zone] ) {
+            continue;
+        }
         encumbrance[zone] = u.encumb( bp ); // Effective character encumbrance, not item count.
         selected_covers[zone] = selected != nullptr && selected->is_armor() &&
                                 selected->covers( bp );
@@ -806,7 +828,9 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
         const int count = worn_count[zone];
         const char *glyph = count == 0 ? cell.empty : count <= 2 ? cell.worn : cell.stacked;
         nc_color tint = c_dark_gray;
-        if( count > 0 ) {
+        if( !zone_present[zone] ) {
+            glyph = cell.empty;
+        } else if( count > 0 ) {
             const int enc = encumbrance[zone];
             tint = enc >= 70 ? c_red : enc >= 40 ? c_light_red :
                    enc >= 10 ? c_yellow : c_light_gray;
@@ -836,7 +860,9 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
         }
     }
     const auto number_of_worn = std::to_string( worn_count[focus] );
-    const auto number_of_enc = std::to_string( encumbrance[focus] );
+    const auto number_of_enc = zone_present[focus] ?
+                               std::to_string( encumbrance[focus] ) :
+                               ncmm::localized_text( "N/A", u8"\u2014" );
     const std::string enc_label = ncmm::localized_text( "Enc", u8"\u0421\u043A\u043E\u0432" );
     const std::string worn_label = ncmm::localized_text( "worn", u8"\u0432\u0435\u0449\u0435\u0439" );
 
