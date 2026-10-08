@@ -889,8 +889,8 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
                                std::to_string( encumbrance[focus] ) :
                                ncmm::localized_text( "N/A", u8"\u2014" );
     const std::string enc_label = ncmm::localized_text( "Enc", u8"\u0421\u043A\u043E\u0432" );
-    // The label precedes the count in every layout: "Надето: 3" never
-    // produces incorrect Russian inflections such as "3 вещей".
+    // A count-neutral localized label precedes the value in every layout.
+    // Avoid Russian inflection errors by printing the equivalent of Worn: N.
     const std::string worn_label = ncmm::localized_text( "Worn", u8"\u041d\u0430\u0434\u0435\u0442\u043e" );
 
     // On a wide worn column the mannequin and a focused garment inspector
