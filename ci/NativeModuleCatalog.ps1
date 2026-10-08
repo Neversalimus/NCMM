@@ -81,6 +81,14 @@ function Get-NcmmNativeBuildModules {
         if($caps.Count -eq 0 -or @($caps | Select-Object -Unique).Count -ne $caps.Count) {
             throw "Native module '$id' has empty/duplicated capability requirements."
         }
+        $profile=[string]$entry.smoke_profile
+        if($profile -cnotin @('semantic','generic')) {
+            throw "Native module '$id' has unsupported smoke profile '$profile'."
+        }
+        if($profile -eq 'generic' -and
+           ($entry.missing_contract_smoke -isnot [bool] -or -not $entry.missing_contract_smoke)) {
+            throw "Generic native module '$id' requires a fail-closed capability smoke."
+        }
         foreach($dep in @($component[0].dependencies)) {
             if($dep.capability -and $caps -cnotcontains [string]$dep.capability) {
                 throw "Native module '$id' removed catalog-required capability: $($dep.capability)"
@@ -121,6 +129,7 @@ function Get-NcmmNativeBuildModules {
             BuildDirectory=$buildDir
             Version=[string]$manifest.version
             Name=[string]$manifest.name
+            SmokeProfile=$profile
             MissingContractSmoke=[bool]$entry.missing_contract_smoke
             ExtraSmokeExecutables=@($entry.extra_smoke_executables)
             RequiredPayloadFiles=@($entry.required_payload_files)
