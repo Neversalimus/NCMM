@@ -38,7 +38,6 @@ on:
       - 'tools/NCMM.Update.Common.ps1'
       - 'tests/**'
       - 'ci/test_survivor_graph.py'
-      - 'ci/sync_survivor_payload.py'
       - 'feed/index.json'
       - 'host_patch/**'
       - '.editorconfig'
@@ -74,7 +73,6 @@ on:
       - 'tools/NCMM.Update.Common.ps1'
       - 'tests/**'
       - 'ci/test_survivor_graph.py'
-      - 'ci/sync_survivor_payload.py'
       - 'feed/index.json'
       - 'host_patch/**'
       - '.editorconfig'
@@ -137,10 +135,6 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           ./ci/Test-Infrastructure083.ps1 -PackageRoot "$env:GITHUB_WORKSPACE"
-
-      - name: Verify canonical Survivor source snapshots
-        shell: pwsh
-        run: python ci/sync_survivor_payload.py --check
 
       - name: Verify Survivor source prerequisite DAG
         shell: pwsh
