@@ -839,7 +839,8 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
     const size_t cell_count = compact ? sizeof( ncmm_doll_compact ) / sizeof( ncmm_doll_cell ) :
                               sizeof( ncmm_doll_full ) / sizeof( ncmm_doll_cell );
     bool focus_marker_drawn = false;
-    // Solid density = clothing layers, color = actual effective encumbrance.
+    // Explicit human-shaped paper doll. Solid density = clothing layers.
+    // Color = actual effective encumbrance.
     // Only near-zero encumbrance permits focus / coverage tint; critical zones
     // remain red regardless of equipment selection.
     for( size_t i = 0; i < cell_count; ++i ) {
