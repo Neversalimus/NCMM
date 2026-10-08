@@ -101,6 +101,8 @@ jobs:
           $invalid=Join-Path $env:RUNNER_TEMP 'not-a-cdda-game'
           & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scriptsDest 'Install_EBM_Test.ps1') -GameRoot $invalid
           if($LASTEXITCODE -eq 0){throw 'Test installer did not fail closed for a nonexistent game directory'}
+          # This nonzero exit is the expected result of the negative test.
+          $global:LASTEXITCODE=0
 
           New-Item -ItemType Directory -Force out | Out-Null
           $zip=Join-Path (Resolve-Path out) 'NCMM_EquipmentBodyMap_v2_PR187_TEST_0546.zip'
