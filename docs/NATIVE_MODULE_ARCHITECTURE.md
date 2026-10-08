@@ -91,12 +91,17 @@ DLL descriptor verification. A generic smoke is a baseline, not gameplay proof.
 specialized tests, proving that a sixth module can pass generic smoke without
 changing the test harness or any other game's module.
 
-## Planned SDK template
+## SDK module starter (Phase 5)
 
-Introduce a source-only SDK sample/scaffolder with a minimal native module,
-capability negotiation, namespaced settings, state and opt-in callbacks. It must
-start without its own CDDA source patch, register a single atomic group and pass
-the same fail-closed manifest and smoke gates as the existing modules.
+The isolated generator at tools/New-NCMMNativeModule.ps1 creates an unregistered
+CMake/C++ project plus a JSON registration blueprint. It never touches the
+installed modules, Host, compatibility feed or published component catalog.
+See sdk/CREATE_NATIVE_MODULE.md for invocation and integration steps.
 
-These changes do **not** alter Survivor Legacy UI, gameplay mechanics, C ABI
-or the certified Host revision.
+Runtime CI compiles the generated native DLL against the real SDK header and
+runs the generic success/fail-closed Host tests. Blocking Source/Package Audit
+checks deterministic output, manifest parity, Unicode and rejection of unsafe
+requests and overwrites.
+
+A future architecture step will turn the flat Host patch stack into explicit
+domains with dependency contracts. Loader ABI and gameplay remain unchanged.

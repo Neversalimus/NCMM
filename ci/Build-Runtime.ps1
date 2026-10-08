@@ -131,6 +131,11 @@ if(-not $smoke -or -not $manifestPolicyTest) {
 & $manifestPolicyTest.FullName
 if($LASTEXITCODE -ne 0) { throw 'NCMM platform manifest policy test failed.' }
 
+# Prove a freshly generated sixth module compiles and obeys Host ABI/capability
+# policy before any production module is packaged.
+& (Join-Path $RepositoryRoot 'ci\Test-NCMMNativeScaffold.ps1') -RepositoryRoot $RepositoryRoot -Compile -SmokeHostExecutable $smoke.FullName
+if($LASTEXITCODE -ne 0) { throw 'NCMM SDK starter module tests failed.' }
+
 # A module ID not referenced by the semantic test harness must still be able to
 # initialize and reject missing declared capabilities through generic onboarding.
 $fixture=Get-ChildItem $platformTestBuild -Filter 'ncmm_generic_fixture.dll' -Recurse -File | Select-Object -First 1
