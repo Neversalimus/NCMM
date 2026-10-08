@@ -131,6 +131,19 @@ if(-not $smoke -or -not $manifestPolicyTest) {
 & $manifestPolicyTest.FullName
 if($LASTEXITCODE -ne 0) { throw 'NCMM platform manifest policy test failed.' }
 
+# A module ID not referenced by the semantic test harness must still be able to
+# initialize and reject missing declared capabilities through generic onboarding.
+$fixture=Get-ChildItem $platformTestBuild -Filter 'ncmm_generic_fixture.dll' -Recurse -File | Select-Object -First 1
+if(-not $fixture) { throw 'NCMM generic module smoke fixture missing.' }
+& $smoke.FullName $fixture.FullName '--generic=ncmm_generic_fixture@0.0.1'
+if($LASTEXITCODE -ne 0) { throw 'Generic onboarding init smoke failed.' }
+& $smoke.FullName $fixture.FullName '--generic=ncmm_generic_fixture@0.0.1' '--missing-contract'
+if($LASTEXITCODE -ne 0) { throw 'Generic onboarding fail-closed smoke failed.' }
+& $smoke.FullName $fixture.FullName '--generic=incorrect_fixture@0.0.1'
+if($LASTEXITCODE -eq 0) { throw 'Generic onboarding accepted mismatched module ID.' }
+& $smoke.FullName $fixture.FullName '--generic=ncmm_generic_fixture@9.9.9'
+if($LASTEXITCODE -eq 0) { throw 'Generic onboarding accepted mismatched module version.' }
+
 foreach($module in $nativeModules) {
     $source=Join-Path $RepositoryRoot ('mods\' + $module.Folder)
     $build=Join-Path $OutputRoot $module.BuildDirectory
@@ -147,10 +160,14 @@ foreach($module in $nativeModules) {
         & $extra.FullName
         if($LASTEXITCODE -ne 0) { throw "Native module '$($module.Id)' extra test failed: $exeName" }
     }
-    & $smoke.FullName $dll.FullName
+    $smokeOptions=@()
+    if($module.SmokeProfile -eq 'generic') {
+        $smokeOptions=@("--generic=$($module.Id)@$($module.Version)")
+    }
+    & $smoke.FullName $dll.FullName @smokeOptions
     if($LASTEXITCODE -ne 0) { throw "Native module '$($module.Id)' runtime smoke failed." }
     if($module.MissingContractSmoke) {
-        & $smoke.FullName $dll.FullName '--missing-contract'
+        & $smoke.FullName $dll.FullName @smokeOptions '--missing-contract'
         if($LASTEXITCODE -ne 0) { throw "Native module '$($module.Id)' fail-closed smoke failed." }
     }
 

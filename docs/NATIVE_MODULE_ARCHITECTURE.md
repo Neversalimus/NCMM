@@ -73,6 +73,24 @@ The shared Host smoke and manifest-policy tests are now built once from
 dependency or required to be the first module in the build registry. Each module
 still has its own smoke and fail-closed contract checks.
 
+## Generic smoke profile for new modules
+
+Each entry in `components/native-build.json` explicitly chooses a smoke profile:
+`semantic` for the five existing deeply tested modules, or `generic` for new
+modules whose module-specific semantic smoke has not yet been authored.
+`generic` **requires** `missing_contract_smoke: true`; there is no `skip` mode.
+
+The generic smoke harness checks Loader ABI, descriptor identity/version, non-empty
+and unique required capabilities, supported Host capabilities, initialization and
+shutdown. It also masks one of the module's actually declared capabilities
+before calling init and rejects modules that initialize or register state despite
+the missing requirement. The real runtime still owns authoritative manifest and
+DLL descriptor verification. A generic smoke is a baseline, not gameplay proof.
+
+`tests/fixtures/generic_native_fixture.cpp` uses an ID unknown to all existing
+specialized tests, proving that a sixth module can pass generic smoke without
+changing the test harness or any other game's module.
+
 ## Planned SDK template
 
 Introduce a source-only SDK sample/scaffolder with a minimal native module,
