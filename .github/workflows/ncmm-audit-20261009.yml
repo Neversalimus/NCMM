@@ -3,7 +3,7 @@ name: Audit 2026-10-09 - isolated baseline evidence
 on:
   push:
     branches: ['audit/full-system-20261009']
-    paths: ['.github/workflows/ncmm-audit-20261009.yml']
+    paths: ['.github/workflows/ncmm-audit-20261009.yml', 'ci/audit/**']
   workflow_dispatch:
 
 permissions:
@@ -55,4 +55,36 @@ jobs:
           name: NCMM-Audit-Windows-Runtime-4a83414a
           path: ${{ runner.temp }}/ncmm-audit-runtime.log
           if-no-files-found: error
+          retention-days: 14
+  windows-boundary-probes:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 4a83414a1bf4147860b0e3dd49a9aded0c5581d0
+          path: production
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: audit-tools
+      - name: Compile unchanged production classes with audit-only temporary fixtures
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $csc=Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
+          & $csc /nologo /target:exe /platform:x64 /main:AuditBoundaryHarness /out:BoundaryHarness.exe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll production/runtime/NCMMSetupCore.cs production/runtime/NCMMBootstrap.cs audit-tools/ci/audit/BoundaryHarness.cs
+          if($LASTEXITCODE -ne 0){throw 'Audit harness compilation failed.'}
+      - name: Reproduce suspected defects - successful run means issues reproduced, not production fixed
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          & ./BoundaryHarness.exe 2>&1 | Tee-Object -FilePath boundary-probes.log
+          if($LASTEXITCODE -ne 0){throw 'A suspected defect did not reproduce or a fixture failed; inspect log.'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NCMM-Audit-Windows-Boundary-Probes
+          path: boundary-probes.log
+          if-no-files-found: warn
           retention-days: 14
