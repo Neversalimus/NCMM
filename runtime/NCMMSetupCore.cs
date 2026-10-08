@@ -58,6 +58,47 @@ internal sealed class SetupHostBinding
 }
 
 
+
+internal sealed class SetupCertifiedHostFeed
+{
+    public int schema { get; set; }
+    public int loader_api { get; set; }
+    public string runtime_version { get; set; }
+    public string patch_revision { get; set; }
+    public Dictionary<string, SetupCertifiedHostEntry> hosts { get; set; }
+}
+
+internal sealed class SetupCertifiedHostEntry
+{
+    public string source_commit { get; set; }
+    public string upstream_tag { get; set; }
+    public string host_url { get; set; }
+    public string host_sha256 { get; set; }
+    public string patch_revision { get; set; }
+    public string ncmm_version { get; set; }
+    public int loader_api { get; set; }
+}
+
+internal sealed class SetupHostSyncResult
+{
+    internal bool Ready { get; set; }
+    internal string Message { get; set; }
+    internal string HostSha256 { get; set; }
+    internal string PatchRevision { get; set; }
+}
+
+internal sealed class SetupDownloadClient : System.Net.WebClient
+{
+    protected override System.Net.WebRequest GetWebRequest(Uri address)
+    {
+        System.Net.WebRequest request = base.GetWebRequest(address);
+        request.Timeout = 30000;
+        System.Net.HttpWebRequest http = request as System.Net.HttpWebRequest;
+        if (http != null) http.ReadWriteTimeout = 30000;
+        return request;
+    }
+}
+
 internal sealed class SetupRuntimeState
 {
     public int schema { get; set; }
@@ -1011,6 +1052,222 @@ internal static partial class SetupCore
         result.VanillaSha256 = vanillaHash;
         result.InstalledModuleIds = installedIds;
         return result;
+    }
+
+
+    // Setup downloads a matching certified Host itself: module installation alone
+    // does not prove that a new inventory renderer will be used by this CDDA build.
+    // Kept separate from InstallCore: network failure cannot corrupt/roll back a
+    // successfully installed local bootstrap and native modules.
+    internal static SetupHostSyncResult SyncCertifiedHost(string gameRoot)
+    {
+        gameRoot = Path.GetFullPath(gameRoot.Trim());
+        AssertGameNotRunning(gameRoot);
+        string ncmm = Path.Combine(gameRoot, "ncmm");
+        string vanilla = Path.Combine(gameRoot, "cataclysm-tiles.vanilla.exe");
+        if (!File.Exists(vanilla))
+            throw new InvalidOperationException("Vanilla executable missing; refusing Host update.");
+        string vanillaSha = Sha256(vanilla).ToLowerInvariant();
+        string commit = ReadSourceCommit(gameRoot) ?? "";
+        System.Text.RegularExpressions.Match match =
+            System.Text.RegularExpressions.Regex.Match(commit, "^[0-9a-fA-F]{7,40}");
+        commit = match.Success ? match.Value.ToLowerInvariant() : "";
+
+        SetupCertifiedHostFeed feed;
+        try
+        {
+            // Bypass caches that can otherwise keep the previous paper-doll Host
+            // even after the public certified feed has advanced.
+            string url = "https://raw.githubusercontent.com/Neversalimus/NCMM/main/feed/index.json" +
+                         "?ncmm_setup_refresh=" + DateTime.UtcNow.Ticks.ToString();
+            System.Net.ServicePointManager.SecurityProtocol |=
+                (System.Net.SecurityProtocolType)3072; // TLS 1.2, .NET Framework compatible.
+            using (SetupDownloadClient web = new SetupDownloadClient())
+            {
+                web.Headers[System.Net.HttpRequestHeader.UserAgent] = "NCMM-Setup/" + RuntimeVersion;
+                feed = new JavaScriptSerializer().Deserialize<SetupCertifiedHostFeed>(
+                    web.DownloadString(url));
+            }
+        }
+        catch (Exception ex)
+        {
+            return new SetupHostSyncResult {
+                Ready = false,
+                Message = "Certified Host feed unavailable: " + ex.Message +
+                          ". NCMM modules installed, but the newest renderer is NOT verified."
+            };
+        }
+
+        SetupCertifiedHostEntry entry;
+        string rejection;
+        if (!TrySelectCertifiedHost(feed, vanillaSha, commit, out entry, out rejection))
+            return new SetupHostSyncResult {
+                Ready = false,
+                Message = rejection + ". NCMM installed, but Host was not updated."
+            };
+
+        string target = Path.Combine(gameRoot, "cataclysm-tiles.ncmm.exe");
+        string bindingPath = Path.Combine(ncmm, "host.binding.json");
+        string expectedHash = entry.host_sha256.ToLowerInvariant();
+        string actual = File.Exists(target) ? Sha256(target).ToLowerInvariant() : null;
+        string newBindingJson = new JavaScriptSerializer().Serialize(new SetupHostBinding {
+            vanilla_sha256 = vanillaSha,
+            host_sha256 = expectedHash,
+            source_commit = entry.source_commit,
+            upstream_tag = entry.upstream_tag,
+            patch_revision = entry.patch_revision,
+            ncmm_version = entry.ncmm_version,
+            loader_api = entry.loader_api,
+            installed_utc = DateTime.UtcNow.ToString("o")
+        }) + Environment.NewLine;
+
+        string staged = Path.Combine(ncmm, "host.setup-" + Guid.NewGuid().ToString("N") + ".exe");
+        string backup = null;
+        bool hadHost = File.Exists(target);
+        bool hadBinding = File.Exists(bindingPath);
+        bool replacedHost = false;
+        try
+        {
+            Directory.CreateDirectory(ncmm);
+            if (!String.Equals(actual, expectedHash, StringComparison.OrdinalIgnoreCase))
+            {
+                using (SetupDownloadClient web = new SetupDownloadClient())
+                {
+                    web.Headers[System.Net.HttpRequestHeader.UserAgent] = "NCMM-Setup/" + RuntimeVersion;
+                    web.DownloadFile(entry.host_url, staged);
+                }
+                if (!String.Equals(Sha256(staged), expectedHash, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Downloaded Host SHA256 mismatch; file rejected.");
+            }
+
+            backup = Path.Combine(ncmm, "host-backups",
+                                  "setup-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") +
+                                  "-" + Guid.NewGuid().ToString("N").Substring(0, 8));
+            Directory.CreateDirectory(backup);
+            if (hadHost) File.Copy(target, Path.Combine(backup, "previous-host.exe"));
+            if (hadBinding) File.Copy(bindingPath, Path.Combine(backup, "previous-binding.json"));
+
+            if (File.Exists(staged))
+            {
+                if (hadHost) File.Replace(staged, target, null);
+                else File.Move(staged, target);
+                replacedHost = true;
+            }
+            if (!String.Equals(Sha256(target), expectedHash, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Installed Host SHA256 verification failed.");
+
+            WriteJsonAtomic(bindingPath, new SetupHostBinding {
+                vanilla_sha256 = vanillaSha,
+                host_sha256 = expectedHash,
+                source_commit = entry.source_commit,
+                upstream_tag = entry.upstream_tag,
+                patch_revision = entry.patch_revision,
+                ncmm_version = entry.ncmm_version,
+                loader_api = entry.loader_api,
+                installed_utc = DateTime.UtcNow.ToString("o")
+            });
+            SetupHostBinding bound = new JavaScriptSerializer()
+                .Deserialize<SetupHostBinding>(File.ReadAllText(bindingPath));
+            if (bound == null || bound.host_sha256 != expectedHash ||
+                bound.vanilla_sha256 != vanillaSha ||
+                bound.patch_revision != entry.patch_revision)
+                throw new InvalidOperationException("Host binding post-install verification failed.");
+
+            return new SetupHostSyncResult {
+                Ready = true,
+                HostSha256 = expectedHash,
+                PatchRevision = entry.patch_revision,
+                Message = (replacedHost ? "Certified Host installed" : "Certified Host already current") +
+                          ": " + entry.upstream_tag + ", patch " +
+                          entry.patch_revision.Substring(0, 12) +
+                          ". Exact SHA256 and bootstrap binding VERIFIED."
+            };
+        }
+        catch (Exception ex)
+        {
+            // Never leave a half-updated host/binding on a download or write failure.
+            if (backup != null && Directory.Exists(backup))
+            {
+                try
+                {
+                    if (hadHost) File.Copy(Path.Combine(backup, "previous-host.exe"), target, true);
+                    else if (File.Exists(target)) File.Delete(target);
+                    if (hadBinding) File.Copy(Path.Combine(backup, "previous-binding.json"), bindingPath, true);
+                    else if (File.Exists(bindingPath)) File.Delete(bindingPath);
+                }
+                catch (Exception rollbackError)
+                {
+                    throw new InvalidOperationException(
+                        "Host update failed AND rollback failed; backups preserved at " + backup +
+                        ". Install error: " + ex.Message + " | rollback: " + rollbackError.Message);
+                }
+            }
+            return new SetupHostSyncResult {
+                Ready = false,
+                Message = "Certified Host update failed: " + ex.Message +
+                          ". Previous Host/binding restored; new renderer NOT verified."
+            };
+        }
+        finally
+        {
+            if (File.Exists(staged)) File.Delete(staged);
+        }
+    }
+
+    // Pure, deterministic validation also used by the installation-matrix tests.
+    internal static bool TrySelectCertifiedHost(SetupCertifiedHostFeed feed, string vanillaSha,
+                                                 string sourceCommit, out SetupCertifiedHostEntry entry,
+                                                 out string reason)
+    {
+        entry = null;
+        reason = "No compatible certified Host";
+        if (feed == null || feed.schema != 1 || feed.loader_api != 1 ||
+            feed.runtime_version != RuntimeVersion || feed.hosts == null ||
+            String.IsNullOrEmpty(feed.patch_revision) ||
+            !System.Text.RegularExpressions.Regex.IsMatch(feed.patch_revision, "^[0-9a-f]{64}$"))
+        {
+            reason = "Certified Host feed schema, runtime or revision mismatch";
+            return false;
+        }
+        if (String.IsNullOrWhiteSpace(vanillaSha) ||
+            !feed.hosts.TryGetValue(vanillaSha.ToLowerInvariant(), out entry) || entry == null)
+        {
+            reason = "No certified Host for the exact installed CDDA executable SHA256";
+            entry = null;
+            return false;
+        }
+        if (entry.loader_api != 1 || entry.ncmm_version != RuntimeVersion ||
+            entry.patch_revision != feed.patch_revision ||
+            String.IsNullOrEmpty(entry.host_sha256) ||
+            !System.Text.RegularExpressions.Regex.IsMatch(entry.host_sha256, "^[0-9a-f]{64}$") ||
+            String.IsNullOrWhiteSpace(entry.source_commit) ||
+            !System.Text.RegularExpressions.Regex.IsMatch(entry.source_commit, "^[0-9a-f]{40}$"))
+        {
+            reason = "Certified Host entry identity or revision mismatch";
+            entry = null;
+            return false;
+        }
+        if (!String.IsNullOrEmpty(sourceCommit) &&
+            !entry.source_commit.StartsWith(sourceCommit, StringComparison.OrdinalIgnoreCase))
+        {
+            reason = "Certified Host source commit does not match this CDDA build";
+            entry = null;
+            return false;
+        }
+        Uri hostUri;
+        if (!Uri.TryCreate(entry.host_url, UriKind.Absolute, out hostUri) ||
+            hostUri.Scheme != Uri.UriSchemeHttps ||
+            !String.Equals(hostUri.Host, "github.com", StringComparison.OrdinalIgnoreCase) ||
+            !hostUri.AbsolutePath.StartsWith(
+                "/Neversalimus/NCMM/releases/download/ncmm-host-", StringComparison.Ordinal) ||
+            !hostUri.AbsolutePath.EndsWith("/cataclysm-tiles.ncmm.exe", StringComparison.Ordinal))
+        {
+            reason = "Certified Host URL is outside the trusted NCMM release channel";
+            entry = null;
+            return false;
+        }
+        reason = "OK";
+        return true;
     }
 
     internal static void RestoreVanilla(string gameRoot)
