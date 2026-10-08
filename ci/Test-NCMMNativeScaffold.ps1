@@ -83,9 +83,11 @@ try {
     & $fixture.Change $args
     Assert-Refused -Label $fixture.Label -Args $args
   }
-  $russian=& $generator -Id 'sample_russian_mod' -Name 'Тестовый мод' -DestinationRoot $a -RepositoryRoot $RepositoryRoot
+  # ASCII-only PowerShell source for Windows PowerShell 5.1 (no BOM).
+  $russianName=-join @([char]1058,[char]1077,[char]1089,[char]1090,[char]1086,[char]1074,[char]1099,[char]1081,[char]32,[char]1084,[char]1086,[char]1076)
+  $russian=& $generator -Id 'sample_russian_mod' -Name $russianName -DestinationRoot $a -RepositoryRoot $RepositoryRoot
   $rus=[IO.File]::ReadAllText((Join-Path $russian.Destination 'mod.json'),[Text.Encoding]::UTF8) | ConvertFrom-Json
-  if($rus.name -cne 'Тестовый мод') { throw 'Unicode module display name roundtrip failed.' }
+  if($rus.name -cne $russianName) { throw 'Unicode module display name roundtrip failed.' }
 
   foreach($path in $catalogFiles) {
     if((Get-FileHash (Join-Path $RepositoryRoot $path) -Algorithm SHA256).Hash -cne $before[$path]) {
