@@ -68,10 +68,10 @@ including manifest parity, DLLs and required data, before an artifact is publish
 The runtime release uploader includes **all** catalog-declared native packages;
 AWS and Survivor retain their existing dedicated release tags for compatibility.
 
-The shared smoke executable is still produced by the AWS CMake project, which
-must currently remain the first build entry. Other modules build independently.
-This explicit transitional invariant will be decoupled once the smoke harness
-has its own CMake target.
+The shared Host smoke and manifest-policy tests are now built once from
+`tests/CMakeLists.txt` before any gameplay module. AWS is no longer a test-harness
+dependency or required to be the first module in the build registry. Each module
+still has its own smoke and fail-closed contract checks.
 
 ## Planned SDK template
 
