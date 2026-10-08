@@ -17,7 +17,7 @@ NCMM (Neversalimus Code Mod Manager) is a native code-mod/runtime platform for C
 | Equipment Body Map | 0.1.0 |
 | Item Glyphs | 0.1.0 |
 
-Survivor Progression keeps state schema 8. The current source contains 373 perk nodes and conditionally exposes mod-specific progression for supported active world mods.
+Survivor Progression keeps state schema 8. The current source contains 378 perk nodes and conditionally exposes mod-specific progression for supported active world mods.
 
 ### Verified release snapshot — 2026-10-05
 
@@ -89,3 +89,10 @@ For the current trust boundaries and API layout, see `ARCHITECTURE.md`. Russian 
 `Neversalimus/NCMM` is the only canonical NCMM repository. The earlier `Neversalimus/Cataclysm` tree is historical and is not used by the current source, package, feed or release pipeline.
 
 The project intentionally keeps release history and machine-audit artifacts separate from the user documentation. Root audit/changelog files that are still present are package provenance or regression evidence, not additional setup guides.
+
+
+### Reproducible checks and performance
+
+- **Survivor catalog:** the runtime semantic smoke validates all 378 perks, prerequisite DAG acyclicity, seven integration Prime choices, refunds for inactive integration mods, and a full-catalog effect-recalculation budget (64 passes within 5,000 ms on CI). This is **not** a gameplay TPS guarantee.
+- **Canonical payload maintenance:** after editing `runtime/NCMMBootstrap.cs`, `runtime/NCMMSetupCore.cs` or `tests/smoke_host.cpp`, run `ci/Sync-CanonicalPayload.ps1` and then `ci/Regenerate-PackageIntegrity.ps1`. CI runs the canonical sync in read-only `-Check` mode to prevent snapshot drift.
+- **Player experience:** for meaningful real-world performance comparisons, use the same save, CDDA commit, world mods and hardware; measure movement, inventory, ranged combat, crafting and map generation against vanilla. See `docs/PERFORMANCE_RUNBOOK.md`.
