@@ -923,6 +923,21 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
         } else if( shown > 6 ) {
             detail_line( "+" + std::to_string( shown - 6 ), c_light_gray );
         }
+        // Keep the selected armor's layering information, when room permits.
+        if( selected != nullptr && selected->is_armor() &&
+            ncmm::runtime_setting_hook_bool( "inventory.body_map.show_layers", 1 ) != 0 ) {
+            std::string layers;
+            for( const layer_level layer : selected->get_layer() ) {
+                if( !layers.empty() ) {
+                    layers += " / ";
+                }
+                layers += item::layer_to_string( layer );
+            }
+            if( !layers.empty() ) {
+                detail_line( ncmm::localized_text( "Layer: ", u8"\u0421\u043b\u043e\u0439: " ) +
+                             layers, c_light_gray );
+            }
+        }
     }
 
     const int summary_y = compact ? panel_top + 9 : panel_top + 12;
@@ -1023,8 +1038,8 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
                                      ( equipment_body_map_focus < 0 && focus == zone );
                 const std::string value = zone_present[zone] ?
                                           std::to_string( encumbrance[zone] ) : "-";
-                const std::string label = ( focused ? ">" : "" ) +
-                                          short_labels[zone] + ":" + value;
+                const std::string marker = focused ? ">" : selected_covers[zone] ? "*" : "";
+                const std::string label = marker + short_labels[zone] + ":" + value;
                 const int available = content_x + content_width - x;
                 if( available < 3 ) {
                     break;
