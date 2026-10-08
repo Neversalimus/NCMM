@@ -14,9 +14,9 @@ foreach($path in $catalogFiles) {
   $before[$path]=(Get-FileHash (Join-Path $RepositoryRoot $path) -Algorithm SHA256).Hash
 }
 function Assert-Refused {
-  param([string]$Label,[hashtable]$Args)
+  param([string]$Label,[hashtable]$Request)
   $rejected=$false
-  try { $null=& $generator @Args }
+  try { $null=& $generator @Request }
   catch { $rejected=$true }
   if(-not $rejected) { throw "Scaffolder accepted invalid request: $Label" }
 }
@@ -78,10 +78,10 @@ try {
     @{Label='output collision';Change={param($p) $p.Id='sample_future_mod'}}
   )
   foreach($fixture in $bad) {
-    $args=@{}
-    foreach($key in $valid.Keys) { $args[$key]=$valid[$key] }
-    & $fixture.Change $args
-    Assert-Refused -Label $fixture.Label -Args $args
+    $invokeParams=@{}
+    foreach($key in $valid.Keys) { $invokeParams[$key]=$valid[$key] }
+    & $fixture.Change $invokeParams
+    Assert-Refused -Label $fixture.Label -Request $invokeParams
   }
   # ASCII-only PowerShell source for Windows PowerShell 5.1 (no BOM).
   $russianName=-join @([char]1058,[char]1077,[char]1089,[char]1090,[char]1086,[char]1074,[char]1099,[char]1081,[char]32,[char]1084,[char]1086,[char]1076)
