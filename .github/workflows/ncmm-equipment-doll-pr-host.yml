@@ -1,0 +1,109 @@
+name: Equipment Body Map · real Host compile (PR)
+
+on:
+  pull_request:
+    paths:
+      - 'host_patch/Apply-NCMMHostPatch.ps1'
+      - 'payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
+      - 'ci/Test-EquipmentBodyMapUX.ps1'
+      - '.github/workflows/ncmm-equipment-doll-pr-host.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ncmm-ebm-host-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: MSVC Host · CDDA 2026-09-23-0546
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - name: Checkout PR, without publishing any release
+        uses: actions/checkout@v4
+        with:
+          path: ncmmrepo
+
+      - name: Checkout exact official CDDA baseline
+        uses: actions/checkout@v4
+        with:
+          repository: CleverRaven/Cataclysm-DDA
+          ref: cdda-experimental-2026-09-23-0546
+          fetch-depth: 1
+          path: upstream
+
+      - name: Verify exact source revision
+        shell: powershell
+        run: |
+          $actual=(git -C upstream rev-parse HEAD).Trim()
+          if($actual -ne 'e262adb299a7613b4aedc5f12c08fe0413c56a84'){
+            throw "Wrong official baseline: $actual"
+          }
+
+      - name: Check player-facing, layout and canonical-snapshot contracts
+        shell: powershell
+        run: |
+          ./ncmmrepo/ci/Test-EquipmentBodyMapUX.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE/ncmmrepo"
+          ./ncmmrepo/ci/Sync-CanonicalPayload.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE/ncmmrepo" -Check
+          ./ncmmrepo/ci/Regenerate-PackageIntegrity.ps1 -PackageRoot "$env:GITHUB_WORKSPACE/ncmmrepo" -Check
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: '${{ runner.workspace }}/b/vcpkg'
+          vcpkgGitCommitId: 'f6672d8e480ccdecddfad3fd1b838ba369ffe6cd'
+
+      - name: Integrate vcpkg
+        shell: powershell
+        run: vcpkg integrate install --vcpkg-root '${{ runner.workspace }}\b\vcpkg'
+
+      - name: Setup CDDA helper tools
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: mingw64
+          install: >-
+            gettext
+            make
+
+      - name: Cache upstream vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: upstream/msvc-full-features/vcpkg_installed
+          key: ebm-vcpkg-${{ runner.os }}-f6672d8e480ccdecddfad3fd1b838ba369ffe6cd-${{ hashFiles('upstream/msvc-full-features/vcpkg.json', 'upstream/.github/vcpkg_triplets/x64-windows-static.cmake') }}
+
+      - name: Compile genuine patched CDDA Host with MSVC
+        shell: powershell
+        run: |
+          ./ncmmrepo/ci/Build-HostPackage.ps1 `
+            -RepositoryRoot "$env:GITHUB_WORKSPACE/ncmmrepo" `
+            -UpstreamRoot "$env:GITHUB_WORKSPACE/upstream" `
+            -UpstreamTag 'cdda-experimental-2026-09-23-0546' `
+            -OutputRoot "$env:GITHUB_WORKSPACE/host-result"
+
+      - name: Confirm rebuilt binary and metadata
+        shell: powershell
+        run: |
+          $exe='host-result/cataclysm-tiles.ncmm.exe'
+          $meta='host-result/host.json'
+          if(!(Test-Path $exe -PathType Leaf) -or !(Test-Path $meta -PathType Leaf)){
+            throw 'A compiled Host binary and its certification metadata are required.'
+          }
+          $host=Get-Content $meta -Raw | ConvertFrom-Json
+          if($host.source_commit -ne 'e262adb299a7613b4aedc5f12c08fe0413c56a84'){
+            throw 'Wrong Host source identity'
+          }
+
+      - name: Upload private PR build evidence, without promoting or publishing
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: equipment-paper-doll-msvc-host
+          path: host-result/**
+          if-no-files-found: warn
+          retention-days: 7
