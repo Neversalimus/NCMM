@@ -386,16 +386,31 @@ internal sealed class MainForm : Form
                     "Installer returned without the final completion verification.");
 
             Append("Installed successfully: " + selection + ".");
-            Append("Post-install verification: PASS.");
+            Append("Post-install verification: PASS (bootstrap + selected modules).");
+            SetOperationStatus(
+                "SYNCING CERTIFIED HOST - checking exact CDDA build and SHA256; do not launch the game.",
+                Color.DarkOrange);
+            Append("Fetching current certified Host for the selected CDDA installation...");
+            Application.DoEvents();
+            SetupHostSyncResult hostSync = SetupCore.SyncCertifiedHost(result.GameRoot);
+            Append("Certified Host: " + hostSync.Message);
+            if (hostSync.Ready)
+                Append("Host SHA256: " + hostSync.HostSha256.ToUpperInvariant());
+            else
+                Append("IMPORTANT: Host not ready. A previous renderer or vanilla fallback may appear.");
             Append("Unselected bundled modules were safely deactivated; user-owned files were preserved.");
             Append("Target: " + result.BuildLabel + " | " + result.GameRoot);
             Append("Bootstrap SHA256: " + result.BootstrapSha256.ToUpperInvariant());
             Append("Vanilla SHA256: " + result.VanillaSha256.ToUpperInvariant());
-            Append("INSTALL COMPLETE & VERIFIED. No setup work remains; this window may stay open.");
+            Append(hostSync.Ready ?
+                "INSTALL COMPLETE: modules + certified Host VERIFIED." :
+                "MODULE INSTALL COMPLETE, HOST NOT READY - check warning below.");
 
             SetOperationStatus(
-                "INSTALL COMPLETE & VERIFIED - safe to launch CDDA. This installer may stay open.",
-                Color.DarkGreen);
+                hostSync.Ready ?
+                    "INSTALL COMPLETE - certified Host and modules verified; safe to launch CDDA." :
+                    "MODULES INSTALLED, BUT HOST NOT READY - see log for precise reason.",
+                hostSync.Ready ? Color.DarkGreen : Color.DarkOrange);
 
             string modules = result.InstalledModuleIds == null || result.InstalledModuleIds.Count == 0
                 ? "none (Host only)"
@@ -406,11 +421,15 @@ internal sealed class MainForm : Form
                 "Target build: " + result.BuildLabel + "\n" +
                 "Path: " + result.GameRoot + "\n" +
                 "Optional modules: " + modules + "\n\n" +
-                "No setup work continues in the background.\n" +
-                "You can launch CDDA now and leave this installer open.";
+                "Certified Host: " + hostSync.Message + "\n\n" +
+                (hostSync.Ready ?
+                    "The Host and modules are VERIFIED. You can launch CDDA now." :
+                    "Module installation completed, but the certified Host is NOT ready. " +
+                    "Do not interpret this as confirmation that the new interface is active.");
 
             MessageBox.Show(this, message, "NCMM " + SetupCore.RuntimeVersion,
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBoxButtons.OK, hostSync.Ready ? MessageBoxIcon.Information :
+                                MessageBoxIcon.Warning);
         }
         catch (Exception ex)
         {
