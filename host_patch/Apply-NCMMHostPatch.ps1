@@ -581,8 +581,15 @@ $iuc = Replace-ExactlyOnce $iuc @'
     // Keep vanilla horizontal layout.  The paper doll consumes vertical space
     // only inside the existing worn-items column.
     rearrange_columns( client_width );
-    if( !own_gear_column.visible() || own_gear_column.get_width() < 20 ) {
+    if( equipment_body_map_reserved_height > 0 &&
+        ( !own_gear_column.visible() || own_gear_column.get_width() < 20 ) ) {
+        // The doll cannot be shown.  Restore vanilla worn-list pagination,
+        // otherwise the hidden panel silently steals 11 or 17 inventory rows.
         equipment_body_map_reserved_height = 0;
+        if( own_gear_column.visible() ) {
+            own_gear_column.set_height( client_height );
+            own_gear_column.prepare_paging( filter );
+        }
     }
 '@ 'inventory.body-map-rearrange-width'
 $iuc = Replace-ExactlyOnce $iuc @'
