@@ -22,8 +22,8 @@ $catalog=Get-Content (Join-Path $RepositoryRoot 'components\index.json') -Raw | 
 $registry=Get-Content (Join-Path $RepositoryRoot 'components\native-build.json') -Raw | ConvertFrom-Json
 if(@($catalog.components|Where-Object{[string]$_.id -eq $Id}).Count -gt 0 -or
    @($registry.modules|Where-Object{[string]$_.id -eq $Id}).Count -gt 0) { throw "Duplicate module id: $Id" }
-$host=@($catalog.components|Where-Object{[string]$_.id -eq 'ncmm_host'})
-if($host.Count -ne 1) { throw 'Host catalog identity missing.' }
+$hostComponent=@($catalog.components|Where-Object{[string]$_.id -eq 'ncmm_host'})
+if($hostComponent.Count -ne 1) { throw 'Host catalog identity missing.' }
 $folder=(($Id -split '_')|ForEach-Object{$_.Substring(0,1).ToUpperInvariant()+$_.Substring(1)}) -join ''
 $group=$Id.Replace('_','-')
 $buildDir='_'+$Id+'_build'
@@ -36,7 +36,7 @@ if(Test-Path -LiteralPath $dest) { throw "Destination exists; refusing overwrite
 
 $capabilities=@('core.v1','api.versioning.v1','host_api.v2.core','settings.typed.v2')
 $dependencies=@(
- [ordered]@{component='ncmm_host';min_version=[string]$host[0].version},
+ [ordered]@{component='ncmm_host';min_version=[string]$hostComponent[0].version},
  [ordered]@{capability='api.versioning.v1'},
  [ordered]@{capability='host_api.v2.core'},
  [ordered]@{capability='settings.typed.v2'}
