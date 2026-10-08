@@ -447,6 +447,47 @@ internal static class InstallationMatrixHarness
                 AssertInstalled(root, payload, original, EquipmentBodyMapId);
             });
 
+            Run("Host feed exact SHA, source commit and release URL contracts", delegate {
+                string vanillaHash = new string('a', 64);
+                string sourceHash = "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83";
+                string patch = new string('b', 64);
+                SetupCertifiedHostEntry e = new SetupCertifiedHostEntry {
+                    source_commit = sourceHash,
+                    upstream_tag = "cdda-experimental-2026-10-01-1040",
+                    host_url = "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-cdda-experimental-2026-10-01-1040-r2909/cataclysm-tiles.ncmm.exe",
+                    host_sha256 = new string('c', 64),
+                    patch_revision = patch,
+                    ncmm_version = SetupCore.RuntimeVersion,
+                    loader_api = 1
+                };
+                SetupCertifiedHostFeed feed = new SetupCertifiedHostFeed {
+                    schema = 1, loader_api = 1, runtime_version = SetupCore.RuntimeVersion,
+                    patch_revision = patch,
+                    hosts = new Dictionary<string, SetupCertifiedHostEntry> { { vanillaHash, e } }
+                };
+                SetupCertifiedHostEntry found; string reason;
+                AssertTrue(SetupCore.TrySelectCertifiedHost(feed, vanillaHash, sourceHash, out found, out reason),
+                           "matching certified Host was rejected: " + reason);
+                AssertTrue(Object.ReferenceEquals(e, found), "wrong Host selected");
+                AssertTrue(SetupCore.TrySelectCertifiedHost(feed, vanillaHash, sourceHash.Substring(0, 12),
+                    out found, out reason), "dirty CDDA commit prefix was rejected");
+                AssertTrue(!SetupCore.TrySelectCertifiedHost(feed, new string('d', 64), sourceHash,
+                    out found, out reason), "unlisted vanilla SHA accepted");
+                AssertTrue(!SetupCore.TrySelectCertifiedHost(feed, vanillaHash, new string('e', 40),
+                    out found, out reason), "wrong source commit accepted");
+                e.host_url = "https://malicious.example.com/cataclysm-tiles.ncmm.exe";
+                AssertTrue(!SetupCore.TrySelectCertifiedHost(feed, vanillaHash, sourceHash,
+                    out found, out reason), "non-GitHub release URL accepted");
+                e.host_url = "https://github.com/Neversalimus/NCMM/releases/download/ncmm-host-1040/cataclysm-tiles.ncmm.exe";
+                e.patch_revision = new string('e', 64);
+                AssertTrue(!SetupCore.TrySelectCertifiedHost(feed, vanillaHash, sourceHash,
+                    out found, out reason), "different Host patch revision accepted");
+                e.patch_revision = patch;
+                feed.runtime_version = "999.0.0";
+                AssertTrue(!SetupCore.TrySelectCertifiedHost(feed, vanillaHash, sourceHash,
+                    out found, out reason), "wrong runtime version accepted");
+            });
+
             Run("clean CDDA -> all optional modules", delegate {
                 string root = NewGame(work, "clean-all", "vanilla-all");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
