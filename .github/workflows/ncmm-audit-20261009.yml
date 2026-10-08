@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 # Source export and full Windows runtime passed in runs 37858457079 and 37859682268.
-# This job executes additional negative probes, not a product release gate.
+# A green probe job means suspected defects reproduced, not that production is fixed.
 jobs:
   windows-boundary-probes:
     runs-on: windows-2022
@@ -32,18 +32,34 @@ jobs:
           $core=(Resolve-Path 'production\runtime\NCMMSetupCore.cs').Path
           $boot=(Resolve-Path 'production\runtime\NCMMBootstrap.cs').Path
           $test=(Resolve-Path 'audit-tools\ci\audit\BoundaryHarness.cs').Path
-          & $csc /nologo /target:exe /platform:x64 /main:AuditBoundaryHarness /out:BoundaryHarness.exe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll $core $boot $test
+          # Correct the audit fixture only: production Setup requires at least one
+          # bundled module even when checking Host/bootstrap upgrade behavior.
+          $fixture=[IO.File]::ReadAllText($test)
+          $fixture=$fixture.Replace('Payload("payload-boot-one",null,null,','Payload("payload-boot-one","ReceiptFixture","0.1.0",')
+          $fixture=$fixture.Replace('Payload("payload-boot-two",null,null,','Payload("payload-boot-two","ReceiptFixture","0.1.0",')
+          $prepared=Join-Path $PWD 'BoundaryHarness.executed.cs'
+          [IO.File]::WriteAllText($prepared,$fixture,(New-Object Text.UTF8Encoding($false)))
+          & $csc /nologo /target:exe /platform:x64 /main:AuditBoundaryHarness /out:BoundaryHarness.exe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll $core $boot $prepared
           if($LASTEXITCODE -ne 0){throw 'Audit harness compilation failed.'}
-      - name: Reproduce suspected defects - success means reproduced, not fixed
+      - name: Reproduce installer and Bootstrap defects
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
           & .\BoundaryHarness.exe 2>&1 | Tee-Object -FilePath boundary-probes.log
           if($LASTEXITCODE -ne 0){throw 'A suspected defect did not reproduce or a fixture failed; inspect log.'}
+      - name: Probe production legacy updater without downloading or installing anything
+        if: always()
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          & .\audit-tools\ci\audit\dependency-plan.ps1 -RepositoryRoot (Resolve-Path production).Path 2>&1 | Tee-Object -FilePath dependency-probes.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: NCMM-Audit-Windows-Boundary-Probes
-          path: boundary-probes.log
+          path: |
+            boundary-probes.log
+            dependency-probes.log
+            BoundaryHarness.executed.cs
           if-no-files-found: warn
           retention-days: 14
