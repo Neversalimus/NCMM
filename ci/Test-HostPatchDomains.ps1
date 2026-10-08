@@ -17,7 +17,7 @@ $fixtures=@(
     @{Label='forward dependency';Change={param($m) $m.domains[0].after=@('runtime-hooks')}},
     @{Label='self dependency';Change={param($m) $m.domains[1].after=@('runtime-hooks')}},
     @{Label='duplicate dependency';Change={param($m) $m.domains[1].after=@('worldgen-settings','worldgen-settings')}},
-    @{Label='missing last domain';Change={param($m) $m.domains=@($m.domains|Select-Object -SkipLast 1)}},
+    @{Label='missing last domain';Change={param($m) $m.domains=@($m.domains[0..($m.domains.Count-2)])}},
     @{Label='invalid source';Change={param($m) $m.source='unexpected/stack.json'}},
     @{Label='invalid schema';Change={param($m) $m.schema=2}}
 )
