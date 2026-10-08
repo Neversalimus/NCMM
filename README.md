@@ -19,16 +19,18 @@ NCMM (Neversalimus Code Mod Manager) is a native code-mod/runtime platform for C
 
 Survivor Progression keeps state schema 8. The current source contains 378 perk nodes and conditionally exposes mod-specific progression for supported active world mods.
 
-### Verified release snapshot — 2026-10-05
+### Verified release and current certification
 
-The current `ncmm-runtime-v0.8.2` Full bundle was republished after the Mana Hands certification fixes.
+Certified CDDA builds change independently of the Runtime version. Consult the
+[current exact-SHA Host feed](feed/index.json) and the
+[Full release](https://github.com/Neversalimus/NCMM/releases/tag/ncmm-runtime-v0.8.2).
+Historical archive hashes in a static README should not be used to validate current assets:
+release assets can be republished after qualification.
 
-- `NCMM_Full_v0.8.2.zip` SHA-256: `1b10291ad41ddd0794cd49a299c71e63836729ab99d5d5d4b3e072f24eaed1a7`
-- Certified Host feed patch revision: `8f7cdda53cf643483a85c5bbb1fe29ac1c6a46e4e6af17bf176c2f667d7eaeaa`
-- Certified CDDA experimentals: `2026-09-23-0546`, `2026-10-01-1040`, `2026-10-05-1423`.
-- Release gate: Certified Hosts, Real Installation Matrix and Runtime publication all passed for this snapshot.
+As of 2026-10-08, setup hardening PR #172 passed Runtime #1398,
+Source/Package Audit #711, Real Installation Matrix #126, and Runtime publication #1399.
+Refer to [Actions](https://github.com/Neversalimus/NCMM/actions) for newer results.
 
-These build labels document the verified snapshot; runtime compatibility remains exact identity-based rather than a version range.
 
 ## Install
 
@@ -62,7 +64,7 @@ The repository checkout also contains `NCMM.cmd`, the maintainer/development ent
 
 Every Runtime build now runs the production `SetupCore` against isolated CDDA-shaped installations before packages are published. The installation matrix currently covers clean installs with no modules / Survivor / AWS / both, module removal and re-enable, idempotent reinstall, previous-runtime update, corrupted DLL repair, corrupt-manifest fail-closed behavior, invalid payload/selection, rollback at multiple install phases, and recovery after a hard interrupted process.
 
-Bootstrap has a separate lifecycle harness covering certified-host selection, incompatible bindings, first and second healthy launches, host crash/auto-disable, reset recovery and fail-closed marker failures. A failed matrix blocks the Runtime release. A separate nightly/manual **Real Installation Matrix** downloads an official Windows CDDA release and runs the same production SetupCore plus Survivor/AWS selection changes against the real extracted game tree before restoring the original vanilla executable. Module QA is semantic rather than load-only: AWS validates all 48 typed geography settings/bindings, min/max boundaries and deterministic randomized cases; Survivor validates all 373 perks, modifier consumers, cleanup/respec behavior, conditional integrations, full-catalog max-rank aggregation and deterministic perk combinations. The real gameplay smoke also creates, saves and reloads a randomized AWS world, generates an overmap, and applies Survivor effects to a real CDDA avatar before checking cleanup.
+Bootstrap has a separate lifecycle harness covering certified-host selection, incompatible bindings, first and second healthy launches, host crash/auto-disable, reset recovery and fail-closed marker failures. A failed matrix blocks the Runtime release. A separate nightly/manual **Real Installation Matrix** downloads an official Windows CDDA release and runs the same production SetupCore plus Survivor/AWS selection changes against the real extracted game tree before restoring the original vanilla executable. Module QA is semantic rather than load-only: AWS validates all 48 typed geography settings/bindings, min/max boundaries and deterministic randomized cases; Survivor validates all 378 perks, modifier consumers, cleanup/respec behavior, conditional integrations, full-catalog max-rank aggregation and deterministic perk combinations. The real gameplay smoke also creates, saves and reloads a randomized AWS world, generates an overmap, and applies Survivor effects to a real CDDA avatar before checking cleanup.
 
 ## Compatibility model
 
