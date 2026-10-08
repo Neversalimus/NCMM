@@ -688,6 +688,11 @@ int ui_choose_fn( const char *title, const char *const *entries, size_t count )
         return -1;
     }
 
+    if( ui_script == 4 ) {
+        // Diagnostic purchase path: accept only the production Prime confirmation.
+        return t.find( "Prime specialization" ) != std::string::npos ? 0 : -1;
+    }
+
     return -1;
 }
 
@@ -1234,7 +1239,10 @@ using sp_test_double_index_fn = double (*)( size_t );
 using sp_test_rank_multiplier_fn = double (*)( size_t, int );
 using sp_test_effect_id_fn = const char *(*)( size_t, int );
 using sp_test_effect_value_fn = double (*)( size_t, int );
+using sp_test_prereq_fn = const char *(*)( size_t, int );
+using sp_test_position_fn = int (*)( size_t, int *, int * );
 using sp_test_reset_fn = int (*)();
+using sp_test_purchase_fn = int (*)( size_t );
 using sp_test_set_rank_fn = int (*)( size_t, int );
 using sp_test_recalculate_fn = int (*)();
 using sp_test_current_xp_fn = int (*)();
@@ -1266,6 +1274,12 @@ bool survivor_semantic_matrix( void *lib )
     const auto kind = symbol<sp_test_int_index_fn>( lib, "ncmm_test_perk_kind_v1" );
     const auto scaling = symbol<sp_test_int_index_fn>( lib, "ncmm_test_perk_scaling_v1" );
     const auto integration = symbol<sp_test_int_index_fn>( lib, "ncmm_test_perk_integration_v1" );
+    const auto required_level = symbol<sp_test_int_index_fn>( lib, "ncmm_test_perk_required_level_v1" );
+    const auto prereq = symbol<sp_test_prereq_fn>( lib, "ncmm_test_perk_prereq_v1" );
+    const auto tree_position = symbol<sp_test_position_fn>( lib, "ncmm_test_perk_tree_position_v1" );
+    const auto purchase = symbol<sp_test_purchase_fn>( lib, "ncmm_test_purchase_perk_v1" );
+    const auto respec_build = symbol<sp_test_reset_fn>( lib, "ncmm_test_respec_v1" );
+    const auto sanitize_state = symbol<sp_test_reset_fn>( lib, "ncmm_test_sanitize_state_v1" );
     const auto max_rank = symbol<sp_test_int_index_fn>( lib, "ncmm_test_perk_max_rank_v1" );
     const auto rank_multiplier = symbol<sp_test_rank_multiplier_fn>(
                                      lib, "ncmm_test_perk_rank_multiplier_v1" );
@@ -1283,6 +1297,7 @@ bool survivor_semantic_matrix( void *lib )
                                     lib, "ncmm_test_dispatch_event_v1" );
 
     if( !count || !perk_id || !branch || !currency || !kind || !scaling || !integration ||
+        !required_level || !prereq || !tree_position || !purchase || !respec_build || !sanitize_state ||
         !max_rank || !rank_multiplier || !effect_count || !effect_id || !effect_value ||
         !xp_bonus || !branch_amp || !global_amp || !reset || !set_rank || !recalculate ||
         !current_xp || !dispatch_event ) {
@@ -1343,6 +1358,57 @@ bool survivor_semantic_matrix( void *lib )
                 std::cerr << "Survivor perk has invalid declared effect: " << raw << '\n';
                 return false;
             }
+        }
+    }
+
+    // Production tree layout and prerequisite graph must remain inside Host limits.
+    // This catches silent growth past ui_tree_choose() bounds before a release.
+    std::map<std::pair<int, int>, size_t> tree_group_counts;
+    std::map<std::pair<int, int>, size_t> tree_group_edges;
+    auto tree_group = [&]( size_t i ) {
+        const int integ = integration( i );
+        return integ == 0 ? std::make_pair( 0, branch( i ) ) :
+                            std::make_pair( 1, integ );
+    };
+    for( size_t i = 0; i < perk_count; ++i ) {
+        int row = -1;
+        int column = -1;
+        if( !tree_position( i, &row, &column ) ||
+            row < 0 || row > 31 || column < 0 || column > 7 ) {
+            std::cerr << "Survivor tree layout exceeds Host bounds: " << perk_id( i )
+                      << " row=" << row << " column=" << column << '\n';
+            return false;
+        }
+        ++tree_group_counts[tree_group( i )];
+    }
+    for( size_t i = 0; i < perk_count; ++i ) {
+        for( int slot = 0; slot < 2; ++slot ) {
+            const char *required = prereq( i, slot );
+            if( required == nullptr || *required == '\0' ) continue;
+            const auto required_it = index.find( required );
+            if( required_it == index.end() ) {
+                std::cerr << "Survivor perk has missing prerequisite: " << perk_id( i )
+                          << " -> " << required << '\n';
+                return false;
+            }
+            if( required_level( required_it->second ) > required_level( i ) ) {
+                std::cerr << "Survivor prerequisite unlock is later than dependent perk: "
+                          << perk_id( i ) << " L" << required_level( i ) << " -> "
+                          << required << " L" << required_level( required_it->second ) << '\n';
+                return false;
+            }
+            if( tree_group( required_it->second ) == tree_group( i ) ) {
+                ++tree_group_edges[tree_group( i )];
+            }
+        }
+    }
+    for( const auto &entry : tree_group_counts ) {
+        if( entry.second == 0 || entry.second > 64 || tree_group_edges[entry.first] > 128 ) {
+            std::cerr << "Survivor tree group exceeds Host node/edge bounds: group="
+                      << entry.first.first << ":" << entry.first.second
+                      << " nodes=" << entry.second
+                      << " edges=" << tree_group_edges[entry.first] << '\n';
+            return false;
         }
     }
 
@@ -1459,6 +1525,106 @@ bool survivor_semantic_matrix( void *lib )
         std::cerr << "Survivor semantic fixtures are missing from catalog\n";
         return false;
     }
+
+    const size_t c_precision = find_index( "c_precision" );
+    const size_t c_conditioning = find_index( "c_conditioning" );
+    const size_t c_footwork = find_index( "c_footwork" );
+    const size_t c_reflexes = find_index( "c_reflexes" );
+    const size_t c_tempo = find_index( "c_tempo" );
+    const size_t prime_juggernaut = find_index( "spc_c_juggernaut" );
+    const size_t prime_duelist = find_index( "spc_c_duelist" );
+    if( c_precision >= perk_count || c_conditioning >= perk_count || c_footwork >= perk_count ||
+        c_reflexes >= perk_count || c_tempo >= perk_count ||
+        prime_juggernaut >= perk_count || prime_duelist >= perk_count ) {
+        std::cerr << "Survivor purchase/Prime fixtures are missing from catalog\n";
+        return false;
+    }
+
+    // Exercise the production purchase path: prerequisite rejection, point spending,
+    // Prime commitment/exclusivity, then the production full-respec refund.
+    if( !reset() ) return false;
+    const std::string survivor_prefix = "survivor_progression:";
+    character_state[survivor_prefix + "b_combat_level"] = 50;
+    character_state[survivor_prefix + "perk_points"] = 10;
+    character_state[survivor_prefix + "major_points"] = 2;
+    ui_script = 4;
+    ui_stage = 0;
+    if( purchase( c_precision ) != 0 ||
+        character_state[survivor_prefix + "perk_points"] != 10 ) {
+        std::cerr << "Survivor purchase path accepted an unmet prerequisite\n";
+        return false;
+    }
+    for( size_t idx : { c_power, c_precision, c_conditioning, c_footwork, c_reflexes, c_tempo } ) {
+        if( purchase( idx ) != 1 ) {
+            std::cerr << "Survivor production purchase failed for prerequisite chain: "
+                      << perk_id( idx ) << '\n';
+            return false;
+        }
+    }
+    if( purchase( prime_juggernaut ) != 1 ||
+        character_state[survivor_prefix + "spec_combat"] != 1 ||
+        character_state[survivor_prefix + "perk_points"] != 3 ) {
+        std::cerr << "Survivor Prime purchase/commit failed\n";
+        return false;
+    }
+    if( purchase( prime_duelist ) != 0 ||
+        character_state[survivor_prefix + "spec_combat"] != 1 ||
+        character_state[survivor_prefix + "perk_points"] != 3 ) {
+        std::cerr << "Survivor Prime exclusivity failed closed\n";
+        return false;
+    }
+    if( !respec_build() ||
+        character_state[survivor_prefix + "spec_combat"] != 0 ||
+        character_state[survivor_prefix + "perk_points"] != 10 ) {
+        std::cerr << "Survivor production respec did not refund/reset the build\n";
+        return false;
+    }
+    for( size_t idx : { c_power, c_precision, c_conditioning, c_footwork, c_reflexes,
+                        c_tempo, prime_juggernaut } ) {
+        if( !set_rank( idx, 0 ) ) return false;
+    }
+    ui_script = 0;
+    ui_stage = 0;
+
+    // Current schema is also sanitized.  Valid saves are unchanged, while impossible
+    // negative/out-of-range state is repaired without granting duplicate major points.
+    if( !reset() ) return false;
+    character_state[survivor_prefix + "schema"] = 8;
+    character_state[survivor_prefix + "level"] = 20;
+    character_state[survivor_prefix + "xp"] = -7;
+    character_state[survivor_prefix + "xp_fraction"] = 250;
+    character_state[survivor_prefix + "perk_points"] = -3;
+    character_state[survivor_prefix + "major_points"] = -2;
+    character_state[survivor_prefix + "major_awarded"] = 999;
+    character_state[survivor_prefix + "b_combat_level"] = -5;
+    character_state[survivor_prefix + "b_combat_fatigue"] = 5000;
+    character_state[survivor_prefix + "b_combat_streak"] = -4;
+    character_state[survivor_prefix + "b_combat_rate_fraction"] = -7;
+    character_state[survivor_prefix + "b_combat_balance_fraction"] = 250;
+    character_state[survivor_prefix + "spec_combat"] = 99;
+    character_state[survivor_prefix + "prime_magiclysm"] = -4;
+    character_state[survivor_prefix + "p_c_power"] = 99;
+    if( !sanitize_state() ||
+        character_state[survivor_prefix + "schema"] != 8 ||
+        character_state[survivor_prefix + "xp"] != 2 ||
+        character_state[survivor_prefix + "xp_fraction"] != 50 ||
+        character_state[survivor_prefix + "perk_points"] != 0 ||
+        character_state[survivor_prefix + "major_points"] != 0 ||
+        character_state[survivor_prefix + "major_awarded"] != 4 ||
+        character_state[survivor_prefix + "b_combat_level"] != 1 ||
+        character_state[survivor_prefix + "b_combat_fatigue"] != 1000 ||
+        character_state[survivor_prefix + "b_combat_streak"] != 0 ||
+        character_state[survivor_prefix + "b_combat_rate_fraction"] != 0 ||
+        character_state[survivor_prefix + "b_combat_balance_fraction"] != 50 ||
+        character_state[survivor_prefix + "spec_combat"] != 0 ||
+        character_state[survivor_prefix + "prime_magiclysm"] != 0 ||
+        character_state[survivor_prefix + "p_c_power"] != 1 ) {
+        std::cerr << "Survivor current-schema sanitization failed\n";
+        return false;
+    }
+    if( !reset() ) return false;
+    character_state[survivor_prefix + "perk_points"] = 0;
+    character_state[survivor_prefix + "major_points"] = 0;
 
     size_t direct_cases = 0;
     size_t amplifier_cases = 0;
@@ -1737,7 +1903,7 @@ bool survivor_semantic_matrix( void *lib )
     }
 
     std::cout << "Survivor semantic matrix: PASS (" << perk_count
-              << "/374 perks covered; direct=" << direct_cases
+              << "/" << perk_count << " perks covered; direct=" << direct_cases
               << ", amplifiers=" << amplifier_cases
               << ", stateful=" << special_cases
               << ", conditional-inert=" << integration_inert_cases
