@@ -1,4 +1,4 @@
-name: Audit 2026-10-09 - isolated baseline evidence
+name: Audit 2026-10-09 - production boundary probes
 
 on:
   push:
@@ -9,53 +9,9 @@ on:
 permissions:
   contents: read
 
+# Source export and full Windows runtime passed in runs 37858457079 and 37859682268.
+# This job executes additional negative probes, not a product release gate.
 jobs:
-  source-evidence:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: 4a83414a1bf4147860b0e3dd49a9aded0c5581d0
-      - name: Export immutable audit baseline, never publish or modify feeds
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = '4a83414a1bf4147860b0e3dd49a9aded0c5581d0'
-          mkdir -p audit-out
-          git archive --format=zip --output=audit-out/NCMM-source-4a83414a.zip HEAD
-          sha256sum audit-out/NCMM-source-4a83414a.zip > audit-out/SHA256.txt
-          git ls-tree -r HEAD > audit-out/git-tree.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: NCMM-Audit-Source-4a83414a
-          path: audit-out/*
-          if-no-files-found: error
-          retention-days: 14
-  windows-runtime-evidence:
-    runs-on: windows-2022
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: 4a83414a1bf4147860b0e3dd49a9aded0c5581d0
-      - uses: microsoft/setup-msbuild@v2
-      - name: Build production runtime and run existing module and failure harnesses
-        shell: powershell
-        run: |
-          $ErrorActionPreference='Stop'
-          Start-Transcript -Path "$env:RUNNER_TEMP/ncmm-audit-runtime.log"
-          try {
-            ./ci/Build-Runtime.ps1 -RepositoryRoot $PWD.Path -OutputRoot (Join-Path $PWD 'dist/runtime')
-            if ($LASTEXITCODE -ne 0) { throw 'Runtime verification returned a nonzero exit code.' }
-          } finally { Stop-Transcript }
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: NCMM-Audit-Windows-Runtime-4a83414a
-          path: ${{ runner.temp }}/ncmm-audit-runtime.log
-          if-no-files-found: error
-          retention-days: 14
   windows-boundary-probes:
     runs-on: windows-2022
     timeout-minutes: 8
@@ -72,14 +28,17 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $csc=Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
-          & $csc /nologo /target:exe /platform:x64 /main:AuditBoundaryHarness /out:BoundaryHarness.exe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll production/runtime/NCMMSetupCore.cs production/runtime/NCMMBootstrap.cs audit-tools/ci/audit/BoundaryHarness.cs
+          $csc=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+          $core=(Resolve-Path 'production\runtime\NCMMSetupCore.cs').Path
+          $boot=(Resolve-Path 'production\runtime\NCMMBootstrap.cs').Path
+          $test=(Resolve-Path 'audit-tools\ci\audit\BoundaryHarness.cs').Path
+          & $csc /nologo /target:exe /platform:x64 /main:AuditBoundaryHarness /out:BoundaryHarness.exe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll $core $boot $test
           if($LASTEXITCODE -ne 0){throw 'Audit harness compilation failed.'}
-      - name: Reproduce suspected defects - successful run means issues reproduced, not production fixed
+      - name: Reproduce suspected defects - success means reproduced, not fixed
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          & ./BoundaryHarness.exe 2>&1 | Tee-Object -FilePath boundary-probes.log
+          & .\BoundaryHarness.exe 2>&1 | Tee-Object -FilePath boundary-probes.log
           if($LASTEXITCODE -ne 0){throw 'A suspected defect did not reproduce or a fixture failed; inspect log.'}
       - uses: actions/upload-artifact@v4
         if: always()
