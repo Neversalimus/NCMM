@@ -498,25 +498,25 @@ struct ncmm_doll_cell {
 };
 static constexpr int ncmm_doll_width = 14;
 static const ncmm_doll_cell ncmm_doll_full[] = {
-    { 0, 5, 0, "╭──╮", "▄██▄", "████" },
-    { 1, 6, 1, "··", "▒▒", "██" },
-    { 2, 6, 2, "··", "▒▒", "██" },
-    { 4, 1, 3, "░░", "▓▓", "██" }, { 3, 5, 3, "░░░░", "▓▓▓▓", "████" }, { 5, 11, 3, "░░", "▓▓", "██" },
-    { 4, 1, 4, "░░", "▓▓", "██" }, { 3, 5, 4, "░░░░", "▓▓▓▓", "████" }, { 5, 11, 4, "░░", "▓▓", "██" },
-    { 6, 0, 5, "░░", "▓▓", "██" }, { 3, 5, 5, "░░░░", "▓▓▓▓", "████" }, { 7, 12, 5, "░░", "▓▓", "██" },
-    { 3, 5, 6, "░░░░", "▓▓▓▓", "████" },
-    { 8, 5, 7, "░░", "▓▓", "██" }, { 9, 8, 7, "░░", "▓▓", "██" },
-    { 8, 5, 8, "░░", "▓▓", "██" }, { 9, 8, 8, "░░", "▓▓", "██" },
-    { 10, 4, 9, "▄▄", "▓▓", "██" }, { 11, 8, 9, "▄▄", "▓▓", "██" }
+    { 0, 5, 0, u8"\u256D\u2500\u2500\u256E", u8"\u2584\u2588\u2588\u2584", u8"\u2588\u2588\u2588\u2588" },
+    { 1, 6, 1, u8"\u00B7\u00B7", u8"\u2592\u2592", u8"\u2588\u2588" },
+    { 2, 6, 2, u8"\u00B7\u00B7", u8"\u2592\u2592", u8"\u2588\u2588" },
+    { 4, 1, 3, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 3, 5, 3, u8"\u2591\u2591\u2591\u2591", u8"\u2593\u2593\u2593\u2593", u8"\u2588\u2588\u2588\u2588" }, { 5, 11, 3, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 4, 1, 4, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 3, 5, 4, u8"\u2591\u2591\u2591\u2591", u8"\u2593\u2593\u2593\u2593", u8"\u2588\u2588\u2588\u2588" }, { 5, 11, 4, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 6, 0, 5, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 3, 5, 5, u8"\u2591\u2591\u2591\u2591", u8"\u2593\u2593\u2593\u2593", u8"\u2588\u2588\u2588\u2588" }, { 7, 12, 5, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 3, 5, 6, u8"\u2591\u2591\u2591\u2591", u8"\u2593\u2593\u2593\u2593", u8"\u2588\u2588\u2588\u2588" },
+    { 8, 5, 7, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 9, 8, 7, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 8, 5, 8, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 9, 8, 8, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 10, 4, 9, u8"\u2584\u2584", u8"\u2593\u2593", u8"\u2588\u2588" }, { 11, 8, 9, u8"\u2584\u2584", u8"\u2593\u2593", u8"\u2588\u2588" }
 };
 static const ncmm_doll_cell ncmm_doll_compact[] = {
-    { 0, 5, 0, "╭──╮", "▄██▄", "████" },
-    { 1, 5, 1, "··", "▒▒", "██" }, { 2, 8, 1, "·", "▒", "█" },
-    { 4, 1, 2, "░░", "▓▓", "██" }, { 3, 5, 2, "░░░░", "▓▓▓▓", "████" }, { 5, 11, 2, "░░", "▓▓", "██" },
-    { 4, 1, 3, "░░", "▓▓", "██" }, { 3, 5, 3, "░░░░", "▓▓▓▓", "████" }, { 5, 11, 3, "░░", "▓▓", "██" },
-    { 6, 0, 4, "░░", "▓▓", "██" }, { 3, 5, 4, "░░░░", "▓▓▓▓", "████" }, { 7, 12, 4, "░░", "▓▓", "██" },
-    { 8, 5, 5, "░░", "▓▓", "██" }, { 9, 8, 5, "░░", "▓▓", "██" },
-    { 10, 4, 6, "▄▄", "▓▓", "██" }, { 11, 8, 6, "▄▄", "▓▓", "██" }
+    { 0, 5, 0, u8"\u256D\u2500\u2500\u256E", u8"\u2584\u2588\u2588\u2584", u8"\u2588\u2588\u2588\u2588" },
+    { 1, 5, 1, u8"\u00B7\u00B7", u8"\u2592\u2592", u8"\u2588\u2588" }, { 2, 8, 1, u8"\u00B7", u8"\u2592", u8"\u2588" },
+    { 4, 1, 2, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 3, 5, 2, u8"\u2591\u2591\u2591\u2591", u8"\u2593\u2593\u2593\u2593", u8"\u2588\u2588\u2588\u2588" }, { 5, 11, 2, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 4, 1, 3, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 3, 5, 3, u8"\u2591\u2591\u2591\u2591", u8"\u2593\u2593\u2593\u2593", u8"\u2588\u2588\u2588\u2588" }, { 5, 11, 3, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 6, 0, 4, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 3, 5, 4, u8"\u2591\u2591\u2591\u2591", u8"\u2593\u2593\u2593\u2593", u8"\u2588\u2588\u2588\u2588" }, { 7, 12, 4, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 8, 5, 5, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 9, 8, 5, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 10, 4, 6, u8"\u2584\u2584", u8"\u2593\u2593", u8"\u2588\u2588" }, { 11, 8, 6, u8"\u2584\u2584", u8"\u2593\u2593", u8"\u2588\u2588" }
 };
 static int ncmm_equipment_doll_hit( int x, int y, bool compact )
 {
@@ -753,8 +753,8 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
     mvwhline( w, point( panel_x, panel_top ), c_dark_gray, LINE_OXOX, panel_width );
 
     const std::string heading = ncmm::localized_text(
-                                    "EQUIPMENT · BODY MAP",
-                                    u8"ЭКИПИРОВКА · СХЕМА ТЕЛА" );
+                                    "EQUIPMENT \u00B7 BODY MAP",
+                                    u8"\u042D\u041A\u0418\u041F\u0418\u0420\u041E\u0412\u041A\u0410 \u00B7 \u0421\u0425\u0415\u041C\u0410 \u0422\u0415\u041B\u0410" );
     trim_and_print( w, point( content_x, panel_top + 1 ), content_width, c_light_cyan,
                     heading );
 
@@ -767,18 +767,18 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
         &body_part_leg_l, &body_part_leg_r, &body_part_foot_l, &body_part_foot_r
     };
     const std::string labels[] = {
-        ncmm::localized_text( "Head", u8"Голова" ),
-        ncmm::localized_text( "Eyes", u8"Глаза" ),
-        ncmm::localized_text( "Mouth", u8"Рот" ),
-        ncmm::localized_text( "Torso", u8"Торс" ),
-        ncmm::localized_text( "Left arm", u8"Л. рука" ),
-        ncmm::localized_text( "Right arm", u8"П. рука" ),
-        ncmm::localized_text( "Left hand", u8"Л. кисть" ),
-        ncmm::localized_text( "Right hand", u8"П. кисть" ),
-        ncmm::localized_text( "Left leg", u8"Л. нога" ),
-        ncmm::localized_text( "Right leg", u8"П. нога" ),
-        ncmm::localized_text( "Left foot", u8"Л. стопа" ),
-        ncmm::localized_text( "Right foot", u8"П. стопа" )
+        ncmm::localized_text( "Head", u8"\u0413\u043E\u043B\u043E\u0432\u0430" ),
+        ncmm::localized_text( "Eyes", u8"\u0413\u043B\u0430\u0437\u0430" ),
+        ncmm::localized_text( "Mouth", u8"\u0420\u043E\u0442" ),
+        ncmm::localized_text( "Torso", u8"\u0422\u043E\u0440\u0441" ),
+        ncmm::localized_text( "Left arm", u8"\u041B. \u0440\u0443\u043A\u0430" ),
+        ncmm::localized_text( "Right arm", u8"\u041F. \u0440\u0443\u043A\u0430" ),
+        ncmm::localized_text( "Left hand", u8"\u041B. \u043A\u0438\u0441\u0442\u044C" ),
+        ncmm::localized_text( "Right hand", u8"\u041F. \u043A\u0438\u0441\u0442\u044C" ),
+        ncmm::localized_text( "Left leg", u8"\u041B. \u043D\u043E\u0433\u0430" ),
+        ncmm::localized_text( "Right leg", u8"\u041F. \u043D\u043E\u0433\u0430" ),
+        ncmm::localized_text( "Left foot", u8"\u041B. \u0441\u0442\u043E\u043F\u0430" ),
+        ncmm::localized_text( "Right foot", u8"\u041F. \u0441\u0442\u043E\u043F\u0430" )
     };
     int worn_count[12] = {};
     int encumbrance[12] = {};
@@ -837,8 +837,8 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
     }
     const auto number_of_worn = std::to_string( worn_count[focus] );
     const auto number_of_enc = std::to_string( encumbrance[focus] );
-    const std::string enc_label = ncmm::localized_text( "Enc", u8"Сков" );
-    const std::string worn_label = ncmm::localized_text( "worn", u8"вещей" );
+    const std::string enc_label = ncmm::localized_text( "Enc", u8"\u0421\u043A\u043E\u0432" );
+    const std::string worn_label = ncmm::localized_text( "worn", u8"\u0432\u0435\u0449\u0435\u0439" );
 
     // On a wide worn column the mannequin and a focused garment inspector
     // coexist.  Narrow layouts keep the complete doll and a two-line summary.
@@ -859,13 +859,13 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
         for( const item_location &loc : worn_items ) {
             if( loc && loc->covers( parts[focus]->id() ) ) {
                 if( shown < 6 ) {
-                    detail_line( "· " + loc->display_name(), c_light_gray );
+                    detail_line( "\u00B7 " + loc->display_name(), c_light_gray );
                 }
                 ++shown;
             }
         }
         if( shown == 0 ) {
-            detail_line( ncmm::localized_text( "No clothing", u8"Нет одежды" ),
+            detail_line( ncmm::localized_text( "No clothing", u8"\u041D\u0435\u0442 \u043E\u0434\u0435\u0436\u0434\u044B" ),
                          c_dark_gray );
         } else if( shown > 6 ) {
             detail_line( "+" + std::to_string( shown - 6 ), c_light_gray );
@@ -874,11 +874,11 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
 
     const int summary_y = compact ? panel_top + 9 : panel_top + 12;
     const std::string summary = labels[focus] + "  " + enc_label + " " + number_of_enc +
-                                "  · " + number_of_worn + " " + worn_label;
+                                "  \u00B7 " + number_of_worn + " " + worn_label;
     trim_and_print( w, point( content_x, summary_y ), content_width, c_light_green, summary );
     if( selected != nullptr ) {
         const std::string selected_line = ncmm::localized_text(
-                                              "Selected: ", u8"Выбрано: " ) +
+                                              "Selected: ", u8"\u0412\u044B\u0431\u0440\u0430\u043D\u043E: " ) +
                                           selected->display_name();
         trim_and_print( w, point( content_x, summary_y + 1 ), content_width, c_light_cyan,
                         selected_line );
@@ -906,17 +906,17 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
         if( !layers.empty() ) {
             trim_and_print( w, point( content_x, panel_top + 14 ), content_width,
                             c_light_gray,
-                            ncmm::localized_text( "Layer: ", u8"Слой: " ) + layers );
+                            ncmm::localized_text( "Layer: ", u8"\u0421\u043B\u043E\u0439: " ) + layers );
         }
     }
     trim_and_print( w, point( content_x, panel_top + 15 ), content_width,
                     c_dark_gray,
-                    ncmm::localized_text( "░ empty  ▓ 1-2  █ 3+  · colors = enc",
-                                          u8"░ пусто  ▓ 1-2  █ 3+  · цвет = сков." ) );
+                    ncmm::localized_text( "\u2591 empty  \u2593 1-2  \u2588 3+  \u00B7 colors = enc",
+                                          u8"\u2591 \u043F\u0443\u0441\u0442\u043E  \u2593 1-2  \u2588 3+  \u00B7 \u0446\u0432\u0435\u0442 = \u0441\u043A\u043E\u0432." ) );
     trim_and_print( w, point( content_x, panel_top + 16 ), content_width,
                     c_dark_gray,
-                    ncmm::localized_text( "Cyan: selected · Green: focused",
-                                          u8"Бирюз.: выбрано · Зел.: зона" ) );
+                    ncmm::localized_text( "Cyan: selected \u00B7 Green: focused",
+                                          u8"\u0411\u0438\u0440\u044E\u0437.: \u0432\u044B\u0431\u0440\u0430\u043D\u043E \u00B7 \u0417\u0435\u043B.: \u0437\u043E\u043D\u0430" ) );
 }
 '@ 'inventory.body-map-frame-and-render'
 $gic = Replace-ExactlyOnce $gic @'
