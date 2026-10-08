@@ -15,6 +15,9 @@ on:
       - 'ci/Test-ComponentCatalog.ps1'
       - 'ci/NativeModuleCatalog.ps1'
       - 'ci/Test-NativeModuleCatalog.ps1'
+      - 'ci/Test-NCMMNativeScaffold.ps1'
+      - 'tools/New-NCMMNativeModule.ps1'
+      - 'sdk/**'
       - 'ci/Test-InstallerTransaction.ps1'
       - 'ci/Test-HostPayloadContracts.ps1'
       - 'ci/Test-SurvivorPayloadContracts.ps1'
@@ -88,6 +91,10 @@ jobs:
       - name: Validate native module build registry and mutation guards
         shell: powershell
         run: .\ci\Test-NativeModuleCatalog.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE"
+
+      - name: Verify SDK generator isolation, manifests and rejection matrix
+        shell: powershell
+        run: .\ci\Test-NCMMNativeScaffold.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE"
 
       - name: Regenerate final module sources from payload
         shell: powershell
