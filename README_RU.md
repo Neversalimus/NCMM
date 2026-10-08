@@ -17,7 +17,7 @@ NCMM (Neversalimus Code Mod Manager) — платформа для native/code-�
 | Equipment Body Map | 0.1.0 |
 | Item Glyphs | 0.1.0 |
 
-Survivor Progression сохраняет state schema 8. В текущем исходнике 373 узла перков; ветки интеграций для поддерживаемых модов появляются только при наличии соответствующих активных world-модов.
+Survivor Progression сохраняет state schema 8. В текущем исходнике 378 узлов перков; ветки интеграций для поддерживаемых модов появляются только при наличии соответствующих активных world-модов.
 
 ### Проверенный релизный снимок — 2026-10-05
 
@@ -69,6 +69,13 @@ Git, Visual Studio, CMake и MSYS2 игроку не нужны. Если для
 NCMM не определяет совместимость по имени папки или версии лаунчера. Runtime сверяет SHA-256 vanilla exe, source commit CDDA, Loader API, версию NCMM и patch revision Host с certified feed. Host публикуется только после source-contract preflight и Windows/MSVC-сертификации конкретного upstream release.
 
 Исходный exe сохраняется как `cataclysm-tiles.vanilla.exe`. При отсутствующем, повреждённом или неподходящем Host запускается vanilla. Состояние bootstrap/runtime пишется в `ncmm/runtime.state.json`, состояние Host и модулей — в `ncmm/modules.state.json`.
+
+
+### Воспроизводимые проверки и производительность
+
+- **Survivor:** semantic smoke проверяет все 378 перков, отсутствие циклов требований, семь модовых Prime-специализаций, возврат очков при отключённом моде и бюджет пересчёта полного каталога (64 запуска за 5000 мс на CI). Это **не гарантия игрового TPS**.
+- **Синхронизация canonical payload:** после правок `runtime/NCMMBootstrap.cs`, `runtime/NCMMSetupCore.cs` или `tests/smoke_host.cpp` запустите `ci/Sync-CanonicalPayload.ps1`, затем `ci/Regenerate-PackageIntegrity.ps1`. CI автоматически проверяет совпадение снимков в режиме `-Check`.
+- **Проверка в игре:** для честного сравнения фиксируйте один сейв, точный CDDA commit, моды и железо; отдельно измеряйте движение, инвентарь, стрельбу, крафт и генерацию карты относительно vanilla. Подробности — `docs/PERFORMANCE_RUNBOOK.md`.
 
 ## Структура репозитория
 

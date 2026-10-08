@@ -3,6 +3,8 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
+#include <functional>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -1365,6 +1367,7 @@ bool survivor_semantic_matrix( void *lib )
     // This catches silent growth past ui_tree_choose() bounds before a release.
     std::map<std::pair<int, int>, size_t> tree_group_counts;
     std::map<std::pair<int, int>, size_t> tree_group_edges;
+    std::vector<std::vector<size_t>> graph( perk_count );
     auto tree_group = [&]( size_t i ) {
         const int integ = integration( i );
         return integ == 0 ? std::make_pair( 0, branch( i ) ) :
@@ -1391,6 +1394,7 @@ bool survivor_semantic_matrix( void *lib )
                           << " -> " << required << '\n';
                 return false;
             }
+            graph[i].push_back( required_it->second );
             if( required_level( required_it->second ) > required_level( i ) ) {
                 std::cerr << "Survivor prerequisite unlock is later than dependent perk: "
                           << perk_id( i ) << " L" << required_level( i ) << " -> "
@@ -1401,6 +1405,25 @@ bool survivor_semantic_matrix( void *lib )
                 ++tree_group_edges[tree_group( i )];
             }
         }
+    }
+    // Level ordering alone cannot detect same-level cycles or self-references.
+    // Inspect the complete directed graph (including cross-integration edges).
+    std::vector<uint8_t> colors( perk_count, 0 );
+    std::function<bool( size_t )> visit = [&]( size_t node ) {
+        if( colors[node] == 1 ) {
+            std::cerr << "Survivor prerequisite cycle at " << perk_id( node ) << '\n';
+            return false;
+        }
+        if( colors[node] == 2 ) return true;
+        colors[node] = 1;
+        for( size_t dependency : graph[node] ) {
+            if( !visit( dependency ) ) return false;
+        }
+        colors[node] = 2;
+        return true;
+    };
+    for( size_t i = 0; i < perk_count; ++i ) {
+        if( !visit( i ) ) return false;
     }
     for( const auto &entry : tree_group_counts ) {
         if( entry.second == 0 || entry.second > 64 || tree_group_edges[entry.first] > 128 ) {
@@ -1585,6 +1608,112 @@ bool survivor_semantic_matrix( void *lib )
     }
     ui_script = 0;
     ui_stage = 0;
+
+    // Every integration Prime must use the real purchase and full-respec paths,
+    // including commitment, exclusivity, insufficient points and unavailable mod.
+    struct mod_prime_case {
+        const char *world_mod;
+        const char *key;
+        const char *first;
+        const char *second;
+    };
+    const mod_prime_case mod_primes[] = {
+        { "magiclysm", "prime_magiclysm", "mg_prime_arcanist", "mg_prime_channeler" },
+        { "mindovermatter", "prime_mindovermatter", "mom_prime_kinetic", "mom_prime_overclock" },
+        { "xedra_evolved", "prime_xedra_evolved", "xe_prime_analyst", "xe_prime_resonant" },
+        { "aftershock_exoplanet", "prime_aftershock_exoplanet", "af_prime_smartgun", "af_prime_systems" },
+        { "aftershock_prime", "prime_aftershock_prime", "afp_prime_gunslinger", "afp_prime_systems_specialist" },
+        { "secronom", "prime_secronom", "sec_prime_hunter", "sec_prime_bulwark" },
+        { "secronom_lore_expansion", "prime_secronom_plus", "secx_prime_architect", "secx_prime_predator" }
+    };
+    for( const mod_prime_case &fixture : mod_primes ) {
+        const size_t first = find_index( fixture.first );
+        const size_t second = find_index( fixture.second );
+        if( first == perk_count || second == perk_count ||
+            integration( first ) == 0 || integration( first ) != integration( second ) ||
+            currency( first ) != 1 || currency( second ) != 1 ) {
+            std::cerr << "Survivor integration Prime catalog fixture invalid: " << fixture.first << '\n';
+            return false;
+        }
+        if( !reset() ) return false;
+        character_state[survivor_prefix + "level"] = 80;
+        character_state[survivor_prefix + "perk_points"] = 12;
+        character_state[survivor_prefix + "major_points"] = 12;
+        std::set<size_t> seeded;
+        std::function<bool( size_t )> grant_prerequisites = [&]( size_t target ) {
+            for( size_t dependency : graph[target] ) {
+                if( seeded.insert( dependency ).second ) {
+                    if( !grant_prerequisites( dependency ) || !set_rank( dependency, 1 ) )
+                        return false;
+                }
+            }
+            return true;
+        };
+        if( !grant_prerequisites( first ) || !grant_prerequisites( second ) ) {
+            std::cerr << "Survivor mod Prime prerequisite setup failed: " << fixture.first << '\n';
+            return false;
+        }
+        const int64_t major_before = character_state[survivor_prefix + "major_points"];
+        active_world_mods.erase( fixture.world_mod );
+        if( purchase( first ) != 0 ||
+            character_state[survivor_prefix + "major_points"] != major_before ) {
+            std::cerr << "Survivor inactive-mod Prime purchase accepted: " << fixture.first << '\n';
+            return false;
+        }
+        active_world_mods.insert( fixture.world_mod );
+        character_state[survivor_prefix + "major_points"] = 0;
+        if( purchase( first ) != 0 ) {
+            std::cerr << "Survivor zero-points Prime purchase accepted: " << fixture.first << '\n';
+            return false;
+        }
+        character_state[survivor_prefix + "major_points"] = major_before;
+        ui_script = 4;
+        ui_stage = 0;
+        if( purchase( first ) != 1 ||
+            character_state[survivor_prefix + fixture.key] != 1 ||
+            character_state[survivor_prefix + "major_points"] != major_before - 1 ||
+            character_state[survivor_prefix + "p_" + fixture.first] != 1 ) {
+            std::cerr << "Survivor integration Prime commit failed: " << fixture.first << '\n';
+            return false;
+        }
+        if( purchase( second ) != 0 ||
+            character_state[survivor_prefix + fixture.key] != 1 ||
+            character_state[survivor_prefix + "major_points"] != major_before - 1 ) {
+            std::cerr << "Survivor integration Prime exclusivity failed: " << fixture.second << '\n';
+            return false;
+        }
+        if( !respec_build() ||
+            character_state[survivor_prefix + fixture.key] != 0 ||
+            character_state[survivor_prefix + "p_" + fixture.first] != 0 ) {
+            std::cerr << "Survivor integration Prime respec failed: " << fixture.first << '\n';
+            return false;
+        }
+        ui_script = 0;
+        ui_stage = 0;
+    }
+
+    // Full respec must refund ranks even when their integration disappears from
+    // the active world; UI visibility and effect activity do not imply ownership.
+    if( !reset() || !set_rank( c_power, 1 ) ||
+        !set_rank( mana_vamp, 3 ) || !set_rank( find_index( "mg_prime_arcanist" ), 1 ) ) {
+        std::cerr << "Survivor hidden-integration respec fixture setup failed\n";
+        return false;
+    }
+    character_state[survivor_prefix + "perk_points"] = 7;
+    character_state[survivor_prefix + "major_points"] = 5;
+    character_state[survivor_prefix + "prime_magiclysm"] = 1;
+    active_world_mods.clear();
+    if( !respec_build() ||
+        character_state[survivor_prefix + "perk_points"] != 11 ||
+        character_state[survivor_prefix + "major_points"] != 6 ||
+        character_state[survivor_prefix + "prime_magiclysm"] != 0 ||
+        character_state[survivor_prefix + "p_mg_mana_vampirism"] != 0 ||
+        character_state[survivor_prefix + "p_mg_prime_arcanist"] != 0 ||
+        character_state[survivor_prefix + "p_c_power"] != 0 ) {
+        std::cerr << "Survivor inactive-mod owned ranks were not fully refunded\n";
+        return false;
+    }
+    active_world_mods = all_supported_world_mods;
 
     // Current schema is also sanitized.  Valid saves are unchanged, while impossible
     // negative/out-of-range state is repaired without granting duplicate major points.
@@ -1894,6 +2023,27 @@ bool survivor_semantic_matrix( void *lib )
         !nearly_equal( survivor_modifier_value( "sp_damage_dealt_pct" ), 20.0 ) ||
         !nearly_equal( survivor_modifier_value( "speed_pct" ), 10.0 ) ) {
         std::cerr << "Survivor Unbroken Momentum interaction failed\n";
+        return false;
+    }
+
+    // Stable, release-gating microbenchmark: cost of full-effect recalculation
+    // with the entire catalog owned. This measures the test Host path, not CDDA TPS.
+    // Keep a deliberately generous 5s limit for slower Windows CI machines.
+    if( !reset() ) return false;
+    for( size_t i = 0; i < perk_count; ++i ) {
+        character_state[survivor_prefix + "p_" + perk_id( i )] = max_rank( i );
+    }
+    constexpr int recalc_iterations = 64;
+    const auto perf_start = std::chrono::steady_clock::now();
+    for( int n = 0; n < recalc_iterations; ++n ) {
+        if( !recalculate() ) return false;
+    }
+    const auto perf_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                  std::chrono::steady_clock::now() - perf_start ).count();
+    std::cout << "Survivor recalculation budget: " << perf_elapsed
+              << "ms / 64 full-catalog passes (limit 5000ms)\n";
+    if( perf_elapsed > 5000 ) {
+        std::cerr << "Survivor full-catalog recalculation exceeded CI budget\n";
         return false;
     }
 
