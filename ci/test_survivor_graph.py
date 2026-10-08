@@ -80,6 +80,89 @@ def check_graph(graph: dict, require_catalog: bool = True) -> None:
                 raise ValueError(f"Duplicate {mod} Prime root")
 
 
+
+def check_prime_contracts(source: str, graph: dict) -> None:
+    """Verify the 21 mod Prime roots against production gating and identity."""
+    try:
+        slot_body = source.split("int mod_prime_root_slot(", 1)[1].split(
+            "bool mod_prime_specialization_root(", 1
+        )[0]
+    except IndexError as exc:
+        raise ValueError("Production mod Prime slot resolver changed") from exc
+    slots: dict[str, int] = {}
+    for condition, slot in re.findall(
+        r"if\s*\((.*?)\)\s*return\s+([123]);", slot_body, flags=re.DOTALL
+    ):
+        for ident in re.findall(r'id\s*==\s*"([^"]+)"', condition):
+            if ident in slots:
+                raise ValueError(f"Duplicate mod Prime slot mapping: {ident}")
+            slots[ident] = int(slot)
+    expected_slots = {
+        ident: slot for roots in ROOTS.values()
+        for slot, ident in enumerate(roots, start=1)
+    }
+    if slots != expected_slots:
+        raise ValueError(
+            f"Mod Prime slot mapping drift: missing={set(expected_slots.items()) - set(slots.items())}, "
+            f"unexpected={set(slots.items()) - set(expected_slots.items())}"
+        )
+
+    integration_rows: dict[str, list[str]] = collections.defaultdict(list)
+    for ident, mod in re.findall(
+        r'\{\s*"([^"]+)",\s*integration_id::(\w+)\s*\}', source
+    ):
+        integration_rows[ident].append(mod)
+
+    for mod, roots in ROOTS.items():
+        shared_prerequisites = None
+        for ident in roots:
+            if ident not in graph:
+                raise ValueError(f"Missing Prime catalog row: {ident}")
+            rows = re.findall(
+                rf'^\s*\{{\s*"{re.escape(ident)}",\s*branch_id::(\w+),\s*'
+                r'(\d+),\s*(\d+),\s*currency_id::(\w+),\s*"([^"]*)",\s*"([^"]*)",',
+                source, flags=re.MULTILINE
+            )
+            if len(rows) != 1:
+                raise ValueError(f"Expected exactly one complete Prime definition: {ident}")
+            branch, tier, level, currency, first, second = rows[0]
+            if (branch, int(tier), int(level), currency) != ("mastery", 9, 45, "major"):
+                raise ValueError(f"Mod Prime unlock/currency drift: {ident}")
+            if not first or graph[ident][2] != tuple(p for p in (first, second) if p):
+                raise ValueError(f"Mod Prime prerequisite drift: {ident}")
+            if shared_prerequisites is None:
+                shared_prerequisites = (first, second)
+            elif (first, second) != shared_prerequisites:
+                raise ValueError(f"Prime roots disagree on prerequisites: {mod}")
+            if integration_rows.get(ident) != [mod]:
+                raise ValueError(f"Mod Prime integration mapping drift: {ident}")
+
+
+def prime_mutation_tests(source: str, graph: dict) -> None:
+    mutations = {
+        "slot": (
+            'id == "mg_prime_arcanist"',
+            'id == "mg_prime_arcanist_wrong"'
+        ),
+        "integration": (
+            '{ "secx_prime_vessel", integration_id::secronom_plus }',
+            '{ "secx_prime_vessel", integration_id::magiclysm }'
+        ),
+        "currency": (
+            '{ "mg_prime_arcanist", branch_id::mastery, 9, 45, currency_id::major',
+            '{ "mg_prime_arcanist", branch_id::mastery, 9, 45, currency_id::perk'
+        ),
+    }
+    for name, (old, new) in mutations.items():
+        if source.count(old) != 1:
+            raise AssertionError(f"Prime mutation fixture changed: {name}")
+        try:
+            check_prime_contracts(source.replace(old, new, 1), graph)
+        except ValueError:
+            continue
+        raise AssertionError(f"Prime {name} regression was accepted")
+
+
 def self_test() -> None:
     fixture = {
         "a": ("combat", 5, ("b",)),
@@ -102,11 +185,15 @@ def self_test() -> None:
 
 def main() -> int:
     self_test()
-    graph = parse_catalog(SOURCE.read_text(encoding="utf-8-sig"))
+    source = SOURCE.read_text(encoding="utf-8-sig")
+    graph = parse_catalog(source)
     check_graph(graph)
+    check_prime_contracts(source, graph)
+    prime_mutation_tests(source, graph)
     edges = sum(len(v[2]) for v in graph.values())
     print(f"Survivor source DAG: PASS ({len(graph)} perks, {edges} prerequisite edges, "
-          f"{len(ROOTS) * 3} integration Prime roots, mutation tests PASS)")
+          f"{len(ROOTS) * 3} integration Prime roots (slots, currency, gates, ownership), "
+          "mutation tests PASS)")
     return 0
 
 
