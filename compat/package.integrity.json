@@ -341,8 +341,8 @@
     },
     {
       "path": "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-      "sha256": "0366613573e374d1d447b0d9353a136a1e8f74def916b89586fa072344d3c363",
-      "bytes": 2638395
+      "sha256": "8b35766cbd76e320e39047b3f08a0d3689151cf51815df17c3445bddf18aeeac",
+      "bytes": 2640551
     },
     {
       "path": "pipeline\\pipeline.manifest.json",
