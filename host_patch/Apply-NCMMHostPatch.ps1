@@ -905,7 +905,7 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
                                 enc_label + " " + number_of_enc + " | " +
                                 number_of_worn + " " + worn_label + " | " + labels[focus] :
                                 labels[focus] + "  " + enc_label + " " + number_of_enc +
-                                "  · " + number_of_worn + " " + worn_label;
+                                "  | " + number_of_worn + " " + worn_label;
     trim_and_print( w, point( content_x, summary_y ), content_width, c_light_green, summary );
 
     // Compact retains one line of actual worn clothing, even when inventory's
