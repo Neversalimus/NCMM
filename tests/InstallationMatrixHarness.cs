@@ -511,6 +511,93 @@ internal static class InstallationMatrixHarness
                 AssertTrue(backupsAfter == backupsBefore, "idempotent reinstall created a spurious vanilla archive");
             });
 
+            Run("packaged file inventory removes stale files but preserves user files", delegate {
+                string root = NewGame(work, "managed-file-upgrade", "vanilla-managed");
+                string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
+                InstallVerified(root, payload, new string[] { AwsId });
+                string dir = Path.Combine(root, "code_mods", AwsDir);
+                string obsolete = Path.Combine(dir, "old-definition.json");
+                string custom = Path.Combine(dir, "user-notes.txt");
+                File.WriteAllText(obsolete, "{\"old\":true}", Encoding.ASCII);
+                File.WriteAllText(custom, "mine", Encoding.ASCII);
+                SetupInstalledComponents receipt = ReadInstalledState(root);
+                SetupInstalledComponent entry = receipt.components.First(x => x.id == AwsId);
+                AssertTrue(entry.files != null && entry.files.Count > 0,
+                           "managed file inventory was not persisted");
+                entry.files.Add("old-definition.json", Sha256(obsolete));
+                File.WriteAllText(Path.Combine(root, "ncmm", "installed-components.json"),
+                    new JavaScriptSerializer().Serialize(receipt), Encoding.UTF8);
+                InstallVerified(root, payload, new string[] { AwsId });
+                AssertTrue(!File.Exists(obsolete), "obsolete NCMM-owned file survived upgrade");
+                AssertTrue(File.Exists(custom), "upgrade removed user-owned file");
+                AssertInstalled(root, payload, original, AwsId);
+            });
+
+            Run("modified retired managed file fails closed and restores previous tree", delegate {
+                string root = NewGame(work, "managed-file-modified", "vanilla-modified");
+                InstallVerified(root, payload, new string[] { AwsId });
+                string dir = Path.Combine(root, "code_mods", AwsDir);
+                string obsolete = Path.Combine(dir, "old-definition.json");
+                File.WriteAllText(obsolete, "original", Encoding.ASCII);
+                SetupInstalledComponents receipt = ReadInstalledState(root);
+                receipt.components.First(x => x.id == AwsId).files.Add(
+                    "old-definition.json", Sha256(obsolete));
+                File.WriteAllText(Path.Combine(root, "ncmm", "installed-components.json"),
+                    new JavaScriptSerializer().Serialize(receipt), Encoding.UTF8);
+                File.WriteAllText(obsolete, "user edited", Encoding.ASCII);
+                string before = FingerprintTree(root);
+                ExpectInstallFailure(root, payload, new string[] { AwsId }, "Former packaged file was modified");
+                AssertEqual(FingerprintTree(root), before, "rollback lost modified file");
+            });
+
+            Run("retired NCMM module is disabled without deleting user files", delegate {
+                string root = NewGame(work, "retired-module", "vanilla-retired");
+                string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
+                InstallVerified(root, payload, new string[] { AwsId });
+                string legacy = Path.Combine(root, "code_mods", "RetiredModule");
+                Directory.CreateDirectory(legacy);
+                File.WriteAllText(Path.Combine(legacy, "mod.json"),
+                    "{\"id\":\"retired_ncmm\",\"version\":\"0.1\"}", Encoding.ASCII);
+                File.WriteAllText(Path.Combine(legacy, "ncmm_mod.dll"), "old-dll", Encoding.ASCII);
+                File.WriteAllText(Path.Combine(legacy, "my-notes.txt"), "keep", Encoding.ASCII);
+                SetupInstalledComponents receipt = ReadInstalledState(root);
+                receipt.components.Add(new SetupInstalledComponent {
+                    id = "retired_ncmm", directory = "RetiredModule", version = "0.1"
+                });
+                File.WriteAllText(Path.Combine(root, "ncmm", "installed-components.json"),
+                    new JavaScriptSerializer().Serialize(receipt), Encoding.UTF8);
+                InstallVerified(root, payload, new string[] { AwsId });
+                AssertTrue(!File.Exists(Path.Combine(legacy, "mod.json")) &&
+                           !File.Exists(Path.Combine(legacy, "ncmm_mod.dll")),
+                           "retired module remains loadable");
+                AssertTrue(File.Exists(Path.Combine(legacy, "my-notes.txt")),
+                           "retiring module removed user notes");
+                AssertInstalled(root, payload, original, AwsId);
+            });
+
+            Run("RestoreVanilla rejects damaged backup and restores verified bytes", delegate {
+                string root = NewGame(work, "restore-hash-check", "vanilla-restore-check");
+                string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
+                InstallVerified(root, payload, new string[] { AwsId });
+                string exe = Path.Combine(root, "cataclysm-tiles.exe");
+                string vanilla = Path.Combine(root, "cataclysm-tiles.vanilla.exe");
+                byte[] originalBytes = File.ReadAllBytes(vanilla);
+                string bootstrapHash = Sha256(exe);
+                File.AppendAllText(vanilla, "broken", Encoding.ASCII);
+                bool rejected = false;
+                try { SetupCore.RestoreVanilla(root); }
+                catch (InvalidOperationException ex) {
+                    rejected = ex.Message.Contains("SHA256 mismatch");
+                }
+                AssertTrue(rejected, "damaged vanilla backup was accepted");
+                AssertEqual(Sha256(exe), bootstrapHash, "failed vanilla restore mutated bootstrap");
+                File.WriteAllBytes(vanilla, originalBytes);
+                SetupCore.RestoreVanilla(root);
+                AssertEqual(Sha256(exe), original, "verified vanilla was not restored");
+                AssertTrue(Directory.GetFiles(root, "*.ncmm-restore-*.tmp").Length == 0,
+                           "restore staged file leaked");
+            });
+
             Run("previous NCMM bootstrap -> current update preserves vanilla", delegate {
                 string root = NewGame(work, "previous-runtime", "old-bootstrap");
                 string vanilla = Path.Combine(root, "cataclysm-tiles.vanilla.exe");
