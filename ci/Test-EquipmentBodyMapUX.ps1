@@ -19,7 +19,7 @@ Require ($source.Contains('equipment_body_map_reserved_height > 0 ?')) 'worn-col
 Require ($source.Contains('set_equipment_body_map();')) 'only regular Inventory should opt into EBM'
 Require (-not $source.Contains('const int third = std::max( 6, content_width / 3 );')) 'old text-column pseudo doll returned'
 
-$cellPattern = '\{\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*"([^"]*)"\s*,\s*"([^"]*)"\s*,\s*"([^"]*)"\s*\}'
+$cellPattern = '\{\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(?:u8)?"([^"]*)"\s*,\s*(?:u8)?"([^"]*)"\s*,\s*(?:u8)?"([^"]*)"\s*\}'
 foreach($layout in @('full', 'compact')) {
     $match = [regex]::Match($source, ('(?s)static const ncmm_doll_cell ncmm_doll_' + $layout + '\[\] = \{(.*?)\};'))
     Require $match.Success ("layout not found: " + $layout)
@@ -37,10 +37,13 @@ foreach($layout in @('full', 'compact')) {
         $stacked = $cell.Groups[6].Value
         Require ($zone -ge 0 -and $zone -le 11) ("invalid body-zone id in " + $layout)
         Require ($y -ge 0 -and $y -le $maxY) ("sprite outside allocated height in " + $layout)
-        Require ($x -ge 0 -and $x + $empty.Length -le 14) ("sprite outside 14-column body silhouette in " + $layout)
-        Require ($empty.Length -gt 0 -and $empty.Length -eq $worn.Length -and $empty.Length -eq $stacked.Length) ("glyph widths differ in " + $layout)
+        $emptyWidth = [regex]::Replace($empty, '\\u[0-9A-Fa-f]{4}', '#').Length
+        $wornWidth = [regex]::Replace($worn, '\\u[0-9A-Fa-f]{4}', '#').Length
+        $stackedWidth = [regex]::Replace($stacked, '\\u[0-9A-Fa-f]{4}', '#').Length
+        Require ($x -ge 0 -and $x + $emptyWidth -le 14) ("sprite outside 14-column body silhouette in " + $layout)
+        Require ($emptyWidth -gt 0 -and $emptyWidth -eq $wornWidth -and $emptyWidth -eq $stackedWidth) ("glyph widths differ in " + $layout)
         $zones[$zone] = $true
-        for($dx = 0; $dx -lt $empty.Length; ++$dx) {
+        for($dx = 0; $dx -lt $emptyWidth; ++$dx) {
             $pos = ('{0}:{1}' -f $y,($x+$dx))
             Require (-not $occupied.ContainsKey($pos)) ("overlapping mouse targets in " + $layout + " at " + $pos)
             $occupied[$pos] = $zone
