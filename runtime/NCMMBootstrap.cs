@@ -593,7 +593,7 @@ internal static class NCMMBootstrap
             identity = BitConverter.ToString(digest, 0, 16).Replace("-", "");
         }
         using (System.Threading.Mutex gate = new System.Threading.Mutex(false,
-                   @"Local\\NCMM_Bootstrap_" + identity))
+                   @"Local\NCMM_Bootstrap_" + identity))
         {
             bool entered = false;
             try
