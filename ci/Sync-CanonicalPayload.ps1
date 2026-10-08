@@ -9,14 +9,36 @@ if(-not(Test-Path -LiteralPath $payload -PathType Leaf)){throw 'Canonical Surviv
 $text=[IO.File]::ReadAllText($payload,[Text.Encoding]::UTF8)
 $changed=0
 $paths=@(
+    'sdk\ncmm_api.h',
+    'host_patch\ncmm_loader.cpp',
+    'host_patch\ncmm_item_glyphs.h',
+    'host_patch\ncmm_loader.h',
+    'host_patch\Apply-NCMMHostPatch.ps1',
+    'compat\contracts.json',
     'runtime\NCMMBootstrap.cs',
     'runtime\NCMMSetupCore.cs',
-    'tests\smoke_host.cpp'
+    'tests\smoke_host.cpp',
+    'mods\BallisticHitChance\CMakeLists.txt',
+    'mods\BallisticHitChance\mod.json',
+    'mods\BallisticHitChance\src\ballistic_hit_chance.cpp'
 )
+# Fail closed if a new embedded snapshot appears.  A silently untracked snapshot
+# is especially dangerous because source and payload can then drift independently.
+$embedded=@(
+    [regex]::Matches($text,"Write-NcmmCanonicalPayloadFile '([^']+)' '") |
+      ForEach-Object { $_.Groups[1].Value }
+)
+$unexpected=@(Compare-Object -ReferenceObject $paths -DifferenceObject $embedded)
+if($embedded.Count -ne $paths.Count -or $unexpected.Count -ne 0){
+    throw ("Canonical snapshot inventory drift: expected="+($paths -join ',')+
+           "; embedded="+($embedded -join ','))
+}
 foreach($rel in $paths){
     $path=Join-Path $root $rel
     if(-not(Test-Path -LiteralPath $path -PathType Leaf)){throw "Source missing: $rel"}
-    $source=[IO.File]::ReadAllText($path,[Text.Encoding]::UTF8)
+    # ReadAllText consumes a UTF-8 BOM; the embedded byte-for-byte snapshot does not.
+    # Preserve the preamble while still canonicalizing line endings below.
+    $source=(New-Object Text.UTF8Encoding($false,$true)).GetString([IO.File]::ReadAllBytes($path))
     $normalized=$source.Replace(([string][char]13+[char]10),[string][char]10).Replace([string][char]13,[string][char]10)
     $expected=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($normalized))
     $prefix="Write-NcmmCanonicalPayloadFile '$rel' '"
