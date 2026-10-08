@@ -485,6 +485,53 @@ void inventory_selector::prepare_layout( size_t client_width, size_t client_heig
     // This block adds categories and should go before any width evaluations
     const bool initial = get_active_column().get_highlighted_index() == static_cast<size_t>( -1 );
 '@ @'
+// Equipment Body Map v2: one cell model shared by rendering and mouse hit-testing.
+// The fixed glyph geometry makes the body a genuine connected silhouette, while
+// all displayed counts and encumbrance values come from the live CDDA character.
+struct ncmm_doll_cell {
+    int zone;
+    int x;
+    int y;
+    const char *empty;
+    const char *worn;
+    const char *stacked;
+};
+static constexpr int ncmm_doll_width = 14;
+static const ncmm_doll_cell ncmm_doll_full[] = {
+    { 0, 5, 0, u8"\u256D\u2500\u2500\u256E", u8"\u2584\u2588\u2588\u2584", u8"\u2588\u2588\u2588\u2588" },
+    { 1, 6, 1, u8"\u00B7\u00B7", u8"\u2592\u2592", u8"\u2588\u2588" },
+    { 2, 6, 2, u8"\u00B7\u00B7", u8"\u2592\u2592", u8"\u2588\u2588" },
+    { 4, 3, 3, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 3, 5, 3, u8"\u2591\u2591\u2591\u2591", u8"\u2593\u2593\u2593\u2593", u8"\u2588\u2588\u2588\u2588" }, { 5, 9, 3, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 4, 3, 4, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 3, 5, 4, u8"\u2591\u2591\u2591\u2591", u8"\u2593\u2593\u2593\u2593", u8"\u2588\u2588\u2588\u2588" }, { 5, 9, 4, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 6, 3, 5, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 3, 5, 5, u8"\u2591\u2591\u2591\u2591", u8"\u2593\u2593\u2593\u2593", u8"\u2588\u2588\u2588\u2588" }, { 7, 9, 5, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 3, 5, 6, u8"\u2591\u2591\u2591\u2591", u8"\u2593\u2593\u2593\u2593", u8"\u2588\u2588\u2588\u2588" },
+    { 8, 5, 7, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 9, 8, 7, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 8, 5, 8, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 9, 8, 8, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 10, 4, 9, u8"\u2584\u2584", u8"\u2593\u2593", u8"\u2588\u2588" }, { 11, 8, 9, u8"\u2584\u2584", u8"\u2593\u2593", u8"\u2588\u2588" }
+};
+static const ncmm_doll_cell ncmm_doll_compact[] = {
+    { 0, 5, 0, u8"\u256D\u2500\u2500\u256E", u8"\u2584\u2588\u2588\u2584", u8"\u2588\u2588\u2588\u2588" },
+    { 1, 5, 1, u8"\u00B7\u00B7", u8"\u2592\u2592", u8"\u2588\u2588" }, { 2, 8, 1, u8"\u00B7", u8"\u2592", u8"\u2588" },
+    { 4, 3, 2, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 3, 5, 2, u8"\u2591\u2591\u2591\u2591", u8"\u2593\u2593\u2593\u2593", u8"\u2588\u2588\u2588\u2588" }, { 5, 9, 2, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 4, 3, 3, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 3, 5, 3, u8"\u2591\u2591\u2591\u2591", u8"\u2593\u2593\u2593\u2593", u8"\u2588\u2588\u2588\u2588" }, { 5, 9, 3, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 6, 3, 4, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 3, 5, 4, u8"\u2591\u2591\u2591\u2591", u8"\u2593\u2593\u2593\u2593", u8"\u2588\u2588\u2588\u2588" }, { 7, 9, 4, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 8, 5, 5, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" }, { 9, 8, 5, u8"\u2591\u2591", u8"\u2593\u2593", u8"\u2588\u2588" },
+    { 10, 4, 6, u8"\u2584\u2584", u8"\u2593\u2593", u8"\u2588\u2588" }, { 11, 8, 6, u8"\u2584\u2584", u8"\u2593\u2593", u8"\u2588\u2588" }
+};
+static int ncmm_equipment_doll_hit( int x, int y, bool compact )
+{
+    const ncmm_doll_cell *cells = compact ? ncmm_doll_compact : ncmm_doll_full;
+    const size_t count = compact ? sizeof( ncmm_doll_compact ) / sizeof( ncmm_doll_cell ) :
+                         sizeof( ncmm_doll_full ) / sizeof( ncmm_doll_cell );
+    for( size_t i = 0; i < count; ++i ) {
+        const ncmm_doll_cell &cell = cells[i];
+        if( y == cell.y && x >= cell.x && x < cell.x + utf8_width( cell.empty, true ) ) {
+            return cell.zone;
+        }
+    }
+    return -1;
+}
+
 bool inventory_selector::equipment_body_map_requested() const
 {
     return equipment_body_map &&
@@ -534,8 +581,15 @@ $iuc = Replace-ExactlyOnce $iuc @'
     // Keep vanilla horizontal layout.  The paper doll consumes vertical space
     // only inside the existing worn-items column.
     rearrange_columns( client_width );
-    if( !own_gear_column.visible() || own_gear_column.get_width() < 20 ) {
+    if( equipment_body_map_reserved_height > 0 &&
+        ( !own_gear_column.visible() || own_gear_column.get_width() < 20 ) ) {
+        // The doll cannot be shown.  Restore vanilla worn-list pagination,
+        // otherwise the hidden panel silently steals 11 or 17 inventory rows.
         equipment_body_map_reserved_height = 0;
+        if( own_gear_column.visible() ) {
+            own_gear_column.set_height( client_height );
+            own_gear_column.prepare_paging( filter );
+        }
     }
 '@ 'inventory.body-map-rearrange-width'
 $iuc = Replace-ExactlyOnce $iuc @'
@@ -610,74 +664,12 @@ $iuc = Replace-ExactlyOnce $iuc @'
                         const int content_width = std::max( 1, panel_width - 2 );
                         const int panel_top = getmaxy( w_inv ) - border -
                                               static_cast<int>( equipment_body_map_reserved_height );
-                        const bool compact = equipment_body_map_reserved_height <= 11 || panel_width < 38;
-                        const int third = std::max( 6, content_width / 3 );
-                        const int left_x = content_x;
-                        const int center_x = content_x + ( content_width - third ) / 2;
-                        const int right_x = content_x + content_width - third;
-                        const auto inside = [&]( int x, int width ) {
-                            return p.x >= x && p.x < x + width;
-                        };
-
-                        int focus = -1;
-                        int row = panel_top + 2;
-                        if( p.y == row && inside( center_x, third ) ) {
-                            focus = 0;
-                        }
-                        ++row;
-                        if( !compact ) {
-                            if( p.y == row && inside( center_x, third ) ) {
-                                focus = 1;
-                            }
-                            ++row;
-                            if( p.y == row && inside( center_x, third ) ) {
-                                focus = 2;
-                            }
-                            ++row;
-                        } else {
-                            const int half = std::max( 5, content_width / 2 );
-                            if( p.y == row ) {
-                                if( inside( content_x, half ) ) {
-                                    focus = 1;
-                                } else if( inside( content_x + content_width - half, half ) ) {
-                                    focus = 2;
-                                }
-                            }
-                            ++row;
-                        }
-                        if( p.y == row ) {
-                            if( inside( left_x, third ) ) {
-                                focus = 4;
-                            } else if( inside( center_x, third ) ) {
-                                focus = 3;
-                            } else if( inside( right_x, third ) ) {
-                                focus = 5;
-                            }
-                        }
-                        ++row;
-                        if( p.y == row ) {
-                            if( inside( left_x, third ) ) {
-                                focus = 6;
-                            } else if( inside( right_x, third ) ) {
-                                focus = 7;
-                            }
-                        }
-                        ++row;
-                        if( p.y == row ) {
-                            if( inside( left_x, third ) ) {
-                                focus = 8;
-                            } else if( inside( right_x, third ) ) {
-                                focus = 9;
-                            }
-                        }
-                        ++row;
-                        if( p.y == row ) {
-                            if( inside( left_x, third ) ) {
-                                focus = 10;
-                            } else if( inside( right_x, third ) ) {
-                                focus = 11;
-                            }
-                        }
+                        const bool compact = equipment_body_map_reserved_height <= 11;
+                        const int doll_x = content_x + ( !compact && content_width >= 33 ?
+                                           1 : std::max( 0, ( content_width - ncmm_doll_width ) / 2 ) );
+                        const int doll_y = panel_top + 2;
+                        const int focus = ncmm_equipment_doll_hit( p.x - doll_x, p.y - doll_y,
+                                          compact );
 
                         if( focus >= 0 ) {
                             equipment_body_map_focus = focus;
@@ -689,6 +681,21 @@ $iuc = Replace-ExactlyOnce $iuc @'
                 }
                 res.entry = find_entry_by_coordinate( p );
 '@ 'inventory.body-map-hit-test'
+
+$iuc = Replace-ExactlyOnce $iuc @'
+void inventory_selector::on_input( const inventory_input &input )
+{
+    if( input.action == "CATEGORY_SELECTION" ) {
+'@ @'
+void inventory_selector::on_input( const inventory_input &input )
+{
+    // A mannequin click only updates its focused zone.  Do not route it to
+    // inventory columns or inadvertently select / activate the underlying item.
+    if( input.action == "NCMM_BODY_MAP_FOCUS" ) {
+        return;
+    }
+    if( input.action == "CATEGORY_SELECTION" ) {
+'@ 'inventory.body-map-focus-only-noop'
 
 $iuc = Replace-ExactlyOnce $iuc @'
 void inventory_selector::draw_frame( const catacurses::window &w ) const
@@ -725,8 +732,7 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
     const bool centered = are_columns_centered( screen_width );
     const int free_space = screen_width - get_columns_width( visible_columns );
     const int max_gap = visible_columns.size() > 1 ?
-                        free_space / static_cast<int>( visible_columns.size() - 1 ) :
-                        free_space;
+                        free_space / static_cast<int>( visible_columns.size() - 1 ) : free_space;
     const int gap = centered ? max_gap : std::min<int>( max_gap, normal_column_gap );
     const int gap_rounding_error = centered && visible_columns.size() > 1 ?
                                    free_space % static_cast<int>( visible_columns.size() - 1 ) : 0;
@@ -752,199 +758,238 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
     if( panel_width < 20 ) {
         return;
     }
-
     const int footer_y = getmaxy( w ) - border;
     const int panel_top = footer_y - static_cast<int>( equipment_body_map_reserved_height );
     const int content_x = panel_x + 1;
-    const int content_width = std::max( 1, panel_width - 2 );
-    const bool compact = equipment_body_map_reserved_height <= 11 || panel_width < 38;
+    const int content_width = panel_width - 2;
+    const bool compact = equipment_body_map_reserved_height <= 11;
+    const int doll_x = content_x + ( !compact && content_width >= 33 ?
+                       1 : std::max( 0, ( content_width - ncmm_doll_width ) / 2 ) );
+    const int doll_y = panel_top + 2;
 
+    // Clear the reserved area on every repaint; removed armor must not leave ghost
+    // glyphs or stale item names in the inventory window.
+    for( int row = panel_top + 1; row < footer_y; ++row ) {
+        mvwhline( w, point( panel_x, row ), c_black, ' ', panel_width );
+    }
     mvwhline( w, point( panel_x, panel_top ), c_dark_gray, LINE_OXOX, panel_width );
 
-    const std::string heading =
-        ncmm::localized_text( "EQUIPMENT", u8"\u042D\u041A\u0418\u041F\u0418\u0420\u041E\u0412\u041A\u0410" );
-    const int heading_x = content_x +
-                          std::max( 0, ( content_width - utf8_width( heading, true ) ) / 2 );
-    int y = panel_top + 1;
-    trim_and_print( w, point( heading_x, y++ ), content_width, c_light_cyan, heading );
+    const std::string heading = ncmm::localized_text(
+                                    "EQUIPMENT \u00B7 BODY MAP",
+                                    u8"\u042D\u041A\u0418\u041F\u0418\u0420\u041E\u0412\u041A\u0410 \u00B7 \u0421\u0425\u0415\u041C\u0410 \u0422\u0415\u041B\u0410" );
+    trim_and_print( w, point( content_x, panel_top + 1 ), content_width, c_light_cyan,
+                    heading );
 
     const inventory_entry &highlighted = get_highlighted();
     const item *selected = highlighted.is_item() ? highlighted.any_item().get_item() : nullptr;
     const std::vector<item_location> worn_items = u.worn.top_items_loc( u );
-
-    const auto worn_count = [&]( const bodypart_str_id & part ) {
-        const bodypart_id bp = part.id();
-        int count = 0;
+    const bodypart_str_id *parts[] = {
+        &body_part_head, &body_part_eyes, &body_part_mouth, &body_part_torso,
+        &body_part_arm_l, &body_part_arm_r, &body_part_hand_l, &body_part_hand_r,
+        &body_part_leg_l, &body_part_leg_r, &body_part_foot_l, &body_part_foot_r
+    };
+    const std::string labels[] = {
+        ncmm::localized_text( "Head", u8"\u0413\u043E\u043B\u043E\u0432\u0430" ),
+        ncmm::localized_text( "Eyes", u8"\u0413\u043B\u0430\u0437\u0430" ),
+        ncmm::localized_text( "Mouth", u8"\u0420\u043E\u0442" ),
+        ncmm::localized_text( "Torso", u8"\u0422\u043E\u0440\u0441" ),
+        ncmm::localized_text( "Left arm", u8"\u041B. \u0440\u0443\u043A\u0430" ),
+        ncmm::localized_text( "Right arm", u8"\u041F. \u0440\u0443\u043A\u0430" ),
+        ncmm::localized_text( "Left hand", u8"\u041B. \u043A\u0438\u0441\u0442\u044C" ),
+        ncmm::localized_text( "Right hand", u8"\u041F. \u043A\u0438\u0441\u0442\u044C" ),
+        ncmm::localized_text( "Left leg", u8"\u041B. \u043D\u043E\u0433\u0430" ),
+        ncmm::localized_text( "Right leg", u8"\u041F. \u043D\u043E\u0433\u0430" ),
+        ncmm::localized_text( "Left foot", u8"\u041B. \u0441\u0442\u043E\u043F\u0430" ),
+        ncmm::localized_text( "Right foot", u8"\u041F. \u0441\u0442\u043E\u043F\u0430" )
+    };
+    int worn_count[12] = {};
+    int encumbrance[12] = {};
+    bool selected_covers[12] = {};
+    bool zone_present[12] = {};
+    for( int zone = 0; zone < 12; ++zone ) {
+        const bodypart_id bp = parts[zone]->id();
+        // CDDA's Character::encumb emits a debug message for a missing limb.
+        // Mutation anatomy is valid gameplay, not an exceptional UI condition.
+        zone_present[zone] = u.has_part( bp, body_part_filter::equivalent );
+        if( !zone_present[zone] ) {
+            continue;
+        }
+        encumbrance[zone] = u.encumb( bp ); // Effective character encumbrance, not item count.
+        selected_covers[zone] = selected != nullptr && selected->is_armor() &&
+                                selected->covers( bp );
         for( const item_location &loc : worn_items ) {
             if( loc && loc->covers( bp ) ) {
-                ++count;
+                ++worn_count[zone];
             }
         }
-        return count;
-    };
-    const auto selected_covers = [&]( const bodypart_str_id & part ) {
-        return selected != nullptr && selected->is_armor() && selected->covers( part.id() );
-    };
-    const auto zone_color = [&]( int zone_index, const bodypart_str_id & part ) {
-        if( equipment_body_map_focus == zone_index ) {
-            return c_light_green;
-        }
-        if( selected_covers( part ) ) {
-            return c_yellow;
-        }
-        const int count = worn_count( part );
-        if( count >= 3 ) {
-            return c_cyan;
-        }
-        if( count == 2 ) {
-            return c_light_blue;
-        }
-        if( count == 1 ) {
-            return c_light_gray;
-        }
-        return c_dark_gray;
-    };
-    const auto zone_text = [&]( const bodypart_str_id & part,
-                                const std::string & label, int width ) {
-        const std::string count = std::to_string( worn_count( part ) );
-        const int room = std::max( 1, width - utf8_width( count, true ) - 2 );
-        return trim_by_length( label, room ) + "[" + count + "]";
-    };
-    const auto print_zone = [&]( int zone_index, int x, int row, int width,
-                                 const bodypart_str_id & part,
-                                 const std::string & label ) {
-        if( row >= footer_y || width <= 0 ) {
-            return;
-        }
-        trim_and_print( w, point( x, row ), width, zone_color( zone_index, part ),
-                        zone_text( part, label, width ) );
-    };
+    }
 
-    const std::string head = ncmm::localized_text( "HEAD", u8"\u0413\u041E\u041B\u041E\u0412\u0410" );
-    const std::string eyes = ncmm::localized_text( "EYES", u8"\u0413\u041B\u0410\u0417\u0410" );
-    const std::string mouth = ncmm::localized_text( "MOUTH", u8"\u0420\u041E\u0422" );
-    const std::string torso = ncmm::localized_text( "TORSO", u8"\u0422\u041E\u0420\u0421" );
-    const std::string arm_l = ncmm::localized_text( "L ARM", u8"\u041B.\u0420\u0423\u041A\u0410" );
-    const std::string arm_r = ncmm::localized_text( "R ARM", u8"\u041F.\u0420\u0423\u041A\u0410" );
-    const std::string hand_l = ncmm::localized_text( "L HAND", u8"\u041B.\u041A\u0418\u0421\u0422\u042C" );
-    const std::string hand_r = ncmm::localized_text( "R HAND", u8"\u041F.\u041A\u0418\u0421\u0422\u042C" );
-    const std::string leg_l = ncmm::localized_text( "L LEG", u8"\u041B.\u041D\u041E\u0413\u0410" );
-    const std::string leg_r = ncmm::localized_text( "R LEG", u8"\u041F.\u041D\u041E\u0413\u0410" );
-    const std::string foot_l = ncmm::localized_text( "L FOOT", u8"\u041B.\u0421\u0422\u041E\u041F\u0410" );
-    const std::string foot_r = ncmm::localized_text( "R FOOT", u8"\u041F.\u0421\u0422\u041E\u041F\u0410" );
+    const ncmm_doll_cell *cells = compact ? ncmm_doll_compact : ncmm_doll_full;
+    const size_t cell_count = compact ? sizeof( ncmm_doll_compact ) / sizeof( ncmm_doll_cell ) :
+                              sizeof( ncmm_doll_full ) / sizeof( ncmm_doll_cell );
+    // Explicit human-shaped paper doll.  Fill = clothes covering that body part;
+    // tint = current effective encumbrance; cyan = selected armor, green = focus.
+    for( size_t i = 0; i < cell_count; ++i ) {
+        const ncmm_doll_cell &cell = cells[i];
+        const int zone = cell.zone;
+        const int count = worn_count[zone];
+        const char *glyph = count == 0 ? cell.empty : count <= 2 ? cell.worn : cell.stacked;
+        nc_color tint = c_dark_gray;
+        if( !zone_present[zone] ) {
+            glyph = cell.empty;
+        } else if( count > 0 ) {
+            const int enc = encumbrance[zone];
+            tint = enc >= 70 ? c_red : enc >= 40 ? c_light_red :
+                   enc >= 10 ? c_yellow : c_light_gray;
+        }
+        if( selected_covers[zone] ) {
+            tint = c_light_cyan;
+        }
+        if( equipment_body_map_focus == zone ) {
+            tint = c_light_green;
+        }
+        const int width = std::max( 0, content_x + content_width - doll_x - cell.x );
+        if( width > 0 && doll_y + cell.y < footer_y ) {
+            trim_and_print( w, point( doll_x + cell.x, doll_y + cell.y ), width, tint, glyph );
+        }
+    }
 
-    const int third = std::max( 6, content_width / 3 );
-    const int left_x = content_x;
-    const int center_x = content_x + ( content_width - third ) / 2;
-    const int right_x = content_x + content_width - third;
+    // An explicit click takes priority; otherwise follow the selected armor,
+    // defaulting to the torso.  Focus never modifies the inventory selection.
+    int focus = equipment_body_map_focus >= 0 && equipment_body_map_focus < 12 ?
+                equipment_body_map_focus : 3;
+    if( equipment_body_map_focus < 0 && selected != nullptr && selected->is_armor() ) {
+        for( int zone = 0; zone < 12; ++zone ) {
+            if( selected_covers[zone] ) {
+                focus = zone;
+                break;
+            }
+        }
+    }
+    const auto number_of_worn = std::to_string( worn_count[focus] );
+    const auto number_of_enc = zone_present[focus] ?
+                               std::to_string( encumbrance[focus] ) :
+                               ncmm::localized_text( "N/A", u8"\u2014" );
+    const std::string enc_label = ncmm::localized_text( "Enc", u8"\u0421\u043A\u043E\u0432" );
+    const std::string worn_label = ncmm::localized_text( "worn", u8"\u0432\u0435\u0449\u0435\u0439" );
 
-    // Explicit human-shaped paper doll.  Counts are the number of worn top-level
-    // items that actually cover each CDDA body part.  A highlighted armor item
-    // paints every body part it covers yellow.
-    print_zone( 0, center_x, y++, third, body_part_head, head );
-    if( !compact ) {
-        print_zone( 1, center_x, y++, third, body_part_eyes, eyes );
-        print_zone( 2, center_x, y++, third, body_part_mouth, mouth );
+    // On a wide worn column the mannequin and a focused garment inspector
+    // coexist.  Narrow layouts keep the complete doll and a two-line summary.
+    if( !compact && content_width >= 33 ) {
+        const int details_x = doll_x + ncmm_doll_width + 1;
+        const int details_width = std::max( 0, content_x + content_width - details_x );
+        int detail_y = doll_y;
+        const auto detail_line = [&]( const std::string &txt, nc_color color ) {
+            if( details_width > 0 && detail_y < doll_y + 10 ) {
+                trim_and_print( w, point( details_x, detail_y++ ), details_width, color, txt );
+            }
+        };
+        detail_line( labels[focus], c_light_green );
+        detail_line( enc_label + ": " + number_of_enc, encumbrance[focus] >= 40 ?
+                     c_light_red : c_light_gray );
+        detail_line( worn_label + ": " + number_of_worn, c_light_gray );
+        int shown = 0;
+        for( const item_location &loc : worn_items ) {
+            if( loc && loc->covers( parts[focus]->id() ) ) {
+                if( shown < 6 ) {
+                    detail_line( "\u00B7 " + loc->display_name(), c_light_gray );
+                }
+                ++shown;
+            }
+        }
+        if( shown == 0 ) {
+            detail_line( ncmm::localized_text( "No clothing", u8"\u041D\u0435\u0442 \u043E\u0434\u0435\u0436\u0434\u044B" ),
+                         c_dark_gray );
+        } else if( shown > 6 ) {
+            detail_line( "+" + std::to_string( shown - 6 ), c_light_gray );
+        }
+    }
+
+    const int summary_y = compact ? panel_top + 9 : panel_top + 12;
+    // Prioritize useful values at small widths; a long localized body-part name
+    // must not hide the actual encumbrance and worn-item count.
+    const std::string summary = compact || content_width < 33 ?
+                                enc_label + " " + number_of_enc + " | " +
+                                number_of_worn + " " + worn_label + " | " + labels[focus] :
+                                labels[focus] + "  " + enc_label + " " + number_of_enc +
+                                "  | " + number_of_worn + " " + worn_label;
+    trim_and_print( w, point( content_x, summary_y ), content_width, c_light_green, summary );
+
+    // Compact retains one line of actual worn clothing, even when inventory's
+    // current selection is an unrelated item in another column.
+    if( compact ) {
+        std::string first_worn = ncmm::localized_text( "No clothing", u8"\u041d\u0435\u0442 \u043e\u0434\u0435\u0436\u0434\u044b" );
+        for( const item_location &loc : worn_items ) {
+            if( loc && loc->covers( parts[focus]->id() ) ) {
+                first_worn = loc->display_name();
+                break;
+            }
+        }
+        trim_and_print( w, point( content_x, summary_y + 1 ), content_width,
+                        c_light_gray, first_worn );
+        return;
+    }
+
+    // On a narrow full-height gear column, use the space below the silhouette
+    // for a real multi-item zone inspector rather than sacrificing this area
+    // to legends while displaying only one item.
+    if( content_width < 33 ) {
+        int shown = 0;
+        for( const item_location &loc : worn_items ) {
+            if( loc && loc->covers( parts[focus]->id() ) ) {
+                if( shown < 3 ) {
+                    trim_and_print( w, point( content_x, summary_y + 1 + shown ),
+                                    content_width, c_light_gray, "- " + loc->display_name() );
+                }
+                ++shown;
+            }
+        }
+        if( shown == 0 ) {
+            trim_and_print( w, point( content_x, summary_y + 1 ), content_width,
+                            c_dark_gray,
+                            ncmm::localized_text( "No clothing", u8"\u041d\u0435\u0442 \u043e\u0434\u0435\u0436\u0434\u044b" ) );
+        }
+        if( shown > 3 ) {
+            trim_and_print( w, point( content_x, panel_top + 16 ), content_width,
+                            c_light_gray, "+" + std::to_string( shown - 3 ) +
+                            ncmm::localized_text( " more", u8" \u0435\u0449\u0451" ) );
+        } else if( selected != nullptr && selected->is_armor() &&
+                   ncmm::runtime_setting_hook_bool( "inventory.body_map.show_layers", 1 ) != 0 ) {
+            std::string layers;
+            for( const layer_level layer : selected->get_layer() ) {
+                if( !layers.empty() ) {
+                    layers += " / ";
+                }
+                layers += item::layer_to_string( layer );
+            }
+            if( !layers.empty() ) {
+                trim_and_print( w, point( content_x, panel_top + 16 ),
+                                content_width, c_light_gray, layers );
+            }
+        }
+        return;
+    }
+
+    if( selected != nullptr ) {
+        const std::string selected_line = ncmm::localized_text(
+                                              "Selected: ", u8"\u0412\u044B\u0431\u0440\u0430\u043D\u043E: " ) +
+                                          selected->display_name();
+        trim_and_print( w, point( content_x, summary_y + 1 ), content_width, c_light_cyan,
+                        selected_line );
     } else {
-        const int half = std::max( 5, content_width / 2 );
-        print_zone( 1, content_x, y, half, body_part_eyes, eyes );
-        print_zone( 2, content_x + content_width - half, y++, half, body_part_mouth, mouth );
-    }
-
-    print_zone( 4, left_x, y, third, body_part_arm_l, arm_l );
-    print_zone( 3, center_x, y, third, body_part_torso, torso );
-    print_zone( 5, right_x, y++, third, body_part_arm_r, arm_r );
-
-    print_zone( 6, left_x, y, third, body_part_hand_l, hand_l );
-    print_zone( 7, right_x, y++, third, body_part_hand_r, hand_r );
-
-    print_zone( 8, left_x, y, third, body_part_leg_l, leg_l );
-    print_zone( 9, right_x, y++, third, body_part_leg_r, leg_r );
-
-    print_zone( 10, left_x, y, third, body_part_foot_l, foot_l );
-    print_zone( 11, right_x, y++, third, body_part_foot_r, foot_r );
-
-    if( equipment_body_map_focus >= 0 && y < footer_y ) {
-        const bodypart_str_id *focused_part = nullptr;
-        const std::string *focused_label = nullptr;
-        switch( equipment_body_map_focus ) {
-            case 0: focused_part = &body_part_head; focused_label = &head; break;
-            case 1: focused_part = &body_part_eyes; focused_label = &eyes; break;
-            case 2: focused_part = &body_part_mouth; focused_label = &mouth; break;
-            case 3: focused_part = &body_part_torso; focused_label = &torso; break;
-            case 4: focused_part = &body_part_arm_l; focused_label = &arm_l; break;
-            case 5: focused_part = &body_part_arm_r; focused_label = &arm_r; break;
-            case 6: focused_part = &body_part_hand_l; focused_label = &hand_l; break;
-            case 7: focused_part = &body_part_hand_r; focused_label = &hand_r; break;
-            case 8: focused_part = &body_part_leg_l; focused_label = &leg_l; break;
-            case 9: focused_part = &body_part_leg_r; focused_label = &leg_r; break;
-            case 10: focused_part = &body_part_foot_l; focused_label = &foot_l; break;
-            case 11: focused_part = &body_part_foot_r; focused_label = &foot_r; break;
-            default: break;
-        }
-        if( focused_part != nullptr && focused_label != nullptr ) {
-            std::string items;
-            const bodypart_id focused_id = focused_part->id();
-            for( const item_location &loc : worn_items ) {
-                if( loc && loc->covers( focused_id ) ) {
-                    if( !items.empty() ) {
-                        items += "; ";
-                    }
-                    items += loc->display_name();
-                }
-            }
-            if( items.empty() ) {
-                items = ncmm::localized_text( "nothing", u8"\u043D\u0438\u0447\u0435\u0433\u043E" );
-            }
-            const std::string focus_line = *focused_label + ": " + items;
-            trim_and_print( w, point( content_x, y++ ), content_width,
-                            c_light_green, focus_line );
-        }
-    }
-
-    if( !compact && selected != nullptr && y < footer_y ) {
-        ++y;
-        const std::string selected_label =
-            ncmm::localized_text( "Selected", u8"\u0412\u044B\u0431\u0440\u0430\u043D\u043E" ) +
-            ": " + selected->display_name();
-        trim_and_print( w, point( content_x, y++ ), content_width, c_light_gray, selected_label );
-
-        if( selected->is_armor() && y < footer_y ) {
-            std::string coverage;
-            const auto append_coverage = [&]( const bodypart_str_id & part,
-                                              const std::string & label ) {
-                if( selected->covers( part.id() ) ) {
-                    if( !coverage.empty() ) {
-                        coverage += ", ";
-                    }
-                    coverage += label;
-                }
-            };
-            append_coverage( body_part_head, head );
-            append_coverage( body_part_eyes, eyes );
-            append_coverage( body_part_mouth, mouth );
-            append_coverage( body_part_torso, torso );
-            append_coverage( body_part_arm_l, arm_l );
-            append_coverage( body_part_arm_r, arm_r );
-            append_coverage( body_part_hand_l, hand_l );
-            append_coverage( body_part_hand_r, hand_r );
-            append_coverage( body_part_leg_l, leg_l );
-            append_coverage( body_part_leg_r, leg_r );
-            append_coverage( body_part_foot_l, foot_l );
-            append_coverage( body_part_foot_r, foot_r );
-            if( !coverage.empty() ) {
-                const std::string coverage_line =
-                    ncmm::localized_text( "Covers", u8"\u041F\u043E\u043A\u0440\u044B\u0432\u0430\u0435\u0442" ) +
-                    ": " + coverage;
-                trim_and_print( w, point( content_x, y++ ), content_width,
-                                c_yellow, coverage_line );
+        for( const item_location &loc : worn_items ) {
+            if( loc && loc->covers( parts[focus]->id() ) ) {
+                trim_and_print( w, point( content_x, summary_y + 1 ), content_width,
+                                c_light_gray, loc->display_name() );
+                break;
             }
         }
     }
-
+    if( compact ) {
+        return;
+    }
     if( selected != nullptr && selected->is_armor() &&
-        ncmm::runtime_setting_hook_bool( "inventory.body_map.show_layers", 1 ) != 0 &&
-        y < footer_y ) {
+        ncmm::runtime_setting_hook_bool( "inventory.body_map.show_layers", 1 ) != 0 ) {
         std::string layers;
         for( const layer_level layer : selected->get_layer() ) {
             if( !layers.empty() ) {
@@ -953,12 +998,19 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
             layers += item::layer_to_string( layer );
         }
         if( !layers.empty() ) {
-            const std::string layer_line =
-                ncmm::localized_text( "Layer", u8"\u0421\u043B\u043E\u0439" ) + ": " + layers;
-            trim_and_print( w, point( content_x, y ), content_width,
-                            c_light_gray, layer_line );
+            trim_and_print( w, point( content_x, panel_top + 14 ), content_width,
+                            c_light_gray,
+                            ncmm::localized_text( "Layer: ", u8"\u0421\u043B\u043E\u0439: " ) + layers );
         }
     }
+    trim_and_print( w, point( content_x, panel_top + 15 ), content_width,
+                    c_dark_gray,
+                    ncmm::localized_text( "\u2591 empty  \u2593 1-2  \u2588 3+  \u00B7 colors = enc",
+                                          u8"\u2591 \u043F\u0443\u0441\u0442\u043E  \u2593 1-2  \u2588 3+  \u00B7 \u0446\u0432\u0435\u0442 = \u0441\u043A\u043E\u0432." ) );
+    trim_and_print( w, point( content_x, panel_top + 16 ), content_width,
+                    c_dark_gray,
+                    ncmm::localized_text( "Cyan: selected \u00B7 Green: focused",
+                                          u8"\u0411\u0438\u0440\u044E\u0437.: \u0432\u044B\u0431\u0440\u0430\u043D\u043E \u00B7 \u0417\u0435\u043B.: \u0437\u043E\u043D\u0430" ) );
 }
 '@ 'inventory.body-map-frame-and-render'
 $gic = Replace-ExactlyOnce $gic @'

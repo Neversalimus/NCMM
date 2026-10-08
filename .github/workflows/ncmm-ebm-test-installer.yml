@@ -1,0 +1,133 @@
+name: Equipment Body Map PR187 · downloadable test installer
+
+on:
+  pull_request:
+    paths:
+      - 'ci/ebm-test/**'
+      - '.github/workflows/ncmm-ebm-test-installer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ncmm-ebm-test-installer-pr187
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - name: Checkout Equipment Body Map PR
+        uses: actions/checkout@v4
+
+      - name: Fetch PR runtime Full installer from verified build
+        uses: actions/download-artifact@v4
+        with:
+          repository: Neversalimus/NCMM
+          run-id: 37778276382
+          name: NCMM_Runtime_v0.8.2
+          github-token: ${{ github.token }}
+          path: incoming/runtime
+
+      - name: Fetch MSVC-compiled Equipment Body Map Host
+        uses: actions/download-artifact@v4
+        with:
+          repository: Neversalimus/NCMM
+          run-id: 37773540466
+          name: equipment-paper-doll-msvc-host
+          github-token: ${{ github.token }}
+          path: incoming/host
+
+      - name: Build safe standalone preview installer
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $full='incoming/runtime/NCMM_Full_v0.8.2.zip'
+          $sourceExe='incoming/host/cataclysm-tiles.ncmm.exe'
+          $sourceMeta='incoming/host/host.json'
+          foreach($file in @($full,$sourceExe,$sourceMeta)){
+            if(!(Test-Path -LiteralPath $file -PathType Leaf)){throw "Missing verified prerequisite $file"}
+          }
+
+          $hostMetadata=Get-Content -LiteralPath $sourceMeta -Raw | ConvertFrom-Json
+          $sha=(Get-FileHash -LiteralPath $sourceExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if([string]$hostMetadata.source_commit -ne 'e262adb299a7613b4aedc5f12c08fe0413c56a84' -or
+             [string]$hostMetadata.ncmm_version -ne '0.8.2' -or
+             [string]$hostMetadata.host_sha256 -ne $sha -or
+             @($hostMetadata.vanilla_sha256).Count -lt 1){
+            throw 'Preview Host identity / SHA256 verification failed'
+          }
+
+          $stage=Join-Path $env:RUNNER_TEMP 'EBM-Test-PR187'
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          Expand-Archive -LiteralPath $full -DestinationPath $stage -Force
+          if(!(Test-Path -LiteralPath (Join-Path $stage 'NCMM_Setup.exe') -PathType Leaf)){
+            throw 'Full installer did not contain NCMM_Setup.exe'
+          }
+          if(!(Test-Path -LiteralPath (Join-Path $stage 'payload/code_mods/EquipmentBodyMap/ncmm_mod.dll') -PathType Leaf)){
+            throw 'Full installer did not contain the Equipment Body Map module'
+          }
+          $hostDest=Join-Path $stage 'test_host'
+          $scriptsDest=Join-Path $stage 'scripts'
+          New-Item -ItemType Directory -Force $hostDest,$scriptsDest | Out-Null
+          Copy-Item -LiteralPath $sourceExe -Destination $hostDest
+          Copy-Item -LiteralPath $sourceMeta -Destination $hostDest
+          Copy-Item -LiteralPath 'ci/ebm-test/Install_EBM_Test.ps1' -Destination $scriptsDest
+          Copy-Item -LiteralPath 'ci/ebm-test/Restore_EBM_Test.ps1' -Destination $scriptsDest
+          Copy-Item -LiteralPath 'ci/ebm-test/README_RU.txt' -Destination (Join-Path $stage 'READ_ME_EBM_v2_RU.txt')
+
+          foreach($script in @('Install_EBM_Test.ps1','Restore_EBM_Test.ps1')){
+            $tokens=$null; $errors=$null
+            $file=Join-Path $scriptsDest $script
+            [void][Management.Automation.Language.Parser]::ParseFile($file,[ref]$tokens,[ref]$errors)
+            if(@($errors).Count -ne 0){throw "Invalid PowerShell test installer: $script"}
+          }
+          $lines=[Environment]::NewLine
+          [IO.File]::WriteAllText((Join-Path $stage 'Install_EBM_TEST.cmd'),
+            '@echo off'+$lines+
+            'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Install_EBM_Test.ps1" -GameRoot "%~1"'+$lines+
+            'pause'+$lines,
+            [Text.Encoding]::ASCII)
+          [IO.File]::WriteAllText((Join-Path $stage 'Restore_EBM_TEST.cmd'),
+            '@echo off'+$lines+
+            'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Restore_EBM_Test.ps1" -GameRoot "%~1"'+$lines+
+            'pause'+$lines,
+            [Text.Encoding]::ASCII)
+
+          # Fail-closed regression: the tool must reject an invalid CDDA target.
+          $invalid=Join-Path $env:RUNNER_TEMP 'not-a-cdda-game'
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $scriptsDest 'Install_EBM_Test.ps1') -GameRoot $invalid
+          if($LASTEXITCODE -eq 0){throw 'Test installer did not fail closed for a nonexistent game directory'}
+          # This nonzero exit is the expected result of the negative test.
+          $global:LASTEXITCODE=0
+
+          New-Item -ItemType Directory -Force out | Out-Null
+          $zip=Join-Path (Resolve-Path out) 'NCMM_EquipmentBodyMap_v2_PR187_TEST_0546.zip'
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal -Force
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive=[IO.Compression.ZipFile]::OpenRead($zip)
+          try {
+            $names=@($archive.Entries | ForEach-Object {$_.FullName.Replace('\','/')})
+            foreach($required in @('NCMM_Setup.exe','Install_EBM_TEST.cmd','Restore_EBM_TEST.cmd',
+               'scripts/Install_EBM_Test.ps1','scripts/Restore_EBM_Test.ps1',
+               'test_host/host.json','test_host/cataclysm-tiles.ncmm.exe',
+               'payload/code_mods/EquipmentBodyMap/ncmm_mod.dll')){
+              if($names -notcontains $required){throw "Preview bundle missing $required"}
+            }
+          } finally {$archive.Dispose()}
+          $zipHash=(Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          [IO.File]::WriteAllText('out/SHA256.txt',"$zipHash  NCMM_EquipmentBodyMap_v2_PR187_TEST_0546.zip")
+          Write-Host "PR187 preview installer: $zip"
+          Write-Host "SHA256: $zipHash"
+          Write-Host "Host verified SHA256: $sha"
+
+      - name: Upload downloadable PR187 test installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: NCMM-EquipmentBodyMap-PR187-TEST-INSTALLER
+          path: out/*
+          if-no-files-found: error
+          retention-days: 7

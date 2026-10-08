@@ -14,6 +14,7 @@ on:
       - 'ci/Test-Infrastructure083.ps1'
       - 'ci/Test-ComponentCatalog.ps1'
       - 'ci/Test-HostPatchDomains.ps1'
+      - 'ci/Test-EquipmentBodyMapUX.ps1'
       - 'ci/HostPatchDomains.ps1'
       - 'ci/host-patch-domains.json'
       - 'ci/NativeModuleCatalog.ps1'
@@ -107,6 +108,10 @@ jobs:
       - name: Verify Host patch domain graph and fail-closed mutation fixtures
         shell: powershell
         run: .\ci\Test-HostPatchDomains.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE"
+
+      - name: Validate equipment paper doll and mouse hitbox geometry
+        shell: powershell
+        run: .\ci\Test-EquipmentBodyMapUX.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE"
 
       - name: Test isolated new module registration previews
         shell: powershell
