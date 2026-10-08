@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 internal static class BootstrapFailureChild
 {
@@ -34,6 +35,15 @@ internal static class BootstrapFailureChild
         {
             Directory.CreateDirectory(ncmm);
             File.WriteAllText(ready, "ready\n", Encoding.ASCII);
+            return 0;
+        }
+
+        if (HasArg(args, "--test-host-hold-ready"))
+        {
+            Directory.CreateDirectory(ncmm);
+            File.WriteAllText(ready, "ready\n", Encoding.ASCII);
+            if (File.Exists(pending)) File.Delete(pending);
+            Thread.Sleep(4000);
             return 0;
         }
 

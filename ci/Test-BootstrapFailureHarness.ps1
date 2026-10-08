@@ -29,7 +29,7 @@ $childOut = Join-Path $work 'BootstrapFailureChild.exe'
 $childSource = Join-Path $RepositoryRoot 'tests\BootstrapFailureChild.cs'
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $passed = 0
-$total = 17
+$total = 18
 
 function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
@@ -156,6 +156,31 @@ try {
         $bootstrapLog = Get-Content (Join-Path $root 'ncmm\bootstrap.log') -Raw
         Assert-True ($bootstrapLog.Contains('SHA256 cache hit: cataclysm-tiles.vanilla.exe')) 'Second launch did not reuse cached vanilla SHA256.'
         Assert-True ($bootstrapLog.Contains('SHA256 cache hit: cataclysm-tiles.ncmm.exe')) 'Second launch did not reuse cached Host SHA256.'
+    }
+
+    Run-Scenario 'concurrent bootstrap launch refuses without corrupting active Host' {
+        $root = New-Scenario 'concurrent-launch'
+        $exe = Join-Path $root 'cataclysm-tiles.exe'
+        $first = Start-Process -FilePath $exe -ArgumentList @('--ncmm-offline','--test-host-hold-ready') `
+            -WorkingDirectory $root -PassThru -WindowStyle Hidden
+        try {
+            $readyPath = Join-Path $root 'ncmm\boot.ready'
+            $deadline = [DateTime]::UtcNow.AddSeconds(12)
+            while (-not(Test-Path $readyPath) -and [DateTime]::UtcNow -lt $deadline) {
+                Start-Sleep -Milliseconds 80
+            }
+            Assert-True (Test-Path $readyPath) 'First Host failed to become ready.'
+            Assert-True (-not $first.HasExited) 'Host fixture exited before concurrency probe.'
+            [void](Invoke-Bootstrap $root @('--ncmm-offline','--test-host-ready') 117)
+            Assert-True (-not(Test-Path (Join-Path $root 'ncmm\ncmm.auto_disabled'))) 'Second launch auto-disabled live Host.'
+            Assert-Equal (Read-State $root).selected_mode 'NCMM_HOST' 'Second launch overwrote active runtime state.'
+            [void]$first.WaitForExit(10000)
+            Assert-True $first.HasExited 'First launch never completed.'
+            Assert-Equal $first.ExitCode 0 'First launch failed after second was rejected.'
+        } finally {
+            if (-not $first.HasExited) { $first.Kill(); $first.WaitForExit() }
+            $first.Dispose()
+        }
     }
 
     Run-Scenario 'manual disable -> vanilla' {

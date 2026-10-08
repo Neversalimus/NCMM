@@ -577,8 +577,45 @@ internal static class NCMMBootstrap
         }
     }
 
+    // Serialize boot markers, certified-Host downloads and runtime state for one
+    // installation. A second launcher must not classify the active first run as
+    // a failed Host boot. The mutex is held until the child game exits.
     [STAThread]
     private static int Main(string[] args)
+    {
+        string self = Process.GetCurrentProcess().MainModule.FileName;
+        string root = Path.GetFullPath(Path.GetDirectoryName(self)).TrimEnd(
+            Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).ToUpperInvariant();
+        string identity;
+        using (SHA256 hash = SHA256.Create())
+        {
+            byte[] digest = hash.ComputeHash(Encoding.UTF8.GetBytes(root));
+            identity = BitConverter.ToString(digest, 0, 16).Replace("-", "");
+        }
+        using (System.Threading.Mutex gate = new System.Threading.Mutex(false,
+                   @"Local\NCMM_Bootstrap_" + identity))
+        {
+            bool entered = false;
+            try
+            {
+                try { entered = gate.WaitOne(0); }
+                catch (System.Threading.AbandonedMutexException) { entered = true; }
+                if (!entered)
+                {
+                    // Do not touch files/state/markers owned by the active launcher.
+                    Console.Error.WriteLine("NCMM: another launch of this installation is already active.");
+                    return 117;
+                }
+                return MainExclusive(args);
+            }
+            finally
+            {
+                if (entered) gate.ReleaseMutex();
+            }
+        }
+    }
+
+    private static int MainExclusive(string[] args)
     {
         string self = Process.GetCurrentProcess().MainModule.FileName;
         Root = Path.GetDirectoryName(self);
