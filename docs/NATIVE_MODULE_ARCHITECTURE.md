@@ -55,13 +55,30 @@ sufficient, for release.
 - A new `native-build.json` recipe must not change existing standalone archive
   names, installed `code_mods/<Folder>` paths or a running game's configuration.
 
-## Planned consolidation
+## Generic build and publication (Phase 2)
 
-After the registry proves stable, move repetitive CMake/smoke/copy/archive loops
-from `ci/Build-Runtime.ps1` into one recipe-driven build function, preserve
-specialized smoke executables, and derive `release-manifest.json` from the same
-validated rows. Then provide a small SDK template/scaffolder that registers a
-new module without modifying any existing module's sources.
+`ci/Build-Runtime.ps1` now consumes `Get-NcmmNativeBuildModules` rather than
+copying a CMake/smoke/copy/archive block for each module. The catalog supplies
+build order, smoke exceptions, additional executables, required persisted data,
+version and stable archive stem. The `NCMM_Full` release manifest and all module
+archives are derived from the same validated rows.
 
-This sequence deliberately **does not** change Survivor Legacy UI, existing
-gameplay mechanics, C ABI or certified Host revision.
+`ci/Test-NativeReleaseLayout.ps1` verifies Full, Runtime and standalone ZIPs,
+including manifest parity, DLLs and required data, before an artifact is published.
+The runtime release uploader includes **all** catalog-declared native packages;
+AWS and Survivor retain their existing dedicated release tags for compatibility.
+
+The shared smoke executable is still produced by the AWS CMake project, which
+must currently remain the first build entry. Other modules build independently.
+This explicit transitional invariant will be decoupled once the smoke harness
+has its own CMake target.
+
+## Planned SDK template
+
+Introduce a source-only SDK sample/scaffolder with a minimal native module,
+capability negotiation, namespaced settings, state and opt-in callbacks. It must
+start without its own CDDA source patch, register a single atomic group and pass
+the same fail-closed manifest and smoke gates as the existing modules.
+
+These changes do **not** alter Survivor Legacy UI, gameplay mechanics, C ABI
+or the certified Host revision.
