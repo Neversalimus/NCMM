@@ -13,6 +13,9 @@ on:
       - 'ci/Test-SourceContracts.ps1'
       - 'ci/Test-Infrastructure083.ps1'
       - 'ci/Test-ComponentCatalog.ps1'
+      - 'ci/Test-HostPatchDomains.ps1'
+      - 'ci/HostPatchDomains.ps1'
+      - 'ci/host-patch-domains.json'
       - 'ci/NativeModuleCatalog.ps1'
       - 'ci/Test-NativeModuleCatalog.ps1'
       - 'ci/Test-NCMMNativeScaffold.ps1'
@@ -95,6 +98,10 @@ jobs:
       - name: Verify SDK generator isolation, manifests and rejection matrix
         shell: powershell
         run: .\ci\Test-NCMMNativeScaffold.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE"
+
+      - name: Verify Host patch domain graph and fail-closed mutation fixtures
+        shell: powershell
+        run: .\ci\Test-HostPatchDomains.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE"
 
       - name: Regenerate final module sources from payload
         shell: powershell
