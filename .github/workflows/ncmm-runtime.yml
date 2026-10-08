@@ -23,6 +23,7 @@ on:
       - 'ci/Test-ComponentCatalog.ps1'
       - 'ci/NativeModuleCatalog.ps1'
       - 'ci/Test-NativeModuleCatalog.ps1'
+      - 'ci/Test-NativeReleaseLayout.ps1'
       - 'components/native-build.json'
       - 'ci/Test-InstallerTransaction.ps1'
       - 'ci/Test-InstallationMatrix.ps1'
@@ -61,6 +62,7 @@ on:
       - 'ci/Test-ComponentCatalog.ps1'
       - 'ci/NativeModuleCatalog.ps1'
       - 'ci/Test-NativeModuleCatalog.ps1'
+      - 'ci/Test-NativeReleaseLayout.ps1'
       - 'components/native-build.json'
       - 'ci/Test-InstallerTransaction.ps1'
       - 'ci/Test-InstallationMatrix.ps1'
@@ -161,6 +163,10 @@ jobs:
             -OutputRoot "$env:GITHUB_WORKSPACE/dist/runtime" `
             -SkipTextEncoding
 
+      - name: Verify native release ZIP layouts
+        shell: powershell
+        run: .\ci\Test-NativeReleaseLayout.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE" -DistRoot "$env:GITHUB_WORKSPACE/dist"
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
@@ -232,11 +238,18 @@ jobs:
             gh release create $tag --title "NCMM Runtime v$version" --notes 'Portable NCMM runtime with certified-host and crash-loop hardening. No compiler or build tools are required on player PCs.'
             if ($LASTEXITCODE -ne 0) { throw 'Could not create runtime release.' }
           }
-          $awsVersion = [string](Get-Content 'mods/AdvancedWorldSettings/mod.json' -Raw | ConvertFrom-Json).version
-          $survivorVersion = [string](Get-Content 'mods/SurvivorProgression/mod.json' -Raw | ConvertFrom-Json).version
-          gh release edit $tag --title "NCMM v$version Runtime + Full Bundle" --notes "Recommended download: NCMM_Full_v$version.zip. This release also contains Runtime-only, Advanced World Settings, and Survivor Progression standalone packages."
+          . .\ci\NativeModuleCatalog.ps1
+          $modules = @(Get-NcmmNativeBuildModules -RepositoryRoot "$env:GITHUB_WORKSPACE")
+          $assets = @("dist/NCMM_Full_v$version.zip", "dist/NCMM_Runtime_v$version.zip")
+          foreach ($module in $modules) {
+            $assets += "dist/NCMM_$($module.ArchiveStem)_v$($module.Version).zip"
+          }
+          foreach ($asset in $assets) {
+            if (-not (Test-Path $asset -PathType Leaf)) { throw "Native release asset missing: $asset" }
+          }
+          gh release edit $tag --title "NCMM v$version Runtime + Full Bundle" --notes "Recommended: NCMM_Full_v$version.zip. Includes runtime and independently installable native module packages."
           if ($LASTEXITCODE -ne 0) { throw 'Could not update runtime release metadata.' }
-          gh release upload $tag "dist/NCMM_Full_v$version.zip" "dist/NCMM_Runtime_v$version.zip" "dist/NCMM_AdvancedWorldSettings_v$awsVersion.zip" "dist/NCMM_SurvivorProgression_v$survivorVersion.zip" --clobber
+          gh release upload $tag @assets --clobber
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload full/runtime/module packages.' }
 
       - name: Publish Advanced World Settings release

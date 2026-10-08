@@ -81,6 +81,11 @@ function Get-NcmmNativeBuildModules {
         if($caps.Count -eq 0 -or @($caps | Select-Object -Unique).Count -ne $caps.Count) {
             throw "Native module '$id' has empty/duplicated capability requirements."
         }
+        foreach($dep in @($component[0].dependencies)) {
+            if($dep.capability -and $caps -cnotcontains [string]$dep.capability) {
+                throw "Native module '$id' removed catalog-required capability: $($dep.capability)"
+            }
+        }
         if($null -eq $entry.missing_contract_smoke -or
            $entry.missing_contract_smoke -isnot [bool]) {
             throw "Native module '$id' must declare a boolean missing_contract_smoke."

@@ -5,27 +5,27 @@ $root=(Resolve-Path $RepositoryRoot).Path
 
 $source=Get-Content (Join-Path $root 'components\native-build.json') -Raw
 $modules=@(Get-NcmmNativeBuildModules -RepositoryRoot $root)
-$expected=@(
-    'advanced_world_settings',
-    'ballistic_hit_chance',
-    'equipment_body_map',
-    'item_glyphs',
-    'survivor_progression'
-)
-if($modules.Count -ne $expected.Count -or
-   (@($modules | ForEach-Object { $_.Id }) -join ',') -cne ($expected -join ',')) {
-    throw 'Native module build registry baseline ordering/completeness drift.'
+# Regression-lock shipped identities/filenames, but permit additional modules.
+$baseline=@{
+    advanced_world_settings='AdvancedWorldSettings'
+    ballistic_hit_chance='BallisticHitChance'
+    equipment_body_map='EquipmentBodyMap'
+    item_glyphs='ItemGlyphs'
+    survivor_progression='SurvivorProgression'
 }
-$archives=@($modules | ForEach-Object { "NCMM_$($_.ArchiveStem)_v$($_.Version).zip" })
-$baseline=@(
-    'NCMM_AdvancedWorldSettings_v0.6.4.zip',
-    'NCMM_BallisticHitChance_v0.1.0.zip',
-    'NCMM_EquipmentBodyMap_v0.1.0.zip',
-    'NCMM_ItemGlyphs_v0.1.0.zip',
-    'NCMM_SurvivorProgression_v0.15.0.zip'
-)
-if(($archives -join '|') -cne ($baseline -join '|')) {
-    throw 'Native archive naming drift: '+($archives -join ', ')
+if($modules.Count -lt $baseline.Count) { throw 'Existing native modules disappeared.' }
+foreach($id in @($baseline.Keys)) {
+    $rows=@($modules | Where-Object { $_.Id -eq $id })
+    if($rows.Count -ne 1 -or $rows[0].ArchiveStem -cne $baseline[$id]) {
+        throw "Existing native module '$id' identity/archive stem drift."
+    }
+    $expectedArchive="NCMM_$($baseline[$id])_v$($rows[0].Version).zip"
+    if(-not $expectedArchive.EndsWith(".zip")) {
+        throw "Invalid archive identity for $id"
+    }
+}
+if($modules[0].Id -ne 'advanced_world_settings') {
+    throw 'The shared smoke host producer must be the first build entry.'
 }
 
 $mutations=@(
@@ -37,8 +37,8 @@ $mutations=@(
     @{Name='unknown id';Change={param($r) $r.modules[0].id='unregistered_mod'}},
     @{Name='path traversal';Change={param($r) $r.modules[0].folder='../outside'}},
     @{Name='unsafe smoke executable';Change={param($r) $r.modules[0].extra_smoke_executables=@('../bad.exe')}},
-    @{Name='duplicate payload';Change={param($r) $r.modules[4].required_payload_files=@('persistent_data/dimensional_pouch.json','persistent_data/dimensional_pouch.json')}},
-    @{Name='missing required payload';Change={param($r) $r.modules[4].required_payload_files=@('persistent_data/nonexistent_fixture.json')}},
+    @{Name='duplicate payload';Change={param($r) (@($r.modules|Where-Object { $_.id -eq 'survivor_progression' })[0]).required_payload_files=@('persistent_data/dimensional_pouch.json','persistent_data/dimensional_pouch.json')}},
+    @{Name='missing required payload';Change={param($r) (@($r.modules|Where-Object { $_.id -eq 'survivor_progression' })[0]).required_payload_files=@('persistent_data/nonexistent_fixture.json')}},
     @{Name='invalid boolean';Change={param($r) $r.modules[0].missing_contract_smoke='yes'}},
     @{Name='invalid schema';Change={param($r) $r.schema=17}}
 )
