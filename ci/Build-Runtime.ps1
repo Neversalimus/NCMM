@@ -147,10 +147,14 @@ foreach($module in $nativeModules) {
         & $extra.FullName
         if($LASTEXITCODE -ne 0) { throw "Native module '$($module.Id)' extra test failed: $exeName" }
     }
-    & $smoke.FullName $dll.FullName
+    $smokeOptions=@()
+    if($module.SmokeProfile -eq 'generic') {
+        $smokeOptions=@("--generic=$($module.Id)@$($module.Version)")
+    }
+    & $smoke.FullName $dll.FullName @smokeOptions
     if($LASTEXITCODE -ne 0) { throw "Native module '$($module.Id)' runtime smoke failed." }
     if($module.MissingContractSmoke) {
-        & $smoke.FullName $dll.FullName '--missing-contract'
+        & $smoke.FullName $dll.FullName @smokeOptions '--missing-contract'
         if($LASTEXITCODE -ne 0) { throw "Native module '$($module.Id)' fail-closed smoke failed." }
     }
 
