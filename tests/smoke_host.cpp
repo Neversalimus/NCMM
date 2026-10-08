@@ -61,6 +61,7 @@ std::map<std::string, std::string> option_groups;
 std::string active_group;
 std::vector<std::string> fixed_time_values;
 bool simulate_missing_contract = false;
+std::string generic_missing_capability;
 std::map<std::string, int64_t> character_state;
 std::map<std::string, double> modifiers;
 int ui_message_count = 0;
@@ -75,6 +76,10 @@ void log_fn( ncmm_log_level_v1, const char *message )
 int has_capability_fn( const char *cap )
 {
     if( cap == nullptr ) {
+        return 0;
+    }
+    if( simulate_missing_contract && !generic_missing_capability.empty() &&
+        generic_missing_capability == cap ) {
         return 0;
     }
     if( simulate_missing_contract &&
@@ -2065,9 +2070,28 @@ bool survivor_semantic_matrix( void *lib )
 
 int main( int argc, char **argv )
 {
-    if( argc < 2 || argc > 3 ) {
-        std::cerr << "usage: ncmm_smoke_host <module> [--missing-contract]\n";
+    if( argc < 2 || argc > 4 ) {
+        std::cerr << "usage: ncmm_smoke_host <module> [--generic=id@version] [--missing-contract]\n";
         return 2;
+    }
+    std::string generic_expected_id;
+    std::string generic_expected_version;
+    for( int arg = 2; arg < argc; ++arg ) {
+        const std::string flag( argv[arg] );
+        if( flag == "--missing-contract" && !simulate_missing_contract ) {
+            simulate_missing_contract = true;
+        } else if( flag.rfind( "--generic=", 0 ) == 0 && generic_expected_id.empty() ) {
+            const std::string contract = flag.substr( 10 );
+            const std::size_t at = contract.find( '@' );
+            if( at == std::string::npos || at == 0 || at + 1 == contract.size() ) {
+                return 2;
+            }
+            generic_expected_id = contract.substr( 0, at );
+            generic_expected_version = contract.substr( at + 1 );
+        } else {
+            std::cerr << "unknown/duplicate smoke option: " << flag << '\n';
+            return 2;
+        }
     }
 
     if( !runtime_fault_policy_smoke() ) {
@@ -2075,10 +2099,6 @@ int main( int argc, char **argv )
         return 20;
     }
     std::cout << "NCMM runtime fault policy: PASS\n";
-    if( argc == 3 && std::strcmp( argv[2], "--missing-contract" ) == 0 ) {
-        simulate_missing_contract = true;
-    }
-
 #ifdef _WIN32
     HMODULE native = LoadLibraryA( argv[1] );
     void *lib = native;
@@ -2209,6 +2229,54 @@ int main( int argc, char **argv )
         &virtual_item_primary_melee_enabled_v2_fn;
     smoke_host2.virtual_item_set_primary_melee =
         &virtual_item_set_primary_melee_v2_fn;
+
+    // Generic onboarding profile for *new* modules without an authored semantic
+    // matrix yet. Existing module IDs keep their deeper specialized smoke paths.
+    // Never silently treat an unknown module ID as a successful semantic smoke.
+    if( !generic_expected_id.empty() ) {
+        if( desc->name == nullptr || !*desc->name ||
+            desc->version == nullptr || !*desc->version ||
+            generic_expected_id != desc->id || generic_expected_version != desc->version ||
+            desc->init == nullptr || desc->shutdown == nullptr ||
+            desc->required_capabilities == nullptr || desc->required_capability_count == 0 ||
+            desc->required_capability_count > 128 ) {
+            std::cerr << "Generic native module descriptor/manifest identity mismatch\n";
+            return 58;
+        }
+        std::set<std::string> seen_caps;
+        for( size_t i = 0; i < desc->required_capability_count; ++i ) {
+            const char *cap = desc->required_capabilities[i];
+            if( cap == nullptr || !*cap || !seen_caps.insert( cap ).second ) {
+                std::cerr << "Generic native module requires invalid/duplicate capability\n";
+                return 59;
+            }
+            if( !api.has_capability( cap ) && !simulate_missing_contract ) {
+                std::cerr << "Generic native module Host mock lacks capability: " << cap << '\n';
+                return 60;
+            }
+        }
+        if( simulate_missing_contract ) {
+            // Deliberately remove one capability the module *actually* declares.
+            // A properly gated module must fail init without registering state.
+            generic_missing_capability = desc->required_capabilities[0];
+            if( desc->init( &api ) != 0 || !registered_setting_ids.empty() ||
+                !setting_meta.empty() || !runtime_setting_bindings.empty() ||
+                !modifiers.empty() || event_subscription_count != 0 ) {
+                std::cerr << "Generic module accepted missing capability or leaked registrations\n";
+                return 61;
+            }
+        } else {
+            if( !desc->init( &api ) ) {
+                std::cerr << "Generic native module init failed\n";
+                return 62;
+            }
+            desc->shutdown();
+        }
+        std::cout << "NCMM generic native smoke: PASS (" << desc->id
+                  << ", " << ( simulate_missing_contract ? "fail-closed" : "initialized" )
+                  << ")\n";
+        return 0;
+    }
 
     if( std::strcmp( desc->id, "equipment_body_map" ) == 0 ) {
         if( !equipment_body_map_smoke::run( lib, desc, api ) ) return 44;
