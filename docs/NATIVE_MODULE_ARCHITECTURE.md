@@ -114,3 +114,16 @@ Generated modules use it instead of repeating a fragile raw API pointer
 sequence. tests/sdk_core_guard_test.cpp exercises failures against controlled
 Host mocks; Runtime CI compiles and runs that harness before building gameplay
 modules. Existing published mod binaries and Host ABI are untouched.
+
+## Stage reviewed registration proposals (Phase 7)
+
+\`tools/New-NCMMModuleRegistrationPreview.ps1\` can turn an unregistered SDK
+starter into staged catalog/descriptor/build JSON outside the repository. It
+checks identity, version, source path, group, capabilities and smoke policy,
+and never edits or promotes the live NCMM component catalog, feeds or packages.
+\`ci/Test-NCMMModuleRegistrationPreview.ps1\` exercises byte-stable output,
+source immutability, and negative mutation scenarios.
+
+Publication remains a separate reviewed change requiring registered module
+sources, update/compatibility feeds, Runtime/Matrix tests and Host certification
+where a new CDDA engine integration is needed.
