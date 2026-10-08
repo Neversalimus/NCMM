@@ -1,0 +1,128 @@
+{
+  "schema": 1,
+  "description": "Read-only domain/dependency map for canonical Host patch layers. The authoritative execution order remains ci/host-patch-stack.json.",
+  "source": "ci/host-patch-stack.json",
+  "domains": [
+    {
+      "id": "worldgen-settings",
+      "description": "Host world settings and AWS worldgen bridge",
+      "after": [],
+      "layers": [
+        "Apply-WorldSettingsV2Patch",
+        "Apply-NcmmModuleDataBridge0120",
+        "Apply-AwsWorldgenHostApi20"
+      ]
+    },
+    {
+      "id": "runtime-hooks",
+      "description": "Generic runtime hooks and reactive mechanics",
+      "after": [
+        "worldgen-settings"
+      ],
+      "layers": [
+        "Apply-NcmmRuntimeGameplayHooksV2",
+        "Apply-NcmmReactiveMechanics0112",
+        "Apply-NcmmReactiveMechanics0113"
+      ]
+    },
+    {
+      "id": "virtual-item-foundation",
+      "description": "Survivor virtual Mana Hand identities and context",
+      "after": [
+        "runtime-hooks"
+      ],
+      "layers": [
+        "Apply-SurvivorManaHands0130",
+        "Apply-SurvivorVirtualItemSlots0140",
+        "Apply-SurvivorVirtualItemContext0140"
+      ]
+    },
+    {
+      "id": "vehicle-xp-bridge",
+      "description": "Vehicle crafting XP source hooks",
+      "after": [
+        "runtime-hooks"
+      ],
+      "layers": [
+        "Apply-SurvivorVehicleCraftingXp0151"
+      ]
+    },
+    {
+      "id": "virtual-item-utilities",
+      "description": "Spellcasting, lifecycle, utility and secondary melee",
+      "after": [
+        "virtual-item-foundation",
+        "vehicle-xp-bridge"
+      ],
+      "layers": [
+        "Apply-SurvivorManaHandSpellcastingAid0140",
+        "Apply-SurvivorVirtualItemLifecycle0140",
+        "Apply-SurvivorManaHandUtility0140",
+        "Apply-SurvivorManaHandSecondaryMelee0140"
+      ]
+    },
+    {
+      "id": "virtual-item-actions",
+      "description": "Ranged, melee, reach, interaction and item actions",
+      "after": [
+        "virtual-item-utilities"
+      ],
+      "layers": [
+        "Apply-SurvivorManaHandPairedGrip0140",
+        "Apply-SurvivorManaHandRanged0140",
+        "Apply-SurvivorManaHandPairedRanged0140",
+        "Apply-SurvivorManaHandReloadAndShoot0140",
+        "Apply-SurvivorManaHandFireAction0140",
+        "Apply-SurvivorManaHandGunControls0140",
+        "Apply-SurvivorManaHandReloadCarrier0153",
+        "Apply-SurvivorManaHandPrimaryMelee0140",
+        "Apply-SurvivorManaHandMartialArts0140",
+        "Apply-SurvivorManaHandReachMelee0140",
+        "Apply-SurvivorManaHandSmash0140",
+        "Apply-SurvivorManaHandAutoattack0140",
+        "Apply-SurvivorManaHandThrow0140",
+        "Apply-SurvivorManaHandAutoMining0140",
+        "Apply-SurvivorManaHandTargetPractice0140",
+        "Apply-SurvivorManaHandMend0140",
+        "Apply-SurvivorManaHandCrutches0140",
+        "Apply-SurvivorManaHandHeldUtilities0140"
+      ]
+    },
+    {
+      "id": "progression-completion",
+      "description": "Craft XP, ownership, count and direct UI completion",
+      "after": [
+        "virtual-item-actions"
+      ],
+      "layers": [
+        "Apply-SurvivorCraftCompletionMetric0140",
+        "Apply-SurvivorVehicleCraftingMetric0151",
+        "Apply-SurvivorManaHandDirectCount0152",
+        "Apply-SurvivorActionWeaponSelection0154",
+        "Apply-SurvivorManaHandsDirectUi0155"
+      ]
+    },
+    {
+      "id": "source-invariants",
+      "description": "Assert transformed source invariants",
+      "after": [
+        "runtime-hooks",
+        "progression-completion"
+      ],
+      "layers": [
+        "Assert-NcmmReactiveMechanics0113Source"
+      ]
+    },
+    {
+      "id": "diagnostics-runtime",
+      "description": "Profiler support and final runtime infrastructure",
+      "after": [
+        "source-invariants"
+      ],
+      "layers": [
+        "Apply-RecipeFinalizeProfilerSupportPatch",
+        "Apply-NcmmRuntimeInfrastructureV8766"
+      ]
+    }
+  ]
+}
