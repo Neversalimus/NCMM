@@ -30,6 +30,39 @@ Require ($source.Contains('own_gear_column.prepare_paging( filter );')) 'hidden 
 Require ($source.Contains('set_equipment_body_map();')) 'only regular Inventory should opt into EBM'
 Require (-not $source.Contains('const int third = std::max( 6, content_width / 3 );')) 'old text-column pseudo doll returned'
 
+# EBM v2.1: encumbrance heat must reflect actual encumbrance even on naked/mutated
+# zones.  No selection/focus overlay may hide a yellow/red condition.
+Require ($source.Contains('const auto enc_color = [&]( int zone ) -> nc_color {')) 'dedicated effective encumbrance heat map removed'
+Require ($source.Contains('nc_color tint = enc_color( zone );')) 'sprite does not use effective encumbrance heat'
+Require ($source.Contains('} else if( encumbrance[zone] < 10 ) {')) 'focus or selected coverage can obscure elevated encumbrance'
+Require ($source.Contains('enc_color( zone ), label')) '12-zone numerical readout hides risk coloring'
+Require ($source.Contains('equipment_body_map_focus == zone && !focus_marker_drawn')) 'focus marker no longer independent of heat'
+Require ($source.Contains('const std::string marker = focused ? ">" : selected_covers[zone] ? "*" : "";')) 'selected coverage no longer readable when high encumbrance'
+Require ($source.Contains('const std::string worn_label = ncmm::localized_text( "Worn", u8"\u041d\u0430\u0434\u0435\u0442\u043e" );')) 'worn-count noun is not inflection neutral'
+Require ($source.Contains('worn_label + " " + number_of_worn')) 'count preceded by noun, avoid invalid Russian noun cases'
+Require ($source.Contains('if( !compact && content_width >= 33 ) {')) 'numeric matrix not confined to wide layout'
+Require ($source.Contains('const auto enc_row = [&]( int row, int first, int second, int third )')) 'per-zone numeric matrix absent'
+Require ($source.Contains('detail_line( ncmm::localized_text( "Layer: "')) 'selected armor layer detail lost'
+Require ($source.Contains('if( compact || content_width < 33 ) {')) 'narrow/compact status disappeared'
+$expectedReadout = @(
+    'enc_row( panel_top + 12, 0, 1, 2 );',
+    'enc_row( panel_top + 13, 3, 4, 5 );',
+    'enc_row( panel_top + 14, 6, 7, -1 );',
+    'enc_row( panel_top + 15, 8, 9, -1 );',
+    'enc_row( panel_top + 16, 10, 11, -1 );'
+)
+foreach($line in $expectedReadout) {
+    Require ($source.Contains($line)) ("missing body-zone comparison row: " + $line)
+}
+$heatStart = $source.IndexOf('const auto enc_color = [&]( int zone ) -> nc_color {')
+$heatEnd = $source.IndexOf('const ncmm_doll_cell *cells = compact ?', $heatStart)
+$heat = $source.Substring($heatStart, $heatEnd - $heatStart)
+Require ($heat.Contains('const int enc = encumbrance[zone];')) 'heat depends on worn count'
+Require ($heat.Contains('enc >= 70 ? c_red : enc >= 40 ? c_light_red :')) 'danger color thresholds changed'
+Require (-not $heat.Contains('worn_count')) 'heat wrongly gated on worn clothes'
+Write-Host 'Equipment Body Map v2.1 independent heatmap, localized count, 12-zone numbers: PASS' -ForegroundColor Green
+
+
 $cellPattern = '\{\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(?:u8)?"([^"]*)"\s*,\s*(?:u8)?"([^"]*)"\s*,\s*(?:u8)?"([^"]*)"\s*\}'
 foreach($layout in @('full', 'compact')) {
     $match = [regex]::Match($source, ('(?s)static const ncmm_doll_cell ncmm_doll_' + $layout + '\[\] = \{(.*?)\};'))
