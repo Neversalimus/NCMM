@@ -24,8 +24,14 @@ foreach($id in @($baseline.Keys)) {
         throw "Invalid archive identity for $id"
     }
 }
-if($modules[0].Id -ne 'advanced_world_settings') {
-    throw 'The shared smoke host producer must be the first build entry.'
+# The platform smoke harness is independent; changing module build order
+# must not change whether each module can be validated.
+$reordered=ConvertFrom-Json $source
+$reordered.modules=@($reordered.modules | Sort-Object id -Descending)
+$reorderedModules=@(Get-NcmmNativeBuildModules -RepositoryRoot $root -Registry $reordered)
+if($reorderedModules.Count -ne $modules.Count -or
+   $reorderedModules[0].Id -eq $modules[0].Id) {
+    throw 'Native module catalog order independence regression.'
 }
 
 $mutations=@(
