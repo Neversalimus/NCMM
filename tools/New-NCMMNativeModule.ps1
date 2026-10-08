@@ -68,8 +68,7 @@ $registration=[ordered]@{
  )
 }
 $cpp=@'
-#include "ncmm_api.h"
-#include <cstddef>
+#include "ncmm_sdk_core.hpp"
 namespace {
 constexpr const char *id = "@@ID@@";
 constexpr const char *name = "@@NAME@@";
@@ -77,22 +76,15 @@ constexpr const char *version = "@@VERSION@@";
 constexpr const char *setting = "NCMM_@@UPPERID@@_ENABLED";
 const char *caps[] = { "core.v1", "api.versioning.v1", "host_api.v2.core", "settings.typed.v2" };
 int init( const ncmm_host_api_v1 *api ) {
-    if( !api || api->abi_version != NCMM_ABI_VERSION || !api->has_capability ||
-        !api->query_interface || !api->get_api_version_major || !api->get_api_version_minor ) return 0;
-    for( const char *cap : caps ) if( !api->has_capability( cap ) ) return 0;
-    if( api->get_api_version_major() != 1u || api->get_api_version_minor() < 9u ) return 0;
-    const auto *core = static_cast<const ncmm_host_api_v2_core *>(
-        api->query_interface( NCMM_HOST_API_V2_CORE_ID, 2u, 0u ) );
-    constexpr size_t size = offsetof( ncmm_host_api_v2_core, world_setting_register_bool ) +
-        sizeof( ( ( ncmm_host_api_v2_core * )nullptr )->world_setting_register_bool );
-    if( !core || core->abi_version != NCMM_HOST_API_V2_CORE_ABI ||
-        core->api_major != 2u || core->struct_size < size ||
-        !core->world_setting_register_bool ) return 0;
-    if( !core->world_setting_register_bool(
-         id, setting, "Enable @@NAME@@",
-         "Example LIVE toggle; this module has no gameplay hooks.",
-         1, NCMM_WORLD_SETTING_LIVE ) ) return 0;
-    return 1;
+    // One shared fail-closed guard protects all optional v1 and queried Core
+    // fields. It also checks capabilities, version floors and struct size.
+    const auto access = ncmm::sdk::require_core(
+        api, caps, sizeof( caps ) / sizeof( caps[0] ),
+        NCMM_SDK_CORE_FIELD_END( world_setting_register_bool ) );
+    if( !access ) return 0;
+    return ncmm::sdk::register_live_bool(
+        access, id, setting, "Enable @@NAME@@",
+        "Example LIVE toggle; this module has no gameplay hooks." ) ? 1 : 0;
 }
 void shutdown() {}
 const ncmm_mod_descriptor_v1 descriptor = { NCMM_ABI_VERSION, id, name, version,
@@ -110,7 +102,7 @@ project(NCMMNativeStarter LANGUAGES CXX)
 if(NOT NCMM_SDK_INCLUDE_DIR)
     set(NCMM_SDK_INCLUDE_DIR "@@SOURCEDIR@@/../../sdk")
 endif()
-if(NOT EXISTS "@@SDKDIR@@/ncmm_api.h")
+if(NOT EXISTS "@@SDKDIR@@/ncmm_api.h" OR NOT EXISTS "@@SDKDIR@@/ncmm_sdk_core.hpp")
     message(FATAL_ERROR "Pass -DNCMM_SDK_INCLUDE_DIR=<NCMM/sdk path>")
 endif()
 add_library(ncmm_mod SHARED src/module.cpp)
@@ -130,7 +122,9 @@ $readme=@'
 ID: @@ID@@; Version: @@VERSION@@.
 NOT REGISTERED. Source-only starter; not certified and not installable.
 Build with MSVC/CMake passing -DNCMM_SDK_INCLUDE_DIR=<path to NCMM/sdk>.
-Exports ncmm_get_descriptor_v1. LIVE toggle: NCMM_@@UPPERID@@_ENABLED.
+Exports ncmm_get_descriptor_v1. Uses ncmm_sdk_core.hpp to fail closed on
+missing capabilities, API version mismatch and truncated Core structures.
+LIVE toggle: NCMM_@@UPPERID@@_ENABLED.
 No gameplay patches. NCMM_REGISTRATION.json is a review blueprint.
 '@
 $readme=$readme.Replace('@@ID@@',$Id).Replace('@@NAME@@',$Name).
