@@ -23,6 +23,9 @@ on:
       - 'ci/Test-ComponentCatalog.ps1'
       - 'ci/NativeModuleCatalog.ps1'
       - 'ci/Test-NativeModuleCatalog.ps1'
+      - 'ci/host-patch-domains.json'
+      - 'ci/HostPatchDomains.ps1'
+      - 'ci/Test-HostPatchDomains.ps1'
       - 'ci/Test-NativeReleaseLayout.ps1'
       - 'components/native-build.json'
       - 'ci/Test-InstallerTransaction.ps1'
@@ -62,6 +65,9 @@ on:
       - 'ci/Test-ComponentCatalog.ps1'
       - 'ci/NativeModuleCatalog.ps1'
       - 'ci/Test-NativeModuleCatalog.ps1'
+      - 'ci/host-patch-domains.json'
+      - 'ci/HostPatchDomains.ps1'
+      - 'ci/Test-HostPatchDomains.ps1'
       - 'ci/Test-NativeReleaseLayout.ps1'
       - 'components/native-build.json'
       - 'ci/Test-InstallerTransaction.ps1'
@@ -151,6 +157,10 @@ jobs:
       - name: Check native module build registry
         shell: powershell
         run: .\ci\Test-NativeModuleCatalog.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE"
+
+      - name: Verify Host patch domain graph
+        shell: powershell
+        run: .\ci\Test-HostPatchDomains.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE"
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
