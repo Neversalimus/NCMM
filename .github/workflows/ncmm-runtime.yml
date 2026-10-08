@@ -27,6 +27,8 @@ on:
       - 'ci/HostPatchDomains.ps1'
       - 'ci/host-patch-domains.json'
       - 'ci/Test-NCMMNativeScaffold.ps1'
+      - 'ci/Test-NCMMModuleRegistrationPreview.ps1'
+      - 'tools/New-NCMMModuleRegistrationPreview.ps1'
       - 'tools/New-NCMMNativeModule.ps1'
       - 'ci/Test-NativeReleaseLayout.ps1'
       - 'components/native-build.json'
@@ -71,6 +73,8 @@ on:
       - 'ci/HostPatchDomains.ps1'
       - 'ci/host-patch-domains.json'
       - 'ci/Test-NCMMNativeScaffold.ps1'
+      - 'ci/Test-NCMMModuleRegistrationPreview.ps1'
+      - 'tools/New-NCMMModuleRegistrationPreview.ps1'
       - 'tools/New-NCMMNativeModule.ps1'
       - 'ci/Test-NativeReleaseLayout.ps1'
       - 'components/native-build.json'
@@ -165,6 +169,10 @@ jobs:
       - name: Verify Host patch domain graph
         shell: powershell
         run: .\ci\Test-HostPatchDomains.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE"
+
+      - name: Validate SDK registration preview isolation
+        shell: powershell
+        run: .\ci\Test-NCMMModuleRegistrationPreview.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE"
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
