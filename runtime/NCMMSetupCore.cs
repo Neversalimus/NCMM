@@ -134,6 +134,8 @@ internal sealed class SetupInstalledComponent
     public string id { get; set; }
     public string version { get; set; }
     public string directory { get; set; }
+    // Files installed by NCMM, with hashes. Never infer ownership from directory contents.
+    public Dictionary<string, string> files { get; set; }
 }
 
 internal sealed class SetupInstalledComponents
@@ -307,6 +309,111 @@ internal static partial class SetupCore
     private const string SetupPendingFile = ".ncmm-setup.pending.json";
     private const string SetupTransactionPrefix = ".ncmm-setup-tx-";
 
+    private static SetupInstalledComponents ReadPreviousInstalledComponents(string gameRoot)
+    {
+        string path = Path.Combine(gameRoot, "ncmm", "installed-components.json");
+        if (!File.Exists(path)) return null;
+        try
+        {
+            SetupInstalledComponents state = new JavaScriptSerializer()
+                .Deserialize<SetupInstalledComponents>(File.ReadAllText(path));
+            return state != null && state.schema == 1 ? state : null;
+        }
+        catch { return null; }
+    }
+
+    private static bool SafeModuleDirectoryName(string name)
+    {
+        return !String.IsNullOrWhiteSpace(name) && name != "." && name != ".." &&
+               String.Equals(Path.GetFileName(name), name, StringComparison.Ordinal) &&
+               name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
+    }
+
+    private static Dictionary<string, string> PackagedFileHashes(string source)
+    {
+        string prefix = Path.GetFullPath(source).TrimEnd(Path.DirectorySeparatorChar) +
+                        Path.DirectorySeparatorChar;
+        Dictionary<string, string> hashes =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
+        {
+            string relative = Path.GetFullPath(file).Substring(prefix.Length)
+                .Replace(Path.DirectorySeparatorChar, '/');
+            if (hashes.ContainsKey(relative))
+                throw new InvalidOperationException("Duplicate packaged module file: " + relative);
+            hashes.Add(relative, Sha256(file));
+        }
+        return hashes;
+    }
+
+    private static void RemoveStalePackagedFiles(string destination,
+                                                  SetupInstalledComponent previous,
+                                                  Dictionary<string, string> currentFiles)
+    {
+        // Legacy receipts contain no file inventory: do not guess which extras are
+        // user files. The first upgrade records a reliable baseline for future cleanup.
+        if (previous == null || previous.files == null) return;
+        string root = Path.GetFullPath(destination).TrimEnd(
+            Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string prefix = root + Path.DirectorySeparatorChar;
+        foreach (KeyValuePair<string, string> pair in previous.files)
+        {
+            if (currentFiles.ContainsKey(pair.Key)) continue;
+            string relative = pair.Key.Replace('/', Path.DirectorySeparatorChar);
+            if (Path.IsPathRooted(relative) ||
+                relative.Split(Path.DirectorySeparatorChar).Any(
+                    part => part == ".." || part == "." || part.Length == 0))
+                throw new InvalidOperationException("Unsafe recorded module file: " + pair.Key);
+            string target = Path.GetFullPath(Path.Combine(root, relative));
+            if (!target.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Recorded module file escaped directory: " + pair.Key);
+            string parent = Path.GetDirectoryName(target);
+            while (!String.IsNullOrEmpty(parent) &&
+                   parent.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                if ((File.GetAttributes(parent) & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidOperationException("Reparse point in managed module path: " + parent);
+                parent = Path.GetDirectoryName(parent);
+            }
+            if (!File.Exists(target)) continue;
+            if (!String.Equals(Sha256(target), pair.Value, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    "Former packaged file was modified; refusing to remove: " + target);
+            File.Delete(target);
+        }
+        foreach (string dir in Directory.GetDirectories(destination, "*", SearchOption.AllDirectories)
+                     .OrderByDescending(x => x.Length))
+        {
+            if (Directory.GetFileSystemEntries(dir).Length == 0) Directory.Delete(dir);
+        }
+    }
+
+    private static void AssertGameNotRunning(string gameRoot)
+    {
+        string root = Path.GetFullPath(gameRoot).TrimEnd(
+            Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
+            Path.DirectorySeparatorChar;
+        foreach (Process process in Process.GetProcesses())
+        {
+            try
+            {
+                string name = process.ProcessName;
+                if (!name.StartsWith("cataclysm", StringComparison.OrdinalIgnoreCase)) continue;
+                string executable = process.MainModule.FileName;
+                if (executable.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException(
+                        "Close the running CDDA instance before installing or restoring vanilla.");
+            }
+            catch (System.ComponentModel.Win32Exception) { }
+            catch (InvalidOperationException ex)
+            {
+                if (ex.Message.StartsWith("Close the running CDDA", StringComparison.Ordinal))
+                    throw;
+            }
+            finally { process.Dispose(); }
+        }
+    }
+
     private static void CopyDirectoryTree(string source, string destination)
     {
         Directory.CreateDirectory(destination);
@@ -359,7 +466,7 @@ internal static partial class SetupCore
             throw new InvalidOperationException("Unsafe NCMM setup transaction backup path: " + backupRoot);
     }
 
-    private static List<string> GetManagedSetupPaths(string payloadRoot)
+    private static List<string> GetManagedSetupPaths(string gameRoot, string payloadRoot)
     {
         List<string> paths = new List<string>();
         paths.Add("cataclysm-tiles.exe");
@@ -369,6 +476,13 @@ internal static partial class SetupCore
         string payloadMods = Path.Combine(payloadRoot, "code_mods");
         foreach (SetupBundledModule module in DiscoverBundledModules(payloadMods))
             paths.Add(Path.Combine("code_mods", module.DirectoryName));
+
+        SetupInstalledComponents previous = ReadPreviousInstalledComponents(gameRoot);
+        if (previous != null && previous.components != null)
+            foreach (SetupInstalledComponent module in previous.components)
+                if (module != null && module.id != "ncmm_host" &&
+                    SafeModuleDirectoryName(module.directory))
+                    paths.Add(Path.Combine("code_mods", module.directory));
 
         return paths.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
@@ -385,7 +499,7 @@ internal static partial class SetupCore
         snapshot.game_root = gameRoot;
         snapshot.entries = new List<SetupSnapshotEntry>();
 
-        foreach (string relativePath in GetManagedSetupPaths(payloadRoot))
+        foreach (string relativePath in GetManagedSetupPaths(gameRoot, payloadRoot))
         {
             string source = Path.Combine(gameRoot, relativePath);
             bool isDirectory = Directory.Exists(source);
@@ -690,6 +804,7 @@ internal static partial class SetupCore
         gameRoot = Path.GetFullPath(gameRoot.Trim());
         payloadRoot = Path.GetFullPath(payloadRoot.Trim());
 
+        AssertGameNotRunning(gameRoot);
         RecoverPendingSetupTransaction(gameRoot);
         SetupTransactionState transaction = BeginSetupTransaction(gameRoot, payloadRoot);
         try
@@ -740,6 +855,14 @@ internal static partial class SetupCore
             throw new InvalidOperationException("Installer payload is incomplete: bootstrap missing.");
 
         List<SetupBundledModule> bundledModules = DiscoverBundledModules(payloadMods);
+        SetupInstalledComponents previousState = ReadPreviousInstalledComponents(gameRoot);
+        Dictionary<string, SetupInstalledComponent> previousById =
+            new Dictionary<string, SetupInstalledComponent>(StringComparer.Ordinal);
+        if (previousState != null && previousState.components != null)
+            foreach (SetupInstalledComponent old in previousState.components)
+                if (old != null && !String.IsNullOrEmpty(old.id) &&
+                    !previousById.ContainsKey(old.id))
+                    previousById[old.id] = old;
         HashSet<string> knownIds = new HashSet<string>(
             bundledModules.Select(module => module.Manifest.id), StringComparer.Ordinal);
         HashSet<string> selected = selectedModuleIds == null
@@ -833,18 +956,32 @@ internal static partial class SetupCore
                 // that must be present before Host module-data loading/finalization.
                 // Copy the complete packaged module tree while preserving unrelated
                 // user-created files already present in the destination.
+                Dictionary<string, string> fileInventory = PackagedFileHashes(module.SourceDirectory);
+                SetupInstalledComponent old;
+                previousById.TryGetValue(module.Manifest.id, out old);
+                RemoveStalePackagedFiles(destination, old, fileInventory);
                 CopyDirectoryTree(module.SourceDirectory, destination);
                 installedIds.Add(module.Manifest.id);
                 componentState.Add(new SetupInstalledComponent {
                     id = module.Manifest.id,
                     version = module.Manifest.version,
-                    directory = module.DirectoryName
+                    directory = module.DirectoryName,
+                    files = fileInventory
                 });
             }
             else
             {
                 RemoveManagedModuleFiles(destination, module.Manifest.id);
             }
+        }
+
+        // An upgrade may remove a previously bundled module entirely. Only touch
+        // modules positively identified by the old NCMM installation receipt.
+        foreach (SetupInstalledComponent old in previousById.Values)
+        {
+            if (old.id == "ncmm_host" || knownIds.Contains(old.id) ||
+                !SafeModuleDirectoryName(old.directory)) continue;
+            RemoveManagedModuleFiles(Path.Combine(mods, old.directory), old.id);
         }
 
         SetupInstalledComponents installedState = new SetupInstalledComponents();
@@ -881,8 +1018,32 @@ internal static partial class SetupCore
         gameRoot = Path.GetFullPath(gameRoot.Trim());
         string exe = Path.Combine(gameRoot, "cataclysm-tiles.exe");
         string vanilla = Path.Combine(gameRoot, "cataclysm-tiles.vanilla.exe");
-        if (!File.Exists(vanilla)) throw new InvalidOperationException("cataclysm-tiles.vanilla.exe not found. Nothing safe to restore.");
-        File.Copy(vanilla, exe, true);
+        AssertGameNotRunning(gameRoot);
+        if (!File.Exists(vanilla))
+            throw new InvalidOperationException("cataclysm-tiles.vanilla.exe not found. Nothing safe to restore.");
+        string hashFile = Path.Combine(gameRoot, "ncmm", "vanilla.sha256");
+        if (!File.Exists(hashFile))
+            throw new InvalidOperationException("Vanilla checksum receipt missing; refusing unsafe restore.");
+        string expected = File.ReadAllText(hashFile).Trim();
+        if (expected.Length != 64 || !expected.All(Uri.IsHexDigit) ||
+            !String.Equals(Sha256(vanilla), expected, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Vanilla backup SHA256 mismatch; refusing unsafe restore.");
+
+        string staged = exe + ".ncmm-restore-" + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.Copy(vanilla, staged, false);
+            if (!String.Equals(Sha256(staged), expected, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Staged vanilla SHA256 mismatch.");
+            if (File.Exists(exe)) File.Replace(staged, exe, null);
+            else File.Move(staged, exe);
+            if (!String.Equals(Sha256(exe), expected, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Restored vanilla SHA256 mismatch.");
+        }
+        finally
+        {
+            if (File.Exists(staged)) File.Delete(staged);
+        }
     }
 
     internal static string RepairState(string gameRoot)
