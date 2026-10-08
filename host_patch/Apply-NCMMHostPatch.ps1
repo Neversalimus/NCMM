@@ -899,9 +899,70 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
     }
 
     const int summary_y = compact ? panel_top + 9 : panel_top + 12;
-    const std::string summary = labels[focus] + "  " + enc_label + " " + number_of_enc +
-                                "  \u00B7 " + number_of_worn + " " + worn_label;
+    // Prioritize useful values at small widths; a long localized body-part name
+    // must not hide the actual encumbrance and worn-item count.
+    const std::string summary = compact || content_width < 33 ?
+                                enc_label + " " + number_of_enc + " | " +
+                                number_of_worn + " " + worn_label + " | " + labels[focus] :
+                                labels[focus] + "  " + enc_label + " " + number_of_enc +
+                                "  · " + number_of_worn + " " + worn_label;
     trim_and_print( w, point( content_x, summary_y ), content_width, c_light_green, summary );
+
+    // Compact retains one line of actual worn clothing, even when inventory's
+    // current selection is an unrelated item in another column.
+    if( compact ) {
+        std::string first_worn = ncmm::localized_text( "No clothing", u8"\u041d\u0435\u0442 \u043e\u0434\u0435\u0436\u0434\u044b" );
+        for( const item_location &loc : worn_items ) {
+            if( loc && loc->covers( parts[focus]->id() ) ) {
+                first_worn = loc->display_name();
+                break;
+            }
+        }
+        trim_and_print( w, point( content_x, summary_y + 1 ), content_width,
+                        c_light_gray, first_worn );
+        return;
+    }
+
+    // On a narrow full-height gear column, use the space below the silhouette
+    // for a real multi-item zone inspector rather than sacrificing this area
+    // to legends while displaying only one item.
+    if( content_width < 33 ) {
+        int shown = 0;
+        for( const item_location &loc : worn_items ) {
+            if( loc && loc->covers( parts[focus]->id() ) ) {
+                if( shown < 3 ) {
+                    trim_and_print( w, point( content_x, summary_y + 1 + shown ),
+                                    content_width, c_light_gray, "- " + loc->display_name() );
+                }
+                ++shown;
+            }
+        }
+        if( shown == 0 ) {
+            trim_and_print( w, point( content_x, summary_y + 1 ), content_width,
+                            c_dark_gray,
+                            ncmm::localized_text( "No clothing", u8"\u041d\u0435\u0442 \u043e\u0434\u0435\u0436\u0434\u044b" ) );
+        }
+        if( shown > 3 ) {
+            trim_and_print( w, point( content_x, panel_top + 16 ), content_width,
+                            c_light_gray, "+" + std::to_string( shown - 3 ) +
+                            ncmm::localized_text( " more", u8" \u0435\u0449\u0451" ) );
+        } else if( selected != nullptr && selected->is_armor() &&
+                   ncmm::runtime_setting_hook_bool( "inventory.body_map.show_layers", 1 ) != 0 ) {
+            std::string layers;
+            for( const layer_level layer : selected->get_layer() ) {
+                if( !layers.empty() ) {
+                    layers += " / ";
+                }
+                layers += item::layer_to_string( layer );
+            }
+            if( !layers.empty() ) {
+                trim_and_print( w, point( content_x, panel_top + 16 ),
+                                content_width, c_light_gray, layers );
+            }
+        }
+        return;
+    }
+
     if( selected != nullptr ) {
         const std::string selected_line = ncmm::localized_text(
                                               "Selected: ", u8"\u0412\u044B\u0431\u0440\u0430\u043D\u043E: " ) +
