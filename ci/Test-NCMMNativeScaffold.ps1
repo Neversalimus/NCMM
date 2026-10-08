@@ -84,7 +84,7 @@ try {
     Assert-Refused -Label $fixture.Label -Args $args
   }
   $russian=& $generator -Id 'sample_russian_mod' -Name 'Тестовый мод' -DestinationRoot $a -RepositoryRoot $RepositoryRoot
-  $rus=Get-Content (Join-Path $russian.Destination 'mod.json') -Raw | ConvertFrom-Json
+  $rus=[IO.File]::ReadAllText((Join-Path $russian.Destination 'mod.json'),[Text.Encoding]::UTF8) | ConvertFrom-Json
   if($rus.name -cne 'Тестовый мод') { throw 'Unicode module display name roundtrip failed.' }
 
   foreach($path in $catalogFiles) {
