@@ -20,7 +20,8 @@ The generator produces an unregistered source tree:
 
 It does NOT touch existing mods, components, feeds, compatibility files, the Host, or a running CDDA installation. The destination must already exist outside the NCMM repository. It never overwrites an existing module.
 
-The starter checks Loader ABI, required capabilities, version, queried Core ABI and struct size before registering one namespaced LIVE toggle. It does not intercept CDDA or modify gameplay.
+The starter checks Loader ABI, required capabilities, version, queried Core ABI and struct size before registering one namespaced LIVE toggle.
+It now centralizes those checks through sdk/ncmm_sdk_core.hpp; see sdk/SDK_CORE_GUARD_CONTRACT.md. Keep using the helper when adding typed settings or capabilities. It does not intercept CDDA or modify gameplay.
 
 Build the isolated module:
 

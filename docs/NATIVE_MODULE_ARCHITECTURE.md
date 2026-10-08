@@ -105,3 +105,12 @@ requests and overwrites.
 
 A future architecture step will turn the flat Host patch stack into explicit
 domains with dependency contracts. Loader ABI and gameplay remain unchanged.
+
+## Shared C++ SDK Core guard (Phase 6)
+
+The source-only header sdk/ncmm_sdk_core.hpp centralizes Loader/queried-Core
+capability negotiation, API major/minor checks and struct-prefix validation.
+Generated modules use it instead of repeating a fragile raw API pointer
+sequence. tests/sdk_core_guard_test.cpp exercises failures against controlled
+Host mocks; Runtime CI compiles and runs that harness before building gameplay
+modules. Existing published mod binaries and Host ABI are untouched.

@@ -131,6 +131,11 @@ if(-not $smoke -or -not $manifestPolicyTest) {
 & $manifestPolicyTest.FullName
 if($LASTEXITCODE -ne 0) { throw 'NCMM platform manifest policy test failed.' }
 
+$sdkGuard=Get-ChildItem $platformTestBuild -Filter 'ncmm_sdk_core_guard_test.exe' -Recurse -File | Select-Object -First 1
+if(-not $sdkGuard) { throw 'NCMM SDK Core guard contract binary missing.' }
+& $sdkGuard.FullName
+if($LASTEXITCODE -ne 0) { throw 'NCMM SDK Core guard behavior test failed.' }
+
 # Prove a freshly generated sixth module compiles and obeys Host ABI/capability
 # policy before any production module is packaged.
 & (Join-Path $RepositoryRoot 'ci\Test-NCMMNativeScaffold.ps1') -RepositoryRoot $RepositoryRoot -Compile -SmokeHostExecutable $smoke.FullName
