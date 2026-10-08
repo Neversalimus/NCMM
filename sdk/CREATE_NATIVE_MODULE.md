@@ -40,6 +40,33 @@ Move the source folder under mods/ only as part of a reviewed integration PR. Up
 
 Generic smoke is a fail-closed ABI/capability baseline, not gameplay verification. Add semantic and real-game tests before publishing a module that affects gameplay. Keep CDDA-facing source integration inside reusable Host domains, not independent module patches.
 
+## Generate a review-only registration preview
+
+The source generator intentionally leaves registration to review. To produce
+consistent draft catalog files, use the second-stage preview tool:
+
+    mkdir C:\NCMM-RegistrationReview
+    .\tools\New-NCMMModuleRegistrationPreview.ps1 -ModuleRoot C:\NCMM-NewMods\CustomWeatherInfo -DestinationRoot C:\NCMM-RegistrationReview
+
+The tool checks the generated manifest, Loader ABI, module ID, Host version floor,
+capability dependencies, component descriptor and generic smoke recipe. It
+rejects existing IDs, unsafe paths, duplicate package names, changed manifests
+and disabled missing-capability tests.
+
+The result is written ONLY to the external directory
+\`C:\NCMM-RegistrationReview\ncmm-registration-custom_weather_info\`:
+
+- \`components/index.json\`: existing catalog plus the proposed component and atomic group;
+- \`components/native-build.json\`: existing build registry plus the proposed entry;
+- \`components/custom_weather_info.json\`: proposed descriptor;
+- \`REVIEW_REQUIRED.txt\`: release checklist and clear non-installable status.
+
+The files are byte-stable for identical inputs, have no BOM and will not replace
+an existing preview. They are **not valid shipping metadata until the matching
+source folder, update feed, compatibility records and release package checks have
+been reviewed and integrated**. The tool never updates an installed game,
+the repository or the feed.
+
 ## Verification
 
 ci/Test-NCMMNativeScaffold.ps1 verifies deterministic UTF-8 output, Unicode names, collision and path safety, manifest/descriptor parity and no catalog mutations. Runtime CI also compiles the generated DLL with MSVC, checks successful init and missing-capability rejection, and rejects an incorrect module identity.
