@@ -2655,7 +2655,7 @@ foreach($xpBalanceNeedle0140 in @(
     'const int64_t gained = apply_branch_xp_balance( branch, adjusted );',
     'void gameplay_metric_record_completed_craft( const Character &who )',
     '++gameplay_metric_values["crafting.completed"];',
-    'Host 0.8.2 canonical sync runs before this Survivor balance pass.',
+    'Canonical Host synchronization precedes this read-only validation.',
     'Survivor XP balance canonical Host header missing:',
     'Survivor XP balance canonical Host source missing:',
     'Ambiguous canceled activity craft metric path survived canonical Host sync.'
@@ -2674,9 +2674,36 @@ foreach($xpHostMutationForbidden0140 in @(
 if(-not $payload.Contains('(Get-Command Apply-SurvivorXpBalance0140 -CommandType Function).Definition')){throw 'XP-balance transform missing from mechanics patch revision.'}
 if(([regex]::Matches($payload,[regex]::Escape('Apply-SurvivorXpBalance0140'))).Count -lt 2){throw 'XP-balance transform is not applied after canonical module sync.'}
 $canonicalHostSyncCall0140=$payload.LastIndexOf('Apply-NcmmBallisticHost082CanonicalSync')
-$xpBalanceApplyCall0140=$payload.LastIndexOf('Apply-SurvivorXpBalance0140')
+$xpBalanceApplyCall0140=$payload.LastIndexOf('Assert-SurvivorXpBalanceHost0140')
 if($canonicalHostSyncCall0140 -lt 0 -or $xpBalanceApplyCall0140 -le $canonicalHostSyncCall0140){
     throw 'XP-balance Host verifier must run after canonical Host synchronization.'
+}
+
+# Execute the real post-sync verifier, proving it is read-only and rejects stale Host data.
+$payloadAstAudit=[Management.Automation.Language.Parser]::ParseInput($payload,[ref]$tokens,[ref]$errors)
+if($errors.Count){throw 'Canonical payload parse failure'}
+$verifyAudit=@($payloadAstAudit.FindAll({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Assert-SurvivorXpBalanceHost0140'},$true))
+if($verifyAudit.Count -ne 1){throw 'Expected one isolated XP Host verifier'}
+Invoke-Expression $verifyAudit[0].Extent.Text
+$oldNcmmRootAudit=$NcmmRoot
+$tempAudit=Join-Path ([IO.Path]::GetTempPath()) ('ncmm-xp-verify-'+[guid]::NewGuid().ToString('N'))
+try {
+    $NcmmRoot=$tempAudit
+    New-Item -ItemType Directory -Force (Join-Path $tempAudit 'host_patch') | Out-Null
+    foreach($nameAudit in @('ncmm_loader.cpp','ncmm_loader.h')) {
+        Copy-Item (Join-Path $PackageRoot ('host_patch\'+$nameAudit)) (Join-Path $tempAudit ('host_patch\'+$nameAudit))
+    }
+    $fixtureLoaderAudit=Join-Path $tempAudit 'host_patch\ncmm_loader.cpp'
+    $beforeAudit=(Get-FileHash $fixtureLoaderAudit -Algorithm SHA256).Hash
+    Assert-SurvivorXpBalanceHost0140
+    if((Get-FileHash $fixtureLoaderAudit -Algorithm SHA256).Hash -ne $beforeAudit){throw 'XP verifier modified Host source'}
+    [IO.File]::WriteAllText($fixtureLoaderAudit,'// missing actual craft-completion contract',[Text.Encoding]::UTF8)
+    $rejectedAudit=$false
+    try { Assert-SurvivorXpBalanceHost0140 } catch { $rejectedAudit=$true }
+    if(-not $rejectedAudit){throw 'XP verifier accepted missing craft-completion contract'}
+} finally {
+    $NcmmRoot=$oldNcmmRootAudit
+    Remove-Item $tempAudit -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 # Balance hotfix: passive movement remains a valid Mobility source, but its base rate

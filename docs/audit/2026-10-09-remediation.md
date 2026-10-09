@@ -53,3 +53,5 @@ Existing unrelated technical debt (large cumulative payload and large integratio
 files) is not magically removed by a bug-fix pass. Canonical overrides are explicitly
 tracked and run after cumulative transforms, and clean-package/source identities
 are checked on every gate.
+
+Windows qualification hardening: all Framework executables explicitly target .NET Framework 4.6.2+ so deep transaction/recovery paths are not rejected by pre-4.6.2 MAX_PATH defaults. A real install/update/rollback fixture uses a managed file path longer than 285 characters. Canonical XP Host verification is separate from legacy module-source mutation and executes read-only after the final Host sync.

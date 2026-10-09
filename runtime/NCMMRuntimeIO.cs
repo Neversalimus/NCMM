@@ -7,6 +7,10 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
 
+// Explicit target prevents old MAX_PATH defaults in Framework csc-built executables.
+// All Setup/Bootstrap/harness programs compile this common file; .NET 4.6.2+ required.
+[assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.6.2")]
+
 internal sealed class NcmmInstallLock : IDisposable
 {
     private sealed class Held { internal FileStream Stream; internal int Depth; }

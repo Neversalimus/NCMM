@@ -406,6 +406,26 @@ internal static class InstallationMatrixHarness
 
     private static void RunAuditCases(string self, string work, string payload)
     {
+        Run("deep managed paths survive install, update and rollback", delegate {
+            string root = NewGame(work, "deep-path", "deep-path-original");
+            InstallVerified(root, payload, new string[] { AwsId });
+            string owned = Path.Combine(root, "code_mods", AwsDir, "user-data");
+            while (owned.Length < 285) owned = Path.Combine(owned, "long-component-0123456789");
+            Directory.CreateDirectory(owned);
+            string file = Path.Combine(owned, "keep.txt");
+            File.WriteAllText(file, "user-owned-deep-file");
+            string before = FingerprintTree(root);
+            Environment.SetEnvironmentVariable("NCMM_SETUP_MATRIX_TEST_MODE", "1");
+            Environment.SetEnvironmentVariable("NCMM_SETUP_MATRIX_THROW_PHASE", "modules_installed");
+            try { ExpectInstallFailure(root, payload, new string[] { AwsId, SurvivorId }, "Injected NCMM setup failure"); }
+            finally {
+                Environment.SetEnvironmentVariable("NCMM_SETUP_MATRIX_THROW_PHASE", null);
+                Environment.SetEnvironmentVariable("NCMM_SETUP_MATRIX_TEST_MODE", null);
+            }
+            AssertEqual(FingerprintTree(root), before, "Deep-path rollback changed user files");
+            InstallVerified(root, payload, new string[] { AwsId, SurvivorId });
+            AssertEqual(File.ReadAllText(file), "user-owned-deep-file", "Deep-path update damaged user file");
+        });
         Run("A04 unidentified old bootstrap never replaces vanilla", delegate {
             string root = NewGame(work, "missing-bootstrap-identity", "unidentified-old-bootstrap");
             string vanilla = Path.Combine(root, "cataclysm-tiles.vanilla.exe");
