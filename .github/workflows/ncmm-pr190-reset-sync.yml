@@ -18,7 +18,8 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $source=[IO.File]::ReadAllText((Join-Path $PWD 'host_patch/ncmm_loader.cpp'))
-          if(([regex]::Matches($source,'void reset_world_lifecycle\\(\\)')).Count -ne 2){throw 'Lifecycle reset must have one declaration and one definition.'}
+          if(([regex]::Matches($source,'void reset_world_lifecycle\(\)')).Count -ne 2){throw 'Lifecycle reset must have one declaration and one definition.'}
+          $source=$source.Replace("`r`n","`n")
           if(-not $source.Contains("namespace`n{`nvoid reset_world_lifecycle()")){throw 'Lifecycle definition must be inside the subscriber anonymous namespace.'}
           if(-not $source.Contains('reset_world_lifecycle();')){throw 'World event subscriber lost reset entry point.'}
       - name: Regenerate verified canonical and integrity files
