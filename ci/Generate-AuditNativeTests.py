@@ -24,7 +24,7 @@ def block(s, signature):
             if depth==0:return s[start:i+1]
         i+=1
     raise RuntimeError('Unclosed production block: '+signature)
-loader=(r/'host_patch/ncmm_loader.cpp').read_text()
+loader=(r/'host_patch/ncmm_loader.cpp').read_text(encoding='utf-8-sig')
 # A signature includes the definition's newline/brace to avoid forward declarations.
 names=[('loaded_mod','struct loaded_mod {'),('quarantine','void quarantine_runtime_callback( loaded_mod &mod, runtime_callback_kind kind,\n'),('suspend','bool suspend_state_migration( loaded_mod &mod, const char *reason )\n{'),('ensure','bool ensure_state_migrated( loaded_mod &mod )\n{'),('dispatch','void dispatch_event_v2( uint32_t event_id )\n{')]
 parts={k:block(loader,n) for k,n in names}
@@ -100,8 +100,8 @@ int main(){
  std::cout<<"Audit Host production event/migration/quarantine bodies: PASS\n";
 }
 '''
-(out/'audit_host_boundaries.cpp').write_text(head+parts['loaded_mod']+';\n'+stubs+parts['quarantine']+'\n'+parts['suspend']+'\n'+parts['ensure']+'\n'+parts['dispatch']+'\n'+main)
-patch=(r/'host_patch/Apply-NCMMHostPatch.ps1').read_text()
+(out/'audit_host_boundaries.cpp').write_text(head+parts['loaded_mod']+';\n'+stubs+parts['quarantine']+'\n'+parts['suspend']+'\n'+parts['ensure']+'\n'+parts['dispatch']+'\n'+main, encoding='utf-8', newline='\n')
+patch=(r/'host_patch/Apply-NCMMHostPatch.ps1').read_text(encoding='utf-8-sig')
 prob=block(patch,'double dispersion_sources::probability_below( double threshold ) const')
 head=r'''
 #include "ncmm_checked_math.hpp"
@@ -146,7 +146,7 @@ int main(){
  std::cout<<"Audit actual BHC body and checked arithmetic: PASS\n";
 }
 '''
-(out/'audit_numeric.cpp').write_text(head+prob+'\n'+main)
+(out/'audit_numeric.cpp').write_text(head+prob+'\n'+main, encoding='utf-8', newline='\n')
 print('Generated test sources from exact production bodies in',out)
 head=r'''
 #include <string>
@@ -182,4 +182,4 @@ tail=r'''
  }}std::cout<<"Audit EBM actual readout: PASS (RU/EN, widths33..100, all focus zones and int bounds)\n";
 }
 '''
-(out/'audit_equipment_layout.cpp').write_text(head+labels+body+row+tail)
+(out/'audit_equipment_layout.cpp').write_text(head+labels+body+row+tail, encoding='utf-8', newline='\n')

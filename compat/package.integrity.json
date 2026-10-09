@@ -36,8 +36,8 @@
                   },
                   {
                       "path":  "ci\\Generate-AuditNativeTests.py",
-                      "sha256":  "d64fdac19b052c57028cb4b2b60a8591ad092cf71a007ec50cd8e438306f3cd1",
-                      "bytes":  10610
+                      "sha256":  "4e6460d288c41d3c44231d87bdba58f2436f9a973c7d98cca623a6640964c4ba",
+                      "bytes":  10746
                   },
                   {
                       "path":  "ci\\Invoke-NCMMCertification.ps1",
@@ -116,8 +116,8 @@
                   },
                   {
                       "path":  "ci\\Test-SurvivorPayloadContracts.ps1",
-                      "sha256":  "b6378a6fce86cfed4b0d1fa6d82c3bf2690a3eb41f7c40c4c73899fcd778fbf4",
-                      "bytes":  156036
+                      "sha256":  "2caa0104d79d38b0dc07d409e46f0adb89bcba1b5c53ea988c4b4daeda40d55f",
+                      "bytes":  156143
                   },
                   {
                       "path":  "ci\\toolchain.lock.json",

@@ -813,7 +813,9 @@ foreach($needle0140 in @(
     'constexpr const char *mana_hand_pair_slot_id = "mana_hands_34";',
     'host2->virtual_item_clear( module_id, mana_hand_pair_slot_id );',
     'NCMM_VIRTUAL_ITEM_REQUIRE_TWO_HANDED_V2',
-    'api->query_interface( NCMM_HOST_API_V2_CORE_ID, 2u, 1u )',
+    'const auto core = ncmm::sdk::require_core( api, required_caps,',
+    'NCMM_SDK_CORE_FIELD_END( virtual_item_uid ), 1u );',
+    'host2 = core ? core.core : nullptr;',
     '"0.15.0"'
 )){
     if(-not $survivorVirtual0140.Contains($needle0140)){
