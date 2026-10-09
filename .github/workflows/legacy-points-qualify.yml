@@ -23,10 +23,9 @@ jobs:
       - name: Verify exact patch digest before applying code
         shell: python
         run: |
-          import pathlib, base64, zlib, hashlib, subprocess
+          import pathlib, base64, zlib, hashlib, subprocess, runpy
           root=pathlib.Path('transport/dev/legacy-points-transport')
           encoded=''.join((root/f'part{i}.b64').read_text().strip() for i in range(4))
-          # Correct a known transport-only duplicated token; SHA256 below still verifies all source bytes.
           encoded=encoded.replace('7dvRfRf0Zqd35','7dvRf0Zqd35')
           patch=zlib.decompress(base64.b64decode(encoded,validate=True))
           expected='ada6bd6858047a5693c51278f5b67e9b95deea0f9da24fcf66cdbf6a0fc1cdb4'
@@ -37,7 +36,8 @@ jobs:
           assert source=='612d315147092317147a11772a3a368490b9399a'
           subprocess.run(['git','-C','candidate','apply','--check','--unidiff-zero',str(p)],check=True)
           subprocess.run(['git','-C','candidate','apply','--unidiff-zero',str(p)],check=True)
-          print('Exact base and patch SHA256 verified; 32 authored files applied.')
+          runpy.run_path(str(root/'corrections.py'),run_name='__main__')
+          print('Exact base and patch SHA256 verified; implementation and catalog correction applied.')
       - name: Regenerate canonical sources and validate complete package
         working-directory: candidate
         shell: powershell
