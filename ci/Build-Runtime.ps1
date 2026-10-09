@@ -7,6 +7,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = (Resolve-Path $RepositoryRoot).Path
 & (Join-Path $RepositoryRoot 'ci\Test-AuditLegacy.ps1') -RepositoryRoot $RepositoryRoot
+& (Join-Path $RepositoryRoot 'ci\Test-LegacyCharacterPoints.ps1') -RepositoryRoot $RepositoryRoot
 $encodingGuard = Join-Path $RepositoryRoot 'ci\Test-TextEncoding.ps1'
 if (-not $SkipTextEncoding) {
     & $encodingGuard -RepoRoot $RepositoryRoot

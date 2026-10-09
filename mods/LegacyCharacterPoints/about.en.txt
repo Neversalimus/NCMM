@@ -1,0 +1,4 @@
+Classic character creation point pools.
+Choose Any, Multiple pools, Single pool or current freeform.
+Defaults: 6 stat / 0 trait / 2 skill points; trait cap 12 per sign.
+Affects new characters only. Independent of Survivor Progression.

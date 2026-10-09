@@ -26,6 +26,9 @@
     ],
     "item-glyphs": [
       "item_glyphs"
+    ],
+    "legacy-character-points": [
+      "legacy_character_points"
     ]
   },
   "components": [
@@ -70,7 +73,8 @@
         "runtime_settings.bindings.v2",
         "runtime_hooks.registry.v2",
         "worldgen.bindings.v2",
-        "module.lifecycle.query.v2"
+        "module.lifecycle.query.v2",
+        "character_creation.points.v1"
       ],
       "descriptor": "components/ncmm_host.json"
     },
@@ -236,6 +240,34 @@
         }
       ],
       "descriptor": "components/item_glyphs.json"
+    },
+    {
+      "id": "legacy_character_points",
+      "name": "Legacy Character Points",
+      "version": "0.1.0",
+      "kind": "native_module",
+      "atomic_group": "legacy-character-points",
+      "delivery": "source_build",
+      "required": false,
+      "dependencies": [
+        {
+          "component": "ncmm_host",
+          "min_version": "0.8.2"
+        },
+        {
+          "capability": "host_api.v2.core"
+        },
+        {
+          "capability": "settings.typed.v2"
+        },
+        {
+          "capability": "runtime_settings.bindings.v2"
+        },
+        {
+          "capability": "character_creation.points.v1"
+        }
+      ],
+      "descriptor": "components/legacy_character_points.json"
     }
   ]
 }

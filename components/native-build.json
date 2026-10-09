@@ -56,6 +56,19 @@
         "persistent_data/mana_hand_carrier.json"
       ],
       "smoke_profile": "semantic"
+    },
+    {
+      "id": "legacy_character_points",
+      "folder": "LegacyCharacterPoints",
+      "archive_stem": "LegacyCharacterPoints",
+      "build_directory": "_legacy_points_build",
+      "missing_contract_smoke": true,
+      "extra_smoke_executables": [
+        "ncmm_legacy_points_test.exe",
+        "ncmm_legacy_points_module_test.exe"
+      ],
+      "required_payload_files": [],
+      "smoke_profile": "generic"
     }
   ]
 }

@@ -14,6 +14,16 @@
       ]
     },
     {
+      "id": "character-creation",
+      "description": "Optional legacy point accounting and modern chargen UI bridge",
+      "after": [
+        "worldgen-settings"
+      ],
+      "layers": [
+        "Apply-LegacyCharacterPoints0100"
+      ]
+    },
+    {
       "id": "runtime-hooks",
       "description": "Generic runtime hooks and reactive mechanics",
       "after": [

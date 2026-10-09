@@ -45,7 +45,8 @@
       "code_mods/AdvancedWorldSettings",
       "code_mods/BallisticHitChance",
       "code_mods/EquipmentBodyMap",
-      "code_mods/ItemGlyphs"
+      "code_mods/ItemGlyphs",
+      "code_mods/LegacyCharacterPoints"
     ],
     "backup_folder": "NCMM_Infrastructure_Backups",
     "pending_marker": "ncmm/transaction.pending.json",
@@ -101,6 +102,10 @@
       },
       {
         "id": "item_glyphs",
+        "version": "0.1.0"
+      },
+      {
+        "id": "legacy_character_points",
         "version": "0.1.0"
       }
     ]

@@ -464,6 +464,7 @@ const char *const host_capabilities[] = {
     "module.lifecycle.query.v2",
     "worldgen.bindings.v2",
     "runtime_settings.bindings.v2",
+    "character_creation.points.v1",
     "character.virtual_items.v1",
     "runtime_hooks.registry.v2",
     "character.modifiers.v2",
@@ -6331,6 +6332,15 @@ int run_gameplay_smoke()
         g->new_game = false;
         on_turn();
         log_line( NCMM_LOG_INFO, "NCMM gameplay smoke checkpoint: real avatar initialized." );
+
+        if( module_ids.count( "legacy_character_points" ) != 0 ) {
+            std::string points_error;
+            if( !legacy_character_points_smoke( points_error ) ) {
+                write_gameplay_smoke_result( false, points_error.c_str(), aws_setting_count, aws_hook_count, 0 );
+                return 190;
+            }
+            log_line( NCMM_LOG_INFO, "Legacy Character Points actual engine: PASS (classic costs, skill levels, loaded traits, final budget and disabled boundary)." );
+        }
 
         using perk_count_fn = size_t ( * )();
         using perk_id_fn = const char *( * )( size_t );

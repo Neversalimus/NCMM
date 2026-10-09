@@ -13,6 +13,8 @@ internal static class InstallationMatrixHarness
     private const string SurvivorId = "survivor_progression";
     private const string BallisticId = "ballistic_hit_chance";
     private const string EquipmentBodyMapId = "equipment_body_map";
+    private const string LegacyPointsId = "legacy_character_points";
+    private const string ItemGlyphsId = "item_glyphs";
     private const string AwsDir = "AdvancedWorldSettings";
     private const string SurvivorDir = "SurvivorProgression";
     private const string BallisticDir = "BallisticHitChance";
@@ -136,6 +138,8 @@ internal static class InstallationMatrixHarness
         if (id == SurvivorId) return SurvivorDir;
         if (id == BallisticId) return BallisticDir;
         if (id == EquipmentBodyMapId) return EquipmentBodyMapDir;
+        if (id == LegacyPointsId) return "LegacyCharacterPoints";
+        if (id == ItemGlyphsId) return "ItemGlyphs";
         throw new InvalidOperationException("Unknown test module id: " + id);
     }
 
@@ -170,7 +174,7 @@ internal static class InstallationMatrixHarness
         expectedState.AddRange(expectedModuleIds);
         AssertSet(ids, expectedState.ToArray());
 
-        foreach (string id in new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId })
+        foreach (string id in new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId, ItemGlyphsId, LegacyPointsId })
         {
             string dirName = ModuleDirectory(id);
             string installedDir = Path.Combine(root, "code_mods", dirName);
@@ -327,14 +331,19 @@ internal static class InstallationMatrixHarness
         AssertTrue(File.Exists(exe), "real CDDA smoke target has no cataclysm-tiles.exe");
         string originalVanilla = Sha256(exe);
 
-        InstallVerified(gameRoot, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId });
-        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId, BallisticId, EquipmentBodyMapId);
+        InstallVerified(gameRoot, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId, ItemGlyphsId, LegacyPointsId });
+        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId, BallisticId, EquipmentBodyMapId, ItemGlyphsId, LegacyPointsId);
 
-        InstallVerified(gameRoot, payload, new string[] { AwsId, BallisticId, EquipmentBodyMapId });
-        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, BallisticId, EquipmentBodyMapId);
+        InstallVerified(gameRoot, payload, new string[] { AwsId, BallisticId, EquipmentBodyMapId, ItemGlyphsId, LegacyPointsId });
+        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, BallisticId, EquipmentBodyMapId, ItemGlyphsId, LegacyPointsId);
 
-        InstallVerified(gameRoot, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId });
-        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId, BallisticId, EquipmentBodyMapId);
+        InstallVerified(gameRoot, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId, ItemGlyphsId, LegacyPointsId });
+        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId, BallisticId, EquipmentBodyMapId, ItemGlyphsId, LegacyPointsId);
+
+        InstallVerified(gameRoot, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId, ItemGlyphsId });
+        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId, BallisticId, EquipmentBodyMapId, ItemGlyphsId);
+        InstallVerified(gameRoot, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId, ItemGlyphsId, LegacyPointsId });
+        AssertInstalled(gameRoot, payload, originalVanilla, AwsId, SurvivorId, BallisticId, EquipmentBodyMapId, ItemGlyphsId, LegacyPointsId);
 
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("NCMM Real CDDA Install Preparation: PASS");
@@ -383,7 +392,7 @@ internal static class InstallationMatrixHarness
                 if (!String.IsNullOrEmpty(id)) byId[id] = module;
             }
 
-            foreach (string id in new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId })
+            foreach (string id in new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId, ItemGlyphsId, LegacyPointsId })
             {
                 AssertTrue(byId.ContainsKey(id), "real Host did not report module: " + id);
                 Dictionary<string, object> module = byId[id];
@@ -517,6 +526,22 @@ internal static class InstallationMatrixHarness
         try
         {
             RunAuditCases(self, work, payload);
+            Run("Legacy Character Points alone: install, disable, re-enable; no Survivor dependency", delegate {
+                string root = NewGame(work, "legacy-points", "vanilla-legacy-points");
+                string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
+                InstallVerified(root, payload, new string[] { LegacyPointsId });
+                AssertInstalled(root, payload, original, LegacyPointsId);
+                string note = Path.Combine(root, "code_mods", "LegacyCharacterPoints", "user-note.txt");
+                File.WriteAllText(note, "keep this configuration note");
+                InstallVerified(root, payload, new string[0]);
+                AssertInstalled(root, payload, original);
+                AssertTrue(File.Exists(note), "Disabling points removed user-owned data");
+                InstallVerified(root, payload, new string[] { LegacyPointsId });
+                AssertInstalled(root, payload, original, LegacyPointsId);
+                AssertTrue(!Directory.Exists(Path.Combine(root, "code_mods", "SurvivorProgression")),
+                           "Independent point mod installed Survivor as an implicit dependency");
+            });
+
             Run("clean CDDA -> NCMM without modules", delegate {
                 string root = NewGame(work, "clean-none", "vanilla-none");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
@@ -596,8 +621,8 @@ internal static class InstallationMatrixHarness
             Run("clean CDDA -> all optional modules", delegate {
                 string root = NewGame(work, "clean-all", "vanilla-all");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
-                InstallVerified(root, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId });
-                AssertInstalled(root, payload, original, AwsId, SurvivorId, BallisticId, EquipmentBodyMapId);
+                InstallVerified(root, payload, new string[] { AwsId, SurvivorId, BallisticId, EquipmentBodyMapId, ItemGlyphsId, LegacyPointsId });
+                AssertInstalled(root, payload, original, AwsId, SurvivorId, BallisticId, EquipmentBodyMapId, ItemGlyphsId, LegacyPointsId);
             });
 
             Run("clean CDDA -> Survivor + AWS", delegate {
