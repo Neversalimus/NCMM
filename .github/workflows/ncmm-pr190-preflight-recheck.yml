@@ -1,0 +1,114 @@
+name: PR190 preflight bounded recheck
+on:
+  push:
+    branches: [audit/full-system-20261009]
+    paths: [.github/workflows/ncmm-pr190-preflight-recheck.yml]
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: ncmm-pr190-preflight-recheck
+  cancel-in-progress: true
+jobs:
+  qualify:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - name: Stop only superseded temporary wrapper
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $run=(& gh api repos/Neversalimus/NCMM/actions/runs/37875272527) | ConvertFrom-Json
+          if($LASTEXITCODE -ne 0){throw 'Could not read old temporary run'}
+          if($run.head_sha -ne 'c30a9f7f517f1a78c7aa17fef14355d66bfb36c7' -or $run.path -ne '.github/workflows/ncmm-pr190-preflight-qualification.yml'){throw 'Unexpected run identity'}
+          if($run.status -ne 'completed'){
+            & gh api --method POST repos/Neversalimus/NCMM/actions/runs/37875272527/cancel
+            if($LASTEXITCODE -ne 0){Write-Warning 'Old run may have finished during cancellation'}
+          }
+          $global:LASTEXITCODE=0
+      - uses: actions/checkout@v4
+        with:
+          ref: c30a9f7f517f1a78c7aa17fef14355d66bfb36c7
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 3ccbc49529cfcfb6f6b850c31f6f04c2be2ec0dd
+          path: ncmmrepo
+      - uses: microsoft/setup-msbuild@v2
+      - name: Apply digest-verified preflight patch
+        shell: python
+        run: |
+          import base64, zlib, hashlib, subprocess, re
+          from pathlib import Path
+          source=Path('control/.github/workflows/ncmm-pr190-preflight-qualification.yml').read_text()
+          encoded=re.search(r"encoded = '([^']+)'",source).group(1)
+          patch=zlib.decompress(base64.b64decode(encoded,validate=True))
+          assert hashlib.sha256(patch).hexdigest()=='a773e1b7aa1eea748fe8dc3abac50fefe834b13438fb137225346064c27ee9a1'
+          assert subprocess.check_output(['git','-C','ncmmrepo','rev-parse','HEAD'],text=True).strip()=='3ccbc49529cfcfb6f6b850c31f6f04c2be2ec0dd'
+          subprocess.run(['git','-C','ncmmrepo','apply','--check','-'],input=patch,check=True)
+          subprocess.run(['git','-C','ncmmrepo','apply','-'],input=patch,check=True)
+      - name: Regenerate canonical payload and create exact local candidate
+        shell: powershell
+        working-directory: ncmmrepo
+        run: |
+          $ErrorActionPreference='Stop'
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path -Check
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path -Check
+          ./ci/Test-Infrastructure083.ps1 -PackageRoot $PWD.Path
+          git diff --check
+          if($LASTEXITCODE -ne 0){throw 'Whitespace guard failed'}
+          $changed=@(git diff --name-only)
+          if(@($changed | Where-Object {$_ -match '^(.github/|feed/)'}).Count){throw 'Unexpected production workflow/feed change'}
+          git config user.name 'NCMM Engineering'
+          git config user.email 'actions@users.noreply.github.com'
+          git add runtime/NCMMSetupCore.cs tests/InstallationMatrixHarness.cs docs/audit/2026-10-09-remediation.md payload/SURVIVOR_0911_0915_v8.7.6.8.ps1 compat/package.integrity.json
+          git commit -m 'Validate installer inputs before lock creation and consume lazy selections once'
+          if($LASTEXITCODE -ne 0){throw 'Candidate commit failed'}
+      - name: Full runtime and synthetic installation matrix
+        shell: powershell
+        working-directory: ncmmrepo
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          $stdout=Join-Path $PWD 'evidence/runtime.stdout.log'
+          $stderr=Join-Path $PWD 'evidence/runtime.stderr.log'
+          $script=Join-Path $PWD 'ci/Build-Runtime.ps1'
+          $output=Join-Path $env:RUNNER_TEMP 'ncmm-preflight-runtime'
+          $args=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$script+'"'),'-RepositoryRoot',('"'+$PWD.Path+'"'),'-OutputRoot',('"'+$output+'"'))
+          $p=Start-Process powershell.exe -ArgumentList $args -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          $handle=$p.Handle
+          $deadline=[DateTime]::UtcNow.AddMinutes(20)
+          while(-not $p.WaitForExit(30000)){
+            if(Test-Path $stdout){Get-Content $stdout -Tail 3}
+            if([DateTime]::UtcNow -gt $deadline){& taskkill.exe /pid $p.Id /t /f;throw 'Runtime test deadline exceeded'}
+          }
+          $p.WaitForExit()
+          Get-Content $stdout -Tail 110
+          Get-Content $stderr -Tail 60
+          if($p.ExitCode -ne 0){throw ('Full runtime failed: '+$p.ExitCode)}
+      - name: Persist only a fully tested candidate
+        shell: bash
+        working-directory: ncmmrepo
+        run: |
+          set -euo pipefail
+          git push origin HEAD:refs/heads/audit/pr190-input-validation-ready
+      - name: Preserve logs and exact source even on failure
+        if: always()
+        shell: bash
+        working-directory: ncmmrepo
+        run: |
+          mkdir -p evidence
+          git rev-parse HEAD > evidence/source-sha.txt
+          git show --stat > evidence/changes.txt
+          git archive --format=zip HEAD -o evidence/source.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NCMM-PR190-preflight-bounded-evidence
+          path: ncmmrepo/evidence/*
+          if-no-files-found: error
+          retention-days: 7
