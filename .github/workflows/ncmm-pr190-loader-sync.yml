@@ -1,0 +1,47 @@
+name: PR190 loader initializer canonical repair
+on:
+  push:
+    branches: ['fix/audit-msvc-loaded-mod-20261009']
+    paths: ['.github/workflows/ncmm-pr190-loader-sync.yml']
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Regenerate verified canonical and integrity files
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path -Check
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path -Check
+          ./ci/Test-CanonicalPayloadSync.ps1 -RepositoryRoot $PWD.Path
+          ./ci/Test-Infrastructure083.ps1 -PackageRoot $PWD.Path
+          ./ci/Test-HostPatchDomains.ps1 -RepositoryRoot $PWD.Path
+      - name: Commit only verified derived files
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          git config user.name 'NCMM Qualification'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -- payload/SURVIVOR_0911_0915_v8.7.6.8.ps1 compat/package.integrity.json
+          if((git diff --cached --name-only).Count -eq 0){throw 'No derived files were refreshed.'}
+          git diff --cached --stat
+          git commit -m 'build: sync canonical Host snapshot and package integrity for loader fix'
+          if($LASTEXITCODE -ne 0){throw 'Candidate commit failed.'}
+          git push origin HEAD:refs/heads/fix/audit-msvc-loaded-mod-20261009
+          if($LASTEXITCODE -ne 0){throw 'Candidate branch update failed.'}
+      - name: Confirm canonical and integrity after commit
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path -Check
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path -Check
+          if(git status --porcelain){throw 'Unexpected post-commit worktree drift.'}
+          git show -s --format='%H %s' HEAD
