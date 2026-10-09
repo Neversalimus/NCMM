@@ -1,0 +1,72 @@
+name: PR190 input preflight qualification
+on:
+  push:
+    branches: [audit/full-system-20261009]
+    paths: [.github/workflows/ncmm-pr190-preflight-qualification.yml]
+permissions:
+  contents: write
+jobs:
+  qualify:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 3ccbc49529cfcfb6f6b850c31f6f04c2be2ec0dd
+      - uses: microsoft/setup-msbuild@v2
+      - name: Apply exact input validation patch
+        shell: python
+        run: |
+          import base64, zlib, hashlib, subprocess
+          assert subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip() == '3ccbc49529cfcfb6f6b850c31f6f04c2be2ec0dd'
+          encoded = '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'
+          patch = zlib.decompress(base64.b64decode(encoded, validate=True))
+          assert hashlib.sha256(patch).hexdigest() == 'a773e1b7aa1eea748fe8dc3abac50fefe834b13438fb137225346064c27ee9a1'
+          subprocess.run(['git','apply','--check','-'], input=patch, check=True)
+          subprocess.run(['git','apply','-'], input=patch, check=True)
+      - name: Regenerate and verify canonical sources
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path -Check
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path -Check
+          ./ci/Test-Infrastructure083.ps1 -PackageRoot $PWD.Path
+          git diff --check
+          if($LASTEXITCODE -ne 0){throw 'Whitespace guard failed'}
+      - name: Full Windows runtime and installation matrix
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          $stdout=Join-Path $PWD 'evidence/runtime.stdout.log'
+          $stderr=Join-Path $PWD 'evidence/runtime.stderr.log'
+          $script=Join-Path $PWD 'ci/Build-Runtime.ps1'
+          $output=Join-Path $env:RUNNER_TEMP 'ncmm-preflight-runtime'
+          $args=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$script+'"'),'-RepositoryRoot',('"'+$PWD.Path+'"'),'-OutputRoot',('"'+$output+'"'))
+          $p=Start-Process powershell.exe -ArgumentList $args -Wait -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          Get-Content $stdout -Tail 100
+          Get-Content $stderr -Tail 50
+          if($p.ExitCode -ne 0){throw ('Full Windows runtime failed: '+$p.ExitCode)}
+      - name: Persist tested candidate, without modifying PR or main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only > /tmp/changed.txt
+          if grep -E '^(.github/|feed/)' /tmp/changed.txt; then echo 'Unexpected release or workflow mutation'; exit 1; fi
+          git config user.name 'NCMM Engineering'
+          git config user.email 'actions@users.noreply.github.com'
+          git add runtime/NCMMSetupCore.cs tests/InstallationMatrixHarness.cs docs/audit/2026-10-09-remediation.md payload/SURVIVOR_0911_0915_v8.7.6.8.ps1 compat/package.integrity.json
+          git commit -m 'Validate installer inputs before lock creation and consume lazy selections once'
+          git push origin HEAD:refs/heads/audit/pr190-input-validation-ready
+          git rev-parse HEAD > evidence/source-sha.txt
+          git show --stat > evidence/changes.txt
+          git archive --format=zip HEAD -o evidence/source.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NCMM-PR190-input-preflight-evidence
+          path: evidence/*
+          if-no-files-found: error
+          retention-days: 7
