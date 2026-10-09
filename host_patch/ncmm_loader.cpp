@@ -4103,11 +4103,20 @@ void load_one( const std::filesystem::path &library )
 
     // Keep module identity and its preferred key as passive metadata.
     // Action IDs/default bindings are derived only when a gameplay input context exists.
-    loaded.push_back( { module, desc, directory, locale_changed, on_turn, open_ui,
-                        item_activate, migrate_state,
-                        manifest.state_contract_declared ? manifest.state_schema : 0u,
-                        manifest.state_contract_declared ? manifest.state_min_supported : 0u,
-                        false, false, manifest.ui_hotkey } );
+    // Populate by field name: lifecycle additions must not silently shift aggregate arguments.
+    loaded_mod active;
+    active.handle = module;
+    active.descriptor = desc;
+    active.directory = directory;
+    active.locale_changed = locale_changed;
+    active.on_turn = on_turn;
+    active.open_ui = open_ui;
+    active.item_activate = item_activate;
+    active.migrate_state = migrate_state;
+    active.state_schema = manifest.state_contract_declared ? manifest.state_schema : 0u;
+    active.state_min_supported = manifest.state_contract_declared ? manifest.state_min_supported : 0u;
+    active.default_hotkey = manifest.ui_hotkey;
+    loaded.push_back( std::move( active ) );
     record_module_state( directory, manifest, "loaded", "ok" );
     log_line( NCMM_LOG_INFO, ( std::string( "Loaded module: " ) + desc->id + " " + desc->version ).c_str() );
 }
