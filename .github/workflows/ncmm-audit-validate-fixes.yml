@@ -17,18 +17,34 @@ jobs:
         with:
           ref: fix/engineering-audit-20261009
           fetch-depth: 1
-      - name: Finalize Host only after the last module canonicalization
+      - name: Make native fixture encoding explicit and require guarded Survivor Core access
         shell: python
         run: |
           from pathlib import Path
-          p = Path('payload/SURVIVOR_0911_0915_v8.7.6.8.ps1')
+          p = Path('ci/Generate-AuditNativeTests.py')
+          s = p.read_text(encoding='utf-8')
+          assert s.count('.read_text()') == 2
+          s = s.replace('.read_text()', ".read_text(encoding='utf-8-sig')")
+          lines = s.splitlines(keepends=True)
+          writes = 0
+          for i,line in enumerate(lines):
+              if '.write_text(' in line:
+                  assert line.rstrip().endswith(')')
+                  lines[i] = line.rstrip()[:-1] + ", encoding='utf-8', newline='\\n')\n"
+                  writes += 1
+          assert writes == 3
+          p.write_text(''.join(lines),encoding='utf-8',newline='\n')
+          compile(p.read_text(encoding='utf-8'),str(p),'exec')
+          p = Path('tests/CMakeLists.txt')
+          s = p.read_text(encoding='utf-8')
+          assert s.count('PRIVATE /EHsc)') == 1
+          p.write_text(s.replace('PRIVATE /EHsc)', 'PRIVATE /EHsc /utf-8)'),encoding='utf-8',newline='\n')
+          p = Path('ci/Test-SurvivorPayloadContracts.ps1')
           s = p.read_text(encoding='utf-8-sig')
-          call = '\nApply-NcmmBallisticHost082CanonicalSync\n'
-          anchor = '# NCMM Infrastructure 0.8.3.1 deep probe: execute the exact host/source transform stack'
-          assert s.count(call) == 1 and s.count(anchor) == 1
-          s = s.replace(call,'\n')
-          s = s.replace(anchor, '# No source writer may follow this final Host boundary.\nApply-NcmmBallisticHost082CanonicalSync\n\n' + anchor)
-          p.write_text(s,encoding='utf-8-sig',newline='\n')
+          old = "    'api->query_interface( NCMM_HOST_API_V2_CORE_ID, 2u, 1u )',"
+          new = "    'const auto core = ncmm::sdk::require_core( api, required_caps,',\n    'NCMM_SDK_CORE_FIELD_END( virtual_item_uid ), 1u );',\n    'host2 = core ? core.core : nullptr;',"
+          assert s.count(old) == 1
+          p.write_text(s.replace(old,new),encoding='utf-8-sig',newline='\n')
       - name: Synchronize and commit source-only repairs
         id: source
         shell: powershell
@@ -42,10 +58,10 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Diff check failed.'}
           git config user.name 'NCMM Engineering'
           git config user.email 'actions@users.noreply.github.com'
-          git add payload/SURVIVOR_0911_0915_v8.7.6.8.ps1 compat/package.integrity.json
+          git add ci/Generate-AuditNativeTests.py tests/CMakeLists.txt ci/Test-SurvivorPayloadContracts.ps1 payload/SURVIVOR_0911_0915_v8.7.6.8.ps1 compat/package.integrity.json
           git diff --cached --quiet
           if($LASTEXITCODE -ne 0) {
-            git commit -m 'Finalize Host after canonical module sources without relaxing mutation guards'
+            git commit -m 'Use explicit UTF-8 for native test generation and enforce guarded Core contract'
             if($LASTEXITCODE -ne 0){throw 'Source commit failed.'}
             git push origin HEAD:refs/heads/fix/engineering-audit-20261009
             if($LASTEXITCODE -ne 0){throw 'Feature branch source push failed.'}
