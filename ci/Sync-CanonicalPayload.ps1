@@ -6,6 +6,8 @@ $ErrorActionPreference='Stop'
 $root=(Resolve-Path $RepositoryRoot).Path
 $payload=Join-Path $root 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1'
 if(-not(Test-Path -LiteralPath $payload -PathType Leaf)){throw 'Canonical Survivor payload missing'}
+$bytes=[IO.File]::ReadAllBytes($payload)
+$hasBom=$bytes.Length -ge 3 -and $bytes[0] -eq 239 -and $bytes[1] -eq 187 -and $bytes[2] -eq 191
 $text=[IO.File]::ReadAllText($payload,[Text.Encoding]::UTF8)
 $changed=0
 $paths=@(
@@ -72,11 +74,12 @@ foreach($rel in $paths){
     }
 }
 if($Check){
+    if(-not $hasBom){throw 'Canonical payload requires UTF-8 BOM for Windows PowerShell 5.1.'}
     if($changed){throw "$changed canonical snapshot(s) out of sync. Run ci\Sync-CanonicalPayload.ps1, then ci\Regenerate-PackageIntegrity.ps1."}
     Write-Host "Canonical source snapshots: PASS ($($paths.Count)/$($paths.Count))." -ForegroundColor Green
 }else{
-    if($changed){
-        [IO.File]::WriteAllText($payload,$text,(New-Object Text.UTF8Encoding($false)))
+    if($changed -or -not $hasBom){
+        [IO.File]::WriteAllText($payload,$text,(New-Object Text.UTF8Encoding($true)))
     }
     Write-Host "Canonical source snapshots synchronized: $changed changed (of $($paths.Count))."
 }

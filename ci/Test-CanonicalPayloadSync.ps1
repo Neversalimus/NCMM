@@ -47,13 +47,24 @@ try {
     if($before -ceq $after) { throw 'Canonical synchronization failed to change stale payload.' }
     & $sync -RepositoryRoot $temp -Check | Out-Null
 
+    # Losing the BOM breaks ParseFile on Windows PowerShell 5.1 with Russian text.
+    [IO.File]::WriteAllText($fixturePayload,$after,(New-Object Text.UTF8Encoding($false)))
+    $rejected=$false
+    try { & $sync -RepositoryRoot $temp -Check | Out-Null } catch { $rejected=$true }
+    if(-not $rejected) { throw 'Missing payload UTF-8 BOM was accepted.' }
+    & $sync -RepositoryRoot $temp | Out-Null
+    & $sync -RepositoryRoot $temp -Check | Out-Null
+    $tokens=$null; $errors=$null
+    [void][System.Management.Automation.Language.Parser]::ParseFile($fixturePayload,[ref]$tokens,[ref]$errors)
+    if($errors.Count) { throw 'Synchronized payload is not valid Windows PowerShell.' }
+
     # Unlisted entries and duplicate entries must both fail closed.
     foreach($extra in @(
         "Write-NcmmCanonicalPayloadFile 'unexpected\\fixture.txt' 'YQ=='",
         "Write-NcmmCanonicalPayloadFile 'runtime\NCMMBootstrap.cs' 'YQ=='"
     )) {
         [IO.File]::WriteAllText($fixturePayload,$after+"`n"+$extra+"`n",
-                              (New-Object Text.UTF8Encoding($false)))
+                              (New-Object Text.UTF8Encoding($true)))
         $rejected=$false
         try { & $sync -RepositoryRoot $temp -Check | Out-Null } catch { $rejected=$true }
         if(-not $rejected) { throw "Unexpected/duplicate canonical entry was accepted: $extra" }
