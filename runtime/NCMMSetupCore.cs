@@ -914,8 +914,37 @@ internal static partial class SetupCore
         return Install(gameRoot, payloadRoot, null);
     }
 
+    private static HashSet<string> ResolveSelectedModuleIds(
+        List<SetupBundledModule> bundledModules, IEnumerable<string> selectedModuleIds)
+    {
+        HashSet<string> knownIds = new HashSet<string>(
+            bundledModules.Select(module => module.Manifest.id), StringComparer.Ordinal);
+        HashSet<string> selected = selectedModuleIds == null
+            ? new HashSet<string>(knownIds, StringComparer.Ordinal)
+            : new HashSet<string>(
+                selectedModuleIds.Where(id => !String.IsNullOrWhiteSpace(id)).Select(id => id.Trim()),
+                StringComparer.Ordinal);
+
+        foreach (string id in selected)
+        {
+            if (!knownIds.Contains(id))
+                throw new InvalidOperationException("Unknown bundled NCMM component selected: " + id);
+        }
+        return selected;
+    }
+
     internal static InstallResult Install(string gameRoot, string payloadRoot, IEnumerable<string> selectedModuleIds)
     {
+        // Read-only input validation precedes even creation of the persistent lock file.
+        // Materialize a caller's lazy selection once; InstallCore revalidates that snapshot
+        // after acquiring the lock, rather than enumerating external input a second time.
+        gameRoot = NcmmRuntimeIO.Root(gameRoot);
+        payloadRoot = NcmmRuntimeIO.Root(payloadRoot);
+        NcmmRuntimeIO.GuardTree(payloadRoot);
+        if (!File.Exists(Path.Combine(payloadRoot, "cataclysm-tiles.ncmm-bootstrap.exe")))
+            throw new InvalidOperationException("Installer payload is incomplete: bootstrap missing.");
+        HashSet<string> requested = ResolveSelectedModuleIds(
+            DiscoverBundledModules(Path.Combine(payloadRoot, "code_mods")), selectedModuleIds);
         using (NcmmInstallLock gate = NcmmInstallLock.Acquire(gameRoot))
         {
 
@@ -928,7 +957,7 @@ internal static partial class SetupCore
         SetupTransactionState transaction = BeginSetupTransaction(gameRoot, payloadRoot);
         try
         {
-            InstallResult result = InstallCore(gameRoot, payloadRoot, selectedModuleIds);
+            InstallResult result = InstallCore(gameRoot, payloadRoot, requested);
             VerifyInstalledPayload(gameRoot, payloadRoot, result);
             UpdateSetupTransactionPhase(gameRoot, "ready_to_commit");
             CommitSetupTransaction(gameRoot);
@@ -983,19 +1012,7 @@ internal static partial class SetupCore
                 if (old != null && !String.IsNullOrEmpty(old.id) &&
                     !previousById.ContainsKey(old.id))
                     previousById[old.id] = old;
-        HashSet<string> knownIds = new HashSet<string>(
-            bundledModules.Select(module => module.Manifest.id), StringComparer.Ordinal);
-        HashSet<string> selected = selectedModuleIds == null
-            ? new HashSet<string>(knownIds, StringComparer.Ordinal)
-            : new HashSet<string>(
-                selectedModuleIds.Where(id => !String.IsNullOrWhiteSpace(id)).Select(id => id.Trim()),
-                StringComparer.Ordinal);
-
-        foreach (string id in selected)
-        {
-            if (!knownIds.Contains(id))
-                throw new InvalidOperationException("Unknown bundled NCMM component selected: " + id);
-        }
+        HashSet<string> selected = ResolveSelectedModuleIds(bundledModules, selectedModuleIds);
 
         Directory.CreateDirectory(ncmm);
         Directory.CreateDirectory(mods);

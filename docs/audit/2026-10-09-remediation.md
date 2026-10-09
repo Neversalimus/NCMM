@@ -55,3 +55,17 @@ tracked and run after cumulative transforms, and clean-package/source identities
 are checked on every gate.
 
 Windows qualification hardening: all Framework executables explicitly target .NET Framework 4.6.2+ so deep transaction/recovery paths are not rejected by pre-4.6.2 MAX_PATH defaults. A real install/update/rollback fixture uses a managed file path longer than 285 characters. Canonical XP Host verification is separate from legacy module-source mutation and executes read-only after the final Host sync.
+
+
+## Continuation corrections
+
+- Persistent Dimensional Pouch data is emitted only after the final canonical
+  Host synchronization. The order guard rejects early, absent and duplicate calls.
+- All production Framework executables and C# harnesses now embed the shared
+  asInvoker/longPathAware manifest; no machine policy is changed. The actual
+  install/update/rollback test retains its >285-character path.
+- Component selection and incomplete payloads are validated read-only before even
+  creating the installation lock. Caller-provided lazy selections are consumed
+  once and the resulting snapshot is revalidated inside the transaction.
+- Existing filesystem fingerprint tests remain strict; the persistent lock file
+  is not ignored or deleted to conceal a preflight side effect.

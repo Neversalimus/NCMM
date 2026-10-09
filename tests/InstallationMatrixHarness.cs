@@ -95,6 +95,21 @@ internal static class InstallationMatrixHarness
         return Uri.UnescapeDataString(rootUri.MakeRelativeUri(pathUri).ToString()).Replace('/', '\\');
     }
 
+    private sealed class SinglePassSelection : IEnumerable<string>
+    {
+        internal int EnumerationCount;
+        public IEnumerator<string> GetEnumerator()
+        {
+            if (++EnumerationCount != 1)
+                throw new InvalidOperationException("External module selection was enumerated more than once.");
+            return ((IEnumerable<string>)new string[] { " " + AwsId + " ", AwsId, " ", null }).GetEnumerator();
+        }
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+    }
+
     private static string FingerprintTree(string root)
     {
         List<string> rows = new List<string>();
@@ -762,6 +777,16 @@ internal static class InstallationMatrixHarness
                 string before = FingerprintTree(root);
                 ExpectInstallFailure(root, payload, new string[] { AwsId, SurvivorId }, "Invalid NCMM module manifest");
                 AssertEqual(FingerprintTree(root), before, "corrupt-manifest failure mutated installation");
+            });
+
+            Run("lazy component selection is consumed exactly once", delegate {
+                string root = NewGame(work, "lazy-selection", "vanilla-lazy-selection");
+                SinglePassSelection selection = new SinglePassSelection();
+                InstallResult result = SetupCore.Install(root, payload, selection);
+                AssertTrue(result.CompletionVerified, "Lazy selection installation did not verify");
+                AssertTrue(selection.EnumerationCount == 1, "External selection was enumerated again");
+                AssertTrue(SetupCore.IsModuleInstalled(root, AwsDir, AwsId), "Normalized AWS selection was lost");
+                AssertTrue(!Directory.Exists(Path.Combine(root, "code_mods", SurvivorDir)), "Unexpected component installed");
             });
 
             Run("unknown component selection fails closed", delegate {
