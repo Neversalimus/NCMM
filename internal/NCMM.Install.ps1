@@ -14,6 +14,16 @@ foreach($stage in @('10-Preflight.ps1','20-Snapshot.ps1','30-PayloadEngine.ps1',
 Write-Host 'NCMM Infrastructure 0.8.3.1 package integrity: PASS' -ForegroundColor DarkGreen
 & (Join-Path $PackageRoot 'ci\Test-Infrastructure083.ps1') -PackageRoot $PackageRoot
 if($LASTEXITCODE -ne 0){throw 'Infrastructure 0.8.3.1 static contract failed.'}
+# Coordinate with native Setup and Bootstrap using the same retained file lock.
+$resolvedRoot=Resolve-NcmmGameRoot $GameRoot
+$lockPath=Join-Path $resolvedRoot '.ncmm-install.lock'
+if(Test-Path -LiteralPath $lockPath) {
+    if((Get-Item -LiteralPath $lockPath -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+        throw 'Installation lock path is a reparse point.'
+    }
+}
+$installLock=[IO.File]::Open($lockPath,[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+try {
 if($Mode -eq 'Recover'){$r=Recover-NcmmInterruptedTransaction $PackageRoot $GameRoot $BuildRoot;Write-Host ('Recovery status: '+[string]$r.status);exit 0}
 
 $context=Invoke-NcmmInstallStagePreflight $PackageRoot $GameRoot $BuildRoot $BuildProfile ([bool]$AllowStructuralReuse)
@@ -46,3 +56,5 @@ try {
     Remove-Item Env:NCMM_INFRA_JOURNAL_PATH -ErrorAction SilentlyContinue
     Remove-Item $snap.stage -Recurse -Force -ErrorAction SilentlyContinue
 }
+
+} finally { $installLock.Dispose() }

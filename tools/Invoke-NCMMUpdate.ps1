@@ -6,19 +6,32 @@
     [string]$FeedPath='',
     [string]$FeedUrl='',
     [string]$PackagePath='',
+    [string]$ExpectedPackageSha256='',
     [switch]$AllowUncertified
 )
 $ErrorActionPreference='Stop'
 $PackageRoot=Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'NCMM.Update.Common.ps1')
 [void](Assert-NcmmPackageIntegrity $PackageRoot)
+# The historical source-build installer has no component-scoped executor.
+# Reject partial writes BEFORE state migration/download, rather than install all.
+if($Mode -in @('Apply','ApplyPackage') -and
+   (@($Components).Count -ne 1 -or $Components[0] -ne 'all')) {
+    throw 'Partial legacy update is not supported. Use NCMM_Setup.exe to install selected components; no files were changed.'
+}
 $root=Resolve-NcmmGameRoot $GameRoot
 $stateResult=Invoke-NcmmUpdateStateMigration $PackageRoot $root
 if($Mode -eq 'MigrateState'){Write-Host ('Update state schema: '+$stateResult.state.schema+' | '+$stateResult.path) -ForegroundColor Green;exit 0}
 
 if($Mode -eq 'ApplyPackage'){
     if(-not $PackagePath){throw '-PackagePath is required for ApplyPackage.'}
+    if($ExpectedPackageSha256 -notmatch '^[0-9a-fA-F]{64}$') {
+        throw 'ApplyPackage requires -ExpectedPackageSha256 from the verified release manifest.'
+    }
     $zip=(Resolve-Path $PackagePath).Path
+    if((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash -ne $ExpectedPackageSha256) {
+        throw 'Local update package SHA256 mismatch; no package code was executed.'
+    }
     $stage=Join-Path $env:TEMP ('NCMM_UPDATE_PACKAGE_'+[guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force $stage|Out-Null
     try{
@@ -28,10 +41,10 @@ if($Mode -eq 'ApplyPackage'){
         $manifest=Get-Content $manifestPath -Raw|ConvertFrom-Json
         $entry=Join-Path $stage 'NCMM.ps1'
         if(-not(Test-Path $entry -PathType Leaf)){throw "Update package entrypoint missing: $entry"}
-        . (Join-Path $stage 'tools\NCMM.Infrastructure.Common.ps1')
+        # Validate with the already loaded LOCAL validator, never package code.
         [void](Assert-NcmmPackageIntegrity $stage)
         Write-Host ('Validated local update package: '+$manifest.infrastructure_version) -ForegroundColor Green
-        & $entry -Action Install -GameRoot $root -BuildRoot $BuildRoot
+        & $entry -Action Install -GameRoot $root -BuildRoot $BuildRoot -Components $Components
         exit $LASTEXITCODE
     } finally {Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue}
 }
@@ -60,10 +73,14 @@ $changes=@($plan.actions|Where-Object{$_.action -ne 'keep'})
 if($changes.Count -eq 0){Write-Host 'Everything selected is already current.' -ForegroundColor Green;exit 0}
 if(-not $AllowUncertified -and [string]$plan.release_status -notin @('certified','embedded-current','supported_exact')){throw 'Refusing automatic apply of an uncertified release. Use -AllowUncertified only for deliberate testing.'}
 if([string]::IsNullOrWhiteSpace($plan.package_url)){throw 'Feed has no package_url for this release. Use NCMM.cmd package <zip> with a downloaded NCMM package, or publish a certified package URL+SHA in the update feed.'}
-$tmp=Join-Path $env:TEMP ('NCMM_UPDATE_'+[guid]::NewGuid().ToString('N')+'.zip')
+if($plan.package_sha256 -notmatch '^[0-9a-fA-F]{64}$') {throw 'Update feed must contain a SHA256 for the package.'}
+$downloadUri=$null
+if(-not [Uri]::TryCreate($plan.package_url,[UriKind]::Absolute,[ref]$downloadUri) -or
+   $downloadUri.Scheme -ne 'https') {throw 'Update packages require an absolute HTTPS URL.'}
+$tmp=Join-Path $env:TEMP ('NCMM_UPDATE_' +[guid]::NewGuid().ToString('N')+'.zip')
 try{
     Invoke-WebRequest -UseBasicParsing -Uri $plan.package_url -OutFile $tmp
     if($plan.package_sha256){$actual=(Get-FileHash $tmp -Algorithm SHA256).Hash.ToLowerInvariant();if($actual -ne ([string]$plan.package_sha256).ToLowerInvariant()){throw 'Downloaded update package SHA256 mismatch.'}}
-    & $PSCommandPath -Mode ApplyPackage -GameRoot $root -BuildRoot $BuildRoot -PackagePath $tmp
+    & $PSCommandPath -Mode ApplyPackage -GameRoot $root -BuildRoot $BuildRoot -PackagePath $tmp -Components $Components -ExpectedPackageSha256 $plan.package_sha256
     exit $LASTEXITCODE
 } finally {Remove-Item $tmp -Force -ErrorAction SilentlyContinue}

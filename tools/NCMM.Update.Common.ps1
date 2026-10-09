@@ -3,7 +3,7 @@
 
 function Convert-NcmmVersion([string]$Value) {
     if( [string]::IsNullOrWhiteSpace($Value) ) { return ([version]'0.0.0.0') }
-    $m = [regex]::Match($Value, '^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:\.(\d+))?')
+    $m = [regex]::Match($Value, '^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:\.(\d+))?$')
     if( -not $m.Success ) { throw "Unsupported numeric version: $Value" }
     $parts = @(0,0,0,0)
     for( $i = 1; $i -le 4; $i++ ) { if( $m.Groups[$i].Success ) { $parts[$i-1] = [int]$m.Groups[$i].Value } }
@@ -39,13 +39,13 @@ function Get-NcmmInstalledCapabilities([string]$GameRoot) {
     try{$m=Get-Content $path -Raw|ConvertFrom-Json;return @($m.capabilities|ForEach-Object{[string]$_})}catch{return @()}
 }
 
-function Get-NcmmReleaseCapabilitySet([object]$Catalog,[object]$Release) {
+function Get-NcmmReleaseCapabilitySet([object]$Catalog,[object]$Release,[string[]]$Selected=@()) {
     # Native PowerShell hashtable is deliberate here. Windows PowerShell 5.1
     # has binder bugs around generic ICollection/List/HashSet values when they
     # are converted with @() or embedded into PSCustomObject literals.
     $set=@{}
     foreach($c in @($Catalog.components)){
-        if($Release.components.PSObject.Properties.Name -contains [string]$c.id){
+        if($Selected -contains [string]$c.id -and $Release.components.PSObject.Properties.Name -contains [string]$c.id){
             foreach($p in @($c.provides)){
                 $cap=[string]$p
                 if($cap -and $cap -notmatch '^[a-z_]+:'){
@@ -84,50 +84,43 @@ function Resolve-NcmmDependencyPlan([string]$PackageRoot,[string]$GameRoot,[obje
     }
 
     $requestedTargets=@($targets)
-    # Resolve component dependencies before atomic-group expansion. Optional native
-    # modules have independent atomic groups; selecting Survivor must never pull AWS
-    # (or vice versa), while a missing/outdated Host is still added automatically.
-    $selected=@{}
+    foreach($id in $targets) {
+        if($available -notcontains $id) { throw "Requested component has no release artifact: $id" }
+    }
+    # Reach a fixed point across BOTH dependency and atomic-group expansion.
+    # Being advertised in a feed is not the same as being selected for installation.
+    $selected=@{}; $groups=@{}
     foreach($id in $targets){$selected[[string]$id]=$true}
     $changed=$true
-    while($changed){
+    while($changed) {
         $changed=$false
-        foreach($id in @($selected.Keys)){
-            $component=@($catalog.components|Where-Object{[string]$_.id -eq [string]$id}|Select-Object -First 1)[0]
-            foreach($d in @($component.dependencies)){
+        foreach($id in @($selected.Keys)) {
+            $component=@($catalog.components|Where-Object{[string]$_.id -eq $id})[0]
+            $group=[string]$component.atomic_group
+            if($group) { $groups[$group]=$true }
+            foreach($d in @($component.dependencies)) {
                 if(-not $d.component){continue}
                 $dep=[string]$d.component
                 if($known -notcontains $dep){throw "$id depends on unknown component $dep"}
-                $needDependency=$false
-                if(-not $installed.ContainsKey($dep)){$needDependency=$true}
-                elseif($d.min_version -and
-                       (Convert-NcmmVersion ([string]$installed[$dep])) -lt
-                       (Convert-NcmmVersion ([string]$d.min_version))){$needDependency=$true}
-                if($needDependency -and $available -contains $dep -and -not $selected.ContainsKey($dep)){
-                    $selected[$dep]=$true
-                    $changed=$true
+                $version=if($selected.ContainsKey($dep)){[string]$release.components.$dep}
+                         elseif($installed.ContainsKey($dep)){[string]$installed[$dep]}else{'0.0.0'}
+                $needed=($version -eq '0.0.0') -or ($d.min_version -and
+                    (Convert-NcmmVersion $version) -lt (Convert-NcmmVersion ([string]$d.min_version)))
+                if($needed -and $available -contains $dep -and -not $selected.ContainsKey($dep)) {
+                    $selected[$dep]=$true; $changed=$true
                 }
             }
         }
-    }
-    $targets=@($selected.Keys)
-
-    # Use a native hashtable as a set. This avoids the Windows PowerShell 5.1
-    # PSToObjectArrayBinder bug that can occur with generic HashSet/List values.
-    $groups=@{}
-    foreach($id in $targets){
-        $component=@($catalog.components|Where-Object{[string]$_.id -eq [string]$id}|Select-Object -First 1)[0]
-        $groups[[string]$component.atomic_group]=$true
-    }
-
-    $expanded=@()
-    foreach($component in @($catalog.components)){
-        if($groups.ContainsKey([string]$component.atomic_group) -and
-           $available -contains [string]$component.id){
-            $expanded += [string]$component.id
+        foreach($component in @($catalog.components)) {
+            $id=[string]$component.id
+            if($groups.ContainsKey([string]$component.atomic_group) -and
+               $available -contains $id -and -not $selected.ContainsKey($id)) {
+                $selected[$id]=$true; $changed=$true
+            }
         }
     }
-    $expandedUnique=@($expanded|Select-Object -Unique)
+    $expandedUnique=@($catalog.components|Where-Object{$selected.ContainsKey([string]$_.id)}|
+        ForEach-Object{[string]$_.id})
 
     $actions=@()
     foreach($id in $expandedUnique){
@@ -145,26 +138,32 @@ function Resolve-NcmmDependencyPlan([string]$PackageRoot,[string]$GameRoot,[obje
         }
     }
 
-    $resolvedCaps=Get-NcmmReleaseCapabilitySet $catalog $release
+    $resolvedCaps=Get-NcmmReleaseCapabilitySet $catalog $release $expandedUnique
     foreach($cap in $installedCaps){
-        $resolvedCaps[[string]$cap]=$true
+        $providers=@($catalog.components|Where-Object{@($_.provides) -contains [string]$cap})
+        if(@($providers|Where-Object{$installed.ContainsKey([string]$_.id) -and
+                    -not $selected.ContainsKey([string]$_.id)}).Count -gt 0) {
+            $resolvedCaps[[string]$cap]=$true
+        }
     }
 
     $errors=@()
-    foreach($id in $expandedUnique){
+    # A provider downgrade must not break an installed, unselected dependent.
+    $effectiveIds=@(@($expandedUnique)+@($installed.Keys)|Select-Object -Unique)
+    foreach($id in $effectiveIds){
         $component=@($catalog.components|Where-Object{[string]$_.id -eq [string]$id}|Select-Object -First 1)[0]
         foreach($d in @($component.dependencies)){
             if($d.component){
                 $dep=[string]$d.component
-                if($available -contains $dep){
+                if($selected.ContainsKey($dep)){
                     $depVersion=[string]$release.components.$dep
                 }elseif($installed.ContainsKey($dep)){
                     $depVersion=[string]$installed[$dep]
                 }else{
                     $depVersion='0.0.0'
                 }
-                if($d.min_version -and
-                   (Convert-NcmmVersion $depVersion) -lt (Convert-NcmmVersion ([string]$d.min_version))){
+                if($depVersion -eq '0.0.0' -or ($d.min_version -and
+                   (Convert-NcmmVersion $depVersion) -lt (Convert-NcmmVersion ([string]$d.min_version)))){
                     $errors += "$id requires $dep >= $($d.min_version), resolved $depVersion"
                 }
             }
@@ -212,10 +211,21 @@ function Invoke-NcmmUpdateStateMigration([string]$PackageRoot,[string]$GameRoot)
     $registry=Get-Content (Join-Path $PackageRoot 'migrations\migrations.json') -Raw|ConvertFrom-Json
     if(Test-Path $path -PathType Leaf){try{$state=Get-Content $path -Raw|ConvertFrom-Json}catch{throw "Invalid update state JSON: $path"}}else{$state=[pscustomobject]@{schema=0}}
     $target=[int]$registry.update_state_schema
+    if(-not $state.PSObject.Properties['schema'] -or
+       [string]$state.schema -notmatch '^\d+$' -or [decimal]$state.schema -gt $target) {
+        throw "Unsupported update-state schema $($state.schema); original state is unchanged."
+    }
+    if([int]$state.schema -eq $target) {
+        return [pscustomobject]@{path=$path;state=$state;migrations=@()}
+    }
     $history=@()
     while([int]$state.schema -lt $target){
-        $migration=@($registry.migrations|Where-Object{$_.scope -eq 'update_state' -and [int]$_.from -eq [int]$state.schema}|Select-Object -First 1)[0]
-        if(-not $migration){throw "No update-state migration from schema $($state.schema)"}
+        $candidates=@($registry.migrations|Where-Object{$_.scope -eq 'update_state' -and [int]$_.from -eq [int]$state.schema})
+        if($candidates.Count -ne 1){throw "Ambiguous/missing update-state migration from schema $($state.schema)"}
+        $migration=$candidates[0]
+        if([int]$migration.to -le [int]$state.schema -or [int]$migration.to -gt $target) {
+            throw 'Update-state migration must advance within the supported schema range.'
+        }
         $script=Join-Path $PackageRoot ([string]$migration.script)
         $state=& $script -State $state
         if([int]$state.schema -ne [int]$migration.to){throw "Migration $($migration.id) did not commit target schema"}
@@ -223,6 +233,13 @@ function Invoke-NcmmUpdateStateMigration([string]$PackageRoot,[string]$GameRoot)
     }
     if(-not $state.PSObject.Properties['history']){$state|Add-Member -NotePropertyName history -NotePropertyValue @()}
     $state.history=@($state.history)+@($history)
-    Write-NcmmUtf8NoBom $path (($state|ConvertTo-Json -Depth 12)+"`n")
+    $json=($state|ConvertTo-Json -Depth 12)+"`n"
+    $staged=$path+'.'+[guid]::NewGuid().ToString('N')+'.tmp'
+    try {
+        Write-NcmmUtf8NoBom $staged $json
+        if(Test-Path -LiteralPath $path -PathType Leaf) {
+            [IO.File]::Replace($staged,$path,$path+'.pre-migration-'+[guid]::NewGuid().ToString('N'))
+        } else { [IO.File]::Move($staged,$path) }
+    } finally { if(Test-Path -LiteralPath $staged){Remove-Item -LiteralPath $staged -Force} }
     return [pscustomobject]@{path=$path;state=$state;migrations=@($history)}
 }

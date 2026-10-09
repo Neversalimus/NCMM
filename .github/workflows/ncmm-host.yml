@@ -30,10 +30,14 @@ on:
       - 'ci/Test-VersionConsistency.ps1'
       - 'ci/Test-FeedIntegrity.ps1'
       - 'ci/seed-hosts.txt'
+      - 'ci/toolchain.lock.json'
+      - 'ci/Publish-ImmutableAsset.ps1'
       - '.editorconfig'
       - '.github/workflows/ncmm-host.yml'
 
 permissions:
+  id-token: write
+  attestations: write
   actions: write
   contents: write
 
@@ -374,6 +378,12 @@ jobs:
             -VanillaIdentityCachePath "$env:GITHUB_WORKSPACE/.ncmm-cache/vanilla/${{ matrix.tag }}-${{ steps.assets.outputs.fingerprint }}.json" `
             -VanillaAssetFingerprint '${{ steps.assets.outputs.fingerprint }}'
 
+      - name: Attest built artifact provenance
+        if: steps.reuse.outputs.reused != 'true' && steps.patch.outcome == 'success'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: result/package/cataclysm-tiles.ncmm.exe
+
       - name: Report sccache statistics
         if: always() && steps.reuse.outputs.reused != 'true' && steps.patch.outcome == 'success'
         shell: powershell
@@ -527,8 +537,8 @@ jobs:
             gh release view "$release_tag" >/dev/null 2>&1 || \
               gh release create "$release_tag" --title "NCMM $NCMM_VERSION host for $tag" \
                 --notes "Certified NCMM $NCMM_VERSION host (ABI v1 + Host API 2.0 Core / Module Contract v1) for $tag ($commit), patch revision $PATCH_REVISION."
-            gh release upload "$release_tag" "$host" --clobber
-            if [ -n "$zip" ]; then gh release upload "$release_tag" "$zip" --clobber; fi
+            pwsh -NoProfile -File ci/Publish-ImmutableAsset.ps1 -Tag "$release_tag" -Asset "$host"
+            if [ -n "$zip" ]; then pwsh -NoProfile -File ci/Publish-ImmutableAsset.ps1 -Tag "$release_tag" -Asset "$zip"; fi
 
             remote_digest=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${release_tag}" \
               --jq '.assets[] | select(.name=="cataclysm-tiles.ncmm.exe") | .digest' | tail -n1)

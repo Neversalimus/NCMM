@@ -20,7 +20,20 @@ $paths=@(
     'tests\smoke_host.cpp',
     'mods\BallisticHitChance\CMakeLists.txt',
     'mods\BallisticHitChance\mod.json',
-    'mods\BallisticHitChance\src\ballistic_hit_chance.cpp'
+    'mods\BallisticHitChance\src\ballistic_hit_chance.cpp',
+    'sdk\ncmm_sdk_core.hpp',
+    'sdk\ncmm_checked_math.hpp',
+    'runtime\NCMMRuntimeIO.cs',
+    'mods\AdvancedWorldSettings\src\aws.cpp',
+    'mods\SurvivorProgression\src\survivor_progression.cpp',
+    'ci\Build-HostPackage.ps1',
+    'ci\Get-PatchRevision.ps1',
+    'ci\Get-NcmmCurrentVersion.ps1',
+    'ci\patch-revision-files.txt',
+    'ci\toolchain.lock.json',
+    'ci\Publish-ImmutableAsset.ps1',
+    '.github\workflows\ncmm-host.yml',
+    '.github\workflows\ncmm-equipment-doll-pr-host.yml'
 )
 # Fail closed if a new embedded snapshot appears.  A silently untracked snapshot
 # is especially dangerous because source and payload can then drift independently.

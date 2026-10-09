@@ -300,6 +300,15 @@ $metadata = [ordered]@{
     host_sha256 = $hostSha
     vanilla_sha256 = $vanillaHashes.ToArray()
     built_utc = [DateTime]::UtcNow.ToString('o')
+    build_provenance = [ordered]@{
+        ncmm_source = (git -C $RepositoryRoot rev-parse HEAD).Trim()
+        workflow_run = [string]$env:GITHUB_RUN_ID
+        workflow_attempt = [string]$env:GITHUB_RUN_ATTEMPT
+        runner_image = [string]$env:ImageVersion
+        toolchain_lock_sha256 = (Get-FileHash (Join-Path $RepositoryRoot 'ci/toolchain.lock.json') -Algorithm SHA256).Hash.ToLowerInvariant()
+        vcpkg_commit = 'f6672d8e480ccdecddfad3fd1b838ba369ffe6cd'
+        recipe_identity = $patchRevision
+    }
 }
 $metadata | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $OutputRoot 'host.json') -Encoding UTF8
 if ($releaseDir) {

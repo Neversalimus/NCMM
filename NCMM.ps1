@@ -6,6 +6,7 @@
     [ValidateSet('Safe','Balanced','Maximum')][string]$BuildProfile='Balanced',
     [string[]]$Components=@('all'),
     [string]$PackagePath='',
+    [string]$ExpectedPackageSha256='',
     [string]$Url='',
     [switch]$AllowStructuralReuse,
     [switch]$AllowUncertified
@@ -117,7 +118,7 @@ if($Action -eq 'Menu'){ $Action = Show-Menu }
 [void](Assert-NcmmPackageIntegrity $PackageRoot)
 Write-Host 'NCMM Infrastructure 0.8.3.1 package integrity: PASS' -ForegroundColor DarkGreen
 switch($Action){
-'Install' { & (Join-Path $PackageRoot 'internal\NCMM.Install.ps1') -Mode Install -GameRoot $GameRoot -BuildRoot $BuildRoot -BuildProfile $BuildProfile -AllowStructuralReuse:$AllowStructuralReuse; exit $LASTEXITCODE }
+'Install' { if(@($Components).Count -ne 1 -or $Components[0] -ne 'all'){throw 'For selected components use NCMM_Setup.exe; legacy Install is all-components only.'}; & (Join-Path $PackageRoot 'internal\NCMM.Install.ps1') -Mode Install -GameRoot $GameRoot -BuildRoot $BuildRoot -BuildProfile $BuildProfile -AllowStructuralReuse:$AllowStructuralReuse; exit $LASTEXITCODE }
 'Recover' { & (Join-Path $PackageRoot 'internal\NCMM.Install.ps1') -Mode Recover -GameRoot $GameRoot -BuildRoot $BuildRoot; exit $LASTEXITCODE }
 'Probe' { [void](Invoke-Probe); exit 0 }
 'DeepProbe' { [void](Invoke-Probe -Deep); exit 0 }
@@ -129,7 +130,7 @@ switch($Action){
 'Check' { & (Join-Path $PackageRoot 'tools\Invoke-NCMMUpdate.ps1') -Mode Check -GameRoot $GameRoot -BuildRoot $BuildRoot -Components $Components; exit $LASTEXITCODE }
 'Plan' { & (Join-Path $PackageRoot 'tools\Invoke-NCMMUpdate.ps1') -Mode Plan -GameRoot $GameRoot -BuildRoot $BuildRoot -Components $Components; exit $LASTEXITCODE }
 'Update' { & (Join-Path $PackageRoot 'tools\Invoke-NCMMUpdate.ps1') -Mode Apply -GameRoot $GameRoot -BuildRoot $BuildRoot -Components $Components -AllowUncertified:$AllowUncertified; exit $LASTEXITCODE }
-'Package' { if(-not $PackagePath){throw '-PackagePath is required.'}; & (Join-Path $PackageRoot 'tools\Invoke-NCMMUpdate.ps1') -Mode ApplyPackage -GameRoot $GameRoot -BuildRoot $BuildRoot -PackagePath $PackagePath; exit $LASTEXITCODE }
+'Package' { if(-not $PackagePath){throw '-PackagePath is required.'}; & (Join-Path $PackageRoot 'tools\Invoke-NCMMUpdate.ps1') -Mode ApplyPackage -GameRoot $GameRoot -BuildRoot $BuildRoot -PackagePath $PackagePath -Components $Components -ExpectedPackageSha256 $ExpectedPackageSha256; exit $LASTEXITCODE }
 'Migrate' { & (Join-Path $PackageRoot 'tools\Invoke-NCMMUpdate.ps1') -Mode MigrateState -GameRoot $GameRoot -BuildRoot $BuildRoot; exit $LASTEXITCODE }
 'SetFeed' { if($Url -notmatch '^https://'){throw '-Url must be HTTPS.'};$root=Resolve-NcmmGameRoot $GameRoot;$path=Join-Path $root 'ncmm\update.feed.url';Write-NcmmUtf8NoBom $path ($Url.Trim()+"`n");Write-Host ('Update feed: '+$Url) -ForegroundColor Green;exit 0 }
 'Test' { Invoke-StaticTest; exit 0 }

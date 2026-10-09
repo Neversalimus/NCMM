@@ -100,6 +100,8 @@ on:
       - '.editorconfig'
       - '.github/workflows/ncmm-runtime.yml'
 permissions:
+  id-token: write
+  attestations: write
   contents: write
 
 concurrency:
@@ -247,6 +249,19 @@ jobs:
             ) -ForegroundColor Yellow
           }
 
+      - name: Verify exact-source real installation qualification
+        if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.publish == true
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./ci/Test-ReleaseQualification.ps1 -Repository '${{ github.repository }}' -SourceSha '${{ github.sha }}'
+
+      - name: Attest built artifact provenance
+        if: github.ref == 'refs/heads/main' && steps.host_feed.outputs.ready == 'true' && github.event_name == 'workflow_dispatch' && inputs.publish == true
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: dist/*.zip
+
       - name: Publish runtime release
         if: github.ref == 'refs/heads/main' && steps.host_feed.outputs.ready == 'true' && github.event_name == 'workflow_dispatch' && inputs.publish == true
         shell: powershell
@@ -254,7 +269,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = (./ci/Get-NcmmCurrentVersion.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE").Trim()
-          $tag = "ncmm-runtime-v$version"
+          $tag = "ncmm-runtime-v$version-build-$($env:GITHUB_SHA.Substring(0,12))"
           cmd /c "gh release view $tag >nul 2>nul"
           if ($LASTEXITCODE -ne 0) {
             gh release create $tag --title "NCMM Runtime v$version" --notes 'Portable NCMM runtime with certified-host and crash-loop hardening. No compiler or build tools are required on player PCs.'
@@ -271,7 +286,7 @@ jobs:
           }
           gh release edit $tag --title "NCMM v$version Runtime + Full Bundle" --notes "Recommended: NCMM_Full_v$version.zip. Includes runtime and independently installable native module packages."
           if ($LASTEXITCODE -ne 0) { throw 'Could not update runtime release metadata.' }
-          gh release upload $tag @assets --clobber
+          ./ci/Publish-ImmutableAsset.ps1 -Tag $tag -Asset $assets
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload full/runtime/module packages.' }
 
       - name: Publish Advanced World Settings release
@@ -282,7 +297,7 @@ jobs:
         run: |
           $version = [string](Get-Content 'mods/AdvancedWorldSettings/mod.json' -Raw | ConvertFrom-Json).version
           $hostVersion = (./ci/Get-NcmmCurrentVersion.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE").Trim()
-          $tag = "ncmm-aws-v$version"
+          $tag = "ncmm-aws-v$version-build-$($env:GITHUB_SHA.Substring(0,12))"
           cmd /c "gh release view $tag >nul 2>nul"
           if ($LASTEXITCODE -ne 0) {
             gh release create $tag --title "Advanced World Settings v$version" --notes "Independent NCMM native module. Requires NCMM Host $hostVersion. Recommended installation: NCMM_Setup.exe component selection."
@@ -290,7 +305,7 @@ jobs:
           }
           gh release edit $tag --title "Advanced World Settings v$version" --notes "Independent NCMM native module. Requires NCMM Host $hostVersion. Recommended installation: NCMM_Setup.exe component selection."
           if ($LASTEXITCODE -ne 0) { throw 'Could not update AWS module release metadata.' }
-          gh release upload $tag "dist/NCMM_AdvancedWorldSettings_v$version.zip" --clobber
+          ./ci/Publish-ImmutableAsset.ps1 -Tag $tag -Asset "dist/NCMM_AdvancedWorldSettings_v$version.zip"
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload AWS module package.' }
 
       - name: Publish Survivor Progression release
@@ -301,7 +316,7 @@ jobs:
         run: |
           $version = [string](Get-Content 'mods/SurvivorProgression/mod.json' -Raw | ConvertFrom-Json).version
           $hostVersion = (./ci/Get-NcmmCurrentVersion.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE").Trim()
-          $tag = "ncmm-survivor-v$version"
+          $tag = "ncmm-survivor-v$version-build-$($env:GITHUB_SHA.Substring(0,12))"
           cmd /c "gh release view $tag >nul 2>nul"
           if ($LASTEXITCODE -ne 0) {
             gh release create $tag --title "Survivor Progression v$version" --notes "Independent NCMM native module. Requires NCMM Host $hostVersion. Recommended installation: NCMM_Setup.exe component selection."
@@ -309,5 +324,5 @@ jobs:
           }
           gh release edit $tag --title "Survivor Progression v$version" --notes "Independent NCMM native module. Requires NCMM Host $hostVersion. Recommended installation: NCMM_Setup.exe component selection."
           if ($LASTEXITCODE -ne 0) { throw 'Could not update Survivor module release metadata.' }
-          gh release upload $tag "dist/NCMM_SurvivorProgression_v$version.zip" --clobber
+          ./ci/Publish-ImmutableAsset.ps1 -Tag $tag -Asset "dist/NCMM_SurvivorProgression_v$version.zip"
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload Survivor module package.' }

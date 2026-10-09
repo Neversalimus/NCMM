@@ -378,15 +378,84 @@ internal static class InstallationMatrixHarness
         }
         finally
         {
-            SetupCore.RestoreVanilla(gameRoot);
-            AssertEqual(Sha256(exe), originalVanilla,
-                        "RestoreVanilla did not restore official executable bytes after real runtime smoke");
+            string bootstrapHash = Sha256(exe);
+            bool blocked = false;
+            try { SetupCore.RestoreVanilla(gameRoot); }
+            catch (InvalidOperationException) { blocked = true; }
+            AssertTrue(blocked, "RestoreVanilla did not protect native persistent item definitions");
+            AssertEqual(Sha256(exe), bootstrapHash, "Blocked restore changed the live executable");
+            // A separate disposable no-native-data fixture proves restoration still works.
+            string clean = Path.Combine(Path.GetTempPath(), "ncmm-restore-official-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Path.Combine(clean, "ncmm"));
+            try {
+                File.Copy(exe, Path.Combine(clean, "cataclysm-tiles.exe"));
+                File.Copy(vanilla, Path.Combine(clean, "cataclysm-tiles.vanilla.exe"));
+                File.Copy(Path.Combine(ncmm, "installed-components.json"), Path.Combine(clean, "ncmm", "installed-components.json"));
+                File.Copy(Path.Combine(ncmm, "vanilla.sha256"), Path.Combine(clean, "ncmm", "vanilla.sha256"));
+                SetupCore.RestoreVanilla(clean);
+                AssertEqual(Sha256(Path.Combine(clean, "cataclysm-tiles.exe")), originalVanilla,
+                            "RestoreVanilla failed on an installation without native persistent data");
+            } finally { Directory.Delete(clean, true); }
         }
 
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("NCMM Real Runtime Smoke: PASS (certified Host + AWS + Survivor + Ballistic Hit Chance + Equipment Body Map + clean exit)");
         Console.ResetColor();
         return 0;
+    }
+
+    private static void RunAuditCases(string self, string work, string payload)
+    {
+        Run("A04 unidentified old bootstrap never replaces vanilla", delegate {
+            string root = NewGame(work, "missing-bootstrap-identity", "unidentified-old-bootstrap");
+            string vanilla = Path.Combine(root, "cataclysm-tiles.vanilla.exe");
+            File.WriteAllText(vanilla, "known-original", Encoding.ASCII);
+            string original = Sha256(vanilla), exe = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
+            ExpectInstallFailure(root, payload, new string[0], null);
+            AssertEqual(Sha256(vanilla), original, "Unknown bootstrap overwrote vanilla");
+            AssertEqual(Sha256(Path.Combine(root, "cataclysm-tiles.exe")), exe, "Unknown bootstrap was overwritten");
+        });
+        Run("A05 data-only disabled Survivor remains discoverable and re-enables", delegate {
+            string root = NewGame(work, "data-only-survivor", "data-only");
+            InstallVerified(root, payload, new string[] { SurvivorId });
+            string dir = Path.Combine(root, "code_mods", SurvivorDir);
+            string persistent = FingerprintTree(Path.Combine(dir, "persistent_data"));
+            AssertTrue(persistent != "<missing>", "Survivor persistent definitions fixture is absent");
+            InstallVerified(root, payload, new string[0]);
+            AssertTrue(File.Exists(Path.Combine(dir, "mod.json")), "Data-only module lost its manifest");
+            AssertTrue(File.Exists(Path.Combine(dir, "disabled")), "Data-only module lost disabled marker");
+            AssertTrue(!File.Exists(Path.Combine(dir, "ncmm_mod.dll")), "Deselected DLL is still executable");
+            AssertEqual(FingerprintTree(Path.Combine(dir, "persistent_data")), persistent, "Persistent item data changed");
+            InstallVerified(root, payload, new string[] { SurvivorId });
+            AssertTrue(!File.Exists(Path.Combine(dir, "disabled")), "Owned disabled marker not cleared");
+        });
+        Run("A03 damaged rollback snapshot preserves every live file", delegate {
+            string root = NewGame(work, "damaged-rollback", "damaged-rollback");
+            InstallVerified(root, payload, new string[] { AwsId });
+            AssertTrue(RunAbortChild(self, root, payload, "modules_installed", SurvivorId) == 86, "No hard-abort fixture");
+            var state = new JavaScriptSerializer().Deserialize<SetupTransactionState>(
+                File.ReadAllText(Path.Combine(root, ".ncmm-setup.pending.json")));
+            string snapshotExe = Path.Combine(state.backup_root, "snapshot", "cataclysm-tiles.exe");
+            File.WriteAllText(snapshotExe, "damaged snapshot", Encoding.ASCII);
+            string before = FingerprintTree(root);
+            bool rejected = false;
+            try { SetupCore.RecoverPendingSetupTransaction(root); } catch (IOException) { rejected = true; }
+            AssertTrue(rejected, "Damaged rollback was accepted");
+            AssertEqual(FingerprintTree(root), before, "Damaged rollback mutated the live installation");
+        });
+        Run("A07 same module ID directory rename retires old DLL", delegate {
+            string root = NewGame(work, "rename-module", "rename-module");
+            InstallVerified(root, payload, new string[] { AwsId });
+            string altered = Path.Combine(work, "renamed-payload");
+            foreach (string file in Directory.GetFiles(payload, "*", SearchOption.AllDirectories)) {
+                string destination = Path.Combine(altered, Relative(payload, file));
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)); File.Copy(file, destination);
+            }
+            Directory.Move(Path.Combine(altered, "code_mods", AwsDir), Path.Combine(altered, "code_mods", "AWS-Renamed"));
+            InstallVerified(root, altered, new string[] { AwsId });
+            AssertTrue(!File.Exists(Path.Combine(root, "code_mods", AwsDir, "ncmm_mod.dll")), "Duplicate DLL survived rename");
+            AssertTrue(File.Exists(Path.Combine(root, "code_mods", "AWS-Renamed", "ncmm_mod.dll")), "New module missing");
+        });
     }
 
     private static int Main(string[] args)
@@ -412,6 +481,7 @@ internal static class InstallationMatrixHarness
 
         try
         {
+            RunAuditCases(self, work, payload);
             Run("clean CDDA -> NCMM without modules", delegate {
                 string root = NewGame(work, "clean-none", "vanilla-none");
                 string original = Sha256(Path.Combine(root, "cataclysm-tiles.exe"));

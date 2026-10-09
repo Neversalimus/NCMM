@@ -1,0 +1,7 @@
+# Source/package digest identity must not depend on the runner's core.autocrlf.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.zip binary
+*.exe binary
+*.dll binary

@@ -24,6 +24,7 @@ try{
     & $csc /nologo /target:exe /optimize+ /platform:x64 /main:InstallationMatrixHarness `
         /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll `
         /out:$exe `
+        (Join-Path $RepositoryRoot 'runtime\NCMMRuntimeIO.cs') `
         (Join-Path $RepositoryRoot 'runtime\NCMMSetupCore.cs') `
         (Join-Path $RepositoryRoot 'tests\InstallationMatrixHarness.cs')
     if($LASTEXITCODE -ne 0 -or -not(Test-Path $exe -PathType Leaf)){

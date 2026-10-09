@@ -76,14 +76,6 @@ internal sealed class RuntimeState
     public int? last_exit_code { get; set; }
 }
 
-internal sealed class FileHashCacheEntry
-{
-    public long length { get; set; }
-    public long last_write_utc_ticks { get; set; }
-    public long creation_utc_ticks { get; set; }
-    public string sha256 { get; set; }
-}
-
 internal static class NCMMBootstrap
 {
     private const int LoaderApi = 1;
@@ -96,8 +88,6 @@ internal static class NCMMBootstrap
     private static string FeedStatus = "not_checked";
     private static readonly RuntimeState State = new RuntimeState();
     private static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
-    private static Dictionary<string, FileHashCacheEntry> HashCache;
-    private static bool HashCacheLoaded;
 
     private static void Log(string message)
     {
@@ -111,89 +101,10 @@ internal static class NCMMBootstrap
         catch { }
     }
 
-    private static void EnsureHashCacheLoaded()
-    {
-        if (HashCacheLoaded) return;
-        HashCacheLoaded = true;
-        HashCache = new Dictionary<string, FileHashCacheEntry>(StringComparer.OrdinalIgnoreCase);
-        try
-        {
-            if (String.IsNullOrEmpty(NcmmDir)) return;
-            string path = Path.Combine(NcmmDir, "hash-cache.json");
-            if (!File.Exists(path)) return;
-            Dictionary<string, FileHashCacheEntry> loaded =
-                Json.Deserialize<Dictionary<string, FileHashCacheEntry>>(File.ReadAllText(path));
-            if (loaded == null) return;
-            foreach (KeyValuePair<string, FileHashCacheEntry> pair in loaded)
-                HashCache[pair.Key] = pair.Value;
-        }
-        catch (Exception ex)
-        {
-            Log("SHA256 cache read failed: " + ex.Message);
-        }
-    }
-
-    private static void SaveHashCache()
-    {
-        try
-        {
-            if (HashCache == null || String.IsNullOrEmpty(NcmmDir)) return;
-            string path = Path.Combine(NcmmDir, "hash-cache.json");
-            string temp = path + ".tmp";
-            File.WriteAllText(temp, Json.Serialize(HashCache), Encoding.UTF8);
-            PublishFileAtomic(temp, path);
-        }
-        catch (Exception ex)
-        {
-            Log("SHA256 cache write failed: " + ex.Message);
-        }
-    }
-
     private static string Sha256(string path)
     {
-        FileInfo before = new FileInfo(path);
-        before.Refresh();
-        if (!before.Exists) throw new FileNotFoundException("File is missing.", path);
-        string fullPath = Path.GetFullPath(path);
-        EnsureHashCacheLoaded();
-
-        FileHashCacheEntry cached;
-        if (HashCache != null && HashCache.TryGetValue(fullPath, out cached) && cached != null &&
-            cached.length == before.Length &&
-            cached.last_write_utc_ticks == before.LastWriteTimeUtc.Ticks &&
-            cached.creation_utc_ticks == before.CreationTimeUtc.Ticks &&
-            !String.IsNullOrEmpty(cached.sha256) && cached.sha256.Length == 64)
-        {
-            Log("SHA256 cache hit: " + Path.GetFileName(path));
-            return cached.sha256.ToLowerInvariant();
-        }
-
-        string result;
-        using (FileStream stream = File.OpenRead(path))
-        using (SHA256 sha = SHA256.Create())
-        {
-            byte[] hash = sha.ComputeHash(stream);
-            StringBuilder sb = new StringBuilder(hash.Length * 2);
-            foreach (byte b in hash) sb.Append(b.ToString("x2"));
-            result = sb.ToString();
-        }
-
-        FileInfo after = new FileInfo(path);
-        after.Refresh();
-        if (HashCache != null && after.Exists &&
-            before.Length == after.Length &&
-            before.LastWriteTimeUtc.Ticks == after.LastWriteTimeUtc.Ticks &&
-            before.CreationTimeUtc.Ticks == after.CreationTimeUtc.Ticks)
-        {
-            HashCache[fullPath] = new FileHashCacheEntry {
-                length = after.Length,
-                last_write_utc_ticks = after.LastWriteTimeUtc.Ticks,
-                creation_utc_ticks = after.CreationTimeUtc.Ticks,
-                sha256 = result
-            };
-            SaveHashCache();
-        }
-        return result;
+        // Executable integrity is a content check, never a metadata-cache lookup.
+        return NcmmRuntimeIO.Hash(path);
     }
 
     private static string TrySha256(string path)
@@ -329,8 +240,7 @@ internal static class NCMMBootstrap
         HostBinding binding = ReadBinding();
         if (binding == null) return false;
         if (!String.Equals(binding.vanilla_sha256, vanillaSha, StringComparison.OrdinalIgnoreCase)) return false;
-        if (!String.IsNullOrEmpty(sourceCommit) &&
-            !String.Equals(binding.source_commit, sourceCommit, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!NcmmRuntimeIO.SourceMatches(binding.source_commit, sourceCommit)) return false;
         if (binding.loader_api != LoaderApi) return false;
         if (!String.Equals(binding.ncmm_version, RuntimeVersion, StringComparison.OrdinalIgnoreCase)) return false;
         if (String.IsNullOrEmpty(binding.patch_revision)) return false;
@@ -425,8 +335,7 @@ internal static class NCMMBootstrap
                     Log("Feed host patch revision does not match the feed revision.");
                     return false;
                 }
-                if (!String.IsNullOrEmpty(sourceCommit) &&
-                    !String.Equals(entry.source_commit, sourceCommit, StringComparison.OrdinalIgnoreCase))
+                if (!NcmmRuntimeIO.SourceMatches(entry.source_commit, sourceCommit))
                 {
                     FeedStatus = "rejected_source_commit";
                     Log("Feed source commit mismatch; refusing host.");
@@ -461,24 +370,6 @@ internal static class NCMMBootstrap
                     return false;
                 }
 
-                string host = Path.Combine(Root, "cataclysm-tiles.ncmm.exe");
-                string staged = Path.Combine(NcmmDir, "host.staged.exe");
-                try { if (File.Exists(staged)) File.Delete(staged); } catch { }
-                File.Copy(temp, staged, true);
-                if (!String.Equals(Sha256(staged), entry.host_sha256, StringComparison.OrdinalIgnoreCase))
-                {
-                    Log("Staged host SHA256 mismatch; rejected.");
-                    return false;
-                }
-
-                PublishFileAtomic(staged, host);
-                if (!String.Equals(Sha256(host), entry.host_sha256, StringComparison.OrdinalIgnoreCase))
-                {
-                    FeedStatus = "host_postinstall_hash_mismatch";
-                    Log("Host post-install SHA256 mismatch; host rejected.");
-                    return false;
-                }
-
                 HostBinding binding = new HostBinding();
                 binding.vanilla_sha256 = vanillaSha.ToLowerInvariant();
                 binding.host_sha256 = entry.host_sha256.ToLowerInvariant();
@@ -488,10 +379,7 @@ internal static class NCMMBootstrap
                 binding.ncmm_version = entry.ncmm_version ?? "";
                 binding.loader_api = entry.loader_api;
                 binding.installed_utc = DateTime.UtcNow.ToString("o");
-                string bindingPath = Path.Combine(NcmmDir, "host.binding.json");
-                string bindingTmp = bindingPath + ".tmp";
-                File.WriteAllText(bindingTmp, Json.Serialize(binding), Encoding.UTF8);
-                PublishFileAtomic(bindingTmp, bindingPath);
+                NcmmRuntimeIO.PublishHost(Root, temp, Json.Serialize(binding), entry.host_sha256);
 
                 FeedStatus = localWasValid ? "updated" : "downloaded";
                 Log((localWasValid ? "Certified host updated for " : "Certified host downloaded for ") +
@@ -553,6 +441,19 @@ internal static class NCMMBootstrap
 
     private static int Launch(string exe, List<string> args)
     {
+        if (String.Equals(Path.GetFileName(exe), "cataclysm-tiles.vanilla.exe", StringComparison.OrdinalIgnoreCase) &&
+            NcmmRuntimeIO.HasSaveCriticalData(Root))
+        {
+            State.selected_mode = "BLOCKED";
+            State.reason = "vanilla_fallback_blocked_native_save_data";
+            WriteRuntimeState();
+            string explanation = "NCMM did not launch vanilla: installed native save-compatibility definitions require the Host. " +
+                "Run NCMM_Setup.exe / Install or Repair. Disable individual modules through NCMM, not the Host. Existing saves were not opened or changed.";
+            Log(explanation);
+            NcmmRuntimeIO.WriteTextAtomic(Path.Combine(NcmmDir, "fallback-blocked.txt"), explanation);
+            Console.Error.WriteLine(explanation);
+            return 119;
+        }
         ProcessStartInfo psi = new ProcessStartInfo();
         psi.FileName = exe;
         psi.WorkingDirectory = Root;
@@ -606,7 +507,13 @@ internal static class NCMMBootstrap
                     Console.Error.WriteLine("NCMM: another launch of this installation is already active.");
                     return 117;
                 }
-                return MainExclusive(args);
+                using (NcmmInstallLock installGate = NcmmInstallLock.Acquire(root))
+                    return MainExclusive(args);
+            }
+            catch (IOException ex)
+            {
+                Console.Error.WriteLine(ex.Message);
+                return 117;
             }
             finally
             {
@@ -621,8 +528,21 @@ internal static class NCMMBootstrap
         Root = Path.GetDirectoryName(self);
         NcmmDir = Path.Combine(Root, "ncmm");
         LogPath = Path.Combine(NcmmDir, "bootstrap.log");
+        NcmmRuntimeIO.GuardTree(NcmmDir);
         Directory.CreateDirectory(NcmmDir);
         Log("NCMM bootstrap " + RuntimeVersion + " starting.");
+        // Never launch across an unfinished installer transaction; only Setup can recover its snapshots.
+        if (File.Exists(Path.Combine(Root, ".ncmm-setup.pending.json")))
+        {
+            Log("NCMM setup recovery is required. Run Install / Repair before launching this installation.");
+            return 118;
+        }
+        try { NcmmRuntimeIO.RecoverHost(Root); }
+        catch (Exception ex)
+        {
+            Log("Host recovery failed; launch blocked and live files preserved: " + ex.Message);
+            return 118;
+        }
 
         try
         {

@@ -6,6 +6,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = (Resolve-Path $RepositoryRoot).Path
+& (Join-Path $RepositoryRoot 'ci\Test-AuditLegacy.ps1') -RepositoryRoot $RepositoryRoot
 $encodingGuard = Join-Path $RepositoryRoot 'ci\Test-TextEncoding.ps1'
 if (-not $SkipTextEncoding) {
     & $encodingGuard -RepoRoot $RepositoryRoot
@@ -79,11 +80,12 @@ $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (-not (Test-Path $csc)) { throw "Framework csc.exe not found: $csc" }
 
 $bootstrapOut = Join-Path $payload 'cataclysm-tiles.ncmm-bootstrap.exe'
+$sharedRuntimeSource = Join-Path $RepositoryRoot 'runtime\NCMMRuntimeIO.cs'
 $bootstrapSource = Join-Path $RepositoryRoot 'runtime\NCMMBootstrap.cs'
 & $csc /nologo /target:winexe /optimize+ /platform:x64 `
     /reference:System.Web.Extensions.dll `
     /out:$bootstrapOut `
-    $bootstrapSource
+    $sharedRuntimeSource $bootstrapSource
 if ($LASTEXITCODE -ne 0) { throw 'Bootstrap compilation failed.' }
 
 $setupCoreSource = Join-Path $RepositoryRoot 'runtime\NCMMSetupCore.cs'
@@ -94,7 +96,7 @@ if (-not $PayloadOnly) {
     & $csc /nologo /target:winexe /optimize+ /platform:x64 `
         /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll `
         /out:$setupOut `
-        $setupCoreSource $setupDiagnosticsSource $setupSource
+        $sharedRuntimeSource $setupCoreSource $setupDiagnosticsSource $setupSource
     if ($LASTEXITCODE -ne 0) { throw 'Setup compilation failed.' }
 
     $diagnosticsHarnessOut = Join-Path $OutputRoot 'NCMM_Diagnostics2_Harness.exe'
@@ -102,12 +104,13 @@ if (-not $PayloadOnly) {
     & $csc /nologo /target:exe /optimize+ /platform:x64 /main:DiagnosticsHarness `
         /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll `
         /out:$diagnosticsHarnessOut `
-        $setupCoreSource $setupDiagnosticsSource $setupSource $diagnosticsHarnessSource
+        $sharedRuntimeSource $setupCoreSource $setupDiagnosticsSource $setupSource $diagnosticsHarnessSource
     if ($LASTEXITCODE -ne 0) { throw 'Diagnostics 2.0 harness compilation failed.' }
     & $diagnosticsHarnessOut
     if ($LASTEXITCODE -ne 0) { throw 'Diagnostics 2.0 harness failed.' }
     Remove-Item $diagnosticsHarnessOut -Force -ErrorAction SilentlyContinue
 
+    & (Join-Path $RepositoryRoot 'ci\Test-AuditIO.ps1') -RepositoryRoot $RepositoryRoot
     $failureHarness = Join-Path $RepositoryRoot 'ci\Test-BootstrapFailureHarness.ps1'
     & $failureHarness -RepositoryRoot $RepositoryRoot -BootstrapExe $bootstrapOut
 } else {
@@ -135,6 +138,13 @@ $sdkGuard=Get-ChildItem $platformTestBuild -Filter 'ncmm_sdk_core_guard_test.exe
 if(-not $sdkGuard) { throw 'NCMM SDK Core guard contract binary missing.' }
 & $sdkGuard.FullName
 if($LASTEXITCODE -ne 0) { throw 'NCMM SDK Core guard behavior test failed.' }
+
+foreach($name in @('ncmm_audit_host_boundaries.exe','ncmm_audit_numeric.exe','ncmm_audit_equipment_layout.exe')) {
+    $test=Get-ChildItem $platformTestBuild -Filter $name -Recurse -File|Select-Object -First 1
+    if(-not $test){throw "Audit regression executable missing: $name"}
+    & $test.FullName
+    if($LASTEXITCODE -ne 0){throw "Audit regression failed: $name"}
+}
 
 # Prove a freshly generated sixth module compiles and obeys Host ABI/capability
 # policy before any production module is packaged.
@@ -327,7 +337,7 @@ NCMM $hostVersion Runtime
 
 The Host/runtime is required. Native gameplay modules are independently selectable and optional.
 No compiler, Git, CMake, or MSYS2 is required on the player's PC.
-If no exact certified host exists for the installed CDDA executable, NCMM starts vanilla CDDA.
+If no exact certified host exists for the installed CDDA executable, NCMM starts vanilla only when no save-critical native definitions are installed.
 "@ | Set-Content (Join-Path $OutputRoot 'README.txt') -Encoding UTF8
 
 $zip = Join-Path (Split-Path $OutputRoot -Parent) ("NCMM_Runtime_v$hostVersion.zip")
@@ -350,6 +360,9 @@ foreach($moduleZip in $moduleArchivePaths) {
 $releaseManifest=[ordered]@{
     schema=1
     product='NCMM Full'
+    source_commit=(git -C $RepositoryRoot rev-parse HEAD).Trim()
+    workflow_run=[string]$env:GITHUB_RUN_ID
+    runner_image=[string]$env:ImageVersion
     host_runtime_version=$hostVersion
     recommended_entry='NCMM_Setup.exe'
     bundled_installer=$true

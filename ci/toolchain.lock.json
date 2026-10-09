@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "windows_runner": "windows-2022",
+  "vcpkg_commit": "f6672d8e480ccdecddfad3fd1b838ba369ffe6cd",
+  "sccache_version": "v0.16.0",
+  "abi": "msvc-x64-static",
+  "recipe_revision_policy": "Includes workflow and build scripts; host.json records actual runner image and source. This is provenance, not a claim of bit-for-bit reproducibility."
+}
