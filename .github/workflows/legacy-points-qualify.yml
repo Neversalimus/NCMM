@@ -37,7 +37,7 @@ jobs:
           subprocess.run(['git','-C','candidate','apply','--check','--unidiff-zero',str(p)],check=True)
           subprocess.run(['git','-C','candidate','apply','--unidiff-zero',str(p)],check=True)
           runpy.run_path(str(root/'corrections.py'),run_name='__main__')
-          print('Exact base and patch SHA256 verified; implementation and catalog correction applied.')
+          print('Exact base and patch SHA256 verified; implementation and bounded corrections applied.')
       - name: Regenerate canonical sources and validate complete package
         working-directory: candidate
         shell: powershell
@@ -66,19 +66,17 @@ jobs:
           git rev-parse HEAD | Set-Content ../evidence/tested-source.txt
           git archive HEAD -o ../evidence/candidate-source.zip
       - name: Build production Setup Bootstrap and all six native modules
-        working-directory: candidate
-        shell: powershell
+        shell: python
         run: |
-          $ErrorActionPreference='Stop'
-          $entry=Join-Path $PWD 'ci/Build-Runtime.ps1'
-          $out=Join-Path $PWD 'dist/runtime'
-          $args=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$entry+'"'),'-RepositoryRoot',('"'+$PWD.Path+'"'),'-OutputRoot',('"'+$out+'"'))
-          $p=Start-Process powershell.exe -ArgumentList $args -PassThru -NoNewWindow -RedirectStandardOutput ../evidence/windows-stdout.log -RedirectStandardError ../evidence/windows-stderr.log
-          if(-not $p.WaitForExit(1200000)){taskkill /PID $p.Id /T /F;throw 'Runtime qualification timed out.'}
-          $p.Refresh()
-          Get-Content ../evidence/windows-stdout.log
-          Get-Content ../evidence/windows-stderr.log
-          if($p.ExitCode -ne 0){throw "Runtime qualification failed: $($p.ExitCode)"}
+          import pathlib, subprocess, json
+          root=pathlib.Path('candidate').resolve();evidence=pathlib.Path('evidence').resolve()
+          args=['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(root/'ci/Build-Runtime.ps1'),'-RepositoryRoot',str(root),'-OutputRoot',str(root/'dist/runtime')]
+          with (evidence/'windows-stdout.log').open('wb') as out, (evidence/'windows-stderr.log').open('wb') as err:
+              result=subprocess.run(args,cwd=root,stdout=out,stderr=err,timeout=1200)
+          (evidence/'runtime-exit.json').write_text(json.dumps({'exit_code':result.returncode}))
+          for name in ['windows-stdout.log','windows-stderr.log']:
+              print((evidence/name).read_bytes().decode('utf-8',errors='replace'))
+          result.check_returncode()
       - name: Persist only fully tested code on new feature branch
         working-directory: candidate
         shell: powershell
@@ -106,6 +104,6 @@ jobs:
         if: success()
         with:
           name: legacy-points-test-installer-not-live
-          path: candidate/dist/runtime/*.zip
+          path: candidate/dist/*.zip
           retention-days: 7
           if-no-files-found: error
