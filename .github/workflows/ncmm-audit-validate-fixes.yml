@@ -4,7 +4,7 @@ on:
     branches: ['fix/engineering-audit-20261009']
     paths: ['.github/workflows/ncmm-audit-validate-fixes.yml']
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: ncmm-audit-qualification
   cancel-in-progress: false
@@ -15,143 +15,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: fix/engineering-audit-20261009
           fetch-depth: 1
-      - name: Separate module mutation from final Host verification; qualify deep paths
-        shell: python
-        run: |
-          from pathlib import Path
-          p=Path('payload/SURVIVOR_0911_0915_v8.7.6.8.ps1')
-          s=p.read_text(encoding='utf-8-sig')
-          a=s.index('function Apply-SurvivorXpBalance0140 {')
-          b=s.index('# Keep the patch-revision contract aware',a)
-          old=s[a:b]
-          x=old.index('    $hostHeaderBalancePath =')
-          y=old.index('    $spBalance =')
-          verify=old[x:y].replace('@($hostHeaderBalancePath,$hostLoaderBalancePath,$spPath)', '@($hostHeaderBalancePath,$hostLoaderBalancePath)')
-          verify=verify.replace('Host 0.8.2 canonical sync runs before this Survivor balance pass.','Canonical Host synchronization precedes this read-only validation.')
-          body=old[y:]
-          x=body.index('    foreach($needle0140balance in @(\n        \'void gameplay_metric')
-          y=body.index('    foreach($needle0140balance in @(\n        \'case branch_id',x)
-          body=body[:x]+body[y:]
-          new='function Apply-SurvivorXpBalance0140 {\n    Write-Host "Applying legacy Survivor XP balance before final source synchronization..."\n    if(-not(Test-Path $spPath -PathType Leaf)){throw "Missing Survivor module source: $spPath"}\n'+body
-          new+='function Assert-SurvivorXpBalanceHost0140 {\n'+verify+'    Write-Host "Survivor XP canonical Host read-only verification: PASS" -ForegroundColor Green\n}\n\n'
-          s=s[:a]+new+s[b:]
-          needle='$mechanicsDefinition += "`n" + (Get-Command Apply-SurvivorVehicleCraftingMetric0151 -CommandType Function).Definition'
-          assert s.count(needle)==1
-          s=s.replace(needle,needle+'\n$mechanicsDefinition += "`n" + (Get-Command Assert-SurvivorXpBalanceHost0140 -CommandType Function).Definition')
-          needle='\nApply-NcmmBallisticHost082CanonicalSync\n'
-          assert s.count(needle)==1
-          s=s.replace(needle,needle+'Assert-SurvivorXpBalanceHost0140\n')
-          p.write_text(s,encoding='utf-8-sig',newline='\n')
-          p=Path('ci/Test-SurvivorPayloadContracts.ps1');s=p.read_text(encoding='utf-8-sig')
-          s=s.replace('Host 0.8.2 canonical sync runs before this Survivor balance pass.','Canonical Host synchronization precedes this read-only validation.')
-          old="$xpBalanceApplyCall0140=$payload.LastIndexOf('Apply-SurvivorXpBalance0140')"
-          assert s.count(old)==1
-          s=s.replace(old,"$xpBalanceApplyCall0140=$payload.LastIndexOf('Assert-SurvivorXpBalanceHost0140')")
-          anchor='# Balance hotfix: passive movement remains a valid Mobility source'
-          assert s.count(anchor)==1
-          fixture=r'''# Execute the real post-sync verifier, proving it is read-only and rejects stale Host data.
-          $payloadAstAudit=[Management.Automation.Language.Parser]::ParseInput($payload,[ref]$tokens,[ref]$errors)
-          if($errors.Count){throw 'Canonical payload parse failure'}
-          $verifyAudit=@($payloadAstAudit.FindAll({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Assert-SurvivorXpBalanceHost0140'},$true))
-          if($verifyAudit.Count -ne 1){throw 'Expected one isolated XP Host verifier'}
-          Invoke-Expression $verifyAudit[0].Extent.Text
-          $oldNcmmRootAudit=$NcmmRoot
-          $tempAudit=Join-Path ([IO.Path]::GetTempPath()) ('ncmm-xp-verify-'+[guid]::NewGuid().ToString('N'))
-          try {
-              $NcmmRoot=$tempAudit
-              New-Item -ItemType Directory -Force (Join-Path $tempAudit 'host_patch') | Out-Null
-              foreach($nameAudit in @('ncmm_loader.cpp','ncmm_loader.h')) {
-                  Copy-Item (Join-Path $PackageRoot ('host_patch\'+$nameAudit)) (Join-Path $tempAudit ('host_patch\'+$nameAudit))
-              }
-              $fixtureLoaderAudit=Join-Path $tempAudit 'host_patch\ncmm_loader.cpp'
-              $beforeAudit=(Get-FileHash $fixtureLoaderAudit -Algorithm SHA256).Hash
-              Assert-SurvivorXpBalanceHost0140
-              if((Get-FileHash $fixtureLoaderAudit -Algorithm SHA256).Hash -ne $beforeAudit){throw 'XP verifier modified Host source'}
-              [IO.File]::WriteAllText($fixtureLoaderAudit,'// missing actual craft-completion contract',[Text.Encoding]::UTF8)
-              $rejectedAudit=$false
-              try { Assert-SurvivorXpBalanceHost0140 } catch { $rejectedAudit=$true }
-              if(-not $rejectedAudit){throw 'XP verifier accepted missing craft-completion contract'}
-          } finally {
-              $NcmmRoot=$oldNcmmRootAudit
-              Remove-Item $tempAudit -Recurse -Force -ErrorAction SilentlyContinue
-          }
-          
-          '''
-          s=s.replace(anchor,fixture+anchor);p.write_text(s,encoding='utf-8-sig',newline='\n')
-          p=Path('runtime/NCMMRuntimeIO.cs');s=p.read_text(encoding='utf-8')
-          needle='internal sealed class NcmmInstallLock'
-          assert s.count(needle)==1
-          s=s.replace(needle,'// Explicit target prevents old MAX_PATH defaults in Framework csc-built executables.\n// All Setup/Bootstrap/harness programs compile this common file; .NET 4.6.2+ required.\n[assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.6.2")]\n\n'+needle)
-          p.write_text(s,encoding='utf-8',newline='\n')
-          p=Path('tests/InstallationMatrixHarness.cs');s=p.read_text(encoding='utf-8')
-          needle='        Run("A04 unidentified old bootstrap never replaces vanilla", delegate {'
-          assert s.count(needle)==1
-          s=s.replace(needle,'''        Run("deep managed paths survive install, update and rollback", delegate {
-                      string root = NewGame(work, "deep-path", "deep-path-original");
-                      InstallVerified(root, payload, new string[] { AwsId });
-                      string owned = Path.Combine(root, "code_mods", AwsDir, "user-data");
-                      while (owned.Length < 285) owned = Path.Combine(owned, "long-component-0123456789");
-                      Directory.CreateDirectory(owned);
-                      string file = Path.Combine(owned, "keep.txt");
-                      File.WriteAllText(file, "user-owned-deep-file");
-                      string before = FingerprintTree(root);
-                      Environment.SetEnvironmentVariable("NCMM_SETUP_MATRIX_TEST_MODE", "1");
-                      Environment.SetEnvironmentVariable("NCMM_SETUP_MATRIX_THROW_PHASE", "modules_installed");
-                      try { ExpectInstallFailure(root, payload, new string[] { AwsId, SurvivorId }, "Injected NCMM setup failure"); }
-                      finally {
-                          Environment.SetEnvironmentVariable("NCMM_SETUP_MATRIX_THROW_PHASE", null);
-                          Environment.SetEnvironmentVariable("NCMM_SETUP_MATRIX_TEST_MODE", null);
-                      }
-                      AssertEqual(FingerprintTree(root), before, "Deep-path rollback changed user files");
-                      InstallVerified(root, payload, new string[] { AwsId, SurvivorId });
-                      AssertEqual(File.ReadAllText(file), "user-owned-deep-file", "Deep-path update damaged user file");
-                  });
-          '''+needle)
-          p.write_text(s,encoding='utf-8',newline='\n')
-          p=Path('docs/audit/2026-10-09-remediation.md');s=p.read_text(encoding='utf-8')
-          s+='\nWindows qualification hardening: all Framework executables explicitly target .NET Framework 4.6.2+ so deep transaction/recovery paths are not rejected by pre-4.6.2 MAX_PATH defaults. A real install/update/rollback fixture uses a managed file path longer than 285 characters. Canonical XP Host verification is separate from legacy module-source mutation and executes read-only after the final Host sync.\n'
-          p.write_text(s,encoding='utf-8',newline='\n')
-      - name: Synchronize and commit source-only repairs
-        id: source
+          persist-credentials: false
+      - uses: microsoft/setup-msbuild@v2
+      - name: Validate exact source, payload and PowerShell contracts
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path
-          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path
           ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path -Check
           ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path -Check
-          git diff --check
-          if($LASTEXITCODE -ne 0){throw 'Diff check failed.'}
-          git config user.name 'NCMM Engineering'
-          git config user.email 'actions@users.noreply.github.com'
-          git add runtime/NCMMRuntimeIO.cs tests/InstallationMatrixHarness.cs ci/Test-SurvivorPayloadContracts.ps1 docs/audit/2026-10-09-remediation.md payload/SURVIVOR_0911_0915_v8.7.6.8.ps1 compat/package.integrity.json
-          git commit -m 'Separate final read-only Host verification and enable Framework long-path handling'
-          if($LASTEXITCODE -ne 0){throw 'Source commit failed.'}
-          git push origin HEAD:refs/heads/fix/engineering-audit-20261009
-          if($LASTEXITCODE -ne 0){throw 'Feature branch source push failed.'}
-      - uses: microsoft/setup-msbuild@v2
-      - name: Validate source, payload and PowerShell contracts
-        if: steps.source.outcome == 'success'
+          ./ci/Test-CanonicalPayloadSync.ps1 -RepositoryRoot $PWD.Path
+          ./ci/Test-Infrastructure083.ps1 -PackageRoot $PWD.Path
+      - name: Build production runtime and run all failure and module harnesses
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
           New-Item -ItemType Directory -Force evidence | Out-Null
-          Start-Transcript -Path evidence/source-validation.log
-          try {
-            ./ci/Test-CanonicalPayloadSync.ps1 -RepositoryRoot $PWD.Path
-            ./ci/Test-Infrastructure083.ps1 -PackageRoot $PWD.Path
-          } finally { Stop-Transcript }
-      - name: Build production runtime and execute all failure and module harnesses
-        if: always() && steps.source.outcome == 'success'
-        shell: powershell
-        run: |
-          $ErrorActionPreference='Stop'
-          New-Item -ItemType Directory -Force evidence | Out-Null
-          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./ci/Build-Runtime.ps1 -RepositoryRoot $PWD.Path -OutputRoot (Join-Path $PWD 'dist/runtime') 2>&1 | Tee-Object -FilePath evidence/windows-validation.log
-          if($LASTEXITCODE -ne 0){throw 'Runtime qualification failed; see captured log.'}
-      - name: Save tested source identity
+          $args=@('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $PWD 'ci/Build-Runtime.ps1'),'-RepositoryRoot',$PWD.Path,'-OutputRoot',(Join-Path $PWD 'dist/runtime'))
+          $p=Start-Process powershell.exe -ArgumentList $args -Wait -PassThru -NoNewWindow -RedirectStandardOutput evidence/windows-stdout.log -RedirectStandardError evidence/windows-stderr.log
+          Get-Content evidence/windows-stdout.log
+          if($p.ExitCode -ne 0){Get-Content evidence/windows-stderr.log;throw "Runtime qualification exit code: $($p.ExitCode)"}
+      - name: Save tested source identity without altering it
         if: always()
         shell: powershell
         run: |
