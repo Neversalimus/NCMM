@@ -11,6 +11,15 @@ $hasBom=$bytes.Length -ge 3 -and $bytes[0] -eq 239 -and $bytes[1] -eq 187 -and $
 $text=[IO.File]::ReadAllText($payload,[Text.Encoding]::UTF8)
 $changed=0
 $paths=@(
+    'host_patch\Apply-LegacyCharacterPoints.ps1',
+    'host_patch\legacy-character-points.patch.json',
+    'host_patch\ncmm_character_points.hpp',
+    'host_patch\ncmm_legacy_chargen.h',
+    'mods\LegacyCharacterPoints\CMakeLists.txt',
+    'mods\LegacyCharacterPoints\mod.json',
+    'mods\LegacyCharacterPoints\src\legacy_character_points.cpp',
+    'mods\LegacyCharacterPoints\tests\legacy_points_test.cpp',
+    'mods\LegacyCharacterPoints\tests\module_test.cpp',
     'sdk\ncmm_api.h',
     'host_patch\ncmm_loader.cpp',
     'host_patch\ncmm_item_glyphs.h',

@@ -1,0 +1,187 @@
+{
+  "schema": 1,
+  "operations": [
+    {
+      "name": "engine header",
+      "file": "src/newcharacter.cpp",
+      "before": "static character_creator_uistate cc_uistate;",
+      "after": "static character_creator_uistate cc_uistate;\n\n#include \"ncmm_legacy_chargen.h\"",
+      "count": 1
+    },
+    {
+      "name": "session lifetime",
+      "file": "src/newcharacter.cpp",
+      "before": "    pool_type pool = pool_type::FREEFORM;",
+      "after": "    ncmm::legacy_chargen::session ncmm_point_session;\n    pool_type pool = ncmm::legacy_chargen::saved_pool();",
+      "count": 1
+    },
+    {
+      "name": "interactive correction",
+      "file": "src/newcharacter.cpp",
+      "before": "    const bool interactive = type != character_type::NOW &&",
+      "after": "    bool interactive = type != character_type::NOW &&",
+      "count": 1
+    },
+    {
+      "name": "summary correction",
+      "file": "src/newcharacter.cpp",
+      "before": "    const bool skip_to_description = type == character_type::RANDOM ||",
+      "after": "    bool skip_to_description = type == character_type::RANDOM ||",
+      "count": 1
+    },
+    {
+      "name": "transfer safe selection",
+      "file": "src/newcharacter.cpp",
+      "before": "    if( pool == pool_type::TRANSFER ) {\n        return true;\n    }\n\n    if( !interactive ) {",
+      "after": "    if( pool == pool_type::TRANSFER ) {\n        return true;\n    }\n\n    if( !ncmm::legacy_chargen::begin( pool, type == character_type::TEMPLATE, interactive ) ) {\n        return false;\n    }\n    if( ncmm::legacy_chargen::limited() && !interactive && !ncmm::legacy_chargen::valid( *this ) ) {\n        // A random start outside a configured budget opens the editor instead of bypassing limits.\n        interactive = true;\n        skip_to_description = true;\n    }\n\n    if( !interactive ) {",
+      "count": 1
+    },
+    {
+      "name": "authoritative final gate",
+      "file": "src/newcharacter.cpp",
+      "before": "    save_template( _( \"Last Character\" ), pool );",
+      "after": "    // All entry paths, including templates and non-interactive starts, share this last check.\n    if( !ncmm::legacy_chargen::valid( *this, true ) ) {\n        return false;\n    }\n    save_template( _( \"Last Character\" ), ncmm::legacy_chargen::saved_pool() );",
+      "count": 1
+    },
+    {
+      "name": "saved template mode",
+      "file": "src/newcharacter.cpp",
+      "before": "you.save_template( *name, pool_type::FREEFORM );",
+      "after": "you.save_template( *name, ncmm::legacy_chargen::saved_pool() );",
+      "count": 1
+    },
+    {
+      "name": "input registration",
+      "file": "src/newcharacter.cpp",
+      "before": "    cc_ictxt.register_action( \"SAVE_TEMPLATE\" );",
+      "after": "    cc_ictxt.register_action( \"SAVE_TEMPLATE\" );\n    ncmm::legacy_chargen::register_input( cc_ictxt );",
+      "count": 1
+    },
+    {
+      "name": "deferred mode action",
+      "file": "src/newcharacter.cpp",
+      "before": "    if( action == \"QUIT\" && query_yn( _( \"Return to main menu?\" ) ) ) {",
+      "after": "    if( action == \"ncmm.chargen.points\" && ncmm::legacy_chargen::active() ) {\n        ncmm::legacy_chargen::choose_mode();\n        update_uilist_entries();\n        cc_uistate.recalc_rating = true;\n        return true;\n    }\n    if( action == \"QUIT\" && query_yn( _( \"Return to main menu?\" ) ) ) {",
+      "count": 1
+    },
+    {
+      "name": "budget confirmation replaces ratings",
+      "file": "src/newcharacter.cpp",
+      "before": "        if( cc_uistate.selected_tab == CHARCREATOR_SUMMARY ) {",
+      "after": "        if( cc_uistate.selected_tab == CHARCREATOR_SUMMARY ) {\n            if( ncmm::legacy_chargen::limited() ) {\n                if( ncmm::legacy_chargen::confirm_finish( you ) ) {\n                    if( you.name.empty() ) you.pick_name();\n                    cc_uistate.finished_character_creator = true;\n                }\n                return true;\n            }",
+      "count": 1
+    },
+    {
+      "name": "always visible budget",
+      "file": "src/newcharacter.cpp",
+      "before": "    bool &top_bar_is_open = cc_uistate.top_bar_is_open;",
+      "after": "    if( ncmm::legacy_chargen::draw( pc, ui_parent->get_current_tab_input() ) ) {\n        cc_uistate.top_bar_button_action = \"ncmm.chargen.points\";\n    }\n    bool &top_bar_is_open = cc_uistate.top_bar_is_open;",
+      "count": 1
+    },
+    {
+      "name": "hide ratings in point modes",
+      "file": "src/newcharacter.cpp",
+      "before": "    if( cc_uistate.recalc_rating ) {\n        cc_uistate.recalc_rating = false;\n        cc_uistate.rating_string = player_difficulty::getInstance().difficulty_to_string( u );\n    }\n    draw_colored_text_wrap( cc_uistate.rating_string, c_white );",
+      "after": "    if( !ncmm::legacy_chargen::limited() ) {\n        if( cc_uistate.recalc_rating ) {\n            cc_uistate.recalc_rating = false;\n            cc_uistate.rating_string = player_difficulty::getInstance().difficulty_to_string( u );\n        }\n        draw_colored_text_wrap( cc_uistate.rating_string, c_white );\n    }",
+      "count": 1
+    },
+    {
+      "name": "stat limits",
+      "file": "src/newcharacter.cpp",
+      "before": "CHARACTER_STAT_MAX",
+      "after": "ncmm::legacy_chargen::stat_maximum( CHARACTER_STAT_MAX )",
+      "count": 3
+    },
+    {
+      "name": "classic first skill purchase",
+      "file": "src/newcharacter.cpp",
+      "before": "        you.mod_skill_level( selected_skill, mod_value );",
+      "after": "        mod_value = ncmm::legacy_chargen::skill_delta( you.get_skill_level( selected_skill ), mod_value );\n        you.mod_skill_level( selected_skill, mod_value );",
+      "count": 1
+    },
+    {
+      "name": "trait cap",
+      "file": "src/newcharacter.cpp",
+      "before": "            if( inc_type != 0 ) {\n                u.toggle_trait_deps( cur_trait, variant );",
+      "after": "            if( inc_type > 0 && !ncmm::legacy_chargen::can_take( u, cur_trait ) ) return;\n            if( inc_type != 0 ) {\n                u.toggle_trait_deps( cur_trait, variant );",
+      "count": 1
+    },
+    {
+      "name": "scenario prices",
+      "file": "src/newcharacter.cpp",
+      "before": "get_uilist_entry( scen->gender_appropriate_name( u.male ) )",
+      "after": "get_uilist_entry( ncmm::legacy_chargen::price( scen->gender_appropriate_name( u.male ), scen->point_cost() ) )",
+      "count": 1
+    },
+    {
+      "name": "profession and background prices",
+      "file": "src/newcharacter.cpp",
+      "before": "get_uilist_entry( prof_id->gender_appropriate_name( u.male ) )",
+      "after": "get_uilist_entry( ncmm::legacy_chargen::price( prof_id->gender_appropriate_name( u.male ), prof_id->point_cost() ) )",
+      "count": 2
+    },
+    {
+      "name": "trait prices",
+      "file": "src/newcharacter.cpp",
+      "before": "get_uilist_entry( current_trait->name() )",
+      "after": "get_uilist_entry( ncmm::legacy_chargen::trait_price( u, current_trait ) )",
+      "count": 1
+    },
+    {
+      "name": "skill prices",
+      "file": "src/newcharacter.cpp",
+      "before": "    return green_if_positive( skill_entry_text );",
+      "after": "    skill_entry_text = ncmm::legacy_chargen::price( skill_entry_text,\n        ncmm::character_points::skill_costs[static_cast<std::size_t>( std::clamp( my_skill, 0, 10 ) )] );\n    return green_if_positive( skill_entry_text );",
+      "count": 1
+    },
+    {
+      "name": "randomization actor boundary",
+      "file": "src/newcharacter.cpp",
+      "before": "void Character::randomize( const bool random_scenario, bool play_now )\n{",
+      "after": "void Character::randomize( const bool random_scenario, bool play_now )\n{\n    ncmm::legacy_chargen::randomizer_scope ncmm_random_scope( is_avatar() );",
+      "count": 1
+    },
+    {
+      "name": "random budget INITIAL_STAT_POINTS",
+      "file": "src/newcharacter.cpp",
+      "before": "get_option<int>( \"INITIAL_STAT_POINTS\" )",
+      "after": "ncmm::legacy_chargen::random_budget( 0, get_option<int>( \"INITIAL_STAT_POINTS\" ) )",
+      "count": 1
+    },
+    {
+      "name": "random budget INITIAL_TRAIT_POINTS",
+      "file": "src/newcharacter.cpp",
+      "before": "get_option<int>( \"INITIAL_TRAIT_POINTS\" )",
+      "after": "ncmm::legacy_chargen::random_budget( 1, get_option<int>( \"INITIAL_TRAIT_POINTS\" ) )",
+      "count": 1
+    },
+    {
+      "name": "random budget INITIAL_SKILL_POINTS",
+      "file": "src/newcharacter.cpp",
+      "before": "get_option<int>( \"INITIAL_SKILL_POINTS\" )",
+      "after": "ncmm::legacy_chargen::random_budget( 2, get_option<int>( \"INITIAL_SKILL_POINTS\" ) )",
+      "count": 1
+    },
+    {
+      "name": "random budget MAX_TRAIT_POINTS",
+      "file": "src/newcharacter.cpp",
+      "before": "get_option<int>( \"MAX_TRAIT_POINTS\" )",
+      "after": "ncmm::legacy_chargen::random_budget( 3, get_option<int>( \"MAX_TRAIT_POINTS\" ) )",
+      "count": 1
+    },
+    {
+      "name": "legacy template identifiers",
+      "file": "src/player_difficulty.h",
+      "before": "    FREEFORM = 0,\n    TRANSFER = 3,",
+      "after": "    FREEFORM = 0,\n    ONE_POOL = 1,\n    MULTI_POOL = 2,\n    TRANSFER = 3,",
+      "count": 1
+    },
+    {
+      "name": "real engine accounting test entrypoint",
+      "file": "src/newcharacter.cpp",
+      "before": "void character_creator_callback::refresh( uilist *menu )\n{\n    menu->footer_text = !menu->filter.empty() ? string_format( \"Filter: %s\",\n                        menu->filter ) : std::string();\n}",
+      "after": "void character_creator_callback::refresh( uilist *menu )\n{\n    menu->footer_text = !menu->filter.empty() ? string_format( \"Filter: %s\",\n                        menu->filter ) : std::string();\n}\n\nbool ncmm::legacy_character_points_smoke( std::string &error )\n{\n    using namespace ncmm::legacy_chargen;\n    session context;\n    if( !active() ) { error = \"legacy_points_enable_binding_missing\"; return false; }\n    context.mode = points::pool::multi;\n    avatar sample;\n    sample.prof = profession::generic();\n    sample.hobbies.clear();\n    sample.set_body();\n    sample.set_str_base( 8 ); sample.set_dex_base( 8 );\n    sample.set_int_base( 8 ); sample.set_per_base( 8 );\n    const auto equal_original = [&]() {\n        const auto c = calculate( sample );\n        return !c.invalid && c.stats == stat_points_used( sample ) &&\n               c.traits == trait_points_used( sample ) && c.skills == skill_points_used( sample );\n    };\n    for( int value = 4; value <= 14; ++value ) {\n        sample.set_str_base( value );\n        if( !equal_original() ) { error = \"legacy_stat_cost_mismatch\"; return false; }\n    }\n    sample.set_str_base( 8 );\n    for( const Skill &skill : Skill::skills ) {\n        for( int level = 0; level <= 10; ++level ) {\n            sample.set_skill_level( skill.ident(), level );\n            if( !equal_original() ) { error = \"legacy_skill_cost_mismatch\"; return false; }\n        }\n        sample.set_skill_level( skill.ident(), 0 );\n    }\n    // Both signs and mandatory-trait exemption use actual loaded definitions, not invented IDs.\n    int voluntary = 0;\n    for( const mutation_branch &trait : mutation_branch::get_all() ) {\n        if( !trait.startingtrait || trait.profession || locked( sample, trait.id ) ) continue;\n        sample.set_mutation( trait.id );\n        const bool equal = equal_original();\n        sample.unset_mutation( trait.id );\n        if( !equal ) { error = \"legacy_trait_cost_mismatch\"; return false; }\n        if( ++voluntary == 32 ) break;\n    }\n    if( voluntary == 0 ) { error = \"legacy_trait_fixture_missing\"; return false; }\n    context.cfg = points::config{};\n    sample.set_str_base( 14 ); sample.set_dex_base( 14 );\n    sample.set_int_base( 14 ); sample.set_per_base( 14 );\n    if( valid( sample ) ) { error = \"legacy_overspend_not_rejected\"; return false; }\n    context.mode = points::pool::single;\n    if( valid( sample ) ) { error = \"legacy_single_overspend_not_rejected\"; return false; }\n    context.mode = points::pool::freeform;\n    if( !valid( sample ) ) { error = \"legacy_freeform_was_limited\"; return false; }\n    context.enabled = false;\n    context.mode = points::pool::multi;\n    if( !valid( sample ) || limited() ) { error = \"disabled_legacy_module_was_active\"; return false; }\n    return true;\n}\n",
+      "count": 1
+    }
+  ]
+}

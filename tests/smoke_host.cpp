@@ -97,7 +97,7 @@ int has_capability_fn( const char *cap )
         "ui.layout.v1", "module_hotkeys.v1", "module_hotkeys.context.v1",
         "ingame_manager.v1", "api.versioning.v1", "state.migration.v1",
         "module.lifecycle.v1", "settings.typed.v2", "worldgen.bindings.v2",
-        "runtime_settings.bindings.v2"
+        "runtime_settings.bindings.v2", "character_creation.points.v1"
     };
     return capabilities.count( cap ) != 0 ? 1 : 0;
 }

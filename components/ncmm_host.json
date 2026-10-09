@@ -29,7 +29,8 @@
     "runtime_settings.bindings.v2",
     "runtime_hooks.registry.v2",
     "worldgen.bindings.v2",
-    "module.lifecycle.query.v2"
+    "module.lifecycle.query.v2",
+    "character_creation.points.v1"
   ],
   "descriptor": "components/ncmm_host.json"
 }

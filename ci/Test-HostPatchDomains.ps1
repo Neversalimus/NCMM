@@ -4,7 +4,7 @@ $RepositoryRoot=(Resolve-Path $RepositoryRoot).Path
 . (Join-Path $RepositoryRoot 'ci\HostPatchDomains.ps1')
 $source=Get-Content (Join-Path $RepositoryRoot 'ci\host-patch-domains.json') -Raw
 $baseline=Assert-NcmmHostPatchDomains -RepositoryRoot $RepositoryRoot
-if($baseline.Domains -ne 9 -or $baseline.Layers -ne 40) {
+if($baseline.Domains -ne 10 -or $baseline.Layers -ne 41) {
     throw "Unexpected baseline Host patch domain coverage: $($baseline.Domains)/$($baseline.Layers)"
 }
 $fixtures=@(
@@ -15,7 +15,7 @@ $fixtures=@(
     @{Label='duplicate domain';Change={param($m) $m.domains[1].id=$m.domains[0].id}},
     @{Label='missing dependency';Change={param($m) $m.domains[1].after=@('not-a-domain')}},
     @{Label='forward dependency';Change={param($m) $m.domains[0].after=@('runtime-hooks')}},
-    @{Label='self dependency';Change={param($m) $m.domains[1].after=@('runtime-hooks')}},
+    @{Label='self dependency';Change={param($m) $m.domains[1].after=@('character-creation')}},
     @{Label='duplicate dependency';Change={param($m) $m.domains[1].after=@('worldgen-settings','worldgen-settings')}},
     @{Label='missing last domain';Change={param($m) $m.domains=@($m.domains[0..($m.domains.Count-2)])}},
     @{Label='invalid source';Change={param($m) $m.source='unexpected/stack.json'}},

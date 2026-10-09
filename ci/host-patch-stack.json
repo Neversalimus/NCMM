@@ -13,6 +13,7 @@
     "Apply-WorldSettingsV2Patch",
     "Apply-NcmmModuleDataBridge0120",
     "Apply-AwsWorldgenHostApi20",
+    "Apply-LegacyCharacterPoints0100",
     "Apply-NcmmRuntimeGameplayHooksV2",
     "Apply-NcmmReactiveMechanics0112",
     "Apply-NcmmReactiveMechanics0113",

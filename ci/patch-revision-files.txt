@@ -20,3 +20,8 @@ ci/Get-PatchRevision.ps1
 .github/workflows/ncmm-equipment-doll-pr-host.yml
 ci/toolchain.lock.json
 ci/Publish-ImmutableAsset.ps1
+
+host_patch/Apply-LegacyCharacterPoints.ps1
+host_patch/legacy-character-points.patch.json
+host_patch/ncmm_character_points.hpp
+host_patch/ncmm_legacy_chargen.h

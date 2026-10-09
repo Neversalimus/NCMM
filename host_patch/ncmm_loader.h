@@ -20,6 +20,8 @@ void shutdown();
 void mark_ready();
 bool gameplay_smoke_requested();
 int run_gameplay_smoke();
+/** Isolated smoke hook; implemented in the actual chargen translation unit. */
+bool legacy_character_points_smoke( std::string &error );
 void on_turn();
 void on_language_changed();
 void register_gameplay_actions( input_context &ctxt );
