@@ -1,0 +1,96 @@
+name: Engineering audit - Windows regression qualification
+on:
+  push:
+    branches: ['fix/engineering-audit-20261009']
+    paths: ['.github/workflows/ncmm-audit-validate-fixes.yml']
+permissions:
+  contents: write
+concurrency:
+  group: ncmm-audit-qualification
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/engineering-audit-20261009
+          fetch-depth: 0
+      - name: Preserve Windows PowerShell payload encoding and test it explicitly
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('ci/Sync-CanonicalPayload.ps1')
+          s = p.read_text(encoding='utf-8')
+          old = "$text=[IO.File]::ReadAllText($payload,[Text.Encoding]::UTF8)"
+          new = "$bytes=[IO.File]::ReadAllBytes($payload)\n$hasBom=$bytes.Length -ge 3 -and $bytes[0] -eq 239 -and $bytes[1] -eq 187 -and $bytes[2] -eq 191\n" + old
+          assert s.count(old) == 1
+          s = s.replace(old,new)
+          s = s.replace("if($Check){\n    if($changed)", "if($Check){\n    if(-not $hasBom){throw 'Canonical payload requires UTF-8 BOM for Windows PowerShell 5.1.'}\n    if($changed)")
+          s = s.replace("if($changed){\n        [IO.File]::WriteAllText($payload,$text,(New-Object Text.UTF8Encoding($false)))", "if($changed -or -not $hasBom){\n        [IO.File]::WriteAllText($payload,$text,(New-Object Text.UTF8Encoding($true)))")
+          p.write_text(s,encoding='utf-8',newline='\n')
+          p = Path('ci/Test-CanonicalPayloadSync.ps1')
+          s = p.read_text(encoding='utf-8')
+          key = "    # Unlisted entries and duplicate entries must both fail closed."
+          assert s.count(key) == 1
+          s = s.replace(key, '''    # Losing the BOM breaks ParseFile on Windows PowerShell 5.1 with Russian text.
+              [IO.File]::WriteAllText($fixturePayload,$after,(New-Object Text.UTF8Encoding($false)))
+              $rejected=$false
+              try { & $sync -RepositoryRoot $temp -Check | Out-Null } catch { $rejected=$true }
+              if(-not $rejected) { throw 'Missing payload UTF-8 BOM was accepted.' }
+              & $sync -RepositoryRoot $temp | Out-Null
+              & $sync -RepositoryRoot $temp -Check | Out-Null
+              $tokens=$null; $errors=$null
+              [void][System.Management.Automation.Language.Parser]::ParseFile($fixturePayload,[ref]$tokens,[ref]$errors)
+              if($errors.Count) { throw 'Synchronized payload is not valid Windows PowerShell.' }
+          
+          ''' + key)
+          s = s.replace('$after+"`n"+$extra+"`n",\n                              (New-Object Text.UTF8Encoding($false))', '$after+"`n"+$extra+"`n",\n                              (New-Object Text.UTF8Encoding($true))')
+          p.write_text(s,encoding='utf-8',newline='\n')
+      - name: Synchronize and commit source-only repairs
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path -Check
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path -Check
+          git diff --check
+          if($LASTEXITCODE -ne 0){throw 'Diff check failed.'}
+          git config user.name 'NCMM Engineering'
+          git config user.email 'actions@users.noreply.github.com'
+          git add ci/Sync-CanonicalPayload.ps1 ci/Test-CanonicalPayloadSync.ps1 payload/SURVIVOR_0911_0915_v8.7.6.8.ps1 compat/package.integrity.json
+          git commit -m 'Preserve UTF-8 BOM during canonical synchronization and test PS5 parser'
+          if($LASTEXITCODE -ne 0){throw 'Source commit failed.'}
+          git push origin HEAD:refs/heads/fix/engineering-audit-20261009
+          if($LASTEXITCODE -ne 0){throw 'Feature branch source push failed.'}
+      - uses: microsoft/setup-msbuild@v2
+      - name: Validate source, payload and PowerShell contracts
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          ./ci/Test-CanonicalPayloadSync.ps1 -RepositoryRoot $PWD.Path
+          ./ci/Test-Infrastructure083.ps1 -PackageRoot $PWD.Path
+      - name: Build production runtime and execute all failure and module harnesses
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          Start-Transcript -Path evidence/windows-validation.log
+          try { ./ci/Build-Runtime.ps1 -RepositoryRoot $PWD.Path -OutputRoot (Join-Path $PWD 'dist/runtime') }
+          finally { Stop-Transcript }
+      - name: Save tested source identity
+        if: always()
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          git rev-parse HEAD | Set-Content evidence/tested-source.txt
+          git status --short | Set-Content evidence/worktree-status.txt
+          git archive HEAD -o evidence/source.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NCMM-engineering-regression-evidence
+          path: evidence/**
+          retention-days: 14
