@@ -5943,6 +5943,9 @@ void show_manager()
     }
 }
 
+// Definition belongs to the same unnamed namespace as the event subscriber's forward declaration.
+namespace
+{
 void reset_world_lifecycle()
 {
     api_v2_world_announced = false;
@@ -5954,6 +5957,7 @@ void reset_world_lifecycle()
         if( mod.descriptor && mod.descriptor->id ) erase_module_modifiers( mod.descriptor->id );
     }
 }
+} // namespace
 
 void on_turn()
 {
