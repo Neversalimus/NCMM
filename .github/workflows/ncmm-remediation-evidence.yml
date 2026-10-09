@@ -1,0 +1,30 @@
+name: NCMM remediation source evidence
+on:
+  push:
+    branches: [audit/full-system-20261009]
+    paths: [.github/workflows/ncmm-remediation-evidence.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ef7a4699e49b0974e044ee12b1e776f7cc2fd3eb
+          persist-credentials: false
+      - name: Archive exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = ef7a4699e49b0974e044ee12b1e776f7cc2fd3eb
+          mkdir evidence
+          git archive --format=zip HEAD -o evidence/source.zip
+          git rev-parse HEAD > evidence/source-sha.txt
+          sha256sum evidence/source.zip > evidence/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NCMM-PR190-source-ef7a4699
+          path: evidence/*
+          if-no-files-found: error
+          retention-days: 7
