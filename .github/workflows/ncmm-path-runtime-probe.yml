@@ -10,16 +10,15 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ef7a4699e49b0974e044ee12b1e776f7cc2fd3eb
-          persist-credentials: false
-      - name: Test long paths without changing machine policy
+      - name: Compile and run Framework path variants
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
           $csc=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-          New-Item -ItemType Directory out | Out-Null
+          $dir=Join-Path $env:RUNNER_TEMP 'probe'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          $source=Join-Path $dir 'probe.cs'
+          $manifest=Join-Path $dir 'runtime.manifest'
           @'
           using System; using System.IO;
           [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.6.2")]
@@ -27,20 +26,21 @@ jobs:
             static int Main(string[] args) {
               bool v;
               Console.WriteLine("Target="+AppDomain.CurrentDomain.SetupInformation.TargetFrameworkName);
+              if(args.Length>0 && args[0]=="switch") {
+                AppContext.SetSwitch("Switch.System.IO.UseLegacyPathHandling",false);
+                AppContext.SetSwitch("Switch.System.IO.BlockLongPaths",false);
+              }
               foreach(string s in new[]{"Switch.System.IO.UseLegacyPathHandling","Switch.System.IO.BlockLongPaths"})
                 Console.WriteLine(s+"="+AppContext.TryGetSwitch(s,out v)+"/"+v);
-              string p=Path.Combine(Path.GetTempPath(),"ncmm-path-probe-"+Guid.NewGuid().ToString("N"));
-              string root=p;
+              string p=Path.Combine(Path.GetTempPath(),"ncmm-path-probe-"+Guid.NewGuid().ToString("N")); string root=p;
               while(p.Length<310) p=Path.Combine(p,"long-component-0123456789");
-              try {
-                Directory.CreateDirectory(p); string f=Path.Combine(p,"probe.txt");
-                File.WriteAllText(f,"OK"); if(File.ReadAllText(f)!="OK") return 2;
-                Console.WriteLine("PASS length="+f.Length); return 0;
-              } catch(Exception ex) {Console.WriteLine(ex.ToString());return 1;}
-              finally {try{if(Directory.Exists(root))Directory.Delete(root,true);}catch(Exception e){Console.WriteLine("cleanup="+e.Message);}}
+              try {Directory.CreateDirectory(p); string f=Path.Combine(p,"probe.txt");File.WriteAllText(f,"OK");
+                if(File.ReadAllText(f)!="OK")return 2;Console.WriteLine("PASS length="+f.Length);return 0;
+              } catch(Exception ex){Console.WriteLine(ex.ToString());return 1;}
+              finally{try{if(Directory.Exists(root))Directory.Delete(root,true);}catch(Exception e){Console.WriteLine("cleanup="+e.Message);}}
             }
           }
-          '@ | Set-Content out/probe.cs -Encoding UTF8
+          '@ | Set-Content -LiteralPath $source -Encoding UTF8
           @'
           <?xml version="1.0" encoding="utf-8"?>
           <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
@@ -48,28 +48,23 @@ jobs:
             <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3"><security><requestedPrivileges><requestedExecutionLevel level="asInvoker" uiAccess="false"/></requestedPrivileges></security></trustInfo>
             <application xmlns="urn:schemas-microsoft-com:asm.v3"><windowsSettings><longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware></windowsSettings></application>
           </assembly>
-          '@ | Set-Content out/runtime.manifest -Encoding UTF8
-          @'
-          <?xml version="1.0" encoding="utf-8"?>
-          <configuration>
-            <startup><supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.6.2"/></startup>
-            <runtime><AppContextSwitchOverrides value="Switch.System.IO.UseLegacyPathHandling=false;Switch.System.IO.BlockLongPaths=false"/></runtime>
-          </configuration>
-          '@ | Set-Content out/runtime.config -Encoding UTF8
-          foreach($variant in @('baseline','manifest','config','both')) {
-            $exe=Join-Path (Resolve-Path out) ($variant+'.exe')
-            $args=@('/nologo','/target:exe','/platform:x64',('/out:'+ $exe),'out/probe.cs')
-            if($variant -in @('manifest','both')){$args+=('/win32manifest:out/runtime.manifest')}
-            & $csc @args
+          '@ | Set-Content -LiteralPath $manifest -Encoding UTF8
+          $config='<configuration><startup><supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.6.2"/></startup><runtime><AppContextSwitchOverrides value="Switch.System.IO.UseLegacyPathHandling=false;Switch.System.IO.BlockLongPaths=false"/></runtime></configuration>'
+          foreach($variant in @('baseline','manifest','config','both','switch')) {
+            $exe=Join-Path $dir ($variant+'.exe')
+            $compileArgs=@('/nologo','/target:exe','/platform:x64',('/out:'+ $exe),$source)
+            if($variant -in @('manifest','both')){$compileArgs+=('/win32manifest:'+ $manifest)}
+            & $csc @compileArgs
             if($LASTEXITCODE -ne 0){throw 'probe compilation failed'}
-            if($variant -in @('config','both')){Copy-Item out/runtime.config ($exe+'.config')}
+            if($variant -in @('config','both')){[IO.File]::WriteAllText(($exe+'.config'),$config)}
             Write-Host ('=== '+$variant+' ===')
-            & $exe 2>&1 | Tee-Object ('out/'+$variant+'.log')
+            & $exe $variant | Tee-Object (Join-Path $dir ($variant+'.log'))
             Write-Host ('exit='+$LASTEXITCODE)
           }
           $global:LASTEXITCODE=0
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: NCMM-Framework-path-probe
-          path: out/*.log
+          path: ${{ runner.temp }}/probe/*.log
           retention-days: 7
