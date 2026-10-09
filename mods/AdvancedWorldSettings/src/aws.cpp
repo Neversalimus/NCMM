@@ -1,5 +1,6 @@
 #define NCMM_MOD_BUILD
 #include "ncmm_api.h"
+#include "ncmm_sdk_core.hpp"
 
 #include <cstddef>
 #include <string>
@@ -265,10 +266,11 @@ int expose_all( const ncmm_host_api_v1 *api, bool log_errors ) {
 }
 
 int init( const ncmm_host_api_v1 *api ) {
-    if( api == nullptr || api->abi_version != NCMM_ABI_VERSION || api->query_interface == nullptr ) return 0;
-    host2 = static_cast<const ncmm_host_api_v2_core *>(
-                api->query_interface( NCMM_HOST_API_V2_CORE_ID, 2u, 0u ) );
-    if( host2 == nullptr || host2->api_major != 2u || !host2->worldgen_hook_bind_setting ) return 0;
+    const auto core = ncmm::sdk::require_core( api, required_caps,
+        sizeof( required_caps ) / sizeof( required_caps[0] ),
+        NCMM_SDK_CORE_FIELD_END( worldgen_hook_bind_setting ) );
+    host2 = core ? core.core : nullptr;
+    if( host2 == nullptr || !host2->worldgen_hook_bind_setting ) return 0;
     for( const char *capability : required_caps ) {
         if( !api->has_capability || !api->has_capability( capability ) ) return 0;
     }

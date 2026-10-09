@@ -1760,6 +1760,34 @@ bool survivor_semantic_matrix( void *lib )
     character_state[survivor_prefix + "perk_points"] = 0;
     character_state[survivor_prefix + "major_points"] = 0;
 
+    const auto award_boundary = symbol<int(*)(int64_t,int)>(lib, "ncmm_test_award_xp_boundary_v1");
+    if(!award_boundary) return false;
+    const int64_t max_i64=std::numeric_limits<int64_t>::max();
+    for(int64_t schema : {7LL,8LL}) {
+        character_state[survivor_prefix+"schema"]=schema;
+        character_state[survivor_prefix+"level"]=max_i64;
+        character_state[survivor_prefix+"xp"]=max_i64;
+        character_state[survivor_prefix+"xp_fraction"]=max_i64;
+        character_state[survivor_prefix+"major_points"]=max_i64;
+        character_state[survivor_prefix+"major_awarded"]=0;
+        if(!sanitize_state() || character_state[survivor_prefix+"major_points"]!=max_i64 ||
+           character_state[survivor_prefix+"xp"]<0) return false;
+        if(!reset())return false;
+    }
+    for(int branch_case : {-1,0,2,4}) {
+        character_state[survivor_prefix+"level"]=1;
+        character_state[survivor_prefix+"xp"]=max_i64;
+        character_state[survivor_prefix+"perk_points"]=max_i64;
+        character_state[survivor_prefix+"major_points"]=max_i64;
+        if(!award_boundary(max_i64,branch_case)) return false;
+        for(const char *key : {"xp","level","perk_points","major_points"}) {
+            if(character_state[survivor_prefix+key]<0){std::cerr<<"XP overflow: "<<key<<'\n';return false;}
+        }
+        if(character_state[survivor_prefix+"level"]>1025){std::cerr<<"XP work budget exceeded\n";return false;}
+        if(!reset())return false;
+    }
+    std::cout<<"Survivor actual migration/XP INT64 boundary cases: PASS\n";
+
     size_t direct_cases = 0;
     size_t amplifier_cases = 0;
     size_t special_cases = 0;
@@ -2229,6 +2257,23 @@ int main( int argc, char **argv )
         &virtual_item_primary_melee_enabled_v2_fn;
     smoke_host2.virtual_item_set_primary_melee =
         &virtual_item_set_primary_melee_v2_fn;
+
+    if( !simulate_missing_contract && (std::strcmp(desc->id,"advanced_world_settings")==0 ||
+                                       std::strcmp(desc->id,"survivor_progression")==0) ) {
+        const auto saved_core = smoke_host2;
+        for( uint32_t size : { 0u, 4u, 12u,
+             static_cast<uint32_t>(offsetof(ncmm_host_api_v2_core, worldgen_hook_bind_setting)) } ) {
+            smoke_host2 = saved_core; smoke_host2.struct_size = size;
+            if( desc->init(&api) != 0 || worldgen_binding_count != 0 || !registered_setting_ids.empty() ) {
+                std::cerr << "Truncated Core registered module state\n"; return 70;
+            }
+            desc->shutdown();
+        }
+        smoke_host2=saved_core; smoke_host2.abi_version=999;
+        if(desc->init(&api)!=0){std::cerr<<"Core ABI mismatch accepted\n";return 71;}
+        desc->shutdown(); smoke_host2=saved_core;
+        std::cout<<"AWS/Survivor real init Core boundary guards: PASS\n";
+    }
 
     // Generic onboarding profile for *new* modules without an authored semantic
     // matrix yet. Existing module IDs keep their deeper specialized smoke paths.

@@ -1029,25 +1029,27 @@ void inventory_selector::draw_equipment_body_map( const catacurses::window &w ) 
             ncmm::localized_text( "R.foot", u8"\u041f.\u0441\u0442\u043e\u043f\u0430" )
         };
         const auto enc_row = [&]( int row, int first, int second, int third ) {
-            int x = content_x;
             const int zones[] = { first, second, third };
-            for( const int zone : zones ) {
-                if( zone < 0 || x >= content_x + content_width ) {
-                    continue;
-                }
+            const int columns = third >= 0 ? 3 : 2;
+            const int column_width = content_width / columns;
+            for( int column = 0; column < columns; ++column ) {
+                const int zone = zones[column];
+                const int x = content_x + column * column_width;
+                const int available = column + 1 == columns ? content_x + content_width - x : column_width;
                 const bool focused = equipment_body_map_focus == zone ||
                                      ( equipment_body_map_focus < 0 && focus == zone );
-                const std::string value = zone_present[zone] ?
-                                          std::to_string( encumbrance[zone] ) : "-";
+                const std::string value = zone_present[zone] ? std::to_string( encumbrance[zone] ) : "-";
                 const std::string marker = focused ? ">" : selected_covers[zone] ? "*" : "";
-                const std::string label = marker + short_labels[zone] + ":" + value;
-                const int available = content_x + content_width - x;
-                if( available < 3 ) {
-                    break;
+                std::string label = marker + short_labels[zone] + ":" + value;
+                // Reserve the complete value first. Large mutation/armor values
+                // may shorten a label, never the number itself.
+                if( utf8_width( label, true ) > available ) {
+                    const int label_room = available - utf8_width( marker + ":" + value, true );
+                    label = label_room > 0 ? marker + utf8_truncate( short_labels[zone], label_room ) + ":" + value : marker + value;
                 }
+                if( utf8_width( label, true ) > available ) label = value;
                 trim_and_print( w, point( x, row ), available,
                                 enc_color( zone ), label );
-                x += utf8_width( label, true ) + 2;
             }
         };
         enc_row( panel_top + 12, 0, 1, 2 );  // Head, eyes, mouth.
@@ -1126,6 +1128,8 @@ $dc = Replace-ExactlyOnce $dc '#include <algorithm>' @'
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <limits>
+#include <utility>
 '@ 'dispersion.probability-includes'
 
 $dc = Replace-ExactlyOnce $dc @'
@@ -1141,156 +1145,125 @@ double dispersion_sources::avg() const
 
 double dispersion_sources::probability_below( double threshold ) const
 {
-    if( !std::isfinite( threshold ) ) {
-        return threshold > 0.0 ? 1.0 : 0.0;
-    }
-    if( threshold <= 0.0 ) {
-        return 0.0;
-    }
-    // roll() clamps the final result to 3600 arcminutes.
-    if( threshold > 3600.0 ) {
-        return 1.0;
-    }
-
+    // -1 means unsupported/ill-conditioned, never a fabricated 0% hit chance.
+    if( std::isnan( threshold ) ) return -1.0;
+    if( threshold <= 0.0 ) return 0.0;
+    if( threshold > 3600.0 ) return 1.0;
     long double multiplier = 1.0L;
-    for( const double source : multipliers ) {
-        multiplier *= static_cast<long double>( source );
+    for( double source : multipliers ) {
+        if( !std::isfinite( source ) || source < 0.0 ) return -1.0;
+        multiplier *= source;
     }
-    if( multiplier == 0.0L ) {
-        return 1.0;
-    }
-    // Supported weapon-dispersion multipliers are non-negative.
-    if( multiplier < 0.0L ) {
-        return 0.0;
-    }
-
-    const long double scaled_threshold =
-        static_cast<long double>( threshold ) / multiplier;
+    if( multiplier == 0.0L ) return 1.0;
+    if( !std::isfinite( multiplier ) ) return -1.0;
+    const long double threshold_scaled = threshold / multiplier;
+    if( normal_sources.size() > 1 ) return -1.0;
+    const long double hi = normal_sources.empty() ? 0.0L : normal_sources.front();
+    if( !std::isfinite( hi ) || hi < 0.0L ) return -1.0;
 
     std::vector<long double> linear;
-    linear.reserve( linear_sources.size() );
-    for( const double source : linear_sources ) {
-        if( source > 0.0 ) {
-            linear.push_back( static_cast<long double>( source ) );
-        }
+    long double total = 0.0L;
+    for( double source : linear_sources ) {
+        if( !std::isfinite( source ) || source < 0.0 ) return -1.0;
+        if( source > 0.0 ) { linear.push_back( source ); total += source; }
     }
-
-    // Exact CDF for a sum of independent U( 0, a_i ) variables.
-    const auto uniform_sum_cdf = [&linear]( long double x ) -> long double {
-        if( linear.empty() ) {
-            return x > 0.0L ? 1.0L : 0.0L;
+    // Bound both allocation and work before constructing the subset table.
+    constexpr std::size_t max_uniform_sources = 8;
+    if( linear.size() > max_uniform_sources || !std::isfinite( total ) ) return -1.0;
+    const std::size_t n = linear.size();
+    std::vector<std::pair<long double, int>> terms = { { 0.0L, 1 } };
+    long double denominator = 1.0L;
+    for( std::size_t i = 0; i < n; ++i ) {
+        linear[i] /= total;
+        denominator *= linear[i] * ( i + 1 );
+        const std::size_t count = terms.size();
+        for( std::size_t j = 0; j < count; ++j )
+            terms.emplace_back( terms[j].first + linear[i], -terms[j].second );
+    }
+    if( denominator <= 0.0L || !std::isfinite( denominator ) ) return -1.0;
+    bool reliable = true;
+    const auto uniform_sum_cdf = [&]( long double x ) -> long double {
+        if( n == 0 ) return x > 0.0L ? 1.0L : 0.0L; // strict endpoint for a point mass
+        if( x <= 0.0L ) return 0.0L;
+        if( x >= total ) return 1.0L;
+        x /= total;
+        const bool reflect = x > 0.5L;
+        if( reflect ) x = 1.0L - x; // avoid cancellation near the upper support
+        long double sum = 0.0L, absolute_sum = 0.0L;
+        for( const auto &term : terms ) {
+            const long double remainder = x - term.first;
+            if( remainder <= 0.0L ) continue;
+            long double power = 1.0L;
+            for( std::size_t i = 0; i < n; ++i ) power *= remainder;
+            sum += term.second * power;
+            absolute_sum += power;
         }
-        if( x <= 0.0L ) {
-            return 0.0L;
-        }
-
-        const std::size_t n = linear.size();
-        long double max_sum = 0.0L;
-        long double denominator = 1.0L;
-        for( const long double source : linear ) {
-            max_sum += source;
-            denominator *= source;
-        }
-        if( x >= max_sum ) {
-            return 1.0L;
-        }
-
-        long double factorial = 1.0L;
-        for( std::size_t i = 2; i <= n; ++i ) {
-            factorial *= static_cast<long double>( i );
-        }
-        denominator *= factorial;
-
-        // Current firearm paths have only a handful of linear sources.
-        if( n >= 63 ) {
-            return 0.0L;
-        }
-
-        const std::uint64_t combinations = std::uint64_t{ 1 } << n;
-        long double sum = 0.0L;
-        for( std::uint64_t mask = 0; mask < combinations; ++mask ) {
-            long double shift = 0.0L;
-            unsigned parity = 0;
-            for( std::size_t i = 0; i < n; ++i ) {
-                if( ( mask & ( std::uint64_t{ 1 } << i ) ) != 0 ) {
-                    shift += linear[i];
-                    parity ^= 1u;
-                }
-            }
-            const long double remainder = x - shift;
-            if( remainder <= 0.0L ) {
-                continue;
-            }
-            const long double term = std::pow( remainder, static_cast<int>( n ) );
-            sum += parity != 0u ? -term : term;
-        }
-        return std::clamp( sum / denominator, 0.0L, 1.0L );
+        // Long double is double on MSVC. Reject badly conditioned mixtures instead
+        // of silently printing precise-looking results from catastrophic cancellation.
+        const long double roundoff = absolute_sum * std::numeric_limits<long double>::epsilon() *
+                                     ( 64 * ( n + 1 ) ) / denominator;
+        if( roundoff > 1.0e-8L ) reliable = false;
+        const long double result = std::clamp( sum / denominator, 0.0L, 1.0L );
+        return reflect ? 1.0L - result : result;
     };
-
-    if( normal_sources.empty() ) {
-        return static_cast<double>(
-                   std::clamp( uniform_sum_cdf( scaled_threshold ), 0.0L, 1.0L ) );
-    }
-
-    // Weapon paths have one clamped normal source: gun/ammo dispersion.
-    // rng_normal( 0, hi ) is N( hi/2, hi/4 ) clamped to [0, hi].
-    const long double hi = std::max(
-                               0.0L, static_cast<long double>( normal_sources.front() ) );
     if( hi == 0.0L ) {
-        return static_cast<double>(
-                   std::clamp( uniform_sum_cdf( scaled_threshold ), 0.0L, 1.0L ) );
+        const double p = static_cast<double>( uniform_sum_cdf( threshold_scaled ) );
+        return reliable ? p : -1.0;
     }
-
-    const long double mean = hi / 2.0L;
-    const long double sigma = hi / 4.0L;
-    const auto normal_cdf = [mean, sigma]( long double x ) -> long double {
-        constexpr long double sqrt_two =
-            1.414213562373095048801688724209698L;
-        return 0.5L * ( 1.0L + std::erf( ( x - mean ) /
-                                         ( sigma * sqrt_two ) ) );
+    const auto normal_cdf = []( long double z ) -> long double {
+        return 0.5L * std::erfc( ( 0.5L - z ) / ( 0.25L * std::sqrt( 2.0L ) ) );
     };
-    const auto normal_pdf = [mean, sigma]( long double x ) -> long double {
-        constexpr long double sqrt_two_pi =
-            2.506628274631000502415765284811045L;
-        const long double z = ( x - mean ) / sigma;
-        return std::exp( -0.5L * z * z ) / ( sigma * sqrt_two_pi );
+    const auto normal_pdf = []( long double z ) -> long double {
+        const long double v = ( z - 0.5L ) / 0.25L;
+        return std::exp( -0.5L * v * v ) / ( 0.25L * std::sqrt( 2.0L * std::acos( -1.0L ) ) );
     };
-
-    // With no positive uniform sources the clamped-normal CDF is available
-    // directly; avoiding numerical integration also preserves the endpoint
-    // atom at hi under the strict hit condition ( dispersion < threshold ).
-    if( linear.empty() ) {
-        if( scaled_threshold > hi ) {
-            return 1.0;
-        }
-        return static_cast<double>(
-                   std::clamp( normal_cdf( scaled_threshold ), 0.0L, 1.0L ) );
-    }
+    if( n == 0 ) return threshold_scaled > hi ? 1.0 : static_cast<double>( normal_cdf( threshold_scaled / hi ) );
+    if( threshold_scaled >= total + hi ) return 1.0;
 
     const long double mass_low = normal_cdf( 0.0L );
-    const long double mass_high = 1.0L - normal_cdf( hi );
-
-    // Simpson integration of the continuous interior. 256 panels are well
-    // below the visible 0.1% precision for supported firearm distributions.
-    constexpr int panels = 256;
-    const long double step = hi / static_cast<long double>( panels );
-    long double integral = 0.0L;
-    for( int i = 0; i <= panels; ++i ) {
-        const long double x = step * static_cast<long double>( i );
-        const long double value =
-            normal_pdf( x ) * uniform_sum_cdf( scaled_threshold - x );
-        const int weight = ( i == 0 || i == panels ) ? 1 :
-                           ( i % 2 == 0 ? 2 : 4 );
-        integral += static_cast<long double>( weight ) * value;
+    const long double mass_high = 1.0L - normal_cdf( 1.0L );
+    const long double left = std::clamp( ( threshold_scaled - total ) / hi, 0.0L, 1.0L );
+    const long double right = std::clamp( threshold_scaled / hi, 0.0L, 1.0L );
+    long double integral = normal_cdf( left ) - mass_low;
+    std::vector<long double> knots = { left, right };
+    for( const auto &term : terms ) {
+        const long double knot = ( threshold_scaled - term.first * total ) / hi;
+        if( knot > left && knot < right ) knots.push_back( knot );
     }
-    integral *= step / 3.0L;
-
-    const long double probability =
-        mass_low * uniform_sum_cdf( scaled_threshold ) +
-        integral +
-        mass_high * uniform_sum_cdf( scaled_threshold - hi );
-
-    return static_cast<double>( std::clamp( probability, 0.0L, 1.0L ) );
+    std::sort( knots.begin(), knots.end() );
+    knots.erase( std::unique( knots.begin(), knots.end() ), knots.end() );
+    int evaluations = 0;
+    constexpr int max_evaluations = 4096;
+    const auto f = [&]( long double z ) -> long double {
+        if( ++evaluations > max_evaluations ) { reliable = false; return 0.0L; }
+        return normal_pdf( z ) * uniform_sum_cdf( threshold_scaled - z * hi );
+    };
+    // Integrate only the transition and split at EVERY CDF knot. A narrow recoil
+    // distribution cannot disappear between panels (audit A15).
+    const auto integrate = [&]( const auto &self, long double a, long double b,
+                                long double fa, long double fm, long double fb,
+                                long double whole, long double tolerance, int depth ) -> long double {
+        if( !reliable ) return 0.0L;
+        const long double m = ( a + b ) / 2.0L;
+        const long double fl = f( ( a + m ) / 2.0L ), fr = f( ( m + b ) / 2.0L );
+        const long double l = ( m - a ) * ( fa + 4.0L * fl + fm ) / 6.0L;
+        const long double r = ( b - m ) * ( fm + 4.0L * fr + fb ) / 6.0L;
+        const long double delta = l + r - whole;
+        if( std::abs( delta ) <= 15.0L * tolerance ) return l + r + delta / 15.0L;
+        if( depth == 0 ) { reliable = false; return 0.0L; }
+        return self( self, a, m, fa, fl, fm, l, tolerance / 2.0L, depth - 1 ) +
+               self( self, m, b, fm, fr, fb, r, tolerance / 2.0L, depth - 1 );
+    };
+    const long double tolerance = 1.0e-9L / std::max<std::size_t>( 1, knots.size() - 1 );
+    for( std::size_t i = 1; i < knots.size() && reliable; ++i ) {
+        const long double a = knots[i - 1], b = knots[i], m = ( a + b ) / 2.0L;
+        const long double fa = f( a ), fm = f( m ), fb = f( b );
+        const long double whole = ( b - a ) * ( fa + 4.0L * fm + fb ) / 6.0L;
+        integral += integrate( integrate, a, b, fa, fm, fb, whole, tolerance, 16 );
+    }
+    const long double p = mass_low * uniform_sum_cdf( threshold_scaled ) + integral +
+                          mass_high * uniform_sum_cdf( threshold_scaled - hi );
+    return reliable && std::isfinite( p ) ? static_cast<double>( std::clamp( p, 0.0L, 1.0L ) ) : -1.0;
 }
 '@ 'dispersion.probability-implementation'
 
@@ -1409,6 +1382,7 @@ static bool ncmm_hit_probability_decimal()
 
 static std::string ncmm_hit_probability_text( double probability )
 {
+    if( !std::isfinite( probability ) || probability < 0.0 ) return "<color_light_gray>--</color>";
     probability = std::clamp( probability, 0.0, 1.0 );
     const char *color = probability >= 0.85 ? "green" :
                         probability >= 0.60 ? "light_green" :
@@ -1423,6 +1397,7 @@ static double ncmm_exact_hit_probability( const dispersion_sources &dispersion,
         const Target_attributes &target, const Creature *target_critter )
 {
     double probability = dispersion.probability_below( target.size_in_moa );
+    if( !std::isfinite( probability ) || probability < 0.0 ) return -1.0;
 
     // HARDTOHIT rolls dispersion twice and keeps the worse result.
     if( target_critter != nullptr && target_critter->as_character() != nullptr &&
@@ -1478,9 +1453,6 @@ $rg = Replace-ExactlyOnce $rg @'
     // five-column confidence table avoids overlap on 34-42 column sidebars.
     if( narrow && ncmm_hit_probability_enabled() ) {
         for( const aim_type_prediction &out : sorted ) {
-            if( out.exact_hit_probability < 0.0 ) {
-                continue;
-            }
             const std::string col_hl = out.is_default ? "light_green" : "light_gray";
             const int pct_x = std::max( 1, width - 11 );
             trim_and_print( w, point( 1, line_number ), std::max( 1, pct_x - 2 ),
@@ -1507,7 +1479,7 @@ $rg = Replace-ExactlyOnce $rg @'
             print_colored_text( w, point( 1, line_number++ ), col, col, desc );
 '@ @'
             std::string desc;
-            if( out.exact_hit_probability >= 0.0 ) {
+            if( ncmm_hit_probability_enabled() ) {
                 // Keep the exact-probability row compact enough for the normal
                 // right-side targeting panel. The vanilla verbose labels plus
                 // an appended hit percentage overflow at ~45-50 columns.

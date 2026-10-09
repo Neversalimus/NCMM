@@ -16,3 +16,7 @@ ci/host-patch-stack.json
 ci/Get-NcmmCurrentVersion.ps1
 ci/Build-HostPackage.ps1
 ci/Get-PatchRevision.ps1
+.github/workflows/ncmm-host.yml
+.github/workflows/ncmm-equipment-doll-pr-host.yml
+ci/toolchain.lock.json
+ci/Publish-ImmutableAsset.ps1

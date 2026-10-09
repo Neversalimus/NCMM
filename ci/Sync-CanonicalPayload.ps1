@@ -6,6 +6,8 @@ $ErrorActionPreference='Stop'
 $root=(Resolve-Path $RepositoryRoot).Path
 $payload=Join-Path $root 'payload\SURVIVOR_0911_0915_v8.7.6.8.ps1'
 if(-not(Test-Path -LiteralPath $payload -PathType Leaf)){throw 'Canonical Survivor payload missing'}
+$bytes=[IO.File]::ReadAllBytes($payload)
+$hasBom=$bytes.Length -ge 3 -and $bytes[0] -eq 239 -and $bytes[1] -eq 187 -and $bytes[2] -eq 191
 $text=[IO.File]::ReadAllText($payload,[Text.Encoding]::UTF8)
 $changed=0
 $paths=@(
@@ -20,7 +22,21 @@ $paths=@(
     'tests\smoke_host.cpp',
     'mods\BallisticHitChance\CMakeLists.txt',
     'mods\BallisticHitChance\mod.json',
-    'mods\BallisticHitChance\src\ballistic_hit_chance.cpp'
+    'mods\BallisticHitChance\src\ballistic_hit_chance.cpp',
+    'sdk\ncmm_sdk_core.hpp',
+    'sdk\ncmm_checked_math.hpp',
+    'runtime\NCMMRuntimeIO.cs',
+    'runtime\NCMMRuntime.manifest',
+    'mods\AdvancedWorldSettings\src\aws.cpp',
+    'mods\SurvivorProgression\src\survivor_progression.cpp',
+    'ci\Build-HostPackage.ps1',
+    'ci\Get-PatchRevision.ps1',
+    'ci\Get-NcmmCurrentVersion.ps1',
+    'ci\patch-revision-files.txt',
+    'ci\toolchain.lock.json',
+    'ci\Publish-ImmutableAsset.ps1',
+    '.github\workflows\ncmm-host.yml',
+    '.github\workflows\ncmm-equipment-doll-pr-host.yml'
 )
 # Fail closed if a new embedded snapshot appears.  A silently untracked snapshot
 # is especially dangerous because source and payload can then drift independently.
@@ -59,11 +75,12 @@ foreach($rel in $paths){
     }
 }
 if($Check){
+    if(-not $hasBom){throw 'Canonical payload requires UTF-8 BOM for Windows PowerShell 5.1.'}
     if($changed){throw "$changed canonical snapshot(s) out of sync. Run ci\Sync-CanonicalPayload.ps1, then ci\Regenerate-PackageIntegrity.ps1."}
     Write-Host "Canonical source snapshots: PASS ($($paths.Count)/$($paths.Count))." -ForegroundColor Green
 }else{
-    if($changed){
-        [IO.File]::WriteAllText($payload,$text,(New-Object Text.UTF8Encoding($false)))
+    if($changed -or -not $hasBom){
+        [IO.File]::WriteAllText($payload,$text,(New-Object Text.UTF8Encoding($true)))
     }
     Write-Host "Canonical source snapshots synchronized: $changed changed (of $($paths.Count))."
 }

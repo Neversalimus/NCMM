@@ -1,0 +1,195 @@
+name: NCMM PR - real engine and installation qualification
+on:
+  pull_request:
+    paths:
+      - 'host_patch/**'
+      - 'sdk/**'
+      - 'runtime/**'
+      - 'mods/**'
+      - 'payload/**'
+      - 'ci/**'
+      - 'tests/**'
+      - '.github/workflows/ncmm-pr-engineering-integration.yml'
+  push:
+    branches: ['fix/engineering-audit-20261009']
+    paths: ['.github/workflows/ncmm-pr-engineering-integration.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ncmm-pr-engineering-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  qualify:
+    name: Real lifecycle - ${{ matrix.tag }}
+    runs-on: windows-2022
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tag: cdda-experimental-2026-09-23-0546
+            source: e262adb299a7613b4aedc5f12c08fe0413c56a84
+          - tag: cdda-experimental-2026-10-01-1040
+            source: 3f7fb352bf492ba521bd9408a0c9f6ce239e8d83
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SCCACHE_GHA_ENABLED: 'true'
+    steps:
+      - name: Checkout exact proposed source, no publication credentials
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: ncmmrepo
+          persist-credentials: false
+      - name: Checkout exact official engine
+        uses: actions/checkout@v4
+        with:
+          repository: CleverRaven/Cataclysm-DDA
+          ref: ${{ matrix.source }}
+          path: upstream
+          persist-credentials: false
+      - name: Verify source, canonical payload and layout before compilation
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git -C upstream rev-parse HEAD).Trim() -ne '${{ matrix.source }}'){throw 'Wrong engine source.'}
+          ./ncmmrepo/ci/Sync-CanonicalPayload.ps1 -RepositoryRoot (Join-Path $PWD 'ncmmrepo') -Check
+          ./ncmmrepo/ci/Regenerate-PackageIntegrity.ps1 -PackageRoot (Join-Path $PWD 'ncmmrepo') -Check
+          ./ncmmrepo/ci/Test-Infrastructure083.ps1 -PackageRoot (Join-Path $PWD 'ncmmrepo')
+          ./ncmmrepo/ci/Test-EquipmentBodyMapUX.ps1 -RepositoryRoot (Join-Path $PWD 'ncmmrepo')
+      - uses: microsoft/setup-msbuild@v2
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: '${{ runner.workspace }}/b/vcpkg'
+          vcpkgGitCommitId: f6672d8e480ccdecddfad3fd1b838ba369ffe6cd
+      - name: Integrate vcpkg
+        shell: powershell
+        run: vcpkg integrate install --vcpkg-root '${{ runner.workspace }}\b\vcpkg'
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: mingw64
+          install: gettext make
+      - uses: actions/cache@v4
+        with:
+          path: upstream/msvc-full-features/vcpkg_installed
+          key: ncmm-vcpkg-${{ runner.os }}-f6672d8e480ccdecddfad3fd1b838ba369ffe6cd-${{ hashFiles('upstream/msvc-full-features/vcpkg.json', 'upstream/.github/vcpkg_triplets/x64-windows-static.cmake') }}
+      - uses: mozilla-actions/sccache-action@v0.0.11
+        with:
+          version: v0.16.0
+      - name: Configure exact production compiler wrapper
+        shell: powershell
+        run: |
+          $dir=Join-Path $env:RUNNER_TEMP 'ncmm-sccache-wrapper'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          @'
+          @echo off
+          setlocal
+          sccache.exe cl.exe %*
+          exit /b %ERRORLEVEL%
+          '@ | Set-Content (Join-Path $dir 'cl.bat') -Encoding Ascii
+          "NCMM_SCCACHE_WRAPPER_DIR=$dir" >> $env:GITHUB_ENV
+      - name: Build genuine patched Host
+        shell: powershell
+        run: |
+          ./ncmmrepo/ci/Build-HostPackage.ps1 -RepositoryRoot (Join-Path $PWD 'ncmmrepo') -UpstreamRoot (Join-Path $PWD 'upstream') -UpstreamTag '${{ matrix.tag }}' -OutputRoot (Join-Path $PWD 'host-result')
+      - name: Build and test matching production module payload
+        shell: powershell
+        run: |
+          ./ncmmrepo/ci/Build-Runtime.ps1 -RepositoryRoot (Join-Path $PWD 'ncmmrepo') -OutputRoot (Join-Path $PWD 'runtime-result') -PayloadOnly
+      - name: Download verified official game, not a generated stand-in
+        id: game
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag='${{ matrix.tag }}'
+          $release=(& gh api "repos/CleverRaven/Cataclysm-DDA/releases/tags/$tag") | ConvertFrom-Json
+          if($LASTEXITCODE -ne 0){throw 'Official release lookup failed.'}
+          $assets=@($release.assets | Where-Object {$_.name -like 'cdda-windows-with-graphics-x64-*.zip'} | Sort-Object name)
+          if($assets.Count -eq 0){throw 'Official graphics asset is missing.'}
+          $asset=$assets[0]
+          if([string]$asset.digest -notmatch '^sha256:[0-9a-f]{64}$'){throw 'Official asset has no SHA256 identity.'}
+          $download=Join-Path $env:RUNNER_TEMP 'ncmm-pr-download'
+          $extract=Join-Path $env:RUNNER_TEMP 'ncmm-pr-game'
+          New-Item -ItemType Directory -Force $download,$extract | Out-Null
+          & gh release download $tag -R CleverRaven/Cataclysm-DDA -p ([string]$asset.name) -D $download
+          if($LASTEXITCODE -ne 0){throw 'Official game download failed.'}
+          $zip=Join-Path $download ([string]$asset.name)
+          if(('sha256:'+(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()) -ne [string]$asset.digest){throw 'Official archive digest mismatch.'}
+          & tar.exe -xf $zip -C $extract
+          if($LASTEXITCODE -ne 0){throw 'Official game extraction failed.'}
+          $exes=@(Get-ChildItem $extract -Filter cataclysm-tiles.exe -Recurse -File)
+          if($exes.Count -ne 1){throw 'Expected exactly one official game executable.'}
+          "root=$($exes[0].Directory.FullName)" >> $env:GITHUB_OUTPUT
+      - name: Run real SetupCore install, disable and re-enable
+        shell: powershell
+        run: |
+          ./ncmmrepo/ci/Test-InstallationMatrix.ps1 -RepositoryRoot (Join-Path $PWD 'ncmmrepo') -PayloadRoot (Join-Path $PWD 'runtime-result/payload') -Mode Real -GameRoot '${{ steps.game.outputs.root }}'
+      - name: Bind locally built candidate with exact source and binary identities
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root='${{ steps.game.outputs.root }}'
+          $meta=Get-Content host-result/host.json -Raw | ConvertFrom-Json
+          $source=(git -C ncmmrepo rev-parse HEAD).Trim()
+          $rev=(./ncmmrepo/ci/Get-PatchRevision.ps1 -RepositoryRoot (Join-Path $PWD 'ncmmrepo')).Trim()
+          $version=(./ncmmrepo/ci/Get-NcmmCurrentVersion.ps1 -RepositoryRoot (Join-Path $PWD 'ncmmrepo')).Trim()
+          $vanilla=(Get-FileHash (Join-Path $root 'cataclysm-tiles.vanilla.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $hostHash=(Get-FileHash host-result/cataclysm-tiles.ncmm.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($meta.source_commit -ne '${{ matrix.source }}' -or $meta.upstream_tag -ne '${{ matrix.tag }}' -or $meta.patch_revision -ne $rev -or $meta.ncmm_version -ne $version -or $meta.build_provenance.ncmm_source -ne $source -or $meta.host_sha256 -ne $hostHash -or @($meta.vanilla_sha256) -notcontains $vanilla){throw 'Candidate Host identity mismatch.'}
+          Copy-Item host-result/cataclysm-tiles.ncmm.exe (Join-Path $root 'cataclysm-tiles.ncmm.exe')
+          $binding=[ordered]@{vanilla_sha256=$vanilla;host_sha256=$hostHash;source_commit=$meta.source_commit;upstream_tag=$meta.upstream_tag;patch_revision=$rev;ncmm_version=$version;loader_api=1;installed_utc=[DateTime]::UtcNow.ToString('o')}
+          [IO.File]::WriteAllText((Join-Path $root 'ncmm/host.binding.json'),($binding | ConvertTo-Json),(New-Object Text.UTF8Encoding($false)))
+      - name: Launch proposed Host twice through the real offline bootstrap
+        timeout-minutes: 8
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root='${{ steps.game.outputs.root }}'
+          foreach($attempt in @(1,2)) {
+            $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList @('--ncmm-runtime-smoke','--ncmm-offline') -WorkingDirectory $root -PassThru
+            if(-not $p.WaitForExit(180000)){& taskkill.exe /pid $p.Id /t /f;throw 'Runtime launch deadline exceeded.'}
+            $p.Refresh()
+            if($p.ExitCode -ne 0){throw "Runtime launch $attempt failed: $($p.ExitCode)"}
+            if(-not(Test-Path (Join-Path $root 'ncmm/boot.ready')) -or (Test-Path (Join-Path $root 'ncmm/boot.pending')) -or (Test-Path (Join-Path $root 'ncmm/ncmm.auto_disabled'))){throw 'Host launch lifecycle markers are inconsistent.'}
+          }
+      - name: Exercise actual AWS worldgen, Survivor and virtual equipment
+        timeout-minutes: 12
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root='${{ steps.game.outputs.root }}'
+          $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList @('--ncmm-gameplay-smoke','--ncmm-offline') -WorkingDirectory $root -PassThru
+          if(-not $p.WaitForExit(480000)){& taskkill.exe /pid $p.Id /t /f;throw 'Gameplay deadline exceeded.'}
+          $p.Refresh()
+          if($p.ExitCode -ne 0){throw "Gameplay exit code: $($p.ExitCode)"}
+          $r=Get-Content (Join-Path $root 'ncmm/gameplay-smoke.json') -Raw | ConvertFrom-Json
+          if($r.success -ne $true -or $r.aws_settings -ne 50 -or $r.aws_hooks -ne 50 -or $r.survivor_perks -lt 378 -or $r.mana_hands_checks -lt 16 -or $r.dimensional_pouch_checks -ne 4){throw 'Real gameplay coverage is incomplete.'}
+          if(-not(Test-Path (Join-Path $root 'save/NCMM Gameplay Smoke/worldoptions.json'))){throw 'Generated world options are missing.'}
+      - name: Verify actual runtime state, native-save restore refusal and clean vanilla restoration
+        shell: powershell
+        run: |
+          ./ncmmrepo/ci/Test-InstallationMatrix.ps1 -RepositoryRoot (Join-Path $PWD 'ncmmrepo') -PayloadRoot (Join-Path $PWD 'runtime-result/payload') -Mode Real -RealPhase PostRuntime -GameRoot '${{ steps.game.outputs.root }}'
+      - name: Collect exact-source evidence, without feeds or releases
+        if: always()
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          git -C ncmmrepo rev-parse HEAD | Set-Content evidence/ncmm-source.txt
+          git -C upstream rev-parse HEAD | Set-Content evidence/engine-source.txt
+          if(Test-Path host-result/host.json){Copy-Item host-result/host.json evidence/host.json}
+          $root='${{ steps.game.outputs.root }}'
+          if($root -and (Test-Path (Join-Path $root 'ncmm'))){
+            foreach($name in @('runtime.state.json','modules.state.json','gameplay-smoke.json','bootstrap.log','ncmm.log','host.binding.json')){
+              $path=Join-Path $root ('ncmm/'+$name)
+              if(Test-Path $path){Copy-Item $path evidence/}
+            }
+          }
+          sccache --show-stats
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NCMM-PR-lifecycle-${{ matrix.tag }}
+          path: evidence/**
+          retention-days: 14
+          if-no-files-found: error

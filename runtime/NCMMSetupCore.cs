@@ -202,6 +202,8 @@ internal sealed class SetupSnapshotEntry
     public string relative_path { get; set; }
     public bool existed { get; set; }
     public bool directory { get; set; }
+    public string sha256 { get; set; }
+    public Dictionary<string, string> files { get; set; }
 }
 
 internal sealed class SetupSnapshotManifest
@@ -226,14 +228,7 @@ internal static partial class SetupCore
 
     internal static string Sha256(string path)
     {
-        using (FileStream stream = File.OpenRead(path))
-        using (SHA256 sha = SHA256.Create())
-        {
-            byte[] hash = sha.ComputeHash(stream);
-            StringBuilder sb = new StringBuilder(hash.Length * 2);
-            foreach (byte b in hash) sb.Append(b.ToString("x2"));
-            return sb.ToString();
-        }
+        return NcmmRuntimeIO.Hash(path);
     }
 
     internal static string ReadSourceCommit(string gameRoot)
@@ -338,6 +333,7 @@ internal static partial class SetupCore
 
     private static void AssertSafeModuleDestination(string destination, string expectedId)
     {
+        NcmmRuntimeIO.GuardTree(destination);
         string manifestPath = Path.Combine(destination, "mod.json");
         if (!File.Exists(manifestPath)) return;
         SetupModuleManifest existing = ReadModuleManifest(manifestPath);
@@ -372,6 +368,7 @@ internal static partial class SetupCore
 
     private static Dictionary<string, string> PackagedFileHashes(string source)
     {
+        NcmmRuntimeIO.GuardTree(source);
         string prefix = Path.GetFullPath(source).TrimEnd(Path.DirectorySeparatorChar) +
                         Path.DirectorySeparatorChar;
         Dictionary<string, string> hashes =
@@ -457,15 +454,23 @@ internal static partial class SetupCore
 
     private static void CopyDirectoryTree(string source, string destination)
     {
+        NcmmRuntimeIO.GuardTree(source);
+        NcmmRuntimeIO.GuardTree(destination);
         Directory.CreateDirectory(destination);
         foreach (string file in Directory.GetFiles(source))
-            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), true);
+        {
+            string target = Path.Combine(destination, Path.GetFileName(file));
+            string staged = target + ".copy-" + Guid.NewGuid().ToString("N");
+            try { NcmmRuntimeIO.CopyDurable(file, staged); NcmmRuntimeIO.PublishFile(staged, target); }
+            finally { if (File.Exists(staged)) File.Delete(staged); }
+        }
         foreach (string directory in Directory.GetDirectories(source))
             CopyDirectoryTree(directory, Path.Combine(destination, Path.GetFileName(directory)));
     }
 
     private static void DeletePath(string path)
     {
+        NcmmRuntimeIO.GuardTree(path);
         if (File.Exists(path))
         {
             File.SetAttributes(path, FileAttributes.Normal);
@@ -483,13 +488,8 @@ internal static partial class SetupCore
 
     private static void WriteJsonAtomic(string path, object value)
     {
-        string directory = Path.GetDirectoryName(path);
-        if (!String.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-        string staged = path + ".tmp-" + Guid.NewGuid().ToString("N");
-        string json = new JavaScriptSerializer().Serialize(value) + Environment.NewLine;
-        File.WriteAllText(staged, json, new UTF8Encoding(false));
-        if (File.Exists(path)) File.Replace(staged, path, null);
-        else File.Move(staged, path);
+        NcmmRuntimeIO.WriteTextAtomic(path,
+            new JavaScriptSerializer().Serialize(value) + Environment.NewLine);
     }
 
     private static string SetupPendingPath(string gameRoot)
@@ -533,10 +533,15 @@ internal static partial class SetupCore
         string transactionId = Guid.NewGuid().ToString("N");
         string backupRoot = Path.Combine(gameRoot, SetupTransactionPrefix + transactionId);
         string snapshotRoot = Path.Combine(backupRoot, "snapshot");
+        // Reject bad source/destination trees before creating a transaction or copying files.
+        NcmmRuntimeIO.GuardTree(payloadRoot);
+        foreach (string relative in GetManagedSetupPaths(gameRoot, payloadRoot))
+            NcmmRuntimeIO.GuardTree(Path.Combine(gameRoot, relative));
+        NcmmRuntimeIO.GuardPath(SetupPendingPath(gameRoot));
         Directory.CreateDirectory(snapshotRoot);
 
         SetupSnapshotManifest snapshot = new SetupSnapshotManifest();
-        snapshot.schema = 1;
+        snapshot.schema = 2;
         snapshot.game_root = gameRoot;
         snapshot.entries = new List<SetupSnapshotEntry>();
 
@@ -553,12 +558,21 @@ internal static partial class SetupCore
 
             if (!exists) continue;
             string destination = Path.Combine(snapshotRoot, relativePath);
-            if (isDirectory) CopyDirectoryTree(source, destination);
+            if (isDirectory)
+            {
+                entry.files = NcmmRuntimeIO.TreeIdentity(source);
+                CopyDirectoryTree(source, destination);
+                if (!NcmmRuntimeIO.SameIdentity(entry.files, NcmmRuntimeIO.TreeIdentity(destination)))
+                    throw new IOException("Setup directory changed while taking a snapshot: " + relativePath);
+            }
             else
             {
                 string parent = Path.GetDirectoryName(destination);
                 if (!String.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
-                File.Copy(source, destination, true);
+                entry.sha256 = Sha256(source);
+                NcmmRuntimeIO.CopyDurable(source, destination);
+                if (Sha256(destination) != entry.sha256)
+                    throw new IOException("Setup file changed while taking a snapshot: " + relativePath);
             }
         }
 
@@ -604,48 +618,83 @@ internal static partial class SetupCore
     private static void RestoreSetupTransaction(SetupTransactionState state)
     {
         AssertTransactionPathSafe(state.game_root, state.backup_root);
+        NcmmRuntimeIO.GuardTree(state.backup_root);
         string manifestPath = Path.Combine(state.backup_root, "snapshot.json");
         if (!File.Exists(manifestPath))
-            throw new InvalidOperationException("NCMM setup rollback snapshot is missing.");
-
-        SetupSnapshotManifest snapshot =
-            new JavaScriptSerializer().Deserialize<SetupSnapshotManifest>(File.ReadAllText(manifestPath));
-        if (snapshot == null || snapshot.schema != 1 || snapshot.entries == null)
-            throw new InvalidOperationException("NCMM setup rollback snapshot is invalid.");
-
-        string expectedRoot = Path.GetFullPath(state.game_root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        string snapshotGameRoot = Path.GetFullPath(snapshot.game_root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        if (!String.Equals(expectedRoot, snapshotGameRoot, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("NCMM setup rollback snapshot targets a different game root.");
-
+            throw new InvalidOperationException("NCMM setup rollback snapshot is missing; live files preserved.");
+        SetupSnapshotManifest snapshot = new JavaScriptSerializer()
+            .Deserialize<SetupSnapshotManifest>(File.ReadAllText(manifestPath));
+        if (snapshot == null || snapshot.schema != 2 || snapshot.entries == null || snapshot.entries.Count == 0)
+            throw new InvalidOperationException("NCMM rollback snapshot has no verifiable inventory; live files preserved.");
+        string root = NcmmRuntimeIO.Root(state.game_root);
+        if (String.IsNullOrWhiteSpace(snapshot.game_root) ||
+            !String.Equals(root, NcmmRuntimeIO.Root(snapshot.game_root), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("NCMM rollback snapshot targets a different game root.");
         string snapshotRoot = Path.Combine(state.backup_root, "snapshot");
+        HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Complete validation before the FIRST mutation, including every file in directory snapshots.
         foreach (SetupSnapshotEntry entry in snapshot.entries)
         {
             if (entry == null || String.IsNullOrWhiteSpace(entry.relative_path))
-                throw new InvalidOperationException("NCMM setup rollback snapshot contains an invalid path.");
-
-            string target = Path.GetFullPath(Path.Combine(state.game_root, entry.relative_path));
-            string rootPrefix = expectedRoot + Path.DirectorySeparatorChar;
-            if (!target.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("NCMM setup rollback path escapes the game root.");
-
-            DeletePath(target);
-            if (!entry.existed) continue;
-
+                throw new InvalidOperationException("Invalid setup rollback path.");
+            string rel = entry.relative_path.Replace('\\', '/');
+            string[] parts = rel.Split('/');
+            bool allowed = rel == "cataclysm-tiles.exe" || rel == "cataclysm-tiles.vanilla.exe" || rel == "ncmm" ||
+                           (parts.Length == 2 && parts[0] == "code_mods" && SafeModuleDirectoryName(parts[1]));
+            if (!allowed || !seen.Add(rel)) throw new InvalidOperationException("Unexpected or duplicate rollback path: " + rel);
+            string target = Path.Combine(root, entry.relative_path);
             string source = Path.Combine(snapshotRoot, entry.relative_path);
+            NcmmRuntimeIO.GuardTree(target);
+            if (!entry.existed) continue;
             if (entry.directory)
             {
-                if (!Directory.Exists(source))
-                    throw new InvalidOperationException("NCMM setup rollback directory snapshot is missing: " + entry.relative_path);
-                CopyDirectoryTree(source, target);
+                if (!Directory.Exists(source) || !NcmmRuntimeIO.SameIdentity(entry.files, NcmmRuntimeIO.TreeIdentity(source)))
+                    throw new IOException("Damaged setup directory snapshot; live files preserved: " + rel);
             }
-            else
+            else if (!File.Exists(source) || String.IsNullOrEmpty(entry.sha256) || Sha256(source) != entry.sha256)
+                throw new IOException("Damaged setup file snapshot; live files preserved: " + rel);
+        }
+        // Stage all replacements first. Originals displaced below stay in the transaction until commit.
+        string recovery = Path.Combine(state.backup_root, "recovery-" + Guid.NewGuid().ToString("N"));
+        foreach (SetupSnapshotEntry entry in snapshot.entries)
+        {
+            if (!entry.existed) continue;
+            string staged = Path.Combine(recovery, "staged", entry.relative_path);
+            string source = Path.Combine(snapshotRoot, entry.relative_path);
+            if (entry.directory) CopyDirectoryTree(source, staged);
+            else NcmmRuntimeIO.CopyDurable(source, staged);
+        }
+        foreach (SetupSnapshotEntry entry in snapshot.entries)
+        {
+            string target = Path.Combine(root, entry.relative_path);
+            string staged = Path.Combine(recovery, "staged", entry.relative_path);
+            string previous = Path.Combine(recovery, "previous", entry.relative_path);
+            NcmmRuntimeIO.GuardTree(target);
+            Directory.CreateDirectory(Path.GetDirectoryName(previous));
+            bool hadDirectory = Directory.Exists(target);
+            bool hadFile = File.Exists(target);
+            if (entry.existed && !entry.directory && hadFile)
             {
-                if (!File.Exists(source))
-                    throw new InvalidOperationException("NCMM setup rollback file snapshot is missing: " + entry.relative_path);
-                string parent = Path.GetDirectoryName(target);
-                if (!String.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
-                File.Copy(source, target, true);
+                File.Replace(staged, target, previous);
+                continue;
+            }
+            if (hadDirectory) Directory.Move(target, previous);
+            else if (hadFile) File.Move(target, previous);
+            try
+            {
+                if (!entry.existed) continue;
+                Directory.CreateDirectory(Path.GetDirectoryName(target));
+                if (entry.directory) Directory.Move(staged, target);
+                else File.Move(staged, target);
+            }
+            catch
+            {
+                if (!Directory.Exists(target) && !File.Exists(target))
+                {
+                    if (hadDirectory) Directory.Move(previous, target);
+                    else if (hadFile) File.Move(previous, target);
+                }
+                throw; // durable snapshot and any displaced files remain recoverable
             }
         }
     }
@@ -659,6 +708,10 @@ internal static partial class SetupCore
 
     internal static bool RecoverPendingSetupTransaction(string gameRoot)
     {
+        using (NcmmInstallLock gate = NcmmInstallLock.Acquire(gameRoot))
+        {
+            AssertGameNotRunning(gameRoot);
+
         gameRoot = Path.GetFullPath(gameRoot.Trim());
         SetupTransactionState state = ReadPendingSetupTransaction(gameRoot);
         if (state == null) return false;
@@ -667,6 +720,7 @@ internal static partial class SetupCore
             RestoreSetupTransaction(state);
         CleanupSetupTransaction(state);
         return true;
+            }
     }
 
     private static void UpdateSetupTransactionPhase(string gameRoot, string phase)
@@ -716,8 +770,15 @@ internal static partial class SetupCore
                 "Refusing to remove files from module directory owned by a different module: " + destination);
 
         string dll = Path.Combine(destination, "ncmm_mod.dll");
+        NcmmRuntimeIO.GuardTree(destination);
         if (File.Exists(dll)) File.Delete(dll);
-        File.Delete(manifestPath);
+        if (Directory.Exists(Path.Combine(destination, "persistent_data")))
+        {
+            // Keep the Host discovery entry for save-critical definitions, without runnable code.
+            string disabled = Path.Combine(destination, "disabled");
+            if (!File.Exists(disabled)) File.WriteAllText(disabled, "disabled-by-ncmm-setup");
+        }
+        else File.Delete(manifestPath);
 
         // Preserve user-created disabled markers, notes and any future module state files.
         if (Directory.GetFileSystemEntries(destination).Length == 0)
@@ -795,6 +856,19 @@ internal static partial class SetupCore
             }
         }
 
+        Dictionary<string, string> activeDirectories = new Dictionary<string, string>(StringComparer.Ordinal);
+        string modsRoot = Path.Combine(gameRoot, "code_mods");
+        foreach (string directory in Directory.GetDirectories(modsRoot))
+        {
+            if (!File.Exists(Path.Combine(directory, "ncmm_mod.dll")) ||
+                !File.Exists(Path.Combine(directory, "mod.json")) || File.Exists(Path.Combine(directory, "disabled"))) continue;
+            SetupModuleManifest manifest = ReadModuleManifest(Path.Combine(directory, "mod.json"));
+            if (manifest == null || !expectedIds.Contains(manifest.id)) continue;
+            if (activeDirectories.ContainsKey(manifest.id))
+                throw new InvalidOperationException("Duplicate active module ID after installation: " + manifest.id);
+            activeDirectories.Add(manifest.id, directory);
+        }
+
         string installedStatePath = Path.Combine(ncmm, "installed-components.json");
         if (!File.Exists(installedStatePath))
             throw new InvalidOperationException("Post-install verification failed; installed-components.json is missing.");
@@ -840,17 +914,50 @@ internal static partial class SetupCore
         return Install(gameRoot, payloadRoot, null);
     }
 
+    private static HashSet<string> ResolveSelectedModuleIds(
+        List<SetupBundledModule> bundledModules, IEnumerable<string> selectedModuleIds)
+    {
+        HashSet<string> knownIds = new HashSet<string>(
+            bundledModules.Select(module => module.Manifest.id), StringComparer.Ordinal);
+        HashSet<string> selected = selectedModuleIds == null
+            ? new HashSet<string>(knownIds, StringComparer.Ordinal)
+            : new HashSet<string>(
+                selectedModuleIds.Where(id => !String.IsNullOrWhiteSpace(id)).Select(id => id.Trim()),
+                StringComparer.Ordinal);
+
+        foreach (string id in selected)
+        {
+            if (!knownIds.Contains(id))
+                throw new InvalidOperationException("Unknown bundled NCMM component selected: " + id);
+        }
+        return selected;
+    }
+
     internal static InstallResult Install(string gameRoot, string payloadRoot, IEnumerable<string> selectedModuleIds)
     {
+        // Read-only input validation precedes even creation of the persistent lock file.
+        // Materialize a caller's lazy selection once; InstallCore revalidates that snapshot
+        // after acquiring the lock, rather than enumerating external input a second time.
+        gameRoot = NcmmRuntimeIO.Root(gameRoot);
+        payloadRoot = NcmmRuntimeIO.Root(payloadRoot);
+        NcmmRuntimeIO.GuardTree(payloadRoot);
+        if (!File.Exists(Path.Combine(payloadRoot, "cataclysm-tiles.ncmm-bootstrap.exe")))
+            throw new InvalidOperationException("Installer payload is incomplete: bootstrap missing.");
+        HashSet<string> requested = ResolveSelectedModuleIds(
+            DiscoverBundledModules(Path.Combine(payloadRoot, "code_mods")), selectedModuleIds);
+        using (NcmmInstallLock gate = NcmmInstallLock.Acquire(gameRoot))
+        {
+
         gameRoot = Path.GetFullPath(gameRoot.Trim());
         payloadRoot = Path.GetFullPath(payloadRoot.Trim());
 
         AssertGameNotRunning(gameRoot);
+        NcmmRuntimeIO.RecoverHost(gameRoot);
         RecoverPendingSetupTransaction(gameRoot);
         SetupTransactionState transaction = BeginSetupTransaction(gameRoot, payloadRoot);
         try
         {
-            InstallResult result = InstallCore(gameRoot, payloadRoot, selectedModuleIds);
+            InstallResult result = InstallCore(gameRoot, payloadRoot, requested);
             VerifyInstalledPayload(gameRoot, payloadRoot, result);
             UpdateSetupTransactionPhase(gameRoot, "ready_to_commit");
             CommitSetupTransaction(gameRoot);
@@ -878,6 +985,7 @@ internal static partial class SetupCore
             }
             throw;
         }
+            }
     }
 
     private static InstallResult InstallCore(string gameRoot, string payloadRoot, IEnumerable<string> selectedModuleIds)
@@ -904,19 +1012,7 @@ internal static partial class SetupCore
                 if (old != null && !String.IsNullOrEmpty(old.id) &&
                     !previousById.ContainsKey(old.id))
                     previousById[old.id] = old;
-        HashSet<string> knownIds = new HashSet<string>(
-            bundledModules.Select(module => module.Manifest.id), StringComparer.Ordinal);
-        HashSet<string> selected = selectedModuleIds == null
-            ? new HashSet<string>(knownIds, StringComparer.Ordinal)
-            : new HashSet<string>(
-                selectedModuleIds.Where(id => !String.IsNullOrWhiteSpace(id)).Select(id => id.Trim()),
-                StringComparer.Ordinal);
-
-        foreach (string id in selected)
-        {
-            if (!knownIds.Contains(id))
-                throw new InvalidOperationException("Unknown bundled NCMM component selected: " + id);
-        }
+        HashSet<string> selected = ResolveSelectedModuleIds(bundledModules, selectedModuleIds);
 
         Directory.CreateDirectory(ncmm);
         Directory.CreateDirectory(mods);
@@ -953,6 +1049,15 @@ internal static partial class SetupCore
         }
         else
         {
+            // Missing receipts cannot turn an unrecognized old bootstrap into a "vanilla" backup.
+            if (File.Exists(vanilla) && String.IsNullOrWhiteSpace(previousBootstrapHash))
+                throw new InvalidOperationException("Unknown executable with a missing bootstrap receipt. Existing vanilla backup preserved; repair the installation identity first.");
+            try
+            {
+                System.Reflection.AssemblyName.GetAssemblyName(exe);
+                throw new InvalidOperationException("Unrecognized managed launcher cannot be used as the native CDDA vanilla backup.");
+            }
+            catch (BadImageFormatException) { } // Native CDDA / synthetic test fixture, not a .NET launcher.
             if (File.Exists(vanilla))
             {
                 string archive = Path.Combine(ncmm,
@@ -1000,7 +1105,10 @@ internal static partial class SetupCore
                 Dictionary<string, string> fileInventory = PackagedFileHashes(module.SourceDirectory);
                 SetupInstalledComponent old;
                 previousById.TryGetValue(module.Manifest.id, out old);
-                RemoveStalePackagedFiles(destination, old, fileInventory);
+                bool sameDirectory = old != null && String.Equals(old.directory, module.DirectoryName, StringComparison.OrdinalIgnoreCase);
+                RemoveStalePackagedFiles(destination, sameDirectory ? old : null, fileInventory);
+                string disabled = Path.Combine(destination, "disabled");
+                if (File.Exists(disabled) && File.ReadAllText(disabled) == "disabled-by-ncmm-setup") File.Delete(disabled);
                 CopyDirectoryTree(module.SourceDirectory, destination);
                 installedIds.Add(module.Manifest.id);
                 componentState.Add(new SetupInstalledComponent {
@@ -1020,8 +1128,9 @@ internal static partial class SetupCore
         // modules positively identified by the old NCMM installation receipt.
         foreach (SetupInstalledComponent old in previousById.Values)
         {
-            if (old.id == "ncmm_host" || knownIds.Contains(old.id) ||
-                !SafeModuleDirectoryName(old.directory)) continue;
+            if (old.id == "ncmm_host" || !SafeModuleDirectoryName(old.directory)) continue;
+            SetupBundledModule replacement = bundledModules.FirstOrDefault(m => m.Manifest.id == old.id);
+            if (replacement != null && String.Equals(replacement.DirectoryName, old.directory, StringComparison.OrdinalIgnoreCase)) continue;
             RemoveManagedModuleFiles(Path.Combine(mods, old.directory), old.id);
         }
 
@@ -1061,6 +1170,12 @@ internal static partial class SetupCore
     // successfully installed local bootstrap and native modules.
     internal static SetupHostSyncResult SyncCertifiedHost(string gameRoot)
     {
+        using (NcmmInstallLock gate = NcmmInstallLock.Acquire(gameRoot))
+        {
+            AssertGameNotRunning(gameRoot);
+            NcmmRuntimeIO.GuardTree(Path.Combine(gameRoot, "ncmm"));
+            NcmmRuntimeIO.RecoverHost(gameRoot);
+
         gameRoot = Path.GetFullPath(gameRoot.Trim());
         AssertGameNotRunning(gameRoot);
         string ncmm = Path.Combine(gameRoot, "ncmm");
@@ -1069,9 +1184,6 @@ internal static partial class SetupCore
             throw new InvalidOperationException("Vanilla executable missing; refusing Host update.");
         string vanillaSha = Sha256(vanilla).ToLowerInvariant();
         string commit = ReadSourceCommit(gameRoot) ?? "";
-        System.Text.RegularExpressions.Match match =
-            System.Text.RegularExpressions.Regex.Match(commit, "^[0-9a-fA-F]{7,40}");
-        commit = match.Success ? match.Value.ToLowerInvariant() : "";
 
         SetupCertifiedHostFeed feed;
         try
@@ -1122,96 +1234,36 @@ internal static partial class SetupCore
         }) + Environment.NewLine;
 
         string staged = Path.Combine(ncmm, "host.setup-" + Guid.NewGuid().ToString("N") + ".exe");
-        string backup = null;
-        bool hadHost = File.Exists(target);
-        bool hadBinding = File.Exists(bindingPath);
-        bool replacedHost = false;
+        bool changed = !String.Equals(actual, expectedHash, StringComparison.OrdinalIgnoreCase);
         try
         {
-            Directory.CreateDirectory(ncmm);
-            if (!String.Equals(actual, expectedHash, StringComparison.OrdinalIgnoreCase))
+            if (changed)
             {
                 using (SetupDownloadClient web = new SetupDownloadClient())
                 {
                     web.Headers[System.Net.HttpRequestHeader.UserAgent] = "NCMM-Setup/" + RuntimeVersion;
                     web.DownloadFile(entry.host_url, staged);
                 }
-                if (!String.Equals(Sha256(staged), expectedHash, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException("Downloaded Host SHA256 mismatch; file rejected.");
             }
-
-            backup = Path.Combine(ncmm, "host-backups",
-                                  "setup-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") +
-                                  "-" + Guid.NewGuid().ToString("N").Substring(0, 8));
-            Directory.CreateDirectory(backup);
-            if (hadHost) File.Copy(target, Path.Combine(backup, "previous-host.exe"));
-            if (hadBinding) File.Copy(bindingPath, Path.Combine(backup, "previous-binding.json"));
-
-            if (File.Exists(staged))
-            {
-                if (hadHost) File.Replace(staged, target, null);
-                else File.Move(staged, target);
-                replacedHost = true;
-            }
-            if (!String.Equals(Sha256(target), expectedHash, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Installed Host SHA256 verification failed.");
-
-            WriteJsonAtomic(bindingPath, new SetupHostBinding {
-                vanilla_sha256 = vanillaSha,
-                host_sha256 = expectedHash,
-                source_commit = entry.source_commit,
-                upstream_tag = entry.upstream_tag,
-                patch_revision = entry.patch_revision,
-                ncmm_version = entry.ncmm_version,
-                loader_api = entry.loader_api,
-                installed_utc = DateTime.UtcNow.ToString("o")
-            });
-            SetupHostBinding bound = new JavaScriptSerializer()
-                .Deserialize<SetupHostBinding>(File.ReadAllText(bindingPath));
-            if (bound == null || bound.host_sha256 != expectedHash ||
-                bound.vanilla_sha256 != vanillaSha ||
-                bound.patch_revision != entry.patch_revision)
-                throw new InvalidOperationException("Host binding post-install verification failed.");
-
+            else NcmmRuntimeIO.CopyDurable(target, staged);
+            AssertGameNotRunning(gameRoot);
+            NcmmRuntimeIO.PublishHost(gameRoot, staged, newBindingJson, expectedHash);
             return new SetupHostSyncResult {
-                Ready = true,
-                HostSha256 = expectedHash,
-                PatchRevision = entry.patch_revision,
-                Message = (replacedHost ? "Certified Host installed" : "Certified Host already current") +
-                          ": " + entry.upstream_tag + ", patch " +
-                          entry.patch_revision.Substring(0, 12) +
-                          ". Exact SHA256 and bootstrap binding VERIFIED."
+                Ready = true, HostSha256 = expectedHash, PatchRevision = entry.patch_revision,
+                Message = (changed ? "Certified Host installed" : "Certified Host already current") +
+                    ": " + entry.upstream_tag + ", patch " + entry.patch_revision.Substring(0, 12) +
+                    ". Exact SHA256 and bootstrap binding VERIFIED."
             };
         }
         catch (Exception ex)
         {
-            // Never leave a half-updated host/binding on a download or write failure.
-            if (backup != null && Directory.Exists(backup))
-            {
-                try
-                {
-                    if (hadHost) File.Copy(Path.Combine(backup, "previous-host.exe"), target, true);
-                    else if (File.Exists(target)) File.Delete(target);
-                    if (hadBinding) File.Copy(Path.Combine(backup, "previous-binding.json"), bindingPath, true);
-                    else if (File.Exists(bindingPath)) File.Delete(bindingPath);
-                }
-                catch (Exception rollbackError)
-                {
-                    throw new InvalidOperationException(
-                        "Host update failed AND rollback failed; backups preserved at " + backup +
-                        ". Install error: " + ex.Message + " | rollback: " + rollbackError.Message);
-                }
-            }
             return new SetupHostSyncResult {
-                Ready = false,
-                Message = "Certified Host update failed: " + ex.Message +
-                          ". Previous Host/binding restored; new renderer NOT verified."
+                Ready = false, Message = "Certified Host update was not verified: " + ex.Message +
+                    ". Recovery material is preserved; do not assume the new renderer is active."
             };
         }
-        finally
-        {
-            if (File.Exists(staged)) File.Delete(staged);
-        }
+        finally { if (File.Exists(staged)) File.Delete(staged); }
+            }
     }
 
     // Pure, deterministic validation also used by the installation-matrix tests.
@@ -1247,8 +1299,7 @@ internal static partial class SetupCore
             entry = null;
             return false;
         }
-        if (!String.IsNullOrEmpty(sourceCommit) &&
-            !entry.source_commit.StartsWith(sourceCommit, StringComparison.OrdinalIgnoreCase))
+        if (!NcmmRuntimeIO.SourceMatches(entry.source_commit, sourceCommit))
         {
             reason = "Certified Host source commit does not match this CDDA build";
             entry = null;
@@ -1272,6 +1323,12 @@ internal static partial class SetupCore
 
     internal static void RestoreVanilla(string gameRoot)
     {
+        using (NcmmInstallLock gate = NcmmInstallLock.Acquire(gameRoot))
+        {
+            if (NcmmRuntimeIO.HasSaveCriticalData(gameRoot))
+                throw new InvalidOperationException("Native save-compatibility definitions are installed. Disable individual modules instead; restoring vanilla can make existing NCMM saves unreadable. No files changed.");
+            NcmmRuntimeIO.RecoverHost(gameRoot);
+
         gameRoot = Path.GetFullPath(gameRoot.Trim());
         string exe = Path.Combine(gameRoot, "cataclysm-tiles.exe");
         string vanilla = Path.Combine(gameRoot, "cataclysm-tiles.vanilla.exe");
@@ -1301,10 +1358,16 @@ internal static partial class SetupCore
         {
             if (File.Exists(staged)) File.Delete(staged);
         }
+            }
     }
 
     internal static string RepairState(string gameRoot)
     {
+        using (NcmmInstallLock gate = NcmmInstallLock.Acquire(gameRoot))
+        {
+            AssertGameNotRunning(gameRoot);
+            NcmmRuntimeIO.GuardTree(Path.Combine(gameRoot, "ncmm"));
+
         gameRoot = Path.GetFullPath(gameRoot.Trim());
         DescribeInstallation(gameRoot);
 
@@ -1336,6 +1399,7 @@ internal static partial class SetupCore
 
         File.AppendAllText(Path.Combine(ncmm, "repair.log"), result.ToString(), Encoding.UTF8);
         return result.ToString();
+            }
     }
 
     internal static List<DetectedInstallation> DetectInstallations()

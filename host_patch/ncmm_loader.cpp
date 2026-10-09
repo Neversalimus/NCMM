@@ -81,6 +81,8 @@ struct loaded_mod {
     uint32_t state_min_supported = 0;
     bool migration_ready = false;
     bool migration_suspended = false;
+    int64_t migration_attempt_schema = -1;
+    bool world_announced = false;
     std::string default_hotkey;
     runtime_fault_policy fault;
 };
@@ -326,6 +328,7 @@ class ncmm_ui_rpg_theme_scope
 };
 bool shutdown_registered = false;
 bool gameplay_metrics_subscribed = false;
+void reset_world_lifecycle();
 
 class gameplay_metric_subscriber : public event_subscriber
 {
@@ -335,12 +338,14 @@ class gameplay_metric_subscriber : public event_subscriber
         void notify( const cata::event &e ) override
         {
             if( e.type() == event_type::game_load ) {
+                reset_world_lifecycle();
                 gameplay_metric_values.clear();
                 gameplay_avatar_id = character_id();
                 gameplay_avatar_id_ready = false;
                 return;
             }
             if( e.type() == event_type::game_avatar_new ) {
+                reset_world_lifecycle();
                 gameplay_metric_values.clear();
                 gameplay_avatar_id = e.get<character_id>( "avatar_id" );
                 gameplay_avatar_id_ready = true;
@@ -918,7 +923,7 @@ bool module_modifiers_quarantined( const char *module_id )
     for( const loaded_mod &mod : loaded ) {
         if( mod.descriptor && mod.descriptor->id &&
             std::string( mod.descriptor->id ) == module_id ) {
-            return mod.fault.modifiers_quarantined;
+            return mod.fault.modifiers_quarantined || mod.migration_suspended;
         }
     }
     return false;
@@ -1426,21 +1431,32 @@ bool virtual_item_assign_internal( const char *module_id, const char *slot_id,
 
     const std::string new_marker = virtual_item_marker( module_id, slot_id );
     const std::string module_prefix = std::string( module_id ) + ":";
-    const std::string previous_marker =
-        selected->get_var( virtual_item_marker_key, "" );
-    if( previous_marker.rfind( module_prefix, 0 ) == 0 &&
-        previous_marker != new_marker ) {
-        const std::string old_slot =
-            previous_marker.substr( module_prefix.size() );
-        if( safe_virtual_slot_id( old_slot.c_str() ) ) {
-            virtual_item_state_set_uid_internal(
-                module_id, old_slot.c_str(), 0 );
-            virtual_item_state_set_flags_internal(
-                module_id, old_slot.c_str(), 0u );
-        }
+    const std::string previous_marker = selected->get_var( virtual_item_marker_key, "" );
+    const int64_t selected_uid = selected->uid().get_value();
+    if( previous_marker == new_marker ) {
+        // Idempotent reselection must not remove/reinsert the object being selected.
+        virtual_item_state_set_uid_internal( module_id, slot_id, selected_uid );
+        virtual_item_state_set_flags_internal( module_id, slot_id, flags );
+        return true;
     }
 
     virtual_item_clear_internal( module_id, slot_id );
+    selected = nullptr;
+    for( item_location current : get_avatar().all_items_loc() ) {
+        if( current && current->uid().get_value() == selected_uid ) {
+            mutable_loc = current;
+            selected = current.get_item();
+            break;
+        }
+    }
+    if( selected == nullptr || !virtual_item_can_assign_internal( module_id, slot_id, mutable_loc, flags ) ) return false;
+    if( previous_marker.rfind( module_prefix, 0 ) == 0 ) {
+        const std::string old_slot = previous_marker.substr( module_prefix.size() );
+        if( safe_virtual_slot_id( old_slot.c_str() ) ) {
+            virtual_item_state_set_uid_internal( module_id, old_slot.c_str(), 0 );
+            virtual_item_state_set_flags_internal( module_id, old_slot.c_str(), 0u );
+        }
+    }
     if( selected == get_avatar().get_wielded_item().get_item() &&
         std::string_view( module_id ) == survivor_module_id ) {
         mutable_loc = stash_wielded_item_for_mana_hand( mutable_loc );
@@ -2979,29 +2995,40 @@ int event_unsubscribe_all_v2( const char *module_id )
     return 1;
 }
 
+loaded_mod *find_loaded_by_id( const char *module_id );
+bool ensure_state_migrated( loaded_mod &mod );
+void quarantine_runtime_callback( loaded_mod &mod, runtime_callback_kind kind, const char *reason );
+
 void dispatch_event_v2( uint32_t event_id )
 {
     if( !event_available_v2( event_id ) || event_subscriptions_v2.empty() ) return;
     const auto snapshot = event_subscriptions_v2;
-    std::vector<std::string> failed;
+    std::set<std::string> announced;
     for( const auto &s : snapshot ) {
-        if( s.event_id != event_id || s.callback == nullptr ||
-            module_ids.count( s.module_id ) == 0 ) continue;
+        if( s.event_id != event_id || s.callback == nullptr || module_ids.count( s.module_id ) == 0 ) continue;
+        loaded_mod *mod = find_loaded_by_id( s.module_id.c_str() );
+        if( mod == nullptr || !ensure_state_migrated( *mod ) ) continue;
+        if( event_id == NCMM_EVENT_WORLD_LOADED_V2 && mod->world_announced ) continue;
+        if( event_id == NCMM_EVENT_WORLD_UNLOADED_V2 && !mod->world_announced ) continue;
+        // An earlier callback can unsubscribe/quarantine this module during the same dispatch.
+        const auto active = std::find_if( event_subscriptions_v2.begin(), event_subscriptions_v2.end(),
+        [&]( const ncmm_event_subscription_v2_internal &live ) {
+            return live.module_id == s.module_id && live.event_id == s.event_id &&
+                   live.callback == s.callback && live.user_data == s.user_data;
+        } );
+        if( active == event_subscriptions_v2.end() ) continue;
         try {
             module_call_scope scope( s.module_id.c_str() );
             s.callback( event_id, s.user_data );
+            if( event_id == NCMM_EVENT_WORLD_LOADED_V2 ) announced.insert( s.module_id );
         } catch( ... ) {
-            if( std::find( failed.begin(), failed.end(), s.module_id ) == failed.end() ) {
-                failed.push_back( s.module_id );
-            }
-            log_line( NCMM_LOG_WARN, ( "Host API 2.0 event callback failed: " + s.module_id ).c_str() );
+            quarantine_runtime_callback( *mod, runtime_callback_kind::turn, "event_v2_exception" );
         }
     }
-    if( !failed.empty() ) {
-        event_subscriptions_v2.erase( std::remove_if( event_subscriptions_v2.begin(), event_subscriptions_v2.end(),
-        [&]( const ncmm_event_subscription_v2_internal &s ) {
-            return std::find( failed.begin(), failed.end(), s.module_id ) != failed.end();
-        } ), event_subscriptions_v2.end() );
+    for( const std::string &id : announced ) {
+        loaded_mod *mod = find_loaded_by_id( id.c_str() );
+        if( mod != nullptr && !mod->fault.modifiers_quarantined && !mod->migration_suspended )
+            mod->world_announced = true;
     }
 }
 
@@ -3611,26 +3638,28 @@ void quarantine_runtime_callback( loaded_mod &mod, runtime_callback_kind kind,
     const std::string module_id = mod.descriptor && mod.descriptor->id ?
                                   mod.descriptor->id : std::string();
 
-    switch( kind ) {
-        case runtime_callback_kind::turn:
-            mod.on_turn = nullptr;
-            break;
-        case runtime_callback_kind::locale:
-            mod.locale_changed = nullptr;
-            break;
-        case runtime_callback_kind::ui:
-            mod.open_ui = nullptr;
-            mod.item_activate = nullptr;
-            break;
-    }
-
+    // A failed module is one runtime unit, not independent v1/v2 callback islands.
+    const bool newly_quarantined = !mod.fault.modifiers_quarantined;
+    mod.on_turn = nullptr;
+    mod.locale_changed = nullptr;
+    mod.open_ui = nullptr;
+    mod.item_activate = nullptr;
+    mod.fault.quarantine( kind );
+    mod.fault.quarantine( runtime_callback_kind::turn );
+    mod.fault.quarantine( runtime_callback_kind::locale );
+    mod.fault.quarantine( runtime_callback_kind::ui );
     if( !module_id.empty() ) {
         erase_module_modifiers( module_id );
+        event_subscriptions_v2.erase( std::remove_if( event_subscriptions_v2.begin(), event_subscriptions_v2.end(),
+        [&]( const ncmm_event_subscription_v2_internal &s ) { return s.module_id == module_id; } ), event_subscriptions_v2.end() );
+        for( auto it = worldgen_bindings_v2.begin(); it != worldgen_bindings_v2.end(); ) {
+            if( it->second.module_id == module_id ) it = worldgen_bindings_v2.erase( it ); else ++it;
+        }
+        for( auto it = runtime_setting_bindings_v2.begin(); it != runtime_setting_bindings_v2.end(); ) {
+            if( it->second.module_id == module_id ) it = runtime_setting_bindings_v2.erase( it ); else ++it;
+        }
     }
-
-    if( !mod.fault.quarantine( kind ) ) {
-        return;
-    }
+    if( !newly_quarantined ) return;
 
     for( module_state &state : module_states ) {
         if( state.directory.lexically_normal() == mod.directory.lexically_normal() ) {
@@ -3674,6 +3703,7 @@ bool suspend_state_migration( loaded_mod &mod, const char *reason )
 
 bool ensure_state_migrated( loaded_mod &mod )
 {
+    if( mod.fault.modifiers_quarantined ) return false;
     if( mod.migrate_state == nullptr || mod.state_schema == 0 ) {
         return true;
     }
@@ -3681,9 +3711,6 @@ bool ensure_state_migrated( loaded_mod &mod )
         mod.migration_ready = false;
         mod.migration_suspended = false;
         return true;
-    }
-    if( mod.migration_suspended ) {
-        return false;
     }
     if( mod.migration_ready ) {
         return true;
@@ -3699,12 +3726,23 @@ bool ensure_state_migrated( loaded_mod &mod )
         module_call_scope scope( id );
         raw_schema = character_state_get_i64( id, "schema", 0 );
     }
+    // Retry only after the persisted schema changes or a new world is loaded, not every turn.
+    if( mod.migration_suspended && raw_schema == mod.migration_attempt_schema ) return false;
+    mod.migration_attempt_schema = raw_schema;
+    mod.migration_suspended = false;
     if( raw_schema < 0 || raw_schema > 4294967295LL ) {
         return suspend_state_migration( mod, "state_schema_invalid" );
     }
     const uint32_t current = static_cast<uint32_t>( raw_schema );
     if( current == mod.state_schema ) {
         mod.migration_ready = true;
+        for( module_state &state : module_states ) {
+            if( state.directory.lexically_normal() == mod.directory.lexically_normal() && state.state == "suspended" ) {
+                state.state = "loaded"; state.lifecycle = "active"; state.reason = "ok";
+                write_modules_state();
+                break;
+            }
+        }
         return true;
     }
     if( current < mod.state_min_supported || current > mod.state_schema ) {
@@ -4065,11 +4103,20 @@ void load_one( const std::filesystem::path &library )
 
     // Keep module identity and its preferred key as passive metadata.
     // Action IDs/default bindings are derived only when a gameplay input context exists.
-    loaded.push_back( { module, desc, directory, locale_changed, on_turn, open_ui,
-                        item_activate, migrate_state,
-                        manifest.state_contract_declared ? manifest.state_schema : 0u,
-                        manifest.state_contract_declared ? manifest.state_min_supported : 0u,
-                        false, false, manifest.ui_hotkey } );
+    // Populate by field name: lifecycle additions must not silently shift aggregate arguments.
+    loaded_mod active;
+    active.handle = module;
+    active.descriptor = desc;
+    active.directory = directory;
+    active.locale_changed = locale_changed;
+    active.on_turn = on_turn;
+    active.open_ui = open_ui;
+    active.item_activate = item_activate;
+    active.migrate_state = migrate_state;
+    active.state_schema = manifest.state_contract_declared ? manifest.state_schema : 0u;
+    active.state_min_supported = manifest.state_contract_declared ? manifest.state_min_supported : 0u;
+    active.default_hotkey = manifest.ui_hotkey;
+    loaded.push_back( std::move( active ) );
     record_module_state( directory, manifest, "loaded", "ok" );
     log_line( NCMM_LOG_INFO, ( std::string( "Loaded module: " ) + desc->id + " " + desc->version ).c_str() );
 }
@@ -5896,9 +5943,25 @@ void show_manager()
     }
 }
 
+// Definition belongs to the same unnamed namespace as the event subscriber's forward declaration.
+namespace
+{
+void reset_world_lifecycle()
+{
+    api_v2_world_announced = false;
+    for( loaded_mod &mod : loaded ) {
+        mod.migration_ready = false;
+        mod.migration_suspended = false;
+        mod.migration_attempt_schema = -1;
+        mod.world_announced = false;
+        if( mod.descriptor && mod.descriptor->id ) erase_module_modifiers( mod.descriptor->id );
+    }
+}
+} // namespace
+
 void on_turn()
 {
-    if( !api_v2_world_announced && character_state_available() ) {
+    if( character_state_available() ) {
         api_v2_world_announced = true;
         dispatch_event_v2( NCMM_EVENT_WORLD_LOADED_V2 );
     }
@@ -5927,7 +5990,7 @@ void on_language_changed()
 {
     dispatch_event_v2( NCMM_EVENT_LOCALE_CHANGED_V2 );
     for( loaded_mod &mod : loaded ) {
-        if( mod.locale_changed ) {
+        if( mod.locale_changed && ensure_state_migrated( mod ) ) {
             try {
                 module_call_scope scope( mod.descriptor && mod.descriptor->id ?
                                          mod.descriptor->id : nullptr );

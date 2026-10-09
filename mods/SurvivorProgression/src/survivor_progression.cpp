@@ -1,5 +1,7 @@
 #define NCMM_MOD_BUILD
 #include "ncmm_api.h"
+#include "ncmm_sdk_core.hpp"
+#include "ncmm_checked_math.hpp"
 
 #include <algorithm>
 #include <array>
@@ -19,6 +21,7 @@ namespace
 {
 const char *const module_id = "survivor_progression";
 constexpr int state_schema = 8;
+constexpr int max_level_advances_per_tick = 1024; // Corrupt numeric saves must not monopolize a frame.
 constexpr int64_t mobility_steps_per_xp = 300;
 
 const char *required_caps[] = {
@@ -1466,14 +1469,9 @@ int64_t scale_configured_xp( branch_id branch, int64_t adjusted )
     const int64_t rate = progression_xp_rate_pct();
     const std::string key = branch_state_key( branch, "rate_fraction" );
     int64_t fraction = std::max<int64_t>( 0, get_state( key, 0 ) ) % 100;
-    if( adjusted > ( std::numeric_limits<int64_t>::max() - fraction ) /
-        std::max<int64_t>( 1, rate ) ) {
-        adjusted = ( std::numeric_limits<int64_t>::max() - fraction ) /
-                   std::max<int64_t>( 1, rate );
-    }
-    const int64_t scaled = adjusted * rate + fraction;
-    set_state( key, scaled % 100 );
-    return scaled / 100;
+    const int64_t result = ncmm::checked::percent( adjusted, rate, fraction );
+    set_state( key, fraction );
+    return result;
 }
 
 int64_t anti_farm_adjust( branch_id branch, int64_t raw )
@@ -1488,17 +1486,18 @@ int64_t anti_farm_adjust( branch_id branch, int64_t raw )
 
     int64_t streak = std::max<int64_t>( 0,
         get_state( branch_state_key( branch, "streak" ), 0 ) );
-    streak = std::min<int64_t>( 12, streak + 1 );
+    streak = std::min<int64_t>( 11, streak ) + 1;
     set_state( branch_state_key( branch, "streak" ), streak );
 
     const int efficiency = branch_xp_efficiency_pct( branch );
-    int64_t adjusted = raw * efficiency / 100;
+    int64_t discarded_fraction = 0;
+    int64_t adjusted = ncmm::checked::percent( raw, efficiency, discarded_fraction );
     if( adjusted == 0 && raw >= 5 && efficiency >= 20 ) {
         adjusted = 1;
     }
 
     int64_t fatigue_gain = branch == branch_id::mastery ?
-                           raw * 3 : raw * 8;
+                           std::min<int64_t>( raw, 180 ) * 3 : std::min<int64_t>( raw, 180 ) * 8;
     fatigue_gain += std::max<int64_t>( 0, streak - 2 ) * 6;
     fatigue_gain = std::min<int64_t>( 180, fatigue_gain );
 
@@ -1528,14 +1527,9 @@ int64_t apply_branch_xp_balance( branch_id branch, int64_t raw )
     }
     const std::string key = branch_state_key( branch, "balance_fraction" );
     int64_t fraction = std::max<int64_t>( 0, get_state( key, 0 ) ) % 100;
-    if( raw > ( std::numeric_limits<int64_t>::max() - fraction ) /
-        std::max<int64_t>( 1, rate ) ) {
-        raw = ( std::numeric_limits<int64_t>::max() - fraction ) /
-              std::max<int64_t>( 1, rate );
-    }
-    const int64_t scaled = raw * rate + fraction;
-    set_state( key, scaled % 100 );
-    return scaled / 100;
+    const int64_t result = ncmm::checked::percent( raw, rate, fraction );
+    set_state( key, fraction );
+    return result;
 }
 
 int branch_owned_count( branch_id branch )
@@ -2163,6 +2157,9 @@ void migrate_state()
              std::numeric_limits<int64_t>::max() : xp + carry;
         fraction %= 100;
     }
+    // A persisted XP remainder is always below its next level cost. Do not award
+    // millions of free levels while repairing damaged current-schema data.
+    xp = std::min( xp, xp_to_next( level ) - 1 );
     set_state( "xp", xp );
     set_state( "xp_fraction", fraction );
     set_state( "perk_points", std::max<int64_t>( 0, get_state( "perk_points", 0 ) ) );
@@ -2183,7 +2180,7 @@ void migrate_state()
     int64_t major_awarded = std::max<int64_t>( 0, get_state( "major_awarded", 0 ) );
     int64_t major_points = get_state( "major_points", 0 );
     if( upgrading && major_awarded < expected_major_awards ) {
-        major_points += expected_major_awards - major_awarded;
+        major_points = ncmm::checked::add( major_points, expected_major_awards - major_awarded );
         major_awarded = expected_major_awards;
         set_state( "major_points", major_points );
     } else {
@@ -2224,7 +2221,8 @@ void migrate_state()
         set_state( branch_state_key( branch, "level" ),
                    std::max<int64_t>( 1, get_state( branch_state_key( branch, "level" ), 1 ) ) );
         set_state( branch_state_key( branch, "xp" ),
-                   std::max<int64_t>( 0, get_state( branch_state_key( branch, "xp" ), 0 ) ) );
+                   std::min( branch_xp_to_next( branch_level( branch ) ) - 1,
+                             std::max<int64_t>( 0, get_state( branch_state_key( branch, "xp" ), 0 ) ) ) );
 
         int owned_mask = 0;
         for( const perk_def &perk : perks ) {
@@ -2256,9 +2254,9 @@ void migrate_state()
         }
     }
     set_state( "survival_heal_remainder",
-               std::max<int64_t>( 0, get_state( "survival_heal_remainder", 0 ) ) );
+               std::max<int64_t>( 0, get_state( "survival_heal_remainder", 0 ) ) % 10 );
     set_state( "mobility_step_remainder",
-               std::max<int64_t>( 0, get_state( "mobility_step_remainder", 0 ) ) );
+               std::max<int64_t>( 0, get_state( "mobility_step_remainder", 0 ) ) % mobility_steps_per_xp );
     set_state( "mastery_share_fraction",
                std::max<int64_t>( 0, get_state( "mastery_share_fraction", 0 ) ) % 100 );
 
@@ -3279,8 +3277,8 @@ void respec()
     for( const perk_def &perk : perks ) {
         if( perk_rank( perk ) > 0 ) set_state( perk_key( perk ), 0 );
     }
-    set_state( "perk_points", get_state( "perk_points", 0 ) + refund_perk );
-    set_state( "major_points", get_state( "major_points", 0 ) + refund_major );
+    set_state( "perk_points", ncmm::checked::add( get_state( "perk_points", 0 ), refund_perk ) );
+    set_state( "major_points", ncmm::checked::add( get_state( "major_points", 0 ), refund_major ) );
     set_state( "fast_learner", 0 );
     for( branch_id branch : all_branches ) set_state( specialization_state_key( branch ), 0 );
     for( const char *key : {
@@ -3761,36 +3759,30 @@ void award_global_xp( int64_t raw_gained )
     }
 
     int64_t fraction = get_state( "xp_fraction", 0 );
-    const int64_t multiplier = std::max<int64_t>( 0, 100 + current_xp_bonus_pct );
-    if( raw_gained > ( std::numeric_limits<int64_t>::max() - fraction ) /
-        std::max<int64_t>( 1, multiplier ) ) {
-        raw_gained = ( std::numeric_limits<int64_t>::max() - fraction ) /
-                     std::max<int64_t>( 1, multiplier );
-    }
-    fraction += raw_gained * multiplier;
-    int64_t gained = fraction / 100;
-    fraction %= 100;
+    const int64_t multiplier = std::max<int64_t>( 0, 100LL + current_xp_bonus_pct );
+    const int64_t gained = ncmm::checked::percent( raw_gained, multiplier, fraction );
     set_state( "xp_fraction", fraction );
     if( gained <= 0 ) {
         return;
     }
 
     int64_t level = std::max<int64_t>( 1, get_state( "level", 1 ) );
-    int64_t xp = std::max<int64_t>( 0, get_state( "xp", 0 ) ) + gained;
+    int64_t xp = ncmm::checked::add( get_state( "xp", 0 ), gained );
     int64_t perk_points = get_state( "perk_points", 0 );
     int64_t major_points = get_state( "major_points", 0 );
     int64_t major_awarded = get_state( "major_awarded", 0 );
     int64_t levels_gained = 0;
     int64_t majors_gained = 0;
 
-    while( xp >= xp_to_next( level ) && level < std::numeric_limits<int64_t>::max() ) {
+    while( xp >= xp_to_next( level ) && level < std::numeric_limits<int64_t>::max() &&
+           levels_gained < max_level_advances_per_tick ) {
         xp -= xp_to_next( level );
         ++level;
-        ++perk_points;
+        perk_points = ncmm::checked::add( perk_points, 1 );
         ++levels_gained;
         if( level % 5 == 0 ) {
-            ++major_points;
-            ++major_awarded;
+            major_points = ncmm::checked::add( major_points, 1 );
+            major_awarded = ncmm::checked::add( major_awarded, 1 );
             ++majors_gained;
         }
     }
@@ -3823,9 +3815,10 @@ int64_t award_branch_xp( branch_id branch, int64_t raw_gained )
 
     const int64_t old_level = branch_level( branch );
     int64_t level = old_level;
-    int64_t xp = branch_xp( branch ) + gained;
+    int64_t xp = ncmm::checked::add( branch_xp( branch ), gained );
+    int advances = 0;
     while( xp >= branch_xp_to_next( level ) &&
-           level < std::numeric_limits<int64_t>::max() ) {
+           level < std::numeric_limits<int64_t>::max() && advances++ < max_level_advances_per_tick ) {
         xp -= branch_xp_to_next( level );
         ++level;
     }
@@ -3891,10 +3884,9 @@ int64_t apply_activity_diversity_bonus( branch_id branch, int64_t raw, int bonus
         return raw;
     }
     const std::string key = branch_state_key( branch, "diversity_fraction" );
-    int64_t scaled = raw * ( 100 + bonus_pct ) +
-                     std::max<int64_t>( 0, get_state( key, 0 ) );
-    const int64_t result = scaled / 100;
-    set_state( key, scaled % 100 );
+    int64_t fraction = get_state( key, 0 );
+    const int64_t result = ncmm::checked::percent( raw, 100LL + bonus_pct, fraction );
+    set_state( key, fraction );
     return result;
 }
 
@@ -3918,10 +3910,9 @@ int64_t scale_activity_xp( branch_id branch, int64_t raw, int diversity_bonus_pc
     const int total_bonus = diversity_bonus_pct + integration_branch_xp_bonus_pct( branch );
     if( total_bonus <= 0 ) return raw;
     const std::string key = branch_state_key( branch, "activity_bonus_fraction" );
-    int64_t scaled = raw * ( 100 + total_bonus ) +
-                     std::max<int64_t>( 0, get_state( key, 0 ) );
-    const int64_t result = scaled / 100;
-    set_state( key, scaled % 100 );
+    int64_t fraction = get_state( key, 0 );
+    const int64_t result = ncmm::checked::percent( raw, 100LL + total_bonus, fraction );
+    set_state( key, fraction );
     return result;
 }
 
@@ -3931,11 +3922,11 @@ void poll_branch_xp()
 
     const int64_t kills = metric_delta( "combat.kills", "metric_combat_kills" );
     const int64_t kill_xp = metric_delta( "combat.kill_xp", "metric_combat_kill_xp" );
-    int64_t combat_gain = std::min<int64_t>( std::max<int64_t>( kills, ( kill_xp + 49 ) / 50 ), 25 );
+    int64_t combat_gain = std::min<int64_t>( std::max<int64_t>( kills, ( kill_xp / 50 + ( kill_xp % 50 != 0 ? 1 : 0 ) ) ), 25 );
 
     int64_t healing = metric_delta( "survival.healing", "metric_survival_healing" );
     const int64_t old_heal_remainder = get_state( "survival_heal_remainder", 0 );
-    healing += old_heal_remainder;
+    healing = ncmm::checked::add( healing, ncmm::checked::nonnegative( old_heal_remainder ) % 10 );
     int64_t survival_gain = std::min<int64_t>( healing / 10, 8 );
     const int64_t new_heal_remainder = healing % 10;
     if( new_heal_remainder != old_heal_remainder ) {
@@ -3944,7 +3935,7 @@ void poll_branch_xp()
 
     int64_t steps = metric_delta( "mobility.steps", "metric_mobility_steps" );
     const int64_t old_step_remainder = get_state( "mobility_step_remainder", 0 );
-    steps += old_step_remainder;
+    steps = ncmm::checked::add( steps, ncmm::checked::nonnegative( old_step_remainder ) % mobility_steps_per_xp );
     int64_t mobility_gain = std::min<int64_t>( steps / mobility_steps_per_xp, 3 );
     const int64_t new_step_remainder = steps % mobility_steps_per_xp;
     if( new_step_remainder != old_step_remainder ) {
@@ -3952,11 +3943,11 @@ void poll_branch_xp()
     }
 
     const int64_t crafts = metric_delta( "crafting.completed", "metric_crafting_completed" );
-    int64_t crafting_gain = std::min<int64_t>( crafts * 3, 12 );
+    int64_t crafting_gain = std::min<int64_t>( crafts, 4 ) * 3;
     const int64_t omts = metric_delta( "scavenging.omt", "metric_scavenging_omt" );
-    int64_t scavenging_gain = std::min<int64_t>( omts * 4, 8 );
+    int64_t scavenging_gain = std::min<int64_t>( omts, 2 ) * 4;
     const int64_t skill_levels = metric_delta( "mastery.skill_levels", "metric_mastery_skill_levels" );
-    int64_t mastery_gain = std::min<int64_t>( skill_levels * 6, 18 );
+    int64_t mastery_gain = std::min<int64_t>( skill_levels, 3 ) * 6;
 
     int active = 0;
     active += combat_gain > 0 ? 1 : 0;
@@ -3981,7 +3972,8 @@ void poll_branch_xp()
     activity_total += award_branch_xp( branch_id::scavenging, scavenging_gain );
 
     const int64_t old_mastery_fraction = get_state( "mastery_share_fraction", 0 );
-    int64_t mastery_fraction = old_mastery_fraction + activity_total * 10;
+    int64_t mastery_fraction = ncmm::checked::add( ncmm::checked::nonnegative( old_mastery_fraction ) % 100,
+                                ncmm::checked::multiply( activity_total, 10 ) );
     mastery_gain += mastery_fraction / 100;
     mastery_fraction %= 100;
     if( mastery_fraction != old_mastery_fraction ) {
@@ -4208,11 +4200,11 @@ bool configure_host_api2_runtime_hooks()
 }
 int init( const ncmm_host_api_v1 *api )
 {
-    if( api == nullptr || api->abi_version != NCMM_ABI_VERSION || api->query_interface == nullptr ) return 0;
-    host2 = static_cast<const ncmm_host_api_v2_core *>(
-                api->query_interface( NCMM_HOST_API_V2_CORE_ID, 2u, 1u ) );
-    if( host2 == nullptr || host2->api_major != 2u ||
-        host2->api_minor < 1u || host2->virtual_item_choose == nullptr ||
+    const auto core = ncmm::sdk::require_core( api, required_caps,
+        sizeof( required_caps ) / sizeof( required_caps[0] ),
+        NCMM_SDK_CORE_FIELD_END( virtual_item_uid ), 1u );
+    host2 = core ? core.core : nullptr;
+    if( host2 == nullptr || host2->virtual_item_choose == nullptr ||
         host2->virtual_item_clear == nullptr || host2->virtual_item_name == nullptr ||
         host2->virtual_item_uid == nullptr || !configure_host_api2_runtime_hooks() ) return 0;
     if( api == nullptr || api->abi_version != NCMM_ABI_VERSION ) {
@@ -4482,6 +4474,15 @@ extern "C" NCMM_EXPORT int ncmm_test_respec_v1()
         return 0;
     }
     respec();
+    return 1;
+}
+
+extern "C" NCMM_EXPORT int ncmm_test_award_xp_boundary_v1( int64_t raw, int branch )
+{
+    if( !character_available() ) return 0;
+    if( branch < 0 ) award_global_xp( raw );
+    else if( branch <= static_cast<int>( branch_id::mastery ) ) award_branch_xp( static_cast<branch_id>( branch ), raw );
+    else return 0;
     return 1;
 }
 

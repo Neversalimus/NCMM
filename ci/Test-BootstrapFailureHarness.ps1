@@ -72,7 +72,7 @@ function Write-ValidBinding([string]$Root) {
     $binding = [ordered]@{
         vanilla_sha256 = (Get-FileHash $vanilla -Algorithm SHA256).Hash.ToLowerInvariant()
         host_sha256 = (Get-FileHash $hostExe -Algorithm SHA256).Hash.ToLowerInvariant()
-        source_commit = ''
+        source_commit = ('b' * 40)
         upstream_tag = 'failure-harness'
         patch_revision = ('a' * 64)
         ncmm_version = $RuntimeVersionUnderTest
@@ -154,8 +154,8 @@ try {
         Assert-True (-not (Test-Path (Join-Path $root 'ncmm\ncmm.auto_disabled'))) 'Second normal launch was misclassified as a crash.'
         Assert-Equal (Read-State $root).selected_mode 'NCMM_HOST' 'Second launch state did not remain NCMM_HOST.'
         $bootstrapLog = Get-Content (Join-Path $root 'ncmm\bootstrap.log') -Raw
-        Assert-True ($bootstrapLog.Contains('SHA256 cache hit: cataclysm-tiles.vanilla.exe')) 'Second launch did not reuse cached vanilla SHA256.'
-        Assert-True ($bootstrapLog.Contains('SHA256 cache hit: cataclysm-tiles.ncmm.exe')) 'Second launch did not reuse cached Host SHA256.'
+        Assert-True (-not $bootstrapLog.Contains('SHA256 cache hit:')) 'A metadata-only hash cache was used.'
+        Assert-True (-not(Test-Path (Join-Path $root 'ncmm\hash-cache.json'))) 'Persistent metadata-only digest cache returned.'
     }
 
     Run-Scenario 'concurrent bootstrap launch refuses without corrupting active Host' {
