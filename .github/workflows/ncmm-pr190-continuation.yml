@@ -1,0 +1,73 @@
+name: Prepare PR190 continuation
+on:
+  push:
+    branches: [audit/full-system-20261009]
+    paths: [.github/workflows/ncmm-pr190-continuation.yml]
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ef7a4699e49b0974e044ee12b1e776f7cc2fd3eb
+      - name: Apply reviewed source changes to exact PR head
+        shell: python
+        run: |
+          import base64,zlib,subprocess
+          from pathlib import Path
+          expected='ef7a4699e49b0974e044ee12b1e776f7cc2fd3eb'
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==expected
+          encoded='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'
+          # The encoded patch has its own zlib checksum; fail before touching files on corruption.
+          patch=zlib.decompress(base64.b64decode(encoded.replace('WiexnbnbK','WiexnbK'),validate=True))
+          subprocess.run(['git','apply','--check','-'],input=patch,check=True)
+          subprocess.run(['git','apply','-'],input=patch,check=True)
+          p=Path('payload/SURVIVOR_0911_0915_v8.7.6.8.ps1')
+          t=p.read_text(encoding='utf-8-sig')
+          def once(old,new):
+            global t
+            assert t.count(old)==1,(old,t.count(old))
+            t=t.replace(old,new)
+          once('Apply-SurvivorXpBalance0140\nApply-SurvivorDimensionalPouch0150\n','Apply-SurvivorXpBalance0140\n')
+          once('# No source writer may follow this final Host boundary.\nApply-NcmmBallisticHost082CanonicalSync\nAssert-SurvivorXpBalanceHost0140\n','# No Host source writer may follow this final Host boundary.\nApply-NcmmBallisticHost082CanonicalSync\nAssert-SurvivorXpBalanceHost0140\n# Data-only emission validates the final Host, never the intermediate legacy snapshot.\nApply-SurvivorDimensionalPouch0150\n')
+          prefix="Write-NcmmCanonicalPayloadFile 'runtime\\NCMMRuntimeIO.cs' "
+          line=next(x for x in t.splitlines() if x.startswith(prefix))
+          once(line,line+"\nWrite-NcmmCanonicalPayloadFile 'runtime\\NCMMRuntime.manifest' '"+base64.b64encode(Path('runtime/NCMMRuntime.manifest').read_bytes()).decode()+"'")
+          once('    & $csc /nologo /target:winexe /optimize+ /platform:x64 `',"    $runtimeManifest = Join-Path $RepoRoot 'runtime\\NCMMRuntime.manifest'\n    if(-not(Test-Path $runtimeManifest -PathType Leaf)){throw 'NCMM runtime manifest missing.'}\n    & $csc /nologo /win32manifest:$runtimeManifest /target:winexe /optimize+ /platform:x64 `")
+          p.write_text(t,encoding='utf-8-sig',newline='\n')
+      - name: Regenerate canonical payload and integrity, then test guards
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path -Check
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path -Check
+          ./ci/Test-CanonicalPayloadSync.ps1 -RepositoryRoot $PWD.Path
+          ./ci/Test-Infrastructure083.ps1 -PackageRoot $PWD.Path
+          git diff --check
+          if($LASTEXITCODE -ne 0){throw 'Whitespace guard failed'}
+      - name: Save candidate without advancing PR or main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only > /tmp/changed.txt
+          if grep -E '^(.github/|feed/)' /tmp/changed.txt; then echo 'Unexpected release/workflow mutation'; exit 1; fi
+          git config user.name 'NCMM Engineering'
+          git config user.email 'actions@users.noreply.github.com'
+          git add ci/Build-Runtime.ps1 ci/Sync-CanonicalPayload.ps1 ci/Test-AuditIO.ps1 ci/Test-CanonicalPayloadSync.ps1 ci/Test-InstallationMatrix.ps1 ci/Test-SurvivorPayloadContracts.ps1 compat/package-files.txt compat/package.integrity.json payload/SURVIVOR_0911_0915_v8.7.6.8.ps1 runtime/NCMMRuntimeIO.cs runtime/NCMMRuntime.manifest
+          git commit -m 'Fix post-canonical persistent data emission and enable long paths in runtime executables'
+          git push origin HEAD:refs/heads/audit/pr190-continuation-ready
+          mkdir evidence
+          git rev-parse HEAD > evidence/source-sha.txt
+          git show --stat > evidence/changes.txt
+          git archive --format=zip HEAD -o evidence/source.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NCMM-PR190-continuation-source
+          path: evidence/*
+          if-no-files-found: error
+          retention-days: 7
