@@ -7,7 +7,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
 
-// Explicit target prevents old MAX_PATH defaults in Framework csc-built executables.
+// Explicit target selects modern managed path handling; NCMMRuntime.manifest also
+// opts every executable into the matching Win32 long-path behavior.
 // All Setup/Bootstrap/harness programs compile this common file; .NET 4.6.2+ required.
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.6.2")]
 

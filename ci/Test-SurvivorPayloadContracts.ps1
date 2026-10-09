@@ -2679,6 +2679,29 @@ if($canonicalHostSyncCall0140 -lt 0 -or $xpBalanceApplyCall0140 -le $canonicalHo
     throw 'XP-balance Host verifier must run after canonical Host synchronization.'
 }
 
+# Check only standalone pipeline invocations, not function declarations or embedded text.
+# Pouch data emission reads the final Host contract, so it must follow canonical sync.
+function Assert-PouchFinalizationOrderAudit([string]$Text) {
+    $syncCalls=@([regex]::Matches($Text,'(?m)^Apply-NcmmBallisticHost082CanonicalSync\s*\r?$'))
+    $pouchCalls=@([regex]::Matches($Text,'(?m)^Apply-SurvivorDimensionalPouch0150\s*\r?$'))
+    $probe=$Text.IndexOf('# NCMM Infrastructure 0.8.3.1 deep probe: execute the exact host/source transform stack')
+    if($syncCalls.Count -ne 1 -or $pouchCalls.Count -ne 1 -or $probe -lt 0 -or
+       $pouchCalls[0].Index -le $syncCalls[0].Index -or $pouchCalls[0].Index -ge $probe) {
+        throw 'Dimensional Pouch data must be emitted once, after final canonical Host sync and before deep probe.'
+    }
+}
+Assert-PouchFinalizationOrderAudit $payload
+$pouchCallAudit='Apply-SurvivorDimensionalPouch0150'
+$withoutPouchCallAudit=[regex]::Replace($payload,'(?m)^Apply-SurvivorDimensionalPouch0150\r?\n','')
+$oldOrderAudit=[regex]::Replace($withoutPouchCallAudit,'(?m)^Apply-NcmmBallisticHost082CanonicalSync',
+    ($pouchCallAudit+"`nApply-NcmmBallisticHost082CanonicalSync"))
+foreach($badOrderAudit in @($oldOrderAudit,$withoutPouchCallAudit,($payload+"`n"+$pouchCallAudit+"`n"))) {
+    $rejectedAudit=$false
+    try { Assert-PouchFinalizationOrderAudit $badOrderAudit } catch { $rejectedAudit=$true }
+    if(-not $rejectedAudit){throw 'Pouch finalization order guard accepted early, absent or duplicate emission.'}
+}
+Write-Host 'Dimensional Pouch finalization order: PASS (final Host, early/missing/duplicate rejection)' -ForegroundColor Green
+
 # Execute the real post-sync verifier, proving it is read-only and rejects stale Host data.
 $payloadAstAudit=[Management.Automation.Language.Parser]::ParseInput($payload,[ref]$tokens,[ref]$errors)
 if($errors.Count){throw 'Canonical payload parse failure'}

@@ -6,6 +6,8 @@ param(
     [string]$GameRoot=''
 )
 $ErrorActionPreference='Stop'
+$runtimeManifest=Join-Path $RepositoryRoot 'runtime\NCMMRuntime.manifest'
+if(-not(Test-Path $runtimeManifest -PathType Leaf)){throw 'NCMM runtime manifest missing.'}
 
 $RepositoryRoot=(Resolve-Path $RepositoryRoot).Path
 $PayloadRoot=(Resolve-Path $PayloadRoot).Path
@@ -21,7 +23,7 @@ $work=Join-Path $env:TEMP ('ncmm-install-matrix-runner-'+[guid]::NewGuid().ToStr
 New-Item -ItemType Directory -Force -Path $work|Out-Null
 $exe=Join-Path $work 'NCMM_InstallationMatrix_Harness.exe'
 try{
-    & $csc /nologo /target:exe /optimize+ /platform:x64 /main:InstallationMatrixHarness `
+    & $csc /nologo /win32manifest:$runtimeManifest /target:exe /optimize+ /platform:x64 /main:InstallationMatrixHarness `
         /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll `
         /out:$exe `
         (Join-Path $RepositoryRoot 'runtime\NCMMRuntimeIO.cs') `

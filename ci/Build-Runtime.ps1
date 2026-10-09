@@ -81,8 +81,10 @@ if (-not (Test-Path $csc)) { throw "Framework csc.exe not found: $csc" }
 
 $bootstrapOut = Join-Path $payload 'cataclysm-tiles.ncmm-bootstrap.exe'
 $sharedRuntimeSource = Join-Path $RepositoryRoot 'runtime\NCMMRuntimeIO.cs'
+$runtimeManifest = Join-Path $RepositoryRoot 'runtime\NCMMRuntime.manifest'
+if (-not (Test-Path $runtimeManifest -PathType Leaf)) { throw 'NCMM runtime manifest missing.' }
 $bootstrapSource = Join-Path $RepositoryRoot 'runtime\NCMMBootstrap.cs'
-& $csc /nologo /target:winexe /optimize+ /platform:x64 `
+& $csc /nologo /win32manifest:$runtimeManifest /target:winexe /optimize+ /platform:x64 `
     /reference:System.Web.Extensions.dll `
     /out:$bootstrapOut `
     $sharedRuntimeSource $bootstrapSource
@@ -93,7 +95,7 @@ $setupDiagnosticsSource = Join-Path $RepositoryRoot 'runtime\NCMMSetupDiagnostic
 $setupSource = Join-Path $RepositoryRoot 'runtime\NCMMSetup.cs'
 if (-not $PayloadOnly) {
     $setupOut = Join-Path $OutputRoot 'NCMM_Setup.exe'
-    & $csc /nologo /target:winexe /optimize+ /platform:x64 `
+    & $csc /nologo /win32manifest:$runtimeManifest /target:winexe /optimize+ /platform:x64 `
         /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll `
         /out:$setupOut `
         $sharedRuntimeSource $setupCoreSource $setupDiagnosticsSource $setupSource
@@ -101,7 +103,7 @@ if (-not $PayloadOnly) {
 
     $diagnosticsHarnessOut = Join-Path $OutputRoot 'NCMM_Diagnostics2_Harness.exe'
     $diagnosticsHarnessSource = Join-Path $RepositoryRoot 'tests\DiagnosticsHarness.cs'
-    & $csc /nologo /target:exe /optimize+ /platform:x64 /main:DiagnosticsHarness `
+    & $csc /nologo /win32manifest:$runtimeManifest /target:exe /optimize+ /platform:x64 /main:DiagnosticsHarness `
         /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll `
         /out:$diagnosticsHarnessOut `
         $sharedRuntimeSource $setupCoreSource $setupDiagnosticsSource $setupSource $diagnosticsHarnessSource

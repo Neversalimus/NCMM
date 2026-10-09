@@ -26,6 +26,7 @@ $paths=@(
     'sdk\ncmm_sdk_core.hpp',
     'sdk\ncmm_checked_math.hpp',
     'runtime\NCMMRuntimeIO.cs',
+    'runtime\NCMMRuntime.manifest',
     'mods\AdvancedWorldSettings\src\aws.cpp',
     'mods\SurvivorProgression\src\survivor_progression.cpp',
     'ci\Build-HostPackage.ps1',

@@ -105,6 +105,7 @@ ci\Test-ReleaseQualification.ps1
 ci\Publish-ImmutableAsset.ps1
 ci\toolchain.lock.json
 runtime\NCMMRuntimeIO.cs
+runtime\NCMMRuntime.manifest
 tests\AuditIOHarness.cs
 sdk\ncmm_checked_math.hpp
 sdk\ncmm_sdk_core.hpp

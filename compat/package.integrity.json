@@ -66,8 +66,8 @@
                   },
                   {
                       "path":  "ci\\Test-AuditIO.ps1",
-                      "sha256":  "4a30c3a21d50cd0266139cd09e84a6ebee5db79f86c61fa3cd18baa75e907a39",
-                      "bytes":  796
+                      "sha256":  "a4e2cf4f285c9705b2352421208ac0996104daf8c31a2f314f2817190b71b886",
+                      "bytes":  994
                   },
                   {
                       "path":  "ci\\Test-AuditLegacy.ps1",
@@ -116,8 +116,8 @@
                   },
                   {
                       "path":  "ci\\Test-SurvivorPayloadContracts.ps1",
-                      "sha256":  "7194ac9fd7fab223e1bb5577a0ba01e19dcf6d06ecc01b29a77f3cc2f951b578",
-                      "bytes":  157882
+                      "sha256":  "2e40eeed2f8211254f0b647d35c21e152de010ef7a02cb46a47dd83bd84d2742",
+                      "bytes":  159555
                   },
                   {
                       "path":  "ci\\toolchain.lock.json",
@@ -151,8 +151,8 @@
                   },
                   {
                       "path":  "compat\\package-files.txt",
-                      "sha256":  "9299693c9d32033c6ddd36cb9e9eb6c29ac4fd1c45b6f4a4d5e8bb3c4169a12e",
-                      "bytes":  3721
+                      "sha256":  "441ef3db629f19bac8ef0bc802f179934c1bd5559954730eedb2b6412f80e9e2",
+                      "bytes":  3750
                   },
                   {
                       "path":  "compat\\update\\index.json",
@@ -371,8 +371,8 @@
                   },
                   {
                       "path":  "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-                      "sha256":  "05ae3f7886a2e0c11e0f56e4e5b6b849e818e1498ad388273619f66dddbab872",
-                      "bytes":  3290516
+                      "sha256":  "a85b0fdaccd0884198dd8ec2a0c2696827708a1ee333cd0733e457fd862bfbcf",
+                      "bytes":  3291795
                   },
                   {
                       "path":  "pipeline\\pipeline.manifest.json",
@@ -385,9 +385,14 @@
                       "bytes":  2547
                   },
                   {
+                      "path":  "runtime\\NCMMRuntime.manifest",
+                      "sha256":  "f0cb393a23f4d9a226707b0ce5fb7e13ad97b3621e14d1263a0979a786de073e",
+                      "bytes":  622
+                  },
+                  {
                       "path":  "runtime\\NCMMRuntimeIO.cs",
-                      "sha256":  "14d61abfa9e418abe7306910ebf6d63c1807ce0a185d20c154ac5ef9d14948d5",
-                      "bytes":  14955
+                      "sha256":  "04a8a3c8d9301993fb726094d3fbbad37f1ce3a8280d05f701c04a728309a85c",
+                      "bytes":  15021
                   },
                   {
                       "path":  "sdk\\HOST_API_2_CORE_CONTRACT.md",
