@@ -1,0 +1,47 @@
+name: Legacy points implementation workspace
+on:
+  push:
+    branches: ['work/legacy-character-points-20261009']
+    paths: ['.github/workflows/legacy-points-workspace.yml']
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 612d315147092317147a11772a3a368490b9399a
+          persist-credentials: false
+      - name: Archive exact NCMM and official chargen sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          git archive HEAD -o evidence/ncmm-source.zip
+          git rev-parse HEAD > evidence/source-sha.txt
+          python3 - <<'PY'
+          import pathlib, urllib.request, json
+          root=pathlib.Path('evidence/upstream')
+          refs={'0546':'e262adb299a7613b4aedc5f12c08fe0413c56a84','1040':'3f7fb352bf492ba521bd9408a0c9f6ce239e8d83','0.H':'0.H'}
+          paths=['src/newcharacter.cpp','src/player_difficulty.h','src/options.cpp','src/avatar.h','src/character.h','src/uistate.h','data/core/external_options.json']
+          for label,ref in refs.items():
+              for path in paths:
+                  dest=root/label/path
+                  dest.parent.mkdir(parents=True,exist_ok=True)
+                  url=f'https://raw.githubusercontent.com/CleverRaven/Cataclysm-DDA/{ref}/{path}'
+                  try: data=urllib.request.urlopen(url,timeout=60).read()
+                  except urllib.error.HTTPError as ex:
+                      if ex.code==404 and path=='data/core/external_options.json': continue
+                      raise
+                  dest.write_bytes(data)
+          (root/'refs.json').write_text(json.dumps(refs,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: legacy-points-exact-source
+          path: evidence/**
+          retention-days: 7
+          if-no-files-found: error
