@@ -1,0 +1,53 @@
+name: PR190 world-lifecycle linker repair sync
+on:
+  push:
+    branches: ['fix/audit-msvc-reset-world-20261009']
+    paths: ['.github/workflows/ncmm-pr190-reset-sync.yml']
+permissions:
+  contents: write
+jobs:
+  verify-and-sync:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Assert anonymous-namespace declaration and definition agree
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $source=[IO.File]::ReadAllText((Join-Path $PWD 'host_patch/ncmm_loader.cpp'))
+          if(([regex]::Matches($source,'void reset_world_lifecycle\\(\\)')).Count -ne 2){throw 'Lifecycle reset must have one declaration and one definition.'}
+          if(-not $source.Contains("namespace`n{`nvoid reset_world_lifecycle()")){throw 'Lifecycle definition must be inside the subscriber anonymous namespace.'}
+          if(-not $source.Contains('reset_world_lifecycle();')){throw 'World event subscriber lost reset entry point.'}
+      - name: Regenerate verified canonical and integrity files
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path -Check
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path -Check
+          ./ci/Test-CanonicalPayloadSync.ps1 -RepositoryRoot $PWD.Path
+          ./ci/Test-Infrastructure083.ps1 -PackageRoot $PWD.Path
+          ./ci/Test-HostPatchDomains.ps1 -RepositoryRoot $PWD.Path
+      - name: Commit exactly regenerated derived files
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          git config user.name 'NCMM Qualification'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -- payload/SURVIVOR_0911_0915_v8.7.6.8.ps1 compat/package.integrity.json
+          if(-not (git diff --cached --quiet)){git commit -m 'build: sync lifecycle Host snapshot and package integrity'}
+          if($LASTEXITCODE -ne 0){throw 'Commit failed.'}
+          git push origin HEAD:refs/heads/fix/audit-msvc-reset-world-20261009
+          if($LASTEXITCODE -ne 0){throw 'Branch update failed.'}
+      - name: Confirm immutable derived source
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path -Check
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path -Check
+          if(git status --porcelain){throw 'Uncommitted source drift'}
+          git show -s --format='%H %s' HEAD
