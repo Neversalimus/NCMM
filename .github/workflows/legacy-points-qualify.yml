@@ -1,0 +1,111 @@
+name: Legacy points Windows implementation qualification
+on:
+  push:
+    branches: ['work/legacy-character-points-20261009']
+    paths: ['.github/workflows/legacy-points-qualify.yml']
+permissions:
+  contents: write
+jobs:
+  qualify:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 612d315147092317147a11772a3a368490b9399a
+          path: candidate
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: transport
+          persist-credentials: false
+      - uses: microsoft/setup-msbuild@v2
+      - name: Verify exact patch digest before applying code
+        shell: python
+        run: |
+          import pathlib, base64, zlib, hashlib, subprocess
+          root=pathlib.Path('transport/dev/legacy-points-transport')
+          encoded=''.join((root/f'part{i}.b64').read_text().strip() for i in range(4))
+          # Correct a known transport-only duplicated token; SHA256 below still verifies all source bytes.
+          encoded=encoded.replace('7dvRfRf0Zqd35','7dvRf0Zqd35')
+          patch=zlib.decompress(base64.b64decode(encoded,validate=True))
+          expected='ada6bd6858047a5693c51278f5b67e9b95deea0f9da24fcf66cdbf6a0fc1cdb4'
+          assert hashlib.sha256(patch).hexdigest()==expected,'Implementation transport digest mismatch'
+          out=pathlib.Path('evidence'); out.mkdir(exist_ok=True)
+          p=(out/'changes.patch').resolve();p.write_bytes(patch)
+          source=subprocess.check_output(['git','-C','candidate','rev-parse','HEAD'],text=True).strip()
+          assert source=='612d315147092317147a11772a3a368490b9399a'
+          subprocess.run(['git','-C','candidate','apply','--check','--unidiff-zero',str(p)],check=True)
+          subprocess.run(['git','-C','candidate','apply','--unidiff-zero',str(p)],check=True)
+          print('Exact base and patch SHA256 verified; 32 authored files applied.')
+      - name: Regenerate canonical sources and validate complete package
+        working-directory: candidate
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD.Path -Check
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD.Path -Check
+          ./ci/Test-CanonicalPayloadSync.ps1 -RepositoryRoot $PWD.Path
+          ./ci/Test-NativeModuleCatalog.ps1 -RepositoryRoot $PWD.Path
+          ./ci/Test-HostPatchDomains.ps1 -RepositoryRoot $PWD.Path
+          ./ci/Test-Infrastructure083.ps1 -PackageRoot $PWD.Path
+          git diff --check
+          if($LASTEXITCODE -ne 0){throw 'Whitespace errors in implementation.'}
+      - name: Commit exact candidate before testing, without publication
+        working-directory: candidate
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          git config user.name 'NCMM Development'
+          git config user.email 'actions@users.noreply.github.com'
+          git add --all
+          git commit -m 'feat: restore classic character point pools as independent Legacy Character Points module'
+          if($LASTEXITCODE -ne 0){throw 'Candidate commit failed.'}
+          git rev-parse HEAD | Set-Content ../evidence/tested-source.txt
+          git archive HEAD -o ../evidence/candidate-source.zip
+      - name: Build production Setup Bootstrap and all six native modules
+        working-directory: candidate
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $entry=Join-Path $PWD 'ci/Build-Runtime.ps1'
+          $out=Join-Path $PWD 'dist/runtime'
+          $args=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$entry+'"'),'-RepositoryRoot',('"'+$PWD.Path+'"'),'-OutputRoot',('"'+$out+'"'))
+          $p=Start-Process powershell.exe -ArgumentList $args -PassThru -NoNewWindow -RedirectStandardOutput ../evidence/windows-stdout.log -RedirectStandardError ../evidence/windows-stderr.log
+          if(-not $p.WaitForExit(1200000)){taskkill /PID $p.Id /T /F;throw 'Runtime qualification timed out.'}
+          $p.Refresh()
+          Get-Content ../evidence/windows-stdout.log
+          Get-Content ../evidence/windows-stderr.log
+          if($p.ExitCode -ne 0){throw "Runtime qualification failed: $($p.ExitCode)"}
+      - name: Persist only fully tested code on new feature branch
+        working-directory: candidate
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if(git status --porcelain --untracked-files=no){throw 'Tracked source drift after qualification.'}
+          git push origin HEAD:refs/heads/feature/legacy-character-points-20261009
+          if($LASTEXITCODE -ne 0){throw 'Feature branch push failed; no forced update attempted.'}
+      - name: Preserve diagnostics without promoting release or feed
+        if: always()
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          git -C candidate diff --stat | Set-Content evidence/worktree-diff.txt
+          if(-not(Test-Path evidence/candidate-source.zip)){git -C candidate diff --binary --unified=0 | Set-Content evidence/failed-candidate.diff}
+          Copy-Item transport/dev/legacy-points-transport/part*.b64 evidence -ErrorAction SilentlyContinue
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legacy-points-windows-evidence
+          path: evidence/**
+          retention-days: 14
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: legacy-points-test-installer-not-live
+          path: candidate/dist/runtime/*.zip
+          retention-days: 7
+          if-no-files-found: error
