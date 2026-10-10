@@ -1,0 +1,74 @@
+name: Prepare scoped Mana canonical-location port
+on:
+  push:
+    branches: ['work/prepare-mana-locations-20261010']
+    paths:
+      - '.github/workflows/prepare-mana-locations-20261010.yml'
+      - 'ci/Prepare-ManaCanonicalLocations.py'
+permissions:
+  contents: write
+concurrency:
+  group: prepare-mana-locations-20261010
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: preparation
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: f6ddd64f8034c97045692fe853c144c374dbac23
+          path: proposed
+          fetch-depth: 1
+      - name: Apply narrow patch on exact qualified retirement base
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git -C proposed rev-parse HEAD).Trim() -ne 'f6ddd64f8034c97045692fe853c144c374dbac23'){throw 'Unexpected base.'}
+          python preparation/ci/Prepare-ManaCanonicalLocations.py proposed
+          if($LASTEXITCODE -ne 0){throw 'Scoped patch failed.'}
+          ./proposed/ci/Sync-CanonicalPayload.ps1 -RepositoryRoot (Join-Path $PWD 'proposed')
+          ./proposed/ci/Regenerate-PackageIntegrity.ps1 -PackageRoot (Join-Path $PWD 'proposed')
+          ./proposed/ci/Sync-CanonicalPayload.ps1 -RepositoryRoot (Join-Path $PWD 'proposed') -Check
+          ./proposed/ci/Regenerate-PackageIntegrity.ps1 -PackageRoot (Join-Path $PWD 'proposed') -Check
+          git -C proposed diff --check
+          if($LASTEXITCODE -ne 0){throw 'Whitespace or patch error.'}
+          $expected=@('ci/Test-HostPayloadContracts.ps1','ci/Test-ManaActionWeaponContracts.ps1','compat/package.integrity.json','host_patch/ncmm_loader.cpp','host_patch/ncmm_loader.h','payload/SURVIVOR_0911_0915_v8.7.6.8.ps1','tests/mana_action_weapon_test.cpp')
+          $actual=@(git -C proposed diff --name-only)
+          if(@(Compare-Object $expected $actual).Count -ne 0){throw 'Patch changed unexpected files.'}
+      - name: Validate actual production PowerShell and package contracts
+        shell: powershell
+        run: |
+          ./proposed/ci/Test-Infrastructure083.ps1 -PackageRoot (Join-Path $PWD 'proposed')
+      - name: Compile and exercise extracted production action resolvers
+        shell: powershell
+        run: |
+          ./proposed/ci/Test-ManaActionWeaponContracts.ps1 -PackageRoot (Join-Path $PWD 'proposed') -RunBehavior
+      - name: Publish source-only candidate without preparation files
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          git -C proposed config user.name 'github-actions[bot]'
+          git -C proposed config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C proposed checkout -b fix/mana-canonical-locations-20261010
+          if($LASTEXITCODE -ne 0){throw 'Candidate branch creation failed.'}
+          git -C proposed add ci/Test-HostPayloadContracts.ps1 ci/Test-ManaActionWeaponContracts.ps1 compat/package.integrity.json host_patch/ncmm_loader.cpp host_patch/ncmm_loader.h payload/SURVIVOR_0911_0915_v8.7.6.8.ps1 tests/mana_action_weapon_test.cpp
+          git -C proposed commit -m 'Preserve canonical Mana Hand locations for ranged and throw actions'
+          if($LASTEXITCODE -ne 0){throw 'Candidate commit failed.'}
+          git -C proposed push origin HEAD:refs/heads/fix/mana-canonical-locations-20261010
+          if($LASTEXITCODE -ne 0){throw 'Candidate push failed; no forced overwrite is permitted.'}
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          git -C proposed rev-parse HEAD | Set-Content evidence/head.txt -Encoding Ascii
+          git -C proposed diff HEAD^ HEAD --stat | Set-Content evidence/change-stat.txt -Encoding UTF8
+          git -C proposed archive --format=zip -o ../evidence/source.zip HEAD
+          if($LASTEXITCODE -ne 0){throw 'Evidence archive failed.'}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NCMM-mana-canonical-locations-prepared
+          path: evidence/*
+          if-no-files-found: error
+          retention-days: 3
