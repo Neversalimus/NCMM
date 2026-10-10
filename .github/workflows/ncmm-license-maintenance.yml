@@ -30,14 +30,14 @@ jobs:
           $ErrorActionPreference='Stop'
           $head=(& git rev-parse HEAD).Trim()
           if ($head -ne $env:EXPECTED_EVENT_SHA) { throw 'Branch advanced; refusing stale maintenance.' }
-          $main='f989888e3f7c27a0c4fbad2f9b733733a4d6aa1c'
+          $main='f98988faa97f22fbdf01c5b1cd94d2c4e206f904'
           git cat-file -e "$main^{commit}"
           if ($LASTEXITCODE -ne 0) { throw 'Reviewed main commit is not available.' }
+          $mainTitle=(& git log -1 --format=%s $main).Trim()
+          if ($mainTitle -ne 'Repair certification source root and content-addressed runtime releases (#194)') { throw 'Unexpected reviewed main identity.' }
           $base=(& git merge-base HEAD $main).Trim()
           if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve merge base.' }
           $payload='payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
-          # Only generated Host recipe snapshots changed in this PR. Prove this
-          # before preserving main's newer hand-authored canonical payload.
           $old=(& git show "${base}:$payload") -join "`n"
           $ours=(& git show "HEAD:$payload") -join "`n"
           foreach ($rel in @('ci\Build-HostPackage.ps1','.github\workflows\ncmm-host.yml')) {
@@ -63,7 +63,6 @@ jobs:
           git checkout $main -- $payload compat/package.integrity.json
           if ($LASTEXITCODE -ne 0) { throw 'Could not preserve reviewed main generated sources.' }
           [IO.File]::WriteAllText((Join-Path $PWD 'compat/package-files.txt'),(($members -join "`n")+"`n"),[Text.UTF8Encoding]::new($false))
-          # Legal payload is part of the immutable Host artifact identity.
           $revisionPath=Join-Path $PWD 'ci/patch-revision-files.txt'
           $revision=[IO.File]::ReadAllText($revisionPath)
           if (@($revision -split "`r?`n") -notcontains 'THIRD_PARTY_NOTICES.txt') {
@@ -88,25 +87,19 @@ jobs:
             [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $path),[ref]$tokens,[ref]$errors)
             if (@($errors).Count) { throw "PowerShell syntax errors in ${path}: $errors" }
           }
-      - name: Record old PR evidence and source-only license inventory
+      - name: Record current diagnostics and legacy guard evidence
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $report=Join-Path $env:RUNNER_TEMP 'ncmm-license-evidence'
           New-Item -ItemType Directory -Force $report | Out-Null
-          $payload='payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
-          $lines=Get-Content $payload
-          $hits=Select-String -Path $payload -Pattern 'inventory_throwing_filter|primary.get_item\(\) == loc.get_item\(\)|titled_filter_menu<any_ret_val<item_location>>' -Context 8,8
-          $hits | Out-String -Width 280 | Set-Content (Join-Path $report 'pr102-current-source.txt')
-          $proof=[ordered]@{
-            source=(& git rev-parse HEAD).Trim()
-            main='f989888e3f7c27a0c4fbad2f9b733733a4d6aa1c'
-            source_file_count=@(& git ls-files).Count
-            host_notice_fingerprinted=((Get-Content ci/patch-revision-files.txt) -contains 'THIRD_PARTY_NOTICES.txt')
-            throwing_filter_occurrences=@(Select-String -Path $payload -SimpleMatch 'inventory_throwing_filter').Count
+          $paths=@('runtime/NCMMSetup.cs','runtime/NCMMSetupCore.cs','runtime/NCMMSetupDiagnostics.cs','tests/DiagnosticsHarness.cs','ci/Test-SurvivorPayloadContracts.ps1','ci/Test-AuditLegacy.ps1')
+          foreach ($path in $paths) {
+            if (Test-Path $path -PathType Leaf) {
+              Write-Output "=== $path ==="
+              Select-String -Path $path -Pattern 'ReadOnly = true|AcceptsReturn = true|BuildBugReportSection|FormatBugReport|Bug Report|vicFinal|legacy.*anchor|Legacy.*context' -Context 3,6 | Select-Object -First 30 | Out-String -Width 260 | Tee-Object -FilePath (Join-Path $report ($path.Replace('/','_')+'.txt'))
+            }
           }
-          $proof | ConvertTo-Json | Tee-Object -FilePath (Join-Path $report 'evidence.json')
-          Get-Content (Join-Path $report 'pr102-current-source.txt')
           git diff --stat
       - name: Commit only reviewed merge and generated reconciliation
         shell: pwsh
