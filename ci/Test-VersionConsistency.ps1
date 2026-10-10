@@ -28,7 +28,7 @@ $markers = @(
     @('ci/Build-HostPackage.ps1','Get-NcmmCurrentVersion.ps1'),
     @('ci/Build-HostPackage.ps1','ncmm_version = $ncmmVersion'),
     @('.github/workflows/ncmm-runtime.yml','Get-NcmmCurrentVersion.ps1'),
-    @('.github/workflows/ncmm-runtime.yml','$tag = "ncmm-runtime-v$version"'),
+    @('.github/workflows/ncmm-runtime.yml','$tag = "ncmm-runtime-v$version-build-$($env:GITHUB_SHA.Substring(0,12))"'),
     @('.github/workflows/ncmm-host.yml','Get-NcmmCurrentVersion.ps1'),
     @('.github/workflows/ncmm-host.yml','NCMM_VERSION: ${{ needs.discover.outputs.ncmm_version }}'),
     @('.github/workflows/ncmm-feed-audit.yml','Get-NcmmCurrentVersion.ps1'),
