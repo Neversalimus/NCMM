@@ -61,6 +61,7 @@ foreach($ps in Get-ChildItem $PackageRoot -Recurse -File -Filter '*.ps1'){
 
 & (Join-Path $PackageRoot 'ci\Test-HostPayloadContracts.ps1') -PackageRoot $PackageRoot
 & (Join-Path $PackageRoot 'ci\Test-SurvivorPayloadContracts.ps1') -PackageRoot $PackageRoot
+& (Join-Path $PackageRoot 'ci\Test-ImmutableReleaseTag.ps1') -RepositoryRoot $PackageRoot
 
 Write-Host 'NCMM Infrastructure 0.8.3.1 static contract: PASS' -ForegroundColor Green
 exit 0
