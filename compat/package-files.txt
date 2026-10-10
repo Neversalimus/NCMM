@@ -4,6 +4,7 @@ adapters\base\cdda_2026_series.ps1
 adapters\cdda_2026_09_23_0546.ps1
 AWS_HOST_API_2_MIGRATION_CHANGELOG.txt
 ci\Build-UpdateRelease.ps1
+ci\Get-ImmutableReleaseTag.ps1
 ci\Invoke-NCMMCertification.ps1
 ci\Promote-CertificateToFeed.ps1
 ci\Promote-UpdateRelease.ps1
@@ -11,6 +12,7 @@ ci\Regenerate-PackageIntegrity.ps1
 ci\Test-ComponentCatalog.ps1
 ci\Test-GoldenRegression.ps1
 ci\Test-HostPayloadContracts.ps1
+ci\Test-ImmutableReleaseTag.ps1
 ci\Test-Infrastructure0821.ps1
 ci\Test-Infrastructure083.ps1
 ci\Test-InstallerTransaction.ps1
