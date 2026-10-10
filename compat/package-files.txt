@@ -126,3 +126,4 @@ mods\LegacyCharacterPoints\src\legacy_character_points.cpp
 mods\LegacyCharacterPoints\tests\legacy_points_test.cpp
 mods\LegacyCharacterPoints\tests\module_test.cpp
 tests\InstallationMatrixHarness.cs
+THIRD_PARTY_NOTICES.txt
