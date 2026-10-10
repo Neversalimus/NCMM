@@ -193,6 +193,28 @@ $hostDest = Join-Path $OutputRoot 'cataclysm-tiles.ncmm.exe'
 Copy-Item $builtHost.FullName $hostDest -Force
 $hostSha = (Get-FileHash $hostDest -Algorithm SHA256).Hash.ToLowerInvariant()
 
+# The Host is a modified CDDA executable. Ship the exact upstream license
+# accompanying the source commit used for this binary, not a detached copy
+# from the NCMM repository or an unrelated/latest CDDA revision.
+$upstreamLicense = Join-Path $UpstreamRoot 'LICENSE.txt'
+$noticeSource = Join-Path $RepositoryRoot 'THIRD_PARTY_NOTICES.txt'
+if (-not (Test-Path $upstreamLicense -PathType Leaf)) {
+    throw "Exact upstream CDDA license is missing: $upstreamLicense"
+}
+if (-not (Test-Path $noticeSource -PathType Leaf)) {
+    throw "NCMM third-party attribution notice is missing: $noticeSource"
+}
+if (-not ((Get-Content $upstreamLicense -Raw).Contains('Creative Commons Attribution-ShareAlike 3.0'))) {
+    throw 'Unexpected CDDA license in the exact upstream source; review before distribution.'
+}
+if (-not ((Get-Content $noticeSource -Raw).Contains('https://creativecommons.org/licenses/by-sa/3.0/'))) {
+    throw 'NCMM third-party notice is missing the CDDA license URI.'
+}
+$licenseDest = Join-Path $OutputRoot 'CDDA_LICENSE.txt'
+$noticeDest = Join-Path $OutputRoot 'THIRD_PARTY_NOTICES.txt'
+Copy-Item $upstreamLicense $licenseDest -Force
+Copy-Item $noticeSource $noticeDest -Force
+
 if (($VanillaIdentityCachePath -and -not $VanillaAssetFingerprint) -or
     ($VanillaAssetFingerprint -and -not $VanillaIdentityCachePath)) {
     throw 'Vanilla identity cache path and asset fingerprint must be supplied together.'
@@ -317,7 +339,7 @@ if ($releaseDir) {
 
 $zipOut = Join-Path (Split-Path $OutputRoot -Parent) ("ncmm-host-win64-{0}.zip" -f $UpstreamTag)
 if (Test-Path $zipOut) { Remove-Item $zipOut -Force }
-Compress-Archive -Path $hostDest,(Join-Path $OutputRoot 'host.json') -DestinationPath $zipOut -CompressionLevel Optimal
+Compress-Archive -Path $hostDest,(Join-Path $OutputRoot 'host.json'),$licenseDest,$noticeDest -DestinationPath $zipOut -CompressionLevel Optimal
 Write-Host "Host package: $zipOut"
 Write-Host "Source commit: $commit"
 Write-Host "Vanilla hashes: $($vanillaHashes -join ', ')"
