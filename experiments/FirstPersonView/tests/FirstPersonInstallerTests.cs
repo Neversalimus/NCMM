@@ -33,11 +33,14 @@ internal static class FirstPersonInstallerTests
             string saveHash = SetupCore.Sha256(save);
             string original = SetupCore.Sha256(Path.Combine(root, "cataclysm-tiles.exe"));
             string payload = args[1];
+            JavaScriptSerializer json = new JavaScriptSerializer();
+            FirstPersonBundle bundle = json.Deserialize<FirstPersonBundle>(File.ReadAllText(Path.Combine(payload, "first-person-bundle.json")));
             Require(SetupCore.DiscoverBundledModules(Path.Combine(payload, "code_mods")).Any(m => m.Manifest.id == "first_person_view"), "First Person View absent from installer selection");
             string[] selection = { "first_person_view" };
             InstallResult first = SetupCore.Install(root, payload, selection);
             Require(first.CompletionVerified, "Install was not verified");
             Require(SetupCore.SyncCertifiedHost(root).Ready, "Bundled Host missing");
+            Require(SetupCore.SyncCertifiedHost(root).Message.Contains(bundle.upstream_tag.Substring("cdda-experimental-".Length)), "Host status identifies the wrong game version");
             Require(SetupCore.IsModuleInstalled(root, "FirstPersonView", "first_person_view"), "Module missing");
             Require(SetupCore.Sha256(Path.Combine(root, "cataclysm-tiles.vanilla.exe")) == original, "Vanilla backup changed");
             string note = Path.Combine(root, "code_mods", "FirstPersonView", "player-note.txt");
@@ -61,6 +64,22 @@ internal static class FirstPersonInstallerTests
             try { SetupCore.Install(root, payload, selection); } catch (InvalidOperationException) { failed = true; }
             Require(failed && Tree(root) == before, "Unknown executable was accepted or changed");
             File.Copy(Path.Combine(args[0], "cataclysm-tiles.exe"), Path.Combine(root, "cataclysm-tiles.exe"), true);
+            string version = Path.Combine(root, "VERSION.txt");
+            string versionText = File.ReadAllText(version);
+            string otherSource = bundle.source_commit == "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83" ?
+                "074aa98bd5be3de4c35f154082db32a0e63bb0f1" : "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83";
+            File.WriteAllText(version, "commit sha: " + otherSource);
+            before = Tree(root); failed = false;
+            try { SetupCore.Install(root, payload, selection); } catch (InvalidOperationException) { failed = true; }
+            Require(failed && Tree(root) == before, "Other supported source version was accepted or changed installation");
+            File.WriteAllText(version, versionText);
+            string mismatched = Path.Combine(work, "mismatched-payload");
+            Copy(payload, mismatched);
+            bundle.source_commit = otherSource;
+            File.WriteAllText(Path.Combine(mismatched, "first-person-bundle.json"), json.Serialize(bundle));
+            before = Tree(root); failed = false;
+            try { SetupCore.Install(root, mismatched, selection); } catch (InvalidOperationException) { failed = true; }
+            Require(failed && Tree(root) == before, "Mismatched source/tag pair was accepted or changed installation");
             string damaged = Path.Combine(work, "damaged-payload");
             Copy(payload, damaged);
             File.AppendAllText(Path.Combine(damaged, "host", "cataclysm-tiles.ncmm.exe"), "corruption");

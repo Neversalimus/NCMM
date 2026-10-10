@@ -37,7 +37,17 @@ jobs:
             experiments/FirstPersonView/mod.json
           retention-days: 7
   host:
-    name: Experimental MSVC Host - 1807
+    name: Experimental MSVC Host - ${{ matrix.build }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - build: '1040'
+            source: 3f7fb352bf492ba521bd9408a0c9f6ce239e8d83
+            tag: cdda-experimental-2026-10-01-1040
+          - build: '1807'
+            source: 074aa98bd5be3de4c35f154082db32a0e63bb0f1
+            tag: cdda-experimental-2026-10-06-1807
     runs-on: windows-2022
     timeout-minutes: 120
     env:
@@ -54,7 +64,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: CleverRaven/Cataclysm-DDA
-          ref: 074aa98bd5be3de4c35f154082db32a0e63bb0f1
+          ref: ${{ matrix.source }}
           path: upstream
           persist-credentials: false
       - name: Prepare canonical NCMM plus optional graphics bridge
@@ -104,7 +114,7 @@ jobs:
           path: |
             upstream/cataclysm-tiles.exe
             upstream/first-person-host.sha256
-          key: ncmm-fp-host-1807-v1-${{ runner.os }}-${{ hashFiles('upstream/src/**', 'upstream/msvc-full-features/**', 'upstream/first-person-source.json', 'upstream/.github/vcpkg_triplets/**') }}
+          key: ncmm-fp-host-${{ matrix.build }}-v1-${{ runner.os }}-${{ hashFiles('upstream/src/**', 'upstream/msvc-full-features/**', 'upstream/first-person-source.json', 'upstream/.github/vcpkg_triplets/**') }}
       - name: Compile actual experimental engine (no certification/publication)
         if: steps.engine_cache.outputs.cache-hit != 'true'
         shell: powershell
@@ -129,19 +139,19 @@ jobs:
           key: ${{ steps.engine_cache.outputs.cache-primary-key }}
       - uses: actions/upload-artifact@v4
         with:
-          name: first-person-experimental-host-1807
+          name: first-person-experimental-host-${{ matrix.build }}
           path: |
             upstream/cataclysm-tiles.exe
             upstream/first-person-source.json
             upstream/LICENSE.txt
             ncmmrepo/THIRD_PARTY_NOTICES.txt
           retention-days: 7
-      - name: Download SHA256-verified official Windows 1807 game
+      - name: Download SHA256-verified official Windows ${{ matrix.build }} game
         id: game
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $tag='cdda-experimental-2026-10-06-1807'
+          $tag='${{ matrix.tag }}'
           $release=(& gh api "repos/CleverRaven/Cataclysm-DDA/releases/tags/$tag") | ConvertFrom-Json
           if($LASTEXITCODE -ne 0){throw 'Official release lookup failed.'}
           $asset=@($release.assets | Where-Object {$_.name -like 'cdda-windows-with-graphics-x64-*.zip'} | Sort-Object name)[0]
@@ -202,14 +212,14 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: first-person-runtime-evidence-1807
+          name: first-person-runtime-evidence-${{ matrix.build }}
           path: fp-evidence/**
           retention-days: 7
       - uses: actions/upload-artifact@v4
         with:
-          name: first-person-installer-1807-Windows-x64
+          name: first-person-installer-${{ matrix.build }}-Windows-x64
           path: |
-            installer-result/NCMM_FirstPersonView_0.1.0_TEST_1807_Windows_x64.zip
+            installer-result/NCMM_FirstPersonView_0.1.0_TEST_${{ matrix.build }}_Windows_x64.zip
             installer-result/first-person-smoke.json
             installer-result/first-person-room.bmp
           if-no-files-found: error

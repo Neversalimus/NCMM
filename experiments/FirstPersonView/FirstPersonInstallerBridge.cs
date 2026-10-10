@@ -26,13 +26,20 @@ internal static partial class SetupCore
         return value != null && Regex.IsMatch(value, "^[0-9a-f]{64}$");
     }
 
+    private static bool FirstPersonTarget(FirstPersonBundle bundle)
+    {
+        return bundle != null &&
+            ((bundle.source_commit == "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83" &&
+              bundle.upstream_tag == "cdda-experimental-2026-10-01-1040") ||
+             (bundle.source_commit == "074aa98bd5be3de4c35f154082db32a0e63bb0f1" &&
+              bundle.upstream_tag == "cdda-experimental-2026-10-06-1807"));
+    }
+
     private static FirstPersonBundle ReadFirstPersonBundle(string payloadRoot)
     {
         string path = Path.Combine(payloadRoot, "first-person-bundle.json");
         FirstPersonBundle bundle = new JavaScriptSerializer().Deserialize<FirstPersonBundle>(File.ReadAllText(path));
-        if (bundle == null || bundle.schema != 1 ||
-            bundle.source_commit != "074aa98bd5be3de4c35f154082db32a0e63bb0f1" ||
-            bundle.upstream_tag != "cdda-experimental-2026-10-06-1807" ||
+        if (!FirstPersonTarget(bundle) || bundle.schema != 1 ||
             !PreviewHash(bundle.vanilla_sha256) || !PreviewHash(bundle.host_sha256) ||
             String.IsNullOrWhiteSpace(bundle.patch_revision) ||
             bundle.ncmm_source_commit == null || !Regex.IsMatch(bundle.ncmm_source_commit, "^[0-9a-f]{40}$") ||
@@ -77,7 +84,9 @@ internal static partial class SetupCore
         string target = knownBootstrap ? vanilla : exe;
         if (!File.Exists(target) || Sha256(target) != bundle.vanilla_sha256 ||
             !NcmmRuntimeIO.SourceMatches(bundle.source_commit, ReadSourceCommit(gameRoot)))
-            throw new InvalidOperationException("This test installer requires the exact official CDDA 2026-10-06-1807 Windows x64 graphics build. Selected executable was not changed.");
+            throw new InvalidOperationException("This test installer requires the exact official CDDA " +
+                bundle.upstream_tag.Substring("cdda-experimental-".Length) +
+                " Windows x64 graphics build. Selected executable was not changed.");
     }
 
     private static void InstallFirstPersonHost(string gameRoot, string payloadRoot)
@@ -116,9 +125,10 @@ internal static partial class SetupCore
             File.ReadAllText(Path.Combine(root, "ncmm", "first-person-preview.json")));
         SetupHostBinding binding = new JavaScriptSerializer().Deserialize<SetupHostBinding>(
             File.ReadAllText(Path.Combine(root, "ncmm", "host.binding.json")));
-        bool ready = bundle != null && binding != null &&
+        bool ready = FirstPersonTarget(bundle) && bundle.schema == 1 && binding != null &&
             binding.host_sha256 == bundle.host_sha256 && binding.vanilla_sha256 == bundle.vanilla_sha256 &&
-            binding.source_commit == bundle.source_commit && binding.patch_revision == bundle.patch_revision &&
+            binding.source_commit == bundle.source_commit && binding.upstream_tag == bundle.upstream_tag &&
+            binding.patch_revision == bundle.patch_revision &&
             binding.loader_api == 1 && binding.ncmm_version == RuntimeVersion &&
             NcmmRuntimeIO.SourceMatches(binding.source_commit, ReadSourceCommit(root)) &&
             Sha256(Path.Combine(root, "cataclysm-tiles.ncmm.exe")) == binding.host_sha256 &&
@@ -126,7 +136,9 @@ internal static partial class SetupCore
         return new SetupHostSyncResult {
             Ready = ready, HostSha256 = binding == null ? null : binding.host_sha256,
             PatchRevision = binding == null ? null : binding.patch_revision,
-            Message = ready ? "First Person View TEST Host verified locally for CDDA 1807. F6 toggles the view; F7/F8 turn the camera." : "Experimental Host identity verification failed."
+            Message = ready ? "First Person View TEST Host verified locally for CDDA " +
+                bundle.upstream_tag.Substring("cdda-experimental-".Length) +
+                ". F6 toggles the view; F7/F8 turn the camera." : "Experimental Host identity verification failed."
         };
     }
 }

@@ -3,14 +3,16 @@
 Optional first-person renderer for the **same live CDDA world** through NCMM.
 This is an experimental player test build. The renderer lives outside `mods/`;
 the dedicated preview package adds it to the normal installer's independent
-component selection and bundles an exact experimental Windows Host for 1807.
+component selection and bundles an exact experimental Windows Host for 1040 or 1807.
 The normal release catalog and certified Host feed are not promoted by this build.
 
 ## Test installation
 
-Extract `NCMM_FirstPersonView_0.1.0_TEST_1807_Windows_x64.zip` completely and run
-`NCMM_Setup_FirstPerson_TEST.exe`. Choose the exact official Windows x64 graphics
-CDDA 2026-10-06-1807 installation. Keep First Person View checked and install.
+Extract the complete archive for your game version (`1040` or `1807`) and run
+`NCMM_Setup_FirstPerson_TEST.exe`. Choose the matching exact official Windows x64
+graphics installation: CDDA 2026-10-01-1040 or 2026-10-06-1807. Keep First Person
+View checked and install. Each archive contains its own version-specific Host;
+the 1807 archive cannot be installed into a 1040 game or vice versa.
 The preview checks the official executable, all payload files and the Host with
 SHA256 before installation. It rejects other executables without changing them.
 F6 toggles the view; F7/F8 rotate. Other bundled NCMM modules remain optional.
@@ -69,8 +71,8 @@ necessary.
 
 | Role | Official tag | Source commit |
 | --- | --- | --- |
-| Primary prototype | `cdda-experimental-2026-10-06-1807` | `074aa98bd5be3de4c35f154082db32a0e63bb0f1` |
-| Current NCMM baseline contract | `cdda-experimental-2026-10-01-1040` | `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83` |
+| Preview installer and Host | `cdda-experimental-2026-10-06-1807` | `074aa98bd5be3de4c35f154082db32a0e63bb0f1` |
+| Preview installer and Host | `cdda-experimental-2026-10-01-1040` | `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83` |
 
 The preparation script rejects every other source identity, including retired
 0546. These source checks do **not** add a build to the certified Host feed.
@@ -102,7 +104,7 @@ certification record or installed-game change.
 
 With the pinned vcpkg/toolchain from the exact upstream checkout, build the normal
 MSVC graphics target. The dedicated `ncmm-first-person-prototype.yml` workflow does
-this for 1807, alongside Windows/Linux module tests and the preview installer.
+this for both 1040 and 1807, alongside Windows/Linux module tests and the preview installers.
 The test package remains explicitly experimental. A regular released Host does
 not advertise the graphics capability and rejects this DLL safely.
 

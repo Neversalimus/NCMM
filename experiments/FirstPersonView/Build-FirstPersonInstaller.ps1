@@ -11,15 +11,23 @@ $GameRoot=(Resolve-Path $GameRoot).Path
 New-Item -ItemType Directory -Force $OutputRoot | Out-Null
 $OutputRoot=(Resolve-Path $OutputRoot).Path
 $source=Get-Content (Join-Path $HostRoot 'first-person-source.json') -Raw | ConvertFrom-Json
-if($source.source_commit -ne '074aa98bd5be3de4c35f154082db32a0e63bb0f1' -or
-   $source.tag -ne 'cdda-experimental-2026-10-06-1807' -or $source.status -ne 'experimental-not-certified'){
-    throw 'The preview requires the exact experimental 1807 graphics Host.'
+$targets=@{
+    '3f7fb352bf492ba521bd9408a0c9f6ce239e8d83'=@{Tag='cdda-experimental-2026-10-01-1040';Build='1040'}
+    '074aa98bd5be3de4c35f154082db32a0e63bb0f1'=@{Tag='cdda-experimental-2026-10-06-1807';Build='1807'}
 }
+$target=$targets[[string]$source.source_commit]
+if(-not $target -or $source.tag -ne $target.Tag -or $source.status -ne 'experimental-not-certified'){
+    throw 'The preview requires an exact experimental 1040 or 1807 graphics Host.'
+}
+$build=[string]$target.Build
 if(-not(Test-Path (Join-Path $HostRoot 'cataclysm-tiles.exe') -PathType Leaf)){
     throw 'A fully linked experimental Host is required.'
 }
 $versionText=Get-Content (Join-Path $GameRoot 'VERSION.txt') -Raw
-if($versionText -notmatch 'commit sha:\s*074aa98'){throw 'Official 1807 game identity differs.'}
+$versionMatch=[regex]::Match($versionText,'commit sha:\s*([0-9a-fA-F]{7,40})(?![0-9a-fA-F])')
+if(-not $versionMatch.Success -or -not ([string]$source.source_commit).StartsWith($versionMatch.Groups[1].Value.ToLowerInvariant())){
+    throw "Official $build game identity differs."
+}
 $stage=Join-Path $OutputRoot '_first_person_installer'
 if(Test-Path $stage){Remove-Item $stage -Recurse -Force}
 New-Item -ItemType Directory -Force $stage | Out-Null
@@ -58,7 +66,7 @@ $bootstrap=Join-Path $payload 'cataclysm-tiles.ncmm-bootstrap.exe'
 if($LASTEXITCODE -ne 0){throw 'Preview bootstrap compilation failed.'}
 $ui=Join-Path $OutputRoot '_FirstPersonSetup.cs'
 $text=[IO.File]::ReadAllText((Join-Path $RepositoryRoot 'runtime/NCMMSetup.cs'))
-$text=$text.Replace('"NCMM " + SetupCore.RuntimeVersion + " Setup"','"NCMM First Person View TEST - CDDA 1807"')
+$text=$text.Replace('"NCMM " + SetupCore.RuntimeVersion + " Setup"',('"NCMM First Person View TEST - CDDA '+$build+'"'))
 $text=$text.Replace('certified Host','experimental TEST Host').Replace('Certified Host','Experimental TEST Host').Replace('CERTIFIED HOST','BUNDLED TEST HOST')
 $text=$text.Replace('Fetching current experimental TEST Host for the selected CDDA installation...','Verifying the bundled experimental TEST Host...')
 [IO.File]::WriteAllText($ui,$text,(New-Object Text.UTF8Encoding($false)))
@@ -87,11 +95,11 @@ if($LASTEXITCODE -ne 0){throw 'Preview install matrix compilation failed.'}
 & $harness $GameRoot $payload
 if($LASTEXITCODE -ne 0){throw 'Preview install matrix failed.'}
 
-@'
-NCMM First Person View 0.1.0 TEST / CDDA 1807 / Windows x64
+@"
+NCMM First Person View 0.1.0 TEST / CDDA $build / Windows x64
 
 1. Extract the complete archive. Run NCMM_Setup_FirstPerson_TEST.exe.
-2. Select an official cdda-experimental-2026-10-06-1807 Windows x64 graphics installation.
+2. Select an official $($source.tag) Windows x64 graphics installation.
 3. Keep First Person View selected; other bundled modules are optional.
 4. Install / Repair selected. Wait for INSTALL COMPLETE.
 5. Launch CDDA normally. F6 toggles first person; F7/F8 rotate the camera.
@@ -110,10 +118,10 @@ world directions. Camera rotation does not spend a turn. Saves are unchanged.
 The bundle includes NCMM Runtime 0.8.2 and the normal optional native modules.
 The game itself and external tilesets are not bundled. Keep your existing data,
 tilesets and configuration with the selected official CDDA installation.
-'@ | Set-Content (Join-Path $stage 'README.txt') -Encoding UTF8
+"@ | Set-Content (Join-Path $stage 'README.txt') -Encoding UTF8
 $provenance=[ordered]@{schema=1;product='NCMM First Person View TEST';status='experimental-not-certified';recommended_entry='NCMM_Setup_FirstPerson_TEST.exe';source_commit=$bundle.ncmm_source_commit;engine_source=$source.source_commit;upstream_tag=$source.tag;workflow_run=[string]$env:GITHUB_RUN_ID;installer_sha256=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant();host_sha256=$bundle.host_sha256;vanilla_sha256=$bundle.vanilla_sha256;module_sha256=$files['code_mods/FirstPersonView/ncmm_mod.dll']}
 [IO.File]::WriteAllText((Join-Path $stage 'release-manifest.json'),($provenance | ConvertTo-Json -Depth 6),(New-Object Text.UTF8Encoding($false)))
-$zip=Join-Path $OutputRoot 'NCMM_FirstPersonView_0.1.0_TEST_1807_Windows_x64.zip'
+$zip=Join-Path $OutputRoot ("NCMM_FirstPersonView_0.1.0_TEST_${build}_Windows_x64.zip")
 if(Test-Path $zip){Remove-Item $zip -Force}
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip
