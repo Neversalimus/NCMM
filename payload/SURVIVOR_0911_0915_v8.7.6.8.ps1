@@ -22342,11 +22342,19 @@ function Invoke-SurvivorDeferredEngineLayers([string]$Root) {
 
 # NCMM Infrastructure 0.8.3.1 deep probe: execute the exact host/source transform stack
 # without resolving Visual Studio, compiling binaries, touching the target runtime, or installing files.
+# Revision identity belongs to the verified package executing this payload.
+# The historical ncmm_0910_work source-generation snapshot is not a complete
+# current package and intentionally omits the current Host patch stack manifest.
+$CanonicalPackageRoot = (Resolve-Path (Split-Path $PSScriptRoot -Parent)).Path
+if (-not (Test-Path (Join-Path $CanonicalPackageRoot 'ci\host-patch-stack.json') -PathType Leaf)) {
+    throw "Verified NCMM package is missing the canonical Host patch stack: $CanonicalPackageRoot"
+}
+
 if ($HostSourceProbeOnly) {
     Write-Host ""
     Write-Host "=== NCMM Infrastructure 0.8.3.1 DEEP SOURCE PROBE ===" -ForegroundColor Cyan
-    $probeRevScript = Join-Path $NcmmRoot "ci\Get-PatchRevision.ps1"
-    $probePatchRevision = (& $probeRevScript -RepositoryRoot $NcmmRoot).Trim()
+    $probeRevScript = Join-Path $CanonicalPackageRoot "ci\Get-PatchRevision.ps1"
+    $probePatchRevision = (& $probeRevScript -RepositoryRoot $CanonicalPackageRoot).Trim()
     if ($probePatchRevision -notmatch '^[0-9a-f]{64}$') {
         throw "Deep probe patch revision invalid: $probePatchRevision"
     }
@@ -22412,8 +22420,8 @@ $release0110 = Compile-Survivor $Source0910 (Join-Path $NcmmRoot "sdk") $vs $Rel
 $releaseAWS = Compile-AdvancedWorldSettings $NcmmRoot (Join-Path $NcmmRoot "sdk") $vs $ReleaseRoot
 
 # 0.9.11-0.9.15 snapshots were emitted at their stage boundaries; 0.9.15 was refreshed after API 1.8/contracts.
-$revScript = Join-Path $NcmmRoot "ci\Get-PatchRevision.ps1"
-$newPatchRevision = (& $revScript -RepositoryRoot $NcmmRoot).Trim()
+$revScript = Join-Path $CanonicalPackageRoot "ci\Get-PatchRevision.ps1"
+$newPatchRevision = (& $revScript -RepositoryRoot $CanonicalPackageRoot).Trim()
 if ($newPatchRevision -notmatch '^[0-9a-f]{64}$') {
     throw "Invalid patch revision: $newPatchRevision"
 }
