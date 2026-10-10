@@ -44,8 +44,8 @@ class ApplyTests(unittest.TestCase):
             with patch.object(bridge.subprocess, "check_output", return_value=next(iter(bridge.SOURCES))):
                 bridge.apply(root)
                 self.assertTrue((root / "first-person-source.json").is_file())
-                self.assertIn("draw_graphics_view", (root / "src/sdltiles.cpp").read_text())
-                self.assertIn("graphics_erase( module_id )", (root / "src/ncmm_loader.cpp").read_text())
+                self.assertIn("draw_graphics_view", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
+                self.assertIn("graphics_erase( module_id )", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
                 before = self.fingerprint(root)
                 with self.assertRaises(ValueError): bridge.apply(root)
                 self.assertEqual(before, self.fingerprint(root))

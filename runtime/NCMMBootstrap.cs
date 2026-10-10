@@ -567,6 +567,10 @@ internal static class NCMMBootstrap
         bool forceVanilla = false;
         bool reset = false;
         bool offline = false;
+#if NCMM_FIRST_PERSON_PREVIEW
+        // The preview ships an exact local Host; the stable feed must not replace it.
+        offline = true;
+#endif
         bool refresh = false;
         bool diagnosticsOnly = false;
         bool runtimeSmoke = false;

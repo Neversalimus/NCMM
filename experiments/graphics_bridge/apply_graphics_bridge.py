@@ -49,6 +49,8 @@ def apply(root: Path):
         "bool handle_gameplay_action( const std::string &action )\n{\n    if( graphics_action( action ) ) return true;")
     loader = replace(loader, "void reset_world_lifecycle()\n{", "void reset_world_lifecycle()\n{\n    graphics_view.enabled = false;\n    graphics_gameplay_context = false;")
     loader = replace(loader, "void shutdown()\n{", "void shutdown()\n{\n    graphics_view = {};\n    graphics_frame = nullptr;\n    graphics_commands.clear();")
+    loader = replace(loader, '        write_gameplay_smoke_result( true, "ok", aws_setting_count,',
+        '        if( module_ids.count( "first_person_view" ) && !graphics_scene_smoke() ) {\n            write_gameplay_smoke_result( false, "first_person_graphics_failed", aws_setting_count, aws_hook_count, survivor_perk_count );\n            return 191;\n        }\n\n        write_gameplay_smoke_result( true, "ok", aws_setting_count,')
     loader = replace(loader, "void gameplay_metric_record_completed_craft( const Character &who )\n{",
         "void graphics_note_input_context( const std::string &category )\n{\n    const bool gameplay = category == \"DEFAULTMODE\";\n    if( gameplay != graphics_gameplay_context && g ) g->invalidate_main_ui_adaptor();\n    graphics_gameplay_context = gameplay;\n}\nbool graphics_preserves_destination( const std::string &action )\n{\n    return !graphics_view.owner.empty() && ( action == \"ncmm.open.\" + graphics_view.owner ||\n        action == \"ncmm.view.turn_left\" || action == \"ncmm.view.turn_right\" );\n}\nbool draw_graphics_view( int x, int y, int width, int height )\n{\n    return graphics_draw( x, y, width, height );\n}\n\nvoid gameplay_metric_record_completed_craft( const Character &who )\n{")
     updates["ncmm_loader.cpp"] = loader
@@ -68,7 +70,7 @@ def apply(root: Path):
         "        if( !ncmm::draw_graphics_view( win->pos.x * fontwidth, win->pos.y * fontheight,\n"+
         "                TERRAIN_WINDOW_TERM_WIDTH * font->width, TERRAIN_WINDOW_TERM_HEIGHT * font->height ) ) {\n"+
         anchor+"\n        }")
-    for name in ("ncmm_graphics.h", "ncmm_graphics_policy.hpp", "ncmm_graphics_bridge.inc"):
+    for name in ("ncmm_graphics.h", "ncmm_graphics_policy.hpp", "ncmm_graphics_bridge.inc", "ncmm_graphics_smoke.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name] = (bridge / name).read_text(encoding="utf-8")

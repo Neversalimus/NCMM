@@ -12,6 +12,7 @@ bool graphics_gameplay_context = false;
 const ncmm_graphics_scene_v1 *graphics_frame = nullptr;
 bool graphics_frame_invalid = false;
 std::vector<ncmm_graphics_quad_v1> graphics_commands;
+size_t graphics_resolved_textures = 0;
 loaded_mod *find_loaded_by_id( const char *module_id );
 
 void graphics_erase( const std::string &id )
@@ -191,6 +192,7 @@ bool graphics_draw( int x, int y, int width, int height )
     };
     // Resolve each cell/layer once per frame, and never retain GPU handles across frames.
     std::map<std::pair<uint32_t,uint32_t>,std::optional<texture_draw_data>> textures;
+    graphics_resolved_textures = 0;
     for( const auto &q : graphics_commands ) {
         SDL_Texture *texture = nullptr;
         float u0 = q.u0, v0 = q.v0, u1 = q.u1, v1 = q.v1;
@@ -204,6 +206,7 @@ bool graphics_draw( int x, int y, int width, int height )
                 const TILE_CATEGORY category = q.layer == NCMM_GFX_TERRAIN ? TILE_CATEGORY::TERRAIN :
                     q.layer == NCMM_GFX_FURNITURE ? TILE_CATEGORY::FURNITURE : q.layer == NCMM_GFX_ITEM ? TILE_CATEGORY::ITEM : TILE_CATEGORY::MONSTER;
                 found = textures.emplace( key, tilecontext->get_texture_draw_data( id, category, positions[q.cell_index] ) ).first;
+                if( found->second ) ++graphics_resolved_textures;
             }
             if( found->second ) {
                 const auto &data = *found->second;
@@ -235,3 +238,7 @@ bool graphics_draw( int x, int y, int width, int height )
     return false;
 #endif
 }
+
+// Only the existing explicit --ncmm-gameplay-smoke path invokes this fixture.
+// It runs in a disposable CI game copy, after the real world/avatar are loaded.
+#include "ncmm_graphics_smoke.inc"

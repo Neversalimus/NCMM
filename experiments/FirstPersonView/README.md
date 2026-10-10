@@ -1,9 +1,29 @@
 # First Person View — 0.1.0 development prototype
 
 Optional first-person renderer for the **same live CDDA world** through NCMM.
-This is the first engineering milestone, not a published/installer-ready module.
-The renderer lives outside `mods/`, so the shipping component catalog, installer,
-certified feeds, save schemas and other native modules remain unchanged.
+This is an experimental player test build. The renderer lives outside `mods/`;
+the dedicated preview package adds it to the normal installer's independent
+component selection and bundles an exact experimental Windows Host for 1807.
+The normal release catalog and certified Host feed are not promoted by this build.
+
+## Test installation
+
+Extract `NCMM_FirstPersonView_0.1.0_TEST_1807_Windows_x64.zip` completely and run
+`NCMM_Setup_FirstPerson_TEST.exe`. Choose the exact official Windows x64 graphics
+CDDA 2026-10-06-1807 installation. Keep First Person View checked and install.
+The preview checks the official executable, all payload files and the Host with
+SHA256 before installation. It rejects other executables without changing them.
+F6 toggles the view; F7/F8 rotate. Other bundled NCMM modules remain optional.
+
+Uncheck First Person View and install again to remove its managed DLL/manifest.
+User notes and state files remain. Restore vanilla EXE uses the normal checksum
+and save-compatibility checks. The preview bootstrap uses its bundled Host offline;
+use the normal NCMM installer to return to the current certified Host.
+
+`Build-FirstPersonInstaller.ps1` compiles the normal C# UI and transaction core
+with explicit preview hooks. The Windows workflow only uploads an installer after
+real executable install/disable/re-enable/rollback/restore tests, two actual Host
+launches and the explicit gameplay smoke's SDL atlas frames have passed.
 
 ## Implemented
 
@@ -37,8 +57,10 @@ sprite proportions and lighting need visual refinement in the real game.
 
 A software QA image made from the renderer's command stream is a **test fixture**,
 not evidence of a running CDDA session. CPU renderer timing is not a game/GPU FPS
-measurement. Real in-game toggle/turn/menu/door/lifecycle QA remains required before
-providing a player test installer.
+measurement. The CI gameplay fixture separately exercises the actual engine's
+toggle, camera, menu suspension, door opening and SDL texture drawing. Interactive
+player testing of targeting, combat, save/reload and character switching remains
+necessary.
 
 ## Exact experimental targets
 
@@ -77,9 +99,9 @@ certification record or installed-game change.
 
 With the pinned vcpkg/toolchain from the exact upstream checkout, build the normal
 MSVC graphics target. The dedicated `ncmm-first-person-prototype.yml` workflow does
-this for 1807, alongside Windows/Linux module tests. CI artifacts are development
-evidence, not a certified Host package or an installer. A regular released Host
-does not advertise the graphics capability and rejects this DLL safely.
+this for 1807, alongside Windows/Linux module tests and the preview installer.
+The test package remains explicitly experimental. A regular released Host does
+not advertise the graphics capability and rejects this DLL safely.
 
 ## Validation and next milestones
 
@@ -95,20 +117,21 @@ Local validation on 2026-10-10:
   reapplication without partial experimental writes.
 - Canonical NCMM + graphics source preparation on both exact source commits.
 - Syntax compilation of the Host loader, SDL terrain hook and input-context hook
-  on both exact sources. Windows/MSVC full link and actual gameplay remain CI/QA
-  gates; no compatibility claim is made from source checks alone.
+  on both exact sources. Windows/MSVC full link, actual gameplay SDL rendering and
+  preview installation are dedicated CI gates; source checks alone do not qualify
+  a build for the certified Host feed.
 
 Next milestones:
 
-1. Complete Windows Host link and run an actual room in a separate game copy:
+1. Test the preview interactively in a separate game copy:
    F6 round trip, rotation without turns, opening a door, walking/bumping combat,
    targeting/inventory, save/reload and switching characters.
 2. Improve floor UV sampling, wall/door materials, ceiling and billboard aspect
    ratios; record real frame timings and compare with vanilla.
 3. Add camera-relative controls as an explicit mode, mouse look, NPCs and fields;
    extend geometry for vehicles and z-levels with the same visibility rules.
-4. Register/publish the optional module only after semantic and gameplay gates,
-   exact Host certification and installer rollback/removal checks pass.
+4. Promote the optional module to the normal release catalog after exact Host
+   certification and the remaining interactive gameplay checks pass.
 
 No external tileset is bundled here. Existing CDDA/UDP assets retain their original
 licenses and attribution; see the repository's `THIRD_PARTY_NOTICES.txt` and the
