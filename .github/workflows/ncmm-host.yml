@@ -521,6 +521,8 @@ jobs:
             meta_version=$(jq -r '.ncmm_version' "$meta")
             host="$dir/cataclysm-tiles.ncmm.exe"
             zip=$(find "$(dirname "$dir")" -maxdepth 1 -type f -name "ncmm-host-win64-${tag}.zip" | head -n1 || true)
+            license="$dir/CDDA_LICENSE.txt"
+            notice="$dir/THIRD_PARTY_NOTICES.txt"
 
             if [ "$meta_rev" != "$PATCH_REVISION" ] || [ "$meta_version" != "$NCMM_VERSION" ]; then
               echo "Host metadata revision/version mismatch for $tag" >&2
@@ -532,13 +534,27 @@ jobs:
               exit 1
             fi
 
+            # The feed publishes a raw modified CDDA executable. Accompany
+            # it with licensing assets and require the ZIP to contain the exact
+            # same bytes, rather than treating notices as optional metadata.
+            if [ ! -s "$license" ] || [ ! -s "$notice" ] || [ -z "$zip" ] || [ ! -s "$zip" ]; then
+              echo "Missing Host release licensing evidence for $tag" >&2
+              exit 1
+            fi
+            grep -Fq 'Creative Commons Attribution-ShareAlike 3.0' "$license"
+            grep -Fq 'https://creativecommons.org/licenses/by-sa/3.0/' "$notice"
+            unzip -p "$zip" CDDA_LICENSE.txt | cmp - "$license"
+            unzip -p "$zip" THIRD_PARTY_NOTICES.txt | cmp - "$notice"
+
             short_rev=${PATCH_REVISION:0:12}
             release_tag="ncmm-host-${tag}-r${short_rev}"
             gh release view "$release_tag" >/dev/null 2>&1 || \
               gh release create "$release_tag" --title "NCMM $NCMM_VERSION host for $tag" \
-                --notes "Certified NCMM $NCMM_VERSION host (ABI v1 + Host API 2.0 Core / Module Contract v1) for $tag ($commit), patch revision $PATCH_REVISION."
+                --notes "Unofficial modified Cataclysm: DDA Host based on $tag ($commit), patch revision $PATCH_REVISION. Original project: https://github.com/CleverRaven/Cataclysm-DDA. License: CC BY-SA 3.0 Unported https://creativecommons.org/licenses/by-sa/3.0/. Original LICENSE.txt and additional notices are attached to this release; no upstream endorsement is implied."
+            pwsh -NoProfile -File ci/Publish-ImmutableAsset.ps1 -Tag "$release_tag" -Asset "$license"
+            pwsh -NoProfile -File ci/Publish-ImmutableAsset.ps1 -Tag "$release_tag" -Asset "$notice"
+            pwsh -NoProfile -File ci/Publish-ImmutableAsset.ps1 -Tag "$release_tag" -Asset "$zip"
             pwsh -NoProfile -File ci/Publish-ImmutableAsset.ps1 -Tag "$release_tag" -Asset "$host"
-            if [ -n "$zip" ]; then pwsh -NoProfile -File ci/Publish-ImmutableAsset.ps1 -Tag "$release_tag" -Asset "$zip"; fi
 
             remote_digest=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${release_tag}" \
               --jq '.assets[] | select(.name=="cataclysm-tiles.ncmm.exe") | .digest' | tail -n1)

@@ -111,7 +111,6 @@ runtime\NCMMRuntime.manifest
 tests\AuditIOHarness.cs
 sdk\ncmm_checked_math.hpp
 sdk\ncmm_sdk_core.hpp
-
 ci\Test-LegacyCharacterPoints.ps1
 components\legacy_character_points.json
 components\native-build.json
@@ -128,3 +127,4 @@ mods\LegacyCharacterPoints\src\legacy_character_points.cpp
 mods\LegacyCharacterPoints\tests\legacy_points_test.cpp
 mods\LegacyCharacterPoints\tests\module_test.cpp
 tests\InstallationMatrixHarness.cs
+THIRD_PARTY_NOTICES.txt

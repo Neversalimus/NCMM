@@ -166,8 +166,8 @@
                   },
                   {
                       "path":  "compat\\package-files.txt",
-                      "sha256":  "cfa198b44261cc2bbe0101c5bb9618d0bc4a9fdb1c885eb343897cd724314b7b",
-                      "bytes":  4470
+                      "sha256":  "457a40545dd3178cb7419f9504ff2fea06051de6a6247805aeaafd2a50a25553",
+                      "bytes":  4493
                   },
                   {
                       "path":  "compat\\update\\index.json",
@@ -456,8 +456,8 @@
                   },
                   {
                       "path":  "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-                      "sha256":  "b6733000c56cfaf0d7fa508827ac95740dfdb71f3726abbe3df6f06ad0c188de",
-                      "bytes":  3361147
+                      "sha256":  "ef03e41b62a2246555804eac0199fbfb33a5f109fa399819778dc035bb980747",
+                      "bytes":  3364415
                   },
                   {
                       "path":  "pipeline\\pipeline.manifest.json",
@@ -558,6 +558,11 @@
                       "path":  "tests\\InstallationMatrixHarness.cs",
                       "sha256":  "620736580daa4a3fc9083146ca375342bafd69b0dca629e90a588f8d93c2b452",
                       "bytes":  50101
+                  },
+                  {
+                      "path":  "THIRD_PARTY_NOTICES.txt",
+                      "sha256":  "6118dd5f344d5870c79d8b30bc3e9c1e82b3f7429337f908cb68ea7ceb8d229b",
+                      "bytes":  3175
                   },
                   {
                       "path":  "tools\\Collect-NCMMDiagnostics.ps1",

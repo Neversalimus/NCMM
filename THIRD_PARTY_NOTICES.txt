@@ -1,0 +1,60 @@
+NCMM - THIRD-PARTY LICENSE AND ATTRIBUTION NOTICES
+==================================================
+
+NCMM is an independent, unofficial project. It is not affiliated with,
+sponsored by, or endorsed by CleverRaven or the Cataclysm: Dark Days Ahead
+contributors.
+
+1. Cataclysm: Dark Days Ahead (CDDA) - modified certified Host
+----------------------------------------------------------------
+Upstream work: Cataclysm: Dark Days Ahead
+Original project and contributors:
+  https://github.com/CleverRaven/Cataclysm-DDA
+CDDA license: Creative Commons Attribution-ShareAlike 3.0 Unported
+  https://creativecommons.org/licenses/by-sa/3.0/
+Original CDDA license and additional third-party notices:
+  https://github.com/CleverRaven/Cataclysm-DDA/blob/master/LICENSE.txt
+
+The certified NCMM Host executable (cataclysm-tiles.ncmm.exe) is built from
+a specific CDDA source revision with NCMM's source-level modifications:
+Host bootstrap/API integration, runtime hooks, UI integrations and module
+support. It is a modified version of CDDA, not an official CDDA build.
+The exact upstream source commit and release tag are recorded in host.json.
+For the certified Host ZIP, CDDA_LICENSE.txt is copied without modification
+from that exact upstream source revision. Please retain both files and
+respect the CC BY-SA 3.0 terms, including attribution, indication of
+modifications, and ShareAlike conditions for CDDA adaptations.
+
+Individual libraries, fonts, sounds, graphics and other components included
+in a CDDA build may have additional licenses. The exact upstream
+CDDA_LICENSE.txt identifies various such components; their respective
+terms remain applicable.
+
+2. Independently authored NCMM components
+-----------------------------------------
+NCMM runtime/bootstrap, installer, SDK, and independently authored native
+modules are distinct components. This attribution notice is not a blanket
+license grant for all NCMM sources and does not assert that a separately
+authored component is or is not a legal adaptation of CDDA. Such scope
+depends on the actual code and distribution. Apply all applicable licenses
+to any copied or derived material, wherever it appears.
+
+No permission to relicense CDDA material or to claim endorsement is granted
+by this document. For independently authored NCMM material, consult any
+explicit license that accompanies the relevant component; absence of an
+explicit license should not be treated as an open-source license grant.
+
+3. Distribution and provenance
+------------------------------
+Certified Host: use its host.json to identify the exact upstream tag, source
+commit and NCMM patch revision; retain CDDA_LICENSE.txt and this notice.
+Standalone module and NCMM Runtime/Full ZIPs carry this notice so recipients
+can locate the upstream terms for a certified Host they install separately.
+The NCMM installer selects an exact-identity Host; CDDA itself is separately
+obtained under the upstream project's licenses.
+
+The source patches and build scripts for NCMM are published at:
+  https://github.com/Neversalimus/NCMM
+
+This notice supplements, and does not replace, any applicable license or
+copyright notice distributed with the original software.

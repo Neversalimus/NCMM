@@ -37,6 +37,25 @@ function Read-NcmmZipJson($Index,[string]$Name) {
     finally { $reader.Dispose() }
 }
 
+function Assert-NcmmZipNotice($Index,[string]$Expected) {
+    $noticeName='THIRD_PARTY_NOTICES.txt'
+    Require-NcmmZipFile $Index $noticeName
+    $stream=$Index[$noticeName].Open()
+    $reader=[IO.StreamReader]::new($stream,[Text.Encoding]::UTF8,$true)
+    try { $actual=$reader.ReadToEnd() }
+    finally { $reader.Dispose() }
+    $normalizedActual=$actual.Replace("`r`n","`n").Trim()
+    $normalizedExpected=$Expected.Replace("`r`n","`n").Trim()
+    if ($normalizedActual -cne $normalizedExpected) {
+        throw "Release archive has missing, stale or altered upstream attribution: $noticeName"
+    }
+}
+
+$expectedNotice=Get-Content (Join-Path $root 'THIRD_PARTY_NOTICES.txt') -Raw
+if (-not $expectedNotice.Contains('https://creativecommons.org/licenses/by-sa/3.0/')) {
+    throw 'Repository attribution notice is missing CDDA license URI.'
+}
+
 $fullPath=Join-Path $dist ("NCMM_Full_v$version.zip")
 $runtimePath=Join-Path $dist ("NCMM_Runtime_v$version.zip")
 foreach($path in @($fullPath,$runtimePath)) {
@@ -47,6 +66,8 @@ $runtime=[IO.Compression.ZipFile]::OpenRead($runtimePath)
 try {
     $fullFiles=Get-NcmmZipIndex $full
     $runtimeFiles=Get-NcmmZipIndex $runtime
+    Assert-NcmmZipNotice $fullFiles $expectedNotice
+    Assert-NcmmZipNotice $runtimeFiles $expectedNotice
     Require-NcmmZipFile $fullFiles 'NCMM_Setup.exe'
     Require-NcmmZipFile $runtimeFiles 'NCMM_Setup.exe'
     $manifest=Read-NcmmZipJson $fullFiles 'release-manifest.json'
@@ -83,6 +104,7 @@ try {
         $standalone=[IO.Compression.ZipFile]::OpenRead($moduleZipPath)
         try {
             $files=Get-NcmmZipIndex $standalone
+            Assert-NcmmZipNotice $files $expectedNotice
             Require-NcmmZipFile $files 'component.json'
             Require-NcmmZipFile $files ("code_mods/$($module.Folder)/ncmm_mod.dll")
             Require-NcmmZipFile $files ("code_mods/$($module.Folder)/mod.json")
