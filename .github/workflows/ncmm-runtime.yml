@@ -19,6 +19,8 @@ on:
       - 'ci/Get-NcmmCurrentVersion.ps1'
       - 'ci/Test-TextEncoding.ps1'
       - 'ci/Test-VersionConsistency.ps1'
+      - 'ci/Get-ImmutableReleaseTag.ps1'
+      - 'ci/Test-ImmutableReleaseTag.ps1'
       - 'ci/Test-BootstrapFailureHarness.ps1'
       - 'ci/Test-ComponentCatalog.ps1'
       - 'ci/NativeModuleCatalog.ps1'
@@ -65,6 +67,8 @@ on:
       - 'ci/Get-NcmmCurrentVersion.ps1'
       - 'ci/Test-TextEncoding.ps1'
       - 'ci/Test-VersionConsistency.ps1'
+      - 'ci/Get-ImmutableReleaseTag.ps1'
+      - 'ci/Test-ImmutableReleaseTag.ps1'
       - 'ci/Test-BootstrapFailureHarness.ps1'
       - 'ci/Test-ComponentCatalog.ps1'
       - 'ci/NativeModuleCatalog.ps1'
@@ -269,12 +273,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = (./ci/Get-NcmmCurrentVersion.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE").Trim()
-          $tag = "ncmm-runtime-v$version-build-$($env:GITHUB_SHA.Substring(0,12))"
-          cmd /c "gh release view $tag >nul 2>nul"
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "NCMM Runtime v$version" --notes 'Portable NCMM runtime with certified-host and crash-loop hardening. No compiler or build tools are required on player PCs.'
-            if ($LASTEXITCODE -ne 0) { throw 'Could not create runtime release.' }
-          }
           . .\ci\NativeModuleCatalog.ps1
           $modules = @(Get-NcmmNativeBuildModules -RepositoryRoot "$env:GITHUB_WORKSPACE")
           $assets = @("dist/NCMM_Full_v$version.zip", "dist/NCMM_Runtime_v$version.zip")
@@ -283,6 +281,12 @@ jobs:
           }
           foreach ($asset in $assets) {
             if (-not (Test-Path $asset -PathType Leaf)) { throw "Native release asset missing: $asset" }
+          }
+          $tag = ./ci/Get-ImmutableReleaseTag.ps1 -Prefix 'ncmm-runtime' -Version $version -SourceSha $env:GITHUB_SHA -Asset $assets
+          cmd /c "gh release view $tag >nul 2>nul"
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title "NCMM Runtime v$version" --notes 'Portable NCMM runtime with certified-host and crash-loop hardening. No compiler or build tools are required on player PCs.'
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create runtime release.' }
           }
           gh release edit $tag --title "NCMM v$version Runtime + Full Bundle" --notes "Recommended: NCMM_Full_v$version.zip. Includes runtime and independently installable native module packages."
           if ($LASTEXITCODE -ne 0) { throw 'Could not update runtime release metadata.' }
@@ -297,7 +301,7 @@ jobs:
         run: |
           $version = [string](Get-Content 'mods/AdvancedWorldSettings/mod.json' -Raw | ConvertFrom-Json).version
           $hostVersion = (./ci/Get-NcmmCurrentVersion.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE").Trim()
-          $tag = "ncmm-aws-v$version-build-$($env:GITHUB_SHA.Substring(0,12))"
+          $tag = ./ci/Get-ImmutableReleaseTag.ps1 -Prefix 'ncmm-aws' -Version $version -SourceSha $env:GITHUB_SHA -Asset @("dist/NCMM_AdvancedWorldSettings_v$version.zip")
           cmd /c "gh release view $tag >nul 2>nul"
           if ($LASTEXITCODE -ne 0) {
             gh release create $tag --title "Advanced World Settings v$version" --notes "Independent NCMM native module. Requires NCMM Host $hostVersion. Recommended installation: NCMM_Setup.exe component selection."
@@ -316,7 +320,7 @@ jobs:
         run: |
           $version = [string](Get-Content 'mods/SurvivorProgression/mod.json' -Raw | ConvertFrom-Json).version
           $hostVersion = (./ci/Get-NcmmCurrentVersion.ps1 -RepositoryRoot "$env:GITHUB_WORKSPACE").Trim()
-          $tag = "ncmm-survivor-v$version-build-$($env:GITHUB_SHA.Substring(0,12))"
+          $tag = ./ci/Get-ImmutableReleaseTag.ps1 -Prefix 'ncmm-survivor' -Version $version -SourceSha $env:GITHUB_SHA -Asset @("dist/NCMM_SurvivorProgression_v$version.zip")
           cmd /c "gh release view $tag >nul 2>nul"
           if ($LASTEXITCODE -ne 0) {
             gh release create $tag --title "Survivor Progression v$version" --notes "Independent NCMM native module. Requires NCMM Host $hostVersion. Recommended installation: NCMM_Setup.exe component selection."
