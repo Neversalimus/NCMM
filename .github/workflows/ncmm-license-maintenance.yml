@@ -1,0 +1,136 @@
+name: NCMM licensing branch maintenance
+
+on:
+  push:
+    branches: ['audit/license-notices-2026-10-10']
+    paths: ['.github/workflows/ncmm-license-maintenance.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ncmm-license-maintenance-195
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    if: github.repository == 'Neversalimus/NCMM' && github.ref == 'refs/heads/audit/license-notices-2026-10-10'
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit/license-notices-2026-10-10
+          fetch-depth: 0
+      - name: Merge reviewed main without discarding source changes
+        shell: pwsh
+        env:
+          EXPECTED_EVENT_SHA: ${{ github.sha }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $head=(& git rev-parse HEAD).Trim()
+          if ($head -ne $env:EXPECTED_EVENT_SHA) { throw 'Branch advanced; refusing stale maintenance.' }
+          $main='f989888e3f7c27a0c4fbad2f9b733733a4d6aa1c'
+          git cat-file -e "$main^{commit}"
+          if ($LASTEXITCODE -ne 0) { throw 'Reviewed main commit is not available.' }
+          $base=(& git merge-base HEAD $main).Trim()
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve merge base.' }
+          $payload='payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
+          # Only generated Host recipe snapshots changed in this PR. Prove this
+          # before preserving main's newer hand-authored canonical payload.
+          $old=(& git show "${base}:$payload") -join "`n"
+          $ours=(& git show "HEAD:$payload") -join "`n"
+          foreach ($rel in @('ci\Build-HostPackage.ps1','.github\workflows\ncmm-host.yml')) {
+            $pattern="(?m)(Write-NcmmCanonicalPayloadFile '"+[regex]::Escape($rel)+"' ')[^']*(')"
+            if ([regex]::Matches($old,$pattern).Count -ne 1 -or [regex]::Matches($ours,$pattern).Count -ne 1) { throw "Missing unique canonical snapshot: $rel" }
+            $old=[regex]::Replace($old,$pattern,'${1}SNAPSHOT${2}')
+            $ours=[regex]::Replace($ours,$pattern,'${1}SNAPSHOT${2}')
+          }
+          if ($old -cne $ours) { throw 'Licensing branch has non-generated payload changes; manual reconciliation required.' }
+          $membersBefore=@(Get-Content compat/package-files.txt)
+          $mainMembers=@(& git show "${main}:compat/package-files.txt")
+          $members=@($mainMembers+$membersBefore | ForEach-Object {$_.Trim()} | Where-Object {$_} | Select-Object -Unique)
+          git config user.name 'NCMM Maintenance Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git merge --no-ff --no-commit $main
+          $mergeCode=$LASTEXITCODE
+          $conflicts=@(& git diff --name-only --diff-filter=U)
+          $allowed=@($payload,'compat/package-files.txt','compat/package.integrity.json')
+          foreach ($file in $conflicts) {
+            if ($file -notin $allowed) { throw "Unexpected source conflict: $file" }
+          }
+          if ($mergeCode -ne 0 -and $conflicts.Count -eq 0) { throw 'Merge failed without recognized generated-file conflicts.' }
+          git checkout $main -- $payload compat/package.integrity.json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not preserve reviewed main generated sources.' }
+          [IO.File]::WriteAllText((Join-Path $PWD 'compat/package-files.txt'),(($members -join "`n")+"`n"),[Text.UTF8Encoding]::new($false))
+          # Legal payload is part of the immutable Host artifact identity.
+          $revisionPath=Join-Path $PWD 'ci/patch-revision-files.txt'
+          $revision=[IO.File]::ReadAllText($revisionPath)
+          if (@($revision -split "`r?`n") -notcontains 'THIRD_PARTY_NOTICES.txt') {
+            [IO.File]::WriteAllText($revisionPath,($revision.TrimEnd()+"`nTHIRD_PARTY_NOTICES.txt`n"),[Text.UTF8Encoding]::new($false))
+          }
+          git add -- $payload compat/package-files.txt compat/package.integrity.json ci/patch-revision-files.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot stage reconciled generated files.' }
+          if (@(& git diff --name-only --diff-filter=U).Count -ne 0) { throw 'Unresolved conflicts remain.' }
+      - name: Regenerate and verify canonical source and immutable membership
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD
+          ./ci/Sync-CanonicalPayload.ps1 -RepositoryRoot $PWD -Check
+          ./ci/Regenerate-PackageIntegrity.ps1 -PackageRoot $PWD -Check
+          ./ci/Test-TextEncoding.ps1 -RepoRoot $PWD
+          ./ci/Test-ImmutableReleaseTag.ps1 -RepositoryRoot $PWD
+          $paths=@('ci/Build-HostPackage.ps1','ci/Build-Runtime.ps1','ci/Test-NativeReleaseLayout.ps1')
+          foreach($path in $paths) {
+            $tokens=$null; $errors=$null
+            [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $path),[ref]$tokens,[ref]$errors)
+            if (@($errors).Count) { throw "PowerShell syntax errors in ${path}: $errors" }
+          }
+      - name: Record old PR evidence and source-only license inventory
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $report=Join-Path $env:RUNNER_TEMP 'ncmm-license-evidence'
+          New-Item -ItemType Directory -Force $report | Out-Null
+          $payload='payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
+          $lines=Get-Content $payload
+          $hits=Select-String -Path $payload -Pattern 'inventory_throwing_filter|primary.get_item\(\) == loc.get_item\(\)|titled_filter_menu<any_ret_val<item_location>>' -Context 8,8
+          $hits | Out-String -Width 280 | Set-Content (Join-Path $report 'pr102-current-source.txt')
+          $proof=[ordered]@{
+            source=(& git rev-parse HEAD).Trim()
+            main='f989888e3f7c27a0c4fbad2f9b733733a4d6aa1c'
+            source_file_count=@(& git ls-files).Count
+            host_notice_fingerprinted=((Get-Content ci/patch-revision-files.txt) -contains 'THIRD_PARTY_NOTICES.txt')
+            throwing_filter_occurrences=@(Select-String -Path $payload -SimpleMatch 'inventory_throwing_filter').Count
+          }
+          $proof | ConvertTo-Json | Tee-Object -FilePath (Join-Path $report 'evidence.json')
+          Get-Content (Join-Path $report 'pr102-current-source.txt')
+          git diff --stat
+      - name: Commit only reviewed merge and generated reconciliation
+        shell: pwsh
+        env:
+          TARGET_BRANCH: audit/license-notices-2026-10-10
+        run: |
+          $ErrorActionPreference='Stop'
+          $unstaged=@(& git diff --name-only)
+          $allowed=@('payload/SURVIVOR_0911_0915_v8.7.6.8.ps1','compat/package.integrity.json','ci/patch-revision-files.txt')
+          foreach($path in $unstaged) {
+            if ($path -notin $allowed) { throw "Unexpected generated edit: $path" }
+          }
+          git add -- payload/SURVIVOR_0911_0915_v8.7.6.8.ps1 compat/package.integrity.json ci/patch-revision-files.txt
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { throw 'Whitespace or conflict marker check failed.' }
+          git commit -m 'Merge reviewed main and include licensing bytes in Host release identity'
+          if ($LASTEXITCODE -ne 0) { throw 'Reconciliation commit failed.' }
+          git push origin "HEAD:refs/heads/$env:TARGET_BRANCH"
+          if ($LASTEXITCODE -ne 0) { throw 'Branch advanced or push failed; no forced overwrite performed.' }
+          git rev-parse HEAD
+      - name: Upload maintenance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ncmm-license-maintenance-evidence
+          path: ${{ runner.temp }}/ncmm-license-evidence
+          if-no-files-found: warn
