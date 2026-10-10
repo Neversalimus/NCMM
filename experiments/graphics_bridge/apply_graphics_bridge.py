@@ -72,6 +72,16 @@ def apply(root: Path):
         "        if( !ncmm::draw_graphics_view( win->pos.x * fontwidth, win->pos.y * fontheight,\n"+
         "                TERRAIN_WINDOW_TERM_WIDTH * font->width, TERRAIN_WINDOW_TERM_HEIGHT * font->height ) ) {\n"+
         anchor+"\n        }")
+    menu = read("main_menu.cpp")
+    updates["main_menu.cpp"] = replace(menu,
+        "        std::exit( ncmm::run_gameplay_smoke() );",
+        "        const int smoke_result = ncmm::run_gameplay_smoke();\n"
+        "        // Match the normal game/SDL teardown before process-lifetime destructors.\n"
+        "        ncmm::shutdown();\n"
+        "        deinitDebug();\n"
+        "        g.reset();\n"
+        "        catacurses::endwin();\n"
+        "        std::exit( smoke_result );")
     for name in ("ncmm_graphics.h", "ncmm_graphics_policy.hpp", "ncmm_graphics_bridge.inc", "ncmm_graphics_smoke.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)

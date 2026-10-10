@@ -21,6 +21,7 @@ class ApplyTests(unittest.TestCase):
             (root / "src" / name).write_bytes((REPO / "host_patch" / name).read_bytes())
         (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n}\n')
         (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR)
+        (root / "src/main_menu.cpp").write_text("        std::exit( ncmm::run_gameplay_smoke() );")
         (root / "src/handle_action.cpp").write_text("    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {\n        player_character.clear_destination();\n        destination_preview.clear();\n        return false;\n    }")
     def fingerprint(self, root):
         return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob("*") if p.is_file()}
@@ -50,5 +51,13 @@ class ApplyTests(unittest.TestCase):
                 before = self.fingerprint(root)
                 with self.assertRaises(ValueError): bridge.apply(root)
                 self.assertEqual(before, self.fingerprint(root))
+    def test_missing_shutdown_anchor_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); self.fixture(root)
+            (root / "src/main_menu.cpp").write_text("changed smoke entry")
+            before = self.fingerprint(root)
+            with patch.object(bridge.subprocess, "check_output", return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError, "one exact anchor"): bridge.apply(root)
+            self.assertEqual(before, self.fingerprint(root))
 
 if __name__ == "__main__": unittest.main()

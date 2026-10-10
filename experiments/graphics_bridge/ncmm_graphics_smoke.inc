@@ -45,6 +45,7 @@ bool graphics_scene_smoke()
             tilecontext->draw( point::zero, center, 640, 480, overlays, blocks );
             require( graphics_draw( 0, 0, 640, 480 ), "real_sdl_render_failed" );
             require( graphics_resolved_textures >= 2, "atlas_textures_missing" );
+            require( SDL_FlushRenderer( get_sdl_renderer().get() ), "sdl_frame_flush_failed" );
             ++frames;
         };
         draw();
