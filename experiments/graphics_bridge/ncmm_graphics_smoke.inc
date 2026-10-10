@@ -41,6 +41,7 @@ bool graphics_scene_smoke()
             std::multimap<point, formatted_text> overlays;
             color_block_overlay_container blocks;
             // The real viewport hook keeps this pass before drawing first person.
+            here.update_visibility_cache( 0 );
             tilecontext->draw( point::zero, center, 640, 480, overlays, blocks );
             require( graphics_draw( 0, 0, 640, 480 ), "real_sdl_render_failed" );
             require( graphics_resolved_textures >= 2, "atlas_textures_missing" );
