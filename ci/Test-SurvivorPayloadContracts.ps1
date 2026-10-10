@@ -2005,7 +2005,7 @@ foreach($controlNeedle0140 in @(
     'player_character.select_ammo( *ammo_weapon, false )',
     'function Apply-SurvivorManaHandReloadCarrier0153',
     'Mana Hand reload-in-place include',
-    '!ncmm::is_virtual_item( *loc )',
+    '!ncmm::is_virtual_item( *loc )'
 )){
     if(-not $manaGunControlsSection0140.Contains($controlNeedle0140)){
         throw ('Mana Hand standard gun-control regression contract missing: '+$controlNeedle0140)
