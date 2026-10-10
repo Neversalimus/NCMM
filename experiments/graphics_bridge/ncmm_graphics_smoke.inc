@@ -38,11 +38,17 @@ bool graphics_scene_smoke()
         require( ncmm::handle_gameplay_action( "ncmm.open.first_person_view" ), "toggle_action_missing" );
         require( graphics_view.enabled, "view_did_not_enable" );
         auto draw = [&]() {
+            std::multimap<point, formatted_text> overlays;
+            color_block_overlay_container blocks;
+            // The real viewport hook keeps this pass before drawing first person.
+            tilecontext->draw( point::zero, center, 640, 480, overlays, blocks );
             require( graphics_draw( 0, 0, 640, 480 ), "real_sdl_render_failed" );
             require( graphics_resolved_textures >= 2, "atlas_textures_missing" );
             ++frames;
         };
         draw();
+        require( you.get_memorized_tile( here.get_abs( door ) ).get_ter_id() == "t_door_c",
+                 "closed_door_not_memorized" );
         SDL_Renderer *renderer = get_sdl_renderer().get();
         const SDL_Rect capture = { 0, 0, 640, 480 };
         SDL_Surface *surface = SDL_RenderReadPixels( renderer, &capture );
@@ -70,6 +76,8 @@ bool graphics_scene_smoke()
         require( here.ter( door ).id().str() == "t_door_o", "door_terrain_not_updated" );
         here.build_map_cache( 0 );
         draw();
+        require( you.get_memorized_tile( here.get_abs( door ) ).get_ter_id() == "t_door_o",
+                 "open_door_memory_not_updated" );
         require( ncmm::handle_gameplay_action( "ncmm.open.first_person_view" ), "toggle_off_action_missing" );
         require( !graphics_view.enabled && !graphics_draw( 0, 0, 640, 480 ), "tiles_fallback_missing" );
     } catch( const std::exception &err ) {

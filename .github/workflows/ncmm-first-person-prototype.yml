@@ -42,6 +42,7 @@ jobs:
     timeout-minutes: 120
     env:
       GH_TOKEN: ${{ github.token }}
+      SCCACHE_GHA_ENABLED: 'true'
       VCPKG_OVERLAY_TRIPLETS: ${{ github.workspace }}/upstream/.github/vcpkg_triplets
       BACKTRACE: '1'
       CDDA_RELEASE_BUILD: '1'
@@ -75,11 +76,33 @@ jobs:
         with:
           path: upstream/msvc-full-features/vcpkg_installed
           key: ncmm-vcpkg-${{ runner.os }}-f6672d8e480ccdecddfad3fd1b838ba369ffe6cd-${{ hashFiles('upstream/msvc-full-features/vcpkg.json', 'upstream/.github/vcpkg_triplets/x64-windows-static.cmake') }}
+      - uses: mozilla-actions/sccache-action@v0.0.11
+        with:
+          version: v0.16.0
+      - name: Configure the canonical compiler cache wrapper
+        shell: powershell
+        run: |
+          $dir=Join-Path $env:RUNNER_TEMP 'ncmm-fp-sccache'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          @'
+          @echo off
+          setlocal
+          sccache.exe cl.exe %*
+          exit /b %ERRORLEVEL%
+          '@ | Set-Content (Join-Path $dir 'cl.bat') -Encoding Ascii
+          "NCMM_SCCACHE_WRAPPER_DIR=$dir" >> $env:GITHUB_ENV
+          $props='upstream/msvc-full-features/Cataclysm-common.props'
+          $text=[IO.File]::ReadAllText((Join-Path $PWD $props))
+          $parallel='<MultiProcessorCompilation>true</MultiProcessorCompilation>'
+          $debug='<DebugInformationFormat>ProgramDatabase</DebugInformationFormat>'
+          if(!$text.Contains($parallel) -or !$text.Contains($debug)){throw 'Canonical compiler-cache anchors changed.'}
+          $text=$text.Replace($parallel,'<MultiProcessorCompilation>false</MultiProcessorCompilation>').Replace($debug,'<DebugInformationFormat>OldStyle</DebugInformationFormat>')
+          [IO.File]::WriteAllText((Join-Path $PWD $props),$text,(New-Object Text.UTF8Encoding($false)))
       - name: Compile actual experimental engine (no certification/publication)
         shell: powershell
         working-directory: upstream
         run: |
-          & msbuild -m -p:Configuration=Release -p:Platform=x64 -target:Cataclysm-vcpkg-static msvc-full-features/Cataclysm-vcpkg-static.sln
+          & msbuild -m -p:Configuration=Release -p:Platform=x64 -p:CLToolExe=cl.bat "-p:CLToolPath=$env:NCMM_SCCACHE_WRAPPER_DIR" -p:TrackFileAccess=false -p:UseMultiToolTask=true -target:Cataclysm-vcpkg-static msvc-full-features/Cataclysm-vcpkg-static.sln
           if($LASTEXITCODE -ne 0){throw 'Experimental MSVC Host build failed.'}
           if(!(Test-Path cataclysm-tiles.exe)){throw 'Experimental engine binary missing.'}
       - name: Download SHA256-verified official Windows 1807 game

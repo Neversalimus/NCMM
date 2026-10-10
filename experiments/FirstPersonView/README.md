@@ -42,6 +42,9 @@ launches and the explicit gameplay smoke's SDL atlas frames have passed.
 - Camera state is volatile. New/load-character events reset to tiles. Menu,
   targeting and other non-gameplay input contexts temporarily use normal tiles.
 - Toggle/rotation preserve the avatar's destination, position, moves and save data.
+- The normal terrain pass still updates visibility, animation and explored-map
+  memory before the perspective overlay. The engine fixture checks that opening
+  a real door updates its memorized terrain identity as well.
 - Commands are validated/staged before drawing. Failed render callbacks, invalid
   output or missing contracts fall back to tiles; quarantined/unloaded modules
   lose their registered callbacks before the DLL can be freed.
