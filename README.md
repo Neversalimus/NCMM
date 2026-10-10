@@ -2,6 +2,12 @@
 
 NCMM (Neversalimus Code Mod Manager) is a native code-mod/runtime platform for Cataclysm: Dark Days Ahead. It is deliberately maintained as a standalone project rather than a CDDA fork: NCMM keeps its own bootstrap, certified Host, stable module API, source contracts, diagnostics, CI and optional native modules.
 
+## Licensing and attribution
+
+NCMM is an unofficial, independently administered project and is not endorsed by the Cataclysm: Dark Days Ahead maintainers. Certified NCMM Host executables are modified CDDA builds. They retain the CDDA license obligations (CC BY-SA 3.0 Unported and any applicable third-party terms). Each newly packaged certified Host includes the original `LICENSE.txt` from its **exact CDDA source revision**, renamed `CDDA_LICENSE.txt`, and NCMM attribution notices.
+
+Read [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) for attribution, links and distribution boundaries. The notices **do not** place every independently written NCMM module under a blanket CC BY-SA license. Separate NCMM-authored material has no project-wide license grant unless one is explicitly provided. License compliance for historical releases and binary dependency inventories is discussed in [the licensing audit](docs/audit/2026-10-10-licensing.md).
+
 ## Current stack
 
 | Component | Version |
