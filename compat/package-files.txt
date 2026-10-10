@@ -1,7 +1,7 @@
 .github\workflows\ncmm-certify.yml
 .github\workflows\ncmm-experimental-watch.yml
 adapters\base\cdda_2026_series.ps1
-adapters\cdda_2026_09_23_0546.ps1
+adapters\cdda_2026_10_01_1040.ps1
 AWS_HOST_API_2_MIGRATION_CHANGELOG.txt
 ci\Build-UpdateRelease.ps1
 ci\Get-ImmutableReleaseTag.ps1
@@ -21,7 +21,7 @@ ci\Test-ManaActionWeaponContracts.ps1
 ci\Watch-CDDAExperimental.ps1
 compat\compatibility.manifest.json
 compat\contracts.json
-compat\feed\commits\e262adb299a7613b4aedc5f12c08fe0413c56a84.json
+compat\feed\commits\3f7fb352bf492ba521bd9408a0c9f6ce239e8d83.json
 compat\feed\index.json
 compat\package-files.txt
 compat\update\index.json
@@ -128,3 +128,6 @@ mods\LegacyCharacterPoints\tests\legacy_points_test.cpp
 mods\LegacyCharacterPoints\tests\module_test.cpp
 tests\InstallationMatrixHarness.cs
 THIRD_PARTY_NOTICES.txt
+ci\host_support_policy.py
+ci\retired-hosts.json
+ci\test_host_support_policy.py

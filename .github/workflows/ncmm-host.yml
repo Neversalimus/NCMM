@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       upstream_tag:
-        description: 'Exact CDDA release tag, e.g. cdda-experimental-2026-09-23-0546'
+        description: 'Exact CDDA release tag, e.g. cdda-experimental-2026-10-01-1040'
         required: false
         type: string
   schedule:
@@ -30,6 +30,9 @@ on:
       - 'ci/Test-VersionConsistency.ps1'
       - 'ci/Test-FeedIntegrity.ps1'
       - 'ci/seed-hosts.txt'
+      - 'ci/retired-hosts.json'
+      - 'ci/host_support_policy.py'
+      - 'ci/test_host_support_policy.py'
       - 'ci/toolchain.lock.json'
       - 'ci/Publish-ImmutableAsset.ps1'
       - '.editorconfig'
@@ -75,6 +78,9 @@ jobs:
         run: |
           ./ci/Test-FeedIntegrity.ps1 -SelfTest
 
+      - name: Validate active baseline and retirement policy
+        run: python3 ci/test_host_support_policy.py
+
       - name: Select upstream releases
         id: select
         shell: bash
@@ -97,6 +103,7 @@ jobs:
           echo "patch_revision=$patch_revision" >> "$GITHUB_OUTPUT"
 
           if [ -n "${REQUESTED_TAG:-}" ]; then
+            python3 ci/host_support_policy.py check --tag "$REQUESTED_TAG"
             tags=$(printf '%s\n' "$REQUESTED_TAG")
           else
             # A release tag can appear before the Windows binaries finish uploading.
@@ -104,7 +111,7 @@ jobs:
             gh api 'repos/CleverRaven/Cataclysm-DDA/releases?per_page=40' \
               --jq '.[] | select(.tag_name | startswith("cdda-experimental-")) | select(any(.assets[]?; (.name | startswith("cdda-windows-with-graphics-x64-")) or (.name | startswith("cdda-windows-with-graphics-and-sounds-x64-")))) | .tag_name' > /tmp/upstream_tags.txt
 
-            cat ci/seed-hosts.txt /tmp/upstream_tags.txt 2>/dev/null | awk 'NF && !seen[$0]++' > /tmp/candidates.txt
+            cat ci/seed-hosts.txt /tmp/upstream_tags.txt | python3 ci/host_support_policy.py filter-tags > /tmp/candidates.txt
 
             jq -r --arg rev "$patch_revision" --arg ver "$ncmm_version" \
               '.hosts[]? | select((.patch_revision // "") == $rev and (.ncmm_version // "") == $ver) | .upstream_tag // empty' \
@@ -503,6 +510,8 @@ jobs:
              "$index" > /tmp/index.json
           mv /tmp/index.json "$index"
 
+          python3 ci/host_support_policy.py prune-feed "$index"
+
           old_rev=$(jq -r '.patch_revision // ""' "$rejected")
           if [ "$old_rev" != "$PATCH_REVISION" ]; then
             jq --arg rev "$PATCH_REVISION" '.patch_revision=$rev | .rejected={}' "$rejected" > /tmp/rejected.json
@@ -545,6 +554,8 @@ jobs:
             grep -Fq 'https://creativecommons.org/licenses/by-sa/3.0/' "$notice"
             unzip -p "$zip" CDDA_LICENSE.txt | cmp - "$license"
             unzip -p "$zip" THIRD_PARTY_NOTICES.txt | cmp - "$notice"
+
+            python3 ci/host_support_policy.py check --tag "$tag" --commit "$commit"
 
             short_rev=${PATCH_REVISION:0:12}
             release_tag="ncmm-host-${tag}-r${short_rev}"

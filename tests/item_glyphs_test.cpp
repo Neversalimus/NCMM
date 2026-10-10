@@ -174,7 +174,7 @@ int main()
     if( !ok ) return 1;
     std::cout << "Item Glyphs classifier + total semantic coverage matrix: PASS\n";
 #ifdef NCMM_TEST_CDDA_WIDTH
-    std::cout << "CDDA 0546 wcwidth: PASS (22/22 glyphs width 1)\n";
+    std::cout << "CDDA 1040 wcwidth: PASS (22/22 glyphs width 1)\n";
 #else
     std::cout << "CDDA wcwidth not linked; set NCMM_CDDA_SOURCE for width validation.\n";
 #endif

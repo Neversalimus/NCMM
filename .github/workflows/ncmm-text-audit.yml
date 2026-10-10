@@ -10,6 +10,9 @@ on:
       - 'payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
       - 'ci/Test-UserFacingCopy.ps1'
       - 'ci/Build-HostPackage.ps1'
+      - 'ci/retired-hosts.json'
+      - 'ci/host_support_policy.py'
+      - 'ci/test_host_support_policy.py'
       - 'ci/Test-SourceContracts.ps1'
       - 'ci/Test-Infrastructure083.ps1'
       - 'ci/Test-ComponentCatalog.ps1'
@@ -70,6 +73,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Test active baseline and retired-Host publication policy
+        run: python ci/test_host_support_policy.py
 
       - name: Audit checked-in player-facing text
         shell: powershell

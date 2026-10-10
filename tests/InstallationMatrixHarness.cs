@@ -72,7 +72,7 @@ internal static class InstallationMatrixHarness
         Directory.CreateDirectory(root);
         File.WriteAllText(Path.Combine(root, "cataclysm-tiles.exe"), vanillaMarker + Environment.NewLine, Encoding.ASCII);
         File.WriteAllText(Path.Combine(root, "VERSION.txt"),
-            "commit sha: e262adb299a7613b4aedc5f12c08fe0413c56a84" + Environment.NewLine,
+            "commit sha: 3f7fb352bf492ba521bd9408a0c9f6ce239e8d83" + Environment.NewLine,
             Encoding.ASCII);
         return root;
     }

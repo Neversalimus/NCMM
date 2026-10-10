@@ -6,7 +6,7 @@
     "files":  [
                   {
                       "path":  ".github\\workflows\\ncmm-certify.yml",
-                      "sha256":  "bdad5cbaa322cb884f889707ddc49700f3582b72b8883326747a0ae903036933",
+                      "sha256":  "2d4e02e14c9ef2b9434fee67335253c298fc0a60cc2dd4c33dafd8c601ee9ad0",
                       "bytes":  3282
                   },
                   {
@@ -20,8 +20,8 @@
                       "bytes":  669
                   },
                   {
-                      "path":  "adapters\\cdda_2026_09_23_0546.ps1",
-                      "sha256":  "8c709982301e0ecbabd5b5364fb93d5bd63170369322fc93d8c3d3ceaa146bfe",
+                      "path":  "adapters\\cdda_2026_10_01_1040.ps1",
+                      "sha256":  "bb865ecfa97e76768f460ce861f3212abd6e42745c8117977bba53e18a64cfec",
                       "bytes":  3432
                   },
                   {
@@ -43,6 +43,11 @@
                       "path":  "ci\\Get-ImmutableReleaseTag.ps1",
                       "sha256":  "d55356a212ee304e72b813f8c219bce7a7cd61cb6dc559b7bc3e1b01c644afd8",
                       "bytes":  1935
+                  },
+                  {
+                      "path":  "ci\\host_support_policy.py",
+                      "sha256":  "81f17e805ed155a559843a436278c499e0c649560f0869ac3e4145b01b6ad920",
+                      "bytes":  4449
                   },
                   {
                       "path":  "ci\\Invoke-NCMMCertification.ps1",
@@ -70,6 +75,16 @@
                       "bytes":  3446
                   },
                   {
+                      "path":  "ci\\retired-hosts.json",
+                      "sha256":  "2aed69490280f0f22ecfb9ff2bdc5ac7ee1018704c900501797c97a4f4364d68",
+                      "bytes":  321
+                  },
+                  {
+                      "path":  "ci\\test_host_support_policy.py",
+                      "sha256":  "50dcca44d2eb63abc70f943b6a635aa9558040a91e2c3470094d1848db2d1d2b",
+                      "bytes":  8389
+                  },
+                  {
                       "path":  "ci\\Test-AuditIO.ps1",
                       "sha256":  "a4e2cf4f285c9705b2352421208ac0996104daf8c31a2f314f2817190b71b886",
                       "bytes":  994
@@ -81,7 +96,7 @@
                   },
                   {
                       "path":  "ci\\Test-ComponentCatalog.ps1",
-                      "sha256":  "b53ec2729fbb0cb3f8d1e7a5ee90b7cd086ff39f5f0c16ef471a2de0d6151e08",
+                      "sha256":  "8357b75b6e4420e9936a904de1575b03d8de43804f09b47679707d26d1e76644",
                       "bytes":  10471
                   },
                   {
@@ -106,7 +121,7 @@
                   },
                   {
                       "path":  "ci\\Test-Infrastructure083.ps1",
-                      "sha256":  "96c3304b575f0f99bf5fe2c25db5c65187b87fae873b459b6d327a45c0fe8b66",
+                      "sha256":  "45ab18d1a7418c10bbcc39f3ea8e97201be9e2efa96818e17d1a6f2736b5f9c3",
                       "bytes":  6045
                   },
                   {
@@ -116,8 +131,8 @@
                   },
                   {
                       "path":  "ci\\Test-LegacyCharacterPoints.ps1",
-                      "sha256":  "56db3f8e50e104361f9a1fd6ce39aba9e3fb1bb8a1f3ba73c32d98a788ee9d36",
-                      "bytes":  6012
+                      "sha256":  "b3e8e9e461128328b5cead138feea2c17b6ad5503b7fd286565e441a38533608",
+                      "bytes":  5946
                   },
                   {
                       "path":  "ci\\Test-ManaActionWeaponContracts.ps1",
@@ -131,7 +146,7 @@
                   },
                   {
                       "path":  "ci\\Test-SurvivorPayloadContracts.ps1",
-                      "sha256":  "7fe4873a44648786027f917f1efa9568a773c30a498e6e2c1c032c61ed3346e1",
+                      "sha256":  "8c60ded3cfe63d39e2428d5b6de2407915e1d1ad163f86e0524cf4bc964a61d6",
                       "bytes":  162647
                   },
                   {
@@ -146,7 +161,7 @@
                   },
                   {
                       "path":  "compat\\compatibility.manifest.json",
-                      "sha256":  "47efbc6621849161b8359328d1e57037e0753817e442a583befa4d8aad0ae8b7",
+                      "sha256":  "ad1de470caa3dfa2d304d9ce3812bdbd8db534b0d61f3bb94e034ad266f7e7b3",
                       "bytes":  7578
                   },
                   {
@@ -155,19 +170,19 @@
                       "bytes":  21596
                   },
                   {
-                      "path":  "compat\\feed\\commits\\e262adb299a7613b4aedc5f12c08fe0413c56a84.json",
-                      "sha256":  "e7025bd0d595070704f3e22be414cd662b6df1a8254209bcda2f8b1497e4b957",
-                      "bytes":  2762
+                      "path":  "compat\\feed\\commits\\3f7fb352bf492ba521bd9408a0c9f6ce239e8d83.json",
+                      "sha256":  "4d8e1e0375698dec11fa37ec4a5c18a99a513be55c77cfe2af759839d4680049",
+                      "bytes":  746
                   },
                   {
                       "path":  "compat\\feed\\index.json",
-                      "sha256":  "4542dfd3197f1456765e3aff83ed192d89816611e4b5ac0c2dadf28c8adcafea",
+                      "sha256":  "0de10d17eef5c67ce7db1942d4caa2ca42e1885073b62a712852a6401fa01e57",
                       "bytes":  552
                   },
                   {
                       "path":  "compat\\package-files.txt",
-                      "sha256":  "457a40545dd3178cb7419f9504ff2fea06051de6a6247805aeaafd2a50a25553",
-                      "bytes":  4493
+                      "sha256":  "4e6f51df602b113dc16c5a9accf1c6220e7217ac6e0842bf6efa49312a2747bd",
+                      "bytes":  4572
                   },
                   {
                       "path":  "compat\\update\\index.json",
@@ -396,8 +411,8 @@
                   },
                   {
                       "path":  "mods\\LegacyCharacterPoints\\README.md",
-                      "sha256":  "705e1dc3c2a172b4bfa3702c133122f8e2822de73af3108fdcb0e241c435c58b",
-                      "bytes":  4764
+                      "sha256":  "d9c751c581d57b034cc5d82ac144d135f44026e82756d0c5f3f46e0514fd260f",
+                      "bytes":  4760
                   },
                   {
                       "path":  "mods\\LegacyCharacterPoints\\src\\legacy_character_points.cpp",
@@ -456,8 +471,8 @@
                   },
                   {
                       "path":  "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-                      "sha256":  "ef03e41b62a2246555804eac0199fbfb33a5f109fa399819778dc035bb980747",
-                      "bytes":  3364415
+                      "sha256":  "6baafb18d21c5273a1c786b9c1b5ee4b688495be13dcbe9bd3f4ec3811e85a82",
+                      "bytes":  3382826
                   },
                   {
                       "path":  "pipeline\\pipeline.manifest.json",
@@ -556,7 +571,7 @@
                   },
                   {
                       "path":  "tests\\InstallationMatrixHarness.cs",
-                      "sha256":  "620736580daa4a3fc9083146ca375342bafd69b0dca629e90a588f8d93c2b452",
+                      "sha256":  "1b469af332b94087e243989aae3b0bad60e8ed097944fa7c05f2a576799e3b05",
                       "bytes":  50101
                   },
                   {
