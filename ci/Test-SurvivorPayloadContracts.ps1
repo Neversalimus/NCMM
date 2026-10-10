@@ -2569,6 +2569,21 @@ if([regex]::IsMatch($payload,$legacyDirectCall0152)){
 if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandDirectCount0152 -CommandType Function).Definition')){
     throw 'Mana Hand direct-count reconciliation missing from mechanics patch revision.'
 }
+# Regression guard: defer CDDA mutations until the exact source cache exists.
+$deferredFunctionStart0152=$payload.IndexOf('function Invoke-SurvivorDeferredEngineLayers')
+$deferredProbeStart0152=$payload.LastIndexOf('if ($HostSourceProbeOnly) {')
+$deepCache0152=$payload.IndexOf('Ensure-CddaBuildCache $CddaRoot',$deferredProbeStart0152)
+$deepDeferred0152=$payload.IndexOf('Invoke-SurvivorDeferredEngineLayers $CddaRoot',$deferredProbeStart0152)
+$fullCache0152=$payload.IndexOf('Ensure-CddaBuildCache $CddaRoot',$deepCache0152+1)
+$fullDeferred0152=$payload.IndexOf('Invoke-SurvivorDeferredEngineLayers $CddaRoot',$deepDeferred0152+1)
+if($deferredFunctionStart0152 -lt 0 -or $deferredProbeStart0152 -le $deferredFunctionStart0152 -or
+    $deepCache0152 -lt 0 -or $deepDeferred0152 -le $deepCache0152 -or
+    $fullCache0152 -lt 0 -or $fullDeferred0152 -le $fullCache0152){
+    throw 'Mana Hands source transforms must run after cache initialization in deep probe and full install.'
+}
+if($payload.IndexOf('Apply-SurvivorManaHands0130 $CddaRoot') -lt $deferredFunctionStart0152){
+    throw 'Mana Hands source transform invoked before deferred cache-ready stage.'
+}
 if(([regex]::Matches($payload,[regex]::Escape('Apply-SurvivorManaHandDirectCount0152 $CddaRoot'))).Count -lt 3){
     throw 'Mana Hand direct-count reconciliation must run during initial transform, deep probe, and normal build.'
 }
