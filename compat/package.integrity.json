@@ -121,8 +121,8 @@
                   },
                   {
                       "path":  "ci\\Test-SurvivorPayloadContracts.ps1",
-                      "sha256":  "fd74245e0035ec12173fe8fb3dd164e2a80cb1bf25435bb32ee13b436ca1e9e4",
-                      "bytes":  161702
+                      "sha256":  "cf01c7025409ba02694dc29d078fcc1620c657d49339073d74fc92c48c797e73",
+                      "bytes":  161701
                   },
                   {
                       "path":  "ci\\toolchain.lock.json",
