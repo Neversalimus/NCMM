@@ -622,7 +622,10 @@ foreach($n in @(
     'paired_probe.set_flag( flag_id( "ALWAYS_TWOHAND" ) )',
     'wield_transfer_probe.set_flag( flag_id( "ALWAYS_TWOHAND" ) )',
     'item_location_inside_mana_hand_carrier( wield_transfer_bound_loc )',
-    '/16 real binding/state checks PASS.',
+    '/19 real binding/state checks PASS.',
+    'mana_hands_ranged_canonical_location',
+    'mana_hands_carrier_canonical_location',
+    'mana_hands_canonical_location_rejects_foreign',
     'NCMM gameplay smoke checkpoint: Mana Hands '
 )){
     if(-not $hostSourceCurrent.Contains($n)){throw ('Real Mana Hands gameplay smoke contract missing: '+$n)}

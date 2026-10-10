@@ -106,8 +106,8 @@
                   },
                   {
                       "path":  "ci\\Test-HostPayloadContracts.ps1",
-                      "sha256":  "af7e22052ee63637cbecd53e79905ea9bdec9ac59c8d4268829d05bf9f9f298e",
-                      "bytes":  71593
+                      "sha256":  "cfec20bb4c63f07d7ef39905509d246bab37f061ef705b1aeae4f1e34abe297b",
+                      "bytes":  71735
                   },
                   {
                       "path":  "ci\\Test-ImmutableReleaseTag.ps1",
@@ -136,8 +136,8 @@
                   },
                   {
                       "path":  "ci\\Test-ManaActionWeaponContracts.ps1",
-                      "sha256":  "67d71a0ea38e56a873fcd3a2133cfda6d10aa98efa588b58eb50d08d92e0a71c",
-                      "bytes":  10488
+                      "sha256":  "5d938d26cae5cf03cce476ed52cfa5c5461ca01d67f4362ed7045d7583c4b9d2",
+                      "bytes":  11478
                   },
                   {
                       "path":  "ci\\Test-ReleaseQualification.ps1",
@@ -471,8 +471,8 @@
                   },
                   {
                       "path":  "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-                      "sha256":  "6baafb18d21c5273a1c786b9c1b5ee4b688495be13dcbe9bd3f4ec3811e85a82",
-                      "bytes":  3382826
+                      "sha256":  "d3df415679ca900f4e7cb457275957afc4133e4fac7ed1c5076793e685000765",
+                      "bytes":  3386597
                   },
                   {
                       "path":  "pipeline\\pipeline.manifest.json",

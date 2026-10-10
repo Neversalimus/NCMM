@@ -32,14 +32,20 @@ struct item {
 struct avatar;
 struct item_location {
     item *value = nullptr;
+    std::vector<item *> parents;
     item_location() = default;
     item_location( avatar &, item *p ) : value(p) {}
     explicit operator bool() const { return value != nullptr; }
+    item *get_item() const { return value; }
     item &operator*() const { return *value; }
     item *operator->() const { return value; }
 };
 struct avatar {
     item *physical = nullptr;
+    bool explicit_locations = false;
+    int location_reads = 0;
+    std::vector<item_location> locations;
+    std::vector<item_location> all_items_loc();
     bool is_avatar() const { return true; }
     bool is_mounted() const { return false; }
     item_location get_wielded_item() { return item_location(*this, physical); }
@@ -52,6 +58,15 @@ int slot_reads = 0;
 item *third = nullptr;
 item *fourth = nullptr;
 item *pair = nullptr;
+std::vector<item_location> avatar::all_items_loc() {
+    ++location_reads;
+    if( explicit_locations ) { return locations; }
+    std::vector<item_location> result;
+    for( item *p : {third, fourth, pair} ) {
+        if( p ) { result.emplace_back(*this, p); }
+    }
+    return result;
+}
 int ncmm_mana_hand_count_for_melee() { return hand_count; }
 namespace ncmm {
 constexpr const char *survivor_module_id = "survivor_progression";
@@ -198,6 +213,52 @@ int main() {
           "generic ownership follows active Mana Hand count");
     check(!ncmm::ranged_weapon_binding_valid(player, pistol),
           "aim binding invalidates when Mana Hands become unavailable");
+    // Extracted production canonical lookup: nested ordinary containers,
+    // hidden carrier, foreign/missing items, and physical fast path.
+    item backpack;
+    item pouch;
+    item carrier;
+    player.explicit_locations = true;
+    player.location_reads = 0;
+    player.physical = &pistol;
+    auto physical_location = ncmm::virtual_item_location(player, pistol);
+    check(physical_location.value == &pistol && physical_location.parents.empty() &&
+          player.location_reads == 0, "physical canonical location does not scan inventory");
+    player.physical = &sword;
+    pistol.gunmod = false;
+    pistol.reloadable = true;
+    hand_count = 2;
+    third = &pistol;
+    fourth = nullptr;
+    pair = nullptr;
+    item_location nested(player, &pistol);
+    nested.parents = {&pouch, &backpack};
+    player.locations = {nested};
+    auto canonical = ncmm::virtual_item_location(player, pistol);
+    check(canonical.value == &pistol && canonical.parents == nested.parents,
+          "canonical lookup preserves two ordinary container ancestors");
+    guns = ncmm::ranged_weapon_candidates(player, fire);
+    check(guns.size() == 1 && guns[0].parents == nested.parents,
+          "ranged action preserves complete selected location ancestry");
+    for( auto action : {ranged_weapon_action::controls, ranged_weapon_action::reload} ) {
+        guns = ncmm::ranged_weapon_candidates(player, action);
+        check(guns.size() == 1 && guns[0].parents == nested.parents,
+              "reload and mode controls preserve ancestry");
+    }
+    nested.parents = {&carrier};
+    player.locations = {nested};
+    canonical = ncmm::virtual_item_location(player, pistol);
+    check(canonical.value == &pistol && canonical.parents == nested.parents,
+          "canonical lookup preserves hidden carrier ancestor");
+    player.locations.clear();
+    check(!ncmm::virtual_item_location(player, pistol), "missing item has no fabricated owner");
+    check(ncmm::ranged_weapon_candidates(player, fire).empty(),
+          "ranged selection rejects stale slot not in actual inventory");
+    avatar other;
+    other.explicit_locations = true;
+    check(!ncmm::virtual_item_location(other, pistol), "foreign character cannot claim item");
+    player.explicit_locations = false;
+
     // These functions are extracted from the production Host, not reimplemented
     // in this test. Protect the three common action paths against accidentally
     // reintroducing repeated virtual-slot scans or pathological lookup cost.

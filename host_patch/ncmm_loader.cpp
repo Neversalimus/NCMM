@@ -4362,6 +4362,23 @@ bool ranged_weapon_binding_valid( const avatar &who, const item &weapon )
            mana_hand_ranged_item_owner( who, weapon ) != mana_hand_ranged_owner::none;
 }
 
+item_location virtual_item_location( Character &who, item &candidate )
+{
+    // Preserve the engine's actual parent chain, including forbidden carrier
+    // pockets and ordinary nested containers. Never invent a person location
+    // for an item that is missing from this character's current inventory.
+    item_location physical = who.get_wielded_item();
+    if( physical && physical.get_item() == &candidate ) {
+        return physical;
+    }
+    for( item_location loc : who.all_items_loc() ) {
+        if( loc.get_item() == &candidate ) {
+            return loc;
+        }
+    }
+    return item_location();
+}
+
 std::vector<item_location> ranged_weapon_candidates( avatar &who, ranged_weapon_action action )
 {
     // Slot priority is meaningful only after checking the action's capability.
@@ -4378,7 +4395,10 @@ std::vector<item_location> ranged_weapon_candidates( avatar &who, ranged_weapon_
     // aim owns the item_location and validates its binding without a slot scan.
     for( item *candidate : active_mana_hand_items( who ) ) {
         if( ranged_weapon_capable( *candidate, action ) ) {
-            result.emplace_back( who, candidate );
+            item_location loc = virtual_item_location( who, *candidate );
+            if( loc ) {
+                result.push_back( loc );
+            }
         }
     }
     return result;
@@ -6583,6 +6603,20 @@ int run_gameplay_smoke()
         }
         ++mana_hands_check_count;
 
+        // The real ranged selector must retain the backpack parent; a raw
+        // item_location( avatar, gun ) loses the obtain/serialization ancestry.
+        const auto gun_candidates = ranged_weapon_candidates(
+                                        get_avatar(), ranged_weapon_action::fire );
+        if( !gun.has_parent() || gun_candidates.size() != 1 ||
+            gun_candidates.front().get_item() != gun.get_item() ||
+            !gun_candidates.front().has_parent() ||
+            gun_candidates.front().parent_item().get_item() != gun.parent_item().get_item() ||
+            gun_candidates.front().obtain_cost( get_avatar() ) < 0 ||
+            virtual_item_for_slot_internal( survivor_id, "mana_hand_4" ) != gun.get_item() ) {
+            return mana_hands_fail( "mana_hands_ranged_canonical_location", 153 );
+        }
+        ++mana_hands_check_count;
+
         const int64_t hatchet_uid = hatchet->uid().get_value();
         virtual_item_state_set_uid_internal( survivor_id, "mana_hand_3",
                                              hatchet_uid + 1000003 );
@@ -6754,6 +6788,17 @@ int run_gameplay_smoke()
         }
         ++mana_hands_check_count;
 
+        const item_location canonical_carrier_item = virtual_item_location(
+                    get_avatar(), *wield_transfer_bound );
+        if( !canonical_carrier_item || !canonical_carrier_item.has_parent() ||
+            canonical_carrier_item.get_item() != wield_transfer_bound ||
+            canonical_carrier_item.parent_item().get_item() !=
+            wield_transfer_bound_loc.parent_item().get_item() ||
+            canonical_carrier_item.obtain_cost( get_avatar() ) < 0 ) {
+            return mana_hands_fail( "mana_hands_carrier_canonical_location", 154 );
+        }
+        ++mana_hands_check_count;
+
         virtual_item_clear_internal( survivor_id, "mana_hands_34" );
         if( !get_avatar().is_armed() ||
             get_avatar().get_wielded_item()->typeId() != itype_id( "hatchet" ) ||
@@ -6772,10 +6817,16 @@ int run_gameplay_smoke()
         }
         ++mana_hands_check_count;
 
+        item detached_location_probe( itype_id( "hatchet" ) );
+        if( virtual_item_location( get_avatar(), detached_location_probe ) ) {
+            return mana_hands_fail( "mana_hands_canonical_location_rejects_foreign", 155 );
+        }
+        ++mana_hands_check_count;
+
         log_line( NCMM_LOG_INFO,
                   ( "NCMM gameplay smoke checkpoint: Mana Hands " +
                     std::to_string( mana_hands_check_count ) +
-                    "/16 real binding/state checks PASS." ).c_str() );
+                    "/19 real binding/state checks PASS." ).c_str() );
 
         size_t dimensional_pouch_check_count = 0;
         const auto dimensional_pouch_fail = [&]( const char *reason, int code ) {

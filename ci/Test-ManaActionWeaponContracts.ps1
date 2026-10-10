@@ -26,6 +26,7 @@ function Require([string]$Text,[string]$Needle) {
     if(-not $Text.Contains($Needle)){throw ('Mana action contract missing: '+$Needle)}
 }
 $capable=Get-CppFunction $hostSource 'bool ranged_weapon_capable('
+$canonicalLocation=Get-CppFunction $hostSource 'item_location virtual_item_location('
 $resolver=Get-CppFunction $hostSource 'std::vector<item_location> ranged_weapon_candidates('
 $binding=Get-CppFunction $hostSource 'bool ranged_weapon_binding_valid('
 $activeItems=Get-CppFunction $hostSource 'std::vector<item *> active_mana_hand_items('
@@ -40,6 +41,17 @@ Require $capable 'return mode && !mode.melee();'
 Require $resolver 'physical && ranged_weapon_capable( *physical, action )'
 Require $resolver 'active_mana_hand_items( who )'
 Require $resolver 'ranged_weapon_capable( *candidate, action )'
+Require $resolver 'virtual_item_location( who, *candidate )'
+Require $canonicalLocation 'who.get_wielded_item()'
+Require $canonicalLocation 'for( item_location loc : who.all_items_loc() )'
+Require $canonicalLocation 'loc.get_item() == &candidate'
+Require $canonicalLocation 'return item_location();'
+if($resolver.Contains('result.emplace_back( who, candidate )')){throw 'Ranged selection flattened a nested item location.'}
+$throwStart=$payload.IndexOf('item_location ncmm_select_mana_hand_throw_item( avatar &you )')
+if($throwStart -lt 0){throw 'Mana throw selector missing.'}
+$throwSelector=Get-CppFunction $payload 'item_location ncmm_select_mana_hand_throw_item( avatar &you )'
+Require $throwSelector 'ncmm::virtual_item_location( you, *candidate )'
+if($throwSelector.Contains('item_location loc( you, candidate )')){throw 'Throw selection flattened a nested item location.'}
 Require $activeItems 'survivor_mana_hand_count()'
 Require $activeItems 'mana_hands_pair_slot_id'
 Require $activeItems 'mana_hand_3_slot_id'
@@ -156,7 +168,7 @@ if($PatchedSourceRoot) {
 if($RunBehavior) {
     $work=Join-Path $env:TEMP ('ncmm-action-resolver-'+[guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $work|Out-Null
-    [IO.File]::WriteAllText((Join-Path $work 'ranged_resolvers.inc'),$capable+"`n"+$activeItems+"`n"+$itemSlot+"`n"+$itemOwner+"`n"+$owner+"`n"+$binding+"`n"+$resolver)
+    [IO.File]::WriteAllText((Join-Path $work 'ranged_resolvers.inc'),$canonicalLocation+"`n"+$capable+"`n"+$activeItems+"`n"+$itemSlot+"`n"+$itemOwner+"`n"+$owner+"`n"+$binding+"`n"+$resolver)
     [IO.File]::WriteAllText((Join-Path $work 'primary_melee_resolver.inc'),$melee)
     Copy-Item (Join-Path $PackageRoot 'tests/mana_action_weapon_test.cpp') $work
     [IO.File]::WriteAllText((Join-Path $work 'CMakeLists.txt'),@'
