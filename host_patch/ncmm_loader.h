@@ -90,6 +90,11 @@ mana_hand_ranged_owner mana_hand_ranged_item_owner( const avatar &who, const ite
 mana_hand_ranged_owner mana_hand_ranged_mode_owner( const avatar &who, const item *mode_item );
 /** Validate an already-selected Mana Hand firearm without inventory or slot reselection. */
 bool ranged_weapon_binding_valid( const avatar &who, const item &weapon );
+/** Resolve a carried item without moving it, preserving the complete parent chain.
+ * Call only when selecting an explicit action; do not rescan on an aim tick.
+ * Missing/foreign items return an empty location instead of fabricated ownership.
+ */
+item_location virtual_item_location( Character &who, item &candidate );
 std::vector<item_location> ranged_weapon_candidates( avatar &who, ranged_weapon_action action );
 item_location select_ranged_weapon( avatar &who, ranged_weapon_action action,
                                     const char *prompt_en, const char *prompt_ru );
