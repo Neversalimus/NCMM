@@ -2005,12 +2005,22 @@ foreach($controlNeedle0140 in @(
     'player_character.select_ammo( *ammo_weapon, false )',
     'function Apply-SurvivorManaHandReloadCarrier0153',
     'Mana Hand reload-in-place include',
-    '!ncmm::is_virtual_item( *loc )',
-    'Apply-SurvivorManaHandReloadCarrier0153 $CddaRoot'
+    '!ncmm::is_virtual_item( *loc )'
 )){
     if(-not $manaGunControlsSection0140.Contains($controlNeedle0140)){
         throw ('Mana Hand standard gun-control regression contract missing: '+$controlNeedle0140)
     }
+}
+# Reload carrier now runs in the exact source-ready transform phase, not beside
+# the early gun-control declarations. Check its ordering in that phase instead.
+$deferredCarrierBegin0153=$payload.IndexOf('function Invoke-SurvivorDeferredEngineLayers')
+$deferredCarrierEnd0153=$payload.IndexOf('# NCMM Infrastructure 0.8.3.1 deep probe:',$deferredCarrierBegin0153)
+if($deferredCarrierBegin0153 -lt 0 -or $deferredCarrierEnd0153 -le $deferredCarrierBegin0153){throw 'Deferred Mana Hand engine stage missing.'}
+$deferredCarrierText0153=$payload.Substring($deferredCarrierBegin0153,$deferredCarrierEnd0153-$deferredCarrierBegin0153)
+$gunControlPosition0153=$deferredCarrierText0153.IndexOf('Apply-SurvivorManaHandGunControls0140 $CddaRoot')
+$reloadCarrierPosition0153=$deferredCarrierText0153.IndexOf('Apply-SurvivorManaHandReloadCarrier0153 $CddaRoot')
+if($gunControlPosition0153 -lt 0 -or $reloadCarrierPosition0153 -le $gunControlPosition0153){
+    throw 'Mana Hand reload carrier must be invoked after gun control in the source-ready stage.'
 }
 if($manaGunControlsSection0140.Contains('set_wielded_item(') -or
    $manaGunControlsSection0140.Contains('u.wield(') -or
@@ -2568,6 +2578,21 @@ if([regex]::IsMatch($payload,$legacyDirectCall0152)){
 }
 if(-not $payload.Contains('(Get-Command Apply-SurvivorManaHandDirectCount0152 -CommandType Function).Definition')){
     throw 'Mana Hand direct-count reconciliation missing from mechanics patch revision.'
+}
+# Regression guard: defer CDDA mutations until the exact source cache exists.
+$deferredFunctionStart0152=$payload.IndexOf('function Invoke-SurvivorDeferredEngineLayers')
+$deferredProbeStart0152=$payload.LastIndexOf('if ($HostSourceProbeOnly) {')
+$deepCache0152=$payload.IndexOf('Ensure-CddaBuildCache $CddaRoot',$deferredProbeStart0152)
+$deepDeferred0152=$payload.IndexOf('Invoke-SurvivorDeferredEngineLayers $CddaRoot',$deferredProbeStart0152)
+$fullCache0152=$payload.IndexOf('Ensure-CddaBuildCache $CddaRoot',$deepCache0152+1)
+$fullDeferred0152=$payload.IndexOf('Invoke-SurvivorDeferredEngineLayers $CddaRoot',$deepDeferred0152+1)
+if($deferredFunctionStart0152 -lt 0 -or $deferredProbeStart0152 -le $deferredFunctionStart0152 -or
+    $deepCache0152 -lt 0 -or $deepDeferred0152 -le $deepCache0152 -or
+    $fullCache0152 -lt 0 -or $fullDeferred0152 -le $fullCache0152){
+    throw 'Mana Hands source transforms must run after cache initialization in deep probe and full install.'
+}
+if($payload.IndexOf('Apply-SurvivorManaHands0130 $CddaRoot') -lt $deferredFunctionStart0152){
+    throw 'Mana Hands source transform invoked before deferred cache-ready stage.'
 }
 if(([regex]::Matches($payload,[regex]::Escape('Apply-SurvivorManaHandDirectCount0152 $CddaRoot'))).Count -lt 3){
     throw 'Mana Hand direct-count reconciliation must run during initial transform, deep probe, and normal build.'

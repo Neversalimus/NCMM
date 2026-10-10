@@ -16999,7 +16999,7 @@ enum class ncmm_shared_mana_modifier_kind { maximum, regeneration };
     Write-Host "Survivor 0.13.0 Magiclysm virtual mana hands: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHands0130 $CddaRoot
+
 
 function Apply-SurvivorVirtualItemSlots0140([string]$Root) {
     Write-Host "Applying Survivor 0.14.0 Magiclysm virtual item slots..." -ForegroundColor Cyan
@@ -17129,7 +17129,7 @@ item_location Character::best_shield()
     Write-Host "Survivor 0.14.0 Magiclysm virtual item slots: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorVirtualItemSlots0140 $CddaRoot
+
 
 function Apply-SurvivorVirtualItemContext0140([string]$Root) {
     Write-Host "Applying Survivor 0.14.0 Mana Hand inventory context actions..." -ForegroundColor Cyan
@@ -17917,7 +17917,7 @@ function Apply-SurvivorVirtualItemContext0140([string]$Root) {
     Write-Host "Survivor 0.14.0 Mana Hand inventory context actions: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorVirtualItemContext0140 $CddaRoot
+
 
 # 0.15.1 Crafting telemetry: completed vehicle part installation/removal is real
 # fabrication work and must advance the Survivor Crafting branch. Record only
@@ -17998,7 +17998,7 @@ function Apply-SurvivorVehicleCraftingXp0151([string]$Root) {
     Write-Host "Survivor 0.15.1 vehicle install/removal Crafting XP: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorVehicleCraftingXp0151 $CddaRoot
+
 
 function Apply-SurvivorManaHandSpellcastingAid0140([string]$Root) {
     Write-Host "Applying Survivor 0.14.0 Mana Hand spellcasting-aid compatibility..." -ForegroundColor Cyan
@@ -18081,7 +18081,7 @@ bool talker_character_const::wielded_with_flag( const flag_id &flag ) const
     Write-Host "Survivor 0.14.0 Mana Hand spellcasting-aid compatibility: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandSpellcastingAid0140 $CddaRoot
+
 
 
 function Apply-SurvivorVirtualItemLifecycle0140([string]$Root) {
@@ -18187,7 +18187,7 @@ function Apply-SurvivorVirtualItemLifecycle0140([string]$Root) {
     Write-Host "Survivor 0.14.0 Mana Hand virtual-item lifecycle cleanup: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorVirtualItemLifecycle0140 $CddaRoot
+
 
 
 function Apply-SurvivorManaHandUtility0140([string]$Root) {
@@ -18272,7 +18272,7 @@ bool ncmm_mana_hand_holds_item( const Character &who, const item &it )
     Write-Host "Survivor 0.14.0 Mana Hand utility-item support: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandUtility0140 $CddaRoot
+
 
 
 function Apply-SurvivorManaHandSecondaryMelee0140([string]$Root) {
@@ -18905,7 +18905,7 @@ const ma_technique miss_recovery =
     Write-Host "Survivor 0.14.0 Mana Hand secondary-melee support: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandSecondaryMelee0140 $CddaRoot
+
 
 
 function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
@@ -18935,7 +18935,7 @@ function Apply-SurvivorManaHandPairedGrip0140([string]$Root) {
     Write-Host "Survivor 0.14.0 Mana Hand paired-grip context: VERIFIED" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandPairedGrip0140 $CddaRoot
+
 
 
 function Apply-SurvivorManaHandRanged0140([string]$Root) {
@@ -19309,7 +19309,7 @@ void avatar_action::fire_wielded_weapon( avatar &you )
     Write-Host "Survivor 0.14.0 Mana Hand ranged support: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandRanged0140 $CddaRoot
+
 
 function Apply-SurvivorManaHandPairedRanged0140([string]$Root) {
     Write-Host "Verifying Survivor 0.14.0 paired Mana Hand ranged support..." -ForegroundColor Cyan
@@ -19389,7 +19389,7 @@ function Apply-SurvivorManaHandPairedRanged0140([string]$Root) {
     Write-Host "Survivor 0.14.0 paired Mana Hand ranged support: VERIFIED" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandPairedRanged0140 $CddaRoot
+
 
 
 function Apply-SurvivorManaHandReloadAndShoot0140([string]$Root) {
@@ -19422,7 +19422,7 @@ function Apply-SurvivorManaHandReloadAndShoot0140([string]$Root) {
     Write-Host "Survivor 0.14.0 Mana Hand reload-and-shoot support: VERIFIED" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandReloadAndShoot0140 $CddaRoot
+
 
 function Apply-SurvivorManaHandFireAction0140([string]$Root) {
     Write-Host "Applying Survivor 0.14.0 Mana Hand FIRE action integration..." -ForegroundColor Cyan
@@ -19668,7 +19668,7 @@ static void reach_attack( avatar &you )
     Write-Host "Survivor 0.14.0 Mana Hand FIRE action integration: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandFireAction0140 $CddaRoot
+
 
 function Apply-SurvivorManaHandGunControls0140([string]$Root) {
     Write-Host "Applying Survivor 0.14.0 standard Mana Hand gun controls..." -ForegroundColor Cyan
@@ -19919,7 +19919,7 @@ function Apply-SurvivorManaHandGunControls0140([string]$Root) {
     Write-Host "Survivor 0.14.0 standard Mana Hand gun controls: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandGunControls0140 $CddaRoot
+
 
 function Apply-SurvivorManaHandReloadCarrier0153([string]$Root) {
     Write-Host "Applying Survivor 0.15.3 Mana Hand reload-in-place guard..." -ForegroundColor Cyan
@@ -19956,7 +19956,7 @@ function Apply-SurvivorManaHandReloadCarrier0153([string]$Root) {
     }
     Write-Host "Survivor 0.15.3 Mana Hand reload-in-place guard: READY" -ForegroundColor Green
 }
-Apply-SurvivorManaHandReloadCarrier0153 $CddaRoot
+
 
 
 
@@ -20029,7 +20029,7 @@ function Apply-SurvivorManaHandPrimaryMelee0140([string]$Root) {
     Write-Host "Survivor 0.14.0 primary Mana Hand melee support: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandPrimaryMelee0140 $CddaRoot
+
 
 function Apply-SurvivorManaHandMartialArts0140([string]$Root) {
     Write-Host "Applying Survivor 0.14.0 primary Mana Hand martial-arts parity..." -ForegroundColor Cyan
@@ -20234,7 +20234,7 @@ void character_martial_arts::martialart_use_message( const Character &owner ) co
     Write-Host "Survivor 0.14.0 primary Mana Hand martial-arts parity: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandMartialArts0140 $CddaRoot
+
 
 function Apply-SurvivorManaHandReachMelee0140([string]$Root) {
     Write-Host "Applying Survivor 0.14.0 primary Mana Hand reach-melee support..." -ForegroundColor Cyan
@@ -20306,7 +20306,7 @@ function Apply-SurvivorManaHandReachMelee0140([string]$Root) {
     Write-Host "Survivor 0.14.0 primary Mana Hand reach-melee support: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandReachMelee0140 $CddaRoot
+
 
 function Apply-SurvivorManaHandSmash0140([string]$Root) {
     Write-Host "Applying Survivor 0.14.0 primary Mana Hand smash support..." -ForegroundColor Cyan
@@ -20528,7 +20528,7 @@ avatar::smash_result avatar::smash( tripoint_bub_ms &smashp )
     Write-Host "Survivor 0.14.0 primary Mana Hand smash support: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandSmash0140 $CddaRoot
+
 
 function Apply-SurvivorManaHandAutoattack0140([string]$Root) {
     Write-Host "Applying Survivor 0.14.0 Primary Mana Hand autoattack parity..." -ForegroundColor Cyan
@@ -20729,7 +20729,7 @@ void avatar_action::autoattack( avatar &you, map &m )
     Write-Host "Survivor 0.14.0 Primary Mana Hand autoattack parity: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandAutoattack0140 $CddaRoot
+
 
 
 function Apply-SurvivorManaHandThrow0140([string]$Root) {
@@ -20916,7 +20916,7 @@ void avatar_action::plthrow_wielded( avatar &you,
     Write-Host "Survivor 0.14.0 Mana Hand throw support: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandThrow0140 $CddaRoot
+
 
 
 function Apply-SurvivorManaHandAutoMining0140([string]$Root) {
@@ -20977,7 +20977,7 @@ function Apply-SurvivorManaHandAutoMining0140([string]$Root) {
     Write-Host "Survivor 0.14.0 Mana Hand auto-mining support: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandAutoMining0140 $CddaRoot
+
 
 
 function Apply-SurvivorManaHandTargetPractice0140([string]$Root) {
@@ -21104,7 +21104,7 @@ bool target_practice_activity_actor::check_character( Character &who )
     Write-Host "Survivor 0.14.0 Mana Hand target-practice support: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandTargetPractice0140 $CddaRoot
+
 
 
 function Apply-SurvivorManaHandMend0140([string]$Root) {
@@ -21219,7 +21219,7 @@ void avatar_action::mend( avatar &you, item_location loc )
     Write-Host "Survivor 0.14.0 Mana Hand mend support: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandMend0140 $CddaRoot
+
 
 
 function Apply-SurvivorManaHandCrutches0140([string]$Root) {
@@ -21331,7 +21331,7 @@ bool Character::is_on_ground() const
     Write-Host "Survivor 0.14.0 Mana Hand crutch support: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandCrutches0140 $CddaRoot
+
 
 
 function Apply-SurvivorManaHandHeldUtilities0140([string]$Root) {
@@ -21497,7 +21497,7 @@ int item::get_remaining_capacity_for_liquid( const item &liquid, const Character
     Write-Host "Survivor 0.14.0 Mana Hand held-utility support: READY" -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandHeldUtilities0140 $CddaRoot
+
 
 
 
@@ -21593,7 +21593,7 @@ function Apply-SurvivorManaHandDirectCount0152([string]$Root) {
                 $verifiedCount0152direct+" aggregate reads)") -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandDirectCount0152 $CddaRoot
+
 
 function Apply-SurvivorActionWeaponSelection0154([string]$Root) {
     Write-Host 'Verifying action-specific Mana Hand ranged selection...' -ForegroundColor Cyan
@@ -21659,7 +21659,7 @@ function Apply-SurvivorActionWeaponSelection0154([string]$Root) {
     Write-Host 'Action-specific Mana Hand ranged selection: VERIFIED' -ForegroundColor Green
 }
 
-Apply-SurvivorActionWeaponSelection0154 $CddaRoot
+
 
 
 function Apply-SurvivorManaHandsDirectUi0155([string]$Root) {
@@ -21712,7 +21712,7 @@ function Apply-SurvivorManaHandsDirectUi0155([string]$Root) {
     Write-Host 'Direct Mana Hands control UI activation: READY' -ForegroundColor Green
 }
 
-Apply-SurvivorManaHandsDirectUi0155 $CddaRoot
+
 
 
 function Apply-SurvivorCraftCompletionMetric0140([string]$Root) {
@@ -22302,6 +22302,44 @@ function Apply-LegacyCharacterPoints0100([string]$Root) {
     & $scriptPath -SourceRoot $Root
 }
 
+function Invoke-SurvivorDeferredEngineLayers([string]$Root) {
+    # Certified Hosts run these layers after the canonical Host source patch.
+    # Do not mutate the CDDA working source before Ensure-CddaBuildCache.
+    $CddaRoot = $Root
+    foreach ($required in @('src\magic.cpp','src\handle_action.cpp')) {
+        if (-not (Test-Path (Join-Path $CddaRoot $required) -PathType Leaf)) {
+            throw ('Deferred Survivor engine source missing after cache initialization: ' + $required)
+        }
+    }
+    Apply-SurvivorManaHands0130 $CddaRoot
+    Apply-SurvivorVirtualItemSlots0140 $CddaRoot
+    Apply-SurvivorVirtualItemContext0140 $CddaRoot
+    Apply-SurvivorVehicleCraftingXp0151 $CddaRoot
+    Apply-SurvivorManaHandSpellcastingAid0140 $CddaRoot
+    Apply-SurvivorVirtualItemLifecycle0140 $CddaRoot
+    Apply-SurvivorManaHandUtility0140 $CddaRoot
+    Apply-SurvivorManaHandSecondaryMelee0140 $CddaRoot
+    Apply-SurvivorManaHandPairedGrip0140 $CddaRoot
+    Apply-SurvivorManaHandRanged0140 $CddaRoot
+    Apply-SurvivorManaHandPairedRanged0140 $CddaRoot
+    Apply-SurvivorManaHandReloadAndShoot0140 $CddaRoot
+    Apply-SurvivorManaHandFireAction0140 $CddaRoot
+    Apply-SurvivorManaHandGunControls0140 $CddaRoot
+    Apply-SurvivorManaHandReloadCarrier0153 $CddaRoot
+    Apply-SurvivorManaHandPrimaryMelee0140 $CddaRoot
+    Apply-SurvivorManaHandMartialArts0140 $CddaRoot
+    Apply-SurvivorManaHandReachMelee0140 $CddaRoot
+    Apply-SurvivorManaHandSmash0140 $CddaRoot
+    Apply-SurvivorManaHandAutoattack0140 $CddaRoot
+    Apply-SurvivorManaHandThrow0140 $CddaRoot
+    Apply-SurvivorManaHandAutoMining0140 $CddaRoot
+    Apply-SurvivorManaHandTargetPractice0140 $CddaRoot
+    Apply-SurvivorManaHandMend0140 $CddaRoot
+    Apply-SurvivorManaHandCrutches0140 $CddaRoot
+    Apply-SurvivorManaHandHeldUtilities0140 $CddaRoot
+    Apply-SurvivorManaHandDirectCount0152 $CddaRoot
+}
+
 # NCMM Infrastructure 0.8.3.1 deep probe: execute the exact host/source transform stack
 # without resolving Visual Studio, compiling binaries, touching the target runtime, or installing files.
 if ($HostSourceProbeOnly) {
@@ -22317,6 +22355,7 @@ if ($HostSourceProbeOnly) {
     $probePatchScript = Join-Path $NcmmRoot "host_patch\Apply-NCMMHostPatch.ps1"
     & $probePatchScript -SourceRoot $CddaRoot
     if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_host_v1_patched") -PathType Leaf)) { throw "Deep probe: NCMM host marker missing." }
+    Apply-NcmmModuleDataBridge0120 $CddaRoot
     Apply-WorldSettingsV2Patch $CddaRoot
     if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_world_settings_v2_patched") -PathType Leaf)) { throw "Deep probe: World Settings marker missing." }
     Apply-AwsWorldgenHostApi20 $CddaRoot
@@ -22325,9 +22364,12 @@ if ($HostSourceProbeOnly) {
     if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_runtime_gameplay_hooks_v2") -PathType Leaf)) { throw "Deep probe: Host runtime gameplay-hooks marker missing." }
     Apply-NcmmReactiveMechanics0112 $CddaRoot
     Apply-NcmmReactiveMechanics0113 $CddaRoot
+    Invoke-SurvivorDeferredEngineLayers $CddaRoot
     Apply-SurvivorCraftCompletionMetric0140 $CddaRoot
     Apply-SurvivorVehicleCraftingMetric0151 $CddaRoot
     Apply-SurvivorManaHandDirectCount0152 $CddaRoot
+    Apply-SurvivorActionWeaponSelection0154 $CddaRoot
+    Apply-SurvivorManaHandsDirectUi0155 $CddaRoot
     Assert-NcmmReactiveMechanics0113Source $CddaRoot
     if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_reactive_mechanics_0112") -PathType Leaf)) { throw "Deep probe: Survivor 0.11.2 reactive edge marker missing." }
     if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_reactive_mechanics_0113") -PathType Leaf)) { throw "Deep probe: Survivor 0.11.3 combinatorial edge marker missing." }
@@ -22402,9 +22444,12 @@ if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_runtime_gameplay_hooks_v2") -Pat
 }
 Apply-NcmmReactiveMechanics0112 $CddaRoot
 Apply-NcmmReactiveMechanics0113 $CddaRoot
+Invoke-SurvivorDeferredEngineLayers $CddaRoot
 Apply-SurvivorCraftCompletionMetric0140 $CddaRoot
 Apply-SurvivorVehicleCraftingMetric0151 $CddaRoot
     Apply-SurvivorManaHandDirectCount0152 $CddaRoot
+    Apply-SurvivorActionWeaponSelection0154 $CddaRoot
+    Apply-SurvivorManaHandsDirectUi0155 $CddaRoot
 Assert-NcmmReactiveMechanics0113Source $CddaRoot
 if (-not (Test-Path (Join-Path $CddaRoot ".ncmm_reactive_mechanics_0112") -PathType Leaf)) {
     throw "Survivor 0.11.2 reactive edge marker missing."
