@@ -1,6 +1,11 @@
 name: NCMM Certification
 
 "on":
+  pull_request:
+    paths:
+      - 'payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
+      - 'ci/Invoke-NCMMCertification.ps1'
+      - '.github/workflows/ncmm-certify.yml'
   workflow_dispatch:
     inputs:
       commit:
@@ -24,7 +29,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ncmm-certify-${{ inputs.commit }}
+  group: ncmm-certify-${{ github.event.pull_request.number || inputs.commit }}
   cancel-in-progress: false
 
 jobs:
@@ -41,7 +46,7 @@ jobs:
           path: |
             ${{ runner.temp }}\NCMMBuild\vcpkg
             ${{ runner.temp }}\NCMMBuild\downloads
-          key: ncmm-cert-v2-${{ runner.os }}-${{ inputs.commit }}
+          key: ncmm-cert-v3-${{ runner.os }}-${{ inputs.commit || 'e262adb299a7613b4aedc5f12c08fe0413c56a84' }}
           restore-keys: |
             ncmm-cert-v2-${{ runner.os }}-
 
@@ -56,10 +61,18 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $build = Join-Path $env:RUNNER_TEMP 'NCMMBuild'
+          $certCommit = '${{ inputs.commit }}'
+          $certTag = '${{ inputs.tag }}'
+          $certMode = '${{ inputs.mode }}'
+          if ('${{ github.event_name }}' -eq 'pull_request') {
+            $certCommit = 'e262adb299a7613b4aedc5f12c08fe0413c56a84'
+            $certTag = 'cdda-experimental-2026-09-23-0546'
+            $certMode = 'SourceOnly'
+          }
           .\ci\Invoke-NCMMCertification.ps1 `
-            -Commit '${{ inputs.commit }}' `
-            -Tag '${{ inputs.tag }}' `
-            -Mode '${{ inputs.mode }}' `
+            -Commit $certCommit `
+            -Tag $certTag `
+            -Mode $certMode `
             -BuildRoot $build `
             -BuildProfile Safe `
             -OutputDir (Join-Path $PWD 'certification-output')
@@ -85,7 +98,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ncmm-certification-${{ inputs.commit }}
+          name: ncmm-certification-${{ github.event.pull_request.head.sha || inputs.commit }}
           path: |
             certification-output/**
           if-no-files-found: error

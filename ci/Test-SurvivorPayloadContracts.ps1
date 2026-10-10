@@ -2991,5 +2991,26 @@ if($survivorHostReaderCount0166 -lt 1){
     throw 'Survivor Host-ownership guard no longer exercises the canonical Host read-only verifier path.'
 }
 
+# Certification and full install must derive the patch identity from the
+# checked-in, integrity-verified package, never the historical 0.9.10 source copy.
+foreach($canonicalNeedle in @(
+    '$CanonicalPackageRoot = (Resolve-Path (Split-Path $PSScriptRoot -Parent)).Path',
+    'Join-Path $CanonicalPackageRoot "ci\Get-PatchRevision.ps1"',
+    '(& $probeRevScript -RepositoryRoot $CanonicalPackageRoot).Trim()',
+    '(& $revScript -RepositoryRoot $CanonicalPackageRoot).Trim()'
+)){
+    if(-not $payload.Contains($canonicalNeedle)){
+        throw ('Canonical certification patch-revision binding missing: '+$canonicalNeedle)
+    }
+}
+foreach($legacyRevisionNeedle in @(
+    '(& $probeRevScript -RepositoryRoot $NcmmRoot).Trim()',
+    '(& $revScript -RepositoryRoot $NcmmRoot).Trim()'
+)){
+    if($payload.Contains($legacyRevisionNeedle)){
+        throw ('Generated historical tree incorrectly owns current revision: '+$legacyRevisionNeedle)
+    }
+}
+
 Write-Host 'NCMM Survivor payload regression contract: PASS' -ForegroundColor Green
 & (Join-Path $PSScriptRoot 'Test-ManaActionWeaponContracts.ps1') -PackageRoot $PackageRoot
