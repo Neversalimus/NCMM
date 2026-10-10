@@ -2006,11 +2006,21 @@ foreach($controlNeedle0140 in @(
     'function Apply-SurvivorManaHandReloadCarrier0153',
     'Mana Hand reload-in-place include',
     '!ncmm::is_virtual_item( *loc )',
-    'Apply-SurvivorManaHandReloadCarrier0153 $CddaRoot'
 )){
     if(-not $manaGunControlsSection0140.Contains($controlNeedle0140)){
         throw ('Mana Hand standard gun-control regression contract missing: '+$controlNeedle0140)
     }
+}
+# Reload carrier now runs in the exact source-ready transform phase, not beside
+# the early gun-control declarations. Check its ordering in that phase instead.
+$deferredCarrierBegin0153=$payload.IndexOf('function Invoke-SurvivorDeferredEngineLayers')
+$deferredCarrierEnd0153=$payload.IndexOf('# NCMM Infrastructure 0.8.3.1 deep probe:',$deferredCarrierBegin0153)
+if($deferredCarrierBegin0153 -lt 0 -or $deferredCarrierEnd0153 -le $deferredCarrierBegin0153){throw 'Deferred Mana Hand engine stage missing.'}
+$deferredCarrierText0153=$payload.Substring($deferredCarrierBegin0153,$deferredCarrierEnd0153-$deferredCarrierBegin0153)
+$gunControlPosition0153=$deferredCarrierText0153.IndexOf('Apply-SurvivorManaHandGunControls0140 $CddaRoot')
+$reloadCarrierPosition0153=$deferredCarrierText0153.IndexOf('Apply-SurvivorManaHandReloadCarrier0153 $CddaRoot')
+if($gunControlPosition0153 -lt 0 -or $reloadCarrierPosition0153 -le $gunControlPosition0153){
+    throw 'Mana Hand reload carrier must be invoked after gun control in the source-ready stage.'
 }
 if($manaGunControlsSection0140.Contains('set_wielded_item(') -or
    $manaGunControlsSection0140.Contains('u.wield(') -or
