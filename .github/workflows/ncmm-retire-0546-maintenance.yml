@@ -11,24 +11,40 @@ concurrency:
 jobs:
   inspect:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
+          path: ncmmrepo
           persist-credentials: false
-      - name: Inspect retirement surfaces and archive exact source
+      - uses: actions/checkout@v4
+        with:
+          repository: CleverRaven/Cataclysm-DDA
+          ref: 3f7fb352bf492ba521bd9408a0c9f6ce239e8d83
+          path: upstream
+          sparse-checkout: |
+            src
+            msvc-full-features
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 527a31b01eddf1d5af84e5bc341a355d7981ca61
+          path: historical
+          persist-credentials: false
+      - name: Archive exact 1040 source and historical PR for comparison
         shell: bash
         run: |
           set -euo pipefail
+          test "$(git -C upstream rev-parse HEAD)" = 3f7fb352bf492ba521bd9408a0c9f6ce239e8d83
+          test "$(git -C historical rev-parse HEAD)" = 527a31b01eddf1d5af84e5bc341a355d7981ca61
           mkdir -p evidence
-          git rev-parse HEAD > evidence/source-sha.txt
-          git grep -n -I -e 0546 -e 2026-09-23 -- . ':!payload/*' ':!.github/workflows/ncmm-retire-0546-maintenance.yml' > evidence/0546-references.txt || test "$?" = 1
-          cat evidence/0546-references.txt
-          git grep -n -I -e inventory_throwing_filter -e Sync-CanonicalPayload -e Regenerate-PackageIntegrity -- ci host_patch > evidence/patch-surfaces.txt || test "$?" = 1
-          git archive HEAD -o evidence/source.zip
+          git -C upstream ls-tree -r HEAD src msvc-full-features > evidence/1040-blobs.txt
+          git -C upstream archive HEAD src msvc-full-features -o "$GITHUB_WORKSPACE/evidence/1040-source.zip"
+          git -C historical archive HEAD -o "$GITHUB_WORKSPACE/evidence/pr102-source.zip"
+          git -C ncmmrepo rev-parse HEAD > evidence/ncmm-source-sha.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: NCMM-0546-retirement-source
+          name: NCMM-1040-and-PR102-comparison
           path: evidence/*
           retention-days: 3
           if-no-files-found: error
