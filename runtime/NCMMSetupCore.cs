@@ -512,6 +512,9 @@ internal static partial class SetupCore
         List<string> paths = new List<string>();
         paths.Add("cataclysm-tiles.exe");
         paths.Add("cataclysm-tiles.vanilla.exe");
+#if NCMM_FIRST_PERSON_PREVIEW
+        paths.Add("cataclysm-tiles.ncmm.exe");
+#endif
         paths.Add("ncmm");
 
         string payloadMods = Path.Combine(payloadRoot, "code_mods");
@@ -641,6 +644,9 @@ internal static partial class SetupCore
             string[] parts = rel.Split('/');
             bool allowed = rel == "cataclysm-tiles.exe" || rel == "cataclysm-tiles.vanilla.exe" || rel == "ncmm" ||
                            (parts.Length == 2 && parts[0] == "code_mods" && SafeModuleDirectoryName(parts[1]));
+#if NCMM_FIRST_PERSON_PREVIEW
+            allowed = allowed || rel == "cataclysm-tiles.ncmm.exe";
+#endif
             if (!allowed || !seen.Add(rel)) throw new InvalidOperationException("Unexpected or duplicate rollback path: " + rel);
             string target = Path.Combine(root, entry.relative_path);
             string source = Path.Combine(snapshotRoot, entry.relative_path);
@@ -945,6 +951,9 @@ internal static partial class SetupCore
             throw new InvalidOperationException("Installer payload is incomplete: bootstrap missing.");
         HashSet<string> requested = ResolveSelectedModuleIds(
             DiscoverBundledModules(Path.Combine(payloadRoot, "code_mods")), selectedModuleIds);
+#if NCMM_FIRST_PERSON_PREVIEW
+        ValidateFirstPersonBundle(gameRoot, payloadRoot);
+#endif
         using (NcmmInstallLock gate = NcmmInstallLock.Acquire(gameRoot))
         {
 
@@ -958,6 +967,9 @@ internal static partial class SetupCore
         try
         {
             InstallResult result = InstallCore(gameRoot, payloadRoot, requested);
+#if NCMM_FIRST_PERSON_PREVIEW
+            InstallFirstPersonHost(gameRoot, payloadRoot);
+#endif
             VerifyInstalledPayload(gameRoot, payloadRoot, result);
             UpdateSetupTransactionPhase(gameRoot, "ready_to_commit");
             CommitSetupTransaction(gameRoot);
@@ -1170,6 +1182,9 @@ internal static partial class SetupCore
     // successfully installed local bootstrap and native modules.
     internal static SetupHostSyncResult SyncCertifiedHost(string gameRoot)
     {
+#if NCMM_FIRST_PERSON_PREVIEW
+        return FirstPersonHostStatus(gameRoot);
+#endif
         using (NcmmInstallLock gate = NcmmInstallLock.Acquire(gameRoot))
         {
             AssertGameNotRunning(gameRoot);

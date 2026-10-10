@@ -1,0 +1,11 @@
+{
+  "id": "first_person_view",
+  "name": "First Person View (prototype)",
+  "version": "0.1.0-dev",
+  "loader_api": 1,
+  "api_major": 1,
+  "api_min_minor": 9,
+  "requires": ["core.v1", "api.versioning.v1", "host_api.v2.core", "module_hotkeys.v1", "graphics.viewport.v1"],
+  "ui_hotkey": "F6",
+  "failure_policy": "disable"
+}
