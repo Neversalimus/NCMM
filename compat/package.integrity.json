@@ -6,8 +6,8 @@
     "files":  [
                   {
                       "path":  ".github\\workflows\\ncmm-certify.yml",
-                      "sha256":  "dbbd281fbdaa1bc17f3b0f3745943459240b5698628d9cf6cd5ac2941e35dc4b",
-                      "bytes":  2660
+                      "sha256":  "bdad5cbaa322cb884f889707ddc49700f3582b72b8883326747a0ae903036933",
+                      "bytes":  3282
                   },
                   {
                       "path":  ".github\\workflows\\ncmm-experimental-watch.yml",
@@ -38,6 +38,11 @@
                       "path":  "ci\\Generate-AuditNativeTests.py",
                       "sha256":  "4e6460d288c41d3c44231d87bdba58f2436f9a973c7d98cca623a6640964c4ba",
                       "bytes":  10746
+                  },
+                  {
+                      "path":  "ci\\Get-ImmutableReleaseTag.ps1",
+                      "sha256":  "d55356a212ee304e72b813f8c219bce7a7cd61cb6dc559b7bc3e1b01c644afd8",
+                      "bytes":  1935
                   },
                   {
                       "path":  "ci\\Invoke-NCMMCertification.ps1",
@@ -90,14 +95,19 @@
                       "bytes":  71593
                   },
                   {
+                      "path":  "ci\\Test-ImmutableReleaseTag.ps1",
+                      "sha256":  "8c39629d4a0c34716d25407c7fa4e3e8e5ba02fe77e5b51740feab083ddb6e28",
+                      "bytes":  2439
+                  },
+                  {
                       "path":  "ci\\Test-Infrastructure0821.ps1",
                       "sha256":  "4af8d8973a77c09b8593e39236a16f78c2690528e04de3cd691e9e200c49d4fb",
                       "bytes":  333
                   },
                   {
                       "path":  "ci\\Test-Infrastructure083.ps1",
-                      "sha256":  "d1989237a8c793ffd43c2cf7975d03fe0a9c262f7142633347fcde1365514249",
-                      "bytes":  5955
+                      "sha256":  "96c3304b575f0f99bf5fe2c25db5c65187b87fae873b459b6d327a45c0fe8b66",
+                      "bytes":  6045
                   },
                   {
                       "path":  "ci\\Test-InstallerTransaction.ps1",
@@ -121,8 +131,8 @@
                   },
                   {
                       "path":  "ci\\Test-SurvivorPayloadContracts.ps1",
-                      "sha256":  "cf01c7025409ba02694dc29d078fcc1620c657d49339073d74fc92c48c797e73",
-                      "bytes":  161701
+                      "sha256":  "7fe4873a44648786027f917f1efa9568a773c30a498e6e2c1c032c61ed3346e1",
+                      "bytes":  162647
                   },
                   {
                       "path":  "ci\\toolchain.lock.json",
@@ -156,8 +166,8 @@
                   },
                   {
                       "path":  "compat\\package-files.txt",
-                      "sha256":  "17b0f32c57c0704a3190f6fe821caa8c1a3e55dcba7fecf2de65bf368f4cd896",
-                      "bytes":  4407
+                      "sha256":  "cfa198b44261cc2bbe0101c5bb9618d0bc4a9fdb1c885eb343897cd724314b7b",
+                      "bytes":  4470
                   },
                   {
                       "path":  "compat\\update\\index.json",
@@ -446,8 +456,8 @@
                   },
                   {
                       "path":  "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-                      "sha256":  "530c55ea5d34194bbedb7c540262e35518a124471b756a4cd594c8c17685eee9",
-                      "bytes":  3360584
+                      "sha256":  "b6733000c56cfaf0d7fa508827ac95740dfdb71f3726abbe3df6f06ad0c188de",
+                      "bytes":  3361147
                   },
                   {
                       "path":  "pipeline\\pipeline.manifest.json",
