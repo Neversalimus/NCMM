@@ -111,13 +111,13 @@ New-Item -ItemType Directory -Force (Join-Path $tmp 'ncmm')|Out-Null
 try{
     [IO.File]::WriteAllText(
         (Join-Path $tmp 'VERSION.txt'),
-        'commit sha: e262adb299a7613b4aedc5f12c08fe0413c56a84'+"`r`n",
+        'commit sha: 3f7fb352bf492ba521bd9408a0c9f6ce239e8d83'+"`r`n",
         (New-Object Text.UTF8Encoding($false))
     )
     [IO.File]::WriteAllBytes((Join-Path $tmp 'cataclysm-tiles.exe'),(New-Object byte[] 1))
     Write-NcmmUtf8NoBom (Join-Path $tmp 'ncmm\host.binding.json') (([ordered]@{
         ncmm_version=[string]$hostComponent.version
-        source_commit='e262adb299a7613b4aedc5f12c08fe0413c56a84'
+        source_commit='3f7fb352bf492ba521bd9408a0c9f6ce239e8d83'
     }|ConvertTo-Json)+"`n")
     Write-NcmmUtf8NoBom (Join-Path $tmp 'ncmm\modules.state.json') (([ordered]@{
         capabilities=@('api.versioning.v1','active_mods.registry.v2','world_settings.v2','host_api.v2.core','settings.typed.v2','character.modifiers.v2','runtime_hooks.registry.v2','runtime_settings.bindings.v2')

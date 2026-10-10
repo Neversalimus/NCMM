@@ -10,9 +10,9 @@
   ],
   "entries": [
     {
-      "commit": "e262adb299a7613b4aedc5f12c08fe0413c56a84",
+      "commit": "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83",
       "status": "supported_exact",
-      "manifest": "commits/e262adb299a7613b4aedc5f12c08fe0413c56a84.json"
+      "manifest": "commits/3f7fb352bf492ba521bd9408a0c9f6ce239e8d83.json"
     }
   ],
   "host_version": "0.8.0",

@@ -28,8 +28,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - tag: cdda-experimental-2026-09-23-0546
-            source: e262adb299a7613b4aedc5f12c08fe0413c56a84
           - tag: cdda-experimental-2026-10-01-1040
             source: 3f7fb352bf492ba521bd9408a0c9f6ce239e8d83
     env:
@@ -49,6 +47,8 @@ jobs:
           ref: ${{ matrix.source }}
           path: upstream
           persist-credentials: false
+      - name: Verify active policy and every exact 1040 reference blob
+        run: python ncmmrepo/ci/test_host_support_policy.py --source-root upstream
       - name: Verify source, canonical payload and layout before compilation
         shell: powershell
         run: |

@@ -18,7 +18,6 @@ foreach($required in @('transfer safe selection','authoritative final gate','sav
 $temp=Join-Path ([IO.Path]::GetTempPath()) ('ncmm-lcp-'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $temp | Out-Null
 $refs=@{
-    '0546'='e262adb299a7613b4aedc5f12c08fe0413c56a84'
     '1040'='3f7fb352bf492ba521bd9408a0c9f6ce239e8d83'
 }
 $files=@('src/newcharacter.cpp','src/player_difficulty.h')
@@ -37,7 +36,7 @@ function New-Fixture([string]$directory,$sources,[bool]$crlf) {
 $cases=0
 try {
     [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
-    foreach($tag in @('0546','1040')) {
+    foreach($tag in @('1040')) {
         $sources=@{}
         foreach($file in $files) {
             if($FixtureRoot) {
@@ -94,7 +93,7 @@ try {
             $cases++
         }
     }
-    Write-Host "Legacy Character Points transforms: PASS ($cases cases, 0546/1040, LF/CRLF/idempotence, every postcondition)." -ForegroundColor Green
+    Write-Host "Legacy Character Points transforms: PASS ($cases cases, 1040, LF/CRLF/idempotence, every postcondition)." -ForegroundColor Green
 } finally {
     Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
 }

@@ -8,6 +8,10 @@ NCMM is an unofficial, independently administered project and is not endorsed by
 
 Read [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) for attribution, links and distribution boundaries. The notices **do not** place every independently written NCMM module under a blanket CC BY-SA license. Separate NCMM-authored material has no project-wide license grant unless one is explicitly provided. License compliance for historical releases and binary dependency inventories is discussed in [the licensing audit](docs/audit/2026-10-10-licensing.md).
 
+## Supported CDDA baseline
+
+As of 2026-10-10, `cdda-experimental-2026-09-23-0546` is retired at the owner's request. The pinned source/install/PR qualification baseline is `cdda-experimental-2026-10-01-1040` (`3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`). Newer experimentals still require their own exact-identity certified Host; retirement does not relax SHA, source-contract, rollback or save-safety checks. The old PR187/0546-only preview installer is removed. Historical reports and already published releases are retained; no existing saves or backups are deleted.
+
 ## Current stack
 
 | Component | Version |

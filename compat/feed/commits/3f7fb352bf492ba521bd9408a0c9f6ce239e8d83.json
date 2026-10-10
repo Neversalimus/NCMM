@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "commit": "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83",
+  "tag": "cdda-experimental-2026-10-01-1040",
+  "build_label": "cdda_experimental_2026_10_01_1040",
+  "status": "supported_exact",
+  "certification": {
+    "state": "exact-source-baseline",
+    "note": "Pinned baseline after retiring 0546 at the owner's request on 2026-10-10. Reference blobs were verified from this exact official source commit. This entry is not a binary certificate and does not claim player live verification; current-revision Host publication remains gated by the real CI certification and installation workflows."
+  },
+  "adapter": {
+    "id": "cdda-2026-10-01-1040-3f7fb352",
+    "inherits": "base-cdda-2026-series-v1",
+    "support": "exact"
+  }
+}

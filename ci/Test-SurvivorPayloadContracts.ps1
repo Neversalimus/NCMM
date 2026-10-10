@@ -119,14 +119,14 @@ if($mechanicalPerkIds0100.Count -ne 27){throw 'Survivor 0.10.0 mechanical regres
 foreach($mechanicalId0100 in $mechanicalPerkIds0100){
     if(-not $payload.Contains('{ "'+$mechanicalId0100+'", branch_id::')){throw ('Survivor 0.10.0 mechanical perk definition missing: '+$mechanicalId0100)}
 }
-$exactAdapter0100=[IO.File]::ReadAllText((Join-Path $PackageRoot 'adapters\cdda_2026_09_23_0546.ps1'))
+$exactAdapter0100=[IO.File]::ReadAllText((Join-Path $PackageRoot 'adapters\cdda_2026_10_01_1040.ps1'))
 if(-not $exactAdapter0100.Contains("'src/ranged.cpp' = '54426a5dafe395306dc68fa73007f52e6ae2f645'")){throw 'Exact adapter ranged.cpp reference blob missing.'}
 foreach($ref0110 in @(
-    "'src/character.cpp' = '838812b4540beded00058a6d2b2782f5c586cc21'",
+    "'src/character.cpp' = '4dac6df7a58c73fd72d69c3c3880df17e4fc96fd'",
     "'src/melee.cpp' = '8f2a3e570e18648aed83466323b9f2514762a3db'",
     "'src/monster.cpp' = 'e6d6fff55d2c647adfd063e8bd009173307b39de'",
     "'src/npc.cpp' = 'eef674de308711ed7079f59c3f08dab777ef7f8b'",
-    "'src/activity_actor.cpp' = '77807e28c54316db8f2b1890ffb81b2f24d18c6e'",
+    "'src/activity_actor.cpp' = 'a8213cdc2e69f03f807430202553efaf6d131f2b'",
     "'src/trap.cpp' = '8857008a59b421d10ad40cf572c6b034bb8630f9'"
 )){if(-not $exactAdapter0100.Contains($ref0110)){throw ('Exact adapter reactive reference blob missing: '+$ref0110)}}
 
@@ -656,10 +656,10 @@ $contracts0130=Get-Content (Join-Path $PackageRoot 'compat\contracts.json') -Raw
 if(@($contracts0130.contracts|Where-Object{$_.id -eq 'magic_virtual_hands.source.v1'}).Count -ne 1){
     throw 'Magic virtual-hands source contract missing.'
 }
-$adapter0130=[IO.File]::ReadAllText((Join-Path $PackageRoot 'adapters\cdda_2026_09_23_0546.ps1'))
+$adapter0130=[IO.File]::ReadAllText((Join-Path $PackageRoot 'adapters\cdda_2026_10_01_1040.ps1'))
 foreach($ref0130 in @(
     "'src/magic.cpp' = 'acd1ca60046ec8ad3a8d483497031ddd9eb8feaf'",
-    "'src/handle_action.cpp' = '8a3ebf77fd6a631677a99ddc2d6f9880fcedc9b5'"
+    "'src/handle_action.cpp' = '97960142410dcd2ff963a7ceb7f66588b8b9c3fe'"
 )){if(-not $adapter0130.Contains($ref0130)){throw ('Mana-hands exact adapter reference missing: '+$ref0130)}}
 
 $survivorSource0130=[IO.File]::ReadAllText((Join-Path $PackageRoot 'mods\SurvivorProgression\src\survivor_progression.cpp'))

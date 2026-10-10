@@ -11,11 +11,11 @@ name: NCMM Certification
       commit:
         description: Exact 40-character CDDA source commit
         required: true
-        default: e262adb299a7613b4aedc5f12c08fe0413c56a84
+        default: 3f7fb352bf492ba521bd9408a0c9f6ce239e8d83
       tag:
         description: CDDA release tag containing the official Windows graphics build
         required: true
-        default: cdda-experimental-2026-09-23-0546
+        default: cdda-experimental-2026-10-01-1040
       mode:
         description: Certification depth
         required: true
@@ -46,7 +46,7 @@ jobs:
           path: |
             ${{ runner.temp }}\NCMMBuild\vcpkg
             ${{ runner.temp }}\NCMMBuild\downloads
-          key: ncmm-cert-v3-${{ runner.os }}-${{ inputs.commit || 'e262adb299a7613b4aedc5f12c08fe0413c56a84' }}
+          key: ncmm-cert-v3-${{ runner.os }}-${{ inputs.commit || '3f7fb352bf492ba521bd9408a0c9f6ce239e8d83' }}
           restore-keys: |
             ncmm-cert-v2-${{ runner.os }}-
 
@@ -65,8 +65,8 @@ jobs:
           $certTag = '${{ inputs.tag }}'
           $certMode = '${{ inputs.mode }}'
           if ('${{ github.event_name }}' -eq 'pull_request') {
-            $certCommit = 'e262adb299a7613b4aedc5f12c08fe0413c56a84'
-            $certTag = 'cdda-experimental-2026-09-23-0546'
+            $certCommit = '3f7fb352bf492ba521bd9408a0c9f6ce239e8d83'
+            $certTag = 'cdda-experimental-2026-10-01-1040'
             $certMode = 'SourceOnly'
           }
           .\ci\Invoke-NCMMCertification.ps1 `

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise Item Glyphs patch contracts on a clean CDDA 0546 checkout.
+"""Exercise Item Glyphs patch contracts on a clean CDDA 1040 checkout.
 
 Run: python3 ci/test_item_glyphs_source.py --source-root /path/to/cdda --pwsh pwsh
 All patching happens in a temporary copy. No item JSON or caller checkout is changed.
@@ -31,7 +31,7 @@ def main():
     source = args.source_root.resolve() / 'src'
     require(digest(source / 'wcwidth.cpp') ==
             '859d21c69ad9ce1c33e7549beead830c7859089d1cee998eaaafc5020068c12a',
-            'Expected original CDDA 0546 wcwidth.cpp')
+            'Expected original CDDA 1040 wcwidth.cpp')
     old_prefix = '''        if( get_option<bool>( "ITEM_SYMBOLS" ) ) {
             item_name = string_format( "%s %s", it.symbol(), item_name );
         }'''

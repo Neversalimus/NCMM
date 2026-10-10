@@ -26,3 +26,5 @@ host_patch/legacy-character-points.patch.json
 host_patch/ncmm_character_points.hpp
 host_patch/ncmm_legacy_chargen.h
 THIRD_PARTY_NOTICES.txt
+ci/host_support_policy.py
+ci/retired-hosts.json

@@ -13,7 +13,7 @@ import re
 import sys
 from typing import Iterable
 
-TAG = re.compile(r"cdda-experimental-\d{4}-\d{2}-\d{2}-\d{2}-\d{4}\Z")
+TAG = re.compile(r"cdda-experimental-\d{4}-\d{2}-\d{2}-\d{4}\Z")
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 
 

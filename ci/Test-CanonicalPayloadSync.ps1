@@ -15,7 +15,7 @@ try {
         [regex]::Matches($text,"Write-NcmmCanonicalPayloadFile '([^']+)' '") |
           ForEach-Object { $_.Groups[1].Value }
     )
-    if($embedded.Count -ne 35) { throw "Unexpected fixture inventory: $($embedded.Count) snapshots" }
+    if($embedded.Count -ne 38) { throw "Unexpected fixture inventory: $($embedded.Count) snapshots" }
     foreach($rel in $embedded) {
         if([IO.Path]::IsPathRooted($rel) -or $rel.Contains('..')) {
             throw "Unsafe fixture path: $rel"
@@ -70,7 +70,7 @@ try {
         if(-not $rejected) { throw "Unexpected/duplicate canonical entry was accepted: $extra" }
     }
 
-    Write-Host 'Canonical snapshot synchronization regression: PASS (35 sources, CRLF, drift, repair, unknown, duplicate).' -ForegroundColor Green
+    Write-Host 'Canonical snapshot synchronization regression: PASS (38 sources, CRLF, drift, repair, unknown, duplicate).' -ForegroundColor Green
 } finally {
     Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
 }
