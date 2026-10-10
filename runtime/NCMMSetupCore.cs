@@ -644,6 +644,9 @@ internal static partial class SetupCore
             string[] parts = rel.Split('/');
             bool allowed = rel == "cataclysm-tiles.exe" || rel == "cataclysm-tiles.vanilla.exe" || rel == "ncmm" ||
                            (parts.Length == 2 && parts[0] == "code_mods" && SafeModuleDirectoryName(parts[1]));
+#if NCMM_FIRST_PERSON_PREVIEW
+            allowed = allowed || rel == "cataclysm-tiles.ncmm.exe";
+#endif
             if (!allowed || !seen.Add(rel)) throw new InvalidOperationException("Unexpected or duplicate rollback path: " + rel);
             string target = Path.Combine(root, entry.relative_path);
             string source = Path.Combine(snapshotRoot, entry.relative_path);

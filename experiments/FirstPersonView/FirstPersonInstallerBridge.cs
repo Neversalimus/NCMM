@@ -87,7 +87,15 @@ internal static partial class SetupCore
         ValidateFirstPersonBundle(gameRoot, payloadRoot);
         FirstPersonBundle bundle = ReadFirstPersonBundle(payloadRoot);
         string host = Path.Combine(gameRoot, "cataclysm-tiles.ncmm.exe");
-        NcmmRuntimeIO.CopyDurable(Path.Combine(payloadRoot, "host", "cataclysm-tiles.ncmm.exe"), host);
+        string staged = Path.Combine(gameRoot, "ncmm", "host.preview-" + Guid.NewGuid().ToString("N") + ".exe");
+        try
+        {
+            NcmmRuntimeIO.CopyDurable(Path.Combine(payloadRoot, "host", "cataclysm-tiles.ncmm.exe"), staged);
+            if (Sha256(staged) != bundle.host_sha256)
+                throw new IOException("Staged First Person View Host SHA256 mismatch.");
+            NcmmRuntimeIO.PublishFile(staged, host);
+        }
+        finally { if (File.Exists(staged)) File.Delete(staged); }
         WriteJsonAtomic(Path.Combine(gameRoot, "ncmm", "host.binding.json"), new SetupHostBinding {
             vanilla_sha256 = bundle.vanilla_sha256, host_sha256 = bundle.host_sha256,
             source_commit = bundle.source_commit, upstream_tag = bundle.upstream_tag,

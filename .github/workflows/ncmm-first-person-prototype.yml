@@ -98,13 +98,44 @@ jobs:
           if(!$text.Contains($parallel) -or !$text.Contains($debug)){throw 'Canonical compiler-cache anchors changed.'}
           $text=$text.Replace($parallel,'<MultiProcessorCompilation>false</MultiProcessorCompilation>').Replace($debug,'<DebugInformationFormat>OldStyle</DebugInformationFormat>')
           [IO.File]::WriteAllText((Join-Path $PWD $props),$text,(New-Object Text.UTF8Encoding($false)))
+      - uses: actions/cache/restore@v4
+        id: engine_cache
+        with:
+          path: |
+            upstream/cataclysm-tiles.exe
+            upstream/first-person-host.sha256
+          key: ncmm-fp-host-1807-v1-${{ runner.os }}-${{ hashFiles('upstream/src/**', 'upstream/msvc-full-features/**', 'upstream/first-person-source.json', 'upstream/.github/vcpkg_triplets/**') }}
       - name: Compile actual experimental engine (no certification/publication)
+        if: steps.engine_cache.outputs.cache-hit != 'true'
         shell: powershell
         working-directory: upstream
         run: |
           & msbuild -m -p:Configuration=Release -p:Platform=x64 -p:CLToolExe=cl.bat "-p:CLToolPath=$env:NCMM_SCCACHE_WRAPPER_DIR" -p:TrackFileAccess=false -p:UseMultiToolTask=true -target:Cataclysm-vcpkg-static msvc-full-features/Cataclysm-vcpkg-static.sln
           if($LASTEXITCODE -ne 0){throw 'Experimental MSVC Host build failed.'}
           if(!(Test-Path cataclysm-tiles.exe)){throw 'Experimental engine binary missing.'}
+          (Get-FileHash cataclysm-tiles.exe -Algorithm SHA256).Hash.ToLowerInvariant() | Set-Content first-person-host.sha256 -Encoding Ascii
+      - name: Verify compiled or cached engine identity
+        shell: powershell
+        working-directory: upstream
+        run: |
+          $expected=(Get-Content first-person-host.sha256 -Raw).Trim()
+          if($expected -notmatch '^[0-9a-f]{64}$' -or (Get-FileHash cataclysm-tiles.exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected){throw 'Experimental Host cache identity mismatch.'}
+      - uses: actions/cache/save@v4
+        if: steps.engine_cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            upstream/cataclysm-tiles.exe
+            upstream/first-person-host.sha256
+          key: ${{ steps.engine_cache.outputs.cache-primary-key }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: first-person-experimental-host-1807
+          path: |
+            upstream/cataclysm-tiles.exe
+            upstream/first-person-source.json
+            upstream/LICENSE.txt
+            ncmmrepo/THIRD_PARTY_NOTICES.txt
+          retention-days: 7
       - name: Download SHA256-verified official Windows 1807 game
         id: game
         shell: powershell
@@ -182,13 +213,4 @@ jobs:
             installer-result/first-person-smoke.json
             installer-result/first-person-room.bmp
           if-no-files-found: error
-          retention-days: 7
-      - uses: actions/upload-artifact@v4
-        with:
-          name: first-person-experimental-host-1807
-          path: |
-            upstream/cataclysm-tiles.exe
-            upstream/first-person-source.json
-            upstream/LICENSE.txt
-            ncmmrepo/THIRD_PARTY_NOTICES.txt
           retention-days: 7
