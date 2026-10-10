@@ -24,6 +24,10 @@ foreach($module in $nativeModules) {
     $moduleById[$module.Id]=$module
     New-Item -ItemType Directory -Force -Path (Join-Path $payload ('code_mods\' + $module.Folder)) | Out-Null
 }
+$noticeSource = Join-Path $RepositoryRoot 'THIRD_PARTY_NOTICES.txt'
+if (-not (Test-Path $noticeSource -PathType Leaf)) {
+    throw "NCMM licensing attribution notice is missing: $noticeSource"
+}
 $hostVersion=(& (Join-Path $RepositoryRoot 'ci\Get-NcmmCurrentVersion.ps1') -RepositoryRoot $RepositoryRoot).Trim()
 if($hostVersion -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$') {
     throw "Invalid NCMM runtime version: $hostVersion"
@@ -60,6 +64,7 @@ function New-NcmmModuleArchive {
         }
     }
     Copy-Item (Join-Path $RepositoryRoot ('components\' + $componentId + '.json')) (Join-Path $stage 'component.json') -Force
+    Copy-Item $noticeSource (Join-Path $stage 'THIRD_PARTY_NOTICES.txt') -Force
     $readme=@(
         "NCMM native module: $componentId",
         "Version: $version",
@@ -342,6 +347,7 @@ The Host/runtime is required. Native gameplay modules are independently selectab
 No compiler, Git, CMake, or MSYS2 is required on the player's PC.
 If no exact certified host exists for the installed CDDA executable, NCMM starts vanilla only when no save-critical native definitions are installed.
 "@ | Set-Content (Join-Path $OutputRoot 'README.txt') -Encoding UTF8
+Copy-Item $noticeSource (Join-Path $OutputRoot 'THIRD_PARTY_NOTICES.txt') -Force
 
 $zip = Join-Path (Split-Path $OutputRoot -Parent) ("NCMM_Runtime_v$hostVersion.zip")
 if (Test-Path $zip) { Remove-Item $zip -Force }
