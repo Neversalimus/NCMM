@@ -1,4 +1,4 @@
-# First Person View — 0.7.0 development prototype
+# First Person View — 0.7.1 development prototype
 
 Optional first-person renderer of the same live CDDA world through NCMM. This
 preview bundles an exact experimental Windows x64 Host for 1040 or 1807 and uses
@@ -50,7 +50,9 @@ cell geometry, current weather and calendar astronomy. V1 and Core ABI contracts
 remain unchanged. The renderer uses clipped perspective-correct triangles, a
 per-pixel depth buffer, bilinear filtering and a ground mip level, with a balanced default up to 1280×800 and an F11 high-quality option up to
 1920×1080. Covered scanline spans, conservative frustum culling, outward solid
-faces, front-to-back cells and up to four disjoint CPU row bands reduce work.
+faces, front-to-back cells and up to four workers reduce work. Triangles are
+clipped/projected once; interleaved 16-row strips balance detailed floor and
+view-model work across the workers, with one writer per pixel.
 Identical UI redraws reuse complete owned pixels for at most 250 ms. World state,
 light and camera changes invalidate them immediately; held-item changes and
 attack/weather animation compose over a separate owned world frame. Attack poses
@@ -70,7 +72,10 @@ fallbacks; the engine fixture audits all loaded terrain/furniture definitions.
 Spilled field liquids and visible loose liquid items remain shallow irregular
 patches; bottles, frozen items and liquid-container furniture keep their normal
 representation. Water surfaces have continuous
-wave shading, and fire, smoke and gas have depth-clipped volume rendering.
+wave shading, a visible shallow bed near land, and sea wash along shores.
+Neighbour-aware shore distances continue across tile edges; hidden/missing cells
+and bridges over water do not create false beaches. Puddle edges use subpixel
+coverage. Fire, smoke and gas have depth-clipped volume rendering.
 
 Visible vehicle mounts share actual yaw and one continuous anchor. Automatic
 meshes combine chassis, body panels, roof, seats, windows, open doors, modeled
@@ -274,3 +279,12 @@ Qualification adds presentation/occlusion/composition regressions, a full loaded
 monster and gas-definition audit, and actual SDL captures of reported geometry,
 localized labels, a roofed car interior, an equipped M27 and smoke. Performance
 numbers from fixtures are not a measurement of a player's installation.
+
+## Reproducing renderer timings
+
+Configure with `-DFIRST_PERSON_BUILD_BENCHMARK=ON -DCMAKE_BUILD_TYPE=Release`,
+build `first_person_benchmark`, then run `first_person_benchmark 24` on an idle
+machine. It separates changing-camera frames from cached-world composition at
+1280x800 for floor, walls, water, CPU smoke and GPU-layer smoke. Compare the same
+compiler/build type and repeat the run; these synthetic timings exclude Host
+snapshot generation, simulation and SDL presentation and are not game FPS.

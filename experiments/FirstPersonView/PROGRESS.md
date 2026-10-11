@@ -52,3 +52,11 @@ depth, creature picking and ownership, including glass, doors, near clipping,
 water and firearms. Initial isolated camera benchmarks at 1280x800 improve clear
 floor from 50 to 29 ms, walls from 45 to 34 ms and water from 52 to 31 ms; timing
 varies with host load and these numbers do not represent in-game player FPS.
+
+Water now shades a shallow bed along actual known land, adds narrow sea wash,
+and blends subpixel puddle edges. Cardinal/diagonal bank distances meet at tile
+boundaries and unknown/no-floor cells do not invent beaches. Presentation tests
+now contain 461 checks, including rendered shoreline pixels and edge continuity.
+`FIRST_PERSON_BUILD_BENCHMARK` builds a manual reproducible timing tool without
+adding a machine-dependent performance gate. Version advanced to 0.7.1-dev;
+Windows installer qualification is pending for this new revision.
