@@ -5,6 +5,10 @@ preview bundles an exact experimental Windows x64 Host for 1040 or 1807 and uses
 the normal installer's independent component selection. It remains outside the
 shipping mod catalog; the certified Host feed is not promoted.
 
+Clear weather no longer adds fog for CDDA's normal sight multiplier of 1.0.
+Rain and actual fog/mist retain weather haze, while distant clear-air terrain
+remains legible throughout the expanded snapshot.
+
 ## Installation and controls
 
 Extract the complete matching archive and run `NCMM_Setup_FirstPerson_TEST.exe`.

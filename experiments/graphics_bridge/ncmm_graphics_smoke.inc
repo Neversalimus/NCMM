@@ -5,6 +5,7 @@ bool graphics_scene_smoke()
     size_t frames = 0;
     int distance_radius = 0;
     size_t distance_cells = 0;
+    float distance_fog = 0;
     std::string reason = "ok";
     auto require = [&]( bool ok, const char *failure ) {
         ++checks;
@@ -165,17 +166,6 @@ bool graphics_scene_smoke()
             here.furn_set( tripoint_bub_ms( p.x(), p.y(), 1 ), furn_id( "f_null" ) );
             here.clear_fields( tripoint_bub_ms( p.x(), p.y(), 1 ) );
         }
-        vehicle *car = here.add_vehicle( vproto_id( "car" ),
-            tripoint_bub_ms( center.x(), center.y() - 6, 0 ), 0_degrees, 0, veh_spawn_status::UNDAMAGED, false );
-        require( car != nullptr, "street_vehicle_not_created" );
-        here.invalidate_map_cache( 0 );
-        here.build_map_cache( 0 );
-        // A shifted normal-map camera must not silently cancel first person.
-        g->ter_view_p = tripoint_bub_ms( center.x() + 2, center.y(), 0 );
-        draw();
-        require( graphics_resolved_vehicle_textures > 0, "visible_vehicle_material_missing" );
-        require( graphics_hybrid_vehicle_cells > 0 && graphics_hybrid_width == 640 && graphics_hybrid_height == 480,
-                 "hybrid_vehicle_or_native_frame_missing" );
         auto capture_frame = [&]( const std::string &name ) {
             SDL_Surface *image = SDL_RenderReadPixels( renderer, &capture );
             require( image != nullptr, "hybrid_capture_failed" );
@@ -183,16 +173,6 @@ bool graphics_scene_smoke()
             SDL_DestroySurface( image );
             require( written, "hybrid_capture_not_written" );
         };
-        capture_frame( "first-person-car.bmp" );
-        const tripoint_bub_ms ahead( center.x(), center.y() - 12, 0 );
-        const tripoint_bub_ms behind( center.x(), center.y() + 12, 0 );
-        require( graphics_forward_visible( center, ahead ) && !graphics_forward_visible( center, behind ),
-                 "forward_camera_cone_or_vehicle_roof_truncated" );
-        const tripoint_bub_ms barrier( center.x() + 5, center.y() - 6, 0 );
-        const tripoint_bub_ms beyond_barrier( center.x() + 10, center.y() - 12, 0 );
-        here.ter_set( barrier, ter_id( "t_wall" ) );
-        require( !graphics_forward_visible( center, beyond_barrier ), "opaque_terrain_did_not_block_forward_snapshot" );
-        here.ter_set( barrier, ter_id( "t_pavement" ) );
         // A real expanded snapshot, not a camera-only setting: distant terrain
         // must reach the live DLL and survive the validated SDL submission.
         for( int x = 14; x <= 22; ++x ) here.ter_set( tripoint_bub_ms( center.x() + x, center.y() - 44, 0 ), ter_id( "t_wall" ) );
@@ -201,6 +181,8 @@ bool graphics_scene_smoke()
                  "expanded_world_snapshot_missing" );
         distance_radius = graphics_snapshot_radius;
         distance_cells = graphics_snapshot_far_cells;
+        distance_fog = graphics_hybrid_last_environment.fog_density;
+        require( distance_fog < .005f, "clear_weather_invented_distance_fog" );
         capture_frame( "first-person-distance.bmp" );
         constexpr int range_side = NCMM_GRAPHICS_V2_MAX_GRID_SIDE;
         std::vector<uint8_t> transparency( range_side * range_side );
@@ -222,6 +204,27 @@ bool graphics_scene_smoke()
                      "cached_distance_visibility_differs_from_engine_line" );
         }
         require( !graphics_forward_visible( center, tripoint_bub_ms( center.x(), -1, 0 ) ), "snapshot_read_beyond_loaded_map" );
+        vehicle *car = here.add_vehicle( vproto_id( "car" ),
+            tripoint_bub_ms( center.x(), center.y() - 6, 0 ), 0_degrees, 0, veh_spawn_status::UNDAMAGED, false );
+        require( car != nullptr, "street_vehicle_not_created" );
+        here.invalidate_map_cache( 0 );
+        here.build_map_cache( 0 );
+        // A shifted normal-map camera must not silently cancel first person.
+        g->ter_view_p = tripoint_bub_ms( center.x() + 2, center.y(), 0 );
+        draw();
+        require( graphics_resolved_vehicle_textures > 0, "visible_vehicle_material_missing" );
+        require( graphics_hybrid_vehicle_cells > 0 && graphics_hybrid_width == 640 && graphics_hybrid_height == 480,
+                 "hybrid_vehicle_or_native_frame_missing" );
+        capture_frame( "first-person-car.bmp" );
+        const tripoint_bub_ms ahead( center.x(), center.y() - 12, 0 );
+        const tripoint_bub_ms behind( center.x(), center.y() + 12, 0 );
+        require( graphics_forward_visible( center, ahead ) && !graphics_forward_visible( center, behind ),
+                 "forward_camera_cone_or_vehicle_roof_truncated" );
+        const tripoint_bub_ms barrier( center.x() + 5, center.y() - 6, 0 );
+        const tripoint_bub_ms beyond_barrier( center.x() + 10, center.y() - 12, 0 );
+        here.ter_set( barrier, ter_id( "t_wall" ) );
+        require( !graphics_forward_visible( center, beyond_barrier ), "opaque_terrain_did_not_block_forward_snapshot" );
+        here.ter_set( barrier, ter_id( "t_pavement" ) );
         press_f6();
         require( !graphics_view.enabled && !graphics_draw( 0, 0, 640, 480 ), "tiles_fallback_missing" );
         require( !ncmm::graphics_mouse_event( 1, 320, 240, 0, 0, true ) &&
@@ -478,7 +481,8 @@ bool graphics_scene_smoke()
     out << "{\"schema\":1,\"success\":" << ( success ? "true" : "false" )
         << ",\"reason\":\"" << reason << "\",\"checks\":" << std::to_string( checks )
         << ",\"sdl_frames\":" << std::to_string( frames ) << ",\"gpu_effect_frames\":" << std::to_string(graphics_effect_gpu_frames) << ",\"cpu_recovery_frames\":" << std::to_string(graphics_effect_cpu_frames)
-        << ",\"draw_radius\":" << std::to_string( distance_radius ) << ",\"distant_cells\":" << std::to_string( distance_cells ) << "}\n";
+        << ",\"draw_radius\":" << std::to_string( distance_radius ) << ",\"distant_cells\":" << std::to_string( distance_cells )
+        << ",\"clear_weather_fog\":" << std::to_string( distance_fog ) << "}\n";
     log_line( success ? NCMM_LOG_INFO : NCMM_LOG_ERROR,
               ( "First Person View actual engine smoke: " + reason ).c_str() );
     return success;

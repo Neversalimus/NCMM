@@ -93,3 +93,9 @@ changing-camera and cached-world composition costs.
 Release gates: native/transform/syntax checks, both Windows Host builds,
 installer transactions, real SDL distance capture and image review. The 0.7.1
 installer remains the last qualified package until all 0.8.0 gates pass.
+
+The first real capture exposed a pre-existing weather-unit error: CDDA uses
+1.0 for normal sight, which previously added 0.025 fog even in sunny weather.
+Weather haze now uses only the excess above 1.0; actual fog/mist and rain still
+contribute. The distance fixture captures an unobstructed street before its
+near car is created and asserts the live clear-weather fog density.

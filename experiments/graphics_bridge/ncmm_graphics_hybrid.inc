@@ -363,8 +363,8 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     if( ncmm_graphics_shapes::contains( wid, "sleet" ) ) env.weather_kind = NCMM_WEATHER_SLEET;
     if( ncmm_graphics_shapes::contains( wid, "sand" ) || ncmm_graphics_shapes::contains( wid, "dust" ) ) { env.weather_kind = NCMM_WEATHER_DUST; env.precipitation = .65f; }
     if( type.sound_category == weather_sound_category::portal_storm ) { env.weather_kind = NCMM_WEATHER_PORTAL; env.precipitation = .7f; }
-    env.fog_density = std::clamp( type.sight_penalty * .025f + env.precipitation * .012f, 0.0f, .2f );
-    if( ncmm_graphics_shapes::contains( wid, "fog" ) || ncmm_graphics_shapes::contains( wid, "mist" ) ) env.fog_density = std::max( env.fog_density, .055f );
+    env.fog_density = ncmm_graphics_policy::weather_fog_density( type.sight_penalty, env.precipitation,
+        ncmm_graphics_shapes::contains( wid, "fog" ) || ncmm_graphics_shapes::contains( wid, "mist" ) );
     if( env.precipitation > 0 ) env.cloud_cover = std::max( env.cloud_cover, .65f );
     const auto wind = convert_wind_to_coord( weather.winddirection );
     env.wind_x = float( wind.x * std::clamp( weather.windspeed, 0, 100 ) ); env.wind_y = float( wind.y * std::clamp( weather.windspeed, 0, 100 ) );

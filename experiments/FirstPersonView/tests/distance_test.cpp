@@ -1,5 +1,6 @@
 #include "hybrid_renderer.hpp"
 #include "renderer.hpp"
+#include "ncmm_graphics_policy.hpp"
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -34,7 +35,14 @@ void save(const frame &f,const std::string &path){std::ofstream out(path,std::io
     for(uint32_t p:f.pixels){const char rgb[]={char(p>>24),char(p>>16),char(p>>8)};out.write(rgb,3);}}
 }
 int main(int argc,char **argv){try{
+    using ncmm_graphics_policy::weather_fog_density;
+    require(weather_fog_density(1,0,false)==0,"normal CDDA sight multiplier does not invent fog");
+    require(weather_fog_density(.5f,0,false)==0,"better visibility does not produce negative fog");
+    require(weather_fog_density(1.2f,.45f,false)>.005f,"rain and reduced visibility still contribute haze");
+    require(weather_fog_density(1,0,true)>=.055f,"actual fog or mist retains its minimum density");
+    require(weather_fog_density(20,1,false)==.2f,"extreme weather fog remains bounded");
     fixture a;const int far=a.ahead(40),barrier=a.ahead(24);
+    a.scene.environment.fog_density=weather_fog_density(1,0,false);
     std::strcpy(a.cells[far].creature,"mon_zombie");
     a.details[a.ahead(36,-14)].terrain_shape=NCMM_SHAPE_TREE;
     a.details[a.ahead(36,14)].terrain_shape=NCMM_SHAPE_TREE;
