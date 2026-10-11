@@ -34,6 +34,10 @@ void save(const frame &f,const std::string &path){std::ofstream out(path,std::io
     for(uint32_t p:f.pixels){char c[]={char(p>>24),char(p>>16),char(p>>8)};out.write(c,3);}}
 }
 int main(int argc,char **argv){try{
+    check(ncmm_graphics_shapes::physical_item_id("naginata_plus_two","naginata",2)=="naginata","enchanted melee uses its declared physical silhouette instead of grade icons");
+    check(ncmm_graphics_shapes::physical_item_id("rifle_plus_one","rifle",1)=="rifle","enchanted gun resolves physical art generically");
+    check(ncmm_graphics_shapes::physical_item_id("knife_combat","knife",2)=="knife_combat","normal weapon keeps its own authored sprite");
+    check(ncmm_graphics_shapes::physical_item_id("naginata_plus_two","null",2)=="naginata_plus_two","missing physical alias retains the installed sprite fallback");
     std::array<uint32_t,2> edge_pixels{0xff4000ff,0x00ffffff};edge_pixels[1]&=0xffffff00u;
     image edge;edge.data={sizeof(edge.data),2,1,2,edge_pixels.data()};edge.analyse();
     const auto filtered=edge.sample(.5f,0);check((filtered&255)>100&&(filtered&255)<150,"filtered silhouette retains fractional coverage");

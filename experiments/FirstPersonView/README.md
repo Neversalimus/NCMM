@@ -90,6 +90,10 @@ specialized effects when supplied by game data or mods. Outside particles are
 occluded by geometry and do not spawn under roofs. Visual cloud/particle movement
 uses real time without advancing a game turn.
 
+Enchanted `*_plus_*` weapons use their declared `looks_like` physical silhouette
+so 2D grade marks do not become floating view-model geometry. The snapshot still
+identifies the real enchanted item; ordinary weapons keep their authored art.
+
 The wielded item's actual tileset silhouette is filtered in camera space with
 an extruded contour, curved forearms, palms and fingers. Long melee silhouettes
 use their automatically measured principal axis; guns and very slender shapes

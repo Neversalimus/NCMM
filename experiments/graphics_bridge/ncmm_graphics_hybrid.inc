@@ -131,7 +131,19 @@ int graphics_get_sprite( uint32_t index, uint32_t layer, ncmm_graphics_sprite_v2
                    layer == NCMM_GFX_FIELD ? TILE_CATEGORY::FIELD : TILE_CATEGORY::TERRAIN;
     }
     if( id.empty() ) return 0;
-    auto atlas = tilecontext->ncmm_get_texture_draw_data( id, category, position, layer == NCMM_GFX_GROUND );
+    std::string physical_id = id;
+    if( layer == NCMM_GFX_HELD_ITEM ) {
+        for( int hop = 0; hop < 8; ++hop ) {
+            const itype_id type( physical_id );
+            if( !type.is_valid() ) break;
+            const std::string next = ncmm_graphics_shapes::physical_item_id(
+                physical_id, type->looks_like.str(), scene.environment.held_kind );
+            if( next == physical_id ) break;
+            physical_id = next;
+        }
+    }
+    auto atlas = tilecontext->ncmm_get_texture_draw_data( physical_id, category, position, layer == NCMM_GFX_GROUND );
+    if( !atlas && physical_id != id ) atlas = tilecontext->ncmm_get_texture_draw_data( id, category, position, false );
     if( !atlas && category == TILE_CATEGORY::VEHICLE_PART ) {
         const size_t mark = id.find( '#' );
         if( mark != std::string::npos ) atlas = tilecontext->ncmm_get_texture_draw_data( id.substr( 0, mark ), category, position, false );

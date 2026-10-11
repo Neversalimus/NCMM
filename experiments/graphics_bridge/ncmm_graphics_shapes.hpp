@@ -9,6 +9,12 @@ struct traits {
 };
 inline bool contains(const std::string &s,const char *part) { return s.find(part)!=std::string::npos; }
 inline bool ending(const std::string &s,const std::string &tail){return s.size()>=tail.size()&&s.compare(s.size()-tail.size(),tail.size(),tail)==0;}
+// Enchantment grades can be foreground UI marks in layered tilesets. The
+// declared looks_like alias supplies physical weapon art while the snapshot
+// retains the actual enchanted item identity and gameplay statistics.
+inline std::string physical_item_id(const std::string &id,const std::string &alias,uint32_t kind){
+    return (kind==1u||kind==2u)&&contains(id,"_plus_")&&!alias.empty()&&alias!="null"?alias:id;
+}
 // Semantic flags take priority. Identifier/looks_like fallbacks cover damaged,
 // open and mod-derived variants which intentionally drop their old flags.
 inline uint32_t terrain(const std::string &id,const traits &t) {
