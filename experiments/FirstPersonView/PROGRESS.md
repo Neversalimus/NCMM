@@ -23,8 +23,9 @@ retain their actual weather tint instead of guessing from translated names.
 Implementation checkpoints 1–6 are committed. Pinned 1040/1807 Host syntax,
 377 presentation checks, 303 hybrid checks, the 496657-check legacy renderer
 suite, 34 module lifecycle checks and five atomic-transform cases pass locally.
-Final work: new real-SDL cases, Windows packaging and captured-image review.
-Do not ship a package before the final qualification workflow succeeds.
+Release gates: real-SDL cases, Windows packaging and captured-image review.
+The qualification workflow and each archive's release-manifest.json identify
+the exact tested source revision. Do not ship before those gates succeed.
 
 Additional performance checkpoint: prepare gas/light coefficients once per cell,
 clip ray intervals, bound the scattering layer and split volume/compositor rows
@@ -32,4 +33,6 @@ between up to four workers. Random-alpha and odd-size outputs match the Host
 reference compositor exactly. In the local 1280x800 cached-world smoke fixture,
 composition dropped from 219 to 39 ms on CPU and GPU-layer preparation from
 155 to 37 ms. These are synthetic scene timings, not player FPS.
-This changes only the module; the ongoing Host compilation stays reusable.
+The optimization and resin-seam repair change only the module; all 26 pinned
+Host input hashes remain identical for each game build, allowing exact cached
+Hosts to be reused for the final installer qualification.
