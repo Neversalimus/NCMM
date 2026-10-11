@@ -22,6 +22,16 @@ struct graphics_cpu_sprite {
 using graphics_sprite_key = std::tuple<uintptr_t, int, int, int, int>;
 std::map<graphics_sprite_key, graphics_cpu_sprite> graphics_cpu_sprites;
 SDL_Renderer *graphics_hybrid_renderer_identity = nullptr; // comparison only
+SDL_Texture *graphics_stream_texture = nullptr;
+uint64_t graphics_stream_instance = 0, graphics_stream_generation = 0;
+uint32_t graphics_stream_width = 0, graphics_stream_height = 0;
+void graphics_clear_stream()
+{
+    // SDL destroys all child textures when replacing a renderer. The monotonic
+    // instance generation prevents destroying a dangling, reused address.
+    if( graphics_stream_texture && graphics_stream_instance == renderer_coordinator.instance_generation() ) SDL_DestroyTexture( graphics_stream_texture );
+    graphics_stream_texture = nullptr; graphics_stream_width = graphics_stream_height = 0;
+}
 
 bool graphics_read_sprite( const texture_draw_data &atlas, graphics_cpu_sprite &out )
 {
@@ -93,6 +103,7 @@ void graphics_clear_hybrid()
     graphics_hybrid_pixels.clear(); graphics_hybrid_width = graphics_hybrid_height = 0;
     graphics_hybrid_sprite_bytes = 0; graphics_hybrid_tileset_epoch = 0;
 #if defined(TILES)
+    graphics_clear_stream();
     graphics_cpu_sprites.clear(); graphics_hybrid_renderer_identity = nullptr;
 #endif
 }
@@ -280,7 +291,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
                 const std::pair<const char *, uint32_t> features[] = {
                     { "STRUCTURE", NCMM_VEH_FRAME }, { "ROOF", NCMM_VEH_ROOF }, { "SEAT", NCMM_VEH_SEAT },
                     { "OBSTACLE", NCMM_VEH_BOARD }, { "WINDOW", NCMM_VEH_WINDOW }, { "OPENABLE", NCMM_VEH_DOOR },
-                    { "WHEEL", NCMM_VEH_WHEEL }, { "CARGO", NCMM_VEH_CARGO }, { "ENGINE", NCMM_VEH_ENGINE }, { "CONE_LIGHT", NCMM_VEH_LIGHT }
+                    { "WHEEL", NCMM_VEH_WHEEL }, { "CARGO", NCMM_VEH_CARGO }, { "ENGINE", NCMM_VEH_ENGINE }, { "CONE_LIGHT", NCMM_VEH_LIGHT }, { "CONTROLS", NCMM_VEH_CONTROLS }
                 };
                 for( const auto &f : features ) if( vp->part_with_feature( f.first, false ) ) d.vehicle_features |= f.second;
                 if( !d.vehicle_features ) d.vehicle_features = NCMM_VEH_FRAME;
@@ -379,8 +390,16 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     }
     SDL_Rect prior_clip; SDL_GetRenderClipRect( renderer, &prior_clip ); const bool clipped = SDL_RenderClipEnabled( renderer );
     const SDL_Rect clip = { x, y, base.pixel_width, base.pixel_height };
-    SDL_Texture *frame = SDL_CreateTexture( renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING,
-        int( graphics_hybrid_width ), int( graphics_hybrid_height ) );
+    const auto generation = renderer_coordinator.texture_generations();
+    if( graphics_stream_texture && ( graphics_stream_instance != generation.instance || graphics_stream_generation != generation.textures ||
+        graphics_stream_width != graphics_hybrid_width || graphics_stream_height != graphics_hybrid_height ) ) graphics_clear_stream();
+    if( !graphics_stream_texture ) {
+        graphics_stream_texture = SDL_CreateTexture( renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING,
+            int( graphics_hybrid_width ), int( graphics_hybrid_height ) );
+        graphics_stream_instance = generation.instance; graphics_stream_generation = generation.textures;
+        graphics_stream_width = graphics_hybrid_width; graphics_stream_height = graphics_hybrid_height;
+    }
+    SDL_Texture *frame = graphics_stream_texture;
     if( !frame ) return false;
     ok = SDL_UpdateTexture( frame, nullptr, graphics_hybrid_pixels.data(), int( graphics_hybrid_width * 4 ) );
     ok = SDL_SetTextureBlendMode( frame, SDL_BLENDMODE_NONE ) && ok;
@@ -389,8 +408,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     const SDL_FRect destination = { float( x ), float( y ), float( base.pixel_width ), float( base.pixel_height ) };
     ok = SDL_RenderTexture( renderer, frame, nullptr, &destination ) && ok;
     ok = SDL_SetRenderClipRect( renderer, clipped ? &prior_clip : nullptr ) && ok;
-    SDL_DestroyTexture( frame );
-    if( !ok ) graphics_view.enabled = false;
+    if( !ok ) { graphics_clear_stream(); graphics_view.enabled = false; graphics_release_mouse(); }
     return ok;
 }
 #else

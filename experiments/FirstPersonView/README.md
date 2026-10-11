@@ -1,4 +1,4 @@
-# First Person View — 0.5.0 development prototype
+# First Person View — 0.6.0 development prototype
 
 Optional first-person renderer of the same live CDDA world through NCMM. This
 preview bundles an exact experimental Windows x64 Host for 1040 or 1807 and uses
@@ -22,13 +22,18 @@ original game backup when upgrading ordinary NCMM, preview NCMM or legacy CML.
 | F7 / F8 | Rotate left / right |
 | F9 / F10 | Look up / down, including the sky |
 | F11 | Balanced / high quality |
-| Existing movement keys | Existing world directions |
+| Hold right mouse button in the viewport | Free horizontal/vertical look |
+| ↑ / ↓ in first person | Forward / backward relative to the camera |
+| ← / → in first person | Strafe left / right relative to the camera |
+| Other movement bindings; arrows in map/menus/vehicle control | Existing directions |
 
 Camera controls preserve the avatar's position, moves, time and destination.
 Ordinary commands, adjacent selection and inventory keep the perspective
 backdrop. Coordinate look, targeting and the overmap use their normal map view
 and restore perspective on return to gameplay. No command-driven temporary
-view cancellation remains.
+view cancellation remains. Mouse capture releases on menus, focus loss, F6 and
+module unload. Camera pitch affects the view; walking stays on the CDDA map grid,
+with ordinary collision checks and movement cost.
 
 Uncheck First Person View and install again to remove its managed DLL/manifest.
 Use the normal installer to return to the certified Host, or Restore vanilla EXE
@@ -44,9 +49,12 @@ remain unchanged. The renderer uses clipped perspective-correct triangles, a
 per-pixel depth buffer, bilinear filtering and a ground mip level, with a balanced default up to 1280×800 and an F11 high-quality option up to
 1920×1080. Covered scanline spans, conservative frustum culling, outward solid
 faces, front-to-back cells and up to four disjoint CPU row bands reduce work.
-Identical UI redraws reuse complete owned pixels for at most 250 ms; visibility,
-light, camera and item changes invalidate them immediately. Visual animation
-updates at 10 Hz without advancing game time. Unlike the old scanline floor, ground fills every
+Identical UI redraws reuse complete owned pixels for at most 250 ms. World state,
+light and camera changes invalidate them immediately; held-item changes and
+attack/weather animation compose over a separate owned world frame. Attack poses
+sample at 40 Hz and presentation redraws never advance game time. The SDL streaming
+texture is reused across frames and recreated on size/device changes. Material
+detail levels are calculated per triangle and interpolated across pixels. Unlike the old scanline floor, ground fills every
 covered pixel. Drawing at this resolution costs more CPU time than the map.
 
 Doors retain jambs and a hinged panel; destroyed doors retain a frame. Windows
@@ -54,7 +62,8 @@ have upright sills, frames and translucent glass; broken openings and opaque
 curtains/boards are separate cases. Fences/gates have open vertical mesh, posts
 and hinges. Plants have an independent visible-ground substrate; trees use trunks
 and foliage billboards. Tables, storage, seats, rocks, signs and posts receive
-shape-specific geometry. Semantic flags take priority over identifier/looks-like
+shape-specific geometry. Boulders use irregular faceted meshes, including opaque
+impassable boulders. Semantic flags take priority over identifier/looks-like
 fallbacks; the engine fixture audits all loaded terrain/furniture definitions.
 Flat blood/liquid fields remain ground decals; fire, smoke and gas use billboards.
 
@@ -64,9 +73,12 @@ wheels/rims and lights. Version 0.4 added sloped windshields, beveled hood/roof
 edges, wheel-arch cutouts, rounded 24-segment tyres, rims/spokes, bumpers, grilles,
 wipers, door seams/handles and mirrors. Visible parts share a tileset-derived
 paint palette and a mount lookup; hidden parts affect neither colors nor shape.
-Version 0.5 joins visible roof spans across side doors/windows, closes roof
-undersides and uses the SEAT flag instead of BOARDABLE so doors do not generate
-phantom chairs. Tiny/small/large/huge creatures use actual game size categories.
+Version 0.5 joined roof spans and removed phantom seats. Version 0.6 makes adjacent
+roof panels meet without interior bevel gaps, adds dashboards and steering wheels
+at actual CONTROLS mounts, distinguishes glass from solid upper panels and reduces
+distant wheel geometry. Forward car geometry is independent of the 2D visibility
+mask so its own windshield does not erase the rest of its roof.
+Tiny/small/large/huge creatures use actual game size categories.
 Dimensions remain generic, with no authored model for each vehicle prototype.
 
 Near surfaces receive procedural material detail for asphalt, soil, grass,
@@ -94,22 +106,30 @@ Enchanted `*_plus_*` weapons use their declared `looks_like` physical silhouette
 so 2D grade marks do not become floating view-model geometry. The snapshot still
 identifies the real enchanted item; ordinary weapons keep their authored art.
 
-The wielded item's actual tileset silhouette is filtered in camera space with
-an extruded contour, curved forearms, palms and fingers. Long melee silhouettes
-use their automatically measured principal axis; guns and very slender shapes
-receive a support hand. Rotated silhouettes fit a lower-right view-model region
+Short items and guns use their actual tileset silhouette in camera space with
+an extruded contour. Reach/two-handed long weapons generate a wood shaft and metal
+head, with both hands attached to the same grip points. Wrists, palms, fingers
+and weapon share one pose transform. Actual committed melee attacks start a
+swing, polearm attacks a thrust, and actual shots trigger recoil. A 480 ms eased
+timeline recovers to the exact idle pose, including an unarmed attack pose.
+Rotated silhouettes fit a lower-right view-model region
 that leaves the reticle clear; low-opacity sprite halos are excluded. An independent view-model depth buffer handles overlaps
 and nearby walls. It clears when the item is unwielded and preserves world occlusion depth. Hands and the item receive
 the camera cell's actual RGB light. Geometry and skin/sleeve colors are generic;
-there are no bespoke weapon models or attack/reload animations yet.
+there are no bespoke models for every weapon or reload animations yet.
 
 ## Visibility and lifecycle
 
-Only cells/entities currently visible to the avatar submit identities, geometry
-or sprite requests. Ground inference, vehicle neighbors and sun occluders use
-that same snapshot. Unknown borders carry a generic dark surface. Map memory is
-updated by the normal terrain pass before the perspective overlay. Darkness
-keeps the renderer active without revealing hidden identities.
+In V2 first person, forward terrain/furniture/vehicle cells are supplied without
+the 2D light/visibility mask. The camera cone excludes distant rear/side cells;
+opaque terrain/furniture walls block the snapshot and renderer depth handles car
+occlusion. Black unknown-border planes are removed. This deliberately permits
+seeing forward environment geometry beyond ordinary 2D visibility; actual light
+still shades it. Creatures and loose items retain normal game visibility checks.
+Ground inference, vehicle neighbors and sun occluders use this same forward
+snapshot. Map memory still uses the normal terrain pass. V1 preserves its original
+visible-cell contract. Core, V1 and V2 table layouts remain unchanged; camera and
+attack state use an optional Controls V1 extension.
 
 The bridge caches copied atlas pixels with bounded memory, invalidates them on
 tileset/renderer changes and restores SDL state around readback. Modules receive
@@ -120,11 +140,11 @@ the DLL can be freed. A V1 fallback remains for the previous preview contract.
 ## Remaining limits
 
 Tile-center movement, one visible z-level, generic surface dimensions, foliage
-and creature billboards, no mouse look or NPC appearance yet. Vehicle and held
+and creature billboards, no NPC appearance yet. Vehicle and held
 item geometry is generated and needs further interactive refinement for unusual
 modded shapes. Raster resolution improves perspective sampling but cannot add
-art detail absent from the installed tileset. Gameplay, saves and world-direction
-movement remain CDDA's. Player testing of combat, targeting, save/reload and
+art detail absent from the installed tileset. Gameplay and saves remain CDDA's;
+only first-person arrow direction changes. Player testing of combat, targeting, save/reload and
 character switching remains necessary.
 
 ## Exact experimental targets
@@ -155,9 +175,9 @@ Prepare a **fresh disposable upstream worktree** at one of the exact commits:
 ```
 
 This reuses the canonical NCMM patch stack, then applies the optional Graphics
-Bridge to the experimental engine source only. The four engine entry points are
-Host query/lifecycle, gameplay action dispatch, terrain viewport drawing, and
-input-context suspension. Preparation preflights all anchors before writing the
+Bridge to the experimental engine source only. Entry points cover Host
+query/lifecycle, gameplay dispatch, terrain viewport, input-context suspension,
+SDL mouse/presentation and committed melee/shot events. Preparation preflights all anchors before writing the
 experimental additions; reapplication is rejected. It produces
 `first-person-source.json` marked `experimental-not-certified`, and no feed,
 certification record or installed-game change.
@@ -173,7 +193,9 @@ not advertise the graphics capability and rejects this DLL safely.
 Native tests cover continuous floors, geometry/occlusion, windows and mesh gates,
 plant ground, vehicle meshes, hidden-cell exclusion, sky/phase changes, RGB light,
 weather/roof exclusion, held-item replacement, viewport bounds and V1/V2 lifecycle.
-The 0.5 tests cover redraw-cache invalidation, reticle clearance, creature size
+The 0.6 tests cover all eight relative movement sectors, bounded mouse angles,
+optional control-table fallback, attack/recovery composition, retained world depth,
+weather composition and opaque boulder classification. The 0.5 tests cover redraw-cache invalidation, reticle clearance, creature size
 and independent world depth. The 0.4 tests additionally cover alpha-edge contamination, odd-sized mips,
 grounded transparent margins, hidden vehicle neighbors and view-model occlusion.
 ASan/UBSan and atomic source-transform failure cases accompany source syntax
@@ -185,6 +207,8 @@ official archive variants through the actual bootstrap. Its SDL fixture injects
 F6, exercises camera controls without spending turns, audits all loaded terrain
 and furniture, changes real doors/map memory, tests actual colored light at
 night, sun/phase data, game weather, wielded item swaps, vehicles and ceilings.
+It also exercises SDL mouse motion, menu cursor release, relative arrow mapping,
+streaming-texture reuse, forward wall occlusion and a real melee attack.
 It captures engine-rendered BMPs for visual review. Mock renderer images and
 native CPU timings are fixture results, not game-session FPS measurements.
 

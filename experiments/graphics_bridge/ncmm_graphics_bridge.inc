@@ -19,10 +19,11 @@ size_t graphics_resolved_vehicle_textures = 0;
 size_t graphics_ceiling_cells = 0;
 loaded_mod *find_loaded_by_id( const char *module_id );
 void graphics_clear_hybrid();
+void graphics_release_mouse();
 
 void graphics_erase( const std::string &id )
 {
-    if( graphics_view.owner == id ) { graphics_view = {}; graphics_clear_hybrid(); }
+    if( graphics_view.owner == id ) { graphics_release_mouse(); graphics_view = {}; graphics_clear_hybrid(); }
 }
 
 int graphics_register( const char *id, ncmm_graphics_render_v1 render,
@@ -41,11 +42,12 @@ int graphics_enable( const char *id, int enabled )
         ( enabled && !character_state_available() ) || graphics_render_active ) return 0;
     const bool changed = graphics_view.enabled != ( enabled != 0 );
     graphics_view.enabled = enabled != 0;
+    if( !graphics_view.enabled ) graphics_release_mouse();
 #if defined(TILES)
     if( changed && character_state_available() ) {
         add_msg( m_info, "%s", graphics_view.enabled ?
-                 tr_ui( "First person ON. F6: map; F7/F8: turn; F9/F10: look up/down.",
-                        "Вид от первого лица включён. F6: карта; F7/F8: поворот; F9/F10: вверх/вниз." ) :
+                 tr_ui( "First person ON. Hold RMB: look; arrows: relative movement; F6: map; F11: quality.",
+                        "Первое лицо. Зажать ПКМ: осмотр; стрелки: движение по взгляду; F6: карта; F11: качество." ) :
                  tr_ui( "First person OFF.", "Вид от первого лица выключен." ) );
     }
 #endif
@@ -106,7 +108,8 @@ bool graphics_action( const std::string &action )
                           action == "ncmm.view.turn_right" ? NCMM_GFX_TURN_RIGHT :
                           action == "ncmm.view.look_up" ? NCMM_GFX_LOOK_UP :
                           action == "ncmm.view.look_down" ? NCMM_GFX_LOOK_DOWN :
-                          action == "ncmm.view.quality" ? NCMM_GFX_QUALITY : 0;
+                          action == "ncmm.view.quality" ? NCMM_GFX_QUALITY :
+                          action == "ncmm.view.mouse_look" ? NCMM_GFX_MOUSE_LOOK : 0;
     if( turn && ( graphics_view.render || graphics_view.hybrid_render ) ) {
         if( graphics_view.enabled && graphics_view.input ) {
             loaded_mod *mod = find_loaded_by_id( graphics_view.owner.c_str() );
@@ -127,6 +130,7 @@ bool graphics_action( const std::string &action )
     return false;
 }
 
+#include "ncmm_graphics_controls.inc"
 #include "ncmm_graphics_hybrid.inc"
 
 bool graphics_draw( int x, int y, int width, int height )
@@ -146,6 +150,7 @@ bool graphics_draw( int x, int y, int width, int height )
     std::vector<tripoint_bub_ms> positions;
     positions.reserve( cells.size() );
     const tripoint_bub_ms origin = you.pos_bub();
+    graphics_viewport = { x, y, width, height };
     graphics_ceiling_cells = 0;
     auto copy_id = []( char *dest, const std::string &id ) {
         if( id.size() >= 128 ) return; // fallback geometry, never a truncated identity
@@ -158,7 +163,8 @@ bool graphics_draw( int x, int y, int width, int height )
         auto &cell = cells[gy * side + gx];
         if( !here.inbounds( p ) ) continue;
         const lit_level light = here.apparent_light_at( p, visibility );
-        if( here.get_visibility( light, visibility ) != visibility_type::CLEAR ) continue;
+        if( graphics_view.hybrid_render ? !graphics_forward_visible( origin, p ) :
+            here.get_visibility( light, visibility ) != visibility_type::CLEAR ) continue;
         cell.flags = NCMM_GFX_VISIBLE;
         cell.light = light == lit_level::LOW ? 0.45f : 1.0f;
         if( here.has_flag( "WALL", p ) || ( here.has_flag( "DOOR", p ) && here.impassable_ter_furn( p ) ) ||

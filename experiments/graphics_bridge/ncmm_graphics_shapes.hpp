@@ -22,6 +22,8 @@ inline uint32_t terrain(const std::string &id,const traits &t) {
     if(contains(primary,"doormat")||contains(primary,"door_mat")||contains(primary,"trapdoor")||
        (t.flat&&contains(primary,"hatch")))return NCMM_SHAPE_FLAT;
     if(contains(id,"stump")||contains(id,"trunk_fallen")) return NCMM_SHAPE_ROCK;
+    // Large opaque boulders are freestanding rocks, even when impassable.
+    if(contains(primary,"boulder")||contains(primary,"rock_large")) return NCMM_SHAPE_ROCK;
     if(contains(id,"fence_post")||contains(id,"fence_posts")||contains(id,"chainfence_posts")) return NCMM_SHAPE_POST;
     if(t.tree) return NCMM_SHAPE_TREE;
     if(t.shrub) return NCMM_SHAPE_SHRUB;
@@ -48,7 +50,6 @@ inline uint32_t terrain(const std::string &id,const traits &t) {
     if(contains(id,"flower")||contains(id,"plant")||contains(id,"sapling")||contains(id,"young")||
        contains(id,"cattail")||contains(id,"fern")||contains(id,"reed")||contains(id,"underbrush")) return NCMM_SHAPE_PLANT;
     if(t.water) return NCMM_SHAPE_WATER;
-    if(contains(id,"boulder")||contains(id,"rock_large")) return NCMM_SHAPE_ROCK;
     // Transparent impassable objects need height even if their flags are incomplete.
     return t.impassable ? NCMM_SHAPE_BILLBOARD:NCMM_SHAPE_FLAT;
 }

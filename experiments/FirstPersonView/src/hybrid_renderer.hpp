@@ -1,6 +1,7 @@
 #pragma once
 #include "ncmm_graphics_v2.h"
 #include "ncmm_graphics_shapes.hpp"
+#include "animation.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -34,6 +35,7 @@ inline float noise(float x,float y){int ix=int(std::floor(x)),iy=int(std::floor(
 struct frame {
     int width=0,height=0;std::vector<uint32_t> pixels;std::vector<float> depth;
     std::vector<float> held_depth;
+    std::vector<float> sun_shadows;
     std::vector<int32_t> owners;uint32_t triangles=0,vehicle_parts=0,weather_particles=0,held_pixels=0;
     uint32_t vertical_doors=0,vertical_windows=0,vertical_fences=0,plants=0,shadow_cells=0;
 };
@@ -101,6 +103,7 @@ struct triangle {std::array<vertex,3> v;material m;vec normal{0,0,1};};
 class renderer {
     const ncmm_graphics_scene_v2 &s;const ncmm_graphics_scene_v1 &base;sprite_provider provider;frame &f;
     float yaw,pitch,cy,sy,cp,sp,projection;vec eye,fog_color,held_light{.95f,.89f,.84f};std::vector<float> shadows;
+    animation::pose pose;
     using sprite_key=std::tuple<uintptr_t,uint32_t,uint32_t,uint32_t>;
     std::map<std::pair<uint32_t,uint32_t>,image *> image_refs;
     std::map<sprite_key,image> images;std::vector<triangle> transparent,opaque,overlay;
@@ -135,10 +138,12 @@ class renderer {
     vec view(vec p)const{vec d=p-eye;float forward=d.x*cy+d.y*sy;
         return{-d.x*sy+d.y*cy,d.z*cp-forward*sp,forward*cp+d.z*sp};}
     vec local(vec p)const{return eye+vec{-sy,cy,0}*p.x+vec{cy*cp,sy*cp,sp}*p.z+vec{-cy*sp,-sy*sp,cp}*p.y;}
-    vec surface_color(vec color,const material &m,vec p,vec normal,float z)const{
-        const vec to_eye=normalize(eye-p);
-        const float footprint=z/projection/std::max(.15f,std::abs(dot(normal,to_eye)));
-        const float fine=clamp(1-footprint*80),medium=clamp(1-footprint*18);
+    vec surface_color(vec color,const material &m,vec p,vec normal,float z,float fine=-1,float medium=-1)const{
+        const bool reflective=m.finish==surface::paint||m.finish==surface::metal;
+        vec to_eye{};
+        if(fine<0||reflective)to_eye=normalize(eye-p);
+        if(fine<0){const float footprint=z/projection/std::max(.15f,std::abs(dot(normal,to_eye)));
+            fine=clamp(1-footprint*80);medium=clamp(1-footprint*18);}
         if(medium==0&&m.finish!=surface::paint&&m.finish!=surface::metal)return color;
         const float u=normal.z>.5f?p.x:(std::abs(normal.x)>.5f?p.y:p.x),v=normal.z>.5f?p.y:p.z;
         const int ix=int(std::floor(u*96)),iy=int(std::floor(v*96));
@@ -193,7 +198,10 @@ class renderer {
             const vec flat_light=t.v[0].light;
             const bool reflective=t.m.finish==surface::paint||t.m.finish==surface::metal;
             const vec flat_color=reflective?surface_color(t.m.color,t.m,(v[0].p+v[1].p+v[2].p)*(1.0f/3),t.normal,(p[0].z+p[1].z+p[2].z)/3):t.m.color;
-            const bool detailed=t.m.finish!=surface::none&&!reflective;
+            std::array<float,3> fine{},medium{};
+            for(int n=0;n<3;++n){const float footprint=p[n].z/projection/std::max(.15f,std::abs(dot(t.normal,normalize(eye-v[n].p))));
+                fine[n]=clamp(1-footprint*80);medium[n]=clamp(1-footprint*18);}
+            const bool detailed=t.m.finish!=surface::none&&!reflective&&std::max({medium[0],medium[1],medium[2]})>0;
             for(int y=ymin;y<=ymax;++y){
                 float left=std::numeric_limits<float>::infinity(),right=-left;
                 const float py=y+.5f;
@@ -215,7 +223,9 @@ class renderer {
                         if(t.m.cutout&&a<(t.m.overlay?.55f:.25f))continue;
                         if(t.m.opaque_texture)c=unpack(px)*a+c*(1-a);else{c=unpack(px);alpha*=a;}}
                     if(alpha<.01f)continue;
-                    if(detailed){const vec pos=(v[0].p*(w0*iz[0])+v[1].p*(w1*iz[1])+v[2].p*(w2*iz[2]))*z;c=surface_color(c,t.m,pos,t.normal,z);}
+                    if(detailed){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;
+                        const vec pos=v[0].p*a+v[1].p*b+v[2].p*cw;
+                        c=surface_color(c,t.m,pos,t.normal,z,fine[0]*a+fine[1]*b+fine[2]*cw,medium[0]*a+medium[1]*b+medium[2]*cw);}
                     c={c.x*flat_light.x,c.y*flat_light.y,c.z*flat_light.z};
                     if(!t.m.overlay){float fog=clamp((z-2)*(s.environment.fog_density+.003f));c=c*(1-fog)+fog_color*fog;}
                     if(alpha<.99f)c=c*alpha+unpack(f.pixels[k])*(1-alpha);
@@ -401,7 +411,24 @@ class renderer {
             if(shape==NCMM_SHAPE_TREE){material bark{nullptr,{.25f,.18f,.11f},1,false,false,false,i};box(center,{-.10f,-.10f,0},{.10f,.10f,1.35f},bark);center.z=.75f;billboard(center,2.0f,2.45f,m);}
             else billboard(center,shape==NCMM_SHAPE_SHRUB?1.1f:.8f,shape==NCMM_SHAPE_SHRUB?1.1f:.72f,m);
             return;}
-        if(shape==NCMM_SHAPE_ROCK){m.opaque_texture=true;box(center,{-.4f,-.34f,0},{.4f,.34f,.65f},m);return;}
+        if(shape==NCMM_SHAPE_ROCK){
+            // A deterministic, faceted boulder, with its own stone material.
+            // A top-down rock icon is never stretched over six cube faces.
+            material stone{nullptr,m.texture?m.texture->average:vec{.43f,.43f,.40f},1,false,false,false,i,surface::stone};
+            const char *id=layer==NCMM_GFX_FURNITURE?base.cells[i].furniture:base.cells[i].terrain;
+            const float size=ncmm_graphics_shapes::contains(id,"large")?2.6f:ncmm_graphics_shapes::contains(id,"small")?.72f:1.0f;
+            std::array<vec,9> low{},shoulder{},top{};const uint32_t seed=uint32_t(i)*157u;
+            for(int n=0;n<9;++n){const float a=2*pi*n/9,r=(.35f+random(seed+n)*.13f)*std::min(size,1.08f);
+                low[n]=center+vec{std::cos(a)*r,std::sin(a)*r*.86f,.012f};
+                shoulder[n]=center+vec{std::cos(a)*r*.87f,std::sin(a)*r*.82f,(.30f+random(seed+n+20)*.16f)*size};
+                top[n]=center+vec{std::cos(a)*r*.37f-.03f,std::sin(a)*r*.35f,(.54f+random(seed+n+40)*.1f)*size};}
+            const vec peak=center+vec{-.035f,.018f,.68f*size};
+            for(int n=0;n<9;++n){const int j=(n+1)%9;
+                auto rock_face=[&](vec a,vec b,vec c,vec d){vec normal=normalize(cross(b-a,d-a));if(dot(normal,(a+b+c+d)*.25f-center)<0)normal=normal*-1;
+                    material facet=stone;facet.color=facet.color*(.9f+random(seed+n+60)*.18f);solid_quad(a,b,c,d,facet,normal);};
+                rock_face(low[n],low[j],shoulder[j],shoulder[n]);rock_face(shoulder[n],shoulder[j],top[j],top[n]);
+                rock_face(top[n],top[j],peak,peak);}
+            return;}
         if(shape==NCMM_SHAPE_TABLE){material wood=trim;wood.color=m.texture?m.texture->average:vec{.43f,.29f,.17f};
             box(center,{-.43f,-.4f,.72f},{.43f,.4f,.85f},wood);for(float x:{-.35f,.35f})for(float y:{-.32f,.32f})box(center,{x-.035f,y-.035f,0},{x+.035f,y+.035f,.75f},wood);return;}
         if(shape==NCMM_SHAPE_STORAGE){m.opaque_texture=true;box(center,{-.42f,-.36f,0},{.42f,.36f,1.85f},m);return;}
@@ -442,7 +469,7 @@ class renderer {
         material body{nullptr,paint,1,false,false,false,i,surface::paint};
         material dark{nullptr,{.055f,.064f,.073f},1,false,false,false,i,surface::rubber};
         material steel{nullptr,{.30f,.33f,.36f},1,false,false,false,i,surface::metal};
-        const bool enclosed=cabin(flags);
+        const bool enclosed=cabin(flags)||roofed(i);
         const bool shell=(flags&(NCMM_VEH_BOARD|NCMM_VEH_DOOR|NCMM_VEH_ROOF|NCMM_VEH_WINDOW|NCMM_VEH_ENGINE|NCMM_VEH_CARGO))!=0;
         bevel_box(center,{-.49f,shell?-.47f:-.13f,.24f},{.49f,shell?.47f:.13f,.47f},.035f,steel,yaw);
         auto point=[&](float x,float y,float z){return rotate({x,y,z},center,yaw);};
@@ -458,7 +485,15 @@ class renderer {
             const int a=vehicle_neighbor(i,d.mount_x+1,d.mount_y),b=vehicle_neighbor(i,d.mount_x-1,d.mount_y);
             if(a<0||!cabin(s.details[a].vehicle_features))front=.27f;
             if(b<0||!cabin(s.details[b].vehicle_features))back=-.27f;
-            bevel_box(center,{back,-.505f,1.46f},{front,.505f,1.57f},.035f,body,yaw);
+            // Adjacent roof panels share full-height edges; bevel only the
+            // actual exterior perimeter rather than every tile-sized panel.
+            auto has_roof=[&](int dx,int dy){int n=vehicle_neighbor(i,d.mount_x+dx,d.mount_y+dy);return n>=0&&roofed(n);};
+            std::array<vec,4> lower{point(back,-.505f,1.46f),point(front,-.505f,1.46f),point(front,.505f,1.46f),point(back,.505f,1.46f)};
+            const float lx=back+(has_roof(-1,0)?0:.035f),hx=front-(has_roof(1,0)?0:.035f),ly=-.505f+(has_roof(0,-1)?0:.035f),hy=.505f-(has_roof(0,1)?0:.035f);
+            std::array<vec,4> top{point(lx,ly,1.57f),point(hx,ly,1.57f),point(hx,hy,1.57f),point(lx,hy,1.57f)};
+            solid_quad(top[0],top[1],top[2],top[3],body);
+            solid_quad(lower[3],lower[2],lower[1],lower[0],body,{0,0,-1});
+            for(int n=0;n<4;++n){const int j=(n+1)%4;const vec normal=normalize(cross(lower[j]-lower[n],top[n]-lower[n]));solid_quad(lower[n],lower[j],top[j],top[n],body,normal);}
         }
         if(flags&NCMM_VEH_ENGINE||(!enclosed&&(flags&NCMM_VEH_BOARD))){
             bevel_box(center,{-.49f,-.48f,.46f},{.49f,.48f,.86f},.07f,body,yaw);
@@ -470,6 +505,14 @@ class renderer {
             bevel_box(center,{-.29f,-.31f,.48f},{.31f,.31f,.74f},.065f,seat,yaw);
             bevel_box(center,{-.34f,-.31f,.66f},{-.22f,.31f,1.25f},.05f,seat,yaw);
             bevel_box(center,{-.35f,-.21f,1.23f},{-.23f,.21f,1.40f},.04f,seat,yaw);
+        }
+        if(flags&NCMM_VEH_CONTROLS){
+            bevel_box(center,{.32f,-.42f,.86f},{.48f,.42f,1.05f},.035f,trim,yaw);
+            const vec at{.20f,-.12f,.95f};
+            auto ring=[&](float a,float r){return at+vec{-.35f*std::sin(a)*r,std::cos(a)*r,.94f*std::sin(a)*r};};
+            for(int n=0;n<16;++n){const float a=n*2*pi/16,b=(n+1)*2*pi/16;
+                face(ring(a,.175f),ring(b,.175f),ring(b,.145f),ring(a,.145f),dark);
+                if(n%5==0)face(ring(a,.15f),ring(a+.12f,.15f),ring(a+.12f,.02f),ring(a,.02f),steel);}
         }
         for(int axis=0;axis<2;++axis)for(int sign:{-1,1}){
             const int neighbor=vehicle_neighbor(i,d.mount_x+(axis==0?sign:0),d.mount_y+(axis==1?sign:0));
@@ -532,8 +575,9 @@ class renderer {
                 const int a=vehicle_neighbor(i,d.mount_x+1,d.mount_y),b=vehicle_neighbor(i,d.mount_x-1,d.mount_y);
                 if(a<0||!cabin(s.details[a].vehicle_features))front=.25f;
                 if(b<0||!cabin(s.details[b].vehicle_features))back=-.25f;
-                if(!(flags&NCMM_VEH_BROKEN)){material glass{nullptr,{.32f,.52f,.63f},.23f,false,false,false,i};
-                    face({-.43f,side,1.08f},{.43f,side,1.08f},{front,side,1.44f},{back,side,1.44f},glass);}
+                if(!(flags&NCMM_VEH_BROKEN)){
+                    material upper=body;if(flags&NCMM_VEH_WINDOW)upper={nullptr,{.32f,.52f,.63f},.23f,false,false,false,i};
+                    face({-.43f,side,1.08f},{.43f,side,1.08f},{front,side,1.44f},{back,side,1.44f},upper);}
                 face({-.48f,side,1.02f},{-.43f,side,1.02f},{back+.025f,side,1.46f},{back-.025f,side,1.46f},body);
                 face({.43f,side,1.02f},{.48f,side,1.02f},{front+.025f,side,1.46f},{front-.025f,side,1.46f},body);
                 if(flags&NCMM_VEH_DOOR){
@@ -544,18 +588,18 @@ class renderer {
         if(flags&NCMM_VEH_WHEEL){
             const int sign=d.mount_y<0?-1:1;
             const bool single=!shell&&vehicle_neighbor(i,d.mount_x,d.mount_y-1)<0&&vehicle_neighbor(i,d.mount_x,d.mount_y+1)<0&&d.mount_y==0;
-            const vec wheel=point(0,single?0:sign*.48f,.37f);constexpr int segments=24;
+            const vec wheel=point(0,single?0:sign*.48f,.37f);const int segments=view(center).z>8?16:24;
             auto p=[&](float theta,float y,float radius){return rotate({std::cos(theta)*radius,y,std::sin(theta)*radius},wheel,yaw);};
             material chrome=steel;chrome.color={.55f,.58f,.61f};
             for(int k=0;k<segments;++k){const float a=2*pi*k/segments,b=2*pi*(k+1)/segments;
-                quad(p(a,-.10f,.35f),p(b,-.10f,.35f),p(b,.10f,.35f),p(a,.10f,.35f),dark,normalize(rotate({std::cos((a+b)*.5f),0,std::sin((a+b)*.5f)},{},yaw)));
+                solid_quad(p(a,-.10f,.35f),p(b,-.10f,.35f),p(b,.10f,.35f),p(a,.10f,.35f),dark,normalize(rotate({std::cos((a+b)*.5f),0,std::sin((a+b)*.5f)},{},yaw)));
                 for(int side:{-1,1}){const vec normal=rotate({0,float(side),0},{},yaw);
-                    quad(p(a,side*.10f,.35f),p(b,side*.10f,.35f),p(b,side*.145f,.30f),p(a,side*.145f,.30f),dark,normal);
-                    quad(p(a,side*.145f,.30f),p(b,side*.145f,.30f),p(b,side*.146f,.20f),p(a,side*.146f,.20f),dark,normal);
-                    quad(p(a,side*.147f,.20f),p(b,side*.147f,.20f),p(b,side*.150f,.16f),p(a,side*.150f,.16f),chrome,normal);
+                    solid_quad(p(a,side*.10f,.35f),p(b,side*.10f,.35f),p(b,side*.145f,.30f),p(a,side*.145f,.30f),dark,normal);
+                    solid_quad(p(a,side*.145f,.30f),p(b,side*.145f,.30f),p(b,side*.146f,.20f),p(a,side*.146f,.20f),dark,normal);
+                    solid_quad(p(a,side*.147f,.20f),p(b,side*.147f,.20f),p(b,side*.150f,.16f),p(a,side*.150f,.16f),chrome,normal);
                     const vec hub=rotate({0,side*.15f,0},wheel,yaw);
-                    quad(p(a,side*.15f,.16f),p(b,side*.15f,.16f),hub,hub,steel,normal);
-                    if(k%4==0){quad(p(a,side*.154f,.05f),p(a+.10f,side*.154f,.05f),p(b+.10f,side*.154f,.155f),p(b,side*.154f,.155f),chrome,normal);}
+                    solid_quad(p(a,side*.15f,.16f),p(b,side*.15f,.16f),hub,hub,steel,normal);
+                    if(k%4==0){solid_quad(p(a,side*.154f,.05f),p(a+.10f,side*.154f,.05f),p(b+.10f,side*.154f,.155f),p(b,side*.154f,.155f),chrome,normal);}
                 }
             }
         }
@@ -595,10 +639,6 @@ class renderer {
                 else if(d.terrain_flags&NCMM_CREATURE_HUGE){h=3.0f;w=2.0f;}
                 billboard({x+.5f,y+.5f,0},w,h,m);}
             if(d.field[0]&&d.field_shape!=NCMM_SHAPE_FLAT){auto m=mat(i,NCMM_GFX_FIELD,{.85f,.40f,.12f},true);billboard({x+.5f,y+.5f,0},.65f,.90f,m);}
-            // Unknown boundaries seal the scene but carry no remembered identity.
-            material unknown{nullptr,{.035f,.04f,.05f},1,false,false,false,-1};
-            for(int axis=0;axis<2;++axis)for(int sign:{-1,1})if(!visible(index(x+(axis==0?sign:0),y+(axis==1?sign:0)))){vec at{x+.5f,y+.5f,0};if(axis==0)at.x+=sign*.5f;else at.y+=sign*.5f;
-                plane(at,axis==0?pi*.5f:0,0,3.0f,unknown);}
         }
     }
     void weather(){const auto &e=s.environment;if(e.weather_kind==NCMM_WEATHER_DRY||e.precipitation<=0)return;
@@ -613,88 +653,113 @@ class renderer {
             ++f.weather_particles;}
     }
     void held(){
-        if(!s.environment.held_item[0])return;
-        image *img=texture(UINT32_MAX,NCMM_GFX_HELD_ITEM);
+        const bool empty=!s.environment.held_item[0];
+        if(empty&&pose.swing==0&&pose.thrust==0)return;
+        image *img=empty?nullptr:texture(UINT32_MAX,NCMM_GFX_HELD_ITEM);
         held_light=light(index(int(std::floor(base.camera_x)),int(std::floor(base.camera_y))),{0,0,1});
         held_light={std::max(.04f,held_light.x),std::max(.04f,held_light.y),std::max(.04f,held_light.z)};
         const float hud_scale=std::min(1.0f,float(f.height)/f.width*1.6f);
-        auto hud=[&](vec p){p.x*=hud_scale;p.y*=hud_scale;return local(p);};
-        auto face=[&](vec a,vec b,vec c,vec d,material m){
-            a=hud(a);b=hud(b);c=hud(c);d=hud(d);
-            quad(a,b,c,d,m,normalize(cross(b-a,d-a)));
-        };
-        material skin{nullptr,{.70f,.48f,.34f},1,false,false,true,-1,surface::skin};
+        auto animate=[&](vec p){const vec pivot{.27f,-.28f,.84f};p=p-pivot;
+            const float a=pose.swing,co=std::cos(a),sn=std::sin(a);
+            p={p.x*co-p.y*sn,p.x*sn+p.y*co,p.z};
+            return p+pivot+vec{-.12f*pose.swing,.04f*pose.swing,pose.thrust-pose.recoil};};
+        auto hud=[&](vec p){p=animate(p);p.x*=hud_scale;p.y*=hud_scale;return local(p);};
+        auto face=[&](vec a,vec b,vec c,vec d,material m){a=hud(a);b=hud(b);c=hud(c);d=hud(d);quad(a,b,c,d,m,normalize(cross(b-a,d-a)));};
+        material skin{nullptr,{.67f,.46f,.34f},1,false,false,true,-1,surface::skin};
         material sleeve{nullptr,{.20f,.25f,.28f},1,false,false,true,-1,surface::cloth};
         auto tube=[&](vec a,vec b,float ra,float rb,material m){
-            const vec axis=normalize(b-a),right=normalize(cross(axis,{0,0,1})),up=normalize(cross(right,axis));
-            auto ring=[&](vec at,float radius,float angle){return at+right*(std::cos(angle)*radius)+up*(std::sin(angle)*radius*.65f);};
-            for(int n=0;n<12;++n){float p=2*pi*n/12,q=2*pi*(n+1)/12;
+            const vec axis=normalize(b-a);vec right=cross(axis,{0,0,1});if(dot(right,right)<.00001f)right=cross(axis,{0,1,0});
+            right=normalize(right);const vec up=normalize(cross(right,axis));
+            auto ring=[&](vec at,float radius,float angle){return at+right*(std::cos(angle)*radius)+up*(std::sin(angle)*radius*.78f);};
+            constexpr int segments=10;
+            for(int n=0;n<segments;++n){float p=2*pi*n/segments,q=2*pi*(n+1)/segments;
                 face(ring(a,ra,p),ring(a,ra,q),ring(b,rb,q),ring(b,rb,p),m);
-                face(ring(b,rb,p),ring(b,rb,q),b,b,m);
-            }
+                face(ring(b,rb,p),ring(b,rb,q),b,b,m);}
         };
-        auto palm=[&](vec center,vec radius){
-            auto p=[&](float lon,float lat){return center+vec{std::cos(lon)*std::cos(lat)*radius.x,std::sin(lat)*radius.y,std::sin(lon)*std::cos(lat)*radius.z};};
-            for(int lat=0;lat<6;++lat)for(int lon=0;lon<12;++lon){float a=-pi*.5f+pi*lat/6,b=-pi*.5f+pi*(lat+1)/6,c=2*pi*lon/12,d=2*pi*(lon+1)/12;
-                face(p(c,a),p(d,a),p(d,b),p(c,b),skin);}
+        auto palm=[&](vec center,vec radius){auto p=[&](float lon,float lat){return center+vec{std::cos(lon)*std::cos(lat)*radius.x,std::sin(lat)*radius.y,std::sin(lon)*std::cos(lat)*radius.z};};
+            for(int lat=0;lat<5;++lat)for(int lon=0;lon<10;++lon){float a=-pi*.5f+pi*lat/5,b=-pi*.5f+pi*(lat+1)/5,c=2*pi*lon/10,d=2*pi*(lon+1)/10;
+                face(p(c,a),p(d,a),p(d,b),p(c,b),skin);}};
+        auto hand=[&](vec grip,bool left){
+            // Both wrists, palms, fingers and the weapon share this grip/pose.
+            vec center=grip+vec{left?-.018f:.018f,-.014f,-.040f};
+            const vec elbow=left?vec{-.15f,-.73f,.49f}:vec{.44f,-.76f,.48f};
+            const vec wrist=center+vec{left?-.025f:.025f,-.07f,-.035f};
+            tube(elbow,wrist,.088f,.052f,sleeve);tube(wrist,center,.052f,.046f,skin);
+            palm(center,{.052f,.061f,.041f});
+            for(int n=0;n<4;++n){const float y=center.y+.029f-n*.023f;
+                const vec knuckle{center.x-.040f,y,center.z-.014f},bend{center.x+.025f,y+.002f,center.z-.022f};
+                tube(knuckle,bend,.012f,.013f,skin);tube(bend,{center.x+.042f,y+.005f,center.z+.007f},.013f,.010f,skin);}
+            tube(center+vec{-.044f,.052f,0},center+vec{-.005f,.024f,-.033f},.018f,.014f,skin);
         };
-        tube({.43f,-.75f,.47f},{.28f,-.34f,.70f},.10f,.058f,sleeve);
-        tube({.28f,-.37f,.69f},{.27f,-.28f,.71f},.058f,.055f,skin);
-        palm({.27f,-.28f,.69f},{.067f,.065f,.038f});
-        const bool support=s.environment.held_kind==1||(img->valid()&&img->elongation>7.0f);
-        if(support){tube({-.11f,-.74f,.52f},{.13f,-.21f,.81f},.092f,.052f,sleeve);
-            tube({.13f,-.23f,.79f},{.20f,-.16f,.77f},.052f,.046f,skin);
-            palm({.20f,-.16f,.76f},{.060f,.060f,.037f});}
-        if(!img->valid()){material fallback{nullptr,{.38f,.39f,.41f},1,false,false,true,-1,surface::metal};
-            face({.24f,-.30f,.69f},{.29f,-.30f,.69f},{.15f,.18f,.79f},{.10f,.18f,.79f},fallback);return;}
-        const float w=float(img->right-img->left),h=float(img->bottom-img->top);
-        float angle=-.15f;
-        if(s.environment.held_kind==2&&img->elongation>1.5f){
-            float axis=img->axis_angle;if(std::sin(axis)<0)axis+=pi;
-            angle=pi*.58f-axis;
+        if(empty){hand({.27f,-.24f,.82f},false);return;}
+        const bool valid=img&&img->valid();
+        if(pose.grip==NCMM_GRIP_POLE){
+            const vec butt{.33f,-.54f,.74f},neck{.155f,.06f,1.02f};
+            material shaft{nullptr,{.30f,.24f,.17f},1,false,false,true,-1,surface::wood};
+            material steel{nullptr,{.64f,.66f,.65f},1,false,false,true,-1,surface::metal};
+            const float radius=.012f+std::min(.007f,pose.length*.002f);
+            tube(butt,neck,radius,radius*.78f,shaft);
+            tube(neck-vec{0,.028f,.013f},neck+vec{0,.038f,.018f},radius*1.5f,radius*1.15f,steel);
+            // Reach weapons get a physical haft and a curved metal head. Shape
+            // families and real length parameterize this without external models.
+            const bool broad=ncmm_graphics_shapes::contains(s.environment.held_item,"axe")||ncmm_graphics_shapes::contains(s.environment.held_item,"halberd");
+            const vec base=neck+vec{0,.015f,.007f},tip=neck+vec{-.035f,.11f,.10f};
+            const float width=broad?.09f:.035f;
+            const std::array<vec,5> outline{base+vec{-width,0,0},base+vec{-width*.95f,.052f,.035f},tip,
+                base+vec{width*.32f,.060f,.038f},base+vec{width*.28f,0,0}};
+            for(int n=0;n<5;++n){const int j=(n+1)%5;face(outline[n],outline[j],base,base,steel);
+                face(outline[j]+vec{0,0,.012f},outline[n]+vec{0,0,.012f},base+vec{0,0,.012f},base+vec{0,0,.012f},steel);
+                face(outline[n],outline[n]+vec{0,0,.012f},outline[j]+vec{0,0,.012f},outline[j],steel);}
+            hand(butt+(neck-butt)*.37f,false);hand(butt+(neck-butt)*.70f,true);
+            f.held_pixels=valid?uint32_t((img->right-img->left)*(img->bottom-img->top)):1u;
+            return;
         }
+        if(!valid){hand({.27f,-.28f,.83f},false);material fallback{nullptr,{.50f,.52f,.52f},1,false,false,true,-1,surface::metal};
+            face({.24f,-.30f,.84f},{.29f,-.30f,.84f},{.15f,.08f,.94f},{.10f,.08f,.94f},fallback);return;}
+        const float w=float(img->right-img->left),h=float(img->bottom-img->top);float angle=-.15f;
+        if(s.environment.held_kind==2&&img->elongation>1.5f){float axis=img->axis_angle;if(std::sin(axis)<0)axis+=pi;angle=pi*.58f-axis;}
         const float ca=std::cos(angle),sa=std::sin(angle);
         const float scale=std::min(.28f/(std::abs(ca)*w+std::abs(sa)*h),.42f/(std::abs(sa)*w+std::abs(ca)*h));
         auto rotate_item=[&](float x,float y){return vec{x*ca-y*sa,x*sa+y*ca,0};};
         float bottom=1e9f,left=1e9f,right=-1e9f;
         for(float x:{-w*.5f,w*.5f})for(float y:{0.0f,h}){vec p=rotate_item(x*scale,y*scale);bottom=std::min(bottom,p.y);left=std::min(left,p.x);right=std::max(right,p.x);}
         const float xcenter=(left+right)*.5f;
-        auto point=[&](float x,float y,float thickness=0){
-            vec p=rotate_item((x-img->left-w*.5f)*scale,(img->bottom-y)*scale);
-            const float rise=p.y-bottom;
-            return vec{.29f+p.x-xcenter,-.33f+rise,.83f+rise*.12f+thickness};
-        };
+        auto point=[&](float x,float y,float thickness=0){vec p=rotate_item((x-img->left-w*.5f)*scale,(img->bottom-y)*scale);const float rise=p.y-bottom;
+            return vec{.29f+p.x-xcenter,-.33f+rise,.83f+rise*.12f+thickness};};
+        auto grip=[&](float fraction){float best=1e9f;vec chosen{};const float target=-.33f+fraction*.42f;
+            for(int y=img->top;y<img->bottom;++y)for(int x=img->left;x<img->right;++x){if((img->data.rgba[size_t(y)*img->data.pitch_pixels+x]&255)<150)continue;
+                const vec p=point(x+.5f,y+.5f);const float score=std::abs(p.y-target)*3+std::abs(p.x-.29f);
+                if(score<best){best=score;chosen=p;}}
+            return chosen;};
+        hand(grip(.13f),false);if(pose.grip==NCMM_GRIP_GUN)hand(grip(.43f),true);
         material item{img,{.4f,.4f,.4f},1,true,false,true,-1};
-        // A filtered face preserves the installed tileset; only its contour is extruded.
-        // Limit contour tessellation for unusually large modded item sprites.
         const int step=std::max(1,(std::max(int(img->data.width),int(img->data.height))+63)/64);
         auto opaque=[&](int x,int y){return x>=0&&y>=0&&x<int(img->data.width)&&y<int(img->data.height)&&(img->data.rgba[size_t(y)*img->data.pitch_pixels+x]&255)>=150;};
-        for(int y=img->top;y<img->bottom;y+=step)for(int x=img->left;x<img->right;x+=step){if(!opaque(x,y))continue;
-            ++f.held_pixels;
+        for(int y=img->top;y<img->bottom;y+=step)for(int x=img->left;x<img->right;x+=step){if(!opaque(x,y))continue;++f.held_pixels;
             material edge{nullptr,unpack(img->data.rgba[size_t(y)*img->data.pitch_pixels+x])*.72f,1,false,false,true,-1};
             const float x1=float(std::min(x+step,int(img->data.width))),y1=float(std::min(y+step,int(img->data.height)));
             for(int side=0;side<4;++side){if(opaque(x+(side==0?-step:side==1?step:0),y+(side==2?-step:side==3?step:0)))continue;
                 const float ax=side==1?x1:float(x),ay=side==3?y1:float(y),bx=side<2?ax:x1,by=side<2?y1:ay;
-                face(point(ax,ay),point(bx,by),point(bx,by,.028f),point(ax,ay,.028f),edge);
-            }
-        }
+                face(point(ax,ay),point(bx,by),point(bx,by,.028f),point(ax,ay,.028f),edge);}}
         face(point(0,float(img->data.height)),point(float(img->data.width),float(img->data.height)),point(float(img->data.width),0),point(0,0),item);
-        // Curved fingers are nearer than the grip in the independent view-model depth buffer.
-        for(int finger=0;finger<3;++finger){float y=-.28f-finger*.031f;
-            tube({.235f,y,.645f},{.32f,y+.006f,.655f},.013f,.014f,skin);}
-        tube({.21f,-.22f,.645f},{.265f,-.265f,.63f},.019f,.015f,skin);
-        if(support)for(int finger=0;finger<3;++finger){float y=-.145f-finger*.025f;
-            tube({.17f,y,.714f},{.245f,y+.006f,.72f},.012f,.013f,skin);}
     }
 public:
-    renderer(const ncmm_graphics_scene_v2 &scene,float y,float p,sprite_provider source,frame &output):s(scene),base(scene.base),provider(std::move(source)),f(output),yaw(y),pitch(p),cy(std::cos(y)),sy(std::sin(y)),cp(std::cos(p)),sp(std::sin(p)),projection(1),eye{base.camera_x,base.camera_y,1.55f}{ }
-    void run(int max_width,int max_height){float factor=std::min({1.0f,float(max_width)/base.pixel_width,float(max_height)/base.pixel_height});
+    renderer(const ncmm_graphics_scene_v2 &scene,float y,float p,sprite_provider source,frame &output,animation::pose animation_pose={}):s(scene),base(scene.base),provider(std::move(source)),f(output),yaw(y),pitch(p),cy(std::cos(y)),sy(std::sin(y)),cp(std::cos(p)),sp(std::sin(p)),projection(1),eye{base.camera_x,base.camera_y,1.55f},pose(animation_pose){ }
+    void run(int max_width,int max_height,const frame *cached_world=nullptr,frame *world_output=nullptr){float factor=std::min({1.0f,float(max_width)/base.pixel_width,float(max_height)/base.pixel_height});
         f.width=std::max(1,int(base.pixel_width*factor));f.height=std::max(1,int(base.pixel_height*factor));size_t count=size_t(f.width)*f.height;
-        f.pixels.resize(count);f.depth.assign(count,std::numeric_limits<float>::infinity());f.held_depth.assign(count,std::numeric_limits<float>::infinity());f.owners.assign(count,-1);
-        f.triangles=f.vehicle_parts=f.weather_particles=f.held_pixels=f.vertical_doors=f.vertical_windows=f.vertical_fences=f.plants=f.shadow_cells=0;
-        projection=f.width/(2*std::tan(70*pi/360));sky();shadows_build();vehicles_build();world();paint(opaque);weather();
-        std::stable_sort(transparent.begin(),transparent.end(),[&](const triangle &a,const triangle &b){return view(a.v[0].p+a.v[1].p+a.v[2].p).z>view(b.v[0].p+b.v[1].p+b.v[2].p).z;});
-        held();paint(transparent,&overlay);if(f.width>=320&&f.height>=240){int x=f.width/2,y=f.height/2;for(int d=-3;d<=3;++d){if(d==0)continue;f.pixels[size_t(y)*f.width+x+d]=0xd8e0e0ff;f.pixels[size_t(y+d)*f.width+x]=0xd8e0e0ff;}}
+        projection=f.width/(2*std::tan(70*pi/360));
+        if(cached_world&&cached_world->width==f.width&&cached_world->height==f.height&&cached_world->pixels.size()==count&&cached_world->depth.size()==count&&cached_world->sun_shadows.size()==base.cell_count){
+            f=*cached_world;shadows=f.sun_shadows;f.held_depth.assign(count,std::numeric_limits<float>::infinity());
+        }else{
+            f.pixels.resize(count);f.depth.assign(count,std::numeric_limits<float>::infinity());f.held_depth.assign(count,std::numeric_limits<float>::infinity());f.owners.assign(count,-1);
+            f.triangles=f.vehicle_parts=f.weather_particles=f.held_pixels=f.vertical_doors=f.vertical_windows=f.vertical_fences=f.plants=f.shadow_cells=0;
+            sky();shadows_build();vehicles_build();world();paint(opaque);
+            std::stable_sort(transparent.begin(),transparent.end(),[&](const triangle &a,const triangle &b){return view(a.v[0].p+a.v[1].p+a.v[2].p).z>view(b.v[0].p+b.v[1].p+b.v[2].p).z;});
+            paint(transparent);f.sun_shadows=shadows;
+            if(world_output)*world_output=f;
+        }
+        f.weather_particles=f.held_pixels=0;weather();held();paint(overlay);
+        if(f.width>=320&&f.height>=240){int x=f.width/2,y=f.height/2;for(int d=-3;d<=3;++d){if(d==0)continue;f.pixels[size_t(y)*f.width+x+d]=0xd8e0e0ff;f.pixels[size_t(y+d)*f.width+x]=0xd8e0e0ff;}}
     }
 };
 inline bool valid_scene(const ncmm_graphics_scene_v2 &s,float yaw,float pitch){
@@ -712,8 +777,8 @@ inline bool valid_scene(const ncmm_graphics_scene_v2 &s,float yaw,float pitch){
         if(d.light_r<0||d.light_r>1||d.light_g<0||d.light_g>1||d.light_b<0||d.light_b>1||d.vehicle_health<0||d.vehicle_health>1||(d.terrain_flags&~63u)!=0||d.terrain_shape>=NCMM_SHAPE_COUNT||d.furniture_shape>=NCMM_SHAPE_COUNT||d.field_shape>=NCMM_SHAPE_COUNT||std::abs(d.vehicle_x)>2048||std::abs(d.vehicle_y)>2048||d.mount_x<-1000||d.mount_x>1000||d.mount_y<-1000||d.mount_y>1000)return false;}
     return true;
 }
-inline bool build_frame(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const sprite_provider &provider,frame &out,int max_width=NCMM_GRAPHICS_MAX_FRAME_WIDTH,int max_height=NCMM_GRAPHICS_MAX_FRAME_HEIGHT){
+inline bool build_frame(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const sprite_provider &provider,frame &out,int max_width=NCMM_GRAPHICS_MAX_FRAME_WIDTH,int max_height=NCMM_GRAPHICS_MAX_FRAME_HEIGHT,animation::pose pose={},const frame *cached_world=nullptr,frame *world_output=nullptr){
     if(!valid_scene(s,yaw,pitch))return false;
-    renderer(s,yaw,pitch,provider,out).run(std::clamp(max_width,1,int(NCMM_GRAPHICS_MAX_FRAME_WIDTH)),std::clamp(max_height,1,int(NCMM_GRAPHICS_MAX_FRAME_HEIGHT)));return out.pixels.size()==size_t(out.width)*out.height;
+    renderer(s,yaw,pitch,provider,out,pose).run(std::clamp(max_width,1,int(NCMM_GRAPHICS_MAX_FRAME_WIDTH)),std::clamp(max_height,1,int(NCMM_GRAPHICS_MAX_FRAME_HEIGHT)),cached_world,world_output);return out.pixels.size()==size_t(out.width)*out.height;
 }
 }

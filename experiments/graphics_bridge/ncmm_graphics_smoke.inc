@@ -76,6 +76,42 @@ bool graphics_scene_smoke()
             ++frames;
         };
         draw();
+        SDL_Texture *stream = graphics_stream_texture;
+        draw();
+        require( stream && graphics_stream_texture == stream, "streaming_texture_not_reused" );
+        auto arrow = [&]( const char *key ) {
+            return input_event( inp_mngr.get_keycode( input_event_t::keyboard_code, key ), input_event_t::keyboard_code );
+        };
+        require( ncmm::graphics_relative_action( "UP", arrow( "UP" ), false ) == "UP" &&
+                 ncmm::graphics_relative_action( "DOWN", arrow( "DOWN" ), false ) == "DOWN", "north_relative_arrows_wrong" );
+        for( int i = 0; i < 6; ++i ) ncmm::handle_gameplay_action( "ncmm.view.turn_right" );
+        require( ncmm::graphics_relative_action( "UP", arrow( "UP" ), false ) == "RIGHT" &&
+                 ncmm::graphics_relative_action( "DOWN", arrow( "DOWN" ), false ) == "LEFT" &&
+                 ncmm::graphics_relative_action( "LEFT", arrow( "LEFT" ), false ) == "UP" &&
+                 ncmm::graphics_relative_action( "RIGHT", arrow( "RIGHT" ), false ) == "DOWN", "east_relative_arrows_wrong" );
+        require( ncmm::graphics_relative_action( "UP", arrow( "UP" ), true ) == "UP", "vehicle_controls_rotated" );
+        ncmm::graphics_note_input_context( "INVENTORY" );
+        require( ncmm::graphics_relative_action( "UP", arrow( "UP" ), false ) == "UP", "menu_arrows_rotated" );
+        ncmm::graphics_note_input_context( "DEFAULTMODE" );
+        for( int i = 0; i < 6; ++i ) ncmm::handle_gameplay_action( "ncmm.view.turn_left" );
+        require( ncmm::graphics_mouse_event( 1, 320, 240, 0, 0, true ), "mouse_drag_did_not_capture" );
+        const float before_mouse_yaw = graphics_camera_yaw;
+        SDL_Event motion = {}; motion.type = SDL_EVENT_MOUSE_MOTION;
+        motion.motion.windowID = SDL_GetWindowID( get_sdl_window() );
+        motion.motion.x = 320; motion.motion.y = 240; motion.motion.xrel = 100; motion.motion.yrel = 0;
+        require( SDL_PushEvent( &motion ), "mouse_motion_not_queued" );
+        SDL_Event look = {}; look.type = SDL_EVENT_KEY_DOWN;
+        look.key.windowID = SDL_GetWindowID( get_sdl_window() ); look.key.key = SDLK_F9; look.key.scancode = SDL_SCANCODE_F9;
+        require( SDL_PushEvent( &look ), "mouse_pump_key_not_queued" );
+        require( gameplay.handle_input( 2000 ) == "ncmm.view.look_up", "mouse_event_consumed_gameplay_key" );
+        require( std::abs( graphics_camera_yaw - before_mouse_yaw - .3f ) < .001f, "sdl_mouse_motion_did_not_rotate_camera" );
+        require( ncmm::graphics_mouse_event( 3, 320, 240, -100, 0, true ), "mouse_return_motion_failed" );
+        ncmm::graphics_note_input_context( "INVENTORY" );
+        require( !graphics_mouse_drag && !SDL_GetWindowRelativeMouseMode( get_sdl_window() ), "menu_did_not_release_cursor" );
+        ncmm::graphics_note_input_context( "DEFAULTMODE" );
+        require( you.pos_bub() == start_pos && you.get_moves() == start_moves && calendar::turn == start_time,
+                 "mouse_or_relative_camera_spent_turn" );
+        draw();
         const float daytime_light = g->natural_light_level( 0 );
         require( you.get_memorized_tile( here.get_abs( door ) ).get_ter_id() == "t_door_c",
                  "closed_door_not_memorized" );
@@ -134,8 +170,19 @@ bool graphics_scene_smoke()
             require( written, "hybrid_capture_not_written" );
         };
         capture_frame( "first-person-car.bmp" );
+        const tripoint_bub_ms ahead( center.x(), center.y() - 12, 0 );
+        const tripoint_bub_ms behind( center.x(), center.y() + 12, 0 );
+        require( graphics_forward_visible( center, ahead ) && !graphics_forward_visible( center, behind ),
+                 "forward_camera_cone_or_vehicle_roof_truncated" );
+        const tripoint_bub_ms barrier( center.x() + 5, center.y() - 6, 0 );
+        const tripoint_bub_ms beyond_barrier( center.x() + 10, center.y() - 12, 0 );
+        here.ter_set( barrier, ter_id( "t_wall" ) );
+        require( !graphics_forward_visible( center, beyond_barrier ), "opaque_terrain_did_not_block_forward_snapshot" );
+        here.ter_set( barrier, ter_id( "t_pavement" ) );
         press_f6();
         require( !graphics_view.enabled && !graphics_draw( 0, 0, 640, 480 ), "tiles_fallback_missing" );
+        require( !ncmm::graphics_mouse_event( 1, 320, 240, 0, 0, true ) &&
+                 ncmm::graphics_relative_action( "UP", arrow( "UP" ), false ) == "UP", "disabled_view_captured_controls" );
         press_f6();
         require( graphics_view.enabled, "f6_near_vehicle_did_not_enable" );
         draw();
@@ -190,6 +237,25 @@ bool graphics_scene_smoke()
         require( graphics_hybrid_held_sprites > 0 && std::string( graphics_hybrid_last_environment.held_item ) == "naginata",
                  "wielded_tileset_item_missing" );
         capture_frame( "first-person-objects.bmp" );
+        capture_frame( "first-person-pole-grip.bmp" );
+        monster *target = g->place_critter_at( mtype_id( "mon_zombie" ), tripoint_bub_ms( center.x(), center.y() - 1, 0 ) );
+        require( target != nullptr, "attack_target_not_created" );
+        const uint64_t serial = graphics_attack_serial;
+        const int attack_moves = you.get_moves();
+        you.melee_attack( *target, false );
+        require( graphics_attack_serial > serial && graphics_attack_kind == 1 && you.get_moves() < attack_moves,
+                 "real_melee_attack_did_not_start_animation" );
+        require( calendar::turn == start_time && you.pos_bub() == start_pos, "attack_animation_changed_time_or_position" );
+        graphics_attack_started = SDL_GetTicks() / 1000.0 - .12;
+        draw(); capture_frame( "first-person-attack.bmp" );
+        graphics_attack_started = SDL_GetTicks() / 1000.0 - .6;
+        draw(); capture_frame( "first-person-attack-recovered.bmp" );
+        get_creature_tracker().remove( *target );
+        you.set_moves( start_moves );
+        here.furn_set( tripoint_bub_ms( center.x() - 1, center.y() - 2, 0 ), furn_id( "f_boulder_medium" ) );
+        draw(); require( graphics_hybrid_shape_counts[NCMM_SHAPE_ROCK] > 0, "real_boulder_lost_rock_shape" );
+        capture_frame( "first-person-rock.bmp" );
+        here.furn_set( tripoint_bub_ms( center.x() - 1, center.y() - 2, 0 ), furn_id( "f_null" ) );
         const tripoint_bub_ms aphid_pos( center.x(), center.y() - 1, 0 );
         monster *aphid = g->place_critter_at( mtype_id( "mon_aphid" ), aphid_pos );
         require( aphid != nullptr, "tiny_creature_fixture_missing" );
