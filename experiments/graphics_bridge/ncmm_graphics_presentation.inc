@@ -2,7 +2,8 @@
 // invalidated at each frame; clicks revalidate visibility, hostility and reach.
 ncmm_graphics_presentation_v1 graphics_presentation = {};
 std::vector<ncmm_graphics_detail_v1> graphics_presentation_cells;
-std::optional<tripoint_abs_ms> graphics_aim;
+std::optional<tripoint_abs_ms> graphics_aim,graphics_aim_origin;
+float graphics_aim_yaw=0,graphics_aim_pitch=0;
 std::string graphics_aim_name;
 float graphics_aim_x=.5f, graphics_aim_y=.4f;
 std::vector<uint32_t> graphics_effect_pixels;
@@ -32,6 +33,7 @@ int graphics_set_target( int32_t cell, float x, float y )
     if( const Creature *cr = get_creature_tracker().creature_at<Creature>( p ) ) {
         if( cr->is_dead_state() || !get_avatar().sees( get_map(), *cr ) ) return 0;
         graphics_aim = get_map().get_abs( p ); graphics_aim_name = cr->disp_name();
+        graphics_aim_origin=get_map().get_abs(get_avatar().pos_bub());graphics_aim_yaw=graphics_camera_yaw;graphics_aim_pitch=graphics_camera_pitch;
         graphics_aim_x=x; graphics_aim_y=y; return 1;
     }
 #endif
@@ -163,7 +165,8 @@ std::string graphics_click_action_impl()
 {
     if( !graphics_view.enabled || !graphics_control_context || !graphics_aim || !character_state_available() ) return "";
     avatar &you=get_avatar(); map &here=get_map();
-    if( you.controlling_vehicle || you.is_dead_state() ) return "";
+    if( you.controlling_vehicle || you.is_dead_state() || !graphics_aim_origin ||
+        *graphics_aim_origin!=here.get_abs(you.pos_bub()) || std::abs(std::remainder(graphics_camera_yaw-graphics_aim_yaw,6.2831853f))>.001f || std::abs(graphics_camera_pitch-graphics_aim_pitch)>.001f ) return "";
     if( !graphics_mouse_drag ) {
         float mx=0,my=0; SDL_GetMouseState( &mx,&my );
         const auto q=window_to_display_buffer_coords( SDL_Point{int( mx ),int( my )} );

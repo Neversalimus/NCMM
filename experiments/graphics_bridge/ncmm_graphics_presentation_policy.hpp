@@ -52,9 +52,9 @@ inline dimensions creature(float liters,int category,const std::string &body) {
     if(!std::isfinite(liters)||liters<=0)liters=fallback[c];
     const float scale=std::cbrt(std::clamp(liters,.001f,60000.0f)/70);
     float h=1.75f,w=.65f;
-    if(body=="quadruped"||body=="dog"||body=="pig"||body=="bear"||body=="lizard"){h=.82f;w=1.35f;}
+    if(body=="quadruped"||body=="horse"||body=="cow"||body=="dog"||body=="pig"||body=="bear"||body=="lizard"){h=.82f;w=1.35f;}
     else if(body=="snake"||body=="fish"||body=="blob"){h=.40f;w=1.45f;}
-    else if(body=="spider"||body=="insect"||body=="crab"){h=.48f;w=1.55f;}
+    else if(body=="spider"||body=="insect"||body=="crab"||body=="frog"||body=="turtle"){h=.48f;w=1.55f;}
     else if(body=="bird"||body=="flying insect"){h=.9f;w=1.15f;}
     return {std::clamp(h*scale,low[c],high[c]),std::clamp(w*scale,.04f,9.0f)};
 }

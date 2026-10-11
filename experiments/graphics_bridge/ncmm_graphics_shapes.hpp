@@ -19,7 +19,7 @@ inline std::string physical_item_id(const std::string &id,const std::string &ali
 // open and mod-derived variants which intentionally drop their old flags.
 inline uint32_t terrain(const std::string &id,const traits &t) {
     const std::string primary=id.substr(0,id.find(' '));
-    if(t.bridge||contains(primary,"bridge")||contains(primary,"boardwalk"))return NCMM_SHAPE_BRIDGE;
+    if(t.bridge||(contains(primary,"bridge")&&!contains(primary,"rail")&&!contains(primary,"wall"))||contains(primary,"boardwalk"))return NCMM_SHAPE_BRIDGE;
     if(contains(primary,"resin_hole"))return NCMM_SHAPE_RESIN_PORTAL;
     if(contains(primary,"guardrail"))return NCMM_SHAPE_GUARDRAIL;
     if(contains(primary,"scrap_wall")||contains(primary,"scrap_barricade")||contains(primary,"scrap_fence"))return NCMM_SHAPE_SCRAP_FENCE;

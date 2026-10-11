@@ -1,0 +1,62 @@
+#include "hybrid_renderer.hpp"
+#include <iostream>
+#include <fstream>
+#include <set>
+#include <stdexcept>
+using namespace first_person::hybrid;
+namespace policy=ncmm_graphics_presentation_policy;
+int checks=0;
+void require(bool v,const char *message){++checks;if(!v)throw std::runtime_error(message);}
+uint64_t digest(const frame &f){uint64_t h=0;for(uint32_t p:f.pixels)h=(h^p)*1099511628211ull;return h;}
+void save(const frame &f,const std::string &name){std::ofstream out(name,std::ios::binary);out<<"P6\n"<<f.width<<' '<<f.height<<"\n255\n";for(auto p:f.pixels){char b[]={char(p>>24),char(p>>16),char(p>>8)};out.write(b,3);}}
+struct fixture{
+    std::vector<ncmm_graphics_cell_v1> cells=std::vector<ncmm_graphics_cell_v1>(81);
+    std::vector<ncmm_graphics_cell_v2> details=std::vector<ncmm_graphics_cell_v2>(81);
+    presentation_data meta;ncmm_graphics_scene_v2 scene{};frame f;
+    std::vector<uint32_t> art=std::vector<uint32_t>(1024,0x727a68ff),sprite=std::vector<uint32_t>(1024,0);
+    fixture(){meta.view.struct_size=sizeof(meta.view);meta.view.eye_height=1.55f;meta.view.body_scale=1;meta.view.held_length=1;meta.cells.resize(81);
+        for(int i=0;i<81;++i){cells[i].flags=NCMM_GFX_VISIBLE;std::strcpy(cells[i].terrain,"t_floor");std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=.9f;}
+        for(int y=4;y<28;++y)for(int x=10;x<22;++x)sprite[y*32+x]=0x778852ff;
+        scene={sizeof(scene),{sizeof(ncmm_graphics_scene_v1),640,480,9,9,4.5f,7.5f,cells.data(),cells.size()},details.data(),details.size(),{}};
+        scene.environment.daylight=1;scene.environment.sun_z=.7f;scene.environment.sun_x=.7f;scene.environment.cloud_cover=.45f;scene.environment.animation_seconds=10;
+    }
+    sprite_provider provider(){return [&](uint32_t,uint32_t layer,ncmm_graphics_sprite_v2 &out){out={sizeof(out),32,32,32,layer==NCMM_GFX_CREATURE?sprite.data():art.data()};return true;};}
+    void draw(float pitch=0){require(build_frame(scene,-pi*.5f,pitch,provider(),f,640,480,{},nullptr,nullptr,&meta),"presentation scene renders");}
+};
+int main(int argc,char **argv){try{
+    ncmm_graphics_shapes::traits transparent;transparent.transparent=true;transparent.impassable=true;
+    require(ncmm_graphics_shapes::terrain("t_glass_reinforced",transparent)==NCMM_SHAPE_GLASS_WALL,"ballistic glass is transparent full-height glass");
+    transparent.bridge=true;require(ncmm_graphics_shapes::furniture("f_mod_walkway",transparent)==NCMM_SHAPE_BRIDGE,"BRIDGE semantics survive custom identifiers");transparent.bridge=false;
+    require(ncmm_graphics_shapes::furniture("f_scrap_bridge",{})==NCMM_SHAPE_BRIDGE,"scrap bridge remains horizontal");
+    require(ncmm_graphics_shapes::terrain("t_resin_hole_o",{})==NCMM_SHAPE_RESIN_PORTAL,"open resin hatch has its own model");
+    require(ncmm_graphics_shapes::terrain("t_guardrail_bg_dp",{})==NCMM_SHAPE_GUARDRAIL,"guardrail has height");
+    require(ncmm_graphics_shapes::terrain("t_scrap_wall_halfway",{})==NCMM_SHAPE_SCRAP_FENCE,"partial scrap barricade is a thin fence");
+    for(const std::string body:{"human","dog","horse","cow","spider","fish","snake","bird","blob","migo","apeirohedra"})for(int c=0;c<5;++c)for(float volume:{.001f,1.0f,15.0f,70.0f,1000.0f,100000.0f}){
+        const auto v=policy::creature(volume,c,body);require(std::isfinite(v.height)&&v.height>0&&v.height<=7&&v.width>0&&v.width<=9,"all body/category/volume combinations bounded");}
+    auto human=policy::creature(70,2,"human"),spider=policy::creature(70,2,"spider");
+    require(std::abs(human.height-1.75f)<.001f&&spider.height<human.height&&spider.width>human.width,"human scale and low wide body plans differ");
+    fixture aim;const int target=5*9+4;std::strcpy(aim.cells[target].creature,"mon_zombie");aim.meta.cells[target].creature_height=1.75f;aim.meta.cells[target].creature_width=.7f;
+    aim.draw();require(aim.f.aimed==target&&aim.f.label_y<.5f,"aim picks actual opaque creature pixels and positions label above head");
+    aim.details[6*9+4].terrain_shape=NCMM_SHAPE_GLASS_WALL;aim.draw();require(aim.f.aimed==target,"transparent glass keeps aimed creature visible");
+    aim.details[6*9+4].terrain_shape=NCMM_SHAPE_WALL;aim.draw();require(aim.f.aimed==-1,"wall blocks name and creature picking");
+    std::set<uint64_t> doors;fixture room;room.details[target].terrain_shape=NCMM_SHAPE_DOOR_CLOSED;
+    for(uint32_t m:{NCMM_MAT_WOOD,NCMM_MAT_METAL,NCMM_MAT_GLASS,NCMM_MAT_STONE,NCMM_MAT_CLOTH}){room.meta.cells[target].terrain_material=m;room.draw();doors.insert(digest(room.f));}
+    require(doors.size()==5,"door materials produce distinct geometry and shading");
+    std::set<uint64_t> skies;fixture sky;
+    for(uint32_t style=0;style<=NCMM_SKY_FUNGAL;++style){sky.meta.view.sky_style=style;sky.draw(.7f);skies.insert(digest(sky.f));}
+    require(skies.size()==8,"dimension sky profiles are visually distinct");
+    require(policy::sky("inner_cabins")==NCMM_SKY_GREY&&policy::sky("string_dimension")==NCMM_SKY_STARS,"dimension descriptions select grey and starry skies");
+    require(policy::sky("unknown_custom_dimension")==NCMM_SKY_EARTH,"unknown dimensions retain weather-driven fallback");
+    fixture fluid;fluid.details[target].terrain_shape=NCMM_SHAPE_WATER;fluid.meta.cells[target].liquid=NCMM_LIQ_FRESH;fluid.draw(-.25f);const auto fresh=digest(fluid.f);
+    fluid.meta.cells[target].liquid=NCMM_LIQ_BLOOD;fluid.draw(-.25f);require(digest(fluid.f)!=fresh,"otherworld fluid differs from fresh water");
+    fixture gas;gas.meta.view.flags=NCMM_PRESENT_GPU_EFFECTS;gas.meta.cells[target].gas=NCMM_GAS_SMOKE;gas.meta.cells[target].field_intensity=3;
+    gas.draw();require(!gas.f.effects.empty(),"gas produces a depth-clipped volumetric effect layer");const auto accelerated=gas.f;
+    auto composed=accelerated.pixels;require(ncmm_graphics_composite::blend(composed,accelerated.width,accelerated.height,accelerated.effects,accelerated.effect_width,accelerated.effect_height),"CPU compositor accepts the GPU layer");
+    gas.meta.view.flags=0;gas.draw();require(gas.f.effects.empty()&&gas.f.pixels==composed,"CPU and GPU inputs reconstruct the same image");
+    fixture gun;std::strcpy(gun.scene.environment.held_item,"m27");gun.scene.environment.held_kind=1;gun.meta.view.gun_kind=NCMM_GUN_RIFLE;gun.meta.view.gunmods=NCMM_MOD_OPTIC|NCMM_MOD_SUPPRESSOR|NCMM_MOD_FOREGRIP;
+    first_person::animation::pose pose;pose.grip=NCMM_GRIP_GUN;pose.length=1;
+    require(build_frame(gun.scene,-pi*.5f,0,gun.provider(),gun.f,640,480,pose,nullptr,nullptr,&gun.meta),"firearm with attachments renders");
+    size_t held=0;for(float z:gun.f.held_depth)held+=std::isfinite(z);require(held>300&&held<640u*480u/3,"physical firearm stays within a bounded portion of the viewport");
+    if(argc>1){save(gun.f,std::string(argv[1])+"-gun.ppm");save(gas.f,std::string(argv[1])+"-gas.ppm");save(fluid.f,std::string(argv[1])+"-liquid.ppm");}
+    std::cout<<"PASS: "<<checks<<" presentation, geometry, scale, aim and atmosphere checks\n";return 0;
+}catch(const std::exception &e){std::cerr<<"FAIL: "<<e.what()<<'\n';return 1;}}
