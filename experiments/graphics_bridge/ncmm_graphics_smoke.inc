@@ -23,6 +23,13 @@ bool graphics_scene_smoke()
             const tripoint_bub_ms p( center.x() + x, center.y() + y, 0 );
             here.furn_set( p, furn_id( "f_null" ) );
             here.ter_set( p, ter_id( std::abs( x ) == 4 || std::abs( y ) == 4 ? "t_wall" : "t_floor" ) );
+            here.clear_fields( p );
+            // The loaded map is procedurally generated. Keep this daylight
+            // fixture independent of any inherited roof or smoke fields.
+            const tripoint_bub_ms above( p.x(), p.y(), 1 );
+            here.furn_set( above, furn_id( "f_null" ) );
+            here.ter_set( above, ter_id( "t_open_air" ) );
+            here.clear_fields( above );
         }
         const tripoint_bub_ms door( center.x() - 1, center.y() - 4, 0 );
         here.ter_set( door, ter_id( "t_door_c" ) );
@@ -67,6 +74,8 @@ bool graphics_scene_smoke()
             // Refresh the game's natural-light cache as a real turn would.
             g->reset_light_level();
             here.invalidate_map_cache( 0 );
+            here.build_map_cache( 0 );
+            here.invalidate_visibility_cache();
             // The real viewport hook keeps this pass before drawing first person.
             here.update_visibility_cache( 0 );
             tilecontext->draw( point::zero, center, 640, 480, overlays, blocks );
