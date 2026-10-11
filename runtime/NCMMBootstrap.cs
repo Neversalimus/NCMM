@@ -364,7 +364,7 @@ internal static class NCMMBootstrap
                 }
 
                 try { if (File.Exists(temp)) File.Delete(temp); } catch { }
-                wc.DownloadFile(entry.host_url, temp);
+                wc.DownloadFile(entry.host_url, NcmmPath.IO(temp));
                 string downloadedSha = Sha256(temp);
                 if (!String.Equals(downloadedSha, entry.host_sha256, StringComparison.OrdinalIgnoreCase))
                 {

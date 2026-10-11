@@ -40,7 +40,7 @@ internal static partial class SetupCore
                 error = "missing";
                 return null;
             }
-            FileInfo info = new FileInfo(path);
+            FileInfo info = new FileInfo(NcmmPath.IO(path));
             if (info.Length <= 0 || info.Length > maxBytes)
             {
                 error = "size_invalid";
@@ -117,7 +117,7 @@ internal static partial class SetupCore
         }
         try
         {
-            FileInfo info = new FileInfo(path);
+            FileInfo info = new FileInfo(NcmmPath.IO(path));
             AddCheck(sb, ref errors, ref warnings, "INFO",
                 label + ": present | bytes=" + info.Length.ToString() +
                 " | modified_utc=" + info.LastWriteTimeUtc.ToString("o"));

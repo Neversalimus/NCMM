@@ -810,8 +810,8 @@ internal static partial class SetupCore
                 throw new InvalidOperationException(
                     "Post-install verification failed; packaged module file is missing: " + relative);
 
-            FileInfo sourceInfo = new FileInfo(sourceFile);
-            FileInfo destinationInfo = new FileInfo(destinationFile);
+            FileInfo sourceInfo = new FileInfo(NcmmPath.IO(sourceFile));
+            FileInfo destinationInfo = new FileInfo(NcmmPath.IO(destinationFile));
             if (sourceInfo.Length != destinationInfo.Length ||
                 !String.Equals(Sha256(sourceFile), Sha256(destinationFile), StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException(
@@ -1259,7 +1259,7 @@ internal static partial class SetupCore
                 using (SetupDownloadClient web = new SetupDownloadClient())
                 {
                     web.Headers[System.Net.HttpRequestHeader.UserAgent] = "NCMM-Setup/" + RuntimeVersion;
-                    web.DownloadFile(entry.host_url, staged);
+                    web.DownloadFile(entry.host_url, NcmmPath.IO(staged));
                 }
             }
             else NcmmRuntimeIO.CopyDurable(target, staged);
