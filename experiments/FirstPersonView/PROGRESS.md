@@ -19,3 +19,9 @@ data/json/effects_on_condition/nether_eocs/reverberations.json (grey sky and
 misty grasslands), string_dimension.json (star field), and
 scarlet_storm_effect_on_condition.json (scarlet sky). Unknown mod dimensions
 retain their actual weather tint instead of guessing from translated names.
+
+Implementation checkpoints 1–6 are committed. Pinned 1040/1807 Host syntax,
+370 presentation checks, 303 hybrid checks, the 496657-check legacy renderer
+suite, 34 module lifecycle checks and five atomic-transform cases pass locally.
+Final work: new real-SDL cases, Windows packaging and captured-image review.
+Do not ship a package before the final qualification workflow succeeds.

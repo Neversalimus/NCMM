@@ -90,7 +90,7 @@ foreach($file in Get-ChildItem $payload -Recurse -File | Sort-Object FullName){
     $rel=$file.FullName.Substring($payload.Length+1).Replace('\','/')
     $files[$rel]=(Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 }
-$revisionParts=@((Join-Path $PSScriptRoot 'src/module.cpp'),(Join-Path $PSScriptRoot 'src/renderer.hpp'),(Join-Path $PSScriptRoot 'src/hybrid_renderer.hpp'),(Join-Path $HostRoot 'first-person-source.json')) | ForEach-Object {(Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant()}
+$revisionParts=@(@(Get-ChildItem (Join-Path $PSScriptRoot 'src') -File | Sort-Object Name | ForEach-Object {$_.FullName})+(Join-Path $HostRoot 'first-person-source.json')) | ForEach-Object {(Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant()}
 $digest=[Security.Cryptography.SHA256]::Create()
 try{$revision='fp-'+([BitConverter]::ToString($digest.ComputeHash([Text.Encoding]::UTF8.GetBytes(($revisionParts -join '-'))))).Replace('-','').ToLowerInvariant()}finally{$digest.Dispose()}
 $bundle=[ordered]@{
@@ -108,7 +108,7 @@ if($LASTEXITCODE -ne 0){throw 'Preview install matrix compilation failed.'}
 if($LASTEXITCODE -ne 0){throw 'Preview install matrix failed.'}
 
 @"
-NCMM First Person View installer 0.6.0 TEST / CDDA $build / Windows x64
+NCMM First Person View installer 0.7.0 TEST / CDDA $build / Windows x64
 
 1. Extract the complete archive. Run NCMM_Setup_FirstPerson_TEST.exe.
 2. Select the game folder containing cataclysm-tiles.exe and VERSION.txt for
@@ -139,7 +139,10 @@ on the game's actual phase. Wielded items generate a camera-local silhouette
 from the active tileset, with an extruded contour and curved forearms/hands.
 An independent depth buffer handles hand/item overlaps and nearby walls.
 Changing or unwielding items updates both geometry and that buffer.
-Version 0.6 joins roof panels, adds actual control-mount dashboards/steering
+Version 0.7 adds material-specific doors, glass, bridges and guardrails, dimension skies,
+physical firearm families and attachments, dressed/mutated hands, aimed creature labels,
+LMB combat, animated liquid surfaces, volumetric gases/light and GPU atmosphere composition (F12: CPU).
+It joins roof panels and adds actual control-mount dashboards/steering
 wheels and keeps the full car geometry beyond the 2D visibility mask.
 Both hands grip the generated polearm shaft and move with the weapon.
 Actual melee attacks trigger a swing or polearm thrust; shots trigger recoil.
@@ -168,9 +171,9 @@ The bundle includes NCMM Runtime 0.8.2 and the normal optional native modules.
 The game itself and external tilesets are not bundled. Keep your existing data,
 tilesets and configuration with the selected official CDDA installation.
 "@ | Set-Content (Join-Path $stage 'README.txt') -Encoding UTF8
-$provenance=[ordered]@{schema=1;product='NCMM First Person View TEST';installer_revision='0.6.0';status='experimental-not-certified';recommended_entry='NCMM_Setup_FirstPerson_TEST.exe';source_commit=$bundle.ncmm_source_commit;engine_source=$source.source_commit;upstream_tag=$source.tag;workflow_run=[string]$env:GITHUB_RUN_ID;installer_sha256=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant();host_sha256=$bundle.host_sha256;vanilla_sha256=$bundle.vanilla_sha256;supported_vanilla_sha256=$bundle.supported_vanilla_sha256;module_sha256=$files['code_mods/FirstPersonView/ncmm_mod.dll']}
+$provenance=[ordered]@{schema=1;product='NCMM First Person View TEST';installer_revision='0.7.0';status='experimental-not-certified';recommended_entry='NCMM_Setup_FirstPerson_TEST.exe';source_commit=$bundle.ncmm_source_commit;engine_source=$source.source_commit;upstream_tag=$source.tag;workflow_run=[string]$env:GITHUB_RUN_ID;installer_sha256=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant();host_sha256=$bundle.host_sha256;vanilla_sha256=$bundle.vanilla_sha256;supported_vanilla_sha256=$bundle.supported_vanilla_sha256;module_sha256=$files['code_mods/FirstPersonView/ncmm_mod.dll']}
 [IO.File]::WriteAllText((Join-Path $stage 'release-manifest.json'),($provenance | ConvertTo-Json -Depth 6),(New-Object Text.UTF8Encoding($false)))
-$zip=Join-Path $OutputRoot ("NCMM_FirstPersonView_0.6.0_TEST_${build}_Windows_x64.zip")
+$zip=Join-Path $OutputRoot ("NCMM_FirstPersonView_0.7.0_TEST_${build}_Windows_x64.zip")
 if(Test-Path $zip){Remove-Item $zip -Force}
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip

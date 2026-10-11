@@ -1,4 +1,4 @@
-# First Person View — 0.6.0 development prototype
+# First Person View — 0.7.0 development prototype
 
 Optional first-person renderer of the same live CDDA world through NCMM. This
 preview bundles an exact experimental Windows x64 Host for 1040 or 1807 and uses
@@ -22,6 +22,8 @@ original game backup when upgrading ordinary NCMM, preview NCMM or legacy CML.
 | F7 / F8 | Rotate left / right |
 | F9 / F10 | Look up / down, including the sky |
 | F11 | Balanced / high quality |
+| F12 | GPU atmosphere composition / CPU |
+| Left mouse button over the viewport | Attack the visible hostile sprite under the centre reticle |
 | Hold right mouse button in the viewport | Free horizontal/vertical look |
 | ↑ / ↓ in first person | Forward / backward relative to the camera |
 | ← / → in first person | Strafe left / right relative to the camera |
@@ -65,7 +67,8 @@ and foliage billboards. Tables, storage, seats, rocks, signs and posts receive
 shape-specific geometry. Boulders use irregular faceted meshes, including opaque
 impassable boulders. Semantic flags take priority over identifier/looks-like
 fallbacks; the engine fixture audits all loaded terrain/furniture definitions.
-Flat blood/liquid fields remain ground decals; fire, smoke and gas use billboards.
+Spilled liquids remain shallow irregular patches; water surfaces have continuous
+wave shading, and fire, smoke and gas have depth-clipped volume rendering.
 
 Visible vehicle mounts share actual yaw and one continuous anchor. Automatic
 meshes combine chassis, body panels, roof, seats, windows, open doors, modeled
@@ -78,8 +81,8 @@ roof panels meet without interior bevel gaps, adds dashboards and steering wheel
 at actual CONTROLS mounts, distinguishes glass from solid upper panels and reduces
 distant wheel geometry. Forward car geometry is independent of the 2D visibility
 mask so its own windshield does not erase the rest of its roof.
-Tiny/small/large/huge creatures use actual game size categories.
-Dimensions remain generic, with no authored model for each vehicle prototype.
+Creature dimensions combine actual volume, body plan and game size category.
+Vehicle models are generated from parts, with no authored mesh for each prototype.
 
 Near surfaces receive procedural material detail for asphalt, soil, grass,
 wood, stone and tiles. Detail fades with the projected footprint to reduce
@@ -106,8 +109,9 @@ Enchanted `*_plus_*` weapons use their declared `looks_like` physical silhouette
 so 2D grade marks do not become floating view-model geometry. The snapshot still
 identifies the real enchanted item; ordinary weapons keep their authored art.
 
-Short items and guns use their actual tileset silhouette in camera space with
-an extruded contour. Reach/two-handed long weapons generate a wood shaft and metal
+Short items use their actual tileset silhouette in camera space with
+an extruded contour. Guns use forward-facing model families with their mounted
+accessories. Reach/two-handed long weapons generate a wood shaft and metal
 head, with both hands attached to the same grip points. Wrists, palms, fingers
 and weapon share one pose transform. Actual committed melee attacks start a
 swing, polearm attacks a thrust, and actual shots trigger recoil. A 480 ms eased
@@ -117,8 +121,9 @@ consume an unseen clip. Disabling/unloading the view cancels queued animation.
 Rotated silhouettes fit a lower-right view-model region
 that leaves the reticle clear; low-opacity sprite halos are excluded. An independent view-model depth buffer handles overlaps
 and nearby walls. It clears when the item is unwielded and preserves world occlusion depth. Hands and the item receive
-the camera cell's actual RGB light. Geometry and skin/sleeve colors are generic;
-there are no bespoke models for every weapon or reload animations yet.
+the camera cell's actual RGB light. Garments supply colors and material finishes,
+and visible mutations/CBMs modify the hands. There are no bespoke models for
+every weapon or reload animations yet.
 
 ## Visibility and lifecycle
 
@@ -146,7 +151,7 @@ and creature billboards, no NPC appearance yet. Vehicle and held
 item geometry is generated and needs further interactive refinement for unusual
 modded shapes. Raster resolution improves perspective sampling but cannot add
 art detail absent from the installed tileset. Gameplay and saves remain CDDA's;
-only first-person arrow direction changes. Player testing of combat, targeting, save/reload and
+first-person controls add relative arrows, mouse look and aimed clicks. Player testing of combat, targeting, save/reload and
 character switching remains necessary.
 
 ## Exact experimental targets
@@ -216,3 +221,51 @@ native CPU timings are fixture results, not game-session FPS measurements.
 
 Existing CDDA/tileset assets retain their licenses and attribution; see
 `THIRD_PARTY_NOTICES.txt` and the installed tileset's provenance.
+
+## Version 0.7
+
+The optional presentation interface supplies real creature volume/body plan,
+localized names through the Host, dimension identity, garment coverage, gunmods,
+light sources and fluid/gas classifications. Core, Graphics V1 and V2 layouts are
+unchanged. Pixel picking respects sprite alpha and world depth. A click is
+revalidated against the avatar's position, camera, visible target and hostility;
+firing/reach use CDDA's normal readiness, aiming, range and trajectory code.
+
+The renderer includes joined bonnets, cockpit gauges, vents, a dimensional wheel
+and roof headlining when boarded. Control mounts determine visual front using a
+stable full-vehicle summary. Architecture now includes horizontal scrap bridges,
+raised guardrails, thin scrap panels, full-height seamless glass, and the Mi-Go
+three-leaf resin hatch. Door families use wood, metal, glass, cloth, stone and
+resin materials; ceilings use the actual roof terrain and varied finishes.
+
+Eight procedural sky profiles cover Earth/weather, highlands, abyss, scarlet,
+grey cabins, the star-filled string dimension, radiosphere and fungal worlds.
+They use dimension IDs and the referenced game descriptions, never translated
+name matching. Unknown dimension mods retain their authored weather tint. Earth
+sun/moon still follow the calendar; non-Earth void skies do not invent an Earth
+sun. Fluids use continuous wave normals, sky reflection and specular highlights;
+spills have small irregular footprints. Salt water, sewage, blood, acid, slime,
+lava, oil and other fluids have distinct responses.
+
+Firearms use forward-facing procedural models and attached optics, suppressors,
+foregrips, bipods, lights/lasers, bayonets and underbarrel weapons. These are model
+families, not individually authored replicas of every gun. Visible sleeves and
+gloves supply their tileset colors and materials per hand; supported external
+fur/scales/chitin/claws/webbing/arm armor and hand CBMs affect exposed surfaces.
+Internal CBMs do not turn the entire hand metallic. Hands have breathing, step
+motion, mouse inertia and committed-attack clips. Held-item dimensions use game
+lengths and creature dimensions use volume plus body plan. Highly abstract
+creatures are bounded to keep the projection stable.
+
+Gases use a smooth 3D density field, depth-clipped ray marching and propagated
+RGB lighting. A quarter-resolution scattering layer is reconstructed/blended by
+SDL's GPU renderer when available. **Geometry and fluid shading still use CPU.**
+The CPU path uses the same layer contract; a failed effects upload/composite
+redraws a complete CPU-composited frame without discarding the world view.
+F12 forces CPU composition; `NCMM_FP_CPU=1` disables the accelerated path from
+startup. This is partial GPU acceleration, not a replacement GPU mesh engine.
+
+Qualification adds presentation/occlusion/composition regressions, a full loaded
+monster and gas-definition audit, and actual SDL captures of reported geometry,
+localized labels, a roofed car interior, an equipped M27 and smoke. Performance
+numbers from fixtures are not a measurement of a player's installation.
