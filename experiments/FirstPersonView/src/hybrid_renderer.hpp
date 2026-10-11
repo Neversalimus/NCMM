@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <limits>
 #include <map>
@@ -19,6 +20,7 @@ inline float dot(vec a,vec b){return a.x*b.x+a.y*b.y+a.z*b.z;}
 inline vec cross(vec a,vec b){return{a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x};}
 inline vec normalize(vec a){float n=std::sqrt(dot(a,a));return n>1e-6f?a*(1/n):vec{0,0,1};}
 inline float clamp(float v){return std::clamp(v,0.0f,1.0f);}
+template<size_t N> inline bool terminated(const char (&text)[N]){return std::memchr(text,0,N)!=nullptr;}
 inline vec unpack(uint32_t p){return{float(p>>24)/255,float((p>>16)&255)/255,float((p>>8)&255)/255};}
 inline uint32_t pack(vec c,uint32_t alpha=255){return(uint32_t(clamp(c.x)*255)<<24)|(uint32_t(clamp(c.y)*255)<<16)|(uint32_t(clamp(c.z)*255)<<8)|alpha;}
 inline uint32_t hash(uint32_t x){x^=x>>16;x*=0x7feb352du;x^=x>>15;x*=0x846ca68bu;return x^(x>>16);}
@@ -628,10 +630,13 @@ inline bool build_frame(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,co
        b.cell_count!=size_t(b.grid_width)*b.grid_height||b.pixel_width<1||b.pixel_height<1||b.pixel_width>8192||b.pixel_height>8192||!std::isfinite(yaw)||!std::isfinite(pitch)||std::abs(pitch)>1.35f||
        !std::isfinite(b.camera_x)||!std::isfinite(b.camera_y)||b.camera_x<0||b.camera_y<0||b.camera_x>=b.grid_width||b.camera_y>=b.grid_height)return false;
     const auto &e=s.environment;for(float value:{e.sun_x,e.sun_y,e.sun_z,e.moon_x,e.moon_y,e.moon_z,e.daylight,e.cloud_cover,e.fog_density,e.precipitation,e.wind_x,e.wind_y,e.sky_r,e.sky_g,e.sky_b,e.sky_tint})if(!std::isfinite(value))return false;
+    if(!terminated(e.held_item)||!terminated(e.weather_id))return false;
     for(float value:{e.sun_x,e.sun_y,e.sun_z,e.moon_x,e.moon_y,e.moon_z})if(std::abs(value)>1.01f)return false;
     if(std::abs(e.wind_x)>100||std::abs(e.wind_y)>100||e.sky_r<0||e.sky_r>1||e.sky_g<0||e.sky_g>1||e.sky_b<0||e.sky_b>1||e.sky_tint<0||e.sky_tint>1)return false;
     if(!std::isfinite(e.animation_seconds)||e.daylight<0||e.daylight>1||e.cloud_cover<0||e.cloud_cover>1||e.fog_density<0||e.fog_density>1||e.precipitation<0||e.precipitation>1||e.moon_phase>7||e.weather_kind>NCMM_WEATHER_PORTAL)return false;
-    for(size_t i=0;i<b.cell_count;++i){const auto &d=s.details[i];for(float value:{d.light_r,d.light_g,d.light_b,d.emission,d.vehicle_x,d.vehicle_y,d.vehicle_yaw,d.vehicle_health})if(!std::isfinite(value))return false;
+    for(size_t i=0;i<b.cell_count;++i){const auto &d=s.details[i];const auto &c=b.cells[i];
+        if((c.flags&NCMM_GFX_VISIBLE)&&(!terminated(c.terrain)||!terminated(c.furniture)||!terminated(c.item)||!terminated(c.creature)||!terminated(d.ground)||!terminated(d.field)))return false;
+        for(float value:{d.light_r,d.light_g,d.light_b,d.emission,d.vehicle_x,d.vehicle_y,d.vehicle_yaw,d.vehicle_health})if(!std::isfinite(value))return false;
         if(d.light_r<0||d.light_r>1||d.light_g<0||d.light_g>1||d.light_b<0||d.light_b>1||d.vehicle_health<0||d.vehicle_health>1||d.terrain_flags>3u||d.terrain_shape>=NCMM_SHAPE_COUNT||d.furniture_shape>=NCMM_SHAPE_COUNT||d.field_shape>=NCMM_SHAPE_COUNT||std::abs(d.vehicle_x)>2048||std::abs(d.vehicle_y)>2048||d.mount_x<-1000||d.mount_x>1000||d.mount_y<-1000||d.mount_y>1000)return false;}
     renderer(s,yaw,pitch,provider,out).run();return out.pixels.size()==size_t(out.width)*out.height;
 }

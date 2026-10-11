@@ -118,6 +118,11 @@ int main(int argc,char **argv){try{
     for(const char *c:{"DEFAULTMODE","INVENTORY","OPEN","CLOSE","EXAMINE","CHOOSE_ADJACENT","ACTIONMENU"})check(ncmm_graphics_shapes::stays_perspective(c),"ordinary command keeps perspective");
     check(!ncmm_graphics_shapes::stays_perspective("TARGETING"),"coordinate targeting uses map context");
     auto bad=world.scene;bad.detail_count=0;check(!build_frame(bad,0,0,world.provider(),f),"truncated scene rejected");bad=world.scene;bad.environment.daylight=std::numeric_limits<float>::quiet_NaN();check(!build_frame(bad,0,0,world.provider(),f),"NaN environment rejected");
+    bad=world.scene;std::memset(bad.environment.held_item,'x',sizeof(bad.environment.held_item));
+    check(!build_frame(bad,0,0,world.provider(),f),"unterminated held ID is rejected before sprite access");
+    std::memset(world.details[0].ground,'x',sizeof(world.details[0].ground));
+    check(!build_frame(world.scene,0,0,world.provider(),f),"unterminated ground ID is rejected before material classification");
+    std::memset(world.details[0].ground,0,sizeof(world.details[0].ground));std::strcpy(world.details[0].ground,"t_floor");
     check(!build_frame(world.scene,0,2,world.provider(),f),"extreme pitch rejected");
     fixture sky_world;sky_world.scene.environment.cloud_cover=0;sky_world.scene.environment.sun_z=-1;sky_world.scene.environment.moon_phase=0;
     frame horizon,zenith;
