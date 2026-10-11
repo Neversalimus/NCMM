@@ -10,6 +10,7 @@ size_t graphics_hybrid_vehicle_cells = 0;
 size_t graphics_hybrid_light_cells = 0;
 size_t graphics_hybrid_colored_cells = 0;
 size_t graphics_hybrid_held_sprites = 0;
+size_t graphics_hybrid_tiny_creatures = 0;
 std::array<size_t, NCMM_SHAPE_COUNT> graphics_hybrid_shape_counts = {};
 ncmm_graphics_environment_v2 graphics_hybrid_last_environment = {};
 
@@ -39,6 +40,8 @@ bool graphics_read_sprite( const texture_draw_data &atlas, graphics_cpu_sprite &
     Uint8 dr = 0, dg = 0, db = 0, da = 0, tr = 255, tg = 255, tb = 255, ta = 255;
     if( !SDL_GetRenderDrawColor( renderer, &dr, &dg, &db, &da ) ||
         !SDL_GetTextureColorMod( atlas.texture, &tr, &tg, &tb ) || !SDL_GetTextureAlphaMod( atlas.texture, &ta ) ) return false;
+    SDL_ScaleMode sampling = SDL_SCALEMODE_NEAREST;
+    if( !SDL_GetTextureScaleMode( atlas.texture, &sampling ) ) return false;
     SDL_BlendMode blend = SDL_BLENDMODE_BLEND;
     if( !SDL_GetTextureBlendMode( atlas.texture, &blend ) ) return false;
     SDL_Texture *target = SDL_CreateTexture( renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, rect.w, rect.h );
@@ -53,6 +56,7 @@ bool graphics_read_sprite( const texture_draw_data &atlas, graphics_cpu_sprite &
     ok = SDL_SetTextureColorMod( atlas.texture, 255, 255, 255 ) && ok;
     ok = SDL_SetTextureAlphaMod( atlas.texture, 255 ) && ok;
     ok = SDL_SetTextureBlendMode( atlas.texture, SDL_BLENDMODE_NONE ) && ok;
+    ok = SDL_SetTextureScaleMode( atlas.texture, SDL_SCALEMODE_NEAREST ) && ok;
     const SDL_FRect source = { float( rect.x ), float( rect.y ), float( rect.w ), float( rect.h ) };
     const SDL_FRect dest = { 0, 0, float( rect.w ), float( rect.h ) };
     ok = SDL_RenderTexture( renderer, atlas.texture, &source, &dest ) && ok;
@@ -71,6 +75,7 @@ bool graphics_read_sprite( const texture_draw_data &atlas, graphics_cpu_sprite &
     ok = SDL_SetTextureColorMod( atlas.texture, tr, tg, tb ) && ok;
     ok = SDL_SetTextureAlphaMod( atlas.texture, ta ) && ok;
     ok = SDL_SetTextureBlendMode( atlas.texture, blend ) && ok;
+    ok = SDL_SetTextureScaleMode( atlas.texture, sampling ) && ok;
     ok = SDL_SetRenderTarget( renderer, prior_target ) && ok;
     ok = SDL_SetRenderLogicalPresentation( renderer, logical_w, logical_h, logical_mode ) && ok;
     ok = SDL_SetRenderScale( renderer, scale_x, scale_y ) && ok;
@@ -188,7 +193,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     std::map<const vehicle *, std::pair<float, float>> vehicle_anchors;
     auto copy_id = []( char ( &dest )[128], const std::string &id ) { if( id.size() < sizeof( dest ) ) std::copy( id.begin(), id.end(), dest ); };
     graphics_hybrid_vehicle_cells = graphics_hybrid_light_cells = graphics_hybrid_held_sprites = 0;
-    graphics_hybrid_colored_cells = 0;
+    graphics_hybrid_colored_cells = graphics_hybrid_tiny_creatures = 0;
     graphics_hybrid_shape_counts.fill( 0 );
     for( size_t i = 0; i < base.cell_count; ++i ) {
         if( !( base.cells[i].flags & NCMM_GFX_VISIBLE ) ) continue;
@@ -225,6 +230,18 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         if( std::max( { d.light_r, d.light_g, d.light_b } ) - std::min( { d.light_r, d.light_g, d.light_b } ) > .05f ) ++graphics_hybrid_colored_cells;
         d.emission = float( std::max( ter.light_emitted, furn.light_emitted ) );
         if( maximum > 0 ) ++graphics_hybrid_light_cells;
+        if( base.cells[i].creature[0] ) {
+            const monster *mon = get_creature_tracker().creature_at<monster>( p );
+            if( mon && you.sees( here, *mon ) ) {
+                switch( mon->get_size() ) {
+                    case creature_size::tiny: d.terrain_flags |= NCMM_CREATURE_TINY; ++graphics_hybrid_tiny_creatures; break;
+                    case creature_size::small: d.terrain_flags |= NCMM_CREATURE_SMALL; break;
+                    case creature_size::large: d.terrain_flags |= NCMM_CREATURE_LARGE; break;
+                    case creature_size::huge: d.terrain_flags |= NCMM_CREATURE_HUGE; break;
+                    default: break;
+                }
+            }
+        }
         const auto field = here.field_at( p ).displayed_field_type();
         if( field.id() != field_type_str_id( "fd_null" ) ) {
             copy_id( d.field, field.id().str() );
@@ -249,7 +266,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
                 d.vehicle_x = anchor->second.first; d.vehicle_y = anchor->second.second;
                 d.vehicle_health = float( part.health_percent() );
                 const std::pair<const char *, uint32_t> features[] = {
-                    { "STRUCTURE", NCMM_VEH_FRAME }, { "ROOF", NCMM_VEH_ROOF }, { "BOARDABLE", NCMM_VEH_SEAT },
+                    { "STRUCTURE", NCMM_VEH_FRAME }, { "ROOF", NCMM_VEH_ROOF }, { "SEAT", NCMM_VEH_SEAT },
                     { "OBSTACLE", NCMM_VEH_BOARD }, { "WINDOW", NCMM_VEH_WINDOW }, { "OPENABLE", NCMM_VEH_DOOR },
                     { "WHEEL", NCMM_VEH_WHEEL }, { "CARGO", NCMM_VEH_CARGO }, { "ENGINE", NCMM_VEH_ENGINE }, { "CONE_LIGHT", NCMM_VEH_LIGHT }
                 };

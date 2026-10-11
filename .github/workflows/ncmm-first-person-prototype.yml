@@ -21,7 +21,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Configure isolated module
-        run: cmake -S experiments/FirstPersonView -B fp-build
+        run: cmake -S experiments/FirstPersonView -B fp-build -DCMAKE_BUILD_TYPE=Release
       - name: Build prototype and contract tests
         run: cmake --build fp-build --config Release
       - name: Renderer, occlusion, fog, ABI and toggle lifecycle
@@ -244,7 +244,7 @@ jobs:
         with:
           name: first-person-installer-${{ matrix.build }}-Windows-x64
           path: |
-            installer-result/NCMM_FirstPersonView_0.4.0_TEST_${{ matrix.build }}_Windows_x64.zip
+            installer-result/NCMM_FirstPersonView_0.5.0_TEST_${{ matrix.build }}_Windows_x64.zip
             installer-result/first-person-smoke*.json
             installer-result/first-person-*.bmp
             installer-result/first-person-shapes-audit*.json

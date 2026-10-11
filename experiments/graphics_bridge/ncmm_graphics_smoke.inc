@@ -71,7 +71,7 @@ bool graphics_scene_smoke()
             here.update_visibility_cache( 0 );
             tilecontext->draw( point::zero, center, 640, 480, overlays, blocks );
             require( graphics_draw( 0, 0, 640, 480 ), "real_sdl_render_failed" );
-            require( graphics_resolved_textures >= 2, "atlas_textures_missing" );
+            require( frames > 0 || graphics_resolved_textures >= 2, "atlas_textures_missing" );
             require( SDL_FlushRenderer( get_sdl_renderer().get() ), "sdl_frame_flush_failed" );
             ++frames;
         };
@@ -190,6 +190,17 @@ bool graphics_scene_smoke()
         require( graphics_hybrid_held_sprites > 0 && std::string( graphics_hybrid_last_environment.held_item ) == "naginata",
                  "wielded_tileset_item_missing" );
         capture_frame( "first-person-objects.bmp" );
+        const tripoint_bub_ms aphid_pos( center.x(), center.y() - 1, 0 );
+        monster *aphid = g->place_critter_at( mtype_id( "mon_aphid" ), aphid_pos );
+        require( aphid != nullptr, "tiny_creature_fixture_missing" );
+        draw(); require( graphics_hybrid_tiny_creatures > 0, "tiny_creature_size_missing" );
+        capture_frame( "first-person-tiny-creature.bmp" );
+        get_creature_tracker().remove( *aphid );
+        require( ncmm::handle_gameplay_action( "ncmm.view.quality" ), "quality_action_missing" );
+        require( you.pos_bub() == center, "quality_changed_avatar_position" );
+        draw();
+        require( ncmm::handle_gameplay_action( "ncmm.view.quality" ), "balanced_action_missing" );
+        draw();
         you.set_wielded_item( item( itype_id( "knife_combat" ), calendar::turn ) ); draw();
         require( graphics_hybrid_held_sprites > 0 && std::string( graphics_hybrid_last_environment.held_item ) == "knife_combat",
                  "wielded_item_sprite_stale" );

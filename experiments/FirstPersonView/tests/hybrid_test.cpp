@@ -65,6 +65,13 @@ int main(int argc,char **argv){try{
         d.vehicle_group=1;d.vehicle_features=NCMM_VEH_FRAME|NCMM_VEH_ROOF|NCMM_VEH_BOARD|NCMM_VEH_WINDOW|NCMM_VEH_SEAT;d.mount_x=x-7;d.mount_y=0;d.vehicle_x=7.5f;d.vehicle_y=7.5f;d.vehicle_health=1;
         if(x==5||x==9)d.vehicle_features|=NCMM_VEH_WHEEL;}
     draw();check(f.vehicle_parts==5&&f.triangles>150,"car builds body roof glass seats and wheels");check(digest(f)!=empty,"modeled car appears");if(argc==2)save(f,std::string(argv[1])+"-car.ppm");
+    for(int x=5;x<=9;++x){int i=8*15+x;auto &c=world.cells[i];auto &d=world.details[i];
+        c.flags|=NCMM_GFX_VEHICLE;std::strcpy(c.furniture,"vp_door");d.vehicle_group=1;d.mount_x=x-7;d.mount_y=1;
+        d.vehicle_features=NCMM_VEH_FRAME|NCMM_VEH_DOOR|NCMM_VEH_WINDOW;d.vehicle_x=7.5f;d.vehicle_y=7.5f;d.vehicle_health=1;}
+    draw();size_t joined_roof=0;
+    for(int x=300;x<500;++x)joined_roof+=f.owners[246*800+x]>=8*15+5&&f.owners[246*800+x]<=8*15+9;
+    check(joined_roof>100,"visible central roof spans cover side-door mounts");
+    for(int x=5;x<=9;++x){int i=8*15+x;world.details[i].vehicle_features=0;world.cells[i].flags&=~NCMM_GFX_VEHICLE;world.cells[i].furniture[0]=0;}
     world.scene.environment.sun_y=.60f;draw();const float facing_sun=unpack(f.pixels[380*800+400]).x;
     world.scene.environment.sun_y=-.60f;draw();const float facing_away=unpack(f.pixels[380*800+400]).x;
     check(facing_sun>facing_away+.02f,"vehicle panel normals receive sunlight from the outward side");
@@ -103,14 +110,27 @@ int main(int argc,char **argv){try{
     check(wall_held_samples==held_samples,"nearby world geometry does not cut into the hands or wielded item");
     world.shape(7,11,NCMM_SHAPE_FLAT);
     auto held_color=[](const frame &image){vec sum{};for(size_t i=0;i<image.pixels.size();++i){
-        if(image.owners[i]==-1&&image.depth[i]<1)sum=sum+unpack(image.pixels[i]);}return sum;};
+        if(image.owners[i]==-1&&image.held_depth[i]<1)sum=sum+unpack(image.pixels[i]);}return sum;};
     const vec neutral_held=held_color(f);auto &camera_light=world.details[11*15+7];
     camera_light.light_r=.05f;camera_light.light_g=.1f;camera_light.light_b=.9f;draw();
     const vec blue_held=held_color(f);
     check(blue_held.z/(blue_held.x+.001f)>neutral_held.z/(neutral_held.x+.001f)*2,"camera RGB light shades the held item and hands");
     camera_light.light_r=camera_light.light_g=camera_light.light_b=.8f;
+    int held_top=f.height;
+    for(int y=0;y<f.height;++y)for(int x=0;x<f.width;++x)if(std::isfinite(f.held_depth[size_t(y)*f.width+x])){held_top=std::min(held_top,y);}
+    size_t center_held=0;
+    for(int y=f.height/2-12;y<=f.height/2+12;++y)for(int x=f.width/2-12;x<=f.width/2+12;++x)center_held+=std::isfinite(f.held_depth[size_t(y)*f.width+x]);
+    check(center_held==0&&held_top>f.height/3,"rotated view model leaves the reticle and upper scene clear");
+    check(f.depth[at]>1,"view model does not overwrite world occlusion depth");
     world.scene.environment.held_item[0]=0;draw();check(f.held_pixels==0,"empty hands do not retain previous weapon");
     check(std::none_of(f.held_depth.begin(),f.held_depth.end(),[](float z){return std::isfinite(z);}),"unwielding clears view-model depth as well as geometry");
+    const int animal=9*15+7;std::strcpy(world.cells[animal].creature,"mon_aphid");
+    world.details[animal].terrain_flags=NCMM_CREATURE_TINY;draw();size_t tiny_pixels=0;
+    for(int y=0;y<400;++y)for(int x=300;x<500;++x)tiny_pixels+=f.owners[size_t(y)*800+x]==animal;
+    world.details[animal].terrain_flags=0;draw();size_t adult_pixels=0;
+    for(int y=0;y<400;++y)for(int x=300;x<500;++x)adult_pixels+=f.owners[size_t(y)*800+x]==animal;
+    check(adult_pixels>tiny_pixels*2,"tiny insects do not become human-height central billboards");
+    world.cells[animal].creature[0]=0;
     check(ncmm_graphics_shapes::terrain("t_door_o",{})==NCMM_SHAPE_DOOR_OPEN,"open door classification");
     check(ncmm_graphics_shapes::terrain("t_window_frame",{})==NCMM_SHAPE_WINDOW_BROKEN,"broken window classification");
     check(ncmm_graphics_shapes::terrain("t_chainfence",{})==NCMM_SHAPE_FENCE,"chain fence classification");

@@ -1,4 +1,4 @@
-# First Person View — 0.4.0 development prototype
+# First Person View — 0.5.0 development prototype
 
 Optional first-person renderer of the same live CDDA world through NCMM. This
 preview bundles an exact experimental Windows x64 Host for 1040 or 1807 and uses
@@ -21,6 +21,7 @@ original game backup when upgrading ordinary NCMM, preview NCMM or legacy CML.
 | F6 | Toggle first person / map, with a message-log confirmation |
 | F7 / F8 | Rotate left / right |
 | F9 / F10 | Look up / down, including the sky |
+| F11 | Balanced / high quality |
 | Existing movement keys | Existing world directions |
 
 Camera controls preserve the avatar's position, moves, time and destination.
@@ -40,8 +41,12 @@ tilesets are not bundled.
 The new optional Graphics V2 bridge supplies callback-scoped CPU sprites, visible
 cell geometry, current weather and calendar astronomy. V1 and Core ABI contracts
 remain unchanged. The renderer uses clipped perspective-correct triangles, a
-per-pixel depth buffer, bilinear filtering and a ground mip level, at viewport
-resolution up to 1920×1080. Unlike the old scanline floor, ground fills every
+per-pixel depth buffer, bilinear filtering and a ground mip level, with a balanced default up to 1280×800 and an F11 high-quality option up to
+1920×1080. Covered scanline spans, conservative frustum culling, outward solid
+faces, front-to-back cells and up to four disjoint CPU row bands reduce work.
+Identical UI redraws reuse complete owned pixels for at most 250 ms; visibility,
+light, camera and item changes invalidate them immediately. Visual animation
+updates at 10 Hz without advancing game time. Unlike the old scanline floor, ground fills every
 covered pixel. Drawing at this resolution costs more CPU time than the map.
 
 Doors retain jambs and a hinged panel; destroyed doors retain a frame. Windows
@@ -55,10 +60,13 @@ Flat blood/liquid fields remain ground decals; fire, smoke and gas use billboard
 
 Visible vehicle mounts share actual yaw and one continuous anchor. Automatic
 meshes combine chassis, body panels, roof, seats, windows, open doors, modeled
-wheels/rims and lights. Version 0.4 adds sloped windshields, beveled hood/roof
+wheels/rims and lights. Version 0.4 added sloped windshields, beveled hood/roof
 edges, wheel-arch cutouts, rounded 24-segment tyres, rims/spokes, bumpers, grilles,
 wipers, door seams/handles and mirrors. Visible parts share a tileset-derived
 paint palette and a mount lookup; hidden parts affect neither colors nor shape.
+Version 0.5 joins visible roof spans across side doors/windows, closes roof
+undersides and uses the SEAT flag instead of BOARDABLE so doors do not generate
+phantom chairs. Tiny/small/large/huge creatures use actual game size categories.
 Dimensions remain generic, with no authored model for each vehicle prototype.
 
 Near surfaces receive procedural material detail for asphalt, soil, grass,
@@ -85,8 +93,9 @@ uses real time without advancing a game turn.
 The wielded item's actual tileset silhouette is filtered in camera space with
 an extruded contour, curved forearms, palms and fingers. Long melee silhouettes
 use their automatically measured principal axis; guns and very slender shapes
-receive a support hand. An independent view-model depth buffer handles overlaps
-and nearby walls. It clears when the item is unwielded. Hands and the item receive
+receive a support hand. Rotated silhouettes fit a lower-right view-model region
+that leaves the reticle clear; low-opacity sprite halos are excluded. An independent view-model depth buffer handles overlaps
+and nearby walls. It clears when the item is unwielded and preserves world occlusion depth. Hands and the item receive
 the camera cell's actual RGB light. Geometry and skin/sleeve colors are generic;
 there are no bespoke weapon models or attack/reload animations yet.
 
@@ -160,7 +169,8 @@ not advertise the graphics capability and rejects this DLL safely.
 Native tests cover continuous floors, geometry/occlusion, windows and mesh gates,
 plant ground, vehicle meshes, hidden-cell exclusion, sky/phase changes, RGB light,
 weather/roof exclusion, held-item replacement, viewport bounds and V1/V2 lifecycle.
-The 0.4 tests additionally cover alpha-edge contamination, odd-sized mips,
+The 0.5 tests cover redraw-cache invalidation, reticle clearance, creature size
+and independent world depth. The 0.4 tests additionally cover alpha-edge contamination, odd-sized mips,
 grounded transparent margins, hidden vehicle neighbors and view-model occlusion.
 ASan/UBSan and atomic source-transform failure cases accompany source syntax
 checks against both pinned engines.
