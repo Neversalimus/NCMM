@@ -8,6 +8,7 @@
 #include <functional>
 #include <limits>
 #include <map>
+#include <tuple>
 #include <vector>
 
 namespace first_person::hybrid {
@@ -74,14 +75,26 @@ struct triangle {std::array<vertex,3> v;material m;};
 class renderer {
     const ncmm_graphics_scene_v2 &s;const ncmm_graphics_scene_v1 &base;sprite_provider provider;frame &f;
     float yaw,pitch,cy,sy,cp,sp,projection;vec eye,fog_color;std::vector<float> shadows;
-    std::map<std::pair<uint32_t,uint32_t>,image> images;std::vector<triangle> transparent;
+    using sprite_key=std::tuple<uintptr_t,uint32_t,uint32_t,uint32_t>;
+    std::map<std::pair<uint32_t,uint32_t>,image *> image_refs;
+    std::map<sprite_key,image> images;std::vector<triangle> transparent;
     int index(int x,int y)const{return x<0||y<0||x>=base.grid_width||y>=base.grid_height?-1:y*base.grid_width+x;}
     bool visible(int i)const{return i>=0&&size_t(i)<base.cell_count&&(base.cells[i].flags&NCMM_GFX_VISIBLE);}
     bool outside(int i)const{return visible(i)&&!(base.cells[i].flags&NCMM_GFX_CEILING);}
-    image *texture(uint32_t i,uint32_t layer){auto key=std::make_pair(i,layer);auto found=images.find(key);if(found!=images.end())return &found->second;
+    image *texture(uint32_t i,uint32_t layer){
+        const auto ref=std::make_pair(i,layer);auto found=image_refs.find(ref);
+        if(found!=image_refs.end())return found->second;
         image img;img.data.struct_size=sizeof(img.data);
-        if(provider&&provider(i,layer,img.data)&&img.data.width<=512&&img.data.height<=512&&img.data.pitch_pixels>=img.data.width&&img.data.pitch_pixels<=4096)img.analyse();else img.data={};
-        return &images.emplace(key,std::move(img)).first->second;}
+        const bool valid=provider&&provider(i,layer,img.data)&&img.data.struct_size>=sizeof(img.data)&&
+            img.data.rgba&&img.data.width&&img.data.height&&img.data.width<=512&&img.data.height<=512&&
+            img.data.pitch_pixels>=img.data.width&&img.data.pitch_pixels<=4096;
+        if(!valid)img.data={};
+        const sprite_key key{reinterpret_cast<uintptr_t>(img.data.rgba),img.data.width,img.data.height,img.data.pitch_pixels};
+        auto cached=images.find(key);
+        if(cached==images.end()){img.analyse();cached=images.emplace(key,std::move(img)).first;}
+        // Atlas pixels are callback-scoped. Reuse analyses only within this frame.
+        image *result=&cached->second;image_refs.emplace(ref,result);return result;
+    }
     vec light(int i,vec normal)const{
         if(!visible(i))return{0.008f,0.01f,0.014f};
         const auto &d=s.details[i];
@@ -171,21 +184,50 @@ class renderer {
         bottom=bottom*(1-twilight*.4f)+vec{.92f,.47f,.23f}*(twilight*.4f);fog_color=bottom;
         if(e.sky_tint>0){vec tint{e.sky_r,e.sky_g,e.sky_b};top=top*(1-e.sky_tint*.7f)+tint*(e.sky_tint*.32f);bottom=bottom*(1-e.sky_tint*.7f)+tint*(e.sky_tint*.4f);fog_color=bottom;}
         if(e.lightning){top={.55f,.6f,.73f};bottom={.85f,.86f,.94f};}
-        for(int y=0;y<f.height;++y){float t=clamp((y-f.height*.5f+projection*std::sin(pitch)+projection*.85f)/(projection*.95f));uint32_t c=pack(top*(1-t)+bottom*t);std::fill_n(f.pixels.data()+size_t(y)*f.width,f.width,c);}
+        for(int y=0;y<f.height;++y){
+            const float up=(f.height*.5f-y)/projection;
+            const float elevation=std::atan2(sp+up*cp,std::abs(cp-up*sp));
+            const float t=clamp(1-elevation/(pi*.5f));
+            const uint32_t c=pack(top*(1-t)+bottom*t);
+            std::fill_n(f.pixels.data()+size_t(y)*f.width,f.width,c);
+        }
         if(day<.2f)for(uint32_t i=0;i<170;++i){float az=random(i*3+8)*2*pi,el=.12f+random(i*3+9)*1.35f;vec q=view(eye+vec{std::cos(az)*std::cos(el),std::sin(az)*std::cos(el),std::sin(el)}*60);if(q.z<=0)continue;
-            int x=int(f.width*.5f+projection*q.x/q.z),y=int(f.height*.5f-projection*q.y/q.z);if(x>=0&&x<f.width&&y>=0&&y<f.height)f.pixels[size_t(y)*f.width+x]=pack(vec{.8f,.85f,1}*((1-day*5)*(.35f+random(i)*.65f)));}
+            const float px=f.width*.5f+projection*q.x/q.z,py=f.height*.5f-projection*q.y/q.z;
+            if(px>=0&&px<f.width&&py>=0&&py<f.height){const int x=int(px),y=int(py);
+                f.pixels[size_t(y)*f.width+x]=pack(vec{.8f,.85f,1}*((1-day*5)*(.35f+random(i)*.65f)));}}
         if(e.sun_z>-.03f)disc({e.sun_x,e.sun_y,e.sun_z},-1,{1,.92f,.64f},std::max(4.0f,f.width*.010f));
         if(e.moon_z>-.03f&&e.moon_phase!=0)disc({e.moon_x,e.moon_y,e.moon_z},int(e.moon_phase),{.82f,.88f,.94f},std::max(4.0f,f.width*.009f));
         // Clouds are continuous in world azimuth/elevation. Turning does not
         // reseed them; wind animates them independently of game-time advancement.
-        constexpr int step=6;float time=float(std::fmod(e.animation_seconds,100000.0));
-        for(int y=0;y<f.height;y+=step)for(int x=0;x<f.width;x+=step){float sx=(x-f.width*.5f)/projection,up=(f.height*.5f-y)/projection;
-            float forward=cp-up*sp,z=sp+up*cp;if(z<-.04f)continue;float wx=cy*forward-sy*sx,wy=sy*forward+cy*sx;
-            float az=std::atan2(wy,wx),elev=std::atan2(z,std::hypot(wx,wy));float v=elev*4+time*e.wind_y*.0015f;
-            float n=noise(std::cos(az)*3+time*e.wind_x*.0015f,std::sin(az)*3+v)*.70f+noise(std::cos(az)*7+time*e.wind_x*.002f,std::sin(az)*7+v*2)*.30f;
-            float opacity=clamp((n-(.80f-e.cloud_cover*.58f))*3)*(.65f+e.cloud_cover*.28f);
-            vec cloud=vec{.07f,.08f,.12f}*(1-day)+vec{.78f,.81f,.85f}*day;cloud=cloud*(.78f+n*.22f);
-            if(opacity>.01f)for(int yy=y;yy<std::min(f.height,y+step);++yy)for(int xx=x;xx<std::min(f.width,x+step);++xx){size_t k=size_t(yy)*f.width+xx;f.pixels[k]=pack(unpack(f.pixels[k])*(1-opacity)+cloud*opacity);}}
+        constexpr int step=6;const float time=float(std::fmod(e.animation_seconds,100000.0));
+        const int cols=(f.width+step-1)/step+1,rows=(f.height+step-1)/step+1;
+        std::vector<float> opacity(size_t(cols)*rows,0);
+        std::vector<vec> cloud_color(size_t(cols)*rows);
+        for(int gy=0;gy<rows;++gy)for(int gx=0;gx<cols;++gx){
+            const float sx=(gx*step-f.width*.5f)/projection,up=(f.height*.5f-gy*step)/projection;
+            const float forward=cp-up*sp,z=sp+up*cp;if(z<-.04f)continue;
+            const float wx=cy*forward-sy*sx,wy=sy*forward+cy*sx;
+            const float az=std::atan2(wy,wx),elev=std::atan2(z,std::hypot(wx,wy));
+            const float v=elev*4+time*e.wind_y*.0015f;
+            const float n=noise(std::cos(az)*3+time*e.wind_x*.0015f,std::sin(az)*3+v)*.70f+
+                noise(std::cos(az)*7+time*e.wind_x*.002f,std::sin(az)*7+v*2)*.30f;
+            const float alpha=clamp((n-(.80f-e.cloud_cover*.58f))*3)*(.65f+e.cloud_cover*.28f);
+            const size_t at=size_t(gy)*cols+gx;opacity[at]=alpha;
+            const vec cloud=vec{.07f,.08f,.12f}*(1-day)+vec{.78f,.81f,.85f}*day;
+            cloud_color[at]=cloud*((.78f+n*.22f)*alpha);
+        }
+        // Interpolate the cloud grid into the full raster instead of 6px blocks.
+        for(int y=0;y<f.height;++y){const int gy=y/step;const float fy=float(y%step)/step;
+            for(int gx=0;gx<cols-1;++gx){const size_t a=size_t(gy)*cols+gx,b=a+cols;
+                if(std::max({opacity[a],opacity[a+1],opacity[b],opacity[b+1]})<.01f)continue;
+                const float left=opacity[a]*(1-fy)+opacity[b]*fy,right=opacity[a+1]*(1-fy)+opacity[b+1]*fy;
+                const vec l=cloud_color[a]*(1-fy)+cloud_color[b]*fy,r=cloud_color[a+1]*(1-fy)+cloud_color[b+1]*fy;
+                for(int dx=0;dx<step&&gx*step+dx<f.width;++dx){const float fx=float(dx)/step;
+                    const float alpha=left*(1-fx)+right*fx;const size_t at=size_t(y)*f.width+gx*step+dx;
+                    f.pixels[at]=pack(unpack(f.pixels[at])*(1-alpha)+l*(1-fx)+r*fx);
+                }
+            }
+        }
     }
     void architecture(int i,uint32_t shape,uint32_t layer){if(!ncmm_graphics_shapes::vertical(shape))return;
         vec center{float(i%base.grid_width)+.5f,float(i/base.grid_width)+.5f,0};float angle=s.details[i].orientation?pi*.5f:0;

@@ -78,6 +78,12 @@ int main(int argc,char **argv){try{
     check(!ncmm_graphics_shapes::stays_perspective("TARGETING"),"coordinate targeting uses map context");
     auto bad=world.scene;bad.detail_count=0;check(!build_frame(bad,0,0,world.provider(),f),"truncated scene rejected");bad=world.scene;bad.environment.daylight=std::numeric_limits<float>::quiet_NaN();check(!build_frame(bad,0,0,world.provider(),f),"NaN environment rejected");
     check(!build_frame(world.scene,0,2,world.provider(),f),"extreme pitch rejected");
+    fixture sky_world;sky_world.scene.environment.cloud_cover=0;sky_world.scene.environment.sun_z=-1;sky_world.scene.environment.moon_phase=0;
+    frame horizon,zenith;
+    check(build_frame(sky_world.scene,-pi*.5f,0,sky_world.provider(),horizon),"horizon sky fixture");
+    check(build_frame(sky_world.scene,-pi*.5f,1.0f,sky_world.provider(),zenith),"zenith sky fixture");
+    auto blue_ratio=[](uint32_t p){return float((p>>8)&255)/float((p>>24)+1);};
+    check(blue_ratio(zenith.pixels[50*800+400])>blue_ratio(horizon.pixels[50*800+400]),"looking up approaches the deeper blue zenith");
     auto begin=std::chrono::steady_clock::now();for(int angle=0;angle<24;++angle)draw(angle*pi/12,(angle%3-1)*.5f);auto ms=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-begin).count();
     check(ms<15000,"hybrid CPU budget for 24 full-resolution frames");
     for(auto dims:{std::pair<int,int>{1,1},{3440,1440},{8192,8192},{320,1000}}){world.scene.base.pixel_width=dims.first;world.scene.base.pixel_height=dims.second;draw();}
