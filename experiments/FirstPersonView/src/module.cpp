@@ -33,7 +33,7 @@ void shutdown() {
     graphics=nullptr;
     commands.clear();
 }
-const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View","0.1.0-dev",
+const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View","0.2.0-dev",
     caps,sizeof(caps)/sizeof(caps[0]),init,shutdown};
 }
 extern "C" NCMM_EXPORT const ncmm_mod_descriptor_v1 *ncmm_get_descriptor_v1(){return &descriptor;}

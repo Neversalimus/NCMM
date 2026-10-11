@@ -13,6 +13,8 @@ const ncmm_graphics_scene_v1 *graphics_frame = nullptr;
 bool graphics_frame_invalid = false;
 std::vector<ncmm_graphics_quad_v1> graphics_commands;
 size_t graphics_resolved_textures = 0;
+size_t graphics_resolved_vehicle_textures = 0;
+size_t graphics_ceiling_cells = 0;
 loaded_mod *find_loaded_by_id( const char *module_id );
 
 void graphics_erase( const std::string &id )
@@ -33,7 +35,16 @@ int graphics_enable( const char *id, int enabled )
 {
     if( !active_module_matches( id ) || graphics_view.owner != id || !graphics_view.render ||
         ( enabled && !character_state_available() ) || graphics_frame ) return 0;
+    const bool changed = graphics_view.enabled != ( enabled != 0 );
     graphics_view.enabled = enabled != 0;
+#if defined(TILES)
+    if( changed && character_state_available() ) {
+        add_msg( m_info, "%s", graphics_view.enabled ?
+                 tr_ui( "First person ON. F6: map; F7/F8: turn camera.",
+                        "Вид от первого лица включён. F6: карта; F7/F8: поворот камеры." ) :
+                 tr_ui( "First person OFF.", "Вид от первого лица выключен." ) );
+    }
+#endif
     if( g ) g->invalidate_main_ui_adaptor();
     return 1;
 }
@@ -118,7 +129,8 @@ bool graphics_draw( int x, int y, int width, int height )
         !tilecontext || !tilecontext->is_valid() ) return false;
     avatar &you = get_avatar();
     map &here = get_map();
-    if( g->ter_view_p != you.pos_bub() || here.veh_at( you.pos_bub() ) ) return false;
+    // The perspective camera follows the avatar, independently of a saved map
+    // offset. Menus and targeting are already suspended by their input context.
     here.update_visibility_cache( you.posz() );
     const auto &visibility = here.get_visibility_variables_cache();
     constexpr int side = NCMM_GRAPHICS_RADIUS * 2 + 1;
@@ -126,6 +138,7 @@ bool graphics_draw( int x, int y, int width, int height )
     std::vector<tripoint_bub_ms> positions;
     positions.reserve( cells.size() );
     const tripoint_bub_ms origin = you.pos_bub();
+    graphics_ceiling_cells = 0;
     auto copy_id = []( char *dest, const std::string &id ) {
         if( id.size() >= 128 ) return; // fallback geometry, never a truncated identity
         std::copy( id.begin(), id.end(), dest );
@@ -138,15 +151,29 @@ bool graphics_draw( int x, int y, int width, int height )
         if( !here.inbounds( p ) ) continue;
         const lit_level light = here.apparent_light_at( p, visibility );
         if( here.get_visibility( light, visibility ) != visibility_type::CLEAR ) continue;
-        // Vehicles require their own geometry and are deliberately a later stage.
-        if( here.veh_at( p ) ) return false;
         cell.flags = NCMM_GFX_VISIBLE;
         cell.light = light == lit_level::LOW ? 0.45f : 1.0f;
         if( here.has_flag( "WALL", p ) || ( here.has_flag( "DOOR", p ) && here.impassable_ter_furn( p ) ) ||
             ( here.impassable_ter_furn( p ) && !here.is_transparent( p ) ) ) cell.flags |= NCMM_GFX_WALL;
         if( here.has_flag( "NO_FLOOR", p ) ) cell.flags |= NCMM_GFX_NO_FLOOR;
+        if( !here.is_outside( p ) ) {
+            cell.flags |= NCMM_GFX_CEILING;
+            ++graphics_ceiling_cells;
+        }
         copy_id( cell.terrain, here.ter( p ).id().str() );
         if( here.has_furn( p ) ) copy_id( cell.furniture, here.furn( p ).id().str() );
+        if( const optional_vpart_position vp = here.veh_at( p ) ) {
+            const auto displayed = vp->part_displayed();
+            if( displayed ) {
+                const vpart_display part( displayed->part() );
+                cell.flags |= NCMM_GFX_VEHICLE;
+                std::fill( std::begin( cell.furniture ), std::end( cell.furniture ), '\0' );
+                copy_id( cell.furniture, part.get_tileset_id() );
+                // Respect open doors and broken parts. Passable frames/seats
+                // remain billboards; closed obstacles provide ray occlusion.
+                if( vp->obstacle_at_part() ) cell.flags |= NCMM_GFX_WALL;
+            }
+        }
         if( here.sees_some_items( p, you ) ) {
             const auto items = here.i_at( p );
             if( !items.empty() ) copy_id( cell.item, items.begin()->typeId().str() );
@@ -172,6 +199,8 @@ bool graphics_draw( int x, int y, int width, int height )
     if( !ok || graphics_frame_invalid || graphics_commands.empty() ) {
         graphics_view.enabled = false;
         graphics_commands.clear();
+        add_msg( m_warning, "%s", tr_ui( "First person could not draw this scene; returned to the map. F6 retries.",
+                 "Не удалось отрисовать вид от первого лица; включена карта. F6 — повторить." ) );
         return false;
     }
     SDL_Renderer *renderer = get_sdl_renderer().get();
@@ -193,6 +222,7 @@ bool graphics_draw( int x, int y, int width, int height )
     // Resolve each cell/layer once per frame, and never retain GPU handles across frames.
     std::map<std::pair<uint32_t,uint32_t>,std::optional<texture_draw_data>> textures;
     graphics_resolved_textures = 0;
+    graphics_resolved_vehicle_textures = 0;
     for( const auto &q : graphics_commands ) {
         SDL_Texture *texture = nullptr;
         float u0 = q.u0, v0 = q.v0, u1 = q.u1, v1 = q.v1;
@@ -204,9 +234,14 @@ bool graphics_draw( int x, int y, int width, int height )
                 const char *id = q.layer == NCMM_GFX_TERRAIN ? cell.terrain :
                     q.layer == NCMM_GFX_FURNITURE ? cell.furniture : q.layer == NCMM_GFX_ITEM ? cell.item : cell.creature;
                 const TILE_CATEGORY category = q.layer == NCMM_GFX_TERRAIN ? TILE_CATEGORY::TERRAIN :
-                    q.layer == NCMM_GFX_FURNITURE ? TILE_CATEGORY::FURNITURE : q.layer == NCMM_GFX_ITEM ? TILE_CATEGORY::ITEM : TILE_CATEGORY::MONSTER;
+                    q.layer == NCMM_GFX_FURNITURE ? ( cell.flags & NCMM_GFX_VEHICLE ? TILE_CATEGORY::VEHICLE_PART : TILE_CATEGORY::FURNITURE ) :
+                    q.layer == NCMM_GFX_ITEM ? TILE_CATEGORY::ITEM : TILE_CATEGORY::MONSTER;
                 found = textures.emplace( key, tilecontext->get_texture_draw_data( id, category, positions[q.cell_index] ) ).first;
-                if( found->second ) ++graphics_resolved_textures;
+                if( found->second ) {
+                    ++graphics_resolved_textures;
+                    if( q.layer == NCMM_GFX_FURNITURE && ( cell.flags & NCMM_GFX_VEHICLE ) )
+                        ++graphics_resolved_vehicle_textures;
+                }
             }
             if( found->second ) {
                 const auto &data = *found->second;
@@ -214,7 +249,8 @@ bool graphics_draw( int x, int y, int width, int height )
                 const float du = data.uv1.first - data.uv0.first, dv = data.uv1.second - data.uv0.second;
                 u0 = data.uv0.first + q.u0 * du; u1 = data.uv0.first + q.u1 * du;
                 v0 = data.uv0.second + q.v0 * dv; v1 = data.uv0.second + q.v1 * dv;
-            } else if( q.layer != NCMM_GFX_TERRAIN ) continue;
+            } else if( q.layer != NCMM_GFX_TERRAIN &&
+                       !( q.layer == NCMM_GFX_FURNITURE && ( cells[q.cell_index].flags & NCMM_GFX_VEHICLE ) ) ) continue;
         }
         if( texture != batch_texture || vertices.size() >= 16000 ) {
             if( !flush() ) { ok = false; break; }

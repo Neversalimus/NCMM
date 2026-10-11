@@ -12,12 +12,15 @@ extern "C" {
 #define NCMM_GRAPHICS_ABI 1u
 #define NCMM_GRAPHICS_MAX_QUADS 50000u
 #define NCMM_GRAPHICS_RADIUS 16
-enum { NCMM_GFX_VISIBLE = 1u, NCMM_GFX_WALL = 2u, NCMM_GFX_NO_FLOOR = 4u };
+enum { NCMM_GFX_VISIBLE = 1u, NCMM_GFX_WALL = 2u, NCMM_GFX_NO_FLOOR = 4u,
+       NCMM_GFX_VEHICLE = 8u, NCMM_GFX_CEILING = 16u };
 enum { NCMM_GFX_SOLID, NCMM_GFX_TERRAIN, NCMM_GFX_FURNITURE, NCMM_GFX_ITEM, NCMM_GFX_CREATURE };
 enum { NCMM_GFX_TURN_LEFT = 1, NCMM_GFX_TURN_RIGHT = 2 };
 typedef struct ncmm_graphics_cell_v1 {
     uint32_t flags;
     float light;
+    /* VEHICLE cells use the furniture slot for the visible vp_ tileset ID.
+     * This flag extends the snapshot without changing its ABI layout. */
     char terrain[128], furniture[128], item[128], creature[128];
 } ncmm_graphics_cell_v1;
 typedef struct ncmm_graphics_scene_v1 {

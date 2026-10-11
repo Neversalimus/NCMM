@@ -33,9 +33,26 @@ bool graphics_scene_smoke()
         const auto start_pos = you.pos_bub();
         const int start_moves = you.get_moves();
         const time_point start_time = calendar::turn;
+        input_context gameplay( "DEFAULTMODE", keyboard_mode::keycode );
+        ncmm::register_gameplay_actions( gameplay );
+        for( const input_event_t type : { input_event_t::keyboard_code, input_event_t::keyboard_char } ) {
+            require( gameplay.input_to_action( input_event( inp_mngr.get_keycode( type, "F6" ), type ) ) ==
+                     "ncmm.open.first_person_view", "f6_default_binding_missing" );
+        }
+        auto press_f6 = [&]() {
+            SDL_Event event = {};
+            event.type = SDL_EVENT_KEY_DOWN;
+            event.key.windowID = SDL_GetWindowID( get_sdl_window() );
+            event.key.key = SDLK_F6;
+            event.key.scancode = SDL_SCANCODE_F6;
+            require( SDL_PushEvent( &event ), "f6_sdl_event_not_queued" );
+            const std::string action = gameplay.handle_input( 2000 );
+            require( action == "ncmm.open.first_person_view", "f6_sdl_dispatch_failed" );
+            require( ncmm::handle_gameplay_action( action ), "f6_gameplay_action_missing" );
+        };
         ncmm::graphics_note_input_context( "DEFAULTMODE" );
         require( !graphics_view.enabled, "view_not_initially_disabled" );
-        require( ncmm::handle_gameplay_action( "ncmm.open.first_person_view" ), "toggle_action_missing" );
+        press_f6();
         require( graphics_view.enabled, "view_did_not_enable" );
         auto draw = [&]() {
             std::multimap<point, formatted_text> overlays;
@@ -80,8 +97,41 @@ bool graphics_scene_smoke()
         draw();
         require( you.get_memorized_tile( here.get_abs( door ) ).get_ter_id() == "t_door_o",
                  "open_door_memory_not_updated" );
-        require( ncmm::handle_gameplay_action( "ncmm.open.first_person_view" ), "toggle_off_action_missing" );
+        // Build a street with a real car, like the player's CatLauncher screenshot.
+        for( int y = -16; y <= 16; ++y ) for( int x = -16; x <= 16; ++x ) {
+            const tripoint_bub_ms p( center.x() + x, center.y() + y, 0 );
+            here.furn_set( p, furn_id( "f_null" ) );
+            here.ter_set( p, ter_id( "t_pavement" ) );
+        }
+        vehicle *car = here.add_vehicle( vproto_id( "car" ),
+            tripoint_bub_ms( center.x(), center.y() - 6, 0 ), 0_degrees, 0, veh_spawn_status::UNDAMAGED, false );
+        require( car != nullptr, "street_vehicle_not_created" );
+        here.invalidate_map_cache( 0 );
+        here.build_map_cache( 0 );
+        // A shifted normal-map camera must not silently cancel first person.
+        g->ter_view_p = tripoint_bub_ms( center.x() + 2, center.y(), 0 );
+        draw();
+        require( graphics_resolved_vehicle_textures > 0, "visible_vehicle_material_missing" );
+        press_f6();
         require( !graphics_view.enabled && !graphics_draw( 0, 0, 640, 480 ), "tiles_fallback_missing" );
+        press_f6();
+        require( graphics_view.enabled, "f6_near_vehicle_did_not_enable" );
+        draw();
+        require( graphics_resolved_vehicle_textures > 0, "vehicle_disappeared_after_toggle" );
+        here.destroy_vehicle( car );
+        g->ter_view_p = center;
+        for( int y = -4; y <= 4; ++y ) for( int x = -4; x <= 4; ++x ) {
+            here.ter_set( tripoint_bub_ms( center.x() + x, center.y() + y, 0 ), ter_id( "t_floor" ) );
+            here.ter_set( tripoint_bub_ms( center.x() + x, center.y() + y, 1 ), ter_id( "t_floor" ) );
+        }
+        here.invalidate_map_cache( 0 );
+        here.build_map_cache( 0 );
+        draw();
+        require( graphics_ceiling_cells > 0, "real_indoor_ceiling_missing" );
+        press_f6();
+        require( !graphics_view.enabled, "f6_final_toggle_off_failed" );
+        require( you.pos_bub() == start_pos && you.get_moves() == start_moves && calendar::turn == start_time,
+                 "vehicle_camera_tests_changed_gameplay_state" );
     } catch( const std::exception &err ) {
         reason = err.what();
         graphics_view.enabled = false;

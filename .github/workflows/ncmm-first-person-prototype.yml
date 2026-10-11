@@ -208,7 +208,7 @@ jobs:
               if(!(Test-Path (Join-Path $root 'ncmm/boot.ready')) -or (Test-Path (Join-Path $root 'ncmm/boot.pending'))){throw 'Bootstrap lifecycle markers inconsistent.'}
             }
           }
-      - name: Actual game world, avatar, SDL atlas frames, camera and menu suspension
+      - name: Actual SDL F6, vehicles, ceilings, avatar, camera and menu suspension
         timeout-minutes: 30
         shell: powershell
         run: |
@@ -220,7 +220,7 @@ jobs:
             $p.Refresh()
             if($p.ExitCode -ne 0){throw "Gameplay smoke failed: $($p.ExitCode)"}
             $result=Get-Content (Join-Path $root 'ncmm/first-person-smoke.json') -Raw | ConvertFrom-Json
-            if($result.success -ne $true -or $result.sdl_frames -lt 51){throw 'First person SDL smoke is incomplete.'}
+            if($result.success -ne $true -or $result.sdl_frames -lt 54){throw 'First person SDL smoke is incomplete.'}
             Copy-Item (Join-Path $root 'ncmm/first-person-smoke.json') ("installer-result/first-person-smoke-"+$variant.name+'.json')
             Copy-Item (Join-Path $root 'ncmm/first-person-room.bmp') ("installer-result/first-person-room-"+$variant.name+'.bmp')
           }
@@ -243,7 +243,7 @@ jobs:
         with:
           name: first-person-installer-${{ matrix.build }}-Windows-x64
           path: |
-            installer-result/NCMM_FirstPersonView_0.1.2_TEST_${{ matrix.build }}_Windows_x64.zip
+            installer-result/NCMM_FirstPersonView_0.2.0_TEST_${{ matrix.build }}_Windows_x64.zip
             installer-result/first-person-smoke*.json
             installer-result/first-person-room*.bmp
           if-no-files-found: error

@@ -53,8 +53,11 @@ inline bool build_frame(const ncmm_graphics_scene_v1 &s, double yaw,
        s.camera_x<0 || s.camera_y<0 || s.camera_x>=s.grid_width || s.camera_y>=s.grid_height) return false;
     for(size_t i=0;i<s.cell_count;++i) if(!std::isfinite(s.cells[i].light) || s.cells[i].light<0 || s.cells[i].light>1) return false;
     const auto *origin = cell_at(s,static_cast<int>(s.camera_x),static_cast<int>(s.camera_y));
-    if(!origin || !(origin->flags & NCMM_GFX_VISIBLE) || (origin->flags & (NCMM_GFX_WALL|NCMM_GFX_NO_FLOOR))) return false;
-    constexpr int columns = 240, rows = 144;
+    // Darkness may hide the avatar's own tile. Keep the camera enabled without
+    // exposing that tile's identity; unknown cells still stop rays below.
+    if(!origin || (origin->flags & (NCMM_GFX_WALL|NCMM_GFX_NO_FLOOR))) return false;
+    const int columns = std::clamp(s.pixel_width/5,240,320);
+    constexpr int rows = 192;
     const double width = s.pixel_width, height = s.pixel_height;
     const double scale_x = width/columns, scale_y = height/rows;
     const double dir_x = std::cos(yaw), dir_y = std::sin(yaw);
@@ -72,6 +75,14 @@ inline bool build_frame(const ncmm_graphics_scene_v1 &s, double yaw,
     };
     // Unseen space stays dark; no remembered terrain or hidden entities are exposed.
     add(0,0,width,height,0,0,1,1,0x0b1018ff,-1,NCMM_GFX_SOLID);
+    // A restrained sky gradient. It conveys depth without revealing hidden map
+    // content; indoor ceilings are projected over it from visible cells only.
+    for(int band=0;band<8;++band) {
+        const double light=std::clamp(static_cast<double>(origin->light),0.0,1.0);
+        const uint32_t v=static_cast<uint32_t>((10+band*2)*(0.5+light*0.5));
+        add(0,horizon*band/8,width,horizon*(band+1)/8,0,0,1,1,
+            (v<<24)|((v+3)<<16)|((v+8)<<8)|255u,-1,NCMM_GFX_SOLID);
+    }
     std::vector<hit> rays(columns);
     for(int column=0;column<columns;++column) {
         const double offset = 2.0*(column+0.5)/columns-1.0;
@@ -86,8 +97,17 @@ inline bool build_frame(const ncmm_graphics_scene_v1 &s, double yaw,
             const auto *c = cell_at(s,ix,iy);
             if(!c || !(c->flags & NCMM_GFX_VISIBLE) || (c->flags & (NCMM_GFX_WALL|NCMM_GFX_NO_FLOOR))) continue;
             const double u=fx-ix, v=fy-iy;
+            // Match UV span to this sample's projected footprint rather than
+            // stretching the same fixed 3% patch at every distance/aspect ratio.
+            const double next_distance=0.5*projection/((row+3)*scale_y-horizon);
+            const double du=std::max(0.001,std::abs(distance*plane_x*2/columns)+std::abs((distance-next_distance)*rx));
+            const double dv=std::max(0.001,std::abs(distance*plane_y*2/columns)+std::abs((distance-next_distance)*ry));
             add(column*scale_x,row*scale_y,(column+1)*scale_x,std::min(height,(row+2)*scale_y),
-                u,v,std::min(1.0,u+0.03),std::min(1.0,v+0.03),shade(c->light,distance),iy*s.grid_width+ix,NCMM_GFX_TERRAIN);
+                u,v,std::min(1.0,u+du),std::min(1.0,v+dv),shade(c->light,distance),iy*s.grid_width+ix,NCMM_GFX_TERRAIN);
+            if(c->flags & NCMM_GFX_CEILING) {
+                add(column*scale_x,std::max(0.0,height-(row+2)*scale_y),(column+1)*scale_x,height-row*scale_y,
+                    0,0,1,1,shade(c->light*0.38,distance),-1,NCMM_GFX_SOLID);
+            }
         }
     }
     // Walls are one cube high. Closed doors use the terrain's current sprite.
@@ -98,10 +118,14 @@ inline bool build_frame(const ncmm_graphics_scene_v1 &s, double yaw,
         const auto *c=r.cell >= 0 ? &s.cells[r.cell] : nullptr;
         const bool known=c && (c->flags & NCMM_GFX_VISIBLE);
         const double y0=std::max(0.0,top),y1=std::min(height,bottom);
+        // Top-down wall and vehicle sprites often contain transparency. A solid
+        // face underneath prevents seeing the background through closed walls.
+        if(known) add(column*scale_x,y0,(column+1)*scale_x,y1,0,0,1,1,
+            shade(c->light*0.3,r.distance,r.side ? 0.78 : 1.0),-1,NCMM_GFX_SOLID);
         add(column*scale_x,y0,(column+1)*scale_x,y1,r.u,(y0-top)/wall_height,
             std::min(1.0,r.u+0.01),(y1-top)/wall_height,
             known ? shade(c->light,r.distance,r.side ? 0.78 : 1.0) : 0x080b10ff,
-            known ? r.cell : -1,known ? NCMM_GFX_TERRAIN : NCMM_GFX_SOLID);
+            known ? r.cell : -1,known ? (c->flags & NCMM_GFX_VEHICLE ? NCMM_GFX_FURNITURE : NCMM_GFX_TERRAIN) : NCMM_GFX_SOLID);
     }
     struct sprite {int index;uint32_t layer;double depth,side,height;};
     std::vector<sprite> sprites;
@@ -111,7 +135,8 @@ inline bool build_frame(const ncmm_graphics_scene_v1 &s, double yaw,
         const double dx=x+0.5-s.camera_x,dy=y+0.5-s.camera_y;
         const double depth=dx*dir_x+dy*dir_y,side=dx*(-dir_y)+dy*dir_x;
         if(depth <= 0.15) continue;
-        if(c.furniture[0]) sprites.push_back({y*s.grid_width+x,NCMM_GFX_FURNITURE,depth,side,0.65});
+        if(c.furniture[0]) sprites.push_back({y*s.grid_width+x,NCMM_GFX_FURNITURE,depth,side,
+            c.flags & NCMM_GFX_VEHICLE ? 0.85 : 0.65});
         if(c.item[0]) sprites.push_back({y*s.grid_width+x,NCMM_GFX_ITEM,depth,side,0.25});
         if(c.creature[0]) sprites.push_back({y*s.grid_width+x,NCMM_GFX_CREATURE,depth,side,0.95});
     }
@@ -131,6 +156,14 @@ inline bool build_frame(const ncmm_graphics_scene_v1 &s, double yaw,
             add(x0,y0,x1,y1,(x0-left)/sw,(y0-top)/sh,(x1-left)/sw,(y1-top)/sh,
                 shade(s.cells[sprite.index].light,sprite.depth),sprite.index,sprite.layer);
         }
+    }
+    // A small center marker makes camera orientation clear. Aiming still uses
+    // CDDA's targeting interface and game rules.
+    if(width>=320 && height>=240) {
+        add(width/2-5,horizon-1,width/2+5,horizon+1,0,0,1,1,0x000000c0,-1,NCMM_GFX_SOLID);
+        add(width/2-1,horizon-5,width/2+1,horizon+5,0,0,1,1,0x000000c0,-1,NCMM_GFX_SOLID);
+        add(width/2-4,horizon-0.5,width/2+4,horizon+0.5,0,0,1,1,0xffffff90,-1,NCMM_GFX_SOLID);
+        add(width/2-0.5,horizon-4,width/2+0.5,horizon+4,0,0,1,1,0xffffff90,-1,NCMM_GFX_SOLID);
     }
     // Cap all output, including stacked sprite columns, before the Host sees it.
     if(overflow) {out.clear();return false;}

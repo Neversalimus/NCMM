@@ -71,6 +71,40 @@ int main(int argc,char **argv) {
         check(!first_person::build_frame(s,std::numeric_limits<double>::quiet_NaN(),quads),"NaN yaw");
         bad=s;bad.pixel_width=100000;check(!first_person::build_frame(bad,0,quads),"oversize viewport");
         cells=room();s=scene(cells);
+        auto &vehicle=cells[4*9+4];
+        vehicle.flags|=NCMM_GFX_VEHICLE|NCMM_GFX_WALL;
+        std::strcpy(vehicle.furniture,"vp_door");
+        std::strcpy(cells[3*9+4].creature,"mon_zombie");
+        check(first_person::build_frame(s,-first_person::pi/2,quads),"vehicle no longer cancels frame");
+        bool car_drawn=false,hidden=false;
+        for(const auto &q:quads) {
+            car_drawn|=q.cell_index==4*9+4 && q.layer==NCMM_GFX_FURNITURE;
+            hidden|=q.cell_index==3*9+4 && q.layer==NCMM_GFX_CREATURE;
+            check(ncmm_graphics_policy::valid_quad(q,s),"vehicle geometry bounds");
+        }
+        check(car_drawn && !hidden,"closed vehicle face uses part material and occludes creature");
+        vehicle.flags&=~NCMM_GFX_WALL;
+        check(first_person::build_frame(s,-first_person::pi/2,quads),"open vehicle door renders");
+        hidden=false;for(const auto &q:quads) hidden|=q.cell_index==3*9+4 && q.layer==NCMM_GFX_CREATURE;
+        check(hidden,"opening vehicle door restores visibility");
+        cells[4*9+4].flags=0;
+        check(first_person::build_frame(s,-first_person::pi/2,quads),"hidden vehicle scene renders");
+        for(const auto &q:quads) check(q.cell_index!=4*9+4,"hidden vehicle identity is not emitted");
+        cells=room();s=scene(cells);
+        cells[7*9+4].flags=0;cells[7*9+4].light=0;
+        check(first_person::build_frame(s,-first_person::pi/2,quads),"dark camera tile does not disable view");
+        for(const auto &q:quads) check(q.cell_index!=7*9+4,"dark camera tile identity stays hidden");
+        cells=room();s=scene(cells);
+        first_person::build_frame(s,-first_person::pi/2,quads);
+        size_t outside_solid=0;for(const auto &q:quads) outside_solid+=q.layer==NCMM_GFX_SOLID;
+        for(auto &cell:cells) cell.flags|=NCMM_GFX_CEILING;
+        check(first_person::build_frame(s,-first_person::pi/2,quads),"indoor ceiling frame");
+        size_t inside_solid=0;for(const auto &q:quads) {
+            inside_solid+=q.layer==NCMM_GFX_SOLID;
+            check(ncmm_graphics_policy::valid_quad(q,s),"ceiling geometry bounds");
+        }
+        check(inside_solid>outside_solid,"ceiling only covers flagged visible floor cells");
+        cells=room();s=scene(cells);
         const auto begin=std::chrono::steady_clock::now();
         for(int angle=0;angle<72;++angle) {
             check(first_person::build_frame(s,angle*first_person::pi/36,quads),"all directions");

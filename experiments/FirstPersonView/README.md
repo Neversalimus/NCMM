@@ -1,4 +1,4 @@
-# First Person View — 0.1.0 development prototype
+# First Person View — 0.2.0 development prototype
 
 Optional first-person renderer for the **same live CDDA world** through NCMM.
 This is an experimental player test build. The renderer lives outside `mods/`;
@@ -29,6 +29,16 @@ retain ordinary paths. The regression gate runs with machine-wide
 `LongPathsEnabled=0` and includes existing files longer than 260 characters.
 The preview checks the official executable, all payload files and the Host with
 SHA256 before installation. It rejects other executables without changing them.
+Revision **0.2.0** removes the scene-wide vehicle rejection that made F6 appear
+ineffective near parked cars. Visible vehicle parts now render as simple wall
+faces or billboards using the current tileset; closed obstacles occlude rays
+while open/broken parts remain passable. A saved map camera offset no longer
+blocks the avatar camera. F6 reports its state in the message log. Ground
+sampling is denser and uses distance-dependent UV spans; opaque wall backing
+prevents transparent sprites exposing the sky. Visible indoor tiles project
+ceilings, and a small center marker helps camera orientation. Darkness at the
+camera tile keeps first person active without exposing hidden tile identities.
+
 F6 toggles the view; F7/F8 rotate. Other bundled NCMM modules remain optional.
 
 Uncheck First Person View and install again to remove its managed DLL/manifest.
@@ -57,7 +67,7 @@ and the error identifies the checked path and hash or a conflicting `VERSION.txt
 - Original CDDA movement/turns/combat. Movement keys retain their normal world
   directions; camera rotation does not rotate movement controls or spend a turn.
 - A 70-degree horizontal field of view, a bounded 33×33 read-only snapshot, a
-  240-column internal render grid and a hard 50,000-command budget.
+  240–320-column internal render grid and a hard 50,000-command budget.
 - The Host only supplies cells with `visibility_type::CLEAR`. Unknown cells stop
   rays and expose no terrain/entity identities. Monsters also require avatar LOS.
 - Camera state is volatile. New/load-character events reset to tiles. Menu,
@@ -73,10 +83,11 @@ and the error identifies the checked path and hash or a conflicting `VERSION.txt
 ## Current boundary
 
 The camera is at tile centers, with one visible z-level and simple wall geometry.
-Ceilings, windows/transparency, NPC appearance, vehicles, terrain heights, fields,
-traps, animation interpolation and mouse look are subsequent work. A visible
-vehicle, displaced look cursor, unsupported avatar cell or invalid renderer output
-uses the normal terrain view. UDP art is reused as-is; surface-specific materials,
+Vehicles use coarse single-tile faces/billboards and indoor ceilings are simple
+shaded surfaces. Windows/transparency, NPC appearance, terrain heights, fields,
+traps, animation interpolation and mouse look are subsequent work. Menus,
+targeting, unsupported avatar cells and invalid renderer output use the normal
+terrain view. UDP art is reused as-is; surface-specific materials,
 sprite proportions and lighting need visual refinement in the real game.
 
 A software QA image made from the renderer's command stream is a **test fixture**,
@@ -150,13 +161,18 @@ Next milestones:
 1. Test the preview interactively in a separate game copy:
    F6 round trip, rotation without turns, opening a door, walking/bumping combat,
    targeting/inventory, save/reload and switching characters.
-2. Improve floor UV sampling, wall/door materials, ceiling and billboard aspect
+2. Improve floor UV sampling, wall/door materials, ceiling textures and billboard aspect
    ratios; record real frame timings and compare with vanilla.
 3. Add camera-relative controls as an explicit mode, mouse look, NPCs and fields;
-   extend geometry for vehicles and z-levels with the same visibility rules.
+   extend vehicle shape/rotation and z-level geometry with the same visibility rules.
 4. Promote the optional module to the normal release catalog after exact Host
    certification and the remaining interactive gameplay checks pass.
 
 No external tileset is bundled here. Existing CDDA/UDP assets retain their original
 licenses and attribution; see the repository's `THIRD_PARTY_NOTICES.txt` and the
 source tileset's provenance when distributing a future test package.
+
+0.2.0 regression gates include both F6 input-event encodings and actual injected
+SDL F6 key events in a live game. The real-world fixture verifies rendering and
+toggling beside a visible car, a shifted map camera, vehicle atlas textures and
+indoor ceiling detection, while position, moves and time remain unchanged.
