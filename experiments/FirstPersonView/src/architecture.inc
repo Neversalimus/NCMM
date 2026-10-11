@@ -63,7 +63,12 @@
                     material leaf=resin;leaf.color=leaf.color*(.82f+.18f*std::sin(n*pi/12));
                     quad(p(q,.83f,0),p(r,.83f,0),tip,tip,leaf,rotate({0,-1,0},{},a));}
                 material seam{nullptr,{.52f,.48f,.40f},1,false,false,false,i,surface::resin};
-                const vec edge=p(t+pi/3,.82f,0);quad(tip,edge,edge+vec{0,0,.016f},tip+vec{0,0,.016f},seam);}
+                vec normal=rotate({0,-1,0},{},a);if(dot(eye-center,normal)<0)normal=normal*-1;
+                const vec edge=p(t+pi/3,.82f,0);
+                // Offset across the stroke, not along world Z: a vertical seam
+                // would otherwise collapse into a zero-area quad.
+                const vec side=normalize(cross(edge-tip,normal))*.008f,front=normal*.004f;
+                quad(tip-side+front,edge-side+front,edge+side+front,tip+side+front,seam,normal);}
             return true;
         }
         return false;
