@@ -1,7 +1,7 @@
 name: First Person View - experimental prototype
 on:
   pull_request:
-    paths: ['experiments/FirstPersonView/**', 'experiments/graphics_bridge/**', 'runtime/NCMMSetupCore.cs', 'runtime/NCMMBootstrap.cs', '.github/workflows/ncmm-first-person-prototype.yml']
+    paths: ['experiments/FirstPersonView/**', 'experiments/graphics_bridge/**', 'runtime/NCMMSetupCore.cs', 'runtime/NCMMBootstrap.cs', 'runtime/NCMMRuntimeIO.cs', 'runtime/NCMMSetupDiagnostics.cs', 'runtime/NCMMSetup.cs', '.github/workflows/ncmm-first-person-prototype.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -175,10 +175,22 @@ jobs:
             Write-Host "Verified $name; executable SHA256: $((Get-FileHash $exes[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant())"
             "$($variant.output)=$($exes[0].Directory.FullName)" >> $env:GITHUB_OUTPUT
           }
-      - name: Build preview installer and verify real EXE / transaction / removal
+      - name: Build preview installer and verify transactions with Windows long paths disabled
         shell: powershell
         run: |
-          ./ncmmrepo/experiments/FirstPersonView/Build-FirstPersonInstaller.ps1 -RepositoryRoot (Join-Path $PWD 'ncmmrepo') -HostRoot (Join-Path $PWD 'upstream') -GameRoot '${{ steps.game.outputs.root }}' -AdditionalGameRoots '${{ steps.game.outputs.sound_root }}' -OutputRoot (Join-Path $PWD 'installer-result')
+          $ErrorActionPreference='Stop'
+          $policy='HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem'
+          $previousPolicy=(Get-ItemProperty $policy -Name LongPathsEnabled -ErrorAction SilentlyContinue).LongPathsEnabled
+          New-ItemProperty $policy -Name LongPathsEnabled -Value 0 -PropertyType DWord -Force | Out-Null
+          try {
+            $env:NCMM_FP_LONG_PATH_POLICY_TEST='1'
+            ./ncmmrepo/experiments/FirstPersonView/Build-FirstPersonInstaller.ps1 -RepositoryRoot (Join-Path $PWD 'ncmmrepo') -HostRoot (Join-Path $PWD 'upstream') -GameRoot '${{ steps.game.outputs.root }}' -AdditionalGameRoots '${{ steps.game.outputs.sound_root }}' -OutputRoot (Join-Path $PWD 'installer-result')
+            ./ncmmrepo/ci/Test-AuditIO.ps1 -RepositoryRoot (Join-Path $PWD 'ncmmrepo')
+          } finally {
+            Remove-Item Env:NCMM_FP_LONG_PATH_POLICY_TEST -ErrorAction SilentlyContinue
+            if($null -eq $previousPolicy){Remove-ItemProperty $policy -Name LongPathsEnabled -ErrorAction SilentlyContinue}
+            else {Set-ItemProperty $policy -Name LongPathsEnabled -Value $previousPolicy}
+          }
       - name: Launch both official package installations twice through the actual preview bootstrap
         timeout-minutes: 15
         shell: powershell
@@ -231,7 +243,7 @@ jobs:
         with:
           name: first-person-installer-${{ matrix.build }}-Windows-x64
           path: |
-            installer-result/NCMM_FirstPersonView_0.1.1_TEST_${{ matrix.build }}_Windows_x64.zip
+            installer-result/NCMM_FirstPersonView_0.1.2_TEST_${{ matrix.build }}_Windows_x64.zip
             installer-result/first-person-smoke*.json
             installer-result/first-person-room*.bmp
           if-no-files-found: error

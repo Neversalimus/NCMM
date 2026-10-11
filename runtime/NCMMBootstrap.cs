@@ -1,4 +1,6 @@
 using System;
+using File = NcmmFile;
+using Directory = NcmmDirectory;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;

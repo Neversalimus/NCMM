@@ -20,6 +20,13 @@ graphics-only executable identity. Existing normal NCMM and legacy CML launchers
 are recognized by case-insensitive SHA256 receipts, and their original game
 backup is checked before upgrading. Select the game folder containing
 `cataclysm-tiles.exe` and `VERSION.txt`.
+
+Installer revision **0.1.2** also supports long CatLauncher paths and Cyrillic
+folder names while snapshotting existing nested Host backup history, installing,
+rolling back and restoring vanilla. The shared filesystem layer uses extended
+Win32 paths at I/O boundaries; journals, path comparisons and process arguments
+retain ordinary paths. The regression gate runs with machine-wide
+`LongPathsEnabled=0` and includes existing files longer than 260 characters.
 The preview checks the official executable, all payload files and the Host with
 SHA256 before installation. It rejects other executables without changing them.
 F6 toggles the view; F7/F8 rotate. Other bundled NCMM modules remain optional.
