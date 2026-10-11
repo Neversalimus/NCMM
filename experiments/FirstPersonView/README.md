@@ -112,6 +112,8 @@ head, with both hands attached to the same grip points. Wrists, palms, fingers
 and weapon share one pose transform. Actual committed melee attacks start a
 swing, polearm attacks a thrust, and actual shots trigger recoil. A 480 ms eased
 timeline recovers to the exact idle pose, including an unarmed attack pose.
+Presentation starts on the first rendered frame so a long simulation turn cannot
+consume an unseen clip. Disabling/unloading the view cancels queued animation.
 Rotated silhouettes fit a lower-right view-model region
 that leaves the reticle clear; low-opacity sprite halos are excluded. An independent view-model depth buffer handles overlaps
 and nearby walls. It clears when the item is unwielded and preserves world occlusion depth. Hands and the item receive

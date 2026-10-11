@@ -2,12 +2,18 @@
 float graphics_camera_yaw = -ncmm_graphics_camera::pi * .5f;
 float graphics_camera_pitch = 0;
 bool graphics_control_context = false, graphics_mouse_drag = false, graphics_mouse_dirty = false;
+bool graphics_attack_pending = false;
 bool graphics_cursor_was_visible = true;
 float graphics_mouse_dx = 0, graphics_mouse_dy = 0;
 uint64_t graphics_attack_serial = 0, graphics_last_redraw = 0;
 uint32_t graphics_attack_kind = 0;
 double graphics_attack_started = 0;
 struct { int x=0,y=0,w=0,h=0; } graphics_viewport;
+
+void graphics_cancel_animation()
+{
+    graphics_attack_pending = false; graphics_attack_started = -1;
+}
 
 void graphics_release_mouse()
 {
@@ -33,8 +39,17 @@ int graphics_get_controls( ncmm_graphics_control_state_v1 *out )
 {
     if( active_module_id != graphics_view.owner || graphics_view.owner.empty() || !out ||
         out->struct_size < sizeof( *out ) ) return 0;
+    double attack_start = graphics_attack_started;
+#if defined(TILES)
+    // Simulation can take longer than a clip. Start presentation on the first
+    // renderer sample. A successful SDL submission commits the presentation
+    // clock, so neither a slow turn nor a slow initial raster consumes the clip.
+    if( graphics_attack_pending && graphics_render_active && graphics_view.enabled ) {
+        attack_start = SDL_GetTicks() / 1000.0;
+    }
+#endif
     *out = { sizeof( *out ), graphics_attack_kind, NCMM_GRIP_SINGLE, graphics_mouse_drag ? 1u : 0u,
-        graphics_attack_serial, graphics_attack_started, graphics_mouse_dx, graphics_mouse_dy, .6f };
+        graphics_attack_serial, attack_start, graphics_mouse_dx, graphics_mouse_dy, .6f };
 #if defined(TILES)
     if( character_state_available() ) if( const auto held = get_avatar().get_wielded_item() ) {
         out->held_length = std::clamp( float( units::to_millimeter( held->length() ) ) / 1000, .15f, 2.7f );
@@ -92,6 +107,7 @@ void graphics_notify_attack( uint32_t kind )
     if( !graphics_view.enabled ) return;
     ++graphics_attack_serial; graphics_attack_kind = kind;
     graphics_attack_started = SDL_GetTicks() / 1000.0;
+    graphics_attack_pending = true;
     graphics_mouse_dirty = true;
     if( g ) g->invalidate_main_ui_adaptor();
 #else

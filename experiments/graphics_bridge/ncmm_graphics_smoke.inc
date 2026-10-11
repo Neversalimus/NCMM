@@ -246,6 +246,12 @@ bool graphics_scene_smoke()
         require( graphics_attack_serial > serial && graphics_attack_kind == 1 && you.get_moves() < attack_moves,
                  "real_melee_attack_did_not_start_animation" );
         require( calendar::turn == start_time && you.pos_bub() == start_pos, "attack_animation_changed_time_or_position" );
+        // Simulate a slow world turn without sleeping or spending game time.
+        graphics_attack_started = SDL_GetTicks() / 1000.0 - 2;
+        const double presented_after = SDL_GetTicks() / 1000.0;
+        draw();
+        require( !graphics_attack_pending && graphics_attack_started >= presented_after,
+                 "slow_turn_consumed_unseen_attack_animation" );
         graphics_attack_started = SDL_GetTicks() / 1000.0 - .12;
         draw(); capture_frame( "first-person-attack.bmp" );
         graphics_attack_started = SDL_GetTicks() / 1000.0 - .6;

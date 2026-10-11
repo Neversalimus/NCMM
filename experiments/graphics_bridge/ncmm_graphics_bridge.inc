@@ -20,10 +20,11 @@ size_t graphics_ceiling_cells = 0;
 loaded_mod *find_loaded_by_id( const char *module_id );
 void graphics_clear_hybrid();
 void graphics_release_mouse();
+void graphics_cancel_animation();
 
 void graphics_erase( const std::string &id )
 {
-    if( graphics_view.owner == id ) { graphics_release_mouse(); graphics_view = {}; graphics_clear_hybrid(); }
+    if( graphics_view.owner == id ) { graphics_release_mouse(); graphics_cancel_animation(); graphics_view = {}; graphics_clear_hybrid(); }
 }
 
 int graphics_register( const char *id, ncmm_graphics_render_v1 render,
@@ -42,6 +43,7 @@ int graphics_enable( const char *id, int enabled )
         ( enabled && !character_state_available() ) || graphics_render_active ) return 0;
     const bool changed = graphics_view.enabled != ( enabled != 0 );
     graphics_view.enabled = enabled != 0;
+    if( changed || !graphics_view.enabled ) graphics_cancel_animation();
     if( !graphics_view.enabled ) graphics_release_mouse();
 #if defined(TILES)
     if( changed && character_state_available() ) {

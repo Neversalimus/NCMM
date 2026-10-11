@@ -408,6 +408,9 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     const SDL_FRect destination = { float( x ), float( y ), float( base.pixel_width ), float( base.pixel_height ) };
     ok = SDL_RenderTexture( renderer, frame, nullptr, &destination ) && ok;
     ok = SDL_SetRenderClipRect( renderer, clipped ? &prior_clip : nullptr ) && ok;
+    if( ok && graphics_attack_pending ) {
+        graphics_attack_started = SDL_GetTicks() / 1000.0; graphics_attack_pending = false;
+    }
     if( !ok ) { graphics_clear_stream(); graphics_view.enabled = false; graphics_release_mouse(); }
     return ok;
 }
