@@ -332,9 +332,20 @@ bool graphics_scene_smoke()
         require(graphics_hybrid_shape_counts[NCMM_SHAPE_BRIDGE]>0,"scrap_bridge_not_horizontal");capture_frame("first-person-scrap-bridge.bmp");
         here.furn_set(sample,furn_id("f_null"));draw();capture_frame("first-person-water.bmp");
         here.ter_set(sample,ter_id("t_floor"));here.i_clear(sample);
-        item spilled_water(itype_id("water"),calendar::turn);spilled_water.charges=4;here.add_item_or_charges(sample,spilled_water);draw();
+        item spilled_water(itype_id("water"),calendar::turn);spilled_water.charges=4;
+        item &placed_water=here.add_item_or_charges(sample,spilled_water);
+        require(!placed_water.is_null(),"spilled_water_fixture_not_placed");
+        // map::add_item processes the generated weather's temperature. Set
+        // this fixture's phase after insertion instead of assuming warm weather.
+        placed_water.set_item_temperature(units::from_celsius(20));
+        require(placed_water.made_of(phase_id::LIQUID),"spilled_water_fixture_not_liquid");draw();
         require(std::any_of(graphics_presentation_cells.begin(),graphics_presentation_cells.end(),[](const auto &v){return v.item_liquid==NCMM_LIQ_FRESH;}),"actual_spilled_water_item_not_a_puddle");
-        capture_frame("first-person-water-spill.bmp");here.i_clear(sample);
+        capture_frame("first-person-water-spill.bmp");
+        const auto warm_liquids=std::count_if(graphics_presentation_cells.begin(),graphics_presentation_cells.end(),[](const auto &v){return v.item_liquid!=NCMM_LIQ_NONE;});
+        placed_water.set_item_temperature(units::from_celsius(-20));
+        require(placed_water.made_of(phase_id::SOLID),"frozen_water_fixture_not_solid");draw();
+        require(std::count_if(graphics_presentation_cells.begin(),graphics_presentation_cells.end(),[](const auto &v){return v.item_liquid!=NCMM_LIQ_NONE;})==warm_liquids-1,"frozen_water_kept_puddle_model");
+        capture_frame("first-person-frozen-water.bmp");here.i_clear(sample);
         here.add_field(sample,field_type_str_id("fd_smoke").id(),3);draw();
         require(std::any_of(graphics_presentation_cells.begin(),graphics_presentation_cells.end(),[](const auto &v){return v.gas==NCMM_GAS_SMOKE&&v.field_intensity==3;}),"real_smoke_volume_missing");
         capture_frame("first-person-smoke-volume.bmp");
