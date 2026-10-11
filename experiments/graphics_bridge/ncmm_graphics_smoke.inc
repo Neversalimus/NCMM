@@ -331,7 +331,11 @@ bool graphics_scene_smoke()
         here.ter_set(sample,ter_id("t_water_dp"));here.furn_set(sample,furn_id("f_scrap_bridge"));draw();
         require(graphics_hybrid_shape_counts[NCMM_SHAPE_BRIDGE]>0,"scrap_bridge_not_horizontal");capture_frame("first-person-scrap-bridge.bmp");
         here.furn_set(sample,furn_id("f_null"));draw();capture_frame("first-person-water.bmp");
-        here.ter_set(sample,ter_id("t_floor"));here.add_field(sample,field_type_str_id("fd_smoke").id(),3);draw();
+        here.ter_set(sample,ter_id("t_floor"));here.i_clear(sample);
+        item spilled_water(itype_id("water"),calendar::turn);spilled_water.charges=4;here.add_item_or_charges(sample,spilled_water);draw();
+        require(std::any_of(graphics_presentation_cells.begin(),graphics_presentation_cells.end(),[](const auto &v){return v.item_liquid==NCMM_LIQ_FRESH;}),"actual_spilled_water_item_not_a_puddle");
+        capture_frame("first-person-water-spill.bmp");here.i_clear(sample);
+        here.add_field(sample,field_type_str_id("fd_smoke").id(),3);draw();
         require(std::any_of(graphics_presentation_cells.begin(),graphics_presentation_cells.end(),[](const auto &v){return v.gas==NCMM_GAS_SMOKE&&v.field_intensity==3;}),"real_smoke_volume_missing");
         capture_frame("first-person-smoke-volume.bmp");
         // Explicitly exercise the Host recovery path, independent of whether the

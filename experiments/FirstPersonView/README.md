@@ -67,7 +67,9 @@ and foliage billboards. Tables, storage, seats, rocks, signs and posts receive
 shape-specific geometry. Boulders use irregular faceted meshes, including opaque
 impassable boulders. Semantic flags take priority over identifier/looks-like
 fallbacks; the engine fixture audits all loaded terrain/furniture definitions.
-Spilled liquids remain shallow irregular patches; water surfaces have continuous
+Spilled field liquids and visible loose liquid items remain shallow irregular
+patches; bottles, frozen items and liquid-container furniture keep their normal
+representation. Water surfaces have continuous
 wave shading, and fire, smoke and gas have depth-clipped volume rendering.
 
 Visible vehicle mounts share actual yaw and one continuous anchor. Automatic

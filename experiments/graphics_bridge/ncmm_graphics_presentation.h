@@ -35,6 +35,7 @@ typedef struct ncmm_graphics_detail_v1 {
     float creature_height, creature_width, creature_elevation;
     float source_light, source_r, source_g, source_b;
     char ceiling[128];
+    uint32_t item_liquid;
 } ncmm_graphics_detail_v1;
 typedef struct ncmm_graphics_presentation_v1 {
     uint32_t struct_size, flags, sky_style, occupied_vehicle, gun_kind, gunmods;

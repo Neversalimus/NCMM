@@ -713,10 +713,14 @@ class renderer {
             if(d.field[0]&&d.field_shape==NCMM_SHAPE_FLAT&&!extra(i).gas){auto field=mat(i,NCMM_GFX_FIELD,{.48f,.18f,.12f},true);
                 if(extra(i).field_liquid){field.texture=nullptr;field.liquid=extra(i).field_liquid;field.color=liquid_color(field.liquid);field.finish=surface::water;field.spill=true;}
                 quad({float(x),float(y),.013f},{float(x+1),float(y),.013f},{float(x+1),float(y+1),.013f},{float(x),float(y+1),.013f},field);}
+            if(c.item[0]&&extra(i).item_liquid){
+                material puddle{nullptr,liquid_color(extra(i).item_liquid),1,false,false,false,i,surface::water};
+                puddle.liquid=extra(i).item_liquid;puddle.spill=true;
+                quad({float(x),float(y),.017f},{float(x+1),float(y),.017f},{float(x+1),float(y+1),.017f},{float(x),float(y+1),.017f},puddle);}
             continue;}
             architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
             if(d.vehicle_features)vehicle(i);else if(c.furniture[0])architecture(i,d.furniture_shape,NCMM_GFX_FURNITURE);
-            if(c.item[0]){auto m=mat(i,NCMM_GFX_ITEM,{.50f,.48f,.42f},true);billboard({x+.5f,y+.5f,.025f},.25f,.25f,m);}
+            if(c.item[0]&&!extra(i).item_liquid){auto m=mat(i,NCMM_GFX_ITEM,{.50f,.48f,.42f},true);billboard({x+.5f,y+.5f,.025f},.25f,.25f,m);}
             if(c.creature[0]){auto m=mat(i,NCMM_GFX_CREATURE,{.38f,.43f,.28f},true);m.creature=true;
                 float h=1.70f,w=.82f;
                 if(d.terrain_flags&NCMM_CREATURE_TINY){h=.25f;w=.35f;}
@@ -901,7 +905,7 @@ inline bool valid_presentation(const presentation_data &p,size_t count){
        !std::isfinite(v.held_length)||v.held_length<.05f||v.held_length>4||!std::isfinite(v.movement)||v.movement<0||v.movement>1)return false;
     for(int n=0;n<2;++n)if(!terminated(v.sleeve[n])||!terminated(v.glove[n])||v.sleeve_material[n]>NCMM_MAT_CLOTH||v.glove_material[n]>NCMM_MAT_CLOTH)return false;
     for(const auto &d:p.cells){
-        if(d.terrain_material>NCMM_MAT_CLOTH||d.furniture_material>NCMM_MAT_CLOTH||d.ceiling_material>NCMM_MAT_CLOTH||d.liquid>NCMM_LIQ_OTHER||d.field_liquid>NCMM_LIQ_OTHER||
+        if(d.terrain_material>NCMM_MAT_CLOTH||d.furniture_material>NCMM_MAT_CLOTH||d.ceiling_material>NCMM_MAT_CLOTH||d.liquid>NCMM_LIQ_OTHER||d.field_liquid>NCMM_LIQ_OTHER||d.item_liquid>NCMM_LIQ_OTHER||
            d.gas>NCMM_GAS_FIRE||d.field_intensity>3||d.vehicle_front<-1||d.vehicle_front>1||!std::isfinite(d.vehicle_controls_x)||std::abs(d.vehicle_controls_x)>1000||!terminated(d.ceiling))return false;
         for(float f:{d.creature_height,d.creature_width,d.creature_elevation,d.source_light,d.source_r,d.source_g,d.source_b})if(!std::isfinite(f)||f<0)return false;
         if(d.creature_height>7||d.creature_width>9||d.creature_elevation>5||d.source_light>500||d.source_r>1||d.source_g>1||d.source_b>1)return false;

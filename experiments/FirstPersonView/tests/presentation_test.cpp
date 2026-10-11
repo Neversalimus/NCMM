@@ -57,6 +57,11 @@ int main(int argc,char **argv){try{
     require(policy::sky("unknown_custom_dimension")==NCMM_SKY_EARTH,"unknown dimensions retain weather-driven fallback");
     fixture fluid;fluid.details[target].terrain_shape=NCMM_SHAPE_WATER;fluid.meta.cells[target].liquid=NCMM_LIQ_FRESH;fluid.draw(-.25f);const auto fresh=digest(fluid.f);
     fluid.meta.cells[target].liquid=NCMM_LIQ_BLOOD;fluid.draw(-.25f);require(digest(fluid.f)!=fresh,"otherworld fluid differs from fresh water");
+    fixture spill;std::strcpy(spill.cells[target].item,"water");spill.draw(-.35f);const auto solid_item=digest(spill.f);
+    spill.meta.cells[target].item_liquid=NCMM_LIQ_FRESH;spill.draw(-.35f);
+    require(digest(spill.f)!=solid_item,"a liquid item becomes a horizontal spill instead of a loose-item billboard");
+    spill.meta.cells[target].item_liquid=0;spill.draw(-.35f);
+    require(digest(spill.f)==solid_item,"a solid container or frozen item retains its ordinary silhouette");
     fixture gas;gas.meta.view.flags=NCMM_PRESENT_GPU_EFFECTS;gas.meta.cells[target].gas=NCMM_GAS_SMOKE;gas.meta.cells[target].field_intensity=3;
     gas.draw();require(!gas.f.effects.empty(),"gas produces a depth-clipped volumetric effect layer");const auto accelerated=gas.f;
     auto composed=accelerated.pixels;require(ncmm_graphics_composite::blend(composed,accelerated.width,accelerated.height,accelerated.effects,accelerated.effect_width,accelerated.effect_height),"CPU compositor accepts the GPU layer");

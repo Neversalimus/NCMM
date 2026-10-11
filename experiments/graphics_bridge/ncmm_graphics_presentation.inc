@@ -150,6 +150,14 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
             d.vehicle_controls=std::get<2>(found->second);d.vehicle_controls_x=std::get<3>(found->second);
         }
         d.terrain_material=material( base.cells[i].terrain ); d.furniture_material=material( base.cells[i].furniture );
+        // A spilled liquid can be an item stack, not a map field. Only expose
+        // the already-visible top item, and inspect its current phase so a
+        // bottle, hidden contents or frozen water cannot become a puddle.
+        if(base.cells[i].item[0]&&!here.has_flag(ter_furn_flag::TFLAG_LIQUIDCONT,pos)) {
+            const auto items=here.i_at(pos);
+            if(!items.empty()&&items.begin()->made_of(phase_id::LIQUID))
+                d.item_liquid=liquid(items.begin()->typeId().str(),true);
+        }
         if( details[i].terrain_shape==NCMM_SHAPE_WATER ) d.liquid=liquid( base.cells[i].terrain,true );
         if( pos.z()<OVERMAP_HEIGHT && details[i].terrain_flags&NCMM_SURFACE_TERRAIN_CEILING ) {
             const std::string id=here.ter( tripoint_bub_ms( pos.x(),pos.y(),pos.z()+1 ) ).id().str();
