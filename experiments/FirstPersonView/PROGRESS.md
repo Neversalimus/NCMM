@@ -21,7 +21,7 @@ scarlet_storm_effect_on_condition.json (scarlet sky). Unknown mod dimensions
 retain their actual weather tint instead of guessing from translated names.
 
 Implementation checkpoints 1–6 are committed. Pinned 1040/1807 Host syntax,
-377 presentation checks, 303 hybrid checks, the 496657-check legacy renderer
+404 presentation checks, 303 hybrid checks, the 496657-check legacy renderer
 suite, 34 module lifecycle checks and five atomic-transform cases pass locally.
 Release gates: real-SDL cases, Windows packaging and captured-image review.
 The qualification workflow and each archive's release-manifest.json identify
@@ -36,3 +36,6 @@ composition dropped from 219 to 39 ms on CPU and GPU-layer preparation from
 The optimization and resin-seam repair change only the module; all 26 pinned
 Host input hashes remain identical for each game build, allowing exact cached
 Hosts to be reused for the final installer qualification.
+
+Final accessory audit covers all nine supported attachment types, simultaneous
+light/laser mounts and canonical revolver IDs, including enchanted variants.

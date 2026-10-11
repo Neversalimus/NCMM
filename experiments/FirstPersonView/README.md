@@ -248,7 +248,7 @@ spills have small irregular footprints. Salt water, sewage, blood, acid, slime,
 lava, oil and other fluids have distinct responses.
 
 Firearms use forward-facing procedural models and attached optics, suppressors,
-foregrips, bipods, lights/lasers, bayonets and underbarrel weapons. These are model
+foregrips, bipods, stocks, simultaneous lights/lasers, bayonets and underbarrel weapons. These are model
 families, not individually authored replicas of every gun. Visible sleeves and
 gloves supply their tileset colors and materials per hand; supported external
 fur/scales/chitin/claws/webbing/arm armor and hand CBMs affect exposed surfaces.

@@ -1,5 +1,14 @@
         if(pose.grip==NCMM_GRIP_GUN && (!metadata||metadata->view.gun_kind!=NCMM_GUN_BOW)){
-            const uint32_t kind=metadata?metadata->view.gun_kind:uint32_t(NCMM_GUN_RIFLE),mods=metadata?metadata->view.gunmods:0;
+            uint32_t kind=metadata?metadata->view.gun_kind:uint32_t(NCMM_GUN_RIFLE);
+            const uint32_t mods=metadata?metadata->view.gunmods:0;
+            // Physical profiles from the supported games' data/json/items/gun.
+            // Canonical IDs often omit "revolver"; never match translated names.
+            if(kind==NCMM_GUN_PISTOL){
+                const std::string id=std::string(s.environment.held_item).substr(0,std::string(s.environment.held_item).find("_plus_"));
+                for(const char *revolver:{"raging_bull","colt_navy","sw_500","colt_saa","taurus_judge","ruger_lcr_22",
+                    "rough_rider_pistol","rough_rider_pistol_9","sw617","460_xvr","bfr","model_10_revolver","ruger_lcr_38",
+                    "colt_python","sw_619","chiappa_rhino","rp63","sw642","sw629","colt_anaconda_8","colt_anaconda_6","colt_anaconda_4","colt_army"})
+                    if(id==revolver){kind=NCMM_GUN_REVOLVER;break;}}
             const bool pistol=kind==NCMM_GUN_PISTOL||kind==NCMM_GUN_REVOLVER;
             const float length=std::clamp(metadata?metadata->view.held_length:pose.length,pistol?.16f:.42f,pistol?.48f:1.8f);
             const vec origin{.185f,-.215f,.66f};
@@ -49,10 +58,17 @@
                 // Open sight lines: the optic remains below the world crosshair.
             }
             if(mods&NCMM_MOD_SUPPRESSOR)cylinder({0,.016f,muzzle+.02f},{0,.016f,muzzle+.18f},.025f,metal);
+            if(mods&NCMM_MOD_STOCK){
+                cuboid({-.014f,-.020f,-.25f},{.014f,.009f,-.035f},rail);
+                cuboid({-.043f,-.081f,-.27f},{.043f,.031f,-.235f},polymer);
+                for(int n=0;n<3;++n)cuboid({-.044f,-.067f+n*.029f,-.275f},{.044f,-.061f+n*.029f,-.263f},metal);}
             if(mods&NCMM_MOD_FOREGRIP)cuboid({-.017f,-.135f,muzzle*.53f},{.017f,-.029f,muzzle*.53f+.040f},polymer);
             if(mods&NCMM_MOD_BIPOD)for(float side:{-1.0f,1.0f})tube(origin+vec{side*.026f,-.038f,muzzle*.70f},origin+vec{side*.043f,-.047f,muzzle*.94f},.009f,.007f,rail);
-            if(mods&(NCMM_MOD_LIGHT|NCMM_MOD_LASER)){cylinder({.055f,-.009f,muzzle*.52f},{.055f,-.009f,muzzle*.73f},.018f,polymer);
-                material bulb=lens;bulb.color=mods&NCMM_MOD_LASER?vec{.8f,.12f,.06f}:vec{.8f,.82f,.67f};cylinder({.055f,-.009f,muzzle*.735f},{.055f,-.009f,muzzle*.74f},.013f,bulb);}
+            for(int accessory=0;accessory<2;++accessory)if(mods&(accessory?NCMM_MOD_LIGHT:NCMM_MOD_LASER)){
+                const float x=accessory?-.063f:-.050f,y=accessory?-.022f:.059f,radius=accessory?.018f:.012f;
+                cylinder({x,y,muzzle*.52f},{x,y,muzzle*.73f},radius,polymer);
+                material bulb=lens;bulb.color=accessory?vec{.8f,.82f,.67f}:vec{.8f,.12f,.06f};
+                cylinder({x,y,muzzle*.735f},{x,y,muzzle*.74f},radius*.72f,bulb);}
             if(mods&NCMM_MOD_BAYONET){const vec a=origin+vec{-.014f,-.026f,muzzle-.06f},b=origin+vec{.014f,-.026f,muzzle-.06f},tip=origin+vec{0,-.018f,muzzle+.25f};face(a,b,tip,tip,rail);}
             if(mods&NCMM_MOD_UNDERBARREL)cylinder({0,-.077f,muzzle*.30f},{0,-.077f,muzzle*.88f},.034f,metal);
             hand(origin+vec{0,-.052f,pistol?.020f:-.012f},false);

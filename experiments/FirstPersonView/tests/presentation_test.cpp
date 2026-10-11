@@ -71,6 +71,16 @@ int main(int argc,char **argv){try{
     first_person::animation::pose pose;pose.grip=NCMM_GRIP_GUN;pose.length=1;
     require(build_frame(gun.scene,-pi*.5f,0,gun.provider(),gun.f,640,480,pose,nullptr,nullptr,&gun.meta),"firearm with attachments renders");
     size_t held=0;for(float z:gun.f.held_depth)held+=std::isfinite(z);require(held>300&&held<640u*480u/3,"physical firearm stays within a bounded portion of the viewport");
+    auto gun_frame=[&](uint32_t mods){gun.meta.view.gunmods=mods;require(build_frame(gun.scene,-pi*.5f,0,gun.provider(),gun.f,640,480,pose,nullptr,nullptr,&gun.meta),"attachment variant renders");return digest(gun.f);};
+    const auto bare_gun=gun_frame(0);
+    for(uint32_t mod:{NCMM_MOD_OPTIC,NCMM_MOD_SUPPRESSOR,NCMM_MOD_FOREGRIP,NCMM_MOD_BIPOD,NCMM_MOD_LASER,NCMM_MOD_LIGHT,NCMM_MOD_BAYONET,NCMM_MOD_UNDERBARREL,NCMM_MOD_STOCK})
+        require(gun_frame(mod)!=bare_gun,("installed firearm accessory changes the visible model: "+std::to_string(mod)).c_str());
+    const auto flashlight=gun_frame(NCMM_MOD_LIGHT);
+    require(gun_frame(NCMM_MOD_LIGHT|NCMM_MOD_LASER)!=flashlight,"simultaneous light and laser are both represented");
+    gun.meta.view.gun_kind=NCMM_GUN_PISTOL;std::strcpy(gun.scene.environment.held_item,"glock_19");const auto pistol=gun_frame(0);
+    std::strcpy(gun.scene.environment.held_item,"sw_500");const auto revolver=gun_frame(0);
+    require(revolver!=pistol,"canonical revolver ID gets a cylinder despite lacking the word revolver");
+    std::strcpy(gun.scene.environment.held_item,"sw_500_plus_2");require(gun_frame(0)==revolver,"enchantment suffix preserves the physical revolver profile");
     if(argc>1){save(gun.f,std::string(argv[1])+"-gun.ppm");save(gas.f,std::string(argv[1])+"-gas.ppm");save(fluid.f,std::string(argv[1])+"-liquid.ppm");}
     std::cout<<"PASS: "<<checks<<" presentation, geometry, scale, aim and atmosphere checks\n";return 0;
 }catch(const std::exception &e){std::cerr<<"FAIL: "<<e.what()<<'\n';return 1;}}
