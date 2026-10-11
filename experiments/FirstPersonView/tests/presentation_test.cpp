@@ -55,6 +55,12 @@ int main(int argc,char **argv){try{
     require(skies.size()==8,"dimension sky profiles are visually distinct");
     require(policy::sky("inner_cabins")==NCMM_SKY_GREY&&policy::sky("string_dimension")==NCMM_SKY_STARS,"dimension descriptions select grey and starry skies");
     require(policy::sky("unknown_custom_dimension")==NCMM_SKY_EARTH,"unknown dimensions retain weather-driven fallback");
+    fixture daylight;daylight.draw();
+    require(std::all_of(daylight.f.sun_shadows.begin(),daylight.f.sun_shadows.end(),[](float v){return v==1;}),"snapshot edges do not invent shadows over empty ground");
+    daylight.cells[target].flags=0;daylight.details[target].terrain_shape=NCMM_SHAPE_WALL;daylight.draw();
+    require(std::all_of(daylight.f.sun_shadows.begin(),daylight.f.sun_shadows.end(),[](float v){return v==1;}),"unknown cells do not turn a camera boundary into a shadow caster");
+    daylight.cells[target].flags=NCMM_GFX_VISIBLE;daylight.draw();
+    require(daylight.f.shadow_cells>0,"visible walls still cast directional sunlight shadows");
     for(int n=0;n<=20;++n){const float u=float(n)/20;
         require(std::abs(first_person::liquid_surface::bank_distance(1,u,1)-first_person::liquid_surface::bank_distance(16,u,0))<.00001f,"shore distance continues across a tile edge at the end of a bank");
         require(std::abs(first_person::liquid_surface::bank_distance(2,u,1)-first_person::liquid_surface::bank_distance(32,u,0))<.00001f,"opposite shoreline corner is continuous");}

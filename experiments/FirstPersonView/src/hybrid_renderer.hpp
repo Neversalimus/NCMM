@@ -350,7 +350,11 @@ class renderer {
         float dx=s.environment.sun_x/hz,dy=s.environment.sun_y/hz,slope=s.environment.sun_z/hz;
         for(int i=0;i<int(base.cell_count);++i){if(!outside(i))continue;float x=float(i%base.grid_width)+.5f,y=float(i/base.grid_width)+.5f;
             for(float step=.55f;step<12;step+=.4f){int j=index(int(std::floor(x+dx*step)),int(std::floor(y+dy*step)));if(j==i)continue;
-                if(!visible(j)){shadows[i]=.7f;break;}const auto &d=s.details[j];float h=std::max(ncmm_graphics_shapes::shadow_height(d.terrain_shape),ncmm_graphics_shapes::shadow_height(d.furniture_shape));
+                // The snapshot edge is not an occluder. CDDA already supplies
+                // cell lighting; inventing a shadow here paints moving dark
+                // bands across open ground as the camera cone changes.
+                if(!visible(j))break;
+                const auto &d=s.details[j];float h=std::max(ncmm_graphics_shapes::shadow_height(d.terrain_shape),ncmm_graphics_shapes::shadow_height(d.furniture_shape));
                 if(d.vehicle_features)h=std::max(h,d.vehicle_features&NCMM_VEH_ROOF?1.65f:.85f);
                 if(h>step*slope+.03f){shadows[i]=.22f;++f.shadow_cells;break;}if(step*slope>3.2f)break;}}
     }

@@ -60,3 +60,10 @@ now contain 461 checks, including rendered shoreline pixels and edge continuity.
 `FIRST_PERSON_BUILD_BENCHMARK` builds a manual reproducible timing tool without
 adding a machine-dependent performance gate. Version advanced to 0.7.1-dev;
 Windows installer qualification is pending for this new revision.
+
+Visual review found a pre-existing artificial shadow at the snapshot boundary:
+unknown cells applied a 0.7 sunlight multiplier to otherwise open ground. Only
+known occluders now add directional shadows; CDDA's actual cell lighting remains
+the source of ambient/local light. Regression cases cover empty ground, hidden
+walls and a visible wall. This is a module-only follow-up and does not change the
+26 prepared Host inputs or the engine cache key.
