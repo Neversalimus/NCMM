@@ -15,7 +15,7 @@ float pitch=0;
 std::vector<ncmm_graphics_quad_v1> commands;
 first_person::hybrid::frame pixels;
 first_person::hybrid::frame world_pixels;
-bool high_quality=false,frame_valid=false;
+bool high_quality=false,frame_valid=false,gpu_effects=true;
 uint64_t frame_key=0;
 uint64_t world_key=0;
 bool world_valid=false;
@@ -44,7 +44,8 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     const auto now=std::chrono::steady_clock::now();const auto state=control_state();
     bool has_metadata=false;
     if(presentation){metadata.view={};metadata.view.struct_size=sizeof(metadata.view);metadata.cells.resize(scene->base.cell_count);
-        has_metadata=presentation->get_scene(&metadata.view)&&presentation->get_cells(metadata.cells.data(),metadata.cells.size());}
+        has_metadata=presentation->get_scene(&metadata.view)&&presentation->get_cells(metadata.cells.data(),metadata.cells.size());
+        if(!gpu_effects)metadata.view.flags&=~NCMM_PRESENT_GPU_EFFECTS;}
     auto pose=first_person::animation::sample(state,std::floor(scene->environment.animation_seconds*40)/40);
     if(has_metadata){const float t=float(std::fmod(scene->environment.animation_seconds,1000.0));
         pose.sway_x=std::sin(t*1.4f)*.0022f;pose.sway_y=std::sin(t*2.2f)*.0032f;}
@@ -63,7 +64,9 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         if(rebuild_world){world_key=wk;world_built=now;world_valid=true;}
         frame_key=key;frame_built=now;frame_valid=true;
     }
-    if(presentation)presentation->set_target(pixels.aimed,pixels.label_x,pixels.label_y);
+    if(presentation){presentation->set_target(pixels.aimed,pixels.label_x,pixels.label_y);
+        if(!pixels.effects.empty()&&!presentation->submit_effects(pixels.effects.data(),pixels.effect_width,pixels.effect_height,pixels.effect_width)){
+            ncmm_graphics_composite::blend(pixels.pixels,pixels.width,pixels.height,pixels.effects,pixels.effect_width,pixels.effect_height);frame_valid=false;}}
     return hybrid->submit_frame(pixels.pixels.data(),uint32_t(pixels.width),uint32_t(pixels.height),uint32_t(pixels.width));
 }
 int render(const ncmm_graphics_scene_v1 *scene,void *) {
@@ -72,6 +75,7 @@ int render(const ncmm_graphics_scene_v1 *scene,void *) {
 }
 void input(uint32_t action,void *) {
     frame_valid=false;
+    if(action==NCMM_GFX_ACCELERATION){gpu_effects=!gpu_effects;world_valid=false;}
     if(action==NCMM_GFX_QUALITY)high_quality=!high_quality;
     if(action==NCMM_GFX_TURN_LEFT) yaw-=first_person::pi/12.0;
     if(action==NCMM_GFX_TURN_RIGHT) yaw+=first_person::pi/12.0;
@@ -84,7 +88,7 @@ void input(uint32_t action,void *) {
 int init(const ncmm_host_api_v1 *api) {
     graphics=nullptr;
     hybrid=nullptr;
-    controls=nullptr;presentation=nullptr;metadata={};frame_valid=world_valid=false;high_quality=false;
+    controls=nullptr;presentation=nullptr;metadata={};frame_valid=world_valid=false;high_quality=false;gpu_effects=true;
     const auto core=ncmm::sdk::require_core(api,caps,sizeof(caps)/sizeof(caps[0]),NCMM_SDK_CORE_FIELD_END(api_minor));
     if(!core) return 0;
     if(api->has_capability(NCMM_GRAPHICS_V2_CAP)) {

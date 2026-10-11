@@ -89,10 +89,12 @@ void graphics_register_actions( input_context &ctxt )
     if( !graphics_view.render && !graphics_view.hybrid_render ) return;
     const std::pair<const char *, int> keys[] = {
         { "ncmm.view.turn_left", keycode::f7 }, { "ncmm.view.turn_right", keycode::f8 },
-        { "ncmm.view.look_up", keycode::f9 }, { "ncmm.view.look_down", keycode::f10 }, { "ncmm.view.quality", keycode::f11 }
+        { "ncmm.view.look_up", keycode::f9 }, { "ncmm.view.look_down", keycode::f10 }, { "ncmm.view.quality", keycode::f11 },
+        { "ncmm.view.acceleration", keycode::f12 }
     };
     for( const auto &key : keys ) {
-        const std::string label = key.second == keycode::f11 ? tr_ui( "First person: balanced / high quality", "Первое лицо: сбалансированное / высокое качество" ) :
+        const std::string label = key.second == keycode::f12 ? tr_ui( "First person: GPU atmosphere / CPU", "Первое лицо: атмосфера GPU / CPU" ) :
+            key.second == keycode::f11 ? tr_ui( "First person: balanced / high quality", "Первое лицо: сбалансированное / высокое качество" ) :
             key.second == keycode::f9 ? tr_ui( "First person: look up", "Первое лицо: смотреть вверх" ) :
             key.second == keycode::f10 ? tr_ui( "First person: look down", "Первое лицо: смотреть вниз" ) :
             key.second == keycode::f7 ?
@@ -111,7 +113,8 @@ bool graphics_action( const std::string &action )
                           action == "ncmm.view.look_up" ? NCMM_GFX_LOOK_UP :
                           action == "ncmm.view.look_down" ? NCMM_GFX_LOOK_DOWN :
                           action == "ncmm.view.quality" ? NCMM_GFX_QUALITY :
-                          action == "ncmm.view.mouse_look" ? NCMM_GFX_MOUSE_LOOK : 0;
+                          action == "ncmm.view.mouse_look" ? NCMM_GFX_MOUSE_LOOK :
+                          action == "ncmm.view.acceleration" ? NCMM_GFX_ACCELERATION : 0;
     if( turn && ( graphics_view.render || graphics_view.hybrid_render ) ) {
         if( graphics_view.enabled && graphics_view.input ) {
             loaded_mod *mod = find_loaded_by_id( graphics_view.owner.c_str() );

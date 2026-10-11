@@ -61,9 +61,9 @@ def apply(root: Path):
     loader = replace(loader, "    graphics_gameplay_context = false;", "    graphics_gameplay_context = false;\n    graphics_control_context = false;\n    graphics_release_mouse();\n    graphics_cancel_animation();\n    graphics_attack_serial = 0;")
     loader = replace(loader, "void shutdown()\n{\n    graphics_view = {};", "void shutdown()\n{\n    graphics_release_mouse();\n    graphics_cancel_animation();\n    graphics_view = {};")
     loader = replace(loader, "    graphics_gameplay_context = gameplay;", "    graphics_gameplay_context = gameplay;\n    graphics_control_context = category == \"DEFAULTMODE\";\n    if( !graphics_control_context ) graphics_release_mouse();")
-    loader = replace(loader, 'action == "ncmm.view.quality" );', 'action == "ncmm.view.quality" || action == "ncmm.view.mouse_look" );')
+    loader = replace(loader, 'action == "ncmm.view.quality" );', 'action == "ncmm.view.quality" || action == "ncmm.view.mouse_look" || action == "ncmm.view.acceleration" );')
     loader = replace(loader, "bool graphics_requires_terrain_pass()\n{", "std::string graphics_relative_action( const std::string &action, const input_event &event, bool vehicle_control )\n{\n    return graphics_map_relative_action( action, event, vehicle_control );\n}\nvoid graphics_note_attack( uint32_t kind )\n{\n    graphics_notify_attack( kind );\n}\nbool graphics_mouse_event( uint32_t kind, float x, float y, float dx, float dy, bool allowed )\n{\n    return graphics_process_mouse( kind, x, y, dx, dy, allowed );\n}\nbool graphics_animation_redraw_due()\n{\n    return graphics_redraw_due();\n}\nbool graphics_requires_terrain_pass()\n{")
-    loader = replace(loader, '#include "ncmm_graphics_camera.hpp"', '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_presentation_policy.hpp"\n#include "itype.h"\n#include "field_type.h"\n#include "skill.h"')
+    loader = replace(loader, '#include "ncmm_graphics_camera.hpp"', '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_presentation_policy.hpp"\n#include "ncmm_graphics_composite.hpp"\n#include "itype.h"\n#include "field_type.h"\n#include "skill.h"')
     loader = replace(loader, '    "graphics.controls.v1",', '    "graphics.controls.v1",\n    "graphics.presentation.v1",')
     loader = replace(loader, '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CONTROLS_ID ) {',
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {\n        return min_major <= 1 && min_minor == 0 ? &graphics_presentation_api : nullptr;\n    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CONTROLS_ID ) {')
@@ -151,7 +151,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     tiles_cpp = tiles_cpp[:start] + lookup + tiles_cpp[start:]
     load_anchor = "                               const bool force, const bool pump_events, const bool terrain )\n{"
     updates["cata_tiles.cpp"] = replace(tiles_cpp, load_anchor, load_anchor + "\n    ++ncmm_graphics_epoch;")
-    for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_controls.h", "ncmm_graphics_camera.hpp", "ncmm_graphics_controls.inc", "ncmm_graphics_presentation.h", "ncmm_graphics_presentation_policy.hpp", "ncmm_graphics_presentation.inc", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_smoke.inc"):
+    for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_controls.h", "ncmm_graphics_camera.hpp", "ncmm_graphics_controls.inc", "ncmm_graphics_presentation.h", "ncmm_graphics_presentation_policy.hpp", "ncmm_graphics_presentation.inc", "ncmm_graphics_composite.hpp", "ncmm_graphics_effects.inc", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_smoke.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name] = (bridge / name).read_text(encoding="utf-8")

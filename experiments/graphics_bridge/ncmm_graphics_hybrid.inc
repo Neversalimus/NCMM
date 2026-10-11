@@ -26,13 +26,17 @@ SDL_Renderer *graphics_hybrid_renderer_identity = nullptr; // comparison only
 SDL_Texture *graphics_stream_texture = nullptr;
 uint64_t graphics_stream_instance = 0, graphics_stream_generation = 0;
 uint32_t graphics_stream_width = 0, graphics_stream_height = 0;
+void graphics_clear_effect_texture();
 void graphics_clear_stream()
 {
     // SDL destroys all child textures when replacing a renderer. The monotonic
     // instance generation prevents destroying a dangling, reused address.
     if( graphics_stream_texture && graphics_stream_instance == renderer_coordinator.instance_generation() ) SDL_DestroyTexture( graphics_stream_texture );
     graphics_stream_texture = nullptr; graphics_stream_width = graphics_stream_height = 0;
+    graphics_clear_effect_texture();
 }
+
+#include "ncmm_graphics_effects.inc"
 
 bool graphics_read_sprite( const texture_draw_data &atlas, graphics_cpu_sprite &out )
 {
@@ -374,6 +378,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     const uint64_t epoch = tilecontext->ncmm_graphics_tileset_epoch();
     SDL_Renderer *renderer = get_sdl_renderer().get();
     if( epoch != graphics_hybrid_tileset_epoch || renderer != graphics_hybrid_renderer_identity || graphics_hybrid_sprite_bytes > 48 * 1024 * 1024 ) {
+        if(renderer!=graphics_hybrid_renderer_identity)graphics_effect_failed=false;
         graphics_cpu_sprites.clear(); graphics_hybrid_sprite_bytes = 0;
         graphics_hybrid_tileset_epoch = epoch; graphics_hybrid_renderer_identity = renderer;
     }
@@ -392,7 +397,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     graphics_hybrid_frame = nullptr; graphics_hybrid_positions = nullptr;
     graphics_render_active = false;
     if( !ok || graphics_frame_invalid || graphics_hybrid_pixels.empty() ) {
-        graphics_view.enabled = false; graphics_hybrid_pixels.clear();
+        graphics_view.enabled = false; graphics_hybrid_pixels.clear(); graphics_release_mouse(); graphics_cancel_animation();
         add_msg( m_warning, "%s", tr_ui( "First person could not draw this scene; returned to the map. F6 retries.",
             "Не удалось отрисовать вид от первого лица; включена карта. F6 — повторить." ) );
         return false;
@@ -409,13 +414,22 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         graphics_stream_width = graphics_hybrid_width; graphics_stream_height = graphics_hybrid_height;
     }
     SDL_Texture *frame = graphics_stream_texture;
-    if( !frame ) return false;
+    if( !frame ) {graphics_view.enabled=false;graphics_release_mouse();graphics_cancel_animation();return false;}
     ok = SDL_UpdateTexture( frame, nullptr, graphics_hybrid_pixels.data(), int( graphics_hybrid_width * 4 ) );
     ok = SDL_SetTextureBlendMode( frame, SDL_BLENDMODE_NONE ) && ok;
     ok = SDL_SetTextureScaleMode( frame, SDL_SCALEMODE_LINEAR ) && ok;
     ok = SDL_SetRenderClipRect( renderer, &clip ) && ok;
     const SDL_FRect destination = { float( x ), float( y ), float( base.pixel_width ), float( base.pixel_height ) };
     ok = SDL_RenderTexture( renderer, frame, nullptr, &destination ) && ok;
+    if( ok ) ok = graphics_present_effects( renderer,frame,destination );
+    if( ok ) {
+        Uint8 r=0,g=0,b=0,a=0;SDL_GetRenderDrawColor( renderer,&r,&g,&b,&a );
+        SDL_SetRenderDrawColor( renderer,216,224,224,255 );
+        const float cx=x+base.pixel_width*.5f,cy=y+base.pixel_height*.5f;
+        SDL_RenderLine( renderer,cx-4,cy,cx-1,cy );SDL_RenderLine( renderer,cx+1,cy,cx+4,cy );
+        SDL_RenderLine( renderer,cx,cy-4,cx,cy-1 );SDL_RenderLine( renderer,cx,cy+1,cx,cy+4 );
+        SDL_SetRenderDrawColor( renderer,r,g,b,a );
+    }
     if( ok && !graphics_aim_name.empty() ) ncmm_draw_perspective_label( graphics_aim_name,
         x+int( graphics_aim_x*base.pixel_width ), y+int( graphics_aim_y*base.pixel_height ), clip );
     ok = SDL_SetRenderClipRect( renderer, clipped ? &prior_clip : nullptr ) && ok;

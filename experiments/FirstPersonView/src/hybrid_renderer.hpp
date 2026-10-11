@@ -2,6 +2,7 @@
 #include "ncmm_graphics_v2.h"
 #include "ncmm_graphics_shapes.hpp"
 #include "animation.hpp"
+#include "ncmm_graphics_composite.hpp"
 #include "ncmm_graphics_presentation_policy.hpp"
 #include <algorithm>
 #include <array>
@@ -41,7 +42,7 @@ struct frame {
     int width=0,height=0;std::vector<uint32_t> pixels;std::vector<float> depth;
     std::vector<int32_t> creatures;
     std::vector<uint32_t> effects;int effect_width=0,effect_height=0;
-    int32_t aimed=-1;float label_x=.5f,label_y=.4f;
+    int32_t aimed=-1;float label_x=.5f,label_y=.4f;vec sky_horizon{};
     std::vector<float> held_depth;
     std::vector<float> sun_shadows;
     std::vector<int32_t> owners;uint32_t triangles=0,vehicle_parts=0,weather_particles=0,held_pixels=0;
@@ -152,12 +153,14 @@ class renderer {
     vec view(vec p)const{vec d=p-eye;float forward=d.x*cy+d.y*sy;
         return{-d.x*sy+d.y*cy,d.z*cp-forward*sp,forward*cp+d.z*sp};}
     vec local(vec p)const{return eye+vec{-sy,cy,0}*p.x+vec{cy*cp,sy*cp,sp}*p.z+vec{-cy*sp,-sy*sp,cp}*p.y;}
+    #include "liquids.inc"
     vec surface_color(vec color,const material &m,vec p,vec normal,float z,float fine=-1,float medium=-1)const{
         const bool reflective=m.finish==surface::paint||m.finish==surface::metal;
         vec to_eye{};
         if(fine<0||reflective)to_eye=normalize(eye-p);
         if(fine<0){const float footprint=z/projection/std::max(.15f,std::abs(dot(normal,to_eye)));
             fine=clamp(1-footprint*80);medium=clamp(1-footprint*18);}
+        if(m.finish==surface::water)return liquid_shade(color,m,p,normal);
         if(medium==0&&m.finish!=surface::paint&&m.finish!=surface::metal)return color;
         const float u=std::abs(normal.z)>.5f?p.x:(std::abs(normal.x)>.5f?p.y:p.x),v=std::abs(normal.z)>.5f?p.y:p.z;
         const int ix=int(std::floor(u*96)),iy=int(std::floor(v*96));
@@ -217,7 +220,7 @@ class renderer {
             std::array<float,3> fine{},medium{};
             for(int n=0;n<3;++n){const float footprint=p[n].z/projection/std::max(.15f,std::abs(dot(t.normal,normalize(eye-v[n].p))));
                 fine[n]=clamp(1-footprint*80);medium[n]=clamp(1-footprint*18);}
-            const bool detailed=t.m.finish!=surface::none&&!reflective&&std::max({medium[0],medium[1],medium[2]})>0;
+            const bool detailed=t.m.finish==surface::water||(t.m.finish!=surface::none&&!reflective&&std::max({medium[0],medium[1],medium[2]})>0);
             for(int y=ymin;y<=ymax;++y){
                 float left=std::numeric_limits<float>::infinity(),right=-left;
                 const float py=y+.5f;
@@ -238,6 +241,10 @@ class renderer {
                         // floating view model or write opaque world depth.
                         if(t.m.cutout&&a<(t.m.overlay?.55f:.25f))continue;
                         if(t.m.opaque_texture)c=unpack(px)*a+c*(1-a);else{c=unpack(px);alpha*=a;}}
+                    if(t.m.spill){const float ax=w0*iz[0]*z,bx=w1*iz[1]*z,cx=w2*iz[2]*z;
+                        const vec at=v[0].p*ax+v[1].p*bx+v[2].p*cx;
+                        const float dx=at.x-std::floor(at.x)-.5f,dy=at.y-std::floor(at.y)-.5f;
+                        if(dx*dx+dy*dy>.135f+(noise(at.x*9,at.y*9)-.5f)*.09f)continue;}
                     if(alpha<.01f)continue;
                     if(detailed){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;
                         const vec pos=v[0].p*a+v[1].p*b+v[2].p*cw;
@@ -328,11 +335,21 @@ class renderer {
             if(phase>=0){float a=phase*pi/4;lit=clamp(-std::sqrt(zz)*std::cos(a)+nx*std::sin(a));lit=.07f+lit*.93f;}
             f.pixels[size_t(y)*f.width+x]=pack(color*lit);}
     }
-    void sky(){const auto &e=s.environment;float day=clamp(e.daylight);vec top=vec{.018f,.026f,.065f}*(1-day)+vec{.17f,.40f,.72f}*day;
+    void sky(){const auto &e=s.environment;const uint32_t style=sky_style();float day=clamp(e.daylight);
+        const bool celestial=style==NCMM_SKY_EARTH||style==NCMM_SKY_HIGHLANDS;
+        if(style==NCMM_SKY_VOID||style==NCMM_SKY_STARS)day=0;vec top=vec{.018f,.026f,.065f}*(1-day)+vec{.17f,.40f,.72f}*day;
         vec bottom=vec{.06f,.07f,.12f}*(1-day)+vec{.61f,.75f,.88f}*day;float twilight=clamp(1-std::abs(e.sun_z)*6)*clamp(day*5)*(1-e.cloud_cover*.6f);
         bottom=bottom*(1-twilight*.4f)+vec{.92f,.47f,.23f}*(twilight*.4f);fog_color=bottom;
         if(e.sky_tint>0){vec tint{e.sky_r,e.sky_g,e.sky_b};top=top*(1-e.sky_tint*.7f)+tint*(e.sky_tint*.32f);bottom=bottom*(1-e.sky_tint*.7f)+tint*(e.sky_tint*.4f);fog_color=bottom;}
+        if(style==NCMM_SKY_VOID){top={.001f,.002f,.005f};bottom={.008f,.009f,.014f};}
+        else if(style==NCMM_SKY_GREY){top={.14f,.14f,.14f};bottom={.39f,.39f,.39f};}
+        else if(style==NCMM_SKY_SCARLET){top={.16f,.014f,.025f};bottom={.45f,.065f,.054f};}
+        else if(style==NCMM_SKY_STARS){top={.006f,.008f,.025f};bottom={.027f,.031f,.065f};}
+        else if(style==NCMM_SKY_HIGHLANDS){top=top*.62f+vec{.28f,.32f,.34f}*.38f;bottom=bottom*.62f+vec{.57f,.60f,.59f}*.38f;}
+        else if(style==NCMM_SKY_RADIOSPHERE){top={.027f,.037f,.055f};bottom={.14f,.17f,.19f};}
+        else if(style==NCMM_SKY_FUNGAL){top={.27f,.32f,.25f};bottom={.56f,.62f,.46f};}
         if(e.lightning){top={.55f,.6f,.73f};bottom={.85f,.86f,.94f};}
+        fog_color=bottom;f.sky_horizon=bottom;
         for(int y=0;y<f.height;++y){
             const float up=(f.height*.5f-y)/projection;
             const float elevation=std::atan2(sp+up*cp,std::abs(cp-up*sp));
@@ -340,14 +357,15 @@ class renderer {
             const uint32_t c=pack(top*(1-t)+bottom*t);
             std::fill_n(f.pixels.data()+size_t(y)*f.width,f.width,c);
         }
-        if(day<.2f)for(uint32_t i=0;i<170;++i){float az=random(i*3+8)*2*pi,el=.12f+random(i*3+9)*1.35f;vec q=view(eye+vec{std::cos(az)*std::cos(el),std::sin(az)*std::cos(el),std::sin(el)}*60);if(q.z<=0)continue;
+        if((celestial&&day<.2f)||style==NCMM_SKY_STARS)for(uint32_t i=0;i<(style==NCMM_SKY_STARS?850u:170u);++i){float az=random(i*3+8)*2*pi,el=.12f+random(i*3+9)*1.35f;vec q=view(eye+vec{std::cos(az)*std::cos(el),std::sin(az)*std::cos(el),std::sin(el)}*60);if(q.z<=0)continue;
             const float px=f.width*.5f+projection*q.x/q.z,py=f.height*.5f-projection*q.y/q.z;
             if(px>=0&&px<f.width&&py>=0&&py<f.height){const int x=int(px),y=int(py);
                 f.pixels[size_t(y)*f.width+x]=pack(vec{.8f,.85f,1}*((1-day*5)*(.35f+random(i)*.65f)));}}
-        if(e.sun_z>-.03f)disc({e.sun_x,e.sun_y,e.sun_z},-1,{1,.92f,.64f},std::max(4.0f,f.width*.010f));
-        if(e.moon_z>-.03f&&e.moon_phase!=0)disc({e.moon_x,e.moon_y,e.moon_z},int(e.moon_phase),{.82f,.88f,.94f},std::max(4.0f,f.width*.009f));
+        if(celestial&&e.sun_z>-.03f)disc({e.sun_x,e.sun_y,e.sun_z},-1,{1,.92f,.64f},std::max(4.0f,f.width*.010f));
+        if(celestial&&e.moon_z>-.03f&&e.moon_phase!=0)disc({e.moon_x,e.moon_y,e.moon_z},int(e.moon_phase),{.82f,.88f,.94f},std::max(4.0f,f.width*.009f));
         // Clouds are continuous in world azimuth/elevation. Turning does not
         // reseed them; wind animates them independently of game-time advancement.
+        if(style==NCMM_SKY_VOID||style==NCMM_SKY_GREY||style==NCMM_SKY_STARS)return;
         constexpr int step=6;const float time=float(std::fmod(e.animation_seconds,100000.0));
         const int cols=(f.width+step-1)/step+1,rows=(f.height+step-1)/step+1;
         std::vector<float> opacity(size_t(cols)*rows,0);
@@ -360,9 +378,16 @@ class renderer {
             const float v=elev*4+time*e.wind_y*.0015f;
             const float n=noise(std::cos(az)*3+time*e.wind_x*.0015f,std::sin(az)*3+v)*.70f+
                 noise(std::cos(az)*7+time*e.wind_x*.002f,std::sin(az)*7+v*2)*.30f;
-            const float alpha=clamp((n-(.80f-e.cloud_cover*.58f))*3)*(.65f+e.cloud_cover*.28f);
+            const float cover=style==NCMM_SKY_HIGHLANDS?std::max(.60f,e.cloud_cover):style==NCMM_SKY_SCARLET?.88f:e.cloud_cover;
+            const float wisps=noise(wx*12+time*.005f,wy*12+elev*5);
+            const float alpha=clamp((n*.88f+wisps*.12f-(.80f-cover*.58f))*4)*(.65f+cover*.28f);
             const size_t at=size_t(gy)*cols+gx;opacity[at]=alpha;
-            const vec cloud=vec{.07f,.08f,.12f}*(1-day)+vec{.78f,.81f,.85f}*day;
+            vec cloud=vec{.07f,.08f,.12f}*(1-day)+vec{.78f,.81f,.85f}*day;
+            if(style==NCMM_SKY_SCARLET)cloud={.34f,.065f,.057f};
+            if(style==NCMM_SKY_RADIOSPHERE)cloud={.19f,.23f,.28f};
+            if(style==NCMM_SKY_FUNGAL)cloud={.52f,.59f,.41f};
+            const float rim=clamp(wx*e.sun_x+wy*e.sun_y+z*e.sun_z)*clamp(1-std::abs(alpha-.42f)*2);
+            cloud=cloud*(.81f+.19f*n)+vec{.17f,.13f,.09f}*(rim*day);
             cloud_color[at]=cloud*((.78f+n*.22f)*alpha);
         }
         // Interpolate the cloud grid into the full raster instead of 6px blocks.
@@ -675,10 +700,14 @@ class renderer {
         for(int pass=0;pass<2;++pass)for(int i:order){int x=i%base.grid_width,y=i/base.grid_width;const auto &c=base.cells[i];const auto &d=s.details[i];
             if(pass==1){
             if(!(c.flags&NCMM_GFX_NO_FLOOR)){auto floor=mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f});floor.opaque_texture=true;floor.finish=ground_surface(d.ground);
+                const uint32_t liquid=extra(i).liquid?extra(i).liquid:d.terrain_shape==NCMM_SHAPE_WATER?ncmm_graphics_presentation_policy::liquid(c.terrain,true):0;
+                if(liquid){floor.texture=nullptr;floor.color=liquid_color(liquid);floor.finish=surface::water;floor.liquid=liquid;}
                 quad({float(x),float(y),0},{float(x+1),float(y),0},{float(x+1),float(y+1),0},{float(x),float(y+1),0},floor);
-                if(d.terrain_shape==NCMM_SHAPE_WATER){material water{nullptr,{.15f,.32f,.40f},.22f,false,false,false,i};quad({float(x),float(y),.012f},{float(x+1),float(y),.012f},{float(x+1),float(y+1),.012f},{float(x),float(y+1),.012f},water);}}
+            }
             if((c.flags&NCMM_GFX_CEILING)&&(!d.vehicle_features||(d.terrain_flags&NCMM_SURFACE_TERRAIN_CEILING)))ceiling(i,x,y);
-            if(d.field[0]&&d.field_shape==NCMM_SHAPE_FLAT){auto field=mat(i,NCMM_GFX_FIELD,{.48f,.18f,.12f},true);quad({float(x),float(y),.013f},{float(x+1),float(y),.013f},{float(x+1),float(y+1),.013f},{float(x),float(y+1),.013f},field);}
+            if(d.field[0]&&d.field_shape==NCMM_SHAPE_FLAT&&!extra(i).gas){auto field=mat(i,NCMM_GFX_FIELD,{.48f,.18f,.12f},true);
+                if(extra(i).field_liquid){field.texture=nullptr;field.liquid=extra(i).field_liquid;field.color=liquid_color(field.liquid);field.finish=surface::water;field.spill=true;}
+                quad({float(x),float(y),.013f},{float(x+1),float(y),.013f},{float(x+1),float(y+1),.013f},{float(x),float(y+1),.013f},field);}
             continue;}
             architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
             if(d.vehicle_features)vehicle(i);else if(c.furniture[0])architecture(i,d.furniture_shape,NCMM_GFX_FURNITURE);
@@ -691,9 +720,10 @@ class renderer {
                 else if(d.terrain_flags&NCMM_CREATURE_HUGE){h=3.0f;w=2.0f;}
                 if(extra(i).creature_height>0){h=extra(i).creature_height;w=extra(i).creature_width;}
                 billboard({x+.5f,y+.5f,extra(i).creature_elevation},w,h,m,true);}
-            if(d.field[0]&&d.field_shape!=NCMM_SHAPE_FLAT){auto m=mat(i,NCMM_GFX_FIELD,{.85f,.40f,.12f},true);billboard({x+.5f,y+.5f,0},.65f,.90f,m);}
+            if(d.field[0]&&d.field_shape!=NCMM_SHAPE_FLAT&&!extra(i).gas){auto m=mat(i,NCMM_GFX_FIELD,{.85f,.40f,.12f},true);billboard({x+.5f,y+.5f,0},.65f,.90f,m);}
         }
     }
+    #include "volumes.inc"
     void weather(){const auto &e=s.environment;if(e.weather_kind==NCMM_WEATHER_DRY||e.precipitation<=0)return;
         int count=std::min(360,int(70+e.precipitation*260));float time=float(std::fmod(e.animation_seconds,10000.0));
         for(int n=0;n<count;++n){float x=std::floor(base.camera_x)-12+std::fmod(random(n*7+5)*24+e.wind_x*time*.018f+24000,24.0f);
@@ -823,7 +853,7 @@ public:
         f.width=std::max(1,int(base.pixel_width*factor));f.height=std::max(1,int(base.pixel_height*factor));size_t count=size_t(f.width)*f.height;
         projection=f.width/(2*std::tan(70*pi/360));
         if(cached_world&&cached_world->width==f.width&&cached_world->height==f.height&&cached_world->pixels.size()==count&&cached_world->depth.size()==count&&cached_world->sun_shadows.size()==base.cell_count){
-            f=*cached_world;shadows=f.sun_shadows;f.held_depth.assign(count,std::numeric_limits<float>::infinity());
+            f=*cached_world;shadows=f.sun_shadows;fog_color=f.sky_horizon;f.held_depth.assign(count,std::numeric_limits<float>::infinity());
         }else{
             f.pixels.resize(count);f.depth.assign(count,std::numeric_limits<float>::infinity());f.held_depth.assign(count,std::numeric_limits<float>::infinity());f.owners.assign(count,-1);f.creatures.assign(count,-1);
             f.triangles=f.vehicle_parts=f.weather_particles=f.held_pixels=f.vertical_doors=f.vertical_windows=f.vertical_fences=f.plants=f.shadow_cells=0;
@@ -837,8 +867,8 @@ public:
         if(target>=0){f.aimed=target;const float h=extra(target).creature_height>0?extra(target).creature_height:1.7f;
             const vec top=view({float(target%base.grid_width)+.5f,float(target/base.grid_width)+.5f,h+extra(target).creature_elevation+.06f});
             if(top.z>.08f){f.label_x=clamp(.5f+projection*top.x/top.z/f.width);f.label_y=clamp(.5f-projection*top.y/top.z/f.height);}}
-        f.weather_particles=f.held_pixels=0;weather();held();paint(overlay);
-        if(f.width>=320&&f.height>=240){int x=f.width/2,y=f.height/2;for(int d=-3;d<=3;++d){if(d==0)continue;f.pixels[size_t(y)*f.width+x+d]=0xd8e0e0ff;f.pixels[size_t(y+d)*f.width+x]=0xd8e0e0ff;}}
+        f.weather_particles=f.held_pixels=0;weather();held();paint(overlay);atmosphere();
+        if(!metadata&&f.width>=320&&f.height>=240){int x=f.width/2,y=f.height/2;for(int d=-3;d<=3;++d){if(d==0)continue;f.pixels[size_t(y)*f.width+x+d]=0xd8e0e0ff;f.pixels[size_t(y+d)*f.width+x]=0xd8e0e0ff;}}
     }
 };
 inline bool valid_scene(const ncmm_graphics_scene_v2 &s,float yaw,float pitch){
