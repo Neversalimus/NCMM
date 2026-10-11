@@ -196,10 +196,27 @@ bool graphics_scene_smoke()
         require( graphics_view.enabled, "f6_near_vehicle_did_not_enable" );
         draw();
         require( graphics_resolved_vehicle_textures > 0, "vehicle_disappeared_after_toggle" );
+        bool interior_checked=false;
+        for(const vpart_reference &part:car->get_all_parts())if(part.has_feature("SEAT")){
+            const auto seat=part.pos_bub(here);const auto vp=here.veh_at(seat);
+            if(!vp||!vp->part_with_feature("ROOF",false))continue;
+            you.setpos(here,seat,false);here.board_vehicle(seat,&you);draw();
+            require(you.in_vehicle&&graphics_presentation.occupied_vehicle>0&&graphics_presentation.eye_height<=1.18f,"occupied_vehicle_camera_or_ceiling_missing");
+            capture_frame("first-person-car-interior.bmp");here.unboard_vehicle(seat);you.setpos(here,center,false);interior_checked=true;break;
+        }
+        require(interior_checked,"roofed_vehicle_seat_fixture_missing");
         here.destroy_vehicle( car );
         g->ter_view_p = center;
         // Audit all definitions without querying the identities of unseen cells.
-        size_t terrain_count = 0, furniture_count = 0;
+        size_t terrain_count = 0, furniture_count = 0, creature_count=0, gas_count=0;
+        for(const auto &mon:MonsterGenerator::generator().get_all_mtypes()){
+            const auto size=ncmm_graphics_presentation_policy::creature(units::to_milliliter(mon.volume)/1000.0f,int(mon.size)-1,mon.bodytype);
+            require(std::isfinite(size.height)&&std::isfinite(size.width)&&size.height>0&&size.height<=7&&size.width>0&&size.width<=9,"creature_scale_audit_invalid");++creature_count;
+        }
+        for(const auto &ft:field_types::get_all())if(ft.phase==phase_id::GAS){
+            require(ncmm_graphics_presentation_policy::gas(ft.id.str(),true)!=NCMM_GAS_NONE,"game_gas_has_no_volume");++gas_count;
+        }
+        require(creature_count>500&&gas_count>5,"creature_or_gas_audit_incomplete");
         std::array<size_t, NCMM_SHAPE_COUNT> taxonomy = {};
         for( const auto &ter : mapdata::terrain_data.get_all() ) {
             const auto traits = graphics_traits( ter, !ter.close.is_null() );
@@ -219,7 +236,7 @@ bool graphics_scene_smoke()
         // The game locale can insert thousands separators; JSON integers cannot contain them.
         audit << "{\"terrain\":" << std::to_string( terrain_count ) << ",\"furniture\":" << std::to_string( furniture_count ) << ",\"shape_counts\":[";
         for( size_t i = 0; i < taxonomy.size(); ++i ) { if( i ) audit << ','; audit << std::to_string( taxonomy[i] ); }
-        audit << "]}\n";
+        audit << "],\"creatures\":" << std::to_string(creature_count) << ",\"gases\":" << std::to_string(gas_count) << "}\n";
         require( terrain_count > 500 && furniture_count > 200, "taxonomy_audit_incomplete" );
         for( const std::string action : { "open", "close", "examine", "smash", "ACTIONMENU", "TIMEOUT", "UNKNOWN" } ) {
             graphics_action( action );
@@ -249,6 +266,15 @@ bool graphics_scene_smoke()
         capture_frame( "first-person-pole-grip.bmp" );
         monster *target = g->place_critter_at( mtype_id( "mon_zombie" ), tripoint_bub_ms( center.x(), center.y() - 1, 0 ) );
         require( target != nullptr, "attack_target_not_created" );
+        ncmm::handle_gameplay_action("ncmm.view.look_down");draw();
+        require(graphics_aim.has_value()&&graphics_aim_name==target->disp_name(),"visible_aim_label_missing");
+        require(ncmm::graphics_mouse_event(1,320,240,0,0,true),"aim_mouse_capture_failed");
+        require(ncmm::graphics_click_action()=="fire","lmb_reach_action_not_routed");
+        const auto trajectory=target_handler::mode_reach(you,you.get_wielded_item());
+        require(!trajectory.empty()&&trajectory.back()==target->pos_bub()&&!graphics_click_pending,"first_person_click_did_not_accept_normal_reach_trajectory");
+        ncmm::graphics_mouse_event(2,320,240,0,0,true);
+        capture_frame("first-person-aim-label.bmp");
+        ncmm::handle_gameplay_action("ncmm.view.look_up");
         const uint64_t serial = graphics_attack_serial;
         const int attack_moves = you.get_moves();
         you.melee_attack( *target, false );
@@ -282,6 +308,35 @@ bool graphics_scene_smoke()
         draw();
         require( ncmm::handle_gameplay_action( "ncmm.view.quality" ), "balanced_action_missing" );
         draw();
+        const std::pair<const char *,uint32_t> geometry_cases[]={
+            {"t_guardrail",NCMM_SHAPE_GUARDRAIL},{"t_reinforced_glass",NCMM_SHAPE_GLASS_WALL},
+            {"t_resin_hole_c",NCMM_SHAPE_RESIN_PORTAL},{"t_resin_hole_o",NCMM_SHAPE_RESIN_PORTAL},
+            {"t_scrap_wall_halfway",NCMM_SHAPE_SCRAP_FENCE}};
+        const tripoint_bub_ms sample(center.x(),center.y()-2,0);
+        for(const auto &entry:geometry_cases){here.ter_set(sample,ter_id(entry.first));draw();
+            require(graphics_hybrid_shape_counts[entry.second]>0,"reported_geometry_regression");
+            capture_frame(std::string("first-person-")+entry.first+".bmp");}
+        here.ter_set(sample,ter_id("t_water_dp"));here.furn_set(sample,furn_id("f_scrap_bridge"));draw();
+        require(graphics_hybrid_shape_counts[NCMM_SHAPE_BRIDGE]>0,"scrap_bridge_not_horizontal");capture_frame("first-person-scrap-bridge.bmp");
+        here.furn_set(sample,furn_id("f_null"));draw();capture_frame("first-person-water.bmp");
+        here.ter_set(sample,ter_id("t_floor"));here.add_field(sample,field_type_str_id("fd_smoke").id(),3);draw();
+        require(std::any_of(graphics_presentation_cells.begin(),graphics_presentation_cells.end(),[](const auto &v){return v.gas==NCMM_GAS_SMOKE&&v.field_intensity==3;}),"real_smoke_volume_missing");
+        capture_frame("first-person-smoke-volume.bmp");
+        // Explicitly exercise the Host recovery path, independent of whether the
+        // CI runner has hardware acceleration or only the SDL software backend.
+        graphics_effect_pixels.assign(4,0x20408040u);graphics_effect_width=graphics_effect_height=2;
+        graphics_effect_failed=true;const auto fallback_count=graphics_effect_cpu_frames;
+        const SDL_FRect full={0,0,640,480};
+        require(graphics_present_effects(renderer,graphics_stream_texture,full)&&graphics_effect_cpu_frames==fallback_count+1,"atmosphere_cpu_recovery_failed");
+        graphics_effect_failed=false;here.clear_fields(sample);draw();
+        item rifle(itype_id("modular_m27_assault_rifle"),calendar::turn);
+        rifle.force_insert_item(item(itype_id("rifle_scope"),calendar::turn),pocket_type::MOD);
+        rifle.force_insert_item(item(itype_id("suppressor"),calendar::turn),pocket_type::MOD);
+        rifle.force_insert_item(item(itype_id("grip"),calendar::turn),pocket_type::MOD);
+        you.set_wielded_item(rifle);draw();
+        require(graphics_presentation.gun_kind==NCMM_GUN_RIFLE&&(graphics_presentation.gunmods&(NCMM_MOD_OPTIC|NCMM_MOD_SUPPRESSOR|NCMM_MOD_FOREGRIP))==(NCMM_MOD_OPTIC|NCMM_MOD_SUPPRESSOR|NCMM_MOD_FOREGRIP),"actual_firearm_attachments_missing");
+        capture_frame("first-person-rifle-attachments.bmp");
+        ncmm_draw_perspective_label(u8"Зомби / zombie / 僵尸",320,80,capture);SDL_FlushRenderer(renderer);capture_frame("first-person-unicode-label.bmp");
         you.set_wielded_item( item( itype_id( "knife_combat" ), calendar::turn ) ); draw();
         require( graphics_hybrid_held_sprites > 0 && std::string( graphics_hybrid_last_environment.held_item ) == "knife_combat",
                  "wielded_item_sprite_stale" );
@@ -350,7 +405,7 @@ bool graphics_scene_smoke()
     std::ofstream out( game_root() / "ncmm" / "first-person-smoke.json", std::ios::binary | std::ios::trunc );
     out << "{\"schema\":1,\"success\":" << ( success ? "true" : "false" )
         << ",\"reason\":\"" << reason << "\",\"checks\":" << std::to_string( checks )
-        << ",\"sdl_frames\":" << std::to_string( frames ) << "}\n";
+        << ",\"sdl_frames\":" << std::to_string( frames ) << ",\"gpu_effect_frames\":" << std::to_string(graphics_effect_gpu_frames) << ",\"cpu_recovery_frames\":" << std::to_string(graphics_effect_cpu_frames) << "}\n";
     log_line( success ? NCMM_LOG_INFO : NCMM_LOG_ERROR,
               ( "First Person View actual engine smoke: " + reason ).c_str() );
     return success;
