@@ -39,3 +39,16 @@ Hosts to be reused for the final installer qualification.
 
 Final accessory audit covers all nine supported attachment types, simultaneous
 light/laser mounts and canonical revolver IDs, including enchanted variants.
+
+## 0.7.1 continuation
+
+The floor-sample SDL fixture now drives the DLL camera through real actions,
+asserts its downward angle and restores it, instead of changing only the Host echo.
+Raster preparation clips/projects each triangle once. Interleaved 16-row strips
+spread lower-screen floor and view-model work across the workers, preserving
+submission order and disjoint writes. Thirty reference frames at 640x480 and
+1280x800 match the previous implementation byte for byte across color, world/held
+depth, creature picking and ownership, including glass, doors, near clipping,
+water and firearms. Initial isolated camera benchmarks at 1280x800 improve clear
+floor from 50 to 29 ms, walls from 45 to 34 ms and water from 52 to 31 ms; timing
+varies with host load and these numbers do not represent in-game player FPS.

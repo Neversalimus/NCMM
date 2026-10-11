@@ -193,7 +193,13 @@ class renderer {
         return color;
     }
     static vertex interpolate(const vertex &a,const vertex &b,float t){return{a.p+(b.p-a.p)*t,a.u+(b.u-a.u)*t,a.v+(b.v-a.v)*t,a.light+(b.light-a.light)*t};}
-    void raster(const triangle &t,int row_begin,int row_end,uint32_t &triangles){
+    struct projected_triangle {
+        std::array<vertex,3> v;std::array<vec,3> p;
+        std::array<float,3> iz,uu,vv,fine,medium;
+        material m;vec normal,flat_light,flat_color;
+        int xmin,xmax,ymin,ymax;float inv,dw0,dw1;bool coarse,detailed;
+    };
+    void project(const triangle &t,std::vector<projected_triangle> &output){
         std::array<vertex,5> poly{};int count=0;
         for(int i=0;i<3;++i){const auto &a=t.v[i],&b=t.v[(i+1)%3];float za=view(a.p).z,zb=view(b.p).z;
             if(za>=0.08f)poly[count++]=a;
@@ -208,9 +214,8 @@ class renderer {
             int xmax=std::min(f.width-1,int(std::ceil(std::clamp(std::max({p[0].x,p[1].x,p[2].x}),-1.0f,float(f.width)))));
             int ymin=std::max(0,int(std::floor(std::clamp(std::min({p[0].y,p[1].y,p[2].y}),-1.0f,float(f.height)))));
             int ymax=std::min(f.height-1,int(std::ceil(std::clamp(std::max({p[0].y,p[1].y,p[2].y}),-1.0f,float(f.height)))));
-            ymin=std::max(ymin,row_begin);ymax=std::min(ymax,row_end-1);
             if(xmax<xmin||ymax<ymin)continue;
-            ++triangles;float inv=1/area;
+            float inv=1/area;
             bool coarse=t.m.texture&&t.m.opaque_texture&&float(t.m.texture->data.width*t.m.texture->data.height)>std::abs(area)*3;
             // Walk covered scanline spans. Thin/near-clipped triangles must not scan
             // a full viewport bounding rectangle for a handful of covered pixels.
@@ -222,40 +227,56 @@ class renderer {
             for(int n=0;n<3;++n){const float footprint=p[n].z/projection/std::max(.15f,std::abs(dot(t.normal,normalize(eye-v[n].p))));
                 fine[n]=clamp(1-footprint*80);medium[n]=clamp(1-footprint*18);}
             const bool detailed=t.m.finish==surface::water||(t.m.finish!=surface::none&&!reflective&&std::max({medium[0],medium[1],medium[2]})>0);
-            for(int y=ymin;y<=ymax;++y){
-                float left=std::numeric_limits<float>::infinity(),right=-left;
-                const float py=y+.5f;
-                for(int e=0;e<3;++e){const auto &a=p[e],&b=p[(e+1)%3];
-                    if(py<std::min(a.y,b.y)||py>std::max(a.y,b.y)||std::abs(a.y-b.y)<.00001f)continue;
-                    const float x=a.x+(py-a.y)*(b.x-a.x)/(b.y-a.y);left=std::min(left,x);right=std::max(right,x);}
-                if(!std::isfinite(left))continue;
-                const int begin=std::max(xmin,int(std::ceil(std::clamp(left-.5001f,-1.0f,float(f.width)))));
-                const int end=std::min(xmax,int(std::floor(std::clamp(right-.4999f,-1.0f,float(f.width)))));
-                float w0=edge(p[1],p[2],begin+.5f,py)*inv,w1=edge(p[2],p[0],begin+.5f,py)*inv;
-                for(int x=begin;x<=end;++x,w0+=dw0,w1+=dw1){
-                    const float w2=1-w0-w1;
-                    float recip=w0*iz[0]+w1*iz[1]+w2*iz[2];if(recip<=0)continue;float z=1/recip;size_t k=size_t(y)*f.width+x;
-                    if(z>(t.m.overlay?f.held_depth[k]:f.depth[k])+.0002f)continue;
-                    vec c=flat_color;float alpha=t.m.alpha;
-                    if(t.m.texture&&t.m.texture->valid()){auto px=t.m.texture->sample((w0*uu[0]+w1*uu[1]+w2*uu[2])*z,(w0*vv[0]+w1*vv[1]+w2*vv[2])*z,coarse);float a=float(px&255)/255;
-                        // Low-opacity glows and tile outlines must not become a large
-                        // floating view model or write opaque world depth.
-                        if(t.m.cutout&&a<(t.m.overlay?.55f:.25f))continue;
-                        if(t.m.opaque_texture)c=unpack(px)*a+c*(1-a);else{c=unpack(px);alpha*=a;}}
-                    if(t.m.spill){const float ax=w0*iz[0]*z,bx=w1*iz[1]*z,cx=w2*iz[2]*z;
-                        const vec at=v[0].p*ax+v[1].p*bx+v[2].p*cx;
-                        const float dx=at.x-std::floor(at.x)-.5f,dy=at.y-std::floor(at.y)-.5f;
-                        if(dx*dx+dy*dy>.135f+(noise(at.x*9,at.y*9)-.5f)*.09f)continue;}
-                    if(alpha<.01f)continue;
-                    if(detailed){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;
-                        const vec pos=v[0].p*a+v[1].p*b+v[2].p*cw;
-                        c=surface_color(c,t.m,pos,t.normal,z,fine[0]*a+fine[1]*b+fine[2]*cw,medium[0]*a+medium[1]*b+medium[2]*cw);}
-                    c={c.x*flat_light.x,c.y*flat_light.y,c.z*flat_light.z};
-                    if(!t.m.overlay){float fog=clamp((z-2)*(s.environment.fog_density+.003f));c=c*(1-fog)+fog_color*fog;}
-                    if(alpha<.99f)c=c*alpha+unpack(f.pixels[k])*(1-alpha);
-                    f.pixels[k]=pack(c);
-                    if(alpha>=.99f||t.m.cutout){if(t.m.overlay)f.held_depth[k]=z;else f.depth[k]=z;f.owners[k]=t.m.cell;if(!t.m.overlay)f.creatures[k]=t.m.creature?t.m.cell:-1;}
-                }
+            output.push_back({v,p,iz,uu,vv,fine,medium,t.m,t.normal,flat_light,flat_color,xmin,xmax,ymin,ymax,inv,dw0,dw1,coarse,detailed});
+        }
+    }
+    void raster(const projected_triangle &t,int worker,int workers,uint32_t &triangles){
+        const auto &v=t.v;const auto &p=t.p;const auto &iz=t.iz;const auto &uu=t.uu;const auto &vv=t.vv;
+        const auto &fine=t.fine;const auto &medium=t.medium;
+        const auto flat_light=t.flat_light,flat_color=t.flat_color;
+        const int xmin=t.xmin,xmax=t.xmax,ymin=t.ymin,ymax=t.ymax;
+        const float inv=t.inv,dw0=t.dw0,dw1=t.dw1;const bool coarse=t.coarse,detailed=t.detailed;
+        auto edge=[](vec a,vec b,float x,float y){return(b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);};
+        // Interleaved strips keep all workers busy when the expensive floor or
+        // view model occupies only the bottom of the viewport. Each pixel still
+        // has exactly one writer and triangles retain their submission order.
+        constexpr int strip=16;
+        bool counted=false;
+        for(int y=ymin;y<=ymax;++y){
+            if((y/strip)%workers!=worker){y+=strip-1-y%strip;continue;}
+            if(!counted){++triangles;counted=true;}
+            float left=std::numeric_limits<float>::infinity(),right=-left;
+            const float py=y+.5f;
+            for(int e=0;e<3;++e){const auto &a=p[e],&b=p[(e+1)%3];
+                if(py<std::min(a.y,b.y)||py>std::max(a.y,b.y)||std::abs(a.y-b.y)<.00001f)continue;
+                const float x=a.x+(py-a.y)*(b.x-a.x)/(b.y-a.y);left=std::min(left,x);right=std::max(right,x);}
+            if(!std::isfinite(left))continue;
+            const int begin=std::max(xmin,int(std::ceil(std::clamp(left-.5001f,-1.0f,float(f.width)))));
+            const int end=std::min(xmax,int(std::floor(std::clamp(right-.4999f,-1.0f,float(f.width)))));
+            float w0=edge(p[1],p[2],begin+.5f,py)*inv,w1=edge(p[2],p[0],begin+.5f,py)*inv;
+            for(int x=begin;x<=end;++x,w0+=dw0,w1+=dw1){
+                const float w2=1-w0-w1;
+                float recip=w0*iz[0]+w1*iz[1]+w2*iz[2];if(recip<=0)continue;float z=1/recip;size_t k=size_t(y)*f.width+x;
+                if(z>(t.m.overlay?f.held_depth[k]:f.depth[k])+.0002f)continue;
+                vec c=flat_color;float alpha=t.m.alpha;
+                if(t.m.texture&&t.m.texture->valid()){auto px=t.m.texture->sample((w0*uu[0]+w1*uu[1]+w2*uu[2])*z,(w0*vv[0]+w1*vv[1]+w2*vv[2])*z,coarse);float a=float(px&255)/255;
+                    // Low-opacity glows and tile outlines must not become a large
+                    // floating view model or write opaque world depth.
+                    if(t.m.cutout&&a<(t.m.overlay?.55f:.25f))continue;
+                    if(t.m.opaque_texture)c=unpack(px)*a+c*(1-a);else{c=unpack(px);alpha*=a;}}
+                if(t.m.spill){const float ax=w0*iz[0]*z,bx=w1*iz[1]*z,cx=w2*iz[2]*z;
+                    const vec at=v[0].p*ax+v[1].p*bx+v[2].p*cx;
+                    const float dx=at.x-std::floor(at.x)-.5f,dy=at.y-std::floor(at.y)-.5f;
+                    if(dx*dx+dy*dy>.135f+(noise(at.x*9,at.y*9)-.5f)*.09f)continue;}
+                if(alpha<.01f)continue;
+                if(detailed){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;
+                    const vec pos=v[0].p*a+v[1].p*b+v[2].p*cw;
+                    c=surface_color(c,t.m,pos,t.normal,z,fine[0]*a+fine[1]*b+fine[2]*cw,medium[0]*a+medium[1]*b+medium[2]*cw);}
+                c={c.x*flat_light.x,c.y*flat_light.y,c.z*flat_light.z};
+                if(!t.m.overlay){float fog=clamp((z-2)*(s.environment.fog_density+.003f));c=c*(1-fog)+fog_color*fog;}
+                if(alpha<.99f)c=c*alpha+unpack(f.pixels[k])*(1-alpha);
+                f.pixels[k]=pack(c);
+                if(alpha>=.99f||t.m.cutout){if(t.m.overlay)f.held_depth[k]=z;else f.depth[k]=z;f.owners[k]=t.m.cell;if(!t.m.overlay)f.creatures[k]=t.m.creature?t.m.cell:-1;}
             }
         }
     }
@@ -272,10 +293,12 @@ class renderer {
     void paint(const std::vector<triangle> &queue,const std::vector<triangle> *last=nullptr){
         if(queue.empty()&&(!last||last->empty()))return;
         const int count=size_t(f.width)*f.height>=500000?int(std::clamp(std::thread::hardware_concurrency(),1u,4u)):1;
+        std::vector<projected_triangle> projected;projected.reserve(queue.size()+(last?last->size():0));
+        for(const auto &t:queue)project(t,projected);
+        if(last)for(const auto &t:*last)project(t,projected);
+        if(projected.empty())return;
         std::array<uint32_t,4> totals{};std::array<std::thread,3> threads;
-        auto band=[&](int n){const int begin=f.height*n/count,end=f.height*(n+1)/count;
-            for(const auto &t:queue)raster(t,begin,end,totals[n]);
-            if(last)for(const auto &t:*last)raster(t,begin,end,totals[n]);};
+        auto band=[&](int n){for(const auto &t:projected)raster(t,n,count,totals[n]);};
         // Sprites/geometry are resolved on the callback thread. Workers only
         // read owned analyses and write disjoint pixel/depth rows, then join.
         for(int n=1;n<count;++n){try{threads[n-1]=std::thread(band,n);}catch(const std::system_error &){band(n);}}
