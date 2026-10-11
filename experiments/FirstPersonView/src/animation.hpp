@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 namespace first_person::animation {
-struct pose {float swing=0,thrust=0,recoil=0;uint32_t grip=NCMM_GRIP_SINGLE;float length=.6f;};
+struct pose {float swing=0,thrust=0,recoil=0,sway_x=0,sway_y=0;uint32_t grip=NCMM_GRIP_SINGLE;float length=.6f;};
 inline float smooth(float x){x=std::clamp(x,0.0f,1.0f);return x*x*(3-2*x);}
 inline pose sample(const ncmm_graphics_control_state_v1 &s,double now){
     pose p;p.grip=s.grip_kind;p.length=std::clamp(s.held_length,.15f,2.7f);

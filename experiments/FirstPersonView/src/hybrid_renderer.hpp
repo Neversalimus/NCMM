@@ -122,6 +122,8 @@ class renderer {
     std::map<std::tuple<uint32_t,int,int>,int> vehicle_mounts;
     struct vehicle_palette {vec color{};float weight=0;};
     std::map<uint32_t,vehicle_palette> vehicle_colors;
+    struct vehicle_layout {int minx=1000,maxx=-1000,miny=1000,maxy=-1000,controls=0;float control_x=0;int front=1;};
+    std::map<uint32_t,vehicle_layout> vehicle_layouts;
     int index(int x,int y)const{return x<0||y<0||x>=base.grid_width||y>=base.grid_height?-1:y*base.grid_width+x;}
     bool visible(int i)const{return i>=0&&size_t(i)<base.cell_count&&(base.cells[i].flags&NCMM_GFX_VISIBLE);}
     bool outside(int i)const{return visible(i)&&!(base.cells[i].flags&NCMM_GFX_CEILING);}
@@ -157,7 +159,7 @@ class renderer {
         if(fine<0){const float footprint=z/projection/std::max(.15f,std::abs(dot(normal,to_eye)));
             fine=clamp(1-footprint*80);medium=clamp(1-footprint*18);}
         if(medium==0&&m.finish!=surface::paint&&m.finish!=surface::metal)return color;
-        const float u=normal.z>.5f?p.x:(std::abs(normal.x)>.5f?p.y:p.x),v=normal.z>.5f?p.y:p.z;
+        const float u=std::abs(normal.z)>.5f?p.x:(std::abs(normal.x)>.5f?p.y:p.x),v=std::abs(normal.z)>.5f?p.y:p.z;
         const int ix=int(std::floor(u*96)),iy=int(std::floor(v*96));
         const float grain=random(uint32_t(ix)*374761393u+uint32_t(iy)*668265263u)-.5f;
         float shade=1;
@@ -171,6 +173,8 @@ class renderer {
             case surface::rubber:shade+=grain*.10f*fine;break;
             case surface::cloth:shade+=grain*.09f*fine;break;
             case surface::skin:shade+=grain*.025f*fine;break;
+            case surface::plaster:{float tx=u-std::floor(u),ty=v-std::floor(v);shade+=grain*.045f*fine-.09f*medium*(tx<.009f||ty<.009f);break;}
+            case surface::resin:shade+=(noise(u*9,v*7)-.5f)*.23f*medium;break;
             default:break;
         }
         color=color*shade;
@@ -374,7 +378,9 @@ class renderer {
             }
         }
     }
-    void architecture(int i,uint32_t shape,uint32_t layer){if(!ncmm_graphics_shapes::vertical(shape))return;
+    #include "architecture.inc"
+    void architecture(int i,uint32_t shape,uint32_t layer){if(special_architecture(i,shape,layer))return;
+        if(!ncmm_graphics_shapes::vertical(shape))return;
         vec center{float(i%base.grid_width)+.5f,float(i/base.grid_width)+.5f,0};float angle=s.details[i].orientation?pi*.5f:0;
         material m=mat(i,layer,{.43f,.40f,.35f});material trim{nullptr,{.35f,.32f,.28f},1,false,false,false,i};
         trim.finish=surface::wood;
@@ -384,18 +390,7 @@ class renderer {
             m.opaque_texture=true;m.color=m.texture?m.texture->average:m.color;
             box(center,{-.5f,-.5f,0},{.5f,.5f,2.5f},m);return;
         }
-        if(shape==NCMM_SHAPE_DOOR_CLOSED||shape==NCMM_SHAPE_DOOR_OPEN||shape==NCMM_SHAPE_DOOR_FRAME){++f.vertical_doors;
-            box(center,{-.5f,-.08f,0},{-.43f,.08f,2.4f},trim,angle);box(center,{.43f,-.08f,0},{.5f,.08f,2.4f},trim,angle);box(center,{-.5f,-.08f,2.3f},{.5f,.08f,2.5f},trim,angle);
-            if(shape==NCMM_SHAPE_DOOR_FRAME)return;
-            material panel{nullptr,m.texture?m.texture->average:vec{.36f,.22f,.12f},1,false,false,false,i};
-            panel.finish=trim.finish;
-            vec hinge=rotate({-.43f,0,0},center,angle);float a=angle+(shape==NCMM_SHAPE_DOOR_OPEN?pi*.46f:0);
-            if((s.details[i].terrain_flags&NCMM_SURFACE_TRANSPARENT)&&ncmm_graphics_shapes::contains(base.cells[i].terrain,"glass")){
-                box(hinge,{0,-.035f,.04f},{.86f,.035f,.70f},panel,a);box(hinge,{0,-.035f,.7f},{.06f,.035f,2.29f},panel,a);box(hinge,{.80f,-.035f,.7f},{.86f,.035f,2.29f},panel,a);
-                box(hinge,{0,-.035f,2.22f},{.86f,.035f,2.29f},panel,a);material glass{nullptr,{.45f,.68f,.78f},.22f,false,false,false,i};plane(rotate({.43f,0,0},hinge,a),a,.70f,2.22f,glass,.74f);return;}
-            box(hinge,{0,-.035f,.04f},{.86f,.035f,2.29f},panel,a);
-            material rail=panel;rail.color=rail.color*.65f;for(float h:{.4f,1.25f,1.9f})box(hinge,{.10f,-.043f,h},{.76f,-.037f,h+.07f},rail,a);
-            material knob{nullptr,{.65f,.61f,.43f},1,false,false,false,i};box(hinge,{.73f,-.065f,1.03f},{.79f,.065f,1.08f},knob,a);return;}
+        if(shape==NCMM_SHAPE_DOOR_CLOSED||shape==NCMM_SHAPE_DOOR_OPEN||shape==NCMM_SHAPE_DOOR_FRAME){door_model(i,shape,layer);return;}
         if(shape==NCMM_SHAPE_WINDOW||shape==NCMM_SHAPE_WINDOW_BROKEN||shape==NCMM_SHAPE_WINDOW_COVERED){++f.vertical_windows;
             box(center,{-.5f,-.13f,0},{.5f,.13f,.73f},trim,angle);box(center,{-.5f,-.10f,.73f},{-.43f,.10f,2.35f},trim,angle);box(center,{.43f,-.10f,.73f},{.5f,.10f,2.35f},trim,angle);
             box(center,{-.5f,-.1f,2.27f},{.5f,.1f,2.5f},trim,angle);box(center,{-.02f,-.075f,.73f},{.02f,.075f,2.27f},trim,angle);
@@ -454,11 +449,21 @@ class renderer {
     void vehicles_build(){
         for(size_t i=0;i<base.cell_count;++i){const auto &d=s.details[i];if(!visible(int(i))||!d.vehicle_features)continue;
             vehicle_mounts.emplace(std::make_tuple(d.vehicle_group,d.mount_x,d.mount_y),int(i));
+            auto &layout=vehicle_layouts[d.vehicle_group];layout.minx=std::min(layout.minx,d.mount_x);layout.maxx=std::max(layout.maxx,d.mount_x);
+            layout.miny=std::min(layout.miny,d.mount_y);layout.maxy=std::max(layout.maxy,d.mount_y);
+            if(d.vehicle_features&NCMM_VEH_CONTROLS){layout.control_x+=d.mount_x;++layout.controls;}
             if(!(d.vehicle_features&(NCMM_VEH_BOARD|NCMM_VEH_DOOR|NCMM_VEH_ROOF|NCMM_VEH_ENGINE)))continue;
             image *img=texture(uint32_t(i),NCMM_GFX_FURNITURE);if(!img->valid())continue;
             const float weight=d.vehicle_features&(NCMM_VEH_BOARD|NCMM_VEH_DOOR|NCMM_VEH_ENGINE)?3.0f:1.0f;
             auto &palette=vehicle_colors[d.vehicle_group];palette.color=palette.color+img->paint*weight;palette.weight+=weight;
         }
+    }
+    int vehicle_front(int i)const{
+        const auto found=vehicle_layouts.find(s.details[i].vehicle_group);if(found==vehicle_layouts.end())return 1;
+        const auto &v=found->second;
+        // Driver/control mount resolves the visual front; a centred console keeps
+        // CDDA's canonical facing instead of flipping as the car crosses a tile.
+        return v.controls&&v.control_x/v.controls<(v.minx+v.maxx)*.5f-.25f?-1:1;
     }
     int vehicle_neighbor(int i,int mx,int my)const{
         const auto found=vehicle_mounts.find(std::make_tuple(s.details[i].vehicle_group,mx,my));
@@ -476,8 +481,9 @@ class renderer {
     static bool cabin(uint32_t flags){return (flags&(NCMM_VEH_ROOF|NCMM_VEH_SEAT|NCMM_VEH_WINDOW))!=0;}
     void vehicle(int i){
         const auto &d=s.details[i];const uint32_t flags=d.vehicle_features;if(!flags)return;++f.vehicle_parts;
-        const float yaw=d.vehicle_yaw;
-        const vec center=rotate({float(d.mount_x),float(d.mount_y),0},{d.vehicle_x,d.vehicle_y,0},yaw);
+        const int front_direction=vehicle_front(i);
+        const float yaw=d.vehicle_yaw+(front_direction<0?pi:0);
+        const vec center=rotate({float(d.mount_x),float(d.mount_y),0},{d.vehicle_x,d.vehicle_y,0},d.vehicle_yaw);
         image *source=texture(uint32_t(i),NCMM_GFX_FURNITURE);
         vec paint=source->valid()?source->paint:vec{.32f,.36f,.40f};
         const auto palette=vehicle_colors.find(d.vehicle_group);
@@ -485,8 +491,13 @@ class renderer {
         material body{nullptr,paint,1,false,false,false,i,surface::paint};
         material dark{nullptr,{.055f,.064f,.073f},1,false,false,false,i,surface::rubber};
         material steel{nullptr,{.30f,.33f,.36f},1,false,false,false,i,surface::metal};
+        const auto layout=vehicle_layouts.find(d.vehicle_group);
+        const bool automobile=layout!=vehicle_layouts.end()&&layout->second.maxy-layout->second.miny>=1&&layout->second.maxx-layout->second.minx>=2;
         const bool enclosed=cabin(flags)||roofed(i);
-        const bool shell=(flags&(NCMM_VEH_BOARD|NCMM_VEH_DOOR|NCMM_VEH_ROOF|NCMM_VEH_WINDOW|NCMM_VEH_ENGINE|NCMM_VEH_CARGO))!=0;
+        const bool hood=automobile&&!enclosed&&layout->second.controls&&
+            (d.mount_x-layout->second.control_x/layout->second.controls)*front_direction>=0;
+        auto adjacent=[&](int dx,int dy){return vehicle_neighbor(i,d.mount_x+dx*front_direction,d.mount_y+dy*front_direction);};
+        const bool shell=hood||(flags&(NCMM_VEH_BOARD|NCMM_VEH_DOOR|NCMM_VEH_ROOF|NCMM_VEH_WINDOW|NCMM_VEH_ENGINE|NCMM_VEH_CARGO))!=0;
         bevel_box(center,{-.49f,shell?-.47f:-.13f,.24f},{.49f,shell?.47f:.13f,.47f},.035f,steel,yaw);
         auto point=[&](float x,float y,float z){return rotate({x,y,z},center,yaw);};
         auto face=[&](vec a,vec b,vec c,vec e,material m){
@@ -498,22 +509,35 @@ class renderer {
         material trim=dark;trim.color={.10f,.12f,.13f};
         if(roofed(i)){
             float front=.505f,back=-.505f;
-            const int a=vehicle_neighbor(i,d.mount_x+1,d.mount_y),b=vehicle_neighbor(i,d.mount_x-1,d.mount_y);
+            const int a=adjacent(1,0),b=adjacent(-1,0);
             if(a<0||!cabin(s.details[a].vehicle_features))front=.27f;
             if(b<0||!cabin(s.details[b].vehicle_features))back=-.27f;
             // Adjacent roof panels share full-height edges; bevel only the
             // actual exterior perimeter rather than every tile-sized panel.
-            auto has_roof=[&](int dx,int dy){int n=vehicle_neighbor(i,d.mount_x+dx,d.mount_y+dy);return n>=0&&roofed(n);};
+            auto has_roof=[&](int dx,int dy){int n=adjacent(dx,dy);return n>=0&&roofed(n);};
             std::array<vec,4> lower{point(back,-.505f,1.46f),point(front,-.505f,1.46f),point(front,.505f,1.46f),point(back,.505f,1.46f)};
             const float lx=back+(has_roof(-1,0)?0:.035f),hx=front-(has_roof(1,0)?0:.035f),ly=-.505f+(has_roof(0,-1)?0:.035f),hy=.505f-(has_roof(0,1)?0:.035f);
             std::array<vec,4> top{point(lx,ly,1.57f),point(hx,ly,1.57f),point(hx,hy,1.57f),point(lx,hy,1.57f)};
-            solid_quad(top[0],top[1],top[2],top[3],body);
-            solid_quad(lower[3],lower[2],lower[1],lower[0],body,{0,0,-1});
+            const bool inside=metadata&&metadata->view.occupied_vehicle==d.vehicle_group;
+            if(!inside)solid_quad(top[0],top[1],top[2],top[3],body);
+            if(!inside||(flags&NCMM_VEH_ROOF)){
+                material headliner{nullptr,{.32f,.32f,.29f},1,false,false,false,i,surface::cloth};
+                // Real ROOF parts retain a ceiling, even though their outside shell is hidden.
+                solid_quad(lower[3],lower[2],lower[1],lower[0],inside?headliner:body,{0,0,-1});
+                if(inside){material rib=headliner;rib.color=rib.color*.70f;
+                    box(center,{-.48f,-.018f,1.44f},{.48f,.018f,1.46f},rib,yaw);}}
+
             for(int n=0;n<4;++n){const int j=(n+1)%4;const vec normal=normalize(cross(lower[j]-lower[n],top[n]-lower[n]));solid_quad(lower[n],lower[j],top[j],top[n],body,normal);}
         }
-        if(flags&NCMM_VEH_ENGINE||(!enclosed&&(flags&NCMM_VEH_BOARD))){
-            bevel_box(center,{-.49f,-.48f,.46f},{.49f,.48f,.86f},.07f,body,yaw);
-            material seam=dark;face({-.46f,-.39f,.865f},{.46f,-.39f,.865f},{.46f,-.38f,.865f},{-.46f,-.38f,.865f},seam);
+        if(hood||flags&NCMM_VEH_ENGINE||(!enclosed&&(flags&NCMM_VEH_BOARD))){
+            // A continuous bonnet spans every occupied front frame/engine mount,
+            // including mounts with no separately displayed body panel.
+            const bool end=adjacent(1,0)<0;const float nose=end?.77f:.87f;
+            face({-.505f,-.505f,.87f},{.505f,-.505f,nose},{.505f,.505f,nose},{-.505f,.505f,.87f},body);
+            if(adjacent(0,-1)<0)face({-.505f,-.505f,.48f},{.505f,-.505f,.48f},{.505f,-.505f,nose},{-.505f,-.505f,.87f},body);
+            if(adjacent(0,1)<0)face({.505f,.505f,.48f},{-.505f,.505f,.48f},{-.505f,.505f,.87f},{.505f,.505f,nose},body);
+            if(adjacent(-1,0)>=0&&cabin(s.details[adjacent(-1,0)].vehicle_features))
+                for(int vent=0;vent<9;++vent){const float y=-.40f+vent*.10f;face({-.48f,y,.873f},{-.37f,y,.862f},{-.37f,y+.015f,.862f},{-.48f,y+.015f,.873f},dark);}
         }
         if(flags&NCMM_VEH_CARGO){material top=body;top.texture=source->valid()?source:nullptr;top.opaque_texture=true;
             bevel_box(center,{-.43f,-.43f,.47f},{.43f,.43f,.67f},.035f,top,yaw);}
@@ -523,15 +547,27 @@ class renderer {
             bevel_box(center,{-.35f,-.21f,1.23f},{-.23f,.21f,1.40f},.04f,seat,yaw);
         }
         if(flags&NCMM_VEH_CONTROLS){
-            bevel_box(center,{.32f,-.42f,.86f},{.48f,.42f,1.05f},.035f,trim,yaw);
-            const vec at{.20f,-.12f,.95f};
-            auto ring=[&](float a,float r){return at+vec{-.35f*std::sin(a)*r,std::cos(a)*r,.94f*std::sin(a)*r};};
-            for(int n=0;n<16;++n){const float a=n*2*pi/16,b=(n+1)*2*pi/16;
+            bevel_box(center,{.30f,-.47f,.82f},{.49f,.47f,1.04f},.035f,trim,yaw);
+            material display{nullptr,{.09f,.25f,.21f},1,false,false,false,i};
+            material digits{nullptr,{.58f,.87f,.62f},1,false,false,false,i};
+            face({.297f,-.37f,.88f},{.297f,.07f,.88f},{.297f,.07f,1.015f},{.297f,-.37f,1.015f},dark);
+            for(float offset:{-.25f,-.08f})for(int segment=0;segment<20;++segment){float a=segment*2*pi/20,b=(segment+1)*2*pi/20;
+                const vec c{.295f,offset,.95f};
+                face(c+vec{0,std::cos(a)*.062f,std::sin(a)*.062f},c+vec{0,std::cos(b)*.062f,std::sin(b)*.062f},c,c,display);}
+            for(float offset:{-.25f,-.08f})face({.291f,offset-.003f,.946f},{.291f,offset+.035f,.971f},{.291f,offset+.039f,.969f},{.291f,offset+.003f,.944f},digits);
+            face({.293f,.14f,.90f},{.293f,.32f,.90f},{.293f,.32f,.995f},{.293f,.14f,.995f},display);
+            for(int button=0;button<4;++button)box(center,{.278f,.145f+button*.044f,.86f},{.296f,.17f+button*.044f,.884f},steel,yaw);
+            for(int vent=0;vent<4;++vent)face({.293f,.35f,.92f+vent*.023f},{.293f,.44f,.92f+vent*.023f},{.293f,.44f,.931f+vent*.023f},{.293f,.35f,.931f+vent*.023f},dark);
+            const vec at{.17f,-.14f,.94f};
+            auto ring=[&](float a,float r,float depth=0){return at+vec{-.35f*std::sin(a)*r+depth,std::cos(a)*r,.94f*std::sin(a)*r};};
+            for(int n=0;n<24;++n){const float a=n*2*pi/24,b=(n+1)*2*pi/24;
                 face(ring(a,.175f),ring(b,.175f),ring(b,.145f),ring(a,.145f),dark);
-                if(n%5==0)face(ring(a,.15f),ring(a+.12f,.15f),ring(a+.12f,.02f),ring(a,.02f),steel);}
+                face(ring(a,.175f),ring(b,.175f),ring(b,.168f,.023f),ring(a,.168f,.023f),trim);
+                if(n%8==0)face(ring(a,.15f),ring(a+.16f,.15f),ring(a+.16f,.025f),ring(a,.025f),steel);}
+            bevel_box(center,{.14f,-.18f,.90f},{.20f,-.10f,.98f},.01f,dark,yaw);
         }
         for(int axis=0;axis<2;++axis)for(int sign:{-1,1}){
-            const int neighbor=vehicle_neighbor(i,d.mount_x+(axis==0?sign:0),d.mount_y+(axis==1?sign:0));
+            const int neighbor=adjacent(axis==0?sign:0,axis==1?sign:0);
             const bool boundary=neighbor<0;
             const bool cabin_end=axis==0&&enclosed&&(boundary||!cabin(s.details[neighbor].vehicle_features));
             if(!boundary&&!cabin_end)continue;
@@ -588,7 +624,7 @@ class renderer {
             if(enclosed&&!open){
                 if(roofed(i))box(center,{-.49f,side-.018f,1.435f},{.49f,side+.018f,1.48f},body,yaw);
                 float front=.46f,back=-.46f;
-                const int a=vehicle_neighbor(i,d.mount_x+1,d.mount_y),b=vehicle_neighbor(i,d.mount_x-1,d.mount_y);
+                const int a=adjacent(1,0),b=adjacent(-1,0);
                 if(a<0||!cabin(s.details[a].vehicle_features))front=.25f;
                 if(b<0||!cabin(s.details[b].vehicle_features))back=-.25f;
                 if(!(flags&NCMM_VEH_BROKEN)){
@@ -641,7 +677,7 @@ class renderer {
             if(!(c.flags&NCMM_GFX_NO_FLOOR)){auto floor=mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f});floor.opaque_texture=true;floor.finish=ground_surface(d.ground);
                 quad({float(x),float(y),0},{float(x+1),float(y),0},{float(x+1),float(y+1),0},{float(x),float(y+1),0},floor);
                 if(d.terrain_shape==NCMM_SHAPE_WATER){material water{nullptr,{.15f,.32f,.40f},.22f,false,false,false,i};quad({float(x),float(y),.012f},{float(x+1),float(y),.012f},{float(x+1),float(y+1),.012f},{float(x),float(y+1),.012f},water);}}
-            if((c.flags&NCMM_GFX_CEILING)&&(!d.vehicle_features||(d.terrain_flags&NCMM_SURFACE_TERRAIN_CEILING))){material ceiling{nullptr,{.53f,.52f,.49f},1,false,false,false,i};quad({float(x),float(y),2.5f},{float(x+1),float(y),2.5f},{float(x+1),float(y+1),2.5f},{float(x),float(y+1),2.5f},ceiling,{0,0,-1});}
+            if((c.flags&NCMM_GFX_CEILING)&&(!d.vehicle_features||(d.terrain_flags&NCMM_SURFACE_TERRAIN_CEILING)))ceiling(i,x,y);
             if(d.field[0]&&d.field_shape==NCMM_SHAPE_FLAT){auto field=mat(i,NCMM_GFX_FIELD,{.48f,.18f,.12f},true);quad({float(x),float(y),.013f},{float(x+1),float(y),.013f},{float(x+1),float(y+1),.013f},{float(x),float(y+1),.013f},field);}
             continue;}
             architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
@@ -679,7 +715,7 @@ class renderer {
         auto animate=[&](vec p){const vec pivot{.27f,-.28f,.84f};p=p-pivot;
             const float a=pose.swing,co=std::cos(a),sn=std::sin(a);
             p={p.x*co-p.y*sn,p.x*sn+p.y*co,p.z};
-            return p+pivot+vec{-.12f*pose.swing,.04f*pose.swing,pose.thrust-pose.recoil};};
+            return p+pivot+vec{-.12f*pose.swing+pose.sway_x,.04f*pose.swing+pose.sway_y,pose.thrust-pose.recoil};};
         auto hud=[&](vec p){p=animate(p);p.x*=hud_scale;p.y*=hud_scale;return local(p);};
         auto face=[&](vec a,vec b,vec c,vec d,material m){a=hud(a);b=hud(b);c=hud(c);d=hud(d);quad(a,b,c,d,m,normalize(cross(b-a,d-a)));};
         material skin{nullptr,{.67f,.46f,.34f},1,false,false,true,-1,surface::skin};
@@ -696,7 +732,23 @@ class renderer {
         auto palm=[&](vec center,vec radius){auto p=[&](float lon,float lat){return center+vec{std::cos(lon)*std::cos(lat)*radius.x,std::sin(lat)*radius.y,std::sin(lon)*std::cos(lat)*radius.z};};
             for(int lat=0;lat<5;++lat)for(int lon=0;lon<10;++lon){float a=-pi*.5f+pi*lat/5,b=-pi*.5f+pi*(lat+1)/5,c=2*pi*lon/10,d=2*pi*(lon+1)/10;
                 face(p(c,a),p(d,a),p(d,b),p(c,b),skin);}};
+        const material base_skin=skin,base_sleeve=sleeve;
         auto hand=[&](vec grip,bool left){
+            skin=base_skin;sleeve=base_sleeve;
+            const int side=left?0:1;
+            uint32_t features=0;
+            if(metadata){features=metadata->view.hand_features;
+                if(features&NCMM_HAND_SCALES)skin.color={.40f,.47f,.30f};
+                if(features&NCMM_HAND_CHITIN){skin.color={.25f,.20f,.18f};skin.finish=surface::resin;}
+                if(features&NCMM_HAND_FUR){skin.color={.40f,.30f,.20f};skin.finish=surface::cloth;}
+                if(features&NCMM_HAND_BIONIC){skin.color={.42f,.44f,.44f};skin.finish=surface::metal;}
+                sleeve=skin;
+                if(metadata->view.arm_features&NCMM_HAND_BIONIC){sleeve.color={.36f,.40f,.41f};sleeve.finish=surface::metal;}
+                if(metadata->view.sleeve[side][0]){auto *cloth=texture(UINT32_MAX,NCMM_GFX_SLEEVE_LEFT+side);
+                    sleeve.color=cloth->valid()?cloth->paint:vec{.30f,.33f,.28f};sleeve.finish=finish(metadata->view.sleeve_material[side]);}
+                if(metadata->view.glove[side][0]){auto *glove=texture(UINT32_MAX,NCMM_GFX_GLOVE_LEFT+side);
+                    skin.color=glove->valid()?glove->paint:vec{.21f,.22f,.20f};skin.finish=finish(metadata->view.glove_material[side]);features=0;}}
+
             // Both wrists, palms, fingers and the weapon share this grip/pose.
             vec center=grip+vec{left?-.018f:.018f,-.014f,-.040f};
             const vec elbow=left?vec{-.15f,-.73f,.49f}:vec{.44f,-.76f,.48f};
@@ -705,11 +757,16 @@ class renderer {
             palm(center,{.052f,.061f,.041f});
             for(int n=0;n<4;++n){const float y=center.y+.029f-n*.023f;
                 const vec knuckle{center.x-.040f,y,center.z-.014f},bend{center.x+.025f,y+.002f,center.z-.022f};
-                tube(knuckle,bend,.012f,.013f,skin);tube(bend,{center.x+.042f,y+.005f,center.z+.007f},.013f,.010f,skin);}
+                tube(knuckle,bend,.012f,.013f,skin);tube(bend,{center.x+.042f,y+.005f,center.z+.007f},.013f,.010f,skin);
+                if(features&NCMM_HAND_CLAWS){material claw=skin;claw.color={.65f,.62f,.48f};claw.finish=surface::resin;
+                    tube({center.x+.041f,y+.005f,center.z+.007f},{center.x+.040f,y+.007f,center.z+.048f},.009f,.001f,claw);}
+                if(features&NCMM_HAND_SCALES){material scale=skin;scale.color=scale.color*.68f;tube(knuckle,bend,.013f,.009f,scale);}
+            }
             tube(center+vec{-.044f,.052f,0},center+vec{-.005f,.024f,-.033f},.018f,.014f,skin);
         };
         if(empty){hand({.27f,-.24f,.82f},false);return;}
         const bool valid=img&&img->valid();
+        #include "firearm.inc"
         if(pose.grip==NCMM_GRIP_POLE){
             const vec butt{.33f,-.54f,.74f},neck{.155f,.06f,1.02f};
             material shaft{nullptr,{.30f,.24f,.17f},1,false,false,true,-1,surface::wood};
@@ -736,7 +793,7 @@ class renderer {
         const float w=float(img->right-img->left),h=float(img->bottom-img->top);float angle=-.15f;
         if(s.environment.held_kind==2&&img->elongation>1.5f){float axis=img->axis_angle;if(std::sin(axis)<0)axis+=pi;angle=pi*.58f-axis;}
         const float ca=std::cos(angle),sa=std::sin(angle);
-        const float scale=std::min(.28f/(std::abs(ca)*w+std::abs(sa)*h),.42f/(std::abs(sa)*w+std::abs(ca)*h));
+        const float scale=std::clamp(pose.length/.65f,.30f,1.0f)*std::min(.28f/(std::abs(ca)*w+std::abs(sa)*h),.42f/(std::abs(sa)*w+std::abs(ca)*h));
         auto rotate_item=[&](float x,float y){return vec{x*ca-y*sa,x*sa+y*ca,0};};
         float bottom=1e9f,left=1e9f,right=-1e9f;
         for(float x:{-w*.5f,w*.5f})for(float y:{0.0f,h}){vec p=rotate_item(x*scale,y*scale);bottom=std::min(bottom,p.y);left=std::min(left,p.x);right=std::max(right,p.x);}

@@ -120,7 +120,7 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
     }
     graphics_presentation_cells.assign( base.cell_count, {} );
     const vehicle *occupied=nullptr;
-    if( const auto vp=here.veh_at( you.pos_bub() ) ) if( you.in_vehicle ) occupied=&vp->vehicle();
+    if( const auto vp=here.veh_at( you.pos_bub() ) ) if( you.in_vehicle ) { occupied=&vp->vehicle(); p.eye_height=std::min(p.eye_height,1.18f); }
     for( size_t i=0; i<base.cell_count; ++i ) {
         if( !( base.cells[i].flags&NCMM_GFX_VISIBLE ) ) continue;
         auto &d=graphics_presentation_cells[i]; const auto &pos=positions[i];

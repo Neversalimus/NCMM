@@ -45,9 +45,11 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     bool has_metadata=false;
     if(presentation){metadata.view={};metadata.view.struct_size=sizeof(metadata.view);metadata.cells.resize(scene->base.cell_count);
         has_metadata=presentation->get_scene(&metadata.view)&&presentation->get_cells(metadata.cells.data(),metadata.cells.size());}
-    const auto pose=first_person::animation::sample(state,std::floor(scene->environment.animation_seconds*40)/40);
+    auto pose=first_person::animation::sample(state,std::floor(scene->environment.animation_seconds*40)/40);
+    if(has_metadata){const float t=float(std::fmod(scene->environment.animation_seconds,1000.0));
+        pose.sway_x=std::sin(t*1.4f)*.0022f;pose.sway_y=std::sin(t*2.2f)*.0032f;}
     uint64_t key=scene_key(*scene);
-    for(float value:{pose.swing,pose.thrust,pose.recoil,pose.length}){uint32_t bits;std::memcpy(&bits,&value,sizeof(bits));key=(key^bits)*1099511628211ull;}
+    for(float value:{pose.swing,pose.thrust,pose.recoil,pose.length,pose.sway_x,pose.sway_y}){uint32_t bits;std::memcpy(&bits,&value,sizeof(bits));key=(key^bits)*1099511628211ull;}
     key=(key^pose.grip)*1099511628211ull;
     uint64_t wk=scene_key(*scene,true);
     if(has_metadata){auto hash=[&](const void *data,size_t n){auto *b=static_cast<const unsigned char *>(data);for(size_t i=0;i<n;++i)wk=(wk^b[i])*1099511628211ull;};
