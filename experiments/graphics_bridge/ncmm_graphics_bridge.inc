@@ -236,7 +236,16 @@ bool graphics_draw( int x, int y, int width, int height )
                 const TILE_CATEGORY category = q.layer == NCMM_GFX_TERRAIN ? TILE_CATEGORY::TERRAIN :
                     q.layer == NCMM_GFX_FURNITURE ? ( cell.flags & NCMM_GFX_VEHICLE ? TILE_CATEGORY::VEHICLE_PART : TILE_CATEGORY::FURNITURE ) :
                     q.layer == NCMM_GFX_ITEM ? TILE_CATEGORY::ITEM : TILE_CATEGORY::MONSTER;
-                found = textures.emplace( key, tilecontext->get_texture_draw_data( id, category, positions[q.cell_index] ) ).first;
+                auto atlas = tilecontext->get_texture_draw_data( id, category, positions[q.cell_index] );
+                if( !atlas && category == TILE_CATEGORY::VEHICLE_PART ) {
+                    // Memorized vpart IDs can include #variant. Some tilesets
+                    // only provide the base part/looks_like sprite; preserve it.
+                    const std::string part_id( id );
+                    const size_t separator = part_id.find( '#' );
+                    if( separator != std::string::npos ) atlas = tilecontext->get_texture_draw_data(
+                        part_id.substr( 0, separator ), category, positions[q.cell_index] );
+                }
+                found = textures.emplace( key, std::move( atlas ) ).first;
                 if( found->second ) {
                     ++graphics_resolved_textures;
                     if( q.layer == NCMM_GFX_FURNITURE && ( cell.flags & NCMM_GFX_VEHICLE ) )
