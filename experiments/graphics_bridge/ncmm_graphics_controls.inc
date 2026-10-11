@@ -67,21 +67,36 @@ const ncmm_host_graphics_controls_v1 graphics_controls_api = { 1, sizeof( ncmm_h
 // Independent of the 2D light/visibility mask and of opaque vehicle parts.
 // Terrain/furniture walls still block the forward scene; 3D car geometry owns
 // car occlusion, so a windscreen never erases the remainder of its own roof.
-bool graphics_forward_visible( const tripoint_bub_ms &origin, const tripoint_bub_ms &target )
+bool graphics_forward_visible( const tripoint_bub_ms &origin, const tripoint_bub_ms &target,
+                               const std::vector<uint8_t> *transparency = nullptr, int radius = 0 )
 {
 #if defined(TILES)
     const float dx = float( target.x() - origin.x() ), dy = float( target.y() - origin.y() );
     if( !ncmm_graphics_camera::in_front( graphics_camera_yaw, dx, dy ) ) return false;
     map &here = get_map();
-    for( const tripoint &raw : line_to( origin.raw(), target.raw() ) ) {
-        const tripoint_bub_ms p( raw );
-        if( p == target || p == origin ) continue;
-        if( !here.inbounds( p ) || !here.ter( p ).obj().transparent ||
-            ( here.has_furn( p ) && !here.furn( p ).obj().transparent ) ) return false;
-    }
-    return true;
+    if( origin.z() != target.z() || !here.inbounds( origin ) || !here.inbounds( target ) ) return false;
+    bool clear = true;
+    const int side = radius * 2 + 1;
+    // Use the same engine Bresenham path as line_to(), stopping at the first
+    // blocker without allocating a vector for every distant target. Within a
+    // draw the map is unchanged; a byte grid avoids repeated terrain/furniture
+    // lookups along thousands of overlapping rays. Standalone callers still
+    // consult the live map. The target surface itself remains drawable.
+    bresenham( origin, target, 0, 0, [&]( const tripoint_bub_ms &p ) {
+        if( p == target || p == origin ) return true;
+        if( transparency ) {
+            const int x = p.x() - origin.x() + radius, y = p.y() - origin.y() + radius;
+            clear = x >= 0 && y >= 0 && x < side && y < side &&
+                    size_t( y * side + x ) < transparency->size() && ( *transparency )[y * side + x];
+        } else {
+            clear = here.inbounds( p ) && here.ter( p ).obj().transparent &&
+                    ( !here.has_furn( p ) || here.furn( p ).obj().transparent );
+        }
+        return clear;
+    } );
+    return clear;
 #else
-    ( void )origin; ( void )target; return false;
+    ( void )origin; ( void )target; ( void )transparency; ( void )radius; return false;
 #endif
 }
 

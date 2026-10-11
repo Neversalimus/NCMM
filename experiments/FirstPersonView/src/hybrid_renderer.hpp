@@ -541,6 +541,10 @@ class renderer {
         const int front_direction=vehicle_front(i);
         const float yaw=d.vehicle_yaw+(front_direction<0?pi:0);
         const vec center=rotate({float(d.mount_x),float(d.mount_y),0},{d.vehicle_x,d.vehicle_y,0},d.vehicle_yaw);
+        // A wheel/gauge only a few pixels wide does not need close-up ring
+        // tessellation. Scale by projected size so F11 keeps finer geometry.
+        const float projected_mount=projection/std::max(.1f,view(center).z);
+        const bool small_details=projected_mount<28;
         image *source=texture(uint32_t(i),NCMM_GFX_FURNITURE);
         vec paint=source->valid()?source->paint:vec{.32f,.36f,.40f};
         const auto palette=vehicle_colors.find(d.vehicle_group);
@@ -610,7 +614,8 @@ class renderer {
             material display{nullptr,{.09f,.25f,.21f},1,false,false,false,i};
             material digits{nullptr,{.58f,.87f,.62f},1,false,false,false,i};
             face({.297f,-.37f,.88f},{.297f,.07f,.88f},{.297f,.07f,1.015f},{.297f,-.37f,1.015f},dark);
-            for(float offset:{-.25f,-.08f})for(int segment=0;segment<20;++segment){float a=segment*2*pi/20,b=(segment+1)*2*pi/20;
+            const int gauge_segments=small_details?8:20;
+            for(float offset:{-.25f,-.08f})for(int segment=0;segment<gauge_segments;++segment){float a=segment*2*pi/gauge_segments,b=(segment+1)*2*pi/gauge_segments;
                 const vec c{.295f,offset,.95f};
                 face(c+vec{0,std::cos(a)*.062f,std::sin(a)*.062f},c+vec{0,std::cos(b)*.062f,std::sin(b)*.062f},c,c,display);}
             for(float offset:{-.25f,-.08f})face({.291f,offset-.003f,.946f},{.291f,offset+.035f,.971f},{.291f,offset+.039f,.969f},{.291f,offset+.003f,.944f},digits);
@@ -619,10 +624,11 @@ class renderer {
             for(int vent=0;vent<4;++vent)face({.293f,.35f,.92f+vent*.023f},{.293f,.44f,.92f+vent*.023f},{.293f,.44f,.931f+vent*.023f},{.293f,.35f,.931f+vent*.023f},dark);
             const vec at{.17f,-.14f,.94f};
             auto ring=[&](float a,float r,float depth=0){return at+vec{-.35f*std::sin(a)*r+depth,std::cos(a)*r,.94f*std::sin(a)*r};};
-            for(int n=0;n<24;++n){const float a=n*2*pi/24,b=(n+1)*2*pi/24;
+            const int steering_segments=small_details?12:24;
+            for(int n=0;n<steering_segments;++n){const float a=n*2*pi/steering_segments,b=(n+1)*2*pi/steering_segments;
                 face(ring(a,.175f),ring(b,.175f),ring(b,.145f),ring(a,.145f),dark);
                 face(ring(a,.175f),ring(b,.175f),ring(b,.168f,.023f),ring(a,.168f,.023f),trim);
-                if(n%8==0)face(ring(a,.15f),ring(a+.16f,.15f),ring(a+.16f,.025f),ring(a,.025f),steel);}
+                if(n%(steering_segments/3)==0)face(ring(a,.15f),ring(a+.16f,.15f),ring(a+.16f,.025f),ring(a,.025f),steel);}
             bevel_box(center,{.14f,-.18f,.90f},{.20f,-.10f,.98f},.01f,dark,yaw);
         }
         for(int axis=0;axis<2;++axis)for(int sign:{-1,1}){
@@ -699,7 +705,7 @@ class renderer {
         if(flags&NCMM_VEH_WHEEL){
             const int sign=d.mount_y<0?-1:1;
             const bool single=!shell&&vehicle_neighbor(i,d.mount_x,d.mount_y-1)<0&&vehicle_neighbor(i,d.mount_x,d.mount_y+1)<0&&d.mount_y==0;
-            const vec wheel=point(0,single?0:sign*.48f,.37f);const int segments=view(center).z>8?16:24;
+            const vec wheel=point(0,single?0:sign*.48f,.37f);const int segments=small_details?8:view(center).z>8?16:24;
             auto p=[&](float theta,float y,float radius){return rotate({std::cos(theta)*radius,y,std::sin(theta)*radius},wheel,yaw);};
             material chrome=steel;chrome.color={.55f,.58f,.61f};
             for(int k=0;k<segments;++k){const float a=2*pi*k/segments,b=2*pi*(k+1)/segments;
@@ -710,7 +716,7 @@ class renderer {
                     solid_quad(p(a,side*.147f,.20f),p(b,side*.147f,.20f),p(b,side*.150f,.16f),p(a,side*.150f,.16f),chrome,normal);
                     const vec hub=rotate({0,side*.15f,0},wheel,yaw);
                     solid_quad(p(a,side*.15f,.16f),p(b,side*.15f,.16f),hub,hub,steel,normal);
-                    if(k%4==0){solid_quad(p(a,side*.154f,.05f),p(a+.10f,side*.154f,.05f),p(b+.10f,side*.154f,.155f),p(b,side*.154f,.155f),chrome,normal);}
+                    if(!small_details&&k%4==0){solid_quad(p(a,side*.154f,.05f),p(a+.10f,side*.154f,.05f),p(b+.10f,side*.154f,.155f),p(b,side*.154f,.155f),chrome,normal);}
                 }
             }
         }
@@ -913,7 +919,7 @@ public:
     }
 };
 inline bool valid_scene(const ncmm_graphics_scene_v2 &s,float yaw,float pitch){
-    const auto &b=s.base;if(s.struct_size<sizeof(s)||b.struct_size<sizeof(b)||!b.cells||!s.details||s.detail_count!=b.cell_count||b.grid_width<1||b.grid_width>33||b.grid_height<1||b.grid_height>33||
+    const auto &b=s.base;if(s.struct_size<sizeof(s)||b.struct_size<sizeof(b)||!b.cells||!s.details||s.detail_count!=b.cell_count||b.grid_width<1||b.grid_width>NCMM_GRAPHICS_V2_MAX_GRID_SIDE||b.grid_height<1||b.grid_height>NCMM_GRAPHICS_V2_MAX_GRID_SIDE||
        b.cell_count!=size_t(b.grid_width)*b.grid_height||b.pixel_width<1||b.pixel_height<1||b.pixel_width>8192||b.pixel_height>8192||!std::isfinite(yaw)||!std::isfinite(pitch)||std::abs(pitch)>1.35f||
        !std::isfinite(b.camera_x)||!std::isfinite(b.camera_y)||b.camera_x<0||b.camera_y<0||b.camera_x>=b.grid_width||b.camera_y>=b.grid_height)return false;
     const auto &e=s.environment;for(float value:{e.sun_x,e.sun_y,e.sun_z,e.moon_x,e.moon_y,e.moon_z,e.daylight,e.cloud_cover,e.fog_density,e.precipitation,e.wind_x,e.wind_y,e.sky_r,e.sky_g,e.sky_b,e.sky_tint})if(!std::isfinite(value))return false;

@@ -25,11 +25,13 @@
         const int step=std::max(4,(f.width+255)/256);f.effect_width=(f.width+step-1)/step;f.effect_height=(f.height+step-1)/step;
         f.effects.assign(size_t(f.effect_width)*f.effect_height,0);
         const float time=float(std::fmod(s.environment.animation_seconds,1000.0));
+        const float extent_x=std::max(eye.x,float(base.grid_width)-eye.x),extent_y=std::max(eye.y,float(base.grid_height)-eye.y);
+        const float effect_range=std::max(19.0f,std::hypot(extent_x,extent_y));
         effects::rows(uint32_t(f.effect_height),f.effects.size(),[&](uint32_t begin,uint32_t end){
         for(int y=int(begin);y<int(end);++y)for(int x=0;x<f.effect_width;++x){
             const int px=std::min(f.width-1,x*step+step/2),py=std::min(f.height-1,y*step+step/2);
             const size_t at=size_t(py)*f.width+px;
-            float stop=std::min(19.0f,f.depth[at]);
+            float stop=std::min(effect_range,f.depth[at]);
             if(f.held_depth[at]<std::numeric_limits<float>::infinity())continue;
             // Conservative edge depths keep haze on the correct side of glass,
             // walls and the held model, rather than bleeding across silhouettes.
@@ -48,7 +50,11 @@
                 clip(eye.x,ray.x,-.5f,base.grid_width+.5f);clip(eye.y,ray.y,-.5f,base.grid_height+.5f);clip(eye.z,ray.z,0,3);
                 // Preserve sample phase when skipping empty ray segments.
                 near=.24f+std::ceil(std::max(0.0f,near-.24f)/stride)*stride;
-                for(float t=near;t<far&&alpha<.96f;t+=stride){const vec pos=eye+ray*t;
+                for(float t=near;t<far&&alpha<.96f;){const vec pos=eye+ray*t;
+                    // Keep the former near-field sampling unchanged. Farther
+                    // cells occupy fewer effect pixels: larger integration steps
+                    // bound cost while transmittance accounts for their length.
+                    const float interval=std::min(far-t,t<19?stride:(t<38||gases)?stride*2:stride*4);
                     const int ix=int(std::floor(pos.x-.5f)),iy=int(std::floor(pos.y-.5f));
                     const float fx=pos.x-.5f-ix,fy=pos.y-.5f-iy;
                     float density=0;vec radiance{};
@@ -69,7 +75,10 @@
                             radiance=radiance+sample.light*weight;density+=sample.scatter*weight;
                         }
                     }
+                    if(t>=19&&density>0){const float corrected=1-std::pow(1-clamp(density),interval/stride);
+                        radiance=radiance*(corrected/density);density=corrected;}
                     sum=sum+radiance*(1-alpha);alpha+=density*(1-alpha);
+                    t+=interval;
                 }
             }
             for(int i:sources){const auto &d=extra(i);const vec source{float(i%base.grid_width)+.5f,float(i/base.grid_width)+.5f,1.15f};

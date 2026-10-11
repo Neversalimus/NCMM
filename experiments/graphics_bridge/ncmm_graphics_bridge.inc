@@ -17,6 +17,8 @@ std::vector<ncmm_graphics_quad_v1> graphics_commands;
 size_t graphics_resolved_textures = 0;
 size_t graphics_resolved_vehicle_textures = 0;
 size_t graphics_ceiling_cells = 0;
+int graphics_snapshot_radius = 0;
+size_t graphics_snapshot_far_cells = 0;
 loaded_mod *find_loaded_by_id( const char *module_id );
 void graphics_clear_hybrid();
 void graphics_release_mouse();
@@ -150,27 +152,42 @@ bool graphics_draw( int x, int y, int width, int height )
     // offset. Menus and targeting are already suspended by their input context.
     here.update_visibility_cache( you.posz() );
     const auto &visibility = here.get_visibility_variables_cache();
-    constexpr int side = NCMM_GRAPHICS_RADIUS * 2 + 1;
+    // V1 retains its original small snapshot. V2 uses the loaded reality bubble
+    // only; inbounds checks leave unavailable edge cells empty rather than
+    // loading/generating terrain or changing simulation range while rendering.
+    const int radius = graphics_view.hybrid_render ? NCMM_GRAPHICS_V2_RADIUS : NCMM_GRAPHICS_RADIUS;
+    const int side = radius * 2 + 1;
     std::vector<ncmm_graphics_cell_v1> cells( side * side );
     std::vector<tripoint_bub_ms> positions;
     positions.reserve( cells.size() );
     const tripoint_bub_ms origin = you.pos_bub();
     graphics_viewport = { x, y, width, height };
     graphics_ceiling_cells = 0;
+    graphics_snapshot_radius = radius;
+    graphics_snapshot_far_cells = 0;
+    std::vector<uint8_t> transparency;
+    if( graphics_view.hybrid_render ) transparency.resize( cells.size() );
+    for( int gy = 0; gy < side; ++gy ) for( int gx = 0; gx < side; ++gx ) {
+        const tripoint_bub_ms p( origin.x() + gx - radius, origin.y() + gy - radius, origin.z() );
+        positions.push_back( p );
+        if( !transparency.empty() && here.inbounds( p ) ) {
+            transparency[gy * side + gx] = here.ter( p ).obj().transparent &&
+                ( !here.has_furn( p ) || here.furn( p ).obj().transparent );
+        }
+    }
     auto copy_id = []( char *dest, const std::string &id ) {
         if( id.size() >= 128 ) return; // fallback geometry, never a truncated identity
         std::copy( id.begin(), id.end(), dest );
     };
     for( int gy = 0; gy < side; ++gy ) for( int gx = 0; gx < side; ++gx ) {
-        const tripoint_bub_ms p( origin.x() + gx - NCMM_GRAPHICS_RADIUS,
-                                origin.y() + gy - NCMM_GRAPHICS_RADIUS, origin.z() );
-        positions.push_back( p );
+        const tripoint_bub_ms &p = positions[gy * side + gx];
         auto &cell = cells[gy * side + gx];
         if( !here.inbounds( p ) ) continue;
         const lit_level light = here.apparent_light_at( p, visibility );
-        if( graphics_view.hybrid_render ? !graphics_forward_visible( origin, p ) :
+        if( graphics_view.hybrid_render ? !graphics_forward_visible( origin, p, &transparency, radius ) :
             here.get_visibility( light, visibility ) != visibility_type::CLEAR ) continue;
         cell.flags = NCMM_GFX_VISIBLE;
+        if( graphics_view.hybrid_render && std::max( std::abs( gx - radius ), std::abs( gy - radius ) ) > NCMM_GRAPHICS_RADIUS ) ++graphics_snapshot_far_cells;
         cell.light = light == lit_level::LOW ? 0.45f : 1.0f;
         if( here.has_flag( "WALL", p ) || ( here.has_flag( "DOOR", p ) && here.impassable_ter_furn( p ) ) ||
             ( here.impassable_ter_furn( p ) && !here.is_transparent( p ) ) ) cell.flags |= NCMM_GFX_WALL;
@@ -204,7 +221,7 @@ bool graphics_draw( int x, int y, int width, int height )
         }
     }
     const ncmm_graphics_scene_v1 scene = { sizeof( ncmm_graphics_scene_v1 ), width, height, side, side,
-        NCMM_GRAPHICS_RADIUS + 0.5f, NCMM_GRAPHICS_RADIUS + 0.5f, cells.data(), cells.size() };
+        radius + 0.5f, radius + 0.5f, cells.data(), cells.size() };
     loaded_mod *mod = find_loaded_by_id( graphics_view.owner.c_str() );
     if( !mod ) { graphics_view.enabled = false; return false; }
     if( graphics_view.hybrid_render ) return graphics_draw_hybrid( scene, positions, x, y );

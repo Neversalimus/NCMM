@@ -1,4 +1,4 @@
-# First Person View — 0.7.1 development prototype
+# First Person View — 0.8.0 development prototype
 
 Optional first-person renderer of the same live CDDA world through NCMM. This
 preview bundles an exact experimental Windows x64 Host for 1040 or 1807 and uses
@@ -30,6 +30,13 @@ original game backup when upgrading ordinary NCMM, preview NCMM or legacy CML.
 | Other movement bindings; arrows in map/menus/vehicle control | Existing directions |
 
 Camera controls preserve the avatar's position, moves, time and destination.
+Version 0.8 expands the first-person environment radius from 16 to 48 map cells:
+the Host supplies a 97×97 snapshot instead of 33×33. Only already-loaded cells
+inside the current reality bubble are included; drawing does not load terrain or
+extend simulation. Walls and opaque furniture still block the scene, and
+creatures/items retain CDDA's normal visibility rules. A per-frame transparency
+grid and allocation-free engine Bresenham traversal reduce repeated map lookups.
+The legacy Graphics V1 path retains its original radius and table layout.
 Ordinary commands, adjacent selection and inventory keep the perspective
 backdrop. Coordinate look, targeting and the overmap use their normal map view
 and restore perspective on return to gameplay. No command-driven temporary
@@ -53,6 +60,9 @@ per-pixel depth buffer, bilinear filtering and a ground mip level, with a balanc
 faces, front-to-back cells and up to four workers reduce work. Triangles are
 clipped/projected once; interleaved 16-row strips balance detailed floor and
 view-model work across the workers, with one writer per pixel.
+Small distant wheels, gauges and steering rings use fewer subdivisions based on
+their projected pixel size; close cars keep their existing detail and higher
+raster quality retains finer distant geometry.
 Identical UI redraws reuse complete owned pixels for at most 250 ms. World state,
 light and camera changes invalidate them immediately; held-item changes and
 attack/weather animation compose over a separate owned world frame. Attack poses
@@ -144,6 +154,11 @@ Ground inference, vehicle neighbors and sun occluders use this same forward
 snapshot. Map memory still uses the normal terrain pass. V1 preserves its original
 visible-cell contract. Core, V1 and V2 table layouts remain unchanged; camera and
 attack state use an optional Controls V1 extension.
+
+Gas and source-light integration follows the extended snapshot rather than
+stopping at 19 cells. Near sampling remains unchanged; farther intervals grow
+with distance and correct optical transmittance, with a tighter step for smoke
+so a single distant gas cell is not skipped. Weather fog still limits clarity.
 
 The bridge caches copied atlas pixels with bounded memory, invalidates them on
 tileset/renderer changes and restores SDL state around readback. Modules receive

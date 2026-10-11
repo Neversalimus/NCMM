@@ -3,6 +3,8 @@ bool graphics_scene_smoke()
 #if defined(TILES)
     size_t checks = 0;
     size_t frames = 0;
+    int distance_radius = 0;
+    size_t distance_cells = 0;
     std::string reason = "ok";
     auto require = [&]( bool ok, const char *failure ) {
         ++checks;
@@ -154,11 +156,14 @@ bool graphics_scene_smoke()
         require( you.get_memorized_tile( here.get_abs( door ) ).get_ter_id() == "t_door_o",
                  "open_door_memory_not_updated" );
         // Build a street with a real car, like the player's CatLauncher screenshot.
-        for( int y = -16; y <= 16; ++y ) for( int x = -16; x <= 16; ++x ) {
+        for( int y = -NCMM_GRAPHICS_V2_RADIUS; y <= NCMM_GRAPHICS_V2_RADIUS; ++y ) for( int x = -NCMM_GRAPHICS_V2_RADIUS; x <= NCMM_GRAPHICS_V2_RADIUS; ++x ) {
             const tripoint_bub_ms p( center.x() + x, center.y() + y, 0 );
             here.furn_set( p, furn_id( "f_null" ) );
             here.ter_set( p, ter_id( "t_pavement" ) );
+            here.clear_fields( p );
             here.ter_set( tripoint_bub_ms( p.x(), p.y(), 1 ), ter_id( "t_open_air" ) );
+            here.furn_set( tripoint_bub_ms( p.x(), p.y(), 1 ), furn_id( "f_null" ) );
+            here.clear_fields( tripoint_bub_ms( p.x(), p.y(), 1 ) );
         }
         vehicle *car = here.add_vehicle( vproto_id( "car" ),
             tripoint_bub_ms( center.x(), center.y() - 6, 0 ), 0_degrees, 0, veh_spawn_status::UNDAMAGED, false );
@@ -188,6 +193,35 @@ bool graphics_scene_smoke()
         here.ter_set( barrier, ter_id( "t_wall" ) );
         require( !graphics_forward_visible( center, beyond_barrier ), "opaque_terrain_did_not_block_forward_snapshot" );
         here.ter_set( barrier, ter_id( "t_pavement" ) );
+        // A real expanded snapshot, not a camera-only setting: distant terrain
+        // must reach the live DLL and survive the validated SDL submission.
+        for( int x = 14; x <= 22; ++x ) here.ter_set( tripoint_bub_ms( center.x() + x, center.y() - 44, 0 ), ter_id( "t_wall" ) );
+        draw();
+        require( graphics_snapshot_radius == NCMM_GRAPHICS_V2_RADIUS && graphics_snapshot_far_cells > 1000,
+                 "expanded_world_snapshot_missing" );
+        distance_radius = graphics_snapshot_radius;
+        distance_cells = graphics_snapshot_far_cells;
+        capture_frame( "first-person-distance.bmp" );
+        constexpr int range_side = NCMM_GRAPHICS_V2_MAX_GRID_SIDE;
+        std::vector<uint8_t> transparency( range_side * range_side );
+        for( int y = -NCMM_GRAPHICS_V2_RADIUS; y <= NCMM_GRAPHICS_V2_RADIUS; ++y ) for( int x = -NCMM_GRAPHICS_V2_RADIUS; x <= NCMM_GRAPHICS_V2_RADIUS; ++x ) {
+            const tripoint_bub_ms p( center.x() + x, center.y() + y, 0 );
+            transparency[( y + NCMM_GRAPHICS_V2_RADIUS ) * range_side + x + NCMM_GRAPHICS_V2_RADIUS] =
+                here.inbounds( p ) && here.ter( p ).obj().transparent && ( !here.has_furn( p ) || here.furn( p ).obj().transparent );
+        }
+        for( int y = -NCMM_GRAPHICS_V2_RADIUS; y <= 0; y += 6 ) for( int x = -NCMM_GRAPHICS_V2_RADIUS; x <= NCMM_GRAPHICS_V2_RADIUS; x += 6 ) {
+            const tripoint_bub_ms target( center.x() + x, center.y() + y, 0 );
+            bool reference = ncmm_graphics_camera::in_front( graphics_camera_yaw, float( x ), float( y ) );
+            if( reference ) for( const tripoint &raw : line_to( center.raw(), target.raw() ) ) {
+                const tripoint_bub_ms p( raw );
+                if( p == center || p == target ) continue;
+                if( !here.inbounds( p ) || !here.ter( p ).obj().transparent || ( here.has_furn( p ) && !here.furn( p ).obj().transparent ) ) { reference = false; break; }
+            }
+            require( graphics_forward_visible( center, target ) == reference &&
+                     graphics_forward_visible( center, target, &transparency, NCMM_GRAPHICS_V2_RADIUS ) == reference,
+                     "cached_distance_visibility_differs_from_engine_line" );
+        }
+        require( !graphics_forward_visible( center, tripoint_bub_ms( center.x(), -1, 0 ) ), "snapshot_read_beyond_loaded_map" );
         press_f6();
         require( !graphics_view.enabled && !graphics_draw( 0, 0, 640, 480 ), "tiles_fallback_missing" );
         require( !ncmm::graphics_mouse_event( 1, 320, 240, 0, 0, true ) &&
@@ -443,7 +477,8 @@ bool graphics_scene_smoke()
     std::ofstream out( game_root() / "ncmm" / "first-person-smoke.json", std::ios::binary | std::ios::trunc );
     out << "{\"schema\":1,\"success\":" << ( success ? "true" : "false" )
         << ",\"reason\":\"" << reason << "\",\"checks\":" << std::to_string( checks )
-        << ",\"sdl_frames\":" << std::to_string( frames ) << ",\"gpu_effect_frames\":" << std::to_string(graphics_effect_gpu_frames) << ",\"cpu_recovery_frames\":" << std::to_string(graphics_effect_cpu_frames) << "}\n";
+        << ",\"sdl_frames\":" << std::to_string( frames ) << ",\"gpu_effect_frames\":" << std::to_string(graphics_effect_gpu_frames) << ",\"cpu_recovery_frames\":" << std::to_string(graphics_effect_cpu_frames)
+        << ",\"draw_radius\":" << std::to_string( distance_radius ) << ",\"distant_cells\":" << std::to_string( distance_cells ) << "}\n";
     log_line( success ? NCMM_LOG_INFO : NCMM_LOG_ERROR,
               ( "First Person View actual engine smoke: " + reason ).c_str() );
     return success;

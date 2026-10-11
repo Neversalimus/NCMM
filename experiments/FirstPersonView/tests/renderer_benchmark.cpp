@@ -1,6 +1,7 @@
 #include <chrono>
 #include <iomanip>
 #include "hybrid_renderer.hpp"
+#include "ncmm_graphics_camera.hpp"
 #include <cstdlib>
 #include <iostream>
 using namespace first_person::hybrid;
@@ -18,11 +19,41 @@ struct fixture {
     sprite_provider provider(){return [&](uint32_t,uint32_t,ncmm_graphics_sprite_v2 &out){out={sizeof(out),32,32,32,art.data()};return true;};}
 };
 void require(bool value,const char *name){if(!value){std::cerr<<"Invalid benchmark "<<name<<'\n';std::exit(1);}}
+void distance_benchmark(int rounds){
+    using clock=std::chrono::steady_clock;
+    for(int radius:{NCMM_GRAPHICS_RADIUS,NCMM_GRAPHICS_V2_RADIUS})for(int mode=0;mode<4;++mode){
+        fixture a;const int side=radius*2+1;
+        a.cells.assign(side*side,{});a.details.assign(side*side,{});a.meta.cells.assign(side*side,{});
+        for(int y=0;y<side;++y)for(int x=0;x<side;++x){const int i=y*side+x;
+            if(!ncmm_graphics_camera::in_front(-pi*.5f,float(x-radius),float(y-radius)))continue;
+            a.cells[i].flags=NCMM_GFX_VISIBLE;std::strcpy(a.cells[i].terrain,"t_floor");std::strcpy(a.details[i].ground,"t_floor");
+            a.details[i].light_r=a.details[i].light_g=a.details[i].light_b=.9f;
+            if(mode==1&&(x%5==1&&y%5==1))a.details[i].terrain_shape=NCMM_SHAPE_TREE;
+            if(mode==2&&y<radius-4&&y%10<3&&(x%10==2||x%10==3)){
+                auto &d=a.details[i];a.cells[i].flags|=NCMM_GFX_VEHICLE;
+                d.vehicle_features=NCMM_VEH_FRAME|NCMM_VEH_BOARD|NCMM_VEH_ROOF|NCMM_VEH_WHEEL;
+                d.vehicle_group=1+(y/10)*side+x/10;d.mount_x=y%10;d.mount_y=x%10-2;
+                d.vehicle_x=float(x-(x%10-2))+.5f;d.vehicle_y=float(y-y%10)+.5f;d.vehicle_yaw=pi*.5f;d.vehicle_health=1;
+            }
+            if(mode==3&&y<radius-12&&y>radius-44&&x>radius-4&&x<radius+4){a.meta.cells[i].gas=NCMM_GAS_SMOKE;a.meta.cells[i].field_intensity=2;}
+        }
+        a.scene.base={sizeof(ncmm_graphics_scene_v1),1280,800,side,side,radius+.5f,radius+.5f,a.cells.data(),a.cells.size()};
+        a.scene.details=a.details.data();a.scene.detail_count=a.details.size();a.meta.view.flags=NCMM_PRESENT_GPU_EFFECTS;
+        frame world;require(build_frame(a.scene,-pi*.5f,0,a.provider(),a.f,1280,800,{},nullptr,&world,&a.meta),"distance setup");
+        for(int cached=0;cached<2;++cached){const auto start=clock::now();
+            for(int n=0;n<rounds;++n){a.scene.environment.animation_seconds=10+n*.025;
+                require(build_frame(a.scene,-pi*.5f+(cached?0:std::sin(n*.1f)*.02f),0,a.provider(),a.f,1280,800,{},cached?&world:nullptr,nullptr,&a.meta),"distance frame");}
+            const auto ms=std::chrono::duration<double,std::milli>(clock::now()-start).count()/rounds;
+            std::cout<<"range "<<radius<<' '<<std::array<const char *,4>{"open","forest","vehicles","smoke"}[mode]<<' '<<(cached?"cached":"camera")<<' '<<std::fixed<<std::setprecision(2)<<ms<<" ms\n"<<std::flush;
+        }
+    }
+}
 // Manual timing tool, deliberately not a CI pass/fail FPS threshold. Run on an
 // otherwise idle machine and compare the same build type and round count.
 int main(int argc,char **argv){
     using clock=std::chrono::steady_clock;
     const int rounds=argc>1?std::max(1,std::atoi(argv[1])):12;
+    if(argc>2&&std::string(argv[2])=="distance"){distance_benchmark(rounds);return 0;}
     for(int mode=0;mode<5;++mode){
         fixture a;a.scene.base.pixel_width=1280;a.scene.base.pixel_height=800;
         a.meta.view.flags=NCMM_PRESENT_GPU_EFFECTS;

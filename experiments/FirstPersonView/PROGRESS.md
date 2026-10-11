@@ -67,3 +67,29 @@ known occluders now add directional shadows; CDDA's actual cell lighting remains
 the source of ambient/local light. Regression cases cover empty ground, hidden
 walls and a visible wall. This is a module-only follow-up and does not change the
 26 prepared Host inputs or the engine cache key.
+
+## 0.8.0 extended view distance
+
+The V2 environment radius increases from 16 to 48 cells (33×33 to 97×97), while
+Graphics V1 remains unchanged. Unloaded cells remain absent, with no generation
+or simulation-radius changes. A fresh transparency byte grid is rebuilt for
+each draw; the engine's original Bresenham path stops at the first blocker
+without allocating per-target point vectors or repeatedly querying terrain.
+Opaque target surfaces remain visible and vehicles retain their 3D occlusion.
+Small wheels/gauges/steering rings use fewer subdivisions by projected pixel
+size, preserving close-up detail and increasing detail with raster quality.
+
+The renderer validates the larger bounded scene, and smoke/source-light
+integration extends past the previous 19-cell limit with transmittance-correct
+distant intervals. Gas intervals remain short enough for single-cell plumes.
+Native range cases cover distant geometry and creature picking, a blocker
+beyond the previous edge, missing cells, all camera directions, gas forty
+cells ahead and rejection of oversized storage. The real SDL street fixture
+includes distant buildings and compares cached rays with the original engine
+line over multiple slopes. `first_person_benchmark 12 distance` compares radii
+16 and 48 on open ground, forest, vehicles and smoke at 1280×800, separating
+changing-camera and cached-world composition costs.
+
+Release gates: native/transform/syntax checks, both Windows Host builds,
+installer transactions, real SDL distance capture and image review. The 0.7.1
+installer remains the last qualified package until all 0.8.0 gates pass.
