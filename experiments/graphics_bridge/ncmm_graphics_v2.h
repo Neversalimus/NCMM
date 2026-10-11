@@ -19,6 +19,7 @@ enum { NCMM_SHAPE_FLAT, NCMM_SHAPE_WALL, NCMM_SHAPE_DOOR_CLOSED,
        NCMM_SHAPE_TABLE, NCMM_SHAPE_STORAGE, NCMM_SHAPE_SEAT,
        NCMM_SHAPE_BILLBOARD, NCMM_SHAPE_WATER, NCMM_SHAPE_WINDOW_COVERED, NCMM_SHAPE_POST,
        NCMM_SHAPE_SIGN, NCMM_SHAPE_DOOR_FRAME, NCMM_SHAPE_COUNT };
+enum { NCMM_SURFACE_TRANSPARENT = 1u, NCMM_SURFACE_TERRAIN_CEILING = 2u };
 enum { NCMM_VEH_FRAME = 1u, NCMM_VEH_ROOF = 2u, NCMM_VEH_BOARD = 4u,
        NCMM_VEH_WINDOW = 8u, NCMM_VEH_DOOR = 16u, NCMM_VEH_OPEN = 32u,
        NCMM_VEH_WHEEL = 64u, NCMM_VEH_SEAT = 128u, NCMM_VEH_CARGO = 256u,
@@ -35,7 +36,7 @@ typedef struct ncmm_graphics_cell_v2 {
     uint32_t terrain_shape, furniture_shape, orientation, vehicle_features;
     uint32_t vehicle_group;
     uint32_t field_shape;
-    uint32_t terrain_transparent;
+    uint32_t terrain_flags;
     float light_r, light_g, light_b, emission;
     float vehicle_x, vehicle_y, vehicle_yaw, vehicle_health;
     int32_t mount_x, mount_y;

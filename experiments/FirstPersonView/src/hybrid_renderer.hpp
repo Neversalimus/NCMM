@@ -242,7 +242,7 @@ class renderer {
             if(shape==NCMM_SHAPE_DOOR_FRAME)return;
             material panel{nullptr,m.texture?m.texture->average:vec{.36f,.22f,.12f},1,false,false,false,i};
             vec hinge=rotate({-.43f,0,0},center,angle);float a=angle+(shape==NCMM_SHAPE_DOOR_OPEN?pi*.46f:0);
-            if(s.details[i].terrain_transparent&&ncmm_graphics_shapes::contains(base.cells[i].terrain,"glass")){
+            if((s.details[i].terrain_flags&NCMM_SURFACE_TRANSPARENT)&&ncmm_graphics_shapes::contains(base.cells[i].terrain,"glass")){
                 box(hinge,{0,-.035f,.04f},{.86f,.035f,.70f},panel,a);box(hinge,{0,-.035f,.7f},{.06f,.035f,2.29f},panel,a);box(hinge,{.80f,-.035f,.7f},{.86f,.035f,2.29f},panel,a);
                 box(hinge,{0,-.035f,2.22f},{.86f,.035f,2.29f},panel,a);material glass{nullptr,{.45f,.68f,.78f},.22f,false,false,false,i};plane(rotate({.43f,0,0},hinge,a),a,.70f,2.22f,glass,.74f);return;}
             box(hinge,{0,-.035f,.04f},{.86f,.035f,2.29f},panel,a);
@@ -324,7 +324,7 @@ class renderer {
             if(!(c.flags&NCMM_GFX_NO_FLOOR)){auto floor=mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f});floor.opaque_texture=true;
                 quad({float(x),float(y),0},{float(x+1),float(y),0},{float(x+1),float(y+1),0},{float(x),float(y+1),0},floor);
                 if(d.terrain_shape==NCMM_SHAPE_WATER){material water{nullptr,{.15f,.32f,.40f},.22f,false,false,false,i};quad({float(x),float(y),.012f},{float(x+1),float(y),.012f},{float(x+1),float(y+1),.012f},{float(x),float(y+1),.012f},water);}}
-            if(c.flags&NCMM_GFX_CEILING){material ceiling{nullptr,{.53f,.52f,.49f},1,false,false,false,i};quad({float(x),float(y),2.5f},{float(x+1),float(y),2.5f},{float(x+1),float(y+1),2.5f},{float(x),float(y+1),2.5f},ceiling,{0,0,-1});}
+            if((c.flags&NCMM_GFX_CEILING)&&(!d.vehicle_features||(d.terrain_flags&NCMM_SURFACE_TERRAIN_CEILING))){material ceiling{nullptr,{.53f,.52f,.49f},1,false,false,false,i};quad({float(x),float(y),2.5f},{float(x+1),float(y),2.5f},{float(x+1),float(y+1),2.5f},{float(x),float(y+1),2.5f},ceiling,{0,0,-1});}
             if(d.field[0]&&d.field_shape==NCMM_SHAPE_FLAT){auto field=mat(i,NCMM_GFX_FIELD,{.48f,.18f,.12f},true);quad({float(x),float(y),.013f},{float(x+1),float(y),.013f},{float(x+1),float(y+1),.013f},{float(x),float(y+1),.013f},field);}
             continue;}
             architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
@@ -393,7 +393,7 @@ inline bool build_frame(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,co
     if(std::abs(e.wind_x)>100||std::abs(e.wind_y)>100||e.sky_r<0||e.sky_r>1||e.sky_g<0||e.sky_g>1||e.sky_b<0||e.sky_b>1||e.sky_tint<0||e.sky_tint>1)return false;
     if(!std::isfinite(e.animation_seconds)||e.daylight<0||e.daylight>1||e.cloud_cover<0||e.cloud_cover>1||e.fog_density<0||e.fog_density>1||e.precipitation<0||e.precipitation>1||e.moon_phase>7||e.weather_kind>NCMM_WEATHER_PORTAL)return false;
     for(size_t i=0;i<b.cell_count;++i){const auto &d=s.details[i];for(float value:{d.light_r,d.light_g,d.light_b,d.emission,d.vehicle_x,d.vehicle_y,d.vehicle_yaw,d.vehicle_health})if(!std::isfinite(value))return false;
-        if(d.light_r<0||d.light_r>1||d.light_g<0||d.light_g>1||d.light_b<0||d.light_b>1||d.vehicle_health<0||d.vehicle_health>1||d.terrain_shape>=NCMM_SHAPE_COUNT||d.furniture_shape>=NCMM_SHAPE_COUNT||d.field_shape>=NCMM_SHAPE_COUNT||std::abs(d.vehicle_x)>2048||std::abs(d.vehicle_y)>2048||d.mount_x<-1000||d.mount_x>1000||d.mount_y<-1000||d.mount_y>1000)return false;}
+        if(d.light_r<0||d.light_r>1||d.light_g<0||d.light_g>1||d.light_b<0||d.light_b>1||d.vehicle_health<0||d.vehicle_health>1||d.terrain_flags>3u||d.terrain_shape>=NCMM_SHAPE_COUNT||d.furniture_shape>=NCMM_SHAPE_COUNT||d.field_shape>=NCMM_SHAPE_COUNT||std::abs(d.vehicle_x)>2048||std::abs(d.vehicle_y)>2048||d.mount_x<-1000||d.mount_x>1000||d.mount_y<-1000||d.mount_y>1000)return false;}
     renderer(s,yaw,pitch,provider,out).run();return out.pixels.size()==size_t(out.width)*out.height;
 }
 }

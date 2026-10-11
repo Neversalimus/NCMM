@@ -195,7 +195,12 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         const auto &p = positions[i]; auto &d = details[i];
         const ter_t &ter = here.ter( p ).obj(); const furn_t &furn = here.furn( p ).obj();
         d.terrain_shape = ncmm_graphics_shapes::terrain( ter.id.str() + " " + ter.looks_like, graphics_traits( ter, !ter.close.is_null() ) );
-        d.terrain_transparent = ter.transparent;
+        d.terrain_flags = ter.transparent ? NCMM_SURFACE_TRANSPARENT : 0u;
+        // Vehicle interiors also make outside_cache false. They are not
+        // building ceilings; only actual terrain above confirms that surface.
+        if( p.z() < OVERMAP_HEIGHT && !here.ter( tripoint_bub_ms( p.x(), p.y(), p.z() + 1 ) ).obj().has_flag( "NO_FLOOR" ) ) {
+            d.terrain_flags |= NCMM_SURFACE_TERRAIN_CEILING;
+        }
         d.furniture_shape = ncmm_graphics_shapes::furniture( furn.id.str() + " " + furn.looks_like, graphics_traits( furn, !furn.close.is_null() ) );
         ++graphics_hybrid_shape_counts[d.terrain_shape];
         if( here.has_furn( p ) ) ++graphics_hybrid_shape_counts[d.furniture_shape];

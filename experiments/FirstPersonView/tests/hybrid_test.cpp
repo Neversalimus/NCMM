@@ -53,6 +53,11 @@ int main(int argc,char **argv){try{
         d.vehicle_group=1;d.vehicle_features=NCMM_VEH_FRAME|NCMM_VEH_ROOF|NCMM_VEH_BOARD|NCMM_VEH_WINDOW|NCMM_VEH_SEAT;d.mount_x=x-7;d.mount_y=0;d.vehicle_x=7.5f;d.vehicle_y=7.5f;d.vehicle_health=1;
         if(x==5||x==9)d.vehicle_features|=NCMM_VEH_WHEEL;}
     draw();check(f.vehicle_parts==5&&f.triangles>150,"car builds body roof glass seats and wheels");check(digest(f)!=empty,"modeled car appears");if(argc==2)save(f,std::string(argv[1])+"-car.ppm");
+    for(int x=5;x<=9;++x)world.cells[7*15+x].flags|=NCMM_GFX_CEILING;
+    draw();check(!std::isfinite(f.depth[115*800+400]),"vehicle interior does not generate a floating building ceiling");
+    for(int x=5;x<=9;++x)world.details[7*15+x].terrain_flags|=NCMM_SURFACE_TERRAIN_CEILING;
+    draw();check(std::isfinite(f.depth[115*800+400]),"actual garage ceiling remains above a vehicle");
+    for(int x=5;x<=9;++x){world.cells[7*15+x].flags&=~NCMM_GFX_CEILING;world.details[7*15+x].terrain_flags=0;}
     world.details[7*15+5].vehicle_features|=NCMM_VEH_DOOR|NCMM_VEH_OPEN;draw();
     for(auto &c:world.cells)c.flags=0;
     draw();check(world.hidden_requests==0&&f.vehicle_parts==0,"hidden vehicle parts excluded");
