@@ -320,6 +320,9 @@ bool graphics_scene_smoke()
         draw();
         require( ncmm::handle_gameplay_action( "ncmm.view.quality" ), "balanced_action_missing" );
         draw();
+        // Give each geometry sample its own clear backdrop. The previous
+        // window/fence row changes connection axes and hides floor-level samples.
+        for(int x=-2;x<=2;++x)here.ter_set(tripoint_bub_ms(center.x()+x,center.y()-3,0),ter_id("t_pavement"));
         const std::pair<const char *,uint32_t> geometry_cases[]={
             {"t_guardrail",NCMM_SHAPE_GUARDRAIL},{"t_reinforced_glass",NCMM_SHAPE_GLASS_WALL},
             {"t_resin_hole_c",NCMM_SHAPE_RESIN_PORTAL},{"t_resin_hole_o",NCMM_SHAPE_RESIN_PORTAL},
@@ -328,6 +331,7 @@ bool graphics_scene_smoke()
         for(const auto &entry:geometry_cases){here.ter_set(sample,ter_id(entry.first));draw();
             require(graphics_hybrid_shape_counts[entry.second]>0,"reported_geometry_regression");
             capture_frame(std::string("first-person-")+entry.first+".bmp");}
+        const float sample_pitch=graphics_camera_pitch;graphics_camera_pitch=-.5f;
         here.ter_set(sample,ter_id("t_water_dp"));here.furn_set(sample,furn_id("f_scrap_bridge"));draw();
         require(graphics_hybrid_shape_counts[NCMM_SHAPE_BRIDGE]>0,"scrap_bridge_not_horizontal");capture_frame("first-person-scrap-bridge.bmp");
         here.furn_set(sample,furn_id("f_null"));draw();capture_frame("first-person-water.bmp");
@@ -345,7 +349,7 @@ bool graphics_scene_smoke()
         placed_water.set_item_temperature(units::from_celsius(-20));
         require(placed_water.made_of(phase_id::SOLID),"frozen_water_fixture_not_solid");draw();
         require(std::count_if(graphics_presentation_cells.begin(),graphics_presentation_cells.end(),[](const auto &v){return v.item_liquid!=NCMM_LIQ_NONE;})==warm_liquids-1,"frozen_water_kept_puddle_model");
-        capture_frame("first-person-frozen-water.bmp");here.i_clear(sample);
+        capture_frame("first-person-frozen-water.bmp");here.i_clear(sample);graphics_camera_pitch=sample_pitch;
         here.add_field(sample,field_type_str_id("fd_smoke").id(),3);draw();
         require(std::any_of(graphics_presentation_cells.begin(),graphics_presentation_cells.end(),[](const auto &v){return v.gas==NCMM_GAS_SMOKE&&v.field_intensity==3;}),"real_smoke_volume_missing");
         capture_frame("first-person-smoke-volume.bmp");
