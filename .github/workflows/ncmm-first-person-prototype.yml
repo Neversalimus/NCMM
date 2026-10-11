@@ -208,7 +208,7 @@ jobs:
               if(!(Test-Path (Join-Path $root 'ncmm/boot.ready')) -or (Test-Path (Join-Path $root 'ncmm/boot.pending'))){throw 'Bootstrap lifecycle markers inconsistent.'}
             }
           }
-      - name: Actual SDL F6, vehicles, ceilings, avatar, camera and menu suspension
+      - name: Actual SDL controls, geometry audit, RGB light, sky, weather and held items
         timeout-minutes: 30
         shell: powershell
         run: |
@@ -220,9 +220,10 @@ jobs:
             $p.Refresh()
             if($p.ExitCode -ne 0){throw "Gameplay smoke failed: $($p.ExitCode)"}
             $result=Get-Content (Join-Path $root 'ncmm/first-person-smoke.json') -Raw | ConvertFrom-Json
-            if($result.success -ne $true -or $result.sdl_frames -lt 54){throw 'First person SDL smoke is incomplete.'}
+            if($result.success -ne $true -or $result.sdl_frames -lt 63){throw 'First person SDL smoke is incomplete.'}
             Copy-Item (Join-Path $root 'ncmm/first-person-smoke.json') ("installer-result/first-person-smoke-"+$variant.name+'.json')
-            Copy-Item (Join-Path $root 'ncmm/first-person-room.bmp') ("installer-result/first-person-room-"+$variant.name+'.bmp')
+            Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-*.bmp' | ForEach-Object { Copy-Item $_.FullName (Join-Path 'installer-result' ($_.BaseName+'-'+$variant.name+'.bmp')) }
+            Copy-Item (Join-Path $root 'ncmm/first-person-shapes-audit.json') ("installer-result/first-person-shapes-audit-"+$variant.name+'.json')
           }
       - name: Collect runtime evidence
         if: always()
@@ -243,8 +244,9 @@ jobs:
         with:
           name: first-person-installer-${{ matrix.build }}-Windows-x64
           path: |
-            installer-result/NCMM_FirstPersonView_0.2.0_TEST_${{ matrix.build }}_Windows_x64.zip
+            installer-result/NCMM_FirstPersonView_0.3.0_TEST_${{ matrix.build }}_Windows_x64.zip
             installer-result/first-person-smoke*.json
-            installer-result/first-person-room*.bmp
+            installer-result/first-person-*.bmp
+            installer-result/first-person-shapes-audit*.json
           if-no-files-found: error
           retention-days: 7

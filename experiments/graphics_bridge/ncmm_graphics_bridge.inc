@@ -6,26 +6,29 @@ struct graphics_view_state {
     ncmm_graphics_input_v1 input = nullptr;
     void *user_data = nullptr;
     bool enabled = false;
+    ncmm_graphics_render_v2 hybrid_render = nullptr;
 };
 graphics_view_state graphics_view;
 bool graphics_gameplay_context = false;
 const ncmm_graphics_scene_v1 *graphics_frame = nullptr;
 bool graphics_frame_invalid = false;
+bool graphics_render_active = false;
 std::vector<ncmm_graphics_quad_v1> graphics_commands;
 size_t graphics_resolved_textures = 0;
 size_t graphics_resolved_vehicle_textures = 0;
 size_t graphics_ceiling_cells = 0;
 loaded_mod *find_loaded_by_id( const char *module_id );
+void graphics_clear_hybrid();
 
 void graphics_erase( const std::string &id )
 {
-    if( graphics_view.owner == id ) graphics_view = {};
+    if( graphics_view.owner == id ) { graphics_view = {}; graphics_clear_hybrid(); }
 }
 
 int graphics_register( const char *id, ncmm_graphics_render_v1 render,
                        ncmm_graphics_input_v1 input, void *user_data )
 {
-    if( !active_module_matches( id ) || !module_ids.count( id ) || !render ||
+    if( graphics_render_active || !active_module_matches( id ) || !module_ids.count( id ) || !render ||
         ( !graphics_view.owner.empty() && graphics_view.owner != id ) ) return 0;
     graphics_view = { id, render, input, user_data, false };
     return 1;
@@ -33,15 +36,16 @@ int graphics_register( const char *id, ncmm_graphics_render_v1 render,
 
 int graphics_enable( const char *id, int enabled )
 {
-    if( !active_module_matches( id ) || graphics_view.owner != id || !graphics_view.render ||
-        ( enabled && !character_state_available() ) || graphics_frame ) return 0;
+    if( !active_module_matches( id ) || graphics_view.owner != id ||
+        ( !graphics_view.render && !graphics_view.hybrid_render ) ||
+        ( enabled && !character_state_available() ) || graphics_render_active ) return 0;
     const bool changed = graphics_view.enabled != ( enabled != 0 );
     graphics_view.enabled = enabled != 0;
 #if defined(TILES)
     if( changed && character_state_available() ) {
         add_msg( m_info, "%s", graphics_view.enabled ?
-                 tr_ui( "First person ON. F6: map; F7/F8: turn camera.",
-                        "Вид от первого лица включён. F6: карта; F7/F8: поворот камеры." ) :
+                 tr_ui( "First person ON. F6: map; F7/F8: turn; F9/F10: look up/down.",
+                        "Вид от первого лица включён. F6: карта; F7/F8: поворот; F9/F10: вверх/вниз." ) :
                  tr_ui( "First person OFF.", "Вид от первого лица выключен." ) );
     }
 #endif
@@ -78,12 +82,15 @@ const ncmm_host_graphics_v1 graphics_api = {
 
 void graphics_register_actions( input_context &ctxt )
 {
-    if( !graphics_view.render ) return;
+    if( !graphics_view.render && !graphics_view.hybrid_render ) return;
     const std::pair<const char *, int> keys[] = {
-        { "ncmm.view.turn_left", keycode::f7 }, { "ncmm.view.turn_right", keycode::f8 }
+        { "ncmm.view.turn_left", keycode::f7 }, { "ncmm.view.turn_right", keycode::f8 },
+        { "ncmm.view.look_up", keycode::f9 }, { "ncmm.view.look_down", keycode::f10 }
     };
     for( const auto &key : keys ) {
-        const std::string label = key.second == keycode::f7 ?
+        const std::string label = key.second == keycode::f9 ? tr_ui( "First person: look up", "Первое лицо: смотреть вверх" ) :
+            key.second == keycode::f10 ? tr_ui( "First person: look down", "Первое лицо: смотреть вниз" ) :
+            key.second == keycode::f7 ?
             tr_ui( "First person: turn left", "Первое лицо: повернуть влево" ) :
             tr_ui( "First person: turn right", "Первое лицо: повернуть вправо" );
         inp_mngr.ncmm_register_context_default_action( key.first, no_translation( label ),
@@ -95,8 +102,10 @@ void graphics_register_actions( input_context &ctxt )
 bool graphics_action( const std::string &action )
 {
     const uint32_t turn = action == "ncmm.view.turn_left" ? NCMM_GFX_TURN_LEFT :
-                          action == "ncmm.view.turn_right" ? NCMM_GFX_TURN_RIGHT : 0;
-    if( turn && graphics_view.render ) {
+                          action == "ncmm.view.turn_right" ? NCMM_GFX_TURN_RIGHT :
+                          action == "ncmm.view.look_up" ? NCMM_GFX_LOOK_UP :
+                          action == "ncmm.view.look_down" ? NCMM_GFX_LOOK_DOWN : 0;
+    if( turn && ( graphics_view.render || graphics_view.hybrid_render ) ) {
         if( graphics_view.enabled && graphics_view.input ) {
             loaded_mod *mod = find_loaded_by_id( graphics_view.owner.c_str() );
             if( mod ) {
@@ -111,20 +120,17 @@ bool graphics_action( const std::string &action )
         }
         return true;
     }
-    // Suspend BEFORE menus/targeting draw. handle_input(DEFAULTMODE) resumes.
-    static const std::set<std::string> pass = { "UP", "DOWN", "LEFT", "RIGHT",
-        "LEFTUP", "RIGHTUP", "LEFTDOWN", "RIGHTDOWN", "pause", "TIMEOUT" };
-    if( !pass.count( action ) && action != "ncmm.open." + graphics_view.owner ) {
-        graphics_gameplay_context = false;
-        if( g ) g->invalidate_main_ui_adaptor();
-    }
+    // Commands do not switch renderers. Actual coordinate-based map contexts
+    // suspend the view when they enter input_context::handle_input().
     return false;
 }
+
+#include "ncmm_graphics_hybrid.inc"
 
 bool graphics_draw( int x, int y, int width, int height )
 {
 #if defined(TILES)
-    if( !graphics_view.enabled || !graphics_view.render || !graphics_gameplay_context ||
+    if( !graphics_view.enabled || ( !graphics_view.render && !graphics_view.hybrid_render ) || !graphics_gameplay_context ||
         !character_state_available() || width < 1 || height < 1 || width > 8192 || height > 8192 ||
         !tilecontext || !tilecontext->is_valid() ) return false;
     avatar &you = get_avatar();
@@ -185,8 +191,10 @@ bool graphics_draw( int x, int y, int width, int height )
         NCMM_GRAPHICS_RADIUS + 0.5f, NCMM_GRAPHICS_RADIUS + 0.5f, cells.data(), cells.size() };
     loaded_mod *mod = find_loaded_by_id( graphics_view.owner.c_str() );
     if( !mod ) { graphics_view.enabled = false; return false; }
+    if( graphics_view.hybrid_render ) return graphics_draw_hybrid( scene, positions, x, y );
     graphics_commands.clear();
     graphics_frame = &scene;
+    graphics_render_active = true;
     graphics_frame_invalid = false;
     bool ok = false;
     try {
@@ -196,6 +204,7 @@ bool graphics_draw( int x, int y, int width, int height )
         quarantine_runtime_callback( *mod, runtime_callback_kind::ui, "graphics_render_exception" );
     }
     graphics_frame = nullptr;
+    graphics_render_active = false;
     if( !ok || graphics_frame_invalid || graphics_commands.empty() ) {
         graphics_view.enabled = false;
         graphics_commands.clear();

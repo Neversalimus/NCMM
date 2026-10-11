@@ -33,11 +33,12 @@ def apply(root: Path):
     event_helper = "\nvoid runtime_player_kill_notify()\n{\n    dispatch_event_v2( NCMM_EVENT_PLAYER_KILL_V2 );\n}\n"
     if loader.replace(event_helper, "") != (repo / "host_patch/ncmm_loader.cpp").read_text(encoding="utf-8-sig"):
         raise ValueError("Apply the current canonical NCMM Host first; loader identity differs")
-    loader = replace(loader, '#include "ncmm_loader.h"', '#include "ncmm_loader.h"\n#include "ncmm_graphics.h"\n#include "ncmm_graphics_policy.hpp"\n#if defined(TILES)\n#include "cata_tiles.h"\n#include "sdltiles.h"\n#include "monster.h"\n#include "mtype.h"\n#include "creature_tracker.h"\n#include "lightmap.h"\n#include "map_memory.h"\n#include "vehicle.h"\n#include "vpart_position.h"\n#include "messages.h"\n#endif')
+    loader = replace(loader, '#include "ncmm_loader.h"', '#include "ncmm_loader.h"\n#include "ncmm_graphics.h"\n#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_shapes.hpp"\n#include "ncmm_graphics_policy.hpp"\n#if defined(TILES)\n#include "cata_tiles.h"\n#include "sdltiles.h"\n#include "monster.h"\n#include "mtype.h"\n#include "creature_tracker.h"\n#include "lightmap.h"\n#include "level_cache.h"\n#include "map_memory.h"\n#include "mapdata.h"\n#include "weather.h"\n#include "weather_type.h"\n#include "field.h"\n#include "item.h"\n#include "item_location.h"\n#include "vehicle.h"\n#include "veh_type.h"\n#include "vpart_position.h"\n#include "messages.h"\n#endif')
+    loader = replace(loader, '#include "ncmm_graphics_v2.h"', '#include "ncmm_graphics_v2.h"\n#include "generic_factory.h"')
     loader = replace(loader, "struct loaded_mod {", "void graphics_erase( const std::string &id );\nstruct loaded_mod {")
-    loader = replace(loader, '    "core.v1",', '#if defined(TILES)\n    "graphics.viewport.v1",\n#endif\n    "core.v1",')
+    loader = replace(loader, '    "core.v1",', '#if defined(TILES)\n    "graphics.viewport.v1",\n    "graphics.viewport.v2",\n#endif\n    "core.v1",')
     loader = replace(loader, "const void *query_interface_v2( const char *interface_id, uint32_t min_major, uint32_t min_minor )\n{",
-        '#include "ncmm_graphics_bridge.inc"\n\nconst void *query_interface_v2( const char *interface_id, uint32_t min_major, uint32_t min_minor )\n{\n#if defined(TILES)\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_ID ) {\n        return min_major <= 1 && min_minor == 0 ? &graphics_api : nullptr;\n    }\n#endif')
+        '#include "ncmm_graphics_bridge.inc"\n\nconst void *query_interface_v2( const char *interface_id, uint32_t min_major, uint32_t min_minor )\n{\n#if defined(TILES)\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_V2_ID ) {\n        return min_major <= 2 && min_minor == 0 ? &graphics_hybrid_api : nullptr;\n    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_ID ) {\n        return min_major <= 1 && min_minor == 0 ? &graphics_api : nullptr;\n    }\n#endif')
     loader = replace(loader, "void clear_module_runtime_v2( const std::string &module_id )\n{",
         "void clear_module_runtime_v2( const std::string &module_id )\n{\n    graphics_erase( module_id );")
     loader = replace(loader, "    mod.fault.quarantine( kind );", "    graphics_erase( module_id );\n    mod.fault.quarantine( kind );")
@@ -48,11 +49,11 @@ def apply(root: Path):
     loader = replace(loader, "bool handle_gameplay_action( const std::string &action )\n{",
         "bool handle_gameplay_action( const std::string &action )\n{\n    if( graphics_action( action ) ) return true;")
     loader = replace(loader, "void reset_world_lifecycle()\n{", "void reset_world_lifecycle()\n{\n    graphics_view.enabled = false;\n    graphics_gameplay_context = false;")
-    loader = replace(loader, "void shutdown()\n{", "void shutdown()\n{\n    graphics_view = {};\n    graphics_frame = nullptr;\n    graphics_commands.clear();")
+    loader = replace(loader, "void shutdown()\n{", "void shutdown()\n{\n    graphics_view = {};\n    graphics_frame = nullptr;\n    graphics_commands.clear();\n    graphics_clear_hybrid();")
     loader = replace(loader, '        write_gameplay_smoke_result( true, "ok", aws_setting_count,',
         '        if( module_ids.count( "first_person_view" ) && !graphics_scene_smoke() ) {\n            write_gameplay_smoke_result( false, "first_person_graphics_failed", aws_setting_count, aws_hook_count, survivor_perk_count );\n            return 191;\n        }\n\n        write_gameplay_smoke_result( true, "ok", aws_setting_count,')
     loader = replace(loader, "void gameplay_metric_record_completed_craft( const Character &who )\n{",
-        "void graphics_note_input_context( const std::string &category )\n{\n    const bool gameplay = category == \"DEFAULTMODE\";\n    if( gameplay != graphics_gameplay_context && g ) g->invalidate_main_ui_adaptor();\n    graphics_gameplay_context = gameplay;\n}\nbool graphics_preserves_destination( const std::string &action )\n{\n    return !graphics_view.owner.empty() && ( action == \"ncmm.open.\" + graphics_view.owner ||\n        action == \"ncmm.view.turn_left\" || action == \"ncmm.view.turn_right\" );\n}\nbool graphics_requires_terrain_pass()\n{\n    return graphics_view.enabled && graphics_gameplay_context;\n}\nbool draw_graphics_view( int x, int y, int width, int height )\n{\n    return graphics_draw( x, y, width, height );\n}\n\nvoid gameplay_metric_record_completed_craft( const Character &who )\n{")
+        "void graphics_note_input_context( const std::string &category )\n{\n    const bool gameplay = ncmm_graphics_shapes::stays_perspective( category );\n    if( gameplay != graphics_gameplay_context && g ) g->invalidate_main_ui_adaptor();\n    graphics_gameplay_context = gameplay;\n}\nbool graphics_preserves_destination( const std::string &action )\n{\n    return !graphics_view.owner.empty() && ( action == \"ncmm.open.\" + graphics_view.owner ||\n        action == \"ncmm.view.turn_left\" || action == \"ncmm.view.turn_right\" ||\n        action == \"ncmm.view.look_up\" || action == \"ncmm.view.look_down\" );\n}\nbool graphics_requires_terrain_pass()\n{\n    return graphics_view.enabled && graphics_gameplay_context;\n}\nbool draw_graphics_view( int x, int y, int width, int height )\n{\n    return graphics_draw( x, y, width, height );\n}\n\nvoid gameplay_metric_record_completed_craft( const Character &who )\n{")
     updates["ncmm_loader.cpp"] = loader
     header = read("ncmm_loader.h")
     updates["ncmm_loader.h"] = replace(header, "void initialize();", "void graphics_note_input_context( const std::string &category );\nbool graphics_preserves_destination( const std::string &action );\nbool graphics_requires_terrain_pass();\nbool draw_graphics_view( int x, int y, int width, int height );\nvoid initialize();")
@@ -82,7 +83,24 @@ def apply(root: Path):
         "        g.reset();\n"
         "        catacurses::endwin();\n"
         "        std::exit( smoke_result );")
-    for name in ("ncmm_graphics.h", "ncmm_graphics_policy.hpp", "ncmm_graphics_bridge.inc", "ncmm_graphics_smoke.inc"):
+    tiles_h = read("cata_tiles.h")
+    tiles_declaration = "        std::optional<texture_draw_data> get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p );"
+    updates["cata_tiles.h"] = replace(tiles_h, tiles_declaration, tiles_declaration +
+        "\n        std::optional<texture_draw_data> ncmm_get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p, bool background );\n"
+        "        uint64_t ncmm_graphics_epoch = 0;\n        uint64_t ncmm_graphics_tileset_epoch() const { return ncmm_graphics_epoch; }")
+    tiles_cpp = read("cata_tiles.cpp")
+    start = tiles_cpp.index("std::optional<texture_draw_data> cata_tiles::get_texture_draw_data(")
+    end = tiles_cpp.index("std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids", start)
+    lookup = tiles_cpp[start:end]
+    lookup = replace(lookup, "cata_tiles::get_texture_draw_data", "cata_tiles::ncmm_get_texture_draw_data")
+    lookup = replace(lookup, "TILE_CATEGORY category, const tripoint_bub_ms &p )", "TILE_CATEGORY category, const tripoint_bub_ms &p, const bool background )")
+    lookup = replace(lookup, "    const std::vector<int> *indices = ttype.fg.pick( seed );",
+        "    const std::vector<int> *indices = background ? ttype.bg.pick( seed ) : ttype.fg.pick( seed );\n"
+        "    if( background && !indices ) indices = ttype.fg.pick( seed );")
+    tiles_cpp = tiles_cpp[:start] + lookup + tiles_cpp[start:]
+    load_anchor = "                               const bool force, const bool pump_events, const bool terrain )\n{"
+    updates["cata_tiles.cpp"] = replace(tiles_cpp, load_anchor, load_anchor + "\n    ++ncmm_graphics_epoch;")
+    for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_smoke.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name] = (bridge / name).read_text(encoding="utf-8")

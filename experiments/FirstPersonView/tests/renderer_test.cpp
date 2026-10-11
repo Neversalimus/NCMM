@@ -1,4 +1,5 @@
 #include "renderer.hpp"
+#include "ncmm_graphics_v2.h"
 #include "ncmm_graphics_policy.hpp"
 #include "ncmm_api.h"
 #include <chrono>
@@ -39,7 +40,7 @@ int enable(const char *,int yes){enabled=yes!=0;return 1;}
 int is_enabled(const char *){return enabled;}
 int submit(const ncmm_graphics_quad_v1 *q,size_t count){submitted=static_cast<int>(count);return q && count>0;}
 ncmm_host_graphics_v1 graphics{1,sizeof(ncmm_host_graphics_v1),1,0,reg,enable,is_enabled,submit};
-int has(const char *cap){return std::strcmp(cap,NCMM_GRAPHICS_CAP) || capability;}
+int has(const char *cap){if(!std::strcmp(cap,NCMM_GRAPHICS_V2_CAP))return 0;return std::strcmp(cap,NCMM_GRAPHICS_CAP) || capability;}
 uint32_t major(){return 1;} uint32_t minor(){return 9;}
 const void *query(const char *id,uint32_t,uint32_t){return std::strcmp(id,NCMM_GRAPHICS_ID)==0 ? static_cast<const void *>(&graphics) : &core;}
 }

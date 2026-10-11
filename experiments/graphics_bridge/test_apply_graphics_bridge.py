@@ -23,6 +23,18 @@ class ApplyTests(unittest.TestCase):
         (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR)
         (root / "src/main_menu.cpp").write_text("        std::exit( ncmm::run_gameplay_smoke() );")
         (root / "src/handle_action.cpp").write_text("    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {\n        player_character.clear_destination();\n        destination_preview.clear();\n        return false;\n    }")
+        (root / "src/cata_tiles.h").write_text("        std::optional<texture_draw_data> get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p );")
+        (root / "src/cata_tiles.cpp").write_text("""void cata_tiles::load_tileset( const std::string &tileset_id, const bool precheck,
+                               const bool force, const bool pump_events, const bool terrain )
+{
+}
+std::optional<texture_draw_data> cata_tiles::get_texture_draw_data( const std::string &id,
+        TILE_CATEGORY category, const tripoint_bub_ms &p )
+{
+    const std::vector<int> *indices = ttype.fg.pick( seed );
+}
+std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids() {}
+""")
     def fingerprint(self, root):
         return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob("*") if p.is_file()}
     def test_unknown_identity_no_writes(self):
@@ -55,6 +67,15 @@ class ApplyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); self.fixture(root)
             (root / "src/main_menu.cpp").write_text("changed smoke entry")
+            before = self.fingerprint(root)
+            with patch.object(bridge.subprocess, "check_output", return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError, "one exact anchor"): bridge.apply(root)
+            self.assertEqual(before, self.fingerprint(root))
+    def test_changed_atlas_anchor_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); self.fixture(root)
+            path = root / "src/cata_tiles.cpp"
+            path.write_text(path.read_text().replace("ttype.fg.pick( seed )", "ttype.fg.pick( different_seed )"))
             before = self.fingerprint(root)
             with patch.object(bridge.subprocess, "check_output", return_value=next(iter(bridge.SOURCES))):
                 with self.assertRaisesRegex(ValueError, "one exact anchor"): bridge.apply(root)
