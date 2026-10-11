@@ -63,6 +63,10 @@ bool graphics_scene_smoke()
         auto draw = [&]() {
             std::multimap<point, formatted_text> overlays;
             color_block_overlay_container blocks;
+            // The fixture changes calendar/weather without executing a turn.
+            // Refresh the game's natural-light cache as a real turn would.
+            g->reset_light_level();
+            here.invalidate_map_cache( 0 );
             // The real viewport hook keeps this pass before drawing first person.
             here.update_visibility_cache( 0 );
             tilecontext->draw( point::zero, center, 640, 480, overlays, blocks );
@@ -72,6 +76,7 @@ bool graphics_scene_smoke()
             ++frames;
         };
         draw();
+        const float daytime_light = g->natural_light_level( 0 );
         require( you.get_memorized_tile( here.get_abs( door ) ).get_ter_id() == "t_door_c",
                  "closed_door_not_memorized" );
         SDL_Renderer *renderer = get_sdl_renderer().get();
@@ -198,6 +203,7 @@ bool graphics_scene_smoke()
         here.invalidate_map_cache( 0 ); here.build_map_cache( 0 ); draw();
         require( graphics_hybrid_last_environment.daylight < .2f && graphics_hybrid_last_environment.moon_phase == uint32_t( get_moon_phase( calendar::turn ) ),
                  "night_or_lunar_phase_not_from_calendar" );
+        require( g->natural_light_level( 0 ) < daytime_light * .2f, "fixture_kept_daytime_light_at_night" );
         capture_frame( "first-person-night.bmp" );
         // Verify actual CDDA RGB propagation, not a synthetic renderer tint.
         furn_t *lamp = nullptr;
