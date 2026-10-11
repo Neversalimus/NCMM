@@ -108,7 +108,7 @@ if($LASTEXITCODE -ne 0){throw 'Preview install matrix compilation failed.'}
 if($LASTEXITCODE -ne 0){throw 'Preview install matrix failed.'}
 
 @"
-NCMM First Person View installer 0.3.0 TEST / CDDA $build / Windows x64
+NCMM First Person View installer 0.4.0 TEST / CDDA $build / Windows x64
 
 1. Extract the complete archive. Run NCMM_Setup_FirstPerson_TEST.exe.
 2. Select the game folder containing cataclysm-tiles.exe and VERSION.txt for
@@ -124,12 +124,18 @@ the original game backup is verified and preserved when upgrading.
 This version adds a hybrid 2.5D/3D software renderer: continuous perspective
 floors, filtered tileset materials, modeled vehicle chassis/roof/doors/glass/
 seats/wheels, vertical door/window/fence geometry and grounded plants.
+Version 0.4 adds sloped windshields, beveled body edges, real wheel-arch openings,
+rounded tyres/rims, bumpers, grilles, wipers, door seams/handles and mirrors.
+Near surfaces gain distance-filtered material detail and paint/metal highlights.
+Transparent sprites are alpha-filtered and rooted using their actual bounds.
 Lighting uses CDDA's visible-cell intensity and RGB light cache, face shading
 and directional sunlight shadows. Sky, clouds, sun, phased moon and weather
 follow the game calendar and current weather; rain/snow stay outside roofs.
 The sun uses the game's astronomy; lunar position is an approximation based
 on the game's actual phase. Wielded items generate a camera-local silhouette
-from the active tileset, with forearms and hands; changing weapons updates it.
+from the active tileset, with an extruded contour and curved forearms/hands.
+An independent depth buffer handles hand/item overlaps and nearby walls.
+Changing or unwielding items updates both geometry and that buffer.
 Ordinary commands and inventory retain the perspective backdrop. Coordinate
 look/targeting and the overmap temporarily use the normal map.
 Long CatLauncher paths and Cyrillic folder names are supported during install,
@@ -149,9 +155,9 @@ The bundle includes NCMM Runtime 0.8.2 and the normal optional native modules.
 The game itself and external tilesets are not bundled. Keep your existing data,
 tilesets and configuration with the selected official CDDA installation.
 "@ | Set-Content (Join-Path $stage 'README.txt') -Encoding UTF8
-$provenance=[ordered]@{schema=1;product='NCMM First Person View TEST';installer_revision='0.3.0';status='experimental-not-certified';recommended_entry='NCMM_Setup_FirstPerson_TEST.exe';source_commit=$bundle.ncmm_source_commit;engine_source=$source.source_commit;upstream_tag=$source.tag;workflow_run=[string]$env:GITHUB_RUN_ID;installer_sha256=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant();host_sha256=$bundle.host_sha256;vanilla_sha256=$bundle.vanilla_sha256;supported_vanilla_sha256=$bundle.supported_vanilla_sha256;module_sha256=$files['code_mods/FirstPersonView/ncmm_mod.dll']}
+$provenance=[ordered]@{schema=1;product='NCMM First Person View TEST';installer_revision='0.4.0';status='experimental-not-certified';recommended_entry='NCMM_Setup_FirstPerson_TEST.exe';source_commit=$bundle.ncmm_source_commit;engine_source=$source.source_commit;upstream_tag=$source.tag;workflow_run=[string]$env:GITHUB_RUN_ID;installer_sha256=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant();host_sha256=$bundle.host_sha256;vanilla_sha256=$bundle.vanilla_sha256;supported_vanilla_sha256=$bundle.supported_vanilla_sha256;module_sha256=$files['code_mods/FirstPersonView/ncmm_mod.dll']}
 [IO.File]::WriteAllText((Join-Path $stage 'release-manifest.json'),($provenance | ConvertTo-Json -Depth 6),(New-Object Text.UTF8Encoding($false)))
-$zip=Join-Path $OutputRoot ("NCMM_FirstPersonView_0.3.0_TEST_${build}_Windows_x64.zip")
+$zip=Join-Path $OutputRoot ("NCMM_FirstPersonView_0.4.0_TEST_${build}_Windows_x64.zip")
 if(Test-Path $zip){Remove-Item $zip -Force}
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip

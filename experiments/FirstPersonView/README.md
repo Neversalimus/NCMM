@@ -1,4 +1,4 @@
-# First Person View — 0.3.0 development prototype
+# First Person View — 0.4.0 development prototype
 
 Optional first-person renderer of the same live CDDA world through NCMM. This
 preview bundles an exact experimental Windows x64 Host for 1040 or 1807 and uses
@@ -55,9 +55,18 @@ Flat blood/liquid fields remain ground decals; fire, smoke and gas use billboard
 
 Visible vehicle mounts share actual yaw and one continuous anchor. Automatic
 meshes combine chassis, body panels, roof, seats, windows, open doors, modeled
-wheels/rims and lights. The current tileset supplies paint/material colors,
-rather than a top-down car part stretched into a wall. Dimensions are coarse and
-generic; this is not a separate authored model for every vehicle prototype.
+wheels/rims and lights. Version 0.4 adds sloped windshields, beveled hood/roof
+edges, wheel-arch cutouts, rounded 24-segment tyres, rims/spokes, bumpers, grilles,
+wipers, door seams/handles and mirrors. Visible parts share a tileset-derived
+paint palette and a mount lookup; hidden parts affect neither colors nor shape.
+Dimensions remain generic, with no authored model for each vehicle prototype.
+
+Near surfaces receive procedural material detail for asphalt, soil, grass,
+wood, stone and tiles. Detail fades with the projected footprint to reduce
+distance shimmer. Painted bodywork and metal use view-dependent highlights.
+Sprite filtering and mips use premultiplied alpha to avoid dark/colored fringes;
+odd texture dimensions retain their edge pixels. Upright sprites are cropped
+to their opaque bounds and rooted at the surface, including transparent padding.
 
 Surfaces use CDDA's actual visible-cell light intensity and RGB light cache,
 normal-dependent face shading, sunlight and geometry-based directional shadows.
@@ -73,10 +82,13 @@ specialized effects when supplied by game data or mods. Outside particles are
 occluded by geometry and do not spawn under roofs. Visual cloud/particle movement
 uses real time without advancing a game turn.
 
-The wielded item's actual tileset silhouette is generated in camera space with
-shaded thickness, forearms and hands. It updates when the player changes or
-unwields the item. Hands and the item receive the camera cell's actual RGB light. This is the first automatic held-item pass, not a collection
-of bespoke 3D weapon models or attack/reload animations.
+The wielded item's actual tileset silhouette is filtered in camera space with
+an extruded contour, curved forearms, palms and fingers. Long melee silhouettes
+use their automatically measured principal axis; guns and very slender shapes
+receive a support hand. An independent view-model depth buffer handles overlaps
+and nearby walls. It clears when the item is unwielded. Hands and the item receive
+the camera cell's actual RGB light. Geometry and skin/sleeve colors are generic;
+there are no bespoke weapon models or attack/reload animations yet.
 
 ## Visibility and lifecycle
 
@@ -148,6 +160,8 @@ not advertise the graphics capability and rejects this DLL safely.
 Native tests cover continuous floors, geometry/occlusion, windows and mesh gates,
 plant ground, vehicle meshes, hidden-cell exclusion, sky/phase changes, RGB light,
 weather/roof exclusion, held-item replacement, viewport bounds and V1/V2 lifecycle.
+The 0.4 tests additionally cover alpha-edge contamination, odd-sized mips,
+grounded transparent margins, hidden vehicle neighbors and view-model occlusion.
 ASan/UBSan and atomic source-transform failure cases accompany source syntax
 checks against both pinned engines.
 

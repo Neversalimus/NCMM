@@ -34,6 +34,14 @@ void save(const frame &f,const std::string &path){std::ofstream out(path,std::io
     for(uint32_t p:f.pixels){char c[]={char(p>>24),char(p>>16),char(p>>8)};out.write(c,3);}}
 }
 int main(int argc,char **argv){try{
+    std::array<uint32_t,2> edge_pixels{0xff4000ff,0x00ffffff};edge_pixels[1]&=0xffffff00u;
+    image edge;edge.data={sizeof(edge.data),2,1,2,edge_pixels.data()};edge.analyse();
+    const auto filtered=edge.sample(.5f,0);check((filtered&255)>100&&(filtered&255)<150,"filtered silhouette retains fractional coverage");
+    check((filtered>>24)>245&&((filtered>>8)&255)<5,"transparent texel RGB does not contaminate the filtered edge");
+    const auto coarse=edge.sample(.5f,0,true);check((coarse>>24)>245&&((coarse>>8)&255)<5,"mip filtering also preserves edge color");
+    std::array<uint32_t,9> odd_pixels{};odd_pixels[8]=0x00ff00ff;
+    image odd;odd.data={sizeof(odd.data),3,3,3,odd_pixels.data()};odd.analyse();
+    check(odd.sample(1,1,true)==0x00ff00ff,"odd-sized sprite mip preserves the last row and column");
     fixture world;frame f;auto draw=[&](float yaw=-pi*.5f,float pitch=0){check(build_frame(world.scene,yaw,pitch,world.provider(),f),"hybrid frame");
         check(f.pixels.size()==size_t(f.width)*f.height&&f.pixels.size()<=1920u*1080u,"bounded complete raster");check(world.hidden_requests==0,"no hidden texture requests");};
     draw();auto empty=digest(f);check(f.width==800&&f.height==500,"native floor resolution");
@@ -49,10 +57,22 @@ int main(int argc,char **argv){try{
     world.shape(7,7,NCMM_SHAPE_WINDOW_BROKEN);draw();check(f.vertical_windows>0,"broken window remains vertical");
     world.shape(7,7,NCMM_SHAPE_FENCE);draw();check(f.vertical_fences>0,"wire fence vertical geometry");world.shape(7,7,NCMM_SHAPE_GATE_OPEN);draw();check(f.vertical_fences>0,"open gate stays vertical");
     world.shape(7,7,NCMM_SHAPE_PLANT);draw();check(f.plants>0,"plant has upright geometry");check(std::isfinite(f.depth[450*800+400]),"plant retains ground substrate");
+    int leaf_bottom=-1;for(int y=0;y<500;++y)for(int x=395;x<=405;++x){vec color=unpack(f.pixels[size_t(y)*800+x]);
+        if(color.y>color.x*1.3f&&color.y>color.z*1.5f)leaf_bottom=std::max(leaf_bottom,y);}
+    const float ground_y=250+800/(2*std::tan(70*pi/360))*1.55f/4;
+    check(std::abs(leaf_bottom-ground_y)<3,"transparent sprite padding does not lift a plant above the ground");
     world.shape(7,7,NCMM_SHAPE_FLAT);for(int x=5;x<=9;++x){int i=7*15+x;world.cells[i].flags|=NCMM_GFX_VEHICLE;std::strcpy(world.cells[i].furniture,"vp_roof");auto &d=world.details[i];
         d.vehicle_group=1;d.vehicle_features=NCMM_VEH_FRAME|NCMM_VEH_ROOF|NCMM_VEH_BOARD|NCMM_VEH_WINDOW|NCMM_VEH_SEAT;d.mount_x=x-7;d.mount_y=0;d.vehicle_x=7.5f;d.vehicle_y=7.5f;d.vehicle_health=1;
         if(x==5||x==9)d.vehicle_features|=NCMM_VEH_WHEEL;}
     draw();check(f.vehicle_parts==5&&f.triangles>150,"car builds body roof glass seats and wheels");check(digest(f)!=empty,"modeled car appears");if(argc==2)save(f,std::string(argv[1])+"-car.ppm");
+    world.cells[7*15+4].flags=0;draw();auto visible_car=digest(f);
+    auto &hidden_part=world.details[7*15+4];hidden_part.vehicle_group=1;hidden_part.mount_x=-3;
+    hidden_part.vehicle_features=NCMM_VEH_ROOF|NCMM_VEH_ENGINE|NCMM_VEH_BOARD;hidden_part.vehicle_health=.1f;
+    draw();check(digest(f)==visible_car,"hidden neighboring vehicle parts cannot change visible silhouette or paint");
+    hidden_part.vehicle_features=0;world.cells[7*15+4].flags=NCMM_GFX_VISIBLE;
+    for(int x=5;x<=9;++x)world.details[7*15+x].vehicle_yaw=pi*.25f;
+    draw();check(digest(f)!=visible_car,"automatic body details rotate with the vehicle's actual yaw");
+    for(int x=5;x<=9;++x)world.details[7*15+x].vehicle_yaw=0;
     for(int x=5;x<=9;++x)world.cells[7*15+x].flags|=NCMM_GFX_CEILING;
     draw();check(!std::isfinite(f.depth[115*800+400]),"vehicle interior does not generate a floating building ceiling");
     for(int x=5;x<=9;++x)world.details[7*15+x].terrain_flags|=NCMM_SURFACE_TERRAIN_CEILING;
@@ -71,7 +91,13 @@ int main(int argc,char **argv){try{
     world.scene.environment.weather_kind=NCMM_WEATHER_SNOW;draw();check(digest(f)!=rain&&f.weather_particles>0,"snow differs from rain");
     for(auto &c:world.cells)c.flags|=NCMM_GFX_CEILING;
     draw();check(f.weather_particles==0,"weather stays outside roofs");
-    world.scene.environment.precipitation=0;std::strcpy(world.scene.environment.held_item,"naginata");draw();check(f.held_pixels>0,"current wielded silhouette appears in hands");if(argc==2)save(f,std::string(argv[1])+"-room.ppm");
+    world.scene.environment.precipitation=0;std::strcpy(world.scene.environment.held_item,"naginata");world.scene.environment.held_kind=2;
+    draw();check(f.held_pixels>0,"current wielded silhouette appears in hands");if(argc==2)save(f,std::string(argv[1])+"-room.ppm");
+    size_t held_samples=0;for(float z:f.held_depth)held_samples+=std::isfinite(z);
+    check(held_samples>100,"item and curved hands populate the independent view-model depth buffer");
+    world.shape(7,11,NCMM_SHAPE_WALL);draw();size_t wall_held_samples=0;for(float z:f.held_depth)wall_held_samples+=std::isfinite(z);
+    check(wall_held_samples==held_samples,"nearby world geometry does not cut into the hands or wielded item");
+    world.shape(7,11,NCMM_SHAPE_FLAT);
     auto held_color=[](const frame &image){vec sum{};for(size_t i=0;i<image.pixels.size();++i){
         if(image.owners[i]==-1&&image.depth[i]<1)sum=sum+unpack(image.pixels[i]);}return sum;};
     const vec neutral_held=held_color(f);auto &camera_light=world.details[11*15+7];
@@ -80,6 +106,7 @@ int main(int argc,char **argv){try{
     check(blue_held.z/(blue_held.x+.001f)>neutral_held.z/(neutral_held.x+.001f)*2,"camera RGB light shades the held item and hands");
     camera_light.light_r=camera_light.light_g=camera_light.light_b=.8f;
     world.scene.environment.held_item[0]=0;draw();check(f.held_pixels==0,"empty hands do not retain previous weapon");
+    check(std::none_of(f.held_depth.begin(),f.held_depth.end(),[](float z){return std::isfinite(z);}),"unwielding clears view-model depth as well as geometry");
     check(ncmm_graphics_shapes::terrain("t_door_o",{})==NCMM_SHAPE_DOOR_OPEN,"open door classification");
     check(ncmm_graphics_shapes::terrain("t_window_frame",{})==NCMM_SHAPE_WINDOW_BROKEN,"broken window classification");
     check(ncmm_graphics_shapes::terrain("t_chainfence",{})==NCMM_SHAPE_FENCE,"chain fence classification");
