@@ -417,7 +417,11 @@ class renderer {
             material stone{nullptr,m.texture?m.texture->average:vec{.43f,.43f,.40f},1,false,false,false,i,surface::stone};
             const char *id=layer==NCMM_GFX_FURNITURE?base.cells[i].furniture:base.cells[i].terrain;
             const float size=ncmm_graphics_shapes::contains(id,"large")?2.6f:ncmm_graphics_shapes::contains(id,"small")?.72f:1.0f;
-            std::array<vec,9> low{},shoulder{},top{};const uint32_t seed=uint32_t(i)*157u;
+            uint32_t seed=2166136261u;
+            for(const char *p=id;*p;++p)seed=(seed^uint8_t(*p))*16777619u;
+            if(m.texture)seed^=pack(m.texture->average);
+            // Atlas art/identity is stable when a camera-centred grid reindexes.
+            std::array<vec,9> low{},shoulder{},top{};
             for(int n=0;n<9;++n){const float a=2*pi*n/9,r=(.35f+random(seed+n)*.13f)*std::min(size,1.08f);
                 low[n]=center+vec{std::cos(a)*r,std::sin(a)*r*.86f,.012f};
                 shoulder[n]=center+vec{std::cos(a)*r*.87f,std::sin(a)*r*.82f,(.30f+random(seed+n+20)*.16f)*size};

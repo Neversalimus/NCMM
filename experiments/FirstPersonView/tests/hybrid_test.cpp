@@ -51,6 +51,15 @@ int main(int argc,char **argv){try{
     ncmm_graphics_control_state_v1 attack{};attack.struct_size=sizeof(attack);attack.attack_serial=1;attack.attack_started=10;attack.attack_kind=1;attack.grip_kind=NCMM_GRIP_POLE;attack.held_length=2;
     check(animation::sample(attack,10).thrust==0&&animation::sample(attack,10.12).thrust>.20f,"pole timeline winds into a thrust");
     check(animation::sample(attack,10.50).thrust==0&&animation::sample(attack,9).thrust==0,"timeline recovers and rejects a future event");
+    fixture stones;for(auto &d:stones.details)d.terrain_shape=NCMM_SHAPE_FLAT;
+    stones.shape(7,7,NCMM_SHAPE_ROCK);frame original_rock,reindexed_rock;
+    check(build_frame(stones.scene,-pi*.5f,0,stones.provider(),original_rock),"original camera-centred rock snapshot");
+    stones.shape(7,7,NCMM_SHAPE_FLAT);stones.shape(8,7,NCMM_SHAPE_ROCK);stones.scene.base.camera_x+=1;
+    check(build_frame(stones.scene,-pi*.5f,0,stones.provider(),reindexed_rock),"reindexed camera-centred rock snapshot");
+    size_t rock_pixels=0,stable_rock_pixels=0;
+    for(size_t n=0;n<original_rock.depth.size();++n)if(original_rock.owners[n]==7*15+7){++rock_pixels;
+        stable_rock_pixels+=reindexed_rock.owners[n]==7*15+8&&std::abs(original_rock.depth[n]-reindexed_rock.depth[n])<.001f;}
+    check(rock_pixels>100&&stable_rock_pixels*100>=rock_pixels*99,"boulder geometry stays stable when the local grid shifts around the camera");
     check(ncmm_graphics_shapes::physical_item_id("naginata_plus_two","naginata",2)=="naginata","enchanted melee uses its declared physical silhouette instead of grade icons");
     check(ncmm_graphics_shapes::physical_item_id("rifle_plus_one","rifle",1)=="rifle","enchanted gun resolves physical art generically");
     check(ncmm_graphics_shapes::physical_item_id("knife_combat","knife",2)=="knife_combat","normal weapon keeps its own authored sprite");
