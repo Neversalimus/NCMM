@@ -8,6 +8,7 @@
 #include "map.h"
 #include "map_scale_constants.h"
 #include "mapdata.h"
+#include "magic_enchantment.h"
 #include "character.h"
 #include "character_attire.h"
 #include "flag.h"
@@ -6430,18 +6431,28 @@ int run_gameplay_smoke()
                 fixture.encumbrance = base;
                 for( const bodypart_id &bp : body_parts ) {
                     get_avatar().set_part_encumbrance_data( bp, fixture );
-                    const int expected = ( base * ( 100 - 5 * rank ) + 50 ) / 100;
+                    // Quickstart generates a random avatar, whose mutations or
+                    // equipment can modify vanilla encumbrance before our perk.
+                    const int vanilla = static_cast<int>( std::max( 0.0,
+                                        get_avatar().enchantment_cache->modify_encumbrance( bp.id(), base ) ) );
+                    const int expected = ( vanilla * ( 100 - 5 * rank ) + 50 ) / 100;
                     // Both action accessor and direct limb-score consumer, twice:
                     // no stale equipment cache or repeated multiplicative reduction.
                     for( int repeat = 0; repeat < 2; ++repeat ) {
                         if( get_avatar().encumb( bp ) != expected ||
                             get_avatar().get_part( bp )->get_final_encumbrance( get_avatar() ) != expected ) {
+                            log_line( NCMM_LOG_ERROR, "Suspension fixture mismatch: " + bp.id().str() +
+                                      " rank=" + std::to_string( rank ) + " vanilla=" + std::to_string( vanilla ) +
+                                      " expected=" + std::to_string( expected ) +
+                                      " actual=" + std::to_string( get_avatar().encumb( bp ) ) );
                             return suspension_fail();
                         }
                     }
                     if( encumbrance_npc.has_part( bp ) ) {
                         encumbrance_npc.set_part_encumbrance_data( bp, fixture );
-                        if( encumbrance_npc.encumb( bp ) != base ) return suspension_fail();
+                        const int npc_vanilla = static_cast<int>( std::max( 0.0,
+                                                encumbrance_npc.enchantment_cache->modify_encumbrance( bp.id(), base ) ) );
+                        if( encumbrance_npc.encumb( bp ) != npc_vanilla ) return suspension_fail();
                     }
                 }
             }
