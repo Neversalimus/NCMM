@@ -6,11 +6,83 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
+using File = NcmmFile;
+using Directory = NcmmDirectory;
 
 // Explicit target selects modern managed path handling; NCMMRuntime.manifest also
 // opts every executable into the matching Win32 long-path behavior.
 // All Setup/Bootstrap/harness programs compile this common file; .NET 4.6.2+ required.
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.6.2")]
+
+// Extended Win32 paths work without the machine-wide LongPathsEnabled setting.
+// Keep ordinary paths in journals, identity comparisons and process arguments;
+// add the prefix only at the managed filesystem boundary.
+internal static class NcmmPath
+{
+    internal static string IO(string path)
+    {
+        if (path == null || Path.DirectorySeparatorChar != '\\') return path;
+        string full = Path.GetFullPath(path);
+        if (full.StartsWith(@"\\?\", StringComparison.Ordinal)) return full;
+        return full.StartsWith(@"\\", StringComparison.Ordinal) ?
+            @"\\?\UNC\" + full.Substring(2) : @"\\?\" + full;
+    }
+
+    internal static string Display(string path)
+    {
+        if (path.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)) return @"\\" + path.Substring(8);
+        return path.StartsWith(@"\\?\", StringComparison.Ordinal) ? path.Substring(4) : path;
+    }
+}
+
+internal static class NcmmFile
+{
+    internal static bool Exists(string path)
+    {
+        try { return System.IO.File.Exists(NcmmPath.IO(path)); }
+        catch (ArgumentException) { return false; }
+        catch (NotSupportedException) { return false; }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+        catch (System.Security.SecurityException) { return false; }
+    }
+    internal static string ReadAllText(string path) { return System.IO.File.ReadAllText(NcmmPath.IO(path)); }
+    internal static string[] ReadAllLines(string path) { return System.IO.File.ReadAllLines(NcmmPath.IO(path)); }
+    internal static void WriteAllText(string path, string text) { System.IO.File.WriteAllText(NcmmPath.IO(path), text); }
+    internal static void WriteAllText(string path, string text, Encoding encoding) { System.IO.File.WriteAllText(NcmmPath.IO(path), text, encoding); }
+    internal static void AppendAllText(string path, string text) { System.IO.File.AppendAllText(NcmmPath.IO(path), text); }
+    internal static void AppendAllText(string path, string text, Encoding encoding) { System.IO.File.AppendAllText(NcmmPath.IO(path), text, encoding); }
+    internal static void Copy(string source, string target) { System.IO.File.Copy(NcmmPath.IO(source), NcmmPath.IO(target)); }
+    internal static void Copy(string source, string target, bool overwrite) { System.IO.File.Copy(NcmmPath.IO(source), NcmmPath.IO(target), overwrite); }
+    internal static void Move(string source, string target) { System.IO.File.Move(NcmmPath.IO(source), NcmmPath.IO(target)); }
+    internal static void Replace(string source, string target, string backup) { System.IO.File.Replace(NcmmPath.IO(source), NcmmPath.IO(target), NcmmPath.IO(backup)); }
+    internal static void Delete(string path) { System.IO.File.Delete(NcmmPath.IO(path)); }
+    internal static FileAttributes GetAttributes(string path) { return System.IO.File.GetAttributes(NcmmPath.IO(path)); }
+    internal static void SetAttributes(string path, FileAttributes attributes) { System.IO.File.SetAttributes(NcmmPath.IO(path), attributes); }
+}
+
+internal static class NcmmDirectory
+{
+    internal static bool Exists(string path)
+    {
+        try { return System.IO.Directory.Exists(NcmmPath.IO(path)); }
+        catch (ArgumentException) { return false; }
+        catch (NotSupportedException) { return false; }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+        catch (System.Security.SecurityException) { return false; }
+    }
+    internal static DirectoryInfo CreateDirectory(string path) { return System.IO.Directory.CreateDirectory(NcmmPath.IO(path)); }
+    internal static void Delete(string path) { System.IO.Directory.Delete(NcmmPath.IO(path)); }
+    internal static void Delete(string path, bool recursive) { System.IO.Directory.Delete(NcmmPath.IO(path), recursive); }
+    internal static void Move(string source, string target) { System.IO.Directory.Move(NcmmPath.IO(source), NcmmPath.IO(target)); }
+    internal static string[] GetFiles(string path) { return Array.ConvertAll(System.IO.Directory.GetFiles(NcmmPath.IO(path)), NcmmPath.Display); }
+    internal static string[] GetFiles(string path, string pattern, SearchOption option) { return Array.ConvertAll(System.IO.Directory.GetFiles(NcmmPath.IO(path), pattern, option), NcmmPath.Display); }
+    internal static string[] GetDirectories(string path) { return Array.ConvertAll(System.IO.Directory.GetDirectories(NcmmPath.IO(path)), NcmmPath.Display); }
+    internal static string[] GetDirectories(string path, string pattern, SearchOption option) { return Array.ConvertAll(System.IO.Directory.GetDirectories(NcmmPath.IO(path), pattern, option), NcmmPath.Display); }
+    internal static string[] GetFileSystemEntries(string path) { return Array.ConvertAll(System.IO.Directory.GetFileSystemEntries(NcmmPath.IO(path)), NcmmPath.Display); }
+    internal static string[] GetFileSystemEntries(string path, string pattern, SearchOption option) { return Array.ConvertAll(System.IO.Directory.GetFileSystemEntries(NcmmPath.IO(path), pattern, option), NcmmPath.Display); }
+}
 
 internal sealed class NcmmInstallLock : IDisposable
 {
@@ -34,7 +106,7 @@ internal sealed class NcmmInstallLock : IDisposable
         NcmmRuntimeIO.GuardPath(path);
         try
         {
-            entry = new Held { Stream = new FileStream(path, FileMode.OpenOrCreate,
+            entry = new Held { Stream = new FileStream(NcmmPath.IO(path), FileMode.OpenOrCreate,
                 FileAccess.ReadWrite, FileShare.None), Depth = 1 };
         }
         catch (IOException ex)
@@ -122,7 +194,7 @@ internal static class NcmmRuntimeIO
     internal static string Hash(string path)
     {
         GuardPath(path);
-        using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+        using (FileStream stream = new FileStream(NcmmPath.IO(path), FileMode.Open, FileAccess.Read, FileShare.Read))
         using (SHA256 hash = SHA256.Create())
             return BitConverter.ToString(hash.ComputeHash(stream)).Replace("-", "").ToLowerInvariant();
     }
@@ -131,8 +203,8 @@ internal static class NcmmRuntimeIO
     {
         GuardPath(source); GuardPath(target);
         Directory.CreateDirectory(Path.GetDirectoryName(target));
-        using (FileStream input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read))
-        using (FileStream output = new FileStream(target, FileMode.CreateNew, FileAccess.Write,
+        using (FileStream input = new FileStream(NcmmPath.IO(source), FileMode.Open, FileAccess.Read, FileShare.Read))
+        using (FileStream output = new FileStream(NcmmPath.IO(target), FileMode.CreateNew, FileAccess.Write,
                                                   FileShare.None, 65536, FileOptions.WriteThrough))
         { input.CopyTo(output); output.Flush(true); }
     }
@@ -153,7 +225,7 @@ internal static class NcmmRuntimeIO
         try
         {
             byte[] bytes = new UTF8Encoding(false).GetBytes(text);
-            using (FileStream output = new FileStream(staged, FileMode.CreateNew, FileAccess.Write,
+            using (FileStream output = new FileStream(NcmmPath.IO(staged), FileMode.CreateNew, FileAccess.Write,
                                                       FileShare.None, 4096, FileOptions.WriteThrough))
             { output.Write(bytes, 0, bytes.Length); output.Flush(true); }
             PublishFile(staged, path);

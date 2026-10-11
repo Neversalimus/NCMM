@@ -471,8 +471,8 @@
                   },
                   {
                       "path":  "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-                      "sha256":  "d3df415679ca900f4e7cb457275957afc4133e4fac7ed1c5076793e685000765",
-                      "bytes":  3386597
+                      "sha256":  "88f9de8ce9fcc2f7543d74ec6648a198d3d3a3056da05da3a08714f1e33ad758",
+                      "bytes":  3394605
                   },
                   {
                       "path":  "pipeline\\pipeline.manifest.json",
@@ -491,8 +491,8 @@
                   },
                   {
                       "path":  "runtime\\NCMMRuntimeIO.cs",
-                      "sha256":  "04a8a3c8d9301993fb726094d3fbbad37f1ce3a8280d05f701c04a728309a85c",
-                      "bytes":  15021
+                      "sha256":  "576f4166efa79e37583daa277a04900a6f76e283b34664f61f6d56d20678508a",
+                      "bytes":  20247
                   },
                   {
                       "path":  "sdk\\HOST_API_2_CORE_CONTRACT.md",

@@ -1,4 +1,5 @@
 using System;
+using File = NcmmFile;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;

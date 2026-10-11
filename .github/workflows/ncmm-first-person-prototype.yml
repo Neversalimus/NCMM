@@ -1,0 +1,252 @@
+name: First Person View - experimental prototype
+on:
+  pull_request:
+    paths: ['experiments/FirstPersonView/**', 'experiments/graphics_bridge/**', 'runtime/NCMMSetupCore.cs', 'runtime/NCMMBootstrap.cs', 'runtime/NCMMRuntimeIO.cs', 'runtime/NCMMSetupDiagnostics.cs', 'runtime/NCMMSetup.cs', '.github/workflows/ncmm-first-person-prototype.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ncmm-first-person-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  module:
+    name: Renderer and module - ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Configure isolated module
+        run: cmake -S experiments/FirstPersonView -B fp-build -DCMAKE_BUILD_TYPE=Release
+      - name: Build prototype and contract tests
+        run: cmake --build fp-build --config Release
+      - name: Renderer, occlusion, fog, ABI and toggle lifecycle
+        run: ctest --test-dir fp-build -C Release --output-on-failure
+      - name: Atomic source-transform negative tests
+        run: python -m unittest discover -s experiments/graphics_bridge -p test_apply_graphics_bridge.py -v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: first-person-module-${{ matrix.os }}
+          path: |
+            fp-build/Release/ncmm_mod.dll
+            fp-build/ncmm_mod.so
+            experiments/FirstPersonView/mod.json
+          retention-days: 7
+  host:
+    name: Experimental MSVC Host - ${{ matrix.build }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - build: '1040'
+            source: 3f7fb352bf492ba521bd9408a0c9f6ce239e8d83
+            tag: cdda-experimental-2026-10-01-1040
+          - build: '1807'
+            source: 074aa98bd5be3de4c35f154082db32a0e63bb0f1
+            tag: cdda-experimental-2026-10-06-1807
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SCCACHE_GHA_ENABLED: 'true'
+      VCPKG_OVERLAY_TRIPLETS: ${{ github.workspace }}/upstream/.github/vcpkg_triplets
+      BACKTRACE: '1'
+      CDDA_RELEASE_BUILD: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ncmmrepo
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: CleverRaven/Cataclysm-DDA
+          ref: ${{ matrix.source }}
+          path: upstream
+          persist-credentials: false
+      - name: Prepare canonical NCMM plus optional graphics bridge
+        shell: powershell
+        run: ./ncmmrepo/experiments/FirstPersonView/Prepare-FirstPersonHost.ps1 -SourceRoot upstream
+      - uses: microsoft/setup-msbuild@v2
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: '${{ runner.workspace }}/b/vcpkg'
+          vcpkgGitCommitId: f6672d8e480ccdecddfad3fd1b838ba369ffe6cd
+      - name: Integrate pinned vcpkg
+        shell: powershell
+        run: vcpkg integrate install --vcpkg-root '${{ runner.workspace }}\b\vcpkg'
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: mingw64
+          install: gettext make
+      - uses: actions/cache@v4
+        with:
+          path: upstream/msvc-full-features/vcpkg_installed
+          key: ncmm-vcpkg-${{ runner.os }}-f6672d8e480ccdecddfad3fd1b838ba369ffe6cd-${{ hashFiles('upstream/msvc-full-features/vcpkg.json', 'upstream/.github/vcpkg_triplets/x64-windows-static.cmake') }}
+      - uses: mozilla-actions/sccache-action@v0.0.11
+        with:
+          version: v0.16.0
+      - name: Configure the canonical compiler cache wrapper
+        shell: powershell
+        run: |
+          $dir=Join-Path $env:RUNNER_TEMP 'ncmm-fp-sccache'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          @'
+          @echo off
+          setlocal
+          sccache.exe cl.exe %*
+          exit /b %ERRORLEVEL%
+          '@ | Set-Content (Join-Path $dir 'cl.bat') -Encoding Ascii
+          "NCMM_SCCACHE_WRAPPER_DIR=$dir" >> $env:GITHUB_ENV
+          $props='upstream/msvc-full-features/Cataclysm-common.props'
+          $text=[IO.File]::ReadAllText((Join-Path $PWD $props))
+          $parallel='<MultiProcessorCompilation>true</MultiProcessorCompilation>'
+          $debug='<DebugInformationFormat>ProgramDatabase</DebugInformationFormat>'
+          if(!$text.Contains($parallel) -or !$text.Contains($debug)){throw 'Canonical compiler-cache anchors changed.'}
+          $text=$text.Replace($parallel,'<MultiProcessorCompilation>false</MultiProcessorCompilation>').Replace($debug,'<DebugInformationFormat>OldStyle</DebugInformationFormat>')
+          [IO.File]::WriteAllText((Join-Path $PWD $props),$text,(New-Object Text.UTF8Encoding($false)))
+      - uses: actions/cache/restore@v4
+        id: engine_cache
+        with:
+          path: |
+            upstream/cataclysm-tiles.exe
+            upstream/first-person-host.sha256
+          key: ncmm-fp-host-${{ matrix.build }}-v1-${{ runner.os }}-${{ hashFiles('upstream/src/**', 'upstream/msvc-full-features/**', 'upstream/first-person-source.json', 'upstream/.github/vcpkg_triplets/**') }}
+      - name: Compile actual experimental engine (no certification/publication)
+        if: steps.engine_cache.outputs.cache-hit != 'true'
+        shell: powershell
+        working-directory: upstream
+        run: |
+          & msbuild -m -p:Configuration=Release -p:Platform=x64 -p:CLToolExe=cl.bat "-p:CLToolPath=$env:NCMM_SCCACHE_WRAPPER_DIR" -p:TrackFileAccess=false -p:UseMultiToolTask=true -target:Cataclysm-vcpkg-static msvc-full-features/Cataclysm-vcpkg-static.sln
+          if($LASTEXITCODE -ne 0){throw 'Experimental MSVC Host build failed.'}
+          if(!(Test-Path cataclysm-tiles.exe)){throw 'Experimental engine binary missing.'}
+          (Get-FileHash cataclysm-tiles.exe -Algorithm SHA256).Hash.ToLowerInvariant() | Set-Content first-person-host.sha256 -Encoding Ascii
+      - name: Verify compiled or cached engine identity
+        shell: powershell
+        working-directory: upstream
+        run: |
+          $expected=(Get-Content first-person-host.sha256 -Raw).Trim()
+          if($expected -notmatch '^[0-9a-f]{64}$' -or (Get-FileHash cataclysm-tiles.exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected){throw 'Experimental Host cache identity mismatch.'}
+      - uses: actions/cache/save@v4
+        if: steps.engine_cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            upstream/cataclysm-tiles.exe
+            upstream/first-person-host.sha256
+          key: ${{ steps.engine_cache.outputs.cache-primary-key }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: first-person-experimental-host-${{ matrix.build }}
+          path: |
+            upstream/cataclysm-tiles.exe
+            upstream/first-person-source.json
+            upstream/LICENSE.txt
+            ncmmrepo/THIRD_PARTY_NOTICES.txt
+          retention-days: 7
+      - name: Download SHA256-verified official Windows ${{ matrix.build }} graphics and sounds packages
+        id: game
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag='${{ matrix.tag }}'
+          $release=(& gh api "repos/CleverRaven/Cataclysm-DDA/releases/tags/$tag") | ConvertFrom-Json
+          if($LASTEXITCODE -ne 0){throw 'Official release lookup failed.'}
+          $download=Join-Path $env:RUNNER_TEMP 'fp-download'
+          New-Item -ItemType Directory -Force $download | Out-Null
+          $dateBuild=$tag.Substring('cdda-experimental-'.Length)
+          foreach($variant in @(@{name='graphics';output='root'},@{name='graphics-and-sounds';output='sound_root'})) {
+            $name="cdda-windows-with-$($variant.name)-x64-$dateBuild.zip"
+            $matchingAssets=@($release.assets | Where-Object {$_.name -eq $name})
+            if($matchingAssets.Count -ne 1 -or [string]$matchingAssets[0].digest -notmatch '^sha256:[0-9a-f]{64}$'){throw "Missing official archive identity: $name"}
+            $asset=$matchingAssets[0]
+            $extract=Join-Path $env:RUNNER_TEMP ("fp-game-"+$variant.name)
+            New-Item -ItemType Directory -Force $extract | Out-Null
+            & gh release download $tag -R CleverRaven/Cataclysm-DDA -p $name -D $download
+            if($LASTEXITCODE -ne 0){throw "Official game download failed: $name"}
+            $zip=Join-Path $download $name
+            if(('sha256:'+(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()) -ne [string]$asset.digest){throw "Official archive digest mismatch: $name"}
+            & tar.exe -xf $zip -C $extract
+            if($LASTEXITCODE -ne 0){throw "Official game extraction failed: $name"}
+            $exes=@(Get-ChildItem $extract -Filter cataclysm-tiles.exe -Recurse -File)
+            if($exes.Count -ne 1){throw "Expected one official game executable: $name"}
+            Write-Host "Verified $name; executable SHA256: $((Get-FileHash $exes[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant())"
+            "$($variant.output)=$($exes[0].Directory.FullName)" >> $env:GITHUB_OUTPUT
+          }
+      - name: Build preview installer and verify transactions with Windows long paths disabled
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $policy='HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem'
+          $previousPolicy=(Get-ItemProperty $policy -Name LongPathsEnabled -ErrorAction SilentlyContinue).LongPathsEnabled
+          New-ItemProperty $policy -Name LongPathsEnabled -Value 0 -PropertyType DWord -Force | Out-Null
+          try {
+            $env:NCMM_FP_LONG_PATH_POLICY_TEST='1'
+            ./ncmmrepo/experiments/FirstPersonView/Build-FirstPersonInstaller.ps1 -RepositoryRoot (Join-Path $PWD 'ncmmrepo') -HostRoot (Join-Path $PWD 'upstream') -GameRoot '${{ steps.game.outputs.root }}' -AdditionalGameRoots '${{ steps.game.outputs.sound_root }}' -OutputRoot (Join-Path $PWD 'installer-result')
+            ./ncmmrepo/ci/Test-AuditIO.ps1 -RepositoryRoot (Join-Path $PWD 'ncmmrepo')
+          } finally {
+            Remove-Item Env:NCMM_FP_LONG_PATH_POLICY_TEST -ErrorAction SilentlyContinue
+            if($null -eq $previousPolicy){Remove-ItemProperty $policy -Name LongPathsEnabled -ErrorAction SilentlyContinue}
+            else {Set-ItemProperty $policy -Name LongPathsEnabled -Value $previousPolicy}
+          }
+      - name: Launch both official package installations twice through the actual preview bootstrap
+        timeout-minutes: 15
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($root in @('${{ steps.game.outputs.root }}','${{ steps.game.outputs.sound_root }}')) {
+            foreach($attempt in @(1,2)) {
+              $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-runtime-smoke' -WorkingDirectory $root -PassThru
+              if(-not $p.WaitForExit(180000)){& taskkill.exe /pid $p.Id /t /f;throw 'Runtime launch deadline exceeded.'}
+              $p.Refresh()
+              if($p.ExitCode -ne 0){throw "Runtime launch failed: $($p.ExitCode)"}
+              $state=Get-Content (Join-Path $root 'ncmm/modules.state.json') -Raw | ConvertFrom-Json
+              $fp=@($state.modules | Where-Object {$_.id -eq 'first_person_view'})
+              if($fp.Count -ne 1 -or $fp[0].state -ne 'loaded'){throw 'First Person View did not load in the real engine.'}
+              if(!(Test-Path (Join-Path $root 'ncmm/boot.ready')) -or (Test-Path (Join-Path $root 'ncmm/boot.pending'))){throw 'Bootstrap lifecycle markers inconsistent.'}
+            }
+          }
+      - name: Actual SDL controls, geometry audit, RGB light, sky, weather and held items
+        timeout-minutes: 30
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($variant in @(@{name='graphics';root='${{ steps.game.outputs.root }}'},@{name='sounds';root='${{ steps.game.outputs.sound_root }}'})) {
+            $root=$variant.root
+            $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-gameplay-smoke' -WorkingDirectory $root -PassThru
+            if(-not $p.WaitForExit(720000)){& taskkill.exe /pid $p.Id /t /f;throw 'Gameplay deadline exceeded.'}
+            $p.Refresh()
+            if($p.ExitCode -ne 0){throw "Gameplay smoke failed: $($p.ExitCode)"}
+            $result=Get-Content (Join-Path $root 'ncmm/first-person-smoke.json') -Raw | ConvertFrom-Json
+            if($result.success -ne $true -or $result.sdl_frames -lt 63){throw 'First person SDL smoke is incomplete.'}
+            Copy-Item (Join-Path $root 'ncmm/first-person-smoke.json') ("installer-result/first-person-smoke-"+$variant.name+'.json')
+            Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-*.bmp' | ForEach-Object { Copy-Item $_.FullName (Join-Path 'installer-result' ($_.BaseName+'-'+$variant.name+'.bmp')) }
+            Copy-Item (Join-Path $root 'ncmm/first-person-shapes-audit.json') ("installer-result/first-person-shapes-audit-"+$variant.name+'.json')
+          }
+      - name: Collect runtime evidence
+        if: always()
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force fp-evidence | Out-Null
+          foreach($variant in @(@{name='graphics';root='${{ steps.game.outputs.root }}'},@{name='sounds';root='${{ steps.game.outputs.sound_root }}'})) {
+            $root=$variant.root
+            if($root -and (Test-Path (Join-Path $root 'ncmm'))){Copy-Item (Join-Path $root 'ncmm') (Join-Path fp-evidence $variant.name) -Recurse}
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: first-person-runtime-evidence-${{ matrix.build }}
+          path: fp-evidence/**
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: first-person-installer-${{ matrix.build }}-Windows-x64
+          path: |
+            installer-result/NCMM_FirstPersonView_0.5.0_TEST_${{ matrix.build }}_Windows_x64.zip
+            installer-result/first-person-smoke*.json
+            installer-result/first-person-*.bmp
+            installer-result/first-person-shapes-audit*.json
+          if-no-files-found: error
+          retention-days: 7

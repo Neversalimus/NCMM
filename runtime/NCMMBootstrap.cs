@@ -1,4 +1,6 @@
 using System;
+using File = NcmmFile;
+using Directory = NcmmDirectory;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -362,7 +364,7 @@ internal static class NCMMBootstrap
                 }
 
                 try { if (File.Exists(temp)) File.Delete(temp); } catch { }
-                wc.DownloadFile(entry.host_url, temp);
+                wc.DownloadFile(entry.host_url, NcmmPath.IO(temp));
                 string downloadedSha = Sha256(temp);
                 if (!String.Equals(downloadedSha, entry.host_sha256, StringComparison.OrdinalIgnoreCase))
                 {
@@ -567,6 +569,10 @@ internal static class NCMMBootstrap
         bool forceVanilla = false;
         bool reset = false;
         bool offline = false;
+#if NCMM_FIRST_PERSON_PREVIEW
+        // The preview ships an exact local Host; the stable feed must not replace it.
+        offline = true;
+#endif
         bool refresh = false;
         bool diagnosticsOnly = false;
         bool runtimeSmoke = false;
