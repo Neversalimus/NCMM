@@ -246,7 +246,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
             if( nx < 0 || ny < 0 || nx >= base.grid_width || ny >= base.grid_height ) return false;
             const auto &c = base.cells[size_t( ny ) * base.grid_width + nx];
             return ( c.flags & NCMM_GFX_VISIBLE ) && ( ( c.flags & NCMM_GFX_WALL ) ||
-                ncmm_graphics_shapes::contains( c.terrain, "window" ) || ncmm_graphics_shapes::contains( c.terrain, "fence" ) );
+                ncmm_graphics_shapes::contains( c.terrain, "window" ) || ncmm_graphics_shapes::contains( c.terrain, "fence" ) || ncmm_graphics_shapes::contains( c.terrain, "glass" ) || ncmm_graphics_shapes::contains( c.terrain, "guardrail" ) );
         };
         d.orientation = structural( ix, iy - 1 ) || structural( ix, iy + 1 ) ? 1u : 0u;
         if( !ncmm_graphics_shapes::vertical( d.terrain_shape ) ) copy_id( d.ground, ter.id.str() );

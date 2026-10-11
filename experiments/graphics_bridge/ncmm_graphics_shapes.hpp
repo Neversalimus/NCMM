@@ -22,7 +22,7 @@ inline uint32_t terrain(const std::string &id,const traits &t) {
     if(t.bridge||contains(primary,"bridge")||contains(primary,"boardwalk"))return NCMM_SHAPE_BRIDGE;
     if(contains(primary,"resin_hole"))return NCMM_SHAPE_RESIN_PORTAL;
     if(contains(primary,"guardrail"))return NCMM_SHAPE_GUARDRAIL;
-    if(contains(primary,"scrap_wall_halfway")||contains(primary,"scrap_barricade")||contains(primary,"scrap_fence"))return NCMM_SHAPE_SCRAP_FENCE;
+    if(contains(primary,"scrap_wall")||contains(primary,"scrap_barricade")||contains(primary,"scrap_fence"))return NCMM_SHAPE_SCRAP_FENCE;
     // A transparent glass wall is a full-height pane, not a window or an opaque cube.
     if(t.transparent&&!t.door&&!contains(primary,"door")&&!contains(primary,"window")&&
        (contains(primary,"glass")&&(t.wall||t.impassable)))return NCMM_SHAPE_GLASS_WALL;
