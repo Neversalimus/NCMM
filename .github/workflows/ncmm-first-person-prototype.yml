@@ -146,7 +146,7 @@ jobs:
             upstream/LICENSE.txt
             ncmmrepo/THIRD_PARTY_NOTICES.txt
           retention-days: 7
-      - name: Download SHA256-verified official Windows ${{ matrix.build }} game
+      - name: Download SHA256-verified official Windows ${{ matrix.build }} graphics and sounds packages
         id: game
         shell: powershell
         run: |
@@ -154,61 +154,73 @@ jobs:
           $tag='${{ matrix.tag }}'
           $release=(& gh api "repos/CleverRaven/Cataclysm-DDA/releases/tags/$tag") | ConvertFrom-Json
           if($LASTEXITCODE -ne 0){throw 'Official release lookup failed.'}
-          $asset=@($release.assets | Where-Object {$_.name -like 'cdda-windows-with-graphics-x64-*.zip'} | Sort-Object name)[0]
-          if(!$asset -or [string]$asset.digest -notmatch '^sha256:[0-9a-f]{64}$'){throw 'Missing official archive identity.'}
           $download=Join-Path $env:RUNNER_TEMP 'fp-download'
-          $extract=Join-Path $env:RUNNER_TEMP 'fp-game'
-          New-Item -ItemType Directory -Force $download,$extract | Out-Null
-          & gh release download $tag -R CleverRaven/Cataclysm-DDA -p ([string]$asset.name) -D $download
-          if($LASTEXITCODE -ne 0){throw 'Official game download failed.'}
-          $zip=Join-Path $download ([string]$asset.name)
-          if(('sha256:'+(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()) -ne [string]$asset.digest){throw 'Official archive digest mismatch.'}
-          & tar.exe -xf $zip -C $extract
-          if($LASTEXITCODE -ne 0){throw 'Official game extraction failed.'}
-          $exes=@(Get-ChildItem $extract -Filter cataclysm-tiles.exe -Recurse -File)
-          if($exes.Count -ne 1){throw 'Expected one official game executable.'}
-          "root=$($exes[0].Directory.FullName)" >> $env:GITHUB_OUTPUT
+          New-Item -ItemType Directory -Force $download | Out-Null
+          $dateBuild=$tag.Substring('cdda-experimental-'.Length)
+          foreach($variant in @(@{name='graphics';output='root'},@{name='graphics-and-sounds';output='sound_root'})) {
+            $name="cdda-windows-with-$($variant.name)-x64-$dateBuild.zip"
+            $matchingAssets=@($release.assets | Where-Object {$_.name -eq $name})
+            if($matchingAssets.Count -ne 1 -or [string]$matchingAssets[0].digest -notmatch '^sha256:[0-9a-f]{64}$'){throw "Missing official archive identity: $name"}
+            $asset=$matchingAssets[0]
+            $extract=Join-Path $env:RUNNER_TEMP ("fp-game-"+$variant.name)
+            New-Item -ItemType Directory -Force $extract | Out-Null
+            & gh release download $tag -R CleverRaven/Cataclysm-DDA -p $name -D $download
+            if($LASTEXITCODE -ne 0){throw "Official game download failed: $name"}
+            $zip=Join-Path $download $name
+            if(('sha256:'+(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()) -ne [string]$asset.digest){throw "Official archive digest mismatch: $name"}
+            & tar.exe -xf $zip -C $extract
+            if($LASTEXITCODE -ne 0){throw "Official game extraction failed: $name"}
+            $exes=@(Get-ChildItem $extract -Filter cataclysm-tiles.exe -Recurse -File)
+            if($exes.Count -ne 1){throw "Expected one official game executable: $name"}
+            Write-Host "Verified $name; executable SHA256: $((Get-FileHash $exes[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant())"
+            "$($variant.output)=$($exes[0].Directory.FullName)" >> $env:GITHUB_OUTPUT
+          }
       - name: Build preview installer and verify real EXE / transaction / removal
         shell: powershell
         run: |
-          ./ncmmrepo/experiments/FirstPersonView/Build-FirstPersonInstaller.ps1 -RepositoryRoot (Join-Path $PWD 'ncmmrepo') -HostRoot (Join-Path $PWD 'upstream') -GameRoot '${{ steps.game.outputs.root }}' -OutputRoot (Join-Path $PWD 'installer-result')
-      - name: Launch installed Host twice through the actual preview bootstrap
-        timeout-minutes: 8
-        shell: powershell
-        run: |
-          $ErrorActionPreference='Stop'
-          $root='${{ steps.game.outputs.root }}'
-          foreach($attempt in @(1,2)) {
-            $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-runtime-smoke' -WorkingDirectory $root -PassThru
-            if(-not $p.WaitForExit(180000)){& taskkill.exe /pid $p.Id /t /f;throw 'Runtime launch deadline exceeded.'}
-            $p.Refresh()
-            if($p.ExitCode -ne 0){throw "Runtime launch failed: $($p.ExitCode)"}
-            $state=Get-Content (Join-Path $root 'ncmm/modules.state.json') -Raw | ConvertFrom-Json
-            $fp=@($state.modules | Where-Object {$_.id -eq 'first_person_view'})
-            if($fp.Count -ne 1 -or $fp[0].state -ne 'loaded'){throw 'First Person View did not load in the real engine.'}
-            if(!(Test-Path (Join-Path $root 'ncmm/boot.ready')) -or (Test-Path (Join-Path $root 'ncmm/boot.pending'))){throw 'Bootstrap lifecycle markers inconsistent.'}
-          }
-      - name: Actual game world, avatar, SDL atlas frames, camera and menu suspension
+          ./ncmmrepo/experiments/FirstPersonView/Build-FirstPersonInstaller.ps1 -RepositoryRoot (Join-Path $PWD 'ncmmrepo') -HostRoot (Join-Path $PWD 'upstream') -GameRoot '${{ steps.game.outputs.root }}' -AdditionalGameRoots '${{ steps.game.outputs.sound_root }}' -OutputRoot (Join-Path $PWD 'installer-result')
+      - name: Launch both official package installations twice through the actual preview bootstrap
         timeout-minutes: 15
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $root='${{ steps.game.outputs.root }}'
-          $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-gameplay-smoke' -WorkingDirectory $root -PassThru
-          if(-not $p.WaitForExit(720000)){& taskkill.exe /pid $p.Id /t /f;throw 'Gameplay deadline exceeded.'}
-          $p.Refresh()
-          if($p.ExitCode -ne 0){throw "Gameplay smoke failed: $($p.ExitCode)"}
-          $result=Get-Content (Join-Path $root 'ncmm/first-person-smoke.json') -Raw | ConvertFrom-Json
-          if($result.success -ne $true -or $result.sdl_frames -lt 51){throw 'First person SDL smoke is incomplete.'}
-          Copy-Item (Join-Path $root 'ncmm/first-person-smoke.json') installer-result/
-          Copy-Item (Join-Path $root 'ncmm/first-person-room.bmp') installer-result/
+          foreach($root in @('${{ steps.game.outputs.root }}','${{ steps.game.outputs.sound_root }}')) {
+            foreach($attempt in @(1,2)) {
+              $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-runtime-smoke' -WorkingDirectory $root -PassThru
+              if(-not $p.WaitForExit(180000)){& taskkill.exe /pid $p.Id /t /f;throw 'Runtime launch deadline exceeded.'}
+              $p.Refresh()
+              if($p.ExitCode -ne 0){throw "Runtime launch failed: $($p.ExitCode)"}
+              $state=Get-Content (Join-Path $root 'ncmm/modules.state.json') -Raw | ConvertFrom-Json
+              $fp=@($state.modules | Where-Object {$_.id -eq 'first_person_view'})
+              if($fp.Count -ne 1 -or $fp[0].state -ne 'loaded'){throw 'First Person View did not load in the real engine.'}
+              if(!(Test-Path (Join-Path $root 'ncmm/boot.ready')) -or (Test-Path (Join-Path $root 'ncmm/boot.pending'))){throw 'Bootstrap lifecycle markers inconsistent.'}
+            }
+          }
+      - name: Actual game world, avatar, SDL atlas frames, camera and menu suspension
+        timeout-minutes: 30
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($variant in @(@{name='graphics';root='${{ steps.game.outputs.root }}'},@{name='sounds';root='${{ steps.game.outputs.sound_root }}'})) {
+            $root=$variant.root
+            $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-gameplay-smoke' -WorkingDirectory $root -PassThru
+            if(-not $p.WaitForExit(720000)){& taskkill.exe /pid $p.Id /t /f;throw 'Gameplay deadline exceeded.'}
+            $p.Refresh()
+            if($p.ExitCode -ne 0){throw "Gameplay smoke failed: $($p.ExitCode)"}
+            $result=Get-Content (Join-Path $root 'ncmm/first-person-smoke.json') -Raw | ConvertFrom-Json
+            if($result.success -ne $true -or $result.sdl_frames -lt 51){throw 'First person SDL smoke is incomplete.'}
+            Copy-Item (Join-Path $root 'ncmm/first-person-smoke.json') ("installer-result/first-person-smoke-"+$variant.name+'.json')
+            Copy-Item (Join-Path $root 'ncmm/first-person-room.bmp') ("installer-result/first-person-room-"+$variant.name+'.bmp')
+          }
       - name: Collect runtime evidence
         if: always()
         shell: powershell
         run: |
-          $root='${{ steps.game.outputs.root }}'
           New-Item -ItemType Directory -Force fp-evidence | Out-Null
-          if($root -and (Test-Path (Join-Path $root 'ncmm'))){Copy-Item (Join-Path $root 'ncmm') fp-evidence/ -Recurse}
+          foreach($variant in @(@{name='graphics';root='${{ steps.game.outputs.root }}'},@{name='sounds';root='${{ steps.game.outputs.sound_root }}'})) {
+            $root=$variant.root
+            if($root -and (Test-Path (Join-Path $root 'ncmm'))){Copy-Item (Join-Path $root 'ncmm') (Join-Path fp-evidence $variant.name) -Recurse}
+          }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -219,8 +231,8 @@ jobs:
         with:
           name: first-person-installer-${{ matrix.build }}-Windows-x64
           path: |
-            installer-result/NCMM_FirstPersonView_0.1.0_TEST_${{ matrix.build }}_Windows_x64.zip
-            installer-result/first-person-smoke.json
-            installer-result/first-person-room.bmp
+            installer-result/NCMM_FirstPersonView_0.1.1_TEST_${{ matrix.build }}_Windows_x64.zip
+            installer-result/first-person-smoke*.json
+            installer-result/first-person-room*.bmp
           if-no-files-found: error
           retention-days: 7

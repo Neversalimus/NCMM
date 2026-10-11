@@ -2,12 +2,15 @@ param(
     [string]$RepositoryRoot=(Split-Path (Split-Path $PSScriptRoot -Parent) -Parent),
     [Parameter(Mandatory=$true)][string]$HostRoot,
     [Parameter(Mandatory=$true)][string]$GameRoot,
+    [string[]]$AdditionalGameRoots=@(),
     [Parameter(Mandatory=$true)][string]$OutputRoot
 )
 $ErrorActionPreference='Stop'
 $RepositoryRoot=(Resolve-Path $RepositoryRoot).Path
 $HostRoot=(Resolve-Path $HostRoot).Path
 $GameRoot=(Resolve-Path $GameRoot).Path
+$AdditionalGameRoots=@($AdditionalGameRoots | ForEach-Object {(Resolve-Path $_).Path})
+$gameRoots=@($GameRoot)+$AdditionalGameRoots
 New-Item -ItemType Directory -Force $OutputRoot | Out-Null
 $OutputRoot=(Resolve-Path $OutputRoot).Path
 $source=Get-Content (Join-Path $HostRoot 'first-person-source.json') -Raw | ConvertFrom-Json
@@ -23,10 +26,14 @@ $build=[string]$target.Build
 if(-not(Test-Path (Join-Path $HostRoot 'cataclysm-tiles.exe') -PathType Leaf)){
     throw 'A fully linked experimental Host is required.'
 }
-$versionText=Get-Content (Join-Path $GameRoot 'VERSION.txt') -Raw
-$versionMatch=[regex]::Match($versionText,'commit sha:\s*([0-9a-fA-F]{7,40})(?![0-9a-fA-F])')
-if(-not $versionMatch.Success -or -not ([string]$source.source_commit).StartsWith($versionMatch.Groups[1].Value.ToLowerInvariant())){
-    throw "Official $build game identity differs."
+$vanillaHashes=@()
+foreach($root in $gameRoots){
+    $versionText=Get-Content (Join-Path $root 'VERSION.txt') -Raw
+    $versionMatch=[regex]::Match($versionText,'commit sha:\s*([0-9a-fA-F]{7,40})(?![0-9a-fA-F])')
+    if(-not $versionMatch.Success -or -not ([string]$source.source_commit).StartsWith($versionMatch.Groups[1].Value.ToLowerInvariant())){
+        throw "Official $build game identity differs: $root"
+    }
+    $vanillaHashes+=(Get-FileHash (Join-Path $root 'cataclysm-tiles.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 $stage=Join-Path $OutputRoot '_first_person_installer'
 if(Test-Path $stage){Remove-Item $stage -Recurse -Force}
@@ -62,6 +69,10 @@ $diagnostics=Join-Path $RepositoryRoot 'runtime/NCMMSetupDiagnostics.cs'
 $bridge=Join-Path $PSScriptRoot 'FirstPersonInstallerBridge.cs'
 $manifest=Join-Path $RepositoryRoot 'runtime/NCMMRuntime.manifest'
 $bootstrap=Join-Path $payload 'cataclysm-tiles.ncmm-bootstrap.exe'
+# Keep the production bootstrap outside the package to test upgrades from an
+# existing normal NCMM installation, rather than merely reinstalling the preview.
+$normalBootstrap=Join-Path $OutputRoot '_normal-bootstrap.exe'
+Copy-Item $bootstrap $normalBootstrap
 & $csc /nologo /define:NCMM_FIRST_PERSON_PREVIEW /win32manifest:$manifest /target:winexe /optimize+ /platform:x64 /reference:System.Web.Extensions.dll /out:$bootstrap $io (Join-Path $RepositoryRoot 'runtime/NCMMBootstrap.cs')
 if($LASTEXITCODE -ne 0){throw 'Preview bootstrap compilation failed.'}
 $ui=Join-Path $OutputRoot '_FirstPersonSetup.cs'
@@ -84,7 +95,8 @@ $digest=[Security.Cryptography.SHA256]::Create()
 try{$revision='fp-'+([BitConverter]::ToString($digest.ComputeHash([Text.Encoding]::UTF8.GetBytes(($revisionParts -join '-'))))).Replace('-','').ToLowerInvariant()}finally{$digest.Dispose()}
 $bundle=[ordered]@{
     schema=1; source_commit=$source.source_commit; upstream_tag=$source.tag
-    vanilla_sha256=(Get-FileHash (Join-Path $GameRoot 'cataclysm-tiles.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+    vanilla_sha256=$vanillaHashes[0]
+    supported_vanilla_sha256=@($vanillaHashes | Select-Object -Unique)
     host_sha256=$files['host/cataclysm-tiles.ncmm.exe']; patch_revision=$revision
     ncmm_source_commit=(git -C $RepositoryRoot rev-parse HEAD).Trim(); files=$files
 }
@@ -92,19 +104,23 @@ $bundle=[ordered]@{
 $harness=Join-Path $OutputRoot 'FirstPersonInstallerTests.exe'
 & $csc /nologo /define:NCMM_FIRST_PERSON_PREVIEW /win32manifest:$manifest /target:exe /optimize+ /platform:x64 /main:FirstPersonInstallerTests /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /out:$harness $io $core $bridge (Join-Path $PSScriptRoot 'tests/FirstPersonInstallerTests.cs')
 if($LASTEXITCODE -ne 0){throw 'Preview install matrix compilation failed.'}
-& $harness $GameRoot $payload
+& $harness $GameRoot $payload $normalBootstrap @AdditionalGameRoots
 if($LASTEXITCODE -ne 0){throw 'Preview install matrix failed.'}
 
 @"
-NCMM First Person View 0.1.0 TEST / CDDA $build / Windows x64
+NCMM First Person View installer 0.1.1 TEST / CDDA $build / Windows x64
 
 1. Extract the complete archive. Run NCMM_Setup_FirstPerson_TEST.exe.
-2. Select an official $($source.tag) Windows x64 graphics installation.
+2. Select the game folder containing cataclysm-tiles.exe and VERSION.txt for
+   $($source.tag). Both official Windows x64 graphics packages are supported,
+   with or without bundled sounds (including the CatLauncher download).
 3. Keep First Person View selected; other bundled modules are optional.
 4. Install / Repair selected. Wait for INSTALL COMPLETE.
 5. Launch CDDA normally. F6 toggles first person; F7/F8 rotate the camera.
 
-Only the exact official executable is accepted, with SHA256 verification.
+Official executable identities are checked with SHA256. Existing normal NCMM,
+preview NCMM and legacy CML bootstraps are recognized by their hash receipts;
+the original game backup is verified and preserved when upgrading.
 This is an experimental build with a locally bundled Host. Automatic stable
 Host updates are disabled in this preview. Use the normal NCMM installer to
 return to the current certified Host, or Restore vanilla EXE for vanilla play.
@@ -119,9 +135,9 @@ The bundle includes NCMM Runtime 0.8.2 and the normal optional native modules.
 The game itself and external tilesets are not bundled. Keep your existing data,
 tilesets and configuration with the selected official CDDA installation.
 "@ | Set-Content (Join-Path $stage 'README.txt') -Encoding UTF8
-$provenance=[ordered]@{schema=1;product='NCMM First Person View TEST';status='experimental-not-certified';recommended_entry='NCMM_Setup_FirstPerson_TEST.exe';source_commit=$bundle.ncmm_source_commit;engine_source=$source.source_commit;upstream_tag=$source.tag;workflow_run=[string]$env:GITHUB_RUN_ID;installer_sha256=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant();host_sha256=$bundle.host_sha256;vanilla_sha256=$bundle.vanilla_sha256;module_sha256=$files['code_mods/FirstPersonView/ncmm_mod.dll']}
+$provenance=[ordered]@{schema=1;product='NCMM First Person View TEST';installer_revision='0.1.1';status='experimental-not-certified';recommended_entry='NCMM_Setup_FirstPerson_TEST.exe';source_commit=$bundle.ncmm_source_commit;engine_source=$source.source_commit;upstream_tag=$source.tag;workflow_run=[string]$env:GITHUB_RUN_ID;installer_sha256=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant();host_sha256=$bundle.host_sha256;vanilla_sha256=$bundle.vanilla_sha256;supported_vanilla_sha256=$bundle.supported_vanilla_sha256;module_sha256=$files['code_mods/FirstPersonView/ncmm_mod.dll']}
 [IO.File]::WriteAllText((Join-Path $stage 'release-manifest.json'),($provenance | ConvertTo-Json -Depth 6),(New-Object Text.UTF8Encoding($false)))
-$zip=Join-Path $OutputRoot ("NCMM_FirstPersonView_0.1.0_TEST_${build}_Windows_x64.zip")
+$zip=Join-Path $OutputRoot ("NCMM_FirstPersonView_0.1.1_TEST_${build}_Windows_x64.zip")
 if(Test-Path $zip){Remove-Item $zip -Force}
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip

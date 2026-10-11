@@ -11,6 +11,7 @@ internal sealed class FirstPersonBundle
     public string source_commit { get; set; }
     public string upstream_tag { get; set; }
     public string vanilla_sha256 { get; set; }
+    public string[] supported_vanilla_sha256 { get; set; }
     public string host_sha256 { get; set; }
     public string patch_revision { get; set; }
     public string ncmm_source_commit { get; set; }
@@ -35,6 +36,18 @@ internal static partial class SetupCore
               bundle.upstream_tag == "cdda-experimental-2026-10-06-1807"));
     }
 
+    private static bool FirstPersonVanillaMatches(FirstPersonBundle bundle, string hash)
+    {
+        if (bundle.supported_vanilla_sha256 == null) return hash == bundle.vanilla_sha256;
+        return Array.IndexOf(bundle.supported_vanilla_sha256, hash) >= 0;
+    }
+
+    private static bool FirstPersonReceiptMatches(string path, string currentHash)
+    {
+        return File.Exists(path) && String.Equals(File.ReadAllText(path).Trim(), currentHash,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
     private static FirstPersonBundle ReadFirstPersonBundle(string payloadRoot)
     {
         string path = Path.Combine(payloadRoot, "first-person-bundle.json");
@@ -45,6 +58,11 @@ internal static partial class SetupCore
             bundle.ncmm_source_commit == null || !Regex.IsMatch(bundle.ncmm_source_commit, "^[0-9a-f]{40}$") ||
             bundle.files == null || bundle.files.Count < 4)
             throw new InvalidOperationException("Incomplete First Person View test package.");
+        if (bundle.supported_vanilla_sha256 != null &&
+            (bundle.supported_vanilla_sha256.Length < 1 || bundle.supported_vanilla_sha256.Length > 2 ||
+             Array.Exists(bundle.supported_vanilla_sha256, value => !PreviewHash(value)) ||
+             !FirstPersonVanillaMatches(bundle, bundle.vanilla_sha256)))
+            throw new InvalidOperationException("Invalid official executable identities in the First Person View package.");
         string recordedHost;
         if (!bundle.files.TryGetValue("host/cataclysm-tiles.ncmm.exe", out recordedHost) || recordedHost != bundle.host_sha256 ||
             !bundle.files.ContainsKey("cataclysm-tiles.ncmm-bootstrap.exe") ||
@@ -54,7 +72,7 @@ internal static partial class SetupCore
         return bundle;
     }
 
-    private static void ValidateFirstPersonBundle(string gameRoot, string payloadRoot)
+    private static string ValidateFirstPersonBundle(string gameRoot, string payloadRoot)
     {
         FirstPersonBundle bundle = ReadFirstPersonBundle(payloadRoot);
         HashSet<string> paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -78,23 +96,38 @@ internal static partial class SetupCore
         string exe = Path.Combine(gameRoot, "cataclysm-tiles.exe");
         string vanilla = Path.Combine(gameRoot, "cataclysm-tiles.vanilla.exe");
         string receipt = Path.Combine(gameRoot, "ncmm", "bootstrap.sha256");
+        string legacyReceipt = Path.Combine(gameRoot, "cml", "bootstrap.sha256");
         string currentHash = Sha256(exe);
         bool knownBootstrap = currentHash == bundle.files["cataclysm-tiles.ncmm-bootstrap.exe"] ||
-            (File.Exists(receipt) && File.ReadAllText(receipt).Trim() == currentHash);
+            FirstPersonReceiptMatches(receipt, currentHash) || FirstPersonReceiptMatches(legacyReceipt, currentHash);
         string target = knownBootstrap ? vanilla : exe;
-        if (!File.Exists(target) || Sha256(target) != bundle.vanilla_sha256 ||
-            !NcmmRuntimeIO.SourceMatches(bundle.source_commit, ReadSourceCommit(gameRoot)))
-            throw new InvalidOperationException("This test installer requires the exact official CDDA " +
-                bundle.upstream_tag.Substring("cdda-experimental-".Length) +
-                " Windows x64 graphics build. Selected executable was not changed.");
+        string build = bundle.upstream_tag.Substring("cdda-experimental-".Length);
+        if (!File.Exists(target))
+            throw new InvalidOperationException("An NCMM/CML bootstrap was recognized, but the original game backup is missing: " +
+                target + ". Selected executable was not changed.");
+        string targetHash = Sha256(target);
+        if (!FirstPersonVanillaMatches(bundle, targetHash))
+            throw new InvalidOperationException("First Person View TEST for CDDA " + build +
+                " requires an official Windows x64 graphics or graphics-and-sounds executable.\r\n" +
+                "Checked: " + target + "\r\nSHA256: " + targetHash +
+                "\r\nSelected executable was not changed.");
+        string source = ReadSourceCommit(gameRoot);
+        if (!NcmmRuntimeIO.SourceMatches(bundle.source_commit, source))
+            throw new InvalidOperationException("The executable matches CDDA " + build +
+                ", but VERSION.txt identifies a different source: " + source +
+                ". Selected executable was not changed.");
+        return targetHash;
     }
 
     private static void InstallFirstPersonHost(string gameRoot, string payloadRoot)
     {
         // Recheck inside the production setup transaction; rollback includes the
         // Host executable, binding, bootstrap, vanilla backup and selected modules.
-        ValidateFirstPersonBundle(gameRoot, payloadRoot);
+        string vanillaHash = ValidateFirstPersonBundle(gameRoot, payloadRoot);
         FirstPersonBundle bundle = ReadFirstPersonBundle(payloadRoot);
+        // Bind this installation to its own verified official variant. The
+        // bootstrap uses this exact hash when launching the offline preview Host.
+        bundle.vanilla_sha256 = vanillaHash;
         string host = Path.Combine(gameRoot, "cataclysm-tiles.ncmm.exe");
         string staged = Path.Combine(gameRoot, "ncmm", "host.preview-" + Guid.NewGuid().ToString("N") + ".exe");
         try
@@ -126,6 +159,7 @@ internal static partial class SetupCore
         SetupHostBinding binding = new JavaScriptSerializer().Deserialize<SetupHostBinding>(
             File.ReadAllText(Path.Combine(root, "ncmm", "host.binding.json")));
         bool ready = FirstPersonTarget(bundle) && bundle.schema == 1 && binding != null &&
+            PreviewHash(bundle.vanilla_sha256) && FirstPersonVanillaMatches(bundle, bundle.vanilla_sha256) &&
             binding.host_sha256 == bundle.host_sha256 && binding.vanilla_sha256 == bundle.vanilla_sha256 &&
             binding.source_commit == bundle.source_commit && binding.upstream_tag == bundle.upstream_tag &&
             binding.patch_revision == bundle.patch_revision &&

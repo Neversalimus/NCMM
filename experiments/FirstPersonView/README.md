@@ -13,6 +13,13 @@ Extract the complete archive for your game version (`1040` or `1807`) and run
 graphics installation: CDDA 2026-10-01-1040 or 2026-10-06-1807. Keep First Person
 View checked and install. Each archive contains its own version-specific Host;
 the 1807 archive cannot be installed into a 1040 game or vice versa.
+Installer revision **0.1.1** supports both official Windows archives, with or
+without bundled sounds. CatLauncher's Windows DDA asset selection uses the
+graphics-and-sounds archive; the initial 0.1.0 installer only recorded the
+graphics-only executable identity. Existing normal NCMM and legacy CML launchers
+are recognized by case-insensitive SHA256 receipts, and their original game
+backup is checked before upgrading. Select the game folder containing
+`cataclysm-tiles.exe` and `VERSION.txt`.
 The preview checks the official executable, all payload files and the Host with
 SHA256 before installation. It rejects other executables without changing them.
 F6 toggles the view; F7/F8 rotate. Other bundled NCMM modules remain optional.
@@ -24,8 +31,13 @@ use the normal NCMM installer to return to the current certified Host.
 
 `Build-FirstPersonInstaller.ps1` compiles the normal C# UI and transaction core
 with explicit preview hooks. The Windows workflow only uploads an installer after
-real executable install/disable/re-enable/rollback/restore tests, two actual Host
-launches and the explicit gameplay smoke's SDL atlas frames have passed.
+real executable install/disable/re-enable/rollback/restore tests, production NCMM
+and legacy CML receipt upgrades (including uppercase hashes), two actual Host
+launches per official archive and the explicit gameplay smoke's SDL atlas frames
+have passed for both graphics-only and graphics-and-sounds installations.
+Each installed preview and Host binding records that installation's exact vanilla
+hash. Unknown launchers and missing original backups are rejected before mutation,
+and the error identifies the checked path and hash or a conflicting `VERSION.txt`.
 
 ## Implemented
 
