@@ -484,6 +484,7 @@ class renderer {
         }
     }
     int vehicle_front(int i)const{
+        if(extra(i).vehicle_front)return extra(i).vehicle_front;
         const auto found=vehicle_layouts.find(s.details[i].vehicle_group);if(found==vehicle_layouts.end())return 1;
         const auto &v=found->second;
         // Driver/control mount resolves the visual front; a centred console keeps
@@ -517,10 +518,11 @@ class renderer {
         material dark{nullptr,{.055f,.064f,.073f},1,false,false,false,i,surface::rubber};
         material steel{nullptr,{.30f,.33f,.36f},1,false,false,false,i,surface::metal};
         const auto layout=vehicle_layouts.find(d.vehicle_group);
-        const bool automobile=layout!=vehicle_layouts.end()&&layout->second.maxy-layout->second.miny>=1&&layout->second.maxx-layout->second.minx>=2;
+        const bool automobile=metadata?extra(i).vehicle_automobile!=0:layout!=vehicle_layouts.end()&&layout->second.maxy-layout->second.miny>=1&&layout->second.maxx-layout->second.minx>=2;
         const bool enclosed=cabin(flags)||roofed(i);
-        const bool hood=automobile&&!enclosed&&layout->second.controls&&
-            (d.mount_x-layout->second.control_x/layout->second.controls)*front_direction>=0;
+        const bool controls_present=metadata?extra(i).vehicle_controls>0:layout!=vehicle_layouts.end()&&layout->second.controls;
+        const float control_x=metadata?extra(i).vehicle_controls_x:controls_present?layout->second.control_x/layout->second.controls:0;
+        const bool hood=automobile&&!enclosed&&controls_present&&(d.mount_x-control_x)*front_direction>=0;
         auto adjacent=[&](int dx,int dy){return vehicle_neighbor(i,d.mount_x+dx*front_direction,d.mount_y+dy*front_direction);};
         const bool shell=hood||(flags&(NCMM_VEH_BOARD|NCMM_VEH_DOOR|NCMM_VEH_ROOF|NCMM_VEH_WINDOW|NCMM_VEH_ENGINE|NCMM_VEH_CARGO))!=0;
         bevel_box(center,{-.49f,shell?-.47f:-.13f,.24f},{.49f,shell?.47f:.13f,.47f},.035f,steel,yaw);
@@ -737,11 +739,11 @@ class renderer {
     }
     void held(){
         const bool empty=!s.environment.held_item[0];
-        if(empty&&pose.swing==0&&pose.thrust==0)return;
+        if(empty&&!metadata&&pose.swing==0&&pose.thrust==0)return;
         image *img=empty?nullptr:texture(UINT32_MAX,NCMM_GFX_HELD_ITEM);
         held_light=light(index(int(std::floor(base.camera_x)),int(std::floor(base.camera_y))),{0,0,1});
         held_light={std::max(.04f,held_light.x),std::max(.04f,held_light.y),std::max(.04f,held_light.z)};
-        const float hud_scale=std::min(1.0f,float(f.height)/f.width*1.6f);
+        const float hud_scale=std::min(1.0f,float(f.height)/f.width*1.6f)*(metadata?std::clamp(metadata->view.body_scale,.70f,1.25f):1.0f);
         auto animate=[&](vec p){const vec pivot{.27f,-.28f,.84f};p=p-pivot;
             const float a=pose.swing,co=std::cos(a),sn=std::sin(a);
             p={p.x*co-p.y*sn,p.x*sn+p.y*co,p.z};
@@ -792,13 +794,16 @@ class renderer {
                     tube({center.x+.041f,y+.005f,center.z+.007f},{center.x+.040f,y+.007f,center.z+.048f},.009f,.001f,claw);}
                 if(features&NCMM_HAND_SCALES){material scale=skin;scale.color=scale.color*.68f;tube(knuckle,bend,.013f,.009f,scale);}
             }
+            if(features&NCMM_HAND_WEBBED){material membrane=skin;membrane.color=membrane.color*.87f;
+                for(int n=0;n<3;++n){const float y=center.y+.029f-n*.023f;
+                    face({center.x-.01f,y,center.z-.021f},{center.x+.039f,y,center.z-.018f},{center.x+.031f,y-.023f,center.z-.018f},{center.x-.01f,y-.023f,center.z-.021f},membrane);}}
             tube(center+vec{-.044f,.052f,0},center+vec{-.005f,.024f,-.033f},.018f,.014f,skin);
         };
-        if(empty){hand({.27f,-.24f,.82f},false);return;}
+        if(empty){hand({.27f,-.34f,.82f},false);if(metadata)hand({-.23f,-.38f,.86f},true);return;}
         const bool valid=img&&img->valid();
         #include "firearm.inc"
         if(pose.grip==NCMM_GRIP_POLE){
-            const vec butt{.33f,-.54f,.74f},neck{.155f,.06f,1.02f};
+            const vec butt{.31f,-.57f,.64f},axis=normalize(vec{-.13f,.45f,.64f}),neck=butt+axis*std::clamp(pose.length*.62f,.55f,1.67f);
             material shaft{nullptr,{.30f,.24f,.17f},1,false,false,true,-1,surface::wood};
             material steel{nullptr,{.64f,.66f,.65f},1,false,false,true,-1,surface::metal};
             const float radius=.012f+std::min(.007f,pose.length*.002f);
@@ -814,7 +819,7 @@ class renderer {
             for(int n=0;n<5;++n){const int j=(n+1)%5;face(outline[n],outline[j],base,base,steel);
                 face(outline[j]+vec{0,0,.012f},outline[n]+vec{0,0,.012f},base+vec{0,0,.012f},base+vec{0,0,.012f},steel);
                 face(outline[n],outline[n]+vec{0,0,.012f},outline[j]+vec{0,0,.012f},outline[j],steel);}
-            hand(butt+(neck-butt)*.37f,false);hand(butt+(neck-butt)*.70f,true);
+            hand(butt+axis*.31f,false);hand(butt+axis*std::min(.67f,pose.length*.45f),true);
             f.held_pixels=valid?uint32_t((img->right-img->left)*(img->bottom-img->top)):1u;
             return;
         }
@@ -886,8 +891,22 @@ inline bool valid_scene(const ncmm_graphics_scene_v2 &s,float yaw,float pitch){
         if(d.light_r<0||d.light_r>1||d.light_g<0||d.light_g>1||d.light_b<0||d.light_b>1||d.vehicle_health<0||d.vehicle_health>1||(d.terrain_flags&~63u)!=0||d.terrain_shape>=NCMM_SHAPE_COUNT||d.furniture_shape>=NCMM_SHAPE_COUNT||d.field_shape>=NCMM_SHAPE_COUNT||std::abs(d.vehicle_x)>2048||std::abs(d.vehicle_y)>2048||d.mount_x<-1000||d.mount_x>1000||d.mount_y<-1000||d.mount_y>1000)return false;}
     return true;
 }
+inline bool valid_presentation(const presentation_data &p,size_t count){
+    const auto &v=p.view;
+    if(v.struct_size<sizeof(v)||p.cells.size()!=count||(v.flags&~NCMM_PRESENT_GPU_EFFECTS)||v.sky_style>NCMM_SKY_FUNGAL||v.gun_kind>NCMM_GUN_BOW||
+       !terminated(v.dimension)||!std::isfinite(v.eye_height)||v.eye_height<.1f||v.eye_height>4||!std::isfinite(v.body_scale)||v.body_scale<.1f||v.body_scale>3||
+       !std::isfinite(v.held_length)||v.held_length<.05f||v.held_length>4||!std::isfinite(v.movement)||v.movement<0||v.movement>1)return false;
+    for(int n=0;n<2;++n)if(!terminated(v.sleeve[n])||!terminated(v.glove[n])||v.sleeve_material[n]>NCMM_MAT_CLOTH||v.glove_material[n]>NCMM_MAT_CLOTH)return false;
+    for(const auto &d:p.cells){
+        if(d.terrain_material>NCMM_MAT_CLOTH||d.furniture_material>NCMM_MAT_CLOTH||d.ceiling_material>NCMM_MAT_CLOTH||d.liquid>NCMM_LIQ_OTHER||d.field_liquid>NCMM_LIQ_OTHER||
+           d.gas>NCMM_GAS_FIRE||d.field_intensity>3||d.vehicle_front<-1||d.vehicle_front>1||!std::isfinite(d.vehicle_controls_x)||std::abs(d.vehicle_controls_x)>1000||!terminated(d.ceiling))return false;
+        for(float f:{d.creature_height,d.creature_width,d.creature_elevation,d.source_light,d.source_r,d.source_g,d.source_b})if(!std::isfinite(f)||f<0)return false;
+        if(d.creature_height>7||d.creature_width>9||d.creature_elevation>5||d.source_light>500||d.source_r>1||d.source_g>1||d.source_b>1)return false;
+    }
+    return true;
+}
 inline bool build_frame(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const sprite_provider &provider,frame &out,int max_width=NCMM_GRAPHICS_MAX_FRAME_WIDTH,int max_height=NCMM_GRAPHICS_MAX_FRAME_HEIGHT,animation::pose pose={},const frame *cached_world=nullptr,frame *world_output=nullptr,const presentation_data *metadata=nullptr){
-    if(metadata&&(metadata->cells.size()!=s.base.cell_count||!std::isfinite(metadata->view.eye_height)||metadata->view.eye_height<.1f||metadata->view.eye_height>4))return false;
+    if(metadata&&!valid_presentation(*metadata,s.base.cell_count))return false;
     if(!valid_scene(s,yaw,pitch))return false;
     renderer(s,yaw,pitch,provider,out,pose,metadata).run(std::clamp(max_width,1,int(NCMM_GRAPHICS_MAX_FRAME_WIDTH)),std::clamp(max_height,1,int(NCMM_GRAPHICS_MAX_FRAME_HEIGHT)),cached_world,world_output);return out.pixels.size()==size_t(out.width)*out.height;
 }

@@ -63,11 +63,12 @@ def apply(root: Path):
     loader = replace(loader, "    graphics_gameplay_context = gameplay;", "    graphics_gameplay_context = gameplay;\n    graphics_control_context = category == \"DEFAULTMODE\";\n    if( !graphics_control_context ) graphics_release_mouse();")
     loader = replace(loader, 'action == "ncmm.view.quality" );', 'action == "ncmm.view.quality" || action == "ncmm.view.mouse_look" || action == "ncmm.view.acceleration" );')
     loader = replace(loader, "bool graphics_requires_terrain_pass()\n{", "std::string graphics_relative_action( const std::string &action, const input_event &event, bool vehicle_control )\n{\n    return graphics_map_relative_action( action, event, vehicle_control );\n}\nvoid graphics_note_attack( uint32_t kind )\n{\n    graphics_notify_attack( kind );\n}\nbool graphics_mouse_event( uint32_t kind, float x, float y, float dx, float dy, bool allowed )\n{\n    return graphics_process_mouse( kind, x, y, dx, dy, allowed );\n}\nbool graphics_animation_redraw_due()\n{\n    return graphics_redraw_due();\n}\nbool graphics_requires_terrain_pass()\n{")
-    loader = replace(loader, '#include "ncmm_graphics_camera.hpp"', '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_presentation_policy.hpp"\n#include "ncmm_graphics_composite.hpp"\n#include "itype.h"\n#include "field_type.h"\n#include "skill.h"')
+    loader = replace(loader, '#include "ncmm_graphics_camera.hpp"', '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_presentation_policy.hpp"\n#include "ncmm_graphics_composite.hpp"\n#include "itype.h"\n#include "field_type.h"\n#include "skill.h"\n#include "monstergenerator.h"\n#include "ranged.h"')
     loader = replace(loader, '    "graphics.controls.v1",', '    "graphics.controls.v1",\n    "graphics.presentation.v1",')
     loader = replace(loader, '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CONTROLS_ID ) {',
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {\n        return min_major <= 1 && min_minor == 0 ? &graphics_presentation_api : nullptr;\n    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CONTROLS_ID ) {')
-    loader = replace(loader, "bool graphics_requires_terrain_pass()\n{", "std::string graphics_click_action()\n{\n    return graphics_click_action_impl();\n}\nbool graphics_requires_terrain_pass()\n{")
+    loader = replace(loader, "bool graphics_requires_terrain_pass()\n{", "std::string graphics_click_action()\n{\n    return graphics_click_action_impl();\n}\nbool graphics_consume_aimed_fire(int x,int y,int z)\n{\n    return graphics_consume_click_impl(x,y,z);\n}\nbool graphics_requires_terrain_pass()\n{")
+    loader = replace(loader, '    graphics_control_context = category == "DEFAULTMODE";', '    graphics_control_context = category == "DEFAULTMODE";\n    if(graphics_control_context)graphics_click_pending=false;')
     updates["ncmm_loader.cpp"] = loader
     header = read("ncmm_loader.h")
     updates["ncmm_loader.h"] = replace(header, "void initialize();", "void graphics_note_input_context( const std::string &category );\nbool graphics_preserves_destination( const std::string &action );\nbool graphics_requires_terrain_pass();\nbool draw_graphics_view( int x, int y, int width, int height );\nvoid initialize();")
@@ -78,13 +79,15 @@ def apply(root: Path):
     updates["handle_action.cpp"] = replace(action, action_anchor,
         "    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {\n        if( !ncmm::graphics_preserves_destination( action ) ) {\n            player_character.clear_destination();\n            destination_preview.clear();\n        }\n        return false;\n    }")
     updates["handle_action.cpp"] = replace(updates["handle_action.cpp"], "    if( act == ACTION_NULL ) {\n        act = look_up_action( action );", "    if( act == ACTION_NULL ) {\n        action = ncmm::graphics_relative_action( action, ctxt.get_raw_input(), veh_ctrl );\n        act = look_up_action( action );")
-    updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", "std::string graphics_click_action();\nvoid initialize();")
+    updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", "std::string graphics_click_action();\nbool graphics_consume_aimed_fire(int x,int y,int z);\nvoid initialize();")
     updates["handle_action.cpp"] = replace(updates["handle_action.cpp"], "        if( act == ACTION_SELECT || act == ACTION_SEC_SELECT ) {",
         "        if( act == ACTION_SELECT && ncmm::graphics_requires_terrain_pass() ) {\n            const std::string aimed = ncmm::graphics_click_action();\n            if( aimed.empty() ) return false;\n            act = look_up_action( aimed );\n        }\n        if( act == ACTION_SELECT || act == ACTION_SEC_SELECT ) {")
     melee = read("melee.cpp")
     updates["melee.cpp"] = replace(melee, "    const bool hits = hit_spread >= 0;", "    if( is_avatar() ) ncmm::graphics_note_attack( 1 );\n    const bool hits = hit_spread >= 0;")
     ranged = read("ranged.cpp")
     updates["ranged.cpp"] = replace(ranged, "        curshot++;\n\n        if( !gun.is_gun() )", "        curshot++;\n        if( is_avatar() ) ncmm::graphics_note_attack( 2 );\n\n        if( !gun.is_gun() )")
+    updates["ranged.cpp"] = replace(updates["ranged.cpp"], "    bool skip_redraw = false;",
+        "    bool skip_redraw = false;\n    // LMB already picked and confirmed a visible hostile sprite. Keep every\n    // ordinary firing/aiming readiness and trajectory check in this UI.\n    if((mode==TargetMode::Fire||mode==TargetMode::Reach)&&status==Status::Good&&\n        ncmm::graphics_consume_aimed_fire(dst.x(),dst.y(),dst.z())){\n        init_window_and_input();ui.position_from_window(w_target);\n        action=\"FIRE\";skip_redraw=true;\n    }")
     context = read("input_context.cpp")
     context = replace(context, '#include "input_context.h"', '#include "input_context.h"\n#include "ncmm_loader.h"')
     updates["input_context.cpp"] = replace(context, "const std::string &input_context::handle_input( const int timeout )\n{",

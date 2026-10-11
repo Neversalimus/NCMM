@@ -10,9 +10,10 @@ uint32_t graphics_attack_kind = 0;
 double graphics_attack_started = 0;
 struct { int x=0,y=0,w=0,h=0; } graphics_viewport;
 
+extern bool graphics_click_pending;
 void graphics_cancel_animation()
 {
-    graphics_attack_pending = false; graphics_attack_started = -1;
+    graphics_attack_pending = false; graphics_attack_started = -1;graphics_click_pending=false;
 }
 
 void graphics_release_mouse()

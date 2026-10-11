@@ -27,7 +27,7 @@ class ApplyTests(unittest.TestCase):
         with (root / "src/handle_action.cpp").open('a') as f: f.write('\n    if( act == ACTION_NULL ) {\n        act = look_up_action( action );\n    }')
         with (root / "src/handle_action.cpp").open('a') as f: f.write('\n        if( act == ACTION_SELECT || act == ACTION_SEC_SELECT ) {}')
         (root / "src/melee.cpp").write_text('    const bool hits = hit_spread >= 0;')
-        (root / "src/ranged.cpp").write_text('        curshot++;\n\n        if( !gun.is_gun() ) {}')
+        (root / "src/ranged.cpp").write_text('        curshot++;\n\n        if( !gun.is_gun() ) {}\n    bool skip_redraw = false;')
         (root / "src/cata_tiles.h").write_text("        std::optional<texture_draw_data> get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p );")
         (root / "src/cata_tiles.cpp").write_text("""void cata_tiles::load_tileset( const std::string &tileset_id, const bool precheck,
                                const bool force, const bool pump_events, const bool terrain )

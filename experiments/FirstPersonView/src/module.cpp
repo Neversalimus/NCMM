@@ -11,7 +11,8 @@ const ncmm_host_graphics_controls_v1 *controls=nullptr;
 const ncmm_host_graphics_presentation_v1 *presentation=nullptr;
 first_person::hybrid::presentation_data metadata;
 double yaw=-first_person::pi*0.5;
-float pitch=0;
+float pitch=0,look_sway_x=0,look_sway_y=0;
+double look_sway_started=0,last_scene_seconds=0;
 std::vector<ncmm_graphics_quad_v1> commands;
 first_person::hybrid::frame pixels;
 first_person::hybrid::frame world_pixels;
@@ -41,6 +42,7 @@ ncmm_graphics_control_state_v1 control_state(){
 }
 int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     if(!hybrid||!scene||!first_person::hybrid::valid_scene(*scene,float(yaw),pitch))return 0;
+    last_scene_seconds=scene->environment.animation_seconds;
     const auto now=std::chrono::steady_clock::now();const auto state=control_state();
     bool has_metadata=false;
     if(presentation){metadata.view={};metadata.view.struct_size=sizeof(metadata.view);metadata.cells.resize(scene->base.cell_count);
@@ -48,13 +50,21 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         if(!gpu_effects)metadata.view.flags&=~NCMM_PRESENT_GPU_EFFECTS;}
     auto pose=first_person::animation::sample(state,std::floor(scene->environment.animation_seconds*40)/40);
     if(has_metadata){const float t=float(std::fmod(scene->environment.animation_seconds,1000.0));
-        pose.sway_x=std::sin(t*1.4f)*.0022f;pose.sway_y=std::sin(t*2.2f)*.0032f;}
+        const float lag=std::exp(-float(std::max(0.0,scene->environment.animation_seconds-look_sway_started))*9);
+        pose.sway_x=std::sin(t*1.4f)*.0022f+std::sin(t*8)*metadata.view.movement*.008f+look_sway_x*lag;
+        pose.sway_y=std::sin(t*2.2f)*.0032f+std::abs(std::sin(t*10))*metadata.view.movement*.010f+look_sway_y*lag;}
     uint64_t key=scene_key(*scene);
     for(float value:{pose.swing,pose.thrust,pose.recoil,pose.length,pose.sway_x,pose.sway_y}){uint32_t bits;std::memcpy(&bits,&value,sizeof(bits));key=(key^bits)*1099511628211ull;}
     key=(key^pose.grip)*1099511628211ull;
     uint64_t wk=scene_key(*scene,true);
     if(has_metadata){auto hash=[&](const void *data,size_t n){auto *b=static_cast<const unsigned char *>(data);for(size_t i=0;i<n;++i)wk=(wk^b[i])*1099511628211ull;};
-        hash(&metadata.view,sizeof(metadata.view));hash(metadata.cells.data(),metadata.cells.size()*sizeof(metadata.cells[0]));key^=wk;}
+        // Appearance and movement only change composition, not static geometry.
+        uint64_t presentation_key=1469598103934665603ull;
+        const auto *v=reinterpret_cast<const unsigned char *>(&metadata.view);
+        for(size_t i=0;i<sizeof(metadata.view);++i)presentation_key=(presentation_key^v[i])*1099511628211ull;
+        key^=presentation_key;
+        hash(&metadata.view.eye_height,sizeof(metadata.view.eye_height));hash(&metadata.view.sky_style,sizeof(metadata.view.sky_style));
+        hash(&metadata.view.occupied_vehicle,sizeof(metadata.view.occupied_vehicle));hash(metadata.cells.data(),metadata.cells.size()*sizeof(metadata.cells[0]));key^=wk;}
     const bool rebuild_world=!world_valid||wk!=world_key||now-world_built>std::chrono::milliseconds(250);
     // Keep complete owned pixels only; callback-scoped sprite pointers never
     // survive a frame. Periodic refresh also handles a changed tileset atlas.
@@ -81,14 +91,16 @@ void input(uint32_t action,void *) {
     if(action==NCMM_GFX_TURN_RIGHT) yaw+=first_person::pi/12.0;
     if(action==NCMM_GFX_LOOK_UP) pitch=std::min(1.2f,pitch+first_person::hybrid::pi/18);
     if(action==NCMM_GFX_LOOK_DOWN) pitch=std::max(-1.2f,pitch-first_person::hybrid::pi/18);
-    if(action==NCMM_GFX_MOUSE_LOOK){const auto state=control_state();yaw+=state.mouse_dx*.003;pitch=std::clamp(pitch-state.mouse_dy*.003f,-1.2f,1.2f);}
+    if(action==NCMM_GFX_MOUSE_LOOK){const auto state=control_state();
+        look_sway_x=std::clamp(-state.mouse_dx*.00006f,-.015f,.015f);look_sway_y=std::clamp(state.mouse_dy*.00004f,-.01f,.01f);
+        look_sway_started=metadata.view.struct_size?last_scene_seconds:0;yaw+=state.mouse_dx*.003;pitch=std::clamp(pitch-state.mouse_dy*.003f,-1.2f,1.2f);}
     yaw=std::remainder(yaw,first_person::pi*2.0);
     if(controls)controls->set_camera(float(yaw),pitch);
 }
 int init(const ncmm_host_api_v1 *api) {
     graphics=nullptr;
     hybrid=nullptr;
-    controls=nullptr;presentation=nullptr;metadata={};frame_valid=world_valid=false;high_quality=false;gpu_effects=true;
+    controls=nullptr;presentation=nullptr;metadata={};look_sway_x=look_sway_y=0;look_sway_started=last_scene_seconds=0;frame_valid=world_valid=false;high_quality=false;gpu_effects=true;
     const auto core=ncmm::sdk::require_core(api,caps,sizeof(caps)/sizeof(caps[0]),NCMM_SDK_CORE_FIELD_END(api_minor));
     if(!core) return 0;
     if(api->has_capability(NCMM_GRAPHICS_V2_CAP)) {
@@ -124,7 +136,7 @@ void shutdown() {
     commands.clear();
     pixels={};world_pixels={};frame_valid=world_valid=false;
 }
-const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View","0.6.0-dev",
+const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View","0.7.0-dev",
     caps,sizeof(caps)/sizeof(caps[0]),init,shutdown};
 }
 extern "C" NCMM_EXPORT const ncmm_mod_descriptor_v1 *ncmm_get_descriptor_v1(){return &descriptor;}

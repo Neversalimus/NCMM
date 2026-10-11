@@ -29,7 +29,9 @@ enum { NCMM_GFX_SLEEVE_LEFT=8, NCMM_GFX_SLEEVE_RIGHT=9,
 typedef struct ncmm_graphics_detail_v1 {
     uint32_t terrain_material, furniture_material, ceiling_material;
     uint32_t liquid, field_liquid, gas, field_intensity;
-    uint32_t hostile, vehicle_inside;
+    uint32_t hostile, vehicle_inside, vehicle_automobile;
+    int32_t vehicle_front;
+    uint32_t vehicle_controls;float vehicle_controls_x;
     float creature_height, creature_width, creature_elevation;
     float source_light, source_r, source_g, source_b;
     char ceiling[128];
@@ -37,7 +39,7 @@ typedef struct ncmm_graphics_detail_v1 {
 typedef struct ncmm_graphics_presentation_v1 {
     uint32_t struct_size, flags, sky_style, occupied_vehicle, gun_kind, gunmods;
     uint32_t hand_features, arm_features, sleeve_material[2], glove_material[2];
-    float eye_height, body_scale, held_length;
+    float eye_height, body_scale, held_length, movement;
     char dimension[128], sleeve[2][128], glove[2][128];
 } ncmm_graphics_presentation_v1;
 typedef struct ncmm_host_graphics_presentation_v1 {

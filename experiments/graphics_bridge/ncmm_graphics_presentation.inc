@@ -8,7 +8,8 @@ std::string graphics_aim_name;
 float graphics_aim_x=.5f, graphics_aim_y=.4f;
 std::vector<uint32_t> graphics_effect_pixels;
 uint32_t graphics_effect_width=0, graphics_effect_height=0;
-bool graphics_effect_failed=false;
+bool graphics_effect_failed=false,graphics_click_pending=false;
+uint64_t graphics_click_time=0;
 size_t graphics_effect_gpu_frames=0, graphics_effect_cpu_frames=0;
 
 int graphics_get_presentation( ncmm_graphics_presentation_v1 *out )
@@ -72,6 +73,12 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
     p.struct_size=sizeof( p ); p.eye_height=std::clamp( you.height()*.00885f, .5f, 3.5f );
     if( you.is_crouching() ) p.eye_height*=.72f;
     if( you.is_prone() ) p.eye_height*=.25f;
+    static std::optional<tripoint_abs_ms> previous_position;
+    static uint64_t last_step=0;
+    const auto current_position=here.get_abs(you.pos_bub());const uint64_t ticks=SDL_GetTicks();
+    if(previous_position&&*previous_position!=current_position)last_step=ticks;
+    previous_position=current_position;
+    p.movement=last_step ? std::clamp(1.0f-float(ticks-last_step)/340.0f,0.0f,1.0f) : 0.0f;
     p.body_scale=std::clamp( you.height()/175.0f, .45f, 2.0f ); p.held_length=.5f;
     graphics_copy_text( p.dimension, g->get_dimension_prefix().str() ); p.sky_style=sky( p.dimension );
     const char *cpu=std::getenv( "NCMM_FP_CPU" );
@@ -122,10 +129,26 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
     }
     graphics_presentation_cells.assign( base.cell_count, {} );
     const vehicle *occupied=nullptr;
+    std::map<const vehicle *,std::tuple<int,bool,int,float>> layouts;
     if( const auto vp=here.veh_at( you.pos_bub() ) ) if( you.in_vehicle ) { occupied=&vp->vehicle(); p.eye_height=std::min(p.eye_height,1.18f); }
     for( size_t i=0; i<base.cell_count; ++i ) {
         if( !( base.cells[i].flags&NCMM_GFX_VISIBLE ) ) continue;
         auto &d=graphics_presentation_cells[i]; const auto &pos=positions[i];
+        if( const auto vp=here.veh_at( pos ) ) {
+            const vehicle *v=&vp->vehicle();auto found=layouts.find(v);
+            if(found==layouts.end()){
+                int minx=10000,maxx=-10000,miny=10000,maxy=-10000,controls=0;float cx=0;
+                for(const vpart_reference &part:v->get_all_parts()){
+                    const auto &mount=part.part().mount;
+                    if(part.has_feature("STRUCTURE")){minx=std::min(minx,mount.x());maxx=std::max(maxx,mount.x());miny=std::min(miny,mount.y());maxy=std::max(maxy,mount.y());}
+                    if(part.has_feature("CONTROLS")){cx+=mount.x();++controls;}
+                }
+                const int front=controls&&cx/controls<(minx+maxx)*.5f-.25f?-1:1;
+                found=layouts.emplace(v,std::make_tuple(front,maxy-miny>=1&&maxx-minx>=2,controls,controls?cx/controls:0.0f)).first;
+            }
+            d.vehicle_front=std::get<0>(found->second);d.vehicle_automobile=std::get<1>(found->second)?1u:0u;
+            d.vehicle_controls=std::get<2>(found->second);d.vehicle_controls_x=std::get<3>(found->second);
+        }
         d.terrain_material=material( base.cells[i].terrain ); d.furniture_material=material( base.cells[i].furniture );
         if( details[i].terrain_shape==NCMM_SHAPE_WATER ) d.liquid=liquid( base.cells[i].terrain,true );
         if( pos.z()<OVERMAP_HEIGHT && details[i].terrain_flags&NCMM_SURFACE_TERRAIN_CEILING ) {
@@ -176,13 +199,23 @@ std::string graphics_click_action_impl()
     Creature *cr=get_creature_tracker().creature_at<Creature>( pos );
     if( !cr || cr->is_dead_state() || cr->attitude_to( you )!=Creature::Attitude::HOSTILE || !you.sees( here,*cr ) || !graphics_forward_visible( you.pos_bub(),pos ) ) return "";
     you.last_target=g->shared_from( *cr ); you.last_target_pos=*graphics_aim;
-    if( const auto held=you.get_wielded_item() ) if( held->is_gun() || ( held->reach_range( you ).first>1 && you.can_reach_attack( *cr ) ) ) return "fire";
+    if( const auto held=you.get_wielded_item() ) if( held->is_gun() || ( held->reach_range( you ).first>1 && you.can_reach_attack( *cr ) ) ) {graphics_click_pending=true;graphics_click_time=SDL_GetTicks();return "fire";}
     const int dx=pos.x()-you.pos_bub().x(),dy=pos.y()-you.pos_bub().y();
     if( std::max( std::abs( dx ),std::abs( dy ) )!=1 ) return "";
     if( dy<0 ) return dx<0 ? "LEFTUP" : dx>0 ? "RIGHTUP" : "UP";
     if( dy>0 ) return dx<0 ? "LEFTDOWN" : dx>0 ? "RIGHTDOWN" : "DOWN";
     return dx<0 ? "LEFT" : "RIGHT";
 }
+bool graphics_consume_click_impl(int x,int y,int z)
+{
+    const bool pending=graphics_click_pending;graphics_click_pending=false;
+    if(!pending||!graphics_view.enabled||!graphics_aim||!graphics_aim_origin||SDL_GetTicks()-graphics_click_time>5000)return false;
+    avatar &you=get_avatar();map &here=get_map();const tripoint_bub_ms p(x,y,z);
+    if(here.get_abs(p)!=*graphics_aim||here.get_abs(you.pos_bub())!=*graphics_aim_origin)return false;
+    const Creature *cr=get_creature_tracker().creature_at<Creature>(p);
+    return cr&&!cr->is_dead_state()&&cr->attitude_to(you)==Creature::Attitude::HOSTILE&&you.sees(here,*cr);
+}
 #else
 std::string graphics_click_action_impl() { return ""; }
+bool graphics_consume_click_impl(int,int,int) { return false; }
 #endif

@@ -199,6 +199,9 @@ bool graphics_draw( int x, int y, int width, int height )
         }
         const monster *mon = get_creature_tracker().creature_at<monster>( p );
         if( mon && you.sees( here, *mon ) ) copy_id( cell.creature, mon->type->id.str() );
+        else if(const Creature *cr=get_creature_tracker().creature_at<Creature>(p)){
+            if(cr->is_npc()&&you.sees(here,*cr))if(const auto *ch=dynamic_cast<const Character *>(cr))copy_id(cell.creature,ch->male?"npc_male":"npc_female");
+        }
     }
     const ncmm_graphics_scene_v1 scene = { sizeof( ncmm_graphics_scene_v1 ), width, height, side, side,
         NCMM_GRAPHICS_RADIUS + 0.5f, NCMM_GRAPHICS_RADIUS + 0.5f, cells.data(), cells.size() };

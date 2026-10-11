@@ -153,6 +153,7 @@ int graphics_get_sprite( uint32_t index, uint32_t layer, ncmm_graphics_sprite_v2
                    layer == NCMM_GFX_FIELD ? TILE_CATEGORY::FIELD : TILE_CATEGORY::TERRAIN;
     }
     if( id.empty() ) return 0;
+    if(layer==NCMM_GFX_CREATURE&&(id=="npc_male"||id=="npc_female"))category=TILE_CATEGORY::NONE;
     std::string physical_id = id;
     if( layer == NCMM_GFX_HELD_ITEM ) {
         for( int hop = 0; hop < 8; ++hop ) {
