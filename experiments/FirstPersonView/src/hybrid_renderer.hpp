@@ -397,7 +397,9 @@ class renderer {
         auto point=[&](float x,float y,float z){return rotate({x,y,z},center,yaw);};
         auto face=[&](vec a,vec b,vec c,vec e,material m){
             a=rotate(a,center,yaw);b=rotate(b,center,yaw);c=rotate(c,center,yaw);e=rotate(e,center,yaw);
-            quad(a,b,c,e,m,normalize(cross(b-a,e-a)));
+            vec normal=normalize(cross(b-a,e-a));
+            if(dot(normal,(a+b+c+e)*.25f-center)<0)normal=normal*-1;
+            quad(a,b,c,e,m,normal);
         };
         material trim=dark;trim.color={.10f,.12f,.13f};
         if(flags&NCMM_VEH_ROOF){

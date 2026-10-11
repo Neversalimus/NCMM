@@ -65,6 +65,10 @@ int main(int argc,char **argv){try{
         d.vehicle_group=1;d.vehicle_features=NCMM_VEH_FRAME|NCMM_VEH_ROOF|NCMM_VEH_BOARD|NCMM_VEH_WINDOW|NCMM_VEH_SEAT;d.mount_x=x-7;d.mount_y=0;d.vehicle_x=7.5f;d.vehicle_y=7.5f;d.vehicle_health=1;
         if(x==5||x==9)d.vehicle_features|=NCMM_VEH_WHEEL;}
     draw();check(f.vehicle_parts==5&&f.triangles>150,"car builds body roof glass seats and wheels");check(digest(f)!=empty,"modeled car appears");if(argc==2)save(f,std::string(argv[1])+"-car.ppm");
+    world.scene.environment.sun_y=.60f;draw();const float facing_sun=unpack(f.pixels[380*800+400]).x;
+    world.scene.environment.sun_y=-.60f;draw();const float facing_away=unpack(f.pixels[380*800+400]).x;
+    check(facing_sun>facing_away+.02f,"vehicle panel normals receive sunlight from the outward side");
+    world.scene.environment.sun_y=.60f;
     world.cells[7*15+4].flags=0;draw();auto visible_car=digest(f);
     auto &hidden_part=world.details[7*15+4];hidden_part.vehicle_group=1;hidden_part.mount_x=-3;
     hidden_part.vehicle_features=NCMM_VEH_ROOF|NCMM_VEH_ENGINE|NCMM_VEH_BOARD;hidden_part.vehicle_health=.1f;
