@@ -63,6 +63,11 @@ def apply(root: Path):
     loader = replace(loader, "    graphics_gameplay_context = gameplay;", "    graphics_gameplay_context = gameplay;\n    graphics_control_context = category == \"DEFAULTMODE\";\n    if( !graphics_control_context ) graphics_release_mouse();")
     loader = replace(loader, 'action == "ncmm.view.quality" );', 'action == "ncmm.view.quality" || action == "ncmm.view.mouse_look" );')
     loader = replace(loader, "bool graphics_requires_terrain_pass()\n{", "std::string graphics_relative_action( const std::string &action, const input_event &event, bool vehicle_control )\n{\n    return graphics_map_relative_action( action, event, vehicle_control );\n}\nvoid graphics_note_attack( uint32_t kind )\n{\n    graphics_notify_attack( kind );\n}\nbool graphics_mouse_event( uint32_t kind, float x, float y, float dx, float dy, bool allowed )\n{\n    return graphics_process_mouse( kind, x, y, dx, dy, allowed );\n}\nbool graphics_animation_redraw_due()\n{\n    return graphics_redraw_due();\n}\nbool graphics_requires_terrain_pass()\n{")
+    loader = replace(loader, '#include "ncmm_graphics_camera.hpp"', '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_presentation_policy.hpp"\n#include "itype.h"\n#include "field_type.h"\n#include "skill.h"')
+    loader = replace(loader, '    "graphics.controls.v1",', '    "graphics.controls.v1",\n    "graphics.presentation.v1",')
+    loader = replace(loader, '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CONTROLS_ID ) {',
+        '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {\n        return min_major <= 1 && min_minor == 0 ? &graphics_presentation_api : nullptr;\n    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CONTROLS_ID ) {')
+    loader = replace(loader, "bool graphics_requires_terrain_pass()\n{", "std::string graphics_click_action()\n{\n    return graphics_click_action_impl();\n}\nbool graphics_requires_terrain_pass()\n{")
     updates["ncmm_loader.cpp"] = loader
     header = read("ncmm_loader.h")
     updates["ncmm_loader.h"] = replace(header, "void initialize();", "void graphics_note_input_context( const std::string &category );\nbool graphics_preserves_destination( const std::string &action );\nbool graphics_requires_terrain_pass();\nbool draw_graphics_view( int x, int y, int width, int height );\nvoid initialize();")
@@ -73,6 +78,9 @@ def apply(root: Path):
     updates["handle_action.cpp"] = replace(action, action_anchor,
         "    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {\n        if( !ncmm::graphics_preserves_destination( action ) ) {\n            player_character.clear_destination();\n            destination_preview.clear();\n        }\n        return false;\n    }")
     updates["handle_action.cpp"] = replace(updates["handle_action.cpp"], "    if( act == ACTION_NULL ) {\n        act = look_up_action( action );", "    if( act == ACTION_NULL ) {\n        action = ncmm::graphics_relative_action( action, ctxt.get_raw_input(), veh_ctrl );\n        act = look_up_action( action );")
+    updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", "std::string graphics_click_action();\nvoid initialize();")
+    updates["handle_action.cpp"] = replace(updates["handle_action.cpp"], "        if( act == ACTION_SELECT || act == ACTION_SEC_SELECT ) {",
+        "        if( act == ACTION_SELECT && ncmm::graphics_requires_terrain_pass() ) {\n            const std::string aimed = ncmm::graphics_click_action();\n            if( aimed.empty() ) return false;\n            act = look_up_action( aimed );\n        }\n        if( act == ACTION_SELECT || act == ACTION_SEC_SELECT ) {")
     melee = read("melee.cpp")
     updates["melee.cpp"] = replace(melee, "    const bool hits = hit_spread >= 0;", "    if( is_avatar() ) ncmm::graphics_note_attack( 1 );\n    const bool hits = hit_spread >= 0;")
     ranged = read("ranged.cpp")
@@ -91,6 +99,31 @@ def apply(root: Path):
         anchor+"\n        }")
     updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"], "static void CheckMessages()\n{", "static void CheckMessages()\n{\n    // Presentation redraws never return a gameplay TIMEOUT or advance a turn.\n    if( ncmm::graphics_animation_redraw_due() ) {\n        ui_manager::redraw_invalidated();\n        if( needupdate ) refresh_display();\n    }")
     updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"], "        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );", "        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n        const bool ncmm_mouse_allowed = !cataimgui::client::want_capture_mouse();\n        if( ev.type == SDL_EVENT_WINDOW_FOCUS_LOST ) ncmm::graphics_mouse_event( 4, 0, 0, 0, 0, false );\n        if( ev.type == SDL_EVENT_MOUSE_MOTION && ncmm::graphics_mouse_event( 3, ev_display.motion.x, ev_display.motion.y, ev.motion.xrel, ev.motion.yrel, ncmm_mouse_allowed ) ) continue;\n        if( ( ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN || ev.type == SDL_EVENT_MOUSE_BUTTON_UP ) && ev.button.button == SDL_BUTTON_RIGHT &&\n            ncmm::graphics_mouse_event( ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? 1u : 2u, ev_display.button.x, ev_display.button.y, 0, 0, ncmm_mouse_allowed ) ) continue;")
+    updates["sdltiles.h"] = replace(read("sdltiles.h"), "SDL_Window *get_sdl_window();", "SDL_Window *get_sdl_window();\nvoid ncmm_draw_perspective_label( const std::string &, int, int, const SDL_Rect & );")
+    updates["sdltiles.cpp"] += """
+#if defined(TILES)
+// Reuse CDDA's configured font and Unicode fallback list, not a Latin-only bitmap.
+void ncmm_draw_perspective_label( const std::string &text, int x, int y, const SDL_Rect &clip )
+{
+    if( !font || text.empty() ) return;
+    const int cells=std::max( 1,( clip.w-16 )/font->width );
+    const std::string label=utf8_truncate( remove_color_tags( text ),cells );
+    const int width=utf8_width( label )*font->width;
+    x=std::clamp( x-width/2,clip.x+4,std::max( clip.x+4,clip.x+clip.w-width-4 ) );
+    y=std::clamp( y-font->height-4,clip.y+4,std::max( clip.y+4,clip.y+clip.h-font->height-4 ) );
+    curses_text_batch.begin_pass( renderer,!text_atlas_enabled( renderer ) );
+    int offset=0;
+    for( const char32_t ch : utf8_view( label ) ) {
+        const std::string glyph=utf32_to_utf8( ch );
+        const point at( x+offset,y );
+        font->queue_char( curses_text_batch,renderer,glyph,at+point( 1,1 ),0 );
+        font->queue_char( curses_text_batch,renderer,glyph,at,15 );
+        offset+=std::max( 0,mk_wcwidth( ch ) )*font->width;
+    }
+    curses_text_batch.flush( renderer );
+}
+#endif
+"""
     menu = read("main_menu.cpp")
     updates["main_menu.cpp"] = replace(menu,
         "        std::exit( ncmm::run_gameplay_smoke() );",
@@ -118,7 +151,7 @@ def apply(root: Path):
     tiles_cpp = tiles_cpp[:start] + lookup + tiles_cpp[start:]
     load_anchor = "                               const bool force, const bool pump_events, const bool terrain )\n{"
     updates["cata_tiles.cpp"] = replace(tiles_cpp, load_anchor, load_anchor + "\n    ++ncmm_graphics_epoch;")
-    for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_controls.h", "ncmm_graphics_camera.hpp", "ncmm_graphics_controls.inc", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_smoke.inc"):
+    for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_controls.h", "ncmm_graphics_camera.hpp", "ncmm_graphics_controls.inc", "ncmm_graphics_presentation.h", "ncmm_graphics_presentation_policy.hpp", "ncmm_graphics_presentation.inc", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_smoke.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name] = (bridge / name).read_text(encoding="utf-8")

@@ -13,6 +13,7 @@ size_t graphics_hybrid_held_sprites = 0;
 size_t graphics_hybrid_tiny_creatures = 0;
 std::array<size_t, NCMM_SHAPE_COUNT> graphics_hybrid_shape_counts = {};
 ncmm_graphics_environment_v2 graphics_hybrid_last_environment = {};
+#include "ncmm_graphics_presentation.inc"
 
 #if defined(TILES)
 struct graphics_cpu_sprite {
@@ -101,6 +102,7 @@ void graphics_clear_hybrid()
 {
     graphics_hybrid_frame = nullptr; graphics_hybrid_positions = nullptr;
     graphics_hybrid_pixels.clear(); graphics_hybrid_width = graphics_hybrid_height = 0;
+    graphics_presentation_cells.clear(); graphics_effect_pixels.clear(); graphics_aim.reset(); graphics_aim_name.clear();
     graphics_hybrid_sprite_bytes = 0; graphics_hybrid_tileset_epoch = 0;
 #if defined(TILES)
     graphics_clear_stream();
@@ -121,12 +123,17 @@ int graphics_get_sprite( uint32_t index, uint32_t layer, ncmm_graphics_sprite_v2
 {
 #if defined(TILES)
     if( !graphics_hybrid_frame || !graphics_hybrid_positions || active_module_id != graphics_view.owner ||
-        !out || out->struct_size < sizeof( ncmm_graphics_sprite_v2 ) || layer > NCMM_GFX_FIELD || layer == NCMM_GFX_SOLID ) return 0;
+        !out || out->struct_size < sizeof( ncmm_graphics_sprite_v2 ) || layer > NCMM_GFX_GLOVE_RIGHT || layer == NCMM_GFX_SOLID ) return 0;
     const auto &scene = *graphics_hybrid_frame;
     std::string id;
     TILE_CATEGORY category = TILE_CATEGORY::TERRAIN;
     tripoint_bub_ms position = get_avatar().pos_bub();
-    if( layer == NCMM_GFX_HELD_ITEM ) {
+    if( layer >= NCMM_GFX_SLEEVE_LEFT ) {
+        if( index != UINT32_MAX ) return 0;
+        const uint32_t slot=layer-NCMM_GFX_SLEEVE_LEFT;
+        id=slot<2 ? graphics_presentation.sleeve[slot] : graphics_presentation.glove[slot-2];
+        category=TILE_CATEGORY::ITEM;
+    } else if( layer == NCMM_GFX_HELD_ITEM ) {
         if( index != UINT32_MAX || !scene.environment.held_item[0] ) return 0;
         id = scene.environment.held_item; category = TILE_CATEGORY::ITEM;
     } else {
@@ -205,6 +212,7 @@ ncmm_graphics_shapes::traits graphics_traits( const map_data_common_t &t, bool o
     out.tree = t.has_flag( "TREE" ); out.shrub = t.has_flag( "SHRUB" ); out.flat = t.has_flag( "FLAT" );
     out.water = t.has_flag( "SWIMMABLE" ) || t.has_flag( "SHALLOW_WATER" );
     out.transparent = t.transparent; out.impassable = t.movecost == 0; out.open = opened;
+    out.bridge = t.has_flag( "BRIDGE" );
     return out;
 }
 
@@ -361,6 +369,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         copy_id( env.held_item, held->typeId().str() ); env.held_kind = held->is_gun() ? 1u : held->is_melee() ? 2u : 3u;
     }
     graphics_hybrid_last_environment = env;
+    graphics_prepare_presentation( base,positions,details );
     const ncmm_graphics_scene_v2 scene = { sizeof( ncmm_graphics_scene_v2 ), base, details.data(), details.size(), env };
     const uint64_t epoch = tilecontext->ncmm_graphics_tileset_epoch();
     SDL_Renderer *renderer = get_sdl_renderer().get();
@@ -407,6 +416,8 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     ok = SDL_SetRenderClipRect( renderer, &clip ) && ok;
     const SDL_FRect destination = { float( x ), float( y ), float( base.pixel_width ), float( base.pixel_height ) };
     ok = SDL_RenderTexture( renderer, frame, nullptr, &destination ) && ok;
+    if( ok && !graphics_aim_name.empty() ) ncmm_draw_perspective_label( graphics_aim_name,
+        x+int( graphics_aim_x*base.pixel_width ), y+int( graphics_aim_y*base.pixel_height ), clip );
     ok = SDL_SetRenderClipRect( renderer, clipped ? &prior_clip : nullptr ) && ok;
     if( ok && graphics_attack_pending ) {
         graphics_attack_started = SDL_GetTicks() / 1000.0; graphics_attack_pending = false;

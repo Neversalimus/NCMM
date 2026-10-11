@@ -2,6 +2,7 @@
 #include "ncmm_graphics_v2.h"
 #include "ncmm_graphics_shapes.hpp"
 #include "animation.hpp"
+#include "ncmm_graphics_presentation_policy.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -32,8 +33,15 @@ inline float noise(float x,float y){int ix=int(std::floor(x)),iy=int(std::floor(
     fx=fx*fx*(3-2*fx);fy=fy*fy*(3-2*fy);
     auto n=[](int a,int b){return random(uint32_t(a)*374761393u+uint32_t(b)*668265263u);};
     return(n(ix,iy)*(1-fx)+n(ix+1,iy)*fx)*(1-fy)+(n(ix,iy+1)*(1-fx)+n(ix+1,iy+1)*fx)*fy;}
+struct presentation_data {
+    ncmm_graphics_presentation_v1 view{};
+    std::vector<ncmm_graphics_detail_v1> cells;
+};
 struct frame {
     int width=0,height=0;std::vector<uint32_t> pixels;std::vector<float> depth;
+    std::vector<int32_t> creatures;
+    std::vector<uint32_t> effects;int effect_width=0,effect_height=0;
+    int32_t aimed=-1;float label_x=.5f,label_y=.4f;
     std::vector<float> held_depth;
     std::vector<float> sun_shadows;
     std::vector<int32_t> owners;uint32_t triangles=0,vehicle_parts=0,weather_particles=0,held_pixels=0;
@@ -86,7 +94,7 @@ struct image {
     }
 };
 struct vertex {vec p;float u=0,v=0;vec light{1,1,1};};
-enum class surface { none, stone, asphalt, earth, grass, wood, tile, paint, metal, rubber, cloth, skin };
+enum class surface { none, stone, asphalt, earth, grass, wood, tile, paint, metal, rubber, cloth, skin, water, plaster, resin };
 inline surface ground_surface(const char *id){
     using ncmm_graphics_shapes::contains;const std::string s=id;
     if(contains(s,"grass")||contains(s,"moss"))return surface::grass;
@@ -97,13 +105,17 @@ inline surface ground_surface(const char *id){
     return surface::stone;
 }
 struct material {const image *texture=nullptr;vec color{0.45f,0.45f,0.45f};float alpha=1;
-    bool cutout=false,opaque_texture=false,overlay=false;int cell=-1;surface finish=surface::none;};
+    bool cutout=false,opaque_texture=false,overlay=false;int cell=-1;surface finish=surface::none;bool creature=false,spill=false;uint32_t liquid=0;};
 struct triangle {std::array<vertex,3> v;material m;vec normal{0,0,1};};
 
 class renderer {
     const ncmm_graphics_scene_v2 &s;const ncmm_graphics_scene_v1 &base;sprite_provider provider;frame &f;
     float yaw,pitch,cy,sy,cp,sp,projection;vec eye,fog_color,held_light{.95f,.89f,.84f};std::vector<float> shadows;
     animation::pose pose;
+    const presentation_data *metadata=nullptr;
+    ncmm_graphics_detail_v1 empty_detail{};
+    const ncmm_graphics_detail_v1 &extra(int i)const{return metadata&&i>=0&&size_t(i)<metadata->cells.size()?metadata->cells[i]:empty_detail;}
+    uint32_t sky_style()const{return metadata?metadata->view.sky_style:uint32_t(NCMM_SKY_EARTH);}
     using sprite_key=std::tuple<uintptr_t,uint32_t,uint32_t,uint32_t>;
     std::map<std::pair<uint32_t,uint32_t>,image *> image_refs;
     std::map<sprite_key,image> images;std::vector<triangle> transparent,opaque,overlay;
@@ -230,7 +242,7 @@ class renderer {
                     if(!t.m.overlay){float fog=clamp((z-2)*(s.environment.fog_density+.003f));c=c*(1-fog)+fog_color*fog;}
                     if(alpha<.99f)c=c*alpha+unpack(f.pixels[k])*(1-alpha);
                     f.pixels[k]=pack(c);
-                    if(alpha>=.99f||t.m.cutout){if(t.m.overlay)f.held_depth[k]=z;else f.depth[k]=z;f.owners[k]=t.m.cell;}
+                    if(alpha>=.99f||t.m.cutout){if(t.m.overlay)f.held_depth[k]=z;else f.depth[k]=z;f.owners[k]=t.m.cell;if(!t.m.overlay)f.creatures[k]=t.m.creature?t.m.cell:-1;}
                 }
             }
         }
@@ -284,10 +296,10 @@ class renderer {
         solid_quad(top[0],top[1],top[2],top[3],m);
         solid_quad(lower[3],lower[2],lower[1],lower[0],m,{0,0,-1});
     }
-    void billboard(vec center,float w,float h,material m){
+    void billboard(vec center,float w,float h,material m,bool physical=false){
         std::array<float,4> uv{0,0,1,1};
         if(m.texture&&m.texture->valid()){const auto &img=*m.texture;
-            w*=float(img.right-img.left)/img.data.width;h*=float(img.bottom-img.top)/img.data.height;
+            if(!physical){w*=float(img.right-img.left)/img.data.width;h*=float(img.bottom-img.top)/img.data.height;}
             const float dx=float(std::max(1u,img.data.width-1)),dy=float(std::max(1u,img.data.height-1));
             uv={img.left/dx,img.top/dy,(img.right-1)/dx,(img.bottom-1)/dy};}
         vec right{-sy*w*.5f,cy*w*.5f,0};
@@ -635,13 +647,14 @@ class renderer {
             architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
             if(d.vehicle_features)vehicle(i);else if(c.furniture[0])architecture(i,d.furniture_shape,NCMM_GFX_FURNITURE);
             if(c.item[0]){auto m=mat(i,NCMM_GFX_ITEM,{.50f,.48f,.42f},true);billboard({x+.5f,y+.5f,.025f},.25f,.25f,m);}
-            if(c.creature[0]){auto m=mat(i,NCMM_GFX_CREATURE,{.38f,.43f,.28f},true);
+            if(c.creature[0]){auto m=mat(i,NCMM_GFX_CREATURE,{.38f,.43f,.28f},true);m.creature=true;
                 float h=1.70f,w=.82f;
                 if(d.terrain_flags&NCMM_CREATURE_TINY){h=.25f;w=.35f;}
                 else if(d.terrain_flags&NCMM_CREATURE_SMALL){h=.65f;w=.65f;}
                 else if(d.terrain_flags&NCMM_CREATURE_LARGE){h=2.0f;w=1.3f;}
                 else if(d.terrain_flags&NCMM_CREATURE_HUGE){h=3.0f;w=2.0f;}
-                billboard({x+.5f,y+.5f,0},w,h,m);}
+                if(extra(i).creature_height>0){h=extra(i).creature_height;w=extra(i).creature_width;}
+                billboard({x+.5f,y+.5f,extra(i).creature_elevation},w,h,m,true);}
             if(d.field[0]&&d.field_shape!=NCMM_SHAPE_FLAT){auto m=mat(i,NCMM_GFX_FIELD,{.85f,.40f,.12f},true);billboard({x+.5f,y+.5f,0},.65f,.90f,m);}
         }
     }
@@ -748,20 +761,25 @@ class renderer {
         face(point(0,float(img->data.height)),point(float(img->data.width),float(img->data.height)),point(float(img->data.width),0),point(0,0),item);
     }
 public:
-    renderer(const ncmm_graphics_scene_v2 &scene,float y,float p,sprite_provider source,frame &output,animation::pose animation_pose={}):s(scene),base(scene.base),provider(std::move(source)),f(output),yaw(y),pitch(p),cy(std::cos(y)),sy(std::sin(y)),cp(std::cos(p)),sp(std::sin(p)),projection(1),eye{base.camera_x,base.camera_y,1.55f},pose(animation_pose){ }
+    renderer(const ncmm_graphics_scene_v2 &scene,float y,float p,sprite_provider source,frame &output,animation::pose animation_pose={},const presentation_data *data=nullptr):s(scene),base(scene.base),provider(std::move(source)),f(output),yaw(y),pitch(p),cy(std::cos(y)),sy(std::sin(y)),cp(std::cos(p)),sp(std::sin(p)),projection(1),eye{base.camera_x,base.camera_y,1.55f},pose(animation_pose),metadata(data){if(metadata&&metadata->view.eye_height>.1f)eye.z=metadata->view.eye_height;}
     void run(int max_width,int max_height,const frame *cached_world=nullptr,frame *world_output=nullptr){float factor=std::min({1.0f,float(max_width)/base.pixel_width,float(max_height)/base.pixel_height});
         f.width=std::max(1,int(base.pixel_width*factor));f.height=std::max(1,int(base.pixel_height*factor));size_t count=size_t(f.width)*f.height;
         projection=f.width/(2*std::tan(70*pi/360));
         if(cached_world&&cached_world->width==f.width&&cached_world->height==f.height&&cached_world->pixels.size()==count&&cached_world->depth.size()==count&&cached_world->sun_shadows.size()==base.cell_count){
             f=*cached_world;shadows=f.sun_shadows;f.held_depth.assign(count,std::numeric_limits<float>::infinity());
         }else{
-            f.pixels.resize(count);f.depth.assign(count,std::numeric_limits<float>::infinity());f.held_depth.assign(count,std::numeric_limits<float>::infinity());f.owners.assign(count,-1);
+            f.pixels.resize(count);f.depth.assign(count,std::numeric_limits<float>::infinity());f.held_depth.assign(count,std::numeric_limits<float>::infinity());f.owners.assign(count,-1);f.creatures.assign(count,-1);
             f.triangles=f.vehicle_parts=f.weather_particles=f.held_pixels=f.vertical_doors=f.vertical_windows=f.vertical_fences=f.plants=f.shadow_cells=0;
             sky();shadows_build();vehicles_build();world();paint(opaque);
             std::stable_sort(transparent.begin(),transparent.end(),[&](const triangle &a,const triangle &b){return view(a.v[0].p+a.v[1].p+a.v[2].p).z>view(b.v[0].p+b.v[1].p+b.v[2].p).z;});
             paint(transparent);f.sun_shadows=shadows;
             if(world_output)*world_output=f;
         }
+        f.aimed=-1;
+        const int target=f.creatures[size_t(f.height/2)*f.width+f.width/2];
+        if(target>=0){f.aimed=target;const float h=extra(target).creature_height>0?extra(target).creature_height:1.7f;
+            const vec top=view({float(target%base.grid_width)+.5f,float(target/base.grid_width)+.5f,h+extra(target).creature_elevation+.06f});
+            if(top.z>.08f){f.label_x=clamp(.5f+projection*top.x/top.z/f.width);f.label_y=clamp(.5f-projection*top.y/top.z/f.height);}}
         f.weather_particles=f.held_pixels=0;weather();held();paint(overlay);
         if(f.width>=320&&f.height>=240){int x=f.width/2,y=f.height/2;for(int d=-3;d<=3;++d){if(d==0)continue;f.pixels[size_t(y)*f.width+x+d]=0xd8e0e0ff;f.pixels[size_t(y+d)*f.width+x]=0xd8e0e0ff;}}
     }
@@ -781,8 +799,9 @@ inline bool valid_scene(const ncmm_graphics_scene_v2 &s,float yaw,float pitch){
         if(d.light_r<0||d.light_r>1||d.light_g<0||d.light_g>1||d.light_b<0||d.light_b>1||d.vehicle_health<0||d.vehicle_health>1||(d.terrain_flags&~63u)!=0||d.terrain_shape>=NCMM_SHAPE_COUNT||d.furniture_shape>=NCMM_SHAPE_COUNT||d.field_shape>=NCMM_SHAPE_COUNT||std::abs(d.vehicle_x)>2048||std::abs(d.vehicle_y)>2048||d.mount_x<-1000||d.mount_x>1000||d.mount_y<-1000||d.mount_y>1000)return false;}
     return true;
 }
-inline bool build_frame(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const sprite_provider &provider,frame &out,int max_width=NCMM_GRAPHICS_MAX_FRAME_WIDTH,int max_height=NCMM_GRAPHICS_MAX_FRAME_HEIGHT,animation::pose pose={},const frame *cached_world=nullptr,frame *world_output=nullptr){
+inline bool build_frame(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const sprite_provider &provider,frame &out,int max_width=NCMM_GRAPHICS_MAX_FRAME_WIDTH,int max_height=NCMM_GRAPHICS_MAX_FRAME_HEIGHT,animation::pose pose={},const frame *cached_world=nullptr,frame *world_output=nullptr,const presentation_data *metadata=nullptr){
+    if(metadata&&(metadata->cells.size()!=s.base.cell_count||!std::isfinite(metadata->view.eye_height)||metadata->view.eye_height<.1f||metadata->view.eye_height>4))return false;
     if(!valid_scene(s,yaw,pitch))return false;
-    renderer(s,yaw,pitch,provider,out,pose).run(std::clamp(max_width,1,int(NCMM_GRAPHICS_MAX_FRAME_WIDTH)),std::clamp(max_height,1,int(NCMM_GRAPHICS_MAX_FRAME_HEIGHT)),cached_world,world_output);return out.pixels.size()==size_t(out.width)*out.height;
+    renderer(s,yaw,pitch,provider,out,pose,metadata).run(std::clamp(max_width,1,int(NCMM_GRAPHICS_MAX_FRAME_WIDTH)),std::clamp(max_height,1,int(NCMM_GRAPHICS_MAX_FRAME_HEIGHT)),cached_world,world_output);return out.pixels.size()==size_t(out.width)*out.height;
 }
 }
