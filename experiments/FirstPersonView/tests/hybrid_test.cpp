@@ -67,6 +67,13 @@ int main(int argc,char **argv){try{
     for(auto &c:world.cells)c.flags|=NCMM_GFX_CEILING;
     draw();check(f.weather_particles==0,"weather stays outside roofs");
     world.scene.environment.precipitation=0;std::strcpy(world.scene.environment.held_item,"naginata");draw();check(f.held_pixels>0,"current wielded silhouette appears in hands");if(argc==2)save(f,std::string(argv[1])+"-room.ppm");
+    auto held_color=[](const frame &image){vec sum{};for(size_t i=0;i<image.pixels.size();++i){
+        if(image.owners[i]==-1&&image.depth[i]<1)sum=sum+unpack(image.pixels[i]);}return sum;};
+    const vec neutral_held=held_color(f);auto &camera_light=world.details[11*15+7];
+    camera_light.light_r=.05f;camera_light.light_g=.1f;camera_light.light_b=.9f;draw();
+    const vec blue_held=held_color(f);
+    check(blue_held.z/(blue_held.x+.001f)>neutral_held.z/(neutral_held.x+.001f)*2,"camera RGB light shades the held item and hands");
+    camera_light.light_r=camera_light.light_g=camera_light.light_b=.8f;
     world.scene.environment.held_item[0]=0;draw();check(f.held_pixels==0,"empty hands do not retain previous weapon");
     check(ncmm_graphics_shapes::terrain("t_door_o",{})==NCMM_SHAPE_DOOR_OPEN,"open door classification");
     check(ncmm_graphics_shapes::terrain("t_window_frame",{})==NCMM_SHAPE_WINDOW_BROKEN,"broken window classification");

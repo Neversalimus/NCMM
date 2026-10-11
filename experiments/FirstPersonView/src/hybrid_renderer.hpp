@@ -74,7 +74,7 @@ struct triangle {std::array<vertex,3> v;material m;};
 
 class renderer {
     const ncmm_graphics_scene_v2 &s;const ncmm_graphics_scene_v1 &base;sprite_provider provider;frame &f;
-    float yaw,pitch,cy,sy,cp,sp,projection;vec eye,fog_color;std::vector<float> shadows;
+    float yaw,pitch,cy,sy,cp,sp,projection;vec eye,fog_color,held_light{.95f,.89f,.84f};std::vector<float> shadows;
     using sprite_key=std::tuple<uintptr_t,uint32_t,uint32_t,uint32_t>;
     std::map<std::pair<uint32_t,uint32_t>,image *> image_refs;
     std::map<sprite_key,image> images;std::vector<triangle> transparent;
@@ -143,7 +143,7 @@ class renderer {
         }
     }
     void quad(vec a,vec b,vec c,vec d,material m,vec normal={0,0,1}){
-        vec l=m.overlay?vec{0.95f,0.89f,0.84f}:light(m.cell,normal);
+        vec l=m.overlay?held_light:light(m.cell,normal);
         triangle t0{{vertex{a,0,1,l},vertex{b,1,1,l},vertex{c,1,0,l}},m};
         triangle t1{{vertex{a,0,1,l},vertex{c,1,0,l},vertex{d,0,0,l}},m};
         if(m.alpha<0.99f&&!m.cutout){transparent.push_back(t0);transparent.push_back(t1);}else{raster(t0);raster(t1);}
@@ -350,6 +350,8 @@ class renderer {
             ++f.weather_particles;}
     }
     void held(){if(!s.environment.held_item[0])return;image *img=texture(UINT32_MAX,NCMM_GFX_HELD_ITEM);
+        held_light=light(index(int(std::floor(base.camera_x)),int(std::floor(base.camera_y))),{0,0,1});
+        held_light={std::max(.04f,held_light.x),std::max(.04f,held_light.y),std::max(.04f,held_light.z)};
         // Camera-local forearms and hands; the item is generated directly from
         // its current tileset silhouette, including an extruded shaded edge.
         material skin{nullptr,{.70f,.48f,.34f},1,false,false,true,-1},sleeve{nullptr,{.20f,.25f,.28f},1,false,false,true,-1};

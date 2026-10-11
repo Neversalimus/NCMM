@@ -75,7 +75,7 @@ uses real time without advancing a game turn.
 
 The wielded item's actual tileset silhouette is generated in camera space with
 shaded thickness, forearms and hands. It updates when the player changes or
-unwields the item. This is the first automatic held-item pass, not a collection
+unwields the item. Hands and the item receive the camera cell's actual RGB light. This is the first automatic held-item pass, not a collection
 of bespoke 3D weapon models or attack/reload animations.
 
 ## Visibility and lifecycle
