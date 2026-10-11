@@ -15,6 +15,18 @@
         float grazing=1-clamp(dot(n,to_eye));grazing=grazing*grazing;
         const float fresnel=.035f+grazing*.62f;
         color=color*(.90f+.10f*wave+.05f*chop);
+        float shore=0;
+        if(!m.spill&&m.banks&&(m.liquid==NCMM_LIQ_FRESH||m.liquid==NCMM_LIQ_SEA)){
+            const float distance=liquid_surface::bank_distance(m.banks,clamp(p.x-float(m.cell%base.grid_width)),clamp(p.y-float(m.cell/base.grid_width)));
+            shore=clamp(1-distance/.65f);shore=shore*shore*(3-2*shore);
+            // The bed becomes visible near land; no invented shoreline at the
+            // snapshot boundary or at a bridge laid over continuous water.
+            const float bed=.80f+.20f*noise(p.x*15,p.y*15);
+            const vec shallows=vec{.27f,.30f,.19f}*bed+vec{.025f,.050f,.035f}*clamp(wave*chop);
+            color=color*(1-shore*.58f)+shallows*(shore*.58f);
+            if(m.liquid==NCMM_LIQ_SEA){const float wash=clamp(1-distance/.16f)*clamp(.45f+wave*.30f+chop*.25f);
+                color=color*(1-wash*.65f)+vec{.66f,.76f,.74f}*(wash*.65f);}
+        }
         color=color*(1-fresnel)+fog_color*fresnel;
         const vec half=normalize(to_eye+vec{s.environment.sun_x,s.environment.sun_y,s.environment.sun_z});
         float spec=clamp(dot(n,half));spec*=spec;spec*=spec;spec*=spec;spec*=spec;spec*=spec;
@@ -23,4 +35,17 @@
         if(m.liquid==NCMM_LIQ_LAVA)color={.68f+.26f*clamp(wave*chop),.08f+.35f*clamp(wave*chop),.018f};
         if(!m.spill&&m.liquid==NCMM_LIQ_SEA){const float crest=clamp((wave+chop-1.50f)*3);color=color*(1-crest*.5f)+vec{.60f,.74f,.76f}*(crest*.5f);}
         return color;
+    }
+    uint32_t terrain_liquid(int i)const{
+        if(!visible(i))return 0;
+        return extra(i).liquid?extra(i).liquid:s.details[i].terrain_shape==NCMM_SHAPE_WATER?
+            ncmm_graphics_presentation_policy::liquid(base.cells[i].terrain,true):0;
+    }
+    uint32_t liquid_banks(int i)const{
+        const int x=i%base.grid_width,y=i/base.grid_width;
+        constexpr std::array<std::array<int,2>,8> offsets{{{-1,0},{1,0},{0,-1},{0,1},{-1,-1},{1,-1},{-1,1},{1,1}}};
+        uint32_t banks=0;
+        for(size_t n=0;n<offsets.size();++n){const int j=index(x+offsets[n][0],y+offsets[n][1]);
+            if(visible(j)&&!(base.cells[j].flags&NCMM_GFX_NO_FLOOR)&&!terrain_liquid(j))banks|=1u<<n;}
+        return banks;
     }

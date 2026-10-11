@@ -55,6 +55,21 @@ int main(int argc,char **argv){try{
     require(skies.size()==8,"dimension sky profiles are visually distinct");
     require(policy::sky("inner_cabins")==NCMM_SKY_GREY&&policy::sky("string_dimension")==NCMM_SKY_STARS,"dimension descriptions select grey and starry skies");
     require(policy::sky("unknown_custom_dimension")==NCMM_SKY_EARTH,"unknown dimensions retain weather-driven fallback");
+    for(int n=0;n<=20;++n){const float u=float(n)/20;
+        require(std::abs(first_person::liquid_surface::bank_distance(1,u,1)-first_person::liquid_surface::bank_distance(16,u,0))<.00001f,"shore distance continues across a tile edge at the end of a bank");
+        require(std::abs(first_person::liquid_surface::bank_distance(2,u,1)-first_person::liquid_surface::bank_distance(32,u,0))<.00001f,"opposite shoreline corner is continuous");}
+    require(first_person::liquid_surface::bank_distance(0,.5f,.5f)>1,"unknown water extent creates no shoreline");
+    require(first_person::liquid_surface::spill_coverage(.13f,.2f,.01f)==0&&first_person::liquid_surface::spill_coverage(.13f,0,.01f)==1,"puddle exterior is dry and centre opaque");
+    const float edge_alpha=first_person::liquid_surface::spill_coverage(.13f,.128f,.01f);
+    require(edge_alpha>0&&edge_alpha<1,"puddle edge has subpixel coverage instead of a jagged cutout");
+    fixture bank;const int bank_water=5*9+4;
+    for(int i=0;i<81;++i){bank.details[i].terrain_shape=NCMM_SHAPE_WATER;bank.meta.cells[i].liquid=NCMM_LIQ_FRESH;}
+    bank.cells[6*9+4].flags|=NCMM_GFX_NO_FLOOR;bank.details[6*9+4].terrain_shape=NCMM_SHAPE_FLAT;bank.meta.cells[6*9+4].liquid=0;
+    bank.draw(-.5f);const auto no_bank=bank.f;
+    bank.cells[6*9+4].flags&=~NCMM_GFX_NO_FLOOR;bank.draw(-.5f);
+    size_t shoreline_pixels=0;
+    for(size_t i=0;i<bank.f.pixels.size();++i)if(bank.f.owners[i]==bank_water&&no_bank.owners[i]==bank_water&&bank.f.pixels[i]!=no_bank.pixels[i])++shoreline_pixels;
+    require(shoreline_pixels>50,"an actual adjacent bank shades the water itself, not only the land tile");
     fixture fluid;fluid.details[target].terrain_shape=NCMM_SHAPE_WATER;fluid.meta.cells[target].liquid=NCMM_LIQ_FRESH;fluid.draw(-.25f);const auto fresh=digest(fluid.f);
     fluid.meta.cells[target].liquid=NCMM_LIQ_BLOOD;fluid.draw(-.25f);require(digest(fluid.f)!=fresh,"otherworld fluid differs from fresh water");
     fixture spill;std::strcpy(spill.cells[target].item,"water");spill.draw(-.35f);const auto solid_item=digest(spill.f);

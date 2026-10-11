@@ -3,6 +3,7 @@
 #include "ncmm_graphics_shapes.hpp"
 #include "animation.hpp"
 #include "effects.hpp"
+#include "liquid_surface.hpp"
 #include "ncmm_graphics_composite.hpp"
 #include "ncmm_graphics_presentation_policy.hpp"
 #include <algorithm>
@@ -107,7 +108,7 @@ inline surface ground_surface(const char *id){
     return surface::stone;
 }
 struct material {const image *texture=nullptr;vec color{0.45f,0.45f,0.45f};float alpha=1;
-    bool cutout=false,opaque_texture=false,overlay=false;int cell=-1;surface finish=surface::none;bool creature=false,spill=false;uint32_t liquid=0;};
+    bool cutout=false,opaque_texture=false,overlay=false;int cell=-1;surface finish=surface::none;bool creature=false,spill=false;uint32_t liquid=0,banks=0;};
 struct triangle {std::array<vertex,3> v;material m;vec normal{0,0,1};};
 
 class renderer {
@@ -267,7 +268,8 @@ class renderer {
                 if(t.m.spill){const float ax=w0*iz[0]*z,bx=w1*iz[1]*z,cx=w2*iz[2]*z;
                     const vec at=v[0].p*ax+v[1].p*bx+v[2].p*cx;
                     const float dx=at.x-std::floor(at.x)-.5f,dy=at.y-std::floor(at.y)-.5f;
-                    if(dx*dx+dy*dy>.135f+(noise(at.x*9,at.y*9)-.5f)*.09f)continue;}
+                    const float radius=.135f+(noise(at.x*9,at.y*9)-.5f)*.09f;
+                    alpha*=liquid_surface::spill_coverage(radius,dx*dx+dy*dy,z/projection);}
                 if(alpha<.01f)continue;
                 if(detailed){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;
                     const vec pos=v[0].p*a+v[1].p*b+v[2].p*cw;
@@ -728,8 +730,8 @@ class renderer {
         for(int pass=0;pass<2;++pass)for(int i:order){int x=i%base.grid_width,y=i/base.grid_width;const auto &c=base.cells[i];const auto &d=s.details[i];
             if(pass==1){
             if(!(c.flags&NCMM_GFX_NO_FLOOR)){auto floor=mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f});floor.opaque_texture=true;floor.finish=ground_surface(d.ground);
-                const uint32_t liquid=extra(i).liquid?extra(i).liquid:d.terrain_shape==NCMM_SHAPE_WATER?ncmm_graphics_presentation_policy::liquid(c.terrain,true):0;
-                if(liquid){floor.texture=nullptr;floor.color=liquid_color(liquid);floor.finish=surface::water;floor.liquid=liquid;}
+                const uint32_t liquid=terrain_liquid(i);
+                if(liquid){floor.texture=nullptr;floor.color=liquid_color(liquid);floor.finish=surface::water;floor.liquid=liquid;floor.banks=liquid_banks(i);}
                 quad({float(x),float(y),0},{float(x+1),float(y),0},{float(x+1),float(y+1),0},{float(x),float(y+1),0},floor);
             }
             if((c.flags&NCMM_GFX_CEILING)&&(!d.vehicle_features||(d.terrain_flags&NCMM_SURFACE_TERRAIN_CEILING)))ceiling(i,x,y);
