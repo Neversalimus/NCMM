@@ -258,12 +258,15 @@ lengths and creature dimensions use volume plus body plan. Highly abstract
 creatures are bounded to keep the projection stable.
 
 Gases use a smooth 3D density field, depth-clipped ray marching and propagated
-RGB lighting. A quarter-resolution scattering layer is reconstructed/blended by
+RGB lighting. An adaptive scattering layer (at most 256 pixels wide) is reconstructed/blended by
 SDL's GPU renderer when available. **Geometry and fluid shading still use CPU.**
 The CPU path uses the same layer contract; a failed effects upload/composite
 redraws a complete CPU-composited frame without discarding the world view.
 F12 forces CPU composition; `NCMM_FP_CPU=1` disables the accelerated path from
-startup. This is partial GPU acceleration, not a replacement GPU mesh engine.
+startup. Volume lighting is prepared once per cell; rays skip empty space and
+workers own separate output rows. The ordinary CPU compositor also uses disjoint
+row workers and matches the Host recovery compositor byte for byte. This is
+partial GPU acceleration, not a replacement GPU mesh engine.
 
 Qualification adds presentation/occlusion/composition regressions, a full loaded
 monster and gas-definition audit, and actual SDL captures of reported geometry,

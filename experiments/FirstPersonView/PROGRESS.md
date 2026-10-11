@@ -21,7 +21,15 @@ scarlet_storm_effect_on_condition.json (scarlet sky). Unknown mod dimensions
 retain their actual weather tint instead of guessing from translated names.
 
 Implementation checkpoints 1–6 are committed. Pinned 1040/1807 Host syntax,
-370 presentation checks, 303 hybrid checks, the 496657-check legacy renderer
+377 presentation checks, 303 hybrid checks, the 496657-check legacy renderer
 suite, 34 module lifecycle checks and five atomic-transform cases pass locally.
 Final work: new real-SDL cases, Windows packaging and captured-image review.
 Do not ship a package before the final qualification workflow succeeds.
+
+Additional performance checkpoint: prepare gas/light coefficients once per cell,
+clip ray intervals, bound the scattering layer and split volume/compositor rows
+between up to four workers. Random-alpha and odd-size outputs match the Host
+reference compositor exactly. In the local 1280x800 cached-world smoke fixture,
+composition dropped from 219 to 39 ms on CPU and GPU-layer preparation from
+155 to 37 ms. These are synthetic scene timings, not player FPS.
+This changes only the module; the ongoing Host compilation stays reusable.

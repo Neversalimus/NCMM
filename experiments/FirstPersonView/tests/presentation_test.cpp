@@ -53,6 +53,20 @@ int main(int argc,char **argv){try{
     gas.draw();require(!gas.f.effects.empty(),"gas produces a depth-clipped volumetric effect layer");const auto accelerated=gas.f;
     auto composed=accelerated.pixels;require(ncmm_graphics_composite::blend(composed,accelerated.width,accelerated.height,accelerated.effects,accelerated.effect_width,accelerated.effect_height),"CPU compositor accepts the GPU layer");
     gas.meta.view.flags=0;gas.draw();require(gas.f.effects.empty()&&gas.f.pixels==composed,"CPU and GPU inputs reconstruct the same image");
+    // Odd sizes, one-pixel layers, mixed alpha and threaded full-size output
+    // must preserve the Host reference reconstruction byte for byte.
+    for(const auto size:std::vector<std::array<uint32_t,4>>{{1,1,1,1},{13,9,1,1},{17,11,3,2},{320,203,81,51},{1280,800,256,160}}){
+        const auto w=size[0],h=size[1],sw=size[2],sh=size[3];
+        std::vector<uint32_t> layer(size_t(sw)*sh),original(size_t(w)*h);
+        for(size_t i=0;i<layer.size();++i)layer[i]=hash(uint32_t(i)+17);
+        for(size_t i=0;i<original.size();++i)original[i]=hash(uint32_t(i)+493)|255u;
+        auto expected=original;
+        require(ncmm_graphics_composite::blend(expected,w,h,layer,sw,sh)&&first_person::effects::blend(original,w,h,layer,sw,sh)&&original==expected,"parallel reconstruction matches Host on irregular alpha layers");
+    }
+    fixture invalid;invalid.meta.view.eye_height=std::numeric_limits<float>::quiet_NaN();
+    require(!build_frame(invalid.scene,0,0,invalid.provider(),invalid.f,640,480,{},nullptr,nullptr,&invalid.meta),"nonfinite presentation rejected before rendering");
+    invalid.meta.view.eye_height=1.55f;invalid.meta.cells[0].vehicle_controls_x=std::numeric_limits<float>::infinity();
+    require(!build_frame(invalid.scene,0,0,invalid.provider(),invalid.f,640,480,{},nullptr,nullptr,&invalid.meta),"invalid vehicle layout cannot enter worker threads");
     fixture gun;std::strcpy(gun.scene.environment.held_item,"m27");gun.scene.environment.held_kind=1;gun.meta.view.gun_kind=NCMM_GUN_RIFLE;gun.meta.view.gunmods=NCMM_MOD_OPTIC|NCMM_MOD_SUPPRESSOR|NCMM_MOD_FOREGRIP;
     first_person::animation::pose pose;pose.grip=NCMM_GRIP_GUN;pose.length=1;
     require(build_frame(gun.scene,-pi*.5f,0,gun.provider(),gun.f,640,480,pose,nullptr,nullptr,&gun.meta),"firearm with attachments renders");

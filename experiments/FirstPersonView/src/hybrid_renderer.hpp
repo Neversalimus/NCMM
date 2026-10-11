@@ -2,6 +2,7 @@
 #include "ncmm_graphics_v2.h"
 #include "ncmm_graphics_shapes.hpp"
 #include "animation.hpp"
+#include "effects.hpp"
 #include "ncmm_graphics_composite.hpp"
 #include "ncmm_graphics_presentation_policy.hpp"
 #include <algorithm>
