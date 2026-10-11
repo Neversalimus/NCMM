@@ -11,7 +11,7 @@ void check(bool v,const char *name){++checks;if(!v)throw std::runtime_error(name
 struct fixture {
     std::vector<ncmm_graphics_cell_v1> cells=std::vector<ncmm_graphics_cell_v1>(225);
     std::vector<ncmm_graphics_cell_v2> details=std::vector<ncmm_graphics_cell_v2>(225);
-    std::vector<uint32_t> floor=std::vector<uint32_t>(1024),leaf=std::vector<uint32_t>(1024),part=std::vector<uint32_t>(1024),weapon=std::vector<uint32_t>(1024);
+    std::vector<uint32_t> floor=std::vector<uint32_t>(1024),leaf=std::vector<uint32_t>(1024),part=std::vector<uint32_t>(1024),weapon=std::vector<uint32_t>(1024),transparent_wall=std::vector<uint32_t>(1024);
     ncmm_graphics_scene_v2 scene{};uint32_t hidden_requests=0;
     fixture(){for(int y=0;y<15;++y)for(int x=0;x<15;++x){int i=y*15+x;cells[i].flags=NCMM_GFX_VISIBLE;cells[i].light=1;
         std::strcpy(cells[i].terrain,"t_floor");std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=.9f;
@@ -25,7 +25,7 @@ struct fixture {
     }
     sprite_provider provider(){return[this](uint32_t i,uint32_t layer,ncmm_graphics_sprite_v2 &out){
         if(layer!=NCMM_GFX_HELD_ITEM && (i>=cells.size()||!(cells[i].flags&NCMM_GFX_VISIBLE))){++hidden_requests;return false;}
-        const uint32_t *p=layer==NCMM_GFX_HELD_ITEM?weapon.data():layer==NCMM_GFX_FURNITURE&&(cells[i].flags&NCMM_GFX_VEHICLE)?part.data():layer==NCMM_GFX_TERRAIN&&details[i].terrain_shape>=NCMM_SHAPE_TREE&&details[i].terrain_shape<=NCMM_SHAPE_PLANT?leaf.data():floor.data();
+        const uint32_t *p=layer==NCMM_GFX_TERRAIN&&details[i].terrain_shape==NCMM_SHAPE_WALL?transparent_wall.data():layer==NCMM_GFX_HELD_ITEM?weapon.data():layer==NCMM_GFX_FURNITURE&&(cells[i].flags&NCMM_GFX_VEHICLE)?part.data():layer==NCMM_GFX_TERRAIN&&details[i].terrain_shape>=NCMM_SHAPE_TREE&&details[i].terrain_shape<=NCMM_SHAPE_PLANT?leaf.data():floor.data();
         out={sizeof(out),32,32,32,p};return true;};}
     void shape(int x,int y,uint32_t type){details[y*15+x].terrain_shape=type;}
 };
@@ -39,6 +39,8 @@ int main(int argc,char **argv){try{
     draw();auto empty=digest(f);check(f.width==800&&f.height==500,"native floor resolution");
     size_t holes=0;for(int y=350;y<499;++y)for(int x=50;x<750;++x)holes+=!std::isfinite(f.depth[size_t(y)*f.width+x]);
     check(holes==0,"continuous perspective floor without scanline gaps");
+    world.shape(7,7,NCMM_SHAPE_WALL);draw();
+    check(f.owners[250*800+400]==7*15+7,"transparent wall art still occludes the room behind it");
     world.shape(7,7,NCMM_SHAPE_DOOR_CLOSED);draw();auto closed=digest(f);int at=250*800+400;check(f.owners[at]==7*15+7,"closed vertical door blocks center");
     world.shape(7,7,NCMM_SHAPE_DOOR_OPEN);draw();check(digest(f)!=closed&&f.owners[at]!=7*15+7,"open hinged door reveals space");check(f.vertical_doors>0,"open door retains frame and panel");
     world.shape(7,7,NCMM_SHAPE_WINDOW);draw();check(f.vertical_windows>0&&f.owners[at+25]!=7*15+7,"window glass preserves sight through aperture");

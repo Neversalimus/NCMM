@@ -69,7 +69,7 @@ struct image {
 };
 struct vertex {vec p;float u=0,v=0;vec light{1,1,1};};
 struct material {const image *texture=nullptr;vec color{0.45f,0.45f,0.45f};float alpha=1;
-    bool cutout=false,ground=false,overlay=false;int cell=-1;};
+    bool cutout=false,opaque_texture=false,overlay=false;int cell=-1;};
 struct triangle {std::array<vertex,3> v;material m;};
 
 class renderer {
@@ -124,7 +124,7 @@ class renderer {
             int ymax=std::min(f.height-1,int(std::ceil(std::clamp(std::max({p[0].y,p[1].y,p[2].y}),-1.0f,float(f.height)))));
             if(xmax<xmin||ymax<ymin)continue;
             ++f.triangles;float inv=1/area;
-            bool coarse=t.m.texture&&t.m.ground&&float(t.m.texture->data.width*t.m.texture->data.height)>std::abs(area)*3;
+            bool coarse=t.m.texture&&t.m.opaque_texture&&float(t.m.texture->data.width*t.m.texture->data.height)>std::abs(area)*3;
             for(int y=ymin;y<=ymax;++y)for(int x=xmin;x<=xmax;++x){float w0=edge(p[1],p[2],x+0.5f,y+0.5f)*inv,w1=edge(p[2],p[0],x+0.5f,y+0.5f)*inv,w2=1-w0-w1;
                 if(w0<-.00001f||w1<-.00001f||w2<-.00001f)continue;
                 float recip=w0*iz[0]+w1*iz[1]+w2*iz[2];if(recip<=0)continue;float z=1/recip;size_t k=size_t(y)*f.width+x;
@@ -132,7 +132,7 @@ class renderer {
                 vec c=t.m.color;float alpha=t.m.alpha;
                 if(t.m.texture&&t.m.texture->valid()){auto px=t.m.texture->sample((w0*uu[0]+w1*uu[1]+w2*uu[2])*z,(w0*vv[0]+w1*vv[1]+w2*vv[2])*z,coarse);float a=float(px&255)/255;
                     if(t.m.cutout&&a<0.45f)continue;
-                    if(t.m.ground)c=unpack(px)*a+c*(1-a);else{c=unpack(px);alpha*=a;}}
+                    if(t.m.opaque_texture)c=unpack(px)*a+c*(1-a);else{c=unpack(px);alpha*=a;}}
                 if(alpha<0.01f)continue;
                 vec l=t.v[0].light;c={c.x*l.x,c.y*l.y,c.z*l.z};
                 if(!t.m.overlay){float fog=clamp((z-2)*(s.environment.fog_density+0.003f));c=c*(1-fog)+fog_color*fog;}
@@ -232,7 +232,11 @@ class renderer {
     void architecture(int i,uint32_t shape,uint32_t layer){if(!ncmm_graphics_shapes::vertical(shape))return;
         vec center{float(i%base.grid_width)+.5f,float(i/base.grid_width)+.5f,0};float angle=s.details[i].orientation?pi*.5f:0;
         material m=mat(i,layer,{.43f,.40f,.35f});material trim{nullptr,{.35f,.32f,.28f},1,false,false,false,i};
-        if(shape==NCMM_SHAPE_WALL){box(center,{-.5f,-.5f,0},{.5f,.5f,2.5f},m);return;}
+        if(shape==NCMM_SHAPE_WALL){
+            // Transparent art margins never punch holes through solid geometry.
+            m.opaque_texture=true;m.color=m.texture?m.texture->average:m.color;
+            box(center,{-.5f,-.5f,0},{.5f,.5f,2.5f},m);return;
+        }
         if(shape==NCMM_SHAPE_DOOR_CLOSED||shape==NCMM_SHAPE_DOOR_OPEN||shape==NCMM_SHAPE_DOOR_FRAME){++f.vertical_doors;
             box(center,{-.5f,-.08f,0},{-.43f,.08f,2.4f},trim,angle);box(center,{.43f,-.08f,0},{.5f,.08f,2.4f},trim,angle);box(center,{-.5f,-.08f,2.3f},{.5f,.08f,2.5f},trim,angle);
             if(shape==NCMM_SHAPE_DOOR_FRAME)return;
@@ -271,10 +275,10 @@ class renderer {
             if(shape==NCMM_SHAPE_TREE){material bark{nullptr,{.25f,.18f,.11f},1,false,false,false,i};box(center,{-.10f,-.10f,0},{.10f,.10f,1.35f},bark);center.z=.75f;billboard(center,2.0f,2.45f,m);}
             else billboard(center,shape==NCMM_SHAPE_SHRUB?1.1f:.8f,shape==NCMM_SHAPE_SHRUB?1.1f:.72f,m);
             return;}
-        if(shape==NCMM_SHAPE_ROCK){box(center,{-.4f,-.34f,0},{.4f,.34f,.65f},m);return;}
+        if(shape==NCMM_SHAPE_ROCK){m.opaque_texture=true;box(center,{-.4f,-.34f,0},{.4f,.34f,.65f},m);return;}
         if(shape==NCMM_SHAPE_TABLE){material wood=trim;wood.color=m.texture?m.texture->average:vec{.43f,.29f,.17f};
             box(center,{-.43f,-.4f,.72f},{.43f,.4f,.85f},wood);for(float x:{-.35f,.35f})for(float y:{-.32f,.32f})box(center,{x-.035f,y-.035f,0},{x+.035f,y+.035f,.75f},wood);return;}
-        if(shape==NCMM_SHAPE_STORAGE){box(center,{-.42f,-.36f,0},{.42f,.36f,1.85f},m);return;}
+        if(shape==NCMM_SHAPE_STORAGE){m.opaque_texture=true;box(center,{-.42f,-.36f,0},{.42f,.36f,1.85f},m);return;}
         if(shape==NCMM_SHAPE_SEAT){box(center,{-.35f,-.34f,.4f},{.35f,.34f,.58f},trim);box(center,{-.35f,.27f,.4f},{.35f,.34f,1.1f},trim);m.cutout=true;billboard(center,.65f,.95f,m);return;}
         m.cutout=true;billboard(center,.85f,1.0f,m);
     }
@@ -287,7 +291,7 @@ class renderer {
         image *source=texture(uint32_t(i),NCMM_GFX_FURNITURE);vec paint=source->valid()?source->paint:vec{.32f,.36f,.40f};
         material body{nullptr,paint,1,false,false,false,i},dark{nullptr,{.075f,.085f,.095f},1,false,false,false,i},steel{nullptr,{.25f,.27f,.29f},1,false,false,false,i};
         box(center,{-.49f,-.49f,.25f},{.49f,.49f,.54f},steel,d.vehicle_yaw);
-        material top=body;top.texture=source->valid()?source:nullptr;top.ground=true;
+        material top=body;top.texture=source->valid()?source:nullptr;top.opaque_texture=true;
         bool cabin=flags&(NCMM_VEH_ROOF|NCMM_VEH_SEAT|NCMM_VEH_WINDOW);
         if(flags&NCMM_VEH_ROOF){box(center,{-.49f,-.49f,1.48f},{.49f,.49f,1.58f},body,d.vehicle_yaw);}
         if(flags&NCMM_VEH_ENGINE || (!cabin&&(flags&NCMM_VEH_BOARD))){box(center,{-.49f,-.49f,.54f},{.49f,.49f,.90f},body,d.vehicle_yaw);}
@@ -317,7 +321,7 @@ class renderer {
     void world(){
         for(int pass=0;pass<2;++pass)for(int y=0;y<base.grid_height;++y)for(int x=0;x<base.grid_width;++x){int i=index(x,y);if(!visible(i))continue;const auto &c=base.cells[i];const auto &d=s.details[i];
             if(pass==1){
-            if(!(c.flags&NCMM_GFX_NO_FLOOR)){auto floor=mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f});floor.ground=true;
+            if(!(c.flags&NCMM_GFX_NO_FLOOR)){auto floor=mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f});floor.opaque_texture=true;
                 quad({float(x),float(y),0},{float(x+1),float(y),0},{float(x+1),float(y+1),0},{float(x),float(y+1),0},floor);
                 if(d.terrain_shape==NCMM_SHAPE_WATER){material water{nullptr,{.15f,.32f,.40f},.22f,false,false,false,i};quad({float(x),float(y),.012f},{float(x+1),float(y),.012f},{float(x+1),float(y+1),.012f},{float(x),float(y+1),.012f},water);}}
             if(c.flags&NCMM_GFX_CEILING){material ceiling{nullptr,{.53f,.52f,.49f},1,false,false,false,i};quad({float(x),float(y),2.5f},{float(x+1),float(y),2.5f},{float(x+1),float(y+1),2.5f},{float(x),float(y+1),2.5f},ceiling,{0,0,-1});}
@@ -349,7 +353,11 @@ class renderer {
         // Camera-local forearms and hands; the item is generated directly from
         // its current tileset silhouette, including an extruded shaded edge.
         material skin{nullptr,{.70f,.48f,.34f},1,false,false,true,-1},sleeve{nullptr,{.20f,.25f,.28f},1,false,false,true,-1};
-        auto hud_quad=[&](vec a,vec b,vec c,vec d,material m){quad(local(a),local(b),local(c),local(d),m);};
+        const float hud_scale=std::min(1.0f,float(f.height)/f.width*1.6f);
+        auto hud_quad=[&](vec a,vec b,vec c,vec d,material m){
+            auto hud=[&](vec p){p.x*=hud_scale;p.y*=hud_scale;return local(p);};
+            quad(hud(a),hud(b),hud(c),hud(d),m);
+        };
         hud_quad({.18f,-.7f,.55f},{.43f,-.7f,.55f},{.32f,-.38f,.7f},{.19f,-.4f,.7f},sleeve);
         hud_quad({.19f,-.43f,.69f},{.34f,-.42f,.69f},{.35f,-.30f,.73f},{.20f,-.30f,.73f},skin);
         hud_quad({.01f,-.67f,.6f},{.14f,-.68f,.6f},{.27f,-.34f,.78f},{.17f,-.31f,.78f},sleeve);
