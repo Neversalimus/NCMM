@@ -331,11 +331,16 @@ bool graphics_scene_smoke()
         for(const auto &entry:geometry_cases){here.ter_set(sample,ter_id(entry.first));draw();
             require(graphics_hybrid_shape_counts[entry.second]>0,"reported_geometry_regression");
             capture_frame(std::string("first-person-")+entry.first+".bmp");}
-        const float sample_pitch=graphics_camera_pitch;graphics_camera_pitch=-.5f;
+        // The DLL owns the camera. Changing the Host's echo alone leaves the
+        // rendered view unchanged and can put these floor samples off screen.
+        const float sample_pitch=graphics_camera_pitch;
+        for(int n=0;n<4;++n)require(ncmm::handle_gameplay_action("ncmm.view.look_down"),"floor_sample_look_down_missing");
+        require(graphics_camera_pitch<-.4f&&graphics_camera_pitch>-.7f,"floor_samples_outside_camera_view");
         here.ter_set(sample,ter_id("t_water_dp"));here.furn_set(sample,furn_id("f_scrap_bridge"));draw();
         require(graphics_hybrid_shape_counts[NCMM_SHAPE_BRIDGE]>0,"scrap_bridge_not_horizontal");capture_frame("first-person-scrap-bridge.bmp");
         here.furn_set(sample,furn_id("f_null"));draw();capture_frame("first-person-water.bmp");
         here.ter_set(sample,ter_id("t_floor"));here.i_clear(sample);
+        here.ter_set(tripoint_bub_ms(sample.x(),sample.y(),1),ter_id("t_open_air"));here.invalidate_map_cache(1);
         item spilled_water(itype_id("water"),calendar::turn);spilled_water.charges=4;
         item &placed_water=here.add_item_or_charges(sample,spilled_water);
         require(!placed_water.is_null(),"spilled_water_fixture_not_placed");
@@ -349,7 +354,9 @@ bool graphics_scene_smoke()
         placed_water.set_item_temperature(units::from_celsius(-20));
         require(placed_water.made_of(phase_id::SOLID),"frozen_water_fixture_not_solid");draw();
         require(std::count_if(graphics_presentation_cells.begin(),graphics_presentation_cells.end(),[](const auto &v){return v.item_liquid!=NCMM_LIQ_NONE;})==warm_liquids-1,"frozen_water_kept_puddle_model");
-        capture_frame("first-person-frozen-water.bmp");here.i_clear(sample);graphics_camera_pitch=sample_pitch;
+        capture_frame("first-person-frozen-water.bmp");here.i_clear(sample);
+        for(int n=0;n<4;++n)require(ncmm::handle_gameplay_action("ncmm.view.look_up"),"floor_sample_look_restore_missing");
+        require(std::abs(graphics_camera_pitch-sample_pitch)<.0001f,"floor_sample_camera_not_restored");
         here.add_field(sample,field_type_str_id("fd_smoke").id(),3);draw();
         require(std::any_of(graphics_presentation_cells.begin(),graphics_presentation_cells.end(),[](const auto &v){return v.gas==NCMM_GAS_SMOKE&&v.field_intensity==3;}),"real_smoke_volume_missing");
         capture_frame("first-person-smoke-volume.bmp");
