@@ -160,8 +160,9 @@ bool graphics_scene_smoke()
             ++taxonomy[shape]; ++furniture_count;
         }
         std::ofstream audit( game_root() / "ncmm" / "first-person-shapes-audit.json" );
-        audit << "{\"terrain\":" << terrain_count << ",\"furniture\":" << furniture_count << ",\"shape_counts\":[";
-        for( size_t i = 0; i < taxonomy.size(); ++i ) { if( i ) audit << ','; audit << taxonomy[i]; }
+        // The game locale can insert thousands separators; JSON integers cannot contain them.
+        audit << "{\"terrain\":" << std::to_string( terrain_count ) << ",\"furniture\":" << std::to_string( furniture_count ) << ",\"shape_counts\":[";
+        for( size_t i = 0; i < taxonomy.size(); ++i ) { if( i ) audit << ','; audit << std::to_string( taxonomy[i] ); }
         audit << "]}\n";
         require( terrain_count > 500 && furniture_count > 200, "taxonomy_audit_incomplete" );
         for( const std::string action : { "open", "close", "examine", "smash", "ACTIONMENU", "TIMEOUT", "UNKNOWN" } ) {
@@ -256,7 +257,8 @@ bool graphics_scene_smoke()
     const bool success = reason == "ok";
     std::ofstream out( game_root() / "ncmm" / "first-person-smoke.json", std::ios::binary | std::ios::trunc );
     out << "{\"schema\":1,\"success\":" << ( success ? "true" : "false" )
-        << ",\"reason\":\"" << reason << "\",\"checks\":" << checks << ",\"sdl_frames\":" << frames << "}\n";
+        << ",\"reason\":\"" << reason << "\",\"checks\":" << std::to_string( checks )
+        << ",\"sdl_frames\":" << std::to_string( frames ) << "}\n";
     log_line( success ? NCMM_LOG_INFO : NCMM_LOG_ERROR,
               ( "First Person View actual engine smoke: " + reason ).c_str() );
     return success;
