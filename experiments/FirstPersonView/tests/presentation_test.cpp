@@ -42,6 +42,14 @@ int main(int argc,char **argv){try{
     std::set<uint64_t> doors;fixture room;room.details[target].terrain_shape=NCMM_SHAPE_DOOR_CLOSED;
     for(uint32_t m:{NCMM_MAT_WOOD,NCMM_MAT_METAL,NCMM_MAT_GLASS,NCMM_MAT_STONE,NCMM_MAT_CLOTH}){room.meta.cells[target].terrain_material=m;room.draw();doors.insert(digest(room.f));}
     require(doors.size()==5,"door materials produce distinct geometry and shading");
+    fixture interior;interior.meta.view.eye_height=1.18f;interior.meta.view.occupied_vehicle=1;
+    for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int i=(7+dy)*9+4+dx;
+        auto &d=interior.details[i];d.vehicle_group=1;d.mount_x=dx;d.mount_y=dy;d.vehicle_x=4.5f;d.vehicle_y=7.5f;d.vehicle_health=1;
+        d.vehicle_features=NCMM_VEH_FRAME|((dx||dy)?NCMM_VEH_DOOR|NCMM_VEH_WINDOW:NCMM_VEH_ROOF|NCMM_VEH_SEAT);
+        interior.cells[i].flags|=NCMM_GFX_VEHICLE|NCMM_GFX_CEILING;}
+    interior.draw();require(std::isfinite(interior.f.depth[320]),"roof-backed side panels retain headlining over the passenger");
+    interior.details[7*9+4].vehicle_features&=~NCMM_VEH_ROOF;
+    interior.draw();require(!std::isfinite(interior.f.depth[320]),"an actually roofless vehicle retains open sky");
     std::set<uint64_t> skies;fixture sky;
     for(uint32_t style=0;style<=NCMM_SKY_FUNGAL;++style){sky.meta.view.sky_style=style;sky.draw(.7f);skies.insert(digest(sky.f));}
     require(skies.size()==8,"dimension sky profiles are visually distinct");

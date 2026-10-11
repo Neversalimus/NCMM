@@ -197,14 +197,21 @@ bool graphics_scene_smoke()
         draw();
         require( graphics_resolved_vehicle_textures > 0, "vehicle_disappeared_after_toggle" );
         bool interior_checked=false;
+        const auto street_position=here.get_abs(center);
         for(const vpart_reference &part:car->get_all_parts())if(part.has_feature("SEAT")){
             const auto seat=part.pos_bub(here);const auto vp=here.veh_at(seat);
             if(!vp||!vp->part_with_feature("ROOF",false))continue;
             you.setpos(here,seat,false);here.board_vehicle(seat,&you);draw();
             require(you.in_vehicle&&graphics_presentation.occupied_vehicle>0&&graphics_presentation.eye_height<=1.18f,"occupied_vehicle_camera_or_ceiling_missing");
-            capture_frame("first-person-car-interior.bmp");here.unboard_vehicle(seat);you.setpos(here,center,false);interior_checked=true;break;
+            capture_frame("first-person-car-interior.bmp");
+            // Boarding can recenter the reality bubble. Never reuse the old
+            // bubble coordinate to unboard or restore the test avatar.
+            here.unboard_vehicle(you.pos_bub());you.setpos(here,here.get_bub(street_position),false);g->update_map(you);
+            require(!you.in_vehicle&&here.get_abs(you.pos_bub())==street_position,"vehicle_fixture_did_not_restore_absolute_position");
+            interior_checked=true;break;
         }
         require(interior_checked,"roofed_vehicle_seat_fixture_missing");
+        log_line(NCMM_LOG_INFO,"First person smoke checkpoint: roofed interior and bubble recenter restored.");
         here.destroy_vehicle( car );
         g->ter_view_p = center;
         // Audit all definitions without querying the identities of unseen cells.
@@ -217,6 +224,7 @@ bool graphics_scene_smoke()
             require(ncmm_graphics_presentation_policy::gas(ft.id.str(),true)!=NCMM_GAS_NONE,"game_gas_has_no_volume");++gas_count;
         }
         require(creature_count>500&&gas_count>5,"creature_or_gas_audit_incomplete");
+        log_line(NCMM_LOG_INFO,"First person smoke checkpoint: loaded creature and gas definitions audited.");
         std::array<size_t, NCMM_SHAPE_COUNT> taxonomy = {};
         for( const auto &ter : mapdata::terrain_data.get_all() ) {
             const auto traits = graphics_traits( ter, !ter.close.is_null() );
@@ -270,7 +278,11 @@ bool graphics_scene_smoke()
         require(graphics_aim.has_value()&&graphics_aim_name==target->disp_name(),"visible_aim_label_missing");
         require(ncmm::graphics_mouse_event(1,320,240,0,0,true),"aim_mouse_capture_failed");
         require(ncmm::graphics_click_action()=="fire","lmb_reach_action_not_routed");
-        const auto trajectory=target_handler::mode_reach(you,you.get_wielded_item());
+        // If aimed-click acceptance regresses, cancel the interactive targeting
+        // loop and fail immediately instead of waiting for the CI deadline.
+        SDL_Event cancel={};cancel.type=SDL_EVENT_KEY_DOWN;cancel.key.windowID=SDL_GetWindowID(get_sdl_window());cancel.key.key=SDLK_ESCAPE;cancel.key.scancode=SDL_SCANCODE_ESCAPE;
+        require(SDL_PushEvent(&cancel),"reach_guard_event_not_queued");
+        const auto trajectory=target_handler::mode_reach(you,you.get_wielded_item());SDL_FlushEvent(SDL_EVENT_KEY_DOWN);
         require(!trajectory.empty()&&trajectory.back()==target->pos_bub()&&!graphics_click_pending,"first_person_click_did_not_accept_normal_reach_trajectory");
         ncmm::graphics_mouse_event(2,320,240,0,0,true);
         capture_frame("first-person-aim-label.bmp");

@@ -501,7 +501,8 @@ class renderer {
         // CDDA places roof parts above the interior, with doors/windows in
         // the adjacent side mounts. Join only a directly visible roof span.
         if(!(d.vehicle_features&(NCMM_VEH_DOOR|NCMM_VEH_WINDOW)))return false;
-        for(int side:{-1,1}){const int n=vehicle_neighbor(i,d.mount_x,d.mount_y+side);
+        for(int dx=-1;dx<=1;++dx)for(int dy=-1;dy<=1;++dy){if(!dx&&!dy)continue;
+            const int n=vehicle_neighbor(i,d.mount_x+dx,d.mount_y+dy);
             if(n>=0&&(s.details[n].vehicle_features&NCMM_VEH_ROOF))return true;}
         return false;
     }
@@ -548,9 +549,10 @@ class renderer {
             std::array<vec,4> top{point(lx,ly,1.57f),point(hx,ly,1.57f),point(hx,hy,1.57f),point(lx,hy,1.57f)};
             const bool inside=metadata&&metadata->view.occupied_vehicle==d.vehicle_group;
             if(!inside)solid_quad(top[0],top[1],top[2],top[3],body);
-            if(!inside||(flags&NCMM_VEH_ROOF)){
+            {
                 material headliner{nullptr,{.32f,.32f,.29f},1,false,false,false,i,surface::cloth};
-                // Real ROOF parts retain a ceiling, even though their outside shell is hidden.
+                // Roof-backed door/windshield spans need headlining too; otherwise
+                // hiding the exterior shell leaves sky between the real roof and glazing.
                 solid_quad(lower[3],lower[2],lower[1],lower[0],inside?headliner:body,{0,0,-1});
                 if(inside){material rib=headliner;rib.color=rib.color*.70f;
                     box(center,{-.48f,-.018f,1.44f},{.48f,.018f,1.46f},rib,yaw);}}
