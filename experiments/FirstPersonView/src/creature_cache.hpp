@@ -21,7 +21,7 @@ inline uint64_t appearance_key(const ncmm_graphics_creature_v1 &s,uint64_t tiles
     for(float value:{s.liters,s.kilograms,s.height,s.width})add(&value,sizeof(value));
     return h;
 }
-struct asset {model geometry;std::unique_ptr<impostor_atlas> atlas;double generation_ms=0;size_t bytes()const{return sizeof(asset)+geometry.bytes()+(atlas?sizeof(impostor_atlas):0);}};
+struct asset {model geometry;std::unique_ptr<impostor_atlas> atlas;double generation_ms=0;size_t bytes()const{return sizeof(asset)+geometry.bytes()+(atlas?atlas->bytes():0);}};
 struct cache_statistics {size_t bytes=0,peak_bytes=0,entries=0,pending=0;uint64_t generated=0,hits=0,misses=0,evictions=0,cancelled=0,failures=0;double last_generation_ms=0,total_generation_ms=0,max_generation_ms=0;std::array<uint64_t,size_t(anatomy::count)> anatomy_counts{};std::array<uint64_t,5> fallback_counts{};};
 class cache {
 public:

@@ -1,8 +1,8 @@
-    image *creature_texture(const creature::skin &skin,bool back){
-        const auto *pixels=back?skin.back.data():skin.front.data();
-        const sprite_key key{reinterpret_cast<uintptr_t>(pixels),creature::skin::side,creature::skin::side,creature::skin::side};
-        auto it=images.find(key);if(it==images.end()){image img;img.data={sizeof(ncmm_graphics_sprite_v2),creature::skin::side,creature::skin::side,creature::skin::side,pixels};
-            img.prepared=pixels;img.right=img.bottom=creature::skin::side;it=images.emplace(key,std::move(img)).first;}
+    image *creature_texture(const creature::skin &skin,uint8_t surface){
+        const auto *pixels=skin.pixels(surface).data();
+        const sprite_key key{reinterpret_cast<uintptr_t>(pixels),skin.width,skin.height,skin.width};
+        auto it=images.find(key);if(it==images.end()){image img;img.data={sizeof(ncmm_graphics_sprite_v2),skin.width,skin.height,skin.width,pixels};
+            img.prepared=pixels;img.creature_skin=&skin;img.creature_surface=surface;img.right=int(skin.width);img.bottom=int(skin.height);it=images.emplace(key,std::move(img)).first;}
         return &it->second;
     }
     void creature_mesh(const creature::model &model,const creature::pose_state &pose,int lod,vec origin,int cell,vec scale={1,1,1},bool fallback=false,bool targetable=true){
@@ -18,7 +18,7 @@
         for(const auto &face:mesh.faces){const auto a=face.vertices[0],b=face.vertices[1],c=face.vertices[2];
             const vec normal=normalize(cross(positions[b]-positions[a],positions[c]-positions[a]));if(dot(normal,eye-positions[a])<=0)continue;
             material mat;mat.cell=cell;mat.creature=targetable;mat.creature_visual=true;mat.smooth=true;mat.color={.38f,.43f,.28f};
-            const auto &v0=mesh.vertices[a];if(!fallback)mat.texture=creature_texture(model.colors.skins[v0.material],v0.back!=0);
+            const auto &v0=mesh.vertices[a];if(!fallback)mat.texture=creature_texture(model.colors.skins[v0.material],v0.back);
             if(model.type.flags&NCMM_CR_MECHANICAL)mat.finish=surface::metal;
             else if(model.type.flags&(NCMM_CR_CHITIN|NCMM_CR_SCALES))mat.finish=surface::resin;
             else if(model.type.flags&NCMM_CR_FUR)mat.finish=surface::cloth;
@@ -33,6 +33,7 @@
         const int direction=creature::impostor_direction(angle),state=creature::impostor_pose(pose);
         const auto &sprite=asset.atlas->frames[state*creature::impostor_atlas::directions+direction];
         material mat;mat.cell=cell;mat.creature=targetable;mat.creature_visual=true;mat.cutout=true;mat.impostor=&sprite;mat.creature_yaw=pose.heading;mat.silhouette=lod==3;
+        mat.silhouette=false; // Even a tiny LOD3 retains observed color markings.
         mat.color={asset.geometry.colors.skins[1].mean.x,asset.geometry.colors.skins[1].mean.y,asset.geometry.colors.skins[1].mean.z};
         const vec right=gpu_sink?vec{1,0,0}:vec{-sy,cy,0};origin=origin+vec{pose.offset.x,pose.offset.y,pose.offset.z};
         if(gpu_sink){mat.gpu_billboard=true;mat.gpu_pivot=origin;}

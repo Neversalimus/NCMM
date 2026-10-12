@@ -16,16 +16,16 @@ int main(){int n=0;auto check=[&](bool v){++n;if(!v){std::fprintf(stderr,"LOD ch
     // impostor fail even though its silhouette and pixel counts are valid.
     for(size_t region=0;region<m.colors.skins.size();++region){auto &skin=m.colors.skins[region];
         const uint32_t color=region==size_t(first_person::creature::region::head)?0xff0000ff:0x0000ffff;
-        skin.front.fill(color);skin.back.fill(color);}
+        skin.fill(color);}
     for(int direction=0;direction<8;++direction){const auto sprite=bake_impostor(m,direction,0);float head_x=0;int head_pixels=0;
-        for(int y=0;y<impostor::height;++y)for(int x=0;x<impostor::width;++x)if(sprite.color[y*impostor::width+x]==0xff0000ff){head_x+=x+.5f;++head_pixels;}
-        check(head_pixels>0);head_x=head_x/head_pixels-impostor::width*.5f;
+        for(int y=0;y<sprite.height;++y)for(int x=0;x<sprite.width;++x)if(sprite.color[size_t(y)*sprite.width+x]==0xff0000ff){head_x+=x+.5f;++head_pixels;}
+        check(head_pixels>0);head_x=head_x/head_pixels-sprite.width*.5f;
         if(direction==0||direction==4)check(std::abs(head_x)<1);
         else check(direction<4?head_x>1:head_x< -1);
     }
     pose_state prone;prone.prone=true;check(impostor_pose(prone)==6);prone.death=1;check(impostor_pose(prone)==5);
     std::strcpy(c.bodytype,"human");m=builder{}.generate(classify(c),sprite{});check(bake_atlas(m,*atlas));
-    for(const auto &f:atlas->frames){for(int y=0;y<impostor::height;++y){check(!(f.color[y*impostor::width]&255));check(!(f.color[(y+1)*impostor::width-1]&255));}}
+    for(const auto &f:atlas->frames){for(int y=0;y<f.height;++y){check(!(f.color[size_t(y)*f.width]&255));check(!(f.color[size_t(y+1)*f.width-1]&255));}}
     std::atomic<uint64_t> epoch{2};check(!bake_atlas(m,*atlas,&epoch,1));
     std::printf("Creature LOD: %d checks PASS\n",n);
 }

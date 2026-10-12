@@ -33,7 +33,7 @@ jobs:
         run: cmake -S experiments/FirstPersonView -B fp-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
       - name: Build sanitizer geometry and shared-module tests
         if: runner.os == 'Linux'
-        run: cmake --build fp-sanitize --parallel 2 --target first_person_optimization_tests first_person_hybrid_module_tests first_person_creature_semantics_tests first_person_creature_mesh_tests first_person_creature_animation_tests first_person_creature_lod_tests first_person_creature_cache_tests first_person_creature_render_tests first_person_creature_module_tests first_person_gpu_contract_tests first_person_gpu_geometry_tests first_person_gpu_module_tests
+        run: cmake --build fp-sanitize --parallel 2 --target first_person_optimization_tests first_person_hybrid_module_tests first_person_creature_semantics_tests first_person_creature_mesh_tests first_person_creature_appearance_tests first_person_creature_animation_tests first_person_creature_lod_tests first_person_creature_cache_tests first_person_creature_render_tests first_person_creature_module_tests first_person_gpu_contract_tests first_person_gpu_geometry_tests first_person_gpu_module_tests
       - name: ASan and UBSan camera, volume and DLL lifecycle coverage
         if: runner.os == 'Linux'
         run: ctest --test-dir fp-sanitize -R "optimization|hybrid_module|creature_|gpu_" --output-on-failure

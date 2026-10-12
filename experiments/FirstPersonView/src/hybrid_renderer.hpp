@@ -72,6 +72,7 @@ struct image {
     int left=0,top=0,right=0,bottom=0;std::vector<uint32_t> filtered,mip;int mip_width=0,mip_height=0;
     float axis_angle=0,elongation=1;
     const uint32_t *prepared=nullptr; // pre-analysed, owned by a retained creature asset
+    const creature::skin *creature_skin=nullptr;uint8_t creature_surface=0;
     bool valid()const{return data.rgba&&data.width&&data.height;}
     void analyse(){
         if(!valid())return;
@@ -98,8 +99,9 @@ struct image {
             for(int dy=0;dy<2;++dy)for(int dx=0;dx<2;++dx){auto p=filtered[std::min(uint32_t(y*2+dy),data.height-1)*data.width+std::min(uint32_t(x*2+dx),data.width-1)];c=c+unpack(p)*0.25f;a+=(p&255);}
             mip[size_t(y)*mip_width+x]=pack(c,a/4);}
     }
-    uint32_t sample(float u,float v,bool coarse=false)const{
+    uint32_t sample(float u,float v,bool coarse=false,float footprint=0)const{
         if(!valid())return 0xffffffffu;
+        if(creature_skin)return creature::sample_skin(*creature_skin,creature_surface,u,v,footprint);
         const uint32_t *p=coarse&&!mip.empty()?mip.data():prepared?prepared:filtered.data();
         int w=coarse&&!mip.empty()?mip_width:int(data.width),h=coarse&&!mip.empty()?mip_height:int(data.height),pitch=w;
         float tx=clamp(u)*(w-1),ty=clamp(v)*(h-1);int x=int(tx),y=int(ty),x1=std::min(x+1,w-1),y1=std::min(y+1,h-1);float fx=tx-x,fy=ty-y;
@@ -313,6 +315,10 @@ class renderer {
         const auto flat_light=t.flat_light,flat_color=t.flat_color;
         const int xmin=t.xmin,xmax=t.xmax,ymin=t.ymin,ymax=t.ymax;
         const float inv=t.inv,dw0=t.dw0,dw1=t.dw1;const bool coarse=t.coarse,detailed=t.detailed;
+        const float dw0y=(p[2].x-p[1].x)*inv,dw1y=(p[0].x-p[2].x)*inv;
+        const float dux=dw0*(uu[0]-uu[2])+dw1*(uu[1]-uu[2]),duy=dw0y*(uu[0]-uu[2])+dw1y*(uu[1]-uu[2]);
+        const float dvx=dw0*(vv[0]-vv[2])+dw1*(vv[1]-vv[2]),dvy=dw0y*(vv[0]-vv[2])+dw1y*(vv[1]-vv[2]);
+        const float dzx=dw0*(iz[0]-iz[2])+dw1*(iz[1]-iz[2]),dzy=dw0y*(iz[0]-iz[2])+dw1y*(iz[1]-iz[2]);
         auto edge=[](vec a,vec b,float x,float y){return(b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);};
         // Interleaved strips keep all workers busy when the expensive floor or
         // view model occupies only the bottom of the viewport. Each pixel still
@@ -339,7 +345,7 @@ class renderer {
                 if(t.m.smooth){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;pixel_light=v[0].light*a+v[1].light*b+v[2].light*cw;}
                 if(t.m.impostor){const auto &sprite=*t.m.impostor;
                     const float u=(w0*uu[0]+w1*uu[1]+w2*uu[2])*z,vv0=(w0*vv[0]+w1*vv[1]+w2*vv[2])*z;
-                    const size_t at=size_t(std::clamp(int(vv0*creature::impostor::height),0,creature::impostor::height-1))*creature::impostor::width+std::clamp(int(u*creature::impostor::width),0,creature::impostor::width-1);
+                    const size_t at=size_t(std::clamp(int(vv0*sprite.height),0,sprite.height-1))*sprite.width+std::clamp(int(u*sprite.width),0,sprite.width-1);
                     if(!(sprite.color[at]&255))continue;
                     z+=float(sprite.depth[at])*sprite.span/32760*cp;
                     if(z<.08f||z>f.depth[k]+.0002f)continue;
@@ -347,7 +353,10 @@ class renderer {
                     const auto n=creature::decode_normal(sprite.normal[at]);const float ca=std::cos(t.m.creature_yaw),sa=std::sin(t.m.creature_yaw);
                     pixel_light=light(t.m.cell,{ca*n.x-sa*n.y,sa*n.x+ca*n.y,n.z});
                 }
-                if(t.m.texture&&t.m.texture->valid()){auto px=t.m.texture->sample((w0*uu[0]+w1*uu[1]+w2*uu[2])*z,(w0*vv[0]+w1*vv[1]+w2*vv[2])*z,coarse);float a=float(px&255)/255;
+                if(t.m.texture&&t.m.texture->valid()){const float u=(w0*uu[0]+w1*uu[1]+w2*uu[2])*z,vv0=(w0*vv[0]+w1*vv[1]+w2*vv[2])*z;
+                    float footprint=0;if(t.m.texture->creature_skin){const float width=float(t.m.texture->data.width),height=float(t.m.texture->data.height);
+                        footprint=z*std::max({std::abs(dux-u*dzx)*width,std::abs(duy-u*dzy)*width,std::abs(dvx-vv0*dzx)*height,std::abs(dvy-vv0*dzy)*height});}
+                    auto px=t.m.texture->sample(u,vv0,coarse,footprint);float a=float(px&255)/255;
                     // Low-opacity glows and tile outlines must not become a large
                     // floating view model or write opaque world depth.
                     if(t.m.cutout&&a<(t.m.overlay?.55f:.25f))continue;

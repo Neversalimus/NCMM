@@ -74,7 +74,8 @@ class backend {
                 uniform.impostor[0]=m.impostor_span;uniform.impostor[1]=m.impostor_yaw;
                 SDL_PushGPUFragmentUniformData(commands,1,&uniform,sizeof(uniform));
                 SDL_GPUTextureSamplerBinding textures[3]{};const uint64_t keys[]={m.texture_key,m.normal_key,m.depth_key};
-                for(int i=0;i<3;++i){const auto *t=resources_.texture(keys[i]);textures[i].texture=t?t->texture:white_;textures[i].sampler=(i||m.flags&NCMM_GPU_IMPOSTOR)?programs_.nearest:programs_.linear;}
+                for(int i=0;i<3;++i){const auto *t=resources_.texture(keys[i]);textures[i].texture=t?t->texture:white_;
+                    textures[i].sampler=i?programs_.nearest:(m.flags&NCMM_GPU_CREATURE_VISUAL)?programs_.pixel_art:programs_.linear;}
                 SDL_BindGPUFragmentSamplers(pass,0,textures,3);SDL_DrawGPUIndexedPrimitives(pass,range.count,b.count,range.first,0,0);
                 ++metrics_.draw_calls;metrics_.triangles+=uint64_t(range.count/3)*b.count;
             }}

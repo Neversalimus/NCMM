@@ -33,10 +33,10 @@ class programs {
 public:
     SDL_GPUGraphicsPipeline *opaque=nullptr,*transparent=nullptr,*held=nullptr,*sky=nullptr,*celestial=nullptr,*weather=nullptr,*volume=nullptr,*compose=nullptr;
     SDL_GPUComputePipeline *shadow=nullptr,*count=nullptr;
-    SDL_GPUSampler *linear=nullptr,*nearest=nullptr;
+    SDL_GPUSampler *linear=nullptr,*nearest=nullptr,*pixel_art=nullptr;
     void clear(){if(device_){for(auto *p:{opaque,transparent,held,sky,celestial,weather,volume,compose})if(p)SDL_ReleaseGPUGraphicsPipeline(device_,p);
-            for(auto *p:{shadow,count})if(p)SDL_ReleaseGPUComputePipeline(device_,p);if(linear)SDL_ReleaseGPUSampler(device_,linear);if(nearest)SDL_ReleaseGPUSampler(device_,nearest);}
-        opaque=transparent=held=sky=celestial=weather=volume=compose=nullptr;shadow=count=nullptr;linear=nearest=nullptr;device_=nullptr;}
+            for(auto *p:{shadow,count})if(p)SDL_ReleaseGPUComputePipeline(device_,p);if(linear)SDL_ReleaseGPUSampler(device_,linear);if(nearest)SDL_ReleaseGPUSampler(device_,nearest);if(pixel_art)SDL_ReleaseGPUSampler(device_,pixel_art);}
+        opaque=transparent=held=sky=celestial=weather=volume=compose=nullptr;shadow=count=nullptr;linear=nearest=pixel_art=nullptr;device_=nullptr;}
     void abandon(){device_=nullptr;clear();}
     bool create(device_context &context){if(opaque)return true;device_=context.device();
 #define NCMM_GPU_SHADER(NAME,STAGE,SAMPLERS,STORAGE,UNIFORMS) context.shader(shaders::NAME##_spv,sizeof(shaders::NAME##_spv),shaders::NAME##_dxil,sizeof(shaders::NAME##_dxil),STAGE,SAMPLERS,STORAGE,UNIFORMS)
@@ -58,7 +58,8 @@ public:
         SDL_GPUSamplerCreateInfo sampler{};sampler.min_filter=sampler.mag_filter=SDL_GPU_FILTER_LINEAR;sampler.mipmap_mode=SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
         sampler.address_mode_u=sampler.address_mode_v=sampler.address_mode_w=SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;sampler.max_lod=10;linear=SDL_CreateGPUSampler(device_,&sampler);
         sampler.min_filter=sampler.mag_filter=SDL_GPU_FILTER_NEAREST;sampler.mipmap_mode=SDL_GPU_SAMPLERMIPMAPMODE_NEAREST;nearest=SDL_CreateGPUSampler(device_,&sampler);
-        bool ok=opaque&&transparent&&held&&sky&&celestial&&weather&&volume&&compose&&shadow&&count&&linear&&nearest;
+        sampler.min_filter=SDL_GPU_FILTER_LINEAR;sampler.mag_filter=SDL_GPU_FILTER_NEAREST;sampler.mipmap_mode=SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;pixel_art=SDL_CreateGPUSampler(device_,&sampler);
+        bool ok=opaque&&transparent&&held&&sky&&celestial&&weather&&volume&&compose&&shadow&&count&&linear&&nearest&&pixel_art;
         if(!ok){if(context.reason().empty())context.fail("create GPU render programs");clear();}return ok;
     }
 };

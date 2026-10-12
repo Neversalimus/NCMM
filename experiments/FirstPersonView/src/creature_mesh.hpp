@@ -1,68 +1,6 @@
 #pragma once
-#include "creature_semantics.hpp"
-#include <array>
-#include <vector>
-#include <limits>
+#include "creature_appearance.hpp"
 namespace first_person::creature {
-constexpr float pi=3.14159265358979323846f;
-struct point {
-    float x=0,y=0,z=0;
-    point operator+(point b)const{return {x+b.x,y+b.y,z+b.z};}
-    point operator-(point b)const{return {x-b.x,y-b.y,z-b.z};}
-    point operator*(float f)const{return {x*f,y*f,z*f};}
-};
-inline float dot(point a,point b){return a.x*b.x+a.y*b.y+a.z*b.z;}
-inline point cross(point a,point b){return {a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x};}
-inline point unit(point p){const float n=std::sqrt(dot(p,p));return n>1e-7f?p*(1/n):point{0,0,1};}
-inline point rgb(uint32_t c){return {float(c>>24)/255,float((c>>16)&255)/255,float((c>>8)&255)/255};}
-inline uint32_t rgba(point c,uint32_t a=255){return (uint32_t(std::clamp(c.x,0.f,1.f)*255)<<24)|(uint32_t(std::clamp(c.y,0.f,1.f)*255)<<16)|(uint32_t(std::clamp(c.z,0.f,1.f)*255)<<8)|a;}
-inline uint64_t hash_bytes(uint64_t h,const void *data,size_t size){auto p=static_cast<const unsigned char *>(data);for(size_t n=0;n<size;++n)h=(h^p[n])*1099511628211ull;return h;}
-struct sprite {
-    uint32_t width=0,height=0;
-    std::vector<uint32_t> pixels;
-    bool valid()const{return width&&height&&pixels.size()==size_t(width)*height;}
-    static sprite copy(const ncmm_graphics_sprite_v2 &s){
-        sprite r;if(!s.rgba||!s.width||!s.height||s.width>512||s.height>512||s.pitch_pixels<s.width||s.pitch_pixels>4096)return r;
-        r.width=std::min(s.width,64u);r.height=std::min(s.height,64u);r.pixels.resize(size_t(r.width)*r.height);
-        for(uint32_t y=0;y<r.height;++y)for(uint32_t x=0;x<r.width;++x)r.pixels[y*r.width+x]=s.rgba[size_t(y*s.height/r.height)*s.pitch_pixels+x*s.width/r.width];
-        return r;
-    }
-};
-enum class region : uint8_t { head, torso, lower, limb, appendage, detail, count };
-struct skin {
-    static constexpr int side=16;
-    std::array<uint32_t,side*side> front{},back{};
-    point mean{.38f,.43f,.28f};
-};
-struct appearance {std::array<skin,size_t(region::count)> skins;float silhouette_ratio=1;bool sourced=false;uint64_t fingerprint=0;};
-inline appearance extract(const sprite &s,anatomy kind){
-    appearance a;
-    if(!s.valid()){for(auto &t:a.skins){t.front.fill(rgba(t.mean));t.back=t.front;}return a;}
-    a.fingerprint=hash_bytes(1469598103934665603ull,s.pixels.data(),s.pixels.size()*4);
-    int left=int(s.width),right=0,top=int(s.height),bottom=0;point all{};int count=0;
-    for(uint32_t y=0;y<s.height;++y)for(uint32_t x=0;x<s.width;++x){const auto p=s.pixels[y*s.width+x];if((p&255)<96)continue;
-        left=std::min(left,int(x));right=std::max(right,int(x)+1);top=std::min(top,int(y));bottom=std::max(bottom,int(y)+1);all=all+rgb(p);++count;}
-    if(!count){for(auto &t:a.skins){t.front.fill(rgba(t.mean));t.back=t.front;}return a;}
-    a.sourced=true;a.silhouette_ratio=float(right-left)/std::max(1,bottom-top);all=all*(1.f/count);
-    const bool vertical=kind==anatomy::humanoid||kind==anatomy::robot;
-    // Each anatomical region has its own crop; alpha is filled by the regional
-    // palette, never cut out of the solid organism. Unseen surfaces use only a
-    // subdued regional pattern, without inventing faces on the back of a head.
-    const std::array<std::array<float,4>,6> upright{{{.25f,0,.75f,.25f},{.22f,.24f,.78f,.60f},{.20f,.62f,.80f,1},{0,.27f,.25f,.70f},{0,.65f,1,1},{.25f,.05f,.75f,.20f}}};
-    const std::array<std::array<float,4>,6> horizontal{{{.63f,0,1,.55f},{.15f,.15f,.75f,.75f},{.12f,.52f,.82f,1},{0,.50f,1,1},{0,.15f,.35f,.65f},{.70f,.10f,1,.35f}}};
-    for(size_t n=0;n<a.skins.size();++n){auto &t=a.skins[n];const auto box=(vertical?upright:horizontal)[n];
-        int x0=left+int(box[0]*(right-left)),x1=left+int(box[2]*(right-left)),y0=top+int(box[1]*(bottom-top)),y1=top+int(box[3]*(bottom-top));
-        point mean{};int samples=0;
-        for(int y=y0;y<std::max(y0+1,y1);++y)for(int x=x0;x<std::max(x0+1,x1);++x){const auto p=s.pixels[std::min(size_t(y),size_t(s.height-1))*s.width+std::min(x,int(s.width-1))];if((p&255)>=96){mean=mean+rgb(p);++samples;}}
-        t.mean=samples?mean*(1.f/samples):all;
-        for(int y=0;y<skin::side;++y)for(int x=0;x<skin::side;++x){const int sx=std::clamp(x0+x*std::max(1,x1-x0)/skin::side,0,int(s.width)-1),sy=std::clamp(y0+y*std::max(1,y1-y0)/skin::side,0,int(s.height)-1);
-            const auto p=s.pixels[sy*s.width+sx];const point c=(p&255)>=96?rgb(p):t.mean;
-            t.front[y*skin::side+x]=rgba(c);
-            t.back[y*skin::side+x]=rgba(t.mean*.88f+c*.12f);
-        }
-    }
-    return a;
-}
 enum class motion : uint8_t { root, body, head, thigh, shin, arm, forearm, wing, rotor, tail, segment, tentacle, fixed };
 struct bone {int16_t parent=-1;point origin{};motion role=motion::fixed;float phase=0;};
 struct mesh_vertex {point position,normal;float u=0,v=0;uint8_t joint=0,material=0,back=0;};
@@ -71,7 +9,7 @@ struct mesh {std::vector<mesh_vertex> vertices;std::vector<face> faces;};
 struct model {
     phenotype type;appearance colors;std::vector<bone> bones;std::array<mesh,2> lod;
     float radius=1;point low{},high{};
-    size_t bytes()const{size_t n=sizeof(*this)+bones.capacity()*sizeof(bone);for(const auto &m:lod)n+=m.vertices.capacity()*sizeof(mesh_vertex)+m.faces.capacity()*sizeof(face);return n;}
+    size_t bytes()const{size_t n=sizeof(*this)+colors.bytes()+bones.capacity()*sizeof(bone);for(const auto &m:lod)n+=m.vertices.capacity()*sizeof(mesh_vertex)+m.faces.capacity()*sizeof(face);return n;}
 };
 struct part {point start,end,radius;uint8_t joint=0;region material=region::torso;bool angular=false;};
 class builder {
@@ -91,7 +29,7 @@ class builder {
         link(start,knee,radius,radius*.90f,upper,region::limb,result.type.kind==anatomy::robot);
         auto lower=joint(knee,upper,arm?motion::forearm:motion::shin,phase);
         link(knee,foot,radius*.75f,radius*.66f,lower,arm?region::limb:region::lower,result.type.kind==anatomy::robot);
-        ellipsoid(foot+point{radius*.30f,0,0},{radius*1.20f,radius*.80f,radius*.65f},lower,arm?region::head:region::lower);
+        ellipsoid(foot+point{radius*.30f,0,0},{radius*1.20f,radius*.80f,radius*.65f},lower,arm?region::hand:region::foot);
     }
     void build_parts(){const auto &p=result.type;const float h=p.height,w=p.width,l=p.length,b=p.bulk;
         const auto root=joint({},-1,motion::root);const auto body=joint({0,0,h*.50f},root,motion::body);
@@ -119,7 +57,7 @@ class builder {
             for(int end:{-1,1})for(int side:{-1,1}){float x=end*l*.24f;float spread=reptile?.48f:.28f;
                 limb({x,side*w*.25f,h*.56f},{x-end*l*.06f,side*w*spread,h*.28f},{x+.02f*l,side*w*(spread+.025f),h*.045f},w*(reptile?.095f:.105f),body,(end==side?0:pi));}
             auto tail=joint({-l*.30f,0,h*.62f},body,motion::tail);
-            link({-l*.30f,0,h*.62f},{-l*.62f,0,h*(reptile?.24f:.80f)},w*.045f,w*.06f,tail,region::appendage);
+            link({-l*.30f,0,h*.62f},{-l*.62f,0,h*(reptile?.24f:.80f)},w*.045f,w*.06f,tail,region::tail);
         }else if(p.kind==anatomy::arachnid||p.kind==anatomy::insect||p.kind==anatomy::centipede||(robot&&p.legs>=6)){
             const bool spider=p.kind==anatomy::arachnid||(robot&&p.legs==8);int segments=p.kind==anatomy::centipede||(robot&&p.legs>=12)?8:spider?2:3;
             for(int i=0;i<segments;++i){float x=(float(i)/std::max(1,segments-1)-.5f)*l*.60f;
@@ -143,15 +81,15 @@ class builder {
             link({l*.16f,0,h*.65f},{l*.21f,0,h*.85f},w*.11f,w*.10f,head,region::head);
             if(!(p.flags&NCMM_CR_NOHEAD)){ellipsoid({l*.24f,0,h*.86f},{l*.13f,w*.18f,h*.13f},head,region::head);link({l*.31f,0,h*.84f},{l*.48f,0,h*.81f},w*.06f,w*.035f,head,region::detail,true);}
             for(int side:{-1,1})limb({-.04f*l,side*w*.14f,h*.36f},{.07f*l,side*w*.16f,h*.17f},{.13f*l,side*w*.20f,h*.035f},w*.035f,body,side>0?0:pi);
-            auto tail=joint({-l*.25f,0,h*.40f},body,motion::tail);ellipsoid({-l*.39f,0,h*.39f},{l*.22f,w*.22f,h*.05f},tail,region::appendage);
+            auto tail=joint({-l*.25f,0,h*.40f},body,motion::tail);ellipsoid({-l*.39f,0,h*.39f},{l*.22f,w*.22f,h*.05f},tail,region::tail);
         }else if(p.kind==anatomy::serpent){
             int parent=body;for(int i=0;i<9;++i){const float t=float(i)/8,x=(.5f-t)*l*.90f;const auto seg=joint({x,0,h*.48f},parent,motion::segment,t*5);parent=seg;
                 float radius=h*(.48f-.34f*t);ellipsoid({x,0,h*.48f},{l*.085f,radius,radius},seg,i==0?region::head:region::torso);}
         }else if(p.kind==anatomy::fish){
             ellipsoid({.02f*l,0,h*.5f},{l*.37f,w*.27f,h*.46f},body,region::torso);
             auto head=joint({l*.23f,0,h*.5f},body,motion::head);ellipsoid({l*.29f,0,h*.52f},{l*.19f,w*.28f,h*.38f},head,region::head);
-            auto tail=joint({-l*.25f,0,h*.5f},body,motion::tail);ellipsoid({-l*.44f,0,h*.5f},{l*.18f,w*.055f,h*.52f},tail,region::appendage);
-            for(int side:{-1,1}){auto fin=joint({.01f*l,side*w*.20f,h*.40f},body,motion::wing,side*pi);ellipsoid({-.05f*l,side*w*.36f,h*.30f},{l*.13f,w*.24f,h*.04f},fin,region::appendage);}
+            auto tail=joint({-l*.25f,0,h*.5f},body,motion::tail);ellipsoid({-l*.44f,0,h*.5f},{l*.18f,w*.055f,h*.52f},tail,region::tail);
+            for(int side:{-1,1}){auto fin=joint({.01f*l,side*w*.20f,h*.40f},body,motion::wing,side*pi);ellipsoid({-.05f*l,side*w*.36f,h*.30f},{l*.13f,w*.24f,h*.04f},fin,region::wing);}
         }else if(p.kind==anatomy::amorphous){
             ellipsoid({0,0,h*.40f},{l*.41f,w*.43f,h*.43f},body,region::torso);
             for(int n=0;n<6;++n){float a=n*pi/3;point rootpos{std::cos(a)*l*.22f,std::sin(a)*w*.23f,h*.22f};auto limb_id=joint(rootpos,body,motion::tentacle,a);
@@ -173,8 +111,8 @@ class builder {
         }
         if(p.kind==anatomy::bird||(p.flags&NCMM_CR_FLIES&&p.kind!=anatomy::amorphous&&p.kind!=anatomy::robot)){
             for(int side:{-1,1}){auto wing=joint({0,side*w*.18f,h*.65f},body,motion::wing,side>0?0:pi);
-                ellipsoid({-.1f*l,side*w*.38f,h*.62f},{l*.34f,w*.28f,h*.06f},wing,region::appendage);
-                if(p.flags&NCMM_CR_FLIES)ellipsoid({-.18f*l,side*w*.62f,h*.63f},{l*.28f,w*.23f,h*.04f},wing,region::appendage);}
+                ellipsoid({-.1f*l,side*w*.38f,h*.62f},{l*.34f,w*.28f,h*.06f},wing,region::wing);
+                if(p.flags&NCMM_CR_FLIES)ellipsoid({-.18f*l,side*w*.62f,h*.63f},{l*.28f,w*.23f,h*.04f},wing,region::wing);}
         }
     }
     void tessellate(mesh &m,const part &p,int quality){
@@ -186,26 +124,49 @@ class builder {
             point q{std::sin(a)*std::cos(angle),std::sin(a)*std::sin(angle),std::cos(a)};
             point pos=center+x*(q.x*p.radius.x)+y*(q.y*p.radius.y)+z*(q.z*p.radius.z);
             point normal=unit(x*(q.x/std::max(.001f,p.radius.x))+y*(q.y/std::max(.001f,p.radius.y))+z*(q.z/std::max(.001f,p.radius.z)));
-            // Front/back are geometric (+X/-X), independent of camera. Each part
-            // maps only its regional crop, preserving colored clothing and markings.
-            m.vertices.push_back({pos,normal,std::clamp(.5f+normal.y*.5f,0.f,1.f),v,p.joint,uint8_t(p.material),uint8_t(normal.x<-.1f)});
+            m.vertices.push_back({pos,normal,0,0,p.joint,uint8_t(p.material),0});
         }}
         for(int row=0;row<rings;++row)for(int col=0;col<sides;++col){uint32_t a=offset+row*(sides+1)+col,b=a+1,c=a+sides+1,d=c+1;
             if(row>0)m.faces.push_back({{a,c,b}});
             if(row<rings-1)m.faces.push_back({{b,c,d}});
         }
     }
+    struct bounds {point low{1e8f,1e8f,1e8f},high{-1e8f,-1e8f,-1e8f};};
+    void project_materials(){
+        std::array<bounds,size_t(region::count)> regions;
+        for(const auto &v:result.lod[0].vertices){const auto q=v.position+joint_world[v.joint];auto &b=regions[v.material];
+            b.low={std::min(b.low.x,q.x),std::min(b.low.y,q.y),std::min(b.low.z,q.z)};b.high={std::max(b.high.x,q.x),std::max(b.high.y,q.y),std::max(b.high.z,q.z)};}
+        // Orthographic charts use rest-space positions, not normals as UVs.
+        // All adjoining segments of a region share physical bounds, so bends
+        // cannot restart the face/cloth image on each ellipsoid or limb bone.
+        for(auto &m:result.lod){mesh projected;projected.faces.reserve(m.faces.size());
+            std::vector<std::array<int,skin::surfaces>> remap(m.vertices.size());for(auto &r:remap)r.fill(-1);
+            for(const auto &f:m.faces){const auto n=m.vertices[f.vertices[0]].normal+m.vertices[f.vertices[1]].normal+m.vertices[f.vertices[2]].normal;
+                const uint8_t surface=result.colors.profile?(std::abs(n.y)>=std::abs(n.x)?0:n.x<0?1:3):
+                    (std::abs(n.x)>=std::abs(n.y)?(n.x>=0?0:1):(n.y<0?2:3));
+                face out{};for(size_t i=0;i<3;++i){const auto id=f.vertices[i];auto &mapped=remap[id][surface];
+                    if(mapped<0){auto v=m.vertices[id];const auto q=v.position+joint_world[v.joint];const auto &b=regions[v.material];
+                        const auto span=b.high-b.low;v.back=surface;
+                        if(result.colors.profile)v.u=surface==0?(q.x-b.low.x)/std::max(.0001f,span.x):(q.y-b.low.y)/std::max(.0001f,span.y);
+                        else v.u=surface==0?(b.high.y-q.y)/std::max(.0001f,span.y):surface==1?(q.y-b.low.y)/std::max(.0001f,span.y):(b.high.x-q.x)/std::max(.0001f,span.x);
+                        v.v=(b.high.z-q.z)/std::max(.0001f,span.z);v.u=std::clamp(v.u,0.f,1.f);v.v=std::clamp(v.v,0.f,1.f);
+                        mapped=int(projected.vertices.size());projected.vertices.push_back(v);}
+                    out.vertices[i]=uint32_t(mapped);}
+                projected.faces.push_back(out);}
+            m=std::move(projected);}
+    }
 public:
-    model generate(const phenotype &p,const sprite &s){result={};result.type=p;result.colors=extract(s,p.kind);parts.clear();joint_world.clear();
+    model generate(const phenotype &p,const sprite &s){result={};result.type=p;result.colors=extract(s,p);parts.clear();joint_world.clear();
         if(!result.colors.sourced&&result.type.reason==fallback::semantic)result.type.reason=fallback::missing_sprite;
         // Silhouette can refine bulk, not overwrite reliable physical dimensions.
         if(result.colors.sourced)result.type.bulk*=std::clamp(result.colors.silhouette_ratio/(p.kind==anatomy::humanoid?.55f:1.3f),.92f,1.08f);
         build_parts();result.low={1e8f,1e8f,1e8f};result.high={-1e8f,-1e8f,-1e8f};
         for(int lod=0;lod<2;++lod)for(const auto &part:parts)tessellate(result.lod[lod],part,lod);
+        project_materials();
         for(const auto &v:result.lod[0].vertices){const point q=v.position+joint_world[v.joint];result.low={std::min(result.low.x,q.x),std::min(result.low.y,q.y),std::min(result.low.z,q.z)};result.high={std::max(result.high.x,q.x),std::max(result.high.y,q.y),std::max(result.high.z,q.z)};}
         result.radius=std::sqrt(p.height*p.height+p.width*p.width+p.length*p.length);
         return std::move(result);
     }
 };
-inline uint32_t texel(const model &m,const mesh_vertex &v){const auto &skin=m.colors.skins[v.material];const auto &pixels=v.back?skin.back:skin.front;return pixels[size_t(std::clamp(int(v.v*skin::side),0,skin::side-1))*skin::side+std::clamp(int(v.u*skin::side),0,skin::side-1)];}
+inline uint32_t texel(const model &m,const mesh_vertex &v){return sample_skin(m.colors.skins[v.material],v.back,v.u,v.v);}
 }
