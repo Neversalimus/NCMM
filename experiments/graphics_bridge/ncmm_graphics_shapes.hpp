@@ -5,7 +5,7 @@
 namespace ncmm_graphics_shapes {
 struct traits {
     bool wall=false,door=false,window=false,tree=false,shrub=false,transparent=true,
-         impassable=false,open=false,water=false,flat=false;
+         impassable=false,open=false,water=false,flat=false,bridge=false;
 };
 inline bool contains(const std::string &s,const char *part) { return s.find(part)!=std::string::npos; }
 inline bool ending(const std::string &s,const std::string &tail){return s.size()>=tail.size()&&s.compare(s.size()-tail.size(),tail.size(),tail)==0;}
@@ -19,9 +19,18 @@ inline std::string physical_item_id(const std::string &id,const std::string &ali
 // open and mod-derived variants which intentionally drop their old flags.
 inline uint32_t terrain(const std::string &id,const traits &t) {
     const std::string primary=id.substr(0,id.find(' '));
+    if(t.bridge||(contains(primary,"bridge")&&!contains(primary,"rail")&&!contains(primary,"wall"))||contains(primary,"boardwalk"))return NCMM_SHAPE_BRIDGE;
+    if(contains(primary,"resin_hole"))return NCMM_SHAPE_RESIN_PORTAL;
+    if(contains(primary,"guardrail"))return NCMM_SHAPE_GUARDRAIL;
+    if(contains(primary,"scrap_wall")||contains(primary,"scrap_barricade")||contains(primary,"scrap_fence"))return NCMM_SHAPE_SCRAP_FENCE;
+    // A transparent glass wall is a full-height pane, not a window or an opaque cube.
+    if(t.transparent&&!t.door&&!contains(primary,"door")&&!contains(primary,"window")&&
+       (contains(primary,"glass")&&(t.wall||t.impassable)))return NCMM_SHAPE_GLASS_WALL;
     if(contains(primary,"doormat")||contains(primary,"door_mat")||contains(primary,"trapdoor")||
        (t.flat&&contains(primary,"hatch")))return NCMM_SHAPE_FLAT;
     if(contains(id,"stump")||contains(id,"trunk_fallen")) return NCMM_SHAPE_ROCK;
+    // Large opaque boulders are freestanding rocks, even when impassable.
+    if(contains(primary,"boulder")||contains(primary,"rock_large")) return NCMM_SHAPE_ROCK;
     if(contains(id,"fence_post")||contains(id,"fence_posts")||contains(id,"chainfence_posts")) return NCMM_SHAPE_POST;
     if(t.tree) return NCMM_SHAPE_TREE;
     if(t.shrub) return NCMM_SHAPE_SHRUB;
@@ -48,7 +57,6 @@ inline uint32_t terrain(const std::string &id,const traits &t) {
     if(contains(id,"flower")||contains(id,"plant")||contains(id,"sapling")||contains(id,"young")||
        contains(id,"cattail")||contains(id,"fern")||contains(id,"reed")||contains(id,"underbrush")) return NCMM_SHAPE_PLANT;
     if(t.water) return NCMM_SHAPE_WATER;
-    if(contains(id,"boulder")||contains(id,"rock_large")) return NCMM_SHAPE_ROCK;
     // Transparent impassable objects need height even if their flags are incomplete.
     return t.impassable ? NCMM_SHAPE_BILLBOARD:NCMM_SHAPE_FLAT;
 }
@@ -56,6 +64,7 @@ inline uint32_t furniture(const std::string &id,const traits &t) {
     if(id.empty()||id=="f_null"||id.rfind("f_null ",0)==0) return NCMM_SHAPE_FLAT;
     const uint32_t semantic=terrain(id,t);
     if(semantic!=NCMM_SHAPE_FLAT && semantic!=NCMM_SHAPE_BILLBOARD && semantic!=NCMM_SHAPE_WALL) return semantic;
+    if(t.flat&&!t.impassable)return NCMM_SHAPE_FLAT;
     if(contains(id,"plant")||contains(id,"flower")||contains(id,"seed")||contains(id,"fungal")) return NCMM_SHAPE_PLANT;
     if(contains(id,"table")||contains(id,"counter")||contains(id,"bench")) return NCMM_SHAPE_TABLE;
     if(contains(id,"chair")||contains(id,"seat")) return NCMM_SHAPE_SEAT;
@@ -64,7 +73,7 @@ inline uint32_t furniture(const std::string &id,const traits &t) {
     if(contains(id,"bed")||contains(id,"sofa")||contains(id,"couch")) return NCMM_SHAPE_SEAT;
     return NCMM_SHAPE_BILLBOARD;
 }
-inline bool vertical(uint32_t shape) {return shape!=NCMM_SHAPE_FLAT&&shape!=NCMM_SHAPE_WATER;}
+inline bool vertical(uint32_t shape) {return shape!=NCMM_SHAPE_FLAT&&shape!=NCMM_SHAPE_WATER&&shape!=NCMM_SHAPE_BRIDGE;}
 inline bool solid(uint32_t shape) {return shape==NCMM_SHAPE_WALL||shape==NCMM_SHAPE_DOOR_CLOSED||shape==NCMM_SHAPE_STORAGE;}
 inline float shadow_height(uint32_t shape) {
     if(solid(shape))return shape==NCMM_SHAPE_STORAGE?1.7f:2.5f;

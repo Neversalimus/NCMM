@@ -21,11 +21,22 @@ jobs:
         with:
           persist-credentials: false
       - name: Configure isolated module
-        run: cmake -S experiments/FirstPersonView -B fp-build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S experiments/FirstPersonView -B fp-build -DCMAKE_BUILD_TYPE=Release -DFIRST_PERSON_BUILD_BENCHMARK=ON
       - name: Build prototype and contract tests
         run: cmake --build fp-build --config Release
       - name: Renderer, occlusion, fog, ABI and toggle lifecycle
         run: ctest --test-dir fp-build -C Release --output-on-failure
+      - name: Record renderer timing and work counters (no FPS threshold)
+        run: cmake --build fp-build --config Release --target first_person_measure
+      - name: Configure sanitizer coverage
+        if: runner.os == 'Linux'
+        run: cmake -S experiments/FirstPersonView -B fp-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
+      - name: Build sanitizer geometry and shared-module tests
+        if: runner.os == 'Linux'
+        run: cmake --build fp-sanitize --parallel 2 --target first_person_optimization_tests first_person_hybrid_module_tests first_person_creature_semantics_tests first_person_creature_mesh_tests first_person_creature_animation_tests first_person_creature_lod_tests first_person_creature_cache_tests first_person_creature_render_tests first_person_creature_module_tests
+      - name: ASan and UBSan camera, volume and DLL lifecycle coverage
+        if: runner.os == 'Linux'
+        run: ctest --test-dir fp-sanitize -R "optimization|hybrid_module|creature_" --output-on-failure
       - name: Atomic source-transform negative tests
         run: python -m unittest discover -s experiments/graphics_bridge -p test_apply_graphics_bridge.py -v
       - uses: actions/upload-artifact@v4
@@ -35,8 +46,10 @@ jobs:
             fp-build/Release/ncmm_mod.dll
             fp-build/ncmm_mod.so
             experiments/FirstPersonView/mod.json
+            fp-build/first-person-benchmark.json
           retention-days: 7
   host:
+    needs: module
     name: Experimental MSVC Host - ${{ matrix.build }}
     strategy:
       fail-fast: false
@@ -124,6 +137,26 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Experimental MSVC Host build failed.'}
           if(!(Test-Path cataclysm-tiles.exe)){throw 'Experimental engine binary missing.'}
           (Get-FileHash cataclysm-tiles.exe -Algorithm SHA256).Hash.ToLowerInvariant() | Set-Content first-person-host.sha256 -Encoding Ascii
+      - name: Record effective compiler cache coverage
+        if: always()
+        shell: powershell
+        run: |
+          if(Get-Command sccache.exe -ErrorAction SilentlyContinue) {
+            $raw=& sccache.exe --show-stats --stats-format=json
+            if($LASTEXITCODE -eq 0) {
+              $raw | Set-Content compiler-cache.json -Encoding UTF8
+              $stats=($raw | ConvertFrom-Json).stats
+              $cacheable=[int]$stats.requests_executed
+              $requests=[int]$stats.compile_requests
+              Write-Host "Cacheable requests: $cacheable / $requests; bypass reasons are retained in compiler-cache.json."
+            }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: first-person-compiler-cache-${{ matrix.build }}
+          path: compiler-cache.json
+          retention-days: 7
       - name: Verify compiled or cached engine identity
         shell: powershell
         working-directory: upstream
@@ -220,10 +253,62 @@ jobs:
             $p.Refresh()
             if($p.ExitCode -ne 0){throw "Gameplay smoke failed: $($p.ExitCode)"}
             $result=Get-Content (Join-Path $root 'ncmm/first-person-smoke.json') -Raw | ConvertFrom-Json
-            if($result.success -ne $true -or $result.sdl_frames -lt 63){throw 'First person SDL smoke is incomplete.'}
+            if($result.success -ne $true -or $result.sdl_frames -lt 70){throw 'First person SDL smoke is incomplete.'}
             Copy-Item (Join-Path $root 'ncmm/first-person-smoke.json') ("installer-result/first-person-smoke-"+$variant.name+'.json')
             Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-*.bmp' | ForEach-Object { Copy-Item $_.FullName (Join-Path 'installer-result' ($_.BaseName+'-'+$variant.name+'.bmp')) }
             Copy-Item (Join-Path $root 'ncmm/first-person-shapes-audit.json') ("installer-result/first-person-shapes-audit-"+$variant.name+'.json')
+            foreach($name in @('first-person-creature-coverage','first-person-creature-gallery-procedural','first-person-creature-timing-procedural')) {
+              $path=Join-Path $root ("ncmm/$name.json")
+              if(!(Test-Path $path)){throw "Missing creature evidence: $name"}
+              Copy-Item $path ("installer-result/$name-"+$variant.name+'.json')
+            }
+            $timing=Get-Content (Join-Path $root 'ncmm/first-person-creature-timing-procedural.json') -Raw | ConvertFrom-Json
+            if(@($timing.records).Count -ne 12 -or $timing.actual_cdda_sdl -ne $true){throw 'Creature benchmark matrix is incomplete.'}
+
+          }
+      - uses: actions/checkout@v4
+        with:
+          ref: 3f6a164e23a5d586156218ecb3ab0009e187d1ca
+          path: fp081-reference
+          persist-credentials: false
+          sparse-checkout: |
+            sdk
+            experiments/FirstPersonView
+            experiments/graphics_bridge
+      - name: Build exact 0.8.1 billboard reference DLL
+        shell: powershell
+        run: |
+          cmake -S fp081-reference/experiments/FirstPersonView -B fp081-build
+          if($LASTEXITCODE -ne 0){throw '0.8.1 reference configuration failed.'}
+          cmake --build fp081-build --config Release --target ncmm_mod
+          if($LASTEXITCODE -ne 0){throw '0.8.1 reference build failed.'}
+      - name: Paired real SDL billboard baseline on the same Host and fixture
+        timeout-minutes: 20
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root='${{ steps.game.outputs.root }}'
+          $module=Join-Path $root 'code_mods/FirstPersonView'
+          $backup=Join-Path $env:RUNNER_TEMP 'fp-module-current'
+          New-Item -ItemType Directory -Force $backup | Out-Null
+          Copy-Item (Join-Path $module 'ncmm_mod.dll') $backup
+          Copy-Item (Join-Path $module 'mod.json') $backup
+          try {
+            Copy-Item fp081-build/Release/ncmm_mod.dll (Join-Path $module 'ncmm_mod.dll') -Force
+            Copy-Item fp081-reference/experiments/FirstPersonView/mod.json (Join-Path $module 'mod.json') -Force
+            $env:NCMM_FP_BILLBOARD_BASELINE='1'
+            $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-gameplay-smoke' -WorkingDirectory $root -PassThru
+            if(-not $p.WaitForExit(720000)){& taskkill.exe /pid $p.Id /t /f;throw 'Billboard benchmark deadline exceeded.'}
+            $p.Refresh()
+            if($p.ExitCode -ne 0){throw "Billboard benchmark failed: $($p.ExitCode)"}
+            Copy-Item (Join-Path $root 'ncmm/first-person-smoke.json') installer-result/first-person-smoke-billboard-081.json
+            Copy-Item (Join-Path $root 'ncmm/first-person-creature-timing-billboard-081.json') installer-result
+            Copy-Item (Join-Path $root 'ncmm/first-person-creature-gallery-billboard-081.json') installer-result
+            Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-creature-*-billboard-081.bmp' | ForEach-Object { Copy-Item $_.FullName installer-result }
+          } finally {
+            Remove-Item Env:NCMM_FP_BILLBOARD_BASELINE -ErrorAction SilentlyContinue
+            Copy-Item (Join-Path $backup 'ncmm_mod.dll') (Join-Path $module 'ncmm_mod.dll') -Force
+            Copy-Item (Join-Path $backup 'mod.json') (Join-Path $module 'mod.json') -Force
           }
       - name: Collect runtime evidence
         if: always()
@@ -244,9 +329,10 @@ jobs:
         with:
           name: first-person-installer-${{ matrix.build }}-Windows-x64
           path: |
-            installer-result/NCMM_FirstPersonView_0.5.0_TEST_${{ matrix.build }}_Windows_x64.zip
+            installer-result/NCMM_FirstPersonView_0.9.0_TEST_${{ matrix.build }}_Windows_x64.zip
             installer-result/first-person-smoke*.json
             installer-result/first-person-*.bmp
             installer-result/first-person-shapes-audit*.json
+            installer-result/first-person-creature-*.json
           if-no-files-found: error
           retention-days: 7

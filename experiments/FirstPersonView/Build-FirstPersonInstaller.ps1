@@ -90,7 +90,7 @@ foreach($file in Get-ChildItem $payload -Recurse -File | Sort-Object FullName){
     $rel=$file.FullName.Substring($payload.Length+1).Replace('\','/')
     $files[$rel]=(Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 }
-$revisionParts=@((Join-Path $PSScriptRoot 'src/module.cpp'),(Join-Path $PSScriptRoot 'src/renderer.hpp'),(Join-Path $PSScriptRoot 'src/hybrid_renderer.hpp'),(Join-Path $HostRoot 'first-person-source.json')) | ForEach-Object {(Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant()}
+$revisionParts=@(@(Get-ChildItem (Join-Path $PSScriptRoot 'src') -File | Sort-Object Name | ForEach-Object {$_.FullName})+(Join-Path $HostRoot 'first-person-source.json')) | ForEach-Object {(Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant()}
 $digest=[Security.Cryptography.SHA256]::Create()
 try{$revision='fp-'+([BitConverter]::ToString($digest.ComputeHash([Text.Encoding]::UTF8.GetBytes(($revisionParts -join '-'))))).Replace('-','').ToLowerInvariant()}finally{$digest.Dispose()}
 $bundle=[ordered]@{
@@ -108,7 +108,7 @@ if($LASTEXITCODE -ne 0){throw 'Preview install matrix compilation failed.'}
 if($LASTEXITCODE -ne 0){throw 'Preview install matrix failed.'}
 
 @"
-NCMM First Person View installer 0.5.0 TEST / CDDA $build / Windows x64
+NCMM First Person View installer 0.9.0 TEST / CDDA $build / Windows x64
 
 1. Extract the complete archive. Run NCMM_Setup_FirstPerson_TEST.exe.
 2. Select the game folder containing cataclysm-tiles.exe and VERSION.txt for
@@ -118,6 +118,8 @@ NCMM First Person View installer 0.5.0 TEST / CDDA $build / Windows x64
 4. Install / Repair selected. Wait for INSTALL COMPLETE.
 5. Launch CDDA normally. F6 toggles first person; F7/F8 rotate; F9/F10 look up/down.
    F11 switches balanced / high quality; balanced is the default.
+   Hold the right mouse button over the viewport to look around.
+   In first person, arrows move forward/backward and strafe relative to the gaze.
 
 Official executable identities are checked with SHA256. Existing normal NCMM,
 preview NCMM and legacy CML bootstraps are recognized by their hash receipts;
@@ -137,6 +139,32 @@ on the game's actual phase. Wielded items generate a camera-local silhouette
 from the active tileset, with an extruded contour and curved forearms/hands.
 An independent depth buffer handles hand/item overlaps and nearby walls.
 Changing or unwielding items updates both geometry and that buffer.
+Version 0.7 adds material-specific doors, glass, bridges and guardrails, dimension skies,
+physical firearm families and attachments, dressed/mutated hands, aimed creature labels,
+LMB combat, animated liquid surfaces, volumetric gases/light and GPU atmosphere composition (F12: CPU).
+Version 0.8 expands environment draw distance from 16 to 48 map cells (97x97
+snapshot), using only the loaded reality bubble. Per-frame transparency and
+allocation-free engine rays reduce visibility work. Smoke/light extend beyond
+the old 19-cell cutoff with bounded distant sampling. Walls still occlude the
+environment; creatures and items retain the game's normal visibility rules.
+Version 0.9 generates anatomical 3D creatures automatically from live body plans
+and regional tileset colors, including NPC clothing and mutations. Joint animation
+observes movement and real combat events. Four LOD levels include generated
+eight-angle depth impostors. A bounded background cache avoids blocking for
+model creation; static scenery remains cached while creatures animate.
+Version 0.8.1 rejects offscreen model faces before projection, shades sky only
+where opaque geometry leaves it visible, and skips rays missing active volumes.
+Sky and cloud rows also use CPU workers. Word-wise cache invalidation reads the
+scene once for world/composed keys. Active mouse/attack redraws are scheduled
+at up to 60 Hz; actual frame rate still depends on the machine and scene.
+Brick and drywall faces use the tileset palette with continuous materials;
+soft contact shadows ground creatures, trees and wheels.
+It joins roof panels and adds actual control-mount dashboards/steering
+wheels and keeps the full car geometry beyond the 2D visibility mask.
+Both hands grip the generated polearm shaft and move with the weapon.
+Actual melee attacks trigger a swing or polearm thrust; shots trigger recoil.
+Boulders have irregular faceted geometry. Forward terrain is no longer covered
+by black unknown-tile planes; real light and opaque walls still govern the view.
 Ordinary commands and inventory retain the perspective backdrop. Coordinate
 look/targeting and the overmap temporarily use the normal map.
 Long CatLauncher paths and Cyrillic folder names are supported during install,
@@ -148,19 +176,22 @@ Uncheck First Person View and install again to remove its managed DLL/manifest.
 
 Current limits: tile-center movement, one visible z-level, automatic coarse
 vehicle geometry, sprite-derived held items, generic environment dimensions.
-No mouse look or NPC appearance yet. Existing movement keys retain world
-directions. Camera rotation does not spend a turn. Saves are unchanged.
+Unusual anatomy and hidden surfaces are conservative reconstructions.
+Non-arrow movement bindings keep their world
+directions. Mouse capture releases when menus open, focus is lost, or F6 disables
+the view. Camera rotation does not spend a turn. Saves are unchanged.
 Balanced mode limits the internal raster to 1280x800; F11 enables up to
 1920x1080. Software rendering uses up to four CPU row bands and caches identical
-redraws briefly. Visible-world and camera changes refresh immediately.
+redraws briefly. Hands and weather compose over an owned world frame, and the
+SDL streaming texture is reused. World and camera changes refresh immediately.
 
 The bundle includes NCMM Runtime 0.8.2 and the normal optional native modules.
 The game itself and external tilesets are not bundled. Keep your existing data,
 tilesets and configuration with the selected official CDDA installation.
 "@ | Set-Content (Join-Path $stage 'README.txt') -Encoding UTF8
-$provenance=[ordered]@{schema=1;product='NCMM First Person View TEST';installer_revision='0.5.0';status='experimental-not-certified';recommended_entry='NCMM_Setup_FirstPerson_TEST.exe';source_commit=$bundle.ncmm_source_commit;engine_source=$source.source_commit;upstream_tag=$source.tag;workflow_run=[string]$env:GITHUB_RUN_ID;installer_sha256=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant();host_sha256=$bundle.host_sha256;vanilla_sha256=$bundle.vanilla_sha256;supported_vanilla_sha256=$bundle.supported_vanilla_sha256;module_sha256=$files['code_mods/FirstPersonView/ncmm_mod.dll']}
+$provenance=[ordered]@{schema=1;product='NCMM First Person View TEST';installer_revision='0.9.0';status='experimental-not-certified';recommended_entry='NCMM_Setup_FirstPerson_TEST.exe';source_commit=$bundle.ncmm_source_commit;engine_source=$source.source_commit;upstream_tag=$source.tag;workflow_run=[string]$env:GITHUB_RUN_ID;installer_sha256=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant();host_sha256=$bundle.host_sha256;vanilla_sha256=$bundle.vanilla_sha256;supported_vanilla_sha256=$bundle.supported_vanilla_sha256;module_sha256=$files['code_mods/FirstPersonView/ncmm_mod.dll']}
 [IO.File]::WriteAllText((Join-Path $stage 'release-manifest.json'),($provenance | ConvertTo-Json -Depth 6),(New-Object Text.UTF8Encoding($false)))
-$zip=Join-Path $OutputRoot ("NCMM_FirstPersonView_0.5.0_TEST_${build}_Windows_x64.zip")
+$zip=Join-Path $OutputRoot ("NCMM_FirstPersonView_0.9.0_TEST_${build}_Windows_x64.zip")
 if(Test-Path $zip){Remove-Item $zip -Force}
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip

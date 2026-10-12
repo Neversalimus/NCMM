@@ -13,6 +13,8 @@ size_t graphics_hybrid_held_sprites = 0;
 size_t graphics_hybrid_tiny_creatures = 0;
 std::array<size_t, NCMM_SHAPE_COUNT> graphics_hybrid_shape_counts = {};
 ncmm_graphics_environment_v2 graphics_hybrid_last_environment = {};
+#include "ncmm_graphics_presentation.inc"
+#include "ncmm_graphics_creatures.inc"
 
 #if defined(TILES)
 struct graphics_cpu_sprite {
@@ -21,7 +23,22 @@ struct graphics_cpu_sprite {
 };
 using graphics_sprite_key = std::tuple<uintptr_t, int, int, int, int>;
 std::map<graphics_sprite_key, graphics_cpu_sprite> graphics_cpu_sprites;
+std::map<uint64_t, graphics_cpu_sprite> graphics_creature_composites;
 SDL_Renderer *graphics_hybrid_renderer_identity = nullptr; // comparison only
+SDL_Texture *graphics_stream_texture = nullptr;
+uint64_t graphics_stream_instance = 0, graphics_stream_generation = 0;
+uint32_t graphics_stream_width = 0, graphics_stream_height = 0;
+void graphics_clear_effect_texture();
+void graphics_clear_stream()
+{
+    // SDL destroys all child textures when replacing a renderer. The monotonic
+    // instance generation prevents destroying a dangling, reused address.
+    if( graphics_stream_texture && graphics_stream_instance == renderer_coordinator.instance_generation() ) SDL_DestroyTexture( graphics_stream_texture );
+    graphics_stream_texture = nullptr; graphics_stream_width = graphics_stream_height = 0;
+    graphics_clear_effect_texture();
+}
+
+#include "ncmm_graphics_effects.inc"
 
 bool graphics_read_sprite( const texture_draw_data &atlas, graphics_cpu_sprite &out )
 {
@@ -89,11 +106,14 @@ bool graphics_read_sprite( const texture_draw_data &atlas, graphics_cpu_sprite &
 
 void graphics_clear_hybrid()
 {
+    graphics_clear_creatures();
     graphics_hybrid_frame = nullptr; graphics_hybrid_positions = nullptr;
     graphics_hybrid_pixels.clear(); graphics_hybrid_width = graphics_hybrid_height = 0;
+    graphics_presentation_cells.clear(); graphics_effect_pixels.clear(); graphics_aim.reset(); graphics_aim_name.clear();
     graphics_hybrid_sprite_bytes = 0; graphics_hybrid_tileset_epoch = 0;
 #if defined(TILES)
-    graphics_cpu_sprites.clear(); graphics_hybrid_renderer_identity = nullptr;
+    graphics_clear_stream();
+    graphics_cpu_sprites.clear(); graphics_creature_composites.clear(); graphics_hybrid_renderer_identity = nullptr;
 #endif
 }
 
@@ -110,12 +130,17 @@ int graphics_get_sprite( uint32_t index, uint32_t layer, ncmm_graphics_sprite_v2
 {
 #if defined(TILES)
     if( !graphics_hybrid_frame || !graphics_hybrid_positions || active_module_id != graphics_view.owner ||
-        !out || out->struct_size < sizeof( ncmm_graphics_sprite_v2 ) || layer > NCMM_GFX_FIELD || layer == NCMM_GFX_SOLID ) return 0;
+        !out || out->struct_size < sizeof( ncmm_graphics_sprite_v2 ) || layer > NCMM_GFX_GLOVE_RIGHT || layer == NCMM_GFX_SOLID ) return 0;
     const auto &scene = *graphics_hybrid_frame;
     std::string id;
     TILE_CATEGORY category = TILE_CATEGORY::TERRAIN;
     tripoint_bub_ms position = get_avatar().pos_bub();
-    if( layer == NCMM_GFX_HELD_ITEM ) {
+    if( layer >= NCMM_GFX_SLEEVE_LEFT ) {
+        if( index != UINT32_MAX ) return 0;
+        const uint32_t slot=layer-NCMM_GFX_SLEEVE_LEFT;
+        id=slot<2 ? graphics_presentation.sleeve[slot] : graphics_presentation.glove[slot-2];
+        category=TILE_CATEGORY::ITEM;
+    } else if( layer == NCMM_GFX_HELD_ITEM ) {
         if( index != UINT32_MAX || !scene.environment.held_item[0] ) return 0;
         id = scene.environment.held_item; category = TILE_CATEGORY::ITEM;
     } else {
@@ -131,6 +156,7 @@ int graphics_get_sprite( uint32_t index, uint32_t layer, ncmm_graphics_sprite_v2
                    layer == NCMM_GFX_FIELD ? TILE_CATEGORY::FIELD : TILE_CATEGORY::TERRAIN;
     }
     if( id.empty() ) return 0;
+    if(layer==NCMM_GFX_CREATURE&&(id=="npc_male"||id=="npc_female"))category=TILE_CATEGORY::NONE;
     std::string physical_id = id;
     if( layer == NCMM_GFX_HELD_ITEM ) {
         for( int hop = 0; hop < 8; ++hop ) {
@@ -142,7 +168,7 @@ int graphics_get_sprite( uint32_t index, uint32_t layer, ncmm_graphics_sprite_v2
             physical_id = next;
         }
     }
-    auto atlas = tilecontext->ncmm_get_texture_draw_data( physical_id, category, position, layer == NCMM_GFX_GROUND );
+    auto atlas = tilecontext->ncmm_get_texture_draw_data( physical_id, category, position, layer == NCMM_GFX_GROUND, layer == NCMM_GFX_CREATURE );
     if( !atlas && physical_id != id ) atlas = tilecontext->ncmm_get_texture_draw_data( id, category, position, false );
     if( !atlas && category == TILE_CATEGORY::VEHICLE_PART ) {
         const size_t mark = id.find( '#' );
@@ -162,6 +188,58 @@ int graphics_get_sprite( uint32_t index, uint32_t layer, ncmm_graphics_sprite_v2
     }
     const auto &sprite = found->second;
     *out = { sizeof( ncmm_graphics_sprite_v2 ), sprite.width, sprite.height, sprite.width, sprite.pixels.data() };
+    if( layer == NCMM_GFX_CREATURE && index < scene.base.cell_count ) {
+        const Creature *cr = get_creature_tracker().creature_at<Creature>( position );
+        const Character *ch = cr && cr->is_npc() ? cr->as_character() : nullptr;
+        if( ch && get_avatar().sees( get_map(), *cr ) ) {
+            uint64_t revision = 1469598103934665603ull;
+            for( uint32_t pixel : sprite.pixels ) revision = ( revision ^ pixel ) * 1099511628211ull;
+            revision = graphics_creature_overlay_revision( *ch, revision );
+            auto composed = graphics_creature_composites.find( revision );
+            if( composed == graphics_creature_composites.end() && graphics_creature_composites.size() < 128 ) {
+                graphics_cpu_sprite result = sprite;
+                for( const auto &overlay : ch->get_overlay_ids() ) {
+                    if( overlay.first.compare( 0, 5, "worn_" ) && overlay.first.compare( 0, 9, "mutation_" ) ) continue;
+                    std::string draw_id;
+                    if( !tilecontext->ncmm_find_overlay( ch->male, overlay.first, overlay.second, draw_id ) ) continue;
+                    auto source = tilecontext->ncmm_get_texture_draw_data( draw_id, TILE_CATEGORY::NONE, position, false, true );
+                    if( !source ) continue;
+                    const auto &rect = source->dimensions;
+                    const graphics_sprite_key overlay_key{ reinterpret_cast<uintptr_t>( source->texture ), rect.x, rect.y, rect.w, rect.h };
+                    auto layer = graphics_cpu_sprites.find( overlay_key );
+                    if( layer == graphics_cpu_sprites.end() ) {
+                        if( rect.w < 1 || rect.h < 1 || rect.w > 512 || rect.h > 512 || graphics_cpu_sprites.size() >= 1024 ||
+                            graphics_hybrid_sprite_bytes + size_t( rect.w ) * rect.h * 4 > 64 * 1024 * 1024 ) continue;
+                        graphics_cpu_sprite pixels;
+                        if( !graphics_read_sprite( *source, pixels ) ) continue;
+                        graphics_hybrid_sprite_bytes += pixels.pixels.size() * 4;
+                        layer = graphics_cpu_sprites.emplace( overlay_key, std::move( pixels ) ).first;
+                    }
+                    const auto &layer_pixels = layer->second;
+                    for( uint32_t y = 0; y < result.height; ++y ) for( uint32_t x = 0; x < result.width; ++x ) {
+                        const uint32_t pixel = layer_pixels.pixels[size_t( y * layer_pixels.height / result.height ) * layer_pixels.width + x * layer_pixels.width / result.width];
+                        const uint32_t alpha = pixel & 255u; if( !alpha ) continue;
+                        uint32_t &dst = result.pixels[size_t( y ) * result.width + x];
+                        const uint32_t out_alpha = alpha + ( ( dst & 255u ) * ( 255u - alpha ) + 127u ) / 255u;
+                        uint32_t color = out_alpha;
+                        for( int shift : { 8, 16, 24 } ) {
+                            const uint32_t premult = ( ( pixel >> shift ) & 255u ) * alpha + ( ( ( dst >> shift ) & 255u ) * ( dst & 255u ) * ( 255u - alpha ) + 127u ) / 255u;
+                            color |= ( ( premult + out_alpha / 2 ) / out_alpha ) << shift;
+                        }
+                        dst = color;
+                    }
+                }
+                if( graphics_hybrid_sprite_bytes + result.pixels.size() * 4 <= 64 * 1024 * 1024 ) {
+                    graphics_hybrid_sprite_bytes += result.pixels.size() * 4;
+                    composed = graphics_creature_composites.emplace( revision, std::move( result ) ).first;
+                }
+            }
+            if( composed != graphics_creature_composites.end() ) {
+                const auto &pixels = composed->second;
+                *out = { sizeof( *out ), pixels.width, pixels.height, pixels.width, pixels.pixels.data() };
+            }
+        }
+    }
     ++graphics_resolved_textures;
     if( category == TILE_CATEGORY::VEHICLE_PART ) ++graphics_resolved_vehicle_textures;
     if( layer == NCMM_GFX_HELD_ITEM ) ++graphics_hybrid_held_sprites;
@@ -194,6 +272,7 @@ ncmm_graphics_shapes::traits graphics_traits( const map_data_common_t &t, bool o
     out.tree = t.has_flag( "TREE" ); out.shrub = t.has_flag( "SHRUB" ); out.flat = t.has_flag( "FLAT" );
     out.water = t.has_flag( "SWIMMABLE" ) || t.has_flag( "SHALLOW_WATER" );
     out.transparent = t.transparent; out.impassable = t.movecost == 0; out.open = opened;
+    out.bridge = t.has_flag( "BRIDGE" );
     return out;
 }
 
@@ -227,7 +306,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
             if( nx < 0 || ny < 0 || nx >= base.grid_width || ny >= base.grid_height ) return false;
             const auto &c = base.cells[size_t( ny ) * base.grid_width + nx];
             return ( c.flags & NCMM_GFX_VISIBLE ) && ( ( c.flags & NCMM_GFX_WALL ) ||
-                ncmm_graphics_shapes::contains( c.terrain, "window" ) || ncmm_graphics_shapes::contains( c.terrain, "fence" ) );
+                ncmm_graphics_shapes::contains( c.terrain, "window" ) || ncmm_graphics_shapes::contains( c.terrain, "fence" ) || ncmm_graphics_shapes::contains( c.terrain, "glass" ) || ncmm_graphics_shapes::contains( c.terrain, "guardrail" ) );
         };
         d.orientation = structural( ix, iy - 1 ) || structural( ix, iy + 1 ) ? 1u : 0u;
         if( !ncmm_graphics_shapes::vertical( d.terrain_shape ) ) copy_id( d.ground, ter.id.str() );
@@ -280,7 +359,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
                 const std::pair<const char *, uint32_t> features[] = {
                     { "STRUCTURE", NCMM_VEH_FRAME }, { "ROOF", NCMM_VEH_ROOF }, { "SEAT", NCMM_VEH_SEAT },
                     { "OBSTACLE", NCMM_VEH_BOARD }, { "WINDOW", NCMM_VEH_WINDOW }, { "OPENABLE", NCMM_VEH_DOOR },
-                    { "WHEEL", NCMM_VEH_WHEEL }, { "CARGO", NCMM_VEH_CARGO }, { "ENGINE", NCMM_VEH_ENGINE }, { "CONE_LIGHT", NCMM_VEH_LIGHT }
+                    { "WHEEL", NCMM_VEH_WHEEL }, { "CARGO", NCMM_VEH_CARGO }, { "ENGINE", NCMM_VEH_ENGINE }, { "CONE_LIGHT", NCMM_VEH_LIGHT }, { "CONTROLS", NCMM_VEH_CONTROLS }
                 };
                 for( const auto &f : features ) if( vp->part_with_feature( f.first, false ) ) d.vehicle_features |= f.second;
                 if( !d.vehicle_features ) d.vehicle_features = NCMM_VEH_FRAME;
@@ -339,8 +418,8 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     if( ncmm_graphics_shapes::contains( wid, "sleet" ) ) env.weather_kind = NCMM_WEATHER_SLEET;
     if( ncmm_graphics_shapes::contains( wid, "sand" ) || ncmm_graphics_shapes::contains( wid, "dust" ) ) { env.weather_kind = NCMM_WEATHER_DUST; env.precipitation = .65f; }
     if( type.sound_category == weather_sound_category::portal_storm ) { env.weather_kind = NCMM_WEATHER_PORTAL; env.precipitation = .7f; }
-    env.fog_density = std::clamp( type.sight_penalty * .025f + env.precipitation * .012f, 0.0f, .2f );
-    if( ncmm_graphics_shapes::contains( wid, "fog" ) || ncmm_graphics_shapes::contains( wid, "mist" ) ) env.fog_density = std::max( env.fog_density, .055f );
+    env.fog_density = ncmm_graphics_policy::weather_fog_density( type.sight_penalty, env.precipitation,
+        ncmm_graphics_shapes::contains( wid, "fog" ) || ncmm_graphics_shapes::contains( wid, "mist" ) );
     if( env.precipitation > 0 ) env.cloud_cover = std::max( env.cloud_cover, .65f );
     const auto wind = convert_wind_to_coord( weather.winddirection );
     env.wind_x = float( wind.x * std::clamp( weather.windspeed, 0, 100 ) ); env.wind_y = float( wind.y * std::clamp( weather.windspeed, 0, 100 ) );
@@ -350,13 +429,16 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         copy_id( env.held_item, held->typeId().str() ); env.held_kind = held->is_gun() ? 1u : held->is_melee() ? 2u : 3u;
     }
     graphics_hybrid_last_environment = env;
+    graphics_prepare_presentation( base,positions,details );
     const ncmm_graphics_scene_v2 scene = { sizeof( ncmm_graphics_scene_v2 ), base, details.data(), details.size(), env };
     const uint64_t epoch = tilecontext->ncmm_graphics_tileset_epoch();
     SDL_Renderer *renderer = get_sdl_renderer().get();
     if( epoch != graphics_hybrid_tileset_epoch || renderer != graphics_hybrid_renderer_identity || graphics_hybrid_sprite_bytes > 48 * 1024 * 1024 ) {
-        graphics_cpu_sprites.clear(); graphics_hybrid_sprite_bytes = 0;
+        if(renderer!=graphics_hybrid_renderer_identity)graphics_effect_failed=false;
+        graphics_cpu_sprites.clear(); graphics_creature_composites.clear(); graphics_hybrid_sprite_bytes = 0;
         graphics_hybrid_tileset_epoch = epoch; graphics_hybrid_renderer_identity = renderer;
     }
+    graphics_prepare_creatures( base, positions );
     graphics_hybrid_pixels.clear(); graphics_hybrid_width = graphics_hybrid_height = 0;
     graphics_resolved_textures = graphics_resolved_vehicle_textures = 0;
     graphics_frame_invalid = false; graphics_hybrid_frame = &scene; graphics_hybrid_positions = &positions;
@@ -372,25 +454,46 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     graphics_hybrid_frame = nullptr; graphics_hybrid_positions = nullptr;
     graphics_render_active = false;
     if( !ok || graphics_frame_invalid || graphics_hybrid_pixels.empty() ) {
-        graphics_view.enabled = false; graphics_hybrid_pixels.clear();
+        graphics_view.enabled = false; graphics_hybrid_pixels.clear(); graphics_release_mouse(); graphics_cancel_animation();
         add_msg( m_warning, "%s", tr_ui( "First person could not draw this scene; returned to the map. F6 retries.",
             "Не удалось отрисовать вид от первого лица; включена карта. F6 — повторить." ) );
         return false;
     }
     SDL_Rect prior_clip; SDL_GetRenderClipRect( renderer, &prior_clip ); const bool clipped = SDL_RenderClipEnabled( renderer );
     const SDL_Rect clip = { x, y, base.pixel_width, base.pixel_height };
-    SDL_Texture *frame = SDL_CreateTexture( renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING,
-        int( graphics_hybrid_width ), int( graphics_hybrid_height ) );
-    if( !frame ) return false;
+    const auto generation = renderer_coordinator.texture_generations();
+    if( graphics_stream_texture && ( graphics_stream_instance != generation.instance || graphics_stream_generation != generation.textures ||
+        graphics_stream_width != graphics_hybrid_width || graphics_stream_height != graphics_hybrid_height ) ) graphics_clear_stream();
+    if( !graphics_stream_texture ) {
+        graphics_stream_texture = SDL_CreateTexture( renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING,
+            int( graphics_hybrid_width ), int( graphics_hybrid_height ) );
+        graphics_stream_instance = generation.instance; graphics_stream_generation = generation.textures;
+        graphics_stream_width = graphics_hybrid_width; graphics_stream_height = graphics_hybrid_height;
+    }
+    SDL_Texture *frame = graphics_stream_texture;
+    if( !frame ) {graphics_view.enabled=false;graphics_release_mouse();graphics_cancel_animation();return false;}
     ok = SDL_UpdateTexture( frame, nullptr, graphics_hybrid_pixels.data(), int( graphics_hybrid_width * 4 ) );
     ok = SDL_SetTextureBlendMode( frame, SDL_BLENDMODE_NONE ) && ok;
     ok = SDL_SetTextureScaleMode( frame, SDL_SCALEMODE_LINEAR ) && ok;
     ok = SDL_SetRenderClipRect( renderer, &clip ) && ok;
     const SDL_FRect destination = { float( x ), float( y ), float( base.pixel_width ), float( base.pixel_height ) };
     ok = SDL_RenderTexture( renderer, frame, nullptr, &destination ) && ok;
+    if( ok ) ok = graphics_present_effects( renderer,frame,destination );
+    if( ok ) {
+        Uint8 r=0,g=0,b=0,a=0;SDL_GetRenderDrawColor( renderer,&r,&g,&b,&a );
+        SDL_SetRenderDrawColor( renderer,216,224,224,255 );
+        const float cx=x+base.pixel_width*.5f,cy=y+base.pixel_height*.5f;
+        SDL_RenderLine( renderer,cx-4,cy,cx-1,cy );SDL_RenderLine( renderer,cx+1,cy,cx+4,cy );
+        SDL_RenderLine( renderer,cx,cy-4,cx,cy-1 );SDL_RenderLine( renderer,cx,cy+1,cx,cy+4 );
+        SDL_SetRenderDrawColor( renderer,r,g,b,a );
+    }
+    if( ok && !graphics_aim_name.empty() ) ncmm_draw_perspective_label( graphics_aim_name,
+        x+int( graphics_aim_x*base.pixel_width ), y+int( graphics_aim_y*base.pixel_height ), clip );
     ok = SDL_SetRenderClipRect( renderer, clipped ? &prior_clip : nullptr ) && ok;
-    SDL_DestroyTexture( frame );
-    if( !ok ) graphics_view.enabled = false;
+    if( ok && graphics_attack_pending ) {
+        graphics_attack_started = SDL_GetTicks() / 1000.0; graphics_attack_pending = false;
+    }
+    if( !ok ) { graphics_clear_stream(); graphics_view.enabled = false; graphics_release_mouse(); }
     return ok;
 }
 #else

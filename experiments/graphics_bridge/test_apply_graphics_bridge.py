@@ -20,9 +20,18 @@ class ApplyTests(unittest.TestCase):
         for name in ("ncmm_loader.cpp", "ncmm_loader.h"):
             (root / "src" / name).write_bytes((REPO / "host_patch" / name).read_bytes())
         (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n}\n')
-        (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR)
+        (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR+'\nstatic void CheckMessages()\n{\n        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n}\n')
         (root / "src/main_menu.cpp").write_text("        std::exit( ncmm::run_gameplay_smoke() );")
+        (root / "src/sdltiles.h").write_text("SDL_Window *get_sdl_window();")
         (root / "src/handle_action.cpp").write_text("    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {\n        player_character.clear_destination();\n        destination_preview.clear();\n        return false;\n    }")
+        with (root / "src/handle_action.cpp").open('a') as f: f.write('\n    if( act == ACTION_NULL ) {\n        act = look_up_action( action );\n    }')
+        with (root / "src/handle_action.cpp").open('a') as f: f.write('\n        if( act == ACTION_SELECT || act == ACTION_SEC_SELECT ) {}')
+        (root / "src/melee.cpp").write_text('    const bool hits = hit_spread >= 0;')
+        (root / "src/ranged.cpp").write_text('        curshot++;\n\n        if( !gun.is_gun() ) {}\n    bool skip_redraw = false;')
+        (root / "src/creature.cpp").write_text("int Creature::deal_melee_attack( Creature *source, int hitroll )\n{\n}\n    apply_damage( source, bp, total_damage );")
+        (root / "src/ballistics.cpp").write_text('#include "ballistics.h"\n    const bool do_animation = get_option<bool>( "ANIMATION_PROJECTILES" );')
+        (root / "src/monster.cpp").write_text("    // We were carrying a creature, deposit the rider")
+        (root / "src/npc.cpp").write_text("    prevent_death_reminder = false;\n    dialogue d( get_talker_for( this ),")
         (root / "src/cata_tiles.h").write_text("        std::optional<texture_draw_data> get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p );")
         (root / "src/cata_tiles.cpp").write_text("""void cata_tiles::load_tileset( const std::string &tileset_id, const bool precheck,
                                const bool force, const bool pump_events, const bool terrain )
@@ -60,6 +69,12 @@ std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids() {}
                 self.assertIn("draw_graphics_view", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_requires_terrain_pass", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_erase( module_id )", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
+                self.assertIn("graphics.creatures.v1", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
+                self.assertIn("graphics_note_creature( this, 4 )", (root / "src/monster.cpp").read_text(encoding="utf-8"))
+                self.assertIn("graphics_note_creature( origin, 2", (root / "src/ballistics.cpp").read_text(encoding="utf-8"))
+                tiles = (root / "src/cata_tiles.cpp").read_text(encoding="utf-8")
+                self.assertEqual(tiles.count("if( stable && ttype.animated ) seed = 0;"), 1)
+                self.assertIn("cata_tiles::get_texture_draw_data", tiles)
                 before = self.fingerprint(root)
                 with self.assertRaises(ValueError): bridge.apply(root)
                 self.assertEqual(before, self.fingerprint(root))
@@ -71,6 +86,15 @@ std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids() {}
             with patch.object(bridge.subprocess, "check_output", return_value=next(iter(bridge.SOURCES))):
                 with self.assertRaisesRegex(ValueError, "one exact anchor"): bridge.apply(root)
             self.assertEqual(before, self.fingerprint(root))
+    def test_changed_creature_hook_no_partial_patch(self):
+        for name in ("creature.cpp", "ballistics.cpp", "monster.cpp", "npc.cpp"):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root)
+                (root / "src" / name).write_text("changed creature event pathway")
+                before = self.fingerprint(root)
+                with patch.object(bridge.subprocess, "check_output", return_value=next(iter(bridge.SOURCES))):
+                    with self.assertRaisesRegex(ValueError, "one exact anchor"): bridge.apply(root)
+                self.assertEqual(before, self.fingerprint(root))
     def test_changed_atlas_anchor_no_partial_patch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); self.fixture(root)

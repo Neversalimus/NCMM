@@ -17,12 +17,17 @@ std::vector<ncmm_graphics_quad_v1> graphics_commands;
 size_t graphics_resolved_textures = 0;
 size_t graphics_resolved_vehicle_textures = 0;
 size_t graphics_ceiling_cells = 0;
+int graphics_snapshot_radius = 0;
+size_t graphics_snapshot_far_cells = 0;
+size_t graphics_snapshot_light_queries = 0;
 loaded_mod *find_loaded_by_id( const char *module_id );
 void graphics_clear_hybrid();
+void graphics_release_mouse();
+void graphics_cancel_animation();
 
 void graphics_erase( const std::string &id )
 {
-    if( graphics_view.owner == id ) { graphics_view = {}; graphics_clear_hybrid(); }
+    if( graphics_view.owner == id ) { graphics_release_mouse(); graphics_cancel_animation(); graphics_view = {}; graphics_clear_hybrid(); }
 }
 
 int graphics_register( const char *id, ncmm_graphics_render_v1 render,
@@ -41,11 +46,13 @@ int graphics_enable( const char *id, int enabled )
         ( enabled && !character_state_available() ) || graphics_render_active ) return 0;
     const bool changed = graphics_view.enabled != ( enabled != 0 );
     graphics_view.enabled = enabled != 0;
+    if( changed || !graphics_view.enabled ) graphics_cancel_animation();
+    if( !graphics_view.enabled ) graphics_release_mouse();
 #if defined(TILES)
     if( changed && character_state_available() ) {
         add_msg( m_info, "%s", graphics_view.enabled ?
-                 tr_ui( "First person ON. F6: map; F7/F8: turn; F9/F10: look up/down.",
-                        "Вид от первого лица включён. F6: карта; F7/F8: поворот; F9/F10: вверх/вниз." ) :
+                 tr_ui( "First person ON. Hold RMB: look; arrows: relative movement; F6: map; F11: quality.",
+                        "Первое лицо. Зажать ПКМ: осмотр; стрелки: движение по взгляду; F6: карта; F11: качество." ) :
                  tr_ui( "First person OFF.", "Вид от первого лица выключен." ) );
     }
 #endif
@@ -85,10 +92,12 @@ void graphics_register_actions( input_context &ctxt )
     if( !graphics_view.render && !graphics_view.hybrid_render ) return;
     const std::pair<const char *, int> keys[] = {
         { "ncmm.view.turn_left", keycode::f7 }, { "ncmm.view.turn_right", keycode::f8 },
-        { "ncmm.view.look_up", keycode::f9 }, { "ncmm.view.look_down", keycode::f10 }, { "ncmm.view.quality", keycode::f11 }
+        { "ncmm.view.look_up", keycode::f9 }, { "ncmm.view.look_down", keycode::f10 }, { "ncmm.view.quality", keycode::f11 },
+        { "ncmm.view.acceleration", keycode::f12 }
     };
     for( const auto &key : keys ) {
-        const std::string label = key.second == keycode::f11 ? tr_ui( "First person: balanced / high quality", "Первое лицо: сбалансированное / высокое качество" ) :
+        const std::string label = key.second == keycode::f12 ? tr_ui( "First person: GPU atmosphere / CPU", "Первое лицо: атмосфера GPU / CPU" ) :
+            key.second == keycode::f11 ? tr_ui( "First person: balanced / high quality", "Первое лицо: сбалансированное / высокое качество" ) :
             key.second == keycode::f9 ? tr_ui( "First person: look up", "Первое лицо: смотреть вверх" ) :
             key.second == keycode::f10 ? tr_ui( "First person: look down", "Первое лицо: смотреть вниз" ) :
             key.second == keycode::f7 ?
@@ -106,7 +115,9 @@ bool graphics_action( const std::string &action )
                           action == "ncmm.view.turn_right" ? NCMM_GFX_TURN_RIGHT :
                           action == "ncmm.view.look_up" ? NCMM_GFX_LOOK_UP :
                           action == "ncmm.view.look_down" ? NCMM_GFX_LOOK_DOWN :
-                          action == "ncmm.view.quality" ? NCMM_GFX_QUALITY : 0;
+                          action == "ncmm.view.quality" ? NCMM_GFX_QUALITY :
+                          action == "ncmm.view.mouse_look" ? NCMM_GFX_MOUSE_LOOK :
+                          action == "ncmm.view.acceleration" ? NCMM_GFX_ACCELERATION : 0;
     if( turn && ( graphics_view.render || graphics_view.hybrid_render ) ) {
         if( graphics_view.enabled && graphics_view.input ) {
             loaded_mod *mod = find_loaded_by_id( graphics_view.owner.c_str() );
@@ -127,6 +138,7 @@ bool graphics_action( const std::string &action )
     return false;
 }
 
+#include "ncmm_graphics_controls.inc"
 #include "ncmm_graphics_hybrid.inc"
 
 bool graphics_draw( int x, int y, int width, int height )
@@ -141,25 +153,47 @@ bool graphics_draw( int x, int y, int width, int height )
     // offset. Menus and targeting are already suspended by their input context.
     here.update_visibility_cache( you.posz() );
     const auto &visibility = here.get_visibility_variables_cache();
-    constexpr int side = NCMM_GRAPHICS_RADIUS * 2 + 1;
+    // V1 retains its original small snapshot. V2 uses the loaded reality bubble
+    // only; inbounds checks leave unavailable edge cells empty rather than
+    // loading/generating terrain or changing simulation range while rendering.
+    const int radius = graphics_view.hybrid_render ? NCMM_GRAPHICS_V2_RADIUS : NCMM_GRAPHICS_RADIUS;
+    const int side = radius * 2 + 1;
     std::vector<ncmm_graphics_cell_v1> cells( side * side );
     std::vector<tripoint_bub_ms> positions;
     positions.reserve( cells.size() );
     const tripoint_bub_ms origin = you.pos_bub();
+    graphics_viewport = { x, y, width, height };
     graphics_ceiling_cells = 0;
+    graphics_snapshot_radius = radius;
+    graphics_snapshot_far_cells = 0;
+    graphics_snapshot_light_queries = 0;
+    std::vector<uint8_t> transparency;
+    if( graphics_view.hybrid_render ) transparency.resize( cells.size() );
+    for( int gy = 0; gy < side; ++gy ) for( int gx = 0; gx < side; ++gx ) {
+        const tripoint_bub_ms p( origin.x() + gx - radius, origin.y() + gy - radius, origin.z() );
+        positions.push_back( p );
+        if( !transparency.empty() && here.inbounds( p ) ) {
+            transparency[gy * side + gx] = here.ter( p ).obj().transparent &&
+                ( !here.has_furn( p ) || here.furn( p ).obj().transparent );
+        }
+    }
     auto copy_id = []( char *dest, const std::string &id ) {
         if( id.size() >= 128 ) return; // fallback geometry, never a truncated identity
         std::copy( id.begin(), id.end(), dest );
     };
     for( int gy = 0; gy < side; ++gy ) for( int gx = 0; gx < side; ++gx ) {
-        const tripoint_bub_ms p( origin.x() + gx - NCMM_GRAPHICS_RADIUS,
-                                origin.y() + gy - NCMM_GRAPHICS_RADIUS, origin.z() );
-        positions.push_back( p );
+        const tripoint_bub_ms &p = positions[gy * side + gx];
         auto &cell = cells[gy * side + gx];
         if( !here.inbounds( p ) ) continue;
+        // Reject the rear/outside-cone cells before asking the lighting cache.
+        // Simulation and creature AI remain owned by CDDA, independently of
+        // this callback-scoped visual snapshot.
+        if( graphics_view.hybrid_render && !graphics_forward_visible( origin, p, &transparency, radius ) ) continue;
         const lit_level light = here.apparent_light_at( p, visibility );
-        if( here.get_visibility( light, visibility ) != visibility_type::CLEAR ) continue;
+        ++graphics_snapshot_light_queries;
+        if( !graphics_view.hybrid_render && here.get_visibility( light, visibility ) != visibility_type::CLEAR ) continue;
         cell.flags = NCMM_GFX_VISIBLE;
+        if( graphics_view.hybrid_render && std::max( std::abs( gx - radius ), std::abs( gy - radius ) ) > NCMM_GRAPHICS_RADIUS ) ++graphics_snapshot_far_cells;
         cell.light = light == lit_level::LOW ? 0.45f : 1.0f;
         if( here.has_flag( "WALL", p ) || ( here.has_flag( "DOOR", p ) && here.impassable_ter_furn( p ) ) ||
             ( here.impassable_ter_furn( p ) && !here.is_transparent( p ) ) ) cell.flags |= NCMM_GFX_WALL;
@@ -188,9 +222,12 @@ bool graphics_draw( int x, int y, int width, int height )
         }
         const monster *mon = get_creature_tracker().creature_at<monster>( p );
         if( mon && you.sees( here, *mon ) ) copy_id( cell.creature, mon->type->id.str() );
+        else if(const Creature *cr=get_creature_tracker().creature_at<Creature>(p)){
+            if(cr->is_npc()&&you.sees(here,*cr))if(const auto *ch=dynamic_cast<const Character *>(cr))copy_id(cell.creature,ch->male?"npc_male":"npc_female");
+        }
     }
     const ncmm_graphics_scene_v1 scene = { sizeof( ncmm_graphics_scene_v1 ), width, height, side, side,
-        NCMM_GRAPHICS_RADIUS + 0.5f, NCMM_GRAPHICS_RADIUS + 0.5f, cells.data(), cells.size() };
+        radius + 0.5f, radius + 0.5f, cells.data(), cells.size() };
     loaded_mod *mod = find_loaded_by_id( graphics_view.owner.c_str() );
     if( !mod ) { graphics_view.enabled = false; return false; }
     if( graphics_view.hybrid_render ) return graphics_draw_hybrid( scene, positions, x, y );

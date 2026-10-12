@@ -1,10 +1,12 @@
 #include "hybrid_renderer.hpp"
+#include "ncmm_graphics_camera.hpp"
 #include <chrono>
 #include <cstring>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
 using namespace first_person::hybrid;
+namespace animation = first_person::animation;
 namespace {
 int checks=0;
 void check(bool v,const char *name){++checks;if(!v)throw std::runtime_error(name);}
@@ -34,6 +36,30 @@ void save(const frame &f,const std::string &path){std::ofstream out(path,std::io
     for(uint32_t p:f.pixels){char c[]={char(p>>24),char(p>>16),char(p>>8)};out.write(c,3);}}
 }
 int main(int argc,char **argv){try{
+    for(int n=0;n<8;++n){const float angle=n*pi/4;
+        auto forward=ncmm_graphics_camera::movement(angle,1,0),back=ncmm_graphics_camera::movement(angle,-1,0);
+        auto left=ncmm_graphics_camera::movement(angle,0,-1),right=ncmm_graphics_camera::movement(angle,0,1);
+        check(forward.first==-back.first&&forward.second==-back.second,"relative forward/back match in every grid sector");
+        check(left.first==-right.first&&left.second==-right.second,"relative strafes match in every grid sector");
+        check(forward.first*right.first+forward.second*right.second==0,"forward and strafe stay perpendicular");}
+    check(ncmm_graphics_camera::movement(-pi*.5f,1,0)==std::make_pair(0,-1),"north-facing up arrow moves north");
+    check(ncmm_graphics_camera::movement(0,1,0)==std::make_pair(1,0),"east-facing up arrow moves east");
+    check(ncmm_graphics_camera::in_front(0,8,0)&&!ncmm_graphics_camera::in_front(0,-8,0)&&!ncmm_graphics_camera::in_front(0,0,8),"forward scene excludes distant rear and side tiles");
+    ncmm_graphics_shapes::traits opaque_rock;opaque_rock.impassable=true;opaque_rock.transparent=false;
+    check(ncmm_graphics_shapes::furniture("f_boulder_large",opaque_rock)==NCMM_SHAPE_ROCK,"large opaque boulders do not become wall cubes");
+    check(ncmm_graphics_shapes::terrain("t_rock_wall",opaque_rock)==NCMM_SHAPE_WALL,"underground stone walls keep their wall geometry");
+    ncmm_graphics_control_state_v1 attack{};attack.struct_size=sizeof(attack);attack.attack_serial=1;attack.attack_started=10;attack.attack_kind=1;attack.grip_kind=NCMM_GRIP_POLE;attack.held_length=2;
+    check(animation::sample(attack,10).thrust==0&&animation::sample(attack,10.12).thrust>.20f,"pole timeline winds into a thrust");
+    check(animation::sample(attack,10.50).thrust==0&&animation::sample(attack,9).thrust==0,"timeline recovers and rejects a future event");
+    fixture stones;for(auto &d:stones.details)d.terrain_shape=NCMM_SHAPE_FLAT;
+    stones.shape(7,7,NCMM_SHAPE_ROCK);frame original_rock,reindexed_rock;
+    check(build_frame(stones.scene,-pi*.5f,0,stones.provider(),original_rock),"original camera-centred rock snapshot");
+    stones.shape(7,7,NCMM_SHAPE_FLAT);stones.shape(8,7,NCMM_SHAPE_ROCK);stones.scene.base.camera_x+=1;
+    check(build_frame(stones.scene,-pi*.5f,0,stones.provider(),reindexed_rock),"reindexed camera-centred rock snapshot");
+    size_t rock_pixels=0,stable_rock_pixels=0;
+    for(size_t n=0;n<original_rock.depth.size();++n)if(original_rock.owners[n]==7*15+7){++rock_pixels;
+        stable_rock_pixels+=reindexed_rock.owners[n]==7*15+8&&std::abs(original_rock.depth[n]-reindexed_rock.depth[n])<.001f;}
+    check(rock_pixels>100&&stable_rock_pixels*100>=rock_pixels*99,"boulder geometry stays stable when the local grid shifts around the camera");
     check(ncmm_graphics_shapes::physical_item_id("naginata_plus_two","naginata",2)=="naginata","enchanted melee uses its declared physical silhouette instead of grade icons");
     check(ncmm_graphics_shapes::physical_item_id("rifle_plus_one","rifle",1)=="rifle","enchanted gun resolves physical art generically");
     check(ncmm_graphics_shapes::physical_item_id("knife_combat","knife",2)=="knife_combat","normal weapon keeps its own authored sprite");
@@ -126,6 +152,14 @@ int main(int argc,char **argv){try{
     for(int y=f.height/2-12;y<=f.height/2+12;++y)for(int x=f.width/2-12;x<=f.width/2+12;++x)center_held+=std::isfinite(f.held_depth[size_t(y)*f.width+x]);
     check(center_held==0&&held_top>f.height/3,"rotated view model leaves the reticle and upper scene clear");
     check(f.depth[at]>1,"view model does not overwrite world occlusion depth");
+    frame cached,rest,strike,recovered;
+    const auto idle=animation::sample(attack,10);
+    check(build_frame(world.scene,-pi*.5f,0,world.provider(),rest,800,500,idle,nullptr,&cached),"pole resting pose builds an owned world frame");
+    check(build_frame(world.scene,-pi*.5f,0,world.provider(),strike,800,500,animation::sample(attack,10.12),&cached),"attack composes over owned world pixels");
+    check(digest(rest)!=digest(strike)&&rest.depth==strike.depth,"attack changes hands while preserving world depth");
+    check(build_frame(world.scene,-pi*.5f,0,world.provider(),recovered,800,500,animation::sample(attack,10.6),&cached),"recovery composition succeeds");
+    check(digest(rest)==digest(recovered),"attack returns exactly to its idle pose without accumulating transforms");
+    if(argc==2){save(rest,std::string(argv[1])+"-pole.ppm");save(strike,std::string(argv[1])+"-attack.ppm");}
     world.scene.environment.held_item[0]=0;draw();check(f.held_pixels==0,"empty hands do not retain previous weapon");
     check(std::none_of(f.held_depth.begin(),f.held_depth.end(),[](float z){return std::isfinite(z);}),"unwielding clears view-model depth as well as geometry");
     const int animal=9*15+7;std::strcpy(world.cells[animal].creature,"mon_aphid");
