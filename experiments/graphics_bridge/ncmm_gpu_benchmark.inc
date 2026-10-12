@@ -65,6 +65,12 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
                 graphics_clear_creatures();refresh_caches();
                 auto render=[&](){require(SDL_SetRenderTarget(renderer,canvas)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"gpu_benchmark_viewport_failed");
                     std::multimap<point,formatted_text> overlays;color_block_overlay_container blocks;tilecontext->draw(point::zero,you.pos_bub(),resolution.x,resolution.y,overlays,blocks);
+                    // cata_tiles::draw owns a display_buffer_draw_scope: it binds
+                    // the game's display buffer and detaches to the window on
+                    // exit, rather than restoring our diagnostic canvas.
+                    // Rebind explicitly before the measured perspective pass.
+                    require(SDL_SetRenderTarget(renderer,canvas)&&SDL_SetRenderLogicalPresentation(renderer,0,0,SDL_LOGICAL_PRESENTATION_DISABLED)&&
+                        SDL_SetRenderScale(renderer,1,1)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"gpu_benchmark_canvas_rebind_failed");
                     require(graphics_draw(0,0,resolution.x,resolution.y),"gpu_benchmark_game_render_failed");};
                 auto present=[&](){require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"gpu_benchmark_window_target_failed");
                     require(SDL_RenderTexture(renderer,canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"gpu_benchmark_real_window_present_failed");};
@@ -74,7 +80,8 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
                     ready=std::string(mode)=="cpu"||graphics_gpu_frame;
                     if(ready&&(!group.size()||(!graphics_creature_metrics.queued&&!graphics_creature_metrics.fallback)))break;SDL_Delay(2);}
                 require(ready,"gpu_benchmark_gpu_fallback_not_allowed");const double first_ready_ms=elapsed(cold);
-                render();auto *raw=SDL_RenderReadPixels(renderer,nullptr);auto *rgba=raw?SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888):nullptr;
+                render();require(SDL_GetRenderTarget(renderer)==canvas,"gpu_benchmark_capture_target_wrong");
+                auto *raw=SDL_RenderReadPixels(renderer,nullptr);auto *rgba=raw?SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888):nullptr;
                 require(rgba&&rgba->w==resolution.x&&rgba->h==resolution.y,"gpu_benchmark_capture_dimensions_wrong");
                 const std::string file="first-person-gpu-"+name+"-"+std::to_string(resolution.x)+"x"+std::to_string(resolution.y)+"-"+(stable_cpu?"stable-cpu":mode)+".bmp";
                 require(SDL_SaveBMP(rgba,(game_root()/"ncmm"/file).string().c_str()),"gpu_benchmark_capture_write_failed");double mae=0;
