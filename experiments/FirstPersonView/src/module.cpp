@@ -11,6 +11,8 @@ const ncmm_host_graphics_v2 *hybrid=nullptr;
 const ncmm_host_graphics_controls_v1 *controls=nullptr;
 const ncmm_host_graphics_presentation_v1 *presentation=nullptr;
 first_person::hybrid::presentation_data metadata;
+const ncmm_host_graphics_creatures_v1 *creatures=nullptr;
+std::unique_ptr<first_person::creature::presentation> creature_state;
 double yaw=-first_person::pi*0.5;
 float pitch=0,look_sway_x=0,look_sway_y=0;
 double look_sway_started=0,last_scene_seconds=0;
@@ -23,13 +25,15 @@ uint64_t world_key=0;
 bool world_valid=false;
 std::chrono::steady_clock::time_point frame_built{};
 std::chrono::steady_clock::time_point world_built{};
-uint64_t geometry_key(const ncmm_graphics_scene_v2 &s){
+uint64_t geometry_key(const ncmm_graphics_scene_v2 &s,bool dynamic=false){
     uint64_t h=1469598103934665603ull;
     auto bytes=[&](const void *p,size_t n){h=first_person::hash_bytes(h,p,n);};
     bytes(&yaw,sizeof(yaw));bytes(&pitch,sizeof(pitch));bytes(&high_quality,sizeof(high_quality));
     const auto &b=s.base;bytes(&b.pixel_width,sizeof(b.pixel_width)*4);bytes(&b.camera_x,sizeof(b.camera_x)*2);
     for(size_t i=0;i<b.cell_count;++i){
-        if(b.cells[i].flags&NCMM_GFX_VISIBLE){bytes(&b.cells[i],sizeof(b.cells[i]));bytes(&s.details[i],sizeof(s.details[i]));}
+        if(b.cells[i].flags&NCMM_GFX_VISIBLE){
+            if(dynamic){auto cell=b.cells[i];std::memset(cell.creature,0,sizeof(cell.creature));auto detail=s.details[i];detail.terrain_flags&=~(NCMM_CREATURE_TINY|NCMM_CREATURE_SMALL|NCMM_CREATURE_LARGE|NCMM_CREATURE_HUGE);bytes(&cell,sizeof(cell));bytes(&detail,sizeof(detail));}
+            else{bytes(&b.cells[i],sizeof(b.cells[i]));bytes(&s.details[i],sizeof(s.details[i]));}}
         else bytes(&b.cells[i].flags,sizeof(b.cells[i].flags));}
     return h;
 }
@@ -54,28 +58,38 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     if(presentation){metadata.view={};metadata.view.struct_size=sizeof(metadata.view);metadata.cells.resize(scene->base.cell_count);
         has_metadata=presentation->get_scene(&metadata.view)&&presentation->get_cells(metadata.cells.data(),metadata.cells.size());
         if(!gpu_effects)metadata.view.flags&=~NCMM_PRESENT_GPU_EFFECTS;}
+    bool has_creatures=false;
+    if(creatures&&creature_state){auto &input=creature_state->input;input.view={};input.view.struct_size=sizeof(input.view);
+        if(creatures->get_scene(&input.view)&&input.view.count<=scene->base.cell_count+256){input.creatures.resize(input.view.count);
+            has_creatures=creatures->get_creatures(input.creatures.data(),input.creatures.size())&&first_person::creature::valid(input,scene->base.cell_count);}
+        if(has_creatures)creature_state->observe();}
     auto pose=first_person::animation::sample(state,std::floor(scene->environment.animation_seconds*40)/40);
     if(has_metadata){const float t=float(std::fmod(scene->environment.animation_seconds,1000.0));
         const float lag=std::exp(-float(std::max(0.0,scene->environment.animation_seconds-look_sway_started))*9);
         pose.sway_x=std::sin(t*1.4f)*.0022f+std::sin(t*8)*metadata.view.movement*.008f+look_sway_x*lag;
         pose.sway_y=std::sin(t*2.2f)*.0032f+std::abs(std::sin(t*10))*metadata.view.movement*.010f+look_sway_y*lag;}
-    const uint64_t common=geometry_key(*scene);
+    const uint64_t common=geometry_key(*scene,has_creatures);
     uint64_t key=scene_key(*scene,common);
     for(float value:{pose.swing,pose.thrust,pose.recoil,pose.length,pose.sway_x,pose.sway_y}){uint32_t bits;std::memcpy(&bits,&value,sizeof(bits));key=(key^bits)*1099511628211ull;}
     key=(key^pose.grip)*1099511628211ull;
     uint64_t wk=scene_key(*scene,common,true);
+    if(has_creatures){const auto &input=creature_state->input;const auto phase=int64_t(std::floor(input.view.seconds*40));
+        key=first_person::hash_bytes(key,&phase,sizeof(phase));key=first_person::hash_bytes(key,input.creatures.data(),input.creatures.size()*sizeof(ncmm_graphics_creature_v1));
+        key^=creature_state->resources.statistics().generated;
+        wk=first_person::hash_bytes(wk,&input.view.world_epoch,sizeof(input.view.world_epoch));wk=first_person::hash_bytes(wk,&input.view.tileset_epoch,sizeof(input.view.tileset_epoch));}
     if(has_metadata){auto hash=[&](const void *data,size_t n){wk=first_person::hash_bytes(wk,data,n);};
         // Appearance and movement only change composition, not static geometry.
         const uint64_t presentation_key=first_person::hash_bytes(1469598103934665603ull,&metadata.view,sizeof(metadata.view));
         key^=presentation_key;
         hash(&metadata.view.eye_height,sizeof(metadata.view.eye_height));hash(&metadata.view.sky_style,sizeof(metadata.view.sky_style));
-        hash(&metadata.view.occupied_vehicle,sizeof(metadata.view.occupied_vehicle));hash(metadata.cells.data(),metadata.cells.size()*sizeof(metadata.cells[0]));key^=wk;}
+        hash(&metadata.view.occupied_vehicle,sizeof(metadata.view.occupied_vehicle));if(has_creatures){for(auto detail:metadata.cells){detail.hostile=0;detail.creature_height=detail.creature_width=detail.creature_elevation=0;hash(&detail,sizeof(detail));}}
+        else hash(metadata.cells.data(),metadata.cells.size()*sizeof(metadata.cells[0]));key^=wk;}
     const bool rebuild_world=!world_valid||wk!=world_key||now-world_built>std::chrono::milliseconds(250);
     // Keep complete owned pixels only; callback-scoped sprite pointers never
     // survive a frame. Periodic refresh also handles a changed tileset atlas.
     if(!frame_valid||rebuild_world||key!=frame_key||now-frame_built>std::chrono::milliseconds(250)){
         const first_person::hybrid::sprite_provider provider=[](uint32_t i,uint32_t layer,ncmm_graphics_sprite_v2 &s){return hybrid&&hybrid->get_sprite(i,layer,&s)!=0;};
-        if(!first_person::hybrid::build_frame(*scene,float(yaw),pitch,provider,pixels,high_quality?1920:1280,high_quality?1080:800,pose,rebuild_world?nullptr:&world_pixels,rebuild_world?&world_pixels:nullptr,has_metadata?&metadata:nullptr)){frame_valid=world_valid=false;return 0;}
+        if(!first_person::hybrid::build_frame(*scene,float(yaw),pitch,provider,pixels,high_quality?1920:1280,high_quality?1080:800,pose,rebuild_world?nullptr:&world_pixels,rebuild_world?&world_pixels:nullptr,has_metadata?&metadata:nullptr,{},has_creatures?creature_state.get():nullptr)){frame_valid=world_valid=false;return 0;}
         if(rebuild_world){world_key=wk;world_built=now;world_valid=true;}
         frame_key=key;frame_built=now;frame_valid=true;
     }
@@ -105,7 +119,7 @@ void input(uint32_t action,void *) {
 int init(const ncmm_host_api_v1 *api) {
     graphics=nullptr;
     hybrid=nullptr;
-    controls=nullptr;presentation=nullptr;metadata={};look_sway_x=look_sway_y=0;look_sway_started=last_scene_seconds=0;frame_valid=world_valid=false;high_quality=false;gpu_effects=true;
+    controls=nullptr;presentation=nullptr;metadata={};creatures=nullptr;creature_state.reset();look_sway_x=look_sway_y=0;look_sway_started=last_scene_seconds=0;frame_valid=world_valid=false;high_quality=false;gpu_effects=true;
     const auto core=ncmm::sdk::require_core(api,caps,sizeof(caps)/sizeof(caps[0]),NCMM_SDK_CORE_FIELD_END(api_minor));
     if(!core) return 0;
     if(api->has_capability(NCMM_GRAPHICS_V2_CAP)) {
@@ -117,6 +131,9 @@ int init(const ncmm_host_api_v1 *api) {
         if(api->has_capability(NCMM_GRAPHICS_PRESENTATION_CAP)){
             auto *p=static_cast<const ncmm_host_graphics_presentation_v1 *>(api->query_interface(NCMM_GRAPHICS_PRESENTATION_ID,1,0));
             if(p&&p->abi_version==1&&p->major==1&&p->struct_size>=sizeof(*p)&&p->get_scene&&p->get_cells&&p->set_target&&p->submit_effects)presentation=p;}
+        if(api->has_capability(NCMM_GRAPHICS_CREATURES_CAP)){
+            auto *c=static_cast<const ncmm_host_graphics_creatures_v1 *>(api->query_interface(NCMM_GRAPHICS_CREATURES_ID,1,0));
+            if(c&&c->abi_version==1&&c->major==1&&c->struct_size>=sizeof(*c)&&c->get_scene&&c->get_creatures){creatures=c;creature_state=std::make_unique<first_person::creature::presentation>();}}
         if(api->has_capability(NCMM_GRAPHICS_CONTROLS_CAP)){
             auto *c=static_cast<const ncmm_host_graphics_controls_v1 *>(api->query_interface(NCMM_GRAPHICS_CONTROLS_ID,1,0));
             if(c&&c->abi_version==1&&c->major==1&&c->struct_size>=sizeof(*c)&&c->get_state&&c->set_camera){controls=c;controls->set_camera(float(yaw),pitch);}}
@@ -136,7 +153,7 @@ void shutdown() {
     if(graphics) graphics->set_enabled(id,0);
     hybrid=nullptr;
     controls=nullptr;
-    presentation=nullptr;metadata={};
+    presentation=nullptr;metadata={};creatures=nullptr;creature_state.reset();
     graphics=nullptr;
     commands.clear();
     pixels={};world_pixels={};frame_valid=world_valid=false;

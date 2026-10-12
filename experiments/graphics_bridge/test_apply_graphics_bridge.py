@@ -28,6 +28,10 @@ class ApplyTests(unittest.TestCase):
         with (root / "src/handle_action.cpp").open('a') as f: f.write('\n        if( act == ACTION_SELECT || act == ACTION_SEC_SELECT ) {}')
         (root / "src/melee.cpp").write_text('    const bool hits = hit_spread >= 0;')
         (root / "src/ranged.cpp").write_text('        curshot++;\n\n        if( !gun.is_gun() ) {}\n    bool skip_redraw = false;')
+        (root / "src/creature.cpp").write_text("int Creature::deal_melee_attack( Creature *source, int hitroll )\n{\n}\n    apply_damage( source, bp, total_damage );")
+        (root / "src/ballistics.cpp").write_text('#include "ballistics.h"\n    const bool do_animation = get_option<bool>( "ANIMATION_PROJECTILES" );')
+        (root / "src/monster.cpp").write_text("    // We were carrying a creature, deposit the rider")
+        (root / "src/npc.cpp").write_text("    prevent_death_reminder = false;\n    dialogue d( get_talker_for( this ),")
         (root / "src/cata_tiles.h").write_text("        std::optional<texture_draw_data> get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p );")
         (root / "src/cata_tiles.cpp").write_text("""void cata_tiles::load_tileset( const std::string &tileset_id, const bool precheck,
                                const bool force, const bool pump_events, const bool terrain )
@@ -65,6 +69,9 @@ std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids() {}
                 self.assertIn("draw_graphics_view", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_requires_terrain_pass", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_erase( module_id )", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
+                self.assertIn("graphics.creatures.v1", (root / "src/ncmm_loader.cpp").read_text())
+                self.assertIn("graphics_note_creature( this, 4 )", (root / "src/monster.cpp").read_text())
+                self.assertIn("graphics_note_creature( origin, 2", (root / "src/ballistics.cpp").read_text())
                 before = self.fingerprint(root)
                 with self.assertRaises(ValueError): bridge.apply(root)
                 self.assertEqual(before, self.fingerprint(root))
@@ -76,6 +83,15 @@ std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids() {}
             with patch.object(bridge.subprocess, "check_output", return_value=next(iter(bridge.SOURCES))):
                 with self.assertRaisesRegex(ValueError, "one exact anchor"): bridge.apply(root)
             self.assertEqual(before, self.fingerprint(root))
+    def test_changed_creature_hook_no_partial_patch(self):
+        for name in ("creature.cpp", "ballistics.cpp", "monster.cpp", "npc.cpp"):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root)
+                (root / "src" / name).write_text("changed creature event pathway")
+                before = self.fingerprint(root)
+                with patch.object(bridge.subprocess, "check_output", return_value=next(iter(bridge.SOURCES))):
+                    with self.assertRaisesRegex(ValueError, "one exact anchor"): bridge.apply(root)
+                self.assertEqual(before, self.fingerprint(root))
     def test_changed_atlas_anchor_no_partial_patch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); self.fixture(root)

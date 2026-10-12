@@ -52,7 +52,7 @@ def apply(root: Path):
         "void register_gameplay_actions( input_context &ctxt )\n{\n    graphics_register_actions( ctxt );")
     loader = replace(loader, "bool handle_gameplay_action( const std::string &action )\n{",
         "bool handle_gameplay_action( const std::string &action )\n{\n    if( graphics_action( action ) ) return true;")
-    loader = replace(loader, "void reset_world_lifecycle()\n{", "void reset_world_lifecycle()\n{\n    graphics_view.enabled = false;\n    graphics_gameplay_context = false;")
+    loader = replace(loader, "void reset_world_lifecycle()\n{", "void reset_world_lifecycle()\n{\n    graphics_view.enabled = false;\n    graphics_clear_hybrid();\n    graphics_gameplay_context = false;")
     loader = replace(loader, "void shutdown()\n{", "void shutdown()\n{\n    graphics_view = {};\n    graphics_frame = nullptr;\n    graphics_commands.clear();\n    graphics_clear_hybrid();")
     loader = replace(loader, '        write_gameplay_smoke_result( true, "ok", aws_setting_count,',
         '        if( module_ids.count( "first_person_view" ) && !graphics_scene_smoke() ) {\n            write_gameplay_smoke_result( false, "first_person_graphics_failed", aws_setting_count, aws_hook_count, survivor_perk_count );\n            return 191;\n        }\n\n        write_gameplay_smoke_result( true, "ok", aws_setting_count,')
@@ -73,11 +73,17 @@ def apply(root: Path):
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {\n        return min_major <= 1 && min_minor == 0 ? &graphics_presentation_api : nullptr;\n    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CONTROLS_ID ) {')
     loader = replace(loader, "bool graphics_requires_terrain_pass()\n{", "std::string graphics_click_action()\n{\n    return graphics_click_action_impl();\n}\nbool graphics_consume_aimed_fire(int x,int y,int z)\n{\n    return graphics_consume_click_impl(x,y,z);\n}\nbool graphics_requires_terrain_pass()\n{")
     loader = replace(loader, '    graphics_control_context = category == "DEFAULTMODE";', '    graphics_control_context = category == "DEFAULTMODE";\n    if(graphics_control_context)graphics_click_pending=false;')
+    loader = replace(loader, '#include "ncmm_graphics_presentation_policy.hpp"', '#include "ncmm_graphics_presentation_policy.hpp"\n#include "ncmm_graphics_creatures.h"')
+    loader = replace(loader, '    "graphics.presentation.v1",', '    "graphics.presentation.v1",\n    "graphics.creatures.v1",')
+    loader = replace(loader, '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {',
+        '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CREATURES_ID ) {\n        return min_major <= 1 && min_minor == 0 ? &graphics_creatures_api : nullptr;\n    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {')
+    loader = replace(loader, "bool graphics_requires_terrain_pass()\n{", "void graphics_note_creature( Creature *who, uint32_t event, float heading )\n{\n#if defined(TILES)\n    graphics_notify_creature( who, event, heading );\n#else\n    (void)who; (void)event; (void)heading;\n#endif\n}\nbool graphics_requires_terrain_pass()\n{")
     updates["ncmm_loader.cpp"] = loader
     header = read("ncmm_loader.h")
     updates["ncmm_loader.h"] = replace(header, "void initialize();", "void graphics_note_input_context( const std::string &category );\nbool graphics_preserves_destination( const std::string &action );\nbool graphics_requires_terrain_pass();\nbool draw_graphics_view( int x, int y, int width, int height );\nvoid initialize();")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "class input_context;", "class input_context;\nstruct input_event;")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", "std::string graphics_relative_action( const std::string &, const input_event &, bool );\nvoid graphics_note_attack( uint32_t kind );\nbool graphics_mouse_event( uint32_t kind, float x, float y, float dx, float dy, bool allowed );\nbool graphics_animation_redraw_due();\nvoid initialize();")
+    updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", "void graphics_note_creature( Creature *, uint32_t event, float heading = 100.f );\nvoid initialize();")
     action = read("handle_action.cpp")
     action_anchor = "    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {\n        player_character.clear_destination();\n        destination_preview.clear();\n        return false;\n    }"
     updates["handle_action.cpp"] = replace(action, action_anchor,
@@ -92,6 +98,16 @@ def apply(root: Path):
     updates["ranged.cpp"] = replace(ranged, "        curshot++;\n\n        if( !gun.is_gun() )", "        curshot++;\n        if( is_avatar() ) ncmm::graphics_note_attack( 2 );\n\n        if( !gun.is_gun() )")
     updates["ranged.cpp"] = replace(updates["ranged.cpp"], "    bool skip_redraw = false;",
         "    bool skip_redraw = false;\n    // LMB already picked and confirmed a visible hostile sprite. Keep every\n    // ordinary firing/aiming readiness and trajectory check in this UI.\n    if((mode==TargetMode::Fire||mode==TargetMode::Reach)&&status==Status::Good&&\n        ncmm::graphics_consume_aimed_fire(dst.x(),dst.y(),dst.z())){\n        init_window_and_input();ui.position_from_window(w_target);\n        action=\"FIRE\";skip_redraw=true;\n    }")
+    # Observe successful game pathways only. No move costs, targets, damage,
+    # AI, saves or return values are modified by presentation hooks.
+    creature = read("creature.cpp")
+    creature = replace(creature, "int Creature::deal_melee_attack( Creature *source, int hitroll )\n{", "int Creature::deal_melee_attack( Creature *source, int hitroll )\n{\n    if( source ) ncmm::graphics_note_creature( source, 1, std::atan2( float( pos_abs().y() - source->pos_abs().y() ), float( pos_abs().x() - source->pos_abs().x() ) ) );")
+    updates["creature.cpp"] = replace(creature, "    apply_damage( source, bp, total_damage );", "    apply_damage( source, bp, total_damage );\n    if( total_damage > 0 ) ncmm::graphics_note_creature( this, 3 );")
+    ballistic = read("ballistics.cpp")
+    ballistic = replace(ballistic, '#include "ballistics.h"', '#include "ballistics.h"\n#include "ncmm_loader.h"')
+    updates["ballistics.cpp"] = replace(ballistic, '    const bool do_animation = get_option<bool>( "ANIMATION_PROJECTILES" );', '    if( origin ) ncmm::graphics_note_creature( origin, 2, std::atan2( float( target_arg.y() - source.y() ), float( target_arg.x() - source.x() ) ) );\n    const bool do_animation = get_option<bool>( "ANIMATION_PROJECTILES" );')
+    updates["monster.cpp"] = replace(read("monster.cpp"), "    // We were carrying a creature, deposit the rider", "    ncmm::graphics_note_creature( this, 4 );\n    // We were carrying a creature, deposit the rider")
+    updates["npc.cpp"] = replace(read("npc.cpp"), "    prevent_death_reminder = false;\n    dialogue d( get_talker_for( this ),", "    ncmm::graphics_note_creature( this, 4 );\n    prevent_death_reminder = false;\n    dialogue d( get_talker_for( this ),")
     context = read("input_context.cpp")
     context = replace(context, '#include "input_context.h"', '#include "input_context.h"\n#include "ncmm_loader.h"')
     updates["input_context.cpp"] = replace(context, "const std::string &input_context::handle_input( const int timeout )\n{",
@@ -158,7 +174,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     tiles_cpp = tiles_cpp[:start] + lookup + tiles_cpp[start:]
     load_anchor = "                               const bool force, const bool pump_events, const bool terrain )\n{"
     updates["cata_tiles.cpp"] = replace(tiles_cpp, load_anchor, load_anchor + "\n    ++ncmm_graphics_epoch;")
-    for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_controls.h", "ncmm_graphics_camera.hpp", "ncmm_graphics_controls.inc", "ncmm_graphics_presentation.h", "ncmm_graphics_presentation_policy.hpp", "ncmm_graphics_presentation.inc", "ncmm_graphics_composite.hpp", "ncmm_graphics_effects.inc", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_smoke.inc"):
+    for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_controls.h", "ncmm_graphics_camera.hpp", "ncmm_graphics_controls.inc", "ncmm_graphics_presentation.h", "ncmm_graphics_presentation_policy.hpp", "ncmm_graphics_presentation.inc", "ncmm_graphics_creatures.h", "ncmm_graphics_creatures.inc", "ncmm_graphics_composite.hpp", "ncmm_graphics_effects.inc", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_smoke.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name] = (bridge / name).read_text(encoding="utf-8")

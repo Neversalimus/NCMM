@@ -14,6 +14,7 @@ size_t graphics_hybrid_tiny_creatures = 0;
 std::array<size_t, NCMM_SHAPE_COUNT> graphics_hybrid_shape_counts = {};
 ncmm_graphics_environment_v2 graphics_hybrid_last_environment = {};
 #include "ncmm_graphics_presentation.inc"
+#include "ncmm_graphics_creatures.inc"
 
 #if defined(TILES)
 struct graphics_cpu_sprite {
@@ -104,6 +105,7 @@ bool graphics_read_sprite( const texture_draw_data &atlas, graphics_cpu_sprite &
 
 void graphics_clear_hybrid()
 {
+    graphics_clear_creatures();
     graphics_hybrid_frame = nullptr; graphics_hybrid_positions = nullptr;
     graphics_hybrid_pixels.clear(); graphics_hybrid_width = graphics_hybrid_height = 0;
     graphics_presentation_cells.clear(); graphics_effect_pixels.clear(); graphics_aim.reset(); graphics_aim_name.clear();
@@ -383,6 +385,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         graphics_cpu_sprites.clear(); graphics_hybrid_sprite_bytes = 0;
         graphics_hybrid_tileset_epoch = epoch; graphics_hybrid_renderer_identity = renderer;
     }
+    graphics_prepare_creatures( base, positions );
     graphics_hybrid_pixels.clear(); graphics_hybrid_width = graphics_hybrid_height = 0;
     graphics_resolved_textures = graphics_resolved_vehicle_textures = 0;
     graphics_frame_invalid = false; graphics_hybrid_frame = &scene; graphics_hybrid_positions = &positions;

@@ -30,8 +30,8 @@ inline void observe(instance &a,const ncmm_graphics_creature_v1 &s,double now){
         a.previous=display_position(a,now);a.target=target;
         // Teleports, stairs and fresh visibility snap to the authoritative place.
         // They do not animate an invented route through hidden cells or walls.
-        if(distance>1.5f||delta.z!=0)a.previous=a.target;
-        else{a.gait_base+=a.step*pi;a.step=distance;}
+        if(distance>1.5f||delta.z!=0){a.previous=a.target;a.step=0;}
+        else{a.gait_base+=std::min(float(std::max(0.0,now-a.move_at))/.18f,1.8f)*pi*a.step;a.step=distance;}
         a.move_at=now;
         if(delta.x||delta.y){a.from_heading=display_heading(a,now);a.heading=std::atan2(delta.y,delta.x);a.turn_at=now;}
     }
