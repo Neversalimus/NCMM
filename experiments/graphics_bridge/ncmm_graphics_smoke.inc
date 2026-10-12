@@ -341,7 +341,17 @@ bool graphics_scene_smoke()
                  "wielded_tileset_item_missing" );
         capture_frame( "first-person-objects.bmp" );
         capture_frame( "first-person-pole-grip.bmp" );
-        monster *target = g->place_critter_at( mtype_id( "mon_zombie" ), tripoint_bub_ms( center.x(), center.y() - 1, 0 ) );
+        const tripoint_bub_ms attack_cell( center.x(), center.y() - 1, 0 );
+        // Keep the scripted target independent of inherited terrain hazards or
+        // a quickstart NPC as well as monsters; do not bypass spawn validation.
+        here.ter_set( attack_cell, ter_id( "t_floor" ) ); here.furn_set( attack_cell, furn_id( "f_null" ) );
+        here.clear_fields( attack_cell ); here.remove_trap( attack_cell );
+        if( const monster *previous = get_creature_tracker().creature_at<monster>( attack_cell ) ) get_creature_tracker().remove( *previous );
+        if( npc *previous = get_creature_tracker().creature_at<npc>( attack_cell ) ) {
+            const auto previous_id = previous->getID(); g->remove_npc( previous_id ); overmap_buffer.remove_npc( previous_id );
+        }
+        require( here.passable( attack_cell ) && !get_creature_tracker().creature_at( attack_cell ), "attack_fixture_cell_not_empty" );
+        monster *target = g->place_critter_at( mtype_id( "mon_zombie" ), attack_cell );
         require( target != nullptr, "attack_target_not_created" );
         ncmm::handle_gameplay_action("ncmm.view.look_down");draw();
         require(graphics_aim.has_value()&&graphics_aim_name==target->disp_name(),"visible_aim_label_missing");
