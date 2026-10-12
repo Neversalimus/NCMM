@@ -80,7 +80,7 @@ class scene_cache {
             if(!mesh){mesh_builder builder;const auto &source=model.lod[std::min(lod,1)];std::array<uint32_t,size_t(creature::region::count)*creature::skin::surfaces> materials{};
                 for(size_t i=0;i<materials.size();++i){ncmm_gpu_material_v1 material{};material.color[0]=.38f;material.color[1]=.43f;material.color[2]=.28f;material.color[3]=1;
                     material.flags=NCMM_GPU_SMOOTH|NCMM_GPU_CREATURE_VISUAL|NCMM_GPU_CULL_BACK|(targetable?NCMM_GPU_CREATURE:0);
-                    material.finish=uint32_t(model.type.flags&NCMM_CR_MECHANICAL?hybrid::surface::metal:model.type.flags&(NCMM_CR_CHITIN|NCMM_CR_SCALES)?hybrid::surface::resin:model.type.flags&NCMM_CR_FUR?hybrid::surface::cloth:hybrid::surface::none);
+                    material.finish=uint32_t(model.type.flags&NCMM_CR_MECHANICAL?hybrid::surface::metal:hybrid::surface::none);
                     std::shared_ptr<const owned_texture> texture;
                     if(!fallback){const auto &skin=model.colors.skins[i/creature::skin::surfaces];const auto &pixels=skin.pixels(i%creature::skin::surfaces);texture=cache.assets.texture(skin.width,skin.height,skin.width,pixels.data());
                         if(!texture){fail("GPU creature skin texture cache budget exceeded");return;}material.texture_key=texture->key;material.flags|=NCMM_GPU_TEXTURED;}
@@ -102,7 +102,7 @@ class scene_cache {
         }
         void impostor(const creature::asset &asset,const creature::pose_state &pose,vec at,int cell,int lod,bool targetable)override{
             float angle=std::atan2(frame.scene.camera.eye[1]-at.y,frame.scene.camera.eye[0]-at.x)-pose.heading;
-            int direction=creature::impostor_direction(angle),state=creature::impostor_pose(pose),index=state*creature::impostor_atlas::directions+direction;
+            int direction=pose.atlas_view>=0?pose.atlas_view:creature::impostor_direction(angle),state=creature::impostor_pose(pose),index=state*creature::impostor_atlas::directions+direction;
             const auto key=std::make_tuple(model_key(asset.geometry),index,lod,targetable);auto mesh=cache.impostors[key].lock();
             if(!mesh){const auto &sprite=asset.atlas->frames[size_t(index)];mesh_builder builder;ncmm_gpu_material_v1 material{};
                 const auto mean=asset.geometry.colors.skins[1].mean;material.color[0]=mean.x;material.color[1]=mean.y;material.color[2]=mean.z;material.color[3]=1;

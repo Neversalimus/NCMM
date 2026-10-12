@@ -1,5 +1,7 @@
 #pragma once
 #include "creature_lod.hpp"
+#include "creature_appearance_debug.hpp"
+#include <cstdlib>
 #include <chrono>
 #include <condition_variable>
 #include <deque>
@@ -28,7 +30,7 @@ public:
     static constexpr size_t memory_limit=64*1024*1024,queue_limit=16;
 private:
     struct entry {std::shared_ptr<const asset> value;uint64_t touched=0;};
-    struct job {uint64_t key=0,epoch=0;phenotype type; sprite source;};
+    struct job {uint64_t key=0,epoch=0;phenotype type; sprite source;std::string label;};
     std::unordered_map<uint64_t,entry> entries;
     std::unordered_set<uint64_t> pending;
     std::deque<job> jobs;
@@ -36,6 +38,7 @@ private:
     std::atomic<uint64_t> epoch{1};bool stopping=false,available=false;
     uint64_t clock=0,world=0,tileset=0;size_t requested_this_frame=0;
     cache_statistics counters;
+    const std::string debug_directory=[](){const char *path=std::getenv("NCMM_FP_APPEARANCE_DEBUG_DIR");return path?std::string(path):std::string{};}();
     void work(){
         for(;;){job input;
             {std::unique_lock<std::mutex> lock(mutex);changed.wait(lock,[&]{return stopping||!jobs.empty();});if(stopping)return;input=std::move(jobs.front());jobs.pop_front();}
@@ -43,6 +46,7 @@ private:
             try{const auto started=std::chrono::steady_clock::now();result=std::make_shared<asset>();result->geometry=builder{}.generate(input.type,input.source);result->atlas=std::make_unique<impostor_atlas>();
                 if(!bake_atlas(result->geometry,*result->atlas,&epoch,input.epoch))result.reset();
                 if(result)result->generation_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-started).count();
+                if(result&&!debug_directory.empty()&&!write_appearance_debug(result->geometry,*result->atlas,input.key,input.label,debug_directory))result.reset();
             }catch(const std::exception &){result.reset();}
             std::lock_guard<std::mutex> lock(mutex);
             if(input.epoch!=epoch.load(std::memory_order_relaxed)){++counters.cancelled;changed.notify_all();continue;}
@@ -73,15 +77,17 @@ public:
         std::lock_guard<std::mutex> lock(mutex);world=world_epoch;tileset=tileset_epoch;epoch.fetch_add(1,std::memory_order_relaxed);entries.clear();jobs.clear();pending.clear();counters.bytes=0;requested_this_frame=0;changed.notify_all();
     }
     void begin_frame(uint64_t world_epoch,uint64_t tileset_epoch){if(world!=world_epoch||tileset!=tileset_epoch)reset(world_epoch,tileset_epoch);requested_this_frame=0;}
-    std::shared_ptr<const asset> request(uint64_t key,const phenotype &type,const std::function<sprite()> &source){
+    std::shared_ptr<const asset> request(uint64_t key,const phenotype &type,const std::function<sprite()> &source,std::string_view label={}){
+        uint64_t request_epoch=0;
         {std::lock_guard<std::mutex> lock(mutex);auto found=entries.find(key);if(found!=entries.end()){found->second.touched=++clock;++counters.hits;return found->second.value;}
             ++counters.misses;if(!available||stopping||pending.count(key)||pending.size()>=queue_limit||requested_this_frame>=4)return {};
-            pending.insert(key);++requested_this_frame;}
+            pending.insert(key);++requested_this_frame;request_epoch=epoch.load(std::memory_order_relaxed);}
         // Source pixels are copied on the callback thread before any worker can
         // see them. Neither the provider nor CDDA/SDL pointers enter the queue.
         sprite owned;
-        try{owned=source();}catch(const std::exception &){std::lock_guard<std::mutex> lock(mutex);pending.erase(key);++counters.failures;return {};}
-        {std::lock_guard<std::mutex> lock(mutex);jobs.push_back({key,epoch.load(std::memory_order_relaxed),type,std::move(owned)});}
+        try{owned=source();}catch(const std::exception &){std::lock_guard<std::mutex> lock(mutex);if(epoch.load(std::memory_order_relaxed)==request_epoch)pending.erase(key);++counters.failures;return {};}
+        {std::lock_guard<std::mutex> lock(mutex);if(stopping||epoch.load(std::memory_order_relaxed)!=request_epoch){++counters.cancelled;return {};}
+            jobs.push_back({key,request_epoch,type,std::move(owned),std::string(label)});}
         changed.notify_one();return {};
     }
     cache_statistics statistics()const{std::lock_guard<std::mutex> lock(mutex);auto result=counters;result.entries=entries.size();result.pending=pending.size();return result;}

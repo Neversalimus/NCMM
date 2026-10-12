@@ -16,8 +16,9 @@ struct impostor {
     int width=48,height=64;
     std::vector<uint32_t> color,normal;
     std::vector<int16_t> depth;
+    std::vector<texture_level> mips;
     float span=1,bottom=0,top=1,angle=0;
-    size_t bytes()const{return color.capacity()*4+normal.capacity()*4+depth.capacity()*2;}
+    size_t bytes()const{size_t n=color.capacity()*4+normal.capacity()*4+depth.capacity()*2+mips.capacity()*sizeof(texture_level);for(const auto &m:mips)n+=m.pixels.capacity()*4;return n;}
 };
 struct impostor_atlas {
     static constexpr int directions=8,poses=7;
@@ -26,6 +27,10 @@ struct impostor_atlas {
 };
 inline int impostor_pose(const pose_state &p){return p.death>.15f?5:p.prone?6:p.melee>.10f||p.shoot>.1f?3:p.hurt>.1f?4:p.movement>.10f?(std::sin(p.phase)>0?1:2):0;}
 inline int impostor_direction(float angle){return int(std::floor(std::remainder(angle,2*pi)*impostor_atlas::directions/(2*pi)+.5f)+impostor_atlas::directions)%impostor_atlas::directions;}
+inline int stable_impostor_direction(float angle,int previous){
+    if(previous>=0&&previous<impostor_atlas::directions&&std::abs(std::remainder(angle-previous*2*pi/impostor_atlas::directions,2*pi))<pi/impostor_atlas::directions+pi/90)return previous;
+    return impostor_direction(angle);
+}
 inline point decode_normal(uint32_t value){return {float(int(value>>24)-128)/127,float(int((value>>16)&255)-128)/127,float(int((value>>8)&255)-128)/127};}
 inline uint32_t encode_normal(point value){return (uint32_t(std::clamp(int(value.x*127+128),1,255))<<24)|(uint32_t(std::clamp(int(value.y*127+128),1,255))<<16)|(uint32_t(std::clamp(int(value.z*127+128),1,255))<<8)|255;}
 inline impostor bake_impostor(const model &m,int direction,int pose_index){
@@ -64,6 +69,7 @@ inline impostor bake_impostor(const model &m,int direction,int pose_index){
             out.depth[at]=int16_t(std::clamp(z/out.span,-1.f,1.f)*32760);
         }
     }
+    out.mips=make_colour_mips(uint32_t(out.width),uint32_t(out.height),out.color);
     return out;
 }
 inline bool bake_atlas(const model &m,impostor_atlas &out,const std::atomic<uint64_t> *epoch=nullptr,uint64_t expected=0){

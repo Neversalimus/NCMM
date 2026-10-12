@@ -156,7 +156,7 @@ class builder {
             m=std::move(projected);}
     }
 public:
-    model generate(const phenotype &p,const sprite &s){result={};result.type=p;result.colors=extract(s,p);parts.clear();joint_world.clear();
+    model generate(const phenotype &p,const sprite &s){result={};result.type=p;result.colors=extract(s,p,used_regions(p));parts.clear();joint_world.clear();
         if(!result.colors.sourced&&result.type.reason==fallback::semantic)result.type.reason=fallback::missing_sprite;
         // Silhouette can refine bulk, not overwrite reliable physical dimensions.
         if(result.colors.sourced)result.type.bulk*=std::clamp(result.colors.silhouette_ratio/(p.kind==anatomy::humanoid?.55f:1.3f),.92f,1.08f);

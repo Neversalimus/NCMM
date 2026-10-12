@@ -32,6 +32,7 @@ int main(){size_t checks=0;auto check=[&](bool value,const char *reason){++check
     skin checker;checker.width=checker.height=8;checker.fill(0xffffffff);for(uint32_t y=0;y<8;++y)for(uint32_t x=0;x<8;++x)checker.front[y*8+x]=(x+y)%2?0xffffffff:0x000000ff;
     make_mips(checker);check(sample_skin(checker,0,.02f,.02f,.1f)==0x000000ff,"magnification blurred pixel art");
     auto filtered=sample_skin(checker,0,.5f,.5f,8);check((filtered>>24)>=127&&(filtered>>24)<=129,"minification shimmer/average");
+    const auto edge=mix_texels(0xff0000ff,0x00ff0000,.5f);check((edge>>24)==255&&((edge>>16)&255)==0&&(edge&255)==128,"transparent RGB produced a colored halo");
     auto again=extract(s,human);check(a.fingerprint==again.fingerprint&&a.skins[0].front==again.skins[0].front,"non-deterministic reconstruction");
     sprite reshaped=s;reshaped.width=96;reshaped.height=128;check(extract(reshaped,human).fingerprint!=a.fingerprint,"source shape cache collision");
     for(int kind=0;kind<int(anatomy::count);++kind){auto p=human;p.kind=anatomy(kind);p.width=.8f;p.length=1.4f;p.legs=kind==2?8:kind==3?6:kind==4?16:4;
@@ -46,6 +47,11 @@ int main(){size_t checks=0;auto check=[&](bool value,const char *reason){++check
     auto tall=bake_impostor(builder{}.generate(human,s),0,0);check(tall.height>tall.width&&tall.height<=112,"upright atlas aspect");
     check(tall.color.size()==size_t(tall.width)*tall.height&&tall.depth.size()==tall.color.size(),"adaptive impostor allocation");
     check(material_for(human,region::torso)==creature_material::cloth&&material_for(human,region::hand)==creature_material::flesh,"clothing/skin separation");
+    for(int k=0;k<int(anatomy::count);++k){auto p=human;p.kind=anatomy(k);p.flags=NCMM_CR_FLIES;auto m=builder{}.generate(p,s);
+        for(const auto &v:m.lod[0].vertices)check(m.colors.skins[v.material].active,"used geometry region was not generated");}
+    sprite maximum;maximum.width=maximum.height=512;maximum.pixels.assign(512*512,0x527ea1ff);phenotype unknown;auto large=builder{}.generate(unknown,maximum);
+    check(large.colors.original.pixels==maximum.pixels,"large mod source lost");check(large.colors.bytes()<8*1024*1024,"unused regions exhausted the resource budget");
+    check(stable_impostor_direction(pi/8+.01f,0)==0&&stable_impostor_direction(pi/8+.06f,0)==1,"view-angle hysteresis");
     phenotype synthetic;synthetic.kind=anatomy::robot;check(material_for(synthetic,region::torso)==creature_material::synthetic,"synthetic material");
     view.width=513;check(!sprite::copy(view).valid(),"oversized provider accepted");view.width=128;view.pitch_pixels=127;check(!sprite::copy(view).valid(),"short provider stride accepted");
     std::printf("Creature appearance: %zu checks PASS\n",checks);

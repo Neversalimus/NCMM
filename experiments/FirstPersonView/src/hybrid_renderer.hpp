@@ -346,10 +346,12 @@ class renderer {
                 if(t.m.impostor){const auto &sprite=*t.m.impostor;
                     const float u=(w0*uu[0]+w1*uu[1]+w2*uu[2])*z,vv0=(w0*vv[0]+w1*vv[1]+w2*vv[2])*z;
                     const size_t at=size_t(std::clamp(int(vv0*sprite.height),0,sprite.height-1))*sprite.width+std::clamp(int(u*sprite.width),0,sprite.width-1);
-                    if(!(sprite.color[at]&255))continue;
+                    const float footprint=z*std::max({std::abs(dux-u*dzx)*sprite.width,std::abs(duy-u*dzy)*sprite.width,std::abs(dvx-vv0*dzx)*sprite.height,std::abs(dvy-vv0*dzy)*sprite.height});
+                    const auto pixel=creature::sample_colour(uint32_t(sprite.width),uint32_t(sprite.height),sprite.color,sprite.mips,u,vv0,footprint);
+                    if((pixel&255)<64)continue;
                     z+=float(sprite.depth[at])*sprite.span/32760*cp;
                     if(z<.08f||z>f.depth[k]+.0002f)continue;
-                    if(!t.m.silhouette)c=unpack(sprite.color[at]);
+                    if(!t.m.silhouette)c=unpack(pixel);
                     const auto n=creature::decode_normal(sprite.normal[at]);const float ca=std::cos(t.m.creature_yaw),sa=std::sin(t.m.creature_yaw);
                     pixel_light=light(t.m.cell,{ca*n.x-sa*n.y,sa*n.x+ca*n.y,n.z});
                 }

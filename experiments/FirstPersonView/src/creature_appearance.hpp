@@ -44,6 +44,7 @@ struct skin {
     source_region source;
     creature_material material=creature_material::flesh;
     uint32_t observed_pixels=0;
+    bool active=false;
     const std::vector<uint32_t> &pixels(size_t surface)const{return surface==1?back:surface==2?left:surface==3?right:front;}
     std::vector<uint32_t> &pixels(size_t surface){return surface==1?back:surface==2?left:surface==3?right:front;}
     size_t bytes()const{size_t result=0;for(size_t n=0;n<surfaces;++n){result+=pixels(n).capacity()*4+mips[n].capacity()*sizeof(texture_level);for(const auto &level:mips[n])result+=level.pixels.capacity()*4;}return result;}
@@ -57,24 +58,29 @@ struct appearance {
     uint64_t fingerprint=0;
     size_t bytes()const{size_t result=original.pixels.capacity()*4;for(const auto &s:skins)result+=s.bytes();return result;}
 };
-inline uint32_t mix_texels(uint32_t a,uint32_t b,float t){return rgba(rgb(a)*(1-t)+rgb(b)*t,uint32_t(float(a&255)*(1-t)+float(b&255)*t+.5f));}
-inline void make_mips(skin &s){
-    for(size_t surface=0;surface<skin::surfaces;++surface){auto &levels=s.mips[surface];levels.clear();uint32_t width=s.width,height=s.height;
-        const auto *pixels=&s.pixels(surface);
-        while(width>1||height>1){texture_level level;level.width=(width+1)/2;level.height=(height+1)/2;level.pixels.resize(size_t(level.width)*level.height);
-            for(uint32_t y=0;y<level.height;++y)for(uint32_t x=0;x<level.width;++x){point color{};uint32_t alpha=0;
-                for(uint32_t dy=0;dy<2;++dy)for(uint32_t dx=0;dx<2;++dx){const auto p=(*pixels)[size_t(std::min(y*2+dy,height-1))*width+std::min(x*2+dx,width-1)];const float a=float(p&255)/255;color=color+rgb(p)*a;alpha+=p&255;}
-                level.pixels[size_t(y)*level.width+x]=alpha?rgba(color*(255.f/alpha),alpha/4):0;}
+inline uint32_t mix_texels(uint32_t a,uint32_t b,float t){
+    const float aa=float(a&255)*(1-t),ba=float(b&255)*t,alpha=aa+ba;
+    return alpha>0?rgba((rgb(a)*aa+rgb(b)*ba)*(1/alpha),uint32_t(alpha+.5f)):0;
+}
+inline std::vector<texture_level> make_colour_mips(uint32_t width,uint32_t height,const std::vector<uint32_t> &source){
+    std::vector<texture_level> levels;const auto *pixels=&source;
+        while(width>1||height>1){texture_level level;level.width=std::max(1u,width/2);level.height=std::max(1u,height/2);level.pixels.resize(size_t(level.width)*level.height);
+            for(uint32_t y=0;y<level.height;++y)for(uint32_t x=0;x<level.width;++x){point color{};float alpha=0,weight=0;
+                const float x0=float(x)*width/level.width,x1=float(x+1)*width/level.width,y0=float(y)*height/level.height,y1=float(y+1)*height/level.height;
+                for(uint32_t sy=uint32_t(y0);sy<std::min(height,uint32_t(std::ceil(y1)));++sy)for(uint32_t sx=uint32_t(x0);sx<std::min(width,uint32_t(std::ceil(x1)));++sx){
+                    const float w=(std::min(x1,float(sx+1))-std::max(x0,float(sx)))*(std::min(y1,float(sy+1))-std::max(y0,float(sy)));
+                    const auto p=(*pixels)[size_t(sy)*width+sx];const float a=float(p&255)*w;weight+=w;alpha+=a;color=color+rgb(p)*a;}
+                level.pixels[size_t(y)*level.width+x]=alpha>0?rgba(color*(1/alpha),uint32_t(alpha/weight+.5f)):0;}
             levels.push_back(std::move(level));width=levels.back().width;height=levels.back().height;pixels=&levels.back().pixels;
         }
-    }
+    return levels;
 }
-inline uint32_t sample_skin(const skin &s,size_t surface,float u,float v,float footprint=0){
-    const auto &levels=s.mips[surface];
+inline void make_mips(skin &s){for(size_t surface=0;surface<skin::surfaces;++surface)s.mips[surface]=make_colour_mips(s.width,s.height,s.pixels(surface));}
+inline uint32_t sample_colour(uint32_t base_width,uint32_t base_height,const std::vector<uint32_t> &base,const std::vector<texture_level> &levels,float u,float v,float footprint=0){
     float lod=footprint>1?std::log2(footprint):0;
     lod=std::clamp(lod,0.f,float(levels.size()));
-    auto sample=[&](int level,bool linear){const auto &pixels=level?levels[size_t(level-1)].pixels:s.pixels(surface);
-        const int width=int(level?levels[size_t(level-1)].width:s.width),height=int(level?levels[size_t(level-1)].height:s.height);
+    auto sample=[&](int level,bool linear){const auto &pixels=level?levels[size_t(level-1)].pixels:base;
+        const int width=int(level?levels[size_t(level-1)].width:base_width),height=int(level?levels[size_t(level-1)].height:base_height);
         const float x=std::clamp(u,0.f,1.f)*width-.5f,y=std::clamp(v,0.f,1.f)*height-.5f;
         if(!linear)return pixels[size_t(std::clamp(int(std::floor(y+.5f)),0,height-1))*width+std::clamp(int(std::floor(x+.5f)),0,width-1)];
         const int x0=int(std::floor(x)),y0=int(std::floor(y));const float fx=x-x0,fy=y-y0;
@@ -82,9 +88,11 @@ inline uint32_t sample_skin(const skin &s,size_t surface,float u,float v,float f
         return mix_texels(mix_texels(at(x0,y0),at(x0+1,y0),fx),mix_texels(at(x0,y0+1),at(x0+1,y0+1),fx),fy);
     };
     const int first=int(lod),second=std::min(first+1,int(levels.size()));
-    if(footprint<.75f)return sample(0,false);
+    if(footprint<.5f)return sample(0,false);
+    if(footprint<1)return mix_texels(sample(0,false),sample(0,true),std::clamp((footprint-.5f)*2,0.f,1.f));
     return mix_texels(sample(first,true),sample(second,true),lod-first);
 }
+inline uint32_t sample_skin(const skin &s,size_t surface,float u,float v,float footprint=0){return sample_colour(s.width,s.height,s.pixels(surface),s.mips[surface],u,v,footprint);}
 inline creature_material material_for(const phenotype &p,region r){
     if(p.flags&NCMM_CR_MECHANICAL)return creature_material::metal;
     if(p.kind==anatomy::robot)return creature_material::synthetic;
@@ -97,15 +105,31 @@ inline creature_material material_for(const phenotype &p,region r){
     if(p.kind==anatomy::humanoid&&(r==region::torso||r==region::lower||r==region::limb))return creature_material::cloth;
     return creature_material::flesh;
 }
-inline appearance extract(const sprite &s,const phenotype &p){
+inline uint32_t used_regions(const phenotype &p){
+    auto bit=[](region r){return 1u<<uint32_t(r);};uint32_t mask=bit(region::torso);
+    if(p.kind==anatomy::humanoid||(p.kind==anatomy::robot&&p.legs==2))mask|=bit(region::head)|bit(region::lower)|bit(region::limb)|bit(region::hand)|bit(region::foot);
+    else if(p.kind==anatomy::quadruped||p.kind==anatomy::reptile||(p.kind==anatomy::robot&&p.legs==4))mask|=bit(region::head)|bit(region::limb)|bit(region::lower)|bit(region::foot)|bit(region::tail);
+    else if(p.kind==anatomy::arachnid||p.kind==anatomy::insect||p.kind==anatomy::centipede||(p.kind==anatomy::robot&&p.legs>=6))mask|=bit(region::head)|bit(region::limb)|bit(region::lower)|bit(region::foot)|bit(region::appendage);
+    else if(p.kind==anatomy::bird)mask|=bit(region::head)|bit(region::limb)|bit(region::lower)|bit(region::foot)|bit(region::tail)|bit(region::detail)|bit(region::wing);
+    else if(p.kind==anatomy::serpent)mask|=bit(region::head);
+    else if(p.kind==anatomy::fish)mask|=bit(region::head)|bit(region::tail)|bit(region::wing);
+    else if(p.kind==anatomy::amorphous)mask|=bit(region::appendage);
+    else if(p.kind==anatomy::exotic)mask|=bit(region::head)|bit(region::limb)|bit(region::appendage);
+    else if(p.kind==anatomy::robot){if(p.flags&NCMM_CR_IMMOBILE)mask|=bit(region::lower)|bit(region::appendage);if(p.flags&NCMM_CR_FLIES)mask|=bit(region::appendage)|bit(region::detail);}
+    if(p.flags&NCMM_CR_FLIES&&p.kind!=anatomy::amorphous&&p.kind!=anatomy::robot)mask|=bit(region::wing);
+    return mask;
+}
+inline appearance extract(const sprite &s,const phenotype &p,uint32_t region_mask=~0u){
     appearance a;a.profile=p.kind!=anatomy::humanoid&&!(p.kind==anatomy::robot&&p.legs==2);
     for(size_t n=0;n<a.skins.size();++n)a.skins[n].material=material_for(p,region(n));
     if(!s.valid())return a;
     a.original=s;
     a.fingerprint=hash_bytes(1469598103934665603ull,&s.width,sizeof(s.width));a.fingerprint=hash_bytes(a.fingerprint,&s.height,sizeof(s.height));
     a.fingerprint=hash_bytes(a.fingerprint,s.pixels.data(),s.pixels.size()*4);
+    uint32_t maximum_alpha=0;for(auto pixel:s.pixels)maximum_alpha=std::max(maximum_alpha,pixel&255u);
+    const uint32_t body_alpha=maximum_alpha>=224?160:std::max(1u,maximum_alpha/2);
     int left=int(s.width),right=0,top=int(s.height),bottom=0;point all{};float weight=0;
-    for(uint32_t y=0;y<s.height;++y)for(uint32_t x=0;x<s.width;++x){const auto value=s.pixels[size_t(y)*s.width+x];if((value&255)<32)continue;
+    for(uint32_t y=0;y<s.height;++y)for(uint32_t x=0;x<s.width;++x){const auto value=s.pixels[size_t(y)*s.width+x];if((value&255)<body_alpha)continue;
         left=std::min(left,int(x));right=std::max(right,int(x)+1);top=std::min(top,int(y));bottom=std::max(bottom,int(y)+1);const float alpha=float(value&255)/255;all=all+rgb(value)*alpha;weight+=alpha;}
     if(!weight)return a;
     a.sourced=true;a.silhouette_ratio=float(right-left)/std::max(1,bottom-top);all=all*(1/weight);
@@ -119,7 +143,7 @@ inline appearance extract(const sprite &s,const phenotype &p){
         {.66f,0,1,.63f},{.18f,.10f,.76f,.76f},{.12f,.53f,.82f,1},{0,.47f,1,1},
         {0,.15f,.35f,.68f},{.74f,.12f,1,.44f},{0,.65f,1,1},{0,.80f,1,1},
         {.05f,.10f,.70f,.72f},{0,.18f,.32f,.72f}}};
-    for(size_t n=0;n<a.skins.size();++n){auto &t=a.skins[n];auto box=(a.profile?horizontal:upright)[n];
+    for(size_t n=0;n<a.skins.size();++n){if(!(region_mask&(1u<<n)))continue;auto &t=a.skins[n];t.active=true;auto box=(a.profile?horizontal:upright)[n];
         // A winding serpent or an unknown body has no trustworthy rectangular
         // head position. Preserve its palette/pattern without guessing a face.
         if((p.kind==anatomy::serpent||p.kind==anatomy::amorphous||p.kind==anatomy::universal)&&n!=size_t(region::detail))box={0,0,1,1};

@@ -242,5 +242,6 @@
     }
     timing.end_array(); timing.end_object();
     clear_monsters(); you.setpos( here, start_pos, false ); you.set_moves( start_moves ); calendar::turn = start_time; g->ter_view_p = center; camera( saved_yaw, saved_pitch );
+    #include "ncmm_graphics_appearance_smoke.inc"
     log_line( NCMM_LOG_INFO, ( "Creature SDL gallery and real render-loop benchmark completed: " + mode ).c_str() );
 }

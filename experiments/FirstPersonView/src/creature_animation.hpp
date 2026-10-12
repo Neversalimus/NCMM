@@ -16,7 +16,7 @@ inline float angle_delta(float a,float b){return std::remainder(b-a,2*pi);}
 struct instance {
     uint64_t id=0,event_serial=0;point previous{},target{};
     double move_at=-100,last_seen=0,event_at=-100,turn_at=-100;
-    float from_heading=0,heading=0,step=0,gait_base=0,cadence=1;uint32_t event=NCMM_CR_IDLE,flags=0;int lod=-1;
+    float from_heading=0,heading=0,step=0,gait_base=0,cadence=1;uint32_t event=NCMM_CR_IDLE,flags=0;int lod=-1,atlas_view=-1;
 };
 inline point display_position(const instance &a,double now){return a.previous+(a.target-a.previous)*ease(float((now-a.move_at)/.18));}
 inline float display_heading(const instance &a,double now){return a.from_heading+angle_delta(a.from_heading,a.heading)*ease(float((now-a.turn_at)/.15));}
@@ -41,7 +41,7 @@ inline void observe(instance &a,const ncmm_graphics_creature_v1 &s,double now){
     }
     a.cadence=std::clamp(s.speed>0?s.speed/100.f:1.f,.65f,1.65f);a.flags=s.flags;a.last_seen=now;
 }
-struct pose_state {float movement=0,phase=0,breath=0,melee=0,shoot=0,hurt=0,death=0,heading=0;point offset{};bool prone=false;};
+struct pose_state {float movement=0,phase=0,breath=0,melee=0,shoot=0,hurt=0,death=0,heading=0;point offset{};bool prone=false;int atlas_view=-1;};
 inline pose_state sample(const instance &a,double now){
     pose_state p;const float since=float(std::max(0.0,now-a.move_at)),action=float(now-a.event_at);
     p.movement=(1-ease((since-.15f)/.20f))*std::min(1.5f,a.step*a.cadence);

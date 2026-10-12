@@ -64,7 +64,7 @@ void graphics_notify_creature( Creature *cr, uint32_t event, float heading )
     auto *record = graphics_track_creature( *cr ); if( !record ) return;
     auto &s = record->snapshot;
     if( ( s.flags & NCMM_CR_DEAD ) && event != NCMM_CR_DIE ) return;
-    s.event = event; s.event_serial = ++graphics_creature_events; s.event_seconds = SDL_GetTicks() / 1000.0;
+    s.event = event; s.event_serial = ++graphics_creature_events; s.event_seconds = graphics_presentation_seconds();
     if( std::isfinite( heading ) && std::abs( heading ) <= 3.142f ) s.heading = heading;
     if( event == NCMM_CR_DIE ) {
         s.flags |= NCMM_CR_DEAD;

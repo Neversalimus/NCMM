@@ -2,7 +2,8 @@
 // gameplay smoke world. It never runs in a player's saved game.
 if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCMM_FP_STABLE_CPU_BASELINE") ) {
     const bool stable_cpu=std::getenv("NCMM_FP_STABLE_CPU_BASELINE")!=nullptr;
-    if(stable_cpu)require(graphics_action("ncmm.view.acceleration"),"stable_cpu_composition_toggle_missing");
+    if(stable_cpu){if(get_options().has_option("NCMM_FIRST_PERSON_RENDERER"))get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue("cpu");
+        else require(graphics_action("ncmm.view.acceleration"),"stable_cpu_composition_toggle_missing");}
     using benchmark_clock = std::chrono::steady_clock;
     const float original_yaw=graphics_camera_yaw,original_pitch=graphics_camera_pitch;
     auto camera=[&](float yaw,float pitch){graphics_mouse_dx=std::remainder(yaw-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;
@@ -28,7 +29,7 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
     auto elapsed=[](benchmark_clock::time_point begin){return std::chrono::duration<double,std::milli>(benchmark_clock::now()-begin).count();};
     std::ofstream stream(game_root()/"ncmm"/(stable_cpu?"first-person-gpu-benchmark-stable-cpu.json":"first-person-gpu-benchmark.json"));JsonOut report(stream);report.start_object();report.member("schema",1);
     report.member("actual_cdda_sdl",true);report.member("player_fps",false);report.member("cpu_algorithm_commit","a434a820aaa5b0bec7611474f8e01ff9b2b77432");
-    report.member("stable_cpu_binary",stable_cpu);report.member("stable_main_commit","9df95cdc8766f8d80f4da7cf08f241f053a40281");
+    report.member("stable_cpu_binary",stable_cpu);report.member("stable_main_commit","7f8a48a714e082daf67176e5e4a9806f878eef42");
     report.member("comparison","same Host, world, module CPU fallback algorithm, settings and presentation clock; CPU timers do not change raster calculations");
     report.member("gpu_timestamps_available",false);report.member("gpu_time_semantics","unavailable; CPU preparation/recording/submission times are not GPU execution time");
     report.member("presentation","offscreen viewport copied on the same SDL device to the real window; SDL_RenderPresent on the window each measured frame");
