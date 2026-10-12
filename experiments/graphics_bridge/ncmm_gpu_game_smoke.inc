@@ -1,8 +1,8 @@
-        if( get_options().has_option( "first_person_view.renderer" ) ) {
+        if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) ) {
             const auto cpu_reference = graphics_hybrid_pixels;
             require( cpu_reference.size() == size_t( 640 * 480 ), "gpu_reference_cpu_frame_missing" );
-            require( get_options().has_option( "first_person_view.renderer" ), "gpu_renderer_setting_missing" );
-            get_options().get_option( "first_person_view.renderer" ).setValue( "gpu" );
+            require( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ), "gpu_renderer_setting_missing" );
+            get_options().get_option( "NCMM_FIRST_PERSON_RENDERER" ).setValue( "gpu" );
             bool ready = false;
             ncmm_gpu_metrics_v1 first = {};
             for( int attempt = 0; attempt < 64; ++attempt ) {
@@ -39,6 +39,6 @@
             draw(); const auto cached = graphics_gpu_engine->metrics();
             require( graphics_gpu_frame && cached.active && !cached.generated_cells && cached.upload_bytes < 2 * 1024 * 1024,
                      "stationary_gpu_frame_rebuilt_or_uploaded_static_world" );
-            get_options().get_option( "first_person_view.renderer" ).setValue( "cpu" ); draw();
+            get_options().get_option( "NCMM_FIRST_PERSON_RENDERER" ).setValue( "cpu" ); draw();
             require( !graphics_gpu_frame && !graphics_hybrid_pixels.empty(), "gpu_to_cpu_fallback_not_complete" );
         }

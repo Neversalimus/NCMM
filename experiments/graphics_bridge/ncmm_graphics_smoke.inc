@@ -17,7 +17,7 @@ bool graphics_scene_smoke()
         require( tilecontext && tilecontext->is_valid(), "tileset_unavailable" );
         // Keep the complete established CPU qualification on the same new Host.
         // The GPU equivalence matrix below explicitly selects GPU separately.
-        if( get_options().has_option( "first_person_view.renderer" ) ) get_options().get_option( "first_person_view.renderer" ).setValue( "cpu" );
+        if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) ) get_options().get_option( "NCMM_FIRST_PERSON_RENDERER" ).setValue( "cpu" );
         map &here = get_map();
         here.load( tripoint_abs_sm( 0, 0, 0 ), true );
         for( const auto &vehicle : here.get_vehicles() ) here.destroy_vehicle( vehicle.v );
