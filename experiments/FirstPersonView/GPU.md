@@ -50,6 +50,16 @@ is added; CPU command recording time is not GPU execution time.
 
 ## Work still in progress
 
+Windows initial probe passed in workflow run
+https://github.com/Neversalimus/NCMM/actions/runs/38226642367,
+head `fa77798f1cd27830da5c53a2aa602a8b7b1881cc`, using SDL_GPU `direct3d12`
+on **Microsoft Basic Render Driver (software adapter)**. The original 640x480
+capture was inspected: red foreground depth result and intact blue SDL UI.
+This establishes the shared-device API path, not discrete-GPU performance or
+completed integration in CDDA. Linux's first configuration was blocked by SDL's
+desktop-window dependency check; the offscreen test explicitly opts into the
+documented console build configuration.
+
 The initial shared-device probe is a technical gate. World geometry,
 procedural creatures/LOD, materials, lighting/atmosphere, resource caching,
 fallback settings and complete game/installer qualification must all be

@@ -134,6 +134,7 @@ bool graphics_scene_smoke()
         const bool saved = SDL_SaveBMP( surface, ( game_root() / "ncmm" / "first-person-room.bmp" ).string().c_str() );
         SDL_DestroySurface( surface );
         require( saved, "frame_capture_write_failed" );
+        #include "ncmm_gpu_probe_smoke.inc"
         for( int i = 0; i < 24; ++i ) {
             require( ncmm::handle_gameplay_action( "ncmm.view.turn_left" ), "left_action_missing" );
             draw();

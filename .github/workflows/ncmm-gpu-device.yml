@@ -77,7 +77,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers glslang-tools libvulkan-dev
       - name: Build exact SDL 3.4.10 for offscreen shared-device testing
         run: |
-          cmake -S gpu-sdl -B gpu-sdl-build -DCMAKE_BUILD_TYPE=Release -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_X11=OFF -DSDL_WAYLAND=OFF -DSDL_AUDIO=OFF -DSDL_JOYSTICK=OFF -DSDL_HAPTIC=OFF -DSDL_SENSOR=OFF -DSDL_OPENGL=OFF -DSDL_OPENGLES=OFF -DSDL_VULKAN=ON -DSDL_GPU=ON -DSDL_TESTS=OFF
+          cmake -S gpu-sdl -B gpu-sdl-build -DCMAKE_BUILD_TYPE=Release -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_UNIX_CONSOLE_BUILD=ON -DSDL_X11=OFF -DSDL_WAYLAND=OFF -DSDL_AUDIO=OFF -DSDL_JOYSTICK=OFF -DSDL_HAPTIC=OFF -DSDL_SENSOR=OFF -DSDL_OPENGL=OFF -DSDL_OPENGLES=OFF -DSDL_VULKAN=ON -DSDL_GPU=ON -DSDL_TESTS=OFF
           cmake --build gpu-sdl-build --parallel 2
       - name: Compile owned SPIR-V shader programs
         run: python3 experiments/FirstPersonView/compile_gpu_shaders.py --glslang /usr/bin/glslangValidator --output "$PWD/gpu-shader-bytes.hpp"
