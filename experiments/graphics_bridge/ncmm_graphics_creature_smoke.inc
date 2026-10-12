@@ -4,6 +4,12 @@
     namespace anatomy = first_person::creature;
     const bool billboard_baseline = std::getenv( "NCMM_FP_BILLBOARD_BASELINE" ) != nullptr;
     const std::string mode = billboard_baseline ? "billboard-081" : "procedural";
+    // The quickstart avatar is randomized. Myopia still limits sight to 12
+    // cells with DEBUG_NIGHTVISION, so normalize this isolated visual fixture.
+    you.clear_mutations(); you.clear_effects(); you.set_underwater( false );
+    you.set_base_height( 175 ); you.set_movement_mode( move_mode_id( "walk" ) );
+    you.toggle_trait( trait_id( "DEBUG_NIGHTVISION" ) ); you.recalc_sight_limits();
+    require( you.unimpaired_range() >= 48, "creature_fixture_sight_is_limited" );
     const float saved_yaw = graphics_camera_yaw, saved_pitch = graphics_camera_pitch;
     auto camera = [&]( float yaw, float pitch ) {
         graphics_mouse_dx = std::remainder( yaw - graphics_camera_yaw, 2 * ncmm_graphics_camera::pi ) / .003f;
@@ -18,7 +24,7 @@
     clear_monsters();
     for( int y = -48; y <= 48; ++y ) for( int x = -48; x <= 48; ++x ) {
         const tripoint_bub_ms p( center.x() + x, center.y() + y, 0 );
-        here.ter_set( p, ter_id( "t_floor" ) ); here.furn_set( p, furn_id( "f_null" ) ); here.clear_fields( p );
+        here.ter_set( p, ter_id( "t_pavement" ) ); here.furn_set( p, furn_id( "f_null" ) ); here.clear_fields( p );
         const tripoint_bub_ms above( p.x(), p.y(), 1 );
         here.ter_set( above, ter_id( "t_open_air" ) ); here.furn_set( above, furn_id( "f_null" ) ); here.clear_fields( above );
     }
@@ -42,6 +48,7 @@
     auto settled = [&]() {
         for( int attempt = 0; attempt < 160; ++attempt ) {
             draw();
+            require( !graphics_creature_snapshots.empty(), "creature_fixture_has_no_visible_entities" );
             if( billboard_baseline || ( graphics_creature_metrics.struct_size && !graphics_creature_metrics.queued && !graphics_creature_metrics.fallback ) ) return;
             SDL_Delay( 3 );
         }
@@ -79,7 +86,7 @@
             gallery.member( "anatomy", anatomy::name( type.kind ) ); gallery.member( "lod", std::vector<uint32_t>( std::begin( graphics_creature_metrics.lod ), std::end( graphics_creature_metrics.lod ) ) );
             gallery.member( "pixels", graphics_creature_metrics.visible_pixels ); gallery.end_object();
         }
-        here.ter_set( center, ter_id( "t_floor" ) );
+        here.ter_set( center, ter_id( "t_pavement" ) );
     }
     // A real tracked NPC exercises clothing/mutation overlays and live posture
     // without regenerating appearance for a mere movement-mode change.
@@ -131,13 +138,23 @@
     capture_frame( "first-person-creature-death-" + mode + ".bmp" );
     clear_monsters(); SDL_Delay( 560 ); draw();
     require( std::none_of( graphics_creature_snapshots.begin(), graphics_creature_snapshots.end(), []( const auto &c ) { return c.flags & NCMM_CR_DEAD; } ), "death_presentation_not_expired" );
+    // A real melee hit can inflict temporary blindness/knockdown. Subsequent
+    // visual-distance cases test LOD, not that randomized combat consequence.
+    you.clear_effects(); you.set_movement_mode( move_mode_id( "walk" ) ); you.recalc_sight_limits();
+    require( you.unimpaired_range() >= 48, "creature_fixture_sight_changed_after_combat" );
     // LOD, night/colored illumination, and water use real map and light data.
     for( int step = 0; step < 4; ++step ) {
         clear_monsters(); const bool tiny = step == 3; actor = spawn( tiny ? "mon_crow" : "mon_zombie", center );
         const int distances[] = { 2, 14, 34, 34 }; you.setpos( here, tripoint_bub_ms( center.x(), center.y() + distances[step], 0 ), false );
         aim_at( center, tiny ? .2f : 1.75f, tiny ? .65f : 0.f ); settled();
-        if( !billboard_baseline ) require( graphics_creature_metrics.lod[step] > 0, "actual_creature_lod_level_missing" );
         capture_frame( "first-person-creature-lod" + std::to_string( step ) + "-" + mode + ".bmp" );
+        if( !billboard_baseline && !graphics_creature_metrics.lod[step] ) {
+            log_line( NCMM_LOG_ERROR, ( "Creature LOD expected=" + std::to_string( step ) +
+                " observed=" + std::to_string( graphics_creature_metrics.lod[0] ) + "," + std::to_string( graphics_creature_metrics.lod[1] ) +
+                "," + std::to_string( graphics_creature_metrics.lod[2] ) + "," + std::to_string( graphics_creature_metrics.lod[3] ) +
+                " visible=" + std::to_string( graphics_creature_snapshots.size() ) + " sight=" + std::to_string( you.unimpaired_range() ) ).c_str() );
+            require( false, "actual_creature_lod_level_missing" );
+        }
     }
     clear_monsters(); actor = spawn( "mon_zombie", center ); you.setpos( here, tripoint_bub_ms( center.x(), center.y() + 4, 0 ), false ); aim_at( center, 1.75f, 0 );
     for( int lighting = 0; lighting < 3; ++lighting ) {
@@ -153,7 +170,7 @@
         here.ter_set( barrier, ter_id( obstacle ) ); draw(); capture_frame( "first-person-creature-" + std::string( obstacle ) + "-" + mode + ".bmp" );
         if( std::string( obstacle ) == "t_wall" ) require( graphics_creature_snapshots.empty(), "wall_revealed_hidden_creature" );
     }
-    here.ter_set( barrier, ter_id( "t_floor" ) );
+    here.ter_set( barrier, ter_id( "t_pavement" ) );
     gallery.end_array(); gallery.end_object();
     // Paired real SDL render-loop benchmark. The older 0.8.1 DLL is built from
     // its exact commit and run in the same Host by CI; these are not player FPS.
@@ -169,6 +186,7 @@
         for( int n = 0; n < amount; ++n ) group.push_back( spawn( mixed[n % 8], tripoint_bub_ms( center.x() - 9 + ( n % 10 ) * 2, center.y() + 7 - ( n / 10 ) * 2, 0 ) ) );
         graphics_clear_creatures();
         const auto generation_started = std::chrono::steady_clock::now(); settled();
+        require( graphics_creature_snapshots.size() == size_t( amount ), "benchmark_group_not_fully_visible" );
         const double first_ready_ms = std::chrono::duration<double, std::milli>( std::chrono::steady_clock::now() - generation_started ).count();
         std::vector<double> samples; const double cpu_before = ncmm_graphics_performance::cpu_seconds(); const auto wall_before = std::chrono::steady_clock::now();
         const auto video_before = ncmm_graphics_performance::vram();
