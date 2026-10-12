@@ -60,10 +60,24 @@
                     const auto counters = graphics_gpu_engine->metrics();
                     require( counters.active && !counters.cpu_raster_calls, "gpu_gallery_used_cpu_raster" );
                     graphics_creature_metrics.visible_pixels = counters.visible_creature_pixels;
-                    if( counters.visible_creature_pixels > 2 ) return;
+                    // A real distant LOD3 bird can cover one or two hardware
+                    // sample centers. Require a visible sample, not an arbitrary
+                    // three-pixel silhouette; a missing GPU creature still fails.
+                    if( counters.visible_creature_pixels >= ( graphics_creature_metrics.lod[3] ? 1u : 3u ) ) return;
                 }
             }
             SDL_Delay( 3 );
+        }
+        if( gpu_gallery && graphics_gpu_engine ) {
+            const auto counters = graphics_gpu_engine->metrics();
+            log_line( NCMM_LOG_ERROR, ( "GPU creature settle: active=" + std::to_string( counters.active ) +
+                " pixels=" + std::to_string( counters.visible_creature_pixels ) +
+                " completed=" + std::to_string( counters.completed_frame_serial ) +
+                " frame=" + std::to_string( counters.frame_serial ) +
+                " lod=" + std::to_string( graphics_creature_metrics.lod[0] ) + "," + std::to_string( graphics_creature_metrics.lod[1] ) +
+                "," + std::to_string( graphics_creature_metrics.lod[2] ) + "," + std::to_string( graphics_creature_metrics.lod[3] ) +
+                " reason=" + counters.reason ).c_str() );
+            capture_frame( "first-person-creature-gpu-settle-failed.bmp" );
         }
         require( false, "procedural_creature_generation_did_not_settle" );
     };

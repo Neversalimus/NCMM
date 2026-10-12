@@ -171,3 +171,20 @@ both SPIR-V and DXIL must be present for all fourteen source programs and match
 the current shader-source SHA256. Tampered source identity and invalid bytecode
 were rejected in local negative checks. Shader compilation remains a build-time
 operation, with no compiler invocation in normal gameplay.
+
+The next actual-game gate at `3fa1012`, run
+https://github.com/Neversalimus/NCMM/actions/runs/38271617904, passed all 96 GPU
+anatomy/angle captures, NPC appearance/posture, movement/combat/death and LOD0–2
+on both pinned Hosts. It then stopped while waiting for a tiny LOD3 crow to
+cover more than two pixels. The fixture now requires at least one real GPU
+sample for LOD3, retaining the three-sample rule for larger representations and
+failing if the GPU backend or creature is absent. Timeout evidence includes
+active backend, completed/frame serials, LOD counters and an original SDL frame.
+
+A native same-source regression uses the actual-sized 0.6 L, 18.4 cm × 23.5 cm
+crow at 34 cells, plus eight subpixel camera offsets. CPU and Vulkan each draw
+exactly **two or three pixels** at those offsets; requiring three pixels in all
+cases is not a valid hardware-raster visibility criterion. Larger and smaller
+bird fixtures additionally exercise skeletal/impostor/silhouette transitions.
+The real Windows/game gate must be repeated; no erased creature or CPU fallback
+is accepted by this adjustment.

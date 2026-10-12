@@ -112,6 +112,50 @@ int main(int argc,char **argv){
             }
         }
         std::printf("Generated creature SDL_GPU: 13 anatomies x 8 headings; maximum CPU/GPU RGB MAE %.6f\n",maximum_error);
+        for(float volume:{70.f,1.f,.1f,.001f}){
+            ncmm_graphics_creature_v1 entity{};entity.entity_id=++entity_id;entity.cell=creature_cell;entity.world_x=entity.world_y=4;
+            entity.liters=entity.kilograms=volume;entity.flags=NCMM_CR_FLIES;entity.elevation=.65f;
+            std::strcpy(entity.bodytype,"bird");std::strcpy(entity.type_id,ground[creature_cell].creature);
+            entities.input.creatures[0]=entity;entities.observe();const auto type=cr::classify(entity);
+            entities.resources.request(cr::appearance_key(entity,1),type,[&]{ncmm_graphics_sprite_v2 sprite{sizeof(sprite),16,32,16,art.data()};return cr::sprite::copy(sprite);});
+            require(entities.resources.wait_idle(std::chrono::seconds(5)),"generated distant bird ready");
+            const float pitch=std::atan2(entity.elevation+type.height*.52f-1.55f,3.f);
+            fp::gpu::packet packet;fp::hybrid::frame statistics,reference;
+            require(cache.build(source,-fp::hybrid::pi*.5f,pitch,provider,packet,statistics,host,{},nullptr,&entities,640,480,NCMM_GPU_FORCE),"distant bird collection");
+            require(engine.submit(packet.finish(nullptr)),engine.metrics().reason);
+            require(fp::hybrid::build_frame(source,-fp::hybrid::pi*.5f,pitch,provider,reference,640,480,{},nullptr,nullptr,nullptr,{},&entities),"distant bird CPU reference");
+            require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr),"distant bird GPU composition");
+            auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"distant bird capture");
+            auto *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);require(image!=nullptr,"distant bird capture format");
+            if(argc>1)require(SDL_SaveBMP(image,(std::string(argv[1])+"-bird-"+std::to_string(volume)+".bmp").c_str()),"save distant bird");
+            SDL_DestroySurface(image);SDL_DestroySurface(raw);const auto counters=engine.metrics();
+            const auto cpu_pixels=std::count(reference.creatures.begin(),reference.creatures.end(),creature_cell);
+            std::printf("Distant bird %.3f L: LOD %u/%u/%u/%u; CPU pixels %lld; GPU pixels %llu\n",volume,statistics.creature_lods[0],statistics.creature_lods[1],statistics.creature_lods[2],statistics.creature_lods[3],(long long)cpu_pixels,(unsigned long long)counters.visible_creature_pixels);
+            require(counters.visible_creature_pixels>0,"distant bird retains actual visible GPU pixels");
+        }
+        // The actual pinned CDDA crow is 0.6 L, 18.4 cm high and 23.5 cm
+        // wide. Exercise its 34-cell LOD3 silhouette and subpixel camera shifts.
+        ground.resize(side*41);details.resize(side*41);
+        for(int i=0;i<int(ground.size());++i){ground[i]={};ground[i].flags=NCMM_GFX_VISIBLE;ground[i].light=1;std::strcpy(ground[i].terrain,"t_floor");details[i]={};std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=1;}
+        std::strcpy(ground[creature_cell].creature,"mod_arbitrary_creature");
+        source.base.grid_height=41;source.base.cell_count=ground.size();source.base.cells=ground.data();source.details=details.data();source.detail_count=details.size();source.base.camera_y=38.5f;
+        ncmm_graphics_creature_v1 crow{};crow.entity_id=++entity_id;crow.cell=creature_cell;crow.world_x=crow.world_y=4;crow.liters=.6f;crow.kilograms=.45f;
+        crow.height=.184188f;crow.width=.235351f;crow.flags=NCMM_CR_FLIES;crow.elevation=.65f;std::strcpy(crow.bodytype,"bird");std::strcpy(crow.type_id,ground[creature_cell].creature);
+        entities.input.creatures[0]=crow;entities.observe();
+        entities.resources.request(cr::appearance_key(crow,1),cr::classify(crow),[&]{ncmm_graphics_sprite_v2 sprite{sizeof(sprite),16,32,16,art.data()};return cr::sprite::copy(sprite);});
+        require(entities.resources.wait_idle(std::chrono::seconds(5)),"actual-sized crow ready");
+        const float crow_pitch=std::atan2(.65f+.2f*.52f-1.55f,34.f);
+        for(int offset=0;offset<8;++offset){source.base.camera_x=4.5f+(offset-4)*.017f;fp::gpu::packet packet;fp::hybrid::frame statistics,reference;
+            require(cache.build(source,-fp::hybrid::pi*.5f,crow_pitch,provider,packet,statistics,host,{},nullptr,&entities,640,480,NCMM_GPU_FORCE),"actual-sized distant crow collection");
+            require(statistics.creature_lods[3]==1&&engine.submit(packet.finish(nullptr)),"actual-sized crow executes GPU LOD3");
+            require(fp::hybrid::build_frame(source,-fp::hybrid::pi*.5f,crow_pitch,provider,reference,640,480,{},nullptr,nullptr,nullptr,{},&entities),"actual-sized crow CPU reference");
+            require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr),"actual-sized crow GPU composition");
+            auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"actual-sized crow capture");SDL_DestroySurface(raw);
+            const auto cpu_pixels=std::count(reference.creatures.begin(),reference.creatures.end(),creature_cell);
+            const auto gpu_pixels=engine.metrics().visible_creature_pixels;
+            std::printf("Actual-sized crow offset %d: CPU %lld / GPU %llu pixels\n",offset,(long long)cpu_pixels,(unsigned long long)gpu_pixels);
+            require(gpu_pixels>0,"LOD3 distant crow is present at each subpixel phase");
+        }
     }
     if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
     std::printf("Full GPU scene PASS: %s / %s; animation upload %llu bytes; CPU raster=0\n",second.backend,second.device,(unsigned long long)second.upload_bytes);
