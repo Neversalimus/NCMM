@@ -41,7 +41,9 @@ inline impostor bake_impostor(const model &m,int direction,int pose_index){
         out.bottom=std::min(out.bottom,q.z-.025f*m.type.height);out.top=std::max(out.top,q.z+.025f*m.type.height);}
     // Attack/death/prone limbs can extend beyond the standing mesh bounds.
     // Preserve their physical scale while keeping them inside the baked atlas.
-    for(size_t i=0;i<positions.size();++i){const auto q=positions[i];projected[i]={(.5f+(-s*q.x+c*q.y)/out.span)*impostor::width,(out.top-q.z)/(out.top-out.bottom)*impostor::height,-c*q.x-s*q.y};}
+    // angle points from the model to the viewer; the viewing camera faces
+    // the opposite direction. Its screen-right vector is (sin, -cos).
+    for(size_t i=0;i<positions.size();++i){const auto q=positions[i];projected[i]={(.5f+(s*q.x-c*q.y)/out.span)*impostor::width,(out.top-q.z)/(out.top-out.bottom)*impostor::height,-c*q.x-s*q.y};}
     std::array<float,impostor::width*impostor::height> depth;depth.fill(std::numeric_limits<float>::infinity());
     auto edge=[](point a,point b,float x,float y){return (b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);};
     for(const auto &face:mesh.faces){const auto ia=face.vertices[0],ib=face.vertices[1],ic=face.vertices[2];const auto a=projected[ia],b=projected[ib],d=projected[ic];
