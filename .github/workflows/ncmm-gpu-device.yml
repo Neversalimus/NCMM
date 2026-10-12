@@ -1,0 +1,94 @@
+name: First Person GPU device and UI qualification
+on:
+  pull_request:
+    paths: ['experiments/FirstPersonView/**', 'experiments/graphics_bridge/ncmm_gpu*', 'experiments/graphics_bridge/ncmm_graphics_gpu.h', '.github/workflows/ncmm-gpu-device.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ncmm-gpu-device-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      VCPKG_OVERLAY_TRIPLETS: '${{ github.workspace }}/gpu-upstream/.github/vcpkg_triplets'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: CleverRaven/Cataclysm-DDA
+          ref: 074aa98bd5be3de4c35f154082db32a0e63bb0f1
+          path: gpu-upstream
+          sparse-checkout: |
+            msvc-full-features
+            .github/vcpkg_triplets
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: '${{ runner.workspace }}/b/vcpkg'
+          vcpkgGitCommitId: f6672d8e480ccdecddfad3fd1b838ba369ffe6cd
+      - uses: actions/cache@v4
+        with:
+          path: gpu-upstream/msvc-full-features/vcpkg_installed
+          key: ncmm-vcpkg-${{ runner.os }}-f6672d8e480ccdecddfad3fd1b838ba369ffe6cd-${{ hashFiles('gpu-upstream/msvc-full-features/vcpkg.json', 'gpu-upstream/.github/vcpkg_triplets/x64-windows-static.cmake') }}
+      - name: Install the exact existing SDL3 and shader tool dependencies
+        shell: pwsh
+        run: |
+          vcpkg install --triplet x64-windows-static --x-manifest-root=gpu-upstream/msvc-full-features --x-install-root=gpu-upstream/msvc-full-features/vcpkg_installed/x64-windows-static
+          if($LASTEXITCODE -ne 0){throw 'Pinned GPU dependencies failed.'}
+      - name: Compile owned SPIR-V and DXIL shaders
+        shell: pwsh
+        run: |
+          $root=Join-Path $PWD 'gpu-upstream/msvc-full-features/vcpkg_installed/x64-windows-static/x64-windows-static'
+          python experiments/FirstPersonView/compile_gpu_shaders.py --glslang "$root/tools/glslang/glslangValidator.exe" --shadercross "$root/tools/sdl3-shadercross/shadercross.exe" --output "$PWD/gpu-shader-bytes.hpp"
+          if($LASTEXITCODE -ne 0){throw 'Actual shader compilation failed.'}
+      - name: Build actual GPU pipeline probe
+        shell: pwsh
+        run: |
+          cmake -S experiments/FirstPersonView -B gpu-build -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR="$PWD/gpu-upstream/msvc-full-features/vcpkg_installed/x64-windows-static" -DFIRST_PERSON_BUILD_GPU_TESTS=ON -DFIRST_PERSON_GPU_SHADER_HEADER="$PWD/gpu-shader-bytes.hpp"
+          if($LASTEXITCODE -ne 0){throw 'GPU probe configuration failed.'}
+          cmake --build gpu-build --config Release --target first_person_gpu_probe_tests first_person_gpu_contract_tests
+          if($LASTEXITCODE -ne 0){throw 'GPU probe build failed.'}
+      - name: Require real draw commands, hardware depth and ordinary SDL UI
+        run: ctest --test-dir gpu-build -C Release -R "gpu_probe|gpu_contract" --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gpu-device-windows
+          path: |
+            gpu-build/gpu-probe.*
+            gpu-shader-bytes.hpp
+          retention-days: 14
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SDL_VIDEODRIVER: dummy
+      SDL_GPU_DRIVER: vulkan
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: libsdl-org/SDL
+          ref: 8e37db5e797b6167f3a00d697d816a684bd259c7
+          path: gpu-sdl
+      - name: Install software Vulkan device and shader compiler
+        run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers glslang-tools libvulkan-dev
+      - name: Build exact SDL 3.4.10 for offscreen shared-device testing
+        run: |
+          cmake -S gpu-sdl -B gpu-sdl-build -DCMAKE_BUILD_TYPE=Release -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_X11=OFF -DSDL_WAYLAND=OFF -DSDL_AUDIO=OFF -DSDL_JOYSTICK=OFF -DSDL_HAPTIC=OFF -DSDL_SENSOR=OFF -DSDL_OPENGL=OFF -DSDL_OPENGLES=OFF -DSDL_VULKAN=ON -DSDL_GPU=ON -DSDL_TESTS=OFF
+          cmake --build gpu-sdl-build --parallel 2
+      - name: Compile owned SPIR-V shader programs
+        run: python3 experiments/FirstPersonView/compile_gpu_shaders.py --glslang /usr/bin/glslangValidator --output "$PWD/gpu-shader-bytes.hpp"
+      - name: Build and execute genuine Vulkan geometry and depth
+        run: |
+          cmake -S experiments/FirstPersonView -B gpu-build -DCMAKE_BUILD_TYPE=Release -DSDL3_DIR="$PWD/gpu-sdl-build" -DFIRST_PERSON_BUILD_GPU_TESTS=ON -DFIRST_PERSON_GPU_SHADER_HEADER="$PWD/gpu-shader-bytes.hpp"
+          cmake --build gpu-build --parallel 2 --target first_person_gpu_probe_tests first_person_gpu_contract_tests
+          ctest --test-dir gpu-build -R "gpu_probe|gpu_contract" --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gpu-device-linux
+          path: gpu-build/gpu-probe.*
+          retention-days: 14
