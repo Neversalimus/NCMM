@@ -24,11 +24,37 @@ int main(){int checks=0;auto require=[&](bool ok,const char *message){++checks;i
     require(cache.build(scene,1.2f,.3f,provider,wall,stats,host,{},nullptr,nullptr,640,480,NCMM_GPU_FORCE),"partial geometry update");require(cache.generated_cells==9,"one changed cell rebuilds only its local neighbour support");
     const auto &w=wall.finish(nullptr);require(w.mesh_count==2&&w.draw_count==25,"wall appears without erasing floors");
     require(!ncmm_gpu::validate(w),"updated bounded packet");cache.clear();require(cache.bytes()==0,"F6/shutdown resource ownership clears");
+    first_person::gpu::scene_cache limited(1024);
+    for(int attempt=0;attempt<2;++attempt){first_person::gpu::packet rejected;
+        require(!limited.build(scene,0,0,provider,rejected,stats,host,{},nullptr,nullptr,640,480,NCMM_GPU_FORCE),"failed mesh never becomes a silently incomplete warm GPU scene");
+        require(limited.bytes()==0&&!limited.last_reason.empty(),"failed producer resources invalidate chunks and retain diagnostics");}
+    std::strcpy(cells[12].terrain,"t_floor");details[12].terrain_shape=0;
+    first_person::gpu::packet recovered;
+    require(limited.build(scene,0,0,provider,recovered,stats,host,{},nullptr,nullptr,640,480,NCMM_GPU_FORCE)&&limited.generated_cells==25&&limited.last_reason.empty(),"producer recovery rebuilds the complete scene after resource failure");
+    cache.clear();
+    first_person::creature::presentation entities;entities.input.view={sizeof(ncmm_graphics_creature_scene_v1),1,1,1,10};
+    std::strcpy(cells[7].creature,"mod_arbitrary_creature");
+    uint64_t entity_id=0;
+    for(const char *body:{"human","dog","spider","insect","centipede","bird","lizard","snake","fish","blob","migo","unknown_mod_body"}){
+        ncmm_graphics_creature_v1 entity{};entity.entity_id=++entity_id;entity.cell=7;entity.world_x=host.world_origin_x+2;entity.world_y=host.world_origin_y+1;
+        entity.liters=70;entity.kilograms=65;std::strcpy(entity.bodytype,body);std::strcpy(entity.type_id,cells[7].creature);
+        entities.input.creatures={entity};entities.observe();
+        const auto key=first_person::creature::appearance_key(entity,1);
+        entities.resources.request(key,first_person::creature::classify(entity),[&]{ncmm_graphics_sprite_v2 sprite{sizeof(sprite),1,1,1,&pixel};return first_person::creature::sprite::copy(sprite);});
+        require(entities.resources.wait_idle(std::chrono::seconds(5)),"real procedural creature resource generation completes");
+        for(int view=0;view<8;++view){entities.input.creatures[0].heading=view*first_person::hybrid::pi/4;entities.observe();first_person::gpu::packet animal;
+            require(cache.build(scene,-first_person::hybrid::pi*.5f,0,provider,animal,stats,host,{},nullptr,&entities,640,480,NCMM_GPU_FORCE),"procedural creature collects into GPU geometry");
+            const auto &data=animal.finish(nullptr);require(!ncmm_gpu::validate(data)&&stats.creature_lods[0]==1&&!stats.creature_fallback,"real near creature has a valid skinned GPU mesh");
+            for(uint32_t n=0;n<data.mesh_count;++n){const auto &mesh=data.meshes[n];for(uint32_t j=0;j<mesh.index_count;j+=3){const auto material=mesh.vertices[mesh.indices[j]].material;
+                require(material==mesh.vertices[mesh.indices[j+1]].material&&material==mesh.vertices[mesh.indices[j+2]].material,"anatomical seam triangles retain the CPU renderer's face material");}}
+        }
+    }
+    cells[7].creature[0]=0;cache.clear();
     base.grid_width=base.grid_height=97;base.cell_count=9409;base.camera_x=base.camera_y=48.5f;cells.assign(9409,{});details.assign(9409,{});base.cells=cells.data();scene.details=details.data();scene.detail_count=9409;
     for(int i=0;i<9409;++i){cells[i].flags=NCMM_GFX_VISIBLE;std::strcpy(cells[i].terrain,"t_floor");std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=1;}
     bool complete=false;int warming_frames=0;
     for(int i=0;i<24&&!complete;++i){first_person::gpu::packet next;complete=cache.build(scene,0,0,provider,next,stats,host,{},nullptr,nullptr,640,480,NCMM_GPU_FORCE);
-        require(cache.generated_cells<=512,"cold scene generation has a bounded per-frame cell budget");if(!complete)++warming_frames;}
+        require(cache.generated_cells<=512,"cold scene generation has a bounded per-frame cell budget");if(!complete){++warming_frames;require(cache.last_reason=="warming bounded GPU scene geometry","cold scene warming has specific diagnostics");}}
     require(complete&&warming_frames>0,"large scene becomes complete after bounded warming");
     const int warmed_calls=sprite_calls;first_person::gpu::packet turned;require(cache.build(scene,2.5f,.4f,provider,turned,stats,host,{},nullptr,nullptr,640,480,NCMM_GPU_FORCE),"large camera turn stays ready");
     require(cache.generated_cells==0&&sprite_calls==warmed_calls,"97x97 camera turn reuses the complete static scene");require(stats.pixels.empty(),"warming does not use the CPU pixel renderer");

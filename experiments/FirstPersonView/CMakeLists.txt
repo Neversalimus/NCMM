@@ -26,7 +26,7 @@ target_compile_definitions(ncmm_mod PRIVATE NCMM_MOD_BUILD)
 set_target_properties(ncmm_mod PROPERTIES PREFIX "" OUTPUT_NAME "ncmm_mod")
 first_person_target(ncmm_mod)
 enable_testing()
-foreach(pair "contract|renderer_test" "hybrid|hybrid_test" "hybrid_module|hybrid_module_test" "presentation|presentation_test" "distance|distance_test" "optimization|optimization_test" "performance_header|performance_header_test" "creature_semantics|creature_semantics_test" "creature_mesh|creature_mesh_test" "creature_animation|creature_animation_test" "creature_lod|creature_lod_test" "creature_cache|creature_cache_test" "creature_render|creature_render_test" "creature_module|creature_module_test" "gpu_contract|gpu_contract_test")
+foreach(pair "contract|renderer_test" "hybrid|hybrid_test" "hybrid_module|hybrid_module_test" "presentation|presentation_test" "distance|distance_test" "optimization|optimization_test" "performance_header|performance_header_test" "creature_semantics|creature_semantics_test" "creature_mesh|creature_mesh_test" "creature_animation|creature_animation_test" "creature_lod|creature_lod_test" "creature_cache|creature_cache_test" "creature_render|creature_render_test" "creature_module|creature_module_test" "gpu_contract|gpu_contract_test" "gpu_module|gpu_module_test")
   string(REPLACE "|" ";" fields "${pair}")
   list(GET fields 0 name)
   list(GET fields 1 source)
@@ -63,7 +63,7 @@ if(FIRST_PERSON_BUILD_GPU_TESTS)
 endif()
 # ABI/lifecycle tests now exercise the exact shared library that is shipped,
 # rather than compiling a separate copy of module.cpp into each test binary.
-foreach(target first_person_tests first_person_hybrid_module_tests first_person_creature_module_tests)
+foreach(target first_person_tests first_person_hybrid_module_tests first_person_creature_module_tests first_person_gpu_module_tests)
   target_link_libraries(${target} PRIVATE ncmm_mod)
 endforeach()
 

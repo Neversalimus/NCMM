@@ -129,3 +129,30 @@ internal 3D image 1920×810; the report records both sizes. These fixtures use
 48 measured frames after bounded warming. Median/p95/p99 and observed maximum
 are reported without claiming player FPS or a precise long-run p99 estimate.
 The new gallery/matrix must pass and be visually reviewed before final merge.
+
+## Continuation audit: blocked procedural gallery and recovery fixes
+
+The expanded qualification at `a018d5c`, run
+https://github.com/Neversalimus/NCMM/actions/runs/38264955229, exposed a real
+integration defect in CDDA 1807: the first GPU creature was rejected with
+`triangle references multiple materials`; the gallery consequently failed
+`procedural_creature_generation_did_not_settle`. The successful room/device
+gate did not prove that reconstructed anatomical meshes worked.
+
+The GPU collector now preserves the CPU renderer's one-material-per-face
+choice, including triangles crossing front/back regional seams. Native GPU
+geometry coverage collects twelve procedural anatomies at eight headings and
+checks every submitted triangle, rather than exercising only synthetic test
+triangles. Failed producer allocations also invalidate incomplete chunk
+signatures before retry; a small-budget case verifies repeated failure and
+complete recovery when a scene fits again.
+
+Live CPU selection now invalidates Host GPU resources just like F12. The
+shipping module reports deduplicated, specific fallback diagnostics for missing
+GPU interfaces, incompatible SDL renderers, pending geometry and rejected
+pipelines. A test linked to that actual module checks Auto/GPU/CPU, live-setting
+changes, F12, explicit-GPU fallback on older Hosts and recovery after injected
+pipeline rejection.
+
+These fixes require renewed Windows Host/game/installer qualification. Do not
+merge based on the earlier room result or mark a fallback frame as GPU.

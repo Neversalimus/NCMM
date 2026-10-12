@@ -48,10 +48,11 @@ class scene_cache {
             result.flags=(m.cutout?NCMM_GPU_CUTOUT:0)|(m.opaque_texture?NCMM_GPU_OPAQUE_TEXTURE:0)|(m.smooth?NCMM_GPU_SMOOTH:0)|(m.creature?NCMM_GPU_CREATURE:0)|
                 (m.spill?NCMM_GPU_SPILL:0)|(m.overlay?NCMM_GPU_HELD_MATERIAL:0)|(m.creature_visual?NCMM_GPU_CREATURE_VISUAL:0)|(m.gpu_backface?NCMM_GPU_CULL_BACK:0);
             if(m.texture&&m.texture->valid()){const auto &image=m.texture->data;auto texture=cache.assets.texture(image.width,image.height,image.pitch_pixels,image.rgba);
-                if(texture){result.texture_key=texture->key;result.flags|=NCMM_GPU_TEXTURED;builder.texture(texture);}else failed=true;}
+                if(texture){result.texture_key=texture->key;result.flags|=NCMM_GPU_TEXTURED;builder.texture(texture);}else fail("GPU scene texture invalid or cache budget exceeded");}
             return result;}
     public:
-        bool failed=false;uint32_t generated_cells=0;
+        bool failed=false,warming=false;uint32_t generated_cells=0;
+        void fail(const char *reason){failed=true;if(cache.last_reason.empty())cache.last_reason=reason;}
         collector(scene_cache &owner,const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *data,packet &out,const ncmm_gpu_metrics_v1 &metrics,const std::vector<uint64_t> &hashes):
             cache(owner),scene(s),metadata(data),frame(out),host(metrics),signatures(hashes),dirty_cells(s.base.cell_count,false){
             std::vector<int> pending;
@@ -64,16 +65,16 @@ class scene_cache {
             auto &builder=builders[{value.m.cell,pass}];auto m=material(value.m,builder);builder.triangle(value,builder.material(m),origin(value.m.cell));}
         void world_complete()override{
             for(int i=0;i<int(scene.base.cell_count);++i)if(dirty(i)){auto &chunk=cache.chunks[cell_key(i)];chunk={};chunk.signature=signatures[i];
-                for(uint32_t pass=0;pass<2;++pass){auto found=builders.find({i,pass});if(found!=builders.end()){chunk.meshes[pass]=cache.assets.mesh(std::move(found->second.mesh));if(!chunk.meshes[pass])failed=true;}}}
+                for(uint32_t pass=0;pass<2;++pass){auto found=builders.find({i,pass});if(found!=builders.end()){chunk.meshes[pass]=cache.assets.mesh(std::move(found->second.mesh));if(!chunk.meshes[pass])fail("GPU static scene mesh cache budget exceeded");}}}
             builders.clear();world=false;
-            for(int i=0;i<int(scene.base.cell_count);++i)if(scene.base.cells[i].flags&NCMM_GFX_VISIBLE){auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()){failed=true;continue;}
-                if(found->second.signature!=signatures[i]){failed=true;continue;}
+            for(int i=0;i<int(scene.base.cell_count);++i)if(scene.base.cells[i].flags&NCMM_GFX_VISIBLE){auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()){warming=true;continue;}
+                if(found->second.signature!=signatures[i]){warming=true;continue;}
                 found->second.touched=cache.frame_serial;for(uint32_t pass=0;pass<2;++pass)frame.draw(found->second.meshes[pass],place(origin(i)),uint32_t(i),pass);}
         }
         void finish(){for(auto &[key,builder]:builders){std::shared_ptr<const owned_mesh> mesh;
                 if(key.second==NCMM_GPU_HELD){builder.mesh.key=0xfefd48454c445631ull;builder.mesh.flags=NCMM_GPU_DYNAMIC_MESH;mesh=std::make_shared<owned_mesh>(std::move(builder.mesh));}
                 else mesh=cache.assets.mesh(std::move(builder.mesh));
-                if(!mesh){failed=true;continue;}frame.draw(mesh,place(origin(key.first)),key.first<0?UINT32_MAX:uint32_t(key.first),key.second);}}
+                if(!mesh){fail("GPU dynamic scene mesh cache budget exceeded");continue;}frame.draw(mesh,place(origin(key.first)),key.first<0?UINT32_MAX:uint32_t(key.first),key.second);}}
         void skin(const creature::model &model,const creature::skeleton_pose &pose,int lod,vec at,int cell,vec scale,bool fallback,bool targetable,float heading,vec offset)override{
             const auto key=std::make_tuple(model_key(model),std::min(lod,1),fallback,targetable);auto mesh=cache.skins[key].lock();
             if(!mesh){mesh_builder builder;const auto &source=model.lod[std::min(lod,1)];std::array<uint32_t,12> materials{};
@@ -82,15 +83,20 @@ class scene_cache {
                     material.finish=uint32_t(model.type.flags&NCMM_CR_MECHANICAL?hybrid::surface::metal:model.type.flags&(NCMM_CR_CHITIN|NCMM_CR_SCALES)?hybrid::surface::resin:model.type.flags&NCMM_CR_FUR?hybrid::surface::cloth:hybrid::surface::none);
                     std::shared_ptr<const owned_texture> texture;
                     if(!fallback){const auto &skin=model.colors.skins[size_t(i/2)];const auto &pixels=(i&1)?skin.back:skin.front;texture=cache.assets.texture(creature::skin::side,creature::skin::side,creature::skin::side,pixels.data());
-                        if(!texture){failed=true;return;}material.texture_key=texture->key;material.flags|=NCMM_GPU_TEXTURED;}
+                        if(!texture){fail("GPU creature skin texture cache budget exceeded");return;}material.texture_key=texture->key;material.flags|=NCMM_GPU_TEXTURED;}
                     materials[i]=builder.material(material,texture);}
                 for(const auto &face:source.faces){const auto first=uint32_t(builder.mesh.vertices.size());const auto &a=source.vertices[face.vertices[0]],&b=source.vertices[face.vertices[1]],&c=source.vertices[face.vertices[2]];
                     const auto normal=creature::unit(creature::cross(b.position-a.position,c.position-a.position));
+                    // The established CPU renderer chooses one regional/front-
+                    // back material from the first vertex for the whole face.
+                    // Anatomical seams may give its other vertices a different
+                    // back flag; GPU material batching must preserve that rule.
+                    const auto material=materials[a.material*2+a.back];
                     for(auto index:face.vertices){const auto &v=source.vertices[index];ncmm_gpu_vertex_v1 out{};
                         out.position[0]=v.position.x;out.position[1]=v.position.y;out.position[2]=v.position.z;out.normal[0]=v.normal.x;out.normal[1]=v.normal.y;out.normal[2]=v.normal.z;
-                        out.face_normal[0]=normal.x;out.face_normal[1]=normal.y;out.face_normal[2]=normal.z;out.uv[0]=v.u;out.uv[1]=v.v;out.joint=v.joint;out.material=materials[v.material*2+v.back];builder.mesh.vertices.push_back(out);}
+                        out.face_normal[0]=normal.x;out.face_normal[1]=normal.y;out.face_normal[2]=normal.z;out.uv[0]=v.u;out.uv[1]=v.v;out.joint=v.joint;out.material=material;builder.mesh.vertices.push_back(out);}
                     builder.mesh.indices.insert(builder.mesh.indices.end(),{first,first+1,first+2});}
-                mesh=cache.assets.mesh(std::move(builder.mesh));if(!mesh){failed=true;return;}cache.skins[key]=mesh;}
+                mesh=cache.assets.mesh(std::move(builder.mesh));if(!mesh){fail("GPU creature mesh cache budget exceeded");return;}cache.skins[key]=mesh;}
             std::vector<ncmm_gpu_matrix_v1> bones(pose.count);
             for(size_t i=0;i<pose.count;++i){const auto &source=pose.joints[i];auto &matrix=bones[i];matrix=identity();const creature::point columns[]={source.x,source.y,source.z,source.position};
                 for(int j=0;j<4;++j){matrix.columns[j*4]=columns[j].x;matrix.columns[j*4+1]=columns[j].y;matrix.columns[j*4+2]=columns[j].z;}}
@@ -105,13 +111,13 @@ class scene_cache {
                 material.flags=NCMM_GPU_IMPOSTOR|NCMM_GPU_CUTOUT|NCMM_GPU_CREATURE_VISUAL|(lod==3?NCMM_GPU_SILHOUETTE:0)|(targetable?NCMM_GPU_CREATURE:0);material.impostor_span=sprite.span;
                 auto color=cache.assets.texture(sprite.width,sprite.height,sprite.width,sprite.color.data()),normal=cache.assets.texture(sprite.width,sprite.height,sprite.width,sprite.normal.data());
                 std::vector<uint32_t> encoded(sprite.depth.size());for(size_t i=0;i<encoded.size();++i){uint16_t value=uint16_t(sprite.depth[i]);encoded[i]=(uint32_t(value>>8)<<24)|(uint32_t(value&255)<<16)|255;}
-                auto depth=cache.assets.texture(sprite.width,sprite.height,sprite.width,encoded.data());if(!color||!normal||!depth){failed=true;return;}
+                auto depth=cache.assets.texture(sprite.width,sprite.height,sprite.width,encoded.data());if(!color||!normal||!depth){fail("GPU creature impostor texture cache budget exceeded");return;}
                 material.texture_key=color->key;material.normal_key=normal->key;material.depth_key=depth->key;builder.texture(color);builder.texture(normal);builder.texture(depth);
                 const uint32_t id=builder.material(material);hybrid::triangle first{},second{};first.m.gpu_billboard=second.m.gpu_billboard=true;
                 first.normal=second.normal={0,-1,0};const float half=sprite.span*.5f;
                 first.v={hybrid::vertex{{-half,0,sprite.bottom},0,1},hybrid::vertex{{half,0,sprite.bottom},1,1},hybrid::vertex{{half,0,sprite.top},1,0}};
                 second.v={first.v[0],first.v[2],hybrid::vertex{{-half,0,sprite.top},0,0}};builder.triangle(first,id,{});builder.triangle(second,id,{});
-                mesh=cache.assets.mesh(std::move(builder.mesh));if(!mesh){failed=true;return;}cache.impostors[key]=mesh;}
+                mesh=cache.assets.mesh(std::move(builder.mesh));if(!mesh){fail("GPU creature impostor mesh cache budget exceeded");return;}cache.impostors[key]=mesh;}
             frame.draw(mesh,place(at+vec{pose.offset.x,pose.offset.y,pose.offset.z}),uint32_t(cell),NCMM_GPU_OPAQUE,nullptr,pose.heading);
         }
     };
@@ -135,12 +141,15 @@ class scene_cache {
         return result;
     }
 public:
+    explicit scene_cache(size_t mesh_budget=resources::mesh_limit,size_t texture_budget=resources::texture_limit):assets(mesh_budget,texture_budget){}
     uint32_t generated_cells=0;double geometry_ms=0;
+    std::string last_reason;
     void clear(){chunks.clear();skins.clear();impostors.clear();assets.clear();world_epoch=tileset_epoch=0;}
     size_t bytes()const{return assets.bytes()+chunks.size()*sizeof(chunk);}
     bool build(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const hybrid::sprite_provider &provider,packet &out,
                hybrid::frame &statistics,const ncmm_gpu_metrics_v1 &host,animation::pose pose,const hybrid::presentation_data *metadata,creature::presentation *creatures,int width,int height,uint32_t mode){
-        if(!hybrid::valid_scene(s,yaw,pitch)||(metadata&&!hybrid::valid_presentation(*metadata,s.base.cell_count))||(creatures&&!creature::valid(creatures->input,s.base.cell_count)))return false;
+        last_reason.clear();
+        if(!hybrid::valid_scene(s,yaw,pitch)||(metadata&&!hybrid::valid_presentation(*metadata,s.base.cell_count))||(creatures&&!creature::valid(creatures->input,s.base.cell_count))){last_reason="invalid GPU source scene or optional presentation";return false;}
         const uint64_t world=creatures?creatures->input.view.world_epoch:uint64_t(host.world_origin_z)+1,tileset=creatures?creatures->input.view.tileset_epoch:host.resource_epoch;
         if(world_epoch!=world||tileset_epoch!=tileset){clear();world_epoch=world;tileset_epoch=tileset;}
         ++frame_serial;for(auto i=chunks.begin();i!=chunks.end();){const auto [x,y,z]=i->first;
@@ -173,7 +182,12 @@ public:
                 cell.volume[0]=.055f+.09f*extra.field_intensity;cell.volume[1]=extra.gas==NCMM_GAS_FIRE?1.25f:2.7f;
                 set(cell.volume_color,{color.x*(.10f+.9f*d.light_r),color.y*(.10f+.9f*d.light_g),color.z*(.10f+.9f*d.light_b)});}}
         camera.wind[2]=float(std::min(12u,sources));camera.wind[3]=float(gases);out.scene.geometry_ms=geometry_ms;out.scene.generated_cells=generated_cells;out.scene.producer_cache_bytes=bytes();
-        return !sink.failed&&out.draws.size()<=NCMM_GPU_MAX_DRAWS&&out.bones.size()<=NCMM_GPU_MAX_BONES;
+        // A failed texture/mesh may have left an incomplete chunk with a current
+        // signature. Never accept it as a warm complete world on the next frame.
+        if(sink.failed){clear();return false;}
+        if(out.draws.size()>NCMM_GPU_MAX_DRAWS||out.bones.size()>NCMM_GPU_MAX_BONES)last_reason="GPU scene draw or bone budget exceeded";
+        else if(sink.warming&&last_reason.empty())last_reason="warming bounded GPU scene geometry";
+        return !sink.failed&&!sink.warming&&last_reason.empty();
     }
 };
 }

@@ -83,6 +83,7 @@ class resources {
     std::map<uint64_t,entry<owned_texture>> textures;
     uint64_t clock=0;
     size_t mesh_bytes_=0,texture_bytes_=0;
+    size_t mesh_budget_,texture_budget_;
     template<class T> bool make_room(std::map<uint64_t,entry<T>> &entries,size_t &bytes,size_t size,size_t limit) {
         if(size>limit)return false;
         while(bytes+size>limit) {
@@ -95,6 +96,8 @@ class resources {
     }
 public:
     static constexpr size_t mesh_limit=128*1024*1024,texture_limit=64*1024*1024;
+    explicit resources(size_t mesh_budget=mesh_limit,size_t texture_budget=texture_limit):
+        mesh_budget_(std::min(mesh_budget,mesh_limit)),texture_budget_(std::min(texture_budget,texture_limit)){}
     void clear(){meshes.clear();textures.clear();mesh_bytes_=texture_bytes_=0;}
     size_t bytes()const{return mesh_bytes_+texture_bytes_;}
     std::shared_ptr<const owned_texture> texture(uint32_t width,uint32_t height,uint32_t pitch,const uint32_t *pixels) {
@@ -104,7 +107,7 @@ public:
         auto found=textures.find(key);if(found!=textures.end()){found->second.touched=++clock;return found->second.value;}
         auto result=std::make_shared<owned_texture>();result->key=key;result->width=width;result->height=height;result->pixels.resize(size_t(width)*height);
         for(uint32_t y=0;y<height;++y)std::copy_n(pixels+size_t(y)*pitch,width,result->pixels.data()+size_t(y)*width);
-        if(!make_room(textures,texture_bytes_,result->bytes(),texture_limit))return {};
+        if(!make_room(textures,texture_bytes_,result->bytes(),texture_budget_))return {};
         texture_bytes_+=result->bytes();textures.emplace(key,entry<owned_texture>{result,++clock});return result;
     }
     std::shared_ptr<const owned_mesh> mesh(owned_mesh value) {
@@ -112,7 +115,7 @@ public:
         value.key=mesh_key(value);auto found=meshes.find(value.key);
         if(found!=meshes.end()){found->second.touched=++clock;return found->second.value;}
         auto result=std::make_shared<owned_mesh>(std::move(value));
-        if(!make_room(meshes,mesh_bytes_,result->bytes(),mesh_limit))return {};
+        if(!make_room(meshes,mesh_bytes_,result->bytes(),mesh_budget_))return {};
         mesh_bytes_+=result->bytes();meshes.emplace(result->key,entry<owned_mesh>{result,++clock});return result;
     }
 };

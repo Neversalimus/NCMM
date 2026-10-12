@@ -13,6 +13,7 @@ const ncmm_host_graphics_controls_v1 *controls=nullptr;
 const ncmm_host_graphics_presentation_v1 *presentation=nullptr;
 const ncmm_host_graphics_gpu_v1 *gpu=nullptr;
 const ncmm_host_api_v2_core *settings=nullptr;
+void (*diagnostic_log)(ncmm_log_level_v1,const char *)=nullptr;
 std::unique_ptr<first_person::gpu::scene_cache> gpu_world;
 uint32_t renderer_mode=NCMM_GPU_AUTO;std::string last_setting="auto",last_gpu_reason;
 bool mode_override=false;
@@ -31,6 +32,18 @@ uint64_t world_key=0;
 bool world_valid=false;
 std::chrono::steady_clock::time_point frame_built{};
 std::chrono::steady_clock::time_point world_built{};
+void select_renderer(uint32_t mode){
+    if(mode==renderer_mode)return;
+    renderer_mode=mode;frame_valid=world_valid=false;
+    if(mode==NCMM_GPU_CPU&&gpu)gpu->invalidate();
+}
+void report_gpu_fallback(const std::string &reason){
+    const std::string message=reason.empty()?"GPU submission rejected without Host diagnostics":reason;
+    if(message!=last_gpu_reason&&diagnostic_log){
+        diagnostic_log(NCMM_LOG_WARN,("First Person GPU unavailable; CPU fallback: "+message).c_str());
+    }
+    last_gpu_reason=message;
+}
 uint64_t geometry_key(const ncmm_graphics_scene_v2 &s,bool dynamic=false){
     uint64_t h=1469598103934665603ull;
     auto bytes=[&](const void *p,size_t n){h=first_person::hash_bytes(h,p,n);};
@@ -64,7 +77,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     bool has_metadata=false;
     if(presentation){metadata.view={};metadata.view.struct_size=sizeof(metadata.view);metadata.cells.resize(scene->base.cell_count);
         has_metadata=presentation->get_scene(&metadata.view)&&presentation->get_cells(metadata.cells.data(),metadata.cells.size());
-        if(!gpu_effects)metadata.view.flags&=~NCMM_PRESENT_GPU_EFFECTS;}
+    }
     bool has_creatures=false;
     if(creatures&&creature_state){auto &input=creature_state->input;input.view={};input.view.struct_size=sizeof(input.view);
         if(creatures->get_scene(&input.view)&&input.view.count<=scene->base.cell_count+256){input.creatures.resize(input.view.count);
@@ -77,7 +90,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         pose.sway_y=std::sin(t*2.2f)*.0032f+std::abs(std::sin(t*10))*metadata.view.movement*.010f+look_sway_y*lag;}
     if(settings){const char *value=settings->world_setting_get_string("NCMM_FIRST_PERSON_RENDERER","auto");
         const std::string selected=value?value:"auto";if(selected!=last_setting){last_setting=selected;mode_override=false;}
-        if(!mode_override)renderer_mode=selected=="cpu"?NCMM_GPU_CPU:selected=="gpu"?NCMM_GPU_FORCE:NCMM_GPU_AUTO;}
+        if(!mode_override)select_renderer(selected=="cpu"?NCMM_GPU_CPU:selected=="gpu"?NCMM_GPU_FORCE:NCMM_GPU_AUTO);}
     gpu_effects=renderer_mode!=NCMM_GPU_CPU;if(has_metadata&&!gpu_effects)metadata.view.flags&=~NCMM_PRESENT_GPU_EFFECTS;
     if(gpu&&gpu_world&&renderer_mode!=NCMM_GPU_CPU){
         ncmm_gpu_metrics_v1 available{};available.struct_size=sizeof(available);
@@ -86,7 +99,8 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
             const int width=std::max(1,int(scene->base.pixel_width*factor)),height=std::max(1,int(scene->base.pixel_height*factor));
             first_person::gpu::packet packet;first_person::hybrid::frame statistics;
             const first_person::hybrid::sprite_provider provider=[](uint32_t cell,uint32_t layer,ncmm_graphics_sprite_v2 &sprite){return hybrid&&hybrid->get_sprite(cell,layer,&sprite)!=0;};
-            if(gpu_world->build(*scene,float(yaw),pitch,provider,packet,statistics,available,pose,has_metadata?&metadata:nullptr,has_creatures?creature_state.get():nullptr,width,height,renderer_mode)&&gpu->submit_scene(&packet.finish(gpu))){
+            const bool built=gpu_world->build(*scene,float(yaw),pitch,provider,packet,statistics,available,pose,has_metadata?&metadata:nullptr,has_creatures?creature_state.get():nullptr,width,height,renderer_mode);
+            if(built&&gpu->submit_scene(&packet.finish(gpu))){
                 ncmm_gpu_metrics_v1 result{};result.struct_size=sizeof(result);gpu->metrics(&result);
                 if(presentation)presentation->set_target(result.target_cell,result.label_x,result.label_y);
                 if(has_creatures&&creatures->submit_metrics){const auto stats=creature_state->resources.statistics();ncmm_graphics_creature_metrics_v1 m{};m.struct_size=sizeof(m);
@@ -96,9 +110,10 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
                     std::copy(stats.anatomy_counts.begin(),stats.anatomy_counts.end(),m.anatomy);std::copy(stats.fallback_counts.begin(),stats.fallback_counts.end(),m.reasons);creatures->submit_metrics(&m);}
                 frame_valid=false;last_gpu_reason.clear();return 1;
             }
-            ncmm_gpu_metrics_v1 result{};result.struct_size=sizeof(result);gpu->metrics(&result);last_gpu_reason=result.reason;
-        }else last_gpu_reason=available.reason;
-    }
+            if(!built)report_gpu_fallback(gpu_world->last_reason);
+            else{ncmm_gpu_metrics_v1 result{};result.struct_size=sizeof(result);gpu->metrics(&result);report_gpu_fallback(result.reason);}
+        }else report_gpu_fallback(available.reason);
+    }else if(renderer_mode!=NCMM_GPU_CPU)report_gpu_fallback("Host does not provide compatible Graphics GPU/Mesh API v1");
     const uint64_t common=geometry_key(*scene,has_creatures);
     uint64_t key=scene_key(*scene,common);
     for(float value:{pose.swing,pose.thrust,pose.recoil,pose.length,pose.sway_x,pose.sway_y}){uint32_t bits;std::memcpy(&bits,&value,sizeof(bits));key=(key^bits)*1099511628211ull;}
@@ -148,9 +163,8 @@ int render(const ncmm_graphics_scene_v1 *scene,void *) {
 void input(uint32_t action,void *) {
     frame_valid=false;
     if(action==NCMM_GFX_ACCELERATION){
-        renderer_mode=renderer_mode==NCMM_GPU_AUTO?NCMM_GPU_CPU:renderer_mode==NCMM_GPU_CPU?NCMM_GPU_FORCE:NCMM_GPU_AUTO;mode_override=true;
+        select_renderer(renderer_mode==NCMM_GPU_AUTO?NCMM_GPU_CPU:renderer_mode==NCMM_GPU_CPU?NCMM_GPU_FORCE:NCMM_GPU_AUTO);mode_override=true;
         gpu_effects=renderer_mode!=NCMM_GPU_CPU;world_valid=false;
-        if(renderer_mode==NCMM_GPU_CPU&&gpu)gpu->invalidate();
         if(settings&&settings->log){const char *mode=renderer_mode==NCMM_GPU_AUTO?"Auto":renderer_mode==NCMM_GPU_CPU?"CPU":"GPU";std::string message=std::string("First Person renderer: ")+mode;settings->log(NCMM_LOG_INFO,message.c_str());}
     }
     if(action==NCMM_GFX_QUALITY)high_quality=!high_quality;
@@ -167,10 +181,11 @@ void input(uint32_t action,void *) {
 int init(const ncmm_host_api_v1 *api) {
     graphics=nullptr;
     hybrid=nullptr;
-    gpu=nullptr;settings=nullptr;gpu_world.reset();renderer_mode=NCMM_GPU_AUTO;last_setting="auto";mode_override=false;last_gpu_reason.clear();
+    gpu=nullptr;settings=nullptr;diagnostic_log=nullptr;gpu_world.reset();renderer_mode=NCMM_GPU_AUTO;last_setting="auto";mode_override=false;last_gpu_reason.clear();
     controls=nullptr;presentation=nullptr;metadata={};creatures=nullptr;creature_state.reset();look_sway_x=look_sway_y=0;look_sway_started=last_scene_seconds=0;frame_valid=world_valid=false;high_quality=false;gpu_effects=true;
     const auto core=ncmm::sdk::require_core(api,caps,sizeof(caps)/sizeof(caps[0]),NCMM_SDK_CORE_FIELD_END(api_minor));
     if(!core) return 0;
+    diagnostic_log=core.core->struct_size>=NCMM_SDK_CORE_FIELD_END(log)?core.core->log:api->log;
     if(core.core->struct_size>=NCMM_SDK_CORE_FIELD_END(world_setting_get_string)&&core.core->world_setting_register_enum&&core.core->world_setting_get_string){
         const char *values[]={"auto","gpu","cpu"},*labels[]={"Auto","GPU","CPU"};
         if(core.core->world_setting_register_enum(id,"NCMM_FIRST_PERSON_RENDERER","First Person renderer / Рендерер первого лица","Auto uses compatible SDL GPU. F12: Auto → CPU → GPU → Auto. / F12: Auto → CPU → GPU → Auto.",values,labels,3,"auto",NCMM_WORLD_SETTING_LIVE))settings=core.core;}
@@ -205,7 +220,7 @@ int init(const ncmm_host_api_v1 *api) {
 void shutdown() {
     if(hybrid) hybrid->set_enabled(id,0);
     if(graphics) graphics->set_enabled(id,0);
-    gpu=nullptr;settings=nullptr;gpu_world.reset();
+    gpu=nullptr;settings=nullptr;diagnostic_log=nullptr;gpu_world.reset();
     hybrid=nullptr;
     controls=nullptr;
     presentation=nullptr;metadata={};creatures=nullptr;creature_state.reset();
