@@ -100,6 +100,14 @@ public:
         context_.describe(metrics_);if(const char *error=validate(scene)){reason(error);return false;}
         if(scene.mode==NCMM_GPU_CPU){reason("CPU renderer selected");return false;}if(!available()){reason(context_.reason());return false;}
         if(!programs_.create(context_)||!targets(scene.width,scene.height)){reason(context_.reason());return false;}
+        if(!buffer(instances_,instance_size_,uint32_t(scene.draw_count*sizeof(instance)),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
+           !buffer(bones_,bone_size_,scene.bone_count*sizeof(ncmm_gpu_matrix_v1),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
+           !buffer(cells_,cell_size_,scene.cell_count*sizeof(ncmm_gpu_cell_v1),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ|SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_READ)||
+           !buffer(shadows_,shadow_size_,scene.cell_count*4,SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ|SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE)){reason(context_.reason());return false;}
+        const uint64_t reserved=target_bytes()+dynamic_bytes();if(reserved>=NCMM_GPU_RESOURCE_LIMIT){reason("GPU target/dynamic buffers exceed memory budget");return false;}
+        auto stage=clock::now();bool ready=resources_.prepare(scene,NCMM_GPU_RESOURCE_LIMIT-reserved,metrics_);metrics_.resource_ms=ms(stage);
+        metrics_.resource_bytes=resources_.bytes()+reserved;metrics_.host_cpu_cache_bytes=resources_.cpu_bytes();
+        if(!ready){const std::string error=resources_.reason();reason(error);if(error!="warming bounded GPU resource cache"){invalidate();reason(error);}return false;}
         std::vector<instance> instances;std::vector<batch> batches;
         // Opaque/held groups reuse a mesh with one instanced command per material.
         // Transparent instances retain a stable global back-to-front order.
@@ -113,16 +121,6 @@ public:
         std::stable_sort(transparent.begin(),transparent.end(),[](const auto &a,const auto &b){return a.distance>b.distance;});
         for(const auto &t:transparent){const auto &d=scene.draws[t.index];auto *mesh=resources_.mesh(d.mesh_key);if(mesh&&mesh->joint_count<=d.bone_count&&!in_frustum(draw_bounds(*mesh,d,scene),scene.camera))continue;
             uint32_t heading;std::memcpy(&heading,&d.creature_yaw,4);batches.push_back({d.mesh_key,d.pass,uint32_t(instances.size()),1});instances.push_back({d.transform,d.bone_offset,d.bone_count,d.cell,heading});}
-        if(!buffer(instances_,instance_size_,uint32_t(instances.size()*sizeof(instance)),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
-           !buffer(bones_,bone_size_,scene.bone_count*sizeof(ncmm_gpu_matrix_v1),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
-           !buffer(cells_,cell_size_,scene.cell_count*sizeof(ncmm_gpu_cell_v1),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ|SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_READ)||
-           !buffer(shadows_,shadow_size_,scene.cell_count*4,SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ|SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE)){reason(context_.reason());return false;}
-        const uint64_t reserved=target_bytes()+dynamic_bytes();if(reserved>=NCMM_GPU_RESOURCE_LIMIT){reason("GPU target/dynamic buffers exceed memory budget");return false;}
-        auto stage=clock::now();bool ready=resources_.prepare(scene,NCMM_GPU_RESOURCE_LIMIT-reserved,metrics_);metrics_.resource_ms=ms(stage);
-        metrics_.resource_bytes=resources_.bytes()+reserved;metrics_.host_cpu_cache_bytes=resources_.cpu_bytes();
-        if(!ready){const std::string error=resources_.reason();reason(error);if(error!="warming bounded GPU resource cache"){invalidate();reason(error);}return false;}
-        // New meshes were not available for first-frame culling; that only adds
-        // harmless hardware-clipped commands until the next frame.
         pick(resources_,scene,metrics_);
         if(!counter_){uint32_t ignored=0;if(!buffer(counter_,ignored,64,SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE)){reason(context_.reason());return false;}}
         readback *read=nullptr;for(auto &r:readbacks_)if(!r.fence){read=&r;break;}
@@ -156,6 +154,8 @@ public:
         SDL_EndGPURenderPass(pass);
         pass=begin(commands,true,false);if(!pass){SDL_CancelGPUCommandBuffer(commands);SDL_ReleaseGPUTransferBuffer(context_.device(),transfer);context_.fail("begin held-item GPU pass");reason(context_.reason());return false;}
         draw_batches(commands,pass,batches,NCMM_GPU_HELD,scene);SDL_EndGPURenderPass(pass);
+        const bool atmosphere=scene.camera.wind[2]>0||scene.camera.wind[3]>0||scene.camera.weather[2]>.025f;
+        if(atmosphere){
         SDL_GPUColorTargetInfo effects[2]{};effects[0].texture=effects_;effects[1].texture=effect_depth_;for(auto &e:effects){e.load_op=SDL_GPU_LOADOP_CLEAR;e.store_op=SDL_GPU_STOREOP_STORE;e.cycle=true;}
         pass=SDL_BeginGPURenderPass(commands,effects,2,nullptr);SDL_BindGPUGraphicsPipeline(pass,programs_.volume);
         SDL_GPUTextureSamplerBinding depths[]={{context_.depth(),programs_.nearest},{held_depth_,programs_.nearest}};SDL_BindGPUFragmentSamplers(pass,0,depths,2);SDL_BindGPUFragmentStorageBuffers(pass,0,&cells_,1);
@@ -167,6 +167,13 @@ public:
         pass=SDL_BeginGPURenderPass(commands,&output,1,nullptr);SDL_BindGPUGraphicsPipeline(pass,programs_.compose);
         SDL_GPUTextureSamplerBinding composition[]={{world_,programs_.nearest},{effects_,programs_.linear},{context_.depth(),programs_.nearest},{held_depth_,programs_.nearest},{effect_depth_,programs_.nearest}};
         SDL_BindGPUFragmentSamplers(pass,0,composition,5);SDL_PushGPUFragmentUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DrawGPUPrimitives(pass,3,1,0,0);++metrics_.draw_calls;SDL_EndGPURenderPass(pass);
+        }else{
+            // Clear dry scenes need no scattering/reconstruction pass. This is
+            // still a direct GPU texture blit, with no CPU framebuffer transfer.
+            SDL_GPUBlitInfo blit{};blit.source.texture=world_;blit.source.w=scene.width;blit.source.h=scene.height;
+            blit.destination.texture=context_.color();blit.destination.w=scene.width;blit.destination.h=scene.height;
+            blit.load_op=SDL_GPU_LOADOP_DONT_CARE;blit.filter=SDL_GPU_FILTER_NEAREST;blit.cycle=true;SDL_BlitGPUTexture(commands,&blit);
+        }
         if(read){SDL_GPUStorageBufferReadWriteBinding binding{};binding.buffer=counter_;compute=SDL_BeginGPUComputePass(commands,nullptr,0,&binding,1);SDL_BindGPUComputePipeline(compute,programs_.count);
             SDL_GPUTextureSamplerBinding ids{id_,programs_.nearest};SDL_BindGPUComputeSamplers(compute,0,&ids,1);SDL_DispatchGPUCompute(compute,(scene.width+15)/16,(scene.height+15)/16,1);SDL_EndGPUComputePass(compute);
             copy=SDL_BeginGPUCopyPass(commands);SDL_GPUBufferRegion from{counter_,0,64};SDL_GPUTransferBufferLocation to{read->transfer,0};SDL_DownloadFromGPUBuffer(copy,&from,&to);SDL_EndGPUCopyPass(copy);}

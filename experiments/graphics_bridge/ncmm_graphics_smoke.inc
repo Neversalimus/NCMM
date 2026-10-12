@@ -486,6 +486,12 @@ bool graphics_scene_smoke()
         require( graphics_ceiling_cells > 0, "real_indoor_ceiling_missing" );
         require( !graphics_hybrid_last_environment.outdoors, "roof_exposure_not_from_game" );
         #include "ncmm_graphics_creature_smoke.inc"
+        if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) ) {
+            get_options().get_option( "NCMM_FIRST_PERSON_RENDERER" ).setValue( "gpu" ); graphics_smoke_gpu_gallery = true;
+            #include "ncmm_graphics_creature_smoke.inc"
+            graphics_smoke_gpu_gallery = false; get_options().get_option( "NCMM_FIRST_PERSON_RENDERER" ).setValue( "cpu" ); draw();
+        }
+        #include "ncmm_gpu_benchmark.inc"
         press_f6();
         require( !graphics_view.enabled, "f6_final_toggle_off_failed" );
         require( you.pos_bub() == start_pos && you.get_moves() == start_moves && calendar::turn == start_time,

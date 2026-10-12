@@ -54,7 +54,10 @@ inline void pick(resource_cache &resources,const ncmm_gpu_scene_v1 &scene,ncmm_g
                 target_top={(bounds.lo[0]+bounds.hi[0])*.5f,(bounds.lo[1]+bounds.hi[1])*.5f,bounds.hi[2]+.06f};
             }}
     }
-    if(metrics.target_cell>=0){const auto d=target_top-eye;float z=dot(d,direction);if(z>.08f){metrics.label_x=std::clamp(.5f+scene.camera.projection[2]*dot(d,from(scene.camera.right))/z/scene.width,0.f,1.f);
+    if(metrics.target_cell>=0){const auto &cell=scene.cells[metrics.target_cell];float height=0,elevation=0;std::memcpy(&height,&cell.reserved[0],4);std::memcpy(&elevation,&cell.reserved[1],4);
+        if(std::isfinite(height)&&height>0&&height<=7&&std::isfinite(elevation)&&elevation>=0&&elevation<=5)
+            target_top={float(metrics.target_cell%int(scene.camera.grid[0]))+.5f,float(metrics.target_cell/int(scene.camera.grid[0]))+.5f,height+elevation+.06f};
+        const auto d=target_top-eye;float z=dot(d,direction);if(z>.08f){metrics.label_x=std::clamp(.5f+scene.camera.projection[2]*dot(d,from(scene.camera.right))/z/scene.width,0.f,1.f);
             metrics.label_y=std::clamp(.5f-scene.camera.projection[2]*dot(d,from(scene.camera.up))/z/scene.height,0.f,1.f);}}
 }
 }

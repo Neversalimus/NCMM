@@ -13,6 +13,18 @@ size_t graphics_hybrid_held_sprites = 0;
 size_t graphics_hybrid_tiny_creatures = 0;
 std::array<size_t, NCMM_SHAPE_COUNT> graphics_hybrid_shape_counts = {};
 ncmm_graphics_environment_v2 graphics_hybrid_last_environment = {};
+// Only the isolated qualification fixture assigns an override. Gameplay uses
+// the monotonic SDL presentation clock independently of simulation turns.
+std::optional<double> graphics_smoke_seconds;
+bool graphics_smoke_gpu_gallery = false;
+double graphics_presentation_seconds()
+{
+#if defined(TILES)
+    return graphics_smoke_seconds ? *graphics_smoke_seconds : SDL_GetTicks() / 1000.0;
+#else
+    return 0;
+#endif
+}
 #include "ncmm_graphics_presentation.inc"
 #include "ncmm_graphics_creatures.inc"
 #include "ncmm_graphics_gpu.inc"
@@ -429,7 +441,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     const auto wind = convert_wind_to_coord( weather.winddirection );
     env.wind_x = float( wind.x * std::clamp( weather.windspeed, 0, 100 ) ); env.wind_y = float( wind.y * std::clamp( weather.windspeed, 0, 100 ) );
     env.lightning = weather.lightning_active; env.outdoors = here.is_outside( you.pos_bub() );
-    env.animation_seconds = SDL_GetTicks() / 1000.0;
+    env.animation_seconds = graphics_presentation_seconds();
     if( const auto held = you.get_wielded_item() ) {
         copy_id( env.held_item, held->typeId().str() ); env.held_kind = held->is_gun() ? 1u : held->is_melee() ? 2u : 3u;
     }
@@ -445,11 +457,13 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         graphics_hybrid_tileset_epoch = epoch; graphics_hybrid_renderer_identity = renderer;
     }
     graphics_prepare_creatures( base, positions );
+    graphics_snapshot_ms = std::chrono::duration<double,std::milli>( std::chrono::steady_clock::now() - graphics_snapshot_begun ).count();
     graphics_hybrid_pixels.clear(); graphics_hybrid_width = graphics_hybrid_height = 0;
     graphics_resolved_textures = graphics_resolved_vehicle_textures = 0;
     graphics_frame_invalid = false; graphics_gpu_frame = false; graphics_hybrid_frame = &scene; graphics_hybrid_positions = &positions;
     graphics_render_active = true;
     bool ok = false;
+    const auto callback_begun = std::chrono::steady_clock::now();
     try {
         module_call_scope scope( graphics_view.owner.c_str() );
         ok = graphics_view.hybrid_render( &scene, graphics_view.user_data ) != 0;
@@ -459,6 +473,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     }
     graphics_hybrid_frame = nullptr; graphics_hybrid_positions = nullptr;
     graphics_render_active = false;
+    graphics_callback_ms = std::chrono::duration<double,std::milli>( std::chrono::steady_clock::now() - callback_begun ).count();
     if( !ok || graphics_frame_invalid || ( !graphics_gpu_frame && graphics_hybrid_pixels.empty() ) ) {
         graphics_view.enabled = false; graphics_hybrid_pixels.clear(); graphics_release_mouse(); graphics_cancel_animation();
         add_msg( m_warning, "%s", tr_ui( "First person could not draw this scene; returned to the map. F6 retries.",
@@ -466,6 +481,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         return false;
     }
     SDL_Rect prior_clip; SDL_GetRenderClipRect( renderer, &prior_clip ); const bool clipped = SDL_RenderClipEnabled( renderer );
+    const auto presentation_begun = std::chrono::steady_clock::now();
     const SDL_Rect clip = { x, y, base.pixel_width, base.pixel_height };
     const auto generation = renderer_coordinator.texture_generations();
     if( !graphics_gpu_frame && graphics_stream_texture && ( graphics_stream_instance != generation.instance || graphics_stream_generation != generation.textures ||
@@ -500,6 +516,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         graphics_attack_started = SDL_GetTicks() / 1000.0; graphics_attack_pending = false;
     }
     if( !ok ) { graphics_clear_stream(); graphics_view.enabled = false; graphics_release_mouse(); }
+    graphics_presentation_ms = std::chrono::duration<double,std::milli>( std::chrono::steady_clock::now() - presentation_begun ).count();
     return ok;
 }
 #else

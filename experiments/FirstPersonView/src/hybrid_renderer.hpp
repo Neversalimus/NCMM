@@ -13,6 +13,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <chrono>
 #include <functional>
 #include <limits>
 #include <map>
@@ -44,6 +45,8 @@ struct presentation_data {
 };
 struct cached_transparency;
 struct frame {
+    double geometry_ms=0,raster_ms=0,effects_ms=0;
+    uint32_t raster_calls=0;uint64_t submitted_triangles=0;
     std::shared_ptr<const cached_transparency> transparency;
     bool dynamic_world=false;
     std::array<uint32_t,4> creature_lods{};uint32_t creature_culled=0,creature_fallback=0;
@@ -387,11 +390,12 @@ class renderer {
     }
     void paint(const std::vector<triangle> &queue,const std::vector<triangle> *last=nullptr){
         if(queue.empty()&&(!last||last->empty()))return;
+        const auto begun=std::chrono::steady_clock::now();++f.raster_calls;f.submitted_triangles+=queue.size()+(last?last->size():0);
         const int count=size_t(f.width)*f.height>=500000?int(std::clamp(std::thread::hardware_concurrency(),1u,4u)):1;
         std::vector<projected_triangle> projected;projected.reserve(queue.size()+(last?last->size():0));
         for(const auto &t:queue)project(t,projected);
         if(last)for(const auto &t:*last)project(t,projected);
-        if(projected.empty())return;
+        if(projected.empty()){f.raster_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();return;}
         std::array<uint32_t,4> totals{};std::array<std::thread,3> threads;
         auto band=[&](int n){for(const auto &t:projected)raster(t,n,count,totals[n]);};
         // Sprites/geometry are resolved on the callback thread. Workers only
@@ -399,6 +403,7 @@ class renderer {
         for(int n=1;n<count;++n){try{threads[n-1]=std::thread(band,n);}catch(const std::system_error &){band(n);}}
         band(0);for(auto &t:threads)if(t.joinable())t.join();
         for(auto total:totals)f.triangles+=total;
+        f.raster_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();
     }
     void solid_quad(vec a,vec b,vec c,vec d,material m,vec normal={0,0,1}){
         if(gpu_sink)m.gpu_backface=true;
@@ -1049,14 +1054,17 @@ public:
         f.width=std::max(1,int(base.pixel_width*factor));f.height=std::max(1,int(base.pixel_height*factor));size_t count=size_t(f.width)*f.height;
         projection=f.width/(2*std::tan(70*pi/360));clipping_build();
         if(cached_world&&cached_world->width==f.width&&cached_world->height==f.height&&cached_world->pixels.size()==count&&cached_world->depth.size()==count&&cached_world->sun_shadows.size()==base.cell_count&&cached_world->dynamic_world==bool(creature_data)){
-            f=*cached_world;shadows=f.sun_shadows;fog_color=f.sky_horizon;f.held_depth.assign(count,std::numeric_limits<float>::infinity());
+            f=*cached_world;f.geometry_ms=f.raster_ms=f.effects_ms=0;f.raster_calls=0;f.submitted_triangles=0;
+            shadows=f.sun_shadows;fog_color=f.sky_horizon;f.held_depth.assign(count,std::numeric_limits<float>::infinity());
         }else{
             f.pixels.resize(count);f.depth.assign(count,std::numeric_limits<float>::infinity());f.held_depth.assign(count,std::numeric_limits<float>::infinity());f.owners.assign(count,-1);f.creatures.assign(count,-1);
             f.triangles=f.vehicle_parts=f.weather_particles=f.held_pixels=f.vertical_doors=f.vertical_windows=f.vertical_fences=f.plants=f.shadow_cells=0;
             f.geometry_cells=f.culled_cells=f.culled_quads=f.sky_pixels=0;
+            f.geometry_ms=f.raster_ms=f.effects_ms=0;f.raster_calls=0;f.submitted_triangles=0;
             f.transparency.reset();f.dynamic_world=bool(creature_data);
             sky_palette();if(!options.skip_hidden_sky)sky();
-            shadows_build();vehicles_build();world();paint(opaque);
+            const auto geometry_begun=std::chrono::steady_clock::now();shadows_build();vehicles_build();world();
+            f.geometry_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-geometry_begun).count();paint(opaque);
             if(options.skip_hidden_sky)sky();
             std::stable_sort(transparent.begin(),transparent.end(),[&](const triangle &a,const triangle &b){return view(a.v[0].p+a.v[1].p+a.v[2].p).z>view(b.v[0].p+b.v[1].p+b.v[2].p).z;});
             if(creature_data)f.transparency=std::make_shared<cached_transparency>(transparent);else paint(transparent);
@@ -1064,7 +1072,8 @@ public:
             if(world_output)*world_output=f;
         }
         f.creature_lods={};f.creature_culled=f.creature_fallback=0;
-        if(creature_data){opaque.clear();transparent.clear();dynamic_creatures();paint(opaque);
+        if(creature_data){opaque.clear();transparent.clear();const auto begun=std::chrono::steady_clock::now();dynamic_creatures();
+            f.geometry_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();paint(opaque);
             // Local contact shadows and cached glass both depth-test against the
             // current creature pass. Glass never becomes an opaque cache layer.
             paint(transparent);if(f.transparency)paint(f.transparency->triangles);
@@ -1074,7 +1083,11 @@ public:
         if(target>=0){f.aimed=target;const float h=extra(target).creature_height>0?extra(target).creature_height:1.7f;
             const vec top=view({float(target%base.grid_width)+.5f,float(target/base.grid_width)+.5f,h+extra(target).creature_elevation+.06f});
             if(top.z>.08f){f.label_x=clamp(.5f+projection*top.x/top.z/f.width);f.label_y=clamp(.5f-projection*top.y/top.z/f.height);}}
-        f.weather_particles=f.held_pixels=0;weather();held();paint(overlay);atmosphere();
+        f.weather_particles=f.held_pixels=0;auto effect_begun=std::chrono::steady_clock::now();weather();
+        f.effects_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-effect_begun).count();
+        auto held_begun=std::chrono::steady_clock::now();held();f.geometry_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-held_begun).count();
+        paint(overlay);effect_begun=std::chrono::steady_clock::now();atmosphere();
+        f.effects_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-effect_begun).count();
         if(!metadata&&f.width>=320&&f.height>=240){int x=f.width/2,y=f.height/2;for(int d=-3;d<=3;++d){if(d==0)continue;f.pixels[size_t(y)*f.width+x+d]=0xd8e0e0ff;f.pixels[size_t(y+d)*f.width+x]=0xd8e0e0ff;}}
     }
 };

@@ -54,7 +54,10 @@ class scene_cache {
         bool failed=false;uint32_t generated_cells=0;
         collector(scene_cache &owner,const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *data,packet &out,const ncmm_gpu_metrics_v1 &metrics,const std::vector<uint64_t> &hashes):
             cache(owner),scene(s),metadata(data),frame(out),host(metrics),signatures(hashes),dirty_cells(s.base.cell_count,false){
-            for(int i=0;i<int(s.base.cell_count);++i)if(s.base.cells[i].flags&NCMM_GFX_VISIBLE){auto found=cache.chunks.find(cell_key(i));dirty_cells[i]=found==cache.chunks.end()||found->second.signature!=signatures[i];if(dirty_cells[i])++generated_cells;}}
+            std::vector<int> pending;
+            for(int i=0;i<int(s.base.cell_count);++i)if(s.base.cells[i].flags&NCMM_GFX_VISIBLE){auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()||found->second.signature!=signatures[i])pending.push_back(i);}
+            std::stable_sort(pending.begin(),pending.end(),[&](int a,int b){auto distance=[&](int i){const float x=float(i%s.base.grid_width)+.5f-s.base.camera_x,y=float(i/s.base.grid_width)+.5f-s.base.camera_y;return x*x+y*y;};return distance(a)<distance(b);});
+            generated_cells=uint32_t(std::min<size_t>(512,pending.size()));for(uint32_t i=0;i<generated_cells;++i)dirty_cells[pending[i]]=true;}
         bool dirty(int cell)const override{return cell>=0&&size_t(cell)<dirty_cells.size()&&dirty_cells[cell];}
         bool any_dirty()const override{return generated_cells!=0;}
         void emit(const hybrid::triangle &value)override{uint32_t pass=value.m.overlay?NCMM_GPU_HELD:value.m.alpha<.99f&&!value.m.cutout?NCMM_GPU_TRANSPARENT:NCMM_GPU_OPAQUE;
@@ -64,6 +67,7 @@ class scene_cache {
                 for(uint32_t pass=0;pass<2;++pass){auto found=builders.find({i,pass});if(found!=builders.end()){chunk.meshes[pass]=cache.assets.mesh(std::move(found->second.mesh));if(!chunk.meshes[pass])failed=true;}}}
             builders.clear();world=false;
             for(int i=0;i<int(scene.base.cell_count);++i)if(scene.base.cells[i].flags&NCMM_GFX_VISIBLE){auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()){failed=true;continue;}
+                if(found->second.signature!=signatures[i]){failed=true;continue;}
                 found->second.touched=cache.frame_serial;for(uint32_t pass=0;pass<2;++pass)frame.draw(found->second.meshes[pass],place(origin(i)),uint32_t(i),pass);}
         }
         void finish(){for(auto &[key,builder]:builders){std::shared_ptr<const owned_mesh> mesh;
@@ -161,6 +165,7 @@ public:
             set(cell.light,{d.light_r,d.light_g,d.light_b},std::max(ncmm_graphics_shapes::shadow_height(d.terrain_shape),ncmm_graphics_shapes::shadow_height(d.furniture_shape)));
             if(d.vehicle_features)cell.light[3]=std::max(cell.light[3],d.vehicle_features&NCMM_VEH_ROOF?1.65f:.85f);
             if(!(cell.flags&NCMM_GFX_VISIBLE)||!metadata)continue;const auto &extra=metadata->cells[i];set(cell.source,{extra.source_r,extra.source_g,extra.source_b},extra.source_light);if(extra.source_light>1)++sources;
+            std::memcpy(&cell.reserved[0],&extra.creature_height,sizeof(float));std::memcpy(&cell.reserved[1],&extra.creature_elevation,sizeof(float));
             const float ambient=(cell.flags&NCMM_GFX_CEILING)? .05f:e.daylight*.82f;vec energy{std::max(0.f,d.light_r-ambient),std::max(0.f,d.light_g-ambient),std::max(0.f,d.light_b-ambient)};
             cell.volume[2]=std::max({energy.x,energy.y,energy.z})*.009f*(1+e.fog_density*8);cell.volume[3]=ambient;cell.gas=extra.gas;
             if(extra.gas){++gases;hybrid::image image;image.data.struct_size=sizeof(image.data);if(provider&&provider(uint32_t(i),NCMM_GFX_FIELD,image.data))image.analyse();

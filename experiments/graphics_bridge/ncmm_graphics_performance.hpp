@@ -2,6 +2,10 @@
 #include <chrono>
 #include <ctime>
 #include <cstdint>
+#if defined(__linux__)
+#include <unistd.h>
+#include <fstream>
+#endif
 #if defined(_WIN32) && defined(_MSC_VER)
 // DXGI pulls in RPC's `small` macro, which conflicts with CDDA's
 // creature_size::small. Restore the caller's macro state after SDK includes.
@@ -10,11 +14,25 @@
 #pragma push_macro("max")
 #include <windows.h>
 #include <dxgi1_4.h>
+#include <psapi.h>
 #pragma pop_macro("max")
 #pragma pop_macro("min")
 #pragma pop_macro("small")
 #endif
 namespace ncmm_graphics_performance {
+inline uint64_t resident_bytes(){
+#if defined(_WIN32) && defined(_MSC_VER)
+    PROCESS_MEMORY_COUNTERS memory{};memory.cb=sizeof(memory);
+    HMODULE library=LoadLibraryW(L"kernel32.dll");if(!library)return 0;
+    using query_memory=BOOL(WINAPI *)(HANDLE,PPROCESS_MEMORY_COUNTERS,DWORD);
+    const auto query=reinterpret_cast<query_memory>(GetProcAddress(library,"K32GetProcessMemoryInfo"));
+    bool ok=query&&query(GetCurrentProcess(),&memory,sizeof(memory));FreeLibrary(library);return ok?memory.WorkingSetSize:0;
+#elif defined(__linux__)
+    std::ifstream in("/proc/self/statm");uint64_t pages=0,resident=0;if(in>>pages>>resident)return resident*uint64_t(sysconf(_SC_PAGESIZE));return 0;
+#else
+    return 0;
+#endif
+}
 inline double cpu_seconds(){
 #if defined(_WIN32) && defined(_MSC_VER)
     FILETIME created{},ended{},kernel{},user{};

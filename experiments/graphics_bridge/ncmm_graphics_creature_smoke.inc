@@ -3,7 +3,8 @@
 {
     namespace anatomy = first_person::creature;
     const bool billboard_baseline = std::getenv( "NCMM_FP_BILLBOARD_BASELINE" ) != nullptr;
-    const std::string mode = billboard_baseline ? "billboard-081" : "procedural";
+    const bool gpu_gallery = graphics_smoke_gpu_gallery;
+    const std::string mode = billboard_baseline ? "billboard-081" : gpu_gallery ? "procedural-gpu" : "procedural";
     // The quickstart avatar is randomized. Myopia still limits sight to 12
     // cells with DEBUG_NIGHTVISION, so normalize this isolated visual fixture.
     you.clear_mutations(); you.clear_effects(); you.set_underwater( false );
@@ -49,7 +50,19 @@
         for( int attempt = 0; attempt < 160; ++attempt ) {
             draw();
             require( !graphics_creature_snapshots.empty(), "creature_fixture_has_no_visible_entities" );
-            if( billboard_baseline || ( graphics_creature_metrics.struct_size && !graphics_creature_metrics.queued && !graphics_creature_metrics.fallback ) ) return;
+            if( billboard_baseline || ( graphics_creature_metrics.struct_size && !graphics_creature_metrics.queued && !graphics_creature_metrics.fallback ) ) {
+                if( !gpu_gallery ) return;
+                if( graphics_gpu_frame && graphics_gpu_engine ) {
+                    // Qualification-only synchronization/readback, outside the
+                    // measured loop and never used by ordinary game rendering.
+                    SDL_Surface *settled_frame = SDL_RenderReadPixels( renderer, nullptr );
+                    require( settled_frame != nullptr, "gpu_gallery_settled_frame_missing" ); SDL_DestroySurface( settled_frame );
+                    const auto counters = graphics_gpu_engine->metrics();
+                    require( counters.active && !counters.cpu_raster_calls, "gpu_gallery_used_cpu_raster" );
+                    graphics_creature_metrics.visible_pixels = counters.visible_creature_pixels;
+                    if( counters.visible_creature_pixels > 2 ) return;
+                }
+            }
             SDL_Delay( 3 );
         }
         require( false, "procedural_creature_generation_did_not_settle" );

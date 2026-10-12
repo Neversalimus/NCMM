@@ -37,6 +37,7 @@ int main(int argc,char **argv){
         auto center=reinterpret_cast<const uint32_t *>(static_cast<const char *>(image->pixels)+240*image->pitch)[320];
         auto top=reinterpret_cast<const uint32_t *>(static_cast<const char *>(image->pixels)+10*image->pitch)[320];require(((top>>8)&255)>240,"SDL UI preserved");SDL_DestroySurface(image);return center;};
     auto center=capture("-near");require((center>>24)>120&&((center>>16)&255)<20,"near red wins over later far green in full pipeline");
+    require(first.draw_calls==4,"dry scene bypasses empty volume and post-composition passes");
     auto completed=engine.metrics();require(completed.completed_frame_serial>=1&&completed.visible_creature_pixels>1000,"fenced small GPU visibility counter");
     scene.mesh_count=0;scene.meshes=nullptr;scene.frame_serial=2;bones[1].columns[12]=5;
     require(engine.submit(scene),engine.metrics().reason);auto second=engine.metrics();require(second.active&&second.generated_meshes==0&&second.upload_bytes<1024,"only dynamic data uploaded for skeletal animation");
@@ -55,6 +56,8 @@ int main(int argc,char **argv){
     for(auto &vertex:glass_vertices)vertex.position[0]+=5;scene.frame_serial=5;require(engine.submit(scene),engine.metrics().reason);
     auto dynamic_stats=engine.metrics();require(dynamic_stats.dynamic_mesh_updates==1&&dynamic_stats.generated_meshes==0,"dynamic buffer cycles without recreating world geometry");
     center=capture("-dynamic");require((center>>24)>120&&((center>>8)&255)<20,"updated dynamic buffer moves transparent geometry");
+    for(auto &vertex:glass_vertices)vertex.position[0]-=5;scene.frame_serial=6;require(engine.submit(scene),engine.metrics().reason);
+    center=capture("-return");require((center>>24)>80&&(center>>24)<135&&((center>>8)&255)>30,"current dynamic bounds restore geometry entering the frustum");
     if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
     std::printf("Full GPU scene PASS: %s / %s; animation upload %llu bytes; CPU raster=0\n",second.backend,second.device,(unsigned long long)second.upload_bytes);
     engine.clear();SDL_DestroyTexture(ui);SDL_DestroyRenderer(renderer);SDL_DestroyGPUDevice(device);if(window)SDL_DestroyWindow(window);SDL_Quit();

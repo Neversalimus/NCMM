@@ -19,8 +19,11 @@ layout(location=0) out vec4 out_color;
 layout(location=1) out uint out_id;
 vec3 lighting(vec3 n){if(cell>=uint(camera.grid.z)){
     int at=cell_index(ivec2(floor(camera.eye.xy)));vec3 value=at>=0?cells[at].light.xyz:vec3(.06);
-    float face=.69+.19;vec3 held=max(vec3(.04),value*face);
-    vec3 key=normalize(vec3(-camera.right.x*.4-camera.forward.x*.3,-camera.right.y*.4-camera.forward.y*.3,.85));
+    float face=.69+.19;
+    if(at>=0&&(cells[at].state.x&16u)==0u){float shadow=shadows[at];face=(face+max(0.0,camera.sun.z)*.20*camera.sun.w*shadow)*(.56+.44*shadow);
+        if(camera.time.w>0.0)value*=1.6;}
+    vec3 held=max(vec3(.04),clamp(value*face,vec3(0),vec3(1)));vec2 horizontal=normalize(camera.forward.xy);
+    vec3 key=normalize(vec3(-camera.right.x*.4-horizontal.x*.3,-camera.right.y*.4-horizontal.y*.3,.85));
     if(dot(n,camera.eye.xyz-world_position)<0.0)n=-n;
     return held*(.66+.34*max(0.0,dot(n,key)));}
     Cell c=cells[cell];if((c.state.x&1u)==0u)return vec3(.008,.01,.014);
@@ -46,7 +49,7 @@ void main(){uint flags=material.state.x|vertex_flags;vec3 p=world_position,n=(fl
         vec3 c=texel.rgb/max(a,.001);
         if((flags&4u)!=0u)color=mix(color,c,a);else{color=c;alpha*=a;}}
     if((flags&32u)!=0u){vec2 d=fract(p.xy)-.5;float radius=.135+(noise2(p.xy*9.0)-.5)*.09;
-        float edge=max(.00001,z/camera.projection.z*.35);alpha*=sat((radius-dot(d,d))/edge+.5);}
+        float edge=max(.001,z/camera.projection.z*.6);alpha*=sat((radius-dot(d,d))/edge);}
     if(material.state.y==16u){vec2 d=texcoord-.5;float fade=sat(1.0-4.0*dot(d,d));alpha*=fade*fade*sat(1.0-length(p.xy-camera.eye.xy)/24.0);}
     if(alpha<.01)discard;
     color=material_detail(color,material.state.y,p,n,z,flags,material.state.z,material.state.w,cell)*lighting(n);

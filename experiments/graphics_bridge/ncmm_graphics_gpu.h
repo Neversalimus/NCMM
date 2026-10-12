@@ -94,6 +94,11 @@ typedef struct ncmm_gpu_metrics_v1 {
     uint64_t producer_cache_bytes,host_cpu_cache_bytes,dynamic_mesh_updates,generated_cells;
     double geometry_ms,render_record_ms;
 } ncmm_gpu_metrics_v1;
+typedef struct ncmm_gpu_cpu_metrics_v1 {
+    uint32_t struct_size,width,height,raster_calls;
+    uint64_t triangles,cache_bytes;
+    double frame_ms,geometry_ms,raster_ms,effects_ms;
+} ncmm_gpu_cpu_metrics_v1;
 typedef struct ncmm_host_graphics_gpu_v1 {
     uint32_t version,struct_size,api_major,api_minor;
     int (*available)(ncmm_gpu_metrics_v1 *out);
@@ -101,4 +106,5 @@ typedef struct ncmm_host_graphics_gpu_v1 {
     int (*metrics)(ncmm_gpu_metrics_v1 *out);
     void (*invalidate)(void);
     int (*has_resource)(uint64_t key,uint32_t texture);
+    int (*submit_cpu_metrics)(const ncmm_gpu_cpu_metrics_v1 *metrics);
 } ncmm_host_graphics_gpu_v1;

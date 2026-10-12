@@ -242,14 +242,14 @@ jobs:
             }
           }
       - name: Actual SDL controls, geometry audit, RGB light, sky, weather and held items
-        timeout-minutes: 30
+        timeout-minutes: 60
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
           foreach($variant in @(@{name='graphics';root='${{ steps.game.outputs.root }}'},@{name='sounds';root='${{ steps.game.outputs.sound_root }}'})) {
             $root=$variant.root
             $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-gameplay-smoke' -WorkingDirectory $root -PassThru
-            if(-not $p.WaitForExit(720000)){& taskkill.exe /pid $p.Id /t /f;throw 'Gameplay deadline exceeded.'}
+            if(-not $p.WaitForExit(1800000)){& taskkill.exe /pid $p.Id /t /f;throw 'Gameplay deadline exceeded.'}
             $p.Refresh()
             if($p.ExitCode -ne 0){throw "Gameplay smoke failed: $($p.ExitCode)"}
             $result=Get-Content (Join-Path $root 'ncmm/first-person-smoke.json') -Raw | ConvertFrom-Json
@@ -257,7 +257,7 @@ jobs:
             Copy-Item (Join-Path $root 'ncmm/first-person-smoke.json') ("installer-result/first-person-smoke-"+$variant.name+'.json')
             Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-*.bmp' | ForEach-Object { Copy-Item $_.FullName (Join-Path 'installer-result' ($_.BaseName+'-'+$variant.name+'.bmp')) }
             Copy-Item (Join-Path $root 'ncmm/first-person-shapes-audit.json') ("installer-result/first-person-shapes-audit-"+$variant.name+'.json')
-            foreach($name in @('first-person-creature-coverage','first-person-creature-gallery-procedural','first-person-creature-timing-procedural','first-person-gpu-probe','first-person-gpu-room')) {
+            foreach($name in @('first-person-creature-coverage','first-person-creature-gallery-procedural','first-person-creature-timing-procedural','first-person-creature-gallery-procedural-gpu','first-person-creature-timing-procedural-gpu','first-person-gpu-probe','first-person-gpu-room','first-person-gpu-benchmark')) {
               $path=Join-Path $root ("ncmm/$name.json")
               if(!(Test-Path $path)){throw "Missing creature evidence: $name"}
               Copy-Item $path ("installer-result/$name-"+$variant.name+'.json')
