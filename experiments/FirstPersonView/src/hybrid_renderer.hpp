@@ -132,6 +132,7 @@ struct triangle {std::array<vertex,3> v;material m;vec normal{0,0,1};};
 struct geometry_sink {
     virtual ~geometry_sink()=default;
     virtual bool dirty(int cell)const=0;
+    virtual bool any_dirty()const{return true;}
     virtual void emit(const triangle &value)=0;
     virtual void world_complete(){}
     virtual void skin(const creature::model &model,const creature::skeleton_pose &pose,int lod,
@@ -1040,7 +1041,7 @@ public:
     renderer(const ncmm_graphics_scene_v2 &scene,float y,float p,sprite_provider source,frame &output,animation::pose animation_pose={},const presentation_data *data=nullptr,render_options settings={},creature::presentation *entities=nullptr):s(scene),base(scene.base),provider(std::move(source)),f(output),yaw(y),pitch(p),cy(std::cos(y)),sy(std::sin(y)),cp(std::cos(p)),sp(std::sin(p)),projection(1),eye{base.camera_x,base.camera_y,1.55f},pose(animation_pose),options(settings),metadata(data),creature_data(entities){if(metadata&&metadata->view.eye_height>.1f)eye.z=metadata->view.eye_height;}
     void collect(geometry_sink &sink,int width,int height){
         gpu_sink=&sink;f.width=width;f.height=height;projection=width/(2*std::tan(70*pi/360));
-        sky_palette();shadows.assign(base.cell_count,1);vehicles_build();world();sink.world_complete();
+        sky_palette();shadows.assign(base.cell_count,1);if(sink.any_dirty()){vehicles_build();world();}sink.world_complete();
         f.creature_lods={};f.creature_culled=f.creature_fallback=0;
         if(creature_data)dynamic_creatures();held();gpu_sink=nullptr;
     }

@@ -7,13 +7,15 @@
 
 namespace ncmm_gpu {
 inline bool matrix_valid(const ncmm_gpu_matrix_v1 &m) {
-    return std::all_of(m.columns,m.columns+16,[](float x){return std::isfinite(x)&&std::abs(x)<=1e7f;});
+    if(!std::all_of(m.columns,m.columns+16,[](float x){return std::isfinite(x)&&std::abs(x)<=1e7f;}))return false;
+    return std::abs(m.columns[3])<1e-6f&&std::abs(m.columns[7])<1e-6f&&std::abs(m.columns[11])<1e-6f&&std::abs(m.columns[15]-1)<1e-6f;
 }
 inline const char *validate(const ncmm_gpu_scene_v1 &s) {
     if(s.struct_size<sizeof(s)||!s.width||!s.height||s.width>3840||s.height>2160||s.mode>NCMM_GPU_CPU)
         return "invalid-frame-contract";
     if(s.mesh_count>NCMM_GPU_MAX_DRAWS||s.draw_count>NCMM_GPU_MAX_DRAWS||s.texture_count>NCMM_GPU_MAX_TEXTURES||s.bone_count>NCMM_GPU_MAX_BONES||s.cell_count>9409)
         return "scene-budget-exceeded";
+    if(!std::isfinite(s.geometry_ms)||s.geometry_ms<0||s.generated_cells>s.cell_count||s.producer_cache_bytes>256u*1024u*1024u)return "invalid-producer-metrics";
     if((s.mesh_count&&!s.meshes)||(s.draw_count&&!s.draws)||(s.texture_count&&!s.textures)||(s.bone_count&&!s.bones)||(s.cell_count&&!s.cells))
         return "missing-scene-data";
     const float *camera=reinterpret_cast<const float *>(&s.camera);
@@ -25,7 +27,7 @@ inline const char *validate(const ncmm_gpu_scene_v1 &s) {
     std::unordered_set<uint64_t> keys;
     for(uint32_t n=0;n<s.mesh_count;++n) {
         const auto &m=s.meshes[n];
-        if(!m.key||!keys.insert(m.key).second||!m.vertices||!m.indices||!m.materials||!m.vertex_count||!m.index_count||m.index_count%3||!m.material_count||m.material_count>4096)return "invalid-mesh-contract";
+        if(!m.key||m.reserved&~NCMM_GPU_DYNAMIC_MESH||!keys.insert(m.key).second||!m.vertices||!m.indices||!m.materials||!m.vertex_count||!m.index_count||m.index_count%3||!m.material_count||m.material_count>4096)return "invalid-mesh-contract";
         vertices+=m.vertex_count;indices+=m.index_count;
         if(vertices>NCMM_GPU_MAX_VERTICES||indices>NCMM_GPU_MAX_INDICES)return "geometry-budget-exceeded";
         bytes+=size_t(m.vertex_count)*sizeof(*m.vertices)+size_t(m.index_count)*sizeof(*m.indices)+size_t(m.material_count)*sizeof(*m.materials);

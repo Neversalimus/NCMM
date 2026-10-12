@@ -20,11 +20,12 @@ struct owned_texture {
 };
 struct owned_mesh {
     uint64_t key=0;
+    uint32_t flags=0;
     std::vector<ncmm_gpu_vertex_v1> vertices;
     std::vector<uint32_t> indices;
     std::vector<ncmm_gpu_material_v1> materials;
     std::vector<std::shared_ptr<const owned_texture>> textures;
-    ncmm_gpu_mesh_v1 view()const{return {key,vertices.data(),indices.data(),materials.data(),uint32_t(vertices.size()),uint32_t(indices.size()),uint32_t(materials.size()),0};}
+    ncmm_gpu_mesh_v1 view()const{return {key,vertices.data(),indices.data(),materials.data(),uint32_t(vertices.size()),uint32_t(indices.size()),uint32_t(materials.size()),flags};}
     size_t bytes()const{return vertices.capacity()*sizeof(vertices[0])+indices.capacity()*sizeof(indices[0])+materials.capacity()*sizeof(materials[0]);}
 };
 inline uint64_t material_key(const ncmm_gpu_material_v1 &m) {

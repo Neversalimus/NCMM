@@ -12,6 +12,7 @@
 #define NCMM_GPU_MAX_DRAWS 32768u
 #define NCMM_GPU_MAX_TEXTURES 2048u
 #define NCMM_GPU_MAX_BONES 32768u
+#define NCMM_GPU_DYNAMIC_MESH 1u
 enum ncmm_gpu_mode { NCMM_GPU_AUTO, NCMM_GPU_FORCE, NCMM_GPU_CPU };
 enum ncmm_gpu_pass { NCMM_GPU_OPAQUE, NCMM_GPU_TRANSPARENT, NCMM_GPU_HELD };
 enum ncmm_gpu_material_flags {
@@ -75,6 +76,9 @@ typedef struct ncmm_gpu_scene_v1 {
     const ncmm_gpu_matrix_v1 *bones;
     const ncmm_gpu_cell_v1 *cells;
     uint32_t mesh_count,texture_count,draw_count,bone_count,cell_count,reserved;
+    double geometry_ms;
+    uint64_t producer_cache_bytes;
+    uint32_t generated_cells,reserved_tail;
 } ncmm_gpu_scene_v1;
 typedef struct ncmm_gpu_metrics_v1 {
     uint32_t struct_size,active,software_device,timestamp_queries;
@@ -87,6 +91,8 @@ typedef struct ncmm_gpu_metrics_v1 {
     int32_t world_origin_x,world_origin_y,world_origin_z;
     uint32_t reserved;
     uint64_t resource_epoch,visible_creature_pixels,completed_frame_serial;
+    uint64_t producer_cache_bytes,host_cpu_cache_bytes,dynamic_mesh_updates,generated_cells;
+    double geometry_ms,render_record_ms;
 } ncmm_gpu_metrics_v1;
 typedef struct ncmm_host_graphics_gpu_v1 {
     uint32_t version,struct_size,api_major,api_minor;

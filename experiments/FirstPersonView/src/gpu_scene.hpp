@@ -56,6 +56,7 @@ class scene_cache {
             cache(owner),scene(s),metadata(data),frame(out),host(metrics),signatures(hashes),dirty_cells(s.base.cell_count,false){
             for(int i=0;i<int(s.base.cell_count);++i)if(s.base.cells[i].flags&NCMM_GFX_VISIBLE){auto found=cache.chunks.find(cell_key(i));dirty_cells[i]=found==cache.chunks.end()||found->second.signature!=signatures[i];if(dirty_cells[i])++generated_cells;}}
         bool dirty(int cell)const override{return cell>=0&&size_t(cell)<dirty_cells.size()&&dirty_cells[cell];}
+        bool any_dirty()const override{return generated_cells!=0;}
         void emit(const hybrid::triangle &value)override{uint32_t pass=value.m.overlay?NCMM_GPU_HELD:value.m.alpha<.99f&&!value.m.cutout?NCMM_GPU_TRANSPARENT:NCMM_GPU_OPAQUE;
             auto &builder=builders[{value.m.cell,pass}];auto m=material(value.m,builder);builder.triangle(value,builder.material(m),origin(value.m.cell));}
         void world_complete()override{
@@ -65,7 +66,10 @@ class scene_cache {
             for(int i=0;i<int(scene.base.cell_count);++i)if(scene.base.cells[i].flags&NCMM_GFX_VISIBLE){auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()){failed=true;continue;}
                 found->second.touched=cache.frame_serial;for(uint32_t pass=0;pass<2;++pass)frame.draw(found->second.meshes[pass],place(origin(i)),uint32_t(i),pass);}
         }
-        void finish(){for(auto &[key,builder]:builders){auto mesh=cache.assets.mesh(std::move(builder.mesh));if(!mesh){failed=true;continue;}frame.draw(mesh,place(origin(key.first)),key.first<0?UINT32_MAX:uint32_t(key.first),key.second);}}
+        void finish(){for(auto &[key,builder]:builders){std::shared_ptr<const owned_mesh> mesh;
+                if(key.second==NCMM_GPU_HELD){builder.mesh.key=0xfefd48454c445631ull;builder.mesh.flags=NCMM_GPU_DYNAMIC_MESH;mesh=std::make_shared<owned_mesh>(std::move(builder.mesh));}
+                else mesh=cache.assets.mesh(std::move(builder.mesh));
+                if(!mesh){failed=true;continue;}frame.draw(mesh,place(origin(key.first)),key.first<0?UINT32_MAX:uint32_t(key.first),key.second);}}
         void skin(const creature::model &model,const creature::skeleton_pose &pose,int lod,vec at,int cell,vec scale,bool fallback,bool targetable,float heading,vec offset)override{
             const auto key=std::make_tuple(model_key(model),std::min(lod,1),fallback,targetable);auto mesh=cache.skins[key].lock();
             if(!mesh){mesh_builder builder;const auto &source=model.lod[std::min(lod,1)];std::array<uint32_t,12> materials{};
@@ -107,17 +111,21 @@ class scene_cache {
             frame.draw(mesh,place(at+vec{pose.offset.x,pose.offset.y,pose.offset.z}),uint32_t(cell),NCMM_GPU_OPAQUE,nullptr,pose.heading);
         }
     };
-    std::vector<uint64_t> signatures(const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *metadata,const ncmm_gpu_metrics_v1 &host,bool creatures){
+    std::vector<uint64_t> signatures(const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *metadata,const ncmm_gpu_metrics_v1 &host,bool creatures,int width){
         std::vector<uint64_t> values(s.base.cell_count,0),result(values.size());
-        for(int i=0;i<int(s.base.cell_count);++i){auto cell=s.base.cells[i];if(creatures)std::memset(cell.creature,0,sizeof(cell.creature));auto detail=s.details[i];
+        for(int i=0;i<int(s.base.cell_count);++i){auto cell=s.base.cells[i];cell.light=0;if(creatures)std::memset(cell.creature,0,sizeof(cell.creature));auto detail=s.details[i];
             detail.light_r=detail.light_g=detail.light_b=detail.emission=0;if(detail.vehicle_features){detail.vehicle_x-=float(i%s.base.grid_width);detail.vehicle_y-=float(i/s.base.grid_width);}
             if(creatures)detail.terrain_flags&=~(NCMM_CREATURE_TINY|NCMM_CREATURE_SMALL|NCMM_CREATURE_LARGE|NCMM_CREATURE_HUGE);
             uint64_t hash=hash_bytes(1469598103934665603ull,&cell,sizeof(cell));hash=hash_bytes(hash,&detail,sizeof(detail));
             if(metadata){auto extra=metadata->cells[i];extra.source_light=extra.source_r=extra.source_g=extra.source_b=0;extra.hostile=0;if(creatures)extra.creature_height=extra.creature_width=extra.creature_elevation=0;
                 hash=hash_bytes(hash,&extra,sizeof(extra));hash=hash_bytes(hash,&metadata->view.occupied_vehicle,sizeof(metadata->view.occupied_vehicle));}
-            const int distance=int(std::hypot(float(i%s.base.grid_width)+.5f-s.base.camera_x,float(i/s.base.grid_width)+.5f-s.base.camera_y));
+            float distance=0;
+            if(s.details[i].vehicle_features){const auto &d=s.details[i];const float c=std::cos(d.vehicle_yaw),sn=std::sin(d.vehicle_yaw);
+                const float x=d.vehicle_x+d.mount_x*c-d.mount_y*sn-s.base.camera_x,y=d.vehicle_y+d.mount_x*sn+d.mount_y*c-s.base.camera_y;
+                const float eye_height=metadata?metadata->view.eye_height:1.55f;distance=std::sqrt(x*x+y*y+eye_height*eye_height);}
             // Distance-only vehicle detail bands are stable across camera turns.
-            const uint32_t detail_band=s.details[i].vehicle_features?(distance<8?0:distance<24?1:2):0;hash=hash_bytes(hash,&detail_band,sizeof(detail_band));values[i]=hash;}
+            const uint32_t detail_band=s.details[i].vehicle_features?(width/(2*std::tan(70*hybrid::pi/360))/std::max(.1f,distance)<28?2:distance>8?1:0):0;
+            hash=hash_bytes(hash,&detail_band,sizeof(detail_band));values[i]=hash;}
         for(int i=0;i<int(values.size());++i){uint64_t h=values[i];const int x=i%s.base.grid_width,y=i/s.base.grid_width;
             for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int xx=x+dx,yy=y+dy;uint64_t neighbor=xx<0||yy<0||xx>=s.base.grid_width||yy>=s.base.grid_height?0:values[yy*s.base.grid_width+xx];h=hash_bytes(h,&neighbor,sizeof(neighbor));}result[i]=h;}
         return result;
@@ -131,7 +139,8 @@ public:
         if(!hybrid::valid_scene(s,yaw,pitch)||(metadata&&!hybrid::valid_presentation(*metadata,s.base.cell_count))||(creatures&&!creature::valid(creatures->input,s.base.cell_count)))return false;
         const uint64_t world=creatures?creatures->input.view.world_epoch:uint64_t(host.world_origin_z)+1,tileset=creatures?creatures->input.view.tileset_epoch:host.resource_epoch;
         if(world_epoch!=world||tileset_epoch!=tileset){clear();world_epoch=world;tileset_epoch=tileset;}
-        ++frame_serial;for(auto i=chunks.begin();i!=chunks.end();)if(frame_serial-i->second.touched>2)i=chunks.erase(i);else ++i;
+        ++frame_serial;for(auto i=chunks.begin();i!=chunks.end();){const auto [x,y,z]=i->first;
+            if(z!=host.world_origin_z||x<host.world_origin_x||y<host.world_origin_y||x>=host.world_origin_x+s.base.grid_width||y>=host.world_origin_y+s.base.grid_height)i=chunks.erase(i);else ++i;}
         for(auto i=skins.begin();i!=skins.end();)if(i->second.expired())i=skins.erase(i);else ++i;for(auto i=impostors.begin();i!=impostors.end();)if(i->second.expired())i=impostors.erase(i);else ++i;
         out.scene.width=uint32_t(width);out.scene.height=uint32_t(height);out.scene.mode=mode;out.scene.frame_serial=frame_serial;out.scene.world_epoch=world;out.scene.tileset_epoch=tileset;
         auto &camera=out.scene.camera;const float cy=std::cos(yaw),sy=std::sin(yaw),cp=std::cos(pitch),sp=std::sin(pitch);
@@ -141,7 +150,7 @@ public:
         const auto &e=s.environment;set(camera.sun,{e.sun_x,e.sun_y,e.sun_z},e.daylight);set(camera.moon,{e.moon_x,e.moon_y,e.moon_z});
         set(camera.weather,{float(e.weather_kind),e.precipitation,e.fog_density},e.cloud_cover);set(camera.wind,{e.wind_x,e.wind_y,0});
         set(camera.time,{float(std::fmod(e.animation_seconds,100000.0)),float(e.moon_phase),float(metadata?metadata->view.sky_style:NCMM_SKY_EARTH)},float(e.lightning));set(camera.grid,{float(s.base.grid_width),float(s.base.grid_height),float(s.base.cell_count)});
-        const auto start=std::chrono::steady_clock::now();auto hashes=signatures(s,metadata,host,creatures!=nullptr);collector sink(*this,s,metadata,out,host,hashes);
+        const auto start=std::chrono::steady_clock::now();auto hashes=signatures(s,metadata,host,creatures!=nullptr,width);collector sink(*this,s,metadata,out,host,hashes);
         hybrid::renderer(s,yaw,pitch,provider,statistics,pose,metadata,{},creatures).collect(sink,width,height);sink.finish();generated_cells=sink.generated_cells;
         geometry_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();set(camera.sky_bottom,statistics.sky_horizon);
         // Palette-only CPU work: derive the exact established sky endpoints by
@@ -158,7 +167,8 @@ public:
                 vec color=image.valid()?image.average:extra.gas==NCMM_GAS_TOXIC?vec{.34f,.49f,.20f}:extra.gas==NCMM_GAS_FIRE?vec{.95f,.38f,.08f}:vec{.50f,.52f,.54f};
                 cell.volume[0]=.055f+.09f*extra.field_intensity;cell.volume[1]=extra.gas==NCMM_GAS_FIRE?1.25f:2.7f;
                 set(cell.volume_color,{color.x*(.10f+.9f*d.light_r),color.y*(.10f+.9f*d.light_g),color.z*(.10f+.9f*d.light_b)});}}
-        camera.wind[2]=float(std::min(12u,sources));camera.wind[3]=float(gases);return !sink.failed&&out.draws.size()<=NCMM_GPU_MAX_DRAWS&&out.bones.size()<=NCMM_GPU_MAX_BONES;
+        camera.wind[2]=float(std::min(12u,sources));camera.wind[3]=float(gases);out.scene.geometry_ms=geometry_ms;out.scene.generated_cells=generated_cells;out.scene.producer_cache_bytes=bytes();
+        return !sink.failed&&out.draws.size()<=NCMM_GPU_MAX_DRAWS&&out.bones.size()<=NCMM_GPU_MAX_BONES;
     }
 };
 }

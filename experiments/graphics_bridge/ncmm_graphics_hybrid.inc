@@ -15,6 +15,7 @@ std::array<size_t, NCMM_SHAPE_COUNT> graphics_hybrid_shape_counts = {};
 ncmm_graphics_environment_v2 graphics_hybrid_last_environment = {};
 #include "ncmm_graphics_presentation.inc"
 #include "ncmm_graphics_creatures.inc"
+#include "ncmm_graphics_gpu.inc"
 
 #if defined(TILES)
 struct graphics_cpu_sprite {
@@ -106,6 +107,7 @@ bool graphics_read_sprite( const texture_draw_data &atlas, graphics_cpu_sprite &
 
 void graphics_clear_hybrid()
 {
+    graphics_clear_gpu();
     graphics_clear_creatures();
     graphics_hybrid_frame = nullptr; graphics_hybrid_positions = nullptr;
     graphics_hybrid_pixels.clear(); graphics_hybrid_width = graphics_hybrid_height = 0;
@@ -258,6 +260,9 @@ int graphics_submit_frame( const uint32_t *rgba, uint32_t width, uint32_t height
         graphics_frame_invalid = true; return 0;
     }
     graphics_hybrid_pixels.assign( rgba, rgba + size_t( width ) * height );
+#if defined(TILES)
+    if( graphics_gpu_engine ) graphics_gpu_engine->cpu_frame();
+#endif
     graphics_hybrid_width = width; graphics_hybrid_height = height;
     return 1;
 }
@@ -436,12 +441,13 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     if( epoch != graphics_hybrid_tileset_epoch || renderer != graphics_hybrid_renderer_identity || graphics_hybrid_sprite_bytes > 48 * 1024 * 1024 ) {
         if(renderer!=graphics_hybrid_renderer_identity)graphics_effect_failed=false;
         graphics_cpu_sprites.clear(); graphics_creature_composites.clear(); graphics_hybrid_sprite_bytes = 0;
+        graphics_clear_gpu();
         graphics_hybrid_tileset_epoch = epoch; graphics_hybrid_renderer_identity = renderer;
     }
     graphics_prepare_creatures( base, positions );
     graphics_hybrid_pixels.clear(); graphics_hybrid_width = graphics_hybrid_height = 0;
     graphics_resolved_textures = graphics_resolved_vehicle_textures = 0;
-    graphics_frame_invalid = false; graphics_hybrid_frame = &scene; graphics_hybrid_positions = &positions;
+    graphics_frame_invalid = false; graphics_gpu_frame = false; graphics_hybrid_frame = &scene; graphics_hybrid_positions = &positions;
     graphics_render_active = true;
     bool ok = false;
     try {
@@ -453,7 +459,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     }
     graphics_hybrid_frame = nullptr; graphics_hybrid_positions = nullptr;
     graphics_render_active = false;
-    if( !ok || graphics_frame_invalid || graphics_hybrid_pixels.empty() ) {
+    if( !ok || graphics_frame_invalid || ( !graphics_gpu_frame && graphics_hybrid_pixels.empty() ) ) {
         graphics_view.enabled = false; graphics_hybrid_pixels.clear(); graphics_release_mouse(); graphics_cancel_animation();
         add_msg( m_warning, "%s", tr_ui( "First person could not draw this scene; returned to the map. F6 retries.",
             "Не удалось отрисовать вид от первого лица; включена карта. F6 — повторить." ) );
@@ -462,23 +468,23 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     SDL_Rect prior_clip; SDL_GetRenderClipRect( renderer, &prior_clip ); const bool clipped = SDL_RenderClipEnabled( renderer );
     const SDL_Rect clip = { x, y, base.pixel_width, base.pixel_height };
     const auto generation = renderer_coordinator.texture_generations();
-    if( graphics_stream_texture && ( graphics_stream_instance != generation.instance || graphics_stream_generation != generation.textures ||
+    if( !graphics_gpu_frame && graphics_stream_texture && ( graphics_stream_instance != generation.instance || graphics_stream_generation != generation.textures ||
         graphics_stream_width != graphics_hybrid_width || graphics_stream_height != graphics_hybrid_height ) ) graphics_clear_stream();
-    if( !graphics_stream_texture ) {
+    if( !graphics_gpu_frame && !graphics_stream_texture ) {
         graphics_stream_texture = SDL_CreateTexture( renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING,
             int( graphics_hybrid_width ), int( graphics_hybrid_height ) );
         graphics_stream_instance = generation.instance; graphics_stream_generation = generation.textures;
         graphics_stream_width = graphics_hybrid_width; graphics_stream_height = graphics_hybrid_height;
     }
-    SDL_Texture *frame = graphics_stream_texture;
+    SDL_Texture *frame = graphics_gpu_frame && graphics_gpu_engine ? graphics_gpu_engine->output() : graphics_stream_texture;
     if( !frame ) {graphics_view.enabled=false;graphics_release_mouse();graphics_cancel_animation();return false;}
-    ok = SDL_UpdateTexture( frame, nullptr, graphics_hybrid_pixels.data(), int( graphics_hybrid_width * 4 ) );
+    ok = graphics_gpu_frame || SDL_UpdateTexture( frame, nullptr, graphics_hybrid_pixels.data(), int( graphics_hybrid_width * 4 ) );
     ok = SDL_SetTextureBlendMode( frame, SDL_BLENDMODE_NONE ) && ok;
     ok = SDL_SetTextureScaleMode( frame, SDL_SCALEMODE_LINEAR ) && ok;
     ok = SDL_SetRenderClipRect( renderer, &clip ) && ok;
     const SDL_FRect destination = { float( x ), float( y ), float( base.pixel_width ), float( base.pixel_height ) };
     ok = SDL_RenderTexture( renderer, frame, nullptr, &destination ) && ok;
-    if( ok ) ok = graphics_present_effects( renderer,frame,destination );
+    if( ok && !graphics_gpu_frame ) ok = graphics_present_effects( renderer,frame,destination );
     if( ok ) {
         Uint8 r=0,g=0,b=0,a=0;SDL_GetRenderDrawColor( renderer,&r,&g,&b,&a );
         SDL_SetRenderDrawColor( renderer,216,224,224,255 );

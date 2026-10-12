@@ -15,6 +15,9 @@ bool graphics_scene_smoke()
         require( graphics_view.owner == "first_person_view" && graphics_view.hybrid_render,
                  "graphics_provider_missing" );
         require( tilecontext && tilecontext->is_valid(), "tileset_unavailable" );
+        // Keep the complete established CPU qualification on the same new Host.
+        // The GPU equivalence matrix below explicitly selects GPU separately.
+        if( get_options().has_option( "first_person_view.renderer" ) ) get_options().get_option( "first_person_view.renderer" ).setValue( "cpu" );
         map &here = get_map();
         here.load( tripoint_abs_sm( 0, 0, 0 ), true );
         for( const auto &vehicle : here.get_vehicles() ) here.destroy_vehicle( vehicle.v );
@@ -135,6 +138,7 @@ bool graphics_scene_smoke()
         SDL_DestroySurface( surface );
         require( saved, "frame_capture_write_failed" );
         #include "ncmm_gpu_probe_smoke.inc"
+        #include "ncmm_gpu_game_smoke.inc"
         for( int i = 0; i < 24; ++i ) {
             require( ncmm::handle_gameplay_action( "ncmm.view.turn_left" ), "left_action_missing" );
             draw();

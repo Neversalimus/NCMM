@@ -43,6 +43,17 @@ int main(int argc,char **argv){
     require(engine.metrics().completed_frame_serial>=2,"animated frame fence completes without a main-path wait");
     scene.mode=NCMM_GPU_CPU;require(!engine.submit(scene)&&!engine.metrics().active,"explicit CPU selection never impersonates GPU");
     scene.mode=NCMM_GPU_FORCE;scene.frame_serial=3;bones[1].columns[12]=0;require(engine.submit(scene),engine.metrics().reason);require(engine.metrics().generated_meshes==0,"GPU resumes with cached geometry");
+    std::array<ncmm_gpu_vertex_v1,3> glass_vertices{};for(int i=0;i<3;++i){glass_vertices[i]=vertices[i];glass_vertices[i].position[0]*=.5f;glass_vertices[i].position[1]=1;glass_vertices[i].position[2]*=.5f;glass_vertices[i].joint=0;glass_vertices[i].material=0;}
+    ncmm_gpu_material_v1 glass{};glass.color[2]=.9f;glass.color[3]=.3f;const uint32_t glass_indices[]={0,1,2};
+    ncmm_gpu_mesh_v1 dynamic{12,glass_vertices.data(),glass_indices,&glass,3,3,1,NCMM_GPU_DYNAMIC_MESH};
+    ncmm_gpu_draw_v1 draws[2]={draw,draw};draws[1].mesh_key=12;draws[1].bone_count=1;draws[1].pass=NCMM_GPU_TRANSPARENT;
+    scene.meshes=&dynamic;scene.mesh_count=1;scene.draws=draws;scene.draw_count=2;scene.frame_serial=4;
+    require(engine.submit(scene),engine.metrics().reason);require(!engine.has(12,0),"dynamic mesh explicitly requests per-frame data");
+    center=capture("-glass");require((center>>24)>80&&(center>>24)<135&&((center>>8)&255)>30&&((center>>8)&255)<75,"transparent glass blends over opaque creature with depth preserved");
+    require(engine.metrics().target_cell==0,"transparent glass does not erase target ownership");
+    for(auto &vertex:glass_vertices)vertex.position[0]+=5;scene.frame_serial=5;require(engine.submit(scene),engine.metrics().reason);
+    auto dynamic_stats=engine.metrics();require(dynamic_stats.dynamic_mesh_updates==1&&dynamic_stats.generated_meshes==0,"dynamic buffer cycles without recreating world geometry");
+    center=capture("-dynamic");require((center>>24)>120&&((center>>8)&255)<20,"updated dynamic buffer moves transparent geometry");
     if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
     std::printf("Full GPU scene PASS: %s / %s; animation upload %llu bytes; CPU raster=0\n",second.backend,second.device,(unsigned long long)second.upload_bytes);
     engine.clear();SDL_DestroyTexture(ui);SDL_DestroyRenderer(renderer);SDL_DestroyGPUDevice(device);if(window)SDL_DestroyWindow(window);SDL_Quit();

@@ -18,7 +18,7 @@ int main(){int checks=0;auto require=[&](bool ok,const char *message){++checks;i
     const int before=sprite_calls;first_person::gpu::packet second;
     require(cache.build(scene,1.2f,.3f,provider,second,stats,host,{},nullptr,nullptr,640,480,NCMM_GPU_FORCE),"camera turn");const auto &b=second.finish(nullptr);
     require(cache.generated_cells==0&&sprite_calls==before,"camera turn does not generate world geometry or read atlas sprites");require(b.mesh_count==a.mesh_count&&b.meshes[0].key==a.meshes[0].key,"stable GPU resource keys");
-    details[12].light_r=.2f;first_person::gpu::packet light;
+    details[12].light_r=.2f;cells[12].light=.3f;first_person::gpu::packet light;
     require(cache.build(scene,1.2f,.3f,provider,light,stats,host,{},nullptr,nullptr,640,480,NCMM_GPU_FORCE),"dynamic light");require(cache.generated_cells==0&&light.cells[12].light[0]==.2f,"lighting changes only cell data");
     std::strcpy(cells[12].terrain,"t_wall");details[12].terrain_shape=NCMM_SHAPE_WALL;first_person::gpu::packet wall;
     require(cache.build(scene,1.2f,.3f,provider,wall,stats,host,{},nullptr,nullptr,640,480,NCMM_GPU_FORCE),"partial geometry update");require(cache.generated_cells==9,"one changed cell rebuilds only its local neighbour support");

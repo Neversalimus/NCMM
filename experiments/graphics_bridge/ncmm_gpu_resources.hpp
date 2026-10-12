@@ -20,10 +20,11 @@ struct mesh_resource {
     std::vector<uint32_t> cpu_indices;
     std::vector<ncmm_gpu_material_v1> materials;
     std::vector<mesh_range> ranges;
-    std::array<bounds,128> joints;
+    std::vector<bounds> joints;
     uint32_t joint_count=1;
+    uint32_t vertex_capacity=0,index_capacity=0;
     uint64_t touched=0,bytes=0;
-    bool ready=false;
+    bool ready=false,dynamic=false;
 };
 struct texture_resource {
     SDL_GPUTexture *texture=nullptr;
@@ -39,6 +40,19 @@ class resource_cache {
     std::map<uint64_t,texture_resource> textures_;
     std::set<uint64_t> used_meshes_,used_textures_;
     std::string reason_;
+    bool mesh_data(const ncmm_gpu_mesh_v1 &source,mesh_resource &m){
+        m.cpu_vertices.assign(source.vertices,source.vertices+source.vertex_count);m.materials.assign(source.materials,source.materials+source.material_count);
+        m.ranges.clear();m.cpu_indices.clear();m.joints.clear();m.joint_count=1;
+        std::vector<std::vector<uint32_t>> groups(source.material_count);
+        for(uint32_t j=0;j<source.index_count;j+=3){uint32_t material=source.vertices[source.indices[j]].material;
+            if(source.vertices[source.indices[j+1]].material!=material||source.vertices[source.indices[j+2]].material!=material){reason_="triangle references multiple materials";return false;}
+            groups[material].insert(groups[material].end(),source.indices+j,source.indices+j+3);}
+        for(uint32_t j=0;j<groups.size();++j)if(!groups[j].empty()){m.ranges.push_back({j,uint32_t(m.cpu_indices.size()),uint32_t(groups[j].size())});m.cpu_indices.insert(m.cpu_indices.end(),groups[j].begin(),groups[j].end());}
+        for(const auto &vertex:m.cpu_vertices){if(m.joints.size()<=vertex.joint)m.joints.resize(vertex.joint+1);m.joints[vertex.joint].include(vertex.position);m.joint_count=std::max(m.joint_count,vertex.joint+1);
+            if(vertex.flags&NCMM_GPU_BILLBOARD){const float radius=std::abs(vertex.position[0]-vertex.pivot[0]);
+                const float lo[]={vertex.pivot[0]-radius,vertex.pivot[1]-radius,vertex.position[2]},hi[]={vertex.pivot[0]+radius,vertex.pivot[1]+radius,vertex.position[2]};m.joints[vertex.joint].include(lo);m.joints[vertex.joint].include(hi);}}
+        return true;
+    }
     bool reserve(uint64_t size,uint64_t limit){
         if(size>limit){reason_="single GPU resource exceeds memory budget";return false;}
         while(bytes_+size>limit){
@@ -58,14 +72,14 @@ public:
     static constexpr uint64_t upload_limit=16*1024*1024;
     const std::string &reason()const{return reason_;}
     uint64_t bytes()const{return bytes_;}
-    uint64_t cpu_bytes()const{uint64_t n=0;for(const auto &[k,m]:meshes_)n+=m.cpu_vertices.capacity()*sizeof(ncmm_gpu_vertex_v1)+m.cpu_indices.capacity()*4+m.materials.capacity()*sizeof(ncmm_gpu_material_v1);
+    uint64_t cpu_bytes()const{uint64_t n=0;for(const auto &[k,m]:meshes_)n+=sizeof(mesh_resource)+m.cpu_vertices.capacity()*sizeof(ncmm_gpu_vertex_v1)+m.cpu_indices.capacity()*4+m.materials.capacity()*sizeof(ncmm_gpu_material_v1)+m.joints.capacity()*sizeof(bounds)+m.ranges.capacity()*sizeof(mesh_range);
         for(const auto &[k,t]:textures_)n+=t.pixels.capacity()*4;return n;}
     void bind(SDL_GPUDevice *device){device_=device;}
     void clear(){for(auto &[k,m]:meshes_)release(m);for(auto &[k,t]:textures_)release(t);meshes_.clear();textures_.clear();used_meshes_.clear();used_textures_.clear();bytes_=0;}
     void abandon(){device_=nullptr;clear();}
     mesh_resource *mesh(uint64_t key){auto i=meshes_.find(key);return i==meshes_.end()?nullptr:&i->second;}
     texture_resource *texture(uint64_t key){auto i=textures_.find(key);return i==textures_.end()?nullptr:&i->second;}
-    bool has(uint64_t key,bool texture_kind){if(texture_kind){auto *t=texture(key);return t&&t->ready;}auto *m=mesh(key);return m&&m->ready;}
+    bool has(uint64_t key,bool texture_kind){if(texture_kind){auto *t=texture(key);return t&&t->ready;}auto *m=mesh(key);return m&&m->ready&&!m->dynamic;}
     bool prepare(const ncmm_gpu_scene_v1 &scene,uint64_t limit,ncmm_gpu_metrics_v1 &metrics){
         reason_.clear();used_meshes_.clear();used_textures_.clear();
         for(uint32_t i=0;i<scene.draw_count;++i)used_meshes_.insert(scene.draws[i].mesh_key);
@@ -89,20 +103,17 @@ public:
             bytes_+=t.bytes;upload_bytes+=upload;new_textures.push_back(source.key);textures_.emplace(source.key,std::move(t));
         }
         for(uint32_t i=0;i<scene.mesh_count;++i){const auto &source=scene.meshes[i];auto *present=mesh(source.key);
-            if(present){present->touched=++clock_;++metrics.mesh_hits;continue;}
             const uint64_t size=uint64_t(source.vertex_count)*sizeof(ncmm_gpu_vertex_v1)+uint64_t(source.index_count)*4;
+            if(present&&present->dynamic!=bool(source.reserved&NCMM_GPU_DYNAMIC_MESH)){reason_="immutable/dynamic mesh key conflict";return false;}
+            if(present&&!present->dynamic){present->touched=++clock_;++metrics.mesh_hits;continue;}
+            if(present)present->ready=false;
             if(size>upload_limit){reason_="single mesh exceeds bounded upload budget";return false;}
             if(upload_bytes+size>upload_limit)continue;
-            mesh_resource m;m.bytes=size;m.touched=++clock_;if(!reserve(size,limit))return false;
-            m.cpu_vertices.assign(source.vertices,source.vertices+source.vertex_count);m.materials.assign(source.materials,source.materials+source.material_count);
-            std::vector<std::vector<uint32_t>> groups(source.material_count);
-            for(uint32_t j=0;j<source.index_count;j+=3){uint32_t material=source.vertices[source.indices[j]].material;
-                if(source.vertices[source.indices[j+1]].material!=material||source.vertices[source.indices[j+2]].material!=material){reason_="triangle references multiple materials";return false;}
-                groups[material].insert(groups[material].end(),source.indices+j,source.indices+j+3);}
-            for(uint32_t j=0;j<groups.size();++j)if(!groups[j].empty()){m.ranges.push_back({j,uint32_t(m.cpu_indices.size()),uint32_t(groups[j].size())});m.cpu_indices.insert(m.cpu_indices.end(),groups[j].begin(),groups[j].end());}
-            for(const auto &vertex:m.cpu_vertices){m.joints[vertex.joint].include(vertex.position);m.joint_count=std::max(m.joint_count,vertex.joint+1);
-                if(vertex.flags&NCMM_GPU_BILLBOARD){const float radius=std::abs(vertex.position[0]-vertex.pivot[0]);
-                    const float lo[]={vertex.pivot[0]-radius,vertex.pivot[1]-radius,vertex.position[2]},hi[]={vertex.pivot[0]+radius,vertex.pivot[1]+radius,vertex.position[2]};m.joints[vertex.joint].include(lo);m.joints[vertex.joint].include(hi);}}
+            if(present&&source.vertex_count*sizeof(ncmm_gpu_vertex_v1)<=present->vertex_capacity&&source.index_count*4<=present->index_capacity){
+                if(!mesh_data(source,*present))return false;present->touched=++clock_;new_meshes.push_back(source.key);upload_bytes+=size;++metrics.dynamic_mesh_updates;continue;}
+            if(present){auto old=meshes_.find(source.key);release(old->second);meshes_.erase(old);}
+            mesh_resource m;m.bytes=size;m.touched=++clock_;m.dynamic=source.reserved&NCMM_GPU_DYNAMIC_MESH;if(!reserve(size,limit)||!mesh_data(source,m))return false;
+            m.vertex_capacity=source.vertex_count*sizeof(ncmm_gpu_vertex_v1);m.index_capacity=source.index_count*4;
             SDL_GPUBufferCreateInfo info{};info.usage=SDL_GPU_BUFFERUSAGE_VERTEX;info.size=source.vertex_count*sizeof(ncmm_gpu_vertex_v1);m.vertices=SDL_CreateGPUBuffer(device_,&info);
             info.usage=SDL_GPU_BUFFERUSAGE_INDEX;info.size=source.index_count*4;m.indices=SDL_CreateGPUBuffer(device_,&info);
             if(!m.vertices||!m.indices){if(m.vertices)SDL_ReleaseGPUBuffer(device_,m.vertices);if(m.indices)SDL_ReleaseGPUBuffer(device_,m.indices);
@@ -128,7 +139,7 @@ public:
             for(auto key:new_textures){auto &t=*texture(key);SDL_GPUTextureTransferInfo from{};from.transfer_buffer=transfer;from.offset=uint32_t(offset);from.pixels_per_row=t.width;from.rows_per_layer=t.height;
                 SDL_GPUTextureRegion to{};to.texture=t.texture;to.w=t.width;to.h=t.height;to.d=1;SDL_UploadToGPUTexture(copy,&from,&to,false);offset+=size_t(t.width)*t.height*4;}
             for(auto key:new_meshes){auto &m=*mesh(key);SDL_GPUTransferBufferLocation from{transfer,uint32_t(offset)};uint32_t n=uint32_t(m.cpu_vertices.size()*sizeof(ncmm_gpu_vertex_v1));
-                SDL_GPUBufferRegion to{m.vertices,0,n};SDL_UploadToGPUBuffer(copy,&from,&to,false);offset+=n;from.offset=uint32_t(offset);n=uint32_t(m.cpu_indices.size()*4);to={m.indices,0,n};SDL_UploadToGPUBuffer(copy,&from,&to,false);offset+=n;}
+                SDL_GPUBufferRegion to{m.vertices,0,n};SDL_UploadToGPUBuffer(copy,&from,&to,m.dynamic);offset+=n;from.offset=uint32_t(offset);n=uint32_t(m.cpu_indices.size()*4);to={m.indices,0,n};SDL_UploadToGPUBuffer(copy,&from,&to,m.dynamic);offset+=n;}
             SDL_EndGPUCopyPass(copy);for(auto key:new_textures)if(texture(key)->levels>1)SDL_GenerateMipmapsForGPUTexture(commands,texture(key)->texture);
             bool ok=SDL_SubmitGPUCommandBuffer(commands);SDL_ReleaseGPUTransferBuffer(device_,transfer);
             if(!ok){reason_="submit resource uploads: "+std::string(SDL_GetError());return false;}
