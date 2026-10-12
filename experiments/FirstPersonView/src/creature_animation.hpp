@@ -41,7 +41,7 @@ inline void observe(instance &a,const ncmm_graphics_creature_v1 &s,double now){
     }
     a.flags=s.flags;a.last_seen=now;
 }
-struct pose_state {float movement=0,phase=0,breath=0,melee=0,shoot=0,hurt=0,death=0,heading=0;point offset{};};
+struct pose_state {float movement=0,phase=0,breath=0,melee=0,shoot=0,hurt=0,death=0,heading=0;point offset{};bool prone=false;};
 inline pose_state sample(const instance &a,double now){
     pose_state p;const float since=float(std::max(0.0,now-a.move_at)),action=float(now-a.event_at);
     p.movement=(1-ease((since-.15f)/.20f))*std::min(1.f,a.step);
@@ -55,7 +55,7 @@ inline pose_state sample(const instance &a,double now){
         if(a.event==NCMM_CR_DIE)p.death=ease(action/.42f);
     }
     if(a.flags&NCMM_CR_DEAD)p.death=std::max(p.death,.01f);
-    p.heading=display_heading(a,now);p.offset=display_position(a,now)-a.target;return p;
+    p.heading=display_heading(a,now);p.offset=display_position(a,now)-a.target;p.prone=(a.flags&NCMM_CR_PRONE)!=0;return p;
 }
 struct skeleton_pose {std::array<transform,128> joints{};size_t count=0;};
 inline skeleton_pose animate(const model &m,const pose_state &p,double seconds,bool simplified=false){
@@ -70,7 +70,8 @@ inline skeleton_pose animate(const model &m,const pose_state &p,double seconds,b
                 translation.z+=h*(p.breath*.003f+std::abs(std::sin(p.phase))*p.movement*.018f);
                 angles.y=p.hurt*.12f+p.melee*.06f+p.death*pi*.48f;
                 translation.z-=h*.39f*p.death;
-                if(m.type.flags&NCMM_CR_PRONE){angles.y+=pi*.40f;translation.z-=h*.32f;}
+                if(p.prone){angles.y+=pi*.40f;translation.z-=h*.32f;}
+                translation.x-=h*.035f*p.shoot;
                 if(airborne)translation.z+=h*.025f*std::sin(time*4);
                 break;
             case motion::head:angles.z=simplified?0:p.breath*.025f;angles.y=-p.hurt*.10f;break;

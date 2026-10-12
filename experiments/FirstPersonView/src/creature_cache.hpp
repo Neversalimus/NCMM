@@ -45,16 +45,16 @@ private:
                 if(result)result->generation_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-started).count();
             }catch(const std::exception &){result.reset();}
             std::lock_guard<std::mutex> lock(mutex);
-            if(input.epoch!=epoch.load(std::memory_order_relaxed)){++counters.cancelled;continue;}
+            if(input.epoch!=epoch.load(std::memory_order_relaxed)){++counters.cancelled;changed.notify_all();continue;}
             pending.erase(input.key);
-            if(!result){++counters.failures;continue;}
+            if(!result){++counters.failures;changed.notify_all();continue;}
             const size_t bytes=result->bytes();
             while(!entries.empty()&&counters.bytes+bytes>memory_limit){auto victim=entries.end();
                 for(auto it=entries.begin();it!=entries.end();++it)if(it->second.value.use_count()==1&&(victim==entries.end()||it->second.touched<victim->second.touched))victim=it;
                 if(victim==entries.end())break;
                 counters.bytes-=victim->second.value->bytes();entries.erase(victim);++counters.evictions;
             }
-            if(counters.bytes+bytes>memory_limit){++counters.failures;continue;}
+            if(counters.bytes+bytes>memory_limit){++counters.failures;changed.notify_all();continue;}
             counters.bytes+=bytes;counters.peak_bytes=std::max(counters.peak_bytes,counters.bytes);++counters.generated;
             counters.last_generation_ms=result->generation_ms;counters.total_generation_ms+=result->generation_ms;counters.max_generation_ms=std::max(counters.max_generation_ms,result->generation_ms);
             ++counters.anatomy_counts[size_t(result->geometry.type.kind)];++counters.fallback_counts[size_t(result->geometry.type.reason)];
@@ -70,7 +70,7 @@ public:
         changed.notify_all();if(worker.joinable())worker.join();available=false;
     }
     void reset(uint64_t world_epoch,uint64_t tileset_epoch){
-        std::lock_guard<std::mutex> lock(mutex);world=world_epoch;tileset=tileset_epoch;epoch.fetch_add(1,std::memory_order_relaxed);entries.clear();jobs.clear();pending.clear();counters.bytes=0;requested_this_frame=0;
+        std::lock_guard<std::mutex> lock(mutex);world=world_epoch;tileset=tileset_epoch;epoch.fetch_add(1,std::memory_order_relaxed);entries.clear();jobs.clear();pending.clear();counters.bytes=0;requested_this_frame=0;changed.notify_all();
     }
     void begin_frame(uint64_t world_epoch,uint64_t tileset_epoch){if(world!=world_epoch||tileset!=tileset_epoch)reset(world_epoch,tileset_epoch);requested_this_frame=0;}
     std::shared_ptr<const asset> request(uint64_t key,const phenotype &type,const std::function<sprite()> &source){

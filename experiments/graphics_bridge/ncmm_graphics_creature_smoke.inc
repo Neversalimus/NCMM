@@ -81,6 +81,27 @@
         }
         here.ter_set( center, ter_id( "t_floor" ) );
     }
+    // A real tracked NPC exercises clothing/mutation overlays and live posture
+    // without regenerating appearance for a mere movement-mode change.
+    clear_monsters(); you.setpos( here, tripoint_bub_ms( center.x(), center.y() + 3, 0 ), false );
+    auto person = make_shared_fast<npc>(); person->normalize(); person->randomize();
+    person->spawn_at_precise( here.get_abs( center ) ); overmap_buffer.insert_npc( person ); g->load_npcs();
+    person->setpos( here, center, false ); aim_at( center, 1.75f, 0 ); settled();
+    require( graphics_creature_records.count( person.get() ) != 0, "npc_presentation_missing" );
+    const auto npc_before = graphics_creature_records[person.get()].snapshot;
+    require( npc_before.flags & NCMM_CR_NPC, "npc_semantic_flag_missing" );
+    capture_frame( "first-person-creature-npc-clothing-" + mode + ".bmp" );
+    person->toggle_trait( trait_id( "FUR" ) ); settled();
+    require( graphics_creature_records[person.get()].snapshot.appearance_revision != npc_before.appearance_revision, "npc_mutation_did_not_invalidate_appearance" );
+    capture_frame( "first-person-creature-npc-mutation-" + mode + ".bmp" );
+    person->set_movement_mode( move_mode_id( "prone" ) ); settled();
+    require( graphics_creature_records[person.get()].snapshot.flags & NCMM_CR_PRONE, "npc_live_posture_missing" );
+    capture_frame( "first-person-creature-npc-prone-" + mode + ".bmp" );
+    person->set_movement_mode( move_mode_id( "walk" ) ); settled();
+    require( !( graphics_creature_records[person.get()].snapshot.flags & NCMM_CR_PRONE ), "npc_live_posture_stuck" );
+    capture_frame( "first-person-creature-npc-standing-" + mode + ".bmp" );
+    g->remove_npc( person->getID() ); overmap_buffer.remove_npc( person->getID() ); draw();
+    require( std::none_of( graphics_creature_snapshots.begin(), graphics_creature_snapshots.end(), [&]( const auto &c ) { return c.entity_id == npc_before.entity_id; } ), "unloaded_npc_presentation_stale" );
     // Real movement and combat pathways: observe the live Host events and capture
     // their visual responses. Tests never advance AI turns to manufacture motion.
     clear_monsters(); you.setpos( here, tripoint_bub_ms( center.x(), center.y() + 3, 0 ), false );

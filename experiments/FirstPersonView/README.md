@@ -364,7 +364,7 @@ NPC clothing/mutation layers are resolved by the installed tileset's own overlay
 lookup. IDs identify cache entries; they are not an anatomical exception table.
 
 Each model has a hierarchy of joints, two meshes and eight generated depth/normal
-impostor views in six poses. LOD uses projected size, a triangle budget and 13%
+impostor views in seven poses (including prone). LOD uses projected size, a triangle budget and 13%
 hysteresis. Idle, walking, turning, attacking, hurt, death, flight and swimming
 are presentation only. Movement uses observed absolute positions; teleports and
 fresh visibility never invent a path through unknown terrain. Death visuals

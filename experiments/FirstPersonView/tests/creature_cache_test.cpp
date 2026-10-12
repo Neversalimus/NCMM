@@ -11,5 +11,11 @@ int main(){int n=0;auto check=[&](bool v){++n;if(!v){std::fprintf(stderr,"cache 
     check(resources.statistics().pending<=cache::queue_limit);resources.reset(3,2);check(resources.statistics().bytes==0);
     resources.shutdown();check(!resources.request(900,classify(c),source));
     scene s;s.view.struct_size=sizeof(s.view);s.view.count=1;c.cell=0;s.creatures={c};check(valid(s,1));s.creatures.push_back(c);s.view.count=2;check(!valid(s,1));
+    // Exceed the retained budget with distinct appearances, then revisit an
+    // evicted key. Eviction must not cause an unbounded cache or a stalled wait.
+    cache pressure;pressure.begin_frame(1,1);
+    for(uint64_t appearance=1;appearance<=48;++appearance){pressure.begin_frame(1,1);pressure.request(appearance,classify(c),source);check(pressure.wait_idle(std::chrono::seconds(5)));}
+    const auto bounded=pressure.statistics();check(bounded.generated==48&&bounded.evictions>0&&bounded.bytes<=cache::memory_limit&&bounded.peak_bytes<=cache::memory_limit);
+    pressure.begin_frame(1,1);check(!pressure.request(1,classify(c),source));check(pressure.wait_idle(std::chrono::seconds(5)));check(bool(pressure.request(1,classify(c),source)));
     std::printf("Creature cache: %d checks PASS\n",n);
 }

@@ -19,10 +19,10 @@ struct impostor {
     float span=1,bottom=0,top=1,angle=0;
 };
 struct impostor_atlas {
-    static constexpr int directions=8,poses=6;
+    static constexpr int directions=8,poses=7;
     std::array<impostor,directions*poses> frames;
 };
-inline int impostor_pose(const pose_state &p){return p.death>.15f?5:p.melee>.10f||p.shoot>.1f?3:p.hurt>.1f?4:p.movement>.10f?(std::sin(p.phase)>0?1:2):0;}
+inline int impostor_pose(const pose_state &p){return p.death>.15f?5:p.prone?6:p.melee>.10f||p.shoot>.1f?3:p.hurt>.1f?4:p.movement>.10f?(std::sin(p.phase)>0?1:2):0;}
 inline int impostor_direction(float angle){return int(std::floor(std::remainder(angle,2*pi)*impostor_atlas::directions/(2*pi)+.5f)+impostor_atlas::directions)%impostor_atlas::directions;}
 inline point decode_normal(uint32_t value){return {float(int(value>>24)-128)/127,float(int((value>>16)&255)-128)/127,float(int((value>>8)&255)-128)/127};}
 inline uint32_t encode_normal(point value){return (uint32_t(std::clamp(int(value.x*127+128),1,255))<<24)|(uint32_t(std::clamp(int(value.y*127+128),1,255))<<16)|(uint32_t(std::clamp(int(value.z*127+128),1,255))<<8)|255;}
@@ -32,12 +32,16 @@ inline impostor bake_impostor(const model &m,int direction,int pose_index){
     out.span=std::max({std::abs(m.low.x),std::abs(m.high.x),std::abs(m.low.y),std::abs(m.high.y),.025f})*2.8f;
     out.bottom=std::min(-m.type.height*.10f,m.low.z);out.top=std::max(m.type.height*1.2f,m.high.z*1.15f);
     pose_state p;p.movement=pose_index==1||pose_index==2?1.f:0;p.phase=pose_index==1?pi*.5f:pi*1.5f;
-    p.melee=pose_index==3?1.f:0;p.hurt=pose_index==4?1.f:0;p.death=pose_index==5?1.f:0;
+    p.melee=pose_index==3?1.f:0;p.hurt=pose_index==4?1.f:0;p.death=pose_index==5?1.f:0;p.prone=pose_index==6;
     auto pose=animate(m,p,0,true);const auto &mesh=m.lod[1];
     std::vector<point> positions(mesh.vertices.size()),normals(mesh.vertices.size());
     std::vector<point> projected(mesh.vertices.size());
     for(size_t i=0;i<mesh.vertices.size();++i){const auto &v=mesh.vertices[i];const auto &t=pose.joints[v.joint];positions[i]=t.apply(v.position);normals[i]=t.vector(v.normal);
-        const auto q=positions[i];projected[i]={(.5f+(-s*q.x+c*q.y)/out.span)*impostor::width,(out.top-q.z)/(out.top-out.bottom)*impostor::height,-c*q.x-s*q.y};}
+        const auto q=positions[i];out.span=std::max(out.span,std::hypot(q.x,q.y)*2.10f);
+        out.bottom=std::min(out.bottom,q.z-.025f*m.type.height);out.top=std::max(out.top,q.z+.025f*m.type.height);}
+    // Attack/death/prone limbs can extend beyond the standing mesh bounds.
+    // Preserve their physical scale while keeping them inside the baked atlas.
+    for(size_t i=0;i<positions.size();++i){const auto q=positions[i];projected[i]={(.5f+(-s*q.x+c*q.y)/out.span)*impostor::width,(out.top-q.z)/(out.top-out.bottom)*impostor::height,-c*q.x-s*q.y};}
     std::array<float,impostor::width*impostor::height> depth;depth.fill(std::numeric_limits<float>::infinity());
     auto edge=[](point a,point b,float x,float y){return (b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);};
     for(const auto &face:mesh.faces){const auto ia=face.vertices[0],ib=face.vertices[1],ic=face.vertices[2];const auto a=projected[ia],b=projected[ib],d=projected[ic];

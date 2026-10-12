@@ -15,5 +15,10 @@ int main(){int n=0;auto check=[&](bool v){++n;if(!v){std::fprintf(stderr,"animat
     }
     s.entity_id=8;s.world_x=-50;observe(i,s,3);check(display_position(i,3).x==-50);check(i.event==NCMM_CR_DIE);
     s.event=0;s.event_serial=0;observe(i,s,-1);check(display_position(i,-1).x==-50);
+    // Live posture is instance state, never part of the cached model's flags.
+    s.flags=NCMM_CR_PRONE;s.liters=s.kilograms=70;std::strcpy(s.bodytype,"human");
+    const auto human=builder{}.generate(classify(s),sprite{});observe(i,s,4);const auto lying=animate(human,sample(i,4),4);
+    check(sample(i,4).prone);s.flags=0;observe(i,s,4.1);const auto standing=animate(human,sample(i,4.1),4.1);
+    check(!sample(i,4.1).prone);check(standing.joints[1].position.z>lying.joints[1].position.z+.3f);
     std::printf("Creature animation: %d checks PASS\n",n);
 }
