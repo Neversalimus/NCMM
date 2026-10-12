@@ -7,7 +7,12 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
     const float original_yaw=graphics_camera_yaw,original_pitch=graphics_camera_pitch;
     auto camera=[&](float yaw,float pitch){graphics_mouse_dx=std::remainder(yaw-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;
         graphics_mouse_dy=(graphics_camera_pitch-pitch)/.003f;require(graphics_action("ncmm.view.mouse_look"),"gpu_benchmark_camera_failed");graphics_mouse_dx=graphics_mouse_dy=0;};
-    auto clear_monsters=[&](){for(const auto &mon:get_creature_tracker().get_monsters_list())get_creature_tracker().remove(*mon);};
+    auto clear_monsters=[&](){
+        // remove() erases from the tracker's vector. Hold an owned snapshot,
+        // as in the creature gallery, so erasing cannot invalidate this loop.
+        const auto monsters=get_creature_tracker().get_monsters_list();
+        for(const auto &mon:monsters)get_creature_tracker().remove(*mon);
+        require(get_creature_tracker().get_monsters_list().empty(),"gpu_benchmark_creature_reset_incomplete");};
     you.clear_mutations();you.clear_effects();you.set_underwater(false);you.set_base_height(175);you.set_movement_mode(move_mode_id("walk"));
     you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));you.recalc_sight_limits();require(you.unimpaired_range()>=48,"gpu_benchmark_sight_limited");
     auto reset_scene=[&](){clear_monsters();for(const auto &car:here.get_vehicles())here.destroy_vehicle(car.v);
@@ -38,7 +43,9 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
         SDL_Renderer *renderer;SDL_Texture *target;SDL_Rect viewport,clip;bool clipped;
         ~restore_render(){SDL_SetRenderTarget(renderer,target);SDL_SetRenderViewport(renderer,&viewport);SDL_SetRenderClipRect(renderer,clipped?&clip:nullptr);}
     } restore_renderer{renderer,previous_target,previous_viewport,previous_clip,previous_clipped};
-    for(int scenario=0;scenario<14;++scenario){reset_scene();std::vector<shared_ptr_fast<monster>> group;
+    for(int scenario=0;scenario<14;++scenario){
+        log_line(NCMM_LOG_INFO,("GPU benchmark scene reset: "+std::to_string(scenario)).c_str());
+        reset_scene();std::vector<shared_ptr_fast<monster>> group;
         const std::string name=scenario<10?environments[scenario]:"creatures-"+std::to_string(std::array<int,4>{1,10,50,100}[size_t(scenario-10)]);
         if(scenario==1){for(int y=-46;y<-3;y+=3)for(int x=-45;x<=45;x+=3)if(std::abs(x)>1)here.ter_set(tripoint_bub_ms(center.x()+x,center.y()+y,0),ter_id("t_tree"));}
         if(scenario==2){for(int by=-44;by<=-8;by+=12)for(int bx=-36;bx<=36;bx+=12)for(int y=0;y<8;++y)for(int x=0;x<8;++x){
@@ -61,6 +68,7 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
             std::vector<uint32_t> reference;const double seconds=1000.5;
             const std::vector<const char *> modes=stable_cpu?std::vector<const char *>{"cpu"}:std::vector<const char *>{"cpu","gpu"};
             for(const char *mode:modes){if(!stable_cpu)get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);graphics_smoke_seconds=seconds;
+                log_line(NCMM_LOG_INFO,("GPU benchmark begin: "+name+" "+std::to_string(resolution.x)+"x"+std::to_string(resolution.y)+" "+(stable_cpu?"stable-cpu":mode)).c_str());
                 for(size_t n=0;n<group.size();++n)group[n]->setpos(here,tripoint_bub_ms(center.x()-9+int(n%10)*2,center.y()+7-int(n/10)*2,0),false);
                 graphics_clear_creatures();refresh_caches();
                 auto render=[&](){require(SDL_SetRenderTarget(renderer,canvas)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"gpu_benchmark_viewport_failed");
