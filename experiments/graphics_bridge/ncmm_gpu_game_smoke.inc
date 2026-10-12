@@ -31,9 +31,13 @@
             require( SDL_SaveBMP( rgba, ( game_root() / "ncmm" / "first-person-gpu-room.bmp" ).string().c_str() ), "actual_gpu_room_capture_write_failed" );
             SDL_DestroySurface( rgba ); SDL_DestroySurface( raw );
             std::ofstream evidence( game_root() / "ncmm" / "first-person-gpu-room.json" );
-            evidence << "{\"actual_cdda_sdl\":true,\"full_gpu_world\":true,\"backend\":\"" << first.backend << "\",\"device\":\"" << first.device
-                << "\",\"software_device\":" << ( first.software_device ? "true" : "false" ) << ",\"cpu_raster_calls\":0,\"cpu_full_frame_upload\":false,\"draw_calls\":" << first.draw_calls
-                << ",\"triangles\":" << first.triangles << ",\"resource_bytes\":" << first.resource_bytes << ",\"rgb_mae\":" << mean_error << ",\"changed_pixels\":" << changed << "}\n";
+            JsonOut report( evidence ); report.start_object();
+            report.member( "actual_cdda_sdl", true ); report.member( "full_gpu_world", true );
+            report.member( "backend", first.backend ); report.member( "device", first.device );
+            report.member( "software_device", bool( first.software_device ) ); report.member( "cpu_raster_calls", 0 );
+            report.member( "cpu_full_frame_upload", false ); report.member( "draw_calls", first.draw_calls );
+            report.member( "triangles", first.triangles ); report.member( "resource_bytes", first.resource_bytes );
+            report.member( "rgb_mae", mean_error ); report.member( "changed_pixels", changed ); report.end_object();
             evidence.close();
             require( mean_error < .14, "actual_cpu_gpu_room_geometry_or_palette_regression" );
             draw(); const auto cached = graphics_gpu_engine->metrics();

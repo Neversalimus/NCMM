@@ -38,5 +38,8 @@ int main() {
     check(!ncmm_gpu::validate(s));t.pitch=0;check(ncmm_gpu::validate(s));t.pitch=1;
     t.width=513;check(ncmm_gpu::validate(s));t.width=1;
     s.mode=NCMM_GPU_CPU;check(!ncmm_gpu::validate(s));s.mode=3;check(ncmm_gpu::validate(s));
+    s.mode=NCMM_GPU_FORCE;material.flags=NCMM_GPU_TEXTURED;check(ncmm_gpu::validate(s));material.texture_key=4;check(!ncmm_gpu::validate(s));
+    material.flags=NCMM_GPU_IMPOSTOR;check(ncmm_gpu::validate(s));material.normal_key=material.depth_key=4;material.impostor_span=1;check(!ncmm_gpu::validate(s));
+    material.impostor_span=0;check(ncmm_gpu::validate(s));
     std::printf("GPU submission contract: %d checks PASS\n",checks);return 0;
 }

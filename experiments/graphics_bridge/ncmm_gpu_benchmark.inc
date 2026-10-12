@@ -1,6 +1,8 @@
 // Real CDDA/SDL render-loop qualification. This runs only in the isolated
 // gameplay smoke world. It never runs in a player's saved game.
-if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) ) {
+if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCMM_FP_STABLE_CPU_BASELINE") ) {
+    const bool stable_cpu=std::getenv("NCMM_FP_STABLE_CPU_BASELINE")!=nullptr;
+    if(stable_cpu)require(graphics_action("ncmm.view.acceleration"),"stable_cpu_composition_toggle_missing");
     using benchmark_clock = std::chrono::steady_clock;
     const float original_yaw=graphics_camera_yaw,original_pitch=graphics_camera_pitch;
     auto camera=[&](float yaw,float pitch){graphics_mouse_dx=std::remainder(yaw-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;
@@ -19,8 +21,9 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) ) {
     auto percentile=[](std::vector<double> values,double p){std::sort(values.begin(),values.end());if(values.empty())return 0.0;
         const double index=p*(values.size()-1);const size_t low=size_t(index),high=std::min(low+1,values.size()-1);return values[low]+(values[high]-values[low])*(index-low);};
     auto elapsed=[](benchmark_clock::time_point begin){return std::chrono::duration<double,std::milli>(benchmark_clock::now()-begin).count();};
-    std::ofstream stream(game_root()/"ncmm"/"first-person-gpu-benchmark.json");JsonOut report(stream);report.start_object();report.member("schema",1);
+    std::ofstream stream(game_root()/"ncmm"/(stable_cpu?"first-person-gpu-benchmark-stable-cpu.json":"first-person-gpu-benchmark.json"));JsonOut report(stream);report.start_object();report.member("schema",1);
     report.member("actual_cdda_sdl",true);report.member("player_fps",false);report.member("cpu_algorithm_commit","a434a820aaa5b0bec7611474f8e01ff9b2b77432");
+    report.member("stable_cpu_binary",stable_cpu);report.member("stable_main_commit","9df95cdc8766f8d80f4da7cf08f241f053a40281");
     report.member("comparison","same Host, world, module CPU fallback algorithm, settings and presentation clock; CPU timers do not change raster calculations");
     report.member("gpu_timestamps_available",false);report.member("gpu_time_semantics","unavailable; CPU preparation/recording/submission times are not GPU execution time");
     report.member("presentation","offscreen viewport copied on the same SDL device to the real window; SDL_RenderPresent on the window each measured frame");
@@ -45,7 +48,9 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) ) {
                 here.ter_set(tripoint_bub_ms(center.x()+x,center.y()+y,1),ter_id("t_floor"));}}
         if(scenario==4){for(int y:{-12,-24,-36})for(int x:{-18,-6,6,18})require(here.add_vehicle(vproto_id("car"),tripoint_bub_ms(center.x()+x,center.y()+y,0),0_degrees,0,veh_spawn_status::UNDAMAGED,false)!=nullptr,"gpu_benchmark_vehicle_failed");}
         if(scenario==5){for(int y=-48;y<=48;++y)for(int x=-48;x<=48;++x)if(x>0)here.ter_set(tripoint_bub_ms(center.x()+x,center.y()+y,0),ter_id(x<4?"t_water_sh":"t_water_dp"));camera(-ncmm_graphics_camera::pi*.35f,-.18f);}
-        if(scenario==6){calendar::turn=start_time+12_hours;for(int y=-3;y>=-27;y-=4)for(int x=-12;x<=12;x+=4)here.add_field(tripoint_bub_ms(center.x()+x,center.y()+y,0),field_type_str_id("fd_fire").id(),2);}
+        if(scenario==6){calendar::turn=start_time+12_hours;lamp->light_emitted=60;lamp->light_color={.05f,.25f,1.0f};
+            for(int y=-3;y>=-27;y-=4)for(int x=-12;x<=12;x+=4){const tripoint_bub_ms p(center.x()+x,center.y()+y,0);
+                if((x/4-y/4)%2)here.furn_set(p,lamp->id);else here.add_field(p,field_type_str_id("fd_fire").id(),2);}}
         if(scenario==7)get_weather().weather_id=weather_type_id("rain");if(scenario==8)get_weather().weather_id=weather_type_id("snowing");
         if(scenario==9){for(int y=-3;y>=-13;--y)for(int x=-5;x<=5;++x)here.add_field(tripoint_bub_ms(center.x()+x,center.y()+y,0),field_type_str_id(x<0?"fd_smoke":"fd_toxic_gas").id(),3);}
         if(scenario>=10){const int count=std::array<int,4>{1,10,50,100}[size_t(scenario-10)];you.setpos(here,tripoint_bub_ms(center.x(),center.y()+25,0),false);g->ter_view_p=you.pos_bub();
@@ -53,8 +58,9 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) ) {
         refresh_caches();
         for(const point resolution:{point(640,480),point(1280,800),point(1920,1080),point(2560,1080)}){
             SDL_Texture *canvas=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,resolution.x,resolution.y);require(canvas!=nullptr,"gpu_benchmark_canvas_failed");
-            std::vector<uint32_t> reference;const double seconds=SDL_GetTicks()/1000.0+.5;
-            for(const char *mode:{"cpu","gpu"}){get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);graphics_smoke_seconds=seconds;
+            std::vector<uint32_t> reference;const double seconds=1000.5;
+            const std::vector<const char *> modes=stable_cpu?std::vector<const char *>{"cpu"}:std::vector<const char *>{"cpu","gpu"};
+            for(const char *mode:modes){if(!stable_cpu)get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);graphics_smoke_seconds=seconds;
                 for(size_t n=0;n<group.size();++n)group[n]->setpos(here,tripoint_bub_ms(center.x()-9+int(n%10)*2,center.y()+7-int(n/10)*2,0),false);
                 graphics_clear_creatures();refresh_caches();
                 auto render=[&](){require(SDL_SetRenderTarget(renderer,canvas)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"gpu_benchmark_viewport_failed");
@@ -62,19 +68,21 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) ) {
                     require(graphics_draw(0,0,resolution.x,resolution.y),"gpu_benchmark_game_render_failed");};
                 auto present=[&](){require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"gpu_benchmark_window_target_failed");
                     require(SDL_RenderTexture(renderer,canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"gpu_benchmark_real_window_present_failed");};
-                const auto cold=benchmark_clock::now();bool ready=false;
-                for(int attempt=0;attempt<180;++attempt){render();present();
+                const auto cold=benchmark_clock::now();bool ready=false;std::vector<double> warming_samples;
+                for(int attempt=0;attempt<180;++attempt){const auto warm_begin=benchmark_clock::now();render();present();
+                    warming_samples.push_back(elapsed(warm_begin));
                     ready=std::string(mode)=="cpu"||graphics_gpu_frame;
                     if(ready&&(!group.size()||(!graphics_creature_metrics.queued&&!graphics_creature_metrics.fallback)))break;SDL_Delay(2);}
                 require(ready,"gpu_benchmark_gpu_fallback_not_allowed");const double first_ready_ms=elapsed(cold);
                 render();auto *raw=SDL_RenderReadPixels(renderer,nullptr);auto *rgba=raw?SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888):nullptr;
                 require(rgba&&rgba->w==resolution.x&&rgba->h==resolution.y,"gpu_benchmark_capture_dimensions_wrong");
-                const std::string file="first-person-gpu-"+name+"-"+std::to_string(resolution.x)+"x"+std::to_string(resolution.y)+"-"+mode+".bmp";
+                const std::string file="first-person-gpu-"+name+"-"+std::to_string(resolution.x)+"x"+std::to_string(resolution.y)+"-"+(stable_cpu?"stable-cpu":mode)+".bmp";
                 require(SDL_SaveBMP(rgba,(game_root()/"ncmm"/file).string().c_str()),"gpu_benchmark_capture_write_failed");double mae=0;
                 if(std::string(mode)=="cpu"){reference.resize(size_t(resolution.x)*resolution.y);for(int y=0;y<resolution.y;++y)std::memcpy(reference.data()+size_t(y)*resolution.x,static_cast<const char *>(rgba->pixels)+y*rgba->pitch,size_t(resolution.x)*4);}
                 else{for(int y=0;y<resolution.y;++y){const auto *row=reinterpret_cast<const uint32_t *>(static_cast<const char *>(rgba->pixels)+y*rgba->pitch);for(int x=0;x<resolution.x;++x){uint32_t a=reference[size_t(y)*resolution.x+x],b=row[x];
                             for(int shift:{8,16,24})mae+=std::abs(int((a>>shift)&255)-int((b>>shift)&255))/(3.0*255);}}mae/=double(resolution.x)*resolution.y;}
                 SDL_DestroySurface(rgba);SDL_DestroySurface(raw);present();
+                if(std::string(mode)=="gpu")require(mae<.14,"gpu_benchmark_visual_equivalence_failed");
                 std::vector<double> samples,extract,callback,presentation,cpu_geometry,cpu_raster,effects,gpu_geometry,upload,record,submit;
                 uint64_t max_resources=0,max_upload=0,max_cpu_cache=0,draw_calls=0,triangles=0;const double cpu_before=ncmm_graphics_performance::cpu_seconds();const auto measured=benchmark_clock::now();
                 const auto video_before=ncmm_graphics_performance::vram();
@@ -95,6 +103,10 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) ) {
                 report.member("gpu_execution_ms_available",false);report.member("gpu_3d_draw_calls",draw_calls);report.member("mesh_triangles_submitted",triangles);report.member("gpu_resource_bytes_peak",max_resources);report.member("upload_bytes_peak",max_upload);
                 report.member("cpu_cache_bytes",max_cpu_cache);report.member("process_resident_bytes",ncmm_graphics_performance::resident_bytes());report.member("dxgi_process_local_available",video_before.available&&video_after.available);report.member("dxgi_process_local_before",video_before.bytes);report.member("dxgi_process_local_after",video_after.bytes);
                 report.member("mode_first_ready_ms",first_ready_ms);report.member("creature_assets_were_invalidated",true);report.member("creatures",group.size());report.member("visible_snapshot",graphics_creature_snapshots.size());report.member("fallback_creatures",graphics_creature_metrics.fallback);report.member("generation_max_ms",graphics_creature_metrics.generation_max_ms);
+                report.member("cpu_stage_metrics_available",!stable_cpu);report.member("warmup_frames",warming_samples.size());report.member("warmup_frame_max_ms",*std::max_element(warming_samples.begin(),warming_samples.end()));
+                const double hitch_threshold=std::max(33.333,percentile(samples,.5)*2);report.member("hitch_threshold_ms",hitch_threshold);
+                report.member("warmup_hitch_frames",std::count_if(warming_samples.begin(),warming_samples.end(),[&](double value){return value>hitch_threshold;}));
+                report.member("steady_hitch_frames",std::count_if(samples.begin(),samples.end(),[&](double value){return value>hitch_threshold;}));report.member("steady_frame_max_ms",*std::max_element(samples.begin(),samples.end()));
                 report.member("capture",file);report.member("paired_rgb_mae",mae);report.member("backend",gpu_stats.backend);report.member("device",gpu_stats.device);report.member("software_device",bool(gpu_stats.software_device));report.end_object();stream.flush();
                 require(max_resources<=NCMM_GPU_RESOURCE_LIMIT,"gpu_benchmark_gpu_budget_exceeded");if(!group.empty())require(graphics_creature_snapshots.size()==group.size()&&!graphics_creature_metrics.fallback,"gpu_benchmark_creatures_missing");
             }
@@ -102,6 +114,7 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) ) {
         }
     }
     report.end_array();report.end_object();stream.close();graphics_smoke_seconds.reset();clear_monsters();you.setpos(here,start_pos,false);you.set_moves(start_moves);calendar::turn=start_time;g->ter_view_p=center;
-    camera(original_yaw,original_pitch);get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue("cpu");require(graphics_action("ncmm.view.quality"),"gpu_benchmark_quality_restore_failed");
+    lamp->light_emitted=restore.emission;lamp->light_color=restore.color;
+    camera(original_yaw,original_pitch);if(!stable_cpu)get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue("cpu");require(graphics_action("ncmm.view.quality"),"gpu_benchmark_quality_restore_failed");
     log_line(NCMM_LOG_INFO,"Full GPU / CPU real CDDA render-loop matrix completed: 14 scenes, four viewports, paired native SDL captures.");
 }

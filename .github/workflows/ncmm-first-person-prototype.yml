@@ -33,10 +33,10 @@ jobs:
         run: cmake -S experiments/FirstPersonView -B fp-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
       - name: Build sanitizer geometry and shared-module tests
         if: runner.os == 'Linux'
-        run: cmake --build fp-sanitize --parallel 2 --target first_person_optimization_tests first_person_hybrid_module_tests first_person_creature_semantics_tests first_person_creature_mesh_tests first_person_creature_animation_tests first_person_creature_lod_tests first_person_creature_cache_tests first_person_creature_render_tests first_person_creature_module_tests
+        run: cmake --build fp-sanitize --parallel 2 --target first_person_optimization_tests first_person_hybrid_module_tests first_person_creature_semantics_tests first_person_creature_mesh_tests first_person_creature_animation_tests first_person_creature_lod_tests first_person_creature_cache_tests first_person_creature_render_tests first_person_creature_module_tests first_person_gpu_contract_tests first_person_gpu_geometry_tests
       - name: ASan and UBSan camera, volume and DLL lifecycle coverage
         if: runner.os == 'Linux'
-        run: ctest --test-dir fp-sanitize -R "optimization|hybrid_module|creature_" --output-on-failure
+        run: ctest --test-dir fp-sanitize -R "optimization|hybrid_module|creature_|gpu_" --output-on-failure
       - name: Atomic source-transform negative tests
         run: python -m unittest discover -s experiments/graphics_bridge -p test_apply_graphics_bridge.py -v
       - uses: actions/upload-artifact@v4
@@ -268,22 +268,22 @@ jobs:
           }
       - uses: actions/checkout@v4
         with:
-          ref: 3f6a164e23a5d586156218ecb3ab0009e187d1ca
-          path: fp081-reference
+          ref: 9df95cdc8766f8d80f4da7cf08f241f053a40281
+          path: fp090-reference
           persist-credentials: false
           sparse-checkout: |
             sdk
             experiments/FirstPersonView
             experiments/graphics_bridge
-      - name: Build exact 0.8.1 billboard reference DLL
+      - name: Build exact stable main 0.9.0 CPU reference DLL
         shell: powershell
         run: |
-          cmake -S fp081-reference/experiments/FirstPersonView -B fp081-build
-          if($LASTEXITCODE -ne 0){throw '0.8.1 reference configuration failed.'}
-          cmake --build fp081-build --config Release --target ncmm_mod
-          if($LASTEXITCODE -ne 0){throw '0.8.1 reference build failed.'}
-      - name: Paired real SDL billboard baseline on the same Host and fixture
-        timeout-minutes: 20
+          cmake -S fp090-reference/experiments/FirstPersonView -B fp090-build
+          if($LASTEXITCODE -ne 0){throw 'Stable main reference configuration failed.'}
+          cmake --build fp090-build --config Release --target ncmm_mod
+          if($LASTEXITCODE -ne 0){throw 'Stable main reference build failed.'}
+      - name: Paired stable CPU real SDL benchmark on the same Host and fixture
+        timeout-minutes: 30
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
@@ -294,19 +294,18 @@ jobs:
           Copy-Item (Join-Path $module 'ncmm_mod.dll') $backup
           Copy-Item (Join-Path $module 'mod.json') $backup
           try {
-            Copy-Item fp081-build/Release/ncmm_mod.dll (Join-Path $module 'ncmm_mod.dll') -Force
-            Copy-Item fp081-reference/experiments/FirstPersonView/mod.json (Join-Path $module 'mod.json') -Force
-            $env:NCMM_FP_BILLBOARD_BASELINE='1'
+            Copy-Item fp090-build/Release/ncmm_mod.dll (Join-Path $module 'ncmm_mod.dll') -Force
+            Copy-Item fp090-reference/experiments/FirstPersonView/mod.json (Join-Path $module 'mod.json') -Force
+            $env:NCMM_FP_STABLE_CPU_BASELINE='1'
             $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-gameplay-smoke' -WorkingDirectory $root -PassThru
-            if(-not $p.WaitForExit(720000)){& taskkill.exe /pid $p.Id /t /f;throw 'Billboard benchmark deadline exceeded.'}
+            if(-not $p.WaitForExit(1800000)){& taskkill.exe /pid $p.Id /t /f;throw 'Stable CPU benchmark deadline exceeded.'}
             $p.Refresh()
-            if($p.ExitCode -ne 0){throw "Billboard benchmark failed: $($p.ExitCode)"}
-            Copy-Item (Join-Path $root 'ncmm/first-person-smoke.json') installer-result/first-person-smoke-billboard-081.json
-            Copy-Item (Join-Path $root 'ncmm/first-person-creature-timing-billboard-081.json') installer-result
-            Copy-Item (Join-Path $root 'ncmm/first-person-creature-gallery-billboard-081.json') installer-result
-            Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-creature-*-billboard-081.bmp' | ForEach-Object { Copy-Item $_.FullName installer-result }
+            if($p.ExitCode -ne 0){throw "Stable CPU benchmark failed: $($p.ExitCode)"}
+            Copy-Item (Join-Path $root 'ncmm/first-person-smoke.json') installer-result/first-person-smoke-stable-cpu.json
+            Copy-Item (Join-Path $root 'ncmm/first-person-gpu-benchmark-stable-cpu.json') installer-result
+            Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-gpu-*-stable-cpu.bmp' | ForEach-Object { Copy-Item $_.FullName installer-result }
           } finally {
-            Remove-Item Env:NCMM_FP_BILLBOARD_BASELINE -ErrorAction SilentlyContinue
+            Remove-Item Env:NCMM_FP_STABLE_CPU_BASELINE -ErrorAction SilentlyContinue
             Copy-Item (Join-Path $backup 'ncmm_mod.dll') (Join-Path $module 'ncmm_mod.dll') -Force
             Copy-Item (Join-Path $backup 'mod.json') (Join-Path $module 'mod.json') -Force
           }
@@ -329,7 +328,7 @@ jobs:
         with:
           name: first-person-installer-${{ matrix.build }}-Windows-x64
           path: |
-            installer-result/NCMM_FirstPersonView_0.9.0_TEST_${{ matrix.build }}_Windows_x64.zip
+            installer-result/NCMM_FirstPersonView_0.10.0_TEST_${{ matrix.build }}_Windows_x64.zip
             installer-result/first-person-smoke*.json
             installer-result/first-person-*.bmp
             installer-result/first-person-shapes-audit*.json

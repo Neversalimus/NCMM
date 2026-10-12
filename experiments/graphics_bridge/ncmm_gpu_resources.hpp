@@ -86,6 +86,9 @@ public:
         auto mark=[&](const ncmm_gpu_material_v1 &m){for(uint64_t key:{m.texture_key,m.normal_key,m.depth_key})if(key)used_textures_.insert(key);};
         for(auto key:used_meshes_)if(auto *m=mesh(key))for(const auto &material:m->materials)mark(material);
         for(uint32_t i=0;i<scene.mesh_count;++i)for(uint32_t j=0;j<scene.meshes[i].material_count;++j)mark(scene.meshes[i].materials[j]);
+        // A larger viewport reduces the cache allowance even on a warm frame.
+        // Evict unused entries before accepting any reused resource.
+        if(!reserve(0,limit))return false;
         uint64_t upload_bytes=0;std::vector<uint64_t> new_textures,new_meshes;
         for(uint32_t i=0;i<scene.texture_count;++i){const auto &source=scene.textures[i];auto *present=texture(source.key);
             if(present){present->touched=++clock_;++metrics.texture_hits;continue;}
@@ -136,6 +139,7 @@ public:
             SDL_UnmapGPUTransferBuffer(device_,transfer);auto *commands=SDL_AcquireGPUCommandBuffer(device_);
             if(!commands){SDL_ReleaseGPUTransferBuffer(device_,transfer);reason_="acquire resource upload commands: "+std::string(SDL_GetError());return false;}
             auto *copy=SDL_BeginGPUCopyPass(commands);offset=0;
+            if(!copy){SDL_CancelGPUCommandBuffer(commands);SDL_ReleaseGPUTransferBuffer(device_,transfer);reason_="begin resource upload pass: "+std::string(SDL_GetError());return false;}
             for(auto key:new_textures){auto &t=*texture(key);SDL_GPUTextureTransferInfo from{};from.transfer_buffer=transfer;from.offset=uint32_t(offset);from.pixels_per_row=t.width;from.rows_per_layer=t.height;
                 SDL_GPUTextureRegion to{};to.texture=t.texture;to.w=t.width;to.h=t.height;to.d=1;SDL_UploadToGPUTexture(copy,&from,&to,false);offset+=size_t(t.width)*t.height*4;}
             for(auto key:new_meshes){auto &m=*mesh(key);SDL_GPUTransferBufferLocation from{transfer,uint32_t(offset)};uint32_t n=uint32_t(m.cpu_vertices.size()*sizeof(ncmm_gpu_vertex_v1));

@@ -99,3 +99,33 @@ Primary references:
 - https://wiki.libsdl.org/SDL3/SDL_FlushRenderer
 - https://github.com/libsdl-org/SDL/tree/release-3.4.10
 - https://github.com/microsoft/vcpkg/tree/f6672d8e480ccdecddfad3fd1b838ba369ffe6cd/ports/sdl3
+
+## Full in-game gate and current qualification checkpoint
+
+Actual CDDA 1040/1807, both official graphics/sounds packages, passed the full
+GPU room gate in run https://github.com/Neversalimus/NCMM/actions/runs/38247876983
+(head `6520fcd9e3ec274117eac1fbfd91063728af5885`). Both MSVC Hosts compiled,
+install/upgrade/rollback tests and repeated bootstrap launches passed.
+Original SDL captures were inspected: room walls, door, floor and held hands
+retain geometry and palette. Room RGB mean absolute error was 0.00194–0.00209
+against the same Host's CPU frame. The GPU frame submitted 1590 triangles with
+20 explicit 3D draws, zero CPU raster calls and no CPU full-frame upload.
+The adapter was Microsoft Basic Render Driver; this is software D3D12 evidence.
+The initial report used locale-sensitive integer formatting; it is corrected
+to the game's JSON writer in the following checkpoint.
+
+Native updated SPIR-V/DXIL programs and dynamic mesh/frustum re-entry tests
+passed Windows and Linux in run
+https://github.com/Neversalimus/NCMM/actions/runs/38263669211
+(head `9efede5414b54b6d37f3b9740b64e2fbc7ee1ad8`). Embedded source SHA256 is
+`232f9fb7e99f8266cc32749a60ff4cf343ad2016391cda2f158c7331d05a9702`.
+
+The expanded qualification records paired real SDL frames for 14 scenes at
+four viewport sizes, plus the exact stable-main 0.9.0 DLL built from
+`9df95cdc8766f8d80f4da7cf08f241f053a40281`. CPU-stage timers are unavailable
+for that unmodified reference binary; its total frame/process CPU measurements
+are real. At the 2560×1080 viewport, the established high-quality cap makes the
+internal 3D image 1920×810; the report records both sizes. These fixtures use
+48 measured frames after bounded warming. Median/p95/p99 and observed maximum
+are reported without claiming player FPS or a precise long-run p99 estimate.
+The new gallery/matrix must pass and be visually reviewed before final merge.

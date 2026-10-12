@@ -58,7 +58,17 @@ int main(int argc,char **argv){
     center=capture("-dynamic");require((center>>24)>120&&((center>>8)&255)<20,"updated dynamic buffer moves transparent geometry");
     for(auto &vertex:glass_vertices)vertex.position[0]-=5;scene.frame_serial=6;require(engine.submit(scene),engine.metrics().reason);
     center=capture("-return");require((center>>24)>80&&(center>>24)<135&&((center>>8)&255)>30,"current dynamic bounds restore geometry entering the frustum");
+    auto evict=scene;evict.mesh_count=evict.draw_count=0;ncmm_gpu_metrics_v1 eviction{};
+    require(engine.resources().prepare(evict,1,eviction)&&engine.resources().bytes()==0&&!engine.has(11,0),"shrinking viewport cache allowance evicts unused warm resources");
+    std::array<ncmm_gpu_mesh_v1,2> restore={mesh,dynamic};scene.meshes=restore.data();scene.mesh_count=2;scene.frame_serial=7;
+    require(engine.submit(scene)&&engine.metrics().generated_meshes==2,"bounded cache eviction restores exact scene resources");
+    scene.width=1280;scene.height=800;scene.camera.projection[0]=1280;scene.camera.projection[1]=800;scene.camera.projection[2]=914;scene.frame_serial=8;scene.mesh_count=0;
+    // Dynamic meshes are still supplied after resizing; immutable world stays cached.
+    scene.meshes=&dynamic;scene.mesh_count=1;
+    require(engine.submit(scene)&&engine.metrics().generated_meshes==0&&engine.metrics().resource_bytes<=NCMM_GPU_RESOURCE_LIMIT,"viewport resize preserves world cache and allocation budget");
     if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
     std::printf("Full GPU scene PASS: %s / %s; animation upload %llu bytes; CPU raster=0\n",second.backend,second.device,(unsigned long long)second.upload_bytes);
-    engine.clear();SDL_DestroyTexture(ui);SDL_DestroyRenderer(renderer);SDL_DestroyGPUDevice(device);if(window)SDL_DestroyWindow(window);SDL_Quit();
+    engine.clear();require(!engine.bind(nullptr,2)&&!engine.available(),"unsupported renderer fails closed without claiming GPU");
+    require(engine.bind(renderer,3),"same owned device can recover after fallback");engine.clear();
+    SDL_DestroyTexture(ui);SDL_DestroyRenderer(renderer);SDL_DestroyGPUDevice(device);if(window)SDL_DestroyWindow(window);SDL_Quit();
 }
