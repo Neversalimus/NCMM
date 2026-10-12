@@ -12,9 +12,13 @@
 #pragma push_macro("small")
 #pragma push_macro("min")
 #pragma push_macro("max")
+#pragma push_macro("near")
+#pragma push_macro("far")
 #include <windows.h>
 #include <dxgi1_4.h>
 #include <psapi.h>
+#pragma pop_macro("far")
+#pragma pop_macro("near")
 #pragma pop_macro("max")
 #pragma pop_macro("min")
 #pragma pop_macro("small")
