@@ -182,6 +182,9 @@
         timing.member( "cpu_seconds", cpu_seconds ); timing.member( "wall_seconds", wall_seconds ); timing.member( "cpu_core_equivalents", cpu_seconds / std::max( .00001, wall_seconds ) );
         timing.member( "vram_available", video_before.available && video_after.available ); timing.member( "vram_process_local_before", video_before.bytes ); timing.member( "vram_process_local_after", video_after.bytes );
         timing.member( "cache_bytes", graphics_creature_metrics.cache_bytes ); timing.member( "cache_peak_bytes", graphics_creature_metrics.cache_peak_bytes ); timing.member( "generation_max_ms", graphics_creature_metrics.generation_max_ms );
+        timing.member( "generated", graphics_creature_metrics.generated ); timing.member( "cache_entries", graphics_creature_metrics.entries ); timing.member( "cache_evictions", graphics_creature_metrics.evictions ); timing.member( "generation_failures", graphics_creature_metrics.failures );
+        timing.member( "generation_anatomy_counts", std::vector<uint64_t>( std::begin( graphics_creature_metrics.anatomy ), std::end( graphics_creature_metrics.anatomy ) ) );
+        timing.member( "generation_reason_counts", std::vector<uint64_t>( std::begin( graphics_creature_metrics.reasons ), std::end( graphics_creature_metrics.reasons ) ) );
         timing.member( "model_cache_was_cold", true ); timing.member( "first_ready_ms", first_ready_ms ); timing.member( "visible_snapshot", graphics_creature_snapshots.size() ); timing.member( "fallback", graphics_creature_metrics.fallback );
         timing.end_object(); draw(); capture_frame( "first-person-creature-group-" + std::to_string( amount ) + "-" + std::to_string( scenario ) + "-" + mode + ".bmp" );
         if( !billboard_baseline ) require( graphics_creature_metrics.cache_bytes <= 64 * 1024 * 1024 && !graphics_creature_metrics.fallback, "creature_group_cache_budget_failed" );
