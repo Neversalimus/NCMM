@@ -21,6 +21,8 @@ class ApplyTests(unittest.TestCase):
             (root / "src" / name).write_bytes((REPO / "host_patch" / name).read_bytes())
         (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n}\n')
         (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR+'\nstatic void CheckMessages()\n{\n        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n}\n')
+        with (root / "src/sdltiles.cpp").open('a') as f:
+            f.write('\n'.join('void teardown_'+str(i)+'() {\n    renderer.reset();\n}' for i in range(4))+'\n')
         (root / "src/main_menu.cpp").write_text("        std::exit( ncmm::run_gameplay_smoke() );")
         (root / "src/sdltiles.h").write_text("SDL_Window *get_sdl_window();")
         (root / "src/handle_action.cpp").write_text("    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {\n        player_character.clear_destination();\n        destination_preview.clear();\n        return false;\n    }")
@@ -104,5 +106,12 @@ std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids() {}
             with patch.object(bridge.subprocess, "check_output", return_value=next(iter(bridge.SOURCES))):
                 with self.assertRaisesRegex(ValueError, "one exact anchor"): bridge.apply(root)
             self.assertEqual(before, self.fingerprint(root))
+    def test_changed_renderer_teardown_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root);path=root/'src/sdltiles.cpp'
+            path.write_text(path.read_text().replace('renderer.reset();','renderer.changed_reset();',1));before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'teardown'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
 
 if __name__ == "__main__": unittest.main()

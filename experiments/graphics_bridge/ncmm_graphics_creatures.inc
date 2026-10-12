@@ -105,7 +105,7 @@ uint64_t graphics_creature_overlay_revision( const Character &ch, uint64_t h )
 void graphics_prepare_creatures( const ncmm_graphics_scene_v1 &base,
                                 const std::vector<tripoint_bub_ms> &positions )
 {
-    const double now = SDL_GetTicks() / 1000.0; avatar &you = get_avatar(); map &here = get_map();
+    const double now = graphics_presentation_seconds(); avatar &you = get_avatar(); map &here = get_map();
     graphics_creature_snapshots.clear();
     if( graphics_creature_sheet_epoch != graphics_hybrid_tileset_epoch ) { graphics_creature_sheets.clear(); graphics_creature_sheet_epoch = graphics_hybrid_tileset_epoch; }
     for( size_t i = 0; i < base.cell_count; ++i ) {

@@ -2,6 +2,7 @@
 #include "renderer.hpp"
 #include "hybrid_renderer.hpp"
 #include "scene_hash.hpp"
+#include "gpu_scene.hpp"
 #include <chrono>
 namespace {
 constexpr const char *id="first_person_view";
@@ -10,6 +11,12 @@ const ncmm_host_graphics_v1 *graphics=nullptr;
 const ncmm_host_graphics_v2 *hybrid=nullptr;
 const ncmm_host_graphics_controls_v1 *controls=nullptr;
 const ncmm_host_graphics_presentation_v1 *presentation=nullptr;
+const ncmm_host_graphics_gpu_v1 *gpu=nullptr;
+const ncmm_host_api_v2_core *settings=nullptr;
+void (*diagnostic_log)(ncmm_log_level_v1,const char *)=nullptr;
+std::unique_ptr<first_person::gpu::scene_cache> gpu_world;
+uint32_t renderer_mode=NCMM_GPU_AUTO;std::string last_setting="auto",last_gpu_reason;
+bool mode_override=false;
 first_person::hybrid::presentation_data metadata;
 const ncmm_host_graphics_creatures_v1 *creatures=nullptr;
 std::unique_ptr<first_person::creature::presentation> creature_state;
@@ -25,6 +32,18 @@ uint64_t world_key=0;
 bool world_valid=false;
 std::chrono::steady_clock::time_point frame_built{};
 std::chrono::steady_clock::time_point world_built{};
+void select_renderer(uint32_t mode){
+    if(mode==renderer_mode)return;
+    renderer_mode=mode;frame_valid=world_valid=false;
+    if(mode==NCMM_GPU_CPU&&gpu)gpu->invalidate();
+}
+void report_gpu_fallback(const std::string &reason){
+    const std::string message=reason.empty()?"GPU submission rejected without Host diagnostics":reason;
+    if(message!=last_gpu_reason&&diagnostic_log){
+        diagnostic_log(NCMM_LOG_WARN,("First Person GPU unavailable; CPU fallback: "+message).c_str());
+    }
+    last_gpu_reason=message;
+}
 uint64_t geometry_key(const ncmm_graphics_scene_v2 &s,bool dynamic=false){
     uint64_t h=1469598103934665603ull;
     auto bytes=[&](const void *p,size_t n){h=first_person::hash_bytes(h,p,n);};
@@ -51,13 +70,14 @@ ncmm_graphics_control_state_v1 control_state(){
     return state;
 }
 int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
+    const auto frame_begun=std::chrono::steady_clock::now();bool cpu_built=false;
     if(!hybrid||!scene||!first_person::hybrid::valid_scene(*scene,float(yaw),pitch))return 0;
     last_scene_seconds=scene->environment.animation_seconds;
     const auto now=std::chrono::steady_clock::now();const auto state=control_state();
     bool has_metadata=false;
     if(presentation){metadata.view={};metadata.view.struct_size=sizeof(metadata.view);metadata.cells.resize(scene->base.cell_count);
         has_metadata=presentation->get_scene(&metadata.view)&&presentation->get_cells(metadata.cells.data(),metadata.cells.size());
-        if(!gpu_effects)metadata.view.flags&=~NCMM_PRESENT_GPU_EFFECTS;}
+    }
     bool has_creatures=false;
     if(creatures&&creature_state){auto &input=creature_state->input;input.view={};input.view.struct_size=sizeof(input.view);
         if(creatures->get_scene(&input.view)&&input.view.count<=scene->base.cell_count+256){input.creatures.resize(input.view.count);
@@ -68,6 +88,32 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         const float lag=std::exp(-float(std::max(0.0,scene->environment.animation_seconds-look_sway_started))*9);
         pose.sway_x=std::sin(t*1.4f)*.0022f+std::sin(t*8)*metadata.view.movement*.008f+look_sway_x*lag;
         pose.sway_y=std::sin(t*2.2f)*.0032f+std::abs(std::sin(t*10))*metadata.view.movement*.010f+look_sway_y*lag;}
+    if(settings){const char *value=settings->world_setting_get_string("NCMM_FIRST_PERSON_RENDERER","auto");
+        const std::string selected=value?value:"auto";if(selected!=last_setting){last_setting=selected;mode_override=false;}
+        if(!mode_override)select_renderer(selected=="cpu"?NCMM_GPU_CPU:selected=="gpu"?NCMM_GPU_FORCE:NCMM_GPU_AUTO);}
+    gpu_effects=renderer_mode!=NCMM_GPU_CPU;if(has_metadata&&!gpu_effects)metadata.view.flags&=~NCMM_PRESENT_GPU_EFFECTS;
+    if(gpu&&gpu_world&&renderer_mode!=NCMM_GPU_CPU){
+        ncmm_gpu_metrics_v1 available{};available.struct_size=sizeof(available);
+        if(gpu->available(&available)){
+            const float factor=std::min({1.f,float(high_quality?1920:1280)/scene->base.pixel_width,float(high_quality?1080:800)/scene->base.pixel_height});
+            const int width=std::max(1,int(scene->base.pixel_width*factor)),height=std::max(1,int(scene->base.pixel_height*factor));
+            first_person::gpu::packet packet;first_person::hybrid::frame statistics;
+            const first_person::hybrid::sprite_provider provider=[](uint32_t cell,uint32_t layer,ncmm_graphics_sprite_v2 &sprite){return hybrid&&hybrid->get_sprite(cell,layer,&sprite)!=0;};
+            const bool built=gpu_world->build(*scene,float(yaw),pitch,provider,packet,statistics,available,pose,has_metadata?&metadata:nullptr,has_creatures?creature_state.get():nullptr,width,height,renderer_mode);
+            if(built&&gpu->submit_scene(&packet.finish(gpu))){
+                ncmm_gpu_metrics_v1 result{};result.struct_size=sizeof(result);gpu->metrics(&result);
+                if(presentation)presentation->set_target(result.target_cell,result.label_x,result.label_y);
+                if(has_creatures&&creatures->submit_metrics){const auto stats=creature_state->resources.statistics();ncmm_graphics_creature_metrics_v1 m{};m.struct_size=sizeof(m);
+                    std::copy(statistics.creature_lods.begin(),statistics.creature_lods.end(),m.lod);m.fallback=statistics.creature_fallback;m.culled=statistics.creature_culled;
+                    m.cache_bytes=stats.bytes;m.cache_peak_bytes=stats.peak_bytes;m.generated=stats.generated;m.entries=stats.entries;m.queued=stats.pending;m.evictions=stats.evictions;m.failures=stats.failures;
+                    m.visible_pixels=result.visible_creature_pixels;m.generation_ms=stats.last_generation_ms;m.generation_max_ms=stats.max_generation_ms;m.generation_total_ms=stats.total_generation_ms;
+                    std::copy(stats.anatomy_counts.begin(),stats.anatomy_counts.end(),m.anatomy);std::copy(stats.fallback_counts.begin(),stats.fallback_counts.end(),m.reasons);creatures->submit_metrics(&m);}
+                frame_valid=false;last_gpu_reason.clear();return 1;
+            }
+            if(!built)report_gpu_fallback(gpu_world->last_reason);
+            else{ncmm_gpu_metrics_v1 result{};result.struct_size=sizeof(result);gpu->metrics(&result);report_gpu_fallback(result.reason);}
+        }else report_gpu_fallback(available.reason);
+    }else if(renderer_mode!=NCMM_GPU_CPU)report_gpu_fallback("Host does not provide compatible Graphics GPU/Mesh API v1");
     const uint64_t common=geometry_key(*scene,has_creatures);
     uint64_t key=scene_key(*scene,common);
     for(float value:{pose.swing,pose.thrust,pose.recoil,pose.length,pose.sway_x,pose.sway_y}){uint32_t bits;std::memcpy(&bits,&value,sizeof(bits));key=(key^bits)*1099511628211ull;}
@@ -88,6 +134,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     // Keep complete owned pixels only; callback-scoped sprite pointers never
     // survive a frame. Periodic refresh also handles a changed tileset atlas.
     if(!frame_valid||rebuild_world||key!=frame_key||now-frame_built>std::chrono::milliseconds(250)){
+        cpu_built=true;
         const first_person::hybrid::sprite_provider provider=[](uint32_t i,uint32_t layer,ncmm_graphics_sprite_v2 &s){return hybrid&&hybrid->get_sprite(i,layer,&s)!=0;};
         if(!first_person::hybrid::build_frame(*scene,float(yaw),pitch,provider,pixels,high_quality?1920:1280,high_quality?1080:800,pose,rebuild_world?nullptr:&world_pixels,rebuild_world?&world_pixels:nullptr,has_metadata?&metadata:nullptr,{},has_creatures?creature_state.get():nullptr)){frame_valid=world_valid=false;return 0;}
         if(rebuild_world){world_key=wk;world_built=now;world_valid=true;}
@@ -101,7 +148,13 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     if(presentation){presentation->set_target(pixels.aimed,pixels.label_x,pixels.label_y);
         if(!pixels.effects.empty()&&!presentation->submit_effects(pixels.effects.data(),pixels.effect_width,pixels.effect_height,pixels.effect_width)){
             ncmm_graphics_composite::blend(pixels.pixels,pixels.width,pixels.height,pixels.effects,pixels.effect_width,pixels.effect_height);frame_valid=false;}}
-    return hybrid->submit_frame(pixels.pixels.data(),uint32_t(pixels.width),uint32_t(pixels.height),uint32_t(pixels.width));
+    const int submitted=hybrid->submit_frame(pixels.pixels.data(),uint32_t(pixels.width),uint32_t(pixels.height),uint32_t(pixels.width));
+    if(gpu&&gpu->struct_size>=offsetof(ncmm_host_graphics_gpu_v1,submit_cpu_metrics)+sizeof(gpu->submit_cpu_metrics)&&gpu->submit_cpu_metrics){ncmm_gpu_cpu_metrics_v1 metrics{};metrics.struct_size=sizeof(metrics);metrics.width=pixels.width;metrics.height=pixels.height;
+        metrics.frame_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-frame_begun).count();
+        if(cpu_built){metrics.raster_calls=pixels.raster_calls;metrics.triangles=pixels.submitted_triangles;metrics.geometry_ms=pixels.geometry_ms;metrics.raster_ms=pixels.raster_ms;metrics.effects_ms=pixels.effects_ms;}
+        metrics.cache_bytes=(pixels.pixels.capacity()+world_pixels.pixels.capacity())*sizeof(uint32_t)+(pixels.depth.capacity()+world_pixels.depth.capacity()+pixels.held_depth.capacity()+world_pixels.held_depth.capacity())*sizeof(float)+
+            (pixels.owners.capacity()+world_pixels.owners.capacity()+pixels.creatures.capacity()+world_pixels.creatures.capacity())*sizeof(int32_t);gpu->submit_cpu_metrics(&metrics);}
+    return submitted;
 }
 int render(const ncmm_graphics_scene_v1 *scene,void *) {
     return graphics && scene && first_person::build_frame(*scene,yaw,commands) &&
@@ -109,7 +162,11 @@ int render(const ncmm_graphics_scene_v1 *scene,void *) {
 }
 void input(uint32_t action,void *) {
     frame_valid=false;
-    if(action==NCMM_GFX_ACCELERATION){gpu_effects=!gpu_effects;world_valid=false;}
+    if(action==NCMM_GFX_ACCELERATION){
+        select_renderer(renderer_mode==NCMM_GPU_AUTO?NCMM_GPU_CPU:renderer_mode==NCMM_GPU_CPU?NCMM_GPU_FORCE:NCMM_GPU_AUTO);mode_override=true;
+        gpu_effects=renderer_mode!=NCMM_GPU_CPU;world_valid=false;
+        if(settings&&settings->log){const char *mode=renderer_mode==NCMM_GPU_AUTO?"Auto":renderer_mode==NCMM_GPU_CPU?"CPU":"GPU";std::string message=std::string("First Person renderer: ")+mode;settings->log(NCMM_LOG_INFO,message.c_str());}
+    }
     if(action==NCMM_GFX_QUALITY)high_quality=!high_quality;
     if(action==NCMM_GFX_TURN_LEFT) yaw-=first_person::pi/12.0;
     if(action==NCMM_GFX_TURN_RIGHT) yaw+=first_person::pi/12.0;
@@ -124,15 +181,22 @@ void input(uint32_t action,void *) {
 int init(const ncmm_host_api_v1 *api) {
     graphics=nullptr;
     hybrid=nullptr;
+    gpu=nullptr;settings=nullptr;diagnostic_log=nullptr;gpu_world.reset();renderer_mode=NCMM_GPU_AUTO;last_setting="auto";mode_override=false;last_gpu_reason.clear();
     controls=nullptr;presentation=nullptr;metadata={};creatures=nullptr;creature_state.reset();look_sway_x=look_sway_y=0;look_sway_started=last_scene_seconds=0;frame_valid=world_valid=false;high_quality=false;gpu_effects=true;
     const auto core=ncmm::sdk::require_core(api,caps,sizeof(caps)/sizeof(caps[0]),NCMM_SDK_CORE_FIELD_END(api_minor));
     if(!core) return 0;
+    diagnostic_log=core.core->struct_size>=NCMM_SDK_CORE_FIELD_END(log)?core.core->log:api->log;
+    if(core.core->struct_size>=NCMM_SDK_CORE_FIELD_END(world_setting_get_string)&&core.core->world_setting_register_enum&&core.core->world_setting_get_string){
+        const char *values[]={"auto","gpu","cpu"},*labels[]={"Auto","GPU","CPU"};
+        if(core.core->world_setting_register_enum(id,"NCMM_FIRST_PERSON_RENDERER","First Person renderer / Рендерер первого лица","Auto uses compatible SDL GPU. F12: Auto → CPU → GPU → Auto. / F12: Auto → CPU → GPU → Auto.",values,labels,3,"auto",NCMM_WORLD_SETTING_LIVE))settings=core.core;}
     if(api->has_capability(NCMM_GRAPHICS_V2_CAP)) {
         auto *candidate=static_cast<const ncmm_host_graphics_v2 *>(api->query_interface(NCMM_GRAPHICS_V2_ID,2,0));
         if(!candidate || candidate->abi_version!=2 || candidate->major!=2 || candidate->struct_size<sizeof(ncmm_host_graphics_v2) ||
            !candidate->register_view || !candidate->set_enabled || !candidate->is_enabled || !candidate->get_sprite || !candidate->submit_frame) return 0;
         if(!candidate->register_view(id,render_hybrid,input,nullptr))return 0;
         hybrid=candidate;yaw=-first_person::pi*.5;pitch=0;
+        auto *g=static_cast<const ncmm_host_graphics_gpu_v1 *>(api->query_interface(NCMM_GRAPHICS_GPU_ID,1,0));
+        if(g&&g->version==1&&g->api_major==1&&g->struct_size>=offsetof(ncmm_host_graphics_gpu_v1,has_resource)+sizeof(g->has_resource)&&g->available&&g->submit_scene&&g->metrics&&g->invalidate&&g->has_resource){gpu=g;gpu_world=std::make_unique<first_person::gpu::scene_cache>();}
         if(api->has_capability(NCMM_GRAPHICS_PRESENTATION_CAP)){
             auto *p=static_cast<const ncmm_host_graphics_presentation_v1 *>(api->query_interface(NCMM_GRAPHICS_PRESENTATION_ID,1,0));
             if(p&&p->abi_version==1&&p->major==1&&p->struct_size>=sizeof(*p)&&p->get_scene&&p->get_cells&&p->set_target&&p->submit_effects)presentation=p;}
@@ -156,6 +220,7 @@ int init(const ncmm_host_api_v1 *api) {
 void shutdown() {
     if(hybrid) hybrid->set_enabled(id,0);
     if(graphics) graphics->set_enabled(id,0);
+    gpu=nullptr;settings=nullptr;diagnostic_log=nullptr;gpu_world.reset();
     hybrid=nullptr;
     controls=nullptr;
     presentation=nullptr;metadata={};creatures=nullptr;creature_state.reset();
@@ -163,11 +228,11 @@ void shutdown() {
     commands.clear();
     pixels={};world_pixels={};frame_valid=world_valid=false;
 }
-const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View","0.9.0-dev",
+const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View","0.10.0-dev",
     caps,sizeof(caps)/sizeof(caps[0]),init,shutdown};
 }
 extern "C" NCMM_EXPORT const ncmm_mod_descriptor_v1 *ncmm_get_descriptor_v1(){return &descriptor;}
 extern "C" NCMM_EXPORT void ncmm_open_ui_v1(const ncmm_host_api_v1 *) {
-    if(hybrid){frame_valid=world_valid=false;hybrid->set_enabled(id,!hybrid->is_enabled(id));}
+    if(hybrid){frame_valid=world_valid=false;const bool enabled=!hybrid->is_enabled(id);hybrid->set_enabled(id,enabled);if(!enabled&&gpu_world)gpu_world->clear();}
     if(graphics) graphics->set_enabled(id,!graphics->is_enabled(id));
 }

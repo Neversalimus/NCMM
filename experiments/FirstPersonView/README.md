@@ -1,4 +1,6 @@
-# First Person View — 0.9.0 development prototype
+# First Person View — 0.10.0 GPU development
+
+Version 0.10 uses the shared SDL GPU device for 3D geometry, depth, skinning, materials and atmosphere. The previous CPU renderer remains available. NCMM module settings offer Auto/GPU/CPU; F12 now cycles these modes. See [GPU.md](GPU.md) for architecture, qualification evidence and hardware limits.
 
 Optional first-person renderer of the same live CDDA world through NCMM. This
 preview bundles an exact experimental Windows x64 Host for 1040 or 1807 and uses
@@ -26,7 +28,7 @@ original game backup when upgrading ordinary NCMM, preview NCMM or legacy CML.
 | F7 / F8 | Rotate left / right |
 | F9 / F10 | Look up / down, including the sky |
 | F11 | Balanced / high quality |
-| F12 | GPU atmosphere composition / CPU |
+| F12 | Auto → CPU → GPU → Auto renderer |
 | Left mouse button over the viewport | Attack the visible hostile creature under the centre reticle |
 | Hold right mouse button in the viewport | Free horizontal/vertical look |
 | ↑ / ↓ in first person | Forward / backward relative to the camera |

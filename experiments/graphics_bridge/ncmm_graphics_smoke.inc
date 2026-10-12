@@ -15,10 +15,24 @@ bool graphics_scene_smoke()
         require( graphics_view.owner == "first_person_view" && graphics_view.hybrid_render,
                  "graphics_provider_missing" );
         require( tilecontext && tilecontext->is_valid(), "tileset_unavailable" );
+        // Keep the complete established CPU qualification on the same new Host.
+        // The GPU equivalence matrix below explicitly selects GPU separately.
+        if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) ) get_options().get_option( "NCMM_FIRST_PERSON_RENDERER" ).setValue( "cpu" );
         map &here = get_map();
         here.load( tripoint_abs_sm( 0, 0, 0 ), true );
+        auto clear_fixture_monsters = [&]() {
+            const auto monsters = get_creature_tracker().get_monsters_list();
+            for( const auto &mon : monsters ) get_creature_tracker().remove( *mon );
+            require( get_creature_tracker().get_monsters_list().empty(), "graphics_fixture_monster_reset_incomplete" );
+        };
+        clear_fixture_monsters();
         for( const auto &vehicle : here.get_vehicles() ) here.destroy_vehicle( vehicle.v );
         avatar &you = get_avatar();
+        // Quickstart traits and effects must not randomize this isolated visual
+        // fixture's sight, posture or camera height. The creature gallery uses
+        // the same normalization before its own explicit appearance cases.
+        you.clear_mutations(); you.clear_effects(); you.set_underwater( false );
+        you.set_base_height( 175 ); you.set_movement_mode( move_mode_id( "walk" ) );
         const tripoint_bub_ms center( 60, 60, 0 );
         calendar::turn = calendar::turn_zero + 12_hours;
         get_weather().weather_id = weather_type_id( "sunny" );
@@ -27,6 +41,7 @@ bool graphics_scene_smoke()
             here.furn_set( p, furn_id( "f_null" ) );
             here.ter_set( p, ter_id( std::abs( x ) == 4 || std::abs( y ) == 4 ? "t_wall" : "t_floor" ) );
             here.clear_fields( p );
+            here.remove_trap( p );
             // The loaded map is procedurally generated. Keep this daylight
             // fixture independent of any inherited roof or smoke fields.
             const tripoint_bub_ms above( p.x(), p.y(), 1 );
@@ -134,6 +149,8 @@ bool graphics_scene_smoke()
         const bool saved = SDL_SaveBMP( surface, ( game_root() / "ncmm" / "first-person-room.bmp" ).string().c_str() );
         SDL_DestroySurface( surface );
         require( saved, "frame_capture_write_failed" );
+        #include "ncmm_gpu_probe_smoke.inc"
+        #include "ncmm_gpu_game_smoke.inc"
         for( int i = 0; i < 24; ++i ) {
             require( ncmm::handle_gameplay_action( "ncmm.view.turn_left" ), "left_action_missing" );
             draw();
@@ -262,6 +279,9 @@ bool graphics_scene_smoke()
         require(interior_checked,"roofed_vehicle_seat_fixture_missing");
         log_line(NCMM_LOG_INFO,"First person smoke checkpoint: roofed interior and bubble recenter restored.");
         here.destroy_vehicle( car );
+        // update_map() above may spawn inhabitants of newly loaded submaps.
+        // A random spider at the scripted attack tile must not block the test.
+        clear_fixture_monsters();
         g->ter_view_p = center;
         // Audit all definitions without querying the identities of unseen cells.
         size_t terrain_count = 0, furniture_count = 0, creature_count=0, gas_count=0;
@@ -321,7 +341,17 @@ bool graphics_scene_smoke()
                  "wielded_tileset_item_missing" );
         capture_frame( "first-person-objects.bmp" );
         capture_frame( "first-person-pole-grip.bmp" );
-        monster *target = g->place_critter_at( mtype_id( "mon_zombie" ), tripoint_bub_ms( center.x(), center.y() - 1, 0 ) );
+        const tripoint_bub_ms attack_cell( center.x(), center.y() - 1, 0 );
+        // Keep the scripted target independent of inherited terrain hazards or
+        // a quickstart NPC as well as monsters; do not bypass spawn validation.
+        here.ter_set( attack_cell, ter_id( "t_floor" ) ); here.furn_set( attack_cell, furn_id( "f_null" ) );
+        here.clear_fields( attack_cell ); here.remove_trap( attack_cell );
+        if( const monster *previous = get_creature_tracker().creature_at<monster>( attack_cell ) ) get_creature_tracker().remove( *previous );
+        if( npc *previous = get_creature_tracker().creature_at<npc>( attack_cell ) ) {
+            const auto previous_id = previous->getID(); g->remove_npc( previous_id ); overmap_buffer.remove_npc( previous_id );
+        }
+        require( here.passable( attack_cell ) && !get_creature_tracker().creature_at( attack_cell ), "attack_fixture_cell_not_empty" );
+        monster *target = g->place_critter_at( mtype_id( "mon_zombie" ), attack_cell );
         require( target != nullptr, "attack_target_not_created" );
         ncmm::handle_gameplay_action("ncmm.view.look_down");draw();
         require(graphics_aim.has_value()&&graphics_aim_name==target->disp_name(),"visible_aim_label_missing");
@@ -481,6 +511,12 @@ bool graphics_scene_smoke()
         require( graphics_ceiling_cells > 0, "real_indoor_ceiling_missing" );
         require( !graphics_hybrid_last_environment.outdoors, "roof_exposure_not_from_game" );
         #include "ncmm_graphics_creature_smoke.inc"
+        if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) ) {
+            get_options().get_option( "NCMM_FIRST_PERSON_RENDERER" ).setValue( "gpu" ); graphics_smoke_gpu_gallery = true;
+            #include "ncmm_graphics_creature_smoke.inc"
+            graphics_smoke_gpu_gallery = false; get_options().get_option( "NCMM_FIRST_PERSON_RENDERER" ).setValue( "cpu" ); draw();
+        }
+        #include "ncmm_gpu_benchmark.inc"
         press_f6();
         require( !graphics_view.enabled, "f6_final_toggle_off_failed" );
         require( you.pos_bub() == start_pos && you.get_moves() == start_moves && calendar::turn == start_time,

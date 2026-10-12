@@ -9,6 +9,7 @@
         auto local_pose=pose;if(fallback){local_pose.heading=0;local_pose.offset={};}
         const auto animation=creature::animate(model,local_pose,s.environment.animation_seconds,lod!=0);
         const auto &mesh=model.lod[std::min(lod,1)];
+        if(gpu_sink){gpu_sink->skin(model,animation,lod,origin,cell,scale,fallback,targetable,pose.heading,{pose.offset.x,pose.offset.y,pose.offset.z});return;}
         std::vector<vec> positions(mesh.vertices.size()),normals(mesh.vertices.size()),lights(mesh.vertices.size());
         for(size_t j=0;j<mesh.vertices.size();++j){const auto &v=mesh.vertices[j];const auto &bone=animation.joints[v.joint];auto p=bone.apply(v.position),n=bone.vector(v.normal);
             vec pos{p.x*scale.x,p.y*scale.y,p.z*scale.z},normal=normalize({n.x/scale.x,n.y/scale.y,n.z/scale.z});
@@ -27,12 +28,14 @@
         }
     }
     void creature_impostor(const creature::asset &asset,const creature::pose_state &pose,vec origin,int cell,int lod,bool targetable=true){
+        if(gpu_sink){gpu_sink->impostor(asset,pose,origin,cell,lod,targetable);return;}
         const float angle=std::atan2(eye.y-origin.y,eye.x-origin.x)-pose.heading;
         const int direction=creature::impostor_direction(angle),state=creature::impostor_pose(pose);
         const auto &sprite=asset.atlas->frames[state*creature::impostor_atlas::directions+direction];
         material mat;mat.cell=cell;mat.creature=targetable;mat.creature_visual=true;mat.cutout=true;mat.impostor=&sprite;mat.creature_yaw=pose.heading;mat.silhouette=lod==3;
         mat.color={asset.geometry.colors.skins[1].mean.x,asset.geometry.colors.skins[1].mean.y,asset.geometry.colors.skins[1].mean.z};
-        const vec right{-sy,cy,0};origin=origin+vec{pose.offset.x,pose.offset.y,pose.offset.z};
+        const vec right=gpu_sink?vec{1,0,0}:vec{-sy,cy,0};origin=origin+vec{pose.offset.x,pose.offset.y,pose.offset.z};
+        if(gpu_sink){mat.gpu_billboard=true;mat.gpu_pivot=origin;}
         quad(origin-right*(sprite.span*.5f)+vec{0,0,sprite.bottom},origin+right*(sprite.span*.5f)+vec{0,0,sprite.bottom},
              origin+right*(sprite.span*.5f)+vec{0,0,sprite.top},origin-right*(sprite.span*.5f)+vec{0,0,sprite.top},mat,{-cy,-sy,0});
     }
@@ -83,7 +86,7 @@
     void dynamic_contact_shadow(int cell,vec center,float width,float length,float elevation){
         if(!options.contact_shadows||(base.cells[cell].flags&NCMM_GFX_NO_FLOOR)||terrain_liquid(cell))return;
         center.z=.022f;const float rx=std::clamp(length*.35f,.04f,1.5f),ry=std::clamp(width*.35f,.04f,1.5f);
-        const float distance=std::hypot(center.x-eye.x,center.y-eye.y);const float alpha=.24f*clamp(1-distance/24)/(1+elevation);
+        const float distance=gpu_sink?0.f:std::hypot(center.x-eye.x,center.y-eye.y);const float alpha=.24f*clamp(1-distance/24)/(1+elevation);
         if(alpha<.01f)return;
         material shadow{nullptr,{.025f,.028f,.032f},alpha,false,false,false,cell,surface::contact};
         quad(center+vec{-rx,-ry,0},center+vec{rx,-ry,0},center+vec{rx,ry,0},center+vec{-rx,ry,0},shadow);

@@ -79,11 +79,18 @@ def apply(root: Path):
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CREATURES_ID ) {\n        return min_major <= 1 && min_minor == 0 ? &graphics_creatures_api : nullptr;\n    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {')
     loader = replace(loader, "bool graphics_requires_terrain_pass()\n{", "void graphics_note_creature( Creature *who, uint32_t event, float heading )\n{\n#if defined(TILES)\n    graphics_notify_creature( who, event, heading );\n#else\n    (void)who; (void)event; (void)heading;\n#endif\n}\nbool graphics_requires_terrain_pass()\n{")
     updates["ncmm_loader.cpp"] = loader
+    updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '#include "ncmm_graphics_performance.hpp"',
+        '#include "ncmm_graphics_performance.hpp"\n#include "ncmm_graphics_gpu.h"\n#if defined(TILES)\n#include "ncmm_gpu_probe.hpp"\n#include "ncmm_gpu_backend.hpp"\n#endif')
+    updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '    "graphics.creatures.v1",', '    "graphics.creatures.v1",\n    "graphics.gpu.v1",')
+    updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CREATURES_ID ) {',
+        '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_GPU_ID ) {\n        return min_major <= 1 && min_minor == 0 ? &graphics_gpu_api : nullptr;\n    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CREATURES_ID ) {')
+    updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], "bool graphics_requires_terrain_pass()\n{", "void graphics_release_gpu()\n{\n    graphics_clear_gpu();\n}\nbool graphics_requires_terrain_pass()\n{")
     header = read("ncmm_loader.h")
     updates["ncmm_loader.h"] = replace(header, "void initialize();", "void graphics_note_input_context( const std::string &category );\nbool graphics_preserves_destination( const std::string &action );\nbool graphics_requires_terrain_pass();\nbool draw_graphics_view( int x, int y, int width, int height );\nvoid initialize();")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "class input_context;", "class input_context;\nstruct input_event;")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", "std::string graphics_relative_action( const std::string &, const input_event &, bool );\nvoid graphics_note_attack( uint32_t kind );\nbool graphics_mouse_event( uint32_t kind, float x, float y, float dx, float dy, bool allowed );\nbool graphics_animation_redraw_due();\nvoid initialize();")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", "void graphics_note_creature( Creature *, uint32_t event, float heading = 100.f );\nvoid initialize();")
+    updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", "void graphics_release_gpu();\nvoid initialize();")
     action = read("handle_action.cpp")
     action_anchor = "    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {\n        player_character.clear_destination();\n        destination_preview.clear();\n        return false;\n    }"
     updates["handle_action.cpp"] = replace(action, action_anchor,
@@ -121,6 +128,13 @@ def apply(root: Path):
         "                TERRAIN_WINDOW_TERM_WIDTH * font->width, TERRAIN_WINDOW_TERM_HEIGHT * font->height ) ) {\n"+
         anchor+"\n        }")
     updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"], "static void CheckMessages()\n{", "static void CheckMessages()\n{\n    // Presentation redraws never return a gameplay TIMEOUT or advance a turn.\n    if( ncmm::graphics_animation_redraw_due() ) {\n        ui_manager::redraw_invalidated();\n        if( needupdate ) refresh_display();\n    }")
+    # Every renderer teardown, including recovery and native test fixtures,
+    # releases our children while the borrowed device is still alive.
+    renderer_resets = updates["sdltiles.cpp"].count("renderer.reset();")
+    if renderer_resets != 4:
+        raise ValueError("expected one exact anchor set for four SDL renderer teardown sites")
+    import re
+    updates["sdltiles.cpp"] = re.sub(r'(?m)^(\s*)renderer\.reset\(\);', r'\1ncmm::graphics_release_gpu();\n\1renderer.reset();', updates["sdltiles.cpp"])
     updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"], "        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );", "        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n        const bool ncmm_mouse_allowed = !cataimgui::client::want_capture_mouse();\n        if( ev.type == SDL_EVENT_WINDOW_FOCUS_LOST ) ncmm::graphics_mouse_event( 4, 0, 0, 0, 0, false );\n        if( ev.type == SDL_EVENT_MOUSE_MOTION && ncmm::graphics_mouse_event( 3, ev_display.motion.x, ev_display.motion.y, ev.motion.xrel, ev.motion.yrel, ncmm_mouse_allowed ) ) continue;\n        if( ( ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN || ev.type == SDL_EVENT_MOUSE_BUTTON_UP ) && ev.button.button == SDL_BUTTON_RIGHT &&\n            ncmm::graphics_mouse_event( ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? 1u : 2u, ev_display.button.x, ev_display.button.y, 0, 0, ncmm_mouse_allowed ) ) continue;")
     updates["sdltiles.h"] = replace(read("sdltiles.h"), "SDL_Window *get_sdl_window();", "SDL_Window *get_sdl_window();\nvoid ncmm_draw_perspective_label( const std::string &, int, int, const SDL_Rect & );")
     updates["sdltiles.cpp"] += """
@@ -161,7 +175,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     tiles_declaration = "        std::optional<texture_draw_data> get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p );"
     updates["cata_tiles.h"] = replace(tiles_h, tiles_declaration, tiles_declaration +
         "\n        std::optional<texture_draw_data> ncmm_get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p, bool background, bool stable = false );\n"
-        "        bool ncmm_find_overlay( bool male, const std::string &overlay, const std::string &variant, std::string &id ) { return find_overlay_looks_like( male, overlay, variant, id ); }\n        uint64_t ncmm_graphics_epoch = 0;\n        uint64_t ncmm_graphics_tileset_epoch() const { return ncmm_graphics_epoch; }")
+        "        bool ncmm_find_overlay( bool male, const std::string &overlay, const std::string &variant, std::string &id ) { return find_overlay_looks_like( male, overlay, variant, id ); }\n        void ncmm_unbind_gpu_state() { flush_sprite_shader_for_untextured_draw(); }\n        uint64_t ncmm_graphics_epoch = 0;\n        uint64_t ncmm_graphics_tileset_epoch() const { return ncmm_graphics_epoch; }")
     tiles_cpp = read("cata_tiles.cpp")
     start = tiles_cpp.index("std::optional<texture_draw_data> cata_tiles::get_texture_draw_data(")
     end = tiles_cpp.index("std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids", start)
@@ -176,7 +190,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     tiles_cpp = tiles_cpp[:start] + lookup + tiles_cpp[start:]
     load_anchor = "                               const bool force, const bool pump_events, const bool terrain )\n{"
     updates["cata_tiles.cpp"] = replace(tiles_cpp, load_anchor, load_anchor + "\n    ++ncmm_graphics_epoch;")
-    for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_controls.h", "ncmm_graphics_camera.hpp", "ncmm_graphics_controls.inc", "ncmm_graphics_presentation.h", "ncmm_graphics_presentation_policy.hpp", "ncmm_graphics_presentation.inc", "ncmm_graphics_creatures.h", "ncmm_graphics_creature_policy.hpp", "ncmm_graphics_performance.hpp", "ncmm_graphics_creatures.inc", "ncmm_graphics_creature_smoke.inc", "ncmm_graphics_composite.hpp", "ncmm_graphics_effects.inc", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_smoke.inc"):
+    for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_controls.h", "ncmm_graphics_camera.hpp", "ncmm_graphics_controls.inc", "ncmm_graphics_presentation.h", "ncmm_graphics_presentation_policy.hpp", "ncmm_graphics_presentation.inc", "ncmm_graphics_creatures.h", "ncmm_graphics_creature_policy.hpp", "ncmm_graphics_performance.hpp", "ncmm_graphics_creatures.inc", "ncmm_graphics_creature_smoke.inc", "ncmm_graphics_composite.hpp", "ncmm_graphics_gpu.h", "ncmm_gpu_validation.hpp", "ncmm_gpu_device.hpp", "ncmm_gpu_shader_bytes.hpp", "ncmm_gpu_probe.hpp", "ncmm_gpu_probe_smoke.inc", "ncmm_gpu_game_smoke.inc", "ncmm_gpu_benchmark.inc", "ncmm_gpu_backend.hpp", "ncmm_gpu_geometry.hpp", "ncmm_gpu_programs.hpp", "ncmm_gpu_resources.hpp", "ncmm_graphics_gpu.inc", "ncmm_graphics_effects.inc", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_smoke.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name] = (bridge / name).read_text(encoding="utf-8")

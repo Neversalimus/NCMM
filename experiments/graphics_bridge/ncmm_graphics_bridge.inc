@@ -20,8 +20,11 @@ size_t graphics_ceiling_cells = 0;
 int graphics_snapshot_radius = 0;
 size_t graphics_snapshot_far_cells = 0;
 size_t graphics_snapshot_light_queries = 0;
+std::chrono::steady_clock::time_point graphics_snapshot_begun;
+double graphics_snapshot_ms = 0, graphics_callback_ms = 0, graphics_presentation_ms = 0;
 loaded_mod *find_loaded_by_id( const char *module_id );
 void graphics_clear_hybrid();
+void graphics_clear_gpu();
 void graphics_release_mouse();
 void graphics_cancel_animation();
 
@@ -47,7 +50,7 @@ int graphics_enable( const char *id, int enabled )
     const bool changed = graphics_view.enabled != ( enabled != 0 );
     graphics_view.enabled = enabled != 0;
     if( changed || !graphics_view.enabled ) graphics_cancel_animation();
-    if( !graphics_view.enabled ) graphics_release_mouse();
+    if( !graphics_view.enabled ) { graphics_release_mouse(); graphics_clear_gpu(); }
 #if defined(TILES)
     if( changed && character_state_available() ) {
         add_msg( m_info, "%s", graphics_view.enabled ?
@@ -96,7 +99,7 @@ void graphics_register_actions( input_context &ctxt )
         { "ncmm.view.acceleration", keycode::f12 }
     };
     for( const auto &key : keys ) {
-        const std::string label = key.second == keycode::f12 ? tr_ui( "First person: GPU atmosphere / CPU", "Первое лицо: атмосфера GPU / CPU" ) :
+        const std::string label = key.second == keycode::f12 ? tr_ui( "First person: Auto / CPU / GPU renderer", "Первое лицо: рендерер Auto / CPU / GPU" ) :
             key.second == keycode::f11 ? tr_ui( "First person: balanced / high quality", "Первое лицо: сбалансированное / высокое качество" ) :
             key.second == keycode::f9 ? tr_ui( "First person: look up", "Первое лицо: смотреть вверх" ) :
             key.second == keycode::f10 ? tr_ui( "First person: look down", "Первое лицо: смотреть вниз" ) :
@@ -147,6 +150,7 @@ bool graphics_draw( int x, int y, int width, int height )
     if( !graphics_view.enabled || ( !graphics_view.render && !graphics_view.hybrid_render ) || !graphics_gameplay_context ||
         !character_state_available() || width < 1 || height < 1 || width > 8192 || height > 8192 ||
         !tilecontext || !tilecontext->is_valid() ) return false;
+    graphics_snapshot_begun = std::chrono::steady_clock::now();
     avatar &you = get_avatar();
     map &here = get_map();
     // The perspective camera follows the avatar, independently of a saved map

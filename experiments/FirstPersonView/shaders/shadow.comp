@@ -1,0 +1,16 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#define CAMERA_SET 2
+#include "common.glsl"
+layout(local_size_x=64) in;
+layout(set=0,binding=0,std430) readonly buffer Cells {Cell cells[];};
+layout(set=1,binding=0,std430) writeonly buffer Shadows {float shadows[];};
+void main(){uint i=gl_GlobalInvocationID.x;if(i>=uint(camera.grid.z))return;
+    float shadow=1.0,hz=length(camera.sun.xy);Cell c=cells[i];
+    if((c.state.x&17u)==1u&&camera.sun.z>.015&&hz>.01){vec2 d=camera.sun.xy/hz;float slope=camera.sun.z/hz;
+        vec2 start=vec2(i%uint(camera.grid.x),i/uint(camera.grid.x))+.5;
+        for(float step=.55;step<12.0;step+=.4){int j=cell_index(ivec2(floor(start+d*step)));if(j==int(i))continue;
+            if(j<0||(cells[j].state.x&1u)==0u)break;
+            if(cells[j].light.w>step*slope+.03){shadow=.22;break;}if(step*slope>3.2)break;}}
+    shadows[i]=shadow;
+}

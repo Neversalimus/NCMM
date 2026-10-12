@@ -12,6 +12,8 @@ if($commit -notin @('3f7fb352bf492ba521bd9408a0c9f6ce239e8d83','074aa98bd5be3de4
 if(Test-Path (Join-Path $SourceRoot 'first-person-source.json')){
     throw 'Use a fresh disposable engine worktree; experimental patches are not reapplied.'
 }
+& python (Join-Path $PSScriptRoot 'compile_gpu_shaders.py') --verify --output (Join-Path $RepositoryRoot 'experiments/graphics_bridge/ncmm_gpu_shader_bytes.hpp')
+if($LASTEXITCODE -ne 0){throw 'Shipping GPU shaders are missing, uncompiled, or stale.'}
 # Reuse the canonical importer and patch stack, without executing Build-HostPackage
 # or producing certification metadata/feed/release assets for this experiment.
 $tokens=$null;$errors=$null
