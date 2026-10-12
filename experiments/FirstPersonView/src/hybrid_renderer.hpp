@@ -123,7 +123,7 @@ inline surface ground_surface(const char *id){
 }
 struct material {const image *texture=nullptr;vec color{0.45f,0.45f,0.45f};float alpha=1;
     bool cutout=false,opaque_texture=false,overlay=false;int cell=-1;surface finish=surface::none;bool creature=false,spill=false;uint32_t liquid=0,banks=0;
-    bool smooth=false,silhouette=false;const creature::impostor *impostor=nullptr;float creature_yaw=0;};
+    bool smooth=false,silhouette=false,creature_visual=false;const creature::impostor *impostor=nullptr;float creature_yaw=0;};
 struct triangle {std::array<vertex,3> v;material m;vec normal{0,0,1};};
 
 // Only this immutable copy crosses callbacks. Atlas addresses and providers
@@ -351,7 +351,7 @@ class renderer {
                 if(!t.m.overlay){float fog=clamp((z-2)*(s.environment.fog_density+.003f));c=c*(1-fog)+fog_color*fog;}
                 if(alpha<.99f)c=c*alpha+unpack(f.pixels[k])*(1-alpha);
                 f.pixels[k]=pack(c);
-                if(alpha>=.99f||t.m.cutout){if(t.m.overlay)f.held_depth[k]=z;else f.depth[k]=z;f.owners[k]=t.m.cell;if(!t.m.overlay)f.creatures[k]=t.m.creature?t.m.cell:-1;}
+                if(alpha>=.99f||t.m.cutout){if(t.m.overlay)f.held_depth[k]=z;else f.depth[k]=z;f.owners[k]=t.m.cell;if(!t.m.overlay)f.creatures[k]=t.m.creature?t.m.cell:t.m.creature_visual?-2:-1;}
             }
         }
     }

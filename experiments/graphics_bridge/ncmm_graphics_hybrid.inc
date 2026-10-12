@@ -23,6 +23,7 @@ struct graphics_cpu_sprite {
 };
 using graphics_sprite_key = std::tuple<uintptr_t, int, int, int, int>;
 std::map<graphics_sprite_key, graphics_cpu_sprite> graphics_cpu_sprites;
+std::map<uint64_t, graphics_cpu_sprite> graphics_creature_composites;
 SDL_Renderer *graphics_hybrid_renderer_identity = nullptr; // comparison only
 SDL_Texture *graphics_stream_texture = nullptr;
 uint64_t graphics_stream_instance = 0, graphics_stream_generation = 0;
@@ -112,7 +113,7 @@ void graphics_clear_hybrid()
     graphics_hybrid_sprite_bytes = 0; graphics_hybrid_tileset_epoch = 0;
 #if defined(TILES)
     graphics_clear_stream();
-    graphics_cpu_sprites.clear(); graphics_hybrid_renderer_identity = nullptr;
+    graphics_cpu_sprites.clear(); graphics_creature_composites.clear(); graphics_hybrid_renderer_identity = nullptr;
 #endif
 }
 
@@ -187,6 +188,48 @@ int graphics_get_sprite( uint32_t index, uint32_t layer, ncmm_graphics_sprite_v2
     }
     const auto &sprite = found->second;
     *out = { sizeof( ncmm_graphics_sprite_v2 ), sprite.width, sprite.height, sprite.width, sprite.pixels.data() };
+    if( layer == NCMM_GFX_CREATURE && index < scene.base.cell_count ) {
+        const Creature *cr = get_creature_tracker().creature_at<Creature>( position );
+        const Character *ch = cr && cr->is_npc() ? cr->as_character() : nullptr;
+        if( ch && get_avatar().sees( get_map(), *cr ) ) {
+            uint64_t revision = 1469598103934665603ull;
+            for( uint32_t pixel : sprite.pixels ) revision = ( revision ^ pixel ) * 1099511628211ull;
+            revision = graphics_creature_overlay_revision( *ch, revision );
+            auto composed = graphics_creature_composites.find( revision );
+            if( composed == graphics_creature_composites.end() && graphics_creature_composites.size() < 128 ) {
+                graphics_cpu_sprite result = sprite;
+                for( const auto &overlay : ch->get_overlay_ids() ) {
+                    if( overlay.first.compare( 0, 5, "worn_" ) && overlay.first.compare( 0, 9, "mutation_" ) ) continue;
+                    std::string draw_id;
+                    if( !tilecontext->ncmm_find_overlay( ch->male, overlay.first, overlay.second, draw_id ) ) continue;
+                    auto source = tilecontext->ncmm_get_texture_draw_data( draw_id, TILE_CATEGORY::NONE, position, false );
+                    if( !source ) continue;
+                    graphics_cpu_sprite layer_pixels;
+                    if( !graphics_read_sprite( *source, layer_pixels ) ) continue;
+                    for( uint32_t y = 0; y < result.height; ++y ) for( uint32_t x = 0; x < result.width; ++x ) {
+                        const uint32_t pixel = layer_pixels.pixels[size_t( y * layer_pixels.height / result.height ) * layer_pixels.width + x * layer_pixels.width / result.width];
+                        const uint32_t alpha = pixel & 255u; if( !alpha ) continue;
+                        uint32_t &dst = result.pixels[size_t( y ) * result.width + x];
+                        const uint32_t out_alpha = alpha + ( ( dst & 255u ) * ( 255u - alpha ) + 127u ) / 255u;
+                        uint32_t color = out_alpha;
+                        for( int shift : { 8, 16, 24 } ) {
+                            const uint32_t premult = ( ( pixel >> shift ) & 255u ) * alpha + ( ( ( dst >> shift ) & 255u ) * ( dst & 255u ) * ( 255u - alpha ) + 127u ) / 255u;
+                            color |= ( ( premult + out_alpha / 2 ) / out_alpha ) << shift;
+                        }
+                        dst = color;
+                    }
+                }
+                if( graphics_hybrid_sprite_bytes + result.pixels.size() * 4 <= 64 * 1024 * 1024 ) {
+                    graphics_hybrid_sprite_bytes += result.pixels.size() * 4;
+                    composed = graphics_creature_composites.emplace( revision, std::move( result ) ).first;
+                }
+            }
+            if( composed != graphics_creature_composites.end() ) {
+                const auto &pixels = composed->second;
+                *out = { sizeof( *out ), pixels.width, pixels.height, pixels.width, pixels.pixels.data() };
+            }
+        }
+    }
     ++graphics_resolved_textures;
     if( category == TILE_CATEGORY::VEHICLE_PART ) ++graphics_resolved_vehicle_textures;
     if( layer == NCMM_GFX_HELD_ITEM ) ++graphics_hybrid_held_sprites;
@@ -382,7 +425,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     SDL_Renderer *renderer = get_sdl_renderer().get();
     if( epoch != graphics_hybrid_tileset_epoch || renderer != graphics_hybrid_renderer_identity || graphics_hybrid_sprite_bytes > 48 * 1024 * 1024 ) {
         if(renderer!=graphics_hybrid_renderer_identity)graphics_effect_failed=false;
-        graphics_cpu_sprites.clear(); graphics_hybrid_sprite_bytes = 0;
+        graphics_cpu_sprites.clear(); graphics_creature_composites.clear(); graphics_hybrid_sprite_bytes = 0;
         graphics_hybrid_tileset_epoch = epoch; graphics_hybrid_renderer_identity = renderer;
     }
     graphics_prepare_creatures( base, positions );

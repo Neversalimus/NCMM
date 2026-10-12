@@ -73,7 +73,7 @@ def apply(root: Path):
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {\n        return min_major <= 1 && min_minor == 0 ? &graphics_presentation_api : nullptr;\n    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CONTROLS_ID ) {')
     loader = replace(loader, "bool graphics_requires_terrain_pass()\n{", "std::string graphics_click_action()\n{\n    return graphics_click_action_impl();\n}\nbool graphics_consume_aimed_fire(int x,int y,int z)\n{\n    return graphics_consume_click_impl(x,y,z);\n}\nbool graphics_requires_terrain_pass()\n{")
     loader = replace(loader, '    graphics_control_context = category == "DEFAULTMODE";', '    graphics_control_context = category == "DEFAULTMODE";\n    if(graphics_control_context)graphics_click_pending=false;')
-    loader = replace(loader, '#include "ncmm_graphics_presentation_policy.hpp"', '#include "ncmm_graphics_presentation_policy.hpp"\n#include "ncmm_graphics_creatures.h"')
+    loader = replace(loader, '#include "ncmm_graphics_presentation_policy.hpp"', '#include "ncmm_graphics_presentation_policy.hpp"\n#include "ncmm_graphics_creatures.h"\n#include "ncmm_graphics_creature_policy.hpp"\n#include "ncmm_graphics_performance.hpp"\n#include "json.h"\n#include "ballistics.h"\n#include "projectile.h"\n#include "dispersion.h"')
     loader = replace(loader, '    "graphics.presentation.v1",', '    "graphics.presentation.v1",\n    "graphics.creatures.v1",')
     loader = replace(loader, '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {',
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CREATURES_ID ) {\n        return min_major <= 1 && min_minor == 0 ? &graphics_creatures_api : nullptr;\n    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {')
@@ -161,7 +161,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     tiles_declaration = "        std::optional<texture_draw_data> get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p );"
     updates["cata_tiles.h"] = replace(tiles_h, tiles_declaration, tiles_declaration +
         "\n        std::optional<texture_draw_data> ncmm_get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p, bool background );\n"
-        "        uint64_t ncmm_graphics_epoch = 0;\n        uint64_t ncmm_graphics_tileset_epoch() const { return ncmm_graphics_epoch; }")
+        "        bool ncmm_find_overlay( bool male, const std::string &overlay, const std::string &variant, std::string &id ) { return find_overlay_looks_like( male, overlay, variant, id ); }\n        uint64_t ncmm_graphics_epoch = 0;\n        uint64_t ncmm_graphics_tileset_epoch() const { return ncmm_graphics_epoch; }")
     tiles_cpp = read("cata_tiles.cpp")
     start = tiles_cpp.index("std::optional<texture_draw_data> cata_tiles::get_texture_draw_data(")
     end = tiles_cpp.index("std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids", start)
@@ -174,7 +174,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     tiles_cpp = tiles_cpp[:start] + lookup + tiles_cpp[start:]
     load_anchor = "                               const bool force, const bool pump_events, const bool terrain )\n{"
     updates["cata_tiles.cpp"] = replace(tiles_cpp, load_anchor, load_anchor + "\n    ++ncmm_graphics_epoch;")
-    for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_controls.h", "ncmm_graphics_camera.hpp", "ncmm_graphics_controls.inc", "ncmm_graphics_presentation.h", "ncmm_graphics_presentation_policy.hpp", "ncmm_graphics_presentation.inc", "ncmm_graphics_creatures.h", "ncmm_graphics_creatures.inc", "ncmm_graphics_composite.hpp", "ncmm_graphics_effects.inc", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_smoke.inc"):
+    for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_controls.h", "ncmm_graphics_camera.hpp", "ncmm_graphics_controls.inc", "ncmm_graphics_presentation.h", "ncmm_graphics_presentation_policy.hpp", "ncmm_graphics_presentation.inc", "ncmm_graphics_creatures.h", "ncmm_graphics_creature_policy.hpp", "ncmm_graphics_performance.hpp", "ncmm_graphics_creatures.inc", "ncmm_graphics_creature_smoke.inc", "ncmm_graphics_composite.hpp", "ncmm_graphics_effects.inc", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_smoke.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name] = (bridge / name).read_text(encoding="utf-8")

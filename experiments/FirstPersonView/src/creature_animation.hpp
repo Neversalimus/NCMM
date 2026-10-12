@@ -79,6 +79,7 @@ inline skeleton_pose animate(const model &m,const pose_state &p,double seconds,b
             case motion::arm:angles.y=-swing*.35f-p.melee*1.05f-p.shoot*1.25f;angles.z=p.melee*.16f;break;
             case motion::forearm:angles.y=-.06f-p.melee*.60f-p.shoot*.45f;break;
             case motion::wing:angles.x=(b.phase==0?1.f:-1.f)*(airborne?std::sin(time*(m.type.kind==anatomy::insect?22.f:7.f))*.65f:swims?std::sin(time*4)*.15f:.10f);break;
+            case motion::rotor:angles.z=time*24+b.phase;break;
             case motion::tail:angles.z=std::sin((swims?time*5:p.phase)+b.phase)*(.05f+p.movement*.18f+(swims?.18f:0));break;
             case motion::segment:angles.z=std::sin(p.phase+b.phase)*p.movement*(m.type.kind==anatomy::serpent?.12f:.035f);break;
             case motion::tentacle:angles.y=std::sin(p.phase+b.phase)*(.025f+p.movement*.18f);angles.z=std::cos(p.phase+b.phase)*p.movement*.10f;break;

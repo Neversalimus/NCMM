@@ -16,9 +16,11 @@
             positions[j]=origin+pos;normals[j]=normal;lights[j]=light(cell,normals[j]);}
         for(const auto &face:mesh.faces){const auto a=face.vertices[0],b=face.vertices[1],c=face.vertices[2];
             const vec normal=normalize(cross(positions[b]-positions[a],positions[c]-positions[a]));if(dot(normal,eye-positions[a])<=0)continue;
-            material mat;mat.cell=cell;mat.creature=targetable;mat.smooth=true;mat.color={.38f,.43f,.28f};
+            material mat;mat.cell=cell;mat.creature=targetable;mat.creature_visual=true;mat.smooth=true;mat.color={.38f,.43f,.28f};
             const auto &v0=mesh.vertices[a];if(!fallback)mat.texture=creature_texture(model.colors.skins[v0.material],v0.back!=0);
             if(model.type.flags&NCMM_CR_MECHANICAL)mat.finish=surface::metal;
+            else if(model.type.flags&(NCMM_CR_CHITIN|NCMM_CR_SCALES))mat.finish=surface::resin;
+            else if(model.type.flags&NCMM_CR_FUR)mat.finish=surface::cloth;
             triangle t;t.m=mat;t.normal=normal;
             for(int k=0;k<3;++k){const auto i=face.vertices[k];const auto &v=mesh.vertices[i];t.v[k]={positions[i],v.u,v.v,lights[i]};}
             opaque.push_back(t);
@@ -28,7 +30,7 @@
         const float angle=std::atan2(eye.y-origin.y,eye.x-origin.x)-pose.heading;
         const int direction=creature::impostor_direction(angle),state=creature::impostor_pose(pose);
         const auto &sprite=asset.atlas->frames[state*creature::impostor_atlas::directions+direction];
-        material mat;mat.cell=cell;mat.creature=targetable;mat.cutout=true;mat.impostor=&sprite;mat.creature_yaw=pose.heading;mat.silhouette=lod==3;
+        material mat;mat.cell=cell;mat.creature=targetable;mat.creature_visual=true;mat.cutout=true;mat.impostor=&sprite;mat.creature_yaw=pose.heading;mat.silhouette=lod==3;
         mat.color={asset.geometry.colors.skins[1].mean.x,asset.geometry.colors.skins[1].mean.y,asset.geometry.colors.skins[1].mean.z};
         const vec right{-sy,cy,0};origin=origin+vec{pose.offset.x,pose.offset.y,pose.offset.z};
         quad(origin-right*(sprite.span*.5f)+vec{0,0,sprite.bottom},origin+right*(sprite.span*.5f)+vec{0,0,sprite.bottom},
@@ -53,7 +55,7 @@
         for(const auto *source:order){const auto &c=*source;const int cell=int(c.cell);const auto type=creature::classify(c);
             vec origin{float(cell%base.grid_width)+.5f,float(cell/base.grid_width)+.5f,c.elevation};
             auto &instance=creature_data->instances[c.entity_id];auto pose=creature::sample(instance,creature_data->input.view.seconds);
-            const float extent=std::max(type.width,type.length)*1.5f;
+            const float extent=std::max({type.height,type.width,type.length})*1.5f;
             if(!in_view(origin+vec{-extent-1,-extent-1,-type.height},origin+vec{extent+1,extent+1,type.height*1.4f})){++f.creature_culled;continue;}
             const uint64_t key=creature::appearance_key(c,creature_data->input.view.tileset_epoch);
             auto asset=creature_data->resources.request(key,type,[&]{auto *img=texture(c.cell,NCMM_GFX_CREATURE);return img?creature::sprite::copy(img->data):creature::sprite{};});

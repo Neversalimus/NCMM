@@ -63,7 +63,7 @@ inline appearance extract(const sprite &s,anatomy kind){
     }
     return a;
 }
-enum class motion : uint8_t { root, body, head, thigh, shin, arm, forearm, wing, tail, segment, tentacle, fixed };
+enum class motion : uint8_t { root, body, head, thigh, shin, arm, forearm, wing, rotor, tail, segment, tentacle, fixed };
 struct bone {int16_t parent=-1;point origin{};motion role=motion::fixed;float phase=0;};
 struct mesh_vertex {point position,normal;float u=0,v=0;uint8_t joint=0,material=0,back=0;};
 struct face {std::array<uint32_t,3> vertices;};
@@ -103,7 +103,7 @@ class builder {
                 ellipsoid({0,0,h*.855f},{l*.17f,w*.16f,h*.070f},head,region::head);
                 ellipsoid({l*.015f,0,h*.915f},{l*.34f,w*.28f,h*.092f},head,region::head,robot);}
             for(int side:{-1,1}){const float phase=side<0?0:pi;
-                limb({0,side*w*.23f,h*.47f},{-.035f*l,side*w*.24f,h*.25f},{.03f*l,side*w*.25f,h*.05f},w*.135f,body,phase);
+                limb({0,side*w*.23f,h*.47f},{-.035f*l,side*w*.24f,h*.25f},{.03f*l,side*w*.25f,h*.03f},w*.135f,body,phase);
                 limb({0,side*w*.43f,h*.77f},{-.04f*l,side*w*.53f,h*.565f},{.07f*l,side*w*.51f,h*.37f},w*.105f,body,phase+pi,true);
             }
         }else if(p.kind==anatomy::quadruped||p.kind==anatomy::reptile||(robot&&p.legs==4)){
@@ -120,12 +120,12 @@ class builder {
                 limb({x,side*w*.25f,h*.56f},{x-end*l*.06f,side*w*spread,h*.28f},{x+.02f*l,side*w*(spread+.025f),h*.045f},w*(reptile?.095f:.105f),body,(end==side?0:pi));}
             auto tail=joint({-l*.30f,0,h*.62f},body,motion::tail);
             link({-l*.30f,0,h*.62f},{-l*.62f,0,h*(reptile?.24f:.80f)},w*.045f,w*.06f,tail,region::appendage);
-        }else if(p.kind==anatomy::arachnid||p.kind==anatomy::insect||p.kind==anatomy::centipede){
-            const bool spider=p.kind==anatomy::arachnid;int segments=p.kind==anatomy::centipede?8:spider?2:3;
+        }else if(p.kind==anatomy::arachnid||p.kind==anatomy::insect||p.kind==anatomy::centipede||(robot&&p.legs>=6)){
+            const bool spider=p.kind==anatomy::arachnid||(robot&&p.legs==8);int segments=p.kind==anatomy::centipede||(robot&&p.legs>=12)?8:spider?2:3;
             for(int i=0;i<segments;++i){float x=(float(i)/std::max(1,segments-1)-.5f)*l*.60f;
                 auto seg=joint({x,0,h*.55f},body,motion::segment,float(i)*.65f);
                 float r=spider&&i==0?.28f:segments>3?.085f:.19f;
-                ellipsoid({x,0,h*.55f},{l*r,w*(spider?.24f:.18f),h*(spider?.35f:.30f)},seg,i==segments-1?region::head:region::torso);
+                ellipsoid({x,0,h*.55f},{l*r,w*(spider?.24f:.18f),h*(spider?.35f:.30f)},seg,i==segments-1?region::head:region::torso,robot);
             }
             int pairs=p.legs/2;
             for(int n=0;n<pairs;++n)for(int side:{-1,1}){float t=(n+.5f)/pairs, x=(t-.5f)*l*.62f;
@@ -158,7 +158,12 @@ class builder {
         }else{
             // Unknown mods receive a closed, conservative volume; no ID exceptions.
             ellipsoid({0,0,h*.5f},{l*.43f,w*.44f,h*.50f},body,region::torso,robot);
-            if(robot&&(p.flags&NCMM_CR_IMMOBILE)){ellipsoid({0,0,h*.12f},{l*.5f,w*.5f,h*.12f},body,region::lower,true);}
+            if(robot&&(p.flags&NCMM_CR_IMMOBILE)){ellipsoid({0,0,h*.12f},{l*.5f,w*.5f,h*.12f},body,region::lower,true);
+                auto turret=joint({0,0,h*.65f},body,motion::head);link({0,0,h*.65f},{l*.78f,0,h*.65f},w*.07f,w*.07f,turret,region::appendage,true);}
+            if(robot&&(p.flags&NCMM_CR_FLIES))for(int n=0;n<4;++n){float a=(n+.5f)*pi*.5f;point end{std::cos(a)*l*.65f,std::sin(a)*w*.65f,h*.65f};
+                link({0,0,h*.65f},end,w*.045f,w*.045f,body,region::appendage,true);auto rotor=joint(end,body,motion::rotor,a);
+                ellipsoid(end,{l*.20f,w*.025f,h*.015f},rotor,region::detail,true);}
+
         }
         if(p.kind==anatomy::bird||(p.flags&NCMM_CR_FLIES&&p.kind!=anatomy::amorphous&&p.kind!=anatomy::robot)){
             for(int side:{-1,1}){auto wing=joint({0,side*w*.18f,h*.65f},body,motion::wing,side>0?0:pi);

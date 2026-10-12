@@ -126,3 +126,19 @@ cache bypasses. Local frame-equivalence and native suites pass; final expanded
 regressions, pinned Host syntax, Windows installers and SDL capture review are
 being qualified. The 0.8.0 installer remains the last qualified package until
 all 0.8.1 gates pass.
+
+
+## 0.9.0 procedural-creature development checkpoint
+
+Work is isolated in `codex/first-person-procedural-creatures` / PR #201 on top
+of the qualified 0.8.1 PR #200 head. Six implementation commits are persisted:
+semantic contract/classifier, anatomical meshes/materials, joint animation,
+eight-angle depth impostors/LOD, bounded worker/cache, and live Host integration.
+The new dynamic pass reuses opaque world pixels and owns deferred transparency.
+
+Thirteen native suites pass locally, including the shipped shared library.
+Fresh canonical preparations for both pinned CDDA revisions accepted the event
+hooks; GCC syntax checks passed against both sets of real headers. The extended
+NPC overlay, diagnostic and SDL gallery work is being qualified next. MSVC/SDL
+and installer qualification for this feature are still pending; no claim of
+release completion or real performance improvement is made at this checkpoint.

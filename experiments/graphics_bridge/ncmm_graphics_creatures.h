@@ -32,10 +32,18 @@ typedef struct ncmm_graphics_creature_v1 {
     double event_seconds;
     char type_id[128], bodytype[48], species[256];
 } ncmm_graphics_creature_v1;
+/* Presentation diagnostics only. These counters never feed gameplay. */
+typedef struct ncmm_graphics_creature_metrics_v1 {
+    uint32_t struct_size, lod[4], fallback, culled;
+    uint64_t cache_bytes, cache_peak_bytes, generated, entries, queued, evictions, failures, visible_pixels;
+    double generation_ms, generation_max_ms, generation_total_ms;
+    uint64_t anatomy[13], reasons[5];
+} ncmm_graphics_creature_metrics_v1;
 typedef struct ncmm_host_graphics_creatures_v1 {
     uint32_t abi_version, struct_size, major, minor;
     int (*get_scene)(ncmm_graphics_creature_scene_v1 *);
     int (*get_creatures)(ncmm_graphics_creature_v1 *, size_t);
+    int (*submit_metrics)(const ncmm_graphics_creature_metrics_v1 *);
 } ncmm_host_graphics_creatures_v1;
 #ifdef __cplusplus
 }

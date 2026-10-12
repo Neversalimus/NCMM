@@ -1,4 +1,4 @@
-# First Person View — 0.8.1 development prototype
+# First Person View — 0.9.0 development prototype
 
 Optional first-person renderer of the same live CDDA world through NCMM. This
 preview bundles an exact experimental Windows x64 Host for 1040 or 1807 and uses
@@ -27,7 +27,7 @@ original game backup when upgrading ordinary NCMM, preview NCMM or legacy CML.
 | F9 / F10 | Look up / down, including the sky |
 | F11 | Balanced / high quality |
 | F12 | GPU atmosphere composition / CPU |
-| Left mouse button over the viewport | Attack the visible hostile sprite under the centre reticle |
+| Left mouse button over the viewport | Attack the visible hostile creature under the centre reticle |
 | Hold right mouse button in the viewport | Free horizontal/vertical look |
 | ↑ / ↓ in first person | Forward / backward relative to the camera |
 | ← / → in first person | Strafe left / right relative to the camera |
@@ -172,8 +172,9 @@ the DLL can be freed. A V1 fallback remains for the previous preview contract.
 
 ## Remaining limits
 
-Tile-center movement, one visible z-level, generic surface dimensions, foliage
-and creature billboards, no NPC appearance yet. Vehicle and held
+Tile-center simulation, one visible z-level, generic surface dimensions and foliage
+billboards. Creature models are deterministic anatomical reconstructions; unseen
+surfaces and unusual mod anatomy remain approximations. Vehicle and held
 item geometry is generated and needs further interactive refinement for unusual
 modded shapes. Raster resolution improves perspective sampling but cannot add
 art detail absent from the installed tileset. Gameplay and saves remain CDDA's;
@@ -345,3 +346,53 @@ collects the same non-gating report in CI. Its reference intentionally disables
 culling; it is not a historical 0.8.0 build. These are synthetic renderer timings,
 not player FPS. Compiler-cache artifacts retain actual bypass reasons, including
 MSVC PCH requests that were excluded from the previous headline cache-hit rate.
+
+
+## 0.9.0 procedural creatures
+
+The optional `graphics.creatures.v1` extension supplies visible, stable entity IDs,
+resolved body plans, species, volume, mass, locomotion/material flags, NPC mutation
+and clothing appearance, and observed combat events. Core/Graphics V1/V2 layouts
+are unchanged. Older Hosts retain the legacy renderer. No engine or SDL handle
+crosses the extension, and no presentation state is written to saves.
+
+The automatic generator covers humanoids, quadrupeds, arachnids, insects,
+centipedes, birds, reptiles, serpents, fish, amorphous organisms, robots and exotic
+forms. Unrecognized anatomy receives a closed universal volume. Source sprites
+supply separate regional materials; back surfaces use restrained regional colors.
+NPC clothing/mutation layers are resolved by the installed tileset's own overlay
+lookup. IDs identify cache entries; they are not an anatomical exception table.
+
+Each model has a hierarchy of joints, two meshes and eight generated depth/normal
+impostor views in six poses. LOD uses projected size, a triangle budget and 13%
+hysteresis. Idle, walking, turning, attacking, hurt, death, flight and swimming
+are presentation only. Movement uses observed absolute positions; teleports and
+fresh visibility never invent a path through unknown terrain. Death visuals
+expire after 550 ms, require current cell visibility and cannot be attacked.
+
+The module retains static opaque scenery and replays owned transparent surfaces
+after dynamic creatures. This preserves glass and depth while avoiding a world
+rebuild for every creature animation. One worker creates immutable assets from
+owned source copies; no game/SDL access occurs on that thread. The asset cache
+is 64 MiB, with at most 16 queued requests and four new requests per callback.
+A small immediate volume covers generation latency. In-flight generation and
+source copies add bounded working memory outside the retained asset budget.
+World/tileset epochs cancel stale work; shutdown joins the worker before unload.
+GPU geometry is not exposed by the current bridge, so meshes and impostors use
+CPU depth/raster paths; existing GPU atmosphere composition remains optional.
+
+Qualification artifacts include loaded-definition classification/fallback JSON,
+a real SDL gallery with twelve creature definitions and eight views each, action,
+LOD/light/occlusion captures, and 1/10/50/100-creature render-loop measurements.
+CI builds the exact 0.8.1 DLL at `3f6a164e23a5d586156218ecb3ab0009e187d1ca`
+and runs it against the same Host/fixture for the billboard comparison. Reports
+record median/p95 SDL render time, process CPU, cold model readiness, generation
+and cache memory. DXGI process-local video memory is recorded when available;
+unavailable measurements are explicitly marked. These render-loop timings are
+not player FPS and exclude interactive simulation/AI turn cost.
+
+The native suites additionally exercise malformed/missing sprites, unknown mod
+anatomy, joint topology, UV bounds, outward faces, LOD hysteresis, hidden entities,
+transparent cache ownership, world resets and the actual shipping DLL lifecycle.
+The real-engine qualification status and measured limitations belong in the
+release report; a passing native test alone does not qualify an installer.

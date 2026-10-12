@@ -1,5 +1,6 @@
 // Read-only, visible-only snapshots. Everything here runs on CDDA's main thread.
 ncmm_graphics_creature_scene_v1 graphics_creature_scene = {};
+ncmm_graphics_creature_metrics_v1 graphics_creature_metrics = {};
 std::vector<ncmm_graphics_creature_v1> graphics_creature_snapshots;
 uint64_t graphics_creature_world_epoch = 1, graphics_creature_next_id = 0, graphics_creature_events = 0;
 #if defined(TILES)
@@ -15,7 +16,7 @@ uint64_t graphics_creature_sheet_epoch = 0;
 void graphics_clear_creatures()
 {
     ++graphics_creature_world_epoch;
-    graphics_creature_scene = {}; graphics_creature_snapshots.clear();
+    graphics_creature_scene = {}; graphics_creature_metrics = {}; graphics_creature_snapshots.clear();
 #if defined(TILES)
     graphics_creature_records.clear(); graphics_creature_sheets.clear(); graphics_creature_sheet_epoch = 0;
 #endif
@@ -30,8 +31,13 @@ int graphics_get_creatures( ncmm_graphics_creature_v1 *out, size_t count )
     if( !graphics_hybrid_frame || active_module_id != graphics_view.owner || ( !out && count ) || count != graphics_creature_snapshots.size() ) return 0;
     std::copy( graphics_creature_snapshots.begin(), graphics_creature_snapshots.end(), out ); return 1;
 }
+int graphics_submit_creature_metrics( const ncmm_graphics_creature_metrics_v1 *data )
+{
+    if( !graphics_hybrid_frame || active_module_id != graphics_view.owner || !data || data->struct_size < sizeof( *data ) ) return 0;
+    graphics_creature_metrics = *data; return 1;
+}
 const ncmm_host_graphics_creatures_v1 graphics_creatures_api = { 1, sizeof( ncmm_host_graphics_creatures_v1 ), 1, 0,
-    graphics_get_creature_scene, graphics_get_creatures };
+    graphics_get_creature_scene, graphics_get_creatures, graphics_submit_creature_metrics };
 #if defined(TILES)
 graphics_creature_record *graphics_track_creature( Creature &cr )
 {
@@ -58,6 +64,37 @@ void graphics_notify_creature( Creature *cr, uint32_t event, float heading )
         const auto pos = cr->pos_abs(); s.world_x = pos.x(); s.world_y = pos.y(); s.world_z = pos.z();
     }
 }
+void graphics_creature_type( const mtype &type, ncmm_graphics_creature_v1 &s )
+{
+            s.liters = float( units::to_milliliter( type.volume ) ) / 1000.f;
+            s.size_category = uint32_t( std::clamp( int( type.size ) - 1, 0, 4 ) );
+            graphics_copy_text( s.bodytype, type.bodytype );
+            std::string species;
+            for( const auto &id : type.species ) { if( !species.empty() ) species += ' '; species += id.str(); }
+            graphics_copy_text( s.species, species );
+            const std::pair<const char *, uint32_t> traits[] = {
+                { "HUMAN", NCMM_CR_HUMAN }, { "FLIES", NCMM_CR_FLIES }, { "SWIMS", NCMM_CR_SWIMS },
+                { "AQUATIC", NCMM_CR_AQUATIC }, { "DIGS", NCMM_CR_BURROWS }, { "PLASTIC", NCMM_CR_AMORPHOUS },
+                { "ELECTRONIC", NCMM_CR_MECHANICAL }, { "NOHEAD", NCMM_CR_NOHEAD }, { "IMMOBILE", NCMM_CR_IMMOBILE },
+                { "RANGED_ATTACKER", NCMM_CR_RANGED }
+            };
+            for( const auto &trait : traits ) if( type.has_flag( mon_flag_id( trait.first ) ) ) s.flags |= trait.second;
+            if( type.made_of( material_id( "fur" ) ) ) s.flags |= NCMM_CR_FUR;
+            if( type.made_of( material_id( "chitin" ) ) ) s.flags |= NCMM_CR_CHITIN;
+            if( type.made_of( material_id( "steel" ) ) && type.in_species( species_id( "ROBOT" ) ) ) s.flags |= NCMM_CR_MECHANICAL;
+    s.kilograms = float( units::to_kilogram( type.weight ) );
+    graphics_copy_text( s.type_id, type.id.str() );
+    const auto size = ncmm_graphics_presentation_policy::creature( s.liters, int( type.size ) - 1, type.bodytype );
+    s.height = size.height; s.width = size.width;
+}
+uint64_t graphics_creature_overlay_revision( const Character &ch, uint64_t h )
+{
+    for( const auto &overlay : ch.get_overlay_ids() ) {
+        if( overlay.first.compare( 0, 5, "worn_" ) && overlay.first.compare( 0, 9, "mutation_" ) ) continue;
+        for( const auto &text : { overlay.first, overlay.second } ) { for( unsigned char c : text ) h = ( h ^ c ) * 1099511628211ull; h = ( h ^ 255u ) * 1099511628211ull; }
+    }
+    return h;
+}
 void graphics_prepare_creatures( const ncmm_graphics_scene_v1 &base,
                                 const std::vector<tripoint_bub_ms> &positions )
 {
@@ -82,22 +119,8 @@ void graphics_prepare_creatures( const ncmm_graphics_scene_v1 &base,
         s.height = physical.creature_height; s.width = physical.creature_width; s.elevation = physical.creature_elevation;
         graphics_copy_text( s.type_id, base.cells[i].creature );
         if( const monster *mon = cr->as_monster() ) {
+            graphics_creature_type( *mon->type, s );
             s.liters = float( units::to_milliliter( mon->get_volume() ) ) / 1000.f;
-            s.size_category = uint32_t( std::clamp( int( mon->get_size() ) - 1, 0, 4 ) );
-            graphics_copy_text( s.bodytype, mon->type->bodytype );
-            std::string species;
-            for( const auto &id : mon->type->species ) { if( !species.empty() ) species += ' '; species += id.str(); }
-            graphics_copy_text( s.species, species );
-            const std::pair<const char *, uint32_t> traits[] = {
-                { "HUMAN", NCMM_CR_HUMAN }, { "FLIES", NCMM_CR_FLIES }, { "SWIMS", NCMM_CR_SWIMS },
-                { "AQUATIC", NCMM_CR_AQUATIC }, { "DIGS", NCMM_CR_BURROWS }, { "PLASTIC", NCMM_CR_AMORPHOUS },
-                { "ELECTRONIC", NCMM_CR_MECHANICAL }, { "NOHEAD", NCMM_CR_NOHEAD }, { "IMMOBILE", NCMM_CR_IMMOBILE },
-                { "RANGED_ATTACKER", NCMM_CR_RANGED }
-            };
-            for( const auto &trait : traits ) if( mon->has_flag( mon_flag_id( trait.first ) ) ) s.flags |= trait.second;
-            if( mon->made_of( material_id( "fur" ) ) ) s.flags |= NCMM_CR_FUR;
-            if( mon->made_of( material_id( "chitin" ) ) ) s.flags |= NCMM_CR_CHITIN;
-            if( mon->made_of( material_id( "steel" ) ) && mon->type->in_species( species_id( "ROBOT" ) ) ) s.flags |= NCMM_CR_MECHANICAL;
         } else if( const Character *ch = cr->as_character() ) {
             s.flags |= NCMM_CR_NPC | NCMM_CR_HUMAN; s.liters = std::max( .1f, s.kilograms ); s.size_category = 2;
             graphics_copy_text( s.bodytype, "human" ); graphics_copy_text( s.species, "HUMAN" );
@@ -109,6 +132,8 @@ void graphics_prepare_creatures( const ncmm_graphics_scene_v1 &base,
                 if( id.find( "CHITIN" ) != std::string::npos ) s.flags |= NCMM_CR_CHITIN;
             }
         }
+        s.height = physical.creature_height; s.width = physical.creature_width;
+        s.kilograms = float( units::to_kilogram( cr->get_weight() ) );
         if( cr->is_underwater() ) s.flags |= NCMM_CR_SUBMERGED;
         // The selected atlas rectangle distinguishes deterministic tileset
         // variants. No texture address or SDL handle crosses the API.
@@ -121,6 +146,7 @@ void graphics_prepare_creatures( const ncmm_graphics_scene_v1 &base,
             s.appearance_revision ^= sheet->second;
             for( int value : { atlas->dimensions.x, atlas->dimensions.y, atlas->dimensions.w, atlas->dimensions.h } ) s.appearance_revision = ( s.appearance_revision ^ uint32_t( value ) ) * 1099511628211ull;
         }
+        if( const Character *ch = cr->as_character() ) s.appearance_revision = graphics_creature_overlay_revision( *ch, s.appearance_revision );
         record->seen = now; graphics_creature_snapshots.push_back( s );
     }
     // Death uses an already observed snapshot and a still-visible current cell.
