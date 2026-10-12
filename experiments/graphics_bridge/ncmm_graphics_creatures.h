@@ -29,6 +29,7 @@ typedef struct ncmm_graphics_creature_v1 {
     /* Absolute coordinates keep movement stable when the map bubble shifts. */
     int32_t world_x, world_y, world_z;
     float liters, kilograms, height, width, elevation, speed, heading;
+    /* Presentation-clock start on first visible snapshot, not simulation time. */
     double event_seconds;
     char type_id[128], bodytype[48], species[256];
 } ncmm_graphics_creature_v1;

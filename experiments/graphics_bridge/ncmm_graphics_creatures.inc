@@ -8,6 +8,13 @@ struct graphics_creature_record {
     weak_ptr_fast<Creature> reference;
     ncmm_graphics_creature_v1 snapshot = {};
     double seen = 0;
+    uint64_t presented_event_serial = 0;
+    void present_event( double now ) {
+        if( snapshot.event_serial != presented_event_serial ) {
+            snapshot.event_seconds = now;
+            presented_event_serial = snapshot.event_serial;
+        }
+    }
 };
 std::map<const Creature *, graphics_creature_record> graphics_creature_records;
 std::map<SDL_Texture *, uint64_t> graphics_creature_sheets;
@@ -101,11 +108,6 @@ void graphics_prepare_creatures( const ncmm_graphics_scene_v1 &base,
     const double now = SDL_GetTicks() / 1000.0; avatar &you = get_avatar(); map &here = get_map();
     graphics_creature_snapshots.clear();
     if( graphics_creature_sheet_epoch != graphics_hybrid_tileset_epoch ) { graphics_creature_sheets.clear(); graphics_creature_sheet_epoch = graphics_hybrid_tileset_epoch; }
-    for( auto it = graphics_creature_records.begin(); it != graphics_creature_records.end(); ) {
-        const auto &record = it->second;
-        if( now - record.seen > 2.0 && ( record.snapshot.event != NCMM_CR_DIE || now - record.snapshot.event_seconds > .55 ) ) it = graphics_creature_records.erase( it );
-        else ++it;
-    }
     for( size_t i = 0; i < base.cell_count; ++i ) {
         if( !( base.cells[i].flags & NCMM_GFX_VISIBLE ) || !base.cells[i].creature[0] ) continue;
         Creature *cr = get_creature_tracker().creature_at<Creature>( positions[i] );
@@ -148,18 +150,30 @@ void graphics_prepare_creatures( const ncmm_graphics_scene_v1 &base,
             for( int value : { atlas->dimensions.x, atlas->dimensions.y, atlas->dimensions.w, atlas->dimensions.h } ) s.appearance_revision = ( s.appearance_revision ^ uint32_t( value ) ) * 1099511628211ull;
         }
         if( const Character *ch = cr->as_character() ) s.appearance_revision = graphics_creature_overlay_revision( *ch, s.appearance_revision );
+        record->present_event( now );
         record->seen = now; graphics_creature_snapshots.push_back( s );
     }
     // Death uses an already observed snapshot and a still-visible current cell.
     // Disappearing/invisible live entities never acquire a death animation.
-    for( const auto &entry : graphics_creature_records ) {
-        auto s = entry.second.snapshot;
-        if( !( s.flags & NCMM_CR_DEAD ) || !s.type_id[0] || now - s.event_seconds > .55 || now < s.event_seconds ) continue;
+    for( auto &entry : graphics_creature_records ) {
+        auto &record = entry.second;
+        auto s = record.snapshot;
+        const bool presented = record.presented_event_serial == s.event_serial;
+        if( !( s.flags & NCMM_CR_DEAD ) || !s.type_id[0] || ( presented && ( now - s.event_seconds > .55 || now < s.event_seconds ) ) ) continue;
         const auto pos = here.get_bub( tripoint_abs_ms( s.world_x, s.world_y, s.world_z ) );
         for( size_t i = 0; i < positions.size(); ++i ) if( positions[i] == pos ) {
-            if( base.cells[i].flags & NCMM_GFX_VISIBLE ) { s.cell = uint32_t( i ); graphics_creature_snapshots.push_back( s ); }
+            if( base.cells[i].flags & NCMM_GFX_VISIBLE ) {
+                record.present_event( now ); record.seen = now;
+                s = record.snapshot; s.cell = uint32_t( i ); graphics_creature_snapshots.push_back( s );
+            }
             break;
         }
+    }
+    // Observe first, then prune: a long simulation turn must not consume an
+    // unseen clip. Unavailable/hidden records still expire and never reveal it.
+    for( auto it = graphics_creature_records.begin(); it != graphics_creature_records.end(); ) {
+        if( now - it->second.seen > 2.0 ) it = graphics_creature_records.erase( it );
+        else ++it;
     }
     const auto generation = renderer_coordinator.texture_generations();
     graphics_creature_scene = { sizeof( ncmm_graphics_creature_scene_v1 ), uint32_t( graphics_creature_snapshots.size() ),

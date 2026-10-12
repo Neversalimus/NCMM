@@ -369,8 +369,10 @@ Each model has a hierarchy of joints, two meshes and eight generated depth/norma
 impostor views in seven poses (including prone). LOD uses projected size, a triangle budget and 13%
 hysteresis. Idle, walking, turning, attacking, hurt, death, flight and swimming
 are presentation only. Movement uses observed absolute positions; teleports and
-fresh visibility never invent a path through unknown terrain. Death visuals
-expire after 550 ms, require current cell visibility and cannot be attacked.
+fresh visibility never invent a path through unknown terrain. Event clips start
+at their first visible snapshot, so a long simulation turn cannot consume an
+unseen animation. Death visuals expire after 550 ms of presentation, require
+current cell visibility and cannot be attacked.
 
 The module retains static opaque scenery and replays owned transparent surfaces
 after dynamic creatures. This preserves glass and depth while avoiding a world
