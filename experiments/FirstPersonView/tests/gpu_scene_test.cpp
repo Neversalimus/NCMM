@@ -1,3 +1,4 @@
+#include "ncmm_graphics_performance.hpp"
 #include "ncmm_gpu_backend.hpp"
 #include <array>
 #include <cstdio>

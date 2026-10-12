@@ -21,8 +21,8 @@ inline bool in_frustum(const bounds &b,const ncmm_gpu_camera_v1 &camera){if(!b.v
     const point planes[]={f,f*h+r,f*h-r,f*v+u,f*v-u};
     for(int i=0;i<5;++i){const auto n=planes[i];float extent=std::abs(n.x)*radius.x+std::abs(n.y)*radius.y+std::abs(n.z)*radius.z;if(dot(n,center)+extent<(i==0?.0799f:-.0001f))return false;}return true;
 }
-inline bool ray_bounds(point eye,point direction,const bounds &b,float far){float near=0;const float o[]={eye.x,eye.y,eye.z},d[]={direction.x,direction.y,direction.z};
-    for(int i=0;i<3;++i){if(std::abs(d[i])<1e-8f){if(o[i]<b.lo[i]||o[i]>b.hi[i])return false;}else{float a=(b.lo[i]-o[i])/d[i],z=(b.hi[i]-o[i])/d[i];near=std::max(near,std::min(a,z));far=std::min(far,std::max(a,z));}}return near<=far;
+inline bool ray_bounds(point eye,point direction,const bounds &b,float upper_distance){float lower_distance=0;const float o[]={eye.x,eye.y,eye.z},d[]={direction.x,direction.y,direction.z};
+    for(int i=0;i<3;++i){if(std::abs(d[i])<1e-8f){if(o[i]<b.lo[i]||o[i]>b.hi[i])return false;}else{float a=(b.lo[i]-o[i])/d[i],z=(b.hi[i]-o[i])/d[i];lower_distance=std::max(lower_distance,std::min(a,z));upper_distance=std::min(upper_distance,std::max(a,z));}}return lower_distance<=upper_distance;
 }
 inline point posed_vertex(const ncmm_gpu_vertex_v1 &v,const ncmm_gpu_draw_v1 &d,const ncmm_gpu_scene_v1 &s){point p=transform(s.bones[d.bone_offset+v.joint],from(v.position));
     if(v.flags&NCMM_GPU_BILLBOARD){const auto pivot=from(v.pivot),delta=p-pivot;p=pivot+point{s.camera.right[0],s.camera.right[1],0}*delta.x+point{0,0,delta.z};}return transform(d.transform,p);}
