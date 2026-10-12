@@ -8,6 +8,7 @@
 #include "ncmm_graphics_presentation_policy.hpp"
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -49,6 +50,13 @@ struct frame {
     std::vector<float> sun_shadows;
     std::vector<int32_t> owners;uint32_t triangles=0,vehicle_parts=0,weather_particles=0,held_pixels=0;
     uint32_t vertical_doors=0,vertical_windows=0,vertical_fences=0,plants=0,shadow_cells=0;
+    uint32_t geometry_cells=0,culled_cells=0,culled_quads=0,sky_pixels=0;
+    uint64_t volume_samples=0;
+};
+// Internal reference switches used by correctness tests and the manual
+// benchmark. They do not alter the Host ABI or add player-facing settings.
+struct render_options {
+    bool cull_geometry=true,skip_hidden_sky=true,skip_empty_volume=true,contact_shadows=true;
 };
 using sprite_provider=std::function<bool(uint32_t,uint32_t,ncmm_graphics_sprite_v2 &)>;
 struct image {
@@ -97,7 +105,7 @@ struct image {
     }
 };
 struct vertex {vec p;float u=0,v=0;vec light{1,1,1};};
-enum class surface { none, stone, asphalt, earth, grass, wood, tile, paint, metal, rubber, cloth, skin, water, plaster, resin };
+enum class surface { none, stone, asphalt, earth, grass, wood, tile, paint, metal, rubber, cloth, skin, water, plaster, resin, brick, contact };
 inline surface ground_surface(const char *id){
     using ncmm_graphics_shapes::contains;const std::string s=id;
     if(contains(s,"grass")||contains(s,"moss"))return surface::grass;
@@ -113,14 +121,16 @@ struct triangle {std::array<vertex,3> v;material m;vec normal{0,0,1};};
 
 class renderer {
     const ncmm_graphics_scene_v2 &s;const ncmm_graphics_scene_v1 &base;sprite_provider provider;frame &f;
-    float yaw,pitch,cy,sy,cp,sp,projection;vec eye,fog_color,held_light{.95f,.89f,.84f};std::vector<float> shadows;
+    float yaw,pitch,cy,sy,cp,sp,projection;vec eye,fog_color,sky_top,sky_bottom,held_light{.95f,.89f,.84f};std::vector<float> shadows;
     animation::pose pose;
+    const render_options options;
+    std::array<vec,5> clip_planes{};
     const presentation_data *metadata=nullptr;
     ncmm_graphics_detail_v1 empty_detail{};
     const ncmm_graphics_detail_v1 &extra(int i)const{return metadata&&i>=0&&size_t(i)<metadata->cells.size()?metadata->cells[i]:empty_detail;}
     uint32_t sky_style()const{return metadata?metadata->view.sky_style:uint32_t(NCMM_SKY_EARTH);}
     using sprite_key=std::tuple<uintptr_t,uint32_t,uint32_t,uint32_t>;
-    std::map<std::pair<uint32_t,uint32_t>,image *> image_refs;
+    std::vector<image *> image_refs;std::array<image *,NCMM_GFX_GLOVE_RIGHT+1> held_refs{};
     std::map<sprite_key,image> images;std::vector<triangle> transparent,opaque,overlay;
     std::map<std::tuple<uint32_t,int,int>,int> vehicle_mounts;
     struct vehicle_palette {vec color{};float weight=0;};
@@ -131,8 +141,15 @@ class renderer {
     bool visible(int i)const{return i>=0&&size_t(i)<base.cell_count&&(base.cells[i].flags&NCMM_GFX_VISIBLE);}
     bool outside(int i)const{return visible(i)&&!(base.cells[i].flags&NCMM_GFX_CEILING);}
     image *texture(uint32_t i,uint32_t layer){
-        const auto ref=std::make_pair(i,layer);auto found=image_refs.find(ref);
-        if(found!=image_refs.end())return found->second;
+        if(layer>NCMM_GFX_GLOVE_RIGHT)return nullptr;
+        image **ref=nullptr;
+        if(i==UINT32_MAX)ref=&held_refs[layer];
+        else {
+            if(i>=base.cell_count)return nullptr;
+            if(image_refs.empty())image_refs.resize(base.cell_count*(NCMM_GFX_GLOVE_RIGHT+1),nullptr);
+            ref=&image_refs[size_t(i)*(NCMM_GFX_GLOVE_RIGHT+1)+layer];
+        }
+        if(*ref)return *ref;
         image img;img.data.struct_size=sizeof(img.data);
         const bool valid=provider&&provider(i,layer,img.data)&&img.data.struct_size>=sizeof(img.data)&&
             img.data.rgba&&img.data.width&&img.data.height&&img.data.width<=512&&img.data.height<=512&&
@@ -142,7 +159,7 @@ class renderer {
         auto cached=images.find(key);
         if(cached==images.end()){img.analyse();cached=images.emplace(key,std::move(img)).first;}
         // Atlas pixels are callback-scoped. Reuse analyses only within this frame.
-        image *result=&cached->second;image_refs.emplace(ref,result);return result;
+        image *result=&cached->second;*ref=result;return result;
     }
     vec light(int i,vec normal)const{
         if(!visible(i))return{0.008f,0.01f,0.014f};
@@ -155,6 +172,19 @@ class renderer {
     vec view(vec p)const{vec d=p-eye;float forward=d.x*cy+d.y*sy;
         return{-d.x*sy+d.y*cy,d.z*cp-forward*sp,forward*cp+d.z*sp};}
     vec local(vec p)const{return eye+vec{-sy,cy,0}*p.x+vec{cy*cp,sy*cp,sp}*p.z+vec{-cy*sp,-sy*sp,cp}*p.y;}
+    void clipping_build(){
+        const vec right{-sy,cy,0},up{-cy*sp,-sy*sp,cp},forward{cy*cp,sy*cp,sp};
+        const float h=f.width*.5f/projection,v=f.height*.5f/projection;
+        clip_planes={forward,forward*h+right,forward*h-right,forward*v+up,forward*v-up};
+    }
+    bool in_view(vec lo,vec hi)const{
+        if(!options.cull_geometry)return true;
+        const vec center=(lo+hi)*.5f-eye,radius=(hi-lo)*.5f;
+        for(size_t i=0;i<clip_planes.size();++i){const auto n=clip_planes[i];
+            const float extent=std::abs(n.x)*radius.x+std::abs(n.y)*radius.y+std::abs(n.z)*radius.z;
+            if(dot(n,center)+extent<(i==0?.0799f:-.0001f))return false;}
+        return true;
+    }
     #include "liquids.inc"
     vec surface_color(vec color,const material &m,vec p,vec normal,float z,float fine=-1,float medium=-1)const{
         const bool reflective=m.finish==surface::paint||m.finish==surface::metal;
@@ -178,7 +208,14 @@ class renderer {
             case surface::rubber:shade+=grain*.10f*fine;break;
             case surface::cloth:shade+=grain*.09f*fine;break;
             case surface::skin:shade+=grain*.025f*fine;break;
-            case surface::plaster:{float tx=u-std::floor(u),ty=v-std::floor(v);shade+=grain*.045f*fine-.09f*medium*(tx<.009f||ty<.009f);break;}
+            case surface::plaster:shade+=grain*.035f*fine;break;
+            case surface::brick:{
+                const int row=int(std::floor(v*8));const float bx=u*4+(row&1)*.5f,by=v*8;
+                const float tx=bx-std::floor(bx),ty=by-std::floor(by);
+                const float mortar=clamp(1-std::min({tx,1-tx,ty,1-ty})/.035f)*medium;
+                color=color*(1-mortar)+vec{.43f,.42f,.38f}*mortar;
+                shade+=(random(uint32_t(std::floor(bx))*374761393u+uint32_t(row)*668265263u)-.5f)*.14f*medium+grain*.07f*fine;
+                break;}
             case surface::resin:shade+=(noise(u*9,v*7)-.5f)*.23f*medium;break;
             default:break;
         }
@@ -227,7 +264,7 @@ class renderer {
             std::array<float,3> fine{},medium{};
             for(int n=0;n<3;++n){const float footprint=p[n].z/projection/std::max(.15f,std::abs(dot(t.normal,normalize(eye-v[n].p))));
                 fine[n]=clamp(1-footprint*80);medium[n]=clamp(1-footprint*18);}
-            const bool detailed=t.m.finish==surface::water||(t.m.finish!=surface::none&&!reflective&&std::max({medium[0],medium[1],medium[2]})>0);
+            const bool detailed=t.m.finish==surface::water||(t.m.finish!=surface::none&&t.m.finish!=surface::contact&&!reflective&&std::max({medium[0],medium[1],medium[2]})>0);
             output.push_back({v,p,iz,uu,vv,fine,medium,t.m,t.normal,flat_light,flat_color,xmin,xmax,ymin,ymax,inv,dw0,dw1,coarse,detailed});
         }
     }
@@ -270,6 +307,10 @@ class renderer {
                     const float dx=at.x-std::floor(at.x)-.5f,dy=at.y-std::floor(at.y)-.5f;
                     const float radius=.135f+(noise(at.x*9,at.y*9)-.5f)*.09f;
                     alpha*=liquid_surface::spill_coverage(radius,dx*dx+dy*dy,z/projection);}
+                if(t.m.finish==surface::contact){
+                    const float u=(w0*uu[0]+w1*uu[1]+w2*uu[2])*z-.5f,vv0=(w0*vv[0]+w1*vv[1]+w2*vv[2])*z-.5f;
+                    const float fade=clamp(1-4*(u*u+vv0*vv0));alpha*=fade*fade;
+                }
                 if(alpha<.01f)continue;
                 if(detailed){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;
                     const vec pos=v[0].p*a+v[1].p*b+v[2].p*cw;
@@ -283,6 +324,10 @@ class renderer {
         }
     }
     void quad(vec a,vec b,vec c,vec d,material m,vec normal={0,0,1},std::array<float,4> uv={0,0,1,1}){
+        if(!m.overlay&&!in_view({std::min({a.x,b.x,c.x,d.x}),std::min({a.y,b.y,c.y,d.y}),std::min({a.z,b.z,c.z,d.z})},
+                              {std::max({a.x,b.x,c.x,d.x}),std::max({a.y,b.y,c.y,d.y}),std::max({a.z,b.z,c.z,d.z})})){
+            ++f.culled_quads;return;
+        }
         vec l=m.overlay?held_light:light(m.cell,normal);
         if(m.overlay){if(dot(normal,eye-a)<0)normal=normal*-1;
             const vec key=normalize(vec{sy*.4f-cy*.3f,-cy*.4f-sy*.3f,.85f});
@@ -363,9 +408,10 @@ class renderer {
         if(cx+r<0||cx-r>=f.width||yy+r<0||yy-r>=f.height)return;
         for(int y=std::max(0,int(yy)-r);y<=std::min(f.height-1,int(yy)+r);++y)for(int x=std::max(0,int(cx)-r);x<=std::min(f.width-1,int(cx)+r);++x){float nx=(x-cx)/r,ny=(y-yy)/r,zz=1-nx*nx-ny*ny;if(zz<0)continue;float lit=1;
             if(phase>=0){float a=phase*pi/4;lit=clamp(-std::sqrt(zz)*std::cos(a)+nx*std::sin(a));lit=.07f+lit*.93f;}
-            f.pixels[size_t(y)*f.width+x]=pack(color*lit);}
+            const size_t at=size_t(y)*f.width+x;
+            if(!options.skip_hidden_sky||!std::isfinite(f.depth[at]))f.pixels[at]=pack(color*lit);}
     }
-    void sky(){const auto &e=s.environment;const uint32_t style=sky_style();float day=clamp(e.daylight);
+    void sky_palette(){const auto &e=s.environment;const uint32_t style=sky_style();float day=clamp(e.daylight);
         const bool celestial=style==NCMM_SKY_EARTH||style==NCMM_SKY_HIGHLANDS;
         if(style==NCMM_SKY_VOID||style==NCMM_SKY_STARS)day=0;vec top=vec{.018f,.026f,.065f}*(1-day)+vec{.17f,.40f,.72f}*day;
         vec bottom=vec{.06f,.07f,.12f}*(1-day)+vec{.61f,.75f,.88f}*day;float twilight=clamp(1-std::abs(e.sun_z)*6)*clamp(day*5)*(1-e.cloud_cover*.6f);
@@ -379,18 +425,33 @@ class renderer {
         else if(style==NCMM_SKY_RADIOSPHERE){top={.027f,.037f,.055f};bottom={.14f,.17f,.19f};}
         else if(style==NCMM_SKY_FUNGAL){top={.27f,.32f,.25f};bottom={.56f,.62f,.46f};}
         if(e.lightning){top={.55f,.6f,.73f};bottom={.85f,.86f,.94f};}
-        fog_color=bottom;f.sky_horizon=bottom;
-        for(int y=0;y<f.height;++y){
+        fog_color=bottom;f.sky_horizon=bottom;sky_top=top;sky_bottom=bottom;
+    }
+    void sky(){const auto &e=s.environment;const uint32_t style=sky_style();float day=clamp(e.daylight);
+        if(style==NCMM_SKY_VOID||style==NCMM_SKY_STARS)day=0;
+        const bool celestial=style==NCMM_SKY_EARTH||style==NCMM_SKY_HIGHLANDS;
+        const vec top=sky_top,bottom=sky_bottom;
+        std::atomic<uint32_t> sky_count{0};
+        effects::rows(uint32_t(f.height),size_t(f.width)*f.height,[&](uint32_t begin,uint32_t end){
+        uint32_t count=0;
+        for(int y=int(begin);y<int(end);++y){
             const float up=(f.height*.5f-y)/projection;
             const float elevation=std::atan2(sp+up*cp,std::abs(cp-up*sp));
             const float t=clamp(1-elevation/(pi*.5f));
             const uint32_t c=pack(top*(1-t)+bottom*t);
-            std::fill_n(f.pixels.data()+size_t(y)*f.width,f.width,c);
+            if(!options.skip_hidden_sky){std::fill_n(f.pixels.data()+size_t(y)*f.width,f.width,c);count+=f.width;}
+            else for(int x=0;x<f.width;++x){const size_t at=size_t(y)*f.width+x;
+                if(!std::isfinite(f.depth[at])){f.pixels[at]=c;++count;}}
+
         }
+        sky_count.fetch_add(count,std::memory_order_relaxed);});
+        f.sky_pixels=sky_count.load(std::memory_order_relaxed);
+        if(!f.sky_pixels)return;
         if((celestial&&day<.2f)||style==NCMM_SKY_STARS)for(uint32_t i=0;i<(style==NCMM_SKY_STARS?850u:170u);++i){float az=random(i*3+8)*2*pi,el=.12f+random(i*3+9)*1.35f;vec q=view(eye+vec{std::cos(az)*std::cos(el),std::sin(az)*std::cos(el),std::sin(el)}*60);if(q.z<=0)continue;
             const float px=f.width*.5f+projection*q.x/q.z,py=f.height*.5f-projection*q.y/q.z;
             if(px>=0&&px<f.width&&py>=0&&py<f.height){const int x=int(px),y=int(py);
-                f.pixels[size_t(y)*f.width+x]=pack(vec{.8f,.85f,1}*((1-day*5)*(.35f+random(i)*.65f)));}}
+                const size_t at=size_t(y)*f.width+x;
+                if(!options.skip_hidden_sky||!std::isfinite(f.depth[at]))f.pixels[at]=pack(vec{.8f,.85f,1}*((1-day*5)*(.35f+random(i)*.65f)));}}
         if(celestial&&e.sun_z>-.03f)disc({e.sun_x,e.sun_y,e.sun_z},-1,{1,.92f,.64f},std::max(4.0f,f.width*.010f));
         if(celestial&&e.moon_z>-.03f&&e.moon_phase!=0)disc({e.moon_x,e.moon_y,e.moon_z},int(e.moon_phase),{.82f,.88f,.94f},std::max(4.0f,f.width*.009f));
         // Clouds are continuous in world azimuth/elevation. Turning does not
@@ -400,7 +461,8 @@ class renderer {
         const int cols=(f.width+step-1)/step+1,rows=(f.height+step-1)/step+1;
         std::vector<float> opacity(size_t(cols)*rows,0);
         std::vector<vec> cloud_color(size_t(cols)*rows);
-        for(int gy=0;gy<rows;++gy)for(int gx=0;gx<cols;++gx){
+        effects::rows(uint32_t(rows),size_t(cols)*rows,[&](uint32_t begin,uint32_t end){
+        for(int gy=int(begin);gy<int(end);++gy)for(int gx=0;gx<cols;++gx){
             const float sx=(gx*step-f.width*.5f)/projection,up=(f.height*.5f-gy*step)/projection;
             const float forward=cp-up*sp,z=sp+up*cp;if(z<-.04f)continue;
             const float wx=cy*forward-sy*sx,wy=sy*forward+cy*sx;
@@ -419,19 +481,21 @@ class renderer {
             const float rim=clamp(wx*e.sun_x+wy*e.sun_y+z*e.sun_z)*clamp(1-std::abs(alpha-.42f)*2);
             cloud=cloud*(.81f+.19f*n)+vec{.17f,.13f,.09f}*(rim*day);
             cloud_color[at]=cloud*((.78f+n*.22f)*alpha);
-        }
+        }});
         // Interpolate the cloud grid into the full raster instead of 6px blocks.
-        for(int y=0;y<f.height;++y){const int gy=y/step;const float fy=float(y%step)/step;
+        effects::rows(uint32_t(f.height),size_t(f.width)*f.height,[&](uint32_t begin,uint32_t end){
+        for(int y=int(begin);y<int(end);++y){const int gy=y/step;const float fy=float(y%step)/step;
             for(int gx=0;gx<cols-1;++gx){const size_t a=size_t(gy)*cols+gx,b=a+cols;
                 if(std::max({opacity[a],opacity[a+1],opacity[b],opacity[b+1]})<.01f)continue;
                 const float left=opacity[a]*(1-fy)+opacity[b]*fy,right=opacity[a+1]*(1-fy)+opacity[b+1]*fy;
                 const vec l=cloud_color[a]*(1-fy)+cloud_color[b]*fy,r=cloud_color[a+1]*(1-fy)+cloud_color[b+1]*fy;
                 for(int dx=0;dx<step&&gx*step+dx<f.width;++dx){const float fx=float(dx)/step;
                     const float alpha=left*(1-fx)+right*fx;const size_t at=size_t(y)*f.width+gx*step+dx;
+                    if(options.skip_hidden_sky&&std::isfinite(f.depth[at]))continue;
                     f.pixels[at]=pack(unpack(f.pixels[at])*(1-alpha)+l*(1-fx)+r*fx);
                 }
             }
-        }
+        }});
     }
     #include "architecture.inc"
     void architecture(int i,uint32_t shape,uint32_t layer){if(special_architecture(i,shape,layer))return;
@@ -443,6 +507,13 @@ class renderer {
         if(shape==NCMM_SHAPE_WALL){
             // Transparent art margins never punch holes through solid geometry.
             m.opaque_texture=true;m.color=m.texture?m.texture->average:m.color;
+            const char *id=layer==NCMM_GFX_FURNITURE?base.cells[i].furniture:base.cells[i].terrain;
+            using ncmm_graphics_shapes::contains;
+            // Top-down wall art supplies its palette, while continuous face
+            // materials avoid stretching its cap into a two-metre pillar.
+            if(contains(id,"brick")){m.finish=surface::brick;m.texture=nullptr;}
+            else if(!std::strcmp(id,"t_wall")||contains(id,"plaster")||contains(id,"concrete")){m.finish=surface::plaster;m.texture=nullptr;}
+            else if(contains(id,"wood")||contains(id,"log")){m.finish=surface::wood;m.texture=nullptr;}
             box(center,{-.5f,-.5f,0},{.5f,.5f,2.5f},m);return;
         }
         if(shape==NCMM_SHAPE_DOOR_CLOSED||shape==NCMM_SHAPE_DOOR_OPEN||shape==NCMM_SHAPE_DOOR_FRAME){door_model(i,shape,layer);return;}
@@ -725,21 +796,41 @@ class renderer {
         if(d.vehicle_health<.65f){material damage{nullptr,{.17f,.13f,.10f},1,false,false,false,i,surface::earth};
             box(center,{-.3f,-.505f,.62f},{.24f,-.497f,.68f},damage,yaw);}
     }
+    void contact_shadow(int i,int x,int y){
+        if(!options.contact_shadows||(base.cells[i].flags&NCMM_GFX_NO_FLOOR)||terrain_liquid(i))return;
+        const auto &d=s.details[i];float rx=0,ry=0;
+        if(base.cells[i].creature[0]){rx=std::clamp(extra(i).creature_width*.42f,.25f,1.5f);ry=rx*.65f;}
+        else if(d.terrain_shape==NCMM_SHAPE_TREE){rx=.42f;ry=.34f;}
+        else if(d.vehicle_features&NCMM_VEH_WHEEL){rx=.45f;ry=.25f;}
+        if(rx==0)return;
+        const vec center{float(x)+.5f,float(y)+.5f,.021f};
+        const float distance=std::hypot(center.x-eye.x,center.y-eye.y);
+        const float alpha=.24f*clamp(1-distance/24)/(1+extra(i).creature_elevation);
+        if(alpha<.01f)return;
+        material shadow{nullptr,{.025f,.028f,.032f},alpha,false,false,false,i,surface::contact};
+        quad(center+vec{-rx,-ry,0},center+vec{rx,-ry,0},center+vec{rx,ry,0},center+vec{-rx,ry,0},shadow);
+    }
     void world(){
         std::vector<int> order;order.reserve(base.cell_count);
-        const float horizontal=float(f.width)*.5f/projection,vertical=float(f.height)*.5f/projection;
         for(int i=0;i<int(base.cell_count);++i){if(!visible(i))continue;
-            const vec p=view({float(i%base.grid_width)+.5f,float(i/base.grid_width)+.5f,1.25f});
-            constexpr float r=3.0f;
-            if(p.z<-r||std::abs(p.x)>std::max(0.0f,p.z)*horizontal+r*(1+horizontal)||std::abs(p.y)>std::max(0.0f,p.z)*vertical+r*(1+vertical))continue;
-            order.push_back(i);}
+            const int x=i%base.grid_width,y=i/base.grid_width;const auto &d=s.details[i];
+            vec center{float(x)+.5f,float(y)+.5f,0};float radius=1.10f;
+            // Modelled mounts use a continuous vehicle anchor, not the rounded
+            // map cell. Large/elevated creatures retain their actual bounds.
+            if(d.vehicle_features)center=rotate({float(d.mount_x),float(d.mount_y),0},{d.vehicle_x,d.vehicle_y,0},d.vehicle_yaw);
+            const auto &info=extra(i);radius=std::max(radius,info.creature_width*.5f);
+            const float top=std::max(3.3f,info.creature_elevation+std::max(3.0f,info.creature_height));
+            const bool model=in_view({center.x-radius,center.y-radius,0},{center.x+radius,center.y+radius,top});
+            const bool floor=in_view({float(x),float(y),0},{float(x+1),float(y+1),2.5f});
+            if(!model&&!floor){++f.culled_cells;continue;}
+            ++f.geometry_cells;order.push_back(i);}
         std::stable_sort(order.begin(),order.end(),[&](int a,int b){
             const float ax=float(a%base.grid_width)+.5f-eye.x,ay=float(a/base.grid_width)+.5f-eye.y;
             const float bx=float(b%base.grid_width)+.5f-eye.x,by=float(b/base.grid_width)+.5f-eye.y;
             return ax*ax+ay*ay<bx*bx+by*by;});
         for(int pass=0;pass<2;++pass)for(int i:order){int x=i%base.grid_width,y=i/base.grid_width;const auto &c=base.cells[i];const auto &d=s.details[i];
             if(pass==1){
-            if(!(c.flags&NCMM_GFX_NO_FLOOR)){auto floor=mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f});floor.opaque_texture=true;floor.finish=ground_surface(d.ground);
+            if(!(c.flags&NCMM_GFX_NO_FLOOR)&&in_view({float(x),float(y),0},{float(x+1),float(y+1),0})){auto floor=mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f});floor.opaque_texture=true;floor.finish=ground_surface(d.ground);
                 const uint32_t liquid=terrain_liquid(i);
                 if(liquid){floor.texture=nullptr;floor.color=liquid_color(liquid);floor.finish=surface::water;floor.liquid=liquid;floor.banks=liquid_banks(i);}
                 quad({float(x),float(y),0},{float(x+1),float(y),0},{float(x+1),float(y+1),0},{float(x),float(y+1),0},floor);
@@ -753,6 +844,7 @@ class renderer {
                 puddle.liquid=extra(i).item_liquid;puddle.spill=true;
                 quad({float(x),float(y),.017f},{float(x+1),float(y),.017f},{float(x+1),float(y+1),.017f},{float(x),float(y+1),.017f},puddle);}
             continue;}
+            contact_shadow(i,x,y);
             architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
             if(d.vehicle_features)vehicle(i);else if(c.furniture[0])architecture(i,d.furniture_shape,NCMM_GFX_FURNITURE);
             if(c.item[0]&&!extra(i).item_liquid){auto m=mat(i,NCMM_GFX_ITEM,{.50f,.48f,.42f},true);billboard({x+.5f,y+.5f,.025f},.25f,.25f,m);}
@@ -895,16 +987,19 @@ class renderer {
         face(point(0,float(img->data.height)),point(float(img->data.width),float(img->data.height)),point(float(img->data.width),0),point(0,0),item);
     }
 public:
-    renderer(const ncmm_graphics_scene_v2 &scene,float y,float p,sprite_provider source,frame &output,animation::pose animation_pose={},const presentation_data *data=nullptr):s(scene),base(scene.base),provider(std::move(source)),f(output),yaw(y),pitch(p),cy(std::cos(y)),sy(std::sin(y)),cp(std::cos(p)),sp(std::sin(p)),projection(1),eye{base.camera_x,base.camera_y,1.55f},pose(animation_pose),metadata(data){if(metadata&&metadata->view.eye_height>.1f)eye.z=metadata->view.eye_height;}
+    renderer(const ncmm_graphics_scene_v2 &scene,float y,float p,sprite_provider source,frame &output,animation::pose animation_pose={},const presentation_data *data=nullptr,render_options settings={}):s(scene),base(scene.base),provider(std::move(source)),f(output),yaw(y),pitch(p),cy(std::cos(y)),sy(std::sin(y)),cp(std::cos(p)),sp(std::sin(p)),projection(1),eye{base.camera_x,base.camera_y,1.55f},pose(animation_pose),options(settings),metadata(data){if(metadata&&metadata->view.eye_height>.1f)eye.z=metadata->view.eye_height;}
     void run(int max_width,int max_height,const frame *cached_world=nullptr,frame *world_output=nullptr){float factor=std::min({1.0f,float(max_width)/base.pixel_width,float(max_height)/base.pixel_height});
         f.width=std::max(1,int(base.pixel_width*factor));f.height=std::max(1,int(base.pixel_height*factor));size_t count=size_t(f.width)*f.height;
-        projection=f.width/(2*std::tan(70*pi/360));
+        projection=f.width/(2*std::tan(70*pi/360));clipping_build();
         if(cached_world&&cached_world->width==f.width&&cached_world->height==f.height&&cached_world->pixels.size()==count&&cached_world->depth.size()==count&&cached_world->sun_shadows.size()==base.cell_count){
             f=*cached_world;shadows=f.sun_shadows;fog_color=f.sky_horizon;f.held_depth.assign(count,std::numeric_limits<float>::infinity());
         }else{
             f.pixels.resize(count);f.depth.assign(count,std::numeric_limits<float>::infinity());f.held_depth.assign(count,std::numeric_limits<float>::infinity());f.owners.assign(count,-1);f.creatures.assign(count,-1);
             f.triangles=f.vehicle_parts=f.weather_particles=f.held_pixels=f.vertical_doors=f.vertical_windows=f.vertical_fences=f.plants=f.shadow_cells=0;
-            sky();shadows_build();vehicles_build();world();paint(opaque);
+            f.geometry_cells=f.culled_cells=f.culled_quads=f.sky_pixels=0;
+            sky_palette();if(!options.skip_hidden_sky)sky();
+            shadows_build();vehicles_build();world();paint(opaque);
+            if(options.skip_hidden_sky)sky();
             std::stable_sort(transparent.begin(),transparent.end(),[&](const triangle &a,const triangle &b){return view(a.v[0].p+a.v[1].p+a.v[2].p).z>view(b.v[0].p+b.v[1].p+b.v[2].p).z;});
             paint(transparent);f.sun_shadows=shadows;
             if(world_output)*world_output=f;
@@ -947,9 +1042,9 @@ inline bool valid_presentation(const presentation_data &p,size_t count){
     }
     return true;
 }
-inline bool build_frame(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const sprite_provider &provider,frame &out,int max_width=NCMM_GRAPHICS_MAX_FRAME_WIDTH,int max_height=NCMM_GRAPHICS_MAX_FRAME_HEIGHT,animation::pose pose={},const frame *cached_world=nullptr,frame *world_output=nullptr,const presentation_data *metadata=nullptr){
+inline bool build_frame(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const sprite_provider &provider,frame &out,int max_width=NCMM_GRAPHICS_MAX_FRAME_WIDTH,int max_height=NCMM_GRAPHICS_MAX_FRAME_HEIGHT,animation::pose pose={},const frame *cached_world=nullptr,frame *world_output=nullptr,const presentation_data *metadata=nullptr,render_options options={}){
     if(metadata&&!valid_presentation(*metadata,s.base.cell_count))return false;
     if(!valid_scene(s,yaw,pitch))return false;
-    renderer(s,yaw,pitch,provider,out,pose,metadata).run(std::clamp(max_width,1,int(NCMM_GRAPHICS_MAX_FRAME_WIDTH)),std::clamp(max_height,1,int(NCMM_GRAPHICS_MAX_FRAME_HEIGHT)),cached_world,world_output);return out.pixels.size()==size_t(out.width)*out.height;
+    renderer(s,yaw,pitch,provider,out,pose,metadata,options).run(std::clamp(max_width,1,int(NCMM_GRAPHICS_MAX_FRAME_WIDTH)),std::clamp(max_height,1,int(NCMM_GRAPHICS_MAX_FRAME_HEIGHT)),cached_world,world_output);return out.pixels.size()==size_t(out.width)*out.height;
 }
 }

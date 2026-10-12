@@ -1,6 +1,7 @@
 #include "ncmm_sdk_core.hpp"
 #include "renderer.hpp"
 #include "hybrid_renderer.hpp"
+#include "scene_hash.hpp"
 #include <chrono>
 namespace {
 constexpr const char *id="first_person_view";
@@ -22,13 +23,18 @@ uint64_t world_key=0;
 bool world_valid=false;
 std::chrono::steady_clock::time_point frame_built{};
 std::chrono::steady_clock::time_point world_built{};
-uint64_t scene_key(const ncmm_graphics_scene_v2 &s,bool world=false){
+uint64_t geometry_key(const ncmm_graphics_scene_v2 &s){
     uint64_t h=1469598103934665603ull;
-    auto bytes=[&](const void *p,size_t n){const auto *b=static_cast<const unsigned char *>(p);for(size_t i=0;i<n;++i){h^=b[i];h*=1099511628211ull;}};
+    auto bytes=[&](const void *p,size_t n){h=first_person::hash_bytes(h,p,n);};
     bytes(&yaw,sizeof(yaw));bytes(&pitch,sizeof(pitch));bytes(&high_quality,sizeof(high_quality));
     const auto &b=s.base;bytes(&b.pixel_width,sizeof(b.pixel_width)*4);bytes(&b.camera_x,sizeof(b.camera_x)*2);
-    for(size_t i=0;i<b.cell_count;++i){bytes(&b.cells[i].flags,sizeof(b.cells[i].flags));
-        if(b.cells[i].flags&NCMM_GFX_VISIBLE){bytes(&b.cells[i],sizeof(b.cells[i]));bytes(&s.details[i],sizeof(s.details[i]));}}
+    for(size_t i=0;i<b.cell_count;++i){
+        if(b.cells[i].flags&NCMM_GFX_VISIBLE){bytes(&b.cells[i],sizeof(b.cells[i]));bytes(&s.details[i],sizeof(s.details[i]));}
+        else bytes(&b.cells[i].flags,sizeof(b.cells[i].flags));}
+    return h;
+}
+uint64_t scene_key(const ncmm_graphics_scene_v2 &s,uint64_t common,bool world=false){
+    uint64_t h=common;auto bytes=[&](const void *p,size_t n){h=first_person::hash_bytes(h,p,n);};
     auto e=s.environment;
     e.animation_seconds=!world&&(e.precipitation>0||e.lightning)?std::floor(std::fmod(e.animation_seconds,100000.0)*30)/30:0;
     if(world){std::memset(e.held_item,0,sizeof(e.held_item));e.held_kind=0;}
@@ -53,15 +59,14 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         const float lag=std::exp(-float(std::max(0.0,scene->environment.animation_seconds-look_sway_started))*9);
         pose.sway_x=std::sin(t*1.4f)*.0022f+std::sin(t*8)*metadata.view.movement*.008f+look_sway_x*lag;
         pose.sway_y=std::sin(t*2.2f)*.0032f+std::abs(std::sin(t*10))*metadata.view.movement*.010f+look_sway_y*lag;}
-    uint64_t key=scene_key(*scene);
+    const uint64_t common=geometry_key(*scene);
+    uint64_t key=scene_key(*scene,common);
     for(float value:{pose.swing,pose.thrust,pose.recoil,pose.length,pose.sway_x,pose.sway_y}){uint32_t bits;std::memcpy(&bits,&value,sizeof(bits));key=(key^bits)*1099511628211ull;}
     key=(key^pose.grip)*1099511628211ull;
-    uint64_t wk=scene_key(*scene,true);
-    if(has_metadata){auto hash=[&](const void *data,size_t n){auto *b=static_cast<const unsigned char *>(data);for(size_t i=0;i<n;++i)wk=(wk^b[i])*1099511628211ull;};
+    uint64_t wk=scene_key(*scene,common,true);
+    if(has_metadata){auto hash=[&](const void *data,size_t n){wk=first_person::hash_bytes(wk,data,n);};
         // Appearance and movement only change composition, not static geometry.
-        uint64_t presentation_key=1469598103934665603ull;
-        const auto *v=reinterpret_cast<const unsigned char *>(&metadata.view);
-        for(size_t i=0;i<sizeof(metadata.view);++i)presentation_key=(presentation_key^v[i])*1099511628211ull;
+        const uint64_t presentation_key=first_person::hash_bytes(1469598103934665603ull,&metadata.view,sizeof(metadata.view));
         key^=presentation_key;
         hash(&metadata.view.eye_height,sizeof(metadata.view.eye_height));hash(&metadata.view.sky_style,sizeof(metadata.view.sky_style));
         hash(&metadata.view.occupied_vehicle,sizeof(metadata.view.occupied_vehicle));hash(metadata.cells.data(),metadata.cells.size()*sizeof(metadata.cells[0]));key^=wk;}
@@ -136,7 +141,7 @@ void shutdown() {
     commands.clear();
     pixels={};world_pixels={};frame_valid=world_valid=false;
 }
-const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View","0.8.0-dev",
+const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View","0.8.1-dev",
     caps,sizeof(caps)/sizeof(caps[0]),init,shutdown};
 }
 extern "C" NCMM_EXPORT const ncmm_mod_descriptor_v1 *ncmm_get_descriptor_v1(){return &descriptor;}

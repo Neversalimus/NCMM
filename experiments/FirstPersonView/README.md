@@ -1,4 +1,4 @@
-# First Person View — 0.8.0 development prototype
+# First Person View — 0.8.1 development prototype
 
 Optional first-person renderer of the same live CDDA world through NCMM. This
 preview bundles an exact experimental Windows x64 Host for 1040 or 1807 and uses
@@ -307,3 +307,41 @@ machine. It separates changing-camera frames from cached-world composition at
 1280x800 for floor, walls, water, CPU smoke and GPU-layer smoke. Compare the same
 compiler/build type and repeat the run; these synthetic timings exclude Host
 snapshot generation, simulation and SDL presentation and are not game FPS.
+
+
+## 0.8.1 performance and materials
+
+The 48-cell radius remains. Geometry uses conservative camera-plane bounds,
+including continuous vehicle anchors and actual large/elevated creatures.
+Offscreen quads are rejected before projection. The full known context still
+supplies sun occluders, connected vehicle layout, liquid banks and RGB light;
+render culling never changes CDDA's enemies, AI, turns or saves. The Host rejects
+rear/outside-cone cells before querying apparent light. Active look/attack
+redraws are scheduled every 16 ms, with slower idle redraws retained.
+
+Sky gradients/cloud rows run on disjoint CPU worker rows. Opaque geometry is
+painted first, and sky pixels hidden behind it are skipped; glass composes
+against the completed background. Atmosphere rays missing all gas/propagated
+source-light support are skipped, without moving the retained sampling phase.
+Noise is evaluated only when a gas coefficient actually contributes. Frame
+invalidation hashes bounded unaligned words and computes its common scene key
+once. No atlas pointer survives its callback.
+
+Brick and standard drywall faces use the installed tile palette with continuous
+filtered materials rather than stretching a top-down cap over the wall height.
+Creature feet, tree trunks and wheels receive soft nearby contact shadows.
+
+Native optimization cases compare every visible pixel, world depth, creature
+pick and effect pixel with an unculled/full-sky/full-volume reference across
+camera directions, steep pitch, oversized flying creatures, glass, rotated
+vehicles, source light, smoke, fog and dimension skies. ABI/lifecycle tests link
+the actual shipping DLL/SO, avoiding separate module.cpp builds. CI runs those
+checks before either expensive Host job and runs ASan/UBSan on Linux.
+
+`first_person_benchmark 12 distance benchmark.json` writes median/p95 timings
+and geometry, sky and atmosphere work counters for both reference/optimized
+policies. `cmake --build fp-build --config Release --target first_person_measure`
+collects the same non-gating report in CI. Its reference intentionally disables
+culling; it is not a historical 0.8.0 build. These are synthetic renderer timings,
+not player FPS. Compiler-cache artifacts retain actual bypass reasons, including
+MSVC PCH requests that were excluded from the previous headline cache-hit rate.

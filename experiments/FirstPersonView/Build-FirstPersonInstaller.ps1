@@ -108,7 +108,7 @@ if($LASTEXITCODE -ne 0){throw 'Preview install matrix compilation failed.'}
 if($LASTEXITCODE -ne 0){throw 'Preview install matrix failed.'}
 
 @"
-NCMM First Person View installer 0.8.0 TEST / CDDA $build / Windows x64
+NCMM First Person View installer 0.8.1 TEST / CDDA $build / Windows x64
 
 1. Extract the complete archive. Run NCMM_Setup_FirstPerson_TEST.exe.
 2. Select the game folder containing cataclysm-tiles.exe and VERSION.txt for
@@ -147,6 +147,13 @@ snapshot), using only the loaded reality bubble. Per-frame transparency and
 allocation-free engine rays reduce visibility work. Smoke/light extend beyond
 the old 19-cell cutoff with bounded distant sampling. Walls still occlude the
 environment; creatures and items retain the game's normal visibility rules.
+Version 0.8.1 rejects offscreen model faces before projection, shades sky only
+where opaque geometry leaves it visible, and skips rays missing active volumes.
+Sky and cloud rows also use CPU workers. Word-wise cache invalidation reads the
+scene once for world/composed keys. Active mouse/attack redraws are scheduled
+at up to 60 Hz; actual frame rate still depends on the machine and scene.
+Brick and drywall faces use the tileset palette with continuous materials;
+soft contact shadows ground creatures, trees and wheels.
 It joins roof panels and adds actual control-mount dashboards/steering
 wheels and keeps the full car geometry beyond the 2D visibility mask.
 Both hands grip the generated polearm shaft and move with the weapon.
@@ -176,9 +183,9 @@ The bundle includes NCMM Runtime 0.8.2 and the normal optional native modules.
 The game itself and external tilesets are not bundled. Keep your existing data,
 tilesets and configuration with the selected official CDDA installation.
 "@ | Set-Content (Join-Path $stage 'README.txt') -Encoding UTF8
-$provenance=[ordered]@{schema=1;product='NCMM First Person View TEST';installer_revision='0.8.0';status='experimental-not-certified';recommended_entry='NCMM_Setup_FirstPerson_TEST.exe';source_commit=$bundle.ncmm_source_commit;engine_source=$source.source_commit;upstream_tag=$source.tag;workflow_run=[string]$env:GITHUB_RUN_ID;installer_sha256=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant();host_sha256=$bundle.host_sha256;vanilla_sha256=$bundle.vanilla_sha256;supported_vanilla_sha256=$bundle.supported_vanilla_sha256;module_sha256=$files['code_mods/FirstPersonView/ncmm_mod.dll']}
+$provenance=[ordered]@{schema=1;product='NCMM First Person View TEST';installer_revision='0.8.1';status='experimental-not-certified';recommended_entry='NCMM_Setup_FirstPerson_TEST.exe';source_commit=$bundle.ncmm_source_commit;engine_source=$source.source_commit;upstream_tag=$source.tag;workflow_run=[string]$env:GITHUB_RUN_ID;installer_sha256=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant();host_sha256=$bundle.host_sha256;vanilla_sha256=$bundle.vanilla_sha256;supported_vanilla_sha256=$bundle.supported_vanilla_sha256;module_sha256=$files['code_mods/FirstPersonView/ncmm_mod.dll']}
 [IO.File]::WriteAllText((Join-Path $stage 'release-manifest.json'),($provenance | ConvertTo-Json -Depth 6),(New-Object Text.UTF8Encoding($false)))
-$zip=Join-Path $OutputRoot ("NCMM_FirstPersonView_0.8.0_TEST_${build}_Windows_x64.zip")
+$zip=Join-Path $OutputRoot ("NCMM_FirstPersonView_0.8.1_TEST_${build}_Windows_x64.zip")
 if(Test-Path $zip){Remove-Item $zip -Force}
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip

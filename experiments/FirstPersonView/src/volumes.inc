@@ -1,6 +1,10 @@
     void atmosphere(){
         f.effects.clear();f.effect_width=f.effect_height=0;
+        f.volume_samples=0;
         if(!metadata)return;
+        bool active=false;
+        for(int i=0;i<int(base.cell_count);++i)if(visible(i)&&(extra(i).gas||extra(i).source_light>1)){active=true;break;}
+        if(!active&&s.environment.fog_density<.025f)return;
         bool gases=false;std::vector<int> sources;
         struct sample_cell{float density=0,height=0,scatter=0;vec color{},light{};bool fire=false;};
         std::vector<sample_cell> samples(base.cell_count);
@@ -20,6 +24,16 @@
         std::stable_sort(sources.begin(),sources.end(),[&](int a,int b){return extra(a).source_light>extra(b).source_light;});
         if(sources.size()>12)sources.resize(12);
         if(!gases&&sources.empty()&&s.environment.fog_density<.025f)return;
+        vec volume_lo{float(base.grid_width),float(base.grid_height),0},volume_hi{};
+        for(int i=0;i<int(base.cell_count);++i){const auto &sample=samples[i];
+            if(!sample.density&&(sources.empty()||!sample.scatter))continue;
+            // A bilinear sample extends one cell either side of its centre.
+            // Retain that support and every propagated source-light sample.
+            const float x=float(i%base.grid_width),y=float(i/base.grid_width);
+            volume_lo.x=std::min(volume_lo.x,x-.5f);volume_lo.y=std::min(volume_lo.y,y-.5f);
+            volume_hi.x=std::max(volume_hi.x,x+1.5f);volume_hi.y=std::max(volume_hi.y,y+1.5f);
+            volume_hi.z=std::max(volume_hi.z,!sources.empty()&&sample.scatter?3.0f:sample.height);
+        }
         // Low-resolution scattering; the final blend and reconstruction run
         // on SDL's GPU renderer when available. Geometry still owns all occlusion.
         const int step=std::max(4,(f.width+255)/256);f.effect_width=(f.width+step-1)/step;f.effect_height=(f.height+step-1)/step;
@@ -27,7 +41,9 @@
         const float time=float(std::fmod(s.environment.animation_seconds,1000.0));
         const float extent_x=std::max(eye.x,float(base.grid_width)-eye.x),extent_y=std::max(eye.y,float(base.grid_height)-eye.y);
         const float effect_range=std::max(19.0f,std::hypot(extent_x,extent_y));
+        std::atomic<uint64_t> sample_count{0};
         effects::rows(uint32_t(f.effect_height),f.effects.size(),[&](uint32_t begin,uint32_t end){
+        uint64_t marched=0;
         for(int y=int(begin);y<int(end);++y)for(int x=0;x<f.effect_width;++x){
             const int px=std::min(f.width-1,x*step+step/2),py=std::min(f.height-1,y*step+step/2);
             const size_t at=size_t(py)*f.width+px;
@@ -48,9 +64,15 @@
                     float a=(low-origin)/direction,b=(high-origin)/direction;
                     near=std::max(near,std::min(a,b));far=std::min(far,std::max(a,b));};
                 clip(eye.x,ray.x,-.5f,base.grid_width+.5f);clip(eye.y,ray.y,-.5f,base.grid_height+.5f);clip(eye.z,ray.z,0,3);
+                if(options.skip_empty_volume){
+                    const float saved_near=near,saved_far=far;
+                    clip(eye.x,ray.x,volume_lo.x,volume_hi.x);clip(eye.y,ray.y,volume_lo.y,volume_hi.y);clip(eye.z,ray.z,0,volume_hi.z);
+                    const bool intersects=near<far;near=saved_near;far=intersects?saved_far:0;
+                }
                 // Preserve sample phase when skipping empty ray segments.
                 near=.24f+std::ceil(std::max(0.0f,near-.24f)/stride)*stride;
                 for(float t=near;t<far&&alpha<.96f;){const vec pos=eye+ray*t;
+                    ++marched;
                     // Keep the former near-field sampling unchanged. Farther
                     // cells occupy fewer effect pixels: larger integration steps
                     // bound cost while transmittance accounts for their length.
@@ -58,11 +80,12 @@
                     const int ix=int(std::floor(pos.x-.5f)),iy=int(std::floor(pos.y-.5f));
                     const float fx=pos.x-.5f-ix,fy=pos.y-.5f-iy;
                     float density=0;vec radiance{};
-                    const float n=gases?noise(pos.x*2.2f+time*.14f,pos.y*2.2f+pos.z*1.1f-time*.19f):0;
+                    float n=0;bool noise_ready=false;
                     for(int oy=0;oy<2;++oy)for(int ox=0;ox<2;++ox){const int i=index(ix+ox,iy+oy);
                         if(i<0)continue;const auto &sample=samples[i];
                         const float weight=(ox?fx:1-fx)*(oy?fy:1-fy);
                         if(sample.density&&pos.z<sample.height){
+                            if(!noise_ready){n=noise(pos.x*2.2f+time*.14f,pos.y*2.2f+pos.z*1.1f-time*.19f);noise_ready=true;}
                             const float rim=clamp((sample.height-pos.z)*1.6f)*clamp(pos.z*5+.15f);
                             const float a=sample.density*(.25f+n)*rim*weight;
                             const vec color=sample.fire?vec{.98f,.25f+n*.40f,.035f}*(.7f+.3f*rim):sample.color;
@@ -94,7 +117,8 @@
                 const float mist=clamp(stop*s.environment.fog_density*.13f/(1+height*.3f));
                 const float a=(1-alpha)*mist;sum=sum+fog_color*a;alpha+=a;}
             if(alpha>.003f)f.effects[size_t(y)*f.effect_width+x]=pack(sum*(1/alpha),uint32_t(clamp(alpha)*255));
-        }});
+        }sample_count.fetch_add(marched,std::memory_order_relaxed);});
+        f.volume_samples=sample_count.load(std::memory_order_relaxed);
         if(!(metadata->view.flags&NCMM_PRESENT_GPU_EFFECTS)){
             effects::blend(f.pixels,uint32_t(f.width),uint32_t(f.height),f.effects,uint32_t(f.effect_width),uint32_t(f.effect_height));
             f.effects.clear();f.effect_width=f.effect_height=0;

@@ -21,11 +21,22 @@ jobs:
         with:
           persist-credentials: false
       - name: Configure isolated module
-        run: cmake -S experiments/FirstPersonView -B fp-build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S experiments/FirstPersonView -B fp-build -DCMAKE_BUILD_TYPE=Release -DFIRST_PERSON_BUILD_BENCHMARK=ON
       - name: Build prototype and contract tests
         run: cmake --build fp-build --config Release
       - name: Renderer, occlusion, fog, ABI and toggle lifecycle
         run: ctest --test-dir fp-build -C Release --output-on-failure
+      - name: Record renderer timing and work counters (no FPS threshold)
+        run: cmake --build fp-build --config Release --target first_person_measure
+      - name: Configure sanitizer coverage
+        if: runner.os == 'Linux'
+        run: cmake -S experiments/FirstPersonView -B fp-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
+      - name: Build sanitizer geometry and shared-module tests
+        if: runner.os == 'Linux'
+        run: cmake --build fp-sanitize --parallel 2 --target first_person_optimization_tests first_person_hybrid_module_tests
+      - name: ASan and UBSan camera, volume and DLL lifecycle coverage
+        if: runner.os == 'Linux'
+        run: ctest --test-dir fp-sanitize -R "optimization|hybrid_module" --output-on-failure
       - name: Atomic source-transform negative tests
         run: python -m unittest discover -s experiments/graphics_bridge -p test_apply_graphics_bridge.py -v
       - uses: actions/upload-artifact@v4
@@ -35,8 +46,10 @@ jobs:
             fp-build/Release/ncmm_mod.dll
             fp-build/ncmm_mod.so
             experiments/FirstPersonView/mod.json
+            fp-build/first-person-benchmark.json
           retention-days: 7
   host:
+    needs: module
     name: Experimental MSVC Host - ${{ matrix.build }}
     strategy:
       fail-fast: false
@@ -124,6 +137,26 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Experimental MSVC Host build failed.'}
           if(!(Test-Path cataclysm-tiles.exe)){throw 'Experimental engine binary missing.'}
           (Get-FileHash cataclysm-tiles.exe -Algorithm SHA256).Hash.ToLowerInvariant() | Set-Content first-person-host.sha256 -Encoding Ascii
+      - name: Record effective compiler cache coverage
+        if: always()
+        shell: powershell
+        run: |
+          if(Get-Command sccache.exe -ErrorAction SilentlyContinue) {
+            $raw=& sccache.exe --show-stats --stats-format=json
+            if($LASTEXITCODE -eq 0) {
+              $raw | Set-Content compiler-cache.json -Encoding UTF8
+              $stats=($raw | ConvertFrom-Json).stats
+              $cacheable=[int]$stats.requests_executed
+              $requests=[int]$stats.compile_requests
+              Write-Host "Cacheable requests: $cacheable / $requests; bypass reasons are retained in compiler-cache.json."
+            }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: first-person-compiler-cache-${{ matrix.build }}
+          path: compiler-cache.json
+          retention-days: 7
       - name: Verify compiled or cached engine identity
         shell: powershell
         working-directory: upstream
@@ -244,7 +277,7 @@ jobs:
         with:
           name: first-person-installer-${{ matrix.build }}-Windows-x64
           path: |
-            installer-result/NCMM_FirstPersonView_0.8.0_TEST_${{ matrix.build }}_Windows_x64.zip
+            installer-result/NCMM_FirstPersonView_0.8.1_TEST_${{ matrix.build }}_Windows_x64.zip
             installer-result/first-person-smoke*.json
             installer-result/first-person-*.bmp
             installer-result/first-person-shapes-audit*.json

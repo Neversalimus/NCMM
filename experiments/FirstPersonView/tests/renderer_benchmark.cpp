@@ -1,5 +1,7 @@
 #include <chrono>
 #include <iomanip>
+#include <fstream>
+#include "scene_hash.hpp"
 #include "hybrid_renderer.hpp"
 #include "ncmm_graphics_camera.hpp"
 #include <cstdlib>
@@ -19,9 +21,12 @@ struct fixture {
     sprite_provider provider(){return [&](uint32_t,uint32_t,ncmm_graphics_sprite_v2 &out){out={sizeof(out),32,32,32,art.data()};return true;};}
 };
 void require(bool value,const char *name){if(!value){std::cerr<<"Invalid benchmark "<<name<<'\n';std::exit(1);}}
-void distance_benchmark(int rounds){
+void distance_benchmark(int rounds,const char *json_path){
+    struct measurement {int radius,mode,cached;bool optimized;double median,p95;uint32_t cells,culled,sky;uint64_t samples;};
+    std::vector<measurement> records;
     using clock=std::chrono::steady_clock;
-    for(int radius:{NCMM_GRAPHICS_RADIUS,NCMM_GRAPHICS_V2_RADIUS})for(int mode=0;mode<4;++mode){
+    for(bool optimized:{false,true})for(int radius:{NCMM_GRAPHICS_RADIUS,NCMM_GRAPHICS_V2_RADIUS})for(int mode=0;mode<4;++mode){
+        render_options settings;if(!optimized)settings.cull_geometry=settings.skip_hidden_sky=settings.skip_empty_volume=false;
         fixture a;const int side=radius*2+1;
         a.cells.assign(side*side,{});a.details.assign(side*side,{});a.meta.cells.assign(side*side,{});
         for(int y=0;y<side;++y)for(int x=0;x<side;++x){const int i=y*side+x;
@@ -39,21 +44,28 @@ void distance_benchmark(int rounds){
         }
         a.scene.base={sizeof(ncmm_graphics_scene_v1),1280,800,side,side,radius+.5f,radius+.5f,a.cells.data(),a.cells.size()};
         a.scene.details=a.details.data();a.scene.detail_count=a.details.size();a.meta.view.flags=NCMM_PRESENT_GPU_EFFECTS;
-        frame world;require(build_frame(a.scene,-pi*.5f,0,a.provider(),a.f,1280,800,{},nullptr,&world,&a.meta),"distance setup");
-        for(int cached=0;cached<2;++cached){const auto start=clock::now();
-            for(int n=0;n<rounds;++n){a.scene.environment.animation_seconds=10+n*.025;
-                require(build_frame(a.scene,-pi*.5f+(cached?0:std::sin(n*.1f)*.02f),0,a.provider(),a.f,1280,800,{},cached?&world:nullptr,nullptr,&a.meta),"distance frame");}
-            const auto ms=std::chrono::duration<double,std::milli>(clock::now()-start).count()/rounds;
-            std::cout<<"range "<<radius<<' '<<std::array<const char *,4>{"open","forest","vehicles","smoke"}[mode]<<' '<<(cached?"cached":"camera")<<' '<<std::fixed<<std::setprecision(2)<<ms<<" ms\n"<<std::flush;
+        frame world;require(build_frame(a.scene,-pi*.5f,0,a.provider(),a.f,1280,800,{},nullptr,&world,&a.meta,settings),"distance setup");
+        for(int cached=0;cached<2;++cached){std::vector<double> times;
+            for(int n=0;n<rounds;++n){a.scene.environment.animation_seconds=10+n*.025;const auto start=clock::now();
+                require(build_frame(a.scene,-pi*.5f+(cached?0:std::sin(n*.1f)*.02f),0,a.provider(),a.f,1280,800,{},cached?&world:nullptr,nullptr,&a.meta,settings),"distance frame");
+                times.push_back(std::chrono::duration<double,std::milli>(clock::now()-start).count());}
+            std::sort(times.begin(),times.end());const double median=times[times.size()/2],p95=times[size_t(std::ceil(times.size()*.95))-1];
+            records.push_back({radius,mode,cached,optimized,median,p95,a.f.geometry_cells,a.f.culled_cells,a.f.sky_pixels,a.f.volume_samples});
+            std::cout<<(optimized?"optimized":"reference")<<" range "<<radius<<' '<<std::array<const char *,4>{"open","forest","vehicles","smoke"}[mode]<<' '<<(cached?"cached":"camera")<<' '<<std::fixed<<std::setprecision(2)<<median<<" ms, p95 "<<p95<<" ms; cells "<<a.f.geometry_cells<<", culled "<<a.f.culled_cells<<", sky pixels "<<a.f.sky_pixels<<", volume samples "<<a.f.volume_samples<<'\n'<<std::flush;
         }
     }
+    if(json_path){std::ofstream out(json_path);require(bool(out),"JSON output");
+        out<<"{\"schema\":1,\"version\":\"0.8.1-dev\",\"width\":1280,\"height\":800,\"rounds\":"<<rounds<<",\"hardware_threads\":"<<std::thread::hardware_concurrency()<<",\"timing_is_player_fps\":false,\"records\":[";
+        for(size_t i=0;i<records.size();++i){const auto &r=records[i];if(i)out<<',';
+            out<<"{\"policy\":\""<<(r.optimized?"optimized":"unculled_reference")<<"\",\"radius\":"<<r.radius<<",\"scene\":\""<<std::array<const char *,4>{"open","forest","vehicles","smoke"}[r.mode]<<"\",\"cached\":"<<(r.cached?"true":"false")<<",\"median_ms\":"<<r.median<<",\"p95_ms\":"<<r.p95<<",\"geometry_cells\":"<<r.cells<<",\"culled_cells\":"<<r.culled<<",\"sky_pixels\":"<<r.sky<<",\"volume_samples\":"<<r.samples<<'}';}
+        out<<"]}\n";require(bool(out),"JSON write");}
 }
 // Manual timing tool, deliberately not a CI pass/fail FPS threshold. Run on an
 // otherwise idle machine and compare the same build type and round count.
 int main(int argc,char **argv){
     using clock=std::chrono::steady_clock;
     const int rounds=argc>1?std::max(1,std::atoi(argv[1])):12;
-    if(argc>2&&std::string(argv[2])=="distance"){distance_benchmark(rounds);return 0;}
+    if(argc>2&&std::string(argv[2])=="distance"){distance_benchmark(rounds,argc>3?argv[3]:nullptr);return 0;}
     for(int mode=0;mode<5;++mode){
         fixture a;a.scene.base.pixel_width=1280;a.scene.base.pixel_height=800;
         a.meta.view.flags=NCMM_PRESENT_GPU_EFFECTS;

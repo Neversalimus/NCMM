@@ -34,7 +34,7 @@ const void *query(const char *id,uint32_t,uint32_t){if(!std::strcmp(id,NCMM_GRAP
 int main(){try{
     core.struct_size=sizeof(core);core.abi_version=2;core.api_major=2;core.api_minor=3;
     ncmm_host_api_v1 api{};api.abi_version=1;api.has_capability=has;api.get_api_version_major=major;api.get_api_version_minor=minor;api.query_interface=query;
-    const auto *mod=ncmm_get_descriptor_v1();check(!std::strcmp(mod->version,"0.8.0-dev"),"hybrid module version");
+    const auto *mod=ncmm_get_descriptor_v1();check(!std::strcmp(mod->version,"0.8.1-dev"),"hybrid module version");
     capability=false;check(!mod->init(&api)&&registrations==0,"missing graphics capability rejected");capability=true;
     graphics.struct_size=sizeof(graphics)-1;check(!mod->init(&api)&&registrations==0,"truncated v2 table rejected");graphics.struct_size=sizeof(graphics);
     graphics.abi_version=3;check(!mod->init(&api)&&registrations==0,"unknown v2 ABI rejected");graphics.abi_version=2;
@@ -64,6 +64,11 @@ int main(){try{
     check(callback(&s,nullptr),"balanced large viewport uses bounded raster with preserved aspect");
     input(NCMM_GFX_QUALITY,nullptr);expected_width=1749;expected_height=1080;
     check(callback(&s,nullptr),"high quality restores native bounded raster");
+    const int identity_calls=sprite_calls;cells[24].terrain[126]='X';
+    check(callback(&s,nullptr)&&sprite_calls>identity_calls,"late visible identity bytes invalidate the shared-module cache");
+    cells[24].terrain[126]=0;check(callback(&s,nullptr),"restored identity renders");
+    const int weather_identity_calls=sprite_calls;std::strcpy(s.environment.weather_id,"changed_weather");
+    check(callback(&s,nullptr)&&sprite_calls>weather_identity_calls,"environment identity invalidates geometry cache");
     ncmm_open_ui_v1(&api);check(!enabled,"F6 restores tiles");mod->shutdown();ncmm_open_ui_v1(&api);check(!enabled,"shutdown clears hybrid table");
     check(mod->init(&api)&&registrations==2,"module reload registers cleanly");mod->shutdown();
     control_capability=true;controls.struct_size=sizeof(controls)-1;

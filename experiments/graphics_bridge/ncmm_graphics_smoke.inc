@@ -4,7 +4,7 @@ bool graphics_scene_smoke()
     size_t checks = 0;
     size_t frames = 0;
     int distance_radius = 0;
-    size_t distance_cells = 0;
+    size_t distance_cells = 0, distance_light_queries = 0;
     float distance_fog = 0;
     std::string reason = "ok";
     auto require = [&]( bool ok, const char *failure ) {
@@ -181,9 +181,21 @@ bool graphics_scene_smoke()
                  "expanded_world_snapshot_missing" );
         distance_radius = graphics_snapshot_radius;
         distance_cells = graphics_snapshot_far_cells;
+        distance_light_queries = graphics_snapshot_light_queries;
+        require( distance_light_queries < size_t( NCMM_GRAPHICS_V2_MAX_GRID_SIDE * NCMM_GRAPHICS_V2_MAX_GRID_SIDE / 2 ),
+                 "rear_cells_still_query_lighting" );
         distance_fog = graphics_hybrid_last_environment.fog_density;
         require( distance_fog < .005f, "clear_weather_invented_distance_fog" );
         capture_frame( "first-person-distance.bmp" );
+        // Review material faces with the installed tileset, then restore the
+        // deterministic street used by vehicle and distance regression cases.
+        const tripoint_bub_ms brick( center.x() - 3, center.y() - 5, 0 );
+        const tripoint_bub_ms plaster( center.x() + 3, center.y() - 5, 0 );
+        here.ter_set( brick, ter_id( "t_brick_wall" ) );here.ter_set( plaster, ter_id( "t_wall" ) );
+        here.invalidate_map_cache( 0 );here.build_map_cache( 0 );draw();
+        capture_frame( "first-person-materials.bmp" );
+        here.ter_set( brick, ter_id( "t_pavement" ) );here.ter_set( plaster, ter_id( "t_pavement" ) );
+        here.invalidate_map_cache( 0 );here.build_map_cache( 0 );draw();
         constexpr int range_side = NCMM_GRAPHICS_V2_MAX_GRID_SIDE;
         std::vector<uint8_t> transparency( range_side * range_side );
         for( int y = -NCMM_GRAPHICS_V2_RADIUS; y <= NCMM_GRAPHICS_V2_RADIUS; ++y ) for( int x = -NCMM_GRAPHICS_V2_RADIUS; x <= NCMM_GRAPHICS_V2_RADIUS; ++x ) {
@@ -482,6 +494,7 @@ bool graphics_scene_smoke()
         << ",\"reason\":\"" << reason << "\",\"checks\":" << std::to_string( checks )
         << ",\"sdl_frames\":" << std::to_string( frames ) << ",\"gpu_effect_frames\":" << std::to_string(graphics_effect_gpu_frames) << ",\"cpu_recovery_frames\":" << std::to_string(graphics_effect_cpu_frames)
         << ",\"draw_radius\":" << std::to_string( distance_radius ) << ",\"distant_cells\":" << std::to_string( distance_cells )
+        << ",\"light_queries\":" << std::to_string( distance_light_queries )
         << ",\"clear_weather_fog\":" << std::to_string( distance_fog ) << "}\n";
     log_line( success ? NCMM_LOG_INFO : NCMM_LOG_ERROR,
               ( "First Person View actual engine smoke: " + reason ).c_str() );

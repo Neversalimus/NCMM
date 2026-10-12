@@ -19,6 +19,7 @@ size_t graphics_resolved_vehicle_textures = 0;
 size_t graphics_ceiling_cells = 0;
 int graphics_snapshot_radius = 0;
 size_t graphics_snapshot_far_cells = 0;
+size_t graphics_snapshot_light_queries = 0;
 loaded_mod *find_loaded_by_id( const char *module_id );
 void graphics_clear_hybrid();
 void graphics_release_mouse();
@@ -165,6 +166,7 @@ bool graphics_draw( int x, int y, int width, int height )
     graphics_ceiling_cells = 0;
     graphics_snapshot_radius = radius;
     graphics_snapshot_far_cells = 0;
+    graphics_snapshot_light_queries = 0;
     std::vector<uint8_t> transparency;
     if( graphics_view.hybrid_render ) transparency.resize( cells.size() );
     for( int gy = 0; gy < side; ++gy ) for( int gx = 0; gx < side; ++gx ) {
@@ -183,9 +185,13 @@ bool graphics_draw( int x, int y, int width, int height )
         const tripoint_bub_ms &p = positions[gy * side + gx];
         auto &cell = cells[gy * side + gx];
         if( !here.inbounds( p ) ) continue;
+        // Reject the rear/outside-cone cells before asking the lighting cache.
+        // Simulation and creature AI remain owned by CDDA, independently of
+        // this callback-scoped visual snapshot.
+        if( graphics_view.hybrid_render && !graphics_forward_visible( origin, p, &transparency, radius ) ) continue;
         const lit_level light = here.apparent_light_at( p, visibility );
-        if( graphics_view.hybrid_render ? !graphics_forward_visible( origin, p, &transparency, radius ) :
-            here.get_visibility( light, visibility ) != visibility_type::CLEAR ) continue;
+        ++graphics_snapshot_light_queries;
+        if( !graphics_view.hybrid_render && here.get_visibility( light, visibility ) != visibility_type::CLEAR ) continue;
         cell.flags = NCMM_GFX_VISIBLE;
         if( graphics_view.hybrid_render && std::max( std::abs( gx - radius ), std::abs( gy - radius ) ) > NCMM_GRAPHICS_RADIUS ) ++graphics_snapshot_far_cells;
         cell.light = light == lit_level::LOW ? 0.45f : 1.0f;

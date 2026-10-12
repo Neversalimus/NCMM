@@ -1,4 +1,4 @@
-# First Person 0.7 work checkpoint
+# First Person View development checkpoints
 
 Baseline: d8d22bd (0.6), PR 200. Target: CDDA 1040 and 1807 Windows.
 
@@ -99,3 +99,30 @@ The first real capture exposed a pre-existing weather-unit error: CDDA uses
 Weather haze now uses only the excess above 1.0; actual fog/mist and rain still
 contribute. The distance fixture captures an unobstructed street before its
 near car is created and asserts the live clear-weather fog density.
+
+
+## Qualified 0.8.0 baseline
+
+Workflow 38180230357 and source/package audit 38180230372 pass at f3e7f736.
+The final 1040 installer archive was downloaded and verified (104 local archive
+checks, all 32 payload hashes, final merge b191a277). Both official-package SDL
+receipts pass 4578 checks with radius 48, 1566 distant cells and clear-weather
+fog 0.0. Final distance, car-interior and smoke captures were inspected.
+
+## 0.8.1 continuation
+
+Implemented conservative model/quad bounds, deferred hidden-sky shading,
+parallel sky/cloud rows, active-volume ray rejection, lazy gas noise, dense
+callback-local sprite references and word-wise single-pass scene invalidation.
+Host apparent-light queries now occur after camera/terrain visibility rejection.
+Active redraw scheduling increases from 24 to 16 ms without advancing game time.
+Continuous brick/drywall surfaces keep tileset palettes; soft contact shadows
+anchor feet, trunks and tyres. The 48-cell radius and ABI layouts remain.
+
+Build options are consolidated; lifecycle/contract tests link the shipping
+shared module. CI produces median/p95/work-counter reports, adds Linux sanitizer
+coverage, waits for native checks before Host jobs and records actual compiler
+cache bypasses. Local frame-equivalence and native suites pass; final expanded
+regressions, pinned Host syntax, Windows installers and SDL capture review are
+being qualified. The 0.8.0 installer remains the last qualified package until
+all 0.8.1 gates pass.
