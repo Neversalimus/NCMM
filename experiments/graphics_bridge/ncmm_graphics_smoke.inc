@@ -20,8 +20,19 @@ bool graphics_scene_smoke()
         if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) ) get_options().get_option( "NCMM_FIRST_PERSON_RENDERER" ).setValue( "cpu" );
         map &here = get_map();
         here.load( tripoint_abs_sm( 0, 0, 0 ), true );
+        auto clear_fixture_monsters = [&]() {
+            const auto monsters = get_creature_tracker().get_monsters_list();
+            for( const auto &mon : monsters ) get_creature_tracker().remove( *mon );
+            require( get_creature_tracker().get_monsters_list().empty(), "graphics_fixture_monster_reset_incomplete" );
+        };
+        clear_fixture_monsters();
         for( const auto &vehicle : here.get_vehicles() ) here.destroy_vehicle( vehicle.v );
         avatar &you = get_avatar();
+        // Quickstart traits and effects must not randomize this isolated visual
+        // fixture's sight, posture or camera height. The creature gallery uses
+        // the same normalization before its own explicit appearance cases.
+        you.clear_mutations(); you.clear_effects(); you.set_underwater( false );
+        you.set_base_height( 175 ); you.set_movement_mode( move_mode_id( "walk" ) );
         const tripoint_bub_ms center( 60, 60, 0 );
         calendar::turn = calendar::turn_zero + 12_hours;
         get_weather().weather_id = weather_type_id( "sunny" );
@@ -30,6 +41,7 @@ bool graphics_scene_smoke()
             here.furn_set( p, furn_id( "f_null" ) );
             here.ter_set( p, ter_id( std::abs( x ) == 4 || std::abs( y ) == 4 ? "t_wall" : "t_floor" ) );
             here.clear_fields( p );
+            here.remove_trap( p );
             // The loaded map is procedurally generated. Keep this daylight
             // fixture independent of any inherited roof or smoke fields.
             const tripoint_bub_ms above( p.x(), p.y(), 1 );
@@ -267,6 +279,9 @@ bool graphics_scene_smoke()
         require(interior_checked,"roofed_vehicle_seat_fixture_missing");
         log_line(NCMM_LOG_INFO,"First person smoke checkpoint: roofed interior and bubble recenter restored.");
         here.destroy_vehicle( car );
+        // update_map() above may spawn inhabitants of newly loaded submaps.
+        // A random spider at the scripted attack tile must not block the test.
+        clear_fixture_monsters();
         g->ter_view_p = center;
         // Audit all definitions without querying the identities of unseen cells.
         size_t terrain_count = 0, furniture_count = 0, creature_count=0, gas_count=0;
