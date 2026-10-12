@@ -35,10 +35,12 @@ int main(){int checks=0;auto require=[&](bool ok,const char *message){++checks;i
     first_person::creature::presentation entities;entities.input.view={sizeof(ncmm_graphics_creature_scene_v1),1,1,1,10};
     std::strcpy(cells[7].creature,"mod_arbitrary_creature");
     uint64_t entity_id=0;
-    for(const char *body:{"human","dog","spider","insect","centipede","bird","lizard","snake","fish","blob","migo","unknown_mod_body"}){
+    for(const char *body:{"human","dog","spider","insect","centipede","bird","lizard","snake","fish","blob","robot","migo","unknown_mod_body"}){
         ncmm_graphics_creature_v1 entity{};entity.entity_id=++entity_id;entity.cell=7;entity.world_x=host.world_origin_x+2;entity.world_y=host.world_origin_y+1;
         entity.liters=70;entity.kilograms=65;std::strcpy(entity.bodytype,body);std::strcpy(entity.type_id,cells[7].creature);
-        entities.input.creatures={entity};entities.observe();
+        if(!std::strcmp(body,"centipede"))std::strcpy(entity.species,"CENTIPEDE");
+        if(!std::strcmp(body,"robot"))entity.flags=NCMM_CR_MECHANICAL|NCMM_CR_IMMOBILE;
+        entities.input.creatures.resize(1);entities.input.creatures[0]=entity;entities.observe();
         const auto key=first_person::creature::appearance_key(entity,1);
         entities.resources.request(key,first_person::creature::classify(entity),[&]{ncmm_graphics_sprite_v2 sprite{sizeof(sprite),1,1,1,&pixel};return first_person::creature::sprite::copy(sprite);});
         require(entities.resources.wait_idle(std::chrono::seconds(5)),"real procedural creature resource generation completes");

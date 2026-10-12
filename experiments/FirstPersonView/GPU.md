@@ -141,7 +141,7 @@ gate did not prove that reconstructed anatomical meshes worked.
 
 The GPU collector now preserves the CPU renderer's one-material-per-face
 choice, including triangles crossing front/back regional seams. Native GPU
-geometry coverage collects twelve procedural anatomies at eight headings and
+geometry coverage collects thirteen procedural anatomies at eight headings and
 checks every submitted triangle, rather than exercising only synthetic test
 triangles. Failed producer allocations also invalidate incomplete chunk
 signatures before retry; a small-budget case verifies repeated failure and
@@ -156,3 +156,18 @@ pipeline rejection.
 
 These fixes require renewed Windows Host/game/installer qualification. Do not
 merge based on the earlier room result or mark a fallback frame as GPU.
+
+Local continuation checks also exercised the actual geometry collector on SDL
+3.4.10 Vulkan/llvmpipe (LLVM 20.1.2, 256 bits): all thirteen anatomy categories,
+eight headings each, real indexed draw commands, GPU-visible creature counts
+and picking against the unchanged CPU reference. Maximum whole-frame RGB MAE
+was **0.004393**; captures were inspected. This synthetic API/device evidence
+does not replace the real CDDA gallery or discrete-GPU performance testing.
+The shipping-module recovery and geometry/cache suites passed ASan/UBSan locally
+(LeakSanitizer disabled for the traced container; CI retains its normal checks).
+
+Host preparation now rejects stale, missing or uncompiled embedded shaders:
+both SPIR-V and DXIL must be present for all fourteen source programs and match
+the current shader-source SHA256. Tampered source identity and invalid bytecode
+were rejected in local negative checks. Shader compilation remains a build-time
+operation, with no compiler invocation in normal gameplay.

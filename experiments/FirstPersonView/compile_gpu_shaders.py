@@ -6,20 +6,39 @@ compiler, shell interpolation or downloaded shader program is required.
 import argparse
 import hashlib
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 
 p=argparse.ArgumentParser()
-p.add_argument('--glslang',required=True,type=Path)
+p.add_argument('--glslang',type=Path)
 p.add_argument('--shadercross',type=Path)
 p.add_argument('--output',required=True,type=Path)
 p.add_argument('--source',type=Path,default=Path(__file__).parent/'shaders')
+p.add_argument('--verify',action='store_true',help='Verify the shipping source identity and embedded SPIR-V/DXIL without invoking a compiler')
 a=p.parse_args()
 lines=['#pragma once','#include <cstddef>','namespace ncmm_gpu::shaders {']
 source_hash=hashlib.sha256()
 for source in sorted(a.source.glob('*')):
     if source.suffix in ('.vert','.frag','.comp','.glsl'):
         source_hash.update(source.name.encode());source_hash.update(source.read_bytes())
+if a.verify:
+    header=a.output.read_text(encoding='utf-8')
+    identity=re.findall(r'source_sha256\[\]="([0-9a-f]{64})"',header)
+    if identity!=[source_hash.hexdigest()]:p.error('Embedded GPU shaders do not match the current source SHA256')
+    programs=sorted(source for source in a.source.glob('*') if source.suffix in ('.vert','.frag','.comp'))
+    if not programs:p.error('No GPU shader programs to verify')
+    for source in programs:
+        name=source.stem+'_'+source.suffix[1:]
+        for fmt,magic in (('spv',b'\x03\x02\x23\x07'),('dxil',b'DXBC')):
+            arrays=re.findall(r'inline constexpr unsigned char '+re.escape(name+'_'+fmt)+r'\[\]=\{([^}]*)\};',header,re.S)
+            if len(arrays)!=1:p.error(f'Missing or duplicated embedded shader: {name}_{fmt}')
+            try:data=bytes(int(value) for value in arrays[0].split(',') if value.strip())
+            except ValueError:p.error(f'Invalid embedded shader bytes: {name}_{fmt}')
+            if len(data)<=20 or data[:4]!=magic:p.error(f'Uncompiled or invalid embedded shader: {name}_{fmt}')
+    print(f'Verified {len(programs)} shipping GPU programs in SPIR-V/DXIL; source SHA256 {source_hash.hexdigest()}')
+    raise SystemExit(0)
+if not a.glslang:p.error('--glslang is required for compilation')
 with tempfile.TemporaryDirectory(prefix='ncmm-gpu-shaders-') as directory:
     root=Path(directory)
     for source in sorted(a.source.glob('*')):
