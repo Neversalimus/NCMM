@@ -131,7 +131,7 @@ all 0.8.1 gates pass.
 ## 0.9.0 procedural-creature development checkpoint
 
 Work is isolated in `codex/first-person-procedural-creatures` / PR #201 on top
-of the qualified 0.8.1 PR #200 head. Six implementation commits are persisted:
+of the qualified 0.8.1 PR #200 head. All seven implementation stages are persisted:
 semantic contract/classifier, anatomical meshes/materials, joint animation,
 eight-angle depth impostors/LOD, bounded worker/cache, and live Host integration.
 The new dynamic pass reuses opaque world pixels and owns deferred transparency.
@@ -142,3 +142,10 @@ hooks; GCC syntax checks passed against both sets of real headers. The extended
 NPC overlay, diagnostic and SDL gallery work is being qualified next. MSVC/SDL
 and installer qualification for this feature are still pending; no claim of
 release completion or real performance improvement is made at this checkpoint.
+
+Audit fixes cover live NPC posture (including distant prone impostors), animated
+pose bounds, spider body continuity/leg attachment, speed-sensitive gait,
+fractional creature masses, stable 2D source frames and reused NPC overlay
+readbacks. The latest local 13-suite run passes; real-header checks include the
+modified tileset lookup and combat pathways. The paired SDL fixture retains
+runtime anatomy/fallback/cache-pressure counters alongside timing data.

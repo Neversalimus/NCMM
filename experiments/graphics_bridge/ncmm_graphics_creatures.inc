@@ -82,7 +82,7 @@ void graphics_creature_type( const mtype &type, ncmm_graphics_creature_v1 &s )
             if( type.made_of( material_id( "fur" ) ) ) s.flags |= NCMM_CR_FUR;
             if( type.made_of( material_id( "chitin" ) ) ) s.flags |= NCMM_CR_CHITIN;
             if( type.made_of( material_id( "steel" ) ) && type.in_species( species_id( "ROBOT" ) ) ) s.flags |= NCMM_CR_MECHANICAL;
-    s.kilograms = float( units::to_kilogram( type.weight ) );
+    s.kilograms = float( units::to_gram( type.weight ) ) / 1000.f;
     graphics_copy_text( s.type_id, type.id.str() );
     const auto size = ncmm_graphics_presentation_policy::creature( s.liters, int( type.size ) - 1, type.bodytype );
     s.height = size.height; s.width = size.width;
@@ -114,7 +114,7 @@ void graphics_prepare_creatures( const ncmm_graphics_scene_v1 &base,
         auto &s = record->snapshot; const auto pos = cr->pos_abs();
         if( record->seen > 0 && ( s.world_x != pos.x() || s.world_y != pos.y() ) ) s.heading = std::atan2( float( pos.y() - s.world_y ), float( pos.x() - s.world_x ) );
         s.world_x = pos.x(); s.world_y = pos.y(); s.world_z = pos.z(); s.cell = uint32_t( i ); s.flags = 0;
-        s.kilograms = float( units::to_kilogram( cr->get_weight() ) ); s.speed = float( cr->get_speed() );
+        s.kilograms = float( units::to_gram( cr->get_weight() ) ) / 1000.f; s.speed = float( cr->get_speed() );
         const auto &physical = graphics_presentation_cells[i];
         s.height = physical.creature_height; s.width = physical.creature_width; s.elevation = physical.creature_elevation;
         graphics_copy_text( s.type_id, base.cells[i].creature );
@@ -125,6 +125,7 @@ void graphics_prepare_creatures( const ncmm_graphics_scene_v1 &base,
             s.flags |= NCMM_CR_NPC | NCMM_CR_HUMAN; s.liters = std::max( .1f, s.kilograms ); s.size_category = 2;
             graphics_copy_text( s.bodytype, "human" ); graphics_copy_text( s.species, "HUMAN" );
             if( ch->is_prone() ) s.flags |= NCMM_CR_PRONE;
+            if( ch->is_running() ) s.speed *= 1.5f;
             for( const trait_id &trait : ch->get_mutations() ) {
                 const auto id = trait.str();
                 if( id.find( "FUR" ) != std::string::npos ) s.flags |= NCMM_CR_FUR;
@@ -133,12 +134,12 @@ void graphics_prepare_creatures( const ncmm_graphics_scene_v1 &base,
             }
         }
         s.height = physical.creature_height; s.width = physical.creature_width;
-        s.kilograms = float( units::to_kilogram( cr->get_weight() ) );
+        s.kilograms = float( units::to_gram( cr->get_weight() ) ) / 1000.f;
         if( cr->is_underwater() ) s.flags |= NCMM_CR_SUBMERGED;
         // The selected atlas rectangle distinguishes deterministic tileset
         // variants. No texture address or SDL handle crosses the API.
         const auto category = cr->is_npc() ? TILE_CATEGORY::NONE : TILE_CATEGORY::MONSTER;
-        auto atlas = tilecontext->ncmm_get_texture_draw_data( s.type_id, category, positions[i], false );
+        auto atlas = tilecontext->ncmm_get_texture_draw_data( s.type_id, category, positions[i], false, true );
         s.appearance_revision = 1469598103934665603ull;
         if( atlas ) {
             auto sheet = graphics_creature_sheets.find( atlas->texture );

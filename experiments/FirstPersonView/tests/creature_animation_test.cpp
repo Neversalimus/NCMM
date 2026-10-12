@@ -20,5 +20,8 @@ int main(){int n=0;auto check=[&](bool v){++n;if(!v){std::fprintf(stderr,"animat
     const auto human=builder{}.generate(classify(s),sprite{});observe(i,s,4);const auto lying=animate(human,sample(i,4),4);
     check(sample(i,4).prone);s.flags=0;observe(i,s,4.1);const auto standing=animate(human,sample(i,4.1),4.1);
     check(!sample(i,4.1).prone);check(standing.joints[1].position.z>lying.joints[1].position.z+.3f);
+    s.speed=100;s.world_x++;observe(i,s,4.2);const auto walk=sample(i,4.3);
+    instance runner=i;s.speed=165;observe(runner,s,4.2);const auto run=sample(runner,4.3);
+    check(run.movement>walk.movement&&run.phase>walk.phase);check(display_position(runner,4.3).x==display_position(i,4.3).x);
     std::printf("Creature animation: %d checks PASS\n",n);
 }

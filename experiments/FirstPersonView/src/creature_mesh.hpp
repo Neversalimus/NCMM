@@ -127,9 +127,15 @@ class builder {
                 float r=spider&&i==0?.28f:segments>3?.085f:.19f;
                 ellipsoid({x,0,h*.55f},{l*r,w*(spider?.24f:.18f),h*(spider?.35f:.30f)},seg,i==segments-1?region::head:region::torso,robot);
             }
+            // A spider's abdomen and cephalothorax have a narrow pedicel.
+            // Their separate ellipsoids must not become disconnected volumes.
+            if(spider)link({-l*.30f,0,h*.55f},{l*.30f,0,h*.55f},std::min(w*.085f,h*.11f),std::min(w*.085f,h*.11f),body,region::torso,robot);
             int pairs=p.legs/2;
             for(int n=0;n<pairs;++n)for(int side:{-1,1}){float t=(n+.5f)/pairs, x=(t-.5f)*l*.62f;
-                limb({x,side*w*.13f,h*.59f},{x+(t-.5f)*l*.22f,side*w*.43f,h*.72f},{x+(t-.5f)*l*.42f,side*w*.50f,h*.04f},std::min(w*.035f,h*.07f),body,(n+int(side>0))*pi);}
+                const float root=spider?l*(.27f+(t-.5f)*.22f):x;
+                const float knee=spider?l*(.10f+(t-.5f)*.62f):x+(t-.5f)*l*.22f;
+                const float foot=spider?l*(.05f+(t-.5f)*1.2f):x+(t-.5f)*l*.42f;
+                limb({root,side*w*.13f,h*.59f},{knee,side*w*.43f,h*.72f},{foot,side*w*.50f,h*.04f},std::min(w*.035f,h*.07f),body,(n+int(side>0))*pi);}
             if(!spider)for(int side:{-1,1}){auto antenna=joint({l*.36f,side*w*.08f,h*.64f},body,motion::tail,float(side));link({l*.36f,side*w*.08f,h*.64f},{l*.59f,side*w*.17f,h*.90f},w*.013f,w*.010f,antenna,region::appendage);}
         }else if(p.kind==anatomy::bird){
             ellipsoid({-.07f*l,0,h*.49f},{l*.29f,w*.27f,h*.31f},body,region::torso);

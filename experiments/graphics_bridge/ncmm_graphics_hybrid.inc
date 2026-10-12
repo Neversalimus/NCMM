@@ -168,7 +168,7 @@ int graphics_get_sprite( uint32_t index, uint32_t layer, ncmm_graphics_sprite_v2
             physical_id = next;
         }
     }
-    auto atlas = tilecontext->ncmm_get_texture_draw_data( physical_id, category, position, layer == NCMM_GFX_GROUND );
+    auto atlas = tilecontext->ncmm_get_texture_draw_data( physical_id, category, position, layer == NCMM_GFX_GROUND, layer == NCMM_GFX_CREATURE );
     if( !atlas && physical_id != id ) atlas = tilecontext->ncmm_get_texture_draw_data( id, category, position, false );
     if( !atlas && category == TILE_CATEGORY::VEHICLE_PART ) {
         const size_t mark = id.find( '#' );
@@ -202,10 +202,20 @@ int graphics_get_sprite( uint32_t index, uint32_t layer, ncmm_graphics_sprite_v2
                     if( overlay.first.compare( 0, 5, "worn_" ) && overlay.first.compare( 0, 9, "mutation_" ) ) continue;
                     std::string draw_id;
                     if( !tilecontext->ncmm_find_overlay( ch->male, overlay.first, overlay.second, draw_id ) ) continue;
-                    auto source = tilecontext->ncmm_get_texture_draw_data( draw_id, TILE_CATEGORY::NONE, position, false );
+                    auto source = tilecontext->ncmm_get_texture_draw_data( draw_id, TILE_CATEGORY::NONE, position, false, true );
                     if( !source ) continue;
-                    graphics_cpu_sprite layer_pixels;
-                    if( !graphics_read_sprite( *source, layer_pixels ) ) continue;
+                    const auto &rect = source->dimensions;
+                    const graphics_sprite_key overlay_key{ reinterpret_cast<uintptr_t>( source->texture ), rect.x, rect.y, rect.w, rect.h };
+                    auto layer = graphics_cpu_sprites.find( overlay_key );
+                    if( layer == graphics_cpu_sprites.end() ) {
+                        if( rect.w < 1 || rect.h < 1 || rect.w > 512 || rect.h > 512 || graphics_cpu_sprites.size() >= 1024 ||
+                            graphics_hybrid_sprite_bytes + size_t( rect.w ) * rect.h * 4 > 64 * 1024 * 1024 ) continue;
+                        graphics_cpu_sprite pixels;
+                        if( !graphics_read_sprite( *source, pixels ) ) continue;
+                        graphics_hybrid_sprite_bytes += pixels.pixels.size() * 4;
+                        layer = graphics_cpu_sprites.emplace( overlay_key, std::move( pixels ) ).first;
+                    }
+                    const auto &layer_pixels = layer->second;
                     for( uint32_t y = 0; y < result.height; ++y ) for( uint32_t x = 0; x < result.width; ++x ) {
                         const uint32_t pixel = layer_pixels.pixels[size_t( y * layer_pixels.height / result.height ) * layer_pixels.width + x * layer_pixels.width / result.width];
                         const uint32_t alpha = pixel & 255u; if( !alpha ) continue;

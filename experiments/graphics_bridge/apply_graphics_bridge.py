@@ -160,15 +160,17 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     tiles_h = read("cata_tiles.h")
     tiles_declaration = "        std::optional<texture_draw_data> get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p );"
     updates["cata_tiles.h"] = replace(tiles_h, tiles_declaration, tiles_declaration +
-        "\n        std::optional<texture_draw_data> ncmm_get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p, bool background );\n"
+        "\n        std::optional<texture_draw_data> ncmm_get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p, bool background, bool stable = false );\n"
         "        bool ncmm_find_overlay( bool male, const std::string &overlay, const std::string &variant, std::string &id ) { return find_overlay_looks_like( male, overlay, variant, id ); }\n        uint64_t ncmm_graphics_epoch = 0;\n        uint64_t ncmm_graphics_tileset_epoch() const { return ncmm_graphics_epoch; }")
     tiles_cpp = read("cata_tiles.cpp")
     start = tiles_cpp.index("std::optional<texture_draw_data> cata_tiles::get_texture_draw_data(")
     end = tiles_cpp.index("std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids", start)
     lookup = tiles_cpp[start:end]
     lookup = replace(lookup, "cata_tiles::get_texture_draw_data", "cata_tiles::ncmm_get_texture_draw_data")
-    lookup = replace(lookup, "TILE_CATEGORY category, const tripoint_bub_ms &p )", "TILE_CATEGORY category, const tripoint_bub_ms &p, const bool background )")
+    lookup = replace(lookup, "TILE_CATEGORY category, const tripoint_bub_ms &p )", "TILE_CATEGORY category, const tripoint_bub_ms &p, const bool background, const bool stable )")
     lookup = replace(lookup, "    const std::vector<int> *indices = ttype.fg.pick( seed );",
+        "    // Procedural anatomy animates its own joints; a 2D animation tick is not a new appearance.\n"
+        "    if( stable && ttype.animated ) seed = 0;\n"
         "    const std::vector<int> *indices = background ? ttype.bg.pick( seed ) : ttype.fg.pick( seed );\n"
         "    if( background && !indices ) indices = ttype.fg.pick( seed );")
     tiles_cpp = tiles_cpp[:start] + lookup + tiles_cpp[start:]

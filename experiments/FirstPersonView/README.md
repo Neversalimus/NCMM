@@ -362,6 +362,8 @@ forms. Unrecognized anatomy receives a closed universal volume. Source sprites
 supply separate regional materials; back surfaces use restrained regional colors.
 NPC clothing/mutation layers are resolved by the installed tileset's own overlay
 lookup. IDs identify cache entries; they are not an anatomical exception table.
+Animated source tiles use a stable reference frame for generation, while ordinary
+2D rendering retains its animation. Shared NPC clothing layers reuse atlas reads.
 
 Each model has a hierarchy of joints, two meshes and eight generated depth/normal
 impostor views in seven poses (including prone). LOD uses projected size, a triangle budget and 13%

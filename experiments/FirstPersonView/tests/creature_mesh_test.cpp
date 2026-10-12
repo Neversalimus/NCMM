@@ -12,6 +12,19 @@ int main(){size_t checks=0;auto check=[&](bool v){++checks;if(!v){std::fprintf(s
         }
         check(m.bytes()<2*1024*1024);std::printf("%s: %zu / %zu triangles, %zu joints\n",name(p.kind),m.lod[0].faces.size(),m.lod[1].faces.size(),m.bones.size());
     }
+    // Ray winding through the centre must lie inside the connected spider body.
+    // This catches an actual gap even when every individual part is closed.
+    phenotype spider;spider.kind=anatomy::arachnid;spider.height=.65f;spider.width=1.55f;spider.length=1.55f;spider.legs=8;
+    const auto connected=gen.generate(spider,s);std::vector<point> origins;
+    for(const auto &bone:connected.bones)origins.push_back(bone.origin+(bone.parent<0?point{}:origins[size_t(bone.parent)]));
+    for(const auto &lod:connected.lod){int winding=0;const point ray{0,.011f,spider.height*.55f+.009f};
+        for(const auto &face:lod.faces){auto vertex=[&](uint32_t id){const auto &v=lod.vertices[id];return v.position+origins[v.joint];};
+            const auto a=vertex(face.vertices[0]),b=vertex(face.vertices[1]),c=vertex(face.vertices[2]);
+            const auto e1=b-a,e2=c-a,h=cross(point{1,0,0},e2);const float det=dot(e1,h);if(std::abs(det)<1e-7f)continue;
+            const auto delta=ray-a;const float u=dot(delta,h)/det;if(u<0||u>1)continue;const auto q=cross(delta,e1);const float v=q.x/det;
+            if(v<0||u+v>1||dot(e2,q)/det<=0)continue;winding+=cross(e1,e2).x>0?1:-1;
+        }check(winding>0);
+    }
     auto malformed=gen.generate(phenotype{},sprite{});check(!malformed.colors.sourced);check(!malformed.lod[0].faces.empty());
     ncmm_graphics_sprite_v2 invalid{};invalid.width=513;check(!sprite::copy(invalid).valid());
     std::printf("Creature mesh: %zu checks PASS\n",checks);
