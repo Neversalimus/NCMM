@@ -3,8 +3,16 @@
 #include <ctime>
 #include <cstdint>
 #if defined(_WIN32) && defined(_MSC_VER)
+// DXGI pulls in RPC's `small` macro, which conflicts with CDDA's
+// creature_size::small. Restore the caller's macro state after SDK includes.
+#pragma push_macro("small")
+#pragma push_macro("min")
+#pragma push_macro("max")
 #include <windows.h>
 #include <dxgi1_4.h>
+#pragma pop_macro("max")
+#pragma pop_macro("min")
+#pragma pop_macro("small")
 #endif
 namespace ncmm_graphics_performance {
 inline double cpu_seconds(){
