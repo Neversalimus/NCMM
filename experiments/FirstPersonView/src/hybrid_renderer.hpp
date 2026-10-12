@@ -50,7 +50,7 @@ struct frame {
     int width=0,height=0;std::vector<uint32_t> pixels;std::vector<float> depth;
     std::vector<int32_t> creatures;
     std::vector<uint32_t> effects;int effect_width=0,effect_height=0;
-    int32_t aimed=-1;float label_x=.5f,label_y=.4f;vec sky_horizon{};
+    int32_t aimed=-1;float label_x=.5f,label_y=.4f;vec sky_horizon{},sky_top{};
     std::vector<float> held_depth;
     std::vector<float> sun_shadows;
     std::vector<int32_t> owners;uint32_t triangles=0,vehicle_parts=0,weather_particles=0,held_pixels=0;
@@ -123,8 +123,21 @@ inline surface ground_surface(const char *id){
 }
 struct material {const image *texture=nullptr;vec color{0.45f,0.45f,0.45f};float alpha=1;
     bool cutout=false,opaque_texture=false,overlay=false;int cell=-1;surface finish=surface::none;bool creature=false,spill=false;uint32_t liquid=0,banks=0;
-    bool smooth=false,silhouette=false,creature_visual=false;const creature::impostor *impostor=nullptr;float creature_yaw=0;};
+    bool smooth=false,silhouette=false,creature_visual=false;const creature::impostor *impostor=nullptr;float creature_yaw=0;
+    bool gpu_backface=false,gpu_billboard=false;vec gpu_pivot{};};
 struct triangle {std::array<vertex,3> v;material m;vec normal{0,0,1};};
+
+// Geometry-only destination. The shared generator preserves the existing art
+// and dimensions; this path never enters project(), raster() or pixel effects.
+struct geometry_sink {
+    virtual ~geometry_sink()=default;
+    virtual bool dirty(int cell)const=0;
+    virtual void emit(const triangle &value)=0;
+    virtual void world_complete(){}
+    virtual void skin(const creature::model &model,const creature::skeleton_pose &pose,int lod,
+                      vec origin,int cell,vec scale,bool fallback,bool targetable,float heading,vec offset)=0;
+    virtual void impostor(const creature::asset &asset,const creature::pose_state &pose,vec origin,int cell,int lod,bool targetable)=0;
+};
 
 // Only this immutable copy crosses callbacks. Atlas addresses and providers
 // never survive a frame; transparent surfaces are replayed after dynamic models.
@@ -146,6 +159,7 @@ class renderer {
     std::array<vec,5> clip_planes{};
     const presentation_data *metadata=nullptr;
     creature::presentation *creature_data=nullptr;
+    geometry_sink *gpu_sink=nullptr;
     std::vector<std::shared_ptr<const creature::asset>> creature_assets;
     ncmm_graphics_detail_v1 empty_detail{};
     const ncmm_graphics_detail_v1 &extra(int i)const{return metadata&&i>=0&&size_t(i)<metadata->cells.size()?metadata->cells[i]:empty_detail;}
@@ -199,7 +213,7 @@ class renderer {
         clip_planes={forward,forward*h+right,forward*h-right,forward*v+up,forward*v-up};
     }
     bool in_view(vec lo,vec hi)const{
-        if(!options.cull_geometry)return true;
+        if(gpu_sink||!options.cull_geometry)return true;
         const vec center=(lo+hi)*.5f-eye,radius=(hi-lo)*.5f;
         for(size_t i=0;i<clip_planes.size();++i){const auto n=clip_planes[i];
             const float extent=std::abs(n.x)*radius.x+std::abs(n.y)*radius.y+std::abs(n.z)*radius.z;
@@ -360,12 +374,13 @@ class renderer {
                               {std::max({a.x,b.x,c.x,d.x}),std::max({a.y,b.y,c.y,d.y}),std::max({a.z,b.z,c.z,d.z})})){
             ++f.culled_quads;return;
         }
-        vec l=m.overlay?held_light:light(m.cell,normal);
-        if(m.overlay){if(dot(normal,eye-a)<0)normal=normal*-1;
+        vec l=gpu_sink?vec{1,1,1}:m.overlay?held_light:light(m.cell,normal);
+        if(m.overlay&&!gpu_sink){if(dot(normal,eye-a)<0)normal=normal*-1;
             const vec key=normalize(vec{sy*.4f-cy*.3f,-cy*.4f-sy*.3f,.85f});
             l=l*(.66f+.34f*std::max(0.0f,dot(normal,key)));}
         triangle t0{{vertex{a,uv[0],uv[3],l},vertex{b,uv[2],uv[3],l},vertex{c,uv[2],uv[1],l}},m,normal};
         triangle t1{{vertex{a,uv[0],uv[3],l},vertex{c,uv[2],uv[1],l},vertex{d,uv[0],uv[1],l}},m,normal};
+        if(gpu_sink){gpu_sink->emit(t0);gpu_sink->emit(t1);return;}
         auto &queue=m.overlay?overlay:m.alpha<.99f&&!m.cutout?transparent:opaque;
         queue.push_back(t0);queue.push_back(t1);
     }
@@ -385,7 +400,8 @@ class renderer {
         for(auto total:totals)f.triangles+=total;
     }
     void solid_quad(vec a,vec b,vec c,vec d,material m,vec normal={0,0,1}){
-        if(dot(normal,eye-a)<=0)return;
+        if(gpu_sink)m.gpu_backface=true;
+        else if(dot(normal,eye-a)<=0)return;
         quad(a,b,c,d,m,normal);
     }
     vec rotate(vec p,vec origin,float angle)const{float c=std::cos(angle),sn=std::sin(angle);return origin+vec{p.x*c-p.y*sn,p.x*sn+p.y*c,p.z};}
@@ -416,8 +432,9 @@ class renderer {
             if(!physical){w*=float(img.right-img.left)/img.data.width;h*=float(img.bottom-img.top)/img.data.height;}
             const float dx=float(std::max(1u,img.data.width-1)),dy=float(std::max(1u,img.data.height-1));
             uv={img.left/dx,img.top/dy,(img.right-1)/dx,(img.bottom-1)/dy};}
-        vec right{-sy*w*.5f,cy*w*.5f,0};
-        quad(center-right,center+right,center+right+vec{0,0,h},center-right+vec{0,0,h},m,{-cy,-sy,0},uv);
+        vec right=gpu_sink?vec{w*.5f,0,0}:vec{-sy*w*.5f,cy*w*.5f,0};
+        if(gpu_sink){m.gpu_billboard=true;m.gpu_pivot=center;}
+        quad(center-right,center+right,center+right+vec{0,0,h},center-right+vec{0,0,h},m,gpu_sink?vec{0,-1,0}:vec{-cy,-sy,0},uv);
     }
     void plane(vec origin,float angle,float bottom,float top,material m,float width=1){
         auto p=[&](float x,float z){return rotate({x,0,z},origin,angle);};quad(p(-width*.5f,bottom),p(width*.5f,bottom),p(width*.5f,top),p(-width*.5f,top),m,{std::sin(angle),-std::cos(angle),0});}
@@ -457,7 +474,7 @@ class renderer {
         else if(style==NCMM_SKY_RADIOSPHERE){top={.027f,.037f,.055f};bottom={.14f,.17f,.19f};}
         else if(style==NCMM_SKY_FUNGAL){top={.27f,.32f,.25f};bottom={.56f,.62f,.46f};}
         if(e.lightning){top={.55f,.6f,.73f};bottom={.85f,.86f,.94f};}
-        fog_color=bottom;f.sky_horizon=bottom;sky_top=top;sky_bottom=bottom;
+        fog_color=bottom;f.sky_horizon=bottom;f.sky_top=top;sky_top=top;sky_bottom=bottom;
     }
     void sky(){const auto &e=s.environment;const uint32_t style=sky_style();float day=clamp(e.daylight);
         if(style==NCMM_SKY_VOID||style==NCMM_SKY_STARS)day=0;
@@ -646,7 +663,7 @@ class renderer {
         const vec center=rotate({float(d.mount_x),float(d.mount_y),0},{d.vehicle_x,d.vehicle_y,0},d.vehicle_yaw);
         // A wheel/gauge only a few pixels wide does not need close-up ring
         // tessellation. Scale by projected size so F11 keeps finer geometry.
-        const float projected_mount=projection/std::max(.1f,view(center).z);
+        const float projected_mount=projection/std::max(.1f,gpu_sink?std::sqrt(dot(center-eye,center-eye)):view(center).z);
         const bool small_details=projected_mount<28;
         image *source=texture(uint32_t(i),NCMM_GFX_FURNITURE);
         vec paint=source->valid()?source->paint:vec{.32f,.36f,.40f};
@@ -808,7 +825,7 @@ class renderer {
         if(flags&NCMM_VEH_WHEEL){
             const int sign=d.mount_y<0?-1:1;
             const bool single=!shell&&vehicle_neighbor(i,d.mount_x,d.mount_y-1)<0&&vehicle_neighbor(i,d.mount_x,d.mount_y+1)<0&&d.mount_y==0;
-            const vec wheel=point(0,single?0:sign*.48f,.37f);const int segments=small_details?8:view(center).z>8?16:24;
+            const vec wheel=point(0,single?0:sign*.48f,.37f);const int segments=small_details?8:(gpu_sink?std::sqrt(dot(center-eye,center-eye)):view(center).z)>8?16:24;
             auto p=[&](float theta,float y,float radius){return rotate({std::cos(theta)*radius,y,std::sin(theta)*radius},wheel,yaw);};
             material chrome=steel;chrome.color={.55f,.58f,.61f};
             for(int k=0;k<segments;++k){const float a=2*pi*k/segments,b=2*pi*(k+1)/segments;
@@ -836,7 +853,7 @@ class renderer {
         else if(d.vehicle_features&NCMM_VEH_WHEEL){rx=.45f;ry=.25f;}
         if(rx==0)return;
         const vec center{float(x)+.5f,float(y)+.5f,.021f};
-        const float distance=std::hypot(center.x-eye.x,center.y-eye.y);
+        const float distance=gpu_sink?0.f:std::hypot(center.x-eye.x,center.y-eye.y);
         const float alpha=.24f*clamp(1-distance/24)/(1+extra(i).creature_elevation);
         if(alpha<.01f)return;
         material shadow{nullptr,{.025f,.028f,.032f},alpha,false,false,false,i,surface::contact};
@@ -845,7 +862,7 @@ class renderer {
     #include "creatures.inc"
     void world(){
         std::vector<int> order;order.reserve(base.cell_count);
-        for(int i=0;i<int(base.cell_count);++i){if(!visible(i))continue;
+        for(int i=0;i<int(base.cell_count);++i){if(!visible(i)||(gpu_sink&&!gpu_sink->dirty(i)))continue;
             const int x=i%base.grid_width,y=i/base.grid_width;const auto &d=s.details[i];
             vec center{float(x)+.5f,float(y)+.5f,0};float radius=1.10f;
             // Modelled mounts use a continuous vehicle anchor, not the rounded
@@ -1021,6 +1038,12 @@ class renderer {
     }
 public:
     renderer(const ncmm_graphics_scene_v2 &scene,float y,float p,sprite_provider source,frame &output,animation::pose animation_pose={},const presentation_data *data=nullptr,render_options settings={},creature::presentation *entities=nullptr):s(scene),base(scene.base),provider(std::move(source)),f(output),yaw(y),pitch(p),cy(std::cos(y)),sy(std::sin(y)),cp(std::cos(p)),sp(std::sin(p)),projection(1),eye{base.camera_x,base.camera_y,1.55f},pose(animation_pose),options(settings),metadata(data),creature_data(entities){if(metadata&&metadata->view.eye_height>.1f)eye.z=metadata->view.eye_height;}
+    void collect(geometry_sink &sink,int width,int height){
+        gpu_sink=&sink;f.width=width;f.height=height;projection=width/(2*std::tan(70*pi/360));
+        sky_palette();shadows.assign(base.cell_count,1);vehicles_build();world();sink.world_complete();
+        f.creature_lods={};f.creature_culled=f.creature_fallback=0;
+        if(creature_data)dynamic_creatures();held();gpu_sink=nullptr;
+    }
     void run(int max_width,int max_height,const frame *cached_world=nullptr,frame *world_output=nullptr){float factor=std::min({1.0f,float(max_width)/base.pixel_width,float(max_height)/base.pixel_height});
         f.width=std::max(1,int(base.pixel_width*factor));f.height=std::max(1,int(base.pixel_height*factor));size_t count=size_t(f.width)*f.height;
         projection=f.width/(2*std::tan(70*pi/360));clipping_build();

@@ -48,23 +48,24 @@ jobs:
         run: |
           cmake -S experiments/FirstPersonView -B gpu-build -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_INSTALLED_DIR="$PWD/gpu-upstream/msvc-full-features/vcpkg_installed/x64-windows-static" -DFIRST_PERSON_BUILD_GPU_TESTS=ON -DFIRST_PERSON_GPU_SHADER_HEADER="$PWD/gpu-shader-bytes.hpp"
           if($LASTEXITCODE -ne 0){throw 'GPU probe configuration failed.'}
-          cmake --build gpu-build --config Release --target first_person_gpu_probe_tests first_person_gpu_contract_tests
+          cmake --build gpu-build --config Release --target first_person_gpu_probe_tests first_person_gpu_contract_tests first_person_gpu_scene_tests
           if($LASTEXITCODE -ne 0){throw 'GPU probe build failed.'}
       - name: Require real draw commands, hardware depth and ordinary SDL UI
-        run: ctest --test-dir gpu-build -C Release -R "gpu_probe|gpu_contract" --output-on-failure
+        run: ctest --test-dir gpu-build -C Release -R "gpu_probe|gpu_contract|gpu_scene" --output-on-failure
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: gpu-device-windows
           path: |
             gpu-build/gpu-probe.*
+            gpu-build/gpu-scene*
             gpu-shader-bytes.hpp
           retention-days: 14
   linux:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      SDL_VIDEODRIVER: dummy
+      SDL_VIDEODRIVER: offscreen
       SDL_GPU_DRIVER: vulkan
     steps:
       - uses: actions/checkout@v4
@@ -84,11 +85,13 @@ jobs:
       - name: Build and execute genuine Vulkan geometry and depth
         run: |
           cmake -S experiments/FirstPersonView -B gpu-build -DCMAKE_BUILD_TYPE=Release -DSDL3_DIR="$PWD/gpu-sdl-build" -DFIRST_PERSON_BUILD_GPU_TESTS=ON -DFIRST_PERSON_GPU_SHADER_HEADER="$PWD/gpu-shader-bytes.hpp"
-          cmake --build gpu-build --parallel 2 --target first_person_gpu_probe_tests first_person_gpu_contract_tests
-          ctest --test-dir gpu-build -R "gpu_probe|gpu_contract" --output-on-failure
+          cmake --build gpu-build --parallel 2 --target first_person_gpu_probe_tests first_person_gpu_contract_tests first_person_gpu_scene_tests
+          ctest --test-dir gpu-build -R "gpu_probe|gpu_contract|gpu_scene" --output-on-failure
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: gpu-device-linux
-          path: gpu-build/gpu-probe.*
+          path: |
+            gpu-build/gpu-probe.*
+            gpu-build/gpu-scene*
           retention-days: 14

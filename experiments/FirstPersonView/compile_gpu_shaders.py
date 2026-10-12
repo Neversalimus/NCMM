@@ -17,14 +17,16 @@ p.add_argument('--source',type=Path,default=Path(__file__).parent/'shaders')
 a=p.parse_args()
 lines=['#pragma once','#include <cstddef>','namespace ncmm_gpu::shaders {']
 source_hash=hashlib.sha256()
+for source in sorted(a.source.glob('*')):
+    if source.suffix in ('.vert','.frag','.comp','.glsl'):
+        source_hash.update(source.name.encode());source_hash.update(source.read_bytes())
 with tempfile.TemporaryDirectory(prefix='ncmm-gpu-shaders-') as directory:
     root=Path(directory)
     for source in sorted(a.source.glob('*')):
         if source.suffix not in ('.vert','.frag','.comp'):continue
-        source_hash.update(source.name.encode());source_hash.update(source.read_bytes())
         stage=source.suffix[1:];name=source.stem+'_'+stage
         spv=root/(source.name+'.spv')
-        subprocess.run([str(a.glslang),'--quiet','-V','-S',stage,'-e','main','-o',str(spv),str(source)],check=True)
+        subprocess.run([str(a.glslang),'--quiet','-V','-I'+str(a.source.resolve()),'-S',stage,'-e','main','-o',str(spv),str(source)],check=True)
         formats={'spv':spv}
         if a.shadercross:
             dxil=root/(source.name+'.dxil')

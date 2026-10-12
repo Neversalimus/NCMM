@@ -9,7 +9,7 @@
 #define NCMM_GPU_RESOURCE_LIMIT (256u * 1024u * 1024u)
 #define NCMM_GPU_MAX_VERTICES 2000000u
 #define NCMM_GPU_MAX_INDICES 6000000u
-#define NCMM_GPU_MAX_DRAWS 16384u
+#define NCMM_GPU_MAX_DRAWS 32768u
 #define NCMM_GPU_MAX_TEXTURES 2048u
 #define NCMM_GPU_MAX_BONES 32768u
 enum ncmm_gpu_mode { NCMM_GPU_AUTO, NCMM_GPU_FORCE, NCMM_GPU_CPU };
@@ -17,11 +17,16 @@ enum ncmm_gpu_pass { NCMM_GPU_OPAQUE, NCMM_GPU_TRANSPARENT, NCMM_GPU_HELD };
 enum ncmm_gpu_material_flags {
     NCMM_GPU_TEXTURED=1u, NCMM_GPU_CUTOUT=2u, NCMM_GPU_OPAQUE_TEXTURE=4u,
     NCMM_GPU_SMOOTH=8u, NCMM_GPU_CREATURE=16u, NCMM_GPU_SPILL=32u,
-    NCMM_GPU_IMPOSTOR=64u, NCMM_GPU_SILHOUETTE=128u, NCMM_GPU_HELD_MATERIAL=256u
+    NCMM_GPU_IMPOSTOR=64u, NCMM_GPU_SILHOUETTE=128u, NCMM_GPU_HELD_MATERIAL=256u,
+    NCMM_GPU_CULL_BACK=512u, NCMM_GPU_BILLBOARD=1024u, NCMM_GPU_CREATURE_VISUAL=2048u
 };
 typedef struct ncmm_gpu_vertex_v1 {
     float position[3],normal[3],uv[2];
     uint32_t material,joint;
+    float face_normal[3];
+    uint32_t flags;
+    float pivot[3];
+    uint32_t reserved;
 } ncmm_gpu_vertex_v1;
 typedef struct ncmm_gpu_matrix_v1 { float columns[16]; } ncmm_gpu_matrix_v1;
 typedef struct ncmm_gpu_material_v1 {
@@ -47,6 +52,8 @@ typedef struct ncmm_gpu_draw_v1 {
     uint64_t mesh_key;
     ncmm_gpu_matrix_v1 transform;
     uint32_t bone_offset,bone_count,cell,pass;
+    float creature_yaw;
+    uint32_t reserved[3];
 } ncmm_gpu_draw_v1;
 typedef struct ncmm_gpu_cell_v1 {
     float light[4],source[4],volume[4],volume_color[4];
@@ -77,6 +84,9 @@ typedef struct ncmm_gpu_metrics_v1 {
     int32_t target_cell;
     float label_x,label_y;
     char backend[32],device[256],reason[256];
+    int32_t world_origin_x,world_origin_y,world_origin_z;
+    uint32_t reserved;
+    uint64_t resource_epoch,visible_creature_pixels,completed_frame_serial;
 } ncmm_gpu_metrics_v1;
 typedef struct ncmm_host_graphics_gpu_v1 {
     uint32_t version,struct_size,api_major,api_minor;
@@ -84,4 +94,5 @@ typedef struct ncmm_host_graphics_gpu_v1 {
     int (*submit_scene)(const ncmm_gpu_scene_v1 *scene);
     int (*metrics)(ncmm_gpu_metrics_v1 *out);
     void (*invalidate)(void);
+    int (*has_resource)(uint64_t key,uint32_t texture);
 } ncmm_host_graphics_gpu_v1;
