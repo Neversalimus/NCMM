@@ -32,6 +32,7 @@ void save(const frame &f,const std::string &path){std::ofstream out(path,std::io
 int main(int argc,char **argv){try{fixture f;
     const char *bodies[]={"human","dog","spider","insect","bird","lizard","snake","fish","blob","migo","unknown_mod_body"};
     for(const char *body:bodies){f.creature(body);for(int view=0;view<8;++view){auto &c=f.entities.input.creatures[0];c.entity_id=++f.next_id;c.heading=view*pi/4;f.draw();check(f.pixels()>8,"visible volume in every anatomy/view");if(argc>1)save(f.result,std::string(argv[1])+"-"+body+"-"+std::to_string(view)+".ppm");}}
+    f.creature("spider",3);f.draw();check(f.result.creature_lods[0]==1,"broad nearby anatomy keeps full mesh detail");
     f.creature("human",3);f.draw(nullptr,&f.world);check(f.world.dynamic_world&&bool(f.world.transparency),"cached world retains deferred transparency");check(std::count(f.world.creatures.begin(),f.world.creatures.end(),f.index)==0,"cached world contains no creature silhouette");
     f.entities.input.view.seconds+=.12;f.scene.environment.animation_seconds=f.entities.input.view.seconds;f.draw(&f.world);auto cached=f.result.pixels;f.draw();check(cached==f.result.pixels,"cached composition equals fresh dynamic render");
     const int obstacle=f.index+fixture::side;f.details[obstacle].terrain_shape=NCMM_SHAPE_WINDOW;f.draw(nullptr,&f.world);check(f.pixels()>0,"creature remains pickable through glass");auto glass=f.result.pixels;f.draw(&f.world);check(glass==f.result.pixels,"cached glass composites over current creature depth");

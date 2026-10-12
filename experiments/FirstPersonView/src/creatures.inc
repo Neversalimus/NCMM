@@ -59,7 +59,9 @@
             if(!in_view(origin+vec{-extent-1,-extent-1,-type.height},origin+vec{extent+1,extent+1,type.height*1.4f})){++f.creature_culled;continue;}
             const uint64_t key=creature::appearance_key(c,creature_data->input.view.tileset_epoch);
             auto asset=creature_data->resources.request(key,type,[&]{auto *img=texture(c.cell,NCMM_GFX_CREATURE);return img?creature::sprite::copy(img->data):creature::sprite{};});
-            const float z=std::max(.08f,view(origin+vec{0,0,type.height*.5f}).z),pixels=projection*std::max(type.height,std::max(type.width,type.length)*.5f)/z;
+            // Compare full projected dimensions with pixel thresholds. Using a
+            // half-width prematurely simplified broad, low arthropods nearby.
+            const float z=std::max(.08f,view(origin+vec{0,0,type.height*.5f}).z),pixels=projection*std::max({type.height,type.width,type.length})/z;
             const size_t cost=asset?asset->geometry.lod[0].faces.size():24;
             instance.lod=creature::select_lod(pixels,instance.lod,cost,remaining);
             if(c.flags&NCMM_CR_SUBMERGED)origin.z-=type.height*.55f;
