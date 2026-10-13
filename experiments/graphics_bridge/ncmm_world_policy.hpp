@@ -45,7 +45,7 @@ inline bool valid(const ncmm_graphics_multilevel_scene_v1 &s){
        s.cell_count>NCMM_WORLD_MAX_CELLS||!s.slice_count||s.slice_count>NCMM_WORLD_MAX_SLICES||
        s.cell_count!=b.cell_count||s.cell_count!=s.appearance.detail_count||
        (s.cell_count&&(!s.coordinates||!b.cells||!s.appearance.details))||!s.slices||
-       s.loaded_min_z>s.loaded_max_z||int64_t(s.loaded_max_z)-s.loaded_min_z>=NCMM_WORLD_MAX_SLICES||
+       s.loaded_min_z < -128||s.loaded_max_z > 128||s.loaded_min_z>s.loaded_max_z||int64_t(s.loaded_max_z)-s.loaded_min_z>=NCMM_WORLD_MAX_SLICES||
        s.origin_z<s.loaded_min_z||s.origin_z>s.loaded_max_z||
        !std::isfinite(s.level_height)||s.level_height!=NCMM_WORLD_LEVEL_HEIGHT||
        !finite({s.camera_dx,s.camera_dy,s.camera_dz})||std::abs(s.camera_dx)>4||std::abs(s.camera_dy)>4||std::abs(s.camera_dz)>s.level_height||
@@ -53,11 +53,11 @@ inline bool valid(const ncmm_graphics_multilevel_scene_v1 &s){
     for(uint32_t i=0;i<s.cell_count;++i){const auto &c=s.coordinates[i];
         const int64_t x=int64_t(c.x)-s.origin_x,y=int64_t(c.y)-s.origin_y;
         if(x<0||y<0||x>=b.grid_width||y>=b.grid_height||c.z<s.loaded_min_z||c.z>s.loaded_max_z||c.direction>3||
-           c.flags&~131071u||(i&&!(order(s.coordinates[i-1])<order(c))))return false;
+           c.reserved||c.flags&~131071u||(i&&!(order(s.coordinates[i-1])<order(c))))return false;
     }
     uint32_t count=0;int64_t previous=int64_t(s.loaded_min_z)-1;
     for(uint32_t i=0;i<s.slice_count;++i){const auto &slice=s.slices[i];
-        if(slice.z<=previous||slice.z<s.loaded_min_z||slice.z>s.loaded_max_z||!slice.identity||
+        if(slice.reserved||slice.z<=previous||slice.z<s.loaded_min_z||slice.z>s.loaded_max_z||!slice.identity||
            slice.first_cell!=count||slice.cell_count>s.cell_count-count)return false;
         for(uint32_t j=0;j<slice.cell_count;++j)if(s.coordinates[count+j].z!=slice.z)return false;
         count+=slice.cell_count;previous=slice.z;

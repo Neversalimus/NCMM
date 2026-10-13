@@ -8,7 +8,7 @@
         return supplied?supplied:ncmm_graphics_presentation_policy::material(layer==NCMM_GFX_TERRAIN?base.cells[i].terrain:base.cells[i].furniture);
     }
     bool special_architecture(int i,uint32_t shape,uint32_t layer){
-        const vec center{float(i%base.grid_width)+.5f,float(i/base.grid_width)+.5f,0};
+        const vec center=cell_center(i);
         const float a=s.details[i].orientation?pi*.5f:0;
         material metal{nullptr,{.40f,.43f,.45f},1,false,false,false,i,surface::metal};
         if(shape==NCMM_SHAPE_BRIDGE){
@@ -21,7 +21,7 @@
         if(shape==NCMM_SHAPE_GLASS_WALL){
             material glass{nullptr,{.34f,.61f,.67f},.13f,false,false,false,i};
             plane(center,a,.025f,2.49f,glass,1.005f);
-            auto same=[&](int side){const int n=index(i%base.grid_width+(s.details[i].orientation?0:side),i/base.grid_width+(s.details[i].orientation?side:0));
+            auto same=[&](int side){const int n=neighbor(i,s.details[i].orientation?0:side,s.details[i].orientation?side:0);
                 return visible(n)&&s.details[n].terrain_shape==shape;};
             for(int side:{-1,1})if(!same(side))box(center,{side*.491f-.009f,-.035f,0},{side*.491f+.009f,.035f,2.5f},metal,a);
             for(float h:{.015f,2.485f})box(center,{-.505f,-.025f,h},{.505f,.025f,h+.014f},metal,a);
@@ -74,13 +74,14 @@
         return false;
     }
     void door_model(int i,uint32_t shape,uint32_t layer){
-        ++f.vertical_doors;const vec center{float(i%base.grid_width)+.5f,float(i/base.grid_width)+.5f,0};
+        ++f.vertical_doors;const vec center=cell_center(i);
         const float angle=s.details[i].orientation?pi*.5f:0;
         uint32_t kind=material_kind(i,layer);if(kind==NCMM_MAT_DEFAULT)kind=NCMM_MAT_WOOD;
         const vec color=kind==NCMM_MAT_METAL?vec{.36f,.40f,.42f}:kind==NCMM_MAT_STONE?vec{.47f,.45f,.41f}:kind==NCMM_MAT_RESIN?vec{.38f,.29f,.33f}:kind==NCMM_MAT_CLOTH?vec{.50f,.39f,.31f}:vec{.40f,.26f,.14f};
         material panel{nullptr,color,1,false,false,false,i,finish(kind)},trim=panel;trim.color=trim.color*.72f;
         for(float x:{-.47f,.47f})box(center,{x-.03f,-.07f,0},{x+.03f,.07f,2.4f},trim,angle);
         box(center,{-.5f,-.07f,2.32f},{.5f,.07f,2.43f},trim,angle);
+        if(world_data)box(center,{-.5f,-.07f,2.43f},{.5f,.07f,NCMM_WORLD_LEVEL_HEIGHT},trim,angle);
         if(shape==NCMM_SHAPE_DOOR_FRAME)return;
         const float a=angle+(shape==NCMM_SHAPE_DOOR_OPEN?pi*.46f:0);
         const vec hinge=rotate({-.43f,0,0},center,angle);

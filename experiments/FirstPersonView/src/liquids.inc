@@ -17,7 +17,7 @@
         color=color*(.90f+.10f*wave+.05f*chop);
         float shore=0;
         if(!m.spill&&m.banks&&(m.liquid==NCMM_LIQ_FRESH||m.liquid==NCMM_LIQ_SEA)){
-            const float distance=liquid_surface::bank_distance(m.banks,clamp(p.x-float(m.cell%base.grid_width)),clamp(p.y-float(m.cell/base.grid_width)));
+            const vec origin=cell_origin(m.cell);const float distance=liquid_surface::bank_distance(m.banks,clamp(p.x-origin.x),clamp(p.y-origin.y));
             shore=clamp(1-distance/.65f);shore=shore*shore*(3-2*shore);
             // The bed becomes visible near land; no invented shoreline at the
             // snapshot boundary or at a bridge laid over continuous water.
@@ -42,10 +42,9 @@
             ncmm_graphics_presentation_policy::liquid(base.cells[i].terrain,true):0;
     }
     uint32_t liquid_banks(int i)const{
-        const int x=i%base.grid_width,y=i/base.grid_width;
         constexpr std::array<std::array<int,2>,8> offsets{{{-1,0},{1,0},{0,-1},{0,1},{-1,-1},{1,-1},{-1,1},{1,1}}};
         uint32_t banks=0;
-        for(size_t n=0;n<offsets.size();++n){const int j=index(x+offsets[n][0],y+offsets[n][1]);
+        for(size_t n=0;n<offsets.size();++n){const int j=neighbor(i,offsets[n][0],offsets[n][1]);
             if(visible(j)&&!(base.cells[j].flags&NCMM_GFX_NO_FLOOR)&&!terrain_liquid(j))banks|=1u<<n;}
         return banks;
     }

@@ -24,15 +24,18 @@
         std::stable_sort(sources.begin(),sources.end(),[&](int a,int b){return extra(a).source_light>extra(b).source_light;});
         if(sources.size()>12)sources.resize(12);
         if(!gases&&sources.empty()&&s.environment.fog_density<.025f)return;
-        vec volume_lo{float(base.grid_width),float(base.grid_height),0},volume_hi{};
+        const float minimum_z=world_data?float(world_data->loaded_min_z-world_data->origin_z)*world_data->level_height:0;
+        const float maximum_z=world_data?float(world_data->loaded_max_z-world_data->origin_z+1)*world_data->level_height:3;
+        vec volume_lo{float(base.grid_width),float(base.grid_height),maximum_z},volume_hi{0,0,minimum_z};
         for(int i=0;i<int(base.cell_count);++i){const auto &sample=samples[i];
             if(!sample.density&&(sources.empty()||!sample.scatter))continue;
             // A bilinear sample extends one cell either side of its centre.
             // Retain that support and every propagated source-light sample.
-            const float x=float(i%base.grid_width),y=float(i/base.grid_width);
+            const vec origin=cell_origin(i);const float x=origin.x,y=origin.y;
             volume_lo.x=std::min(volume_lo.x,x-.5f);volume_lo.y=std::min(volume_lo.y,y-.5f);
             volume_hi.x=std::max(volume_hi.x,x+1.5f);volume_hi.y=std::max(volume_hi.y,y+1.5f);
-            volume_hi.z=std::max(volume_hi.z,!sources.empty()&&sample.scatter?3.0f:sample.height);
+            volume_lo.z=std::min(volume_lo.z,origin.z);
+            volume_hi.z=std::max(volume_hi.z,origin.z+(!sources.empty()&&sample.scatter?3.0f:sample.height));
         }
         // Low-resolution scattering; the final blend and reconstruction run
         // on SDL's GPU renderer when available. Geometry still owns all occlusion.
@@ -63,10 +66,10 @@
                     if(std::abs(direction)<.00001f){if(origin<low||origin>high)far=0;return;}
                     float a=(low-origin)/direction,b=(high-origin)/direction;
                     near=std::max(near,std::min(a,b));far=std::min(far,std::max(a,b));};
-                clip(eye.x,ray.x,-.5f,base.grid_width+.5f);clip(eye.y,ray.y,-.5f,base.grid_height+.5f);clip(eye.z,ray.z,0,3);
+                clip(eye.x,ray.x,-.5f,base.grid_width+.5f);clip(eye.y,ray.y,-.5f,base.grid_height+.5f);clip(eye.z,ray.z,minimum_z,maximum_z);
                 if(options.skip_empty_volume){
                     const float saved_near=near,saved_far=far;
-                    clip(eye.x,ray.x,volume_lo.x,volume_hi.x);clip(eye.y,ray.y,volume_lo.y,volume_hi.y);clip(eye.z,ray.z,0,volume_hi.z);
+                    clip(eye.x,ray.x,volume_lo.x,volume_hi.x);clip(eye.y,ray.y,volume_lo.y,volume_hi.y);clip(eye.z,ray.z,volume_lo.z,volume_hi.z);
                     const bool intersects=near<far;near=saved_near;far=intersects?saved_far:0;
                 }
                 // Preserve sample phase when skipping empty ray segments.
@@ -81,12 +84,14 @@
                     const float fx=pos.x-.5f-ix,fy=pos.y-.5f-iy;
                     float density=0;vec radiance{};
                     float n=0;bool noise_ready=false;
-                    for(int oy=0;oy<2;++oy)for(int ox=0;ox<2;++ox){const int i=index(ix+ox,iy+oy);
+                    const int z=world_data?world_data->origin_z+int(std::floor(pos.z/world_data->level_height)):INT32_MIN;
+                    for(int oy=0;oy<2;++oy)for(int ox=0;ox<2;++ox){const int i=index(ix+ox,iy+oy,z);
                         if(i<0)continue;const auto &sample=samples[i];
+                        const float height=pos.z-cell_origin(i).z;
                         const float weight=(ox?fx:1-fx)*(oy?fy:1-fy);
-                        if(sample.density&&pos.z<sample.height){
+                        if(sample.density&&height>=0&&height<sample.height){
                             if(!noise_ready){n=noise(pos.x*2.2f+time*.14f,pos.y*2.2f+pos.z*1.1f-time*.19f);noise_ready=true;}
-                            const float rim=clamp((sample.height-pos.z)*1.6f)*clamp(pos.z*5+.15f);
+                            const float rim=clamp((sample.height-height)*1.6f)*clamp(height*5+.15f);
                             const float a=sample.density*(.25f+n)*rim*weight;
                             const vec color=sample.fire?vec{.98f,.25f+n*.40f,.035f}*(.7f+.3f*rim):sample.color;
                             density+=a;radiance=radiance+color*a;
@@ -104,7 +109,7 @@
                     t+=interval;
                 }
             }
-            for(int i:sources){const auto &d=extra(i);const vec source{float(i%base.grid_width)+.5f,float(i/base.grid_width)+.5f,1.15f};
+            for(int i:sources){const auto &d=extra(i);const vec source=cell_center(i,1.15f);
                 const vec q=view(source);if(q.z<.12f||q.z>stop+.12f)continue;
                 const float distance=std::sqrt(dot(source-eye,source-eye));
                 const float t=dot(source-eye,ray)/std::max(.001f,dot(ray,ray));
@@ -113,7 +118,7 @@
                 const float glow=strength/(1+radius2*18);
                 const float a=(1-alpha)*glow;sum=sum+vec{d.source_r,d.source_g,d.source_b}*a;alpha+=a;
             }
-            if(s.environment.fog_density>.025f){const float height=std::max(0.0f,(eye+ray*stop*.5f).z);
+            if(s.environment.fog_density>.025f&&(!world_data||s.environment.outdoors)){const float height=std::max(0.0f,(eye+ray*stop*.5f).z);
                 const float mist=clamp(stop*s.environment.fog_density*.13f/(1+height*.3f));
                 const float a=(1-alpha)*mist;sum=sum+fog_color*a;alpha+=a;}
             if(alpha>.003f)f.effects[size_t(y)*f.effect_width+x]=pack(sum*(1/alpha),uint32_t(clamp(alpha)*255));

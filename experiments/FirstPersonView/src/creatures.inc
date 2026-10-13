@@ -51,16 +51,19 @@
         // cannot erase a visible V2 creature. Such cells get a universal volume.
         std::vector<ncmm_graphics_creature_v1> unclassified;
         for(size_t i=0;i<base.cell_count;++i)if(visible(int(i))&&base.cells[i].creature[0]&&!represented[i]){
-            ncmm_graphics_creature_v1 c{};c.cell=uint32_t(i);c.entity_id=(uint64_t(1)<<63)|uint64_t(i);c.world_x=int(i%base.grid_width);c.world_y=int(i/base.grid_width);
+            ncmm_graphics_creature_v1 c{};c.cell=uint32_t(i);c.entity_id=(uint64_t(1)<<63)|uint64_t(i);
+            if(world_data){const auto &at=world_data->coordinates[i];c.world_x=at.x;c.world_y=at.y;c.world_z=at.z;}
+            else{c.world_x=int(i%base.grid_width);c.world_y=int(i/base.grid_width);}
             c.liters=c.kilograms=70;c.height=extra(int(i)).creature_height;c.width=extra(int(i)).creature_width;c.elevation=extra(int(i)).creature_elevation;
             std::memcpy(c.type_id,base.cells[i].creature,sizeof(c.type_id));unclassified.push_back(c);
         }
         for(const auto &c:unclassified){creature::observe(creature_data->instances[c.entity_id],c,creature_data->input.view.seconds);order.push_back(&c);}
-        std::stable_sort(order.begin(),order.end(),[&](const auto *a,const auto *b){auto z=[&](const auto *c){return view({float(c->cell%base.grid_width)+.5f,float(c->cell/base.grid_width)+.5f,c->elevation}).z;};return z(a)<z(b);});
+        std::stable_sort(order.begin(),order.end(),[&](const auto *a,const auto *b){auto z=[&](const auto *c){return view(cell_center(int(c->cell),c->elevation)).z;};return z(a)<z(b);});
         size_t remaining=40000;
         for(const auto *source:order){const auto &c=*source;const int cell=int(c.cell);const auto type=creature::classify(c);
-            vec origin{float(cell%base.grid_width)+.5f,float(cell/base.grid_width)+.5f,c.elevation};
+            vec origin=cell_center(cell,c.elevation);
             auto &instance=creature_data->instances[c.entity_id];auto pose=creature::sample(instance,creature_data->input.view.seconds);
+            if(world_data)pose.offset.z*=world_data->level_height;
             const float extent=std::max({type.height,type.width,type.length})*1.5f;
             if(!in_view(origin+vec{-extent-1,-extent-1,-type.height},origin+vec{extent+1,extent+1,type.height*1.4f})){++f.creature_culled;continue;}
             const uint64_t key=creature::appearance_key(c,creature_data->input.view.tileset_epoch);
@@ -91,7 +94,7 @@
     }
     void dynamic_contact_shadow(int cell,vec center,float width,float length,float elevation){
         if(!options.contact_shadows||(base.cells[cell].flags&NCMM_GFX_NO_FLOOR)||terrain_liquid(cell))return;
-        center.z=.022f;const float rx=std::clamp(length*.35f,.04f,1.5f),ry=std::clamp(width*.35f,.04f,1.5f);
+        center.z=cell_origin(cell).z+.022f;const float rx=std::clamp(length*.35f,.04f,1.5f),ry=std::clamp(width*.35f,.04f,1.5f);
         const float distance=gpu_sink?0.f:std::hypot(center.x-eye.x,center.y-eye.y);const float alpha=.24f*clamp(1-distance/24)/(1+elevation);
         if(alpha<.01f)return;
         material shadow{nullptr,{.025f,.028f,.032f},alpha,false,false,false,cell,surface::contact};
