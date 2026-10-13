@@ -44,6 +44,11 @@ Humanoid heads follow the upper connected silhouette and its neck/shoulder or
 persistent colour boundary. This keeps an offset head separate from raised
 arms and excludes shirt colours from the face when the boundary is visible.
 Ambiguous silhouettes retain a bounded anatomical prior.
+Hands sample a lateral upper-body extremity instead of the trouser region.
+Humanoid arms use a separate existing chart with shoulder-to-wrist bounds;
+source glove colours remain observations. A sustained central colour boundary
+selects the shirt/trouser split when visible. The pelvis and both leg segments
+share one lower-body projection, instead of reusing shirt/arm crops on thighs.
 
 A part's local frame generates geometry and normals. Its rest-space position
 selects UVs within shared anatomical bounds. Both geometric LODs use those

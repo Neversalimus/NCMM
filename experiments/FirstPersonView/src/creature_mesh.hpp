@@ -26,9 +26,10 @@ class builder {
     }
     void limb(point start,point knee,point foot,float radius,int parent,float phase,bool arm=false){
         auto upper=joint(start,parent,arm?motion::arm:motion::thigh,phase);
-        link(start,knee,radius,radius*.90f,upper,region::limb,result.type.kind==anatomy::robot);
+        const auto upper_material=result.type.kind==anatomy::humanoid?(arm?region::appendage:region::lower):region::limb;
+        link(start,knee,radius,radius*.90f,upper,upper_material,result.type.kind==anatomy::robot);
         auto lower=joint(knee,upper,arm?motion::forearm:motion::shin,phase);
-        link(knee,foot,radius*.75f,radius*.66f,lower,arm?region::limb:region::lower,result.type.kind==anatomy::robot);
+        link(knee,foot,radius*.75f,radius*.66f,lower,arm?upper_material:region::lower,result.type.kind==anatomy::robot);
         ellipsoid(foot+point{radius*.30f,0,0},{radius*1.20f,radius*.80f,radius*.65f},lower,arm?region::hand:region::foot);
     }
     void build_parts(){const auto &p=result.type;const float h=p.height,w=p.width,l=p.length,b=p.bulk;

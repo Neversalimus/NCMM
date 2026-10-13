@@ -38,6 +38,23 @@ int main(){size_t checks=0;auto check=[&](bool value,const char *reason){++check
     check(dressed_head.source.left==17&&dressed_head.source.right==23&&dressed_head.source.bottom==9,"head crop followed torso or raised arm");
     check(std::find(dressed_head.front.begin(),dressed_head.front.end(),0x40e070ff)==dressed_head.front.end(),"shirt colour transferred to face");
     check(std::find(dressed_head.front.begin(),dressed_head.front.end(),0x202020ff)!=dressed_head.front.end(),"head separation discarded a facial mark");
+    const auto dressed_appearance=extract(dressed,human);
+    check(dressed_appearance.skins[size_t(region::torso)].source.bottom==26&&dressed_appearance.skins[size_t(region::lower)].source.top==26,"garment boundary misplaced");
+    check(std::find(dressed_appearance.skins[size_t(region::torso)].front.begin(),dressed_appearance.skins[size_t(region::torso)].front.end(),0x304080ff)==dressed_appearance.skins[size_t(region::torso)].front.end(),"trousers transferred to shirt");
+    for(auto r:{region::hand,region::appendage}){
+        const auto &t=dressed_appearance.skins[size_t(r)];
+        check(std::find(t.front.begin(),t.front.end(),0x304080ff)==t.front.end(),"trousers transferred to hand/arm");
+        check(std::find(t.front.begin(),t.front.end(),0xc02020ff)!=t.front.end(),"observed extremity colour discarded");
+    }
+    const auto dressed_model=builder{}.generate(human,dressed);
+    for(const auto &v:dressed_model.lod[0].vertices){const auto role=dressed_model.bones[v.joint].role;
+        if(role==motion::arm)check(v.material==uint8_t(region::appendage),"arm reused leg material bounds");
+        if(role==motion::thigh)check(v.material==uint8_t(region::lower),"shirt transferred to thigh");}
+    for(uint32_t tiny_width=1;tiny_width<=3;++tiny_width)for(uint32_t tiny_height=1;tiny_height<=4;++tiny_height){
+        sprite tiny;tiny.width=tiny_width;tiny.height=tiny_height;tiny.pixels.assign(size_t(tiny_width)*tiny_height,0x527ea1ff);
+        const auto tiny_appearance=extract(tiny,human);
+        for(const auto &t:tiny_appearance.skins)check(t.source.left>=0&&t.source.top>=0&&t.source.right<=int(tiny_width)&&t.source.bottom<=int(tiny_height),"tiny source crop outside image");
+    }
     phenotype uncertain;auto unknown_appearance=extract(s,uncertain);
     check(!unknown_appearance.profile,"unknown body asserted a bilateral source view");
     const auto &unknown_body=unknown_appearance.skins[size_t(region::torso)];

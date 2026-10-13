@@ -110,12 +110,13 @@ inline creature_material material_for(const phenotype &p,region r){
     if(p.flags&NCMM_CR_FUR)return creature_material::fur;
     if(p.kind==anatomy::amorphous)return creature_material::slime;
     if(p.kind==anatomy::exotic)return creature_material::fantastic;
-    if(p.kind==anatomy::humanoid&&(r==region::torso||r==region::lower||r==region::limb))return creature_material::cloth;
+    if(p.kind==anatomy::humanoid&&(r==region::torso||r==region::lower||r==region::limb||r==region::appendage))return creature_material::cloth;
     return creature_material::flesh;
 }
 inline uint32_t used_regions(const phenotype &p){
     auto bit=[](region r){return 1u<<uint32_t(r);};uint32_t mask=bit(region::torso);
     if(p.kind==anatomy::humanoid||(p.kind==anatomy::robot&&p.legs==2))mask|=bit(region::head)|bit(region::lower)|bit(region::limb)|bit(region::hand)|bit(region::foot);
+    if(p.kind==anatomy::humanoid){mask|=bit(region::appendage);mask&=~bit(region::limb);}
     else if(p.kind==anatomy::quadruped||p.kind==anatomy::reptile||(p.kind==anatomy::robot&&p.legs==4))mask|=bit(region::head)|bit(region::limb)|bit(region::lower)|bit(region::foot)|bit(region::tail);
     else if(p.kind==anatomy::arachnid||p.kind==anatomy::insect||p.kind==anatomy::centipede||(p.kind==anatomy::robot&&p.legs>=6))mask|=bit(region::head)|bit(region::limb)|bit(region::lower)|bit(region::foot)|bit(region::appendage);
     else if(p.kind==anatomy::bird)mask|=bit(region::head)|bit(region::limb)|bit(region::lower)|bit(region::foot)|bit(region::tail)|bit(region::detail)|bit(region::wing);
@@ -164,6 +165,35 @@ inline source_region upright_head_crop(const sprite &s,source_region body,uint32
     for(int y=body.top;y<bottom;++y){const auto row=run(y);for(int x=row.left;x<row.right;++x)if(related(s.pixels[size_t(y)*s.width+x])){left=std::min(left,x);right=std::max(right,x+1);}}
     return right>left?source_region{left,body.top,right,bottom}:fallback;
 }
+inline source_region upright_hand_crop(const sprite &s,source_region body,source_region head,uint32_t alpha){
+    const int width=body.right-body.left,height=body.bottom-body.top;
+    const int patch_width=std::min(width,std::max(2,int(std::ceil(width*.20f)))),patch_height=std::min(height,std::max(2,int(std::ceil(height*.10f))));
+    const float centre=(head.left+head.right-1)*.5f;float best=-1;int hand_x=body.left,hand_y=body.top;
+    // A bounded lateral upper-body search excludes trouser legs and retains
+    // observed glove/skin colours without assuming a universal skin tone.
+    const int first=body.top+int(height*.18f),last=std::min(body.bottom,body.top+int(std::ceil(height*.58f)));
+    for(int y=first;y<last;++y)for(int x=body.left;x<body.right;++x){if((s.pixels[size_t(y)*s.width+x]&255)<alpha)continue;
+        const float lateral=std::abs(x-centre)/std::max(1,width),vertical=std::abs(float(y-body.top)/std::max(1,height)-.38f);
+        const float score=lateral-.30f*vertical;if(score>best){best=score;hand_x=x;hand_y=y;}}
+    const int left=std::clamp(hand_x<centre?hand_x:hand_x-patch_width+1,body.left,body.right-patch_width);
+    const int top=std::clamp(hand_y-patch_height/2,body.top,body.bottom-patch_height);
+    return {left,top,left+patch_width,top+patch_height};
+}
+inline int upright_waist(const sprite &s,source_region body){
+    const int width=body.right-body.left,height=body.bottom-body.top,window=std::max(2,int(height*.05f));
+    if(height<2)return body.top;
+    int waist=body.top+int(std::ceil(height*.60f));float best=.025f;
+    const int l=body.left+int(width*.30f),r=std::max(l+1,body.left+int(std::ceil(width*.70f)));
+    auto band=[&](int top,int bottom){point mean{};float weight=0;
+        for(int y=std::max(body.top,top);y<std::min(body.bottom,bottom);++y)for(int x=l;x<r;++x){const auto c=s.pixels[size_t(y)*s.width+x];if((c&255)<32)continue;
+            const float a=float(c&255)/255;mean=mean+rgb(c)*a;weight+=a;}
+        return std::pair<point,float>{weight?mean*(1/weight):point{},weight};};
+    for(int y=body.top+int(std::ceil(height*.35f));y<body.top+int(height*.70f);++y){const auto a=band(y-window,y),b=band(y,y+window);
+        if(std::min(a.second,b.second)<(r-l)*window*.25f)continue;
+        const auto delta=a.first-b.first;const float confidence=1-std::abs(float(y-body.top)/std::max(1,height)-.50f);
+        const float score=dot(delta,delta)*confidence;if(score>best){best=score;waist=y;}}
+    return std::clamp(waist,body.top+1,body.bottom-1);
+}
 inline appearance extract(const sprite &s,const phenotype &p,uint32_t region_mask=~0u){
     appearance a;a.profile=p.kind!=anatomy::humanoid&&p.kind!=anatomy::universal&&!(p.kind==anatomy::robot&&p.legs==2);
     for(size_t n=0;n<a.skins.size();++n)a.skins[n].material=material_for(p,region(n));
@@ -201,12 +231,21 @@ inline appearance extract(const sprite &s,const phenotype &p,uint32_t region_mas
         {0,.15f,.35f,.68f},{.74f,.12f,1,.44f},{0,.65f,1,1},{0,.80f,1,1},
         {.05f,.10f,.70f,.72f},{0,.18f,.32f,.72f}}};
     const auto head_crop=p.kind==anatomy::humanoid?upright_head_crop(s,{left,top,right,bottom},body_alpha):source_region{};
+    const bool refine_upright=p.kind==anatomy::humanoid&&bottom-top>=4&&right-left>=3;
+    const auto hand_crop=refine_upright?upright_hand_crop(s,{left,top,right,bottom},head_crop,body_alpha):source_region{};
+    const int waist=refine_upright?upright_waist(s,{left,top,right,bottom}):top;
     for(size_t n=0;n<a.skins.size();++n){if(!(region_mask&(1u<<n)))continue;auto &t=a.skins[n];t.active=true;auto box=(a.profile?horizontal:upright)[n];
         // A winding serpent or an unknown body has no trustworthy rectangular
         // head position. Preserve its palette/pattern without guessing a face.
         if((p.kind==anatomy::serpent||p.kind==anatomy::amorphous||p.kind==anatomy::universal)&&n!=size_t(region::detail))box={0,0,1,1};
         t.source={left+int(box[0]*(right-left)),top+int(box[1]*(bottom-top)),left+int(std::ceil(box[2]*(right-left))),top+int(std::ceil(box[3]*(bottom-top)))};
         if(p.kind==anatomy::humanoid&&n==size_t(region::head))t.source=head_crop;
+        if(refine_upright&&n==size_t(region::hand))t.source=hand_crop;
+        if(refine_upright&&n==size_t(region::appendage)){
+            t.source=hand_crop;t.source.top=std::min(t.source.top,std::max(head_crop.bottom,top+int((bottom-top)*.18f)));
+        }
+        if(refine_upright&&n==size_t(region::torso)){t.source.top=std::min(head_crop.bottom,waist-1);t.source.bottom=waist;}
+        if(refine_upright&&n==size_t(region::lower))t.source.top=waist;
         t.source.right=std::clamp(t.source.right,t.source.left+1,right);t.source.bottom=std::clamp(t.source.bottom,t.source.top+1,bottom);
         t.width=uint32_t(t.source.right-t.source.left);t.height=uint32_t(t.source.bottom-t.source.top);
         t.front.assign(size_t(t.width)*t.height,0);std::vector<int> nearest(t.front.size(),-1);std::deque<int> queue;point sum{};float total=0;
