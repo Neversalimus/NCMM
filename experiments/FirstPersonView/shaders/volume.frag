@@ -4,6 +4,7 @@
 layout(set=2,binding=0) uniform sampler2D world_depth;
 layout(set=2,binding=1) uniform sampler2D held_depth;
 layout(set=2,binding=2,std430) readonly buffer Cells {Cell cells[];};
+#include "cells.glsl"
 layout(set=3,binding=1,std140) uniform Sources {uvec4 source_index[3];};
 layout(location=0) in vec2 uv;
 layout(location=0) out vec4 effect;
@@ -17,7 +18,7 @@ void main(){vec2 pixel=uv*camera.projection.xy;ivec2 size=textureSize(world_dept
     edge_depth=stop;effect=vec4(0);if(held||stop<=.09)return;
     vec3 ray=pixel_ray(pixel),sum=vec3(0);float alpha=0.0;
     float near_t=.24,far_t=stop;
-    for(int axis=0;axis<3;++axis){float lo=axis==2?0.0:-.5,hi=axis==2?3.0:camera.grid[axis]+.5;
+    for(int axis=0;axis<3;++axis){float lo=axis==2?(camera.grid.w>.5&&camera.grid.z>0.0?cells[0].origin.z:0.0):-.5,hi=axis==2?(camera.grid.w>.5&&camera.grid.z>0.0?cells[int(camera.grid.z)-1].origin.z+2.5:3.0):camera.grid[axis]+.5;
         if(abs(ray[axis])<.00001){if(camera.eye[axis]<lo||camera.eye[axis]>hi)far_t=0.0;}
         else{float a=(lo-camera.eye[axis])/ray[axis],b=(hi-camera.eye[axis])/ray[axis];near_t=max(near_t,min(a,b));far_t=min(far_t,max(a,b));}}
     near_t=.24+ceil(max(0.0,near_t-.24)/.43)*.43;
@@ -26,9 +27,10 @@ void main(){vec2 pixel=uv*camera.projection.xy;ivec2 size=textureSize(world_dept
         if(near_t>=far_t||alpha>=.96)break;float interval=min(far_t-near_t,near_t<19.0?.43:near_t<38.0||gases?.86:1.72);
         vec3 p=camera.eye.xyz+ray*near_t;ivec2 base=ivec2(floor(p.xy-.5));vec2 f=fract(p.xy-.5);
         float density=0.0;vec3 radiance=vec3(0);float noise_value=noise2(p.xy*2.2+vec2(camera.time.x*.14,p.z*1.1-camera.time.x*.19));
-        for(int y=0;y<2;++y)for(int x=0;x<2;++x){int i=cell_index(base+ivec2(x,y));if(i<0)continue;Cell c=cells[i];
+        for(int y=0;y<2;++y)for(int x=0;x<2;++x){int i=world_cell_index(vec3(vec2(base+ivec2(x,y))+.5,p.z));if(i<0)continue;Cell c=cells[i];
             float weight=(x!=0?f.x:1.0-f.x)*(y!=0?f.y:1.0-f.y);
-            if(c.volume.x>0.0&&p.z<c.volume.y){float rim=sat((c.volume.y-p.z)*1.6)*sat(p.z*5.0+.15);
+            float local_z=p.z-c.origin.z,volume_height=camera.grid.w>.5?min(2.5,c.volume.y):c.volume.y;
+            if(c.volume.x>0.0&&local_z<volume_height){float rim=sat((volume_height-local_z)*1.6)*sat(local_z*5.0+.15);
                 float a=c.volume.x*(.25+noise_value)*rim*weight;
                 vec3 color=c.state.y==6u?vec3(.98,.25+noise_value*.40,.035)*(.7+.3*rim):c.volume_color.xyz;
                 density+=a;radiance+=color*a;}
@@ -38,11 +40,11 @@ void main(){vec2 pixel=uv*camera.projection.xy;ivec2 size=textureSize(world_dept
         sum+=radiance*(1.0-alpha);alpha+=density*(1.0-alpha);near_t+=interval;
     }
     for(int j=0;j<12;++j){if(j>=source_count)break;uint i=source_index[j/4][j%4];Cell c=cells[i];
-        vec3 source=vec3(float(i%uint(camera.grid.x))+.5,float(i/uint(camera.grid.x))+.5,1.15),q=view_point(source);
+        vec3 source=c.origin.xyz+vec3(.5,.5,1.15),q=view_point(source);
         if(q.z<.12||q.z>stop+.12)continue;float t=dot(source-camera.eye.xyz,ray)/max(.001,dot(ray,ray));if(t<0.0||t>stop)continue;
         vec3 d=source-(camera.eye.xyz+ray*t);float strength=min(.32,sqrt(c.source.w)*.023)/(1.0+length(source-camera.eye.xyz)*.13);
         float a=(1.0-alpha)*strength/(1.0+dot(d,d)*18.0);sum+=c.source.xyz*a;alpha+=a;}
-    if(camera.weather.z>.025){float height=max(0.0,(camera.eye.xyz+ray*stop*.5).z),mist=sat(stop*camera.weather.z*.13/(1.0+height*.3));
+    if(camera.grid.w<.5&&camera.weather.z>.025){float height=max(0.0,(camera.eye.xyz+ray*stop*.5).z),mist=sat(stop*camera.weather.z*.13/(1.0+height*.3));
         float a=(1.0-alpha)*mist;sum+=camera.sky_bottom.xyz*a;alpha+=a;}
     if(alpha>.003)effect=vec4(sum,sat(alpha));
 }

@@ -1,5 +1,6 @@
 #pragma once
 #include "ncmm_gpu_resources.hpp"
+#include "ncmm_graphics_multilevel.h"
 #include <cmath>
 
 namespace ncmm_gpu {
@@ -34,7 +35,7 @@ inline float texture_alpha(const texture_resource *t,float u,float v,bool neares
 }
 // Picking uses a narrow ray query over retained meshes. It does not render a
 // pixel, read the full framebuffer or run the former software raster loop.
-inline void pick(resource_cache &resources,const ncmm_gpu_scene_v1 &scene,ncmm_gpu_metrics_v1 &metrics){
+inline void pick(resource_cache &resources,const ncmm_gpu_scene_v1 &scene,ncmm_gpu_metrics_v1 &metrics,const ncmm_gpu_multilevel_scene_v1 *world=nullptr){
     metrics.target_cell=-1;metrics.label_x=.5f;metrics.label_y=.4f;float nearest=scene.camera.projection[3];point target_top{};
     const auto eye=from(scene.camera.eye),direction=from(scene.camera.forward);
     for(uint32_t i=0;i<scene.draw_count;++i){const auto &draw=scene.draws[i];if(draw.pass==NCMM_GPU_HELD)continue;auto *mesh=resources.mesh(draw.mesh_key);if(!mesh)continue;
@@ -57,6 +58,8 @@ inline void pick(resource_cache &resources,const ncmm_gpu_scene_v1 &scene,ncmm_g
     if(metrics.target_cell>=0){const auto &cell=scene.cells[metrics.target_cell];float height=0,elevation=0;std::memcpy(&height,&cell.reserved[0],4);std::memcpy(&elevation,&cell.reserved[1],4);
         if(std::isfinite(height)&&height>0&&height<=7&&std::isfinite(elevation)&&elevation>=0&&elevation<=5)
             target_top={float(metrics.target_cell%int(scene.camera.grid[0]))+.5f,float(metrics.target_cell/int(scene.camera.grid[0]))+.5f,height+elevation+.06f};
+        if(world&&std::isfinite(height)&&height>0&&height<=7&&std::isfinite(elevation)&&elevation>=0&&elevation<=5){const auto &p=world->coordinates[metrics.target_cell];
+            target_top={float(int64_t(p.x)-world->origin_x)+.5f,float(int64_t(p.y)-world->origin_y)+.5f,float(int64_t(p.z)-world->origin_z)*world->level_height+height+elevation+.06f};}
         const auto d=target_top-eye;float z=dot(d,direction);if(z>.08f){metrics.label_x=std::clamp(.5f+scene.camera.projection[2]*dot(d,from(scene.camera.right))/z/scene.width,0.f,1.f);
             metrics.label_y=std::clamp(.5f-scene.camera.projection[2]*dot(d,from(scene.camera.up))/z/scene.height,0.f,1.f);}}
 }

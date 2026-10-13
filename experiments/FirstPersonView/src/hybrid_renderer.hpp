@@ -130,7 +130,7 @@ inline surface ground_surface(const char *id){
 struct material {const image *texture=nullptr;vec color{0.45f,0.45f,0.45f};float alpha=1;
     bool cutout=false,opaque_texture=false,overlay=false;int cell=-1;surface finish=surface::none;bool creature=false,spill=false;uint32_t liquid=0,banks=0;
     bool smooth=false,silhouette=false,creature_visual=false;const creature::impostor *impostor=nullptr;float creature_yaw=0;
-    bool gpu_backface=false,gpu_billboard=false;vec gpu_pivot{};};
+    bool gpu_backface=false,gpu_billboard=false;vec gpu_pivot{};bool slab_lower=false;};
 struct triangle {std::array<vertex,3> v;material m;vec normal{0,0,1};};
 
 // Geometry-only destination. The shared generator preserves the existing art
@@ -214,13 +214,14 @@ class renderer {
         // Atlas pixels are callback-scoped. Reuse analyses only within this frame.
         image *result=&cached->second;if(prepare&&result->valid()&&result->filtered.empty())result->analyse();*ref=result;return result;
     }
-    vec light(int i,vec normal)const{
+    vec light(int i,vec normal,bool slab_lower=false)const{
         if(!visible(i))return{0.008f,0.01f,0.014f};
         const auto &d=s.details[i];
-        vec value{d.light_r,d.light_g,d.light_b};float face=0.69f+0.19f*std::max(normal.z,0.0f);
-        if(outside(i)){float sun=std::max(0.0f,dot(normal,{s.environment.sun_x,s.environment.sun_y,s.environment.sun_z}));
+        vec value{d.light_r,d.light_g,d.light_b};if(world_data&&slab_lower){const auto &rgb=world_data->coordinates[i].lower_light;value={rgb[0],rgb[1],rgb[2]};}
+        float face=0.69f+0.19f*std::max(normal.z,0.0f);
+        if(outside(i)&&!(world_data&&slab_lower)){float sun=std::max(0.0f,dot(normal,{s.environment.sun_x,s.environment.sun_y,s.environment.sun_z}));
             face+=sun*0.20f*s.environment.daylight*shadows[i];if(normal.z>0.5f)face*=0.56f+0.44f*shadows[i];}
-        if(s.environment.lightning&&outside(i))value=value*1.6f;
+        if(s.environment.lightning&&outside(i)&&!(world_data&&slab_lower))value=value*1.6f;
         return{clamp(value.x*face),clamp(value.y*face),clamp(value.z*face)};}
     vec view(vec p)const{vec d=p-eye;float forward=d.x*cy+d.y*sy;
         return{-d.x*sy+d.y*cy,d.z*cp-forward*sp,forward*cp+d.z*sp};}
@@ -414,7 +415,7 @@ class renderer {
                               {std::max({a.x,b.x,c.x,d.x}),std::max({a.y,b.y,c.y,d.y}),std::max({a.z,b.z,c.z,d.z})})){
             ++f.culled_quads;return;
         }
-        vec l=gpu_sink?vec{1,1,1}:m.overlay?held_light:light(m.cell,normal);
+        vec l=gpu_sink?vec{1,1,1}:m.overlay?held_light:light(m.cell,normal,m.slab_lower);
         if(m.overlay&&!gpu_sink){if(dot(normal,eye-a)<0)normal=normal*-1;
             const vec key=normalize(vec{sy*.4f-cy*.3f,-cy*.4f-sy*.3f,.85f});
             l=l*(.66f+.34f*std::max(0.0f,dot(normal,key)));}
@@ -964,7 +965,7 @@ class renderer {
         for(int n=0;n<count;++n){float x=std::floor(base.camera_x)-12+std::fmod(random(n*7+5)*24+e.wind_x*time*.018f+24000,24.0f);
             float y=std::floor(base.camera_y)-12+std::fmod(random(n*7+6)*24+e.wind_y*time*.018f+24000,24.0f);
             float speed=e.weather_kind==NCMM_WEATHER_SNOW?1.1f:9.0f,z=7-std::fmod(random(n*7+7)*7+time*speed,7.0f);
-            if(world_data)z+=eye.z-1.55f;
+            if(world_data)z+=std::floor(eye.z/world_data->level_height)*world_data->level_height;
             int i=index(int(std::floor(x)),int(std::floor(y)),world_data?world_data->origin_z+int(std::floor(z/world_data->level_height)):INT32_MIN);
             if(!outside(i))continue;vec p=view({x,y,z});if(p.z<=.12f)continue;
             int px=int(f.width*.5f+projection*p.x/p.z),py=int(f.height*.5f-projection*p.y/p.z);if(px<0||px>=f.width||py<0||py>=f.height)continue;
@@ -1127,7 +1128,7 @@ public:
         f.aimed=-1;
         const int target=f.creatures[size_t(f.height/2)*f.width+f.width/2];
         if(target>=0){f.aimed=target;const float h=extra(target).creature_height>0?extra(target).creature_height:1.7f;
-            const vec top=view({float(target%base.grid_width)+.5f,float(target/base.grid_width)+.5f,h+extra(target).creature_elevation+.06f});
+            const vec top=view(cell_center(target,h+extra(target).creature_elevation+.06f));
             if(top.z>.08f){f.label_x=clamp(.5f+projection*top.x/top.z/f.width);f.label_y=clamp(.5f-projection*top.y/top.z/f.height);}}
         f.weather_particles=f.held_pixels=0;auto effect_begun=std::chrono::steady_clock::now();weather();
         f.effects_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-effect_begun).count();

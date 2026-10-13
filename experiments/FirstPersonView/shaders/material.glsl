@@ -1,4 +1,4 @@
-vec3 material_detail(vec3 color,uint finish,vec3 p,vec3 n,float z,uint flags,uint liquid,uint banks,uint cell){
+vec3 material_detail(vec3 color,uint finish,vec3 p,vec3 n,float z,uint flags,uint liquid,uint banks,uint cell,vec2 cell_origin){
     vec3 to_eye=normalize(camera.eye.xyz-p);float footprint=z/camera.projection.z/max(.15,abs(dot(n,to_eye)));
     float fine=sat(1.0-footprint*80.0),medium=sat(1.0-footprint*18.0);
     if(finish==12u){float scale=(flags&32u)!=0u?7.0:liquid==2u?2.0:3.8;
@@ -8,7 +8,7 @@ vec3 material_detail(vec3 color,uint finish,vec3 p,vec3 n,float z,uint flags,uin
         vec3 wn=normalize(n+vec3(wave*.12,chop*.08,0));float grazing=1.0-sat(dot(wn,to_eye));grazing*=grazing;
         color*=.90+.10*wave+.05*chop;
         if((flags&32u)==0u&&banks!=0u&&(liquid==1u||liquid==2u)){
-            vec2 q=clamp(p.xy-vec2(cell%uint(camera.grid.x),cell/uint(camera.grid.x)),vec2(0),vec2(1));float d=10.0;
+            vec2 q=clamp(p.xy-cell_origin,vec2(0),vec2(1));float d=10.0;
             if((banks&1u)!=0u)d=min(d,q.x);if((banks&2u)!=0u)d=min(d,1.0-q.x);
             if((banks&4u)!=0u)d=min(d,q.y);if((banks&8u)!=0u)d=min(d,1.0-q.y);
             if((banks&16u)!=0u)d=min(d,length(q));if((banks&32u)!=0u)d=min(d,length(q-vec2(1,0)));

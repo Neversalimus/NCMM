@@ -14,7 +14,7 @@ inline bool operator==(voxel a,voxel b){return a.x==b.x&&a.y==b.y&&a.z==b.z;}
 struct traits {
     bool loaded=false,no_floor=false,no_floor_water=false,transparent_floor=false,z_transparent=false;
     bool opaque=false,goes_up=false,goes_down=false,ramp=false,ramp_up=false,ramp_down=false;
-    bool difficult_z=false,canopy=false,roofed=false;
+    bool difficult_z=false,canopy=false,roofed=false,ramp_end=false;
 };
 inline uint32_t semantics(const traits &t){
     if(!t.loaded)return NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE;
@@ -23,13 +23,14 @@ inline uint32_t semantics(const traits &t){
     // CDDA has_floor and its visual floor_cache are different contracts.
     // GOES_DOWN opens the visual shaft although it remains a walkable landing.
     // TRANSPARENT_FLOOR remains a physical slab and is not an empty air tile.
-    if(!t.no_floor&&!t.no_floor_water&&!t.goes_down)out|=NCMM_WORLD_FLOOR;
+    if(!t.no_floor&&!t.no_floor_water&&!t.goes_down&&!t.ramp_down)out|=NCMM_WORLD_FLOOR;
     if(t.transparent_floor&&!ramp)out|=NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR;
     if(t.no_floor||t.goes_down||t.no_floor_water)out|=NCMM_WORLD_OPEN_DOWN;
     if(t.no_floor_water)out|=NCMM_WORLD_WATER;
     if(t.goes_up||t.ramp||t.ramp_up)out|=NCMM_WORLD_UP;
     if(t.goes_down||t.ramp_down)out|=NCMM_WORLD_DOWN;
     if(ramp)out|=NCMM_WORLD_RAMP;
+    if(t.ramp_end)out|=NCMM_WORLD_RAMP_END;
     if(t.difficult_z&&(t.goes_up||t.goes_down))out|=NCMM_WORLD_LADDER;
     if(t.canopy)out|=NCMM_WORLD_CANOPY;
     if(t.roofed)out|=NCMM_WORLD_ROOFED;
@@ -48,12 +49,13 @@ inline bool valid(const ncmm_graphics_multilevel_scene_v1 &s){
        s.loaded_min_z < -128||s.loaded_max_z > 128||s.loaded_min_z>s.loaded_max_z||int64_t(s.loaded_max_z)-s.loaded_min_z>=NCMM_WORLD_MAX_SLICES||
        s.origin_z<s.loaded_min_z||s.origin_z>s.loaded_max_z||
        !std::isfinite(s.level_height)||s.level_height!=NCMM_WORLD_LEVEL_HEIGHT||
-       !finite({s.camera_dx,s.camera_dy,s.camera_dz})||std::abs(s.camera_dx)>4||std::abs(s.camera_dy)>4||std::abs(s.camera_dz)>s.level_height||
+       !finite({s.camera_dx,s.camera_dy,s.camera_dz})||std::abs(s.camera_dx)>4||std::abs(s.camera_dy)>4||std::abs(s.camera_dz)>s.level_height*2||
        b.grid_width<1||b.grid_height<1||b.grid_width>NCMM_GRAPHICS_V2_MAX_GRID_SIDE||b.grid_height>NCMM_GRAPHICS_V2_MAX_GRID_SIDE)return false;
     for(uint32_t i=0;i<s.cell_count;++i){const auto &c=s.coordinates[i];
         const int64_t x=int64_t(c.x)-s.origin_x,y=int64_t(c.y)-s.origin_y;
         if(x<0||y<0||x>=b.grid_width||y>=b.grid_height||c.z<s.loaded_min_z||c.z>s.loaded_max_z||c.direction>3||
-           c.reserved||c.flags&~131071u||(i&&!(order(s.coordinates[i-1])<order(c))))return false;
+           c.reserved||c.flags&~262143u||(i&&!(order(s.coordinates[i-1])<order(c))))return false;
+        for(float light:c.lower_light)if(!std::isfinite(light)||light<0||light>1)return false;
     }
     uint32_t count=0;int64_t previous=int64_t(s.loaded_min_z)-1;
     for(uint32_t i=0;i<s.slice_count;++i){const auto &slice=s.slices[i];

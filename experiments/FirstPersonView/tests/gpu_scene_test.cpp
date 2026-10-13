@@ -179,7 +179,37 @@ int main(int argc,char **argv){
             require(red>60&&red<115&&blue>60&&blue<115&&std::abs(red-blue)<8,"impostor colour mip removes checker shimmer at every subpixel phase");
             require(engine.metrics().visible_creature_pixels>0&&engine.metrics().target_cell==0,"filtered impostor preserves silhouette and picking");}
     }
-    if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"impostor_colour_minification\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
+    {
+        // A real shared-device multi-Z scene, including deliberately submitted
+        // upper actors behind a physical slab. Hardware depth must hide them.
+        namespace fp=first_person;
+        ncmm_graphics_multilevel_scene_v1 world{};world.struct_size=sizeof(world);world.version=1;world.world_epoch=991;world.revision=1;
+        world.origin_x=1000000;world.origin_y=-1000000;world.loaded_max_z=2;world.level_height=2.5f;
+        std::vector<ncmm_graphics_cell_v1> appearances(147);std::vector<ncmm_graphics_cell_v2> details(147);std::vector<ncmm_world_cell_v1> xyz;
+        ncmm_world_slice_v1 slices[3]{};
+        for(int z=0;z<3;++z){slices[z]={z,uint32_t(z*49),49,0,uint64_t(z+1),1};
+            for(int y=0;y<7;++y)for(int x=0;x<7;++x){const int i=z*49+y*7+x;auto &a=appearances[i];a.flags=NCMM_GFX_VISIBLE|NCMM_GFX_CEILING;a.light=1;std::strcpy(a.terrain,"t_floor");
+                details[i].light_r=details[i].light_g=details[i].light_b=.8f;std::strcpy(details[i].ground,"t_floor");
+                xyz.push_back({world.origin_x+x,world.origin_y+y,z,NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM,0,0,1,{.22f,.22f,.22f}});}}
+        const int actor=49+2*7+3;std::strcpy(appearances[actor].creature,"mon_zombie");
+        world.coordinates=xyz.data();world.cell_count=uint32_t(xyz.size());world.slices=slices;world.slice_count=3;
+        world.appearance.struct_size=sizeof(world.appearance);world.appearance.base={sizeof(ncmm_graphics_scene_v1),640,480,7,7,3.5f,5.5f,appearances.data(),appearances.size()};world.appearance.details=details.data();world.appearance.detail_count=details.size();
+        world.appearance.environment.daylight=.8f;
+        fp::gpu::scene_cache cache;ncmm_gpu_metrics_v1 host{};host.resource_epoch=engine.metrics().resource_epoch;
+        const float pitch=std::atan2(2.5f+.85f-1.55f,3.f);
+        for(int open=0;open<2;++open){if(open)for(int i=49;i<98;++i){xyz[i].flags=NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_OPEN_DOWN;appearances[i].flags=NCMM_GFX_VISIBLE|NCMM_GFX_NO_FLOOR;}
+            fp::gpu::packet packet;fp::hybrid::frame statistics,reference;
+            require(cache.build(world.appearance,-fp::hybrid::pi*.5f,pitch,{},packet,statistics,host,{},nullptr,nullptr,640,480,NCMM_GPU_FORCE,&world),"sparse XYZ GPU scene collection");
+            ncmm_gpu_multilevel_scene_v1 submitted{};submitted.struct_size=sizeof(submitted);submitted.version=1;submitted.base=packet.finish(nullptr);submitted.coordinates=xyz.data();submitted.cell_count=uint32_t(xyz.size());submitted.origin_x=world.origin_x;submitted.origin_y=world.origin_y;submitted.level_height=2.5f;
+            require(engine.submit(submitted.base,&submitted),engine.metrics().reason);capture(open?"-world-open-shaft":"-world-closed-floor");
+            require(fp::hybrid::build_frame(world.appearance,-fp::hybrid::pi*.5f,pitch,{},reference,640,480,{},nullptr,nullptr,nullptr,{},nullptr,&world),"actual multi-Z CPU depth reference");
+            const auto gpu_count=engine.metrics().visible_creature_pixels,cpu_count=uint64_t(std::count(reference.creatures.begin(),reference.creatures.end(),actor));
+            require(open?(gpu_count>100&&cpu_count>100):(gpu_count==0&&cpu_count==0),"CPU and real GPU agree on vertical slab/shaft occlusion");
+            require(engine.metrics().target_cell==(open?actor:-1)&&reference.aimed==(open?actor:-1),"XYZ creature picking agrees through the real opening");
+            if(open)require(std::abs(engine.metrics().label_y-reference.label_y)<.04f,"upper-Z CPU/GPU label projection agrees");
+        }
+    }
+    if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"impostor_colour_minification\":true,\"multilevel_depth_and_picking\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
     std::printf("Full GPU scene PASS: %s / %s; animation upload %llu bytes; CPU raster=0\n",second.backend,second.device,(unsigned long long)second.upload_bytes);
     engine.clear();require(!engine.bind(nullptr,2)&&!engine.available(),"unsupported renderer fails closed without claiming GPU");
     require(engine.bind(renderer,3),"same owned device can recover after fallback");engine.clear();

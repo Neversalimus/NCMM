@@ -11,6 +11,7 @@
         material bottom=slab_underside(i),top=bottom;
         if(flags&NCMM_WORLD_FLOOR_TOP){top=mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f});top.opaque_texture=true;top.finish=ground_surface(s.details[i].ground);}
         if(flags&NCMM_WORLD_GLASS_FLOOR){top=bottom={nullptr,{.37f,.58f,.63f},.22f,false,false,false,i};}
+        bottom.slab_lower=true;
         auto point=[&](float x,float y,float z){return at+vec{x,y,z};};
         const vec a=point(x0,y0,0),b=point(x1,y0,0),c=point(x1,y1,0),d=point(x0,y1,0);
         if(flags&NCMM_WORLD_FLOOR_TOP)quad(a,b,c,d,top,{0,0,1});
@@ -45,7 +46,7 @@
         const vec center=cell_center(i);const float angle=world_data->coordinates[i].direction*pi*.5f;
         material structure=slab_underside(i);structure.color=structure.color*.82f;
         const bool connected=(flags&NCMM_WORLD_CONNECTED_UP)!=0;
-        const float height=connected?world_data->level_height:std::min(1.1f,world_data->level_height);
+        const float height=(connected||(flags&NCMM_WORLD_RAMP_END))?world_data->level_height:std::min(1.1f,world_data->level_height);
         if(flags&NCMM_WORLD_LADDER){
             material metal{nullptr,{.38f,.41f,.43f},1,false,false,false,i,surface::metal};
             for(float side:{-.25f,.25f})box(center,{-.42f,side-.024f,.02f},{-.37f,side+.024f,height},metal,angle);
@@ -54,6 +55,15 @@
         }
         if(flags&NCMM_WORLD_RAMP){
             auto p=[&](float x,float y,float z){return rotate({x,y,z},center,angle);};
+            if(flags&NCMM_WORLD_RAMP_END){
+                const int above=neighbor(i,0,0,1);
+                if(above<0||!(world_flags(above)&NCMM_WORLD_FLOOR))quad(p(-.5f,-.5f,height),p(.5f,-.5f,height),p(.5f,.5f,height),p(-.5f,.5f,height),structure,{0,0,1});
+                for(int edge=0;edge<4;++edge){const float a=edge*pi*.5f,b=(edge+1)*pi*.5f;
+                    const vec x=rotate({std::cos(a)*.7071068f,std::sin(a)*.7071068f,0},center,pi*.25f+angle),
+                              y=rotate({std::cos(b)*.7071068f,std::sin(b)*.7071068f,0},center,pi*.25f+angle);
+                    quad(x,y,y+vec{0,0,height},x+vec{0,0,height},structure,normalize(cross(y-x,vec{0,0,1})));}
+                return;
+            }
             quad(p(-.5f,-.5f,.02f),p(.5f,-.5f,height),p(.5f,.5f,height),p(-.5f,.5f,.02f),structure,normalize(rotate({-height,0,1},{},angle)));
             for(float side:{-.5f,.5f})quad(p(-.5f,side,0),p(.5f,side,0),p(.5f,side,height),p(-.5f,side,.02f),structure,rotate({0,side>0?1.f:-1.f,0},{},angle));
             quad(p(.5f,-.5f,0),p(.5f,.5f,0),p(.5f,.5f,height),p(.5f,-.5f,height),structure,rotate({1,0,0},{},angle));return;

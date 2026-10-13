@@ -1,4 +1,5 @@
-#include "hybrid_renderer.hpp"
+#include "gpu_scene.hpp"
+#include "ncmm_gpu_validation.hpp"
 #include <iostream>
 #include <stdexcept>
 using namespace first_person::hybrid;
@@ -55,6 +56,21 @@ int main(){try{
             if(t.normal.z<-.9f){++bottom;const float expected=world.positions[t.m.cell].z*NCMM_WORLD_LEVEL_HEIGHT-.08f;
                 for(const auto &v:t.v)check(std::abs(v.p.z-expected)<.0001f,"underside belongs to the actual upper floor");}}
         check(bottom>0,"slabs contain a separately materialled underside");
+        first_person::gpu::scene_cache cache;ncmm_gpu_metrics_v1 host{};host.resource_epoch=1;
+        first_person::gpu::packet packet;frame stats;
+        bool ready=cache.build(world.world.appearance,0,.2f,{},packet,stats,host,{},nullptr,nullptr,400,260,NCMM_GPU_FORCE,&world.world);
+        if(!ready){packet=first_person::gpu::packet{};ready=cache.build(world.world.appearance,0,.2f,{},packet,stats,host,{},nullptr,nullptr,400,260,NCMM_GPU_FORCE,&world.world);}
+        check(ready,"bounded GPU scene cache warms the complete multi-Z snapshot");
+        ncmm_gpu_multilevel_scene_v1 gpu{};gpu.struct_size=sizeof(gpu);gpu.version=1;gpu.base=packet.finish(nullptr);
+        gpu.coordinates=world.world.coordinates;gpu.cell_count=world.world.cell_count;gpu.origin_x=world.world.origin_x;gpu.origin_y=world.world.origin_y;gpu.level_height=world.world.level_height;
+        check(!ncmm_gpu::validate(gpu.base,&gpu),"sparse XYZ GPU wrapper validates without changing legacy cell ABI");
+        for(const auto &draw:packet.draws){check(draw.cell<world.positions.size(),"GPU draw preserves sparse source cell");
+            check(std::abs(draw.transform.columns[14]-world.positions[draw.cell].z*2.5f)<.0001f,"GPU mesh instance carries actual physical Z");}
+        bool lower=false;for(uint32_t m=0;m<gpu.base.mesh_count;++m)for(uint32_t i=0;i<gpu.base.meshes[m].material_count;++i)lower|=(gpu.base.meshes[m].materials[i].flags&NCMM_GPU_SLAB_UNDERSIDE)!=0;
+        check(lower,"GPU underside chooses separate lower-room RGB");
+        if(levels>1)check(ncmm_gpu::validate(gpu.base),"legacy GPU path cannot silently accept sparse multi-Z cells");
+        auto broken=gpu;broken.level_height=0;check(ncmm_gpu::validate(gpu.base,&broken),"invalid world height rejected");
+        broken=gpu;broken.origin_x=INT32_MAX;check(ncmm_gpu::validate(gpu.base,&broken),"far absolute coordinates do not overflow validation");
     }
     fixture empty(3);for(auto &c:empty.appearance)c.flags|=NCMM_GFX_CEILING;
     frame image;check(empty.draw(image,1.2f),"open multi-Z world with misleading legacy interior flags");

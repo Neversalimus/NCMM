@@ -21,12 +21,13 @@ enum ncmm_world_flags {
     NCMM_WORLD_RAMP=1024u, NCMM_WORLD_LADDER=2048u,
     NCMM_WORLD_WATER=4096u, NCMM_WORLD_UNKNOWN=8192u,
     NCMM_WORLD_CONNECTED_UP=16384u, NCMM_WORLD_CONNECTED_DOWN=32768u,
-    NCMM_WORLD_CANOPY=65536u
+    NCMM_WORLD_CANOPY=65536u, NCMM_WORLD_RAMP_END=131072u
 };
 typedef struct ncmm_world_cell_v1 {
     int32_t x,y,z; /* canonical absolute CDDA map-square coordinates */
     uint32_t flags,direction,reserved; /* direction: +X,+Y,-X,-Y */
     uint64_t revision;
+    float lower_light[3]; /* actual RGB on the room side of a slab */
 } ncmm_world_cell_v1;
 typedef struct ncmm_world_slice_v1 {
     int32_t z;
