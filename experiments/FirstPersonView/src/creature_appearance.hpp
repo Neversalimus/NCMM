@@ -9,7 +9,7 @@
 namespace first_person::creature {
 // Appearance changes invalidate CPU/GPU resources independently of the shared
 // Host anatomical classifier, whose policy and ABI remain unchanged.
-constexpr uint32_t appearance_generator_version=4;
+constexpr uint32_t appearance_generator_version=5;
 constexpr float pi=3.14159265358979323846f;
 struct point {
     float x=0,y=0,z=0;
@@ -171,6 +171,7 @@ inline source_region upright_head_crop(const sprite &s,source_region body,uint32
     const bool overhead=body.top>original_top+1;
     if(overhead){body.left=std::max(body.left,narrow_left-1);body.right=std::min(body.right,narrow_right+1);
         fallback={body.left,body.top,body.right,std::min(body.bottom,body.top+int(std::ceil(height*.18f)))};}
+    else{body.top=original_top;height=body.bottom-body.top;trunk_anchor=-1;narrow_row=-1;}
     int anchor=-1,first=body.left,last=body.left;
     for(int x=body.left;x<body.right;++x)if((s.pixels[size_t(body.top)*s.width+x]&255)>=alpha){if(anchor<0)first=x;last=x;anchor=x;}
     if(anchor<0)return fallback;anchor=trunk_anchor>=0?trunk_anchor:(first+last)/2;

@@ -38,6 +38,13 @@ int main(){size_t checks=0;auto check=[&](bool value,const char *reason){++check
     check(dressed_head.source.left==17&&dressed_head.source.right==23&&dressed_head.source.bottom==9,"head crop followed torso or raised arm");
     check(std::find(dressed_head.front.begin(),dressed_head.front.end(),0x40e070ff)==dressed_head.front.end(),"shirt colour transferred to face");
     check(std::find(dressed_head.front.begin(),dressed_head.front.end(),0x202020ff)!=dressed_head.front.end(),"head separation discarded a facial mark");
+    auto peaked=dressed;
+    for(int x=17;x<23;++x)peaked.pixels[3*32+x]=0;
+    peaked.pixels[3*32+22]=0x4050c0ff;
+    const auto peaked_head=extract(peaked,human).skins[size_t(region::head)];
+    check(peaked_head.source.top==3&&peaked_head.source.bottom==9,"offset hair peak expanded ordinary head into shirt");
+    check(std::find(peaked_head.front.begin(),peaked_head.front.end(),0x4050c0ff)!=peaked_head.front.end(),"ordinary head lost offset hair detail");
+    check(std::find(peaked_head.front.begin(),peaked_head.front.end(),0x40e070ff)==peaked_head.front.end(),"ordinary shirt contaminated head after overhead refinement");
     // Hands above the head, including a hand crossing the central axis, must
     // not become a face. The actual face feeds the trunk below the arm gap.
     sprite overhead;overhead.width=64;overhead.height=96;overhead.pixels.assign(64*96,0);

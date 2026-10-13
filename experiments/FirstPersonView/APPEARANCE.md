@@ -112,7 +112,7 @@ retained model/atlas budget remain. Accounting includes original sprites,
 dynamic skin planes, mip vectors and adaptive color/normal/depth atlases.
 Sources are copied before queueing. A captured epoch is rechecked after the
 provider returns, so resetting a world/tileset during copying cannot enqueue
-old pixels into the new epoch. Appearance generator revision 4 invalidates CPU
+old pixels into the new epoch. Appearance generator revision 5 invalidates CPU
 and GPU resources independently of the unchanged shared anatomical policy.
 
 Gameplay never waits for generation or writes diagnostic files. It continues
