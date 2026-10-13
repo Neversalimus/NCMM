@@ -60,7 +60,7 @@
         for(const auto &c:unclassified){creature::observe(creature_data->instances[c.entity_id],c,creature_data->input.view.seconds);order.push_back(&c);}
         std::stable_sort(order.begin(),order.end(),[&](const auto *a,const auto *b){auto z=[&](const auto *c){return view(cell_center(int(c->cell),c->elevation)).z;};return z(a)<z(b);});
         size_t remaining=40000;
-        for(const auto *source:order){const auto &c=*source;const int cell=int(c.cell);const auto type=creature::classify(c);
+        for(const auto *source:order){const auto &c=*source;const int cell=int(c.cell);if(world_data&&!(world_flags(cell)&NCMM_WORLD_BODY_VISIBLE)){++f.creature_culled;continue;}const auto type=creature::classify(c);
             vec origin=cell_center(cell,c.elevation);
             auto &instance=creature_data->instances[c.entity_id];auto pose=creature::sample(instance,creature_data->input.view.seconds);
             if(world_data)pose.offset.z*=world_data->level_height;

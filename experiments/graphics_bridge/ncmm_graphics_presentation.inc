@@ -177,7 +177,7 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
                 d.item_liquid=liquid(items.begin()->typeId().str(),true);
         }
         if( details[i].terrain_shape==NCMM_SHAPE_WATER ) d.liquid=liquid( base.cells[i].terrain,true );
-        if( pos.z()<OVERMAP_HEIGHT && details[i].terrain_flags&NCMM_SURFACE_TERRAIN_CEILING ) {
+        if( !world && pos.z()<OVERMAP_HEIGHT && details[i].terrain_flags&NCMM_SURFACE_TERRAIN_CEILING ) {
             const std::string id=here.ter( tripoint_bub_ms( pos.x(),pos.y(),pos.z()+1 ) ).id().str();
             graphics_copy_text( d.ceiling,id ); d.ceiling_material=material( id );
         }

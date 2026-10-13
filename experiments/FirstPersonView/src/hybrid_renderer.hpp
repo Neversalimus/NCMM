@@ -449,13 +449,16 @@ class renderer {
     }
     vec rotate(vec p,vec origin,float angle)const{float c=std::cos(angle),sn=std::sin(angle);return origin+vec{p.x*c-p.y*sn,p.x*sn+p.y*c,p.z};}
     void box(vec origin,vec lo,vec hi,material m,float angle=0){
+        bool capped=true;
+        if(world_data&&m.cell>=0&&lo.x<=-.49f&&lo.y<=-.49f&&hi.x>=.49f&&hi.y>=.49f&&lo.z<=.001f&&std::abs(hi.z-world_data->level_height)<.001f){
+            const int above=neighbor(m.cell,0,0,1);if(above>=0&&(world_flags(above)&NCMM_WORLD_FLOOR)&&!(world_flags(above)&NCMM_WORLD_GLASS_FLOOR)){hi.z-=.08f;capped=false;}}
         auto p=[&](float x,float y,float z){return rotate({x,y,z},origin,angle);};
         float c=std::cos(angle),sn=std::sin(angle);
         solid_quad(p(lo.x,lo.y,lo.z),p(hi.x,lo.y,lo.z),p(hi.x,lo.y,hi.z),p(lo.x,lo.y,hi.z),m,{sn,-c,0});
         solid_quad(p(hi.x,hi.y,lo.z),p(lo.x,hi.y,lo.z),p(lo.x,hi.y,hi.z),p(hi.x,hi.y,hi.z),m,{-sn,c,0});
         solid_quad(p(lo.x,hi.y,lo.z),p(lo.x,lo.y,lo.z),p(lo.x,lo.y,hi.z),p(lo.x,hi.y,hi.z),m,{-c,-sn,0});
         solid_quad(p(hi.x,lo.y,lo.z),p(hi.x,hi.y,lo.z),p(hi.x,hi.y,hi.z),p(hi.x,lo.y,hi.z),m,{c,sn,0});
-        solid_quad(p(lo.x,lo.y,hi.z),p(hi.x,lo.y,hi.z),p(hi.x,hi.y,hi.z),p(lo.x,hi.y,hi.z),m,{0,0,1});
+        if(capped)solid_quad(p(lo.x,lo.y,hi.z),p(hi.x,lo.y,hi.z),p(hi.x,hi.y,hi.z),p(lo.x,hi.y,hi.z),m,{0,0,1});
         solid_quad(p(lo.x,hi.y,lo.z),p(hi.x,hi.y,lo.z),p(hi.x,lo.y,lo.z),p(lo.x,lo.y,lo.z),m,{0,0,-1});
     }
     void bevel_box(vec origin,vec lo,vec hi,float bevel,material m,float angle=0){

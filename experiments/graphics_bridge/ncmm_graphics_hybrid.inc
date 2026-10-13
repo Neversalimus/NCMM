@@ -475,7 +475,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         graphics_clear_gpu();
         graphics_hybrid_tileset_epoch = epoch; graphics_hybrid_renderer_identity = renderer;
     }
-    graphics_prepare_creatures( base, positions );
+    graphics_prepare_creatures( base, positions,world );
     graphics_snapshot_ms = std::chrono::duration<double,std::milli>( std::chrono::steady_clock::now() - graphics_snapshot_begun ).count();
     if(world)graphics_world_extracted(graphics_snapshot_ms);
     graphics_hybrid_pixels.clear(); graphics_hybrid_width = graphics_hybrid_height = 0;

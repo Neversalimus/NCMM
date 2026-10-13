@@ -92,7 +92,9 @@
             const auto cold=clock::now();bool ready=false;
             for(int attempt=0;attempt<160;++attempt){render(resolution);present();ready=std::string(mode)=="cpu"||graphics_gpu_frame;
                 if(ready&&(!graphics_creature_metrics.queued||!observed.actors))break;SDL_Delay(2);}
-            require(ready,"multilevel_gpu_fell_back_to_cpu");const double first_ready=std::chrono::duration<double,std::milli>(clock::now()-cold).count();
+            require(ready,"multilevel_gpu_fell_back_to_cpu");
+            if(std::string(mode)=="cpu"&&resolution.x>1280&&graphics_cpu_metrics.width<1281){require(graphics_action("ncmm.view.quality"),"multilevel_native_quality_switch_failed");render(resolution);present();}
+            const double first_ready=std::chrono::duration<double,std::milli>(clock::now()-cold).count();
             std::vector<double> elapsed,extraction,visibility,geometry,raster,submit;uint64_t cache_peak=0;ncmm_gpu_metrics_v1 gpu_stats{};
             for(int sample=0;sample<(gallery?3:24);++sample){const auto start=clock::now();render(resolution);present();elapsed.push_back(std::chrono::duration<double,std::milli>(clock::now()-start).count());
                 extraction.push_back(observed.provider?graphics_world_metrics.extraction_ms:graphics_snapshot_ms);visibility.push_back(observed.provider?graphics_world_metrics.visibility_ms:0);

@@ -204,6 +204,7 @@ int main(int argc,char **argv){
             require(engine.submit(submitted.base,&submitted),engine.metrics().reason);capture(open?"-world-open-shaft":"-world-closed-floor");
             require(fp::hybrid::build_frame(world.appearance,-fp::hybrid::pi*.5f,pitch,{},reference,640,480,{},nullptr,nullptr,nullptr,{},nullptr,&world),"actual multi-Z CPU depth reference");
             const auto gpu_count=engine.metrics().visible_creature_pixels,cpu_count=uint64_t(std::count(reference.creatures.begin(),reference.creatures.end(),actor));
+            std::printf("Multi-Z %s: CPU %llu / GPU %llu pixels; target CPU %d / GPU %d\n",open?"open":"closed",(unsigned long long)cpu_count,(unsigned long long)gpu_count,reference.aimed,engine.metrics().target_cell);
             require(open?(gpu_count>100&&cpu_count>100):(gpu_count==0&&cpu_count==0),"CPU and real GPU agree on vertical slab/shaft occlusion");
             require(engine.metrics().target_cell==(open?actor:-1)&&reference.aimed==(open?actor:-1),"XYZ creature picking agrees through the real opening");
             if(open)require(std::abs(engine.metrics().label_y-reference.label_y)<.04f,"upper-Z CPU/GPU label projection agrees");
