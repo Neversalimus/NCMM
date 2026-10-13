@@ -94,6 +94,13 @@ CPU impostors select the same fractional mip level once per triangle. Empty
 filter neighbourhoods skip colour arithmetic; view rotation also stays outside
 the pixel loop. Bilinear/trilinear weights and perspective-correct UVs remain.
 
+GPU impostor colours now use the projected hardware mip filter, rather than
+a base-only `texelFetch`. Their established nearest coverage mask remains
+shared with ray picking, so a tiny silhouette cannot disappear solely because
+its alpha averaged below a cutout threshold. Normal/depth still read exact
+base texels. A real-device high-frequency red/blue impostor test checks colour
+minification at eight subpixel phases alongside distant crow visibility.
+
 Normal and signed-depth atlases remain data. Color minification must not apply
 to their encoded bytes. Mesh/atlas materials share original charts, and
 four-level distance hysteresis remains. A two-degree direction hysteresis

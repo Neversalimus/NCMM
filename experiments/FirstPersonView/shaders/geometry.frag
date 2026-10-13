@@ -36,7 +36,13 @@ void main(){uint flags=material.state.x|vertex_flags;vec3 p=world_position,n=(fl
     if((flags&512u)!=0u&&dot(flat_normal,camera.eye.xyz-p)<=0.0)discard;
     float z=view_point(p).z,alpha=material.color.a;vec3 color=material.color.rgb;
     if((flags&64u)!=0u){ivec2 size=textureSize(color_texture,0),at=clamp(ivec2(texcoord*vec2(size)),ivec2(0),size-1);
-        vec4 texel=texelFetch(color_texture,at,0);if(texel.a==0.0)discard;
+        // Keep the established nearest coverage mask for subpixel creatures
+        // and CPU ray picking, but filter their observed colour with the
+        // actual projected footprint. A base-level fetch ignores every mip.
+        vec4 coverage=texelFetch(color_texture,at,0);
+        vec4 texel=texture(color_texture,clamp(texcoord,vec2(0),vec2(1)));
+        if(coverage.a==0.0)discard;
+        if(texel.a<.001)texel=coverage;
         if((flags&128u)==0u)color=texel.rgb/max(texel.a,.001);
         vec3 decoded=(texelFetch(normal_texture,at,0).rgb*255.0-128.0)/127.0;
         float co=cos(material.impostor.y+pose_yaw),si=sin(material.impostor.y+pose_yaw);n=vec3(co*decoded.x-si*decoded.y,si*decoded.x+co*decoded.y,decoded.z);
