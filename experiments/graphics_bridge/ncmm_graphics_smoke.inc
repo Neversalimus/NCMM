@@ -522,6 +522,7 @@ bool graphics_scene_smoke()
         require( !graphics_view.enabled, "f6_final_toggle_off_failed" );
         require( you.pos_bub() == start_pos && you.get_moves() == start_moves && calendar::turn == start_time,
                  "vehicle_camera_tests_changed_gameplay_state" );
+        #include "ncmm_graphics_multilevel_save_smoke.inc"
     } catch( const std::exception &err ) {
         reason = err.what();
         graphics_view.enabled = false;

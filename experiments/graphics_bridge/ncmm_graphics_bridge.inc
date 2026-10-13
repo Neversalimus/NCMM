@@ -143,6 +143,7 @@ bool graphics_action( const std::string &action )
     return false;
 }
 
+bool graphics_world_needs_redraw();
 #include "ncmm_graphics_controls.inc"
 #include "ncmm_graphics_hybrid.inc"
 #include "ncmm_graphics_world.inc"

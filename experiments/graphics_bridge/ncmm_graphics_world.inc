@@ -41,7 +41,7 @@ bool graphics_world_perception(const tripoint_bub_ms &p)
         maximum=std::max(you.sight_range(default_daylight_level()),you.sight_range(0)),minimum=std::min(current,maximum);
     const int wanted=rl_dist(you.pos_bub(),p);const bool artificial=raw>here.get_cache_ref(p.z()).natural_light_level_cache;
     if(!(wanted<=minimum||(wanted<=maximum&&artificial)))return false;
-    return wanted<=(you.has_effect(effect_id("no_sight"))?1:artificial?MAX_VIEW_DISTANCE:minimum)&&you.sees(here,p);
+    return wanted<=(you.has_effect(efftype_id("no_sight"))?1:artificial?MAX_VIEW_DISTANCE:minimum)&&you.sees(here,p);
 }
 bool graphics_draw_world(int x,int y,int width,int height)
 {
@@ -112,10 +112,11 @@ bool graphics_draw_world(int x,int y,int width,int height)
     const uint64_t ticks=SDL_GetTicks();
     if(graphics_world_previous_position&&*graphics_world_previous_position!=absolute){
         const auto previous=*graphics_world_previous_position;const int dz=absolute.z()-previous.z();
-        const bool near=absolute.xy()==previous.xy()&&std::abs(dz)==1;
+        const bool same_xy=absolute.xy()==previous.xy(),adjacent=std::abs(int64_t(absolute.x())-previous.x())+std::abs(int64_t(absolute.y())-previous.y())<=1;
+        const bool can_interpolate=adjacent&&std::abs(dz)==1;
         const uint32_t from=flags(previous.x(),previous.y(),previous.z()),to=flags(absolute.x(),absolute.y(),absolute.z());
-        const bool passage=dz>0?((from&NCMM_WORLD_CONNECTED_UP)&&(to&NCMM_WORLD_OPEN_DOWN)):((to&NCMM_WORLD_CONNECTED_UP)&&(from&NCMM_WORLD_OPEN_DOWN));
-        graphics_world_camera_offset=near&&passage?-dz*NCMM_WORLD_LEVEL_HEIGHT:0;graphics_world_transition_started=ticks;
+        const bool passage=dz>0?((from&NCMM_WORLD_CONNECTED_UP)&&((same_xy&&(to&NCMM_WORLD_OPEN_DOWN))||((from&NCMM_WORLD_RAMP)&&(to&(NCMM_WORLD_RAMP|NCMM_WORLD_FLOOR))))):((to&NCMM_WORLD_CONNECTED_UP)&&((same_xy&&(from&NCMM_WORLD_OPEN_DOWN))||((to&NCMM_WORLD_RAMP)&&(from&(NCMM_WORLD_RAMP|NCMM_WORLD_FLOOR)))));
+        graphics_world_camera_offset=can_interpolate&&passage?-dz*NCMM_WORLD_LEVEL_HEIGHT:0;graphics_world_transition_started=ticks;
     }
     const bool position_changed=!graphics_world_previous_position||*graphics_world_previous_position!=absolute;
     graphics_world_previous_position=absolute;
@@ -142,12 +143,12 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if(!here.ncmm_graphics_loaded(p))continue;
         const float dx=gx+.5f-eye.x,dy=gy+.5f-eye.y,dz=(z-absolute.z())*NCMM_WORLD_LEVEL_HEIGHT+1.25f-eye.z,
             forward=(dx*cy+dy*sy)*cp+dz*sp,screen_x=-dx*sy+dy*cy,screen_y=dz*cp-(dx*cy+dy*sy)*sp;
-        const bool near=dx*dx+dy*dy+dz*dz<16;
-        if(!near&&(forward < -4||std::abs(screen_x)>std::max(0.f,forward)*horizontal+5||std::abs(screen_y)>std::max(0.f,forward)*vertical+5)){
+        const Creature *entity=get_creature_tracker().creature_at<Creature>(p);
+        const float margin=entity?20.f:5.f;const bool close_to_eye=dx*dx+dy*dy+dz*dz<16;
+        if(!close_to_eye&&(forward < -margin||std::abs(screen_x)>std::max(0.f,forward)*horizontal+margin||std::abs(screen_y)>std::max(0.f,forward)*vertical+margin)){
             ++graphics_world_metrics.frustum_rejected;continue;}
         uint32_t semantic=flags(ax,ay,z);
         const bool air=!(semantic&(NCMM_WORLD_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_DOWN|NCMM_WORLD_UP|NCMM_WORLD_CANOPY|graphics_world_renderable));
-        const Creature *entity=get_creature_tracker().creature_at<Creature>(p);
         if(air&&!entity&&!atmosphere&&p!=you.pos_bub())continue;
         const uint8_t seen=graphics_world_sources.visibility(ax,ay,z,graphics_world_ray_epoch,[&]{
             uint8_t result=0;const float level=(z-absolute.z())*NCMM_WORLD_LEVEL_HEIGHT;
@@ -164,10 +165,16 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if(p==you.pos_bub())permission|=NCMM_WORLD_BODY_VISIBLE;
         if(!permission){++graphics_world_metrics.occlusion_rejected;continue;}
         semantic&=262143u;if(!(permission&NCMM_WORLD_BODY_VISIBLE))semantic&=~NCMM_WORLD_OPAQUE;
+        if(permission==NCMM_WORLD_FLOOR_BOTTOM){
+            const bool landing=(semantic&NCMM_WORLD_DOWN)&&!(semantic&(NCMM_WORLD_LADDER|NCMM_WORLD_RAMP));
+            semantic&=NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR|NCMM_WORLD_OPEN_DOWN|NCMM_WORLD_WATER|NCMM_WORLD_UNKNOWN;
+            if(landing)semantic|=NCMM_WORLD_DOWN;
+            semantic|=NCMM_WORLD_ROOFED; // No hidden upper-room roof/navigation facts.
+        }
         candidate c{};c.world={ax,ay,z,semantic|permission,0,0,graphics_world_level_revisions[size_t(z+128)]+1,{0,0,0}};
         c.pos=p;c.permission=permission;c.distance=dx*dx+dy*dy+dz*dz;
         const auto rgb=graphics_world_rgb(below);std::copy(rgb.begin(),rgb.end(),c.world.lower_light);
-        for(uint32_t direction=0;direction<4;++direction){const int nx=direction==0?1:direction==2?-1:0,ny=direction==1?1:direction==3?-1:0;
+        if((permission&NCMM_WORLD_BODY_VISIBLE)&&(semantic&(NCMM_WORLD_UP|NCMM_WORLD_RAMP|NCMM_WORLD_LADDER)))for(uint32_t direction=0;direction<4;++direction){const int nx=direction==0?1:direction==2?-1:0,ny=direction==1?1:direction==3?-1:0;
             const uint32_t next=flags(ax+nx,ay+ny,z);
             if((semantic&NCMM_WORLD_RAMP)&&(next&NCMM_WORLD_RAMP_END)){c.world.direction=direction;break;}
             if(!(semantic&NCMM_WORLD_RAMP)&&!(next&(NCMM_WORLD_UNKNOWN|NCMM_WORLD_OPAQUE))){c.world.direction=direction;break;}}
@@ -229,6 +236,13 @@ bool graphics_world_target_visible(const tripoint_bub_ms &origin,const tripoint_
 #else
 void graphics_clear_world(){graphics_multilevel_frame=nullptr;}
 #endif
+bool graphics_world_needs_redraw(){
+#if defined(TILES)
+    return graphics_world_transition_active;
+#else
+    return false;
+#endif
+}
 int graphics_register_world(const char *id,ncmm_graphics_render_multilevel_v1 render,ncmm_graphics_input_v1 input,void *data)
 {
     if(graphics_render_active||!active_module_matches(id)||!module_ids.count(id)||!render||(!graphics_view.owner.empty()&&graphics_view.owner!=id))return 0;

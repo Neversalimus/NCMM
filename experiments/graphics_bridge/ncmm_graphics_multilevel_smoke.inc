@@ -117,6 +117,31 @@
     for(const auto &scene:scenes){make_scene(scene.first,scene.second,0);qualify(scene.first,scene.second,0,point(640,480),true);}
     const std::array<const char *,7> themes={"outdoor","urban","forest","underground","water","creatures","volumes"};
     for(int layers:{1,3,5,9})for(int theme=0;theme<7;++theme){make_scene(themes[theme],layers,theme);for(point resolution:{point(640,480),point(1280,800),point(1920,1080),point(2560,1080)})qualify(themes[theme],layers,theme,resolution,false);}
+    report.end_array();report.member("transitions");report.start_array();
+    if(observed.provider){
+        make_scene("stairs",2,0);you.setpos(here,tripoint_bub_ms(center.x(),center.y()-7,0),false);refresh();
+        canvas=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,640,480);require(canvas!=nullptr,"multilevel_transition_canvas_failed");
+        get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue("cpu");render(point(640,480));present();
+        for(int dz:{1,-1}){const int from=you.posz(),old_moves=you.get_moves();const float old_eye=from*2.5f+observed.eye;
+            g->vertical_move(dz,false);require(you.posz()==from+dz,"multilevel_native_stair_move_failed");
+            const int spent=old_moves-you.get_moves();require(spent>0,"multilevel_native_stair_cost_missing");
+            const auto changed=you.pos_abs();const int moves=you.get_moves();const auto turn=calendar::turn;
+            const auto begin=clock::now();render(point(640,480));present();
+            const double ready_ms=std::chrono::duration<double,std::milli>(clock::now()-begin).count();
+            require(std::find(observed.levels.begin(),observed.levels.end(),you.posz())!=observed.levels.end(),"multilevel_new_floor_not_in_first_frame");
+            require(std::abs(you.posz()*2.5f+observed.eye-old_eye)<.1f,"multilevel_stair_camera_discontinuity");
+            for(int frame=0;frame<100&&graphics_world_transition_active;++frame){SDL_Delay(5);render(point(640,480));present();}
+            require(!graphics_world_transition_active,"multilevel_vertical_transition_never_completed");
+            require(you.pos_abs()==changed&&you.get_moves()==moves&&calendar::turn==turn,"multilevel_camera_transition_changed_native_move_cost");
+            report.start_object();report.member("from_z",from);report.member("to_z",you.posz());report.member("native_moves_spent",spent);report.member("new_floor_ready_ms",ready_ms);report.member("visual_transition_ms",std::chrono::duration<double,std::milli>(clock::now()-begin).count());report.member("camera_continuous",true);report.member("renderer_preserved_moves",true);report.end_object();
+            if(dz==1){press_f6();require(!graphics_view.enabled&&graphics_world_sources.bytes()==0&&graphics_world_roof_columns.empty(),"multilevel_f6_retained_world_cache");press_f6();render(point(640,480));present();}
+        }
+        require(SDL_SetRenderTarget(renderer,nullptr),"multilevel_transition_canvas_release_failed");SDL_DestroyTexture(canvas);canvas=nullptr;
+        make_scene("house_one",1,0);you.setpos(here,tripoint_bub_ms(center.x(),center.y()-5,0),false);you.set_base_height(400);refresh();
+        canvas=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,640,480);require(canvas!=nullptr,"multilevel_headroom_canvas_failed");render(point(640,480));present();
+        require(observed.eye<2.42f,"multilevel_giant_camera_passed_through_ceiling");you.set_base_height(175);
+        require(SDL_SetRenderTarget(renderer,nullptr),"multilevel_headroom_canvas_release_failed");SDL_DestroyTexture(canvas);canvas=nullptr;
+    }
     report.end_array();report.member("success",true);report.end_object();report_stream.close();require(bool(report_stream),"multilevel_report_write_failed");
     graphics_smoke_seconds.reset();clear_monsters();you.setpos(here,here.get_bub(original_position),false);calendar::turn=original_time;you.set_moves(original_moves);get_weather().weather_id=weather_type_id("sunny");camera(original_yaw,original_pitch);refresh();
     require(SDL_SetRenderTarget(renderer,original_target),"multilevel_restore_sdl_target_failed");

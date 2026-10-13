@@ -596,7 +596,9 @@ class renderer {
         }});
     }
     #include "architecture.inc"
-    void architecture(int i,uint32_t shape,uint32_t layer){if(special_architecture(i,shape,layer))return;
+    void architecture(int i,uint32_t shape,uint32_t layer){
+        if(world_data&&layer==NCMM_GFX_TERRAIN&&(world_flags(i)&(NCMM_WORLD_UP|NCMM_WORLD_DOWN|NCMM_WORLD_RAMP)))return; // World flags own the complete transition geometry.
+        if(special_architecture(i,shape,layer))return;
         if(!ncmm_graphics_shapes::vertical(shape))return;
         vec center=cell_center(i);float angle=s.details[i].orientation?pi*.5f:0;
         material m=mat(i,layer,{.43f,.40f,.35f});material trim{nullptr,{.35f,.32f,.28f},1,false,false,false,i};

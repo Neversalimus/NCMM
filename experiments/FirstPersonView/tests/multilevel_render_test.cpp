@@ -78,6 +78,10 @@ int main(){try{
     empty.positions[empty.cell(4,1,0)].flags|=NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP;
     collector stairs;frame statistics;renderer(empty.world.appearance,0,0,{},statistics,{},nullptr,{},nullptr,&empty.world).collect(stairs,400,260);
     check(stairs.triangles.size()>80,"semantic staircase is stepped volume, not a floor square");
+    const int stair_cell=empty.cell(4,1,0);empty.details[stair_cell].terrain_shape=NCMM_SHAPE_WALL;
+    collector hinted;renderer(empty.world.appearance,0,0,{},statistics,{},nullptr,{},nullptr,&empty.world).collect(hinted,400,260);
+    check(hinted.triangles.size()==stairs.triangles.size(),"legacy wall hint cannot add a duplicate transition volume");
+    empty.details[stair_cell].terrain_shape=NCMM_SHAPE_FLAT;
     float top=0;for(const auto &t:stairs.triangles)for(const auto &v:t.v)top=std::max(top,v.p.z);
     check(top>=NCMM_WORLD_LEVEL_HEIGHT,"staircase connects a full physical Z storey");
     const int stair=empty.cell(4,1,0);empty.positions[stair].flags|=NCMM_WORLD_RAMP;

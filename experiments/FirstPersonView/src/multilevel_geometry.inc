@@ -14,7 +14,7 @@
         bottom.slab_lower=true;
         auto point=[&](float x,float y,float z){return at+vec{x,y,z};};
         const vec a=point(x0,y0,0),b=point(x1,y0,0),c=point(x1,y1,0),d=point(x0,y1,0);
-        if(flags&NCMM_WORLD_FLOOR_TOP)quad(a,b,c,d,top,{0,0,1});
+        if(flags&NCMM_WORLD_FLOOR_TOP)quad(a,b,c,d,top,{0,0,1},{x0,y0,x1,y1});
         if(flags&NCMM_WORLD_FLOOR_BOTTOM)quad(d+vec{0,0,-.08f},c+vec{0,0,-.08f},b+vec{0,0,-.08f},a+vec{0,0,-.08f},bottom,{0,0,-1});
         // Bounded slab thickness closes exposed edges without a second ceiling
         // plane, floor overlap, or a cap guessed from an interior/outside bit.

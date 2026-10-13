@@ -10,6 +10,11 @@ key=lambda r:(r['gallery'],r['name'],r['constructed_levels'],r['theme'],r['width
 matrices=[{key(r):r for r in report['frames']} for report in reports]
 assert all(r['success'] and r['actual_cdda_sdl'] and not r['gpu_timing_is_execution'] for r in reports)
 assert not reports[0]['world_api'] and reports[1]['world_api'], 'reference/current callback identities are wrong'
+assert len(reports[1]['transitions'])==2 and all(t['camera_continuous'] and t['renderer_preserved_moves'] for t in reports[1]['transitions'])
+for mode in ['before','after']:
+ save=json.loads((a.root/f'first-person-multilevel-save-{mode}.json').read_text())
+ assert save['success'] and save['actual_cdda_save_load'] and [r['z'] for r in save['levels']]==[-1,0,1]
+ assert all(r['restored_xyz'] and r['restored_moves'] and r['restored_turn'] and r['rendered'] and r['f6_restored_tiles'] for r in save['levels'])
 assert matrices[0].keys()==matrices[1].keys(), 'paired scenes or dimensions differ'
 assert len(matrices[1])==266, '21 galleries or 224 load records incomplete'
 assert {r['name'] for r in matrices[1].values() if r['gallery']}==scenes
