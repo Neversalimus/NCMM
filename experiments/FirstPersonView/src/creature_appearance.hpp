@@ -53,6 +53,7 @@ struct skin {
 struct appearance {
     std::array<skin,size_t(region::count)> skins;
     sprite original;
+    source_region source_bounds{};
     float silhouette_ratio=1;
     bool sourced=false,profile=false;
     uint64_t fingerprint=0;
@@ -227,7 +228,7 @@ inline appearance extract(const sprite &s,const phenotype &p,uint32_t region_mas
         bounds_for(std::max(1u,typical*3/4));
     }
     if(!weight)return a;
-    a.sourced=true;a.silhouette_ratio=float(right-left)/std::max(1,bottom-top);all=all*(1/weight);
+    a.sourced=true;a.source_bounds={left,top,right,bottom};a.silhouette_ratio=float(right-left)/std::max(1,bottom-top);all=all*(1/weight);
     // Native-pixel crops in the observed silhouette. These are anatomical
     // priors, not Monster-ID overrides or an assertion of unseen details.
     const std::array<std::array<float,4>,10> upright{{

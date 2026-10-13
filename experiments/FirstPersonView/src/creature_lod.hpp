@@ -52,7 +52,8 @@ inline impostor bake_impostor(const model &m,int direction,int pose_index){
     // Preserve their physical scale while keeping them inside the baked atlas.
     // Detail budget follows native source information and physical aspect.
     // Wide wings/snakes receive wider atlases, not distorted 48x64 canvases.
-    out.height=std::clamp(m.colors.original.valid()?int(m.colors.original.height)*3/2:64,48,112);
+    const int observed_height=m.colors.source_bounds.bottom-m.colors.source_bounds.top;
+    out.height=std::clamp(m.colors.sourced&&observed_height>0?observed_height*3/2:64,48,112);
     out.width=std::clamp(int(std::ceil(out.span/(out.top-out.bottom)*out.height/8))*8,32,160);
     const size_t texels=size_t(out.width)*out.height;out.color.assign(texels,0);out.normal.assign(texels,0);out.depth.assign(texels,0);
     // angle points from the model to the viewer; the viewing camera faces

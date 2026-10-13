@@ -98,6 +98,8 @@ prevents repeated angle flips near an impostor-sector boundary.
 The impostor resolution describes projected geometry, silhouette, normals and
 poses; it does not manufacture source texture detail. Subpixel creatures and
 details smaller than an output pixel cannot remain fully recognizable.
+The resolution budget follows the occupied source silhouette rather than its
+transparent canvas, so padded tiles do not multiply atlas baking and storage.
 
 ## Bounded generation and lifetime
 

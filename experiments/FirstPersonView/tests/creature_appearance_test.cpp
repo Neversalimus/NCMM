@@ -98,6 +98,11 @@ int main(){size_t checks=0;auto check=[&](bool value,const char *reason){++check
     auto ribbon=bake_impostor(builder{}.generate(wide,s),2,0);check(ribbon.width>ribbon.height&&ribbon.width<=160,"wide creature atlas aspect");
     auto tall=bake_impostor(builder{}.generate(human,s),0,0);check(tall.height>tall.width&&tall.height<=112,"upright atlas aspect");
     check(tall.color.size()==size_t(tall.width)*tall.height&&tall.depth.size()==tall.color.size(),"adaptive impostor allocation");
+    sprite padded;padded.width=padded.height=128;padded.pixels.assign(128*128,0);
+    for(int y=50;y<70;++y)for(int x=50;x<66;++x)padded.pixels[size_t(y)*128+x]=0x305981ff;
+    const auto padded_model=builder{}.generate(human,padded);const auto padded_atlas=bake_impostor(padded_model,0,0);
+    check(padded_model.colors.source_bounds.bottom-padded_model.colors.source_bounds.top==20,"visible source extent lost");
+    check(padded_atlas.height==48,"transparent canvas inflated impostor generation");
     check(material_for(human,region::torso)==creature_material::cloth&&material_for(human,region::hand)==creature_material::flesh,"clothing/skin separation");
     for(int k=0;k<int(anatomy::count);++k){auto p=human;p.kind=anatomy(k);p.flags=NCMM_CR_FLIES;auto m=builder{}.generate(p,s);
         for(const auto &v:m.lod[0].vertices)check(m.colors.skins[v.material].active,"used geometry region was not generated");}
