@@ -196,6 +196,44 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name] = (bridge / name).read_text(encoding="utf-8")
+    # Optional world-space interface, independent of the old V1/V2 layouts.
+    updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '#include "ncmm_graphics_v2.h"',
+        '#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_multilevel.h"\n#include "ncmm_world_cache.hpp"\n#include <functional>')
+    updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '    "graphics.viewport.v2",',
+        '    "graphics.viewport.v2",\n    "graphics.multilevel.v1",')
+    updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
+        '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_GPU_ID ) {',
+        '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_MULTILEVEL_ID ) {\n'
+        '        return min_major <= 1 && min_minor == 0 ? &graphics_world_api : nullptr;\n'
+        '    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_GPU_ID ) {')
+    updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
+        "bool graphics_requires_terrain_pass()\n{",
+        "void graphics_world_changed( const map *source, int z )\n{\n"
+        "    graphics_world_changed_impl( source, z );\n}\n"
+        "bool graphics_requires_terrain_pass()\n{")
+    updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "class input_context;", "class map;\nclass input_context;")
+    updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();",
+        "void graphics_world_changed( const map *, int z );\nvoid initialize();")
+    map_h=read("map.h")
+    updates["map.h"]=replace(map_h, "        int supports_zlevels() const {",
+        "        // Read-only loaded-submap probe; never calls load or mapgen.\n"
+        "        bool ncmm_graphics_loaded( const tripoint_bub_ms &p ) const {\n"
+        "            return inbounds( p ) && unsafe_get_submap_at( p ) != nullptr;\n"
+        "        }\n        int supports_zlevels() const {")
+    map_cpp=replace(read("map.cpp"), '#include "map.h"', '#include "map.h"\n#include "ncmm_loader.h"')
+    for signature,level in (
+        ("void map::set_transparency_cache_dirty( const int zlev )", "zlev"),
+        ("void map::set_transparency_cache_dirty( const tripoint_bub_ms &p, bool field )", "p.z()"),
+        ("void map::set_outside_cache_dirty( const int zlev )", "zlev"),
+        ("void map::set_floor_cache_dirty( const int zlev )", "zlev"),
+    ):
+        map_cpp=replace(map_cpp, signature+"\n{", signature+"\n{\n    ncmm::graphics_world_changed( this, "+level+" );")
+    updates["map.cpp"]=map_cpp
+    for name in ("ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc"):
+        if (root / "src" / name).exists():
+            raise ValueError("Experimental source already exists: " + name)
+        updates[name]=(bridge/name).read_text(encoding="utf-8")
+
     # No writes above this line. No save/installation/feed/catalog changes.
     for name, content in updates.items():
         (root / "src" / name).write_text(content, encoding="utf-8", newline="\n")

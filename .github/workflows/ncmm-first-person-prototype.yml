@@ -33,10 +33,10 @@ jobs:
         run: cmake -S experiments/FirstPersonView -B fp-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
       - name: Build sanitizer geometry and shared-module tests
         if: runner.os == 'Linux'
-        run: cmake --build fp-sanitize --parallel 2 --target first_person_optimization_tests first_person_hybrid_module_tests first_person_creature_semantics_tests first_person_creature_mesh_tests first_person_creature_appearance_tests first_person_creature_animation_tests first_person_creature_lod_tests first_person_creature_cache_tests first_person_creature_render_tests first_person_creature_module_tests first_person_gpu_contract_tests first_person_gpu_geometry_tests first_person_gpu_module_tests
+        run: cmake --build fp-sanitize --parallel 2 --target first_person_optimization_tests first_person_hybrid_module_tests first_person_creature_semantics_tests first_person_creature_mesh_tests first_person_creature_appearance_tests first_person_creature_animation_tests first_person_creature_lod_tests first_person_creature_cache_tests first_person_creature_render_tests first_person_creature_module_tests first_person_gpu_contract_tests first_person_gpu_geometry_tests first_person_gpu_module_tests first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_render_tests first_person_multilevel_module_tests
       - name: ASan and UBSan camera, volume and DLL lifecycle coverage
         if: runner.os == 'Linux'
-        run: ctest --test-dir fp-sanitize -R "optimization|hybrid_module|creature_|gpu_" --output-on-failure
+        run: ctest --test-dir fp-sanitize -R "optimization|hybrid_module|creature_|gpu_|multilevel_" --output-on-failure
       - name: Atomic source-transform negative tests
         run: python -m unittest discover -s experiments/graphics_bridge -p test_apply_graphics_bridge.py -v
       - uses: actions/upload-artifact@v4
@@ -62,7 +62,7 @@ jobs:
             source: 074aa98bd5be3de4c35f154082db32a0e63bb0f1
             tag: cdda-experimental-2026-10-06-1807
     runs-on: windows-2022
-    timeout-minutes: 180
+    timeout-minutes: 240
     env:
       GH_TOKEN: ${{ github.token }}
       SCCACHE_GHA_ENABLED: 'true'
@@ -242,13 +242,14 @@ jobs:
             }
           }
       - name: Actual SDL controls, appearance, geometry, RGB light, sky, weather and held items
-        timeout-minutes: 90
+        timeout-minutes: 120
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
           foreach($variant in @(@{name='graphics';root='${{ steps.game.outputs.root }}'},@{name='sounds';root='${{ steps.game.outputs.sound_root }}'})) {
             $root=$variant.root
             Copy-Item ncmmrepo/experiments/FirstPersonView/tests/creature_appearance_fixture.json (Join-Path $root 'data/json/monsters/ncmm_appearance_qualification.json') -Force
+            Copy-Item ncmmrepo/experiments/FirstPersonView/tests/multilevel_fixture.json (Join-Path $root 'data/json/furniture_and_terrain/ncmm_multilevel_qualification.json') -Force
             $env:NCMM_FP_APPEARANCE_SMOKE='1'
             $env:NCMM_FP_APPEARANCE_DEBUG_DIR=Join-Path $env:RUNNER_TEMP ("fp-appearance-"+'${{ matrix.build }}'+'-'+$variant.name)
             $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-gameplay-smoke --seed ncmm-appearance-011' -WorkingDirectory $root -PassThru
@@ -260,7 +261,7 @@ jobs:
             Copy-Item (Join-Path $root 'ncmm/first-person-smoke.json') ("installer-result/first-person-smoke-"+$variant.name+'.json')
             Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-*.bmp' | ForEach-Object { Copy-Item $_.FullName (Join-Path 'installer-result' ($_.BaseName+'-'+$variant.name+'.bmp')) }
             Copy-Item (Join-Path $root 'ncmm/first-person-shapes-audit.json') ("installer-result/first-person-shapes-audit-"+$variant.name+'.json')
-            foreach($name in @('first-person-creature-coverage','first-person-creature-gallery-procedural','first-person-creature-timing-procedural','first-person-creature-gallery-procedural-gpu','first-person-creature-timing-procedural-gpu','first-person-gpu-probe','first-person-gpu-room','first-person-gpu-benchmark')) {
+            foreach($name in @('first-person-creature-coverage','first-person-creature-gallery-procedural','first-person-creature-timing-procedural','first-person-creature-gallery-procedural-gpu','first-person-creature-timing-procedural-gpu','first-person-gpu-probe','first-person-gpu-room','first-person-gpu-benchmark','first-person-multilevel-after')) {
               $path=Join-Path $root ("ncmm/$name.json")
               if(!(Test-Path $path)){throw "Missing creature evidence: $name"}
               Copy-Item $path ("installer-result/$name-"+$variant.name+'.json')
@@ -280,22 +281,22 @@ jobs:
           }
       - uses: actions/checkout@v4
         with:
-          ref: 7f8a48a714e082daf67176e5e4a9806f878eef42
+          ref: 9ee19bdd68e40a1677694187f85aa65bd4b52407
           path: fp010-reference
           persist-credentials: false
           sparse-checkout: |
             sdk
             experiments/FirstPersonView
             experiments/graphics_bridge
-      - name: Build exact main 0.10 CPU reference DLL
+      - name: Build exact main 0.11 CPU/GPU reference DLL
         shell: powershell
         run: |
           cmake -S fp010-reference/experiments/FirstPersonView -B fp010-build
           if($LASTEXITCODE -ne 0){throw 'Stable main reference configuration failed.'}
           cmake --build fp010-build --config Release --target ncmm_mod
           if($LASTEXITCODE -ne 0){throw 'Stable main reference build failed.'}
-      - name: Paired exact main CPU appearance and render-loop benchmark
-        timeout-minutes: 90
+      - name: Paired exact main 0.11 world geometry and render-loop benchmark
+        timeout-minutes: 120
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
@@ -309,18 +310,23 @@ jobs:
             try {
               Copy-Item fp010-build/Release/ncmm_mod.dll (Join-Path $module 'ncmm_mod.dll') -Force
               Copy-Item fp010-reference/experiments/FirstPersonView/mod.json (Join-Path $module 'mod.json') -Force
+              $env:NCMM_FP_MULTILEVEL_BEFORE='1'
               $env:NCMM_FP_STABLE_CPU_BASELINE='1'
               $env:NCMM_FP_APPEARANCE_BEFORE='1'
-              $env:NCMM_FP_APPEARANCE_SMOKE='1'
+              Copy-Item ncmmrepo/experiments/FirstPersonView/tests/multilevel_fixture.json (Join-Path $root 'data/json/furniture_and_terrain/ncmm_multilevel_qualification.json') -Force
+            $env:NCMM_FP_APPEARANCE_SMOKE='1'
               $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-gameplay-smoke --seed ncmm-appearance-011' -WorkingDirectory $root -PassThru
               if(-not $p.WaitForExit(3000000)){& taskkill.exe /pid $p.Id /t /f;throw 'Paired main CPU deadline exceeded.'}
               $p.Refresh()
               if($p.ExitCode -ne 0){throw "Paired main CPU failed: $($p.ExitCode)"}
+              Copy-Item (Join-Path $root 'ncmm/first-person-multilevel-before.json') ("installer-result/first-person-multilevel-before-"+$variant.name+'.json')
+              Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-world-*-before-*.bmp' | ForEach-Object { Copy-Item $_.FullName (Join-Path installer-result ($_.BaseName+'-'+$variant.name+'.bmp')) }
               Copy-Item (Join-Path $root 'ncmm/first-person-smoke.json') ("installer-result/first-person-smoke-before-"+$variant.name+'.json')
               Copy-Item (Join-Path $root 'ncmm/first-person-gpu-benchmark-stable-cpu.json') ("installer-result/first-person-gpu-benchmark-stable-cpu-"+$variant.name+'.json')
               Copy-Item (Join-Path $root 'ncmm/first-person-appearance-before-cpu.json') ("installer-result/first-person-appearance-before-cpu-"+$variant.name+'.json')
               Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-*-before-cpu.bmp' | ForEach-Object { Copy-Item $_.FullName (Join-Path installer-result ($_.BaseName+'-'+$variant.name+'.bmp')) }
             } finally {
+              Remove-Item Env:NCMM_FP_MULTILEVEL_BEFORE -ErrorAction SilentlyContinue
               Remove-Item Env:NCMM_FP_STABLE_CPU_BASELINE -ErrorAction SilentlyContinue
               Remove-Item Env:NCMM_FP_APPEARANCE_BEFORE -ErrorAction SilentlyContinue
               Remove-Item Env:NCMM_FP_APPEARANCE_SMOKE -ErrorAction SilentlyContinue
@@ -340,6 +346,8 @@ jobs:
           foreach($variant in @(@{name='graphics';root='${{ steps.game.outputs.root }}'},@{name='sounds';root='${{ steps.game.outputs.sound_root }}'})) {
             python ncmmrepo/experiments/FirstPersonView/tests/verify_appearance.py --root (Join-Path $variant.root 'ncmm') --output ("installer-result/first-person-appearance-paired-"+$variant.name+'.json')
             if($LASTEXITCODE -ne 0){throw 'Paired appearance input/image verification failed.'}
+            python ncmmrepo/experiments/FirstPersonView/tests/verify_multilevel.py --root (Join-Path $variant.root 'ncmm') --output ("installer-result/first-person-multilevel-paired-"+$variant.name+'.json')
+            if($LASTEXITCODE -ne 0){throw 'Paired multilevel input/image verification failed.'}
           }
       - name: Collect runtime evidence
         if: always()
@@ -375,6 +383,8 @@ jobs:
           name: first-person-installer-${{ matrix.build }}-Windows-x64
           path: |
             installer-result/NCMM_FirstPersonView_0.11.0_TEST_${{ matrix.build }}_Windows_x64.zip
+            installer-result/first-person-multilevel*.json
+            installer-result/first-person-world*.bmp
             installer-result/first-person-smoke*.json
             installer-result/first-person-shapes-audit*.json
             installer-result/first-person-creature-*.json

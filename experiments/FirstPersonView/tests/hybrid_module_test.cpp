@@ -34,7 +34,7 @@ const void *query(const char *id,uint32_t,uint32_t){if(!std::strcmp(id,NCMM_GRAP
 int main(){try{
     core.struct_size=sizeof(core);core.abi_version=2;core.api_major=2;core.api_minor=3;
     ncmm_host_api_v1 api{};api.abi_version=1;api.has_capability=has;api.get_api_version_major=major;api.get_api_version_minor=minor;api.query_interface=query;
-    const auto *mod=ncmm_get_descriptor_v1();check(!std::strcmp(mod->version,"0.11.0-dev"),"hybrid module version");
+    const auto *mod=ncmm_get_descriptor_v1();check(!std::strcmp(mod->version,"0.12.0-dev"),"hybrid module version");
     capability=false;check(!mod->init(&api)&&registrations==0,"missing graphics capability rejected");capability=true;
     graphics.struct_size=sizeof(graphics)-1;check(!mod->init(&api)&&registrations==0,"truncated v2 table rejected");graphics.struct_size=sizeof(graphics);
     graphics.abi_version=3;check(!mod->init(&api)&&registrations==0,"unknown v2 ABI rejected");graphics.abi_version=2;

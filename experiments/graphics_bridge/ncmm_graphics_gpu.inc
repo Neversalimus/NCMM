@@ -35,7 +35,8 @@ bool graphics_gpu_copy_metrics( ncmm_gpu_metrics_v1 *out )
 {
     if( !out || out->struct_size < sizeof( *out ) || !graphics_gpu_engine ) return false;
     *out = graphics_gpu_engine->metrics();
-    if( graphics_hybrid_positions && !graphics_hybrid_positions->empty() ) {
+    if(graphics_multilevel_frame){out->world_origin_x=graphics_multilevel_frame->origin_x;out->world_origin_y=graphics_multilevel_frame->origin_y;out->world_origin_z=graphics_multilevel_frame->origin_z;}
+    else if( graphics_hybrid_positions && !graphics_hybrid_positions->empty() ) {
         const auto origin = get_map().get_abs( graphics_hybrid_positions->front() );
         out->world_origin_x = origin.x(); out->world_origin_y = origin.y(); out->world_origin_z = origin.z();
     }
@@ -74,13 +75,13 @@ void graphics_gpu_invalidate()
 {
     if( active_module_id == graphics_view.owner ) graphics_clear_gpu();
 }
-int graphics_gpu_submit( const ncmm_gpu_scene_v1 *scene )
+int graphics_gpu_submit_impl( const ncmm_gpu_scene_v1 *scene,const ncmm_gpu_multilevel_scene_v1 *world )
 {
 #if defined(TILES)
     if( !graphics_hybrid_frame || active_module_id != graphics_view.owner || !scene || !graphics_gpu_bind() ) return 0;
     if( tilecontext ) tilecontext->ncmm_unbind_gpu_state();
     try {
-        graphics_gpu_frame = graphics_gpu_engine->submit( *scene );
+        graphics_gpu_frame = graphics_gpu_engine->submit( *scene,world );
     } catch( const std::exception &error ) {
         log_line( NCMM_LOG_WARN, ( std::string( "First Person GPU allocation/submission failure: " ) + error.what() ).c_str() );
         graphics_gpu_engine->invalidate(); graphics_gpu_frame = false;
@@ -93,8 +94,18 @@ int graphics_gpu_submit( const ncmm_gpu_scene_v1 *scene )
     if( graphics_gpu_frame ) { graphics_hybrid_width = scene->width; graphics_hybrid_height = scene->height; graphics_gpu_last_reason.clear(); }
     return graphics_gpu_frame;
 #else
-    (void)scene; return 0;
+    (void)scene; (void)world; return 0;
 #endif
+}
+int graphics_gpu_submit(const ncmm_gpu_scene_v1 *scene){
+    return !graphics_multilevel_frame&&graphics_gpu_submit_impl(scene,nullptr);
+}
+int graphics_gpu_submit_world(const ncmm_gpu_multilevel_scene_v1 *scene){
+    const auto *source=graphics_multilevel_frame;
+    if(!source||!scene||scene->struct_size<sizeof(*scene)||scene->version!=1||scene->coordinates!=source->coordinates||
+       scene->cell_count!=source->cell_count||scene->base.cell_count!=source->cell_count||scene->origin_x!=source->origin_x||
+       scene->origin_y!=source->origin_y||scene->origin_z!=source->origin_z||scene->level_height!=source->level_height||scene->base.world_epoch!=source->world_epoch)return 0;
+    return graphics_gpu_submit_impl(&scene->base,scene);
 }
 const ncmm_host_graphics_gpu_v1 graphics_gpu_api = { 1, sizeof( ncmm_host_graphics_gpu_v1 ), 1, 0,
     graphics_gpu_available, graphics_gpu_submit, graphics_gpu_metrics, graphics_gpu_invalidate, graphics_gpu_has_resource, graphics_gpu_cpu_metrics };

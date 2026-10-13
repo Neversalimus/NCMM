@@ -12,7 +12,7 @@ bool graphics_scene_smoke()
         if( !ok ) throw std::runtime_error( failure );
     };
     try {
-        require( graphics_view.owner == "first_person_view" && graphics_view.hybrid_render,
+        require( graphics_view.owner == "first_person_view" && (graphics_view.hybrid_render||graphics_view.world_render),
                  "graphics_provider_missing" );
         require( tilecontext && tilecontext->is_valid(), "tileset_unavailable" );
         // Keep the complete established CPU qualification on the same new Host.
@@ -517,6 +517,7 @@ bool graphics_scene_smoke()
             graphics_smoke_gpu_gallery = false; get_options().get_option( "NCMM_FIRST_PERSON_RENDERER" ).setValue( "cpu" ); draw();
         }
         #include "ncmm_gpu_benchmark.inc"
+        #include "ncmm_graphics_multilevel_smoke.inc"
         press_f6();
         require( !graphics_view.enabled, "f6_final_toggle_off_failed" );
         require( you.pos_bub() == start_pos && you.get_moves() == start_moves && calendar::turn == start_time,
