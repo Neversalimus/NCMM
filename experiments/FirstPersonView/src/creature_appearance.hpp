@@ -85,20 +85,28 @@ inline std::vector<texture_level> make_colour_mips(uint32_t width,uint32_t heigh
     return levels;
 }
 inline void make_mips(skin &s){for(size_t surface=0;surface<skin::surfaces;++surface)s.mips[surface]=make_colour_mips(s.width,s.height,s.pixels(surface));}
-inline uint32_t sample_colour(uint32_t base_width,uint32_t base_height,const std::vector<uint32_t> &base,const std::vector<texture_level> &levels,float u,float v,float footprint=0){
-    if(footprint<1)return base[size_t(std::clamp(int(v*base_height),0,int(base_height)-1))*base_width+std::clamp(int(u*base_width),0,int(base_width)-1)];
-    float lod=footprint>1?std::log2(footprint):0;
+inline uint32_t sample_colour_lod(uint32_t base_width,uint32_t base_height,const std::vector<uint32_t> &base,const std::vector<texture_level> &levels,float u,float v,float lod){
     lod=std::clamp(lod,0.f,float(levels.size()));
     auto sample=[&](int level,bool linear){const auto &pixels=level?levels[size_t(level-1)].pixels:base;
         const int width=int(level?levels[size_t(level-1)].width:base_width),height=int(level?levels[size_t(level-1)].height:base_height);
         const float x=std::clamp(u,0.f,1.f)*width-.5f,y=std::clamp(v,0.f,1.f)*height-.5f;
         if(!linear)return pixels[size_t(std::clamp(int(std::floor(y+.5f)),0,height-1))*width+std::clamp(int(std::floor(x+.5f)),0,width-1)];
         const int x0=int(std::floor(x)),y0=int(std::floor(y));const float fx=x-x0,fy=y-y0;
-        auto at=[&](int a,int b){const auto p=pixels[size_t(std::clamp(b,0,height-1))*width+std::clamp(a,0,width-1)];return level?p:premultiply_texel(p);};
-        return mix_premultiplied(mix_premultiplied(at(x0,y0),at(x0+1,y0),fx),mix_premultiplied(at(x0,y0+1),at(x0+1,y0+1),fx),fy);
+        const int ax=std::clamp(x0,0,width-1),bx=std::clamp(x0+1,0,width-1);
+        const size_t ay=size_t(std::clamp(y0,0,height-1))*width,by=size_t(std::clamp(y0+1,0,height-1))*width;
+        auto a=pixels[ay+ax],b=pixels[ay+bx],c=pixels[by+ax],d=pixels[by+bx];
+        if(!level){a=premultiply_texel(a);b=premultiply_texel(b);c=premultiply_texel(c);d=premultiply_texel(d);}
+        if(!(a|b|c|d))return 0u;
+        return mix_premultiplied(mix_premultiplied(a,b,fx),mix_premultiplied(c,d,fx),fy);
     };
     const int first=int(lod),second=std::min(first+1,int(levels.size()));
-    return unpremultiply_texel(mix_premultiplied(sample(first,true),sample(second,true),lod-first));
+    const auto a=sample(first,true);const float blend=lod-first;
+    if(second==first||blend==0)return unpremultiply_texel(a);
+    return unpremultiply_texel(mix_premultiplied(a,sample(second,true),blend));
+}
+inline uint32_t sample_colour(uint32_t base_width,uint32_t base_height,const std::vector<uint32_t> &base,const std::vector<texture_level> &levels,float u,float v,float footprint=0){
+    if(footprint<1)return base[size_t(std::clamp(int(v*base_height),0,int(base_height)-1))*base_width+std::clamp(int(u*base_width),0,int(base_width)-1)];
+    return sample_colour_lod(base_width,base_height,base,levels,u,v,footprint>1?std::log2(footprint):0);
 }
 inline uint32_t sample_skin(const skin &s,size_t surface,float u,float v,float footprint=0){return sample_colour(s.width,s.height,s.pixels(surface),s.mips[surface],u,v,footprint);}
 inline creature_material material_for(const phenotype &p,region r){

@@ -83,6 +83,9 @@ It does not introduce a separate linear-light/PBR exposure model. Original
 sRGB byte colors are unchanged at native sampling; fractional color filtering
 follows the existing GPU UNORM convention. Gamma/exposure is not presented as
 a new physically based rendering feature.
+CPU impostors select the same fractional mip level once per triangle. Empty
+filter neighbourhoods skip colour arithmetic; view rotation also stays outside
+the pixel loop. Bilinear/trilinear weights and perspective-correct UVs remain.
 
 Normal and signed-depth atlases remain data. Color minification must not apply
 to their encoded bytes. Mesh/atlas materials share original charts, and

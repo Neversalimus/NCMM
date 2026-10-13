@@ -82,6 +82,8 @@ int main(){size_t checks=0;auto check=[&](bool value,const char *reason){++check
     skin checker;checker.width=checker.height=8;checker.fill(0xffffffff);for(uint32_t y=0;y<8;++y)for(uint32_t x=0;x<8;++x)checker.front[y*8+x]=(x+y)%2?0xffffffff:0x000000ff;
     make_mips(checker);check(sample_skin(checker,0,.02f,.02f,.1f)==0x000000ff,"magnification blurred pixel art");
     auto filtered=sample_skin(checker,0,.5f,.5f,8);check((filtered>>24)>=127&&(filtered>>24)<=129,"minification shimmer/average");
+    for(float footprint:{1.f,1.25f,2.f,3.75f,8.f,16.f})for(float u:{-.1f,.02f,.25f,.5f,.98f,1.1f})
+        check(sample_colour(checker.width,checker.height,checker.front,checker.mips[0],u,.5f,footprint)==sample_colour_lod(checker.width,checker.height,checker.front,checker.mips[0],u,.5f,std::log2(footprint)),"preselected mip changes filtering");
     const auto edge=mix_texels(0xff0000ff,0x00ff0000,.5f);check((edge>>24)==255&&((edge>>16)&255)==0&&(edge&255)==128,"transparent RGB produced a colored halo");
     auto again=extract(s,human);check(a.fingerprint==again.fingerprint&&a.skins[0].front==again.skins[0].front,"non-deterministic reconstruction");
     sprite reshaped=s;reshaped.width=96;reshaped.height=128;check(extract(reshaped,human).fingerprint!=a.fingerprint,"source shape cache collision");
