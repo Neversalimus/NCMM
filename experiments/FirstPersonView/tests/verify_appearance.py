@@ -38,8 +38,12 @@ def validate(root):
     records = []
     for case, base in old.items():
         after, hardware = current[case], accelerated[case]
-        for field in ("clock", "camera_yaw", "camera_pitch", "camera_x", "camera_y", "distance_cells"):
+        for field in ("clock", "camera_yaw", "camera_pitch", "camera_x", "camera_y", "distance_cells",
+                      "subject_flags", "subject_heading", "subject_height", "subject_width",
+                      "subject_liters", "subject_kilograms", "observer_perception"):
             assert abs(base[field] - after[field]) < 1e-5 and abs(after[field] - hardware[field]) < 1e-5, f"input mismatch {case}: {field}"
+        for field in ("source_width", "source_height", "source_pixel_hash"):
+            assert base[field] == after[field] == hardware[field], f"source mismatch {case}: {field}"
         assert min(base["pixels"], after["pixels"], hardware["pixels"]) > 0
         paths = [root / frame["file"] for frame in (base, after, hardware)]
         images = []

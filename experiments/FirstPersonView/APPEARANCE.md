@@ -18,6 +18,7 @@ PRs #201/#202, and the actual 1040 SDL captures from run `38203247598`.
 | UV horizontal coordinate derived from the normal | Nonuniform projection, folded stripes and repeated details on segments | Position-based rest-space charts with shared regional physical bounds |
 | Hands used the head material | Faces/head colors could repeat on palms | Separate hand and foot regions |
 | Front/back flags differed inside a triangle | A single face could interpolate across incompatible charts | Vertices split at chart boundaries; one chart/material per triangle |
+| Side charts joined the wrong front/rear edges | Colors jumped at humanoid sides; profile tails could receive muzzle colors | Edges account for reversed front/rear orientation; profile end caps retain their own observed edge |
 | All impostors used 48 × 64 | Broad/wide bodies received too few horizontal samples | Source-aware height 48–112; physical-aspect width 32–160 |
 | LOD3 replaced source colors with a mean | Distant NPC clothing and species color composition disappeared | All four levels retain source colors |
 | Encoded signed-depth textures allowed hardware mip selection | Averaging encoded bytes could change sign/carry | Normal/depth data use nearest sampling of the base level |

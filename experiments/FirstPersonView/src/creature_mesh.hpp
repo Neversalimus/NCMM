@@ -142,7 +142,7 @@ class builder {
         for(auto &m:result.lod){mesh projected;projected.faces.reserve(m.faces.size());
             std::vector<std::array<int,skin::surfaces>> remap(m.vertices.size());for(auto &r:remap)r.fill(-1);
             for(const auto &f:m.faces){const auto n=m.vertices[f.vertices[0]].normal+m.vertices[f.vertices[1]].normal+m.vertices[f.vertices[2]].normal;
-                const uint8_t surface=result.colors.profile?(std::abs(n.y)>=std::abs(n.x)?0:n.x<0?1:3):
+                const uint8_t surface=result.colors.profile?(std::abs(n.y)>=std::abs(n.x)?0:n.x<0?2:3):
                     (std::abs(n.x)>=std::abs(n.y)?(n.x>=0?0:1):(n.y<0?2:3));
                 face out{};for(size_t i=0;i<3;++i){const auto id=f.vertices[i];auto &mapped=remap[id][surface];
                     if(mapped<0){auto v=m.vertices[id];const auto q=v.position+joint_world[v.joint];const auto &b=regions[v.material];

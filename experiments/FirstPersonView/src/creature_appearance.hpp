@@ -178,8 +178,11 @@ inline appearance extract(const sprite &s,const phenotype &p,uint32_t region_mas
             }
             for(uint32_t x=0;x<t.width;++x){const size_t at=size_t(y)*t.width+x;
                 const float u=t.width>1?float(x)/(t.width-1):0;
-                t.left[at]=mix_texels(t.front[size_t(y)*t.width],t.back[size_t(y)*t.width],u);
-                t.right[at]=mix_texels(t.front[size_t(y)*t.width+t.width-1],t.back[size_t(y)*t.width+t.width-1],u);
+                // Upright front UVs run opposite to rear UVs around the body.
+                // A profile's two lateral charts share the observed silhouette;
+                // its muzzle/tail end caps continue only their own source edge.
+                t.left[at]=a.profile?t.front[size_t(y)*t.width]:mix_texels(t.front[size_t(y)*t.width+t.width-1],t.back[size_t(y)*t.width],u);
+                t.right[at]=a.profile?t.front[size_t(y)*t.width+t.width-1]:mix_texels(t.front[size_t(y)*t.width],t.back[size_t(y)*t.width+t.width-1],u);
             }}
         make_mips(t);
     }

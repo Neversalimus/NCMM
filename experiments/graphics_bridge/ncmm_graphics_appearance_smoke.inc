@@ -10,6 +10,12 @@ if( std::getenv( "NCMM_FP_APPEARANCE_SMOKE" ) ) {
     // Fish WATER_CAMOUFLAGE is gated by the observer's randomized perception
     // even with debug night vision. Normalize the disposable observer, rather
     // than changing creature flags or bypassing CDDA's visibility checks.
+    struct restore_perception {
+        Character &observer; int limit, base, bonus;
+        ~restore_perception() { character_max_per = limit; observer.set_per_base( base ); observer.set_per_bonus( bonus ); }
+    } perception_guard{ you, character_max_per, you.get_per_base(), you.get_per_bonus() };
+    character_max_per = std::max( 64, character_max_per );
+    you.healall( 10000 );
     you.set_per_base( 64 ); you.set_per_bonus( 0 );
     require( you.get_eff_per() >= 48, "appearance_observer_perception_not_normalized" );
     for( int y = -48; y <= 48; ++y ) for( int x = -48; x <= 48; ++x ) {
@@ -91,6 +97,39 @@ if( std::getenv( "NCMM_FP_APPEARANCE_SMOKE" ) ) {
                 appearance_report.member( "pose", pose ); appearance_report.member( "pixels", graphics_creature_metrics.visible_pixels );
                 appearance_report.member( "clock", *graphics_smoke_seconds ); appearance_report.member( "camera_yaw", graphics_camera_yaw ); appearance_report.member( "camera_pitch", graphics_camera_pitch );
                 appearance_report.member( "camera_x", you.pos_bub().x() ); appearance_report.member( "camera_y", you.pos_bub().y() );
+                require( graphics_creature_snapshots.size() == 1, "appearance_subject_not_unique" );
+                const auto &observed = graphics_creature_snapshots.front();
+                appearance_report.member( "subject_flags", observed.flags ); appearance_report.member( "subject_heading", observed.heading );
+                appearance_report.member( "subject_height", observed.height ); appearance_report.member( "subject_width", observed.width );
+                appearance_report.member( "subject_liters", observed.liters ); appearance_report.member( "subject_kilograms", observed.kilograms );
+                appearance_report.member( "observer_perception", you.get_eff_per() );
+                // Read the already-owned Host cache, outside measured frames.
+                // This also checks the NPC's composed clothes, not just its base.
+                uint64_t source_hash = 0; uint32_t source_width = 0, source_height = 0;
+                const auto source_position = person ? person->pos_bub() : subject->pos_bub();
+                const auto category = npc_case ? TILE_CATEGORY::NONE : TILE_CATEGORY::MONSTER;
+                auto atlas = tilecontext->ncmm_get_texture_draw_data( observed.type_id, category, source_position, false, true );
+                if( atlas ) {
+                    const auto &r = atlas->dimensions;
+                    const graphics_sprite_key key{ reinterpret_cast<uintptr_t>( atlas->texture ), r.x, r.y, r.w, r.h };
+                    auto cached = graphics_cpu_sprites.find( key );
+                    if( cached != graphics_cpu_sprites.end() ) {
+                        const graphics_cpu_sprite *source = &cached->second;
+                        if( person ) {
+                            uint64_t revision = 1469598103934665603ull;
+                            for( uint32_t pixel : source->pixels ) revision = ( revision ^ pixel ) * 1099511628211ull;
+                            auto composite = graphics_creature_composites.find( graphics_creature_overlay_revision( *person, revision ) );
+                            source = composite == graphics_creature_composites.end() ? nullptr : &composite->second;
+                        }
+                        if( source ) {
+                            source_width = source->width; source_height = source->height;
+                            source_hash = 1469598103934665603ull;
+                            for( uint32_t pixel : source->pixels ) source_hash = ( source_hash ^ pixel ) * 1099511628211ull;
+                        }
+                    }
+                }
+                appearance_report.member( "source_width", source_width ); appearance_report.member( "source_height", source_height );
+                appearance_report.member( "source_pixel_hash", std::to_string( source_hash ) );
                 appearance_report.member( "lod", std::vector<uint32_t>( std::begin( graphics_creature_metrics.lod ), std::end( graphics_creature_metrics.lod ) ) ); appearance_report.end_object();
             };
             capture_appearance( "idle" );

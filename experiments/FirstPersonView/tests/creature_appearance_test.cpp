@@ -27,8 +27,17 @@ int main(){size_t checks=0;auto check=[&](bool value,const char *reason){++check
     check(std::find(head.front.begin(),head.front.end(),0xff00ffff)!=head.front.end(),"facial detail disappeared");
     check(std::find(head.back.begin(),head.back.end(),0xff00ffff)==head.back.end(),"face repeated on rear head");
     for(uint32_t y=0;y<head.height;++y){const size_t row=size_t(y)*head.width;
-        check(head.left[row]==head.front[row]&&head.left[row+head.width-1]==head.back[row],"left chart boundary");
-        check(head.right[row]==head.front[row+head.width-1]&&head.right[row+head.width-1]==head.back[row+head.width-1],"right chart boundary");}
+        check(head.left[row]==head.front[row+head.width-1]&&head.left[row+head.width-1]==head.back[row],"left chart boundary");
+        check(head.right[row]==head.front[row]&&head.right[row+head.width-1]==head.back[row+head.width-1],"right chart boundary");}
+    auto animal=human;animal.kind=anatomy::quadruped;animal.length=1.4f;animal.legs=4;
+    const auto profile=extract(s,animal);
+    for(const auto &t:profile.skins)for(uint32_t y=0;y<t.height;++y)for(uint32_t x=0;x<t.width;++x){
+        const auto row=size_t(y)*t.width;
+        check(t.left[row+x]==t.front[row],"tail cap copied muzzle-side source details");
+        check(t.right[row+x]==t.front[row+t.width-1],"muzzle cap crossed source edge");}
+    auto animal_mesh=builder{}.generate(animal,s);
+    for(const auto &f:animal_mesh.lod[0].faces){auto n=point{};for(auto id:f.vertices)n=n+animal_mesh.lod[0].vertices[id].normal;
+        if(n.x<0&&std::abs(n.x)>std::abs(n.y))check(animal_mesh.lod[0].vertices[f.vertices[0]].back==2,"profile tail used rear instead of tail edge");}
     skin checker;checker.width=checker.height=8;checker.fill(0xffffffff);for(uint32_t y=0;y<8;++y)for(uint32_t x=0;x<8;++x)checker.front[y*8+x]=(x+y)%2?0xffffffff:0x000000ff;
     make_mips(checker);check(sample_skin(checker,0,.02f,.02f,.1f)==0x000000ff,"magnification blurred pixel art");
     auto filtered=sample_skin(checker,0,.5f,.5f,8);check((filtered>>24)>=127&&(filtered>>24)<=129,"minification shimmer/average");
