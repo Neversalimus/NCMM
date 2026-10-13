@@ -355,8 +355,20 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: first-person-runtime-evidence-${{ matrix.build }}
-          path: fp-evidence/**
+          name: first-person-runtime-evidence-${{ matrix.build }}-graphics
+          path: |
+            fp-evidence/graphics/**
+            fp-evidence/appearance-debug-graphics/**
+          compression-level: 9
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: first-person-runtime-evidence-${{ matrix.build }}-sounds
+          path: |
+            fp-evidence/sounds/**
+            fp-evidence/appearance-debug-sounds/**
+          compression-level: 9
           retention-days: 7
       - uses: actions/upload-artifact@v4
         with:
@@ -364,7 +376,6 @@ jobs:
           path: |
             installer-result/NCMM_FirstPersonView_0.11.0_TEST_${{ matrix.build }}_Windows_x64.zip
             installer-result/first-person-smoke*.json
-            installer-result/first-person-*.bmp
             installer-result/first-person-shapes-audit*.json
             installer-result/first-person-creature-*.json
             installer-result/first-person-gpu-*.json
