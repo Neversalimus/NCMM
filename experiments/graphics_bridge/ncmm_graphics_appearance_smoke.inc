@@ -7,12 +7,22 @@ if( std::getenv( "NCMM_FP_APPEARANCE_SMOKE" ) ) {
     const uint64_t saved_identity = graphics_creature_next_id;
     const tripoint_bub_ms saved_position = you.pos_bub();
     const float saved_appearance_yaw = graphics_camera_yaw, saved_appearance_pitch = graphics_camera_pitch;
+    // Fish WATER_CAMOUFLAGE is gated by the observer's randomized perception
+    // even with debug night vision. Normalize the disposable observer, rather
+    // than changing creature flags or bypassing CDDA's visibility checks.
+    you.set_per_base( 64 ); you.set_per_bonus( 0 );
+    require( you.get_eff_per() >= 48, "appearance_observer_perception_not_normalized" );
+    for( int y = -48; y <= 48; ++y ) for( int x = -48; x <= 48; ++x ) {
+        const tripoint_bub_ms p( center.x() + x, center.y() + y, 0 );
+        here.i_clear( p ); here.clear_fields( p );
+    }
     std::ofstream appearance_stream( game_root() / "ncmm" / ( "first-person-appearance-" + appearance_mode + ".json" ) );
     JsonOut appearance_report( appearance_stream ); appearance_report.start_object();
     appearance_report.member( "schema", 1 ); appearance_report.member( "actual_cdda_sdl", true );
     appearance_report.member( "renderer", appearance_mode ); appearance_report.member( "tileset", get_option<std::string>( "TILES" ) );
     appearance_report.member( "baseline_commit", "7f8a48a714e082daf67176e5e4a9806f878eef42" );
     appearance_report.member( "fixed_presentation_clock", true ); appearance_report.member( "frames" ); appearance_report.start_array();
+    std::string appearance_case;
     auto appearance_settled = [&]() {
         for( int attempt = 0; attempt < 200; ++attempt ) {
             draw();
@@ -28,6 +38,12 @@ if( std::getenv( "NCMM_FP_APPEARANCE_SMOKE" ) ) {
             }
             SDL_Delay( 3 );
         }
+        capture_frame( "first-person-appearance-unready-" + appearance_mode + ".bmp" );
+        log_line( NCMM_LOG_ERROR, ( "Appearance not ready: " + appearance_case + "; snapshots=" +
+                  std::to_string( graphics_creature_snapshots.size() ) + "; pixels=" +
+                  std::to_string( graphics_creature_metrics.visible_pixels ) + "; queued=" +
+                  std::to_string( graphics_creature_metrics.queued ) + "; fallback=" +
+                  std::to_string( graphics_creature_metrics.fallback ) ).c_str() );
         require( false, "appearance_frame_not_ready" );
     };
     // Including a definition supplied by an isolated JSON fixture verifies the
@@ -47,6 +63,8 @@ if( std::getenv( "NCMM_FP_APPEARANCE_SMOKE" ) ) {
             const float projection = capture.w / ( 2 * std::tan( 70 * ncmm_graphics_camera::pi / 360 ) );
             const int distance = std::clamp( int( std::ceil( projection * std::max( { type.height, type.width, type.length } ) / target_pixels / diagonal ) ), distance_band == 0 ? 1 : distance_band == 1 ? 3 : 8, 32 );
             const tripoint_bub_ms view_position( center.x() + d.x * distance, center.y() + d.y * distance, 0 );
+            appearance_case = std::string( id ) + "-d" + std::to_string( distance_band ) +
+                              "-l" + std::to_string( lighting ) + "-a" + std::to_string( direction );
             // Repeat the exact observed state with one stable entity identity.
             // Resources remain warm: this does not reset the world/cache epoch.
             clear_monsters(); graphics_creature_records.clear(); graphics_creature_next_id = 0;

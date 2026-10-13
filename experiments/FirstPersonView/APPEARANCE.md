@@ -109,6 +109,10 @@ anatomy. It sweeps eight directions, three distances and day/blue-night
 lighting, plus applicable movement and NPC prone states. Small creatures use
 the closest supported game-cell distance; large far views stay within the
 actual sight/snapshot range. Actual distance and selected LOD are recorded.
+The isolated observer has fixed perception 64 as well as debug night vision:
+CDDA's fish water camouflage otherwise hides distant fish according to the
+random quickstart avatar's perception. Creature flags and game visibility
+rules are retained. Combat debris is cleared before paired captures.
 
 Both official 1040/1807 graphics/sounds packages are exercised. The comparison
 uses fixed seed `ncmm-appearance-011`, presentation clocks and entity identity,

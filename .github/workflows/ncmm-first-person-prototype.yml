@@ -349,6 +349,8 @@ jobs:
           foreach($variant in @(@{name='graphics';root='${{ steps.game.outputs.root }}'},@{name='sounds';root='${{ steps.game.outputs.sound_root }}'})) {
             $root=$variant.root
             if($root -and (Test-Path (Join-Path $root 'ncmm'))){Copy-Item (Join-Path $root 'ncmm') (Join-Path fp-evidence $variant.name) -Recurse}
+            $debug=Join-Path $env:RUNNER_TEMP ("fp-appearance-"+'${{ matrix.build }}'+'-'+$variant.name)
+            if(Test-Path $debug){Copy-Item $debug (Join-Path fp-evidence ('appearance-debug-'+$variant.name)) -Recurse -Force}
           }
       - uses: actions/upload-artifact@v4
         if: always()
