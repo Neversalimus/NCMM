@@ -65,10 +65,16 @@ if( std::getenv( "NCMM_FP_APPEARANCE_SMOKE" ) ) {
         else { require( mtype_id( id ).is_valid(), "appearance_definition_missing" ); graphics_creature_type( *mtype_id( id ), data ); }
         const auto type = anatomy::classify( data );
         for( int distance_band = 0; distance_band < 3; ++distance_band ) for( int lighting = 0; lighting < 2; ++lighting ) for( size_t direction = 0; direction < directions.size(); ++direction ) {
-            const float target_pixels = distance_band == 0 ? 180.f : distance_band == 1 ? 50.f : 16.f;
             const auto d = directions[direction]; const float diagonal = std::hypot( float( d.x ), float( d.y ) );
             const float projection = capture.w / ( 2 * std::tan( 70 * ncmm_graphics_camera::pi / 360 ) );
-            const int distance = std::clamp( int( std::ceil( projection * std::max( { type.height, type.width, type.length } ) / target_pixels / diagonal ) ), distance_band == 0 ? 1 : distance_band == 1 ? 3 : 8, 32 );
+            const float extent = std::max( { type.height, type.width, type.length } );
+            const int far_distance = std::clamp( int( std::ceil( projection * extent / 16.f / diagonal ) ), 8, 32 );
+            const int middle_distance = std::clamp( int( std::ceil( projection * extent / 50.f / diagonal ) ), 3, int( far_distance * .65f ) );
+            const int near_distance = std::clamp( int( std::ceil( projection * extent / 180.f / diagonal ) ), 1, int( middle_distance * .65f ) );
+            // Large bodies can hit the scene's distance cap in several bands.
+            // Keep distinct, useful ranges instead of labelling the same view
+            // both medium and far. All paired processes use these same inputs.
+            const int distance = distance_band == 0 ? near_distance : distance_band == 1 ? middle_distance : far_distance;
             const tripoint_bub_ms view_position( center.x() + d.x * distance, center.y() + d.y * distance, 0 );
             appearance_case = std::string( id ) + "-d" + std::to_string( distance_band ) +
                               "-l" + std::to_string( lighting ) + "-a" + std::to_string( direction );

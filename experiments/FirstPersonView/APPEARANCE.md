@@ -140,6 +140,9 @@ anatomy. It sweeps eight directions, three distances and day/blue-night
 lighting, plus applicable movement and NPC prone states. Small creatures use
 the closest supported game-cell distance; large far views stay within the
 actual sight/snapshot range. Actual distance and selected LOD are recorded.
+The near/middle ranges also follow the available far range, so large bodies
+cannot silently receive identical medium and far captures. Qualification
+checks strictly increasing actual distances for every direction and light.
 The isolated observer has fixed perception 64 as well as debug night vision:
 CDDA's fish water camouflage otherwise hides distant fish according to the
 random quickstart avatar's perception. Creature flags and game visibility

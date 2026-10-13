@@ -27,6 +27,11 @@ def read_matrix(root, mode):
     for name in ids:
         idle = [item for item in frames if item[0] == name and item[-1] == "idle"]
         assert len(idle) == 8 * 3 * 2, f"incomplete directions/distances/lighting: {name}"
+        for angle in range(8):
+            for lighting in ("day", "blue-night"):
+                distances = [frames[(name, angle, band, lighting, "idle")]["distance_cells"]
+                             for band in range(3)]
+                assert distances[0] < distances[1] < distances[2], f"repeated distance bands: {name}, {angle}, {lighting}"
         sources = {(frames[item]["source_width"], frames[item]["source_height"],
                     frames[item]["source_pixel_hash"]) for item in frames if item[0] == name}
         assert len(sources) == 1, f"subject appearance changes between cases: {name}"
