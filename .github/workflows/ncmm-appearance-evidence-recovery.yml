@@ -1,0 +1,87 @@
+name: Temporary appearance evidence recovery
+on:
+  pull_request:
+    paths: [.github/workflows/ncmm-appearance-evidence-recovery.yml]
+permissions:
+  actions: read
+  contents: read
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - build: '1040'
+            kind: runtime
+            artifact: '11790078318'
+            sha256: 7da178ed069cd882d99b47f87bfe12fef3b10c4b104d5d1b2903273a23448079
+          - build: '1807'
+            kind: runtime
+            artifact: '11789064545'
+            sha256: a97067b70f3823519d53c1ca1577922311a71187e643e6d927b39777be5993f6
+          - build: '1040'
+            kind: installer
+            artifact: '11790602789'
+            sha256: 02ec19f76b3d43de0c20c20d4e1705153924c9ca47bfffa6257d5dde64ebb8c7
+          - build: '1807'
+            kind: installer
+            artifact: '11790625507'
+            sha256: cef867f31c38208191f48e7b3e878db83cd0c8503088b985dd489fe2e308f94a
+    steps:
+      - name: Retrieve immutable qualified artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ matrix.artifact }}
+          EXPECTED_SHA256: ${{ matrix.sha256 }}
+        run: |
+          gh api "repos/Neversalimus/NCMM/actions/artifacts/$ARTIFACT_ID/zip" > original.zip
+          echo "$EXPECTED_SHA256  original.zip" | sha256sum --check --strict
+      - name: Preserve captures and payloads in smaller independent archives
+        env:
+          ARTIFACT_KIND: ${{ matrix.kind }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, zipfile
+          root=pathlib.Path('recovered').resolve()
+          root.mkdir()
+          with zipfile.ZipFile('original.zip') as archive:
+              assert sum(info.file_size for info in archive.infolist()) < 24*1024**3
+              for info in archive.infolist():
+                  destination=(root/info.filename).resolve()
+                  assert destination.is_relative_to(root)
+                  selected=os.environ['ARTIFACT_KIND']=='runtime' or pathlib.Path(info.filename).suffix in ('.zip','.json')
+                  if selected:
+                      archive.extract(info, root)
+          pathlib.Path('original.zip').unlink()
+          print('Recovered bytes:',sum(p.stat().st_size for p in root.rglob('*') if p.is_file()))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: matrix.kind == 'runtime'
+        with:
+          name: appearance-b116-${{ matrix.build }}-graphics
+          path: |
+            recovered/graphics/**
+            recovered/appearance-debug-graphics/**
+          compression-level: 9
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: matrix.kind == 'runtime'
+        with:
+          name: appearance-b116-${{ matrix.build }}-sounds
+          path: |
+            recovered/sounds/**
+            recovered/appearance-debug-sounds/**
+          compression-level: 9
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: matrix.kind == 'installer'
+        with:
+          name: appearance-b116-${{ matrix.build }}-installer
+          path: recovered/**
+          compression-level: 9
+          if-no-files-found: error
+          retention-days: 7
