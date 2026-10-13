@@ -319,6 +319,13 @@ class renderer {
         const float dux=dw0*(uu[0]-uu[2])+dw1*(uu[1]-uu[2]),duy=dw0y*(uu[0]-uu[2])+dw1y*(uu[1]-uu[2]);
         const float dvx=dw0*(vv[0]-vv[2])+dw1*(vv[1]-vv[2]),dvy=dw0y*(vv[0]-vv[2])+dw1y*(vv[1]-vv[2]);
         const float dzx=dw0*(iz[0]-iz[2])+dw1*(iz[1]-iz[2]),dzy=dw0y*(iz[0]-iz[2])+dw1y*(iz[1]-iz[2]);
+        // A small projected triangle has one conservative minification band.
+        // Keep perspective-correct per-pixel UVs, but avoid repeating the LOD
+        // Jacobian over every empty pixel of an impostor's enclosing quad.
+        float impostor_footprint=0;
+        if(t.m.impostor){const auto &image=*t.m.impostor;const float center_z=3/(iz[0]+iz[1]+iz[2]);
+            const float center_u=(uu[0]+uu[1]+uu[2])*center_z/3,center_v=(vv[0]+vv[1]+vv[2])*center_z/3;
+            impostor_footprint=center_z*std::max({std::abs(dux-center_u*dzx)*image.width,std::abs(duy-center_u*dzy)*image.width,std::abs(dvx-center_v*dzx)*image.height,std::abs(dvy-center_v*dzy)*image.height});}
         auto edge=[](vec a,vec b,float x,float y){return(b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);};
         // Interleaved strips keep all workers busy when the expensive floor or
         // view model occupies only the bottom of the viewport. Each pixel still
@@ -346,8 +353,7 @@ class renderer {
                 if(t.m.impostor){const auto &sprite=*t.m.impostor;
                     const float u=(w0*uu[0]+w1*uu[1]+w2*uu[2])*z,vv0=(w0*vv[0]+w1*vv[1]+w2*vv[2])*z;
                     const size_t at=size_t(std::clamp(int(vv0*sprite.height),0,sprite.height-1))*sprite.width+std::clamp(int(u*sprite.width),0,sprite.width-1);
-                    const float footprint=z*std::max({std::abs(dux-u*dzx)*sprite.width,std::abs(duy-u*dzy)*sprite.width,std::abs(dvx-vv0*dzx)*sprite.height,std::abs(dvy-vv0*dzy)*sprite.height});
-                    const auto pixel=creature::sample_colour(uint32_t(sprite.width),uint32_t(sprite.height),sprite.color,sprite.mips,u,vv0,footprint);
+                    const auto pixel=impostor_footprint<1?sprite.color[at]:creature::sample_colour(uint32_t(sprite.width),uint32_t(sprite.height),sprite.color,sprite.mips,u,vv0,impostor_footprint);
                     if((pixel&255)<64)continue;
                     z+=float(sprite.depth[at])*sprite.span/32760*cp;
                     if(z<.08f||z>f.depth[k]+.0002f)continue;

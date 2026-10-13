@@ -11,6 +11,7 @@
         const auto &mesh=model.lod[std::min(lod,1)];
         if(gpu_sink){gpu_sink->skin(model,animation,lod,origin,cell,scale,fallback,targetable,pose.heading,{pose.offset.x,pose.offset.y,pose.offset.z});return;}
         std::vector<vec> positions(mesh.vertices.size()),normals(mesh.vertices.size()),lights(mesh.vertices.size());
+        std::array<image *,size_t(creature::region::count)*creature::skin::surfaces> skin_images{};
         for(size_t j=0;j<mesh.vertices.size();++j){const auto &v=mesh.vertices[j];const auto &bone=animation.joints[v.joint];auto p=bone.apply(v.position),n=bone.vector(v.normal);
             vec pos{p.x*scale.x,p.y*scale.y,p.z*scale.z},normal=normalize({n.x/scale.x,n.y/scale.y,n.z/scale.z});
             if(fallback){pos=rotate(pos,{},pose.heading)+vec{pose.offset.x,pose.offset.y,pose.offset.z};normal=rotate(normal,{},pose.heading);}
@@ -18,7 +19,8 @@
         for(const auto &face:mesh.faces){const auto a=face.vertices[0],b=face.vertices[1],c=face.vertices[2];
             const vec normal=normalize(cross(positions[b]-positions[a],positions[c]-positions[a]));if(dot(normal,eye-positions[a])<=0)continue;
             material mat;mat.cell=cell;mat.creature=targetable;mat.creature_visual=true;mat.smooth=true;mat.color={.38f,.43f,.28f};
-            const auto &v0=mesh.vertices[a];if(!fallback)mat.texture=creature_texture(model.colors.skins[v0.material],v0.back);
+            const auto &v0=mesh.vertices[a];if(!fallback){auto &texture=skin_images[size_t(v0.material)*creature::skin::surfaces+v0.back];
+                if(!texture)texture=creature_texture(model.colors.skins[v0.material],v0.back);mat.texture=texture;}
             if(model.type.flags&NCMM_CR_MECHANICAL)mat.finish=surface::metal;
             // Source markings describe fur/chitin/cloth. World-space grain
             // would swim through an animated body and wash out those markings.
