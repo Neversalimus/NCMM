@@ -38,6 +38,22 @@ int main(){size_t checks=0;auto check=[&](bool value,const char *reason){++check
     check(dressed_head.source.left==17&&dressed_head.source.right==23&&dressed_head.source.bottom==9,"head crop followed torso or raised arm");
     check(std::find(dressed_head.front.begin(),dressed_head.front.end(),0x40e070ff)==dressed_head.front.end(),"shirt colour transferred to face");
     check(std::find(dressed_head.front.begin(),dressed_head.front.end(),0x202020ff)!=dressed_head.front.end(),"head separation discarded a facial mark");
+    // Hands above the head, including a hand crossing the central axis, must
+    // not become a face. The actual face feeds the trunk below the arm gap.
+    sprite overhead;overhead.width=64;overhead.height=96;overhead.pixels.assign(64*96,0);
+    for(int y=32;y<86;++y)for(int x=20;x<43;++x)overhead.pixels[size_t(y)*64+x]=0x406080ff;
+    for(int y=24;y<32;++y)for(int x=26;x<35;++x)overhead.pixels[size_t(y)*64+x]=0xad7865ff;
+    overhead.pixels[27*64+29]=0x202020ff;
+    overhead.pixels[30*64+30]=0xee2040ff;
+    for(int y=10;y<20;++y)for(int x=27;x<48;++x)overhead.pixels[size_t(y)*64+x]=0x70b040ff;
+    for(int y=16;y<37;++y)for(int x=8;x<16;++x)overhead.pixels[size_t(y)*64+x]=0x70b040ff;
+    for(int y=20;y<37;++y)for(int x=40;x<48;++x)overhead.pixels[size_t(y)*64+x]=0x70b040ff;
+    const auto overhead_appearance=extract(overhead,human);const auto &overhead_head=overhead_appearance.skins[size_t(region::head)];
+    check(overhead_head.source.top==24&&overhead_head.source.bottom==32,"overhead hand replaced the actual face");
+    check(std::find(overhead_head.front.begin(),overhead_head.front.end(),0x202020ff)!=overhead_head.front.end(),"face below raised arms disappeared");
+    check(std::find(overhead_head.front.begin(),overhead_head.front.end(),0xee2040ff)!=overhead_head.front.end(),"lower facial detail cut by joined shoulder silhouette");
+    check(std::find(overhead_head.front.begin(),overhead_head.front.end(),0x70b040ff)==overhead_head.front.end(),"raised hand pixels transferred to head");
+    check(std::find(overhead_appearance.skins[size_t(region::torso)].front.begin(),overhead_appearance.skins[size_t(region::torso)].front.end(),0x202020ff)==overhead_appearance.skins[size_t(region::torso)].front.end(),"face transferred to torso below overhead arms");
     const auto dressed_appearance=extract(dressed,human);
     check(dressed_appearance.skins[size_t(region::torso)].source.bottom==26&&dressed_appearance.skins[size_t(region::lower)].source.top==26,"garment boundary misplaced");
     check(std::find(dressed_appearance.skins[size_t(region::torso)].front.begin(),dressed_appearance.skins[size_t(region::torso)].front.end(),0x304080ff)==dressed_appearance.skins[size_t(region::torso)].front.end(),"trousers transferred to shirt");

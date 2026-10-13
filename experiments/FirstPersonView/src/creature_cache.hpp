@@ -16,7 +16,7 @@ namespace first_person::creature {
 inline uint64_t appearance_key(const ncmm_graphics_creature_v1 &s,uint64_t tileset_epoch){
     uint64_t h=1469598103934665603ull;
     auto add=[&](const void *p,size_t n){h=hash_bytes(h,p,n);};
-    add(&generator_version,sizeof(generator_version));add(&tileset_epoch,sizeof(tileset_epoch));
+    add(&generator_version,sizeof(generator_version));add(&appearance_generator_version,sizeof(appearance_generator_version));add(&tileset_epoch,sizeof(tileset_epoch));
     add(&s.appearance_revision,sizeof(s.appearance_revision));add(s.type_id,sizeof(s.type_id));add(s.bodytype,sizeof(s.bodytype));add(s.species,sizeof(s.species));
     // State, location, entity ID, heading and event clocks do not rebuild assets.
     const uint32_t traits=s.flags&~(NCMM_CR_PRONE|NCMM_CR_SUBMERGED|NCMM_CR_DEAD);add(&traits,sizeof(traits));

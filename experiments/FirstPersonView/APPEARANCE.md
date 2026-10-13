@@ -44,6 +44,10 @@ Humanoid heads follow the upper connected silhouette and its neck/shoulder or
 persistent colour boundary. This keeps an offset head separate from raised
 arms and excludes shirt colours from the face when the boundary is visible.
 Ambiguous silhouettes retain a bounded anatomical prior.
+Raised hands can lie above the face and cross the image centre. The head
+locator follows a narrow central run attached to the trunk, then stops at the
+gap to overhead hands. Its horizontal extent excludes neighbouring arms;
+joined shoulders do not prematurely cut off the lower facial pixels.
 Hands sample a lateral upper-body extremity instead of the trouser region.
 Humanoid arms use a separate existing chart with shoulder-to-wrist bounds;
 source glove colours remain observations. A sustained central colour boundary
@@ -108,7 +112,8 @@ retained model/atlas budget remain. Accounting includes original sprites,
 dynamic skin planes, mip vectors and adaptive color/normal/depth atlases.
 Sources are copied before queueing. A captured epoch is rechecked after the
 provider returns, so resetting a world/tileset during copying cannot enqueue
-old pixels into the new epoch. Generator version 3 invalidates old assets.
+old pixels into the new epoch. Appearance generator revision 4 invalidates CPU
+and GPU resources independently of the unchanged shared anatomical policy.
 
 Gameplay never waits for generation or writes diagnostic files. It continues
 to draw the existing closed-volume placeholder until resources are ready.

@@ -7,6 +7,9 @@
 #include <vector>
 
 namespace first_person::creature {
+// Appearance changes invalidate CPU/GPU resources independently of the shared
+// Host anatomical classifier, whose policy and ABI remain unchanged.
+constexpr uint32_t appearance_generator_version=4;
 constexpr float pi=3.14159265358979323846f;
 struct point {
     float x=0,y=0,z=0;
@@ -138,19 +141,43 @@ inline uint32_t used_regions(const phenotype &p){
     return mask;
 }
 inline source_region upright_head_crop(const sprite &s,source_region body,uint32_t alpha){
-    const int height=body.bottom-body.top;
+    int height=body.bottom-body.top;const int original_top=body.top;
     source_region fallback{body.left+int(.20f*(body.right-body.left)),body.top,
         body.left+int(std::ceil(.80f*(body.right-body.left))),body.top+int(std::ceil(.25f*height))};
     if(height<12)return fallback;
-    // Follow the upper silhouette's connected run: a raised arm need not
-    // be the head's horizontal centre.
+    // Locate the narrow central run attached to the trunk before following
+    // it upwards. Raised hands can be higher than the face and can cross the
+    // image's centre; the first opaque row alone is not a head observation.
+    const int width=body.right-body.left;
+    auto closest_run=[&](int y,float centre){source_region best{0,y,0,y+1};float distance=std::numeric_limits<float>::infinity();
+        for(int x=body.left;x<body.right;){if((s.pixels[size_t(y)*s.width+x]&255)<alpha){++x;continue;}
+            const int left=x;while(x<body.right&&(s.pixels[size_t(y)*s.width+x]&255)>=alpha)++x;
+            const float delta=std::abs((left+x-1)*.5f-centre);if(delta<distance){distance=delta;best={left,y,x,y+1};}}
+        return best;};
+    std::vector<float> centres;std::vector<int> widths;
+    for(int y=body.top+int(height*.30f);y<std::min(body.bottom,body.top+int(std::ceil(height*.45f)));++y){
+        const auto row=closest_run(y,(body.left+body.right-1)*.5f);if(row.right-row.left<2)continue;
+        centres.push_back((row.left+row.right-1)*.5f);widths.push_back(row.right-row.left);}
+    int trunk_anchor=-1,narrow_row=-1,narrow_left=body.left,narrow_right=body.right;
+    if(!centres.empty()){
+        std::sort(centres.begin(),centres.end());std::sort(widths.begin(),widths.end());const float centre=centres[centres.size()/2];const int trunk_width=widths[widths.size()/2];
+        for(int y=body.top+int(height*.35f);y>=body.top;--y){const auto row=closest_run(y,centre);const int run_width=row.right-row.left;
+            if(run_width<2||run_width>trunk_width*.80f||std::abs((row.left+row.right-1)*.5f-centre)>std::max(2.f,width*.22f))continue;
+            trunk_anchor=(row.left+row.right-1)/2;narrow_row=y;narrow_left=row.left;narrow_right=row.right;int head_top=y;
+            while(head_top>body.top&&(s.pixels[size_t(head_top-1)*s.width+trunk_anchor]&255)>=alpha)--head_top;
+            body.top=head_top;height=body.bottom-body.top;break;
+        }
+    }
+    const bool overhead=body.top>original_top+1;
+    if(overhead){body.left=std::max(body.left,narrow_left-1);body.right=std::min(body.right,narrow_right+1);
+        fallback={body.left,body.top,body.right,std::min(body.bottom,body.top+int(std::ceil(height*.18f)))};}
     int anchor=-1,first=body.left,last=body.left;
     for(int x=body.left;x<body.right;++x)if((s.pixels[size_t(body.top)*s.width+x]&255)>=alpha){if(anchor<0)first=x;last=x;anchor=x;}
-    if(anchor<0)return fallback;anchor=(first+last)/2;
+    if(anchor<0)return fallback;anchor=trunk_anchor>=0?trunk_anchor:(first+last)/2;
     auto run=[&](int y){int x=anchor;if((s.pixels[size_t(y)*s.width+x]&255)<alpha)return source_region{anchor,y,anchor,y+1};
         int l=x,r=x+1;while(l>body.left&&(s.pixels[size_t(y)*s.width+l-1]&255)>=alpha)--l;
         while(r<body.right&&(s.pixels[size_t(y)*s.width+r]&255)>=alpha)++r;return source_region{l,y,r,y+1};};
-    const int seed_end=std::min(body.bottom,body.top+std::max(2,int(std::ceil(height*.10f))));
+    const int seed_end=std::min(narrow_row>=0?narrow_row+1:body.bottom,body.top+std::max(2,int(std::ceil(height*.10f))));
     int seed_width=0;std::vector<uint32_t> palette;
     for(int y=body.top;y<seed_end;++y){const auto row=run(y);seed_width=std::max(seed_width,row.right-row.left);
         const int half=std::max(1,(row.right-row.left)/6);
@@ -159,10 +186,10 @@ inline source_region upright_head_crop(const sprite &s,source_region body,uint32
             if(std::find(palette.begin(),palette.end(),c)==palette.end()&&palette.size()<96)palette.push_back(c);}}
     if(seed_width<2||palette.empty())return fallback;
     auto related=[&](uint32_t c){for(auto p:palette){bool close=true;for(int shift:{8,16,24})close&=std::abs(int((c>>shift)&255)-int((p>>shift)&255))<=40;if(close)return true;}return false;};
-    int bottom=std::min(body.bottom,body.top+int(std::ceil(height*.25f))),colour_boundary=-1;
+    int bottom=std::min(body.bottom,body.top+int(std::ceil(height*(overhead?.18f:.25f)))),colour_boundary=-1;
     for(int y=seed_end;y<bottom;++y){const auto row=run(y);
         if((row.right-row.left)*3<seed_width*2){bottom=y;break;}
-        if(row.right-row.left>=std::max(seed_width+3,int(std::ceil(seed_width*1.5f)))){bottom=y;break;}
+        if(!overhead&&row.right-row.left>=std::max(seed_width+3,int(std::ceil(seed_width*1.5f)))){bottom=y;break;}
         int observed=0,matching=0;const int half=std::max(1,seed_width/4);
         for(int x=std::max(row.left,anchor-half);x<std::min(row.right,anchor+half+1);++x){++observed;matching+=related(s.pixels[size_t(y)*s.width+x]);}
         if(observed&&matching*2<observed){if(colour_boundary<0)colour_boundary=y;
