@@ -55,6 +55,8 @@ projection. A single sprite does **not** establish an authoritative camera
 direction or reveal its hidden sides. Rear heads use row palette continuation
 without copying eye/face details. Other hidden surfaces continue observed
 regional edges. These are conservative reconstructions, not recovered views.
+An unknown body preserves its observed image on one canonical front chart;
+its rear uses row palettes rather than duplicating a possible face.
 
 ## Filtering and LOD
 
@@ -120,6 +122,11 @@ Both official 1040/1807 graphics/sounds packages are exercised. The comparison
 uses fixed seed `ncmm-appearance-011`, presentation clocks and entity identity,
 and an exact, unmodified main 0.10 CPU DLL built at the above commit. Reports
 retain camera, pose, source tileset, lighting and output pixel information.
+CDDA normally selects monster sprite variants from the object's memory address.
+Only this qualification environment selects the first foreground variant,
+so paired processes really share the same original pixels; ordinary game
+variants remain unchanged. Native source hashes, including composed NPC
+clothes, are checked alongside creature dimensions, heading and flags.
 The existing actual game benchmark covers groups of 1/10/50/100 creatures,
 four viewports, current CPU/GPU and the paired main CPU reference, with
 median/p95/p99, generation, upload, draw and memory counters.

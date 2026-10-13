@@ -185,6 +185,8 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     lookup = replace(lookup, "    const std::vector<int> *indices = ttype.fg.pick( seed );",
         "    // Procedural anatomy animates its own joints; a 2D animation tick is not a new appearance.\n"
         "    if( stable && ttype.animated ) seed = 0;\n"
+        "    // Paired qualification cannot use MONSTER's allocator-address variant seed.\n"
+        "    if( stable && category == TILE_CATEGORY::MONSTER && std::getenv( \"NCMM_FP_APPEARANCE_SMOKE\" ) ) seed = 0;\n"
         "    const std::vector<int> *indices = background ? ttype.bg.pick( seed ) : ttype.fg.pick( seed );\n"
         "    if( background && !indices ) indices = ttype.fg.pick( seed );")
     tiles_cpp = tiles_cpp[:start] + lookup + tiles_cpp[start:]

@@ -6,6 +6,7 @@ Original SDL captures remain available for visual review.
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -38,7 +39,9 @@ def validate(root):
     records = []
     for case, base in old.items():
         after, hardware = current[case], accelerated[case]
-        for field in ("clock", "camera_yaw", "camera_pitch", "camera_x", "camera_y", "distance_cells",
+        assert abs(math.remainder(base["camera_yaw"] - after["camera_yaw"], 2 * math.pi)) < 1e-5
+        assert abs(math.remainder(after["camera_yaw"] - hardware["camera_yaw"], 2 * math.pi)) < 1e-5
+        for field in ("clock", "camera_pitch", "camera_x", "camera_y", "distance_cells",
                       "subject_flags", "subject_heading", "subject_height", "subject_width",
                       "subject_liters", "subject_kilograms", "observer_perception"):
             assert abs(base[field] - after[field]) < 1e-5 and abs(after[field] - hardware[field]) < 1e-5, f"input mismatch {case}: {field}"

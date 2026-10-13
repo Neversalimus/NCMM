@@ -26,6 +26,11 @@ int main(){size_t checks=0;auto check=[&](bool value,const char *reason){++check
     const auto &head=a.skins[size_t(region::head)];
     check(std::find(head.front.begin(),head.front.end(),0xff00ffff)!=head.front.end(),"facial detail disappeared");
     check(std::find(head.back.begin(),head.back.end(),0xff00ffff)==head.back.end(),"face repeated on rear head");
+    phenotype uncertain;auto unknown_appearance=extract(s,uncertain);
+    check(!unknown_appearance.profile,"unknown body asserted a bilateral source view");
+    const auto &unknown_body=unknown_appearance.skins[size_t(region::torso)];
+    check(std::find(unknown_body.front.begin(),unknown_body.front.end(),0xff00ffff)!=unknown_body.front.end(),"unknown source detail lost");
+    check(std::find(unknown_body.back.begin(),unknown_body.back.end(),0xff00ffff)==unknown_body.back.end(),"unknown body duplicated a possible face");
     for(uint32_t y=0;y<head.height;++y){const size_t row=size_t(y)*head.width;
         check(head.left[row]==head.front[row+head.width-1]&&head.left[row+head.width-1]==head.back[row],"left chart boundary");
         check(head.right[row]==head.front[row]&&head.right[row+head.width-1]==head.back[row+head.width-1],"right chart boundary");}

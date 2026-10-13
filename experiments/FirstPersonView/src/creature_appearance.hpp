@@ -128,7 +128,7 @@ inline uint32_t used_regions(const phenotype &p){
     return mask;
 }
 inline appearance extract(const sprite &s,const phenotype &p,uint32_t region_mask=~0u){
-    appearance a;a.profile=p.kind!=anatomy::humanoid&&!(p.kind==anatomy::robot&&p.legs==2);
+    appearance a;a.profile=p.kind!=anatomy::humanoid&&p.kind!=anatomy::universal&&!(p.kind==anatomy::robot&&p.legs==2);
     for(size_t n=0;n<a.skins.size();++n)a.skins[n].material=material_for(p,region(n));
     if(!s.valid())return a;
     a.original=s;
@@ -174,7 +174,7 @@ inline appearance extract(const sprite &s,const phenotype &p,uint32_t region_mas
             uint32_t mode=t.front[size_t(y)*t.width],best=0;for(const auto &[color,count]:histogram)if(count>best){mode=color;best=count;}
             for(uint32_t x=0;x<t.width;++x){const size_t at=size_t(y)*t.width+x;
                 const uint32_t edge=x<t.width/2?x/2:t.width-1-(t.width-1-x)/2;
-                t.back[at]=n==size_t(region::head)?mode:t.front[size_t(y)*t.width+edge];
+                t.back[at]=n==size_t(region::head)||p.kind==anatomy::universal?mode:t.front[size_t(y)*t.width+edge];
             }
             for(uint32_t x=0;x<t.width;++x){const size_t at=size_t(y)*t.width+x;
                 const float u=t.width>1?float(x)/(t.width-1):0;
