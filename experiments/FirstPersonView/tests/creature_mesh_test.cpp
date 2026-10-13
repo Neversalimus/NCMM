@@ -26,6 +26,11 @@ int main(){size_t checks=0;auto check=[&](bool v){++checks;if(!v){std::fprintf(s
         }check(winding>0);
     }
     auto malformed=gen.generate(phenotype{},sprite{});check(!malformed.colors.sourced);check(!malformed.lod[0].faces.empty());
+    phenotype machine;machine.kind=anatomy::robot;machine.flags=NCMM_CR_MECHANICAL|NCMM_CR_NOHEAD|NCMM_CR_IMMOBILE;
+    machine.height=1.15f;machine.width=.49f;machine.length=.55f;
+    const auto mounted=gen.generate(machine,s);size_t braces=0;for(const auto &b:mounted.bones)braces+=b.role==motion::fixed;
+    check(braces>=4);check(mounted.high.x>machine.length*.60f);check(mounted.high.z>machine.height*.80f);
+    for(const auto &lod:mounted.lod)for(const auto &v:lod.vertices)check(mounted.colors.skins[v.material].active&&std::abs(dot(v.normal,v.normal)-1)<.001f);
     ncmm_graphics_sprite_v2 invalid{};invalid.width=513;check(!sprite::copy(invalid).valid());
     std::printf("Creature mesh: %zu checks PASS\n",checks);
 }

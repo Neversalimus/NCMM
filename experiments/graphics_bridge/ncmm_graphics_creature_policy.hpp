@@ -7,7 +7,7 @@
 #include <string_view>
 #include <initializer_list>
 namespace first_person::creature {
-constexpr uint32_t generator_version=1;
+constexpr uint32_t generator_version=3;
 enum class anatomy : uint8_t { humanoid, quadruped, arachnid, insect, centipede, bird,
     reptile, serpent, fish, amorphous, robot, exotic, universal, count };
 enum class fallback : uint8_t { semantic, unknown_anatomy, contradictory, invalid_dimensions, missing_sprite };

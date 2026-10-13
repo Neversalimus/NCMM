@@ -17,5 +17,10 @@ int main(){int n=0;auto check=[&](bool v){++n;if(!v){std::fprintf(stderr,"cache 
     for(uint64_t appearance=1;appearance<=48;++appearance){pressure.begin_frame(1,1);pressure.request(appearance,classify(c),source);check(pressure.wait_idle(std::chrono::seconds(5)));}
     const auto bounded=pressure.statistics();check(bounded.generated==48&&bounded.evictions>0&&bounded.bytes<=cache::memory_limit&&bounded.peak_bytes<=cache::memory_limit);
     pressure.begin_frame(1,1);check(!pressure.request(1,classify(c),source));check(pressure.wait_idle(std::chrono::seconds(5)));check(bool(pressure.request(1,classify(c),source)));
+    // A reset during provider copying cannot enqueue old pixels into the new
+    // world/tileset epoch, even though the worker itself has not started yet.
+    cache crossing;crossing.begin_frame(1,1);crossing.request(700,classify(c),[&]{crossing.reset(2,2);return sprite{};});
+    check(crossing.wait_idle(std::chrono::seconds(1)));check(crossing.statistics().generated==0&&crossing.statistics().cancelled==1);
+    crossing.begin_frame(2,2);check(!crossing.request(700,classify(c),source));check(crossing.wait_idle(std::chrono::seconds(5)));check(bool(crossing.request(700,classify(c),source)));
     std::printf("Creature cache: %d checks PASS\n",n);
 }

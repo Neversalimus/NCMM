@@ -157,7 +157,29 @@ int main(int argc,char **argv){
             require(gpu_pixels>0,"LOD3 distant crow is present at each subpixel phase");
         }
     }
-    if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
+    {
+        // A strongly minified red/blue impostor must retain the mean colour
+        // at each subpixel phase. A base-only texelFetch returns alternating
+        // red/blue here despite the resource owning a complete mip pyramid.
+        std::vector<uint32_t> colour(64*64),normal(64*64,0x800180ff),depth(64*64,0x000000ff);
+        for(int y=0;y<64;++y)for(int x=0;x<64;++x)colour[y*64+x]=((x+y)&1)?0xff0000ff:0x0000ffff;
+        ncmm_gpu_texture_v1 textures[3]={{901,64,64,64,colour.data()},{902,64,64,64,normal.data()},{903,64,64,64,depth.data()}};
+        ncmm_gpu_material_v1 material{};material.color[3]=1;material.flags=NCMM_GPU_IMPOSTOR|NCMM_GPU_CUTOUT|NCMM_GPU_CREATURE|NCMM_GPU_CREATURE_VISUAL;
+        material.texture_key=901;material.normal_key=902;material.depth_key=903;material.impostor_span=1;
+        std::array<ncmm_gpu_vertex_v1,3> v{};
+        for(int i=0;i<3;++i){v[i].position[0]=i==0?-.09f:i==1?.09f:0;v[i].position[1]=8;v[i].position[2]=i==2?.11f:-.07f;
+            v[i].normal[1]=v[i].face_normal[1]=-1;v[i].uv[0]=i==0?0:i==1?1:.5f;v[i].uv[1]=i==2?0:1;}
+        const uint32_t indices[]={0,1,2};ncmm_gpu_mesh_v1 minified{904,v.data(),indices,&material,3,3,1,0};
+        ncmm_gpu_draw_v1 d{};d.mesh_key=904;d.transform=first_person::gpu::identity();d.bone_count=1;
+        ncmm_gpu_scene_v1 test=scene;test.meshes=&minified;test.mesh_count=1;test.textures=textures;test.texture_count=3;
+        test.draws=&d;test.draw_count=1;test.bones=bones;test.bone_count=1;
+        for(int phase=0;phase<8;++phase){test.frame_serial=1000+phase;d.transform.columns[12]=(phase-4)*.003f;
+            require(engine.submit(test),engine.metrics().reason);const auto pixel=capture("-minified-impostor");
+            const int red=int(pixel>>24),blue=int((pixel>>8)&255);
+            require(red>60&&red<115&&blue>60&&blue<115&&std::abs(red-blue)<8,"impostor colour mip removes checker shimmer at every subpixel phase");
+            require(engine.metrics().visible_creature_pixels>0&&engine.metrics().target_cell==0,"filtered impostor preserves silhouette and picking");}
+    }
+    if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"impostor_colour_minification\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
     std::printf("Full GPU scene PASS: %s / %s; animation upload %llu bytes; CPU raster=0\n",second.backend,second.device,(unsigned long long)second.upload_bytes);
     engine.clear();require(!engine.bind(nullptr,2)&&!engine.available(),"unsupported renderer fails closed without claiming GPU");
     require(engine.bind(renderer,3),"same owned device can recover after fallback");engine.clear();

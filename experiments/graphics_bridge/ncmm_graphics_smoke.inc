@@ -511,7 +511,7 @@ bool graphics_scene_smoke()
         require( graphics_ceiling_cells > 0, "real_indoor_ceiling_missing" );
         require( !graphics_hybrid_last_environment.outdoors, "roof_exposure_not_from_game" );
         #include "ncmm_graphics_creature_smoke.inc"
-        if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) ) {
+        if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) && !std::getenv( "NCMM_FP_APPEARANCE_BEFORE" ) ) {
             get_options().get_option( "NCMM_FIRST_PERSON_RENDERER" ).setValue( "gpu" ); graphics_smoke_gpu_gallery = true;
             #include "ncmm_graphics_creature_smoke.inc"
             graphics_smoke_gpu_gallery = false; get_options().get_option( "NCMM_FIRST_PERSON_RENDERER" ).setValue( "cpu" ); draw();

@@ -33,7 +33,7 @@ class scene_cache {
     uint64_t world_epoch=0,tileset_epoch=0,frame_serial=0;
     static uint64_t model_key(const creature::model &model){uint64_t h=hash_bytes(1469598103934665603ull,&model.colors.fingerprint,sizeof(model.colors.fingerprint));
         for(float value:{model.type.height,model.type.width,model.type.length,model.type.bulk,model.colors.silhouette_ratio})h=hash_bytes(h,&value,sizeof(value));
-        for(uint32_t value:{uint32_t(model.type.kind),model.type.flags,uint32_t(model.type.legs),uint32_t(model.type.segments),creature::generator_version})h=hash_bytes(h,&value,sizeof(value));return h;}
+        for(uint32_t value:{uint32_t(model.type.kind),model.type.flags,uint32_t(model.type.legs),uint32_t(model.type.segments),creature::generator_version,creature::appearance_generator_version})h=hash_bytes(h,&value,sizeof(value));return h;}
     class collector:public hybrid::geometry_sink {
         scene_cache &cache;const ncmm_graphics_scene_v2 &scene;const hybrid::presentation_data *metadata;
         packet &frame;const ncmm_gpu_metrics_v1 &host;
@@ -77,21 +77,19 @@ class scene_cache {
                 if(!mesh){fail("GPU dynamic scene mesh cache budget exceeded");continue;}frame.draw(mesh,place(origin(key.first)),key.first<0?UINT32_MAX:uint32_t(key.first),key.second);}}
         void skin(const creature::model &model,const creature::skeleton_pose &pose,int lod,vec at,int cell,vec scale,bool fallback,bool targetable,float heading,vec offset)override{
             const auto key=std::make_tuple(model_key(model),std::min(lod,1),fallback,targetable);auto mesh=cache.skins[key].lock();
-            if(!mesh){mesh_builder builder;const auto &source=model.lod[std::min(lod,1)];std::array<uint32_t,12> materials{};
-                for(int i=0;i<12;++i){ncmm_gpu_material_v1 material{};material.color[0]=.38f;material.color[1]=.43f;material.color[2]=.28f;material.color[3]=1;
+            if(!mesh){mesh_builder builder;const auto &source=model.lod[std::min(lod,1)];std::array<uint32_t,size_t(creature::region::count)*creature::skin::surfaces> materials{};
+                for(size_t i=0;i<materials.size();++i){ncmm_gpu_material_v1 material{};material.color[0]=.38f;material.color[1]=.43f;material.color[2]=.28f;material.color[3]=1;
                     material.flags=NCMM_GPU_SMOOTH|NCMM_GPU_CREATURE_VISUAL|NCMM_GPU_CULL_BACK|(targetable?NCMM_GPU_CREATURE:0);
-                    material.finish=uint32_t(model.type.flags&NCMM_CR_MECHANICAL?hybrid::surface::metal:model.type.flags&(NCMM_CR_CHITIN|NCMM_CR_SCALES)?hybrid::surface::resin:model.type.flags&NCMM_CR_FUR?hybrid::surface::cloth:hybrid::surface::none);
+                    material.finish=uint32_t(model.type.flags&NCMM_CR_MECHANICAL?hybrid::surface::metal:hybrid::surface::none);
                     std::shared_ptr<const owned_texture> texture;
-                    if(!fallback){const auto &skin=model.colors.skins[size_t(i/2)];const auto &pixels=(i&1)?skin.back:skin.front;texture=cache.assets.texture(creature::skin::side,creature::skin::side,creature::skin::side,pixels.data());
+                    if(!fallback){const auto &skin=model.colors.skins[i/creature::skin::surfaces];const auto &pixels=skin.pixels(i%creature::skin::surfaces);texture=cache.assets.texture(skin.width,skin.height,skin.width,pixels.data());
                         if(!texture){fail("GPU creature skin texture cache budget exceeded");return;}material.texture_key=texture->key;material.flags|=NCMM_GPU_TEXTURED;}
                     materials[i]=builder.material(material,texture);}
                 for(const auto &face:source.faces){const auto first=uint32_t(builder.mesh.vertices.size());const auto &a=source.vertices[face.vertices[0]],&b=source.vertices[face.vertices[1]],&c=source.vertices[face.vertices[2]];
                     const auto normal=creature::unit(creature::cross(b.position-a.position,c.position-a.position));
-                    // The established CPU renderer chooses one regional/front-
-                    // back material from the first vertex for the whole face.
-                    // Anatomical seams may give its other vertices a different
-                    // back flag; GPU material batching must preserve that rule.
-                    const auto material=materials[a.material*2+a.back];
+                    // Chart boundaries duplicate vertices. A face never
+                    // interpolates between observed and reconstructed charts.
+                    const auto material=materials[a.material*creature::skin::surfaces+a.back];
                     for(auto index:face.vertices){const auto &v=source.vertices[index];ncmm_gpu_vertex_v1 out{};
                         out.position[0]=v.position.x;out.position[1]=v.position.y;out.position[2]=v.position.z;out.normal[0]=v.normal.x;out.normal[1]=v.normal.y;out.normal[2]=v.normal.z;
                         out.face_normal[0]=normal.x;out.face_normal[1]=normal.y;out.face_normal[2]=normal.z;out.uv[0]=v.u;out.uv[1]=v.v;out.joint=v.joint;out.material=material;builder.mesh.vertices.push_back(out);}
@@ -104,11 +102,11 @@ class scene_cache {
         }
         void impostor(const creature::asset &asset,const creature::pose_state &pose,vec at,int cell,int lod,bool targetable)override{
             float angle=std::atan2(frame.scene.camera.eye[1]-at.y,frame.scene.camera.eye[0]-at.x)-pose.heading;
-            int direction=creature::impostor_direction(angle),state=creature::impostor_pose(pose),index=state*creature::impostor_atlas::directions+direction;
+            int direction=pose.atlas_view>=0?pose.atlas_view:creature::impostor_direction(angle),state=creature::impostor_pose(pose,asset.geometry.type.kind),index=state*creature::impostor_atlas::directions+direction;
             const auto key=std::make_tuple(model_key(asset.geometry),index,lod,targetable);auto mesh=cache.impostors[key].lock();
             if(!mesh){const auto &sprite=asset.atlas->frames[size_t(index)];mesh_builder builder;ncmm_gpu_material_v1 material{};
                 const auto mean=asset.geometry.colors.skins[1].mean;material.color[0]=mean.x;material.color[1]=mean.y;material.color[2]=mean.z;material.color[3]=1;
-                material.flags=NCMM_GPU_IMPOSTOR|NCMM_GPU_CUTOUT|NCMM_GPU_CREATURE_VISUAL|(lod==3?NCMM_GPU_SILHOUETTE:0)|(targetable?NCMM_GPU_CREATURE:0);material.impostor_span=sprite.span;
+                material.flags=NCMM_GPU_IMPOSTOR|NCMM_GPU_CUTOUT|NCMM_GPU_CREATURE_VISUAL|(targetable?NCMM_GPU_CREATURE:0);material.impostor_span=sprite.span;
                 auto color=cache.assets.texture(sprite.width,sprite.height,sprite.width,sprite.color.data()),normal=cache.assets.texture(sprite.width,sprite.height,sprite.width,sprite.normal.data());
                 std::vector<uint32_t> encoded(sprite.depth.size());for(size_t i=0;i<encoded.size();++i){uint16_t value=uint16_t(sprite.depth[i]);encoded[i]=(uint32_t(value>>8)<<24)|(uint32_t(value&255)<<16)|255;}
                 auto depth=cache.assets.texture(sprite.width,sprite.height,sprite.width,encoded.data());if(!color||!normal||!depth){fail("GPU creature impostor texture cache budget exceeded");return;}

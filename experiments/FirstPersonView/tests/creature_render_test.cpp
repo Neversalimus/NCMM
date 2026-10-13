@@ -39,6 +39,11 @@ int main(int argc,char **argv){try{fixture f;
     f.details[obstacle].terrain_shape=NCMM_SHAPE_WALL;f.draw();check(f.pixels()==0,"opaque wall completely occludes creature");f.details[obstacle].terrain_shape=NCMM_SHAPE_FLAT;
     f.cells[f.index].flags=0;f.draw();check(f.pixels()==0,"hidden entity never renders");f.cells[f.index].flags=NCMM_GFX_VISIBLE;
     for(int distance:{2,7,18,40}){f.creature("human",distance);f.draw();check(f.pixels()>0,"all four LOD ranges retain the creature");}
+    f.creature("human",3);++f.entities.input.creatures[0].appearance_revision;
+    f.draw();check(f.entities.resources.wait_idle(std::chrono::seconds(5)),"first-frame source job settled");
+    const auto &fresh=f.entities.input.creatures[0];
+    auto owned=f.entities.resources.request(cr::appearance_key(fresh,1),cr::classify(fresh),[]{return cr::sprite{};});
+    check(owned&&owned->geometry.colors.original.pixels==f.sprite,"renderer hands exact native pixels to worker");
     f.creature("human",3);auto &c=f.entities.input.creatures[0];c.event=NCMM_CR_DIE;c.event_serial=1;c.event_seconds=f.entities.input.view.seconds;c.flags|=NCMM_CR_DEAD;
     f.entities.input.view.seconds+=.25;f.draw();check(f.result.aimed==-1&&f.pixels()==0,"death presentation cannot be attacked");check(f.result.creature_lods[0]+f.result.creature_lods[1]+f.result.creature_lods[2]+f.result.creature_lods[3]==1,"death remains visible in presentation pass");
     f.entities.input.view.count=0;f.entities.input.creatures.clear();f.cells[f.index].creature[0]=0;f.draw();check(f.entities.instances.empty(),"disappeared entities release pose state");

@@ -1,3 +1,7 @@
+## Creature Appearance Reconstruction 0.11
+
+See [APPEARANCE.md](APPEARANCE.md) for native source preservation, rest-space material charts, adaptive impostors and paired real-game qualification. Current GPU and CPU use the same automatic appearance assets.
+
 # First Person View — 0.10.0 GPU development
 
 Version 0.10 uses the shared SDL GPU device for 3D geometry, depth, skinning, materials and atmosphere. The previous CPU renderer remains available. NCMM module settings offer Auto/GPU/CPU; F12 now cycles these modes. See [GPU.md](GPU.md) for architecture, qualification evidence and hardware limits.

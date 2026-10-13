@@ -1,0 +1,12 @@
+[
+  {
+    "type": "MONSTER",
+    "id": "mon_ncmm_appearance_unknown",
+    "copy-from": "mon_zombie",
+    "name": { "str": "unfamiliar body" },
+    "bodytype": "ncmm_unknown_body",
+    "species": [ "FUNGUS" ],
+    "looks_like": "mon_zombie",
+    "flags": [ "SEES", "HEARS" ]
+  }
+]
