@@ -127,6 +127,43 @@ inline uint32_t used_regions(const phenotype &p){
     if(p.flags&NCMM_CR_FLIES&&p.kind!=anatomy::amorphous&&p.kind!=anatomy::robot)mask|=bit(region::wing);
     return mask;
 }
+inline source_region upright_head_crop(const sprite &s,source_region body,uint32_t alpha){
+    const int height=body.bottom-body.top;
+    source_region fallback{body.left+int(.20f*(body.right-body.left)),body.top,
+        body.left+int(std::ceil(.80f*(body.right-body.left))),body.top+int(std::ceil(.25f*height))};
+    if(height<12)return fallback;
+    // Follow the upper silhouette's connected run: a raised arm need not
+    // be the head's horizontal centre.
+    int anchor=-1,first=body.left,last=body.left;
+    for(int x=body.left;x<body.right;++x)if((s.pixels[size_t(body.top)*s.width+x]&255)>=alpha){if(anchor<0)first=x;last=x;anchor=x;}
+    if(anchor<0)return fallback;anchor=(first+last)/2;
+    auto run=[&](int y){int x=anchor;if((s.pixels[size_t(y)*s.width+x]&255)<alpha)return source_region{anchor,y,anchor,y+1};
+        int l=x,r=x+1;while(l>body.left&&(s.pixels[size_t(y)*s.width+l-1]&255)>=alpha)--l;
+        while(r<body.right&&(s.pixels[size_t(y)*s.width+r]&255)>=alpha)++r;return source_region{l,y,r,y+1};};
+    const int seed_end=std::min(body.bottom,body.top+std::max(2,int(std::ceil(height*.10f))));
+    int seed_width=0;std::vector<uint32_t> palette;
+    for(int y=body.top;y<seed_end;++y){const auto row=run(y);seed_width=std::max(seed_width,row.right-row.left);
+        const int half=std::max(1,(row.right-row.left)/6);
+        const int l=std::max(row.left,anchor-half),r=std::min(row.right,anchor+half+1);
+        for(int x=l;x<r;++x){const auto c=s.pixels[size_t(y)*s.width+x];
+            if(std::find(palette.begin(),palette.end(),c)==palette.end()&&palette.size()<96)palette.push_back(c);}}
+    if(seed_width<2||palette.empty())return fallback;
+    auto related=[&](uint32_t c){for(auto p:palette){bool close=true;for(int shift:{8,16,24})close&=std::abs(int((c>>shift)&255)-int((p>>shift)&255))<=40;if(close)return true;}return false;};
+    int bottom=std::min(body.bottom,body.top+int(std::ceil(height*.25f))),colour_boundary=-1;
+    for(int y=seed_end;y<bottom;++y){const auto row=run(y);
+        if((row.right-row.left)*3<seed_width*2){bottom=y;break;}
+        if(row.right-row.left>=std::max(seed_width+3,int(std::ceil(seed_width*1.5f)))){bottom=y;break;}
+        int observed=0,matching=0;const int half=std::max(1,seed_width/4);
+        for(int x=std::max(row.left,anchor-half);x<std::min(row.right,anchor+half+1);++x){++observed;matching+=related(s.pixels[size_t(y)*s.width+x]);}
+        if(observed&&matching*2<observed){if(colour_boundary<0)colour_boundary=y;
+            if(y-colour_boundary>=1){bottom=colour_boundary;break;}}
+        else colour_boundary=-1;
+    }
+    if(bottom<body.top+2)return fallback;
+    int left=body.right,right=body.left;
+    for(int y=body.top;y<bottom;++y){const auto row=run(y);for(int x=row.left;x<row.right;++x)if(related(s.pixels[size_t(y)*s.width+x])){left=std::min(left,x);right=std::max(right,x+1);}}
+    return right>left?source_region{left,body.top,right,bottom}:fallback;
+}
 inline appearance extract(const sprite &s,const phenotype &p,uint32_t region_mask=~0u){
     appearance a;a.profile=p.kind!=anatomy::humanoid&&p.kind!=anatomy::universal&&!(p.kind==anatomy::robot&&p.legs==2);
     for(size_t n=0;n<a.skins.size();++n)a.skins[n].material=material_for(p,region(n));
@@ -163,11 +200,13 @@ inline appearance extract(const sprite &s,const phenotype &p,uint32_t region_mas
         {.66f,0,1,.63f},{.18f,.10f,.76f,.76f},{.12f,.53f,.82f,1},{0,.47f,1,1},
         {0,.15f,.35f,.68f},{.74f,.12f,1,.44f},{0,.65f,1,1},{0,.80f,1,1},
         {.05f,.10f,.70f,.72f},{0,.18f,.32f,.72f}}};
+    const auto head_crop=p.kind==anatomy::humanoid?upright_head_crop(s,{left,top,right,bottom},body_alpha):source_region{};
     for(size_t n=0;n<a.skins.size();++n){if(!(region_mask&(1u<<n)))continue;auto &t=a.skins[n];t.active=true;auto box=(a.profile?horizontal:upright)[n];
         // A winding serpent or an unknown body has no trustworthy rectangular
         // head position. Preserve its palette/pattern without guessing a face.
         if((p.kind==anatomy::serpent||p.kind==anatomy::amorphous||p.kind==anatomy::universal)&&n!=size_t(region::detail))box={0,0,1,1};
         t.source={left+int(box[0]*(right-left)),top+int(box[1]*(bottom-top)),left+int(std::ceil(box[2]*(right-left))),top+int(std::ceil(box[3]*(bottom-top)))};
+        if(p.kind==anatomy::humanoid&&n==size_t(region::head))t.source=head_crop;
         t.source.right=std::clamp(t.source.right,t.source.left+1,right);t.source.bottom=std::clamp(t.source.bottom,t.source.top+1,bottom);
         t.width=uint32_t(t.source.right-t.source.left);t.height=uint32_t(t.source.bottom-t.source.top);
         t.front.assign(size_t(t.width)*t.height,0);std::vector<int> nearest(t.front.size(),-1);std::deque<int> queue;point sum{};float total=0;

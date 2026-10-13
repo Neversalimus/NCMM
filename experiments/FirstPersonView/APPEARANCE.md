@@ -40,6 +40,10 @@ present; a tiny opaque core does not replace the whole silhouette. Anatomical
 priors define separate head, torso, lower body, limb, hand, foot, wing, tail,
 appendage and detail crops. Only regions used by the anatomy allocate native
 textures: an unknown 512 × 512 source must not allocate ten redundant copies.
+Humanoid heads follow the upper connected silhouette and its neck/shoulder or
+persistent colour boundary. This keeps an offset head separate from raised
+arms and excludes shirt colours from the face when the boundary is visible.
+Ambiguous silhouettes retain a bounded anatomical prior.
 
 A part's local frame generates geometry and normals. Its rest-space position
 selects UVs within shared anatomical bounds. Both geometric LODs use those
@@ -91,7 +95,7 @@ retained model/atlas budget remain. Accounting includes original sprites,
 dynamic skin planes, mip vectors and adaptive color/normal/depth atlases.
 Sources are copied before queueing. A captured epoch is rechecked after the
 provider returns, so resetting a world/tileset during copying cannot enqueue
-old pixels into the new epoch. Generator version 2 invalidates old assets.
+old pixels into the new epoch. Generator version 3 invalidates old assets.
 
 Gameplay never waits for generation or writes diagnostic files. It continues
 to draw the existing closed-volume placeholder until resources are ready.
@@ -132,6 +136,8 @@ Only this qualification environment selects the first foreground variant,
 so paired processes really share the same original pixels; ordinary game
 variants remain unchanged. Native source hashes, including composed NPC
 clothes, are checked alongside creature dimensions, heading and flags.
+The disposable NPC clears randomly selected clothing variants; all directions,
+distances and modes must have one identical source-pixel hash per subject.
 The existing actual game benchmark covers groups of 1/10/50/100 creatures,
 four viewports, current CPU/GPU and the paired main CPU reference, with
 median/p95/p99, generation, upload, draw and memory counters.

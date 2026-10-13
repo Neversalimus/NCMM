@@ -26,6 +26,18 @@ int main(){size_t checks=0;auto check=[&](bool value,const char *reason){++check
     const auto &head=a.skins[size_t(region::head)];
     check(std::find(head.front.begin(),head.front.end(),0xff00ffff)!=head.front.end(),"facial detail disappeared");
     check(std::find(head.back.begin(),head.back.end(),0xff00ffff)==head.back.end(),"face repeated on rear head");
+    // A shirt starts inside the old fixed crop; an offset head also remains
+    // separate from a raised arm. Retain the face while excluding clothing.
+    sprite dressed;dressed.width=32;dressed.height=40;dressed.pixels.assign(32*40,0);
+    for(int y=3;y<9;++y)for(int x=17;x<23;++x)dressed.pixels[size_t(y)*32+x]=0xad7865ff;
+    dressed.pixels[5*32+20]=0x202020ff;
+    for(int y=6;y<16;++y)for(int x=2;x<7;++x)dressed.pixels[size_t(y)*32+x]=0xc02020ff;
+    for(int y=9;y<26;++y)for(int x=7;x<26;++x)dressed.pixels[size_t(y)*32+x]=0x40e070ff;
+    for(int y=26;y<38;++y)for(int x=10;x<24;++x)dressed.pixels[size_t(y)*32+x]=0x304080ff;
+    const auto dressed_head=extract(dressed,human).skins[size_t(region::head)];
+    check(dressed_head.source.left==17&&dressed_head.source.right==23&&dressed_head.source.bottom==9,"head crop followed torso or raised arm");
+    check(std::find(dressed_head.front.begin(),dressed_head.front.end(),0x40e070ff)==dressed_head.front.end(),"shirt colour transferred to face");
+    check(std::find(dressed_head.front.begin(),dressed_head.front.end(),0x202020ff)!=dressed_head.front.end(),"head separation discarded a facial mark");
     phenotype uncertain;auto unknown_appearance=extract(s,uncertain);
     check(!unknown_appearance.profile,"unknown body asserted a bilateral source view");
     const auto &unknown_body=unknown_appearance.skins[size_t(region::torso)];
