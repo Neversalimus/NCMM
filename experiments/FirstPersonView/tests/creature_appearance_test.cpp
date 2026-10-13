@@ -63,5 +63,6 @@ int main(){size_t checks=0;auto check=[&](bool value,const char *reason){++check
     check(stable_impostor_direction(pi/8+.01f,0)==0&&stable_impostor_direction(pi/8+.06f,0)==1,"view-angle hysteresis");
     phenotype synthetic;synthetic.kind=anatomy::robot;check(material_for(synthetic,region::torso)==creature_material::synthetic,"synthetic material");
     view.width=513;check(!sprite::copy(view).valid(),"oversized provider accepted");view.width=128;view.pitch_pixels=127;check(!sprite::copy(view).valid(),"short provider stride accepted");
+    view.pitch_pixels=pitch;view.struct_size=0;check(!sprite::copy(view).valid(),"truncated source contract accepted");
     std::printf("Creature appearance: %zu checks PASS\n",checks);
 }

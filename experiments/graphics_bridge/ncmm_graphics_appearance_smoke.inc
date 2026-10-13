@@ -136,6 +136,9 @@ if( std::getenv( "NCMM_FP_APPEARANCE_SMOKE" ) ) {
             if( distance_band == 1 && !( data.flags & NCMM_CR_IMMOBILE ) ) {
                 if( subject ) subject->setpos( here, tripoint_bub_ms( center.x() + 1, center.y(), 0 ), false );
                 else person->setpos( here, tripoint_bub_ms( center.x() + 1, center.y(), 0 ), false );
+                // Observe the authoritative move at its start, then sample the
+                // half-step. First drawing at 2.09 would capture phase zero.
+                graphics_smoke_seconds = 2.0; draw();
                 graphics_smoke_seconds = 2.09; appearance_settled(); capture_appearance( "moving" );
             }
             if( npc_case && distance_band == 1 ) { person->set_movement_mode( move_mode_id( "prone" ) ); graphics_smoke_seconds = 2.25; appearance_settled(); capture_appearance( "prone" ); }

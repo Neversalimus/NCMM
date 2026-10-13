@@ -25,7 +25,7 @@ struct impostor_atlas {
     std::array<impostor,directions*poses> frames;
     size_t bytes()const{size_t result=sizeof(*this);for(const auto &frame:frames)result+=frame.bytes();return result;}
 };
-inline int impostor_pose(const pose_state &p){return p.death>.15f?5:p.prone?6:p.melee>.10f||p.shoot>.1f?3:p.hurt>.1f?4:p.movement>.10f?(std::sin(p.phase)>0?1:2):0;}
+inline int impostor_pose(const pose_state &p,anatomy kind=anatomy::universal){return p.death>.15f?5:p.prone?6:p.melee>.10f||p.shoot>.1f?3:p.hurt>.1f?4:p.airborne?(std::sin(float(std::fmod(p.seconds,10000.0))*(kind==anatomy::insect?22.f:7.f))>0?1:2):p.movement>.10f?(std::sin(p.phase)>0?1:2):0;}
 inline int impostor_direction(float angle){return int(std::floor(std::remainder(angle,2*pi)*impostor_atlas::directions/(2*pi)+.5f)+impostor_atlas::directions)%impostor_atlas::directions;}
 inline int stable_impostor_direction(float angle,int previous){
     if(previous>=0&&previous<impostor_atlas::directions&&std::abs(std::remainder(angle-previous*2*pi/impostor_atlas::directions,2*pi))<pi/impostor_atlas::directions+pi/90)return previous;
@@ -40,7 +40,9 @@ inline impostor bake_impostor(const model &m,int direction,int pose_index){
     out.bottom=std::min(-m.type.height*.10f,m.low.z);out.top=std::max(m.type.height*1.2f,m.high.z*1.15f);
     pose_state p;p.movement=pose_index==1||pose_index==2?1.f:0;p.phase=pose_index==1?pi*.5f:pi*1.5f;
     p.melee=pose_index==3?1.f:0;p.hurt=pose_index==4?1.f:0;p.death=pose_index==5?1.f:0;p.prone=pose_index==6;
-    auto pose=animate(m,p,0,true);const auto &mesh=m.lod[1];
+    const double seconds=(m.type.flags&NCMM_CR_FLIES)&&(pose_index==1||pose_index==2)?
+        (pose_index==1?pi*.5:pi*1.5)/(m.type.kind==anatomy::insect?22.0:7.0):0;
+    auto pose=animate(m,p,seconds,true);const auto &mesh=m.lod[1];
     std::vector<point> positions(mesh.vertices.size()),normals(mesh.vertices.size());
     std::vector<point> projected(mesh.vertices.size());
     for(size_t i=0;i<mesh.vertices.size();++i){const auto &v=mesh.vertices[i];const auto &t=pose.joints[v.joint];positions[i]=t.apply(v.position);normals[i]=t.vector(v.normal);

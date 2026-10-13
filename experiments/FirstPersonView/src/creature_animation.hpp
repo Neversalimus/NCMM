@@ -41,9 +41,9 @@ inline void observe(instance &a,const ncmm_graphics_creature_v1 &s,double now){
     }
     a.cadence=std::clamp(s.speed>0?s.speed/100.f:1.f,.65f,1.65f);a.flags=s.flags;a.last_seen=now;
 }
-struct pose_state {float movement=0,phase=0,breath=0,melee=0,shoot=0,hurt=0,death=0,heading=0;point offset{};bool prone=false;int atlas_view=-1;};
+struct pose_state {float movement=0,phase=0,breath=0,melee=0,shoot=0,hurt=0,death=0,heading=0;point offset{};bool prone=false,airborne=false;int atlas_view=-1;double seconds=0;};
 inline pose_state sample(const instance &a,double now){
-    pose_state p;const float since=float(std::max(0.0,now-a.move_at)),action=float(now-a.event_at);
+    pose_state p;p.seconds=now;p.airborne=(a.flags&NCMM_CR_FLIES)!=0;const float since=float(std::max(0.0,now-a.move_at)),action=float(now-a.event_at);
     p.movement=(1-ease((since-.15f)/.20f))*std::min(1.5f,a.step*a.cadence);
     p.phase=a.gait_base+std::min(since/.18f,1.8f)*pi*a.step*a.cadence;
     // Only flight/swim/body breathing runs independently of a gameplay move.

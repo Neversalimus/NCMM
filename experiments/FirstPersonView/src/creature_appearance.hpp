@@ -25,7 +25,7 @@ struct sprite {
     std::vector<uint32_t> pixels;
     bool valid()const{return width&&height&&width<=512&&height<=512&&pixels.size()==size_t(width)*height;}
     static sprite copy(const ncmm_graphics_sprite_v2 &s){
-        sprite r;if(!s.rgba||!s.width||!s.height||s.width>512||s.height>512||s.pitch_pixels<s.width||s.pitch_pixels>4096)return r;
+        sprite r;if(s.struct_size<sizeof(s)||!s.rgba||!s.width||!s.height||s.width>512||s.height>512||s.pitch_pixels<s.width||s.pitch_pixels>4096)return r;
         r.width=s.width;r.height=s.height;r.pixels.resize(size_t(r.width)*r.height);
         for(uint32_t y=0;y<r.height;++y)std::copy_n(s.rgba+size_t(y)*s.pitch_pixels,r.width,r.pixels.data()+size_t(y)*r.width);
         return r;

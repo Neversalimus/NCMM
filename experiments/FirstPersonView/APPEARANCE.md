@@ -22,6 +22,7 @@ PRs #201/#202, and the actual 1040 SDL captures from run `38203247598`.
 | All impostors used 48 × 64 | Broad/wide bodies received too few horizontal samples | Source-aware height 48–112; physical-aspect width 32–160 |
 | LOD3 replaced source colors with a mean | Distant NPC clothing and species color composition disappeared | All four levels retain source colors |
 | Encoded signed-depth textures allowed hardware mip selection | Averaging encoded bytes could change sign/carry | Normal/depth data use nearest sampling of the base level |
+| Flying impostors baked every pose at time zero | Distant wings froze while nearby wings animated | Existing two motion frames bake opposite wing phases and use the same flight clock as geometric LODs |
 | Animated bodies received world-space material grain | Detail moved through the skin rather than with the body | Source markings stay attached to the skeleton; metallic response remains |
 
 ## Source, projections and materials

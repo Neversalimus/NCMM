@@ -102,7 +102,7 @@ class scene_cache {
         }
         void impostor(const creature::asset &asset,const creature::pose_state &pose,vec at,int cell,int lod,bool targetable)override{
             float angle=std::atan2(frame.scene.camera.eye[1]-at.y,frame.scene.camera.eye[0]-at.x)-pose.heading;
-            int direction=pose.atlas_view>=0?pose.atlas_view:creature::impostor_direction(angle),state=creature::impostor_pose(pose),index=state*creature::impostor_atlas::directions+direction;
+            int direction=pose.atlas_view>=0?pose.atlas_view:creature::impostor_direction(angle),state=creature::impostor_pose(pose,asset.geometry.type.kind),index=state*creature::impostor_atlas::directions+direction;
             const auto key=std::make_tuple(model_key(asset.geometry),index,lod,targetable);auto mesh=cache.impostors[key].lock();
             if(!mesh){const auto &sprite=asset.atlas->frames[size_t(index)];mesh_builder builder;ncmm_gpu_material_v1 material{};
                 const auto mean=asset.geometry.colors.skins[1].mean;material.color[0]=mean.x;material.color[1]=mean.y;material.color[2]=mean.z;material.color[3]=1;

@@ -24,6 +24,12 @@ int main(){int n=0;auto check=[&](bool v){++n;if(!v){std::fprintf(stderr,"LOD ch
         else check(direction<4?head_x>1:head_x< -1);
     }
     pose_state prone;prone.prone=true;check(impostor_pose(prone)==6);prone.death=1;check(impostor_pose(prone)==5);
+    phenotype flying;flying.kind=anatomy::bird;flying.flags=NCMM_CR_FLIES;flying.legs=2;
+    auto bird=builder{}.generate(flying,sprite{});instance airborne;airborne.flags=NCMM_CR_FLIES;
+    auto up=sample(airborne,pi/14),down=sample(airborne,3*pi/14);
+    check(impostor_pose(up,anatomy::bird)==1);check(impostor_pose(down,anatomy::bird)==2);
+    const auto wing_up=bake_impostor(bird,0,1),wing_down=bake_impostor(bird,0,2);
+    check(wing_up.color!=wing_down.color);check(wing_up.normal!=wing_down.normal);
     std::strcpy(c.bodytype,"human");m=builder{}.generate(classify(c),sprite{});check(bake_atlas(m,*atlas));
     for(const auto &f:atlas->frames){for(int y=0;y<f.height;++y){check(!(f.color[size_t(y)*f.width]&255));check(!(f.color[size_t(y+1)*f.width-1]&255));}}
     std::atomic<uint64_t> epoch{2};check(!bake_atlas(m,*atlas,&epoch,1));

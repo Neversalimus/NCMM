@@ -32,7 +32,7 @@
     void creature_impostor(const creature::asset &asset,const creature::pose_state &pose,vec origin,int cell,int lod,bool targetable=true){
         if(gpu_sink){gpu_sink->impostor(asset,pose,origin,cell,lod,targetable);return;}
         const float angle=std::atan2(eye.y-origin.y,eye.x-origin.x)-pose.heading;
-        const int direction=pose.atlas_view>=0?pose.atlas_view:creature::impostor_direction(angle),state=creature::impostor_pose(pose);
+        const int direction=pose.atlas_view>=0?pose.atlas_view:creature::impostor_direction(angle),state=creature::impostor_pose(pose,asset.geometry.type.kind);
         const auto &sprite=asset.atlas->frames[state*creature::impostor_atlas::directions+direction];
         material mat;mat.cell=cell;mat.creature=targetable;mat.creature_visual=true;mat.cutout=true;mat.impostor=&sprite;mat.creature_yaw=pose.heading;mat.silhouette=lod==3;
         mat.silhouette=false; // Even a tiny LOD3 retains observed color markings.
