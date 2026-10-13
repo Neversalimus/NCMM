@@ -89,24 +89,37 @@ inline std::vector<texture_level> make_colour_mips(uint32_t width,uint32_t heigh
     return levels;
 }
 inline void make_mips(skin &s){for(size_t surface=0;surface<skin::surfaces;++surface)s.mips[surface]=make_colour_mips(s.width,s.height,s.pixels(surface));}
-inline uint32_t sample_colour_lod(uint32_t base_width,uint32_t base_height,const std::vector<uint32_t> &base,const std::vector<texture_level> &levels,float u,float v,float lod){
-    lod=std::clamp(lod,0.f,float(levels.size()));
-    auto sample=[&](int level,bool linear){const auto &pixels=level?levels[size_t(level-1)].pixels:base;
-        const int width=int(level?levels[size_t(level-1)].width:base_width),height=int(level?levels[size_t(level-1)].height:base_height);
+// A projected impostor has a constant mip band. Resolve its immutable planes
+// once per triangle instead of selecting vectors and dimensions per pixel.
+// Sampling and alpha arithmetic remain identical to the scalar LOD path.
+struct colour_filter {
+    struct plane {const std::vector<uint32_t> *pixels=nullptr;int width=1,height=1;bool premultiplied=false;};
+    plane first,second;float blend=0;
+    colour_filter()=default;
+    colour_filter(uint32_t width,uint32_t height,const std::vector<uint32_t> &base,const std::vector<texture_level> &levels,float lod){
+        lod=std::clamp(lod,0.f,float(levels.size()));const int low=int(lod),high=std::min(low+1,int(levels.size()));
+        auto resolve=[&](int level){if(!level)return plane{&base,int(width),int(height),false};
+            const auto &image=levels[size_t(level-1)];return plane{&image.pixels,int(image.width),int(image.height),true};};
+        first=resolve(low);second=resolve(high);blend=high==low?0:lod-low;
+    }
+    static uint32_t bilinear(const plane &image,float u,float v){
+        const auto &pixels=*image.pixels;const int width=image.width,height=image.height;
         const float x=std::clamp(u,0.f,1.f)*width-.5f,y=std::clamp(v,0.f,1.f)*height-.5f;
-        if(!linear)return pixels[size_t(std::clamp(int(std::floor(y+.5f)),0,height-1))*width+std::clamp(int(std::floor(x+.5f)),0,width-1)];
         const int x0=int(std::floor(x)),y0=int(std::floor(y));const float fx=x-x0,fy=y-y0;
         const int ax=std::clamp(x0,0,width-1),bx=std::clamp(x0+1,0,width-1);
         const size_t ay=size_t(std::clamp(y0,0,height-1))*width,by=size_t(std::clamp(y0+1,0,height-1))*width;
         auto a=pixels[ay+ax],b=pixels[ay+bx],c=pixels[by+ax],d=pixels[by+bx];
-        if(!level){a=premultiply_texel(a);b=premultiply_texel(b);c=premultiply_texel(c);d=premultiply_texel(d);}
+        if(!image.premultiplied){a=premultiply_texel(a);b=premultiply_texel(b);c=premultiply_texel(c);d=premultiply_texel(d);}
         if(!(a|b|c|d))return 0u;
         return mix_premultiplied(mix_premultiplied(a,b,fx),mix_premultiplied(c,d,fx),fy);
-    };
-    const int first=int(lod),second=std::min(first+1,int(levels.size()));
-    const auto a=sample(first,true);const float blend=lod-first;
-    if(second==first||blend==0)return unpremultiply_texel(a);
-    return unpremultiply_texel(mix_premultiplied(a,sample(second,true),blend));
+    }
+    uint32_t sample(float u,float v)const{
+        const auto a=bilinear(first,u,v);if(blend==0)return unpremultiply_texel(a);
+        return unpremultiply_texel(mix_premultiplied(a,bilinear(second,u,v),blend));
+    }
+};
+inline uint32_t sample_colour_lod(uint32_t base_width,uint32_t base_height,const std::vector<uint32_t> &base,const std::vector<texture_level> &levels,float u,float v,float lod){
+    return colour_filter(base_width,base_height,base,levels,lod).sample(u,v);
 }
 inline uint32_t sample_colour(uint32_t base_width,uint32_t base_height,const std::vector<uint32_t> &base,const std::vector<texture_level> &levels,float u,float v,float footprint=0){
     if(footprint<1)return base[size_t(std::clamp(int(v*base_height),0,int(base_height)-1))*base_width+std::clamp(int(u*base_width),0,int(base_width)-1)];

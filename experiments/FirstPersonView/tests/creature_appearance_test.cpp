@@ -3,6 +3,26 @@
 #include <cstdlib>
 #include <set>
 using namespace first_person::creature;
+// Frozen scalar sampler from 9665c0a, used to check bit-exact hot-loop selection.
+static uint32_t reference_colour_lod(uint32_t base_width,uint32_t base_height,const std::vector<uint32_t> &base,const std::vector<texture_level> &levels,float u,float v,float lod){
+    lod=std::clamp(lod,0.f,float(levels.size()));
+    auto sample=[&](int level,bool linear){const auto &pixels=level?levels[size_t(level-1)].pixels:base;
+        const int width=int(level?levels[size_t(level-1)].width:base_width),height=int(level?levels[size_t(level-1)].height:base_height);
+        const float x=std::clamp(u,0.f,1.f)*width-.5f,y=std::clamp(v,0.f,1.f)*height-.5f;
+        if(!linear)return pixels[size_t(std::clamp(int(std::floor(y+.5f)),0,height-1))*width+std::clamp(int(std::floor(x+.5f)),0,width-1)];
+        const int x0=int(std::floor(x)),y0=int(std::floor(y));const float fx=x-x0,fy=y-y0;
+        const int ax=std::clamp(x0,0,width-1),bx=std::clamp(x0+1,0,width-1);
+        const size_t ay=size_t(std::clamp(y0,0,height-1))*width,by=size_t(std::clamp(y0+1,0,height-1))*width;
+        auto a=pixels[ay+ax],b=pixels[ay+bx],c=pixels[by+ax],d=pixels[by+bx];
+        if(!level){a=premultiply_texel(a);b=premultiply_texel(b);c=premultiply_texel(c);d=premultiply_texel(d);}
+        if(!(a|b|c|d))return 0u;
+        return mix_premultiplied(mix_premultiplied(a,b,fx),mix_premultiplied(c,d,fx),fy);
+    };
+    const int first=int(lod),second=std::min(first+1,int(levels.size()));
+    const auto a=sample(first,true);const float blend=lod-first;
+    if(second==first||blend==0)return unpremultiply_texel(a);
+    return unpremultiply_texel(mix_premultiplied(a,sample(second,true),blend));
+}
 int main(){size_t checks=0;auto check=[&](bool value,const char *reason){++checks;if(!value){std::fprintf(stderr,"appearance %zu: %s\n",checks,reason);std::exit(1);}};
     // Padded, high-resolution provider data: every source pixel, including its
     // alpha and tiny high-contrast details, must survive the ownership boundary.
@@ -107,6 +127,20 @@ int main(){size_t checks=0;auto check=[&](bool value,const char *reason){++check
     auto filtered=sample_skin(checker,0,.5f,.5f,8);check((filtered>>24)>=127&&(filtered>>24)<=129,"minification shimmer/average");
     for(float footprint:{1.f,1.25f,2.f,3.75f,8.f,16.f})for(float u:{-.1f,.02f,.25f,.5f,.98f,1.1f})
         check(sample_colour(checker.width,checker.height,checker.front,checker.mips[0],u,.5f,footprint)==sample_colour_lod(checker.width,checker.height,checker.front,checker.mips[0],u,.5f,std::log2(footprint)),"preselected mip changes filtering");
+    for(const auto dimensions:std::array<std::array<uint32_t,2>,4>{{{{1,1}},{{3,5}},{{8,8}},{{17,9}}}}){
+        const auto w=dimensions[0],h=dimensions[1];std::vector<uint32_t> texels(size_t(w)*h);uint32_t seed=0x7a194e25;
+        for(size_t i=0;i<texels.size();++i){seed=seed*1664525u+1013904223u;texels[i]=seed;
+            if(i%3==0)texels[i]&=0xffffff00u;if(i%3==1)texels[i]|=255u;}
+        const auto mips=make_colour_mips(w,h,texels);
+        for(float lod:{-1.f,0.f,.25f,.75f,1.f,1.5f,2.25f,4.f,99.f}){
+            const colour_filter prepared(w,h,texels,mips,lod);
+            for(float u:{-.1f,0.f,.02f,.25f,.5f,.98f,1.f,1.1f})for(float v:{-.1f,0.f,.02f,.25f,.5f,.98f,1.f,1.1f}){
+                const auto expected=reference_colour_lod(w,h,texels,mips,u,v,lod);
+                check(prepared.sample(u,v)==expected,"prepared mip sampling changes source/alpha pixels");
+                check(sample_colour_lod(w,h,texels,mips,u,v,lod)==expected,"scalar mip sampling changes source/alpha pixels");
+            }
+        }
+    }
     const auto edge=mix_texels(0xff0000ff,0x00ff0000,.5f);check((edge>>24)==255&&((edge>>16)&255)==0&&(edge&255)==128,"transparent RGB produced a colored halo");
     auto again=extract(s,human);check(a.fingerprint==again.fingerprint&&a.skins[0].front==again.skins[0].front,"non-deterministic reconstruction");
     sprite reshaped=s;reshaped.width=96;reshaped.height=128;check(extract(reshaped,human).fingerprint!=a.fingerprint,"source shape cache collision");
