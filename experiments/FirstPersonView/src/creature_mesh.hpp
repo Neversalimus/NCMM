@@ -102,9 +102,18 @@ class builder {
                 auto j=joint(start,body,motion::tentacle,a);link(start,mid,w*.085f,w*.07f,j,region::limb);auto k=joint(mid,j,motion::tentacle,a+.5f);link(mid,tip,w*.060f,w*.035f,k,region::appendage);}
         }else{
             // Unknown mods receive a closed, conservative volume; no ID exceptions.
-            ellipsoid({0,0,h*.5f},{l*.43f,w*.44f,h*.50f},body,region::torso,robot);
-            if(robot&&(p.flags&NCMM_CR_IMMOBILE)){ellipsoid({0,0,h*.12f},{l*.5f,w*.5f,h*.12f},body,region::lower,true);
-                auto turret=joint({0,0,h*.65f},body,motion::head);link({0,0,h*.65f},{l*.78f,0,h*.65f},w*.07f,w*.07f,turret,region::appendage,true);}
+            if(robot&&(p.flags&NCMM_CR_IMMOBILE)){
+                // Stationary machinery needs a supported housing and a clear
+                // working direction, rather than one full-height capsule.
+                ellipsoid({0,0,h*.08f},{l*.40f,w*.42f,h*.07f},body,region::lower,true);
+                link({0,0,h*.12f},{0,0,h*.72f},w*.085f,w*.07f,body,region::lower,true);
+                ellipsoid({0,0,h*.72f},{l*.28f,w*.32f,h*.17f},body,region::torso,true);
+                for(int n=0;n<3;++n){const float a=(n+.5f)*2*pi/3;
+                    const auto brace=joint({0,0,h*.30f},body,motion::fixed,a);
+                    link({0,0,h*.30f},{std::cos(a)*l*.42f,std::sin(a)*w*.44f,h*.06f},w*.045f,w*.035f,brace,region::lower,true);}
+                const auto mount=joint({l*.12f,0,h*.73f},body,motion::fixed);
+                link({l*.12f,0,h*.73f},{l*.72f,0,h*.73f},w*.060f,w*.047f,mount,region::appendage,true);
+            }else ellipsoid({0,0,h*.5f},{l*.43f,w*.44f,h*.50f},body,region::torso,robot);
             if(robot&&(p.flags&NCMM_CR_FLIES))for(int n=0;n<4;++n){float a=(n+.5f)*pi*.5f;point end{std::cos(a)*l*.65f,std::sin(a)*w*.65f,h*.65f};
                 link({0,0,h*.65f},end,w*.045f,w*.045f,body,region::appendage,true);auto rotor=joint(end,body,motion::rotor,a);
                 ellipsoid(end,{l*.20f,w*.025f,h*.015f},rotor,region::detail,true);}

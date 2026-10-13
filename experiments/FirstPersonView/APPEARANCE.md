@@ -49,6 +49,9 @@ Humanoid arms use a separate existing chart with shoulder-to-wrist bounds;
 source glove colours remain observations. A sustained central colour boundary
 selects the shirt/trouser split when visible. The pelvis and both leg segments
 share one lower-body projection, instead of reusing shirt/arm crops on thighs.
+Stationary mechanical anatomy uses a braced stand, housing and directional
+working barrel. This shared semantic construction replaces its full-height
+capsule without adding a per-ID turret model.
 
 A part's local frame generates geometry and normals. Its rest-space position
 selects UVs within shared anatomical bounds. Both geometric LODs use those
