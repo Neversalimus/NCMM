@@ -32,7 +32,8 @@ if( std::getenv( "NCMM_FP_APPEARANCE_SMOKE" ) ) {
     auto appearance_settled = [&]() {
         for( int attempt = 0; attempt < 200; ++attempt ) {
             draw();
-            if( !graphics_creature_metrics.queued && !graphics_creature_metrics.fallback ) {
+            if( !graphics_creature_metrics.queued && !graphics_creature_metrics.fallback &&
+                ( !gpu_gallery || ( graphics_gpu_frame && graphics_gpu_engine ) ) ) {
                 if( gpu_gallery && graphics_gpu_engine ) {
                     SDL_Surface *frame = SDL_RenderReadPixels( renderer, nullptr );
                     require( frame != nullptr, "appearance_gpu_sync_failed" ); SDL_DestroySurface( frame );
