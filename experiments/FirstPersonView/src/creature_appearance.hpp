@@ -9,7 +9,7 @@
 namespace first_person::creature {
 // Appearance changes invalidate CPU/GPU resources independently of the shared
 // Host anatomical classifier, whose policy and ABI remain unchanged.
-constexpr uint32_t appearance_generator_version=5;
+constexpr uint32_t appearance_generator_version=6;
 constexpr float pi=3.14159265358979323846f;
 struct point {
     float x=0,y=0,z=0;

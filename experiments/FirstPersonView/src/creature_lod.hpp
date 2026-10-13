@@ -33,6 +33,18 @@ inline int stable_impostor_direction(float angle,int previous){
 }
 inline point decode_normal(uint32_t value){return {float(int(value>>24)-128)/127,float(int((value>>16)&255)-128)/127,float(int((value>>8)&255)-128)/127};}
 inline uint32_t encode_normal(point value){return (uint32_t(std::clamp(int(value.x*127+128),1,255))<<24)|(uint32_t(std::clamp(int(value.y*127+128),1,255))<<16)|(uint32_t(std::clamp(int(value.z*127+128),1,255))<<8)|255;}
+inline void extend_impostor_data(impostor &image){
+    // Colour filtering may cover a pixel whose nearest base texel is outside
+    // the original silhouette. Zero normal/depth is not a valid surface there.
+    // Continue the nearest observed data, while leaving RGBA/coverage exact.
+    std::vector<uint32_t> frontier;frontier.reserve(image.normal.size());
+    for(size_t i=0;i<image.normal.size();++i)if(image.normal[i])frontier.push_back(uint32_t(i));
+    for(size_t cursor=0;cursor<frontier.size();++cursor){const auto at=frontier[cursor];const int x=int(at)%image.width,y=int(at)/image.width;
+        for(const auto &d:std::array<std::array<int,2>,4>{{{{-1,0}},{{1,0}},{{0,-1}},{{0,1}}}}){const int xx=x+d[0],yy=y+d[1];
+            if(xx<0||yy<0||xx>=image.width||yy>=image.height)continue;const auto next=size_t(yy)*image.width+xx;
+            if(image.normal[next])continue;image.normal[next]=image.normal[at];image.depth[next]=image.depth[at];frontier.push_back(uint32_t(next));}
+    }
+}
 inline impostor bake_impostor(const model &m,int direction,int pose_index){
     impostor out;out.angle=direction*2*pi/impostor_atlas::directions;
     const float c=std::cos(out.angle),s=std::sin(out.angle);
@@ -72,6 +84,7 @@ inline impostor bake_impostor(const model &m,int direction,int pose_index){
             out.depth[at]=int16_t(std::clamp(z/out.span,-1.f,1.f)*32760);
         }
     }
+    extend_impostor_data(out);
     out.mips=make_colour_mips(uint32_t(out.width),uint32_t(out.height),out.color);
     return out;
 }

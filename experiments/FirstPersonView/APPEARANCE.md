@@ -101,7 +101,11 @@ its alpha averaged below a cutout threshold. Normal/depth still read exact
 base texels. A real-device high-frequency red/blue impostor test checks colour
 minification at eight subpixel phases alongside distant crow visibility.
 
-Normal and signed-depth atlases remain data. Color minification must not apply
+Normal and signed-depth atlases remain data. Before filtering, their unused
+base texels continue the nearest valid surface normal/depth on the worker.
+Colour and silhouette pixels are unchanged. This prevents a softened CPU
+edge from reading a zero normal or a fictitious zero-depth surface.
+ Color minification must not apply
 to their encoded bytes. Mesh/atlas materials share original charts, and
 four-level distance hysteresis remains. A two-degree direction hysteresis
 prevents repeated angle flips near an impostor-sector boundary.
@@ -119,7 +123,7 @@ retained model/atlas budget remain. Accounting includes original sprites,
 dynamic skin planes, mip vectors and adaptive color/normal/depth atlases.
 Sources are copied before queueing. A captured epoch is rechecked after the
 provider returns, so resetting a world/tileset during copying cannot enqueue
-old pixels into the new epoch. Appearance generator revision 5 invalidates CPU
+old pixels into the new epoch. Appearance generator revision 6 invalidates CPU
 and GPU resources independently of the unchanged shared anatomical policy.
 
 Gameplay never waits for generation or writes diagnostic files. It continues
