@@ -64,7 +64,9 @@
             const float extent=std::max({type.height,type.width,type.length})*1.5f;
             if(!in_view(origin+vec{-extent-1,-extent-1,-type.height},origin+vec{extent+1,extent+1,type.height*1.4f})){++f.creature_culled;continue;}
             const uint64_t key=creature::appearance_key(c,creature_data->input.view.tileset_epoch);
-            auto asset=creature_data->resources.request(key,type,[&]{auto *img=texture(c.cell,NCMM_GFX_CREATURE);return img?creature::sprite::copy(img->data):creature::sprite{};},c.type_id);
+            // Only the owned native copy is needed here. Palette, silhouette
+            // and mip analysis belong to the worker, not first-use frame work.
+            auto asset=creature_data->resources.request(key,type,[&]{auto *img=texture(c.cell,NCMM_GFX_CREATURE,false);return img?creature::sprite::copy(img->data):creature::sprite{};},c.type_id);
             // Compare full projected dimensions with pixel thresholds. Using a
             // half-width prematurely simplified broad, low arthropods nearby.
             const float z=std::max(.08f,view(origin+vec{0,0,type.height*.5f}).z),pixels=projection*std::max({type.height,type.width,type.length})/z;

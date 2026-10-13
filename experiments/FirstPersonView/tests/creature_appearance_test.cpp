@@ -31,6 +31,13 @@ int main(){size_t checks=0;auto check=[&](bool value,const char *reason){++check
     const auto &unknown_body=unknown_appearance.skins[size_t(region::torso)];
     check(std::find(unknown_body.front.begin(),unknown_body.front.end(),0xff00ffff)!=unknown_body.front.end(),"unknown source detail lost");
     check(std::find(unknown_body.back.begin(),unknown_body.back.end(),0xff00ffff)==unknown_body.back.end(),"unknown body duplicated a possible face");
+    sprite translucent;translucent.width=translucent.height=32;translucent.pixels.assign(32*32,0xff00ff00);
+    for(int y=3;y<29;++y)for(int x=8;x<24;++x)translucent.pixels[size_t(y)*32+x]=0x20804480;
+    translucent.pixels[7*32+16]=0xffffffff;const auto ghost=extract(translucent,uncertain);
+    check(ghost.original.pixels==translucent.pixels,"translucent source alpha changed");
+    const auto &ghost_body=ghost.skins[size_t(region::torso)];
+    check(ghost_body.width==16&&ghost_body.height==26,"opaque highlight replaced translucent silhouette");
+    check(std::find(ghost_body.front.begin(),ghost_body.front.end(),0x208044ff)!=ghost_body.front.end(),"translucent body color disappeared");
     for(uint32_t y=0;y<head.height;++y){const size_t row=size_t(y)*head.width;
         check(head.left[row]==head.front[row+head.width-1]&&head.left[row+head.width-1]==head.back[row],"left chart boundary");
         check(head.right[row]==head.front[row]&&head.right[row+head.width-1]==head.back[row+head.width-1],"right chart boundary");}

@@ -137,8 +137,20 @@ inline appearance extract(const sprite &s,const phenotype &p,uint32_t region_mas
     uint32_t maximum_alpha=0;for(auto pixel:s.pixels)maximum_alpha=std::max(maximum_alpha,pixel&255u);
     const uint32_t body_alpha=maximum_alpha>=224?160:std::max(1u,maximum_alpha/2);
     int left=int(s.width),right=0,top=int(s.height),bottom=0;point all{};float weight=0;
-    for(uint32_t y=0;y<s.height;++y)for(uint32_t x=0;x<s.width;++x){const auto value=s.pixels[size_t(y)*s.width+x];if((value&255)<body_alpha)continue;
-        left=std::min(left,int(x));right=std::max(right,int(x)+1);top=std::min(top,int(y));bottom=std::max(bottom,int(y)+1);const float alpha=float(value&255)/255;all=all+rgb(value)*alpha;weight+=alpha;}
+    auto bounds_for=[&](uint32_t cutoff){left=int(s.width);right=0;top=int(s.height);bottom=0;all={};weight=0;
+        for(uint32_t y=0;y<s.height;++y)for(uint32_t x=0;x<s.width;++x){const auto value=s.pixels[size_t(y)*s.width+x];if((value&255)<cutoff)continue;
+            left=std::min(left,int(x));right=std::max(right,int(x)+1);top=std::min(top,int(y));bottom=std::max(bottom,int(y)+1);const float alpha=float(value&255)/255;all=all+rgb(value)*alpha;weight+=alpha;}};
+    bounds_for(body_alpha);
+    // A translucent creature may have just a few opaque eyes/highlights.
+    // Such a tiny core cannot define the body's complete source rectangle.
+    std::array<uint32_t,256> alphas{};uint32_t observed=0;
+    int full_left=int(s.width),full_right=0,full_top=int(s.height),full_bottom=0;
+    for(uint32_t y=0;y<s.height;++y)for(uint32_t x=0;x<s.width;++x){const auto alpha=s.pixels[size_t(y)*s.width+x]&255;if(alpha<32)continue;
+        ++alphas[alpha];++observed;full_left=std::min(full_left,int(x));full_right=std::max(full_right,int(x)+1);full_top=std::min(full_top,int(y));full_bottom=std::max(full_bottom,int(y)+1);}
+    if(observed&&(right-left)*2<full_right-full_left&&(bottom-top)*2<full_bottom-full_top){
+        uint32_t accumulated=0,typical=32;for(;typical<255;++typical){accumulated+=alphas[typical];if(accumulated>=(observed*3+3)/4)break;}
+        bounds_for(std::max(1u,typical*3/4));
+    }
     if(!weight)return a;
     a.sourced=true;a.silhouette_ratio=float(right-left)/std::max(1,bottom-top);all=all*(1/weight);
     // Native-pixel crops in the observed silhouette. These are anatomical

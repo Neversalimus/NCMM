@@ -181,7 +181,7 @@ class renderer {
     int index(int x,int y)const{return x<0||y<0||x>=base.grid_width||y>=base.grid_height?-1:y*base.grid_width+x;}
     bool visible(int i)const{return i>=0&&size_t(i)<base.cell_count&&(base.cells[i].flags&NCMM_GFX_VISIBLE);}
     bool outside(int i)const{return visible(i)&&!(base.cells[i].flags&NCMM_GFX_CEILING);}
-    image *texture(uint32_t i,uint32_t layer){
+    image *texture(uint32_t i,uint32_t layer,bool prepare=true){
         if(layer>NCMM_GFX_GLOVE_RIGHT)return nullptr;
         image **ref=nullptr;
         if(i==UINT32_MAX)ref=&held_refs[layer];
@@ -190,7 +190,7 @@ class renderer {
             if(image_refs.empty())image_refs.resize(base.cell_count*(NCMM_GFX_GLOVE_RIGHT+1),nullptr);
             ref=&image_refs[size_t(i)*(NCMM_GFX_GLOVE_RIGHT+1)+layer];
         }
-        if(*ref)return *ref;
+        if(*ref){if(prepare&&(*ref)->valid()&&(*ref)->filtered.empty())(*ref)->analyse();return *ref;}
         image img;img.data.struct_size=sizeof(img.data);
         const bool valid=provider&&provider(i,layer,img.data)&&img.data.struct_size>=sizeof(img.data)&&
             img.data.rgba&&img.data.width&&img.data.height&&img.data.width<=512&&img.data.height<=512&&
@@ -198,9 +198,9 @@ class renderer {
         if(!valid)img.data={};
         const sprite_key key{reinterpret_cast<uintptr_t>(img.data.rgba),img.data.width,img.data.height,img.data.pitch_pixels};
         auto cached=images.find(key);
-        if(cached==images.end()){img.analyse();cached=images.emplace(key,std::move(img)).first;}
+        if(cached==images.end())cached=images.emplace(key,std::move(img)).first;
         // Atlas pixels are callback-scoped. Reuse analyses only within this frame.
-        image *result=&cached->second;*ref=result;return result;
+        image *result=&cached->second;if(prepare&&result->valid()&&result->filtered.empty())result->analyse();*ref=result;return result;
     }
     vec light(int i,vec normal)const{
         if(!visible(i))return{0.008f,0.01f,0.014f};

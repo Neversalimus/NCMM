@@ -35,6 +35,8 @@ neither SDL/game pointers nor providers reach the background worker.
 The original RGBA, including transparent pixels, is kept unchanged. Opaque
 body charts extend the closest observed color into transparent crop areas;
 transparent RGB never enters the body palette. The silhouette and anatomical
+priors retain translucent bodies even when a few opaque eyes/highlights are
+present; a tiny opaque core does not replace the whole silhouette. Anatomical
 priors define separate head, torso, lower body, limb, hand, foot, wing, tail,
 appendage and detail crops. Only regions used by the anatomy allocate native
 textures: an unknown 512 × 512 source must not allocate ten redundant copies.
@@ -93,6 +95,9 @@ old pixels into the new epoch. Generator version 2 invalidates old assets.
 
 Gameplay never waits for generation or writes diagnostic files. It continues
 to draw the existing closed-volume placeholder until resources are ready.
+First use copies the native source without the generic billboard palette/PCA
+and mip preprocessing; anatomical analysis runs on the worker. Generic
+textures prepare their data lazily when actually needed for drawing.
 The Host's existing first-use sprite readback remains synchronous and bounded;
 this change does not claim to remove that Host API limitation.
 
