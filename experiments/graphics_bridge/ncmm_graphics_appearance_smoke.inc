@@ -85,7 +85,13 @@ if( std::getenv( "NCMM_FP_APPEARANCE_SMOKE" ) ) {
             if( npc_case ) {
                 person = make_shared_fast<npc>(); person->normalize(); person->clear_mutations(); person->clear_effects(); person->clear_worn();
                 person->male = true; person->name = "Appearance NPC"; person->set_base_height( 175 ); person->set_movement_mode( move_mode_id( "walk" ) );
-                for( const char *clothing : { "tshirt", "jeans", "sneakers" } ) require( person->wear_item( item( itype_id( clothing ), calendar::turn ), false ).has_value(), "appearance_npc_clothing_failed" );
+                for( const char *clothing : { "tshirt", "jeans", "sneakers" } ) {
+                    // Item construction picks a random cosmetic variant. Keep
+                    // the same clothes across angles, renderers and processes.
+                    item garment( itype_id( clothing ), calendar::turn );
+                    garment.clear_itype_variant();
+                    require( person->wear_item( garment, false ).has_value(), "appearance_npc_clothing_failed" );
+                }
                 person->spawn_at_precise( here.get_abs( center ) ); overmap_buffer.insert_npc( person ); g->load_npcs(); person->setpos( here, center, false ); person->facing = FacingDirection::RIGHT;
             } else { subject = spawn( id, center ); subject->facing = FacingDirection::RIGHT; }
             you.setpos( here, view_position, false ); g->ter_view_p = view_position;

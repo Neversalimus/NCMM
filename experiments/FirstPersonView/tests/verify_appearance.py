@@ -27,6 +27,9 @@ def read_matrix(root, mode):
     for name in ids:
         idle = [item for item in frames if item[0] == name and item[-1] == "idle"]
         assert len(idle) == 8 * 3 * 2, f"incomplete directions/distances/lighting: {name}"
+        sources = {(frames[item]["source_width"], frames[item]["source_height"],
+                    frames[item]["source_pixel_hash"]) for item in frames if item[0] == name}
+        assert len(sources) == 1, f"subject appearance changes between cases: {name}"
     return report, frames
 
 
