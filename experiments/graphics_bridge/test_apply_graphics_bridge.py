@@ -30,8 +30,8 @@ class ApplyTests(unittest.TestCase):
         (root / "src/map.cpp").write_text(map_cpp)
         (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n}\n')
         (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR+'\nstatic void CheckMessages()\n{\n        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n}\n')
+        (root / "src/sdl_wrappers.cpp").write_text('#include "sdl_wrappers.h"\nvoid RenderPresent() {\n    printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" );\n}\n')
         with (root / "src/sdltiles.cpp").open('a') as f:
-            f.write('void refresh_display() {\n    RenderPresent( renderer );\n}\n')
             f.write('\n'.join('void teardown_'+str(i)+'() {\n    renderer.reset();\n}' for i in range(4))+'\n')
         (root / "src/main_menu.cpp").write_text("        std::exit( ncmm::run_gameplay_smoke() );")
         (root / "src/sdltiles.h").write_text("SDL_Window *get_sdl_window();")
@@ -80,7 +80,8 @@ std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids() {}
                 self.assertTrue((root / "first-person-source.json").is_file())
                 self.assertIn("draw_graphics_view", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_requires_terrain_pass", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
-                self.assertEqual((root / "src/sdltiles.cpp").read_text(encoding="utf-8").count("if( !renderer_should_abort_frame() ) ncmm::graphics_frame_presented();"), 1)
+                self.assertIn('if( !printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" ) )', (root / "src/sdl_wrappers.cpp").read_text(encoding="utf-8"))
+                self.assertEqual((root / "src/sdl_wrappers.cpp").read_text(encoding="utf-8").count("ncmm::graphics_frame_presented();"), 1)
                 self.assertIn("graphics_erase( module_id )", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics.creatures.v1", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_note_creature( this, 4 )", (root / "src/monster.cpp").read_text(encoding="utf-8"))
@@ -126,8 +127,8 @@ std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids() {}
             self.assertEqual(before,self.fingerprint(root))
     def test_changed_present_anchor_no_partial_patch(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);self.fixture(root);path=root/'src/sdltiles.cpp'
-            path.write_text(path.read_text().replace('RenderPresent( renderer );','changed_present( renderer );'))
+            root=Path(tmp);self.fixture(root);path=root/'src/sdl_wrappers.cpp'
+            path.write_text(path.read_text().replace('SDL_RenderPresent( renderer.get() )','changed_present( renderer.get() )'))
             before=self.fingerprint(root)
             with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
                 with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)

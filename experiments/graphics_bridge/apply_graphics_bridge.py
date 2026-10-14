@@ -128,9 +128,11 @@ def apply(root: Path):
         "                TERRAIN_WINDOW_TERM_WIDTH * font->width, TERRAIN_WINDOW_TERM_HEIGHT * font->height ) ) {\n"+
         anchor+"\n        }")
     updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"], "static void CheckMessages()\n{", "static void CheckMessages()\n{\n    // Presentation redraws never return a gameplay TIMEOUT or advance a turn.\n    if( ncmm::graphics_animation_redraw_due() ) {\n        ui_manager::redraw_invalidated();\n        if( needupdate ) refresh_display();\n    }")
-    updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"], "    RenderPresent( renderer );\n}",
-        "    RenderPresent( renderer );\n"
-        "    if( !renderer_should_abort_frame() ) ncmm::graphics_frame_presented();\n}")
+    wrappers = replace(read("sdl_wrappers.cpp"), '#include "sdl_wrappers.h"', '#include "sdl_wrappers.h"\n#include "ncmm_loader.h"')
+    updates["sdl_wrappers.cpp"] = replace(wrappers,
+        '    printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" );',
+        '    if( !printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" ) ) {\n'
+        '        ncmm::graphics_frame_presented();\n    }')
     # Every renderer teardown, including recovery and native test fixtures,
     # releases our children while the borrowed device is still alive.
     renderer_resets = updates["sdltiles.cpp"].count("renderer.reset();")
@@ -178,7 +180,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     tiles_declaration = "        std::optional<texture_draw_data> get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p );"
     updates["cata_tiles.h"] = replace(tiles_h, tiles_declaration, tiles_declaration +
         "\n        std::optional<texture_draw_data> ncmm_get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p, bool background, bool stable = false );\n"
-        "        bool ncmm_find_overlay( bool male, const std::string &overlay, const std::string &variant, std::string &id ) { return find_overlay_looks_like( male, overlay, variant, id ); }\n        void ncmm_unbind_gpu_state() { flush_sprite_shader_for_untextured_draw(); }\n        uint64_t ncmm_graphics_epoch = 0;\n        uint64_t ncmm_graphics_tileset_epoch() const { return ncmm_graphics_epoch; }")
+        "        bool ncmm_find_overlay( bool male, const std::string &overlay, const std::string &variant, std::string &id ) { return find_overlay_looks_like( male, overlay, variant, id ); }\n        void ncmm_unbind_gpu_state() { flush_sprite_shader_for_untextured_draw(); }\n        uint64_t ncmm_graphics_epoch = 0;\n        uint64_t ncmm_graphics_tileset_epoch() const { return ncmm_graphics_epoch; }\n        const std::string &ncmm_graphics_tileset_id() const { return tileset_ptr->get_tileset_id(); }")
     tiles_cpp = read("cata_tiles.cpp")
     start = tiles_cpp.index("std::optional<texture_draw_data> cata_tiles::get_texture_draw_data(")
     end = tiles_cpp.index("std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids", start)
@@ -201,7 +203,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         updates[name] = (bridge / name).read_text(encoding="utf-8")
     # Optional world-space interface, independent of the old V1/V2 layouts.
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '#include "ncmm_graphics_v2.h"',
-        '#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_multilevel.h"\n#include "ncmm_world_cache.hpp"\n#include <functional>')
+        '#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_multilevel.h"\n#include "ncmm_world_cache.hpp"\n#include "avatar_action.h"\n#include "game_inventory.h"\n#include "pickup.h"\n#include "visitable.h"\n#include <functional>')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '    "graphics.viewport.v2",',
         '    "graphics.viewport.v2",\n    "graphics.multilevel.v1",')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
@@ -239,7 +241,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     ):
         map_cpp=replace(map_cpp, signature+"\n{", signature+"\n{\n    ncmm::graphics_world_changed( this, "+level+" );")
     updates["map.cpp"]=map_cpp
-    for name in ("ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc"):
+    for name in ("ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")

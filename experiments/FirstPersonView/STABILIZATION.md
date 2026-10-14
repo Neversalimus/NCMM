@@ -33,6 +33,7 @@ reload, furniture interactions and a prolonged ordinary game are comfortable.
 | PERF-02 | P1 | Stable world publication still visits 197589 candidate cells across 21 loaded levels; visibility stage is approximately 13–15 ms. Source-cache misses are zero. | Profile/cull candidate work while retaining native perception, neighbouring-floor structure, airborne items and creatures. |
 | CAM-01 | P1 | World callback supplies only a Z offset; XY camera offsets remain zero despite both renderers supporting them. Adjacent native walking steps therefore jump visually between tile centres. | Add bounded visual-only interpolation for safe adjacent walking, with cancellation for teleports, opaque paths and vehicles. Native position and move cost remain authoritative. |
 | CAM-02 | P1 | Vertical easing starts before the first expensive render. Recorded native upward transition first-ready is 370.814 ms, longer than the 180 ms interpolation target. A slow first render can consume the entire easing interval. | Start the interpolation clock after the first successful presentation; test interrupted moves and slow first frames. |
+| CAM-03 | P1 | Player attack presentation is committed after command submission; a slow GPU presentation can consume its opening keyframes. Native attack notifications already observe real melee/shooting pathways. | Commit the player attack clock after successful SDL window presentation, sharing the camera acknowledgement. Native action costs and animation clips are unchanged. |
 | QA-01 | Verification gap | Existing GPU metrics combine command submission and do not isolate world/creature/volume/composition work or measure GPU execution. | Add diagnostic phase accounting and a reproducible local benchmark; label CPU submission, present wall time and GPU execution separately. |
 | QA-02 | Verification gap | Existing real SDL fixtures cover geometry and state guards rather than an ordinary 30-minute manual session. | Add bounded automated gameplay/soak scenarios; report exactly which native actions were exercised. Manual session remains separate. |
 | QA-03 | Verification gap | Actual UDP Hybrid v3 resources are available at `Neversalimus/CDDA-Mods@59123092c33244d516fa9d5ca69eaafb8d487f37`, `mods/undeadpeople/content`, identity `UndeadPeople_0J_Hybrid_v3` (2026-09-23). UltimateCataclysm was the previous runtime asset source. | Run a separate native SDL audit with these exact assets. Runtime compatibility remains unverified until that run passes. |
@@ -56,3 +57,47 @@ gameplay-audit questions.
 All timing comparisons for this phase use exact **0.12 main** as Before.
 The earlier 0.11 comparison is historical evidence only. Report actual render
 dimensions, adapter identity, p95/p99, cold frames and remaining limitations.
+
+## Implemented candidate and checkpoints
+
+- Camera policy tests cover a slow first render, interruption/reversal, diagonal
+  bounds, cancellation, invalid input and clock rollback. Native walking, stairs,
+  basement, ceiling and vehicle checks are added to the SDL integration audit.
+- Shader lookup reuse compiles to all 14 SPIR-V/DXIL programs. GPU qualification
+  run `38645746009` passed on Windows and Linux; 54 paired captures are identical
+  to 0.12 pixel-for-pixel. This establishes those image controls, not a speedup.
+- The audit uses real `avatar_action::move`, door methods, pickup, inventory
+  cancellation, item activation, melee/fire, reload completion, vertical moves,
+  vehicle control/displacement and native turn processing. Reload's interactive
+  activity UI and driving physics remain separate from these automation checks.
+- Private optional GPU profiling records CPU command work for world, creatures,
+  held items, shadows, volume and composition. Full-frame wall time includes real
+  SDL presentation. GPU execution timestamps remain unavailable.
+
+Run quick checks on each PR update. To request one expensive checkpoint, add
+`<!-- fp-qa:integration@FULL_HEAD_SHA -->` or
+`<!-- fp-qa:full@FULL_HEAD_SHA -->` to its description. The marker matches only
+that exact head, so a later small push cannot start another Host matrix.
+Full qualification retains both pins, graphics/sounds, installer transactions,
+all existing world/appearance checks and the exact old **Host plus DLL**.
+
+## Local GPU and prolonged automation
+
+The TEST installer includes `Run-FirstPersonBenchmark.ps1` and its small data
+fixture. After extracting it, use Windows PowerShell:
+
+```powershell
+.\Run-FirstPersonBenchmark.ps1 -GameRoot 'D:\Games\CDDA-1807' `
+  -OutputRoot 'D:\FP-Benchmarks\candidate-0121' `
+  -TilesetRoot 'D:\Tilesets\UndeadPeople_0J_Hybrid_v3' -SoakSeconds 1800
+```
+
+The output folder must be new and outside the game/installer folders. The script
+copies installation assets and the verified bundled Host/modules into it, keeps
+player saves/configuration out of the clone, and records native JSON, BMPs,
+adapter identity, asset hashes and memory samples. It never rewrites the source
+installation. `TilesetRoot` is optional; omitting it does not verify UDP.
+Keep software adapters labelled as such. The 30-minute loop is automated;
+comfort, full inventory/reload interactions and a manual driving session still
+require a player. Inspect RSS across warmed cycles separately from bounded
+renderer cache counters and from native map loading.

@@ -6,6 +6,11 @@
 #include <tuple>
 
 namespace ncmm_gpu {
+// Private diagnostics: CPU time spent preparing/recording commands, never GPU
+// execution timestamps. The public metrics V1 layout remains unchanged.
+struct recording_metrics {
+    double batching_pick_ms=0,shadow_ms=0,world_ms=0,creature_ms=0,held_ms=0,volume_ms=0,compose_ms=0;
+};
 class backend {
     device_context context_;
     resource_cache resources_;
@@ -15,6 +20,8 @@ class backend {
     uint32_t instance_size_=0,bone_size_=0,cell_size_=0,shadow_size_=0,width_=0,height_=0;
     uint64_t generation_=0,resource_epoch_=1,world_epoch_=0,last_serial_=0,readback_generation_=1;
     ncmm_gpu_metrics_v1 metrics_{};
+    recording_metrics recording_{};
+    bool profiling_=false;
     struct readback {SDL_GPUTransferBuffer *transfer=nullptr;SDL_GPUFence *fence=nullptr;uint64_t serial=0,generation=0;};
     std::array<readback,3> readbacks_{};
     struct instance {ncmm_gpu_matrix_v1 world;uint32_t bone_offset,bone_count,cell,reserved;};
@@ -71,6 +78,7 @@ class backend {
             SDL_GPUBufferBinding vertex{mesh->vertices,0},index{mesh->indices,0};SDL_BindGPUVertexBuffers(pass,0,&vertex,1);SDL_BindGPUIndexBuffer(pass,&index,SDL_GPU_INDEXELEMENTSIZE_32BIT);
             const uint32_t command[]={b.first,0,0,0};SDL_PushGPUVertexUniformData(commands,1,command,sizeof(command));
             for(const auto &range:mesh->ranges){const auto &m=mesh->materials[range.material];
+                const auto draw_start=profiling_?clock::now():clock::time_point{};
                 struct material {float color[4];uint32_t state[4];float impostor[4];} uniform{};
                 std::copy_n(m.color,4,uniform.color);uniform.state[0]=m.flags;uniform.state[1]=m.finish;uniform.state[2]=m.liquid;uniform.state[3]=m.banks;
                 uniform.impostor[0]=m.impostor_span;uniform.impostor[1]=m.impostor_yaw;
@@ -80,6 +88,10 @@ class backend {
                     textures[i].sampler=i?programs_.nearest:(m.flags&NCMM_GPU_CREATURE_VISUAL)?programs_.pixel_art:programs_.linear;}
                 SDL_BindGPUFragmentSamplers(pass,0,textures,3);SDL_DrawGPUIndexedPrimitives(pass,range.count,b.count,range.first,0,0);
                 ++metrics_.draw_calls;metrics_.triangles+=uint64_t(range.count/3)*b.count;
+                if(profiling_){const double took=ms(draw_start);
+                    if(selected==NCMM_GPU_HELD)recording_.held_ms+=took;
+                    else if(m.flags&NCMM_GPU_CREATURE_VISUAL)recording_.creature_ms+=took;
+                    else recording_.world_ms+=took;}
             }}
     }
 public:
@@ -89,6 +101,8 @@ public:
     resource_cache &resources(){return resources_;}
     bool has(uint64_t key,uint32_t kind){return kind<=1&&resources_.has(key,kind==1);}
     ncmm_gpu_metrics_v1 metrics(){poll();metrics_.resource_epoch=resource_epoch_;return metrics_;}
+    void profile(bool enabled=true){profiling_=enabled;}
+    const recording_metrics &recording()const{return recording_;}
     void clear(){resources_.clear();programs_.clear();release_targets();release_buffers();context_.clear();metrics_.active=0;++resource_epoch_;}
     void abandon(){resources_.abandon();programs_.abandon();context_.abandon();release_targets();release_buffers();metrics_.active=0;++resource_epoch_;}
     bool bind(SDL_Renderer *renderer,uint64_t generation){if(generation_&&generation_!=generation)abandon();generation_=generation;
@@ -97,6 +111,7 @@ public:
     void cpu_frame(){metrics_.active=0;}
     void invalidate(){auto *renderer=context_.renderer();uint64_t generation=generation_;clear();if(renderer)bind(renderer,generation);}
     bool submit(const ncmm_gpu_scene_v1 &scene,const ncmm_gpu_multilevel_scene_v1 *world=nullptr){
+        recording_={};
         // A new producer/world can restart its frame serial. A completed fence
         // from an older scene must never describe the new scene's visibility.
         if(world_epoch_!=scene.world_epoch||scene.frame_serial<last_serial_){++readback_generation_;metrics_.completed_frame_serial=metrics_.visible_creature_pixels=0;}
@@ -115,6 +130,7 @@ public:
         auto stage=clock::now();bool ready=resources_.prepare(scene,NCMM_GPU_RESOURCE_LIMIT-reserved,metrics_);metrics_.resource_ms=ms(stage);
         metrics_.resource_bytes=resources_.bytes()+reserved;metrics_.host_cpu_cache_bytes=resources_.cpu_bytes();
         if(!ready){const std::string error=resources_.reason();reason(error);if(error!="warming bounded GPU resource cache"){invalidate();reason(error);}return false;}
+        const auto batching_start=profiling_?clock::now():clock::time_point{};
         std::vector<instance> instances;std::vector<batch> batches;
         // Opaque/held groups reuse a mesh with one instanced command per material.
         // Transparent instances retain a stable global back-to-front order.
@@ -129,6 +145,7 @@ public:
         for(const auto &t:transparent){const auto &d=scene.draws[t.index];auto *mesh=resources_.mesh(d.mesh_key);if(mesh&&mesh->joint_count<=d.bone_count&&!in_frustum(draw_bounds(*mesh,d,scene),scene.camera))continue;
             uint32_t heading;std::memcpy(&heading,&d.creature_yaw,4);batches.push_back({d.mesh_key,d.pass,uint32_t(instances.size()),1});instances.push_back({d.transform,d.bone_offset,d.bone_count,d.cell,heading});}
         pick(resources_,scene,metrics_,world);
+        if(profiling_)recording_.batching_pick_ms=ms(batching_start);
         if(!counter_){uint32_t ignored=0;if(!buffer(counter_,ignored,64,SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE)){reason(context_.reason());return false;}}
         readback *read=nullptr;for(auto &r:readbacks_)if(!r.fence){read=&r;break;}
         if(read&&!read->transfer){SDL_GPUTransferBufferCreateInfo info{};info.usage=SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;info.size=64;read->transfer=SDL_CreateGPUTransferBuffer(context_.device(),&info);if(!read->transfer)read=nullptr;}
@@ -156,9 +173,11 @@ public:
         SDL_GPUTextureTransferInfo white{};white.transfer_buffer=transfer;white.offset=offset;white.pixels_per_row=white.rows_per_layer=1;
         SDL_GPUTextureRegion white_target{};white_target.texture=white_;white_target.w=white_target.h=white_target.d=1;SDL_UploadToGPUTexture(copy,&white,&white_target,true);SDL_EndGPUCopyPass(copy);
         metrics_.upload_bytes+=upload_size;metrics_.upload_ms=ms(stage);
+        auto phase_start=profiling_?clock::now():clock::time_point{};
         SDL_GPUStorageBufferReadWriteBinding shadow_binding{};shadow_binding.buffer=shadows_;shadow_binding.cycle=true;
         auto *compute=SDL_BeginGPUComputePass(commands,nullptr,0,&shadow_binding,1);if(!compute)return stop("begin shadow compute pass");SDL_BindGPUComputePipeline(compute,programs_.shadow);
         SDL_BindGPUComputeStorageBuffers(compute,0,&cells_,1);SDL_PushGPUComputeUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DispatchGPUCompute(compute,(scene.cell_count+63)/64,1,1);SDL_EndGPUComputePass(compute);
+        if(profiling_)recording_.shadow_ms=ms(phase_start);
         auto *pass=begin(commands,false,true);if(!pass){SDL_CancelGPUCommandBuffer(commands);SDL_ReleaseGPUTransferBuffer(context_.device(),transfer);context_.fail("begin world GPU pass");reason(context_.reason());return false;}
         SDL_BindGPUGraphicsPipeline(pass,programs_.sky);SDL_PushGPUFragmentUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DrawGPUPrimitives(pass,3,1,0,0);++metrics_.draw_calls;
         SDL_BindGPUGraphicsPipeline(pass,programs_.celestial);SDL_PushGPUVertexUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DrawGPUPrimitives(pass,6,852,0,0);++metrics_.draw_calls;
@@ -170,6 +189,7 @@ public:
         draw_batches(commands,pass,batches,NCMM_GPU_HELD,scene);SDL_EndGPURenderPass(pass);
         const bool atmosphere=scene.camera.wind[2]>0||scene.camera.wind[3]>0||scene.camera.weather[2]>.025f;
         if(atmosphere){
+        phase_start=profiling_?clock::now():clock::time_point{};
         SDL_GPUColorTargetInfo effects[2]{};effects[0].texture=effects_;effects[1].texture=effect_depth_;for(auto &e:effects){e.load_op=SDL_GPU_LOADOP_CLEAR;e.store_op=SDL_GPU_STOREOP_STORE;e.cycle=true;}
         pass=SDL_BeginGPURenderPass(commands,effects,2,nullptr);if(!pass)return stop("begin volume GPU pass");SDL_BindGPUGraphicsPipeline(pass,programs_.volume);
         SDL_GPUTextureSamplerBinding depths[]={{context_.depth(),programs_.nearest},{held_depth_,programs_.nearest}};SDL_BindGPUFragmentSamplers(pass,0,depths,2);SDL_BindGPUFragmentStorageBuffers(pass,0,&cells_,1);
@@ -177,16 +197,21 @@ public:
         for(uint32_t i=0;i<scene.cell_count;++i)if(scene.cells[i].source[3]>1)sources.push_back(i);
         std::stable_sort(sources.begin(),sources.end(),[&](uint32_t a,uint32_t b){return scene.cells[a].source[3]>scene.cells[b].source[3];});uint32_t lights[12]{};
         for(size_t i=0;i<std::min<size_t>(12,sources.size());++i)lights[i]=sources[i];SDL_PushGPUFragmentUniformData(commands,1,lights,sizeof(lights));SDL_DrawGPUPrimitives(pass,3,1,0,0);++metrics_.draw_calls;SDL_EndGPURenderPass(pass);
+        if(profiling_)recording_.volume_ms=ms(phase_start);
+        phase_start=profiling_?clock::now():clock::time_point{};
         SDL_GPUColorTargetInfo output{};output.texture=context_.color();output.load_op=SDL_GPU_LOADOP_CLEAR;output.store_op=SDL_GPU_STOREOP_STORE;output.cycle=true;
         pass=SDL_BeginGPURenderPass(commands,&output,1,nullptr);if(!pass)return stop("begin composition GPU pass");SDL_BindGPUGraphicsPipeline(pass,programs_.compose);
         SDL_GPUTextureSamplerBinding composition[]={{world_,programs_.nearest},{effects_,programs_.linear},{context_.depth(),programs_.nearest},{held_depth_,programs_.nearest},{effect_depth_,programs_.nearest}};
         SDL_BindGPUFragmentSamplers(pass,0,composition,5);SDL_PushGPUFragmentUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DrawGPUPrimitives(pass,3,1,0,0);++metrics_.draw_calls;SDL_EndGPURenderPass(pass);
+        if(profiling_)recording_.compose_ms=ms(phase_start);
         }else{
             // Clear dry scenes need no scattering/reconstruction pass. This is
             // still a direct GPU texture blit, with no CPU framebuffer transfer.
+            phase_start=profiling_?clock::now():clock::time_point{};
             SDL_GPUBlitInfo blit{};blit.source.texture=world_;blit.source.w=scene.width;blit.source.h=scene.height;
             blit.destination.texture=context_.color();blit.destination.w=scene.width;blit.destination.h=scene.height;
             blit.load_op=SDL_GPU_LOADOP_DONT_CARE;blit.filter=SDL_GPU_FILTER_NEAREST;blit.cycle=true;SDL_BlitGPUTexture(commands,&blit);
+            if(profiling_)recording_.compose_ms=ms(phase_start);
         }
         if(read){SDL_GPUStorageBufferReadWriteBinding binding{};binding.buffer=counter_;compute=SDL_BeginGPUComputePass(commands,nullptr,0,&binding,1);if(!compute)return stop("begin visibility compute pass");SDL_BindGPUComputePipeline(compute,programs_.count);
             SDL_GPUTextureSamplerBinding ids{id_,programs_.nearest};SDL_BindGPUComputeSamplers(compute,0,&ids,1);SDL_DispatchGPUCompute(compute,(scene.width+15)/16,(scene.height+15)/16,1);SDL_EndGPUComputePass(compute);

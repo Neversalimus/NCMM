@@ -3,6 +3,7 @@ float graphics_camera_yaw = -ncmm_graphics_camera::pi * .5f;
 float graphics_camera_pitch = 0;
 bool graphics_control_context = false, graphics_mouse_drag = false, graphics_mouse_dirty = false;
 bool graphics_attack_pending = false;
+bool graphics_frame_pending_present = false;
 bool graphics_cursor_was_visible = true;
 float graphics_mouse_dx = 0, graphics_mouse_dy = 0;
 uint64_t graphics_attack_serial = 0, graphics_last_redraw = 0;
@@ -13,7 +14,7 @@ struct { int x=0,y=0,w=0,h=0; } graphics_viewport;
 extern bool graphics_click_pending;
 void graphics_cancel_animation()
 {
-    graphics_attack_pending = false; graphics_attack_started = -1;graphics_click_pending=false;
+    graphics_attack_pending = false; graphics_frame_pending_present=false;graphics_attack_started = -1;graphics_click_pending=false;
 }
 
 void graphics_release_mouse()
@@ -43,7 +44,7 @@ int graphics_get_controls( ncmm_graphics_control_state_v1 *out )
     double attack_start = graphics_attack_started;
 #if defined(TILES)
     // Simulation can take longer than a clip. Start presentation on the first
-    // renderer sample. A successful SDL submission commits the presentation
+    // renderer sample. A successful SDL window presentation commits the
     // clock, so neither a slow turn nor a slow initial raster consumes the clip.
     if( graphics_attack_pending && graphics_render_active && graphics_view.enabled ) {
         attack_start = SDL_GetTicks() / 1000.0;

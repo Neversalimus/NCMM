@@ -88,7 +88,19 @@ bool graphics_scene_smoke()
         require( graphics_view.enabled, "view_did_not_enable" );
         if( std::getenv( "NCMM_FP_SAVE_ONLY" ) ) {
             #include "ncmm_graphics_multilevel_save_smoke.inc"
+        } else if( std::getenv( "NCMM_FP_GAMEPLAY_AUDIT" ) ) {
+            #include "ncmm_graphics_gameplay_audit.inc"
+            #include "ncmm_graphics_multilevel_save_smoke.inc"
         } else {
+        // Retain captures in an owned target while also exercising real window
+        // presentation. Reading a swapped window backbuffer is not reliable.
+        SDL_Renderer *smoke_renderer=get_sdl_renderer().get();
+        SDL_Texture *smoke_previous=SDL_GetRenderTarget(smoke_renderer);
+        SDL_Texture *smoke_canvas=SDL_CreateTexture(smoke_renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,640,480);
+        require(smoke_canvas!=nullptr,"smoke_canvas_failed");
+        struct smoke_canvas_guard {SDL_Renderer *renderer;SDL_Texture *canvas,*previous;
+            ~smoke_canvas_guard(){SDL_SetRenderTarget(renderer,previous);SDL_DestroyTexture(canvas);}
+        } smoke_target_guard{smoke_renderer,smoke_canvas,smoke_previous};
         auto draw = [&]() {
             const auto draw_started = std::chrono::steady_clock::now();
             std::multimap<point, formatted_text> overlays;
@@ -104,10 +116,14 @@ bool graphics_scene_smoke()
             const auto caches_ready = std::chrono::steady_clock::now();
             tilecontext->draw( point::zero, center, 640, 480, overlays, blocks );
             const auto tiles_ready = std::chrono::steady_clock::now();
+            require(SDL_SetRenderTarget(smoke_renderer,smoke_canvas)&&SDL_SetRenderLogicalPresentation(smoke_renderer,0,0,SDL_LOGICAL_PRESENTATION_DISABLED)&&SDL_SetRenderScale(smoke_renderer,1,1)&&SDL_SetRenderViewport(smoke_renderer,nullptr)&&SDL_SetRenderClipRect(smoke_renderer,nullptr),"smoke_canvas_rebind_failed");
             require( graphics_draw( 0, 0, 640, 480 ), "real_sdl_render_failed" );
             const auto overlay_ready = std::chrono::steady_clock::now();
             require( frames > 0 || graphics_resolved_textures >= 2, "atlas_textures_missing" );
             require( SDL_FlushRenderer( get_sdl_renderer().get() ), "sdl_frame_flush_failed" );
+            require(SDL_SetRenderTarget(smoke_renderer,nullptr)&&SDL_SetRenderViewport(smoke_renderer,nullptr)&&SDL_SetRenderClipRect(smoke_renderer,nullptr)&&SDL_RenderTexture(smoke_renderer,smoke_canvas,nullptr,nullptr)&&SDL_RenderPresent(smoke_renderer),"smoke_actual_present_failed");
+            graphics_world_frame_presented();
+            require(SDL_SetRenderTarget(smoke_renderer,smoke_canvas),"smoke_capture_target_restore_failed");
             const auto flushed = std::chrono::steady_clock::now();
             const auto ms = []( auto end, auto begin ) { return std::chrono::duration<double, std::milli>( end - begin ).count(); };
             if( ms( flushed, draw_started ) > 1000 && ( frames < 5 || frames % 32 == 0 ) ) {

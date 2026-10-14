@@ -1,4 +1,20 @@
 [
-  { "type": "terrain", "id": "t_ncmm_x9_unknown_floor", "copy-from": "t_floor", "name": "unfamiliar structural surface" },
-  { "type": "terrain", "id": "t_ncmm_x9_unknown_support", "copy-from": "t_wall", "name": "unfamiliar structural support" }
+  {
+    "type": "terrain",
+    "id": "t_ncmm_x9_unknown_floor",
+    "copy-from": "t_floor",
+    "name": "unfamiliar structural surface"
+  },
+  {
+    "type": "terrain",
+    "id": "t_ncmm_x9_unknown_support",
+    "copy-from": "t_wall",
+    "name": "unfamiliar structural support"
+  },
+  {
+    "type": "furniture",
+    "id": "f_ncmm_x9_unknown_furniture",
+    "copy-from": "f_chair",
+    "name": "unfamiliar seat"
+  }
 ]

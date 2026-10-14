@@ -35,8 +35,12 @@ void graphics_clear_world()
 }
 void graphics_world_frame_presented()
 {
-    if(graphics_world_pending_present&&graphics_view.enabled)graphics_world_camera_motion.presented(SDL_GetTicks());
-    graphics_world_pending_present=false;
+    if(graphics_frame_pending_present&&graphics_view.enabled){
+        const auto ticks=SDL_GetTicks();
+        if(graphics_world_pending_present)graphics_world_camera_motion.presented(ticks);
+        if(graphics_attack_pending){graphics_attack_started=ticks/1000.0;graphics_attack_pending=false;}
+    }
+    graphics_world_pending_present=graphics_frame_pending_present=false;
 }
 std::array<float,3> graphics_world_rgb(const tripoint_bub_ms &p){return graphics_sample_rgb(p);}
 bool graphics_world_in_visual_range(const tripoint_bub_ms &p)
