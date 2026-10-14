@@ -23,11 +23,17 @@ void main(){vec2 pixel=uv*camera.projection.xy;ivec2 size=textureSize(world_dept
         else{float a=(lo-camera.eye[axis])/ray[axis],b=(hi-camera.eye[axis])/ray[axis];near_t=max(near_t,min(a,b));far_t=min(far_t,max(a,b));}}
     near_t=.24+ceil(max(0.0,near_t-.24)/.43)*.43;
     bool gases=camera.wind.w>0.0;int source_count=int(camera.wind.z);
+    ivec3 lookup_key=ivec3(0);ivec4 neighbours=ivec4(-1);bool have_lookup=false;
     if(gases||source_count>0)for(int sample_number=0;sample_number<224;++sample_number){
         if(near_t>=far_t||alpha>=.96)break;float interval=min(far_t-near_t,near_t<19.0?.43:near_t<38.0||gases?.86:1.72);
         vec3 p=camera.eye.xyz+ray*near_t;ivec2 base=ivec2(floor(p.xy-.5));vec2 f=fract(p.xy-.5);
+        ivec3 key=ivec3(base,camera.grid.w>.5?int(floor(p.z/2.5)):0);
+        if(!have_lookup||any(notEqual(key,lookup_key))){
+            for(int y=0;y<2;++y)for(int x=0;x<2;++x)neighbours[y*2+x]=world_cell_index(vec3(vec2(base+ivec2(x,y))+.5,p.z));
+            lookup_key=key;have_lookup=true;
+        }
         float density=0.0;vec3 radiance=vec3(0);float noise_value=noise2(p.xy*2.2+vec2(camera.time.x*.14,p.z*1.1-camera.time.x*.19));
-        for(int y=0;y<2;++y)for(int x=0;x<2;++x){int i=world_cell_index(vec3(vec2(base+ivec2(x,y))+.5,p.z));if(i<0)continue;Cell c=cells[i];
+        for(int y=0;y<2;++y)for(int x=0;x<2;++x){int i=neighbours[y*2+x];if(i<0)continue;Cell c=cells[i];
             float weight=(x!=0?f.x:1.0-f.x)*(y!=0?f.y:1.0-f.y);
             float local_z=p.z-c.origin.z,volume_height=camera.grid.w>.5?min(2.5,c.volume.y):c.volume.y;
             if(c.volume.x>0.0&&local_z<volume_height){float rim=sat((volume_height-local_z)*1.6)*sat(local_z*5.0+.15);
