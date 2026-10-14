@@ -145,3 +145,13 @@ places the avatar on that map level. The fixture checks saved/loaded absolute
 XYZ, moves, turn and active map Z separately. A short save-only process runs
 before the full gallery; the complete graphics/sounds runs still repeat all
 three save/load checks on the final visual fixture.
+
+Every gameplay-smoke process starts with a fresh `NCMM Gameplay Smoke` world
+inside the CI temporary installation. A native save followed by a same-seed
+`avatar::create(NOW)` otherwise opens the normal overwrite-name confirmation
+before rendering begins. The reset preserves all `ncmm` evidence and applies
+equally to After and Before. Two short same-seed save/load processes exercise
+this isolation before the full matrix. Only the named fixture world below
+`RUNNER_TEMP` can be removed; ordinary game saves and runtime behavior are not
+changed. Reference-DLL restoration retries briefly after process termination
+so a Windows image-release delay cannot obscure the original test failure.

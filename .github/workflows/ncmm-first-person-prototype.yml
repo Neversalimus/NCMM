@@ -249,14 +249,18 @@ jobs:
           $root='${{ steps.game.outputs.root }}'
           $env:NCMM_FP_SAVE_ONLY='1'
           try {
-            $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-gameplay-smoke --seed ncmm-save-012' -WorkingDirectory $root -PassThru
-            if(-not $p.WaitForExit(300000)){& taskkill.exe /pid $p.Id /t /f;throw 'Native save-load gate deadline exceeded.'}
-            $p.Refresh()
-            $smoke=Get-Content (Join-Path $root 'ncmm/first-person-smoke.json') -Raw | ConvertFrom-Json
-            if($p.ExitCode -ne 0 -or $smoke.success -ne $true){throw "Native save-load gate failed: $($smoke.reason), exit $($p.ExitCode)"}
-            $save=Get-Content (Join-Path $root 'ncmm/first-person-multilevel-save-after.json') -Raw | ConvertFrom-Json
-            if($save.success -ne $true -or @($save.levels).Count -ne 3){throw 'Native save-load gate is incomplete.'}
-            Copy-Item (Join-Path $root 'ncmm/first-person-multilevel-save-after.json') 'installer-result/first-person-multilevel-save-fast-gate.json'
+            foreach($attempt in @(1,2)) {
+              ./ncmmrepo/experiments/FirstPersonView/tests/Reset-SmokeWorld.ps1 -GameRoot $root
+              $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-gameplay-smoke --seed ncmm-save-012' -WorkingDirectory $root -PassThru
+              if(-not $p.WaitForExit(300000)){& taskkill.exe /pid $p.Id /t /f;throw 'Native save-load gate deadline exceeded.'}
+              $p.Refresh()
+              $smoke=Get-Content (Join-Path $root 'ncmm/first-person-smoke.json') -Raw | ConvertFrom-Json
+              if($p.ExitCode -ne 0 -or $smoke.success -ne $true){throw "Native save-load gate failed: $($smoke.reason), exit $($p.ExitCode)"}
+              $save=Get-Content (Join-Path $root 'ncmm/first-person-multilevel-save-after.json') -Raw | ConvertFrom-Json
+              if($save.success -ne $true -or @($save.levels).Count -ne 3){throw 'Native save-load gate is incomplete.'}
+              Copy-Item (Join-Path $root 'ncmm/first-person-multilevel-save-after.json') 'installer-result/first-person-multilevel-save-fast-gate.json'
+              Copy-Item (Join-Path $root 'ncmm/first-person-multilevel-save-after.json') ("installer-result/first-person-multilevel-save-fast-gate-"+$attempt+'.json')
+            }
           } finally {Remove-Item Env:\NCMM_FP_SAVE_ONLY -ErrorAction SilentlyContinue}
       - name: Actual SDL controls, appearance, geometry, RGB light, sky, weather and held items
         timeout-minutes: 120
@@ -269,6 +273,7 @@ jobs:
             Copy-Item ncmmrepo/experiments/FirstPersonView/tests/multilevel_fixture.json (Join-Path $root 'data/json/furniture_and_terrain/ncmm_multilevel_qualification.json') -Force
             $env:NCMM_FP_APPEARANCE_SMOKE='1'
             $env:NCMM_FP_APPEARANCE_DEBUG_DIR=Join-Path $env:RUNNER_TEMP ("fp-appearance-"+'${{ matrix.build }}'+'-'+$variant.name)
+            ./ncmmrepo/experiments/FirstPersonView/tests/Reset-SmokeWorld.ps1 -GameRoot $root
             $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-gameplay-smoke --seed ncmm-appearance-011' -WorkingDirectory $root -PassThru
             if(-not $p.WaitForExit(3000000)){& taskkill.exe /pid $p.Id /t /f;throw 'Gameplay deadline exceeded.'}
             $p.Refresh()
@@ -331,9 +336,10 @@ jobs:
               $env:NCMM_FP_STABLE_CPU_BASELINE='1'
               $env:NCMM_FP_APPEARANCE_BEFORE='1'
               Copy-Item ncmmrepo/experiments/FirstPersonView/tests/multilevel_fixture.json (Join-Path $root 'data/json/furniture_and_terrain/ncmm_multilevel_qualification.json') -Force
-            $env:NCMM_FP_APPEARANCE_SMOKE='1'
+              $env:NCMM_FP_APPEARANCE_SMOKE='1'
+              ./ncmmrepo/experiments/FirstPersonView/tests/Reset-SmokeWorld.ps1 -GameRoot $root
               $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-gameplay-smoke --seed ncmm-appearance-011' -WorkingDirectory $root -PassThru
-              if(-not $p.WaitForExit(3000000)){& taskkill.exe /pid $p.Id /t /f;throw 'Paired main CPU deadline exceeded.'}
+              if(-not $p.WaitForExit(3000000)){Write-Host 'Paired main CPU deadline exceeded; terminating the reference process.';& taskkill.exe /pid $p.Id /t /f;$null=$p.WaitForExit(10000);throw 'Paired main CPU deadline exceeded.'}
               $p.Refresh()
               if($p.ExitCode -ne 0){throw "Paired main CPU failed: $($p.ExitCode)"}
               Copy-Item (Join-Path $root 'ncmm/first-person-multilevel-save-before.json') ("installer-result/first-person-multilevel-save-before-"+$variant.name+'.json')
@@ -348,8 +354,12 @@ jobs:
               Remove-Item Env:NCMM_FP_STABLE_CPU_BASELINE -ErrorAction SilentlyContinue
               Remove-Item Env:NCMM_FP_APPEARANCE_BEFORE -ErrorAction SilentlyContinue
               Remove-Item Env:NCMM_FP_APPEARANCE_SMOKE -ErrorAction SilentlyContinue
-              Copy-Item (Join-Path $backup 'ncmm_mod.dll') (Join-Path $module 'ncmm_mod.dll') -Force
-              Copy-Item (Join-Path $backup 'mod.json') (Join-Path $module 'mod.json') -Force
+              foreach($name in @('ncmm_mod.dll','mod.json')) {
+                for($retry=0;$retry -lt 20;$retry++) {
+                  try {Copy-Item (Join-Path $backup $name) (Join-Path $module $name) -Force;break}
+                  catch {if($retry -eq 19){throw};Start-Sleep -Milliseconds 250}
+                }
+              }
             }
           }
       - uses: actions/setup-python@v5
