@@ -241,6 +241,23 @@ jobs:
               if(!(Test-Path (Join-Path $root 'ncmm/boot.ready')) -or (Test-Path (Join-Path $root 'ncmm/boot.pending'))){throw 'Bootstrap lifecycle markers inconsistent.'}
             }
           }
+      - name: Fast native multi-Z save-load gate before the full gallery
+        timeout-minutes: 10
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root='${{ steps.game.outputs.root }}'
+          $env:NCMM_FP_SAVE_ONLY='1'
+          try {
+            $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-gameplay-smoke --seed ncmm-save-012' -WorkingDirectory $root -PassThru
+            if(-not $p.WaitForExit(300000)){& taskkill.exe /pid $p.Id /t /f;throw 'Native save-load gate deadline exceeded.'}
+            $p.Refresh()
+            $smoke=Get-Content (Join-Path $root 'ncmm/first-person-smoke.json') -Raw | ConvertFrom-Json
+            if($p.ExitCode -ne 0 -or $smoke.success -ne $true){throw "Native save-load gate failed: $($smoke.reason), exit $($p.ExitCode)"}
+            $save=Get-Content (Join-Path $root 'ncmm/first-person-multilevel-save-after.json') -Raw | ConvertFrom-Json
+            if($save.success -ne $true -or @($save.levels).Count -ne 3){throw 'Native save-load gate is incomplete.'}
+            Copy-Item (Join-Path $root 'ncmm/first-person-multilevel-save-after.json') 'installer-result/first-person-multilevel-save-fast-gate.json'
+          } finally {Remove-Item Env:\NCMM_FP_SAVE_ONLY -ErrorAction SilentlyContinue}
       - name: Actual SDL controls, appearance, geometry, RGB light, sky, weather and held items
         timeout-minutes: 120
         shell: powershell

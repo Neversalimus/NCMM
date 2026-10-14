@@ -86,6 +86,9 @@ bool graphics_scene_smoke()
         require( !graphics_view.enabled, "view_not_initially_disabled" );
         press_f6();
         require( graphics_view.enabled, "view_did_not_enable" );
+        if( std::getenv( "NCMM_FP_SAVE_ONLY" ) ) {
+            #include "ncmm_graphics_multilevel_save_smoke.inc"
+        } else {
         auto draw = [&]() {
             const auto draw_started = std::chrono::steady_clock::now();
             std::multimap<point, formatted_text> overlays;
@@ -549,6 +552,7 @@ bool graphics_scene_smoke()
         require( you.pos_abs() == start_absolute_pos && you.get_moves() == start_moves && calendar::turn == start_time,
                  "vehicle_camera_tests_changed_gameplay_state" );
         #include "ncmm_graphics_multilevel_save_smoke.inc"
+        }
     } catch( const std::exception &err ) {
         reason = err.what();
         graphics_view.enabled = false;

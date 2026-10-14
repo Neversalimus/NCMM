@@ -17,6 +17,7 @@ for mode in ['before','after']:
  save=json.loads((a.root/f'first-person-multilevel-save-{mode}.json').read_text())
  assert save['success'] and save['actual_cdda_save_load'] and [r['z'] for r in save['levels']]==[-1,0,1]
  assert all(r['restored_xyz'] and r['restored_moves'] and r['restored_turn'] and r['rendered'] and r['f6_restored_tiles'] for r in save['levels'])
+ assert all(r['saved_xyz']==r['loaded_xyz'] and r['active_map_z']==r['z'] and r['saved_moves']==r['loaded_moves'] and r['saved_turn']==r['loaded_turn'] for r in save['levels']), 'native save/load state differs'
 assert matrices[0].keys()==matrices[1].keys(), 'paired scenes or dimensions differ'
 assert len(matrices[1])==266, '21 galleries or 224 load records incomplete'
 assert {r['name'] for r in matrices[1].values() if r['gallery']}==scenes

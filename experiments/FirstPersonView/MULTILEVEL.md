@@ -137,3 +137,11 @@ also checked. Full qualification is complete only after current-head CI and
 manual review of the paired SDL captures pass.
 The shared Host extraction is also checked with floating rocks on Z 1/2 and a
 flying death clip in genuinely empty air, including expiry, on both CPU and GPU.
+
+The native save fixture changes the active map and avatar Z together through
+`game::vertical_shift`. A teleport of the avatar alone is not a valid save setup:
+both pinned engines serialize the map's Z as `levz`, and load's `update_map`
+places the avatar on that map level. The fixture checks saved/loaded absolute
+XYZ, moves, turn and active map Z separately. A short save-only process runs
+before the full gallery; the complete graphics/sounds runs still repeat all
+three save/load checks on the final visual fixture.
