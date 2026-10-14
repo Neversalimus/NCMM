@@ -226,7 +226,11 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "        bool save();\n"
         "        // Isolated qualification gateway; not part of a module API.\n"
         "        bool ncmm_graphics_smoke_reload( const save_t &name ) {\n"
-        "            return load( name );\n        }\n")
+        "            return load( name );\n        }\n"
+        "        void ncmm_graphics_smoke_examine( const tripoint_bub_ms &p ) {\n"
+        "            examine( p, false );\n        }\n"
+        "        void ncmm_graphics_smoke_controls( const tripoint_bub_ms &p ) {\n"
+        "            control_vehicle( p );\n        }\n")
     map_h=read("map.h")
     updates["map.h"]=replace(map_h, "        int supports_zlevels() const {",
         "        // Read-only loaded-submap probe; never calls load or mapgen.\n"

@@ -54,6 +54,7 @@ foreach($name in $names){$prior[$name]=[Environment]::GetEnvironmentVariable($na
 $exitCode=$null
 try {
     $env:NCMM_FP_GAMEPLAY_AUDIT='1'
+    $env:NCMM_FP_APPEARANCE_SMOKE='1' # Stable monster atlas variants in this diagnostic only.
     $env:NCMM_FP_SOAK_SECONDS=[string]$SoakSeconds
     if($udp){$env:NCMM_FP_UDP='1'}
     $process=Start-Process (Join-Path $test 'cataclysm-tiles.ncmm.exe') -ArgumentList '--ncmm-gameplay-smoke --seed ncmm-gameplay-0121' -WorkingDirectory $test -PassThru

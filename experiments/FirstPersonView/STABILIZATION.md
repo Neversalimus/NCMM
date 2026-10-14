@@ -102,3 +102,15 @@ Keep software adapters labelled as such. The 30-minute loop is automated;
 comfort, full inventory/reload interactions and a manual driving session still
 require a player. Inspect RSS across warmed cycles separately from bounded
 renderer cache counters and from native map loading.
+
+The native combat audit now runs six actual AI turns with 1, 5 and 20 enemies,
+including player attacks and CPU/GPU render-state guards at the same simulation
+state. Its disposable avatar uses CDDA's existing debug protection; damage to
+enemy targets and enemy AI use native pathways. This is a controlled stress
+trial, not evidence for ordinary combat balance or manual play. Full soaking
+also exports frame/loop samples and actual renderer tags for drift analysis.
+
+The first Host compile found private UI entry points and an enum argument in
+the new audit. Explicit nonvirtual diagnostic gateways call the original game
+methods; the vehicle fixture uses the same UNDAMAGED enum as the established
+smoke test. Module API tables and class data layouts are not extended.
