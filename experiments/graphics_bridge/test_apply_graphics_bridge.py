@@ -19,6 +19,7 @@ class ApplyTests(unittest.TestCase):
         (root / "src").mkdir()
         for name in ("ncmm_loader.cpp", "ncmm_loader.h"):
             (root / "src" / name).write_bytes((REPO / "host_patch" / name).read_bytes())
+        (root / "src/game.h").write_text("        bool save();\n")
         (root / "src/map.h").write_text("        int supports_zlevels() const {\n            return zlevels;\n        }\n")
         map_cpp='#include "map.h"\n'
         for signature in ("void map::set_transparency_cache_dirty( const int zlev )",

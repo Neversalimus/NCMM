@@ -13,7 +13,7 @@
         const auto wanted=get_avatar().pos_abs();const int moves=get_avatar().get_moves();const auto turn=calendar::turn;
         require(g->save(),"multilevel_native_save_failed");graphics_clear_world();graphics_clear_creatures();
         get_avatar().setpos(get_map(),get_map().get_bub(saved_position),false);
-        require(g->load(save),"multilevel_native_load_failed");
+        require(g->ncmm_graphics_smoke_reload(save),"multilevel_native_load_failed");
         require(get_avatar().pos_abs()==wanted&&get_avatar().get_moves()==moves&&calendar::turn==turn,"multilevel_save_load_changed_xyz_or_turn");
         ncmm::graphics_note_input_context("DEFAULTMODE");if(!graphics_view.enabled)press_f6();
         get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue("cpu");get_map().build_map_cache(get_avatar().posz());

@@ -214,6 +214,11 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "class input_context;", "class map;\nclass input_context;")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();",
         "void graphics_world_changed( const map *, int z );\nvoid initialize();")
+    updates["game.h"]=replace(read("game.h"), "        bool save();",
+        "        bool save();\n"
+        "        // Isolated qualification gateway; not part of a module API.\n"
+        "        bool ncmm_graphics_smoke_reload( const save_t &name ) {\n"
+        "            return load( name );\n        }\n")
     map_h=read("map.h")
     updates["map.h"]=replace(map_h, "        int supports_zlevels() const {",
         "        // Read-only loaded-submap probe; never calls load or mapgen.\n"
