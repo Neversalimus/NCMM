@@ -128,6 +128,9 @@ def apply(root: Path):
         "                TERRAIN_WINDOW_TERM_WIDTH * font->width, TERRAIN_WINDOW_TERM_HEIGHT * font->height ) ) {\n"+
         anchor+"\n        }")
     updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"], "static void CheckMessages()\n{", "static void CheckMessages()\n{\n    // Presentation redraws never return a gameplay TIMEOUT or advance a turn.\n    if( ncmm::graphics_animation_redraw_due() ) {\n        ui_manager::redraw_invalidated();\n        if( needupdate ) refresh_display();\n    }")
+    updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"], "    RenderPresent( renderer );\n}",
+        "    RenderPresent( renderer );\n"
+        "    if( !renderer_should_abort_frame() ) ncmm::graphics_frame_presented();\n}")
     # Every renderer teardown, including recovery and native test fixtures,
     # releases our children while the borrowed device is still alive.
     renderer_resets = updates["sdltiles.cpp"].count("renderer.reset();")
@@ -210,10 +213,12 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "bool graphics_requires_terrain_pass()\n{",
         "void graphics_world_changed( const map *source, int z )\n{\n"
         "    graphics_world_changed_impl( source, z );\n}\n"
+        "void graphics_frame_presented()\n{\n#if defined(TILES)\n"
+        "    graphics_world_frame_presented();\n#endif\n}\n"
         "bool graphics_requires_terrain_pass()\n{")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "class input_context;", "class map;\nclass input_context;")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();",
-        "void graphics_world_changed( const map *, int z );\nvoid initialize();")
+        "void graphics_world_changed( const map *, int z );\nvoid graphics_frame_presented();\nvoid initialize();")
     updates["game.h"]=replace(read("game.h"), "        bool save();",
         "        bool save();\n"
         "        // Isolated qualification gateway; not part of a module API.\n"

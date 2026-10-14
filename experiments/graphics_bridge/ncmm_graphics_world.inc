@@ -22,16 +22,21 @@ std::vector<uint32_t> graphics_world_roof_columns;
 int32_t graphics_world_roof_x=0,graphics_world_roof_y=0,graphics_world_roof_low=0,graphics_world_roof_high=0;
 ncmm_world::point graphics_world_ray_eye{};
 std::optional<tripoint_abs_ms> graphics_world_previous_position,graphics_world_ray_position;
-float graphics_world_camera_offset=0;
-uint64_t graphics_world_transition_started=0;
-bool graphics_world_transition_active=false;
+ncmm_graphics_camera::motion graphics_world_camera_motion;
+bool graphics_world_transition_active=false,graphics_world_vertical_transition_active=false;
+bool graphics_world_pending_present=false;
 constexpr uint32_t graphics_world_architecture=1u<<28,graphics_world_renderable=1u<<29,graphics_world_vehicle_roof=1u<<30;
 void graphics_clear_world()
 {
     graphics_world_sources.clear();std::vector<uint32_t>().swap(graphics_world_roof_columns);graphics_world_roof_revision=0;graphics_world_map_identity=nullptr;graphics_world_realm.clear();
-    graphics_world_previous_position.reset();graphics_world_ray_position.reset();graphics_world_camera_offset=0;
-    graphics_world_transition_started=0;graphics_world_transition_active=false;graphics_multilevel_frame=nullptr;
+    graphics_world_previous_position.reset();graphics_world_ray_position.reset();graphics_world_camera_motion.reset();
+    graphics_world_transition_active=graphics_world_vertical_transition_active=false;graphics_world_pending_present=false;graphics_multilevel_frame=nullptr;
     ++graphics_world_epoch;
+}
+void graphics_world_frame_presented()
+{
+    if(graphics_world_pending_present&&graphics_view.enabled)graphics_world_camera_motion.presented(SDL_GetTicks());
+    graphics_world_pending_present=false;
 }
 std::array<float,3> graphics_world_rgb(const tripoint_bub_ms &p){return graphics_sample_rgb(p);}
 bool graphics_world_in_visual_range(const tripoint_bub_ms &p)
@@ -112,27 +117,44 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if(roof)value|=NCMM_WORLD_ROOFED;return value;
     };
     const uint64_t ticks=SDL_GetTicks();
+    auto continuing=graphics_world_camera_motion.sample(ticks);
     if(graphics_world_previous_position&&*graphics_world_previous_position!=absolute){
         const auto previous=*graphics_world_previous_position;const int dz=absolute.z()-previous.z();
+        const int64_t dx=int64_t(absolute.x())-previous.x(),dy=int64_t(absolute.y())-previous.y();
         const bool same_xy=absolute.xy()==previous.xy(),adjacent=std::abs(int64_t(absolute.x())-previous.x())+std::abs(int64_t(absolute.y())-previous.y())<=1;
         const bool can_interpolate=adjacent&&std::abs(dz)==1;
         const uint32_t from=flags(previous.x(),previous.y(),previous.z()),to=flags(absolute.x(),absolute.y(),absolute.z());
         const bool passage=dz>0?((from&NCMM_WORLD_CONNECTED_UP)&&((same_xy&&(to&NCMM_WORLD_OPEN_DOWN))||((from&NCMM_WORLD_RAMP)&&(to&(NCMM_WORLD_RAMP|NCMM_WORLD_FLOOR))))):((to&NCMM_WORLD_CONNECTED_UP)&&((same_xy&&(from&NCMM_WORLD_OPEN_DOWN))||((to&NCMM_WORLD_RAMP)&&(from&(NCMM_WORLD_RAMP|NCMM_WORLD_FLOOR)))));
-        graphics_world_camera_offset=can_interpolate&&passage?-dz*NCMM_WORLD_LEVEL_HEIGHT:0;graphics_world_transition_started=ticks;
+        const bool walk=dz==0&&std::abs(dx)<=1&&std::abs(dy)<=1&&std::abs(continuing.z)<.002f&&!you.in_vehicle;
+        if((can_interpolate&&passage)||walk)
+            graphics_world_camera_motion.begin({continuing.x-float(dx),continuing.y-float(dy),continuing.z-dz*NCMM_WORLD_LEVEL_HEIGHT},ticks);
+        else graphics_world_camera_motion.reset();
     }
     const bool position_changed=!graphics_world_previous_position||*graphics_world_previous_position!=absolute;
     graphics_world_previous_position=absolute;
-    const float elapsed=float(ticks-graphics_world_transition_started)/180.f,t=std::clamp(elapsed,0.f,1.f),blend=t*t*(3-2*t),
-        animated_dz=graphics_world_camera_offset*(1-blend);
     const uint32_t ceiling=flags(absolute.x(),absolute.y(),absolute.z()+1);
-    const float raw_eye=graphics_eye_height(),safe_eye=(ceiling&(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_UNKNOWN))?std::min(raw_eye,NCMM_WORLD_LEVEL_HEIGHT-.18f):raw_eye,
-        camera_dz=animated_dz+safe_eye-raw_eye;
-    graphics_world_transition_active=std::abs(animated_dz)>.002f;
-    const ncmm_world::point eye{radius+.5f,radius+.5f,graphics_eye_height()+camera_dz};
-    if(position_changed||graphics_world_ray_revision!=graphics_world_sources.topology_revision||
-       std::abs(eye.z-graphics_world_ray_eye.z)>.0001f){
-        ++graphics_world_ray_epoch;graphics_world_ray_revision=graphics_world_sources.topology_revision;graphics_world_ray_eye=eye;}
+    const float raw_eye=graphics_eye_height(),safe_eye=(ceiling&(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_UNKNOWN))?std::min(raw_eye,NCMM_WORLD_LEVEL_HEIGHT-.18f):raw_eye;
+    auto animated=graphics_world_camera_motion.sample(ticks);
     auto query=[&](ncmm_world::voxel p){return flags(ox+p.x,oy+p.y,absolute.z()+p.z);};
+    auto motion_query=[&](ncmm_world::voxel p){
+        uint32_t value=ncmm_world::structural_flags(query(p));
+        const auto tile=here.get_bub(tripoint_abs_ms(ox+p.x,oy+p.y,absolute.z()+p.z));
+        if(!here.ncmm_graphics_loaded(tile)||here.veh_at(tile))value|=NCMM_WORLD_UNKNOWN|NCMM_WORLD_OPAQUE;
+        return value;
+    };
+    const ncmm_world::point destination{radius+.5f,radius+.5f,safe_eye},start_eye{destination.x+animated.x,destination.y+animated.y,destination.z+animated.z};
+    if(graphics_world_camera_motion.active(ticks)){
+        const ncmm_world::voxel from{int(std::floor(start_eye.x)),int(std::floor(start_eye.y)),int(std::floor(start_eye.z/NCMM_WORLD_LEVEL_HEIGHT))};
+        if((motion_query(from)&(NCMM_WORLD_UNKNOWN|NCMM_WORLD_OPAQUE))||!ncmm_world::visible(start_eye,destination,motion_query)){
+            graphics_world_camera_motion.reset();animated={};
+        }
+    }
+    const float camera_dz=animated.z+safe_eye-raw_eye;
+    graphics_world_transition_active=graphics_world_camera_motion.active(ticks);graphics_world_vertical_transition_active=std::abs(animated.z)>.002f;
+    const ncmm_world::point eye{radius+.5f+animated.x,radius+.5f+animated.y,safe_eye+animated.z};
+    if(position_changed||graphics_world_ray_revision!=graphics_world_sources.topology_revision||
+       std::abs(eye.x-graphics_world_ray_eye.x)>.0001f||std::abs(eye.y-graphics_world_ray_eye.y)>.0001f||std::abs(eye.z-graphics_world_ray_eye.z)>.0001f){
+        ++graphics_world_ray_epoch;graphics_world_ray_revision=graphics_world_sources.topology_revision;graphics_world_ray_eye=eye;}
     auto structural_query=[&](ncmm_world::voxel p){return ncmm_world::structural_flags(query(p));};
     struct candidate {ncmm_world_cell_v1 world{};tripoint_bub_ms pos;uint32_t permission=0;float distance=0;};
     std::vector<candidate> candidates;
@@ -152,10 +174,16 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if(!here.ncmm_graphics_loaded(p))continue;
         const float dx=gx+.5f-eye.x,dy=gy+.5f-eye.y,dz=(z-absolute.z())*NCMM_WORLD_LEVEL_HEIGHT+1.25f-eye.z,
             forward=(dx*cy+dy*sy)*cp+dz*sp,screen_x=-dx*sy+dy*cy,screen_y=dz*cp-(dx*cy+dy*sy)*sp;
+        const bool close_to_eye=dx*dx+dy*dy+dz*dz<16;
+        const float horizontal_limit=std::max(0.f,forward)*horizontal,vertical_limit=std::max(0.f,forward)*vertical;
+        const auto outside=[&](float margin){return forward < -margin||std::abs(screen_x)>horizontal_limit+margin||std::abs(screen_y)>vertical_limit+margin;};
+        // Reject only beyond the widest existing creature margin before doing
+        // tracker/death lookups. Large and airborne actors retain the same bounds.
+        if(!close_to_eye&&outside(20.f)){++graphics_world_metrics.frustum_rejected;continue;}
         const Creature *entity=get_creature_tracker().creature_at<Creature>(p);
         const bool observed_death=std::binary_search(observed_deaths.begin(),observed_deaths.end(),std::array<int32_t,3>{ax,ay,z});
-        const float margin=entity||observed_death?20.f:5.f;const bool close_to_eye=dx*dx+dy*dy+dz*dz<16;
-        if(!close_to_eye&&(forward < -margin||std::abs(screen_x)>std::max(0.f,forward)*horizontal+margin||std::abs(screen_y)>std::max(0.f,forward)*vertical+margin)){
+        const float margin=entity||observed_death?20.f:5.f;
+        if(!close_to_eye&&outside(margin)){
             ++graphics_world_metrics.frustum_rejected;continue;}
         uint32_t semantic=flags(ax,ay,z);
         const bool air=!(semantic&(NCMM_WORLD_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_DOWN|NCMM_WORLD_UP|NCMM_WORLD_CANOPY|graphics_world_renderable));
@@ -241,7 +269,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
     }
     ncmm_graphics_multilevel_scene_v1 world{};world.struct_size=sizeof(world);world.version=1;world.world_epoch=graphics_world_epoch;
     world.revision=graphics_world_revision;world.frame_serial=++graphics_world_serial;world.origin_x=ox;world.origin_y=oy;world.origin_z=absolute.z();
-    world.loaded_min_z=loaded.front();world.loaded_max_z=loaded.back();world.level_height=NCMM_WORLD_LEVEL_HEIGHT;world.camera_dz=camera_dz;
+    world.loaded_min_z=loaded.front();world.loaded_max_z=loaded.back();world.level_height=NCMM_WORLD_LEVEL_HEIGHT;world.camera_dx=animated.x;world.camera_dy=animated.y;world.camera_dz=camera_dz;
     world.coordinates=coordinates.data();world.cell_count=uint32_t(coordinates.size());world.slices=slices.data();world.slice_count=uint32_t(slices.size());
     const ncmm_graphics_scene_v1 base={sizeof(ncmm_graphics_scene_v1),width,height,side,side,radius+.5f,radius+.5f,cells.data(),cells.size()};
     graphics_viewport={x,y,width,height};graphics_snapshot_radius=radius;graphics_snapshot_begun=begun;
@@ -249,12 +277,14 @@ bool graphics_draw_world(int x,int y,int width,int height)
     graphics_world_metrics.source_cache_hits=graphics_world_sources.hits;graphics_world_metrics.source_cache_misses=graphics_world_sources.misses;
     graphics_world_metrics.snapshot_bytes=cells.capacity()*sizeof(cells[0])+positions.capacity()*sizeof(positions[0])+coordinates.capacity()*sizeof(coordinates[0])+slices.capacity()*sizeof(slices[0]);
     graphics_world_metrics.extraction_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();
-    graphics_world_metrics.transition_ms=graphics_world_transition_active?double(ticks-graphics_world_transition_started):0;
-    return graphics_draw_hybrid(base,positions,x,y,&world);
+    const bool presented=graphics_draw_hybrid(base,positions,x,y,&world);
+    graphics_world_pending_present=presented;
+    graphics_world_metrics.transition_ms=graphics_world_transition_active?double(graphics_world_camera_motion.elapsed(ticks)):0;
+    return presented;
 }
 bool graphics_world_target_visible(const tripoint_bub_ms &origin,const tripoint_bub_ms &target)
 {
-    if(graphics_world_transition_active||!get_map().ncmm_graphics_loaded(target))return false;
+    if(graphics_world_vertical_transition_active||!get_map().ncmm_graphics_loaded(target))return false;
     get_map().build_map_cache(get_avatar().posz());
     // Native visibility and the normal targeting UI still own reach/trajectory.
     // This guard never turns an unsupported vertical goal into an XY attack.

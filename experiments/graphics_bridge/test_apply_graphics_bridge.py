@@ -31,6 +31,7 @@ class ApplyTests(unittest.TestCase):
         (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n}\n')
         (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR+'\nstatic void CheckMessages()\n{\n        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n}\n')
         with (root / "src/sdltiles.cpp").open('a') as f:
+            f.write('void refresh_display() {\n    RenderPresent( renderer );\n}\n')
             f.write('\n'.join('void teardown_'+str(i)+'() {\n    renderer.reset();\n}' for i in range(4))+'\n')
         (root / "src/main_menu.cpp").write_text("        std::exit( ncmm::run_gameplay_smoke() );")
         (root / "src/sdltiles.h").write_text("SDL_Window *get_sdl_window();")
@@ -79,6 +80,7 @@ std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids() {}
                 self.assertTrue((root / "first-person-source.json").is_file())
                 self.assertIn("draw_graphics_view", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_requires_terrain_pass", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
+                self.assertEqual((root / "src/sdltiles.cpp").read_text(encoding="utf-8").count("if( !renderer_should_abort_frame() ) ncmm::graphics_frame_presented();"), 1)
                 self.assertIn("graphics_erase( module_id )", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics.creatures.v1", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_note_creature( this, 4 )", (root / "src/monster.cpp").read_text(encoding="utf-8"))
@@ -121,6 +123,14 @@ std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids() {}
             path.write_text(path.read_text().replace('renderer.reset();','renderer.changed_reset();',1));before=self.fingerprint(root)
             with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
                 with self.assertRaisesRegex(ValueError,'teardown'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
+    def test_changed_present_anchor_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root);path=root/'src/sdltiles.cpp'
+            path.write_text(path.read_text().replace('RenderPresent( renderer );','changed_present( renderer );'))
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
             self.assertEqual(before,self.fingerprint(root))
 
 if __name__ == "__main__": unittest.main()
