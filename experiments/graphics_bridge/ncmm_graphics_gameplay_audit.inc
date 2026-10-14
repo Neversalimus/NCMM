@@ -98,6 +98,11 @@
                 require(std::abs(shown-eye)<.1f,"audit_stair_first_frame_discontinuous");stages["native_stair_first_ready_wall_ms"].push_back(milliseconds(begin));settle();require(you.pos_abs()==pos&&you.get_moves()==moves-spent,"audit_stair_easing_changed_native_cost");}}
         here.ter_set(point_at(0,0),ter_id("t_floor"));here.ter_set(point_at(0,0,1),ter_id("t_floor"));you.set_base_height(400);render();require(graphics_world_ray_eye.z>0&&graphics_world_ray_eye.z<=NCMM_WORLD_LEVEL_HEIGHT-.17f,"audit_giant_camera_passed_ceiling");you.set_base_height(175);here.ter_set(point_at(0,0,1),ter_id("t_open_air"));
     });
+    action("rapid_tall_avatar_stairs_respect_scene_bounds",[&](){
+        here.ter_set(point_at(0,0),ter_id("t_stairs_up"));here.ter_set(point_at(0,0,1),ter_id("t_ncmm_x9_stairs_both"));here.ter_set(point_at(0,0,2),ter_id("t_stairs_down"));here.ter_set(point_at(0,0,3),ter_id("t_floor"));you.set_base_height(400);graphics_clear_world();render();
+        for(int delta:{1,1,-1,-1}){const int before=you.posz();g->vertical_move(delta,false);require(you.posz()==before+delta,"audit_rapid_tall_native_stair_move_failed");render();require(graphics_view.enabled&&std::abs(graphics_world_camera_motion.sample(SDL_GetTicks()).z)<=5,"audit_rapid_tall_stairs_disabled_renderer");}
+        settle();you.set_base_height(175);here.ter_set(point_at(0,0),ter_id("t_floor"));for(int z:{1,2,3})here.ter_set(point_at(0,0,z),ter_id("t_open_air"));graphics_clear_world();render();
+    });
     action("native_vehicle_board_controls_displacement_and_exit",[&](){you.set_wielded_item(item());vehicle *car=here.add_vehicle(vproto_id("car"),point_at(5,-4),0_degrees,100,0);require(car!=nullptr,"audit_vehicle_spawn_failed");car->set_owner(you);car->engine_on=true;bool checked=false;
         for(const vpart_reference &part:car->get_all_parts())if(part.has_feature("SEAT")&&car->avail_part_with_feature(part.mount_pos(),"CONTROLS")>=0){const auto seat=part.pos_bub(here);you.setpos(here,seat,false);here.board_vehicle(seat,&you);render();require(you.in_vehicle&&graphics_presentation.occupied_vehicle&&graphics_presentation.eye_height<=1.18f,"audit_vehicle_eye_or_boarding_failed");
             g->control_vehicle(you.pos_bub());require(you.controlling_vehicle,"audit_native_vehicle_controls_failed");const auto before=you.pos_abs();require(here.displace_vehicle(*car,tripoint_rel_ms(1,0,0)),"audit_native_vehicle_displacement_failed");render();require(you.pos_abs().x()==before.x()+1&&!graphics_world_transition_active,"audit_vehicle_motion_used_walking_offset");capture("vehicle");
@@ -135,13 +140,16 @@
     floor();warm("gpu");stages.clear();const auto soak_begin=audit_clock::now();uint64_t soak_frames=0,toggles=0,switches=0,map_loads=0,saves=0;
     const auto rss_begin=ncmm_graphics_performance::resident_bytes();std::vector<uint64_t> rss_samples;
     while(milliseconds(soak_begin)<soak_seconds*1000.0){
+        const auto loop_begin=audit_clock::now();
         if(soak_frames&&soak_frames%64==0){press_f6();require(!graphics_view.enabled&&graphics_world_sources.bytes()==0,"audit_soak_f6_retained_cache");press_f6();++toggles;}
         if(soak_frames&&soak_frames%96==0){f12();++switches;calendar::turn+=12_hours;get_weather().weather_id=weather_type_id(switches%2?"rain":"sunny");}
-        if(soak_frames&&soak_frames%256==0){clear_monsters();here.load(tripoint_abs_sm(map_loads%2?0:12,0,0),true);you.setpos(here,tripoint_bub_ms(60,60,0),false);graphics_clear_world();++map_loads;}
-        if(soak_frames&&soak_frames%512==0){require(g->save(),"audit_soak_native_save_failed");++saves;}
+        if(soak_frames&&soak_frames%256==0){const auto begin=audit_clock::now();clear_monsters();here.load(tripoint_abs_sm(map_loads%2?0:12,0,0),true);const tripoint_bub_ms at(60,60,0);
+            if(const auto vp=here.veh_at(at))here.destroy_vehicle(&vp->vehicle());here.ter_set(at,ter_id("t_pavement"));here.furn_set(at,furn_id("f_null"));here.clear_fields(at);here.remove_trap(at);
+            you.setpos(here,at,false);graphics_clear_world();++map_loads;stages["native_map_load_wall_ms"].push_back(milliseconds(begin));}
+        if(soak_frames&&soak_frames%512==0){const auto begin=audit_clock::now();require(g->save(),"audit_soak_native_save_failed");++saves;stages["native_save_wall_ms"].push_back(milliseconds(begin));}
         camera(graphics_camera_yaw+.035f,.12f*std::sin(float(soak_frames)*.02f));render();
         if(soak_frames%32==0){const auto rss=ncmm_graphics_performance::resident_bytes();rss_samples.push_back(rss);rss_peak=std::max(rss_peak,rss);}
-        ++soak_frames;SDL_Delay(10);
+        stages["soak_loop_with_native_work_wall_ms"].push_back(milliseconds(loop_begin));++soak_frames;SDL_Delay(10);
     }
     report.member("soak");report.start_object();report.member("automated",true);report.member("requested_seconds",soak_seconds);report.member("actual_wall_seconds",milliseconds(soak_begin)/1000);report.member("frames",soak_frames);report.member("f6_cycles",toggles);report.member("f12_switches",switches);report.member("map_loads",map_loads);report.member("native_saves",saves);report.member("process_rss_begin",rss_begin);report.member("process_rss_end",ncmm_graphics_performance::resident_bytes());report.member("process_rss_peak",rss_peak);report.member("rss_samples",rss_samples);report.member("gpu_resource_peak",resource_peak);report.member("sprite_cache_peak",sprite_peak);report.member("world_cache_peak",world_peak);report.member("stages");write_stages(stages);report.end_object();
     here.load(original_origin,true);g->vertical_shift(original_position.z());you.setpos(here,here.get_bub(original_position),false);calendar::turn=original_time;you.set_moves(original_moves);camera(original_yaw,original_pitch);clear_monsters();graphics_clear_world();

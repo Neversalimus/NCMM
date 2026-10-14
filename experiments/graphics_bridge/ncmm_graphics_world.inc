@@ -153,6 +153,10 @@ bool graphics_draw_world(int x,int y,int width,int height)
             graphics_world_camera_motion.reset();animated={};
         }
     }
+    // Headroom correction and accumulated easing share the existing ABI bound.
+    // A rapid tall-avatar stair sequence must cancel its visual lag rather than
+    // publish an invalid scene and disable the renderer.
+    if(std::abs(animated.z+safe_eye-raw_eye)>NCMM_WORLD_LEVEL_HEIGHT*2){graphics_world_camera_motion.reset();animated={};}
     const float camera_dz=animated.z+safe_eye-raw_eye;
     graphics_world_transition_active=graphics_world_camera_motion.active(ticks);graphics_world_vertical_transition_active=std::abs(animated.z)>.002f;
     const ncmm_world::point eye{radius+.5f+animated.x,radius+.5f+animated.y,safe_eye+animated.z};

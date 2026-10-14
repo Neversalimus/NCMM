@@ -15,6 +15,7 @@ assert not r['gpu_execution_timestamps_available']
 actions={'native_walk_and_visual_continuity','native_door_open_close_and_furniture',
          'native_pickup_inventory_cancel_and_item_use','native_melee_aim_fire_and_reload_completion',
          'native_stairs_and_basement','native_vehicle_board_controls_displacement_and_exit',
+         'rapid_tall_avatar_stairs_respect_scene_bounds',
          'native_turn_processing','native_f6_and_f12_dispatch'}
 assert {x['name'] for x in r['actions']}==actions and all(x['success'] for x in r['actions'])
 assert r['native_action_stages']['native_game_turn_wall_ms']['samples']==8

@@ -16,5 +16,16 @@
     "id": "f_ncmm_x9_unknown_furniture",
     "copy-from": "f_chair",
     "name": "unfamiliar seat"
+  },
+  {
+    "type": "terrain",
+    "id": "t_ncmm_x9_stairs_both",
+    "copy-from": "t_stairs_up",
+    "name": "qualification connecting stairs",
+    "extend": {
+      "flags": [
+        "GOES_DOWN"
+      ]
+    }
   }
 ]

@@ -128,7 +128,8 @@ def apply(root: Path):
         "                TERRAIN_WINDOW_TERM_WIDTH * font->width, TERRAIN_WINDOW_TERM_HEIGHT * font->height ) ) {\n"+
         anchor+"\n        }")
     updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"], "static void CheckMessages()\n{", "static void CheckMessages()\n{\n    // Presentation redraws never return a gameplay TIMEOUT or advance a turn.\n    if( ncmm::graphics_animation_redraw_due() ) {\n        ui_manager::redraw_invalidated();\n        if( needupdate ) refresh_display();\n    }")
-    wrappers = replace(read("sdl_wrappers.cpp"), '#include "sdl_wrappers.h"', '#include "sdl_wrappers.h"\n#include "ncmm_loader.h"')
+    wrappers = replace(read("sdl_wrappers.cpp"), '#include "sdl_wrappers.h"',
+        '#include "sdl_wrappers.h"\n// Private presentation hook; no shared engine header or module ABI change.\nnamespace ncmm { void graphics_frame_presented(); }')
     updates["sdl_wrappers.cpp"] = replace(wrappers,
         '    printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" );',
         '    if( !printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" ) ) {\n'
@@ -220,7 +221,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "bool graphics_requires_terrain_pass()\n{")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "class input_context;", "class map;\nclass input_context;")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();",
-        "void graphics_world_changed( const map *, int z );\nvoid graphics_frame_presented();\nvoid initialize();")
+        "void graphics_world_changed( const map *, int z );\nvoid initialize();")
     updates["game.h"]=replace(read("game.h"), "        bool save();",
         "        bool save();\n"
         "        // Isolated qualification gateway; not part of a module API.\n"

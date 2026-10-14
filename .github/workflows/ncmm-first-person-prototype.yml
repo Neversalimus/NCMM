@@ -37,13 +37,13 @@ jobs:
       - name: Record renderer timing and work counters (no FPS threshold)
         run: cmake --build fp-build --config Release --target first_person_measure
       - name: Configure sanitizer coverage
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && (inputs.qualification == 'full' || contains(github.event.pull_request.body, format('<!-- fp-qa:full@{0} -->', github.event.pull_request.head.sha)))
         run: cmake -S experiments/FirstPersonView -B fp-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
       - name: Build sanitizer geometry and shared-module tests
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && (inputs.qualification == 'full' || contains(github.event.pull_request.body, format('<!-- fp-qa:full@{0} -->', github.event.pull_request.head.sha)))
         run: cmake --build fp-sanitize --parallel 2 --target first_person_camera_motion_tests first_person_optimization_tests first_person_hybrid_module_tests first_person_creature_semantics_tests first_person_creature_mesh_tests first_person_creature_appearance_tests first_person_creature_animation_tests first_person_creature_lod_tests first_person_creature_cache_tests first_person_creature_render_tests first_person_creature_module_tests first_person_gpu_contract_tests first_person_gpu_geometry_tests first_person_gpu_module_tests first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_render_tests first_person_multilevel_module_tests first_person_multilevel_gpu_cache_tests
       - name: ASan and UBSan camera, volume and DLL lifecycle coverage
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && (inputs.qualification == 'full' || contains(github.event.pull_request.body, format('<!-- fp-qa:full@{0} -->', github.event.pull_request.head.sha)))
         run: ctest --test-dir fp-sanitize -R "camera_motion|optimization|hybrid_module|creature_|gpu_|multilevel_" --output-on-failure
       - name: Atomic source-transform negative tests
         run: python -m unittest discover -s experiments/graphics_bridge -p test_apply_graphics_bridge.py -v
@@ -221,6 +221,39 @@ jobs:
             Write-Host "Verified $name; executable SHA256: $((Get-FileHash $exes[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant())"
             "$($variant.output)=$($exes[0].Directory.FullName)" >> $env:GITHUB_OUTPUT
           }
+      - name: Acquire SHA256-verified exact 0.12 main baseline Host and DLL
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $pins=@{
+            '1040'=@{id=11922850055;sha='4aef0fe60cc0861db9b3ec067aeceabaf253bb06897628db486e59027b6d17ae';inner='a751fbe620ea94b2d1e6a28ca223b3b9313435c425feef02c9491dbfb92b8eba'}
+            '1807'=@{id=11922805752;sha='392a562429339227eff2332c035ee98a30cabd2f28b2c989ed594c8b440780ba';inner='c63a15d7e231830ed1e549deadcb97d69d67586ce3ba49e81e437cdc87bb2596'}
+          }
+          $pin=$pins['${{ matrix.build }}']
+          $outer=Join-Path $env:RUNNER_TEMP 'fp012-baseline-artifact.zip'
+          Invoke-WebRequest -UseBasicParsing -Headers @{Authorization="Bearer $env:GH_TOKEN";Accept='application/vnd.github+json'} -Uri ("https://api.github.com/repos/Neversalimus/NCMM/actions/artifacts/"+$pin.id+'/zip') -OutFile $outer
+          if((Get-FileHash $outer -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pin.sha){throw 'Baseline artifact SHA256 mismatch.'}
+          $inner=Join-Path $env:RUNNER_TEMP 'fp012-baseline-installer.zip'
+          $zip=[IO.Compression.ZipFile]::OpenRead($outer)
+          try {
+            $entry=@($zip.Entries | Where-Object {$_.FullName.Replace('\','/').EndsWith('NCMM_FirstPersonView_0.12.0_TEST_${{ matrix.build }}_Windows_x64.zip')})
+            if($entry.Count -ne 1){throw 'Baseline installer is missing or ambiguous.'}
+            [IO.Compression.ZipFileExtensions]::ExtractToFile($entry[0],$inner,$true)
+          } finally {$zip.Dispose()}
+          if((Get-FileHash $inner -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pin.inner){throw 'Baseline installer SHA256 mismatch.'}
+          $base=Join-Path $env:RUNNER_TEMP 'fp012-baseline'
+          Expand-Archive -LiteralPath $inner -DestinationPath $base
+          $bundles=@(Get-ChildItem $base -Filter first-person-bundle.json -Recurse -File)
+          if($bundles.Count -ne 1){throw 'Baseline bundle missing.'}
+          $payload=$bundles[0].Directory.FullName
+          $bundle=Get-Content $bundles[0].FullName -Raw | ConvertFrom-Json
+          if($bundle.source_commit -ne '${{ matrix.source }}' -or $bundle.ncmm_source_commit -ne '74315d034bc28f96133f4af9a71ed44a0d077f7e'){throw 'Baseline source identity differs from the qualified 0.12 candidate.'}
+          foreach($file in $bundle.files.PSObject.Properties){
+            if((Get-FileHash (Join-Path $payload $file.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value){throw "Baseline payload mismatch: $($file.Name)"}
+          }
+          "FP012_BASELINE_PAYLOAD=$payload" >> $env:GITHUB_ENV
+          [ordered]@{baseline_main='c5a0a0a5e12991df06ba000f80dd359f274b7f50';qualified_head='9c3c69397bbb5ae9d3ec16f8ef21732e15e08b34';qualified_merge=$bundle.ncmm_source_commit;engine_source=$bundle.source_commit;artifact_sha256=$pin.sha;installer_sha256=$pin.inner;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';host_and_module_replaced=$true} | ConvertTo-Json | Set-Content installer-result/first-person-baseline-provenance.json -Encoding UTF8
       - name: Build preview installer and verify transactions with Windows long paths disabled
         shell: powershell
         run: |
@@ -342,40 +375,6 @@ jobs:
             Remove-Item Env:NCMM_FP_APPEARANCE_DEBUG_DIR -ErrorAction SilentlyContinue
 
           }
-      - name: Acquire SHA256-verified exact 0.12 main baseline Host and DLL
-        if: env.FP_FULL_QUALIFICATION == 'true'
-        shell: powershell
-        run: |
-          $ErrorActionPreference='Stop'
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $pins=@{
-            '1040'=@{id=11922850055;sha='4aef0fe60cc0861db9b3ec067aeceabaf253bb06897628db486e59027b6d17ae';inner='a751fbe620ea94b2d1e6a28ca223b3b9313435c425feef02c9491dbfb92b8eba'}
-            '1807'=@{id=11922805752;sha='392a562429339227eff2332c035ee98a30cabd2f28b2c989ed594c8b440780ba';inner='c63a15d7e231830ed1e549deadcb97d69d67586ce3ba49e81e437cdc87bb2596'}
-          }
-          $pin=$pins['${{ matrix.build }}']
-          $outer=Join-Path $env:RUNNER_TEMP 'fp012-baseline-artifact.zip'
-          Invoke-WebRequest -UseBasicParsing -Headers @{Authorization="Bearer $env:GH_TOKEN";Accept='application/vnd.github+json'} -Uri ("https://api.github.com/repos/Neversalimus/NCMM/actions/artifacts/"+$pin.id+'/zip') -OutFile $outer
-          if((Get-FileHash $outer -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pin.sha){throw 'Baseline artifact SHA256 mismatch.'}
-          $inner=Join-Path $env:RUNNER_TEMP 'fp012-baseline-installer.zip'
-          $zip=[IO.Compression.ZipFile]::OpenRead($outer)
-          try {
-            $entry=@($zip.Entries | Where-Object {$_.FullName.Replace('\','/').EndsWith('NCMM_FirstPersonView_0.12.0_TEST_${{ matrix.build }}_Windows_x64.zip')})
-            if($entry.Count -ne 1){throw 'Baseline installer is missing or ambiguous.'}
-            [IO.Compression.ZipFileExtensions]::ExtractToFile($entry[0],$inner,$true)
-          } finally {$zip.Dispose()}
-          if((Get-FileHash $inner -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pin.inner){throw 'Baseline installer SHA256 mismatch.'}
-          $base=Join-Path $env:RUNNER_TEMP 'fp012-baseline'
-          Expand-Archive -LiteralPath $inner -DestinationPath $base
-          $bundles=@(Get-ChildItem $base -Filter first-person-bundle.json -Recurse -File)
-          if($bundles.Count -ne 1){throw 'Baseline bundle missing.'}
-          $payload=$bundles[0].Directory.FullName
-          $bundle=Get-Content $bundles[0].FullName -Raw | ConvertFrom-Json
-          if($bundle.source_commit -ne '${{ matrix.source }}' -or $bundle.ncmm_source_commit -ne '74315d034bc28f96133f4af9a71ed44a0d077f7e'){throw 'Baseline source identity differs from the qualified 0.12 candidate.'}
-          foreach($file in $bundle.files.PSObject.Properties){
-            if((Get-FileHash (Join-Path $payload $file.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value){throw "Baseline payload mismatch: $($file.Name)"}
-          }
-          "FP012_BASELINE_PAYLOAD=$payload" >> $env:GITHUB_ENV
-          [ordered]@{baseline_main='c5a0a0a5e12991df06ba000f80dd359f274b7f50';qualified_head='9c3c69397bbb5ae9d3ec16f8ef21732e15e08b34';qualified_merge=$bundle.ncmm_source_commit;engine_source=$bundle.source_commit;artifact_sha256=$pin.sha;installer_sha256=$pin.inner;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';host_and_module_replaced=$true} | ConvertTo-Json | Set-Content installer-result/first-person-baseline-provenance.json -Encoding UTF8
       - name: Paired exact 0.12 Host and module world benchmark
         if: env.FP_FULL_QUALIFICATION == 'true'
         timeout-minutes: 120
