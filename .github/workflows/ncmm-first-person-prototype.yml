@@ -12,6 +12,7 @@ on:
         options: [quick, integration, full]
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: ncmm-first-person-${{ github.event.pull_request.number || github.ref_name }}
   cancel-in-progress: true
@@ -73,7 +74,7 @@ jobs:
             source: 074aa98bd5be3de4c35f154082db32a0e63bb0f1
             tag: cdda-experimental-2026-10-06-1807
     runs-on: windows-2022
-    timeout-minutes: 240
+    timeout-minutes: 270
     env:
       FP_FULL_QUALIFICATION: ${{ inputs.qualification == 'full' || contains(github.event.pull_request.body, format('<!-- fp-qa:full@{0} -->', github.event.pull_request.head.sha)) }}
       GH_TOKEN: ${{ github.token }}
@@ -274,6 +275,33 @@ jobs:
               Copy-Item (Join-Path $root 'ncmm/first-person-multilevel-save-after.json') ("installer-result/first-person-multilevel-save-fast-gate-"+$attempt+'.json')
             }
           } finally {Remove-Item Env:\NCMM_FP_SAVE_ONLY -ErrorAction SilentlyContinue}
+      - uses: actions/checkout@v4
+        with:
+          repository: Neversalimus/CDDA-Mods
+          ref: 59123092c33244d516fa9d5ca69eaafb8d487f37
+          path: udp-resources
+          persist-credentials: false
+          sparse-checkout: mods/undeadpeople/content
+      - name: Automated native gameplay, CPU/GPU profiling and actual UDP Hybrid v3
+        timeout-minutes: 55
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root='${{ steps.game.outputs.root }}'
+          $duration=60
+          if($env:FP_FULL_QUALIFICATION -eq 'true' -and '${{ matrix.build }}' -eq '1807'){$duration=1800}
+          $output=Join-Path $env:RUNNER_TEMP 'fp-gameplay-audit'
+          ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot $root -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -TilesetRoot (Join-Path $PWD 'udp-resources/mods/undeadpeople/content') -SoakSeconds $duration
+          $evidence=Join-Path $output 'evidence'
+          $audit=Get-Content (Join-Path $evidence 'first-person-gameplay-audit.json') -Raw | ConvertFrom-Json
+          if(@($audit.tilesets).Count -ne 2){throw 'Actual UDP Hybrid v3 evidence is incomplete.'}
+          python ncmmrepo/experiments/FirstPersonView/tests/verify_gameplay_audit.py --root $evidence --minimum-soak-seconds $duration --output installer-result/first-person-gameplay-verified.json
+          if($LASTEXITCODE -ne 0){throw 'Native gameplay evidence verification failed.'}
+          Copy-Item (Join-Path $output 'benchmark-provenance.json') 'installer-result/first-person-gameplay-provenance.json'
+          Copy-Item (Join-Path $evidence 'first-person-gameplay-audit.json') 'installer-result/first-person-gameplay-audit.json'
+          Copy-Item (Join-Path $evidence 'first-person-multilevel-save-after.json') 'installer-result/first-person-gameplay-save-load.json'
+          Copy-Item (Join-Path $evidence 'udp-asset-sha256.json') 'installer-result/first-person-gameplay-udp-assets.json'
+          Get-ChildItem $evidence -Filter 'first-person-audit-*.bmp' | Copy-Item -Destination installer-result
       - name: Actual SDL controls, appearance, geometry, RGB light, sky, weather and held items
         if: env.FP_FULL_QUALIFICATION == 'true'
         timeout-minutes: 120
@@ -314,25 +342,41 @@ jobs:
             Remove-Item Env:NCMM_FP_APPEARANCE_DEBUG_DIR -ErrorAction SilentlyContinue
 
           }
-      - uses: actions/checkout@v4
-        if: env.FP_FULL_QUALIFICATION == 'true'
-        with:
-          ref: 9ee19bdd68e40a1677694187f85aa65bd4b52407
-          path: fp010-reference
-          persist-credentials: false
-          sparse-checkout: |
-            sdk
-            experiments/FirstPersonView
-            experiments/graphics_bridge
-      - name: Build exact main 0.11 CPU/GPU reference DLL
+      - name: Acquire SHA256-verified exact 0.12 main baseline Host and DLL
         if: env.FP_FULL_QUALIFICATION == 'true'
         shell: powershell
         run: |
-          cmake -S fp010-reference/experiments/FirstPersonView -B fp010-build
-          if($LASTEXITCODE -ne 0){throw 'Stable main reference configuration failed.'}
-          cmake --build fp010-build --config Release --target ncmm_mod
-          if($LASTEXITCODE -ne 0){throw 'Stable main reference build failed.'}
-      - name: Paired exact main 0.11 world geometry and render-loop benchmark
+          $ErrorActionPreference='Stop'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $pins=@{
+            '1040'=@{id=11922850055;sha='4aef0fe60cc0861db9b3ec067aeceabaf253bb06897628db486e59027b6d17ae';inner='a751fbe620ea94b2d1e6a28ca223b3b9313435c425feef02c9491dbfb92b8eba'}
+            '1807'=@{id=11922805752;sha='392a562429339227eff2332c035ee98a30cabd2f28b2c989ed594c8b440780ba';inner='c63a15d7e231830ed1e549deadcb97d69d67586ce3ba49e81e437cdc87bb2596'}
+          }
+          $pin=$pins['${{ matrix.build }}']
+          $outer=Join-Path $env:RUNNER_TEMP 'fp012-baseline-artifact.zip'
+          Invoke-WebRequest -UseBasicParsing -Headers @{Authorization="Bearer $env:GH_TOKEN";Accept='application/vnd.github+json'} -Uri ("https://api.github.com/repos/Neversalimus/NCMM/actions/artifacts/"+$pin.id+'/zip') -OutFile $outer
+          if((Get-FileHash $outer -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pin.sha){throw 'Baseline artifact SHA256 mismatch.'}
+          $inner=Join-Path $env:RUNNER_TEMP 'fp012-baseline-installer.zip'
+          $zip=[IO.Compression.ZipFile]::OpenRead($outer)
+          try {
+            $entry=@($zip.Entries | Where-Object {$_.FullName.Replace('\','/').EndsWith('NCMM_FirstPersonView_0.12.0_TEST_${{ matrix.build }}_Windows_x64.zip')})
+            if($entry.Count -ne 1){throw 'Baseline installer is missing or ambiguous.'}
+            [IO.Compression.ZipFileExtensions]::ExtractToFile($entry[0],$inner,$true)
+          } finally {$zip.Dispose()}
+          if((Get-FileHash $inner -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pin.inner){throw 'Baseline installer SHA256 mismatch.'}
+          $base=Join-Path $env:RUNNER_TEMP 'fp012-baseline'
+          Expand-Archive -LiteralPath $inner -DestinationPath $base
+          $bundles=@(Get-ChildItem $base -Filter first-person-bundle.json -Recurse -File)
+          if($bundles.Count -ne 1){throw 'Baseline bundle missing.'}
+          $payload=$bundles[0].Directory.FullName
+          $bundle=Get-Content $bundles[0].FullName -Raw | ConvertFrom-Json
+          if($bundle.source_commit -ne '${{ matrix.source }}' -or $bundle.ncmm_source_commit -ne '74315d034bc28f96133f4af9a71ed44a0d077f7e'){throw 'Baseline source identity differs from the qualified 0.12 candidate.'}
+          foreach($file in $bundle.files.PSObject.Properties){
+            if((Get-FileHash (Join-Path $payload $file.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value){throw "Baseline payload mismatch: $($file.Name)"}
+          }
+          "FP012_BASELINE_PAYLOAD=$payload" >> $env:GITHUB_ENV
+          [ordered]@{baseline_main='c5a0a0a5e12991df06ba000f80dd359f274b7f50';qualified_head='9c3c69397bbb5ae9d3ec16f8ef21732e15e08b34';qualified_merge=$bundle.ncmm_source_commit;engine_source=$bundle.source_commit;artifact_sha256=$pin.sha;installer_sha256=$pin.inner;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';host_and_module_replaced=$true} | ConvertTo-Json | Set-Content installer-result/first-person-baseline-provenance.json -Encoding UTF8
+      - name: Paired exact 0.12 Host and module world benchmark
         if: env.FP_FULL_QUALIFICATION == 'true'
         timeout-minutes: 120
         shell: powershell
@@ -345,37 +389,35 @@ jobs:
             New-Item -ItemType Directory -Force $backup | Out-Null
             Copy-Item (Join-Path $module 'ncmm_mod.dll') $backup
             Copy-Item (Join-Path $module 'mod.json') $backup
+            $jsonBackup=Join-Path $backup 'json'
+            New-Item -ItemType Directory -Force $jsonBackup | Out-Null
+            Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-*.json' | Copy-Item -Destination $jsonBackup
+            $afterImages=@(Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-*.bmp' -File)
+            $baselineHost=Join-Path $root 'cataclysm-tiles.fp012-baseline.exe'
             try {
-              Copy-Item fp010-build/Release/ncmm_mod.dll (Join-Path $module 'ncmm_mod.dll') -Force
-              Copy-Item fp010-reference/experiments/FirstPersonView/mod.json (Join-Path $module 'mod.json') -Force
+              Copy-Item (Join-Path $env:FP012_BASELINE_PAYLOAD 'host/cataclysm-tiles.ncmm.exe') $baselineHost
+              Copy-Item (Join-Path $env:FP012_BASELINE_PAYLOAD 'code_mods/FirstPersonView/ncmm_mod.dll') (Join-Path $module 'ncmm_mod.dll') -Force
+              Copy-Item (Join-Path $env:FP012_BASELINE_PAYLOAD 'code_mods/FirstPersonView/mod.json') (Join-Path $module 'mod.json') -Force
               $env:NCMM_FP_MULTILEVEL_BEFORE='1'
-              $env:NCMM_FP_STABLE_CPU_BASELINE='1'
               $env:NCMM_FP_APPEARANCE_BEFORE='1'
-              Copy-Item ncmmrepo/experiments/FirstPersonView/tests/multilevel_fixture.json (Join-Path $root 'data/json/furniture_and_terrain/ncmm_multilevel_qualification.json') -Force
               $env:NCMM_FP_APPEARANCE_SMOKE='1'
               ./ncmmrepo/experiments/FirstPersonView/tests/Reset-SmokeWorld.ps1 -GameRoot $root
-              $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-gameplay-smoke --seed ncmm-appearance-011' -WorkingDirectory $root -PassThru
-              if(-not $p.WaitForExit(3000000)){Write-Host 'Paired main CPU deadline exceeded; terminating the reference process.';& taskkill.exe /pid $p.Id /t /f;$null=$p.WaitForExit(10000);throw 'Paired main CPU deadline exceeded.'}
+              $p=Start-Process $baselineHost -ArgumentList '--ncmm-gameplay-smoke --seed ncmm-appearance-011' -WorkingDirectory $root -PassThru
+              if(-not $p.WaitForExit(3000000)){& taskkill.exe /pid $p.Id /t /f;$null=$p.WaitForExit(10000);throw 'Paired 0.12 baseline deadline exceeded.'}
               $p.Refresh()
-              if($p.ExitCode -ne 0){throw "Paired main CPU failed: $($p.ExitCode)"}
-              Copy-Item (Join-Path $root 'ncmm/first-person-multilevel-save-before.json') ("installer-result/first-person-multilevel-save-before-"+$variant.name+'.json')
-              Copy-Item (Join-Path $root 'ncmm/first-person-multilevel-before.json') ("installer-result/first-person-multilevel-before-"+$variant.name+'.json')
-              Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-world-*-before-*.bmp' | ForEach-Object { Copy-Item $_.FullName (Join-Path installer-result ($_.BaseName+'-'+$variant.name+'.bmp')) }
-              Copy-Item (Join-Path $root 'ncmm/first-person-smoke.json') ("installer-result/first-person-smoke-before-"+$variant.name+'.json')
-              Copy-Item (Join-Path $root 'ncmm/first-person-gpu-benchmark-stable-cpu.json') ("installer-result/first-person-gpu-benchmark-stable-cpu-"+$variant.name+'.json')
-              Copy-Item (Join-Path $root 'ncmm/first-person-appearance-before-cpu.json') ("installer-result/first-person-appearance-before-cpu-"+$variant.name+'.json')
-              Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-*-before-cpu.bmp' | ForEach-Object { Copy-Item $_.FullName (Join-Path installer-result ($_.BaseName+'-'+$variant.name+'.bmp')) }
-            } finally {
-              Remove-Item Env:NCMM_FP_MULTILEVEL_BEFORE -ErrorAction SilentlyContinue
-              Remove-Item Env:NCMM_FP_STABLE_CPU_BASELINE -ErrorAction SilentlyContinue
-              Remove-Item Env:NCMM_FP_APPEARANCE_BEFORE -ErrorAction SilentlyContinue
-              Remove-Item Env:NCMM_FP_APPEARANCE_SMOKE -ErrorAction SilentlyContinue
-              foreach($name in @('ncmm_mod.dll','mod.json')) {
-                for($retry=0;$retry -lt 20;$retry++) {
-                  try {Copy-Item (Join-Path $backup $name) (Join-Path $module $name) -Force;break}
-                  catch {if($retry -eq 19){throw};Start-Sleep -Milliseconds 250}
-                }
+              if($p.ExitCode -ne 0){throw "Paired 0.12 baseline failed: $($p.ExitCode)"}
+              foreach($name in @('first-person-multilevel-save-before','first-person-multilevel-before','first-person-appearance-before-cpu')){
+                Copy-Item (Join-Path $root ("ncmm/$name.json")) ("installer-result/$name-"+$variant.name+'.json')
               }
+              Copy-Item (Join-Path $root 'ncmm/first-person-smoke.json') ("installer-result/first-person-smoke-before-"+$variant.name+'.json')
+              Copy-Item (Join-Path $root 'ncmm/first-person-gpu-benchmark.json') ("installer-result/first-person-gpu-benchmark-before-"+$variant.name+'.json')
+              Get-ChildItem (Join-Path $root 'ncmm') -Filter 'first-person-*-before-*.bmp' | ForEach-Object {Copy-Item $_.FullName (Join-Path installer-result ($_.BaseName+'-'+$variant.name+'.bmp'))}
+            } finally {
+              foreach($name in @('NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_APPEARANCE_SMOKE')){Remove-Item ('Env:'+ $name) -ErrorAction SilentlyContinue}
+              foreach($name in @('ncmm_mod.dll','mod.json')){Copy-Item (Join-Path $backup $name) (Join-Path $module $name) -Force}
+              Get-ChildItem $jsonBackup -File | Copy-Item -Destination (Join-Path $root 'ncmm') -Force
+              foreach($image in $afterImages){$saved=Join-Path installer-result ($image.BaseName+'-'+$variant.name+'.bmp');if(Test-Path $saved){Copy-Item $saved $image.FullName -Force}}
+              Remove-Item $baselineHost -ErrorAction SilentlyContinue
             }
           }
       - uses: actions/setup-python@v5
@@ -391,7 +433,7 @@ jobs:
           foreach($variant in @(@{name='graphics';root='${{ steps.game.outputs.root }}'},@{name='sounds';root='${{ steps.game.outputs.sound_root }}'})) {
             python ncmmrepo/experiments/FirstPersonView/tests/verify_appearance.py --root (Join-Path $variant.root 'ncmm') --output ("installer-result/first-person-appearance-paired-"+$variant.name+'.json')
             if($LASTEXITCODE -ne 0){throw 'Paired appearance input/image verification failed.'}
-            python ncmmrepo/experiments/FirstPersonView/tests/verify_multilevel.py --root (Join-Path $variant.root 'ncmm') --output ("installer-result/first-person-multilevel-paired-"+$variant.name+'.json')
+            python ncmmrepo/experiments/FirstPersonView/tests/verify_multilevel.py --baseline-version 0.12 --root (Join-Path $variant.root 'ncmm') --output ("installer-result/first-person-multilevel-paired-"+$variant.name+'.json')
             if($LASTEXITCODE -ne 0){throw 'Paired multilevel input/image verification failed.'}
           }
       - name: Collect runtime evidence
@@ -402,6 +444,8 @@ jobs:
           foreach($variant in @(@{name='graphics';root='${{ steps.game.outputs.root }}'},@{name='sounds';root='${{ steps.game.outputs.sound_root }}'})) {
             $root=$variant.root
             if($root -and (Test-Path (Join-Path $root 'ncmm'))){Copy-Item (Join-Path $root 'ncmm') (Join-Path fp-evidence $variant.name) -Recurse}
+            $audit=Join-Path $env:RUNNER_TEMP 'fp-gameplay-audit/evidence'
+            if($variant.name -eq 'graphics' -and (Test-Path $audit)){Copy-Item $audit (Join-Path fp-evidence 'gameplay-audit') -Recurse -Force}
             $debug=Join-Path $env:RUNNER_TEMP ("fp-appearance-"+'${{ matrix.build }}'+'-'+$variant.name)
             if(Test-Path $debug){Copy-Item $debug (Join-Path fp-evidence ('appearance-debug-'+$variant.name)) -Recurse -Force}
           }
@@ -412,6 +456,7 @@ jobs:
           path: |
             fp-evidence/graphics/**
             fp-evidence/appearance-debug-graphics/**
+            fp-evidence/gameplay-audit/**
           compression-level: 9
           retention-days: 7
       - uses: actions/upload-artifact@v4
@@ -427,7 +472,10 @@ jobs:
         with:
           name: first-person-installer-${{ matrix.build }}-Windows-x64
           path: |
-            installer-result/NCMM_FirstPersonView_0.12.0_TEST_${{ matrix.build }}_Windows_x64.zip
+            installer-result/NCMM_FirstPersonView_0.12.1_TEST_${{ matrix.build }}_Windows_x64.zip
+            installer-result/first-person-gameplay*.json
+            installer-result/first-person-audit*.bmp
+            installer-result/first-person-baseline-provenance.json
             installer-result/first-person-multilevel*.json
             installer-result/first-person-world*.bmp
             installer-result/first-person-smoke*.json
