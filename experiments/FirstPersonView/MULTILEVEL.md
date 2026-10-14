@@ -65,6 +65,13 @@ room furniture/items or navigation facts. Death clips require an already observe
 entity and a currently visible body cell. Actual triangle depth then handles the
 visible models and cutout/translucent surfaces in both rendering paths.
 
+Opaque fields retain the native body-information barrier. Structural floor
+and ceiling rays distinguish gas from solid architecture so a hidden surface
+does not become a hole showing sky through smoke. A surface outside native cell
+perception receives only a neutral structural finish within native sight/light
+limits; its furniture, items, entities and hidden navigation facts stay absent.
+Actual walls, slabs, unknown cells and unavailable levels still stop those rays.
+
 CPU and GPU share the same world geometry collector. Slabs have top and lower
 faces separated by 0.08 visual metres; the lower face has its own structural
 finish and RGB. Stairs, ramps, ramp ends and ladders use transition flags and

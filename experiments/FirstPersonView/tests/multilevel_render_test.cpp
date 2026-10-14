@@ -102,5 +102,14 @@ int main(){try{
     check(ladder.triangles.size()>100,"difficult-Z ladder has rails and rungs");
     empty.world.camera_dz=-2.5f;check(empty.draw(image,0),"visual camera interpolates independently of logical Z");
     check(empty.world.origin_z==0&&empty.positions[stair].z==0,"render leaves canonical game coordinates unchanged");
+    fixture neutral(1);
+    for(size_t i=0;i<neutral.positions.size();++i){
+        neutral.positions[i].flags=NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP;
+        neutral.details[i].ground[0]='\0';std::strcpy(neutral.appearance[i].creature,"mon_zombie");
+        std::strcpy(neutral.appearance[i].furniture,"f_bookcase");}
+    check(neutral.draw(image,-.7f),"neutral support-only scene renders without room textures");
+    for(int y=image.height/2+40;y<image.height-12;++y)for(int x=image.width/2-12;x<image.width/2+12;++x)
+        check(std::isfinite(image.depth[size_t(y)*image.width+x]),"support-only floor has continuous depth instead of a sky gap");
+    check(std::all_of(image.creatures.begin(),image.creatures.end(),[](int cell){return cell<0;}),"neutral support cannot expose a hidden creature identity");
     std::cout<<"Multi-level rendering: "<<checks<<" checks passed\n";return 0;
 }catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}}

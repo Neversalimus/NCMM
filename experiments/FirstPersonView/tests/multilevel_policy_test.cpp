@@ -42,6 +42,16 @@ int main(){
     require(!visible({.5f,.5f,1.55f},{2.5f,.5f,1.55f},f),"opaque intermediate wall");
     require(visible({.5f,.5f,1.55f},{1.5f,.5f,1.55f},f),"first wall surface is visible");
     require(!visible({.5f,.5f,1.55f},{1.5f,1.5f,1.55f},f),"diagonal corner cannot leak");
+    f.flags[{1,0,0}]=NCMM_WORLD_OPAQUE|opaque_field_fact;
+    auto structure=[&](voxel p){return structural_flags(f(p));};
+    require(!visible({.5f,.5f,1.55f},{2.5f,.5f,.003f},f,true),"opaque gas retains the body information barrier");
+    require(visible({.5f,.5f,1.55f},{2.5f,.5f,.003f},structure,true),"neutral floor geometry continues behind gas instead of exposing sky");
+    f.flags[{1,0,0}]=NCMM_WORLD_OPAQUE;
+    require(!visible({.5f,.5f,1.55f},{2.5f,.5f,.003f},structure,true),"structural floor query never opens a solid wall");
+    f.flags[{1,0,0}]=0;f.flags[{0,0,1}]=NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE|opaque_field_fact;
+    require(!visible({.5f,.5f,1.55f},{.5f,.5f,3.5f},structure),"gas cannot erase an actual upper slab");
+    f.flags[{0,0,1}]=NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|opaque_field_fact;
+    require(!visible({.5f,.5f,1.55f},{.5f,.5f,3.5f},structure),"gas cannot reveal an unknown level");
     require(!visible({INFINITY,0,0},{0,0,0},f),"infinite ray rejected");
     require(!visible({1e20f,0,0},{1e20f,0,0},f),"finite int-overflow ray rejected");
     require(!visible({0,0,0},{200,0,0},f),"bounded DDA cannot grow without limit");

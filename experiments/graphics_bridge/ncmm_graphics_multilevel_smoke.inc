@@ -9,18 +9,19 @@
     const auto original_target=SDL_GetRenderTarget(renderer);
     struct observation {
         ncmm_graphics_render_multilevel_v1 provider=nullptr;void *user=nullptr;
-        std::vector<int> levels;uint32_t floors=0,bottoms=0,actors=0;float eye=0;
+        std::vector<int> levels;uint32_t floors=0,bottoms=0,actors=0,neutral_tops=0;float eye=0;
         std::function<void(const ncmm_graphics_multilevel_scene_v1 &)> inspect;
         static int render(const ncmm_graphics_multilevel_scene_v1 *world,void *data){auto &self=*static_cast<observation *>(data);self.inspect(*world);return self.provider(world,self.user);}
     } observed;
     observed.provider=graphics_view.world_render;observed.user=graphics_view.user_data;
     struct callback_scope {observation &value;~callback_scope(){graphics_view.world_render=value.provider;graphics_view.user_data=value.user;}} callback_guard{observed};
     observed.inspect=[&](const ncmm_graphics_multilevel_scene_v1 &world){
-        require(ncmm_world::valid(world),"multilevel_real_world_contract_invalid");observed.levels.clear();observed.floors=observed.bottoms=observed.actors=0;
+        require(ncmm_world::valid(world),"multilevel_real_world_contract_invalid");observed.levels.clear();observed.floors=observed.bottoms=observed.actors=observed.neutral_tops=0;
         observed.eye=graphics_eye_height()+world.camera_dz;
         for(uint32_t z=0;z<world.slice_count;++z)if(world.slices[z].cell_count)observed.levels.push_back(world.slices[z].z);
         for(uint32_t i=0;i<world.cell_count;++i){const auto &c=world.coordinates[i];const auto &a=world.appearance.base.cells[i];
             if(c.flags&NCMM_WORLD_FLOOR_TOP)++observed.floors;if(c.flags&NCMM_WORLD_FLOOR_BOTTOM)++observed.bottoms;
+            if((c.flags&NCMM_WORLD_FLOOR_TOP)&&!(c.flags&NCMM_WORLD_BODY_VISIBLE))++observed.neutral_tops;
             const auto p=here.get_bub(tripoint_abs_ms(c.x,c.y,c.z));
             if(a.creature[0]){++observed.actors;const auto *who=get_creature_tracker().creature_at<Creature>(p);require(who&&you.sees(here,*who),"multilevel_hidden_creature_identity_exposed");}
             if(a.item[0])require(you.sees(here,p)&&here.sees_some_items(p,you),"multilevel_hidden_item_identity_exposed");
@@ -73,7 +74,7 @@
         if(name=="enemy_above"){for(int y=-9;y<=-3;++y)for(int x=-2;x<=2;++x)terrain(x,y,1,"t_open_air");terrain(0,-7,1,"t_floor");spawn("mon_zombie",0,-7,1);camera(-ncmm_graphics_camera::pi*.5f,.35f);}
         if(name=="enemy_below"){terrain(0,-7,0,"t_floor");spawn("mon_zombie",0,-7,0);}
         if(name=="flying"){for(int z=1;z<=2;++z)for(int y=-6;y<=-2;++y)for(int x=-2;x<=2;++x)terrain(x,y,z,"t_open_air");spawn("mon_crow",0,-4,2);camera(-ncmm_graphics_camera::pi*.5f,.85f);}
-        if(name=="smoke")for(int z=low;z<low+layers;++z)here.add_field(tripoint_bub_ms(center.x(),center.y()-7,z),field_type_str_id(z%2?"fd_toxic_gas":"fd_smoke").id(),2);
+        if(name=="smoke")for(int z=low;z<low+layers;++z)here.add_field(tripoint_bub_ms(center.x(),center.y()-7,z),field_type_str_id(z%2?"fd_toxic_gas":"fd_smoke").id(),3);
         if(name=="light_other_z"){calendar::turn=original_time+12_hours;here.add_field(tripoint_bub_ms(center.x(),center.y()-7,1),field_type_str_id("fd_fire").id(),2);}
         if(name=="creatures")for(int i=0;i<50;++i)spawn(i%3?"mon_zombie":"mon_crow",-4+i%9,-3-(i/9),low+i%layers);
         refresh();
@@ -121,13 +122,14 @@
                 camera(yaw,pitch);for(int warm=0;warm<(std::string(mode)=="gpu"?12:1);++warm){render(resolution);present();}
                 require(std::string(mode)=="cpu"||graphics_gpu_frame,"multilevel_restore_view_gpu_fell_back_to_cpu");}
             require(you.pos_abs()==pos&&calendar::turn==time&&you.get_moves()==moves&&you.get_part_hp_cur(bodypart_id("torso"))==hp,"multilevel_render_changed_simulation");
+            if(observed.provider&&name=="smoke")require(observed.neutral_tops>0,"multilevel_dense_smoke_removed_neutral_floor_support");
             for(const auto &entry:discovery)require(overmap_buffer.seen(entry.first)==entry.second,"multilevel_render_revealed_overmap_discovery");
             report.start_object();report.member("name",name);report.member("constructed_levels",layers);report.member("theme",theme);report.member("width",resolution.x);report.member("height",resolution.y);report.member("renderer",mode);report.member("gallery",gallery);report.member("file",gallery?filename:std::string{});report.member("pixel_fingerprint",fingerprint);
             report.member("views");report.start_array();for(const auto &view:views){report.start_object();report.member("name",view.name);report.member("pitch",view.pitch);report.member("file",view.file);report.member("pixel_fingerprint",view.fingerprint);report.member("submitted_levels",view.levels);report.member("submitted_cells",view.cells);report.member("floor_undersides",view.undersides);report.end_object();}report.end_array();
             report.member("median_ms",percentile(elapsed,.5));report.member("p95_ms",percentile(elapsed,.95));report.member("p99_ms",percentile(elapsed,.99));report.member("first_ready_ms",first_ready);report.member("extraction_median_ms",percentile(extraction,.5));report.member("visibility_median_ms",percentile(visibility,.5));report.member("geometry_median_ms",percentile(geometry,.5));report.member("cpu_raster_median_ms",percentile(raster,.5));report.member("gpu_submit_median_ms",percentile(submit,.5));
             report.member("available_levels",graphics_world_metrics.available_slices);report.member("submitted_levels",observed.levels);report.member("submitted_cells",graphics_world_metrics.submitted_cells);report.member("processed_cells",observed.provider?graphics_world_metrics.processed_cells:uint64_t((graphics_snapshot_radius*2+1)*(graphics_snapshot_radius*2+1)));report.member("frustum_rejected",graphics_world_metrics.frustum_rejected);report.member("occlusion_rejected",graphics_world_metrics.occlusion_rejected);report.member("budget_rejected",graphics_world_metrics.budget_rejected);report.member("source_cache_bytes",graphics_world_metrics.source_cache_bytes);report.member("source_cache_hits",graphics_world_metrics.source_cache_hits);report.member("source_cache_misses",graphics_world_metrics.source_cache_misses);report.member("snapshot_bytes",graphics_world_metrics.snapshot_bytes);report.member("cache_peak_bytes",cache_peak);
             report.member("cpu_frame_cache_bytes",graphics_cpu_metrics.cache_bytes);report.member("gpu_host_cpu_cache_bytes",gpu_stats.host_cpu_cache_bytes);report.member("gpu_resource_bytes",gpu_stats.resource_bytes);report.member("gpu_geometry_cache_bytes",gpu_stats.producer_cache_bytes);report.member("sprite_cache_bytes",graphics_hybrid_sprite_bytes);report.member("creature_cache_bytes",graphics_creature_metrics.cache_bytes);
-            report.member("floor_tops",observed.floors);report.member("floor_undersides",observed.bottoms);report.member("actors",observed.actors);report.member("triangles",graphics_gpu_frame?gpu_stats.triangles:graphics_cpu_metrics.triangles);report.member("draw_calls",graphics_gpu_frame?gpu_stats.draw_calls:graphics_cpu_metrics.raster_calls);report.member("cpu_raster_calls",graphics_gpu_frame?gpu_stats.cpu_raster_calls:graphics_cpu_metrics.raster_calls);report.member("actual_render_width",graphics_gpu_frame?graphics_hybrid_width:graphics_cpu_metrics.width);report.member("actual_render_height",graphics_gpu_frame?graphics_hybrid_height:graphics_cpu_metrics.height);report.member("software_device",gpu_stats.software_device);report.member("backend",gpu_stats.backend);report.member("device",gpu_stats.device);report.member("simulation_unchanged",true);report.member("discovery_unchanged",true);report.end_object();
+            report.member("floor_tops",observed.floors);report.member("floor_undersides",observed.bottoms);report.member("neutral_floor_tops",observed.neutral_tops);report.member("actors",observed.actors);report.member("triangles",graphics_gpu_frame?gpu_stats.triangles:graphics_cpu_metrics.triangles);report.member("draw_calls",graphics_gpu_frame?gpu_stats.draw_calls:graphics_cpu_metrics.raster_calls);report.member("cpu_raster_calls",graphics_gpu_frame?gpu_stats.cpu_raster_calls:graphics_cpu_metrics.raster_calls);report.member("actual_render_width",graphics_gpu_frame?graphics_hybrid_width:graphics_cpu_metrics.width);report.member("actual_render_height",graphics_gpu_frame?graphics_hybrid_height:graphics_cpu_metrics.height);report.member("software_device",gpu_stats.software_device);report.member("backend",gpu_stats.backend);report.member("device",gpu_stats.device);report.member("simulation_unchanged",true);report.member("discovery_unchanged",true);report.end_object();
         }
         require(SDL_SetRenderTarget(renderer,nullptr),"multilevel_release_canvas_failed");SDL_DestroyTexture(canvas);canvas=nullptr;
     };

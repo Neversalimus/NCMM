@@ -314,8 +314,8 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         const ter_t &ter = here.ter( p ).obj(); const furn_t &furn = here.furn( p ).obj();
         if(world&&!(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)){
             d.terrain_shape=d.furniture_shape=NCMM_SHAPE_FLAT;
-            if(world->coordinates[i].flags&NCMM_WORLD_FLOOR_TOP)copy_id(d.ground,base.cells[i].terrain);
-            else copy_id(d.ground,"t_floor");
+            // A neutral structural surface carries no hidden room texture.
+            // The shared slab collector uses its untextured fallback material.
             const auto top_rgb=graphics_sample_rgb(p);const auto &lower=world->coordinates[i].lower_light;
             const bool top=(world->coordinates[i].flags&NCMM_WORLD_FLOOR_TOP)!=0;
             d.light_r=top?top_rgb[0]:lower[0];d.light_g=top?top_rgb[1]:lower[1];d.light_b=top?top_rgb[2]:lower[2];continue;

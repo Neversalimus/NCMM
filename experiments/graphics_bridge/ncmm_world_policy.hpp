@@ -10,6 +10,10 @@
 namespace ncmm_world {
 struct point {float x=0,y=0,z=0;};
 struct voxel {int x=0,y=0,z=0;};
+// Private source facts distinguish an opaque gas from solid architecture.
+// Structural surfaces can continue behind a volume without publishing bodies.
+constexpr uint32_t opaque_field_fact=1u<<31;
+inline uint32_t structural_flags(uint32_t flags){return flags&opaque_field_fact?flags&~(NCMM_WORLD_OPAQUE|opaque_field_fact):flags;}
 inline bool operator==(voxel a,voxel b){return a.x==b.x&&a.y==b.y&&a.z==b.z;}
 struct traits {
     bool loaded=false,no_floor=false,no_floor_water=false,transparent_floor=false,z_transparent=false;
