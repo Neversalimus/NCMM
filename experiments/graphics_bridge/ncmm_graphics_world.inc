@@ -25,7 +25,7 @@ std::optional<tripoint_abs_ms> graphics_world_previous_position,graphics_world_r
 float graphics_world_camera_offset=0;
 uint64_t graphics_world_transition_started=0;
 bool graphics_world_transition_active=false;
-constexpr uint32_t graphics_world_renderable=1u<<29,graphics_world_vehicle_roof=1u<<30;
+constexpr uint32_t graphics_world_architecture=1u<<28,graphics_world_renderable=1u<<29,graphics_world_vehicle_roof=1u<<30;
 void graphics_clear_world()
 {
     graphics_world_sources.clear();std::vector<uint32_t>().swap(graphics_world_roof_columns);graphics_world_roof_revision=0;graphics_world_map_identity=nullptr;graphics_world_realm.clear();
@@ -81,6 +81,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
             uint32_t value=ncmm_world::semantics(t);
             if(opaque_field&&!solid_architecture)value|=ncmm_world::opaque_field_fact;
             const auto shape=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
+            if(ncmm_graphics_shapes::structural_surface(shape))value|=graphics_world_architecture;
             if(ncmm_graphics_shapes::vertical(shape)||here.has_furn(p)||here.field_at(p).field_count())value|=graphics_world_renderable;
             if(const auto vp=here.veh_at(p)){value|=graphics_world_renderable;if(vp->part_with_feature("ROOF",false))value|=graphics_world_vehicle_roof;}
             return value;
@@ -172,6 +173,10 @@ bool graphics_draw_world(int x,int y,int width,int height)
         });
         const auto below=tripoint_bub_ms(p.xy(),z-1);uint32_t permission=0;
         if((seen&1)&&graphics_world_perception(p))permission|=NCMM_WORLD_BODY_VISIBLE;
+        // Native tile FOV can reject an upper wall because its tile has a
+        // floor. A physical ray can still see its exterior face from below.
+        // This permission carries only coarse architecture, never contents.
+        if((seen&1)&&(semantic&graphics_world_architecture)&&graphics_world_in_visual_range(p))permission|=NCMM_WORLD_STRUCTURE_VISIBLE;
         if((seen&2)&&graphics_world_perception(p))permission|=NCMM_WORLD_FLOOR_TOP;
         // Unseen contents remain absent. Only a neutral, structurally verified
         // support surface continues behind gas instead of becoming a sky hole.
@@ -180,10 +185,11 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if(!(permission&NCMM_WORLD_FLOOR_BOTTOM)&&(seen&16)&&(semantic&NCMM_WORLD_FLOOR)&&graphics_world_in_visual_range(below))permission|=NCMM_WORLD_FLOOR_BOTTOM;
         if(p==you.pos_bub())permission|=NCMM_WORLD_BODY_VISIBLE;
         if(!permission){++graphics_world_metrics.occlusion_rejected;continue;}
-        semantic&=262143u;if(!(permission&NCMM_WORLD_BODY_VISIBLE))semantic&=~NCMM_WORLD_OPAQUE;
+        semantic&=262143u;
         if(!(permission&NCMM_WORLD_BODY_VISIBLE)){
             const bool landing=(semantic&NCMM_WORLD_DOWN)&&!(semantic&(NCMM_WORLD_LADDER|NCMM_WORLD_RAMP));
-            semantic&=NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR|NCMM_WORLD_OPEN_DOWN|NCMM_WORLD_WATER|NCMM_WORLD_UNKNOWN;
+            semantic&=NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR|NCMM_WORLD_OPEN_DOWN|NCMM_WORLD_WATER|NCMM_WORLD_UNKNOWN|
+                ((permission&NCMM_WORLD_STRUCTURE_VISIBLE)?uint32_t(NCMM_WORLD_OPAQUE):0u);
             if(landing)semantic|=NCMM_WORLD_DOWN;
             semantic|=NCMM_WORLD_ROOFED; // No hidden room roof/navigation facts.
         }
@@ -211,6 +217,11 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if(source.world.flags&NCMM_WORLD_FLOOR_BOTTOM)++graphics_ceiling_cells;
         if(std::max(std::abs(p.x()-you.pos_bub().x()),std::abs(p.y()-you.pos_bub().y()))>NCMM_GRAPHICS_RADIUS)++graphics_snapshot_far_cells;
         if(source.permission&NCMM_WORLD_BODY_VISIBLE)copy(c.terrain,here.ter(p).id().str());
+        else if(source.permission&NCMM_WORLD_STRUCTURE_VISIBLE){
+            const auto &ter=here.ter(p).obj();const auto shape=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
+            copy(c.terrain,shape==NCMM_SHAPE_WINDOW||shape==NCMM_SHAPE_WINDOW_BROKEN||shape==NCMM_SHAPE_WINDOW_COVERED||shape==NCMM_SHAPE_GLASS_WALL?"t_window":"t_wall");
+            if(source.world.flags&NCMM_WORLD_OPAQUE)c.flags|=NCMM_GFX_WALL;
+        }
         else{const auto kind=ncmm_graphics_presentation_policy::material(here.ter(p).id().str());
             copy(c.terrain,kind==NCMM_MAT_WOOD?"t_floor_wood":kind==NCMM_MAT_METAL?"t_floor_metal":"t_floor");}
         if(!(source.permission&NCMM_WORLD_BODY_VISIBLE))continue;

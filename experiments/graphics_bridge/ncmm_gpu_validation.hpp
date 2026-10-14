@@ -29,7 +29,7 @@ inline const char *validate(const ncmm_gpu_scene_v1 &s,const ncmm_gpu_multilevel
            !world->coordinates||world->reserved||world->reserved_origin||world->level_height!=NCMM_WORLD_LEVEL_HEIGHT||std::abs(int64_t(world->origin_z))>128)return "invalid-world-contract";
         for(uint32_t i=0;i<s.cell_count;++i){const auto &c=world->coordinates[i];
             const int64_t x=int64_t(c.x)-world->origin_x,y=int64_t(c.y)-world->origin_y;
-            if(x<0||y<0||x>=s.camera.grid[0]||y>=s.camera.grid[1]||std::abs(int64_t(c.z))>128||c.reserved||c.direction>3||c.flags&~262143u)return "invalid-world-coordinate";
+            if(x<0||y<0||x>=s.camera.grid[0]||y>=s.camera.grid[1]||std::abs(int64_t(c.z))>128||c.reserved||c.direction>3||c.flags&~524287u)return "invalid-world-coordinate";
             for(float light:c.lower_light)if(!std::isfinite(light)||light<0||light>1)return "invalid-world-lower-light";
             if(i){const auto &a=world->coordinates[i-1];if(std::tie(a.z,a.y,a.x)>=std::tie(c.z,c.y,c.x))return "unsorted-world-coordinates";}
         }

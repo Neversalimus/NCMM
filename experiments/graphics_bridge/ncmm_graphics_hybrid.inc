@@ -317,8 +317,17 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
             // A neutral structural surface carries no hidden room texture.
             // The shared slab collector uses its untextured fallback material.
             const auto top_rgb=graphics_sample_rgb(p);const auto &lower=world->coordinates[i].lower_light;
-            const bool top=(world->coordinates[i].flags&NCMM_WORLD_FLOOR_TOP)!=0;
-            d.light_r=top?top_rgb[0]:lower[0];d.light_g=top?top_rgb[1]:lower[1];d.light_b=top?top_rgb[2]:lower[2];continue;
+            const bool surface=(world->coordinates[i].flags&(NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_STRUCTURE_VISIBLE))!=0;
+            d.light_r=surface?top_rgb[0]:lower[0];d.light_g=surface?top_rgb[1]:lower[1];d.light_b=surface?top_rgb[2]:lower[2];
+            if(world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE){
+                d.terrain_shape=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
+                if(d.terrain_shape==NCMM_SHAPE_WINDOW&&(world->coordinates[i].flags&NCMM_WORLD_OPAQUE))d.terrain_shape=NCMM_SHAPE_WINDOW_COVERED;
+                d.terrain_flags=(world->coordinates[i].flags&NCMM_WORLD_OPAQUE)?0u:uint32_t(NCMM_SURFACE_TRANSPARENT);
+                const int ix=int(int64_t(world->coordinates[i].x)-world->origin_x),iy=int(int64_t(world->coordinates[i].y)-world->origin_y);
+                for(int dy:{-1,1}){const int other=world_coordinates.find(ix,iy+dy,p.z());
+                    if(other>=0&&(world->coordinates[other].flags&NCMM_WORLD_STRUCTURE_VISIBLE)){d.orientation=1;break;}}
+            }
+            continue;
         }
         d.terrain_shape = ncmm_graphics_shapes::terrain( ter.id.str() + " " + ter.looks_like, graphics_traits( ter, !ter.close.is_null() ) );
         if(world&&(world->coordinates[i].flags&NCMM_WORLD_RAMP))d.terrain_shape=NCMM_SHAPE_FLAT;

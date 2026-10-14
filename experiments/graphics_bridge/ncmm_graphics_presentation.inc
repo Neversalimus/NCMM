@@ -150,7 +150,7 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
         if( !( base.cells[i].flags&NCMM_GFX_VISIBLE ) ) continue;
         auto &d=graphics_presentation_cells[i]; const auto &pos=positions[i];
         if(world&&!(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)){
-            d.terrain_material=material(base.cells[i].terrain);continue;
+            d.terrain_material=material((world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE)?here.ter(pos).id().str():std::string(base.cells[i].terrain));continue;
         }
         if( const auto vp=here.veh_at( pos ) ) {
             const vehicle *v=&vp->vehicle();auto found=layouts.find(v);

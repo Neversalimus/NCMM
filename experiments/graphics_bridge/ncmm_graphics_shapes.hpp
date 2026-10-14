@@ -74,6 +74,15 @@ inline uint32_t furniture(const std::string &id,const traits &t) {
     return NCMM_SHAPE_BILLBOARD;
 }
 inline bool vertical(uint32_t shape) {return shape!=NCMM_SHAPE_FLAT&&shape!=NCMM_SHAPE_WATER&&shape!=NCMM_SHAPE_BRIDGE;}
+inline bool structural_surface(uint32_t shape) {
+    switch(shape){
+        case NCMM_SHAPE_WALL:case NCMM_SHAPE_DOOR_CLOSED:case NCMM_SHAPE_DOOR_OPEN:case NCMM_SHAPE_DOOR_FRAME:
+        case NCMM_SHAPE_WINDOW:case NCMM_SHAPE_WINDOW_BROKEN:case NCMM_SHAPE_WINDOW_COVERED:
+        case NCMM_SHAPE_GLASS_WALL:case NCMM_SHAPE_FENCE:case NCMM_SHAPE_GATE_OPEN:
+        case NCMM_SHAPE_GUARDRAIL:case NCMM_SHAPE_SCRAP_FENCE:case NCMM_SHAPE_POST:return true;
+        default:return false;
+    }
+}
 inline bool solid(uint32_t shape) {return shape==NCMM_SHAPE_WALL||shape==NCMM_SHAPE_DOOR_CLOSED||shape==NCMM_SHAPE_STORAGE;}
 inline float shadow_height(uint32_t shape) {
     if(solid(shape))return shape==NCMM_SHAPE_STORAGE?1.7f:2.5f;

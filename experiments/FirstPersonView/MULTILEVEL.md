@@ -71,6 +71,14 @@ Empty-air rejection preserves floating items and bounded, already observed death
 clips after tracker removal. Native perception and physical occlusion still apply.
 Lower-room RGB is published only when the slab's underside is permitted.
 
+Exterior architecture has a separate `STRUCTURE_VISIBLE` permission. Native
+tile FOV can reject an upper wall whose cell has a floor even when its exterior
+face has a clear physical ray. Within the native sight/light range, that face
+retains a coarse wall/window identity, geometric shape, material category and
+surface RGB. It carries no furniture, fields, items, creatures, room/navigation
+facts or targeting permission. CPU and GPU both generate this architecture;
+the real gallery requires facade surfaces at every constructed building level.
+
 Opaque fields retain the native body-information barrier. Structural floor
 and ceiling rays distinguish gas from solid architecture so a hidden surface
 does not become a hole showing sky through smoke. A surface outside native cell

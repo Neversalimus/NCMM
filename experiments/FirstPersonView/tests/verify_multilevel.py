@@ -38,6 +38,7 @@ for case,current in matrices[1].items():
  assert all(r[field]>=0 for r in [before,current] for field in ['cpu_frame_cache_bytes','gpu_host_cpu_cache_bytes','gpu_resource_bytes','gpu_geometry_cache_bytes','sprite_cache_bytes','creature_cache_bytes'])
  record={'case':case,'median_ms_before':before['median_ms'],'median_ms_after':current['median_ms'],'p95_ms_after':current['p95_ms'],'software_device':current['software_device']}
  if current['gallery']:
+  if current['name'].startswith('house_') or current['name']=='high_building':assert all(z in current['structural_facade_levels'] for z in range(current['constructed_levels'])), 'upper facade walls disappeared while slabs remained visible'
   if current['name']=='smoke':assert current['neutral_floor_tops']>0, 'dense smoke exposed sky in place of structural floor'
   images=[]
   for r in [before,current]:

@@ -21,7 +21,9 @@ enum ncmm_world_flags {
     NCMM_WORLD_RAMP=1024u, NCMM_WORLD_LADDER=2048u,
     NCMM_WORLD_WATER=4096u, NCMM_WORLD_UNKNOWN=8192u,
     NCMM_WORLD_CONNECTED_UP=16384u, NCMM_WORLD_CONNECTED_DOWN=32768u,
-    NCMM_WORLD_CANOPY=65536u, NCMM_WORLD_RAMP_END=131072u
+    NCMM_WORLD_CANOPY=65536u, NCMM_WORLD_RAMP_END=131072u,
+    /* Physically visible architecture; never grants room contents or targets. */
+    NCMM_WORLD_STRUCTURE_VISIBLE=262144u
 };
 typedef struct ncmm_world_cell_v1 {
     int32_t x,y,z; /* canonical absolute CDDA map-square coordinates */

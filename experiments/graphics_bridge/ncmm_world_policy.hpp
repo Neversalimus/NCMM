@@ -64,7 +64,7 @@ inline bool valid(const ncmm_graphics_multilevel_scene_v1 &s){
     for(uint32_t i=0;i<s.cell_count;++i){const auto &c=s.coordinates[i];
         const int64_t x=int64_t(c.x)-s.origin_x,y=int64_t(c.y)-s.origin_y;
         if(x<0||y<0||x>=b.grid_width||y>=b.grid_height||c.z<s.loaded_min_z||c.z>s.loaded_max_z||c.direction>3||
-           c.reserved||c.flags&~262143u||(i&&!(order(s.coordinates[i-1])<order(c))))return false;
+           c.reserved||c.flags&~524287u||(i&&!(order(s.coordinates[i-1])<order(c))))return false;
         for(float light:c.lower_light)if(!std::isfinite(light)||light<0||light>1)return false;
     }
     uint32_t count=0;int64_t previous=int64_t(s.loaded_min_z)-1;

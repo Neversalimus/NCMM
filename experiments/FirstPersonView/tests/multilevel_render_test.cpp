@@ -111,5 +111,29 @@ int main(){try{
     for(int y=image.height/2+40;y<image.height-12;++y)for(int x=image.width/2-12;x<image.width/2+12;++x)
         check(std::isfinite(image.depth[size_t(y)*image.width+x]),"support-only floor has continuous depth instead of a sky gap");
     check(std::all_of(image.creatures.begin(),image.creatures.end(),[](int cell){return cell<0;}),"neutral support cannot expose a hidden creature identity");
+    fixture facade(2);
+    for(auto &p:facade.positions)p.flags=0;
+    const int upper_wall=facade.cell(6,1,1);
+    facade.positions[upper_wall].flags=NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_OPAQUE;
+    facade.details[upper_wall].terrain_shape=NCMM_SHAPE_WALL;
+    std::strcpy(facade.appearance[upper_wall].terrain,"t_wall");
+    check(ncmm_world::valid(facade.world),"architecture-only permission preserves the sparse contract");
+    check(facade.draw(image,.55f),"upper exterior wall renders without native room permission");
+    check(std::count(image.owners.begin(),image.owners.end(),upper_wall)>100,"upper facade has actual CPU depth rather than floating floor planes");
+    collector plain_facade;renderer(facade.world.appearance,0,.55f,{},statistics,{},nullptr,{},nullptr,&facade.world).collect(plain_facade,400,260);
+    check(!plain_facade.triangles.empty(),"shared GPU collector retains architecture-only walls");
+    std::strcpy(facade.appearance[upper_wall].furniture,"f_bookcase");facade.details[upper_wall].furniture_shape=NCMM_SHAPE_STORAGE;
+    std::strcpy(facade.appearance[upper_wall].item,"rock");std::strcpy(facade.appearance[upper_wall].creature,"mon_zombie");
+    std::strcpy(facade.details[upper_wall].field,"fd_fire");facade.details[upper_wall].field_shape=NCMM_SHAPE_BILLBOARD;
+    collector private_room;renderer(facade.world.appearance,0,.55f,{},statistics,{},nullptr,{},nullptr,&facade.world).collect(private_room,400,260);
+    check(private_room.triangles.size()==plain_facade.triangles.size(),"architecture permission cannot generate room contents, fields or creatures");
+    check(facade.draw(image,.55f)&&std::all_of(image.creatures.begin(),image.creatures.end(),[](int cell){return cell<0;}),"architecture permission cannot create a creature picking target");
+    first_person::gpu::scene_cache facade_cache;first_person::gpu::packet facade_packet;ncmm_gpu_metrics_v1 facade_host{};facade_host.resource_epoch=1;
+    check(facade_cache.build(facade.world.appearance,0,.55f,{},facade_packet,statistics,facade_host,{},nullptr,nullptr,400,260,NCMM_GPU_FORCE,&facade.world),"architecture-only facade produces a GPU packet");
+    ncmm_gpu_multilevel_scene_v1 facade_gpu{};facade_gpu.struct_size=sizeof(facade_gpu);facade_gpu.version=1;facade_gpu.base=facade_packet.finish(nullptr);
+    facade_gpu.coordinates=facade.world.coordinates;facade_gpu.cell_count=facade.world.cell_count;facade_gpu.origin_x=facade.world.origin_x;facade_gpu.origin_y=facade.world.origin_y;facade_gpu.level_height=facade.world.level_height;
+    check(!ncmm_gpu::validate(facade_gpu.base,&facade_gpu),"Host accepts the architecture permission without changing GPU V1 ABI");
+    facade.positions[upper_wall].flags|=1u<<19;
+    check(!ncmm_world::valid(facade.world)&&ncmm_gpu::validate(facade_gpu.base,&facade_gpu),"unknown world permission bits remain rejected");
     std::cout<<"Multi-level rendering: "<<checks<<" checks passed\n";return 0;
 }catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}}

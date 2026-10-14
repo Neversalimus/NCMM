@@ -947,7 +947,10 @@ class renderer {
                 puddle.liquid=extra(i).item_liquid;puddle.spill=true;
                 quad(at+vec{0,0,.017f},at+vec{1,0,.017f},at+vec{1,1,.017f},at+vec{0,1,.017f},puddle);}
             continue;}
-            if(world_data&&!(world_flags(i)&NCMM_WORLD_BODY_VISIBLE))continue;
+            if(world_data&&!(world_flags(i)&NCMM_WORLD_BODY_VISIBLE)){
+                if(world_flags(i)&NCMM_WORLD_STRUCTURE_VISIBLE)architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
+                continue;
+            }
             contact_shadow(i,x,y);
             if(world_data)world_transition(i);
             architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
