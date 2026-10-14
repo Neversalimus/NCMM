@@ -225,6 +225,8 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
+          $ProgressPreference='SilentlyContinue'
+          New-Item -ItemType Directory -Force installer-result | Out-Null
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $pins=@{
             '1040'=@{id=11922850055;sha='4aef0fe60cc0861db9b3ec067aeceabaf253bb06897628db486e59027b6d17ae';inner='a751fbe620ea94b2d1e6a28ca223b3b9313435c425feef02c9491dbfb92b8eba'}
