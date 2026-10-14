@@ -51,8 +51,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
     // and is not called to reveal additional levels for graphics.
     here.build_map_cache(you.posz());
     const auto absolute=you.pos_abs();const int radius=NCMM_GRAPHICS_V2_RADIUS,side=radius*2+1;
-    if(int64_t(absolute.x())-radius<INT32_MIN||int64_t(absolute.y())-radius<INT32_MIN||
-       int64_t(absolute.x())+radius>INT32_MAX||int64_t(absolute.y())+radius>INT32_MAX)return false;
+    if(!ncmm_world::source_window_fits(absolute.x(),absolute.y(),radius))return false;
     const int32_t ox=absolute.x()-radius,oy=absolute.y()-radius;
     const int low=here.supports_zlevels()?-OVERMAP_DEPTH:you.posz(),high=here.supports_zlevels()?OVERMAP_HEIGHT:you.posz();
     std::vector<int> loaded;
@@ -140,6 +139,12 @@ bool graphics_draw_world(int x,int y,int width,int height)
         horizontal=std::tan(70.f*3.14159265f/360.f),vertical=horizontal*height/width;
     const std::array<std::array<float,2>,5> probes={{{.5f,.5f},{.12f,.12f},{.88f,.12f},{.12f,.88f},{.88f,.88f}}};
     const auto &weather=get_weather().weather_id.obj();const bool atmosphere=weather.precip==precip_class::heavy||weather.precip==precip_class::light||weather.precip==precip_class::very_light||weather.sight_penalty>1||weather.sound_category==weather_sound_category::portal_storm;
+    std::vector<std::array<int32_t,3>> observed_deaths;
+    const double presentation_now=graphics_presentation_seconds();
+    for(const auto &entry:graphics_creature_records){const auto &record=entry.second;const auto &s=record.snapshot;
+        if(first_person::creature::death_clip_pending(s,record.presented_event_serial==s.event_serial,presentation_now))
+            observed_deaths.push_back({s.world_x,s.world_y,s.world_z});}
+    std::sort(observed_deaths.begin(),observed_deaths.end());
     const auto visibility_started=std::chrono::steady_clock::now();
     for(int z:loaded)for(int gy=0;gy<side;++gy)for(int gx=0;gx<side;++gx){
         ++graphics_world_metrics.processed_cells;const int ax=ox+gx,ay=oy+gy;const auto p=here.get_bub(tripoint_abs_ms(ax,ay,z));
@@ -147,12 +152,13 @@ bool graphics_draw_world(int x,int y,int width,int height)
         const float dx=gx+.5f-eye.x,dy=gy+.5f-eye.y,dz=(z-absolute.z())*NCMM_WORLD_LEVEL_HEIGHT+1.25f-eye.z,
             forward=(dx*cy+dy*sy)*cp+dz*sp,screen_x=-dx*sy+dy*cy,screen_y=dz*cp-(dx*cy+dy*sy)*sp;
         const Creature *entity=get_creature_tracker().creature_at<Creature>(p);
-        const float margin=entity?20.f:5.f;const bool close_to_eye=dx*dx+dy*dy+dz*dz<16;
+        const bool observed_death=std::binary_search(observed_deaths.begin(),observed_deaths.end(),std::array<int32_t,3>{ax,ay,z});
+        const float margin=entity||observed_death?20.f:5.f;const bool close_to_eye=dx*dx+dy*dy+dz*dz<16;
         if(!close_to_eye&&(forward < -margin||std::abs(screen_x)>std::max(0.f,forward)*horizontal+margin||std::abs(screen_y)>std::max(0.f,forward)*vertical+margin)){
             ++graphics_world_metrics.frustum_rejected;continue;}
         uint32_t semantic=flags(ax,ay,z);
         const bool air=!(semantic&(NCMM_WORLD_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_DOWN|NCMM_WORLD_UP|NCMM_WORLD_CANOPY|graphics_world_renderable));
-        if(air&&!entity&&!atmosphere&&p!=you.pos_bub())continue;
+        if(air&&!entity&&!observed_death&&!atmosphere&&p!=you.pos_bub()&&here.i_at(p).empty())continue;
         const uint8_t seen=graphics_world_sources.visibility(ax,ay,z,graphics_world_ray_epoch,[&]{
             uint8_t result=0;const float level=(z-absolute.z())*NCMM_WORLD_LEVEL_HEIGHT;
             for(const auto &offset:probes){const float xx=gx+offset[0],yy=gy+offset[1];
@@ -183,7 +189,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         }
         candidate c{};c.world={ax,ay,z,semantic|permission,0,0,graphics_world_level_revisions[size_t(z+128)]+1,{0,0,0}};
         c.pos=p;c.permission=permission;c.distance=dx*dx+dy*dy+dz*dz;
-        const auto rgb=graphics_world_rgb(below);std::copy(rgb.begin(),rgb.end(),c.world.lower_light);
+        if(permission&NCMM_WORLD_FLOOR_BOTTOM){const auto rgb=graphics_world_rgb(below);std::copy(rgb.begin(),rgb.end(),c.world.lower_light);}
         if((permission&NCMM_WORLD_BODY_VISIBLE)&&(semantic&(NCMM_WORLD_UP|NCMM_WORLD_RAMP|NCMM_WORLD_LADDER)))for(uint32_t direction=0;direction<4;++direction){const int nx=direction==0?1:direction==2?-1:0,ny=direction==1?1:direction==3?-1:0;
             const uint32_t next=flags(ax+nx,ay+ny,z);
             if((semantic&NCMM_WORLD_RAMP)&&(next&NCMM_WORLD_RAMP_END)){c.world.direction=direction;break;}

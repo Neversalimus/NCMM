@@ -10,6 +10,7 @@ key=lambda r:(r['gallery'],r['name'],r['constructed_levels'],r['theme'],r['width
 matrices=[{key(r):r for r in report['frames']} for report in reports]
 assert all(r['success'] and r['actual_cdda_sdl'] and not r['gpu_timing_is_execution'] for r in reports)
 assert not reports[0]['world_api'] and reports[1]['world_api'], 'reference/current callback identities are wrong'
+assert reports[0]['floating_content_modes']==0 and reports[1]['floating_content_modes']==2, 'floating items or observed flying death did not pass both renderers'
 assert len(reports[1]['transitions'])==2 and all(t['camera_continuous'] and t['renderer_preserved_moves'] for t in reports[1]['transitions'])
 for mode in ['before','after']:
  save=json.loads((a.root/f'first-person-multilevel-save-{mode}.json').read_text())

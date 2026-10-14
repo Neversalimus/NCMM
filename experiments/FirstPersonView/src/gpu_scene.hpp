@@ -136,8 +136,11 @@ class scene_cache {
             // Distance-only vehicle detail bands are stable across camera turns.
             const uint32_t detail_band=s.details[i].vehicle_features?(width/(2*std::tan(70*hybrid::pi/360))/std::max(.1f,distance)<28?2:distance>8?1:0):0;
             hash=hash_bytes(hash,&detail_band,sizeof(detail_band));values[i]=hash;}
-        for(int i=0;i<int(values.size());++i){uint64_t h=values[i];const int x=i%s.base.grid_width,y=i/s.base.grid_width;
-            for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int xx=x+dx,yy=y+dy;uint64_t neighbor=xx<0||yy<0||xx>=s.base.grid_width||yy>=s.base.grid_height?0:values[yy*s.base.grid_width+xx];h=hash_bytes(h,&neighbor,sizeof(neighbor));}if(levels){h=values[i];for(int dz=-1;dz<=1;++dz)for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int at=xyz.neighbor(uint32_t(i),dx,dy,dz);const uint64_t neighbor=at<0?0:values[size_t(at)];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}result[i]=h;}
+        for(int i=0;i<int(values.size());++i){uint64_t h=values[i];
+            if(levels){for(int dz=-1;dz<=1;++dz)for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int at=xyz.neighbor(uint32_t(i),dx,dy,dz);const uint64_t neighbor=at<0?0:values[size_t(at)];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}
+            else{const int x=i%s.base.grid_width,y=i/s.base.grid_width;
+                for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int xx=x+dx,yy=y+dy;const uint64_t neighbor=xx<0||yy<0||xx>=s.base.grid_width||yy>=s.base.grid_height?0:values[size_t(yy)*s.base.grid_width+xx];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}
+            result[i]=h;}
         return result;
     }
 public:

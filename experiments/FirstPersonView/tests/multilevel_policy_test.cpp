@@ -16,6 +16,13 @@ struct fixture {
 }
 int main(){
     using namespace ncmm_world;
+    require(source_window_fits(0,0,48),"ordinary world window fits");
+    require(!source_window_fits(INT32_MAX-48,0,48),"east direction neighbour cannot overflow");
+    require(source_window_fits(INT32_MAX-49,0,48),"last safe east window is accepted");
+    require(!source_window_fits(INT32_MIN+48,0,48),"west direction neighbour cannot overflow");
+    require(source_window_fits(INT32_MIN+49,0,48),"last safe west window is accepted");
+    require(!source_window_fits(0,INT32_MAX-48,48)&&!source_window_fits(0,INT32_MIN+48,48),"north and south neighbours remain representable");
+    require(!source_window_fits(0,0,-1)&&!source_window_fits(0,0,49),"invalid source radius is rejected");
     traits t{};require(semantics(t)==(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE),"unloaded closes world");
     t.loaded=true;require(semantics(t)&NCMM_WORLD_FLOOR,"ordinary physical floor");
     t.no_floor=true;require(!(semantics(t)&NCMM_WORLD_FLOOR),"NO_FLOOR opens shaft");

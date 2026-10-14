@@ -9,17 +9,19 @@
     const auto original_target=SDL_GetRenderTarget(renderer);
     struct observation {
         ncmm_graphics_render_multilevel_v1 provider=nullptr;void *user=nullptr;
-        std::vector<int> levels;uint32_t floors=0,bottoms=0,actors=0,neutral_tops=0;float eye=0;
+        std::vector<int> levels,rock_levels;uint32_t floors=0,bottoms=0,actors=0,neutral_tops=0;float eye=0;
         std::function<void(const ncmm_graphics_multilevel_scene_v1 &)> inspect;
         static int render(const ncmm_graphics_multilevel_scene_v1 *world,void *data){auto &self=*static_cast<observation *>(data);self.inspect(*world);return self.provider(world,self.user);}
     } observed;
     observed.provider=graphics_view.world_render;observed.user=graphics_view.user_data;
     struct callback_scope {observation &value;~callback_scope(){graphics_view.world_render=value.provider;graphics_view.user_data=value.user;}} callback_guard{observed};
     observed.inspect=[&](const ncmm_graphics_multilevel_scene_v1 &world){
-        require(ncmm_world::valid(world),"multilevel_real_world_contract_invalid");observed.levels.clear();observed.floors=observed.bottoms=observed.actors=observed.neutral_tops=0;
+        require(ncmm_world::valid(world),"multilevel_real_world_contract_invalid");observed.levels.clear();observed.rock_levels.clear();observed.floors=observed.bottoms=observed.actors=observed.neutral_tops=0;
         observed.eye=graphics_eye_height()+world.camera_dz;
         for(uint32_t z=0;z<world.slice_count;++z)if(world.slices[z].cell_count)observed.levels.push_back(world.slices[z].z);
         for(uint32_t i=0;i<world.cell_count;++i){const auto &c=world.coordinates[i];const auto &a=world.appearance.base.cells[i];
+            if(!(c.flags&NCMM_WORLD_FLOOR_BOTTOM))require(c.lower_light[0]==0&&c.lower_light[1]==0&&c.lower_light[2]==0,"multilevel_unseen_lower_room_light_published");
+            if(a.item[0]&&std::strcmp(a.item,"rock")==0)observed.rock_levels.push_back(c.z);
             if(c.flags&NCMM_WORLD_FLOOR_TOP)++observed.floors;if(c.flags&NCMM_WORLD_FLOOR_BOTTOM)++observed.bottoms;
             if((c.flags&NCMM_WORLD_FLOOR_TOP)&&!(c.flags&NCMM_WORLD_BODY_VISIBLE))++observed.neutral_tops;
             const auto p=here.get_bub(tripoint_abs_ms(c.x,c.y,c.z));
@@ -133,11 +135,32 @@
         }
         require(SDL_SetRenderTarget(renderer,nullptr),"multilevel_release_canvas_failed");SDL_DestroyTexture(canvas);canvas=nullptr;
     };
+    uint32_t floating_content_modes=0;
+    if(observed.provider)for(const char *mode:{"cpu","gpu"}){
+        make_scene("flying",3);get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);graphics_smoke_seconds=1000.5;
+        for(int z:{1,2})here.add_item_or_charges(tripoint_bub_ms(center.x(),center.y()-4,z),item(itype_id("rock"),calendar::turn));refresh();
+        canvas=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,640,480);require(canvas!=nullptr,"multilevel_air_contents_canvas_failed");
+        bool ready=false;for(int attempt=0;attempt<160;++attempt){render(point(640,480));present();ready=(std::string(mode)=="cpu"||graphics_gpu_frame)&&!graphics_creature_metrics.queued&&!graphics_creature_metrics.fallback;if(ready)break;SDL_Delay(2);}
+        require(ready,"multilevel_air_contents_renderer_did_not_settle");
+        for(int z:{1,2})require(std::find(observed.rock_levels.begin(),observed.rock_levels.end(),z)!=observed.rock_levels.end(),"multilevel_floating_item_missing");
+        require(std::any_of(graphics_creature_snapshots.begin(),graphics_creature_snapshots.end(),[](const auto &s){return s.world_z==2&&!(s.flags&NCMM_CR_DEAD);}),"multilevel_flying_creature_not_observed");
+        capture("first-person-world-air-items-after-"+std::string(mode)+".bmp",true);
+        const auto monsters=get_creature_tracker().get_monsters_list();require(monsters.size()==1,"multilevel_flying_death_fixture_not_isolated");const auto bird=monsters.front();const auto bird_pos=bird->pos_bub();
+        bird->die(&here,nullptr);get_creature_tracker().remove(*bird);
+        for(int z:{1,2}){const tripoint_bub_ms p(center.x(),center.y()-4,z);here.i_clear(p);here.clear_fields(p);}refresh();
+        render(point(640,480));present();require(std::string(mode)=="cpu"||graphics_gpu_frame,"multilevel_flying_death_gpu_fell_back");
+        require(here.i_at(bird_pos).empty()&&get_creature_tracker().creature_at<Creature>(bird_pos)==nullptr,"multilevel_flying_death_cell_is_not_empty_air");
+        require(std::any_of(graphics_creature_snapshots.begin(),graphics_creature_snapshots.end(),[](const auto &s){return s.world_z==2&&(s.flags&NCMM_CR_DEAD);}),"multilevel_observed_flying_death_clip_missing");
+        capture("first-person-world-air-death-after-"+std::string(mode)+".bmp",true);
+        graphics_smoke_seconds=1001.1;render(point(640,480));present();
+        require(std::none_of(graphics_creature_snapshots.begin(),graphics_creature_snapshots.end(),[](const auto &s){return s.flags&NCMM_CR_DEAD;}),"multilevel_flying_death_clip_did_not_expire");
+        require(SDL_SetRenderTarget(renderer,nullptr),"multilevel_air_contents_canvas_release_failed");SDL_DestroyTexture(canvas);canvas=nullptr;++floating_content_modes;
+    }
     const std::vector<std::pair<std::string,int>> scenes={{"house_one",1},{"house_two",2},{"house_three",3},{"high_building",9},{"basement",2},{"stairs",2},{"stairs_down",2},{"stairwell",3},{"ramp",2},{"shaft",9},{"broken_floor",3},{"rooftop",2},{"bridge",2},{"lab",3},{"cave",1},{"enemy_above",2},{"enemy_below",3},{"flying",3},{"light_other_z",2},{"smoke",3},{"unknown_mod",3}};
     for(const auto &scene:scenes){make_scene(scene.first,scene.second);qualify(scene.first,scene.second,0,point(640,480),true);}
     const std::array<const char *,7> themes={"outdoor","house","urban","lab","high_building","shaft","creatures"};
     for(int layers:{1,3,5,9})for(int theme=0;theme<7;++theme){make_scene(themes[theme],layers);for(point resolution:{point(640,480),point(1280,800),point(1920,1080),point(2560,1080)})qualify(themes[theme],layers,theme,resolution,false);}
-    report.end_array();report.member("transitions");report.start_array();
+    report.end_array();report.member("floating_content_modes",floating_content_modes);report.member("transitions");report.start_array();
     if(observed.provider){
         make_scene("stairs",2);you.setpos(here,tripoint_bub_ms(center.x(),center.y()-7,0),false);refresh();
         canvas=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,640,480);require(canvas!=nullptr,"multilevel_transition_canvas_failed");

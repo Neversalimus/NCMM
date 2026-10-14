@@ -159,7 +159,7 @@ void graphics_prepare_creatures( const ncmm_graphics_scene_v1 &base,
         auto &record = entry.second;
         auto s = record.snapshot;
         const bool presented = record.presented_event_serial == s.event_serial;
-        if( !( s.flags & NCMM_CR_DEAD ) || !s.type_id[0] || ( presented && ( now - s.event_seconds > .55 || now < s.event_seconds ) ) ) continue;
+        if( !first_person::creature::death_clip_pending( s, presented, now ) ) continue;
         const auto pos = here.get_bub( tripoint_abs_ms( s.world_x, s.world_y, s.world_z ) );
         for( size_t i = 0; i < positions.size(); ++i ) if( positions[i] == pos ) {
             if( (base.cells[i].flags & NCMM_GFX_VISIBLE)&&(!world||(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)) ) {

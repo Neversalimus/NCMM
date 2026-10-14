@@ -10,6 +10,12 @@
 namespace ncmm_world {
 struct point {float x=0,y=0,z=0;};
 struct voxel {int x=0,y=0,z=0;};
+inline bool source_window_fits(int32_t x,int32_t y,int32_t radius){
+    if(radius<0||radius>NCMM_GRAPHICS_V2_RADIUS)return false;
+    const int64_t border=int64_t(radius)+1; // Direction and supercover neighbours.
+    return int64_t(x)-border>=INT32_MIN&&int64_t(x)+border<=INT32_MAX&&
+           int64_t(y)-border>=INT32_MIN&&int64_t(y)+border<=INT32_MAX;
+}
 // Private source facts distinguish an opaque gas from solid architecture.
 // Structural surfaces can continue behind a volume without publishing bodies.
 constexpr uint32_t opaque_field_fact=1u<<31;

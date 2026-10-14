@@ -57,6 +57,9 @@ ordinary transient map/light caches at the avatar's current Z and never calls
 canonical XYZ flag facts, per-level revisions and ray results; an absolute-column
 roof mask avoids rescanning upper floors when the camera turns. No engine object,
 terrain/item ID, sprite address or entity pointer survives in this private cache.
+An unchanged cache-dirty notification retains physical rays and owned CPU
+pixels; actual topology or rendered-data changes still invalidate them. Source
+windows reserve an extra coordinate for direction and supercover neighbours.
 
 Publication combines physical floor/opaque-voxel ray checks with the game's own
 perception. Items and living creatures require native CDDA visibility. A slab
@@ -64,6 +67,9 @@ seen from below carries a structural underside and lower-room RGB, with no upper
 room furniture/items or navigation facts. Death clips require an already observed
 entity and a currently visible body cell. Actual triangle depth then handles the
 visible models and cutout/translucent surfaces in both rendering paths.
+Empty-air rejection preserves floating items and bounded, already observed death
+clips after tracker removal. Native perception and physical occlusion still apply.
+Lower-room RGB is published only when the slab's underside is permitted.
 
 Opaque fields retain the native body-information barrier. Structural floor
 and ceiling rays distinguish gas from solid architecture so a hidden surface
@@ -98,6 +104,10 @@ The native suite covers policy, coordinate overflow, corner/floor occlusion,
 canonical cache reuse, per-Z invalidation, geometry, CPU/GPU collection and the
 actual shared-module lifecycle. Existing Core/V1/V2/GPU tests remain enabled.
 The source transformer validates all anchors before any source write.
+The GPU cache regression uses partial 97x97 snapshots with 1/2/7/98 sparse cells,
+including repeated XY on different Z levels. Its ASan target disables optimization
+so discarded dense-grid reads cannot hide an out-of-bounds access. Dense neighbours
+are visited only for the legacy planar provider; world snapshots use XYZ lookup.
 
 The real-engine fixture defines 21 scenes with main/up/down CPU and GPU captures
 and 224 load records per measured engine/package: 1/3/5/9 constructed levels,
@@ -113,3 +123,5 @@ Native stair moves, visual continuity, unchanged render-time game state and
 exploration, F6 cleanup, giant-avatar headroom and native saves at Z -1/0/+1 are
 also checked. Full qualification is complete only after current-head CI and
 manual review of the paired SDL captures pass.
+The shared Host extraction is also checked with floating rocks on Z 1/2 and a
+flying death clip in genuinely empty air, including expiry, on both CPU and GPU.

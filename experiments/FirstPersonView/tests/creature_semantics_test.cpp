@@ -20,5 +20,10 @@ int main(){int checks=0;auto check=[&](bool v){++checks;if(!v){std::fprintf(stde
     s.liters=std::numeric_limits<float>::quiet_NaN();s.height=s.width=s.kilograms=s.liters;
     check(classify(s).reason==fallback::invalid_dimensions);check(std::isfinite(classify(s).height));
     std::memset(s.bodytype,'x',sizeof(s.bodytype));std::memset(s.species,'x',sizeof(s.species));check(classify(s).kind==anatomy::universal);
+    s={};check(!death_clip_pending(s,false,10));s.flags=NCMM_CR_DEAD;check(!death_clip_pending(s,false,10));
+    std::strcpy(s.type_id,"mon_crow");s.event_seconds=2;
+    check(death_clip_pending(s,false,10)); // First presentation retains the established event clock policy.
+    check(death_clip_pending(s,true,2.1));check(!death_clip_pending(s,true,2.6));check(!death_clip_pending(s,true,1));
+    s.flags=0;check(!death_clip_pending(s,false,2.1));
     std::printf("Creature semantics: %d checks PASS\n",checks);
 }
