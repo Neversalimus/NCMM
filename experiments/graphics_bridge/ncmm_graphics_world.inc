@@ -129,9 +129,9 @@ bool graphics_draw_world(int x,int y,int width,int height)
         camera_dz=animated_dz+safe_eye-raw_eye;
     graphics_world_transition_active=std::abs(animated_dz)>.002f;
     const ncmm_world::point eye{radius+.5f,radius+.5f,graphics_eye_height()+camera_dz};
-    if(position_changed||graphics_world_ray_revision!=graphics_world_revision||
+    if(position_changed||graphics_world_ray_revision!=graphics_world_sources.topology_revision||
        std::abs(eye.z-graphics_world_ray_eye.z)>.0001f){
-        ++graphics_world_ray_epoch;graphics_world_ray_revision=graphics_world_revision;graphics_world_ray_eye=eye;}
+        ++graphics_world_ray_epoch;graphics_world_ray_revision=graphics_world_sources.topology_revision;graphics_world_ray_eye=eye;}
     auto query=[&](ncmm_world::voxel p){return flags(ox+p.x,oy+p.y,absolute.z()+p.z);};
     auto structural_query=[&](ncmm_world::voxel p){return ncmm_world::structural_flags(query(p));};
     struct candidate {ncmm_world_cell_v1 world{};tripoint_bub_ms pos;uint32_t permission=0;float distance=0;};

@@ -86,6 +86,7 @@ bool graphics_scene_smoke()
         press_f6();
         require( graphics_view.enabled, "view_did_not_enable" );
         auto draw = [&]() {
+            const auto draw_started = std::chrono::steady_clock::now();
             std::multimap<point, formatted_text> overlays;
             color_block_overlay_container blocks;
             // The fixture changes calendar/weather without executing a turn.
@@ -96,10 +97,32 @@ bool graphics_scene_smoke()
             here.invalidate_visibility_cache();
             // The real viewport hook keeps this pass before drawing first person.
             here.update_visibility_cache( 0 );
+            const auto caches_ready = std::chrono::steady_clock::now();
             tilecontext->draw( point::zero, center, 640, 480, overlays, blocks );
+            const auto tiles_ready = std::chrono::steady_clock::now();
             require( graphics_draw( 0, 0, 640, 480 ), "real_sdl_render_failed" );
+            const auto overlay_ready = std::chrono::steady_clock::now();
             require( frames > 0 || graphics_resolved_textures >= 2, "atlas_textures_missing" );
             require( SDL_FlushRenderer( get_sdl_renderer().get() ), "sdl_frame_flush_failed" );
+            const auto flushed = std::chrono::steady_clock::now();
+            const auto ms = []( auto end, auto begin ) { return std::chrono::duration<double, std::milli>( end - begin ).count(); };
+            if( ms( flushed, draw_started ) > 1000 && ( frames < 5 || frames % 32 == 0 ) ) {
+                const auto gpu = graphics_gpu_engine ? graphics_gpu_engine->metrics() : ncmm_gpu_metrics_v1{};
+                log_line( NCMM_LOG_WARN, ( "SDL smoke slow frame=" + std::to_string( frames ) +
+                    " mode=" + ( graphics_gpu_frame ? std::string( "gpu" ) : std::string( "cpu" ) ) +
+                    " total_ms=" + std::to_string( ms( flushed, draw_started ) ) +
+                    " native_cache_ms=" + std::to_string( ms( caches_ready, draw_started ) ) +
+                    " native_tiles_ms=" + std::to_string( ms( tiles_ready, caches_ready ) ) +
+                    " overlay_ms=" + std::to_string( ms( overlay_ready, tiles_ready ) ) +
+                    " flush_ms=" + std::to_string( ms( flushed, overlay_ready ) ) +
+                    " extraction_ms=" + std::to_string( graphics_world_metrics.extraction_ms ) +
+                    " visibility_ms=" + std::to_string( graphics_world_metrics.visibility_ms ) +
+                    " callback_ms=" + std::to_string( graphics_callback_ms ) +
+                    " gpu_prepare_ms=" + std::to_string( gpu.geometry_ms ) +
+                    " gpu_submit_ms=" + std::to_string( gpu.submit_ms ) +
+                    " generated_cells=" + std::to_string( gpu.generated_cells ) +
+                    " submitted_cells=" + std::to_string( graphics_world_metrics.submitted_cells ) ).c_str() );
+            }
             ++frames;
         };
         draw();

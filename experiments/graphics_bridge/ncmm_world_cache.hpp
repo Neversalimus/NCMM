@@ -11,7 +11,7 @@ class source_cache {
         if(xx<0||yy<0||xx>=width||yy>=height||z<minz||z>maxz)return -1;
         return int((size_t(z-minz)*height+size_t(yy))*width+size_t(xx));}
 public:
-    uint64_t hits=0,misses=0;
+    uint64_t hits=0,misses=0,topology_revision=1;
     void clear(){*this=source_cache{};}
     bool prepare(int32_t x,int32_t y,int low,int high,int w,int h,uint64_t world){
         if(!world||w<1||h<1||w>97||h>97||low < -128||high > 128||low>high||int64_t(high)-low>=NCMM_WORLD_MAX_SLICES)return false;
@@ -28,7 +28,9 @@ public:
         facts=std::move(next);revisions=std::move(stamps);rays=std::move(ray_values);ray_revisions=std::move(ray_stamps);return true;}
     template<class Read> uint32_t get(int x,int y,int z,uint64_t revision,Read read){const int i=slot(x,y,z);
         if(i<0)return NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE;
-        if(revision&&revisions[i]==revision){++hits;return facts[i];}++misses;facts[i]=read();revisions[i]=revision;return facts[i];}
+        if(revision&&revisions[i]==revision){++hits;return facts[i];}++misses;const uint32_t value=read();
+        if(!revisions[i]||facts[i]!=value)++topology_revision;
+        facts[i]=value;revisions[i]=revision;return facts[i];}
     template<class Trace> uint8_t visibility(int x,int y,int z,uint64_t revision,Trace trace){const int i=slot(x,y,z);if(i<0)return 0;
         if(revision&&ray_revisions[i]==revision)return rays[i];rays[i]=trace();ray_revisions[i]=revision;return rays[i];}
     size_t bytes()const{return facts.capacity()*sizeof(uint32_t)+(revisions.capacity()+ray_revisions.capacity())*sizeof(uint64_t)+rays.capacity();}

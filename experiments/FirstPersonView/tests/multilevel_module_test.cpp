@@ -10,6 +10,7 @@ extern "C" void ncmm_open_ui_v1(const ncmm_host_api_v1 *);
 namespace {
 int checks=0,world_registrations=0,legacy_registrations=0,frames=0;
 bool enabled=false;uint64_t pixels=0;
+ncmm_gpu_cpu_metrics_v1 cpu_metrics{};
 ncmm_graphics_render_multilevel_v1 callback=nullptr;
 ncmm_graphics_input_v1 input=nullptr;
 ncmm_host_api_v2_core core{};
@@ -22,6 +23,12 @@ int sprite(uint32_t,uint32_t,ncmm_graphics_sprite_v2 *){return 0;}
 int submit(const uint32_t *data,uint32_t w,uint32_t h,uint32_t pitch){check(w==160&&h==120&&pitch==w,"bounded CPU world frame");pixels=1469598103934665603ull;
     for(size_t i=0;i<size_t(w)*h;++i)pixels=(pixels^data[i])*1099511628211ull;++frames;return 1;}
 int submit_gpu(const ncmm_gpu_multilevel_scene_v1 *){throw std::runtime_error("absent GPU may not submit a planar fallback");}
+int gpu_unavailable(ncmm_gpu_metrics_v1 *){return 0;}
+int gpu_submit(const ncmm_gpu_scene_v1 *){throw std::runtime_error("unavailable GPU submitted a frame");}
+void gpu_invalidate(){}
+int gpu_has_resource(uint64_t,uint32_t){return 0;}
+int cpu_stats(const ncmm_gpu_cpu_metrics_v1 *data){cpu_metrics=*data;return 1;}
+ncmm_host_graphics_gpu_v1 gpu_api{1,sizeof(gpu_api),1,0,gpu_unavailable,gpu_submit,gpu_unavailable,gpu_invalidate,gpu_has_resource,cpu_stats};
 int metrics(ncmm_multilevel_metrics_v1 *){return 0;}
 ncmm_host_graphics_v2 v2{2,sizeof(v2),2,0,old_reg,enable,is_enabled,sprite,submit};
 ncmm_host_graphics_multilevel_v1 world_api{1,sizeof(world_api),1,0,reg,enable,is_enabled,sprite,submit,submit_gpu,metrics};
@@ -29,6 +36,7 @@ int has(const char *){return 1;}uint32_t major(){return 1;}uint32_t minor(){retu
 const void *query(const char *id,uint32_t,uint32_t){
     if(!std::strcmp(id,NCMM_GRAPHICS_V2_ID))return &v2;
     if(!std::strcmp(id,NCMM_GRAPHICS_MULTILEVEL_ID))return &world_api;
+    if(!std::strcmp(id,NCMM_GRAPHICS_GPU_ID))return &gpu_api;
     if(!std::strcmp(id,NCMM_HOST_API_V2_CORE_ID))return &core;
     return nullptr;
 }
@@ -50,6 +58,9 @@ int main(){try{
     world.appearance.struct_size=sizeof(world.appearance);world.appearance.base={sizeof(ncmm_graphics_scene_v1),160,120,3,3,1.5f,1.5f,cells.data(),cells.size()};
     world.appearance.details=details.data();world.appearance.detail_count=details.size();world.appearance.environment.daylight=1;
     check(callback(&world,nullptr)&&frames==1,"unavailable GPU retains all three Z levels on CPU");const auto dark=pixels;
+    check(cpu_metrics.raster_calls>0,"first CPU world frame rasterizes geometry");
+    ++world.revision;
+    check(callback(&world,nullptr)&&pixels==dark&&!cpu_metrics.raster_calls,"unchanged native dirty revision reuses owned CPU world pixels");
     for(int i=9;i<18;++i)for(float &light:coordinates[i].lower_light)light=.9f;
     check(callback(&world,nullptr)&&pixels!=dark,"lower-side RGB invalidates retained ceiling pixels");const auto bright=pixels;
     world.camera_dz=-.4f;check(callback(&world,nullptr)&&pixels!=bright,"visual Z camera offset reaches shared module");

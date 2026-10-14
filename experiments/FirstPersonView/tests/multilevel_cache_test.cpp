@@ -13,6 +13,9 @@ int main(){try{
         check(cache.get(1000000+x,-1000000+y,z,1,[&]{++reads;return expected;})==expected);}
     check(reads==108); // 54 canonical cells reused, only the new strip read.
     check(cache.get(1000001,-1000000,0,2,[&]{++reads;return 999u;})==999);
+    const auto topology=cache.topology_revision;
+    check(cache.get(1000001,-1000000,0,3,[&]{++reads;return 999u;})==999&&cache.topology_revision==topology);
+    check(cache.get(1000001,-1000000,0,4,[&]{++reads;return 998u;})==998&&cache.topology_revision==topology+1);
     check(cache.get(1000001,-1000000,-1,1,[&]{throw std::runtime_error("other floor invalidated");return 0u;})!=999);
     int rays=0;check(cache.visibility(1000001,-1000000,0,1,[&]{++rays;return uint8_t(7);})==7);
     check(cache.visibility(1000001,-1000000,0,1,[&]{++rays;return uint8_t(0);})==7&&rays==1);

@@ -50,7 +50,7 @@ uint64_t geometry_key(const ncmm_graphics_scene_v2 &s,bool dynamic=false){
     uint64_t h=1469598103934665603ull;
     auto bytes=[&](const void *p,size_t n){h=first_person::hash_bytes(h,p,n);};
     bytes(&yaw,sizeof(yaw));bytes(&pitch,sizeof(pitch));bytes(&high_quality,sizeof(high_quality));
-    if(active_world){const auto &w=*active_world;bytes(&w.world_epoch,sizeof(w.world_epoch));bytes(&w.revision,sizeof(w.revision));
+    if(active_world){const auto &w=*active_world;bytes(&w.world_epoch,sizeof(w.world_epoch));
         for(int32_t value:{w.origin_x,w.origin_y,w.origin_z,w.loaded_min_z,w.loaded_max_z})bytes(&value,sizeof(value));
         for(float value:{w.camera_dx,w.camera_dy,w.camera_dz,w.level_height})bytes(&value,sizeof(value));
         for(uint32_t i=0;i<w.cell_count;++i){const auto &c=w.coordinates[i];for(int32_t value:{c.x,c.y,c.z})bytes(&value,sizeof(value));

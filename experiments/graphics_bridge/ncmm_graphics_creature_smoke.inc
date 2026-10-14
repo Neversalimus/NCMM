@@ -98,6 +98,7 @@
     gallery.member( "actual_cdda_sdl", true ); gallery.member( "frames" ); gallery.start_array();
     const std::array<point, 8> directions{ point( 0, 1 ), point( 1, 1 ), point( 1, 0 ), point( 1, -1 ), point( 0, -1 ), point( -1, -1 ), point( -1, 0 ), point( -1, 1 ) };
     for( const char *id : examples ) {
+        const auto species_started = std::chrono::steady_clock::now();
         clear_monsters(); auto mon = spawn( id, center ); ncmm_graphics_creature_v1 data = {}; graphics_creature_type( *mon->type, data );
         const auto type = anatomy::classify( data ); const int distance = std::clamp( int( std::ceil( std::max( type.height, type.width ) * 2.2f ) ), 2, 12 );
         if( data.flags & NCMM_CR_AQUATIC ) here.ter_set( center, ter_id( "t_water_sh" ) );
@@ -112,7 +113,10 @@
             gallery.start_object(); gallery.member( "file", filename ); gallery.member( "id", id ); gallery.member( "angle", direction );
             gallery.member( "anatomy", anatomy::name( type.kind ) ); gallery.member( "lod", std::vector<uint32_t>( std::begin( graphics_creature_metrics.lod ), std::end( graphics_creature_metrics.lod ) ) );
             gallery.member( "pixels", graphics_creature_metrics.visible_pixels ); gallery.end_object();
+            gallery_stream.flush();
         }
+        log_line( NCMM_LOG_INFO, ( "Creature SDL gallery: " + mode + " id=" + id + " views=8 elapsed_ms=" +
+            std::to_string( std::chrono::duration<double, std::milli>( std::chrono::steady_clock::now() - species_started ).count() ) ).c_str() );
         here.ter_set( center, ter_id( "t_pavement" ) );
     }
     // A real tracked NPC exercises clothing/mutation overlays and live posture
@@ -215,7 +219,8 @@
         const auto generation_started = std::chrono::steady_clock::now(); settled();
         require( graphics_creature_snapshots.size() == size_t( amount ), "benchmark_group_not_fully_visible" );
         const double first_ready_ms = std::chrono::duration<double, std::milli>( std::chrono::steady_clock::now() - generation_started ).count();
-        std::vector<double> samples; const double cpu_before = ncmm_graphics_performance::cpu_seconds(); const auto wall_before = std::chrono::steady_clock::now();
+        std::vector<double> samples, extraction, visibility, callback_times, cpu_geometry, cpu_raster, gpu_geometry, gpu_upload, gpu_record, gpu_submit;
+        uint64_t generated_cells = 0; const double cpu_before = ncmm_graphics_performance::cpu_seconds(); const auto wall_before = std::chrono::steady_clock::now();
         const auto video_before = ncmm_graphics_performance::vram();
         for( int frame = 0; frame < 48; ++frame ) {
             if( scenario && frame % 4 == 0 ) for( size_t n = 0; n < group.size(); ++n ) {
@@ -224,12 +229,28 @@
             }
             const auto begin = std::chrono::steady_clock::now(); draw(); SDL_RenderPresent( renderer );
             samples.push_back( std::chrono::duration<double, std::milli>( std::chrono::steady_clock::now() - begin ).count() );
+            extraction.push_back( graphics_view.world_render ? graphics_world_metrics.extraction_ms : graphics_snapshot_ms );
+            visibility.push_back( graphics_view.world_render ? graphics_world_metrics.visibility_ms : 0 );
+            callback_times.push_back( graphics_callback_ms );
+            if( graphics_gpu_frame && graphics_gpu_engine ) {
+                const auto stats = graphics_gpu_engine->metrics();
+                gpu_geometry.push_back( stats.geometry_ms ); gpu_upload.push_back( stats.upload_ms );
+                gpu_record.push_back( stats.render_record_ms ); gpu_submit.push_back( stats.submit_ms );
+                generated_cells += stats.generated_cells;
+            } else { cpu_geometry.push_back( graphics_cpu_metrics.geometry_ms ); cpu_raster.push_back( graphics_cpu_metrics.raster_ms ); }
         }
         const double cpu_seconds = ncmm_graphics_performance::cpu_seconds() - cpu_before;
         const double wall_seconds = std::chrono::duration<double>( std::chrono::steady_clock::now() - wall_before ).count();
         const auto video_after = ncmm_graphics_performance::vram(); std::sort( samples.begin(), samples.end() );
         timing.start_object(); timing.member( "creatures", amount ); timing.member( "scenario", scenario == 0 ? "idle-day" : scenario == 1 ? "moving-day" : "moving-night" );
         timing.member( "frames", samples.size() ); timing.member( "median_ms", ( samples[23] + samples[24] ) * .5 ); timing.member( "p95_ms", samples[45] );
+        const auto median = []( std::vector<double> values ) { if( values.empty() ) return 0.0; std::sort( values.begin(), values.end() ); return ( values[( values.size() - 1 ) / 2] + values[values.size() / 2] ) * .5; };
+        timing.member( "extract_median_ms", median( extraction ) ); timing.member( "visibility_median_ms", median( visibility ) );
+        timing.member( "callback_median_ms", median( callback_times ) ); timing.member( "cpu_geometry_median_ms", median( cpu_geometry ) );
+        timing.member( "cpu_raster_median_ms", median( cpu_raster ) ); timing.member( "gpu_geometry_prepare_median_ms", median( gpu_geometry ) );
+        timing.member( "gpu_upload_record_median_ms", median( gpu_upload ) ); timing.member( "gpu_render_record_median_ms", median( gpu_record ) );
+        timing.member( "gpu_submit_median_ms", median( gpu_submit ) ); timing.member( "gpu_execution_ms_available", false );
+        timing.member( "generated_cells_total", generated_cells );
         timing.member( "cpu_seconds", cpu_seconds ); timing.member( "wall_seconds", wall_seconds ); timing.member( "cpu_core_equivalents", cpu_seconds / std::max( .00001, wall_seconds ) );
         timing.member( "vram_available", video_before.available && video_after.available ); timing.member( "vram_process_local_before", video_before.bytes ); timing.member( "vram_process_local_after", video_after.bytes );
         timing.member( "cache_bytes", graphics_creature_metrics.cache_bytes ); timing.member( "cache_peak_bytes", graphics_creature_metrics.cache_peak_bytes ); timing.member( "generation_max_ms", graphics_creature_metrics.generation_max_ms );
@@ -237,7 +258,12 @@
         timing.member( "generation_anatomy_counts", std::vector<uint64_t>( std::begin( graphics_creature_metrics.anatomy ), std::end( graphics_creature_metrics.anatomy ) ) );
         timing.member( "generation_reason_counts", std::vector<uint64_t>( std::begin( graphics_creature_metrics.reasons ), std::end( graphics_creature_metrics.reasons ) ) );
         timing.member( "model_cache_was_cold", true ); timing.member( "first_ready_ms", first_ready_ms ); timing.member( "visible_snapshot", graphics_creature_snapshots.size() ); timing.member( "fallback", graphics_creature_metrics.fallback );
-        timing.end_object(); draw(); capture_frame( "first-person-creature-group-" + std::to_string( amount ) + "-" + std::to_string( scenario ) + "-" + mode + ".bmp" );
+        timing.end_object(); timing_stream.flush();
+        log_line( NCMM_LOG_INFO, ( "Creature SDL benchmark: " + mode + " count=" + std::to_string( amount ) +
+            " scenario=" + std::to_string( scenario ) + " median_ms=" + std::to_string( ( samples[23] + samples[24] ) * .5 ) +
+            " extraction_ms=" + std::to_string( median( extraction ) ) + " visibility_ms=" + std::to_string( median( visibility ) ) +
+            " gpu_prepare_ms=" + std::to_string( median( gpu_geometry ) ) ).c_str() );
+        draw(); capture_frame( "first-person-creature-group-" + std::to_string( amount ) + "-" + std::to_string( scenario ) + "-" + mode + ".bmp" );
         if( !billboard_baseline ) require( graphics_creature_metrics.cache_bytes <= 64 * 1024 * 1024 && !graphics_creature_metrics.fallback, "creature_group_cache_budget_failed" );
     }
     timing.end_array(); timing.end_object();
