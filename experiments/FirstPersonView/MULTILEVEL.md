@@ -92,9 +92,13 @@ canonical cache reuse, per-Z invalidation, geometry, CPU/GPU collection and the
 actual shared-module lifecycle. Existing Core/V1/V2/GPU tests remain enabled.
 The source transformer validates all anchors before any source write.
 
-The real-engine fixture defines 21 scenes and 224 load records per measured
-engine/package: 1/3/5/9 constructed levels, seven environments, four viewport
-sizes and CPU/GPU. It records available/submitted levels separately; it does not
+The real-engine fixture defines 21 scenes with main/up/down CPU and GPU captures
+and 224 load records per measured engine/package: 1/3/5/9 constructed levels,
+outdoors, house, city, lab, high building, shaft and multi-level creatures,
+four viewport sizes and CPU/GPU. It records processed/culled cells and the CPU
+frame, GPU-host, GPU geometry/resource, sprite and creature cache byte counters.
+These tracked allocations are distinct from process RSS and driver overhead.
+It records available/submitted levels separately; it does not
 truncate the native loaded vertical range to the requested construction count.
 The main 0.11 reference DLL runs on the same pinned experimental Host and game
 fixture. Actual render dimensions are recorded alongside viewport dimensions.
