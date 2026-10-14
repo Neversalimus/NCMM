@@ -78,6 +78,10 @@ retains a coarse wall/window identity, geometric shape, material category and
 surface RGB. It carries no furniture, fields, items, creatures, room/navigation
 facts or targeting permission. CPU and GPU both generate this architecture;
 the real gallery requires facade surfaces at every constructed building level.
+Unseen downward space uses a dark background in both renderers. Sky, clouds and
+celestial discs belong to the upper hemisphere; the renderer does not create a
+floor to conceal missing or out-of-range geometry. Native and real-device tests
+check the dark pixels together with empty depth/geometry.
 
 Opaque fields retain the native body-information barrier. Structural floor
 and ceiling rays distinguish gas from solid architecture so a hidden surface

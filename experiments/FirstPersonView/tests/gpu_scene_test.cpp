@@ -209,6 +209,14 @@ int main(int argc,char **argv){
             require(engine.metrics().target_cell==(open?actor:-1)&&reference.aimed==(open?actor:-1),"XYZ creature picking agrees through the real opening");
             if(open)require(std::abs(engine.metrics().label_y-reference.label_y)<.04f,"upper-Z CPU/GPU label projection agrees");
         }
+        for(int i=0;i<147;++i){xyz[i].flags=NCMM_WORLD_OPEN_DOWN;appearances[i].flags=NCMM_GFX_VISIBLE|NCMM_GFX_NO_FLOOR;appearances[i].creature[0]='\0';details[i].ground[0]='\0';}
+        fp::gpu::packet dark_packet;fp::hybrid::frame dark_stats,dark_reference;
+        require(cache.build(world.appearance,-fp::hybrid::pi*.5f,-1.2f,{},dark_packet,dark_stats,host,{},nullptr,nullptr,640,480,NCMM_GPU_FORCE,&world),"empty downward XYZ packet");
+        ncmm_gpu_multilevel_scene_v1 dark_world{};dark_world.struct_size=sizeof(dark_world);dark_world.version=1;dark_world.base=dark_packet.finish(nullptr);dark_world.coordinates=xyz.data();dark_world.cell_count=147;dark_world.origin_x=world.origin_x;dark_world.origin_y=world.origin_y;dark_world.level_height=2.5f;
+        require(engine.submit(dark_world.base,&dark_world),engine.metrics().reason);const auto dark_pixel=capture("-world-unseen-down");
+        require((dark_pixel>>24)<32&&((dark_pixel>>16)&255)<32&&((dark_pixel>>8)&255)<32,"real GPU downward unseen space is dark rather than sky");
+        require(fp::hybrid::build_frame(world.appearance,-fp::hybrid::pi*.5f,-1.2f,{},dark_reference,640,480,{},nullptr,nullptr,nullptr,{},nullptr,&world),"downward CPU reference");
+        require(std::all_of(dark_reference.depth.begin(),dark_reference.depth.end(),[](float d){return !std::isfinite(d);})&&engine.metrics().triangles==0,"CPU and GPU do not conceal a hole with invented geometry");
     }
     if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"impostor_colour_minification\":true,\"multilevel_depth_and_picking\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
     std::printf("Full GPU scene PASS: %s / %s; animation upload %llu bytes; CPU raster=0\n",second.backend,second.device,(unsigned long long)second.upload_bytes);

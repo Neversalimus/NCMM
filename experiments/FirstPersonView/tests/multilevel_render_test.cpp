@@ -75,6 +75,10 @@ int main(){try{
     fixture empty(3);for(auto &c:empty.appearance)c.flags|=NCMM_GFX_CEILING;
     frame image;check(empty.draw(image,1.2f),"open multi-Z world with misleading legacy interior flags");
     check(std::all_of(image.depth.begin(),image.depth.begin()+image.width*image.height/2,[](float z){return !std::isfinite(z);}),"inside flag cannot create phantom ceiling");
+    check(empty.draw(image,-1.2f),"empty downward world renders without invented geometry");
+    check(std::all_of(image.depth.begin(),image.depth.end(),[](float z){return !std::isfinite(z);}),"unseen space is not a fake floor or ceiling");
+    const auto dark_pixels=std::count_if(image.pixels.begin(),image.pixels.end(),[](uint32_t p){return (p>>24)<32&&((p>>16)&255)<32&&((p>>8)&255)<32;});
+    check(dark_pixels>image.pixels.size()*.99,"downward unseen space is dark, apart from the UI crosshair");
     empty.positions[empty.cell(4,1,0)].flags|=NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP;
     collector stairs;frame statistics;renderer(empty.world.appearance,0,0,{},statistics,{},nullptr,{},nullptr,&empty.world).collect(stairs,400,260);
     check(stairs.triangles.size()>80,"semantic staircase is stepped volume, not a floor square");

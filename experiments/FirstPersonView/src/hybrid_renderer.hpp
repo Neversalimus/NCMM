@@ -505,6 +505,7 @@ class renderer {
         float cx=f.width*.5f+projection*q.x/q.z,yy=f.height*.5f-projection*q.y/q.z;int r=std::max(2,int(radius));
         if(cx+r<0||cx-r>=f.width||yy+r<0||yy-r>=f.height)return;
         for(int y=std::max(0,int(yy)-r);y<=std::min(f.height-1,int(yy)+r);++y)for(int x=std::max(0,int(cx)-r);x<=std::min(f.width-1,int(cx)+r);++x){float nx=(x-cx)/r,ny=(y-yy)/r,zz=1-nx*nx-ny*ny;if(zz<0)continue;float lit=1;
+            if(world_data&&sp+(f.height*.5f-y)/projection*cp<0)continue;
             if(phase>=0){float a=phase*pi/4;lit=clamp(-std::sqrt(zz)*std::cos(a)+nx*std::sin(a));lit=.07f+lit*.93f;}
             const size_t at=size_t(y)*f.width+x;
             if(!options.skip_hidden_sky||!std::isfinite(f.depth[at]))f.pixels[at]=pack(color*lit);}
@@ -536,7 +537,7 @@ class renderer {
             const float up=(f.height*.5f-y)/projection;
             const float elevation=std::atan2(sp+up*cp,std::abs(cp-up*sp));
             const float t=clamp(1-elevation/(pi*.5f));
-            const uint32_t c=pack(top*(1-t)+bottom*t);
+            const uint32_t c=pack(world_data&&elevation<0?vec{.012f,.016f,.024f}:top*(1-t)+bottom*t);
             if(!options.skip_hidden_sky){std::fill_n(f.pixels.data()+size_t(y)*f.width,f.width,c);count+=f.width;}
             else for(int x=0;x<f.width;++x){const size_t at=size_t(y)*f.width+x;
                 if(!std::isfinite(f.depth[at])){f.pixels[at]=c;++count;}}
@@ -562,7 +563,7 @@ class renderer {
         effects::rows(uint32_t(rows),size_t(cols)*rows,[&](uint32_t begin,uint32_t end){
         for(int gy=int(begin);gy<int(end);++gy)for(int gx=0;gx<cols;++gx){
             const float sx=(gx*step-f.width*.5f)/projection,up=(f.height*.5f-gy*step)/projection;
-            const float forward=cp-up*sp,z=sp+up*cp;if(z<-.04f)continue;
+            const float forward=cp-up*sp,z=sp+up*cp;if(z<(world_data?0.f:-.04f))continue;
             const float wx=cy*forward-sy*sx,wy=sy*forward+cy*sx;
             const float az=std::atan2(wy,wx),elev=std::atan2(z,std::hypot(wx,wy));
             const float v=elev*4+time*e.wind_y*.0015f;
