@@ -58,6 +58,7 @@ bool graphics_scene_smoke()
         here.invalidate_map_cache( 0 );
         here.build_map_cache( 0 );
         const auto start_pos = you.pos_bub();
+        const auto start_absolute_pos = you.pos_abs();
         const int start_moves = you.get_moves();
         const time_point start_time = calendar::turn;
         input_context gameplay( "DEFAULTMODE", keyboard_mode::keycode );
@@ -543,7 +544,9 @@ bool graphics_scene_smoke()
         #include "ncmm_graphics_multilevel_smoke.inc"
         press_f6();
         require( !graphics_view.enabled, "f6_final_toggle_off_failed" );
-        require( you.pos_bub() == start_pos && you.get_moves() == start_moves && calendar::turn == start_time,
+        // Native stairs recenter the reality bubble. Gameplay position is
+        // absolute; the same tile can have a different local coordinate.
+        require( you.pos_abs() == start_absolute_pos && you.get_moves() == start_moves && calendar::turn == start_time,
                  "vehicle_camera_tests_changed_gameplay_state" );
         #include "ncmm_graphics_multilevel_save_smoke.inc"
     } catch( const std::exception &err ) {

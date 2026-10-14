@@ -9,6 +9,7 @@ scenes={'house_one','house_two','house_three','high_building','basement','stairs
 key=lambda r:(r['gallery'],r['name'],r['constructed_levels'],r['theme'],r['width'],r['height'],r['renderer'])
 matrices=[{key(r):r for r in report['frames']} for report in reports]
 assert all(r['success'] and r['actual_cdda_sdl'] and not r['gpu_timing_is_execution'] for r in reports)
+assert all(r['fixture_restored_absolute_position'] and r['fixture_restored_moves'] and r['fixture_restored_turn'] for r in reports), 'the visual fixture did not restore native gameplay state'
 assert not reports[0]['world_api'] and reports[1]['world_api'], 'reference/current callback identities are wrong'
 assert reports[0]['floating_content_modes']==0 and reports[1]['floating_content_modes']==2, 'floating items or observed flying death did not pass both renderers'
 assert len(reports[1]['transitions'])==2 and all(t['camera_continuous'] and t['renderer_preserved_moves'] for t in reports[1]['transitions'])

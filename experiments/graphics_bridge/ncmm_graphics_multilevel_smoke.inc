@@ -4,6 +4,7 @@
     using clock=std::chrono::steady_clock;
     const bool before=std::getenv("NCMM_FP_MULTILEVEL_BEFORE")!=nullptr;
     const auto original_position=you.pos_abs();const auto original_time=calendar::turn;
+    const auto original_bubble_origin=here.get_abs_sub();
     const float original_yaw=graphics_camera_yaw,original_pitch=graphics_camera_pitch;
     const int original_moves=you.get_moves();const auto original_hp=you.get_part_hp_cur(bodypart_id("torso"));
     const auto original_target=SDL_GetRenderTarget(renderer);
@@ -185,8 +186,12 @@
         require(observed.eye<2.42f,"multilevel_giant_camera_passed_through_ceiling");you.set_base_height(175);
         require(SDL_SetRenderTarget(renderer,nullptr),"multilevel_headroom_canvas_release_failed");SDL_DestroyTexture(canvas);canvas=nullptr;
     }
-    report.end_array();report.member("success",true);report.end_object();report_stream.close();require(bool(report_stream),"multilevel_report_write_failed");
+    report.end_array();
     graphics_smoke_seconds.reset();clear_monsters();you.setpos(here,here.get_bub(original_position),false);calendar::turn=original_time;you.set_moves(original_moves);get_weather().weather_id=weather_type_id("sunny");camera(original_yaw,original_pitch);refresh();
     require(SDL_SetRenderTarget(renderer,original_target),"multilevel_restore_sdl_target_failed");
     require(you.get_part_hp_cur(bodypart_id("torso"))==original_hp,"multilevel_fixture_changed_avatar_hp");
+    require(you.pos_abs()==original_position&&you.get_moves()==original_moves&&calendar::turn==original_time,"multilevel_fixture_did_not_restore_gameplay_state");
+    report.member("fixture_restored_absolute_position",true);report.member("fixture_restored_moves",true);report.member("fixture_restored_turn",true);
+    report.member("bubble_origin_changed",here.get_abs_sub()!=original_bubble_origin);
+    report.member("success",true);report.end_object();report_stream.close();require(bool(report_stream),"multilevel_report_write_failed");
 }
