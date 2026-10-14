@@ -1,8 +1,15 @@
 name: First Person View - experimental prototype
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
     paths: ['experiments/FirstPersonView/**', 'experiments/graphics_bridge/**', 'runtime/NCMMSetupCore.cs', 'runtime/NCMMBootstrap.cs', 'runtime/NCMMRuntimeIO.cs', 'runtime/NCMMSetupDiagnostics.cs', 'runtime/NCMMSetup.cs', '.github/workflows/ncmm-first-person-prototype.yml']
   workflow_dispatch:
+    inputs:
+      qualification:
+        description: 'Run quick checks, one integration checkpoint, or final qualification'
+        type: choice
+        default: quick
+        options: [quick, integration, full]
 permissions:
   contents: read
 concurrency:
@@ -33,10 +40,10 @@ jobs:
         run: cmake -S experiments/FirstPersonView -B fp-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
       - name: Build sanitizer geometry and shared-module tests
         if: runner.os == 'Linux'
-        run: cmake --build fp-sanitize --parallel 2 --target first_person_optimization_tests first_person_hybrid_module_tests first_person_creature_semantics_tests first_person_creature_mesh_tests first_person_creature_appearance_tests first_person_creature_animation_tests first_person_creature_lod_tests first_person_creature_cache_tests first_person_creature_render_tests first_person_creature_module_tests first_person_gpu_contract_tests first_person_gpu_geometry_tests first_person_gpu_module_tests first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_render_tests first_person_multilevel_module_tests first_person_multilevel_gpu_cache_tests
+        run: cmake --build fp-sanitize --parallel 2 --target first_person_camera_motion_tests first_person_optimization_tests first_person_hybrid_module_tests first_person_creature_semantics_tests first_person_creature_mesh_tests first_person_creature_appearance_tests first_person_creature_animation_tests first_person_creature_lod_tests first_person_creature_cache_tests first_person_creature_render_tests first_person_creature_module_tests first_person_gpu_contract_tests first_person_gpu_geometry_tests first_person_gpu_module_tests first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_render_tests first_person_multilevel_module_tests first_person_multilevel_gpu_cache_tests
       - name: ASan and UBSan camera, volume and DLL lifecycle coverage
         if: runner.os == 'Linux'
-        run: ctest --test-dir fp-sanitize -R "optimization|hybrid_module|creature_|gpu_|multilevel_" --output-on-failure
+        run: ctest --test-dir fp-sanitize -R "camera_motion|optimization|hybrid_module|creature_|gpu_|multilevel_" --output-on-failure
       - name: Atomic source-transform negative tests
         run: python -m unittest discover -s experiments/graphics_bridge -p test_apply_graphics_bridge.py -v
       - uses: actions/upload-artifact@v4
@@ -49,6 +56,10 @@ jobs:
             fp-build/first-person-benchmark.json
           retention-days: 7
   host:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.qualification != 'quick') ||
+      contains(github.event.pull_request.body, format('<!-- fp-qa:integration@{0} -->', github.event.pull_request.head.sha)) ||
+      contains(github.event.pull_request.body, format('<!-- fp-qa:full@{0} -->', github.event.pull_request.head.sha))
     needs: module
     name: Experimental MSVC Host - ${{ matrix.build }}
     strategy:
@@ -64,6 +75,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 240
     env:
+      FP_FULL_QUALIFICATION: ${{ inputs.qualification == 'full' || contains(github.event.pull_request.body, format('<!-- fp-qa:full@{0} -->', github.event.pull_request.head.sha)) }}
       GH_TOKEN: ${{ github.token }}
       SCCACHE_GHA_ENABLED: 'true'
       VCPKG_OVERLAY_TRIPLETS: ${{ github.workspace }}/upstream/.github/vcpkg_triplets
@@ -263,6 +275,7 @@ jobs:
             }
           } finally {Remove-Item Env:\NCMM_FP_SAVE_ONLY -ErrorAction SilentlyContinue}
       - name: Actual SDL controls, appearance, geometry, RGB light, sky, weather and held items
+        if: env.FP_FULL_QUALIFICATION == 'true'
         timeout-minutes: 120
         shell: powershell
         run: |
@@ -302,6 +315,7 @@ jobs:
 
           }
       - uses: actions/checkout@v4
+        if: env.FP_FULL_QUALIFICATION == 'true'
         with:
           ref: 9ee19bdd68e40a1677694187f85aa65bd4b52407
           path: fp010-reference
@@ -311,6 +325,7 @@ jobs:
             experiments/FirstPersonView
             experiments/graphics_bridge
       - name: Build exact main 0.11 CPU/GPU reference DLL
+        if: env.FP_FULL_QUALIFICATION == 'true'
         shell: powershell
         run: |
           cmake -S fp010-reference/experiments/FirstPersonView -B fp010-build
@@ -318,6 +333,7 @@ jobs:
           cmake --build fp010-build --config Release --target ncmm_mod
           if($LASTEXITCODE -ne 0){throw 'Stable main reference build failed.'}
       - name: Paired exact main 0.11 world geometry and render-loop benchmark
+        if: env.FP_FULL_QUALIFICATION == 'true'
         timeout-minutes: 120
         shell: powershell
         run: |
@@ -369,6 +385,7 @@ jobs:
         shell: powershell
         run: python -m pip install --disable-pip-version-check pillow==11.3.0 numpy==2.2.6
       - name: Verify paired camera, pose, lighting, pixels and image provenance
+        if: env.FP_FULL_QUALIFICATION == 'true'
         shell: powershell
         run: |
           foreach($variant in @(@{name='graphics';root='${{ steps.game.outputs.root }}'},@{name='sounds';root='${{ steps.game.outputs.sound_root }}'})) {

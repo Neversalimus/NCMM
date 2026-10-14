@@ -1,0 +1,58 @@
+# First Person View 0.12.x stabilization
+
+Baseline: `c5a0a0a5e12991df06ba000f80dd359f274b7f50` (merged PR #205).
+Engine pins remain 1040 `3f7fb352bf492ba521bd9408a0c9f6ce239e8d83`
+and 1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
+Scope: gameplay audit, measured performance, camera/interaction stability and
+selective visual polish. No new graphics architecture or gameplay rules.
+
+## Evidence and limitations
+
+The starting evidence is prototype run `38599750082`, GPU run `38599750041`
+and source audit `38599750047`, on branch head
+`9c3c69397bbb5ae9d3ec16f8ef21732e15e08b34` and Actions test merge
+`74315d034bc28f96133f4af9a71ed44a0d077f7e`. All renderer/Host source blobs
+equal the merged baseline; only `feed/index.json` differs.
+
+These are automated real Windows/CDDA/SDL fixtures and software Vulkan/D3D12
+adapters. They are not a manual playthrough or discrete-GPU qualification.
+The current development environment has no display, Windows runtime, GPU
+device, or UDP Hybrid v3 assets. Manual gameplay, hardware FPS and UDP
+compatibility must remain explicitly unverified until evidence is supplied.
+
+The baseline contains 21 scenes, 126 CPU/GPU views and 224 load records per
+1040/1807 graphics/sounds package. It checks native save/load and restores
+absolute XYZ/moves/calendar/map-Z. It does not establish that inventory,
+reload, furniture interactions and a prolonged ordinary game are comfortable.
+
+## Defect and verification register
+
+| ID | Priority | Evidence | Status / next verification |
+| --- | --- | --- | --- |
+| PERF-01 | P1 | 0.12 dense smoke at 640x480 on software D3D12: median 251.046 ms (1040 graphics), 272.111 ms (1040 sounds), 276.457 ms (1807 graphics). Volume shader performs four sparse binary searches per ray sample, even while remaining in the same neighbour quartet. | Confirmed slow scene; test sample-local lookup reuse with identical images and actual SDL timing. Hardware attribution remains unmeasured. |
+| PERF-02 | P1 | Stable world publication still visits 197589 candidate cells across 21 loaded levels; visibility stage is approximately 13–15 ms. Source-cache misses are zero. | Profile/cull candidate work while retaining native perception, neighbouring-floor structure, airborne items and creatures. |
+| CAM-01 | P1 | World callback supplies only a Z offset; XY camera offsets remain zero despite both renderers supporting them. Adjacent native walking steps therefore jump visually between tile centres. | Add bounded visual-only interpolation for safe adjacent walking, with cancellation for teleports, opaque paths and vehicles. Native position and move cost remain authoritative. |
+| CAM-02 | P1 | Vertical easing starts before the first expensive render. Recorded native upward transition first-ready is 370.814 ms, longer than the 180 ms interpolation target. A slow first render can consume the entire easing interval. | Start the interpolation clock after the first successful presentation; test interrupted moves and slow first frames. |
+| QA-01 | Verification gap | Existing GPU metrics combine command submission and do not isolate world/creature/volume/composition work or measure GPU execution. | Add diagnostic phase accounting and a reproducible local benchmark; label CPU submission, present wall time and GPU execution separately. |
+| QA-02 | Verification gap | Existing real SDL fixtures cover geometry and state guards rather than an ordinary 30-minute manual session. | Add bounded automated gameplay/soak scenarios; report exactly which native actions were exercised. Manual session remains separate. |
+| QA-03 | Verification gap | Actual UDP Hybrid v3 resources are available at `Neversalimus/CDDA-Mods@59123092c33244d516fa9d5ca69eaafb8d487f37`, `mods/undeadpeople/content`, identity `UndeadPeople_0J_Hybrid_v3` (2026-09-23). UltimateCataclysm was the previous runtime asset source. | Run a separate native SDL audit with these exact assets. Runtime compatibility remains unverified until that run passes. |
+| CI-01 | Infrastructure | Every relevant PR update currently starts the expensive Host matrix. | Keep quick checks automatic; run costly integration/final qualification at deliberate checkpoints, without removing release assertions. |
+
+No new P0 defect has been confirmed at this checkpoint. P0 inspection must
+cover crash/save safety, native visibility, target actions, renderer fallback
+and vertical transition state. Passing the baseline does not close these new
+gameplay-audit questions.
+
+## QA schedule
+
+1. Quick tests: directly affected camera, geometry/cache, action and shader
+   controls after each change.
+2. Integration: actual SDL audit and paired performance after a coherent group
+   of fixes, with isolated owned temporary worlds and deterministic seeds.
+3. Final candidate: native/ASan/UBSan, source transforms, GPU controls, both
+   pinned Hosts, installation/repair/rollback/Restore vanilla, graphics/sounds,
+   paired world/appearance evidence, native saves and resource lifecycle.
+
+All timing comparisons for this phase use exact **0.12 main** as Before.
+The earlier 0.11 comparison is historical evidence only. Report actual render
+dimensions, adapter identity, p95/p99, cold frames and remaining limitations.
