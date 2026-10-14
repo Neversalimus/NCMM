@@ -88,6 +88,15 @@ int main(){try{
     collector ramp;renderer(empty.world.appearance,0,0,{},statistics,{},nullptr,{},nullptr,&empty.world).collect(ramp,400,260);
     bool slope=false;for(const auto &t:ramp.triangles)if(t.normal.z>.1f&&t.normal.z<.9f)slope=true;
     check(slope,"semantic ramp has an actual inclined surface");
+    empty.positions[stair].flags|=NCMM_WORLD_RAMP_END;
+    const int landing=empty.cell(4,1,1);empty.positions[landing].flags|=NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM;
+    collector ramp_end;renderer(empty.world.appearance,0,0,{},statistics,{},nullptr,{},nullptr,&empty.world).collect(ramp_end,400,260);
+    size_t support_faces=0;
+    for(const auto &t:ramp_end.triangles)if(t.m.cell==stair){++support_faces;
+        check(t.normal.z<.1f,"upper slab owns the ramp support cap");
+        for(const auto &v:t.v)check(v.p.z<=NCMM_WORLD_LEVEL_HEIGHT-.08f+.0001f,"ramp support ends at the real slab underside without coplanar edge overlap");}
+    check(support_faces>0,"covered ramp end retains its structural sides");
+    empty.positions[stair].flags&=~NCMM_WORLD_RAMP_END;empty.positions[landing].flags=NCMM_WORLD_BODY_VISIBLE;
     empty.positions[stair].flags&=~NCMM_WORLD_RAMP;empty.positions[stair].flags|=NCMM_WORLD_LADDER;
     collector ladder;renderer(empty.world.appearance,0,0,{},statistics,{},nullptr,{},nullptr,&empty.world).collect(ladder,400,260);
     check(ladder.triangles.size()>100,"difficult-Z ladder has rails and rungs");

@@ -383,7 +383,7 @@ jobs:
         with:
           name: first-person-installer-${{ matrix.build }}-Windows-x64
           path: |
-            installer-result/NCMM_FirstPersonView_0.11.0_TEST_${{ matrix.build }}_Windows_x64.zip
+            installer-result/NCMM_FirstPersonView_0.12.0_TEST_${{ matrix.build }}_Windows_x64.zip
             installer-result/first-person-multilevel*.json
             installer-result/first-person-world*.bmp
             installer-result/first-person-smoke*.json

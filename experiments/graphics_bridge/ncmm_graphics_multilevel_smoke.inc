@@ -31,7 +31,7 @@
     auto camera=[&](float yaw,float pitch){graphics_mouse_dx=std::remainder(yaw-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;graphics_mouse_dy=(graphics_camera_pitch-pitch)/.003f;
         require(graphics_action("ncmm.view.mouse_look"),"multilevel_camera_input_failed");graphics_mouse_dx=graphics_mouse_dy=0;};
     auto clear_monsters=[&](){const auto all=get_creature_tracker().get_monsters_list();for(const auto &mon:all)get_creature_tracker().remove(*mon);};
-    auto terrain=[&](int x,int y,int z,const char *id){const tripoint_bub_ms p(center.x()+x,center.y()+y,z);require(here.ncmm_graphics_loaded(p),"multilevel_fixture_outside_loaded_map");require(ter_id(id).is_valid(),"multilevel_fixture_unknown_terrain");here.ter_set(p,ter_id(id));};
+    auto terrain=[&](int x,int y,int z,const char *id){const tripoint_bub_ms p(center.x()+x,center.y()+y,z);require(here.ncmm_graphics_loaded(p),"multilevel_fixture_outside_loaded_map");require(ter_str_id(id).is_valid(),"multilevel_fixture_unknown_terrain");here.ter_set(p,ter_id(id));};
     auto spawn=[&](const char *id,int x,int y,int z){auto mon=make_shared_fast<monster>(mtype_id(id));require(g->place_critter_around(mon,tripoint_bub_ms(center.x()+x,center.y()+y,z),0,true)!=nullptr,"multilevel_fixture_creature_spawn_failed");};
     you.clear_mutations();you.clear_effects();you.set_underwater(false);you.set_base_height(175);you.set_movement_mode(move_mode_id("walk"));
     if(!you.has_trait(trait_id("DEBUG_NIGHTVISION")))you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));you.recalc_sight_limits();

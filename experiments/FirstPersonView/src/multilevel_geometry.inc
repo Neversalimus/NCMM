@@ -57,11 +57,13 @@
             auto p=[&](float x,float y,float z){return rotate({x,y,z},center,angle);};
             if(flags&NCMM_WORLD_RAMP_END){
                 const int above=neighbor(i,0,0,1);
-                if(above<0||!(world_flags(above)&NCMM_WORLD_FLOOR))quad(p(-.5f,-.5f,height),p(.5f,-.5f,height),p(.5f,.5f,height),p(-.5f,.5f,height),structure,{0,0,1});
+                const bool slab_above=above>=0&&(world_flags(above)&NCMM_WORLD_FLOOR);
+                const float support_height=slab_above?height-.08f:height;
+                if(!slab_above)quad(p(-.5f,-.5f,height),p(.5f,-.5f,height),p(.5f,.5f,height),p(-.5f,.5f,height),structure,{0,0,1});
                 for(int edge=0;edge<4;++edge){const float a=edge*pi*.5f,b=(edge+1)*pi*.5f;
                     const vec x=rotate({std::cos(a)*.7071068f,std::sin(a)*.7071068f,0},center,pi*.25f+angle),
                               y=rotate({std::cos(b)*.7071068f,std::sin(b)*.7071068f,0},center,pi*.25f+angle);
-                    quad(x,y,y+vec{0,0,height},x+vec{0,0,height},structure,normalize(cross(y-x,vec{0,0,1})));}
+                    quad(x,y,y+vec{0,0,support_height},x+vec{0,0,support_height},structure,normalize(cross(y-x,vec{0,0,1})));}
                 return;
             }
             quad(p(-.5f,-.5f,.02f),p(.5f,-.5f,height),p(.5f,.5f,height),p(-.5f,.5f,.02f),structure,normalize(rotate({-height,0,1},{},angle)));
