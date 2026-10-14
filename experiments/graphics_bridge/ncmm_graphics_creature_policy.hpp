@@ -7,6 +7,10 @@
 #include <string_view>
 #include <initializer_list>
 namespace first_person::creature {
+inline bool death_clip_pending(const ncmm_graphics_creature_v1 &s,bool presented,double now){
+    return (s.flags&NCMM_CR_DEAD)&&s.type_id[0]&&
+           (!presented||(now>=s.event_seconds&&now-s.event_seconds<=.55));
+}
 constexpr uint32_t generator_version=3;
 enum class anatomy : uint8_t { humanoid, quadruped, arachnid, insect, centipede, bird,
     reptile, serpent, fish, amorphous, robot, exotic, universal, count };

@@ -8,6 +8,7 @@ layout(location=2) flat in float strength;
 layout(location=0) out vec4 color;
 layout(location=1) out uint object_id;
 void main(){float zz=1.0-dot(disc,disc);if(strength<=0.0||zz<0.0)discard;
+    if(camera.grid.w>.5&&pixel_ray(gl_FragCoord.xy).z<0.0)discard;
     vec3 c=kind<850u?vec3(.8,.85,1)*strength:kind==850u?vec3(1,.92,.64):vec3(.82,.88,.94);
     if(kind==851u){float a=camera.time.y*PI/4.0;c*=.07+sat(-sqrt(zz)*cos(a)+disc.x*sin(a))*.93;}
     // Match the established composition: stars, sun and moon lie behind the

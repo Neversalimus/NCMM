@@ -13,11 +13,13 @@ class backend {
     SDL_GPUTexture *world_=nullptr,*id_=nullptr,*held_depth_=nullptr,*effects_=nullptr,*effect_depth_=nullptr,*white_=nullptr;
     SDL_GPUBuffer *instances_=nullptr,*bones_=nullptr,*cells_=nullptr,*shadows_=nullptr,*counter_=nullptr;
     uint32_t instance_size_=0,bone_size_=0,cell_size_=0,shadow_size_=0,width_=0,height_=0;
-    uint64_t generation_=0,resource_epoch_=1;
+    uint64_t generation_=0,resource_epoch_=1,world_epoch_=0,last_serial_=0,readback_generation_=1;
     ncmm_gpu_metrics_v1 metrics_{};
-    struct readback {SDL_GPUTransferBuffer *transfer=nullptr;SDL_GPUFence *fence=nullptr;uint64_t serial=0;};
+    struct readback {SDL_GPUTransferBuffer *transfer=nullptr;SDL_GPUFence *fence=nullptr;uint64_t serial=0,generation=0;};
     std::array<readback,3> readbacks_{};
     struct instance {ncmm_gpu_matrix_v1 world;uint32_t bone_offset,bone_count,cell,reserved;};
+    struct gpu_cell {ncmm_gpu_cell_v1 appearance;float origin[4],lower_light[4];};
+    static_assert(sizeof(gpu_cell)==112,"owned std430 world cell layout");
     struct batch {uint64_t key;uint32_t pass,first,count;};
     using clock=std::chrono::steady_clock;
     static double ms(clock::time_point begin){return std::chrono::duration<double,std::milli>(clock::now()-begin).count();}
@@ -50,7 +52,7 @@ class backend {
     uint64_t dynamic_bytes()const{return uint64_t(instance_size_)+bone_size_+cell_size_+shadow_size_+64+3*64;}
     void poll(){auto *device=context_.device();if(!device)return;
         for(auto &r:readbacks_)if(r.fence&&SDL_QueryGPUFence(device,r.fence)){auto *data=static_cast<uint32_t *>(SDL_MapGPUTransferBuffer(device,r.transfer,false));
-            if(data){if(r.serial>=metrics_.completed_frame_serial){metrics_.visible_creature_pixels=data[0];metrics_.completed_frame_serial=r.serial;}SDL_UnmapGPUTransferBuffer(device,r.transfer);}
+            if(data){if(r.generation==readback_generation_&&r.serial>=metrics_.completed_frame_serial){metrics_.visible_creature_pixels=data[0];metrics_.completed_frame_serial=r.serial;}SDL_UnmapGPUTransferBuffer(device,r.transfer);}
             SDL_ReleaseGPUFence(device,r.fence);r.fence=nullptr;}}
     SDL_GPURenderPass *begin(SDL_GPUCommandBuffer *commands,bool held,bool clear){
         SDL_GPUColorTargetInfo colors[2]{};colors[0].texture=world_;colors[1].texture=id_;
@@ -94,16 +96,20 @@ public:
     bool available(){return context_.device()!=nullptr;}
     void cpu_frame(){metrics_.active=0;}
     void invalidate(){auto *renderer=context_.renderer();uint64_t generation=generation_;clear();if(renderer)bind(renderer,generation);}
-    bool submit(const ncmm_gpu_scene_v1 &scene){
+    bool submit(const ncmm_gpu_scene_v1 &scene,const ncmm_gpu_multilevel_scene_v1 *world=nullptr){
+        // A new producer/world can restart its frame serial. A completed fence
+        // from an older scene must never describe the new scene's visibility.
+        if(world_epoch_!=scene.world_epoch||scene.frame_serial<last_serial_){++readback_generation_;metrics_.completed_frame_serial=metrics_.visible_creature_pixels=0;}
+        world_epoch_=scene.world_epoch;last_serial_=scene.frame_serial;
         poll();auto completed=metrics_.completed_frame_serial,visible=metrics_.visible_creature_pixels;auto software=metrics_.software_device;
         metrics_={};metrics_.struct_size=sizeof(metrics_);metrics_.frame_serial=scene.frame_serial;metrics_.completed_frame_serial=completed;metrics_.visible_creature_pixels=visible;metrics_.software_device=software;metrics_.gpu_ms=-1;metrics_.target_cell=-1;
         metrics_.geometry_ms=scene.geometry_ms;metrics_.generated_cells=scene.generated_cells;metrics_.producer_cache_bytes=scene.producer_cache_bytes;
-        context_.describe(metrics_);if(const char *error=validate(scene)){reason(error);return false;}
+        context_.describe(metrics_);if(const char *error=validate(scene,world)){reason(error);return false;}
         if(scene.mode==NCMM_GPU_CPU){reason("CPU renderer selected");return false;}if(!available()){reason(context_.reason());return false;}
         if(!programs_.create(context_)||!targets(scene.width,scene.height)){reason(context_.reason());return false;}
         if(!buffer(instances_,instance_size_,uint32_t(scene.draw_count*sizeof(instance)),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
            !buffer(bones_,bone_size_,scene.bone_count*sizeof(ncmm_gpu_matrix_v1),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
-           !buffer(cells_,cell_size_,scene.cell_count*sizeof(ncmm_gpu_cell_v1),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ|SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_READ)||
+           !buffer(cells_,cell_size_,scene.cell_count*sizeof(gpu_cell),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ|SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_READ)||
            !buffer(shadows_,shadow_size_,scene.cell_count*4,SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ|SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE)){reason(context_.reason());return false;}
         const uint64_t reserved=target_bytes()+dynamic_bytes();if(reserved>=NCMM_GPU_RESOURCE_LIMIT){reason("GPU target/dynamic buffers exceed memory budget");return false;}
         auto stage=clock::now();bool ready=resources_.prepare(scene,NCMM_GPU_RESOURCE_LIMIT-reserved,metrics_);metrics_.resource_ms=ms(stage);
@@ -122,17 +128,21 @@ public:
         std::stable_sort(transparent.begin(),transparent.end(),[](const auto &a,const auto &b){return a.distance>b.distance;});
         for(const auto &t:transparent){const auto &d=scene.draws[t.index];auto *mesh=resources_.mesh(d.mesh_key);if(mesh&&mesh->joint_count<=d.bone_count&&!in_frustum(draw_bounds(*mesh,d,scene),scene.camera))continue;
             uint32_t heading;std::memcpy(&heading,&d.creature_yaw,4);batches.push_back({d.mesh_key,d.pass,uint32_t(instances.size()),1});instances.push_back({d.transform,d.bone_offset,d.bone_count,d.cell,heading});}
-        pick(resources_,scene,metrics_);
+        pick(resources_,scene,metrics_,world);
         if(!counter_){uint32_t ignored=0;if(!buffer(counter_,ignored,64,SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE)){reason(context_.reason());return false;}}
         readback *read=nullptr;for(auto &r:readbacks_)if(!r.fence){read=&r;break;}
         if(read&&!read->transfer){SDL_GPUTransferBufferCreateInfo info{};info.usage=SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;info.size=64;read->transfer=SDL_CreateGPUTransferBuffer(context_.device(),&info);if(!read->transfer)read=nullptr;}
-        const uint32_t upload_size=uint32_t(instances.size()*sizeof(instance)+scene.bone_count*sizeof(ncmm_gpu_matrix_v1)+scene.cell_count*sizeof(ncmm_gpu_cell_v1)+64+4);
+        const uint32_t upload_size=uint32_t(instances.size()*sizeof(instance)+scene.bone_count*sizeof(ncmm_gpu_matrix_v1)+scene.cell_count*sizeof(gpu_cell)+64+4);
         SDL_GPUTransferBufferCreateInfo upload{};upload.usage=SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;upload.size=upload_size;
         auto *transfer=SDL_CreateGPUTransferBuffer(context_.device(),&upload);if(!transfer){context_.fail("create frame transfer");reason(context_.reason());return false;}
         auto *mapped=static_cast<unsigned char *>(SDL_MapGPUTransferBuffer(context_.device(),transfer,false));if(!mapped){SDL_ReleaseGPUTransferBuffer(context_.device(),transfer);context_.fail("map frame transfer");reason(context_.reason());return false;}
         stage=clock::now();uint32_t offset=0;std::memcpy(mapped+offset,instances.data(),instances.size()*sizeof(instance));offset+=uint32_t(instances.size()*sizeof(instance));
         std::memcpy(mapped+offset,scene.bones,scene.bone_count*sizeof(ncmm_gpu_matrix_v1));offset+=scene.bone_count*sizeof(ncmm_gpu_matrix_v1);
-        std::memcpy(mapped+offset,scene.cells,scene.cell_count*sizeof(ncmm_gpu_cell_v1));offset+=scene.cell_count*sizeof(ncmm_gpu_cell_v1);
+        for(uint32_t i=0;i<scene.cell_count;++i){gpu_cell c{};c.appearance=scene.cells[i];
+            if(world){const auto &p=world->coordinates[i];c.origin[0]=float(int64_t(p.x)-world->origin_x);c.origin[1]=float(int64_t(p.y)-world->origin_y);c.origin[3]=float(int64_t(p.z)-world->origin_z);c.origin[2]=c.origin[3]*world->level_height;std::copy_n(p.lower_light,3,c.lower_light);}
+            else{c.origin[0]=float(i%uint32_t(scene.camera.grid[0]));c.origin[1]=float(i/uint32_t(scene.camera.grid[0]));std::copy_n(c.appearance.light,4,c.lower_light);}
+            std::memcpy(mapped+offset,&c,sizeof(c));offset+=sizeof(c);}
+
         std::memset(mapped+offset,0,64);std::memset(mapped+offset+64,255,4);SDL_UnmapGPUTransferBuffer(context_.device(),transfer);
         if(!SDL_FlushRenderer(context_.renderer())){SDL_ReleaseGPUTransferBuffer(context_.device(),transfer);context_.fail("flush SDL GPU state");reason(context_.reason());return false;}
         auto *commands=SDL_AcquireGPUCommandBuffer(context_.device());if(!commands){SDL_ReleaseGPUTransferBuffer(context_.device(),transfer);context_.fail("acquire frame commands");reason(context_.reason());return false;}
@@ -142,7 +152,7 @@ public:
         auto *copy=SDL_BeginGPUCopyPass(commands);offset=0;
         if(!copy)return stop("begin frame upload pass");
         auto put=[&](SDL_GPUBuffer *target,uint32_t size){if(size){SDL_GPUTransferBufferLocation from{transfer,offset};SDL_GPUBufferRegion to{target,0,size};SDL_UploadToGPUBuffer(copy,&from,&to,true);}offset+=size;};
-        put(instances_,uint32_t(instances.size()*sizeof(instance)));put(bones_,scene.bone_count*sizeof(ncmm_gpu_matrix_v1));put(cells_,scene.cell_count*sizeof(ncmm_gpu_cell_v1));put(counter_,64);
+        put(instances_,uint32_t(instances.size()*sizeof(instance)));put(bones_,scene.bone_count*sizeof(ncmm_gpu_matrix_v1));put(cells_,scene.cell_count*sizeof(gpu_cell));put(counter_,64);
         SDL_GPUTextureTransferInfo white{};white.transfer_buffer=transfer;white.offset=offset;white.pixels_per_row=white.rows_per_layer=1;
         SDL_GPUTextureRegion white_target{};white_target.texture=white_;white_target.w=white_target.h=white_target.d=1;SDL_UploadToGPUTexture(copy,&white,&white_target,true);SDL_EndGPUCopyPass(copy);
         metrics_.upload_bytes+=upload_size;metrics_.upload_ms=ms(stage);
@@ -182,7 +192,7 @@ public:
             SDL_GPUTextureSamplerBinding ids{id_,programs_.nearest};SDL_BindGPUComputeSamplers(compute,0,&ids,1);SDL_DispatchGPUCompute(compute,(scene.width+15)/16,(scene.height+15)/16,1);SDL_EndGPUComputePass(compute);
             copy=SDL_BeginGPUCopyPass(commands);if(!copy)return stop("begin visibility counter copy pass");SDL_GPUBufferRegion from{counter_,0,64};SDL_GPUTransferBufferLocation to{read->transfer,0};SDL_DownloadFromGPUBuffer(copy,&from,&to);SDL_EndGPUCopyPass(copy);}
         metrics_.render_record_ms=ms(record_start);stage=clock::now();bool success;
-        if(read){read->serial=scene.frame_serial;read->fence=SDL_SubmitGPUCommandBufferAndAcquireFence(commands);success=read->fence!=nullptr;}else success=SDL_SubmitGPUCommandBuffer(commands);
+        if(read){read->serial=scene.frame_serial;read->generation=readback_generation_;read->fence=SDL_SubmitGPUCommandBufferAndAcquireFence(commands);success=read->fence!=nullptr;}else success=SDL_SubmitGPUCommandBuffer(commands);
         metrics_.submit_ms=ms(stage);SDL_ReleaseGPUTransferBuffer(context_.device(),transfer);
         if(!success){context_.fail("submit full GPU frame");const std::string error=context_.reason();invalidate();reason(error);return false;}
         metrics_.active=1;metrics_.cpu_raster_calls=0;metrics_.resource_epoch=resource_epoch_;metrics_.reason[0]=0;return true;

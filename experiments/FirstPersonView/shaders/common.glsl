@@ -21,4 +21,4 @@ float linear_z(float depth){float f=camera.projection.w;return .08*f/max(.00001,
 vec3 pixel_ray(vec2 pixel){return camera.forward.xyz+camera.right.xyz*((pixel.x-camera.projection.x*.5)/camera.projection.z)
     +camera.up.xyz*((camera.projection.y*.5-pixel.y)/camera.projection.z);}
 int cell_index(ivec2 p){return any(lessThan(p,ivec2(0)))||any(greaterThanEqual(p,ivec2(camera.grid.xy)))?-1:p.y*int(camera.grid.x)+p.x;}
-struct Cell {vec4 light,source,volume,volume_color;uvec4 state;};
+struct Cell {vec4 light,source,volume,volume_color;uvec4 state;vec4 origin,lower_light;};

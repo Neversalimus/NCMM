@@ -164,7 +164,7 @@ bool graphics_redraw_due()
     // One recovery frame after the last keyframe restores the idle pose.
     const bool attack = graphics_attack_serial && age >= 0 && age < .53;
     // Slow ambient animation while idle; simulation time still never advances.
-    if( now - graphics_last_redraw < ( graphics_mouse_dirty || attack ? 16u : 90u ) ) return false;
+    if( now - graphics_last_redraw < ( graphics_mouse_dirty || attack || graphics_world_needs_redraw() ? 16u : 90u ) ) return false;
     graphics_last_redraw = now; graphics_mouse_dirty = false;
     if( g ) g->invalidate_main_ui_adaptor();
     return true;

@@ -7,6 +7,7 @@ struct graphics_view_state {
     void *user_data = nullptr;
     bool enabled = false;
     ncmm_graphics_render_v2 hybrid_render = nullptr;
+    ncmm_graphics_render_multilevel_v1 world_render = nullptr;
 };
 graphics_view_state graphics_view;
 bool graphics_gameplay_context = false;
@@ -27,6 +28,7 @@ void graphics_clear_hybrid();
 void graphics_clear_gpu();
 void graphics_release_mouse();
 void graphics_cancel_animation();
+void graphics_clear_world();
 
 void graphics_erase( const std::string &id )
 {
@@ -45,12 +47,12 @@ int graphics_register( const char *id, ncmm_graphics_render_v1 render,
 int graphics_enable( const char *id, int enabled )
 {
     if( !active_module_matches( id ) || graphics_view.owner != id ||
-        ( !graphics_view.render && !graphics_view.hybrid_render ) ||
+        ( !graphics_view.render && !graphics_view.hybrid_render && !graphics_view.world_render ) ||
         ( enabled && !character_state_available() ) || graphics_render_active ) return 0;
     const bool changed = graphics_view.enabled != ( enabled != 0 );
     graphics_view.enabled = enabled != 0;
     if( changed || !graphics_view.enabled ) graphics_cancel_animation();
-    if( !graphics_view.enabled ) { graphics_release_mouse(); graphics_clear_gpu(); }
+    if( !graphics_view.enabled ) { graphics_release_mouse(); graphics_clear_gpu(); graphics_clear_world(); }
 #if defined(TILES)
     if( changed && character_state_available() ) {
         add_msg( m_info, "%s", graphics_view.enabled ?
@@ -92,7 +94,7 @@ const ncmm_host_graphics_v1 graphics_api = {
 
 void graphics_register_actions( input_context &ctxt )
 {
-    if( !graphics_view.render && !graphics_view.hybrid_render ) return;
+    if( !graphics_view.render && !graphics_view.hybrid_render && !graphics_view.world_render ) return;
     const std::pair<const char *, int> keys[] = {
         { "ncmm.view.turn_left", keycode::f7 }, { "ncmm.view.turn_right", keycode::f8 },
         { "ncmm.view.look_up", keycode::f9 }, { "ncmm.view.look_down", keycode::f10 }, { "ncmm.view.quality", keycode::f11 },
@@ -121,7 +123,7 @@ bool graphics_action( const std::string &action )
                           action == "ncmm.view.quality" ? NCMM_GFX_QUALITY :
                           action == "ncmm.view.mouse_look" ? NCMM_GFX_MOUSE_LOOK :
                           action == "ncmm.view.acceleration" ? NCMM_GFX_ACCELERATION : 0;
-    if( turn && ( graphics_view.render || graphics_view.hybrid_render ) ) {
+    if( turn && ( graphics_view.render || graphics_view.hybrid_render || graphics_view.world_render ) ) {
         if( graphics_view.enabled && graphics_view.input ) {
             loaded_mod *mod = find_loaded_by_id( graphics_view.owner.c_str() );
             if( mod ) {
@@ -141,15 +143,18 @@ bool graphics_action( const std::string &action )
     return false;
 }
 
+bool graphics_world_needs_redraw();
 #include "ncmm_graphics_controls.inc"
 #include "ncmm_graphics_hybrid.inc"
+#include "ncmm_graphics_world.inc"
 
 bool graphics_draw( int x, int y, int width, int height )
 {
 #if defined(TILES)
-    if( !graphics_view.enabled || ( !graphics_view.render && !graphics_view.hybrid_render ) || !graphics_gameplay_context ||
+    if( !graphics_view.enabled || ( !graphics_view.render && !graphics_view.hybrid_render && !graphics_view.world_render ) || !graphics_gameplay_context ||
         !character_state_available() || width < 1 || height < 1 || width > 8192 || height > 8192 ||
         !tilecontext || !tilecontext->is_valid() ) return false;
+    if(graphics_view.world_render)return graphics_draw_world(x,y,width,height);
     graphics_snapshot_begun = std::chrono::steady_clock::now();
     avatar &you = get_avatar();
     map &here = get_map();

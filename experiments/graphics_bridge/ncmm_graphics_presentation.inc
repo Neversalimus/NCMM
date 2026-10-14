@@ -63,16 +63,31 @@ uint32_t graphics_item_material( const item &it )
     for( const auto &m : it.made_of() ) ids += " " + m.first.str();
     return ncmm_graphics_presentation_policy::material( ids );
 }
+std::array<float,3> graphics_sample_rgb(const tripoint_bub_ms &p)
+{
+    map &here=get_map();if(!here.ncmm_graphics_loaded(p))return{0,0,0};
+    const float raw=std::max(0.f,here.ambient_light_at(p)),level=std::clamp(.025f+std::sqrt(raw/(raw+24.f)),0.f,1.f);
+    const auto &color=here.get_cache_ref(p.z()).light_color_cache[p.x()][p.y()];
+    const float maximum=std::max({color.r,color.g,color.b,0.f}),tint=std::clamp(maximum/std::max(raw,1.f),0.f,.9f);
+    auto channel=[&](float c){return level*(1-tint+(maximum>0?tint*c/maximum:0));};
+    return{channel(color.r),channel(color.g),channel(color.b)};
+}
+float graphics_eye_height()
+{
+    avatar &you=get_avatar();float height=std::clamp(you.height()*.00885f,.5f,3.5f);
+    if(you.is_crouching())height*=.72f;if(you.is_prone())height*=.25f;
+    if(you.in_vehicle&&get_map().veh_at(you.pos_bub()))height=std::min(height,1.18f);
+    return height;
+}
 void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
                                    const std::vector<tripoint_bub_ms> &positions,
-                                   const std::vector<ncmm_graphics_cell_v2> &details )
+                                   const std::vector<ncmm_graphics_cell_v2> &details,
+                                   const ncmm_graphics_multilevel_scene_v1 *world=nullptr )
 {
     using namespace ncmm_graphics_presentation_policy;
     avatar &you=get_avatar(); map &here=get_map();
     graphics_presentation={}; auto &p=graphics_presentation;
-    p.struct_size=sizeof( p ); p.eye_height=std::clamp( you.height()*.00885f, .5f, 3.5f );
-    if( you.is_crouching() ) p.eye_height*=.72f;
-    if( you.is_prone() ) p.eye_height*=.25f;
+    p.struct_size=sizeof( p ); p.eye_height=graphics_eye_height();
     static std::optional<tripoint_abs_ms> previous_position;
     static uint64_t last_step=0;
     const auto current_position=here.get_abs(you.pos_bub());const uint64_t ticks=SDL_GetTicks();
@@ -134,6 +149,9 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
     for( size_t i=0; i<base.cell_count; ++i ) {
         if( !( base.cells[i].flags&NCMM_GFX_VISIBLE ) ) continue;
         auto &d=graphics_presentation_cells[i]; const auto &pos=positions[i];
+        if(world&&!(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)){
+            d.terrain_material=material((world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE)?here.ter(pos).id().str():std::string(base.cells[i].terrain));continue;
+        }
         if( const auto vp=here.veh_at( pos ) ) {
             const vehicle *v=&vp->vehicle();auto found=layouts.find(v);
             if(found==layouts.end()){
@@ -159,7 +177,7 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
                 d.item_liquid=liquid(items.begin()->typeId().str(),true);
         }
         if( details[i].terrain_shape==NCMM_SHAPE_WATER ) d.liquid=liquid( base.cells[i].terrain,true );
-        if( pos.z()<OVERMAP_HEIGHT && details[i].terrain_flags&NCMM_SURFACE_TERRAIN_CEILING ) {
+        if( !world && pos.z()<OVERMAP_HEIGHT && details[i].terrain_flags&NCMM_SURFACE_TERRAIN_CEILING ) {
             const std::string id=here.ter( tripoint_bub_ms( pos.x(),pos.y(),pos.z()+1 ) ).id().str();
             graphics_copy_text( d.ceiling,id ); d.ceiling_material=material( id );
         }
@@ -192,6 +210,7 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
     }
     graphics_aim.reset(); graphics_aim_name.clear(); graphics_effect_pixels.clear();
 }
+bool graphics_world_target_visible(const tripoint_bub_ms &origin,const tripoint_bub_ms &target);
 std::string graphics_click_action_impl()
 {
     if( !graphics_view.enabled || !graphics_control_context || !graphics_aim || !character_state_available() ) return "";
@@ -205,9 +224,11 @@ std::string graphics_click_action_impl()
     }
     const auto pos=here.get_bub( *graphics_aim );
     Creature *cr=get_creature_tracker().creature_at<Creature>( pos );
-    if( !cr || cr->is_dead_state() || cr->attitude_to( you )!=Creature::Attitude::HOSTILE || !you.sees( here,*cr ) || !graphics_forward_visible( you.pos_bub(),pos ) ) return "";
+    if( !cr || cr->is_dead_state() || cr->attitude_to( you )!=Creature::Attitude::HOSTILE || !you.sees( here,*cr ) ||
+        !(graphics_view.world_render?graphics_world_target_visible(you.pos_bub(),pos):graphics_forward_visible(you.pos_bub(),pos)))return "";
     you.last_target=g->shared_from( *cr ); you.last_target_pos=*graphics_aim;
     if( const auto held=you.get_wielded_item() ) if( held->is_gun() || ( held->reach_range( you ).first>1 && you.can_reach_attack( *cr ) ) ) {graphics_click_pending=true;graphics_click_time=SDL_GetTicks();return "fire";}
+    if(pos.z()!=you.posz())return ""; // An XY move is not a vertical melee action.
     const int dx=pos.x()-you.pos_bub().x(),dy=pos.y()-you.pos_bub().y();
     if( std::max( std::abs( dx ),std::abs( dy ) )!=1 ) return "";
     if( dy<0 ) return dx<0 ? "LEFTUP" : dx>0 ? "RIGHTUP" : "UP";

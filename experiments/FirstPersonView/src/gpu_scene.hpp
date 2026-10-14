@@ -36,28 +36,28 @@ class scene_cache {
         for(uint32_t value:{uint32_t(model.type.kind),model.type.flags,uint32_t(model.type.legs),uint32_t(model.type.segments),creature::generator_version,creature::appearance_generator_version})h=hash_bytes(h,&value,sizeof(value));return h;}
     class collector:public hybrid::geometry_sink {
         scene_cache &cache;const ncmm_graphics_scene_v2 &scene;const hybrid::presentation_data *metadata;
-        packet &frame;const ncmm_gpu_metrics_v1 &host;
+        packet &frame;const ncmm_gpu_metrics_v1 &host;const ncmm_graphics_multilevel_scene_v1 *levels;ncmm_world::coordinates xyz;
         const std::vector<uint64_t> &signatures;
         std::vector<bool> dirty_cells;
         std::map<std::pair<int,uint32_t>,mesh_builder> builders;
         bool world=true;
-        vec origin(int cell)const{return cell<0?vec{}:vec{float(cell%scene.base.grid_width),float(cell/scene.base.grid_width),0};}
-        key cell_key(int cell)const{return {host.world_origin_x+cell%scene.base.grid_width,host.world_origin_y+cell/scene.base.grid_width,host.world_origin_z};}
+        vec origin(int cell)const{if(cell<0)return {};if(levels){const auto p=xyz.origin(uint32_t(cell));return {p.x,p.y,p.z};}return {float(cell%scene.base.grid_width),float(cell/scene.base.grid_width),0};}
+        key cell_key(int cell)const{if(levels){const auto &c=levels->coordinates[cell];return {c.x,c.y,c.z};}return {host.world_origin_x+cell%scene.base.grid_width,host.world_origin_y+cell/scene.base.grid_width,host.world_origin_z};}
         ncmm_gpu_material_v1 material(const hybrid::material &m,mesh_builder &builder){ncmm_gpu_material_v1 result{};
             result.color[0]=m.color.x;result.color[1]=m.color.y;result.color[2]=m.color.z;result.color[3]=m.alpha;result.finish=uint32_t(m.finish);result.liquid=m.liquid;result.banks=m.banks;
             result.flags=(m.cutout?NCMM_GPU_CUTOUT:0)|(m.opaque_texture?NCMM_GPU_OPAQUE_TEXTURE:0)|(m.smooth?NCMM_GPU_SMOOTH:0)|(m.creature?NCMM_GPU_CREATURE:0)|
-                (m.spill?NCMM_GPU_SPILL:0)|(m.overlay?NCMM_GPU_HELD_MATERIAL:0)|(m.creature_visual?NCMM_GPU_CREATURE_VISUAL:0)|(m.gpu_backface?NCMM_GPU_CULL_BACK:0);
+                (m.spill?NCMM_GPU_SPILL:0)|(m.overlay?NCMM_GPU_HELD_MATERIAL:0)|(m.creature_visual?NCMM_GPU_CREATURE_VISUAL:0)|(m.gpu_backface?NCMM_GPU_CULL_BACK:0)|(m.slab_lower?NCMM_GPU_SLAB_UNDERSIDE:0);
             if(m.texture&&m.texture->valid()){const auto &image=m.texture->data;auto texture=cache.assets.texture(image.width,image.height,image.pitch_pixels,image.rgba);
                 if(texture){result.texture_key=texture->key;result.flags|=NCMM_GPU_TEXTURED;builder.texture(texture);}else fail("GPU scene texture invalid or cache budget exceeded");}
             return result;}
     public:
         bool failed=false,warming=false;uint32_t generated_cells=0;
         void fail(const char *reason){failed=true;if(cache.last_reason.empty())cache.last_reason=reason;}
-        collector(scene_cache &owner,const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *data,packet &out,const ncmm_gpu_metrics_v1 &metrics,const std::vector<uint64_t> &hashes):
-            cache(owner),scene(s),metadata(data),frame(out),host(metrics),signatures(hashes),dirty_cells(s.base.cell_count,false){
+        collector(scene_cache &owner,const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *data,packet &out,const ncmm_gpu_metrics_v1 &metrics,const std::vector<uint64_t> &hashes,const ncmm_graphics_multilevel_scene_v1 *multilevel):
+            cache(owner),scene(s),metadata(data),frame(out),host(metrics),levels(multilevel),xyz(multilevel),signatures(hashes),dirty_cells(s.base.cell_count,false){
             std::vector<int> pending;
             for(int i=0;i<int(s.base.cell_count);++i)if(s.base.cells[i].flags&NCMM_GFX_VISIBLE){auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()||found->second.signature!=signatures[i])pending.push_back(i);}
-            std::stable_sort(pending.begin(),pending.end(),[&](int a,int b){auto distance=[&](int i){const float x=float(i%s.base.grid_width)+.5f-s.base.camera_x,y=float(i/s.base.grid_width)+.5f-s.base.camera_y;return x*x+y*y;};return distance(a)<distance(b);});
+            std::stable_sort(pending.begin(),pending.end(),[&](int a,int b){auto distance=[&](int i){const auto p=origin(i);const float x=p.x+.5f-s.base.camera_x,y=p.y+.5f-s.base.camera_y,z=p.z-(levels?levels->camera_dz:0);return x*x+y*y+z*z;};return distance(a)<distance(b);});
             generated_cells=uint32_t(std::min<size_t>(512,pending.size()));for(uint32_t i=0;i<generated_cells;++i)dirty_cells[pending[i]]=true;}
         bool dirty(int cell)const override{return cell>=0&&size_t(cell)<dirty_cells.size()&&dirty_cells[cell];}
         bool any_dirty()const override{return generated_cells!=0;}
@@ -119,12 +119,14 @@ class scene_cache {
             frame.draw(mesh,place(at+vec{pose.offset.x,pose.offset.y,pose.offset.z}),uint32_t(cell),NCMM_GPU_OPAQUE,nullptr,pose.heading);
         }
     };
-    std::vector<uint64_t> signatures(const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *metadata,const ncmm_gpu_metrics_v1 &host,bool creatures,int width){
+    std::vector<uint64_t> signatures(const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *metadata,const ncmm_gpu_metrics_v1 &host,bool creatures,int width,const ncmm_graphics_multilevel_scene_v1 *levels){
+        ncmm_world::coordinates xyz(levels);
         std::vector<uint64_t> values(s.base.cell_count,0),result(values.size());
         for(int i=0;i<int(s.base.cell_count);++i){auto cell=s.base.cells[i];cell.light=0;if(creatures)std::memset(cell.creature,0,sizeof(cell.creature));auto detail=s.details[i];
-            detail.light_r=detail.light_g=detail.light_b=detail.emission=0;if(detail.vehicle_features){detail.vehicle_x-=float(i%s.base.grid_width);detail.vehicle_y-=float(i/s.base.grid_width);}
+            detail.light_r=detail.light_g=detail.light_b=detail.emission=0;if(detail.vehicle_features){const auto p=levels?xyz.origin(uint32_t(i)):ncmm_world::point{float(i%s.base.grid_width),float(i/s.base.grid_width),0};detail.vehicle_x-=p.x;detail.vehicle_y-=p.y;}
             if(creatures)detail.terrain_flags&=~(NCMM_CREATURE_TINY|NCMM_CREATURE_SMALL|NCMM_CREATURE_LARGE|NCMM_CREATURE_HUGE);
             uint64_t hash=hash_bytes(1469598103934665603ull,&cell,sizeof(cell));hash=hash_bytes(hash,&detail,sizeof(detail));
+            if(levels){const auto &c=levels->coordinates[i];hash=hash_bytes(hash,&c.x,sizeof(c.x)*3);hash=hash_bytes(hash,&c.flags,sizeof(c.flags));hash=hash_bytes(hash,&c.direction,sizeof(c.direction));}
             if(metadata){auto extra=metadata->cells[i];extra.source_light=extra.source_r=extra.source_g=extra.source_b=0;extra.hostile=0;if(creatures)extra.creature_height=extra.creature_width=extra.creature_elevation=0;
                 hash=hash_bytes(hash,&extra,sizeof(extra));hash=hash_bytes(hash,&metadata->view.occupied_vehicle,sizeof(metadata->view.occupied_vehicle));}
             float distance=0;
@@ -134,8 +136,11 @@ class scene_cache {
             // Distance-only vehicle detail bands are stable across camera turns.
             const uint32_t detail_band=s.details[i].vehicle_features?(width/(2*std::tan(70*hybrid::pi/360))/std::max(.1f,distance)<28?2:distance>8?1:0):0;
             hash=hash_bytes(hash,&detail_band,sizeof(detail_band));values[i]=hash;}
-        for(int i=0;i<int(values.size());++i){uint64_t h=values[i];const int x=i%s.base.grid_width,y=i/s.base.grid_width;
-            for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int xx=x+dx,yy=y+dy;uint64_t neighbor=xx<0||yy<0||xx>=s.base.grid_width||yy>=s.base.grid_height?0:values[yy*s.base.grid_width+xx];h=hash_bytes(h,&neighbor,sizeof(neighbor));}result[i]=h;}
+        for(int i=0;i<int(values.size());++i){uint64_t h=values[i];
+            if(levels){for(int dz=-1;dz<=1;++dz)for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int at=xyz.neighbor(uint32_t(i),dx,dy,dz);const uint64_t neighbor=at<0?0:values[size_t(at)];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}
+            else{const int x=i%s.base.grid_width,y=i/s.base.grid_width;
+                for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int xx=x+dx,yy=y+dy;const uint64_t neighbor=xx<0||yy<0||xx>=s.base.grid_width||yy>=s.base.grid_height?0:values[size_t(yy)*s.base.grid_width+xx];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}
+            result[i]=h;}
         return result;
     }
 public:
@@ -145,24 +150,24 @@ public:
     void clear(){chunks.clear();skins.clear();impostors.clear();assets.clear();world_epoch=tileset_epoch=0;}
     size_t bytes()const{return assets.bytes()+chunks.size()*sizeof(chunk);}
     bool build(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const hybrid::sprite_provider &provider,packet &out,
-               hybrid::frame &statistics,const ncmm_gpu_metrics_v1 &host,animation::pose pose,const hybrid::presentation_data *metadata,creature::presentation *creatures,int width,int height,uint32_t mode){
+               hybrid::frame &statistics,const ncmm_gpu_metrics_v1 &host,animation::pose pose,const hybrid::presentation_data *metadata,creature::presentation *creatures,int width,int height,uint32_t mode,const ncmm_graphics_multilevel_scene_v1 *levels=nullptr){
         last_reason.clear();
-        if(!hybrid::valid_scene(s,yaw,pitch)||(metadata&&!hybrid::valid_presentation(*metadata,s.base.cell_count))||(creatures&&!creature::valid(creatures->input,s.base.cell_count))){last_reason="invalid GPU source scene or optional presentation";return false;}
-        const uint64_t world=creatures?creatures->input.view.world_epoch:uint64_t(host.world_origin_z)+1,tileset=creatures?creatures->input.view.tileset_epoch:host.resource_epoch;
+        if(!hybrid::valid_scene(s,yaw,pitch,levels)||(metadata&&!hybrid::valid_presentation(*metadata,s.base.cell_count))||(creatures&&!creature::valid(creatures->input,s.base.cell_count))){last_reason="invalid GPU source scene or optional presentation";return false;}
+        const uint64_t world=levels?levels->world_epoch:creatures?creatures->input.view.world_epoch:uint64_t(host.world_origin_z)+1,tileset=creatures?creatures->input.view.tileset_epoch:host.resource_epoch;
         if(world_epoch!=world||tileset_epoch!=tileset){clear();world_epoch=world;tileset_epoch=tileset;}
         ++frame_serial;for(auto i=chunks.begin();i!=chunks.end();){const auto [x,y,z]=i->first;
-            if(z!=host.world_origin_z||x<host.world_origin_x||y<host.world_origin_y||x>=host.world_origin_x+s.base.grid_width||y>=host.world_origin_y+s.base.grid_height)i=chunks.erase(i);else ++i;}
+            if((levels?(z<levels->loaded_min_z||z>levels->loaded_max_z):z!=host.world_origin_z)||x<(levels?levels->origin_x:host.world_origin_x)||y<(levels?levels->origin_y:host.world_origin_y)||int64_t(x)>=int64_t(levels?levels->origin_x:host.world_origin_x)+s.base.grid_width||int64_t(y)>=int64_t(levels?levels->origin_y:host.world_origin_y)+s.base.grid_height)i=chunks.erase(i);else ++i;}
         for(auto i=skins.begin();i!=skins.end();)if(i->second.expired())i=skins.erase(i);else ++i;for(auto i=impostors.begin();i!=impostors.end();)if(i->second.expired())i=impostors.erase(i);else ++i;
         out.scene.width=uint32_t(width);out.scene.height=uint32_t(height);out.scene.mode=mode;out.scene.frame_serial=frame_serial;out.scene.world_epoch=world;out.scene.tileset_epoch=tileset;
         auto &camera=out.scene.camera;const float cy=std::cos(yaw),sy=std::sin(yaw),cp=std::cos(pitch),sp=std::sin(pitch);
         auto set=[](float *out,vec v,float w=0){out[0]=v.x;out[1]=v.y;out[2]=v.z;out[3]=w;};
-        set(camera.eye,{s.base.camera_x,s.base.camera_y,metadata?metadata->view.eye_height:1.55f});set(camera.right,{-sy,cy,0});set(camera.up,{-cy*sp,-sy*sp,cp});set(camera.forward,{cy*cp,sy*cp,sp});
+        set(camera.eye,{s.base.camera_x+(levels?levels->camera_dx:0),s.base.camera_y+(levels?levels->camera_dy:0),(metadata?metadata->view.eye_height:1.55f)+(levels?levels->camera_dz:0)});set(camera.right,{-sy,cy,0});set(camera.up,{-cy*sp,-sy*sp,cp});set(camera.forward,{cy*cp,sy*cp,sp});
         set(camera.projection,{float(width),float(height),width/(2*std::tan(70*hybrid::pi/360))},512);
         const auto &e=s.environment;set(camera.sun,{e.sun_x,e.sun_y,e.sun_z},e.daylight);set(camera.moon,{e.moon_x,e.moon_y,e.moon_z});
         set(camera.weather,{float(e.weather_kind),e.precipitation,e.fog_density},e.cloud_cover);set(camera.wind,{e.wind_x,e.wind_y,0});
-        set(camera.time,{float(std::fmod(e.animation_seconds,100000.0)),float(e.moon_phase),float(metadata?metadata->view.sky_style:NCMM_SKY_EARTH)},float(e.lightning));set(camera.grid,{float(s.base.grid_width),float(s.base.grid_height),float(s.base.cell_count)});
-        const auto start=std::chrono::steady_clock::now();auto hashes=signatures(s,metadata,host,creatures!=nullptr,width);collector sink(*this,s,metadata,out,host,hashes);
-        hybrid::renderer(s,yaw,pitch,provider,statistics,pose,metadata,{},creatures).collect(sink,width,height);sink.finish();generated_cells=sink.generated_cells;
+        set(camera.time,{float(std::fmod(e.animation_seconds,100000.0)),float(e.moon_phase),float(metadata?metadata->view.sky_style:NCMM_SKY_EARTH)},float(e.lightning));set(camera.grid,{float(s.base.grid_width),float(s.base.grid_height),float(s.base.cell_count)},levels?1.f:0.f);
+        const auto start=std::chrono::steady_clock::now();auto hashes=signatures(s,metadata,host,creatures!=nullptr,width,levels);collector sink(*this,s,metadata,out,host,hashes,levels);
+        hybrid::renderer(s,yaw,pitch,provider,statistics,pose,metadata,{},creatures,levels).collect(sink,width,height);sink.finish();generated_cells=sink.generated_cells;
         geometry_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();set(camera.sky_bottom,statistics.sky_horizon);
         // Palette-only CPU work: derive the exact established sky endpoints by
         // collecting above; the complete sky raster remains in the GPU shader.

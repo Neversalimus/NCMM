@@ -3,11 +3,13 @@
 #define CAMERA_SET 1
 #include "common.glsl"
 layout(set=0,binding=0,std430) readonly buffer Cells {Cell cells[];};
+#include "cells.glsl"
 layout(location=0) out vec4 particle_color;
 void main(){uint id=uint(gl_InstanceIndex);float time=mod(camera.time.x,10000.0),kind=camera.weather.x;
     vec2 xy=floor(camera.eye.xy)-12.0+mod(vec2(random_u(id*7u+5u),random_u(id*7u+6u))*24.0+camera.wind.xy*time*.018+24000.0,24.0);
-    int at=cell_index(ivec2(floor(xy)));bool outside=at>=0&&(cells[at].state.x&17u)==1u;
-    float speed=kind==2.0?1.1:9.0,z=7.0-mod(random_u(id*7u+7u)*7.0+time*speed,7.0);vec3 p=vec3(xy,z),q=view_point(p);
+    float speed=kind==2.0?1.1:9.0,z=7.0-mod(random_u(id*7u+7u)*7.0+time*speed,7.0);
+    if(camera.grid.w>.5)z+=floor(camera.eye.z/2.5)*2.5;vec3 p=vec3(xy,z),q=view_point(p);
+    int at=world_cell_index(p);bool outside=at>=0&&(cells[at].state.x&17u)==1u;
     if(!outside||q.z<=.12){gl_Position=vec4(2,2,1,1);particle_color=vec4(0);return;}
     float len=kind==2.0?2.0:clamp(camera.projection.z*.12/q.z,2.0,18.0);
     const vec2 corners[6]=vec2[](vec2(0,0),vec2(1,0),vec2(1,1),vec2(0,0),vec2(1,1),vec2(0,1));vec2 c=corners[gl_VertexIndex];

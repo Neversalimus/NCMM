@@ -12,7 +12,7 @@ bool graphics_scene_smoke()
         if( !ok ) throw std::runtime_error( failure );
     };
     try {
-        require( graphics_view.owner == "first_person_view" && graphics_view.hybrid_render,
+        require( graphics_view.owner == "first_person_view" && (graphics_view.hybrid_render||graphics_view.world_render),
                  "graphics_provider_missing" );
         require( tilecontext && tilecontext->is_valid(), "tileset_unavailable" );
         // Keep the complete established CPU qualification on the same new Host.
@@ -58,6 +58,7 @@ bool graphics_scene_smoke()
         here.invalidate_map_cache( 0 );
         here.build_map_cache( 0 );
         const auto start_pos = you.pos_bub();
+        const auto start_absolute_pos = you.pos_abs();
         const int start_moves = you.get_moves();
         const time_point start_time = calendar::turn;
         input_context gameplay( "DEFAULTMODE", keyboard_mode::keycode );
@@ -85,7 +86,11 @@ bool graphics_scene_smoke()
         require( !graphics_view.enabled, "view_not_initially_disabled" );
         press_f6();
         require( graphics_view.enabled, "view_did_not_enable" );
+        if( std::getenv( "NCMM_FP_SAVE_ONLY" ) ) {
+            #include "ncmm_graphics_multilevel_save_smoke.inc"
+        } else {
         auto draw = [&]() {
+            const auto draw_started = std::chrono::steady_clock::now();
             std::multimap<point, formatted_text> overlays;
             color_block_overlay_container blocks;
             // The fixture changes calendar/weather without executing a turn.
@@ -96,10 +101,32 @@ bool graphics_scene_smoke()
             here.invalidate_visibility_cache();
             // The real viewport hook keeps this pass before drawing first person.
             here.update_visibility_cache( 0 );
+            const auto caches_ready = std::chrono::steady_clock::now();
             tilecontext->draw( point::zero, center, 640, 480, overlays, blocks );
+            const auto tiles_ready = std::chrono::steady_clock::now();
             require( graphics_draw( 0, 0, 640, 480 ), "real_sdl_render_failed" );
+            const auto overlay_ready = std::chrono::steady_clock::now();
             require( frames > 0 || graphics_resolved_textures >= 2, "atlas_textures_missing" );
             require( SDL_FlushRenderer( get_sdl_renderer().get() ), "sdl_frame_flush_failed" );
+            const auto flushed = std::chrono::steady_clock::now();
+            const auto ms = []( auto end, auto begin ) { return std::chrono::duration<double, std::milli>( end - begin ).count(); };
+            if( ms( flushed, draw_started ) > 1000 && ( frames < 5 || frames % 32 == 0 ) ) {
+                const auto gpu = graphics_gpu_engine ? graphics_gpu_engine->metrics() : ncmm_gpu_metrics_v1{};
+                log_line( NCMM_LOG_WARN, ( "SDL smoke slow frame=" + std::to_string( frames ) +
+                    " mode=" + ( graphics_gpu_frame ? std::string( "gpu" ) : std::string( "cpu" ) ) +
+                    " total_ms=" + std::to_string( ms( flushed, draw_started ) ) +
+                    " native_cache_ms=" + std::to_string( ms( caches_ready, draw_started ) ) +
+                    " native_tiles_ms=" + std::to_string( ms( tiles_ready, caches_ready ) ) +
+                    " overlay_ms=" + std::to_string( ms( overlay_ready, tiles_ready ) ) +
+                    " flush_ms=" + std::to_string( ms( flushed, overlay_ready ) ) +
+                    " extraction_ms=" + std::to_string( graphics_world_metrics.extraction_ms ) +
+                    " visibility_ms=" + std::to_string( graphics_world_metrics.visibility_ms ) +
+                    " callback_ms=" + std::to_string( graphics_callback_ms ) +
+                    " gpu_prepare_ms=" + std::to_string( gpu.geometry_ms ) +
+                    " gpu_submit_ms=" + std::to_string( gpu.submit_ms ) +
+                    " generated_cells=" + std::to_string( gpu.generated_cells ) +
+                    " submitted_cells=" + std::to_string( graphics_world_metrics.submitted_cells ) ).c_str() );
+            }
             ++frames;
         };
         draw();
@@ -517,10 +544,15 @@ bool graphics_scene_smoke()
             graphics_smoke_gpu_gallery = false; get_options().get_option( "NCMM_FIRST_PERSON_RENDERER" ).setValue( "cpu" ); draw();
         }
         #include "ncmm_gpu_benchmark.inc"
+        #include "ncmm_graphics_multilevel_smoke.inc"
         press_f6();
         require( !graphics_view.enabled, "f6_final_toggle_off_failed" );
-        require( you.pos_bub() == start_pos && you.get_moves() == start_moves && calendar::turn == start_time,
+        // Native stairs recenter the reality bubble. Gameplay position is
+        // absolute; the same tile can have a different local coordinate.
+        require( you.pos_abs() == start_absolute_pos && you.get_moves() == start_moves && calendar::turn == start_time,
                  "vehicle_camera_tests_changed_gameplay_state" );
+        #include "ncmm_graphics_multilevel_save_smoke.inc"
+        }
     } catch( const std::exception &err ) {
         reason = err.what();
         graphics_view.enabled = false;

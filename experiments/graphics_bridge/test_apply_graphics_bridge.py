@@ -19,6 +19,15 @@ class ApplyTests(unittest.TestCase):
         (root / "src").mkdir()
         for name in ("ncmm_loader.cpp", "ncmm_loader.h"):
             (root / "src" / name).write_bytes((REPO / "host_patch" / name).read_bytes())
+        (root / "src/game.h").write_text("        bool save();\n")
+        (root / "src/map.h").write_text("        int supports_zlevels() const {\n            return zlevels;\n        }\n")
+        map_cpp='#include "map.h"\n'
+        for signature in ("void map::set_transparency_cache_dirty( const int zlev )",
+                          "void map::set_transparency_cache_dirty( const tripoint_bub_ms &p, bool field )",
+                          "void map::set_outside_cache_dirty( const int zlev )",
+                          "void map::set_floor_cache_dirty( const int zlev )"):
+            map_cpp+=signature+"\n{\n}\n"
+        (root / "src/map.cpp").write_text(map_cpp)
         (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n}\n')
         (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR+'\nstatic void CheckMessages()\n{\n        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n}\n')
         with (root / "src/sdltiles.cpp").open('a') as f:

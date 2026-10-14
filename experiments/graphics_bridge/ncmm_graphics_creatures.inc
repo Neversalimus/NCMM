@@ -103,13 +103,13 @@ uint64_t graphics_creature_overlay_revision( const Character &ch, uint64_t h )
     return h;
 }
 void graphics_prepare_creatures( const ncmm_graphics_scene_v1 &base,
-                                const std::vector<tripoint_bub_ms> &positions )
+                                const std::vector<tripoint_bub_ms> &positions,const ncmm_graphics_multilevel_scene_v1 *world=nullptr )
 {
     const double now = graphics_presentation_seconds(); avatar &you = get_avatar(); map &here = get_map();
     graphics_creature_snapshots.clear();
     if( graphics_creature_sheet_epoch != graphics_hybrid_tileset_epoch ) { graphics_creature_sheets.clear(); graphics_creature_sheet_epoch = graphics_hybrid_tileset_epoch; }
     for( size_t i = 0; i < base.cell_count; ++i ) {
-        if( !( base.cells[i].flags & NCMM_GFX_VISIBLE ) || !base.cells[i].creature[0] ) continue;
+        if( !( base.cells[i].flags & NCMM_GFX_VISIBLE ) || !base.cells[i].creature[0] || (world&&!(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)) ) continue;
         Creature *cr = get_creature_tracker().creature_at<Creature>( positions[i] );
         if( !cr || cr->is_avatar() || cr->is_dead_state() || !you.sees( here, *cr ) ) continue;
         auto *record = graphics_track_creature( *cr ); if( !record ) continue;
@@ -159,10 +159,10 @@ void graphics_prepare_creatures( const ncmm_graphics_scene_v1 &base,
         auto &record = entry.second;
         auto s = record.snapshot;
         const bool presented = record.presented_event_serial == s.event_serial;
-        if( !( s.flags & NCMM_CR_DEAD ) || !s.type_id[0] || ( presented && ( now - s.event_seconds > .55 || now < s.event_seconds ) ) ) continue;
+        if( !first_person::creature::death_clip_pending( s, presented, now ) ) continue;
         const auto pos = here.get_bub( tripoint_abs_ms( s.world_x, s.world_y, s.world_z ) );
         for( size_t i = 0; i < positions.size(); ++i ) if( positions[i] == pos ) {
-            if( base.cells[i].flags & NCMM_GFX_VISIBLE ) {
+            if( (base.cells[i].flags & NCMM_GFX_VISIBLE)&&(!world||(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)) ) {
                 record.present_event( now ); record.seen = now;
                 s = record.snapshot; s.cell = uint32_t( i ); graphics_creature_snapshots.push_back( s );
             }
