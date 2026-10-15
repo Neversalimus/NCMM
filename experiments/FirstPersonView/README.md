@@ -1,8 +1,13 @@
 # First Person View 0.12.4 — camera and movement performance
 
+Auto selects hardware GPU acceleration and uses CPU when SDL exposes a software
+adapter. Explicit GPU mode remains available for diagnostics.
+
 Native sight-range results are reused within each draw, and horizontal rays use
 a same-storey supercover path. Candidate enumeration skips storeys outside both
 existing native body/lower-slab range conditions. No sight limit is reduced.
+Derived geometry and roof-column caches preserve their absolute-coordinate
+overlap when walking, while explicit native geometry revisions invalidate them.
 The movement runner now measures two full camera rotations and 12 steps for
 street, multi-storey horde and dense four-storey city blocks at both viewports.
 

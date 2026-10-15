@@ -104,7 +104,8 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     gpu_effects=renderer_mode!=NCMM_GPU_CPU;if(has_metadata&&!gpu_effects)metadata.view.flags&=~NCMM_PRESENT_GPU_EFFECTS;
     if(gpu&&gpu_world&&renderer_mode!=NCMM_GPU_CPU){
         ncmm_gpu_metrics_v1 available{};available.struct_size=sizeof(available);
-        if(gpu->available(&available)){
+        const bool available_now=gpu->available(&available)!=0;
+        if(available_now&&(renderer_mode!=NCMM_GPU_AUTO||!available.software_device)){
             const float factor=std::min({1.f,float(high_quality?2560:1920)/scene->base.pixel_width,float(high_quality?1440:1080)/scene->base.pixel_height});
             const int width=std::max(1,int(scene->base.pixel_width*factor)),height=std::max(1,int(scene->base.pixel_height*factor));
             first_person::gpu::packet packet;first_person::hybrid::frame statistics;
@@ -127,7 +128,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
             }
             if(!built)report_gpu_fallback(gpu_world->last_reason);
             else{ncmm_gpu_metrics_v1 result{};result.struct_size=sizeof(result);gpu->metrics(&result);report_gpu_fallback(result.reason);}
-        }else report_gpu_fallback(available.reason);
+        }else report_gpu_fallback(available_now&&available.software_device?"Auto detected a software GPU adapter; using the CPU renderer":available.reason);
     }else if(renderer_mode!=NCMM_GPU_CPU)report_gpu_fallback("Host does not provide compatible Graphics GPU/Mesh API v1");
     const uint64_t common=geometry_key(*scene,has_creatures);
     uint64_t key=scene_key(*scene,common);
@@ -208,7 +209,7 @@ int init(const ncmm_host_api_v1 *api) {
     diagnostic_log=core.core->struct_size>=NCMM_SDK_CORE_FIELD_END(log)?core.core->log:api->log;
     if(core.core->struct_size>=NCMM_SDK_CORE_FIELD_END(world_setting_get_string)&&core.core->world_setting_register_enum&&core.core->world_setting_get_string){
         const char *values[]={"auto","gpu","cpu"},*labels[]={"Auto","GPU","CPU"};
-        if(core.core->world_setting_register_enum(id,"NCMM_FIRST_PERSON_RENDERER","First Person renderer / Рендерер первого лица","Auto uses compatible SDL GPU. F12: Auto → CPU → GPU → Auto. / F12: Auto → CPU → GPU → Auto.",values,labels,3,"auto",NCMM_WORLD_SETTING_LIVE))settings=core.core;}
+        if(core.core->world_setting_register_enum(id,"NCMM_FIRST_PERSON_RENDERER","First Person renderer / Рендерер первого лица","Auto uses a hardware SDL GPU and chooses CPU for software adapters. / Auto: аппаратный GPU; при программном адаптере используется CPU. F12: Auto → CPU → GPU → Auto.",values,labels,3,"auto",NCMM_WORLD_SETTING_LIVE))settings=core.core;}
     if(api->has_capability(NCMM_GRAPHICS_V2_CAP)) {
         auto *candidate=static_cast<const ncmm_host_graphics_v2 *>(api->query_interface(NCMM_GRAPHICS_V2_ID,2,0));
         if(!candidate || candidate->abi_version!=2 || candidate->major!=2 || candidate->struct_size<sizeof(ncmm_host_graphics_v2) ||

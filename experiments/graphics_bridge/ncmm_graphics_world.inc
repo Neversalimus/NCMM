@@ -18,11 +18,9 @@ void graphics_world_changed_impl(const map *source,int z)
 ncmm_world::source_cache graphics_world_sources;
 const map *graphics_world_map_identity=nullptr; // comparison only
 std::string graphics_world_realm;
-uint64_t graphics_world_ray_epoch=1,graphics_world_ray_revision=0,graphics_world_roof_revision=0;
-std::vector<uint32_t> graphics_world_roof_columns;
-std::vector<uint8_t> graphics_world_roof_ready;
-std::vector<uint32_t> graphics_world_derived_flags;
-int32_t graphics_world_roof_x=0,graphics_world_roof_y=0,graphics_world_roof_low=0,graphics_world_roof_high=0;
+uint64_t graphics_world_ray_epoch=1,graphics_world_ray_revision=0;
+ncmm_world::geometry_cache graphics_world_roofs,graphics_world_derived;
+int graphics_world_cached_low=0,graphics_world_cached_high=-1;
 ncmm_world::point graphics_world_ray_eye{};
 std::optional<tripoint_abs_ms> graphics_world_previous_position,graphics_world_ray_position;
 ncmm_graphics_camera::motion graphics_world_camera_motion;
@@ -31,7 +29,7 @@ bool graphics_world_pending_present=false;
 constexpr uint32_t graphics_world_architecture=1u<<28,graphics_world_renderable=1u<<29,graphics_world_vehicle_roof=ncmm_world::vehicle_roof_fact;
 void graphics_clear_world()
 {
-    graphics_world_sources.clear();std::vector<uint32_t>().swap(graphics_world_roof_columns);std::vector<uint8_t>().swap(graphics_world_roof_ready);std::vector<uint32_t>().swap(graphics_world_derived_flags);graphics_world_roof_revision=0;graphics_world_map_identity=nullptr;graphics_world_realm.clear();
+    graphics_world_sources.clear();graphics_world_roofs.clear();graphics_world_derived.clear();graphics_world_map_identity=nullptr;graphics_world_realm.clear();
     graphics_world_previous_position.reset();graphics_world_ray_position.reset();graphics_world_camera_motion.reset();
     graphics_world_transition_active=graphics_world_vertical_transition_active=false;graphics_world_pending_present=false;graphics_multilevel_frame=nullptr;
     ++graphics_world_epoch;
@@ -73,7 +71,14 @@ bool graphics_draw_world(int x,int y,int width,int height)
     const std::string realm=(world_generator&&world_generator->active_world?world_generator->active_world->world_name:std::string{})+"/"+g->get_dimension_prefix().str();
     if(graphics_world_map_identity!=&here||graphics_world_realm!=realm){
         graphics_clear_world();graphics_clear_creatures();graphics_world_map_identity=&here;graphics_world_realm=realm;}
-    if(!graphics_world_sources.prepare(ox,oy,loaded.front(),loaded.back(),side,side,graphics_world_epoch))return false;
+    // Roof bits and neighbour semantics depend on the loaded Z window.
+    if(graphics_world_cached_low!=loaded.front()||graphics_world_cached_high!=loaded.back()){
+        graphics_world_roofs.clear();graphics_world_derived.clear();
+        graphics_world_cached_low=loaded.front();graphics_world_cached_high=loaded.back();
+    }
+    if(!graphics_world_sources.prepare(ox,oy,loaded.front(),loaded.back(),side,side,graphics_world_epoch)||
+       !graphics_world_derived.prepare(ox,oy,loaded.front(),loaded.back(),side,side,graphics_world_epoch)||
+       !graphics_world_roofs.prepare(ox,oy,0,0,side,side,graphics_world_epoch))return false;
     graphics_world_metrics={};graphics_world_metrics.struct_size=sizeof(graphics_world_metrics);
     graphics_world_metrics.available_slices=uint32_t(loaded.size());
     auto base_flags=[&](int ax,int ay,int z){
@@ -100,19 +105,12 @@ bool graphics_draw_world(int x,int y,int width,int height)
             return value;
         });
     };
-    // Resolve only columns actually touched by the visible geometry/rays. A
-    // dirty cache or map shift must not eagerly probe every loaded XYZ cell.
-    if(graphics_world_roof_revision!=graphics_world_revision||graphics_world_roof_x!=ox||graphics_world_roof_y!=oy||graphics_world_roof_low!=loaded.front()||graphics_world_roof_high!=loaded.back()||graphics_world_roof_columns.size()!=size_t(side*side)){
-        graphics_world_roof_columns.assign(size_t(side*side),0);
-        graphics_world_roof_ready.assign(size_t(side*side),0);
-        graphics_world_derived_flags.assign(size_t(loaded.back()-loaded.front()+1)*side*side,UINT32_MAX);
-        graphics_world_roof_revision=graphics_world_revision;graphics_world_roof_x=ox;graphics_world_roof_y=oy;graphics_world_roof_low=loaded.front();graphics_world_roof_high=loaded.back();
-    }
+    // Lazy absolute-coordinate facts survive ordinary viewport shifts. Native
+    // geometry notifications invalidate derived neighbours and roof columns.
     auto flags=[&](int ax,int ay,int z){
         const int64_t x=int64_t(ax)-ox,y=int64_t(ay)-oy;
         if(x<0||y<0||x>=side||y>=side||z<loaded.front()||z>loaded.back())return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE|NCMM_WORLD_ROOFED);
-        auto &cached=graphics_world_derived_flags[(size_t(z-loaded.front())*side+size_t(y))*side+size_t(x)];
-        if(cached!=UINT32_MAX)return cached;
+        return graphics_world_derived.get(ax,ay,z,graphics_world_revision,[&]{
         uint32_t value=base_flags(ax,ay,z);
         const uint32_t below=z>loaded.front()?base_flags(ax,ay,z-1):0,above=z<loaded.back()?base_flags(ax,ay,z+1):0;
         if(below&NCMM_WORLD_CANOPY)value=(value|NCMM_WORLD_FLOOR)&~(NCMM_WORLD_OPEN_DOWN|NCMM_WORLD_GLASS_FLOOR);
@@ -121,13 +119,11 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if((value&NCMM_WORLD_GLASS_FLOOR)&&(below&NCMM_WORLD_UP)&&(below&NCMM_WORLD_RAMP))value&=~NCMM_WORLD_GLASS_FLOOR;
         if((value&NCMM_WORLD_UP)&&((above&NCMM_WORLD_OPEN_DOWN)||((above&NCMM_WORLD_DOWN)&&(above&NCMM_WORLD_RAMP))))value|=NCMM_WORLD_CONNECTED_UP;
         if((value&NCMM_WORLD_DOWN)&&(below&NCMM_WORLD_UP))value|=NCMM_WORLD_CONNECTED_DOWN;
-        const size_t column=size_t(y*side+x);
-        if(!graphics_world_roof_ready[column]){
-            graphics_world_roof_columns[column]=ncmm_world::roof_column(loaded.front(),loaded.back(),[&](int level){return base_flags(ax,ay,level);});
-            graphics_world_roof_ready[column]=1;
-        }
-        const bool roof=graphics_world_roof_columns[column]&(uint32_t(1)<<(z-loaded.front()));
-        if(roof)value|=NCMM_WORLD_ROOFED;return cached=value;
+        const uint32_t column=graphics_world_roofs.get(ax,ay,0,graphics_world_revision,[&]{
+            return ncmm_world::roof_column(loaded.front(),loaded.back(),[&](int level){return base_flags(ax,ay,level);});
+        });
+        if(column&(uint32_t(1)<<(z-loaded.front())))value|=NCMM_WORLD_ROOFED;
+        return value;});
     };
     const uint64_t ticks=SDL_GetTicks();
     auto continuing=graphics_world_camera_motion.sample(ticks);
@@ -316,7 +312,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
     world.coordinates=coordinates.data();world.cell_count=uint32_t(coordinates.size());world.slices=slices.data();world.slice_count=uint32_t(slices.size());
     const ncmm_graphics_scene_v1 base={sizeof(ncmm_graphics_scene_v1),width,height,side,side,radius+.5f,radius+.5f,cells.data(),cells.size()};
     graphics_viewport={x,y,width,height};graphics_snapshot_radius=radius;graphics_snapshot_begun=begun;
-    graphics_world_metrics.submitted_cells=uint32_t(cells.size());graphics_world_metrics.source_cache_bytes=graphics_world_sources.bytes()+(graphics_world_roof_columns.capacity()+graphics_world_derived_flags.capacity())*sizeof(uint32_t)+graphics_world_roof_ready.capacity();
+    graphics_world_metrics.submitted_cells=uint32_t(cells.size());graphics_world_metrics.source_cache_bytes=graphics_world_sources.bytes()+graphics_world_roofs.bytes()+graphics_world_derived.bytes();
     graphics_world_metrics.source_cache_hits=graphics_world_sources.hits;graphics_world_metrics.source_cache_misses=graphics_world_sources.misses;
     graphics_world_metrics.snapshot_bytes=cells.capacity()*sizeof(cells[0])+positions.capacity()*sizeof(positions[0])+coordinates.capacity()*sizeof(coordinates[0])+slices.capacity()*sizeof(slices[0]);
     graphics_world_metrics.extraction_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();

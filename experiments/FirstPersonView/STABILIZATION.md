@@ -17,6 +17,10 @@ before every frame. They locate repeated work, but are not a clean camera-only
 render loop. The baseline local audit later failed `f6_sdl_dispatch_failed`
 during its automated soak, so it is not a complete gameplay qualification.
 
+Auto also stops treating a software adapter as hardware acceleration. It chooses
+CPU for software devices; explicit GPU mode remains available for qualification.
+This policy is covered against the exact shared DLL, including hardware recovery.
+
 The native `sight_range` calculation consults vision thresholds, worn equipment,
 effects and limb scores. The world snapshot repeated it for each candidate
 and its lower level. A bounded draw-local cache now reuses the exact native
@@ -25,6 +29,11 @@ starts fresh. Fully out-of-range storeys are excluded before per-cell work.
 Horizontal physical rays retain the supercover corner rules with a 2D path;
 vertical crossings query only distinct voxels. Differential random scenes
 compare horizontal results with the general 3D traversal.
+
+Derived geometry and roof-column caches now preserve their absolute-coordinate
+intersection when the avatar moves by a tile. Explicit native geometry revisions
+still invalidate both caches. Shift, diagonal, Z-window, realm, bounds and
+revision tests verify that only the newly exposed strip needs recomputation.
 
 The expanded native movement runner records cold/warm full rotations, actual
 mouse-look dispatch, all frames including cold GPU uploads, and native steps

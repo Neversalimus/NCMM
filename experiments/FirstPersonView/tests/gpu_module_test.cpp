@@ -14,7 +14,7 @@ extern "C" void ncmm_open_ui_v1(const ncmm_host_api_v1 *);
 
 namespace {
 int checks=0,cpu_frames=0,gpu_frames=0,invalidations=0,availability_calls=0;
-bool enabled=false,provide_gpu=true,compatible=true,reject_submission=false;
+bool enabled=false,provide_gpu=true,compatible=true,reject_submission=false,software=false;
 std::string selection="auto";
 std::vector<std::string> warnings;
 ncmm_graphics_render_v2 render=nullptr;
@@ -32,7 +32,8 @@ int submit_cpu(const uint32_t *pixels,uint32_t width,uint32_t height,uint32_t pi
     ++cpu_frames;return 1;
 }
 int available(ncmm_gpu_metrics_v1 *out){
-    ++availability_calls;*out={};out->struct_size=sizeof(*out);out->resource_epoch=1;
+    ++availability_calls;*out={};out->struct_size=sizeof(*out);out->resource_epoch=1;out->software_device=software;
+    if(software)std::strcpy(out->device,"Microsoft Basic Render Driver");
     if(!compatible)std::strcpy(out->reason,"SDL renderer has no SDL_GPU device");
     return compatible;
 }
@@ -96,6 +97,18 @@ int main(){try{
     module->shutdown();provide_gpu=false;selection="gpu";
     require(module->init(&api),"older Host without optional GPU interface still loads");ncmm_open_ui_v1(&api);
     require(render(&scene,nullptr)&&cpu_frames==6&&warnings.back().find("Graphics GPU/Mesh API v1")!=std::string::npos,"explicit GPU on older Host reports complete CPU fallback");
+    module->shutdown();
+    provide_gpu=compatible=software=true;selection="auto";
+    require(module->init(&api),"software GPU Host initializes with Auto");ncmm_open_ui_v1(&api);
+    const int before_cpu=cpu_frames,before_gpu=gpu_frames;
+    require(render(&scene,nullptr)&&cpu_frames==before_cpu+1&&gpu_frames==before_gpu,"Auto bypasses software GPU and delivers a CPU frame");
+    require(!warnings.empty()&&warnings.back().find("software GPU adapter")!=std::string::npos,"Auto explains the software adapter fallback");
+    const auto warning_count=warnings.size();
+    require(render(&scene,nullptr)&&cpu_frames==before_cpu+2&&warnings.size()==warning_count,"software fallback is stable and does not flood diagnostics");
+    selection="gpu";
+    require(render(&scene,nullptr)&&gpu_frames==before_gpu+1,"explicit GPU retains software adapter qualification");
+    software=false;selection="auto";
+    require(render(&scene,nullptr)&&gpu_frames==before_gpu+2,"Auto resumes hardware GPU when it becomes available");
     module->shutdown();
     std::cout<<"GPU shipping-module recovery: "<<checks<<" checks PASS\n";return 0;
 }catch(const std::exception &error){std::cerr<<"FAIL: "<<error.what()<<"\n";return 1;}}
