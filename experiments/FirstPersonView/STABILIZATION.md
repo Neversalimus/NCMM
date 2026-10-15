@@ -123,3 +123,9 @@ after 180 seconds without progress, preserving the last action. This is an
 automation correction; it is not classified as a confirmed gameplay defect.
 Soak day/night cycling alternates two fixed instants and restores the actual
 post-action simulation time before the final native save/load checks.
+
+At c928cfea the inventory returned normally after 233 ms; the next render did
+not finish. This narrows the failure to resuming after the native UI. The runner
+now preserves CDDA's own config/debug.log and stdout/stderr and captures the
+owned test window before a stall termination. These diagnostics reuse the exact
+compiled Host; no product fix is claimed until that evidence identifies it.
