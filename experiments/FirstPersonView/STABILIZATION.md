@@ -6,6 +6,34 @@ and 1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 Scope: gameplay audit, measured performance, camera/interaction stability and
 selective visual polish. No new graphics architecture or gameplay rules.
 
+## 0.12.4 camera and movement performance follow-up
+
+The 0.12.3 controlled walking result did not establish comfortable ordinary play.
+A new local profile of its completed UDP rotation cases on RTX 4090 / D3D12
+records 93.59 ms median / 104.37 ms p95 continuous GPU frames at 640×480.
+World visibility alone takes 64.97 ms median; GPU geometry/resource medians are
+3.19/3.38 ms. These older audit scenes deliberately invalidate native map caches
+before every frame. They locate repeated work, but are not a clean camera-only
+render loop. The baseline local audit later failed `f6_sdl_dispatch_failed`
+during its automated soak, so it is not a complete gameplay qualification.
+
+The native `sight_range` calculation consults vision thresholds, worn equipment,
+effects and limb scores. The world snapshot repeated it for each candidate
+and its lower level. A bounded draw-local cache now reuses the exact native
+result for equal float light arguments; collisions recompute and every draw
+starts fresh. Fully out-of-range storeys are excluded before per-cell work.
+Horizontal physical rays retain the supercover corner rules with a 2D path;
+vertical crossings query only distinct voxels. Differential random scenes
+compare horizontal results with the general 3D traversal.
+
+The expanded native movement runner records cold/warm full rotations, actual
+mouse-look dispatch, all frames including cold GPU uploads, and native steps
+through open street, a 20-creature multi-storey scene and 40-creature dense city
+blocks. Both 640×480 and 1768×1084 viewports run CPU/GPU. The camera-only loop
+uses ordinary native cache updates without manufacturing geometry invalidation
+on every turn. Existing invalidation-heavy gameplay cases remain unchanged.
+Final binary measurements and pinned installer qualification are pending.
+
 ## 0.12.3 movement and visual follow-up
 
 The reported screenshot shows fragmented upper facades and heavily distorted

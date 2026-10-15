@@ -1,4 +1,10 @@
-# First Person View 0.12.3 — movement and visual fixes
+# First Person View 0.12.4 — camera and movement performance
+
+Native sight-range results are reused within each draw, and horizontal rays use
+a same-storey supercover path. Candidate enumeration skips storeys outside both
+existing native body/lower-slab range conditions. No sight limit is reduced.
+The movement runner now measures two full camera rotations and 12 steps for
+street, multi-storey horde and dense four-storey city blocks at both viewports.
 
 Creatures use the complete original tileset artwork by default, including UDP
 and Monster Art Pack silhouettes, colours and proportions. NCMM module settings
@@ -18,7 +24,7 @@ GPU balanced/high caps are 1920×1080 / 2560×1440; CPU fallback uses
 960×600 / 1280×800 to keep input responsive.
 
 `Run-FirstPersonBenchmark.ps1 -GameRoot ... -OutputRoot ... -MovementBenchmark`
-measures native steps and easing in street and multi-storey horde scenes at
+measures native steps, cold/warm rotations and easing in all three scenes at
 640×480 and 1768×1084. Add `-TilesetRoot ...` for actual UDP Hybrid v3.
 `-FocusedGpuBenchmark` retains the separate 96-frame smoke/one-creature profile.
 Candidate verification and measured limitations are recorded in STABILIZATION.md.

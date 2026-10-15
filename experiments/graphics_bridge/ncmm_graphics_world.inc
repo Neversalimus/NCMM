@@ -1,5 +1,6 @@
 // Callback-scoped sparse XYZ snapshots, built only on CDDA's main thread.
 ncmm_multilevel_metrics_v1 graphics_world_metrics = {};
+uint64_t graphics_world_range_evaluations=0,graphics_world_range_hits=0;
 uint64_t graphics_world_epoch=1,graphics_world_revision=1,graphics_world_serial=0;
 std::array<uint64_t,257> graphics_world_level_revisions = {};
 void graphics_world_changed_impl(const map *source,int z)
@@ -45,10 +46,10 @@ void graphics_world_frame_presented()
     graphics_world_pending_present=graphics_frame_pending_present=false;
 }
 std::array<float,3> graphics_world_rgb(const tripoint_bub_ms &p){return graphics_sample_rgb(p);}
-bool graphics_world_in_visual_range(const tripoint_bub_ms &p,int maximum,bool no_sight)
+bool graphics_world_in_visual_range(const tripoint_bub_ms &p,int maximum,bool no_sight,ncmm_world::light_range_cache *ranges=nullptr)
 {
     map &here=get_map();avatar &you=get_avatar();if(!here.ncmm_graphics_loaded(p)||std::abs(p.z()-you.posz())>fov_3d_z_range)return false;
-    const float raw=here.ambient_light_at(p);const int current=you.sight_range(raw),minimum=std::min(current,maximum);
+    const float raw=here.ambient_light_at(p);const int current=ranges?ranges->get(raw,[&]{return you.sight_range(raw);}):you.sight_range(raw),minimum=std::min(current,maximum);
     const int wanted=rl_dist(you.pos_bub(),p);const bool artificial=raw>here.get_cache_ref(p.z()).natural_light_level_cache;
     if(!(wanted<=minimum||(wanted<=maximum&&artificial)))return false;
     return wanted<=(no_sight?1:artificial?MAX_VIEW_DISTANCE:minimum);
@@ -194,8 +195,9 @@ bool graphics_draw_world(int x,int y,int width,int height)
     const auto visibility_started=std::chrono::steady_clock::now();
     const int visual_maximum=std::max(you.sight_range(default_daylight_level()),you.sight_range(0));
     const bool visual_no_sight=you.has_effect(efftype_id("no_sight"));
-    auto in_visual_range=[&](const tripoint_bub_ms &at){return graphics_world_in_visual_range(at,visual_maximum,visual_no_sight);};
-    for(int z:loaded)for(int gy=0;gy<side;++gy)for(int gx=0;gx<side;++gx){
+    ncmm_world::light_range_cache visual_ranges;
+    auto in_visual_range=[&](const tripoint_bub_ms &at){return graphics_world_in_visual_range(at,visual_maximum,visual_no_sight,&visual_ranges);};
+    for(int z:loaded)if(ncmm_world::candidate_level_in_range(z,absolute.z(),fov_3d_z_range))for(int gy=0;gy<side;++gy)for(int gx=0;gx<side;++gx){
         ++graphics_world_metrics.processed_cells;
         const float dx=gx+.5f-eye.x,dy=gy+.5f-eye.y,dz=(z-absolute.z())*NCMM_WORLD_LEVEL_HEIGHT+1.25f-eye.z,
             forward=(dx*cy+dy*sy)*cp+dz*sp,screen_x=-dx*sy+dy*cy,screen_y=dz*cp-(dx*cy+dy*sy)*sp;
@@ -209,11 +211,6 @@ bool graphics_draw_world(int x,int y,int width,int height)
         // bubble conversion/loading probes for cells that cannot contribute.
         const int ax=ox+gx,ay=oy+gy;const auto p=here.get_bub(tripoint_abs_ms(ax,ay,z));
         if(!here.ncmm_graphics_loaded(p))continue;
-        const Creature *entity=get_creature_tracker().creature_at<Creature>(p);
-        const bool observed_death=std::binary_search(observed_deaths.begin(),observed_deaths.end(),std::array<int32_t,3>{ax,ay,z});
-        const float margin=entity||observed_death?20.f:5.f;
-        if(!close_to_eye&&outside(margin)){
-            ++graphics_world_metrics.frustum_rejected;continue;}
         const auto below=tripoint_bub_ms(p.xy(),z-1);
         const bool current_in_range=in_visual_range(p),lower_in_range=in_visual_range(below);
         // No permission below can survive if neither side is within native
@@ -222,6 +219,11 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if(!current_in_range&&!lower_in_range&&p!=you.pos_bub()){
             ++graphics_world_metrics.occlusion_rejected;continue;
         }
+        const Creature *entity=get_creature_tracker().creature_at<Creature>(p);
+        const bool observed_death=std::binary_search(observed_deaths.begin(),observed_deaths.end(),std::array<int32_t,3>{ax,ay,z});
+        const float margin=entity||observed_death?20.f:5.f;
+        if(!close_to_eye&&outside(margin)){
+            ++graphics_world_metrics.frustum_rejected;continue;}
         uint32_t semantic=flags(ax,ay,z);
         const bool air=!(semantic&(NCMM_WORLD_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_DOWN|NCMM_WORLD_UP|NCMM_WORLD_CANOPY|graphics_world_renderable));
         if(air&&!entity&&!observed_death&&!atmosphere&&p!=you.pos_bub()&&here.i_at(p).empty())continue;
@@ -271,6 +273,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         candidates.push_back(c);
     }
     graphics_world_metrics.visibility_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-visibility_started).count();
+    graphics_world_range_evaluations=visual_ranges.evaluations;graphics_world_range_hits=visual_ranges.hits;
     if(candidates.size()>NCMM_WORLD_MAX_CELLS){std::stable_sort(candidates.begin(),candidates.end(),[](const auto &a,const auto &b){return a.distance<b.distance;});
         graphics_world_metrics.budget_rejected=uint32_t(candidates.size()-NCMM_WORLD_MAX_CELLS);candidates.resize(NCMM_WORLD_MAX_CELLS);}
     std::sort(candidates.begin(),candidates.end(),[](const auto &a,const auto &b){return ncmm_world::order(a.world)<ncmm_world::order(b.world);});

@@ -10,6 +10,11 @@
 namespace ncmm_world {
 struct point {float x=0,y=0,z=0;};
 struct voxel {int x=0,y=0,z=0;};
+inline bool candidate_level_in_range(int z,int eye_z,int range){
+    const int64_t dz=int64_t(z)-eye_z;
+    // A slab may expose its underside from the in-range level immediately below.
+    return range>=0&&dz>=-int64_t(range)&&dz<=int64_t(range)+1;
+}
 inline bool source_window_fits(int32_t x,int32_t y,int32_t radius){
     if(radius<0||radius>NCMM_GRAPHICS_V2_RADIUS)return false;
     const int64_t border=int64_t(radius)+1; // Direction and supercover neighbours.
@@ -135,13 +140,38 @@ template<class Read> uint32_t roof_column(int low,int high,Read read){
 /* Bounded supercover DDA. Query returns geometry semantics, never entity data.
  * Z is physical height divided by the common storey height. Unknown data closes
  * the ray; tied grid crossings inspect both sides to prevent corner leaks. */
-template<class Query> bool visible(point eye,point target,Query query,bool target_surface=false){
+template<bool horizontal_fast=true,class Query> bool visible(point eye,point target,Query query,bool target_surface=false){
     if(!finite(eye)||!finite(target))return false;
     for(float value:{eye.x,eye.y,eye.z,target.x,target.y,target.z})if(std::abs(value)>16384)return false;
     const point delta{target.x-eye.x,target.y-eye.y,target.z-eye.z};
     if(std::max({std::abs(delta.x),std::abs(delta.y),std::abs(delta.z)/NCMM_WORLD_LEVEL_HEIGHT})>128)return false;
     voxel at{int(std::floor(eye.x)),int(std::floor(eye.y)),int(std::floor(eye.z/NCMM_WORLD_LEVEL_HEIGHT))};
     const voxel end{int(std::floor(target.x)),int(std::floor(target.y)),int(std::floor(target.z/NCMM_WORLD_LEVEL_HEIGHT))};
+    if constexpr(horizontal_fast){
+        const float ez=eye.z/NCMM_WORLD_LEVEL_HEIGHT,dz=delta.z/NCMM_WORLD_LEVEL_HEIGHT;
+        const float z_exit=dz?(std::floor(ez)+(dz>0?1:0)-ez)/dz:std::numeric_limits<float>::infinity();
+        if(at.z==end.z&&z_exit>1.f+1e-6f){
+        // No storey boundary can be crossed. Keep the exact supercover corner
+        // rule, but avoid all vertical arithmetic and slab queries in this case.
+        const int sx=delta.x>0?1:delta.x<0?-1:0,sy=delta.y>0?1:delta.y<0?-1:0;
+        const float inf=std::numeric_limits<float>::infinity();
+        float tx=sx?(std::floor(eye.x)+(sx>0?1:0)-eye.x)/delta.x:inf,
+              ty=sy?(std::floor(eye.y)+(sy>0?1:0)-eye.y)/delta.y:inf;
+        const float ix=sx?std::abs(1/delta.x):inf,iy=sy?std::abs(1/delta.y):inf;
+        for(int iteration=0;iteration<384;++iteration){
+            if(at==end)return !(query(at)&NCMM_WORLD_UNKNOWN);
+            const float t=std::min(tx,ty);if(t>1)return true;
+            const voxel previous=at;const bool cross_x=tx<=t+1e-6f,cross_y=ty<=t+1e-6f;
+            if(cross_x){at.x+=sx;tx+=ix;}if(cross_y){at.y+=sy;ty+=iy;}
+            if(cross_x&&cross_y){
+                for(voxel side:{voxel{at.x,previous.y,at.z},voxel{previous.x,at.y,at.z}})
+                    if(query(side)&(NCMM_WORLD_OPAQUE|NCMM_WORLD_UNKNOWN))return false;
+            }
+            if(at==end)return !(query(at)&NCMM_WORLD_UNKNOWN);
+            if(query(at)&(NCMM_WORLD_OPAQUE|NCMM_WORLD_UNKNOWN))return false;
+        }
+        return false;
+    }}
     const std::array<float,3> p{eye.x,eye.y,eye.z/NCMM_WORLD_LEVEL_HEIGHT},d{delta.x,delta.y,delta.z/NCMM_WORLD_LEVEL_HEIGHT};
     std::array<int,3> step{};std::array<float,3> next{},increment{};
     for(int axis=0;axis<3;++axis){step[axis]=d[axis]>0?1:d[axis]<0?-1:0;
@@ -158,7 +188,8 @@ template<class Query> bool visible(point eye,point target,Query query,bool targe
         if(crossed[2]){
             voxel upper=step[2]>0?at:previous;
             // At an XY/Z tie neither candidate is allowed to create a leak.
-            for(int mask=0;mask<4;++mask){voxel cell=upper;
+            const int distinct=(crossed[0]?1:0)|(crossed[1]?2:0);
+            for(int mask=0;mask<4;++mask){if(mask&~distinct)continue;voxel cell=upper;
                 if(crossed[0])cell.x=(mask&1)?at.x:previous.x;
                 if(crossed[1])cell.y=(mask&2)?at.y:previous.y;
                 const auto flags=query(cell);
