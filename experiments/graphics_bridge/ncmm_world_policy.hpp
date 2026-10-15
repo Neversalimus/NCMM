@@ -19,6 +19,7 @@ inline bool source_window_fits(int32_t x,int32_t y,int32_t radius){
 // Private source facts distinguish an opaque gas from solid architecture.
 // Structural surfaces can continue behind a volume without publishing bodies.
 constexpr uint32_t opaque_field_fact=1u<<31;
+constexpr uint32_t vehicle_roof_fact=1u<<30;
 inline uint32_t structural_flags(uint32_t flags){return flags&opaque_field_fact?flags&~(NCMM_WORLD_OPAQUE|opaque_field_fact):flags;}
 inline bool operator==(voxel a,voxel b){return a.x==b.x&&a.y==b.y&&a.z==b.z;}
 struct traits {
@@ -107,6 +108,29 @@ inline bool floor_blocks(uint32_t flags,float x,float y){
     if((flags&NCMM_WORLD_DOWN)&&!(flags&(NCMM_WORLD_LADDER|NCMM_WORLD_RAMP)))
         return x<.14f||x>.86f||y<.08f||y>.92f;
     return false;
+}
+struct slab_sides {bool top=true,bottom=true;};
+inline slab_sides slab_trace_sides(uint32_t flags,float eye_z,float level_z){
+    // A full opaque slab hides its opposite face. Preserve both tests for
+    // glass, stair openings and the thin band where its edge is visible.
+    if((flags&NCMM_WORLD_FLOOR)&&!(flags&NCMM_WORLD_GLASS_FLOOR)){
+        if(eye_z>level_z+.0001f)return {true,false};
+        if(eye_z<level_z-.0801f)return {false,true};
+    }
+    return {};
+}
+template<class Read> uint32_t roof_column(int low,int high,Read read){
+    if(low < -128||high>128||low>high||int64_t(high)-low>=32)return UINT32_MAX;
+    uint32_t mask=0;
+    for(int z=high;z>=low;--z){const uint32_t value=read(z),bit=uint32_t(1)<<(z-low);
+        if(value&(NCMM_WORLD_CANOPY|vehicle_roof_fact))mask|=bit;
+        // The first roof covers every lower level. No engine reads below it
+        // are needed to establish this column's roof mask.
+        if(value&(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_CANOPY|NCMM_WORLD_UNKNOWN|vehicle_roof_fact)){
+            mask|=bit-1;break;
+        }
+    }
+    return mask;
 }
 /* Bounded supercover DDA. Query returns geometry semantics, never entity data.
  * Z is physical height divided by the common storey height. Unknown data closes

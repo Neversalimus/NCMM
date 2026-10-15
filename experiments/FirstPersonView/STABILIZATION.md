@@ -18,6 +18,8 @@ A facade regression reproduces an upper wall whose centre ray is blocked by a
 foreground slab while its upper face remains visible. Face/height probes grant
 only the existing structure permission. They never grant room contents or
 creature visibility. A solid foreground wall still blocks all probes.
+Coarse upper brick walls retain the canonical brick finish instead of turning
+into plain grey plaster; the actual unseen terrain ID stays unpublished.
 
 Derived world flags are cached instead of recalculating neighbours and roof
 masks at every DDA step. Visibility uses the native avatar eye; visual walking
@@ -25,6 +27,16 @@ offsets affect projection without retracing the world on every easing frame.
 Vertical transitions retain the displayed eye so the surrounding floor cannot
 disappear before the camera passes through the stair opening. The native stair
 audit checks this agreement on the first displayed frame.
+Roof masks are now lazy per column and stop at the first blocking surface;
+geometry invalidation uses explicit native notifications instead of invalidating
+rays again when an unchanged source fact is first read. Opaque slabs skip rays
+to their hidden backs. Glass, stair openings and slab edges keep both paths.
+Randomized 1/3/21/32-level masks match the exhaustive reference, and CPU frames
+above, below and beside slabs preserve all pixels, depth and ownership.
+The same native current/lower visibility-range conditions are checked before
+tracing; cells that cannot receive any existing permission are rejected early.
+Day/night limits are shared across the frame and native tile perception is
+queried once for the body/top pair. Private occluders still participate in rays.
 The GPU producer completes all dirty cells in the validated, resource-bounded
 snapshot, avoiding its previous 512-cell warmup and full CPU fallback.
 
