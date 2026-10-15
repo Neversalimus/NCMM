@@ -6,7 +6,32 @@ and 1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 Scope: gameplay audit, measured performance, camera/interaction stability and
 selective visual polish. No new graphics architecture or gameplay rules.
 
-## Final automated qualification — 15 October 2026
+## 0.12.2 follow-up candidate
+
+This candidate moves the existing widest conservative frustum rejection before
+map/bubble conversion and loading probes. The bound and native perception rules
+are unchanged. A speedup is not established until native measurements complete.
+
+The previous 1807 single-creature 48-frame GPU result had a slower median but
+better p95/p99: graphics 44.97 -> 53.08 ms median, 86.98 -> 71.09 ms p95 and
+93.63 -> 74.45 ms p99. Geometry stayed 4.51 -> 4.56 ms and extraction improved
+24.28 -> 20.49 ms. Sounds show the same mixed direction. This does not identify
+the cause; previously unmeasured window presentation/native tiles may contribute.
+
+The GPU benchmark now acknowledges successful presentation just like ordinary
+gameplay, and exports exclusive native-tiles, perspective, actual-present and
+unattributed wall-time samples with actual CPU/GPU tags. CPU recording timings
+remain distinct from GPU execution time. The isolated runner accepts
+`-FocusedGpuBenchmark` for smoke-gas and one creature at actual 640x480, 96 frames
+per renderer/case. It does not perform the gameplay soak or verify UDP; those
+switches cannot be combined. Default full matrices and gameplay audit stay intact.
+
+24 local Windows native tests and PowerShell parsing passed. Real pinned Host
+compilation, focused phase-accounting verification and integration are pending.
+The 0.12.1 installers below remain the last fully qualified release until that
+candidate is qualified. Manual acceptance and discrete-GPU qualification remain open.
+
+## Final automated qualification of 0.12.1 — 15 October 2026
 
 Qualified runtime head: `ccb11df48b582bde00c9958bdd5b8b507d573556` (test merge
 `b51eca9877d4cd81ae0d1af600aa75c8d0ed4a12`).
