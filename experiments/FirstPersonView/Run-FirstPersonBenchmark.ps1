@@ -57,7 +57,8 @@ try {
     $env:NCMM_FP_APPEARANCE_SMOKE='1' # Stable monster atlas variants in this diagnostic only.
     $env:NCMM_FP_SOAK_SECONDS=[string]$SoakSeconds
     if($udp){$env:NCMM_FP_UDP='1'}
-    $process=Start-Process (Join-Path $test 'cataclysm-tiles.ncmm.exe') -ArgumentList '--ncmm-gameplay-smoke --seed ncmm-gameplay-0121' -WorkingDirectory $test -PassThru -RedirectStandardOutput (Join-Path $evidence 'first-person-native-stdout.log') -RedirectStandardError (Join-Path $evidence 'first-person-native-stderr.log')
+    $nativeArgs=@('--ncmm-gameplay-smoke','--seed','ncmm-gameplay-0121','--userdir',('"'+$test+'"'))
+    $process=Start-Process (Join-Path $test 'cataclysm-tiles.ncmm.exe') -ArgumentList $nativeArgs -WorkingDirectory $test -PassThru -RedirectStandardOutput (Join-Path $evidence 'first-person-native-stdout.log') -RedirectStandardError (Join-Path $evidence 'first-person-native-stderr.log')
     $deadline=[DateTime]::UtcNow.AddSeconds($SoakSeconds+1200)
     $progressPath=Join-Path $test 'ncmm/first-person-audit-progress.txt'
     $lastProgress='native startup'

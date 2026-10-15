@@ -124,8 +124,15 @@ automation correction; it is not classified as a confirmed gameplay defect.
 Soak day/night cycling alternates two fixed instants and restores the actual
 post-action simulation time before the final native save/load checks.
 
-At c928cfea the inventory returned normally after 233 ms; the next render did
-not finish. This narrows the failure to resuming after the native UI. The runner
-now preserves CDDA's own config/debug.log and stdout/stderr and captures the
-owned test window before a stall termination. These diagnostics reuse the exact
-compiled Host; no product fix is claimed until that evidence identifies it.
+At c928cfea the inventory returned normally after 233 ms, but the checkpoint
+after it was too broad to identify the following stop. The a988dc0d owned-window
+capture identifies the actual cause: `ammo_set` raised CDDA's modal diagnostic
+"Tried to set invalid ammo of battery for flashlight". Rendering had resumed.
+The fixture now charges a real medium battery using its default ammo and
+inserts it into the flashlight's magazine well, matching CDDA's own battery
+tests. Native debug messages within action trials are captured and fail the
+trial instead of blocking at a modal prompt. This corrects test setup, not a
+confirmed production renderer defect. The runner retains native error logs,
+stdout/stderr and a stalled-window capture for further failures.
+The local runner also passes an explicit owned `--userdir`, keeping configuration,
+worlds and native debug logs inside its new clone even on home-directory builds.

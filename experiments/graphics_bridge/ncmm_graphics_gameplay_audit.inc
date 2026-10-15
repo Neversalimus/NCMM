@@ -77,7 +77,11 @@
     auto settle=[&](){for(int n=0;n<100&&graphics_world_transition_active;++n){SDL_Delay(5);render();}require(!graphics_world_transition_active,"audit_camera_never_settled");};
     floor();warm("cpu");
     report.member("actions");report.start_array();
-    auto action=[&](const char *name,const std::function<void()> &run){checkpoint(name);const auto begin=audit_clock::now();run();report.start_object();report.member("name",name);report.member("native_action_wall_ms",milliseconds(begin));report.member("success",true);report.end_object();stream.flush();checkpoint(std::string(name)+" PASS");};
+    auto action=[&](const char *name,const std::function<void()> &run){checkpoint(name);const auto begin=audit_clock::now();
+        const auto native_errors=capture_debugmsg_during(run);
+        if(!native_errors.empty())log_line(NCMM_LOG_ERROR,("Native audit diagnostic: "+native_errors).c_str());
+        require(native_errors.empty(),"audit_native_debug_message");
+        report.start_object();report.member("name",name);report.member("native_action_wall_ms",milliseconds(begin));report.member("success",true);report.end_object();stream.flush();checkpoint(std::string(name)+" PASS");};
     action("native_walk_and_visual_continuity",[&](){
         for(const tripoint_rel_ms step:{tripoint_rel_ms(1,0,0),tripoint_rel_ms(0,-1,0),tripoint_rel_ms(-1,0,0),tripoint_rel_ms(0,1,0)}){
             const auto before=you.pos_abs();const int moves=you.get_moves();require(avatar_action::move(you,here,step),"audit_native_walk_failed");const auto after=you.pos_abs();const int spent=moves-you.get_moves();
@@ -91,7 +95,10 @@
         std::vector<item_location> targets{item_location(map_cursor(p),&rock)};std::vector<int> quantities{0};bool stashed=false;Pickup::pick_info info;
         checkpoint("native_pickup_begin");require(Pickup::do_pickup(targets,quantities,true,stashed,info)&&targets.empty()&&here.i_at(p).empty(),"audit_native_pickup_failed");
         checkpoint("native_inventory_cancel_begin");{cancel_native_ui cancel(SDL_GetWindowID(get_sdl_window()));game_menus::inv::common();}checkpoint("native_inventory_cancel_returned");ncmm::graphics_note_input_context("DEFAULTMODE");render();
-        item light(itype_id("flashlight"),calendar::turn);light.ammo_set(itype_id("battery"),20);you.set_wielded_item(light);item_location loc=you.get_wielded_item();checkpoint("native_flashlight_activation_begin");avatar_action::use_item(you,loc,"transform");
+        checkpoint("native_flashlight_battery_prepare");item light(itype_id("flashlight"),calendar::turn),cell(itype_id("medium_battery_cell"),calendar::turn);
+        const auto charge=cell.ammo_default();require(!charge.is_null(),"audit_native_battery_ammo_missing");cell.ammo_set(charge,20);
+        require(cell.ammo_remaining()==20&&light.put_in(cell,pocket_type::MAGAZINE_WELL).success()&&light.ammo_remaining()==20,"audit_native_battery_install_failed");
+        you.set_wielded_item(light);item_location loc=you.get_wielded_item();checkpoint("native_flashlight_activation_begin");avatar_action::use_item(you,loc,"transform");
         require(you.get_wielded_item()&&you.get_wielded_item()->typeId()==itype_id("flashlight_on"),"audit_native_item_activation_failed");render();
     });
     action("native_melee_aim_fire_and_reload_completion",[&](){clear_monsters();const auto p=point_at(0,-1);monster *target=g->place_critter_at(mtype_id("mon_zombie"),p);require(target!=nullptr,"audit_combat_spawn_failed");
