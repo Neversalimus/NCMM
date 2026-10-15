@@ -56,7 +56,54 @@ New coverage: partial upper facades, native art proportions/depth/death cache,
 and a 1940-cell GPU snapshot ready in its first frame. The native movement
 benchmark measures 12 real steps per scene/viewport/renderer, including all
 easing frames, at 640×480 and 1768×1084. Requested GPU frames must all stay on
-GPU. Both pinned integration builds and new hardware measurements are pending.
+GPU.
+
+Qualified runtime head: `40e5c24e3003de7066b2cd2109c500eee2477bde`
+(test merge `dda4fbdb014ffdca0bbb045e6ab962c1e58104e4`, identical runtime tree).
+[Integration run](https://github.com/Neversalimus/NCMM/actions/runs/38768486226),
+[GPU/UI](https://github.com/Neversalimus/NCMM/actions/runs/38768483804) and
+[Source/Package Audit](https://github.com/Neversalimus/NCMM/actions/runs/38768483723)
+passed. Both pinned Hosts passed graphics/sounds installation, repair, rollback,
+Restore Vanilla, repeated bootstrap launches and native multi-Z save/load.
+The native audit passed all ten action groups, six AI turns with 1/5/20 enemies,
+official and actual UDP CPU/GPU scenes, a 60-second automated soak and saves.
+Focused profiling and all eight movement records passed on each pin.
+24 module tests and eight source-transform tests passed on Windows and Linux;
+24 fresh local MSVC tests also passed. This integration checkpoint does not
+repeat the historical full gallery, paired 0.12 benchmark or 30-minute soak.
+
+The delivered installer ZIPs retain the qualified CI bytes unchanged.
+SHA256: 1040 `395520bc32e1bd67a589bd64a68c2a4580edebb7e918d3ded22874c7e3894abd`;
+1807 `88250c4adec60cd261f4adde1c13e5d4e456f1b59383b98226c478de46c052da`.
+
+### Hardware movement measurement
+
+The exact delivered 1040 installer Host and module passed the isolated movement
+runner on NVIDIA GeForce RTX 4090, Direct3D12, actual UDP Hybrid v3. Host SHA256:
+`83c37c9213d60756450ae80d86a8c75ea28c2f931eb08225c90912dd798b864c`; module SHA256:
+`87d777c5d1a4a588e56ad3f4abbe56c08cc55bb695abe7b95d7898b345e4ec0d`.
+All eight CPU/GPU records completed, with 12 native steps each and no native turn
+advancement. All 296 requested GPU frames, including each first changed-world
+frame, used GPU; no software fallback occurred. The final horde GPU capture
+shows continuous brick upper facades and full native creature artwork.
+
+Times are CPU wall milliseconds through actual SDL presentation. Viewports are
+requested window viewports, with the documented renderer resolution caps.
+First-ready includes the native step and first presentation; easing is the
+following visual-only frames. Each first-ready row contains only 12 samples,
+so p95/p99 describe this route and are not a general player-latency guarantee.
+
+| Scene | Viewport | First median | First p95 | First p99 | Easing median | Easing p95 | Easing p99 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| street | 640×480 | 119.45 | 153.01 | 156.94 | 15.58 | 18.36 | 19.05 |
+| street | 1768×1084 | 118.99 | 157.32 | 170.03 | 17.46 | 19.92 | 20.28 |
+| multi_level_horde | 640×480 | 112.25 | 139.13 | 143.07 | 11.29 | 14.24 | 14.76 |
+| multi_level_horde | 1768×1084 | 109.63 | 132.49 | 135.89 | 12.38 | 15.57 | 16.08 |
+
+These controlled routes are not a full ordinary-game FPS measurement. They do
+not include ordinary AI turn cost, manual driving or a prolonged manual session.
+The older action-audit baseline above uses a different route and is not a paired
+before/after walking experiment. Reconstructed volumes remain an explicit option.
 
 ## 0.12.2 follow-up candidate
 

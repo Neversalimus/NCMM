@@ -23,14 +23,13 @@ measures native steps and easing in street and multi-storey horde scenes at
 `-FocusedGpuBenchmark` retains the separate 96-frame smoke/one-creature profile.
 Candidate verification and measured limitations are recorded in STABILIZATION.md.
 
-Loaded Z-levels, floors, ceilings, stairs and shafts use the existing 0.12 renderer.
-Version 0.12.1 adds bounded visual walking/stair interpolation after successful
-presentation, safer tall-avatar headroom, player-attack timing fixes and fewer
-repeated volume/creature lookups. Native turn costs and visibility are unchanged.
+Loaded Z-levels, floors, ceilings, stairs and shafts share the live native world.
+Walking/stair interpolation starts after successful presentation and preserves
+native turn costs, collisions and visibility.
 
 See [STABILIZATION.md](STABILIZATION.md) for qualification, timings and open manual
-checks. The 30-minute session is automated; comfortable ordinary gameplay and
-discrete-GPU performance are not yet qualified.
+checks. Hardware measurements use controlled routes; ordinary manual gameplay
+and a prolonged manual session remain open.
 
 ## Creature Appearance Reconstruction 0.11
 
@@ -100,8 +99,8 @@ tilesets are not bundled.
 The new optional Graphics V2 bridge supplies callback-scoped CPU sprites, visible
 cell geometry, current weather and calendar astronomy. V1 and Core ABI contracts
 remain unchanged. The renderer uses clipped perspective-correct triangles, a
-per-pixel depth buffer, bilinear filtering and a ground mip level, with a balanced default up to 1280×800 and an F11 high-quality option up to
-1920×1080. Covered scanline spans, conservative frustum culling, outward solid
+per-pixel depth buffer, bilinear filtering and a ground mip level. GPU balanced/high
+resolution caps are 1920×1080 / 2560×1440; CPU caps are 960×600 / 1280×800. Covered scanline spans, conservative frustum culling, outward solid
 faces, front-to-back cells and up to four workers reduce work. Triangles are
 clipped/projected once; interleaved 16-row strips balance detailed floor and
 view-model work across the workers, with one writer per pixel.
