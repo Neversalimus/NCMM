@@ -8,65 +8,88 @@ selective visual polish. No new graphics architecture or gameplay rules.
 
 ## 0.12.4 camera and movement performance follow-up
 
-The 0.12.3 controlled walking result did not establish comfortable ordinary play.
-A new local profile of its completed UDP rotation cases on RTX 4090 / D3D12
-records 93.59 ms median / 104.37 ms p95 continuous GPU frames at 640×480.
-World visibility alone takes 64.97 ms median; GPU geometry/resource medians are
-3.19/3.38 ms. These older audit scenes deliberately invalidate native map caches
-before every frame. They locate repeated work, but are not a clean camera-only
-render loop. The baseline local audit later failed `f6_sdl_dispatch_failed`
-during its automated soak, so it is not a complete gameplay qualification.
+Qualified runtime: `c1ad43add41c2d5b583e885d5a702cebc4b4e81b`.
+Test merge `0ec75b84d2aa49607975a6069377aea9ba50b507` has the identical runtime
+tree. [Native integration](https://github.com/Neversalimus/NCMM/actions/runs/38800352387),
+[GPU/UI](https://github.com/Neversalimus/NCMM/actions/runs/38800266254),
+[Source/Package Audit](https://github.com/Neversalimus/NCMM/actions/runs/38800266300)
+and [targeted ASan/UBSan](https://github.com/Neversalimus/NCMM/actions/runs/38801084536)
+passed. The sanitizer branch adds only its workflow to the qualified runtime.
 
-Auto also stops treating a software adapter as hardware acceleration. It chooses
-CPU for software devices; explicit GPU mode remains available for qualification.
-This policy is covered against the exact shared DLL, including hardware recovery.
+Native sight-range results are memoized for exact float arguments within one
+draw; every frame starts fresh. Candidate enumeration retains both native
+body/lower-slab ranges. Same-storey rays use the equivalent supercover path,
+including corner ties and the general traversal near storey boundaries.
+Absolute-coordinate derived geometry and roof facts retain their overlap after
+a viewport shift. Native geometry notifications, loaded-Z bounds and realm
+changes still invalidate dependent facts. A plane is considered sealed only
+when every source-window tile has a full opaque slab; any opening or glass
+defeats the proof. The nearest upper slab underside and avatar storey remain.
 
-The native `sight_range` calculation consults vision thresholds, worn equipment,
-effects and limb scores. The world snapshot repeated it for each candidate
-and its lower level. A bounded draw-local cache now reuses the exact native
-result for equal float light arguments; collisions recompute and every draw
-starts fresh. Fully out-of-range storeys are excluded before per-cell work.
-Horizontal physical rays retain the supercover corner rules with a 2D path;
-vertical crossings query only distinct voxels. Differential random scenes
-compare horizontal results with the general 3D traversal.
+GPU neighbour signatures use a bounded frame-local index of the validated sparse
+XYZ scene. Auto selects CPU for software adapters; explicit GPU remains available
+for qualification. It is substantially slower on the CI software adapter.
 
-Derived geometry and roof-column caches now preserve their absolute-coordinate
-intersection when the avatar moves by a tile. Explicit native geometry revisions
-still invalidate both caches. Shift, diagonal, Z-window, realm, bounds and
-revision tests verify that only the newly exposed strip needs recomputation.
+Cold-step profiling then identified up to 112908 source-fact rebuilds on the
+12-step route, with seven geometry revisions. Definition flags and shape
+classification now use a bounded draw-local terrain/furniture memo. Both pinned
+engines implement map::has_flag as terrain OR furniture after bounds checking.
+The no-Z/bottom floor policy is part of the key. Fields, furniture presence,
+vehicles and roofs are evaluated live outside this memo. Recorded frames have
+at most 40 definition evaluations and up to 112905 memo hits. Collision tests
+recompute exact results; no definition identity survives a draw.
 
-The remaining cold-step work traces hidden storeys behind the ground slab.
-A revision/window-scoped plane proof now rejects only storeys whose complete
-body, slab and facade probe sets must cross a full opaque slab. Every tile in
-the source window must be closed; any stair opening, glass or water defeats
-the proof. The nearest upper slab is kept for its visible underside, as is
-the avatar storey. Ray and facade tests verify both physical and structural
-queries, while opening, revision, realm and viewport shifts invalidate proofs.
+Both pinned Hosts passed graphics/sounds installation, repair, rollback, Restore
+Vanilla, repeated bootstrap launches and native multi-Z save/load. Native gameplay
+passed all ten action groups, six AI turns with 1/5/20 enemies, official and
+actual UDP CPU/GPU scenes, a 60-second automated soak, focused profiles and all
+12 movement records per pin. Windows/Linux each passed 24 module tests and eight
+atomic source-transform tests. Three focused Linux ASan/UBSan tests passed on
+the final cache/traversal/index code. This integration does not repeat the
+historical full gallery, paired 0.12 image matrix or 30-minute soak.
 
-Rain profiling also exposes repeated 27-neighbour binary searches in GPU
-geometry signatures. A bounded frame-local dense address index now maps the
-validated sparse snapshot to the same indices in constant time. Differential
-tests cover holes, 1/3/21/32 storeys and extreme absolute coordinates.
+### Recorded CI movement
 
-The expanded native movement runner records cold/warm full rotations, actual
-mouse-look dispatch, all frames including cold GPU uploads, and native steps
-through open street, a 20-creature multi-storey scene and 40-creature dense city
-blocks. Both 640×480 and 1768×1084 viewports run CPU/GPU. The camera-only loop
-uses ordinary native cache updates without manufacturing geometry invalidation
-on every turn. Existing invalidation-heavy gameplay cases remain unchanged.
-The native F6 guard now checks that the source, roof and derived geometry caches
-all release their owned heap storage. The first Host build caught its obsolete
-roof-vector name; the guard is updated without weakening cache-release checks.
-The a85824f3 native checkpoint passed both pinned Hosts, but its movement
-records still show 112908 source-fact misses on some steps and seven geometry
-revisions along the 12-step route. Rebuilding those facts repeatedly classifies
-the same terrain/furniture definitions. A new bounded draw-local memo shares
-only immutable definition semantics, including the no-Z/bottom floor policy.
-Both engine pins implement map::has_flag as terrain OR furniture after bounds
-checks. Field opacity, field presence, furniture presence and vehicle/roof
-facts are applied live outside this memo. Definition and collision tests plus
-per-frame evaluation/hit counters cover the new cold-snapshot path.
-Final binary measurements and pinned installer qualification are pending.
+These are CPU wall milliseconds through SDL presentation at a requested
+1768×1084 viewport. The CPU renderer uses its existing resolution cap. First-ready
+includes the native move/cache update and first presentation; easing and rotation
+do not advance simulation turns. Each first-ready row has 12 samples.
+Before is checkpoint `a85824f3`; After is the qualified definition-memo runtime.
+These are independent CI runs, not a paired same-machine experiment or a
+general player-FPS guarantee.
+
+| Pin | Scene | First median before | First median after | First p95 after | Warm rotation median | Easing median |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 1040 | street | 99.36 | 67.92 | 100.70 | 34.69 | 29.92 |
+| 1040 | multi_level_horde | 102.62 | 74.79 | 92.77 | 35.52 | 31.23 |
+| 1040 | city_blocks | 110.82 | 82.77 | 98.78 | 39.92 | 33.59 |
+| 1807 | street | 206.68 | 176.31 | 207.69 | 57.37 | 47.02 |
+| 1807 | multi_level_horde | 209.02 | 170.55 | 205.45 | 60.39 | 49.03 |
+| 1807 | city_blocks | 213.48 | 181.73 | 223.00 | 69.52 | 53.87 |
+
+Explicit GPU cases identify Microsoft Basic Render Driver, a software adapter.
+Their full-size warm-rotation medians remain 91–314 ms across the scenes/pins.
+Auto selects CPU on that adapter. These measurements do not establish discrete-GPU
+performance. Final-installer hardware rendering and ordinary manual gameplay
+remain unqualified: local execution became unavailable before that measurement.
+
+### Verified delivery
+
+[Artifact review](https://github.com/Neversalimus/NCMM/actions/runs/38807413895)
+verified each original qualified ZIP digest, Setup, all 32 payload hashes, engine
+pins, runtime source tree, 42 native input hashes and the 12-record movement
+evidence. It stages the qualified files as direct-download ZIPs; Setup and payload
+bytes are unchanged. The GitHub artifact wrapper is recompressed, so its digest
+differs from the original inner installer ZIP.
+
+- [1040 installer](https://github.com/Neversalimus/NCMM/actions/runs/38807413895/artifacts/12006203659): delivery SHA256 `29d6163d90bdeb88b473155caa96da40f2ce96a2e1aefded2327f2a43b118824`; original qualified ZIP `33a32a6dc39589a12b84e1027f204338e35c8bacfba5c14b8cb3b45aefeeeeda`.
+- [1807 installer](https://github.com/Neversalimus/NCMM/actions/runs/38807413895/artifacts/12005959053): delivery SHA256 `77e3a7929199fe9f0ba041720e17e6c062f92dd03b073b16283f36c51b45e1d3`; original qualified ZIP `20c1e6eba256edac1dfeeac90aef0b7d317bf70eb97929521719b28fbd041b07`.
+
+1040 Host SHA256: `6191091e4288b97e9e6a10040ba7a783133376e9a0a5fe9bd3e2fa1ed9117bee`; module SHA256:
+`61f0845fad051edc6b45e0ffac98b3dbe583d0c7264383b7d7b8c33f03e11c72`.
+
+1807 Host SHA256: `34a6448aeb8b70ddbd7158565b17172a7c1ab440da20d226cf5b1992876b03d8`; module SHA256:
+`31c3191b2135e91bbf83d3c8464f84c5ac55b14625f4509f6fe40d6099f1cf94`.
 
 ## 0.12.3 movement and visual follow-up
 
