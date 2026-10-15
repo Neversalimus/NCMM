@@ -8,6 +8,8 @@ a same-storey supercover path. Candidate enumeration skips storeys outside both
 existing native body/lower-slab range conditions. No sight limit is reduced.
 Derived geometry and roof-column caches preserve their absolute-coordinate
 overlap when walking, while explicit native geometry revisions invalidate them.
+GPU geometry signatures use one bounded frame-local XYZ index for neighbour
+lookups, including sparse empty cells and all loaded storeys.
 The movement runner now measures two full camera rotations and 12 steps for
 street, multi-storey horde and dense four-storey city blocks at both viewports.
 

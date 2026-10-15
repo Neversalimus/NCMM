@@ -5,6 +5,18 @@
 
 int main(){try{
     int checks=0;auto check=[&](bool value,const char *message){++checks;if(!value)throw std::runtime_error(message);};
+    for(int levels:{1,3,21,32}){
+        ncmm_graphics_multilevel_scene_v1 world{};world.origin_x=INT32_MIN;world.origin_y=INT32_MAX-6;world.loaded_min_z=-10;world.loaded_max_z=-10+levels-1;
+        world.appearance.base.grid_width=9;world.appearance.base.grid_height=7;std::vector<ncmm_world_cell_v1> coordinates;
+        for(int z=world.loaded_min_z;z<=world.loaded_max_z;++z)for(int y=0;y<7;++y)for(int x=0;x<9;++x)
+            if((x*7+y*13+z*17)%5!=0)coordinates.push_back({world.origin_x+x,world.origin_y+y,z,0,0,0,1});
+        world.coordinates=coordinates.data();world.cell_count=uint32_t(coordinates.size());
+        first_person::gpu::coordinate_index indexed(&world);ncmm_world::coordinates reference(&world);
+        for(uint32_t i=0;i<world.cell_count;++i)for(int dz=-1;dz<=1;++dz)for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx)
+            check(indexed.neighbor(i,dx,dy,dz)==reference.neighbor(i,dx,dy,dz),"indexed sparse holes and extreme canonical coordinates match the original lookup");
+        world.loaded_max_z=world.loaded_min_z+32;first_person::gpu::coordinate_index invalid(&world);
+        check(invalid.bytes()==0&&invalid.neighbor(0,0,0)==-1,"invalid index span cannot allocate or reveal a neighbour");
+    }
     for(int count:{1,2,7,98,1940}){
         std::vector<ncmm_graphics_cell_v1> cells(count);
         std::vector<ncmm_graphics_cell_v2> details(count);
@@ -22,6 +34,11 @@ int main(){try{
         world.loaded_max_z=coordinates.back().z;world.cell_count=uint32_t(count);world.coordinates=coordinates.data();world.slice_count=uint32_t(slices.size());world.slices=slices.data();
         world.appearance.struct_size=sizeof(world.appearance);world.appearance.base={sizeof(ncmm_graphics_scene_v1),160,120,97,97,.5f,.5f,cells.data(),cells.size()};
         world.appearance.details=details.data();world.appearance.detail_count=details.size();world.appearance.environment.daylight=1;world.appearance.environment.sun_z=1;
+        first_person::gpu::coordinate_index indexed(&world);ncmm_world::coordinates reference(&world);
+        check(indexed.bytes()<=size_t(NCMM_WORLD_MAX_SLICES)*97*97*sizeof(int32_t),"neighbour index has a bounded frame lifetime");
+        for(uint32_t i=0;i<world.cell_count;++i)for(int dz=-1;dz<=1;++dz)for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx)
+            check(indexed.neighbor(i,dx,dy,dz)==reference.neighbor(i,dx,dy,dz),"indexed neighbour exactly matches sparse binary search including absent cells and levels");
+        check(indexed.neighbor(UINT32_MAX,0,0,0)==-1,"invalid neighbour owner closes index");
         first_person::gpu::scene_cache cache;first_person::hybrid::frame statistics;ncmm_gpu_metrics_v1 host{};host.resource_epoch=1;
         auto build=[&](first_person::gpu::packet &packet){return cache.build(world.appearance,0,-.4f,{},packet,statistics,host,{},nullptr,nullptr,160,120,NCMM_GPU_FORCE,&world);};
         first_person::gpu::packet first;

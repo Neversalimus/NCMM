@@ -35,6 +35,11 @@ intersection when the avatar moves by a tile. Explicit native geometry revisions
 still invalidate both caches. Shift, diagonal, Z-window, realm, bounds and
 revision tests verify that only the newly exposed strip needs recomputation.
 
+Rain profiling also exposes repeated 27-neighbour binary searches in GPU
+geometry signatures. A bounded frame-local dense address index now maps the
+validated sparse snapshot to the same indices in constant time. Differential
+tests cover holes, 1/3/21/32 storeys and extreme absolute coordinates.
+
 The expanded native movement runner records cold/warm full rotations, actual
 mouse-look dispatch, all frames including cold GPU uploads, and native steps
 through open street, a 20-creature multi-storey scene and 40-creature dense city
