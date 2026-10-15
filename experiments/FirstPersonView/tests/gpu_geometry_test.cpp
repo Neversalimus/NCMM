@@ -54,10 +54,10 @@ int main(){int checks=0;auto require=[&](bool ok,const char *message){++checks;i
     cells[7].creature[0]=0;cache.clear();
     base.grid_width=base.grid_height=97;base.cell_count=9409;base.camera_x=base.camera_y=48.5f;cells.assign(9409,{});details.assign(9409,{});base.cells=cells.data();scene.details=details.data();scene.detail_count=9409;
     for(int i=0;i<9409;++i){cells[i].flags=NCMM_GFX_VISIBLE;std::strcpy(cells[i].terrain,"t_floor");std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=1;}
-    bool complete=false;int warming_frames=0;
-    for(int i=0;i<24&&!complete;++i){first_person::gpu::packet next;complete=cache.build(scene,0,0,provider,next,stats,host,{},nullptr,nullptr,640,480,NCMM_GPU_FORCE);
-        require(cache.generated_cells<=512,"cold scene generation has a bounded per-frame cell budget");if(!complete){++warming_frames;require(cache.last_reason=="warming bounded GPU scene geometry","cold scene warming has specific diagnostics");}}
-    require(complete&&warming_frames>0,"large scene becomes complete after bounded warming");
+    first_person::gpu::packet cold;
+    require(cache.build(scene,0,0,provider,cold,stats,host,{},nullptr,nullptr,640,480,NCMM_GPU_FORCE),"large cold scene is complete in its first GPU frame");
+    require(cache.generated_cells==9409,"complete validated snapshot avoids any software warmup frame");
+    require(!ncmm_gpu::validate(cold.finish(nullptr)),"complete cold scene remains within GPU packet limits");
     const int warmed_calls=sprite_calls;first_person::gpu::packet turned;require(cache.build(scene,2.5f,.4f,provider,turned,stats,host,{},nullptr,nullptr,640,480,NCMM_GPU_FORCE),"large camera turn stays ready");
     require(cache.generated_cells==0&&sprite_calls==warmed_calls,"97x97 camera turn reuses the complete static scene");require(stats.pixels.empty(),"warming does not use the CPU pixel renderer");
     std::printf("GPU geometry/cache: %d checks PASS\n",checks);
