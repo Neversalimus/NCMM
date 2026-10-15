@@ -6,7 +6,79 @@ and 1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 Scope: gameplay audit, measured performance, camera/interaction stability and
 selective visual polish. No new graphics architecture or gameplay rules.
 
-## Final automated qualification — 15 October 2026
+## 0.12.2 follow-up candidate
+
+This candidate moves the existing widest conservative frustum rejection before
+map/bubble conversion and loading probes. The bound and native perception rules
+are unchanged. A speedup is not established until native measurements complete.
+
+The previous 1807 single-creature 48-frame GPU result had a slower median but
+better p95/p99: graphics 44.97 -> 53.08 ms median, 86.98 -> 71.09 ms p95 and
+93.63 -> 74.45 ms p99. Geometry stayed 4.51 -> 4.56 ms and extraction improved
+24.28 -> 20.49 ms. Sounds show the same mixed direction. This does not identify
+the cause; previously unmeasured window presentation/native tiles may contribute.
+
+The GPU benchmark now acknowledges successful presentation just like ordinary
+gameplay, and exports exclusive native-tiles, perspective, actual-present and
+unattributed wall-time samples with actual CPU/GPU tags. CPU recording timings
+remain distinct from GPU execution time. The isolated runner accepts
+`-FocusedGpuBenchmark` for smoke-gas and one creature at actual 640x480, 96 frames
+per renderer/case. It does not perform the gameplay soak or verify UDP; those
+switches cannot be combined. Default full matrices and gameplay audit stay intact.
+
+24 local Windows native tests and PowerShell parsing passed. Both pinned Hosts
+compiled in run #128 and passed preview installation, Vanilla restore, bootstrap
+launches and the early native multi-Z save/load gate. The native gameplay audit
+then stopped at `native_combat_20_turn_2` on both pins: its progress journal stayed
+at 101 rendered frames until the 180-second watchdog fired. This checkpoint is
+before `do_turn()` and the following CPU/GPU rendering; it does not yet identify
+which operation blocked. The independent focused profile was skipped by the
+initial workflow's default failure condition, so no new speedup is established.
+
+Diagnostic follow-up `966542ae` retains process CPU/RSS, native runtime/error
+logs and a bounded CI-only stalled-window image in the job log. The focused
+phase reproduction runs after a successful installer gate even when the native
+audit fails; that failure still makes the job red.
+
+[Repeat integration #131](https://github.com/Neversalimus/NCMM/actions/runs/38744742106)
+passed on both 1040 and 1807 at runtime head `966542ae5219793bc61f58aa37b0ed7f828faded`.
+All ten native action groups, six AI turns with 1/5/20 enemies, official and
+actual UDP Hybrid v3 CPU/GPU scene coverage, the 60-second automated soak and
+native multi-Z saves passed. The separate focused profile passed four cases
+per pin, each with 96 measured frames at actual 640x480. Per-frame exclusive
+phase accounting, renderer identity and exported percentiles were verified.
+[GPU/UI #67](https://github.com/Neversalimus/NCMM/actions/runs/38744674106) and
+[Source/Package Audit #951](https://github.com/Neversalimus/NCMM/actions/runs/38744673744)
+also passed, as did 24 module tests and eight source-transform tests on each OS.
+
+The earlier timeout did not reproduce. Its cause remains unconfirmed, so this
+does not claim a production hang fix. The retry changed the runner/CI only,
+including hidden process launch; it did not change Host or module source.
+The watchdog and native diagnostics remain enabled for a future occurrence.
+
+Focused software-D3D12 results below are CPU wall-time medians in milliseconds.
+Both GPU cases identify `Microsoft Basic Render Driver`, not a hardware GPU.
+Stage medians need not sum to the full-frame median; per-frame samples include
+the separately exported unattributed remainder and reconcile individually.
+
+| Pin | Scene | CPU frame | GPU frame | Native tiles (GPU) | Perspective (GPU) | Actual present (GPU) |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 1040 | Smoke/gas | 43.42 | 123.23 | 3.59 | 14.07 | 105.43 |
+| 1040 | One creature | 16.14 | 27.53 | 4.38 | 23.13 | 0.26 |
+| 1807 | Smoke/gas | 75.48 | 220.94 | 1.20 | 20.87 | 197.76 |
+| 1807 | One creature | 26.85 | 57.24 | 1.49 | 31.39 | 0.43 |
+
+Smoke's largest measured GPU wall phase is actual presentation on both pins.
+One-creature geometry/resource preparation medians are 2.82/0.58 ms (1040)
+and 4.39/0.65 ms (1807); these alone do not explain the full frame. The runs
+are not a paired 0.12.1/candidate comparison on the same adapter/session.
+They locate measured work, but establish neither a general speedup nor a
+discrete-GPU regression. The 0.12.1 full gallery, paired baseline and 30-minute
+soak were not repeated for this small follow-up.
+The 0.12.1 installers below remain the last fully qualified release until that
+candidate is qualified. Manual acceptance and discrete-GPU qualification remain open.
+
+## Final automated qualification of 0.12.1 - 15 October 2026
 
 Qualified runtime head: `ccb11df48b582bde00c9958bdd5b8b507d573556` (test merge
 `b51eca9877d4cd81ae0d1af600aa75c8d0ed4a12`).
@@ -92,7 +164,7 @@ reload, furniture interactions and a prolonged ordinary game are comfortable.
 | ID | Priority | Evidence | Status / next verification |
 | --- | --- | --- | --- |
 | PERF-01 | P1 | 0.12 dense smoke at 640x480 on software D3D12: median 251.046 ms (1040 graphics), 272.111 ms (1040 sounds), 276.457 ms (1807 graphics). Volume shader performs four sparse binary searches per ray sample, even while remaining in the same neighbour quartet. | Confirmed slow scene; test sample-local lookup reuse with identical images and actual SDL timing. Hardware attribution remains unmeasured. |
-| PERF-02 | P1 | Stable world publication still visits 197589 candidate cells across 21 loaded levels; visibility stage is approximately 13–15 ms. Source-cache misses are zero. | Profile/cull candidate work while retaining native perception, neighbouring-floor structure, airborne items and creatures. |
+| PERF-02 | P1 | Stable world publication still visits 197589 candidate cells across 21 loaded levels; visibility stage is approximately 13-15 ms. Source-cache misses are zero. | Profile/cull candidate work while retaining native perception, neighbouring-floor structure, airborne items and creatures. |
 | CAM-01 | P1 | World callback supplies only a Z offset; XY camera offsets remain zero despite both renderers supporting them. Adjacent native walking steps therefore jump visually between tile centres. | Add bounded visual-only interpolation for safe adjacent walking, with cancellation for teleports, opaque paths and vehicles. Native position and move cost remain authoritative. |
 | CAM-02 | P1 | Vertical easing starts before the first expensive render. Recorded native upward transition first-ready is 370.814 ms, longer than the 180 ms interpolation target. A slow first render can consume the entire easing interval. | Start the interpolation clock after the first successful presentation; test interrupted moves and slow first frames. |
 | CAM-03 | P1 | Player attack presentation is committed after command submission; a slow GPU presentation can consume its opening keyframes. Native attack notifications already observe real melee/shooting pathways. | Commit the player attack clock after successful SDL window presentation, sharing the camera acknowledgement. Native action costs and animation clips are unchanged. |

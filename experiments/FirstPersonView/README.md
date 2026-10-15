@@ -1,4 +1,11 @@
-# First Person View 0.12.1 — stabilization TEST
+# First Person View 0.12.2 — stabilization candidate
+
+The follow-up moves conservative offscreen rejection ahead of map-loading probes
+and fixes benchmark presentation acknowledgement and exclusive phase accounting.
+Use `Run-FirstPersonBenchmark.ps1 -GameRoot ... -OutputRoot ... -FocusedGpuBenchmark`
+for a 96-frame-per-case official-tileset smoke/one-creature reproduction. This
+option does not run the gameplay soak or qualify UDP. Native candidate results
+are tracked in STABILIZATION.md; 0.12.1 remains the last full qualification.
 
 Loaded Z-levels, floors, ceilings, stairs and shafts use the existing 0.12 renderer.
 Version 0.12.1 adds bounded visual walking/stair interpolation after successful

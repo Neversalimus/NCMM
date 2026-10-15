@@ -257,6 +257,7 @@ jobs:
           "FP012_BASELINE_PAYLOAD=$payload" >> $env:GITHUB_ENV
           [ordered]@{baseline_main='c5a0a0a5e12991df06ba000f80dd359f274b7f50';qualified_head='9c3c69397bbb5ae9d3ec16f8ef21732e15e08b34';qualified_merge=$bundle.ncmm_source_commit;engine_source=$bundle.source_commit;artifact_sha256=$pin.sha;installer_sha256=$pin.inner;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';host_and_module_replaced=$true} | ConvertTo-Json | Set-Content installer-result/first-person-baseline-provenance.json -Encoding UTF8
       - name: Build preview installer and verify transactions with Windows long paths disabled
+        id: installer_gate
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
@@ -337,6 +338,20 @@ jobs:
           Copy-Item (Join-Path $evidence 'first-person-multilevel-save-after.json') 'installer-result/first-person-gameplay-save-load.json'
           Copy-Item (Join-Path $evidence 'udp-asset-sha256.json') 'installer-result/first-person-gameplay-udp-assets.json'
           Get-ChildItem $evidence -Filter 'first-person-audit-*.bmp' | Copy-Item -Destination installer-result
+      - name: Focused one-creature and smoke frame-phase reproduction
+        if: ${{ always() && !cancelled() && steps.installer_gate.outcome == 'success' }}
+        timeout-minutes: 12
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $output=Join-Path $env:RUNNER_TEMP 'fp-focused-gpu'
+          ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -FocusedGpuBenchmark
+          $evidence=Join-Path $output 'evidence'
+          python ncmmrepo/experiments/FirstPersonView/tests/verify_gpu_profile.py --input (Join-Path $evidence 'first-person-gpu-benchmark.json') --output installer-result/first-person-gpu-focused-verified.json
+          if($LASTEXITCODE -ne 0){throw 'Focused native frame phase verification failed.'}
+          Copy-Item (Join-Path $evidence 'first-person-gpu-benchmark.json') installer-result/first-person-gpu-focused-profile.json
+          Copy-Item (Join-Path $output 'benchmark-provenance.json') installer-result/first-person-gpu-focused-provenance.json
+          Get-ChildItem $evidence -Filter 'first-person-gpu-*.bmp' | ForEach-Object {Copy-Item $_.FullName (Join-Path installer-result ($_.Name.Replace('first-person-gpu-','first-person-gpu-focused-')))}
       - name: Actual SDL controls, appearance, geometry, RGB light, sky, weather and held items
         if: env.FP_FULL_QUALIFICATION == 'true'
         timeout-minutes: 120
@@ -473,7 +488,7 @@ jobs:
         with:
           name: first-person-installer-${{ matrix.build }}-Windows-x64
           path: |
-            installer-result/NCMM_FirstPersonView_0.12.1_TEST_${{ matrix.build }}_Windows_x64.zip
+            installer-result/NCMM_FirstPersonView_0.12.2_TEST_${{ matrix.build }}_Windows_x64.zip
             installer-result/first-person-gameplay*.json
             installer-result/first-person-audit*.bmp
             installer-result/first-person-baseline-provenance.json
@@ -483,6 +498,7 @@ jobs:
             installer-result/first-person-shapes-audit*.json
             installer-result/first-person-creature-*.json
             installer-result/first-person-gpu-*.json
+            installer-result/first-person-gpu-focused-*.bmp
             installer-result/first-person-appearance-*.json
           if-no-files-found: error
           retention-days: 7

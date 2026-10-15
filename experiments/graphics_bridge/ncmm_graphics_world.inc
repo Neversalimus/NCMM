@@ -178,8 +178,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
     std::sort(observed_deaths.begin(),observed_deaths.end());
     const auto visibility_started=std::chrono::steady_clock::now();
     for(int z:loaded)for(int gy=0;gy<side;++gy)for(int gx=0;gx<side;++gx){
-        ++graphics_world_metrics.processed_cells;const int ax=ox+gx,ay=oy+gy;const auto p=here.get_bub(tripoint_abs_ms(ax,ay,z));
-        if(!here.ncmm_graphics_loaded(p))continue;
+        ++graphics_world_metrics.processed_cells;
         const float dx=gx+.5f-eye.x,dy=gy+.5f-eye.y,dz=(z-absolute.z())*NCMM_WORLD_LEVEL_HEIGHT+1.25f-eye.z,
             forward=(dx*cy+dy*sy)*cp+dz*sp,screen_x=-dx*sy+dy*cy,screen_y=dz*cp-(dx*cy+dy*sy)*sp;
         const bool close_to_eye=dx*dx+dy*dy+dz*dz<16;
@@ -188,6 +187,10 @@ bool graphics_draw_world(int x,int y,int width,int height)
         // Reject only beyond the widest existing creature margin before doing
         // tracker/death lookups. Large and airborne actors retain the same bounds.
         if(!close_to_eye&&outside(20.f)){++graphics_world_metrics.frustum_rejected;continue;}
+        // The widest conservative bound is independent of map contents. Avoid
+        // bubble conversion/loading probes for cells that cannot contribute.
+        const int ax=ox+gx,ay=oy+gy;const auto p=here.get_bub(tripoint_abs_ms(ax,ay,z));
+        if(!here.ncmm_graphics_loaded(p))continue;
         const Creature *entity=get_creature_tracker().creature_at<Creature>(p);
         const bool observed_death=std::binary_search(observed_deaths.begin(),observed_deaths.end(),std::array<int32_t,3>{ax,ay,z});
         const float margin=entity||observed_death?20.f:5.f;
