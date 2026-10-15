@@ -1,0 +1,21 @@
+name: First Person definition and geometry cache sanitizer
+on:
+  push:
+    branches: [codex/fpv-cache-asan-0124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cache:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Configure address and undefined behavior instrumentation
+        run: cmake -S experiments/FirstPersonView -B fp-cache-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
+      - name: Build changed cache and traversal checks
+        run: cmake --build fp-cache-sanitize --parallel 2 --target first_person_multilevel_cache_tests first_person_multilevel_policy_tests first_person_multilevel_gpu_cache_tests
+      - name: Run source, material, geometry, slab and sparse index checks
+        run: ctest --test-dir fp-cache-sanitize -R "multilevel_(cache|policy|gpu_cache)$" --output-on-failure
