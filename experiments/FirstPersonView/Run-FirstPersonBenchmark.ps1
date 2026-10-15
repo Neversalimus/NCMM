@@ -72,13 +72,28 @@ try {
             $line=Get-Content $progressPath -Tail 1
             if($line -and $line -ne $lastProgress){$lastProgress=$line;$lastAdvance=[DateTime]::UtcNow}
         }
-        Write-Host "Native SDL audit: $lastProgress"
+        try {
+            $process.Refresh()
+            Write-Host ('Native SDL audit: {0}; process_cpu_seconds={1:F2}; working_set_mib={2:F1}' -f $lastProgress,$process.TotalProcessorTime.TotalSeconds,($process.WorkingSet64/1MB))
+        } catch {Write-Host "Native SDL audit: $lastProgress"}
         if(([DateTime]::UtcNow-$lastAdvance).TotalSeconds -gt 180){
             # Capture the native error log and this process's own window before
             # terminating it. A modal CDDA debug prompt must not look like a
             # renderer hang with its diagnostic text discarded.
-            $debugLog=Join-Path $test 'config/debug.log'
-            if(Test-Path $debugLog){Get-Content $debugLog -Tail 32 | Write-Host}
+            $diagnostics=@(
+                (Join-Path $test 'config/debug.log'),(Join-Path $test 'debug.log'),
+                (Join-Path $test 'ncmm/ncmm.log'),(Join-Path $test 'ncmm/runtime.log'),
+                (Join-Path $evidence 'first-person-native-stdout.log'),
+                (Join-Path $evidence 'first-person-native-stderr.log')
+            )
+            $runtimeLogs=Join-Path $test 'ncmm'
+            if(Test-Path -LiteralPath $runtimeLogs){$diagnostics+=@(Get-ChildItem -LiteralPath $runtimeLogs -File -Filter '*.log' | Select-Object -ExpandProperty FullName)}
+            foreach($diagnostic in @($diagnostics | Select-Object -Unique)){
+                if(Test-Path -LiteralPath $diagnostic){
+                    Write-Host ('Native diagnostic: '+[IO.Path]::GetFileName($diagnostic))
+                    Get-Content -LiteralPath $diagnostic -Tail 32 | Write-Host
+                }
+            }
             try {
                 Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
 using System;
@@ -101,8 +116,22 @@ public static class NCMMBenchmarkWindow {
 }
 '@
                 $process.Refresh()
-                $captured=[NCMMBenchmarkWindow]::Capture($process.MainWindowHandle,(Join-Path $evidence 'first-person-native-stall-window.png'))
+                $stallImage=Join-Path $evidence 'first-person-native-stall-window.png'
+                $captured=[NCMMBenchmarkWindow]::Capture($process.MainWindowHandle,$stallImage)
                 Write-Host "Native stalled-window capture: $captured"
+                # Keep a bounded copy in CI logs when artifact byte transfer is
+                # unavailable. Never emit desktop pixels from a local run.
+                if($captured -and $env:GITHUB_ACTIONS -eq 'true'){
+                    $pixels=[IO.File]::ReadAllBytes($stallImage)
+                    if($pixels.Length -le 262144){
+                        $encoded=[Convert]::ToBase64String($pixels)
+                        Write-Host "NCMM_STALL_PNG_BEGIN bytes=$($pixels.Length)"
+                        for($offset=0;$offset -lt $encoded.Length;$offset+=8192){
+                            Write-Host ('NCMM_STALL_PNG_DATA '+$encoded.Substring($offset,[Math]::Min(8192,$encoded.Length-$offset)))
+                        }
+                        Write-Host 'NCMM_STALL_PNG_END'
+                    }
+                }
             } catch {Write-Warning "Native window capture unavailable: $_"}
             & taskkill.exe /pid $process.Id /t /f
             $null=$process.WaitForExit(10000)

@@ -257,6 +257,7 @@ jobs:
           "FP012_BASELINE_PAYLOAD=$payload" >> $env:GITHUB_ENV
           [ordered]@{baseline_main='c5a0a0a5e12991df06ba000f80dd359f274b7f50';qualified_head='9c3c69397bbb5ae9d3ec16f8ef21732e15e08b34';qualified_merge=$bundle.ncmm_source_commit;engine_source=$bundle.source_commit;artifact_sha256=$pin.sha;installer_sha256=$pin.inner;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';host_and_module_replaced=$true} | ConvertTo-Json | Set-Content installer-result/first-person-baseline-provenance.json -Encoding UTF8
       - name: Build preview installer and verify transactions with Windows long paths disabled
+        id: installer_gate
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
@@ -338,6 +339,7 @@ jobs:
           Copy-Item (Join-Path $evidence 'udp-asset-sha256.json') 'installer-result/first-person-gameplay-udp-assets.json'
           Get-ChildItem $evidence -Filter 'first-person-audit-*.bmp' | Copy-Item -Destination installer-result
       - name: Focused one-creature and smoke frame-phase reproduction
+        if: ${{ always() && !cancelled() && steps.installer_gate.outcome == 'success' }}
         timeout-minutes: 12
         shell: powershell
         run: |
