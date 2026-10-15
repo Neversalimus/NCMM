@@ -3,7 +3,7 @@ on:
   push:
     branches: [codex/fpv-input-latency-0124]
     paths:
-      - ci/verify-first-person-artifacts.py
+      - experiments/FirstPersonView/tests/verify_installer_artifacts.py
       - .github/workflows/ncmm-first-person-artifact-review.yml
   workflow_dispatch:
     inputs:
@@ -39,8 +39,8 @@ jobs:
           python-version: '3.12'
       - name: Verify exact archive bytes and native provenance
         run: |
-          python -m py_compile ci/verify-first-person-artifacts.py
-          python ci/verify-first-person-artifacts.py --source-run "$FP_SOURCE_RUN" --runtime-head "$FP_RUNTIME_HEAD"
+          python -m py_compile experiments/FirstPersonView/tests/verify_installer_artifacts.py
+          python experiments/FirstPersonView/tests/verify_installer_artifacts.py --source-run "$FP_SOURCE_RUN" --runtime-head "$FP_RUNTIME_HEAD"
       - uses: actions/upload-artifact@v4
         with:
           name: NCMM_FirstPersonView_0.12.4_TEST_1040_Windows_x64

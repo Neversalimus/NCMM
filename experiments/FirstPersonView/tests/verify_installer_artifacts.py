@@ -193,7 +193,7 @@ def verify(build, artifact, args, repo):
                 continue
             target = stage.joinpath(*pathlib.PurePosixPath(relative).parts)
             require(target.resolve().is_relative_to(stage.resolve()), "Extraction escaped package")
-            if item.is_dir():
+            if item.is_dir() or key.endswith("/"):
                 target.mkdir(parents=True, exist_ok=True)
             else:
                 target.parent.mkdir(parents=True, exist_ok=True)
