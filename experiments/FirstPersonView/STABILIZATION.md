@@ -114,3 +114,12 @@ The first Host compile found private UI entry points and an enum argument in
 the new audit. Explicit nonvirtual diagnostic gateways call the original game
 methods; the vehicle fixture uses the same UNDAMAGED enum as the established
 smoke test. Module API tables and class data layouts are not extended.
+
+The first native audit stopped inside the pickup/inventory/item-use group on
+both pins. Menu cancellation now feeds Escape through SDL repeatedly while the
+native UI owns input, rather than relying on one key queued before UI redraw.
+Fine-grained progress is flushed to a separate journal and the runner fails
+after 180 seconds without progress, preserving the last action. This is an
+automation correction; it is not classified as a confirmed gameplay defect.
+Soak day/night cycling alternates two fixed instants and restores the actual
+post-action simulation time before the final native save/load checks.

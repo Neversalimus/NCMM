@@ -59,9 +59,17 @@ try {
     if($udp){$env:NCMM_FP_UDP='1'}
     $process=Start-Process (Join-Path $test 'cataclysm-tiles.ncmm.exe') -ArgumentList '--ncmm-gameplay-smoke --seed ncmm-gameplay-0121' -WorkingDirectory $test -PassThru
     $deadline=[DateTime]::UtcNow.AddSeconds($SoakSeconds+1200)
+    $progressPath=Join-Path $test 'ncmm/first-person-audit-progress.txt'
+    $lastProgress='native startup'
+    $lastAdvance=[DateTime]::UtcNow
     while(-not $process.WaitForExit(20000)){
-        Write-Host 'Native SDL audit is running; detailed evidence is written into the new output folder.'
-        if([DateTime]::UtcNow -gt $deadline){& taskkill.exe /pid $process.Id /t /f;throw 'Native benchmark deadline exceeded.'}
+        if(Test-Path $progressPath){
+            $line=Get-Content $progressPath -Tail 1
+            if($line -and $line -ne $lastProgress){$lastProgress=$line;$lastAdvance=[DateTime]::UtcNow}
+        }
+        Write-Host "Native SDL audit: $lastProgress"
+        if(([DateTime]::UtcNow-$lastAdvance).TotalSeconds -gt 180){& taskkill.exe /pid $process.Id /t /f;throw "Native audit made no progress for 180 seconds: $lastProgress"}
+        if([DateTime]::UtcNow -gt $deadline){& taskkill.exe /pid $process.Id /t /f;throw "Native benchmark deadline exceeded: $lastProgress"}
     }
     $process.Refresh();$exitCode=$process.ExitCode
 } finally {
