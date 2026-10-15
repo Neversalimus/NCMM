@@ -54,7 +54,7 @@
             graphics_mouse_dy=(graphics_camera_pitch+.08f)/.003f;require(graphics_action("ncmm.view.mouse_look"),"movement_camera_failed");graphics_mouse_dx=graphics_mouse_dy=0;
             get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);refresh();
             std::vector<double> frame_ms,visibility_ms,first_ms,easing_ms,cold_turn_ms,warm_turn_ms;
-            std::vector<double> geometry_ms,resource_ms;std::vector<uint64_t> range_evaluations,range_hits,ray_hits,ray_misses,geometry_hits,geometry_misses,roof_misses,source_misses,geometry_revisions;
+            std::vector<double> geometry_ms,resource_ms;std::vector<uint64_t> range_evaluations,range_hits,ray_hits,ray_misses,geometry_hits,geometry_misses,roof_misses,source_misses,geometry_revisions,material_evaluations,material_hits;
             std::vector<uint32_t> renderers;uint64_t cache_peak=0;
             auto render=[&](bool measured){const auto begin=clock::now();const auto pos=you.pos_abs();const auto moves=you.get_moves();
                 std::multimap<point,formatted_text> overlays;color_block_overlay_container blocks;tilecontext->draw(point::zero,you.pos_bub(),viewport.x,viewport.y,overlays,blocks);
@@ -65,7 +65,7 @@
                 require(you.pos_abs()==pos&&you.get_moves()==moves&&calendar::turn==original_time,"movement_renderer_changed_simulation");
                 if(measured){frame_ms.push_back(elapsed(begin));visibility_ms.push_back(graphics_world_metrics.visibility_ms);renderers.push_back(graphics_gpu_frame?1u:0u);cache_peak=std::max(cache_peak,graphics_world_metrics.source_cache_bytes);
                     range_evaluations.push_back(graphics_world_range_evaluations);range_hits.push_back(graphics_world_range_hits);ray_hits.push_back(graphics_world_sources.ray_hits);ray_misses.push_back(graphics_world_sources.ray_misses);
-                    geometry_hits.push_back(graphics_world_derived.hits);geometry_misses.push_back(graphics_world_derived.misses);roof_misses.push_back(graphics_world_roofs.misses);source_misses.push_back(graphics_world_sources.misses);geometry_revisions.push_back(graphics_world_revision);
+                    geometry_hits.push_back(graphics_world_derived.hits);geometry_misses.push_back(graphics_world_derived.misses);roof_misses.push_back(graphics_world_roofs.misses);source_misses.push_back(graphics_world_sources.misses);geometry_revisions.push_back(graphics_world_revision);material_evaluations.push_back(graphics_world_material_evaluations);material_hits.push_back(graphics_world_material_hits);
                     const auto metrics=graphics_gpu_engine?graphics_gpu_engine->metrics():ncmm_gpu_metrics_v1{};geometry_ms.push_back(metrics.geometry_ms);resource_ms.push_back(metrics.resource_ms);}
             };
             render(false);if(std::string(mode)=="gpu")require(graphics_gpu_frame,"movement_cold_gpu_fell_back");
@@ -101,6 +101,7 @@
             report.member("cold_rotation_median_ms",percentile(cold_turn_ms,.5));report.member("cold_rotation_p95_ms",percentile(cold_turn_ms,.95));report.member("cold_rotation_max_ms",*std::max_element(cold_turn_ms.begin(),cold_turn_ms.end()));
             report.member("warm_rotation_median_ms",percentile(warm_turn_ms,.5));report.member("warm_rotation_p95_ms",percentile(warm_turn_ms,.95));report.member("warm_rotation_max_ms",*std::max_element(warm_turn_ms.begin(),warm_turn_ms.end()));
             report.member("native_sight_evaluations",range_evaluations);report.member("native_sight_cache_hits",range_hits);report.member("ray_cache_hits",ray_hits);report.member("ray_cache_misses",ray_misses);
+            report.member("native_material_evaluations",material_evaluations);report.member("native_material_cache_hits",material_hits);
             report.member("geometry_cache_hits",geometry_hits);report.member("geometry_cache_misses",geometry_misses);report.member("roof_cache_misses",roof_misses);report.member("source_cache_misses",source_misses);report.member("geometry_revisions",geometry_revisions);
             report.member("gpu_geometry_samples_ms",geometry_ms);report.member("gpu_resource_samples_ms",resource_ms);
             report.member("source_cache_bytes_peak",cache_peak);report.member("creatures",graphics_creature_snapshots.size());report.member("native_art",true);report.member("capture",capture);

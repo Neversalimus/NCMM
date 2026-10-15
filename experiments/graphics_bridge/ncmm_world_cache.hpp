@@ -18,6 +18,22 @@ public:
         const int value=read();++evaluations;slot={key,value,true};return value;
     }
 };
+// Terrain/furniture definitions are immutable during one main-thread draw.
+// Cache their combined semantics, never fields, vehicles, items or actors.
+// Borrowed identities are integer keys and cannot survive the callback.
+class material_semantics_cache {
+    struct entry {std::uintptr_t terrain=0,furniture=0;uint32_t value=0;bool normal_floor=false,valid=false;};
+    std::array<entry,256> entries{};
+public:
+    uint64_t evaluations=0,hits=0;
+    template<class Read> uint32_t get(std::uintptr_t terrain,std::uintptr_t furniture,bool normal_floor,Read read){
+        uint64_t key=(uint64_t(terrain)>>3)^(uint64_t(furniture)<<1);
+        key^=key>>33;key*=0xff51afd7ed558ccdull;key^=key>>33;
+        auto &slot=entries[(key^(normal_floor?0x9e3779b9u:0u))&(entries.size()-1)];
+        if(slot.valid&&slot.terrain==terrain&&slot.furniture==furniture&&slot.normal_floor==normal_floor){++hits;return slot.value;}
+        const uint32_t value=read();++evaluations;slot={terrain,furniture,value,normal_floor,true};return value;
+    }
+};
 // A closed plane is a geometric proof only when every tile in the bounded
 // source window has a full opaque slab. Open stairs, glass and water fail it.
 class sealed_plane_cache {

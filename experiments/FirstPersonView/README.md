@@ -12,6 +12,8 @@ A full-window opaque-slab proof skips storeys entirely behind a sealed floor
 or ceiling; one stair opening, glass floor or missing slab defeats the proof.
 GPU geometry signatures use one bounded frame-local XYZ index for neighbour
 lookups, including sparse empty cells and all loaded storeys.
+Repeated terrain/furniture definition classification is memoized per draw. Field
+opacity and vehicle facts are still sampled separately for every source cell.
 The movement runner now measures two full camera rotations and 12 steps for
 street, multi-storey horde and dense four-storey city blocks at both viewports.
 

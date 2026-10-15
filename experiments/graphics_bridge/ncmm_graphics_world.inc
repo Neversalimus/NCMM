@@ -1,6 +1,7 @@
 // Callback-scoped sparse XYZ snapshots, built only on CDDA's main thread.
 ncmm_multilevel_metrics_v1 graphics_world_metrics = {};
 uint64_t graphics_world_range_evaluations=0,graphics_world_range_hits=0;
+uint64_t graphics_world_material_evaluations=0,graphics_world_material_hits=0;
 uint64_t graphics_world_epoch=1,graphics_world_revision=1,graphics_world_serial=0;
 std::array<uint64_t,257> graphics_world_level_revisions = {};
 void graphics_world_changed_impl(const map *source,int z)
@@ -83,26 +84,38 @@ bool graphics_draw_world(int x,int y,int width,int height)
        !graphics_world_sealed.prepare(ox,oy,loaded.front(),loaded.back(),side,side,graphics_world_epoch,graphics_world_revision))return false;
     graphics_world_metrics={};graphics_world_metrics.struct_size=sizeof(graphics_world_metrics);
     graphics_world_metrics.available_slices=uint32_t(loaded.size());
+    ncmm_world::material_semantics_cache material_definitions;
     auto base_flags=[&](int ax,int ay,int z){
         if(z<loaded.front()||z>loaded.back())return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE);
         return graphics_world_sources.get(ax,ay,z,graphics_world_level_revisions[size_t(z+128)]+1,[&]{
             const auto p=here.get_bub(tripoint_abs_ms(ax,ay,z));if(!here.ncmm_graphics_loaded(p))return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE);
-            const auto &ter=here.ter(p).obj();const auto &furn=here.furn(p).obj();ncmm_world::traits t{};t.loaded=true;
-            t.no_floor=here.has_flag(ter_furn_flag::TFLAG_NO_FLOOR,p);t.no_floor_water=here.has_flag(ter_furn_flag::TFLAG_NO_FLOOR_WATER,p);
-            if(!here.supports_zlevels()||z<-OVERMAP_DEPTH+1)t.no_floor=t.no_floor_water=false;
-            t.transparent_floor=ter.has_flag(ter_furn_flag::TFLAG_TRANSPARENT_FLOOR);t.z_transparent=ter.has_flag(ter_furn_flag::TFLAG_Z_TRANSPARENT);
-            t.goes_up=here.has_flag(ter_furn_flag::TFLAG_GOES_UP,p);t.goes_down=here.has_flag(ter_furn_flag::TFLAG_GOES_DOWN,p);
-            t.ramp=here.has_flag(ter_furn_flag::TFLAG_RAMP,p);t.ramp_up=here.has_flag(ter_furn_flag::TFLAG_RAMP_UP,p);
-            t.ramp_down=here.has_flag(ter_furn_flag::TFLAG_RAMP_DOWN,p);t.ramp_end=here.has_flag(ter_furn_flag::TFLAG_RAMP_END,p);
-            t.difficult_z=here.has_flag(ter_furn_flag::TFLAG_DIFFICULT_Z,p);t.canopy=furn.has_flag(ter_furn_flag::TFLAG_SUN_ROOF_ABOVE);
-            t.opaque=!(ter.transparent&&furn.transparent);const bool solid_architecture=t.opaque;bool opaque_field=false;
-            for(const auto &field:here.field_at(p)){const auto &level=field.second.get_intensity_level();
-                if(!level.transparent&&level.translucency<=LIGHT_TRANSPARENCY_SOLID)t.opaque=opaque_field=true;}
-            uint32_t value=ncmm_world::semantics(t);
-            if(opaque_field&&!solid_architecture)value|=ncmm_world::opaque_field_fact;
-            const auto shape=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
-            if(ncmm_graphics_shapes::structural_surface(shape))value|=graphics_world_architecture;
-            if(ncmm_graphics_shapes::vertical(shape)||here.has_furn(p)||here.field_at(p).field_count())value|=graphics_world_renderable;
+            const auto &ter=here.ter(p).obj();const auto &furn=here.furn(p).obj();
+            const bool normal_floor=here.supports_zlevels()&&z>=-OVERMAP_DEPTH+1;
+            uint32_t value=material_definitions.get(reinterpret_cast<std::uintptr_t>(&ter),reinterpret_cast<std::uintptr_t>(&furn),normal_floor,[&]{
+                // On both pinned engines map::has_flag(ter_furn_flag,p) is
+                // exactly this OR after the loaded/in-bounds check above.
+                auto has=[&](auto flag){return ter.has_flag(flag)||furn.has_flag(flag);};
+                ncmm_world::traits t{};t.loaded=true;
+                t.no_floor=has(ter_furn_flag::TFLAG_NO_FLOOR);t.no_floor_water=has(ter_furn_flag::TFLAG_NO_FLOOR_WATER);
+                if(!normal_floor)t.no_floor=t.no_floor_water=false;
+                t.transparent_floor=ter.has_flag(ter_furn_flag::TFLAG_TRANSPARENT_FLOOR);t.z_transparent=ter.has_flag(ter_furn_flag::TFLAG_Z_TRANSPARENT);
+                t.goes_up=has(ter_furn_flag::TFLAG_GOES_UP);t.goes_down=has(ter_furn_flag::TFLAG_GOES_DOWN);
+                t.ramp=has(ter_furn_flag::TFLAG_RAMP);t.ramp_up=has(ter_furn_flag::TFLAG_RAMP_UP);
+                t.ramp_down=has(ter_furn_flag::TFLAG_RAMP_DOWN);t.ramp_end=has(ter_furn_flag::TFLAG_RAMP_END);
+                t.difficult_z=has(ter_furn_flag::TFLAG_DIFFICULT_Z);t.canopy=furn.has_flag(ter_furn_flag::TFLAG_SUN_ROOF_ABOVE);
+                t.opaque=!(ter.transparent&&furn.transparent);
+                uint32_t flags=ncmm_world::semantics(t);
+                const auto shape=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
+                if(ncmm_graphics_shapes::structural_surface(shape))flags|=graphics_world_architecture;
+                if(ncmm_graphics_shapes::vertical(shape))flags|=graphics_world_renderable;
+                return flags;
+            });
+            const bool solid_architecture=(value&NCMM_WORLD_OPAQUE)!=0;bool opaque_field=false;
+            const auto &fields=here.field_at(p);
+            for(const auto &field:fields){const auto &level=field.second.get_intensity_level();
+                if(!level.transparent&&level.translucency<=LIGHT_TRANSPARENCY_SOLID)opaque_field=true;}
+            if(opaque_field){value|=NCMM_WORLD_OPAQUE;if(!solid_architecture)value|=ncmm_world::opaque_field_fact;}
+            if(here.has_furn(p)||fields.field_count())value|=graphics_world_renderable;
             if(const auto vp=here.veh_at(p)){value|=graphics_world_renderable;if(vp->part_with_feature("ROOF",false))value|=graphics_world_vehicle_roof;}
             return value;
         });
@@ -279,6 +292,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
     }
     graphics_world_metrics.visibility_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-visibility_started).count();
     graphics_world_range_evaluations=visual_ranges.evaluations;graphics_world_range_hits=visual_ranges.hits;
+    graphics_world_material_evaluations=material_definitions.evaluations;graphics_world_material_hits=material_definitions.hits;
     if(candidates.size()>NCMM_WORLD_MAX_CELLS){std::stable_sort(candidates.begin(),candidates.end(),[](const auto &a,const auto &b){return a.distance<b.distance;});
         graphics_world_metrics.budget_rejected=uint32_t(candidates.size()-NCMM_WORLD_MAX_CELLS);candidates.resize(NCMM_WORLD_MAX_CELLS);}
     std::sort(candidates.begin(),candidates.end(),[](const auto &a,const auto &b){return ncmm_world::order(a.world)<ncmm_world::order(b.world);});

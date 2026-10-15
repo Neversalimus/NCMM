@@ -19,6 +19,22 @@ int main(){try{
         check(ranges.get(120.f,[]{return 60;})==60); // no changed avatar state crosses frames
     }
     {
+        material_semantics_cache materials;int calls=0;
+        for(int n=0;n<120000;++n){const std::uintptr_t terrain=16+std::uintptr_t(n%3)*256,furniture=32+std::uintptr_t(n%2)*512;const bool normal=n%5!=0;
+            const uint32_t expected=uint32_t(terrain*13+furniture*97+(normal?701:0));
+            check(materials.get(terrain,furniture,normal,[&]{++calls;return expected;})==expected);
+        }
+        check(calls==12&&materials.evaluations==12&&materials.hits==119988);
+        material_semantics_cache collisions;
+        for(int n=0;n<4096;++n){const std::uintptr_t terrain=(std::uintptr_t(n)<<12)|16;
+            check(collisions.get(terrain,32,false,[&]{return uint32_t(n+1000);})==uint32_t(n+1000));}
+        check(collisions.get((std::uintptr_t(4095)<<12)|16,32,false,[]{throw std::runtime_error("material cache failed repeat");return 0u;})==5095);
+        material_semantics_cache next_draw;
+        check(next_draw.get(16,32,true,[]{return 7u;})==7); // definitions cannot leak between draws/worlds
+        check(next_draw.get(16,32,false,[]{return 11u;})==11); // bottom/no-Z floor policy is distinct
+        check(next_draw.get(UINTPTR_MAX,UINTPTR_MAX,true,[]{return UINT32_MAX;})==UINT32_MAX);
+    }
+    {
         sealed_plane_cache sealed;int reads=0;bool hole=false;
         auto plane=[&](int x,int y,int z){++reads;return hole&&x==4&&y==4&&z==0?uint32_t(NCMM_WORLD_DOWN):uint32_t(NCMM_WORLD_FLOOR);};
         check(sealed.prepare(0,0,-2,3,9,9,1,1));check(sealed.closed(0,plane)&&reads==81);

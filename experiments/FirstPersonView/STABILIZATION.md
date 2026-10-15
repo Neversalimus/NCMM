@@ -57,6 +57,15 @@ on every turn. Existing invalidation-heavy gameplay cases remain unchanged.
 The native F6 guard now checks that the source, roof and derived geometry caches
 all release their owned heap storage. The first Host build caught its obsolete
 roof-vector name; the guard is updated without weakening cache-release checks.
+The a85824f3 native checkpoint passed both pinned Hosts, but its movement
+records still show 112908 source-fact misses on some steps and seven geometry
+revisions along the 12-step route. Rebuilding those facts repeatedly classifies
+the same terrain/furniture definitions. A new bounded draw-local memo shares
+only immutable definition semantics, including the no-Z/bottom floor policy.
+Both engine pins implement map::has_flag as terrain OR furniture after bounds
+checks. Field opacity, field presence, furniture presence and vehicle/roof
+facts are applied live outside this memo. Definition and collision tests plus
+per-frame evaluation/hit counters cover the new cold-snapshot path.
 Final binary measurements and pinned installer qualification are pending.
 
 ## 0.12.3 movement and visual follow-up
