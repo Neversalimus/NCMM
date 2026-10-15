@@ -120,7 +120,8 @@ NCMM First Person View installer 0.12.4 TEST / CDDA $build / Windows x64
 4. Install / Repair selected. Wait for INSTALL COMPLETE.
 5. Launch CDDA normally. F6 toggles first person; F7/F8 rotate; F9/F10 look up/down.
    F11 switches balanced / high quality; balanced is the default.
-   F12 cycles Auto -> CPU -> GPU -> Auto. Auto prefers the shared SDL GPU device.
+   F12 cycles Auto -> CPU -> GPU -> Auto. Auto uses hardware acceleration and
+   selects CPU when SDL exposes a software adapter.
    NCMM module settings also offer the First Person renderer selector.
    Hold the right mouse button over the viewport to look around.
    In first person, arrows move forward/backward and strafe relative to the gaze.
@@ -130,7 +131,8 @@ repairs partially visible upper facades and reuses world visibility while the
 camera eases between cells. Changed GPU geometry no longer forces a full CPU
 warmup frame. NCMM settings retain experimental reconstructed creature volumes.
 Run-FirstPersonBenchmark.ps1 -MovementBenchmark measures real native steps and
-easing at small and full-size viewports. See the qualification report for results.
+cold/warm full rotations and easing in street, horde and dense city scenes, at
+small and full-size viewports. See the qualification report for results.
 
 Official executable identities are checked with SHA256. Existing normal NCMM,
 preview NCMM and legacy CML bootstraps are recognized by their hash receipts;
@@ -193,7 +195,8 @@ generic environment dimensions and conservative hidden-surface reconstruction.
 The 0.12 world includes loaded Z-levels, floors, ceilings, stairs and shafts.
 Version 0.12.4 eases safe adjacent walking and stair movement visually after
 the first successful presentation; native movement remains turn-based.
-Manual gameplay comfort and discrete-GPU performance remain unqualified.
+Manual gameplay comfort remains unqualified. The qualification report records
+measured hardware rendering results and the controlled fixture limits.
 Unusual anatomy and hidden surfaces are conservative reconstructions.
 Non-arrow movement bindings keep their world
 directions. Mouse capture releases when menus open, focus is lost, or F6 disables

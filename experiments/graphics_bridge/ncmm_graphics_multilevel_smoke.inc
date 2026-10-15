@@ -185,7 +185,7 @@
             require(!graphics_world_transition_active,"multilevel_vertical_transition_never_completed");
             require(you.pos_abs()==changed&&you.get_moves()==moves&&calendar::turn==turn,"multilevel_camera_transition_changed_native_move_cost");
             report.start_object();report.member("from_z",from);report.member("to_z",you.posz());report.member("native_moves_spent",spent);report.member("new_floor_ready_ms",ready_ms);report.member("visual_transition_ms",std::chrono::duration<double,std::milli>(clock::now()-begin).count());report.member("camera_continuous",true);report.member("renderer_preserved_moves",true);report.end_object();
-            if(dz==1){press_f6();require(!graphics_view.enabled&&graphics_world_sources.bytes()==0&&graphics_world_roof_columns.empty(),"multilevel_f6_retained_world_cache");press_f6();render(point(640,480));present();}
+            if(dz==1){press_f6();require(!graphics_view.enabled&&graphics_world_sources.bytes()==0&&graphics_world_roofs.bytes()==0&&graphics_world_derived.bytes()==0,"multilevel_f6_retained_world_cache");press_f6();render(point(640,480));present();}
         }
         require(SDL_SetRenderTarget(renderer,nullptr),"multilevel_transition_canvas_release_failed");SDL_DestroyTexture(canvas);canvas=nullptr;
         make_scene("house_one",1);you.setpos(here,tripoint_bub_ms(center.x(),center.y()-5,0),false);you.set_base_height(400);refresh();

@@ -54,6 +54,9 @@ through open street, a 20-creature multi-storey scene and 40-creature dense city
 blocks. Both 640×480 and 1768×1084 viewports run CPU/GPU. The camera-only loop
 uses ordinary native cache updates without manufacturing geometry invalidation
 on every turn. Existing invalidation-heavy gameplay cases remain unchanged.
+The native F6 guard now checks that the source, roof and derived geometry caches
+all release their owned heap storage. The first Host build caught its obsolete
+roof-vector name; the guard is updated without weakening cache-release checks.
 Final binary measurements and pinned installer qualification are pending.
 
 ## 0.12.3 movement and visual follow-up
