@@ -1,11 +1,23 @@
-# First Person View 0.12.2 — stabilization candidate
+# First Person View 0.12.3 — movement and visual fixes
 
-The follow-up moves conservative offscreen rejection ahead of map-loading probes
-and fixes benchmark presentation acknowledgement and exclusive phase accounting.
-Use `Run-FirstPersonBenchmark.ps1 -GameRoot ... -OutputRoot ... -FocusedGpuBenchmark`
-for a 96-frame-per-case official-tileset smoke/one-creature reproduction. This
-option does not run the gameplay soak or qualify UDP. Native candidate results
-are tracked in STABILIZATION.md; 0.12.1 remains the last full qualification.
+Creatures use the complete original tileset artwork by default, including UDP
+and Monster Art Pack silhouettes, colours and proportions. NCMM module settings
+retain the experimental reconstructed volume option. Artwork is copied once per
+appearance; an owned copy survives death presentation and resets with the world
+or tileset. No new creature artwork is substituted.
+
+Facade visibility tests the actual wall faces and height, including an upper
+wall partly obscured by an overhang. Interpolated camera motion reuses visibility
+at the authoritative avatar position. Derived structural flags are memoized;
+GPU geometry completes a changed snapshot without a 512-cell warmup/CPU detour.
+GPU balanced/high caps are 1920×1080 / 2560×1440; CPU fallback uses
+960×600 / 1280×800 to keep input responsive.
+
+`Run-FirstPersonBenchmark.ps1 -GameRoot ... -OutputRoot ... -MovementBenchmark`
+measures native steps and easing in street and multi-storey horde scenes at
+640×480 and 1768×1084. Add `-TilesetRoot ...` for actual UDP Hybrid v3.
+`-FocusedGpuBenchmark` retains the separate 96-frame smoke/one-creature profile.
+Candidate verification and measured limitations are recorded in STABILIZATION.md.
 
 Loaded Z-levels, floors, ceilings, stairs and shafts use the existing 0.12 renderer.
 Version 0.12.1 adds bounded visual walking/stair interpolation after successful
@@ -18,7 +30,8 @@ discrete-GPU performance are not yet qualified.
 
 ## Creature Appearance Reconstruction 0.11
 
-See [APPEARANCE.md](APPEARANCE.md) for native source preservation, rest-space material charts, adaptive impostors and paired real-game qualification. Current GPU and CPU use the same automatic appearance assets.
+See [APPEARANCE.md](APPEARANCE.md) for the optional reconstructed models. GPU and
+CPU use the same artwork or volume selection and preserve normal depth/picking.
 
 # First Person View — 0.10.0 GPU development
 

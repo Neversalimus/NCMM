@@ -49,6 +49,15 @@ int main(){
     require(!visible({.5f,.5f,1.55f},{2.5f,.5f,1.55f},f),"opaque intermediate wall");
     require(visible({.5f,.5f,1.55f},{1.5f,.5f,1.55f},f),"first wall surface is visible");
     require(!visible({.5f,.5f,1.55f},{1.5f,1.5f,1.55f},f),"diagonal corner cannot leak");
+    {
+        fixture facade(3);
+        facade.flags[{1,0,1}]=NCMM_WORLD_FLOOR;
+        facade.flags[{2,0,1}]=NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE;
+        require(!visible({.5f,.5f,1.55f},{2.5f,.5f,3.75f},facade),"overhang hides upper wall centre");
+        require(facade_visible({.5f,.5f,1.55f},{2,0,1},facade),"upper facade above overhang remains visible instead of a floating roof");
+        facade.flags[{1,0,1}]|=NCMM_WORLD_OPAQUE;
+        require(!facade_visible({.5f,.5f,1.55f},{2,0,1},facade),"facade probes cannot reveal a wall behind solid architecture");
+    }
     f.flags[{1,0,0}]=NCMM_WORLD_OPAQUE|opaque_field_fact;
     auto structure=[&](voxel p){return structural_flags(f(p));};
     require(!visible({.5f,.5f,1.55f},{2.5f,.5f,.003f},f,true),"opaque gas retains the body information barrier");

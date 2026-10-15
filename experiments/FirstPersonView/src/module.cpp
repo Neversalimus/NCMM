@@ -50,6 +50,7 @@ uint64_t geometry_key(const ncmm_graphics_scene_v2 &s,bool dynamic=false){
     uint64_t h=1469598103934665603ull;
     auto bytes=[&](const void *p,size_t n){h=first_person::hash_bytes(h,p,n);};
     bytes(&yaw,sizeof(yaw));bytes(&pitch,sizeof(pitch));bytes(&high_quality,sizeof(high_quality));
+    if(creature_state)bytes(&creature_state->native_art,sizeof(creature_state->native_art));
     if(active_world){const auto &w=*active_world;bytes(&w.world_epoch,sizeof(w.world_epoch));
         for(int32_t value:{w.origin_x,w.origin_y,w.origin_z,w.loaded_min_z,w.loaded_max_z})bytes(&value,sizeof(value));
         for(float value:{w.camera_dx,w.camera_dy,w.camera_dz,w.level_height})bytes(&value,sizeof(value));
@@ -98,11 +99,13 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     if(settings){const char *value=settings->world_setting_get_string("NCMM_FIRST_PERSON_RENDERER","auto");
         const std::string selected=value?value:"auto";if(selected!=last_setting){last_setting=selected;mode_override=false;}
         if(!mode_override)select_renderer(selected=="cpu"?NCMM_GPU_CPU:selected=="gpu"?NCMM_GPU_FORCE:NCMM_GPU_AUTO);}
+    if(settings&&creature_state){const char *value=settings->world_setting_get_string("NCMM_FIRST_PERSON_CREATURE_ART","tileset");
+        creature_state->native_art=!value||std::strcmp(value,"volume")!=0;}
     gpu_effects=renderer_mode!=NCMM_GPU_CPU;if(has_metadata&&!gpu_effects)metadata.view.flags&=~NCMM_PRESENT_GPU_EFFECTS;
     if(gpu&&gpu_world&&renderer_mode!=NCMM_GPU_CPU){
         ncmm_gpu_metrics_v1 available{};available.struct_size=sizeof(available);
         if(gpu->available(&available)){
-            const float factor=std::min({1.f,float(high_quality?1920:1280)/scene->base.pixel_width,float(high_quality?1080:800)/scene->base.pixel_height});
+            const float factor=std::min({1.f,float(high_quality?2560:1920)/scene->base.pixel_width,float(high_quality?1440:1080)/scene->base.pixel_height});
             const int width=std::max(1,int(scene->base.pixel_width*factor)),height=std::max(1,int(scene->base.pixel_height*factor));
             first_person::gpu::packet packet;first_person::hybrid::frame statistics;
             const first_person::hybrid::sprite_provider provider=[](uint32_t cell,uint32_t layer,ncmm_graphics_sprite_v2 &sprite){return hybrid&&hybrid->get_sprite(cell,layer,&sprite)!=0;};
@@ -115,7 +118,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
             if(submitted){
                 ncmm_gpu_metrics_v1 result{};result.struct_size=sizeof(result);gpu->metrics(&result);
                 if(presentation)presentation->set_target(result.target_cell,result.label_x,result.label_y);
-                if(has_creatures&&creatures->submit_metrics){const auto stats=creature_state->resources.statistics();ncmm_graphics_creature_metrics_v1 m{};m.struct_size=sizeof(m);
+                if(has_creatures&&creatures->submit_metrics){const auto stats=creature_state->statistics();ncmm_graphics_creature_metrics_v1 m{};m.struct_size=sizeof(m);
                     std::copy(statistics.creature_lods.begin(),statistics.creature_lods.end(),m.lod);m.fallback=statistics.creature_fallback;m.culled=statistics.creature_culled;
                     m.cache_bytes=stats.bytes;m.cache_peak_bytes=stats.peak_bytes;m.generated=stats.generated;m.entries=stats.entries;m.queued=stats.pending;m.evictions=stats.evictions;m.failures=stats.failures;
                     m.visible_pixels=result.visible_creature_pixels;m.generation_ms=stats.last_generation_ms;m.generation_max_ms=stats.max_generation_ms;m.generation_total_ms=stats.total_generation_ms;
@@ -133,7 +136,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     uint64_t wk=scene_key(*scene,common,true);
     if(has_creatures){const auto &input=creature_state->input;const auto phase=int64_t(std::floor(input.view.seconds*40));
         key=first_person::hash_bytes(key,&phase,sizeof(phase));key=first_person::hash_bytes(key,input.creatures.data(),input.creatures.size()*sizeof(ncmm_graphics_creature_v1));
-        key^=creature_state->resources.statistics().generated;
+        key^=creature_state->statistics().generated;
         wk=first_person::hash_bytes(wk,&input.view.world_epoch,sizeof(input.view.world_epoch));wk=first_person::hash_bytes(wk,&input.view.tileset_epoch,sizeof(input.view.tileset_epoch));}
     if(has_metadata){auto hash=[&](const void *data,size_t n){wk=first_person::hash_bytes(wk,data,n);};
         // Appearance and movement only change composition, not static geometry.
@@ -148,11 +151,11 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     if(!frame_valid||rebuild_world||key!=frame_key||now-frame_built>std::chrono::milliseconds(250)){
         cpu_built=true;
         const first_person::hybrid::sprite_provider provider=[](uint32_t i,uint32_t layer,ncmm_graphics_sprite_v2 &s){return hybrid&&hybrid->get_sprite(i,layer,&s)!=0;};
-        if(!first_person::hybrid::build_frame(*scene,float(yaw),pitch,provider,pixels,high_quality?1920:1280,high_quality?1080:800,pose,rebuild_world?nullptr:&world_pixels,rebuild_world?&world_pixels:nullptr,has_metadata?&metadata:nullptr,{},has_creatures?creature_state.get():nullptr,active_world)){frame_valid=world_valid=false;return 0;}
+        if(!first_person::hybrid::build_frame(*scene,float(yaw),pitch,provider,pixels,high_quality?1280:960,high_quality?800:600,pose,rebuild_world?nullptr:&world_pixels,rebuild_world?&world_pixels:nullptr,has_metadata?&metadata:nullptr,{},has_creatures?creature_state.get():nullptr,active_world)){frame_valid=world_valid=false;return 0;}
         if(rebuild_world){world_key=wk;world_built=now;world_valid=true;}
         frame_key=key;frame_built=now;frame_valid=true;
     }
-    if(has_creatures&&creatures->submit_metrics){const auto stats=creature_state->resources.statistics();ncmm_graphics_creature_metrics_v1 m{};m.struct_size=sizeof(m);
+    if(has_creatures&&creatures->submit_metrics){const auto stats=creature_state->statistics();ncmm_graphics_creature_metrics_v1 m{};m.struct_size=sizeof(m);
         std::copy(pixels.creature_lods.begin(),pixels.creature_lods.end(),m.lod);m.fallback=pixels.creature_fallback;m.culled=pixels.creature_culled;
         m.cache_bytes=stats.bytes;m.cache_peak_bytes=stats.peak_bytes;m.generated=stats.generated;m.entries=stats.entries;m.queued=stats.pending;m.evictions=stats.evictions;m.failures=stats.failures;m.visible_pixels=std::count_if(pixels.creatures.begin(),pixels.creatures.end(),[](int32_t cell){return cell!=-1;});
         m.generation_ms=stats.last_generation_ms;m.generation_max_ms=stats.max_generation_ms;m.generation_total_ms=stats.total_generation_ms;
@@ -224,7 +227,9 @@ int init(const ncmm_host_api_v1 *api) {
             if(p&&p->abi_version==1&&p->major==1&&p->struct_size>=sizeof(*p)&&p->get_scene&&p->get_cells&&p->set_target&&p->submit_effects)presentation=p;}
         if(api->has_capability(NCMM_GRAPHICS_CREATURES_CAP)){
             auto *c=static_cast<const ncmm_host_graphics_creatures_v1 *>(api->query_interface(NCMM_GRAPHICS_CREATURES_ID,1,0));
-            if(c&&c->abi_version==1&&c->major==1&&c->struct_size>=sizeof(*c)&&c->get_scene&&c->get_creatures){creatures=c;creature_state=std::make_unique<first_person::creature::presentation>();}}
+            if(c&&c->abi_version==1&&c->major==1&&c->struct_size>=sizeof(*c)&&c->get_scene&&c->get_creatures){creatures=c;creature_state=std::make_unique<first_person::creature::presentation>();creature_state->native_art=true;
+                if(settings){const char *values[]={"tileset","volume"},*labels[]={"Tileset artwork / Арт тайлсета","Experimental volume / Экспериментальные модели"};
+                    settings->world_setting_register_enum(id,"NCMM_FIRST_PERSON_CREATURE_ART","First Person creatures / Существа от первого лица","Original tileset silhouettes and proportions. / Исходные силуэты и пропорции тайлсета.",values,labels,2,"tileset",NCMM_WORLD_SETTING_LIVE);}}}
         if(api->has_capability(NCMM_GRAPHICS_CONTROLS_CAP)){
             auto *c=static_cast<const ncmm_host_graphics_controls_v1 *>(api->query_interface(NCMM_GRAPHICS_CONTROLS_ID,1,0));
             if(c&&c->abi_version==1&&c->major==1&&c->struct_size>=sizeof(*c)&&c->get_state&&c->set_camera){controls=c;controls->set_camera(float(yaw),pitch);}}
@@ -251,7 +256,7 @@ void shutdown() {
     commands.clear();
     pixels={};world_pixels={};frame_valid=world_valid=false;
 }
-const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View","0.12.2-dev",
+const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View","0.12.3-dev",
     caps,sizeof(caps)/sizeof(caps[0]),init,shutdown};
 }
 extern "C" NCMM_EXPORT const ncmm_mod_descriptor_v1 *ncmm_get_descriptor_v1(){return &descriptor;}

@@ -151,4 +151,19 @@ template<class Query> bool visible(point eye,point target,Query query,bool targe
     }
     return false;
 }
+// A visible slice of a facade need not include the tile's centre. Test the
+// actual near faces at their top and bottom as well, without granting body or
+// room-content visibility through a floor. This closes floating roof ribbons
+// above a foreground wall while retaining real windows and broken floors.
+template<class Query> bool facade_visible(point eye,voxel cell,Query query){
+    const float z=cell.z*NCMM_WORLD_LEVEL_HEIGHT;
+    const std::array<float,3> heights{z+.025f,z+NCMM_WORLD_LEVEL_HEIGHT-.025f,z+NCMM_WORLD_LEVEL_HEIGHT*.5f};
+    for(float height:heights){
+        if(eye.x<cell.x||eye.x>cell.x+1){const float x=eye.x<cell.x?cell.x+.001f:cell.x+.999f;
+            for(float y:{cell.y+.001f,cell.y+.5f,cell.y+.999f})if(visible(eye,{x,y,height},query))return true;}
+        if(eye.y<cell.y||eye.y>cell.y+1){const float y=eye.y<cell.y?cell.y+.001f:cell.y+.999f;
+            for(float x:{cell.x+.001f,cell.x+.5f,cell.x+.999f})if(visible(eye,{x,y,height},query))return true;}
+    }
+    return false;
+}
 } // namespace ncmm_world

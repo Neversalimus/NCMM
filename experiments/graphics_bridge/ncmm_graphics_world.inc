@@ -19,6 +19,7 @@ const map *graphics_world_map_identity=nullptr; // comparison only
 std::string graphics_world_realm;
 uint64_t graphics_world_ray_epoch=1,graphics_world_ray_revision=0,graphics_world_roof_revision=0;
 std::vector<uint32_t> graphics_world_roof_columns;
+std::vector<uint32_t> graphics_world_derived_flags;
 int32_t graphics_world_roof_x=0,graphics_world_roof_y=0,graphics_world_roof_low=0,graphics_world_roof_high=0;
 ncmm_world::point graphics_world_ray_eye{};
 std::optional<tripoint_abs_ms> graphics_world_previous_position,graphics_world_ray_position;
@@ -28,7 +29,7 @@ bool graphics_world_pending_present=false;
 constexpr uint32_t graphics_world_architecture=1u<<28,graphics_world_renderable=1u<<29,graphics_world_vehicle_roof=1u<<30;
 void graphics_clear_world()
 {
-    graphics_world_sources.clear();std::vector<uint32_t>().swap(graphics_world_roof_columns);graphics_world_roof_revision=0;graphics_world_map_identity=nullptr;graphics_world_realm.clear();
+    graphics_world_sources.clear();std::vector<uint32_t>().swap(graphics_world_roof_columns);std::vector<uint32_t>().swap(graphics_world_derived_flags);graphics_world_roof_revision=0;graphics_world_map_identity=nullptr;graphics_world_realm.clear();
     graphics_world_previous_position.reset();graphics_world_ray_position.reset();graphics_world_camera_motion.reset();
     graphics_world_transition_active=graphics_world_vertical_transition_active=false;graphics_world_pending_present=false;graphics_multilevel_frame=nullptr;
     ++graphics_world_epoch;
@@ -100,6 +101,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
     // rotating camera does not rescan every upper floor for every visible cell.
     if(graphics_world_roof_revision!=graphics_world_revision||graphics_world_roof_x!=ox||graphics_world_roof_y!=oy||graphics_world_roof_low!=loaded.front()||graphics_world_roof_high!=loaded.back()||graphics_world_roof_columns.size()!=size_t(side*side)){
         graphics_world_roof_columns.assign(size_t(side*side),0);
+        graphics_world_derived_flags.assign(size_t(loaded.back()-loaded.front()+1)*side*side,UINT32_MAX);
         for(int y=0;y<side;++y)for(int x=0;x<side;++x){bool roof=false;auto &mask=graphics_world_roof_columns[size_t(y*side+x)];
             for(int z=loaded.back();z>=loaded.front();--z){const uint32_t raw=base_flags(ox+x,oy+y,z);
                 if(roof||(raw&(NCMM_WORLD_CANOPY|graphics_world_vehicle_roof)))mask|=uint32_t(1)<<(z-loaded.front());
@@ -107,6 +109,10 @@ bool graphics_draw_world(int x,int y,int width,int height)
         graphics_world_roof_revision=graphics_world_revision;graphics_world_roof_x=ox;graphics_world_roof_y=oy;graphics_world_roof_low=loaded.front();graphics_world_roof_high=loaded.back();
     }
     auto flags=[&](int ax,int ay,int z){
+        const int64_t x=int64_t(ax)-ox,y=int64_t(ay)-oy;
+        if(x<0||y<0||x>=side||y>=side||z<loaded.front()||z>loaded.back())return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE|NCMM_WORLD_ROOFED);
+        auto &cached=graphics_world_derived_flags[(size_t(z-loaded.front())*side+size_t(y))*side+size_t(x)];
+        if(cached!=UINT32_MAX)return cached;
         uint32_t value=base_flags(ax,ay,z);
         const uint32_t below=z>loaded.front()?base_flags(ax,ay,z-1):0,above=z<loaded.back()?base_flags(ax,ay,z+1):0;
         if(below&NCMM_WORLD_CANOPY)value=(value|NCMM_WORLD_FLOOR)&~(NCMM_WORLD_OPEN_DOWN|NCMM_WORLD_GLASS_FLOOR);
@@ -115,10 +121,8 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if((value&NCMM_WORLD_GLASS_FLOOR)&&(below&NCMM_WORLD_UP)&&(below&NCMM_WORLD_RAMP))value&=~NCMM_WORLD_GLASS_FLOOR;
         if((value&NCMM_WORLD_UP)&&((above&NCMM_WORLD_OPEN_DOWN)||((above&NCMM_WORLD_DOWN)&&(above&NCMM_WORLD_RAMP))))value|=NCMM_WORLD_CONNECTED_UP;
         if((value&NCMM_WORLD_DOWN)&&(below&NCMM_WORLD_UP))value|=NCMM_WORLD_CONNECTED_DOWN;
-        const int64_t x=int64_t(ax)-ox,y=int64_t(ay)-oy;
-        const bool roof=x<0||y<0||x>=side||y>=side||z<loaded.front()||z>loaded.back()||
-            (graphics_world_roof_columns[size_t(y*side+x)]&(uint32_t(1)<<(z-loaded.front())));
-        if(roof)value|=NCMM_WORLD_ROOFED;return value;
+        const bool roof=graphics_world_roof_columns[size_t(y*side+x)]&(uint32_t(1)<<(z-loaded.front()));
+        if(roof)value|=NCMM_WORLD_ROOFED;return cached=value;
     };
     const uint64_t ticks=SDL_GetTicks();
     auto continuing=graphics_world_camera_motion.sample(ticks);
@@ -160,9 +164,13 @@ bool graphics_draw_world(int x,int y,int width,int height)
     const float camera_dz=animated.z+safe_eye-raw_eye;
     graphics_world_transition_active=graphics_world_camera_motion.active(ticks);graphics_world_vertical_transition_active=std::abs(animated.z)>.002f;
     const ncmm_world::point eye{radius+.5f+animated.x,radius+.5f+animated.y,safe_eye+animated.z};
+    // Visibility belongs to the authoritative avatar position. Camera easing
+    // changes projection only: retracing the entire world for each subpixel
+    // sample both stalls input and churns otherwise reusable GPU chunks.
+    const ncmm_world::point visibility_eye=destination;
     if(position_changed||graphics_world_ray_revision!=graphics_world_sources.topology_revision||
-       std::abs(eye.x-graphics_world_ray_eye.x)>.0001f||std::abs(eye.y-graphics_world_ray_eye.y)>.0001f||std::abs(eye.z-graphics_world_ray_eye.z)>.0001f){
-        ++graphics_world_ray_epoch;graphics_world_ray_revision=graphics_world_sources.topology_revision;graphics_world_ray_eye=eye;}
+       std::abs(visibility_eye.x-graphics_world_ray_eye.x)>.0001f||std::abs(visibility_eye.y-graphics_world_ray_eye.y)>.0001f||std::abs(visibility_eye.z-graphics_world_ray_eye.z)>.0001f){
+        ++graphics_world_ray_epoch;graphics_world_ray_revision=graphics_world_sources.topology_revision;graphics_world_ray_eye=visibility_eye;}
     auto structural_query=[&](ncmm_world::voxel p){return ncmm_world::structural_flags(query(p));};
     struct candidate {ncmm_world_cell_v1 world{};tripoint_bub_ms pos;uint32_t permission=0;float distance=0;};
     std::vector<candidate> candidates;
@@ -202,12 +210,13 @@ bool graphics_draw_world(int x,int y,int width,int height)
         const uint8_t seen=graphics_world_sources.visibility(ax,ay,z,graphics_world_ray_epoch,[&]{
             uint8_t result=0;const float level=(z-absolute.z())*NCMM_WORLD_LEVEL_HEIGHT;
             for(const auto &offset:probes){const float xx=gx+offset[0],yy=gy+offset[1];
-                if(!(result&1)&&ncmm_world::visible(eye,{xx,yy,level+1.25f},query))result|=1;
-                if(!(result&2)&&ncmm_world::visible(eye,{xx,yy,level+.003f},query,true))result|=2;
-                if((semantic&NCMM_WORLD_FLOOR)&&!(result&8)&&((result&2)||ncmm_world::visible(eye,{xx,yy,level+.003f},structural_query,true)))result|=8;
-                if(!(result&4)&&ncmm_world::visible(eye,{xx,yy,level-.083f},query,true))result|=4;}
+                if(!(result&1)&&ncmm_world::visible(visibility_eye,{xx,yy,level+1.25f},query))result|=1;
+                if(!(result&2)&&ncmm_world::visible(visibility_eye,{xx,yy,level+.003f},query,true))result|=2;
+                if((semantic&NCMM_WORLD_FLOOR)&&!(result&8)&&((result&2)||ncmm_world::visible(visibility_eye,{xx,yy,level+.003f},structural_query,true)))result|=8;
+                if(!(result&4)&&ncmm_world::visible(visibility_eye,{xx,yy,level-.083f},query,true))result|=4;}
             if((semantic&NCMM_WORLD_FLOOR)&&!(result&16))for(const auto &offset:probes)
-                if(ncmm_world::visible(eye,{gx+offset[0],gy+offset[1],level-.083f},structural_query,true)){result|=16;break;}
+                if(ncmm_world::visible(visibility_eye,{gx+offset[0],gy+offset[1],level-.083f},structural_query,true)){result|=16;break;}
+            if((semantic&graphics_world_architecture)&&((result&1)||ncmm_world::facade_visible(visibility_eye,{gx,gy,z-absolute.z()},structural_query)))result|=32;
             return result;
         });
         const auto below=tripoint_bub_ms(p.xy(),z-1);uint32_t permission=0;
@@ -215,7 +224,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         // Native tile FOV can reject an upper wall because its tile has a
         // floor. A physical ray can still see its exterior face from below.
         // This permission carries only coarse architecture, never contents.
-        if((seen&1)&&(semantic&graphics_world_architecture)&&graphics_world_in_visual_range(p))permission|=NCMM_WORLD_STRUCTURE_VISIBLE;
+        if((seen&32)&&(semantic&graphics_world_architecture)&&graphics_world_in_visual_range(p))permission|=NCMM_WORLD_STRUCTURE_VISIBLE;
         if((seen&2)&&graphics_world_perception(p))permission|=NCMM_WORLD_FLOOR_TOP;
         // Unseen contents remain absent. Only a neutral, structurally verified
         // support surface continues behind gas instead of becoming a sky hole.
@@ -284,7 +293,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
     world.coordinates=coordinates.data();world.cell_count=uint32_t(coordinates.size());world.slices=slices.data();world.slice_count=uint32_t(slices.size());
     const ncmm_graphics_scene_v1 base={sizeof(ncmm_graphics_scene_v1),width,height,side,side,radius+.5f,radius+.5f,cells.data(),cells.size()};
     graphics_viewport={x,y,width,height};graphics_snapshot_radius=radius;graphics_snapshot_begun=begun;
-    graphics_world_metrics.submitted_cells=uint32_t(cells.size());graphics_world_metrics.source_cache_bytes=graphics_world_sources.bytes()+graphics_world_roof_columns.capacity()*sizeof(uint32_t);
+    graphics_world_metrics.submitted_cells=uint32_t(cells.size());graphics_world_metrics.source_cache_bytes=graphics_world_sources.bytes()+(graphics_world_roof_columns.capacity()+graphics_world_derived_flags.capacity())*sizeof(uint32_t);
     graphics_world_metrics.source_cache_hits=graphics_world_sources.hits;graphics_world_metrics.source_cache_misses=graphics_world_sources.misses;
     graphics_world_metrics.snapshot_bytes=cells.capacity()*sizeof(cells[0])+positions.capacity()*sizeof(positions[0])+coordinates.capacity()*sizeof(coordinates[0])+slices.capacity()*sizeof(slices[0]);
     graphics_world_metrics.extraction_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();

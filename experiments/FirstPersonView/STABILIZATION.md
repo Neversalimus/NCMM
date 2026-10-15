@@ -6,6 +6,43 @@ and 1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 Scope: gameplay audit, measured performance, camera/interaction stability and
 selective visual polish. No new graphics architecture or gameplay rules.
 
+## 0.12.3 movement and visual follow-up
+
+The reported screenshot shows fragmented upper facades and heavily distorted
+creature reconstruction. The new default keeps the full native tileset sprite,
+its transparent outline and cropped aspect ratio; reconstructed models remain
+an explicit NCMM setting. The bounded 32 MiB owned art cache shares appearances,
+retains death clips and invalidates on world/tileset changes.
+
+A facade regression reproduces an upper wall whose centre ray is blocked by a
+foreground slab while its upper face remains visible. Face/height probes grant
+only the existing structure permission. They never grant room contents or
+creature visibility. A solid foreground wall still blocks all probes.
+
+Derived world flags are cached instead of recalculating neighbours and roof
+masks at every DDA step. Visibility uses the native avatar eye; visual walking
+offsets affect projection without retracing the world on every easing frame.
+The GPU producer completes all dirty cells in the validated, resource-bounded
+snapshot, avoiding its previous 512-cell warmup and full CPU fallback.
+
+GPU resolution caps become 1920×1080 balanced and 2560×1440 high. The CPU fallback
+caps become 960×600 / 1280×800. CPU/GPU depth, visibility and native action costs
+retain their existing ownership.
+
+An isolated local **0.12.2 baseline** ran on NVIDIA GeForce RTX 4090, D3D12.
+The native action audit took 2087.40 ms for four steps including easing. Across
+its 57 action frames, visibility had median 98.34 ms and maximum 187.33 ms;
+stair first-presentation median was 186.08 ms. These are action-audit wall times,
+not a claim about ordinary-game FPS. The audit completed its action/scene JSON
+but the following save/load process exited with 0xC0000409; the entire local
+audit is not a pass. The separate four-case focused baseline passed.
+
+New coverage: partial upper facades, native art proportions/depth/death cache,
+and a 1940-cell GPU snapshot ready in its first frame. The native movement
+benchmark measures 12 real steps per scene/viewport/renderer, including all
+easing frames, at 640×480 and 1768×1084. Requested GPU frames must all stay on
+GPU. Both pinned integration builds and new hardware measurements are pending.
+
 ## 0.12.2 follow-up candidate
 
 This candidate moves the existing widest conservative frustum rejection before
@@ -78,7 +115,7 @@ soak were not repeated for this small follow-up.
 The 0.12.1 installers below remain the last fully qualified release until that
 candidate is qualified. Manual acceptance and discrete-GPU qualification remain open.
 
-## Final automated qualification of 0.12.1 - 15 October 2026
+## Final automated qualification of 0.12.1 — 15 October 2026
 
 Qualified runtime head: `ccb11df48b582bde00c9958bdd5b8b507d573556` (test merge
 `b51eca9877d4cd81ae0d1af600aa75c8d0ed4a12`).
@@ -164,7 +201,7 @@ reload, furniture interactions and a prolonged ordinary game are comfortable.
 | ID | Priority | Evidence | Status / next verification |
 | --- | --- | --- | --- |
 | PERF-01 | P1 | 0.12 dense smoke at 640x480 on software D3D12: median 251.046 ms (1040 graphics), 272.111 ms (1040 sounds), 276.457 ms (1807 graphics). Volume shader performs four sparse binary searches per ray sample, even while remaining in the same neighbour quartet. | Confirmed slow scene; test sample-local lookup reuse with identical images and actual SDL timing. Hardware attribution remains unmeasured. |
-| PERF-02 | P1 | Stable world publication still visits 197589 candidate cells across 21 loaded levels; visibility stage is approximately 13-15 ms. Source-cache misses are zero. | Profile/cull candidate work while retaining native perception, neighbouring-floor structure, airborne items and creatures. |
+| PERF-02 | P1 | Stable world publication still visits 197589 candidate cells across 21 loaded levels; visibility stage is approximately 13–15 ms. Source-cache misses are zero. | Profile/cull candidate work while retaining native perception, neighbouring-floor structure, airborne items and creatures. |
 | CAM-01 | P1 | World callback supplies only a Z offset; XY camera offsets remain zero despite both renderers supporting them. Adjacent native walking steps therefore jump visually between tile centres. | Add bounded visual-only interpolation for safe adjacent walking, with cancellation for teleports, opaque paths and vehicles. Native position and move cost remain authoritative. |
 | CAM-02 | P1 | Vertical easing starts before the first expensive render. Recorded native upward transition first-ready is 370.814 ms, longer than the 180 ms interpolation target. A slow first render can consume the entire easing interval. | Start the interpolation clock after the first successful presentation; test interrupted moves and slow first frames. |
 | CAM-03 | P1 | Player attack presentation is committed after command submission; a slow GPU presentation can consume its opening keyframes. Native attack notifications already observe real melee/shooting pathways. | Commit the player attack clock after successful SDL window presentation, sharing the camera acknowledgement. Native action costs and animation clips are unchanged. |

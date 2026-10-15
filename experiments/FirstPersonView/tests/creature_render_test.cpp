@@ -48,5 +48,18 @@ int main(int argc,char **argv){try{fixture f;
     f.entities.input.view.seconds+=.25;f.draw();check(f.result.aimed==-1&&f.pixels()==0,"death presentation cannot be attacked");check(f.result.creature_lods[0]+f.result.creature_lods[1]+f.result.creature_lods[2]+f.result.creature_lods[3]==1,"death remains visible in presentation pass");
     f.entities.input.view.count=0;f.entities.input.creatures.clear();f.cells[f.index].creature[0]=0;f.draw();check(f.entities.instances.empty(),"disappeared entities release pose state");
     f.entities.input.view.world_epoch++;f.draw();check(f.entities.resources.statistics().entries==0,"world reset drops generated resources");
+    fixture native;native.entities.native_art=true;native.creature("human",3);
+    native.draw();check(native.pixels()>20,"original native creature art is rendered and pickable");
+    int left=native.result.width,right=0,top=native.result.height,bottom=0;
+    for(int y=0;y<native.result.height;++y)for(int x=0;x<native.result.width;++x)if(native.result.creatures[size_t(y)*native.result.width+x]==native.index){
+        left=std::min(left,x);right=std::max(right,x+1);top=std::min(top,y);bottom=std::max(bottom,y+1);}
+    check(std::abs(float(right-left)/(bottom-top)-10.f/30)<.045f,"native creature retains cropped source aspect ratio");
+    native.draw(nullptr,&native.world);const auto original_art=native.result.pixels;native.draw(&native.world);
+    check(native.result.pixels==original_art,"cached world composites native art identically");
+    native.details[native.index+fixture::side].terrain_shape=NCMM_SHAPE_WALL;native.draw();
+    check(native.pixels()==0,"native creature art respects opaque wall depth");
+    native.details[native.index+fixture::side].terrain_shape=NCMM_SHAPE_FLAT;
+    native.entities.input.creatures[0].flags|=NCMM_CR_DEAD;native.draw();
+    check(native.pixels()==0,"native art death presentation never exposes an attack target");
     std::cout<<"Creature renderer: "<<checks<<" checks PASS\n";
 }catch(const std::exception &e){std::cerr<<"FAIL: "<<e.what()<<"\n";return 1;}}
