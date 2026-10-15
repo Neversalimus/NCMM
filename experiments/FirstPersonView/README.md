@@ -7,8 +7,9 @@ appearance; an owned copy survives death presentation and resets with the world
 or tileset. No new creature artwork is substituted.
 
 Facade visibility tests the actual wall faces and height, including an upper
-wall partly obscured by an overhang. Interpolated camera motion reuses visibility
-at the authoritative avatar position. Derived structural flags are memoized;
+wall partly obscured by an overhang. Interpolated walking reuses visibility
+at the authoritative avatar position; stairs retain the displayed camera height.
+Derived structural flags are memoized;
 GPU geometry completes a changed snapshot without a 512-cell warmup/CPU detour.
 GPU balanced/high caps are 1920×1080 / 2560×1440; CPU fallback uses
 960×600 / 1280×800 to keep input responsive.

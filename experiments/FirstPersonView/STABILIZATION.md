@@ -22,6 +22,9 @@ creature visibility. A solid foreground wall still blocks all probes.
 Derived world flags are cached instead of recalculating neighbours and roof
 masks at every DDA step. Visibility uses the native avatar eye; visual walking
 offsets affect projection without retracing the world on every easing frame.
+Vertical transitions retain the displayed eye so the surrounding floor cannot
+disappear before the camera passes through the stair opening. The native stair
+audit checks this agreement on the first displayed frame.
 The GPU producer completes all dirty cells in the validated, resource-bounded
 snapshot, avoiding its previous 512-cell warmup and full CPU fallback.
 

@@ -164,10 +164,11 @@ bool graphics_draw_world(int x,int y,int width,int height)
     const float camera_dz=animated.z+safe_eye-raw_eye;
     graphics_world_transition_active=graphics_world_camera_motion.active(ticks);graphics_world_vertical_transition_active=std::abs(animated.z)>.002f;
     const ncmm_world::point eye{radius+.5f+animated.x,radius+.5f+animated.y,safe_eye+animated.z};
-    // Visibility belongs to the authoritative avatar position. Camera easing
-    // changes projection only: retracing the entire world for each subpixel
-    // sample both stalls input and churns otherwise reusable GPU chunks.
-    const ncmm_world::point visibility_eye=destination;
+    // Walking reuses the authoritative eye instead of retracing the world for
+    // each subpixel sample. A stair camera still traces its displayed height:
+    // using the destination storey would remove the floor around the camera
+    // before it has passed through the actual stair opening.
+    const ncmm_world::point visibility_eye=graphics_world_vertical_transition_active?eye:destination;
     if(position_changed||graphics_world_ray_revision!=graphics_world_sources.topology_revision||
        std::abs(visibility_eye.x-graphics_world_ray_eye.x)>.0001f||std::abs(visibility_eye.y-graphics_world_ray_eye.y)>.0001f||std::abs(visibility_eye.z-graphics_world_ray_eye.z)>.0001f){
         ++graphics_world_ray_epoch;graphics_world_ray_revision=graphics_world_sources.topology_revision;graphics_world_ray_eye=visibility_eye;}

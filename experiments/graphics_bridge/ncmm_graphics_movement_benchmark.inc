@@ -14,7 +14,7 @@
     std::ofstream stream(game_root()/"ncmm"/"first-person-movement-benchmark.json");JsonOut report(stream);
     report.start_object();report.member("schema",1);report.member("actual_cdda_sdl",true);report.member("manual_playthrough",false);
     report.member("simulation_turns_advanced",0);report.member("records");report.start_array();
-    auto at=[&](int x,int y,int z){return tripoint_bub_ms(center.x()+x,center.y()+y,z);};
+    auto at=[&](int x,int y,int z){return here.get_bub(tripoint_abs_ms(original_position.x()+x,original_position.y()+y,z));};
     auto refresh=[&](){g->ter_view_p=you.pos_bub();g->reset_light_level();here.build_map_cache(you.posz());here.invalidate_visibility_cache();here.update_visibility_cache(you.posz());};
     const std::string original_tileset=get_option<std::string>("TILES");
     if(std::getenv("NCMM_FP_UDP")){get_options().get_option("TILES").setValue("UndeadPeople_0J_Hybrid_v3");tilecontext->load_tileset("UndeadPeople_0J_Hybrid_v3",false,true);}
@@ -36,7 +36,7 @@
             progress(std::string("movement_")+scene+"_"+std::to_string(viewport.x)+"_"+mode);
             if(guard.canvas){SDL_SetRenderTarget(renderer,previous);SDL_DestroyTexture(guard.canvas);guard.canvas=nullptr;}
             guard.canvas=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,viewport.x,viewport.y);require(guard.canvas,"movement_canvas_failed");
-            you.setpos(here,center,false);you.set_moves(100000);g->set_safe_mode(SAFE_MODE_OFF);graphics_clear_world();graphics_clear_creatures();
+            you.setpos(here,here.get_bub(original_position),false);you.set_moves(100000);g->set_safe_mode(SAFE_MODE_OFF);graphics_clear_world();graphics_clear_creatures();
             graphics_mouse_dx=std::remainder(-ncmm_graphics_camera::pi*.5f-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;
             graphics_mouse_dy=(graphics_camera_pitch+.08f)/.003f;require(graphics_action("ncmm.view.mouse_look"),"movement_camera_failed");graphics_mouse_dx=graphics_mouse_dy=0;
             get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);refresh();
