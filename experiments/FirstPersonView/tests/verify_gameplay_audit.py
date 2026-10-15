@@ -42,6 +42,17 @@ for tileset in r['tilesets']:
         for stats in case['stages'].values():
             assert stats['samples']==24 and all(math.isfinite(stats[k]) for k in ['median','p95','p99','max'])
             assert 0<=stats['median']<=stats['p95']<=stats['p99']<=stats['max']
+        if case['name']=='rotation':
+            stress=case['continuous_rotation']
+            assert stress['requested_renderer']==case['renderer'] and stress['angle_step_radians']==.12
+            assert len(stress['frame_wall_samples'])==len(stress['frame_renderers_gpu'])==24
+            assert stress['gpu_frames']==sum(stress['frame_renderers_gpu']) and stress['cpu_frames']==24-stress['gpu_frames']
+            assert set(stress['frame_renderers_gpu'])<={0,1}
+            assert all(math.isfinite(x) and x>=0 for x in stress['frame_wall_samples'])
+            assert math.isfinite(stress['recovery_first_ready_wall_ms']) and stress['recovery_first_ready_wall_ms']>=0
+            assert stress['stages']['full_frame_wall_ms']['samples']==24
+            assert case['stages']['rotation_pose_ready_wall_ms']['samples']==24
+            if case['renderer']=='cpu':assert stress['gpu_frames']==0
     assert all(x['visible_creatures']>0 for x in tileset['cases'] if x['name'] in {'creatures_1','large_and_flying','lod_distances'})
 s=r['soak']
 assert s['automated'] and s['actual_wall_seconds']>=a.minimum_soak_seconds and s['frames']>0

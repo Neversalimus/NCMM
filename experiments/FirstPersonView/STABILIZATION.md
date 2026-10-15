@@ -152,3 +152,14 @@ opt-in audit now creates the same default special_game as start_game through a
 nonvirtual diagnostic gateway, and retains the main UI adaptor as run_game_loop
 does. The ordinary gameplay startup and production turn implementation are
 unchanged. The runner also preserves config/crash.log.
+
+At 657f1361 all ten native action groups and the fixed-scene profiling cases
+passed on 1807. The rotation loop then changed the viewpoint after warming and
+incorrectly required every cold view to be an already-ready GPU frame. The
+existing producer deliberately generates at most 512 cells per frame and uses
+safe CPU fallback while warming. The audit now records continuous rotation's
+actual renderer tags, frame times and recovery latency separately from 24
+warmed-pose CPU/GPU samples. Stable GPU frames and bounded recovery remain
+mandatory; warmup frames are excluded from steady stage percentiles. Cold-view
+fallback remains an explicitly measured performance limitation, not a claimed
+speedup or a discrete-GPU result.

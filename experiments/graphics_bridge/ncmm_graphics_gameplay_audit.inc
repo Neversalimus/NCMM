@@ -46,11 +46,11 @@
     report.start_object();report.member("schema",1);report.member("actual_cdda_sdl",true);report.member("manual_playthrough",false);report.member("gpu_execution_timestamps_available",false);
     report.member("fixture","controlled native actions in an isolated generated smoke world");report.member("width",640);report.member("height",480);
     auto write_stages=[&](const std::map<std::string,std::vector<double>> &measurements){report.start_object();for(const auto &[name,samples]:measurements){if(samples.empty())continue;report.member(name);report.start_object();report.member("samples",samples.size());report.member("median",percentile(samples,.5));report.member("p95",percentile(samples,.95));report.member("p99",percentile(samples,.99));report.member("max",*std::max_element(samples.begin(),samples.end()));report.end_object();}report.end_object();};
-    std::map<std::string,std::vector<double>> stages;
+    std::map<std::string,std::vector<double>> stages;bool audit_measurements=true;
     struct combat_trial {int spawned=0,turns=0,shots=0,melee=0,observed_enemy_attacks=0;};std::vector<combat_trial> combat_trials;
     uint64_t resource_peak=0,sprite_peak=0,world_peak=0,rss_peak=0;std::string capture_name;
     auto render=[&](){
-        const bool measured=capture_name.empty();
+        const bool measured=capture_name.empty()&&audit_measurements;
         const auto pos=you.pos_abs();const auto turn=calendar::turn;const int moves=you.get_moves(),hp=you.get_part_hp_cur(bodypart_id("torso"));
         const auto begin=audit_clock::now();refresh();const double native_cache=milliseconds(begin);
         std::multimap<point,formatted_text> overlays;color_block_overlay_container blocks;
@@ -60,11 +60,11 @@
         const auto overlay=audit_clock::now();require(graphics_draw(0,0,640,480),"audit_real_render_failed");const double overlay_ms=milliseconds(overlay);
         if(!capture_name.empty()){auto *image=SDL_RenderReadPixels(renderer,nullptr);require(image!=nullptr,"audit_capture_failed");const bool saved=SDL_SaveBMP(image,(game_root()/"ncmm"/capture_name).string().c_str());SDL_DestroySurface(image);require(saved,"audit_capture_write_failed");capture_name.clear();}
         const auto present=audit_clock::now();require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr)&&SDL_RenderTexture(renderer,canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"audit_actual_present_failed");graphics_world_frame_presented();
+        if(graphics_gpu_frame&&graphics_gpu_engine){const auto m=graphics_gpu_engine->metrics();require(m.active&&!m.cpu_raster_calls,"audit_gpu_used_cpu_raster");resource_peak=std::max(resource_peak,m.resource_bytes);}
         if(measured){
         stages["full_frame_wall_ms"].push_back(milliseconds(begin));stages[graphics_gpu_frame?"gpu_full_frame_wall_ms":"cpu_full_frame_wall_ms"].push_back(milliseconds(begin));stages["native_cache_cpu_ms"].push_back(native_cache);stages["native_tiles_cpu_ms"].push_back(native_tiles);stages["perspective_callback_wall_ms"].push_back(overlay_ms);stages["actual_present_wall_ms"].push_back(milliseconds(present));
         stages["world_extract_cpu_ms"].push_back(graphics_world_metrics.extraction_ms);stages["world_visibility_cpu_ms"].push_back(graphics_world_metrics.visibility_ms);stages["ui_composition_record_cpu_ms"].push_back(graphics_presentation_ms);
         if(graphics_gpu_frame&&graphics_gpu_engine){const auto m=graphics_gpu_engine->metrics();const auto &p=graphics_gpu_engine->recording();
-            require(m.active&&!m.cpu_raster_calls,"audit_gpu_used_cpu_raster");resource_peak=std::max(resource_peak,m.resource_bytes);
             stages["gpu_geometry_prepare_cpu_ms"].push_back(m.geometry_ms);stages["gpu_resource_update_cpu_ms"].push_back(m.resource_ms);stages["gpu_upload_record_cpu_ms"].push_back(m.upload_ms);stages["gpu_commands_record_cpu_ms"].push_back(m.render_record_ms);stages["gpu_submit_cpu_ms"].push_back(m.submit_ms);
             stages["gpu_batching_pick_cpu_ms"].push_back(p.batching_pick_ms);stages["gpu_shadow_commands_cpu_ms"].push_back(p.shadow_ms);stages["gpu_world_draw_commands_cpu_ms"].push_back(p.world_ms);stages["gpu_creature_draw_commands_cpu_ms"].push_back(p.creature_ms);stages["gpu_held_draw_commands_cpu_ms"].push_back(p.held_ms);stages["gpu_volume_commands_cpu_ms"].push_back(p.volume_ms);stages["gpu_compose_commands_cpu_ms"].push_back(p.compose_ms);
         }else{stages["cpu_geometry_ms"].push_back(graphics_cpu_metrics.geometry_ms);stages["cpu_raster_ms"].push_back(graphics_cpu_metrics.raster_ms);stages["cpu_effects_ms"].push_back(graphics_cpu_metrics.effects_ms);}
@@ -74,7 +74,9 @@
         require(you.pos_abs()==pos&&you.get_moves()==moves&&calendar::turn==turn&&you.get_part_hp_cur(bodypart_id("torso"))==hp,"audit_renderer_changed_native_state");++frames;
         if(frames%32==0)checkpoint(phase);
     };
-    auto warm=[&](const char *mode){const auto begin=audit_clock::now();get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);bool ready=false;
+    auto warm=[&](const char *mode){const auto begin=audit_clock::now();
+        struct measurement_guard {bool &flag;bool previous;~measurement_guard(){flag=previous;}} restoring{audit_measurements,audit_measurements};audit_measurements=false;
+        get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);bool ready=false;
         for(int n=0;n<180;++n){render();ready=std::string(mode)=="cpu"||graphics_gpu_frame;if(ready&&!graphics_creature_metrics.queued&&!graphics_creature_metrics.fallback)break;SDL_Delay(2);}
         require(ready&&!graphics_creature_metrics.queued&&!graphics_creature_metrics.fallback,"audit_models_or_gpu_never_ready");return milliseconds(begin);};
     auto capture=[&](const std::string &name){capture_name="first-person-audit-"+name+".bmp";render();};
@@ -183,10 +185,20 @@
             if(name=="large_and_flying"){require(g->place_critter_at(mtype_id("mon_zombie_hulk"),point_at(-2,-5))!=nullptr,"audit_large_spawn_failed");require(g->place_critter_at(mtype_id("mon_crow"),point_at(2,-5,1))!=nullptr,"audit_flying_spawn_failed");camera(-ncmm_graphics_camera::pi*.5f,.2f);}
             if(name=="lod_distances"){for(int distance:{2,12,40})require(g->place_critter_at(mtype_id("mon_zombie"),point_at(distance==2?-1:distance==12?0:1,-distance))!=nullptr,"audit_lod_spawn_failed");require(g->place_critter_at(mtype_id("mon_crow"),point_at(-2,-40))!=nullptr,"audit_lod_bird_spawn_failed");}
             if(name=="unknown_mod_objects"){here.ter_set(point_at(-1,-4),ter_id("t_ncmm_x9_unknown_support"));here.furn_set(point_at(1,-4),furn_id("f_ncmm_x9_unknown_furniture"));}
-            for(const char *mode:{"cpu","gpu"}){checkpoint(tileset+"_"+name+"_"+mode);const double first_ready=warm(mode);stages.clear();const auto cold_rss=ncmm_graphics_performance::resident_bytes();
-                for(int n=0;n<24;++n){if(name=="rotation")camera(-ncmm_graphics_camera::pi*.5f+n*.12f,.15f*std::sin(n*.3f));render();if(std::string(mode)=="gpu")require(graphics_gpu_frame,"audit_stable_gpu_fell_back");}
+            for(const char *mode:{"cpu","gpu"}){checkpoint(tileset+"_"+name+"_"+mode);if(name=="rotation")camera(-ncmm_graphics_camera::pi*.5f,-.08f);
+                const double first_ready=warm(mode);stages.clear();const auto cold_rss=ncmm_graphics_performance::resident_bytes();
+                std::map<std::string,std::vector<double>> continuous_stages;std::vector<uint32_t> continuous_renderers;double recovery_ready=0;
+                if(name=="rotation"){
+                    checkpoint(tileset+"_rotation_continuous_"+mode);
+                    for(int n=0;n<24;++n){camera(-ncmm_graphics_camera::pi*.5f+n*.12f,.15f*std::sin(n*.3f));render();continuous_renderers.push_back(graphics_gpu_frame?1u:0u);}
+                    continuous_stages=std::move(stages);stages.clear();recovery_ready=warm(mode);
+                    checkpoint(tileset+"_rotation_warmed_poses_"+mode);
+                }
+                for(int n=0;n<24;++n){if(name=="rotation"){camera(-ncmm_graphics_camera::pi*.5f+n*.12f,.15f*std::sin(n*.3f));stages["rotation_pose_ready_wall_ms"].push_back(warm(mode));}render();if(std::string(mode)=="gpu")require(graphics_gpu_frame,"audit_stable_gpu_fell_back");}
                 capture(std::to_string(ti)+"-"+name+"-"+mode);report.start_object();report.member("name",name);report.member("renderer",mode);report.member("first_ready_wall_ms",first_ready);report.member("spawned_creatures",count);report.member("visible_creatures",graphics_creature_snapshots.size());report.member("lod",std::array<uint32_t,4>{graphics_creature_metrics.lod[0],graphics_creature_metrics.lod[1],graphics_creature_metrics.lod[2],graphics_creature_metrics.lod[3]});report.member("model_fallback",graphics_creature_metrics.fallback);report.member("resolved_sprites",graphics_resolved_textures);report.member("sprite_cache_bytes",graphics_hybrid_sprite_bytes);report.member("creature_cache_bytes",graphics_creature_metrics.cache_bytes);report.member("process_resident_before",cold_rss);report.member("process_resident_after",ncmm_graphics_performance::resident_bytes());
-                const auto m=graphics_gpu_engine?graphics_gpu_engine->metrics():ncmm_gpu_metrics_v1{};report.member("device",m.device);report.member("backend",m.backend);report.member("software_device",bool(m.software_device));report.member("stages");write_stages(stages);report.end_object();stream.flush();}
+                const auto m=graphics_gpu_engine?graphics_gpu_engine->metrics():ncmm_gpu_metrics_v1{};report.member("device",m.device);report.member("backend",m.backend);report.member("software_device",bool(m.software_device));report.member("stages");write_stages(stages);
+                if(name=="rotation"){report.member("continuous_rotation");report.start_object();report.member("requested_renderer",mode);report.member("angle_step_radians",.12);report.member("frame_renderers_gpu",continuous_renderers);report.member("frame_wall_samples",continuous_stages["full_frame_wall_ms"]);report.member("gpu_frames",std::count(continuous_renderers.begin(),continuous_renderers.end(),1u));report.member("cpu_frames",std::count(continuous_renderers.begin(),continuous_renderers.end(),0u));report.member("recovery_first_ready_wall_ms",recovery_ready);report.member("stages");write_stages(continuous_stages);report.end_object();}
+                report.end_object();stream.flush();}
         }
         report.end_array();report.end_object();stream.flush();
     }
