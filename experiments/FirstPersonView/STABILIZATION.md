@@ -6,7 +6,69 @@ and 1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 Scope: gameplay audit, measured performance, camera/interaction stability and
 selective visual polish. No new graphics architecture or gameplay rules.
 
-## Evidence and limitations
+## Final automated qualification — 15 October 2026
+
+Qualified runtime head: `ccb11df48b582bde00c9958bdd5b8b507d573556` (test merge
+`b51eca9877d4cd81ae0d1af600aa75c8d0ed4a12`).
+[Full run #123](https://github.com/Neversalimus/NCMM/actions/runs/38685586242),
+[GPU/UI #63](https://github.com/Neversalimus/NCMM/actions/runs/38680995835) and
+[Source/Package Audit #947](https://github.com/Neversalimus/NCMM/actions/runs/38680995867) passed.
+24 Windows + 24 Linux tests, 19 sanitizer tests and 8 source-transform tests
+on each platform passed. Both Hosts and graphics/sounds installation matrices,
+bootstrap launches, repair/rollback/Restore Vanilla and native Z -1/0/+1 saves
+passed. The retained initial-checkpoint sections below describe findings before
+these final results; their pending automated statuses are superseded here.
+
+CAM-01/02/03/04 and PERF-01/02 are implemented and exercised by those gates.
+CI-01 is implemented. QA-01 has CPU submission accounting; GPU execution timestamps
+remain unavailable. QA-02 has automated native actions, not manual acceptance.
+QA-03 passed with pinned actual `UndeadPeople_0J_Hybrid_v3` assets from CDDA-Mods
+`59123092c33244d516fa9d5ca69eaafb8d487f37`; this does not qualify every third-party tile.
+No production P0 failure was confirmed by these runs.
+
+The 1807 automated soak completed 1800.13 s and 8931 rendered frames: 139 F6
+cycles, 93 renderer switches, 34 map loads and 17 saves. Working set
+initial/final/peak: 901.5/437.0/958.5 MiB. Mixed-renderer full-frame
+median/p95/p99/max: 138.13/298.28/460.25/981.36 ms on software D3D12.
+This bounded observation does not prove absence of leaks or comfortable hardware play.
+
+The separate smoke-gas benchmark uses **48 frames**, actual internal 640x480:
+
+| Pin/package | Median before -> after (ms) | p95 (ms) | p99 (ms) |
+| --- | --- | --- | --- |
+| 1040 graphics | 250.97 -> 200.03 | 279.85 -> 214.26 | 285.97 -> 220.01 |
+| 1040 sounds | 251.45 -> 201.15 | 273.09 -> 220.88 | 286.98 -> 223.30 |
+| 1807 graphics | 257.87 -> 205.44 | 292.76 -> 221.87 | 299.68 -> 230.17 |
+| 1807 sounds | 260.08 -> 206.03 | 280.14 -> 224.65 | 296.17 -> 226.79 |
+
+These are frame wall times on **Microsoft Basic Render Driver**, not discrete-GPU
+execution times or a player FPS promise. General improvements are modest and
+not universal: among 112 load cases per renderer (24 samples each), the median
+paired after/before ratio for 1040 graphics is CPU 0.988 / GPU 0.966 and for
+1807 graphics CPU 0.970 / GPU 0.995. The 1807 single-creature GPU benchmark
+regressed by 18% (graphics) / 11% (sounds) in this software environment.
+The three-sample stair galleries also fluctuate; their quantiles are exploratory.
+Causality and hardware impact of these isolated deltas remain unconfirmed.
+
+Actual before/after building, stairwell and smoke images, UDP creature CPU/GPU
+views, a melee frame and the vehicle interior were inspected. Static comparisons
+preserve their appearance; this is not a new model/material overhaul. Coarse
+faces, broad creature color patches, simple walls and vegetation remain visible
+style limitations. The images and raw JSON remain in the linked run artifacts.
+
+**Manual acceptance remains open:** a normal new-character session, complete
+inventory and aiming/reload UI flows, driving physics and a prolonged ordinary
+playthrough were not performed. The automation uses controlled constructed
+fixtures, debug-protected combat, inventory cancellation, reload completion and
+controlled vehicle displacement. Use the bundled isolated benchmark on a real GPU
+and perform scenarios A-E from the specification before claiming production quality.
+
+The final documentation correction replaces the obsolete installer claim of
+"one visible z-level" and "tile-center movement". Delivered packages preserve
+every qualified file byte-for-byte except README.txt; no EXE, DLL, payload hash
+receipt or installer logic is rebuilt.
+
+## Evidence and limitations (initial checkpoint)
 
 The starting evidence is prototype run `38599750082`, GPU run `38599750041`
 and source audit `38599750047`, on branch head

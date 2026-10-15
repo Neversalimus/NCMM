@@ -125,6 +125,12 @@ NCMM First Person View installer 0.12.1 TEST / CDDA $build / Windows x64
    Hold the right mouse button over the viewport to look around.
    In first person, arrows move forward/backward and strafe relative to the gaze.
 
+Version 0.12.1 stabilizes walking, stairs, tall-avatar headroom and attack
+animation timing. It reduces repeated volume lookups and offscreen creature
+tracking. Run-FirstPersonBenchmark.ps1 provides isolated local CPU/GPU, UDP and
+automated soak checks without reusing player saves. See the qualification
+report for measured results and remaining manual checks.
+
 Official executable identities are checked with SHA256. Existing normal NCMM,
 preview NCMM and legacy CML bootstraps are recognized by their hash receipts;
 the original game backup is verified and preserved when upgrading.
@@ -181,8 +187,12 @@ Host updates are disabled in this preview. Use the normal NCMM installer to
 return to the current certified Host, or Restore vanilla EXE for vanilla play.
 Uncheck First Person View and install again to remove its managed DLL/manifest.
 
-Current limits: tile-center movement, one visible z-level, automatic coarse
-vehicle geometry, sprite-derived held items, generic environment dimensions.
+Current limits: automatic coarse vehicle geometry, sprite-derived held items,
+generic environment dimensions and conservative hidden-surface reconstruction.
+The 0.12 world includes loaded Z-levels, floors, ceilings, stairs and shafts.
+Version 0.12.1 eases safe adjacent walking and stair movement visually after
+the first successful presentation; native movement remains turn-based.
+Manual gameplay comfort and discrete-GPU performance remain unqualified.
 Unusual anatomy and hidden surfaces are conservative reconstructions.
 Non-arrow movement bindings keep their world
 directions. Mouse capture releases when menus open, focus is lost, or F6 disables
