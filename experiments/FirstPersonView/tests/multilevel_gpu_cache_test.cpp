@@ -5,7 +5,7 @@
 
 int main(){try{
     int checks=0;auto check=[&](bool value,const char *message){++checks;if(!value)throw std::runtime_error(message);};
-    for(int count:{1,2,7,98}){
+    for(int count:{1,2,7,98,1940}){
         std::vector<ncmm_graphics_cell_v1> cells(count);
         std::vector<ncmm_graphics_cell_v2> details(count);
         std::vector<ncmm_world_cell_v1> coordinates;

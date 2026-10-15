@@ -12,13 +12,15 @@ namespace {
 ncmm_graphics_render_v2 callback=nullptr;ncmm_graphics_input_v1 input=nullptr;
 ncmm_host_api_v2_core core{};ncmm_graphics_creature_metrics_v1 metrics{};
 ncmm_graphics_creature_scene_v1 view{sizeof(view),1,1,1,10};std::vector<ncmm_graphics_creature_v1> entities;
-int checks=0,metrics_calls=0,world_textures=0,creature_textures=0,submissions=0;bool enabled=false;
+int checks=0,metrics_calls=0,world_textures=0,creature_textures=0,submissions=0;bool enabled=false,volume=true;
 void check(bool ok,const char *why){++checks;if(!ok)throw std::runtime_error(why);}
 int reg(const char *,ncmm_graphics_render_v2 r,ncmm_graphics_input_v1 i,void *){callback=r;input=i;return 1;}
 int enable(const char *,int yes){enabled=yes!=0;return 1;}int is_enabled(const char *){return enabled;}
 int get_scene(ncmm_graphics_creature_scene_v1 *out){*out=view;return 1;}
 int get_creatures(ncmm_graphics_creature_v1 *out,size_t count){if(count!=entities.size())return 0;std::copy(entities.begin(),entities.end(),out);return 1;}
 int submit_metrics(const ncmm_graphics_creature_metrics_v1 *m){++metrics_calls;metrics=*m;return 1;}
+int register_setting(const char *,const char *,const char *,const char *,const char *const *,const char *const *,size_t,const char *,uint32_t){return 1;}
+const char *get_setting(const char *key,const char *){return std::strcmp(key,"NCMM_FIRST_PERSON_CREATURE_ART")==0?(volume?"volume":"tileset"):"cpu";}
 int sprite(uint32_t,uint32_t layer,ncmm_graphics_sprite_v2 *out){if(layer!=NCMM_GFX_CREATURE){++world_textures;return 0;}++creature_textures;
     static const uint32_t art[16]={0x783126ff,0xb39375ff,0xb39375ff,0x783126ff,0x285f91ff,0x285f91ff,0x285f91ff,0x285f91ff,0x50422eff,0x50422eff,0x50422eff,0x50422eff,0x303030ff,0x303030ff,0x303030ff,0x303030ff};*out={sizeof(*out),4,4,4,art};return 1;}
 int submit(const uint32_t *p,uint32_t w,uint32_t h,uint32_t pitch){++submissions;return p&&w==320&&h==240&&pitch==w;}
@@ -30,6 +32,7 @@ const void *query(const char *id,uint32_t,uint32_t){if(!std::strcmp(id,NCMM_GRAP
 }
 int main(){try{
     core.struct_size=sizeof(core);core.abi_version=2;core.api_major=2;core.api_minor=3;
+    core.world_setting_register_enum=register_setting;core.world_setting_get_string=get_setting;
     ncmm_host_api_v1 api{};api.abi_version=1;api.has_capability=has;api.get_api_version_major=major;api.get_api_version_minor=minor;api.query_interface=query;
     const auto *module=ncmm_get_descriptor_v1();std::vector<ncmm_graphics_cell_v1> cells(121);std::vector<ncmm_graphics_cell_v2> details(121);
     for(size_t i=0;i<cells.size();++i){cells[i].flags=NCMM_GFX_VISIBLE;cells[i].light=1;std::strcpy(cells[i].terrain,"t_floor");std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=.9f;}
@@ -47,5 +50,11 @@ int main(){try{
     entities.clear();view.count=0;view.seconds+=1;draw();check(metrics.visible_pixels==0,"expired death cannot leave stale cached pixels");
     view.count=1;entities={c};cells[c.cell].flags=NCMM_GFX_VISIBLE;std::strcpy(cells[c.cell].creature,c.type_id);view.world_epoch++;view.seconds+=.025;draw();check(metrics.fallback==1,"new world discards old model assets");
     module->shutdown();check(module->init(&api),"worker and resources reload after shutdown");view.seconds+=.025;draw();check(metrics.fallback==1,"new module lifecycle starts clean");module->shutdown();
+    volume=false;check(module->init(&api),"native artwork mode initializes");view.seconds+=.025;draw();
+    check(metrics.generated==1&&!metrics.fallback&&!metrics.queued&&metrics.visible_pixels>10,"native art is ready on the first frame without model generation");
+    const int source_reads=creature_textures;view.seconds+=.025;draw();check(creature_textures==source_reads,"native artwork is copied only once per appearance");
+    entities[0].flags|=NCMM_CR_DEAD;entities[0].event=NCMM_CR_DIE;entities[0].event_serial=2;entities[0].event_seconds=view.seconds;cells[c.cell].creature[0]=0;view.seconds+=.1;draw();
+    check(metrics.visible_pixels>0&&creature_textures==source_reads,"owned native art survives a death after the cell identity disappears");
+    module->shutdown();
     std::cout<<"Creature shipping DLL: "<<checks<<" checks PASS\n";
 }catch(const std::exception &e){std::cerr<<"FAIL: "<<e.what()<<"\n";return 1;}}

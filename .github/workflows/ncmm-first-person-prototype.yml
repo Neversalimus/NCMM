@@ -352,6 +352,18 @@ jobs:
           Copy-Item (Join-Path $evidence 'first-person-gpu-benchmark.json') installer-result/first-person-gpu-focused-profile.json
           Copy-Item (Join-Path $output 'benchmark-provenance.json') installer-result/first-person-gpu-focused-provenance.json
           Get-ChildItem $evidence -Filter 'first-person-gpu-*.bmp' | ForEach-Object {Copy-Item $_.FullName (Join-Path installer-result ($_.Name.Replace('first-person-gpu-','first-person-gpu-focused-')))}
+      - name: Native walking, camera easing and full-size UDP viewport
+        if: ${{ always() && !cancelled() && steps.installer_gate.outcome == 'success' }}
+        timeout-minutes: 20
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $output=Join-Path $env:RUNNER_TEMP 'fp-movement'
+          ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -TilesetRoot (Join-Path $PWD 'udp-resources/mods/undeadpeople/content') -MovementBenchmark
+          $evidence=Join-Path $output 'evidence'
+          Copy-Item (Join-Path $evidence 'first-person-movement-benchmark.json') installer-result/first-person-movement-benchmark.json
+          Copy-Item (Join-Path $output 'benchmark-provenance.json') installer-result/first-person-movement-provenance.json
+          Get-ChildItem $evidence -Filter 'first-person-movement-*.bmp' | Copy-Item -Destination installer-result
       - name: Actual SDL controls, appearance, geometry, RGB light, sky, weather and held items
         if: env.FP_FULL_QUALIFICATION == 'true'
         timeout-minutes: 120
@@ -462,6 +474,8 @@ jobs:
             if($root -and (Test-Path (Join-Path $root 'ncmm'))){Copy-Item (Join-Path $root 'ncmm') (Join-Path fp-evidence $variant.name) -Recurse}
             $audit=Join-Path $env:RUNNER_TEMP 'fp-gameplay-audit/evidence'
             if($variant.name -eq 'graphics' -and (Test-Path $audit)){Copy-Item $audit (Join-Path fp-evidence 'gameplay-audit') -Recurse -Force}
+            $movement=Join-Path $env:RUNNER_TEMP 'fp-movement/evidence'
+            if($variant.name -eq 'graphics' -and (Test-Path $movement)){Copy-Item $movement (Join-Path fp-evidence 'movement') -Recurse -Force}
             $debug=Join-Path $env:RUNNER_TEMP ("fp-appearance-"+'${{ matrix.build }}'+'-'+$variant.name)
             if(Test-Path $debug){Copy-Item $debug (Join-Path fp-evidence ('appearance-debug-'+$variant.name)) -Recurse -Force}
           }
@@ -473,6 +487,7 @@ jobs:
             fp-evidence/graphics/**
             fp-evidence/appearance-debug-graphics/**
             fp-evidence/gameplay-audit/**
+            fp-evidence/movement/**
           compression-level: 9
           retention-days: 7
       - uses: actions/upload-artifact@v4
@@ -488,7 +503,9 @@ jobs:
         with:
           name: first-person-installer-${{ matrix.build }}-Windows-x64
           path: |
-            installer-result/NCMM_FirstPersonView_0.12.2_TEST_${{ matrix.build }}_Windows_x64.zip
+            installer-result/NCMM_FirstPersonView_0.12.3_TEST_${{ matrix.build }}_Windows_x64.zip
+            installer-result/first-person-movement-*.json
+            installer-result/first-person-movement-*.bmp
             installer-result/first-person-gameplay*.json
             installer-result/first-person-audit*.bmp
             installer-result/first-person-baseline-provenance.json

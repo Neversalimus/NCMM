@@ -1,24 +1,40 @@
-# First Person View 0.12.2 — stabilization candidate
+# First Person View 0.12.3 — movement and visual fixes
 
-The follow-up moves conservative offscreen rejection ahead of map-loading probes
-and fixes benchmark presentation acknowledgement and exclusive phase accounting.
-Use `Run-FirstPersonBenchmark.ps1 -GameRoot ... -OutputRoot ... -FocusedGpuBenchmark`
-for a 96-frame-per-case official-tileset smoke/one-creature reproduction. This
-option does not run the gameplay soak or qualify UDP. Native candidate results
-are tracked in STABILIZATION.md; 0.12.1 remains the last full qualification.
+Creatures use the complete original tileset artwork by default, including UDP
+and Monster Art Pack silhouettes, colours and proportions. NCMM module settings
+retain the experimental reconstructed volume option. Artwork is copied once per
+appearance; an owned copy survives death presentation and resets with the world
+or tileset. No new creature artwork is substituted.
 
-Loaded Z-levels, floors, ceilings, stairs and shafts use the existing 0.12 renderer.
-Version 0.12.1 adds bounded visual walking/stair interpolation after successful
-presentation, safer tall-avatar headroom, player-attack timing fixes and fewer
-repeated volume/creature lookups. Native turn costs and visibility are unchanged.
+Facade visibility tests the actual wall faces and height, including an upper
+wall partly obscured by an overhang. Upper brick facades retain their brick
+finish. Interpolated walking reuses visibility
+at the authoritative avatar position; stairs retain the displayed camera height.
+Derived structural flags are memoized. Roof columns are resolved on demand only
+as far as their first roof; opaque slabs trace only their exposed surface.
+Cells outside native visual range are rejected before ray tracing.
+GPU geometry completes a changed snapshot without a 512-cell warmup/CPU detour.
+GPU balanced/high caps are 1920×1080 / 2560×1440; CPU fallback uses
+960×600 / 1280×800 to keep input responsive.
+
+`Run-FirstPersonBenchmark.ps1 -GameRoot ... -OutputRoot ... -MovementBenchmark`
+measures native steps and easing in street and multi-storey horde scenes at
+640×480 and 1768×1084. Add `-TilesetRoot ...` for actual UDP Hybrid v3.
+`-FocusedGpuBenchmark` retains the separate 96-frame smoke/one-creature profile.
+Candidate verification and measured limitations are recorded in STABILIZATION.md.
+
+Loaded Z-levels, floors, ceilings, stairs and shafts share the live native world.
+Walking/stair interpolation starts after successful presentation and preserves
+native turn costs, collisions and visibility.
 
 See [STABILIZATION.md](STABILIZATION.md) for qualification, timings and open manual
-checks. The 30-minute session is automated; comfortable ordinary gameplay and
-discrete-GPU performance are not yet qualified.
+checks. Hardware measurements use controlled routes; ordinary manual gameplay
+and a prolonged manual session remain open.
 
 ## Creature Appearance Reconstruction 0.11
 
-See [APPEARANCE.md](APPEARANCE.md) for native source preservation, rest-space material charts, adaptive impostors and paired real-game qualification. Current GPU and CPU use the same automatic appearance assets.
+See [APPEARANCE.md](APPEARANCE.md) for the optional reconstructed models. GPU and
+CPU use the same artwork or volume selection and preserve normal depth/picking.
 
 # First Person View — 0.10.0 GPU development
 
@@ -83,8 +99,8 @@ tilesets are not bundled.
 The new optional Graphics V2 bridge supplies callback-scoped CPU sprites, visible
 cell geometry, current weather and calendar astronomy. V1 and Core ABI contracts
 remain unchanged. The renderer uses clipped perspective-correct triangles, a
-per-pixel depth buffer, bilinear filtering and a ground mip level, with a balanced default up to 1280×800 and an F11 high-quality option up to
-1920×1080. Covered scanline spans, conservative frustum culling, outward solid
+per-pixel depth buffer, bilinear filtering and a ground mip level. GPU balanced/high
+resolution caps are 1920×1080 / 2560×1440; CPU caps are 960×600 / 1280×800. Covered scanline spans, conservative frustum culling, outward solid
 faces, front-to-back cells and up to four workers reduce work. Triangles are
 clipped/projected once; interleaved 16-row strips balance detailed floor and
 view-model work across the workers, with one writer per pixel.

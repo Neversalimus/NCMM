@@ -4,9 +4,12 @@ param(
     [Parameter(Mandatory=$true)][string]$OutputRoot,
     [string]$TilesetRoot,
     [ValidateRange(0,3600)][int]$SoakSeconds=1800,
-    [switch]$FocusedGpuBenchmark
+    [switch]$FocusedGpuBenchmark,
+    [switch]$MovementBenchmark
 )
 $ErrorActionPreference='Stop'
+if($MovementBenchmark -and $FocusedGpuBenchmark){throw 'Choose one focused benchmark.'}
+if($MovementBenchmark -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the gameplay audit.'}
 if($FocusedGpuBenchmark -and $TilesetRoot){throw 'Focused GPU reproduction uses the official tileset; use the gameplay audit for UDP coverage.'}
 if($FocusedGpuBenchmark -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the gameplay audit, not focused GPU reproduction.'}
 $GameRoot=(Resolve-Path $GameRoot).Path
@@ -51,12 +54,12 @@ if($TilesetRoot){
     $assets=@(Get-ChildItem $dest -File -Recurse | Sort-Object FullName | ForEach-Object {[ordered]@{file=$_.FullName.Substring($dest.Length+1).Replace('\','/');sha256=(Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}})
     $assets | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $evidence 'udp-asset-sha256.json') -Encoding UTF8
 }
-$names=@('NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE')
+$names=@('NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE')
 $prior=@{}
 foreach($name in $names){$prior[$name]=[Environment]::GetEnvironmentVariable($name,'Process');[Environment]::SetEnvironmentVariable($name,$null,'Process')}
 $exitCode=$null
 try {
-    if($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
+    if($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
     $env:NCMM_FP_APPEARANCE_SMOKE='1' # Stable monster atlas variants in this diagnostic only.
     $env:NCMM_FP_SOAK_SECONDS=[string]$SoakSeconds
     if($udp){$env:NCMM_FP_UDP='1'}
@@ -155,7 +158,15 @@ if($exitCode -ne 0){
     if(Test-Path $nativeResult){$reason=(Get-Content $nativeResult -Raw | ConvertFrom-Json).reason}
     throw "Native audit failed ($exitCode): $reason. Evidence: $evidence"
 }
-if($FocusedGpuBenchmark){
+if($MovementBenchmark){
+    $audit=Get-Content (Join-Path $evidence 'first-person-movement-benchmark.json') -Raw | ConvertFrom-Json
+    if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.simulation_turns_advanced -ne 0 -or @($audit.records).Count -ne 8){throw 'Native movement benchmark is incomplete.'}
+    foreach($record in $audit.records){
+        if($record.native_steps -ne 12 -or @($record.first_ready_samples_ms).Count -ne 12 -or @($record.easing_frame_samples_ms).Count -eq 0){throw 'Native steps or easing samples are incomplete.'}
+        if($record.renderer -eq 'gpu' -and @($record.frame_renderers_gpu | Where-Object {$_ -ne 1}).Count){throw 'A walking GPU frame fell back to CPU.'}
+    }
+    $soaked=0
+}elseif($FocusedGpuBenchmark){
     $audit=Get-Content (Join-Path $evidence 'first-person-gpu-benchmark.json') -Raw | ConvertFrom-Json
     if($audit.actual_cdda_sdl -ne $true -or $audit.focused_reproduction -ne $true -or @($audit.records).Count -ne 4){throw 'Focused GPU reproduction is incomplete.'}
     $soaked=0
@@ -164,6 +175,6 @@ if($FocusedGpuBenchmark){
     if($audit.success -ne $true -or $audit.manual_playthrough -ne $false -or $audit.soak.actual_wall_seconds -lt $SoakSeconds){throw 'Native audit is incomplete.'}
     $soaked=$audit.soak.actual_wall_seconds
 }
-$result=[ordered]@{success=$true;source_commit=$bundle.source_commit;ncmm_commit=$bundle.ncmm_source_commit;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';manual_playthrough=$false;focused_gpu_benchmark=[bool]$FocusedGpuBenchmark;udp_requested=$udp;soak_seconds=$soaked;evidence=$evidence}
+$result=[ordered]@{success=$true;source_commit=$bundle.source_commit;ncmm_commit=$bundle.ncmm_source_commit;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';manual_playthrough=$false;focused_gpu_benchmark=[bool]$FocusedGpuBenchmark;movement_benchmark=[bool]$MovementBenchmark;udp_requested=$udp;soak_seconds=$soaked;evidence=$evidence}
 $result | ConvertTo-Json | Set-Content (Join-Path $OutputRoot 'benchmark-provenance.json') -Encoding UTF8
 $result | ConvertTo-Json

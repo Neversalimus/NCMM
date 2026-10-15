@@ -32,6 +32,27 @@ int main(){
     t.transparent_floor=false;t.goes_down=true;require(!(semantics(t)&NCMM_WORLD_FLOOR)&&semantics(t)&NCMM_WORLD_OPEN_DOWN,"CDDA visual stairs gap");
     t.difficult_z=true;require(semantics(t)&NCMM_WORLD_LADDER,"difficult vertical connector");
     t.ramp_up=true;require(semantics(t)&NCMM_WORLD_RAMP,"inclined vertical connector");
+    {
+        const auto above=slab_trace_sides(NCMM_WORLD_FLOOR,1.55f,0),below=slab_trace_sides(NCMM_WORLD_FLOOR,1.55f,2.5f),edge=slab_trace_sides(NCMM_WORLD_FLOOR,-.04f,0);
+        require(above.top&&!above.bottom&&!below.top&&below.bottom,"opaque slab traces only its exposed side");
+        require(edge.top&&edge.bottom,"camera beside the slab edge retains conservative visibility");
+        for(uint32_t flags:{uint32_t(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR),uint32_t(NCMM_WORLD_DOWN),uint32_t(NCMM_WORLD_WATER),0u}){
+            const auto sides=slab_trace_sides(flags,1.55f,0);require(sides.top&&sides.bottom,"glass and openings keep both visibility paths");}
+        uint32_t random=0x12345678;
+        const std::array<uint32_t,8> kinds={0u,NCMM_WORLD_FLOOR,NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR,NCMM_WORLD_WATER,NCMM_WORLD_CANOPY,NCMM_WORLD_UNKNOWN,vehicle_roof_fact,NCMM_WORLD_OPAQUE|opaque_field_fact};
+        for(int levels:{1,3,21,32})for(int column=0;column<256;++column){const int low=-10,high=low+levels-1;std::vector<uint32_t> values(size_t(levels),0);
+            for(auto &value:values){random=random*1664525u+1013904223u;value=kinds[(random>>24)%kinds.size()];}
+            uint32_t reference=0;bool roof=false;
+            for(int z=high;z>=low;--z){const auto value=values[size_t(z-low)];
+                if(roof||(value&(NCMM_WORLD_CANOPY|vehicle_roof_fact)))reference|=uint32_t(1)<<(z-low);
+                if(value&(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_CANOPY|NCMM_WORLD_UNKNOWN|vehicle_roof_fact))roof=true;}
+            int reads=0;const auto lazy=roof_column(low,high,[&](int z){++reads;return values[size_t(z-low)];});
+            require(lazy==reference,"lazy roof prefix exactly matches exhaustive multi-level masks");require(reads<=levels,"roof prefix has a bounded source-read count");
+        }
+        int reads=0;const auto ground=roof_column(-10,10,[&](int z){++reads;require(z>=0,"ground roof proof never reads buried levels");return z==0?uint32_t(NCMM_WORLD_FLOOR):0u;});
+        require(reads==11&&ground==1023,"first solid floor proves all lower roof bits");
+        require(roof_column(-10,22,[&](int){require(false,"invalid roof span cannot query the map");return 0u;})==UINT32_MAX,"invalid roof mask closes conservatively");
+    }
     for(int layers:{1,3,5,9}){
         fixture f(layers);const point low{.5f,.5f,.55f},high{.5f,.5f,float(layers)*NCMM_WORLD_LEVEL_HEIGHT+.5f};
         require(visible(low,high,f),"open multi-storey shaft upwards");require(visible(high,low,f),"open multi-storey shaft downwards");
@@ -49,6 +70,15 @@ int main(){
     require(!visible({.5f,.5f,1.55f},{2.5f,.5f,1.55f},f),"opaque intermediate wall");
     require(visible({.5f,.5f,1.55f},{1.5f,.5f,1.55f},f),"first wall surface is visible");
     require(!visible({.5f,.5f,1.55f},{1.5f,1.5f,1.55f},f),"diagonal corner cannot leak");
+    {
+        fixture facade(3);
+        facade.flags[{1,0,1}]=NCMM_WORLD_FLOOR;
+        facade.flags[{2,0,1}]=NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE;
+        require(!visible({.5f,.5f,1.55f},{2.5f,.5f,3.75f},facade),"overhang hides upper wall centre");
+        require(facade_visible({.5f,.5f,1.55f},{2,0,1},facade),"upper facade above overhang remains visible instead of a floating roof");
+        facade.flags[{1,0,1}]|=NCMM_WORLD_OPAQUE;
+        require(!facade_visible({.5f,.5f,1.55f},{2,0,1},facade),"facade probes cannot reveal a wall behind solid architecture");
+    }
     f.flags[{1,0,0}]=NCMM_WORLD_OPAQUE|opaque_field_fact;
     auto structure=[&](voxel p){return structural_flags(f(p));};
     require(!visible({.5f,.5f,1.55f},{2.5f,.5f,.003f},f,true),"opaque gas retains the body information barrier");

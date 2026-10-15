@@ -44,6 +44,9 @@ struct collector:geometry_sink {
 };
 }
 int main(){try{
+    check(!std::strcmp(ncmm_graphics_shapes::facade_id(NCMM_SHAPE_WALL,"t_mod_secret_brick_partition"),"t_brick_wall"),"coarse upper brick finish matches the visible lower facade");
+    check(!std::strcmp(ncmm_graphics_shapes::facade_id(NCMM_SHAPE_WALL,"t_hidden_material t_brick_wall"),"t_brick_wall"),"coarse facade respects declared material aliases");
+    check(!std::strcmp(ncmm_graphics_shapes::facade_id(NCMM_SHAPE_DOOR_CLOSED,"t_hidden_brick_door"),"t_wall"),"coarse finish cannot publish the actual hidden terrain identity");
     for(int levels:{1,3,5,9}){
         fixture world(levels);world.slab(0);if(levels>1)world.slab(levels-1);
         check(ncmm_world::valid(world.world),"complete sparse world contract");frame image;
@@ -71,6 +74,16 @@ int main(){try{
         if(levels>1)check(ncmm_gpu::validate(gpu.base),"legacy GPU path cannot silently accept sparse multi-Z cells");
         auto broken=gpu;broken.level_height=0;check(ncmm_gpu::validate(gpu.base,&broken),"invalid world height rejected");
         broken=gpu;broken.origin_x=INT32_MAX;check(ncmm_gpu::validate(gpu.base,&broken),"far absolute coordinates do not overflow validation");
+    }
+    {
+        fixture slabs(2);slabs.slab(0);slabs.slab(1);const auto complete=slabs.positions;
+        for(float height:{-2.5f,-1.59f,0.f,2.5f}){slabs.positions=complete;slabs.world.coordinates=slabs.positions.data();slabs.world.camera_dz=height;
+            frame reference,optimized;const float pitch=height<0?.5f:-.5f;check(slabs.draw(reference,pitch),"unfiltered slab reference renders");
+            for(auto &cell:slabs.positions){const auto sides=ncmm_world::slab_trace_sides(cell.flags,1.55f+height,cell.z*NCMM_WORLD_LEVEL_HEIGHT);
+                if(!sides.top)cell.flags&=~NCMM_WORLD_FLOOR_TOP;if(!sides.bottom)cell.flags&=~NCMM_WORLD_FLOOR_BOTTOM;}
+            check(slabs.draw(optimized,pitch),"one-sided slab snapshot renders");
+            check(reference.pixels==optimized.pixels&&reference.depth==optimized.depth&&reference.owners==optimized.owners,"skipped opaque slab backs preserve every pixel, depth and owner above, below and beside an edge");
+        }
     }
     fixture empty(3);for(auto &c:empty.appearance)c.flags|=NCMM_GFX_CEILING;
     frame image;check(empty.draw(image,1.2f),"open multi-Z world with misleading legacy interior flags");

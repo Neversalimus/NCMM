@@ -42,6 +42,33 @@
         quad(origin-right*(sprite.span*.5f)+vec{0,0,sprite.bottom},origin+right*(sprite.span*.5f)+vec{0,0,sprite.bottom},
              origin+right*(sprite.span*.5f)+vec{0,0,sprite.top},origin-right*(sprite.span*.5f)+vec{0,0,sprite.top},mat,{-cy,-sy,0});
     }
+    bool native_creature(const ncmm_graphics_creature_v1 &source,const creature::phenotype &type,const creature::pose_state &pose,vec origin,bool targetable){
+        const auto key=creature::appearance_key(source,creature_data->input.view.tileset_epoch);
+        const auto *owned=creature_data->artwork(key,type,[&]{auto *raw=texture(source.cell,NCMM_GFX_CREATURE,false);return raw?creature::sprite::copy(raw->data):creature::sprite{};});
+        if(!owned)return false;
+        const auto &source_image=owned->source;
+        const sprite_key image_key{reinterpret_cast<uintptr_t>(source_image.pixels.data()),source_image.width,source_image.height,source_image.width};
+        auto entry=images.find(image_key);
+        if(entry==images.end()){image img;img.data={sizeof(img.data),source_image.width,source_image.height,source_image.width,source_image.pixels.data()};img.prepared=owned->filtered.data();
+            img.left=owned->bounds.left;img.top=owned->bounds.top;img.right=owned->bounds.right;img.bottom=owned->bounds.bottom;img.average={owned->mean.x,owned->mean.y,owned->mean.z};entry=images.emplace(image_key,std::move(img)).first;}
+        const auto *art=&entry->second;
+        // Preserve the complete native drawing and its aspect ratio. Splitting
+        // one small top-down sprite into skin charts invented striped faces,
+        // stretched clothing and identical balloon-shaped bodies.
+        const float pixels_x=float(std::max(1,art->right-art->left)),pixels_y=float(std::max(1,art->bottom-art->top));
+        const float scale=std::min(type.height/pixels_y,std::max(type.width,type.length)*1.6f/pixels_x);
+        const float width=pixels_x*scale,height=pixels_y*scale;
+        material mat{art,art->average,1,true,false,false,int(source.cell)};
+        mat.creature=targetable;mat.creature_visual=true;
+        origin=origin+vec{pose.offset.x,pose.offset.y,pose.offset.z};
+        const vec right=gpu_sink?vec{1,0,0}:vec{-sy,cy,0};
+        const vec up=vec{0,0,height*(1-pose.death)}+right*(height*pose.death);
+        if(gpu_sink){mat.gpu_billboard=true;mat.gpu_pivot=origin;}
+        const float dx=float(std::max(1u,art->data.width-1)),dy=float(std::max(1u,art->data.height-1));
+        quad(origin-right*(width*.5f),origin+right*(width*.5f),origin+right*(width*.5f)+up,origin-right*(width*.5f)+up,
+             mat,gpu_sink?vec{0,-1,0}:vec{-cy,-sy,0},{art->left/dx,art->top/dy,(art->right-1)/dx,(art->bottom-1)/dy});
+        ++f.creature_lods[0];return true;
+    }
     void dynamic_creatures(){
         if(!creature_data)return;
         std::vector<const ncmm_graphics_creature_v1 *> order;order.reserve(creature_data->input.creatures.size());
@@ -66,6 +93,11 @@
             if(world_data)pose.offset.z*=world_data->level_height;
             const float extent=std::max({type.height,type.width,type.length})*1.5f;
             if(!in_view(origin+vec{-extent-1,-extent-1,-type.height},origin+vec{extent+1,extent+1,type.height*1.4f})){++f.creature_culled;continue;}
+            if(c.flags&NCMM_CR_SUBMERGED)origin.z-=type.height*.55f;
+            if(creature_data->native_art&&native_creature(c,type,pose,origin,!(c.flags&NCMM_CR_DEAD))){
+                if(!(c.flags&NCMM_CR_DEAD))dynamic_contact_shadow(cell,origin,type.width,type.length,c.elevation);
+                continue;
+            }
             const uint64_t key=creature::appearance_key(c,creature_data->input.view.tileset_epoch);
             // Only the owned native copy is needed here. Palette, silhouette
             // and mip analysis belong to the worker, not first-use frame work.
@@ -75,7 +107,6 @@
             const float z=std::max(.08f,view(origin+vec{0,0,type.height*.5f}).z),pixels=projection*std::max({type.height,type.width,type.length})/z;
             const size_t cost=asset?asset->geometry.lod[0].faces.size():24;
             instance.lod=creature::select_lod(pixels,instance.lod,cost,remaining);
-            if(c.flags&NCMM_CR_SUBMERGED)origin.z-=type.height*.55f;
             // Keep game ownership for picking. A dying presentation writes depth
             // but never exposes a stale attack target to the Host.
             const bool targetable=!(c.flags&NCMM_CR_DEAD);

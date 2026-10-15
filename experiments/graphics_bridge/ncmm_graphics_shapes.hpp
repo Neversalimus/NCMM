@@ -83,6 +83,11 @@ inline bool structural_surface(uint32_t shape) {
         default:return false;
     }
 }
+inline const char *facade_id(uint32_t shape,const std::string &surface){
+    if(shape==NCMM_SHAPE_WINDOW||shape==NCMM_SHAPE_WINDOW_BROKEN||shape==NCMM_SHAPE_WINDOW_COVERED||shape==NCMM_SHAPE_GLASS_WALL)return "t_window";
+    // Publish a coarse visible finish, never an unseen native terrain ID.
+    return shape==NCMM_SHAPE_WALL&&contains(surface,"brick")?"t_brick_wall":"t_wall";
+}
 inline bool solid(uint32_t shape) {return shape==NCMM_SHAPE_WALL||shape==NCMM_SHAPE_DOOR_CLOSED||shape==NCMM_SHAPE_STORAGE;}
 inline float shadow_height(uint32_t shape) {
     if(solid(shape))return shape==NCMM_SHAPE_STORAGE?1.7f:2.5f;
