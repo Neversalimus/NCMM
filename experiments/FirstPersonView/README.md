@@ -1,3 +1,14 @@
+# First Person View 0.12.1 — stabilization TEST
+
+Loaded Z-levels, floors, ceilings, stairs and shafts use the existing 0.12 renderer.
+Version 0.12.1 adds bounded visual walking/stair interpolation after successful
+presentation, safer tall-avatar headroom, player-attack timing fixes and fewer
+repeated volume/creature lookups. Native turn costs and visibility are unchanged.
+
+See [STABILIZATION.md](STABILIZATION.md) for qualification, timings and open manual
+checks. The 30-minute session is automated; comfortable ordinary gameplay and
+discrete-GPU performance are not yet qualified.
+
 ## Creature Appearance Reconstruction 0.11
 
 See [APPEARANCE.md](APPEARANCE.md) for native source preservation, rest-space material charts, adaptive impostors and paired real-game qualification. Current GPU and CPU use the same automatic appearance assets.

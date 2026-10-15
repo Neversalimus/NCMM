@@ -543,9 +543,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     if( ok && !graphics_aim_name.empty() ) ncmm_draw_perspective_label( graphics_aim_name,
         x+int( graphics_aim_x*base.pixel_width ), y+int( graphics_aim_y*base.pixel_height ), clip );
     ok = SDL_SetRenderClipRect( renderer, clipped ? &prior_clip : nullptr ) && ok;
-    if( ok && graphics_attack_pending ) {
-        graphics_attack_started = SDL_GetTicks() / 1000.0; graphics_attack_pending = false;
-    }
+    graphics_frame_pending_present=ok;
     if( !ok ) { graphics_clear_stream(); graphics_view.enabled = false; graphics_release_mouse(); }
     graphics_presentation_ms = std::chrono::duration<double,std::milli>( std::chrono::steady_clock::now() - presentation_begun ).count();
     return ok;

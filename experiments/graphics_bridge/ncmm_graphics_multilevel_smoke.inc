@@ -93,7 +93,7 @@
     SDL_Texture *canvas=nullptr;
     auto render=[&](point resolution){require(SDL_SetRenderTarget(renderer,canvas)&&SDL_SetRenderLogicalPresentation(renderer,0,0,SDL_LOGICAL_PRESENTATION_DISABLED)&&SDL_SetRenderScale(renderer,1,1)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"multilevel_canvas_rebind_failed");
         require(graphics_draw(0,0,resolution.x,resolution.y),"multilevel_real_sdl_render_failed");require(SDL_FlushRenderer(renderer),"multilevel_sdl_flush_failed");++frames;};
-    auto present=[&](){require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"multilevel_window_target_failed");require(SDL_RenderTexture(renderer,canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"multilevel_actual_present_failed");};
+    auto present=[&](){require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"multilevel_window_target_failed");require(SDL_RenderTexture(renderer,canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"multilevel_actual_present_failed");graphics_world_frame_presented();};
     auto capture=[&](const std::string &filename,bool save_image){
         auto *raw=SDL_RenderReadPixels(renderer,nullptr);auto *image=raw?SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888):nullptr;require(image!=nullptr,"multilevel_capture_failed");if(raw)SDL_DestroySurface(raw);
         uint64_t fingerprint=1469598103934665603ull;for(int y=0;y<image->h;++y){const auto *row=reinterpret_cast<const uint32_t *>(static_cast<const char *>(image->pixels)+y*image->pitch);for(int x=0;x<image->w;++x){fingerprint^=row[x];fingerprint*=1099511628211ull;}}
