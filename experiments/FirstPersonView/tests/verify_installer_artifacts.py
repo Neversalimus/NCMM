@@ -107,6 +107,8 @@ def movement_summary(outer, entries):
         row["source_cache_misses_max"] = max(record["source_cache_misses"])
         row["geometry_cache_misses_max"] = max(record["geometry_cache_misses"])
         row["native_sight_evaluations_max"] = max(record["native_sight_evaluations"])
+        row["material_evaluations_max"] = max(record["native_material_evaluations"])
+        row["material_cache_hits_max"] = max(record["native_material_cache_hits"])
         summary.append(row)
     return summary
 

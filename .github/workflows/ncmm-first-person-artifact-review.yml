@@ -10,12 +10,12 @@ on:
       source_run:
         description: Qualified native workflow run
         type: string
-        default: '38791778928'
+        default: '38800352387'
         required: true
       runtime_head:
         description: Qualified runtime commit
         type: string
-        default: a85824f3cda1b8d0b33575397f516b5a24cb9e31
+        default: c1ad43add41c2d5b583e885d5a702cebc4b4e81b
         required: true
 permissions:
   contents: read
@@ -27,8 +27,8 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ github.token }}
-      FP_SOURCE_RUN: ${{ inputs.source_run || '38791778928' }}
-      FP_RUNTIME_HEAD: ${{ inputs.runtime_head || 'a85824f3cda1b8d0b33575397f516b5a24cb9e31' }}
+      FP_SOURCE_RUN: ${{ inputs.source_run || '38800352387' }}
+      FP_RUNTIME_HEAD: ${{ inputs.runtime_head || 'c1ad43add41c2d5b583e885d5a702cebc4b4e81b' }}
     steps:
       - uses: actions/checkout@v4
         with:
