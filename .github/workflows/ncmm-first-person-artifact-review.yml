@@ -1,0 +1,61 @@
+name: First Person installer artifact review
+on:
+  push:
+    branches: [codex/fpv-input-latency-0124]
+    paths:
+      - ci/verify-first-person-artifacts.py
+      - .github/workflows/ncmm-first-person-artifact-review.yml
+  workflow_dispatch:
+    inputs:
+      source_run:
+        description: Qualified native workflow run
+        type: string
+        default: '38791778928'
+        required: true
+      runtime_head:
+        description: Qualified runtime commit
+        type: string
+        default: a85824f3cda1b8d0b33575397f516b5a24cb9e31
+        required: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    name: Verify and stage qualified installers
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      FP_SOURCE_RUN: ${{ inputs.source_run || '38791778928' }}
+      FP_RUNTIME_HEAD: ${{ inputs.runtime_head || 'a85824f3cda1b8d0b33575397f516b5a24cb9e31' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify exact archive bytes and native provenance
+        run: |
+          python -m py_compile ci/verify-first-person-artifacts.py
+          python ci/verify-first-person-artifacts.py --source-run "$FP_SOURCE_RUN" --runtime-head "$FP_RUNTIME_HEAD"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NCMM_FirstPersonView_0.12.4_TEST_1040_Windows_x64
+          path: delivery/1040/
+          if-no-files-found: error
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NCMM_FirstPersonView_0.12.4_TEST_1807_Windows_x64
+          path: delivery/1807/
+          if-no-files-found: error
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NCMM_FirstPersonView_0.12.4_verification
+          path: delivery/verification.json
+          if-no-files-found: error
+          retention-days: 90
