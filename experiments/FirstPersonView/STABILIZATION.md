@@ -35,6 +35,14 @@ intersection when the avatar moves by a tile. Explicit native geometry revisions
 still invalidate both caches. Shift, diagonal, Z-window, realm, bounds and
 revision tests verify that only the newly exposed strip needs recomputation.
 
+The remaining cold-step work traces hidden storeys behind the ground slab.
+A revision/window-scoped plane proof now rejects only storeys whose complete
+body, slab and facade probe sets must cross a full opaque slab. Every tile in
+the source window must be closed; any stair opening, glass or water defeats
+the proof. The nearest upper slab is kept for its visible underside, as is
+the avatar storey. Ray and facade tests verify both physical and structural
+queries, while opening, revision, realm and viewport shifts invalidate proofs.
+
 Rain profiling also exposes repeated 27-neighbour binary searches in GPU
 geometry signatures. A bounded frame-local dense address index now maps the
 validated sparse snapshot to the same indices in constant time. Differential

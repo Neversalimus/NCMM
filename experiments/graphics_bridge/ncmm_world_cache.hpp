@@ -18,6 +18,25 @@ public:
         const int value=read();++evaluations;slot={key,value,true};return value;
     }
 };
+// A closed plane is a geometric proof only when every tile in the bounded
+// source window has a full opaque slab. Open stairs, glass and water fail it.
+class sealed_plane_cache {
+    int32_t ox=0,oy=0;int low=0,high=-1,width=0,height=0;uint64_t world=0,revision=0;
+    std::array<uint8_t,NCMM_WORLD_MAX_SLICES> state{};
+public:
+    void clear(){*this=sealed_plane_cache{};}
+    bool prepare(int32_t x,int32_t y,int minz,int maxz,int w,int h,uint64_t epoch,uint64_t changed){
+        if(!epoch||!changed||w<1||h<1||w>97||h>97||minz < -128||maxz>128||minz>maxz||int64_t(maxz)-minz>=NCMM_WORLD_MAX_SLICES||
+           int64_t(x)+w-1>INT32_MAX||int64_t(y)+h-1>INT32_MAX){clear();return false;}
+        if(ox!=x||oy!=y||low!=minz||high!=maxz||width!=w||height!=h||world!=epoch||revision!=changed)state.fill(0);
+        ox=x;oy=y;low=minz;high=maxz;width=w;height=h;world=epoch;revision=changed;return true;
+    }
+    template<class Read> bool closed(int z,Read read){
+        if(!world||z<low||z>high)return false;auto &cached=state[size_t(z-low)];if(cached)return cached==2;
+        for(int y=0;y<height;++y)for(int x=0;x<width;++x)if(!full_opaque_slab(read(ox+x,oy+y,z))){cached=1;return false;}
+        cached=2;return true;
+    }
+};
 // Derived geometry and roof facts are keyed by absolute XYZ and an explicit
 // geometry revision. Preserve the canonical overlap when the avatar walks.
 class geometry_cache {

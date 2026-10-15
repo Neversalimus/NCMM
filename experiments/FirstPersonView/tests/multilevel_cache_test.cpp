@@ -19,6 +19,21 @@ int main(){try{
         check(ranges.get(120.f,[]{return 60;})==60); // no changed avatar state crosses frames
     }
     {
+        sealed_plane_cache sealed;int reads=0;bool hole=false;
+        auto plane=[&](int x,int y,int z){++reads;return hole&&x==4&&y==4&&z==0?uint32_t(NCMM_WORLD_DOWN):uint32_t(NCMM_WORLD_FLOOR);};
+        check(sealed.prepare(0,0,-2,3,9,9,1,1));check(sealed.closed(0,plane)&&reads==81);
+        check(sealed.closed(0,plane)&&reads==81); // repeated camera frames reuse the proof
+        hole=true;check(sealed.prepare(0,0,-2,3,9,9,1,2));check(!sealed.closed(0,plane)&&reads==122);
+        check(!sealed.closed(0,plane)&&reads==122); // negative proofs are memoized too
+        hole=false;check(sealed.prepare(1,0,-2,3,9,9,1,2));check(sealed.closed(0,plane)&&reads==203);
+        check(!sealed.closed(-3,plane)&&reads==203);
+        check(sealed.prepare(1,0,-2,3,9,9,2,2));check(sealed.closed(0,plane)&&reads==284);
+        check(!sealed.prepare(INT32_MAX,0,0,0,9,9,2,2));check(!sealed.closed(0,plane)&&reads==284);
+        for(uint32_t opening:{0u,uint32_t(NCMM_WORLD_DOWN),uint32_t(NCMM_WORLD_RAMP),uint32_t(NCMM_WORLD_WATER),uint32_t(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR)}){
+            check(sealed.prepare(0,0,0,0,1,1,3,opening+1));check(!sealed.closed(0,[&](int,int,int){return opening;}));
+        }
+    }
+    {
         geometry_cache derived;int computations=0;
         auto value=[](int x,int y,int z){return uint32_t((x+200)*13+(y+200)*97+(z+20)*701);};
         auto visit=[&](int left,int top,int low,int high,int revision){

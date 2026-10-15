@@ -41,6 +41,26 @@ int main(){
         const auto glass=[&](voxel p){if(p.z==1)++slab_reads;return uint32_t(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR);};
         require(visible({.3f,.4f,1.55f},{.3f,.4f,4.f},glass)&&slab_reads==2,"vertical crossing queries each distinct glass voxel once plus endpoint");
     }
+    {
+        uint32_t random=0x1234abcdu;auto next=[&](){random=random*1664525u+1013904223u;return random;};
+        for(int plane:{0,1})for(int sample=0;sample<128;++sample){
+            const point eye{.01f+float(next()%8950)/1000,.01f+float(next()%8950)/1000,.001f+float(next()%2498)/1000};
+            auto closed=[&](voxel p){return p.z==plane?uint32_t(NCMM_WORLD_FLOOR):0u;};
+            auto structure=[&](voxel p){return structural_flags(closed(p)|opaque_field_fact);};
+            for(int z:plane?std::array<int,3>{2,3,4}:std::array<int,3>{-1,-2,-3}){
+                const float x=.01f+float(next()%8950)/1000,y=.01f+float(next()%8950)/1000;
+                for(float height:{.003f,1.25f,-.083f,.025f,NCMM_WORLD_LEVEL_HEIGHT-.025f,NCMM_WORLD_LEVEL_HEIGHT*.5f}){
+                    const point target{x,y,z*NCMM_WORLD_LEVEL_HEIGHT+height};
+                    require(!visible(eye,target,closed,true),"a sealed plane blocks every pruned body/slab/facade probe");
+                    require(!visible(eye,target,structure,true),"structural field policy preserves the sealed slab proof");
+                }
+                require(!facade_visible(eye,{int(x),int(y),z},structure),"the sealed plane also blocks the complete facade probe set");
+            }
+        }
+        require(full_opaque_slab(NCMM_WORLD_FLOOR)&&full_opaque_slab(NCMM_WORLD_UNKNOWN),"full floors and unknown geometry close a plane");
+        for(uint32_t opening:{0u,uint32_t(NCMM_WORLD_DOWN),uint32_t(NCMM_WORLD_WATER),uint32_t(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR)})
+            require(!full_opaque_slab(opening),"open or transparent cells cannot prove a sealed plane");
+    }
     require(source_window_fits(0,0,48),"ordinary world window fits");
     require(!source_window_fits(INT32_MAX-48,0,48),"east direction neighbour cannot overflow");
     require(source_window_fits(INT32_MAX-49,0,48),"last safe east window is accepted");

@@ -20,6 +20,7 @@ const map *graphics_world_map_identity=nullptr; // comparison only
 std::string graphics_world_realm;
 uint64_t graphics_world_ray_epoch=1,graphics_world_ray_revision=0;
 ncmm_world::geometry_cache graphics_world_roofs,graphics_world_derived;
+ncmm_world::sealed_plane_cache graphics_world_sealed;
 int graphics_world_cached_low=0,graphics_world_cached_high=-1;
 ncmm_world::point graphics_world_ray_eye{};
 std::optional<tripoint_abs_ms> graphics_world_previous_position,graphics_world_ray_position;
@@ -29,7 +30,7 @@ bool graphics_world_pending_present=false;
 constexpr uint32_t graphics_world_architecture=1u<<28,graphics_world_renderable=1u<<29,graphics_world_vehicle_roof=ncmm_world::vehicle_roof_fact;
 void graphics_clear_world()
 {
-    graphics_world_sources.clear();graphics_world_roofs.clear();graphics_world_derived.clear();graphics_world_map_identity=nullptr;graphics_world_realm.clear();
+    graphics_world_sources.clear();graphics_world_roofs.clear();graphics_world_derived.clear();graphics_world_sealed.clear();graphics_world_map_identity=nullptr;graphics_world_realm.clear();
     graphics_world_previous_position.reset();graphics_world_ray_position.reset();graphics_world_camera_motion.reset();
     graphics_world_transition_active=graphics_world_vertical_transition_active=false;graphics_world_pending_present=false;graphics_multilevel_frame=nullptr;
     ++graphics_world_epoch;
@@ -78,7 +79,8 @@ bool graphics_draw_world(int x,int y,int width,int height)
     }
     if(!graphics_world_sources.prepare(ox,oy,loaded.front(),loaded.back(),side,side,graphics_world_epoch)||
        !graphics_world_derived.prepare(ox,oy,loaded.front(),loaded.back(),side,side,graphics_world_epoch)||
-       !graphics_world_roofs.prepare(ox,oy,0,0,side,side,graphics_world_epoch))return false;
+       !graphics_world_roofs.prepare(ox,oy,0,0,side,side,graphics_world_epoch)||
+       !graphics_world_sealed.prepare(ox,oy,loaded.front(),loaded.back(),side,side,graphics_world_epoch,graphics_world_revision))return false;
     graphics_world_metrics={};graphics_world_metrics.struct_size=sizeof(graphics_world_metrics);
     graphics_world_metrics.available_slices=uint32_t(loaded.size());
     auto base_flags=[&](int ax,int ay,int z){
@@ -193,7 +195,14 @@ bool graphics_draw_world(int x,int y,int width,int height)
     const bool visual_no_sight=you.has_effect(efftype_id("no_sight"));
     ncmm_world::light_range_cache visual_ranges;
     auto in_visual_range=[&](const tripoint_bub_ms &at){return graphics_world_in_visual_range(at,visual_maximum,visual_no_sight,&visual_ranges);};
-    for(int z:loaded)if(ncmm_world::candidate_level_in_range(z,absolute.z(),fov_3d_z_range))for(int gy=0;gy<side;++gy)for(int gx=0;gx<side;++gx){
+    // Every ray to a lower storey's body/slab/facade must cross the plane
+    // below the eye, and every ray past the upper storey crosses its plane.
+    // Keep the nearest upper slab for its visible underside. A single opening
+    // defeats the proof, so shafts, glass and real multi-Z views are unchanged.
+    const int eye_level=absolute.z()+int(std::floor(visibility_eye.z/NCMM_WORLD_LEVEL_HEIGHT));
+    const bool sealed_below=graphics_world_sealed.closed(eye_level,flags),sealed_above=graphics_world_sealed.closed(eye_level+1,flags);
+    for(int z:loaded)if(ncmm_world::candidate_level_in_range(z,absolute.z(),fov_3d_z_range)&&
+        (z==absolute.z()||!((sealed_below&&z<eye_level)||(sealed_above&&z>eye_level+1))))for(int gy=0;gy<side;++gy)for(int gx=0;gx<side;++gx){
         ++graphics_world_metrics.processed_cells;
         const float dx=gx+.5f-eye.x,dy=gy+.5f-eye.y,dz=(z-absolute.z())*NCMM_WORLD_LEVEL_HEIGHT+1.25f-eye.z,
             forward=(dx*cy+dy*sy)*cp+dz*sp,screen_x=-dx*sy+dy*cy,screen_y=dz*cp-(dx*cy+dy*sy)*sp;

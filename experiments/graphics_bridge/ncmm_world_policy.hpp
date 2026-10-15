@@ -114,6 +114,8 @@ inline bool floor_blocks(uint32_t flags,float x,float y){
         return x<.14f||x>.86f||y<.08f||y>.92f;
     return false;
 }
+// Only a full opaque horizontal slab can prove an entire plane closed.
+inline bool full_opaque_slab(uint32_t flags){return (flags&NCMM_WORLD_UNKNOWN)||((flags&NCMM_WORLD_FLOOR)&&!(flags&NCMM_WORLD_GLASS_FLOOR));}
 struct slab_sides {bool top=true,bottom=true;};
 inline slab_sides slab_trace_sides(uint32_t flags,float eye_z,float level_z){
     // A full opaque slab hides its opposite face. Preserve both tests for
