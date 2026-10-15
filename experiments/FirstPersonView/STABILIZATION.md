@@ -136,3 +136,10 @@ confirmed production renderer defect. The runner retains native error logs,
 stdout/stderr and a stalled-window capture for further failures.
 The local runner also passes an explicit owned `--userdir`, keeping configuration,
 worlds and native debug logs inside its new clone even on home-directory builds.
+
+At d420e1ba, native walking, inventory/item use, combat/reload and both stair
+trials passed on 1040. The vehicle fixture then exposed an omitted prerequisite
+of `map::displace_vehicle`: its passenger calculation consumes next-step mount
+coordinates. The diagnostic now uses the same `precalc_mounts` and pivot-offset
+preparation as `map::move_vehicle`, and checks native passenger displacement
+separately from visual camera lag. It still does not qualify driving physics.

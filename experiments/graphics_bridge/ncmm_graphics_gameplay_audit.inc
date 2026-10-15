@@ -128,7 +128,14 @@
     });
     action("native_vehicle_board_controls_displacement_and_exit",[&](){you.set_wielded_item(item());vehicle *car=here.add_vehicle(vproto_id("car"),point_at(5,-4),0_degrees,100,veh_spawn_status::UNDAMAGED,false);require(car!=nullptr,"audit_vehicle_spawn_failed");car->set_owner(you);car->engine_on=true;bool checked=false;
         for(const vpart_reference &part:car->get_all_parts())if(part.has_feature("SEAT")&&car->avail_part_with_feature(part.mount_pos(),"CONTROLS")>=0){const auto seat=part.pos_bub(here);you.setpos(here,seat,false);here.board_vehicle(seat,&you);render();require(you.in_vehicle&&graphics_presentation.occupied_vehicle&&graphics_presentation.eye_height<=1.18f,"audit_vehicle_eye_or_boarding_failed");
-            {cancel_native_ui cancel(SDL_GetWindowID(get_sdl_window()));g->ncmm_graphics_smoke_controls(you.pos_bub());}require(you.controlling_vehicle,"audit_native_vehicle_controls_failed");const auto before=you.pos_abs();require(here.displace_vehicle(*car,tripoint_rel_ms(1,0,0)),"audit_native_vehicle_displacement_failed");render();require(you.pos_abs().x()==before.x()+1&&!graphics_world_transition_active,"audit_vehicle_motion_used_walking_offset");capture("vehicle");
+            {cancel_native_ui cancel(SDL_GetWindowID(get_sdl_window()));g->ncmm_graphics_smoke_controls(you.pos_bub());}require(you.controlling_vehicle,"audit_native_vehicle_controls_failed");
+            // Match map::move_vehicle's mount/pivot preparation before using
+            // its lower-level displacement operation in this owned fixture.
+            car->precalc_mounts(1,car->face.dir(),car->pivot_point(here));
+            const auto displacement=tripoint_rel_ms(1,0,0)-car->pivot_displacement();const auto before=you.pos_abs();
+            require(here.displace_vehicle(*car,displacement),"audit_native_vehicle_displacement_failed");render();
+            require(you.pos_abs().x()==before.x()+1&&you.pos_abs().y()==before.y()&&you.pos_abs().z()==before.z(),"audit_native_vehicle_passenger_not_displaced");
+            require(!graphics_world_transition_active,"audit_vehicle_motion_used_walking_offset");capture("vehicle");
             here.unboard_vehicle(you.pos_bub());you.controlling_vehicle=false;require(!you.in_vehicle,"audit_native_vehicle_exit_failed");checked=true;break;}
         require(checked,"audit_vehicle_driver_seat_missing");here.destroy_vehicle(car);you.setpos(here,point_at(0,0),false);g->update_map(you);clear_monsters();graphics_clear_world();render();
     });

@@ -59,6 +59,7 @@ try {
     if($udp){$env:NCMM_FP_UDP='1'}
     $nativeArgs=@('--ncmm-gameplay-smoke','--seed','ncmm-gameplay-0121','--userdir',('"'+$test+'"'))
     $process=Start-Process (Join-Path $test 'cataclysm-tiles.ncmm.exe') -ArgumentList $nativeArgs -WorkingDirectory $test -PassThru -RedirectStandardOutput (Join-Path $evidence 'first-person-native-stdout.log') -RedirectStandardError (Join-Path $evidence 'first-person-native-stderr.log')
+    $null=$process.Handle # Retain the exit-code handle across repeated timed waits.
     $deadline=[DateTime]::UtcNow.AddSeconds($SoakSeconds+1200)
     $progressPath=Join-Path $test 'ncmm/first-person-audit-progress.txt'
     $lastProgress='native startup'
@@ -106,7 +107,7 @@ public static class NCMMBenchmarkWindow {
         }
         if([DateTime]::UtcNow -gt $deadline){& taskkill.exe /pid $process.Id /t /f;throw "Native benchmark deadline exceeded: $lastProgress"}
     }
-    $process.Refresh();$exitCode=$process.ExitCode
+    $process.WaitForExit();$exitCode=$process.ExitCode
 } finally {
     foreach($name in $names){[Environment]::SetEnvironmentVariable($name,$prior[$name],'Process')}
     $runtime=Join-Path $test 'ncmm'
@@ -116,7 +117,12 @@ public static class NCMMBenchmarkWindow {
         if(Test-Path $nativeLog){Copy-Item $nativeLog (Join-Path $evidence ('first-person-cdda-'+$name))}
     }
 }
-if($exitCode -ne 0){throw "Native audit failed ($exitCode). Evidence: $evidence"}
+if($exitCode -ne 0){
+    $reason='native result unavailable'
+    $nativeResult=Join-Path $evidence 'first-person-smoke.json'
+    if(Test-Path $nativeResult){$reason=(Get-Content $nativeResult -Raw | ConvertFrom-Json).reason}
+    throw "Native audit failed ($exitCode): $reason. Evidence: $evidence"
+}
 $audit=Get-Content (Join-Path $evidence 'first-person-gameplay-audit.json') -Raw | ConvertFrom-Json
 if($audit.success -ne $true -or $audit.manual_playthrough -ne $false -or $audit.soak.actual_wall_seconds -lt $SoakSeconds){throw 'Native audit is incomplete.'}
 $result=[ordered]@{success=$true;source_commit=$bundle.source_commit;ncmm_commit=$bundle.ncmm_source_commit;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';manual_playthrough=$false;udp_requested=$udp;soak_seconds=$audit.soak.actual_wall_seconds;evidence=$evidence}
