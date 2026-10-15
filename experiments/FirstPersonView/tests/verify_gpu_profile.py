@@ -39,6 +39,13 @@ def verify(report):
             assert record['backend'] and record['device']
             assert record['gpu_3d_draw_calls'] > 0
         assert record['fallback_creatures'] == 0
+    columns = ['scene', 'renderer', 'median_ms', 'p95_ms', 'p99_ms',
+               'native_tiles_wall_median_ms', 'perspective_wall_median_ms',
+               'actual_present_wall_median_ms', 'gpu_geometry_prepare_median_ms',
+               'gpu_resource_update_median_ms', 'cpu_cache_bytes',
+               'producer_cpu_cache_bytes_peak', 'host_cpu_cache_bytes_peak',
+               'backend', 'device', 'software_device']
+    print(json.dumps({'phase_summary': [{k: record[k] for k in columns} for record in records]}))
     return {'success': True, 'actual_cdda_sdl': True, 'manual_playthrough': False,
             'gpu_execution_timestamps_available': False, 'cases': 4, 'frames_per_case': 96,
             'exclusive_frame_phases_verified': True}
