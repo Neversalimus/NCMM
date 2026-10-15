@@ -5,6 +5,31 @@
 
 namespace first_person::gpu {
 using vec=hybrid::vec;
+// A validated sparse snapshot has a bounded dense address window. Build its
+// frame-local index once instead of 27 binary searches for every cell hash.
+class coordinate_index {
+    const ncmm_graphics_multilevel_scene_v1 *scene=nullptr;
+    int width=0,height=0;std::vector<int32_t> cells;
+    int slot(int64_t x,int64_t y,int64_t z)const{
+        if(!scene)return -1;const int64_t xx=x-scene->origin_x,yy=y-scene->origin_y;
+        if(xx<0||yy<0||xx>=width||yy>=height||z<scene->loaded_min_z||z>scene->loaded_max_z)return -1;
+        return int((size_t(z-scene->loaded_min_z)*height+size_t(yy))*width+size_t(xx));
+    }
+public:
+    explicit coordinate_index(const ncmm_graphics_multilevel_scene_v1 *source){
+        if(!source||source->cell_count>NCMM_WORLD_MAX_CELLS||(source->cell_count&&!source->coordinates))return;
+        const auto &base=source->appearance.base;const int64_t levels=int64_t(source->loaded_max_z)-source->loaded_min_z+1;
+        if(base.grid_width<1||base.grid_height<1||base.grid_width>NCMM_GRAPHICS_V2_MAX_GRID_SIDE||base.grid_height>NCMM_GRAPHICS_V2_MAX_GRID_SIDE||
+           source->loaded_min_z < -128||source->loaded_max_z>128||levels<1||levels>NCMM_WORLD_MAX_SLICES)return;
+        scene=source;width=base.grid_width;height=base.grid_height;cells.assign(size_t(levels)*width*height,-1);
+        for(uint32_t i=0;i<scene->cell_count;++i){const auto &c=scene->coordinates[i];const int at=slot(c.x,c.y,c.z);if(at>=0&&cells[size_t(at)]<0)cells[size_t(at)]=int32_t(i);}
+    }
+    int neighbor(uint32_t i,int dx,int dy,int dz=0)const{
+        if(!scene||i>=scene->cell_count)return -1;const auto &c=scene->coordinates[i];const int at=slot(int64_t(c.x)+dx,int64_t(c.y)+dy,int64_t(c.z)+dz);
+        return at<0?-1:cells[size_t(at)];
+    }
+    size_t bytes()const{return cells.capacity()*sizeof(int32_t);}
+};
 inline ncmm_gpu_matrix_v1 place(vec p,vec scale={1,1,1},float yaw=0){auto m=identity();float c=std::cos(yaw),s=std::sin(yaw);
     m.columns[0]=c*scale.x;m.columns[1]=s*scale.x;m.columns[4]=-s*scale.y;m.columns[5]=c*scale.y;m.columns[10]=scale.z;
     m.columns[12]=p.x;m.columns[13]=p.y;m.columns[14]=p.z;return m;}
@@ -124,7 +149,7 @@ class scene_cache {
         }
     };
     std::vector<uint64_t> signatures(const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *metadata,const ncmm_gpu_metrics_v1 &host,bool creatures,int width,const ncmm_graphics_multilevel_scene_v1 *levels){
-        ncmm_world::coordinates xyz(levels);
+        ncmm_world::coordinates xyz(levels);coordinate_index neighbours(levels);
         std::vector<uint64_t> values(s.base.cell_count,0),result(values.size());
         for(int i=0;i<int(s.base.cell_count);++i){auto cell=s.base.cells[i];cell.light=0;if(creatures)std::memset(cell.creature,0,sizeof(cell.creature));auto detail=s.details[i];
             detail.light_r=detail.light_g=detail.light_b=detail.emission=0;if(detail.vehicle_features){const auto p=levels?xyz.origin(uint32_t(i)):ncmm_world::point{float(i%s.base.grid_width),float(i/s.base.grid_width),0};detail.vehicle_x-=p.x;detail.vehicle_y-=p.y;}
@@ -141,7 +166,7 @@ class scene_cache {
             const uint32_t detail_band=s.details[i].vehicle_features?(width/(2*std::tan(70*hybrid::pi/360))/std::max(.1f,distance)<28?2:distance>8?1:0):0;
             hash=hash_bytes(hash,&detail_band,sizeof(detail_band));values[i]=hash;}
         for(int i=0;i<int(values.size());++i){uint64_t h=values[i];
-            if(levels){for(int dz=-1;dz<=1;++dz)for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int at=xyz.neighbor(uint32_t(i),dx,dy,dz);const uint64_t neighbor=at<0?0:values[size_t(at)];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}
+            if(levels){for(int dz=-1;dz<=1;++dz)for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int at=neighbours.neighbor(uint32_t(i),dx,dy,dz);const uint64_t neighbor=at<0?0:values[size_t(at)];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}
             else{const int x=i%s.base.grid_width,y=i/s.base.grid_width;
                 for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int xx=x+dx,yy=y+dy;const uint64_t neighbor=xx<0||yy<0||xx>=s.base.grid_width||yy>=s.base.grid_height?0:values[size_t(yy)*s.base.grid_width+xx];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}
             result[i]=h;}

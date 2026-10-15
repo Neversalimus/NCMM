@@ -160,9 +160,10 @@ if($exitCode -ne 0){
 }
 if($MovementBenchmark){
     $audit=Get-Content (Join-Path $evidence 'first-person-movement-benchmark.json') -Raw | ConvertFrom-Json
-    if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.simulation_turns_advanced -ne 0 -or @($audit.records).Count -ne 8){throw 'Native movement benchmark is incomplete.'}
+    if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.simulation_turns_advanced -ne 0 -or @($audit.records).Count -ne 12){throw 'Native movement benchmark is incomplete.'}
     foreach($record in $audit.records){
         if($record.native_steps -ne 12 -or @($record.first_ready_samples_ms).Count -ne 12 -or @($record.easing_frame_samples_ms).Count -eq 0){throw 'Native steps or easing samples are incomplete.'}
+        if(@($record.cold_rotation_samples_ms).Count -ne 48 -or @($record.warm_rotation_samples_ms).Count -ne 48){throw 'Continuous cold/warm rotation samples are incomplete.'}
         if($record.renderer -eq 'gpu' -and @($record.frame_renderers_gpu | Where-Object {$_ -ne 1}).Count){throw 'A walking GPU frame fell back to CPU.'}
     }
     $soaked=0

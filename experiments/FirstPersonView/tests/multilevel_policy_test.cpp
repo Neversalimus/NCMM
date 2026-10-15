@@ -16,6 +16,51 @@ struct fixture {
 }
 int main(){
     using namespace ncmm_world;
+    for(int eye_z=-10;eye_z<=10;++eye_z)for(int range=0;range<=8;++range)for(int z=-15;z<=15;++z){
+        const bool reference=std::abs(z-eye_z)<=range||std::abs(z-1-eye_z)<=range;
+        require(candidate_level_in_range(z,eye_z,range)==reference,"candidate level pruning retains every body and lower-slab range");
+    }
+    require(!candidate_level_in_range(0,0,-1),"negative native range closes candidates");
+    {
+        uint32_t random=0x89abcdef;
+        auto next=[&](){random=random*1664525u+1013904223u;return random;};
+        std::array<uint32_t,17*17> cells{};
+        auto query=[&](voxel p){return p.x < -8||p.y < -8||p.x>8||p.y>8?uint32_t(NCMM_WORLD_UNKNOWN):cells[size_t(p.y+8)*17+size_t(p.x+8)];};
+        const std::array<float,6> fractions={0.f,.00001f,.12f,.5f,.88f,.99999f};
+        const std::array<float,9> heights={0.f,.0000001f,.000001f,.003f,.55f,1.55f,2.49999f,2.499999f,2.4999999f};
+        for(int world=0;world<128;++world){
+            for(auto &cell:cells){const auto kind=next();cell=(kind%17==0?uint32_t(NCMM_WORLD_UNKNOWN):kind%7==0?uint32_t(NCMM_WORLD_OPAQUE):0u)|NCMM_WORLD_FLOOR;}
+            for(int ray=0;ray<256;++ray){
+                const int z=ray%3-1;const float level=z*NCMM_WORLD_LEVEL_HEIGHT;
+                const point eye{float(int(next()%15)-7)+fractions[next()%fractions.size()],float(int(next()%15)-7)+fractions[next()%fractions.size()],level+heights[next()%heights.size()]};
+                const point target{float(int(next()%15)-7)+fractions[next()%fractions.size()],float(int(next()%15)-7)+fractions[next()%fractions.size()],level+heights[next()%heights.size()]};
+                require(visible(eye,target,query,ray%2)==visible<false>(eye,target,query,ray%2),"horizontal fast path preserves general supercover visibility");
+            }
+        }
+        int slab_reads=0;
+        const auto glass=[&](voxel p){if(p.z==1)++slab_reads;return uint32_t(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR);};
+        require(visible({.3f,.4f,1.55f},{.3f,.4f,4.f},glass)&&slab_reads==2,"vertical crossing queries each distinct glass voxel once plus endpoint");
+    }
+    {
+        uint32_t random=0x1234abcdu;auto next=[&](){random=random*1664525u+1013904223u;return random;};
+        for(int plane:{0,1})for(int sample=0;sample<128;++sample){
+            const point eye{.01f+float(next()%8950)/1000,.01f+float(next()%8950)/1000,.001f+float(next()%2498)/1000};
+            auto closed=[&](voxel p){return p.z==plane?uint32_t(NCMM_WORLD_FLOOR):0u;};
+            auto structure=[&](voxel p){return structural_flags(closed(p)|opaque_field_fact);};
+            for(int z:plane?std::array<int,3>{2,3,4}:std::array<int,3>{-1,-2,-3}){
+                const float x=.01f+float(next()%8950)/1000,y=.01f+float(next()%8950)/1000;
+                for(float height:{.003f,1.25f,-.083f,.025f,NCMM_WORLD_LEVEL_HEIGHT-.025f,NCMM_WORLD_LEVEL_HEIGHT*.5f}){
+                    const point target{x,y,z*NCMM_WORLD_LEVEL_HEIGHT+height};
+                    require(!visible(eye,target,closed,true),"a sealed plane blocks every pruned body/slab/facade probe");
+                    require(!visible(eye,target,structure,true),"structural field policy preserves the sealed slab proof");
+                }
+                require(!facade_visible(eye,{int(x),int(y),z},structure),"the sealed plane also blocks the complete facade probe set");
+            }
+        }
+        require(full_opaque_slab(NCMM_WORLD_FLOOR)&&full_opaque_slab(NCMM_WORLD_UNKNOWN),"full floors and unknown geometry close a plane");
+        for(uint32_t opening:{0u,uint32_t(NCMM_WORLD_DOWN),uint32_t(NCMM_WORLD_WATER),uint32_t(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR)})
+            require(!full_opaque_slab(opening),"open or transparent cells cannot prove a sealed plane");
+    }
     require(source_window_fits(0,0,48),"ordinary world window fits");
     require(!source_window_fits(INT32_MAX-48,0,48),"east direction neighbour cannot overflow");
     require(source_window_fits(INT32_MAX-49,0,48),"last safe east window is accepted");

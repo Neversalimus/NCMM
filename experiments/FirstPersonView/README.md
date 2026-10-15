@@ -1,4 +1,25 @@
-# First Person View 0.12.3 — movement and visual fixes
+# First Person View 0.12.4 — camera and movement performance
+
+The 0.12.4 TEST packages passed pinned 1040/1807 native integration and archive
+verification. See [qualification and measured limits](STABILIZATION.md#0124-camera-and-movement-performance-follow-up).
+Final-installer hardware performance and manual play remain unqualified.
+
+Auto selects hardware GPU acceleration and uses CPU when SDL exposes a software
+adapter. Explicit GPU mode remains available for diagnostics.
+
+Native sight-range results are reused within each draw, and horizontal rays use
+a same-storey supercover path. Candidate enumeration skips storeys outside both
+existing native body/lower-slab range conditions. No sight limit is reduced.
+Derived geometry and roof-column caches preserve their absolute-coordinate
+overlap when walking, while explicit native geometry revisions invalidate them.
+A full-window opaque-slab proof skips storeys entirely behind a sealed floor
+or ceiling; one stair opening, glass floor or missing slab defeats the proof.
+GPU geometry signatures use one bounded frame-local XYZ index for neighbour
+lookups, including sparse empty cells and all loaded storeys.
+Repeated terrain/furniture definition classification is memoized per draw. Field
+opacity and vehicle facts are still sampled separately for every source cell.
+The movement runner now measures two full camera rotations and 12 steps for
+street, multi-storey horde and dense four-storey city blocks at both viewports.
 
 Creatures use the complete original tileset artwork by default, including UDP
 and Monster Art Pack silhouettes, colours and proportions. NCMM module settings
@@ -18,7 +39,7 @@ GPU balanced/high caps are 1920×1080 / 2560×1440; CPU fallback uses
 960×600 / 1280×800 to keep input responsive.
 
 `Run-FirstPersonBenchmark.ps1 -GameRoot ... -OutputRoot ... -MovementBenchmark`
-measures native steps and easing in street and multi-storey horde scenes at
+measures native steps, cold/warm rotations and easing in all three scenes at
 640×480 and 1768×1084. Add `-TilesetRoot ...` for actual UDP Hybrid v3.
 `-FocusedGpuBenchmark` retains the separate 96-frame smoke/one-creature profile.
 Candidate verification and measured limitations are recorded in STABILIZATION.md.

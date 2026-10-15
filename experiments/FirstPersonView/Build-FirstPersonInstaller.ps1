@@ -110,7 +110,7 @@ if($LASTEXITCODE -ne 0){throw 'Preview install matrix compilation failed.'}
 if($LASTEXITCODE -ne 0){throw 'Preview install matrix failed.'}
 
 @"
-NCMM First Person View installer 0.12.3 TEST / CDDA $build / Windows x64
+NCMM First Person View installer 0.12.4 TEST / CDDA $build / Windows x64
 
 1. Extract the complete archive. Run NCMM_Setup_FirstPerson_TEST.exe.
 2. Select the game folder containing cataclysm-tiles.exe and VERSION.txt for
@@ -120,17 +120,19 @@ NCMM First Person View installer 0.12.3 TEST / CDDA $build / Windows x64
 4. Install / Repair selected. Wait for INSTALL COMPLETE.
 5. Launch CDDA normally. F6 toggles first person; F7/F8 rotate; F9/F10 look up/down.
    F11 switches balanced / high quality; balanced is the default.
-   F12 cycles Auto -> CPU -> GPU -> Auto. Auto prefers the shared SDL GPU device.
+   F12 cycles Auto -> CPU -> GPU -> Auto. Auto uses hardware acceleration and
+   selects CPU when SDL exposes a software adapter.
    NCMM module settings also offer the First Person renderer selector.
    Hold the right mouse button over the viewport to look around.
    In first person, arrows move forward/backward and strafe relative to the gaze.
 
-Version 0.12.3 preserves original tileset creature silhouettes and proportions,
+Version 0.12.4 preserves original tileset creature silhouettes and proportions,
 repairs partially visible upper facades and reuses world visibility while the
 camera eases between cells. Changed GPU geometry no longer forces a full CPU
 warmup frame. NCMM settings retain experimental reconstructed creature volumes.
 Run-FirstPersonBenchmark.ps1 -MovementBenchmark measures real native steps and
-easing at small and full-size viewports. See the qualification report for results.
+cold/warm full rotations and easing in street, horde and dense city scenes, at
+small and full-size viewports. See the qualification report for results.
 
 Official executable identities are checked with SHA256. Existing normal NCMM,
 preview NCMM and legacy CML bootstraps are recognized by their hash receipts;
@@ -191,9 +193,10 @@ Uncheck First Person View and install again to remove its managed DLL/manifest.
 Current limits: automatic coarse vehicle geometry, sprite-derived held items,
 generic environment dimensions and conservative hidden-surface reconstruction.
 The 0.12 world includes loaded Z-levels, floors, ceilings, stairs and shafts.
-Version 0.12.3 eases safe adjacent walking and stair movement visually after
+Version 0.12.4 eases safe adjacent walking and stair movement visually after
 the first successful presentation; native movement remains turn-based.
-Manual gameplay comfort and discrete-GPU performance remain unqualified.
+Manual gameplay comfort remains unqualified. The qualification report records
+measured hardware rendering results and the controlled fixture limits.
 Unusual anatomy and hidden surfaces are conservative reconstructions.
 Non-arrow movement bindings keep their world
 directions. Mouse capture releases when menus open, focus is lost, or F6 disables
@@ -207,9 +210,9 @@ The bundle includes NCMM Runtime 0.8.2 and the normal optional native modules.
 The game itself and external tilesets are not bundled. Keep your existing data,
 tilesets and configuration with the selected official CDDA installation.
 "@ | Set-Content (Join-Path $stage 'README.txt') -Encoding UTF8
-$provenance=[ordered]@{schema=1;product='NCMM First Person View TEST';installer_revision='0.12.3';status='experimental-not-certified';recommended_entry='NCMM_Setup_FirstPerson_TEST.exe';source_commit=$bundle.ncmm_source_commit;engine_source=$source.source_commit;upstream_tag=$source.tag;workflow_run=[string]$env:GITHUB_RUN_ID;installer_sha256=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant();host_sha256=$bundle.host_sha256;vanilla_sha256=$bundle.vanilla_sha256;supported_vanilla_sha256=$bundle.supported_vanilla_sha256;module_sha256=$files['code_mods/FirstPersonView/ncmm_mod.dll']}
+$provenance=[ordered]@{schema=1;product='NCMM First Person View TEST';installer_revision='0.12.4';status='experimental-not-certified';recommended_entry='NCMM_Setup_FirstPerson_TEST.exe';source_commit=$bundle.ncmm_source_commit;engine_source=$source.source_commit;upstream_tag=$source.tag;workflow_run=[string]$env:GITHUB_RUN_ID;installer_sha256=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant();host_sha256=$bundle.host_sha256;vanilla_sha256=$bundle.vanilla_sha256;supported_vanilla_sha256=$bundle.supported_vanilla_sha256;module_sha256=$files['code_mods/FirstPersonView/ncmm_mod.dll']}
 [IO.File]::WriteAllText((Join-Path $stage 'release-manifest.json'),($provenance | ConvertTo-Json -Depth 6),(New-Object Text.UTF8Encoding($false)))
-$zip=Join-Path $OutputRoot ("NCMM_FirstPersonView_0.12.3_TEST_${build}_Windows_x64.zip")
+$zip=Join-Path $OutputRoot ("NCMM_FirstPersonView_0.12.4_TEST_${build}_Windows_x64.zip")
 if(Test-Path $zip){Remove-Item $zip -Force}
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip
