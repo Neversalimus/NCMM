@@ -143,3 +143,12 @@ of `map::displace_vehicle`: its passenger calculation consumes next-step mount
 coordinates. The diagnostic now uses the same `precalc_mounts` and pivot-offset
 preparation as `map::move_vehicle`, and checks native passenger displacement
 separately from visual camera lag. It still does not qualify driving physics.
+
+At b427d915 the vehicle trial passed; the first native AI turn hit SIGSEGV.
+The canonical API smoke calls game::setup and directly constructs an avatar,
+sets new_game=false and never calls game::start_game. Its game-mode pointer is
+therefore unset, whereas do_turn immediately invokes gamemode->per_turn. The
+opt-in audit now creates the same default special_game as start_game through a
+nonvirtual diagnostic gateway, and retains the main UI adaptor as run_game_loop
+does. The ordinary gameplay startup and production turn implementation are
+unchanged. The runner also preserves config/crash.log.

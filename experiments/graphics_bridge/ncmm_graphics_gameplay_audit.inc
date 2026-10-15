@@ -4,6 +4,10 @@
     const auto original_position=you.pos_abs(),home=original_position;
     const auto original_origin=here.get_abs_sub();
     const int original_moves=you.get_moves();const float original_yaw=graphics_camera_yaw,original_pitch=graphics_camera_pitch;
+    // Match run_game_loop before calling do_turn: the earlier API smoke only
+    // constructs an avatar and deliberately skips game::start_game.
+    g->ncmm_graphics_smoke_prepare_turns();
+    const auto native_ui=g->create_or_get_main_ui_adaptor();ui_manager::redraw();
     SDL_Renderer *renderer=get_sdl_renderer().get();SDL_Texture *previous_target=SDL_GetRenderTarget(renderer);
     SDL_Texture *canvas=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,640,480);
     require(canvas!=nullptr,"audit_canvas_failed");

@@ -112,7 +112,7 @@ public static class NCMMBenchmarkWindow {
     foreach($name in $names){[Environment]::SetEnvironmentVariable($name,$prior[$name],'Process')}
     $runtime=Join-Path $test 'ncmm'
     if(Test-Path $runtime){Get-ChildItem $runtime -File | Where-Object {$_.Name -like 'first-person-*' -or $_.Extension -eq '.log'} | Copy-Item -Destination $evidence}
-    foreach($name in @('debug.log','debug.log.prev')){
+    foreach($name in @('debug.log','debug.log.prev','crash.log')){
         $nativeLog=Join-Path $test ('config/'+$name)
         if(Test-Path $nativeLog){Copy-Item $nativeLog (Join-Path $evidence ('first-person-cdda-'+$name))}
     }

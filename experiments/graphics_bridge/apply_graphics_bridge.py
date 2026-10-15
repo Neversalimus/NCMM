@@ -204,7 +204,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         updates[name] = (bridge / name).read_text(encoding="utf-8")
     # Optional world-space interface, independent of the old V1/V2 layouts.
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '#include "ncmm_graphics_v2.h"',
-        '#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_multilevel.h"\n#include "ncmm_world_cache.hpp"\n#include "avatar_action.h"\n#include "game_inventory.h"\n#include "pickup.h"\n#include "visitable.h"\n#include "debug.h"\n#include <functional>\n#include <atomic>\n#include <thread>')
+        '#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_multilevel.h"\n#include "ncmm_world_cache.hpp"\n#include "avatar_action.h"\n#include "game_inventory.h"\n#include "pickup.h"\n#include "visitable.h"\n#include "debug.h"\n#include "gamemode.h"\n#include <functional>\n#include <atomic>\n#include <thread>')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '    "graphics.viewport.v2",',
         '    "graphics.viewport.v2",\n    "graphics.multilevel.v1",')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
@@ -225,12 +225,19 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     updates["game.h"]=replace(read("game.h"), "        bool save();",
         "        bool save();\n"
         "        // Isolated qualification gateway; not part of a module API.\n"
+        "        void ncmm_graphics_smoke_prepare_turns();\n"
         "        bool ncmm_graphics_smoke_reload( const save_t &name ) {\n"
         "            return load( name );\n        }\n"
         "        void ncmm_graphics_smoke_examine( const tripoint_bub_ms &p ) {\n"
         "            examine( p, false );\n        }\n"
         "        void ncmm_graphics_smoke_controls( const tripoint_bub_ms &p ) {\n"
         "            control_vehicle( p );\n        }\n")
+    updates["ncmm_loader.cpp"]=replace(updates["ncmm_loader.cpp"], "} // namespace ncmm\n",
+        "} // namespace ncmm\n\n"
+        "// The canonical API smoke builds an avatar without game::start_game().\n"
+        "// Native-turn diagnostics require its ordinary default game mode.\n"
+        "void game::ncmm_graphics_smoke_prepare_turns()\n{\n"
+        "    if( !gamemode ) gamemode = std::make_unique<special_game>();\n}\n")
     map_h=read("map.h")
     updates["map.h"]=replace(map_h, "        int supports_zlevels() const {",
         "        // Read-only loaded-submap probe; never calls load or mapgen.\n"
