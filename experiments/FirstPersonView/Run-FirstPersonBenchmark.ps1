@@ -54,6 +54,54 @@ if($TilesetRoot){
     $assets=@(Get-ChildItem $dest -File -Recurse | Sort-Object FullName | ForEach-Object {[ordered]@{file=$_.FullName.Substring($dest.Length+1).Replace('\','/');sha256=(Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}})
     $assets | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $evidence 'udp-asset-sha256.json') -Encoding UTF8
 }
+# Close only this diagnostic child's explicit fatal-error dialog. CDDA writes
+# the native stack after its crash modal returns; an ordinary prompt is untouched.
+if(-not ('NCMMNativeCrashDialog' -as [type])){
+    Add-Type -TypeDefinition @'
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+public static class NCMMNativeCrashDialog {
+    private delegate bool EnumProc(IntPtr window, IntPtr data);
+    [DllImport("user32.dll")] private static extern bool EnumWindows(EnumProc callback, IntPtr data);
+    [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent, EnumProc callback, IntPtr data);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetWindowText(IntPtr window, StringBuilder text, int maximum);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetClassName(IntPtr window, StringBuilder text, int maximum);
+    [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
+    public static bool IsCrashText(string text) {
+        return text != null && text.IndexOf("The program has crashed.", StringComparison.Ordinal) >= 0;
+    }
+    private static string WindowText(IntPtr window) {
+        var text = new StringBuilder(32768);
+        GetWindowText(window, text, text.Capacity);
+        return text.ToString();
+    }
+    public static string CloseOwnedCrash(uint processId) {
+        string crash = null;
+        EnumWindows(delegate(IntPtr window, IntPtr data) {
+            uint owner;
+            GetWindowThreadProcessId(window, out owner);
+            if(owner != processId || WindowText(window) != "Error") return true;
+            var className = new StringBuilder(256);
+            GetClassName(window, className, className.Capacity);
+            if(className.ToString() != "#32770") return true;
+            var content = new StringBuilder();
+            EnumChildWindows(window, delegate(IntPtr child, IntPtr unused) {
+                content.AppendLine(WindowText(child));
+                return true;
+            }, IntPtr.Zero);
+            if(!IsCrashText(content.ToString())) return true;
+            crash = content.ToString();
+            // CDDA writes its backtrace only after this owned crash modal closes.
+            PostMessage(window, 0x0010, IntPtr.Zero, IntPtr.Zero);
+            return false;
+        }, IntPtr.Zero);
+        return crash;
+    }
+}
+'@
+}
 $names=@('NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE')
 $prior=@{}
 foreach($name in $names){$prior[$name]=[Environment]::GetEnvironmentVariable($name,'Process');[Environment]::SetEnvironmentVariable($name,$null,'Process')}
@@ -71,6 +119,16 @@ try {
     $lastProgress='native startup'
     $lastAdvance=[DateTime]::UtcNow
     while(-not $process.WaitForExit(20000)){
+        $nativeCrash=[NCMMNativeCrashDialog]::CloseOwnedCrash([uint32]$process.Id)
+        if($nativeCrash){
+            $nativeCrash | Set-Content (Join-Path $evidence 'first-person-native-crash-window.txt') -Encoding UTF8
+            Write-Host "Native crash dialog: $nativeCrash"
+            if(-not $process.WaitForExit(30000)){
+                & taskkill.exe /pid $process.Id /t /f
+                $null=$process.WaitForExit(10000)
+            }
+            throw "Native diagnostic crashed. Evidence: $evidence"
+        }
         if(Test-Path $progressPath){
             $line=Get-Content $progressPath -Tail 1
             if($line -and $line -ne $lastProgress){$lastProgress=$line;$lastAdvance=[DateTime]::UtcNow}
