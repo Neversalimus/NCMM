@@ -6,6 +6,84 @@ and 1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 Scope: gameplay audit, measured performance, camera/interaction stability and
 selective visual polish. No new graphics architecture or gameplay rules.
 
+## 0.12.5 facade continuity and movement
+
+Runtime commit: `478042944d4de33a3e6ff7be451220ed6be4e286`. Test merge
+`4de72e5f3cf161e0ce49b8f6abfca54c699617a5` has the identical runtime tree
+`e7ab39033af7b56437c395ce14acfdd64ba9238f`.
+[Native integration and installer recovery](https://github.com/Neversalimus/NCMM/actions/runs/38916919820)
+passed for both engine pins. Recovery checked out that exact source and reused
+its compiled Hosts; both new installer bundles then reran the native gates.
+The ordinary workflow checkout is restored. Installer ZIPs now have a required
+artifact separate from qualification reports, so reports cannot mask a missing ZIP.
+
+All 25 renderer/module tests passed on Windows and Linux, alongside eight atomic
+source-transform tests. Focused ASan/UBSan covered coordinates, source/ray caches,
+GPU neighbour caches and facade continuity. Both pins passed graphics/sounds
+installation, repair, rollback, vanilla restore, repeated bootstrap launches,
+two native multi-Z save/load attempts, ten gameplay action groups, six real AI
+turns with 1/5/20 enemies, a 60-second soak, focused profiles and 12 movement records.
+The optional exhaustive SDL appearance and paired 0.12.0 world gates were not
+enabled for this integration run.
+
+The reported detached floors came with missing facade cells. The ordinary-vision
+regression now keeps all 18 front-wall cells and their real supporting slabs in
+CPU and GPU modes. In the native upper-storey case, wall-cell ambient light is 4,
+but its physically exposed neighbour has light 115.889137: the cell fails native
+body range/FOV while its exterior remains visible. Face witnesses supply the
+exposed-side light and native distance limit only to coarse architecture.
+Actual creatures, items and room contents still require native perception.
+
+Covered windows and closed door leaves meet their entire openings. Terrain
+surrounds have full wall depth and neighbouring brick/wood/plaster finishes,
+with recessed frames. Wall sides meet the physical storey boundary. Covered slab
+rims are omitted beneath complete walls and full-width lintels, removing
+coplanar concrete/brick flicker. Sparse missing neighbours and stair openings
+retain exposed rims. Upper-storey tree art retains its actual elevation.
+
+Ten full-depth reference views have zero sky holes or missing nearer surfaces.
+The building fixture drops from 7,908 to 7,098 collected triangles: 360 shared wall
+triangles and 450 covered slab triangles are removed. Frame-local indexed XYZ
+lookup is shared by appearance/terrain/atmosphere collection and GPU neighbours.
+Native body/slab/facade rays read the existing revision-checked geometry cache
+with relative coordinates, avoiding repeated absolute conversion and duplicate
+bounds checks without allocating another cache. Differential coverage compares
+12,000 body/surface rays and 12,000 facade queries with the original lookup path.
+
+### Exact shipped 1040 hardware measurements
+
+Both packaged runners passed, including final F6 restoration. SHA256 checks cover
+the installer, Host, DLL and all 32 payload files for each build; the raw report
+retains every identity. These measurements use the delivered 1040 Host
+`598bc7b2ee7f535f0032b529eaa743e56409a80224f496cf0d7069f9a1ef1ba5`
+and module `42fad99b832a83213373ca902214cc4ed651c1d486f9896a4a37b490b9cd1855`.
+All 2,000 recorded GPU frames used hardware Direct3D12 on NVIDIA GeForce RTX 4090,
+with no renderer fallback. All 107 UDP assets match the successful 0.12.4 baseline.
+Every median/p95 was recalculated from its recorded samples.
+
+Full-size viewport: 1768×1084. All times below are milliseconds. Each record uses
+48 cold and 48 repeated camera angles plus 12 native position steps and easing.
+The route advances zero ordinary AI simulation turns. Rain uses the same owned
+native-descriptor fixture documented in the raw data, with unchanged Host/DLL.
+
+| Weather | Scene | Warm median / p95 | First frame median / p95 | 0.12.4 first median | Easing median |
+| --- | --- | ---: | ---: | ---: | ---: |
+| clear | street | 14.45 / 15.81 | 55.72 / 85.45 | 95.13 | 16.20 |
+| clear | multi_level_horde | 13.14 / 15.05 | 58.83 / 83.63 | 97.32 | 13.52 |
+| clear | city_blocks | 9.55 / 11.76 | 61.88 / 84.87 | 89.03 | 12.43 |
+| rain | street | 37.06 / 44.65 | 93.76 / 122.75 | 134.06 | 36.45 |
+| rain | multi_level_horde | 28.18 / 36.65 | 85.68 / 111.36 | 125.21 | 21.42 |
+| rain | city_blocks | 14.31 / 17.50 | 84.89 / 111.11 | 123.93 | 15.97 |
+
+First-frame medians are 30–41% lower in clear weather and 30–32% lower in rain.
+Steady rotation remains broadly similar; the measurements do not establish
+ordinary gameplay FPS or AI turn latency. No manual playthrough, driving or
+prolonged hardware soak was performed, and 1807 hardware performance was not
+measured. The 1807 package passed its native integration gates.
+
+[Raw 0.12.5 samples, diagnostics, hashes and comparisons](qualification/0.12.5-rtx4090-movement.json).
+The 0.12.4 evidence below remains historical.
+
 ## 0.12.4 camera and movement performance follow-up
 
 Qualified runtime: `c1ad43add41c2d5b583e885d5a702cebc4b4e81b`.

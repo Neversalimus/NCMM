@@ -78,7 +78,8 @@ bool graphics_scene_smoke()
             event.key.key = SDLK_F6;
             event.key.scancode = SDL_SCANCODE_F6;
             require( SDL_PushEvent( &event ), "f6_sdl_event_not_queued" );
-            const std::string action = gameplay.handle_input( 2000 );
+            std::string action;
+            for(int pending=0;pending<8;++pending){action=gameplay.handle_input(250);if(action=="ncmm.open.first_person_view")break;}
             require( action == "ncmm.open.first_person_view", "f6_sdl_dispatch_failed" );
             require( ncmm::handle_gameplay_action( action ), "f6_gameplay_action_missing" );
         };

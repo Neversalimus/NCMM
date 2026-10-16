@@ -124,6 +124,14 @@ int main(){
         facade.flags[{1,0,1}]|=NCMM_WORLD_OPAQUE;
         require(!facade_visible({.5f,.5f,1.55f},{2,0,1},facade),"facade probes cannot reveal a wall behind solid architecture");
     }
+    { fixture face(3);face.flags[{2,0,1}]=NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE;
+      const auto mask=facade_faces({.5f,.5f,1.55f},{2,0,1},face);
+      require(mask==1,"only the physically exposed west face may supply facade light");
+      face.flags[{1,0,1}]=NCMM_WORLD_OPAQUE;
+      require(facade_faces({.5f,.5f,1.55f},{2,0,1},face)==0,"hidden face light cannot qualify a facade");
+      require(facade_slab_permissions(NCMM_WORLD_FLOOR,1.55f,2.5f)==NCMM_WORLD_FLOOR_BOTTOM,"visible facade retains its real underside");
+      require(facade_slab_permissions(NCMM_WORLD_OPEN_DOWN,1.55f,2.5f)==0,"an actual opening never receives an invented support slab");
+    }
     f.flags[{1,0,0}]=NCMM_WORLD_OPAQUE|opaque_field_fact;
     auto structure=[&](voxel p){return structural_flags(f(p));};
     require(!visible({.5f,.5f,1.55f},{2.5f,.5f,.003f},f,true),"opaque gas retains the body information barrier");
@@ -151,9 +159,10 @@ int main(){
     scene.appearance.details=details.data();scene.appearance.detail_count=details.size();scene.coordinates=cells.data();scene.cell_count=uint32_t(cells.size());
     scene.slices=slices.data();scene.slice_count=uint32_t(slices.size());
     require(valid(scene),"nine sparse slices preserve canonical absolute coordinates");
-    coordinates lookup(&scene);
+    coordinates lookup(&scene);coordinates indexed_lookup(&scene,true);
+    require(indexed_lookup.bytes()==cells.size()*sizeof(int32_t),"indexed coordinates are bounded by the validated address window");
     for(int z=-4;z<=4;++z)for(int y=0;y<3;++y)for(int x=0;x<3;++x){
-        const int i=lookup.find(x,y,z);require(i==(z+4)*9+y*3+x,"unique XYZ index across same XY");
+        const int i=lookup.find(x,y,z);require(indexed_lookup.find(x,y,z)==i,"dense lookup matches sparse binary search");require(i==(z+4)*9+y*3+x,"unique XYZ index across same XY");
         require(lookup.origin(i).z==z*NCMM_WORLD_LEVEL_HEIGHT,"consistent physical storey scale");
         require(lookup.neighbor(i,0,0,1)==(z==4?-1:i+9),"neighbors link actual levels");
     }

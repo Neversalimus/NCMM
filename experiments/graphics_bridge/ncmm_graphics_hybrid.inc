@@ -297,13 +297,13 @@ ncmm_graphics_shapes::traits graphics_traits( const map_data_common_t &t, bool o
 }
 
 bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector<tripoint_bub_ms> &positions, int x, int y,
-                           ncmm_graphics_multilevel_scene_v1 *world=nullptr )
+                           ncmm_graphics_multilevel_scene_v1 *world=nullptr,const std::vector<std::array<float,3>> *facade_lights=nullptr )
 {
     avatar &you = get_avatar(); map &here = get_map();
     std::vector<ncmm_graphics_cell_v2> details( base.cell_count );
     std::map<const vehicle *, uint32_t> groups;
     std::map<const vehicle *, std::pair<float, float>> vehicle_anchors;
-    const ncmm_world::coordinates world_coordinates(world);
+    const ncmm_world::coordinates world_coordinates(world,true);
     auto copy_id = []( char ( &dest )[128], const std::string &id ) { if( id.size() < sizeof( dest ) ) std::copy( id.begin(), id.end(), dest ); };
     graphics_hybrid_vehicle_cells = graphics_hybrid_light_cells = graphics_hybrid_held_sprites = 0;
     graphics_hybrid_colored_cells = graphics_hybrid_tiny_creatures = 0;
@@ -319,6 +319,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
             const auto top_rgb=graphics_sample_rgb(p);const auto &lower=world->coordinates[i].lower_light;
             const bool surface=(world->coordinates[i].flags&(NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_STRUCTURE_VISIBLE))!=0;
             d.light_r=surface?top_rgb[0]:lower[0];d.light_g=surface?top_rgb[1]:lower[1];d.light_b=surface?top_rgb[2]:lower[2];
+            if(facade_lights&&(world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE)){const auto &rgb=(*facade_lights)[i];d.light_r=rgb[0];d.light_g=rgb[1];d.light_b=rgb[2];}
             if(world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE){
                 d.terrain_shape=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
                 if(d.terrain_shape==NCMM_SHAPE_WINDOW&&(world->coordinates[i].flags&NCMM_WORLD_OPAQUE))d.terrain_shape=NCMM_SHAPE_WINDOW_COVERED;
@@ -360,6 +361,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         const float tint = std::clamp( maximum / std::max( raw, 1.0f ), 0.0f, 0.9f );
         auto channel = [&]( float c ) { return level * ( 1 - tint + ( maximum > 0 ? tint * c / maximum : 0 ) ); };
         d.light_r = channel( color.r ); d.light_g = channel( color.g ); d.light_b = channel( color.b );
+        if(world&&facade_lights&&(world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE)&&!ter.transparent){const auto &rgb=(*facade_lights)[i];d.light_r=rgb[0];d.light_g=rgb[1];d.light_b=rgb[2];}
         if( std::max( { d.light_r, d.light_g, d.light_b } ) - std::min( { d.light_r, d.light_g, d.light_b } ) > .05f ) ++graphics_hybrid_colored_cells;
         d.emission = float( std::max( ter.light_emitted, furn.light_emitted ) );
         if( maximum > 0 ) ++graphics_hybrid_light_cells;

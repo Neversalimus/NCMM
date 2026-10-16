@@ -7,6 +7,20 @@
         const uint32_t supplied=layer==NCMM_GFX_TERRAIN?extra(i).terrain_material:extra(i).furniture_material;
         return supplied?supplied:ncmm_graphics_presentation_policy::material(layer==NCMM_GFX_TERRAIN?base.cells[i].terrain:base.cells[i].furniture);
     }
+    material wall_material(int i,uint32_t layer){
+        material m=mat(i,layer,{.55f,.54f,.50f});m.opaque_texture=true;m.color=m.texture?m.texture->average:m.color;
+        const char *id=layer==NCMM_GFX_FURNITURE?base.cells[i].furniture:base.cells[i].terrain;
+        using ncmm_graphics_shapes::contains;
+        if(contains(id,"brick")){m.finish=surface::brick;m.texture=nullptr;}
+        else if(!std::strcmp(id,"t_wall")||contains(id,"plaster")||contains(id,"concrete")){m.finish=surface::plaster;m.texture=nullptr;}
+        else if(contains(id,"wood")||contains(id,"log")){m.finish=surface::wood;m.texture=nullptr;}
+        return m;
+    }
+    material facade_surround(int i,uint32_t layer){
+        for(int sign:{-1,1}){const int n=neighbor(i,s.details[i].orientation?0:sign,s.details[i].orientation?sign:0);
+            if(visible(n)&&s.details[n].terrain_shape==NCMM_SHAPE_WALL){auto m=wall_material(n,NCMM_GFX_TERRAIN);m.cell=i;return m;}}
+        return {nullptr,{.55f,.54f,.50f},1,false,false,false,i,surface::plaster};
+    }
     bool special_architecture(int i,uint32_t shape,uint32_t layer){
         const vec center=cell_center(i);
         const float a=s.details[i].orientation?pi*.5f:0;
@@ -79,12 +93,14 @@
         uint32_t kind=material_kind(i,layer);if(kind==NCMM_MAT_DEFAULT)kind=NCMM_MAT_WOOD;
         const vec color=kind==NCMM_MAT_METAL?vec{.36f,.40f,.42f}:kind==NCMM_MAT_STONE?vec{.47f,.45f,.41f}:kind==NCMM_MAT_RESIN?vec{.38f,.29f,.33f}:kind==NCMM_MAT_CLOTH?vec{.50f,.39f,.31f}:vec{.40f,.26f,.14f};
         material panel{nullptr,color,1,false,false,false,i,finish(kind)},trim=panel;trim.color=trim.color*.72f;
-        for(float x:{-.47f,.47f})box(center,{x-.03f,-.07f,0},{x+.03f,.07f,2.4f},trim,angle);
-        box(center,{-.5f,-.07f,2.32f},{.5f,.07f,2.43f},trim,angle);
-        if(world_data)box(center,{-.5f,-.07f,2.43f},{.5f,.07f,NCMM_WORLD_LEVEL_HEIGHT},trim,angle);
+        const float depth=world_data&&layer==NCMM_GFX_TERRAIN?.5f:.07f;
+        material shell=facade_surround(i,layer);
+        for(float x:{-.47f,.47f})box(center,{x-.03f,-depth,0},{x+.03f,depth,2.32f},shell,angle);
+        box(center,{-.5f,-depth,2.32f},{.5f,depth,world_data?NCMM_WORLD_LEVEL_HEIGHT:2.43f},shell,angle);
+        
         if(shape==NCMM_SHAPE_DOOR_FRAME)return;
         const float a=angle+(shape==NCMM_SHAPE_DOOR_OPEN?pi*.46f:0);
-        const vec hinge=rotate({-.43f,0,0},center,angle);
+        const vec hinge=rotate({-.44f,0,0},center,angle);
         const float thick=kind==NCMM_MAT_STONE?.13f:kind==NCMM_MAT_METAL?.048f:.032f;
         if(kind==NCMM_MAT_GLASS){
             material glass{nullptr,{.40f,.66f,.75f},.18f,false,false,false,i};
@@ -96,7 +112,7 @@
             for(int n=0;n<16;++n){const float x=n*.86f/16;const float fold=std::sin(n*pi*.65f)*.045f;
                 box(hinge,{x,fold-.003f,.08f},{x+.057f,fold+.003f,2.3f},panel,a);}
         }else{
-            box(hinge,{0,-thick,.04f},{.86f,thick,2.30f},panel,a);
+            box(hinge,{0,-thick,0},{.88f,thick,2.32f},panel,a);
             if(kind==NCMM_MAT_WOOD){
                 for(float z:{.36f,1.36f})for(int side:{-1,1}){
                     material inset=panel;inset.color=inset.color*1.12f;

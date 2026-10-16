@@ -15,9 +15,16 @@
         auto point=[&](float x,float y,float z){return at+vec{x,y,z};};
         const vec a=point(x0,y0,0),b=point(x1,y0,0),c=point(x1,y1,0),d=point(x0,y1,0);
         if(flags&NCMM_WORLD_FLOOR_TOP)quad(a,b,c,d,top,{0,0,1},{x0,y0,x1,y1});
-        if(flags&NCMM_WORLD_FLOOR_BOTTOM)quad(d+vec{0,0,-.08f},c+vec{0,0,-.08f},b+vec{0,0,-.08f},a+vec{0,0,-.08f},bottom,{0,0,-1});
+        const int below=neighbor(i,0,0,-1);
+        const bool whole=x0==0&&y0==0&&x1==1&&y1==1;
+        const bool buried_bottom=whole&&complete_wall(below);
+        if((flags&NCMM_WORLD_FLOOR_BOTTOM)&&!buried_bottom)quad(d+vec{0,0,-.08f},c+vec{0,0,-.08f},b+vec{0,0,-.08f},a+vec{0,0,-.08f},bottom,{0,0,-1});
         // Bounded slab thickness closes exposed edges without a second ceiling
         // plane, floor overlap, or a cap guessed from an interior/outside bit.
+        // The wall or full-width lintel reaches this physical storey boundary.
+        // Its outer face already closes the rim: duplicate coplanar concrete
+        // caused visible z-fighting along brick facades.
+        if(whole&&terrain_covers_slab_edge(below))return;
         for(int side=0;side<4;++side){const std::array<vec,4> corners{a,b,c,d};
             const vec lo=corners[side],hi=corners[(side+1)%4];
             const int nx=side==1?1:side==3?-1:0,ny=side==0?-1:side==2?1:0;

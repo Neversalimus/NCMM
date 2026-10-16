@@ -81,13 +81,21 @@ public:
         if(revision&&revisions[i]==revision){++hits;return facts[i];}++misses;
         const uint32_t value=read();facts[i]=value;revisions[i]=revision;return value;
     }
+    // X/Y and level are already relative to the prepared window. Ray traversal
+    // avoids converting them to absolute coordinates and back for every voxel.
+    template<class Read> uint32_t get_relative(int x,int y,int level,uint64_t revision,Read read){
+        if(x<0||y<0||x>=width||y>=height||level<0||level>maxz-minz)return NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE|NCMM_WORLD_ROOFED;
+        const size_t i=(size_t(level)*height+size_t(y))*width+size_t(x);
+        if(revision&&revisions[i]==revision){++hits;return facts[i];}++misses;
+        const uint32_t value=read();facts[i]=value;revisions[i]=revision;return value;
+    }
     size_t bytes()const{return facts.capacity()*sizeof(uint32_t)+revisions.capacity()*sizeof(uint64_t);}
 };
 /* Main-thread private source facts; canonical intersections survive a shifted
  * viewport. No engine pointer, ID, item or entity is retained. */
 class source_cache {
     int32_t ox=0,oy=0,minz=0,maxz=-1;int width=0,height=0;uint64_t identity=0;
-    std::vector<uint32_t> facts;std::vector<uint64_t> revisions,ray_revisions;std::vector<uint8_t> rays;
+    std::vector<uint32_t> facts;std::vector<uint64_t> revisions,ray_revisions;std::vector<uint16_t> rays;
     int slot(int x,int y,int z)const{const int64_t xx=int64_t(x)-ox,yy=int64_t(y)-oy;
         if(xx<0||yy<0||xx>=width||yy>=height||z<minz||z>maxz)return -1;
         return int((size_t(z-minz)*height+size_t(yy))*width+size_t(xx));}
@@ -98,7 +106,7 @@ public:
         if(!world||w<1||h<1||w>97||h>97||low < -128||high > 128||low>high||int64_t(high)-low>=NCMM_WORLD_MAX_SLICES)return false;
         hits=misses=ray_hits=ray_misses=0;if(ox==x&&oy==y&&minz==low&&maxz==high&&width==w&&height==h&&identity==world)return true;
         const size_t count=size_t(high-low+1)*w*h;
-        std::vector<uint32_t> next(count);std::vector<uint64_t> stamps(count),ray_stamps(count);std::vector<uint8_t> ray_values(count);
+        std::vector<uint32_t> next(count);std::vector<uint64_t> stamps(count),ray_stamps(count);std::vector<uint16_t> ray_values(count);
         if(identity==world){const int64_t left=std::max(int64_t(x),int64_t(ox)),right=std::min(int64_t(x)+w,int64_t(ox)+width),
                 top=std::max(int64_t(y),int64_t(oy)),bottom=std::min(int64_t(y)+h,int64_t(oy)+height);
             for(int z=std::max(low,minz);z<=std::min(high,maxz);++z)for(int64_t yy=top;yy<bottom;++yy){if(left>=right)continue;
@@ -112,8 +120,8 @@ public:
         if(revision&&revisions[i]==revision){++hits;return facts[i];}++misses;const uint32_t value=read();
         if(!revisions[i]||facts[i]!=value)++topology_revision;
         facts[i]=value;revisions[i]=revision;return facts[i];}
-    template<class Trace> uint8_t visibility(int x,int y,int z,uint64_t revision,Trace trace){const int i=slot(x,y,z);if(i<0)return 0;
+    template<class Trace> uint16_t visibility(int x,int y,int z,uint64_t revision,Trace trace){const int i=slot(x,y,z);if(i<0)return 0;
         if(revision&&ray_revisions[i]==revision){++ray_hits;return rays[i];}++ray_misses;rays[i]=trace();ray_revisions[i]=revision;return rays[i];}
-    size_t bytes()const{return facts.capacity()*sizeof(uint32_t)+(revisions.capacity()+ray_revisions.capacity())*sizeof(uint64_t)+rays.capacity();}
+    size_t bytes()const{return facts.capacity()*sizeof(uint32_t)+(revisions.capacity()+ray_revisions.capacity())*sizeof(uint64_t)+rays.capacity()*sizeof(uint16_t);}
 };
 } // namespace ncmm_world
