@@ -23,7 +23,7 @@ assert r['native_action_stages']['native_game_turn_wall_ms']['samples']==8
 assert r['native_action_stages']['native_stair_first_ready_wall_ms']['samples']==4
 assert [t['spawned'] for t in r['combat_trials']]==[1,5,20]
 assert all(t['native_turns']==6 and t['observed_enemy_attacks']>0 and t['avatar_debug_protection']
-           and t['avatar_stamina_reset_each_turn'] for t in r['combat_trials'])
+           and t['avatar_stamina_reset_each_turn'] and t['avatar_combat_state_reset_each_turn'] for t in r['combat_trials'])
 assert len(r['tilesets'])==2 and r['tilesets'][1]['id']=='UndeadPeople_0J_Hybrid_v3'
 scenes={'city','dense_smoke','multi_level','creatures_1','creatures_5','creatures_20',
         'creatures_50','creatures_100','large_and_flying','lod_distances','unknown_mod_objects','rotation'}
