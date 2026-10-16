@@ -77,6 +77,28 @@ int main(){
     renderer(scene.w.appearance,0,.15f,{},statistics,{},nullptr,{},nullptr,&scene.w).collect(pruned,400,260);
     if(pruned.count>=full.count){std::cerr<<"Internal wall pruning did not remove shared geometry\n";return 1;}
     std::cout<<"Shared wall triangles "<<full.count<<" -> "<<pruned.count<<"\n";
+    // A real slab rim and the wall beneath it must not cover the same
+    // vertical patch: that made concrete/brick flicker as the camera turned.
+    const int seam_wall=scene.idx(8,9,0),seam_slab=scene.idx(8,9,1);
+    auto overlaps_seam=[&](const count_sink &mesh){
+        for(const auto &a:mesh.triangles)if(a.m.cell==seam_wall&&a.normal.x<-.9f)
+            for(const auto &b:mesh.triangles)if(b.m.cell==seam_slab&&b.normal.x<-.9f){
+                float ay0=1e6f,ay1=-1e6f,az0=1e6f,az1=-1e6f,by0=1e6f,by1=-1e6f,bz0=1e6f,bz1=-1e6f;
+                for(const auto &v:a.v){ay0=std::min(ay0,v.p.y);ay1=std::max(ay1,v.p.y);az0=std::min(az0,v.p.z);az1=std::max(az1,v.p.z);}
+                for(const auto &v:b.v){by0=std::min(by0,v.p.y);by1=std::max(by1,v.p.y);bz0=std::min(bz0,v.p.z);bz1=std::max(bz1,v.p.z);}
+                if(std::min(ay1,by1)>std::max(ay0,by0)+.001f&&std::min(az1,bz1)>std::max(az0,bz0)+.001f)return true;
+            }return false;
+    };
+    if(overlaps_seam(pruned)){std::cerr<<"Slab rim overlaps the wall facade\n";return 1;}
+    // Sparse neighbours and real stair openings cannot suppress an exposed rim.
+    auto has_rim=[&](const count_sink &mesh){for(const auto &t:mesh.triangles)if(t.m.cell==seam_slab&&t.normal.x<-.9f)return true;return false;};
+    scene.appearance[seam_wall].flags=0;count_sink sparse_rim;
+    renderer(scene.w.appearance,0,.15f,{},statistics,{},nullptr,{},nullptr,&scene.w).collect(sparse_rim,400,260);
+    if(!has_rim(sparse_rim)){std::cerr<<"Sparse wall hid the slab rim\n";return 1;}
+    scene.appearance[seam_wall]=original[seam_wall];scene.cells[seam_wall].flags|=NCMM_WORLD_UP;count_sink stair_rim;
+    renderer(scene.w.appearance,0,.15f,{},statistics,{},nullptr,{},nullptr,&scene.w).collect(stair_rim,400,260);
+    if(!has_rim(stair_rim)){std::cerr<<"A stair opening hid the slab rim\n";return 1;}
+    scene.cells[seam_wall]=physical[seam_wall];
     const int wall=scene.idx(8,9,1),transition=scene.idx(8,10,1);
     scene.detail[transition].terrain_shape=NCMM_SHAPE_WALL;scene.cells[transition].flags|=NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP;
     count_sink transition_faces;renderer(scene.w.appearance,0,.15f,{},statistics,{},nullptr,{},nullptr,&scene.w).collect(transition_faces,400,260);

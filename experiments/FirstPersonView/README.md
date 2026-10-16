@@ -12,6 +12,8 @@ Covered window panels meet the complete frame opening. Closed door leaves meet
 the floor, jambs and lintel. Terrain door/window surrounds have full wall depth
 and use the neighbouring facade finish, including brick, with recessed frames.
 Wall sides meet the physical storey boundary while the actual slab owns its cap.
+Slab rims covered by a published full-width wall or lintel are omitted, preventing
+coplanar concrete/brick flicker; exposed edges at gaps and stairs remain present.
 A visible architectural cell retains its real supporting slab. Open shafts,
 stairs and genuinely missing floors do not receive invented support surfaces.
 Upper-storey tree art retains its world Z coordinate.

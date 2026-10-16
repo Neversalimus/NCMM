@@ -192,6 +192,20 @@ class renderer {
         return dz?-1:index(i%base.grid_width+dx,i/base.grid_width+dy);}
     uint32_t world_flags(int i)const{return world_data&&i>=0&&size_t(i)<base.cell_count?world_data->coordinates[i].flags:0;}
     bool visible(int i)const{return i>=0&&size_t(i)<base.cell_count&&(base.cells[i].flags&NCMM_GFX_VISIBLE);}
+    bool complete_wall(int i)const{
+        return world_data&&visible(i)&&s.details[i].terrain_shape==NCMM_SHAPE_WALL&&
+            !(world_flags(i)&(NCMM_WORLD_UP|NCMM_WORLD_DOWN|NCMM_WORLD_RAMP))&&
+            (world_flags(i)&(NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_STRUCTURE_VISIBLE));
+    }
+    bool terrain_covers_slab_edge(int i)const{
+        if(!world_data||!visible(i)||!(world_flags(i)&(NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_STRUCTURE_VISIBLE))||
+           (world_flags(i)&(NCMM_WORLD_UP|NCMM_WORLD_DOWN|NCMM_WORLD_RAMP)))return false;
+        switch(s.details[i].terrain_shape){
+            case NCMM_SHAPE_WALL:case NCMM_SHAPE_DOOR_CLOSED:case NCMM_SHAPE_DOOR_OPEN:case NCMM_SHAPE_DOOR_FRAME:
+            case NCMM_SHAPE_WINDOW:case NCMM_SHAPE_WINDOW_BROKEN:case NCMM_SHAPE_WINDOW_COVERED:return true;
+            default:return false;
+        }
+    }
     bool outside(int i)const{return visible(i)&&(world_data?!(world_flags(i)&NCMM_WORLD_ROOFED):!(base.cells[i].flags&NCMM_GFX_CEILING));}
     image *texture(uint32_t i,uint32_t layer,bool prepare=true){
         if(layer>NCMM_GFX_GLOVE_RIGHT)return nullptr;
@@ -455,9 +469,7 @@ class renderer {
         const bool full_wall=world_data&&m.cell>=0&&s.details[m.cell].terrain_shape==NCMM_SHAPE_WALL&&angle==0&&
             lo.x==-.5f&&lo.y==-.5f&&hi.x==.5f&&hi.y==.5f&&lo.z==0&&hi.z==world_data->level_height;
         auto exposed=[&](int dx,int dy){if(!full_wall||!options.cull_geometry)return true;const int other=neighbor(m.cell,dx,dy);
-            return !visible(other)||s.details[other].terrain_shape!=NCMM_SHAPE_WALL||
-                (world_flags(other)&(NCMM_WORLD_UP|NCMM_WORLD_DOWN|NCMM_WORLD_RAMP))||
-                !(world_flags(other)&(NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_STRUCTURE_VISIBLE));};
+            return !complete_wall(other);};
         auto p=[&](float x,float y,float z){return rotate({x,y,z},origin,angle);};
         float c=std::cos(angle),sn=std::sin(angle);
         if(exposed(0,-1))solid_quad(p(lo.x,lo.y,lo.z),p(hi.x,lo.y,lo.z),p(hi.x,lo.y,hi.z),p(lo.x,lo.y,hi.z),m,{sn,-c,0});
