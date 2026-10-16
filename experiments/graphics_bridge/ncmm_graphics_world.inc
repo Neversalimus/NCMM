@@ -262,6 +262,8 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if(semantic&graphics_world_architecture){
             facade_light=graphics_world_rgb(p);
             for(unsigned face=0;face<4;++face){
+                const bool facing=face==0?visibility_eye.x<gx:face==1?visibility_eye.x>gx+1:face==2?visibility_eye.y<gy:visibility_eye.y>gy+1;
+                if(!facing)continue;
                 const auto adjacent=ncmm_world::facade_neighbor({ax,ay,z},face);
                 if(ncmm_world::structural_flags(base_flags(adjacent.x,adjacent.y,adjacent.z))&(NCMM_WORLD_OPAQUE|NCMM_WORLD_UNKNOWN))continue;
                 const auto lit=here.get_bub(tripoint_abs_ms(adjacent.x,adjacent.y,adjacent.z));
