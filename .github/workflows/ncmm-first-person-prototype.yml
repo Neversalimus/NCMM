@@ -28,6 +28,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Verify shipping shader source identity before compilation
+        run: python experiments/FirstPersonView/compile_gpu_shaders.py --verify --output experiments/graphics_bridge/ncmm_gpu_shader_bytes.hpp
       - name: Configure isolated module
         run: cmake -S experiments/FirstPersonView -B fp-build -DCMAKE_BUILD_TYPE=Release -DFIRST_PERSON_BUILD_BENCHMARK=ON
       - name: Build prototype and contract tests
