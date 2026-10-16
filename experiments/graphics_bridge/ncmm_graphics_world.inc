@@ -214,6 +214,11 @@ bool graphics_draw_world(int x,int y,int width,int height)
     // defeats the proof, so shafts, glass and real multi-Z views are unchanged.
     const int eye_level=absolute.z()+int(std::floor(visibility_eye.z/NCMM_WORLD_LEVEL_HEIGHT));
     const bool sealed_below=graphics_world_sealed.closed(eye_level,flags),sealed_above=graphics_world_sealed.closed(eye_level+1,flags);
+    // Include the displayed easing eye as well as the authoritative sight eye.
+    // A rectangle proof may discard geometry only when every possible crossing
+    // of the intervening plane is a real opaque slab.
+    const int eye_left=int(std::floor(std::min(eye.x,visibility_eye.x))),eye_right=int(std::floor(std::max(eye.x,visibility_eye.x))),
+              eye_top=int(std::floor(std::min(eye.y,visibility_eye.y))),eye_bottom=int(std::floor(std::max(eye.y,visibility_eye.y)));
     for(int z:loaded)if(ncmm_world::candidate_level_in_range(z,absolute.z(),fov_3d_z_range)&&
         (z==absolute.z()||!((sealed_below&&z<eye_level)||(sealed_above&&z>eye_level+1))))for(int gy=0;gy<side;++gy)for(int gx=0;gx<side;++gx){
         ++graphics_world_metrics.processed_cells;
@@ -229,6 +234,14 @@ bool graphics_draw_world(int x,int y,int width,int height)
         // bubble conversion/loading probes for cells that cannot contribute.
         const int ax=ox+gx,ay=oy+gy;const auto p=here.get_bub(tripoint_abs_ms(ax,ay,z));
         if(!here.ncmm_graphics_loaded(p))continue;
+        const Creature *entity=get_creature_tracker().creature_at<Creature>(p);
+        const bool observed_death=std::binary_search(observed_deaths.begin(),observed_deaths.end(),std::array<int32_t,3>{ax,ay,z});
+        // Tall/airborne entities can extend beyond a source voxel. Leave their
+        // normal native/body visibility path authoritative.
+        if(!entity&&!observed_death&&(z<eye_level||z>eye_level+1)&&graphics_world_sealed.closed_rectangle(z<eye_level?eye_level:eye_level+1,
+            ox+std::min(gx,eye_left),oy+std::min(gy,eye_top),ox+std::max(gx,eye_right),oy+std::max(gy,eye_bottom),flags)){
+            ++graphics_world_metrics.occlusion_rejected;continue;
+        }
         const auto below=tripoint_bub_ms(p.xy(),z-1);
         const bool current_in_range=in_visual_range(p),lower_in_range=in_visual_range(below);
         // No permission below can survive if neither side is within native
@@ -246,8 +259,6 @@ bool graphics_draw_world(int x,int y,int width,int height)
             if(!possible_face){++graphics_world_metrics.occlusion_rejected;continue;}
         }
         uint32_t semantic=flags(ax,ay,z);
-        const Creature *entity=get_creature_tracker().creature_at<Creature>(p);
-        const bool observed_death=std::binary_search(observed_deaths.begin(),observed_deaths.end(),std::array<int32_t,3>{ax,ay,z});
         const float margin=entity||observed_death?20.f:5.f;
         if(!close_to_eye&&outside(margin)){
             ++graphics_world_metrics.frustum_rejected;continue;}
@@ -365,7 +376,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
     world.coordinates=coordinates.data();world.cell_count=uint32_t(coordinates.size());world.slices=slices.data();world.slice_count=uint32_t(slices.size());
     const ncmm_graphics_scene_v1 base={sizeof(ncmm_graphics_scene_v1),width,height,side,side,radius+.5f,radius+.5f,cells.data(),cells.size()};
     graphics_viewport={x,y,width,height};graphics_snapshot_radius=radius;graphics_snapshot_begun=begun;
-    graphics_world_metrics.submitted_cells=uint32_t(cells.size());graphics_world_metrics.source_cache_bytes=graphics_world_sources.bytes()+graphics_world_roofs.bytes()+graphics_world_derived.bytes();
+    graphics_world_metrics.submitted_cells=uint32_t(cells.size());graphics_world_metrics.source_cache_bytes=graphics_world_sources.bytes()+graphics_world_roofs.bytes()+graphics_world_derived.bytes()+graphics_world_sealed.bytes();
     graphics_world_metrics.source_cache_hits=graphics_world_sources.hits;graphics_world_metrics.source_cache_misses=graphics_world_sources.misses;
     graphics_world_metrics.snapshot_bytes=cells.capacity()*sizeof(cells[0])+positions.capacity()*sizeof(positions[0])+coordinates.capacity()*sizeof(coordinates[0])+slices.capacity()*sizeof(slices[0]);
     graphics_world_metrics.extraction_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();
