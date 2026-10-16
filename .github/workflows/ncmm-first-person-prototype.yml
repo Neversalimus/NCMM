@@ -95,8 +95,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: ncmmrepo
-          # Packaging recovery uses the exact runtime source already compiled in run 38909436998.
-          ref: 4de72e5f3cf161e0ce49b8f6abfca54c699617a5
           persist-credentials: false
       - uses: actions/checkout@v4
         with:

@@ -1,7 +1,11 @@
 # First Person View 0.12.5 — facade continuity
 
-Candidate qualification is in progress. The historical 0.12.4 hardware numbers
-remain in [STABILIZATION.md](STABILIZATION.md); they are not 0.12.5 measurements.
+Native qualification passed for both 1040 and 1807. Exact packaged 1040 binaries
+were measured on RTX 4090 with actual UDP artwork, in clear and native-rain
+fixtures: first-frame-after-step medians fell from 89–97 to 56–62 ms in clear
+weather and from 124–134 to 85–94 ms in rain. These controlled routes advance no
+ordinary AI turns. Steady rotation remains broadly similar to 0.12.4.
+[STABILIZATION.md](STABILIZATION.md) records exact hashes, source, timings and limits.
 
 Exterior walls retain the light of physically visible, open neighbouring faces.
 A shaded wall under an overhang no longer has to pass an interior-cell light
