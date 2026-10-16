@@ -2,7 +2,9 @@
 
 The 0.12.4 TEST packages passed pinned 1040/1807 native integration and archive
 verification. See [qualification and measured limits](STABILIZATION.md#0124-camera-and-movement-performance-follow-up).
-Final-installer hardware performance and manual play remain unqualified.
+Exact 1040 installer movement measurements on RTX 4090 are recorded for clear
+weather and a native rain fixture. Ordinary manual play and 1807 hardware
+performance remain unqualified.
 
 Auto selects hardware GPU acceleration and uses CPU when SDL exposes a software
 adapter. Explicit GPU mode remains available for diagnostics.
