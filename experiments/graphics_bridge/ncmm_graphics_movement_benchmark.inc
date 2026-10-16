@@ -148,7 +148,7 @@
             auto &self=*static_cast<geometry_observer *>(state);
             for(uint32_t i=0;i<world->cell_count;++i){const auto &c=world->coordinates[i];const auto &d=world->appearance.details[i];const auto &a=world->appearance.base.cells[i];
                 const int x=c.x-self.ox,y=c.y-self.oy;
-                if(x==8&&y==0&&c.z>=0&&c.z<4){++self.lattice;self.valid&=d.terrain_shape==NCMM_SHAPE_LATTICE_TOWER&&!(c.flags&NCMM_WORLD_FLOOR);}
+                if(x==8&&y==0&&c.z>=0&&c.z<4){++self.lattice;self.valid&=d.terrain_shape==NCMM_SHAPE_LATTICE_TOWER&&((c.z==0)==bool(c.flags&NCMM_WORLD_FLOOR));}
                 if(x==-4&&y==1&&c.z==1){++self.canopy;self.valid&=d.terrain_shape==NCMM_SHAPE_TREE_CANOPY&&!(c.flags&NCMM_WORLD_FLOOR);}
                 if(x==-10&&y==6&&c.z==0){++self.corners;const uint32_t mask=NCMM_SURFACE_CONNECT_E|NCMM_SURFACE_CONNECT_N;
                     self.valid&=(d.terrain_flags&mask)==mask;}

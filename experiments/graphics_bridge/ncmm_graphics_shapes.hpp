@@ -80,7 +80,7 @@ inline uint32_t furniture(const std::string &id,const traits &t) {
     return NCMM_SHAPE_BILLBOARD;
 }
 // These walkable native supports are branches or steel lattice, not slabs.
-inline bool partial_support(uint32_t shape){return shape==NCMM_SHAPE_TREE_CANOPY||shape==NCMM_SHAPE_LATTICE_TOWER;}
+inline bool partial_support(uint32_t shape,int world_z=1){return shape==NCMM_SHAPE_TREE_CANOPY||(shape==NCMM_SHAPE_LATTICE_TOWER&&world_z>0);}
 inline bool fence_shape(uint32_t shape){return shape==NCMM_SHAPE_FENCE||shape==NCMM_SHAPE_GATE_OPEN||shape==NCMM_SHAPE_POST;}
 inline bool vertical(uint32_t shape) {return shape!=NCMM_SHAPE_FLAT&&shape!=NCMM_SHAPE_WATER&&shape!=NCMM_SHAPE_BRIDGE;}
 inline bool structural_surface(uint32_t shape) {

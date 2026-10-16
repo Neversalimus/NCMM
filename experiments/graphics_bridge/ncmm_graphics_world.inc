@@ -86,14 +86,17 @@ bool graphics_draw_world(int x,int y,int width,int height)
        !graphics_world_sealed.prepare(ox,oy,loaded.front(),loaded.back(),side,side,graphics_world_epoch,graphics_world_revision))return false;
     graphics_world_metrics={};graphics_world_metrics.struct_size=sizeof(graphics_world_metrics);
     graphics_world_metrics.available_slices=uint32_t(loaded.size());
-    ncmm_world::material_semantics_cache material_definitions;
+    ncmm_world::material_semantics_cache material_definitions,elevated_material_definitions;
     auto base_flags=[&](int ax,int ay,int z){
         if(z<loaded.front()||z>loaded.back())return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE);
         return graphics_world_sources.get(ax,ay,z,graphics_world_level_revisions[size_t(z+128)]+1,[&]{
             const auto p=here.get_bub(tripoint_abs_ms(ax,ay,z));if(!here.ncmm_graphics_loaded(p))return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE);
             const auto &ter=here.ter(p).obj();const auto &furn=here.furn(p).obj();
             const bool normal_floor=here.supports_zlevels()&&z>=-OVERMAP_DEPTH+1;
-            uint32_t value=material_definitions.get(reinterpret_cast<std::uintptr_t>(&ter),reinterpret_cast<std::uintptr_t>(&furn),normal_floor,[&]{
+            // A tower keeps its native foundation floor, while upper lattice
+            // cells are open. Keep those two material contexts in separate caches.
+            auto &materials=z>0?elevated_material_definitions:material_definitions;
+            uint32_t value=materials.get(reinterpret_cast<std::uintptr_t>(&ter),reinterpret_cast<std::uintptr_t>(&furn),normal_floor,[&]{
                 // On both pinned engines map::has_flag(ter_furn_flag,p) is
                 // exactly this OR after the loaded/in-bounds check above.
                 auto has=[&](auto flag){return ter.has_flag(flag)||furn.has_flag(flag);};
@@ -107,7 +110,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
                 t.difficult_z=has(ter_furn_flag::TFLAG_DIFFICULT_Z);t.canopy=furn.has_flag(ter_furn_flag::TFLAG_SUN_ROOF_ABOVE);
                 t.opaque=!(ter.transparent&&furn.transparent);
                 const auto shape=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
-                t.partial_support=ncmm_graphics_shapes::partial_support(shape);
+                t.partial_support=ncmm_graphics_shapes::partial_support(shape,z);
                 uint32_t flags=ncmm_world::semantics(t);
                 if(ncmm_graphics_shapes::structural_surface(shape))flags|=graphics_world_architecture;
                 if(ncmm_graphics_shapes::vertical(shape))flags|=graphics_world_renderable;
@@ -339,7 +342,8 @@ bool graphics_draw_world(int x,int y,int width,int height)
     }
     graphics_world_metrics.visibility_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-visibility_started).count();
     graphics_world_range_evaluations=visual_ranges.evaluations;graphics_world_range_hits=visual_ranges.hits;
-    graphics_world_material_evaluations=material_definitions.evaluations;graphics_world_material_hits=material_definitions.hits;
+    graphics_world_material_evaluations=material_definitions.evaluations+elevated_material_definitions.evaluations;
+    graphics_world_material_hits=material_definitions.hits+elevated_material_definitions.hits;
     if(candidates.size()>NCMM_WORLD_MAX_CELLS){std::stable_sort(candidates.begin(),candidates.end(),[](const auto &a,const auto &b){return a.distance<b.distance;});
         graphics_world_metrics.budget_rejected=uint32_t(candidates.size()-NCMM_WORLD_MAX_CELLS);candidates.resize(NCMM_WORLD_MAX_CELLS);}
     std::sort(candidates.begin(),candidates.end(),[](const auto &a,const auto &b){return ncmm_world::order(a.world)<ncmm_world::order(b.world);});

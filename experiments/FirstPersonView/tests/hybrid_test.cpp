@@ -54,6 +54,8 @@ int main(int argc,char **argv){try{
     check(ncmm_graphics_shapes::terrain("t_radio_tower",radio)==NCMM_SHAPE_LATTICE_TOWER,"native radio tower uses steel lattice");
     check(ncmm_graphics_shapes::terrain("t_radiosphere_radio_tower_liminal_light t_radio_tower",radio)==NCMM_SHAPE_LATTICE_TOWER,"mod tower aliases retain physical lattice");
     check(ncmm_graphics_shapes::terrain("t_treetop_evergreen",{})==NCMM_SHAPE_TREE_CANOPY,"treetop remains a crown without a second trunk");
+    check(!ncmm_graphics_shapes::partial_support(NCMM_SHAPE_LATTICE_TOWER,0)&&ncmm_graphics_shapes::partial_support(NCMM_SHAPE_LATTICE_TOWER,1),"tower foundation keeps the native ground floor while its upper lattice stays open");
+    check(ncmm_graphics_shapes::partial_support(NCMM_SHAPE_TREE_CANOPY,0),"foliage never becomes a concrete foundation");
     ncmm_graphics_shapes::traits flagged_window;flagged_window.window=true;flagged_window.door=true;
     check(ncmm_graphics_shapes::terrain("t_window_custom",flagged_window)==NCMM_SHAPE_WINDOW,"window semantic wins over a generic inherited door flag");
     ncmm_graphics_control_state_v1 attack{};attack.struct_size=sizeof(attack);attack.attack_serial=1;attack.attack_started=10;attack.attack_kind=1;attack.grip_kind=NCMM_GRIP_POLE;attack.held_length=2;
