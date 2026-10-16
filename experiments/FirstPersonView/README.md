@@ -17,13 +17,49 @@ The GPU retains the horizon as one cached mesh and one opaque draw; CPU renderin
 uses the same geometry and depth. Background haze replaces the black far seam
 above ground; underground views retain their existing occlusion behavior.
 
-Performance qualification is pending for this revision. The previous measured
-0.12.5 results below remain the comparison baseline, not a claim for 0.12.6.
+Static GPU preparation also reuses unchanged normalized neighbour signatures,
+uses hashed world-chunk lookup, prepares each immutable atlas image once per
+collection and retains texture ownership once per unique mesh in the packet.
+Current light buffers still update without rebuilding unchanged geometry.
+
+Hidden storeys are rejected with cached summed-area proofs over real opaque
+slabs. The proof covers the complete XY rectangle between the cell, the
+native sight eye and the displayed easing eye. A shaft, glass, an opening or
+out-of-window bounds defeats it. Tall/airborne entities keep their normal body
+visibility path. Frustum and local empty-air rejection precede native light
+queries. This avoids extracting buried surfaces when a distant unrelated
+opening prevents a whole-plane proof.
+
+Native qualification for the final installers is recorded in
+[STABILIZATION.md](STABILIZATION.md) and the
+[0.12.6 native report](qualification/0.12.6-native-horizon.json).
+The exact packaged 1040 binaries were measured on RTX 4090 / Direct3D 12 with
+actual UDP Hybrid v3. At a 1768×1084 viewport, first-rendered-frame medians are
+18.87–21.66 ms versus 44.84–83.07 ms in 0.12.5; current p95 values are
+29.53–36.64 ms. The 15 ms target is not met. Warm-rotation medians are
+12.65–15.01 ms; the clear dense-city case regressed from 9.55 to 14.31 ms.
+The report retains all samples and separates first-render time from the native
+move-to-first-ready interval. Fresh module defaults use Balanced quality.
+
+![Distant forest LOD from the exact 1040 installer, scaled capture](qualification/0.12.6-horizon.png)
+
+The controlled movement routes advance zero ordinary AI turns. These timings
+measure renderer and presentation latency; they do not establish combat/AI turn
+latency, a manual playthrough or driving stability. 1807 hardware performance
+was not measured. CI adapter timings are recorded separately.
 
 
-Native qualification passed for both 1040 and 1807. Exact packaged 1040 binaries
+The separate hardware action/combat/gallery audit passed its 60-second soak and
+native save/load in a short game path. Native compressed saves in the tested
+Windows setup failed with a generated 291-character memory-archive path in both
+0.12.5 and 0.12.6; the same save-only case passed at 229 characters. Installer
+long-path coverage is separate. [STABILIZATION.md](STABILIZATION.md) records the
+comparison, successful audit and remaining path limits.
+
+The historical 0.12.5 native qualification passed for both 1040 and 1807.
+Exact packaged 0.12.5 1040 binaries
 were measured on RTX 4090 with actual UDP artwork, in clear and native-rain
-fixtures: first-frame-after-step medians fell from 89–97 to 56–62 ms in clear
+fixtures: native-move-to-first-ready medians fell from 89–97 to 56–62 ms in clear
 weather and from 124–134 to 85–94 ms in rain. These controlled routes advance no
 ordinary AI turns. Steady rotation remains broadly similar to 0.12.4.
 [STABILIZATION.md](STABILIZATION.md) records exact hashes, source, timings and limits.
