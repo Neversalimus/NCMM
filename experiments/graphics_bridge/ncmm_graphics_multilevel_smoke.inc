@@ -27,7 +27,8 @@
             if((c.flags&NCMM_WORLD_FLOOR_TOP)&&!(c.flags&NCMM_WORLD_BODY_VISIBLE))++observed.neutral_tops;
             if(c.flags&NCMM_WORLD_STRUCTURE_VISIBLE){++observed.facades;observed.facade_levels.push_back(c.z);
                 require(ncmm_graphics_shapes::structural_surface(world.appearance.details[i].terrain_shape),"multilevel_facade_permission_has_no_architecture");
-                if(!(c.flags&NCMM_WORLD_BODY_VISIBLE))require((std::strcmp(a.terrain,"t_wall")==0||std::strcmp(a.terrain,"t_window")==0||std::strcmp(a.terrain,"t_brick_wall")==0)&&!world.appearance.details[i].field[0],"multilevel_facade_exposed_hidden_identity");}
+                if(!(c.flags&NCMM_WORLD_BODY_VISIBLE)){const auto surface=here.get_bub(tripoint_abs_ms(c.x,c.y,c.z));
+                    require(std::strcmp(a.terrain,here.ter(surface).id().str().c_str())==0&&!world.appearance.details[i].field[0],"multilevel_facade_changed_physical_identity");}}
             const auto p=here.get_bub(tripoint_abs_ms(c.x,c.y,c.z));
             if(a.creature[0]){++observed.actors;const auto *who=get_creature_tracker().creature_at<Creature>(p);require(who&&you.sees(here,*who),"multilevel_hidden_creature_identity_exposed");}
             if(a.item[0])require(you.sees(here,p)&&here.sees_some_items(p,you),"multilevel_hidden_item_identity_exposed");
