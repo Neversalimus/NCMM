@@ -119,7 +119,8 @@
     you.recalc_sight_limits();
     const auto saved_weather=get_weather().weather_id;
     get_weather().weather_id=weather_type_id("sunny");
-    for(const auto &mon:get_creature_tracker().get_monsters_list())get_creature_tracker().remove(*mon);
+    const auto facade_monsters=get_creature_tracker().get_monsters_list();
+    for(const auto &mon:facade_monsters)get_creature_tracker().remove(*mon);
     for(int z=0;z<=4;++z)for(int y=-40;y<=35;++y)for(int x=-40;x<=40;++x){
         const auto p=at(x,y,z);if(!here.ncmm_graphics_loaded(p))continue;
         here.ter_set(p,ter_id(z==0?"t_pavement":"t_open_air"));here.furn_set(p,furn_id("f_null"));here.clear_fields(p);
