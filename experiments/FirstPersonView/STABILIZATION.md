@@ -6,6 +6,47 @@ and 1807 `074aa98bd5be3de4c35f154082db32a0e63bb0f1`.
 Scope: gameplay audit, measured performance, camera/interaction stability and
 selective visual polish. No new graphics architecture or gameplay rules.
 
+## 0.12.5 facade continuity candidate
+
+Runtime qualification is pending. Engine pins and public API table layouts are
+unchanged. This follows user screenshots of detached upper floors and large
+facade gaps.
+
+The geometry regression constructs a four-level building with covered windows,
+closed doors and a fenced roof. It compares actual rendered depth after the
+source visibility policy against the complete unculled building from ten
+camera/pitch combinations. It reproduced sky cracks around closed panels;
+matching panels to their complete openings removes them. Full-depth surrounds
+and recessed frames use neighbouring facade materials. Visible architecture
+carries its actual slab; wall sides no longer stop 8 cm below the storey plane.
+Upper-level tree billboards retain their original world elevation.
+
+Facade visibility now records which physical faces are exposed. Only visible
+faces with non-opaque, loaded neighbours can supply facade light or its native
+distance limit. Native body perception stays separate. This addresses shaded
+facades below overhanging floors without publishing room contents or actual
+unseen terrain identifiers. Face witnesses are cached with the same eye/world
+revision as other physical rays, using a bounded 16-bit mask.
+
+Terrain/atmosphere collection and native appearance extraction use a bounded
+draw-local XYZ index. The former GPU neighbour index delegates to the same
+implementation. Invalid indexed spans stay closed; holes, negative coordinates
+and distant absolute origins retain the binary lookup's results.
+Shared wall faces are removed only beside another complete rendered wall;
+missing snapshot neighbours and vertical transitions keep their faces.
+
+The native movement runner additionally verifies all 18 front-wall cells of a
+roofed building at 30 cells with ordinary vision, in CPU and GPU modes, and
+exports captures and per-cell light/permission diagnostics. Older multi-Z
+fixtures used DEBUG_NIGHTVISION and could miss the reported condition.
+Diagnostic F6 dispatch tolerates bounded pending input events; the PowerShell
+runner preserves native failure reasons if a locale-dependent smoke JSON number
+cannot be parsed.
+
+Local and CI checks, exact installer hashes and hardware results will be recorded
+after qualification. No general speedup or ordinary gameplay-FPS claim is made
+from the implementation alone.
+
 ## 0.12.4 camera and movement performance follow-up
 
 Qualified runtime: `c1ad43add41c2d5b583e885d5a702cebc4b4e81b`.

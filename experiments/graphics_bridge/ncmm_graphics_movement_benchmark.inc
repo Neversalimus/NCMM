@@ -110,7 +110,73 @@
         }
         get_options().get_option("NCMM_FIRST_PERSON_CREATURE_ART").setValue(original_art);
     }
-    report.end_array();report.member("success",true);report.end_object();stream.close();require(bool(stream),"movement_report_write_failed");
+    // A roof overhang must not erase the shaded upper facade for an ordinary
+    // observer. Previous multi-Z fixtures used DEBUG_NIGHTVISION and missed it.
+    report.end_array();
+    progress("facade_normal_vision");
+    const bool had_nightvision=you.has_trait(trait_id("DEBUG_NIGHTVISION"));
+    if(had_nightvision)you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));
+    you.recalc_sight_limits();
+    const auto saved_weather=get_weather().weather_id;
+    get_weather().weather_id=weather_type_id("sunny");
+    for(const auto &mon:get_creature_tracker().get_monsters_list())get_creature_tracker().remove(*mon);
+    for(int z=0;z<=4;++z)for(int y=-40;y<=35;++y)for(int x=-40;x<=40;++x){
+        const auto p=at(x,y,z);if(!here.ncmm_graphics_loaded(p))continue;
+        here.ter_set(p,ter_id(z==0?"t_pavement":"t_open_air"));here.furn_set(p,furn_id("f_null"));here.clear_fields(p);
+    }
+    for(int z=0;z<2;++z)for(int y=-28;y<=-18;++y)for(int x=-5;x<=5;++x){
+        const bool edge=std::abs(x)==5||y==-28||y==-18;
+        here.ter_set(at(x,y,z),ter_id(edge?"t_brick_wall":"t_floor"));
+    }
+    for(int y=-29;y<=-17;++y)for(int x=-6;x<=6;++x)here.ter_set(at(x,y,2),ter_id("t_floor"));
+    for(int y=-29;y<=-17;++y)for(int x=-6;x<=6;++x)if(std::abs(x)==6||y==-29||y==-17)
+        here.ter_set(at(x,y,2),ter_id("t_chainfence"));
+    you.setpos(here,at(0,12,0),false);graphics_clear_world();graphics_clear_creatures();
+    graphics_mouse_dx=std::remainder(-ncmm_graphics_camera::pi*.5f-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;
+    graphics_mouse_dy=(graphics_camera_pitch-.15f)/.003f;require(graphics_action("ncmm.view.mouse_look"),"facade_camera_failed");graphics_mouse_dx=graphics_mouse_dy=0;
+    refresh();
+    struct facade_observer {
+        ncmm_graphics_render_multilevel_v1 provider=nullptr;void *data=nullptr;
+        int32_t ox=0,oy=0;uint32_t walls=0;bool slabs=true;std::array<uint32_t,18> published{};
+        static int render(const ncmm_graphics_multilevel_scene_v1 *world,void *state){
+            auto &self=*static_cast<facade_observer *>(state);self.walls=0;self.slabs=true;self.published.fill(0);
+            for(uint32_t i=0;i<world->cell_count;++i){const auto &c=world->coordinates[i];
+                if(c.y!=self.oy-18||c.x<self.ox-4||c.x>self.ox+4||c.z<0||c.z>1)continue;
+                self.published[size_t(c.z*9+c.x-(self.ox-4))]=c.flags;
+                if(c.flags&NCMM_WORLD_STRUCTURE_VISIBLE){++self.walls;
+                    self.slabs&=(c.flags&(c.z==0?NCMM_WORLD_FLOOR_TOP:NCMM_WORLD_FLOOR_BOTTOM))!=0;}
+            }
+            return self.provider(world,self.data);
+        }
+    } observer;
+    observer.provider=graphics_view.world_render;observer.data=graphics_view.user_data;
+    observer.ox=original_position.x();observer.oy=original_position.y();
+    struct facade_scope {facade_observer &v;~facade_scope(){graphics_view.world_render=v.provider;graphics_view.user_data=v.data;}} restore_facade{observer};
+    graphics_view.world_render=facade_observer::render;graphics_view.user_data=&observer;
+    for(const char *mode:{"cpu","gpu"}){
+        get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);
+        require(SDL_SetRenderTarget(renderer,guard.canvas),"facade_render_target_failed");
+        require(graphics_draw(0,0,1768,1084),"facade_normal_vision_render_failed");
+
+        if(std::string(mode)=="gpu")require(graphics_gpu_frame,"facade_regression_gpu_fallback");
+        const std::string name="first-person-facade-normal-vision-"+std::string(mode)+".bmp";
+        require(SDL_SetRenderTarget(renderer,guard.canvas),"facade_capture_target_failed");
+        auto *image=SDL_RenderReadPixels(renderer,nullptr);require(image,"facade_capture_failed");
+        const bool saved=SDL_SaveBMP(image,(game_root()/"ncmm"/name).string().c_str());SDL_DestroySurface(image);
+        require(saved,"facade_capture_write_failed");
+        std::ofstream diagnostic(game_root()/"ncmm"/("first-person-facade-normal-vision-"+std::string(mode)+".json"));JsonOut facts(diagnostic);
+        facts.start_object();facts.member("walls",observer.walls);facts.member("slabs_connected",observer.slabs);facts.member("cells");facts.start_array();
+        for(int z=0;z<2;++z)for(int x=-4;x<=4;++x){const auto p=at(x,-18,z),outside=at(x,-17,z);
+            facts.start_object();facts.member("x",x);facts.member("z",z);facts.member("native_light",here.ambient_light_at(p));facts.member("face_light",here.ambient_light_at(outside));
+            facts.member("native_in_range",graphics_world_in_visual_range(p));facts.member("native_seen",you.sees(here,p));facts.member("published",observer.published[size_t(z*9+x+4)]);facts.end_object();}
+        facts.end_array();facts.end_object();diagnostic.close();
+        require(observer.walls==18&&observer.slabs,"facade_normal_vision_disconnected_building");
+    }
+    report.member("facade_regression");report.start_object();report.member("normal_vision",true);
+    report.member("connected_front_wall_cells",observer.walls);report.member("slabs_connected",observer.slabs);report.end_object();
+    if(had_nightvision)you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));you.recalc_sight_limits();get_weather().weather_id=saved_weather;
+    report.member("success",true);report.end_object();stream.close();require(bool(stream),"movement_report_write_failed");
+
     you.setpos(here,here.get_bub(original_position),false);you.set_moves(original_moves);progress("movement_complete");
     get_options().get_option("TILES").setValue(original_tileset);tilecontext->load_tileset(original_tileset,false,true);
 }

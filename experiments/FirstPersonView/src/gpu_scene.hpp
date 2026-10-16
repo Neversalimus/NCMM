@@ -8,27 +8,11 @@ using vec=hybrid::vec;
 // A validated sparse snapshot has a bounded dense address window. Build its
 // frame-local index once instead of 27 binary searches for every cell hash.
 class coordinate_index {
-    const ncmm_graphics_multilevel_scene_v1 *scene=nullptr;
-    int width=0,height=0;std::vector<int32_t> cells;
-    int slot(int64_t x,int64_t y,int64_t z)const{
-        if(!scene)return -1;const int64_t xx=x-scene->origin_x,yy=y-scene->origin_y;
-        if(xx<0||yy<0||xx>=width||yy>=height||z<scene->loaded_min_z||z>scene->loaded_max_z)return -1;
-        return int((size_t(z-scene->loaded_min_z)*height+size_t(yy))*width+size_t(xx));
-    }
+    ncmm_world::coordinates indexed;
 public:
-    explicit coordinate_index(const ncmm_graphics_multilevel_scene_v1 *source){
-        if(!source||source->cell_count>NCMM_WORLD_MAX_CELLS||(source->cell_count&&!source->coordinates))return;
-        const auto &base=source->appearance.base;const int64_t levels=int64_t(source->loaded_max_z)-source->loaded_min_z+1;
-        if(base.grid_width<1||base.grid_height<1||base.grid_width>NCMM_GRAPHICS_V2_MAX_GRID_SIDE||base.grid_height>NCMM_GRAPHICS_V2_MAX_GRID_SIDE||
-           source->loaded_min_z < -128||source->loaded_max_z>128||levels<1||levels>NCMM_WORLD_MAX_SLICES)return;
-        scene=source;width=base.grid_width;height=base.grid_height;cells.assign(size_t(levels)*width*height,-1);
-        for(uint32_t i=0;i<scene->cell_count;++i){const auto &c=scene->coordinates[i];const int at=slot(c.x,c.y,c.z);if(at>=0&&cells[size_t(at)]<0)cells[size_t(at)]=int32_t(i);}
-    }
-    int neighbor(uint32_t i,int dx,int dy,int dz=0)const{
-        if(!scene||i>=scene->cell_count)return -1;const auto &c=scene->coordinates[i];const int at=slot(int64_t(c.x)+dx,int64_t(c.y)+dy,int64_t(c.z)+dz);
-        return at<0?-1:cells[size_t(at)];
-    }
-    size_t bytes()const{return cells.capacity()*sizeof(int32_t);}
+    explicit coordinate_index(const ncmm_graphics_multilevel_scene_v1 *source):indexed(source,true){}
+    int neighbor(uint32_t i,int dx,int dy,int dz=0)const{return indexed.neighbor(i,dx,dy,dz);}
+    size_t bytes()const{return indexed.bytes();}
 };
 inline ncmm_gpu_matrix_v1 place(vec p,vec scale={1,1,1},float yaw=0){auto m=identity();float c=std::cos(yaw),s=std::sin(yaw);
     m.columns[0]=c*scale.x;m.columns[1]=s*scale.x;m.columns[4]=-s*scale.y;m.columns[5]=c*scale.y;m.columns[10]=scale.z;

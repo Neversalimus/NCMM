@@ -451,13 +451,19 @@ class renderer {
     void box(vec origin,vec lo,vec hi,material m,float angle=0){
         bool capped=true;
         if(world_data&&m.cell>=0&&lo.x<=-.49f&&lo.y<=-.49f&&hi.x>=.49f&&hi.y>=.49f&&lo.z<=.001f&&std::abs(hi.z-world_data->level_height)<.001f){
-            const int above=neighbor(m.cell,0,0,1);if(above>=0&&(world_flags(above)&NCMM_WORLD_FLOOR)&&!(world_flags(above)&NCMM_WORLD_GLASS_FLOOR)){hi.z-=.08f;capped=false;}}
+            const int above=neighbor(m.cell,0,0,1);if(above>=0&&(world_flags(above)&NCMM_WORLD_FLOOR)&&!(world_flags(above)&NCMM_WORLD_GLASS_FLOOR))capped=false;}
+        const bool full_wall=world_data&&m.cell>=0&&s.details[m.cell].terrain_shape==NCMM_SHAPE_WALL&&angle==0&&
+            lo.x==-.5f&&lo.y==-.5f&&hi.x==.5f&&hi.y==.5f&&lo.z==0&&hi.z==world_data->level_height;
+        auto exposed=[&](int dx,int dy){if(!full_wall||!options.cull_geometry)return true;const int other=neighbor(m.cell,dx,dy);
+            return !visible(other)||s.details[other].terrain_shape!=NCMM_SHAPE_WALL||
+                (world_flags(other)&(NCMM_WORLD_UP|NCMM_WORLD_DOWN|NCMM_WORLD_RAMP))||
+                !(world_flags(other)&(NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_STRUCTURE_VISIBLE));};
         auto p=[&](float x,float y,float z){return rotate({x,y,z},origin,angle);};
         float c=std::cos(angle),sn=std::sin(angle);
-        solid_quad(p(lo.x,lo.y,lo.z),p(hi.x,lo.y,lo.z),p(hi.x,lo.y,hi.z),p(lo.x,lo.y,hi.z),m,{sn,-c,0});
-        solid_quad(p(hi.x,hi.y,lo.z),p(lo.x,hi.y,lo.z),p(lo.x,hi.y,hi.z),p(hi.x,hi.y,hi.z),m,{-sn,c,0});
-        solid_quad(p(lo.x,hi.y,lo.z),p(lo.x,lo.y,lo.z),p(lo.x,lo.y,hi.z),p(lo.x,hi.y,hi.z),m,{-c,-sn,0});
-        solid_quad(p(hi.x,lo.y,lo.z),p(hi.x,hi.y,lo.z),p(hi.x,hi.y,hi.z),p(hi.x,lo.y,hi.z),m,{c,sn,0});
+        if(exposed(0,-1))solid_quad(p(lo.x,lo.y,lo.z),p(hi.x,lo.y,lo.z),p(hi.x,lo.y,hi.z),p(lo.x,lo.y,hi.z),m,{sn,-c,0});
+        if(exposed(0,1))solid_quad(p(hi.x,hi.y,lo.z),p(lo.x,hi.y,lo.z),p(lo.x,hi.y,hi.z),p(hi.x,hi.y,hi.z),m,{-sn,c,0});
+        if(exposed(-1,0))solid_quad(p(lo.x,hi.y,lo.z),p(lo.x,lo.y,lo.z),p(lo.x,lo.y,hi.z),p(lo.x,hi.y,hi.z),m,{-c,-sn,0});
+        if(exposed(1,0))solid_quad(p(hi.x,lo.y,lo.z),p(hi.x,hi.y,lo.z),p(hi.x,hi.y,hi.z),p(hi.x,lo.y,hi.z),m,{c,sn,0});
         if(capped)solid_quad(p(lo.x,lo.y,hi.z),p(hi.x,lo.y,hi.z),p(hi.x,hi.y,hi.z),p(lo.x,hi.y,hi.z),m,{0,0,1});
         solid_quad(p(lo.x,hi.y,lo.z),p(hi.x,hi.y,lo.z),p(hi.x,lo.y,lo.z),p(lo.x,lo.y,lo.z),m,{0,0,-1});
     }
@@ -605,26 +611,22 @@ class renderer {
         material m=mat(i,layer,{.43f,.40f,.35f});material trim{nullptr,{.35f,.32f,.28f},1,false,false,false,i};
         trim.finish=surface::wood;
         if(ncmm_graphics_shapes::contains(base.cells[i].terrain,"metal")||ncmm_graphics_shapes::contains(base.cells[i].terrain,"steel"))trim.finish=surface::metal;
-        if(shape==NCMM_SHAPE_WALL){
-            // Transparent art margins never punch holes through solid geometry.
-            m.opaque_texture=true;m.color=m.texture?m.texture->average:m.color;
-            const char *id=layer==NCMM_GFX_FURNITURE?base.cells[i].furniture:base.cells[i].terrain;
-            using ncmm_graphics_shapes::contains;
-            // Top-down wall art supplies its palette, while continuous face
-            // materials avoid stretching its cap into a two-metre pillar.
-            if(contains(id,"brick")){m.finish=surface::brick;m.texture=nullptr;}
-            else if(!std::strcmp(id,"t_wall")||contains(id,"plaster")||contains(id,"concrete")){m.finish=surface::plaster;m.texture=nullptr;}
-            else if(contains(id,"wood")||contains(id,"log")){m.finish=surface::wood;m.texture=nullptr;}
-            box(center,{-.5f,-.5f,0},{.5f,.5f,2.5f},m);return;
-        }
+        if(shape==NCMM_SHAPE_WALL){auto wall=wall_material(i,layer);box(center,{-.5f,-.5f,0},{.5f,.5f,2.5f},wall);return;}
         if(shape==NCMM_SHAPE_DOOR_CLOSED||shape==NCMM_SHAPE_DOOR_OPEN||shape==NCMM_SHAPE_DOOR_FRAME){door_model(i,shape,layer);return;}
         if(shape==NCMM_SHAPE_WINDOW||shape==NCMM_SHAPE_WINDOW_BROKEN||shape==NCMM_SHAPE_WINDOW_COVERED){++f.vertical_windows;
-            box(center,{-.5f,-.13f,0},{.5f,.13f,.73f},trim,angle);box(center,{-.5f,-.10f,.73f},{-.43f,.10f,2.35f},trim,angle);box(center,{.43f,-.10f,.73f},{.5f,.10f,2.35f},trim,angle);
-            box(center,{-.5f,-.1f,2.27f},{.5f,.1f,2.5f},trim,angle);box(center,{-.02f,-.075f,.73f},{.02f,.075f,2.27f},trim,angle);
-            if(shape==NCMM_SHAPE_WINDOW){material glass{nullptr,{.48f,.70f,.83f},.20f,false,false,false,i};plane(center,angle,.78f,2.24f,glass,.84f);
+            const float depth=world_data&&layer==NCMM_GFX_TERRAIN?.5f:.13f;
+            material shell=facade_surround(i,layer);
+            box(center,{-.5f,-depth,0},{.5f,depth,.73f},shell,angle);
+            box(center,{-.5f,-depth,.73f},{-.43f,depth,2.27f},shell,angle);
+            box(center,{.43f,-depth,.73f},{.5f,depth,2.27f},shell,angle);
+            box(center,{-.5f,-depth,2.27f},{.5f,depth,2.5f},shell,angle);
+            for(float x:{-.43f,.43f})box(center,{x-.018f,-.1f,.73f},{x+.018f,.1f,2.27f},trim,angle);
+            box(center,{-.44f,-.11f,.70f},{.44f,.11f,.76f},trim,angle);
+            box(center,{-.02f,-.075f,.73f},{.02f,.075f,2.27f},trim,angle);
+            if(shape==NCMM_SHAPE_WINDOW){material glass{nullptr,{.48f,.70f,.83f},.20f,false,false,false,i};plane(center,angle,.73f,2.27f,glass,.86f);
                 material highlight{nullptr,{.81f,.92f,1},.3f,false,false,false,i};plane(center+vec{0,0,.02f},angle,1.30f,1.34f,highlight,.84f);}
             else if(shape==NCMM_SHAPE_WINDOW_BROKEN){material shard{nullptr,{.63f,.75f,.80f},.34f,false,false,false,i};plane(rotate({-.28f,0,0},center,angle),angle,.74f,.90f,shard,.12f);}
-            else{material cover{nullptr,m.texture?m.texture->average:vec{.38f,.31f,.22f},1,false,false,false,i};plane(center,angle,.76f,2.25f,cover,.86f);}return;}
+            else{material cover{nullptr,m.texture?m.texture->average:vec{.38f,.31f,.22f},1,false,false,false,i};plane(center,angle,.73f,2.27f,cover,.86f);}return;}
         if(shape==NCMM_SHAPE_POST){float h=ncmm_graphics_shapes::contains(base.cells[i].terrain,"fence")?1.85f:2.5f;box(center,{-.045f,-.045f,0},{.045f,.045f,h},trim);return;}
         if(shape==NCMM_SHAPE_SIGN){box(center,{-.035f,-.035f,0},{.035f,.035f,1.65f},trim);m.cutout=true;billboard(center+vec{0,0,1.25f},.65f,.65f,m);return;}
         if(shape==NCMM_SHAPE_FENCE||shape==NCMM_SHAPE_GATE_OPEN){++f.vertical_fences;material metal{nullptr,{.43f,.47f,.49f},1,false,false,false,i};
@@ -642,7 +644,7 @@ class renderer {
             }
             return;}
         if(shape==NCMM_SHAPE_TREE||shape==NCMM_SHAPE_SHRUB||shape==NCMM_SHAPE_PLANT){++f.plants;m.cutout=true;
-            if(shape==NCMM_SHAPE_TREE){material bark{nullptr,{.25f,.18f,.11f},1,false,false,false,i};box(center,{-.10f,-.10f,0},{.10f,.10f,1.35f},bark);center.z=.75f;billboard(center,2.0f,2.45f,m);}
+            if(shape==NCMM_SHAPE_TREE){material bark{nullptr,{.25f,.18f,.11f},1,false,false,false,i};box(center,{-.10f,-.10f,0},{.10f,.10f,1.35f},bark);center.z+=.75f;billboard(center,2.0f,2.45f,m);}
             else billboard(center,shape==NCMM_SHAPE_SHRUB?1.1f:.8f,shape==NCMM_SHAPE_SHRUB?1.1f:.72f,m);
             return;}
         if(shape==NCMM_SHAPE_ROCK){
@@ -1099,7 +1101,7 @@ class renderer {
         face(point(0,float(img->data.height)),point(float(img->data.width),float(img->data.height)),point(float(img->data.width),0),point(0,0),item);
     }
 public:
-    renderer(const ncmm_graphics_scene_v2 &scene,float y,float p,sprite_provider source,frame &output,animation::pose animation_pose={},const presentation_data *data=nullptr,render_options settings={},creature::presentation *entities=nullptr,const ncmm_graphics_multilevel_scene_v1 *world=nullptr):s(scene),base(scene.base),provider(std::move(source)),f(output),yaw(y),pitch(p),cy(std::cos(y)),sy(std::sin(y)),cp(std::cos(p)),sp(std::sin(p)),projection(1),eye{base.camera_x,base.camera_y,1.55f},pose(animation_pose),options(settings),metadata(data),creature_data(entities),world_data(world),world_coordinates(world){if(metadata&&metadata->view.eye_height>.1f)eye.z=metadata->view.eye_height;if(world){eye.x+=world->camera_dx;eye.y+=world->camera_dy;eye.z+=world->camera_dz;}}
+    renderer(const ncmm_graphics_scene_v2 &scene,float y,float p,sprite_provider source,frame &output,animation::pose animation_pose={},const presentation_data *data=nullptr,render_options settings={},creature::presentation *entities=nullptr,const ncmm_graphics_multilevel_scene_v1 *world=nullptr):s(scene),base(scene.base),provider(std::move(source)),f(output),yaw(y),pitch(p),cy(std::cos(y)),sy(std::sin(y)),cp(std::cos(p)),sp(std::sin(p)),projection(1),eye{base.camera_x,base.camera_y,1.55f},pose(animation_pose),options(settings),metadata(data),creature_data(entities),world_data(world),world_coordinates(world,true){if(metadata&&metadata->view.eye_height>.1f)eye.z=metadata->view.eye_height;if(world){eye.x+=world->camera_dx;eye.y+=world->camera_dy;eye.z+=world->camera_dz;}}
     void collect(geometry_sink &sink,int width,int height){
         gpu_sink=&sink;f.width=width;f.height=height;projection=width/(2*std::tan(70*pi/360));
         sky_palette();shadows.assign(base.cell_count,1);if(sink.any_dirty()){vehicles_build();world();}sink.world_complete();

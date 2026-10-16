@@ -155,7 +155,11 @@ public static class NCMMBenchmarkWindow {
 if($exitCode -ne 0){
     $reason='native result unavailable'
     $nativeResult=Join-Path $evidence 'first-person-smoke.json'
-    if(Test-Path $nativeResult){$reason=(Get-Content $nativeResult -Raw | ConvertFrom-Json).reason}
+    if(Test-Path $nativeResult){
+        $nativeText=Get-Content $nativeResult -Raw
+        try {$reason=($nativeText | ConvertFrom-Json).reason}
+        catch {$match=[regex]::Match($nativeText,'"reason"\s*:\s*"([^"\r\n]*)"');if($match.Success){$reason=$match.Groups[1].Value}}
+    }
     throw "Native audit failed ($exitCode): $reason. Evidence: $evidence"
 }
 if($MovementBenchmark){

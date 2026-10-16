@@ -1,58 +1,36 @@
-# First Person View 0.12.4 — camera and movement performance
+# First Person View 0.12.5 — facade continuity
 
-The 0.12.4 TEST packages passed pinned 1040/1807 native integration and archive
-verification. See [qualification and measured limits](STABILIZATION.md#0124-camera-and-movement-performance-follow-up).
-Exact 1040 installer movement measurements on RTX 4090 are recorded for clear
-weather and a native rain fixture. Ordinary manual play and 1807 hardware
-performance remain unqualified.
+Candidate qualification is in progress. The historical 0.12.4 hardware numbers
+remain in [STABILIZATION.md](STABILIZATION.md); they are not 0.12.5 measurements.
 
-Auto selects hardware GPU acceleration and uses CPU when SDL exposes a software
-adapter. Explicit GPU mode remains available for diagnostics.
+Exterior walls retain the light of physically visible, open neighbouring faces.
+A shaded wall under an overhang no longer has to pass an interior-cell light
+test to appear beside its illuminated roof. This changes coarse architecture
+only; creatures, items and room contents still require native perception.
 
-Native sight-range results are reused within each draw, and horizontal rays use
-a same-storey supercover path. Candidate enumeration skips storeys outside both
-existing native body/lower-slab range conditions. No sight limit is reduced.
-Derived geometry and roof-column caches preserve their absolute-coordinate
-overlap when walking, while explicit native geometry revisions invalidate them.
-A full-window opaque-slab proof skips storeys entirely behind a sealed floor
-or ceiling; one stair opening, glass floor or missing slab defeats the proof.
-GPU geometry signatures use one bounded frame-local XYZ index for neighbour
-lookups, including sparse empty cells and all loaded storeys.
-Repeated terrain/furniture definition classification is memoized per draw. Field
-opacity and vehicle facts are still sampled separately for every source cell.
-The movement runner now measures two full camera rotations and 12 steps for
-street, multi-storey horde and dense four-storey city blocks at both viewports.
+Covered window panels meet the complete frame opening. Closed door leaves meet
+the floor, jambs and lintel. Terrain door/window surrounds have full wall depth
+and use the neighbouring facade finish, including brick, with recessed frames.
+Wall sides meet the physical storey boundary while the actual slab owns its cap.
+A visible architectural cell retains its real supporting slab. Open shafts,
+stairs and genuinely missing floors do not receive invented support surfaces.
+Upper-storey tree art retains its world Z coordinate.
 
-Creatures use the complete original tileset artwork by default, including UDP
-and Monster Art Pack silhouettes, colours and proportions. NCMM module settings
-retain the experimental reconstructed volume option. Artwork is copied once per
-appearance; an owned copy survives death presentation and resets with the world
-or tileset. No new creature artwork is substituted.
+Shared opaque wall faces are omitted only when both complete neighbouring walls
+are present in the submitted snapshot. Stairs, ramps and sparse missing cells
+retain their exposed faces. Frame-local indexed XYZ lookup replaces repeated
+binary neighbour searches in terrain collection, lighting and atmospheric work.
+Storage stays bounded by the validated source window; no index survives a draw.
 
-Facade visibility tests the actual wall faces and height, including an upper
-wall partly obscured by an overhang. Upper brick facades retain their brick
-finish. Interpolated walking reuses visibility
-at the authoritative avatar position; stairs retain the displayed camera height.
-Derived structural flags are memoized. Roof columns are resolved on demand only
-as far as their first roof; opaque slabs trace only their exposed surface.
-Cells outside native visual range are rejected before ray tracing.
-GPU geometry completes a changed snapshot without a 512-cell warmup/CPU detour.
-GPU balanced/high caps are 1920×1080 / 2560×1440; CPU fallback uses
-960×600 / 1280×800 to keep input responsive.
+Auto selects hardware GPU acceleration and uses CPU for software adapters.
+Complete original tileset creature artwork remains the default; reconstructed
+volumes stay an explicit module setting.
 
-`Run-FirstPersonBenchmark.ps1 -GameRoot ... -OutputRoot ... -MovementBenchmark`
-measures native steps, cold/warm rotations and easing in all three scenes at
-640×480 and 1768×1084. Add `-TilesetRoot ...` for actual UDP Hybrid v3.
-`-FocusedGpuBenchmark` retains the separate 96-frame smoke/one-creature profile.
-Candidate verification and measured limitations are recorded in STABILIZATION.md.
-
-Loaded Z-levels, floors, ceilings, stairs and shafts share the live native world.
-Walking/stair interpolation starts after successful presentation and preserves
-native turn costs, collisions and visibility.
-
-See [STABILIZATION.md](STABILIZATION.md) for qualification, timings and open manual
-checks. Hardware measurements use controlled routes; ordinary manual gameplay
-and a prolonged manual session remain open.
+The isolated runner retains 12 movement/rotation records at 640×480 and
+1768×1084. It also captures a roofed building with a fenced roof and verifies
+all 18 front-wall cells with ordinary vision, in both CPU and GPU modes.
+This specifically avoids the DEBUG_NIGHTVISION prerequisite of older multi-Z
+fixtures. See the stabilization report for qualification, timings and limits.
 
 ## Creature Appearance Reconstruction 0.11
 

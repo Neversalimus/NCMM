@@ -80,6 +80,8 @@ int main(){try{
     check(cache.get(1000001,-1000000,0,3,[&]{++reads;return 999u;})==999&&cache.topology_revision==topology);
     check(cache.get(1000001,-1000000,0,4,[&]{++reads;return 998u;})==998&&cache.topology_revision==topology+1);
     check(cache.get(1000001,-1000000,-1,1,[&]{throw std::runtime_error("other floor invalidated");return 0u;})!=999);
+    int face_mask_reads=0;check(cache.visibility(1000001,-1000000,0,77,[&]{++face_mask_reads;return uint16_t(0x3ff);})==0x3ff);
+    check(cache.visibility(1000001,-1000000,0,77,[&]{++face_mask_reads;return uint16_t(0);})==0x3ff&&face_mask_reads==1);
     int rays=0;check(cache.visibility(1000001,-1000000,0,1,[&]{++rays;return uint8_t(7);})==7);
     check(cache.visibility(1000001,-1000000,0,1,[&]{++rays;return uint8_t(0);})==7&&rays==1);
     check(cache.visibility(1000001,-1000000,0,2,[&]{++rays;return uint8_t(0);})==0&&rays==2);

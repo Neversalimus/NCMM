@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <limits>
 #include <tuple>
+#include <vector>
+#include <climits>
 
 namespace ncmm_world {
 struct point {float x=0,y=0,z=0;};
@@ -84,12 +86,28 @@ inline bool valid(const ncmm_graphics_multilevel_scene_v1 &s){
 }
 class coordinates {
     const ncmm_graphics_multilevel_scene_v1 *scene=nullptr;
+    std::vector<int32_t> dense;
+    int width=0,height=0;
+    int slot(int64_t x,int64_t y,int64_t z)const{
+        if(!scene||x<0||y<0||x>=width||y>=height||z<scene->loaded_min_z||z>scene->loaded_max_z)return -1;
+        return int((size_t(z-scene->loaded_min_z)*height+size_t(y))*width+size_t(x));
+    }
 public:
-    explicit coordinates(const ncmm_graphics_multilevel_scene_v1 *s=nullptr):scene(s){}
+    explicit coordinates(const ncmm_graphics_multilevel_scene_v1 *s=nullptr,bool indexed=false):scene(s){
+        if(!indexed||!s)return;
+        if(s->cell_count>NCMM_WORLD_MAX_CELLS||(s->cell_count&&!s->coordinates)){scene=nullptr;return;}
+        const auto &b=s->appearance.base;const int64_t levels=int64_t(s->loaded_max_z)-s->loaded_min_z+1;
+        if(b.grid_width<1||b.grid_height<1||b.grid_width>NCMM_GRAPHICS_V2_MAX_GRID_SIDE||b.grid_height>NCMM_GRAPHICS_V2_MAX_GRID_SIDE||
+           s->loaded_min_z < -128||s->loaded_max_z>128||levels<1||levels>NCMM_WORLD_MAX_SLICES){scene=nullptr;return;}
+        width=b.grid_width;height=b.grid_height;dense.assign(size_t(levels)*width*height,-1);
+        for(uint32_t i=0;i<s->cell_count;++i){const auto &c=s->coordinates[i];const int at=slot(int64_t(c.x)-s->origin_x,int64_t(c.y)-s->origin_y,c.z);
+            if(at>=0&&dense[size_t(at)]<0)dense[size_t(at)]=int32_t(i);}
+    }
     int find(int x,int y,int z)const{
-        if(!scene)return -1;
+        if(!scene||(scene->cell_count&&!scene->coordinates))return -1;
         const int64_t ax=int64_t(scene->origin_x)+x,ay=int64_t(scene->origin_y)+y;
         if(ax<INT32_MIN||ax>INT32_MAX||ay<INT32_MIN||ay>INT32_MAX)return -1;
+        if(!dense.empty()){const int at=slot(x,y,z);return at<0?-1:dense[size_t(at)];}
         const auto wanted=std::make_tuple(z,int32_t(ay),int32_t(ax));
         uint32_t lo=0,hi=scene->cell_count;
         while(lo<hi){uint32_t mid=lo+(hi-lo)/2;if(order(scene->coordinates[mid])<wanted)lo=mid+1;else hi=mid;}
@@ -102,8 +120,12 @@ public:
     }
     int z(uint32_t cell)const{return scene->coordinates[cell].z;}
     int neighbor(uint32_t cell,int dx,int dy,int dz=0)const{
-        const auto &p=scene->coordinates[cell];return find(int(int64_t(p.x)-scene->origin_x)+dx,int(int64_t(p.y)-scene->origin_y)+dy,p.z+dz);
+        if(!scene||cell>=scene->cell_count||!scene->coordinates)return -1;
+        const auto &p=scene->coordinates[cell];const int64_t x=int64_t(p.x)-scene->origin_x+dx,y=int64_t(p.y)-scene->origin_y+dy,z=int64_t(p.z)+dz;
+        if(x<INT_MIN||x>INT_MAX||y<INT_MIN||y>INT_MAX||z<INT_MIN||z>INT_MAX)return -1;
+        return find(int(x),int(y),int(z));
     }
+    size_t bytes()const{return dense.capacity()*sizeof(int32_t);}
 };
 inline bool floor_blocks(uint32_t flags,float x,float y){
     if(flags&NCMM_WORLD_UNKNOWN)return true;
@@ -125,6 +147,14 @@ inline slab_sides slab_trace_sides(uint32_t flags,float eye_z,float level_z){
         if(eye_z<level_z-.0801f)return {false,true};
     }
     return {};
+}
+// A visible architectural cell owns its actual supporting slab as well.
+// Point samples of its top/bottom may be hidden by the cell's own door/window
+// volume; dropping that slab leaves a sky crack in a recessed facade.
+inline uint32_t facade_slab_permissions(uint32_t flags,float eye_z,float level_z){
+    if(!(flags&NCMM_WORLD_FLOOR))return 0;
+    const auto sides=slab_trace_sides(flags,eye_z,level_z);
+    return (sides.top?uint32_t(NCMM_WORLD_FLOOR_TOP):0u)|(sides.bottom?uint32_t(NCMM_WORLD_FLOOR_BOTTOM):0u);
 }
 template<class Read> uint32_t roof_column(int low,int high,Read read){
     if(low < -128||high>128||low>high||int64_t(high)-low>=32)return UINT32_MAX;
@@ -208,19 +238,30 @@ template<bool horizontal_fast=true,class Query> bool visible(point eye,point tar
     }
     return false;
 }
-// A visible slice of a facade need not include the tile's centre. Test the
-// actual near faces at their top and bottom as well, without granting body or
-// room-content visibility through a floor. This closes floating roof ribbons
-// above a foreground wall while retaining real windows and broken floors.
-template<class Query> bool facade_visible(point eye,voxel cell,Query query){
-    const float z=cell.z*NCMM_WORLD_LEVEL_HEIGHT;
-    const std::array<float,3> heights{z+.025f,z+NCMM_WORLD_LEVEL_HEIGHT-.025f,z+NCMM_WORLD_LEVEL_HEIGHT*.5f};
-    for(float height:heights){
-        if(eye.x<cell.x||eye.x>cell.x+1){const float x=eye.x<cell.x?cell.x+.001f:cell.x+.999f;
-            for(float y:{cell.y+.001f,cell.y+.5f,cell.y+.999f})if(visible(eye,{x,y,height},query))return true;}
-        if(eye.y<cell.y||eye.y>cell.y+1){const float y=eye.y<cell.y?cell.y+.001f:cell.y+.999f;
-            for(float x:{cell.x+.001f,cell.x+.5f,cell.x+.999f})if(visible(eye,{x,y,height},query))return true;}
-    }
-    return false;
+// Exposed faces are traced separately so their adjacent light may illuminate
+// an opaque facade without revealing bodies or an unobserved room's light.
+inline voxel facade_neighbor(voxel cell,unsigned side){
+    if(side==0)--cell.x;else if(side==1)++cell.x;else if(side==2)--cell.y;else ++cell.y;
+    return cell;
 }
+template<class Query> uint8_t facade_faces(point eye,voxel cell,Query query){
+    const float z=cell.z*NCMM_WORLD_LEVEL_HEIGHT;
+    const std::array<float,4> heights{std::clamp(eye.z,z+.025f,z+NCMM_WORLD_LEVEL_HEIGHT-.025f),
+        z+.025f,z+NCMM_WORLD_LEVEL_HEIGHT-.025f,z+NCMM_WORLD_LEVEL_HEIGHT*.5f};
+    uint8_t result=0;
+    for(unsigned side=0;side<4;++side){
+        const bool facing=side==0?eye.x<cell.x:side==1?eye.x>cell.x+1:side==2?eye.y<cell.y:eye.y>cell.y+1;
+        if(!facing||query(facade_neighbor(cell,side))&(NCMM_WORLD_OPAQUE|NCMM_WORLD_UNKNOWN))continue;
+        bool hit=false;
+        for(float height:heights){for(float along:{.001f,.5f,.999f}){
+            const point target=side<2?point{cell.x+(side==0?.001f:.999f),cell.y+along,height}:
+                point{cell.x+along,cell.y+(side==2?.001f:.999f),height};
+            if(visible(eye,target,query)){hit=true;break;}
+        }if(hit)break;}
+        if(hit)result|=uint8_t(1u<<side);
+    }
+    return result;
+}
+template<class Query> bool facade_visible(point eye,voxel cell,Query query){return facade_faces(eye,cell,query)!=0;}
+
 } // namespace ncmm_world
