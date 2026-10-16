@@ -69,9 +69,56 @@ general player-FPS guarantee.
 
 Explicit GPU cases identify Microsoft Basic Render Driver, a software adapter.
 Their full-size warm-rotation medians remain 91–314 ms across the scenes/pins.
-Auto selects CPU on that adapter. These measurements do not establish discrete-GPU
-performance. Final-installer hardware rendering and ordinary manual gameplay
-remain unqualified: local execution became unavailable before that measurement.
+Auto selects CPU on that adapter. These CI measurements do not establish discrete-GPU
+performance. Separate exact-installer 1040 hardware measurements follow below;
+ordinary manual gameplay and 1807 hardware performance remain unqualified.
+
+### Exact 1040 installer on RTX 4090 (2026-10-16)
+
+The exact delivered 1040 Host and DLL completed the packaged movement runner on
+NVIDIA GeForce RTX 4090, Direct3D12, actual UDP Hybrid v3, in clear weather and a
+native rain-descriptor fixture. All 32 payload hashes and Setup were verified
+before extraction; the tested clone's Host/DLL hashes match the delivery hashes
+below. [Raw samples and provenance](qualification/0.12.4-rtx4090-movement.json)
+include the initial run and the unchanged-installer retry.
+
+Each run contains all 12 scene/viewport/CPU-or-GPU records. Each record has 48
+cold and 48 warm continuous-rotation samples, 12 real native steps and the
+following easing frames. All 1020 requested GPU frames in the successful clear run and
+955 in rain used the hardware GPU, including the first changed-world frames.
+The two runs use the same 107 UDP asset files, with matching asset manifests.
+
+Times below are CPU wall milliseconds through SDL presentation at a requested
+1768×1084 viewport, using the existing renderer resolution cap. Cold/warm and
+first/easing describe separate operations, not additive stages. Each first-ready
+row has only 12 samples. These controlled routes advance no ordinary AI turns
+and do not establish player FPS, manual driving or prolonged-session comfort.
+1807 hardware performance and ordinary manual gameplay remain unqualified.
+
+| Weather | Scene | Cold median | Warm median | Warm p95 | First median | First p95 | Easing median |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| clear | street | 15.67 | 14.06 | 15.19 | 95.13 | 134.61 | 17.63 |
+| clear | multi_level_horde | 14.46 | 13.51 | 16.81 | 97.32 | 116.90 | 15.10 |
+| clear | city_blocks | 11.40 | 9.27 | 10.15 | 89.03 | 118.60 | 12.23 |
+| rain fixture | street | 40.34 | 37.08 | 41.36 | 134.06 | 170.71 | 39.06 |
+| rain fixture | multi_level_horde | 32.27 | 29.81 | 39.99 | 125.21 | 146.08 | 22.90 |
+| rain fixture | city_blocks | 18.18 | 14.77 | 17.31 | 123.93 | 147.92 | 17.07 |
+
+Rain uses the engine's native rain descriptor under the sunny ID forced by the
+smoke fixture, in an owned game-data clone. The fixture changes no executable or
+module bytes; its source/fixture SHA256 values are retained with the samples.
+This exercises real rain rendering, not the normal weather-selection simulation.
+Clear/rain captures were inspected: upper brick facades remain continuous and
+creatures retain the complete native tileset artwork; the rain capture contains
+precipitation and weather haze.
+
+The initial clear run completed all 12 performance records, then failed the
+final automatic F6 dispatch. One repeat with identical binaries and the rain
+run passed the entire runner, including F6 restoration. The initial failure's
+cause remains unconfirmed; this is not evidence of a production hang fix.
+The failed smoke result also contains a locale-dependent decimal comma, causing
+a secondary PowerShell parse error; the movement JSON is valid and its exported
+percentiles were verified from the raw samples.
 
 ### Verified delivery
 
