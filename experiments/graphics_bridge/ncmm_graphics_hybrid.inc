@@ -303,6 +303,13 @@ ncmm_graphics_shapes::traits graphics_traits( const map_data_common_t &t, bool o
 // The four bits also retain corners and T junctions which a single axis loses.
 uint32_t graphics_structure_connections(const tripoint_bub_ms &p,uint32_t shape,uint32_t &orientation)
 {
+    switch(shape){
+        case NCMM_SHAPE_DOOR_CLOSED:case NCMM_SHAPE_DOOR_OPEN:case NCMM_SHAPE_DOOR_FRAME:
+        case NCMM_SHAPE_WINDOW:case NCMM_SHAPE_WINDOW_BROKEN:case NCMM_SHAPE_WINDOW_COVERED:
+        case NCMM_SHAPE_FENCE:case NCMM_SHAPE_GATE_OPEN:case NCMM_SHAPE_GLASS_WALL:
+        case NCMM_SHAPE_GUARDRAIL:case NCMM_SHAPE_SCRAP_FENCE:case NCMM_SHAPE_RESIN_PORTAL:break;
+        default:return 0; // Floors, air, cubes and plants have no oriented joints.
+    }
     uint32_t connections=0;int horizontal=0,vertical=0;
     for(unsigned side=0;side<4;++side){
         const int dx=side==0?1:side==2?-1:0,dy=side==1?1:side==3?-1:0;
