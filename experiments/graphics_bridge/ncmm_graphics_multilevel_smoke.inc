@@ -147,11 +147,13 @@
     uint32_t floating_content_modes=0;
     if(observed.provider)for(const char *mode:{"cpu","gpu"}){
         make_scene("flying",3);get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);graphics_smoke_seconds=1000.5;
-        for(int z:{1,2})here.add_item_or_charges(tripoint_bub_ms(center.x(),center.y()-4,z),item(itype_id("rock"),calendar::turn));refresh();
+        for(int z:{1,2})here.add_item_or_charges(tripoint_bub_ms(center.x(),center.y()-4,z),item(itype_id("rock"),calendar::turn));
+        here.add_item_or_charges(tripoint_bub_ms(center.x()+1,center.y()-3,0),item(itype_id("rock"),calendar::turn));refresh();
         canvas=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,640,480);require(canvas!=nullptr,"multilevel_air_contents_canvas_failed");
         bool ready=false;for(int attempt=0;attempt<160;++attempt){render(point(640,480));present();ready=(std::string(mode)=="cpu"||graphics_gpu_frame)&&!graphics_creature_metrics.queued&&!graphics_creature_metrics.fallback;if(ready)break;SDL_Delay(2);}
         require(ready,"multilevel_air_contents_renderer_did_not_settle");
-        for(int z:{1,2})require(std::find(observed.rock_levels.begin(),observed.rock_levels.end(),z)!=observed.rock_levels.end(),"multilevel_floating_item_missing");
+        for(int z:{1,2})require(std::find(observed.rock_levels.begin(),observed.rock_levels.end(),z)==observed.rock_levels.end(),"multilevel_unsupported_air_item_published");
+        require(std::find(observed.rock_levels.begin(),observed.rock_levels.end(),0)!=observed.rock_levels.end(),"multilevel_supported_ground_item_missing");
         require(std::any_of(graphics_creature_snapshots.begin(),graphics_creature_snapshots.end(),[](const auto &s){return s.world_z==2&&!(s.flags&NCMM_CR_DEAD);}),"multilevel_flying_creature_not_observed");
         capture("first-person-world-air-items-after-"+std::string(mode)+".bmp",true);
         const auto monsters=get_creature_tracker().get_monsters_list();require(monsters.size()==1,"multilevel_flying_death_fixture_not_isolated");const auto bird=monsters.front();const auto bird_pos=bird->pos_bub();
