@@ -51,8 +51,9 @@ was not measured. CI adapter timings are recorded separately.
 
 The separate hardware action/combat/gallery audit passed its 60-second soak and
 native save/load in a short game path. Native compressed saves in the tested
-Windows setup failed with a generated 291-character memory-archive path in both
-0.12.5 and 0.12.6; the same save-only case passed at 229 characters. Installer
+Windows setup failed with generated memory-archive paths of 292 characters
+(0.12.5) and 291 characters (0.12.6); the same 0.12.6 save-only case passed
+at 229 characters. Installer
 long-path coverage is separate. [STABILIZATION.md](STABILIZATION.md) records the
 comparison, successful audit and remaining path limits.
 
