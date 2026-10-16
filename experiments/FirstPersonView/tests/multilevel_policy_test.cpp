@@ -61,6 +61,14 @@ int main(){
         for(uint32_t opening:{0u,uint32_t(NCMM_WORLD_DOWN),uint32_t(NCMM_WORLD_WATER),uint32_t(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR)})
             require(!full_opaque_slab(opening),"open or transparent cells cannot prove a sealed plane");
     }
+    {
+        traits branches{};branches.loaded=true;branches.partial_support=true;
+        const auto support=semantics(branches);
+        require(!(support&NCMM_WORLD_FLOOR)&&(support&NCMM_WORLD_OPEN_DOWN),"tree branches/lattice do not create full floating plates");
+        require(!full_opaque_slab(support),"partial natural/steel support cannot seal a vertical visibility plane");
+        require(!supported_item(NCMM_WORLD_OPEN_DOWN),"unsupported air cannot publish hovering inventory icons");
+        require(supported_item(NCMM_WORLD_FLOOR)&&supported_item(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR)&&supported_item(0,true),"real floors, glass and platforms retain inventory");
+    }
     require(source_window_fits(0,0,48),"ordinary world window fits");
     require(!source_window_fits(INT32_MAX-48,0,48),"east direction neighbour cannot overflow");
     require(source_window_fits(INT32_MAX-49,0,48),"last safe east window is accepted");

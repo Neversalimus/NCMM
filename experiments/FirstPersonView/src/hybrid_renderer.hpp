@@ -119,6 +119,31 @@ struct image {
         return alpha==0?0:alpha==255?result:pack(unpack(result)*(255.0f/alpha),alpha);
     }
 };
+// A small shared cutout keeps a rounded, irregular crown and a grounded trunk
+// without adding vertices to the distant forest. Its lifetime owns every pixel.
+inline const image &forest_impostor(){
+    struct storage {
+        std::array<uint32_t,96*128> pixels{};image sprite;
+        storage(){
+            for(int y=0;y<128;++y)for(int x=0;x<96;++x){
+                const float xx=(x-47.5f)/48.f,zz=(127-y)/127.f;
+                const float wobble=.025f*std::sin(x*1.73f+y*.61f)+.018f*std::sin(x*.37f-y*1.19f);
+                bool leaf=false;
+                for(const auto &b:std::array<std::array<float,4>,5>{{{-.30f,.58f,.37f,.25f},{.28f,.60f,.39f,.27f},{-.16f,.80f,.39f,.19f},{.17f,.82f,.36f,.18f},{0,.49f,.40f,.20f}}}){
+                    const float dx=(xx-b[0])/b[2],dz=(zz-b[1])/b[3];
+                    leaf|=dx*dx+dz*dz<1+wobble;
+                }
+                const bool trunk=zz<.55f&&std::abs(xx-.018f*std::sin(zz*17))<.027f;
+                if(leaf){const float grain=random(uint32_t(x*983+y*7219))*.11f;
+                    pixels[size_t(y)*96+x]=pack({.13f+grain*.36f,.23f+grain,.12f+grain*.27f});}
+                else if(trunk)pixels[size_t(y)*96+x]=0x443b2cff;
+            }
+            sprite.data={sizeof(sprite.data),96,128,96,pixels.data()};sprite.analyse();
+        }
+    };
+    static const storage value;return value.sprite;
+}
+
 struct vertex {vec p;float u=0,v=0;vec light{1,1,1};};
 enum class surface { none, stone, asphalt, earth, grass, wood, tile, paint, metal, rubber, cloth, skin, water, plaster, resin, brick, contact };
 inline surface ground_surface(const char *id){
@@ -647,20 +672,8 @@ class renderer {
             else{material cover{nullptr,m.texture?m.texture->average:vec{.38f,.31f,.22f},1,false,false,false,i};plane(center,angle,.73f,2.27f,cover,.86f);}return;}
         if(shape==NCMM_SHAPE_POST){float h=ncmm_graphics_shapes::contains(base.cells[i].terrain,"fence")?1.85f:2.5f;box(center,{-.045f,-.045f,0},{.045f,.045f,h},trim);return;}
         if(shape==NCMM_SHAPE_SIGN){box(center,{-.035f,-.035f,0},{.035f,.035f,1.65f},trim);m.cutout=true;billboard(center+vec{0,0,1.25f},.65f,.65f,m);return;}
-        if(shape==NCMM_SHAPE_FENCE||shape==NCMM_SHAPE_GATE_OPEN){++f.vertical_fences;material metal{nullptr,{.43f,.47f,.49f},1,false,false,false,i};
-            float a=angle+(shape==NCMM_SHAPE_GATE_OPEN?pi*.46f:0);box(center,{-.5f,-.025f,0},{-.465f,.025f,1.9f},metal,angle);box(center,{.465f,-.025f,0},{.5f,.025f,1.9f},metal,angle);
-            if(shape==NCMM_SHAPE_GATE_OPEN)center=rotate({-.48f,0,0},center,angle)+rotate({.48f,0,0},{},a);
-            box(center,{-.5f,-.017f,1.8f},{.5f,.017f,1.84f},metal,a);
-            // Thin diagonal strips produce an actual open chain-link pattern.
-            for(int slope:{-1,1})for(int wire=-4;wire<=14;++wire){
-                float intercept=wire*.18f,x0=-.48f,x1=.48f;
-                if(slope>0){x0=std::max(x0,.08f-intercept);x1=std::min(x1,1.8f-intercept);}
-                else{x0=std::max(x0,intercept-1.8f);x1=std::min(x1,intercept-.08f);}
-                if(x0>=x1)continue;
-                vec p0{x0,0,slope*x0+intercept},p1{x1,0,slope*x1+intercept},edge{-.004f*slope,0,.004f};
-                quad(rotate(p0-edge,center,a),rotate(p1-edge,center,a),rotate(p1+edge,center,a),rotate(p0+edge,center,a),metal,{std::sin(a),-std::cos(a),0});
-            }
-            return;}
+        if(shape==NCMM_SHAPE_FENCE||shape==NCMM_SHAPE_GATE_OPEN){fence_model(i,shape);return;}
+        if(shape==NCMM_SHAPE_TREE_CANOPY){++f.plants;m.cutout=true;billboard(center+vec{0,0,-.45f},2.8f,2.1f,m);return;}
         if(shape==NCMM_SHAPE_TREE||shape==NCMM_SHAPE_SHRUB||shape==NCMM_SHAPE_PLANT){++f.plants;m.cutout=true;
             if(shape==NCMM_SHAPE_TREE){material bark{nullptr,{.25f,.18f,.11f},1,false,false,false,i};box(center,{-.10f,-.10f,0},{.10f,.10f,1.35f},bark);center.z+=.75f;billboard(center,2.0f,2.45f,m);}
             else billboard(center,shape==NCMM_SHAPE_SHRUB?1.1f:.8f,shape==NCMM_SHAPE_SHRUB?1.1f:.72f,m);
@@ -942,18 +955,13 @@ class renderer {
             quad(at,at+vec{p.width,0,0},at+vec{p.width,p.depth,0},at+vec{0,p.depth,0},m);
             if(p.height<=0)continue;
             if(p.kind==NCMM_LOD_FOREST){
-                // Two six-sided crown impostors per known forest tile. Eight
-                // triangles keep the complete 31x31 forest below 3 MiB, leaving
-                // upload room for detailed geometry on the first frame.
-                // GPU pivots turn in the shader, so yaw never rebuilds this mesh.
-                for(int n=0;n<2;++n){const float height=p.height+(n?-.6f:.4f);
-                    const vec center{p.x+7+n*10.f,p.y+8+n*8.f,p.z};
-                    const vec right=gpu_sink?vec{5.5f,0,0}:vec{-sy*5.5f,cy*5.5f,0};
-                    material crown=m;if(gpu_sink){crown.gpu_billboard=true;crown.gpu_pivot=center;}
-                    const vec normal=gpu_sink?vec{0,-1,0}:vec{-cy,-sy,0};
-                    quad(center-right*.55f,center+right*.55f,center+right+vec{0,0,height*.64f},center-right+vec{0,0,height*.64f},crown,normal);
-                    crown.color=m.color*(n?.88f:1.f);
-                    quad(center-right+vec{0,0,height*.64f},center+right+vec{0,0,height*.64f},center+right*.4f+vec{0,0,height},center-right*.4f+vec{0,0,height},crown,normal);
+                // Four narrow tree silhouettes, eight triangles total. The
+                // shared alpha crown replaces the old giant solid diamonds.
+                for(int n=0;n<4;++n){
+                    const float height=p.height*(.83f+.09f*n);
+                    const vec center{p.x+4.f+(n%2)*14.f+(n/2)*1.7f,p.y+5.f+(n/2)*13.f+(n%2)*2.1f,p.z};
+                    material tree=m;tree.texture=&forest_impostor();tree.cutout=true;
+                    billboard(center,height*.79f,height,tree,true);
                 }
             }else if(p.kind==NCMM_LOD_BUILDING){
                 box(at,{3,3,0},{p.width-3,p.depth-3,p.height},m);
@@ -1005,7 +1013,14 @@ class renderer {
             if(world_data)world_transition(i);
             architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
             if(d.vehicle_features)vehicle(i);else if(c.furniture[0])architecture(i,d.furniture_shape,NCMM_GFX_FURNITURE);
-            if(c.item[0]&&!extra(i).item_liquid){auto m=mat(i,NCMM_GFX_ITEM,{.50f,.48f,.42f},true);billboard(cell_center(i,.025f),.25f,.25f,m);}
+            if(c.item[0]&&!extra(i).item_liquid){
+                // Ground inventory is a physical horizontal surface. A vertical
+                // camera-facing icon made roof loot float across the sky.
+                auto m=mat(i,NCMM_GFX_ITEM,{.50f,.48f,.42f},true);m.gpu_backface=true;
+                const vec p=cell_center(i,.018f);const float r=.17f;
+                if(gpu_sink||eye.z>=p.z)
+                    quad(p+vec{-r,-r,0},p+vec{r,-r,0},p+vec{r,r,0},p+vec{-r,r,0},m,{0,0,1});
+            }
             if(!creature_data&&c.creature[0]){auto m=mat(i,NCMM_GFX_CREATURE,{.38f,.43f,.28f},true);m.creature=true;
                 float h=1.70f,w=.82f;
                 if(d.terrain_flags&NCMM_CREATURE_TINY){h=.25f;w=.35f;}
@@ -1209,7 +1224,7 @@ inline bool valid_scene(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,co
     for(size_t i=0;i<b.cell_count;++i){const auto &d=s.details[i];const auto &c=b.cells[i];
         if((c.flags&NCMM_GFX_VISIBLE)&&(!terminated(c.terrain)||!terminated(c.furniture)||!terminated(c.item)||!terminated(c.creature)||!terminated(d.ground)||!terminated(d.field)))return false;
         for(float value:{d.light_r,d.light_g,d.light_b,d.emission,d.vehicle_x,d.vehicle_y,d.vehicle_yaw,d.vehicle_health})if(!std::isfinite(value))return false;
-        if(d.light_r<0||d.light_r>1||d.light_g<0||d.light_g>1||d.light_b<0||d.light_b>1||d.vehicle_health<0||d.vehicle_health>1||(d.terrain_flags&~63u)!=0||d.terrain_shape>=NCMM_SHAPE_COUNT||d.furniture_shape>=NCMM_SHAPE_COUNT||d.field_shape>=NCMM_SHAPE_COUNT||std::abs(d.vehicle_x)>2048||std::abs(d.vehicle_y)>2048||d.mount_x<-1000||d.mount_x>1000||d.mount_y<-1000||d.mount_y>1000)return false;}
+        if(d.light_r<0||d.light_r>1||d.light_g<0||d.light_g>1||d.light_b<0||d.light_b>1||d.vehicle_health<0||d.vehicle_health>1||(d.terrain_flags&~2047u)!=0||d.terrain_shape>=NCMM_SHAPE_COUNT||d.furniture_shape>=NCMM_SHAPE_COUNT||d.field_shape>=NCMM_SHAPE_COUNT||std::abs(d.vehicle_x)>2048||std::abs(d.vehicle_y)>2048||d.mount_x<-1000||d.mount_x>1000||d.mount_y<-1000||d.mount_y>1000)return false;}
     return true;
 }
 inline bool valid_presentation(const presentation_data &p,size_t count){

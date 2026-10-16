@@ -211,5 +211,31 @@ int main(){try{
         check(build_frame(open.world.appearance,0,0,{},horizon_image,400,260,{},nullptr,nullptr,&data,{},nullptr,&open.world),"near wall with distant world renders");
         check(horizon_image.depth[size_t(horizon_image.height/2)*horizon_image.width+horizon_image.width/2]<4,"near architecture correctly occludes the horizon");
     }
+    {
+        fixture scene(3);const int wire=scene.cell(6,1,0),tower=scene.cell(10,1,0),crown=scene.cell(15,1,1),loot=scene.cell(5,1,1);
+        scene.details[wire].terrain_shape=NCMM_SHAPE_FENCE;
+        scene.details[wire].terrain_flags=NCMM_SURFACE_CONNECTIONS|NCMM_SURFACE_CONNECT_E|NCMM_SURFACE_CONNECT_N;
+        scene.details[tower].terrain_shape=NCMM_SHAPE_LATTICE_TOWER;
+        scene.details[crown].terrain_shape=NCMM_SHAPE_TREE_CANOPY;
+        std::strcpy(scene.appearance[loot].item,"9mm_casing");
+        scene.positions[loot].flags|=NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP;
+        collector mesh;frame stats;renderer(scene.world.appearance,0,.1f,{},stats,{},nullptr,{},nullptr,&scene.world).collect(mesh,400,260);
+        bool east=false,north=false,canopy=false,inventory=false;float tower_area=0;
+        for(const auto &t:mesh.triangles){
+            if(t.m.cell==wire)for(const auto &v:t.v){east|=v.p.x>6.99f;north|=v.p.y<1.01f;}
+            if(t.m.cell==tower){tower_area+=std::abs(cross(t.v[1].p-t.v[0].p,t.v[2].p-t.v[0].p).y)*.5f;
+                for(const auto &v:t.v)check(v.p.x>10.05f&&v.p.x<10.95f,"tower is an open lattice inside its physical cell");}
+            if(t.m.cell==crown){canopy=true;check(t.m.cutout,"tree crown cannot emit an opaque concrete plate");}
+            if(t.m.cell==loot&&t.m.cutout){inventory=true;check(!t.m.gpu_billboard&&t.m.gpu_backface,"floor loot is a top-facing physical surface");
+                for(const auto &v:t.v)check(std::abs(v.p.z-(NCMM_WORLD_LEVEL_HEIGHT+.018f))<.0001f,"upper loot is anchored to its true supporting level");}
+        }
+        check(east&&north,"an L shaped chain-link corner reaches both shared cell boundaries");
+        check(tower_area>0&&tower_area<4,"lattice projected steel area is below the two solid box faces");
+        check(canopy&&inventory,"canopy and elevated supported loot regression meshes are exercised");
+        const auto &tree=forest_impostor();size_t leaves=0,clear=0;
+        for(int y=0;y<128;++y)for(int x=0;x<96;++x){const auto alpha=tree.data.rgba[y*96+x]&255;leaves+=alpha>0;clear+=alpha==0;}
+        check(leaves>1500&&clear>1500,"forest impostor has an irregular alpha silhouette rather than a solid polygon");
+        check(tree.data.rgba[127*96+48]&255,"distant tree trunk reaches its ground pivot");
+    }
     std::cout<<"Multi-level rendering: "<<checks<<" checks passed\n";return 0;
 }catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}}

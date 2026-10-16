@@ -291,9 +291,34 @@ ncmm_graphics_shapes::traits graphics_traits( const map_data_common_t &t, bool o
     out.wall = t.has_flag( "WALL" ); out.door = t.has_flag( "DOOR" ); out.window = t.has_flag( "WINDOW" );
     out.tree = t.has_flag( "TREE" ); out.shrub = t.has_flag( "SHRUB" ); out.flat = t.has_flag( "FLAT" );
     out.water = t.has_flag( "SWIMMABLE" ) || t.has_flag( "SHALLOW_WATER" );
-    out.transparent = t.transparent; out.impassable = t.movecost == 0; out.open = opened;
+    out.transparent = t.transparent; out.impassable = t.movecost == 0;
+    // A closed domestic window also has close=curtains. Only a passable
+    // window opening is open geometry; the curtain action is not a hole.
+    out.open = opened && (!out.window || t.movecost > 0);
     out.bridge = t.has_flag( "BRIDGE" );
     return out;
+}
+
+// Physical terrain adjacency is independent of sparse snapshot/FOV membership.
+// The four bits also retain corners and T junctions which a single axis loses.
+uint32_t graphics_structure_connections(const tripoint_bub_ms &p,uint32_t shape,uint32_t &orientation)
+{
+    uint32_t connections=0;int horizontal=0,vertical=0;
+    for(unsigned side=0;side<4;++side){
+        const int dx=side==0?1:side==2?-1:0,dy=side==1?1:side==3?-1:0;
+        const tripoint_bub_ms next(p.x()+dx,p.y()+dy,p.z());
+        if(!get_map().ncmm_graphics_loaded(next))continue;
+        const auto &ter=get_map().ter(next).obj();
+        const auto other=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
+        const bool connected=ncmm_graphics_shapes::fence_shape(shape)?
+            (ncmm_graphics_shapes::fence_shape(other)||other==NCMM_SHAPE_WALL):
+            ncmm_graphics_shapes::structural_surface(other);
+        if(!connected)continue;
+        connections|=NCMM_SURFACE_CONNECT_E<<side;
+        if(dx)++horizontal;else ++vertical;
+    }
+    orientation=vertical>horizontal?1u:0u;
+    return connections|NCMM_SURFACE_CONNECTIONS;
 }
 
 bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector<tripoint_bub_ms> &positions, int x, int y,
@@ -324,9 +349,8 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
                 d.terrain_shape=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
                 if(d.terrain_shape==NCMM_SHAPE_WINDOW&&(world->coordinates[i].flags&NCMM_WORLD_OPAQUE))d.terrain_shape=NCMM_SHAPE_WINDOW_COVERED;
                 d.terrain_flags=(world->coordinates[i].flags&NCMM_WORLD_OPAQUE)?0u:uint32_t(NCMM_SURFACE_TRANSPARENT);
-                const int ix=int(int64_t(world->coordinates[i].x)-world->origin_x),iy=int(int64_t(world->coordinates[i].y)-world->origin_y);
-                for(int dy:{-1,1}){const int other=world_coordinates.find(ix,iy+dy,p.z());
-                    if(other>=0&&(world->coordinates[other].flags&NCMM_WORLD_STRUCTURE_VISIBLE)){d.orientation=1;break;}}
+                d.terrain_flags|=graphics_structure_connections(p,d.terrain_shape,d.orientation);
+                copy_id(d.ground,"t_floor");
             }
             continue;
         }
@@ -341,17 +365,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         d.furniture_shape = ncmm_graphics_shapes::furniture( furn.id.str() + " " + furn.looks_like, graphics_traits( furn, !furn.close.is_null() ) );
         ++graphics_hybrid_shape_counts[d.terrain_shape];
         if( here.has_furn( p ) ) ++graphics_hybrid_shape_counts[d.furniture_shape];
-        // Axis of a connected wall/fence; only visible neighbor flags influence it.
-        const int ix=world?int(int64_t(world->coordinates[i].x)-world->origin_x):int(i)%base.grid_width,
-                  iy=world?int(int64_t(world->coordinates[i].y)-world->origin_y):int(i)/base.grid_width;
-        auto structural = [&]( int nx, int ny ) {
-            if( nx < 0 || ny < 0 || nx >= base.grid_width || ny >= base.grid_height ) return false;
-            const int index=world?world_coordinates.find(nx,ny,p.z()):ny*base.grid_width+nx;if(index<0)return false;
-            const auto &c=base.cells[size_t(index)];
-            return ( c.flags & NCMM_GFX_VISIBLE ) && ( ( c.flags & NCMM_GFX_WALL ) ||
-                ncmm_graphics_shapes::contains( c.terrain, "window" ) || ncmm_graphics_shapes::contains( c.terrain, "fence" ) || ncmm_graphics_shapes::contains( c.terrain, "glass" ) || ncmm_graphics_shapes::contains( c.terrain, "guardrail" ) );
-        };
-        d.orientation = structural( ix, iy - 1 ) || structural( ix, iy + 1 ) ? 1u : 0u;
+        d.terrain_flags|=graphics_structure_connections(p,d.terrain_shape,d.orientation);
         if( !ncmm_graphics_shapes::vertical( d.terrain_shape ) ) copy_id( d.ground, ter.id.str() );
         else copy_id( d.ground, d.terrain_shape == NCMM_SHAPE_TREE || d.terrain_shape == NCMM_SHAPE_SHRUB || d.terrain_shape == NCMM_SHAPE_PLANT ? "t_dirt" : "t_floor" );
         const float raw = std::max( 0.0f, here.ambient_light_at( p ) );

@@ -48,6 +48,14 @@ int main(int argc,char **argv){try{
     ncmm_graphics_shapes::traits opaque_rock;opaque_rock.impassable=true;opaque_rock.transparent=false;
     check(ncmm_graphics_shapes::furniture("f_boulder_large",opaque_rock)==NCMM_SHAPE_ROCK,"large opaque boulders do not become wall cubes");
     check(ncmm_graphics_shapes::terrain("t_rock_wall",opaque_rock)==NCMM_SHAPE_WALL,"underground stone walls keep their wall geometry");
+    ncmm_graphics_shapes::traits mesh_gate;mesh_gate.door=true;mesh_gate.impassable=true;
+    check(ncmm_graphics_shapes::terrain("t_chaingate_c",mesh_gate)==NCMM_SHAPE_FENCE,"closed chain gate retains mesh despite its DOOR flag");
+    ncmm_graphics_shapes::traits radio;radio.transparent=true;radio.impassable=true;
+    check(ncmm_graphics_shapes::terrain("t_radio_tower",radio)==NCMM_SHAPE_LATTICE_TOWER,"native radio tower uses steel lattice");
+    check(ncmm_graphics_shapes::terrain("t_radiosphere_radio_tower_liminal_light t_radio_tower",radio)==NCMM_SHAPE_LATTICE_TOWER,"mod tower aliases retain physical lattice");
+    check(ncmm_graphics_shapes::terrain("t_treetop_evergreen",{})==NCMM_SHAPE_TREE_CANOPY,"treetop remains a crown without a second trunk");
+    ncmm_graphics_shapes::traits flagged_window;flagged_window.window=true;flagged_window.door=true;
+    check(ncmm_graphics_shapes::terrain("t_window_custom",flagged_window)==NCMM_SHAPE_WINDOW,"window semantic wins over a generic inherited door flag");
     ncmm_graphics_control_state_v1 attack{};attack.struct_size=sizeof(attack);attack.attack_serial=1;attack.attack_started=10;attack.attack_kind=1;attack.grip_kind=NCMM_GRIP_POLE;attack.held_length=2;
     check(animation::sample(attack,10).thrust==0&&animation::sample(attack,10.12).thrust>.20f,"pole timeline winds into a thrust");
     check(animation::sample(attack,10.50).thrust==0&&animation::sample(attack,9).thrust==0,"timeline recovers and rejects a future event");

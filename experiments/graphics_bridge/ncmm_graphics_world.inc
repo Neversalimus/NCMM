@@ -106,8 +106,9 @@ bool graphics_draw_world(int x,int y,int width,int height)
                 t.ramp_down=has(ter_furn_flag::TFLAG_RAMP_DOWN);t.ramp_end=has(ter_furn_flag::TFLAG_RAMP_END);
                 t.difficult_z=has(ter_furn_flag::TFLAG_DIFFICULT_Z);t.canopy=furn.has_flag(ter_furn_flag::TFLAG_SUN_ROOF_ABOVE);
                 t.opaque=!(ter.transparent&&furn.transparent);
-                uint32_t flags=ncmm_world::semantics(t);
                 const auto shape=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
+                t.partial_support=ncmm_graphics_shapes::partial_support(shape);
+                uint32_t flags=ncmm_world::semantics(t);
                 if(ncmm_graphics_shapes::structural_surface(shape))flags|=graphics_world_architecture;
                 if(ncmm_graphics_shapes::vertical(shape))flags|=graphics_world_renderable;
                 return flags;
@@ -252,10 +253,15 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if(local_air&&(!atmosphere||dx*dx+dy*dy>16.f*16.f||z<eye_level||z>eye_level+2))continue;
         const auto below=tripoint_bub_ms(p.xy(),z-1);
         const bool current_in_range=in_visual_range(p),lower_in_range=in_visual_range(below);
+        // Architecture is continuous inside the physical sight radius, even
+        // when a dark room/tile centre has never passed the top-down FOV test.
+        // Its light and the raster depth still determine what reaches the eye.
+        const bool structure_range=rl_dist(you.pos_bub(),p)<=(visual_no_sight?1:visual_maximum);
+        const bool static_surface=structure_range&&(semantic&(graphics_world_architecture|NCMM_WORLD_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_DOWN));
         // No permission below can survive if neither side is within native
         // visual range. In particular, don't trace thousands of dark buried
         // floors. Their private structural facts still occlude other rays.
-        if(!current_in_range&&!lower_in_range&&p!=you.pos_bub()){
+        if(!static_surface&&!current_in_range&&!lower_in_range&&p!=you.pos_bub()){
             const uint32_t basic=base_flags(ax,ay,z);bool possible_face=false;
             if(basic&graphics_world_architecture)for(unsigned face=0;face<4&&!possible_face;++face){
                 const bool facing=face==0?visibility_eye.x<gx:face==1?visibility_eye.x>gx+1:face==2?visibility_eye.y<gy:visibility_eye.y>gy+1;
@@ -271,7 +277,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         // and incomplete at openings. Native perception still owns all contents.
         const float level=(z-absolute.z())*NCMM_WORLD_LEVEL_HEIGHT;
         uint32_t permission=ncmm_world::surface_permissions(semantic,visibility_eye.z,level);
-        bool facade_in_range=current_in_range;std::array<float,3> facade_light{};
+        bool facade_in_range=structure_range;std::array<float,3> facade_light{};
         if(semantic&graphics_world_architecture){
             facade_light=graphics_world_rgb(p);
             for(unsigned face=0;face<4;++face){
@@ -286,8 +292,8 @@ bool graphics_draw_world(int x,int y,int width,int height)
             }
             if(facade_in_range)permission|=NCMM_WORLD_STRUCTURE_VISIBLE;
         }
-        if(!current_in_range)permission&=~NCMM_WORLD_FLOOR_TOP;
-        if(!lower_in_range)permission&=~NCMM_WORLD_FLOOR_BOTTOM;
+        if(!structure_range&&!current_in_range)permission&=~NCMM_WORLD_FLOOR_TOP;
+        if(!structure_range&&!lower_in_range)permission&=~NCMM_WORLD_FLOOR_BOTTOM;
         if((permission&NCMM_WORLD_STRUCTURE_VISIBLE)&&(semantic&NCMM_WORLD_FLOOR))
             permission|=ncmm_world::facade_slab_permissions(semantic,visibility_eye.z,level);
         // Air is needed only in the local precipitation volume. Do not trace
@@ -349,8 +355,8 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if(std::max(std::abs(p.x()-you.pos_bub().x()),std::abs(p.y()-you.pos_bub().y()))>NCMM_GRAPHICS_RADIUS)++graphics_snapshot_far_cells;
         if(source.permission&NCMM_WORLD_BODY_VISIBLE)copy(c.terrain,here.ter(p).id().str());
         else if(source.permission&NCMM_WORLD_STRUCTURE_VISIBLE){
-            const auto &ter=here.ter(p).obj();const auto shape=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
-            copy(c.terrain,shape==NCMM_SHAPE_FLAT?"t_open_air":ncmm_graphics_shapes::facade_id(shape,ter.id.str()+" "+ter.looks_like));
+            const auto &ter=here.ter(p).obj();
+            copy(c.terrain,ter.id.str()); // Same physical facade before/after 2D discovery.
             if(source.world.flags&NCMM_WORLD_OPAQUE)c.flags|=NCMM_GFX_WALL;
         }
         else{const auto kind=ncmm_graphics_presentation_policy::material(here.ter(p).id().str());
@@ -360,7 +366,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if(here.has_furn(p))copy(c.furniture,here.furn(p).id().str());
         if(const auto vp=here.veh_at(p))if(const auto displayed=vp->part_displayed()){
             c.flags|=NCMM_GFX_VEHICLE;std::fill(std::begin(c.furniture),std::end(c.furniture),'\0');copy(c.furniture,vpart_display(displayed->part()).get_tileset_id());}
-        if(here.sees_some_items(p,you)&&you.sees(here,p)){const auto items=here.i_at(p);if(!items.empty())copy(c.item,items.begin()->typeId().str());}
+        if(ncmm_world::supported_item(source.world.flags,here.has_furn(p)||bool(here.veh_at(p)))&&here.sees_some_items(p,you)&&you.sees(here,p)){const auto items=here.i_at(p);if(!items.empty())copy(c.item,items.begin()->typeId().str());}
         if(const auto *cr=get_creature_tracker().creature_at<Creature>(p))if(!cr->is_avatar()&&!cr->is_dead_state()&&you.sees(here,*cr)){
             if(const auto *mon=cr->as_monster())copy(c.creature,mon->type->id.str());
             else if(const auto *ch=cr->as_character())if(cr->is_npc())copy(c.creature,ch->male?"npc_male":"npc_female");}

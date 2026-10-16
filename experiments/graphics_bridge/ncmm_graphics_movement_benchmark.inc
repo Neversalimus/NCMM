@@ -116,6 +116,75 @@
     report.end_array();
     progress("facade_normal_vision");
     const bool had_nightvision=you.has_trait(trait_id("DEBUG_NIGHTVISION"));
+    progress("geometry_regressions");
+    // Disposable real terrain/loot fixtures for the reported visual regressions.
+    // No simulation turn, discovery edit or user-world mutation is involved.
+    graphics_view.world_render=observer.provider;graphics_view.user_data=observer.data;
+    for(int z=0;z<=4;++z)for(int y=-32;y<=24;++y)for(int x=-24;x<=24;++x){
+        const auto p=at(x,y,z);if(!here.ncmm_graphics_loaded(p))continue;
+        here.ter_set(p,ter_id(z==0?"t_pavement":"t_open_air"));here.furn_set(p,furn_id("f_null"));here.clear_fields(p);here.i_clear(p);
+    }
+    for(int z=0;z<2;++z)for(int y=-14;y<=-8;++y)for(int x=-8;x<=8;++x){
+        const bool edge=std::abs(x)==8||y==-14||y==-8;
+        here.ter_set(at(x,y,z),ter_id(edge?"t_brick_wall":"t_floor"));
+    }
+    for(int y=-14;y<=-8;++y)for(int x=-8;x<=8;++x)here.ter_set(at(x,y,2),ter_id("t_flat_roof"));
+    here.ter_set(at(0,-8,0),ter_id("t_door_c"));
+    for(int x:{-3,3})here.ter_set(at(x,-8,0),ter_id("t_window_domestic"));
+    for(int y=-7;y<=6;++y)here.ter_set(at(-10,y,0),ter_id("t_chainfence"));
+    for(int x=-10;x<=-2;++x)here.ter_set(at(x,6,0),ter_id("t_chainfence"));
+    here.ter_set(at(-5,6,0),ter_id("t_chaingate_c"));
+    for(int z=0;z<4;++z)here.ter_set(at(8,0,z),ter_id("t_radio_tower"));
+    here.ter_set(at(-4,1,0),ter_id("t_tree_pine"));here.ter_set(at(-4,1,1),ter_id("t_treetop_evergreen"));
+    here.add_item_or_charges(at(2,1,0),item(itype_id("9mm_casing"),calendar::turn));
+    here.add_item_or_charges(at(-4,-10,2),item(itype_id("9mm_casing"),calendar::turn));
+    here.add_item_or_charges(at(5,0,2),item(itype_id("9mm_casing"),calendar::turn));
+    here.add_item_or_charges(at(0,-11,0),item(itype_id("rock"),calendar::turn));
+    struct geometry_observer {
+        ncmm_graphics_render_multilevel_v1 provider=nullptr;void *data=nullptr;int32_t ox=0,oy=0;
+        uint32_t lattice=0,canopy=0,corners=0,windows=0,unseen_walls=0,items=0;bool valid=true;
+        static int render(const ncmm_graphics_multilevel_scene_v1 *world,void *state){
+            auto &self=*static_cast<geometry_observer *>(state);
+            for(uint32_t i=0;i<world->cell_count;++i){const auto &c=world->coordinates[i];const auto &d=world->appearance.details[i];const auto &a=world->appearance.base.cells[i];
+                const int x=c.x-self.ox,y=c.y-self.oy;
+                if(x==8&&y==0&&c.z>=0&&c.z<4){++self.lattice;self.valid&=d.terrain_shape==NCMM_SHAPE_LATTICE_TOWER&&!(c.flags&NCMM_WORLD_FLOOR);}
+                if(x==-4&&y==1&&c.z==1){++self.canopy;self.valid&=d.terrain_shape==NCMM_SHAPE_TREE_CANOPY&&!(c.flags&NCMM_WORLD_FLOOR);}
+                if(x==-10&&y==6&&c.z==0){++self.corners;const uint32_t mask=NCMM_SURFACE_CONNECT_E|NCMM_SURFACE_CONNECT_N;
+                    self.valid&=(d.terrain_flags&mask)==mask;}
+                if((x==-3||x==3)&&y==-8&&c.z==0){++self.windows;self.valid&=d.terrain_shape==NCMM_SHAPE_WINDOW;}
+                if(d.terrain_shape==NCMM_SHAPE_WALL&&(c.flags&NCMM_WORLD_STRUCTURE_VISIBLE)&&!(c.flags&NCMM_WORLD_BODY_VISIBLE))++self.unseen_walls;
+                if(a.item[0]){++self.items;self.valid&=(c.flags&NCMM_WORLD_FLOOR)!=0;}
+                if(x==0&&y==-11&&c.z==0)self.valid&=!a.item[0]&&!a.furniture[0]&&!a.creature[0];
+            }
+            return self.provider(world,self.data);
+        }
+    } geometry;
+    geometry.provider=observer.provider;geometry.data=observer.data;geometry.ox=original_position.x();geometry.oy=original_position.y();
+    graphics_view.world_render=geometry_observer::render;graphics_view.user_data=&geometry;
+    struct geometry_case {const char *name;int x,y;float yaw,pitch;};
+    for(const auto &view:std::array<geometry_case,4>{{{"overview",0,10,-ncmm_graphics_camera::pi*.5f,.08f},
+        {"fence",-7,10,-2.05f,-.12f},{"window",-3,-5,-ncmm_graphics_camera::pi*.5f,0.f},
+        {"tree-tower",0,6,-ncmm_graphics_camera::pi*.5f,.45f}}}){
+        you.setpos(here,at(view.x,view.y,0),false);graphics_clear_world();graphics_clear_creatures();refresh();
+        for(const char *mode:{"cpu","gpu"}){
+            get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);
+            graphics_mouse_dx=std::remainder(view.yaw-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;
+            graphics_mouse_dy=(graphics_camera_pitch-view.pitch)/.003f;
+            require(graphics_action("ncmm.view.mouse_look"),"geometry_camera_failed");graphics_mouse_dx=graphics_mouse_dy=0;
+            require(SDL_SetRenderTarget(renderer,guard.canvas)&&graphics_draw(0,0,1768,1084),"geometry_render_failed");
+            if(std::string(mode)=="gpu")require(graphics_gpu_frame,"geometry_gpu_fallback");
+            require(SDL_SetRenderTarget(renderer,guard.canvas),"geometry_capture_target_failed");
+            auto *image=SDL_RenderReadPixels(renderer,nullptr);require(image,"geometry_capture_failed");
+            const auto file=game_root()/"ncmm"/("first-person-geometry-"+std::string(view.name)+"-"+mode+".bmp");
+            const bool saved=SDL_SaveBMP(image,file.string().c_str());SDL_DestroySurface(image);require(saved,"geometry_capture_write_failed");
+        }
+    }
+    graphics_view.world_render=observer.provider;graphics_view.user_data=observer.data;
+    require(geometry.valid&&geometry.lattice&&geometry.canopy&&geometry.corners&&geometry.windows&&geometry.unseen_walls&&geometry.items,"geometry_snapshot_regression");
+    report.member("geometry_regressions");report.start_object();report.member("success",true);report.member("cpu_and_gpu",true);
+    report.member("lattice_cells",geometry.lattice);report.member("canopy_without_slab",geometry.canopy);report.member("connected_fence_corners",geometry.corners);
+    report.member("windows_without_door_model",geometry.windows);report.member("unseen_continuous_walls",geometry.unseen_walls);report.member("supported_item_cells",geometry.items);
+    report.member("captures",8);report.end_object();
     if(had_nightvision)you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));
     you.recalc_sight_limits();
     const auto saved_weather=get_weather().weather_id;

@@ -1,4 +1,29 @@
-# First Person View 0.12.6 — depth-driven surfaces and horizon LOD
+# First Person View 0.12.7 — physical geometry corrections
+
+The first-person building shell now retains its real terrain identity,
+orientation and material before and after ordinary top-down discovery. Static
+surfaces inside the sight radius are submitted continuously and remain lit and
+occluded by physical geometry. Native perception still controls room contents,
+loot, creatures and interaction; ordinary map discovery is unchanged.
+
+Chain-link fences use four physical neighbour connections, including corners
+and T junctions. Closed mesh gates keep their mesh despite CDDA's DOOR flag.
+Radio-tower terrain has an open steel lattice for each actual native storey.
+Walkable treetops and lattice supports are partial supports rather than opaque
+floor plates. Ground inventory lies on its supporting surface; unsupported air
+does not publish item icons. Closed windows with a curtain-close action are
+classified as windows, rather than open passages.
+
+The horizon keeps its previous triangle/upload budget with shared alpha-cutout
+tree silhouettes in place of solid polygon crowns. Camera turns reuse the mesh.
+New native CPU/GPU captures and snapshot checks cover fences, towers, treetops,
+windows, unseen walls and supported inventory after the timed movement matrix.
+
+0.12.7 qualification is pending. Performance numbers and installer identities
+below belong to the explicitly labelled 0.12.6 baseline until replaced by new
+measurements.
+
+## 0.12.6 baseline — depth-driven surfaces and horizon LOD
 
 Static floors and architecture now use physical raster depth rather than five
 visibility rays to each surface after every movement. Native sight and exact
