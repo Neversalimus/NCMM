@@ -175,6 +175,43 @@
     }
     report.member("facade_regression");report.start_object();report.member("normal_vision",true);
     report.member("connected_front_wall_cells",observer.walls);report.member("slabs_connected",observer.slabs);report.end_object();
+    // A separate diagnostic after the twelve timed records: controlled known
+    // distant forest, undiscovered neighboring geography and ordinary vision.
+    // Only this disposable smoke world modifies overmap discovery/terrain.
+    const auto horizon_center=project_to<coords::omt>(you.pos_abs());
+    (void)overmap_buffer.get_om_global(horizon_center); // disposable diagnostic setup only
+    std::vector<std::tuple<tripoint_abs_omt,oter_id,om_vision_level>> horizon_restore;
+    for(int dy=-8;dy<=8;++dy)for(int dx=-8;dx<=8;++dx){
+        if(std::max(std::abs(dx),std::abs(dy))<4)continue;
+        const tripoint_abs_omt target(horizon_center.x()+dx,horizon_center.y()+dy,0);
+        const auto slot=overmap_buffer.get_existing_om_global(target);if(!slot)continue;
+        horizon_restore.emplace_back(target,slot.om->ter(slot.local),slot.om->seen(slot.local));
+        slot.om->ter_set(slot.local,oter_str_id("forest").id());
+        slot.om->set_seen(slot.local,(dx+dy)%3?om_vision_level::full:om_vision_level::unseen,true);
+    }
+    uint32_t horizon_forest=0,horizon_unknown=0;
+    for(const char *mode:{"cpu","gpu"}){
+        get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);
+        graphics_mouse_dx=std::remainder(-ncmm_graphics_camera::pi*.5f-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;
+        graphics_mouse_dy=(graphics_camera_pitch+.035f)/.003f;require(graphics_action("ncmm.view.mouse_look"),"horizon_camera_failed");graphics_mouse_dx=graphics_mouse_dy=0;
+        require(SDL_SetRenderTarget(renderer,guard.canvas)&&graphics_draw(0,0,1768,1084),"horizon_render_failed");
+        if(std::string(mode)=="gpu")require(graphics_gpu_frame,"horizon_gpu_fallback");
+        require(ncmm_world::valid_lod(graphics_lod_frame)&&graphics_lod_frame.enabled,"horizon_snapshot_invalid");
+        horizon_forest=horizon_unknown=0;
+        for(const auto &patch:graphics_lod_patches){
+            if(patch.kind==NCMM_LOD_FOREST&&patch.height>0)++horizon_forest;
+            if(patch.kind==NCMM_LOD_UNKNOWN){++horizon_unknown;require(patch.height==0,"unknown_horizon_revealed_feature");}
+            require(patch.x+patch.width<=0||patch.x>=97||patch.y+patch.depth<=0||patch.y>=97,"horizon_overlaps_detailed_world");
+        }
+        require(horizon_forest>20&&horizon_unknown>20,"horizon_known_unknown_fixture_missing");
+        require(SDL_SetRenderTarget(renderer,guard.canvas),"horizon_capture_target_failed");
+        auto *image=SDL_RenderReadPixels(renderer,nullptr);require(image,"horizon_capture_failed");
+        const auto file=game_root()/"ncmm"/("first-person-horizon-"+std::string(mode)+".bmp");
+        const bool saved=SDL_SaveBMP(image,file.string().c_str());SDL_DestroySurface(image);require(saved,"horizon_capture_write_failed");
+    }
+    for(const auto &entry:horizon_restore){const auto slot=overmap_buffer.get_existing_om_global(std::get<0>(entry));if(slot){slot.om->ter_set(slot.local,std::get<1>(entry));slot.om->set_seen(slot.local,std::get<2>(entry),true);}}
+    report.member("horizon_regression");report.start_object();report.member("known_forest_patches",horizon_forest);report.member("unknown_neutral_patches",horizon_unknown);
+    report.member("near_overlap",false);report.member("native_perception",true);report.member("cpu_and_gpu",true);report.end_object();
     if(had_nightvision)you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));you.recalc_sight_limits();get_weather().weather_id=saved_weather;
     report.member("success",true);report.end_object();stream.close();require(bool(stream),"movement_report_write_failed");
 

@@ -56,7 +56,7 @@ inline const char *validate(const ncmm_gpu_scene_v1 &s,const ncmm_gpu_multilevel
         for(uint32_t i=0;i<m.material_count;++i) {
             const auto &v=m.materials[i];
             for(float f:v.color)if(!std::isfinite(f)||f<0||f>1)return "invalid-material-color";
-            if(v.flags&~8191u||v.finish>16||v.liquid>10||v.banks>255||!std::isfinite(v.impostor_span)||v.impostor_span<0||!std::isfinite(v.impostor_yaw))return "invalid-material";
+            if(v.flags&~16383u||v.finish>16||v.liquid>10||v.banks>255||!std::isfinite(v.impostor_span)||v.impostor_span<0||!std::isfinite(v.impostor_yaw))return "invalid-material";
             if((v.flags&NCMM_GPU_TEXTURED)&&!v.texture_key)return "missing-material-texture";
             if((v.flags&NCMM_GPU_IMPOSTOR)&&(!v.texture_key||!v.normal_key||!v.depth_key||v.impostor_span<=0))return "incomplete-impostor-material";
         }
@@ -72,7 +72,7 @@ inline const char *validate(const ncmm_gpu_scene_v1 &s,const ncmm_gpu_multilevel
     for(uint32_t i=0;i<s.draw_count;++i) {
         const auto &d=s.draws[i];
         if(!d.mesh_key||!matrix_valid(d.transform)||!std::isfinite(d.creature_yaw)||!d.bone_count||d.bone_count>128||d.bone_offset>s.bone_count||d.bone_count>s.bone_count-d.bone_offset||
-           (d.cell>=s.cell_count&&!(d.pass==NCMM_GPU_HELD&&d.cell==UINT32_MAX))||d.pass>NCMM_GPU_HELD)return "invalid-draw-command";
+           (d.cell>=s.cell_count&&!(d.cell==UINT32_MAX&&(d.pass==NCMM_GPU_HELD||(world&&d.pass==NCMM_GPU_OPAQUE))))||d.pass>NCMM_GPU_HELD)return "invalid-draw-command";
     }
     for(uint32_t i=0;i<s.cell_count;++i) {
         const auto &c=s.cells[i];

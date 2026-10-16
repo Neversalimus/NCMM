@@ -1,4 +1,25 @@
-# First Person View 0.12.5 — facade continuity
+# First Person View 0.12.6 — depth-driven surfaces and horizon LOD
+
+Static floors and architecture now use physical raster depth rather than five
+visibility rays to each surface after every movement. Native sight and exact
+3D occlusion still control contents, creatures, loot and interaction targets.
+Roof-column derivation is lazy and local weather air is bounded to a 16-tile
+radius. This changes first-person surface submission independently of the
+ordinary top-down tile-centre FOV; it never advances simulation or discovery.
+
+Optional multilevel API minor 1 supplies a separate coarse horizon (31×31
+24-tile patches, hard limit 2048). Known resident overmap geography becomes
+low-detail ground, water, forest canopies and approximate building masses.
+Unknown geography receives only neutral atmospheric ground, without features.
+The renderer does not load or generate overmaps for LOD. The detailed square is
+subtracted exactly, so LOD cannot fill a near shaft or overlap a detailed floor.
+The GPU retains the horizon as one cached mesh and one opaque draw; CPU rendering
+uses the same geometry and depth. Background haze replaces the black far seam
+above ground; underground views retain their existing occlusion behavior.
+
+Performance qualification is pending for this revision. The previous measured
+0.12.5 results below remain the comparison baseline, not a claim for 0.12.6.
+
 
 Native qualification passed for both 1040 and 1807. Exact packaged 1040 binaries
 were measured on RTX 4090 with actual UDP artwork, in clear and native-rain

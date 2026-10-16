@@ -152,5 +152,48 @@ int main(){try{
     check(!ncmm_gpu::validate(facade_gpu.base,&facade_gpu),"Host accepts the architecture permission without changing GPU V1 ABI");
     facade.positions[upper_wall].flags|=1u<<19;
     check(!ncmm_world::valid(facade.world)&&ncmm_gpu::validate(facade_gpu.base,&facade_gpu),"unknown world permission bits remain rejected");
+    {
+        using namespace ncmm_world;
+        check(surface_permissions(NCMM_WORLD_OPEN_DOWN,1.55f,0)==0,"an open shaft never acquires an invented static slab");
+        check(surface_permissions(NCMM_WORLD_FLOOR,1.55f,0)==NCMM_WORLD_FLOOR_TOP,"ground uses only its facing top");
+        check(surface_permissions(NCMM_WORLD_FLOOR,1.55f,2.5f)==NCMM_WORLD_FLOOR_BOTTOM,"upper floor exposes its underside");
+        check(surface_permissions(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR,1.55f,2.5f)==(NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM),"glass keeps both faces");
+        check(!(surface_permissions(NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE,1.55f,0)&NCMM_WORLD_BODY_VISIBLE),"depth-driven geometry cannot grant contents");
+        std::vector<ncmm_lod_patch_v1> clipped;float area=0;
+        outside_detail(-12,-12,48,48,24,[&](float x,float y,float w,float h){
+            check(x+w<=0||x>=24||y+h<=0||y>=24,"LOD strip cannot cover the detailed square");area+=w*h;
+            clipped.push_back({x,y,0,w,h,0,{.3f,.4f,.2f},NCMM_LOD_FIELD});
+        });
+        check(clipped.size()==4&&std::abs(area-(48*48-24*24))<.01f,"disjoint LOD strips exactly cover the outer ring");
+        ncmm_graphics_lod_scene_v1 distant{sizeof(distant),1,uint32_t(clipped.size()),1,7,0,0,clipped.data()};
+        check(valid_lod(distant),"bounded coarse horizon validates");
+        auto invalid=distant;invalid.count=NCMM_LOD_MAX_PATCHES+1;check(!valid_lod(invalid),"oversized horizon rejected before reads");
+        invalid=distant;invalid.patches=nullptr;check(!valid_lod(invalid),"missing LOD array rejected");
+        clipped[0].width=std::numeric_limits<float>::quiet_NaN();check(!valid_lod(distant),"NaN LOD cannot enter a renderer");clipped[0].width=48;
+        fixture open(1);presentation_data data;data.view.struct_size=sizeof(data.view);data.view.eye_height=1.55f;data.view.body_scale=1;data.view.held_length=.6f;data.cells.resize(open.positions.size());data.horizon_enabled=true;data.horizon_revision=9;
+        data.horizon={{30,-20,0,24,48,0,{.3f,.4f,.2f},NCMM_LOD_FIELD},{80,-10,0,24,24,5,{.4f,.4f,.4f},NCMM_LOD_BUILDING}};
+        frame horizon_image;
+        check(build_frame(open.world.appearance,0,-.08f,{},horizon_image,400,260,{},nullptr,nullptr,&data,{},nullptr,&open.world),"CPU renders distant ground and actual coarse silhouettes");
+        const size_t middle=size_t(horizon_image.height/2-10)*horizon_image.width+horizon_image.width/2;
+        check(std::isfinite(horizon_image.depth[middle])&&horizon_image.depth[middle]>24,"outer ground has depth beyond the near square");
+        check(horizon_image.owners[middle]<0&&horizon_image.aimed<0,"LOD carries no interaction/creature target");
+        check(!std::isfinite(horizon_image.depth[size_t(horizon_image.height-5)*horizon_image.width+horizon_image.width/2]),"distant LOD never fills a nearby shaft");
+        first_person::gpu::scene_cache lod_cache;first_person::gpu::packet packet;ncmm_gpu_metrics_v1 host{};host.resource_epoch=1;frame stats;
+        check(lod_cache.build(open.world.appearance,0,-.08f,{},packet,stats,host,{},&data,nullptr,400,260,NCMM_GPU_FORCE,&open.world),"GPU builds a cached horizon");
+        size_t backgrounds=0;uint64_t lod_key=0;for(const auto &draw:packet.draws)if(draw.cell==UINT32_MAX&&draw.pass==NCMM_GPU_OPAQUE){++backgrounds;lod_key=draw.mesh_key;check(draw.pass==NCMM_GPU_OPAQUE,"horizon depth tests as opaque world");}
+        check(backgrounds==1,"entire distant horizon uses one draw");
+        ncmm_gpu_multilevel_scene_v1 lod_gpu{};lod_gpu.struct_size=sizeof(lod_gpu);lod_gpu.version=1;lod_gpu.base=packet.finish(nullptr);lod_gpu.coordinates=open.world.coordinates;lod_gpu.cell_count=open.world.cell_count;lod_gpu.origin_x=open.world.origin_x;lod_gpu.origin_y=open.world.origin_y;lod_gpu.level_height=open.world.level_height;
+        check(!ncmm_gpu::validate(lod_gpu.base,&lod_gpu),"Host validates the non-targetable horizon draw");
+        auto view=packet.finish(nullptr);bool lod_material=false;for(uint32_t i=0;i<view.mesh_count;++i)for(uint32_t j=0;j<view.meshes[i].material_count;++j)lod_material|=(view.meshes[i].materials[j].flags&NCMM_GPU_DISTANCE_LOD)!=0;
+        check(lod_material,"GPU geography uses outdoor daylight rather than held/indoor light");
+        first_person::gpu::packet warm;
+        check(lod_cache.build(open.world.appearance,.5f,-.08f,{},warm,stats,host,{},&data,nullptr,400,260,NCMM_GPU_FORCE,&open.world),"horizon survives a camera turn");
+        bool retained=false;for(const auto &draw:warm.draws)if(draw.cell==UINT32_MAX&&draw.mesh_key==lod_key)retained=true;
+        check(retained,"camera turn reuses the same horizon mesh");
+        // A near opaque wall must win over the entire distant layer.
+        for(int y=0;y<3;++y){const int i=open.cell(5,y,0);open.positions[i].flags=NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_OPAQUE|NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP;open.details[i].terrain_shape=NCMM_SHAPE_WALL;}
+        check(build_frame(open.world.appearance,0,0,{},horizon_image,400,260,{},nullptr,nullptr,&data,{},nullptr,&open.world),"near wall with distant world renders");
+        check(horizon_image.depth[size_t(horizon_image.height/2)*horizon_image.width+horizon_image.width/2]<4,"near architecture correctly occludes the horizon");
+    }
     std::cout<<"Multi-level rendering: "<<checks<<" checks passed\n";return 0;
 }catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}}

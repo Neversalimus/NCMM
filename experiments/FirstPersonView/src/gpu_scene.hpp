@@ -39,6 +39,7 @@ class scene_cache {
     std::map<std::tuple<uint64_t,int,bool,bool>,std::weak_ptr<const owned_mesh>> skins;
     std::map<std::tuple<uint64_t,int,int,bool>,std::weak_ptr<const owned_mesh>> impostors;
     resources assets;
+    uint64_t horizon_signature=0;std::shared_ptr<const owned_mesh> horizon_mesh;
     uint64_t world_epoch=0,tileset_epoch=0,frame_serial=0;
     static uint64_t model_key(const creature::model &model){uint64_t h=hash_bytes(1469598103934665603ull,&model.colors.fingerprint,sizeof(model.colors.fingerprint));
         for(float value:{model.type.height,model.type.width,model.type.length,model.type.bulk,model.colors.silhouette_ratio})h=hash_bytes(h,&value,sizeof(value));
@@ -55,7 +56,7 @@ class scene_cache {
         ncmm_gpu_material_v1 material(const hybrid::material &m,mesh_builder &builder){ncmm_gpu_material_v1 result{};
             result.color[0]=m.color.x;result.color[1]=m.color.y;result.color[2]=m.color.z;result.color[3]=m.alpha;result.finish=uint32_t(m.finish);result.liquid=m.liquid;result.banks=m.banks;
             result.flags=(m.cutout?NCMM_GPU_CUTOUT:0)|(m.opaque_texture?NCMM_GPU_OPAQUE_TEXTURE:0)|(m.smooth?NCMM_GPU_SMOOTH:0)|(m.creature?NCMM_GPU_CREATURE:0)|
-                (m.spill?NCMM_GPU_SPILL:0)|(m.overlay?NCMM_GPU_HELD_MATERIAL:0)|(m.creature_visual?NCMM_GPU_CREATURE_VISUAL:0)|(m.gpu_backface?NCMM_GPU_CULL_BACK:0)|(m.slab_lower?NCMM_GPU_SLAB_UNDERSIDE:0);
+                (m.spill?NCMM_GPU_SPILL:0)|(m.overlay?NCMM_GPU_HELD_MATERIAL:0)|(m.creature_visual?NCMM_GPU_CREATURE_VISUAL:0)|(m.gpu_backface?NCMM_GPU_CULL_BACK:0)|(m.slab_lower?NCMM_GPU_SLAB_UNDERSIDE:0)|(m.distance_lod?NCMM_GPU_DISTANCE_LOD:0);
             if(m.texture&&m.texture->valid()){const auto &image=m.texture->data;auto texture=cache.assets.texture(image.width,image.height,image.pitch_pixels,image.rgba);
                 if(texture){result.texture_key=texture->key;result.flags|=NCMM_GPU_TEXTURED;builder.texture(texture);}else fail("GPU scene texture invalid or cache budget exceeded");}
             return result;}
@@ -83,6 +84,17 @@ class scene_cache {
             for(int i=0;i<int(scene.base.cell_count);++i)if(scene.base.cells[i].flags&NCMM_GFX_VISIBLE){auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()){warming=true;continue;}
                 if(found->second.signature!=signatures[i]){warming=true;continue;}
                 found->second.touched=cache.frame_serial;for(uint32_t pass=0;pass<2;++pass)frame.draw(found->second.meshes[pass],place(origin(i)),uint32_t(i),pass);}
+        }
+        bool horizon_dirty()const override{return cache.horizon_signature!=(metadata&&metadata->horizon_enabled?metadata->horizon_revision:0);}
+        void horizon_complete()override{
+            if(horizon_dirty()){
+                cache.horizon_signature=metadata&&metadata->horizon_enabled?metadata->horizon_revision:0;cache.horizon_mesh.reset();
+                auto found=builders.find({-1,NCMM_GPU_OPAQUE});if(found!=builders.end()){
+                    cache.horizon_mesh=cache.assets.mesh(std::move(found->second.mesh));builders.erase(found);
+                    if(!cache.horizon_mesh)fail("GPU horizon mesh budget exceeded");
+                }
+            }
+            frame.draw(cache.horizon_mesh,identity(),UINT32_MAX,NCMM_GPU_OPAQUE);
         }
         void finish(){for(auto &[key,builder]:builders){std::shared_ptr<const owned_mesh> mesh;
                 if(key.second==NCMM_GPU_HELD){builder.mesh.key=0xfefd48454c445631ull;builder.mesh.flags=NCMM_GPU_DYNAMIC_MESH;mesh=std::make_shared<owned_mesh>(std::move(builder.mesh));}
@@ -160,7 +172,7 @@ public:
     explicit scene_cache(size_t mesh_budget=resources::mesh_limit,size_t texture_budget=resources::texture_limit):assets(mesh_budget,texture_budget){}
     uint32_t generated_cells=0;double geometry_ms=0;
     std::string last_reason;
-    void clear(){chunks.clear();skins.clear();impostors.clear();assets.clear();world_epoch=tileset_epoch=0;}
+    void clear(){chunks.clear();skins.clear();impostors.clear();assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;}
     size_t bytes()const{return assets.bytes()+chunks.size()*sizeof(chunk);}
     bool build(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const hybrid::sprite_provider &provider,packet &out,
                hybrid::frame &statistics,const ncmm_gpu_metrics_v1 &host,animation::pose pose,const hybrid::presentation_data *metadata,creature::presentation *creatures,int width,int height,uint32_t mode,const ncmm_graphics_multilevel_scene_v1 *levels=nullptr){
@@ -184,7 +196,7 @@ public:
         geometry_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();set(camera.sky_bottom,statistics.sky_horizon);
         // Palette-only CPU work: derive the exact established sky endpoints by
         // collecting above; the complete sky raster remains in the GPU shader.
-        camera.sky_top[0]=statistics.sky_top.x;camera.sky_top[1]=statistics.sky_top.y;camera.sky_top[2]=statistics.sky_top.z;
+        camera.sky_top[0]=statistics.sky_top.x;camera.sky_top[1]=statistics.sky_top.y;camera.sky_top[2]=statistics.sky_top.z;camera.sky_top[3]=metadata&&metadata->horizon_enabled?1.f:0.f;
         out.cells.resize(s.base.cell_count);uint32_t sources=0,gases=0;
         for(int i=0;i<int(s.base.cell_count);++i){auto &cell=out.cells[i];const auto &d=s.details[i];cell.flags=s.base.cells[i].flags;
             set(cell.light,{d.light_r,d.light_g,d.light_b},std::max(ncmm_graphics_shapes::shadow_height(d.terrain_shape),ncmm_graphics_shapes::shadow_height(d.furniture_shape)));

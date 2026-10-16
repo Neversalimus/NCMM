@@ -148,6 +148,15 @@ inline slab_sides slab_trace_sides(uint32_t flags,float eye_z,float level_z){
     }
     return {};
 }
+// Surface submission is deliberately independent of tile-centre FOV. The
+// raster depth test decides whether a wall/slab is actually on screen. This
+// carries no item/entity permission and never invents a slab in an opening.
+inline uint32_t surface_permissions(uint32_t flags,float eye_z,float level_z){
+    if(flags&NCMM_WORLD_UNKNOWN)return 0;
+    if(!(flags&(NCMM_WORLD_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_DOWN)))return 0;
+    const auto sides=slab_trace_sides(flags,eye_z,level_z);
+    return (sides.top?uint32_t(NCMM_WORLD_FLOOR_TOP):0u)|(sides.bottom?uint32_t(NCMM_WORLD_FLOOR_BOTTOM):0u);
+}
 // A visible architectural cell owns its actual supporting slab as well.
 // Point samples of its top/bottom may be hidden by the cell's own door/window
 // volume; dropping that slab leaves a sky crack in a recessed facade.
