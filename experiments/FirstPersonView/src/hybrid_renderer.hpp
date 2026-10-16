@@ -942,11 +942,16 @@ class renderer {
             quad(at,at+vec{p.width,0,0},at+vec{p.width,p.depth,0},at+vec{0,p.depth,0},m);
             if(p.height<=0)continue;
             if(p.kind==NCMM_LOD_FOREST){
-                // Two tapered canopy masses per known forest tile. No trunks,
-                // alpha textures, individual trees or per-leaf draw calls.
-                for(int n=0;n<2;++n){const float x=p.x+2+n*10.f,y=p.y+2+(n?4.f:0.f),w=10.f,d=16.f,h=p.height+(n?-.7f:.6f);
-                    const vec a{x,y,p.z},bb{x+w,y,p.z},c{x+w,y+d,p.z},dd{x,y+d,p.z},top{x+w*.5f,y+d*.5f,p.z+h};
-                    quad(a,bb,top,top,m,{0,-.8f,.6f});quad(bb,c,top,top,m,{.8f,0,.6f});quad(c,dd,top,top,m,{0,.8f,.6f});quad(dd,a,top,top,m,{-.8f,0,.6f});
+                // Two low-poly rounded crowns per known forest tile. Their
+                // silhouette remains foliage rather than triangular mountains.
+                for(int n=0;n<2;++n){const float height=p.height+(n?-.6f:.4f);
+                    const vec center{p.x+7+n*10.f,p.y+8+n*8.f,p.z+height*.55f};
+                    auto point=[&](float lon,float lat){return center+vec{std::cos(lon)*std::cos(lat)*5.5f,std::sin(lon)*std::cos(lat)*7.f,std::sin(lat)*height*.5f};};
+                    for(int band=0;band<3;++band)for(int side=0;side<6;++side){
+                        const float a=side*pi/3,b=(side+1)*pi/3,lo=-pi*.5f+band*pi/3,hi=-pi*.5f+(band+1)*pi/3;
+                        const vec aa=point(a,lo),bb=point(b,lo),cc=point(b,hi),dd=point(a,hi);
+                        quad(aa,bb,cc,dd,m,normalize((aa+bb+cc+dd)*.25f-center));
+                    }
                 }
             }else if(p.kind==NCMM_LOD_BUILDING){
                 box(at,{3,3,0},{p.width-3,p.depth-3,p.height},m);
