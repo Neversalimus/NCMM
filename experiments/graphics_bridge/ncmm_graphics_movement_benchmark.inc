@@ -131,6 +131,7 @@
     for(int y=-14;y<=-8;++y)for(int x=-8;x<=8;++x)here.ter_set(at(x,y,2),ter_id("t_flat_roof"));
     here.ter_set(at(0,-8,0),ter_id("t_door_c"));
     for(int x:{-3,3})here.ter_set(at(x,-8,0),ter_id("t_window_domestic"));
+    here.ter_set(at(3,-8,1),ter_id("t_window_domestic"));here.furn_set(at(3,-8,1),furn_id("f_bookcase"));
     for(int y=-7;y<=6;++y)here.ter_set(at(-10,y,0),ter_id("t_chainfence"));
     for(int x=-10;x<=-2;++x)here.ter_set(at(x,6,0),ter_id("t_chainfence"));
     here.ter_set(at(-5,6,0),ter_id("t_chaingate_c"));
@@ -151,7 +152,7 @@
                 if(x==-4&&y==1&&c.z==1){++self.canopy;self.valid&=d.terrain_shape==NCMM_SHAPE_TREE_CANOPY&&!(c.flags&NCMM_WORLD_FLOOR);}
                 if(x==-10&&y==6&&c.z==0){++self.corners;const uint32_t mask=NCMM_SURFACE_CONNECT_E|NCMM_SURFACE_CONNECT_N;
                     self.valid&=(d.terrain_flags&mask)==mask;}
-                if((x==-3||x==3)&&y==-8&&c.z==0){++self.windows;self.valid&=d.terrain_shape==NCMM_SHAPE_WINDOW;}
+                if((x==-3||x==3)&&y==-8&&(c.z==0||(x==3&&c.z==1))){++self.windows;self.valid&=d.terrain_shape==NCMM_SHAPE_WINDOW;}
                 if(d.terrain_shape==NCMM_SHAPE_WALL&&(c.flags&NCMM_WORLD_STRUCTURE_VISIBLE)&&!(c.flags&NCMM_WORLD_BODY_VISIBLE))++self.unseen_walls;
                 if(a.item[0]){++self.items;self.valid&=(c.flags&NCMM_WORLD_FLOOR)!=0;}
                 if(x==0&&y==-11&&c.z==0)self.valid&=!a.item[0]&&!a.furniture[0]&&!a.creature[0];

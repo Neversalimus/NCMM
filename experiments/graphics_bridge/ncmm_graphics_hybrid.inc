@@ -354,8 +354,9 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
             if(facade_lights&&(world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE)){const auto &rgb=(*facade_lights)[i];d.light_r=rgb[0];d.light_g=rgb[1];d.light_b=rgb[2];}
             if(world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE){
                 d.terrain_shape=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
-                if(d.terrain_shape==NCMM_SHAPE_WINDOW&&(world->coordinates[i].flags&NCMM_WORLD_OPAQUE))d.terrain_shape=NCMM_SHAPE_WINDOW_COVERED;
-                d.terrain_flags=(world->coordinates[i].flags&NCMM_WORLD_OPAQUE)?0u:uint32_t(NCMM_SURFACE_TRANSPARENT);
+                // Opaque furniture/gas in this voxel is not an opaque window
+                // panel. The terrain itself owns its opening and cover state.
+                d.terrain_flags=ter.transparent?uint32_t(NCMM_SURFACE_TRANSPARENT):0u;
                 d.terrain_flags|=graphics_structure_connections(p,d.terrain_shape,d.orientation);
                 copy_id(d.ground,"t_floor");
             }
