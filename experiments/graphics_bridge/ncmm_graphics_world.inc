@@ -236,12 +236,20 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if(!here.ncmm_graphics_loaded(p))continue;
         const Creature *entity=get_creature_tracker().creature_at<Creature>(p);
         const bool observed_death=std::binary_search(observed_deaths.begin(),observed_deaths.end(),std::array<int32_t,3>{ax,ay,z});
+        const float margin=entity||observed_death?20.f:5.f;
+        if(!close_to_eye&&outside(margin)){
+            ++graphics_world_metrics.frustum_rejected;continue;}
         // Tall/airborne entities can extend beyond a source voxel. Leave their
         // normal native/body visibility path authoritative.
         if(!entity&&!observed_death&&(z<eye_level||z>eye_level+1)&&graphics_world_sealed.closed_rectangle(z<eye_level?eye_level:eye_level+1,
             ox+std::min(gx,eye_left),oy+std::min(gy,eye_top),ox+std::max(gx,eye_right),oy+std::max(gy,eye_bottom),flags)){
             ++graphics_world_metrics.occlusion_rejected;continue;
         }
+        uint32_t semantic=flags(ax,ay,z);
+        const bool air=!(semantic&(NCMM_WORLD_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_DOWN|NCMM_WORLD_UP|NCMM_WORLD_CANOPY|graphics_world_renderable));
+        const bool local_air=air&&!entity&&!observed_death&&here.i_at(p).empty();
+        // Frustum and local-air rejection precede native light/perception work.
+        if(local_air&&(!atmosphere||dx*dx+dy*dy>16.f*16.f||z<eye_level||z>eye_level+2))continue;
         const auto below=tripoint_bub_ms(p.xy(),z-1);
         const bool current_in_range=in_visual_range(p),lower_in_range=in_visual_range(below);
         // No permission below can survive if neither side is within native
@@ -258,12 +266,6 @@ bool graphics_draw_world(int x,int y,int width,int height)
             }
             if(!possible_face){++graphics_world_metrics.occlusion_rejected;continue;}
         }
-        uint32_t semantic=flags(ax,ay,z);
-        const float margin=entity||observed_death?20.f:5.f;
-        if(!close_to_eye&&outside(margin)){
-            ++graphics_world_metrics.frustum_rejected;continue;}
-        const bool air=!(semantic&(NCMM_WORLD_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_DOWN|NCMM_WORLD_UP|NCMM_WORLD_CANOPY|graphics_world_renderable));
-        if(air&&!entity&&!observed_death&&!atmosphere&&p!=you.pos_bub()&&here.i_at(p).empty())continue;
         // Static surfaces use the same physical depth buffer as their meshes.
         // Retracing five samples of every wall/slab after a step was both slow
         // and incomplete at openings. Native perception still owns all contents.
@@ -290,9 +292,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
             permission|=ncmm_world::facade_slab_permissions(semantic,visibility_eye.z,level);
         // Air is needed only in the local precipitation volume. Do not trace
         // thousands of empty upper-Z voxels just because it is raining.
-        const bool local_air=air&&!entity&&!observed_death&&here.i_at(p).empty();
         if(local_air){
-            if(!atmosphere||dx*dx+dy*dy>16.f*16.f||z<eye_level||z>eye_level+2)continue;
             if(current_in_range){permission|=NCMM_WORLD_STRUCTURE_VISIBLE;facade_light=graphics_world_rgb(p);}
         }else if(current_in_range&&you.sees(here,p)){
             // Bodies/loot retain exact 3D occlusion and native sight, including
