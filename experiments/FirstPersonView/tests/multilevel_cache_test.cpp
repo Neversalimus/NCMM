@@ -5,6 +5,25 @@ int main(){try{
     using namespace ncmm_world;source_cache cache;int reads=0,checks=0;
     auto check=[&](bool v){++checks;if(!v)throw std::runtime_error("source cache invariant");};
     {
+        geometry_cache memo;check(memo.prepare(1000000,-1000000,-2,3,17,17,1));int calls=0;
+        auto facts=[](voxel p){return uint32_t((p.x==9&&p.y!=8?NCMM_WORLD_OPAQUE:0)|((p.z<=0||((p.x+p.y)%7==0))?NCMM_WORLD_FLOOR:0)|(p.x==4&&p.y==4?opaque_field_fact:0));};
+        auto direct=[&](voxel p){if(p.x<0||p.y<0||p.x>=17||p.y>=17||p.z< -2||p.z>3)return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE|NCMM_WORLD_ROOFED);return facts(p);};
+        auto cached=[&](voxel p){return memo.get_relative(p.x,p.y,p.z+2,1,[&]{++calls;return facts(p);});};
+        uint32_t seed=9731;auto random=[&](){seed=seed*1664525u+1013904223u;return seed;};
+        for(int n=0;n<12000;++n){point eye{8.5f,8.5f,1.55f},target{float(random()%190)/10-1,float(random()%190)/10-1,float(int(random()%175)-50)/10};
+            check(visible(eye,target,direct,n%2)==visible(eye,target,cached,n%2));
+            voxel cell{int(random()%19)-1,int(random()%19)-1,int(random()%6)-2};
+            check(facade_faces(eye,cell,direct)==facade_faces(eye,cell,cached));
+        }
+        check(calls<=17*17*6&&memo.bytes()==17*17*6*(sizeof(uint32_t)+sizeof(uint64_t)));
+        check(cached({0,0,0})==facts({0,0,0}));
+        check(memo.get_relative(0,0,2,2,[]{return 0u;})==0); // changed geometry revision is authoritative
+        check(memo.get(1000000,-1000000,0,2,[]{return 99u;})==0); // both coordinate paths share facts
+        geometry_cache invalid;check(!invalid.prepare(0,0,INT32_MIN,INT32_MAX,1000000,97,1));check(invalid.bytes()==0);
+        check(invalid.get_relative(0,0,0,1,[]{throw std::runtime_error("invalid draw query");return 0u;})&NCMM_WORLD_UNKNOWN);
+        geometry_cache maximum;check(maximum.prepare(0,0,-10,10,97,97,1));check(maximum.bytes()<3u*1024u*1024u);
+    }
+    {
         light_range_cache ranges;int calls=0;
         for(int n=0;n<20000;++n){const float light=n%2?0.f:120.f;
             check(ranges.get(light,[&]{++calls;return light==0?1:60;})==(light==0?1:60));}

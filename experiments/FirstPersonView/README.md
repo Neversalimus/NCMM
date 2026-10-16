@@ -23,6 +23,9 @@ are present in the submitted snapshot. Stairs, ramps and sparse missing cells
 retain their exposed faces. Frame-local indexed XYZ lookup replaces repeated
 binary neighbour searches in terrain collection, lighting and atmospheric work.
 Storage stays bounded by the validated source window; no index survives a draw.
+Native body/slab/facade rays use relative coordinates to read the existing
+revision-checked geometry cache, avoiding repeated absolute-coordinate conversion
+and duplicate bounds checks for every traversed voxel, with no extra allocation.
 
 Auto selects hardware GPU acceleration and uses CPU for software adapters.
 Complete original tileset creature artwork remains the default; reconstructed

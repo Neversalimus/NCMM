@@ -81,6 +81,14 @@ public:
         if(revision&&revisions[i]==revision){++hits;return facts[i];}++misses;
         const uint32_t value=read();facts[i]=value;revisions[i]=revision;return value;
     }
+    // X/Y and level are already relative to the prepared window. Ray traversal
+    // avoids converting them to absolute coordinates and back for every voxel.
+    template<class Read> uint32_t get_relative(int x,int y,int level,uint64_t revision,Read read){
+        if(x<0||y<0||x>=width||y>=height||level<0||level>maxz-minz)return NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE|NCMM_WORLD_ROOFED;
+        const size_t i=(size_t(level)*height+size_t(y))*width+size_t(x);
+        if(revision&&revisions[i]==revision){++hits;return facts[i];}++misses;
+        const uint32_t value=read();facts[i]=value;revisions[i]=revision;return value;
+    }
     size_t bytes()const{return facts.capacity()*sizeof(uint32_t)+revisions.capacity()*sizeof(uint64_t);}
 };
 /* Main-thread private source facts; canonical intersections survive a shifted

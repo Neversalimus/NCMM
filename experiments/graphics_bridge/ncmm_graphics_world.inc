@@ -123,10 +123,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
     };
     // Lazy absolute-coordinate facts survive ordinary viewport shifts. Native
     // geometry notifications invalidate derived neighbours and roof columns.
-    auto flags=[&](int ax,int ay,int z){
-        const int64_t x=int64_t(ax)-ox,y=int64_t(ay)-oy;
-        if(x<0||y<0||x>=side||y>=side||z<loaded.front()||z>loaded.back())return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE|NCMM_WORLD_ROOFED);
-        return graphics_world_derived.get(ax,ay,z,graphics_world_revision,[&]{
+    auto derive_flags=[&](int ax,int ay,int z){
         uint32_t value=base_flags(ax,ay,z);
         const uint32_t below=z>loaded.front()?base_flags(ax,ay,z-1):0,above=z<loaded.back()?base_flags(ax,ay,z+1):0;
         if(below&NCMM_WORLD_CANOPY)value=(value|NCMM_WORLD_FLOOR)&~(NCMM_WORLD_OPEN_DOWN|NCMM_WORLD_GLASS_FLOOR);
@@ -139,7 +136,12 @@ bool graphics_draw_world(int x,int y,int width,int height)
             return ncmm_world::roof_column(loaded.front(),loaded.back(),[&](int level){return base_flags(ax,ay,level);});
         });
         if(column&(uint32_t(1)<<(z-loaded.front())))value|=NCMM_WORLD_ROOFED;
-        return value;});
+        return value;
+    };
+    auto flags=[&](int ax,int ay,int z){
+        const int64_t x=int64_t(ax)-ox,y=int64_t(ay)-oy;
+        if(x<0||y<0||x>=side||y>=side||z<loaded.front()||z>loaded.back())return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE|NCMM_WORLD_ROOFED);
+        return graphics_world_derived.get(ax,ay,z,graphics_world_revision,[&]{return derive_flags(ax,ay,z);});
     };
     const uint64_t ticks=SDL_GetTicks();
     auto continuing=graphics_world_camera_motion.sample(ticks);
@@ -160,7 +162,8 @@ bool graphics_draw_world(int x,int y,int width,int height)
     const uint32_t ceiling=flags(absolute.x(),absolute.y(),absolute.z()+1);
     const float raw_eye=graphics_eye_height(),safe_eye=(ceiling&(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_UNKNOWN))?std::min(raw_eye,NCMM_WORLD_LEVEL_HEIGHT-.18f):raw_eye;
     auto animated=graphics_world_camera_motion.sample(ticks);
-    auto query=[&](ncmm_world::voxel p){return flags(ox+p.x,oy+p.y,absolute.z()+p.z);};
+    auto query=[&](ncmm_world::voxel p){return graphics_world_derived.get_relative(p.x,p.y,absolute.z()+p.z-loaded.front(),graphics_world_revision,
+        [&]{return derive_flags(ox+p.x,oy+p.y,absolute.z()+p.z);});};
     auto motion_query=[&](ncmm_world::voxel p){
         uint32_t value=ncmm_world::structural_flags(query(p));
         const auto tile=here.get_bub(tripoint_abs_ms(ox+p.x,oy+p.y,absolute.z()+p.z));
