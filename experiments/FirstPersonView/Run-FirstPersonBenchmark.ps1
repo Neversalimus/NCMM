@@ -170,6 +170,12 @@ if($MovementBenchmark){
         if(@($record.cold_rotation_samples_ms).Count -ne 48 -or @($record.warm_rotation_samples_ms).Count -ne 48){throw 'Continuous cold/warm rotation samples are incomplete.'}
         if($record.renderer -eq 'gpu' -and @($record.frame_renderers_gpu | Where-Object {$_ -ne 1}).Count){throw 'A walking GPU frame fell back to CPU.'}
     }
+    foreach($record in $audit.records){
+        if(@($record.first_frame_after_step_samples_ms).Count -ne 12){throw 'First rendered-frame samples are incomplete.'}
+    }
+    if($audit.facade_regression.normal_vision -ne $true -or $audit.facade_regression.connected_front_wall_cells -ne 18 -or $audit.facade_regression.slabs_connected -ne $true){throw 'Ordinary-vision facade continuity failed.'}
+    $horizon=$audit.horizon_regression
+    if($horizon.known_forest_patches -le 20 -or $horizon.unknown_neutral_patches -le 20 -or $horizon.near_overlap -ne $false -or $horizon.native_perception -ne $true -or $horizon.cpu_and_gpu -ne $true){throw 'Known/unknown horizon or detailed-world separation failed.'}
     $soaked=0
 }elseif($FocusedGpuBenchmark){
     $audit=Get-Content (Join-Path $evidence 'first-person-gpu-benchmark.json') -Raw | ConvertFrom-Json

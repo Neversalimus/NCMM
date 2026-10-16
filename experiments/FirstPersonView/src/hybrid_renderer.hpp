@@ -942,16 +942,18 @@ class renderer {
             quad(at,at+vec{p.width,0,0},at+vec{p.width,p.depth,0},at+vec{0,p.depth,0},m);
             if(p.height<=0)continue;
             if(p.kind==NCMM_LOD_FOREST){
-                // Two low-poly rounded crowns per known forest tile. Their
-                // silhouette remains foliage rather than triangular mountains.
+                // Two six-sided crown impostors per known forest tile. Eight
+                // triangles keep the complete 31x31 forest below 3 MiB, leaving
+                // upload room for detailed geometry on the first frame.
+                // GPU pivots turn in the shader, so yaw never rebuilds this mesh.
                 for(int n=0;n<2;++n){const float height=p.height+(n?-.6f:.4f);
-                    const vec center{p.x+7+n*10.f,p.y+8+n*8.f,p.z+height*.55f};
-                    auto point=[&](float lon,float lat){return center+vec{std::cos(lon)*std::cos(lat)*5.5f,std::sin(lon)*std::cos(lat)*7.f,std::sin(lat)*height*.5f};};
-                    for(int band=0;band<3;++band)for(int side=0;side<6;++side){
-                        const float a=side*pi/3,b=(side+1)*pi/3,lo=-pi*.5f+band*pi/3,hi=-pi*.5f+(band+1)*pi/3;
-                        const vec aa=point(a,lo),bb=point(b,lo),cc=point(b,hi),dd=point(a,hi);
-                        quad(aa,bb,cc,dd,m,normalize((aa+bb+cc+dd)*.25f-center));
-                    }
+                    const vec center{p.x+7+n*10.f,p.y+8+n*8.f,p.z};
+                    const vec right=gpu_sink?vec{5.5f,0,0}:vec{-sy*5.5f,cy*5.5f,0};
+                    material crown=m;if(gpu_sink){crown.gpu_billboard=true;crown.gpu_pivot=center;}
+                    const vec normal=gpu_sink?vec{0,-1,0}:vec{-cy,-sy,0};
+                    quad(center-right*.55f,center+right*.55f,center+right+vec{0,0,height*.64f},center-right+vec{0,0,height*.64f},crown,normal);
+                    crown.color=m.color*(n?.88f:1.f);
+                    quad(center-right+vec{0,0,height*.64f},center+right+vec{0,0,height*.64f},center+right*.4f+vec{0,0,height},center-right*.4f+vec{0,0,height},crown,normal);
                 }
             }else if(p.kind==NCMM_LOD_BUILDING){
                 box(at,{3,3,0},{p.width-3,p.depth-3,p.height},m);

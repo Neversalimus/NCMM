@@ -30,6 +30,8 @@ jobs:
           persist-credentials: false
       - name: Verify shipping shader source identity before compilation
         run: python experiments/FirstPersonView/compile_gpu_shaders.py --verify --output experiments/graphics_bridge/ncmm_gpu_shader_bytes.hpp
+      - name: Check release verifier syntax
+        run: python -m py_compile experiments/FirstPersonView/tests/verify_horizon_release.py
       - name: Configure isolated module
         run: cmake -S experiments/FirstPersonView -B fp-build -DCMAKE_BUILD_TYPE=Release -DFIRST_PERSON_BUILD_BENCHMARK=ON
       - name: Build prototype and contract tests
@@ -465,6 +467,11 @@ jobs:
       - name: Install image qualification tools
         shell: powershell
         run: python -m pip install --disable-pip-version-check pillow==11.3.0 numpy==2.2.6
+      - name: Verify exact installer, movement samples and distant horizon
+        shell: powershell
+        run: |
+          python ncmmrepo/experiments/FirstPersonView/tests/verify_horizon_release.py --installer-root installer-result --evidence-root (Join-Path $env:RUNNER_TEMP 'fp-movement/evidence') --build '${{ matrix.build }}' --expected-run '${{ github.run_id }}' --expected-source '${{ github.sha }}' --output installer-result/first-person-release-verified.json --log-preview
+          if($LASTEXITCODE -ne 0){throw 'Exact installer or horizon release verification failed.'}
       - name: Verify paired camera, pose, lighting, pixels and image provenance
         if: env.FP_FULL_QUALIFICATION == 'true'
         shell: powershell
@@ -521,6 +528,7 @@ jobs:
         with:
           name: first-person-qualification-${{ matrix.build }}
           path: |
+            installer-result/first-person-release-verified.json
             installer-result/first-person-movement-*.json
             installer-result/first-person-movement-*.bmp
             installer-result/first-person-gameplay*.json

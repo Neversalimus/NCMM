@@ -190,6 +190,22 @@ int main(){try{
         check(lod_cache.build(open.world.appearance,.5f,-.08f,{},warm,stats,host,{},&data,nullptr,400,260,NCMM_GPU_FORCE,&open.world),"horizon survives a camera turn");
         bool retained=false;for(const auto &draw:warm.draws)if(draw.cell==UINT32_MAX&&draw.mesh_key==lod_key)retained=true;
         check(retained,"camera turn reuses the same horizon mesh");
+        // The worst known-forest snapshot must fit beside the detailed world
+        // inside the Host's 16 MiB per-frame geometry upload allowance.
+        presentation_data forest=data;forest.horizon.clear();forest.horizon_revision=10;
+        for(int y=-15;y<=15;++y)for(int x=-15;x<=15;++x)
+            forest.horizon.push_back({float(x*24),float(y*24),0,24,24,5.5f,{.2f,.35f,.14f},NCMM_LOD_FOREST});
+        first_person::gpu::scene_cache forest_cache;first_person::gpu::packet forest_packet;
+        check(forest_cache.build(open.world.appearance,0,-.08f,{},forest_packet,stats,host,{},&forest,nullptr,400,260,NCMM_GPU_FORCE,&open.world),"complete known-forest horizon builds without warming or CPU fallback");
+        auto forest_view=forest_packet.finish(nullptr);uint64_t forest_bytes=0;bool forest_billboards=false;
+        for(uint32_t i=0;i<forest_view.mesh_count;++i){const auto &mesh=forest_view.meshes[i];
+            bool distant=false;for(uint32_t j=0;j<mesh.material_count;++j)distant|=(mesh.materials[j].flags&NCMM_GPU_DISTANCE_LOD)!=0;
+            if(!distant)continue;
+            forest_bytes+=uint64_t(mesh.vertex_count)*sizeof(ncmm_gpu_vertex_v1)+uint64_t(mesh.index_count)*sizeof(uint32_t)+uint64_t(mesh.material_count)*sizeof(ncmm_gpu_material_v1);
+            for(uint32_t j=0;j<mesh.vertex_count;++j)forest_billboards|=(mesh.vertices[j].flags&NCMM_GPU_BILLBOARD)!=0;
+        }
+        check(forest_billboards,"far forest uses shader-facing geometric impostors");
+        check(forest_bytes<3u*1024u*1024u,"worst-case forest leaves first-frame upload capacity for the nearby world");
         // A near opaque wall must win over the entire distant layer.
         for(int y=0;y<3;++y){const int i=open.cell(5,y,0);open.positions[i].flags=NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_OPAQUE|NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP;open.details[i].terrain_shape=NCMM_SHAPE_WALL;}
         check(build_frame(open.world.appearance,0,0,{},horizon_image,400,260,{},nullptr,nullptr,&data,{},nullptr,&open.world),"near wall with distant world renders");
