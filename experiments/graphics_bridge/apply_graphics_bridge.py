@@ -204,13 +204,13 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         updates[name] = (bridge / name).read_text(encoding="utf-8")
     # Optional world-space interface, independent of the old V1/V2 layouts.
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '#include "ncmm_graphics_v2.h"',
-        '#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_multilevel.h"\n#include "ncmm_world_cache.hpp"\n#include "avatar_action.h"\n#include "game_inventory.h"\n#include "pickup.h"\n#include "visitable.h"\n#include "debug.h"\n#include "gamemode.h"\n#include <functional>\n#include <atomic>\n#include <thread>')
+        '#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_multilevel.h"\n#include "ncmm_world_cache.hpp"\n#include "ncmm_world_lod.hpp"\n#include "overmap.h"\n#include "overmapbuffer.h"\n#include "omdata.h"\n#include "avatar_action.h"\n#include "game_inventory.h"\n#include "pickup.h"\n#include "visitable.h"\n#include "debug.h"\n#include "gamemode.h"\n#include <functional>\n#include <atomic>\n#include <thread>')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '    "graphics.viewport.v2",',
         '    "graphics.viewport.v2",\n    "graphics.multilevel.v1",')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_GPU_ID ) {',
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_MULTILEVEL_ID ) {\n'
-        '        return min_major <= 1 && min_minor == 0 ? &graphics_world_api : nullptr;\n'
+        '        return min_major <= 1 && min_minor <= 1 ? &graphics_world_api : nullptr;\n'
         '    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_GPU_ID ) {')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
         "bool graphics_requires_terrain_pass()\n{",
@@ -238,6 +238,12 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "// Native-turn diagnostics require its ordinary default game mode.\n"
         "void game::ncmm_graphics_smoke_prepare_turns()\n{\n"
         "    if( !gamemode ) gamemode = std::make_unique<special_game>();\n}\n")
+    updates["overmapbuffer.h"]=replace(read("overmapbuffer.h"), "        bool has( const point_abs_om &p );",
+        "        bool has( const point_abs_om &p );\n"
+        "        // Renderer probe: memory only; never reads disk or generates maps.\n"
+        "        const overmap *ncmm_graphics_loaded_overmap( const point_abs_om &p ) const {\n"
+        "            const auto found = overmaps.find( p );\n"
+        "            return found == overmaps.end() ? nullptr : found->second.get();\n        }\n")
     map_h=read("map.h")
     updates["map.h"]=replace(map_h, "        int supports_zlevels() const {",
         "        // Read-only loaded-submap probe; never calls load or mapgen.\n"
@@ -253,7 +259,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     ):
         map_cpp=replace(map_cpp, signature+"\n{", signature+"\n{\n    ncmm::graphics_world_changed( this, "+level+" );")
     updates["map.cpp"]=map_cpp
-    for name in ("ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc"):
+    for name in ("ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")

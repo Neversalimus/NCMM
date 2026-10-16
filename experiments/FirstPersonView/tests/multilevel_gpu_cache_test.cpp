@@ -49,6 +49,11 @@ int main(){try{
             check(draw.transform.columns[14]==coordinates[draw.cell].z*2.5f,"GPU cache preserves physical Z translation");}
         ++world.revision;first_person::gpu::packet retained;
         check(build(retained)&&!cache.generated_cells,"unchanged notification reuses GPU static geometry");
+        check(cache.signature_reuses==1,"unchanged geometry skips the complete 27-neighbour pass after a revision notification");
+        cells.back().light=.7f;details.back().light_r=.7f;first_person::gpu::packet lit;
+        check(build(lit)&&!cache.generated_cells&&cache.signature_reuses==2,"live lighting updates reuse static adjacency without rebuilding geometry");
+        check(lit.cells.back().light[0]==.7f,"retained geometry still publishes the current light buffer");
+
         coordinates.back().flags&=~NCMM_WORLD_FLOOR_BOTTOM;first_person::gpu::packet changed;
         check(build(changed)&&cache.generated_cells>0,"changed physical floor permissions invalidate neighbours");
     }

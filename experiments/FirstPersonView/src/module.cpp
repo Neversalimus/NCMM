@@ -86,6 +86,16 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     if(presentation){metadata.view={};metadata.view.struct_size=sizeof(metadata.view);metadata.cells.resize(scene->base.cell_count);
         has_metadata=presentation->get_scene(&metadata.view)&&presentation->get_cells(metadata.cells.data(),metadata.cells.size());
     }
+    metadata.horizon.clear();metadata.horizon_revision=0;metadata.horizon_enabled=false;
+    if(active_world&&multilevel&&multilevel->struct_size>=sizeof(*multilevel)&&multilevel->get_lod){
+        ncmm_graphics_lod_scene_v1 distant{};distant.struct_size=sizeof(distant);
+        if(multilevel->get_lod(&distant)&&ncmm_world::valid_lod(distant)&&distant.enabled){
+            if(distant.count)metadata.horizon.assign(distant.patches,distant.patches+distant.count);
+            metadata.horizon_revision=distant.revision;
+            for(float value:{scene->environment.daylight,scene->environment.sun_z,scene->environment.sky_r,scene->environment.sky_g,scene->environment.sky_b,scene->environment.sky_tint})metadata.horizon_revision=first_person::hash_bytes(metadata.horizon_revision,&value,sizeof(value));
+            metadata.horizon_enabled=true;
+        }
+    }
     bool has_creatures=false;
     if(creatures&&creature_state){auto &input=creature_state->input;input.view={};input.view.struct_size=sizeof(input.view);
         if(creatures->get_scene(&input.view)&&input.view.count<=scene->base.cell_count+256){input.creatures.resize(input.view.count);
@@ -143,6 +153,8 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         // Appearance and movement only change composition, not static geometry.
         const uint64_t presentation_key=first_person::hash_bytes(1469598103934665603ull,&metadata.view,sizeof(metadata.view));
         key^=presentation_key;
+        hash(&metadata.horizon_revision,sizeof(metadata.horizon_revision));
+        hash(&metadata.horizon_enabled,sizeof(metadata.horizon_enabled));
         hash(&metadata.view.eye_height,sizeof(metadata.view.eye_height));hash(&metadata.view.sky_style,sizeof(metadata.view.sky_style));
         hash(&metadata.view.occupied_vehicle,sizeof(metadata.view.occupied_vehicle));if(has_creatures){for(auto detail:metadata.cells){detail.hostile=0;detail.creature_height=detail.creature_width=detail.creature_elevation=0;hash(&detail,sizeof(detail));}}
         else hash(metadata.cells.data(),metadata.cells.size()*sizeof(metadata.cells[0]));key^=wk;}
@@ -216,7 +228,7 @@ int init(const ncmm_host_api_v1 *api) {
            !candidate->register_view || !candidate->set_enabled || !candidate->is_enabled || !candidate->get_sprite || !candidate->submit_frame) return 0;
         if(api->has_capability(NCMM_GRAPHICS_MULTILEVEL_CAP)){
             auto *w=static_cast<const ncmm_host_graphics_multilevel_v1 *>(api->query_interface(NCMM_GRAPHICS_MULTILEVEL_ID,1,0));
-            if(w&&w->abi_version==1&&w->major==1&&w->struct_size>=sizeof(*w)&&w->register_view&&w->set_enabled&&w->is_enabled&&w->get_sprite&&w->submit_frame&&w->submit_gpu&&w->get_metrics)multilevel=w;
+            if(w&&w->abi_version==1&&w->major==1&&w->struct_size>=offsetof(ncmm_host_graphics_multilevel_v1,get_lod)&&w->register_view&&w->set_enabled&&w->is_enabled&&w->get_sprite&&w->submit_frame&&w->submit_gpu&&w->get_metrics)multilevel=w;
         }
         if(multilevel){if(!multilevel->register_view(id,render_multilevel,input,nullptr))return 0;}
         else if(!candidate->register_view(id,render_hybrid,input,nullptr))return 0;
@@ -257,7 +269,7 @@ void shutdown() {
     commands.clear();
     pixels={};world_pixels={};frame_valid=world_valid=false;
 }
-const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View","0.12.5-dev",
+const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View","0.12.6-dev",
     caps,sizeof(caps)/sizeof(caps[0]),init,shutdown};
 }
 extern "C" NCMM_EXPORT const ncmm_mod_descriptor_v1 *ncmm_get_descriptor_v1(){return &descriptor;}

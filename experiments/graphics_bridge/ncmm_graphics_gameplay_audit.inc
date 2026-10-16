@@ -156,9 +156,14 @@
             for(int i=0;i<count;++i)require(g->place_critter_at(mtype_id("mon_zombie"),point_at(count==1?0:i%5-2,-1-i/5))!=nullptr,"audit_combat_group_spawn_failed");
             item revolver(itype_id("sw_619"),calendar::turn);revolver.ammo_set(itype_id("38_special"),7);you.set_wielded_item(revolver);warm("cpu");warm("gpu");
             for(int round=0;round<6;++round){
+                // Fixed starting state for each scripted round: the audit
+                // measures native attacks/render guards, not fatigue/knockdown
+                // attrition. Enemy actions still run below; player games do not.
+                you.clear_effects();you.set_movement_mode(move_mode_id("walk"));
+                you.set_stamina(you.get_stamina_max());
                 const auto targets=get_creature_tracker().get_monsters_list();
                 if(round&&!targets.empty()){auto nearest=targets.front();for(const auto &m:targets)if(!m->is_dead_state()&&rl_dist(you.pos_bub(),m->pos_bub())<rl_dist(you.pos_bub(),nearest->pos_bub()))nearest=m;
-                    if(!nearest->is_dead_state()){if(rl_dist(you.pos_bub(),nearest->pos_bub())<=1){you.melee_attack(*nearest,false);++trial.melee;}
+                    if(!nearest->is_dead_state()){if(rl_dist(you.pos_bub(),nearest->pos_bub())<=1){const auto weapon=you.get_wielded_item();require(weapon&&you.attack_speed(*weapon)<=300,"audit_combat_weapon_requires_interactive_confirmation");you.melee_attack(*nearest,false);++trial.melee;}
                         if(!nearest->is_dead_state()&&you.get_wielded_item()&&you.get_wielded_item()->ammo_remaining()>0)trial.shots+=you.fire_gun(here,nearest->pos_bub(),1,*you.get_wielded_item());}}
                 checkpoint("native_combat_"+std::to_string(count)+"_turn_"+std::to_string(round));you.set_moves(0);const auto begin=audit_clock::now();require(!g->do_turn(),"audit_combat_native_turn_ended_game");stages["combat_native_turn_wall_ms"].push_back(milliseconds(begin));++trial.turns;
                 for(const auto &entry:graphics_creature_records)if(entry.second.snapshot.event==NCMM_CR_MELEE)enemy_attack_events.insert(entry.second.snapshot.event_serial);trial.observed_enemy_attacks=int(enemy_attack_events.size());
@@ -172,7 +177,7 @@
     action("native_f6_and_f12_dispatch",[&](){const auto pos=you.pos_abs();const int moves=you.get_moves();const auto turn=calendar::turn;press_f6();require(!graphics_view.enabled&&graphics_world_sources.bytes()==0,"audit_f6_cache_not_released");press_f6();
         const std::string before=get_option<std::string>("NCMM_FIRST_PERSON_RENDERER");for(int n=0;n<3;++n){f12();render();}require(get_option<std::string>("NCMM_FIRST_PERSON_RENDERER")==before,"audit_f12_cycle_not_restored");require(you.pos_abs()==pos&&you.get_moves()==moves&&calendar::turn==turn,"audit_toggle_changed_native_state");
     });
-    report.end_array();report.member("native_action_stages");write_stages(stages);report.member("combat_trials");report.start_array();for(const auto &t:combat_trials){report.start_object();report.member("spawned",t.spawned);report.member("native_turns",t.turns);report.member("native_shots",t.shots);report.member("native_melee",t.melee);report.member("observed_enemy_attacks",t.observed_enemy_attacks);report.member("avatar_debug_protection",true);report.end_object();}report.end_array();
+    report.end_array();report.member("native_action_stages");write_stages(stages);report.member("combat_trials");report.start_array();for(const auto &t:combat_trials){report.start_object();report.member("spawned",t.spawned);report.member("native_turns",t.turns);report.member("native_shots",t.shots);report.member("native_melee",t.melee);report.member("observed_enemy_attacks",t.observed_enemy_attacks);report.member("avatar_debug_protection",true);report.member("avatar_stamina_reset_each_turn",true);report.member("avatar_combat_state_reset_each_turn",true);report.end_object();}report.end_array();
     const std::string original_tileset=get_option<std::string>("TILES");std::vector<std::string> tilesets{original_tileset};if(std::getenv("NCMM_FP_UDP"))tilesets.push_back("UndeadPeople_0J_Hybrid_v3");
     report.member("tilesets");report.start_array();
     for(size_t ti=0;ti<tilesets.size();++ti){const auto &tileset=tilesets[ti];checkpoint("load_tileset_"+tileset);const auto reload_begin=audit_clock::now();get_options().get_option("TILES").setValue(tileset);tilecontext->load_tileset(tileset,false,true);

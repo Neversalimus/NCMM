@@ -69,6 +69,49 @@ int main(){try{
         }
     }
     {
+        sealed_plane_cache slabs;int reads=0;
+        auto plane=[&](int x,int y,int z){++reads;return x==1000004&&y==-1000004&&z==0?uint32_t(NCMM_WORLD_DOWN):uint32_t(NCMM_WORLD_FLOOR);};
+        check(slabs.prepare(1000000,-1000008,-1,2,9,9,1,1));
+        check(!slabs.closed(0,plane)); // a distant shaft defeats the global proof
+        const int before=reads;
+        check(slabs.closed_rectangle(0,1000000,-1000008,1000003,-1000005,plane));
+        check(reads==before+81);const int built=reads;
+        check(!slabs.closed_rectangle(0,1000003,-1000005,1000005,-1000003,plane));
+        check(slabs.closed_rectangle(0,1000005,-1000003,1000008,-1000000,plane));
+        check(reads==built); // every later rectangle is four prefix reads
+        for(int left=0;left<9;++left)for(int top=0;top<9;++top)for(int right=left;right<9;++right)for(int bottom=top;bottom<9;++bottom){
+            const bool expected=!(left<=4&&right>=4&&top<=4&&bottom>=4);
+            check(slabs.closed_rectangle(0,1000000+left,-1000008+top,1000000+right,-1000008+bottom,plane)==expected);
+        }
+        check(reads==built);
+        check(!slabs.closed_rectangle(0,999999,-1000008,1000003,-1000005,plane));
+        check(!slabs.closed_rectangle(0,1000000,-1000008,1000009,-1000005,plane));
+        check(!slabs.closed_rectangle(-2,1000000,-1000008,1000003,-1000005,plane));
+        check(!slabs.closed_rectangle(0,1000003,-1000005,1000000,-1000008,plane));
+        check(reads==built);
+        check(slabs.prepare(1000000,-1000008,-1,2,9,9,1,2));
+        check(!slabs.closed_rectangle(0,1000000,-1000008,1000003,-1000005,[](int,int,int){return uint32_t(NCMM_WORLD_GLASS_FLOOR|NCMM_WORLD_FLOOR);}));
+        check(slabs.prepare(1000001,-1000008,-1,2,9,9,1,2));
+        check(slabs.closed_rectangle(0,1000001,-1000008,1000003,-1000005,plane));
+        check(slabs.prepare(1000001,-1000008,-1,2,9,9,2,2));
+        check(!slabs.closed_rectangle(0,1000001,-1000008,1000003,-1000005,[](int,int,int){return 0u;}));
+        check(slabs.prepare(0,0,0,31,97,97,3,3));
+        for(int z=0;z<32;++z)check(!slabs.closed_rectangle(z,0,0,96,96,[](int,int,int){return 0u;}));
+        check(slabs.bytes()<2u*1024u*1024u);slabs.clear();check(slabs.bytes()<=NCMM_WORLD_MAX_SLICES);
+    }
+    {
+        // A rectangle reported closed must block every 3D probe, including
+        // cell corners and noncentral eyes. An opening outside it is irrelevant.
+        sealed_plane_cache slabs;check(slabs.prepare(0,0,-2,2,17,17,1,1));
+        auto plane=[](int x,int y,int z){return z==0&&(x!=1||y!=1)?uint32_t(NCMM_WORLD_FLOOR):0u;};
+        auto query=[&](voxel p){return plane(p.x,p.y,p.z);};
+        for(float ex:{7.05f,8.95f})for(float ey:{7.05f,8.95f})for(int x=0;x<17;++x)for(int y=0;y<17;++y){
+            const int left=std::min(x,int(std::floor(ex))),right=std::max(x,int(std::floor(ex))),top=std::min(y,int(std::floor(ey))),bottom=std::max(y,int(std::floor(ey)));
+            if(!slabs.closed_rectangle(0,left,top,right,bottom,plane))continue;
+            for(float corner:{.001f,.5f,.999f})check(!visible({ex,ey,1.55f},{x+corner,y+1-corner,-1.25f},query));
+        }
+    }
+    {
         geometry_cache derived;int computations=0;
         auto value=[](int x,int y,int z){return uint32_t((x+200)*13+(y+200)*97+(z+20)*701);};
         auto visit=[&](int left,int top,int low,int high,int revision){

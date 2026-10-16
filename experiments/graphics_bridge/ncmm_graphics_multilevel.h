@@ -22,7 +22,7 @@ enum ncmm_world_flags {
     NCMM_WORLD_WATER=4096u, NCMM_WORLD_UNKNOWN=8192u,
     NCMM_WORLD_CONNECTED_UP=16384u, NCMM_WORLD_CONNECTED_DOWN=32768u,
     NCMM_WORLD_CANOPY=65536u, NCMM_WORLD_RAMP_END=131072u,
-    /* Physically visible architecture; never grants room contents or targets. */
+    /* Static architecture submitted for physical raster occlusion; no contents/targets. */
     NCMM_WORLD_STRUCTURE_VISIBLE=262144u
 };
 typedef struct ncmm_world_cell_v1 {
@@ -56,6 +56,22 @@ typedef struct ncmm_gpu_multilevel_scene_v1 {
     int32_t origin_x,origin_y,origin_z,reserved_origin;
     float level_height;
 } ncmm_gpu_multilevel_scene_v1;
+/* Optional minor-1 horizon data. No entities, items or exact room topology.
+ * Patches are coarse world-space boxes/ground sheets relative to scene origin.
+ * Unknown overmap tiles carry only neutral atmospheric ground. */
+#define NCMM_LOD_MAX_PATCHES 2048u
+enum ncmm_lod_kind {NCMM_LOD_UNKNOWN=0,NCMM_LOD_FIELD=1,NCMM_LOD_FOREST=2,NCMM_LOD_WATER=3,NCMM_LOD_ROAD=4,NCMM_LOD_BUILDING=5};
+typedef struct ncmm_lod_patch_v1 {
+    float x,y,z,width,depth,height;
+    float color[3];
+    uint32_t kind;
+} ncmm_lod_patch_v1;
+typedef struct ncmm_graphics_lod_scene_v1 {
+    uint32_t struct_size,version,count,enabled;
+    uint64_t revision;
+    float ground_z,reserved;
+    const ncmm_lod_patch_v1 *patches;
+} ncmm_graphics_lod_scene_v1;
 typedef struct ncmm_multilevel_metrics_v1 {
     uint32_t struct_size,available_slices,visible_slices,processed_cells;
     uint32_t frustum_rejected,occlusion_rejected,budget_rejected,submitted_cells;
@@ -72,6 +88,7 @@ typedef struct ncmm_host_graphics_multilevel_v1 {
     int (*submit_frame)(const uint32_t *,uint32_t,uint32_t,uint32_t);
     int (*submit_gpu)(const ncmm_gpu_multilevel_scene_v1 *);
     int (*get_metrics)(ncmm_multilevel_metrics_v1 *);
+    int (*get_lod)(ncmm_graphics_lod_scene_v1 *); /* optional minor 1, size-gated */
 } ncmm_host_graphics_multilevel_v1;
 #ifdef __cplusplus
 }

@@ -39,12 +39,15 @@ public:
 class sealed_plane_cache {
     int32_t ox=0,oy=0;int low=0,high=-1,width=0,height=0;uint64_t world=0,revision=0;
     std::array<uint8_t,NCMM_WORLD_MAX_SLICES> state{};
+    std::array<std::vector<uint32_t>,NCMM_WORLD_MAX_SLICES> openings;
 public:
     void clear(){*this=sealed_plane_cache{};}
     bool prepare(int32_t x,int32_t y,int minz,int maxz,int w,int h,uint64_t epoch,uint64_t changed){
         if(!epoch||!changed||w<1||h<1||w>97||h>97||minz < -128||maxz>128||minz>maxz||int64_t(maxz)-minz>=NCMM_WORLD_MAX_SLICES||
            int64_t(x)+w-1>INT32_MAX||int64_t(y)+h-1>INT32_MAX){clear();return false;}
-        if(ox!=x||oy!=y||low!=minz||high!=maxz||width!=w||height!=h||world!=epoch||revision!=changed)state.fill(0);
+        if(ox!=x||oy!=y||low!=minz||high!=maxz||width!=w||height!=h||world!=epoch||revision!=changed){
+            state.fill(0);for(auto &plane:openings)plane.clear();
+        }
         ox=x;oy=y;low=minz;high=maxz;width=w;height=h;world=epoch;revision=changed;return true;
     }
     template<class Read> bool closed(int z,Read read){
@@ -52,6 +55,28 @@ public:
         for(int y=0;y<height;++y)for(int x=0;x<width;++x)if(!full_opaque_slab(read(ox+x,oy+y,z))){cached=1;return false;}
         cached=2;return true;
     }
+    // Every segment between the eye and a cell stays inside their XY bounding
+    // rectangle. A full slab at every tile in that rectangle therefore blocks
+    // the entire lower/higher voxel, even when an unrelated distant stair or
+    // window prevents the whole source plane from being sealed.
+    template<class Read> bool closed_rectangle(int z,int32_t left,int32_t top,int32_t right,int32_t bottom,Read read){
+        if(!world||z<low||z>high||left>right||top>bottom)return false;
+        const int64_t x0=int64_t(left)-ox,y0=int64_t(top)-oy,x1=int64_t(right)-ox,y1=int64_t(bottom)-oy;
+        if(x0<0||y0<0||x1>=width||y1>=height)return false;
+        const size_t level=size_t(z-low);if(state[level]==2)return true;
+        auto &prefix=openings[level];const size_t stride=size_t(width)+1;
+        if(prefix.empty()){
+            prefix.assign(stride*(size_t(height)+1),0);
+            for(int y=0;y<height;++y){uint32_t row=0;
+                for(int x=0;x<width;++x){row+=full_opaque_slab(read(ox+x,oy+y,z))?0u:1u;
+                    prefix[size_t(y+1)*stride+size_t(x+1)]=prefix[size_t(y)*stride+size_t(x+1)]+row;}}
+            state[level]=prefix.back()?1:2;
+        }
+        const size_t a=size_t(y0)*stride+size_t(x0),b=size_t(y0)*stride+size_t(x1+1),
+                     c=size_t(y1+1)*stride+size_t(x0),d=size_t(y1+1)*stride+size_t(x1+1);
+        return uint64_t(prefix[d])+prefix[a]==uint64_t(prefix[b])+prefix[c];
+    }
+    size_t bytes()const{size_t total=sizeof(state);for(const auto &plane:openings)total+=plane.capacity()*sizeof(uint32_t);return total;}
 };
 // Derived geometry and roof facts are keyed by absolute XYZ and an explicit
 // geometry revision. Preserve the canonical overlap when the avatar walks.

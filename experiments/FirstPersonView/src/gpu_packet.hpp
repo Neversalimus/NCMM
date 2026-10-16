@@ -56,8 +56,8 @@ public:
     packet(){scene.struct_size=sizeof(scene);bones.push_back(identity());}
     void mesh(std::shared_ptr<const owned_mesh> value) {
         if(!value||!value->key)return;
-        mesh_owners.emplace(value->key,value);
-        for(const auto &texture:value->textures)texture_owners.emplace(texture->key,texture);
+        if(!mesh_owners.try_emplace(value->key,value).second)return;
+        for(const auto &texture:value->textures)texture_owners.try_emplace(texture->key,texture);
     }
     void draw(const std::shared_ptr<const owned_mesh> &value,const ncmm_gpu_matrix_v1 &transform,
               uint32_t cell,uint32_t pass,const std::vector<ncmm_gpu_matrix_v1> *pose=nullptr,float heading=0) {

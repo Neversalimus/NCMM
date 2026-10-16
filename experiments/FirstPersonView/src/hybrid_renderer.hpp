@@ -1,6 +1,7 @@
 #pragma once
 #include "ncmm_graphics_v2.h"
 #include "ncmm_world_policy.hpp"
+#include "ncmm_world_lod.hpp"
 #include "ncmm_graphics_shapes.hpp"
 #include "animation.hpp"
 #include "creature_scene.hpp"
@@ -43,6 +44,8 @@ inline float noise(float x,float y){int ix=int(std::floor(x)),iy=int(std::floor(
 struct presentation_data {
     ncmm_graphics_presentation_v1 view{};
     std::vector<ncmm_graphics_detail_v1> cells;
+    std::vector<ncmm_lod_patch_v1> horizon;
+    uint64_t horizon_revision=0;bool horizon_enabled=false;
 };
 struct cached_transparency;
 struct frame {
@@ -130,7 +133,7 @@ inline surface ground_surface(const char *id){
 struct material {const image *texture=nullptr;vec color{0.45f,0.45f,0.45f};float alpha=1;
     bool cutout=false,opaque_texture=false,overlay=false;int cell=-1;surface finish=surface::none;bool creature=false,spill=false;uint32_t liquid=0,banks=0;
     bool smooth=false,silhouette=false,creature_visual=false;const creature::impostor *impostor=nullptr;float creature_yaw=0;
-    bool gpu_backface=false,gpu_billboard=false;vec gpu_pivot{};bool slab_lower=false;};
+    bool gpu_backface=false,gpu_billboard=false;vec gpu_pivot{};bool slab_lower=false,distance_lod=false;};
 struct triangle {std::array<vertex,3> v;material m;vec normal{0,0,1};};
 
 // Geometry-only destination. The shared generator preserves the existing art
@@ -141,6 +144,8 @@ struct geometry_sink {
     virtual bool any_dirty()const{return true;}
     virtual void emit(const triangle &value)=0;
     virtual void world_complete(){}
+    virtual bool horizon_dirty()const{return true;}
+    virtual void horizon_complete(){}
     virtual void skin(const creature::model &model,const creature::skeleton_pose &pose,int lod,
                       vec origin,int cell,vec scale,bool fallback,bool targetable,float heading,vec offset)=0;
     virtual void impostor(const creature::asset &asset,const creature::pose_state &pose,vec origin,int cell,int lod,bool targetable)=0;
@@ -429,7 +434,8 @@ class renderer {
                               {std::max({a.x,b.x,c.x,d.x}),std::max({a.y,b.y,c.y,d.y}),std::max({a.z,b.z,c.z,d.z})})){
             ++f.culled_quads;return;
         }
-        vec l=gpu_sink?vec{1,1,1}:m.overlay?held_light:light(m.cell,normal,m.slab_lower);
+        const float distant=(.035f+.82f*clamp(s.environment.daylight))*(.72f+.20f*std::max(normal.z,0.f)+.08f*std::max(0.f,dot(normal,{s.environment.sun_x,s.environment.sun_y,s.environment.sun_z})));
+        vec l=gpu_sink?vec{1,1,1}:m.distance_lod?vec{distant,distant,distant}:m.overlay?held_light:light(m.cell,normal,m.slab_lower);
         if(m.overlay&&!gpu_sink){if(dot(normal,eye-a)<0)normal=normal*-1;
             const vec key=normalize(vec{sy*.4f-cy*.3f,-cy*.4f-sy*.3f,.85f});
             l=l*(.66f+.34f*std::max(0.0f,dot(normal,key)));}
@@ -555,7 +561,7 @@ class renderer {
             const float up=(f.height*.5f-y)/projection;
             const float elevation=std::atan2(sp+up*cp,std::abs(cp-up*sp));
             const float t=clamp(1-elevation/(pi*.5f));
-            const uint32_t c=pack(world_data&&elevation<0?vec{.012f,.016f,.024f}:top*(1-t)+bottom*t);
+            const uint32_t c=pack(world_data&&elevation<0?(metadata&&metadata->horizon_enabled?bottom:vec{.012f,.016f,.024f}):top*(1-t)+bottom*t);
             if(!options.skip_hidden_sky){std::fill_n(f.pixels.data()+size_t(y)*f.width,f.width,c);count+=f.width;}
             else for(int x=0;x<f.width;++x){const size_t at=size_t(y)*f.width+x;
                 if(!std::isfinite(f.depth[at])){f.pixels[at]=c;++count;}}
@@ -927,6 +933,35 @@ class renderer {
     }
     #include "creatures.inc"
     #include "multilevel_geometry.inc"
+    void horizon(){
+        if(!metadata||!metadata->horizon_enabled||!world_data)return;
+        for(const auto &p:metadata->horizon){
+            const vec at{p.x,p.y,p.z};material m{nullptr,{p.color[0],p.color[1],p.color[2]},1,false,false,false,-1};m.distance_lod=true;
+            // Unknown geography is an atmospheric continuation, without features.
+            if(p.kind==NCMM_LOD_UNKNOWN)m.color=m.color*.18f+fog_color*.82f;
+            quad(at,at+vec{p.width,0,0},at+vec{p.width,p.depth,0},at+vec{0,p.depth,0},m);
+            if(p.height<=0)continue;
+            if(p.kind==NCMM_LOD_FOREST){
+                // Two six-sided crown impostors per known forest tile. Eight
+                // triangles keep the complete 31x31 forest below 3 MiB, leaving
+                // upload room for detailed geometry on the first frame.
+                // GPU pivots turn in the shader, so yaw never rebuilds this mesh.
+                for(int n=0;n<2;++n){const float height=p.height+(n?-.6f:.4f);
+                    const vec center{p.x+7+n*10.f,p.y+8+n*8.f,p.z};
+                    const vec right=gpu_sink?vec{5.5f,0,0}:vec{-sy*5.5f,cy*5.5f,0};
+                    material crown=m;if(gpu_sink){crown.gpu_billboard=true;crown.gpu_pivot=center;}
+                    const vec normal=gpu_sink?vec{0,-1,0}:vec{-cy,-sy,0};
+                    quad(center-right*.55f,center+right*.55f,center+right+vec{0,0,height*.64f},center-right+vec{0,0,height*.64f},crown,normal);
+                    crown.color=m.color*(n?.88f:1.f);
+                    quad(center-right+vec{0,0,height*.64f},center+right+vec{0,0,height*.64f},center+right*.4f+vec{0,0,height},center-right*.4f+vec{0,0,height},crown,normal);
+                }
+            }else if(p.kind==NCMM_LOD_BUILDING){
+                box(at,{3,3,0},{p.width-3,p.depth-3,p.height},m);
+                material roof=m;roof.color=m.color*.72f;
+                quad(at+vec{3,3,p.height+.02f},at+vec{p.width-3,3,p.height+.02f},at+vec{p.width-3,p.depth-3,p.height+.02f},at+vec{3,p.depth-3,p.height+.02f},roof);
+            }
+        }
+    }
     void world(){
         std::vector<int> order;order.reserve(base.cell_count);
         for(int i=0;i<int(base.cell_count);++i){if(!visible(i)||(gpu_sink&&!gpu_sink->dirty(i)))continue;
@@ -1116,7 +1151,7 @@ public:
     renderer(const ncmm_graphics_scene_v2 &scene,float y,float p,sprite_provider source,frame &output,animation::pose animation_pose={},const presentation_data *data=nullptr,render_options settings={},creature::presentation *entities=nullptr,const ncmm_graphics_multilevel_scene_v1 *world=nullptr):s(scene),base(scene.base),provider(std::move(source)),f(output),yaw(y),pitch(p),cy(std::cos(y)),sy(std::sin(y)),cp(std::cos(p)),sp(std::sin(p)),projection(1),eye{base.camera_x,base.camera_y,1.55f},pose(animation_pose),options(settings),metadata(data),creature_data(entities),world_data(world),world_coordinates(world,true){if(metadata&&metadata->view.eye_height>.1f)eye.z=metadata->view.eye_height;if(world){eye.x+=world->camera_dx;eye.y+=world->camera_dy;eye.z+=world->camera_dz;}}
     void collect(geometry_sink &sink,int width,int height){
         gpu_sink=&sink;f.width=width;f.height=height;projection=width/(2*std::tan(70*pi/360));
-        sky_palette();shadows.assign(base.cell_count,1);if(sink.any_dirty()){vehicles_build();world();}sink.world_complete();
+        sky_palette();shadows.assign(base.cell_count,1);if(sink.any_dirty()){vehicles_build();world();}sink.world_complete();if(sink.horizon_dirty())horizon();sink.horizon_complete();
         f.creature_lods={};f.creature_culled=f.creature_fallback=0;
         if(creature_data)dynamic_creatures();held();gpu_sink=nullptr;
     }
@@ -1133,7 +1168,7 @@ public:
             f.geometry_ms=f.raster_ms=f.effects_ms=0;f.raster_calls=0;f.submitted_triangles=0;
             f.transparency.reset();f.dynamic_world=bool(creature_data);
             sky_palette();if(!options.skip_hidden_sky)sky();
-            const auto geometry_begun=std::chrono::steady_clock::now();shadows_build();vehicles_build();world();
+            const auto geometry_begun=std::chrono::steady_clock::now();shadows_build();vehicles_build();world();horizon();
             f.geometry_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-geometry_begun).count();paint(opaque);
             if(options.skip_hidden_sky)sky();
             std::stable_sort(transparent.begin(),transparent.end(),[&](const triangle &a,const triangle &b){return view(a.v[0].p+a.v[1].p+a.v[2].p).z>view(b.v[0].p+b.v[1].p+b.v[2].p).z;});

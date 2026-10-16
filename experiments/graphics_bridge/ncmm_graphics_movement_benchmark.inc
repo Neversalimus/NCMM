@@ -53,7 +53,7 @@
             graphics_mouse_dx=std::remainder(-ncmm_graphics_camera::pi*.5f-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;
             graphics_mouse_dy=(graphics_camera_pitch+.08f)/.003f;require(graphics_action("ncmm.view.mouse_look"),"movement_camera_failed");graphics_mouse_dx=graphics_mouse_dy=0;
             get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);refresh();
-            std::vector<double> frame_ms,visibility_ms,first_ms,easing_ms,cold_turn_ms,warm_turn_ms;
+            std::vector<double> frame_ms,visibility_ms,first_ms,first_frame_ms,easing_ms,cold_turn_ms,warm_turn_ms;
             std::vector<double> geometry_ms,resource_ms;std::vector<uint64_t> range_evaluations,range_hits,ray_hits,ray_misses,geometry_hits,geometry_misses,roof_misses,source_misses,geometry_revisions,material_evaluations,material_hits;
             std::vector<uint32_t> renderers;uint64_t cache_peak=0;
             auto render=[&](bool measured){const auto begin=clock::now();const auto pos=you.pos_abs();const auto moves=you.get_moves();
@@ -88,7 +88,7 @@
             graphics_mouse_dy=(graphics_camera_pitch+.08f)/.003f;require(graphics_action("ncmm.view.mouse_look"),"movement_reset_camera_failed");graphics_mouse_dx=graphics_mouse_dy=0;render(false);
             for(int step=0;step<12;++step){const std::array<tripoint_rel_ms,4> route={tripoint_rel_ms(1,0,0),tripoint_rel_ms(0,-1,0),tripoint_rel_ms(-1,0,0),tripoint_rel_ms(0,1,0)};
                 const auto before=you.pos_abs();const int moves=you.get_moves();const auto begin=clock::now();require(avatar_action::move(you,here,route[step%4]),"movement_native_walk_failed");
-                require(you.pos_abs()!=before&&you.get_moves()<moves,"movement_native_cost_missing");refresh();render(true);first_ms.push_back(elapsed(begin));
+                require(you.pos_abs()!=before&&you.get_moves()<moves,"movement_native_cost_missing");refresh();render(true);first_ms.push_back(elapsed(begin));first_frame_ms.push_back(frame_ms.back());
                 int samples=0;while(graphics_world_transition_active&&samples++<100){SDL_Delay(17);const auto ease_begin=clock::now();render(true);easing_ms.push_back(elapsed(ease_begin));}
                 require(!graphics_world_transition_active,"movement_camera_did_not_settle");
             }
@@ -96,6 +96,7 @@
             report.start_object();report.member("scene",scene);report.member("renderer",mode);report.member("width",viewport.x);report.member("height",viewport.y);
             report.member("tileset",get_option<std::string>("TILES"));
             report.member("native_steps",12);report.member("first_ready_samples_ms",first_ms);report.member("easing_frame_samples_ms",easing_ms);report.member("frame_samples_ms",frame_ms);report.member("visibility_samples_ms",visibility_ms);report.member("frame_renderers_gpu",renderers);
+            report.member("first_frame_after_step_samples_ms",first_frame_ms);report.member("first_frame_after_step_median_ms",percentile(first_frame_ms,.5));report.member("first_frame_after_step_p95_ms",percentile(first_frame_ms,.95));
             report.member("first_ready_median_ms",percentile(first_ms,.5));report.member("first_ready_p95_ms",percentile(first_ms,.95));report.member("easing_median_ms",percentile(easing_ms,.5));report.member("easing_p95_ms",percentile(easing_ms,.95));
             report.member("cold_rotation_samples_ms",cold_turn_ms);report.member("warm_rotation_samples_ms",warm_turn_ms);
             report.member("cold_rotation_median_ms",percentile(cold_turn_ms,.5));report.member("cold_rotation_p95_ms",percentile(cold_turn_ms,.95));report.member("cold_rotation_max_ms",*std::max_element(cold_turn_ms.begin(),cold_turn_ms.end()));
@@ -175,6 +176,43 @@
     }
     report.member("facade_regression");report.start_object();report.member("normal_vision",true);
     report.member("connected_front_wall_cells",observer.walls);report.member("slabs_connected",observer.slabs);report.end_object();
+    // A separate diagnostic after the twelve timed records: controlled known
+    // distant forest, undiscovered neighboring geography and ordinary vision.
+    // Only this disposable smoke world modifies overmap discovery/terrain.
+    const auto horizon_center=project_to<coords::omt>(you.pos_abs());
+    (void)overmap_buffer.get_om_global(horizon_center); // disposable diagnostic setup only
+    std::vector<std::tuple<tripoint_abs_omt,oter_id,om_vision_level>> horizon_restore;
+    for(int dy=-8;dy<=8;++dy)for(int dx=-8;dx<=8;++dx){
+        if(std::max(std::abs(dx),std::abs(dy))<4)continue;
+        const tripoint_abs_omt target(horizon_center.x()+dx,horizon_center.y()+dy,0);
+        const auto slot=overmap_buffer.get_existing_om_global(target);if(!slot)continue;
+        horizon_restore.emplace_back(target,slot.om->ter(slot.local),slot.om->seen(slot.local));
+        slot.om->ter_set(slot.local,oter_str_id("forest").id());
+        slot.om->set_seen(slot.local,(dx+dy)%3?om_vision_level::full:om_vision_level::unseen,true);
+    }
+    uint32_t horizon_forest=0,horizon_unknown=0;
+    for(const char *mode:{"cpu","gpu"}){
+        get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);
+        graphics_mouse_dx=std::remainder(-ncmm_graphics_camera::pi*.5f-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;
+        graphics_mouse_dy=(graphics_camera_pitch+.035f)/.003f;require(graphics_action("ncmm.view.mouse_look"),"horizon_camera_failed");graphics_mouse_dx=graphics_mouse_dy=0;
+        require(SDL_SetRenderTarget(renderer,guard.canvas)&&graphics_draw(0,0,1768,1084),"horizon_render_failed");
+        if(std::string(mode)=="gpu")require(graphics_gpu_frame,"horizon_gpu_fallback");
+        require(ncmm_world::valid_lod(graphics_lod_frame)&&graphics_lod_frame.enabled,"horizon_snapshot_invalid");
+        horizon_forest=horizon_unknown=0;
+        for(const auto &patch:graphics_lod_patches){
+            if(patch.kind==NCMM_LOD_FOREST&&patch.height>0)++horizon_forest;
+            if(patch.kind==NCMM_LOD_UNKNOWN){++horizon_unknown;require(patch.height==0,"unknown_horizon_revealed_feature");}
+            require(patch.x+patch.width<=0||patch.x>=97||patch.y+patch.depth<=0||patch.y>=97,"horizon_overlaps_detailed_world");
+        }
+        require(horizon_forest>20&&horizon_unknown>20,"horizon_known_unknown_fixture_missing");
+        require(SDL_SetRenderTarget(renderer,guard.canvas),"horizon_capture_target_failed");
+        auto *image=SDL_RenderReadPixels(renderer,nullptr);require(image,"horizon_capture_failed");
+        const auto file=game_root()/"ncmm"/("first-person-horizon-"+std::string(mode)+".bmp");
+        const bool saved=SDL_SaveBMP(image,file.string().c_str());SDL_DestroySurface(image);require(saved,"horizon_capture_write_failed");
+    }
+    for(const auto &entry:horizon_restore){const auto slot=overmap_buffer.get_existing_om_global(std::get<0>(entry));if(slot){slot.om->ter_set(slot.local,std::get<1>(entry));slot.om->set_seen(slot.local,std::get<2>(entry),true);}}
+    report.member("horizon_regression");report.start_object();report.member("known_forest_patches",horizon_forest);report.member("unknown_neutral_patches",horizon_unknown);
+    report.member("near_overlap",false);report.member("native_perception",true);report.member("cpu_and_gpu",true);report.end_object();
     if(had_nightvision)you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));you.recalc_sight_limits();get_weather().weather_id=saved_weather;
     report.member("success",true);report.end_object();stream.close();require(bool(stream),"movement_report_write_failed");
 
