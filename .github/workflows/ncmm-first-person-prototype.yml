@@ -83,6 +83,7 @@ jobs:
           ./experiments/FirstPersonView/tests/Test-BenchmarkEvidence.ps1
           ./experiments/FirstPersonView/tests/Test-BenchmarkPaths.ps1
           ./experiments/FirstPersonView/tests/Test-BenchmarkCapture.ps1
+          ./experiments/FirstPersonView/tests/Test-BenchmarkDataCopy.ps1
       - name: Diagnostic environment isolation on Windows PowerShell
         if: runner.os == 'Windows'
         shell: powershell
@@ -91,6 +92,7 @@ jobs:
           ./experiments/FirstPersonView/tests/Test-BenchmarkEvidence.ps1
           ./experiments/FirstPersonView/tests/Test-BenchmarkPaths.ps1
           ./experiments/FirstPersonView/tests/Test-BenchmarkCapture.ps1
+          ./experiments/FirstPersonView/tests/Test-BenchmarkDataCopy.ps1
       - name: Configure isolated module
         run: cmake -S experiments/FirstPersonView -B fp-build -DCMAKE_BUILD_TYPE=Release -DFIRST_PERSON_BUILD_BENCHMARK=ON
       - name: Build prototype and contract tests

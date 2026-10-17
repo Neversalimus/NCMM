@@ -4,6 +4,8 @@ The diagnostic runner uses a fresh copy of installation assets. It does not copy
 
 Windows PowerShell 5.1 and PowerShell 7 are supported. Before launch, competing diagnostic environment flags are removed rather than assigned an empty value: native `getenv` treats an empty flag as enabled. The caller's absent, empty or populated environment is restored even when the child fails. `tests/Test-BenchmarkEnvironment.ps1` checks the actual isolation and restoration code without starting the game.
 
+The new diagnostic copy omits CDDA's derived `data/cache` flexbuffers so its injected JSON fixture cannot conflict with an old installation cache. Source assets, saves and source cache remain unchanged. `tests/Test-BenchmarkDataCopy.ps1` verifies that boundary. Window-capture diagnostics compile against the active PowerShell drawing assemblies; `tests/Test-BenchmarkCapture.ps1` checks compilation without capturing a window.
+
 ## Reproduce a GPU failure
 
 From the extracted TEST installer, run:

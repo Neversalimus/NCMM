@@ -25,6 +25,14 @@ function Resolve-NativeBenchmarkRoot([string]$Path,[string[]]$Sources){
     }
     return $full
 }
+function Copy-NativeBenchmarkData([string]$Source,[string]$Destination){
+    # CDDA's data/cache contains derived flexbuffers from the source install.
+    # A diagnostic fixture changes JSON inputs, so copying that cache can stop
+    # startup with "Stale game data detected". Regenerate it in the new copy.
+    New-Item -ItemType Directory -Path $Destination | Out-Null
+    Get-ChildItem -LiteralPath $Source | Where-Object {-not ($_.PSIsContainer -and $_.Name -ieq 'cache')} |
+        ForEach-Object {Copy-Item -LiteralPath $_.FullName -Destination $Destination -Recurse}
+}
 if(-not $BundleRoot){$BundleRoot=$PSScriptRoot}
 if(-not $DumpAnalyzer){$DumpAnalyzer=Join-Path $PSScriptRoot 'ncmm_native_dump_analyzer.exe'}
 if($MovementBenchmark -and $FocusedGpuBenchmark){throw 'Choose one focused benchmark.'}
@@ -53,7 +61,10 @@ New-Item -ItemType Directory $test,$evidence | Out-Null
 Get-ChildItem $GameRoot -File | Where-Object {$_.Extension -in @('.dll','.txt','.exe')} | Copy-Item -Destination $test
 foreach($name in @('data','gfx','font','sound','lang')){
     $source=Join-Path $GameRoot $name
-    if(Test-Path $source){Copy-Item $source (Join-Path $test $name) -Recurse}
+    if(Test-Path -LiteralPath $source){
+        if($name -eq 'data'){Copy-NativeBenchmarkData $source (Join-Path $test $name)}
+        else{Copy-Item -LiteralPath $source -Destination (Join-Path $test $name) -Recurse}
+    }
 }
 Copy-Item (Join-Path $payload 'code_mods') (Join-Path $test 'code_mods') -Recurse
 Copy-Item (Join-Path $payload 'host/cataclysm-tiles.ncmm.exe') (Join-Path $test 'cataclysm-tiles.ncmm.exe')

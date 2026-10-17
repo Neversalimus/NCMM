@@ -230,3 +230,13 @@ present in its own PowerShell runtime. A test compiles the actual capture
 statements on PS 5.1 and PS 7.6 without capturing a window; both pass. This
 changes diagnostics only. The timed-out old 0.12.7 process is retained as a
 failed attempt, not counted as successful performance evidence.
+
+The stalled native capture then identified `Stale game data detected` for the
+injected multi-level fixture. The runner had copied derived `data/cache`
+flexbuffers from a previously played installation before updating its JSON
+fixture. Data copying now omits only that generated directory and preserves
+all original source assets/cache. Five real copy-isolation checks pass on both
+shells, including nested files and a bracketed path. A fresh exact 0.12.7
+hardware control then completed all four 96-frame CPU/GPU profiles with exit
+zero, no dumps and RTX 4090 GPU records. The earlier two timeouts are preserved;
+CDDA's stale-data validation was not bypassed.
