@@ -7,6 +7,100 @@ Scope: gameplay audit, measured performance, camera/interaction stability,
 visual polish, depth-driven surface submission and cached horizon LOD.
 No gameplay rules are changed.
 
+## 0.12.7 physical geometry and continuous first-person architecture
+
+Rendering source: `2144004c83c4c8de59efa42da49f4d2dfbdb28ea`, tree
+`92f8f9d072612bcb317507eae3afc2cd3d885e41`. Packaged test merge
+`4ea4e39e0d6288e0ab8ca4cf62f19c36f0ff4386` has the identical tree.
+[Native qualification](https://github.com/Neversalimus/NCMM/actions/runs/38989457205)
+qualified both pinned engines; final artifacts and hashes are recorded below.
+Windows and Linux passed 25 module/renderer tests each, eight atomic source
+transform tests and four focused ASan/UBSan tests. The independent
+[GPU device/UI workflow](https://github.com/Neversalimus/NCMM/actions/runs/38989457173) passed.
+
+| Build | Workflow artifact | Installer ZIP SHA256 |
+| --- | ---: | --- |
+| 1040 | 12085194422 | `a4133d2329b1fe257e82d3021335349054b2544c547c9d0cc3a4f04766d2866f` |
+| 1807 | 12086902922 | `268448d4ba69ab5b35d9358add1051b043685793c68a6602f2e28b092c3cf51d` |
+
+The first 1807 focused smoke-GPU process exited with `0xC0000005` (job
+117269267640). The targeted identical-source retry (job 117281375007) passed all
+native gates. The earlier root cause remains unestablished; no root-cause fix
+is claimed. The workflow follow-up retains focused-process evidence on failure
+for future diagnosis. The separate 1040 RTX 4090 smoke/creature profile passed.
+
+All 32 payload files, Setup, Host, module, source merge and workflow identity
+were independently verified for each archive. The exact measured 1040 candidate
+and final qualified ZIP are byte-identical. 1807 hardware timings are unmeasured.
+
+Building surfaces now retain real terrain identity/material/orientation before
+ordinary 2D discovery. The first-person shell uses physical sight range and
+raster occlusion, while contents, actors and interaction keep native perception
+and exact 3D occlusion. This does not change top-down discovery or game terrain.
+Chain-link panels use all four physical neighbours, including mesh gates and
+L/T junctions. Native radio-tower cells become open steel storeys. Ground tower
+foundations keep their real floor; elevated lattice and treetops do not acquire
+full slabs. Treetops use foliage-only alpha art, so a 2D atlas log fallback cannot
+become a large opaque rectangle. Ground loot is a top-facing supported cutout;
+unsupported air items are omitted. Window semantics take priority over inherited
+door flags, and a curtain-close action alone cannot make a closed window open.
+
+The distant forest uses four grounded leafy impostors with eight triangles per
+24-map-square patch, preserving the former geometry budget. The mesh stays
+cached during turns. A full 31×31 forest remains below 3 MiB of geometry.
+Flat terrain skips oriented-neighbour work; material semantics are cached
+separately for ground and elevated partial supports. No shader change was made.
+
+The native movement diagnostic adds four actual terrain/loot views, each
+captured in CPU and GPU modes: facade/inventory overview, connected fence corner
+and closed gate, domestic window with an adjacent actual door, and a tree with
+upper foliage beside four real tower levels. Snapshot checks assert the native
+shapes, lack of full upper support slabs, supported items and hidden contents.
+All eight clear packaged 1040 captures were visually inspected. This caught and
+rejected an earlier log-texture candidate before delivery. The supplied user
+images guided the fixtures; no original user save was available.
+
+![Actual packaged CPU and GPU geometry fixtures, scaled contact sheet](qualification/0.12.7-geometry.jpg)
+
+### Exact packaged hardware results versus 0.12.6
+
+The final 1040 binaries were measured on RTX 4090 / Direct3D 12 in clear and
+controlled native-rain clones with identical 107 actual UDP Hybrid v3 assets.
+The report retains every raw sample and all binary/source identities. Each run
+has 12 records: three scenes, CPU/GPU and 640×480 / 1768×1084 viewports. Each
+record has twelve native steps and two 48-angle sweeps. Fresh Balanced defaults
+cap the internal raster at 1280×800. No other game ran during these timings.
+
+The following values use the 1768×1084 viewport, in milliseconds. First render
+excludes the preceding native move/refresh; move-to-ready includes both.
+
+| Weather | Scene | 0.12.6 first render median / p95 | 0.12.7 first render median / p95 | 0.12.7 move-to-ready median / p95 | 0.12.7 warm rotation median / p95 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| clear | street | 20.64 / 34.06 | 20.86 / 36.71 | 45.01 / 69.90 | 13.55 / 15.51 |
+| clear | multi_level_horde | 21.66 / 36.64 | 19.74 / 28.45 | 38.02 / 54.84 | 12.11 / 15.54 |
+| clear | city_blocks | 21.65 / 29.53 | 23.22 / 35.19 | 46.02 / 66.67 | 13.93 / 16.58 |
+| rain | street | 20.94 / 34.39 | 19.19 / 31.56 | 37.41 / 57.31 | 12.56 / 13.64 |
+| rain | multi_level_horde | 18.87 / 31.18 | 18.59 / 29.59 | 38.30 / 55.58 | 12.19 / 13.67 |
+| rain | city_blocks | 20.26 / 32.05 | 20.10 / 32.06 | 45.35 / 66.27 | 14.47 / 16.35 |
+
+The 15 ms first-render target is not met: 23 of 144 GPU first-step samples are
+at or below 15 ms, and no full-size scene median or p95 meets the target. No universal
+speedup is claimed. Clear dense-city first-render median increased from 21.65
+to 23.22 ms; its warm-rotation median changed from 14.31 to 13.93 ms. These are
+one-run wall-clock measurements, and small changes can reflect run variation.
+The controlled movement routes advance zero ordinary AI turns. They do not
+qualify native AI/combat latency or a manual playthrough. The existing Windows
+compressed-save path limit recorded for 0.12.6 is unchanged by this work.
+
+![Actual packaged distant forest with alpha silhouettes, scaled capture](qualification/0.12.7-horizon.png)
+
+An additional exact packaged 1040 run on RTX 4090 passed all four focused
+smoke-gas / one-creature CPU/GPU cases, 96 frames each, with exclusive phase
+accounting and no GPU-to-CPU fallback. This does not establish the cause of the
+earlier 1807 CI access violation.
+
+See [the complete native geometry report](qualification/0.12.7-native-geometry.json).
+
 ## 0.12.6 first-frame extraction and distant horizon
 
 Rendering C++ revision: `21a4ffe577badb2e90cf7519c2c5f2b48350c7eb`.

@@ -10,7 +10,8 @@ Chain-link fences use four physical neighbour connections, including corners
 and T junctions. Closed mesh gates keep their mesh despite CDDA's DOOR flag.
 Radio-tower terrain has an open steel lattice for each actual native storey.
 Walkable treetops and lattice supports are partial supports rather than opaque
-floor plates. Ground inventory lies on its supporting surface; unsupported air
+floor plates. Upper crowns use foliage-only cutouts instead of top-down log
+atlas fallback art. Ground inventory lies on its supporting surface; unsupported air
 does not publish item icons. Closed windows with a curtain-close action are
 classified as windows, rather than open passages.
 
@@ -19,9 +20,23 @@ tree silhouettes in place of solid polygon crowns. Camera turns reuse the mesh.
 New native CPU/GPU captures and snapshot checks cover fences, towers, treetops,
 windows, unseen walls and supported inventory after the timed movement matrix.
 
-0.12.7 qualification is pending. Performance numbers and installer identities
-below belong to the explicitly labelled 0.12.6 baseline until replaced by new
-measurements.
+The final native installers are qualified for both pinned engines. The exact
+1040 files were measured on RTX 4090 / Direct3D 12 with actual UDP Hybrid v3
+in clear and controlled-rain fixtures. At 1768×1084, first-render medians are
+18.59–23.22 ms and warm-rotation medians are 12.11–14.47 ms. The 15 ms
+first-render target is not met. Changes versus 0.12.6 are mixed; no universal
+performance gain is claimed. Fresh Balanced defaults cap the internal raster
+at 1280×800. The controlled routes advance zero ordinary AI turns; 1807
+hardware performance and manual gameplay comfort remain unmeasured.
+
+The 1807 focused CI profile passed a targeted retry after an earlier access
+violation; that earlier cause remains unestablished.
+
+[STABILIZATION.md](STABILIZATION.md) and the
+[complete 0.12.7 report](qualification/0.12.7-native-geometry.json) retain source,
+installer identities, raw samples and limits.
+
+![Actual packaged CPU/GPU geometry fixtures, scaled captures](qualification/0.12.7-geometry.jpg)
 
 ## 0.12.6 baseline — depth-driven surfaces and horizon LOD
 

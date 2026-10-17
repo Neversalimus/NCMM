@@ -500,6 +500,8 @@ jobs:
             if($root -and (Test-Path (Join-Path $root 'ncmm'))){Copy-Item (Join-Path $root 'ncmm') (Join-Path fp-evidence $variant.name) -Recurse}
             $audit=Join-Path $env:RUNNER_TEMP 'fp-gameplay-audit/evidence'
             if($variant.name -eq 'graphics' -and (Test-Path $audit)){Copy-Item $audit (Join-Path fp-evidence 'gameplay-audit') -Recurse -Force}
+            $focused=Join-Path $env:RUNNER_TEMP 'fp-focused-gpu/evidence'
+            if($variant.name -eq 'graphics' -and (Test-Path $focused)){Copy-Item $focused (Join-Path fp-evidence 'focused-gpu') -Recurse -Force}
             $movement=Join-Path $env:RUNNER_TEMP 'fp-movement/evidence'
             if($variant.name -eq 'graphics' -and (Test-Path $movement)){Copy-Item $movement (Join-Path fp-evidence 'movement') -Recurse -Force}
             $debug=Join-Path $env:RUNNER_TEMP ("fp-appearance-"+'${{ matrix.build }}'+'-'+$variant.name)
@@ -513,6 +515,7 @@ jobs:
             fp-evidence/graphics/**
             fp-evidence/appearance-debug-graphics/**
             fp-evidence/gameplay-audit/**
+            fp-evidence/focused-gpu/**
             fp-evidence/movement/**
           compression-level: 9
           retention-days: 7
