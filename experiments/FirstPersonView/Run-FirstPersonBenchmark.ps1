@@ -187,7 +187,12 @@ try {
                 }
             }
             try {
-                Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
+                $drawingReferences=@('System.Drawing')
+                foreach($drawingAssembly in @('System.Drawing.Common.dll','System.Drawing.Primitives.dll','System.Private.Windows.Core.dll','System.Private.Windows.GdiPlus.dll')){
+                    $drawingPath=Join-Path $PSHOME $drawingAssembly
+                    if(Test-Path -LiteralPath $drawingPath){$drawingReferences+=$drawingPath}
+                }
+                Add-Type -ReferencedAssemblies $drawingReferences -TypeDefinition @'
 using System;
 using System.Drawing;
 using System.Runtime.InteropServices;

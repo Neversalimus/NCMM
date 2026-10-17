@@ -222,3 +222,11 @@ former Body Map trigger, including edits to the standalone workflow itself.
 The standalone workflow remains manually runnable for diagnosis. This removes
 one production Host compilation on overlapping payload/patch PRs while keeping
 the complete superset of checks; experimental FPV 1040/1807 builds remain.
+
+Hardware-baseline recovery exercised the stalled-window diagnostic branch and
+found that PowerShell 7's .NET drawing types need explicit references beyond
+the System.Drawing facade. The runner now includes the drawing assemblies
+present in its own PowerShell runtime. A test compiles the actual capture
+statements on PS 5.1 and PS 7.6 without capturing a window; both pass. This
+changes diagnostics only. The timed-out old 0.12.7 process is retained as a
+failed attempt, not counted as successful performance evidence.
