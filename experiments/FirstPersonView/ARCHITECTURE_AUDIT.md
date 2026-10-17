@@ -212,3 +212,13 @@ device jobs, and editing a PR description no longer rebuilds native Hosts.
 Expensive release scenarios are retained where they cover distinct behavior;
 no claimed CI speed percentage is extrapolated from reduced trigger counts.
 Current full qualification is required before this branch can be merged.
+
+One confirmed duplicate production Host build is removed from automatic PR
+triggers. The Equipment Body Map workflow and PR engineering workflow both
+check the same body-map/canonical/integrity contracts and invoke
+`Build-HostPackage.ps1` for exact 1040. Engineering additionally tests real
+installation, module lifecycle, gameplay and restore. Its trigger covers every
+former Body Map trigger, including edits to the standalone workflow itself.
+The standalone workflow remains manually runnable for diagnosis. This removes
+one production Host compilation on overlapping payload/patch PRs while keeping
+the complete superset of checks; experimental FPV 1040/1807 builds remain.
