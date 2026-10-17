@@ -5,6 +5,15 @@
     const bool billboard_baseline = std::getenv( "NCMM_FP_BILLBOARD_BASELINE" ) != nullptr;
     const bool gpu_gallery = graphics_smoke_gpu_gallery;
     const std::string mode = billboard_baseline ? "billboard-081" : gpu_gallery ? "procedural-gpu" : "procedural";
+    const bool has_art_setting=get_options().has_option("NCMM_FIRST_PERSON_CREATURE_ART");
+    require(billboard_baseline||has_art_setting,"procedural_gallery_art_setting_missing");
+    const std::string saved_art=has_art_setting?get_option<std::string>("NCMM_FIRST_PERSON_CREATURE_ART"):"";
+    struct art_setting_guard {bool active;std::string previous;
+        ~art_setting_guard(){if(active)get_options().get_option("NCMM_FIRST_PERSON_CREATURE_ART").setValue(previous);}
+    } restore_art{has_art_setting,saved_art};
+    // The product defaults to original sprites, which intentionally report LOD0.
+    // This gallery qualifies the existing procedural meshes and all four LODs.
+    if(has_art_setting)get_options().get_option("NCMM_FIRST_PERSON_CREATURE_ART").setValue(billboard_baseline?"tileset":"volume");
     // The quickstart avatar is randomized. Myopia still limits sight to 12
     // cells with DEBUG_NIGHTVISION, so normalize this isolated visual fixture.
     you.clear_mutations(); you.clear_effects(); you.set_underwater( false );
@@ -95,6 +104,7 @@
     const char *examples[] = { "mon_zombie", "mon_dog", "mon_spider_jumping_giant", "mon_ant", "mon_centipede_giant", "mon_crow", "mon_rattlesnake", "mon_fish_salmon", "mon_zombie_hulk", "mon_blob", "mon_mi_go", "mon_turret" };
     std::ofstream gallery_stream( game_root() / "ncmm" / ( "first-person-creature-gallery-" + mode + ".json" ) );
     JsonOut gallery( gallery_stream ); gallery.start_object(); gallery.member( "schema", 1 ); gallery.member( "renderer", mode );
+    gallery.member("creature_art",has_art_setting?get_option<std::string>("NCMM_FIRST_PERSON_CREATURE_ART"):"legacy-billboard");
     gallery.member( "actual_cdda_sdl", true ); gallery.member( "frames" ); gallery.start_array();
     const std::array<point, 8> directions{ point( 0, 1 ), point( 1, 1 ), point( 1, 0 ), point( 1, -1 ), point( 0, -1 ), point( -1, -1 ), point( -1, 0 ), point( -1, 1 ) };
     for( const char *id : examples ) {

@@ -11,6 +11,42 @@ param(
     [string]$DumpAnalyzer
 )
 $ErrorActionPreference='Stop'
+function Resolve-NativeBenchmarkRoot([string]$Path,[string[]]$Sources){
+    $full=[IO.Path]::GetFullPath($Path)
+    # Conservative harness budget for encoded avatar names and memory archives;
+    # this does not change upstream save IO or claim arbitrary long-path support.
+    if($full.Length -gt 80){throw 'Native CDDA save paths require a diagnostic OutputRoot of at most 80 characters. Choose a new short folder such as C:\ncmm-test\run-1. No game or save has been changed.'}
+    foreach($source in $Sources){
+        $parent=[IO.Path]::GetFullPath($source).TrimEnd('\','/')
+        if($full.Equals($parent,[StringComparison]::OrdinalIgnoreCase) -or
+           $full.StartsWith($parent+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){
+            throw 'OutputRoot must be outside the game and installer folders.'
+        }
+    }
+    return $full
+}
+function Copy-NativeBenchmarkData([string]$Source,[string]$Destination){
+    # CDDA's data/cache contains derived flexbuffers from the source install.
+    # A diagnostic fixture changes JSON inputs, so copying that cache can stop
+    # startup with "Stale game data detected". Regenerate it in the new copy.
+    New-Item -ItemType Directory -Path $Destination | Out-Null
+    Get-ChildItem -LiteralPath $Source | Where-Object {-not ($_.PSIsContainer -and $_.Name -ieq 'cache')} |
+        ForEach-Object {Copy-Item -LiteralPath $_.FullName -Destination $Destination -Recurse}
+}
+function Read-NativeBenchmarkProgress([string]$Path){
+    if(-not (Test-Path -LiteralPath $Path -PathType Leaf)){return $null}
+    # Legacy native iostreams can emit a non-UTF8 locale thousands separator.
+    # PowerShell 7 Get-Content -Tail may then return no line from a live file.
+    # Decode with replacement and share the writer; only changed text is progress.
+    $stream=[IO.File]::Open($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+    $reader=$null
+    try {
+        $reader=[IO.StreamReader]::new($stream,[Text.Encoding]::UTF8,$true)
+        $text=$reader.ReadToEnd().TrimEnd([char[]]@(13,10))
+        if(-not $text.Length){return $null}
+        return $text.Substring($text.LastIndexOf([char]10)+1)
+    } finally {if($reader){$reader.Dispose()}else{$stream.Dispose()}}
+}
 if(-not $BundleRoot){$BundleRoot=$PSScriptRoot}
 if(-not $DumpAnalyzer){$DumpAnalyzer=Join-Path $PSScriptRoot 'ncmm_native_dump_analyzer.exe'}
 if($MovementBenchmark -and $FocusedGpuBenchmark){throw 'Choose one focused benchmark.'}
@@ -28,8 +64,7 @@ if(-not $commit.Success -or -not $bundle.source_commit.StartsWith($commit.Groups
 foreach($file in $bundle.files.PSObject.Properties){
     if((Get-FileHash (Join-Path $payload $file.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value){throw "Bundle SHA256 mismatch: $($file.Name)"}
 }
-$OutputRoot=[IO.Path]::GetFullPath($OutputRoot)
-foreach($source in @($GameRoot,$BundleRoot)){if($OutputRoot.StartsWith($source.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'OutputRoot must be outside the game and installer folders.'}}
+$OutputRoot=Resolve-NativeBenchmarkRoot $OutputRoot @($GameRoot,$BundleRoot)
 if(Test-Path $OutputRoot){throw 'OutputRoot must be a new folder; existing files are never replaced.'}
 New-Item -ItemType Directory $OutputRoot | Out-Null
 $test=Join-Path $OutputRoot 'game'
@@ -40,7 +75,10 @@ New-Item -ItemType Directory $test,$evidence | Out-Null
 Get-ChildItem $GameRoot -File | Where-Object {$_.Extension -in @('.dll','.txt','.exe')} | Copy-Item -Destination $test
 foreach($name in @('data','gfx','font','sound','lang')){
     $source=Join-Path $GameRoot $name
-    if(Test-Path $source){Copy-Item $source (Join-Path $test $name) -Recurse}
+    if(Test-Path -LiteralPath $source){
+        if($name -eq 'data'){Copy-NativeBenchmarkData $source (Join-Path $test $name)}
+        else{Copy-Item -LiteralPath $source -Destination (Join-Path $test $name) -Recurse}
+    }
 }
 Copy-Item (Join-Path $payload 'code_mods') (Join-Path $test 'code_mods') -Recurse
 Copy-Item (Join-Path $payload 'host/cataclysm-tiles.ncmm.exe') (Join-Path $test 'cataclysm-tiles.ncmm.exe')
@@ -147,10 +185,8 @@ try {
             }
             throw "Native diagnostic crashed. Evidence: $evidence"
         }
-        if(Test-Path $progressPath){
-            $line=Get-Content $progressPath -Tail 1
-            if($line -and $line -ne $lastProgress){$lastProgress=[string]$line;$lastAdvance=[DateTime]::UtcNow}
-        }
+        $line=Read-NativeBenchmarkProgress $progressPath
+        if($line -and $line -ne $lastProgress){$lastProgress=[string]$line;$lastAdvance=[DateTime]::UtcNow}
         try {
             $process.Refresh()
             Write-Host ('Native SDL audit: {0}; process_cpu_seconds={1:F2}; working_set_mib={2:F1}' -f $lastProgress,$process.TotalProcessorTime.TotalSeconds,($process.WorkingSet64/1MB))
@@ -174,7 +210,12 @@ try {
                 }
             }
             try {
-                Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
+                $drawingReferences=@('System.Drawing')
+                foreach($drawingAssembly in @('System.Drawing.Common.dll','System.Drawing.Primitives.dll','System.Private.Windows.Core.dll','System.Private.Windows.GdiPlus.dll')){
+                    $drawingPath=Join-Path $PSHOME $drawingAssembly
+                    if(Test-Path -LiteralPath $drawingPath){$drawingReferences+=$drawingPath}
+                }
+                Add-Type -ReferencedAssemblies $drawingReferences -TypeDefinition @'
 using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
@@ -226,7 +267,7 @@ public static class NCMMBenchmarkWindow {
 } finally {
     if($debugger){$debugger.Dispose()}
     if($process -and $process.HasExited){$process.WaitForExit();$exitCode=$process.ExitCode}
-    if($progressPath -and (Test-Path -LiteralPath $progressPath)){$lastProgress=[string](Get-Content -LiteralPath $progressPath -Tail 1)}
+    if($progressPath){$lastProgress=[string](Read-NativeBenchmarkProgress $progressPath)}
     [ordered]@{schema=1;child_pid=$(if($process){$process.Id}else{$null});exit_signed=$exitCode;exit_hex=$(if($null -ne $exitCode){'0x'+([BitConverter]::ToUInt32([BitConverter]::GetBytes([int]$exitCode),0)).ToString('X8')}else{$null});last_progress=$lastProgress;wrapper_failure=$failure;debugger_requested=[bool]$CaptureCrashDump;debugger_error=$(if($debugger){$debugger.Error}else{$null});crash_dumps=$(if($debugger){$debugger.Dumps}else{0});host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';ncmm_commit=$bundle.ncmm_source_commit;engine_commit=$bundle.source_commit;focused_gpu=[bool]$FocusedGpuBenchmark;movement=[bool]$MovementBenchmark} | ConvertTo-Json | Set-Content (Join-Path $evidence 'first-person-process-result.json') -Encoding UTF8
     try { if($CaptureCrashDump -and (Test-Path -LiteralPath $DumpAnalyzer) -and (Test-Path -LiteralPath (Join-Path $evidence 'first-person-debug-events.log'))){
         $events=Get-Content -LiteralPath (Join-Path $evidence 'first-person-debug-events.log') -Raw

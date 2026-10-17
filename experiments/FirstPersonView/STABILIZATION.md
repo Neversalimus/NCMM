@@ -53,7 +53,8 @@ UDP assets, weather descriptors, real process exits and no CPU fallback during
 GPU records. Raw samples are retained in
 [0.12.8-hardware-raw.json.gz](qualification/0.12.8-hardware-raw.json.gz).
 Resolution is 1768×1084 on RTX 4090 / Direct3D 12. Fresh Balanced retains the
-1920×1080 GPU cap and 1280×800 CPU cap. No quality limit was reduced.
+1920×1080 GPU cap and 960×600 CPU cap. Earlier text misstated the CPU Balanced
+cap as 1280×800, which is the CPU High cap. No quality limit was reduced.
 
 | Weather | Scene | 0.12.7 first frame median | 0.12.8 first frame median / p95 | 0.12.8 warm rotation | Steps ≤15 ms |
 | --- | --- | ---: | ---: | ---: | ---: |

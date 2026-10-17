@@ -41,7 +41,7 @@
     };
     std::ofstream progress_stream(game_root()/"ncmm"/"first-person-audit-progress.txt");std::string phase="initialization";
     auto checkpoint=[&](const std::string &name){phase=name;progress_stream<<SDL_GetTicks()<<" "<<name<<" frames="<<frames<<'\n';progress_stream.flush();};
-    auto f12=[&](){key(SDLK_F12,SDL_SCANCODE_F12);const auto action=gameplay.handle_input(2000);require(action=="ncmm.view.acceleration"&&ncmm::handle_gameplay_action(action),"audit_f12_dispatch_failed");};
+    auto f12=[&](){press_view_key(SDLK_F12);};
     std::ofstream stream(game_root()/"ncmm"/"first-person-gameplay-audit.json");JsonOut report(stream);
     report.start_object();report.member("schema",1);report.member("actual_cdda_sdl",true);report.member("manual_playthrough",false);report.member("gpu_execution_timestamps_available",false);
     report.member("fixture","controlled native actions in an isolated generated smoke world");report.member("width",640);report.member("height",480);

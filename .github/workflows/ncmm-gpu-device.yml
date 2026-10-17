@@ -1,7 +1,7 @@
 name: First Person GPU device and UI qualification
 on:
   pull_request:
-    paths: ['experiments/FirstPersonView/**', 'experiments/graphics_bridge/ncmm_gpu*', 'experiments/graphics_bridge/ncmm_graphics_gpu.h', '.github/workflows/ncmm-gpu-device.yml']
+    paths: ['experiments/FirstPersonView/src/**', 'experiments/FirstPersonView/shaders/**', 'experiments/FirstPersonView/CMakeLists.txt', 'experiments/FirstPersonView/compile_gpu_shaders.py', 'experiments/FirstPersonView/tests/gpu*', 'experiments/graphics_bridge/ncmm_gpu*', 'experiments/graphics_bridge/ncmm_graphics_gpu.h', '.github/workflows/ncmm-gpu-device.yml']
   workflow_dispatch:
 permissions:
   contents: read

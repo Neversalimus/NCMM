@@ -35,7 +35,7 @@ struct texture_resource {
 };
 class resource_cache {
     SDL_GPUDevice *device_=nullptr;
-    uint64_t bytes_=0,clock_=0;
+    uint64_t bytes_=0,clock_=0,static_upload_bytes_=0;
     std::map<uint64_t,mesh_resource> meshes_;
     std::map<uint64_t,texture_resource> textures_;
     std::set<uint64_t> used_meshes_,used_textures_;
@@ -72,16 +72,19 @@ public:
     static constexpr uint64_t upload_limit=16*1024*1024;
     const std::string &reason()const{return reason_;}
     uint64_t bytes()const{return bytes_;}
+    // Private qualification counter: immutable geometry/textures only.
+    // Per-frame cells, instances, bones and explicit dynamic meshes are separate.
+    uint64_t static_upload_bytes()const{return static_upload_bytes_;}
     uint64_t cpu_bytes()const{uint64_t n=0;for(const auto &[k,m]:meshes_)n+=sizeof(mesh_resource)+m.cpu_vertices.capacity()*sizeof(ncmm_gpu_vertex_v1)+m.cpu_indices.capacity()*4+m.materials.capacity()*sizeof(ncmm_gpu_material_v1)+m.joints.capacity()*sizeof(bounds)+m.ranges.capacity()*sizeof(mesh_range);
         for(const auto &[k,t]:textures_)n+=t.pixels.capacity()*4;return n;}
     void bind(SDL_GPUDevice *device){device_=device;}
-    void clear(){for(auto &[k,m]:meshes_)release(m);for(auto &[k,t]:textures_)release(t);meshes_.clear();textures_.clear();used_meshes_.clear();used_textures_.clear();bytes_=0;}
+    void clear(){for(auto &[k,m]:meshes_)release(m);for(auto &[k,t]:textures_)release(t);meshes_.clear();textures_.clear();used_meshes_.clear();used_textures_.clear();bytes_=static_upload_bytes_=0;}
     void abandon(){device_=nullptr;clear();}
     mesh_resource *mesh(uint64_t key){auto i=meshes_.find(key);return i==meshes_.end()?nullptr:&i->second;}
     texture_resource *texture(uint64_t key){auto i=textures_.find(key);return i==textures_.end()?nullptr:&i->second;}
     bool has(uint64_t key,bool texture_kind){if(texture_kind){auto *t=texture(key);return t&&t->ready;}auto *m=mesh(key);return m&&m->ready&&!m->dynamic;}
     bool prepare(const ncmm_gpu_scene_v1 &scene,uint64_t limit,ncmm_gpu_metrics_v1 &metrics){
-        reason_.clear();used_meshes_.clear();used_textures_.clear();
+        reason_.clear();used_meshes_.clear();used_textures_.clear();static_upload_bytes_=0;
         for(uint32_t i=0;i<scene.draw_count;++i)used_meshes_.insert(scene.draws[i].mesh_key);
         auto mark=[&](const ncmm_gpu_material_v1 &m){for(uint64_t key:{m.texture_key,m.normal_key,m.depth_key})if(key)used_textures_.insert(key);};
         for(auto key:used_meshes_)if(auto *m=mesh(key))for(const auto &material:m->materials)mark(material);
@@ -147,7 +150,8 @@ public:
             SDL_EndGPUCopyPass(copy);for(auto key:new_textures)if(texture(key)->levels>1)SDL_GenerateMipmapsForGPUTexture(commands,texture(key)->texture);
             bool ok=SDL_SubmitGPUCommandBuffer(commands);SDL_ReleaseGPUTransferBuffer(device_,transfer);
             if(!ok){reason_="submit resource uploads: "+std::string(SDL_GetError());return false;}
-            for(auto key:new_textures)texture(key)->ready=true;for(auto key:new_meshes)mesh(key)->ready=true;
+            for(auto key:new_textures){auto &t=*texture(key);t.ready=true;static_upload_bytes_+=uint64_t(t.width)*t.height*4;}
+            for(auto key:new_meshes){auto &m=*mesh(key);m.ready=true;if(!m.dynamic)static_upload_bytes_+=m.cpu_vertices.size()*sizeof(ncmm_gpu_vertex_v1)+m.cpu_indices.size()*4;}
             metrics.upload_bytes+=upload_bytes;
         }
         bool complete=true;
