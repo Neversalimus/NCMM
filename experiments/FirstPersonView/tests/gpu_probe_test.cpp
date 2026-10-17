@@ -12,7 +12,17 @@ int main(int argc,char **argv) {
     window=SDL_CreateWindow("NCMM shared-device GPU/UI qualification",640,480,SDL_WINDOW_HIDDEN);
     require(window!=nullptr,"actual game-style window");
 #endif
-    SDL_GPUDevice *device=SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV|SDL_GPU_SHADERFORMAT_DXIL,false,nullptr);
+    SDL_PropertiesID gpu_properties=SDL_CreateProperties();
+    SDL_SetBooleanProperty(gpu_properties,SDL_PROP_GPU_DEVICE_CREATE_SHADERS_SPIRV_BOOLEAN,true);
+    SDL_SetBooleanProperty(gpu_properties,SDL_PROP_GPU_DEVICE_CREATE_SHADERS_DXIL_BOOLEAN,true);
+    SDL_SetBooleanProperty(gpu_properties,SDL_PROP_GPU_DEVICE_CREATE_DEBUGMODE_BOOLEAN,true);
+    // Match SDL's own renderer-created device, rather than a more permissive
+    // standalone GPU device that hid unsupported pipeline requirements.
+    SDL_SetBooleanProperty(gpu_properties,SDL_PROP_GPU_DEVICE_CREATE_FEATURE_CLIP_DISTANCE_BOOLEAN,false);
+    SDL_SetBooleanProperty(gpu_properties,SDL_PROP_GPU_DEVICE_CREATE_FEATURE_DEPTH_CLAMPING_BOOLEAN,false);
+    SDL_SetBooleanProperty(gpu_properties,SDL_PROP_GPU_DEVICE_CREATE_FEATURE_INDIRECT_DRAW_FIRST_INSTANCE_BOOLEAN,false);
+    SDL_SetBooleanProperty(gpu_properties,SDL_PROP_GPU_DEVICE_CREATE_FEATURE_ANISOTROPY_BOOLEAN,false);
+    auto *device=SDL_CreateGPUDeviceWithProperties(gpu_properties);SDL_DestroyProperties(gpu_properties);
     require(device!=nullptr,"real SDL_GPU device; CPU fallback is not allowed in this test");
     SDL_Renderer *renderer=SDL_CreateGPURenderer(device,window);require(renderer!=nullptr,"SDL GPU renderer");
     auto *ui=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_ABGR8888,SDL_TEXTUREACCESS_TARGET,640,480);require(ui!=nullptr,"UI target");

@@ -41,9 +41,30 @@ def samples(record, name, count):
     return {"median_ms": percentile(values, .5), "p95_ms": percentile(values, .95)}
 
 
+def frame_phases(record):
+    require(record.get("exclusive_phases_available") is True, "Movement frame phases missing")
+    wall = record["frame_samples_ms"]
+    phases = ("native_tiles_samples_ms", "perspective_samples_ms", "present_samples_ms", "unattributed_samples_ms")
+    nested = ("extract_samples_ms", "callback_samples_ms", "gpu_geometry_samples_ms", "gpu_resource_samples_ms", "gpu_upload_samples_ms", "gpu_record_samples_ms", "gpu_submit_samples_ms")
+    require(len(wall) >= 108, "Movement frame sequence incomplete")
+    for name in ("frame_samples_ms",) + phases + nested:
+        values = record[name]
+        require(len(values) == len(wall) and all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in values), "Invalid movement phase samples: " + name)
+    for i, total in enumerate(wall):
+        require(abs(total - sum(record[name][i] for name in phases)) <= .003, "Movement phases overlap or omit frame work")
+    indices = record["first_frame_indices"]
+    require(len(indices) == 12 and all(type(i) is int and 96 <= i < len(wall) for i in indices)
+            and all(a < b for a, b in zip(indices, indices[1:])), "Invalid native-step frame indices")
+    require(all(abs(record["first_frame_after_step_samples_ms"][n] - wall[i]) <= .0001 for n, i in enumerate(indices)), "Native-step frames differ from measured frame stream")
+    return {"first_after_step": {name: {"median_ms": percentile([record[name][i] for i in indices], .5),
+                                     "p95_ms": percentile([record[name][i] for i in indices], .95)} for name in phases + nested},
+            "warm_rotation": {name: {"median_ms": percentile(record[name][48:96], .5),
+                                    "p95_ms": percentile(record[name][48:96], .95)} for name in phases + nested}}
+
+
 def verify(args):
     root = Path(args.installer_root)
-    archive = root / f"NCMM_FirstPersonView_0.12.7_TEST_{args.build}_Windows_x64.zip"
+    archive = root / f"NCMM_FirstPersonView_0.12.8_TEST_{args.build}_Windows_x64.zip"
     raw = archive.read_bytes()
     with zipfile.ZipFile(io.BytesIO(raw)) as z:
         entries = {}
@@ -59,7 +80,7 @@ def verify(args):
             return z.read(entries[name])
         release = json.loads(read("release-manifest.json").decode("utf-8-sig"))
         bundle = json.loads(read("payload/first-person-bundle.json").decode("utf-8-sig"))
-        require(release["installer_revision"] == "0.12.7" and
+        require(release["installer_revision"] == "0.12.8" and
                 release["status"] == "experimental-not-certified", "Wrong release identity")
         require(release["source_commit"] == bundle["ncmm_source_commit"] == args.expected_source,
                 "Installer source differs from qualified CI checkout")
@@ -69,7 +90,7 @@ def verify(args):
         require(bundle["source_commit"] == release["engine_source"] == pins[args.build],
                 "Wrong engine pin")
         mod = json.loads(read("payload/code_mods/FirstPersonView/mod.json").decode("utf-8-sig"))
-        require(mod["version"] == "0.12.7-dev", "Wrong module version")
+        require(mod["version"] == "0.12.8-dev", "Wrong module version")
         require(len(bundle["files"]) == 32, "Incomplete payload file matrix")
         for name, expected in bundle["files"].items():
             require(digest(read("payload/" + name)) == expected, "Payload hash mismatch: " + name)
@@ -79,6 +100,14 @@ def verify(args):
                 bundle["files"]["host/cataclysm-tiles.ncmm.exe"], "Host identity mismatch")
         require(release["module_sha256"] == bundle["files"]["code_mods/FirstPersonView/ncmm_mod.dll"],
                 "Module identity mismatch")
+    stress = load_json(root / "first-person-gpu-focused-stress.json")
+    require(len(stress) == 8 and [s["attempt"] for s in stress] == list(range(1, 9)), "Incomplete focused teardown stress matrix")
+    for attempt in stress:
+        p = attempt["process"]
+        require(attempt["clean_exit"] is True and attempt["verified"]["success"] is True and p["exit_signed"] == 0
+                and p["crash_dumps"] == 0 and p["debugger_error"] is None and p["debugger_requested"] is True
+                and p["host_sha256"] == release["host_sha256"] and p["module_sha256"] == release["module_sha256"]
+                and p["ncmm_commit"] == args.expected_source, "Focused stress bytes or clean exit mismatch")
     provenance = load_json(root / "first-person-movement-provenance.json")
     require(provenance["success"] is True and provenance["manual_playthrough"] is False,
             "Missing automated benchmark provenance")
@@ -108,6 +137,7 @@ def verify(args):
         require(key not in matrix, "Duplicate movement matrix entry")
         matrix.add(key)
         require(record["native_steps"] == 12, "Native steps missing")
+        phases = frame_phases(record)
         frame = samples(record, "first_frame_after_step_samples_ms", 12)
         ready = samples(record, "first_ready_samples_ms", 12)
         cold = samples(record, "cold_rotation_samples_ms", 48)
@@ -119,16 +149,17 @@ def verify(args):
             timings.append({"scene": record["scene"], "width": record["width"],
                             "height": record["height"], "first_render_frame": frame,
                             "native_move_to_first_ready": ready, "cold_rotation": cold,
-                            "warm_rotation": warm, "device": record["device"],
+                            "warm_rotation": warm, "frame_phases": phases, "device": record["device"],
                             "backend": record["backend"],
                             "software_device": record["software_device"]})
     require(len(timings) == 6, "GPU matrix incomplete")
-    result = {"success": True, "version": "0.12.7", "build": args.build,
+    result = {"success": True, "version": "0.12.8", "build": args.build,
               "source_commit": args.expected_source, "workflow_run": args.expected_run,
               "installer": archive.name, "installer_sha256": digest(raw),
               "host_sha256": release["host_sha256"], "module_sha256": release["module_sha256"],
               "verified_payload_files": 32, "manual_playthrough": False,
               "facade": facade, "horizon": horizon, "geometry": geometry, "gpu_timings": timings,
+              "clean_focused_process_exits": len(stress), "exclusive_movement_phases_verified": True,
               "timing_scope": "CI device; first_render_frame excludes native avatar_action/refresh; native_move_to_first_ready includes both"}
     # These are disposable native-game fixture captures, never desktop captures.
     from PIL import Image

@@ -123,7 +123,9 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
                 std::vector<uint32_t> frame_renderers_gpu;
                 uint64_t max_resources=0,max_upload=0,max_cpu_cache=0,max_producer_cache=0,max_host_cache=0,draw_calls=0,triangles=0;const double cpu_before=ncmm_graphics_performance::cpu_seconds();const auto measured=benchmark_clock::now();
                 const auto video_before=ncmm_graphics_performance::vram();
-                for(int frame=0;frame<(focused?96:48);++frame){graphics_smoke_seconds=seconds+1.0+frame/60.0;
+                for(int frame=0;frame<(focused?96:48);++frame){
+                    if(focused)progress("gpu_benchmark_"+name+"_"+mode+"_frame_"+std::to_string(frame));
+                    graphics_smoke_seconds=seconds+1.0+frame/60.0;
                     if(!group.empty()&&frame%4==0){for(size_t n=0;n<group.size();++n){int shift=(frame/4)%2;group[n]->setpos(here,tripoint_bub_ms(center.x()-9+int(n%10)*2+shift,center.y()+7-int(n/10)*2,0),false);}refresh_caches();}
                     const auto begin=benchmark_clock::now();render();present();const double frame_ms=elapsed(begin);
                     const double accounted=native_tiles_wall_ms+perspective_wall_ms+present_wall_ms;
