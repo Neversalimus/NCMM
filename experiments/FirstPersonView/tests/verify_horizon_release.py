@@ -57,9 +57,11 @@ def frame_phases(record):
             and all(a < b for a, b in zip(indices, indices[1:])), "Invalid native-step frame indices")
     require(all(abs(record["first_frame_after_step_samples_ms"][n] - wall[i]) <= .0001 for n, i in enumerate(indices)), "Native-step frames differ from measured frame stream")
     return {"first_after_step": {name: {"median_ms": percentile([record[name][i] for i in indices], .5),
-                                     "p95_ms": percentile([record[name][i] for i in indices], .95)} for name in phases + nested},
+                                     "p95_ms": percentile([record[name][i] for i in indices], .95),
+                                     "p99_ms": percentile([record[name][i] for i in indices], .99)} for name in phases + nested},
             "warm_rotation": {name: {"median_ms": percentile(record[name][48:96], .5),
-                                    "p95_ms": percentile(record[name][48:96], .95)} for name in phases + nested}}
+                                    "p95_ms": percentile(record[name][48:96], .95),
+                                    "p99_ms": percentile(record[name][48:96], .99)} for name in phases + nested}}
 
 
 def verify(args):

@@ -102,9 +102,12 @@ def read_run(root, identity, weather, phases):
         item = {"scene": record["scene"], "renderer": record["renderer"],
                 "viewport": [record["width"], record["height"]],
                 "first_median_ms": percentile(first, .5), "first_p95_ms": percentile(first, .95),
+                "first_p99_ms": percentile(first, .99),
                 "first_max_ms": max(first), "first_under_15_ms": sum(v <= 15 for v in first),
                 "first_samples": len(first), "ready_median_ms": percentile(ready, .5),
-                "warm_median_ms": percentile(warm, .5), "warm_p95_ms": percentile(warm, .95)}
+                "warm_median_ms": percentile(warm, .5), "warm_p95_ms": percentile(warm, .95),
+                "warm_p99_ms": percentile(warm, .99),
+                "source_cache_bytes_peak": record.get("source_cache_bytes_peak")}
         if phases:
             item["phases"] = frame_phases(record)
             if record["renderer"] == "cpu":
@@ -131,13 +134,14 @@ def main():
         for weather in WEATHER:
             parser.add_argument("--" + version + "-" + weather, type=Path, required=True)
     parser.add_argument("--expected-candidate-source", required=True)
+    parser.add_argument("--expected-baseline-source", default=BASELINE)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     result = {"schema": 1, "success": False, "scope": "CPU wall time of native SDL frames; not GPU timestamps or manual gameplay FPS",
               "simulation_turns_advanced": 0, "quality": "Fresh Balanced; unchanged GPU internal cap 1920x1080 and CPU cap 1280x800. Internal dimensions are inferred from source, not recorded by this route.",
               "versions": {}, "comparisons": []}
     udp_reference = None
-    for version, source in (("baseline", BASELINE), ("candidate", args.expected_candidate_source)):
+    for version, source in (("baseline", args.expected_baseline_source), ("candidate", args.expected_candidate_source)):
         identity = payload(getattr(args, version + "_bundle"), source)
         runs = []
         for weather in WEATHER:
@@ -157,7 +161,10 @@ def main():
                 "renderer": row["renderer"], "viewport": row["viewport"],
                 "first_median_delta_ms": row["first_median_ms"] - old["first_median_ms"],
                 "first_p95_delta_ms": row["first_p95_ms"] - old["first_p95_ms"],
-                "warm_median_delta_ms": row["warm_median_ms"] - old["warm_median_ms"]})
+                "first_p99_delta_ms": row["first_p99_ms"] - old["first_p99_ms"],
+                "warm_median_delta_ms": row["warm_median_ms"] - old["warm_median_ms"],
+                "warm_p95_delta_ms": row["warm_p95_ms"] - old["warm_p95_ms"],
+                "warm_p99_delta_ms": row["warm_p99_ms"] - old["warm_p99_ms"]})
     result["udp_manifest_sha256"] = hashlib.sha256(json.dumps(udp_reference, sort_keys=True).encode()).hexdigest()
     candidate_runs = result["versions"]["candidate"]["runs"]
     result["target_15_ms"] = {"scope": "Full-size GPU first rendered frames after native steps, clear plus controlled rain",
