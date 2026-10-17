@@ -60,6 +60,7 @@ inline bool probe(device_context &context,ncmm_gpu_metrics_v1 &metrics) {
     SDL_UploadToGPUBuffer(copy,&from,&to,false);from.offset=sizeof(data);to={indices,0,sizeof(index_data)};SDL_UploadToGPUBuffer(copy,&from,&to,false);SDL_EndGPUCopyPass(copy);
     SDL_GPUColorTargetInfo target{};target.texture=context.color();target.load_op=SDL_GPU_LOADOP_CLEAR;target.store_op=SDL_GPU_STOREOP_STORE;target.clear_color={.02f,.03f,.04f,1};target.cycle=true;
     SDL_GPUDepthStencilTargetInfo depth{};depth.texture=context.depth();depth.load_op=SDL_GPU_LOADOP_CLEAR;depth.store_op=SDL_GPU_STOREOP_STORE;depth.clear_depth=1;depth.cycle=true;
+        depth.stencil_load_op=SDL_GPU_LOADOP_DONT_CARE;depth.stencil_store_op=SDL_GPU_STOREOP_DONT_CARE;
     auto *pass=SDL_BeginGPURenderPass(commands,&target,1,&depth);
     if(!pass){context.fail("begin probe render pass");release();return false;}
     SDL_BindGPUGraphicsPipeline(pass,pipeline);SDL_GPUBufferBinding vb{vertices,0},ib{indices,0};

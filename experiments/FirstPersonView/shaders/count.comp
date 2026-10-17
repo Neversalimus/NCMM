@@ -1,6 +1,6 @@
 #version 450
 layout(local_size_x=16,local_size_y=16) in;
-layout(set=0,binding=0) uniform usampler2D object_id;
+layout(r32ui,set=0,binding=0) readonly uniform uimage2D object_id;
 layout(set=1,binding=0,std430) buffer Counters {uint visible_pixels;uint unused[15];};
-void main(){ivec2 at=ivec2(gl_GlobalInvocationID.xy);if(any(greaterThanEqual(at,textureSize(object_id,0))))return;
-    if(texelFetch(object_id,at,0).r!=0u)atomicAdd(visible_pixels,1u);}
+void main(){ivec2 at=ivec2(gl_GlobalInvocationID.xy);if(any(greaterThanEqual(at,imageSize(object_id))))return;
+    if(imageLoad(object_id,at).r!=0u)atomicAdd(visible_pixels,1u);}

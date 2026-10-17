@@ -43,7 +43,7 @@ class backend {
         if(!context_.targets(width,height))return false;if(world_&&width_==width&&height_==height)return true;release_targets();
         const auto color_usage=SDL_GPU_TEXTUREUSAGE_COLOR_TARGET|SDL_GPU_TEXTUREUSAGE_SAMPLER;
         world_=texture(SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,width,height,color_usage);
-        id_=texture(SDL_GPU_TEXTUREFORMAT_R32_UINT,width,height,color_usage);
+        id_=texture(SDL_GPU_TEXTUREFORMAT_R32_UINT,width,height,SDL_GPU_TEXTUREUSAGE_COLOR_TARGET|SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_READ);
         held_depth_=texture(SDL_GPU_TEXTUREFORMAT_D32_FLOAT,width,height,SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET|SDL_GPU_TEXTUREUSAGE_SAMPLER);
         const uint32_t step=std::max(4u,(width+255)/256),ew=(width+step-1)/step,eh=(height+step-1)/step;
         effects_=texture(SDL_GPU_TEXTUREFORMAT_R16G16B16A16_FLOAT,ew,eh,color_usage);effect_depth_=texture(SDL_GPU_TEXTUREFORMAT_R32_FLOAT,ew,eh,color_usage);
@@ -67,6 +67,7 @@ class backend {
         colors[0].clear_color={0,0,0,1};colors[1].clear_color={0,0,0,0};
         SDL_GPUDepthStencilTargetInfo depth{};depth.texture=held?held_depth_:context_.depth();depth.load_op=(clear||held)?SDL_GPU_LOADOP_CLEAR:SDL_GPU_LOADOP_LOAD;
         depth.store_op=SDL_GPU_STOREOP_STORE;depth.clear_depth=1;depth.cycle=clear||held;
+        depth.stencil_load_op=SDL_GPU_LOADOP_DONT_CARE;depth.stencil_store_op=SDL_GPU_STOREOP_DONT_CARE;
         return SDL_BeginGPURenderPass(commands,colors,2,&depth);
     }
     void draw_batches(SDL_GPUCommandBuffer *commands,SDL_GPURenderPass *pass,const std::vector<batch> &batches,uint32_t selected,const ncmm_gpu_scene_v1 &scene){
@@ -226,7 +227,7 @@ public:
             if(profiling_)recording_.compose_ms=ms(phase_start);
         }
         if(read){SDL_GPUStorageBufferReadWriteBinding binding{};binding.buffer=counter_;compute=SDL_BeginGPUComputePass(commands,nullptr,0,&binding,1);if(!compute)return stop("begin visibility compute pass");SDL_BindGPUComputePipeline(compute,programs_.count);
-            SDL_GPUTextureSamplerBinding ids{id_,programs_.nearest};SDL_BindGPUComputeSamplers(compute,0,&ids,1);SDL_DispatchGPUCompute(compute,(scene.width+15)/16,(scene.height+15)/16,1);SDL_EndGPUComputePass(compute);
+            SDL_BindGPUComputeStorageTextures(compute,0,&id_,1);SDL_DispatchGPUCompute(compute,(scene.width+15)/16,(scene.height+15)/16,1);SDL_EndGPUComputePass(compute);
             copy=SDL_BeginGPUCopyPass(commands);if(!copy)return stop("begin visibility counter copy pass");SDL_GPUBufferRegion from{counter_,0,64};SDL_GPUTransferBufferLocation to{read->transfer,0};SDL_DownloadFromGPUBuffer(copy,&from,&to);SDL_EndGPUCopyPass(copy);}
         metrics_.render_record_ms=ms(record_start);stage=clock::now();bool success;
         if(read){read->serial=scene.frame_serial;read->generation=readback_generation_;read->fence=SDL_SubmitGPUCommandBufferAndAcquireFence(commands);success=read->fence!=nullptr;}else success=SDL_SubmitGPUCommandBuffer(commands);
