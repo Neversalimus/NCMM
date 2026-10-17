@@ -140,6 +140,25 @@ int main(){try{
         check(!derived.prepare(0,0,0,32,97,97,3));check(!derived.prepare(0,0,INT32_MIN,INT32_MAX,9,9,3));
         check(!derived.prepare(0,0,0,1,1000000,97,3));derived.clear();check(derived.bytes()==0);
     }
+    {
+        source_cache ring;geometry_cache derived;int ox=-17,oy=29,low=-2,high=2;
+        auto value=[](int x,int y,int z){return uint32_t((int64_t(x)+100000)*13+(int64_t(y)+100000)*97+(z+128)*701);};
+        for(int step=0;step<240;++step){
+            if(step<180){ox+=step%4==0?1:step%4==2?-1:0;oy+=step%4==1?1:step%4==3?-1:0;}
+            if(step==60)ox+=13; // no overlap: old ring slots must not survive
+            if(step==120){low=-3;high=1;} // canonical Z overlap after rotation
+            if(step==180){ox=INT32_MAX-8;oy=INT32_MIN;}
+            if(step>180){ox=INT32_MAX-8;oy=INT32_MIN;} // extreme origins without signed overflow
+            const uint64_t revision=1+step/17;
+            check(ring.prepare(ox,oy,low,high,9,7,1));check(derived.prepare(ox,oy,low,high,9,7,1));
+            for(int z=low;z<=high;++z)for(int y=0;y<7;++y)for(int x=0;x<9;++x){const int ax=ox+x,ay=oy+y;const auto expected=value(ax,ay,z);
+                check(ring.get(ax,ay,z,revision,[&]{return expected;})==expected);
+                check(derived.get(ax,ay,z,revision,[&]{return expected;})==expected);
+                check(derived.get_relative(x,y,z-low,revision,[]{throw std::runtime_error("ring relative alias");return 0u;})==expected);
+                check(ring.visibility(ax,ay,z,revision,[&]{return uint16_t(expected&1023);})==uint16_t(expected&1023));
+            }
+        }
+    }
     check(cache.prepare(1000000,-1000000,-4,4,3,3,1));
     for(int z=-4;z<=4;++z)for(int y=0;y<3;++y)for(int x=0;x<3;++x){const uint32_t expected=uint32_t((z+4)*9+y*3+x);
         check(cache.get(1000000+x,-1000000+y,z,1,[&]{++reads;return expected;})==expected);}

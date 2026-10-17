@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$GameRoot,
-    [string]$BundleRoot=$PSScriptRoot,
+    [string]$BundleRoot,
     [Parameter(Mandatory=$true)][string]$OutputRoot,
     [string]$TilesetRoot,
     [ValidateRange(0,3600)][int]$SoakSeconds=1800,
@@ -8,9 +8,11 @@ param(
     [switch]$MovementBenchmark,
     [switch]$CaptureCrashDump,
     [switch]$GpuDebug,
-    [string]$DumpAnalyzer=(Join-Path $PSScriptRoot 'ncmm_native_dump_analyzer.exe')
+    [string]$DumpAnalyzer
 )
 $ErrorActionPreference='Stop'
+if(-not $BundleRoot){$BundleRoot=$PSScriptRoot}
+if(-not $DumpAnalyzer){$DumpAnalyzer=Join-Path $PSScriptRoot 'ncmm_native_dump_analyzer.exe'}
 if($MovementBenchmark -and $FocusedGpuBenchmark){throw 'Choose one focused benchmark.'}
 if($MovementBenchmark -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the gameplay audit.'}
 if($FocusedGpuBenchmark -and $TilesetRoot){throw 'Focused GPU reproduction uses the official tileset; use the gameplay audit for UDP coverage.'}
@@ -223,13 +225,14 @@ public static class NCMMBenchmarkWindow {
     if($process -and $process.HasExited){$process.WaitForExit();$exitCode=$process.ExitCode}
     if($progressPath -and (Test-Path -LiteralPath $progressPath)){$lastProgress=[string](Get-Content -LiteralPath $progressPath -Tail 1)}
     [ordered]@{schema=1;child_pid=$(if($process){$process.Id}else{$null});exit_signed=$exitCode;exit_hex=$(if($null -ne $exitCode){'0x'+([BitConverter]::ToUInt32([BitConverter]::GetBytes([int]$exitCode),0)).ToString('X8')}else{$null});last_progress=$lastProgress;wrapper_failure=$failure;debugger_requested=[bool]$CaptureCrashDump;debugger_error=$(if($debugger){$debugger.Error}else{$null});crash_dumps=$(if($debugger){$debugger.Dumps}else{0});host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';ncmm_commit=$bundle.ncmm_source_commit;engine_commit=$bundle.source_commit;focused_gpu=[bool]$FocusedGpuBenchmark;movement=[bool]$MovementBenchmark} | ConvertTo-Json | Set-Content (Join-Path $evidence 'first-person-process-result.json') -Encoding UTF8
-    if($CaptureCrashDump -and (Test-Path -LiteralPath $DumpAnalyzer)){
+    try { if($CaptureCrashDump -and (Test-Path -LiteralPath $DumpAnalyzer) -and (Test-Path -LiteralPath (Join-Path $evidence 'first-person-debug-events.log'))){
         $events=Get-Content -LiteralPath (Join-Path $evidence 'first-person-debug-events.log') -Raw
         $fault=[regex]::Match($events,'exception=0xC0000005 address=0x[0-9A-Fa-f]+ thread=(\d+)')
         if($fault.Success){foreach($dump in @(Get-ChildItem -LiteralPath $evidence -Filter '*.dmp' -File)){
             & $DumpAnalyzer $dump.FullName $fault.Groups[1].Value ($test+';'+$env:WINDIR+'\System32') 2>&1 | Set-Content -LiteralPath ($dump.FullName+'.stack.txt') -Encoding UTF8
         }}
     }
+    } catch {Write-Warning "Postmortem stack analysis unavailable: $_"}
     foreach($name in $names){[Environment]::SetEnvironmentVariable($name,$prior[$name],'Process')}
     $runtime=Join-Path $test 'ncmm'
     if(Test-Path $runtime){Get-ChildItem $runtime -File | Where-Object {$_.Name -like 'first-person-*' -or $_.Extension -eq '.log'} | Copy-Item -Destination $evidence}

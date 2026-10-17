@@ -61,11 +61,14 @@ public sealed class NCMMNativeDebugger : IDisposable {
     }
     int debugStrings;
     void DebugString(DebugEvent ev) {
-        if(debugStrings++>=1000||ev.DebugStringLength==0)return;
+        if(ev.DebugStringLength==0)return;
         int length=Math.Min(16384,ev.DebugStringLength*(ev.DebugStringUnicode!=0?2:1));byte[] bytes=new byte[length];UIntPtr read;
         IntPtr handle=OpenProcess(0x410,false,pid);
-        try {if(handle!=IntPtr.Zero&&ReadProcessMemory(handle,ev.DebugString,bytes,(UIntPtr)length,out read))
-            Log("debug_output="+(ev.DebugStringUnicode!=0?System.Text.Encoding.Unicode:System.Text.Encoding.Default).GetString(bytes,0,(int)read.ToUInt64()).TrimEnd('\0'));}
+        try {if(handle!=IntPtr.Zero&&ReadProcessMemory(handle,ev.DebugString,bytes,(UIntPtr)length,out read)) {
+            string text=(ev.DebugStringUnicode!=0?System.Text.Encoding.Unicode:System.Text.Encoding.Default).GetString(bytes,0,(int)read.ToUInt64()).TrimEnd('\0');
+            if(debugStrings++<1000||text.IndexOf("ERROR",StringComparison.OrdinalIgnoreCase)>=0||text.IndexOf("Assertion",StringComparison.OrdinalIgnoreCase)>=0)
+                Log("debug_output="+text);
+        }}
         finally {if(handle!=IntPtr.Zero)CloseHandle(handle);}
     }
     void Module(DebugEvent ev) {
