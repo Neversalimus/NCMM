@@ -41,6 +41,10 @@ Native tiles, perspective, present and unattributed phase arrays are exclusive a
 
 ## Qualification requirements
 
+The live heartbeat reader tolerates legacy locale-specific number separators,
+including malformed UTF-8. The 180-second stall limit still requires changing
+native progress; child exit status and complete evidence remain mandatory.
+
 The renderer-created device disables clip distance, depth clamping, indirect first-instance and anisotropy features. Standalone GPU tests deliberately use the same feature profile with validation enabled. They include 32 backend replacements with queued work, alpha/depth comparisons, animated bounds and multi-Z picking.
 
 The native release gate requires eight independent focused children per engine pin, each with strict validation, no crash dump and exit zero. One failed process fails the gate. Evidence is uploaded even on failure. Host PDBs are retained with the matching build. Resource teardown flushes SDL composition and waits for the shared device only at resource-reset boundaries.

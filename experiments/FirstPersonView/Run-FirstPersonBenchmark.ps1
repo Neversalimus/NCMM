@@ -33,6 +33,20 @@ function Copy-NativeBenchmarkData([string]$Source,[string]$Destination){
     Get-ChildItem -LiteralPath $Source | Where-Object {-not ($_.PSIsContainer -and $_.Name -ieq 'cache')} |
         ForEach-Object {Copy-Item -LiteralPath $_.FullName -Destination $Destination -Recurse}
 }
+function Read-NativeBenchmarkProgress([string]$Path){
+    if(-not (Test-Path -LiteralPath $Path -PathType Leaf)){return $null}
+    # Legacy native iostreams can emit a non-UTF8 locale thousands separator.
+    # PowerShell 7 Get-Content -Tail may then return no line from a live file.
+    # Decode with replacement and share the writer; only changed text is progress.
+    $stream=[IO.File]::Open($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+    $reader=$null
+    try {
+        $reader=[IO.StreamReader]::new($stream,[Text.Encoding]::UTF8,$true)
+        $text=$reader.ReadToEnd().TrimEnd([char[]]@(13,10))
+        if(-not $text.Length){return $null}
+        return $text.Substring($text.LastIndexOf([char]10)+1)
+    } finally {if($reader){$reader.Dispose()}else{$stream.Dispose()}}
+}
 if(-not $BundleRoot){$BundleRoot=$PSScriptRoot}
 if(-not $DumpAnalyzer){$DumpAnalyzer=Join-Path $PSScriptRoot 'ncmm_native_dump_analyzer.exe'}
 if($MovementBenchmark -and $FocusedGpuBenchmark){throw 'Choose one focused benchmark.'}
@@ -171,10 +185,8 @@ try {
             }
             throw "Native diagnostic crashed. Evidence: $evidence"
         }
-        if(Test-Path $progressPath){
-            $line=Get-Content $progressPath -Tail 1
-            if($line -and $line -ne $lastProgress){$lastProgress=[string]$line;$lastAdvance=[DateTime]::UtcNow}
-        }
+        $line=Read-NativeBenchmarkProgress $progressPath
+        if($line -and $line -ne $lastProgress){$lastProgress=[string]$line;$lastAdvance=[DateTime]::UtcNow}
         try {
             $process.Refresh()
             Write-Host ('Native SDL audit: {0}; process_cpu_seconds={1:F2}; working_set_mib={2:F1}' -f $lastProgress,$process.TotalProcessorTime.TotalSeconds,($process.WorkingSet64/1MB))
@@ -255,7 +267,7 @@ public static class NCMMBenchmarkWindow {
 } finally {
     if($debugger){$debugger.Dispose()}
     if($process -and $process.HasExited){$process.WaitForExit();$exitCode=$process.ExitCode}
-    if($progressPath -and (Test-Path -LiteralPath $progressPath)){$lastProgress=[string](Get-Content -LiteralPath $progressPath -Tail 1)}
+    if($progressPath){$lastProgress=[string](Read-NativeBenchmarkProgress $progressPath)}
     [ordered]@{schema=1;child_pid=$(if($process){$process.Id}else{$null});exit_signed=$exitCode;exit_hex=$(if($null -ne $exitCode){'0x'+([BitConverter]::ToUInt32([BitConverter]::GetBytes([int]$exitCode),0)).ToString('X8')}else{$null});last_progress=$lastProgress;wrapper_failure=$failure;debugger_requested=[bool]$CaptureCrashDump;debugger_error=$(if($debugger){$debugger.Error}else{$null});crash_dumps=$(if($debugger){$debugger.Dumps}else{0});host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';ncmm_commit=$bundle.ncmm_source_commit;engine_commit=$bundle.source_commit;focused_gpu=[bool]$FocusedGpuBenchmark;movement=[bool]$MovementBenchmark} | ConvertTo-Json | Set-Content (Join-Path $evidence 'first-person-process-result.json') -Encoding UTF8
     try { if($CaptureCrashDump -and (Test-Path -LiteralPath $DumpAnalyzer) -and (Test-Path -LiteralPath (Join-Path $evidence 'first-person-debug-events.log'))){
         $events=Get-Content -LiteralPath (Join-Path $evidence 'first-person-debug-events.log') -Raw
