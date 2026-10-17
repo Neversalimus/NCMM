@@ -1,0 +1,38 @@
+name: First Person focused crash reproduction
+on:
+  pull_request:
+    paths: ['experiments/FirstPersonView/NativeDiagnosticDebugger.cs', 'experiments/FirstPersonView/Run-FocusedReproduction.ps1', '.github/workflows/ncmm-fpv-reproduce.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: fpv-crash-${{ github.event.pull_request.number || github.ref_name }}-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  reproduce:
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ['1040', '1807']
+    runs-on: windows-2022
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Reproduce exact qualified 0.12.7 binaries with first-chance crash capture
+        shell: powershell
+        run: ./experiments/FirstPersonView/Run-FocusedReproduction.ps1 -Build '${{ matrix.build }}' -Repeats 8 -OutputRoot (Join-Path $env:RUNNER_TEMP 'fpv-reproduce')
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: first-person-crash-reproduction-${{ matrix.build }}
+          path: |
+            ${{ runner.temp }}/fpv-reproduce/results.json
+            ${{ runner.temp }}/fpv-reproduce/repeat-*/evidence/**
+            ${{ runner.temp }}/fpv-reproduce/repeat-*/benchmark-provenance.json
+          retention-days: 14
+          if-no-files-found: error
