@@ -159,3 +159,23 @@ the owned and shared lookup paths at 36 camera/Z combinations, preserving
 ordered triangle counts, material ownership, exact positions, UV and light.
 Existing sparse holes/extreme coordinates, lighting-only invalidation,
 adjacency and warm-cache reuse checks also pass.
+
+## Stage D: separate diagnostic IO and metrics translation
+
+Moved the existing appearance exporter implementation into one compiled source
+unit with a small forward-declaration header. Bitmap/JSON output, owned asset
+inputs and worker behavior are unchanged. Filesystem, stream formatting and
+bitmap-writing implementation no longer enter every renderer translation unit.
+One static diagnostic library uses the same build/runtime/sanitizer settings
+and is position independent for the Linux shared module. This is a concrete
+dependency boundary, rather than splitting renderer methods into include files.
+
+An MSVC preprocessor probe including `hybrid_renderer.hpp` changes from
+3,832,834 to 3,215,248 bytes (same flags/toolchain; before is PR #214). This
+measures compiler input, not runtime memory or a percentage of technical debt.
+All 25 native suites still pass, including shared-library lifecycle and CPU/
+GPU creature rendering. Full native appearance export remains a release gate.
+
+CPU and GPU now call one creature-metrics translator in `module.cpp`, with
+their own visible-pixel count. The repeated cache/anatomy/failure/timing field
+mapping has been removed without changing the Host metrics ABI.
