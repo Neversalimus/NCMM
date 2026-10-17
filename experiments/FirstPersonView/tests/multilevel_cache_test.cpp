@@ -54,6 +54,17 @@ int main(){try{
         check(next_draw.get(UINTPTR_MAX,UINTPTR_MAX,true,[]{return UINT32_MAX;})==UINT32_MAX);
     }
     {
+        definition_cache shapes;int calls=0;
+        for(int n=0;n<120000;++n){const std::uintptr_t identity=16;
+            check(shapes.get(identity,[&]{++calls;return uint32_t(identity*13);})==uint32_t(identity*13));}
+        check(calls==1&&shapes.evaluations==1&&shapes.hits==119999);
+        // Force direct-map collisions and a reused address in the next draw.
+        definition_cache collisions;
+        for(std::uintptr_t n=0;n<8192;++n)check(collisions.get(n,[&]{return uint32_t(n+731);})==uint32_t(n+731));
+        definition_cache next_draw;check(next_draw.get(16,[]{return 97u;})==97);
+        check(next_draw.get(UINTPTR_MAX,[]{return UINT32_MAX;})==UINT32_MAX);
+    }
+    {
         sealed_plane_cache sealed;int reads=0;bool hole=false;
         auto plane=[&](int x,int y,int z){++reads;return hole&&x==4&&y==4&&z==0?uint32_t(NCMM_WORLD_DOWN):uint32_t(NCMM_WORLD_FLOOR);};
         check(sealed.prepare(0,0,-2,3,9,9,1,1));check(sealed.closed(0,plane)&&reads==81);

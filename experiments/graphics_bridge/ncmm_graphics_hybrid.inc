@@ -316,7 +316,7 @@ uint32_t graphics_structure_connections(const tripoint_bub_ms &p,uint32_t shape,
         const tripoint_bub_ms next(p.x()+dx,p.y()+dy,p.z());
         if(!get_map().ncmm_graphics_loaded(next))continue;
         const auto &ter=get_map().ter(next).obj();
-        const auto other=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
+        const auto other=terrain_shape(ter);
         const bool connected=ncmm_graphics_shapes::fence_shape(shape)?
             (ncmm_graphics_shapes::fence_shape(other)||other==NCMM_SHAPE_WALL):
             ncmm_graphics_shapes::structural_surface(other);
@@ -336,6 +336,11 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     std::map<const vehicle *, uint32_t> groups;
     std::map<const vehicle *, std::pair<float, float>> vehicle_anchors;
     const ncmm_world::coordinates world_coordinates(world,true);
+    ncmm_world::definition_cache terrain_shapes,furniture_shapes;
+    auto terrain_shape=[&](const ter_t &definition){return terrain_shapes.get(reinterpret_cast<std::uintptr_t>(&definition),[&]{
+        return uint32_t(ncmm_graphics_shapes::terrain(definition.id.str()+" "+definition.looks_like,graphics_traits(definition,!definition.close.is_null())));});};
+    auto furniture_shape=[&](const furn_t &definition){return furniture_shapes.get(reinterpret_cast<std::uintptr_t>(&definition),[&]{
+        return uint32_t(ncmm_graphics_shapes::furniture(definition.id.str()+" "+definition.looks_like,graphics_traits(definition,!definition.close.is_null())));});};
     auto copy_id = []( char ( &dest )[128], const std::string &id ) { if( id.size() < sizeof( dest ) ) std::copy( id.begin(), id.end(), dest ); };
     graphics_hybrid_vehicle_cells = graphics_hybrid_light_cells = graphics_hybrid_held_sprites = 0;
     graphics_hybrid_colored_cells = graphics_hybrid_tiny_creatures = 0;
@@ -362,7 +367,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
             }
             continue;
         }
-        d.terrain_shape = ncmm_graphics_shapes::terrain( ter.id.str() + " " + ter.looks_like, graphics_traits( ter, !ter.close.is_null() ) );
+        d.terrain_shape = terrain_shape(ter);
         if(world&&(world->coordinates[i].flags&NCMM_WORLD_RAMP))d.terrain_shape=NCMM_SHAPE_FLAT;
         d.terrain_flags = ter.transparent ? NCMM_SURFACE_TRANSPARENT : 0u;
         // Vehicle interiors also make outside_cache false. They are not
@@ -370,7 +375,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         if( p.z() < OVERMAP_HEIGHT && !here.ter( tripoint_bub_ms( p.x(), p.y(), p.z() + 1 ) ).obj().has_flag( "NO_FLOOR" ) ) {
             d.terrain_flags |= NCMM_SURFACE_TERRAIN_CEILING;
         }
-        d.furniture_shape = ncmm_graphics_shapes::furniture( furn.id.str() + " " + furn.looks_like, graphics_traits( furn, !furn.close.is_null() ) );
+        d.furniture_shape = furniture_shape(furn);
         ++graphics_hybrid_shape_counts[d.terrain_shape];
         if( here.has_furn( p ) ) ++graphics_hybrid_shape_counts[d.furniture_shape];
         d.terrain_flags|=graphics_structure_connections(p,d.terrain_shape,d.orientation);

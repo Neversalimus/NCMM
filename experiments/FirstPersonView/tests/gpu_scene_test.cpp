@@ -9,6 +9,20 @@
 
 int main(int argc,char **argv){
     auto require=[](bool ok,const char *why){if(!ok){std::fprintf(stderr,"Full GPU scene failed: %s (%s)\n",why,SDL_GetError());std::exit(1);}};
+    // Exact affine AABB agrees with the eight-corner reference for reflection,
+    // shear and nonuniform scale; outward rounding preserves every corner.
+    {
+        uint32_t seed=7319;auto random=[&](){seed=seed*1664525u+1013904223u;return float(int(seed%20001)-10000)/317.f;};
+        for(int sample=0;sample<4000;++sample){ncmm_gpu::bounds local;
+            for(int axis=0;axis<3;++axis){local.lo[axis]=random();local.hi[axis]=local.lo[axis]+std::abs(random());}
+            ncmm_gpu_matrix_v1 matrix{};for(int column=0;column<4;++column)for(int row=0;row<3;++row)matrix.columns[column*4+row]=random();matrix.columns[15]=1;
+            const auto fast=ncmm_gpu::transform_bounds(local,matrix);ncmm_gpu::bounds reference;
+            for(int corner=0;corner<8;++corner){ncmm_gpu::point p{corner&1?local.hi[0]:local.lo[0],corner&2?local.hi[1]:local.lo[1],corner&4?local.hi[2]:local.lo[2]};
+                p=ncmm_gpu::transform(matrix,p);float v[]={p.x,p.y,p.z};reference.include(v);}
+            for(int axis=0;axis<3;++axis)require(fast.lo[axis]<=reference.lo[axis]&&fast.hi[axis]>=reference.hi[axis]&&
+                reference.lo[axis]-fast.lo[axis]<.02f&&fast.hi[axis]-reference.hi[axis]<.02f,"affine bounds match corner reference conservatively");
+        }
+    }
     require(SDL_Init(SDL_INIT_VIDEO),"SDL initialization");SDL_Window *window=nullptr;
 #if defined(_WIN32)
     window=SDL_CreateWindow("NCMM GPU scene/skin qualification",640,480,SDL_WINDOW_HIDDEN);require(window!=nullptr,"native window");
@@ -220,6 +234,15 @@ int main(int argc,char **argv){
     }
     if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"impostor_colour_minification\":true,\"multilevel_depth_and_picking\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
     std::printf("Full GPU scene PASS: %s / %s; animation upload %llu bytes; CPU raster=0\n",second.backend,second.device,(unsigned long long)second.upload_bytes);
+    // Leave work and an SDL composition queued while replacing the backend.
+    // No read-pixels or explicit fence wait may accidentally serialize this path.
+    scene.meshes=&mesh;scene.mesh_count=1;scene.draws=&draw;scene.draw_count=1;scene.textures=nullptr;scene.texture_count=0;
+    for(int lifecycle=0;lifecycle<32;++lifecycle){
+        require(engine.bind(renderer,1),"teardown stress rebind");
+        for(int frame=0;frame<4;++frame){scene.frame_serial=2000+lifecycle*4+frame;require(engine.submit(scene),engine.metrics().reason);
+            require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr),"queue SDL sampling before teardown");}
+        engine.clear();require(!engine.metrics().active&&engine.resources().bytes()==0,"in-flight teardown drains and clears resources");
+    }
     engine.clear();require(!engine.bind(nullptr,2)&&!engine.available(),"unsupported renderer fails closed without claiming GPU");
     require(engine.bind(renderer,3),"same owned device can recover after fallback");engine.clear();
     SDL_DestroyTexture(ui);SDL_DestroyRenderer(renderer);SDL_DestroyGPUDevice(device);if(window)SDL_DestroyWindow(window);SDL_Quit();

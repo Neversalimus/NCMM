@@ -34,6 +34,20 @@ public:
         const uint32_t value=read();++evaluations;slot={terrain,furniture,value,normal_floor,true};return value;
     }
 };
+// Immutable definition results live for one main-thread extraction only.
+// Integer identities are never dereferenced or retained into another draw.
+class definition_cache {
+    struct entry {std::uintptr_t key=0;uint32_t value=0;bool valid=false;};
+    std::array<entry,256> entries{};
+public:
+    uint64_t evaluations=0,hits=0;
+    template<class Read> uint32_t get(std::uintptr_t key,Read read){
+        uint64_t hash=uint64_t(key);hash^=hash>>33;hash*=0xff51afd7ed558ccdull;hash^=hash>>33;
+        auto &slot=entries[hash&(entries.size()-1)];
+        if(slot.valid&&slot.key==key){++hits;return slot.value;}
+        const uint32_t value=read();++evaluations;slot={key,value,true};return value;
+    }
+};
 // A closed plane is a geometric proof only when every tile in the bounded
 // source window has a full opaque slab. Open stairs, glass and water fail it.
 class sealed_plane_cache {
