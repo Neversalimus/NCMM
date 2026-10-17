@@ -109,3 +109,32 @@ window/index mechanics and removing repeated work rather than a global cache.
 Stages B–G will record fixes, tests, measured cost, rejected risky changes and
 remaining limits in separate logical commits. No new rendering feature or
 public ABI is required by the selected work.
+
+## Stage B: reliability changes
+
+Integrated the exact qualified PR #214 dependency in a separate merge commit.
+Its runtime, matched-symbol WARP diagnostics and 16 clean native focused exits
+remain attributed to the original runtime and packaged source identifiers.
+No causal claim is added for the old 1040 SIGSEGV without its missing stack.
+
+Certified Host failure root cause: upstream changed the scenario/profession/
+background UI from range loops using `scen`/`prof_id` to indexed loops using
+`current_scenario`/`current_profession`/`current_hobby`. Both exact new sources
+(`9da8cce18f4b112a2b43339913ba6385a6017195` and
+`d29db9cb3106381ea5efc47dba3d1834cd452dd7`) have identical chargen inputs.
+The patch now selects exactly one complete known replacement group per
+contract, preserving name and point-cost expressions. Missing, ambiguous or
+partial groups still reject before changing any file. The dedicated test now
+covers both supported pins and both failed sources: 126 cases pass on each of
+PowerShell 5.1 and 7.6, including LF/CRLF, idempotence and every altered active
+postcondition. This fixes the proven transform failure; it does not certify
+new upstream Hosts or promote the certified feed.
+
+The isolated benchmark runner rejects output roots longer than 80 characters
+before copying game assets. This conservative test policy avoids the known
+291-character memory-archive failure for qualified fixtures. It is not an
+exact universal upstream save-path limit and does not rewrite persistence.
+Nine actual preflight checks pass on PS 5.1 and 7.6, covering the boundary,
+source-folder containment and valid sibling paths. Existing 72 environment
+and five evidence-validation checks remain passing. No player save was moved,
+edited, copied into the fixture, or deleted.

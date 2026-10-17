@@ -1,6 +1,6 @@
 # First Person diagnostics
 
-The diagnostic runner uses a fresh copy of installation assets. It does not copy player saves or configuration. Game data and the installer Host must have the same supported engine pin. The output directory must be new and outside both source directories; use a short path for native save-file compatibility.
+The diagnostic runner uses a fresh copy of installation assets. It does not copy player saves or configuration. Game data and the installer Host must have the same supported engine pin. The output directory must be new and outside both source directories. The runner rejects OutputRoot paths longer than 80 characters before copying a game. This conservative harness budget leaves room for encoded avatar names and nested memory archives; it is not an upstream native-save long-path fix. Use a short path such as `C:\ncmm-test\run-1`.
 
 Windows PowerShell 5.1 and PowerShell 7 are supported. Before launch, competing diagnostic environment flags are removed rather than assigned an empty value: native `getenv` treats an empty flag as enabled. The caller's absent, empty or populated environment is restored even when the child fails. `tests/Test-BenchmarkEnvironment.ps1` checks the actual isolation and restoration code without starting the game.
 

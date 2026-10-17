@@ -131,8 +131,8 @@
                   },
                   {
                       "path":  "ci\\Test-LegacyCharacterPoints.ps1",
-                      "sha256":  "b3e8e9e461128328b5cead138feea2c17b6ad5503b7fd286565e441a38533608",
-                      "bytes":  5946
+                      "sha256":  "7b71780a8a073b864ac07daa73ba9aad9b1f39219300d01aea0a426e74174745",
+                      "bytes":  7894
                   },
                   {
                       "path":  "ci\\Test-ManaActionWeaponContracts.ps1",
@@ -306,13 +306,13 @@
                   },
                   {
                       "path":  "host_patch\\Apply-LegacyCharacterPoints.ps1",
-                      "sha256":  "570530af5fe6405df62079bf70b80942317a5aa3b6d259b9dafc3988828ca1a7",
-                      "bytes":  2509
+                      "sha256":  "924e1478d42b40a2ee6458f3ab0572edee86532d21b1faa40984d638a3a4f0c5",
+                      "bytes":  3384
                   },
                   {
                       "path":  "host_patch\\legacy-character-points.patch.json",
-                      "sha256":  "9aa867e19ca070089e69f5e117b9e4973cb1c937d6a17d18a6b1beece35dd407",
-                      "bytes":  12449
+                      "sha256":  "310f0643c6615eba62853784b0928002230e13faee9fef6c3c5274c916582ff1",
+                      "bytes":  13424
                   },
                   {
                       "path":  "host_patch\\ncmm_character_points.hpp",
@@ -471,8 +471,8 @@
                   },
                   {
                       "path":  "payload\\SURVIVOR_0911_0915_v8.7.6.8.ps1",
-                      "sha256":  "88f9de8ce9fcc2f7543d74ec6648a198d3d3a3056da05da3a08714f1e33ad758",
-                      "bytes":  3394605
+                      "sha256":  "e5373e2b3fe7d450f59b25b7e82de5690f9f8d58a4c63d36b92569fa3ccf4a4b",
+                      "bytes":  3397069
                   },
                   {
                       "path":  "pipeline\\pipeline.manifest.json",

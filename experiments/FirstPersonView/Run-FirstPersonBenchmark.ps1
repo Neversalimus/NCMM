@@ -11,6 +11,20 @@ param(
     [string]$DumpAnalyzer
 )
 $ErrorActionPreference='Stop'
+function Resolve-NativeBenchmarkRoot([string]$Path,[string[]]$Sources){
+    $full=[IO.Path]::GetFullPath($Path)
+    # Conservative harness budget for encoded avatar names and memory archives;
+    # this does not change upstream save IO or claim arbitrary long-path support.
+    if($full.Length -gt 80){throw 'Native CDDA save paths require a diagnostic OutputRoot of at most 80 characters. Choose a new short folder such as C:\ncmm-test\run-1. No game or save has been changed.'}
+    foreach($source in $Sources){
+        $parent=[IO.Path]::GetFullPath($source).TrimEnd('\','/')
+        if($full.Equals($parent,[StringComparison]::OrdinalIgnoreCase) -or
+           $full.StartsWith($parent+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){
+            throw 'OutputRoot must be outside the game and installer folders.'
+        }
+    }
+    return $full
+}
 if(-not $BundleRoot){$BundleRoot=$PSScriptRoot}
 if(-not $DumpAnalyzer){$DumpAnalyzer=Join-Path $PSScriptRoot 'ncmm_native_dump_analyzer.exe'}
 if($MovementBenchmark -and $FocusedGpuBenchmark){throw 'Choose one focused benchmark.'}
@@ -28,8 +42,7 @@ if(-not $commit.Success -or -not $bundle.source_commit.StartsWith($commit.Groups
 foreach($file in $bundle.files.PSObject.Properties){
     if((Get-FileHash (Join-Path $payload $file.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value){throw "Bundle SHA256 mismatch: $($file.Name)"}
 }
-$OutputRoot=[IO.Path]::GetFullPath($OutputRoot)
-foreach($source in @($GameRoot,$BundleRoot)){if($OutputRoot.StartsWith($source.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'OutputRoot must be outside the game and installer folders.'}}
+$OutputRoot=Resolve-NativeBenchmarkRoot $OutputRoot @($GameRoot,$BundleRoot)
 if(Test-Path $OutputRoot){throw 'OutputRoot must be a new folder; existing files are never replaced.'}
 New-Item -ItemType Directory $OutputRoot | Out-Null
 $test=Join-Path $OutputRoot 'game'
