@@ -1,0 +1,108 @@
+name: First Person retained WARP dump analysis
+on:
+  push:
+    branches: [codex/fpv-dump-0128-20261017]
+    paths: [.github/workflows/ncmm-fpv-dump-analysis.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  analyze:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ['1040', '1807']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Analyze retained exact old binary dump with matching system images
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $build='${{ matrix.build }}'
+          $root=Join-Path $env:RUNNER_TEMP ('fpv-retained-'+$build)
+          $evidence=Join-Path $env:GITHUB_WORKSPACE ('dump-analysis-'+$build)
+          New-Item -ItemType Directory -Force $root,$evidence | Out-Null
+          $row=if($build -eq '1040'){
+            @{repeat=5;tid=6296;pid=7716;dump='582ed86505317f67b767a8ec30e25bd130e85ea7765ab411e03545290508ddf8';zip='a4133d2329b1fe257e82d3021335349054b2544c547c9d0cc3a4f04766d2866f';host='56cdbe8edae7323360ab4f479f3e328a001c673b428ea17d918e56fe2c306c9e'}
+          }else{
+            @{repeat=2;tid=5488;pid=1552;dump='324d6076ff45deed4a2057cb428bba014f66dfd9555a624ed112d15c1085d7a6';zip='268448d4ba69ab5b35d9358add1051b043685793c68a6602f2e28b092c3cf51d';host='6c80dfb836cd9c5fc4379cdfc5d37bb5f06eb1b38c917d236727c8b6c853b7e5'}
+          }
+          & gh run download 39027818512 --repo Neversalimus/NCMM --name "first-person-crash-reproduction-$build" --dir (Join-Path $root 'baseline')
+          if($LASTEXITCODE -ne 0){throw 'Retained baseline download failed.'}
+          & gh run download 38989457205 --repo Neversalimus/NCMM --name "first-person-installer-$build-Windows-x64" --dir (Join-Path $root 'package')
+          if($LASTEXITCODE -ne 0){throw 'Exact old installer download failed.'}
+          $archive=@(Get-ChildItem (Join-Path $root 'package') -File -Recurse -Filter "NCMM_FirstPersonView_0.12.7_TEST_$($build)_Windows_x64.zip")
+          if($archive.Count -ne 1 -or (Get-FileHash $archive[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant() -ne $row.zip){throw 'Old installer identity differs.'}
+          $bundle=Join-Path $root 'bundle'
+          Expand-Archive -LiteralPath $archive[0].FullName -DestinationPath $bundle
+          $hostFile=@(Get-ChildItem $bundle -File -Recurse -Filter 'cataclysm-tiles.ncmm.exe' | Where-Object {$_.FullName -like '*\payload\host\*'})
+          if($hostFile.Count -ne 1 -or (Get-FileHash $hostFile[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant() -ne $row.host){throw 'Old Host identity differs.'}
+          $dump=Join-Path $root ("baseline\repeat-$($row.repeat)\evidence\first-person-crash-$($row.pid)-C0000005-0.dmp")
+          if((Get-FileHash $dump -Algorithm SHA256).Hash.ToLowerInvariant() -ne $row.dump){throw 'Retained dump identity differs.'}
+          @'
+          import sys,struct,json,hashlib,pathlib
+          raw=pathlib.Path(sys.argv[1]).read_bytes();image=pathlib.Path(sys.argv[2]);module=None
+          n,rva=struct.unpack_from('<II',raw,8)
+          for i in range(n):
+           typ,size,at=struct.unpack_from('<III',raw,rva+i*12)
+           if typ!=4:continue
+           for j in range(struct.unpack_from('<I',raw,at)[0]):
+            p=at+4+j*108;base,span,checksum,stamp,name_at=struct.unpack_from('<QIIII',raw,p)
+            length=struct.unpack_from('<I',raw,name_at)[0];name=raw[name_at+4:name_at+4+length].decode('utf-16le')
+            if pathlib.PureWindowsPath(name).name.casefold()==image.name.casefold():module={'name':pathlib.PureWindowsPath(name).name,'size':span,'timestamp':stamp,'checksum':checksum}
+          assert module,'Module not found in dump'
+          pe=image.read_bytes();header=struct.unpack_from('<I',pe,0x3c)[0];assert pe[header:header+4]==b'PE\0\0'
+          actual={'name':image.name,'size':struct.unpack_from('<I',pe,header+24+56)[0],'timestamp':struct.unpack_from('<I',pe,header+8)[0],'sha256':hashlib.sha256(pe).hexdigest()}
+          match=actual['size']==module['size'] and actual['timestamp']==module['timestamp']
+          print(json.dumps({'dump_module':module,'runner_image':actual,'matches':match},indent=2))
+          sys.exit(0 if match else 2)
+          
+          '@ | Set-Content (Join-Path $root 'image_identity.py') -Encoding utf8
+          & python (Join-Path $root 'image_identity.py') $dump (Join-Path $env:SystemRoot 'System32\d3d10warp.dll') > (Join-Path $evidence 'warp-image-identity.json')
+          if($LASTEXITCODE -ne 0){throw 'Runner WARP image does not match the retained dump.'}
+          $source=[IO.File]::ReadAllText((Join-Path $PWD 'experiments/FirstPersonView/tests/native_dump_analyzer.cpp'))
+          $source=$source.Replace('symbols->SetSymbolPath("");','symbols->SetSymbolPath(getenv("NCMM_DUMP_SYMBOL_PATH"));')
+          $source=$source.Replace('"r; kb; ~* kb; lm"','"r; u @rip-20 L20; kb; ~* kb; lmvm d3d10warp"')
+          $analyzerSource=Join-Path $root 'analyze.cpp'
+          [IO.File]::WriteAllText($analyzerSource,$source)
+          $programFilesX86=[Environment]::GetFolderPath('ProgramFilesX86')
+          $vswhere=Join-Path $programFilesX86 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $vcvars=(& $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find 'VC\Auxiliary\Build\vcvars64.bat') | Select-Object -First 1
+          if(!$vcvars){throw 'MSVC tools missing.'}
+          $exe=Join-Path $root 'analyze.exe'
+          @"
+          @echo off
+          call "$vcvars" >nul
+          if errorlevel 1 exit /b 1
+          cl /nologo /O2 /EHsc /std:c++17 /Fe:"$exe" "$analyzerSource" /link dbgeng.lib
+          exit /b %errorlevel%
+          "@ | Set-Content (Join-Path $root 'compile.cmd') -Encoding ascii
+          & cmd /d /c (Join-Path $root 'compile.cmd')
+          if($LASTEXITCODE -ne 0){throw 'Dump analyzer build failed.'}
+          $debugTools=Join-Path $programFilesX86 'Windows Kits\10\Debuggers\x64'
+          foreach($dll in @('dbgeng.dll','dbghelp.dll','dbgmodel.dll','symsrv.dll')){
+            $file=Join-Path $debugTools $dll
+            if(Test-Path $file){Copy-Item -LiteralPath $file -Destination $root}
+          }
+          $symbols=Join-Path $root 'symbols'
+          New-Item -ItemType Directory -Force $symbols | Out-Null
+          $env:NCMM_DUMP_SYMBOL_PATH="srv*$symbols*https://msdl.microsoft.com/download/symbols"
+          $images=$hostFile[0].Directory.FullName+';'+(Join-Path $env:SystemRoot 'System32')
+          & $exe $dump $row.tid $images > (Join-Path $evidence 'first-chance.stack.txt')
+          if($LASTEXITCODE -ne 0){throw 'First-chance analysis failed.'}
+          $second=$dump.Replace('-0.dmp','-1.dmp')
+          if(Test-Path $second){
+            & $exe $second $row.tid $images > (Join-Path $evidence 'second-chance.stack.txt')
+            if($LASTEXITCODE -ne 0){throw 'Second-chance analysis failed.'}
+          }
+          [ordered]@{engine=$build;dump_sha256=$row.dump;host_sha256=$row.host;thread=$row.tid;module='d3d10warp.dll';matching_image=$true;source='${{ github.sha }}'} | ConvertTo-Json | Set-Content (Join-Path $evidence 'analysis-identity.json')
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fpv-retained-dump-analysis-${{ matrix.build }}
+          path: dump-analysis-${{ matrix.build }}/
+          retention-days: 7
