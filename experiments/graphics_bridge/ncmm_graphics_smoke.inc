@@ -588,7 +588,7 @@ bool graphics_scene_smoke()
         << ",\"sdl_frames\":" << std::to_string( frames ) << ",\"gpu_effect_frames\":" << std::to_string(graphics_effect_gpu_frames) << ",\"cpu_recovery_frames\":" << std::to_string(graphics_effect_cpu_frames)
         << ",\"draw_radius\":" << std::to_string( distance_radius ) << ",\"distant_cells\":" << std::to_string( distance_cells )
         << ",\"light_queries\":" << std::to_string( distance_light_queries )
-        << ",\"clear_weather_fog\":" << std::to_string( distance_fog ) << "}\n";
+        << ",\"clear_weather_fog\":" << distance_fog << "}\n";
     log_line( success ? NCMM_LOG_INFO : NCMM_LOG_ERROR,
               ( "First Person View actual engine smoke: " + reason ).c_str() );
     return success;
