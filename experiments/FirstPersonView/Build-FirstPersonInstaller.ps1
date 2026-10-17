@@ -110,7 +110,7 @@ if($LASTEXITCODE -ne 0){throw 'Preview install matrix compilation failed.'}
 if($LASTEXITCODE -ne 0){throw 'Preview install matrix failed.'}
 
 @"
-NCMM First Person View installer 0.12.6 TEST / CDDA $build / Windows x64
+NCMM First Person View installer 0.12.7 TEST / CDDA $build / Windows x64
 
 1. Extract the complete archive. Run NCMM_Setup_FirstPerson_TEST.exe.
 2. Select the game folder containing cataclysm-tiles.exe and VERSION.txt for
@@ -126,9 +126,9 @@ NCMM First Person View installer 0.12.6 TEST / CDDA $build / Windows x64
    Hold the right mouse button over the viewport to look around.
    In first person, arrows move forward/backward and strafe relative to the gaze.
 
-Version 0.12.6 moves static surface occlusion into the depth buffer, removes
-mass repeated wall/floor rays after each step, and adds cached horizon LOD for
-known resident overmap geography. No new map generation is used for rendering.
+Version 0.12.7 repairs chain-link connections, radio-tower lattice, treetop
+supports, window state and first-person building continuity before discovery.
+Distant forest uses grounded cutout silhouettes; floor items lie on surfaces.
 It preserves original tileset creature silhouettes and proportions,
 repairs partially visible upper facades and reuses world visibility while the
 camera eases between cells. Changed GPU geometry no longer forces a full CPU
@@ -196,7 +196,7 @@ Uncheck First Person View and install again to remove its managed DLL/manifest.
 Current limits: automatic coarse vehicle geometry, sprite-derived held items,
 generic environment dimensions and conservative hidden-surface reconstruction.
 The 0.12 world includes loaded Z-levels, floors, ceilings, stairs and shafts.
-Version 0.12.6 eases safe adjacent walking and stair movement visually after
+Version 0.12.7 eases safe adjacent walking and stair movement visually after
 the first successful presentation; native movement remains turn-based.
 Manual gameplay comfort remains unqualified. The qualification report records
 measured hardware rendering results and the controlled fixture limits.
@@ -213,9 +213,9 @@ The bundle includes NCMM Runtime 0.8.2 and the normal optional native modules.
 The game itself and external tilesets are not bundled. Keep your existing data,
 tilesets and configuration with the selected official CDDA installation.
 "@ | Set-Content (Join-Path $stage 'README.txt') -Encoding UTF8
-$provenance=[ordered]@{schema=1;product='NCMM First Person View TEST';installer_revision='0.12.6';status='experimental-not-certified';recommended_entry='NCMM_Setup_FirstPerson_TEST.exe';source_commit=$bundle.ncmm_source_commit;engine_source=$source.source_commit;upstream_tag=$source.tag;workflow_run=[string]$env:GITHUB_RUN_ID;installer_sha256=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant();host_sha256=$bundle.host_sha256;vanilla_sha256=$bundle.vanilla_sha256;supported_vanilla_sha256=$bundle.supported_vanilla_sha256;module_sha256=$files['code_mods/FirstPersonView/ncmm_mod.dll']}
+$provenance=[ordered]@{schema=1;product='NCMM First Person View TEST';installer_revision='0.12.7';status='experimental-not-certified';recommended_entry='NCMM_Setup_FirstPerson_TEST.exe';source_commit=$bundle.ncmm_source_commit;engine_source=$source.source_commit;upstream_tag=$source.tag;workflow_run=[string]$env:GITHUB_RUN_ID;installer_sha256=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant();host_sha256=$bundle.host_sha256;vanilla_sha256=$bundle.vanilla_sha256;supported_vanilla_sha256=$bundle.supported_vanilla_sha256;module_sha256=$files['code_mods/FirstPersonView/ncmm_mod.dll']}
 [IO.File]::WriteAllText((Join-Path $stage 'release-manifest.json'),($provenance | ConvertTo-Json -Depth 6),(New-Object Text.UTF8Encoding($false)))
-$zip=Join-Path $OutputRoot ("NCMM_FirstPersonView_0.12.6_TEST_${build}_Windows_x64.zip")
+$zip=Join-Path $OutputRoot ("NCMM_FirstPersonView_0.12.7_TEST_${build}_Windows_x64.zip")
 if(Test-Path $zip){Remove-Item $zip -Force}
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal
 Write-Output $zip

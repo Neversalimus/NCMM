@@ -32,20 +32,26 @@ inline uint32_t terrain(const std::string &id,const traits &t) {
     // Large opaque boulders are freestanding rocks, even when impassable.
     if(contains(primary,"boulder")||contains(primary,"rock_large")) return NCMM_SHAPE_ROCK;
     if(contains(id,"fence_post")||contains(id,"fence_posts")||contains(id,"chainfence_posts")) return NCMM_SHAPE_POST;
+    if(contains(primary,"radio_tower"))return NCMM_SHAPE_LATTICE_TOWER;
+    if(contains(primary,"treetop"))return NCMM_SHAPE_TREE_CANOPY;
     if(t.tree) return NCMM_SHAPE_TREE;
     if(t.shrub) return NCMM_SHAPE_SHRUB;
     if(contains(primary,"sign")||contains(primary,"street_light")||contains(primary,"lamppost")) return NCMM_SHAPE_SIGN;
     if(contains(primary,"pillar")||contains(primary,"column")||contains(primary,"pylon")) return NCMM_SHAPE_POST;
     if(t.tree || contains(id,"tree") || contains(id,"trunk")) return NCMM_SHAPE_TREE;
     if(t.shrub || contains(id,"shrub") || contains(id,"bush")) return NCMM_SHAPE_SHRUB;
-    const bool door=t.door||contains(primary,"door");
+    // Mesh gates carry DOOR in CDDA; their physical material stays wire.
+    if(contains(primary,"chaingate")||contains(primary,"chainfence_gate")||contains(primary,"screen_door"))
+        return t.open||ending(primary,"_o")?NCMM_SHAPE_GATE_OPEN:NCMM_SHAPE_FENCE;
+    const bool door=(t.door&&!t.window)||contains(primary,"door");
     if(door&&!contains(primary,"screen_door")){
         if(contains(primary,"frame")||contains(primary,"broken")||ending(primary,"_b"))return NCMM_SHAPE_DOOR_FRAME;
         return t.open||ending(primary,"_o")||contains(primary,"_open")?NCMM_SHAPE_DOOR_OPEN:NCMM_SHAPE_DOOR_CLOSED;
     }
     const bool window=t.window||contains(id,"window")||contains(id,"glass_wall");
     if(window) {
-        if(t.open||contains(id,"empty")||contains(id,"broken")||contains(id,"frame")||contains(id,"_open")) return NCMM_SHAPE_WINDOW_BROKEN;
+        if(t.open||contains(primary,"empty")||contains(primary,"broken")||contains(primary,"frame")||
+           (!t.window&&contains(primary,"_open"))) return NCMM_SHAPE_WINDOW_BROKEN;
         return !t.transparent||contains(id,"boarded")?NCMM_SHAPE_WINDOW_COVERED:NCMM_SHAPE_WINDOW;
     }
     if(t.flat&&contains(primary,"grate"))return NCMM_SHAPE_FLAT;
@@ -73,13 +79,16 @@ inline uint32_t furniture(const std::string &id,const traits &t) {
     if(contains(id,"bed")||contains(id,"sofa")||contains(id,"couch")) return NCMM_SHAPE_SEAT;
     return NCMM_SHAPE_BILLBOARD;
 }
+// These walkable native supports are branches or steel lattice, not slabs.
+inline bool partial_support(uint32_t shape,int world_z=1){return shape==NCMM_SHAPE_TREE_CANOPY||(shape==NCMM_SHAPE_LATTICE_TOWER&&world_z>0);}
+inline bool fence_shape(uint32_t shape){return shape==NCMM_SHAPE_FENCE||shape==NCMM_SHAPE_GATE_OPEN||shape==NCMM_SHAPE_POST;}
 inline bool vertical(uint32_t shape) {return shape!=NCMM_SHAPE_FLAT&&shape!=NCMM_SHAPE_WATER&&shape!=NCMM_SHAPE_BRIDGE;}
 inline bool structural_surface(uint32_t shape) {
     switch(shape){
         case NCMM_SHAPE_WALL:case NCMM_SHAPE_DOOR_CLOSED:case NCMM_SHAPE_DOOR_OPEN:case NCMM_SHAPE_DOOR_FRAME:
         case NCMM_SHAPE_WINDOW:case NCMM_SHAPE_WINDOW_BROKEN:case NCMM_SHAPE_WINDOW_COVERED:
         case NCMM_SHAPE_GLASS_WALL:case NCMM_SHAPE_FENCE:case NCMM_SHAPE_GATE_OPEN:
-        case NCMM_SHAPE_GUARDRAIL:case NCMM_SHAPE_SCRAP_FENCE:case NCMM_SHAPE_POST:return true;
+        case NCMM_SHAPE_GUARDRAIL:case NCMM_SHAPE_SCRAP_FENCE:case NCMM_SHAPE_POST:case NCMM_SHAPE_LATTICE_TOWER:case NCMM_SHAPE_TREE_CANOPY:return true;
         default:return false;
     }
 }

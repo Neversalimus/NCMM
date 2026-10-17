@@ -32,7 +32,7 @@ inline bool operator==(voxel a,voxel b){return a.x==b.x&&a.y==b.y&&a.z==b.z;}
 struct traits {
     bool loaded=false,no_floor=false,no_floor_water=false,transparent_floor=false,z_transparent=false;
     bool opaque=false,goes_up=false,goes_down=false,ramp=false,ramp_up=false,ramp_down=false;
-    bool difficult_z=false,canopy=false,roofed=false,ramp_end=false;
+    bool difficult_z=false,canopy=false,roofed=false,ramp_end=false,partial_support=false;
 };
 inline uint32_t semantics(const traits &t){
     if(!t.loaded)return NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE;
@@ -52,10 +52,12 @@ inline uint32_t semantics(const traits &t){
     if(t.difficult_z&&(t.goes_up||t.goes_down))out|=NCMM_WORLD_LADDER;
     if(t.canopy)out|=NCMM_WORLD_CANOPY;
     if(t.roofed)out|=NCMM_WORLD_ROOFED;
+    if(t.partial_support)out=(out&~(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR))|NCMM_WORLD_OPEN_DOWN;
     // Z_TRANSPARENT alone is not used by either pinned engine's floor cache;
     // preserve the physical slab unless TRANSPARENT_FLOOR/NO_FLOOR also applies.
     return out;
 }
+inline bool supported_item(uint32_t flags,bool platform=false){return platform||(flags&(NCMM_WORLD_FLOOR|NCMM_WORLD_GLASS_FLOOR))!=0;}
 inline auto order(const ncmm_world_cell_v1 &c){return std::make_tuple(c.z,c.y,c.x);}
 inline bool finite(point p){return std::isfinite(p.x)&&std::isfinite(p.y)&&std::isfinite(p.z);}
 inline bool valid(const ncmm_graphics_multilevel_scene_v1 &s){

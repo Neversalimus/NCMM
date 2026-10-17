@@ -43,7 +43,7 @@ def samples(record, name, count):
 
 def verify(args):
     root = Path(args.installer_root)
-    archive = root / f"NCMM_FirstPersonView_0.12.6_TEST_{args.build}_Windows_x64.zip"
+    archive = root / f"NCMM_FirstPersonView_0.12.7_TEST_{args.build}_Windows_x64.zip"
     raw = archive.read_bytes()
     with zipfile.ZipFile(io.BytesIO(raw)) as z:
         entries = {}
@@ -59,7 +59,7 @@ def verify(args):
             return z.read(entries[name])
         release = json.loads(read("release-manifest.json").decode("utf-8-sig"))
         bundle = json.loads(read("payload/first-person-bundle.json").decode("utf-8-sig"))
-        require(release["installer_revision"] == "0.12.6" and
+        require(release["installer_revision"] == "0.12.7" and
                 release["status"] == "experimental-not-certified", "Wrong release identity")
         require(release["source_commit"] == bundle["ncmm_source_commit"] == args.expected_source,
                 "Installer source differs from qualified CI checkout")
@@ -69,7 +69,7 @@ def verify(args):
         require(bundle["source_commit"] == release["engine_source"] == pins[args.build],
                 "Wrong engine pin")
         mod = json.loads(read("payload/code_mods/FirstPersonView/mod.json").decode("utf-8-sig"))
-        require(mod["version"] == "0.12.6-dev", "Wrong module version")
+        require(mod["version"] == "0.12.7-dev", "Wrong module version")
         require(len(bundle["files"]) == 32, "Incomplete payload file matrix")
         for name, expected in bundle["files"].items():
             require(digest(read("payload/" + name)) == expected, "Payload hash mismatch: " + name)
@@ -97,6 +97,10 @@ def verify(args):
     require(horizon["known_forest_patches"] > 20 and horizon["unknown_neutral_patches"] > 20
             and horizon["near_overlap"] is False and horizon["native_perception"] is True
             and horizon["cpu_and_gpu"] is True, "Horizon privacy/depth regression")
+    geometry = report["geometry_regressions"]
+    require(geometry["success"] is True and geometry["cpu_and_gpu"] is True and geometry["captures"] == 8, "Missing geometry regression matrix")
+    for name in ("lattice_cells", "canopy_without_slab", "connected_fence_corners", "windows_without_door_model", "unseen_continuous_walls", "supported_item_cells"):
+        require(geometry[name] > 0, "Missing native geometry coverage: " + name)
     timings = []
     matrix = set()
     for record in report["records"]:
@@ -119,12 +123,12 @@ def verify(args):
                             "backend": record["backend"],
                             "software_device": record["software_device"]})
     require(len(timings) == 6, "GPU matrix incomplete")
-    result = {"success": True, "version": "0.12.6", "build": args.build,
+    result = {"success": True, "version": "0.12.7", "build": args.build,
               "source_commit": args.expected_source, "workflow_run": args.expected_run,
               "installer": archive.name, "installer_sha256": digest(raw),
               "host_sha256": release["host_sha256"], "module_sha256": release["module_sha256"],
               "verified_payload_files": 32, "manual_playthrough": False,
-              "facade": facade, "horizon": horizon, "gpu_timings": timings,
+              "facade": facade, "horizon": horizon, "geometry": geometry, "gpu_timings": timings,
               "timing_scope": "CI device; first_render_frame excludes native avatar_action/refresh; native_move_to_first_ready includes both"}
     # These are disposable native-game fixture captures, never desktop captures.
     from PIL import Image

@@ -1,3 +1,40 @@
+    void metal_beam(vec a,vec b,float radius,material m){
+        const vec along=normalize(b-a),u=normalize(cross(along,std::abs(along.z)<.9f?vec{0,0,1}:vec{1,0,0}))*radius;
+        const vec v=normalize(cross(along,u))*radius;
+        const std::array<vec,4> sides{u,v,u*-1,v*-1};
+        for(int k=0;k<4;++k){const auto x=sides[k],y=sides[(k+1)%4];
+            quad(a+x,b+x,b+y,a+y,m,normalize(x+y));}
+    }
+    void chain_panel(vec center,float a,float width,material metal){
+        box(center,{-width*.5f,-.017f,1.80f},{width*.5f,.017f,1.84f},metal,a);
+        for(int slope:{-1,1})for(int wire=-4;wire<=14;++wire){
+            const float intercept=wire*.18f;float x0=-width*.5f,x1=width*.5f;
+            if(slope>0){x0=std::max(x0,.08f-intercept);x1=std::min(x1,1.8f-intercept);}
+            else{x0=std::max(x0,intercept-1.8f);x1=std::min(x1,intercept-.08f);}
+            if(x0>=x1)continue;
+            const vec p0{x0,0,slope*x0+intercept},p1{x1,0,slope*x1+intercept},edge{-.004f*slope,0,.004f};
+            quad(rotate(p0-edge,center,a),rotate(p1-edge,center,a),rotate(p1+edge,center,a),rotate(p0+edge,center,a),metal,{std::sin(a),-std::cos(a),0});
+        }
+    }
+    void fence_model(int i,uint32_t shape){
+        ++f.vertical_fences;vec center=cell_center(i);
+        material metal{nullptr,{.43f,.47f,.49f},1,false,false,false,i,surface::metal};
+        const float angle=s.details[i].orientation?pi*.5f:0;
+        const uint32_t flags=s.details[i].terrain_flags,mask=flags&(NCMM_SURFACE_CONNECT_E|NCMM_SURFACE_CONNECT_S|NCMM_SURFACE_CONNECT_W|NCMM_SURFACE_CONNECT_N);
+        if(shape==NCMM_SHAPE_GATE_OPEN||!(flags&NCMM_SURFACE_CONNECTIONS)||!mask){
+            for(float x:{-.49f,.49f})box(center,{x-.018f,-.025f,0},{x+.018f,.025f,1.9f},metal,angle);
+            const float a=angle+(shape==NCMM_SHAPE_GATE_OPEN?pi*.46f:0);
+            if(shape==NCMM_SHAPE_GATE_OPEN)center=rotate({-.48f,0,0},center,angle)+rotate({.48f,0,0},{},a);
+            chain_panel(center,a,1.0f,metal);return;
+        }
+        box(center,{-.022f,-.022f,0},{.022f,.022f,1.9f},metal);
+        for(unsigned side=0;side<4;++side)if(mask&(NCMM_SURFACE_CONNECT_E<<side)){
+            const float a=side*pi*.5f;const vec direction{std::cos(a),std::sin(a),0};
+            chain_panel(center+direction*.25f,a,.5f,metal);
+            const vec end=center+direction*.5f;
+            box(end,{-.018f,-.018f,0},{.018f,.018f,1.9f},metal);
+        }
+    }
     surface finish(uint32_t type)const {
         switch(type){case NCMM_MAT_WOOD:return surface::wood;case NCMM_MAT_METAL:return surface::metal;
             case NCMM_MAT_RESIN:return surface::resin;case NCMM_MAT_CLOTH:return surface::cloth;
@@ -25,6 +62,22 @@
         const vec center=cell_center(i);
         const float a=s.details[i].orientation?pi*.5f:0;
         material metal{nullptr,{.40f,.43f,.45f},1,false,false,false,i,surface::metal};
+        if(shape==NCMM_SHAPE_LATTICE_TOWER){
+            // One real native tower cell per storey. No cube or guessed platform.
+            metal.color={.48f,.49f,.47f};
+            for(float x:{-.38f,.38f})for(float y:{-.38f,.38f})
+                box(center,{x-.025f,y-.025f,0},{x+.025f,y+.025f,NCMM_WORLD_LEVEL_HEIGHT},metal);
+            for(float h:{.04f,1.25f,2.48f})for(int side=0;side<4;++side){
+                const float a=side*pi*.5f;
+                metal_beam(rotate({-.38f,-.38f,h},center,a),rotate({.38f,-.38f,h},center,a),.018f,metal);
+            }
+            for(int side=0;side<4;++side)for(int tier=0;tier<2;++tier){
+                const float a=side*pi*.5f,lo=tier*1.25f+.06f,hi=(tier+1)*1.25f-.06f;
+                metal_beam(rotate({-.38f,-.38f,lo},center,a),rotate({.38f,-.38f,hi},center,a),.015f,metal);
+                metal_beam(rotate({.38f,-.38f,lo},center,a),rotate({-.38f,-.38f,hi},center,a),.015f,metal);
+            }
+            return true;
+        }
         if(shape==NCMM_SHAPE_BRIDGE){
             material deck=metal;deck.color={.33f,.35f,.34f};
             box(center,{-.505f,-.505f,.015f},{.505f,.505f,.075f},deck);
