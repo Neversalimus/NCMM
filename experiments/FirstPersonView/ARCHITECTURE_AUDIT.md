@@ -240,3 +240,17 @@ shells, including nested files and a bracketed path. A fresh exact 0.12.7
 hardware control then completed all four 96-frame CPU/GPU profiles with exit
 zero, no dumps and RTX 4090 GPU records. The earlier two timeouts are preserved;
 CDDA's stale-data validation was not bypassed.
+
+## Stage G: qualification findings
+
+The first Full 1040 run rejected a stationary GPU frame because its total upload
+exceeded an old 2 MiB threshold. A bounded native diagnostic reproduction showed
+15,336 source cells, zero regenerated cells and signature reuse on that frame,
+with 2,757,444 bytes of legitimate frame data. The gate predated the current
+multi-level scene and conflated dynamic instances/cells/bones with static data.
+The resource cache now records immutable mesh/texture upload bytes privately;
+the native gate requires exactly zero static uploads and zero regenerated cells.
+No public metrics ABI, resource budget, rendering or synchronization changes.
+Device regression cases cover a valid dynamic transfer above 2 MiB, dynamic mesh
+updates, and a real static reload after eviction. The original Full failure is
+retained and the final source must pass Full again.
