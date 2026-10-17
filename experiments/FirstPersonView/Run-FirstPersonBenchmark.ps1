@@ -6,7 +6,9 @@ param(
     [ValidateRange(0,3600)][int]$SoakSeconds=1800,
     [switch]$FocusedGpuBenchmark,
     [switch]$MovementBenchmark,
-    [switch]$CaptureCrashDump
+    [switch]$CaptureCrashDump,
+    [switch]$GpuDebug,
+    [string]$DumpAnalyzer=(Join-Path $PSScriptRoot 'ncmm_native_dump_analyzer.exe')
 )
 $ErrorActionPreference='Stop'
 if($MovementBenchmark -and $FocusedGpuBenchmark){throw 'Choose one focused benchmark.'}
@@ -103,7 +105,7 @@ public static class NCMMNativeCrashDialog {
 }
 '@
 }
-$names=@('NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE')
+$names=@('NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG')
 $prior=@{}
 foreach($name in $names){$prior[$name]=[Environment]::GetEnvironmentVariable($name,'Process');[Environment]::SetEnvironmentVariable($name,$null,'Process')}
 $exitCode=$null
@@ -113,6 +115,7 @@ $process=$null
 $lastProgress='native startup'
 try {
     if($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
+    if($GpuDebug){$env:SDL_RENDER_GPU_DEBUG='1'}
     $env:NCMM_FP_APPEARANCE_SMOKE='1' # Stable monster atlas variants in this diagnostic only.
     $env:NCMM_FP_SOAK_SECONDS=[string]$SoakSeconds
     if($udp){$env:NCMM_FP_UDP='1'}
@@ -140,7 +143,7 @@ try {
         }
         if(Test-Path $progressPath){
             $line=Get-Content $progressPath -Tail 1
-            if($line -and $line -ne $lastProgress){$lastProgress=$line;$lastAdvance=[DateTime]::UtcNow}
+            if($line -and $line -ne $lastProgress){$lastProgress=[string]$line;$lastAdvance=[DateTime]::UtcNow}
         }
         try {
             $process.Refresh()
@@ -212,11 +215,20 @@ public static class NCMMBenchmarkWindow {
     $process.WaitForExit();$exitCode=$process.ExitCode
 } catch {
     $failure=$_.Exception.Message
+    if($process -and -not $process.HasExited){$process.Kill();$null=$process.WaitForExit(10000)}
     throw
 } finally {
     if($debugger){$debugger.Dispose()}
     if($process -and $process.HasExited){$process.WaitForExit();$exitCode=$process.ExitCode}
+    if($progressPath -and (Test-Path -LiteralPath $progressPath)){$lastProgress=[string](Get-Content -LiteralPath $progressPath -Tail 1)}
     [ordered]@{schema=1;child_pid=$(if($process){$process.Id}else{$null});exit_signed=$exitCode;exit_hex=$(if($null -ne $exitCode){'0x'+([BitConverter]::ToUInt32([BitConverter]::GetBytes([int]$exitCode),0)).ToString('X8')}else{$null});last_progress=$lastProgress;wrapper_failure=$failure;debugger_requested=[bool]$CaptureCrashDump;debugger_error=$(if($debugger){$debugger.Error}else{$null});crash_dumps=$(if($debugger){$debugger.Dumps}else{0});host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';ncmm_commit=$bundle.ncmm_source_commit;engine_commit=$bundle.source_commit;focused_gpu=[bool]$FocusedGpuBenchmark;movement=[bool]$MovementBenchmark} | ConvertTo-Json | Set-Content (Join-Path $evidence 'first-person-process-result.json') -Encoding UTF8
+    if($CaptureCrashDump -and (Test-Path -LiteralPath $DumpAnalyzer)){
+        $events=Get-Content -LiteralPath (Join-Path $evidence 'first-person-debug-events.log') -Raw
+        $fault=[regex]::Match($events,'exception=0xC0000005 address=0x[0-9A-Fa-f]+ thread=(\d+)')
+        if($fault.Success){foreach($dump in @(Get-ChildItem -LiteralPath $evidence -Filter '*.dmp' -File)){
+            & $DumpAnalyzer $dump.FullName $fault.Groups[1].Value ($test+';'+$env:WINDIR+'\System32') 2>&1 | Set-Content -LiteralPath ($dump.FullName+'.stack.txt') -Encoding UTF8
+        }}
+    }
     foreach($name in $names){[Environment]::SetEnvironmentVariable($name,$prior[$name],'Process')}
     $runtime=Join-Path $test 'ncmm'
     if(Test-Path $runtime){Get-ChildItem $runtime -File | Where-Object {$_.Name -like 'first-person-*' -or $_.Extension -eq '.log'} | Copy-Item -Destination $evidence}

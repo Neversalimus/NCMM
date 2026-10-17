@@ -16,6 +16,9 @@ public sealed class NCMMNativeDebugger : IDisposable {
         [FieldOffset(40)] public IntPtr ImageBase;
         [FieldOffset(24)] public IntPtr DllBase;
         [FieldOffset(16)] public uint ExitCode;
+        [FieldOffset(16)] public IntPtr DebugString;
+        [FieldOffset(24)] public ushort DebugStringUnicode;
+        [FieldOffset(26)] public ushort DebugStringLength;
     }
     [DllImport("kernel32.dll", SetLastError=true)] static extern bool DebugActiveProcess(uint pid);
     [DllImport("kernel32.dll", SetLastError=true)] static extern bool DebugActiveProcessStop(uint pid);
@@ -24,6 +27,7 @@ public sealed class NCMMNativeDebugger : IDisposable {
     [DllImport("kernel32.dll", SetLastError=true)] static extern bool ContinueDebugEvent(uint pid,uint tid,uint status);
     [DllImport("kernel32.dll", SetLastError=true)] static extern IntPtr OpenProcess(uint access,bool inherit,uint pid);
     [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
+    [DllImport("kernel32.dll", SetLastError=true)] static extern bool ReadProcessMemory(IntPtr process,IntPtr address,byte[] bytes,UIntPtr size,out UIntPtr read);
     [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern uint GetFinalPathNameByHandle(IntPtr handle,System.Text.StringBuilder path,uint count,uint flags);
     [DllImport("Dbghelp.dll", SetLastError=true)] static extern bool MiniDumpWriteDump(IntPtr process,uint pid,IntPtr file,uint type,IntPtr exception,IntPtr user,IntPtr callback);
     readonly uint pid; readonly string directory; readonly Thread thread;
@@ -55,6 +59,15 @@ public sealed class NCMMNativeDebugger : IDisposable {
             ++Dumps;Log("dump="+name);
         } finally {if(handle!=IntPtr.Zero)CloseHandle(handle);}
     }
+    int debugStrings;
+    void DebugString(DebugEvent ev) {
+        if(debugStrings++>=1000||ev.DebugStringLength==0)return;
+        int length=Math.Min(16384,ev.DebugStringLength*(ev.DebugStringUnicode!=0?2:1));byte[] bytes=new byte[length];UIntPtr read;
+        IntPtr handle=OpenProcess(0x410,false,pid);
+        try {if(handle!=IntPtr.Zero&&ReadProcessMemory(handle,ev.DebugString,bytes,(UIntPtr)length,out read))
+            Log("debug_output="+(ev.DebugStringUnicode!=0?System.Text.Encoding.Unicode:System.Text.Encoding.Default).GetString(bytes,0,(int)read.ToUInt64()).TrimEnd('\0'));}
+        finally {if(handle!=IntPtr.Zero)CloseHandle(handle);}
+    }
     void Module(DebugEvent ev) {
         var name=new System.Text.StringBuilder(32768);
         if(ev.FileHandle!=IntPtr.Zero&&ev.FileHandle!=new IntPtr(-1)) {
@@ -78,6 +91,7 @@ public sealed class NCMMNativeDebugger : IDisposable {
                         if(loaderBreakpoint&&ev.ExceptionCode==0x80000003)loaderBreakpoint=false;
                         else {status=0x80010001;if(ev.FirstChance==0||ev.ExceptionCode==0xC0000005||ev.ExceptionCode==0xC0000374||ev.ExceptionCode==0xC000001D)Dump(ev);}
                     } else if(ev.Code==3||ev.Code==6)Module(ev);
+                    else if(ev.Code==8)DebugString(ev);
                     else if(exited)Log(String.Format("exit=0x{0:X8}",ev.ExitCode));
                 } finally {if(!ContinueDebugEvent(ev.ProcessId,ev.ThreadId,status))throw new Exception("ContinueDebugEvent error "+Marshal.GetLastWin32Error());}
                 if(exited){attached=false;break;}

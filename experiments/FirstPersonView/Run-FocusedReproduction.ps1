@@ -48,11 +48,17 @@ New-Item -ItemType Directory -Path $assetsRoot | Out-Null
 if($LASTEXITCODE -ne 0){throw 'Official assets extraction failed.'}
 $exes=@(Get-ChildItem -LiteralPath $assetsRoot -Filter cataclysm-tiles.exe -Recurse -File)
 if($exes.Count -ne 1){throw 'Expected exactly one official installation.'}
+$tools=Join-Path $OutputRoot 'tools'
+& cmake -S $PSScriptRoot -B $tools -A x64
+if($LASTEXITCODE -ne 0){throw 'Dump tools configure failed.'}
+& cmake --build $tools --config Release --target ncmm_native_dump_analyzer
+if($LASTEXITCODE -ne 0){throw 'Dump tools build failed.'}
+$analyzer=Join-Path $tools 'Release/ncmm_native_dump_analyzer.exe'
 $results=@()
 for($i=1;$i -le $Repeats;$i++){
     $out=Join-Path $OutputRoot ('repeat-'+$i)
     try {
-        & (Join-Path $PSScriptRoot 'Run-FirstPersonBenchmark.ps1') -GameRoot $exes[0].Directory.FullName -BundleRoot $bundleRoot -OutputRoot $out -FocusedGpuBenchmark -CaptureCrashDump
+        & (Join-Path $PSScriptRoot 'Run-FirstPersonBenchmark.ps1') -GameRoot $exes[0].Directory.FullName -BundleRoot $bundleRoot -OutputRoot $out -FocusedGpuBenchmark -CaptureCrashDump -GpuDebug -DumpAnalyzer $analyzer
         & python (Join-Path $PSScriptRoot 'tests/verify_gpu_profile.py') --input (Join-Path $out 'evidence/first-person-gpu-benchmark.json') --output (Join-Path $out 'evidence/first-person-focused-verified.json')
         if($LASTEXITCODE -ne 0){throw 'Focused profile verification failed.'}
         $results+=@{repeat=$i;success=$true;engine=$pin.engine;installer_sha256=$pin.inner}
