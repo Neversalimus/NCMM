@@ -104,6 +104,9 @@ int main(int argc,char **argv){
         for(int frame=0;frame<2;++frame){++large.frame_serial;require(engine.submit(large),engine.metrics().reason);
             require(engine.metrics().upload_bytes>2*1024*1024&&engine.metrics().generated_meshes==0&&engine.resources().static_upload_bytes()==0,
                     "large dynamic transfer preserves the strict zero static upload gate");}
+        // Complete this fixture before the next producer restarts its serial;
+        // old-generation readbacks must not occupy all slots for its first frame.
+        capture("-large-frame-data");
     }
     // Exercise the actual collector's reconstructed creature meshes on SDL_GPU,
     // rather than accepting the synthetic red/green triangle probe as proof.
