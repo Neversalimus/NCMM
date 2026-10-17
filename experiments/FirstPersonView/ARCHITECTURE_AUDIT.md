@@ -179,3 +179,36 @@ GPU creature rendering. Full native appearance export remains a release gate.
 CPU and GPU now call one creature-metrics translator in `module.cpp`, with
 their own visible-pixel count. The repeated cache/anatomy/failure/timing field
 mapping has been removed without changing the Host metrics ABI.
+
+## Stages E/F: evidence and qualification cost
+
+The comparison now retains p99 for first frames, warm rotation and exclusive
+phases, alongside median/p95 and raw samples. Baseline source is explicit and
+can be changed only by a caller providing its exact identity. A skewed-sample
+test protects the tail calculation. A dozen first-step samples do not establish
+a stable population p99; sample counts and maximum remain visible.
+
+Version metadata now comes from mod.json for the module, benchmark and package
+builder, removing independent hardcoded descriptor/benchmark versions. The
+release verifier still demands an explicit expected version (default 0.12.9).
+The old one-visible-Z README claim is corrected. Documentation now distinguishes
+unchanged CPU Balanced 960×600 / High 1280×800 from GPU Balanced 1920×1080 /
+High 2560×1440. Older 0.12.8 quality text mistakenly called 1280×800 the CPU
+Balanced cap; retained historical evidence is not rewritten.
+
+CI selects the maximum required tier across changed files and includes rename
+origins. Source comparison truncation fails closed. Quick keeps renderer,
+contract, source-transform, shader-identity and focused sanitizer checks;
+Integration adds both native Hosts and their ordinary installer/save/gameplay/
+movement gates; Full keeps exhaustive sanitizers, appearance and legacy paired
+comparisons, both official package variants and the long automated soak.
+Explicitly selecting Quick cannot qualify an ABI/device/installer change.
+The aggregate check requires module success and both Host successes whenever
+native qualification is selected. Final merge must also verify the independent
+GPU and canonical NCMM engineering workflows.
+
+Documentation/evidence-only edits no longer trigger the two standalone GPU
+device jobs, and editing a PR description no longer rebuilds native Hosts.
+Expensive release scenarios are retained where they cover distinct behavior;
+no claimed CI speed percentage is extrapolated from reduced trigger counts.
+Current full qualification is required before this branch can be merged.

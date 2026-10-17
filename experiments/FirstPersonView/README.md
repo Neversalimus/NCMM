@@ -1,4 +1,25 @@
-# First Person View 0.12.8 — GPU teardown and first-frame latency
+# First Person View 0.12.9 — architecture and reliability
+
+GPU preparation now shares one callback-owned XYZ lookup with the existing
+geometry generator. CPU fallback keeps its independent owned lookup. Creature
+diagnostic file export is compiled separately, and CPU/GPU creature metrics use
+one translation function. Rendering, simulation and public ABI are preserved.
+
+The diagnostic launcher rejects unsafe long output roots before copying assets.
+Legacy Character Points supports the exact newer upstream UI forms while
+retaining transactional fail-closed guards and both 1040/1807 pins.
+
+Quick, Integration and Full CI tiers are selected from changed responsibilities.
+ABI, device, shader and installer changes require Full; scene changes require
+both native Hosts; isolated tests/docs use Quick. The final required-qualification
+check rejects an insufficient selected tier or failed native gates. Editing a
+PR description no longer starts another native build. Hardware evidence reports
+median, p95 and p99 from raw samples; source identity and quality remain explicit.
+
+See [ARCHITECTURE_AUDIT.md](ARCHITECTURE_AUDIT.md) for responsibilities, resource
+ownership, cache invalidation, measured dependencies and remaining risks.
+
+## Qualified 0.12.8 baseline
 
 First-frame preparation now reuses terrain/furniture definitions, rotates world
 cache windows on walking, avoids redundant cell sorting and shares transformed
@@ -349,7 +370,7 @@ the DLL can be freed. A V1 fallback remains for the previous preview contract.
 
 ## Remaining limits
 
-Tile-center simulation, one visible z-level, generic surface dimensions and foliage
+Tile-center simulation, loaded multi-level geometry, generic surface dimensions and foliage
 billboards. Creature models are deterministic anatomical reconstructions; unseen
 surfaces and unusual mod anatomy remain approximations. Vehicle and held
 item geometry is generated and needs further interactive refinement for unusual

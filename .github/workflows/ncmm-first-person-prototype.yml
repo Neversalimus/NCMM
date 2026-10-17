@@ -1,8 +1,8 @@
 name: First Person View - experimental prototype
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
-    paths: ['experiments/FirstPersonView/**', 'experiments/graphics_bridge/**', 'runtime/NCMMSetupCore.cs', 'runtime/NCMMBootstrap.cs', 'runtime/NCMMRuntimeIO.cs', 'runtime/NCMMSetupDiagnostics.cs', 'runtime/NCMMSetup.cs', '.github/workflows/ncmm-first-person-prototype.yml']
+    types: [opened, synchronize, reopened]
+    paths: ['experiments/FirstPersonView/**', 'experiments/graphics_bridge/**', 'host_patch/**', 'sdk/**', 'runtime/**', 'ci/fpv_qualification.py', 'ci/test_fpv_qualification.py', '.github/workflows/ncmm-first-person-prototype.yml']
   workflow_dispatch:
     inputs:
       qualification:
@@ -13,11 +13,51 @@ on:
 permissions:
   contents: read
   actions: read
+  pull-requests: read
 concurrency:
   group: ncmm-first-person-${{ github.event.pull_request.number || github.ref_name }}
   cancel-in-progress: true
 jobs:
+  qualification_plan:
+    runs-on: ubuntu-latest
+    outputs:
+      required: ${{ steps.plan.outputs.required }}
+      selected: ${{ steps.plan.outputs.selected }}
+      native: ${{ steps.plan.outputs.native }}
+      full: ${{ steps.plan.outputs.full }}
+      sufficient: ${{ steps.plan.outputs.sufficient }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let paths = [];
+            if (context.payload.pull_request) {
+              const files = await github.paginate(github.rest.pulls.listFiles, {
+                owner: context.repo.owner, repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number, per_page: 100
+              });
+              paths = files.flatMap(f => f.previous_filename ? [f.filename, f.previous_filename] : [f.filename]);
+            } else {
+              const comparison = await github.rest.repos.compareCommitsWithBasehead({
+                owner: context.repo.owner, repo: context.repo.repo,
+                basehead: `${context.payload.repository.default_branch}...${context.sha}`
+              });
+              if (!comparison.data.files || comparison.data.files.length >= 300) {
+                throw new Error('Cannot classify a missing or truncated source comparison; qualification must fail closed.');
+              }
+              paths = comparison.data.files.flatMap(f => f.previous_filename ? [f.filename, f.previous_filename] : [f.filename]);
+            }
+            fs.writeFileSync('fpv-changes.json', JSON.stringify(paths));
+      - name: Qualification policy negative tests
+        run: python -m unittest discover -s ci -p test_fpv_qualification.py -v
+      - id: plan
+        run: python ci/fpv_qualification.py --files fpv-changes.json
   module:
+    needs: qualification_plan
     name: Renderer and module - ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -67,13 +107,13 @@ jobs:
         if: runner.os == 'Linux'
         run: ctest --test-dir fp-cache-sanitize -R "^first_person_(multilevel_(policy|cache|gpu_cache)|facade_continuity)$" --output-on-failure
       - name: Configure sanitizer coverage
-        if: runner.os == 'Linux' && (inputs.qualification == 'full' || contains(github.event.pull_request.body, format('<!-- fp-qa:full@{0} -->', github.event.pull_request.head.sha)))
+        if: runner.os == 'Linux' && needs.qualification_plan.outputs.full == 'true'
         run: cmake -S experiments/FirstPersonView -B fp-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
       - name: Build sanitizer geometry and shared-module tests
-        if: runner.os == 'Linux' && (inputs.qualification == 'full' || contains(github.event.pull_request.body, format('<!-- fp-qa:full@{0} -->', github.event.pull_request.head.sha)))
+        if: runner.os == 'Linux' && needs.qualification_plan.outputs.full == 'true'
         run: cmake --build fp-sanitize --parallel 2 --target first_person_camera_motion_tests first_person_optimization_tests first_person_hybrid_module_tests first_person_creature_semantics_tests first_person_creature_mesh_tests first_person_creature_appearance_tests first_person_creature_animation_tests first_person_creature_lod_tests first_person_creature_cache_tests first_person_creature_render_tests first_person_creature_module_tests first_person_gpu_contract_tests first_person_gpu_geometry_tests first_person_gpu_module_tests first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_render_tests first_person_multilevel_module_tests first_person_multilevel_gpu_cache_tests
       - name: ASan and UBSan camera, volume and DLL lifecycle coverage
-        if: runner.os == 'Linux' && (inputs.qualification == 'full' || contains(github.event.pull_request.body, format('<!-- fp-qa:full@{0} -->', github.event.pull_request.head.sha)))
+        if: runner.os == 'Linux' && needs.qualification_plan.outputs.full == 'true'
         run: ctest --test-dir fp-sanitize -R "camera_motion|optimization|hybrid_module|creature_|gpu_|multilevel_" --output-on-failure
       - name: Atomic source-transform negative tests
         run: python -m unittest discover -s experiments/graphics_bridge -p test_apply_graphics_bridge.py -v
@@ -87,11 +127,8 @@ jobs:
             fp-build/first-person-benchmark.json
           retention-days: 7
   host:
-    if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.qualification != 'quick') ||
-      contains(github.event.pull_request.body, format('<!-- fp-qa:integration@{0} -->', github.event.pull_request.head.sha)) ||
-      contains(github.event.pull_request.body, format('<!-- fp-qa:full@{0} -->', github.event.pull_request.head.sha))
-    needs: module
+    if: needs.qualification_plan.outputs.native == 'true'
+    needs: [qualification_plan, module]
     name: Experimental MSVC Host - ${{ matrix.build }}
     strategy:
       fail-fast: false
@@ -106,7 +143,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 270
     env:
-      FP_FULL_QUALIFICATION: ${{ inputs.qualification == 'full' || contains(github.event.pull_request.body, format('<!-- fp-qa:full@{0} -->', github.event.pull_request.head.sha)) }}
+      FP_FULL_QUALIFICATION: ${{ needs.qualification_plan.outputs.full }}
       GH_TOKEN: ${{ github.token }}
       SCCACHE_GHA_ENABLED: 'true'
       SCCACHE_IDLE_TIMEOUT: '0'
@@ -600,3 +637,28 @@ jobs:
             installer-result/first-person-appearance-*.json
           if-no-files-found: error
           retention-days: 7
+  required_qualification:
+    name: First Person required qualification
+    if: always()
+    needs: [qualification_plan, module, host]
+    runs-on: ubuntu-latest
+    env:
+      PLAN_RESULT: ${{ needs.qualification_plan.result }}
+      MODULE_RESULT: ${{ needs.module.result }}
+      HOST_RESULT: ${{ needs.host.result }}
+      SUFFICIENT: ${{ needs.qualification_plan.outputs.sufficient }}
+      NATIVE_REQUIRED: ${{ needs.qualification_plan.outputs.native }}
+      REQUIRED_TIER: ${{ needs.qualification_plan.outputs.required }}
+      SELECTED_TIER: ${{ needs.qualification_plan.outputs.selected }}
+    steps:
+      - name: Require the selected tier and all relevant gates
+        run: |
+          python - <<'PY'
+          import os
+          assert os.environ['PLAN_RESULT'] == 'success', 'Qualification classification failed'
+          assert os.environ['MODULE_RESULT'] == 'success', 'Quick/native module gates did not pass'
+          assert os.environ['SUFFICIENT'] == 'true', f"Required {os.environ['REQUIRED_TIER']}; selected {os.environ['SELECTED_TIER']}"
+          if os.environ['NATIVE_REQUIRED'] == 'true':
+              assert os.environ['HOST_RESULT'] == 'success', 'Both exact native Host gates are required'
+          print('Required First Person qualification passed')
+          PY

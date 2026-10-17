@@ -138,7 +138,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     result = {"schema": 1, "success": False, "scope": "CPU wall time of native SDL frames; not GPU timestamps or manual gameplay FPS",
-              "simulation_turns_advanced": 0, "quality": "Fresh Balanced; unchanged GPU internal cap 1920x1080 and CPU cap 1280x800. Internal dimensions are inferred from source, not recorded by this route.",
+              "simulation_turns_advanced": 0, "quality": "Fresh Balanced; unchanged GPU internal cap 1920x1080 and CPU cap 960x600. Internal dimensions are inferred from source, not recorded by this route.",
               "versions": {}, "comparisons": []}
     udp_reference = None
     for version, source in (("baseline", args.expected_baseline_source), ("candidate", args.expected_candidate_source)):
