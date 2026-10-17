@@ -271,3 +271,11 @@ dispatches F6. Counters are included in the smoke JSON. This tests the lost-key
 case in real CDDA; it does not claim the exact unrecorded event in either older
 failure was identified. Both older failures are retained, and this final change
 requires another Full and exact-package hardware qualification.
+
+The next Full reached the procedural gallery and rejected its LOD1 case while
+observing only LOD0. The module's existing default is `tileset`; the gallery
+labelled itself procedural but never selected `volume`. Native sprites correctly
+bypass procedural LOD selection and report bucket zero. The fixture now explicitly
+selects the existing volume mode for procedural CPU/GPU galleries, records that
+choice, and restores the previous setting on exit. The product default, LOD
+thresholds and the requirement to observe all four procedural buckets are unchanged.
