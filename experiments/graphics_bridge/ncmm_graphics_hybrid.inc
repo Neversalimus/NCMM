@@ -316,7 +316,7 @@ uint32_t graphics_structure_connections(const tripoint_bub_ms &p,uint32_t shape,
         const tripoint_bub_ms next(p.x()+dx,p.y()+dy,p.z());
         if(!get_map().ncmm_graphics_loaded(next))continue;
         const auto &ter=get_map().ter(next).obj();
-        const auto other=terrain_shape(ter);
+        const auto other=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
         const bool connected=ncmm_graphics_shapes::fence_shape(shape)?
             (ncmm_graphics_shapes::fence_shape(other)||other==NCMM_SHAPE_WALL):
             ncmm_graphics_shapes::structural_surface(other);
@@ -358,7 +358,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
             d.light_r=surface?top_rgb[0]:lower[0];d.light_g=surface?top_rgb[1]:lower[1];d.light_b=surface?top_rgb[2]:lower[2];
             if(facade_lights&&(world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE)){const auto &rgb=(*facade_lights)[i];d.light_r=rgb[0];d.light_g=rgb[1];d.light_b=rgb[2];}
             if(world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE){
-                d.terrain_shape=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
+                d.terrain_shape=terrain_shape(ter);
                 // Opaque furniture/gas in this voxel is not an opaque window
                 // panel. The terrain itself owns its opening and cover state.
                 d.terrain_flags=ter.transparent?uint32_t(NCMM_SURFACE_TRANSPARENT):0u;
