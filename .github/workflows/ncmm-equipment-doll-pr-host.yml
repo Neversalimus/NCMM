@@ -1,12 +1,9 @@
 name: Equipment Body Map · real Host compile (PR)
 
 on:
-  pull_request:
-    paths:
-      - 'host_patch/Apply-NCMMHostPatch.ps1'
-      - 'payload/SURVIVOR_0911_0915_v8.7.6.8.ps1'
-      - 'ci/Test-EquipmentBodyMapUX.ps1'
-      - '.github/workflows/ncmm-equipment-doll-pr-host.yml'
+  # The PR engineering workflow runs these exact source/layout checks and
+  # builds the same pinned production Host, then tests real install/gameplay.
+  # Keep this standalone entry for explicit diagnosis without a duplicate build.
   workflow_dispatch:
 
 permissions:

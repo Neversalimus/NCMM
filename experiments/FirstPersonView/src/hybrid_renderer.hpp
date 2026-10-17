@@ -222,7 +222,8 @@ class renderer {
     const presentation_data *metadata=nullptr;
     creature::presentation *creature_data=nullptr;
     const ncmm_graphics_multilevel_scene_v1 *world_data=nullptr;
-    ncmm_world::coordinates world_coordinates;
+    ncmm_world::coordinates owned_coordinates;
+    const ncmm_world::coordinates &world_coordinates;
     geometry_sink *gpu_sink=nullptr;
     std::vector<std::shared_ptr<const creature::asset>> creature_assets;
     ncmm_graphics_detail_v1 empty_detail{};
@@ -1191,7 +1192,11 @@ class renderer {
         face(point(0,float(img->data.height)),point(float(img->data.width),float(img->data.height)),point(float(img->data.width),0),point(0,0),item);
     }
 public:
-    renderer(const ncmm_graphics_scene_v2 &scene,float y,float p,sprite_provider source,frame &output,animation::pose animation_pose={},const presentation_data *data=nullptr,render_options settings={},creature::presentation *entities=nullptr,const ncmm_graphics_multilevel_scene_v1 *world=nullptr):s(scene),base(scene.base),provider(std::move(source)),f(output),yaw(y),pitch(p),cy(std::cos(y)),sy(std::sin(y)),cp(std::cos(p)),sp(std::sin(p)),projection(1),eye{base.camera_x,base.camera_y,1.55f},pose(animation_pose),options(settings),metadata(data),creature_data(entities),world_data(world),world_coordinates(world,true){if(metadata&&metadata->view.eye_height>.1f)eye.z=metadata->view.eye_height;if(world){eye.x+=world->camera_dx;eye.y+=world->camera_dy;eye.z+=world->camera_dz;}}
+    // A borrowed index must describe this exact validated world and outlive the
+    // renderer. CPU calls omit it and keep their existing owned lookup.
+    renderer(const ncmm_graphics_scene_v2 &scene,float y,float p,sprite_provider source,frame &output,animation::pose animation_pose={},const presentation_data *data=nullptr,render_options settings={},creature::presentation *entities=nullptr,const ncmm_graphics_multilevel_scene_v1 *world=nullptr,const ncmm_world::coordinates *indexed=nullptr):s(scene),base(scene.base),provider(std::move(source)),f(output),yaw(y),pitch(p),cy(std::cos(y)),sy(std::sin(y)),cp(std::cos(p)),sp(std::sin(p)),projection(1),eye{base.camera_x,base.camera_y,1.55f},pose(animation_pose),options(settings),metadata(data),creature_data(entities),world_data(world),owned_coordinates(indexed?nullptr:world,true),world_coordinates(indexed?*indexed:owned_coordinates){if(metadata&&metadata->view.eye_height>.1f)eye.z=metadata->view.eye_height;if(world){eye.x+=world->camera_dx;eye.y+=world->camera_dy;eye.z+=world->camera_dz;}}
+    renderer(const renderer &)=delete;
+    renderer &operator=(const renderer &)=delete;
     void collect(geometry_sink &sink,int width,int height){
         gpu_sink=&sink;f.width=width;f.height=height;projection=width/(2*std::tan(70*pi/360));
         sky_palette();shadows.assign(base.cell_count,1);if(sink.any_dirty()){vehicles_build();world();}sink.world_complete();if(sink.horizon_dirty())horizon();sink.horizon_complete();

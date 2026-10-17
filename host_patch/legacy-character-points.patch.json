@@ -111,14 +111,31 @@
       "file": "src/newcharacter.cpp",
       "before": "get_uilist_entry( scen->gender_appropriate_name( u.male ) )",
       "after": "get_uilist_entry( ncmm::legacy_chargen::price( scen->gender_appropriate_name( u.male ), scen->point_cost() ) )",
-      "count": 1
+      "count": 1,
+      "variants": [
+        { "operations": [
+          { "before": "get_uilist_entry( current_scenario->gender_appropriate_name( u.male ) )",
+            "after": "get_uilist_entry( ncmm::legacy_chargen::price( current_scenario->gender_appropriate_name( u.male ), current_scenario->point_cost() ) )",
+            "count": 1 }
+        ] }
+      ]
     },
     {
       "name": "profession and background prices",
       "file": "src/newcharacter.cpp",
       "before": "get_uilist_entry( prof_id->gender_appropriate_name( u.male ) )",
       "after": "get_uilist_entry( ncmm::legacy_chargen::price( prof_id->gender_appropriate_name( u.male ), prof_id->point_cost() ) )",
-      "count": 2
+      "count": 2,
+      "variants": [
+        { "operations": [
+          { "before": "get_uilist_entry( current_profession->gender_appropriate_name( u.male ) )",
+            "after": "get_uilist_entry( ncmm::legacy_chargen::price( current_profession->gender_appropriate_name( u.male ), current_profession->point_cost() ) )",
+            "count": 1 },
+          { "before": "get_uilist_entry( current_hobby->gender_appropriate_name( u.male ) )",
+            "after": "get_uilist_entry( ncmm::legacy_chargen::price( current_hobby->gender_appropriate_name( u.male ), current_hobby->point_cost() ) )",
+            "count": 1 }
+        ] }
+      ]
     },
     {
       "name": "trait prices",

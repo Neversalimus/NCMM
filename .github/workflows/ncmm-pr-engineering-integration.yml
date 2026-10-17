@@ -10,6 +10,7 @@ on:
       - 'ci/**'
       - 'tests/**'
       - '.github/workflows/ncmm-pr-engineering-integration.yml'
+      - '.github/workflows/ncmm-equipment-doll-pr-host.yml'
   push:
     branches: ['fix/engineering-audit-20261009']
     paths: ['.github/workflows/ncmm-pr-engineering-integration.yml']

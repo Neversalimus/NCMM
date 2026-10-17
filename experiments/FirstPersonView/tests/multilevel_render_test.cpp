@@ -54,6 +54,20 @@ int main(){try{
         if(levels>1){size_t upper=0;for(int owner:image.owners)if(owner>=0&&world.positions[owner].z==levels-1)++upper;
             check(upper>100,"actual upper slab appears in CPU depth/owner buffers");}
         collector sink;frame statistics;renderer(world.world.appearance,0,.2f,{},statistics,{},nullptr,{},nullptr,&world.world).collect(sink,400,260);
+        // The borrowed lookup must emit exactly the same ordered geometry as
+        // the CPU-owned lookup across camera directions and loaded Z windows.
+        ncmm_world::coordinates shared_index(&world.world,true);
+        for(float yaw:{0.f,.6f,1.4f})for(float pitch:{-.4f,.2f,1.2f}){
+            collector owned,shared;frame a,b;
+            renderer(world.world.appearance,yaw,pitch,{},a,{},nullptr,{},nullptr,&world.world).collect(owned,400,260);
+            renderer(world.world.appearance,yaw,pitch,{},b,{},nullptr,{},nullptr,&world.world,&shared_index).collect(shared,400,260);
+            check(owned.triangles.size()==shared.triangles.size(),"shared XYZ lookup preserves triangle count");
+            for(size_t i=0;i<owned.triangles.size();++i){const auto &left=owned.triangles[i],&right=shared.triangles[i];
+                check(left.m.cell==right.m.cell&&left.m.finish==right.m.finish&&left.m.alpha==right.m.alpha&&left.m.texture==right.m.texture,"shared XYZ lookup preserves material and ownership");
+                for(int v=0;v<3;++v){const auto &x=left.v[v],&y=right.v[v];
+                    check(x.p.x==y.p.x&&x.p.y==y.p.y&&x.p.z==y.p.z&&x.u==y.u&&x.v==y.v&&x.light.x==y.light.x&&x.light.y==y.light.y&&x.light.z==y.light.z,"shared XYZ lookup preserves exact geometry UV and light");}
+            }
+        }
         check(!sink.triangles.empty(),"shared GPU geometry generator produces slabs");
         size_t bottom=0;for(const auto &t:sink.triangles){check(t.m.cell>=0&&size_t(t.m.cell)<world.positions.size(),"triangle retains unique XYZ source index");
             if(t.normal.z<-.9f){++bottom;const float expected=world.positions[t.m.cell].z*NCMM_WORLD_LEVEL_HEIGHT-.08f;

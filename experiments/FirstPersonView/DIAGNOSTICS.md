@@ -1,8 +1,10 @@
 # First Person diagnostics
 
-The diagnostic runner uses a fresh copy of installation assets. It does not copy player saves or configuration. Game data and the installer Host must have the same supported engine pin. The output directory must be new and outside both source directories; use a short path for native save-file compatibility.
+The diagnostic runner uses a fresh copy of installation assets. It does not copy player saves or configuration. Game data and the installer Host must have the same supported engine pin. The output directory must be new and outside both source directories. The runner rejects OutputRoot paths longer than 80 characters before copying a game. This conservative harness budget leaves room for encoded avatar names and nested memory archives; it is not an upstream native-save long-path fix. Use a short path such as `C:\ncmm-test\run-1`.
 
 Windows PowerShell 5.1 and PowerShell 7 are supported. Before launch, competing diagnostic environment flags are removed rather than assigned an empty value: native `getenv` treats an empty flag as enabled. The caller's absent, empty or populated environment is restored even when the child fails. `tests/Test-BenchmarkEnvironment.ps1` checks the actual isolation and restoration code without starting the game.
+
+The new diagnostic copy omits CDDA's derived `data/cache` flexbuffers so its injected JSON fixture cannot conflict with an old installation cache. Source assets, saves and source cache remain unchanged. `tests/Test-BenchmarkDataCopy.ps1` verifies that boundary. Window-capture diagnostics compile against the active PowerShell drawing assemblies; `tests/Test-BenchmarkCapture.ps1` checks compilation without capturing a window.
 
 ## Reproduce a GPU failure
 
@@ -35,9 +37,13 @@ The movement matrix records two viewport sizes, CPU/GPU modes, three scenes, two
 
 first_frame_after_step_samples_ms measures the first rendered/presented frame after each step; it excludes the preceding native move and refresh. first_ready_samples_ms includes those operations. first_frame_indices identifies the twelve frames in the full stream.
 
-Native tiles, perspective, present and unattributed phase arrays are exclusive and sum to each frame's wall time. Extraction, callback and GPU preparation arrays are nested diagnostics and must not be added to those exclusive phases. GPU preparation arrays are meaningful only for frames tagged as GPU; older diagnostics can retain prior-frame metrics. Current native CPU frames zero the inactive GPU metrics, and the comparison tool omits GPU arrays from CPU summaries. They are CPU wall times, not GPU execution timestamps or player FPS. Preserve resolution, internal rendering limits, tileset, weather, device and binary hashes when comparing versions. Fresh Balanced uses a 1920x1080 cap on GPU and 1280x800 on CPU; the older 0.12.7 summary incorrectly attributed the CPU cap to both paths. The movement report records the viewport, not internal raster dimensions.
+Native tiles, perspective, present and unattributed phase arrays are exclusive and sum to each frame's wall time. Extraction, callback and GPU preparation arrays are nested diagnostics and must not be added to those exclusive phases. GPU preparation arrays are meaningful only for frames tagged as GPU; older diagnostics can retain prior-frame metrics. Current native CPU frames zero the inactive GPU metrics, and the comparison tool omits GPU arrays from CPU summaries. They are CPU wall times, not GPU execution timestamps or player FPS. Preserve resolution, internal rendering limits, tileset, weather, device and binary hashes when comparing versions. Fresh Balanced uses a 1920x1080 cap on GPU and 960x600 on CPU. CPU High uses 1280x800; historical summaries misstated that value as the Balanced cap. These runtime caps are unchanged. The movement report records the viewport, not internal raster dimensions.
 
 ## Qualification requirements
+
+The live heartbeat reader tolerates legacy locale-specific number separators,
+including malformed UTF-8. The 180-second stall limit still requires changing
+native progress; child exit status and complete evidence remain mandatory.
 
 The renderer-created device disables clip distance, depth clamping, indirect first-instance and anisotropy features. Standalone GPU tests deliberately use the same feature profile with validation enabled. They include 32 backend replacements with queued work, alpha/depth comparisons, animated bounds and multi-Z picking.
 

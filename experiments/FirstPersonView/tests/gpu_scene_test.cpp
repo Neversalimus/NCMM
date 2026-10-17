@@ -55,6 +55,7 @@ int main(int argc,char **argv){
     ncmm_gpu_draw_v1 draw{};draw.mesh_key=11;draw.transform=bones[0];draw.bone_count=2;scene.draws=&draw;scene.draw_count=1;
     require(engine.submit(scene),engine.metrics().reason);auto first=engine.metrics();require(first.active&&first.triangles==2&&first.cpu_raster_calls==0,"GPU triangles, hardware depth, CPU raster excluded");
     require(engine.has(11,0),"persistent GPU mesh resource");require(first.target_cell==0,"geometric picking matches visible near creature");
+    require(engine.resources().static_upload_bytes()>0,"initial immutable mesh upload is accounted separately");
     auto capture=[&](const char *suffix){require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr),"GPU-to-GPU final composition");
         SDL_FRect strip{0,0,640,20};require(SDL_SetRenderDrawColor(renderer,0,0,255,255)&&SDL_RenderFillRect(renderer,&strip),"ordinary SDL UI");
         auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"test-only readback");auto *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);SDL_DestroySurface(raw);require(image!=nullptr,"capture format");
@@ -66,6 +67,7 @@ int main(int argc,char **argv){
     auto completed=engine.metrics();require(completed.completed_frame_serial>=1&&completed.visible_creature_pixels>1000,"fenced small GPU visibility counter");
     scene.mesh_count=0;scene.meshes=nullptr;scene.frame_serial=2;bones[1].columns[12]=5;
     require(engine.submit(scene),engine.metrics().reason);auto second=engine.metrics();require(second.active&&second.generated_meshes==0&&second.upload_bytes<1024,"only dynamic data uploaded for skeletal animation");
+    require(engine.resources().static_upload_bytes()==0,"warm skeletal animation uploads no immutable resources");
     require(second.target_cell==-1,"bone animation updates exact picking without CPU pixel raster");center=capture("-skin");require(((center>>16)&255)>120&&(center>>24)<20,"GPU vertex skinning moves near mesh; far green becomes visible");
     require(engine.metrics().completed_frame_serial>=2,"animated frame fence completes without a main-path wait");
     scene.mode=NCMM_GPU_CPU;require(!engine.submit(scene)&&!engine.metrics().active,"explicit CPU selection never impersonates GPU");
@@ -80,17 +82,29 @@ int main(int argc,char **argv){
     require(engine.metrics().target_cell==0,"transparent glass does not erase target ownership");
     for(auto &vertex:glass_vertices)vertex.position[0]+=5;scene.frame_serial=5;require(engine.submit(scene),engine.metrics().reason);
     auto dynamic_stats=engine.metrics();require(dynamic_stats.dynamic_mesh_updates==1&&dynamic_stats.generated_meshes==0,"dynamic buffer cycles without recreating world geometry");
+    require(engine.resources().static_upload_bytes()==0,"explicit dynamic mesh updates are not static uploads");
     center=capture("-dynamic");require((center>>24)>120&&((center>>8)&255)<20,"updated dynamic buffer moves transparent geometry");
     for(auto &vertex:glass_vertices)vertex.position[0]-=5;scene.frame_serial=6;require(engine.submit(scene),engine.metrics().reason);
     center=capture("-return");require((center>>24)>80&&(center>>24)<135&&((center>>8)&255)>30,"current dynamic bounds restore geometry entering the frustum");
     auto evict=scene;evict.mesh_count=evict.draw_count=0;ncmm_gpu_metrics_v1 eviction{};
     require(engine.resources().prepare(evict,1,eviction)&&engine.resources().bytes()==0&&!engine.has(11,0),"shrinking viewport cache allowance evicts unused warm resources");
     std::array<ncmm_gpu_mesh_v1,2> restore={mesh,dynamic};scene.meshes=restore.data();scene.mesh_count=2;scene.frame_serial=7;
-    require(engine.submit(scene)&&engine.metrics().generated_meshes==2,"bounded cache eviction restores exact scene resources");
+    require(engine.submit(scene)&&engine.metrics().generated_meshes==2&&engine.resources().static_upload_bytes()>0,"bounded cache eviction restores and accounts exact static resources");
     scene.width=1280;scene.height=800;scene.camera.projection[0]=1280;scene.camera.projection[1]=800;scene.camera.projection[2]=914;scene.frame_serial=8;scene.mesh_count=0;
     // Dynamic meshes are still supplied after resizing; immutable world stays cached.
     scene.meshes=&dynamic;scene.mesh_count=1;
     require(engine.submit(scene)&&engine.metrics().generated_meshes==0&&engine.metrics().resource_bytes<=NCMM_GPU_RESOURCE_LIMIT,"viewport resize preserves world cache and allocation budget");
+    {
+        // A valid frame-only transfer can exceed the old native smoke's 2 MiB
+        // threshold without rebuilding or uploading any immutable geometry.
+        std::vector<ncmm_gpu_matrix_v1> palette(NCMM_GPU_MAX_BONES,first_person::gpu::identity());
+        auto large=scene;large.width=640;large.height=480;large.camera.projection[0]=640;large.camera.projection[1]=480;large.camera.projection[2]=457;
+        large.meshes=nullptr;large.mesh_count=0;large.draws=&draw;large.draw_count=1;
+        large.bones=palette.data();large.bone_count=uint32_t(palette.size());large.frame_serial=900;
+        for(int frame=0;frame<2;++frame){++large.frame_serial;require(engine.submit(large),engine.metrics().reason);
+            require(engine.metrics().upload_bytes>2*1024*1024&&engine.metrics().generated_meshes==0&&engine.resources().static_upload_bytes()==0,
+                    "large dynamic transfer preserves the strict zero static upload gate");}
+    }
     // Exercise the actual collector's reconstructed creature meshes on SDL_GPU,
     // rather than accepting the synthetic red/green triangle probe as proof.
     {
@@ -242,7 +256,7 @@ int main(int argc,char **argv){
         require(fp::hybrid::build_frame(world.appearance,-fp::hybrid::pi*.5f,-1.2f,{},dark_reference,640,480,{},nullptr,nullptr,nullptr,{},nullptr,&world),"downward CPU reference");
         require(std::all_of(dark_reference.depth.begin(),dark_reference.depth.end(),[](float d){return !std::isfinite(d);})&&engine.metrics().triangles==0,"CPU and GPU do not conceal a hole with invented geometry");
     }
-    if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"impostor_colour_minification\":true,\"multilevel_depth_and_picking\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
+    if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"impostor_colour_minification\":true,\"multilevel_depth_and_picking\":true,\"dynamic_upload_over_2mib_checked\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
     std::printf("Full GPU scene PASS: %s / %s; animation upload %llu bytes; CPU raster=0\n",second.backend,second.device,(unsigned long long)second.upload_bytes);
     // Leave work and an SDL composition queued while replacing the backend.
     // No read-pixels or explicit fence wait may accidentally serialize this path.

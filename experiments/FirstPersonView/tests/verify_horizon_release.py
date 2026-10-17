@@ -57,14 +57,16 @@ def frame_phases(record):
             and all(a < b for a, b in zip(indices, indices[1:])), "Invalid native-step frame indices")
     require(all(abs(record["first_frame_after_step_samples_ms"][n] - wall[i]) <= .0001 for n, i in enumerate(indices)), "Native-step frames differ from measured frame stream")
     return {"first_after_step": {name: {"median_ms": percentile([record[name][i] for i in indices], .5),
-                                     "p95_ms": percentile([record[name][i] for i in indices], .95)} for name in phases + nested},
+                                     "p95_ms": percentile([record[name][i] for i in indices], .95),
+                                     "p99_ms": percentile([record[name][i] for i in indices], .99)} for name in phases + nested},
             "warm_rotation": {name: {"median_ms": percentile(record[name][48:96], .5),
-                                    "p95_ms": percentile(record[name][48:96], .95)} for name in phases + nested}}
+                                    "p95_ms": percentile(record[name][48:96], .95),
+                                    "p99_ms": percentile(record[name][48:96], .99)} for name in phases + nested}}
 
 
 def verify(args):
     root = Path(args.installer_root)
-    archive = root / f"NCMM_FirstPersonView_0.12.8_TEST_{args.build}_Windows_x64.zip"
+    archive = root / f"NCMM_FirstPersonView_{args.expected_version}_TEST_{args.build}_Windows_x64.zip"
     raw = archive.read_bytes()
     with zipfile.ZipFile(io.BytesIO(raw)) as z:
         entries = {}
@@ -80,7 +82,7 @@ def verify(args):
             return z.read(entries[name])
         release = json.loads(read("release-manifest.json").decode("utf-8-sig"))
         bundle = json.loads(read("payload/first-person-bundle.json").decode("utf-8-sig"))
-        require(release["installer_revision"] == "0.12.8" and
+        require(release["installer_revision"] == args.expected_version and
                 release["status"] == "experimental-not-certified", "Wrong release identity")
         require(release["source_commit"] == bundle["ncmm_source_commit"] == args.expected_source,
                 "Installer source differs from qualified CI checkout")
@@ -90,7 +92,7 @@ def verify(args):
         require(bundle["source_commit"] == release["engine_source"] == pins[args.build],
                 "Wrong engine pin")
         mod = json.loads(read("payload/code_mods/FirstPersonView/mod.json").decode("utf-8-sig"))
-        require(mod["version"] == "0.12.8-dev", "Wrong module version")
+        require(mod["version"] == args.expected_version + "-dev", "Wrong module version")
         require(len(bundle["files"]) == 32, "Incomplete payload file matrix")
         for name, expected in bundle["files"].items():
             require(digest(read("payload/" + name)) == expected, "Payload hash mismatch: " + name)
@@ -153,7 +155,7 @@ def verify(args):
                             "backend": record["backend"],
                             "software_device": record["software_device"]})
     require(len(timings) == 6, "GPU matrix incomplete")
-    result = {"success": True, "version": "0.12.8", "build": args.build,
+    result = {"success": True, "version": args.expected_version, "build": args.build,
               "source_commit": args.expected_source, "workflow_run": args.expected_run,
               "installer": archive.name, "installer_sha256": digest(raw),
               "host_sha256": release["host_sha256"], "module_sha256": release["module_sha256"],
@@ -194,6 +196,7 @@ if __name__ == "__main__":
     parser.add_argument("--build", choices=("1040", "1807"), required=True)
     parser.add_argument("--expected-run", required=True)
     parser.add_argument("--expected-source", required=True)
+    parser.add_argument("--expected-version", default="0.12.9")
     parser.add_argument("--output", required=True)
     parser.add_argument("--log-preview", action="store_true")
     verify(parser.parse_args())
