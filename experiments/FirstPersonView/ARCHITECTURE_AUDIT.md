@@ -254,3 +254,20 @@ No public metrics ABI, resource budget, rendering or synchronization changes.
 Device regression cases cover a valid dynamic transfer above 2 MiB, dynamic mesh
 updates, and a real static reload after eviction. The original Full failure is
 retained and the final source must pass Full again.
+
+Two additional local controls using older exact binaries (20d gameplay and
+cf6 movement) failed at synthetic F6 dispatch, with controlled exit 191 and no
+access violation. The helper queued one key before eight input reads. CDDA's
+pre-poll redraw/recovery can pump and discard that key, leaving subsequent reads
+without an event; the existing menu-cancellation diagnostic already documents
+this boundary. Each of the same eight bounded attempts now queues its own key
+and logs unexpected actions. The expected action, actual module toggle, cache
+clearing and final disabled-state checks remain required. Normal input is unchanged.
+
+Every native smoke process deliberately drains its first synthetic key through
+the real `input_manager::pump_events` before reading input. Qualification requires
+that this regression was exercised and that a fresh attempt successfully
+dispatches F6. Counters are included in the smoke JSON. This tests the lost-key
+case in real CDDA; it does not claim the exact unrecorded event in either older
+failure was identified. Both older failures are retained, and this final change
+requires another Full and exact-package hardware qualification.

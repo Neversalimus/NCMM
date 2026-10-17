@@ -3,6 +3,7 @@ bool graphics_scene_smoke()
 #if defined(TILES)
     size_t checks = 0;
     size_t frames = 0;
+    size_t f6_discarded_key_regressions = 0, f6_requeued_attempts = 0;
     int distance_radius = 0;
     size_t distance_cells = 0, distance_light_queries = 0;
     float distance_fog = 0;
@@ -77,9 +78,22 @@ bool graphics_scene_smoke()
             event.key.windowID = SDL_GetWindowID( get_sdl_window() );
             event.key.key = SDLK_F6;
             event.key.scancode = SDL_SCANCODE_F6;
-            require( SDL_PushEvent( &event ), "f6_sdl_event_not_queued" );
             std::string action;
-            for(int pending=0;pending<8;++pending){action=gameplay.handle_input(250);if(action=="ncmm.open.first_person_view")break;}
+            // A pre-poll redraw/recovery can pump and discard a queued key.
+            // Each bounded input attempt needs its own key; a failed action
+            // must never be accepted as a successful module toggle.
+            for(int pending=0;pending<8;++pending){
+                require( SDL_PushEvent( &event ), "f6_sdl_event_not_queued" );
+                if(f6_discarded_key_regressions==0){
+                    const bool enabled=graphics_view.enabled;
+                    inp_mngr.pump_events(); // Real CDDA pre-poll drain, deliberately losing the first test key.
+                    require(graphics_view.enabled==enabled,"f6_pre_poll_drain_changed_module_state");
+                    ++f6_discarded_key_regressions;
+                }
+                action=gameplay.handle_input(250);if(action=="ncmm.open.first_person_view")break;
+                ++f6_requeued_attempts;
+                log_line(NCMM_LOG_INFO,("F6 diagnostic input attempt "+std::to_string(pending+1)+" returned: "+action).c_str());
+            }
             require( action == "ncmm.open.first_person_view", "f6_sdl_dispatch_failed" );
             require( ncmm::handle_gameplay_action( action ), "f6_gameplay_action_missing" );
         };
@@ -576,6 +590,7 @@ bool graphics_scene_smoke()
                  "vehicle_camera_tests_changed_gameplay_state" );
         #include "ncmm_graphics_multilevel_save_smoke.inc"
         }
+        require(f6_discarded_key_regressions==1&&f6_requeued_attempts>0,"f6_pre_poll_drain_regression_not_exercised");
     } catch( const std::exception &err ) {
         reason = err.what();
         graphics_view.enabled = false;
@@ -586,6 +601,7 @@ bool graphics_scene_smoke()
     out << "{\"schema\":1,\"success\":" << ( success ? "true" : "false" )
         << ",\"reason\":\"" << reason << "\",\"checks\":" << std::to_string( checks )
         << ",\"sdl_frames\":" << std::to_string( frames ) << ",\"gpu_effect_frames\":" << std::to_string(graphics_effect_gpu_frames) << ",\"cpu_recovery_frames\":" << std::to_string(graphics_effect_cpu_frames)
+        << ",\"f6_discarded_key_regressions\":" << std::to_string(f6_discarded_key_regressions) << ",\"f6_requeued_attempts\":" << std::to_string(f6_requeued_attempts)
         << ",\"draw_radius\":" << std::to_string( distance_radius ) << ",\"distant_cells\":" << std::to_string( distance_cells )
         << ",\"light_queries\":" << std::to_string( distance_light_queries )
         << ",\"clear_weather_fog\":" << distance_fog << "}\n";
