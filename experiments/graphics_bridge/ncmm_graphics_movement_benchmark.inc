@@ -262,7 +262,7 @@
     struct geometry_case {const char *name;int x,y;float yaw,pitch;};
     for(const auto &view:std::array<geometry_case,4>{{{"overview",0,10,-ncmm_graphics_camera::pi*.5f,.08f},
         {"fence",-7,10,-2.05f,-.12f},{"window",-3,-5,-ncmm_graphics_camera::pi*.5f,0.f},
-        {"tree-tower",0,6,-ncmm_graphics_camera::pi*.5f,.45f}}}){
+        {"tree-tower",0,14,-1.35f,.23f}}}){
         you.setpos(here,at(view.x,view.y,0),false);graphics_clear_world();graphics_clear_creatures();refresh();
         for(const char *mode:{"cpu","gpu"}){
             get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);

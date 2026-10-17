@@ -144,6 +144,31 @@ inline const image &forest_impostor(){
     static const storage value;return value.sprite;
 }
 
+// Upper terrain uses a foliage-only cutout. Some 2D atlas fallbacks map
+// treetops to an opaque log cross-section; that art is not a 3D crown.
+inline const image &canopy_impostor(bool evergreen){
+    struct storage {
+        std::array<uint32_t,96*96> pixels{};image sprite;
+        explicit storage(bool conifer){
+            for(int y=0;y<96;++y)for(int x=0;x<96;++x){
+                const float xx=(x-47.5f)/48.f,zz=(95-y)/95.f;
+                const float edge=.018f*std::sin(x*1.73f+y*.61f)+.014f*std::sin(x*.37f-y*1.19f);
+                bool leaf=false;
+                if(conifer){
+                    const float width=(1-zz)*(.70f+.14f*std::sin(zz*31))+.025f;
+                    leaf=zz>.035f&&zz<.98f&&std::abs(xx)<width+edge;
+                }else for(const auto &b:std::array<std::array<float,4>,5>{{{-.32f,.43f,.39f,.34f},{.29f,.43f,.41f,.35f},{-.18f,.69f,.41f,.27f},{.19f,.70f,.38f,.26f},{0,.29f,.44f,.24f}}}){
+                    const float dx=(xx-b[0])/b[2],dz=(zz-b[1])/b[3];leaf|=dx*dx+dz*dz<1+edge;
+                }
+                if(leaf){const float grain=random(uint32_t(x*983+y*7219))*.12f;
+                    pixels[size_t(y)*96+x]=pack(conifer?vec{.11f+grain*.3f,.24f+grain,.14f+grain*.4f}:vec{.15f+grain*.4f,.29f+grain,.12f+grain*.3f});}
+            }
+            sprite.data={sizeof(sprite.data),96,96,96,pixels.data()};sprite.analyse();
+        }
+    };
+    static const storage broadleaf(false),conifer(true);return evergreen?conifer.sprite:broadleaf.sprite;
+}
+
 struct vertex {vec p;float u=0,v=0;vec light{1,1,1};};
 enum class surface { none, stone, asphalt, earth, grass, wood, tile, paint, metal, rubber, cloth, skin, water, plaster, resin, brick, contact };
 inline surface ground_surface(const char *id){
@@ -673,7 +698,10 @@ class renderer {
         if(shape==NCMM_SHAPE_POST){float h=ncmm_graphics_shapes::contains(base.cells[i].terrain,"fence")?1.85f:2.5f;box(center,{-.045f,-.045f,0},{.045f,.045f,h},trim);return;}
         if(shape==NCMM_SHAPE_SIGN){box(center,{-.035f,-.035f,0},{.035f,.035f,1.65f},trim);m.cutout=true;billboard(center+vec{0,0,1.25f},.65f,.65f,m);return;}
         if(shape==NCMM_SHAPE_FENCE||shape==NCMM_SHAPE_GATE_OPEN){fence_model(i,shape);return;}
-        if(shape==NCMM_SHAPE_TREE_CANOPY){++f.plants;m.cutout=true;billboard(center+vec{0,0,-.45f},2.8f,2.1f,m);return;}
+        if(shape==NCMM_SHAPE_TREE_CANOPY){++f.plants;m.cutout=true;
+            const char *id=layer==NCMM_GFX_FURNITURE?base.cells[i].furniture:base.cells[i].terrain;
+            m.texture=&canopy_impostor(ncmm_graphics_shapes::contains(id,"evergreen")||ncmm_graphics_shapes::contains(id,"pine"));
+            billboard(center+vec{0,0,-.45f},2.8f,2.1f,m);return;}
         if(shape==NCMM_SHAPE_TREE||shape==NCMM_SHAPE_SHRUB||shape==NCMM_SHAPE_PLANT){++f.plants;m.cutout=true;
             if(shape==NCMM_SHAPE_TREE){material bark{nullptr,{.25f,.18f,.11f},1,false,false,false,i};box(center,{-.10f,-.10f,0},{.10f,.10f,1.35f},bark);center.z+=.75f;billboard(center,2.0f,2.45f,m);}
             else billboard(center,shape==NCMM_SHAPE_SHRUB?1.1f:.8f,shape==NCMM_SHAPE_SHRUB?1.1f:.72f,m);

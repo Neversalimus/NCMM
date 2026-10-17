@@ -217,6 +217,7 @@ int main(){try{
         scene.details[wire].terrain_flags=NCMM_SURFACE_CONNECTIONS|NCMM_SURFACE_CONNECT_E|NCMM_SURFACE_CONNECT_N;
         scene.details[tower].terrain_shape=NCMM_SHAPE_LATTICE_TOWER;
         scene.details[crown].terrain_shape=NCMM_SHAPE_TREE_CANOPY;
+        std::strcpy(scene.appearance[crown].terrain,"t_treetop_evergreen");
         std::strcpy(scene.appearance[loot].item,"9mm_casing");
         scene.positions[loot].flags|=NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP;
         collector mesh;frame stats;renderer(scene.world.appearance,0,.1f,{},stats,{},nullptr,{},nullptr,&scene.world).collect(mesh,400,260);
@@ -225,7 +226,10 @@ int main(){try{
             if(t.m.cell==wire)for(const auto &v:t.v){east|=v.p.x>6.99f;north|=v.p.y<1.01f;}
             if(t.m.cell==tower){tower_area+=std::abs(cross(t.v[1].p-t.v[0].p,t.v[2].p-t.v[0].p).y)*.5f;
                 for(const auto &v:t.v)check(v.p.x>10.05f&&v.p.x<10.95f,"tower is an open lattice inside its physical cell");}
-            if(t.m.cell==crown){canopy=true;check(t.m.cutout,"tree crown cannot emit an opaque concrete plate");}
+            if(t.m.cell==crown){canopy=true;check(t.m.cutout,"tree crown cannot emit an opaque concrete plate");
+                check(t.m.texture==&canopy_impostor(true),"upper evergreen crown uses foliage instead of a top-down log atlas fallback");
+                size_t leaves=0,clear=0;for(auto pixel:t.m.texture->filtered){leaves+=(pixel&255)>0;clear+=(pixel&255)==0;}
+                check(leaves>1000&&clear>1000,"upper crown has a real foliage silhouette with transparent corners");}
             if(t.m.cell==loot&&t.m.cutout){inventory=true;check(!t.m.gpu_billboard&&t.m.gpu_backface,"floor loot is a top-facing physical surface");
                 for(const auto &v:t.v)check(std::abs(v.p.z-(NCMM_WORLD_LEVEL_HEIGHT+.018f))<.0001f,"upper loot is anchored to its true supporting level");}
         }
