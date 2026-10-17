@@ -138,3 +138,24 @@ Nine actual preflight checks pass on PS 5.1 and 7.6, covering the boundary,
 source-folder containment and valid sibling paths. Existing 72 environment
 and five evidence-validation checks remain passing. No player save was moved,
 edited, copied into the fixture, or deleted.
+
+## Stage C: one lookup for shared scene preparation
+
+Removed the GPU-only `coordinate_index` wrapper. A single callback-owned
+`ncmm_world::coordinates` now serves static signatures, GPU collection and the
+existing Geometry Sink generator. CPU raster still constructs its own index
+when called independently. The renderer cannot be copied with a reference to
+another object's owned lookup. No new persistent cache, epoch or public ABI
+was introduced.
+
+Previously the GPU path built two dense lookup arrays per collection (their
+lifetimes overlap during generation); now it builds one. At the maximum
+97×97×32 window this removes one allocation and 1,204,352 transient bytes.
+This is a calculated lookup-storage reduction, not a measured process-RSS or
+GPU-memory claim. Static resource budgets are unchanged.
+
+All 25 MSVC suites pass after this step. Differential geometry checks compare
+the owned and shared lookup paths at 36 camera/Z combinations, preserving
+ordered triangle counts, material ownership, exact positions, UV and light.
+Existing sparse holes/extreme coordinates, lighting-only invalidation,
+adjacency and warm-cache reuse checks also pass.

@@ -6,15 +6,6 @@
 
 namespace first_person::gpu {
 using vec=hybrid::vec;
-// A validated sparse snapshot has a bounded dense address window. Build its
-// frame-local index once instead of 27 binary searches for every cell hash.
-class coordinate_index {
-    ncmm_world::coordinates indexed;
-public:
-    explicit coordinate_index(const ncmm_graphics_multilevel_scene_v1 *source):indexed(source,true){}
-    int neighbor(uint32_t i,int dx,int dy,int dz=0)const{return indexed.neighbor(i,dx,dy,dz);}
-    size_t bytes()const{return indexed.bytes();}
-};
 inline ncmm_gpu_matrix_v1 place(vec p,vec scale={1,1,1},float yaw=0){auto m=identity();float c=std::cos(yaw),s=std::sin(yaw);
     m.columns[0]=c*scale.x;m.columns[1]=s*scale.x;m.columns[4]=-s*scale.y;m.columns[5]=c*scale.y;m.columns[10]=scale.z;
     m.columns[12]=p.x;m.columns[13]=p.y;m.columns[14]=p.z;return m;}
@@ -57,7 +48,7 @@ class scene_cache {
         for(uint32_t value:{uint32_t(model.type.kind),model.type.flags,uint32_t(model.type.legs),uint32_t(model.type.segments),creature::generator_version,creature::appearance_generator_version})h=hash_bytes(h,&value,sizeof(value));return h;}
     class collector:public hybrid::geometry_sink {
         scene_cache &cache;const ncmm_graphics_scene_v2 &scene;const hybrid::presentation_data *metadata;
-        packet &frame;const ncmm_gpu_metrics_v1 &host;const ncmm_graphics_multilevel_scene_v1 *levels;ncmm_world::coordinates xyz;
+        packet &frame;const ncmm_gpu_metrics_v1 &host;const ncmm_graphics_multilevel_scene_v1 *levels;const ncmm_world::coordinates &xyz;
         const std::vector<uint64_t> &signatures;
         std::vector<bool> dirty_cells;
         std::map<std::pair<int,uint32_t>,mesh_builder> builders;
@@ -78,8 +69,8 @@ class scene_cache {
     public:
         bool failed=false,warming=false;uint32_t generated_cells=0;
         void fail(const char *reason){failed=true;if(cache.last_reason.empty())cache.last_reason=reason;}
-        collector(scene_cache &owner,const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *data,packet &out,const ncmm_gpu_metrics_v1 &metrics,const std::vector<uint64_t> &hashes,const ncmm_graphics_multilevel_scene_v1 *multilevel):
-            cache(owner),scene(s),metadata(data),frame(out),host(metrics),levels(multilevel),xyz(multilevel),signatures(hashes),dirty_cells(s.base.cell_count,false){
+        collector(scene_cache &owner,const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *data,packet &out,const ncmm_gpu_metrics_v1 &metrics,const std::vector<uint64_t> &hashes,const ncmm_graphics_multilevel_scene_v1 *multilevel,const ncmm_world::coordinates &indexed):
+            cache(owner),scene(s),metadata(data),frame(out),host(metrics),levels(multilevel),xyz(indexed),signatures(hashes),dirty_cells(s.base.cell_count,false){
             for(int i=0;i<int(s.base.cell_count);++i)if(s.base.cells[i].flags&NCMM_GFX_VISIBLE){
                 auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()||found->second.signature!=signatures[i]){dirty_cells[size_t(i)]=true;++generated_cells;}}
             // The validated scene and resource caches already have hard
@@ -158,8 +149,7 @@ class scene_cache {
             frame.draw(mesh,place(at+vec{pose.offset.x,pose.offset.y,pose.offset.z}),uint32_t(cell),NCMM_GPU_OPAQUE,nullptr,pose.heading);
         }
     };
-    std::vector<uint64_t> signatures(const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *metadata,const ncmm_gpu_metrics_v1 &host,bool creatures,int width,const ncmm_graphics_multilevel_scene_v1 *levels){
-        ncmm_world::coordinates xyz(levels);coordinate_index neighbours(levels);
+    std::vector<uint64_t> signatures(const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *metadata,const ncmm_gpu_metrics_v1 &host,bool creatures,int width,const ncmm_graphics_multilevel_scene_v1 *levels,const ncmm_world::coordinates &xyz){
         std::vector<uint64_t> values(s.base.cell_count,0);
         for(int i=0;i<int(s.base.cell_count);++i){auto cell=s.base.cells[i];cell.light=0;if(creatures)std::memset(cell.creature,0,sizeof(cell.creature));auto detail=s.details[i];
             detail.light_r=detail.light_g=detail.light_b=detail.emission=0;if(detail.vehicle_features){const auto p=levels?xyz.origin(uint32_t(i)):ncmm_world::point{float(i%s.base.grid_width),float(i/s.base.grid_width),0};detail.vehicle_x-=p.x;detail.vehicle_y-=p.y;}
@@ -184,7 +174,7 @@ class scene_cache {
         if(signature_cached&&layout==signature_layout&&values==signature_values){++signature_reuses;return signature_results;}
         std::vector<uint64_t> result(values.size());
         for(int i=0;i<int(values.size());++i){uint64_t h=values[i];
-            if(levels){for(int dz=-1;dz<=1;++dz)for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int at=neighbours.neighbor(uint32_t(i),dx,dy,dz);const uint64_t neighbor=at<0?0:values[size_t(at)];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}
+            if(levels){for(int dz=-1;dz<=1;++dz)for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int at=xyz.neighbor(uint32_t(i),dx,dy,dz);const uint64_t neighbor=at<0?0:values[size_t(at)];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}
             else{const int x=i%s.base.grid_width,y=i/s.base.grid_width;
                 for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int xx=x+dx,yy=y+dy;const uint64_t neighbor=xx<0||yy<0||xx>=s.base.grid_width||yy>=s.base.grid_height?0:values[size_t(yy)*s.base.grid_width+xx];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}
             result[i]=h;}
@@ -216,8 +206,11 @@ public:
         const auto &e=s.environment;set(camera.sun,{e.sun_x,e.sun_y,e.sun_z},e.daylight);set(camera.moon,{e.moon_x,e.moon_y,e.moon_z});
         set(camera.weather,{float(e.weather_kind),e.precipitation,e.fog_density},e.cloud_cover);set(camera.wind,{e.wind_x,e.wind_y,0});
         set(camera.time,{float(std::fmod(e.animation_seconds,100000.0)),float(e.moon_phase),float(metadata?metadata->view.sky_style:NCMM_SKY_EARTH)},float(e.lightning));set(camera.grid,{float(s.base.grid_width),float(s.base.grid_height),float(s.base.cell_count)},levels?1.f:0.f);
-        const auto start=std::chrono::steady_clock::now();auto hashes=signatures(s,metadata,host,creatures!=nullptr,width,levels);collector sink(*this,s,metadata,out,host,hashes,levels);
-        hybrid::renderer(s,yaw,pitch,provider,statistics,pose,metadata,{},creatures,levels).collect(sink,width,height);sink.finish();generated_cells=sink.generated_cells;
+        // A single callback-owned index serves signatures and both geometry
+        // consumers. No scene pointer or lookup allocation survives build().
+        const auto start=std::chrono::steady_clock::now();ncmm_world::coordinates indexed(levels,true);
+        auto hashes=signatures(s,metadata,host,creatures!=nullptr,width,levels,indexed);collector sink(*this,s,metadata,out,host,hashes,levels,indexed);
+        hybrid::renderer(s,yaw,pitch,provider,statistics,pose,metadata,{},creatures,levels,&indexed).collect(sink,width,height);sink.finish();generated_cells=sink.generated_cells;
         geometry_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();set(camera.sky_bottom,statistics.sky_horizon);
         // Palette-only CPU work: derive the exact established sky endpoints by
         // collecting above; the complete sky raster remains in the GPU shader.
