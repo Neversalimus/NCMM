@@ -109,7 +109,10 @@ public static class NCMMNativeCrashDialog {
 }
 $names=@('NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT')
 $prior=@{}
-foreach($name in $names){$prior[$name]=[Environment]::GetEnvironmentVariable($name,'Process');[Environment]::SetEnvironmentVariable($name,$null,'Process')}
+# Modern .NET preserves an empty environment variable. PowerShell can convert
+# $null to that empty string at the .NET call boundary, and native getenv then
+# treats SAVE_ONLY (or a competing diagnostic mode) as enabled. Remove it.
+foreach($name in $names){$prior[$name]=[Environment]::GetEnvironmentVariable($name,'Process');Remove-Item -LiteralPath ('Env:'+ $name) -ErrorAction SilentlyContinue}
 $exitCode=$null
 $debugger=$null
 $failure=$null
@@ -233,7 +236,10 @@ public static class NCMMBenchmarkWindow {
         }}
     }
     } catch {Write-Warning "Postmortem stack analysis unavailable: $_"}
-    foreach($name in $names){[Environment]::SetEnvironmentVariable($name,$prior[$name],'Process')}
+    foreach($name in $names){
+        if($null -eq $prior[$name]){Remove-Item -LiteralPath ('Env:'+ $name) -ErrorAction SilentlyContinue}
+        else{[Environment]::SetEnvironmentVariable($name,$prior[$name],'Process')}
+    }
     $runtime=Join-Path $test 'ncmm'
     if(Test-Path $runtime){Get-ChildItem $runtime -File | Where-Object {$_.Name -like 'first-person-*' -or $_.Extension -eq '.log'} | Copy-Item -Destination $evidence}
     foreach($name in @('debug.log','debug.log.prev','crash.log')){
@@ -241,6 +247,7 @@ public static class NCMMBenchmarkWindow {
         if(Test-Path $nativeLog){Copy-Item $nativeLog (Join-Path $evidence ('first-person-cdda-'+$name))}
     }
 }
+try {
 if($exitCode -ne 0){
     $reason='native result unavailable'
     $nativeResult=Join-Path $evidence 'first-person-smoke.json'
@@ -252,6 +259,9 @@ if($exitCode -ne 0){
     throw "Native audit failed ($exitCode), phase=$lastProgress; bootstrap status=$reason. Evidence: $evidence"
 }
 if($debugger -and $debugger.Error){throw "Native diagnostic debugger failed: $($debugger.Error)"}
+if($debugger -and $debugger.Dumps -gt 0){throw 'Native diagnostic captured an access violation even though the process exited successfully.'}
+$auditName=if($MovementBenchmark){'first-person-movement-benchmark.json'}elseif($FocusedGpuBenchmark){'first-person-gpu-benchmark.json'}else{'first-person-gameplay-audit.json'}
+if(-not (Test-Path -LiteralPath (Join-Path $evidence $auditName))){throw "Requested native benchmark report is missing: $auditName; final phase=$lastProgress"}
 if($MovementBenchmark){
     $audit=Get-Content (Join-Path $evidence 'first-person-movement-benchmark.json') -Raw | ConvertFrom-Json
     if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.simulation_turns_advanced -ne 0 -or @($audit.records).Count -ne 12){throw 'Native movement benchmark is incomplete.'}
@@ -279,3 +289,13 @@ if($MovementBenchmark){
 $result=[ordered]@{success=$true;source_commit=$bundle.source_commit;ncmm_commit=$bundle.ncmm_source_commit;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';manual_playthrough=$false;focused_gpu_benchmark=[bool]$FocusedGpuBenchmark;movement_benchmark=[bool]$MovementBenchmark;udp_requested=$udp;soak_seconds=$soaked;evidence=$evidence}
 $result | ConvertTo-Json | Set-Content (Join-Path $OutputRoot 'benchmark-provenance.json') -Encoding UTF8
 $result | ConvertTo-Json
+} catch {
+    # Process exit and report qualification are separate. Retain a failed JSON
+    # parse, incomplete matrix or missing report in the machine-readable receipt.
+    $validationFailure=$_.Exception.Message
+    $receiptPath=Join-Path $evidence 'first-person-process-result.json'
+    $receipt=Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+    $receipt.wrapper_failure=$validationFailure
+    $receipt | ConvertTo-Json | Set-Content -LiteralPath $receiptPath -Encoding UTF8
+    throw
+}

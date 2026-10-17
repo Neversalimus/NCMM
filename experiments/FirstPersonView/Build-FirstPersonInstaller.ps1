@@ -63,6 +63,12 @@ Copy-Item (Join-Path $PSScriptRoot 'Run-FirstPersonBenchmark.ps1') $stage
 Copy-Item (Join-Path $PSScriptRoot 'NativeDiagnosticDebugger.cs') $stage
 Copy-Item (Join-Path $fpBuild 'Release/ncmm_native_dump_analyzer.exe') $stage
 Copy-Item (Join-Path $PSScriptRoot 'tests/multilevel_fixture.json') $stage
+Copy-Item (Join-Path $PSScriptRoot 'DIAGNOSTICS.md') $stage
+$diagnosticTools=Join-Path $stage 'tests'
+New-Item -ItemType Directory -Force $diagnosticTools | Out-Null
+foreach($tool in @('compare_movement_runs.py','verify_horizon_release.py','Test-BenchmarkEnvironment.ps1')){
+    Copy-Item (Join-Path $PSScriptRoot ('tests/'+$tool)) $diagnosticTools
+}
 
 # Use the same installer UI, discovery and transaction implementation. Preview
 # hooks are compiled explicitly; no alternate ad-hoc file-copy installer exists.

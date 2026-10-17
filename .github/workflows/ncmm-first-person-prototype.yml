@@ -34,6 +34,19 @@ jobs:
         run: python -m py_compile experiments/FirstPersonView/tests/verify_horizon_release.py
       - name: Reject invalid first-frame phase accounting
         run: python -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_movement_phases.py -v
+      - name: Reject incomplete or mismatched packaged hardware evidence
+        run: python -m unittest discover -s experiments/FirstPersonView/tests -p test_compare_movement_runs.py -v
+      - name: Diagnostic environment isolation on PowerShell Core
+        shell: pwsh
+        run: |
+          ./experiments/FirstPersonView/tests/Test-BenchmarkEnvironment.ps1
+          ./experiments/FirstPersonView/tests/Test-BenchmarkEvidence.ps1
+      - name: Diagnostic environment isolation on Windows PowerShell
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          ./experiments/FirstPersonView/tests/Test-BenchmarkEnvironment.ps1
+          ./experiments/FirstPersonView/tests/Test-BenchmarkEvidence.ps1
       - name: Configure isolated module
         run: cmake -S experiments/FirstPersonView -B fp-build -DCMAKE_BUILD_TYPE=Release -DFIRST_PERSON_BUILD_BENCHMARK=ON
       - name: Build prototype and contract tests
