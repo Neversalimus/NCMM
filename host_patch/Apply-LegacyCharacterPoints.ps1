@@ -20,6 +20,8 @@ foreach($op in $spec.operations) {
     if($op.PSObject.Properties['variants']){$groups+=@($op.variants)}
     $matching=@()
     foreach($group in $groups){
+        if(@($group.operations).Count -eq 0){throw 'Empty chargen source variant.'}
+        $replacementCount=0
         $matchesGroup=$true
         foreach($replacement in $group.operations){
             $rel=[string]$op.file
@@ -29,7 +31,9 @@ foreach($op in $spec.operations) {
             }
             $anchor=if($already){[string]$replacement.after}else{[string]$replacement.before}
             if([regex]::Matches($texts[$rel],[regex]::Escape($anchor)).Count -ne [int]$replacement.count){$matchesGroup=$false}
+            $replacementCount+=[int]$replacement.count
         }
+        if($replacementCount -ne [int]$op.count){throw 'Chargen source variant changes the required hook count.'}
         if($matchesGroup){$matching+=,$group}
     }
     if($matching.Count -ne 1){throw "Legacy chargen '$($op.name)' requires exactly one complete source variant ($($matching.Count)); source not modified."}
