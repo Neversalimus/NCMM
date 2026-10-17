@@ -99,6 +99,8 @@ jobs:
         run: cmake --build fp-build --config Release
       - name: Renderer, occlusion, fog, ABI and toggle lifecycle
         run: ctest --test-dir fp-build -C Release --output-on-failure
+      - name: Offline PSX importer malformed-input and determinism checks
+        run: python -B experiments/FirstPersonView/tests/test_import_psx_arms.py -v
       - name: Record renderer timing and work counters (no FPS threshold)
         run: cmake --build fp-build --config Release --target first_person_measure
       - name: Configure focused cache and facade sanitizers
@@ -106,10 +108,10 @@ jobs:
         run: cmake -S experiments/FirstPersonView -B fp-cache-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
       - name: Build focused cache and facade sanitizers
         if: runner.os == 'Linux'
-        run: cmake --build fp-cache-sanitize --parallel 2 --target first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_gpu_cache_tests first_person_facade_continuity_tests
+        run: cmake --build fp-cache-sanitize --parallel 2 --target first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_gpu_cache_tests first_person_facade_continuity_tests first_person_viewmodel_asset_tests
       - name: ASan and UBSan sparse coordinates, face masks and facade continuity
         if: runner.os == 'Linux'
-        run: ctest --test-dir fp-cache-sanitize -R "^first_person_(multilevel_(policy|cache|gpu_cache)|facade_continuity)$" --output-on-failure
+        run: ctest --test-dir fp-cache-sanitize -R "^first_person_(multilevel_(policy|cache|gpu_cache)|facade_continuity|viewmodel_asset)$" --output-on-failure
       - name: Configure sanitizer coverage
         if: runner.os == 'Linux' && needs.qualification_plan.outputs.full == 'true'
         run: cmake -S experiments/FirstPersonView -B fp-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
