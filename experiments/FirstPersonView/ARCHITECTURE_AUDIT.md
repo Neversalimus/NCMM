@@ -148,11 +148,14 @@ when called independently. The renderer cannot be copied with a reference to
 another object's owned lookup. No new persistent cache, epoch or public ABI
 was introduced.
 
-Previously the GPU path built two dense lookup arrays per collection (their
-lifetimes overlap during generation); now it builds one. At the maximum
-97×97×32 window this removes one allocation and 1,204,352 transient bytes.
-This is a calculated lookup-storage reduction, not a measured process-RSS or
-GPU-memory claim. Static resource budgets are unchanged.
+Previously the GPU path built a dense lookup for signatures, destroyed it on
+return, and built another for geometry collection. The collector's default
+non-indexed coordinates did not allocate a dense array. Now one indexed lookup
+serves both phases. This avoids one allocation and initialization per collect:
+up to 1,204,352 bytes of allocation/fill traffic at the 97×97×32 maximum.
+The old dense arrays did not coexist, so this is not a reduction of two live
+arrays to one and does not establish a lower peak lookup footprint, process RSS
+or GPU memory. Static resource budgets are unchanged.
 
 All 25 MSVC suites pass after this step. Differential geometry checks compare
 the owned and shared lookup paths at 36 camera/Z combinations, preserving
