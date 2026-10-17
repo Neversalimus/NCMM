@@ -3,7 +3,7 @@ bool graphics_scene_smoke()
 #if defined(TILES)
     size_t checks = 0;
     size_t frames = 0;
-    size_t f6_discarded_key_regressions = 0, f6_requeued_attempts = 0;
+    std::array<size_t,2> view_key_discarded{},view_key_requeued{};
     int distance_radius = 0;
     size_t distance_cells = 0, distance_light_queries = 0;
     float distance_fog = 0;
@@ -72,31 +72,36 @@ bool graphics_scene_smoke()
             require( gameplay.input_to_action( input_event( inp_mngr.get_keycode( type, "F10" ), type ) ) ==
                      "ncmm.view.look_down", "f10_default_binding_missing" );
         }
-        auto press_f6 = [&]() {
+        auto press_view_key = [&](SDL_Keycode key) {
+            require(key==SDLK_F6||key==SDLK_F12,"unexpected_diagnostic_view_key");
+            const bool acceleration=key==SDLK_F12;const size_t slot=acceleration?1:0;
+            const std::string expected=acceleration?"ncmm.view.acceleration":"ncmm.open.first_person_view";
+            const char *name=acceleration?"F12":"F6";
             SDL_Event event = {};
             event.type = SDL_EVENT_KEY_DOWN;
             event.key.windowID = SDL_GetWindowID( get_sdl_window() );
-            event.key.key = SDLK_F6;
-            event.key.scancode = SDL_SCANCODE_F6;
+            event.key.key = key;
+            event.key.scancode = acceleration?SDL_SCANCODE_F12:SDL_SCANCODE_F6;
             std::string action;
             // A pre-poll redraw/recovery can pump and discard a queued key.
             // Each bounded input attempt needs its own key; a failed action
             // must never be accepted as a successful module toggle.
             for(int pending=0;pending<8;++pending){
-                require( SDL_PushEvent( &event ), "f6_sdl_event_not_queued" );
-                if(f6_discarded_key_regressions==0){
+                require( SDL_PushEvent( &event ), acceleration?"audit_key_not_queued":"f6_sdl_event_not_queued" );
+                if(view_key_discarded[slot]==0){
                     const bool enabled=graphics_view.enabled;
                     inp_mngr.pump_events(); // Real CDDA pre-poll drain, deliberately losing the first test key.
-                    require(graphics_view.enabled==enabled,"f6_pre_poll_drain_changed_module_state");
-                    ++f6_discarded_key_regressions;
+                    require(graphics_view.enabled==enabled,acceleration?"f12_pre_poll_drain_changed_module_state":"f6_pre_poll_drain_changed_module_state");
+                    ++view_key_discarded[slot];
                 }
-                action=gameplay.handle_input(250);if(action=="ncmm.open.first_person_view")break;
-                ++f6_requeued_attempts;
-                log_line(NCMM_LOG_INFO,("F6 diagnostic input attempt "+std::to_string(pending+1)+" returned: "+action).c_str());
+                action=gameplay.handle_input(250);if(action==expected)break;
+                ++view_key_requeued[slot];
+                log_line(NCMM_LOG_INFO,(std::string(name)+" diagnostic input attempt "+std::to_string(pending+1)+" returned: "+action).c_str());
             }
-            require( action == "ncmm.open.first_person_view", "f6_sdl_dispatch_failed" );
-            require( ncmm::handle_gameplay_action( action ), "f6_gameplay_action_missing" );
+            require( action == expected, acceleration?"audit_f12_dispatch_failed":"f6_sdl_dispatch_failed" );
+            require( ncmm::handle_gameplay_action( action ), acceleration?"audit_f12_dispatch_failed":"f6_gameplay_action_missing" );
         };
+        auto press_f6=[&](){press_view_key(SDLK_F6);};
         ncmm::graphics_note_input_context( "DEFAULTMODE" );
         require( !graphics_view.enabled, "view_not_initially_disabled" );
         press_f6();
@@ -590,7 +595,8 @@ bool graphics_scene_smoke()
                  "vehicle_camera_tests_changed_gameplay_state" );
         #include "ncmm_graphics_multilevel_save_smoke.inc"
         }
-        require(f6_discarded_key_regressions==1&&f6_requeued_attempts>0,"f6_pre_poll_drain_regression_not_exercised");
+        require(view_key_discarded[0]==1&&view_key_requeued[0]>0,"f6_pre_poll_drain_regression_not_exercised");
+        if(std::getenv("NCMM_FP_GAMEPLAY_AUDIT"))require(view_key_discarded[1]==1&&view_key_requeued[1]>0,"f12_pre_poll_drain_regression_not_exercised");
     } catch( const std::exception &err ) {
         reason = err.what();
         graphics_view.enabled = false;
@@ -601,7 +607,8 @@ bool graphics_scene_smoke()
     out << "{\"schema\":1,\"success\":" << ( success ? "true" : "false" )
         << ",\"reason\":\"" << reason << "\",\"checks\":" << std::to_string( checks )
         << ",\"sdl_frames\":" << std::to_string( frames ) << ",\"gpu_effect_frames\":" << std::to_string(graphics_effect_gpu_frames) << ",\"cpu_recovery_frames\":" << std::to_string(graphics_effect_cpu_frames)
-        << ",\"f6_discarded_key_regressions\":" << std::to_string(f6_discarded_key_regressions) << ",\"f6_requeued_attempts\":" << std::to_string(f6_requeued_attempts)
+        << ",\"f6_discarded_key_regressions\":" << std::to_string(view_key_discarded[0]) << ",\"f6_requeued_attempts\":" << std::to_string(view_key_requeued[0])
+        << ",\"f12_discarded_key_regressions\":" << std::to_string(view_key_discarded[1]) << ",\"f12_requeued_attempts\":" << std::to_string(view_key_requeued[1])
         << ",\"draw_radius\":" << std::to_string( distance_radius ) << ",\"distant_cells\":" << std::to_string( distance_cells )
         << ",\"light_queries\":" << std::to_string( distance_light_queries )
         << ",\"clear_weather_fog\":" << distance_fog << "}\n";

@@ -279,3 +279,10 @@ bypass procedural LOD selection and report bucket zero. The fixture now explicit
 selects the existing volume mode for procedural CPU/GPU galleries, records that
 choice, and restores the previous setting on exit. The product default, LOD
 thresholds and the requirement to observe all four procedural buckets are unchanged.
+
+The additional RTX4090 long audit passed 12,384 frames before the same one-shot
+delivery defect occurred at F12 (exit 191, no dump). F6/F12 diagnostics now share
+one bounded key dispatcher. Both require their exact native action and handler;
+the eight 250ms reads preserve the two-second nominal input budget. A gameplay
+audit must exercise a deliberate real pre-poll drain and successful requeue for
+each key. Normal gameplay hotkey handling remains outside this opt-in fixture.
