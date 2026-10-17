@@ -25,6 +25,7 @@
                 face({lo.x,lo.y,hi.z},{hi.x,lo.y,hi.z},{hi.x,lo.y,lo.z},{lo.x,lo.y,lo.z},m);};
             auto cylinder=[&](vec a,vec b,float r,material m){tube(origin+a,origin+b,r,r,m);};
             const float muzzle=pistol?length:length-.16f;
+            const float support=std::clamp(muzzle*.55f,.18f,.38f);
             if(pistol){
                 cuboid({-.025f,-.015f,0},{.025f,.039f,muzzle},metal);
                 cuboid({-.022f,-.112f,-.012f},{.022f,-.006f,.046f},polymer);
@@ -62,7 +63,7 @@
                 cuboid({-.014f,-.020f,-.25f},{.014f,.009f,-.035f},rail);
                 cuboid({-.043f,-.081f,-.27f},{.043f,.031f,-.235f},polymer);
                 for(int n=0;n<3;++n)cuboid({-.044f,-.067f+n*.029f,-.275f},{.044f,-.061f+n*.029f,-.263f},metal);}
-            if(mods&NCMM_MOD_FOREGRIP)cuboid({-.017f,-.135f,muzzle*.53f},{.017f,-.029f,muzzle*.53f+.040f},polymer);
+            if(mods&NCMM_MOD_FOREGRIP)cuboid({-.017f,-.135f,support-.020f},{.017f,-.029f,support+.020f},polymer);
             if(mods&NCMM_MOD_BIPOD)for(float side:{-1.0f,1.0f})tube(origin+vec{side*.026f,-.038f,muzzle*.70f},origin+vec{side*.043f,-.047f,muzzle*.94f},.009f,.007f,rail);
             for(int accessory=0;accessory<2;++accessory)if(mods&(accessory?NCMM_MOD_LIGHT:NCMM_MOD_LASER)){
                 const float x=accessory?-.063f:-.050f,y=accessory?-.022f:.059f,radius=accessory?.018f:.012f;
@@ -72,6 +73,6 @@
             if(mods&NCMM_MOD_BAYONET){const vec a=origin+vec{-.014f,-.026f,muzzle-.06f},b=origin+vec{.014f,-.026f,muzzle-.06f},tip=origin+vec{0,-.018f,muzzle+.25f};face(a,b,tip,tip,rail);}
             if(mods&NCMM_MOD_UNDERBARREL)cylinder({0,-.077f,muzzle*.30f},{0,-.077f,muzzle*.88f},.034f,metal);
             hand(origin+vec{0,-.052f,pistol?.020f:-.012f},false);
-            hand(origin+(pistol?vec{-.035f,-.065f,.030f}:vec{0,mods&NCMM_MOD_FOREGRIP?-.09f:-.037f,muzzle*.55f}),true);
+            hand(origin+(pistol?vec{-.035f,-.065f,.030f}:vec{0,mods&NCMM_MOD_FOREGRIP?-.09f:-.037f,support}),true);
             f.held_pixels=valid?uint32_t((img->right-img->left)*(img->bottom-img->top)):1u;return;
         }

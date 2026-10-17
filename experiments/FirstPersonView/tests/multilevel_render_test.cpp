@@ -39,6 +39,7 @@ struct collector:geometry_sink {
     std::vector<triangle> triangles;
     bool dirty(int)const override{return true;}
     void emit(const triangle &t)override{triangles.push_back(t);}
+    bool arms(const first_person::viewmodel::submission &)override{return true;} // This collector audits world slabs only.
     void skin(const first_person::creature::model &,const first_person::creature::skeleton_pose &,int,vec,int,vec,bool,bool,float,vec)override{}
     void impostor(const first_person::creature::asset &,const first_person::creature::pose_state &,vec,int,int,bool)override{}
 };
@@ -81,7 +82,7 @@ int main(){try{
         ncmm_gpu_multilevel_scene_v1 gpu{};gpu.struct_size=sizeof(gpu);gpu.version=1;gpu.base=packet.finish(nullptr);
         gpu.coordinates=world.world.coordinates;gpu.cell_count=world.world.cell_count;gpu.origin_x=world.world.origin_x;gpu.origin_y=world.world.origin_y;gpu.level_height=world.world.level_height;
         check(!ncmm_gpu::validate(gpu.base,&gpu),"sparse XYZ GPU wrapper validates without changing legacy cell ABI");
-        for(const auto &draw:packet.draws){check(draw.cell<world.positions.size(),"GPU draw preserves sparse source cell");
+        for(const auto &draw:packet.draws){if(draw.pass==NCMM_GPU_HELD)continue;check(draw.cell<world.positions.size(),"GPU draw preserves sparse source cell");
             check(std::abs(draw.transform.columns[14]-world.positions[draw.cell].z*2.5f)<.0001f,"GPU mesh instance carries actual physical Z");}
         bool lower=false;for(uint32_t m=0;m<gpu.base.mesh_count;++m)for(uint32_t i=0;i<gpu.base.meshes[m].material_count;++i)lower|=(gpu.base.meshes[m].materials[i].flags&NCMM_GPU_SLAB_UNDERSIDE)!=0;
         check(lower,"GPU underside chooses separate lower-room RGB");

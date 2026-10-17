@@ -41,6 +41,9 @@ class scene_cache {
     std::map<std::tuple<uint64_t,int,bool,bool>,std::weak_ptr<const owned_mesh>> skins;
     std::map<std::tuple<uint64_t,int,int,bool>,std::weak_ptr<const owned_mesh>> impostors;
     resources assets;
+    struct arm_chunk {std::shared_ptr<const owned_mesh> mesh;std::vector<uint16_t> palettes;};
+    struct arm_entry {std::array<uint32_t,11> appearance{};std::vector<arm_chunk> chunks;};
+    std::array<arm_entry,2> arm_meshes;
     uint64_t horizon_signature=0;std::shared_ptr<const owned_mesh> horizon_mesh;
     uint64_t world_epoch=0,tileset_epoch=0,frame_serial=0;
     static uint64_t model_key(const creature::model &model){uint64_t h=hash_bytes(1469598103934665603ull,&model.colors.fingerprint,sizeof(model.colors.fingerprint));
@@ -105,6 +108,64 @@ class scene_cache {
                 if(key.second==NCMM_GPU_HELD){builder.mesh.key=0xfefd48454c445631ull;builder.mesh.flags=NCMM_GPU_DYNAMIC_MESH;mesh=std::make_shared<owned_mesh>(std::move(builder.mesh));}
                 else mesh=cache.assets.mesh(std::move(builder.mesh));
                 if(!mesh){fail("GPU dynamic scene mesh cache budget exceeded");continue;}frame.draw(mesh,place(origin(key.first)),key.first<0?UINT32_MAX:uint32_t(key.first),key.second);}}
+        bool arms(const viewmodel::submission &value)override{
+            std::array<uint32_t,11> identity{};size_t at=0;
+            for(const auto &style:value.style.regions){for(float component:{style.color.x,style.color.y,style.color.z})std::memcpy(&identity[at++],&component,sizeof(component));
+                identity[at++]=style.finish;identity[at++]=(style.textured?1u:0u)|(style.glove?2u:0u)|(style.recolor?4u:0u);}
+            identity.back()=value.style.features;
+            auto &entry=cache.arm_meshes[value.pose.side];
+            if(entry.chunks.empty()||entry.appearance!=identity){
+                mesh_builder builder;std::array<uint32_t,2> materials{};
+                for(size_t region=0;region<2;++region){const auto &style=value.style.regions[region];ncmm_gpu_material_v1 m{};
+                    m.color[0]=style.color.x;m.color[1]=style.color.y;m.color[2]=style.color.z;m.color[3]=1;
+                    m.flags=NCMM_GPU_HELD_MATERIAL|NCMM_GPU_SMOOTH;m.finish=style.finish;
+                    std::shared_ptr<const owned_texture> texture;
+                    if(style.textured){const auto pixels=viewmodel::texture_for(style);texture=cache.assets.texture(512,512,512,pixels->data);
+                        if(!texture){fail("GPU PSX texture cache budget exceeded");return true;}
+                        m.texture_key=texture->key;m.flags|=NCMM_GPU_TEXTURED;}
+                    materials[region]=builder.material(m,texture);
+                }
+                std::vector<uint32_t> remap(value.geometry.vertex_count,UINT32_MAX);
+                for(size_t i=0;i<value.geometry.vertex_count;++i){const auto &v=value.geometry.vertices[i];if(v.side!=value.pose.side)continue;
+                    ncmm_gpu_vertex_v1 vertex{};vertex.position[0]=v.position.x;vertex.position[1]=v.position.y;vertex.position[2]=v.position.z;
+                    vertex.normal[0]=vertex.face_normal[0]=v.normal.x;vertex.normal[1]=vertex.face_normal[1]=v.normal.y;vertex.normal[2]=vertex.face_normal[2]=v.normal.z;
+                    vertex.uv[0]=v.u;vertex.uv[1]=v.v;vertex.joint=value.pose.palette_index[v.palette];vertex.material=materials[v.region];remap[i]=uint32_t(builder.mesh.vertices.size());builder.mesh.vertices.push_back(vertex);}
+                for(size_t i=0;i<value.geometry.index_count;i+=3){if(value.geometry.vertices[value.geometry.indices[i]].side!=value.pose.side)continue;
+                    for(size_t j=0;j<3;++j)builder.mesh.indices.push_back(remap[value.geometry.indices[i+j]]);}
+                const auto &details=viewmodel::mutation_attachments(value.pose.side,value.style.features);
+                if(!details.indices.empty()){ncmm_gpu_material_v1 m{};m.color[0]=.64f;m.color[1]=.57f;m.color[2]=.43f;m.color[3]=1;
+                    m.flags=NCMM_GPU_HELD_MATERIAL|NCMM_GPU_SMOOTH;m.finish=uint32_t(hybrid::surface::resin);const auto material=builder.material(m,nullptr);
+                    const uint32_t base=uint32_t(builder.mesh.vertices.size());
+                    for(const auto &v:details.vertices){ncmm_gpu_vertex_v1 vertex{};vertex.position[0]=v.position.x;vertex.position[1]=v.position.y;vertex.position[2]=v.position.z;
+                        vertex.normal[0]=vertex.face_normal[0]=v.normal.x;vertex.normal[1]=vertex.face_normal[1]=v.normal.y;vertex.normal[2]=vertex.face_normal[2]=v.normal.z;
+                        vertex.joint=value.pose.node_palette[v.node];vertex.material=material;builder.mesh.vertices.push_back(vertex);}
+                    for(auto index:details.indices)builder.mesh.indices.push_back(base+index);}
+                // V1 bounds every draw to 128 matrices. Split this immutable
+                // mesh at the palette limit without dropping any influence.
+                entry.chunks.clear();owned_mesh part;std::vector<uint16_t> palettes;
+                std::array<uint16_t,viewmodel::maximum_palettes> palette_map;palette_map.fill(UINT16_MAX);
+                std::vector<uint32_t> vertex_map(builder.mesh.vertices.size(),UINT32_MAX);
+                auto flush=[&](){if(part.indices.empty())return true;
+                    part.materials=builder.mesh.materials;part.textures=builder.mesh.textures;
+                    auto mesh=cache.assets.mesh(std::move(part));if(!mesh)return false;
+                    entry.chunks.push_back({std::move(mesh),std::move(palettes)});part={};palettes={};
+                    palette_map.fill(UINT16_MAX);std::fill(vertex_map.begin(),vertex_map.end(),UINT32_MAX);return true;};
+                for(size_t i=0;i<builder.mesh.indices.size();i+=3){size_t needed=0;
+                    for(size_t j=0;j<3;++j){const auto joint=builder.mesh.vertices[builder.mesh.indices[i+j]].joint;
+                        bool repeated=false;for(size_t k=0;k<j;++k)repeated|=joint==builder.mesh.vertices[builder.mesh.indices[i+k]].joint;
+                        needed+=!repeated&&palette_map[joint]==UINT16_MAX;}
+                    if(palettes.size()+needed>128&&!flush()){fail("GPU PSX mesh cache budget exceeded");return true;}
+                    for(size_t j=0;j<3;++j){const uint32_t original=builder.mesh.indices[i+j];auto vertex=builder.mesh.vertices[original];
+                        if(palette_map[vertex.joint]==UINT16_MAX){palette_map[vertex.joint]=uint16_t(palettes.size());palettes.push_back(uint16_t(vertex.joint));}
+                        if(vertex_map[original]==UINT32_MAX){vertex_map[original]=uint32_t(part.vertices.size());vertex.joint=palette_map[vertex.joint];part.vertices.push_back(vertex);}
+                        part.indices.push_back(vertex_map[original]);}}
+                if(!flush()){fail("GPU PSX mesh cache budget exceeded");return true;}entry.appearance=identity;
+            }
+            std::array<ncmm_gpu_matrix_v1,128> matrices;
+            for(const auto &part:entry.chunks){for(size_t i=0;i<part.palettes.size();++i)matrices[i]=value.pose.palette[part.palettes[i]];
+                frame.draw_skinned(part.mesh,value.world,UINT32_MAX,NCMM_GPU_HELD,matrices.data(),part.palettes.size());}
+            return true;
+        }
         void skin(const creature::model &model,const creature::skeleton_pose &pose,int lod,vec at,int cell,vec scale,bool fallback,bool targetable,float heading,vec offset)override{
             const auto key=std::make_tuple(model_key(model),std::min(lod,1),fallback,targetable);auto mesh=cache.skins[key].lock();
             if(!mesh){mesh_builder builder;const auto &source=model.lod[std::min(lod,1)];std::array<uint32_t,size_t(creature::region::count)*creature::skin::surfaces> materials{};
@@ -185,7 +246,7 @@ public:
     explicit scene_cache(size_t mesh_budget=resources::mesh_limit,size_t texture_budget=resources::texture_limit):assets(mesh_budget,texture_budget){}
     uint32_t generated_cells=0;uint64_t signature_reuses=0;double geometry_ms=0;
     std::string last_reason;
-    void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
+    void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();arm_meshes={};assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
         signature_cached=false;signature_values=std::vector<uint64_t>{};signature_results=std::vector<uint64_t>{};signature_reuses=0;}
     size_t bytes()const{return assets.bytes()+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t);}
     bool build(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const hybrid::sprite_provider &provider,packet &out,
@@ -211,6 +272,7 @@ public:
         const auto start=std::chrono::steady_clock::now();ncmm_world::coordinates indexed(levels,true);
         auto hashes=signatures(s,metadata,host,creatures!=nullptr,width,levels,indexed);collector sink(*this,s,metadata,out,host,hashes,levels,indexed);
         hybrid::renderer(s,yaw,pitch,provider,statistics,pose,metadata,{},creatures,levels,&indexed).collect(sink,width,height);sink.finish();generated_cells=sink.generated_cells;
+        if(statistics.viewmodel_errors){last_reason="PSX viewmodel grip could not be attached safely";return false;}
         geometry_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();set(camera.sky_bottom,statistics.sky_horizon);
         // Palette-only CPU work: derive the exact established sky endpoints by
         // collecting above; the complete sky raster remains in the GPU shader.

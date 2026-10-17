@@ -162,16 +162,18 @@ int main(int argc,char **argv){try{
     for(int y=f.height/2-12;y<=f.height/2+12;++y)for(int x=f.width/2-12;x<=f.width/2+12;++x)center_held+=std::isfinite(f.held_depth[size_t(y)*f.width+x]);
     check(center_held==0&&held_top>f.height/3,"rotated view model leaves the reticle and upper scene clear");
     check(f.depth[at]>1,"view model does not overwrite world occlusion depth");
-    frame cached,rest,strike,recovered;
+    frame cached,rest,strike,recovered,idle_reference;
     const auto idle=animation::sample(attack,10);
     check(build_frame(world.scene,-pi*.5f,0,world.provider(),rest,800,500,idle,nullptr,&cached),"pole resting pose builds an owned world frame");
     check(build_frame(world.scene,-pi*.5f,0,world.provider(),strike,800,500,animation::sample(attack,10.12),&cached),"attack composes over owned world pixels");
     check(digest(rest)!=digest(strike)&&rest.depth==strike.depth,"attack changes hands while preserving world depth");
     check(build_frame(world.scene,-pi*.5f,0,world.provider(),recovered,800,500,animation::sample(attack,10.6),&cached),"recovery composition succeeds");
-    check(digest(rest)==digest(recovered),"attack returns exactly to its idle pose without accumulating transforms");
+    auto no_attack=attack;no_attack.attack_serial=0;
+    check(build_frame(world.scene,-pi*.5f,0,world.provider(),idle_reference,800,500,animation::sample(no_attack,10.6),&cached),"same-time breathing reference builds");
+    check(digest(idle_reference)==digest(recovered),"attack returns exactly to the same-time idle pose without accumulating transforms");
     if(argc==2){save(rest,std::string(argv[1])+"-pole.ppm");save(strike,std::string(argv[1])+"-attack.ppm");}
     world.scene.environment.held_item[0]=0;draw();check(f.held_pixels==0,"empty hands do not retain previous weapon");
-    check(std::none_of(f.held_depth.begin(),f.held_depth.end(),[](float z){return std::isfinite(z);}),"unwielding clears view-model depth as well as geometry");
+    check(f.viewmodel_draws==2&&digest(f)!=digest(rest)&&std::any_of(f.held_depth.begin(),f.held_depth.end(),[](float z){return std::isfinite(z);}),"unwielding replaces the weapon with two relaxed PSX hands");
     const int animal=9*15+7;std::strcpy(world.cells[animal].creature,"mon_aphid");
     world.details[animal].terrain_flags=NCMM_CREATURE_TINY;draw();size_t tiny_pixels=0;
     for(int y=0;y<400;++y)for(int x=300;x<500;++x)tiny_pixels+=f.owners[size_t(y)*800+x]==animal;

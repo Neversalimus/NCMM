@@ -29,6 +29,8 @@ bool sample_locals(const asset &source,size_t clip,double seconds,bool loop,
                    std::array<local_pose,maximum_nodes> &output) noexcept;
 void blend_locals(const asset &source,const std::array<local_pose,maximum_nodes> &from,
                   std::array<local_pose,maximum_nodes> &to,float alpha) noexcept;
+bool evaluate_globals(const asset &source,const std::array<local_pose,maximum_nodes> &local,
+                      std::array<matrix,maximum_nodes> &global) noexcept;
 bool evaluate(const asset &source,pose_buffer &output) noexcept;
 bool bind_pose(const asset &source,pose_buffer &output) noexcept;
 bool sample(const asset &source,size_t clip,double seconds,bool loop,pose_buffer &output) noexcept;

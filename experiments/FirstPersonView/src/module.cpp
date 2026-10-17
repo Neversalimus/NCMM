@@ -109,7 +109,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         if(creatures->get_scene(&input.view)&&input.view.count<=scene->base.cell_count+256){input.creatures.resize(input.view.count);
             has_creatures=creatures->get_creatures(input.creatures.data(),input.creatures.size())&&first_person::creature::valid(input,scene->base.cell_count);}
         if(has_creatures)creature_state->observe();}
-    auto pose=first_person::animation::sample(state,std::floor(scene->environment.animation_seconds*40)/40);
+    auto pose=first_person::animation::sample(state,scene->environment.animation_seconds);
     if(has_metadata){const float t=float(std::fmod(scene->environment.animation_seconds,1000.0));
         const float lag=std::exp(-float(std::max(0.0,scene->environment.animation_seconds-look_sway_started))*9);
         pose.sway_x=std::sin(t*1.4f)*.0022f+std::sin(t*8)*metadata.view.movement*.008f+look_sway_x*lag;
@@ -212,6 +212,7 @@ void input(uint32_t action,void *) {
     if(controls)controls->set_camera(float(yaw),pitch);
 }
 int init(const ncmm_host_api_v1 *api) {
+    first_person::viewmodel::clear_textures();
     graphics=nullptr;
     hybrid=nullptr;multilevel=nullptr;active_world=nullptr;
     gpu=nullptr;settings=nullptr;diagnostic_log=nullptr;gpu_world.reset();renderer_mode=NCMM_GPU_AUTO;last_setting="auto";mode_override=false;last_gpu_reason.clear();
@@ -262,6 +263,7 @@ void shutdown() {
     else if(hybrid) hybrid->set_enabled(id,0);
     if(graphics) graphics->set_enabled(id,0);
     gpu=nullptr;settings=nullptr;diagnostic_log=nullptr;gpu_world.reset();
+    first_person::viewmodel::clear_textures();
     hybrid=nullptr;multilevel=nullptr;active_world=nullptr;
     controls=nullptr;
     presentation=nullptr;metadata={};creatures=nullptr;creature_state.reset();

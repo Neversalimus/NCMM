@@ -111,11 +111,15 @@ void blend_locals(const asset &a,const std::array<local_pose,maximum_nodes> &fro
     for(size_t i=0;i<a.node_count;++i){to[i].translation=from[i].translation+(to[i].translation-from[i].translation)*alpha;
         to[i].scale=from[i].scale+(to[i].scale-from[i].scale)*alpha;to[i].rotation=slerp(from[i].rotation,to[i].rotation,alpha);}
 }
-bool evaluate(const asset &a,pose_buffer &out) noexcept {
+bool evaluate_globals(const asset &a,const std::array<local_pose,maximum_nodes> &local,std::array<matrix,maximum_nodes> &global) noexcept {
     if(!shape(a))return false;
-    for(size_t at=0;at<a.node_count;++at){const auto i=a.order[at];const auto &n=a.nodes[i];const auto &p=out.local[i];
+    for(size_t at=0;at<a.node_count;++at){const auto i=a.order[at];const auto &n=a.nodes[i];const auto &p=local[i];
         if(!finite(p.translation)||!finite(p.rotation)||!finite(p.scale))return false;
-        const auto local=transform(p);out.global[i]=n.parent<0?local:multiply(out.global[size_t(n.parent)],local);}
+        const auto matrix=transform(p);global[i]=n.parent<0?matrix:multiply(global[size_t(n.parent)],matrix);}
+    return true;
+}
+bool evaluate(const asset &a,pose_buffer &out) noexcept {
+    if(!evaluate_globals(a,out.local,out.global))return false;
     for(size_t i=0;i<a.joint_count;++i)out.skin[i]=multiply(out.global[a.joints[i]],a.inverse_bind[i]);
     for(size_t i=0;i<a.palette_count;++i){matrix value{};const auto &weights=a.palettes[i];
         for(size_t j=0;j<4;++j)if(weights.values[j]!=0){const auto &m=out.skin[weights.joints[j]];

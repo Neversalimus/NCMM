@@ -61,10 +61,14 @@ public:
     }
     void draw(const std::shared_ptr<const owned_mesh> &value,const ncmm_gpu_matrix_v1 &transform,
               uint32_t cell,uint32_t pass,const std::vector<ncmm_gpu_matrix_v1> *pose=nullptr,float heading=0) {
+        draw_skinned(value,transform,cell,pass,pose?pose->data():nullptr,pose?pose->size():0,heading);
+    }
+    void draw_skinned(const std::shared_ptr<const owned_mesh> &value,const ncmm_gpu_matrix_v1 &transform,
+                      uint32_t cell,uint32_t pass,const ncmm_gpu_matrix_v1 *pose,size_t count,float heading=0) {
         if(!value||value->indices.empty())return;
         mesh(value);ncmm_gpu_draw_v1 command{};command.mesh_key=value->key;command.transform=transform;command.cell=cell;command.pass=pass;
         command.bone_count=1;command.creature_yaw=heading;
-        if(pose&&!pose->empty()){command.bone_offset=uint32_t(bones.size());command.bone_count=uint32_t(pose->size());bones.insert(bones.end(),pose->begin(),pose->end());}
+        if(pose&&count){command.bone_offset=uint32_t(bones.size());command.bone_count=uint32_t(count);bones.insert(bones.end(),pose,pose+count);}
         draws.push_back(command);
     }
     const ncmm_gpu_scene_v1 &finish(const ncmm_host_graphics_gpu_v1 *api) {

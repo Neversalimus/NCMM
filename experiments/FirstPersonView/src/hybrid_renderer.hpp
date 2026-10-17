@@ -4,6 +4,7 @@
 #include "ncmm_world_lod.hpp"
 #include "ncmm_graphics_shapes.hpp"
 #include "animation.hpp"
+#include "viewmodel.hpp"
 #include "creature_scene.hpp"
 #include "effects.hpp"
 #include "liquid_surface.hpp"
@@ -64,6 +65,7 @@ struct frame {
     uint32_t vertical_doors=0,vertical_windows=0,vertical_fences=0,plants=0,shadow_cells=0;
     uint32_t geometry_cells=0,culled_cells=0,culled_quads=0,sky_pixels=0;
     uint64_t volume_samples=0;
+    uint32_t viewmodel_draws=0,viewmodel_errors=0;
 };
 // Internal reference switches used by correctness tests and the manual
 // benchmark. They do not alter the Host ABI or add player-facing settings.
@@ -196,6 +198,7 @@ struct geometry_sink {
     virtual void world_complete(){}
     virtual bool horizon_dirty()const{return true;}
     virtual void horizon_complete(){}
+    virtual bool arms(const viewmodel::submission &){return false;}
     virtual void skin(const creature::model &model,const creature::skeleton_pose &pose,int lod,
                       vec origin,int cell,vec scale,bool fallback,bool targetable,float heading,vec offset)=0;
     virtual void impostor(const creature::asset &asset,const creature::pose_state &pose,vec origin,int cell,int lod,bool targetable)=0;
@@ -226,6 +229,8 @@ class renderer {
     const ncmm_world::coordinates &world_coordinates;
     geometry_sink *gpu_sink=nullptr;
     std::vector<std::shared_ptr<const creature::asset>> creature_assets;
+    std::array<image,4> arm_images;
+    std::array<std::shared_ptr<const viewmodel::texture_pixels>,4> arm_pixels;
     ncmm_graphics_detail_v1 empty_detail{};
     const ncmm_graphics_detail_v1 &extra(int i)const{return metadata&&i>=0&&size_t(i)<metadata->cells.size()?metadata->cells[i]:empty_detail;}
     uint32_t sky_style()const{return metadata?metadata->view.sky_style:uint32_t(NCMM_SKY_EARTH);}
@@ -1077,8 +1082,8 @@ class renderer {
             ++f.weather_particles;}
     }
     void held(){
+        f.viewmodel_draws=f.viewmodel_errors=0;
         const bool empty=!s.environment.held_item[0];
-        if(empty&&!metadata&&pose.swing==0&&pose.thrust==0)return;
         image *img=empty?nullptr:texture(UINT32_MAX,NCMM_GFX_HELD_ITEM);
         held_light=light(index(int(std::floor(base.camera_x)),int(std::floor(base.camera_y))),{0,0,1});
         held_light={std::max(.04f,held_light.x),std::max(.04f,held_light.y),std::max(.04f,held_light.z)};
@@ -1089,8 +1094,6 @@ class renderer {
             return p+pivot+vec{-.12f*pose.swing+pose.sway_x,.04f*pose.swing+pose.sway_y,pose.thrust-pose.recoil};};
         auto hud=[&](vec p){p=animate(p);p.x*=hud_scale;p.y*=hud_scale;return local(p);};
         auto face=[&](vec a,vec b,vec c,vec d,material m){a=hud(a);b=hud(b);c=hud(c);d=hud(d);quad(a,b,c,d,m,normalize(cross(b-a,d-a)));};
-        material skin{nullptr,{.67f,.46f,.34f},1,false,false,true,-1,surface::skin};
-        material sleeve{nullptr,{.20f,.25f,.28f},1,false,false,true,-1,surface::cloth};
         auto tube=[&](vec a,vec b,float ra,float rb,material m){
             const vec axis=normalize(b-a);vec right=cross(axis,{0,0,1});if(dot(right,right)<.00001f)right=cross(axis,{0,1,0});
             right=normalize(right);const vec up=normalize(cross(right,axis));
@@ -1100,45 +1103,58 @@ class renderer {
                 face(ring(a,ra,p),ring(a,ra,q),ring(b,rb,q),ring(b,rb,p),m);
                 face(ring(b,rb,p),ring(b,rb,q),b,b,m);}
         };
-        auto palm=[&](vec center,vec radius){auto p=[&](float lon,float lat){return center+vec{std::cos(lon)*std::cos(lat)*radius.x,std::sin(lat)*radius.y,std::sin(lon)*std::cos(lat)*radius.z};};
-            for(int lat=0;lat<5;++lat)for(int lon=0;lon<10;++lon){float a=-pi*.5f+pi*lat/5,b=-pi*.5f+pi*(lat+1)/5,c=2*pi*lon/10,d=2*pi*(lon+1)/10;
-                face(p(c,a),p(d,a),p(d,b),p(c,b),skin);}};
-        const material base_skin=skin,base_sleeve=sleeve;
+        viewmodel::frame arms(pose,empty,pose.grip==NCMM_GRIP_GUN&&(!metadata||metadata->view.gun_kind!=NCMM_GUN_BOW));
+        viewmodel::hand_pose arm_pose;
+        viewmodel::matrix model_to_world{};
+        const auto zero=hud({0,0,0});const vec columns[]={hud({1,0,0})-zero,hud({0,1,0})-zero,hud({0,0,1})-zero,zero};
+        for(int column=0;column<4;++column){model_to_world.columns[column*4]=columns[column].x;model_to_world.columns[column*4+1]=columns[column].y;model_to_world.columns[column*4+2]=columns[column].z;}model_to_world.columns[15]=1;
+        const float lower_view_slope=float(f.height)/f.width*std::tan(70*pi/360)/std::max(.1f,hud_scale);
         auto hand=[&](vec grip,bool left){
-            skin=base_skin;sleeve=base_sleeve;
+            if(!arms.attach({grip.x,grip.y,grip.z},left,lower_view_slope,arm_pose)){++f.viewmodel_errors;return;}
             const int side=left?0:1;
-            uint32_t features=0;
-            if(metadata){features=metadata->view.hand_features;
-                if(features&NCMM_HAND_SCALES)skin.color={.40f,.47f,.30f};
-                if(features&NCMM_HAND_CHITIN){skin.color={.25f,.20f,.18f};skin.finish=surface::resin;}
-                if(features&NCMM_HAND_FUR){skin.color={.40f,.30f,.20f};skin.finish=surface::cloth;}
-                if(features&NCMM_HAND_BIONIC){skin.color={.42f,.44f,.44f};skin.finish=surface::metal;}
-                sleeve=skin;
-                if(metadata->view.arm_features&NCMM_HAND_BIONIC){sleeve.color={.36f,.40f,.41f};sleeve.finish=surface::metal;}
+            viewmodel::appearance appearance;
+            for(auto &region:appearance.regions)region.finish=uint32_t(surface::skin);
+            auto features=[&](uint32_t flags,viewmodel::region_style &style){
+                if(flags&NCMM_HAND_SCALES)style.color={.40f,.47f,.30f};
+                if(flags&NCMM_HAND_CHITIN){style.color={.25f,.20f,.18f};style.finish=uint32_t(surface::resin);}
+                if(flags&NCMM_HAND_FUR){style.color={.40f,.30f,.20f};style.finish=uint32_t(surface::cloth);}
+                if(flags&NCMM_HAND_BIONIC){style.color={.42f,.44f,.44f};style.finish=uint32_t(surface::metal);}
+                if(flags&(NCMM_HAND_SCALES|NCMM_HAND_CHITIN|NCMM_HAND_FUR|NCMM_HAND_BIONIC))style.recolor=true;
+            };
+            if(metadata){appearance.features=metadata->view.hand_features;
+                features(metadata->view.hand_features,appearance.regions[1]);features(metadata->view.arm_features,appearance.regions[0]);
                 if(metadata->view.sleeve[side][0]){auto *cloth=texture(UINT32_MAX,NCMM_GFX_SLEEVE_LEFT+side);
-                    sleeve.color=cloth->valid()?cloth->paint:vec{.30f,.33f,.28f};sleeve.finish=finish(metadata->view.sleeve_material[side]);}
+                    const auto color=cloth->valid()?cloth->paint:vec{.30f,.33f,.28f};appearance.regions[0]={{color.x,color.y,color.z},uint32_t(finish(metadata->view.sleeve_material[side])),true,false,true};}
                 if(metadata->view.glove[side][0]){auto *glove=texture(UINT32_MAX,NCMM_GFX_GLOVE_LEFT+side);
-                    skin.color=glove->valid()?glove->paint:vec{.21f,.22f,.20f};skin.finish=finish(metadata->view.glove_material[side]);features=0;}}
-
-            // Both wrists, palms, fingers and the weapon share this grip/pose.
-            vec center=grip+vec{left?-.018f:.018f,-.014f,-.040f};
-            const vec elbow=left?vec{-.15f,-.73f,.49f}:vec{.44f,-.76f,.48f};
-            const vec wrist=center+vec{left?-.025f:.025f,-.07f,-.035f};
-            tube(elbow,wrist,.088f,.052f,sleeve);tube(wrist,center,.052f,.046f,skin);
-            palm(center,{.052f,.061f,.041f});
-            for(int n=0;n<4;++n){const float y=center.y+.029f-n*.023f;
-                const vec knuckle{center.x-.040f,y,center.z-.014f},bend{center.x+.025f,y+.002f,center.z-.022f};
-                tube(knuckle,bend,.012f,.013f,skin);tube(bend,{center.x+.042f,y+.005f,center.z+.007f},.013f,.010f,skin);
-                if(features&NCMM_HAND_CLAWS){material claw=skin;claw.color={.65f,.62f,.48f};claw.finish=surface::resin;
-                    tube({center.x+.041f,y+.005f,center.z+.007f},{center.x+.040f,y+.007f,center.z+.048f},.009f,.001f,claw);}
-                if(features&NCMM_HAND_SCALES){material scale=skin;scale.color=scale.color*.68f;tube(knuckle,bend,.013f,.009f,scale);}
+                    const auto color=glove->valid()?glove->paint:vec{.11f,.12f,.12f};
+                    appearance.regions[1]={{color.x,color.y,color.z},uint32_t(finish(metadata->view.glove_material[side])),true,true,true};appearance.features=0;}}
+            ++f.viewmodel_draws;
+            if(gpu_sink&&gpu_sink->arms({arms.geometry(),arm_pose,model_to_world,appearance}))return;
+            for(size_t region=0;region<2;++region){const size_t slot=arm_pose.side*2+region;
+                arm_pixels[slot]=viewmodel::texture_for(appearance.regions[region]);auto &value=arm_images[slot];
+                value.data={sizeof(value.data),512,512,512,arm_pixels[slot]->data};value.prepared=value.data.rgba;value.right=value.bottom=512;}
+            const auto &source=arms.geometry();
+            auto placed_vertex=[&](viewmodel::point p,viewmodel::point n,float u=0,float v=0){
+                n=viewmodel::direction(model_to_world,n);vec normal=normalize({n.x,n.y,n.z});const auto p0=hud({p.x,p.y,p.z});
+                if(dot(normal,eye-p0)<0)normal=normal*-1;
+                const auto key=normalize(vec{sy*.4f-cy*.3f,-cy*.4f-sy*.3f,.85f});
+                const auto lit=gpu_sink?vec{1,1,1}:held_light*(.66f+.34f*std::max(0.f,dot(normal,key)));
+                return vertex{p0,u,v,lit};};
+            for(size_t at=0;at<source.index_count;at+=3){const auto &first=source.vertices[source.indices[at]];if(first.side!=arm_pose.side)continue;
+                const auto &style=appearance.regions[first.region];material m{style.textured?&arm_images[arm_pose.side*2+first.region]:nullptr,{style.color.x,style.color.y,style.color.z},1,false,false,true,-1,surface(style.finish)};m.smooth=true;
+                triangle t{};t.m=m;t.normal={};
+                for(int j=0;j<3;++j){const auto &v=source.vertices[source.indices[at+size_t(j)]];const auto &skin=arm_pose.palette[arm_pose.palette_index[v.palette]];
+                    t.v[size_t(j)]=placed_vertex(viewmodel::position(skin,v.position),viewmodel::direction(skin,v.normal),v.u,v.v);
+                }
+                t.normal=normalize(cross(t.v[1].p-t.v[0].p,t.v[2].p-t.v[0].p));if(gpu_sink)gpu_sink->emit(t);else overlay.push_back(t);
             }
-            if(features&NCMM_HAND_WEBBED){material membrane=skin;membrane.color=membrane.color*.87f;
-                for(int n=0;n<3;++n){const float y=center.y+.029f-n*.023f;
-                    face({center.x-.01f,y,center.z-.021f},{center.x+.039f,y,center.z-.018f},{center.x+.031f,y-.023f,center.z-.018f},{center.x-.01f,y-.023f,center.z-.021f},membrane);}}
-            tube(center+vec{-.044f,.052f,0},center+vec{-.005f,.024f,-.033f},.018f,.014f,skin);
+            const auto &details=viewmodel::mutation_attachments(arm_pose.side,appearance.features);
+            for(size_t at=0;at<details.indices.size();at+=3){triangle t{};t.m={nullptr,{.64f,.57f,.43f},1,false,false,true,-1,surface::resin};t.m.smooth=true;
+                for(size_t j=0;j<3;++j){const auto &v=details.vertices[details.indices[at+j]];const auto &joint=arm_pose.joints[v.node];
+                    t.v[j]=placed_vertex(viewmodel::position(joint,v.position),viewmodel::direction(joint,v.normal));}
+                t.normal=normalize(cross(t.v[1].p-t.v[0].p,t.v[2].p-t.v[0].p));if(gpu_sink)gpu_sink->emit(t);else overlay.push_back(t);}
         };
-        if(empty){hand({.27f,-.34f,.82f},false);if(metadata)hand({-.23f,-.38f,.86f},true);return;}
+        if(empty){hand({.27f,-.34f,.70f},false);hand({-.23f,-.38f,.74f},true);return;}
         const bool valid=img&&img->valid();
         #include "firearm.inc"
         if(pose.grip==NCMM_GRIP_POLE){
@@ -1158,7 +1174,7 @@ class renderer {
             for(int n=0;n<5;++n){const int j=(n+1)%5;face(outline[n],outline[j],base,base,steel);
                 face(outline[j]+vec{0,0,.012f},outline[n]+vec{0,0,.012f},base+vec{0,0,.012f},base+vec{0,0,.012f},steel);
                 face(outline[n],outline[n]+vec{0,0,.012f},outline[j]+vec{0,0,.012f},outline[j],steel);}
-            hand(butt+axis*.31f,false);hand(butt+axis*std::min(.67f,pose.length*.45f),true);
+            hand(butt+axis*.31f,false);hand(butt+axis*std::min(.50f,pose.length*.45f),true);
             f.held_pixels=valid?uint32_t((img->right-img->left)*(img->bottom-img->top)):1u;
             return;
         }
@@ -1278,6 +1294,6 @@ inline bool build_frame(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,co
     if(entities&&!creature::valid(entities->input,s.base.cell_count))return false;
     if(metadata&&!valid_presentation(*metadata,s.base.cell_count))return false;
     if(!valid_scene(s,yaw,pitch,world))return false;
-    renderer(s,yaw,pitch,provider,out,pose,metadata,options,entities,world).run(std::clamp(max_width,1,int(NCMM_GRAPHICS_MAX_FRAME_WIDTH)),std::clamp(max_height,1,int(NCMM_GRAPHICS_MAX_FRAME_HEIGHT)),cached_world,world_output);return out.pixels.size()==size_t(out.width)*out.height;
+    renderer(s,yaw,pitch,provider,out,pose,metadata,options,entities,world).run(std::clamp(max_width,1,int(NCMM_GRAPHICS_MAX_FRAME_WIDTH)),std::clamp(max_height,1,int(NCMM_GRAPHICS_MAX_FRAME_HEIGHT)),cached_world,world_output);return out.viewmodel_errors==0&&out.pixels.size()==size_t(out.width)*out.height;
 }
 }

@@ -86,7 +86,9 @@ int main(){try{
     s.environment.animation_seconds=10;check(callback(&s,nullptr)&&world_sprite_calls==world_calls,"changing held equipment composes without rebuilding world geometry");
     const uint64_t idle_pixels=last_pixels;state.attack_serial=1;state.attack_kind=1;state.attack_started=10;s.environment.animation_seconds=10.12;
     check(callback(&s,nullptr)&&last_pixels!=idle_pixels&&world_sprite_calls==world_calls,"attack changes the held pose over the retained world");
-    s.environment.animation_seconds=10.6;check(callback(&s,nullptr)&&last_pixels==idle_pixels&&world_sprite_calls==world_calls,"attack recovery restores the exact idle frame");
+    s.environment.animation_seconds=10.6;check(callback(&s,nullptr)&&world_sprite_calls==world_calls,"attack recovery composes over the retained world");
+    const auto recovered=last_pixels;state.attack_serial=0;
+    check(callback(&s,nullptr)&&last_pixels==recovered,"attack recovery restores the exact same-time breathing frame");
     s.environment.precipitation=.7f;s.environment.weather_kind=NCMM_WEATHER_RAIN;s.environment.outdoors=1;
     check(callback(&s,nullptr),"weather begins over the retained world");const int weather_calls=world_sprite_calls;
     s.environment.animation_seconds=10.7;check(callback(&s,nullptr)&&world_sprite_calls==weather_calls,"weather animation reuses world geometry");
