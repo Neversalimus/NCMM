@@ -1,6 +1,6 @@
 """Convert Drillimpact's pinned CC0 ZIP into typed, immutable NCMM tables.
 
-Offline only. Requires Pillow for lossless RGBA8 decoding. No Blender, FBX,
+Offline only. Requires Pillow for the existing RGBA8 texture API. No Blender, FBX,
 downloaded scripts, runtime glTF parser or dominant-weight approximation.
 """
 import argparse
@@ -221,10 +221,10 @@ def emit(model, output):
                   '        palettes,std::size(palettes),keys,std::size(keys),tracks,std::size(tracks),',
                   '        clips,std::size(clips),psx_bare_pixels,psx_glove_pixels,512,512};',
                   '    return result;', '}', '}'])
-    (output/'model.generated.cpp').write_text('\n'.join(lines)+'\n',encoding='utf-8')
+    (output/'model.generated.cpp').write_text('\n'.join(lines)+'\n',encoding='utf-8',newline='\n')
 
 def convert(archive_path, output):
-    from PIL import Image
+    from PIL import Image, __version__ as pillow_version
     content=archive_path.read_bytes()
     require(hashlib.sha256(content).hexdigest()==ARCHIVE_SHA256, 'Author ZIP SHA256 differs from the pinned version')
     with zipfile.ZipFile(io.BytesIO(content)) as archive:
@@ -257,11 +257,13 @@ def convert(archive_path, output):
               'palette_method':'Exact weighted affine matrices per distinct source joint/weight tuple; no dominant-joint approximation',
               'bind_max_error':model['bind_max_error'],'clips':[c[0] for c in model['clips']],
               'stored_keyframes':len(model['keys']),'tracks':len(model['tracks']),
+              'pillow_version':pillow_version,
+              'texture_conversion':'Source RGBA16 PNG to existing API RGBA8; original 512x512 dimensions retained, no filtering or resampling',
               'textures':[{'source':source,'source_sha256':hashlib.sha256(raw).hexdigest(),'file':target,
-                           'size':[512,512],'rgba8_sha256':hashlib.sha256(rgba).hexdigest()} for source,target,raw,rgba in prepared],
+                           'source_png_bit_depth':raw[24],'size':[512,512],'rgba8_sha256':hashlib.sha256(rgba).hexdigest()} for source,target,raw,rgba in prepared],
               'generated_cpp_sha256':hashlib.sha256((output/'model.generated.cpp').read_bytes()).hexdigest(),
               'runtime_network_or_gltf_parser':False,'blender_scripts_executed':False}
-    (output/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
+    (output/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8',newline='\n')
     return manifest
 
 if __name__=='__main__':

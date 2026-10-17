@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
 #include <vector>
 
@@ -13,13 +14,23 @@ void check(bool value,int line){++checks;if(!value){std::fprintf(stderr,"PSX ass
 #define CHECK(value) check(bool(value),__LINE__)
 float error(point a,point b){const auto d=a-b;return std::max({std::abs(d.x),std::abs(d.y),std::abs(d.z)});}
 }
-int main(){
+int main(int argc,char **argv){
     const auto &source=imported_asset();
     CHECK(valid_asset(source));CHECK(source.vertex_count==790);CHECK(source.index_count==3528);
     CHECK(source.joint_count==52);CHECK(source.palette_count==494);CHECK(source.clip_count==18);
     CHECK(node_index(source,"hand.R")>=0&&node_index(source,"hand.L")>=0);
     CHECK(clip_index(source,"missing")==-1&&node_index(source,nullptr)==-1);
     pose_buffer pose;
+    if(argc==2&&std::strcmp(argv[1],"--anchors")==0){
+        for(size_t c=0;c<source.clip_count;++c)for(double phase:{0.0,.5,1.0}){
+            CHECK(sample(source,c,source.clips[c].duration*phase,false,pose));
+            std::printf("%s phase=%.1f",source.clips[c].name,phase);
+            for(const char *name:{"hand.R","hand.L","forearm.R","forearm.L"}){const auto &m=pose.global[size_t(node_index(source,name))];
+                std::printf(" %s=(%.4f,%.4f,%.4f)",name,m.columns[12],m.columns[13],m.columns[14]);}
+            std::printf("\n");
+        }
+        return 0;
+    }
     CHECK(bind_pose(source,pose));
     for(size_t i=0;i<source.vertex_count;++i){const auto &v=source.vertices[i];
         CHECK(error(position(pose.palette[v.palette],v.position),v.position)<5e-6f);}

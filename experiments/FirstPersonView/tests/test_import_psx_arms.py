@@ -96,6 +96,7 @@ class ImportTests(unittest.TestCase):
         value=IMPORT.import_model(fixture())
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);IMPORT.emit(value,root);first=(root/'model.generated.cpp').read_bytes()
+            self.assertNotIn(b'\r',first)
             IMPORT.emit(value,root);self.assertEqual(first,(root/'model.generated.cpp').read_bytes())
 
 if __name__=='__main__':unittest.main()

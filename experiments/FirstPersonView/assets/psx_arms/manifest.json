@@ -40,11 +40,14 @@
   ],
   "stored_keyframes": 11281,
   "tracks": 2808,
+  "pillow_version": "12.3.0",
+  "texture_conversion": "Source RGBA16 PNG to existing API RGBA8; original 512x512 dimensions retained, no filtering or resampling",
   "textures": [
     {
       "source": "arms_01.png",
       "source_sha256": "997e272eafee2293d1095c321b83237a4556491818d62f49c9341260af0bd490",
       "file": "bare.rgba",
+      "source_png_bit_depth": 16,
       "size": [
         512,
         512
@@ -55,6 +58,7 @@
       "source": "arms_gloves_01.png",
       "source_sha256": "ea03152310ea681f4740d955e4ffddd8278c979ef7ec44f1d415255a36861557",
       "file": "gloves.rgba",
+      "source_png_bit_depth": 16,
       "size": [
         512,
         512
@@ -62,7 +66,7 @@
       "rgba8_sha256": "6c4cbd330db52fa5c8cc16cfcceb7477e76d0eeb014cd76fb02b902afe53efc1"
     }
   ],
-  "generated_cpp_sha256": "b40427c3090d621580fc2ecb5063383d0514a95c3480fd7fce4655d948ad0863",
+  "generated_cpp_sha256": "b63666e5b49c71b1e85ce8c0c1f0d4700e1fbb5a25c19a7f7849ad0ba0b56443",
   "runtime_network_or_gltf_parser": false,
   "blender_scripts_executed": false
 }
