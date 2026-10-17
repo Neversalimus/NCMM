@@ -30,6 +30,8 @@
             mean_error /= 640 * 480;
             require( SDL_SaveBMP( rgba, ( game_root() / "ncmm" / "first-person-gpu-room.bmp" ).string().c_str() ), "actual_gpu_room_capture_write_failed" );
             SDL_DestroySurface( rgba ); SDL_DestroySurface( raw );
+            draw(); const auto cached = graphics_gpu_engine->metrics();
+            const auto static_upload = graphics_gpu_engine->resources().static_upload_bytes();
             std::ofstream evidence( game_root() / "ncmm" / "first-person-gpu-room.json" );
             JsonOut report( evidence ); report.start_object();
             report.member( "actual_cdda_sdl", true ); report.member( "full_gpu_world", true );
@@ -37,12 +39,18 @@
             report.member( "software_device", bool( first.software_device ) ); report.member( "cpu_raster_calls", 0 );
             report.member( "cpu_full_frame_upload", false ); report.member( "draw_calls", first.draw_calls );
             report.member( "triangles", first.triangles ); report.member( "resource_bytes", first.resource_bytes );
-            report.member( "rgb_mae", mean_error ); report.member( "changed_pixels", changed ); report.end_object();
+            report.member( "rgb_mae", mean_error ); report.member( "changed_pixels", changed );
+            report.member( "cached_generated_cells", cached.generated_cells );
+            report.member( "cached_upload_bytes", cached.upload_bytes );
+            report.member( "static_upload_bytes", static_upload ); report.end_object();
             evidence.close();
             require( mean_error < .14, "actual_cpu_gpu_room_geometry_or_palette_regression" );
-            draw(); const auto cached = graphics_gpu_engine->metrics();
-            require( graphics_gpu_frame && cached.active && !cached.generated_cells && cached.upload_bytes < 2 * 1024 * 1024,
-                     "stationary_gpu_frame_rebuilt_or_uploaded_static_world" );
+            require( graphics_gpu_frame && cached.active, "stationary_gpu_backend_inactive" );
+            require( !cached.generated_cells, "stationary_gpu_frame_rebuilt_static_world" );
+            // Instances, light cells, bones and explicit dynamic meshes can
+            // legitimately exceed 2 MiB in a multi-level scene. Require zero
+            // immutable mesh/texture uploads rather than capping all frame data.
+            require( !static_upload, "stationary_gpu_frame_uploaded_static_resources" );
             get_options().get_option( "NCMM_FIRST_PERSON_RENDERER" ).setValue( "cpu" ); draw();
             require( !graphics_gpu_frame && !graphics_hybrid_pixels.empty(), "gpu_to_cpu_fallback_not_complete" );
         }

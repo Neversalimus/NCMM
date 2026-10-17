@@ -71,6 +71,14 @@ uint64_t scene_key(const ncmm_graphics_scene_v2 &s,uint64_t common,bool world=fa
     if(world){std::memset(e.held_item,0,sizeof(e.held_item));e.held_kind=0;}
     bytes(&e,sizeof(e));return h;
 }
+void submit_creature_metrics(const first_person::hybrid::frame &frame,uint64_t visible_pixels){
+    if(!creatures||!creature_state||!creatures->submit_metrics)return;
+    const auto stats=creature_state->statistics();ncmm_graphics_creature_metrics_v1 m{};m.struct_size=sizeof(m);
+    std::copy(frame.creature_lods.begin(),frame.creature_lods.end(),m.lod);m.fallback=frame.creature_fallback;m.culled=frame.creature_culled;
+    m.cache_bytes=stats.bytes;m.cache_peak_bytes=stats.peak_bytes;m.generated=stats.generated;m.entries=stats.entries;m.queued=stats.pending;m.evictions=stats.evictions;m.failures=stats.failures;
+    m.visible_pixels=visible_pixels;m.generation_ms=stats.last_generation_ms;m.generation_max_ms=stats.max_generation_ms;m.generation_total_ms=stats.total_generation_ms;
+    std::copy(stats.anatomy_counts.begin(),stats.anatomy_counts.end(),m.anatomy);std::copy(stats.fallback_counts.begin(),stats.fallback_counts.end(),m.reasons);creatures->submit_metrics(&m);
+}
 ncmm_graphics_control_state_v1 control_state(){
     ncmm_graphics_control_state_v1 state{};state.struct_size=sizeof(state);state.held_length=.6f;
     if(controls&&!controls->get_state(&state))state={sizeof(state),0,NCMM_GRIP_SINGLE,0,0,0,0,0,.6f};
@@ -129,11 +137,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
             if(submitted){
                 ncmm_gpu_metrics_v1 result{};result.struct_size=sizeof(result);gpu->metrics(&result);
                 if(presentation)presentation->set_target(result.target_cell,result.label_x,result.label_y);
-                if(has_creatures&&creatures->submit_metrics){const auto stats=creature_state->statistics();ncmm_graphics_creature_metrics_v1 m{};m.struct_size=sizeof(m);
-                    std::copy(statistics.creature_lods.begin(),statistics.creature_lods.end(),m.lod);m.fallback=statistics.creature_fallback;m.culled=statistics.creature_culled;
-                    m.cache_bytes=stats.bytes;m.cache_peak_bytes=stats.peak_bytes;m.generated=stats.generated;m.entries=stats.entries;m.queued=stats.pending;m.evictions=stats.evictions;m.failures=stats.failures;
-                    m.visible_pixels=result.visible_creature_pixels;m.generation_ms=stats.last_generation_ms;m.generation_max_ms=stats.max_generation_ms;m.generation_total_ms=stats.total_generation_ms;
-                    std::copy(stats.anatomy_counts.begin(),stats.anatomy_counts.end(),m.anatomy);std::copy(stats.fallback_counts.begin(),stats.fallback_counts.end(),m.reasons);creatures->submit_metrics(&m);}
+                if(has_creatures)submit_creature_metrics(statistics,result.visible_creature_pixels);
                 frame_valid=false;last_gpu_reason.clear();return 1;
             }
             if(!built)report_gpu_fallback(gpu_world->last_reason);
@@ -168,11 +172,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         if(rebuild_world){world_key=wk;world_built=now;world_valid=true;}
         frame_key=key;frame_built=now;frame_valid=true;
     }
-    if(has_creatures&&creatures->submit_metrics){const auto stats=creature_state->statistics();ncmm_graphics_creature_metrics_v1 m{};m.struct_size=sizeof(m);
-        std::copy(pixels.creature_lods.begin(),pixels.creature_lods.end(),m.lod);m.fallback=pixels.creature_fallback;m.culled=pixels.creature_culled;
-        m.cache_bytes=stats.bytes;m.cache_peak_bytes=stats.peak_bytes;m.generated=stats.generated;m.entries=stats.entries;m.queued=stats.pending;m.evictions=stats.evictions;m.failures=stats.failures;m.visible_pixels=std::count_if(pixels.creatures.begin(),pixels.creatures.end(),[](int32_t cell){return cell!=-1;});
-        m.generation_ms=stats.last_generation_ms;m.generation_max_ms=stats.max_generation_ms;m.generation_total_ms=stats.total_generation_ms;
-        std::copy(stats.anatomy_counts.begin(),stats.anatomy_counts.end(),m.anatomy);std::copy(stats.fallback_counts.begin(),stats.fallback_counts.end(),m.reasons);creatures->submit_metrics(&m);}
+    if(has_creatures)submit_creature_metrics(pixels,std::count_if(pixels.creatures.begin(),pixels.creatures.end(),[](int32_t cell){return cell!=-1;}));
     if(presentation){presentation->set_target(pixels.aimed,pixels.label_x,pixels.label_y);
         if(!pixels.effects.empty()&&!presentation->submit_effects(pixels.effects.data(),pixels.effect_width,pixels.effect_height,pixels.effect_width)){
             ncmm_graphics_composite::blend(pixels.pixels,pixels.width,pixels.height,pixels.effects,pixels.effect_width,pixels.effect_height);frame_valid=false;}}
@@ -269,7 +269,7 @@ void shutdown() {
     commands.clear();
     pixels={};world_pixels={};frame_valid=world_valid=false;
 }
-const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View","0.12.8-dev",
+const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View",FIRST_PERSON_VERSION,
     caps,sizeof(caps)/sizeof(caps[0]),init,shutdown};
 }
 extern "C" NCMM_EXPORT const ncmm_mod_descriptor_v1 *ncmm_get_descriptor_v1(){return &descriptor;}

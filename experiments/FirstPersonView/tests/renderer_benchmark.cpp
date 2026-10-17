@@ -55,7 +55,7 @@ void distance_benchmark(int rounds,const char *json_path){
         }
     }
     if(json_path){std::ofstream out(json_path);require(bool(out),"JSON output");
-        out<<"{\"schema\":1,\"version\":\"0.12.0-dev\",\"width\":1280,\"height\":800,\"rounds\":"<<rounds<<",\"hardware_threads\":"<<std::thread::hardware_concurrency()<<",\"timing_is_player_fps\":false,\"records\":[";
+        out<<"{\"schema\":1,\"version\":\""<<FIRST_PERSON_VERSION<<"\",\"width\":1280,\"height\":800,\"rounds\":"<<rounds<<",\"hardware_threads\":"<<std::thread::hardware_concurrency()<<",\"timing_is_player_fps\":false,\"records\":[";
         for(size_t i=0;i<records.size();++i){const auto &r=records[i];if(i)out<<',';
             out<<"{\"policy\":\""<<(r.optimized?"optimized":"unculled_reference")<<"\",\"radius\":"<<r.radius<<",\"scene\":\""<<std::array<const char *,4>{"open","forest","vehicles","smoke"}[r.mode]<<"\",\"cached\":"<<(r.cached?"true":"false")<<",\"median_ms\":"<<r.median<<",\"p95_ms\":"<<r.p95<<",\"geometry_cells\":"<<r.cells<<",\"culled_cells\":"<<r.culled<<",\"sky_pixels\":"<<r.sky<<",\"volume_samples\":"<<r.samples<<'}';}
         out<<"]}\n";require(bool(out),"JSON write");}

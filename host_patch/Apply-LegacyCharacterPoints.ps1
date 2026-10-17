@@ -12,22 +12,39 @@ foreach($rel in @('src/newcharacter.cpp','src/player_difficulty.h')) {
     $originals[$rel]=$texts[$rel]
 }
 $already=$texts['src/newcharacter.cpp'].Contains('#include "ncmm_legacy_chargen.h"')
+$contracts=@()
 foreach($op in $spec.operations) {
-    $rel=[string]$op.file
-    if(-not $texts.ContainsKey($rel) -or [int]$op.count -lt 1 -or
-       [string]::IsNullOrEmpty([string]$op.before) -or [string]::IsNullOrEmpty([string]$op.after)) {
-        throw 'Invalid chargen patch operation.'
-    }
-    if(-not $already) {
-        $matches=[regex]::Matches($texts[$rel],[regex]::Escape([string]$op.before)).Count
-        if($matches -ne [int]$op.count) {
-            throw "Legacy chargen '$($op.name)' anchor mismatch ($matches vs $($op.count)); source not modified."
+    # Each variant is a complete, exact equivalent source form. Select one
+    # whole group; never skip a missing price hook or accept partial matches.
+    $groups=@([pscustomobject]@{operations=@($op)})
+    if($op.PSObject.Properties['variants']){$groups+=@($op.variants)}
+    $matching=@()
+    foreach($group in $groups){
+        if(@($group.operations).Count -eq 0){throw 'Empty chargen source variant.'}
+        $replacementCount=0
+        $matchesGroup=$true
+        foreach($replacement in $group.operations){
+            $rel=[string]$op.file
+            if(-not $texts.ContainsKey($rel) -or [int]$replacement.count -lt 1 -or
+               [string]::IsNullOrEmpty([string]$replacement.before) -or [string]::IsNullOrEmpty([string]$replacement.after)) {
+                throw 'Invalid chargen patch operation.'
+            }
+            $anchor=if($already){[string]$replacement.after}else{[string]$replacement.before}
+            if([regex]::Matches($texts[$rel],[regex]::Escape($anchor)).Count -ne [int]$replacement.count){$matchesGroup=$false}
+            $replacementCount+=[int]$replacement.count
         }
-        $texts[$rel]=$texts[$rel].Replace([string]$op.before,[string]$op.after)
+        if($replacementCount -ne [int]$op.count){throw 'Chargen source variant changes the required hook count.'}
+        if($matchesGroup){$matching+=,$group}
+    }
+    if($matching.Count -ne 1){throw "Legacy chargen '$($op.name)' requires exactly one complete source variant ($($matching.Count)); source not modified."}
+    foreach($replacement in $matching[0].operations){
+        $rel=[string]$op.file
+        $contracts+=[pscustomobject]@{name=$op.name;file=$rel;after=$replacement.after;count=$replacement.count}
+        if(-not $already){$texts[$rel]=$texts[$rel].Replace([string]$replacement.before,[string]$replacement.after)}
     }
 }
 # Validate every transformed block even on a repeated application. No marker-only success.
-foreach($op in $spec.operations) {
+foreach($op in $contracts) {
     $matches=[regex]::Matches($texts[[string]$op.file],[regex]::Escape([string]$op.after)).Count
     if($matches -ne [int]$op.count){throw "Legacy chargen '$($op.name)' postcondition failed; source not modified."}
 }

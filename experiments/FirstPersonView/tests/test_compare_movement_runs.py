@@ -93,6 +93,20 @@ class HardwareEvidenceTests(unittest.TestCase):
             if row["renderer"] == "cpu":
                 self.assertFalse(any(key.startswith("gpu_") for group in row["phases"].values() for key in group))
 
+    def test_tail_percentiles_use_samples(self):
+        record = self.report["records"][0]
+        record["first_frame_after_step_samples_ms"] = list(range(1, 13))
+        record["first_ready_samples_ms"] = list(range(6, 18))
+        record["frame_samples_ms"][96:108] = list(range(1, 13))
+        record["warm_rotation_samples_ms"] = list(range(1, 49))
+        self.persist()
+        result, _ = compare.read_run(self.run, self.identity, "clear", False)
+        row = result["records"][0]
+        self.assertAlmostEqual(row["first_median_ms"], 6.5)
+        self.assertAlmostEqual(row["first_p95_ms"], 11.45)
+        self.assertAlmostEqual(row["first_p99_ms"], 11.89)
+        self.assertAlmostEqual(row["warm_p99_ms"], 47.53)
+
     def test_successful_report_does_not_mask_bad_process(self):
         valid = copy.deepcopy(self.process)
         for key, value in (("exit_signed", -1073741819), ("crash_dumps", 1),

@@ -19,6 +19,9 @@ $temp=Join-Path ([IO.Path]::GetTempPath()) ('ncmm-lcp-'+[guid]::NewGuid().ToStri
 New-Item -ItemType Directory -Force $temp | Out-Null
 $refs=@{
     '1040'='3f7fb352bf492ba521bd9408a0c9f6ce239e8d83'
+    '1807'='074aa98bd5be3de4c35f154082db32a0e63bb0f1'
+    '1900'='9da8cce18f4b112a2b43339913ba6385a6017195'
+    '119'='d29db9cb3106381ea5efc47dba3d1834cd452dd7'
 }
 $files=@('src/newcharacter.cpp','src/player_difficulty.h')
 function Fingerprint([string]$directory) {
@@ -36,7 +39,7 @@ function New-Fixture([string]$directory,$sources,[bool]$crlf) {
 $cases=0
 try {
     [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
-    foreach($tag in @('1040')) {
+    foreach($tag in @('1040','1807','1900','119')) {
         $sources=@{}
         foreach($file in $files) {
             if($FixtureRoot) {
@@ -77,7 +80,19 @@ try {
         if(-not $rejected -or (Fingerprint $case) -cne $before){throw 'Partially applied point patch was accepted or mutated.'}
         $cases++
         # Each altered postcondition is rejected, not silently replaced on the second pass.
-        foreach($op in $spec.operations) {
+        $postconditions=@()
+        foreach($op in $spec.operations){
+            $all=@($op)
+            if($op.PSObject.Properties['variants']){foreach($variant in $op.variants){$all+=@($variant.operations)}}
+            foreach($candidate in $all){
+                # Mutate every active postcondition, including both independent
+                # profession/hobby hooks of the newer upstream source form.
+                if($transformed.Contains([string]$candidate.after)){
+                    $postconditions+=[pscustomobject]@{name=$op.name;file=$op.file;after=$candidate.after}
+                }
+            }
+        }
+        foreach($op in $postconditions) {
             $case=Join-Path $temp ($tag+'-postcondition-'+$cases)
             New-Fixture $case $sources $false
             & $apply -SourceRoot $case | Out-Null
@@ -92,8 +107,22 @@ try {
             if(-not $rejected -or (Fingerprint $case) -cne $before){throw "Corrupted postcondition accepted/mutated: $($op.name)"}
             $cases++
         }
+        # A duplicate known form and an unknown/partial new form must fail
+        # before creating headers or changing either source file.
+        foreach($mutation in @('duplicate','unknown')){
+            $case=Join-Path $temp ($tag+'-'+$mutation)
+            $bad=@{};foreach($file in $files){$bad[$file]=$sources[$file]}
+            $anchor=if($tag -in @('1040','1807')){'get_uilist_entry( scen->gender_appropriate_name( u.male ) )'}else{'get_uilist_entry( current_hobby->gender_appropriate_name( u.male ) )'}
+            if($mutation -eq 'duplicate'){$bad['src/newcharacter.cpp']+="`n"+$anchor}
+            else{$bad['src/newcharacter.cpp']=$bad['src/newcharacter.cpp'].Replace($anchor,$anchor.Replace('gender_appropriate_name','unknown_name'))}
+            New-Fixture $case $bad $false
+            $before=Fingerprint $case;$rejected=$false
+            try {& $apply -SourceRoot $case | Out-Null}catch{$rejected=$true}
+            if(-not $rejected -or (Fingerprint $case) -cne $before){throw "Unknown/ambiguous $tag source variant was accepted or mutated: $mutation"}
+            $cases++
+        }
     }
-    Write-Host "Legacy Character Points transforms: PASS ($cases cases, 1040, LF/CRLF/idempotence, every postcondition)." -ForegroundColor Green
+    Write-Host "Legacy Character Points transforms: PASS ($cases cases, 1040/1807 and exact 1900/0119 sources, LF/CRLF/idempotence, every postcondition)." -ForegroundColor Green
 } finally {
     Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
 }
