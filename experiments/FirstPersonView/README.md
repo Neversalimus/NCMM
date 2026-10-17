@@ -75,7 +75,7 @@ in clear and controlled-rain fixtures. At 1768×1084, first-render medians are
 18.59–23.22 ms and warm-rotation medians are 12.11–14.47 ms. The 15 ms
 first-render target is not met. Changes versus 0.12.6 are mixed; no universal
 performance gain is claimed. Fresh Balanced caps GPU rendering at 1920×1080 and CPU rendering at
-1280×800; the earlier summary incorrectly used the CPU cap for GPU. The controlled routes advance zero ordinary AI turns; 1807
+960×600. The earlier text misstated the CPU Balanced cap as 1280×800, which is the CPU High cap; no runtime cap was reduced. The controlled routes advance zero ordinary AI turns; 1807
 hardware performance and manual gameplay comfort remain unmeasured.
 
 The historical 1807 focused CI profile passed a targeted retry after an earlier
