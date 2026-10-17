@@ -11,9 +11,20 @@ inline point from(const float *p){return{p[0],p[1],p[2]};}
 inline point transform(const ncmm_gpu_matrix_v1 &m,point p,bool vector=false){const auto *v=m.columns;return{p.x*v[0]+p.y*v[4]+p.z*v[8]+(vector?0:v[12]),p.x*v[1]+p.y*v[5]+p.z*v[9]+(vector?0:v[13]),p.x*v[2]+p.y*v[6]+p.z*v[10]+(vector?0:v[14])};}
 inline ncmm_gpu_matrix_v1 multiply(const ncmm_gpu_matrix_v1 &a,const ncmm_gpu_matrix_v1 &b){ncmm_gpu_matrix_v1 m{};
     for(int c=0;c<4;++c)for(int r=0;r<4;++r)for(int k=0;k<4;++k)m.columns[c*4+r]+=a.columns[k*4+r]*b.columns[c*4+k];return m;}
+inline bounds transform_bounds(const bounds &b,const ncmm_gpu_matrix_v1 &matrix){
+    bounds out;if(!b.valid())return out;point center{(b.lo[0]+b.hi[0])*.5f,(b.lo[1]+b.hi[1])*.5f,(b.lo[2]+b.hi[2])*.5f};
+    const point extent{(b.hi[0]-b.lo[0])*.5f,(b.hi[1]-b.lo[1])*.5f,(b.hi[2]-b.lo[2])*.5f};center=transform(matrix,center);const auto *m=matrix.columns;
+    const float radius[]={std::abs(m[0])*extent.x+std::abs(m[4])*extent.y+std::abs(m[8])*extent.z,
+        std::abs(m[1])*extent.x+std::abs(m[5])*extent.y+std::abs(m[9])*extent.z,
+        std::abs(m[2])*extent.x+std::abs(m[6])*extent.y+std::abs(m[10])*extent.z};const float position[]={center.x,center.y,center.z};
+    // Round outward so a boundary voxel cannot disappear through cancellation.
+    for(int axis=0;axis<3;++axis){const float margin=8*std::numeric_limits<float>::epsilon()*(std::abs(position[axis])+radius[axis]+1);
+        out.lo[axis]=position[axis]-radius[axis]-margin;out.hi[axis]=position[axis]+radius[axis]+margin;}
+    return out;
+}
 inline bounds draw_bounds(const mesh_resource &mesh,const ncmm_gpu_draw_v1 &draw,const ncmm_gpu_scene_v1 &scene){bounds out;
-    for(uint32_t i=0;i<mesh.joint_count;++i)if(mesh.joints[i].valid()){const auto matrix=multiply(draw.transform,scene.bones[draw.bone_offset+i]);const auto &b=mesh.joints[i];
-        for(int corner=0;corner<8;++corner){point p{(corner&1)?b.hi[0]:b.lo[0],(corner&2)?b.hi[1]:b.lo[1],(corner&4)?b.hi[2]:b.lo[2]};p=transform(matrix,p);const float v[]={p.x,p.y,p.z};out.include(v);}}
+    for(uint32_t i=0;i<mesh.joint_count;++i)if(mesh.joints[i].valid()){const auto matrix=multiply(draw.transform,scene.bones[draw.bone_offset+i]);
+        const auto posed=transform_bounds(mesh.joints[i],matrix);out.include(posed.lo.data());out.include(posed.hi.data());}
     return out;
 }
 inline bool in_frustum(const bounds &b,const ncmm_gpu_camera_v1 &camera){if(!b.valid())return false;
@@ -35,11 +46,11 @@ inline float texture_alpha(const texture_resource *t,float u,float v,bool neares
 }
 // Picking uses a narrow ray query over retained meshes. It does not render a
 // pixel, read the full framebuffer or run the former software raster loop.
-inline void pick(resource_cache &resources,const ncmm_gpu_scene_v1 &scene,ncmm_gpu_metrics_v1 &metrics,const ncmm_gpu_multilevel_scene_v1 *world=nullptr){
+inline void pick(resource_cache &resources,const ncmm_gpu_scene_v1 &scene,ncmm_gpu_metrics_v1 &metrics,const ncmm_gpu_multilevel_scene_v1 *world=nullptr,const std::vector<bounds> *prepared=nullptr){
     metrics.target_cell=-1;metrics.label_x=.5f;metrics.label_y=.4f;float nearest=scene.camera.projection[3];point target_top{};
     const auto eye=from(scene.camera.eye),direction=from(scene.camera.forward);
     for(uint32_t i=0;i<scene.draw_count;++i){const auto &draw=scene.draws[i];if(draw.pass==NCMM_GPU_HELD)continue;auto *mesh=resources.mesh(draw.mesh_key);if(!mesh)continue;
-        const auto bounds=draw_bounds(*mesh,draw,scene);if(!ray_bounds(eye,direction,bounds,nearest))continue;
+        const auto bounds=prepared?(*prepared)[i]:draw_bounds(*mesh,draw,scene);if(!ray_bounds(eye,direction,bounds,nearest))continue;
         for(const auto &range:mesh->ranges){const auto &material=mesh->materials[range.material];if(material.color[3]<.99f&&!(material.flags&NCMM_GPU_CUTOUT))continue;
             for(uint32_t j=range.first;j<range.first+range.count;j+=3){const auto &va=mesh->cpu_vertices[mesh->cpu_indices[j]],&vb=mesh->cpu_vertices[mesh->cpu_indices[j+1]],&vc=mesh->cpu_vertices[mesh->cpu_indices[j+2]];
                 const auto a=posed_vertex(va,draw,scene),b=posed_vertex(vb,draw,scene),c=posed_vertex(vc,draw,scene),e1=b-a,e2=c-a,p=cross(direction,e2);float determinant=dot(e1,p);

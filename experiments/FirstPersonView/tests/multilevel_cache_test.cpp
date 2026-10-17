@@ -54,6 +54,17 @@ int main(){try{
         check(next_draw.get(UINTPTR_MAX,UINTPTR_MAX,true,[]{return UINT32_MAX;})==UINT32_MAX);
     }
     {
+        definition_cache shapes;int calls=0;
+        for(int n=0;n<120000;++n){const std::uintptr_t identity=16;
+            check(shapes.get(identity,[&]{++calls;return uint32_t(identity*13);})==uint32_t(identity*13));}
+        check(calls==1&&shapes.evaluations==1&&shapes.hits==119999);
+        // Force direct-map collisions and a reused address in the next draw.
+        definition_cache collisions;
+        for(std::uintptr_t n=0;n<8192;++n)check(collisions.get(n,[&]{return uint32_t(n+731);})==uint32_t(n+731));
+        definition_cache next_draw;check(next_draw.get(16,[]{return 97u;})==97);
+        check(next_draw.get(UINTPTR_MAX,[]{return UINT32_MAX;})==UINT32_MAX);
+    }
+    {
         sealed_plane_cache sealed;int reads=0;bool hole=false;
         auto plane=[&](int x,int y,int z){++reads;return hole&&x==4&&y==4&&z==0?uint32_t(NCMM_WORLD_DOWN):uint32_t(NCMM_WORLD_FLOOR);};
         check(sealed.prepare(0,0,-2,3,9,9,1,1));check(sealed.closed(0,plane)&&reads==81);
@@ -128,6 +139,25 @@ int main(){try{
         check(derived.prepare(0,0,-10,10,97,97,3));check(derived.bytes()<3u*1024u*1024u);
         check(!derived.prepare(0,0,0,32,97,97,3));check(!derived.prepare(0,0,INT32_MIN,INT32_MAX,9,9,3));
         check(!derived.prepare(0,0,0,1,1000000,97,3));derived.clear();check(derived.bytes()==0);
+    }
+    {
+        source_cache ring;geometry_cache derived;int ox=-17,oy=29,low=-2,high=2;
+        auto value=[](int x,int y,int z){return uint32_t((int64_t(x)+100000)*13+(int64_t(y)+100000)*97+(z+128)*701);};
+        for(int step=0;step<240;++step){
+            if(step<60)++ox;else if(step<120)--oy;else if(step<180){--ox;++oy;}
+            if(step==60)ox+=13; // no overlap: old ring slots must not survive
+            if(step==120){low=-3;high=1;} // canonical Z overlap after rotation
+            if(step==180){ox=INT32_MAX-8;oy=INT32_MIN;}
+            if(step>180){ox=INT32_MAX-8;oy=INT32_MIN;} // extreme origins without signed overflow
+            const uint64_t revision=1+step/17;
+            check(ring.prepare(ox,oy,low,high,9,7,1));check(derived.prepare(ox,oy,low,high,9,7,1));
+            for(int z=low;z<=high;++z)for(int y=0;y<7;++y)for(int x=0;x<9;++x){const int ax=ox+x,ay=oy+y;const auto expected=value(ax,ay,z);
+                check(ring.get(ax,ay,z,revision,[&]{return expected;})==expected);
+                check(derived.get(ax,ay,z,revision,[&]{return expected;})==expected);
+                check(derived.get_relative(x,y,z-low,revision,[]{throw std::runtime_error("ring relative alias");return 0u;})==expected);
+                check(ring.visibility(ax,ay,z,revision,[&]{return uint16_t(expected&1023);})==uint16_t(expected&1023));
+            }
+        }
     }
     check(cache.prepare(1000000,-1000000,-4,4,3,3,1));
     for(int z=-4;z<=4;++z)for(int y=0;y<3;++y)for(int x=0;x<3;++x){const uint32_t expected=uint32_t((z+4)*9+y*3+x);

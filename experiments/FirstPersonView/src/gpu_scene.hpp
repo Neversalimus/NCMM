@@ -80,14 +80,13 @@ class scene_cache {
         void fail(const char *reason){failed=true;if(cache.last_reason.empty())cache.last_reason=reason;}
         collector(scene_cache &owner,const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *data,packet &out,const ncmm_gpu_metrics_v1 &metrics,const std::vector<uint64_t> &hashes,const ncmm_graphics_multilevel_scene_v1 *multilevel):
             cache(owner),scene(s),metadata(data),frame(out),host(metrics),levels(multilevel),xyz(multilevel),signatures(hashes),dirty_cells(s.base.cell_count,false){
-            std::vector<int> pending;
-            for(int i=0;i<int(s.base.cell_count);++i)if(s.base.cells[i].flags&NCMM_GFX_VISIBLE){auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()||found->second.signature!=signatures[i])pending.push_back(i);}
-            std::stable_sort(pending.begin(),pending.end(),[&](int a,int b){auto distance=[&](int i){const auto p=origin(i);const float x=p.x+.5f-s.base.camera_x,y=p.y+.5f-s.base.camera_y,z=p.z-(levels?levels->camera_dz:0);return x*x+y*y+z*z;};return distance(a)<distance(b);});
+            for(int i=0;i<int(s.base.cell_count);++i)if(s.base.cells[i].flags&NCMM_GFX_VISIBLE){
+                auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()||found->second.signature!=signatures[i]){dirty_cells[size_t(i)]=true;++generated_cells;}}
             // The validated scene and resource caches already have hard
             // limits. A per-frame 512-cell limit forced a full software render
             // exactly when walking/turning invalidated many visible cells.
             // Complete the current snapshot once and present it on the GPU.
-            generated_cells=uint32_t(pending.size());for(uint32_t i=0;i<generated_cells;++i)dirty_cells[pending[i]]=true;}
+        }
         bool dirty(int cell)const override{return cell>=0&&size_t(cell)<dirty_cells.size()&&dirty_cells[cell];}
         bool any_dirty()const override{return generated_cells!=0;}
         void emit(const hybrid::triangle &value)override{uint32_t pass=value.m.overlay?NCMM_GPU_HELD:value.m.alpha<.99f&&!value.m.cutout?NCMM_GPU_TRANSPARENT:NCMM_GPU_OPAQUE;

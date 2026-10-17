@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "product": "NCMM First Person View 0.12.8 TEST",
+  "runtime_source": "1582a9785c846258f30241f8e8ba13d80299d22a",
+  "qualified_source": "cf6f9626ab62b0ed7209f23e335ac4ede28ef868",
+  "qualified_workflow": 39034856455,
+  "diagnostic_tools_source": "3a3a4776ae59b16358765b1c2a07bb1a22e13411",
+  "scope": "Qualified native payload unchanged; diagnostic launcher, instructions and comparison tools updated",
+  "packages": {
+    "1040": {
+      "file": "NCMM_FirstPersonView_0.12.8_TEST_1040_Windows_x64.zip",
+      "sha256": "9cc2dc4c8ffbb52fab672d149be6b1f05c92ccc8859888237749cd8289faa0f7",
+      "size_bytes": 20572374,
+      "qualified_installer_sha256": "5df15f7bc3a48f995fd79d7987942891040dbad08f3c81fdcc3d292711a57b34",
+      "engine_pin": "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83",
+      "host_sha256": "13a1ce87262632ada73ec4860910e022c49ef9f1f598b5d52270610e0c8a6767",
+      "module_sha256": "b0d183ff0769b1102892a757643dc9f6c78b1a158e05e3542b9c0c0235e3effa",
+      "setup_sha256": "cd72f1c172f963498ed5863f8e5a8fb10925c4617f3c671908911895cc366667",
+      "payload_hashes_verified": 32,
+      "native_payload_unchanged": true,
+      "diagnostic_tools_source": "3a3a4776ae59b16358765b1c2a07bb1a22e13411",
+      "diagnostic_patch_manifest_sha256": "9eb8e0fda439ff377453ccf3ed086d6449bd75a2e9bd8eec0edfa72d7c65bc05"
+    },
+    "1807": {
+      "file": "NCMM_FirstPersonView_0.12.8_TEST_1807_Windows_x64.zip",
+      "sha256": "3964b95072e826edd51aac72f190ffb8fe20bac622c9f1e00d51ec3c5873c6f8",
+      "size_bytes": 20646415,
+      "qualified_installer_sha256": "5152f472c2b64e05b85a4ea735316bd93585721753262fc8908056c3531c75b4",
+      "engine_pin": "074aa98bd5be3de4c35f154082db32a0e63bb0f1",
+      "host_sha256": "de456b8d3fa4c5dce8bef7cb7c1ed068144fdf7f2664c0c8e62e3fc2ecf17626",
+      "module_sha256": "e541221d210f010a671a84faeac4c8f61a2e085558b2be3eb4ef748fcc75abc6",
+      "setup_sha256": "7b61bd0687867c2251bfa377e90048ab57b6d2bbe10e5fe4521700c0dc0f968e",
+      "payload_hashes_verified": 32,
+      "native_payload_unchanged": true,
+      "diagnostic_tools_source": "3a3a4776ae59b16358765b1c2a07bb1a22e13411",
+      "diagnostic_patch_manifest_sha256": "7ab4ae66021e78e05dbe9c7c272907ac30164b7db0fe9b3a801cf444b3939cc8"
+    }
+  }
+}

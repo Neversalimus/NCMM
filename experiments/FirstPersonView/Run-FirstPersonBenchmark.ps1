@@ -1,13 +1,18 @@
 param(
     [Parameter(Mandatory=$true)][string]$GameRoot,
-    [string]$BundleRoot=$PSScriptRoot,
+    [string]$BundleRoot,
     [Parameter(Mandatory=$true)][string]$OutputRoot,
     [string]$TilesetRoot,
     [ValidateRange(0,3600)][int]$SoakSeconds=1800,
     [switch]$FocusedGpuBenchmark,
-    [switch]$MovementBenchmark
+    [switch]$MovementBenchmark,
+    [switch]$CaptureCrashDump,
+    [switch]$GpuDebug,
+    [string]$DumpAnalyzer
 )
 $ErrorActionPreference='Stop'
+if(-not $BundleRoot){$BundleRoot=$PSScriptRoot}
+if(-not $DumpAnalyzer){$DumpAnalyzer=Join-Path $PSScriptRoot 'ncmm_native_dump_analyzer.exe'}
 if($MovementBenchmark -and $FocusedGpuBenchmark){throw 'Choose one focused benchmark.'}
 if($MovementBenchmark -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the gameplay audit.'}
 if($FocusedGpuBenchmark -and $TilesetRoot){throw 'Focused GPU reproduction uses the official tileset; use the gameplay audit for UDP coverage.'}
@@ -102,18 +107,31 @@ public static class NCMMNativeCrashDialog {
 }
 '@
 }
-$names=@('NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE')
+$names=@('NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT')
 $prior=@{}
-foreach($name in $names){$prior[$name]=[Environment]::GetEnvironmentVariable($name,'Process');[Environment]::SetEnvironmentVariable($name,$null,'Process')}
+# Modern .NET preserves an empty environment variable. PowerShell can convert
+# $null to that empty string at the .NET call boundary, and native getenv then
+# treats SAVE_ONLY (or a competing diagnostic mode) as enabled. Remove it.
+foreach($name in $names){$prior[$name]=[Environment]::GetEnvironmentVariable($name,'Process');Remove-Item -LiteralPath ('Env:'+ $name) -ErrorAction SilentlyContinue}
 $exitCode=$null
+$debugger=$null
+$failure=$null
+$process=$null
+$lastProgress='native startup'
 try {
     if($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
+    if($GpuDebug){$env:SDL_RENDER_GPU_DEBUG='1'}
+    $env:SDL_ASSERT='abort' # Diagnostic child must fail with evidence, never wait in SDL's assertion modal.
     $env:NCMM_FP_APPEARANCE_SMOKE='1' # Stable monster atlas variants in this diagnostic only.
     $env:NCMM_FP_SOAK_SECONDS=[string]$SoakSeconds
     if($udp){$env:NCMM_FP_UDP='1'}
     $nativeArgs=@('--ncmm-gameplay-smoke','--seed','ncmm-gameplay-0121','--userdir',('"'+$test+'"'))
     $process=Start-Process (Join-Path $test 'cataclysm-tiles.ncmm.exe') -ArgumentList $nativeArgs -WorkingDirectory $test -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $evidence 'first-person-native-stdout.log') -RedirectStandardError (Join-Path $evidence 'first-person-native-stderr.log')
     $null=$process.Handle # Retain the exit-code handle across repeated timed waits.
+    if($CaptureCrashDump){
+        if(-not ('NCMMNativeDebugger' -as [type])){Add-Type -Path (Join-Path $PSScriptRoot 'NativeDiagnosticDebugger.cs')}
+        $debugger=[NCMMNativeDebugger]::Start([uint32]$process.Id,$evidence)
+    }
     $deadline=[DateTime]::UtcNow.AddSeconds($(if($FocusedGpuBenchmark){600}else{$SoakSeconds+1200}))
     $progressPath=Join-Path $test 'ncmm/first-person-audit-progress.txt'
     $lastProgress='native startup'
@@ -131,7 +149,7 @@ try {
         }
         if(Test-Path $progressPath){
             $line=Get-Content $progressPath -Tail 1
-            if($line -and $line -ne $lastProgress){$lastProgress=$line;$lastAdvance=[DateTime]::UtcNow}
+            if($line -and $line -ne $lastProgress){$lastProgress=[string]$line;$lastAdvance=[DateTime]::UtcNow}
         }
         try {
             $process.Refresh()
@@ -201,8 +219,27 @@ public static class NCMMBenchmarkWindow {
         if([DateTime]::UtcNow -gt $deadline){& taskkill.exe /pid $process.Id /t /f;throw "Native benchmark deadline exceeded: $lastProgress"}
     }
     $process.WaitForExit();$exitCode=$process.ExitCode
+} catch {
+    $failure=$_.Exception.Message
+    if($process -and -not $process.HasExited){$process.Kill();$null=$process.WaitForExit(10000)}
+    throw
 } finally {
-    foreach($name in $names){[Environment]::SetEnvironmentVariable($name,$prior[$name],'Process')}
+    if($debugger){$debugger.Dispose()}
+    if($process -and $process.HasExited){$process.WaitForExit();$exitCode=$process.ExitCode}
+    if($progressPath -and (Test-Path -LiteralPath $progressPath)){$lastProgress=[string](Get-Content -LiteralPath $progressPath -Tail 1)}
+    [ordered]@{schema=1;child_pid=$(if($process){$process.Id}else{$null});exit_signed=$exitCode;exit_hex=$(if($null -ne $exitCode){'0x'+([BitConverter]::ToUInt32([BitConverter]::GetBytes([int]$exitCode),0)).ToString('X8')}else{$null});last_progress=$lastProgress;wrapper_failure=$failure;debugger_requested=[bool]$CaptureCrashDump;debugger_error=$(if($debugger){$debugger.Error}else{$null});crash_dumps=$(if($debugger){$debugger.Dumps}else{0});host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';ncmm_commit=$bundle.ncmm_source_commit;engine_commit=$bundle.source_commit;focused_gpu=[bool]$FocusedGpuBenchmark;movement=[bool]$MovementBenchmark} | ConvertTo-Json | Set-Content (Join-Path $evidence 'first-person-process-result.json') -Encoding UTF8
+    try { if($CaptureCrashDump -and (Test-Path -LiteralPath $DumpAnalyzer) -and (Test-Path -LiteralPath (Join-Path $evidence 'first-person-debug-events.log'))){
+        $events=Get-Content -LiteralPath (Join-Path $evidence 'first-person-debug-events.log') -Raw
+        $fault=[regex]::Match($events,'exception=0xC0000005 address=0x[0-9A-Fa-f]+ thread=(\d+)')
+        if($fault.Success){foreach($dump in @(Get-ChildItem -LiteralPath $evidence -Filter '*.dmp' -File)){
+            & $DumpAnalyzer $dump.FullName $fault.Groups[1].Value ($test+';'+$env:WINDIR+'\System32') 2>&1 | Set-Content -LiteralPath ($dump.FullName+'.stack.txt') -Encoding UTF8
+        }}
+    }
+    } catch {Write-Warning "Postmortem stack analysis unavailable: $_"}
+    foreach($name in $names){
+        if($null -eq $prior[$name]){Remove-Item -LiteralPath ('Env:'+ $name) -ErrorAction SilentlyContinue}
+        else{[Environment]::SetEnvironmentVariable($name,$prior[$name],'Process')}
+    }
     $runtime=Join-Path $test 'ncmm'
     if(Test-Path $runtime){Get-ChildItem $runtime -File | Where-Object {$_.Name -like 'first-person-*' -or $_.Extension -eq '.log'} | Copy-Item -Destination $evidence}
     foreach($name in @('debug.log','debug.log.prev','crash.log')){
@@ -210,6 +247,7 @@ public static class NCMMBenchmarkWindow {
         if(Test-Path $nativeLog){Copy-Item $nativeLog (Join-Path $evidence ('first-person-cdda-'+$name))}
     }
 }
+try {
 if($exitCode -ne 0){
     $reason='native result unavailable'
     $nativeResult=Join-Path $evidence 'first-person-smoke.json'
@@ -218,8 +256,12 @@ if($exitCode -ne 0){
         try {$reason=($nativeText | ConvertFrom-Json).reason}
         catch {$match=[regex]::Match($nativeText,'"reason"\s*:\s*"([^"\r\n]*)"');if($match.Success){$reason=$match.Groups[1].Value}}
     }
-    throw "Native audit failed ($exitCode): $reason. Evidence: $evidence"
+    throw "Native audit failed ($exitCode), phase=$lastProgress; bootstrap status=$reason. Evidence: $evidence"
 }
+if($debugger -and $debugger.Error){throw "Native diagnostic debugger failed: $($debugger.Error)"}
+if($debugger -and $debugger.Dumps -gt 0){throw 'Native diagnostic captured an access violation even though the process exited successfully.'}
+$auditName=if($MovementBenchmark){'first-person-movement-benchmark.json'}elseif($FocusedGpuBenchmark){'first-person-gpu-benchmark.json'}else{'first-person-gameplay-audit.json'}
+if(-not (Test-Path -LiteralPath (Join-Path $evidence $auditName))){throw "Requested native benchmark report is missing: $auditName; final phase=$lastProgress"}
 if($MovementBenchmark){
     $audit=Get-Content (Join-Path $evidence 'first-person-movement-benchmark.json') -Raw | ConvertFrom-Json
     if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.simulation_turns_advanced -ne 0 -or @($audit.records).Count -ne 12){throw 'Native movement benchmark is incomplete.'}
@@ -247,3 +289,13 @@ if($MovementBenchmark){
 $result=[ordered]@{success=$true;source_commit=$bundle.source_commit;ncmm_commit=$bundle.ncmm_source_commit;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';manual_playthrough=$false;focused_gpu_benchmark=[bool]$FocusedGpuBenchmark;movement_benchmark=[bool]$MovementBenchmark;udp_requested=$udp;soak_seconds=$soaked;evidence=$evidence}
 $result | ConvertTo-Json | Set-Content (Join-Path $OutputRoot 'benchmark-provenance.json') -Encoding UTF8
 $result | ConvertTo-Json
+} catch {
+    # Process exit and report qualification are separate. Retain a failed JSON
+    # parse, incomplete matrix or missing report in the machine-readable receipt.
+    $validationFailure=$_.Exception.Message
+    $receiptPath=Join-Path $evidence 'first-person-process-result.json'
+    $receipt=Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+    $receipt.wrapper_failure=$validationFailure
+    $receipt | ConvertTo-Json | Set-Content -LiteralPath $receiptPath -Encoding UTF8
+    throw
+}

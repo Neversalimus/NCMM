@@ -1,4 +1,32 @@
-# First Person View 0.12.7 — physical geometry corrections
+# First Person View 0.12.8 — GPU teardown and first-frame latency
+
+First-frame preparation now reuses terrain/furniture definitions, rotates world
+cache windows on walking, avoids redundant cell sorting and shares transformed
+bounds between culling and picking. The existing horizon LOD and 0.12.7 geometry
+corrections remain enabled at the same quality settings.
+
+Exact 1040 binaries on RTX 4090 / Direct3D 12 at a 1768×1084 viewport measured
+15.49–20.02 ms first-frame medians versus 19.44–24.78 ms in fresh paired 0.12.7
+runs. This is a 10.0–30.8% reduction across the six clear/rain scenarios. 24 of 72
+first frames were at or below 15 ms; the target is still not consistently met.
+The route advances no ordinary AI turns, so these are renderer/presentation
+measurements, not combat-turn or manual-play FPS.
+
+Matched old-version crash dumps locate WARP copy work running while swapchain
+back buffers are destroyed. The host now drains the shared renderer device at
+teardown, including after the module is disabled. Strict GPU validation also
+fixes depth-clipping, D32 stencil and integer-texture resource contracts.
+Normal frames do not add a GPU-idle wait.
+
+Diagnostics retain actual process exits, dumps and frame phases. Compiler
+caching now uses the upstream mode without incompatible precompiled headers.
+The packaged diagnostic runner supports Windows PowerShell 5.1 and PowerShell 7.
+
+See [STABILIZATION.md](STABILIZATION.md),
+[the hardware comparison](qualification/0.12.8-hardware-comparison.json) and
+[DIAGNOSTICS.md](DIAGNOSTICS.md) for package identities, checks and reproduction.
+
+## Retained 0.12.7 geometry corrections
 
 The first-person building shell now retains its real terrain identity,
 orientation and material before and after ordinary top-down discovery. Static
@@ -25,12 +53,13 @@ The final native installers are qualified for both pinned engines. The exact
 in clear and controlled-rain fixtures. At 1768×1084, first-render medians are
 18.59–23.22 ms and warm-rotation medians are 12.11–14.47 ms. The 15 ms
 first-render target is not met. Changes versus 0.12.6 are mixed; no universal
-performance gain is claimed. Fresh Balanced defaults cap the internal raster
-at 1280×800. The controlled routes advance zero ordinary AI turns; 1807
+performance gain is claimed. Fresh Balanced caps GPU rendering at 1920×1080 and CPU rendering at
+1280×800; the earlier summary incorrectly used the CPU cap for GPU. The controlled routes advance zero ordinary AI turns; 1807
 hardware performance and manual gameplay comfort remain unmeasured.
 
-The 1807 focused CI profile passed a targeted retry after an earlier access
-violation; that earlier cause remains unestablished.
+The historical 1807 focused CI profile passed a targeted retry after an earlier
+access violation. That fault was unresolved at the 0.12.7 release; the 0.12.8
+investigation and lifecycle correction above supersede that earlier status.
 
 [STABILIZATION.md](STABILIZATION.md) and the
 [complete 0.12.7 report](qualification/0.12.7-native-geometry.json) retain source,

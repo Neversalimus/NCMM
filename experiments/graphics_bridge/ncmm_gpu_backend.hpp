@@ -43,7 +43,7 @@ class backend {
         if(!context_.targets(width,height))return false;if(world_&&width_==width&&height_==height)return true;release_targets();
         const auto color_usage=SDL_GPU_TEXTUREUSAGE_COLOR_TARGET|SDL_GPU_TEXTUREUSAGE_SAMPLER;
         world_=texture(SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,width,height,color_usage);
-        id_=texture(SDL_GPU_TEXTUREFORMAT_R32_UINT,width,height,color_usage);
+        id_=texture(SDL_GPU_TEXTUREFORMAT_R32_UINT,width,height,SDL_GPU_TEXTUREUSAGE_COLOR_TARGET|SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_READ);
         held_depth_=texture(SDL_GPU_TEXTUREFORMAT_D32_FLOAT,width,height,SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET|SDL_GPU_TEXTUREUSAGE_SAMPLER);
         const uint32_t step=std::max(4u,(width+255)/256),ew=(width+step-1)/step,eh=(height+step-1)/step;
         effects_=texture(SDL_GPU_TEXTUREFORMAT_R16G16B16A16_FLOAT,ew,eh,color_usage);effect_depth_=texture(SDL_GPU_TEXTUREFORMAT_R32_FLOAT,ew,eh,color_usage);
@@ -67,6 +67,7 @@ class backend {
         colors[0].clear_color={0,0,0,1};colors[1].clear_color={0,0,0,0};
         SDL_GPUDepthStencilTargetInfo depth{};depth.texture=held?held_depth_:context_.depth();depth.load_op=(clear||held)?SDL_GPU_LOADOP_CLEAR:SDL_GPU_LOADOP_LOAD;
         depth.store_op=SDL_GPU_STOREOP_STORE;depth.clear_depth=1;depth.cycle=clear||held;
+        depth.stencil_load_op=SDL_GPU_LOADOP_DONT_CARE;depth.stencil_store_op=SDL_GPU_STOREOP_DONT_CARE;
         return SDL_BeginGPURenderPass(commands,colors,2,&depth);
     }
     void draw_batches(SDL_GPUCommandBuffer *commands,SDL_GPURenderPass *pass,const std::vector<batch> &batches,uint32_t selected,const ncmm_gpu_scene_v1 &scene){
@@ -103,7 +104,17 @@ public:
     ncmm_gpu_metrics_v1 metrics(){poll();metrics_.resource_epoch=resource_epoch_;return metrics_;}
     void profile(bool enabled=true){profiling_=enabled;}
     const recording_metrics &recording()const{return recording_;}
-    void clear(){resources_.clear();programs_.clear();release_targets();release_buffers();context_.clear();metrics_.active=0;++resource_epoch_;}
+    void clear(){
+        // SDL can still have composition commands queued against our output,
+        // and a software D3D12 worker may still execute the last native frame.
+        // Drain only at lifecycle boundaries, before releasing any borrowed-
+        // device children. Ordinary submit()/walking never waits for GPU idle.
+        if(context_.device()){
+            if(context_.renderer())SDL_FlushRenderer(context_.renderer());
+            SDL_WaitForGPUIdle(context_.device());
+        }
+        resources_.clear();programs_.clear();release_targets();release_buffers();context_.clear();metrics_.active=0;++resource_epoch_;
+    }
     void abandon(){resources_.abandon();programs_.abandon();context_.abandon();release_targets();release_buffers();metrics_.active=0;++resource_epoch_;}
     bool bind(SDL_Renderer *renderer,uint64_t generation){if(generation_&&generation_!=generation)abandon();generation_=generation;
         if(!context_.bind(renderer,generation)){reason(context_.reason());metrics_.active=0;return false;}resources_.bind(context_.device());context_.describe(metrics_);return true;}
@@ -132,19 +143,21 @@ public:
         if(!ready){const std::string error=resources_.reason();reason(error);if(error!="warming bounded GPU resource cache"){invalidate();reason(error);}return false;}
         const auto batching_start=profiling_?clock::now():clock::time_point{};
         std::vector<instance> instances;std::vector<batch> batches;
+        std::vector<bounds> posed_bounds(scene.draw_count);
+        for(uint32_t i=0;i<scene.draw_count;++i)if(scene.draws[i].pass!=NCMM_GPU_HELD)if(auto *mesh=resources_.mesh(scene.draws[i].mesh_key))posed_bounds[i]=draw_bounds(*mesh,scene.draws[i],scene);
         // Opaque/held groups reuse a mesh with one instanced command per material.
         // Transparent instances retain a stable global back-to-front order.
         std::map<std::pair<uint32_t,uint64_t>,std::vector<instance>> groups;
         struct transparent_draw {uint32_t index;float distance;};std::vector<transparent_draw> transparent;
         for(uint32_t i=0;i<scene.draw_count;++i){const auto &d=scene.draws[i];auto *mesh=resources_.mesh(d.mesh_key);
             if(d.pass==NCMM_GPU_TRANSPARENT){point center=transform(d.transform,{0,0,0});transparent.push_back({i,dot(center-from(scene.camera.eye),from(scene.camera.forward))});continue;}
-            if(mesh&&d.pass!=NCMM_GPU_HELD&&mesh->joint_count<=d.bone_count&&!in_frustum(draw_bounds(*mesh,d,scene),scene.camera))continue;
+            if(mesh&&d.pass!=NCMM_GPU_HELD&&mesh->joint_count<=d.bone_count&&!in_frustum(posed_bounds[i],scene.camera))continue;
             uint32_t heading;std::memcpy(&heading,&d.creature_yaw,4);groups[{d.pass,d.mesh_key}].push_back({d.transform,d.bone_offset,d.bone_count,d.cell,heading});}
         for(const auto &[key,list]:groups){batches.push_back({key.second,key.first,uint32_t(instances.size()),uint32_t(list.size())});instances.insert(instances.end(),list.begin(),list.end());}
         std::stable_sort(transparent.begin(),transparent.end(),[](const auto &a,const auto &b){return a.distance>b.distance;});
-        for(const auto &t:transparent){const auto &d=scene.draws[t.index];auto *mesh=resources_.mesh(d.mesh_key);if(mesh&&mesh->joint_count<=d.bone_count&&!in_frustum(draw_bounds(*mesh,d,scene),scene.camera))continue;
+        for(const auto &t:transparent){const auto &d=scene.draws[t.index];auto *mesh=resources_.mesh(d.mesh_key);if(mesh&&mesh->joint_count<=d.bone_count&&!in_frustum(posed_bounds[t.index],scene.camera))continue;
             uint32_t heading;std::memcpy(&heading,&d.creature_yaw,4);batches.push_back({d.mesh_key,d.pass,uint32_t(instances.size()),1});instances.push_back({d.transform,d.bone_offset,d.bone_count,d.cell,heading});}
-        pick(resources_,scene,metrics_,world);
+        pick(resources_,scene,metrics_,world,&posed_bounds);
         if(profiling_)recording_.batching_pick_ms=ms(batching_start);
         if(!counter_){uint32_t ignored=0;if(!buffer(counter_,ignored,64,SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE)){reason(context_.reason());return false;}}
         readback *read=nullptr;for(auto &r:readbacks_)if(!r.fence){read=&r;break;}
@@ -214,7 +227,7 @@ public:
             if(profiling_)recording_.compose_ms=ms(phase_start);
         }
         if(read){SDL_GPUStorageBufferReadWriteBinding binding{};binding.buffer=counter_;compute=SDL_BeginGPUComputePass(commands,nullptr,0,&binding,1);if(!compute)return stop("begin visibility compute pass");SDL_BindGPUComputePipeline(compute,programs_.count);
-            SDL_GPUTextureSamplerBinding ids{id_,programs_.nearest};SDL_BindGPUComputeSamplers(compute,0,&ids,1);SDL_DispatchGPUCompute(compute,(scene.width+15)/16,(scene.height+15)/16,1);SDL_EndGPUComputePass(compute);
+            SDL_BindGPUComputeStorageTextures(compute,0,&id_,1);SDL_DispatchGPUCompute(compute,(scene.width+15)/16,(scene.height+15)/16,1);SDL_EndGPUComputePass(compute);
             copy=SDL_BeginGPUCopyPass(commands);if(!copy)return stop("begin visibility counter copy pass");SDL_GPUBufferRegion from{counter_,0,64};SDL_GPUTransferBufferLocation to{read->transfer,0};SDL_DownloadFromGPUBuffer(copy,&from,&to);SDL_EndGPUCopyPass(copy);}
         metrics_.render_record_ms=ms(record_start);stage=clock::now();bool success;
         if(read){read->serial=scene.frame_serial;read->generation=readback_generation_;read->fence=SDL_SubmitGPUCommandBufferAndAcquireFence(commands);success=read->fence!=nullptr;}else success=SDL_SubmitGPUCommandBuffer(commands);

@@ -32,6 +32,21 @@ jobs:
         run: python experiments/FirstPersonView/compile_gpu_shaders.py --verify --output experiments/graphics_bridge/ncmm_gpu_shader_bytes.hpp
       - name: Check release verifier syntax
         run: python -m py_compile experiments/FirstPersonView/tests/verify_horizon_release.py
+      - name: Reject invalid first-frame phase accounting
+        run: python -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_movement_phases.py -v
+      - name: Reject incomplete or mismatched packaged hardware evidence
+        run: python -m unittest discover -s experiments/FirstPersonView/tests -p test_compare_movement_runs.py -v
+      - name: Diagnostic environment isolation on PowerShell Core
+        shell: pwsh
+        run: |
+          ./experiments/FirstPersonView/tests/Test-BenchmarkEnvironment.ps1
+          ./experiments/FirstPersonView/tests/Test-BenchmarkEvidence.ps1
+      - name: Diagnostic environment isolation on Windows PowerShell
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          ./experiments/FirstPersonView/tests/Test-BenchmarkEnvironment.ps1
+          ./experiments/FirstPersonView/tests/Test-BenchmarkEvidence.ps1
       - name: Configure isolated module
         run: cmake -S experiments/FirstPersonView -B fp-build -DCMAKE_BUILD_TYPE=Release -DFIRST_PERSON_BUILD_BENCHMARK=ON
       - name: Build prototype and contract tests
@@ -92,6 +107,7 @@ jobs:
       FP_FULL_QUALIFICATION: ${{ inputs.qualification == 'full' || contains(github.event.pull_request.body, format('<!-- fp-qa:full@{0} -->', github.event.pull_request.head.sha)) }}
       GH_TOKEN: ${{ github.token }}
       SCCACHE_GHA_ENABLED: 'true'
+      SCCACHE_IDLE_TIMEOUT: '0'
       VCPKG_OVERLAY_TRIPLETS: ${{ github.workspace }}/upstream/.github/vcpkg_triplets
       BACKTRACE: '1'
       CDDA_RELEASE_BUILD: '1'
@@ -142,6 +158,10 @@ jobs:
           "NCMM_SCCACHE_WRAPPER_DIR=$dir" >> $env:GITHUB_ENV
           $props='upstream/msvc-full-features/Cataclysm-common.props'
           $text=[IO.File]::ReadAllText((Join-Path $PWD $props))
+          # Upstream _CDDA_USE_CCACHE disables PCH creation/use. sccache
+          # rejects /Fp and /Yc; leaving PCH on bypassed 292/332 requests.
+          $pchProps=[IO.File]::ReadAllText((Join-Path $PWD 'upstream/msvc-full-features/Cataclysm-pch.props'))
+          if(!$pchProps.Contains('Condition="$(_CDDA_USE_CCACHE)"') -or !$pchProps.Contains('<PrecompiledHeader>NotUsing</PrecompiledHeader>')){throw 'Upstream cache/PCH configuration changed.'}
           $parallel='<MultiProcessorCompilation>true</MultiProcessorCompilation>'
           $debug='<DebugInformationFormat>ProgramDatabase</DebugInformationFormat>'
           if(!$text.Contains($parallel) -or !$text.Contains($debug)){throw 'Canonical compiler-cache anchors changed.'}
@@ -153,13 +173,14 @@ jobs:
           path: |
             upstream/cataclysm-tiles.exe
             upstream/first-person-host.sha256
-          key: ncmm-fp-host-${{ matrix.build }}-v1-${{ runner.os }}-${{ hashFiles('upstream/src/**', 'upstream/msvc-full-features/**', 'upstream/first-person-source.json', 'upstream/.github/vcpkg_triplets/**') }}
+            upstream/*.pdb
+          key: ncmm-fp-host-${{ matrix.build }}-v3-nopch-${{ runner.os }}-${{ hashFiles('upstream/src/**', 'upstream/msvc-full-features/**', 'upstream/first-person-source.json', 'upstream/.github/vcpkg_triplets/**') }}
       - name: Compile actual experimental engine (no certification/publication)
         if: steps.engine_cache.outputs.cache-hit != 'true'
         shell: powershell
         working-directory: upstream
         run: |
-          & msbuild -m -p:Configuration=Release -p:Platform=x64 -p:CLToolExe=cl.bat "-p:CLToolPath=$env:NCMM_SCCACHE_WRAPPER_DIR" -p:TrackFileAccess=false -p:UseMultiToolTask=true -target:Cataclysm-vcpkg-static msvc-full-features/Cataclysm-vcpkg-static.sln
+          & msbuild -m -p:Configuration=Release -p:Platform=x64 -p:CLToolExe=cl.bat "-p:CLToolPath=$env:NCMM_SCCACHE_WRAPPER_DIR" -p:TrackFileAccess=false -p:UseMultiToolTask=true -p:_CDDA_USE_CCACHE=true -target:Cataclysm-vcpkg-static msvc-full-features/Cataclysm-vcpkg-static.sln
           if($LASTEXITCODE -ne 0){throw 'Experimental MSVC Host build failed.'}
           if(!(Test-Path cataclysm-tiles.exe)){throw 'Experimental engine binary missing.'}
           (Get-FileHash cataclysm-tiles.exe -Algorithm SHA256).Hash.ToLowerInvariant() | Set-Content first-person-host.sha256 -Encoding Ascii
@@ -175,6 +196,10 @@ jobs:
               $cacheable=[int]$stats.requests_executed
               $requests=[int]$stats.compile_requests
               Write-Host "Cacheable requests: $cacheable / $requests; bypass reasons are retained in compiler-cache.json."
+              foreach($flag in @('/Fp','/Yc')){
+                $bypass=$stats.not_cached.PSObject.Properties[$flag]
+                if($bypass -and [int]$bypass.Value -gt 0){throw "PCH still bypasses sccache: $flag=$($bypass.Value)"}
+              }
             }
           }
       - uses: actions/upload-artifact@v4
@@ -195,6 +220,7 @@ jobs:
           path: |
             upstream/cataclysm-tiles.exe
             upstream/first-person-host.sha256
+            upstream/*.pdb
           key: ${{ steps.engine_cache.outputs.cache-primary-key }}
       - uses: actions/upload-artifact@v4
         with:
@@ -202,6 +228,7 @@ jobs:
           path: |
             upstream/cataclysm-tiles.exe
             upstream/first-person-source.json
+            upstream/*.pdb
             upstream/LICENSE.txt
             ncmmrepo/THIRD_PARTY_NOTICES.txt
           retention-days: 7
@@ -359,20 +386,32 @@ jobs:
           Copy-Item (Join-Path $evidence 'first-person-multilevel-save-after.json') 'installer-result/first-person-gameplay-save-load.json'
           Copy-Item (Join-Path $evidence 'udp-asset-sha256.json') 'installer-result/first-person-gameplay-udp-assets.json'
           Get-ChildItem $evidence -Filter 'first-person-audit-*.bmp' | Copy-Item -Destination installer-result
-      - name: Focused one-creature and smoke frame-phase reproduction
+      - name: Focused GPU phases and eight clean process teardowns
         if: ${{ always() && !cancelled() && steps.installer_gate.outcome == 'success' }}
-        timeout-minutes: 12
+        timeout-minutes: 25
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $output=Join-Path $env:RUNNER_TEMP 'fp-focused-gpu'
-          ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -FocusedGpuBenchmark
-          $evidence=Join-Path $output 'evidence'
-          python ncmmrepo/experiments/FirstPersonView/tests/verify_gpu_profile.py --input (Join-Path $evidence 'first-person-gpu-benchmark.json') --output installer-result/first-person-gpu-focused-verified.json
-          if($LASTEXITCODE -ne 0){throw 'Focused native frame phase verification failed.'}
-          Copy-Item (Join-Path $evidence 'first-person-gpu-benchmark.json') installer-result/first-person-gpu-focused-profile.json
-          Copy-Item (Join-Path $output 'benchmark-provenance.json') installer-result/first-person-gpu-focused-provenance.json
-          Get-ChildItem $evidence -Filter 'first-person-gpu-*.bmp' | ForEach-Object {Copy-Item $_.FullName (Join-Path installer-result ($_.Name.Replace('first-person-gpu-','first-person-gpu-focused-')))}
+          $attempts=@()
+          foreach($attempt in 1..8){
+            $suffix=$(if($attempt -eq 1){'fp-focused-gpu'}else{'fp-focused-gpu-repeat-'+$attempt})
+            $output=Join-Path $env:RUNNER_TEMP $suffix
+            ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -FocusedGpuBenchmark -CaptureCrashDump -GpuDebug
+            $evidence=Join-Path $output 'evidence'
+            $verified=Join-Path $evidence 'first-person-focused-verified.json'
+            python ncmmrepo/experiments/FirstPersonView/tests/verify_gpu_profile.py --input (Join-Path $evidence 'first-person-gpu-benchmark.json') --output $verified
+            if($LASTEXITCODE -ne 0){throw 'Focused native frame phase verification failed.'}
+            $process=Get-Content (Join-Path $evidence 'first-person-process-result.json') -Raw | ConvertFrom-Json
+            if($process.exit_signed -ne 0 -or $process.crash_dumps -ne 0 -or $process.debugger_error){throw 'Focused process did not exit cleanly.'}
+            $attempts+=@{attempt=$attempt;clean_exit=$true;process=$process;verified=(Get-Content $verified -Raw | ConvertFrom-Json)}
+            $attempts | ConvertTo-Json -Depth 8 | Set-Content installer-result/first-person-gpu-focused-stress.json -Encoding UTF8
+            if($attempt -eq 1){
+              Copy-Item $verified installer-result/first-person-gpu-focused-verified.json
+              Copy-Item (Join-Path $evidence 'first-person-gpu-benchmark.json') installer-result/first-person-gpu-focused-profile.json
+              Copy-Item (Join-Path $output 'benchmark-provenance.json') installer-result/first-person-gpu-focused-provenance.json
+              Get-ChildItem $evidence -Filter 'first-person-gpu-*.bmp' | ForEach-Object {Copy-Item $_.FullName (Join-Path installer-result ($_.Name.Replace('first-person-gpu-','first-person-gpu-focused-')))}
+            }
+          }
       - name: Native walking, camera easing and full-size UDP viewport
         if: ${{ always() && !cancelled() && steps.installer_gate.outcome == 'success' }}
         timeout-minutes: 20
@@ -502,6 +541,10 @@ jobs:
             if($variant.name -eq 'graphics' -and (Test-Path $audit)){Copy-Item $audit (Join-Path fp-evidence 'gameplay-audit') -Recurse -Force}
             $focused=Join-Path $env:RUNNER_TEMP 'fp-focused-gpu/evidence'
             if($variant.name -eq 'graphics' -and (Test-Path $focused)){Copy-Item $focused (Join-Path fp-evidence 'focused-gpu') -Recurse -Force}
+            if($variant.name -eq 'graphics'){foreach($attempt in 2..8){
+              $repeat=Join-Path $env:RUNNER_TEMP ('fp-focused-gpu-repeat-'+$attempt+'/evidence')
+              if(Test-Path -LiteralPath $repeat){Copy-Item -LiteralPath $repeat (Join-Path fp-evidence ('focused-gpu-repeat-'+$attempt)) -Recurse -Force}
+            }}
             $movement=Join-Path $env:RUNNER_TEMP 'fp-movement/evidence'
             if($variant.name -eq 'graphics' -and (Test-Path $movement)){Copy-Item $movement (Join-Path fp-evidence 'movement') -Recurse -Force}
             $debug=Join-Path $env:RUNNER_TEMP ("fp-appearance-"+'${{ matrix.build }}'+'-'+$variant.name)
@@ -515,7 +558,7 @@ jobs:
             fp-evidence/graphics/**
             fp-evidence/appearance-debug-graphics/**
             fp-evidence/gameplay-audit/**
-            fp-evidence/focused-gpu/**
+            fp-evidence/focused-gpu*/**
             fp-evidence/movement/**
           compression-level: 9
           retention-days: 7
