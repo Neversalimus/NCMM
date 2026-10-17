@@ -27,7 +27,17 @@ int main(int argc,char **argv){
 #if defined(_WIN32)
     window=SDL_CreateWindow("NCMM GPU scene/skin qualification",640,480,SDL_WINDOW_HIDDEN);require(window!=nullptr,"native window");
 #endif
-    auto *device=SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV|SDL_GPU_SHADERFORMAT_DXIL,false,nullptr);require(device!=nullptr,"real GPU API device; fallback prohibited");
+    SDL_PropertiesID gpu_properties=SDL_CreateProperties();
+    SDL_SetBooleanProperty(gpu_properties,SDL_PROP_GPU_DEVICE_CREATE_SHADERS_SPIRV_BOOLEAN,true);
+    SDL_SetBooleanProperty(gpu_properties,SDL_PROP_GPU_DEVICE_CREATE_SHADERS_DXIL_BOOLEAN,true);
+    SDL_SetBooleanProperty(gpu_properties,SDL_PROP_GPU_DEVICE_CREATE_DEBUGMODE_BOOLEAN,true);
+    // Match SDL's own renderer-created device, rather than a more permissive
+    // standalone GPU device that hid unsupported pipeline requirements.
+    SDL_SetBooleanProperty(gpu_properties,SDL_PROP_GPU_DEVICE_CREATE_FEATURE_CLIP_DISTANCE_BOOLEAN,false);
+    SDL_SetBooleanProperty(gpu_properties,SDL_PROP_GPU_DEVICE_CREATE_FEATURE_DEPTH_CLAMPING_BOOLEAN,false);
+    SDL_SetBooleanProperty(gpu_properties,SDL_PROP_GPU_DEVICE_CREATE_FEATURE_INDIRECT_DRAW_FIRST_INSTANCE_BOOLEAN,false);
+    SDL_SetBooleanProperty(gpu_properties,SDL_PROP_GPU_DEVICE_CREATE_FEATURE_ANISOTROPY_BOOLEAN,false);
+    auto *device=SDL_CreateGPUDeviceWithProperties(gpu_properties);SDL_DestroyProperties(gpu_properties);require(device!=nullptr,"real GPU API device; fallback prohibited");
     auto *renderer=SDL_CreateGPURenderer(device,window);require(renderer!=nullptr,"shared SDL renderer");
     auto *ui=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_ABGR8888,SDL_TEXTUREACCESS_TARGET,640,480);require(ui&&SDL_SetRenderTarget(renderer,ui),"SDL UI target");
     ncmm_gpu::backend engine;require(engine.bind(renderer,1),"borrow existing device");

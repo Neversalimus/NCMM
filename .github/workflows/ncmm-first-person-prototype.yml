@@ -375,7 +375,7 @@ jobs:
           foreach($attempt in 1..8){
             $suffix=$(if($attempt -eq 1){'fp-focused-gpu'}else{'fp-focused-gpu-repeat-'+$attempt})
             $output=Join-Path $env:RUNNER_TEMP $suffix
-            ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -FocusedGpuBenchmark -CaptureCrashDump
+            ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -FocusedGpuBenchmark -CaptureCrashDump -GpuDebug
             $evidence=Join-Path $output 'evidence'
             $verified=Join-Path $evidence 'first-person-focused-verified.json'
             python ncmmrepo/experiments/FirstPersonView/tests/verify_gpu_profile.py --input (Join-Path $evidence 'first-person-gpu-benchmark.json') --output $verified

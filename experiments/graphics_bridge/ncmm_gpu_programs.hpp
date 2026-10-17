@@ -22,7 +22,10 @@ class programs {
         const std::array<SDL_GPUVertexElementFormat,8> types{SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
             SDL_GPU_VERTEXELEMENTFORMAT_UINT,SDL_GPU_VERTEXELEMENTFORMAT_UINT,SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,SDL_GPU_VERTEXELEMENTFORMAT_UINT,SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3};
         for(uint32_t i=0;i<8;++i){attributes[i].location=i;attributes[i].format=types[i];attributes[i].offset=offsets[i];}
-        SDL_GPUGraphicsPipelineCreateInfo p{};p.vertex_shader=vs;p.fragment_shader=fs;p.primitive_type=SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+        SDL_GPUGraphicsPipelineCreateInfo p{};p.vertex_shader=vs;p.fragment_shader=fs;
+        // SDL renderer devices disable FEATURE_DEPTH_CLAMPING. Explicitly
+        // clip depth instead of requesting the unsupported zero/default state.
+        p.rasterizer_state.enable_depth_clip=true;p.primitive_type=SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
         if(geometry){p.vertex_input_state.vertex_buffer_descriptions=&layout;p.vertex_input_state.num_vertex_buffers=1;p.vertex_input_state.vertex_attributes=attributes.data();p.vertex_input_state.num_vertex_attributes=8;}
         p.rasterizer_state.fill_mode=SDL_GPU_FILLMODE_FILL;p.rasterizer_state.cull_mode=SDL_GPU_CULLMODE_NONE;
         p.multisample_state.sample_count=SDL_GPU_SAMPLECOUNT_1;p.depth_stencil_state.enable_depth_test=depth;

@@ -105,7 +105,7 @@ public static class NCMMNativeCrashDialog {
 }
 '@
 }
-$names=@('NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG')
+$names=@('NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT')
 $prior=@{}
 foreach($name in $names){$prior[$name]=[Environment]::GetEnvironmentVariable($name,'Process');[Environment]::SetEnvironmentVariable($name,$null,'Process')}
 $exitCode=$null
@@ -116,6 +116,7 @@ $lastProgress='native startup'
 try {
     if($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
     if($GpuDebug){$env:SDL_RENDER_GPU_DEBUG='1'}
+    $env:SDL_ASSERT='abort' # Diagnostic child must fail with evidence, never wait in SDL's assertion modal.
     $env:NCMM_FP_APPEARANCE_SMOKE='1' # Stable monster atlas variants in this diagnostic only.
     $env:NCMM_FP_SOAK_SECONDS=[string]$SoakSeconds
     if($udp){$env:NCMM_FP_UDP='1'}

@@ -27,6 +27,9 @@ inline bool probe(device_context &context,ncmm_gpu_metrics_v1 &metrics) {
     attributes[1].location=1;attributes[1].format=SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;attributes[1].offset=offsetof(ncmm_gpu_vertex_v1,normal);
     SDL_GPUColorTargetDescription color{};color.format=SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
     SDL_GPUGraphicsPipelineCreateInfo p{};p.vertex_shader=vs;p.fragment_shader=fs;
+        // SDL renderer devices disable FEATURE_DEPTH_CLAMPING. Explicitly
+        // clip depth instead of requesting the unsupported zero/default state.
+        p.rasterizer_state.enable_depth_clip=true;
     p.vertex_input_state.vertex_buffer_descriptions=&layout;p.vertex_input_state.num_vertex_buffers=1;
     p.vertex_input_state.vertex_attributes=attributes;p.vertex_input_state.num_vertex_attributes=2;
     p.primitive_type=SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;p.rasterizer_state.fill_mode=SDL_GPU_FILLMODE_FILL;p.rasterizer_state.cull_mode=SDL_GPU_CULLMODE_NONE;
