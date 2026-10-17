@@ -144,7 +144,7 @@ int main(){try{
         source_cache ring;geometry_cache derived;int ox=-17,oy=29,low=-2,high=2;
         auto value=[](int x,int y,int z){return uint32_t((int64_t(x)+100000)*13+(int64_t(y)+100000)*97+(z+128)*701);};
         for(int step=0;step<240;++step){
-            if(step<180){ox+=step%4==0?1:step%4==2?-1:0;oy+=step%4==1?1:step%4==3?-1:0;}
+            if(step<60)++ox;else if(step<120)--oy;else if(step<180){--ox;++oy;}
             if(step==60)ox+=13; // no overlap: old ring slots must not survive
             if(step==120){low=-3;high=1;} // canonical Z overlap after rotation
             if(step==180){ox=INT32_MAX-8;oy=INT32_MIN;}
