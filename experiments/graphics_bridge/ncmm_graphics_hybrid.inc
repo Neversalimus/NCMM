@@ -415,6 +415,8 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
                 d.vehicle_group = group->second; d.mount_x = part.mount.x(); d.mount_y = part.mount.y();
                 d.vehicle_yaw = float( units::to_radians( v.face.dir() ) );
                 const float co = std::cos( d.vehicle_yaw ), si = std::sin( d.vehicle_yaw );
+                const int ix=world?int(int64_t(world->coordinates[i].x)-world->origin_x):int(i)%base.grid_width,
+                          iy=world?int(int64_t(world->coordinates[i].y)-world->origin_y):int(i)/base.grid_width;
                 // Derive the continuous anchor from this visible mount, without
                 // enumerating or revealing parts in unseen cells.
                 auto anchor = vehicle_anchors.emplace( &v, std::make_pair(
