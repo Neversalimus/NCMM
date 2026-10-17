@@ -7,6 +7,111 @@ Scope: gameplay audit, measured performance, camera/interaction stability,
 visual polish, depth-driven surface submission and cached horizon LOD.
 No gameplay rules are changed.
 
+## 0.12.8 teardown diagnosis and first-frame preparation
+
+Runtime source: `1582a9785c846258f30241f8e8ba13d80299d22a`, packaged test merge
+`cf6f9626ab62b0ed7209f23e335ac4ede28ef868`, identical runtime tree
+`d3671d073a01cd50f7b00437a82fbd9d7111dc1a`.
+[Native integration run](https://github.com/Neversalimus/NCMM/actions/runs/39034856455)
+and the [diagnosis record](qualification/0.12.8-diagnosis.json) retain exact
+engine, package, compiler-cache and crash evidence.
+
+Both native jobs passed. Each engine completed all eight focused processes
+with exit zero, no crash dumps and matching binary provenance. Installation,
+four bootstrap launches, two three-level save/load runs, 24 paired CPU/GPU
+gameplay cases, a 60-second soak, walking and exact-archive horizon checks also
+passed. Qualification artifacts are `12102921777` (1040) and `12103216068`
+(1807). All 16 focused clean exits are retained in the compressed raw report.
+
+Both old 0.12.7 engines reproduce `0xC0000005` after completing their focused
+profiles: repeat 5 on 1040 and repeat 2 on 1807. Matching Windows images and
+Microsoft symbols place both WARP faults at `d3d10warp!Task_Copy+0x65`, while the
+main thread destroys DXGI swapchain back buffers. The reduced dumps do not name
+the exact copied resource. The final fix flushes SDL and drains the actual
+shared renderer device at all four renderer-reset hooks, even after disabling
+the module has already cleared its private backend. GPU idle is a lifecycle
+boundary, not a new wait in the ordinary frame.
+
+Strict SDL validation separately found unsupported depth clamping, stencil
+LOAD on cycled D32 attachments, and filtered-sampler usage on R32_UINT IDs.
+Explicit depth clipping, DONT_CARE stencil operations and samplerless typed ID
+loads correct those contracts. Standalone tests now use the renderer's actual
+restricted feature profile. The individual contribution of each contract fix
+and the lifetime correction was not isolated by separate native A/B builds.
+
+Walking rotates cached source/geometry windows instead of copying whole
+arrays. Terrain/furniture definitions are reused within the callback; canonical
+cell traversal avoids redundant sorting, and culling/picking share faster
+transformed bounds. The isolated cache benchmark changed from about 1.14 ms to
+0.01 ms at equal memory; this is not a whole-frame measurement.
+
+### Exact 1040 hardware comparison
+
+The [comparison](qualification/0.12.8-hardware-comparison.json) verifies four
+fresh clear/rain runs, exact Host/DLL bytes, all 32 payload hashes, matching 107
+UDP assets, weather descriptors, real process exits and no CPU fallback during
+GPU records. Raw samples are retained in
+[0.12.8-hardware-raw.json.gz](qualification/0.12.8-hardware-raw.json.gz).
+Resolution is 1768×1084 on RTX 4090 / Direct3D 12. Fresh Balanced retains the
+1920×1080 GPU cap and 1280×800 CPU cap. No quality limit was reduced.
+
+| Weather | Scene | 0.12.7 first frame median | 0.12.8 first frame median / p95 | 0.12.8 warm rotation | Steps ≤15 ms |
+| --- | --- | ---: | ---: | ---: | ---: |
+| clear | street | 19.44 | 17.50 / 31.75 | 11.45 | 5 / 12 |
+| clear | multi_level_horde | 22.14 | 15.49 / 26.78 | 11.00 | 6 / 12 |
+| clear | city_blocks | 24.78 | 17.13 / 28.86 | 13.50 | 3 / 12 |
+| rain | street | 21.91 | 17.60 / 30.30 | 11.06 | 4 / 12 |
+| rain | multi_level_horde | 23.19 | 16.51 / 33.06 | 11.51 | 5 / 12 |
+| rain | city_blocks | 22.66 | 20.02 / 31.20 | 13.78 | 1 / 12 |
+
+All first-frame and warm-rotation medians improved in these paired routes.
+First-frame medians fell 10.0–30.8%, but only 24 of 72 individual first frames
+were at or below 15 ms. The target is not consistently met. Move-to-first-ready
+medians are 35.75–48.55 ms and include native move/refresh costs. These fixtures
+advance no ordinary AI turns; 1807 hardware performance, long manual play and
+driving remain unmeasured.
+
+The remaining first-frame costs include 2.74–5.22 ms in the native tile pass
+and 6.11–8.66 ms in scene extraction. Those native updates also maintain map
+memory and animation, so simply skipping the pass would not preserve behavior.
+Resource preparation also has individual spikes. Nested diagnostic medians
+must not be added to the exclusive frame phases.
+
+### Diagnostic and build infrastructure
+
+The compiler cache previously bypassed 292 of 332 requests due to `/Fp` and
+`/Yc`. The upstream `_CDDA_USE_CCACHE` mode removes that incompatibility. The
+final small edit build hit 498/499 requests for 1040 and 498/501 for 1807, with
+no uncacheable/PCH requests. One 1807 cache write failed; compilation itself
+passed. Statistics and cache eligibility checks are retained.
+
+Windows/Linux renderer tests, strict GPU-device validation, cache sanitizers
+and source-transform checks cover the runtime changes. Native integration
+requires eight independent validated focused processes per engine, plus
+installation/bootstrap, multi-Z save/load, gameplay, movement and horizon
+checks. A successful smoke JSON cannot override a bad process exit or dump.
+
+Recovery also exposed a PowerShell 7 launcher error: assigning null through
+`Environment.SetEnvironmentVariable` left empty variables. Native `getenv`
+then selected SAVE_ONLY despite requesting the GPU benchmark. Explicit
+environment removal fixes this. The failed local run is retained as failed
+qualification, despite process exit zero. The corrected final 1040 hardware
+run completed all four focused 96-frame records with strict validation,
+exit zero, no dumps and no debugger errors.
+
+The launcher's own isolation/restoration statements pass 72 checks each on
+PowerShell 5.1 and 7.6. Its final validation passes five cases on each shell,
+including missing/malformed/incomplete reports and handled access violations.
+Nine hardware-evidence tests reject mismatched packages/engines, duplicate or
+missing scenes, wrong weather/assets, software GPU and CPU fallback. Five
+separate phase tests check exact first-step indices and exclusive accounting.
+
+Delivered archives retain the qualified Setup, Host, DLL and 32 payload files
+byte-for-byte. A tools-only update carries the corrected PowerShell launcher,
+diagnostic instructions and comparison helpers. Its manifest records the
+original qualified ZIP hash, diagnostic source commit and changed-file hashes;
+it does not relabel the runtime as built from the later documentation commit.
+
 ## 0.12.7 physical geometry and continuous first-person architecture
 
 Rendering source: `2144004c83c4c8de59efa42da49f4d2dfbdb28ea`, tree
@@ -68,8 +173,9 @@ The final 1040 binaries were measured on RTX 4090 / Direct3D 12 in clear and
 controlled native-rain clones with identical 107 actual UDP Hybrid v3 assets.
 The report retains every raw sample and all binary/source identities. Each run
 has 12 records: three scenes, CPU/GPU and 640×480 / 1768×1084 viewports. Each
-record has twelve native steps and two 48-angle sweeps. Fresh Balanced defaults
-cap the internal raster at 1280×800. No other game ran during these timings.
+record has twelve native steps and two 48-angle sweeps. Fresh Balanced caps GPU rendering at 1920×1080 and CPU rendering at
+1280×800. The earlier 0.12.7 summary mislabeled the GPU cap; these
+measurements used the existing higher GPU cap. No other game ran during these timings.
 
 The following values use the 1768×1084 viewport, in milliseconds. First render
 excludes the preceding native move/refresh; move-to-ready includes both.

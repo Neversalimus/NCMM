@@ -75,13 +75,13 @@ public:
         auto *result=SDL_CreateGPUShader(device_,&info);if(!result)fail("create GPU shader");return result;
     }
     SDL_GPUComputePipeline *compute(const unsigned char *spv,size_t spv_size,const unsigned char *dxil,size_t dxil_size,
-                                   uint32_t samplers,uint32_t reads,uint32_t writes,uint32_t uniforms,uint32_t x,uint32_t y=1) {
+                                   uint32_t samplers,uint32_t reads,uint32_t writes,uint32_t uniforms,uint32_t x,uint32_t y=1,uint32_t read_textures=0) {
         if(!device_)return nullptr;
         const auto supported=SDL_GetGPUShaderFormats(device_);SDL_GPUComputePipelineCreateInfo info{};info.entrypoint="main";
         if((supported&SDL_GPU_SHADERFORMAT_DXIL)&&dxil_size>20){info.code=dxil;info.code_size=dxil_size;info.format=SDL_GPU_SHADERFORMAT_DXIL;}
         else if((supported&SDL_GPU_SHADERFORMAT_SPIRV)&&spv_size>20){info.code=spv;info.code_size=spv_size;info.format=SDL_GPU_SHADERFORMAT_SPIRV;}
         else{reason_="compiled compute shader format unsupported";return nullptr;}
-        info.num_samplers=samplers;info.num_readonly_storage_buffers=reads;info.num_readwrite_storage_buffers=writes;info.num_uniform_buffers=uniforms;
+        info.num_samplers=samplers;info.num_readonly_storage_textures=read_textures;info.num_readonly_storage_buffers=reads;info.num_readwrite_storage_buffers=writes;info.num_uniform_buffers=uniforms;
         info.threadcount_x=x;info.threadcount_y=y;info.threadcount_z=1;
         auto *result=SDL_CreateGPUComputePipeline(device_,&info);if(!result)fail("create GPU compute pipeline");return result;
     }

@@ -582,12 +582,13 @@ bool graphics_scene_smoke()
     }
     const bool success = reason == "ok";
     std::ofstream out( game_root() / "ncmm" / "first-person-smoke.json", std::ios::binary | std::ios::trunc );
+    out.imbue(std::locale::classic()); // JSON decimals are invariant under the player's UI/OS locale.
     out << "{\"schema\":1,\"success\":" << ( success ? "true" : "false" )
         << ",\"reason\":\"" << reason << "\",\"checks\":" << std::to_string( checks )
         << ",\"sdl_frames\":" << std::to_string( frames ) << ",\"gpu_effect_frames\":" << std::to_string(graphics_effect_gpu_frames) << ",\"cpu_recovery_frames\":" << std::to_string(graphics_effect_cpu_frames)
         << ",\"draw_radius\":" << std::to_string( distance_radius ) << ",\"distant_cells\":" << std::to_string( distance_cells )
         << ",\"light_queries\":" << std::to_string( distance_light_queries )
-        << ",\"clear_weather_fog\":" << std::to_string( distance_fog ) << "}\n";
+        << ",\"clear_weather_fog\":" << distance_fog << "}\n";
     log_line( success ? NCMM_LOG_INFO : NCMM_LOG_ERROR,
               ( "First Person View actual engine smoke: " + reason ).c_str() );
     return success;

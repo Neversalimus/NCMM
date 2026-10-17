@@ -22,7 +22,10 @@ class programs {
         const std::array<SDL_GPUVertexElementFormat,8> types{SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
             SDL_GPU_VERTEXELEMENTFORMAT_UINT,SDL_GPU_VERTEXELEMENTFORMAT_UINT,SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,SDL_GPU_VERTEXELEMENTFORMAT_UINT,SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3};
         for(uint32_t i=0;i<8;++i){attributes[i].location=i;attributes[i].format=types[i];attributes[i].offset=offsets[i];}
-        SDL_GPUGraphicsPipelineCreateInfo p{};p.vertex_shader=vs;p.fragment_shader=fs;p.primitive_type=SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+        SDL_GPUGraphicsPipelineCreateInfo p{};p.vertex_shader=vs;p.fragment_shader=fs;
+        // SDL renderer devices disable FEATURE_DEPTH_CLAMPING. Explicitly
+        // clip depth instead of requesting the unsupported zero/default state.
+        p.rasterizer_state.enable_depth_clip=true;p.primitive_type=SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
         if(geometry){p.vertex_input_state.vertex_buffer_descriptions=&layout;p.vertex_input_state.num_vertex_buffers=1;p.vertex_input_state.vertex_attributes=attributes.data();p.vertex_input_state.num_vertex_attributes=8;}
         p.rasterizer_state.fill_mode=SDL_GPU_FILLMODE_FILL;p.rasterizer_state.cull_mode=SDL_GPU_CULLMODE_NONE;
         p.multisample_state.sample_count=SDL_GPU_SAMPLECOUNT_1;p.depth_stencil_state.enable_depth_test=depth;
@@ -54,7 +57,7 @@ public:
         weather=make(wv,wf,false,world,2,true,false,true,false);volume=make(fv,vf,false,effects,2,false,false,false,true);compose=make(fv,pf,false,world,1,false,false,false,true);
         for(auto *s:{gv,gf,fv,sf,cv,cf,wv,wf,vf,pf})if(s)SDL_ReleaseGPUShader(device_,s);
         shadow=context.compute(shaders::shadow_comp_spv,sizeof(shaders::shadow_comp_spv),shaders::shadow_comp_dxil,sizeof(shaders::shadow_comp_dxil),0,1,1,1,64);
-        count=context.compute(shaders::count_comp_spv,sizeof(shaders::count_comp_spv),shaders::count_comp_dxil,sizeof(shaders::count_comp_dxil),1,0,1,0,16,16);
+        count=context.compute(shaders::count_comp_spv,sizeof(shaders::count_comp_spv),shaders::count_comp_dxil,sizeof(shaders::count_comp_dxil),0,0,1,0,16,16,1);
         SDL_GPUSamplerCreateInfo sampler{};sampler.min_filter=sampler.mag_filter=SDL_GPU_FILTER_LINEAR;sampler.mipmap_mode=SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
         sampler.address_mode_u=sampler.address_mode_v=sampler.address_mode_w=SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;sampler.max_lod=10;linear=SDL_CreateGPUSampler(device_,&sampler);
         // Packed signed depth bytes are data, not colors. Hardware-generated

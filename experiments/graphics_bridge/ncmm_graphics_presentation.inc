@@ -142,6 +142,10 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
             }
         }
     }
+    // Views refer only to source-owned IDs and remain inside this callback.
+    std::unordered_map<std::string_view,uint32_t> materials;
+    auto material_for=[&](std::string_view id){auto found=materials.find(id);if(found!=materials.end())return found->second;
+        const uint32_t value=material(std::string(id));materials.emplace(id,value);return value;};
     graphics_presentation_cells.assign( base.cell_count, {} );
     const vehicle *occupied=nullptr;
     std::map<const vehicle *,std::tuple<int,bool,int,float>> layouts;
@@ -150,7 +154,7 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
         if( !( base.cells[i].flags&NCMM_GFX_VISIBLE ) ) continue;
         auto &d=graphics_presentation_cells[i]; const auto &pos=positions[i];
         if(world&&!(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)){
-            d.terrain_material=material((world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE)?here.ter(pos).id().str():std::string(base.cells[i].terrain));continue;
+            d.terrain_material=material_for((world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE)?std::string_view(here.ter(pos).id().str()):std::string_view(base.cells[i].terrain));continue;
         }
         if( const auto vp=here.veh_at( pos ) ) {
             const vehicle *v=&vp->vehicle();auto found=layouts.find(v);
@@ -167,7 +171,7 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
             d.vehicle_front=std::get<0>(found->second);d.vehicle_automobile=std::get<1>(found->second)?1u:0u;
             d.vehicle_controls=std::get<2>(found->second);d.vehicle_controls_x=std::get<3>(found->second);
         }
-        d.terrain_material=material( base.cells[i].terrain ); d.furniture_material=material( base.cells[i].furniture );
+        d.terrain_material=material_for(base.cells[i].terrain);d.furniture_material=material_for(base.cells[i].furniture);
         // A spilled liquid can be an item stack, not a map field. Only expose
         // the already-visible top item, and inspect its current phase so a
         // bottle, hidden contents or frozen water cannot become a puddle.
@@ -179,7 +183,7 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
         if( details[i].terrain_shape==NCMM_SHAPE_WATER ) d.liquid=liquid( base.cells[i].terrain,true );
         if( !world && pos.z()<OVERMAP_HEIGHT && details[i].terrain_flags&NCMM_SURFACE_TERRAIN_CEILING ) {
             const std::string id=here.ter( tripoint_bub_ms( pos.x(),pos.y(),pos.z()+1 ) ).id().str();
-            graphics_copy_text( d.ceiling,id ); d.ceiling_material=material( id );
+            graphics_copy_text( d.ceiling,id ); d.ceiling_material=material_for(here.ter(tripoint_bub_ms(pos.x(),pos.y(),pos.z()+1)).id().str());
         }
         const auto &cache=here.get_cache_ref( pos.z() );
         d.source_light=std::clamp( cache.sm[pos.x()][pos.y()],0.0f,500.0f );

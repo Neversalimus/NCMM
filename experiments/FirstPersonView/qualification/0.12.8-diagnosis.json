@@ -1,0 +1,301 @@
+{
+  "schema": 1,
+  "version": "0.12.8",
+  "runtime_source": "1582a9785c846258f30241f8e8ba13d80299d22a",
+  "packaged_source": "cf6f9626ab62b0ed7209f23e335ac4ede28ef868",
+  "baseline_reproduction": {
+    "1040": {
+      "workflow": 39027818512,
+      "job": 117382176285,
+      "artifact": 12099039063,
+      "failed_repeat": 5,
+      "exit": "0xC0000005",
+      "module": "d3d10warp.dll",
+      "offset": "0xe7f65",
+      "thread": 6296,
+      "all_focused_records_complete": true
+    },
+    "1807": {
+      "workflow": 39027818512,
+      "job": 117382176474,
+      "artifact": 12098553921,
+      "failed_repeat": 2,
+      "exit": "0xC0000005",
+      "module": "d3d10warp.dll",
+      "offset": "0xe7f65",
+      "thread": 5488,
+      "all_focused_records_complete": true
+    }
+  },
+  "common_failure": {
+    "adapter": "Microsoft Basic Render Driver",
+    "backend": "direct3d12",
+    "module": "d3d10warp.dll",
+    "offset": "0xe7f65",
+    "exception": "0xC0000005",
+    "phase": "Native focused matrix completed; asynchronous driver failure during process/resource teardown",
+    "note": "The 1040 route also recorded handled first-chance access violations on earlier attempts; exit zero alone is not a clean diagnostic result."
+  },
+  "established_contract_errors": [
+    {
+      "error": "Depth clipping left disabled while the renderer disables depth-clamping support",
+      "fix": "Explicit enable_depth_clip=true in scene and probe pipelines",
+      "proof": "Strict baseline SDL_CreateGPUGraphicsPipeline assertion; debug baseline artifacts 12098863777 and 12099571395"
+    },
+    {
+      "error": "Cycled D32 attachment inherited stencil LOAD from zero initialization",
+      "fix": "Stencil load and store DONT_CARE on D32 attachments",
+      "proof": "Strict renderer-feature-profile GPU test assertion during development"
+    },
+    {
+      "error": "R32_UINT object IDs requested filtered-sampler texture usage on D3D12",
+      "fix": "Readonly storage texture, matching compute resource counts and samplerless integer texelFetch; regenerated all SPIR-V/DXIL programs",
+      "proof": "Strict D3D12 test rejected the original usage; Vulkan count test also rejects incompatible storage-image descriptor variants"
+    }
+  ],
+  "lifecycle": {
+    "fix": "Drain private backend work before child release, and independently flush/wait the actual SDL renderer GPU device at all four renderer-reset sites, including after module disable has cleared the private backend.",
+    "limit": "The matched-symbol dumps identify the copy-versus-swapchain teardown overlap; individual contributions of invalid pipeline/texture contracts and the lifetime race are not isolated by separate native A/B runs."
+  },
+  "performance_changes": [
+    "Toroidal source and geometry windows invalidate only entering XY strips instead of copying all cached levels",
+    "Callback-local terrain/furniture/material definition reuse",
+    "Remove redundant cell ordering when traversal already supplies canonical order",
+    "Conservative affine AABB transform reused for culling and picking"
+  ],
+  "cache_shift_microbenchmark": {
+    "median_before_ms": 1.1399,
+    "median_after_ms": 0.0087,
+    "checks": 313628,
+    "bytes_equal": 6830934,
+    "checksum_equal": 18836818,
+    "scope": "microbenchmark, not native frame latency"
+  },
+  "compiler_cache": {
+    "before": {
+      "run": 39029898079,
+      "job": 117388919638,
+      "requests": 332,
+      "cacheable": 40,
+      "hits": 40,
+      "bypassed": 292,
+      "pch_Fp": 290,
+      "pch_Yc": 2
+    },
+    "fix": "Use upstream _CDDA_USE_CCACHE=true, supported on both exact engine pins; reject residual PCH bypasses and retain effective stats",
+    "new_run": 39034856455,
+    "status": "Final small-edit rebuild verified on both pins",
+    "after_1040": {
+      "run": 39031492541,
+      "job": 117393515444,
+      "requests": 499,
+      "cacheable": 499,
+      "hits": 40,
+      "writes": 459,
+      "bypassed": 0,
+      "compile_fails": 0
+    },
+    "final": {
+      "1040": {
+        "compile_requests": 499,
+        "requests_executed": 499,
+        "cache_hits": {
+          "counts": {
+            "C/C++": 498
+          },
+          "adv_counts": {
+            "c++ [msvc]": 471,
+            "c [msvc]": 27
+          }
+        },
+        "cache_misses": {
+          "counts": {
+            "C/C++": 1
+          },
+          "adv_counts": {
+            "c++ [msvc]": 1
+          }
+        },
+        "cache_write_errors": 0,
+        "compile_fails": 0,
+        "not_cached": {}
+      },
+      "1807": {
+        "compile_requests": 501,
+        "requests_executed": 501,
+        "cache_hits": {
+          "counts": {
+            "C/C++": 498
+          },
+          "adv_counts": {
+            "c++ [msvc]": 471,
+            "c [msvc]": 27
+          }
+        },
+        "cache_misses": {
+          "counts": {
+            "C/C++": 3
+          },
+          "adv_counts": {
+            "c++ [msvc]": 3
+          }
+        },
+        "cache_write_errors": 1,
+        "compile_fails": 0,
+        "not_cached": {}
+      }
+    }
+  },
+  "diagnostic_infrastructure": [
+    "Real child exit, first-chance/second-chance dumps and bounded debug events",
+    "Final progress sampled after process exit; bootstrap OK is separate from benchmark success",
+    "Matching Host PDB retention and originating-runner postmortem analysis",
+    "Eight independent strict focused children per engine; any dump or failed exit rejects qualification",
+    "Exclusive frame phase accounting checked against raw wall time and exact native-step indices",
+    "Classic-locale float streaming without locale-sensitive std::to_string(float)",
+    "Exact-byte paired movement comparison with pinned UDP/weather and actual hardware checks"
+  ],
+  "gpu_layer_hardware": {
+    "source": "e775986b0201c0c3305ead169702f38c0d2324e6",
+    "artifact": 12100162847,
+    "workflow": 39031492481,
+    "exe_sha256": "08831fb815d52d36897e7b6813b89c00318f90bd13656d584bc4e988f13e3ac6",
+    "success": true,
+    "process": {
+      "exit_signed": 0,
+      "crash_dumps": 0,
+      "debugger_error": null,
+      "owned_pid": 57412,
+      "source": "e775986b0201c0c3305ead169702f38c0d2324e6"
+    },
+    "report": {
+      "success": true,
+      "full_gpu_pipeline": true,
+      "hardware_depth": true,
+      "gpu_skinning": true,
+      "impostor_colour_minification": true,
+      "multilevel_depth_and_picking": true,
+      "cpu_raster_calls": 0,
+      "animation_upload_bytes": 388,
+      "resource_bytes": 6375516,
+      "software_device": 0,
+      "backend": "direct3d12",
+      "device": "NVIDIA GeForce RTX 4090"
+    }
+  },
+  "qualification": {
+    "native_workflow": 39034856455,
+    "status": "passed",
+    "engines": {
+      "1040": {
+        "success": true,
+        "installer_sha256": "5df15f7bc3a48f995fd79d7987942891040dbad08f3c81fdcc3d292711a57b34",
+        "host_sha256": "13a1ce87262632ada73ec4860910e022c49ef9f1f598b5d52270610e0c8a6767",
+        "module_sha256": "b0d183ff0769b1102892a757643dc9f6c78b1a158e05e3542b9c0c0235e3effa",
+        "source_commit": "cf6f9626ab62b0ed7209f23e335ac4ede28ef868",
+        "clean_focused_process_exits": 8,
+        "gameplay": {
+          "success": true,
+          "actual_cdda_sdl": true,
+          "manual_playthrough": false,
+          "native_action_groups": 10,
+          "tilesets": [
+            "UltimateCataclysm",
+            "UndeadPeople_0J_Hybrid_v3"
+          ],
+          "paired_cpu_gpu_cases": 24,
+          "automated_soak_seconds": 60.120867,
+          "gpu_execution_timestamps_available": false
+        },
+        "source_engine": "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83",
+        "three_level_save_load_runs": 2
+      },
+      "1807": {
+        "success": true,
+        "installer_sha256": "5152f472c2b64e05b85a4ea735316bd93585721753262fc8908056c3531c75b4",
+        "host_sha256": "de456b8d3fa4c5dce8bef7cb7c1ed068144fdf7f2664c0c8e62e3fc2ecf17626",
+        "module_sha256": "e541221d210f010a671a84faeac4c8f61a2e085558b2be3eb4ef748fcc75abc6",
+        "source_commit": "cf6f9626ab62b0ed7209f23e335ac4ede28ef868",
+        "clean_focused_process_exits": 8,
+        "gameplay": {
+          "success": true,
+          "actual_cdda_sdl": true,
+          "manual_playthrough": false,
+          "native_action_groups": 10,
+          "tilesets": [
+            "UltimateCataclysm",
+            "UndeadPeople_0J_Hybrid_v3"
+          ],
+          "paired_cpu_gpu_cases": 24,
+          "automated_soak_seconds": 60.31013,
+          "gpu_execution_timestamps_available": false
+        },
+        "source_engine": "074aa98bd5be3de4c35f154082db32a0e63bb0f1",
+        "three_level_save_load_runs": 2
+      }
+    },
+    "raw_evidence": "0.12.8-hardware-raw.json.gz",
+    "raw_evidence_sha256": "cafa0ee1d5c0b1d086c62ae9bf03445b627b46b6d18d0ea8ce8abb4a4e21f2cc"
+  },
+  "quality_erratum": "Previous 0.12.7 report called 1280x800 the internal cap; this is the CPU Balanced cap. The unchanged GPU Balanced path caps at 1920x1080 (1761x1080 for a 1768x1084 viewport by source calculation). No cap was lowered in 0.12.8.",
+  "retained_stack_analysis": {
+    "workflow": 39034006326,
+    "source": "a036b2a30901f31f8db8a47e7cdcad1822487c93",
+    "artifacts": {
+      "1040": 12101551929,
+      "1807": 12100888309
+    },
+    "compressed_evidence": "0.12.8-warp-stacks.json.gz",
+    "image_match": "Dump PE timestamp and image size match the runner DLL; its full SHA256 and Microsoft-symbol stacks are retained.",
+    "fault": "d3d10warp!Task_Copy+0x65",
+    "concurrent_main_thread": "dxgi!CDXGISwapChain::DestroyOwnedBuffer / DestroyBackBuffers / FinalRelease",
+    "interpretation": "Queued asynchronous WARP copy execution overlapped destruction of swapchain resources. The exact copied resource was not identified from the reduced dumps."
+  },
+  "hardware_final": {
+    "comparison": "0.12.8-hardware-comparison.json",
+    "target": {
+      "scope": "Full-size GPU first rendered frames after native steps, clear plus controlled rain",
+      "under_or_equal": 24,
+      "total": 72,
+      "all_samples_met": false
+    },
+    "focused_process": {
+      "schema": 1,
+      "child_pid": 59428,
+      "exit_signed": 0,
+      "exit_hex": "0x00000000",
+      "last_progress": "gpu_benchmark_creatures-1_gpu_frame_95",
+      "wrapper_failure": null,
+      "debugger_requested": true,
+      "debugger_error": null,
+      "crash_dumps": 0,
+      "host_sha256": "13a1ce87262632ada73ec4860910e022c49ef9f1f598b5d52270610e0c8a6767",
+      "module_sha256": "b0d183ff0769b1102892a757643dc9f6c78b1a158e05e3542b9c0c0235e3effa",
+      "ncmm_commit": "cf6f9626ab62b0ed7209f23e335ac4ede28ef868",
+      "engine_commit": "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83",
+      "focused_gpu": true,
+      "movement": false
+    },
+    "focused_verified": {
+      "success": true,
+      "actual_cdda_sdl": true,
+      "manual_playthrough": false,
+      "gpu_execution_timestamps_available": false,
+      "cases": 4,
+      "frames_per_case": 96,
+      "exclusive_frame_phases_verified": true
+    }
+  },
+  "recovery_infrastructure": {
+    "powershell_environment": "Remove competing flags explicitly; restore absent/empty/populated caller values",
+    "validation_failure_receipts": "Record missing, malformed or incomplete reports even after child exit zero; reject handled access-violation dumps",
+    "tests": {
+      "hardware_evidence_python": 9,
+      "frame_phases_python": 5,
+      "powershell_5_1_environment": 72,
+      "powershell_7_6_environment": 72,
+      "powershell_5_1_evidence_cases": 5,
+      "powershell_7_6_evidence_cases": 5
+    }
+  }
+}

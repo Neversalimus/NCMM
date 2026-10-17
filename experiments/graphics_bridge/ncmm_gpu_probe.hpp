@@ -27,6 +27,9 @@ inline bool probe(device_context &context,ncmm_gpu_metrics_v1 &metrics) {
     attributes[1].location=1;attributes[1].format=SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;attributes[1].offset=offsetof(ncmm_gpu_vertex_v1,normal);
     SDL_GPUColorTargetDescription color{};color.format=SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
     SDL_GPUGraphicsPipelineCreateInfo p{};p.vertex_shader=vs;p.fragment_shader=fs;
+        // SDL renderer devices disable FEATURE_DEPTH_CLAMPING. Explicitly
+        // clip depth instead of requesting the unsupported zero/default state.
+        p.rasterizer_state.enable_depth_clip=true;
     p.vertex_input_state.vertex_buffer_descriptions=&layout;p.vertex_input_state.num_vertex_buffers=1;
     p.vertex_input_state.vertex_attributes=attributes;p.vertex_input_state.num_vertex_attributes=2;
     p.primitive_type=SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;p.rasterizer_state.fill_mode=SDL_GPU_FILLMODE_FILL;p.rasterizer_state.cull_mode=SDL_GPU_CULLMODE_NONE;
@@ -57,6 +60,7 @@ inline bool probe(device_context &context,ncmm_gpu_metrics_v1 &metrics) {
     SDL_UploadToGPUBuffer(copy,&from,&to,false);from.offset=sizeof(data);to={indices,0,sizeof(index_data)};SDL_UploadToGPUBuffer(copy,&from,&to,false);SDL_EndGPUCopyPass(copy);
     SDL_GPUColorTargetInfo target{};target.texture=context.color();target.load_op=SDL_GPU_LOADOP_CLEAR;target.store_op=SDL_GPU_STOREOP_STORE;target.clear_color={.02f,.03f,.04f,1};target.cycle=true;
     SDL_GPUDepthStencilTargetInfo depth{};depth.texture=context.depth();depth.load_op=SDL_GPU_LOADOP_CLEAR;depth.store_op=SDL_GPU_STOREOP_STORE;depth.clear_depth=1;depth.cycle=true;
+        depth.stencil_load_op=SDL_GPU_LOADOP_DONT_CARE;depth.stencil_store_op=SDL_GPU_STOREOP_DONT_CARE;
     auto *pass=SDL_BeginGPURenderPass(commands,&target,1,&depth);
     if(!pass){context.fail("begin probe render pass");release();return false;}
     SDL_BindGPUGraphicsPipeline(pass,pipeline);SDL_GPUBufferBinding vb{vertices,0},ib{indices,0};
