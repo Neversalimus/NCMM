@@ -170,6 +170,7 @@ struct graphics_fire_frame {
 struct graphics_fire_capture_state {
     bool active=false,last_perspective=false,last_gpu=false,failed=false;
     uint64_t native_command_sequence=0;
+    uint64_t default_keychar_inputs=0,default_keycode_inputs=0;
     std::string native_command;
     std::vector<graphics_fire_frame> frames;
 } graphics_fire_capture;
