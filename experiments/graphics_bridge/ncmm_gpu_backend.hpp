@@ -124,9 +124,6 @@ public:
     void invalidate(){auto *renderer=context_.renderer();uint64_t generation=generation_;clear();if(renderer)bind(renderer,generation);}
     bool submit(const ncmm_gpu_scene_v1 &scene,const ncmm_gpu_multilevel_scene_v1 *world=nullptr){
         recording_={};
-        if(profiling_){recording_.bones=scene.bone_count;for(uint32_t i=0;i<scene.draw_count;++i)if(scene.draws[i].pass==NCMM_GPU_HELD)recording_.held_bones+=scene.draws[i].bone_count;
-            for(uint32_t i=0;i<scene.mesh_count;++i)if(scene.meshes[i].flags&NCMM_GPU_DYNAMIC_MESH)recording_.dynamic_geometry_bytes+=
-                uint64_t(scene.meshes[i].vertex_count)*sizeof(ncmm_gpu_vertex_v1)+uint64_t(scene.meshes[i].index_count)*4;}
         // A new producer/world can restart its frame serial. A completed fence
         // from an older scene must never describe the new scene's visibility.
         if(world_epoch_!=scene.world_epoch||scene.frame_serial<last_serial_){++readback_generation_;metrics_.completed_frame_serial=metrics_.visible_creature_pixels=0;}
@@ -135,6 +132,9 @@ public:
         metrics_={};metrics_.struct_size=sizeof(metrics_);metrics_.frame_serial=scene.frame_serial;metrics_.completed_frame_serial=completed;metrics_.visible_creature_pixels=visible;metrics_.software_device=software;metrics_.gpu_ms=-1;metrics_.target_cell=-1;
         metrics_.geometry_ms=scene.geometry_ms;metrics_.generated_cells=scene.generated_cells;metrics_.producer_cache_bytes=scene.producer_cache_bytes;
         context_.describe(metrics_);if(const char *error=validate(scene,world)){reason(error);return false;}
+        if(profiling_){recording_.bones=scene.bone_count;for(uint32_t i=0;i<scene.draw_count;++i)if(scene.draws[i].pass==NCMM_GPU_HELD)recording_.held_bones+=scene.draws[i].bone_count;
+            for(uint32_t i=0;i<scene.mesh_count;++i)if(scene.meshes[i].reserved&NCMM_GPU_DYNAMIC_MESH)recording_.dynamic_geometry_bytes+=
+                uint64_t(scene.meshes[i].vertex_count)*sizeof(ncmm_gpu_vertex_v1)+uint64_t(scene.meshes[i].index_count)*4;}
         if(scene.mode==NCMM_GPU_CPU){reason("CPU renderer selected");return false;}if(!available()){reason(context_.reason());return false;}
         if(!programs_.create(context_)||!targets(scene.width,scene.height)){reason(context_.reason());return false;}
         if(!buffer(instances_,instance_size_,uint32_t(scene.draw_count*sizeof(instance)),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
@@ -142,9 +142,8 @@ public:
            !buffer(cells_,cell_size_,scene.cell_count*sizeof(gpu_cell),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ|SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_READ)||
            !buffer(shadows_,shadow_size_,scene.cell_count*4,SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ|SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE)){reason(context_.reason());return false;}
         const uint64_t reserved=target_bytes()+dynamic_bytes();if(reserved>=NCMM_GPU_RESOURCE_LIMIT){reason("GPU target/dynamic buffers exceed memory budget");return false;}
-        const auto static_before=profiling_?resources_.static_upload_bytes():0;
         auto stage=clock::now();bool ready=resources_.prepare(scene,NCMM_GPU_RESOURCE_LIMIT-reserved,metrics_);metrics_.resource_ms=ms(stage);
-        if(profiling_)recording_.static_upload_bytes=resources_.static_upload_bytes()-static_before;
+        if(profiling_)recording_.static_upload_bytes=resources_.static_upload_bytes();
         metrics_.resource_bytes=resources_.bytes()+reserved;metrics_.host_cpu_cache_bytes=resources_.cpu_bytes();
         if(!ready){const std::string error=resources_.reason();reason(error);if(error!="warming bounded GPU resource cache"){invalidate();reason(error);}return false;}
         const auto batching_start=profiling_?clock::now():clock::time_point{};
