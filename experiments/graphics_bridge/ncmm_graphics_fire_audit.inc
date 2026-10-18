@@ -2,11 +2,12 @@
 // main UI adaptor and strict process/SDL guards. This is automated UI, not play.
 {
     const bool old_aim_after=get_option<bool>("AIM_AFTER_FIRING");
+    const std::string old_keyboard=get_option<std::string>("SDL_KEYBOARD_MODE");
     struct fire_audit_guard {
-        bool aim_after;
+        bool aim_after;std::string keyboard;
         ~fire_audit_guard(){graphics_fire_capture.active=false;graphics_fire_audit_legacy_context=false;
-            graphics_release_mouse();get_options().get_option("AIM_AFTER_FIRING").setValue(aim_after?"true":"false");}
-    } restoring_fire{old_aim_after};
+            graphics_release_mouse();get_options().get_option("AIM_AFTER_FIRING").setValue(aim_after?"true":"false");get_options().get_option("SDL_KEYBOARD_MODE").setValue(keyboard);}
+    } restoring_fire{old_aim_after,old_keyboard};
     get_options().get_option("AIM_AFTER_FIRING").setValue("false");
     for(const char *id:{"BRAWLER","GUNSHY"})if(you.has_trait(trait_id(id)))you.toggle_trait(trait_id(id));
     struct input_feed {
@@ -14,9 +15,9 @@
         std::atomic<bool> stop{false};std::atomic<bool> escape_recovery{false};std::thread worker;
         input_feed(SDL_WindowID window,kind type,float mx=0,float my=0,bool cancel_target=false):worker([this,window,type,mx,my,cancel_target](){
             int waiting=0;uint32_t previous_context=0;
-            for(int tick=0;tick<3000&&!stop.load();++tick){
+            for(int tick=0;tick<18000&&!stop.load();++tick){
                 SDL_Delay(10);
-                const auto context=graphics_fire_input_context.load();
+                const auto waiting_input=graphics_fire_input_context.load();const auto context=waiting_input&3u;
                 if(!context){waiting=0;previous_context=0;continue;}
                 if(context!=previous_context){waiting=0;previous_context=context;}
                 ++waiting;if(tick%10!=9||stop.load())continue;
@@ -25,13 +26,12 @@
                     if(recovering)escape_recovery.store(true);
                     event.type=SDL_EVENT_KEY_DOWN;event.key.windowID=window;event.key.key=SDLK_ESCAPE;event.key.scancode=SDL_SCANCODE_ESCAPE;
                     SDL_PushEvent(&event);event.type=SDL_EVENT_KEY_UP;SDL_PushEvent(&event);
-                }else if(context==2){
-                    // TARGET's native keyboard-char mode receives text, just as
-                    // the SDL text-input path does. No attack event is injected.
-                    event.type=SDL_EVENT_TEXT_INPUT;event.text.windowID=window;event.text.text="f";SDL_PushEvent(&event);
-                }else if(context==1&&type==kind::command){
-                    event.type=SDL_EVENT_KEY_DOWN;event.key.windowID=window;event.key.key=SDLK_F;event.key.scancode=SDL_SCANCODE_F;
-                    SDL_PushEvent(&event);event.type=SDL_EVENT_KEY_UP;SDL_PushEvent(&event);
+                }else if(context==2||(context==1&&type==kind::command)){
+                    // Respect the actual native wait's character/keycode mode.
+                    // SDL_PushEvent(KEY_DOWN) does not synthesize TEXT_INPUT.
+                    if(waiting_input&4u){event.type=SDL_EVENT_TEXT_INPUT;event.text.windowID=window;event.text.text="f";SDL_PushEvent(&event);}
+                    else {event.type=SDL_EVENT_KEY_DOWN;event.key.windowID=window;event.key.key=SDLK_F;event.key.scancode=SDL_SCANCODE_F;
+                        SDL_PushEvent(&event);event.type=SDL_EVENT_KEY_UP;SDL_PushEvent(&event);}
                 }else if(context==1&&type==kind::click){
                     // Exercise the real SDL RMB-look + LMB command dispatch.
                     // The ordinary click handler revalidates picked identity,
@@ -46,7 +46,7 @@
             SDL_FlushEvent(SDL_EVENT_TEXT_INPUT);SDL_FlushEvent(SDL_EVENT_MOUSE_BUTTON_DOWN);SDL_FlushEvent(SDL_EVENT_MOUSE_BUTTON_UP);}
     };
     struct trial {
-        std::string scenario,renderer;bool legacy=false,visible=false,escape_recovery=false;
+        std::string scenario,renderer,keyboard;bool legacy=false,visible=false,escape_recovery=false;
         int ammo_before=0,ammo_after=0,moves_before=0,moves_after=0;
         uint64_t attack_before=0,attack_after=0;size_t first=0,last=0;
         float yaw_before=0,pitch_before=0,yaw_after=0,pitch_after=0;
@@ -61,7 +61,7 @@
         g->invalidate_main_ui_adaptor();ui_manager::redraw();refresh_display();
     };
     auto attempt=[&](const char *scenario,const char *mode,bool legacy=false){
-        trial result;result.scenario=scenario;result.renderer=mode;result.legacy=legacy;
+        trial result;result.scenario=scenario;result.renderer=mode;result.legacy=legacy;result.keyboard=get_option<std::string>("SDL_KEYBOARD_MODE");
         checkpoint(std::string("native_fire_")+mode+"_"+scenario+"_"+std::to_string(trials.size()));
         clear_monsters();graphics_clear_creatures();you.cancel_activity();you.clear_effects();you.set_moves(10000);
         you.set_stamina(you.get_stamina_max());
@@ -94,7 +94,7 @@
         result.enabled_before=graphics_view.enabled;result.yaw_before=graphics_camera_yaw;result.pitch_before=graphics_camera_pitch;
         result.moves_before=you.get_moves();result.ammo_before=you.get_wielded_item()->ammo_remaining();result.attack_before=graphics_attack_serial;
         {
-            graphics_fire_input_context.store(1);
+            graphics_fire_input_context.store(0);
             input_feed feed(window,click?input_feed::kind::click:input_feed::kind::command,
                 float(graphics_viewport.x+graphics_viewport.w/2),float(graphics_viewport.y+graphics_viewport.h/2),cancel||empty);
             // The normal game retries handle_action after TIMEOUT. A single
@@ -128,7 +128,7 @@
         result.ammo_after=you.get_wielded_item()->ammo_remaining();result.moves_after=you.get_moves();result.attack_after=graphics_attack_serial;
         result.last=graphics_fire_capture.frames.size();graphics_fire_capture.active=false;graphics_fire_audit_legacy_context=false;
         {std::ofstream progress(game_root()/"ncmm"/"first-person-fire-trials.jsonl",std::ios::app);JsonOut out(progress);
-            out.start_object();out.member("scenario",result.scenario);out.member("renderer",result.renderer);out.member("legacy",result.legacy);
+            out.start_object();out.member("scenario",result.scenario);out.member("renderer",result.renderer);out.member("legacy",result.legacy);out.member("keyboard_mode",result.keyboard);
             out.member("native_command",result.native_command);out.member("dispatch_calls",result.dispatch_calls);out.member("escape_recovery",result.escape_recovery);
             out.member("ammo_before",result.ammo_before);out.member("ammo_after",result.ammo_after);out.member("moves_before",result.moves_before);out.member("moves_after",result.moves_after);
             out.member("attack_before",result.attack_before);out.member("attack_after",result.attack_after);out.member("first_frame",result.first);out.member("last_frame",result.last);out.end_object();progress<<'\n';}
@@ -156,7 +156,7 @@
         floor();
         for(const char *scenario:{"keyboard_single","lmb_single","cancel","empty","no_target","window"}){
             const int repeats=std::string(scenario)=="keyboard_single"||std::string(scenario)=="lmb_single"||std::string(scenario)=="window"?20:10;
-            for(int repeat=0;repeat<repeats;++repeat)attempt(scenario,mode);
+            for(int repeat=0;repeat<repeats;++repeat){get_options().get_option("SDL_KEYBOARD_MODE").setValue(repeat%2?"keychar":"keycode");attempt(scenario,mode);}
         }
         for(const char *scenario:{"blocked_wall","vertical_cancel","burst"})attempt(scenario,mode);
         {cancel_native_ui cancel_menu(window);game_menus::inv::common();}
@@ -176,7 +176,7 @@
     fire_report.member("trials");fire_report.start_array();
     for(const auto &t:trials){fire_report.start_object();fire_report.member("scenario",t.scenario);fire_report.member("renderer",t.renderer);fire_report.member("legacy_control",t.legacy);
         fire_report.member("target_native_visible",t.visible);fire_report.member("escape_recovery",t.escape_recovery);
-        fire_report.member("native_command",t.native_command);fire_report.member("dispatch_calls",t.dispatch_calls);
+        fire_report.member("native_command",t.native_command);fire_report.member("dispatch_calls",t.dispatch_calls);fire_report.member("keyboard_mode",t.keyboard);
         fire_report.member("ammo_before",t.ammo_before);fire_report.member("ammo_after",t.ammo_after);fire_report.member("moves_before",t.moves_before);fire_report.member("moves_after",t.moves_after);
         fire_report.member("attack_serial_before",t.attack_before);fire_report.member("attack_serial_after",t.attack_after);
         fire_report.member("first_frame",t.first);fire_report.member("last_frame_exclusive",t.last);

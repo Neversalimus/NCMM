@@ -418,7 +418,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: mods/undeadpeople/content
       - name: Automated native gameplay, CPU/GPU profiling and actual UDP Hybrid v3
-        timeout-minutes: 55
+        timeout-minutes: 95
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'

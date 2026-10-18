@@ -181,7 +181,10 @@ try {
         if(-not ('NCMMNativeDebugger' -as [type])){Add-Type -Path (Join-Path $PSScriptRoot 'NativeDiagnosticDebugger.cs')}
         $debugger=[NCMMNativeDebugger]::Start([uint32]$process.Id,$evidence)
     }
-    $deadline=[DateTime]::UtcNow.AddSeconds($(if($Extended){7200}elseif($FocusedGpuBenchmark){600}else{$SoakSeconds+1200}))
+    # The native firing matrix preserves every actual presented frame. Its 186
+    # attempts can exceed twenty minutes with lossless diagnostic readback.
+    # Keep the independent 180-second no-progress/crash guard below.
+    $deadline=[DateTime]::UtcNow.AddSeconds($(if($Extended){7200}elseif($FocusedGpuBenchmark){600}elseif($MovementBenchmark){1200}else{$SoakSeconds+3600}))
     $progressPath=Join-Path $test 'ncmm/first-person-audit-progress.txt'
     $lastProgress='native startup'
     $lastAdvance=[DateTime]::UtcNow
