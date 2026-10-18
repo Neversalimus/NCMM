@@ -1,0 +1,446 @@
+loading initial cache file C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\psx013-evidence\clang_sanitizer_init.cmake
+-- Configuring done (0.8s)
+-- Generating done (0.2s)
+-- Build files have been written to: C:/Users/Алексейц/.codex/.chatgpt-projects/g-p-6ab1237d295481919662599e9f24ab61/psx013-build/clang-sanitized-ninja
+[1/2] Building CXX object CMakeFiles\first_person_gpu_scene_tests.dir\tests\gpu_scene_test.cpp.obj
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp:1:
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\..\graphics_bridge\ncmm_graphics_performance.hpp(32,22): warning: cast from 'FARPROC' (aka 'long long (*)()') to 'query_memory' (aka 'int (*)(void *, _PROCESS_MEMORY_COUNTERS *, unsigned long)') converts to incompatible function type [-Wcast-function-type-mismatch]
+   32 |     const auto query=reinterpret_cast<query_memory>(GetProcAddress(library,"K32GetProcessMemoryInfo"));
+      |                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\..\graphics_bridge\ncmm_graphics_performance.hpp(73,23): warning: cast from 'FARPROC' (aka 'long long (*)()') to 'create_factory' (aka 'long (*)(const _GUID &, void **)') converts to incompatible function type [-Wcast-function-type-mismatch]
+   73 |     const auto create=reinterpret_cast<create_factory>(GetProcAddress(library,"CreateDXGIFactory1"));
+      |                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp:2:
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\..\graphics_bridge\ncmm_gpu_backend.hpp:3:
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\..\graphics_bridge\ncmm_gpu_programs.hpp:2:
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\..\graphics_bridge\ncmm_gpu_device.hpp(89,75): warning: 'strncpy' is deprecated: This function or variable may be unsafe. Consider using strncpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+   89 |         auto copy=[](char *out,size_t size,const char *s){if(!s)s="";std::strncpy(out,s,size-1);out[size-1]=0;};
+      |                                                                           ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(334,1): note: 'strncpy' has been explicitly marked deprecated here
+  334 | __DEFINE_CPP_OVERLOAD_STANDARD_NFUNC_0_2_EX(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1974,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_NFUNC_0_2_EX'
+ 1974 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1, _TType2 _TArg2);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp:2:
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\..\graphics_bridge\ncmm_gpu_backend.hpp(40,48): warning: 'strncpy' is deprecated: This function or variable may be unsafe. Consider using strncpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+   40 |     void reason(const std::string &value){std::strncpy(metrics_.reason,value.c_str(),sizeof(metrics_.reason)-1);metrics_.reason[sizeof(metrics_.reason)-1]=0;}
+      |                                                ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(334,1): note: 'strncpy' has been explicitly marked deprecated here
+  334 | __DEFINE_CPP_OVERLOAD_STANDARD_NFUNC_0_2_EX(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1974,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_NFUNC_0_2_EX'
+ 1974 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1, _TType2 _TArg2);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp:3:
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\gpu_scene.hpp:2:
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\hybrid_renderer.hpp:8:
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\creature_scene.hpp:2:
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\creature_cache.hpp(41,66): warning: 'getenv' is deprecated: This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+   41 |     const std::string debug_directory=[](){const char *path=std::getenv("NCMM_FP_APPEARANCE_DEBUG_DIR");return path?std::string(path):std::string{};}();
+      |                                                                  ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\stdlib.h(1183,20): note: 'getenv' has been explicitly marked deprecated here
+ 1183 |     _Check_return_ _CRT_INSECURE_DEPRECATE(_dupenv_s)
+      |                    ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp:3:
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\gpu_scene.hpp:2:
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\hybrid_renderer.hpp(594,20): warning: unused variable 'celestial' [-Wunused-variable]
+  594 |         const bool celestial=style==NCMM_SKY_EARTH||style==NCMM_SKY_HIGHLANDS;
+      |                    ^~~~~~~~~
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp:3:
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\gpu_scene.hpp:2:
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\hybrid_renderer.hpp:679:
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\architecture.inc(56,45): warning: unused parameter 'layer' [-Wunused-parameter]
+   56 |     material facade_surround(int i,uint32_t layer){
+      |                                             ^
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp:3:
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\gpu_scene.hpp:2:
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\hybrid_renderer.hpp(967,35): warning: unused parameter 'x' [-Wunused-parameter]
+  967 |     void contact_shadow(int i,int x,int y){
+      |                                   ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\hybrid_renderer.hpp(967,41): warning: unused parameter 'y' [-Wunused-parameter]
+  967 |     void contact_shadow(int i,int x,int y){
+      |                                         ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\hybrid_renderer.hpp(1010,51): warning: unused variable 'x' [-Wunused-variable]
+ 1010 |             const vec at=cell_origin(i);const int x=int(at.x),y=int(at.y);const auto &d=s.details[i];
+      |                                                   ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\hybrid_renderer.hpp(1010,63): warning: unused variable 'y' [-Wunused-variable]
+ 1010 |             const vec at=cell_origin(i);const int x=int(at.x),y=int(at.y);const auto &d=s.details[i];
+      |                                                               ^
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp:3:
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\gpu_scene.hpp:2:
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\hybrid_renderer.hpp:1069:
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\volumes.inc(125,10): warning: misleading indentation; statement is not part of the previous 'for' [-Wmisleading-indentation]
+  125 |         }sample_count.fetch_add(marched,std::memory_order_relaxed);});
+      |          ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\volumes.inc(50,9): note: previous statement is here
+   50 |         for(int y=int(begin);y<int(end);++y)for(int x=0;x<f.effect_width;++x){
+      |         ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(174,94): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  174 |         for(int i=0;i<side*side;++i){ground[i].flags=NCMM_GFX_VISIBLE;ground[i].light=1;std::strcpy(ground[i].terrain,"t_floor");std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=1;}
+      |                                                                                              ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(174,135): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  174 |         for(int i=0;i<side*side;++i){ground[i].flags=NCMM_GFX_VISIBLE;ground[i].light=1;std::strcpy(ground[i].terrain,"t_floor");std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=1;}
+      |                                                                                                                                       ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(175,14): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  175 |         std::strcpy(ground[creature_cell].creature,"mod_arbitrary_creature");
+      |              ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(188,18): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  188 |             std::strcpy(entity.bodytype,body);std::strcpy(entity.type_id,ground[creature_cell].creature);
+      |                  ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(188,52): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  188 |             std::strcpy(entity.bodytype,body);std::strcpy(entity.type_id,ground[creature_cell].creature);
+      |                                                    ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(189,52): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  189 |             if(!std::strcmp(body,"centipede"))std::strcpy(entity.species,"CENTIPEDE");
+      |                                                    ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(216,18): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  216 |             std::strcpy(entity.bodytype,"bird");std::strcpy(entity.type_id,ground[creature_cell].creature);
+      |                  ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(216,54): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  216 |             std::strcpy(entity.bodytype,"bird");std::strcpy(entity.type_id,ground[creature_cell].creature);
+      |                                                      ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(237,116): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  237 |         for(int i=0;i<int(ground.size());++i){ground[i]={};ground[i].flags=NCMM_GFX_VISIBLE;ground[i].light=1;std::strcpy(ground[i].terrain,"t_floor");details[i]={};std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=1;}
+      |                                                                                                                    ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(237,171): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  237 |         for(int i=0;i<int(ground.size());++i){ground[i]={};ground[i].flags=NCMM_GFX_VISIBLE;ground[i].light=1;std::strcpy(ground[i].terrain,"t_floor");details[i]={};std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=1;}
+      |                                                                                                                                                                           ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(238,14): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  238 |         std::strcpy(ground[creature_cell].creature,"mod_arbitrary_creature");
+      |              ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(241,100): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  241 |         crow.height=.184188f;crow.width=.235351f;crow.flags=NCMM_CR_FLIES;crow.elevation=.65f;std::strcpy(crow.bodytype,"bird");std::strcpy(crow.type_id,ground[creature_cell].creature);
+      |                                                                                                    ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(241,134): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  241 |         crow.height=.184188f;crow.width=.235351f;crow.flags=NCMM_CR_FLIES;crow.elevation=.65f;std::strcpy(crow.bodytype,"bird");std::strcpy(crow.type_id,ground[creature_cell].creature);
+      |                                                                                                                                      ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(289,157): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  289 |             for(int y=0;y<7;++y)for(int x=0;x<7;++x){const int i=z*49+y*7+x;auto &a=appearances[i];a.flags=NCMM_GFX_VISIBLE|NCMM_GFX_CEILING;a.light=1;std::strcpy(a.terrain,"t_floor");
+      |                                                                                                                                                             ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(290,83): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  290 |                 details[i].light_r=details[i].light_g=details[i].light_b=.8f;std::strcpy(details[i].ground,"t_floor");
+      |                                                                                   ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(292,39): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  292 |         const int actor=49+2*7+3;std::strcpy(appearances[actor].creature,"mon_zombie");
+      |                                       ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(326,81): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  326 |         for(size_t i=0;i<cells.size();++i){cells[i].flags=NCMM_GFX_VISIBLE;std::strcpy(cells[i].terrain,"t_floor");
+      |                                                                                 ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp(327,18): warning: 'strcpy' is deprecated: This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [-Wdeprecated-declarations]
+  327 |             std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=1;}
+      |                  ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\string.h(130,1): note: 'strcpy' has been explicitly marked deprecated here
+  130 | __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1(
+      | ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(874,5): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1'
+  874 |     __DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX(_ReturnType, _ReturnPolicy, _DeclSpec, _FuncName, _FuncName##_s, _DstType, _SalAttributeDst, _DstType, _Dst, _TType1, _TArg1)
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\corecrt.h(1933,17): note: expanded from macro '__DEFINE_CPP_OVERLOAD_STANDARD_FUNC_0_1_EX'
+ 1933 |                 _CRT_INSECURE_DEPRECATE(_SecureFuncName) _DeclSpec _ReturnType __cdecl _FuncName(_SalAttributeDst _DstType *_Dst, _TType1 _TArg1);
+      |                 ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(355,55): note: expanded from macro '_CRT_INSECURE_DEPRECATE'
+  355 |         #define _CRT_INSECURE_DEPRECATE(_Replacement) _CRT_DEPRECATE_TEXT(    \
+      |                                                       ^
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\include\vcruntime.h(345,47): note: expanded from macro '_CRT_DEPRECATE_TEXT'
+  345 | #define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
+      |                                               ^
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\tests\gpu_scene_test.cpp:3:
+In file included from C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\gpu_scene.hpp:2:
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\hybrid_renderer.hpp(221,11): warning: private field 'yaw' is not used [-Wunused-private-field]
+  221 |     float yaw,pitch,cy,sy,cp,sp,projection;vec eye,fog_color,sky_top,sky_bottom,held_light{.95f,.89f,.84f};std::vector<float> shadows;
+      |           ^
+C:\Users\Алексейц\.codex\.chatgpt-projects\g-p-6ab1237d295481919662599e9f24ab61\fpv-013\experiments\FirstPersonView\src\hybrid_renderer.hpp(221,15): warning: private field 'pitch' is not used [-Wunused-private-field]
+  221 |     float yaw,pitch,cy,sy,cp,sp,projection;vec eye,fog_color,sky_top,sky_bottom,held_light{.95f,.89f,.84f};std::vector<float> shadows;
+      |               ^
+32 warnings generated.
+[2/2] Linking CXX executable first_person_gpu_scene_tests.exe
+Generated creature SDL_GPU: 13 anatomies x 8 headings; maximum CPU/GPU RGB MAE 0.003938
+Distant bird 70.000 L: LOD 1/0/0/0; CPU pixels 8954; GPU pixels 8951
+Distant bird 1.000 L: LOD 0/0/1/0; CPU pixels 486; GPU pixels 434
+Distant bird 0.100 L: LOD 0/0/1/0; CPU pixels 116; GPU pixels 94
+Distant bird 0.001 L: LOD 0/0/0/1; CPU pixels 9; GPU pixels 7
+Actual-sized crow offset 0: CPU 6 / GPU 4 pixels
+Actual-sized crow offset 1: CPU 7 / GPU 3 pixels
+Actual-sized crow offset 2: CPU 5 / GPU 2 pixels
+Actual-sized crow offset 3: CPU 6 / GPU 4 pixels
+Actual-sized crow offset 4: CPU 6 / GPU 4 pixels
+Actual-sized crow offset 5: CPU 5 / GPU 4 pixels
+Actual-sized crow offset 6: CPU 5 / GPU 2 pixels
+Actual-sized crow offset 7: CPU 6 / GPU 3 pixels
+Multi-Z closed: CPU 0 / GPU 0 pixels; target CPU -1 / GPU -1
+Multi-Z open: CPU 21108 / GPU 21108 pixels; target CPU 66 / GPU 66
+Full GPU scene PASS: direct3d12 / NVIDIA GeForce RTX 4090; animation upload 272 bytes; CPU raster=0
