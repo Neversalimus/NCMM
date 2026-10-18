@@ -14,6 +14,10 @@
     auto progress=[&](const std::string &name){progress_stream<<name<<'\n';progress_stream.flush();};
     std::ofstream stream(game_root()/"ncmm"/"first-person-movement-benchmark.json");JsonOut report(stream);
     report.start_object();report.member("schema",2);report.member("actual_cdda_sdl",true);report.member("manual_playthrough",false);
+    report.member("profiler_markers_enabled",ncmm_graphics_trace::enabled());
+    report.member("gpu_debug_requested",std::getenv("SDL_RENDER_GPU_DEBUG")!=nullptr);
+    report.member("distance_radius",NCMM_GRAPHICS_V2_RADIUS);report.member("fov_z_range_configured",get_option<int>("FOV_3D_Z_RANGE"));
+    report.member("native_pass_retained",true);
     report.member("simulation_turns_advanced",0);report.member("full_size_gpu_matrix",full_size_gpu_matrix);report.member("records");report.start_array();
     auto at=[&](int x,int y,int z){return here.get_bub(tripoint_abs_ms(original_position.x()+x,original_position.y()+y,z));};
     auto refresh=[&](){g->ter_view_p=you.pos_bub();g->reset_light_level();here.build_map_cache(you.posz());here.invalidate_visibility_cache();here.update_visibility_cache(you.posz());};
@@ -27,8 +31,9 @@
     graphics_sprite_readbacks.enabled=extended;
     const int steps=extended?64:12,rotations=extended?96:48;
     const auto benchmark_weather=get_weather().weather_id;
-    const std::vector<std::string> scenes=trace_capture?std::vector<std::string>{trace_scene=="city"?"city_blocks":trace_scene=="smoke"?"smoke_rain":trace_scene=="hands"||trace_scene=="shot"?"armed":"street"}:extended?std::vector<std::string>{"street","city_blocks","dense_city","forest","multi_level_horde","creatures_20","creatures_100","smoke_rain","armed","empty_attacks"}:
+    std::vector<std::string> scenes=trace_capture?std::vector<std::string>{trace_scene=="city"?"city_blocks":trace_scene=="smoke"?"smoke_rain":trace_scene=="hands"||trace_scene=="shot"?"armed":"street"}:extended?std::vector<std::string>{"street","city_blocks","dense_city","forest","multi_level_horde","creatures_20","creatures_100","smoke_rain","armed","empty_attacks"}:
         std::vector<std::string>{"street","multi_level_horde","city_blocks"};
+    if(full_size_gpu_matrix)scenes.insert(scenes.end()-2,"tool");
     const std::vector<point> viewports=(trace_capture||full_size_gpu_matrix)?std::vector<point>{point(1768,1084)}:extended?std::vector<point>{point(640,480),point(1280,800),point(1768,1084),point(1920,1080)}:
         std::vector<point>{point(640,480),point(1768,1084)};
     if(std::getenv("NCMM_FP_UDP")){get_options().get_option("TILES").setValue("UndeadPeople_0J_Hybrid_v3");tilecontext->load_tileset("UndeadPeople_0J_Hybrid_v3",false,true);}
@@ -65,6 +70,7 @@
             require(g->place_critter_at(mtype_id(n%2?"mon_zombie":"mon_dog"),at(-9+n%10*2,-3-n/10*2,0))!=nullptr,"movement_extended_creature_spawn_failed");
         if(scene=="smoke_rain")for(int y=-16;y<-2;++y)for(int x=-8;x<=8;++x)here.add_field(at(x,y,0),field_type_str_id("fd_smoke").id(),3);
         if(scene=="armed")you.set_wielded_item(item(itype_id("scar_l"),calendar::turn));
+        if(scene=="tool")you.set_wielded_item(item(itype_id("crowbar"),calendar::turn));
         const std::string original_art=get_option<std::string>("NCMM_FIRST_PERSON_CREATURE_ART");
         get_options().get_option("NCMM_FIRST_PERSON_CREATURE_ART").setValue("tileset");
         const std::vector<const char *> modes=(trace_capture||full_size_gpu_matrix)?std::vector<const char *>{"gpu"}:std::vector<const char *>{"cpu","gpu"};

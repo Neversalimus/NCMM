@@ -374,7 +374,7 @@ if($TargetHudGallery){
     $soaked=0
 }elseif($MovementBenchmark){
     $audit=Get-Content (Join-Path $evidence 'first-person-movement-benchmark.json') -Raw | ConvertFrom-Json
-    $expectedRecords=if($FullSizeGpuMatrix){10}elseif($Extended){80}else{12};$expectedSteps=if($Extended){64}else{12};$expectedRotations=if($Extended){96}else{48}
+    $expectedRecords=if($FullSizeGpuMatrix){11}elseif($Extended){80}else{12};$expectedSteps=if($Extended){64}else{12};$expectedRotations=if($Extended){96}else{48}
     if($FullSizeGpuMatrix -and $audit.full_size_gpu_matrix -ne $true){throw 'Full-size GPU matrix descriptor is missing.'}
     if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.simulation_turns_advanced -ne 0 -or @($audit.records).Count -ne $expectedRecords){throw 'Native movement benchmark is incomplete.'}
     foreach($record in $audit.records){
@@ -416,6 +416,11 @@ $result['trace_capture_scene']=$TraceCaptureScene
 $result.target_hud_gallery=[bool]$TargetHudGallery
 $result.full_size_gpu_matrix=[bool]$FullSizeGpuMatrix
 $result.target_hud_enabled=-not [bool]$DisableTargetHud
+$result['gpu_debug_requested']=[bool]$GpuDebug
+$result['trace_markers_enabled']=[bool]$TraceCaptureScene
+$result['camera_snapshot_enabled']=(-not [bool]$DisableCameraSnapshot)
+$result['held_assets_enabled']=(-not [bool]$DisableHeldAssets)
+$result['controlled_without_ai_turn_loop']=$true
 $result | ConvertTo-Json | Set-Content (Join-Path $OutputRoot 'benchmark-provenance.json') -Encoding UTF8
 $result | ConvertTo-Json
 } catch {
