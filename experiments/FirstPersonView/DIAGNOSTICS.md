@@ -78,6 +78,9 @@ counts, resource/cache bytes and process RSS. They use the same frame path as
 ordinary gameplay. Resource and stage counters add diagnostic overhead; report
 that scope and keep instrumentation identical in each paired run. RSS is a
 whole-process measurement and must not be described as viewmodel allocation.
+Each record also retains its initial rendered/presented frame and initial
+geometry/resource/upload costs before timed rotations and walking. This is the
+first frame of that record, not a claim that all process/device caches are cold.
 The outer rotation timer includes native cache refresh; the nested frame phase
 stream excludes that refresh. First-ready time includes the actual move,
 refresh, rendered frame, presentation and instrumentation. Medians of nested

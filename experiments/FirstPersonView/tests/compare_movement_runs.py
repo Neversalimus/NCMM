@@ -161,6 +161,13 @@ def read_run(root, identity, weather, phases, *, extended=False):
             require(record["native_weather_id"] == ("rain" if record["scene"] == "smoke_rain" else "sunny"),
                     "Unexpected extended scene weather")
             item["native_weather_id"] = record["native_weather_id"]
+            initial = {name: record[name] for name in ("initial_render_ready_ms", "initial_gpu_static_upload_bytes",
+                "initial_gpu_upload_bytes", "initial_gpu_geometry_ms", "initial_gpu_resource_ms", "initial_gpu_resource_bytes")}
+            require(all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in initial.values())
+                    and initial["initial_render_ready_ms"] > 0, "Invalid initial rendered frame evidence")
+            require(initial["initial_gpu_static_upload_bytes"] <= initial["initial_gpu_upload_bytes"],
+                    "Initial static upload exceeds its complete transfer")
+            item["initial_render"] = initial
             cold = record["cold_rotation_samples_ms"]
             require(len(cold) == rotations and all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in cold),
                     "Invalid cold rotation samples")

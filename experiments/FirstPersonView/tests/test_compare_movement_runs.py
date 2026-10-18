@@ -97,6 +97,9 @@ class HardwareEvidenceTests(unittest.TestCase):
                                   native_steps=64, extended_matrix=True, internal_width=640, internal_height=480,
                                   native_confirmed_attacks=16 if scene == "empty_attacks" else 0,
                                   native_weather_id="rain" if scene == "smoke_rain" else "sunny",
+                                  initial_render_ready_ms=5.0, initial_gpu_static_upload_bytes=0,
+                                  initial_gpu_upload_bytes=0, initial_gpu_geometry_ms=0,
+                                  initial_gpu_resource_ms=0, initial_gpu_resource_bytes=0,
                                   first_frame_indices=list(range(192, 256)),
                                   first_frame_after_step_samples_ms=[4.0] * 64,
                                   first_ready_samples_ms=[9.0] * 64,
@@ -125,6 +128,7 @@ class HardwareEvidenceTests(unittest.TestCase):
         self.extended_fixture()
         original = copy.deepcopy(self.report["records"][0])
         for key, invalid in (("extended_matrix", False), ("internal_width", 2000), ("native_weather_id", "snow"),
+                             ("initial_render_ready_ms", 0), ("initial_gpu_static_upload_bytes", 1),
                              ("native_confirmed_attacks", 1), ("gpu_held_bones", [0] * 255),
                              ("process_rss_bytes", [-1] * 256), ("cold_rotation_samples_ms", [float("nan")] * 96)):
             with self.subTest(key=key):
