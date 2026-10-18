@@ -118,6 +118,11 @@ void initialize();''')
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", "void graphics_note_creature( Creature *, uint32_t event, float heading = 100.f );\nvoid initialize();")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", "void graphics_release_gpu();\nvoid initialize();")
     action = read("handle_action.cpp")
+    action = replace(action, 'input_context game::get_player_input( std::string &action )\n{',
+        'input_context game::get_player_input( std::string &action )\n{\n'
+        '    ncmm::graphics_input_wait_scope ncmm_native_input_loop( "DEFAULTMODE", true );')
+    action = replace(action, '    return ctxt;\n}\n\nstatic void rcdrive(',
+        '    ncmm_native_input_loop.completed( action );\n    return ctxt;\n}\n\nstatic void rcdrive(')
     action_anchor = "    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {\n        player_character.clear_destination();\n        destination_preview.clear();\n        return false;\n    }"
     updates["handle_action.cpp"] = replace(action, action_anchor,
         "    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {\n        if( !ncmm::graphics_preserves_destination( action ) ) {\n            player_character.clear_destination();\n            destination_preview.clear();\n        }\n        return false;\n    }")
@@ -290,17 +295,30 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "            if( waiting & 4u ) ++graphics_fire_capture.default_keychar_inputs; else ++graphics_fire_capture.default_keycode_inputs;\n        }\n"
         "        graphics_fire_capture.native_command = action; ++graphics_fire_capture.native_command_sequence;\n    }\n"
         "#else\n    (void)category; (void)action;\n#endif\n}\n"
-        "void graphics_note_terrain_composed( bool perspective )\n{\n#if defined(TILES)\n    if( graphics_fire_capture.active ) { graphics_fire_capture.last_perspective = perspective; graphics_fire_capture.last_gpu = perspective && graphics_gpu_frame; }\n#else\n    (void)perspective;\n#endif\n}\n"
-        "void graphics_before_present()\n{\n#if defined(TILES)\n    graphics_capture_before_present();\n#endif\n}\n"
+        "void graphics_note_terrain_composed( bool perspective )\n{\n#if defined(TILES)\n    if( graphics_fire_capture.active ) { graphics_fire_capture.last_perspective = perspective; graphics_fire_capture.last_gpu = perspective && graphics_gpu_frame; }\n"
+        "    if( graphics_camera_input_probe.active ) { graphics_camera_input_probe.last_composed_perspective=perspective; graphics_camera_input_probe.last_composed_gpu=perspective&&graphics_gpu_frame; }\n#else\n    (void)perspective;\n#endif\n}\n"
+        "void graphics_before_present()\n{\n#if defined(TILES)\n    graphics_capture_before_present();\n"
+        "    if(graphics_camera_input_probe.active&&!graphics_frame_pending_present&&graphics_camera_input_probe.unclassified_captures<8){\n"
+        "        auto *pixels=SDL_RenderReadPixels(get_sdl_renderer().get(),nullptr);\n"
+        "        const auto path=game_root()/\"ncmm\"/(\"first-person-camera-unclassified-\"+std::to_string(graphics_camera_input_probe.unclassified_captures++)+\".bmp\");\n"
+        "        if(!pixels||!SDL_SaveBMP(pixels,path.u8string().c_str()))++graphics_camera_input_probe.capture_failures;\n"
+        "        if(pixels)SDL_DestroySurface(pixels);\n    }\n#endif\n}\n"
         "void graphics_world_changed( const map *source, int z )\n{\n"
         "    graphics_world_changed_impl( source, z );\n}\n"
-        "uint64_t graphics_input_wait_begin( const std::string &category )\n{\n    return graphics_snapshot_lease.begin( category );\n}\n"
-        "void graphics_input_wait_end( uint64_t token, const std::string &action )\n{\n    graphics_snapshot_lease.end( token, action );\n    graphics_camera_cache.suspend();\n}\n"
+        "uint64_t graphics_input_wait_begin( const std::string &category )\n{\n"
+        "    const auto before=graphics_snapshot_lease.generation();const auto token=graphics_snapshot_lease.begin(category);\n"
+        "    if(graphics_camera_input_probe.active&&before!=graphics_snapshot_lease.generation())++graphics_camera_input_probe.lease_invalidations[\"begin:\"+category];\n    return token;\n}\n"
+        "uint64_t graphics_native_input_loop_begin()\n{\n    return graphics_snapshot_lease.begin_native_loop();\n}\n"
+        "void graphics_input_wait_end( uint64_t token, const std::string &action )\n{\n"
+        "    const auto before=graphics_snapshot_lease.generation();graphics_snapshot_lease.end(token,action);\n"
+        "    if(graphics_camera_input_probe.active&&before!=graphics_snapshot_lease.generation())++graphics_camera_input_probe.lease_invalidations[\"end:\"+action];\n"
+        "    graphics_camera_cache.suspend();\n}\n"
         "void graphics_frame_presented()\n{\n#if defined(TILES)\n"
         "    ncmm_graphics_trace::note_present();\n"
         "    if( graphics_camera_input_probe.active ) {\n"
         "        ++graphics_camera_input_probe.presents;\n"
-        "        if( !graphics_frame_pending_present ) ++graphics_camera_input_probe.nonperspective_frames;\n"
+        "        if( !graphics_frame_pending_present ) { ++graphics_camera_input_probe.nonperspective_frames;\n"
+        "            if(graphics_camera_input_probe.last_composed_perspective&&graphics_camera_input_probe.last_composed_gpu)++graphics_camera_input_probe.retained_perspective_frames; }\n"
         "        else if( graphics_gpu_frame ) ++graphics_camera_input_probe.gpu_frames;\n"
         "        else ++graphics_camera_input_probe.cpu_frames;\n    }\n"
         "    if( graphics_fire_capture.active && !graphics_fire_capture.frames.empty() ) graphics_fire_capture.frames.back().presented = true;\n"
@@ -312,12 +330,14 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "void graphics_note_input_wait( const std::string &, bool text );\nvoid graphics_note_input_result( const std::string &, const std::string & );\nvoid graphics_note_terrain_composed( bool perspective );\nvoid graphics_world_changed( const map *, int z );\nvoid initialize();")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", '''// Main-thread input lifetime only; existing public module headers are unchanged.
 uint64_t graphics_input_wait_begin( const std::string &category );
+uint64_t graphics_native_input_loop_begin();
 void graphics_input_wait_end( uint64_t token, const std::string &action );
 class graphics_input_wait_scope {
     uint64_t token_;
     std::string action_;
 public:
-    explicit graphics_input_wait_scope( const std::string &category ) : token_( graphics_input_wait_begin( category ) ) {}
+    explicit graphics_input_wait_scope( const std::string &category, bool native_loop = false ) :
+        token_( native_loop ? graphics_native_input_loop_begin() : graphics_input_wait_begin( category ) ) {}
     ~graphics_input_wait_scope() { graphics_input_wait_end( token_, action_ ); }
     void completed( const std::string &action ) { action_ = action; }
     graphics_input_wait_scope( const graphics_input_wait_scope & ) = delete;

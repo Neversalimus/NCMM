@@ -16,6 +16,7 @@
     const auto attack=graphics_attack_serial;
     const auto before=graphics_camera_cache.totals;
     graphics_camera_input_probe={};graphics_camera_input_probe.active=true;
+    graphics_camera_input_probe.last_composed_perspective=true;graphics_camera_input_probe.last_composed_gpu=true;
     std::ofstream progress(game_root()/"ncmm"/"first-person-audit-progress.txt");
     struct input_worker {
         std::atomic<bool> stop{false},done{false};std::thread thread;
@@ -72,6 +73,9 @@
     for(size_t i=0;i<after.key_changes.size();++i)out.write(after.key_changes[i]-before.key_changes[i]);
     out.end_array();out.member("snapshot_window_changes",after.window_changes-before.window_changes);
     out.member("snapshot_clears",after.clears-before.clears);
+    out.member("lease_invalidations");out.start_object();for(const auto &entry:observed.lease_invalidations)out.member(entry.first,entry.second);out.end_object();
+    out.member("retained_perspective_frames",observed.retained_perspective_frames);
+    out.member("unclassified_captures",observed.unclassified_captures);out.member("capture_failures",observed.capture_failures);
     const auto metrics=graphics_gpu_engine->metrics();out.member("device",metrics.device);out.member("backend",metrics.backend);out.member("software_device",bool(metrics.software_device));
     out.end_object();output.close();require(bool(output),"camera_input_report_write_failed");
     // Preserve the exact failing predicates in the runner's progress tail as

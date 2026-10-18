@@ -16,19 +16,32 @@ namespace ncmm_graphics_snapshot {
 class input_lease {
     std::array<uint64_t,32> tokens{};
     uint64_t next_token=0,generation_=1;
+    uint64_t native_loop_token=0;
     size_t depth=0;
     bool allowed=false;
 public:
     uint64_t generation()const noexcept{return generation_;}
-    bool active()const noexcept{return allowed&&depth==1;}
+    bool active()const noexcept{return allowed&&(depth==1||
+        (depth==2&&native_loop_token&&tokens[0]==native_loop_token));}
     void invalidate()noexcept{if(++generation_==0)++generation_;}
-    void reset()noexcept{invalidate();depth=0;allowed=false;tokens.fill(0);}
+    void reset()noexcept{invalidate();depth=0;native_loop_token=0;allowed=false;tokens.fill(0);}
     uint64_t begin(const std::string &category)noexcept{
-        if(depth||category!="DEFAULTMODE"){invalidate();allowed=false;}
-        else allowed=true;
+        const bool delegated=native_loop_token&&depth==1&&tokens[0]==native_loop_token&&category=="DEFAULTMODE";
+        if((depth&&!delegated)||category!="DEFAULTMODE"){invalidate();allowed=false;}
+        else if(!depth)allowed=true;
         if(depth==tokens.size()){reset();return 0;}
         if(++next_token==0)++next_token;
         tokens[depth++]=next_token;return next_token;
+    }
+    // game::get_player_input owns the real animation/input loop. Its 125 ms
+    // polls do not execute an avatar action or advance the simulation. Only
+    // this explicit outer scope can delegate DEFAULTMODE polling lifetimes.
+    uint64_t begin_native_loop()noexcept{
+        const bool outer=depth==0;
+        if(!outer){invalidate();allowed=false;}
+        const auto token=begin("DEFAULTMODE");
+        if(outer)native_loop_token=token;
+        return token;
     }
     static bool camera_action(const std::string &action)noexcept{
         return action=="ncmm.view.turn_left"||action=="ncmm.view.turn_right"||
@@ -37,8 +50,16 @@ public:
     }
     void end(uint64_t token,const std::string &action)noexcept{
         if(!token||!depth||tokens[depth-1]!=token)return;
-        tokens[--depth]=0;allowed=false;
-        if(depth||!camera_action(action))invalidate();
+        const bool ending_loop=token==native_loop_token;
+        const bool delegated=native_loop_token&&depth==2;
+        tokens[--depth]=0;
+        if(ending_loop)native_loop_token=0;
+        if(delegated){
+            if(action!="TIMEOUT"&&!camera_action(action)){allowed=false;invalidate();}
+        }else{
+            allowed=false;
+            if(depth||!camera_action(action))invalidate();
+        }
     }
 };
 

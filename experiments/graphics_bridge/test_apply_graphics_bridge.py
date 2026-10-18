@@ -38,7 +38,7 @@ class ApplyTests(unittest.TestCase):
         (root / "src/sdltiles.h").write_text("SDL_Window *get_sdl_window();")
         (root / "src/handle_action.cpp").write_text("    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {\n        player_character.clear_destination();\n        destination_preview.clear();\n        return false;\n    }")
         with (root / "src/handle_action.cpp").open('a') as f: f.write('\n    if( act == ACTION_NULL ) {\n        act = look_up_action( action );\n    }')
-        with (root / "src/handle_action.cpp").open('a') as f: f.write('\n        if( act == ACTION_SELECT || act == ACTION_SEC_SELECT ) {}')
+        with (root / "src/handle_action.cpp").open('a') as f: f.write('\n        if( act == ACTION_SELECT || act == ACTION_SEC_SELECT ) {}\ninput_context game::get_player_input( std::string &action )\n{\n    return ctxt;\n}\n\nstatic void rcdrive( ) {}')
         (root / "src/melee.cpp").write_text('    const bool hits = hit_spread >= 0;')
         (root / "src/ranged.cpp").write_text('target_handler::trajectory target_ui::run()\n{\n}\n        curshot++;\n\n        if( !gun.is_gun() ) {}\n    bool skip_redraw = false;')
         (root / "src/creature.cpp").write_text("int Creature::deal_melee_attack( Creature *source, int hitroll )\n{\n}\n    apply_damage( source, bp, total_damage );")
@@ -127,6 +127,15 @@ bool cata_tiles::draw_sprite_at() {
             with patch.object(bridge.subprocess, "check_output", return_value=next(iter(bridge.SOURCES))):
                 with self.assertRaisesRegex(ValueError, "one exact anchor"): bridge.apply(root)
             self.assertEqual(before, self.fingerprint(root))
+    def test_changed_native_animation_input_loop_no_partial_patch(self):
+        for anchor in ['input_context game::get_player_input(', 'static void rcdrive(']:
+            with self.subTest(anchor=anchor), tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);self.fixture(root);path=root/'src/handle_action.cpp'
+                path.write_text(path.read_text().replace(anchor,'changed_native_input_loop('))
+                before=self.fingerprint(root)
+                with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                    with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
+                self.assertEqual(before,self.fingerprint(root))
     def test_changed_creature_hook_no_partial_patch(self):
         for name in ("creature.cpp", "ballistics.cpp", "monster.cpp", "npc.cpp"):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
