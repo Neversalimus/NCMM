@@ -25,7 +25,7 @@ class backend {
     uint64_t generation_=0,resource_epoch_=1,world_epoch_=0,last_serial_=0,readback_generation_=1;
     ncmm_gpu_metrics_v1 metrics_{};
     recording_metrics recording_{};
-    bool profiling_=false;
+    bool profiling_=false,white_ready_=false;
     struct readback {SDL_GPUTransferBuffer *transfer=nullptr;SDL_GPUFence *fence=nullptr;uint64_t serial=0,generation=0;};
     std::array<readback,3> readbacks_{};
     struct instance {ncmm_gpu_matrix_v1 world;uint32_t bone_offset,bone_count,cell,reserved;};
@@ -36,7 +36,7 @@ class backend {
     static double ms(clock::time_point begin){return std::chrono::duration<double,std::milli>(clock::now()-begin).count();}
     void reason(const std::string &value){std::strncpy(metrics_.reason,value.c_str(),sizeof(metrics_.reason)-1);metrics_.reason[sizeof(metrics_.reason)-1]=0;}
     void release_targets(){auto *d=context_.device();if(d)for(auto *t:{world_,id_,held_depth_,effects_,effect_depth_,white_})if(t)SDL_ReleaseGPUTexture(d,t);
-        world_=id_=held_depth_=effects_=effect_depth_=white_=nullptr;width_=height_=0;}
+        world_=id_=held_depth_=effects_=effect_depth_=white_=nullptr;width_=height_=0;white_ready_=false;}
     void release_buffers(){auto *d=context_.device();if(d){for(auto *b:{instances_,bones_,cells_,shadows_,counter_})if(b)SDL_ReleaseGPUBuffer(d,b);
             for(auto &r:readbacks_){if(r.fence)SDL_ReleaseGPUFence(d,r.fence);if(r.transfer)SDL_ReleaseGPUTransferBuffer(d,r.transfer);}
             if(frame_upload_)SDL_ReleaseGPUTransferBuffer(d,frame_upload_);}
@@ -188,7 +188,8 @@ public:
         if(!counter_){uint32_t ignored=0;if(!buffer(counter_,ignored,64,SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE)){reason(context_.reason());return false;}}
         readback *read=nullptr;for(auto &r:readbacks_)if(!r.fence){read=&r;break;}
         if(read&&!read->transfer){SDL_GPUTransferBufferCreateInfo info{};info.usage=SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;info.size=64;read->transfer=SDL_CreateGPUTransferBuffer(context_.device(),&info);if(!read->transfer)read=nullptr;}
-        const uint32_t upload_size=uint32_t(instances.size()*sizeof(instance)+scene.bone_count*sizeof(ncmm_gpu_matrix_v1)+scene.cell_count*sizeof(gpu_cell)+64+4);
+        const bool initialize_white=!white_ready_;
+        const uint32_t upload_size=uint32_t(instances.size()*sizeof(instance)+scene.bone_count*sizeof(ncmm_gpu_matrix_v1)+scene.cell_count*sizeof(gpu_cell)+64+(initialize_white?4:0));
         auto *transfer=frame_upload_;
         auto *mapped=static_cast<unsigned char *>(SDL_MapGPUTransferBuffer(context_.device(),transfer,true));if(!mapped){context_.fail("map frame transfer");reason(context_.reason());return false;}
         stage=clock::now();uint32_t offset=0;std::memcpy(mapped+offset,instances.data(),instances.size()*sizeof(instance));offset+=uint32_t(instances.size()*sizeof(instance));
@@ -198,7 +199,7 @@ public:
             else{c.origin[0]=float(i%uint32_t(scene.camera.grid[0]));c.origin[1]=float(i/uint32_t(scene.camera.grid[0]));std::copy_n(c.appearance.light,4,c.lower_light);}
             std::memcpy(mapped+offset,&c,sizeof(c));offset+=sizeof(c);}
 
-        std::memset(mapped+offset,0,64);std::memset(mapped+offset+64,255,4);SDL_UnmapGPUTransferBuffer(context_.device(),transfer);
+        std::memset(mapped+offset,0,64);if(initialize_white)std::memset(mapped+offset+64,255,4);SDL_UnmapGPUTransferBuffer(context_.device(),transfer);
         if(!SDL_FlushRenderer(context_.renderer())){context_.fail("flush SDL GPU state");reason(context_.reason());return false;}
         auto *commands=SDL_AcquireGPUCommandBuffer(context_.device());if(!commands){context_.fail("acquire frame commands");reason(context_.reason());return false;}
         auto stop=[&](const char *operation){SDL_CancelGPUCommandBuffer(commands);
@@ -208,8 +209,11 @@ public:
         if(!copy)return stop("begin frame upload pass");
         auto put=[&](SDL_GPUBuffer *target,uint32_t size){if(size){SDL_GPUTransferBufferLocation from{transfer,offset};SDL_GPUBufferRegion to{target,0,size};SDL_UploadToGPUBuffer(copy,&from,&to,true);}offset+=size;};
         put(instances_,uint32_t(instances.size()*sizeof(instance)));put(bones_,scene.bone_count*sizeof(ncmm_gpu_matrix_v1));put(cells_,scene.cell_count*sizeof(gpu_cell));put(counter_,64);
-        SDL_GPUTextureTransferInfo white{};white.transfer_buffer=transfer;white.offset=offset;white.pixels_per_row=white.rows_per_layer=1;
-        SDL_GPUTextureRegion white_target{};white_target.texture=white_;white_target.w=white_target.h=white_target.d=1;SDL_UploadToGPUTexture(copy,&white,&white_target,true);SDL_EndGPUCopyPass(copy);
+        // The neutral fallback texel is immutable for this target lifetime.
+        // Re-uploading with cycling also changes its backing texture each frame.
+        if(initialize_white){SDL_GPUTextureTransferInfo white{};white.transfer_buffer=transfer;white.offset=offset;white.pixels_per_row=white.rows_per_layer=1;
+            SDL_GPUTextureRegion white_target{};white_target.texture=white_;white_target.w=white_target.h=white_target.d=1;SDL_UploadToGPUTexture(copy,&white,&white_target,false);}
+        SDL_EndGPUCopyPass(copy);
         metrics_.upload_bytes+=upload_size;metrics_.upload_ms=ms(stage);
         auto phase_start=profiling_?clock::now():clock::time_point{};
         SDL_GPUStorageBufferReadWriteBinding shadow_binding{};shadow_binding.buffer=shadows_;shadow_binding.cycle=true;
@@ -258,6 +262,7 @@ public:
         if(read){read->serial=scene.frame_serial;read->generation=readback_generation_;read->fence=SDL_SubmitGPUCommandBufferAndAcquireFence(commands);success=read->fence!=nullptr;}else success=SDL_SubmitGPUCommandBuffer(commands);
         metrics_.submit_ms=ms(stage);
         if(!success){context_.fail("submit full GPU frame");const std::string error=context_.reason();invalidate();reason(error);return false;}
+        white_ready_=true;
         metrics_.active=1;metrics_.cpu_raster_calls=0;metrics_.resource_epoch=resource_epoch_;metrics_.reason[0]=0;return true;
     }
 };

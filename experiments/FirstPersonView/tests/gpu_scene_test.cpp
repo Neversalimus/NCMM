@@ -56,6 +56,7 @@ int main(int argc,char **argv){
     require(engine.submit(scene),engine.metrics().reason);auto first=engine.metrics();require(first.active&&first.triangles==2&&first.cpu_raster_calls==0,"GPU triangles, hardware depth, CPU raster excluded");
     require(engine.has(11,0),"persistent GPU mesh resource");require(first.target_cell==0,"geometric picking matches visible near creature");
     require(engine.resources().static_upload_bytes()>0,"initial immutable mesh upload is accounted separately");
+    const auto first_static_upload=engine.resources().static_upload_bytes();
     require(engine.recording().static_upload_bytes==engine.resources().static_upload_bytes(),"private static upload counters report the current frame");
     const auto staging_capacity=engine.recording().frame_upload_capacity_bytes;
     const auto staging_creations=engine.recording().frame_upload_creations;
@@ -72,6 +73,7 @@ int main(int argc,char **argv){
     scene.mesh_count=0;scene.meshes=nullptr;scene.frame_serial=2;bones[1].columns[12]=5;
     require(engine.submit(scene),engine.metrics().reason);auto second=engine.metrics();require(second.active&&second.generated_meshes==0&&second.upload_bytes<1024,"only dynamic data uploaded for skeletal animation");
     require(engine.resources().static_upload_bytes()==0,"warm skeletal animation uploads no immutable resources");
+    require(second.upload_bytes+4==first.upload_bytes-first_static_upload,"neutral fallback texture uploads only on first use");
     require(engine.recording().static_upload_bytes==0,"private warm upload counters cannot underflow from the previous frame");
     require(engine.recording().frame_upload_capacity_bytes==staging_capacity&&engine.recording().frame_upload_creations==staging_creations,"bone updates reuse the same staging object");
     require(second.target_cell==-1,"bone animation updates exact picking without CPU pixel raster");center=capture("-skin");require(((center>>16)&255)>120&&(center>>24)<20,"GPU vertex skinning moves near mesh; far green becomes visible");
@@ -81,6 +83,7 @@ int main(int argc,char **argv){
     for(int frame=0;frame<16;++frame){
         scene.frame_serial=100+frame;bones[1].columns[12]=frame%2?5.f:0.f;
         require(engine.submit(scene),engine.metrics().reason);
+        require(engine.metrics().upload_bytes==second.upload_bytes,"queued poses preserve the immutable neutral texture");
         require(engine.recording().frame_upload_creations==staging_creations,"queued poses retain one staging object");
         SDL_FRect slot{float(frame%4*160),float(frame/4*120),160,120};
         require(SDL_RenderTexture(renderer,engine.output(),nullptr,&slot),"queue a distinct pose snapshot");
@@ -117,6 +120,8 @@ int main(int argc,char **argv){
     // Dynamic meshes are still supplied after resizing; immutable world stays cached.
     scene.meshes=&dynamic;scene.mesh_count=1;
     require(engine.submit(scene)&&engine.metrics().generated_meshes==0&&engine.metrics().resource_bytes<=NCMM_GPU_RESOURCE_LIMIT,"viewport resize preserves world cache and allocation budget");
+    const auto resized_upload=engine.metrics().upload_bytes;++scene.frame_serial;
+    require(engine.submit(scene)&&engine.metrics().upload_bytes+4==resized_upload,"resized target initializes its neutral texture once");
     {
         // A valid frame-only transfer can exceed the old native smoke's 2 MiB
         // threshold without rebuilding or uploading any immutable geometry.

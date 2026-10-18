@@ -128,6 +128,10 @@ Retained staging capacity shares the resource budget and is reported separately
 from GPU targets/assets; it is not measured VRAM. Creation/growth counters and
 queued distinct-pose pixel tests verify reuse and copy lifetime. Native timing
 must establish whether this removes the observed upload/recording delays.
+The neutral fallback texel is initialized once per target lifetime, rather than
+uploaded and cycled every frame. Successful queue submission marks it ready;
+target recreation and device cleanup reset that state. Pixel and upload checks
+cover warm animation, queued poses and viewport recreation.
 
 World distance, internal resolution caps, Z levels, creature detail, native
 perception, simulation and the established horizon LOD are preserved. Whether
