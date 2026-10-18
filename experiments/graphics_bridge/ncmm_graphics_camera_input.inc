@@ -57,7 +57,7 @@
     const auto observed=graphics_camera_input_probe;
     const bool native_unchanged=position==you.pos_abs()&&turn==calendar::turn&&moves==you.get_moves()&&
         hp==you.get_part_hp_cur(bodypart_id("torso"))&&attack==graphics_attack_serial;
-    const bool success=native_unchanged&&observed.mouse_events>=400&&observed.rotation_radians>12.5&&
+    const bool success=native_unchanged&&observed.mouse_events>=400&&observed.rotation_radians>=12.566370614359&&
         observed.presents>=16&&observed.gpu_frames==observed.presents&&!observed.cpu_frames&&!observed.nonperspective_frames&&
         after.hits>before.hits+1000&&after.detail_hits>before.detail_hits&&after.presentation_hits>before.presentation_hits;
     std::ofstream output(game_root()/"ncmm"/"first-person-camera-input.json");JsonOut out(output);
@@ -68,7 +68,15 @@
     out.member("snapshot_hits",after.hits-before.hits);out.member("snapshot_misses",after.misses-before.misses);
     out.member("snapshot_generations",after.generations-before.generations);out.member("detail_hits",after.detail_hits-before.detail_hits);
     out.member("presentation_hits",after.presentation_hits-before.presentation_hits);out.member("snapshot_bytes",graphics_camera_cache.bytes());
+    out.member("snapshot_key_changes");out.start_array();
+    for(size_t i=0;i<after.key_changes.size();++i)out.write(after.key_changes[i]-before.key_changes[i]);
+    out.end_array();out.member("snapshot_window_changes",after.window_changes-before.window_changes);
+    out.member("snapshot_clears",after.clears-before.clears);
     const auto metrics=graphics_gpu_engine->metrics();out.member("device",metrics.device);out.member("backend",metrics.backend);out.member("software_device",bool(metrics.software_device));
     out.end_object();output.close();require(bool(output),"camera_input_report_write_failed");
+    // Preserve the exact failing predicates in the runner's progress tail as
+    // well as its separately uploaded JSON, including software adapters.
+    std::ifstream saved(game_root()/"ncmm"/"first-person-camera-input.json");
+    progress<<"camera_input result="<<saved.rdbuf()<<'\n';progress.flush();
     require(success,"camera_input_actual_sdl_reuse_not_proven");
 }

@@ -50,7 +50,10 @@ int main(){
     require(!data.known(2,2,1),"same XY on another storey remains independent");
     require(data.prepare(identity,-48,-48,-1,1,97)&&data.size()==before,"camera matrix absent from cache identity");
     for(size_t field=0;field<identity.size();++field){auto changed=identity;++changed[field];
+        const auto key_changes=data.totals.key_changes;
         require(data.prepare(changed,-48,-48,-1,1,97)&&data.size()==0&&!data.known(2,2,-1),"every generation/device/visibility guard invalidates cached permissions");
+        for(size_t other=0;other<identity.size();++other)require(data.totals.key_changes[other]==key_changes[other]+(other==field),
+            "invalidation telemetry distinguishes changed Native dependencies");
         require(data.prepare(identity,-48,-48,-1,1,97),"restore identity");
     }
     require(!data.known(INT32_MIN,INT32_MAX,0)&&!data.find(INT32_MAX,INT32_MIN,0),"extreme coordinates cannot alias a loaded cell");

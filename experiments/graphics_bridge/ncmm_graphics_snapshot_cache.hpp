@@ -53,6 +53,8 @@ struct entry {
 struct counters {
     uint64_t generations=0,hits=0,empty_hits=0,misses=0,stored=0,budget_misses=0;
     uint64_t detail_hits=0,presentation_hits=0,verification_checks=0,verification_mismatches=0;
+    std::array<uint64_t,16> key_changes{};
+    uint64_t window_changes=0,clears=0;
 };
 // Keys include the lease, source revision, position/eye, loaded levels, viewport,
 // tileset, renderer/device and native texture generation. Camera matrices are
@@ -81,6 +83,7 @@ public:
     counters totals{};
     void suspend()noexcept{enabled=false;}
     void clear()noexcept{
+        ++totals.clears;
         enabled=false;key_={};ox_=oy_=lo_=0;hi_=-1;side_=0;
         std::vector<uint32_t>().swap(slots);std::vector<entry>().swap(entries);
     }
@@ -89,6 +92,8 @@ public:
         if(!side||side>97||hi<lo||int64_t(hi)-lo>=NCMM_WORLD_MAX_SLICES)return false;
         const size_t count=size_t(int64_t(hi)-lo+1)*side*side;
         if(identity!=key_||ox!=ox_||oy!=oy_||lo!=lo_||hi!=hi_||side!=side_){
+            for(size_t i=0;i<identity.size();++i)totals.key_changes[i]+=identity[i]!=key_[i];
+            totals.window_changes+=ox!=ox_||oy!=oy_||lo!=lo_||hi!=hi_||side!=side_;
             key_=identity;ox_=ox;oy_=oy;lo_=lo;hi_=hi;side_=side;
             slots.assign(count,0);entries.clear();++totals.generations;
         }

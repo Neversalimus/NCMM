@@ -432,7 +432,10 @@ jobs:
           } finally {
             foreach($name in @('first-person-camera-input.json','first-person-process-result.json')){
               $path=Join-Path $output ('evidence/'+$name)
-              if(Test-Path -LiteralPath $path){Copy-Item -LiteralPath $path -Destination (Join-Path $PWD ('installer-result/camera-input-'+$name))}
+              if(Test-Path -LiteralPath $path){
+                Copy-Item -LiteralPath $path -Destination (Join-Path $PWD ('installer-result/camera-input-'+$name))
+                if($name -eq 'first-person-camera-input.json'){Get-Content -LiteralPath $path}
+              }
             }
           }
       - name: Automated native gameplay, CPU/GPU profiling and actual UDP Hybrid v3
@@ -626,6 +629,8 @@ jobs:
             }}
             $movement=Join-Path $env:RUNNER_TEMP 'fp-movement/evidence'
             if($variant.name -eq 'graphics' -and (Test-Path $movement)){Copy-Item $movement (Join-Path fp-evidence 'movement') -Recurse -Force}
+            $cameraInput=Join-Path $env:RUNNER_TEMP 'fp-camera-input/evidence'
+            if($variant.name -eq 'graphics' -and (Test-Path -LiteralPath $cameraInput)){Copy-Item -LiteralPath $cameraInput (Join-Path fp-evidence 'camera-input') -Recurse -Force}
             $debug=Join-Path $env:RUNNER_TEMP ("fp-appearance-"+'${{ matrix.build }}'+'-'+$variant.name)
             if(Test-Path $debug){Copy-Item $debug (Join-Path fp-evidence ('appearance-debug-'+$variant.name)) -Recurse -Force}
           }
@@ -639,6 +644,7 @@ jobs:
             fp-evidence/gameplay-audit/**
             fp-evidence/focused-gpu*/**
             fp-evidence/movement/**
+            fp-evidence/camera-input/**
           compression-level: 9
           retention-days: 7
       - uses: actions/upload-artifact@v4
@@ -662,6 +668,7 @@ jobs:
           name: first-person-qualification-${{ matrix.build }}
           path: |
             installer-result/first-person-release-verified.json
+            installer-result/camera-input-*.json
             installer-result/first-person-movement-*.json
             installer-result/first-person-movement-*.bmp
             installer-result/first-person-gameplay*.json
