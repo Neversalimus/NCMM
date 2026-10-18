@@ -50,7 +50,7 @@ def verify(root):
     controls = [t for t in trials if t['legacy_control']]
     measured = [t for t in trials if not t['legacy_control']]
     common = {'keyboard_single', 'lmb_single', 'cancel', 'empty', 'no_target', 'window'}
-    extra = {'blocked_wall', 'vertical_cancel', 'burst'}
+    extra = {'blocked_wall', 'vertical_cancel', 'burst', 'dead_target', 'changed_weapon', 'pointer_only'}
     firing = {'keyboard_single', 'lmb_single', 'window'}
     expected = Counter({(mode, name): 20 if name in firing else 10 for mode in ['cpu', 'gpu'] for name in common})
     expected.update({(mode, name): 1 for mode in ['cpu', 'gpu'] for name in extra})
@@ -74,7 +74,7 @@ def verify(root):
         cursor = last
         selected = frames[first:last]
         assert 1 <= trial['dispatch_calls'] <= 128
-        assert trial['native_command'] == ('SELECT' if trial['scenario'] == 'lmb_single' else 'fire')
+        assert trial['native_command'] == ('SELECT' if trial['scenario'] in {'lmb_single', 'pointer_only'} else 'fire')
         assert trial['native_keyboard_mode'] == trial['keyboard_mode'], 'Native cached keyboard mode differs from the requested option'
         chars, codes = trial['default_keychar_inputs'], trial['default_keycode_inputs']
         assert (chars > 0 and codes == 0) if trial['native_keyboard_mode'] == 'keychar' else (codes > 0 and chars == 0)
@@ -86,7 +86,7 @@ def verify(root):
         assert all(f['enabled'] and f['perspective'] and f['gpu'] == (trial['renderer'] == 'gpu') for f in selected)
         delta = trial['attack_serial_after'] - trial['attack_serial_before']
         spent = trial['ammo_before'] - trial['ammo_after']
-        if trial['scenario'] in {'cancel', 'empty', 'no_target', 'blocked_wall', 'vertical_cancel'}:
+        if trial['scenario'] in {'cancel', 'empty', 'no_target', 'blocked_wall', 'vertical_cancel', 'dead_target'}:
             assert delta == spent == 0
         else:
             assert delta > 0 and delta == spent and trial['moves_after'] < trial['moves_before']
@@ -98,7 +98,7 @@ def verify(root):
             'normal_native_ui_attempts': len(measured), 'confirmed_shots': shots,
             'original_context_regression_reproduced': True, 'presented_images': len(frames),
             'images': manifest, 'ordinary_ai_turns': False,
-            'limitations': ['LMB fixture holds RMB look; pointer-only LMB needs a separate case',
+            'limitations': ['Pointer-only LMB uses SDL pointer positioning in the owned diagnostic window',
                             'Vertical case verifies cancellation, not a successful vertical shot',
                             'Controlled automation is not a manual playthrough']}
 

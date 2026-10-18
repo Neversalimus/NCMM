@@ -14,7 +14,7 @@
     options_manager::update_options_cache();
     for(const char *id:{"BRAWLER","GUNSHY"})if(you.has_trait(trait_id(id)))you.toggle_trait(trait_id(id));
     struct input_feed {
-        enum class kind { command, click, confirm, cancel };
+        enum class kind { command, click, pointer_click, confirm, cancel };
         std::atomic<bool> stop{false};std::atomic<bool> escape_recovery{false};std::thread worker;
         input_feed(SDL_WindowID window,kind type,float mx=0,float my=0,bool cancel_target=false):worker([this,window,type,mx,my,cancel_target](){
             int waiting=0;uint32_t previous_context=0;
@@ -35,11 +35,12 @@
                     if(waiting_input&4u){event.type=SDL_EVENT_TEXT_INPUT;event.text.windowID=window;event.text.text="f";SDL_PushEvent(&event);}
                     else {event.type=SDL_EVENT_KEY_DOWN;event.key.windowID=window;event.key.key=SDLK_F;event.key.scancode=SDL_SCANCODE_F;
                         SDL_PushEvent(&event);event.type=SDL_EVENT_KEY_UP;SDL_PushEvent(&event);}
-                }else if(context==1&&type==kind::click){
+                }else if(context==1&&(type==kind::click||type==kind::pointer_click)){
                     // Exercise the real SDL RMB-look + LMB command dispatch.
                     // The ordinary click handler revalidates picked identity,
                     // visibility, origin, camera, range and native readiness.
-                    event.type=SDL_EVENT_MOUSE_BUTTON_DOWN;event.button.windowID=window;event.button.button=SDL_BUTTON_RIGHT;event.button.x=mx;event.button.y=my;SDL_PushEvent(&event);
+                    event.type=SDL_EVENT_MOUSE_BUTTON_DOWN;event.button.windowID=window;event.button.x=mx;event.button.y=my;
+                    if(type==kind::click){event.button.button=SDL_BUTTON_RIGHT;SDL_PushEvent(&event);}
                     event.button.button=SDL_BUTTON_LEFT;SDL_PushEvent(&event);
                     event.type=SDL_EVENT_MOUSE_BUTTON_UP;SDL_PushEvent(&event);
                 }
@@ -73,10 +74,12 @@
         clear_monsters();graphics_clear_creatures();you.cancel_activity();you.clear_effects();you.set_moves(10000);
         you.set_stamina(you.get_stamina_max());
         const bool cancel=std::string(scenario)=="cancel"||std::string(scenario)=="no_target"||
-            std::string(scenario)=="blocked_wall"||std::string(scenario)=="vertical_cancel";
+            std::string(scenario)=="blocked_wall"||std::string(scenario)=="vertical_cancel"||std::string(scenario)=="dead_target";
         const bool no_target=std::string(scenario)=="no_target";
         const bool empty=std::string(scenario)=="empty";
-        const bool click=std::string(scenario)=="lmb_single";
+        const bool pointer_click=std::string(scenario)=="pointer_only";
+        const bool click=std::string(scenario)=="lmb_single"||pointer_click;
+        const bool changed_weapon=std::string(scenario)=="changed_weapon";
         const bool burst=std::string(scenario)=="burst";
         const bool vertical=std::string(scenario)=="vertical_cancel";
         const auto origin=you.pos_bub();
@@ -87,8 +90,9 @@
             std::string(scenario)=="blocked_wall"?"t_wall":"t_floor"));
         monster *target=no_target?nullptr:g->place_critter_at(mtype_id("mon_zombie"),goal);
         require(no_target||target,"fire_audit_target_missing");
-        item gun(itype_id(burst?"hk_mp5":"sw_619"),calendar::turn);
-        if(!empty)gun.ammo_set(itype_id(burst?"9mm":"38_special"),burst?30:7);
+        if(std::string(scenario)=="dead_target")target->set_hp(0);
+        item gun(itype_id(burst?"hk_mp5":changed_weapon?"glock_17":"sw_619"),calendar::turn);
+        if(!empty)gun.ammo_set(itype_id(burst||changed_weapon?"9mm":"38_special"),burst?30:changed_weapon?17:7);
         if(burst)require(gun.gun_set_mode(gun_mode_id("AUTO"))||gun.gun_set_mode(gun_mode_id("BURST")),"fire_audit_native_automatic_mode_missing");
         you.set_wielded_item(gun);you.recoil=0;
         camera(-ncmm_graphics_camera::pi*.5f,-.10f);ncmm::graphics_note_input_context("DEFAULTMODE");refresh();warm(mode);
@@ -100,9 +104,18 @@
         redraw_native();
         result.enabled_before=graphics_view.enabled;result.yaw_before=graphics_camera_yaw;result.pitch_before=graphics_camera_pitch;
         result.moves_before=you.get_moves();result.ammo_before=you.get_wielded_item()->ammo_remaining();result.attack_before=graphics_attack_serial;
+        if(pointer_click){
+            // SDL_PushEvent does not change SDL_GetMouseState. Position the
+            // pointer in this owned test window on the main thread; no RMB or
+            // synthetic gameplay/attack call is used for this case.
+            int ww=0,wh=0,pw=0,ph=0;SDL_GetWindowSize(get_sdl_window(),&ww,&wh);SDL_GetWindowSizeInPixels(get_sdl_window(),&pw,&ph);
+            require(ww>0&&wh>0&&pw>0&&ph>0,"fire_audit_pointer_window_dimensions_missing");
+            SDL_WarpMouseInWindow(get_sdl_window(),float(graphics_viewport.x+graphics_viewport.w/2)*ww/pw,
+                float(graphics_viewport.y+graphics_viewport.h/2)*wh/ph);
+        }
         {
             graphics_fire_input_context.store(0);
-            input_feed feed(window,click?input_feed::kind::click:input_feed::kind::command,
+            input_feed feed(window,pointer_click?input_feed::kind::pointer_click:click?input_feed::kind::click:input_feed::kind::command,
                 float(graphics_viewport.x+graphics_viewport.w/2),float(graphics_viewport.y+graphics_viewport.h/2),cancel||empty);
             // The normal game retries handle_action after TIMEOUT. A single
             // diagnostic call can return before the delayed SDL event arrives.
@@ -171,7 +184,7 @@
             for(int repeat=0;repeat<repeats;++repeat){get_options().get_option("SDL_KEYBOARD_MODE").setValue(repeat%2?"keychar":"keycode");
                 options_manager::update_options_cache();attempt(scenario,mode);}
         }
-        for(const char *scenario:{"blocked_wall","vertical_cancel","burst"})attempt(scenario,mode);
+        for(const char *scenario:{"blocked_wall","vertical_cancel","burst","dead_target","changed_weapon","pointer_only"})attempt(scenario,mode);
         {cancel_native_ui cancel_menu(window);game_menus::inv::common();}
         ncmm::graphics_note_input_context("DEFAULTMODE");redraw_native();
         const float yaw=graphics_camera_yaw,pitch=graphics_camera_pitch;
@@ -185,7 +198,7 @@
     fire_report.start_object();fire_report.member("schema",1);fire_report.member("actual_cdda_sdl",true);fire_report.member("manual_playthrough",false);
     fire_report.member("normal_game_command_dispatch",true);fire_report.member("native_activity_and_target_ui",true);
     fire_report.member("synthetic_attack_notifications",false);fire_report.member("ordinary_ai_turns",false);
-    fire_report.member("lmb_path","real SDL RMB-look plus LMB, native picking and click dispatch");
+    fire_report.member("lmb_path","real SDL RMB-look plus LMB and a separate pointer-only LMB case, native picking and click dispatch");
     fire_report.member("trials");fire_report.start_array();
     for(const auto &t:trials){fire_report.start_object();fire_report.member("scenario",t.scenario);fire_report.member("renderer",t.renderer);fire_report.member("legacy_control",t.legacy);
         fire_report.member("target_native_visible",t.visible);fire_report.member("escape_recovery",t.escape_recovery);
