@@ -111,6 +111,9 @@ jobs:
           python -m pip install --disable-pip-version-check pillow==11.3.0
           python -B experiments/FirstPersonView/tests/test_import_held_items.py -v
           python -B experiments/FirstPersonView/tools/import_held_items.py --selection experiments/FirstPersonView/assets/held_items/selection.json --output experiments/FirstPersonView/assets/held_items/generated --check
+      - name: Native firing pixel verifier negative tests
+        run: |
+          python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_fire_pixels.py -v
       - name: Record renderer timing and work counters (no FPS threshold)
         run: cmake --build fp-build --config Release --target first_person_measure
       - name: Configure focused cache and facade sanitizers
@@ -440,6 +443,9 @@ jobs:
           python ncmmrepo/experiments/FirstPersonView/tests/verify_gameplay_audit.py --root $evidence --minimum-soak-seconds $duration --output installer-result/first-person-gameplay-verified.json
           if($LASTEXITCODE -ne 0){throw 'Native gameplay evidence verification failed.'}
           python ncmmrepo/experiments/FirstPersonView/tests/verify_fire_audit.py --root $evidence --output installer-result/first-person-fire-verified.json
+          if($LASTEXITCODE -ne 0){throw 'Native firing metadata/command qualification failed.'}
+          python -m pip install --disable-pip-version-check pillow==11.3.0
+          python ncmmrepo/experiments/FirstPersonView/tests/verify_fire_pixels.py --root $evidence --output installer-result/first-person-fire-pixels-verified.json
           if($LASTEXITCODE -ne 0){throw 'Native firing UI/presented-frame verification failed.'}
           Copy-Item (Join-Path $evidence 'first-person-fire-audit.json') installer-result/first-person-fire-audit.json
           $fireImages=Join-Path $PWD 'installer-result/fire-ui'
