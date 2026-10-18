@@ -21,6 +21,37 @@ struct fixture {
     sprite_provider provider(){return [&](uint32_t,uint32_t,ncmm_graphics_sprite_v2 &out){out={sizeof(out),32,32,32,art.data()};return true;};}
 };
 void require(bool value,const char *name){if(!value){std::cerr<<"Invalid benchmark "<<name<<'\n';std::exit(1);}}
+void viewmodel_benchmark(int rounds,const char *json_path){
+    using clock=std::chrono::steady_clock;
+    auto quantile=[](const std::vector<double> &sorted,double p){const double at=(sorted.size()-1)*p;const auto low=size_t(at);
+        return sorted[low]+(sorted[std::min(low+1,sorted.size()-1)]-sorted[low])*(at-low);};
+    std::ofstream out;if(json_path){out.open(json_path);require(bool(out),"viewmodel JSON");
+        out<<"{\"schema\":1,\"timing_is_player_fps\":false,\"scope\":\"isolated CPU source animation sampling, two arm IK solves and exact weighted palette matrices; excludes materials, packet construction, world, rasterization, GPU and presentation\",\"rounds\":"<<rounds<<",\"records\":[";}
+    double checksum=0;
+    for(int mode=0;mode<3;++mode){
+        first_person::viewmodel::animator animator;
+        first_person::viewmodel::hand_pose right,left;
+        std::vector<double> times;times.reserve(size_t(rounds));double first_prepare_ms=0;
+        for(int n=-32;n<rounds;++n){
+            first_person::animation::pose action;action.seconds=10+(n+32)/60.;action.attack_kind=mode==2?2:1;
+            action.attack_serial=1;action.attack_phase=float((n+32)%60)/60;action.grip=mode==2?NCMM_GRIP_GUN:NCMM_GRIP_SINGLE;
+            const auto start=clock::now();const auto &frame=animator.prepare(action,mode==0,mode==2);
+            const first_person::viewmodel::point trigger{.192f,-.261f,.735f};
+            require(frame.attach({.185f,-.267f,.68f},false,.525f,right,mode==2?&trigger:nullptr)&&
+                    frame.attach({-.06f,-.28f,.75f},true,.525f,left),"viewmodel contacts");
+            const double milliseconds=std::chrono::duration<double,std::milli>(clock::now()-start).count();
+            if(n==-32)first_prepare_ms=milliseconds;
+            checksum+=right.palette[size_t(n+32)%right.palette_count].columns[12]+left.palette[size_t(n+32)%left.palette_count].columns[13];
+            if(n>=0)times.push_back(milliseconds);
+        }
+        auto sorted=times;std::sort(sorted.begin(),sorted.end());const char *name=mode==0?"empty":mode==1?"held":"firearm";
+        std::cout<<name<<" source pose + two arms: median "<<quantile(sorted,.5)<<" ms, p95 "<<quantile(sorted,.95)<<" ms, p99 "<<quantile(sorted,.99)<<" ms, max "<<sorted.back()<<" ms\n";
+        if(json_path){if(mode)out<<',';out<<"{\"state\":\""<<name<<"\",\"first_prepare_ms\":"<<first_prepare_ms<<",\"first_prepare_includes_initial_asset_validation\":"<<(mode==0?"true":"false")<<",\"median_ms\":"<<quantile(sorted,.5)<<",\"p95_ms\":"<<quantile(sorted,.95)<<",\"p99_ms\":"<<quantile(sorted,.99)<<",\"max_ms\":"<<sorted.back()<<",\"samples_ms\":[";
+            for(size_t i=0;i<times.size();++i){if(i)out<<',';out<<times[i];}out<<"]}";}
+    }
+    require(std::isfinite(checksum),"viewmodel checksum");
+    if(json_path){out<<"],\"checksum\":"<<checksum<<"}\n";require(bool(out),"viewmodel JSON write");}
+}
 void distance_benchmark(int rounds,const char *json_path){
     struct measurement {int radius,mode,cached;bool optimized;double median,p95;uint32_t cells,culled,sky;uint64_t samples;};
     std::vector<measurement> records;
@@ -65,6 +96,7 @@ void distance_benchmark(int rounds,const char *json_path){
 int main(int argc,char **argv){
     using clock=std::chrono::steady_clock;
     const int rounds=argc>1?std::max(1,std::atoi(argv[1])):12;
+    if(argc>2&&std::string(argv[2])=="viewmodel"){viewmodel_benchmark(rounds,argc>3?argv[3]:nullptr);return 0;}
     if(argc>2&&std::string(argv[2])=="distance"){distance_benchmark(rounds,argc>3?argv[3]:nullptr);return 0;}
     for(int mode=0;mode<5;++mode){
         fixture a;a.scene.base.pixel_width=1280;a.scene.base.pixel_height=800;

@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "success": true,
+  "source": "551259cb1e98a14a4b6cd6c4fcbcb54a3442ff4a",
+  "started_utc": "2026-10-18T07:41:44.8696239Z",
+  "completed_utc": "2026-10-18T07:42:20.3458190Z",
+  "sdk": "SDL 3.4.0",
+  "native_host_sdl_is_different": true,
+  "gpu": "NVIDIA GeForce RTX 4090",
+  "backend": "direct3d12",
+  "warm_animation_upload_bytes": 384,
+  "prior_same_scene_upload_bytes": 388,
+  "queued_pose_snapshots": 16,
+  "queued_teardown_cycles_per_run": 32,
+  "msvc_exit": 0,
+  "clang_asan_ubsan_exit": 0,
+  "actual_cdda_gameplay": false,
+  "native_speedup_measured": false,
+  "msvc_exe_sha256": "15452f83eca899b5fca67c0a1626e3e15cf066fd3ebce548737f8cf4acda6107",
+  "clang_exe_sha256": "43e14b3f9305fad439b42c4cba6303262c6e2508d9a7229fdc8b8e33b4c862e9",
+  "msvc_log_sha256": "c75ac6915bc052b82d4827e97bf69af732d7bf937938c59ab9cd2bb44aeb3236",
+  "clang_log_sha256": "1e625d4bb92e255b7276d3fdc7a2bc720e095548f398000671a447c14dcbc6de",
+  "scope": "Standalone actual-GPU contract checks; no native CDDA frame-time or final installer qualification claim. Recorded executable hashes identify historical builds, which may later be rebuilt in the local build directory.",
+  "runtime_log": {
+    "file": "0.13.0-psx-white-gpu-runtime.log",
+    "sha256": "1fb8295d12386dcf60b228f8d955335fa29fd80c0fa0256d5ef833040fd2fc12",
+    "line_endings": "LF, matching the Git blob"
+  }
+}

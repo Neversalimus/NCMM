@@ -83,6 +83,81 @@ class HardwareEvidenceTests(unittest.TestCase):
     def read(self):
         return compare.read_run(self.run, self.identity, "clear", True)
 
+    def extended_fixture(self):
+        template = self.report["records"][0]
+        records = []
+        for scene in compare.EXTENDED_SCENES:
+            for renderer in ("cpu", "gpu"):
+                for width, height in compare.EXTENDED_VIEWPORTS:
+                    record = copy.deepcopy(template)
+                    for name, values in record.items():
+                        if isinstance(values, list):
+                            record[name] = [values[0]] * 256
+                    record.update(scene=scene, renderer=renderer, width=width, height=height,
+                                  native_steps=64, extended_matrix=True, internal_width=640, internal_height=480,
+                                  native_confirmed_attacks=16 if scene == "empty_attacks" else 0,
+                                  native_weather_id="rain" if scene == "smoke_rain" else "sunny",
+                                  initial_render_ready_ms=5.0, initial_gpu_static_upload_bytes=0,
+                                  initial_gpu_upload_bytes=0, initial_gpu_geometry_ms=0,
+                                  initial_gpu_resource_ms=0, initial_gpu_resource_bytes=0,
+                                  first_frame_indices=list(range(192, 256)),
+                                  first_frame_after_step_samples_ms=[4.0] * 64,
+                                  first_ready_samples_ms=[9.0] * 64,
+                                  warm_rotation_samples_ms=[4.0] * 96, cold_rotation_samples_ms=[4.0] * 96,
+                                  frame_renderers_gpu=[int(renderer == "gpu")] * 256)
+                    for name in compare.RESOURCE_STREAMS:
+                        record[name] = [0] * 256
+                    records.append(record)
+        self.report["records"] = records
+        self.persist()
+
+    def test_extended_matrix_is_explicit_and_preserves_legacy_gate(self):
+        self.extended_fixture()
+        result, _ = compare.read_run(self.run, self.identity, "clear", True, extended=True)
+        self.assertEqual(len(result["records"]), 80)
+        self.assertEqual(result["full_size_gpu_first_samples"], 640)
+        self.assertEqual(result["records"][0]["resources"]["gpu_held_bones"]["peak"], 0)
+        with self.assertRaisesRegex(ValueError, "movement matrix"):
+            self.read()
+        self.report["records"].pop()
+        self.persist()
+        with self.assertRaisesRegex(ValueError, "movement matrix"):
+            compare.read_run(self.run, self.identity, "clear", True, extended=True)
+
+    def test_extended_metrics_and_real_attack_evidence_required(self):
+        self.extended_fixture()
+        original = copy.deepcopy(self.report["records"][0])
+        for key, invalid in (("extended_matrix", False), ("internal_width", 2000), ("native_weather_id", "snow"),
+                             ("initial_render_ready_ms", 0), ("initial_gpu_static_upload_bytes", 1),
+                             ("native_confirmed_attacks", 1), ("gpu_held_bones", [0] * 255),
+                             ("process_rss_bytes", [-1] * 256), ("cold_rotation_samples_ms", [float("nan")] * 96)):
+            with self.subTest(key=key):
+                self.report["records"][0] = dict(original, **{key: invalid})
+                self.persist()
+                with self.assertRaises(ValueError):
+                    compare.read_run(self.run, self.identity, "clear", True, extended=True)
+
+    def test_single_input_fixture_cannot_weaken_legacy_weather_gate(self):
+        self.assertEqual(compare.weather_selection(False, None), ("clear", "rain"))
+        self.assertEqual(compare.weather_selection(True, "clear"), ("clear",))
+        with self.assertRaisesRegex(ValueError, "only.*extended"):
+            compare.weather_selection(False, "clear")
+
+    def test_diagnostic_component_identity_is_explicit_and_not_release_identity(self):
+        source, host = "a" * 40, "b" * 40
+        manifest = compare.load(self.bundle / "payload/first-person-bundle.json")
+        manifest.update(ncmm_source_commit=source,
+                        diagnostic_mixed_components={"host_ncmm_commit": host, "module_ncmm_commit": source})
+        self.save(self.bundle / "payload/first-person-bundle.json", manifest)
+        result = compare.payload(self.bundle, source, diagnostic_host_source=host)
+        self.assertEqual(result["host_source_commit"], host)
+        self.assertIn("not a qualified installer", result["installer_revision"])
+        for expected in ("c" * 40, "short"):
+            with self.assertRaises(ValueError):
+                compare.payload(self.bundle, source, diagnostic_host_source=expected)
+        with self.assertRaisesRegex(ValueError, "packaged NCMM source"):
+            compare.payload(self.bundle, source)
+
     def test_complete_exact_package_and_run(self):
         self.assertEqual(compare.payload(self.bundle, "candidate"), self.identity)
         result, udp = self.read()
@@ -179,6 +254,77 @@ class HardwareEvidenceTests(unittest.TestCase):
         self.persist()
         with self.assertRaisesRegex(ValueError, "differ from measured"):
             self.read()
+
+
+class ExecutionScopeTests(unittest.TestCase):
+    def setUp(self):
+        self.record = dict(renderer='gpu', frame_samples_ms=[4, 4, 4],
+                           thread_cpu_available=True, frame_thread_cpu_samples_ms=[0, 1, 0],
+                           frame_process_cpu_samples_ms=[2, 3, 2], sprite_readback_samples_ms=[0, .5, 0],
+                           sprite_readback_attempts=[0, 1, 0], sprite_cache_bytes=[16, 32, 32],
+                           gpu_generated_cells=[3, 0, 1])
+
+    def test_totals_keep_zero_accounting_ticks_and_distinct_scopes(self):
+        result = compare.execution_scopes(self.record)
+        self.assertEqual(result['totals_ms']['frame_thread_cpu_samples_ms'], 1)
+        self.assertEqual(result['totals_ms']['sprite_readback_samples_ms'], .5)
+        self.assertEqual(result['gpu_generated_cells_total'], 4)
+        self.assertEqual(result['sprite_cache_bytes_peak'], 32)
+
+    def test_older_reports_do_not_acquire_fabricated_cpu_samples(self):
+        self.assertIsNone(compare.execution_scopes(dict(frame_samples_ms=[4])))
+
+    def test_optional_staging_capacity_is_separate_and_complete(self):
+        self.record['gpu_frame_upload_capacity_bytes'] = [512, 512, 512]
+        self.record['gpu_frame_upload_creations'] = [1, 1, 1]
+        result = compare.execution_scopes(self.record)
+        self.assertEqual(result['upload_staging'], dict(capacity_bytes_peak=512, object_creations_peak=1))
+        del self.record['gpu_frame_upload_creations']
+        with self.assertRaisesRegex(ValueError, 'staging evidence'):
+            compare.execution_scopes(self.record)
+
+    def test_unavailable_thread_and_inactive_gpu_are_explicit(self):
+        self.record.update(thread_cpu_available=False, renderer='cpu')
+        del self.record['frame_thread_cpu_samples_ms']
+        result = compare.execution_scopes(self.record)
+        self.assertFalse(result['thread_cpu_available'])
+        self.assertIsNone(result['gpu_generated_cells_total'])
+
+    def test_optional_cell_preparation_and_upload_accounting(self):
+        self.record.update(gpu_cell_prepare_samples_ms=[.1,.2,.1],gpu_cell_upload_bytes=[112,0,112],
+                           gpu_cell_cache_bytes=[112,112,112],gpu_upload_bytes=[128,16,128])
+        result=compare.execution_scopes(self.record)
+        self.assertEqual(result['prepared_cells']['upload_bytes'],224)
+        self.assertEqual(result['prepared_cells']['cpu_capacity_bytes_peak'],112)
+        del self.record['gpu_cell_cache_bytes']
+        with self.assertRaisesRegex(ValueError,'prepared cell evidence'):
+            compare.execution_scopes(self.record)
+
+    def test_impossible_cell_timings_and_uploads_rejected(self):
+        self.record.update(gpu_cell_prepare_samples_ms=[.1,.2,.1],gpu_cell_upload_bytes=[112,0,112],
+                           gpu_cell_cache_bytes=[112,112,112],gpu_upload_bytes=[128,16,128])
+        for name,value in [('gpu_cell_prepare_samples_ms',5),('gpu_cell_upload_bytes',129),('gpu_cell_cache_bytes',.5)]:
+            changed=copy.deepcopy(self.record);changed[name][0]=value
+            with self.subTest(name=name),self.assertRaises(ValueError):
+                compare.execution_scopes(changed)
+
+    def test_incomplete_streams_and_invented_unavailable_ticks_rejected(self):
+        for mutation in ('missing', 'short', 'unavailable'):
+            r = copy.deepcopy(self.record)
+            if mutation == 'missing': del r['sprite_cache_bytes']
+            if mutation == 'short': r['frame_process_cpu_samples_ms'].pop()
+            if mutation == 'unavailable': r['thread_cpu_available'] = False
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                compare.execution_scopes(r)
+
+    def test_invalid_numbers_and_impossible_readbacks_rejected(self):
+        for name, value in [('frame_thread_cpu_samples_ms', float('nan')),
+                            ('frame_process_cpu_samples_ms', -1),
+                            ('sprite_cache_bytes', 1.5), ('sprite_readback_samples_ms', 5),
+                            ('sprite_readback_attempts', 0)]:
+            r = copy.deepcopy(self.record);r[name][1] = value
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                compare.execution_scopes(r)
 
 
 if __name__ == "__main__":

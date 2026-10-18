@@ -5,3 +5,8 @@
 *.zip binary
 *.exe binary
 *.dll binary
+
+# Keep derived measurement tables collapsed in code review; reports remain readable.
+experiments/FirstPersonView/qualification/0.13.0-psx-*-ablation.json linguist-generated=true
+experiments/FirstPersonView/qualification/0.13.0-psx-short-controls.json linguist-generated=true
+experiments/FirstPersonView/qualification/0.13.0-psx-cell-controls.json linguist-generated=true

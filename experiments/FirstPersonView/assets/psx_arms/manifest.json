@@ -1,0 +1,73 @@
+{
+  "schema": 1,
+  "name": "PSX First Person Arms",
+  "author": "Drillimpact",
+  "version": "1.1.0",
+  "source_url": "https://drillimpact.itch.io/psx-first-person-arms-free",
+  "license": "CC0-1.0",
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "license_evidence": "Author download page and First Person Arms Big Update devlog; no separate license file in ZIP",
+  "archive_sha256": "13689348acce167599db2b7190214aa4dbe914f5547f74e1877ff61361fc8cb8",
+  "glb_sha256": "407d6be3cfee18d8d47318d307a6e759f94ed3a1c27e2ab30dd860862b94172b",
+  "original_vertices": 758,
+  "material_split_vertices": 790,
+  "triangles": 1176,
+  "nodes": 54,
+  "joints": 52,
+  "weighted_palette_entries": 494,
+  "all_four_weights_preserved": true,
+  "palette_method": "Exact weighted affine matrices per distinct source joint/weight tuple; no dominant-joint approximation",
+  "triangle_ordering": "Opaque triangles ordered offline by side, material region and bone locality; original triangle winding, attributes and all weights preserved",
+  "bind_max_error": 7.320898019868433e-07,
+  "clips": [
+    "finger_gun_broken",
+    "finger_gun_fire",
+    "finger_gun_fix",
+    "finger_gun_idle",
+    "grab.L",
+    "grab.R",
+    "guard_draw",
+    "guard_idle",
+    "jab.L",
+    "jab.R",
+    "knife_draw",
+    "knife_hit_01",
+    "knife_hit_02",
+    "knife_idle",
+    "push.L",
+    "push.R",
+    "relax",
+    "rest"
+  ],
+  "stored_keyframes": 11281,
+  "tracks": 2808,
+  "pillow_version": "12.3.0",
+  "texture_conversion": "Source RGBA16 PNG to existing API RGBA8; original 512x512 dimensions retained, no filtering or resampling",
+  "textures": [
+    {
+      "source": "arms_01.png",
+      "source_sha256": "997e272eafee2293d1095c321b83237a4556491818d62f49c9341260af0bd490",
+      "file": "bare.rgba",
+      "source_png_bit_depth": 16,
+      "size": [
+        512,
+        512
+      ],
+      "rgba8_sha256": "0f8dc4afe345d7e48abfef00bc5be8d9fd86da346d6679ca5b76f3acf6f4d8fe"
+    },
+    {
+      "source": "arms_gloves_01.png",
+      "source_sha256": "ea03152310ea681f4740d955e4ffddd8278c979ef7ec44f1d415255a36861557",
+      "file": "gloves.rgba",
+      "source_png_bit_depth": 16,
+      "size": [
+        512,
+        512
+      ],
+      "rgba8_sha256": "6c4cbd330db52fa5c8cc16cfcceb7477e76d0eeb014cd76fb02b902afe53efc1"
+    }
+  ],
+  "generated_cpp_sha256": "0ef9853caa8cccf109e54bbcd7f4f295851cbe3875666f0b41097abff45a9804",
+  "runtime_network_or_gltf_parser": false,
+  "blender_scripts_executed": false
+}

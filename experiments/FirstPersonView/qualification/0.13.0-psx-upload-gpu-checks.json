@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "success": true,
+  "source_commit": "7fd4c5545d0d5ec39c4cb959148ac828cdba87cc",
+  "actual_cdda_gameplay": false,
+  "gpu_execution_timing": false,
+  "scope": "Standalone shared-device SDL GPU contract test, including source PSX skinning. This is not the native CDDA gallery, gameplay soak or frame-time qualification.",
+  "gpu": {
+    "success": true,
+    "full_gpu_pipeline": true,
+    "hardware_depth": true,
+    "gpu_skinning": true,
+    "psx_weighted_viewmodel": true,
+    "impostor_colour_minification": true,
+    "multilevel_depth_and_picking": true,
+    "dynamic_upload_over_2mib_checked": true,
+    "cpu_raster_calls": 0,
+    "animation_upload_bytes": 388,
+    "resource_bytes": 6375516,
+    "software_device": 0,
+    "backend": "direct3d12",
+    "device": "NVIDIA GeForce RTX 4090"
+  },
+  "contracts": {
+    "queued_distinct_pose_snapshots": 16,
+    "intermediate_readpixels_or_fence_waits": false,
+    "staging_object_reuse": true,
+    "large_palette_transfer_over_2mib": true,
+    "combined_logical_budget_bytes": 268435456,
+    "queued_teardown_cycles": 32
+  },
+  "runs": [
+    {
+      "compiler": "MSVC 19.38.33145.0 Release /O2",
+      "exit_code": 0,
+      "executable_sha256": "7ae850f11127459c245026102d235ea4a7f900ec4a34977f501427aee483c5e2",
+      "full_log_sha256": "317962b4a0c2a07ccffb404d7f5cf95056b01df6e4f112f0891f529ef554d5ac"
+    },
+    {
+      "compiler": "Clang 19.1.5, AddressSanitizer and UndefinedBehaviorSanitizer, halt_on_error=1",
+      "exit_code": 0,
+      "executable_sha256": "c14dac890f8267f2680c7320414cb57fbb791a33a45faf4e8fdcb017138814f0",
+      "full_log_sha256": "d50bf647eb60306c4a531c320cc5a908b2995cd0ae8f252b518fe05c39a98c85"
+    }
+  ],
+  "runtime_log": {
+    "file": "0.13.0-psx-upload-gpu-runtime.log",
+    "sha256": "58fe3830e6146d4ca14c8170743e273a6b3ee4f24c274bfba661db695b68ebb8",
+    "line_endings": "LF, matching the Git blob"
+  },
+  "limitation": "Logical staging capacity is not VRAM residency or SDL internal backing-storage count; native latency and long-session qualification remain separate."
+}

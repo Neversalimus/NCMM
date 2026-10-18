@@ -45,7 +45,7 @@ int main(){try{
         check(build(first),"sparse XYZ packet builds without dense-grid neighbour reads");
         check(cache.generated_cells==uint32_t(count),"each sparse XYZ cell has its own static cache entry");
         check(statistics.pixels.empty(),"GPU preparation never allocates a CPU framebuffer");
-        for(const auto &draw:first.draws){check(draw.cell<world.cell_count,"GPU draw owns a sparse frame index");
+        for(const auto &draw:first.draws){if(draw.pass==NCMM_GPU_HELD)continue;check(draw.cell<world.cell_count,"GPU draw owns a sparse frame index");
             check(draw.transform.columns[14]==coordinates[draw.cell].z*2.5f,"GPU cache preserves physical Z translation");}
         ++world.revision;first_person::gpu::packet retained;
         check(build(retained)&&!cache.generated_cells,"unchanged notification reuses GPU static geometry");

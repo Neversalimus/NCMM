@@ -58,3 +58,23 @@ The source patches and build scripts for NCMM are published at:
 
 This notice supplements, and does not replace, any applicable license or
 copyright notice distributed with the original software.
+
+4. Drillimpact - PSX First Person Arms (experimental First Person View)
+--------------------------------------------------------------------
+Author: Drillimpact
+Asset: PSX First Person Arms, itch.io version 1.1.0
+Official source: https://drillimpact.itch.io/psx-first-person-arms-free
+Author's license declaration: CC0 (Public Domain), also stated in:
+  https://drillimpact.itch.io/psx-first-person-arms-free/devlog/1485599/first-person-arms-big-update
+License: CC0 1.0 Universal
+  https://creativecommons.org/publicdomain/zero/1.0/
+Original ZIP: psx-first-person-arms-free-game-assets.zip
+SHA256: 13689348acce167599db2b7190214aa4dbe914f5547f74e1877ff61361fc8cb8
+
+NCMM converts the root arms_rig.glb and the author's skin/glove textures
+offline into immutable geometry, skeleton, animation and RGBA8 tables.
+The old 2024 model in the archive is not used. All source joint influences
+are retained. Blender files and their scripts are not executed. The asset
+manifest records input/output hashes and the deterministic conversion tool.
+This CC0 attribution concerns the imported model, textures and animations;
+it does not change the terms of CDDA or independently authored NCMM code.

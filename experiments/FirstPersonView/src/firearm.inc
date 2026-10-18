@@ -11,7 +11,15 @@
                     if(id==revolver){kind=NCMM_GUN_REVOLVER;break;}}
             const bool pistol=kind==NCMM_GUN_PISTOL||kind==NCMM_GUN_REVOLVER;
             const float length=std::clamp(metadata?metadata->view.held_length:pose.length,pistol?.16f:.42f,pistol?.48f:1.8f);
-            const vec origin{.185f,-.215f,.66f};
+            const vec pivot{.185f,-.215f,.66f};
+            const float muzzle=pistol?length:length-.16f;
+            const float support=std::clamp(muzzle*.55f,.18f,.38f);
+            const auto primary=pivot+vec{0,-.052f,pistol?.020f:-.012f};
+            const auto secondary=pivot+(pistol?vec{-.035f,-.065f,.030f}:vec{0,mods&NCMM_MOD_FOREGRIP?-.09f:-.037f,support});
+            const auto trigger=pivot+vec{.007f,-.046f,pistol?.075f:.045f},sight=pivot+vec{0,.055f,muzzle-.022f};
+            const viewmodel::anchors contacts{{primary.x,primary.y,primary.z},{secondary.x,secondary.y,secondary.z},
+                {trigger.x,trigger.y,trigger.z},{pivot.x,pivot.y,pivot.z},{sight.x,sight.y,sight.z}};
+            const vec origin{contacts.item_pivot.x,contacts.item_pivot.y,contacts.item_pivot.z};
             material metal{nullptr,{.13f,.15f,.16f},1,false,false,true,-1,surface::metal};
             material polymer{nullptr,{.075f,.085f,.081f},1,false,false,true,-1,surface::rubber};
             material rail{nullptr,{.28f,.29f,.28f},1,false,false,true,-1,surface::metal};
@@ -24,7 +32,6 @@
                 face({lo.x,hi.y,lo.z},{hi.x,hi.y,lo.z},{hi.x,hi.y,hi.z},{lo.x,hi.y,hi.z},m);
                 face({lo.x,lo.y,hi.z},{hi.x,lo.y,hi.z},{hi.x,lo.y,lo.z},{lo.x,lo.y,lo.z},m);};
             auto cylinder=[&](vec a,vec b,float r,material m){tube(origin+a,origin+b,r,r,m);};
-            const float muzzle=pistol?length:length-.16f;
             if(pistol){
                 cuboid({-.025f,-.015f,0},{.025f,.039f,muzzle},metal);
                 cuboid({-.022f,-.112f,-.012f},{.022f,-.006f,.046f},polymer);
@@ -35,6 +42,7 @@
                 const float end=std::min(muzzle*.50f,.30f);
                 cuboid({-.032f,-.025f,-.05f},{.032f,.04f,end},metal);
                 cuboid({-.020f,-.120f,-.047f},{.020f,-.018f,.006f},polymer);
+                cuboid({-.008f,-.052f,.025f},{.008f,-.040f,.060f},metal);
                 cuboid({-.034f,-.030f,-.19f},{.034f,.01f,-.055f},polymer);
                 cuboid({-.041f,-.075f,-.20f},{.041f,.025f,-.17f},polymer);
                 const float fore_end=std::max(end+.08f,muzzle*.86f);
@@ -49,7 +57,9 @@
             }
             cylinder({0,.016f,muzzle*.72f},{0,.016f,muzzle+.022f},.012f,metal);
             cylinder({0,.016f,muzzle+.022f},{0,.016f,muzzle+.026f},.008f,polymer);
-            cuboid({-.012f,.040f,muzzle-.032f},{.012f,.061f,muzzle-.013f},metal);
+            const auto front_sight=contacts.sight-contacts.item_pivot;
+            cuboid({front_sight.x-.012f,front_sight.y-.015f,front_sight.z-.010f},
+                {front_sight.x+.012f,front_sight.y+.006f,front_sight.z+.009f},metal);
             cuboid({-.019f,.041f,.006f},{.019f,.055f,.020f},metal);
             if(mods&NCMM_MOD_OPTIC){
                 cuboid({-.020f,.052f,.07f},{.020f,.078f,.17f},polymer);
@@ -62,7 +72,7 @@
                 cuboid({-.014f,-.020f,-.25f},{.014f,.009f,-.035f},rail);
                 cuboid({-.043f,-.081f,-.27f},{.043f,.031f,-.235f},polymer);
                 for(int n=0;n<3;++n)cuboid({-.044f,-.067f+n*.029f,-.275f},{.044f,-.061f+n*.029f,-.263f},metal);}
-            if(mods&NCMM_MOD_FOREGRIP)cuboid({-.017f,-.135f,muzzle*.53f},{.017f,-.029f,muzzle*.53f+.040f},polymer);
+            if(mods&NCMM_MOD_FOREGRIP)cuboid({-.017f,-.135f,support-.020f},{.017f,-.029f,support+.020f},polymer);
             if(mods&NCMM_MOD_BIPOD)for(float side:{-1.0f,1.0f})tube(origin+vec{side*.026f,-.038f,muzzle*.70f},origin+vec{side*.043f,-.047f,muzzle*.94f},.009f,.007f,rail);
             for(int accessory=0;accessory<2;++accessory)if(mods&(accessory?NCMM_MOD_LIGHT:NCMM_MOD_LASER)){
                 const float x=accessory?-.063f:-.050f,y=accessory?-.022f:.059f,radius=accessory?.018f:.012f;
@@ -71,7 +81,7 @@
                 cylinder({x,y,muzzle*.735f},{x,y,muzzle*.74f},radius*.72f,bulb);}
             if(mods&NCMM_MOD_BAYONET){const vec a=origin+vec{-.014f,-.026f,muzzle-.06f},b=origin+vec{.014f,-.026f,muzzle-.06f},tip=origin+vec{0,-.018f,muzzle+.25f};face(a,b,tip,tip,rail);}
             if(mods&NCMM_MOD_UNDERBARREL)cylinder({0,-.077f,muzzle*.30f},{0,-.077f,muzzle*.88f},.034f,metal);
-            hand(origin+vec{0,-.052f,pistol?.020f:-.012f},false);
-            hand(origin+(pistol?vec{-.035f,-.065f,.030f}:vec{0,mods&NCMM_MOD_FOREGRIP?-.09f:-.037f,muzzle*.55f}),true);
+            hand({contacts.primary.x,contacts.primary.y,contacts.primary.z},false,&contacts.trigger);
+            hand({contacts.secondary.x,contacts.secondary.y,contacts.secondary.z},true);
             f.held_pixels=valid?uint32_t((img->right-img->left)*(img->bottom-img->top)):1u;return;
         }

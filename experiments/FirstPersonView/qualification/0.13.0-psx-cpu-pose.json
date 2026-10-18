@@ -1,0 +1,203 @@
+{
+  "schema": 1,
+  "actual_native_frame": false,
+  "gpu_execution_time": false,
+  "qualified_release": false,
+  "source_commit": "ea5ccba4bc6cfa3ae315ae5dfe5b776ef5be6139",
+  "compiler": "MSVC 19.38.33145.0, Release /O2",
+  "executable_sha256": "8801ae30b6bd4bc2b744b4d05a948d67bd4d76ce6d462a1ef3815fa861a41c10",
+  "hardware": {
+    "captured_utc": "2026-10-18T01:29:51.1659005Z",
+    "cpu": "AMD Ryzen 7 9850X3D 8-Core Processor",
+    "gpu": "NVIDIA GeForce RTX 4090, 610.47, 24564 MiB",
+    "windows_display_version": "23H2",
+    "windows_build": "22631",
+    "windows_ubr": 6199,
+    "backend_required": "direct3d12",
+    "tileset": "UndeadPeople_0J_Hybrid_v3",
+    "quality": "Fresh Balanced",
+    "gpu_internal_cap": [
+      1920,
+      1080
+    ],
+    "cpu_internal_cap": [
+      960,
+      600
+    ],
+    "viewport_matrix": [
+      [
+        640,
+        480
+      ],
+      [
+        1280,
+        800
+      ],
+      [
+        1768,
+        1084
+      ],
+      [
+        1920,
+        1080
+      ]
+    ],
+    "scope": "Static hardware/quality identity; actual adapter and binary hashes must also match every timed native record"
+  },
+  "scope": "First CPU TRS/IK/palette preparation before warmups. Empty includes first asset validation; held/firearm reuse mapped assets. Excludes executable/DLL mapping, materials, packet creation, GPU resources/execution, world and presentation. Fresh processes do not imply cold OS or device caches.",
+  "first_prepare": {
+    "empty": {
+      "samples_ms": [
+        0.2107,
+        0.1299,
+        0.1196,
+        0.1217,
+        0.1174,
+        0.1155,
+        0.1149,
+        0.1118,
+        0.1153,
+        0.1125,
+        0.1111,
+        0.1113,
+        0.2158,
+        0.1109,
+        0.1123,
+        0.1123,
+        0.1186,
+        0.1184,
+        0.1163,
+        0.1119,
+        0.111,
+        0.118,
+        0.114,
+        0.1137,
+        0.1259,
+        0.1205,
+        0.1158,
+        0.1493,
+        0.113,
+        0.1136,
+        0.1128,
+        0.1111
+      ],
+      "median_ms": 0.11510000000000001,
+      "p95_ms": 0.17692999999999995,
+      "p99_ms": 0.214219,
+      "max_ms": 0.2158
+    },
+    "held": {
+      "samples_ms": [
+        0.0175,
+        0.0175,
+        0.0174,
+        0.0173,
+        0.0175,
+        0.0178,
+        0.0175,
+        0.0338,
+        0.0247,
+        0.0172,
+        0.017,
+        0.0176,
+        0.0179,
+        0.0242,
+        0.0176,
+        0.0174,
+        0.0178,
+        0.0176,
+        0.0177,
+        0.0175,
+        0.0173,
+        0.0175,
+        0.0173,
+        0.0176,
+        0.0175,
+        0.0178,
+        0.0177,
+        0.0177,
+        0.0171,
+        0.0177,
+        0.0243,
+        0.0174
+      ],
+      "median_ms": 0.017550000000000003,
+      "p95_ms": 0.02448,
+      "p99_ms": 0.03097900000000001,
+      "max_ms": 0.0338
+    },
+    "firearm": {
+      "samples_ms": [
+        0.0183,
+        0.018,
+        0.0181,
+        0.018,
+        0.018,
+        0.0183,
+        0.0178,
+        0.0254,
+        0.0206,
+        0.0179,
+        0.0179,
+        0.018,
+        0.018,
+        0.0184,
+        0.0182,
+        0.0181,
+        0.0182,
+        0.0181,
+        0.0182,
+        0.018,
+        0.018,
+        0.0181,
+        0.018,
+        0.018,
+        0.0183,
+        0.0181,
+        0.0188,
+        0.0182,
+        0.018,
+        0.018,
+        0.0183,
+        0.0179
+      ],
+      "median_ms": 0.0181,
+      "p95_ms": 0.01961,
+      "p99_ms": 0.023912000000000006,
+      "max_ms": 0.0254
+    }
+  },
+  "steady": [
+    {
+      "state": "empty",
+      "first_prepare_ms": 0.1201,
+      "first_prepare_includes_initial_asset_validation": true,
+      "median_ms": 0.0128,
+      "p95_ms": 0.0153,
+      "p99_ms": 0.021305,
+      "max_ms": 0.0692
+    },
+    {
+      "state": "held",
+      "first_prepare_ms": 0.0198,
+      "first_prepare_includes_initial_asset_validation": false,
+      "median_ms": 0.0145,
+      "p95_ms": 0.0225,
+      "p99_ms": 0.025505,
+      "max_ms": 0.0841
+    },
+    {
+      "state": "firearm",
+      "first_prepare_ms": 0.0236,
+      "first_prepare_includes_initial_asset_validation": false,
+      "median_ms": 0.0166,
+      "p95_ms": 0.0238,
+      "p99_ms": 0.027605,
+      "max_ms": 0.071
+    }
+  ],
+  "raw_archive": {
+    "file": "0.13.0-psx-cpu-pose-raw.json.gz",
+    "sha256": "1ccf085a0572c120d24afec23c7125215a10b34680c90ef8db9e480a2fcb9b4c"
+  }
+}

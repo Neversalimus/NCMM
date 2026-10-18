@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 from pathlib import Path
 from verify_horizon_release import frame_phases, percentile, require
 
@@ -11,6 +12,12 @@ WEATHER = {
     "rain": "dd16a6ce9a64f5b866dd96c605f3f27794c1b77a958bb118779c6f1c54bcb79e",
 }
 SCENES = ("street", "multi_level_horde", "city_blocks")
+EXTENDED_SCENES = ("street", "city_blocks", "dense_city", "forest", "multi_level_horde",
+                   "creatures_20", "creatures_100", "smoke_rain", "armed", "empty_attacks")
+EXTENDED_VIEWPORTS = ((640, 480), (1280, 800), (1768, 1084), (1920, 1080))
+RESOURCE_STREAMS = ("gpu_upload_bytes", "gpu_static_upload_bytes", "gpu_dynamic_geometry_bytes",
+                    "gpu_draw_calls", "gpu_bones", "gpu_held_bones", "gpu_resource_bytes",
+                    "host_cpu_cache_bytes", "process_rss_bytes")
 ENGINE = "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83"
 BASELINE = "4ea4e39e0d6288e0ab8ca4cf62f19c36f0ff4386"
 
@@ -23,14 +30,85 @@ def digest(file):
     return hashlib.sha256(Path(file).read_bytes()).hexdigest()
 
 
-def payload(bundle, source):
+def weather_selection(extended, single):
+    require(single is None or extended, "A single weather fixture is allowed only for the explicit extended diagnostic matrix")
+    return (single,) if single is not None else tuple(WEATHER)
+
+
+def execution_scopes(record):
+    """Validate optional CPU/readback evidence without relabeling old reports."""
+    timings = ("frame_process_cpu_samples_ms", "sprite_readback_samples_ms")
+    counts = ("sprite_readback_attempts", "sprite_cache_bytes", "gpu_generated_cells")
+    staging = ("gpu_frame_upload_capacity_bytes", "gpu_frame_upload_creations")
+    if any(name in record for name in staging):
+        require(all(name in record for name in staging), "Incomplete upload staging evidence")
+        counts += staging
+    cell_streams=("gpu_cell_prepare_samples_ms","gpu_cell_upload_bytes","gpu_cell_cache_bytes")
+    if any(name in record for name in cell_streams):
+        require(all(name in record for name in cell_streams), "Incomplete prepared cell evidence")
+        timings += (cell_streams[0],)
+        counts += (*cell_streams[1:],"gpu_upload_bytes")
+    names = (*timings, *counts, "thread_cpu_available", "frame_thread_cpu_samples_ms")
+    if not any(name in record for name in names):
+        return None
+    require(all(name in record for name in (*timings, *counts, "thread_cpu_available")),
+            "Incomplete CPU/readback evidence")
+    require(type(record["thread_cpu_available"]) is bool, "Invalid thread CPU availability")
+    if record["thread_cpu_available"]:
+        timings += ("frame_thread_cpu_samples_ms",)
+        require("frame_thread_cpu_samples_ms" in record, "Available thread CPU samples missing")
+    else:
+        require("frame_thread_cpu_samples_ms" not in record, "Unavailable thread CPU must not be reported as zero")
+    wall = record["frame_samples_ms"]
+    for name in timings:
+        values = record[name]
+        require(len(values) == len(wall) and all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in values),
+                "Invalid CPU/readback timing stream: " + name)
+    for name in counts:
+        values = record[name]
+        require(len(values) == len(wall) and all(type(v) is int and v >= 0 for v in values),
+                "Invalid CPU/readback count stream: " + name)
+    require(all(readback <= frame + .003 for readback, frame in zip(record["sprite_readback_samples_ms"], wall)),
+            "Sprite readback exceeds its containing rendered frame")
+    require(all(attempts or ms == 0 for attempts, ms in zip(record["sprite_readback_attempts"], record["sprite_readback_samples_ms"])),
+            "Sprite readback time has no attempt")
+    if cell_streams[0] in record:
+        require(all(ms<=frame+.003 for ms,frame in zip(record[cell_streams[0]],wall)), "Cell preparation exceeds its rendered frame")
+        require(all(part<=total for part,total in zip(record[cell_streams[1]],record['gpu_upload_bytes'])), "Cell upload exceeds all frame uploads")
+    return {"thread_cpu_available": record["thread_cpu_available"],
+            "totals_ms": {name: sum(record[name]) for name in timings},
+            "sprite_readback_attempts": sum(record["sprite_readback_attempts"]),
+            "sprite_cache_bytes_peak": max(record["sprite_cache_bytes"]),
+            "upload_staging": {"capacity_bytes_peak": max(record[staging[0]]),
+                               "object_creations_peak": max(record[staging[1]])}
+                              if staging[0] in record and record["renderer"] == "gpu" else None,
+            "gpu_generated_cells_total": sum(record["gpu_generated_cells"]) if record["renderer"] == "gpu" else None,
+            "prepared_cells": {"cpu_prepare_ms":sum(record[cell_streams[0]]),"upload_bytes":sum(record[cell_streams[1]]),
+                               "cpu_capacity_bytes_peak":max(record[cell_streams[2]])} if cell_streams[0] in record else None,
+            "scope": "CPU accounting has platform granularity; process CPU includes workers; readbacks overlap frame wall time, and these are not GPU execution timestamps."}
+
+
+def payload(bundle, source, *, diagnostic_host_source=None):
     bundle = Path(bundle)
-    release = load(bundle / "release-manifest.json")
     manifest = load(bundle / "payload/first-person-bundle.json")
-    require(release["source_commit"] == manifest["ncmm_source_commit"] == source,
-            "Unexpected packaged NCMM source")
-    require(release["engine_source"] == manifest["source_commit"] == ENGINE,
+    require(manifest["source_commit"] == ENGINE,
             "This paired hardware route requires the exact 1040 engine")
+    if diagnostic_host_source is None:
+        release = load(bundle / "release-manifest.json")
+        require(release["source_commit"] == manifest["ncmm_source_commit"] == source,
+                "Unexpected packaged NCMM source")
+        require(release["engine_source"] == ENGINE, "Unexpected release engine")
+    else:
+        components = manifest.get("diagnostic_mixed_components", {})
+        require(all(re.fullmatch(r"[0-9a-f]{40}", value) for value in (source, diagnostic_host_source)),
+                "Diagnostic components require complete expected Git commits")
+        require(components.get("host_ncmm_commit") == diagnostic_host_source and
+                components.get("module_ncmm_commit") == manifest["ncmm_source_commit"] == source,
+                "Unexpected diagnostic component source")
+        release = {"source_commit": source, "host_source_commit": diagnostic_host_source,
+                   "host_sha256": manifest["host_sha256"],
+                   "module_sha256": manifest["files"]["code_mods/FirstPersonView/ncmm_mod.dll"],
+                   "installer_revision": "diagnostic component snapshot; not a qualified installer"}
     require(len(manifest["files"]) == 32, "Incomplete packaged payload")
     for name, expected in manifest["files"].items():
         relative = Path(name)
@@ -41,10 +119,13 @@ def payload(bundle, source):
             manifest["files"]["host/cataclysm-tiles.ncmm.exe"], "Host manifest mismatch")
     require(release["module_sha256"] == manifest["files"]["code_mods/FirstPersonView/ncmm_mod.dll"],
             "Module manifest mismatch")
-    return {name: release[name] for name in ("source_commit", "host_sha256", "module_sha256", "installer_revision")}
+    result = {name: release[name] for name in ("source_commit", "host_sha256", "module_sha256", "installer_revision")}
+    if diagnostic_host_source is not None:
+        result["host_source_commit"] = diagnostic_host_source
+    return result
 
 
-def read_run(root, identity, weather, phases):
+def read_run(root, identity, weather, phases, *, extended=False):
     root = Path(root)
     evidence = root / "evidence"
     report = load(evidence / "first-person-movement-benchmark.json")
@@ -74,20 +155,23 @@ def read_run(root, identity, weather, phases):
             report["facade_regression"]["normal_vision"] is True and
             report["horizon_regression"]["near_overlap"] is False, "Geometry regression failed")
     records = report["records"]
-    expected = {(scene, renderer, width, height) for scene in SCENES for renderer in ("cpu", "gpu")
-                for width, height in ((640, 480), (1768, 1084))}
+    scenes = EXTENDED_SCENES if extended else SCENES
+    viewports = EXTENDED_VIEWPORTS if extended else ((640, 480), (1768, 1084))
+    steps, rotations = (64, 96) if extended else (12, 48)
+    expected = {(scene, renderer, width, height) for scene in scenes for renderer in ("cpu", "gpu")
+                for width, height in viewports}
     actual = {(r["scene"], r["renderer"], r["width"], r["height"]) for r in records}
-    require(len(records) == 12 and actual == expected, "Incomplete or duplicate movement matrix")
+    require(len(records) == len(expected) and actual == expected, "Incomplete or duplicate movement matrix")
     summary = []
     first_full = []
     for record in records:
-        require(record["native_steps"] == 12 and record["tileset"] == "UndeadPeople_0J_Hybrid_v3"
+        require(record["native_steps"] == steps and record["tileset"] == "UndeadPeople_0J_Hybrid_v3"
                 and record["native_art"] is True, "Wrong movement fixture")
         wall = record["frame_samples_ms"]
         first = record["first_frame_after_step_samples_ms"]
         ready = record["first_ready_samples_ms"]
         warm = record["warm_rotation_samples_ms"]
-        require(len(first) == len(ready) == 12 and len(warm) == 48 and len(wall) >= 108,
+        require(len(first) == len(ready) == steps and len(warm) == rotations and len(wall) >= rotations * 2 + steps,
                 "Incomplete timing samples")
         require(all(type(v) in (int, float) and math.isfinite(v) and v >= 0
                     for values in (wall, first, ready, warm) for v in values), "Invalid timing sample")
@@ -105,17 +189,57 @@ def read_run(root, identity, weather, phases):
                 "first_p99_ms": percentile(first, .99),
                 "first_max_ms": max(first), "first_under_15_ms": sum(v <= 15 for v in first),
                 "first_samples": len(first), "ready_median_ms": percentile(ready, .5),
+                "ready_p95_ms": percentile(ready, .95), "ready_p99_ms": percentile(ready, .99),
+                "ready_max_ms": max(ready),
                 "warm_median_ms": percentile(warm, .5), "warm_p95_ms": percentile(warm, .95),
-                "warm_p99_ms": percentile(warm, .99),
+                "warm_p99_ms": percentile(warm, .99), "warm_max_ms": max(warm),
                 "source_cache_bytes_peak": record.get("source_cache_bytes_peak")}
-        if phases:
-            item["phases"] = frame_phases(record)
+        if phases or extended:
+            item["phases"] = frame_phases(record, extended=extended)
             if record["renderer"] == "cpu":
                 # An idle GPU backend may retain the preceding GPU frame metrics.
                 for group in item["phases"].values():
                     for name in list(group):
                         if name.startswith("gpu_"):
                             del group[name]
+        if extended:
+            require(record.get("extended_matrix") is True, "Extended fixture marker missing")
+            observed = execution_scopes(record)
+            if observed is not None:
+                item["execution_scopes"] = observed
+            internal = [record["internal_width"], record["internal_height"]]
+            cap = (1920, 1080) if record["renderer"] == "gpu" else (960, 600)
+            require(all(type(v) is int and 0 < v <= min(limit, viewport)
+                        for v, limit, viewport in zip(internal, cap, (record["width"], record["height"]))),
+                    "Invalid recorded internal resolution")
+            require(record["native_confirmed_attacks"] == (16 if record["scene"] == "empty_attacks" else 0),
+                    "Missing or unexpected confirmed native attacks")
+            require(record["native_weather_id"] == ("rain" if record["scene"] == "smoke_rain" else "sunny"),
+                    "Unexpected extended scene weather")
+            item["native_weather_id"] = record["native_weather_id"]
+            initial = {name: record[name] for name in ("initial_render_ready_ms", "initial_gpu_static_upload_bytes",
+                "initial_gpu_upload_bytes", "initial_gpu_geometry_ms", "initial_gpu_resource_ms", "initial_gpu_resource_bytes")}
+            require(all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in initial.values())
+                    and initial["initial_render_ready_ms"] > 0, "Invalid initial rendered frame evidence")
+            require(initial["initial_gpu_static_upload_bytes"] <= initial["initial_gpu_upload_bytes"],
+                    "Initial static upload exceeds its complete transfer")
+            item["initial_render"] = initial
+            cold = record["cold_rotation_samples_ms"]
+            require(len(cold) == rotations and all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in cold),
+                    "Invalid cold rotation samples")
+            item["internal_resolution"] = internal
+            item["cold_rotation"] = {"median_ms": percentile(cold, .5), "p95_ms": percentile(cold, .95),
+                                     "p99_ms": percentile(cold, .99), "max_ms": max(cold)}
+            item["resources"] = {}
+            for name in RESOURCE_STREAMS:
+                values = record[name]
+                require(len(values) == len(wall) and all(type(v) is int and v >= 0 for v in values),
+                        "Invalid resource sample stream: " + name)
+                selected = [values[i] for i in record["first_frame_indices"]]
+                item["resources"][name] = {"first_median": percentile(selected, .5),
+                    "first_p95": percentile(selected, .95), "peak": max(values),
+                    "begin": values[0], "end": values[-1],
+                    "warm_median": percentile(values[rotations:rotations*2], .5)}
         summary.append(item)
         if record["renderer"] == "gpu" and record["width"] == 1768:
             first_full.extend(first)
@@ -132,31 +256,53 @@ def main():
     for version in ("baseline", "candidate"):
         parser.add_argument("--" + version + "-bundle", type=Path, required=True)
         for weather in WEATHER:
-            parser.add_argument("--" + version + "-" + weather, type=Path, required=True)
+            parser.add_argument("--" + version + "-" + weather, type=Path)
     parser.add_argument("--expected-candidate-source", required=True)
     parser.add_argument("--expected-baseline-source", default=BASELINE)
+    parser.add_argument("--extended", action="store_true", help="Strict 80-record, 64-step diagnostic matrix")
+    parser.add_argument("--single-extended-weather", choices=tuple(WEATHER),
+                        help="Use one hashed input fixture for extended scenes, which select native sunny/rain weather themselves")
+    for version in ("baseline", "candidate"):
+        parser.add_argument("--" + version + "-host-source", help="Explicit component snapshot Host commit; not release qualification")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    weathers = weather_selection(args.extended, args.single_extended_weather)
+    for version in ("baseline", "candidate"):
+        require(all(getattr(args, version + "_" + weather) is not None for weather in weathers),
+                "Missing required " + version + " weather run")
+    require(bool(args.baseline_host_source) == bool(args.candidate_host_source),
+            "Both diagnostic Host sources must be supplied")
     result = {"schema": 1, "success": False, "scope": "CPU wall time of native SDL frames; not GPU timestamps or manual gameplay FPS",
               "simulation_turns_advanced": 0, "quality": "Fresh Balanced; unchanged GPU internal cap 1920x1080 and CPU cap 960x600. Internal dimensions are inferred from source, not recorded by this route.",
               "versions": {}, "comparisons": []}
+    result["diagnostic_component_snapshots"] = bool(args.baseline_host_source)
+    result["weather_fixture_files"] = list(weathers)
+    if args.extended:
+        result["quality"] = "Fresh Balanced; actual internal dimensions recorded; identical GPU 1920x1080 and CPU 960x600 caps"
+        result["timing_scopes"] = {"first": "native tile preparation + graphics extraction/callback + SDL presentation; excludes avatar_action and pre-render native cache refresh",
+            "ready": "native avatar_action + native cache refresh + render + SDL presentation + diagnostic instrumentation",
+            "rotation": "native camera action + cache refresh + render + SDL presentation + diagnostic instrumentation",
+            "phases": "exclusive frame phases sum per sample; extraction/callback/GPU values are nested and must not be added"}
     udp_reference = None
     for version, source in (("baseline", args.expected_baseline_source), ("candidate", args.expected_candidate_source)):
-        identity = payload(getattr(args, version + "_bundle"), source)
+        identity = payload(getattr(args, version + "_bundle"), source,
+                           diagnostic_host_source=getattr(args, version + "_host_source"))
         runs = []
-        for weather in WEATHER:
-            run, udp = read_run(getattr(args, version + "_" + weather), identity, weather, version == "candidate")
+        for weather in weathers:
+            run, udp = read_run(getattr(args, version + "_" + weather), identity, weather, version == "candidate", extended=args.extended)
             if udp_reference is None:
                 udp_reference = udp
             require(udp == udp_reference, "UDP assets differ between runs")
             runs.append(run)
         result["versions"][version] = {"identity": identity, "runs": runs}
-    for n, weather in enumerate(WEATHER):
+    for n, weather in enumerate(weathers):
         before = result["versions"]["baseline"]["runs"][n]["records"]
         after = result["versions"]["candidate"]["runs"][n]["records"]
         lookup = {(r["scene"], r["renderer"], tuple(r["viewport"])): r for r in before}
         for row in after:
             old = lookup[(row["scene"], row["renderer"], tuple(row["viewport"]))]
+            if args.extended:
+                require(old["internal_resolution"] == row["internal_resolution"], "Paired internal resolutions differ")
             result["comparisons"].append({"weather": weather, "scene": row["scene"],
                 "renderer": row["renderer"], "viewport": row["viewport"],
                 "first_median_delta_ms": row["first_median_ms"] - old["first_median_ms"],
@@ -170,6 +316,8 @@ def main():
     result["target_15_ms"] = {"scope": "Full-size GPU first rendered frames after native steps, clear plus controlled rain",
         "under_or_equal": sum(r["full_size_gpu_first_under_15_ms"] for r in candidate_runs),
         "total": sum(r["full_size_gpu_first_samples"] for r in candidate_runs)}
+    if args.extended:
+        result["target_15_ms"]["scope"] = "1768x1084 GPU first rendered frames across all ten scenes; actual native weather recorded per scene; excludes pre-render move/cache refresh"
     result["target_15_ms"]["all_samples_met"] = result["target_15_ms"]["under_or_equal"] == result["target_15_ms"]["total"]
     result["success"] = True
     args.output.parent.mkdir(parents=True, exist_ok=True)

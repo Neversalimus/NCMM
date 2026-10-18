@@ -1,0 +1,25 @@
+MSVC Release
+Actual-sized crow offset 0: CPU 6 / GPU 4 pixels
+Actual-sized crow offset 1: CPU 7 / GPU 3 pixels
+Actual-sized crow offset 2: CPU 5 / GPU 2 pixels
+Actual-sized crow offset 3: CPU 6 / GPU 4 pixels
+Actual-sized crow offset 4: CPU 6 / GPU 4 pixels
+Actual-sized crow offset 5: CPU 5 / GPU 4 pixels
+Actual-sized crow offset 6: CPU 5 / GPU 2 pixels
+Actual-sized crow offset 7: CPU 6 / GPU 3 pixels
+Multi-Z closed: CPU 0 / GPU 0 pixels; target CPU -1 / GPU -1
+Multi-Z open: CPU 21108 / GPU 21108 pixels; target CPU 66 / GPU 66
+Full GPU scene PASS: direct3d12 / NVIDIA GeForce RTX 4090; animation upload 384 bytes; CPU raster=0
+
+Clang ASan/UBSan
+Actual-sized crow offset 0: CPU 6 / GPU 4 pixels
+Actual-sized crow offset 1: CPU 7 / GPU 3 pixels
+Actual-sized crow offset 2: CPU 5 / GPU 2 pixels
+Actual-sized crow offset 3: CPU 6 / GPU 4 pixels
+Actual-sized crow offset 4: CPU 6 / GPU 4 pixels
+Actual-sized crow offset 5: CPU 5 / GPU 4 pixels
+Actual-sized crow offset 6: CPU 5 / GPU 2 pixels
+Actual-sized crow offset 7: CPU 6 / GPU 3 pixels
+Multi-Z closed: CPU 0 / GPU 0 pixels; target CPU -1 / GPU -1
+Multi-Z open: CPU 21108 / GPU 21108 pixels; target CPU 66 / GPU 66
+Full GPU scene PASS: direct3d12 / NVIDIA GeForce RTX 4090; animation upload 384 bytes; CPU raster=0
