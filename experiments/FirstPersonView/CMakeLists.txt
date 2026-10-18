@@ -120,14 +120,17 @@ if(FIRST_PERSON_BUILD_GPU_TESTS)
   if(FIRST_PERSON_GPU_SHADER_HEADER)
     target_compile_definitions(first_person_gpu_probe_tests PRIVATE NCMM_GPU_SHADER_HEADER="${FIRST_PERSON_GPU_SHADER_HEADER}")
   endif()
-  add_test(NAME first_person_gpu_probe COMMAND first_person_gpu_probe_tests ${CMAKE_BINARY_DIR}/gpu-probe)
+  add_test(NAME first_person_gpu_probe COMMAND first_person_gpu_probe_tests gpu-probe)
   add_executable(first_person_gpu_scene_tests tests/gpu_scene_test.cpp)
   first_person_target(first_person_gpu_scene_tests)
   target_link_libraries(first_person_gpu_scene_tests PRIVATE SDL3::SDL3)
   if(FIRST_PERSON_GPU_SHADER_HEADER)
     target_compile_definitions(first_person_gpu_scene_tests PRIVATE NCMM_GPU_SHADER_HEADER="${FIRST_PERSON_GPU_SHADER_HEADER}")
   endif()
-  add_test(NAME first_person_gpu_scene COMMAND first_person_gpu_scene_tests ${CMAKE_BINARY_DIR}/gpu-scene)
+  add_test(NAME first_person_gpu_scene COMMAND first_person_gpu_scene_tests gpu-scene)
+  # Native Windows main() argv can use the ANSI code page, whereas SDL paths
+  # are UTF-8. ASCII relative capture names also work in a Cyrillic build root.
+  set_tests_properties(first_person_gpu_probe first_person_gpu_scene PROPERTIES WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
 endif()
 # ABI/lifecycle tests now exercise the exact shared library that is shipped,
 # rather than compiling a separate copy of module.cpp into each test binary.
