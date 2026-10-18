@@ -530,7 +530,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     graphics_hybrid_last_environment = env;
     graphics_prepare_presentation( base,positions,details,world );
     if(graphics_camera_cache.verify&&graphics_camera_cache.totals.verification_mismatches){
-        DebugLog(D_ERROR,DC_MAIN)<<"NCMM camera snapshot differential mismatch";
+        log_line(NCMM_LOG_ERROR,"NCMM camera snapshot differential mismatch");
         return false;
     }
     const ncmm_graphics_scene_v2 scene = { sizeof( ncmm_graphics_scene_v2 ), base, details.data(), details.size(), env };
