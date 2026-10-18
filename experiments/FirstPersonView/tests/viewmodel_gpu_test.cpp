@@ -44,6 +44,27 @@ int main(){try{size_t checks=0;auto check=[&](bool value,const char *message){++
     for(uint32_t feature:std::array<uint32_t,7>{NCMM_HAND_FUR,NCMM_HAND_SCALES,NCMM_HAND_CHITIN,NCMM_HAND_BIONIC,NCMM_HAND_CLAWS,NCMM_HAND_WEBBED,NCMM_HAND_CLAWS|NCMM_HAND_WEBBED}){
         appearance.view.hand_features=appearance.view.arm_features=feature;gpu::packet mutation;
         check(build(mutation)&&!ncmm_gpu::validate(mutation.finish(nullptr)),"real mutation styles and skeletal overlays remain valid GPU packets");}
+    // Actual CDDA mutation armor occupies the garment slots. It must retain
+    // precisely the same skin materials and claw overlays as the body flags.
+    for(const auto &entry:std::array<std::pair<const char *,uint32_t>,4>{{{"integrated_fur",NCMM_HAND_FUR},{"integrated_scales",NCMM_HAND_SCALES},{"integrated_chitin",NCMM_HAND_CHITIN},{"integrated_claws",NCMM_HAND_CLAWS}}}){
+        for(size_t side=0;side<2;++side)appearance.view.glove[side][0]=appearance.view.sleeve[side][0]=0;
+        appearance.view.hand_features=entry.second;appearance.view.arm_features=entry.second==NCMM_HAND_CLAWS?0:entry.second;
+        gpu::packet exposed;check(build(exposed),"uncovered mutation frame");const auto &body=exposed.finish(nullptr);
+        for(size_t side=0;side<2;++side){std::strcpy(appearance.view.glove[side],entry.first);
+            if(appearance.view.arm_features)std::strcpy(appearance.view.sleeve[side],entry.first);}
+        gpu::packet intrinsic;check(build(intrinsic),"native integrated mutation armor frame");const auto &actual=intrinsic.finish(nullptr);
+        check(!ncmm_gpu::validate(actual)&&actual.draw_count==body.draw_count&&actual.bone_count==body.bone_count,
+              "intrinsic armor cannot hide skeletal mutation overlays");
+        check(actual.mesh_count==body.mesh_count,"intrinsic armor retains the complete body geometry");
+        for(uint32_t i=0;i<body.mesh_count;++i){const auto &a=actual.meshes[i],&b=body.meshes[i];
+            check(a.key==b.key&&a.material_count==b.material_count&&std::memcmp(a.materials,b.materials,size_t(b.material_count)*sizeof(*b.materials))==0,
+                  "intrinsic armor cannot replace body detail with glove or sleeve materials");}
+        if(entry.second==NCMM_HAND_CLAWS){size_t held_indices=0;
+            for(uint32_t i=0;i<actual.draw_count;++i)if(actual.draws[i].pass==NCMM_GPU_HELD)
+                for(uint32_t j=0;j<actual.mesh_count;++j)if(actual.meshes[j].key==actual.draws[i].mesh_key)held_indices+=actual.meshes[j].index_count;
+            check(held_indices>source.index_count,"actual integrated claws add visible skeletal geometry");}
+    }
+    for(size_t side=0;side<2;++side)appearance.view.glove[side][0]=appearance.view.sleeve[side][0]=0;
     appearance.view.hand_features=appearance.view.arm_features=0;
     std::strcpy(appearance.view.glove[0],"gloves_leather");std::strcpy(appearance.view.sleeve[1],"jacket_leather");
     gpu::packet dressed;check(build(dressed)&&!ncmm_gpu::validate(dressed.finish(nullptr)),"real garment IDs drive separate hand/forearm materials");

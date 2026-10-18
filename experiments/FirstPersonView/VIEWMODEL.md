@@ -71,6 +71,9 @@ author's painted luminance detail. Mutations and CBMs use existing presentation
 flags and material finishes. Claws and webbing are small cached overlays bound
 to the source finger joints. Fur, scales and chitin retain this human arm
 topology; they do not claim distinct anatomical meshes or bespoke fur geometry.
+CDDA's canonical `integrated_*` mutation armor can also occupy the glove/sleeve
+metadata slots. It keeps the body feature materials and skeletal overlays;
+ordinary worn garments retain their separate hand/forearm coverage.
 
 No runtime pointer to a scene, item, atlas or GPU resource is retained by the
 animator. Appearance pixel owners and GPU cache entries follow their existing

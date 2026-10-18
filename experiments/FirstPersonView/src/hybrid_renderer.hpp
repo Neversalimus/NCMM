@@ -1125,9 +1125,14 @@ class renderer {
             };
             if(metadata){appearance.features=metadata->view.hand_features;
                 features(metadata->view.hand_features,appearance.regions[1]);features(metadata->view.arm_features,appearance.regions[0]);
-                if(metadata->view.sleeve[side][0]){auto *cloth=texture(UINT32_MAX,NCMM_GFX_SLEEVE_LEFT+side);
+                // CDDA exposes intrinsic mutation armor (integrated_fur,
+                // integrated_claws, etc.) through the worn-item slots too.
+                // Its existing feature flags describe the body, not a glove
+                // that should hide claws or replace the authored skin texture.
+                const auto garment=[](const char *id){return id[0]&&std::strncmp(id,"integrated_",11)!=0;};
+                if(garment(metadata->view.sleeve[side])){auto *cloth=texture(UINT32_MAX,NCMM_GFX_SLEEVE_LEFT+side);
                     const auto color=cloth->valid()?cloth->paint:vec{.30f,.33f,.28f};appearance.regions[0]={{color.x,color.y,color.z},uint32_t(finish(metadata->view.sleeve_material[side])),true,false,true};}
-                if(metadata->view.glove[side][0]){auto *glove=texture(UINT32_MAX,NCMM_GFX_GLOVE_LEFT+side);
+                if(garment(metadata->view.glove[side])){auto *glove=texture(UINT32_MAX,NCMM_GFX_GLOVE_LEFT+side);
                     const auto color=glove->valid()?glove->paint:vec{.11f,.12f,.12f};
                     appearance.regions[1]={{color.x,color.y,color.z},uint32_t(finish(metadata->view.glove_material[side])),true,true,true};appearance.features=0;}}
             ++f.viewmodel_draws;
