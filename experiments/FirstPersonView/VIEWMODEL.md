@@ -47,6 +47,10 @@ same physical grip used by the procedural item. Fingers preserve source clips;
 the firearm index finger also uses the modeled trigger point. Shoulder roots
 remain outside the lower view plane. Unsafe or non-finite grips reject the
 perspective callback and preserve the ordinary fallback.
+Empty idle contacts follow the viewport's lower edge, keeping both hands visible
+at wide aspect ratios. Empty strikes use the source clip without a second
+primitive-hand swing. The shoulder constraint includes the actual held transform,
+so item swing, equip movement and body scaling cannot expose the upper-arm roots.
 
 GPU resources use the existing mesh cache and `NCMM_GPU_HELD` pass, with its
 existing depth rules and shared SDL device. Static mesh, normals, UVs, hashes

@@ -131,7 +131,8 @@ const frame &animator::prepare(const animation::pose &action,bool no_item,bool f
     }
     serial=action.attack_serial;return *current;
 }
-bool frame::attach(point grip,bool left,float lower_view_slope,hand_pose &out,const point *trigger)const noexcept {
+bool frame::attach(point grip,bool left,float lower_view_slope,hand_pose &out,const point *trigger,
+                   const std::array<float,4> *lower_plane)const noexcept {
     if(!ready||!std::isfinite(grip.x+grip.y+grip.z)||!std::isfinite(lower_view_slope))return false;
     const size_t side=left?1:0;const auto convert=camera_axes();
     for(size_t i=0;i<source.node_count;++i)out.joints[i]=multiply(convert,global[i]);
@@ -146,12 +147,17 @@ bool frame::attach(point grip,bool left,float lower_view_slope,hand_pose &out,co
     const float first=length(origin(original_forearm)-origin(original_upper)),second=length(origin(original_hand)-origin(original_forearm));
     if(first<.05f||second<.05f)return false;
     const float slope=std::clamp(lower_view_slope,.25f,1.2f),margin=.10f;
-    const point plane_normal=unit({0,1,slope}),tangent=unit({0,-slope,1});
-    const float distance=(wrist.y+slope*wrist.z+margin)/std::sqrt(1+slope*slope);
+    const std::array<float,4> plane=lower_plane?*lower_plane:std::array<float,4>{0,1,slope,0};
+    if(!std::all_of(plane.begin(),plane.end(),[](float v){return std::isfinite(v);}))return false;
+    const point normal{plane[0],plane[1],plane[2]};const float normal_length=length(normal);
+    if(normal_length<.01f||normal_length>10)return false;
+    const point plane_normal=normal*(1/normal_length),side_axis=unit(cross(plane_normal,{0,0,1}));
+    const point tangent=unit(cross(side_axis,plane_normal));
+    const float distance=(dot(normal,wrist)+plane[3]+margin)/normal_length;
     const float sideways=left?-.14f:.14f,minimum=std::sqrt(distance*distance+sideways*sideways),maximum=first+second-.002f;
     if(minimum>=maximum)return false;
     const float reach=std::clamp(std::max(.43f,minimum+.012f),std::abs(first-second)+.002f,maximum);
-    const point shoulder=wrist-plane_normal*distance+point{sideways,0,0}-tangent*std::sqrt(std::max(0.f,reach*reach-minimum*minimum));
+    const point shoulder=wrist-plane_normal*distance+side_axis*sideways-tangent*std::sqrt(std::max(0.f,reach*reach-minimum*minimum));
     const auto axis=unit(wrist-shoulder);const float d=length(wrist-shoulder);
     const float along=(first*first+d*d-second*second)/(2*d);
     point pole{left?-1.f:1.f,-.35f,.08f};pole=unit(pole-axis*dot(pole,axis),{0,-1,0});

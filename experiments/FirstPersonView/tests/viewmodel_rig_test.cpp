@@ -60,6 +60,20 @@ int main(int argc,char **){size_t checks=0;auto check=[&](bool v){++checks;if(!v
     // Both real gun anchors remain reachable at the supported viewport/body
     // extremes. Support is on the physical fore-end, not near a long muzzle.
     first_person::animation::pose action;frame rifle(action,false,true);
+    // A root hidden in attachment space must stay below the real camera edge
+    // after the held item's swing, body scaling and equip translation.
+    for(float screen_slope:{.394f,.4376f,.525f})for(float scale:{.7f,1.f,1.25f})
+        for(float swing:{-.95f,0.f,.95f})for(float equip:{0.f,.5f,1.f})for(bool left:{false,true}){
+            const float sn=std::sin(swing),co=std::cos(swing);
+            const float ty=-.28f-sn*.27f+co*.28f+.04f*swing-.20f*(1-equip),tz=-.06f*(1-equip);
+            const std::array<float,4> plane={sn,co,screen_slope/scale,ty+screen_slope/scale*tz};
+            check(rifle.attach(left?point{.185f,-.252f,1.04f}:point{.185f,-.267f,.68f},left,screen_slope,placed,nullptr,&plane));
+            const auto root=placed.shoulder;
+            const float camera_y=scale*(sn*root.x+co*root.y+ty),camera_z=root.z+tz;
+            check(camera_y+screen_slope*camera_z<-.099f*scale);
+        }
+    const std::array<float,4> invalid_plane={0,0,0,0};
+    check(!rifle.attach({.185f,-.267f,.68f},false,.5f,placed,nullptr,&invalid_plane));
     if(argc>1){check(rifle.attach({.185f,-.267f,.68f},false,.525f,placed));
         for(const char *name:{"hand.R","f_index.01.R","f_index.02.R","f_index.03.R","f_middle.01.R","f_middle.03.R","thumb.03.R"}){
             const auto &m=placed.joints[size_t(node_index(imported_asset(),name))];const auto p=position(m,{0,0,0}),tip=position(m,{0,.018f,0});

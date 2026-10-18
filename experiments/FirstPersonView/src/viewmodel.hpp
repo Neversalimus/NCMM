@@ -44,7 +44,9 @@ class frame {
     bool ready=false,empty=false,gun=false;
 public:
     frame(const animation::pose &action,bool no_item,bool firearm) noexcept;
-    bool attach(point grip,bool left,float lower_view_slope,hand_pose &out,const point *trigger=nullptr)const noexcept;
+    // Optional bottom camera plane in attachment space, with unit XY normal.
+    bool attach(point grip,bool left,float lower_view_slope,hand_pose &out,const point *trigger=nullptr,
+                const std::array<float,4> *lower_plane=nullptr)const noexcept;
     const asset &geometry()const noexcept{return source;}
 };
 // One fixed-size local-pose snapshot makes even repeated interruptions

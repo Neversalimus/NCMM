@@ -1088,11 +1088,16 @@ class renderer {
         held_light=light(index(int(std::floor(base.camera_x)),int(std::floor(base.camera_y))),{0,0,1});
         held_light={std::max(.04f,held_light.x),std::max(.04f,held_light.y),std::max(.04f,held_light.z)};
         const float hud_scale=std::min(1.0f,float(f.height)/f.width*1.6f)*(metadata?std::clamp(metadata->view.body_scale,.70f,1.25f):1.0f);
-        auto animate=[&](vec p){const vec pivot{.27f,-.28f,.84f};p=p-pivot;
+        auto animate=[&](vec p){
+            // Empty strikes already move the source rig. Applying the former
+            // primitive-hand swing again exposes the upper-arm root in view.
+            if(empty)return p+vec{pose.sway_x,pose.sway_y-.20f*(1-pose.equip_phase),-.06f*(1-pose.equip_phase)};
+            const vec pivot{.27f,-.28f,.84f};p=p-pivot;
             const float a=pose.swing,co=std::cos(a),sn=std::sin(a);
             p={p.x*co-p.y*sn,p.x*sn+p.y*co,p.z};
             return p+pivot+vec{-.12f*pose.swing+pose.sway_x,.04f*pose.swing+pose.sway_y-.20f*(1-pose.equip_phase),pose.thrust-pose.recoil-.06f*(1-pose.equip_phase)};};
-        auto hud=[&](vec p){p=animate(p);p.x*=hud_scale;p.y*=hud_scale;return local(p);};
+        auto held_view=[&](vec p){p=animate(p);p.x*=hud_scale;p.y*=hud_scale;return p;};
+        auto hud=[&](vec p){return local(held_view(p));};
         auto face=[&](vec a,vec b,vec c,vec d,material m){a=hud(a);b=hud(b);c=hud(c);d=hud(d);quad(a,b,c,d,m,normalize(cross(b-a,d-a)));};
         auto tube=[&](vec a,vec b,float ra,float rb,material m){
             const vec axis=normalize(b-a);vec right=cross(axis,{0,0,1});if(dot(right,right)<.00001f)right=cross(axis,{0,1,0});
@@ -1111,8 +1116,15 @@ class renderer {
         const auto zero=hud({0,0,0});const vec columns[]={hud({1,0,0})-zero,hud({0,1,0})-zero,hud({0,0,1})-zero,zero};
         for(int column=0;column<4;++column){model_to_world.columns[column*4]=columns[column].x;model_to_world.columns[column*4+1]=columns[column].y;model_to_world.columns[column*4+2]=columns[column].z;}model_to_world.columns[15]=1;
         const float lower_view_slope=float(f.height)/f.width*std::tan(70*pi/360)/std::max(.1f,hud_scale);
+        // Transform the actual lower camera plane back into attachment space,
+        // including item swing, equip motion, sway and body scaling.
+        const auto view_zero=held_view({0,0,0});const vec view_columns[]={held_view({1,0,0})-view_zero,held_view({0,1,0})-view_zero,held_view({0,0,1})-view_zero};
+        const float screen_slope=float(f.height)/f.width*std::tan(70*pi/360);
+        const std::array<float,4> lower_plane={(view_columns[0].y+screen_slope*view_columns[0].z)/hud_scale,
+            (view_columns[1].y+screen_slope*view_columns[1].z)/hud_scale,(view_columns[2].y+screen_slope*view_columns[2].z)/hud_scale,
+            (view_zero.y+screen_slope*view_zero.z)/hud_scale};
         auto hand=[&](vec grip,bool left,const viewmodel::point *trigger=nullptr){
-            if(!arms.attach({grip.x,grip.y,grip.z},left,lower_view_slope,arm_pose,trigger)){++f.viewmodel_errors;return;}
+            if(!arms.attach({grip.x,grip.y,grip.z},left,lower_view_slope,arm_pose,trigger,&lower_plane)){++f.viewmodel_errors;return;}
             const int side=left?0:1;
             viewmodel::appearance appearance;
             for(auto &region:appearance.regions)region.finish=uint32_t(surface::skin);
@@ -1161,7 +1173,7 @@ class renderer {
                     t.v[j]=placed_vertex(viewmodel::position(joint,v.position),viewmodel::direction(joint,v.normal));}
                 t.normal=normalize(cross(t.v[1].p-t.v[0].p,t.v[2].p-t.v[0].p));if(gpu_sink)gpu_sink->emit(t);else overlay.push_back(t);}
         };
-        if(empty){hand({.27f,-.34f,.70f},false);hand({-.23f,-.38f,.74f},true);return;}
+        if(empty){hand({.27f,-.70f*lower_view_slope*.70f,.70f},false);hand({-.23f,-.76f*lower_view_slope*.74f,.74f},true);return;}
         const bool valid=img&&img->valid();
         #include "firearm.inc"
         if(pose.grip==NCMM_GRIP_POLE){

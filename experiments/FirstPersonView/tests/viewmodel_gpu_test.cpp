@@ -25,7 +25,7 @@ int main(){try{size_t checks=0;auto check=[&](bool value,const char *message){++
     ncmm_host_graphics_gpu_v1 api{};api.has_resource=resident;
     const auto &source=viewmodel::imported_asset();viewmodel::frame model({},true,false);std::array<viewmodel::hand_pose,2> expected;
     const float slope=.75f*std::tan(70*hybrid::pi/360);
-    check(model.attach({.27f,-.34f,.70f},false,slope,expected[0])&&model.attach({-.23f,-.38f,.74f},true,slope,expected[1]),"CPU reference attachments");
+    check(model.attach({.27f,-.70f*slope*.70f,.70f},false,slope,expected[0])&&model.attach({-.23f,-.76f*slope*.74f,.74f},true,slope,expected[1]),"CPU reference attachments");
     size_t triangles=0;
     for(const auto &draw:first.draws)if(draw.pass==NCMM_GPU_HELD){check(draw.bone_count<=128,"each immutable chunk has at most 128 exact palettes");
         const ncmm_gpu_mesh_v1 *mesh=nullptr;for(uint32_t i=0;i<initial.mesh_count;++i)if(initial.meshes[i].key==draw.mesh_key)mesh=&initial.meshes[i];
