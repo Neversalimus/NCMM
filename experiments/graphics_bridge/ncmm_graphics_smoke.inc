@@ -611,7 +611,8 @@ bool graphics_scene_smoke()
         #include "ncmm_graphics_multilevel_save_smoke.inc"
         }
         require(view_key_discarded[0]==1&&view_key_requeued[0]>0,"f6_pre_poll_drain_regression_not_exercised");
-        if(std::getenv("NCMM_FP_GAMEPLAY_AUDIT"))require(view_key_discarded[1]==1&&view_key_requeued[1]>0,"f12_pre_poll_drain_regression_not_exercised");
+        // The isolated HUD gallery never enters the firing audit's F12 path.
+        if(std::getenv("NCMM_FP_GAMEPLAY_AUDIT")&&!std::getenv("NCMM_FP_TARGET_HUD_ONLY"))require(view_key_discarded[1]==1&&view_key_requeued[1]>0,"f12_pre_poll_drain_regression_not_exercised");
     } catch( const std::exception &err ) {
         reason = err.what();
         graphics_view.enabled = false;
