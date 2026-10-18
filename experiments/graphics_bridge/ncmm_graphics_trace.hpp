@@ -18,6 +18,17 @@
 #pragma pop_macro("max")
 #pragma pop_macro("min")
 #pragma pop_macro("small")
+// Win32 defines FAR/NEAR as aliases to the lowercase macros. Restoring CDDA's
+// unreserved near/far identifiers must not leave those SDK aliases pointing at
+// undefined tokens when another Windows header (e.g. objbase.h) is read later.
+#if !defined(far) && defined(FAR)
+#undef FAR
+#define FAR
+#endif
+#if !defined(near) && defined(NEAR)
+#undef NEAR
+#define NEAR
+#endif
 #endif
 namespace ncmm_graphics_trace {
 inline bool enabled()noexcept{
