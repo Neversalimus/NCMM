@@ -41,18 +41,22 @@ def verify_spatial(root, trials, frames):
         if trial['legacy_control']:
             continue
         start, end = trial['first_frame'], trial['last_frame_exclusive']
-        expected = samples(image(start), selected)
-        legacy_pixels = samples(image(bad_index), selected)
-        assert sum(distance(a, b) > 48 for a, b in zip(expected, legacy_pixels))/len(selected) >= .75, 'Trial reference does not distinguish the visible map pixels'
+        # A real foreground window/wall may occupy the control's open-sky
+        # samples. Select equally strict discriminators from this trial's own
+        # pre-input perspective, without discarding any presented frame.
+        trial_reference = samples(image(start), candidates)
+        selected_trial = [point for point, a, b in zip(candidates, trial_reference, bad) if distance(a, b) > 64][:18]
+        assert len(selected_trial) >= 12, 'Trial reference does not distinguish the visible map pixels'
+        expected = samples(image(start), selected_trial)
         minimum = 1.0
         for index in range(start, end):
-            actual = samples(image(index), selected)
-            matched = sum(distance(a, b) <= 24 for a, b in zip(expected, actual))/len(selected)
+            actual = samples(image(index), selected_trial)
+            matched = sum(distance(a, b) <= 24 for a, b in zip(expected, actual))/len(selected_trial)
             minimum = min(minimum, matched)
             assert matched >= .75, f'World pixels diverged from the pre-input perspective: frame {index}, match {matched:.3f}'
         records.append(dict(scenario=trial['scenario'], renderer=trial['renderer'], first=start, last_exclusive=end,
-                            minimum_reference_match=minimum))
-    return dict(success=True, manual_playthrough=False, method='paired fixed-camera spatial world patches',
+                            minimum_reference_match=minimum,sample_coordinates=selected_trial))
+    return dict(success=True, manual_playthrough=False, method='per-trial paired fixed-camera spatial world patches',
                 legacy_visible_map_frame=bad_index, sample_coordinates=selected, trials_checked=len(records),
                 frames_checked=sum(record['last_exclusive']-record['first'] for record in records), records=records,
                 limitations=['Purpose-built native fixture; does not classify arbitrary gameplay or replace visual review'])

@@ -2,7 +2,7 @@
 from pathlib import Path
 import tempfile
 import unittest
-from PIL import Image
+from PIL import Image, ImageDraw
 from verify_fire_pixels import verify_spatial
 
 class FirePixelTests(unittest.TestCase):
@@ -32,5 +32,22 @@ class FirePixelTests(unittest.TestCase):
     def test_missing_capture_rejected(self):
         (self.root/'first-person-fire-frame-3.png').unlink()
         with self.assertRaises(FileNotFoundError): verify_spatial(self.root, self.trials, self.frames)
+    def window_reference(self):
+        # Same observed grey foreground as the Native CI window fixture; its
+        # colour is close to the control's floor map, while the sky remains a
+        # valid discriminator on both sides. These are synthetic unit pixels.
+        for index in (2,3):
+            with Image.open(self.root/f'first-person-fire-frame-{index}.png') as image:
+                ImageDraw.Draw(image).rectangle((33,0,98,99),fill=(95,94,85))
+                image.save(self.root/f'first-person-fire-frame-{index}.png')
+    def test_foreground_window_uses_its_own_discriminating_world_samples(self):
+        self.window_reference()
+        result=verify_spatial(self.root,self.trials,self.frames)
+        record=result['records'][0]
+        self.assertGreaterEqual(len(record['sample_coordinates']),12)
+        self.assertEqual(record['minimum_reference_match'],1)
+    def test_foreground_window_does_not_hide_a_subsequent_actual_map(self):
+        self.window_reference();self.paint(3,False)
+        with self.assertRaisesRegex(AssertionError,'frame 3'):verify_spatial(self.root,self.trials,self.frames)
 
 if __name__ == '__main__': unittest.main()

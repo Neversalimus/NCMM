@@ -28,13 +28,13 @@ class FireEvidenceTests(unittest.TestCase):
         for mode in ['cpu', 'gpu']:
             cases += [(mode, name, False) for name in ['keyboard_single', 'lmb_single', 'cancel', 'empty', 'no_target', 'window']
                       for _ in range(20 if name in {'keyboard_single', 'lmb_single', 'window'} else 10)]
-            cases += [(mode, name, False) for name in ['blocked_wall', 'vertical_cancel', 'burst']]
+            cases += [(mode, name, False) for name in ['blocked_wall', 'vertical_cancel', 'burst', 'dead_target', 'changed_weapon', 'pointer_only']]
         for i, (mode, name, control) in enumerate(cases):
-            shot = not control and name in ['keyboard_single', 'lmb_single', 'window', 'burst']
+            shot = not control and name in ['keyboard_single', 'lmb_single', 'window', 'burst', 'changed_weapon', 'pointer_only']
             count = 3 if shot and name == 'burst' else int(shot)
             self.report['trials'].append(dict(renderer=mode, scenario=name, legacy_control=control,
                 first_frame=i, last_frame_exclusive=i+1, enabled_before=True, enabled_after=True,
-                native_command='SELECT' if name == 'lmb_single' else 'fire', dispatch_calls=1, keyboard_mode='keychar' if i%2 else 'keycode',
+                native_command='SELECT' if name in {'lmb_single', 'pointer_only'} else 'fire', dispatch_calls=1, keyboard_mode='keychar' if i%2 else 'keycode',
                 native_keyboard_mode='keychar' if i%2 else 'keycode', default_keychar_inputs=int(bool(i%2)), default_keycode_inputs=int(not i%2),
                 yaw_before=0, yaw_after=0, pitch_before=0, pitch_after=0, escape_recovery=False,
                 attack_serial_before=0, attack_serial_after=count, ammo_before=7, ammo_after=7-count,
@@ -49,7 +49,7 @@ class FireEvidenceTests(unittest.TestCase):
         return verify(self.root)
 
     def test_complete_synthetic_fixture(self):
-        self.assertEqual(self.run_report()['normal_native_ui_attempts'], 186)
+        self.assertEqual(self.run_report()['normal_native_ui_attempts'], 192)
 
     def test_undispatched_command_rejected(self):
         self.report['trials'][2]['dispatch_calls'] = 0
