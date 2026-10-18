@@ -23,6 +23,7 @@
   "scope": "Standalone actual-GPU contract checks; no native CDDA frame-time or final installer qualification claim. Recorded executable hashes identify historical builds, which may later be rebuilt in the local build directory.",
   "runtime_log": {
     "file": "0.13.0-psx-white-gpu-runtime.log",
-    "sha256": "693beb438a75431d2e83f2afe67d3b0cf0b0374d47ffd3e288ffd7429e0eb65a"
+    "sha256": "1fb8295d12386dcf60b228f8d955335fa29fd80c0fa0256d5ef833040fd2fc12",
+    "line_endings": "LF, matching the Git blob"
   }
 }

@@ -45,7 +45,8 @@
   ],
   "runtime_log": {
     "file": "0.13.0-psx-upload-gpu-runtime.log",
-    "sha256": "b7b4dd60f964fec6bd3a44b5d74cd29256e2cf7cab0b4fca8bfc86fc6a112d2c"
+    "sha256": "58fe3830e6146d4ca14c8170743e273a6b3ee4f24c274bfba661db695b68ebb8",
+    "line_endings": "LF, matching the Git blob"
   },
   "limitation": "Logical staging capacity is not VRAM residency or SDL internal backing-storage count; native latency and long-session qualification remain separate."
 }
