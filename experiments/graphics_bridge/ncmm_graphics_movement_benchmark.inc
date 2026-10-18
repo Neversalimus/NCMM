@@ -134,7 +134,7 @@
             report.start_object();report.member("scene",scene);report.member("renderer",mode);report.member("width",viewport.x);report.member("height",viewport.y);
             report.member("tileset",get_option<std::string>("TILES"));
             report.member("native_steps",steps);report.member("first_ready_samples_ms",first_ms);report.member("easing_frame_samples_ms",easing_ms);report.member("frame_samples_ms",frame_ms);report.member("visibility_samples_ms",visibility_ms);report.member("frame_renderers_gpu",renderers);
-            if(extended){report.member("extended_matrix",true);report.member("internal_width",actual_width);report.member("internal_height",actual_height);report.member("native_confirmed_attacks",attacks);
+            if(extended){report.member("extended_matrix",true);report.member("internal_width",actual_width);report.member("internal_height",actual_height);report.member("native_confirmed_attacks",attacks);report.member("native_weather_id",get_weather().weather_id.str());
                 report.member("gpu_upload_bytes",uploads);report.member("gpu_static_upload_bytes",static_uploads);report.member("gpu_dynamic_geometry_bytes",dynamic_geometry);report.member("gpu_draw_calls",draw_calls);
                 report.member("gpu_bones",bones);report.member("gpu_held_bones",held_bones);report.member("gpu_resource_bytes",resource_bytes);report.member("host_cpu_cache_bytes",host_bytes);report.member("process_rss_bytes",rss);}
             report.member("first_frame_after_step_samples_ms",first_frame_ms);report.member("first_frame_after_step_median_ms",percentile(first_frame_ms,.5));report.member("first_frame_after_step_p95_ms",percentile(first_frame_ms,.95));

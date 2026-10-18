@@ -64,6 +64,53 @@ Native tiles, perspective, present and unattributed phase arrays are exclusive a
 
 ## Qualification requirements
 
+### Extended 0.13 diagnostics
+
+Add `-Extended` to `-MovementBenchmark` for the strict 80-record matrix:
+street, city blocks, dense city, forest, multi-level horde, 20/100 creatures,
+smoke/rain, armed and empty-hand attacks; 640x480, 1280x800, 1768x1084 and
+1920x1080 viewports; CPU and GPU. Each record has 64 actual native steps and
+96 cold plus 96 warm camera samples. Empty attacks require sixteen confirmed
+native melee serials per record. Stamina starts identically for each entry.
+
+Extended records include actual internal dimensions, raw upload/draw/bone
+counts, resource/cache bytes and process RSS. They use the same frame path as
+ordinary gameplay. Resource and stage counters add diagnostic overhead; report
+that scope and keep instrumentation identical in each paired run. RSS is a
+whole-process measurement and must not be described as viewmodel allocation.
+The outer rotation timer includes native cache refresh; the nested frame phase
+stream excludes that refresh. First-ready time includes the actual move,
+refresh, rendered frame, presentation and instrumentation. Medians of nested
+phases must not be added to form an invented frame time.
+
+`tests/compare_movement_runs.py --extended` explicitly selects this larger matrix
+and verifies its complete sample streams and recorded resolution. The default
+12-record release gate remains unchanged. Component ablations may explicitly
+supply `--baseline-host-source` and `--candidate-host-source` with full expected
+commits. They require matching `diagnostic_mixed_components` receipts and all
+payload hashes, and are labeled diagnostic snapshots, never qualified installers.
+Extended scenes select their own native sunny/rain states and record their IDs.
+`--single-extended-weather clear` compares one complete 80-record run per version
+against the pinned clear input file; the smoke/rain scene still uses real rain.
+This avoids duplicating the entire extended matrix. The legacy release route
+still requires both weather fixtures and rejects this option.
+
+Add `-ViewmodelGallery -SoakSeconds 0` to the gameplay audit for 27 states in
+CPU/GPU for each of the official and UDP tilesets, at 1280x800. The gallery uses
+real worn garments, item IDs, gunmods, mutations, CBMs, boarding and confirmed
+native melee/shot actions. It retains 108 actual SDL BMP captures when both
+tilesets are present. Zero soak is an inspection run, not long-session coverage.
+Do not mix `-ViewmodelGallery` with movement or focused GPU modes.
+
+The existing optional `first_person_benchmark` also accepts `4096 viewmodel
+pose.json`. This measures source TRS sampling, two IK solves and weighted
+palette matrices in isolation, with 32 warmup iterations. It retains raw samples
+in their original order. It excludes material preparation, packet construction,
+CPU rasterization, GPU execution, world extraction and presentation; it must not
+be reported as the complete cost of a native frame or viewmodel draw.
+
+### Required release gates
+
 The live heartbeat reader tolerates legacy locale-specific number separators,
 including malformed UTF-8. The 180-second stall limit still requires changing
 native progress; child exit status and complete evidence remain mandatory.

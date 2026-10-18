@@ -30,6 +30,11 @@ def digest(file):
     return hashlib.sha256(Path(file).read_bytes()).hexdigest()
 
 
+def weather_selection(extended, single):
+    require(single is None or extended, "A single weather fixture is allowed only for the explicit extended diagnostic matrix")
+    return (single,) if single is not None else tuple(WEATHER)
+
+
 def payload(bundle, source, *, diagnostic_host_source=None):
     bundle = Path(bundle)
     manifest = load(bundle / "payload/first-person-bundle.json")
@@ -153,6 +158,9 @@ def read_run(root, identity, weather, phases, *, extended=False):
                     "Invalid recorded internal resolution")
             require(record["native_confirmed_attacks"] == (16 if record["scene"] == "empty_attacks" else 0),
                     "Missing or unexpected confirmed native attacks")
+            require(record["native_weather_id"] == ("rain" if record["scene"] == "smoke_rain" else "sunny"),
+                    "Unexpected extended scene weather")
+            item["native_weather_id"] = record["native_weather_id"]
             cold = record["cold_rotation_samples_ms"]
             require(len(cold) == rotations and all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in cold),
                     "Invalid cold rotation samples")
@@ -185,20 +193,27 @@ def main():
     for version in ("baseline", "candidate"):
         parser.add_argument("--" + version + "-bundle", type=Path, required=True)
         for weather in WEATHER:
-            parser.add_argument("--" + version + "-" + weather, type=Path, required=True)
+            parser.add_argument("--" + version + "-" + weather, type=Path)
     parser.add_argument("--expected-candidate-source", required=True)
     parser.add_argument("--expected-baseline-source", default=BASELINE)
     parser.add_argument("--extended", action="store_true", help="Strict 80-record, 64-step diagnostic matrix")
+    parser.add_argument("--single-extended-weather", choices=tuple(WEATHER),
+                        help="Use one hashed input fixture for extended scenes, which select native sunny/rain weather themselves")
     for version in ("baseline", "candidate"):
         parser.add_argument("--" + version + "-host-source", help="Explicit component snapshot Host commit; not release qualification")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    weathers = weather_selection(args.extended, args.single_extended_weather)
+    for version in ("baseline", "candidate"):
+        require(all(getattr(args, version + "_" + weather) is not None for weather in weathers),
+                "Missing required " + version + " weather run")
     require(bool(args.baseline_host_source) == bool(args.candidate_host_source),
             "Both diagnostic Host sources must be supplied")
     result = {"schema": 1, "success": False, "scope": "CPU wall time of native SDL frames; not GPU timestamps or manual gameplay FPS",
               "simulation_turns_advanced": 0, "quality": "Fresh Balanced; unchanged GPU internal cap 1920x1080 and CPU cap 960x600. Internal dimensions are inferred from source, not recorded by this route.",
               "versions": {}, "comparisons": []}
     result["diagnostic_component_snapshots"] = bool(args.baseline_host_source)
+    result["weather_fixture_files"] = list(weathers)
     if args.extended:
         result["quality"] = "Fresh Balanced; actual internal dimensions recorded; identical GPU 1920x1080 and CPU 960x600 caps"
         result["timing_scopes"] = {"first": "native tile preparation + graphics extraction/callback + SDL presentation; excludes avatar_action and pre-render native cache refresh",
@@ -210,14 +225,14 @@ def main():
         identity = payload(getattr(args, version + "_bundle"), source,
                            diagnostic_host_source=getattr(args, version + "_host_source"))
         runs = []
-        for weather in WEATHER:
+        for weather in weathers:
             run, udp = read_run(getattr(args, version + "_" + weather), identity, weather, version == "candidate", extended=args.extended)
             if udp_reference is None:
                 udp_reference = udp
             require(udp == udp_reference, "UDP assets differ between runs")
             runs.append(run)
         result["versions"][version] = {"identity": identity, "runs": runs}
-    for n, weather in enumerate(WEATHER):
+    for n, weather in enumerate(weathers):
         before = result["versions"]["baseline"]["runs"][n]["records"]
         after = result["versions"]["candidate"]["runs"][n]["records"]
         lookup = {(r["scene"], r["renderer"], tuple(r["viewport"])): r for r in before}
@@ -238,6 +253,8 @@ def main():
     result["target_15_ms"] = {"scope": "Full-size GPU first rendered frames after native steps, clear plus controlled rain",
         "under_or_equal": sum(r["full_size_gpu_first_under_15_ms"] for r in candidate_runs),
         "total": sum(r["full_size_gpu_first_samples"] for r in candidate_runs)}
+    if args.extended:
+        result["target_15_ms"]["scope"] = "1768x1084 GPU first rendered frames across all ten scenes; actual native weather recorded per scene; excludes pre-render move/cache refresh"
     result["target_15_ms"]["all_samples_met"] = result["target_15_ms"]["under_or_equal"] == result["target_15_ms"]["total"]
     result["success"] = True
     args.output.parent.mkdir(parents=True, exist_ok=True)
