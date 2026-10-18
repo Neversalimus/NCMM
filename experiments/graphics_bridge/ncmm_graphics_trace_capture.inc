@@ -51,7 +51,7 @@
             }
             if(trace_scene=="step"&&sample==0){require(avatar_action::move(you,here,tripoint_rel_ms(1,0,0)),"trace_capture_native_step_failed");
                 require(you.pos_abs()!=position_before&&you.get_moves()<moves_before,"trace_capture_step_cost_missing");refresh();}
-            if(trace_scene=="shot"&&sample==0){const auto gun=you.get_wielded_item();require(bool(gun),"trace_capture_weapon_missing");
+            if(trace_scene=="shot"&&sample==0){auto gun=you.get_wielded_item();require(bool(gun),"trace_capture_weapon_missing");
                 const int ammo=gun->ammo_remaining();const int fired=you.fire_gun(here,at(0,-5,0),1,*gun);
                 require(fired==1&&gun->ammo_remaining()==ammo-1&&graphics_attack_serial>attack_before,"trace_capture_native_shot_missing");}
         }
