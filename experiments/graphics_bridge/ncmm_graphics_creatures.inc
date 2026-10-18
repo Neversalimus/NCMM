@@ -2,10 +2,9 @@
 ncmm_graphics_creature_scene_v1 graphics_creature_scene = {};
 ncmm_graphics_creature_metrics_v1 graphics_creature_metrics = {};
 std::vector<ncmm_graphics_creature_v1> graphics_creature_snapshots;
-uint64_t graphics_creature_world_epoch = 1, graphics_creature_next_id = 0, graphics_creature_events = 0;
+uint64_t graphics_creature_world_epoch = 1, graphics_creature_events = 0;
 #if defined(TILES)
 struct graphics_creature_record {
-    weak_ptr_fast<Creature> reference;
     ncmm_graphics_creature_v1 snapshot = {};
     double seen = 0;
     uint64_t presented_event_serial = 0;
@@ -16,16 +15,14 @@ struct graphics_creature_record {
         }
     }
 };
-std::map<const Creature *, graphics_creature_record> graphics_creature_records;
-std::map<SDL_Texture *, uint64_t> graphics_creature_sheets;
-uint64_t graphics_creature_sheet_epoch = 0;
+std::map<uint64_t, graphics_creature_record> graphics_creature_records;
 #endif
 void graphics_clear_creatures()
 {
     ++graphics_creature_world_epoch;
     graphics_creature_scene = {}; graphics_creature_metrics = {}; graphics_creature_snapshots.clear();
 #if defined(TILES)
-    graphics_creature_records.clear(); graphics_creature_sheets.clear(); graphics_creature_sheet_epoch = 0;
+    graphics_creature_records.clear();
 #endif
 }
 int graphics_get_creature_scene( ncmm_graphics_creature_scene_v1 *out )
@@ -48,12 +45,13 @@ const ncmm_host_graphics_creatures_v1 graphics_creatures_api = { 1, sizeof( ncmm
 #if defined(TILES)
 graphics_creature_record *graphics_track_creature( Creature &cr )
 {
-    auto found = graphics_creature_records.find( &cr );
-    if( found != graphics_creature_records.end() && found->second.reference.lock().get() == &cr ) return &found->second;
-    auto owned = g->shared_from( cr );
-    if( !owned || graphics_creature_records.size() >= 4096 ) return nullptr;
-    auto &record = graphics_creature_records[&cr]; record = {}; record.reference = owned;
-    record.snapshot.entity_id = ++graphics_creature_next_id;
+    const auto id=cr.ncmm_graphics_entity_id();
+    if(!id)return nullptr;
+    auto found = graphics_creature_records.find( id );
+    if( found != graphics_creature_records.end() ) return &found->second;
+    if( !g->shared_from( cr ) || graphics_creature_records.size() >= 4096 ) return nullptr;
+    auto &record = graphics_creature_records[id];
+    record.snapshot.entity_id = id;
     record.snapshot.heading = cr.facing == FacingDirection::LEFT ? 3.14159265f : 0.f;
     return &record;
 }
@@ -107,7 +105,6 @@ void graphics_prepare_creatures( const ncmm_graphics_scene_v1 &base,
 {
     const double now = graphics_presentation_seconds(); avatar &you = get_avatar(); map &here = get_map();
     graphics_creature_snapshots.clear();
-    if( graphics_creature_sheet_epoch != graphics_hybrid_tileset_epoch ) { graphics_creature_sheets.clear(); graphics_creature_sheet_epoch = graphics_hybrid_tileset_epoch; }
     for( size_t i = 0; i < base.cell_count; ++i ) {
         if( !( base.cells[i].flags & NCMM_GFX_VISIBLE ) || !base.cells[i].creature[0] || (world&&!(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)) ) continue;
         Creature *cr = get_creature_tracker().creature_at<Creature>( positions[i] );
@@ -144,9 +141,7 @@ void graphics_prepare_creatures( const ncmm_graphics_scene_v1 &base,
         auto atlas = tilecontext->ncmm_get_texture_draw_data( s.type_id, category, positions[i], false, true );
         s.appearance_revision = 1469598103934665603ull;
         if( atlas ) {
-            auto sheet = graphics_creature_sheets.find( atlas->texture );
-            if( sheet == graphics_creature_sheets.end() ) sheet = graphics_creature_sheets.emplace( atlas->texture, graphics_creature_sheets.size() + 1 ).first;
-            s.appearance_revision ^= sheet->second;
+            s.appearance_revision ^= graphics_texture_identity( atlas->texture );
             for( int value : { atlas->dimensions.x, atlas->dimensions.y, atlas->dimensions.w, atlas->dimensions.h } ) s.appearance_revision = ( s.appearance_revision ^ uint32_t( value ) ) * 1099511628211ull;
         }
         if( const Character *ch = cr->as_character() ) s.appearance_revision = graphics_creature_overlay_revision( *ch, s.appearance_revision );

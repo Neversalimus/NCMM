@@ -158,8 +158,9 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
                     submitted=multilevel&&multilevel->submit_gpu(&world);}
                 else submitted=gpu->submit_scene(&base);}
             if(submitted){
-                ncmm_gpu_metrics_v1 result{};result.struct_size=sizeof(result);gpu->metrics(&result);
-                if(presentation)presentation->set_target(result.target_cell,result.label_x,result.label_y);
+                ncmm_gpu_metrics_v1 result{};result.struct_size=sizeof(result);
+                const bool current_pick=gpu->metrics(&result)&&result.active&&result.frame_serial==packet.scene.frame_serial;
+                if(presentation)presentation->set_target(current_pick?result.target_cell:-1,result.label_x,result.label_y);
                 if(has_creatures)submit_creature_metrics(statistics,result.visible_creature_pixels);
                 frame_valid=false;last_gpu_reason.clear();return 1;
             }
@@ -247,6 +248,10 @@ int init(const ncmm_host_api_v1 *api) {
     const auto core=ncmm::sdk::require_core(api,caps,sizeof(caps)/sizeof(caps[0]),NCMM_SDK_CORE_FIELD_END(api_minor));
     if(!core) return 0;
     diagnostic_log=core.core->struct_size>=NCMM_SDK_CORE_FIELD_END(log)?core.core->log:api->log;
+    if(core.core->struct_size>=NCMM_SDK_CORE_FIELD_END(world_setting_get_bool)&&
+        core.core->world_setting_register_bool&&core.core->world_setting_get_bool)
+        core.core->world_setting_register_bool(id,"NCMM_FIRST_PERSON_TARGET_HUD","Target health bar / Здоровье цели",
+            "Show health under the current visible hostile's name. / Полоса здоровья под именем видимого противника в прицеле.",1,NCMM_WORLD_SETTING_LIVE);
     if(core.core->struct_size>=NCMM_SDK_CORE_FIELD_END(world_setting_get_string)&&core.core->world_setting_register_enum&&core.core->world_setting_get_string){
         const char *values[]={"auto","gpu","cpu"},*labels[]={"Auto","GPU","CPU"};
         if(core.core->world_setting_register_enum(id,"NCMM_FIRST_PERSON_RENDERER","First Person renderer / Рендерер первого лица","Auto uses a hardware SDL GPU and chooses CPU for software adapters. / Auto: аппаратный GPU; при программном адаптере используется CPU. F12: Auto → CPU → GPU → Auto.",values,labels,3,"auto",NCMM_WORLD_SETTING_LIVE))settings=core.core;}

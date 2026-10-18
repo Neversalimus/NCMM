@@ -5,6 +5,25 @@ std::vector<ncmm_graphics_detail_v1> graphics_presentation_cells;
 std::optional<tripoint_abs_ms> graphics_aim,graphics_aim_origin;
 float graphics_aim_yaw=0,graphics_aim_pitch=0;
 std::string graphics_aim_name;
+ncmm_graphics_target::reference graphics_aim_reference;
+ncmm_graphics_target::health graphics_aim_health;
+bool graphics_aim_hostile=false;
+uint64_t graphics_target_frame_sequence=0;
+extern uint64_t graphics_creature_world_epoch;
+extern std::vector<ncmm_graphics_creature_v1> graphics_creature_snapshots;
+void graphics_clear_target()
+{
+    graphics_aim.reset();graphics_aim_name.clear();graphics_aim_reference={};graphics_aim_health={};graphics_aim_hostile=false;
+}
+bool graphics_world_target_visible(const tripoint_bub_ms &origin,const tripoint_bub_ms &target);
+#if defined(TILES)
+ncmm_graphics_target::reference graphics_target_reference(const Creature &creature,const tripoint_bub_ms &position)
+{
+    const auto absolute=get_map().get_abs(position);
+    return {creature.ncmm_graphics_entity_id(),graphics_creature_world_epoch,graphics_target_frame_sequence,
+        absolute.x(),absolute.y(),absolute.z()};
+}
+#endif
 float graphics_aim_x=.5f, graphics_aim_y=.4f;
 std::vector<uint32_t> graphics_effect_pixels;
 uint32_t graphics_effect_width=0, graphics_effect_height=0;
@@ -25,7 +44,7 @@ int graphics_get_presentation_cells( ncmm_graphics_detail_v1 *out, size_t count 
 int graphics_set_target( int32_t cell, float x, float y )
 {
     if( !graphics_hybrid_frame || !graphics_hybrid_positions || active_module_id != graphics_view.owner ) return 0;
-    graphics_aim.reset(); graphics_aim_name.clear();
+    graphics_clear_target();
     if( cell == -1 ) return 1;
     if( cell < 0 || size_t( cell ) >= graphics_hybrid_frame->base.cell_count || !std::isfinite( x ) || !std::isfinite( y ) || x < 0 || x > 1 || y < 0 || y > 1 ) return 0;
 #if defined(TILES)
@@ -33,6 +52,19 @@ int graphics_set_target( int32_t cell, float x, float y )
     const auto &p = ( *graphics_hybrid_positions )[cell];
     if( const Creature *cr = get_creature_tracker().creature_at<Creature>( p ) ) {
         if( cr->is_dead_state() || !get_avatar().sees( get_map(), *cr ) ) return 0;
+        if(!(graphics_view.world_render?graphics_world_target_visible(get_avatar().pos_bub(),p):graphics_forward_visible(get_avatar().pos_bub(),p)))return 0;
+        if(graphics_multilevel_frame&&(size_t(cell)>=graphics_multilevel_frame->cell_count||
+            !(graphics_multilevel_frame->coordinates[cell].flags&NCMM_WORLD_BODY_VISIBLE)))return 0;
+        const auto current=graphics_target_reference(*cr,p);
+        const auto source=std::find_if(graphics_creature_snapshots.begin(),graphics_creature_snapshots.end(),[&](const auto &s){
+            return s.cell==uint32_t(cell)&&s.entity_id==current.entity&&s.world_x==current.x&&s.world_y==current.y&&s.world_z==current.z&&!(s.flags&NCMM_CR_DEAD);
+        });
+        if(!current.entity||!current.world||!current.frame||source==graphics_creature_snapshots.end())return 0;
+        graphics_aim_reference=current;
+        graphics_aim_hostile=cr->attitude_to(get_avatar())==Creature::Attitude::HOSTILE;
+        // Creature's canonical aggregate is used for characters too. The Host
+        // never invents a sum of limbs or derives HP from sprite appearance.
+        if(graphics_aim_hostile)graphics_aim_health=ncmm_graphics_target::native_health(cr->get_hp(),cr->get_hp_max());
         graphics_aim = get_map().get_abs( p ); graphics_aim_name = cr->disp_name();
         graphics_aim_origin=get_map().get_abs(get_avatar().pos_bub());graphics_aim_yaw=graphics_camera_yaw;graphics_aim_pitch=graphics_camera_pitch;
         graphics_aim_x=x; graphics_aim_y=y; return 1;
@@ -86,6 +118,7 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
 {
     using namespace ncmm_graphics_presentation_policy;
     avatar &you=get_avatar(); map &here=get_map();
+    ++graphics_target_frame_sequence;
     graphics_presentation={}; auto &p=graphics_presentation;
     p.struct_size=sizeof( p ); p.eye_height=graphics_eye_height();
     static std::optional<tripoint_abs_ms> previous_position;
@@ -219,7 +252,7 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
             d.vehicle_inside=1; p.occupied_vehicle=details[i].vehicle_group;
         }
     }
-    graphics_aim.reset(); graphics_aim_name.clear(); graphics_effect_pixels.clear();
+    graphics_clear_target(); graphics_effect_pixels.clear();
 }
 bool graphics_world_target_visible(const tripoint_bub_ms &origin,const tripoint_bub_ms &target);
 std::string graphics_click_action_impl()
@@ -235,7 +268,7 @@ std::string graphics_click_action_impl()
     }
     const auto pos=here.get_bub( *graphics_aim );
     Creature *cr=get_creature_tracker().creature_at<Creature>( pos );
-    if( !cr || cr->is_dead_state() || cr->attitude_to( you )!=Creature::Attitude::HOSTILE || !you.sees( here,*cr ) ||
+    if( !cr || !graphics_aim_reference.matches(graphics_target_reference(*cr,pos)) || cr->is_dead_state() || cr->attitude_to( you )!=Creature::Attitude::HOSTILE || !you.sees( here,*cr ) ||
         !(graphics_view.world_render?graphics_world_target_visible(you.pos_bub(),pos):graphics_forward_visible(you.pos_bub(),pos)))return "";
     you.last_target=g->shared_from( *cr ); you.last_target_pos=*graphics_aim;
     if( const auto held=you.get_wielded_item() ) if( held->is_gun() || ( held->reach_range( you ).first>1 && you.can_reach_attack( *cr ) ) ) {graphics_click_pending=true;graphics_click_time=SDL_GetTicks();return "fire";}
@@ -253,7 +286,9 @@ bool graphics_consume_click_impl(int x,int y,int z)
     avatar &you=get_avatar();map &here=get_map();const tripoint_bub_ms p(x,y,z);
     if(here.get_abs(p)!=*graphics_aim||here.get_abs(you.pos_bub())!=*graphics_aim_origin)return false;
     const Creature *cr=get_creature_tracker().creature_at<Creature>(p);
-    return cr&&!cr->is_dead_state()&&cr->attitude_to(you)==Creature::Attitude::HOSTILE&&you.sees(here,*cr);
+    return cr&&graphics_aim_reference.matches(graphics_target_reference(*cr,p))&&!cr->is_dead_state()&&
+        cr->attitude_to(you)==Creature::Attitude::HOSTILE&&you.sees(here,*cr)&&
+        (graphics_view.world_render?graphics_world_target_visible(you.pos_bub(),p):graphics_forward_visible(you.pos_bub(),p));
 }
 #else
 std::string graphics_click_action_impl() { return ""; }

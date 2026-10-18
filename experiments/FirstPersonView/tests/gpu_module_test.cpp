@@ -2,6 +2,7 @@
 #include "ncmm_graphics_v2.h"
 #include "ncmm_graphics_gpu.h"
 #include "ncmm_graphics_controls.h"
+#include "ncmm_graphics_presentation.h"
 #include "ncmm_gpu_validation.hpp"
 #include <cstring>
 #include <iostream>
@@ -17,6 +18,8 @@ int checks=0,cpu_frames=0,gpu_frames=0,invalidations=0,availability_calls=0;
 bool enabled=false,provide_gpu=true,compatible=true,reject_submission=false,software=false;
 std::string selection="auto";
 std::vector<std::string> warnings;
+int picked_target=-99,pick_serial_offset=0;
+bool inactive_pick=false;
 ncmm_graphics_render_v2 render=nullptr;
 ncmm_graphics_input_v1 input=nullptr;
 ncmm_host_api_v2_core core{};
@@ -43,8 +46,13 @@ int submit_gpu(const ncmm_gpu_scene_v1 *scene){
     require(scene->draw_count>0,"GPU scene contains world geometry");
     last={};last.struct_size=sizeof(last);
     if(reject_submission){std::strcpy(last.reason,"create GPU shader pipeline: injected failure");return 0;}
-    last.active=1;last.target_cell=-1;++gpu_frames;return 1;
+    last.active=!inactive_pick;last.frame_serial=scene->frame_serial+pick_serial_offset;last.target_cell=2;++gpu_frames;return 1;
 }
+int presentation_scene(ncmm_graphics_presentation_v1 *){return 0;}
+int presentation_cells(ncmm_graphics_detail_v1 *,size_t){return 0;}
+int target(int32_t cell,float,float){picked_target=cell;return 1;}
+int effects(const uint32_t *,uint32_t,uint32_t,uint32_t){return 1;}
+ncmm_host_graphics_presentation_v1 presentation{1,sizeof(presentation),1,0,presentation_scene,presentation_cells,target,effects};
 void invalidate(){++invalidations;last={};}
 int has_resource(uint64_t,uint32_t){return 0;}
 void log(ncmm_log_level_v1 level,const char *message){if(level==NCMM_LOG_WARN)warnings.emplace_back(message);}
@@ -53,13 +61,14 @@ int register_setting(const char *module,const char *id,const char *,const char *
     require(count==3&&std::strcmp(values[0],"auto")==0&&std::strcmp(initial,"auto")==0&&scope==NCMM_WORLD_SETTING_LIVE,"Auto/GPU/CPU setting is live with Auto default");return 1;
 }
 const char *get_setting(const char *,const char *){return selection.c_str();}
-int has_capability(const char *cap){return std::strcmp(cap,NCMM_GRAPHICS_CAP)==0||std::strcmp(cap,NCMM_GRAPHICS_V2_CAP)==0||std::strcmp(cap,"core.v1")==0||std::strcmp(cap,"api.versioning.v1")==0||std::strcmp(cap,"host_api.v2.core")==0||std::strcmp(cap,"module_hotkeys.v1")==0;}
+int has_capability(const char *cap){return std::strcmp(cap,NCMM_GRAPHICS_PRESENTATION_CAP)==0||std::strcmp(cap,NCMM_GRAPHICS_CAP)==0||std::strcmp(cap,NCMM_GRAPHICS_V2_CAP)==0||std::strcmp(cap,"core.v1")==0||std::strcmp(cap,"api.versioning.v1")==0||std::strcmp(cap,"host_api.v2.core")==0||std::strcmp(cap,"module_hotkeys.v1")==0;}
 uint32_t major(){return 1;}uint32_t minor(){return 9;}
 ncmm_host_graphics_v2 graphics{2,sizeof(graphics),2,0,register_view,enable,is_enabled,sprite,submit_cpu};
 ncmm_host_graphics_gpu_v1 gpu{1,sizeof(gpu),1,0,available,submit_gpu,metrics,invalidate,has_resource,nullptr};
 const void *query(const char *id,uint32_t,uint32_t){
     if(!std::strcmp(id,NCMM_GRAPHICS_V2_ID))return &graphics;
     if(!std::strcmp(id,NCMM_GRAPHICS_GPU_ID))return provide_gpu?&gpu:nullptr;
+    if(!std::strcmp(id,NCMM_GRAPHICS_PRESENTATION_ID))return &presentation;
     if(!std::strcmp(id,"ncmm.host_api.v2.core"))return &core;
     return nullptr;
 }
@@ -109,6 +118,11 @@ int main(){try{
     require(render(&scene,nullptr)&&gpu_frames==before_gpu+1,"explicit GPU retains software adapter qualification");
     software=false;selection="auto";
     require(render(&scene,nullptr)&&gpu_frames==before_gpu+2,"Auto resumes hardware GPU when it becomes available");
+    require(picked_target==2,"matching submitted frame can select its target");
+    for(const int offset:{-1,1}){pick_serial_offset=offset;
+        require(render(&scene,nullptr)&&picked_target==-1,"late or future GPU metrics cannot select a current target");}
+    pick_serial_offset=0;inactive_pick=true;
+    require(render(&scene,nullptr)&&picked_target==-1,"inactive GPU metrics cannot select a target");
     module->shutdown();
     std::cout<<"GPU shipping-module recovery: "<<checks<<" checks PASS\n";return 0;
 }catch(const std::exception &error){std::cerr<<"FAIL: "<<error.what()<<"\n";return 1;}}

@@ -43,6 +43,7 @@ std::chrono::steady_clock::time_point graphics_snapshot_begun;
 double graphics_snapshot_ms = 0, graphics_callback_ms = 0, graphics_presentation_ms = 0;
 loaded_mod *find_loaded_by_id( const char *module_id );
 void graphics_clear_hybrid();
+void graphics_clear_target();
 void graphics_clear_gpu();
 void graphics_release_mouse();
 void graphics_cancel_animation();
@@ -70,7 +71,7 @@ int graphics_enable( const char *id, int enabled )
     const bool changed = graphics_view.enabled != ( enabled != 0 );
     graphics_view.enabled = enabled != 0;
     if( changed || !graphics_view.enabled ) graphics_cancel_animation();
-    if( !graphics_view.enabled ) { graphics_release_mouse(); graphics_clear_gpu(); graphics_clear_world(); }
+    if( !graphics_view.enabled ) { graphics_clear_target(); graphics_release_mouse(); graphics_clear_gpu(); graphics_clear_world(); }
 #if defined(TILES)
     if( changed && character_state_available() ) {
         add_msg( m_info, "%s", graphics_view.enabled ?

@@ -20,6 +20,7 @@ class ApplyTests(unittest.TestCase):
         for name in ("ncmm_loader.cpp", "ncmm_loader.h"):
             (root / "src" / name).write_bytes((REPO / "host_patch" / name).read_bytes())
         (root / "src/game.h").write_text("        bool save();\n")
+        (root / "src/creature.h").write_text('#include <array>\nclass Creature {\n    public:\n        ~Creature() override;\n};\n')
         (root / "src/overmapbuffer.h").write_text("        bool has( const point_abs_om &p );\n")
         (root / "src/map.h").write_text("        int supports_zlevels() const {\n            return zlevels;\n        }\n")
         map_cpp='#include "map.h"\n'
@@ -128,7 +129,7 @@ bool cata_tiles::draw_sprite_at() {
                 with self.assertRaisesRegex(ValueError, "one exact anchor"): bridge.apply(root)
             self.assertEqual(before, self.fingerprint(root))
     def test_changed_creature_hook_no_partial_patch(self):
-        for name in ("creature.cpp", "ballistics.cpp", "monster.cpp", "npc.cpp"):
+        for name in ("creature.h", "creature.cpp", "ballistics.cpp", "monster.cpp", "npc.cpp"):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp); self.fixture(root)
                 (root / "src" / name).write_text("changed creature event pathway")

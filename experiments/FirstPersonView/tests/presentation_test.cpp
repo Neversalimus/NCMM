@@ -21,7 +21,7 @@ struct fixture{
         scene.environment.daylight=1;scene.environment.sun_z=.7f;scene.environment.sun_x=.7f;scene.environment.cloud_cover=.45f;scene.environment.animation_seconds=10;
     }
     sprite_provider provider(){return [&](uint32_t,uint32_t layer,ncmm_graphics_sprite_v2 &out){out={sizeof(out),32,32,32,layer==NCMM_GFX_CREATURE?sprite.data():art.data()};return true;};}
-    void draw(float pitch=0){require(build_frame(scene,-pi*.5f,pitch,provider(),f,640,480,{},nullptr,nullptr,&meta),"presentation scene renders");}
+    void draw(float pitch=0,float yaw=-pi*.5f){require(build_frame(scene,yaw,pitch,provider(),f,640,480,{},nullptr,nullptr,&meta),"presentation scene renders");}
 };
 int main(int argc,char **argv){try{
     ncmm_graphics_shapes::traits transparent;transparent.transparent=true;transparent.impassable=true;
@@ -38,6 +38,8 @@ int main(int argc,char **argv){try{
     fixture aim;const int target=5*9+4;std::strcpy(aim.cells[target].creature,"mon_zombie");aim.meta.cells[target].creature_height=1.75f;aim.meta.cells[target].creature_width=.7f;
     aim.draw();require(aim.f.aimed==target&&aim.f.label_y<.5f,"aim picks actual opaque creature pixels and positions label above head");
     aim.details[6*9+4].terrain_shape=NCMM_SHAPE_GLASS_WALL;aim.draw();require(aim.f.aimed==target,"transparent glass keeps aimed creature visible");
+    aim.details[6*9+4].terrain_shape=NCMM_SHAPE_WINDOW;aim.draw();require(aim.f.aimed==-1,"opaque central window mullion blocks creature picking");
+    aim.draw(0,-pi*.5f+.03f);require(aim.f.aimed==target,"transparent window pane beside mullion retains creature picking");
     aim.details[6*9+4].terrain_shape=NCMM_SHAPE_WALL;aim.draw();require(aim.f.aimed==-1,"wall blocks name and creature picking");
     std::set<uint64_t> doors;fixture room;room.details[target].terrain_shape=NCMM_SHAPE_DOOR_CLOSED;
     for(uint32_t m:{NCMM_MAT_WOOD,NCMM_MAT_METAL,NCMM_MAT_GLASS,NCMM_MAT_STONE,NCMM_MAT_CLOTH}){room.meta.cells[target].terrain_material=m;room.draw();doors.insert(digest(room.f));}

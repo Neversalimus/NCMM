@@ -14,6 +14,7 @@ param(
     [switch]$ViewmodelGallery,
     [switch]$HeldAssetGallery,
     [switch]$DisableHeldAssets,
+    [switch]$TargetHudGallery,
     [switch]$CaptureCrashDump,
     [switch]$GpuDebug,
     [string]$DumpAnalyzer
@@ -56,6 +57,7 @@ function Read-NativeBenchmarkProgress([string]$Path){
     } finally {if($reader){$reader.Dispose()}else{$stream.Dispose()}}
 }
 if(-not $BundleRoot){$BundleRoot=$PSScriptRoot}
+if(@(@([bool]$MovementBenchmark,[bool]$FocusedGpuBenchmark,[bool]$CameraInputProbe,[bool]$HeldAssetGallery,[bool]$TargetHudGallery) | Where-Object {$_}).Count -gt 1){throw 'Choose one native diagnostic mode.'}
 if(-not $DumpAnalyzer){$DumpAnalyzer=Join-Path $PSScriptRoot 'ncmm_native_dump_analyzer.exe'}
 if($CameraInputProbe -and ($MovementBenchmark -or $FocusedGpuBenchmark -or $ViewmodelGallery -or $HeldAssetGallery -or $Extended -or $CameraSnapshotVerify -or $DisableCameraSnapshot -or $TraceCaptureScene -or $TilesetRoot -or $PSBoundParameters.ContainsKey('SoakSeconds'))){throw 'CameraInputProbe requires its own native diagnostic run.'}
 if($TraceCaptureScene){
@@ -68,6 +70,8 @@ if($HeldAssetGallery -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw '
 if($Extended -and -not $MovementBenchmark){throw 'Extended requires MovementBenchmark.'}
 if($CameraSnapshotVerify -and (-not $MovementBenchmark -or $DisableCameraSnapshot)){throw 'CameraSnapshotVerify requires an enabled movement snapshot run.'}
 if($ViewmodelGallery -and ($MovementBenchmark -or $FocusedGpuBenchmark)){throw 'ViewmodelGallery belongs to the gameplay audit.'}
+if($TargetHudGallery -and ($MovementBenchmark -or $FocusedGpuBenchmark -or $ViewmodelGallery -or $TilesetRoot)){throw 'TargetHudGallery requires its own official-tileset native diagnostic run.'}
+if($TargetHudGallery -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the full gameplay audit.'}
 if($MovementBenchmark -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the gameplay audit.'}
 if($FocusedGpuBenchmark -and $TilesetRoot){throw 'Focused GPU reproduction uses the official tileset; use the gameplay audit for UDP coverage.'}
 if($FocusedGpuBenchmark -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the gameplay audit, not focused GPU reproduction.'}
@@ -163,7 +167,7 @@ public static class NCMMNativeCrashDialog {
 }
 '@
 }
-$names=@('NCMM_FP_CAMERA_INPUT','NCMM_FP_CAMERA_CACHE','NCMM_FP_CAMERA_CACHE_VERIFY','NCMM_FP_TRACE_MARKERS','NCMM_FP_TRACE_CAPTURE_SCENE','NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT','NCMM_FP_HELD_GALLERY_ONLY','NCMM_FP_HELD_ASSETS')
+$names=@('NCMM_FP_CAMERA_INPUT','NCMM_FP_CAMERA_CACHE','NCMM_FP_CAMERA_CACHE_VERIFY','NCMM_FP_TRACE_MARKERS','NCMM_FP_TRACE_CAPTURE_SCENE','NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT','NCMM_FP_HELD_GALLERY_ONLY','NCMM_FP_HELD_ASSETS','NCMM_FP_TARGET_HUD_ONLY')
 $prior=@{}
 # Modern .NET preserves an empty environment variable. PowerShell can convert
 # $null to that empty string at the .NET call boundary, and native getenv then
@@ -182,6 +186,7 @@ try {
     if($DisableCameraSnapshot){$env:NCMM_FP_CAMERA_CACHE='0'}
     if($TraceCaptureScene){$env:NCMM_FP_TRACE_MARKERS='1';$env:NCMM_FP_TRACE_CAPTURE_SCENE=$TraceCaptureScene}
     if($ViewmodelGallery){$env:NCMM_FP_VIEWMODEL_GALLERY='1'}
+    if($TargetHudGallery){$env:NCMM_FP_TARGET_HUD_ONLY='1'}
     if($GpuDebug){$env:SDL_RENDER_GPU_DEBUG='1'}
     $env:SDL_ASSERT='abort' # Diagnostic child must fail with evidence, never wait in SDL's assertion modal.
     $env:NCMM_FP_APPEARANCE_SMOKE='1' # Stable monster atlas variants in this diagnostic only.
@@ -197,7 +202,7 @@ try {
     # The native firing matrix preserves every actual presented frame. Its 186
     # attempts can exceed twenty minutes with lossless diagnostic readback.
     # Keep the independent 180-second no-progress/crash guard below.
-    $deadline=[DateTime]::UtcNow.AddSeconds($(if($Extended){7200}elseif($FocusedGpuBenchmark -or $HeldAssetGallery -or $CameraInputProbe){600}elseif($MovementBenchmark){1200}else{$SoakSeconds+3600}))
+    $deadline=[DateTime]::UtcNow.AddSeconds($(if($Extended){7200}elseif($FocusedGpuBenchmark -or $HeldAssetGallery -or $CameraInputProbe -or $TargetHudGallery){600}elseif($MovementBenchmark){1200}else{$SoakSeconds+3600}))
     $progressPath=Join-Path $test 'ncmm/first-person-audit-progress.txt'
     if($HeldAssetGallery){$progressPath=Join-Path $test 'ncmm/first-person-held-gallery-progress.txt'}
     $lastProgress='native startup'
@@ -329,9 +334,17 @@ if($exitCode -ne 0){
 }
 if($debugger -and $debugger.Error){throw "Native diagnostic debugger failed: $($debugger.Error)"}
 if($debugger -and $debugger.Dumps -gt 0){throw 'Native diagnostic captured an access violation even though the process exited successfully.'}
-$auditName=if($HeldAssetGallery){'first-person-held-gallery.json'}elseif($CameraInputProbe){'first-person-camera-input.json'}elseif($TraceCaptureScene){'first-person-nsight-scene.json'}elseif($MovementBenchmark){'first-person-movement-benchmark.json'}elseif($FocusedGpuBenchmark){'first-person-gpu-benchmark.json'}else{'first-person-gameplay-audit.json'}
+$auditName=if($TargetHudGallery){'first-person-target-audit.json'}elseif($HeldAssetGallery){'first-person-held-gallery.json'}elseif($CameraInputProbe){'first-person-camera-input.json'}elseif($TraceCaptureScene){'first-person-nsight-scene.json'}elseif($MovementBenchmark){'first-person-movement-benchmark.json'}elseif($FocusedGpuBenchmark){'first-person-gpu-benchmark.json'}else{'first-person-gameplay-audit.json'}
 if(-not (Test-Path -LiteralPath (Join-Path $evidence $auditName))){throw "Requested native benchmark report is missing: $auditName; final phase=$lastProgress"}
-if($HeldAssetGallery){
+if($TargetHudGallery){
+    $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
+    if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.manual_playthrough -ne $false -or @($audit.cases).Count -ne 42){throw 'Native target HUD gallery is incomplete.'}
+    foreach($case in $audit.cases){
+        if(-not (Test-Path -LiteralPath (Join-Path $evidence $case.file))){throw 'Native target HUD capture is missing.'}
+        if($case.renderer -eq 'gpu' -and $case.gpu -ne $true){throw 'GPU target HUD frame fell back to CPU.'}
+    }
+    $soaked=0
+}elseif($HeldAssetGallery){
     $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
     if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.manual_playthrough -ne $false -or @($audit.records).Count -ne 64){throw 'Native held asset gallery is incomplete.'}
     foreach($record in $audit.records){
@@ -392,6 +405,7 @@ if($HeldAssetGallery){
 $result=[ordered]@{success=$true;source_commit=$bundle.source_commit;ncmm_commit=$bundle.ncmm_source_commit;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';manual_playthrough=$false;focused_gpu_benchmark=[bool]$FocusedGpuBenchmark;movement_benchmark=[bool]$MovementBenchmark;extended_matrix=[bool]$Extended;viewmodel_gallery=[bool]$ViewmodelGallery;udp_requested=$udp;soak_seconds=$soaked;evidence=$evidence}
 $result['camera_input_probe']=[bool]$CameraInputProbe
 $result['trace_capture_scene']=$TraceCaptureScene
+$result.target_hud_gallery=[bool]$TargetHudGallery
 $result | ConvertTo-Json | Set-Content (Join-Path $OutputRoot 'benchmark-provenance.json') -Encoding UTF8
 $result | ConvertTo-Json
 } catch {

@@ -140,6 +140,11 @@ void initialize();''')
     # Observe successful game pathways only. No move costs, targets, damage,
     # AI, saves or return values are modified by presentation hooks.
     creature = read("creature.cpp")
+    creature_h = replace(read("creature.h"), '#include <array>', '#include <array>\n#include "ncmm_graphics_identity.hpp"')
+    updates["creature.h"] = replace(creature_h, '        ~Creature() override;',
+        '        ~Creature() override;\n'
+        '        uint64_t ncmm_graphics_entity_id() const noexcept { return ncmm_graphics_identity_.value(); }\n'
+        '    private:\n        ncmm_graphics_identity::lifetime ncmm_graphics_identity_;\n    public:')
     creature = replace(creature, "int Creature::deal_melee_attack( Creature *source, int hitroll )\n{", "int Creature::deal_melee_attack( Creature *source, int hitroll )\n{\n    if( source ) ncmm::graphics_note_creature( source, 1, std::atan2( float( pos_abs().y() - source->pos_abs().y() ), float( pos_abs().x() - source->pos_abs().x() ) ) );")
     updates["creature.cpp"] = replace(creature, "    apply_damage( source, bp, total_damage );", "    apply_damage( source, bp, total_damage );\n    if( total_damage > 0 ) ncmm::graphics_note_creature( this, 3 );")
     ballistic = read("ballistics.cpp")
@@ -201,7 +206,7 @@ void initialize();''')
     import re
     updates["sdltiles.cpp"] = re.sub(r'(?m)^(\s*)renderer\.reset\(\);', r'\1ncmm::graphics_release_gpu();\n\1renderer.reset();', updates["sdltiles.cpp"])
     updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"], "        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );", "        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n        const bool ncmm_mouse_allowed = !cataimgui::client::want_capture_mouse();\n        if( ev.type == SDL_EVENT_WINDOW_FOCUS_LOST ) ncmm::graphics_mouse_event( 4, 0, 0, 0, 0, false );\n        if( ev.type == SDL_EVENT_MOUSE_MOTION && ncmm::graphics_mouse_event( 3, ev_display.motion.x, ev_display.motion.y, ev.motion.xrel, ev.motion.yrel, ncmm_mouse_allowed ) ) continue;\n        if( ( ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN || ev.type == SDL_EVENT_MOUSE_BUTTON_UP ) && ev.button.button == SDL_BUTTON_RIGHT &&\n            ncmm::graphics_mouse_event( ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? 1u : 2u, ev_display.button.x, ev_display.button.y, 0, 0, ncmm_mouse_allowed ) ) continue;")
-    updates["sdltiles.h"] = replace(read("sdltiles.h"), "SDL_Window *get_sdl_window();", "SDL_Window *get_sdl_window();\nvoid ncmm_draw_perspective_label( const std::string &, int, int, const SDL_Rect & );")
+    updates["sdltiles.h"] = replace(read("sdltiles.h"), "SDL_Window *get_sdl_window();", "SDL_Window *get_sdl_window();\nvoid ncmm_draw_perspective_label( const std::string &, int, int, const SDL_Rect & );\nvoid ncmm_draw_perspective_target( const std::string &, int, int, const SDL_Rect &, bool, float );")
     updates["sdltiles.cpp"] += """
 #if defined(TILES)
 // Reuse CDDA's configured font and Unicode fallback list, not a Latin-only bitmap.
@@ -376,7 +381,7 @@ void initialize();''')
     ):
         map_cpp=replace(map_cpp, signature+"\n{", signature+"\n{\n    ncmm::graphics_world_changed( this, "+level+" );")
     updates["map.cpp"]=map_cpp
-    for name in ("ncmm_graphics_trace.hpp","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc"):
+    for name in ("ncmm_graphics_trace.hpp","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")
@@ -391,6 +396,15 @@ void initialize();''')
             raise ValueError("Experimental source already exists: " + name)
         updates[name] = path.read_text(encoding="utf-8")
 
+    updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '#include "ncmm_graphics_context.hpp"',
+        '#include "ncmm_graphics_context.hpp"\n#include "ncmm_graphics_target.hpp"')
+    updates["sdltiles.cpp"] += '\n#include "ncmm_graphics_target_sdl.inc"\n'
+    if (root / "src/ncmm_graphics_target_sdl.inc").exists():
+        raise ValueError("Experimental source already exists: ncmm_graphics_target_sdl.inc")
+    updates["ncmm_graphics_target_sdl.inc"]=(bridge/"ncmm_graphics_target_sdl.inc").read_text(encoding="utf-8")
+    if (root / "src/ncmm_graphics_target_smoke.inc").exists():
+        raise ValueError("Experimental source already exists: ncmm_graphics_target_smoke.inc")
+    updates["ncmm_graphics_target_smoke.inc"]=(bridge/"ncmm_graphics_target_smoke.inc").read_text(encoding="utf-8")
     # No writes above this line. No save/installation/feed/catalog changes.
     for name, content in updates.items():
         (root / "src" / name).parent.mkdir(parents=True,exist_ok=True)

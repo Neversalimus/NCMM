@@ -1,5 +1,6 @@
 // Opt-in, bounded automation in an owned smoke world. This is not manual play.
 {
+    [&](){
     using audit_clock=std::chrono::steady_clock;
     const auto original_position=you.pos_abs(),home=original_position;
     const auto original_origin=here.get_abs_sub();
@@ -10,7 +11,7 @@
     const auto native_ui=g->create_or_get_main_ui_adaptor();ui_manager::redraw();
     SDL_Renderer *renderer=get_sdl_renderer().get();SDL_Texture *previous_target=SDL_GetRenderTarget(renderer);
     const bool viewmodel_gallery=std::getenv("NCMM_FP_VIEWMODEL_GALLERY")!=nullptr;
-    const point audit_viewport=viewmodel_gallery?point(1280,800):point(640,480);
+    point audit_viewport=viewmodel_gallery?point(1280,800):point(640,480);
     SDL_Texture *canvas=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,audit_viewport.x,audit_viewport.y);
     require(canvas!=nullptr,"audit_canvas_failed");
     struct audit_canvas_guard {SDL_Renderer *renderer;SDL_Texture *canvas,*previous;
@@ -92,10 +93,22 @@
         if(!native_errors.empty())log_line(NCMM_LOG_ERROR,("Native audit diagnostic: "+native_errors).c_str());
         require(native_errors.empty(),"audit_native_debug_message");
         report.start_object();report.member("name",name);report.member("native_action_wall_ms",milliseconds(begin));report.member("success",true);report.end_object();stream.flush();checkpoint(std::string(name)+" PASS");};
+    auto target_cases=[&](){
+        #include "ncmm_graphics_target_smoke.inc"
+    };
+    if(std::getenv("NCMM_FP_TARGET_HUD_ONLY")){
+        action("native_target_health_identity_visibility_and_font",target_cases);report.end_array();
+        require(here.get_abs_sub()==original_origin,"target_hud_probe_changed_map_origin");
+        you.set_moves(original_moves);camera(original_yaw,original_pitch);clear_monsters();graphics_clear_world();
+        report.member("diagnostic_only",true);report.member("target_gallery_only",true);
+        report.member("ordinary_performance_measurement",false);report.member("success",true);report.end_object();
+        stream.close();require(bool(stream),"target_hud_probe_report_write_failed");checkpoint("target_hud_gallery_complete");return;
+    }
     action("native_held_assets_and_shared_psx_contacts",[&](){graphics_run_held_gallery(you,here,require,frames);floor();warm("cpu");});
     action("native_firing_ui_context_and_presented_frames",[&](){
         #include "ncmm_graphics_fire_audit.inc"
     });
+    action("native_target_health_identity_visibility_and_font",target_cases);
     action("native_walk_and_visual_continuity",[&](){
         for(const tripoint_rel_ms step:{tripoint_rel_ms(1,0,0),tripoint_rel_ms(0,-1,0),tripoint_rel_ms(-1,0,0),tripoint_rel_ms(0,1,0)}){
             const auto before=you.pos_abs();const int moves=you.get_moves();require(avatar_action::move(you,here,step),"audit_native_walk_failed");const auto after=you.pos_abs();const int spent=moves-you.get_moves();
@@ -291,4 +304,5 @@
     get_options().get_option("TILES").setValue(original_tileset);tilecontext->load_tileset(original_tileset,false,true);ncmm::graphics_note_input_context("DEFAULTMODE");get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue("cpu");
     report.member("success",true);report.end_object();stream.close();require(bool(stream),"audit_report_write_failed");checkpoint("native_multilevel_save_load_next");
     log_line(NCMM_LOG_INFO,"Automated native gameplay audit completed; this is not a manual playthrough.");
+    }();
 }
