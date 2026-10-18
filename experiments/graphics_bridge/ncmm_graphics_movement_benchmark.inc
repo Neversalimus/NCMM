@@ -2,6 +2,7 @@
 // moves, camera easing, SDL presentation and source visibility all participate.
 {
     using clock=std::chrono::steady_clock;
+    const bool full_size_gpu_matrix=std::getenv("NCMM_FP_PERF_GPU_FULLSIZE")!=nullptr;
     auto elapsed=[](auto begin){return std::chrono::duration<double,std::milli>(clock::now()-begin).count();};
     auto percentile=[](std::vector<double> values,double p){if(values.empty())return 0.0;std::sort(values.begin(),values.end());
         const double at=p*(values.size()-1);const size_t lo=size_t(at),hi=std::min(lo+1,values.size()-1);return values[lo]+(values[hi]-values[lo])*(at-lo);};
@@ -13,7 +14,11 @@
     auto progress=[&](const std::string &name){progress_stream<<name<<'\n';progress_stream.flush();};
     std::ofstream stream(game_root()/"ncmm"/"first-person-movement-benchmark.json");JsonOut report(stream);
     report.start_object();report.member("schema",2);report.member("actual_cdda_sdl",true);report.member("manual_playthrough",false);
-    report.member("simulation_turns_advanced",0);report.member("records");report.start_array();
+    report.member("profiler_markers_enabled",ncmm_graphics_trace::enabled());
+    report.member("gpu_debug_requested",std::getenv("SDL_RENDER_GPU_DEBUG")!=nullptr);
+    report.member("distance_radius",NCMM_GRAPHICS_V2_RADIUS);report.member("fov_z_range_configured",get_option<int>("FOV_3D_Z_RANGE"));
+    report.member("native_pass_retained",true);
+    report.member("simulation_turns_advanced",0);report.member("full_size_gpu_matrix",full_size_gpu_matrix);report.member("records");report.start_array();
     auto at=[&](int x,int y,int z){return here.get_bub(tripoint_abs_ms(original_position.x()+x,original_position.y()+y,z));};
     auto refresh=[&](){g->ter_view_p=you.pos_bub();g->reset_light_level();here.build_map_cache(you.posz());here.invalidate_visibility_cache();here.update_visibility_cache(you.posz());};
     const std::string original_tileset=get_option<std::string>("TILES");
@@ -21,13 +26,15 @@
     const bool trace_capture=!trace_scene.empty();
     require(!trace_capture||trace_scene=="quiet"||trace_scene=="rotate"||trace_scene=="step"||trace_scene=="shot"||trace_scene=="hands"||trace_scene=="smoke"||trace_scene=="city","trace_capture_unknown_scene");
     const bool extended=std::getenv("NCMM_FP_EXTENDED")!=nullptr||trace_capture;
+    require(!full_size_gpu_matrix||(extended&&!trace_capture),"full_size_gpu_matrix_requires_ordinary_extended_run");
     struct readback_profile_guard {bool previous;~readback_profile_guard(){graphics_sprite_readbacks.enabled=previous;}} readback_guard{graphics_sprite_readbacks.enabled};
     graphics_sprite_readbacks.enabled=extended;
     const int steps=extended?64:12,rotations=extended?96:48;
     const auto benchmark_weather=get_weather().weather_id;
-    const std::vector<std::string> scenes=trace_capture?std::vector<std::string>{trace_scene=="city"?"city_blocks":trace_scene=="smoke"?"smoke_rain":trace_scene=="hands"||trace_scene=="shot"?"armed":"street"}:extended?std::vector<std::string>{"street","city_blocks","dense_city","forest","multi_level_horde","creatures_20","creatures_100","smoke_rain","armed","empty_attacks"}:
+    std::vector<std::string> scenes=trace_capture?std::vector<std::string>{trace_scene=="city"?"city_blocks":trace_scene=="smoke"?"smoke_rain":trace_scene=="hands"||trace_scene=="shot"?"armed":"street"}:extended?std::vector<std::string>{"street","city_blocks","dense_city","forest","multi_level_horde","creatures_20","creatures_100","smoke_rain","armed","empty_attacks"}:
         std::vector<std::string>{"street","multi_level_horde","city_blocks"};
-    const std::vector<point> viewports=trace_capture?std::vector<point>{point(1768,1084)}:extended?std::vector<point>{point(640,480),point(1280,800),point(1768,1084),point(1920,1080)}:
+    if(full_size_gpu_matrix)scenes.insert(scenes.end()-2,"tool");
+    const std::vector<point> viewports=(trace_capture||full_size_gpu_matrix)?std::vector<point>{point(1768,1084)}:extended?std::vector<point>{point(640,480),point(1280,800),point(1768,1084),point(1920,1080)}:
         std::vector<point>{point(640,480),point(1768,1084)};
     if(std::getenv("NCMM_FP_UDP")){get_options().get_option("TILES").setValue("UndeadPeople_0J_Hybrid_v3");tilecontext->load_tileset("UndeadPeople_0J_Hybrid_v3",false,true);}
     for(const auto &scene:scenes){
@@ -63,9 +70,10 @@
             require(g->place_critter_at(mtype_id(n%2?"mon_zombie":"mon_dog"),at(-9+n%10*2,-3-n/10*2,0))!=nullptr,"movement_extended_creature_spawn_failed");
         if(scene=="smoke_rain")for(int y=-16;y<-2;++y)for(int x=-8;x<=8;++x)here.add_field(at(x,y,0),field_type_str_id("fd_smoke").id(),3);
         if(scene=="armed")you.set_wielded_item(item(itype_id("scar_l"),calendar::turn));
+        if(scene=="tool")you.set_wielded_item(item(itype_id("crowbar"),calendar::turn));
         const std::string original_art=get_option<std::string>("NCMM_FIRST_PERSON_CREATURE_ART");
         get_options().get_option("NCMM_FIRST_PERSON_CREATURE_ART").setValue("tileset");
-        const std::vector<const char *> modes=trace_capture?std::vector<const char *>{"gpu"}:std::vector<const char *>{"cpu","gpu"};
+        const std::vector<const char *> modes=(trace_capture||full_size_gpu_matrix)?std::vector<const char *>{"gpu"}:std::vector<const char *>{"cpu","gpu"};
         for(const point viewport:viewports)for(const char *mode:modes){
             progress(std::string("movement_")+scene+"_"+std::to_string(viewport.x)+"_"+mode);
             // Disposable diagnostic only: each matrix entry starts with the
@@ -181,6 +189,12 @@
             }
             const auto gpu_stats=graphics_gpu_frame&&graphics_gpu_engine?graphics_gpu_engine->metrics():ncmm_gpu_metrics_v1{};
             report.start_object();report.member("scene",scene);report.member("renderer",mode);report.member("width",viewport.x);report.member("height",viewport.y);
+            int native_vsync=0,window_width=0,window_height=0;
+            const bool vsync_available=SDL_GetRenderVSync(renderer,&native_vsync);
+            const bool window_size_available=SDL_GetWindowSizeInPixels(get_sdl_window(),&window_width,&window_height);
+            report.member("native_renderer_vsync_available",vsync_available);report.member("native_renderer_vsync",native_vsync);
+            report.member("native_window_size_available",window_size_available);report.member("native_window_pixel_width",window_width);report.member("native_window_pixel_height",window_height);
+            report.member("window_display_scale",SDL_GetWindowDisplayScale(get_sdl_window()));report.member("sdl_runtime_version",SDL_GetVersion());
             report.member("camera_snapshot_fixture_lease",true);
             report.member("camera_snapshot_hits",snapshot_hits);report.member("camera_snapshot_empty_hits",snapshot_empty_hits);
             report.member("camera_snapshot_detail_hits",snapshot_detail_hits);report.member("camera_snapshot_presentation_hits",snapshot_presentation_hits);
@@ -213,6 +227,7 @@
             report.member("native_tiles_samples_ms",native_tiles_ms);report.member("perspective_samples_ms",perspective_ms);report.member("present_samples_ms",present_ms);report.member("unattributed_samples_ms",unattributed_ms);
             report.member("extract_samples_ms",extract_ms);report.member("callback_samples_ms",callback_ms);report.member("gpu_upload_samples_ms",upload_ms);report.member("gpu_record_samples_ms",record_ms);report.member("gpu_submit_samples_ms",submit_ms);
             report.member("source_cache_bytes_peak",cache_peak);report.member("creatures",graphics_creature_snapshots.size());report.member("native_art",true);report.member("capture",capture);
+            require(!full_size_gpu_matrix||(!gpu_stats.software_device&&actual_width>0&&actual_height>0&&std::all_of(renderers.begin(),renderers.end(),[](uint32_t value){return value==1;})),"full_size_gpu_matrix_requires_real_hardware");
             report.member("backend",gpu_stats.backend);report.member("device",gpu_stats.device);report.member("software_device",bool(gpu_stats.software_device));report.end_object();stream.flush();
             if(std::string(mode)=="gpu")require(std::all_of(renderers.begin(),renderers.end(),[](uint32_t value){return value==1;}),"movement_gpu_fell_back_during_walk");
         }

@@ -9,13 +9,20 @@
     get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue("gpu");
     ncmm::graphics_note_input_context("DEFAULTMODE");
     require(SDL_SetRenderTarget(get_sdl_renderer().get(),nullptr),"camera_input_window_target_failed");
+    graphics_camera_input_probe={};graphics_camera_input_probe.active=true;
     g->invalidate_main_ui_adaptor();ui_manager::redraw();refresh_display();
     require(graphics_gpu_frame&&graphics_view.enabled,"camera_input_initial_gpu_frame_missing");
+    require(!graphics_camera_input_probe.reference_pixels.empty()&&!graphics_camera_input_probe.capture_failures,
+            "camera_input_initial_pixel_reference_missing");
     const auto position=you.pos_abs();const auto turn=calendar::turn;
     const int moves=you.get_moves(),hp=you.get_part_hp_cur(bodypart_id("torso"));
     const auto attack=graphics_attack_serial;
     const auto before=graphics_camera_cache.totals;
+    auto initial_reference=std::move(graphics_camera_input_probe.reference_pixels);
+    const auto initial_bounds=graphics_camera_input_probe.reference_bounds;
     graphics_camera_input_probe={};graphics_camera_input_probe.active=true;
+    graphics_camera_input_probe.reference_pixels=std::move(initial_reference);
+    graphics_camera_input_probe.reference_bounds=initial_bounds;
     graphics_camera_input_probe.last_composed_perspective=true;graphics_camera_input_probe.last_composed_gpu=true;
     std::ofstream progress(game_root()/"ncmm"/"first-person-audit-progress.txt");
     struct input_worker {
@@ -60,6 +67,8 @@
         hp==you.get_part_hp_cur(bodypart_id("torso"))&&attack==graphics_attack_serial;
     const bool success=native_unchanged&&observed.mouse_events>=400&&observed.rotation_radians>=12.566370614359&&
         observed.presents>=16&&observed.gpu_frames==observed.presents&&!observed.cpu_frames&&!observed.nonperspective_frames&&
+        observed.pixel_checks==observed.presents&&!observed.capture_failures&&
+        observed.pixel_reference_frames+observed.retained_perspective_frames==observed.presents&&
         after.hits>before.hits+1000&&after.detail_hits>before.detail_hits&&after.presentation_hits>before.presentation_hits;
     std::ofstream output(game_root()/"ncmm"/"first-person-camera-input.json");JsonOut out(output);
     out.start_object();out.member("schema",1);out.member("success",success);out.member("actual_cdda_sdl",true);out.member("manual_playthrough",false);
@@ -75,6 +84,9 @@
     out.member("snapshot_clears",after.clears-before.clears);
     out.member("lease_invalidations");out.start_object();for(const auto &entry:observed.lease_invalidations)out.member(entry.first,entry.second);out.end_object();
     out.member("retained_perspective_frames",observed.retained_perspective_frames);
+    out.member("retained_pixels_verified",observed.pixel_checks==observed.presents&&!observed.capture_failures&&!observed.nonperspective_frames);
+    out.member("pixel_checks",observed.pixel_checks);
+    out.member("pixel_reference_frames",observed.pixel_reference_frames);
     out.member("unclassified_captures",observed.unclassified_captures);out.member("capture_failures",observed.capture_failures);
     const auto metrics=graphics_gpu_engine->metrics();out.member("device",metrics.device);out.member("backend",metrics.backend);out.member("software_device",bool(metrics.software_device));
     out.end_object();output.close();require(bool(output),"camera_input_report_write_failed");

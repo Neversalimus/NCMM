@@ -297,12 +297,9 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "#else\n    (void)category; (void)action;\n#endif\n}\n"
         "void graphics_note_terrain_composed( bool perspective )\n{\n#if defined(TILES)\n    if( graphics_fire_capture.active ) { graphics_fire_capture.last_perspective = perspective; graphics_fire_capture.last_gpu = perspective && graphics_gpu_frame; }\n"
         "    if( graphics_camera_input_probe.active ) { graphics_camera_input_probe.last_composed_perspective=perspective; graphics_camera_input_probe.last_composed_gpu=perspective&&graphics_gpu_frame; }\n#else\n    (void)perspective;\n#endif\n}\n"
+        '#include "ncmm_graphics_camera_pixels.inc"\n'
         "void graphics_before_present()\n{\n#if defined(TILES)\n    graphics_capture_before_present();\n"
-        "    if(graphics_camera_input_probe.active&&!graphics_frame_pending_present&&graphics_camera_input_probe.unclassified_captures<8){\n"
-        "        auto *pixels=SDL_RenderReadPixels(get_sdl_renderer().get(),nullptr);\n"
-        "        const auto path=game_root()/\"ncmm\"/(\"first-person-camera-unclassified-\"+std::to_string(graphics_camera_input_probe.unclassified_captures++)+\".bmp\");\n"
-        "        if(!pixels||!SDL_SaveBMP(pixels,path.u8string().c_str()))++graphics_camera_input_probe.capture_failures;\n"
-        "        if(pixels)SDL_DestroySurface(pixels);\n    }\n#endif\n}\n"
+        "    graphics_camera_capture_pixels();\n#endif\n}\n"
         "void graphics_world_changed( const map *source, int z )\n{\n"
         "    graphics_world_changed_impl( source, z );\n}\n"
         "uint64_t graphics_input_wait_begin( const std::string &category )\n{\n"
@@ -317,8 +314,9 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "    ncmm_graphics_trace::note_present();\n"
         "    if( graphics_camera_input_probe.active ) {\n"
         "        ++graphics_camera_input_probe.presents;\n"
-        "        if( !graphics_frame_pending_present ) { ++graphics_camera_input_probe.nonperspective_frames;\n"
-        "            if(graphics_camera_input_probe.last_composed_perspective&&graphics_camera_input_probe.last_composed_gpu)++graphics_camera_input_probe.retained_perspective_frames; }\n"
+        "        if( !graphics_frame_pending_present ) {\n"
+        "            if(graphics_camera_input_probe.pending_retained_verified){++graphics_camera_input_probe.retained_perspective_frames;++graphics_camera_input_probe.gpu_frames;}\n"
+        "            else ++graphics_camera_input_probe.nonperspective_frames; }\n"
         "        else if( graphics_gpu_frame ) ++graphics_camera_input_probe.gpu_frames;\n"
         "        else ++graphics_camera_input_probe.cpu_frames;\n    }\n"
         "    if( graphics_fire_capture.active && !graphics_fire_capture.frames.empty() ) graphics_fire_capture.frames.back().presented = true;\n"
@@ -382,7 +380,7 @@ void initialize();''')
     ):
         map_cpp=replace(map_cpp, signature+"\n{", signature+"\n{\n    ncmm::graphics_world_changed( this, "+level+" );")
     updates["map.cpp"]=map_cpp
-    for name in ("ncmm_graphics_trace.hpp","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc"):
+    for name in ("ncmm_graphics_trace.hpp","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")
