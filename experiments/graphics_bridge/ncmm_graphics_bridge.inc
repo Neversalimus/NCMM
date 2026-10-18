@@ -151,7 +151,6 @@ bool graphics_world_needs_redraw();
 #include "ncmm_graphics_held.inc"
 #include "ncmm_graphics_hybrid.inc"
 #include "ncmm_graphics_world.inc"
-#include "ncmm_graphics_held_gallery.inc"
 
 #if defined(TILES)
 // Opt-in evidence for the real native UI. No readback/IO on the normal path.
@@ -383,4 +382,5 @@ bool graphics_draw( int x, int y, int width, int height )
 
 // Only the existing explicit --ncmm-gameplay-smoke path invokes this fixture.
 // It runs in a disposable CI game copy, after the real world/avatar are loaded.
+#include "ncmm_graphics_held_gallery.inc"
 #include "ncmm_graphics_smoke.inc"
