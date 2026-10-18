@@ -37,4 +37,7 @@ try {
 } finally {
     foreach($name in $prior.Keys){if($null -eq $prior[$name]){Remove-Item -LiteralPath ('Env:'+$name) -ErrorAction SilentlyContinue}else{[Environment]::SetEnvironmentVariable($name,$prior[$name],'Process')}}
 }
+# GitHub's PowerShell step propagates the last native exit code. The final
+# intentionally failing mock has already been checked; a passing test is zero.
+$global:LASTEXITCODE=0
 Write-Host 'Cached/direct compiler success, failure propagation and retained diagnostics: PASS'
