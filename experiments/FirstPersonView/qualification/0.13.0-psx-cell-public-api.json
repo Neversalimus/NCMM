@@ -1,0 +1,52 @@
+{
+  "success": true,
+  "base": "f3bfd53e8502b37640720ebf2b029083c1070cb4",
+  "runtime_candidate": "3e9c8b065f23a73ae660dd028aab5dcc851df451",
+  "files": [
+    {
+      "file": "sdk/ncmm_api.h",
+      "unchanged": true,
+      "sha256": "60797a5713f2b28cd67f5aa4da38e3e68399da42113661a937070837fe03e1ef"
+    },
+    {
+      "file": "experiments/graphics_bridge/ncmm_graphics.h",
+      "unchanged": true,
+      "sha256": "10b76a151bd561b6ac24b73b01b138d47d4bd053ca283320f447ce5cd12e25a5"
+    },
+    {
+      "file": "experiments/graphics_bridge/ncmm_graphics_v2.h",
+      "unchanged": true,
+      "sha256": "9eb02bf6e0106227c3da74d37ec9623cf6f14503c0b84fbe770bd8723bf70107"
+    },
+    {
+      "file": "experiments/graphics_bridge/ncmm_graphics_gpu.h",
+      "unchanged": true,
+      "sha256": "6bb5eebdeba0ac8c13cc1792e97a6311668f01e66623da6559bbc293ae7bda97"
+    },
+    {
+      "file": "experiments/graphics_bridge/ncmm_graphics_controls.h",
+      "unchanged": true,
+      "sha256": "b8c28b2335f639dc8e1236d8ec3a095448ff54067d13c2d21a37495e83d2144a"
+    },
+    {
+      "file": "experiments/graphics_bridge/ncmm_graphics_presentation.h",
+      "unchanged": true,
+      "sha256": "337249e1df16a4b6fb88a7dbe54d8906d4a50c11b0a46d90a0b57c9f0ed56783"
+    },
+    {
+      "file": "experiments/graphics_bridge/ncmm_graphics_multilevel.h",
+      "unchanged": true,
+      "sha256": "fde5df46aed55bd9a1feb114541b51f91140129b0e498c4d7d8c6952e845c084"
+    },
+    {
+      "file": "experiments/graphics_bridge/ncmm_graphics_creatures.h",
+      "unchanged": true,
+      "sha256": "2b7ecb363b6a6c281851512e111223db3911f982c5467dcc4a66c489b9415466"
+    },
+    {
+      "file": "experiments/graphics_bridge/ncmm_gpu_shader_bytes.hpp",
+      "unchanged": true,
+      "sha256": "287b672621aa5274f71d9d9ba090d87726cbafd56d83686c09123857b15ede98"
+    }
+  ]
+}
