@@ -84,6 +84,7 @@ jobs:
           ./experiments/FirstPersonView/tests/Test-BenchmarkPaths.ps1
           ./experiments/FirstPersonView/tests/Test-BenchmarkCapture.ps1
           ./experiments/FirstPersonView/tests/Test-BenchmarkDataCopy.ps1
+          ./experiments/FirstPersonView/tests/Test-CompilerWrapper.ps1
       - name: Diagnostic environment isolation on Windows PowerShell
         if: runner.os == 'Windows'
         shell: powershell
@@ -193,13 +194,8 @@ jobs:
         shell: powershell
         run: |
           $dir=Join-Path $env:RUNNER_TEMP 'ncmm-fp-sccache'
-          New-Item -ItemType Directory -Force $dir | Out-Null
-          @'
-          @echo off
-          setlocal
-          sccache.exe cl.exe %*
-          exit /b %ERRORLEVEL%
-          '@ | Set-Content (Join-Path $dir 'cl.bat') -Encoding Ascii
+          New-Item -ItemType Directory -Force $dir,(Join-Path $dir 'logs') | Out-Null
+          Copy-Item -LiteralPath 'ncmmrepo/experiments/FirstPersonView/tools/compile_cached.cmd' -Destination (Join-Path $dir 'cl.bat')
           "NCMM_SCCACHE_WRAPPER_DIR=$dir" >> $env:GITHUB_ENV
           $props='upstream/msvc-full-features/Cataclysm-common.props'
           $text=[IO.File]::ReadAllText((Join-Path $PWD $props))
@@ -252,6 +248,14 @@ jobs:
         with:
           name: first-person-compiler-cache-${{ matrix.build }}
           path: compiler-cache.json
+          retention-days: 7
+      - name: Preserve complete failed compiler diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-person-compiler-failures-${{ matrix.build }}
+          path: ${{ runner.temp }}/ncmm-fp-sccache/logs/*.failed.log
+          if-no-files-found: ignore
           retention-days: 7
       - name: Verify compiled or cached engine identity
         shell: powershell
