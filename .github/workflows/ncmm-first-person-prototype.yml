@@ -413,6 +413,13 @@ jobs:
               Get-ChildItem -LiteralPath $evidence -File | Where-Object {$_.Name -like 'first-person-target-*' -or $_.Name -like 'first-person-audit-target-hud-*' -or $_.Name -eq 'first-person-process-result.json'} | Copy-Item -Destination $dest
             }
           }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: first-person-target-gallery-${{ matrix.build }}
+          path: ${{ runner.temp }}/fp-target-gallery/evidence/**
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Fast native multi-Z save-load gate before the full gallery
         timeout-minutes: 10
         shell: powershell
@@ -435,6 +442,7 @@ jobs:
             }
           } finally {Remove-Item Env:\NCMM_FP_SAVE_ONLY -ErrorAction SilentlyContinue}
       - uses: actions/checkout@v4
+        if: always() && steps.installer_gate.outcome == 'success'
         with:
           repository: Neversalimus/CDDA-Mods
           ref: 59123092c33244d516fa9d5ca69eaafb8d487f37
