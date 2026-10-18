@@ -89,6 +89,11 @@ and verifies its complete sample streams and recorded resolution. The default
 supply `--baseline-host-source` and `--candidate-host-source` with full expected
 commits. They require matching `diagnostic_mixed_components` receipts and all
 payload hashes, and are labeled diagnostic snapshots, never qualified installers.
+Extended scenes select their own native sunny/rain states and record their IDs.
+`--single-extended-weather clear` compares one complete 80-record run per version
+against the pinned clear input file; the smoke/rain scene still uses real rain.
+This avoids duplicating the entire extended matrix. The legacy release route
+still requires both weather fixtures and rejects this option.
 
 Add `-ViewmodelGallery -SoakSeconds 0` to the gameplay audit for 27 states in
 CPU/GPU for each of the official and UDP tilesets, at 1280x800. The gallery uses
@@ -96,6 +101,13 @@ real worn garments, item IDs, gunmods, mutations, CBMs, boarding and confirmed
 native melee/shot actions. It retains 108 actual SDL BMP captures when both
 tilesets are present. Zero soak is an inspection run, not long-session coverage.
 Do not mix `-ViewmodelGallery` with movement or focused GPU modes.
+
+The existing optional `first_person_benchmark` also accepts `4096 viewmodel
+pose.json`. This measures source TRS sampling, two IK solves and weighted
+palette matrices in isolation, with 32 warmup iterations. It retains raw samples
+in their original order. It excludes material preparation, packet construction,
+CPU rasterization, GPU execution, world extraction and presentation; it must not
+be reported as the complete cost of a native frame or viewmodel draw.
 
 ### Required release gates
 

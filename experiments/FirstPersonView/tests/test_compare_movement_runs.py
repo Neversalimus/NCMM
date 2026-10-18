@@ -96,6 +96,7 @@ class HardwareEvidenceTests(unittest.TestCase):
                     record.update(scene=scene, renderer=renderer, width=width, height=height,
                                   native_steps=64, extended_matrix=True, internal_width=640, internal_height=480,
                                   native_confirmed_attacks=16 if scene == "empty_attacks" else 0,
+                                  native_weather_id="rain" if scene == "smoke_rain" else "sunny",
                                   first_frame_indices=list(range(192, 256)),
                                   first_frame_after_step_samples_ms=[4.0] * 64,
                                   first_ready_samples_ms=[9.0] * 64,
@@ -123,7 +124,7 @@ class HardwareEvidenceTests(unittest.TestCase):
     def test_extended_metrics_and_real_attack_evidence_required(self):
         self.extended_fixture()
         original = copy.deepcopy(self.report["records"][0])
-        for key, invalid in (("extended_matrix", False), ("internal_width", 2000),
+        for key, invalid in (("extended_matrix", False), ("internal_width", 2000), ("native_weather_id", "snow"),
                              ("native_confirmed_attacks", 1), ("gpu_held_bones", [0] * 255),
                              ("process_rss_bytes", [-1] * 256), ("cold_rotation_samples_ms", [float("nan")] * 96)):
             with self.subTest(key=key):
@@ -131,6 +132,12 @@ class HardwareEvidenceTests(unittest.TestCase):
                 self.persist()
                 with self.assertRaises(ValueError):
                     compare.read_run(self.run, self.identity, "clear", True, extended=True)
+
+    def test_single_input_fixture_cannot_weaken_legacy_weather_gate(self):
+        self.assertEqual(compare.weather_selection(False, None), ("clear", "rain"))
+        self.assertEqual(compare.weather_selection(True, "clear"), ("clear",))
+        with self.assertRaisesRegex(ValueError, "only.*extended"):
+            compare.weather_selection(False, "clear")
 
     def test_diagnostic_component_identity_is_explicit_and_not_release_identity(self):
         source, host = "a" * 40, "b" * 40
