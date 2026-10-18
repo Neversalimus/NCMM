@@ -188,14 +188,16 @@ the trigger finger uses the same posed trigger point. Only confirmed native
 shot serials animate supported trigger/automatic-action nodes. No reload, use,
 shot, movement cost or simulation event is fabricated. The GPU collector keys
 immutable meshes by the offline model identity and uploads poses thereafter;
-detachable magazines select an existing part without rebuilding static vertices.
+detachable magazines and the actual presence of ammunition select existing parts
+without rebuilding static vertices. Empty weapons do not display an authored round.
 The imported path does not request an unused tileset held sprite.
 
 The installer compiles geometry/textures into the DLL and installs the exact
 resource manifest and license evidence. It requires no Blender, Python, network
 or runtime model importer. Its existing transaction tests also check these files
-and repair a damaged installed receipt. `-HeldAssetGallery` runs 60 native SDL
-captures (26 base models and four actual installed accessories, CPU and GPU),
+and repair a damaged installed receipt. `-HeldAssetGallery` runs 64 native SDL
+captures (26 base models, four actual installed accessories and loaded/empty
+pump states, CPU and GPU),
 recording chosen model/accessory identities, fallback, matrices and upload/cache
 counters. `-DisableHeldAssets` is a process-isolated diagnostic control for
 paired measurements; it is not a new gameplay setting. The extended armed scene

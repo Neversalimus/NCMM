@@ -70,6 +70,21 @@ int main(){try{
     const auto &second=warm.finish(&api);require(!second.mesh_count&&!second.texture_count,"camera/ammunition changes upload only poses, no static vertices or pixels");
     require(prepared->entries[0].static_reuses==1&&prepared->entries[0].static_builds==0,"immutable held mesh was reused without reimporting or rehashing it");
     require(warm.draws.size()<cold.draws.size(),"detached magazine hides its own authored part without rebuilding the body");
+    auto pump=item("remington_870",*held::find("pump"));pump.flags|=NCMM_HELD_AMMO_LOADED;
+    require(prepared->prepare(pump,action),"loaded pump uses actual ammunition state");
+    std::strcpy(scene.environment.held_item,"remington_870");
+    gpu::packet loaded;require(cache.build(scene,0,0,provider,loaded,stats,host,action,&appearance,nullptr,640,480,NCMM_GPU_FORCE),"loaded pump packet");
+    require(prepared->entries[0].visible(held::part::round),"loaded native ammunition permits authored round geometry");
+    const auto &loaded_description=loaded.finish(nullptr);
+    for(uint32_t i=0;i<loaded_description.mesh_count;++i)meshes.insert(loaded_description.meshes[i].key);
+    for(uint32_t i=0;i<loaded_description.texture_count;++i)textures.insert(loaded_description.textures[i].key);
+    pump.flags&=~NCMM_HELD_AMMO_LOADED;require(prepared->prepare(pump,action),"empty pump keeps its compiled model");
+    gpu::packet unloaded;require(cache.build(scene,0,0,provider,unloaded,stats,host,action,&appearance,nullptr,640,480,NCMM_GPU_FORCE),"empty pump packet");
+    const auto &unloaded_description=unloaded.finish(&api);
+    require(!prepared->entries[0].visible(held::part::round)&&unloaded.draws.size()<loaded.draws.size(),"empty native ammunition hides the authored shell on the shared CPU/GPU part path");
+    require(!unloaded_description.mesh_count&&!unloaded_description.texture_count&&prepared->entries[0].static_builds==0&&prepared->entries[0].static_reuses==1,
+        "ammunition changes reuse static meshes and upload poses only");
+    std::strcpy(scene.environment.held_item,"scar_l");
     for(const auto *mod:{"red_dot_sight","suppressor","grip","mounted_flashlight"}){
         rifle.mod_count=1;rifle.mods[0]={};std::strcpy(rifle.mods[0].canonical,mod);
         require(prepared->prepare(rifle,action)&&prepared->count==2,"each installed authored accessory uses an actual source socket");

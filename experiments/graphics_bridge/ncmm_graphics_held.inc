@@ -49,6 +49,7 @@ void graphics_prepare_held()
             skill=="shotgun"?NCMM_HELD_SHOTGUN:NCMM_HELD_OTHER_GUN;
         if(!held->magazine_compatible().empty())out.flags|=NCMM_HELD_DETACHABLE;
         if(held->magazine_current())out.flags|=NCMM_HELD_MAGAZINE_PRESENT;
+        if(held->ammo_remaining()>0)out.flags|=NCMM_HELD_AMMO_LOADED;
         if(held->has_flag(flag_id("RELOAD_ONE")))out.flags|=NCMM_HELD_RELOAD_ONE;
         if(held->has_flag(flag_id("RELOAD_EJECT")))out.flags|=NCMM_HELD_RELOAD_EJECT;
         if(held->has_flag(flag_id("PUMP_ACTION")))out.flags|=NCMM_HELD_PUMP_ACTION|NCMM_HELD_MANUAL_ACTION;

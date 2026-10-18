@@ -151,7 +151,7 @@ class scene_cache {
                 found=cache.item_meshes.emplace(model.identity,std::move(entry)).first;++observed.static_builds;
             }else ++observed.static_reuses;
             std::array<ncmm_gpu_matrix_v1,128> matrices;
-            for(const auto &chunk:found->second.chunks){if(!observed.magazine&&chunk.part==held::part::magazine)continue;
+            for(const auto &chunk:found->second.chunks){if(!observed.visible(chunk.part))continue;
                 for(size_t i=0;i<chunk.palettes.size();++i)matrices[i]=observed.bones.palette[chunk.palettes[i]];
                 frame.draw_skinned(chunk.mesh,value.world,UINT32_MAX,NCMM_GPU_HELD,matrices.data(),chunk.palettes.size());
                 ++observed.draws;observed.palette_matrices+=uint32_t(chunk.palettes.size());}

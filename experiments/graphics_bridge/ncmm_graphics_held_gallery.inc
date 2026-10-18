@@ -68,15 +68,26 @@ template<class Require> void graphics_run_held_gallery(avatar &you,map &here,Req
         report.start_object();report.member("name",name);report.member("renderer",mode);report.member("gpu",graphics_gpu_frame);report.member("canonical",graphics_held_item.canonical);
         report.member("model",metrics.model);report.member("identity",metrics.model_identity);report.member("matched",metrics.matched);report.member("fallback_reason",metrics.fallback_reason);
         report.member("attachments",metrics.attachments);report.member("draws",metrics.draws);report.member("pose_matrices",metrics.pose_matrices);
+        report.member("native_ammo_remaining",you.get_wielded_item()?you.get_wielded_item()->ammo_remaining():0);
+        report.member("native_is_gun",bool(graphics_held_item.flags&NCMM_HELD_GUN));
+        report.member("ammo_loaded",bool(graphics_held_item.flags&NCMM_HELD_AMMO_LOADED));
         report.member("accessory_models");report.start_array();for(size_t i=0;i<metrics.attachments;++i)report.write(metrics.accessories[i]);report.end_array();
         report.member("accessory_identities");report.start_array();for(size_t i=0;i<metrics.attachments;++i)report.write(metrics.accessory_identities[i]);report.end_array();
         report.member("static_builds",metrics.static_builds);report.member("static_reuses",metrics.static_reuses);report.member("static_mesh_upload_bytes",static_upload);
         report.member("gpu_draw_calls",gpu.draw_calls);report.member("gpu_upload_bytes",gpu.upload_bytes);report.member("gpu_resource_bytes",gpu.resource_bytes);
         report.member("dynamic_geometry_bytes",dynamic_geometry);report.member("device",gpu.device);report.member("backend",gpu.backend);report.member("software_device",bool(gpu.software_device));report.member("capture",file);report.member("width",1280);report.member("height",800);report.end_object();output.flush();
+        return metrics;
     };
     for(const char *mode:{"cpu","gpu"}){
         for(const auto &entry:entries){const itype_id type(entry.native);require(type.is_valid(),"held_gallery_native_item_missing");
             you.set_wielded_item(item(type,calendar::turn));capture(entry.model,entry.model,mode,0);}
+        item pump(itype_id("remington_870"),calendar::turn);const auto ammo=pump.ammo_default();
+        require(!ammo.is_null(),"held_gallery_native_pump_ammo_missing");pump.ammo_set(ammo,2);you.set_wielded_item(pump);
+        const auto loaded=capture("pump-loaded","pump",mode,0);
+        require(you.get_wielded_item()->ammo_remaining()>0&&(graphics_held_item.flags&NCMM_HELD_AMMO_LOADED),"held_gallery_loaded_native_round_missing");
+        pump.ammo_unset();you.set_wielded_item(pump);const auto empty=capture("pump-empty","pump",mode,0);
+        require(you.get_wielded_item()->ammo_remaining()==0&&!(graphics_held_item.flags&NCMM_HELD_AMMO_LOADED),"held_gallery_empty_native_round_present");
+        if(std::string(mode)=="gpu")require(empty.draws<loaded.draws&&empty.static_builds==0,"held_gallery_ammo_rebuilt_or_did_not_hide_round");
         for(const char *mod:{"red_dot_sight","suppressor","grip","mounted_flashlight"}){
             item gun(itype_id("scar_l"),calendar::turn);const itype_id type(mod);require(type.is_valid(),"held_gallery_native_mod_missing");
             require(gun.put_in(item(type,calendar::turn),pocket_type::MOD).success(),"held_gallery_native_mod_install_failed");

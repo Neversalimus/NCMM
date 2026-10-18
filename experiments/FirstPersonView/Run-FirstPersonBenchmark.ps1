@@ -320,11 +320,12 @@ $auditName=if($HeldAssetGallery){'first-person-held-gallery.json'}elseif($Moveme
 if(-not (Test-Path -LiteralPath (Join-Path $evidence $auditName))){throw "Requested native benchmark report is missing: $auditName; final phase=$lastProgress"}
 if($HeldAssetGallery){
     $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
-    if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.manual_playthrough -ne $false -or @($audit.records).Count -ne 60){throw 'Native held asset gallery is incomplete.'}
+    if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.manual_playthrough -ne $false -or @($audit.records).Count -ne 64){throw 'Native held asset gallery is incomplete.'}
     foreach($record in $audit.records){
         if($record.fallback_reason -ne 0 -or $record.matched -ne 1 -or -not $record.identity -or -not $record.model -or $record.draws -lt $record.attachments+1){throw 'An installed authored model was not actually selected.'}
         if($record.renderer -eq 'gpu' -and ($record.gpu -ne $true -or $record.static_builds -ne 0 -or $record.static_reuses -lt $record.attachments+1 -or $record.static_mesh_upload_bytes -ne 0 -or $record.dynamic_geometry_bytes -ne 0)){throw 'Held GPU residency or backend qualification failed.'}
         if($record.width -ne 1280 -or $record.height -ne 800 -or -not (Test-Path -LiteralPath (Join-Path $evidence $record.capture))){throw 'A native held capture is missing.'}
+        if($record.ammo_loaded -ne ($record.native_is_gun -and $record.native_ammo_remaining -gt 0)){throw 'Held round visibility differs from actual native ammunition.'}
     }
     $soaked=0
 }elseif($MovementBenchmark){

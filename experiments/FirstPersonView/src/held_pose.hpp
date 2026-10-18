@@ -4,7 +4,8 @@
 #include "viewmodel.hpp"
 namespace first_person::held {
 struct posed {
-    const model *geometry=nullptr;viewmodel::pose_buffer bones;viewmodel::matrix local=viewmodel::identity();bool magazine=true;
+    const model *geometry=nullptr;viewmodel::pose_buffer bones;viewmodel::matrix local=viewmodel::identity();bool magazine=true,round=false;
+    bool visible(part kind)const noexcept {return (kind!=part::magazine||magazine)&&(kind!=part::round||round);}
     uint32_t static_builds=0,static_reuses=0,draws=0,palette_matrices=0;
 };
 // Allocated once by the module. Every entry owns its evaluated matrices; only
@@ -14,7 +15,8 @@ struct prepared {
     void reset() noexcept {selected={};count=0;}
     bool prepare(const ncmm_held_item_v1 &item,const animation::pose &action) noexcept {
         reset();selected=select(item);if(!selected.body)return false;
-        auto &body=entries[0];body.geometry=selected.body;body.magazine=selected.magazine;body.static_builds=body.static_reuses=body.draws=body.palette_matrices=0;
+        auto &body=entries[0];body.geometry=selected.body;body.magazine=selected.magazine;body.round=(item.flags&NCMM_HELD_AMMO_LOADED)!=0;
+        body.static_builds=body.static_reuses=body.draws=body.palette_matrices=0;
         if(!viewmodel::bind_pose(body.geometry->geometry,body.bones)){selected.body=nullptr;selected.reason=failure::invalid_metadata;return false;}
         const auto &model=*body.geometry;
         // There are no invented reload/use clips. Authored action nodes move
@@ -30,7 +32,7 @@ struct prepared {
         }
         const viewmodel::point grip=uint32_t(model.kind)<=uint32_t(family::auto_shotgun)?viewmodel::point{.185f,-.267f,.67f}:viewmodel::point{.27f,-.28f,.84f};
         body.local=viewmodel::transform({grip,{}, {selected.scale,selected.scale,selected.scale}});count=1;
-        for(size_t i=0;i<selected.attachment_count;++i){const auto &source=selected.attachments[i];auto &out=entries[count];out.geometry=source.geometry;out.magazine=true;
+        for(size_t i=0;i<selected.attachment_count;++i){const auto &source=selected.attachments[i];auto &out=entries[count];out.geometry=source.geometry;out.magazine=true;out.round=false;
             out.static_builds=out.static_reuses=out.draws=out.palette_matrices=0;
             if(!viewmodel::bind_pose(out.geometry->geometry,out.bones)){selected.body=nullptr;count=0;selected.reason=failure::invalid_metadata;return false;}
             auto socket=viewmodel::multiply(body.local,body.bones.global[size_t(source.socket)]);

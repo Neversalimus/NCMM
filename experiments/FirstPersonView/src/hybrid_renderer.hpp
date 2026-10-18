@@ -1201,7 +1201,7 @@ class renderer {
                     ++entry.draws;entry.palette_matrices+=uint32_t(source.palette_count);
                     for(size_t material_index=0;material_index<entry.geometry->material_count;++material_index){const auto &material=entry.geometry->materials[material_index];
                         auto &image=item_images[entry_index*16+material_index];if(material.pixels){image.data={sizeof(image.data),material.width,material.height,material.width,material.pixels};image.prepared=image.data.rgba;image.right=int(material.width);image.bottom=int(material.height);}}
-                    for(size_t at=0;at<source.index_count;at+=3){if(!entry.magazine&&entry.geometry->triangle_part[at/3]==held::part::magazine)continue;
+                    for(size_t at=0;at<source.index_count;at+=3){if(!entry.visible(entry.geometry->triangle_part[at/3]))continue;
                         const auto material_index=entry.geometry->vertex_material[source.indices[at]];const auto &source_material=entry.geometry->materials[material_index];
                         triangle triangle{};auto &material=triangle.m;material.color={source_material.color[0],source_material.color[1],source_material.color[2]};material.alpha=source_material.color[3];
                         material.finish=surface(source_material.finish);material.overlay=material.smooth=true;material.texture=source_material.pixels?&item_images[entry_index*16+material_index]:nullptr;
