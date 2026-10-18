@@ -16,6 +16,13 @@ native option cache update, records the resolved native mode, and counts actual
 DEFAULTMODE input results in each mode. Changing the option string alone cannot
 establish keyboard backend coverage. These instrumented runs are not FPS measurements.
 
+`verify_fire_pixels.py` additionally compares actual decoded window pixels. It
+selects spatial patches that distinguish the legacy trial's initial perspective
+from its observed map frame, then compares every fixed trial with that trial's
+own pre-input image. Each reference must also distinguish the map. This paired,
+fixed-camera fixture check cannot classify arbitrary gameplay or replace manual
+visual review. Synthetic negative verifier tests are not native evidence.
+
 The initial LMB fixture holds RMB look and uses the real native picking/click
 path. Pointer-only LMB, a successful vertical shot, fault handling and vehicle
 fire require additional cases. The controlled series advances native move/ammo
