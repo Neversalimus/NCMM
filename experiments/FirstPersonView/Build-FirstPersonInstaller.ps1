@@ -70,9 +70,9 @@ foreach($entry in $heldSelection.files.PSObject.Properties){
     $path=Join-Path $heldRoot $entry.Name
     if((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.Value){throw 'Authored held resource differs from its pinned bytes.'}
 }
-foreach($source in $heldSelection.sources){
-    if($source.license -ne 'CC0-1.0' -or -not $heldSelection.files.($source.license_evidence)){throw 'Held source license evidence is missing.'}
-    $heldLicenseParts+=Get-Content -LiteralPath (Join-Path $heldRoot $source.license_evidence) -Raw -Encoding UTF8
+foreach($heldSource in $heldSelection.sources){
+    if($heldSource.license -ne 'CC0-1.0' -or -not $heldSelection.files.($heldSource.license_evidence)){throw 'Held source license evidence is missing.'}
+    $heldLicenseParts+=Get-Content -LiteralPath (Join-Path $heldRoot $heldSource.license_evidence) -Raw -Encoding UTF8
 }
 $heldRuntimePrefix=[ordered]@{schema=1;runtime_importer=$false;selection_sha256=(Get-FileHash -LiteralPath $heldSelectionPath -Algorithm SHA256).Hash.ToLowerInvariant();
     generated_manifest_sha256=(Get-FileHash -LiteralPath $heldImportPath -Algorithm SHA256).Hash.ToLowerInvariant()} | ConvertTo-Json -Compress
