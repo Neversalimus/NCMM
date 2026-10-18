@@ -1103,7 +1103,9 @@ class renderer {
                 face(ring(a,ra,p),ring(a,ra,q),ring(b,rb,q),ring(b,rb,p),m);
                 face(ring(b,rb,p),ring(b,rb,q),b,b,m);}
         };
-        viewmodel::frame arms(pose,empty,pose.grip==NCMM_GRIP_GUN&&(!metadata||metadata->view.gun_kind!=NCMM_GUN_BOW));
+        std::optional<viewmodel::frame> sampled;
+        if(!pose.prepared_frame)sampled.emplace(pose,empty,pose.grip==NCMM_GRIP_GUN&&(!metadata||metadata->view.gun_kind!=NCMM_GUN_BOW));
+        const auto &arms=pose.prepared_frame?*pose.prepared_frame:*sampled;
         viewmodel::hand_pose arm_pose;
         viewmodel::matrix model_to_world{};
         const auto zero=hud({0,0,0});const vec columns[]={hud({1,0,0})-zero,hud({0,1,0})-zero,hud({0,0,1})-zero,zero};

@@ -94,14 +94,16 @@ frame::frame(const animation::pose &action,bool no_item,bool firearm)noexcept:so
     if(action.equip_phase<1){const char *draw=empty?"guard_draw":"knife_draw";const auto &clip=source.clips[size_t(clip_index(source,draw))];
         if(!overlay(draw,action.equip_phase*clip.duration,false,0,false,1-action.equip_phase))return;
         if(empty&&!overlay(draw,action.equip_phase*clip.duration,false,1,false,1-action.equip_phase))return;}
-    if(action.attack_phase>=0&&action.attack_phase<1){
-        const int side=empty&&action.attack_kind==1?int(action.attack_serial%2):0;
-        const char *name=action.attack_kind==2?"finger_gun_fire":empty?(side?"jab.L":"jab.R"):
-            (action.attack_serial%2?"knife_hit_01":"knife_hit_02");
+    auto attack=[&](float phase,uint64_t serial,uint32_t kind,float strength){
+        if(phase<0||phase>=1||strength<=0)return true;
+        const int side=empty&&kind==1?int(serial%2):0;
+        const char *name=kind==2?"finger_gun_fire":empty?(side?"jab.L":"jab.R"):
+            (serial%2?"knife_hit_01":"knife_hit_02");
         const auto &clip=source.clips[size_t(clip_index(source,name))];
-        const float fade=animation::smooth(std::min(action.attack_phase/.10f,(1-action.attack_phase)/.12f));
-        if(!overlay(name,action.attack_phase*clip.duration,false,side,false,fade))return;
-    }
+        const float fade=animation::smooth(std::min(phase/.10f,(1-phase)/.12f))*strength;
+        return overlay(name,phase*clip.duration,false,side,false,fade);
+    };
+    if(!attack(action.attack_phase,action.attack_serial,action.attack_kind,1))return;
     if(!empty){
         // The source finger-gun clip points an imaginary barrel with its
         // index. A real gun keeps the authored closed palm under recoil/draw.
@@ -110,6 +112,24 @@ frame::frame(const animation::pose &action,bool no_item,bool firearm)noexcept:so
            !overlay("grab.L",source.clips[size_t(clip_index(source,"grab.L"))].duration,false,1,true,contact))return;
     }
     ready=evaluate_globals(source,local,global);
+}
+const frame &animator::prepare(const animation::pose &action,bool no_item,bool firearm)noexcept {
+    const bool compatible=current&&current->empty==no_item&&current->gun==firearm;
+    if(!compatible||action.interrupted.phase<0||action.equip_phase==0)started=-1;
+    if(compatible&&action.interrupted.phase>=0&&action.attack_blend<1&&serial!=action.attack_serial){
+        auto old=action;old.attack_phase=action.interrupted.phase;old.attack_serial=action.interrupted.serial;old.attack_kind=action.interrupted.kind;
+        frame outgoing(old,no_item,firearm);
+        if(outgoing.ready){
+            if(started>=0&&action.seconds-started<.08)blend_locals(outgoing.source,from,outgoing.local,animation::smooth(float((action.seconds-started)/.08)));
+            from=outgoing.local;started=action.seconds;
+        }else started=-1;
+    }
+    current.emplace(action,no_item,firearm);
+    if(current->ready&&started>=0&&action.seconds-started<.08){
+        blend_locals(current->source,from,current->local,animation::smooth(float((action.seconds-started)/.08)));
+        current->ready=evaluate_globals(current->source,current->local,current->global);
+    }
+    serial=action.attack_serial;return *current;
 }
 bool frame::attach(point grip,bool left,float lower_view_slope,hand_pose &out,const point *trigger)const noexcept {
     if(!ready||!std::isfinite(grip.x+grip.y+grip.z)||!std::isfinite(lower_view_slope))return false;

@@ -21,6 +21,25 @@ int main(int argc,char **){size_t checks=0;auto check=[&](bool v){++checks;if(!v
     check(timeline.observe(controls,10.35,"rifle",2).attack_phase<0); // World replacement cancels it too.
     controls.attack_serial=4;controls.attack_started=10.36;check(timeline.observe(controls,10.38,"pistol",2).recoil>0); // New confirmed action on an item-change frame.
     controls.attack_started=-1;check(timeline.observe(controls,10.39,"pistol",2).attack_phase<0); // Host cancellation.
+    {
+        first_person::animation::timeline sparse,dense;ncmm_graphics_control_state_v1 event{};event.held_length=.6f;event.attack_kind=1;
+        sparse.observe(event,20,"",1);dense.observe(event,20,"",1);event.attack_serial=1;event.attack_started=20;
+        sparse.observe(event,20.12,"",1);for(double t:{20.03,20.06,20.09,20.12,20.15})dense.observe(event,t,"",1);
+        const auto outgoing=first_person::animation::sample(event,20.2);event.attack_serial=2;event.attack_started=20.2;
+        const auto first=sparse.observe(event,20.2,"",1),other=dense.observe(event,20.2,"",1);
+        check(first.swing==outgoing.swing&&first.attack_blend==0&&first.interrupted.serial==1);
+        check(first.swing==other.swing&&first.interrupted.phase==other.interrupted.phase);
+        animator bones;bones.prepare(outgoing,true,false);hand_pose reference;
+        check(bones.prepare(outgoing,true,false).attach({.27f,-.34f,.70f},false,.525f,reference)&&bones.prepare(first,true,false).attach({.27f,-.34f,.70f},false,.525f,placed));
+        for(size_t i=0;i<placed.palette_count;++i)for(size_t j=0;j<16;++j)check(std::abs(placed.palette[i].columns[j]-reference.palette[i].columns[j])<2e-6f);
+        const auto mid=sparse.observe(event,20.24,"",1);dense.observe(event,20.22,"",1);const auto mid_dense=dense.observe(event,20.24,"",1);
+        check(std::abs(mid.attack_blend-.5f)<1e-5f&&mid.swing==mid_dense.swing);
+        check(bones.prepare(mid,true,false).attach({.27f,-.34f,.70f},false,.525f,reference));
+        event.attack_serial=3;event.attack_started=20.24;const auto third=sparse.observe(event,20.24,"",1);
+        check(third.swing==mid.swing&&bones.prepare(third,true,false).attach({.27f,-.34f,.70f},false,.525f,placed));
+        for(size_t i=0;i<placed.palette_count;++i)for(size_t j=0;j<16;++j)check(std::abs(placed.palette[i].columns[j]-reference.palette[i].columns[j])<2e-6f);
+        sparse.reset();check(sparse.observe(event,20.25,"",1).interrupted.phase<0);
+    }
     for(bool empty:{false,true})for(bool gun:{false,true})for(float phase:{-1.f,0.f,.12f,.3f,.5f,.7f,.9f,.99f}){
         first_person::animation::pose action;action.seconds=7.125;action.attack_kind=gun?2:1;action.attack_serial=3;action.attack_phase=phase;
         frame model(action,empty,gun);const auto &asset=model.geometry();

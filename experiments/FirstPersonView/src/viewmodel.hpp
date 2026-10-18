@@ -2,6 +2,7 @@
 #include "viewmodel_animation.hpp"
 #include "animation.hpp"
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace first_person::viewmodel {
@@ -33,6 +34,7 @@ struct submission {
 // One bounded, allocation-free preparation shared by CPU and GPU. Grip points
 // come from the same physical weapon geometry used by the held item renderer.
 class frame {
+    friend class animator;
     const asset &source;
     std::array<local_pose,maximum_nodes> local{};
     std::array<matrix,maximum_nodes> global{};
@@ -44,5 +46,16 @@ public:
     frame(const animation::pose &action,bool no_item,bool firearm) noexcept;
     bool attach(point grip,bool left,float lower_view_slope,hand_pose &out,const point *trigger=nullptr)const noexcept;
     const asset &geometry()const noexcept{return source;}
+};
+// One fixed-size local-pose snapshot makes even repeated interruptions
+// continuous. It never retains a scene/atlas pointer or an unbounded history.
+class animator {
+    std::optional<frame> current;
+    std::array<local_pose,maximum_nodes> from{};
+    double started=-1;
+    uint64_t serial=0;
+public:
+    void reset()noexcept {current.reset();started=-1;serial=0;}
+    const frame &prepare(const animation::pose &action,bool no_item,bool firearm)noexcept;
 };
 }

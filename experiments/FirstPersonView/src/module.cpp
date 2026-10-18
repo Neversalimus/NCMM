@@ -26,6 +26,7 @@ double yaw=-first_person::pi*0.5;
 float pitch=0,look_sway_x=0,look_sway_y=0;
 double look_sway_started=0,last_scene_seconds=0;
 first_person::animation::timeline hand_timeline;
+first_person::viewmodel::animator hand_animator;
 std::vector<ncmm_graphics_quad_v1> commands;
 first_person::hybrid::frame pixels;
 first_person::hybrid::frame world_pixels;
@@ -115,6 +116,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         const float lag=std::exp(-float(std::max(0.0,scene->environment.animation_seconds-look_sway_started))*9);
         pose.sway_x=std::sin(t*1.4f)*.0022f+std::sin(t*8)*metadata.view.movement*.008f+look_sway_x*lag;
         pose.sway_y=std::sin(t*2.2f)*.0032f+std::abs(std::sin(t*10))*metadata.view.movement*.010f+look_sway_y*lag;}
+    pose.prepared_frame=&hand_animator.prepare(pose,!scene->environment.held_item[0],pose.grip==NCMM_GRIP_GUN&&(!has_metadata||metadata.view.gun_kind!=NCMM_GUN_BOW));
     if(settings){const char *value=settings->world_setting_get_string("NCMM_FIRST_PERSON_RENDERER","auto");
         const std::string selected=value?value:"auto";if(selected!=last_setting){last_setting=selected;mode_override=false;}
         if(!mode_override)select_renderer(selected=="cpu"?NCMM_GPU_CPU:selected=="gpu"?NCMM_GPU_FORCE:NCMM_GPU_AUTO);}
@@ -215,7 +217,7 @@ void input(uint32_t action,void *) {
     if(controls)controls->set_camera(float(yaw),pitch);
 }
 int init(const ncmm_host_api_v1 *api) {
-    hand_timeline.reset();
+    hand_timeline.reset();hand_animator.reset();
     first_person::viewmodel::clear_textures();
     graphics=nullptr;
     hybrid=nullptr;multilevel=nullptr;active_world=nullptr;
@@ -263,7 +265,7 @@ int init(const ncmm_host_api_v1 *api) {
     return 1;
 }
 void shutdown() {
-    hand_timeline.reset();
+    hand_timeline.reset();hand_animator.reset();
     if(multilevel)multilevel->set_enabled(id,0);
     else if(hybrid) hybrid->set_enabled(id,0);
     if(graphics) graphics->set_enabled(id,0);
@@ -281,7 +283,7 @@ const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View"
 }
 extern "C" NCMM_EXPORT const ncmm_mod_descriptor_v1 *ncmm_get_descriptor_v1(){return &descriptor;}
 extern "C" NCMM_EXPORT void ncmm_open_ui_v1(const ncmm_host_api_v1 *) {
-    hand_timeline.reset();
+    hand_timeline.reset();hand_animator.reset();
     if(multilevel){frame_valid=world_valid=false;const bool enabled=!multilevel->is_enabled(id);multilevel->set_enabled(id,enabled);if(!enabled&&gpu_world)gpu_world->clear();}
     else if(hybrid){frame_valid=world_valid=false;const bool enabled=!hybrid->is_enabled(id);hybrid->set_enabled(id,enabled);if(!enabled&&gpu_world)gpu_world->clear();}
     if(graphics) graphics->set_enabled(id,!graphics->is_enabled(id));
