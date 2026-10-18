@@ -46,7 +46,7 @@
     auto f12=[&](){press_view_key(SDLK_F12);};
     std::ofstream stream(game_root()/"ncmm"/"first-person-gameplay-audit.json");JsonOut report(stream);
     report.start_object();report.member("schema",1);report.member("actual_cdda_sdl",true);report.member("manual_playthrough",false);report.member("gpu_execution_timestamps_available",false);
-    report.member("fixture","controlled native actions in an isolated generated smoke world");report.member("width",640);report.member("height",480);
+    report.member("fixture","controlled native actions in an isolated generated smoke world");report.member("width",audit_viewport.x);report.member("height",audit_viewport.y);
     auto write_stages=[&](const std::map<std::string,std::vector<double>> &measurements){report.start_object();for(const auto &[name,samples]:measurements){if(samples.empty())continue;report.member(name);report.start_object();report.member("samples",samples.size());report.member("median",percentile(samples,.5));report.member("p95",percentile(samples,.95));report.member("p99",percentile(samples,.99));report.member("max",*std::max_element(samples.begin(),samples.end()));report.end_object();}report.end_object();};
     std::map<std::string,std::vector<double>> stages;bool audit_measurements=true;
     struct combat_trial {int spawned=0,turns=0,shots=0,melee=0,observed_enemy_attacks=0;};std::vector<combat_trial> combat_trials;
