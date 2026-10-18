@@ -144,8 +144,8 @@ attack/shot events drive clips; no unconfirmed reload animation is invented.
 Immutable GPU hand resources are retained while animation updates matrices.
 Actual worn gloves and sleeves select hand and forearm materials separately.
 See THIRD_PARTY_NOTICES.txt for the original archive hash and author's license.
-The candidate also skips hidden 2D sprite submissions before opaque perspective
-frames while preserving native visibility, map memory and animation fallback.
+Native visibility, map memory and sprite/animation processing retain the complete
+established tile draw before perspective rendering.
 Use the qualification report for measured gains; this text makes no FPS claim.
 
 The retained architecture shares one XYZ lookup during GPU preparation and keeps

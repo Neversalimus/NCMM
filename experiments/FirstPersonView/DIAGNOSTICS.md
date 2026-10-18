@@ -86,6 +86,18 @@ stream excludes that refresh. First-ready time includes the actual move,
 refresh, rendered frame, presentation and instrumentation. Medians of nested
 phases must not be added to form an invented frame time.
 
+Extended records also retain main-thread and whole-process CPU time from the
+native tile draw through SDL presentation, alongside wall time. Windows CPU
+accounting ticks can be coarser than a frame: zero samples do not mean free work;
+compare aggregate intervals. Process CPU includes workers and can exceed wall
+time. Unsupported thread accounting is marked unavailable. These exclude the
+outer move/cache refresh and subsequent resource/RSS collection. They are not
+GPU execution timestamps. Opt-in sprite readback attempts/time and retained
+sprite bytes expose SDL atlas readback waits; the timer includes readback setup
+and restoration and counts failed attempts too. GPU generated-cell counts
+distinguish real chunk rebuilds from resource deduplication; CPU-mode GPU fields
+are inactive. Ordinary gameplay does not enable these diagnostic timers.
+
 `tests/compare_movement_runs.py --extended` explicitly selects this larger matrix
 and verifies its complete sample streams and recorded resolution. The default
 12-record release gate remains unchanged. Component ablations may explicitly
@@ -111,6 +123,11 @@ palette matrices in isolation, with 32 warmup iterations. It retains raw samples
 in their original order. It excludes material preparation, packet construction,
 CPU rasterization, GPU execution, world extraction and presentation; it must not
 be reported as the complete cost of a native frame or viewmodel draw.
+The separate `first_prepare_ms` field retains each state's first CPU preparation
+before the 32 warmups. Only the empty state includes the process's first asset
+validation; held/firearm reuse those mapped assets. It excludes executable/DLL
+mapping, material preparation and GPU resource creation. Repeating fresh processes
+can measure its distribution, without claiming a cold OS file cache or GPU.
 
 ### Required release gates
 

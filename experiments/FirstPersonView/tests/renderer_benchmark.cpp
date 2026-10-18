@@ -31,7 +31,7 @@ void viewmodel_benchmark(int rounds,const char *json_path){
     for(int mode=0;mode<3;++mode){
         first_person::viewmodel::animator animator;
         first_person::viewmodel::hand_pose right,left;
-        std::vector<double> times;times.reserve(size_t(rounds));
+        std::vector<double> times;times.reserve(size_t(rounds));double first_prepare_ms=0;
         for(int n=-32;n<rounds;++n){
             first_person::animation::pose action;action.seconds=10+(n+32)/60.;action.attack_kind=mode==2?2:1;
             action.attack_serial=1;action.attack_phase=float((n+32)%60)/60;action.grip=mode==2?NCMM_GRIP_GUN:NCMM_GRIP_SINGLE;
@@ -40,12 +40,13 @@ void viewmodel_benchmark(int rounds,const char *json_path){
             require(frame.attach({.185f,-.267f,.68f},false,.525f,right,mode==2?&trigger:nullptr)&&
                     frame.attach({-.06f,-.28f,.75f},true,.525f,left),"viewmodel contacts");
             const double milliseconds=std::chrono::duration<double,std::milli>(clock::now()-start).count();
+            if(n==-32)first_prepare_ms=milliseconds;
             checksum+=right.palette[size_t(n+32)%right.palette_count].columns[12]+left.palette[size_t(n+32)%left.palette_count].columns[13];
             if(n>=0)times.push_back(milliseconds);
         }
         auto sorted=times;std::sort(sorted.begin(),sorted.end());const char *name=mode==0?"empty":mode==1?"held":"firearm";
         std::cout<<name<<" source pose + two arms: median "<<quantile(sorted,.5)<<" ms, p95 "<<quantile(sorted,.95)<<" ms, p99 "<<quantile(sorted,.99)<<" ms, max "<<sorted.back()<<" ms\n";
-        if(json_path){if(mode)out<<',';out<<"{\"state\":\""<<name<<"\",\"median_ms\":"<<quantile(sorted,.5)<<",\"p95_ms\":"<<quantile(sorted,.95)<<",\"p99_ms\":"<<quantile(sorted,.99)<<",\"max_ms\":"<<sorted.back()<<",\"samples_ms\":[";
+        if(json_path){if(mode)out<<',';out<<"{\"state\":\""<<name<<"\",\"first_prepare_ms\":"<<first_prepare_ms<<",\"first_prepare_includes_initial_asset_validation\":"<<(mode==0?"true":"false")<<",\"median_ms\":"<<quantile(sorted,.5)<<",\"p95_ms\":"<<quantile(sorted,.95)<<",\"p99_ms\":"<<quantile(sorted,.99)<<",\"max_ms\":"<<sorted.back()<<",\"samples_ms\":[";
             for(size_t i=0;i<times.size();++i){if(i)out<<',';out<<times[i];}out<<"]}";}
     }
     require(std::isfinite(checksum),"viewmodel checksum");

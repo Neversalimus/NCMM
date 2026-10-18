@@ -7,6 +7,8 @@ const std::vector<tripoint_bub_ms> *graphics_hybrid_positions = nullptr;
 std::vector<uint32_t> graphics_hybrid_pixels;
 uint32_t graphics_hybrid_width = 0, graphics_hybrid_height = 0;
 size_t graphics_hybrid_sprite_bytes = 0;
+// Existing opt-in native benchmark only; no GPU ABI or gameplay timer changes.
+struct graphics_sprite_readback_profile {bool enabled=false;uint64_t attempts=0;double ms=0;} graphics_sprite_readbacks;
 uint64_t graphics_hybrid_tileset_epoch = 0;
 size_t graphics_hybrid_vehicle_cells = 0;
 size_t graphics_hybrid_light_cells = 0;
@@ -60,6 +62,10 @@ bool graphics_read_sprite( const texture_draw_data &atlas, graphics_cpu_sprite &
     SDL_Renderer *renderer = get_sdl_renderer().get();
     const SDL_Rect rect = atlas.dimensions;
     if( !renderer || !atlas.texture || rect.w < 1 || rect.h < 1 || rect.w > 512 || rect.h > 512 ) return false;
+    struct readback_timer {
+        bool enabled;std::chrono::steady_clock::time_point begun;
+        ~readback_timer(){if(enabled){++graphics_sprite_readbacks.attempts;graphics_sprite_readbacks.ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();}}
+    } timing{graphics_sprite_readbacks.enabled,graphics_sprite_readbacks.enabled?std::chrono::steady_clock::now():std::chrono::steady_clock::time_point{}};
     SDL_Texture *prior_target = SDL_GetRenderTarget( renderer );
     SDL_Rect prior_viewport = {}, prior_clip = {};
     if( !SDL_GetRenderViewport( renderer, &prior_viewport ) || !SDL_GetRenderClipRect( renderer, &prior_clip ) ) return false;

@@ -47,6 +47,21 @@ inline double cpu_seconds(){
 #endif
     return double(std::clock())/CLOCKS_PER_SEC;
 }
+// Diagnostic thread execution time; a negative result means unavailable.
+// Windows reports CPU accounting ticks, not a per-frame cycle-accurate timer.
+inline double thread_cpu_seconds(){
+#if defined(_WIN32) && defined(_MSC_VER)
+    FILETIME created{},ended{},kernel{},user{};
+    if(GetThreadTimes(GetCurrentThread(),&created,&ended,&kernel,&user)){
+        ULARGE_INTEGER k{},u{};k.LowPart=kernel.dwLowDateTime;k.HighPart=kernel.dwHighDateTime;u.LowPart=user.dwLowDateTime;u.HighPart=user.dwHighDateTime;
+        return double(k.QuadPart+u.QuadPart)/10000000.0;
+    }
+#elif defined(__linux__)
+    timespec value{};
+    if(clock_gettime(CLOCK_THREAD_CPUTIME_ID,&value)==0)return double(value.tv_sec)+double(value.tv_nsec)/1000000000.0;
+#endif
+    return -1;
+}
 struct video_memory {bool available=false;uint64_t bytes=0;};
 inline video_memory vram(){
     video_memory result;
