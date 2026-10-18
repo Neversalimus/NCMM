@@ -78,6 +78,16 @@ def apply(root: Path):
     loader = replace(loader, '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {',
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CREATURES_ID ) {\n        return min_major <= 1 && min_minor == 0 ? &graphics_creatures_api : nullptr;\n    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {')
     loader = replace(loader, "bool graphics_requires_terrain_pass()\n{", "void graphics_note_creature( Creature *who, uint32_t event, float heading )\n{\n#if defined(TILES)\n    graphics_notify_creature( who, event, heading );\n#else\n    (void)who; (void)event; (void)heading;\n#endif\n}\nbool graphics_requires_terrain_pass()\n{")
+    loader = replace(loader, '#include "ncmm_graphics_camera.hpp"',
+                     '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_context.hpp"\n#if defined(TILES)\n#include <SDL3_image/SDL_image.h>\n#endif')
+    loader = replace(loader, '    const bool gameplay = ncmm_graphics_shapes::stays_perspective( category );\n    if( gameplay != graphics_gameplay_context && g ) g->invalidate_main_ui_adaptor();\n    graphics_gameplay_context = gameplay;\n    graphics_control_context = category == "DEFAULTMODE";',
+                     '    const bool previous = graphics_gameplay_context;\n    graphics_context.note( category );\n    if( previous != graphics_gameplay_context && g ) g->invalidate_main_ui_adaptor();')
+    loader = replace(loader, '    graphics_gameplay_context = false;',
+                     '    graphics_context.reset();\n    graphics_gameplay_context = false;')
+    loader = replace(loader, 'void shutdown()\n{\n    graphics_release_mouse();',
+                     'void shutdown()\n{\n    graphics_context.reset();\n    graphics_release_mouse();')
+    loader = replace(loader, 'bool graphics_requires_terrain_pass()\n{',
+                     'uint64_t graphics_begin_targeting()\n{\n    if( graphics_fire_audit_legacy_context ) return 0;\n    const auto token = graphics_context.begin_aiming();\n    graphics_release_mouse();\n    if( g ) g->invalidate_main_ui_adaptor();\n    return token;\n}\nvoid graphics_end_targeting( uint64_t token )\n{\n    graphics_context.end_aiming( token );\n    if( g ) g->invalidate_main_ui_adaptor();\n}\nbool graphics_requires_terrain_pass()\n{')
     updates["ncmm_loader.cpp"] = loader
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '#include "ncmm_graphics_performance.hpp"',
         '#include "ncmm_graphics_performance.hpp"\n#include "ncmm_graphics_gpu.h"\n#if defined(TILES)\n#include "ncmm_gpu_probe.hpp"\n#include "ncmm_gpu_backend.hpp"\n#endif')
@@ -86,6 +96,18 @@ def apply(root: Path):
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_GPU_ID ) {\n        return min_major <= 1 && min_minor == 0 ? &graphics_gpu_api : nullptr;\n    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CREATURES_ID ) {')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], "bool graphics_requires_terrain_pass()\n{", "void graphics_release_gpu()\n{\n    graphics_clear_gpu();\n#if defined(TILES)\n    // Module disable may already have released our private backend. The SDL\n    // renderer can still own queued presentation copies against its swapchain.\n    if( auto *renderer = get_sdl_renderer().get() ) {\n        SDL_FlushRenderer( renderer );\n        if( auto *device = SDL_GetGPURendererDevice( renderer ) ) SDL_WaitForGPUIdle( device );\n    }\n#endif\n}\nbool graphics_requires_terrain_pass()\n{")
     header = read("ncmm_loader.h")
+    header = replace(header, 'void initialize();', '''// Private native UI lifetime; no public module ABI extension.
+uint64_t graphics_begin_targeting();
+void graphics_end_targeting( uint64_t token );
+class graphics_targeting_scope {
+    uint64_t token_;
+public:
+    explicit graphics_targeting_scope( bool preserve ) : token_( preserve ? graphics_begin_targeting() : 0 ) {}
+    ~graphics_targeting_scope() { if( token_ ) graphics_end_targeting( token_ ); }
+    graphics_targeting_scope( const graphics_targeting_scope & ) = delete;
+    graphics_targeting_scope &operator=( const graphics_targeting_scope & ) = delete;
+};
+void initialize();''')
     updates["ncmm_loader.h"] = replace(header, "void initialize();", "void graphics_note_input_context( const std::string &category );\nbool graphics_preserves_destination( const std::string &action );\nbool graphics_requires_terrain_pass();\nbool draw_graphics_view( int x, int y, int width, int height );\nvoid initialize();")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "class input_context;", "class input_context;\nstruct input_event;")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", "std::string graphics_relative_action( const std::string &, const input_event &, bool );\nvoid graphics_note_attack( uint32_t kind );\nbool graphics_mouse_event( uint32_t kind, float x, float y, float dx, float dy, bool allowed );\nbool graphics_animation_redraw_due();\nvoid initialize();")
@@ -102,6 +124,8 @@ def apply(root: Path):
     melee = read("melee.cpp")
     updates["melee.cpp"] = replace(melee, "    const bool hits = hit_spread >= 0;", "    if( is_avatar() ) ncmm::graphics_note_attack( 1 );\n    const bool hits = hit_spread >= 0;")
     ranged = read("ranged.cpp")
+    ranged = replace(ranged, 'target_handler::trajectory target_ui::run()\n{',
+                     'target_handler::trajectory target_ui::run()\n{\n    ncmm::graphics_targeting_scope ncmm_aiming( mode == TargetMode::Fire || mode == TargetMode::Reach ||\n            mode == TargetMode::TurretManual || mode == TargetMode::Turrets );')
     updates["ranged.cpp"] = replace(ranged, "        curshot++;\n\n        if( !gun.is_gun() )", "        curshot++;\n        if( is_avatar() ) ncmm::graphics_note_attack( 2 );\n\n        if( !gun.is_gun() )")
     updates["ranged.cpp"] = replace(updates["ranged.cpp"], "    bool skip_redraw = false;",
         "    bool skip_redraw = false;\n    // LMB already picked and confirmed a visible hostile sprite. Keep every\n    // ordinary firing/aiming readiness and trajectory check in this UI.\n    if((mode==TargetMode::Fire||mode==TargetMode::Reach)&&status==Status::Good&&\n        ncmm::graphics_consume_aimed_fire(dst.x(),dst.y(),dst.z())){\n        init_window_and_input();ui.position_from_window(w_target);\n        action=\"FIRE\";skip_redraw=true;\n    }")
@@ -129,12 +153,15 @@ def apply(root: Path):
         "        if( !ncmm::draw_graphics_view( win->pos.x * fontwidth, win->pos.y * fontheight,\n"+
         "                TERRAIN_WINDOW_TERM_WIDTH * font->width, TERRAIN_WINDOW_TERM_HEIGHT * font->height ) && !ncmm_native_pixels_ready ) {\n"+
         anchor+"\n        }")
+    updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"],
+        '        if( !ncmm::draw_graphics_view( win->pos.x * fontwidth, win->pos.y * fontheight,\n                TERRAIN_WINDOW_TERM_WIDTH * font->width, TERRAIN_WINDOW_TERM_HEIGHT * font->height ) && !ncmm_native_pixels_ready ) {',
+        '        const bool ncmm_perspective_drawn = ncmm::draw_graphics_view( win->pos.x * fontwidth, win->pos.y * fontheight,\n                TERRAIN_WINDOW_TERM_WIDTH * font->width, TERRAIN_WINDOW_TERM_HEIGHT * font->height );\n        ncmm::graphics_note_terrain_composed( ncmm_perspective_drawn );\n        if( !ncmm_perspective_drawn && !ncmm_native_pixels_ready ) {')
     updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"], "static void CheckMessages()\n{", "static void CheckMessages()\n{\n    // Presentation redraws never return a gameplay TIMEOUT or advance a turn.\n    if( ncmm::graphics_animation_redraw_due() ) {\n        ui_manager::redraw_invalidated();\n        if( needupdate ) refresh_display();\n    }")
     wrappers = replace(read("sdl_wrappers.cpp"), '#include "sdl_wrappers.h"',
-        '#include "sdl_wrappers.h"\n// Private presentation hook; no shared engine header or module ABI change.\nnamespace ncmm { void graphics_frame_presented(); }')
+        '#include "sdl_wrappers.h"\n// Private presentation hooks; no shared engine header or module ABI change.\nnamespace ncmm { void graphics_frame_presented(); void graphics_before_present(); }')
     updates["sdl_wrappers.cpp"] = replace(wrappers,
         '    printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" );',
-        '    if( !printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" ) ) {\n'
+        '    ncmm::graphics_before_present();\n    if( !printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" ) ) {\n'
         '        ncmm::graphics_frame_presented();\n    }')
     # Every renderer teardown, including recovery and native test fixtures,
     # releases our children while the borrowed device is still alive.
@@ -216,17 +243,21 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         '    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_GPU_ID ) {')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
         "bool graphics_requires_terrain_pass()\n{",
+        "void graphics_note_terrain_composed( bool perspective )\n{\n#if defined(TILES)\n    if( graphics_fire_capture.active ) { graphics_fire_capture.last_perspective = perspective; graphics_fire_capture.last_gpu = perspective && graphics_gpu_frame; }\n#else\n    (void)perspective;\n#endif\n}\n"
+        "void graphics_before_present()\n{\n#if defined(TILES)\n    graphics_capture_before_present();\n#endif\n}\n"
         "void graphics_world_changed( const map *source, int z )\n{\n"
         "    graphics_world_changed_impl( source, z );\n}\n"
         "void graphics_frame_presented()\n{\n#if defined(TILES)\n"
+        "    if( graphics_fire_capture.active && !graphics_fire_capture.frames.empty() ) graphics_fire_capture.frames.back().presented = true;\n"
         "    graphics_world_frame_presented();\n#endif\n}\n"
         "bool graphics_requires_terrain_pass()\n{")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "class input_context;", "class map;\nclass input_context;")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();",
-        "void graphics_world_changed( const map *, int z );\nvoid initialize();")
+        "void graphics_note_terrain_composed( bool perspective );\nvoid graphics_world_changed( const map *, int z );\nvoid initialize();")
     updates["game.h"]=replace(read("game.h"), "        bool save();",
         "        bool save();\n"
         "        // Isolated qualification gateway; not part of a module API.\n"
+        "        bool ncmm_graphics_smoke_handle_action() { return handle_action(); }\n"
         "        void ncmm_graphics_smoke_prepare_turns();\n"
         "        bool ncmm_graphics_smoke_reload( const save_t &name ) {\n"
         "            return load( name );\n        }\n"
@@ -261,7 +292,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     ):
         map_cpp=replace(map_cpp, signature+"\n{", signature+"\n{\n    ncmm::graphics_world_changed( this, "+level+" );")
     updates["map.cpp"]=map_cpp
-    for name in ("ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc"):
+    for name in ("ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")

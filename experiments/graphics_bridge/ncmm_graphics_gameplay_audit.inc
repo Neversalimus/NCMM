@@ -92,6 +92,9 @@
         if(!native_errors.empty())log_line(NCMM_LOG_ERROR,("Native audit diagnostic: "+native_errors).c_str());
         require(native_errors.empty(),"audit_native_debug_message");
         report.start_object();report.member("name",name);report.member("native_action_wall_ms",milliseconds(begin));report.member("success",true);report.end_object();stream.flush();checkpoint(std::string(name)+" PASS");};
+    action("native_firing_ui_context_and_presented_frames",[&](){
+        #include "ncmm_graphics_fire_audit.inc"
+    });
     action("native_walk_and_visual_continuity",[&](){
         for(const tripoint_rel_ms step:{tripoint_rel_ms(1,0,0),tripoint_rel_ms(0,-1,0),tripoint_rel_ms(-1,0,0),tripoint_rel_ms(0,1,0)}){
             const auto before=you.pos_abs();const int moves=you.get_moves();require(avatar_action::move(you,here,step),"audit_native_walk_failed");const auto after=you.pos_abs();const int spent=moves-you.get_moves();

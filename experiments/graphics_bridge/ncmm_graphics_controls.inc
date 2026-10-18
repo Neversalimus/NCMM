@@ -1,7 +1,8 @@
 // Host-owned input and presentation state; this extension never moves an avatar.
 float graphics_camera_yaw = -ncmm_graphics_camera::pi * .5f;
 float graphics_camera_pitch = 0;
-bool graphics_control_context = false, graphics_mouse_drag = false, graphics_mouse_dirty = false;
+bool &graphics_control_context = graphics_context.controls;
+bool graphics_mouse_drag = false, graphics_mouse_dirty = false;
 bool graphics_attack_pending = false;
 bool graphics_frame_pending_present = false;
 bool graphics_cursor_was_visible = true;

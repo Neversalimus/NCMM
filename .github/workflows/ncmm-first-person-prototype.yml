@@ -76,6 +76,8 @@ jobs:
         run: python -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_movement_phases.py -v
       - name: Reject incomplete or mismatched packaged hardware evidence
         run: python -m unittest discover -s experiments/FirstPersonView/tests -p test_compare_movement_runs.py -v
+      - name: Reject hidden native map flashes, CPU fallback and corrupt firing captures
+        run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_fire_audit.py -v
       - name: Diagnostic environment isolation on PowerShell Core
         shell: pwsh
         run: |
@@ -430,6 +432,12 @@ jobs:
           if(@($audit.tilesets).Count -ne 2){throw 'Actual UDP Hybrid v3 evidence is incomplete.'}
           python ncmmrepo/experiments/FirstPersonView/tests/verify_gameplay_audit.py --root $evidence --minimum-soak-seconds $duration --output installer-result/first-person-gameplay-verified.json
           if($LASTEXITCODE -ne 0){throw 'Native gameplay evidence verification failed.'}
+          python ncmmrepo/experiments/FirstPersonView/tests/verify_fire_audit.py --root $evidence --output installer-result/first-person-fire-verified.json
+          if($LASTEXITCODE -ne 0){throw 'Native firing UI/presented-frame verification failed.'}
+          Copy-Item (Join-Path $evidence 'first-person-fire-audit.json') installer-result/first-person-fire-audit.json
+          $fireImages=Join-Path $PWD 'installer-result/fire-ui'
+          New-Item -ItemType Directory -Path $fireImages | Out-Null
+          Get-ChildItem $evidence -Filter 'first-person-fire-frame-*.png' | Copy-Item -Destination $fireImages
           Copy-Item (Join-Path $output 'benchmark-provenance.json') 'installer-result/first-person-gameplay-provenance.json'
           Copy-Item (Join-Path $evidence 'first-person-gameplay-audit.json') 'installer-result/first-person-gameplay-audit.json'
           Copy-Item (Join-Path $evidence 'first-person-multilevel-save-after.json') 'installer-result/first-person-gameplay-save-load.json'
