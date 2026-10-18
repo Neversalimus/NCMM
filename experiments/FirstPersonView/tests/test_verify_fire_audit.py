@@ -26,12 +26,14 @@ class FireEvidenceTests(unittest.TestCase):
                            native_activity_and_target_ui=True, ordinary_ai_turns=False, trials=[], frames=[])
         cases = [('cpu', 'cancel', True)]
         for mode in ['cpu', 'gpu']:
-            cases += [(mode, name, False) for name in ['keyboard_single', 'lmb_single', 'cancel', 'empty', 'no_target', 'window'] for _ in range(10)]
+            cases += [(mode, name, False) for name in ['keyboard_single', 'lmb_single', 'cancel', 'empty', 'no_target', 'window']
+                      for _ in range(20 if name in {'keyboard_single', 'lmb_single', 'window'} else 10)]
             cases += [(mode, name, False) for name in ['blocked_wall', 'vertical_cancel', 'burst']]
         for i, (mode, name, control) in enumerate(cases):
             shot = not control and name in ['keyboard_single', 'lmb_single', 'window', 'burst']
             self.report['trials'].append(dict(renderer=mode, scenario=name, legacy_control=control,
                 first_frame=i, last_frame_exclusive=i+1, enabled_before=True, enabled_after=True,
+                native_command='SELECT' if name == 'lmb_single' else 'fire', dispatch_calls=1,
                 yaw_before=0, yaw_after=0, pitch_before=0, pitch_after=0, escape_recovery=False,
                 attack_serial_before=0, attack_serial_after=int(shot), ammo_before=7, ammo_after=7-int(shot),
                 moves_before=100, moves_after=100-int(shot)))
@@ -45,7 +47,15 @@ class FireEvidenceTests(unittest.TestCase):
         return verify(self.root)
 
     def test_complete_synthetic_fixture(self):
-        self.assertEqual(self.run_report()['normal_native_ui_attempts'], 126)
+        self.assertEqual(self.run_report()['normal_native_ui_attempts'], 186)
+
+    def test_undispatched_command_rejected(self):
+        self.report['trials'][2]['dispatch_calls'] = 0
+        with self.assertRaises(AssertionError): self.run_report()
+
+    def test_wrong_native_command_rejected(self):
+        self.report['trials'][2]['native_command'] = 'TIMEOUT'
+        with self.assertRaises(AssertionError): self.run_report()
 
     def test_intermediate_map_flash_rejected(self):
         self.report['frames'][20]['perspective'] = False

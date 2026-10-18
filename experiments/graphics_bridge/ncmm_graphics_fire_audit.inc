@@ -46,6 +46,7 @@
         uint64_t attack_before=0,attack_after=0;size_t first=0,last=0;
         float yaw_before=0,pitch_before=0,yaw_after=0,pitch_after=0;
         bool enabled_before=false,enabled_after=false;
+        std::string native_command;uint32_t dispatch_calls=0;
     };
     std::vector<trial> trials;
     graphics_fire_capture={};
@@ -90,7 +91,16 @@
         {
             input_feed feed(window,click?input_feed::kind::click:input_feed::kind::command,
                 float(graphics_viewport.x+graphics_viewport.w/2),float(graphics_viewport.y+graphics_viewport.h/2));
-            g->ncmm_graphics_smoke_handle_action();result.escape_recovery=feed.escape_recovery.load();
+            // The normal game retries handle_action after TIMEOUT. A single
+            // diagnostic call can return before the delayed SDL event arrives.
+            const auto before=graphics_fire_capture.native_command_sequence;
+            for(int retry=0;retry<128&&graphics_fire_capture.native_command_sequence==before;++retry){
+                g->ncmm_graphics_smoke_handle_action();++result.dispatch_calls;
+            }
+            result.native_command=graphics_fire_capture.native_command;
+            result.escape_recovery=feed.escape_recovery.load();
+            require(graphics_fire_capture.native_command_sequence>before,"fire_audit_native_command_never_dispatched");
+            require(result.native_command==(click?"SELECT":"fire"),"fire_audit_unexpected_native_command");
         }
         graphics_release_mouse();
         if(you.activity){
@@ -105,6 +115,11 @@
         result.enabled_after=graphics_view.enabled;result.yaw_after=graphics_camera_yaw;result.pitch_after=graphics_camera_pitch;
         result.ammo_after=you.get_wielded_item()->ammo_remaining();result.moves_after=you.get_moves();result.attack_after=graphics_attack_serial;
         result.last=graphics_fire_capture.frames.size();graphics_fire_capture.active=false;graphics_fire_audit_legacy_context=false;
+        {std::ofstream progress(game_root()/"ncmm"/"first-person-fire-trials.jsonl",std::ios::app);JsonOut out(progress);
+            out.start_object();out.member("scenario",result.scenario);out.member("renderer",result.renderer);out.member("legacy",result.legacy);
+            out.member("native_command",result.native_command);out.member("dispatch_calls",result.dispatch_calls);out.member("escape_recovery",result.escape_recovery);
+            out.member("ammo_before",result.ammo_before);out.member("ammo_after",result.ammo_after);out.member("moves_before",result.moves_before);out.member("moves_after",result.moves_after);
+            out.member("attack_before",result.attack_before);out.member("attack_after",result.attack_after);out.member("first_frame",result.first);out.member("last_frame",result.last);out.end_object();progress<<'\n';}
         require(result.last>result.first&&!graphics_fire_capture.failed,"fire_audit_missing_presented_pixels");
         if(!legacy){
             require(result.enabled_before&&result.enabled_after,"fire_audit_user_mode_changed");
@@ -124,8 +139,10 @@
         [](const auto &f){return f.presented&&!f.perspective;}),"fire_audit_did_not_reproduce_original_context_regression");
     for(const char *mode:{"cpu","gpu"}){
         floor();
-        for(const char *scenario:{"keyboard_single","lmb_single","cancel","empty","no_target","window"})
-            for(int repeat=0;repeat<10;++repeat)attempt(scenario,mode);
+        for(const char *scenario:{"keyboard_single","lmb_single","cancel","empty","no_target","window"}){
+            const int repeats=std::string(scenario)=="keyboard_single"||std::string(scenario)=="lmb_single"||std::string(scenario)=="window"?20:10;
+            for(int repeat=0;repeat<repeats;++repeat)attempt(scenario,mode);
+        }
         for(const char *scenario:{"blocked_wall","vertical_cancel","burst"})attempt(scenario,mode);
         {cancel_native_ui cancel_menu(window);game_menus::inv::common();}
         ncmm::graphics_note_input_context("DEFAULTMODE");redraw_native();
@@ -144,6 +161,7 @@
     fire_report.member("trials");fire_report.start_array();
     for(const auto &t:trials){fire_report.start_object();fire_report.member("scenario",t.scenario);fire_report.member("renderer",t.renderer);fire_report.member("legacy_control",t.legacy);
         fire_report.member("target_native_visible",t.visible);fire_report.member("escape_recovery",t.escape_recovery);
+        fire_report.member("native_command",t.native_command);fire_report.member("dispatch_calls",t.dispatch_calls);
         fire_report.member("ammo_before",t.ammo_before);fire_report.member("ammo_after",t.ammo_after);fire_report.member("moves_before",t.moves_before);fire_report.member("moves_after",t.moves_after);
         fire_report.member("attack_serial_before",t.attack_before);fire_report.member("attack_serial_after",t.attack_after);
         fire_report.member("first_frame",t.first);fire_report.member("last_frame_exclusive",t.last);

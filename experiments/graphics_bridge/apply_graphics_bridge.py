@@ -161,6 +161,8 @@ void initialize();''')
     updates["input_context.cpp"] = replace(updates["input_context.cpp"],
         '    inp_mngr.set_timeout( old_timeout );\n    return *result;',
         '    inp_mngr.set_timeout( old_timeout );\n    ncmm_wait.completed( *result );\n    return *result;')
+    updates["input_context.cpp"] = replace(updates["input_context.cpp"], '    return *result;',
+        '    ncmm::graphics_note_input_result( category, *result );\n    return *result;')
     sdl = read("sdltiles.cpp")
     anchor = "        tilecontext->draw(\n            point( win->pos.x * fontwidth, win->pos.y * fontheight ),\n            g->ter_view_p,\n            TERRAIN_WINDOW_TERM_WIDTH * font->width,\n            TERRAIN_WINDOW_TERM_HEIGHT * font->height,\n            overlay_strings,\n            color_blocks );"
     updates["sdltiles.cpp"] = replace(sdl, anchor,
@@ -268,6 +270,10 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         '    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_GPU_ID ) {')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
         "bool graphics_requires_terrain_pass()\n{",
+        "void graphics_note_input_result( const std::string &category, const std::string &action )\n{\n#if defined(TILES)\n"
+        "    if( graphics_fire_capture.active && category == \"DEFAULTMODE\" && action != \"TIMEOUT\" ) {\n"
+        "        graphics_fire_capture.native_command = action; ++graphics_fire_capture.native_command_sequence;\n    }\n"
+        "#else\n    (void)category; (void)action;\n#endif\n}\n"
         "void graphics_note_terrain_composed( bool perspective )\n{\n#if defined(TILES)\n    if( graphics_fire_capture.active ) { graphics_fire_capture.last_perspective = perspective; graphics_fire_capture.last_gpu = perspective && graphics_gpu_frame; }\n#else\n    (void)perspective;\n#endif\n}\n"
         "void graphics_before_present()\n{\n#if defined(TILES)\n    graphics_capture_before_present();\n#endif\n}\n"
         "void graphics_world_changed( const map *source, int z )\n{\n"
@@ -280,7 +286,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "bool graphics_requires_terrain_pass()\n{")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "class input_context;", "class map;\nclass input_context;")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();",
-        "void graphics_note_terrain_composed( bool perspective );\nvoid graphics_world_changed( const map *, int z );\nvoid initialize();")
+        "void graphics_note_input_result( const std::string &, const std::string & );\nvoid graphics_note_terrain_composed( bool perspective );\nvoid graphics_world_changed( const map *, int z );\nvoid initialize();")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", '''// Main-thread input lifetime only; existing public module headers are unchanged.
 uint64_t graphics_input_wait_begin( const std::string &category );
 void graphics_input_wait_end( uint64_t token, const std::string &action );
