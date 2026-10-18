@@ -137,7 +137,18 @@ NCMM First Person View installer $releaseVersion TEST / CDDA $build / Windows x6
    Hold the right mouse button over the viewport to look around.
    In first person, arrows move forward/backward and strafe relative to the gaze.
 
-Version $releaseVersion shares one XYZ lookup during GPU preparation and keeps
+Version $releaseVersion uses Drillimpact's authored PSX First Person Arms 1.1.0
+(CC0), including source textures, all skin weights and skeleton animation.
+CPU and GPU share the same pose and physical weapon contacts. Native confirmed
+attack/shot events drive clips; no unconfirmed reload animation is invented.
+Immutable GPU hand resources are retained while animation updates matrices.
+Actual worn gloves and sleeves select hand and forearm materials separately.
+See THIRD_PARTY_NOTICES.txt for the original archive hash and author's license.
+The candidate also skips hidden 2D sprite submissions before opaque perspective
+frames while preserving native visibility, map memory and animation fallback.
+Use the qualification report for measured gains; this text makes no FPS claim.
+
+The retained architecture shares one XYZ lookup during GPU preparation and keeps
 diagnostic file export outside renderer compilation. Native test paths are
 checked before copying assets. Earlier work reduces repeated scene classification.
 GPU lifecycle releases drain queued work; optional diagnostics retain crash stacks.
@@ -169,8 +180,8 @@ Lighting uses CDDA's visible-cell intensity and RGB light cache, face shading
 and directional sunlight shadows. Sky, clouds, sun, phased moon and weather
 follow the game calendar and current weather; rain/snow stay outside roofs.
 The sun uses the game's astronomy; lunar position is an approximation based
-on the game's actual phase. Wielded items generate a camera-local silhouette
-from the active tileset, with an extruded contour and curved forearms/hands.
+on the game's actual phase. Wielded items keep their procedural geometry or
+tileset contour, attached to the authored PSX hands through physical grip points.
 An independent depth buffer handles hand/item overlaps and nearby walls.
 Changing or unwielding items updates both geometry and that buffer.
 Version 0.7 adds material-specific doors, glass, bridges and guardrails, dimension skies,
