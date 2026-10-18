@@ -93,7 +93,11 @@
         require(target!=nullptr,"target_hud_huge_subject_missing");warm(mode);
         record("huge-close",true,true,target->get_hp(),target->get_hp_max());clear_monsters();
         target=g->place_critter_at(mtype_id("mon_flaming_eye"),goal);subject=target;
-        require(target!=nullptr,"target_hud_flying_subject_missing");target->anger=100;target->morale=100;warm(mode);
+        require(target!=nullptr,"target_hud_flying_subject_missing");target->anger=100;target->morale=100;
+        // The authored flying-eye sprite has an elevated, offset opaque iris.
+        // The ground-zombie angle hit transparent pixels below it (verified in
+        // actual Native capture). Aim inside the iris; retain pixel ownership.
+        camera(-ncmm_graphics_camera::pi*.5f+.06f,-.03f);warm(mode);
         record("flying",true,true,target->get_hp(),target->get_hp_max());
         {
             SDL_Texture *wide=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,1280,720);
@@ -106,6 +110,7 @@
             record("wide",true,true,target->get_hp(),target->get_hp_max());
         }
         clear_monsters();
+        camera(-ncmm_graphics_camera::pi*.5f,-.10f);
         auto person=make_shared_fast<npc>();person->normalize();person->name="Враждебный NPC";person->set_attitude(NPCATT_KILL);
         person->spawn_at_precise(here.get_abs(goal));overmap_buffer.insert_npc(person);g->load_npcs();person->setpos(here,goal,false);person->set_attitude(NPCATT_KILL);subject=person.get();
         warm(mode);record("npc-native-summary",true,true,person->get_hp(),person->get_hp_max());

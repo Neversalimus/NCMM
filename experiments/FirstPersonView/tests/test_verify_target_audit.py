@@ -61,5 +61,11 @@ class TargetEvidenceTests(unittest.TestCase):
         file = self.root/self.case('full')['file']; file.write_bytes(file.read_bytes()[:-1])
         with self.assertRaises(AssertionError): self.run_report()
 
+    def test_vulkan_requires_explicit_backend(self):
+        for case in self.report['cases']:
+            if case['renderer']=='gpu':case['backend']='vulkan'
+        with self.assertRaises(AssertionError):self.run_report()
+        self.assertEqual(verify(self.root,expected_backend='vulkan')['native_cases'],42)
+
 
 if __name__ == '__main__': unittest.main()

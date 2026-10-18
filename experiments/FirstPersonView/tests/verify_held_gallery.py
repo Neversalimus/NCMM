@@ -21,7 +21,7 @@ PHASES = set(BODY) | set(ACCESSORIES) | {'pump-loaded', 'pump-empty'}
 DEFAULT_MANIFEST = Path(__file__).resolve().parents[1]/'assets/held_items/generated/manifest.json'
 
 
-def verify(root, manifest=DEFAULT_MANIFEST, expected_device=None):
+def verify(root, manifest=DEFAULT_MANIFEST, expected_device=None, expected_backend='direct3d12'):
     root = Path(root).resolve()
     imported = json.loads(Path(manifest).read_text(encoding='utf-8-sig'))
     if 'imported' in imported:
@@ -49,7 +49,7 @@ def verify(root, manifest=DEFAULT_MANIFEST, expected_device=None):
         if mode == 'gpu':
             assert r['static_builds'] == 0 and r['static_reuses'] >= attachments+1
             assert r['static_mesh_upload_bytes'] == r['dynamic_geometry_bytes'] == 0
-            assert r['gpu_draw_calls'] > 0 and r['backend'] == 'direct3d12' and r['device']
+            assert r['gpu_draw_calls'] > 0 and r['backend'] == expected_backend and r['device']
             if expected_device:
                 assert not r['software_device'] and r['device'] == expected_device
             devices.add(r['device']);software_devices.add(r['software_device']);peak=max(peak,r['gpu_resource_bytes'])
@@ -90,8 +90,9 @@ if __name__ == '__main__':
     parser.add_argument('--root',type=Path,required=True)
     parser.add_argument('--manifest',type=Path,default=DEFAULT_MANIFEST)
     parser.add_argument('--expected-device')
+    parser.add_argument('--expected-backend',choices=['direct3d12','vulkan'],default='direct3d12')
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args()
-    result=verify(args.root,args.manifest,args.expected_device)
+    result=verify(args.root,args.manifest,args.expected_device,args.expected_backend)
     args.output.write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
     print(json.dumps({k:v for k,v in result.items() if k!='images'}))

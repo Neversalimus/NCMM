@@ -14,7 +14,7 @@ PHASES = {'full', 'damaged', 'cyrillic-long', 'disabled-name-only', 'replaced-sa
 HIDDEN = {'dead', 'opaque-wall', 'window-mullion', 'lost-aim', 'blind-hidden', 'other-floor'}
 
 
-def verify(root, expected_device=None):
+def verify(root, expected_device=None, expected_backend='direct3d12'):
     root = Path(root).resolve()
     report = json.loads((root/'first-person-target-audit.json').read_text(encoding='utf-8-sig'))
     assert report['schema'] == 1 and report['success'] and report['actual_cdda_sdl'] and not report['manual_playthrough']
@@ -31,7 +31,7 @@ def verify(root, expected_device=None):
         assert case['gpu'] == (mode == 'gpu'), 'Hidden CPU fallback in GPU HUD evidence'
         assert math.isfinite(case['window_display_scale']) and case['window_display_scale'] >= 0
         if mode == 'gpu':
-            assert case['backend'] == 'direct3d12' and case['device']
+            assert case['backend'] == expected_backend and case['device']
             if expected_device:
                 assert case['device'] == expected_device and not case['software_device']
         assert math.isfinite(case['fraction'])
@@ -79,7 +79,8 @@ if __name__ == '__main__':
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--expected-device')
+    parser.add_argument('--expected-backend',choices=['direct3d12','vulkan'],default='direct3d12')
     args = parser.parse_args()
-    result = verify(args.root,args.expected_device)
+    result = verify(args.root,args.expected_device,args.expected_backend)
     args.output.write_text(json.dumps(result, indent=2)+'\n', encoding='utf-8')
     print(json.dumps({k: v for k, v in result.items() if k != 'images'}))

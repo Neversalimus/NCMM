@@ -270,3 +270,25 @@ its own QPA plugin selection. Omit `--hostname` for a local launch. Capture
 settings (including Nsight's enforced VSync-off default and clock mode) must be
 recorded separately from ordinary profiler-off timings. A startup capture is
 only connection validation and does not qualify a first-person scene.
+
+## Actual Linux Native qualification
+
+`ncmm-fpv-linux-native.yml` builds the exact 1040 and 1807 CDDA sources with
+the same canonical stack and experimental graphics bridge, upstream SDL 3.4.10,
+and the real `.so` modules. The private experimental loader uses `dlopen` with
+local symbol visibility and retains the existing descriptor, capability,
+migration, failure and shutdown checks. Public module interfaces and the
+canonical shipping Windows Host are unchanged. The normal Windows experimental
+loader still uses wide paths and the same LoadLibrary/GetProcAddress behavior.
+
+The Linux runner uses fresh owned worlds under Xvfb and explicit Mesa software
+Vulkan. It exercises Native controls, camera input, held-model captures, target
+HUD captures, actual firing pixels and Native save/reload. It records hashes
+and real child exit status and preserves failed evidence. It must not be cited
+as RTX 4090, ordinary frame-time or Linux installer qualification. The official
+Windows graphics archive supplies digest-checked common game data only; the
+executable and Linux SPIR-V are built from the exact Linux source. No Windows
+binary is executed there. Full qualification also requires this Linux gate.
+
+This new gate is pending its first actual CI run; a compiled module alone does
+not establish that the Host can load it or display a Native frame.

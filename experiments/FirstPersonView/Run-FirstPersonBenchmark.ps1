@@ -362,7 +362,7 @@ if($TargetHudGallery){
     $soaked=0
 }elseif($CameraInputProbe){
     $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
-    if($audit.schema -ne 1 -or $audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.native_unchanged -ne $true -or $audit.fixture_input_lease -ne $false -or $audit.ordinary_performance_measurement -ne $false -or $audit.mouse_events -lt 400 -or $audit.rotation_radians -le 12.5 -or $audit.presented_frames -lt 16 -or $audit.gpu_frames -ne $audit.presented_frames -or $audit.cpu_frames -ne 0 -or $audit.nonperspective_frames -ne 0 -or $audit.snapshot_hits -le 1000 -or $audit.detail_hits -le 0 -or $audit.presentation_hits -le 0){throw 'Real native SDL camera reuse evidence is incomplete.'}
+    if($audit.schema -ne 1 -or $audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.native_unchanged -ne $true -or $audit.fixture_input_lease -ne $false -or $audit.ordinary_performance_measurement -ne $false -or $audit.mouse_events -lt 400 -or $audit.rotation_radians -lt 12.566370614359 -or $audit.presented_frames -lt 16 -or $audit.gpu_frames -ne $audit.presented_frames -or $audit.cpu_frames -ne 0 -or $audit.nonperspective_frames -ne 0 -or $audit.snapshot_hits -le 1000 -or $audit.detail_hits -le 0 -or $audit.presentation_hits -le 0){throw 'Real native SDL camera reuse evidence is incomplete.'}
     $soaked=0
 }elseif($TraceCaptureScene){
     $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json

@@ -21,6 +21,22 @@ int main(){
         const auto token=lease.begin("DEFAULTMODE");lease.end(token,action);
         require(lease.generation()!=generation&&!lease.active(),"every native/unknown action revokes old snapshot");generation=lease.generation();
     }
+    const auto input_loop=lease.begin_native_loop();
+    generation=lease.generation();
+    for(int poll=0;poll<100;++poll){
+        auto wait=lease.begin("DEFAULTMODE");require(lease.active(),"native animation-loop poll is leased");
+        lease.end(wait,"TIMEOUT");
+        require(lease.active()&&lease.generation()==generation,"125 ms Native animation timeout preserves immutable world");
+    }
+    lease.end(input_loop,"UP");require(!lease.active()&&lease.generation()!=generation,"actual action revokes outer Native lifetime");
+    auto loop=lease.begin_native_loop();auto menu=lease.begin("INVENTORY");
+    require(!lease.active(),"nested Native menu revokes animation-loop lease");
+    lease.end(menu,"TIMEOUT");require(!lease.active(),"menu timeout cannot reactivate world access");
+    lease.end(loop,"ncmm.view.turn_left");
+    loop=lease.begin_native_loop();auto recursive=lease.begin_native_loop();
+    require(!lease.active(),"recursive native input loop cannot inherit ownership");
+    lease.end(recursive,"ncmm.view.turn_left");lease.end(loop,"ncmm.view.turn_left");
+    generation=lease.generation();
     const auto outer=lease.begin("DEFAULTMODE"),inner=lease.begin("INVENTORY");
     require(!lease.active()&&lease.generation()!=generation,"nested menu revokes outer input lease");
     lease.end(outer,"ncmm.view.turn_left");require(!lease.active(),"out-of-order guard cannot reactivate nested input");

@@ -19,12 +19,17 @@ struct {
     bool active=false;
     uint64_t mouse_events=0,presents=0,gpu_frames=0,cpu_frames=0,nonperspective_frames=0;
     double rotation_radians=0;
+    bool last_composed_perspective=false,last_composed_gpu=false;
+    uint64_t retained_perspective_frames=0,unclassified_captures=0,capture_failures=0;
+    std::map<std::string,uint64_t> lease_invalidations;
 } graphics_camera_input_probe;
 void graphics_snapshot_external_callback(const char *module_id)
 {
     // Other modules may change items/actors even without advancing calendar::turn.
     // Never assume their UI callbacks are read-only or change their behaviour.
-    if(!module_id||graphics_view.owner!=module_id){graphics_snapshot_lease.invalidate();graphics_camera_cache.suspend();}
+    if(!module_id||graphics_view.owner!=module_id){
+        if(graphics_camera_input_probe.active)++graphics_camera_input_probe.lease_invalidations["callback:"+std::string(module_id?module_id:"unknown")];
+        graphics_snapshot_lease.invalidate();graphics_camera_cache.suspend();}
 }
 bool &graphics_gameplay_context = graphics_context.perspective;
 // Set only by the opt-in native firing audit to reproduce the original policy.
