@@ -39,6 +39,13 @@ int main(){try{
         const auto primary=contact(model.grips.primary),trigger=contact(model.grips.trigger),secondary=contact(model.grips.secondary);
         const auto axis=viewmodel::unit(viewmodel::direction(entry.local,model.grips.primary_axis));
         const auto support_axis=viewmodel::unit(viewmodel::direction(entry.local,model.grips.secondary_axis));
+        if(model.kind==held::family::medical||model.kind==held::family::gas_can){
+            size_t inside=0;
+            for(size_t v=0;v<model.geometry.vertex_count;++v){const auto &source=model.geometry.vertices[v];
+                const auto p=viewmodel::position(entry.local,viewmodel::position(entry.bones.palette[source.palette],source.position));
+                inside+=p.z>.05f&&p.y>=-p.z*.394f;}
+            require(inside*10>=model.geometry.vertex_count*9,"handled container body remains above the ordinary lower view plane");
+        }
         for(float slope:{.394f,.4376f,.525f}){
             if(!arms.attach(primary,false,slope,*hand,value.flags&NCMM_HELD_GUN?&trigger:nullptr,nullptr,&axis)){
                 std::cerr<<model.id<<" primary slope="<<slope<<" trigger delta="<<trigger.x-primary.x<<','<<trigger.y-primary.y<<','<<trigger.z-primary.z<<'\n';++failed;}

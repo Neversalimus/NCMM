@@ -30,7 +30,12 @@ struct prepared {
                 const auto q=pose.rotation;pose.rotation={q.w*turn.x+q.x*turn.w,q.y*turn.w+q.z*turn.x,q.z*turn.w-q.y*turn.x,q.w*turn.w-q.x*turn.x};}
             if(!viewmodel::evaluate(model.geometry,body.bones)){selected.body=nullptr;selected.reason=failure::invalid_metadata;return false;}
         }
-        const viewmodel::point grip=uint32_t(model.kind)<=uint32_t(family::auto_shotgun)?viewmodel::point{.185f,-.267f,.67f}:viewmodel::point{.27f,-.28f,.84f};
+        viewmodel::point grip=uint32_t(model.kind)<=uint32_t(family::auto_shotgun)?viewmodel::point{.185f,-.267f,.67f}:viewmodel::point{.27f,-.28f,.84f};
+        // These real handles sit above their body. A generic low tool grip
+        // placed almost the entire container outside the frame. Reposition the
+        // intact model and solve the same bounded PSX arm rig; never stretch it.
+        if(model.kind==family::medical)grip={.27f,-.06f,.65f};
+        if(model.kind==family::gas_can)grip={.23f,.08f,.62f};
         body.local=viewmodel::transform({grip,{}, {selected.scale,selected.scale,selected.scale}});count=1;
         for(size_t i=0;i<selected.attachment_count;++i){const auto &source=selected.attachments[i];auto &out=entries[count];out.geometry=source.geometry;out.magazine=true;out.round=false;
             out.static_builds=out.static_reuses=out.draws=out.palette_matrices=0;
