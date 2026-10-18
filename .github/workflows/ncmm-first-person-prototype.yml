@@ -87,6 +87,7 @@ jobs:
           ./experiments/FirstPersonView/tests/Test-BenchmarkCapture.ps1
           ./experiments/FirstPersonView/tests/Test-BenchmarkDataCopy.ps1
           ./experiments/FirstPersonView/tests/Test-CompilerWrapper.ps1
+          ./experiments/FirstPersonView/tests/Test-HeldPackage.ps1
       - name: Diagnostic environment isolation on Windows PowerShell
         if: runner.os == 'Windows'
         shell: powershell
@@ -96,6 +97,7 @@ jobs:
           ./experiments/FirstPersonView/tests/Test-BenchmarkPaths.ps1
           ./experiments/FirstPersonView/tests/Test-BenchmarkCapture.ps1
           ./experiments/FirstPersonView/tests/Test-BenchmarkDataCopy.ps1
+          ./experiments/FirstPersonView/tests/Test-HeldPackage.ps1
       - name: Configure isolated module
         run: cmake -S experiments/FirstPersonView -B fp-build -DCMAKE_BUILD_TYPE=Release -DFIRST_PERSON_BUILD_BENCHMARK=ON
       - name: Build prototype and contract tests
@@ -104,9 +106,14 @@ jobs:
         run: ctest --test-dir fp-build -C Release --output-on-failure
       - name: Offline PSX importer malformed-input and determinism checks
         run: python -B experiments/FirstPersonView/tests/test_import_psx_arms.py -v
-      - name: Native firing pixel verifier negative tests
+      - name: Offline held resource conversion and malformed-input checks
         run: |
           python -m pip install --disable-pip-version-check pillow==11.3.0
+          python -B experiments/FirstPersonView/tests/test_import_held_items.py -v
+          python -B experiments/FirstPersonView/tests/test_verify_held_gallery.py -v
+          python -B experiments/FirstPersonView/tools/import_held_items.py --selection experiments/FirstPersonView/assets/held_items/selection.json --output experiments/FirstPersonView/assets/held_items/generated --check
+      - name: Native firing pixel verifier negative tests
+        run: |
           python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_fire_pixels.py -v
       - name: Record renderer timing and work counters (no FPS threshold)
         run: cmake --build fp-build --config Release --target first_person_measure
@@ -393,6 +400,24 @@ jobs:
               if(!(Test-Path (Join-Path $root 'ncmm/boot.ready')) -or (Test-Path (Join-Path $root 'ncmm/boot.pending'))){throw 'Bootstrap lifecycle markers inconsistent.'}
             }
           }
+      - name: Native held models, actual attachments, ammunition and CPU/GPU captures
+        timeout-minutes: 15
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $output=Join-Path $env:RUNNER_TEMP 'fp-held-gallery'
+          try {
+            ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -HeldAssetGallery -CaptureCrashDump -GpuDebug
+            python -B ncmmrepo/experiments/FirstPersonView/tests/verify_held_gallery.py --root (Join-Path $output 'evidence') --output (Join-Path $output 'evidence/first-person-held-gallery-verified.json')
+            if($LASTEXITCODE -ne 0){throw 'Native held model/state/capture verification failed.'}
+          } finally {
+            $dest=Join-Path $PWD 'installer-result/held-gallery'
+            New-Item -ItemType Directory -Path $dest -Force | Out-Null
+            $evidence=Join-Path $output 'evidence'
+            if(Test-Path -LiteralPath $evidence){
+              Get-ChildItem -LiteralPath $evidence -File | Where-Object {$_.Name -like 'first-person-held-*' -or $_.Name -eq 'first-person-process-result.json'} | Copy-Item -Destination $dest
+            }
+          }
       - name: Fast native multi-Z save-load gate before the full gallery
         timeout-minutes: 10
         shell: powershell
@@ -631,6 +656,8 @@ jobs:
             if($variant.name -eq 'graphics' -and (Test-Path $movement)){Copy-Item $movement (Join-Path fp-evidence 'movement') -Recurse -Force}
             $cameraInput=Join-Path $env:RUNNER_TEMP 'fp-camera-input/evidence'
             if($variant.name -eq 'graphics' -and (Test-Path -LiteralPath $cameraInput)){Copy-Item -LiteralPath $cameraInput (Join-Path fp-evidence 'camera-input') -Recurse -Force}
+            $heldGallery=Join-Path $env:RUNNER_TEMP 'fp-held-gallery/evidence'
+            if($variant.name -eq 'graphics' -and (Test-Path -LiteralPath $heldGallery)){Copy-Item -LiteralPath $heldGallery (Join-Path fp-evidence 'held-gallery') -Recurse -Force}
             $debug=Join-Path $env:RUNNER_TEMP ("fp-appearance-"+'${{ matrix.build }}'+'-'+$variant.name)
             if(Test-Path $debug){Copy-Item $debug (Join-Path fp-evidence ('appearance-debug-'+$variant.name)) -Recurse -Force}
           }
@@ -645,6 +672,7 @@ jobs:
             fp-evidence/focused-gpu*/**
             fp-evidence/movement/**
             fp-evidence/camera-input/**
+            fp-evidence/held-gallery/**
           compression-level: 9
           retention-days: 7
       - uses: actions/upload-artifact@v4
@@ -669,6 +697,7 @@ jobs:
           path: |
             installer-result/first-person-release-verified.json
             installer-result/camera-input-*.json
+            installer-result/held-gallery/**
             installer-result/first-person-movement-*.json
             installer-result/first-person-movement-*.bmp
             installer-result/first-person-gameplay*.json

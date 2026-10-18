@@ -92,6 +92,7 @@
         if(!native_errors.empty())log_line(NCMM_LOG_ERROR,("Native audit diagnostic: "+native_errors).c_str());
         require(native_errors.empty(),"audit_native_debug_message");
         report.start_object();report.member("name",name);report.member("native_action_wall_ms",milliseconds(begin));report.member("success",true);report.end_object();stream.flush();checkpoint(std::string(name)+" PASS");};
+    action("native_held_assets_and_shared_psx_contacts",[&](){graphics_run_held_gallery(you,here,require,frames);floor();warm("cpu");});
     action("native_firing_ui_context_and_presented_frames",[&](){
         #include "ncmm_graphics_fire_audit.inc"
     });

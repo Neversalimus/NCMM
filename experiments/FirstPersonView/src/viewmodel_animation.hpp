@@ -22,6 +22,10 @@ point position(const matrix &m,point value) noexcept;
 point direction(const matrix &m,point value) noexcept;
 quaternion slerp(quaternion a,quaternion b,float alpha) noexcept;
 bool valid_asset(const asset &source) noexcept;
+// The same bounded geometry/rig evaluator also supports held meshes without
+// PSX-specific skin textures or authored animation clips. Arms keep their
+// original stricter valid_asset contract.
+bool valid_rigged_mesh(const asset &source) noexcept;
 int clip_index(const asset &source,const char *name) noexcept;
 int node_index(const asset &source,const char *name) noexcept;
 // No allocation or sampling state: identical times produce identical poses.

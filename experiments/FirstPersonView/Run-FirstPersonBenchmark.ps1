@@ -12,6 +12,8 @@ param(
     [switch]$DisableCameraSnapshot,
     [ValidateSet('quiet','rotate','step','shot','hands','smoke','city')][string]$TraceCaptureScene,
     [switch]$ViewmodelGallery,
+    [switch]$HeldAssetGallery,
+    [switch]$DisableHeldAssets,
     [switch]$CaptureCrashDump,
     [switch]$GpuDebug,
     [string]$DumpAnalyzer
@@ -55,12 +57,14 @@ function Read-NativeBenchmarkProgress([string]$Path){
 }
 if(-not $BundleRoot){$BundleRoot=$PSScriptRoot}
 if(-not $DumpAnalyzer){$DumpAnalyzer=Join-Path $PSScriptRoot 'ncmm_native_dump_analyzer.exe'}
-if($CameraInputProbe -and ($MovementBenchmark -or $FocusedGpuBenchmark -or $ViewmodelGallery -or $Extended -or $CameraSnapshotVerify -or $DisableCameraSnapshot -or $TraceCaptureScene -or $TilesetRoot -or $PSBoundParameters.ContainsKey('SoakSeconds'))){throw 'CameraInputProbe requires its own native diagnostic run.'}
+if($CameraInputProbe -and ($MovementBenchmark -or $FocusedGpuBenchmark -or $ViewmodelGallery -or $HeldAssetGallery -or $Extended -or $CameraSnapshotVerify -or $DisableCameraSnapshot -or $TraceCaptureScene -or $TilesetRoot -or $PSBoundParameters.ContainsKey('SoakSeconds'))){throw 'CameraInputProbe requires its own native diagnostic run.'}
 if($TraceCaptureScene){
     if($FocusedGpuBenchmark -or $ViewmodelGallery -or $Extended -or $CameraSnapshotVerify -or $TilesetRoot -or $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'TraceCaptureScene requires its own diagnostic run.'}
     $MovementBenchmark=$true
 }
 if($MovementBenchmark -and $FocusedGpuBenchmark){throw 'Choose one focused benchmark.'}
+if($HeldAssetGallery -and ($MovementBenchmark -or $FocusedGpuBenchmark -or $ViewmodelGallery -or $DisableHeldAssets -or $CameraInputProbe)){throw 'HeldAssetGallery requires its own enabled native diagnostic run.'}
+if($HeldAssetGallery -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the gameplay audit.'}
 if($Extended -and -not $MovementBenchmark){throw 'Extended requires MovementBenchmark.'}
 if($CameraSnapshotVerify -and (-not $MovementBenchmark -or $DisableCameraSnapshot)){throw 'CameraSnapshotVerify requires an enabled movement snapshot run.'}
 if($ViewmodelGallery -and ($MovementBenchmark -or $FocusedGpuBenchmark)){throw 'ViewmodelGallery belongs to the gameplay audit.'}
@@ -159,7 +163,7 @@ public static class NCMMNativeCrashDialog {
 }
 '@
 }
-$names=@('NCMM_FP_CAMERA_INPUT','NCMM_FP_CAMERA_CACHE','NCMM_FP_CAMERA_CACHE_VERIFY','NCMM_FP_TRACE_MARKERS','NCMM_FP_TRACE_CAPTURE_SCENE','NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT')
+$names=@('NCMM_FP_CAMERA_INPUT','NCMM_FP_CAMERA_CACHE','NCMM_FP_CAMERA_CACHE_VERIFY','NCMM_FP_TRACE_MARKERS','NCMM_FP_TRACE_CAPTURE_SCENE','NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT','NCMM_FP_HELD_GALLERY_ONLY','NCMM_FP_HELD_ASSETS')
 $prior=@{}
 # Modern .NET preserves an empty environment variable. PowerShell can convert
 # $null to that empty string at the .NET call boundary, and native getenv then
@@ -171,7 +175,8 @@ $failure=$null
 $process=$null
 $lastProgress='native startup'
 try {
-    if($CameraInputProbe){$env:NCMM_FP_CAMERA_INPUT='1'}elseif($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
+    if($CameraInputProbe){$env:NCMM_FP_CAMERA_INPUT='1'}elseif($HeldAssetGallery){$env:NCMM_FP_HELD_GALLERY_ONLY='1'}elseif($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
+    if($DisableHeldAssets){$env:NCMM_FP_HELD_ASSETS='0'}
     if($Extended){$env:NCMM_FP_EXTENDED='1'}
     if($CameraSnapshotVerify){$env:NCMM_FP_CAMERA_CACHE_VERIFY='1'}
     if($DisableCameraSnapshot){$env:NCMM_FP_CAMERA_CACHE='0'}
@@ -192,8 +197,9 @@ try {
     # The native firing matrix preserves every actual presented frame. Its 186
     # attempts can exceed twenty minutes with lossless diagnostic readback.
     # Keep the independent 180-second no-progress/crash guard below.
-    $deadline=[DateTime]::UtcNow.AddSeconds($(if($Extended){7200}elseif($FocusedGpuBenchmark){600}elseif($MovementBenchmark){1200}else{$SoakSeconds+3600}))
+    $deadline=[DateTime]::UtcNow.AddSeconds($(if($Extended){7200}elseif($FocusedGpuBenchmark -or $HeldAssetGallery -or $CameraInputProbe){600}elseif($MovementBenchmark){1200}else{$SoakSeconds+3600}))
     $progressPath=Join-Path $test 'ncmm/first-person-audit-progress.txt'
+    if($HeldAssetGallery){$progressPath=Join-Path $test 'ncmm/first-person-held-gallery-progress.txt'}
     $lastProgress='native startup'
     $lastAdvance=[DateTime]::UtcNow
     while(-not $process.WaitForExit(20000)){
@@ -323,9 +329,19 @@ if($exitCode -ne 0){
 }
 if($debugger -and $debugger.Error){throw "Native diagnostic debugger failed: $($debugger.Error)"}
 if($debugger -and $debugger.Dumps -gt 0){throw 'Native diagnostic captured an access violation even though the process exited successfully.'}
-$auditName=if($CameraInputProbe){'first-person-camera-input.json'}elseif($TraceCaptureScene){'first-person-nsight-scene.json'}elseif($MovementBenchmark){'first-person-movement-benchmark.json'}elseif($FocusedGpuBenchmark){'first-person-gpu-benchmark.json'}else{'first-person-gameplay-audit.json'}
+$auditName=if($HeldAssetGallery){'first-person-held-gallery.json'}elseif($CameraInputProbe){'first-person-camera-input.json'}elseif($TraceCaptureScene){'first-person-nsight-scene.json'}elseif($MovementBenchmark){'first-person-movement-benchmark.json'}elseif($FocusedGpuBenchmark){'first-person-gpu-benchmark.json'}else{'first-person-gameplay-audit.json'}
 if(-not (Test-Path -LiteralPath (Join-Path $evidence $auditName))){throw "Requested native benchmark report is missing: $auditName; final phase=$lastProgress"}
-if($CameraInputProbe){
+if($HeldAssetGallery){
+    $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
+    if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.manual_playthrough -ne $false -or @($audit.records).Count -ne 64){throw 'Native held asset gallery is incomplete.'}
+    foreach($record in $audit.records){
+        if($record.fallback_reason -ne 0 -or $record.matched -ne 1 -or -not $record.identity -or -not $record.model -or $record.draws -lt $record.attachments+1){throw 'An installed authored model was not actually selected.'}
+        if($record.renderer -eq 'gpu' -and ($record.gpu -ne $true -or $record.static_builds -ne 0 -or $record.static_reuses -lt $record.attachments+1 -or $record.static_mesh_upload_bytes -ne 0 -or $record.dynamic_geometry_bytes -ne 0)){throw 'Held GPU residency or backend qualification failed.'}
+        if($record.width -ne 1280 -or $record.height -ne 800 -or -not (Test-Path -LiteralPath (Join-Path $evidence $record.capture))){throw 'A native held capture is missing.'}
+        if($record.ammo_loaded -ne ($record.native_is_gun -and $record.native_ammo_remaining -gt 0)){throw 'Held round visibility differs from actual native ammunition.'}
+    }
+    $soaked=0
+}elseif($CameraInputProbe){
     $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
     if($audit.schema -ne 1 -or $audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.native_unchanged -ne $true -or $audit.fixture_input_lease -ne $false -or $audit.ordinary_performance_measurement -ne $false -or $audit.mouse_events -lt 400 -or $audit.rotation_radians -le 12.5 -or $audit.presented_frames -lt 16 -or $audit.gpu_frames -ne $audit.presented_frames -or $audit.cpu_frames -ne 0 -or $audit.nonperspective_frames -ne 0 -or $audit.snapshot_hits -le 1000 -or $audit.detail_hits -le 0 -or $audit.presentation_hits -le 0){throw 'Real native SDL camera reuse evidence is incomplete.'}
     $soaked=0

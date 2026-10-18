@@ -20,6 +20,16 @@ internal static class FirstPersonInstallerTests
             .Where(p => Path.GetFileName(p) != ".ncmm-install.lock")
             .OrderBy(p => p, StringComparer.Ordinal).Select(p => p.Substring(root.Length) + "|" + SetupCore.Sha256(p)).ToArray());
     }
+    private static void CheckHeldResources(string root, string payload)
+    {
+        foreach (string name in new[] { "held-assets.manifest.json", "held-assets-licenses.txt" })
+        {
+            string relative = Path.Combine("code_mods", "FirstPersonView", name);
+            Require(File.Exists(Path.Combine(root, relative)) &&
+                SetupCore.Sha256(Path.Combine(root, relative)) == SetupCore.Sha256(Path.Combine(payload, relative)),
+                "Installed held resource provenance or license differs: " + name);
+        }
+    }
 
     private static void CheckUpgrade(string root, string game, string payload, string bootstrap,
         string receiptDirectory, bool uppercase, bool longPaths = false)
@@ -111,6 +121,10 @@ internal static class FirstPersonInstallerTests
             Require(SetupCore.DiscoverBundledModules(Path.Combine(payload, "code_mods")).Any(m => m.Manifest.id == "first_person_view"), "First Person View absent from installer selection");
             string[] selection = { "first_person_view" };
             InstallResult first = SetupCore.Install(root, payload, selection);
+            CheckHeldResources(root, payload);
+            File.WriteAllText(Path.Combine(root, "code_mods", "FirstPersonView", "held-assets.manifest.json"), "damaged-resource-receipt");
+            Require(SetupCore.Install(root, payload, selection).CompletionVerified, "Held resource repair failed");
+            CheckHeldResources(root, payload);
             Require(first.CompletionVerified, "Install was not verified");
             Require(SetupCore.SyncCertifiedHost(root).Ready, "Bundled Host missing");
             Require(SetupCore.SyncCertifiedHost(root).Message.Contains(bundle.upstream_tag.Substring("cdda-experimental-".Length)), "Host status identifies the wrong game version");

@@ -111,6 +111,9 @@ bool graphics_scene_smoke()
         } else if( std::getenv( "NCMM_FP_CAMERA_INPUT" ) ) {
             #include "ncmm_graphics_camera_input.inc"
             press_f6();require(!graphics_view.enabled,"camera_input_f6_restore_failed");
+        } else if( std::getenv( "NCMM_FP_HELD_GALLERY_ONLY" ) ) {
+            graphics_run_held_gallery(you,here,require,frames);
+            press_f6();require(!graphics_view.enabled,"held_gallery_f6_restore_failed");
         } else if( std::getenv( "NCMM_FP_MOVEMENT_ONLY" ) ) {
             #include "ncmm_graphics_movement_benchmark.inc"
             press_f6();require(!graphics_view.enabled,"movement_benchmark_f6_restore_failed");

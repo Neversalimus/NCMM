@@ -159,3 +159,66 @@ The expanded diagnostic matrix and 27-state native SDL gallery are opt-in;
 default release gates keep their existing strict matrix. Both pinned Hosts,
 install/repair/rollback, native debug-device lifecycle and the final hardware
 comparison must qualify before merging. See [DIAGNOSTICS.md](DIAGNOSTICS.md).
+
+## Compiled CC0 held resources
+
+`assets/held_items/selection.json` pins 30 separate author models: 26 main items
+and four installed firearm accessories. It records the publishing authors,
+versions, direct archive or individual author downloads, original file hashes
+and CC0 evidence. `generated/manifest.json` pins every compiled output. Author
+GLB/OBJ/MTL/PNG inputs remain unchanged; the offline importer accepts only this
+bounded selection and rejects unsupported influences or animation data.
+No selected source contains an authored animation clip. All retained mechanism
+nodes, hierarchy, exact joint weights, normals, UVs and material groups use the
+same bounded rig evaluator as PSX arms. The arms retain their stricter existing
+asset/clip/texture validation. Red-dot transmission is explicitly adapted to
+tinted alpha blending, without a claim of physical refraction.
+
+The optional `graphics.held.v1` interface copies owned canonical IDs, a bounded
+cycle-checked `looks_like` chain, actual gun flags/skill, qualities, dimensions
+and installed mods on the native thread. No item/Creature/atlas pointer is
+retained. Selection is canonical ID, compatible appearance ancestry, conservative
+native property family, then the established renderer. Unknown mechanisms,
+visible attachments, incompatible sizes and unreachable hands report a specific
+fallback reason. Localized item names are never used by this selection path.
+The assault family includes the author's weighted extended Stock geometry;
+SCAR's exact native `high_end_folding_stock` default is represented by that body.
+A removed, folded or unsupported replacement stock selects the existing fallback
+instead of leaving a phantom stock or silently ignoring a visible attachment.
+
+One calibrated source frame defines the mesh and both grip contacts. The original
+PSX weighted hands orient around those grip axes and retain source bone lengths;
+the trigger finger uses the same posed trigger point. Only confirmed native
+shot serials animate supported trigger/automatic-action nodes. No reload, use,
+shot, movement cost or simulation event is fabricated. The GPU collector keys
+immutable meshes by the offline model identity and uploads poses thereafter;
+detachable magazines and the actual presence of ammunition select existing parts
+without rebuilding static vertices. Empty weapons do not display an authored round.
+The imported path does not request an unused tileset held sprite.
+
+The separate Pichuliru accessories are authored in GLB world coordinates; the
+gun sockets inherit the rig's exported bone coordinate frame. Their explicit
+offline rigid mating rotations join those frames before the uniform Native
+dimension scale. Socket animation and original mesh proportions are retained.
+Numerical checks require the front grip and support hand below the bottom rail
+and the suppressor ahead of the muzzle; mounted orientation also requires review
+in actual Native captures. Cancelling mesh normalization alone is insufficient.
+
+The installer compiles geometry/textures into the DLL and installs the exact
+resource manifest and license evidence. It requires no Blender, Python, network
+or runtime model importer. Its existing transaction tests also check these files
+and repair a damaged installed receipt. `-HeldAssetGallery` runs 64 native SDL
+captures (26 base models, four actual installed accessories and loaded/empty
+pump states, CPU and GPU),
+recording chosen model/accessory identities, fallback, matrices and upload/cache
+counters. `-DisableHeldAssets` is a process-isolated diagnostic control for
+paired measurements; it is not a new gameplay setting. The extended armed scene
+uses canonical `scar_l` so the resource path participates in those comparisons.
+The gallery verifier requires all 64 cases, the exact 30 compiled identities,
+complete lossless pixel storage and pose-only warm GPU reuse. CI preserves
+gallery diagnostics on failure. These checks do not claim visual quality or
+ordinary frame-time acceptance.
+
+Local numerical/rendering tests are development evidence. Native selection,
+screenshots, both engine pins, final performance and long GPU-debug qualification
+remain separate required checks; this change does not declare them passed.

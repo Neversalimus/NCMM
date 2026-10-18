@@ -528,6 +528,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         copy_id( env.held_item, held->typeId().str() ); env.held_kind = held->is_gun() ? 1u : held->is_melee() ? 2u : 3u;
     }
     graphics_hybrid_last_environment = env;
+    graphics_prepare_held();
     graphics_prepare_presentation( base,positions,details,world );
     if(graphics_camera_cache.verify&&graphics_camera_cache.totals.verification_mismatches){
         log_line(NCMM_LOG_ERROR,"NCMM camera snapshot differential mismatch");

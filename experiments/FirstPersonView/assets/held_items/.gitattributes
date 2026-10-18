@@ -1,0 +1,3 @@
+/source/** -text linguist-vendored=true
+/generated/** text eol=lf linguist-generated=true
+/selection.json text eol=lf

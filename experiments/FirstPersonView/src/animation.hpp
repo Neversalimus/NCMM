@@ -5,12 +5,14 @@
 #include <string>
 #include <string_view>
 namespace first_person::viewmodel {class frame;}
+namespace first_person::held {struct prepared;}
 namespace first_person::animation {
 struct attack_sample {float phase=-1;uint64_t serial=0;uint32_t kind=0;};
 struct pose {float swing=0,thrust=0,recoil=0,sway_x=0,sway_y=0;uint32_t grip=NCMM_GRIP_SINGLE;float length=.6f;
     double seconds=0;float attack_phase=-1,equip_phase=1;uint64_t attack_serial=0;uint32_t attack_kind=0;
     attack_sample interrupted;float attack_blend=1;
-    const viewmodel::frame *prepared_frame=nullptr;}; // Borrowed only for this render callback.
+    const viewmodel::frame *prepared_frame=nullptr;
+    held::prepared *prepared_item=nullptr;}; // Borrowed only for this render callback.
 inline float smooth(float x){x=std::clamp(x,0.0f,1.0f);return x*x*(3-2*x);}
 inline pose sample(const ncmm_graphics_control_state_v1 &s,double now){
     pose p;p.grip=s.grip_kind;p.length=std::clamp(s.held_length,.15f,2.7f);p.seconds=now;p.attack_serial=s.attack_serial;p.attack_kind=s.attack_kind;
