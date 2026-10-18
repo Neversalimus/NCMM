@@ -80,7 +80,8 @@ template<class Require> void graphics_run_held_gallery(avatar &you,map &here,Req
     };
     for(const char *mode:{"cpu","gpu"}){
         for(const auto &entry:entries){const itype_id type(entry.native);require(type.is_valid(),"held_gallery_native_item_missing");
-            you.set_wielded_item(item(type,calendar::turn));capture(entry.model,entry.model,mode,0);}
+            you.set_wielded_item(item(type,calendar::turn));capture(entry.model,entry.model,mode,0);
+            if(std::string(entry.native)=="spear_steel")require((graphics_held_item.flags&(NCMM_HELD_SPEAR|NCMM_HELD_METAL))==(NCMM_HELD_SPEAR|NCMM_HELD_METAL),"held_gallery_native_steel_grade_not_extracted");}
         item pump(itype_id("remington_870"),calendar::turn);const auto ammo=pump.ammo_default();
         require(!ammo.is_null(),"held_gallery_native_pump_ammo_missing");pump.ammo_set(ammo,2);you.set_wielded_item(pump);
         const auto loaded=capture("pump-loaded","pump",mode,0);

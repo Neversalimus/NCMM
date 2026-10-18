@@ -33,7 +33,12 @@ void graphics_prepare_held()
     out.base_length_m=float(units::to_millimeter(held->type->longest_side))/1000.f;
     out.mass_kg=float(units::to_gram(held->weight(false)))/1000.f;
     if(held->has_flag(flag_id("SPEAR")))out.flags|=NCMM_HELD_SPEAR;
-    if(held->made_of(material_id("steel"))||held->made_of(material_id("iron")))out.flags|=NCMM_HELD_METAL;
+    // Native steel grades are distinct material IDs (spear_steel uses
+    // mc_steel plus wood). Do not infer the material from an item label.
+    static const std::set<material_id> ferrous={material_id("steel"),material_id("iron"),
+        material_id("budget_steel"),material_id("lc_steel"),material_id("mc_steel"),
+        material_id("hc_steel"),material_id("ch_steel"),material_id("qt_steel")};
+    if(held->made_of_any(ferrous))out.flags|=NCMM_HELD_METAL;
     if(held->is_active())out.flags|=NCMM_HELD_LIGHT_ACTIVE;
     if(!held->is_gun()&&held->is_tool()&&(held->type->maximum_charges()>0||held->type->charges_to_use()>0))out.flags|=NCMM_HELD_POWERED;
     static const char *qualities[]={"AXE","HAMMER","PRY","DIG","MINE","SAW","WRENCH","SCREW","CUT"};
