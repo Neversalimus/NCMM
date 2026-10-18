@@ -87,6 +87,7 @@ bool cata_tiles::draw_sprite_at() {
                 self.assertIn("draw_graphics_view", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_requires_terrain_pass", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
                 self.assertIn("tilecontext->ncmm_prepare_perspective(", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
+                self.assertIn("&& !ncmm_native_pixels_ready", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
                 self.assertIn(SDL_ANCHOR, (root / "src/sdltiles.cpp").read_text(encoding="utf-8")) # Full native fallback remains available.
                 self.assertIn('if( !printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" ) )', (root / "src/sdl_wrappers.cpp").read_text(encoding="utf-8"))
                 self.assertEqual((root / "src/sdl_wrappers.cpp").read_text(encoding="utf-8").count("ncmm::graphics_frame_presented();"), 1)
@@ -98,6 +99,9 @@ bool cata_tiles::draw_sprite_at() {
                 self.assertEqual(tiles.count("if( stable && ttype.animated ) seed = 0;"), 1)
                 self.assertIn("cata_tiles::get_texture_draw_data", tiles)
                 self.assertIn("~restore_flag() { flag = previous; }", tiles)
+                self.assertIn("ncmm_perspective_prepass = !pixels_ready;", tiles)
+                self.assertIn("do_draw_sct || do_draw_zones || do_draw_async_anim", tiles)
+                self.assertIn("return pixels_ready;", tiles)
                 self.assertEqual(tiles.count("if( ncmm_perspective_prepass )"),1)
                 before = self.fingerprint(root)
                 with self.assertRaises(ValueError): bridge.apply(root)

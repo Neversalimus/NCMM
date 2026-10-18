@@ -124,9 +124,10 @@ def apply(root: Path):
     updates["sdltiles.cpp"] = replace(sdl, anchor,
         "        // Keep vanilla visibility, animation and map memory. The opaque\n"+
         "        // perspective frame replaces only the hidden 2D sprite submissions.\n"+
-        "        if( ncmm::graphics_requires_terrain_pass() ) {\n"+anchor.replace('tilecontext->draw(', 'tilecontext->ncmm_prepare_perspective(')+"\n        }\n"+
+        "        bool ncmm_native_pixels_ready = false;\n"
+        "        if( ncmm::graphics_requires_terrain_pass() ) {\n"+anchor.replace('tilecontext->draw(', 'ncmm_native_pixels_ready = tilecontext->ncmm_prepare_perspective(')+"\n        }\n"+
         "        if( !ncmm::draw_graphics_view( win->pos.x * fontwidth, win->pos.y * fontheight,\n"+
-        "                TERRAIN_WINDOW_TERM_WIDTH * font->width, TERRAIN_WINDOW_TERM_HEIGHT * font->height ) ) {\n"+
+        "                TERRAIN_WINDOW_TERM_WIDTH * font->width, TERRAIN_WINDOW_TERM_HEIGHT * font->height ) && !ncmm_native_pixels_ready ) {\n"+
         anchor+"\n        }")
     updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"], "static void CheckMessages()\n{", "static void CheckMessages()\n{\n    // Presentation redraws never return a gameplay TIMEOUT or advance a turn.\n    if( ncmm::graphics_animation_redraw_due() ) {\n        ui_manager::redraw_invalidated();\n        if( needupdate ) refresh_display();\n    }")
     wrappers = replace(read("sdl_wrappers.cpp"), '#include "sdl_wrappers.h"',
@@ -181,7 +182,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     tiles_h = read("cata_tiles.h")
     tiles_declaration = "        std::optional<texture_draw_data> get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p );"
     updates["cata_tiles.h"] = replace(tiles_h, tiles_declaration, tiles_declaration +
-        "\n        void ncmm_prepare_perspective( const point &dest, const tripoint_bub_ms &center, int width, int height,\n"
+        "\n        bool ncmm_prepare_perspective( const point &dest, const tripoint_bub_ms &center, int width, int height,\n"
         "                std::multimap<point, formatted_text> &overlays, color_block_overlay_container &blocks );\n"
         "    private:\n        bool ncmm_perspective_prepass = false;\n    public:\n" +
         "\n        std::optional<texture_draw_data> ncmm_get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p, bool background, bool stable = false );\n"
@@ -194,7 +195,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "    // perspective image omit filtered-texture/shader/sprite submission.\n"
         "    if( ncmm_perspective_prepass ) {\n"
         "        height_3d += tile.height_3d;\n        return true;\n    }\n")
-    prepare = """void cata_tiles::ncmm_prepare_perspective( const point &dest, const tripoint_bub_ms &center,
+    prepare = """bool cata_tiles::ncmm_prepare_perspective( const point &dest, const tripoint_bub_ms &center,
         int width, int height, std::multimap<point, formatted_text> &overlays,
         color_block_overlay_container &blocks )
 {
@@ -203,8 +204,17 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         bool previous;
         ~restore_flag() { flag = previous; }
     } restore{ ncmm_perspective_prepass, ncmm_perspective_prepass };
-    ncmm_perspective_prepass = true;
+    // Native draw consumes one-shot animation queues. When any is pending,
+    // retain its complete pixels for a possible perspective failure instead of
+    // redrawing after that queue has been consumed. Ordinary idle frames still
+    // omit the 2D work hidden by the opaque perspective image.
+    const bool pixels_ready = do_draw_explosion || do_draw_custom_explosion ||
+                              do_draw_bullet || do_draw_hit || do_draw_line ||
+                              do_draw_cursor || do_draw_highlight || do_draw_weather ||
+                              do_draw_sct || do_draw_zones || do_draw_async_anim;
+    ncmm_perspective_prepass = !pixels_ready;
     draw( dest, center, width, height, overlays, blocks );
+    return pixels_ready;
 }
 
 """
