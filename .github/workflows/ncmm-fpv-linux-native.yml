@@ -49,7 +49,13 @@ jobs:
         with:
           cache-key: ncmm-sdl3-stack-strict-3.4.10-image-3.4.4-ttf-3.2.2-mixer-3.2.4-ubuntu-24.04-v1
           prefix: ${{ runner.workspace }}/ncmm_sdl3_prefix
-      - uses: actions/cache@v4
+      - name: Preserve completed SDL stack before engine compilation
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.workspace }}/ncmm_sdl3_prefix
+          key: ncmm-sdl3-stack-strict-3.4.10-image-3.4.4-ttf-3.2.2-mixer-3.2.4-ubuntu-24.04-v1
+      - uses: actions/cache/restore@v4
+        id: compiler_cache
         with:
           path: ~/.cache/ccache
           key: ncmm-fpv-linux-ccache-${{ matrix.build }}-${{ github.sha }}
@@ -61,8 +67,16 @@ jobs:
         run: |
           ccache --max-size=2G
           cmake -S upstream -B upstream/build -GNinja -DCMAKE_BUILD_TYPE=Release -DTILES=ON -DCURSES=OFF -DSOUND=ON -DTESTS=OFF -DUSE_HOME_DIR=OFF -DLOCALIZE=ON -DLANGUAGES=none -DDYNAMIC_LINKING=ON -DCATA_CCACHE=ON -DCMAKE_EXE_LINKER_FLAGS=-ldl
+          # Surface bridge portability errors before compiling all other Native units.
+          cmake --build upstream/build --parallel 2 --target src/CMakeFiles/cataclysm-tiles-common.dir/ncmm_loader.cpp.o
           cmake --build upstream/build --parallel 2 --target cataclysm-tiles
           ccache --show-stats
+      - name: Preserve useful compiler cache after a failed Native build
+        if: always() && steps.compiler_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ccache
+          key: ncmm-fpv-linux-ccache-${{ matrix.build }}-${{ github.sha }}
       - name: Build exact Linux modules and exercise private library lifecycle
         run: |
           python3 - <<'PY'

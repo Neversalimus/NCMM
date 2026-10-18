@@ -35,6 +35,12 @@ def apply(root: Path):
     if loader.replace(event_helper, "") != (repo / "host_patch/ncmm_loader.cpp").read_text(encoding="utf-8-sig"):
         raise ValueError("Apply the current canonical NCMM Host first; loader identity differs")
     loader = prepare_native_library(loader, replace)
+    # The canonical report helper is used only in debug.cpp. GCC's strict
+    # Native build correctly rejects accidental external linkage without a
+    # declaration; keep this implementation local instead of relaxing warnings.
+    updates["debug.cpp"] = replace(read("debug.cpp"),
+        '\nstd::string ncmm_debug_report_text( const std::string &text )',
+        '\nstatic std::string ncmm_debug_report_text( const std::string &text )')
     if (root / "src/ncmm_graphics_library.hpp").exists():
         raise ValueError("Experimental native library bridge already exists")
     updates["ncmm_graphics_library.hpp"] = (bridge / "ncmm_graphics_library.hpp").read_text(encoding="utf-8")

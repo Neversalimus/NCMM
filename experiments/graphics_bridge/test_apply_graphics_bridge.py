@@ -20,6 +20,7 @@ class ApplyTests(unittest.TestCase):
         for name in ("ncmm_loader.cpp", "ncmm_loader.h"):
             (root / "src" / name).write_bytes((REPO / "host_patch" / name).read_bytes())
         (root / "src/game.h").write_text("        bool save();\n")
+        (root / "src/debug.cpp").write_text('\nstd::string ncmm_debug_report_text( const std::string &text )\n{ return text; }\n')
         (root / "src/creature.h").write_text('#include <array>\nclass Creature {\n    public:\n        ~Creature() override;\n};\n')
         (root / "src/overmapbuffer.h").write_text("        bool has( const point_abs_om &p );\n")
         (root / "src/map.h").write_text("        int supports_zlevels() const {\n            return zlevels;\n        }\n")
@@ -137,6 +138,13 @@ bool cata_tiles::draw_sprite_at() {
                 with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
                     with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
                 self.assertEqual(before,self.fingerprint(root))
+    def test_changed_native_debug_helper_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root);(root/'src/debug.cpp').write_text('changed Native report helper')
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
     def test_changed_creature_hook_no_partial_patch(self):
         for name in ("creature.h", "creature.cpp", "ballistics.cpp", "monster.cpp", "npc.cpp"):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
