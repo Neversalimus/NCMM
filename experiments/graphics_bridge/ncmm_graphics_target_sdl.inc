@@ -13,22 +13,22 @@ void ncmm_draw_perspective_target(const std::string &text,int x,int y,const SDL_
     if(budget<1)return;
     const std::string label=(utf8_width(plain)>budget?utf8_truncate(plain,budget-1)+"…":plain)+suffix;
     Uint8 red=0,green=0,blue=0,alpha=0;SDL_BlendMode previous_blend=SDL_BLENDMODE_NONE;
-    SDL_GetRenderDrawColor(renderer,&red,&green,&blue,&alpha);SDL_GetRenderDrawBlendMode(renderer,&previous_blend);
-    SDL_SetRenderDrawBlendMode(renderer,SDL_BLENDMODE_BLEND);
+    SDL_GetRenderDrawColor(renderer.get(),&red,&green,&blue,&alpha);SDL_GetRenderDrawBlendMode(renderer.get(),&previous_blend);
+    SDL_SetRenderDrawBlendMode(renderer.get(),SDL_BLENDMODE_BLEND);
     const SDL_FRect panel{float(layout.panel.x),float(layout.panel.y),float(layout.panel.w),float(layout.panel.h)};
     const SDL_FRect bar{float(layout.bar.x),float(layout.bar.y),float(layout.bar.w),float(layout.bar.h)};
-    SDL_SetRenderDrawColor(renderer,8,9,12,224);SDL_RenderFillRect(renderer,&panel);
-    SDL_SetRenderDrawColor(renderer,124,126,132,230);SDL_RenderRect(renderer,&panel);
-    SDL_SetRenderDrawColor(renderer,48,35,38,255);SDL_RenderFillRect(renderer,&bar);
+    SDL_SetRenderDrawColor(renderer.get(),8,9,12,224);SDL_RenderFillRect(renderer.get(),&panel);
+    SDL_SetRenderDrawColor(renderer.get(),124,126,132,230);SDL_RenderRect(renderer.get(),&panel);
+    SDL_SetRenderDrawColor(renderer.get(),48,35,38,255);SDL_RenderFillRect(renderer.get(),&bar);
     if(known&&std::isfinite(fraction)){
         SDL_FRect fill=bar;fill.w*=std::clamp(fraction,0.f,1.f);
-        SDL_SetRenderDrawColor(renderer,174,43,49,255);if(fill.w>0)SDL_RenderFillRect(renderer,&fill);
+        SDL_SetRenderDrawColor(renderer.get(),174,43,49,255);if(fill.w>0)SDL_RenderFillRect(renderer.get(),&fill);
     }else{
-        SDL_SetRenderDrawColor(renderer,180,180,184,255);
-        SDL_RenderLine(renderer,bar.x+bar.w*.4f,bar.y+bar.h*.5f,bar.x+bar.w*.6f,bar.y+bar.h*.5f);
+        SDL_SetRenderDrawColor(renderer.get(),180,180,184,255);
+        SDL_RenderLine(renderer.get(),bar.x+bar.w*.4f,bar.y+bar.h*.5f,bar.x+bar.w*.6f,bar.y+bar.h*.5f);
     }
-    SDL_SetRenderDrawColor(renderer,208,208,212,255);SDL_RenderRect(renderer,&bar);
+    SDL_SetRenderDrawColor(renderer.get(),208,208,212,255);SDL_RenderRect(renderer.get(),&bar);
     ncmm_draw_perspective_label(label,layout.name.x+layout.name.w/2,layout.name.y+font->height+4,clip);
-    SDL_SetRenderDrawColor(renderer,red,green,blue,alpha);SDL_SetRenderDrawBlendMode(renderer,previous_blend);
+    SDL_SetRenderDrawColor(renderer.get(),red,green,blue,alpha);SDL_SetRenderDrawBlendMode(renderer.get(),previous_blend);
 }
 #endif
