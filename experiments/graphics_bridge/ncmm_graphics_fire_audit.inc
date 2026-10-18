@@ -3,12 +3,15 @@
 {
     const bool old_aim_after=get_option<bool>("AIM_AFTER_FIRING");
     const std::string old_keyboard=get_option<std::string>("SDL_KEYBOARD_MODE");
+    const std::string old_renderer=get_option<std::string>("NCMM_FIRST_PERSON_RENDERER");
     struct fire_audit_guard {
-        bool aim_after;std::string keyboard;
+        bool aim_after;std::string keyboard,renderer;
         ~fire_audit_guard(){graphics_fire_capture.active=false;graphics_fire_audit_legacy_context=false;
-            graphics_release_mouse();get_options().get_option("AIM_AFTER_FIRING").setValue(aim_after?"true":"false");get_options().get_option("SDL_KEYBOARD_MODE").setValue(keyboard);}
-    } restoring_fire{old_aim_after,old_keyboard};
+            graphics_release_mouse();get_options().get_option("AIM_AFTER_FIRING").setValue(aim_after?"true":"false");get_options().get_option("SDL_KEYBOARD_MODE").setValue(keyboard);
+            get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(renderer);options_manager::update_options_cache();}
+    } restoring_fire{old_aim_after,old_keyboard,old_renderer};
     get_options().get_option("AIM_AFTER_FIRING").setValue("false");
+    options_manager::update_options_cache();
     for(const char *id:{"BRAWLER","GUNSHY"})if(you.has_trait(trait_id(id)))you.toggle_trait(trait_id(id));
     struct input_feed {
         enum class kind { command, click, confirm, cancel };
@@ -46,7 +49,8 @@
             SDL_FlushEvent(SDL_EVENT_TEXT_INPUT);SDL_FlushEvent(SDL_EVENT_MOUSE_BUTTON_DOWN);SDL_FlushEvent(SDL_EVENT_MOUSE_BUTTON_UP);}
     };
     struct trial {
-        std::string scenario,renderer,keyboard;bool legacy=false,visible=false,escape_recovery=false;
+        std::string scenario,renderer,keyboard,native_keyboard;bool legacy=false,visible=false,escape_recovery=false;
+        uint64_t default_keychar_inputs=0,default_keycode_inputs=0;
         int ammo_before=0,ammo_after=0,moves_before=0,moves_after=0;
         uint64_t attack_before=0,attack_after=0;size_t first=0,last=0;
         float yaw_before=0,pitch_before=0,yaw_after=0,pitch_after=0;
@@ -62,6 +66,9 @@
     };
     auto attempt=[&](const char *scenario,const char *mode,bool legacy=false){
         trial result;result.scenario=scenario;result.renderer=mode;result.legacy=legacy;result.keyboard=get_option<std::string>("SDL_KEYBOARD_MODE");
+        result.native_keyboard=inp_mngr.actual_keyboard_mode(keyboard_mode::keycode)==keyboard_mode::keychar?"keychar":"keycode";
+        require(result.native_keyboard==result.keyboard,"fire_audit_option_cache_not_applied");
+        const auto chars_before=graphics_fire_capture.default_keychar_inputs,codes_before=graphics_fire_capture.default_keycode_inputs;
         checkpoint(std::string("native_fire_")+mode+"_"+scenario+"_"+std::to_string(trials.size()));
         clear_monsters();graphics_clear_creatures();you.cancel_activity();you.clear_effects();you.set_moves(10000);
         you.set_stamina(you.get_stamina_max());
@@ -127,12 +134,17 @@
         result.enabled_after=graphics_view.enabled;result.yaw_after=graphics_camera_yaw;result.pitch_after=graphics_camera_pitch;
         result.ammo_after=you.get_wielded_item()->ammo_remaining();result.moves_after=you.get_moves();result.attack_after=graphics_attack_serial;
         result.last=graphics_fire_capture.frames.size();graphics_fire_capture.active=false;graphics_fire_audit_legacy_context=false;
+        result.default_keychar_inputs=graphics_fire_capture.default_keychar_inputs-chars_before;
+        result.default_keycode_inputs=graphics_fire_capture.default_keycode_inputs-codes_before;
         {std::ofstream progress(game_root()/"ncmm"/"first-person-fire-trials.jsonl",std::ios::app);JsonOut out(progress);
             out.start_object();out.member("scenario",result.scenario);out.member("renderer",result.renderer);out.member("legacy",result.legacy);out.member("keyboard_mode",result.keyboard);
+            out.member("native_keyboard_mode",result.native_keyboard);out.member("default_keychar_inputs",result.default_keychar_inputs);out.member("default_keycode_inputs",result.default_keycode_inputs);
             out.member("native_command",result.native_command);out.member("dispatch_calls",result.dispatch_calls);out.member("escape_recovery",result.escape_recovery);
             out.member("ammo_before",result.ammo_before);out.member("ammo_after",result.ammo_after);out.member("moves_before",result.moves_before);out.member("moves_after",result.moves_after);
             out.member("attack_before",result.attack_before);out.member("attack_after",result.attack_after);out.member("first_frame",result.first);out.member("last_frame",result.last);out.end_object();progress<<'\n';}
         require(result.last>result.first&&!graphics_fire_capture.failed,"fire_audit_missing_presented_pixels");
+        require(result.native_keyboard=="keychar"?(result.default_keychar_inputs>0&&result.default_keycode_inputs==0):
+            (result.default_keycode_inputs>0&&result.default_keychar_inputs==0),"fire_audit_actual_keyboard_wait_not_proven");
         if(!legacy){
             require(result.enabled_before&&result.enabled_after,"fire_audit_user_mode_changed");
             require(result.yaw_before==result.yaw_after&&result.pitch_before==result.pitch_after,"fire_audit_camera_changed");
@@ -156,7 +168,8 @@
         floor();
         for(const char *scenario:{"keyboard_single","lmb_single","cancel","empty","no_target","window"}){
             const int repeats=std::string(scenario)=="keyboard_single"||std::string(scenario)=="lmb_single"||std::string(scenario)=="window"?20:10;
-            for(int repeat=0;repeat<repeats;++repeat){get_options().get_option("SDL_KEYBOARD_MODE").setValue(repeat%2?"keychar":"keycode");attempt(scenario,mode);}
+            for(int repeat=0;repeat<repeats;++repeat){get_options().get_option("SDL_KEYBOARD_MODE").setValue(repeat%2?"keychar":"keycode");
+                options_manager::update_options_cache();attempt(scenario,mode);}
         }
         for(const char *scenario:{"blocked_wall","vertical_cancel","burst"})attempt(scenario,mode);
         {cancel_native_ui cancel_menu(window);game_menus::inv::common();}
@@ -177,6 +190,7 @@
     for(const auto &t:trials){fire_report.start_object();fire_report.member("scenario",t.scenario);fire_report.member("renderer",t.renderer);fire_report.member("legacy_control",t.legacy);
         fire_report.member("target_native_visible",t.visible);fire_report.member("escape_recovery",t.escape_recovery);
         fire_report.member("native_command",t.native_command);fire_report.member("dispatch_calls",t.dispatch_calls);fire_report.member("keyboard_mode",t.keyboard);
+        fire_report.member("native_keyboard_mode",t.native_keyboard);fire_report.member("default_keychar_inputs",t.default_keychar_inputs);fire_report.member("default_keycode_inputs",t.default_keycode_inputs);
         fire_report.member("ammo_before",t.ammo_before);fire_report.member("ammo_after",t.ammo_after);fire_report.member("moves_before",t.moves_before);fire_report.member("moves_after",t.moves_after);
         fire_report.member("attack_serial_before",t.attack_before);fire_report.member("attack_serial_after",t.attack_after);
         fire_report.member("first_frame",t.first);fire_report.member("last_frame_exclusive",t.last);
@@ -186,5 +200,7 @@
     for(const auto &f:graphics_fire_capture.frames){fire_report.start_object();fire_report.member("ticks",f.ticks);fire_report.member("file",f.file);fire_report.member("width",f.width);fire_report.member("height",f.height);
         fire_report.member("enabled",f.enabled);fire_report.member("perspective",f.perspective);fire_report.member("gpu",f.gpu);fire_report.member("captured",f.captured);fire_report.member("presented",f.presented);fire_report.end_object();}
     fire_report.end_array();fire_report.member("success",true);fire_report.end_object();fire_stream.flush();
-    floor();
+    // floor() invalidates the previous camera position. Establish the restored
+    // baseline before the following native walking test performs its first step.
+    floor();warm(old_renderer.c_str());
 }

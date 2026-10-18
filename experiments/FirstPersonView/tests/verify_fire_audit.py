@@ -75,6 +75,9 @@ def verify(root):
         selected = frames[first:last]
         assert 1 <= trial['dispatch_calls'] <= 128
         assert trial['native_command'] == ('SELECT' if trial['scenario'] == 'lmb_single' else 'fire')
+        assert trial['native_keyboard_mode'] == trial['keyboard_mode'], 'Native cached keyboard mode differs from the requested option'
+        chars, codes = trial['default_keychar_inputs'], trial['default_keycode_inputs']
+        assert (chars > 0 and codes == 0) if trial['native_keyboard_mode'] == 'keychar' else (codes > 0 and chars == 0)
         if trial['legacy_control']:
             assert any(not f['perspective'] for f in selected), 'Original regression was not reproduced'
             continue

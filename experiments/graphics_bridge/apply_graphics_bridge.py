@@ -263,6 +263,8 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "        JsonOut out( journal ); out.start_object(); out.member( \"ticks\", SDL_GetTicks() );\n"
         "        out.member( \"category\", category ); out.member( \"action\", action ); out.member( \"text_input\", bool(waiting & 4u) ); out.end_object(); journal << '\\n';\n    }\n"
         "    if( graphics_fire_capture.active && category == \"DEFAULTMODE\" && action != \"TIMEOUT\" ) {\n"
+        "        if( (waiting & 3u) == 1u ) {\n"
+        "            if( waiting & 4u ) ++graphics_fire_capture.default_keychar_inputs; else ++graphics_fire_capture.default_keycode_inputs;\n        }\n"
         "        graphics_fire_capture.native_command = action; ++graphics_fire_capture.native_command_sequence;\n    }\n"
         "#else\n    (void)category; (void)action;\n#endif\n}\n"
         "void graphics_note_terrain_composed( bool perspective )\n{\n#if defined(TILES)\n    if( graphics_fire_capture.active ) { graphics_fire_capture.last_perspective = perspective; graphics_fire_capture.last_gpu = perspective && graphics_gpu_frame; }\n#else\n    (void)perspective;\n#endif\n}\n"
