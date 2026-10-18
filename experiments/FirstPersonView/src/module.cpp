@@ -25,6 +25,7 @@ std::unique_ptr<first_person::creature::presentation> creature_state;
 double yaw=-first_person::pi*0.5;
 float pitch=0,look_sway_x=0,look_sway_y=0;
 double look_sway_started=0,last_scene_seconds=0;
+first_person::animation::timeline hand_timeline;
 std::vector<ncmm_graphics_quad_v1> commands;
 first_person::hybrid::frame pixels;
 first_person::hybrid::frame world_pixels;
@@ -109,7 +110,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         if(creatures->get_scene(&input.view)&&input.view.count<=scene->base.cell_count+256){input.creatures.resize(input.view.count);
             has_creatures=creatures->get_creatures(input.creatures.data(),input.creatures.size())&&first_person::creature::valid(input,scene->base.cell_count);}
         if(has_creatures)creature_state->observe();}
-    auto pose=first_person::animation::sample(state,scene->environment.animation_seconds);
+    auto pose=hand_timeline.observe(state,scene->environment.animation_seconds,scene->environment.held_item,active_world?active_world->world_epoch:0);
     if(has_metadata){const float t=float(std::fmod(scene->environment.animation_seconds,1000.0));
         const float lag=std::exp(-float(std::max(0.0,scene->environment.animation_seconds-look_sway_started))*9);
         pose.sway_x=std::sin(t*1.4f)*.0022f+std::sin(t*8)*metadata.view.movement*.008f+look_sway_x*lag;
@@ -146,7 +147,9 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     }else if(renderer_mode!=NCMM_GPU_CPU)report_gpu_fallback("Host does not provide compatible Graphics GPU/Mesh API v1");
     const uint64_t common=geometry_key(*scene,has_creatures);
     uint64_t key=scene_key(*scene,common);
-    for(float value:{pose.swing,pose.thrust,pose.recoil,pose.length,pose.sway_x,pose.sway_y}){uint32_t bits;std::memcpy(&bits,&value,sizeof(bits));key=(key^bits)*1099511628211ull;}
+    for(float value:{pose.swing,pose.thrust,pose.recoil,pose.length,pose.sway_x,pose.sway_y,pose.equip_phase,pose.attack_phase}){uint32_t bits;std::memcpy(&bits,&value,sizeof(bits));key=(key^bits)*1099511628211ull;}
+    key=first_person::hash_bytes(key,&pose.seconds,sizeof(pose.seconds));key=first_person::hash_bytes(key,&pose.attack_serial,sizeof(pose.attack_serial));
+    key=first_person::hash_bytes(key,&pose.attack_kind,sizeof(pose.attack_kind));
     key=(key^pose.grip)*1099511628211ull;
     uint64_t wk=scene_key(*scene,common,true);
     if(has_creatures){const auto &input=creature_state->input;const auto phase=int64_t(std::floor(input.view.seconds*40));
@@ -212,6 +215,7 @@ void input(uint32_t action,void *) {
     if(controls)controls->set_camera(float(yaw),pitch);
 }
 int init(const ncmm_host_api_v1 *api) {
+    hand_timeline.reset();
     first_person::viewmodel::clear_textures();
     graphics=nullptr;
     hybrid=nullptr;multilevel=nullptr;active_world=nullptr;
@@ -259,6 +263,7 @@ int init(const ncmm_host_api_v1 *api) {
     return 1;
 }
 void shutdown() {
+    hand_timeline.reset();
     if(multilevel)multilevel->set_enabled(id,0);
     else if(hybrid) hybrid->set_enabled(id,0);
     if(graphics) graphics->set_enabled(id,0);
@@ -276,6 +281,7 @@ const ncmm_mod_descriptor_v1 descriptor={NCMM_ABI_VERSION,id,"First Person View"
 }
 extern "C" NCMM_EXPORT const ncmm_mod_descriptor_v1 *ncmm_get_descriptor_v1(){return &descriptor;}
 extern "C" NCMM_EXPORT void ncmm_open_ui_v1(const ncmm_host_api_v1 *) {
+    hand_timeline.reset();
     if(multilevel){frame_valid=world_valid=false;const bool enabled=!multilevel->is_enabled(id);multilevel->set_enabled(id,enabled);if(!enabled&&gpu_world)gpu_world->clear();}
     else if(hybrid){frame_valid=world_valid=false;const bool enabled=!hybrid->is_enabled(id);hybrid->set_enabled(id,enabled);if(!enabled&&gpu_world)gpu_world->clear();}
     if(graphics) graphics->set_enabled(id,!graphics->is_enabled(id));

@@ -1091,7 +1091,7 @@ class renderer {
         auto animate=[&](vec p){const vec pivot{.27f,-.28f,.84f};p=p-pivot;
             const float a=pose.swing,co=std::cos(a),sn=std::sin(a);
             p={p.x*co-p.y*sn,p.x*sn+p.y*co,p.z};
-            return p+pivot+vec{-.12f*pose.swing+pose.sway_x,.04f*pose.swing+pose.sway_y,pose.thrust-pose.recoil};};
+            return p+pivot+vec{-.12f*pose.swing+pose.sway_x,.04f*pose.swing+pose.sway_y-.20f*(1-pose.equip_phase),pose.thrust-pose.recoil-.06f*(1-pose.equip_phase)};};
         auto hud=[&](vec p){p=animate(p);p.x*=hud_scale;p.y*=hud_scale;return local(p);};
         auto face=[&](vec a,vec b,vec c,vec d,material m){a=hud(a);b=hud(b);c=hud(c);d=hud(d);quad(a,b,c,d,m,normalize(cross(b-a,d-a)));};
         auto tube=[&](vec a,vec b,float ra,float rb,material m){

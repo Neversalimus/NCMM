@@ -69,7 +69,7 @@ const attachments &mutation_attachments(uint32_t side,uint32_t features){
 frame::frame(const animation::pose &action,bool no_item,bool firearm)noexcept:source(imported_asset()),empty(no_item){
     static const bool validated=valid_asset(imported_asset());
     if(!validated||!std::isfinite(action.seconds))return;
-    for(const char *name:{"relax","knife_idle","finger_gun_idle","finger_gun_fire","grab.R","grab.L","jab.R","jab.L","knife_hit_01","knife_hit_02"})
+    for(const char *name:{"relax","knife_idle","knife_draw","guard_draw","finger_gun_idle","finger_gun_fire","grab.R","grab.L","jab.R","jab.L","knife_hit_01","knife_hit_02"})
         if(clip_index(source,name)<0)return;
     hand={node_index(source,"hand.R"),node_index(source,"hand.L")};
     forearm={node_index(source,"forearm.R"),node_index(source,"forearm.L")};
@@ -90,6 +90,9 @@ frame::frame(const animation::pose &action,bool no_item,bool firearm)noexcept:so
         return true;
     };
     if(firearm&&!overlay("finger_gun_idle",action.seconds,true,0,false))return;
+    if(action.equip_phase<1){const char *draw=empty?"guard_draw":"knife_draw";const auto &clip=source.clips[size_t(clip_index(source,draw))];
+        if(!overlay(draw,action.equip_phase*clip.duration,false,0,false,1-action.equip_phase))return;
+        if(empty&&!overlay(draw,action.equip_phase*clip.duration,false,1,false,1-action.equip_phase))return;}
     if(action.attack_phase>=0&&action.attack_phase<1){
         const int side=empty&&action.attack_kind==1?int(action.attack_serial%2):0;
         const char *name=action.attack_kind==2?"finger_gun_fire":empty?(side?"jab.L":"jab.R"):
@@ -99,8 +102,8 @@ frame::frame(const animation::pose &action,bool no_item,bool firearm)noexcept:so
         if(!overlay(name,action.attack_phase*clip.duration,false,side,false,fade))return;
     }
     if(!empty){
-        if(!overlay("grab.R",source.clips[size_t(clip_index(source,"grab.R"))].duration,false,0,true)||
-           !overlay("grab.L",source.clips[size_t(clip_index(source,"grab.L"))].duration,false,1,true))return;
+        if(!overlay("grab.R",source.clips[size_t(clip_index(source,"grab.R"))].duration,false,0,true,action.equip_phase)||
+           !overlay("grab.L",source.clips[size_t(clip_index(source,"grab.L"))].duration,false,1,true,action.equip_phase))return;
     }
     ready=evaluate_globals(source,local,global);
 }
