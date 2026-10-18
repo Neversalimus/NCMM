@@ -256,5 +256,49 @@ class HardwareEvidenceTests(unittest.TestCase):
             self.read()
 
 
+class ExecutionScopeTests(unittest.TestCase):
+    def setUp(self):
+        self.record = dict(renderer='gpu', frame_samples_ms=[4, 4, 4],
+                           thread_cpu_available=True, frame_thread_cpu_samples_ms=[0, 1, 0],
+                           frame_process_cpu_samples_ms=[2, 3, 2], sprite_readback_samples_ms=[0, .5, 0],
+                           sprite_readback_attempts=[0, 1, 0], sprite_cache_bytes=[16, 32, 32],
+                           gpu_generated_cells=[3, 0, 1])
+
+    def test_totals_keep_zero_accounting_ticks_and_distinct_scopes(self):
+        result = compare.execution_scopes(self.record)
+        self.assertEqual(result['totals_ms']['frame_thread_cpu_samples_ms'], 1)
+        self.assertEqual(result['totals_ms']['sprite_readback_samples_ms'], .5)
+        self.assertEqual(result['gpu_generated_cells_total'], 4)
+        self.assertEqual(result['sprite_cache_bytes_peak'], 32)
+
+    def test_older_reports_do_not_acquire_fabricated_cpu_samples(self):
+        self.assertIsNone(compare.execution_scopes(dict(frame_samples_ms=[4])))
+
+    def test_unavailable_thread_and_inactive_gpu_are_explicit(self):
+        self.record.update(thread_cpu_available=False, renderer='cpu')
+        del self.record['frame_thread_cpu_samples_ms']
+        result = compare.execution_scopes(self.record)
+        self.assertFalse(result['thread_cpu_available'])
+        self.assertIsNone(result['gpu_generated_cells_total'])
+
+    def test_incomplete_streams_and_invented_unavailable_ticks_rejected(self):
+        for mutation in ('missing', 'short', 'unavailable'):
+            r = copy.deepcopy(self.record)
+            if mutation == 'missing': del r['sprite_cache_bytes']
+            if mutation == 'short': r['frame_process_cpu_samples_ms'].pop()
+            if mutation == 'unavailable': r['thread_cpu_available'] = False
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                compare.execution_scopes(r)
+
+    def test_invalid_numbers_and_impossible_readbacks_rejected(self):
+        for name, value in [('frame_thread_cpu_samples_ms', float('nan')),
+                            ('frame_process_cpu_samples_ms', -1),
+                            ('sprite_cache_bytes', 1.5), ('sprite_readback_samples_ms', 5),
+                            ('sprite_readback_attempts', 0)]:
+            r = copy.deepcopy(self.record);r[name][1] = value
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                compare.execution_scopes(r)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -35,6 +35,42 @@ def weather_selection(extended, single):
     return (single,) if single is not None else tuple(WEATHER)
 
 
+def execution_scopes(record):
+    """Validate optional CPU/readback evidence without relabeling old reports."""
+    timings = ("frame_process_cpu_samples_ms", "sprite_readback_samples_ms")
+    counts = ("sprite_readback_attempts", "sprite_cache_bytes", "gpu_generated_cells")
+    names = (*timings, *counts, "thread_cpu_available", "frame_thread_cpu_samples_ms")
+    if not any(name in record for name in names):
+        return None
+    require(all(name in record for name in (*timings, *counts, "thread_cpu_available")),
+            "Incomplete CPU/readback evidence")
+    require(type(record["thread_cpu_available"]) is bool, "Invalid thread CPU availability")
+    if record["thread_cpu_available"]:
+        timings += ("frame_thread_cpu_samples_ms",)
+        require("frame_thread_cpu_samples_ms" in record, "Available thread CPU samples missing")
+    else:
+        require("frame_thread_cpu_samples_ms" not in record, "Unavailable thread CPU must not be reported as zero")
+    wall = record["frame_samples_ms"]
+    for name in timings:
+        values = record[name]
+        require(len(values) == len(wall) and all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in values),
+                "Invalid CPU/readback timing stream: " + name)
+    for name in counts:
+        values = record[name]
+        require(len(values) == len(wall) and all(type(v) is int and v >= 0 for v in values),
+                "Invalid CPU/readback count stream: " + name)
+    require(all(readback <= frame + .003 for readback, frame in zip(record["sprite_readback_samples_ms"], wall)),
+            "Sprite readback exceeds its containing rendered frame")
+    require(all(attempts or ms == 0 for attempts, ms in zip(record["sprite_readback_attempts"], record["sprite_readback_samples_ms"])),
+            "Sprite readback time has no attempt")
+    return {"thread_cpu_available": record["thread_cpu_available"],
+            "totals_ms": {name: sum(record[name]) for name in timings},
+            "sprite_readback_attempts": sum(record["sprite_readback_attempts"]),
+            "sprite_cache_bytes_peak": max(record["sprite_cache_bytes"]),
+            "gpu_generated_cells_total": sum(record["gpu_generated_cells"]) if record["renderer"] == "gpu" else None,
+            "scope": "CPU accounting has platform granularity; process CPU includes workers; readbacks overlap frame wall time, and these are not GPU execution timestamps."}
+
+
 def payload(bundle, source, *, diagnostic_host_source=None):
     bundle = Path(bundle)
     manifest = load(bundle / "payload/first-person-bundle.json")
@@ -151,6 +187,9 @@ def read_run(root, identity, weather, phases, *, extended=False):
                             del group[name]
         if extended:
             require(record.get("extended_matrix") is True, "Extended fixture marker missing")
+            observed = execution_scopes(record)
+            if observed is not None:
+                item["execution_scopes"] = observed
             internal = [record["internal_width"], record["internal_height"]]
             cap = (1920, 1080) if record["renderer"] == "gpu" else (960, 600)
             require(all(type(v) is int and 0 < v <= min(limit, viewport)
