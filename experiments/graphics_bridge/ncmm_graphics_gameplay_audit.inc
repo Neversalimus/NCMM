@@ -57,8 +57,7 @@
         const auto begin=audit_clock::now();refresh();const double native_cache=milliseconds(begin);
         std::multimap<point,formatted_text> overlays;color_block_overlay_container blocks;
         const auto tiles=audit_clock::now();
-        if(ncmm::graphics_requires_terrain_pass())tilecontext->ncmm_prepare_perspective(point::zero,you.pos_bub(),audit_viewport.x,audit_viewport.y,overlays,blocks);
-        else tilecontext->draw(point::zero,you.pos_bub(),audit_viewport.x,audit_viewport.y,overlays,blocks);
+        tilecontext->draw(point::zero,you.pos_bub(),audit_viewport.x,audit_viewport.y,overlays,blocks);
         const double native_tiles=milliseconds(tiles);
         require(SDL_SetRenderTarget(renderer,canvas)&&SDL_SetRenderLogicalPresentation(renderer,0,0,SDL_LOGICAL_PRESENTATION_DISABLED)&&SDL_SetRenderScale(renderer,1,1)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"audit_canvas_rebind_failed");
         if(graphics_gpu_engine)graphics_gpu_engine->profile();

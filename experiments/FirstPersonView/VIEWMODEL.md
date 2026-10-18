@@ -108,15 +108,18 @@ The viewmodel never changes damage, accuracy, native moves or action duration.
 
 ## First-frame work
 
-The candidate native optimization retains CDDA's ordinary tile traversal,
-perception, light, layers, animation, map memory and exact stack-height updates.
-Only hidden 2D sprite preparation/submission is skipped while preparing the
-opaque perspective pass. A scoped flag is restored on return, nesting and
-exceptions. Perspective failure redraws the original 2D path. The same route
-runs in ordinary gameplay and diagnostics; it is not a benchmark-only shortcut.
-Pending native animations retain the complete ordinary tile draw, so a failed
-perspective callback can keep those pixels without consuming the native queue
-twice. Their cost remains in the measured frame.
+The complete native tile draw remains in both gameplay and diagnostics,
+including perception, light, layers, animation, map memory and stack heights.
+An evaluated shortcut for hidden 2D submissions was removed: its small native
+phase savings did not establish a stable full-frame win, and city rotation
+regressed in the measured runs. Existing native pixels remain available when
+perspective fails, without consuming one-shot native animation queues twice.
+
+Internal scene/mesh cache fingerprints process longer records in four independent
+word streams instead of one serialized multiply chain. Every byte, order and
+unaligned tail still participates. These are transient invalidation keys, not
+integrity hashes or save data; the public key representation and API layouts are unchanged.
+The isolated hashing experiment is separate from native frame measurements.
 
 World distance, internal resolution caps, Z levels, creature detail, native
 perception, simulation and the established horizon LOD are preserved. Whether

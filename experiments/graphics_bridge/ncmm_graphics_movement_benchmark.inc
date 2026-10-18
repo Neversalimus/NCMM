@@ -80,8 +80,7 @@
             uint32_t actual_width=0,actual_height=0,attacks=0;
             auto render=[&](bool measured){const auto begin=clock::now();const auto pos=you.pos_abs();const auto moves=you.get_moves();
                 std::multimap<point,formatted_text> overlays;color_block_overlay_container blocks;
-                if(ncmm::graphics_requires_terrain_pass())tilecontext->ncmm_prepare_perspective(point::zero,you.pos_bub(),viewport.x,viewport.y,overlays,blocks);
-                else tilecontext->draw(point::zero,you.pos_bub(),viewport.x,viewport.y,overlays,blocks);
+                tilecontext->draw(point::zero,you.pos_bub(),viewport.x,viewport.y,overlays,blocks);
                 const double native_tiles_wall=elapsed(begin);
                 const auto perspective_begin=clock::now();
                 require(SDL_SetRenderTarget(renderer,guard.canvas)&&SDL_SetRenderLogicalPresentation(renderer,0,0,SDL_LOGICAL_PRESENTATION_DISABLED)&&SDL_SetRenderScale(renderer,1,1)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"movement_canvas_rebind_failed");
