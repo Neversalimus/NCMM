@@ -97,6 +97,12 @@ sprite bytes expose SDL atlas readback waits; the timer includes readback setup
 and restoration and counts failed attempts too. GPU generated-cell counts
 distinguish real chunk rebuilds from resource deduplication; CPU-mode GPU fields
 are inactive. Ordinary gameplay does not enable these diagnostic timers.
+`gpu_frame_upload_capacity_bytes` reports retained SDL upload-staging capacity
+separately from logical GPU targets/assets. It is not measured VRAM or the sum
+of SDL's internally cycled backing allocations. `gpu_frame_upload_creations`
+counts staging-object creation/growth within the current device lifecycle;
+repeated poses should retain the same object. The combined logical target,
+resource and retained-staging budget remains bounded.
 
 `tests/compare_movement_runs.py --extended` explicitly selects this larger matrix
 and verifies its complete sample streams and recorded resolution. The default

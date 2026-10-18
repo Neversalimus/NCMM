@@ -39,6 +39,10 @@ def execution_scopes(record):
     """Validate optional CPU/readback evidence without relabeling old reports."""
     timings = ("frame_process_cpu_samples_ms", "sprite_readback_samples_ms")
     counts = ("sprite_readback_attempts", "sprite_cache_bytes", "gpu_generated_cells")
+    staging = ("gpu_frame_upload_capacity_bytes", "gpu_frame_upload_creations")
+    if any(name in record for name in staging):
+        require(all(name in record for name in staging), "Incomplete upload staging evidence")
+        counts += staging
     names = (*timings, *counts, "thread_cpu_available", "frame_thread_cpu_samples_ms")
     if not any(name in record for name in names):
         return None
@@ -67,6 +71,9 @@ def execution_scopes(record):
             "totals_ms": {name: sum(record[name]) for name in timings},
             "sprite_readback_attempts": sum(record["sprite_readback_attempts"]),
             "sprite_cache_bytes_peak": max(record["sprite_cache_bytes"]),
+            "upload_staging": {"capacity_bytes_peak": max(record[staging[0]]),
+                               "object_creations_peak": max(record[staging[1]])}
+                              if staging[0] in record and record["renderer"] == "gpu" else None,
             "gpu_generated_cells_total": sum(record["gpu_generated_cells"]) if record["renderer"] == "gpu" else None,
             "scope": "CPU accounting has platform granularity; process CPU includes workers; readbacks overlap frame wall time, and these are not GPU execution timestamps."}
 

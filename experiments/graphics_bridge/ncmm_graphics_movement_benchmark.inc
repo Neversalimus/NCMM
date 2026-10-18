@@ -79,6 +79,7 @@
             std::vector<uint32_t> first_frame_indices;
             std::vector<double> thread_cpu_ms,process_cpu_ms,sprite_readback_ms;
             std::vector<uint64_t> sprite_readback_attempts,sprite_cache_bytes,gpu_generated_cells;
+            std::vector<uint64_t> frame_upload_capacity,frame_upload_creations;
             bool thread_cpu_available=true;
             std::vector<uint32_t> renderers;uint64_t cache_peak=0;
             std::vector<uint64_t> uploads,static_uploads,dynamic_geometry,draw_calls,bones,held_bones,resource_bytes,host_bytes,rss;
@@ -113,6 +114,7 @@
                         thread_cpu_ms.push_back(std::max(0.0,(thread_end-thread_begin)*1000));process_cpu_ms.push_back(std::max(0.0,(process_end-process_begin)*1000));
                         sprite_readback_ms.push_back(graphics_sprite_readbacks.ms);sprite_readback_attempts.push_back(graphics_sprite_readbacks.attempts);
                         sprite_cache_bytes.push_back(graphics_hybrid_sprite_bytes);gpu_generated_cells.push_back(metrics.generated_cells);
+                        frame_upload_capacity.push_back(recorded.frame_upload_capacity_bytes);frame_upload_creations.push_back(recorded.frame_upload_creations);
                         uploads.push_back(metrics.upload_bytes);static_uploads.push_back(recorded.static_upload_bytes);dynamic_geometry.push_back(recorded.dynamic_geometry_bytes);
                         draw_calls.push_back(metrics.draw_calls);bones.push_back(recorded.bones);held_bones.push_back(recorded.held_bones);resource_bytes.push_back(metrics.resource_bytes);host_bytes.push_back(metrics.host_cpu_cache_bytes);
                         rss.push_back(ncmm_graphics_performance::resident_bytes());actual_width=graphics_hybrid_width;actual_height=graphics_hybrid_height;}}
@@ -156,6 +158,7 @@
                 report.member("thread_cpu_available",thread_cpu_available);if(thread_cpu_available)report.member("frame_thread_cpu_samples_ms",thread_cpu_ms);
                 report.member("frame_process_cpu_samples_ms",process_cpu_ms);report.member("sprite_readback_samples_ms",sprite_readback_ms);
                 report.member("sprite_readback_attempts",sprite_readback_attempts);report.member("sprite_cache_bytes",sprite_cache_bytes);report.member("gpu_generated_cells",gpu_generated_cells);
+                report.member("gpu_frame_upload_capacity_bytes",frame_upload_capacity);report.member("gpu_frame_upload_creations",frame_upload_creations);
                 report.member("initial_render_ready_ms",initial_render_ready_ms);report.member("initial_gpu_static_upload_bytes",initial_recording.static_upload_bytes);report.member("initial_gpu_upload_bytes",initial_gpu.upload_bytes);
                 report.member("initial_gpu_geometry_ms",initial_gpu.geometry_ms);report.member("initial_gpu_resource_ms",initial_gpu.resource_ms);report.member("initial_gpu_resource_bytes",initial_gpu.resource_bytes);
                 report.member("gpu_upload_bytes",uploads);report.member("gpu_static_upload_bytes",static_uploads);report.member("gpu_dynamic_geometry_bytes",dynamic_geometry);report.member("gpu_draw_calls",draw_calls);

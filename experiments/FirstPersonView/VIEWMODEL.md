@@ -121,6 +121,14 @@ unaligned tail still participates. These are transient invalidation keys, not
 integrity hashes or save data; the public key representation and API layouts are unchanged.
 The isolated hashing experiment is separate from native frame measurements.
 
+The native backend retains one frame-upload transfer object with bounded,
+growing capacity. SDL's existing cycling mechanism preserves storage still
+referenced by queued copies. The established lifecycle drain precedes its release.
+Retained staging capacity shares the resource budget and is reported separately
+from GPU targets/assets; it is not measured VRAM. Creation/growth counters and
+queued distinct-pose pixel tests verify reuse and copy lifetime. Native timing
+must establish whether this removes the observed upload/recording delays.
+
 World distance, internal resolution caps, Z levels, creature detail, native
 perception, simulation and the established horizon LOD are preserved. Whether
 this reduces native frame latency must be established by matched hardware runs.

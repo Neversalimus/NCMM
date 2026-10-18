@@ -274,6 +274,15 @@ class ExecutionScopeTests(unittest.TestCase):
     def test_older_reports_do_not_acquire_fabricated_cpu_samples(self):
         self.assertIsNone(compare.execution_scopes(dict(frame_samples_ms=[4])))
 
+    def test_optional_staging_capacity_is_separate_and_complete(self):
+        self.record['gpu_frame_upload_capacity_bytes'] = [512, 512, 512]
+        self.record['gpu_frame_upload_creations'] = [1, 1, 1]
+        result = compare.execution_scopes(self.record)
+        self.assertEqual(result['upload_staging'], dict(capacity_bytes_peak=512, object_creations_peak=1))
+        del self.record['gpu_frame_upload_creations']
+        with self.assertRaisesRegex(ValueError, 'staging evidence'):
+            compare.execution_scopes(self.record)
+
     def test_unavailable_thread_and_inactive_gpu_are_explicit(self):
         self.record.update(thread_cpu_available=False, renderer='cpu')
         del self.record['frame_thread_cpu_samples_ms']
