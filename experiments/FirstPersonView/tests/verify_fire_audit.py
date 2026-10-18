@@ -83,7 +83,8 @@ def verify(root):
         if trial['scenario'] in {'cancel', 'empty', 'no_target', 'blocked_wall', 'vertical_cancel'}:
             assert delta == spent == 0
         else:
-            assert delta > 0 and spent > 0 and trial['moves_after'] < trial['moves_before']
+            assert delta > 0 and delta == spent and trial['moves_after'] < trial['moves_before']
+            assert delta >= 2 if trial['scenario'] == 'burst' else delta == 1
             assert not trial['escape_recovery'], 'Required firing path needed escape watchdog'
             shots += delta
     assert cursor == len(frames) and shots >= 120

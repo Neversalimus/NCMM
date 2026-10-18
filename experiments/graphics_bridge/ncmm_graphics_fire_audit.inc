@@ -12,22 +12,27 @@
     struct input_feed {
         enum class kind { command, click, confirm, cancel };
         std::atomic<bool> stop{false};std::atomic<bool> escape_recovery{false};std::thread worker;
-        input_feed(SDL_WindowID window,kind type,float mx=0,float my=0):worker([this,window,type,mx,my](){
-            for(int tick=0;tick<1500&&!stop.load();++tick){
-                SDL_Delay(10);if(tick%10!=9||stop.load())continue;
-                SDL_Event event={};
-                if(type==kind::cancel||tick>=200){
-                    if(type!=kind::cancel)escape_recovery.store(true);
+        input_feed(SDL_WindowID window,kind type,float mx=0,float my=0,bool cancel_target=false):worker([this,window,type,mx,my,cancel_target](){
+            int waiting=0;uint32_t previous_context=0;
+            for(int tick=0;tick<3000&&!stop.load();++tick){
+                SDL_Delay(10);
+                const auto context=graphics_fire_input_context.load();
+                if(!context){waiting=0;previous_context=0;continue;}
+                if(context!=previous_context){waiting=0;previous_context=context;}
+                ++waiting;if(tick%10!=9||stop.load())continue;
+                SDL_Event event={};const bool recovering=waiting>=1000;
+                if(recovering||((type==kind::cancel||cancel_target)&&context!=1)){
+                    if(recovering)escape_recovery.store(true);
                     event.type=SDL_EVENT_KEY_DOWN;event.key.windowID=window;event.key.key=SDLK_ESCAPE;event.key.scancode=SDL_SCANCODE_ESCAPE;
                     SDL_PushEvent(&event);event.type=SDL_EVENT_KEY_UP;SDL_PushEvent(&event);
-                }else if(type==kind::confirm){
+                }else if(context==2){
                     // TARGET's native keyboard-char mode receives text, just as
                     // the SDL text-input path does. No attack event is injected.
                     event.type=SDL_EVENT_TEXT_INPUT;event.text.windowID=window;event.text.text="f";SDL_PushEvent(&event);
-                }else if(type==kind::command){
+                }else if(context==1&&type==kind::command){
                     event.type=SDL_EVENT_KEY_DOWN;event.key.windowID=window;event.key.key=SDLK_F;event.key.scancode=SDL_SCANCODE_F;
                     SDL_PushEvent(&event);event.type=SDL_EVENT_KEY_UP;SDL_PushEvent(&event);
-                }else{
+                }else if(context==1&&type==kind::click){
                     // Exercise the real SDL RMB-look + LMB command dispatch.
                     // The ordinary click handler revalidates picked identity,
                     // visibility, origin, camera, range and native readiness.
@@ -75,8 +80,8 @@
             std::string(scenario)=="blocked_wall"?"t_wall":"t_floor"));
         monster *target=no_target?nullptr:g->place_critter_at(mtype_id("mon_zombie"),goal);
         require(no_target||target,"fire_audit_target_missing");
-        item gun(itype_id(burst?"m4a1":"sw_619"),calendar::turn);
-        if(!empty)gun.ammo_set(itype_id(burst?"223":"38_special"),burst?30:7);
+        item gun(itype_id(burst?"hk_mp5":"sw_619"),calendar::turn);
+        if(!empty)gun.ammo_set(itype_id(burst?"9mm":"38_special"),burst?30:7);
         if(burst)require(gun.gun_set_mode(gun_mode_id("AUTO"))||gun.gun_set_mode(gun_mode_id("BURST")),"fire_audit_native_automatic_mode_missing");
         you.set_wielded_item(gun);you.recoil=0;
         camera(-ncmm_graphics_camera::pi*.5f,-.10f);ncmm::graphics_note_input_context("DEFAULTMODE");refresh();warm(mode);
@@ -89,18 +94,25 @@
         result.enabled_before=graphics_view.enabled;result.yaw_before=graphics_camera_yaw;result.pitch_before=graphics_camera_pitch;
         result.moves_before=you.get_moves();result.ammo_before=you.get_wielded_item()->ammo_remaining();result.attack_before=graphics_attack_serial;
         {
+            graphics_fire_input_context.store(1);
             input_feed feed(window,click?input_feed::kind::click:input_feed::kind::command,
-                float(graphics_viewport.x+graphics_viewport.w/2),float(graphics_viewport.y+graphics_viewport.h/2));
+                float(graphics_viewport.x+graphics_viewport.w/2),float(graphics_viewport.y+graphics_viewport.h/2),cancel||empty);
             // The normal game retries handle_action after TIMEOUT. A single
             // diagnostic call can return before the delayed SDL event arrives.
             const auto before=graphics_fire_capture.native_command_sequence;
-            for(int retry=0;retry<128&&graphics_fire_capture.native_command_sequence==before;++retry){
+            const std::string expected=click?"SELECT":"fire";
+            for(int retry=0;retry<128;++retry){
                 g->ncmm_graphics_smoke_handle_action();++result.dispatch_calls;
+                // Mouse movement and TIMEOUT can return from the normal input
+                // loop without dispatching the requested gameplay command.
+                if(graphics_fire_capture.native_command_sequence>before&&graphics_fire_capture.native_command==expected)break;
+                if(graphics_fire_capture.native_command_sequence>before){const auto &other=graphics_fire_capture.native_command;
+                    require(other=="MOUSE_MOVE"||other=="COORDINATE",("fire_audit_unexpected_native_command:"+other).c_str());}
             }
             result.native_command=graphics_fire_capture.native_command;
             result.escape_recovery=feed.escape_recovery.load();
             require(graphics_fire_capture.native_command_sequence>before,"fire_audit_native_command_never_dispatched");
-            require(result.native_command==(click?"SELECT":"fire"),"fire_audit_unexpected_native_command");
+            require(result.native_command==expected,("fire_audit_unexpected_native_command:"+result.native_command).c_str());
         }
         graphics_release_mouse();
         if(you.activity){
@@ -128,7 +140,10 @@
                 require(f.enabled&&f.perspective&&f.captured&&f.presented,"fire_audit_intermediate_native_map_flash");
                 require(f.gpu==(std::string(mode)=="gpu"),"fire_audit_unreported_cpu_fallback");}
             if(cancel||empty)require(result.attack_after==result.attack_before&&result.ammo_after==result.ammo_before,"fire_audit_cancel_or_failure_emitted_shot");
-            else require(result.attack_after>result.attack_before&&result.ammo_after<result.ammo_before&&result.moves_after<result.moves_before,"fire_audit_confirmed_native_shot_missing");
+            else {const auto shots=result.attack_after-result.attack_before;const int spent=result.ammo_before-result.ammo_after;
+                require(shots>0&&spent>0&&shots==uint64_t(spent)&&result.moves_after<result.moves_before,"fire_audit_confirmed_native_shot_missing");
+                require(burst?shots>=2:shots==1,"fire_audit_native_shot_count_wrong");
+                require(!result.escape_recovery,"fire_audit_success_path_used_escape_watchdog");}
         }
         trials.push_back(std::move(result));ncmm::graphics_note_input_context("DEFAULTMODE");
     };
