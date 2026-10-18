@@ -65,7 +65,8 @@ public:
         ox=x;oy=y;low=minz;high=maxz;width=w;height=h;world=epoch;revision=changed;return true;
     }
     template<class Read> bool closed(int z,Read read){
-        if(!world||z<low||z>high)return false;auto &cached=state[size_t(z-low)];if(cached)return cached==2;
+        if(!world||z<low||z>high)return false;
+        auto &cached=state[size_t(z-low)];if(cached)return cached==2;
         for(int y=0;y<height;++y)for(int x=0;x<width;++x)if(!full_opaque_slab(read(ox+x,oy+y,z))){cached=1;return false;}
         cached=2;return true;
     }

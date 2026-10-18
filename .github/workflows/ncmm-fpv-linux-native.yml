@@ -77,6 +77,9 @@ jobs:
         with:
           path: ~/.cache/ccache
           key: ncmm-fpv-linux-ccache-${{ matrix.build }}-${{ github.sha }}
+      - name: Record effective Linux compiler cache coverage
+        if: always()
+        run: ccache --show-stats --format=json > linux-compiler-cache.json
       - name: Build exact Linux modules and exercise private library lifecycle
         run: |
           python3 - <<'PY'
@@ -136,6 +139,7 @@ jobs:
             linux-native-results/linux-native-verified.json
             upstream/first-person-source.json
             upstream/build/CMakeCache.txt
+            linux-compiler-cache.json
             official-data-identity.json
           if-no-files-found: warn
           compression-level: 9

@@ -355,7 +355,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "    graphics_world_frame_presented();\n#endif\n}\n"
         "bool graphics_requires_terrain_pass()\n{")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "class input_context;", "class map;\nclass input_context;")
-    updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", "void graphics_frame_presented();\nvoid initialize();")
+    updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", "void graphics_before_present();\nvoid graphics_frame_presented();\nvoid initialize();")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();",
         "void graphics_note_input_wait( const std::string &, bool text );\nvoid graphics_note_input_result( const std::string &, const std::string & );\nvoid graphics_note_terrain_composed( bool perspective );\nvoid graphics_world_changed( const map *, int z );\nvoid initialize();")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", '''// Main-thread input lifetime only; existing public module headers are unchanged.

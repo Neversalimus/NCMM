@@ -406,7 +406,8 @@
     report.member("lattice_cells",geometry.lattice);report.member("canopy_without_slab",geometry.canopy);report.member("connected_fence_corners",geometry.corners);
     report.member("windows_without_door_model",geometry.windows);report.member("unseen_continuous_walls",geometry.unseen_walls);report.member("supported_item_cells",geometry.items);
     report.member("captures",8);report.end_object();
-    if(had_nightvision)you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));you.recalc_sight_limits();get_weather().weather_id=saved_weather;
+    if(had_nightvision)you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));
+    you.recalc_sight_limits();get_weather().weather_id=saved_weather;
     }
     report.member("success",true);report.end_object();stream.close();require(bool(stream),"movement_report_write_failed");
 

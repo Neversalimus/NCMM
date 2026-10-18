@@ -29,7 +29,6 @@
             here.ter_set(p,ter_id(z<=0?"t_floor":"t_open_air"));here.furn_set(p,furn_id("f_null"));here.clear_fields(p);here.i_clear(p);here.remove_trap(p);
             if(npc *n=get_creature_tracker().creature_at<npc>(p)){const auto id=n->getID();g->remove_npc(id);overmap_buffer.remove_npc(id);}}
         you.setpos(here,point_at(0,0),false);you.set_moves(10000);g->set_safe_mode(SAFE_MODE_OFF);graphics_clear_world();graphics_clear_creatures();camera(-ncmm_graphics_camera::pi*.5f,-.08f);refresh();};
-    auto key=[&](SDL_Keycode value,SDL_Scancode scan){SDL_Event event={};event.type=SDL_EVENT_KEY_DOWN;event.key.windowID=SDL_GetWindowID(get_sdl_window());event.key.key=value;event.key.scancode=scan;require(SDL_PushEvent(&event),"audit_key_not_queued");};
     // UI construction/redraw may pump and discard a prequeued key. Feed the
     // normal SDL queue after the menu has entered its own input loop instead.
     // The worker touches no game state and is joined before leaving the scope.
@@ -192,12 +191,14 @@
                     if(!nearest->is_dead_state()){if(rl_dist(you.pos_bub(),nearest->pos_bub())<=1){const auto weapon=you.get_wielded_item();require(weapon&&you.attack_speed(*weapon)<=300,"audit_combat_weapon_requires_interactive_confirmation");you.melee_attack(*nearest,false);++trial.melee;}
                         if(!nearest->is_dead_state()&&you.get_wielded_item()&&you.get_wielded_item()->ammo_remaining()>0)trial.shots+=you.fire_gun(here,nearest->pos_bub(),1,*you.get_wielded_item());}}
                 checkpoint("native_combat_"+std::to_string(count)+"_turn_"+std::to_string(round));you.set_moves(0);const auto begin=audit_clock::now();require(!g->do_turn(),"audit_combat_native_turn_ended_game");stages["combat_native_turn_wall_ms"].push_back(milliseconds(begin));++trial.turns;
-                for(const auto &entry:graphics_creature_records)if(entry.second.snapshot.event==NCMM_CR_MELEE)enemy_attack_events.insert(entry.second.snapshot.event_serial);trial.observed_enemy_attacks=int(enemy_attack_events.size());
+                for(const auto &entry:graphics_creature_records)if(entry.second.snapshot.event==NCMM_CR_MELEE)enemy_attack_events.insert(entry.second.snapshot.event_serial);
+                trial.observed_enemy_attacks=int(enemy_attack_events.size());
                 warm("cpu");warm("gpu");
             }
             require(trial.observed_enemy_attacks>0,"audit_combat_enemy_ai_never_attacked");capture("combat-"+std::to_string(count));combat_trials.push_back(trial);clear_monsters();you.clear_effects();you.set_movement_mode(move_mode_id("walk"));you.recalc_sight_limits();
         }
-        if(you.has_trait(protection))you.toggle_trait(protection);floor();warm("cpu");
+        if(you.has_trait(protection))you.toggle_trait(protection);
+        floor();warm("cpu");
     });
     action("native_turn_processing",[&](){clear_monsters();for(int i=0;i<8;++i){you.set_moves(0);const auto begin=audit_clock::now();require(!g->do_turn(),"audit_native_turn_ended_game");stages["native_game_turn_wall_ms"].push_back(milliseconds(begin));render();}});
     action("native_f6_and_f12_dispatch",[&](){const auto pos=you.pos_abs();const int moves=you.get_moves();const auto turn=calendar::turn;press_f6();require(!graphics_view.enabled&&graphics_world_sources.bytes()==0,"audit_f6_cache_not_released");press_f6();
@@ -214,7 +215,8 @@
             const std::vector<std::string> mutations={"FUR","SCALES","CHITIN","CLAWS","WEBBED"};
             auto gallery=[&](const std::string &name,const std::function<void(const char *)> &setup,int delay=300){
                 for(const char *mode:{"cpu","gpu"}){checkpoint(tileset+"_gallery_"+name+"_"+mode);
-                    if(you.in_vehicle)here.unboard_vehicle(you.pos_bub());you.clear_worn();you.clear_bionics();
+                    if(you.in_vehicle)here.unboard_vehicle(you.pos_bub());
+                    you.clear_worn();you.clear_bionics();
                     for(const auto &id:mutations){const trait_id trait(id);require(trait.is_valid(),"gallery_mutation_id_invalid");if(you.has_trait(trait))you.toggle_trait(trait);}
                     floor();you.set_wielded_item(item());get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);setup(mode);warm(mode);SDL_Delay(delay);
                     const std::string stem="gallery-"+std::to_string(ti)+"-"+name+"-"+mode;capture(stem);
@@ -251,7 +253,8 @@
             gallery("near_wall",[&](const char *){wield("knife_combat");for(int x=-1;x<=1;++x)here.ter_set(point_at(x,-1),ter_id("t_wall"));here.ter_set(point_at(-1,0),ter_id("t_wall"));here.ter_set(point_at(1,0),ter_id("t_wall"));});
             for(const auto &id:mutations)gallery("mutation_"+id,[&](const char *){you.toggle_trait(trait_id(id));});
             gallery("bionic",[&](const char *){you.add_bionic(bionic_id("bio_armor_arms"));you.add_bionic(bionic_id("bio_razors"));});
-            if(you.in_vehicle)here.unboard_vehicle(you.pos_bub());you.clear_worn();you.clear_bionics();
+            if(you.in_vehicle)here.unboard_vehicle(you.pos_bub());
+            you.clear_worn();you.clear_bionics();
             for(const auto &id:mutations)if(you.has_trait(trait_id(id)))you.toggle_trait(trait_id(id));
             you.set_wielded_item(item());floor();report.end_array();
         }
@@ -291,7 +294,8 @@
         if(soak_frames&&soak_frames%64==0){press_f6();require(!graphics_view.enabled&&graphics_world_sources.bytes()==0,"audit_soak_f6_retained_cache");press_f6();++toggles;}
         if(soak_frames&&soak_frames%96==0){f12();++switches;calendar::turn=simulation_time+(switches%2?12_hours:0_hours);get_weather().weather_id=weather_type_id(switches%2?"rain":"sunny");}
         if(soak_frames&&soak_frames%256==0){const auto begin=audit_clock::now();clear_monsters();here.load(tripoint_abs_sm(map_loads%2?0:12,0,0),true);const tripoint_bub_ms at(60,60,0);
-            if(const auto vp=here.veh_at(at))here.destroy_vehicle(&vp->vehicle());here.ter_set(at,ter_id("t_pavement"));here.furn_set(at,furn_id("f_null"));here.clear_fields(at);here.remove_trap(at);
+            if(const auto vp=here.veh_at(at))here.destroy_vehicle(&vp->vehicle());
+            here.ter_set(at,ter_id("t_pavement"));here.furn_set(at,furn_id("f_null"));here.clear_fields(at);here.remove_trap(at);
             you.setpos(here,at,false);graphics_clear_world();++map_loads;stages["native_map_load_wall_ms"].push_back(milliseconds(begin));}
         if(soak_frames&&soak_frames%512==0){const auto begin=audit_clock::now();require(g->save(),"audit_soak_native_save_failed");++saves;stages["native_save_wall_ms"].push_back(milliseconds(begin));}
         camera(graphics_camera_yaw+.035f,.12f*std::sin(float(soak_frames)*.02f));render();

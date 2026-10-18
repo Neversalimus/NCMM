@@ -77,7 +77,8 @@ public:
     // Per-frame cells, instances, bones and explicit dynamic meshes are separate.
     uint64_t static_upload_bytes()const{return static_upload_bytes_;}
     uint64_t cpu_bytes()const{uint64_t n=0;for(const auto &[k,m]:meshes_)n+=sizeof(mesh_resource)+m.cpu_vertices.capacity()*sizeof(ncmm_gpu_vertex_v1)+m.cpu_indices.capacity()*4+m.materials.capacity()*sizeof(ncmm_gpu_material_v1)+m.joints.capacity()*sizeof(bounds)+m.ranges.capacity()*sizeof(mesh_range);
-        for(const auto &[k,t]:textures_)n+=t.pixels.capacity()*4;return n;}
+        for(const auto &[k,t]:textures_)n+=t.pixels.capacity()*4;
+        return n;}
     void bind(SDL_GPUDevice *device){device_=device;}
     void clear(){for(auto &[k,m]:meshes_)release(m);for(auto &[k,t]:textures_)release(t);meshes_.clear();textures_.clear();used_meshes_.clear();used_textures_.clear();bytes_=static_upload_bytes_=0;}
     void abandon(){device_=nullptr;clear();}
@@ -117,7 +118,8 @@ public:
             if(size>upload_limit){reason_="single mesh exceeds bounded upload budget";return false;}
             if(upload_bytes+size>upload_limit)continue;
             if(present&&source.vertex_count*sizeof(ncmm_gpu_vertex_v1)<=present->vertex_capacity&&source.index_count*4<=present->index_capacity){
-                if(!mesh_data(source,*present))return false;present->touched=++clock_;new_meshes.push_back(source.key);upload_bytes+=size;++metrics.dynamic_mesh_updates;continue;}
+                if(!mesh_data(source,*present))return false;
+                present->touched=++clock_;new_meshes.push_back(source.key);upload_bytes+=size;++metrics.dynamic_mesh_updates;continue;}
             if(present){auto old=meshes_.find(source.key);release(old->second);meshes_.erase(old);}
             mesh_resource m;m.bytes=size;m.touched=++clock_;m.dynamic=source.reserved&NCMM_GPU_DYNAMIC_MESH;if(!reserve(size,limit)||!mesh_data(source,m))return false;
             m.vertex_capacity=source.vertex_count*sizeof(ncmm_gpu_vertex_v1);m.index_capacity=source.index_count*4;

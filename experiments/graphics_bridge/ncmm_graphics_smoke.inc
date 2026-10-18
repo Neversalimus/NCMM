@@ -574,7 +574,7 @@ bool graphics_scene_smoke()
         here.furn_set( lamp_pos, furn_id( "f_null" ) );
         lamp->light_emitted = restore.emission; lamp->light_color = restore.color;
         calendar::turn = start_time;
-        for( const std::pair<const char *, uint32_t> weather_case : {
+        for( const std::pair<const char *, uint32_t> &weather_case : {
                  std::pair<const char *, uint32_t>( "rain", NCMM_WEATHER_RAIN ),
                  { "snowstorm", NCMM_WEATHER_SNOW }, { "portal_storm", NCMM_WEATHER_PORTAL } } ) {
             get_weather().weather_id = weather_type_id( weather_case.first );

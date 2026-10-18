@@ -1,7 +1,23 @@
 """Apply private Linux/Windows library operations without changing module contracts."""
+import re
 
 
 def prepare(loader, replace):
+    # These helpers have no Host-header declaration and no cross-TU callers.
+    # Keep their linkage private under the same strict GCC warnings as CDDA.
+    private_helpers = [
+        'worldgen_scope_hook_enabled','worldgen_hook_scope_enabled',
+        'manager_state_label','manager_state_marker','manager_state_color','manager_settings_for',
+        'manager_setting_value','manager_setting_default_value','manager_setting_scope_label',
+        'manager_setting_is_default','manager_reset_setting','manager_reset_module_settings',
+        'manager_has_world_settings','manager_confirm_reset','manager_adjust_setting',
+        'manager_persist_settings','manager_open_world_settings','manager_open_module_ui','manager_toggle_module',
+        'command_line_flag_present','runtime_smoke_requested','gameplay_smoke_rng_next','write_gameplay_smoke_result']
+    for name in private_helpers:
+        matches = list(re.finditer(r'(?m)^(?!static\b)([A-Za-z_][^\n(]*\b'+re.escape(name)+r'\s*\()',loader))
+        if len(matches)!=1:
+            raise ValueError('Private Native helper definition changed: '+name)
+        at=matches[0].start();loader=loader[:at]+'static '+loader[at:]
     loader = replace(loader, '#include "ncmm_loader.h"',
                      '#include "ncmm_loader.h"\n#include "ncmm_graphics_library.hpp"')
     loader = replace(loader, '#ifdef _WIN32\n    HMODULE handle = nullptr;\n#endif',

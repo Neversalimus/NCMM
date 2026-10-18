@@ -69,7 +69,10 @@ def run(args):
             shutil.copy2(module_source/'mod.json',target/'mod.json')
             for extra in ['data','persistent_data']:
                 if (module_source/extra).is_dir(): shutil.copytree(module_source/extra,target/extra)
-        environment={k:v for k,v in os.environ.items() if not k.startswith('NCMM_FP_')}
+        allowed={'PATH','HOME','USER','LOGNAME','LANG','LC_ALL','LC_CTYPE','LD_LIBRARY_PATH',
+                 'DISPLAY','XAUTHORITY','XDG_RUNTIME_DIR','XDG_DATA_DIRS','XDG_CONFIG_DIRS',
+                 'TMPDIR','TMP','TEMP','VK_DRIVER_FILES'}
+        environment={k:v for k,v in os.environ.items() if k in allowed}
         environment.update(NCMM_FP_APPEARANCE_SMOKE='1',SDL_ASSERT='abort',
                            SDL_RENDER_DRIVER='gpu',SDL_GPU_DRIVER='vulkan',SDL_AUDIODRIVER='dummy')
         environment.update(switches)

@@ -411,7 +411,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         }
         d.terrain_shape = terrain_shape(ter);
         if(world&&(world->coordinates[i].flags&NCMM_WORLD_RAMP))d.terrain_shape=NCMM_SHAPE_FLAT;
-        d.terrain_flags = ter.transparent ? NCMM_SURFACE_TRANSPARENT : 0u;
+        d.terrain_flags = ter.transparent ? static_cast<uint32_t>(NCMM_SURFACE_TRANSPARENT) : 0u;
         // Vehicle interiors also make outside_cache false. They are not
         // building ceilings; only actual terrain above confirms that surface.
         if( p.z() < OVERMAP_HEIGHT && !here.ter( tripoint_bub_ms( p.x(), p.y(), p.z() + 1 ) ).obj().has_flag( "NO_FLOOR" ) ) {

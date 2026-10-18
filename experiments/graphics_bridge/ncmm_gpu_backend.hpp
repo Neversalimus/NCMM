@@ -51,7 +51,8 @@ class backend {
         SDL_GPUTextureCreateInfo info{};info.type=SDL_GPU_TEXTURETYPE_2D;info.format=format;info.width=width;info.height=height;info.layer_count_or_depth=1;info.num_levels=1;
         info.sample_count=SDL_GPU_SAMPLECOUNT_1;info.usage=usage;return SDL_CreateGPUTexture(context_.device(),&info);}
     bool targets(uint32_t width,uint32_t height){
-        if(!context_.targets(width,height))return false;if(world_&&width_==width&&height_==height)return true;release_targets();
+        if(!context_.targets(width,height))return false;
+        if(world_&&width_==width&&height_==height)return true;release_targets();
         const auto color_usage=SDL_GPU_TEXTUREUSAGE_COLOR_TARGET|SDL_GPU_TEXTUREUSAGE_SAMPLER;
         world_=texture(SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,width,height,color_usage);
         id_=texture(SDL_GPU_TEXTUREFORMAT_R32_UINT,width,height,SDL_GPU_TEXTUREUSAGE_COLOR_TARGET|SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_READ);
@@ -224,7 +225,8 @@ public:
         auto *mapped=static_cast<unsigned char *>(SDL_MapGPUTransferBuffer(context_.device(),transfer,true));if(!mapped){context_.fail("map frame transfer");reason(context_.reason());return false;}
         stage=clock::now();uint32_t offset=0;std::memcpy(mapped+offset,instances.data(),instances.size()*sizeof(instance));offset+=uint32_t(instances.size()*sizeof(instance));
         std::memcpy(mapped+offset,scene.bones,scene.bone_count*sizeof(ncmm_gpu_matrix_v1));offset+=scene.bone_count*sizeof(ncmm_gpu_matrix_v1);
-        if(cell_upload_size)std::memcpy(mapped+offset,cell_snapshot_.data(),cell_upload_size);offset+=cell_upload_size;
+        if(cell_upload_size)std::memcpy(mapped+offset,cell_snapshot_.data(),cell_upload_size);
+        offset+=cell_upload_size;
 
         std::memset(mapped+offset,0,64);if(initialize_white)std::memset(mapped+offset+64,255,4);SDL_UnmapGPUTransferBuffer(context_.device(),transfer);
         if(!SDL_FlushRenderer(context_.renderer())){context_.fail("flush SDL GPU state");reason(context_.reason());return false;}
@@ -281,7 +283,8 @@ public:
         SDL_PushGPUFragmentUniformData(commands,0,&scene.camera,sizeof(scene.camera));std::vector<uint32_t> sources;
         for(uint32_t i=0;i<scene.cell_count;++i)if(scene.cells[i].source[3]>1)sources.push_back(i);
         std::stable_sort(sources.begin(),sources.end(),[&](uint32_t a,uint32_t b){return scene.cells[a].source[3]>scene.cells[b].source[3];});uint32_t lights[12]{};
-        for(size_t i=0;i<std::min<size_t>(12,sources.size());++i)lights[i]=sources[i];SDL_PushGPUFragmentUniformData(commands,1,lights,sizeof(lights));SDL_DrawGPUPrimitives(pass,3,1,0,0);++metrics_.draw_calls;SDL_EndGPURenderPass(pass);
+        for(size_t i=0;i<std::min<size_t>(12,sources.size());++i)lights[i]=sources[i];
+        SDL_PushGPUFragmentUniformData(commands,1,lights,sizeof(lights));SDL_DrawGPUPrimitives(pass,3,1,0,0);++metrics_.draw_calls;SDL_EndGPURenderPass(pass);
         if(profiling_)recording_.volume_ms=ms(phase_start);
         phase_start=profiling_?clock::now():clock::time_point{};
         SDL_GPUColorTargetInfo output{};output.texture=context_.color();output.load_op=SDL_GPU_LOADOP_CLEAR;output.store_op=SDL_GPU_STOREOP_STORE;output.cycle=true;
