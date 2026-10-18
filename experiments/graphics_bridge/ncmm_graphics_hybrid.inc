@@ -623,7 +623,10 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     ncmm_graphics_trace::cpu_zone target_hud_zone("Target HUD");
     if( ok && !graphics_aim_name.empty() ) {
         const int anchor_x=x+int(graphics_aim_x*base.pixel_width),anchor_y=y+int(graphics_aim_y*base.pixel_height);
-        if(graphics_aim_hostile&&world_setting_get_bool("NCMM_FIRST_PERSON_TARGET_HUD",1))
+        // Process-only ablation in owned diagnostics; the ordinary world
+        // setting remains the sole player-facing switch.
+        static const bool diagnostic_hide_hud=[](){const auto *value=std::getenv("NCMM_FP_TARGET_HUD");return value&&std::strcmp(value,"0")==0;}();
+        if(graphics_aim_hostile&&!diagnostic_hide_hud&&world_setting_get_bool("NCMM_FIRST_PERSON_TARGET_HUD",1))
             ncmm_draw_perspective_target(graphics_aim_name,anchor_x,anchor_y,clip,graphics_aim_health.known,graphics_aim_health.fraction);
         else ncmm_draw_perspective_label(graphics_aim_name,anchor_x,anchor_y,clip);
     }

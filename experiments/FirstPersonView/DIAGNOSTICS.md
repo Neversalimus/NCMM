@@ -1,5 +1,22 @@
 # First Person diagnostics
 
+`-MovementBenchmark -Extended -FullSizeGpuMatrix` is an explicitly selected
+hardware performance comparison: the same ten extended scenes, 64 Native
+steps and 96 cold plus 96 warm camera frames per scene at 1768x1084. It changes
+neither quality, draw distance nor loaded levels. Normal CPU/GPU release gates
+and the 80-record extended matrix remain unchanged when this flag is absent.
+The runner rejects profiler/debug/differential modes and software adapters in
+this performance mode. Configured Native renderer VSync, physical window size,
+display scale and the runtime SDL version are recorded separately from the
+offscreen scene dimensions.
+
+For component comparisons, `-DisableHeldAssets`, `-DisableTargetHud` and
+`-DisableCameraSnapshot` affect only the diagnostic child. They are separate
+from the one player-facing HUD option. A disabled-components run is an
+ablation of the combined Host, not an unchanged historical installer; keep
+the exact historical baseline and its provenance separate. Run the four modes
+in forward and reverse order and retain unsuccessful/regressing samples.
+
 `-TargetHudGallery` runs the same Native HP/picking/font cases as the gameplay
 audit in its own isolated process, before the long firing and soak gates. It is
 diagnostic correctness evidence and does not replace those gates or establish

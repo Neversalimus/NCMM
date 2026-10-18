@@ -8,6 +8,7 @@ param(
     [switch]$MovementBenchmark,
     [switch]$CameraInputProbe,
     [switch]$Extended,
+    [switch]$FullSizeGpuMatrix,
     [switch]$CameraSnapshotVerify,
     [switch]$DisableCameraSnapshot,
     [ValidateSet('quiet','rotate','step','shot','hands','smoke','city')][string]$TraceCaptureScene,
@@ -15,6 +16,7 @@ param(
     [switch]$HeldAssetGallery,
     [switch]$DisableHeldAssets,
     [switch]$TargetHudGallery,
+    [switch]$DisableTargetHud,
     [switch]$CaptureCrashDump,
     [switch]$GpuDebug,
     [string]$DumpAnalyzer
@@ -68,10 +70,12 @@ if($MovementBenchmark -and $FocusedGpuBenchmark){throw 'Choose one focused bench
 if($HeldAssetGallery -and ($MovementBenchmark -or $FocusedGpuBenchmark -or $ViewmodelGallery -or $DisableHeldAssets -or $CameraInputProbe)){throw 'HeldAssetGallery requires its own enabled native diagnostic run.'}
 if($HeldAssetGallery -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the gameplay audit.'}
 if($Extended -and -not $MovementBenchmark){throw 'Extended requires MovementBenchmark.'}
+if($FullSizeGpuMatrix -and (-not $MovementBenchmark -or -not $Extended -or $TraceCaptureScene -or $CameraSnapshotVerify -or $GpuDebug)){throw 'FullSizeGpuMatrix requires ordinary Extended MovementBenchmark without profiler markers, GPU debug or differential verification.'}
 if($CameraSnapshotVerify -and (-not $MovementBenchmark -or $DisableCameraSnapshot)){throw 'CameraSnapshotVerify requires an enabled movement snapshot run.'}
 if($ViewmodelGallery -and ($MovementBenchmark -or $FocusedGpuBenchmark)){throw 'ViewmodelGallery belongs to the gameplay audit.'}
 if($TargetHudGallery -and ($MovementBenchmark -or $FocusedGpuBenchmark -or $ViewmodelGallery -or $TilesetRoot)){throw 'TargetHudGallery requires its own official-tileset native diagnostic run.'}
 if($TargetHudGallery -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the full gameplay audit.'}
+if($TargetHudGallery -and $DisableTargetHud){throw 'TargetHudGallery requires its enabled HUD.'}
 if($MovementBenchmark -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the gameplay audit.'}
 if($FocusedGpuBenchmark -and $TilesetRoot){throw 'Focused GPU reproduction uses the official tileset; use the gameplay audit for UDP coverage.'}
 if($FocusedGpuBenchmark -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the gameplay audit, not focused GPU reproduction.'}
@@ -167,7 +171,7 @@ public static class NCMMNativeCrashDialog {
 }
 '@
 }
-$names=@('NCMM_FP_CAMERA_INPUT','NCMM_FP_CAMERA_CACHE','NCMM_FP_CAMERA_CACHE_VERIFY','NCMM_FP_TRACE_MARKERS','NCMM_FP_TRACE_CAPTURE_SCENE','NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT','NCMM_FP_HELD_GALLERY_ONLY','NCMM_FP_HELD_ASSETS','NCMM_FP_TARGET_HUD_ONLY')
+$names=@('NCMM_FP_CAMERA_INPUT','NCMM_FP_CAMERA_CACHE','NCMM_FP_CAMERA_CACHE_VERIFY','NCMM_FP_TRACE_MARKERS','NCMM_FP_TRACE_CAPTURE_SCENE','NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT','NCMM_FP_HELD_GALLERY_ONLY','NCMM_FP_HELD_ASSETS','NCMM_FP_TARGET_HUD_ONLY','NCMM_FP_PERF_GPU_FULLSIZE','NCMM_FP_TARGET_HUD')
 $prior=@{}
 # Modern .NET preserves an empty environment variable. PowerShell can convert
 # $null to that empty string at the .NET call boundary, and native getenv then
@@ -182,6 +186,8 @@ try {
     if($CameraInputProbe){$env:NCMM_FP_CAMERA_INPUT='1'}elseif($HeldAssetGallery){$env:NCMM_FP_HELD_GALLERY_ONLY='1'}elseif($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
     if($DisableHeldAssets){$env:NCMM_FP_HELD_ASSETS='0'}
     if($Extended){$env:NCMM_FP_EXTENDED='1'}
+    if($FullSizeGpuMatrix){$env:NCMM_FP_PERF_GPU_FULLSIZE='1'}
+    if($DisableTargetHud){$env:NCMM_FP_TARGET_HUD='0'}
     if($CameraSnapshotVerify){$env:NCMM_FP_CAMERA_CACHE_VERIFY='1'}
     if($DisableCameraSnapshot){$env:NCMM_FP_CAMERA_CACHE='0'}
     if($TraceCaptureScene){$env:NCMM_FP_TRACE_MARKERS='1';$env:NCMM_FP_TRACE_CAPTURE_SCENE=$TraceCaptureScene}
@@ -368,9 +374,11 @@ if($TargetHudGallery){
     $soaked=0
 }elseif($MovementBenchmark){
     $audit=Get-Content (Join-Path $evidence 'first-person-movement-benchmark.json') -Raw | ConvertFrom-Json
-    $expectedRecords=if($Extended){80}else{12};$expectedSteps=if($Extended){64}else{12};$expectedRotations=if($Extended){96}else{48}
+    $expectedRecords=if($FullSizeGpuMatrix){10}elseif($Extended){80}else{12};$expectedSteps=if($Extended){64}else{12};$expectedRotations=if($Extended){96}else{48}
+    if($FullSizeGpuMatrix -and $audit.full_size_gpu_matrix -ne $true){throw 'Full-size GPU matrix descriptor is missing.'}
     if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.simulation_turns_advanced -ne 0 -or @($audit.records).Count -ne $expectedRecords){throw 'Native movement benchmark is incomplete.'}
     foreach($record in $audit.records){
+        if($FullSizeGpuMatrix -and ($record.renderer -ne 'gpu' -or $record.width -ne 1768 -or $record.height -ne 1084 -or $record.software_device -ne $false)){throw 'Full-size GPU matrix requires actual hardware GPU frames at 1768x1084.'}
         if($record.native_steps -ne $expectedSteps -or @($record.first_ready_samples_ms).Count -ne $expectedSteps -or @($record.easing_frame_samples_ms).Count -eq 0){throw 'Native steps or easing samples are incomplete.'}
         if(@($record.cold_rotation_samples_ms).Count -ne $expectedRotations -or @($record.warm_rotation_samples_ms).Count -ne $expectedRotations){throw 'Continuous cold/warm rotation samples are incomplete.'}
         if($Extended -and ($record.extended_matrix -ne $true -or $record.internal_width -le 0 -or $record.internal_height -le 0)){throw 'Extended resolution evidence is missing.'}
@@ -406,6 +414,8 @@ $result=[ordered]@{success=$true;source_commit=$bundle.source_commit;ncmm_commit
 $result['camera_input_probe']=[bool]$CameraInputProbe
 $result['trace_capture_scene']=$TraceCaptureScene
 $result.target_hud_gallery=[bool]$TargetHudGallery
+$result.full_size_gpu_matrix=[bool]$FullSizeGpuMatrix
+$result.target_hud_enabled=-not [bool]$DisableTargetHud
 $result | ConvertTo-Json | Set-Content (Join-Path $OutputRoot 'benchmark-provenance.json') -Encoding UTF8
 $result | ConvertTo-Json
 } catch {
