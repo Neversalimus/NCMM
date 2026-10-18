@@ -51,7 +51,8 @@ def verify(root):
     measured = [t for t in trials if not t['legacy_control']]
     common = {'keyboard_single', 'lmb_single', 'cancel', 'empty', 'no_target', 'window'}
     extra = {'blocked_wall', 'vertical_cancel', 'burst'}
-    expected = Counter({(mode, name): 10 for mode in ['cpu', 'gpu'] for name in common})
+    firing = {'keyboard_single', 'lmb_single', 'window'}
+    expected = Counter({(mode, name): 20 if name in firing else 10 for mode in ['cpu', 'gpu'] for name in common})
     expected.update({(mode, name): 1 for mode in ['cpu', 'gpu'] for name in extra})
     assert Counter((t['renderer'], t['scenario']) for t in measured) == expected
     assert len(measured) >= 100 and len(controls) == 1 and controls[0]['scenario'] == 'cancel'
@@ -69,6 +70,8 @@ def verify(root):
         assert first == cursor and first < last <= len(frames)
         cursor = last
         selected = frames[first:last]
+        assert 1 <= trial['dispatch_calls'] <= 128
+        assert trial['native_command'] == ('SELECT' if trial['scenario'] == 'lmb_single' else 'fire')
         if trial['legacy_control']:
             assert any(not f['perspective'] for f in selected), 'Original regression was not reproduced'
             continue
@@ -83,7 +86,7 @@ def verify(root):
             assert delta > 0 and spent > 0 and trial['moves_after'] < trial['moves_before']
             assert not trial['escape_recovery'], 'Required firing path needed escape watchdog'
             shots += delta
-    assert cursor == len(frames) and shots >= 60
+    assert cursor == len(frames) and shots >= 120
     return {'success': True, 'actual_cdda_sdl': True, 'manual_playthrough': False,
             'normal_native_ui_attempts': len(measured), 'confirmed_shots': shots,
             'original_context_regression_reproduced': True, 'presented_images': len(frames),
