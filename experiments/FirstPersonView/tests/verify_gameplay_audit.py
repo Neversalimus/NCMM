@@ -4,6 +4,7 @@ import json
 import math
 from pathlib import Path
 from verify_fire_audit import verify as verify_fire_audit
+from verify_held_gallery import verify as verify_held_gallery
 
 p=argparse.ArgumentParser()
 p.add_argument('--root',type=Path,required=True)
@@ -13,7 +14,7 @@ a=p.parse_args()
 r=json.loads((a.root/'first-person-gameplay-audit.json').read_text(encoding='utf-8-sig'))
 assert r['success'] and r['actual_cdda_sdl'] and not r['manual_playthrough']
 assert not r['gpu_execution_timestamps_available']
-actions={'native_firing_ui_context_and_presented_frames','native_walk_and_visual_continuity','native_door_open_close_and_furniture',
+actions={'native_held_assets_and_shared_psx_contacts','native_firing_ui_context_and_presented_frames','native_walk_and_visual_continuity','native_door_open_close_and_furniture',
          'native_pickup_inventory_cancel_and_item_use','native_melee_aim_fire_and_reload_completion',
          'native_stairs_and_basement','native_vehicle_board_controls_displacement_and_exit',
          'rapid_tall_avatar_stairs_respect_scene_bounds',
@@ -21,6 +22,7 @@ actions={'native_firing_ui_context_and_presented_frames','native_walk_and_visual
          'native_turn_processing','native_f6_and_f12_dispatch'}
 assert {x['name'] for x in r['actions']}==actions and all(x['success'] for x in r['actions'])
 fire_audit = verify_fire_audit(a.root)
+held_gallery = verify_held_gallery(a.root)
 assert r['native_action_stages']['native_game_turn_wall_ms']['samples']==8
 assert r['native_action_stages']['native_stair_first_ready_wall_ms']['samples']==4
 assert [t['spawned'] for t in r['combat_trials']]==[1,5,20]

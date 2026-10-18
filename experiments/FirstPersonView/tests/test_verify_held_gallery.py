@@ -91,5 +91,11 @@ class HeldGalleryVerification(unittest.TestCase):
         self.first('pistol')['capture']='../outside.bmp'
         with self.assertRaises(AssertionError):self.check()
 
+    def test_vulkan_requires_explicit_backend(self):
+        for record in self.records:
+            if record['renderer']=='gpu':record['backend']='vulkan'
+        with self.assertRaises(AssertionError):self.check()
+        self.assertEqual(verify(self.root,self.manifest,'RTX test',expected_backend='vulkan')['native_cases'],64)
+
 
 if __name__=='__main__':unittest.main()
