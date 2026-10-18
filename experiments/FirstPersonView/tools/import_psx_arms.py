@@ -99,10 +99,23 @@ def hierarchy(nodes):
         visit(index)
     return parents,order
 
+def ordered_triangles(vertices, indices, palettes):
+    # Opaque triangle order can improve the existing 128-palette chunks.
+    # A dominant joint is only an ordering key: no vertex influence changes.
+    def dominant(index):
+        joints,weights=palettes[vertices[index][8]]
+        return joints[max(range(4),key=lambda i:weights[i])]
+    triangles=[indices[i:i+3] for i in range(0,len(indices),3)]
+    triangles.sort(key=lambda t:(vertices[t[0]][9],vertices[t[0]][10],
+                                 min(dominant(i) for i in t),max(dominant(i) for i in t)))
+    return [index for triangle in triangles for index in triangle]
+
 def import_model(content):
     glb = GLB(content); d = glb.document
     require(len(d['meshes']) == len(d['skins']) == 1 and len(d['meshes'][0]['primitives']) == 1, 'Unexpected asset topology')
     primitive = d['meshes'][0]['primitives'][0]; attributes = primitive['attributes']
+    material=d['materials'][primitive['material']] if 'material' in primitive else {}
+    require(material.get('alphaMode','OPAQUE')=='OPAQUE', 'Palette ordering requires an opaque source material')
     require(primitive.get('mode',4) == 4 and set(attributes) == {'POSITION','NORMAL','TEXCOORD_0','JOINTS_0','WEIGHTS_0'},
             'Unsupported primitive or additional weight set')
     positions=glb.accessor(attributes['POSITION'],'VEC3'); normals=glb.accessor(attributes['NORMAL'],'VEC3')
@@ -161,6 +174,7 @@ def import_model(content):
             if key not in vertex_ids:
                 vertex_ids[key]=len(vertices); vertices.append((*original[index][:-1],region))
             output_indices.append(vertex_ids[key])
+    output_indices=ordered_triangles(vertices,output_indices,palettes)
     keys=[]; tracks=[]; clips=[]; sequences={}
     properties={'translation':0,'rotation':1,'scale':2}
     for animation in d['animations']:
@@ -255,6 +269,7 @@ def convert(archive_path, output):
               'triangles':len(model['indices'])//3,'nodes':len(model['nodes']),'joints':len(model['joints']),
               'weighted_palette_entries':len(model['palettes']),'all_four_weights_preserved':True,
               'palette_method':'Exact weighted affine matrices per distinct source joint/weight tuple; no dominant-joint approximation',
+              'triangle_ordering':'Opaque triangles ordered offline by side, material region and bone locality; original triangle winding, attributes and all weights preserved',
               'bind_max_error':model['bind_max_error'],'clips':[c[0] for c in model['clips']],
               'stored_keyframes':len(model['keys']),'tracks':len(model['tracks']),
               'pillow_version':pillow_version,

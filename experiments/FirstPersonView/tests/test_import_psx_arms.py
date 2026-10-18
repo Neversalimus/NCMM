@@ -1,5 +1,6 @@
 """Independent malformed glTF fixtures for the offline importer (stdlib only)."""
 import copy
+from collections import Counter
 import importlib.util
 import json
 from pathlib import Path
@@ -58,6 +59,20 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(value['bind_max_error'],0)
     def test_truncated_glb(self):
         with self.assertRaises(ValueError):IMPORT.GLB(fixture()[:-1])
+    def test_transparent_material_cannot_be_reordered(self):
+        def change(d,b,a):
+            d['materials']=[{'alphaMode':'BLEND'}];d['meshes'][0]['primitives'][0]['material']=0
+        self.rejected(change)
+    def test_ordering_preserves_every_weighted_oriented_triangle(self):
+        model=IMPORT.import_model(fixture());vertices=model['vertices'];palettes=model['palettes']
+        # Include repeated triangles with distinct winding. Ordering may change
+        # neither multiplicity nor vertex/weight tables, even at material seams.
+        original=[3,4,5,2,1,0,0,1,2,3,4,5];before=copy.deepcopy((vertices,palettes))
+        ordered=IMPORT.ordered_triangles(vertices,original,palettes)
+        triangles=lambda indices:Counter(tuple(indices[i:i+3]) for i in range(0,len(indices),3))
+        self.assertEqual(triangles(original),triangles(ordered))
+        self.assertEqual((vertices,palettes),before)
+        self.assertEqual(ordered,IMPORT.ordered_triangles(vertices,ordered,palettes))
     def test_unknown_required_extension(self):
         self.rejected(lambda d,b,a:d.update(extensionsRequired=['unknown_skinning']))
     def test_external_buffer(self):

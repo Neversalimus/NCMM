@@ -17,6 +17,7 @@
   "weighted_palette_entries": 494,
   "all_four_weights_preserved": true,
   "palette_method": "Exact weighted affine matrices per distinct source joint/weight tuple; no dominant-joint approximation",
+  "triangle_ordering": "Opaque triangles ordered offline by side, material region and bone locality; original triangle winding, attributes and all weights preserved",
   "bind_max_error": 7.320898019868433e-07,
   "clips": [
     "finger_gun_broken",
@@ -66,7 +67,7 @@
       "rgba8_sha256": "6c4cbd330db52fa5c8cc16cfcceb7477e76d0eeb014cd76fb02b902afe53efc1"
     }
   ],
-  "generated_cpp_sha256": "b63666e5b49c71b1e85ce8c0c1f0d4700e1fbb5a25c19a7f7849ad0ba0b56443",
+  "generated_cpp_sha256": "0ef9853caa8cccf109e54bbcd7f4f295851cbe3875666f0b41097abff45a9804",
   "runtime_network_or_gltf_parser": false,
   "blender_scripts_executed": false
 }
