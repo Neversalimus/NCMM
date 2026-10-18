@@ -38,7 +38,9 @@ bool valid(const model &value) noexcept {
     for(auto axis:{value.grips.primary_axis,value.grips.secondary_axis})if(!finite(axis)||std::abs(viewmodel::dot(axis,axis)-1)>.001f)return false;
     for(auto index:{value.optic_socket,value.muzzle_socket,value.rail_socket,value.light_socket,value.trigger_node,value.slide_node})
         if(index < -1||index>=int(mesh.node_count))return false;
-    return finite(value.slide_translation);
+    const auto q=value.mount_rotation;
+    const float norm=q.x*q.x+q.y*q.y+q.z*q.z+q.w*q.w;
+    return finite(value.slide_translation)&&std::isfinite(norm)&&std::abs(norm-1)<.001f;
 }
 const model *find(const char *id) noexcept {
     if(!id)return nullptr;

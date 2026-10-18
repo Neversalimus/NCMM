@@ -607,10 +607,10 @@ static const material materials[]={
 {{0.298039252f,0.298039252f,0.298039252f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"suppressor",6663305502384892518ull,family::suppressor,
+1,"suppressor",15390223368843225958ull,family::suppressor,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
 vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,0.0f,0.0f}},{0,{0.0f,-4.3772161e-08f,-0.0638212412f}},{0,{0.0f,-4.3772161e-08f,-0.111148883f}},{0,{0.0f,-4.28408384e-08f,0.0035847947f}},{0,{0.0f,-4.28408384e-08f,0.0035847947f}},{0,{0.0f,0.0f,0.0f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f}},
--1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.198f,false
+-1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.198f,false,{0.707106781f,0.0f,0.0f,0.707106781f}
 };
 const model &asset_suppressor() noexcept {return value;}
 }

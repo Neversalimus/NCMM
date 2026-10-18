@@ -1388,10 +1388,10 @@ static const material materials[]={
 {{0.735356983f,0.735356983f,0.735356983f,0.18f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"red_dot",15019124026981291296ull,family::optic,
+1,"red_dot",5523840342812353754ull,family::optic,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
 vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,0.0f,0.0f}},{0,{-7.91624188e-09f,0.0171800908f,0.00896631282f}},{0,{-7.91624188e-09f,0.0171800908f,-0.00942833796f}},{0,{-0.00586564559f,0.0185125414f,0.0351647548f}},{0,{-0.00586564559f,0.0185125414f,0.0351647548f}},{0,{0.0f,0.0f,0.0f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f}},
--1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.04f,false
+-1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.04f,false,{0.707106781f,0.0f,0.0f,0.707106781f}
 };
 const model &asset_red_dot() noexcept {return value;}
 }

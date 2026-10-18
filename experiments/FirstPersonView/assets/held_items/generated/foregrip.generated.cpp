@@ -647,10 +647,10 @@ static const material materials[]={
 {{0.0980392425f,0.0980392425f,0.0980392425f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"foregrip",10185762553167938456ull,family::foregrip,
+1,"foregrip",6065361000996856070ull,family::foregrip,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
 vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,-0.032f,0.0f}},{0,{0.0f,-0.028645938f,0.000428743195f}},{0,{0.0f,-0.051041507f,0.000428743195f}},{0,{-2.32830644e-09f,0.00325078145f,0.000428744592f}},{0,{-2.32830644e-09f,0.00325078145f,0.000428744592f}},{0,{0.0f,0.0f,0.0f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f}},
--1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.05f,false
+-1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.05f,false,{0.707106781f,0.0f,0.0f,0.707106781f}
 };
 const model &asset_foregrip() noexcept {return value;}
 }

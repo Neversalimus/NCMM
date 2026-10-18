@@ -196,6 +196,14 @@ detachable magazines and the actual presence of ammunition select existing parts
 without rebuilding static vertices. Empty weapons do not display an authored round.
 The imported path does not request an unused tileset held sprite.
 
+The separate Pichuliru accessories are authored in GLB world coordinates; the
+gun sockets inherit the rig's exported bone coordinate frame. Their explicit
+offline rigid mating rotations join those frames before the uniform Native
+dimension scale. Socket animation and original mesh proportions are retained.
+Numerical checks require the front grip and support hand below the bottom rail
+and the suppressor ahead of the muzzle; mounted orientation also requires review
+in actual Native captures. Cancelling mesh normalization alone is insufficient.
+
 The installer compiles geometry/textures into the DLL and installs the exact
 resource manifest and license evidence. It requires no Blender, Python, network
 or runtime model importer. Its existing transaction tests also check these files
@@ -206,6 +214,10 @@ recording chosen model/accessory identities, fallback, matrices and upload/cache
 counters. `-DisableHeldAssets` is a process-isolated diagnostic control for
 paired measurements; it is not a new gameplay setting. The extended armed scene
 uses canonical `scar_l` so the resource path participates in those comparisons.
+The gallery verifier requires all 64 cases, the exact 30 compiled identities,
+complete lossless pixel storage and pose-only warm GPU reuse. CI preserves
+gallery diagnostics on failure. These checks do not claim visual quality or
+ordinary frame-time acceptance.
 
 Local numerical/rendering tests are development evidence. Native selection,
 screenshots, both engine pins, final performance and long GPU-debug qualification

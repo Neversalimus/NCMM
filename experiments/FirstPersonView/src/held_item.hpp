@@ -28,6 +28,9 @@ struct model {
     int16_t optic_socket,muzzle_socket,rail_socket,light_socket,trigger_node,slide_node;
     viewmodel::point slide_translation;
     float nominal_length;bool two_handed;
+    // Explicit offline mating-frame calibration, separate from mesh units
+    // and the author's animated socket transform.
+    viewmodel::quaternion mount_rotation{};
 };
 // Immutable tables prepared offline. No model/texture decoding in the game.
 const model *const *models(size_t &count) noexcept;

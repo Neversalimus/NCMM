@@ -110,6 +110,7 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check pillow==11.3.0
           python -B experiments/FirstPersonView/tests/test_import_held_items.py -v
+          python -B experiments/FirstPersonView/tests/test_verify_held_gallery.py -v
           python -B experiments/FirstPersonView/tools/import_held_items.py --selection experiments/FirstPersonView/assets/held_items/selection.json --output experiments/FirstPersonView/assets/held_items/generated --check
       - name: Native firing pixel verifier negative tests
         run: |
@@ -407,6 +408,8 @@ jobs:
           $output=Join-Path $env:RUNNER_TEMP 'fp-held-gallery'
           try {
             ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -HeldAssetGallery -CaptureCrashDump -GpuDebug
+            python -B ncmmrepo/experiments/FirstPersonView/tests/verify_held_gallery.py --root (Join-Path $output 'evidence') --output (Join-Path $output 'evidence/first-person-held-gallery-verified.json')
+            if($LASTEXITCODE -ne 0){throw 'Native held model/state/capture verification failed.'}
           } finally {
             $dest=Join-Path $PWD 'installer-result/held-gallery'
             New-Item -ItemType Directory -Path $dest -Force | Out-Null
@@ -634,6 +637,8 @@ jobs:
             }}
             $movement=Join-Path $env:RUNNER_TEMP 'fp-movement/evidence'
             if($variant.name -eq 'graphics' -and (Test-Path $movement)){Copy-Item $movement (Join-Path fp-evidence 'movement') -Recurse -Force}
+            $heldGallery=Join-Path $env:RUNNER_TEMP 'fp-held-gallery/evidence'
+            if($variant.name -eq 'graphics' -and (Test-Path -LiteralPath $heldGallery)){Copy-Item -LiteralPath $heldGallery (Join-Path fp-evidence 'held-gallery') -Recurse -Force}
             $debug=Join-Path $env:RUNNER_TEMP ("fp-appearance-"+'${{ matrix.build }}'+'-'+$variant.name)
             if(Test-Path $debug){Copy-Item $debug (Join-Path fp-evidence ('appearance-debug-'+$variant.name)) -Recurse -Force}
           }
@@ -647,6 +652,7 @@ jobs:
             fp-evidence/gameplay-audit/**
             fp-evidence/focused-gpu*/**
             fp-evidence/movement/**
+            fp-evidence/held-gallery/**
           compression-level: 9
           retention-days: 7
       - uses: actions/upload-artifact@v4
@@ -670,6 +676,7 @@ jobs:
           name: first-person-qualification-${{ matrix.build }}
           path: |
             installer-result/first-person-release-verified.json
+            installer-result/held-gallery/**
             installer-result/first-person-movement-*.json
             installer-result/first-person-movement-*.bmp
             installer-result/first-person-gameplay*.json

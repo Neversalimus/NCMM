@@ -1693,7 +1693,13 @@
         1,
         0
       ],
-      "two_handed": false
+      "two_handed": false,
+      "mount_rotation": [
+        0.7071067811865476,
+        0,
+        0,
+        0.7071067811865476
+      ]
     },
     {
       "id": "suppressor",
@@ -1751,7 +1757,13 @@
         1,
         0
       ],
-      "two_handed": false
+      "two_handed": false,
+      "mount_rotation": [
+        0.7071067811865476,
+        0,
+        0,
+        0.7071067811865476
+      ]
     },
     {
       "id": "foregrip",
@@ -1809,7 +1821,13 @@
         1,
         0
       ],
-      "two_handed": false
+      "two_handed": false,
+      "mount_rotation": [
+        0.7071067811865476,
+        0,
+        0,
+        0.7071067811865476
+      ]
     },
     {
       "id": "gun_light",
@@ -1867,7 +1885,13 @@
         1,
         0
       ],
-      "two_handed": false
+      "two_handed": false,
+      "mount_rotation": [
+        0.7071067811865476,
+        0,
+        0,
+        0.7071067811865476
+      ]
     }
   ],
   "files": {

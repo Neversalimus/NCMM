@@ -99,6 +99,21 @@ int main(){try{
     for(const auto *mod:{"red_dot_sight","suppressor","grip","mounted_flashlight"}){
         rifle.mod_count=2;rifle.mods[1]={};std::strcpy(rifle.mods[1].canonical,mod);
         require(prepared->prepare(rifle,action)&&prepared->count==2,"each installed authored accessory uses an actual source socket");
+        const auto &attachment=prepared->entries[1];const auto &source=*attachment.geometry;
+        const auto attached_contact=viewmodel::position(attachment.local,viewmodel::position(attachment.bones.global[source.grips.primary.node],source.grips.primary.point));
+        const auto &body=prepared->entries[0];
+        if(source.kind==held::family::foregrip){
+            const auto rail=viewmodel::position(viewmodel::multiply(body.local,body.bones.global[body.geometry->rail_socket]),{});
+            const auto axis=viewmodel::unit(viewmodel::direction(attachment.local,source.grips.primary_axis));
+            require(attached_contact.y<rail.y-.015f&&std::abs(attached_contact.z-rail.z)<.003f&&axis.y>.99f,
+                "support hand holds below the real bottom rail instead of along the barrel");
+        }
+        if(source.kind==held::family::suppressor){
+            const auto muzzle=viewmodel::position(viewmodel::multiply(body.local,body.bones.global[body.geometry->muzzle_socket]),{});
+            float forward=muzzle.z;for(size_t v=0;v<source.geometry.vertex_count;++v){const auto &vertex=source.geometry.vertices[v];
+                forward=std::max(forward,viewmodel::position(attachment.local,viewmodel::position(attachment.bones.palette[vertex.palette],vertex.position)).z);}
+            require(forward>muzzle.z+.15f,"suppressor extends ahead of the authored muzzle, not sideways through the weapon");
+        }
         gpu::packet accessory;require(cache.build(scene,0,0,provider,accessory,stats,host,action,&appearance,nullptr,640,480,NCMM_GPU_FORCE),"attached item packet");
         require(prepared->selected.body&&prepared->selected.attachment_count==1&&!stats.viewmodel_errors,"accessory contact and original PSX rig remain compatible");
         const auto &packet=accessory.finish(nullptr);require(!ncmm_gpu::validate(packet),"accessory material/palette packet satisfies the same ABI");

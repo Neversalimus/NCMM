@@ -92,6 +92,12 @@ class HeldImportTests(unittest.TestCase):
         inputs,_=self.inputs({'mesh.glb':glb_fixture(clips=True)})
         with self.assertRaisesRegex(ValueError,'clips'):prepare(inputs,self.profile())
 
+    def test_mating_calibration_is_a_rigid_unit_rotation(self):
+        inputs,_=self.inputs({'mesh.glb':glb_fixture()})
+        for invalid in ([0,0,0,0], [0,0,0,2], [0,0,float('nan'),1], [0,0,1]):
+            profile=self.profile();profile['mount_rotation']=invalid
+            with self.assertRaisesRegex(ValueError,'mating rotation'):prepare(inputs,profile)
+
     def test_source_hash_and_path_are_checked_before_output(self):
         _,selection=self.inputs({'mesh.glb':glb_fixture()},self.profile())
         (self.root/'mesh.glb').write_bytes(b'tampered')

@@ -50,7 +50,13 @@ struct prepared {
             if(!viewmodel::inverse(viewmodel::transform({{},root.rotation,{1,1,1}}),undo_rotation)){selected.body=nullptr;count=0;return false;}
             const auto &pivot=out.geometry->grips.pivot;
             const auto at=viewmodel::position(out.bones.global[pivot.node],pivot.point);
-            out.local=viewmodel::multiply(socket,viewmodel::multiply(undo_rotation,viewmodel::transform({{}, {}, {source.scale,source.scale,source.scale}})));
+            // The GLB gun sockets are in the exported bone frame, whereas
+            // the separate accessory meshes use GLB world axes. Retain the
+            // socket pose and apply the declared rigid mating conversion;
+            // cancelling mesh normalization alone turned the grip sideways.
+            const auto mating=viewmodel::transform({{},out.geometry->mount_rotation,{1,1,1}});
+            out.local=viewmodel::multiply(socket,viewmodel::multiply(mating,viewmodel::multiply(undo_rotation,
+                viewmodel::transform({{}, {}, {source.scale,source.scale,source.scale}}))));
             const auto offset=viewmodel::direction(out.local,at);out.local.columns[12]-=offset.x;out.local.columns[13]-=offset.y;out.local.columns[14]-=offset.z;++count;
         }
         return true;

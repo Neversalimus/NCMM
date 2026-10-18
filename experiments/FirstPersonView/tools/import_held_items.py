@@ -236,6 +236,9 @@ def read_glb(inputs, path):
 
 
 def prepare(inputs, profile):
+    mating = profile.get('mount_rotation', [0, 0, 0, 1])
+    require(isinstance(mating, list) and len(mating) == 4 and finite(mating) and
+            abs(sum(v*v for v in mating)-1) < 1e-5, 'Invalid rigid mating rotation')
     path = profile['source']; data = read_glb(inputs, path) if path.endswith('.glb') else read_obj(inputs, path)
     vs, ids, nodes = data['vertices'], data['indices'], data['nodes']
     require(0 < len(vs) <= 16384 and 0 < len(ids) <= 98304 and len(data['palettes']) <= 1024, 'Mesh exceeds shared bounded rig contract')
@@ -339,7 +342,8 @@ def emit_model(data, identity):
     out.extend(['static const model value={',f'1,{json.dumps(symbol)},{identity}ull,family::{p["family"]},',
         '{vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},',
         'vertex_material,triangle_part,materials,std::size(materials),{'+','.join(contacts)+'},',
-        ','.join(map(str, data['sockets']+[data['trigger_node'], data['slide_node']]))+','+aggregate(data['slide_translation'])+','+number(p['nominal_length'])+','+str(p['two_handed']).lower(),
+        ','.join(map(str, data['sockets']+[data['trigger_node'], data['slide_node']]))+','+aggregate(data['slide_translation'])+','+number(p['nominal_length'])+','+str(p['two_handed']).lower()+
+        (','+aggregate(p['mount_rotation']) if 'mount_rotation' in p else ''),
         '};', f'const model &asset_{symbol}() noexcept {{return value;}}', '}'])
     return ('\n'.join(out)+'\n').encode('utf8')
 

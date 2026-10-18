@@ -1134,10 +1134,10 @@ static const material materials[]={
 {{0.898039253f,0.898039253f,0.898039253f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"gun_light",2907981694104588781ull,family::gun_light,
+1,"gun_light",1893633032309440282ull,family::gun_light,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
 vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,0.0f,0.0f}},{0,{-0.000538026448f,-0.0184901836f,-0.00220681196f}},{0,{-0.000538026448f,-0.0184901836f,-0.0248589497f}},{0,{-0.00044572074f,-0.0147076793f,0.0300553236f}},{0,{-0.00044572074f,-0.0147076793f,0.0300553236f}},{0,{0.0f,0.0f,0.0f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f}},
--1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.063f,false
+-1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.063f,false,{0.707106781f,0.0f,0.0f,0.707106781f}
 };
 const model &asset_gun_light() noexcept {return value;}
 }
