@@ -1,11 +1,11 @@
 // Included in the existing opt-in native gameplay audit, with its owned world,
 // main UI adaptor and strict process/SDL guards. This is automated UI, not play.
 {
-    const auto old_aim_after=get_options().get_option("AIM_AFTER_FIRING").value_as_string();
+    const bool old_aim_after=get_option<bool>("AIM_AFTER_FIRING");
     struct fire_audit_guard {
-        std::string aim_after;
+        bool aim_after;
         ~fire_audit_guard(){graphics_fire_capture.active=false;graphics_fire_audit_legacy_context=false;
-            graphics_release_mouse();get_options().get_option("AIM_AFTER_FIRING").setValue(aim_after);}
+            graphics_release_mouse();get_options().get_option("AIM_AFTER_FIRING").setValue(aim_after?"true":"false");}
     } restoring_fire{old_aim_after};
     get_options().get_option("AIM_AFTER_FIRING").setValue("false");
     for(const char *id:{"BRAWLER","GUNSHY"})if(you.has_trait(trait_id(id)))you.toggle_trait(trait_id(id));
