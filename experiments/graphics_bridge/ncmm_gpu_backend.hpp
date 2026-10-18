@@ -52,7 +52,8 @@ class backend {
         info.sample_count=SDL_GPU_SAMPLECOUNT_1;info.usage=usage;return SDL_CreateGPUTexture(context_.device(),&info);}
     bool targets(uint32_t width,uint32_t height){
         if(!context_.targets(width,height))return false;
-        if(world_&&width_==width&&height_==height)return true;release_targets();
+        if(world_&&width_==width&&height_==height)return true;
+        release_targets();
         const auto color_usage=SDL_GPU_TEXTUREUSAGE_COLOR_TARGET|SDL_GPU_TEXTUREUSAGE_SAMPLER;
         world_=texture(SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,width,height,color_usage);
         id_=texture(SDL_GPU_TEXTUREFORMAT_R32_UINT,width,height,SDL_GPU_TEXTUREUSAGE_COLOR_TARGET|SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_READ);
