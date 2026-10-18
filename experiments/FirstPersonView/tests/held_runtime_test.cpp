@@ -21,6 +21,7 @@ ncmm_held_item_v1 item(const char *id,const held::model &model){
         case held::family::spear:value.flags=NCMM_HELD_SPEAR|NCMM_HELD_METAL;break;
         default:break;
     }
+    if(model.kind==held::family::assault){value.mod_count=1;std::strcpy(value.mods[0].canonical,"high_end_folding_stock");std::strcpy(value.mods[0].location,"stock");}
     return value;
 }
 }
@@ -52,7 +53,10 @@ int main(){try{
     unknown.base_length_m=2;require(!held::select(unknown).body,"a pistol is never stretched into a rifle");
     auto rifle=item("scar_l",*held::find("assault"));rifle.mod_count=1;std::strcpy(rifle.mods[0].canonical,"unrecognized_scope");std::strcpy(rifle.mods[0].location,"sights");
     require(held::select(rifle).reason==held::failure::unsupported_attachment,"unknown present scope uses the existing fallback");
-    rifle.mod_count=0;require(held::select(rifle).attachment_count==0,"absent accessories are never invented");
+    rifle=item("scar_l",*held::find("assault"));require(held::select(rifle).body&&held::select(rifle).attachment_count==0,"native factory stock belongs to the authored body, absent extra accessories are not invented");
+    auto missing_stock=rifle;missing_stock.mod_count=0;require(!held::select(missing_stock).body,"removed native stock cannot leave an invented authored stock");
+    auto folded_stock=rifle;std::strcpy(folded_stock.mods[0].canonical,"high_end_folding_stock_folded");require(!held::select(folded_stock).body,"folded stock cannot reuse extended stock geometry");
+    auto replaced_stock=rifle;std::strcpy(replaced_stock.mods[0].canonical,"wire_stock");require(!held::select(replaced_stock).body,"unknown replacement stock remains a visible unsupported attachment");
     std::array<ncmm_graphics_cell_v1,9> cells{};std::array<ncmm_graphics_cell_v2,9> details{};
     for(size_t i=0;i<cells.size();++i){cells[i].flags=NCMM_GFX_VISIBLE;std::strcpy(cells[i].terrain,"t_floor");std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=1;}
     ncmm_graphics_scene_v2 scene{};scene.struct_size=sizeof(scene);scene.base={sizeof(scene.base),640,480,3,3,1.5f,1.5f,cells.data(),cells.size()};scene.details=details.data();scene.detail_count=details.size();scene.environment.daylight=1;scene.environment.sun_z=1;
@@ -86,13 +90,13 @@ int main(){try{
         "ammunition changes reuse static meshes and upload poses only");
     std::strcpy(scene.environment.held_item,"scar_l");
     for(const auto *mod:{"red_dot_sight","suppressor","grip","mounted_flashlight"}){
-        rifle.mod_count=1;rifle.mods[0]={};std::strcpy(rifle.mods[0].canonical,mod);
+        rifle.mod_count=2;rifle.mods[1]={};std::strcpy(rifle.mods[1].canonical,mod);
         require(prepared->prepare(rifle,action)&&prepared->count==2,"each installed authored accessory uses an actual source socket");
         gpu::packet accessory;require(cache.build(scene,0,0,provider,accessory,stats,host,action,&appearance,nullptr,640,480,NCMM_GPU_FORCE),"attached item packet");
         require(prepared->selected.body&&prepared->selected.attachment_count==1&&!stats.viewmodel_errors,"accessory contact and original PSX rig remain compatible");
         const auto &packet=accessory.finish(nullptr);require(!ncmm_gpu::validate(packet),"accessory material/palette packet satisfies the same ABI");
     }
-    rifle.mod_count=0;
+    rifle.mod_count=1;
     for(size_t i=0;i<std::size(ids);++i)for(float phase:{-1.f,.12f,.5f,.9f})for(float equip:{0.f,1.f}){
         auto value=item(ids[i],*models[i]);action={};action.grip=value.flags&NCMM_HELD_GUN?NCMM_GRIP_GUN:NCMM_GRIP_SINGLE;
         action.attack_serial=phase<0?0:3;action.attack_kind=value.flags&NCMM_HELD_GUN?2:1;action.attack_phase=phase;action.equip_phase=equip;

@@ -181,6 +181,10 @@ retained. Selection is canonical ID, compatible appearance ancestry, conservativ
 native property family, then the established renderer. Unknown mechanisms,
 visible attachments, incompatible sizes and unreachable hands report a specific
 fallback reason. Localized item names are never used by this selection path.
+The assault family includes the author's weighted extended Stock geometry;
+SCAR's exact native `high_end_folding_stock` default is represented by that body.
+A removed, folded or unsupported replacement stock selects the existing fallback
+instead of leaving a phantom stock or silently ignoring a visible attachment.
 
 One calibrated source frame defines the mesh and both grip contacts. The original
 PSX weighted hands orient around those grip axes and retain source bone lengths;

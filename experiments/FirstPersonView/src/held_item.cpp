@@ -16,6 +16,12 @@ bool valid(const model &value) noexcept {
         !value.vertex_material||!value.triangle_part||!value.materials||!value.material_count||value.material_count>16||
         !std::isfinite(value.nominal_length)||value.nominal_length<.03f||value.nominal_length>3.5f||
         mesh.key_count||mesh.track_count||mesh.clip_count)return false;
+    if(value.kind==family::assault){
+        int stock=-1;for(size_t i=0;i<mesh.node_count;++i)if(mesh.nodes[i].name&&!std::strcmp(mesh.nodes[i].name,"Stock"))stock=int(i);
+        bool weighted=false;if(stock>=0)for(size_t i=0;i<mesh.palette_count;++i)for(size_t j=0;j<4;++j)
+            weighted|=mesh.palettes[i].joints[j]==stock&&mesh.palettes[i].values[j]>0;
+        if(!weighted)return false;
+    }
     for(size_t i=0;i<value.material_count;++i){const auto &m=value.materials[i];
         for(float c:m.color)if(!std::isfinite(c)||c<0||c>1)return false;
         if(m.pixels){if(!m.width||!m.height||m.width>512||m.height>512||!m.texture_identity)return false;}

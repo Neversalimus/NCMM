@@ -91,7 +91,16 @@ inline selection select(const ncmm_held_item_v1 &item){
     if(item.base_length_m>0){result.scale=item.base_length_m/result.body->nominal_length;
         if(result.scale<.70f||result.scale>1.35f){result.body=nullptr;result.reason=failure::dimensions;return result;}}
     result.magazine=!(item.flags&NCMM_HELD_DETACHABLE)||(item.flags&NCMM_HELD_MAGAZINE_PRESENT);
+    // This pinned family mesh includes its authored, extended Stock bone.
+    // SCAR's native default stock is represented by that base geometry, not
+    // an extra accessory. Removed, folded or replaced stocks use fallback.
+    const char *base_stock=result.body->kind==family::assault?"high_end_folding_stock":nullptr;
+    bool stock_present=base_stock==nullptr;
     for(size_t i=0;i<item.mod_count;++i){const auto &mod=item.mods[i];candidate=accessory(mod.canonical);
+        if(base_stock&&!std::strcmp(mod.canonical,base_stock)&&!std::strcmp(mod.location,"stock")){
+            if(stock_present){result.body=nullptr;result.reason=failure::unsupported_attachment;return result;}
+            stock_present=true;continue;
+        }
         if(!candidate&&!(mod.flags&NCMM_HELD_LOOKS_CYCLE))for(size_t j=0;j<mod.looks_count&&!candidate;++j)candidate=accessory(mod.looks_like[j]);
         if(!candidate){
             // Internal mechanism/adapter changes have no external shape. An
@@ -109,6 +118,7 @@ inline selection select(const ncmm_held_item_v1 &item){
         if(scale<.65f||scale>1.5f){result.body=nullptr;result.reason=failure::dimensions;return result;}
         result.attachments[result.attachment_count++]={candidate,socket,scale};
     }
+    if(!stock_present){result.body=nullptr;result.reason=failure::unsupported_attachment;}
     return result;
 }
 }
