@@ -1109,8 +1109,8 @@ class renderer {
         const auto zero=hud({0,0,0});const vec columns[]={hud({1,0,0})-zero,hud({0,1,0})-zero,hud({0,0,1})-zero,zero};
         for(int column=0;column<4;++column){model_to_world.columns[column*4]=columns[column].x;model_to_world.columns[column*4+1]=columns[column].y;model_to_world.columns[column*4+2]=columns[column].z;}model_to_world.columns[15]=1;
         const float lower_view_slope=float(f.height)/f.width*std::tan(70*pi/360)/std::max(.1f,hud_scale);
-        auto hand=[&](vec grip,bool left){
-            if(!arms.attach({grip.x,grip.y,grip.z},left,lower_view_slope,arm_pose)){++f.viewmodel_errors;return;}
+        auto hand=[&](vec grip,bool left,const viewmodel::point *trigger=nullptr){
+            if(!arms.attach({grip.x,grip.y,grip.z},left,lower_view_slope,arm_pose,trigger)){++f.viewmodel_errors;return;}
             const int side=left?0:1;
             viewmodel::appearance appearance;
             for(auto &region:appearance.regions)region.finish=uint32_t(surface::skin);

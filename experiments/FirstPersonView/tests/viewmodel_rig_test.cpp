@@ -1,10 +1,11 @@
 #include "viewmodel.hpp"
+#include "ncmm_graphics_presentation.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 using namespace first_person::viewmodel;
-int main(){size_t checks=0;auto check=[&](bool v){++checks;if(!v){std::fprintf(stderr,"PSX rig check %zu failed\n",checks);std::exit(1);}};
+int main(int argc,char **){size_t checks=0;auto check=[&](bool v){++checks;if(!v){std::fprintf(stderr,"PSX rig check %zu failed\n",checks);std::exit(1);}};
     hand_pose placed;
     first_person::animation::timeline timeline;ncmm_graphics_control_state_v1 controls{};controls.held_length=.6f;
     check(timeline.observe(controls,10,"knife",1).equip_phase==1);
@@ -40,13 +41,29 @@ int main(){size_t checks=0;auto check=[&](bool v){++checks;if(!v){std::fprintf(s
     // Both real gun anchors remain reachable at the supported viewport/body
     // extremes. Support is on the physical fore-end, not near a long muzzle.
     first_person::animation::pose action;frame rifle(action,false,true);
+    if(argc>1){check(rifle.attach({.185f,-.267f,.68f},false,.525f,placed));
+        for(const char *name:{"hand.R","f_index.01.R","f_index.02.R","f_index.03.R","f_middle.01.R","f_middle.03.R","thumb.03.R"}){
+            const auto &m=placed.joints[size_t(node_index(imported_asset(),name))];const auto p=position(m,{0,0,0}),tip=position(m,{0,.018f,0});
+            std::printf("%s origin=(%.6f %.6f %.6f) tip=(%.6f %.6f %.6f)\n",name,p.x,p.y,p.z,tip.x,tip.y,tip.z);}
+        return 0;}
     for(float slope:{.4376f,.525f,.75f}){
         check(rifle.attach({.185f,-.267f,.68f},false,slope,placed));
         check(rifle.attach({.185f,-.252f,1.04f},true,slope,placed));
     }
+    for(uint32_t side:{0u,1u})for(uint32_t flags:{uint32_t(NCMM_HAND_CLAWS),uint32_t(NCMM_HAND_WEBBED),uint32_t(NCMM_HAND_CLAWS|NCMM_HAND_WEBBED)}){
+        const auto &mesh=mutation_attachments(side,flags);check(!mesh.vertices.empty());
+        for(const auto &v:mesh.vertices)check(v.node<imported_asset().node_count);
+        for(auto i:mesh.indices)check(i<mesh.vertices.size());}
     check(!rifle.attach({0,0,20},false,.5f,placed));
     for(float equip:{0.f,.1f,.5f,.9f,1.f}){action.equip_phase=equip;frame drawing(action,false,true);
         for(float slope:{.4376f,.525f,.75f}){check(drawing.attach({.185f,-.267f,.68f},false,slope,placed));
             check(drawing.attach({.185f,-.252f,1.04f},true,slope,placed));}}
+    for(float phase:{-1.f,0.f,.25f,.5f,.8f,.99f})for(float equip:{0.f,.5f,1.f})for(bool pistol:{false,true}){
+        action.attack_phase=phase;action.attack_kind=2;action.equip_phase=equip;frame shooting(action,false,true);
+        const point trigger{.192f,-.261f,pistol?.735f:.705f};
+        const bool attached=shooting.attach({.185f,-.267f,pistol?.68f:.648f},false,.525f,placed,&trigger);
+        if(!attached)std::fprintf(stderr,"Trigger attachment phase=%f equip=%f pistol=%d\n",phase,equip,int(pistol));check(attached);
+        const auto tip=position(placed.joints[size_t(node_index(imported_asset(),"f_index.03.R"))],{0,.018f,0})-trigger;
+        check(dot(tip,tip)<1e-10f);}
     std::printf("PSX arm rig: %zu grip/length/bounds checks PASS\n",checks);
 }

@@ -48,7 +48,7 @@ const attachments &mutation_attachments(uint32_t side,uint32_t features){
     struct variants {std::array<attachments,8> meshes;
         variants(){const auto &source=imported_asset();
             for(size_t variant=0;variant<meshes.size();++variant){auto &mesh=meshes[variant];const bool left=variant>=4;
-                auto node=[&](const char *finger,const char *segment){char name[40];std::snprintf(name,sizeof(name),"f_%s.%s.%c",finger,segment,left?'L':'R');return uint16_t(node_index(source,name));};
+                auto node=[&](const char *finger,const char *segment){char name[40];std::snprintf(name,sizeof(name),"%s%s.%s.%c",std::strcmp(finger,"thumb")?"f_":"",finger,segment,left?'L':'R');return uint16_t(node_index(source,name));};
                 if(variant&1)for(const char *finger:{"thumb","index","middle","ring","pinky"}){
                     const auto joint=node(finger,"03");const uint32_t base=uint32_t(mesh.vertices.size());
                     for(int i=0;i<6;++i){const float a=float(i)*6.283185307f/6;const point radial{std::cos(a),0,std::sin(a)};
@@ -66,7 +66,7 @@ const attachments &mutation_attachments(uint32_t side,uint32_t features){
     };
     static const variants cached;const size_t index=(side?4u:0u)|((features&NCMM_HAND_CLAWS)?1u:0u)|((features&NCMM_HAND_WEBBED)?2u:0u);return cached.meshes[index];
 }
-frame::frame(const animation::pose &action,bool no_item,bool firearm)noexcept:source(imported_asset()),empty(no_item){
+frame::frame(const animation::pose &action,bool no_item,bool firearm)noexcept:source(imported_asset()),empty(no_item),gun(firearm){
     static const bool validated=valid_asset(imported_asset());
     if(!validated||!std::isfinite(action.seconds))return;
     for(const char *name:{"relax","knife_idle","knife_draw","guard_draw","finger_gun_idle","finger_gun_fire","grab.R","grab.L","jab.R","jab.L","knife_hit_01","knife_hit_02"})
@@ -90,6 +90,7 @@ frame::frame(const animation::pose &action,bool no_item,bool firearm)noexcept:so
         return true;
     };
     if(firearm&&!overlay("finger_gun_idle",action.seconds,true,0,false))return;
+    if(firearm){if(!evaluate_globals(source,local,global))return;for(size_t side=0;side<2;++side)grip_bases[side]=global[size_t(hand[side])];}
     if(action.equip_phase<1){const char *draw=empty?"guard_draw":"knife_draw";const auto &clip=source.clips[size_t(clip_index(source,draw))];
         if(!overlay(draw,action.equip_phase*clip.duration,false,0,false,1-action.equip_phase))return;
         if(empty&&!overlay(draw,action.equip_phase*clip.duration,false,1,false,1-action.equip_phase))return;}
@@ -102,17 +103,22 @@ frame::frame(const animation::pose &action,bool no_item,bool firearm)noexcept:so
         if(!overlay(name,action.attack_phase*clip.duration,false,side,false,fade))return;
     }
     if(!empty){
-        if(!overlay("grab.R",source.clips[size_t(clip_index(source,"grab.R"))].duration,false,0,true,action.equip_phase)||
-           !overlay("grab.L",source.clips[size_t(clip_index(source,"grab.L"))].duration,false,1,true,action.equip_phase))return;
+        // The source finger-gun clip points an imaginary barrel with its
+        // index. A real gun keeps the authored closed palm under recoil/draw.
+        const float contact=firearm?1.f:action.equip_phase;
+        if(!overlay("grab.R",source.clips[size_t(clip_index(source,"grab.R"))].duration,false,0,true,contact)||
+           !overlay("grab.L",source.clips[size_t(clip_index(source,"grab.L"))].duration,false,1,true,contact))return;
     }
     ready=evaluate_globals(source,local,global);
 }
-bool frame::attach(point grip,bool left,float lower_view_slope,hand_pose &out)const noexcept {
+bool frame::attach(point grip,bool left,float lower_view_slope,hand_pose &out,const point *trigger)const noexcept {
     if(!ready||!std::isfinite(grip.x+grip.y+grip.z)||!std::isfinite(lower_view_slope))return false;
     const size_t side=left?1:0;const auto convert=camera_axes();
     for(size_t i=0;i<source.node_count;++i)out.joints[i]=multiply(convert,global[i]);
     const size_t h=size_t(hand[side]),e=size_t(forearm[side]),u=size_t(upper_arm[side]);
-    const auto original_hand=out.joints[h],original_forearm=out.joints[e],original_upper=out.joints[u];
+    const auto authored_hand=out.joints[h],original_forearm=out.joints[e],original_upper=out.joints[u];auto original_hand=authored_hand;
+    if(trigger&&gun&&!left){const auto basis=multiply(convert,grip_bases[side]);for(size_t column=0;column<3;++column)for(size_t row=0;row<3;++row)
+        original_hand.columns[column*4+row]=basis.columns[column*4+row];}
     if(empty){const auto delta=direction(convert,origin(global[h])-idle_wrists[side]);grip=grip+delta*.7f;}
     // The grip is inside the curled palm, rather than at the wrist or outside
     // the model. Source finger transforms are kept under this wrist basis.
@@ -133,8 +139,23 @@ bool frame::attach(point grip,bool left,float lower_view_slope,hand_pose &out)co
     out.joints[u]=orient(original_upper,origin(original_forearm)-origin(original_upper),elbow-shoulder,shoulder);
     out.joints[e]=orient(original_forearm,origin(original_hand)-origin(original_forearm),wrist-elbow,elbow);
     auto target_hand=original_hand;target_hand.columns[12]=wrist.x;target_hand.columns[13]=wrist.y;target_hand.columns[14]=wrist.z;
-    matrix undo{};if(!inverse(original_hand,undo))return false;const auto delta=multiply(target_hand,undo);
+    matrix undo{};if(!inverse(authored_hand,undo))return false;const auto delta=multiply(target_hand,undo);
     for(size_t i=0;i<source.node_count;++i)if(below(source,int(i),int(h)))out.joints[i]=multiply(delta,out.joints[i]);
+    if(trigger&&!left&&!empty){
+        if(!std::isfinite(trigger->x+trigger->y+trigger->z))return false;
+        const int first_node=node_index(source,"f_index.01.R"),second_node=node_index(source,"f_index.02.R"),tip_node=node_index(source,"f_index.03.R");
+        if(first_node<0||second_node<0||tip_node<0)return false;
+        auto &first_joint=out.joints[size_t(first_node)],&second_joint=out.joints[size_t(second_node)],&tip_joint=out.joints[size_t(tip_node)];
+        const auto start=origin(first_joint),old_middle=origin(second_joint),old_tip=origin(tip_joint),end=*trigger-point{0,0,.018f};
+        const float a=length(old_middle-start),b=length(old_tip-old_middle),distance_to_tip=length(end-start);
+        if(distance_to_tip<=std::abs(a-b)+.0001f||distance_to_tip>=a+b-.0001f)return false;
+        const auto axis=unit(end-start);const float along=(a*a+distance_to_tip*distance_to_tip-b*b)/(2*distance_to_tip);
+        const auto pole=unit(point{1,0,0}-axis*axis.x,{0,1,0});
+        const auto middle=start+axis*along+pole*std::sqrt(std::max(0.f,a*a-along*along));
+        first_joint=orient(first_joint,old_middle-start,middle-start,start);
+        second_joint=orient(second_joint,old_tip-old_middle,end-middle,middle);
+        tip_joint=orient(tip_joint,direction(tip_joint,{0,1,0}),{0,0,1},end);
+    }
     std::array<matrix,maximum_nodes> skin;
     for(size_t i=0;i<source.joint_count;++i)skin[i]=multiply(out.joints[source.joints[i]],source.inverse_bind[i]);
     out.palette_count=0;out.palette_index.fill(UINT16_MAX);out.node_palette.fill(UINT16_MAX);

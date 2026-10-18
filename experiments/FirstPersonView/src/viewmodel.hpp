@@ -7,6 +7,7 @@
 namespace first_person::viewmodel {
 struct region_style {point color{1,1,1};uint32_t finish=0;bool textured=true,glove=false,recolor=false;};
 struct appearance {std::array<region_style,2> regions;uint32_t features=0;};
+struct anchors {point primary,secondary,trigger,item_pivot,sight;};
 struct texture_pixels {const uint32_t *data=nullptr;std::vector<uint32_t> owned;};
 // A bounded appearance cache retains authored detail while adapting the actual
 // garment/mutation colour. CPU and GPU consume exactly these same pixels.
@@ -36,11 +37,12 @@ class frame {
     std::array<local_pose,maximum_nodes> local{};
     std::array<matrix,maximum_nodes> global{};
     std::array<point,2> idle_wrists{};
+    std::array<matrix,2> grip_bases{};
     std::array<int,2> hand{},forearm{},upper_arm{};
-    bool ready=false,empty=false;
+    bool ready=false,empty=false,gun=false;
 public:
     frame(const animation::pose &action,bool no_item,bool firearm) noexcept;
-    bool attach(point grip,bool left,float lower_view_slope,hand_pose &out)const noexcept;
+    bool attach(point grip,bool left,float lower_view_slope,hand_pose &out,const point *trigger=nullptr)const noexcept;
     const asset &geometry()const noexcept{return source;}
 };
 }
