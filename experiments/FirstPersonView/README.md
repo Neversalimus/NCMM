@@ -1,4 +1,17 @@
-# First Person View 0.12.9 — architecture and reliability
+# First Person View 0.13 — PSX arms and frame preparation (development)
+
+The experimental viewmodel uses Drillimpact's real PSX First Person Arms 1.1.0:
+authored textured geometry, its complete weighted skeleton and source animation
+clips. CPU and GPU share one pose/grip component. The public Core, Graphics and
+GPU Mesh API layouts remain unchanged. See [VIEWMODEL.md](VIEWMODEL.md) for
+asset provenance, ownership, supported events, attachments and limitations.
+
+This development branch is not yet a qualified release. The native Host build,
+expanded hardware comparison, full Before/After gallery and final installers
+must pass before it can replace the qualified baseline. No sub-15 ms claim is
+made from unit tests or an incomplete hardware run.
+
+## Retained 0.12.9 architecture and reliability
 
 GPU preparation now shares one callback-owned XYZ lookup with the existing
 geometry generator. CPU fallback keeps its independent owned lookup. Creature
