@@ -261,6 +261,9 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name] = (bridge / name).read_text(encoding="utf-8")
+    if (root / "src/ncmm_graphics_trace_capture.inc").exists():
+        raise ValueError("Experimental trace fixture already exists")
+    updates["ncmm_graphics_trace_capture.inc"] = (bridge / "ncmm_graphics_trace_capture.inc").read_text(encoding="utf-8")
     # Optional world-space interface, independent of the old V1/V2 layouts.
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '#include "ncmm_graphics_v2.h"',
         '#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_multilevel.h"\n#include "ncmm_world_cache.hpp"\n#include "ncmm_world_lod.hpp"\n#include "overmap.h"\n#include "overmapbuffer.h"\n#include "omdata.h"\n#include "avatar_action.h"\n#include "game_inventory.h"\n#include "pickup.h"\n#include "visitable.h"\n#include "debug.h"\n#include "gamemode.h"\n#include <functional>\n#include <atomic>\n#include <thread>\n#include <unordered_map>\n#include <string_view>\n#include <locale>')
@@ -292,10 +295,12 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "uint64_t graphics_input_wait_begin( const std::string &category )\n{\n    return graphics_snapshot_lease.begin( category );\n}\n"
         "void graphics_input_wait_end( uint64_t token, const std::string &action )\n{\n    graphics_snapshot_lease.end( token, action );\n    graphics_camera_cache.suspend();\n}\n"
         "void graphics_frame_presented()\n{\n#if defined(TILES)\n"
+        "    ncmm_graphics_trace::note_present();\n"
         "    if( graphics_fire_capture.active && !graphics_fire_capture.frames.empty() ) graphics_fire_capture.frames.back().presented = true;\n"
         "    graphics_world_frame_presented();\n#endif\n}\n"
         "bool graphics_requires_terrain_pass()\n{")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "class input_context;", "class map;\nclass input_context;")
+    updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", "void graphics_frame_presented();\nvoid initialize();")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();",
         "void graphics_note_input_wait( const std::string &, bool text );\nvoid graphics_note_input_result( const std::string &, const std::string & );\nvoid graphics_note_terrain_composed( bool perspective );\nvoid graphics_world_changed( const map *, int z );\nvoid initialize();")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", '''// Main-thread input lifetime only; existing public module headers are unchanged.

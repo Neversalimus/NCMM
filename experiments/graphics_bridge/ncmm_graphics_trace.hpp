@@ -1,6 +1,8 @@
 #pragma once
 #include <cstdlib>
 #include <cstring>
+#include <cstdint>
+#include <string>
 // Unmodified, header-only NVTX core. There is no linked NVTX/NGFX SDK library,
 // required profiler DLL, or runtime dependency on a locally installed SDK.
 // A developer tool may provide its injection implementation for opt-in traces.
@@ -31,6 +33,18 @@
 #endif
 #endif
 namespace ncmm_graphics_trace {
+inline const std::string &capture_scene()noexcept{
+    static const std::string value=[](){const char *text=std::getenv("NCMM_FP_TRACE_CAPTURE_SCENE");return std::string(text&&std::strlen(text)<=16?text:"");}();
+    return value;
+}
+inline const char *capture_label()noexcept{
+    static const std::string value="FP_SCENE:"+capture_scene();return value.c_str();
+}
+// Diagnostic-only main-thread counter. Successful native and fixture window
+// presents call the same hook; ordinary runs retain no per-frame trace data.
+inline uint64_t presented_frames=0;
+constexpr uint64_t capture_gate=16384;
+inline void note_present()noexcept{if(!capture_scene().empty())++presented_frames;}
 inline bool enabled()noexcept{
     static const bool value=[](){const auto *text=std::getenv("NCMM_FP_TRACE_MARKERS");return text&&std::strcmp(text,"1")==0;}();
     return value;

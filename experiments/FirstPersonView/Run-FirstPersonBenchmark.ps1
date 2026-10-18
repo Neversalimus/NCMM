@@ -9,6 +9,7 @@ param(
     [switch]$Extended,
     [switch]$CameraSnapshotVerify,
     [switch]$DisableCameraSnapshot,
+    [ValidateSet('quiet','rotate','step','shot','hands','smoke','city')][string]$TraceCaptureScene,
     [switch]$ViewmodelGallery,
     [switch]$CaptureCrashDump,
     [switch]$GpuDebug,
@@ -53,6 +54,10 @@ function Read-NativeBenchmarkProgress([string]$Path){
 }
 if(-not $BundleRoot){$BundleRoot=$PSScriptRoot}
 if(-not $DumpAnalyzer){$DumpAnalyzer=Join-Path $PSScriptRoot 'ncmm_native_dump_analyzer.exe'}
+if($TraceCaptureScene){
+    if($FocusedGpuBenchmark -or $ViewmodelGallery -or $Extended -or $CameraSnapshotVerify -or $TilesetRoot -or $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'TraceCaptureScene requires its own diagnostic run.'}
+    $MovementBenchmark=$true
+}
 if($MovementBenchmark -and $FocusedGpuBenchmark){throw 'Choose one focused benchmark.'}
 if($Extended -and -not $MovementBenchmark){throw 'Extended requires MovementBenchmark.'}
 if($CameraSnapshotVerify -and (-not $MovementBenchmark -or $DisableCameraSnapshot)){throw 'CameraSnapshotVerify requires an enabled movement snapshot run.'}
@@ -152,7 +157,7 @@ public static class NCMMNativeCrashDialog {
 }
 '@
 }
-$names=@('NCMM_FP_CAMERA_CACHE','NCMM_FP_CAMERA_CACHE_VERIFY','NCMM_FP_TRACE_MARKERS','NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT')
+$names=@('NCMM_FP_CAMERA_CACHE','NCMM_FP_CAMERA_CACHE_VERIFY','NCMM_FP_TRACE_MARKERS','NCMM_FP_TRACE_CAPTURE_SCENE','NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT')
 $prior=@{}
 # Modern .NET preserves an empty environment variable. PowerShell can convert
 # $null to that empty string at the .NET call boundary, and native getenv then
@@ -168,6 +173,7 @@ try {
     if($Extended){$env:NCMM_FP_EXTENDED='1'}
     if($CameraSnapshotVerify){$env:NCMM_FP_CAMERA_CACHE_VERIFY='1'}
     if($DisableCameraSnapshot){$env:NCMM_FP_CAMERA_CACHE='0'}
+    if($TraceCaptureScene){$env:NCMM_FP_TRACE_MARKERS='1';$env:NCMM_FP_TRACE_CAPTURE_SCENE=$TraceCaptureScene}
     if($ViewmodelGallery){$env:NCMM_FP_VIEWMODEL_GALLERY='1'}
     if($GpuDebug){$env:SDL_RENDER_GPU_DEBUG='1'}
     $env:SDL_ASSERT='abort' # Diagnostic child must fail with evidence, never wait in SDL's assertion modal.
@@ -315,9 +321,17 @@ if($exitCode -ne 0){
 }
 if($debugger -and $debugger.Error){throw "Native diagnostic debugger failed: $($debugger.Error)"}
 if($debugger -and $debugger.Dumps -gt 0){throw 'Native diagnostic captured an access violation even though the process exited successfully.'}
-$auditName=if($MovementBenchmark){'first-person-movement-benchmark.json'}elseif($FocusedGpuBenchmark){'first-person-gpu-benchmark.json'}else{'first-person-gameplay-audit.json'}
+$auditName=if($TraceCaptureScene){'first-person-nsight-scene.json'}elseif($MovementBenchmark){'first-person-movement-benchmark.json'}elseif($FocusedGpuBenchmark){'first-person-gpu-benchmark.json'}else{'first-person-gameplay-audit.json'}
 if(-not (Test-Path -LiteralPath (Join-Path $evidence $auditName))){throw "Requested native benchmark report is missing: $auditName; final phase=$lastProgress"}
-if($MovementBenchmark){
+if($TraceCaptureScene){
+    $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
+    $checkpoints=@(Get-Content -LiteralPath (Join-Path $evidence 'first-person-nsight-frames.jsonl') | Where-Object {$_} | ForEach-Object {$_ | ConvertFrom-Json})
+    if($audit.schema -ne 1 -or $audit.diagnostic_profiler_fixture -ne $true -or $audit.ordinary_performance_measurement -ne $false -or $audit.scene -ne $TraceCaptureScene -or $audit.present_gate -ne 16384 -or $audit.before_padding -ge 16384 -or $checkpoints.Count -ne 64){throw 'Scene-ready profiler fixture is incomplete.'}
+    foreach($checkpoint in $checkpoints){if($checkpoint.scene -ne $TraceCaptureScene -or $checkpoint.first_present -lt 16384 -or $checkpoint.after_present -le $checkpoint.first_present -or $checkpoint.gpu -ne $true){throw 'An actual post-gate GPU frame is missing.'}}
+    if($TraceCaptureScene -eq 'step' -and $checkpoints[0].moves_after -ge $checkpoints[0].moves_before){throw 'Native step was not exercised.'}
+    if($TraceCaptureScene -eq 'shot' -and $checkpoints[0].attack_after -le $checkpoints[0].attack_before){throw 'Native shot was not exercised.'}
+    $soaked=0
+}elseif($MovementBenchmark){
     $audit=Get-Content (Join-Path $evidence 'first-person-movement-benchmark.json') -Raw | ConvertFrom-Json
     $expectedRecords=if($Extended){80}else{12};$expectedSteps=if($Extended){64}else{12};$expectedRotations=if($Extended){96}else{48}
     if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.simulation_turns_advanced -ne 0 -or @($audit.records).Count -ne $expectedRecords){throw 'Native movement benchmark is incomplete.'}

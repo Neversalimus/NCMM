@@ -17,14 +17,17 @@
     auto at=[&](int x,int y,int z){return here.get_bub(tripoint_abs_ms(original_position.x()+x,original_position.y()+y,z));};
     auto refresh=[&](){g->ter_view_p=you.pos_bub();g->reset_light_level();here.build_map_cache(you.posz());here.invalidate_visibility_cache();here.update_visibility_cache(you.posz());};
     const std::string original_tileset=get_option<std::string>("TILES");
-    const bool extended=std::getenv("NCMM_FP_EXTENDED")!=nullptr;
+    const auto &trace_scene=ncmm_graphics_trace::capture_scene();
+    const bool trace_capture=!trace_scene.empty();
+    require(!trace_capture||trace_scene=="quiet"||trace_scene=="rotate"||trace_scene=="step"||trace_scene=="shot"||trace_scene=="hands"||trace_scene=="smoke"||trace_scene=="city","trace_capture_unknown_scene");
+    const bool extended=std::getenv("NCMM_FP_EXTENDED")!=nullptr||trace_capture;
     struct readback_profile_guard {bool previous;~readback_profile_guard(){graphics_sprite_readbacks.enabled=previous;}} readback_guard{graphics_sprite_readbacks.enabled};
     graphics_sprite_readbacks.enabled=extended;
     const int steps=extended?64:12,rotations=extended?96:48;
     const auto benchmark_weather=get_weather().weather_id;
-    const std::vector<std::string> scenes=extended?std::vector<std::string>{"street","city_blocks","dense_city","forest","multi_level_horde","creatures_20","creatures_100","smoke_rain","armed","empty_attacks"}:
+    const std::vector<std::string> scenes=trace_capture?std::vector<std::string>{trace_scene=="city"?"city_blocks":trace_scene=="smoke"?"smoke_rain":trace_scene=="hands"||trace_scene=="shot"?"armed":"street"}:extended?std::vector<std::string>{"street","city_blocks","dense_city","forest","multi_level_horde","creatures_20","creatures_100","smoke_rain","armed","empty_attacks"}:
         std::vector<std::string>{"street","multi_level_horde","city_blocks"};
-    const std::vector<point> viewports=extended?std::vector<point>{point(640,480),point(1280,800),point(1768,1084),point(1920,1080)}:
+    const std::vector<point> viewports=trace_capture?std::vector<point>{point(1768,1084)}:extended?std::vector<point>{point(640,480),point(1280,800),point(1768,1084),point(1920,1080)}:
         std::vector<point>{point(640,480),point(1768,1084)};
     if(std::getenv("NCMM_FP_UDP")){get_options().get_option("TILES").setValue("UndeadPeople_0J_Hybrid_v3");tilecontext->load_tileset("UndeadPeople_0J_Hybrid_v3",false,true);}
     for(const auto &scene:scenes){
@@ -59,10 +62,11 @@
         if(scene=="creatures_20"||scene=="creatures_100")for(int n=0;n<(scene=="creatures_100"?100:20);++n)
             require(g->place_critter_at(mtype_id(n%2?"mon_zombie":"mon_dog"),at(-9+n%10*2,-3-n/10*2,0))!=nullptr,"movement_extended_creature_spawn_failed");
         if(scene=="smoke_rain")for(int y=-16;y<-2;++y)for(int x=-8;x<=8;++x)here.add_field(at(x,y,0),field_type_str_id("fd_smoke").id(),3);
-        if(scene=="armed")you.set_wielded_item(item(itype_id("modular_m27_assault_rifle"),calendar::turn));
+        if(scene=="armed")you.set_wielded_item(item(itype_id("scar_l"),calendar::turn));
         const std::string original_art=get_option<std::string>("NCMM_FIRST_PERSON_CREATURE_ART");
         get_options().get_option("NCMM_FIRST_PERSON_CREATURE_ART").setValue("tileset");
-        for(const point viewport:viewports)for(const char *mode:{"cpu","gpu"}){
+        const std::vector<const char *> modes=trace_capture?std::vector<const char *>{"gpu"}:std::vector<const char *>{"cpu","gpu"};
+        for(const point viewport:viewports)for(const char *mode:modes){
             progress(std::string("movement_")+scene+"_"+std::to_string(viewport.x)+"_"+mode);
             // Disposable diagnostic only: each matrix entry starts with the
             // same stamina, rather than inheriting fatigue from earlier attacks.
@@ -104,7 +108,7 @@
                 if(std::string(mode)=="gpu")require(graphics_gpu_frame,"movement_gpu_frame_fell_back");
                 const double perspective_wall=elapsed(perspective_begin);const auto present_begin=clock::now();
                 ncmm_graphics_trace::cpu_zone present_zone("Present");
-                require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr)&&SDL_RenderTexture(renderer,guard.canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"movement_present_failed");graphics_world_frame_presented();++frames;
+                require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr)&&SDL_RenderTexture(renderer,guard.canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"movement_present_failed");ncmm::graphics_frame_presented();++frames;
                 present_zone.stop();
                 const double present_wall=elapsed(present_begin);
                 const double thread_end=extended?ncmm_graphics_performance::thread_cpu_seconds():-1;
@@ -138,6 +142,10 @@
             if(std::string(mode)=="gpu")require(graphics_gpu_frame,"movement_cold_gpu_fell_back");
             const auto initial_gpu=graphics_gpu_frame&&graphics_gpu_engine?graphics_gpu_engine->metrics():ncmm_gpu_metrics_v1{};
             const auto initial_recording=graphics_gpu_frame&&graphics_gpu_engine?graphics_gpu_engine->recording():ncmm_gpu::recording_metrics{};
+            if(trace_capture){
+                #include "ncmm_graphics_trace_capture.inc"
+                continue;
+            }
             const std::string capture="first-person-movement-"+std::string(scene)+"-"+std::to_string(viewport.x)+"-"+mode+".bmp";
             require(SDL_SetRenderTarget(renderer,guard.canvas),"movement_capture_target_failed");auto *image=SDL_RenderReadPixels(renderer,nullptr);require(image,"movement_capture_failed");
             const bool saved=SDL_SaveBMP(image,(game_root()/"ncmm"/capture).string().c_str());SDL_DestroySurface(image);require(saved,"movement_capture_write_failed");
@@ -211,9 +219,10 @@
         get_options().get_option("NCMM_FIRST_PERSON_CREATURE_ART").setValue(original_art);
     }
     if(extended){get_weather().weather_id=benchmark_weather;if(graphics_gpu_engine)graphics_gpu_engine->profile(false);}
+    report.end_array();
+    if(!trace_capture){
     // A roof overhang must not erase the shaded upper facade for an ordinary
     // observer. Previous multi-Z fixtures used DEBUG_NIGHTVISION and missed it.
-    report.end_array();
     progress("facade_normal_vision");
     const bool had_nightvision=you.has_trait(trait_id("DEBUG_NIGHTVISION"));
     if(had_nightvision)you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));
@@ -384,6 +393,7 @@
     report.member("windows_without_door_model",geometry.windows);report.member("unseen_continuous_walls",geometry.unseen_walls);report.member("supported_item_cells",geometry.items);
     report.member("captures",8);report.end_object();
     if(had_nightvision)you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));you.recalc_sight_limits();get_weather().weather_id=saved_weather;
+    }
     report.member("success",true);report.end_object();stream.close();require(bool(stream),"movement_report_write_failed");
 
     you.setpos(here,here.get_bub(original_position),false);you.set_moves(original_moves);progress("movement_complete");

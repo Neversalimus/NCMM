@@ -230,6 +230,7 @@ public:
             context_.fail(operation);const std::string error=context_.reason();invalidate();reason(error);return false;};
         const auto record_start=clock::now();
         const bool trace=ncmm_graphics_trace::enabled();
+        if(trace&&!ncmm_graphics_trace::capture_scene().empty())SDL_PushGPUDebugGroup(commands,ncmm_graphics_trace::capture_label());
         if(trace)SDL_PushGPUDebugGroup(commands,"Upload");
         auto *copy=SDL_BeginGPUCopyPass(commands);offset=0;
         if(!copy)return stop("begin frame upload pass");
@@ -300,6 +301,7 @@ public:
             SDL_BindGPUComputeStorageTextures(compute,0,&id_,1);SDL_DispatchGPUCompute(compute,(scene.width+15)/16,(scene.height+15)/16,1);SDL_EndGPUComputePass(compute);
             copy=SDL_BeginGPUCopyPass(commands);if(!copy)return stop("begin visibility counter copy pass");SDL_GPUBufferRegion from{counter_,0,64};SDL_GPUTransferBufferLocation to{read->transfer,0};SDL_DownloadFromGPUBuffer(copy,&from,&to);SDL_EndGPUCopyPass(copy);}
         if(trace)SDL_PopGPUDebugGroup(commands);
+        if(trace&&!ncmm_graphics_trace::capture_scene().empty())SDL_PopGPUDebugGroup(commands);
         metrics_.render_record_ms=ms(record_start);stage=clock::now();bool success;
         if(read){read->serial=scene.frame_serial;read->generation=readback_generation_;read->fence=SDL_SubmitGPUCommandBufferAndAcquireFence(commands);success=read->fence!=nullptr;}else success=SDL_SubmitGPUCommandBuffer(commands);
         metrics_.submit_ms=ms(stage);

@@ -117,6 +117,7 @@ option(FIRST_PERSON_BUILD_GPU_TESTS "Qualify actual shared-device SDL_GPU geomet
 add_executable(first_person_trace_platform_tests tests/trace_platform_test.cpp)
 first_person_target(first_person_trace_platform_tests)
 add_test(NAME first_person_trace_platform COMMAND first_person_trace_platform_tests)
+add_test(NAME first_person_trace_capture_counter COMMAND first_person_trace_platform_tests capture)
 add_executable(first_person_gpu_geometry_tests tests/gpu_geometry_test.cpp)
 first_person_target(first_person_gpu_geometry_tests)
 add_test(NAME first_person_gpu_geometry COMMAND first_person_gpu_geometry_tests)
@@ -137,6 +138,12 @@ if(FIRST_PERSON_BUILD_GPU_TESTS)
     target_compile_definitions(first_person_gpu_scene_tests PRIVATE NCMM_GPU_SHADER_HEADER="${FIRST_PERSON_GPU_SHADER_HEADER}")
   endif()
   add_test(NAME first_person_gpu_scene COMMAND first_person_gpu_scene_tests gpu-scene)
+  if(WIN32 AND TARGET SDL3::SDL3-shared)
+    foreach(target first_person_gpu_probe_tests first_person_gpu_scene_tests)
+      add_custom_command(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:SDL3::SDL3-shared> $<TARGET_FILE_DIR:${target}>)
+    endforeach()
+  endif()
   # Native Windows main() argv can use the ANSI code page, whereas SDL paths
   # are UTF-8. ASCII relative capture names also work in a Cyrillic build root.
   set_tests_properties(first_person_gpu_probe first_person_gpu_scene PROPERTIES WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
