@@ -34,7 +34,7 @@ class FireEvidenceTests(unittest.TestCase):
             count = 3 if shot and name == 'burst' else int(shot)
             self.report['trials'].append(dict(renderer=mode, scenario=name, legacy_control=control,
                 first_frame=i, last_frame_exclusive=i+1, enabled_before=True, enabled_after=True,
-                native_command='SELECT' if name == 'lmb_single' else 'fire', dispatch_calls=1,
+                native_command='SELECT' if name == 'lmb_single' else 'fire', dispatch_calls=1, keyboard_mode='keychar' if i%2 else 'keycode',
                 yaw_before=0, yaw_after=0, pitch_before=0, pitch_after=0, escape_recovery=False,
                 attack_serial_before=0, attack_serial_after=count, ammo_before=7, ammo_after=7-count,
                 moves_before=100, moves_after=100-int(shot)))
@@ -53,6 +53,10 @@ class FireEvidenceTests(unittest.TestCase):
     def test_undispatched_command_rejected(self):
         self.report['trials'][2]['dispatch_calls'] = 0
         with self.assertRaises(AssertionError): self.run_report()
+
+    def test_missing_keyboard_mode_coverage_rejected(self):
+        for trial in self.report['trials']:trial['keyboard_mode']='keycode'
+        with self.assertRaises(AssertionError):self.run_report()
 
     def test_wrong_native_command_rejected(self):
         self.report['trials'][2]['native_command'] = 'TIMEOUT'

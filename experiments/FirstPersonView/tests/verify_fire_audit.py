@@ -55,6 +55,9 @@ def verify(root):
     expected = Counter({(mode, name): 20 if name in firing else 10 for mode in ['cpu', 'gpu'] for name in common})
     expected.update({(mode, name): 1 for mode in ['cpu', 'gpu'] for name in extra})
     assert Counter((t['renderer'], t['scenario']) for t in measured) == expected
+    for mode in ['cpu', 'gpu']:
+        for name in common:
+            assert {t['keyboard_mode'] for t in measured if t['renderer'] == mode and t['scenario'] == name} == {'keychar', 'keycode'}
     assert len(measured) >= 100 and len(controls) == 1 and controls[0]['scenario'] == 'cancel'
     assert frames and all(f['captured'] and f['presented'] for f in frames)
     manifest = []
