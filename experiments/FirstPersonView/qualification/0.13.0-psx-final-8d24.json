@@ -1,0 +1,86 @@
+{
+  "schema": 1,
+  "selected_pr_head": "8d24cc2b8df4ccd6574e1f2f61108baf24f4bcf9",
+  "tested_merge": "f9a6c95e9cff4edc51a92d63cac4fb98c8df4b3a",
+  "runtime_inputs": "3e9c8b065f23a73ae660dd028aab5dcc851df451",
+  "full_qualification_success": true,
+  "exact_candidate_qualified_bytes_identical": true,
+  "hardware_qualification_success": true,
+  "visual_review_completed": true,
+  "performance_accepted": false,
+  "merge_accepted": false,
+  "gallery_manifest_archive": {
+    "file": "0.13.0-psx-final-8d24-gallery-manifest.json.gz",
+    "sha256": "0f3b2eb9872c26d930d361c03be520ae867099ff4c5a45691e04411dddf5434a",
+    "uncompressed_sha256": "59d37ee3081a9edba0a983ad19752c6bf22ca68517d654d9bc683fa4378fbf37",
+    "scope": "Exact original strict gallery JSON bytes, including original line endings; decompressed hash binds all216 capture/BMP/RGB identities to the hardware and visual proof"
+  },
+  "evidence_branch_runtime_is_rejected_experiment_not_the_qualified_source": true,
+  "scope": "Reports-only evidence for exact frozen PR218 installers, stored separately to preserve the tested PR head.",
+  "evidence_files": [
+    {
+      "file": "0.13.0-psx-final-8d24-bare-after.png",
+      "sha256": "0da189a6e49ae2e6b165dcee9000af837a31e70a198524260a22a2f6fc61100b"
+    },
+    {
+      "file": "0.13.0-psx-final-8d24-bare-before.png",
+      "sha256": "97d2ffdb90e4fd43e4874132b41317a5230f4aeb279d1078f772b5ad49bf3fa5"
+    },
+    {
+      "file": "0.13.0-psx-final-8d24-contact-0.jpg",
+      "sha256": "411eb902cf0cecfef93c54fcdb24a1436695e3c8cfb2770853c9360b66ed14c9"
+    },
+    {
+      "file": "0.13.0-psx-final-8d24-contact-1.jpg",
+      "sha256": "dfb29abf862f955e10f14d0d9ff2a8b72b4a2de2aed7f21ef2f37567633b754a"
+    },
+    {
+      "file": "0.13.0-psx-final-8d24-full-ci.json",
+      "sha256": "47e56aab8a61ad152b1fd0b7ec9f5ab34448e4eb53f8cf203c8c2898327c5354"
+    },
+    {
+      "file": "0.13.0-psx-final-8d24-gallery-manifest.json.gz",
+      "sha256": "0f3b2eb9872c26d930d361c03be520ae867099ff4c5a45691e04411dddf5434a"
+    },
+    {
+      "file": "0.13.0-psx-final-8d24-gpu-debug.json",
+      "sha256": "70fe694dabf72dc133a6992c679c43d04099b6ef6acd8c6f48fa00263fb069a2"
+    },
+    {
+      "file": "0.13.0-psx-final-8d24-hardware.json",
+      "sha256": "76f35ca43ed240b2aa4e9ed2dae8b6f5981c499446e376095874bc8cc0529e88"
+    },
+    {
+      "file": "0.13.0-psx-final-8d24-measurements.csv",
+      "sha256": "c69990883f9e1475e4be6b0d0cb35bda938155dea64685b9bd3a1451379500cb"
+    },
+    {
+      "file": "0.13.0-psx-final-8d24-measurements.json",
+      "sha256": "2bdad87f6084e8cb6f87a28c1b76a840cdf0ececb7b8da2070f5dc23205487e1"
+    },
+    {
+      "file": "0.13.0-psx-final-8d24-normal-verification.json",
+      "sha256": "9d535e1eb9fbac5d33603c93c36d237646f84d05fdcaf6c9ace302afab44aecf"
+    },
+    {
+      "file": "0.13.0-psx-final-8d24-raw.json.gz",
+      "sha256": "078a0a6f552e8cdf3349219fd24957bca8c042d08985c59a8a8ee3af9efff793"
+    },
+    {
+      "file": "0.13.0-psx-final-8d24-rifle-after.png",
+      "sha256": "3fb117fa247d223f489e199ded4766310dd9cae05c066cc75425549c13e0ddda"
+    },
+    {
+      "file": "0.13.0-psx-final-8d24-rifle-before.png",
+      "sha256": "dcaf8aa8b1afbbeb9e41090fbdbcd9fe3983f81e430512c677da9a5a8cc383a1"
+    },
+    {
+      "file": "0.13.0-psx-final-8d24-visual-review.json",
+      "sha256": "e1cb4e5d62007523e1f694d7571362f5d1185fa6e3519416190aa181d031bcb8"
+    },
+    {
+      "file": "0.13.0-psx-final-8d24.md",
+      "sha256": "e3db9efcca44ab53a7acdfcda093f5db50c871e50ab8aaa53c27865b3a269f25"
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "schema": 1,
+  "reviewer": "Codex visual inspection",
+  "manual_playthrough": false,
+  "visual_review_completed": true,
+  "reviewed_states": [
+    "bare",
+    "black_gloves",
+    "sleeves",
+    "pistol",
+    "revolver",
+    "rifle",
+    "shotgun",
+    "knife",
+    "pole",
+    "flashlight",
+    "umbrella",
+    "torch",
+    "rifle_attachments",
+    "unarmed_attack",
+    "shot_recoil",
+    "item_switch",
+    "camera_turn",
+    "look_up",
+    "look_down",
+    "vehicle",
+    "near_wall",
+    "mutation_FUR",
+    "mutation_SCALES",
+    "mutation_CHITIN",
+    "mutation_CLAWS",
+    "mutation_WEBBED",
+    "bionic"
+  ],
+  "reviewed_tilesets": [
+    "UltimateCataclysm",
+    "UndeadPeople_0J_Hybrid_v3"
+  ],
+  "reviewed_renderers": [
+    "cpu",
+    "gpu"
+  ],
+  "reviewed_native_captures": 216,
+  "gallery_manifest_sha256": "59d37ee3081a9edba0a983ad19752c6bf22ca68517d654d9bc683fa4378fbf37",
+  "reviewed_capture_ledger_sha256": "0dadc04c811ba7270cbab21e60adc5b71756492a889ff5641eff4951a6bd534a",
+  "full_resolution_details": [
+    {
+      "file": "1-pistol-gpu-after.png",
+      "sha256": "f53d7953b2e7d83c17b09434c55d98d955e538ed54e95ad648672ce9ba036d9c"
+    },
+    {
+      "file": "1-rifle-gpu-after.png",
+      "sha256": "3fb117fa247d223f489e199ded4766310dd9cae05c066cc75425549c13e0ddda"
+    },
+    {
+      "file": "1-rifle-cpu-after.png",
+      "sha256": "01729ddcb391417eddd5939de0023b8ea3aca17b09cb286bee41a924261bd76a"
+    },
+    {
+      "file": "1-mutation_CLAWS-gpu-after.png",
+      "sha256": "8233ae79dab13692fca01db9ac068a1f2b7a460b30b81b81072158a8a0e20dfd"
+    },
+    {
+      "file": "1-mutation_WEBBED-gpu-after.png",
+      "sha256": "57704e517cdfa7595845e67ba86487a98266071493dc5efcc1bde54d79e4cc89"
+    },
+    {
+      "file": "1-black_gloves-gpu-after.png",
+      "sha256": "eedcd0e5183e8eb5858eafcdf6326062b7fb1296df826ddf6df6da3c3d938ee4"
+    },
+    {
+      "file": "1-rifle_attachments-gpu-after.png",
+      "sha256": "73588b926dbde5a631accb7499dc174e0a81e556a063837bb25f88e56b6bebd2"
+    },
+    {
+      "file": "1-shotgun-gpu-after.png",
+      "sha256": "1774e456d3cc86852d0bb468f4f5d9141ca6222e94dfbeb712c493c8724bb894"
+    },
+    {
+      "file": "1-knife-gpu-after.png",
+      "sha256": "60f4846d5b551a043abdac7538644620d556007def103de181820ae3d1fb1ee3"
+    }
+  ],
+  "observations": [
+    "Reviewed all 27 states across both tilesets and CPU/GPU, using six scaled Before/After contact sheets and nine additional full-resolution frames.",
+    "PSX hands have source finger/forearm geometry; no obvious doubled arms, inverted wrists or detached hand/forearm seams were observed in these captures. Primary and support contacts were additionally inspected in the full pistol, rifle, attachment, shotgun and knife frames.",
+    "Gloves cover hands while forearms retain skin; worn sleeves remain separate. Actual UDP garment metadata tints the tactical glove green, while the official tileset gives a dark variant; black_gloves is the fixture name, not an assertion that every tileset supplies an identical RGB tint.",
+    "Claws and webbing are bounded joint-bound additions. Fur, scales, chitin and bionic finish keep human PSX topology, rather than bespoke fur, creature-anatomy or mechanical-arm meshes.",
+    "Hands remain visible at the inspected extreme pitches, camera turn, near wall and vehicle viewpoints.",
+    "Real-time attack/switch captures can show different animation phases between CPU/GPU. The gallery is not a pixel-identical timed-pose test; fixed-pose CPU/GPU equivalence and cadence are tested separately.",
+    "Vehicle paint differs between independent Before/After fixture creation; this inspection compares hand geometry/visibility and does not claim identical world pixels."
+  ],
+  "exact_reviewed_pixels_match_final_export": true,
+  "scope": "Actual Codex visual inspection completed during functional soak; strict process/gallery validation and all 216 reviewed BMP/RGB hashes now bind that inspection to the completed final PNG export. This is not a manual gameplay session or native performance acceptance."
+}

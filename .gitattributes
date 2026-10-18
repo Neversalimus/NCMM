@@ -11,3 +11,4 @@ experiments/FirstPersonView/qualification/0.13.0-psx-*-ablation.json linguist-ge
 experiments/FirstPersonView/qualification/0.13.0-psx-short-controls.json linguist-generated=true
 experiments/FirstPersonView/qualification/0.13.0-psx-cell-controls.json linguist-generated=true
 experiments/FirstPersonView/qualification/0.13.0-psx-upload-controls-r19.json linguist-generated=true
+experiments/FirstPersonView/qualification/0.13.0-psx-final-8d24*.json linguist-generated=true

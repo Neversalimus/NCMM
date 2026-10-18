@@ -1,0 +1,4278 @@
+{
+  "success": true,
+  "evidence_consistency_passed": true,
+  "qualified_release": false,
+  "scope": "Exact final packaged sourcef9a6 Host/PSX DLL; original c709 module, final, original on the same Host and 30 common payload files. Normal unattached execution, GPU debug off. Twelve records, twelve steps, 48 cold/warm turns per record. The old module retains original hashing, so this is not isolated PSX or native-Host optimization cost. Full four-way source measurements and final functional qualification are separate. Short p99 does not establish rare-tail behavior.",
+  "installer_receipt": {
+    "success": true,
+    "scope": "CI candidate bytes for local diagnostic testing; not final qualification",
+    "artifact_kind": "candidate",
+    "run": "39116354078",
+    "source": "f9a6c95e9cff4edc51a92d63cac4fb98c8df4b3a",
+    "run_head_source": "8d24cc2b8df4ccd6574e1f2f61108baf24f4bcf9",
+    "build": "1040",
+    "artifact_id": 12133825634,
+    "artifact_sha256": "91b62e3317198aca2690249a4201187fc16b0e64a8d812d3c5ed9bb34157b34b",
+    "installer_zip_sha256": "9c68f3a2c80d2c4f0cee03fb4c4f5af8ca2ee349df02f6a779dd1488cc38edb1",
+    "host_sha256": "54922701a5575d6ff44184602b442f0d82a3fd4d0911ccc5bbe678da3e125f30",
+    "module_sha256": "1b0c0075203fb79c81cacccc17c7e8cca5ccc0460628a8782d4aae1179280d9c",
+    "setup_sha256": "ee05822572eab61ffea23dcab8221fcffd6ca8900b19873a26ec54d624534d87",
+    "payload_files_verified": 32,
+    "native_inputs_verified": [
+      "ncmm_graphics.h",
+      "ncmm_graphics_v2.h",
+      "ncmm_graphics_shapes.hpp",
+      "ncmm_graphics_policy.hpp",
+      "ncmm_graphics_controls.h",
+      "ncmm_graphics_camera.hpp",
+      "ncmm_graphics_controls.inc",
+      "ncmm_graphics_presentation.h",
+      "ncmm_graphics_presentation_policy.hpp",
+      "ncmm_graphics_presentation.inc",
+      "ncmm_graphics_creatures.h",
+      "ncmm_graphics_creature_policy.hpp",
+      "ncmm_graphics_performance.hpp",
+      "ncmm_graphics_creatures.inc",
+      "ncmm_graphics_creature_smoke.inc",
+      "ncmm_graphics_appearance_smoke.inc",
+      "ncmm_graphics_composite.hpp",
+      "ncmm_graphics_gpu.h",
+      "ncmm_gpu_validation.hpp",
+      "ncmm_gpu_device.hpp",
+      "ncmm_gpu_shader_bytes.hpp",
+      "ncmm_gpu_probe.hpp",
+      "ncmm_gpu_probe_smoke.inc",
+      "ncmm_gpu_game_smoke.inc",
+      "ncmm_gpu_benchmark.inc",
+      "ncmm_gpu_backend.hpp",
+      "ncmm_gpu_geometry.hpp",
+      "ncmm_gpu_programs.hpp",
+      "ncmm_gpu_resources.hpp",
+      "ncmm_graphics_gpu.inc",
+      "ncmm_graphics_effects.inc",
+      "ncmm_graphics_bridge.inc",
+      "ncmm_graphics_hybrid.inc",
+      "ncmm_graphics_smoke.inc",
+      "ncmm_graphics_multilevel.h",
+      "ncmm_world_policy.hpp",
+      "ncmm_world_cache.hpp",
+      "ncmm_world_lod.hpp",
+      "ncmm_graphics_lod.inc",
+      "ncmm_graphics_world.inc",
+      "ncmm_graphics_multilevel_smoke.inc",
+      "ncmm_graphics_multilevel_save_smoke.inc",
+      "ncmm_graphics_gameplay_audit.inc",
+      "ncmm_graphics_movement_benchmark.inc"
+    ]
+  },
+  "variants": {
+    "before1": {
+      "identity": {
+        "source_commit": "c7095aa77298e08223ae2f1eb2b3c817217443ec",
+        "host_sha256": "54922701a5575d6ff44184602b442f0d82a3fd4d0911ccc5bbe678da3e125f30",
+        "module_sha256": "70afb70067ef51619a8807ff75d5f4b23b8c3fabf408fdebecd0f5a39fa5b554",
+        "installer_revision": "diagnostic component snapshot; not a qualified installer",
+        "host_source_commit": "f9a6c95e9cff4edc51a92d63cac4fb98c8df4b3a"
+      },
+      "run": {
+        "weather": "clear",
+        "process_exit": 0,
+        "records": [
+          {
+            "scene": "street",
+            "renderer": "cpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 26.310699999999997,
+            "first_p95_ms": 45.405884999999984,
+            "first_p99_ms": 56.114297000000015,
+            "first_max_ms": 58.7914,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 46.407700000000006,
+            "ready_p95_ms": 85.93463499999996,
+            "ready_p99_ms": 106.62796700000003,
+            "ready_max_ms": 111.8013,
+            "warm_median_ms": 18.38915,
+            "warm_p95_ms": 24.58529,
+            "warm_p99_ms": 27.340391,
+            "warm_max_ms": 27.5776,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.1378000000000004,
+                  "p95_ms": 4.2936499999999995,
+                  "p99_ms": 4.36097
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 22.202550000000002,
+                  "p95_ms": 40.98048999999998,
+                  "p99_ms": 51.23257800000002
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.5601499999999999,
+                  "p95_ms": 0.7759299999999999,
+                  "p99_ms": 0.833746
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0005499999999999999,
+                  "p95_ms": 0.0011149999999999997,
+                  "p99_ms": 0.0014230000000000004
+                },
+                "extract_samples_ms": {
+                  "median_ms": 8.3433,
+                  "p95_ms": 14.48496,
+                  "p99_ms": 15.618752000000002
+                },
+                "callback_samples_ms": {
+                  "median_ms": 12.9193,
+                  "p95_ms": 28.295999999999985,
+                  "p99_ms": 37.57384000000002
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.1155,
+                  "p95_ms": 3.97475,
+                  "p99_ms": 4.013446
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 14.57755,
+                  "p95_ms": 20.635469999999998,
+                  "p99_ms": 22.819529
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.52015,
+                  "p95_ms": 0.8690949999999996,
+                  "p99_ms": 2.029855000000002
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0005,
+                  "p95_ms": 0.001,
+                  "p99_ms": 0.0011
+                },
+                "extract_samples_ms": {
+                  "median_ms": 2.8670999999999998,
+                  "p95_ms": 4.568499999999999,
+                  "p99_ms": 9.030129000000002
+                },
+                "callback_samples_ms": {
+                  "median_ms": 10.5642,
+                  "p95_ms": 16.325084999999998,
+                  "p99_ms": 17.937353
+                }
+              }
+            }
+          },
+          {
+            "scene": "street",
+            "renderer": "gpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 16.07025,
+            "first_p95_ms": 34.82869999999999,
+            "first_p99_ms": 41.815900000000006,
+            "first_max_ms": 43.5627,
+            "first_under_15_ms": 6,
+            "first_samples": 12,
+            "ready_median_ms": 36.46225,
+            "ready_p95_ms": 69.20519499999999,
+            "ready_p99_ms": 75.298799,
+            "ready_max_ms": 76.8222,
+            "warm_median_ms": 9.494,
+            "warm_p95_ms": 11.999455,
+            "warm_p99_ms": 13.11324,
+            "warm_max_ms": 13.3614,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.41975,
+                  "p95_ms": 3.926195,
+                  "p99_ms": 3.948679
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 12.17485,
+                  "p95_ms": 30.673289999999987,
+                  "p99_ms": 37.66497800000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.33775,
+                  "p95_ms": 0.4773049999999999,
+                  "p99_ms": 0.507621
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.00045,
+                  "p95_ms": 0.0009799999999999998,
+                  "p99_ms": 0.0011560000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 7.559200000000001,
+                  "p95_ms": 14.872404999999999,
+                  "p99_ms": 15.013601
+                },
+                "callback_samples_ms": {
+                  "median_ms": 4.5362,
+                  "p95_ms": 16.815399999999986,
+                  "p99_ms": 24.722200000000008
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.74865,
+                  "p95_ms": 5.14915,
+                  "p99_ms": 5.43207
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.6246,
+                  "p95_ms": 9.748984999999985,
+                  "p99_ms": 17.83147700000001
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.039599999999999996,
+                  "p95_ms": 0.058789999999999995,
+                  "p99_ms": 0.059758
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.14315,
+                  "p95_ms": 0.20551,
+                  "p99_ms": 0.212462
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.2452,
+                  "p95_ms": 0.331875,
+                  "p99_ms": 0.33341499999999996
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.9505999999999997,
+                  "p95_ms": 3.8564499999999997,
+                  "p99_ms": 4.777643
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 6.1117,
+                  "p95_ms": 7.766579999999999,
+                  "p99_ms": 8.563702
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.25434999999999997,
+                  "p95_ms": 0.41355,
+                  "p99_ms": 0.53747
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.00025,
+                  "p95_ms": 0.0004,
+                  "p99_ms": 0.0005
+                },
+                "extract_samples_ms": {
+                  "median_ms": 2.83135,
+                  "p95_ms": 3.904095,
+                  "p99_ms": 4.21068
+                },
+                "callback_samples_ms": {
+                  "median_ms": 3.14605,
+                  "p95_ms": 4.20925,
+                  "p99_ms": 4.646044
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.5455,
+                  "p95_ms": 2.10653,
+                  "p99_ms": 2.3056020000000004
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.4162,
+                  "p95_ms": 0.638755,
+                  "p99_ms": 1.0766220000000009
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.0271,
+                  "p95_ms": 0.04628499999999999,
+                  "p99_ms": 0.09010200000000007
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.0826,
+                  "p95_ms": 0.12240999999999999,
+                  "p99_ms": 0.20803400000000016
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.18485000000000001,
+                  "p95_ms": 0.26181,
+                  "p99_ms": 0.332418
+                }
+              }
+            }
+          },
+          {
+            "scene": "street",
+            "renderer": "cpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 26.4767,
+            "first_p95_ms": 34.40311,
+            "first_p99_ms": 35.422062000000004,
+            "first_max_ms": 35.6768,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 46.65155,
+            "ready_p95_ms": 62.622675,
+            "ready_p99_ms": 62.946295,
+            "ready_max_ms": 63.0272,
+            "warm_median_ms": 19.2284,
+            "warm_p95_ms": 24.681835,
+            "warm_p99_ms": 25.163619,
+            "warm_max_ms": 25.2305,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 6.46885,
+                  "p95_ms": 8.747954999999997,
+                  "p99_ms": 9.877831
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 19.075200000000002,
+                  "p95_ms": 26.385479999999998,
+                  "p99_ms": 26.438456
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.61185,
+                  "p95_ms": 2.995145,
+                  "p99_ms": 3.037429
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.00065,
+                  "p95_ms": 0.0013449999999999998,
+                  "p99_ms": 0.001389
+                },
+                "extract_samples_ms": {
+                  "median_ms": 7.64875,
+                  "p95_ms": 11.571565000000001,
+                  "p99_ms": 11.573193000000002
+                },
+                "callback_samples_ms": {
+                  "median_ms": 12.1897,
+                  "p95_ms": 14.051775,
+                  "p99_ms": 14.052435
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 5.19295,
+                  "p95_ms": 7.120265,
+                  "p99_ms": 8.724618000000001
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 13.303249999999998,
+                  "p95_ms": 17.050304999999998,
+                  "p99_ms": 17.853686
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.5203,
+                  "p95_ms": 0.7453999999999998,
+                  "p99_ms": 2.3712910000000016
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.0009649999999999998,
+                  "p99_ms": 0.0011060000000000002
+                },
+                "extract_samples_ms": {
+                  "median_ms": 3.073,
+                  "p95_ms": 4.6344449999999995,
+                  "p99_ms": 5.2532630000000005
+                },
+                "callback_samples_ms": {
+                  "median_ms": 9.341149999999999,
+                  "p95_ms": 12.33112,
+                  "p99_ms": 12.929768000000001
+                }
+              }
+            }
+          },
+          {
+            "scene": "street",
+            "renderer": "gpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 20.20415,
+            "first_p95_ms": 37.18450499999999,
+            "first_p99_ms": 46.51906100000001,
+            "first_max_ms": 48.8527,
+            "first_under_15_ms": 2,
+            "first_samples": 12,
+            "ready_median_ms": 40.9544,
+            "ready_p95_ms": 66.66776499999999,
+            "ready_p99_ms": 75.197473,
+            "ready_max_ms": 77.3299,
+            "warm_median_ms": 13.540849999999999,
+            "warm_p95_ms": 15.950579999999999,
+            "warm_p99_ms": 17.089925,
+            "warm_max_ms": 17.6222,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 6.0687999999999995,
+                  "p95_ms": 7.27845,
+                  "p99_ms": 7.3827300000000005
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 13.5698,
+                  "p95_ms": 30.105484999999984,
+                  "p99_ms": 40.08085700000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.30125,
+                  "p95_ms": 0.6693049999999998,
+                  "p99_ms": 0.7937810000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.0007449999999999999,
+                  "p99_ms": 0.0007890000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 8.7726,
+                  "p95_ms": 14.41597,
+                  "p99_ms": 14.690794
+                },
+                "callback_samples_ms": {
+                  "median_ms": 5.0181000000000004,
+                  "p95_ms": 16.121799999999986,
+                  "p99_ms": 25.938200000000013
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.86395,
+                  "p95_ms": 3.7002549999999994,
+                  "p99_ms": 3.9351710000000004
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.7204999999999999,
+                  "p95_ms": 10.903874999999985,
+                  "p99_ms": 20.16389500000001
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.0344,
+                  "p95_ms": 0.057425,
+                  "p99_ms": 0.060285000000000005
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.14445,
+                  "p95_ms": 0.19929,
+                  "p99_ms": 0.204658
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.22755,
+                  "p95_ms": 0.316355,
+                  "p99_ms": 0.333031
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 5.272600000000001,
+                  "p95_ms": 6.968414999999999,
+                  "p99_ms": 7.311607
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 7.29205,
+                  "p95_ms": 9.376914999999999,
+                  "p99_ms": 10.041233000000002
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.24195,
+                  "p95_ms": 0.47449499999999994,
+                  "p99_ms": 0.6697810000000002
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.0007649999999999998,
+                  "p99_ms": 0.0015360000000000013
+                },
+                "extract_samples_ms": {
+                  "median_ms": 3.1805000000000003,
+                  "p95_ms": 4.38498,
+                  "p99_ms": 5.597562000000002
+                },
+                "callback_samples_ms": {
+                  "median_ms": 3.76875,
+                  "p95_ms": 5.32152,
+                  "p99_ms": 5.493049
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.6992,
+                  "p95_ms": 2.41879,
+                  "p99_ms": 2.7883200000000006
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.4679,
+                  "p95_ms": 0.6424650000000001,
+                  "p99_ms": 0.7016810000000001
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.0293,
+                  "p95_ms": 0.04223,
+                  "p99_ms": 0.048671000000000006
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.0937,
+                  "p95_ms": 0.14372000000000001,
+                  "p99_ms": 0.16481200000000004
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.1861,
+                  "p95_ms": 0.33475499999999997,
+                  "p99_ms": 0.6114380000000005
+                }
+              }
+            }
+          },
+          {
+            "scene": "multi_level_horde",
+            "renderer": "cpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 29.8655,
+            "first_p95_ms": 42.9462,
+            "first_p99_ms": 46.44596000000001,
+            "first_max_ms": 47.3209,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 51.05415,
+            "ready_p95_ms": 77.33707999999999,
+            "ready_p99_ms": 81.138856,
+            "ready_max_ms": 82.0893,
+            "warm_median_ms": 21.296799999999998,
+            "warm_p95_ms": 29.325439999999997,
+            "warm_p99_ms": 31.705795000000002,
+            "warm_max_ms": 32.1906,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.61505,
+                  "p95_ms": 4.37625,
+                  "p99_ms": 4.45237
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 26.55105,
+                  "p95_ms": 38.558485,
+                  "p99_ms": 41.555457000000004
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.5482,
+                  "p95_ms": 0.7766749999999999,
+                  "p99_ms": 0.8477350000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0005,
+                  "p95_ms": 0.0009349999999999999,
+                  "p99_ms": 0.0010670000000000002
+                },
+                "extract_samples_ms": {
+                  "median_ms": 8.239749999999999,
+                  "p95_ms": 14.120734999999998,
+                  "p99_ms": 15.694307000000004
+                },
+                "callback_samples_ms": {
+                  "median_ms": 18.0509,
+                  "p95_ms": 23.794739999999997,
+                  "p99_ms": 25.235828
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.49245,
+                  "p95_ms": 3.8671849999999997,
+                  "p99_ms": 4.690119000000001
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 18.343,
+                  "p95_ms": 24.949524999999998,
+                  "p99_ms": 27.618883
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.489,
+                  "p95_ms": 0.852385,
+                  "p99_ms": 2.1127100000000025
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0005,
+                  "p95_ms": 0.0010949999999999994,
+                  "p99_ms": 0.0014060000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 3.19475,
+                  "p95_ms": 4.736675,
+                  "p99_ms": 5.755596000000001
+                },
+                "callback_samples_ms": {
+                  "median_ms": 14.6237,
+                  "p95_ms": 21.034219999999998,
+                  "p99_ms": 22.98303
+                }
+              }
+            }
+          },
+          {
+            "scene": "multi_level_horde",
+            "renderer": "gpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 18.7172,
+            "first_p95_ms": 30.296834999999987,
+            "first_p99_ms": 36.202647000000006,
+            "first_max_ms": 37.6791,
+            "first_under_15_ms": 4,
+            "first_samples": 12,
+            "ready_median_ms": 40.01885,
+            "ready_p95_ms": 62.01598999999999,
+            "ready_p99_ms": 70.210638,
+            "ready_max_ms": 72.2593,
+            "warm_median_ms": 10.117799999999999,
+            "warm_p95_ms": 13.15373,
+            "warm_p99_ms": 13.679058,
+            "warm_max_ms": 13.8006,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.6188000000000002,
+                  "p95_ms": 3.911739999999999,
+                  "p99_ms": 4.301228
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 15.6441,
+                  "p95_ms": 27.300419999999992,
+                  "p99_ms": 33.102964000000014
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.30005,
+                  "p95_ms": 0.464865,
+                  "p99_ms": 0.481453
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.001045,
+                  "p99_ms": 0.0010890000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 8.44145,
+                  "p95_ms": 12.560839999999997,
+                  "p99_ms": 13.563688
+                },
+                "callback_samples_ms": {
+                  "median_ms": 6.27525,
+                  "p95_ms": 15.924044999999994,
+                  "p99_ms": 19.709849000000006
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 2.5470499999999996,
+                  "p95_ms": 4.697919999999999,
+                  "p99_ms": 5.151824
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.60995,
+                  "p95_ms": 8.03688999999999,
+                  "p99_ms": 13.412898000000007
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.037500000000000006,
+                  "p95_ms": 0.049125,
+                  "p99_ms": 0.051105000000000005
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.14739999999999998,
+                  "p95_ms": 0.17119499999999999,
+                  "p99_ms": 0.171679
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.2348,
+                  "p95_ms": 0.37899,
+                  "p99_ms": 0.392278
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.41115,
+                  "p95_ms": 3.315895,
+                  "p99_ms": 3.6642350000000006
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 7.3631,
+                  "p95_ms": 9.732344999999999,
+                  "p99_ms": 10.159504
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.25295,
+                  "p95_ms": 0.4985999999999999,
+                  "p99_ms": 0.618295
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0003,
+                  "p95_ms": 0.0006,
+                  "p99_ms": 0.0008060000000000002
+                },
+                "extract_samples_ms": {
+                  "median_ms": 3.4764,
+                  "p95_ms": 4.708835,
+                  "p99_ms": 4.984362000000001
+                },
+                "callback_samples_ms": {
+                  "median_ms": 3.81625,
+                  "p95_ms": 5.013475,
+                  "p99_ms": 5.1824200000000005
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.9878,
+                  "p95_ms": 2.63699,
+                  "p99_ms": 2.8752020000000003
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.44994999999999996,
+                  "p95_ms": 0.605515,
+                  "p99_ms": 0.637353
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.03025,
+                  "p95_ms": 0.04765499999999999,
+                  "p99_ms": 0.064296
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.0956,
+                  "p95_ms": 0.14182499999999998,
+                  "p99_ms": 0.19980000000000003
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.18885000000000002,
+                  "p95_ms": 0.274985,
+                  "p99_ms": 0.29461600000000004
+                }
+              }
+            }
+          },
+          {
+            "scene": "multi_level_horde",
+            "renderer": "cpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 32.17355,
+            "first_p95_ms": 38.60772,
+            "first_p99_ms": 39.902904,
+            "first_max_ms": 40.2267,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 56.1358,
+            "ready_p95_ms": 65.87535,
+            "ready_p99_ms": 67.04091000000001,
+            "ready_max_ms": 67.3323,
+            "warm_median_ms": 22.11595,
+            "warm_p95_ms": 29.387259999999998,
+            "warm_p99_ms": 31.790146000000004,
+            "warm_max_ms": 32.3674,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 5.20295,
+                  "p95_ms": 6.832155,
+                  "p99_ms": 6.963231
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 25.3664,
+                  "p95_ms": 32.327275,
+                  "p99_ms": 32.762654999999995
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.68155,
+                  "p95_ms": 0.8577299999999999,
+                  "p99_ms": 0.9032260000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.00075,
+                  "p95_ms": 0.0013249999999999998,
+                  "p99_ms": 0.0015450000000000004
+                },
+                "extract_samples_ms": {
+                  "median_ms": 9.91405,
+                  "p95_ms": 12.570335,
+                  "p99_ms": 13.134547000000001
+                },
+                "callback_samples_ms": {
+                  "median_ms": 16.1245,
+                  "p95_ms": 19.135564999999996,
+                  "p99_ms": 20.124553000000002
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 4.6332,
+                  "p95_ms": 6.16761,
+                  "p99_ms": 7.375991000000003
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 16.8001,
+                  "p95_ms": 22.050985,
+                  "p99_ms": 24.803117999999998
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.56855,
+                  "p95_ms": 0.73621,
+                  "p99_ms": 0.9193540000000003
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0007,
+                  "p95_ms": 0.0013299999999999996,
+                  "p99_ms": 0.005316000000000008
+                },
+                "extract_samples_ms": {
+                  "median_ms": 3.2915,
+                  "p95_ms": 5.57764,
+                  "p99_ms": 7.283699000000003
+                },
+                "callback_samples_ms": {
+                  "median_ms": 12.53005,
+                  "p95_ms": 16.992955000000002,
+                  "p99_ms": 17.735300000000002
+                }
+              }
+            }
+          },
+          {
+            "scene": "multi_level_horde",
+            "renderer": "gpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 19.9077,
+            "first_p95_ms": 38.15178999999999,
+            "first_p99_ms": 43.064918000000006,
+            "first_max_ms": 44.2932,
+            "first_under_15_ms": 2,
+            "first_samples": 12,
+            "ready_median_ms": 41.5249,
+            "ready_p95_ms": 71.373245,
+            "ready_p99_ms": 75.20480900000001,
+            "ready_max_ms": 76.1627,
+            "warm_median_ms": 12.867049999999999,
+            "warm_p95_ms": 17.485545000000002,
+            "warm_p99_ms": 17.78872,
+            "warm_max_ms": 18.0444,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 5.00305,
+                  "p95_ms": 7.24304,
+                  "p99_ms": 7.550688000000001
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 13.0929,
+                  "p95_ms": 31.95481999999999,
+                  "p99_ms": 37.648244000000005
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.29510000000000003,
+                  "p95_ms": 0.37609,
+                  "p99_ms": 0.39641800000000005
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.00035,
+                  "p95_ms": 0.0006349999999999998,
+                  "p99_ms": 0.0007670000000000002
+                },
+                "extract_samples_ms": {
+                  "median_ms": 7.2454,
+                  "p95_ms": 15.428609999999999,
+                  "p99_ms": 16.402682000000002
+                },
+                "callback_samples_ms": {
+                  "median_ms": 5.9201,
+                  "p95_ms": 16.20750499999999,
+                  "p99_ms": 22.88798100000001
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 2.6031,
+                  "p95_ms": 4.873459999999999,
+                  "p99_ms": 5.494212000000001
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.61415,
+                  "p95_ms": 9.127329999999988,
+                  "p99_ms": 16.080826000000005
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.03945,
+                  "p95_ms": 0.05994499999999999,
+                  "p99_ms": 0.062629
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.14565,
+                  "p95_ms": 0.19327999999999998,
+                  "p99_ms": 0.19697599999999998
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.23875000000000002,
+                  "p95_ms": 0.320035,
+                  "p99_ms": 0.323687
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 4.6472,
+                  "p95_ms": 6.934805,
+                  "p99_ms": 8.108588000000001
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 7.57315,
+                  "p95_ms": 10.716755,
+                  "p99_ms": 10.983912
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.27805,
+                  "p95_ms": 0.5931599999999998,
+                  "p99_ms": 0.6651710000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.00035,
+                  "p95_ms": 0.0006649999999999998,
+                  "p99_ms": 0.0007
+                },
+                "extract_samples_ms": {
+                  "median_ms": 3.1952,
+                  "p95_ms": 5.443965,
+                  "p99_ms": 5.705142
+                },
+                "callback_samples_ms": {
+                  "median_ms": 4.2009,
+                  "p95_ms": 6.06375,
+                  "p99_ms": 7.033902000000001
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 2.07355,
+                  "p95_ms": 3.10633,
+                  "p99_ms": 3.42567
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.4803,
+                  "p95_ms": 0.9012199999999999,
+                  "p99_ms": 1.1598550000000005
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.03345,
+                  "p95_ms": 0.05143,
+                  "p99_ms": 0.08068500000000003
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.1126,
+                  "p95_ms": 0.16877499999999998,
+                  "p99_ms": 0.21561900000000003
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.2062,
+                  "p95_ms": 0.430355,
+                  "p99_ms": 0.8184960000000001
+                }
+              }
+            }
+          },
+          {
+            "scene": "city_blocks",
+            "renderer": "cpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 41.28035,
+            "first_p95_ms": 49.589455,
+            "first_p99_ms": 50.257331,
+            "first_max_ms": 50.4243,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 62.8387,
+            "ready_p95_ms": 84.697915,
+            "ready_p99_ms": 88.73390300000001,
+            "ready_max_ms": 89.7429,
+            "warm_median_ms": 34.7441,
+            "warm_p95_ms": 42.05611,
+            "warm_p99_ms": 44.330074,
+            "warm_max_ms": 45.8556,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 1.64415,
+                  "p95_ms": 2.01121,
+                  "p99_ms": 2.034882
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 39.15285,
+                  "p95_ms": 47.068259999999995,
+                  "p99_ms": 47.603652
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.56785,
+                  "p95_ms": 0.7113349999999999,
+                  "p99_ms": 0.719387
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0006,
+                  "p95_ms": 0.0009,
+                  "p99_ms": 0.0009
+                },
+                "extract_samples_ms": {
+                  "median_ms": 10.409849999999999,
+                  "p95_ms": 14.735999999999999,
+                  "p99_ms": 14.80288
+                },
+                "callback_samples_ms": {
+                  "median_ms": 27.158749999999998,
+                  "p95_ms": 31.447824999999998,
+                  "p99_ms": 32.069325
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 1.56715,
+                  "p95_ms": 2.212405,
+                  "p99_ms": 2.8553930000000007
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 31.926099999999998,
+                  "p95_ms": 39.078379999999996,
+                  "p99_ms": 41.97681
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.5933999999999999,
+                  "p95_ms": 0.9904949999999999,
+                  "p99_ms": 1.1451190000000002
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0008,
+                  "p95_ms": 0.0016649999999999998,
+                  "p99_ms": 0.002477000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 5.2971,
+                  "p95_ms": 7.640405,
+                  "p99_ms": 10.010731000000002
+                },
+                "callback_samples_ms": {
+                  "median_ms": 26.0062,
+                  "p95_ms": 32.948485,
+                  "p99_ms": 35.44847800000001
+                }
+              }
+            }
+          },
+          {
+            "scene": "city_blocks",
+            "renderer": "gpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 18.332349999999998,
+            "first_p95_ms": 31.24953999999999,
+            "first_p99_ms": 37.52006800000001,
+            "first_max_ms": 39.0877,
+            "first_under_15_ms": 1,
+            "first_samples": 12,
+            "ready_median_ms": 40.3994,
+            "ready_p95_ms": 66.47162499999999,
+            "ready_p99_ms": 72.459365,
+            "ready_max_ms": 73.9563,
+            "warm_median_ms": 12.81685,
+            "warm_p95_ms": 16.896545,
+            "warm_p99_ms": 18.509471,
+            "warm_max_ms": 19.1678,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 1.464,
+                  "p95_ms": 1.8569049999999998,
+                  "p99_ms": 1.993701
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 16.46,
+                  "p95_ms": 29.08379499999999,
+                  "p99_ms": 35.48099900000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.33940000000000003,
+                  "p95_ms": 0.6932199999999997,
+                  "p99_ms": 0.8514440000000002
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0005,
+                  "p95_ms": 0.0007,
+                  "p99_ms": 0.0007
+                },
+                "extract_samples_ms": {
+                  "median_ms": 9.4891,
+                  "p95_ms": 15.118499999999997,
+                  "p99_ms": 15.825140000000001
+                },
+                "callback_samples_ms": {
+                  "median_ms": 7.24055,
+                  "p95_ms": 15.61587499999999,
+                  "p99_ms": 21.161415000000005
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 3.18795,
+                  "p95_ms": 4.969549999999999,
+                  "p99_ms": 5.33607
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.6591,
+                  "p95_ms": 7.359569999999991,
+                  "p99_ms": 13.292794000000008
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.052199999999999996,
+                  "p95_ms": 0.068375,
+                  "p99_ms": 0.07079500000000001
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.1844,
+                  "p95_ms": 0.8947749999999988,
+                  "p99_ms": 1.5651150000000007
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.2521,
+                  "p95_ms": 0.37971499999999986,
+                  "p99_ms": 0.4557030000000001
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 1.32295,
+                  "p95_ms": 1.9697049999999996,
+                  "p99_ms": 2.704283
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 11.23165,
+                  "p95_ms": 14.73123,
+                  "p99_ms": 16.369697000000002
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.2455,
+                  "p95_ms": 0.457205,
+                  "p99_ms": 0.7347480000000002
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.0006649999999999998,
+                  "p99_ms": 0.0014360000000000015
+                },
+                "extract_samples_ms": {
+                  "median_ms": 4.6061499999999995,
+                  "p95_ms": 6.649865,
+                  "p99_ms": 7.528158
+                },
+                "callback_samples_ms": {
+                  "median_ms": 6.0292,
+                  "p95_ms": 8.628535,
+                  "p99_ms": 9.537342
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 3.2295499999999997,
+                  "p95_ms": 4.8927499999999995,
+                  "p99_ms": 5.4709710000000005
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.48665,
+                  "p95_ms": 0.637965,
+                  "p99_ms": 0.6520330000000001
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.0449,
+                  "p95_ms": 0.06805,
+                  "p99_ms": 0.072066
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.14265,
+                  "p95_ms": 0.19552,
+                  "p99_ms": 0.33698600000000023
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.19995000000000002,
+                  "p95_ms": 0.28990499999999997,
+                  "p99_ms": 0.5254500000000002
+                }
+              }
+            }
+          },
+          {
+            "scene": "city_blocks",
+            "renderer": "cpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 35.32065,
+            "first_p95_ms": 41.83379,
+            "first_p99_ms": 42.233398,
+            "first_max_ms": 42.3333,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 59.0956,
+            "ready_p95_ms": 75.06428,
+            "ready_p99_ms": 79.05085600000001,
+            "ready_max_ms": 80.0475,
+            "warm_median_ms": 29.16985,
+            "warm_p95_ms": 33.74235,
+            "warm_p99_ms": 35.59165900000001,
+            "warm_max_ms": 36.4378,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.27255,
+                  "p95_ms": 4.78193,
+                  "p99_ms": 4.907506000000001
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 30.912,
+                  "p95_ms": 37.334235,
+                  "p99_ms": 38.485407
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.64605,
+                  "p95_ms": 2.754689999999999,
+                  "p99_ms": 3.0610180000000002
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0005,
+                  "p95_ms": 0.0009799999999999998,
+                  "p99_ms": 0.0011560000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 10.2472,
+                  "p95_ms": 14.483754999999999,
+                  "p99_ms": 15.378671
+                },
+                "callback_samples_ms": {
+                  "median_ms": 18.89015,
+                  "p95_ms": 22.90872,
+                  "p99_ms": 23.581744
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.99815,
+                  "p95_ms": 4.712859999999998,
+                  "p99_ms": 6.254084000000002
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 25.333199999999998,
+                  "p95_ms": 29.750230000000002,
+                  "p99_ms": 30.714567
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.5290999999999999,
+                  "p95_ms": 1.00459,
+                  "p99_ms": 1.1973220000000004
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0006,
+                  "p95_ms": 0.0010299999999999997,
+                  "p99_ms": 0.0015060000000000002
+                },
+                "extract_samples_ms": {
+                  "median_ms": 4.63255,
+                  "p95_ms": 6.729514999999999,
+                  "p99_ms": 8.751160000000002
+                },
+                "callback_samples_ms": {
+                  "median_ms": 19.41535,
+                  "p95_ms": 22.88228,
+                  "p99_ms": 24.369584000000003
+                }
+              }
+            }
+          },
+          {
+            "scene": "city_blocks",
+            "renderer": "gpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 19.94275,
+            "first_p95_ms": 31.151734999999995,
+            "first_p99_ms": 34.037387,
+            "first_max_ms": 34.7588,
+            "first_under_15_ms": 1,
+            "first_samples": 12,
+            "ready_median_ms": 42.33015,
+            "ready_p95_ms": 63.197559999999996,
+            "ready_p99_ms": 64.583912,
+            "ready_max_ms": 64.9305,
+            "warm_median_ms": 14.088899999999999,
+            "warm_p95_ms": 17.740879999999997,
+            "warm_p99_ms": 18.384578,
+            "warm_max_ms": 18.414,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.18545,
+                  "p95_ms": 4.5895,
+                  "p99_ms": 4.590380000000001
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 16.63245,
+                  "p95_ms": 27.243459999999995,
+                  "p99_ms": 30.575492000000004
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.28690000000000004,
+                  "p95_ms": 0.5005799999999999,
+                  "p99_ms": 0.542996
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.0006899999999999999,
+                  "p99_ms": 0.0007780000000000002
+                },
+                "extract_samples_ms": {
+                  "median_ms": 9.2693,
+                  "p95_ms": 13.979524999999999,
+                  "p99_ms": 14.226145
+                },
+                "callback_samples_ms": {
+                  "median_ms": 7.60685,
+                  "p95_ms": 14.404479999999992,
+                  "p99_ms": 18.457936000000004
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 3.26325,
+                  "p95_ms": 4.8442,
+                  "p99_ms": 5.09148
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.67885,
+                  "p95_ms": 5.944359999999994,
+                  "p99_ms": 9.671512000000005
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.04965,
+                  "p95_ms": 0.07303,
+                  "p99_ms": 0.076286
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.1723,
+                  "p95_ms": 0.4175649999999997,
+                  "p99_ms": 0.5925530000000002
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.22815000000000002,
+                  "p95_ms": 0.34622499999999995,
+                  "p99_ms": 0.3922050000000001
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.7436999999999996,
+                  "p95_ms": 4.416695,
+                  "p99_ms": 5.078666
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 10.70955,
+                  "p95_ms": 13.0028,
+                  "p99_ms": 14.027754000000002
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.2306,
+                  "p95_ms": 0.406485,
+                  "p99_ms": 0.50127
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0003,
+                  "p95_ms": 0.0006299999999999997,
+                  "p99_ms": 0.0007530000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 4.525650000000001,
+                  "p95_ms": 5.678975,
+                  "p99_ms": 6.188932
+                },
+                "callback_samples_ms": {
+                  "median_ms": 6.0535,
+                  "p95_ms": 7.901675,
+                  "p99_ms": 8.379229
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 3.28145,
+                  "p95_ms": 4.81473,
+                  "p99_ms": 5.465387000000001
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.47735000000000005,
+                  "p95_ms": 0.637525,
+                  "p99_ms": 0.694362
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.043,
+                  "p95_ms": 0.05635,
+                  "p99_ms": 0.07221400000000003
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.129,
+                  "p95_ms": 0.18259999999999998,
+                  "p99_ms": 0.21397500000000005
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.18745,
+                  "p95_ms": 0.24883,
+                  "p99_ms": 0.29158
+                }
+              }
+            }
+          }
+        ],
+        "full_size_gpu_first_under_15_ms": 5,
+        "full_size_gpu_first_samples": 36
+      },
+      "process": {
+        "schema": 1,
+        "child_pid": 26560,
+        "exit_signed": 0,
+        "exit_hex": "0x00000000",
+        "last_progress": "movement_complete",
+        "wrapper_failure": null,
+        "debugger_requested": false,
+        "debugger_error": null,
+        "crash_dumps": 0,
+        "host_sha256": "54922701a5575d6ff44184602b442f0d82a3fd4d0911ccc5bbe678da3e125f30",
+        "module_sha256": "70afb70067ef51619a8807ff75d5f4b23b8c3fabf408fdebecd0f5a39fa5b554",
+        "ncmm_commit": "c7095aa77298e08223ae2f1eb2b3c817217443ec",
+        "engine_commit": "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83",
+        "focused_gpu": false,
+        "movement": true
+      },
+      "report_sha256": "676701da3ca9410815151ca5f72406cf6172a4ca39d4d3f8b564e8bf45b0d762"
+    },
+    "after": {
+      "identity": {
+        "source_commit": "f9a6c95e9cff4edc51a92d63cac4fb98c8df4b3a",
+        "host_sha256": "54922701a5575d6ff44184602b442f0d82a3fd4d0911ccc5bbe678da3e125f30",
+        "module_sha256": "1b0c0075203fb79c81cacccc17c7e8cca5ccc0460628a8782d4aae1179280d9c",
+        "installer_revision": "0.13.0"
+      },
+      "run": {
+        "weather": "clear",
+        "process_exit": 0,
+        "records": [
+          {
+            "scene": "street",
+            "renderer": "cpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 32.27035,
+            "first_p95_ms": 51.32072999999999,
+            "first_p99_ms": 58.94830600000002,
+            "first_max_ms": 60.8552,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 54.0664,
+            "ready_p95_ms": 88.41374999999998,
+            "ready_p99_ms": 103.63379000000002,
+            "ready_max_ms": 107.4388,
+            "warm_median_ms": 18.728949999999998,
+            "warm_p95_ms": 22.94435,
+            "warm_p99_ms": 23.668145000000003,
+            "warm_max_ms": 23.9109,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.5460000000000003,
+                  "p95_ms": 5.701105,
+                  "p99_ms": 6.005981
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 27.99765,
+                  "p95_ms": 47.68540999999999,
+                  "p99_ms": 55.29468200000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.5426500000000001,
+                  "p95_ms": 0.68851,
+                  "p99_ms": 0.742102
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.0009,
+                  "p99_ms": 0.0009
+                },
+                "extract_samples_ms": {
+                  "median_ms": 12.95595,
+                  "p95_ms": 20.994724999999995,
+                  "p99_ms": 22.992545000000003
+                },
+                "callback_samples_ms": {
+                  "median_ms": 13.294599999999999,
+                  "p95_ms": 25.756909999999984,
+                  "p99_ms": 35.37610200000002
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.08085,
+                  "p95_ms": 3.93709,
+                  "p99_ms": 4.631486000000001
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 14.91115,
+                  "p95_ms": 19.220175,
+                  "p99_ms": 19.873742000000004
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.48495,
+                  "p95_ms": 0.632775,
+                  "p99_ms": 1.192248000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.0007649999999999998,
+                  "p99_ms": 0.0008
+                },
+                "extract_samples_ms": {
+                  "median_ms": 2.9035,
+                  "p95_ms": 4.21906,
+                  "p99_ms": 5.026814000000002
+                },
+                "callback_samples_ms": {
+                  "median_ms": 11.3108,
+                  "p95_ms": 14.893635,
+                  "p99_ms": 15.836758000000001
+                }
+              }
+            }
+          },
+          {
+            "scene": "street",
+            "renderer": "gpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 19.8887,
+            "first_p95_ms": 39.71000499999999,
+            "first_p99_ms": 47.31888100000001,
+            "first_max_ms": 49.2211,
+            "first_under_15_ms": 5,
+            "first_samples": 12,
+            "ready_median_ms": 39.7494,
+            "ready_p95_ms": 69.50617499999998,
+            "ready_p99_ms": 75.733715,
+            "ready_max_ms": 77.2906,
+            "warm_median_ms": 8.833549999999999,
+            "warm_p95_ms": 15.287409999999998,
+            "warm_p99_ms": 17.061302,
+            "warm_max_ms": 18.1063,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.2215,
+                  "p95_ms": 4.47957,
+                  "p99_ms": 4.485994
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 15.8216,
+                  "p95_ms": 35.692694999999986,
+                  "p99_ms": 43.63869900000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.27290000000000003,
+                  "p95_ms": 0.46149499999999993,
+                  "p99_ms": 0.49805900000000003
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.00089,
+                  "p99_ms": 0.0009780000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 11.32115,
+                  "p95_ms": 21.461045,
+                  "p99_ms": 22.094689000000002
+                },
+                "callback_samples_ms": {
+                  "median_ms": 3.9297500000000003,
+                  "p95_ms": 15.45708999999999,
+                  "p99_ms": 22.86677800000001
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.5940500000000002,
+                  "p95_ms": 3.767159999999999,
+                  "p99_ms": 4.1934320000000005
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.07785,
+                  "p95_ms": 8.951189999999988,
+                  "p99_ms": 16.32303800000001
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.05045,
+                  "p95_ms": 0.675314999999999,
+                  "p99_ms": 1.2485030000000006
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.19745000000000001,
+                  "p95_ms": 1.1194599999999995,
+                  "p99_ms": 1.5175720000000004
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.1419,
+                  "p95_ms": 0.27678499999999995,
+                  "p99_ms": 0.290557
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.11615,
+                  "p95_ms": 4.263735,
+                  "p99_ms": 4.6463980000000005
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 5.3355,
+                  "p95_ms": 12.05734,
+                  "p99_ms": 13.443419
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.1689,
+                  "p95_ms": 0.31443,
+                  "p99_ms": 0.7130960000000006
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0002,
+                  "p95_ms": 0.0004,
+                  "p99_ms": 0.0005530000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 2.831,
+                  "p95_ms": 4.14642,
+                  "p99_ms": 4.550497000000001
+                },
+                "callback_samples_ms": {
+                  "median_ms": 2.25835,
+                  "p95_ms": 8.905705,
+                  "p99_ms": 9.756547000000001
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.2245,
+                  "p95_ms": 1.8773549999999999,
+                  "p99_ms": 2.5379820000000013
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.05815,
+                  "p95_ms": 0.08234,
+                  "p99_ms": 0.09100300000000003
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.034850000000000006,
+                  "p95_ms": 1.125765,
+                  "p99_ms": 1.6526230000000006
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.08795,
+                  "p95_ms": 6.160119999999999,
+                  "p99_ms": 6.808145000000001
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.07005,
+                  "p95_ms": 0.10192999999999998,
+                  "p99_ms": 0.20622800000000022
+                }
+              }
+            }
+          },
+          {
+            "scene": "street",
+            "renderer": "cpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 30.572200000000002,
+            "first_p95_ms": 39.942069999999994,
+            "first_p99_ms": 41.869534,
+            "first_max_ms": 42.3514,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 49.04555,
+            "ready_p95_ms": 67.0633,
+            "ready_p99_ms": 67.15834000000001,
+            "ready_max_ms": 67.1821,
+            "warm_median_ms": 18.746499999999997,
+            "warm_p95_ms": 22.33764,
+            "warm_p99_ms": 24.542687,
+            "warm_max_ms": 24.5887,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 5.3621,
+                  "p95_ms": 8.092579999999998,
+                  "p99_ms": 8.582036
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 23.6109,
+                  "p95_ms": 31.750864999999997,
+                  "p99_ms": 32.056093
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.5790500000000001,
+                  "p95_ms": 2.851055,
+                  "p99_ms": 2.866851
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.0006449999999999998,
+                  "p99_ms": 0.000689
+                },
+                "extract_samples_ms": {
+                  "median_ms": 11.01575,
+                  "p95_ms": 20.131915,
+                  "p99_ms": 21.272703
+                },
+                "callback_samples_ms": {
+                  "median_ms": 11.37965,
+                  "p95_ms": 12.596229999999998,
+                  "p99_ms": 13.177646000000001
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 4.91405,
+                  "p95_ms": 6.697975,
+                  "p99_ms": 7.598568000000002
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 13.071850000000001,
+                  "p95_ms": 16.849925,
+                  "p99_ms": 17.326448
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.45665,
+                  "p95_ms": 0.58866,
+                  "p99_ms": 0.845014
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.0008,
+                  "p99_ms": 0.0008530000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 2.91,
+                  "p95_ms": 4.2937449999999995,
+                  "p99_ms": 5.218934000000001
+                },
+                "callback_samples_ms": {
+                  "median_ms": 9.417950000000001,
+                  "p95_ms": 12.415725,
+                  "p99_ms": 12.897810000000002
+                }
+              }
+            }
+          },
+          {
+            "scene": "street",
+            "renderer": "gpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 21.46445,
+            "first_p95_ms": 43.77950499999999,
+            "first_p99_ms": 48.56446100000001,
+            "first_max_ms": 49.7607,
+            "first_under_15_ms": 5,
+            "first_samples": 12,
+            "ready_median_ms": 43.127649999999996,
+            "ready_p95_ms": 73.17896499999999,
+            "ready_p99_ms": 76.951393,
+            "ready_max_ms": 77.8945,
+            "warm_median_ms": 12.7537,
+            "warm_p95_ms": 18.949239999999996,
+            "warm_p99_ms": 22.192894000000003,
+            "warm_max_ms": 22.7944,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 5.319,
+                  "p95_ms": 6.34322,
+                  "p99_ms": 6.4213640000000005
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 15.3999,
+                  "p95_ms": 37.25212,
+                  "p99_ms": 41.86402400000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.26770000000000005,
+                  "p95_ms": 0.6005299999999998,
+                  "p99_ms": 0.7613060000000003
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.0006899999999999999,
+                  "p99_ms": 0.0007780000000000002
+                },
+                "extract_samples_ms": {
+                  "median_ms": 11.70495,
+                  "p95_ms": 25.416559999999997,
+                  "p99_ms": 26.711392000000004
+                },
+                "callback_samples_ms": {
+                  "median_ms": 3.9303,
+                  "p95_ms": 14.229839999999989,
+                  "p99_ms": 22.07116800000001
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.37565,
+                  "p95_ms": 3.6494999999999997,
+                  "p99_ms": 3.963660000000001
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.0832,
+                  "p95_ms": 9.205394999999987,
+                  "p99_ms": 16.794999000000008
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.0526,
+                  "p95_ms": 0.07517,
+                  "p99_ms": 0.07983400000000002
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.1602,
+                  "p95_ms": 0.23328,
+                  "p99_ms": 0.239616
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.13835,
+                  "p95_ms": 0.229915,
+                  "p99_ms": 0.23550300000000002
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 5.2212499999999995,
+                  "p95_ms": 7.25502,
+                  "p99_ms": 10.527687000000006
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 6.6515,
+                  "p95_ms": 13.16964,
+                  "p99_ms": 15.189830000000002
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.22555,
+                  "p95_ms": 0.3959199999999999,
+                  "p99_ms": 1.1603730000000012
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0003,
+                  "p95_ms": 0.0005,
+                  "p99_ms": 0.0005
+                },
+                "extract_samples_ms": {
+                  "median_ms": 2.979,
+                  "p95_ms": 4.760149999999999,
+                  "p99_ms": 6.531854000000003
+                },
+                "callback_samples_ms": {
+                  "median_ms": 2.8813,
+                  "p95_ms": 9.39168,
+                  "p99_ms": 9.839388000000001
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.3104,
+                  "p95_ms": 1.9651299999999998,
+                  "p99_ms": 2.302489
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.0596,
+                  "p95_ms": 0.08983999999999999,
+                  "p99_ms": 0.11052900000000002
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.04575,
+                  "p95_ms": 1.0521599999999998,
+                  "p99_ms": 1.1074240000000002
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.11925,
+                  "p95_ms": 6.5084599999999995,
+                  "p99_ms": 7.044136000000001
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.08365,
+                  "p95_ms": 0.15697499999999998,
+                  "p99_ms": 0.32958900000000013
+                }
+              }
+            }
+          },
+          {
+            "scene": "multi_level_horde",
+            "renderer": "cpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 33.67175,
+            "first_p95_ms": 50.232679999999995,
+            "first_p99_ms": 52.076456,
+            "first_max_ms": 52.5374,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 54.62805,
+            "ready_p95_ms": 84.3336,
+            "ready_p99_ms": 86.80992,
+            "ready_max_ms": 87.429,
+            "warm_median_ms": 22.246499999999997,
+            "warm_p95_ms": 29.431620000000002,
+            "warm_p99_ms": 32.610877,
+            "warm_max_ms": 33.1377,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.6129499999999997,
+                  "p95_ms": 3.552105,
+                  "p99_ms": 3.571861
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 30.3528,
+                  "p95_ms": 46.674949999999995,
+                  "p99_ms": 48.96251
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.5399499999999999,
+                  "p95_ms": 0.9441199999999995,
+                  "p99_ms": 1.2660240000000005
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0007,
+                  "p95_ms": 0.0008449999999999999,
+                  "p99_ms": 0.000889
+                },
+                "extract_samples_ms": {
+                  "median_ms": 11.7348,
+                  "p95_ms": 23.799864999999997,
+                  "p99_ms": 24.211572999999998
+                },
+                "callback_samples_ms": {
+                  "median_ms": 18.907,
+                  "p95_ms": 22.446044999999998,
+                  "p99_ms": 24.200809000000003
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.7714,
+                  "p95_ms": 3.5177699999999996,
+                  "p99_ms": 4.328562000000001
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 18.624049999999997,
+                  "p95_ms": 25.95037,
+                  "p99_ms": 27.716556999999998
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.52625,
+                  "p95_ms": 0.729625,
+                  "p99_ms": 1.0930800000000005
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.00045,
+                  "p95_ms": 0.0009,
+                  "p99_ms": 0.0013650000000000008
+                },
+                "extract_samples_ms": {
+                  "median_ms": 4.1244499999999995,
+                  "p95_ms": 5.183604999999999,
+                  "p99_ms": 5.690481
+                },
+                "callback_samples_ms": {
+                  "median_ms": 14.2848,
+                  "p95_ms": 21.109065,
+                  "p99_ms": 21.436946
+                }
+              }
+            }
+          },
+          {
+            "scene": "multi_level_horde",
+            "renderer": "gpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 20.4299,
+            "first_p95_ms": 36.68538499999999,
+            "first_p99_ms": 43.73123700000001,
+            "first_max_ms": 45.4927,
+            "first_under_15_ms": 4,
+            "first_samples": 12,
+            "ready_median_ms": 43.299099999999996,
+            "ready_p95_ms": 69.20770999999999,
+            "ready_p99_ms": 75.96250200000001,
+            "ready_max_ms": 77.6512,
+            "warm_median_ms": 9.26925,
+            "warm_p95_ms": 13.484634999999999,
+            "warm_p99_ms": 16.062709000000005,
+            "warm_max_ms": 17.635,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.54855,
+                  "p95_ms": 3.3577299999999997,
+                  "p99_ms": 3.501786
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 17.4043,
+                  "p95_ms": 33.59935499999999,
+                  "p99_ms": 40.35331100000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.2852,
+                  "p95_ms": 0.35871999999999993,
+                  "p99_ms": 0.391104
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.00035,
+                  "p95_ms": 0.0006349999999999998,
+                  "p99_ms": 0.0007670000000000002
+                },
+                "extract_samples_ms": {
+                  "median_ms": 11.9881,
+                  "p95_ms": 20.03007,
+                  "p99_ms": 20.648974
+                },
+                "callback_samples_ms": {
+                  "median_ms": 4.4274000000000004,
+                  "p95_ms": 14.02048499999999,
+                  "p99_ms": 19.734897000000007
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 2.0558,
+                  "p95_ms": 4.0030399999999995,
+                  "p99_ms": 4.508688000000001
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.08410000000000001,
+                  "p95_ms": 8.12179499999999,
+                  "p99_ms": 14.197799000000007
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.0504,
+                  "p95_ms": 0.06265,
+                  "p99_ms": 0.06309000000000001
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.15510000000000002,
+                  "p95_ms": 0.21354999999999996,
+                  "p99_ms": 0.22543000000000002
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.1211,
+                  "p95_ms": 0.3018899999999999,
+                  "p99_ms": 0.36093800000000004
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.3473,
+                  "p95_ms": 3.53106,
+                  "p99_ms": 4.610216000000002
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 6.171150000000001,
+                  "p95_ms": 10.627154999999998,
+                  "p99_ms": 11.731689000000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.16745,
+                  "p95_ms": 0.28175999999999995,
+                  "p99_ms": 0.3974720000000002
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0003,
+                  "p95_ms": 0.00046499999999999986,
+                  "p99_ms": 0.0005530000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 2.9316,
+                  "p95_ms": 4.625235,
+                  "p99_ms": 5.539656000000002
+                },
+                "callback_samples_ms": {
+                  "median_ms": 2.7024,
+                  "p95_ms": 7.203939999999999,
+                  "p99_ms": 7.9519589999999996
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.38615,
+                  "p95_ms": 2.2148349999999994,
+                  "p99_ms": 2.378299
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.06125,
+                  "p95_ms": 0.08116,
+                  "p99_ms": 0.091283
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.0407,
+                  "p95_ms": 1.039105,
+                  "p99_ms": 1.141987
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.10755,
+                  "p95_ms": 3.9504199999999985,
+                  "p99_ms": 4.766351
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.07135,
+                  "p95_ms": 0.10034999999999998,
+                  "p99_ms": 0.28108800000000034
+                }
+              }
+            }
+          },
+          {
+            "scene": "multi_level_horde",
+            "renderer": "cpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 33.796800000000005,
+            "first_p95_ms": 47.90938,
+            "first_p99_ms": 48.669876,
+            "first_max_ms": 48.86,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 55.30459999999999,
+            "ready_p95_ms": 78.63805,
+            "ready_p99_ms": 80.72673,
+            "ready_max_ms": 81.2489,
+            "warm_median_ms": 21.03905,
+            "warm_p95_ms": 27.017385,
+            "warm_p99_ms": 28.727318,
+            "warm_max_ms": 28.8545,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 5.4428,
+                  "p95_ms": 7.1154150000000005,
+                  "p99_ms": 7.131563
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 27.4355,
+                  "p95_ms": 41.526805,
+                  "p99_ms": 41.697041000000006
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.6621999999999999,
+                  "p95_ms": 0.8055649999999999,
+                  "p99_ms": 0.8696730000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0006,
+                  "p95_ms": 0.0010899999999999998,
+                  "p99_ms": 0.001178
+                },
+                "extract_samples_ms": {
+                  "median_ms": 11.11195,
+                  "p95_ms": 23.153374999999997,
+                  "p99_ms": 25.018755000000002
+                },
+                "callback_samples_ms": {
+                  "median_ms": 15.4966,
+                  "p95_ms": 18.658730000000002,
+                  "p99_ms": 19.048306000000004
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 4.5194,
+                  "p95_ms": 5.872389999999999,
+                  "p99_ms": 7.701290000000003
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 15.61125,
+                  "p95_ms": 21.63202,
+                  "p99_ms": 22.829616
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.5273,
+                  "p95_ms": 0.845705,
+                  "p99_ms": 1.1510980000000006
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.0008649999999999999,
+                  "p99_ms": 0.0011120000000000004
+                },
+                "extract_samples_ms": {
+                  "median_ms": 3.07565,
+                  "p95_ms": 4.38126,
+                  "p99_ms": 4.889111000000001
+                },
+                "callback_samples_ms": {
+                  "median_ms": 11.543700000000001,
+                  "p95_ms": 17.054665,
+                  "p99_ms": 18.369567
+                }
+              }
+            }
+          },
+          {
+            "scene": "multi_level_horde",
+            "renderer": "gpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 22.3133,
+            "first_p95_ms": 39.528119999999994,
+            "first_p99_ms": 44.052904000000005,
+            "first_max_ms": 45.1841,
+            "first_under_15_ms": 5,
+            "first_samples": 12,
+            "ready_median_ms": 44.16075,
+            "ready_p95_ms": 72.47861,
+            "ready_p99_ms": 73.809962,
+            "ready_max_ms": 74.1428,
+            "warm_median_ms": 11.694099999999999,
+            "warm_p95_ms": 15.80938,
+            "warm_p99_ms": 16.184692,
+            "warm_max_ms": 16.2629,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 5.07345,
+                  "p95_ms": 6.70593,
+                  "p99_ms": 6.774306
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 15.9065,
+                  "p95_ms": 33.701795,
+                  "p99_ms": 37.466039
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.2619,
+                  "p95_ms": 0.43366999999999983,
+                  "p99_ms": 0.5474540000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.0006,
+                  "p99_ms": 0.0006
+                },
+                "extract_samples_ms": {
+                  "median_ms": 10.899750000000001,
+                  "p95_ms": 22.619699999999998,
+                  "p99_ms": 23.79802
+                },
+                "callback_samples_ms": {
+                  "median_ms": 4.6389,
+                  "p95_ms": 11.741029999999991,
+                  "p99_ms": 17.258366000000006
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.8529,
+                  "p95_ms": 3.7063949999999997,
+                  "p99_ms": 3.876719
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.078,
+                  "p95_ms": 6.553914999999993,
+                  "p99_ms": 11.116143000000006
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.049,
+                  "p95_ms": 0.06739999999999999,
+                  "p99_ms": 0.07092000000000001
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.15889999999999999,
+                  "p95_ms": 0.23048499999999994,
+                  "p99_ms": 0.25833700000000004
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.12805,
+                  "p95_ms": 0.22875499999999996,
+                  "p99_ms": 0.251591
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 4.52955,
+                  "p95_ms": 6.36532,
+                  "p99_ms": 6.697746
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 6.6118500000000004,
+                  "p95_ms": 10.646114999999998,
+                  "p99_ms": 11.008004
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.19915,
+                  "p95_ms": 0.4308449999999999,
+                  "p99_ms": 1.3276210000000015
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0003,
+                  "p95_ms": 0.0005649999999999999,
+                  "p99_ms": 0.001183000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 3.1795999999999998,
+                  "p95_ms": 4.52861,
+                  "p99_ms": 6.236917000000002
+                },
+                "callback_samples_ms": {
+                  "median_ms": 3.13325,
+                  "p95_ms": 6.6291649999999995,
+                  "p99_ms": 7.347749000000001
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.4569999999999999,
+                  "p95_ms": 2.29144,
+                  "p99_ms": 2.339087
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.0615,
+                  "p95_ms": 0.08923,
+                  "p99_ms": 0.09598600000000002
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.04435,
+                  "p95_ms": 0.97286,
+                  "p99_ms": 1.077668
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.11455,
+                  "p95_ms": 3.47516,
+                  "p99_ms": 3.8981970000000006
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.0804,
+                  "p95_ms": 0.21104499999999987,
+                  "p99_ms": 0.7584940000000004
+                }
+              }
+            }
+          },
+          {
+            "scene": "city_blocks",
+            "renderer": "cpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 39.543099999999995,
+            "first_p95_ms": 53.115365,
+            "first_p99_ms": 55.610913000000004,
+            "first_max_ms": 56.2348,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 65.14175,
+            "ready_p95_ms": 86.41772999999999,
+            "ready_p99_ms": 92.016906,
+            "ready_max_ms": 93.4167,
+            "warm_median_ms": 34.05385,
+            "warm_p95_ms": 40.14684999999999,
+            "warm_p99_ms": 42.568792,
+            "warm_max_ms": 43.1029,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 1.50555,
+                  "p95_ms": 4.276349999999998,
+                  "p99_ms": 5.369750000000002
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 37.370450000000005,
+                  "p95_ms": 48.88059,
+                  "p99_ms": 49.843398
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.5645,
+                  "p95_ms": 0.8668749999999998,
+                  "p99_ms": 0.9687350000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0005,
+                  "p95_ms": 0.0012149999999999995,
+                  "p99_ms": 0.0015230000000000005
+                },
+                "extract_samples_ms": {
+                  "median_ms": 12.464749999999999,
+                  "p95_ms": 22.0128,
+                  "p99_ms": 23.666320000000002
+                },
+                "callback_samples_ms": {
+                  "median_ms": 24.5657,
+                  "p95_ms": 28.446965,
+                  "p99_ms": 29.173713
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 1.50085,
+                  "p95_ms": 2.19076,
+                  "p99_ms": 2.843982000000001
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 31.423299999999998,
+                  "p95_ms": 37.577665,
+                  "p99_ms": 40.058749000000006
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.57185,
+                  "p95_ms": 1.0263799999999998,
+                  "p99_ms": 1.8792190000000013
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.00075,
+                  "p95_ms": 0.0015299999999999997,
+                  "p99_ms": 0.0016530000000000002
+                },
+                "extract_samples_ms": {
+                  "median_ms": 5.041600000000001,
+                  "p95_ms": 7.027675,
+                  "p99_ms": 7.3458760000000005
+                },
+                "callback_samples_ms": {
+                  "median_ms": 25.57325,
+                  "p95_ms": 30.02832,
+                  "p99_ms": 32.243012
+                }
+              }
+            }
+          },
+          {
+            "scene": "city_blocks",
+            "renderer": "gpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 20.37475,
+            "first_p95_ms": 37.51966,
+            "first_p99_ms": 38.380652,
+            "first_max_ms": 38.5959,
+            "first_under_15_ms": 3,
+            "first_samples": 12,
+            "ready_median_ms": 45.634100000000004,
+            "ready_p95_ms": 70.92854,
+            "ready_p99_ms": 72.520988,
+            "ready_max_ms": 72.9191,
+            "warm_median_ms": 11.060500000000001,
+            "warm_p95_ms": 14.400749999999999,
+            "warm_p99_ms": 15.973322000000001,
+            "warm_max_ms": 16.5925,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 1.5253999999999999,
+                  "p95_ms": 2.1309449999999996,
+                  "p99_ms": 2.3553890000000006
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 18.4342,
+                  "p95_ms": 34.975995,
+                  "p99_ms": 36.449599
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.30974999999999997,
+                  "p95_ms": 0.7260449999999999,
+                  "p99_ms": 0.7516090000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.0007899999999999999,
+                  "p99_ms": 0.0008780000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 12.3478,
+                  "p95_ms": 21.752734999999998,
+                  "p99_ms": 23.569187
+                },
+                "callback_samples_ms": {
+                  "median_ms": 6.5020500000000006,
+                  "p95_ms": 13.338814999999993,
+                  "p99_ms": 17.40384300000001
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 3.03745,
+                  "p95_ms": 5.364375,
+                  "p99_ms": 5.474155
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.1074,
+                  "p95_ms": 5.695279999999993,
+                  "p99_ms": 9.681856000000005
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.07014999999999999,
+                  "p95_ms": 0.09267999999999998,
+                  "p99_ms": 0.10605600000000001
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.2211,
+                  "p95_ms": 0.3650749999999998,
+                  "p99_ms": 0.4678150000000001
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.1476,
+                  "p95_ms": 0.31367999999999996,
+                  "p99_ms": 0.338496
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 1.2882,
+                  "p95_ms": 1.773715,
+                  "p99_ms": 2.1855630000000006
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 9.45735,
+                  "p95_ms": 12.491015,
+                  "p99_ms": 13.987268000000002
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.2158,
+                  "p95_ms": 0.33908499999999997,
+                  "p99_ms": 0.5102230000000003
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0003,
+                  "p95_ms": 0.0005,
+                  "p99_ms": 0.000653
+                },
+                "extract_samples_ms": {
+                  "median_ms": 4.5931,
+                  "p95_ms": 6.541015,
+                  "p99_ms": 6.6213880000000005
+                },
+                "callback_samples_ms": {
+                  "median_ms": 4.6523,
+                  "p95_ms": 6.495125,
+                  "p99_ms": 7.273965000000001
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 2.6261,
+                  "p95_ms": 3.8088049999999996,
+                  "p99_ms": 4.250688000000001
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.0937,
+                  "p95_ms": 0.14522,
+                  "p99_ms": 0.19555500000000003
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.0509,
+                  "p95_ms": 0.07022999999999999,
+                  "p99_ms": 0.07799400000000002
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.14984999999999998,
+                  "p95_ms": 0.22628499999999996,
+                  "p99_ms": 0.25195800000000007
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.07865,
+                  "p95_ms": 0.11087,
+                  "p99_ms": 0.12151
+                }
+              }
+            }
+          },
+          {
+            "scene": "city_blocks",
+            "renderer": "cpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 38.2725,
+            "first_p95_ms": 50.564389999999996,
+            "first_p99_ms": 52.696718000000004,
+            "first_max_ms": 53.2298,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 59.6465,
+            "ready_p95_ms": 81.60136,
+            "ready_p99_ms": 81.922912,
+            "ready_max_ms": 82.0033,
+            "warm_median_ms": 29.7949,
+            "warm_p95_ms": 37.010145,
+            "warm_p99_ms": 38.777418,
+            "warm_max_ms": 39.4169,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.62695,
+                  "p95_ms": 4.826559999999999,
+                  "p99_ms": 5.402432000000001
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 34.13525,
+                  "p95_ms": 45.380874999999996,
+                  "p99_ms": 46.588015
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.6409,
+                  "p95_ms": 2.5537549999999993,
+                  "p99_ms": 2.760511
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0007,
+                  "p95_ms": 0.0009899999999999998,
+                  "p99_ms": 0.0010780000000000002
+                },
+                "extract_samples_ms": {
+                  "median_ms": 12.710350000000002,
+                  "p95_ms": 22.451594999999998,
+                  "p99_ms": 23.769439000000002
+                },
+                "callback_samples_ms": {
+                  "median_ms": 20.72585,
+                  "p95_ms": 22.74845,
+                  "p99_ms": 22.87913
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.98855,
+                  "p95_ms": 4.690594999999999,
+                  "p99_ms": 5.184182
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 25.89845,
+                  "p95_ms": 31.768254999999996,
+                  "p99_ms": 33.881645
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.5764,
+                  "p95_ms": 0.8761049999999999,
+                  "p99_ms": 1.2861580000000008
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0007,
+                  "p95_ms": 0.0012949999999999995,
+                  "p99_ms": 0.004573000000000004
+                },
+                "extract_samples_ms": {
+                  "median_ms": 4.85755,
+                  "p95_ms": 7.316249999999999,
+                  "p99_ms": 7.788659
+                },
+                "callback_samples_ms": {
+                  "median_ms": 20.212899999999998,
+                  "p95_ms": 23.960589999999996,
+                  "p99_ms": 25.404136
+                }
+              }
+            }
+          },
+          {
+            "scene": "city_blocks",
+            "renderer": "gpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 23.5963,
+            "first_p95_ms": 38.19564999999999,
+            "first_p99_ms": 41.328010000000006,
+            "first_max_ms": 42.1111,
+            "first_under_15_ms": 1,
+            "first_samples": 12,
+            "ready_median_ms": 47.94315,
+            "ready_p95_ms": 66.863075,
+            "ready_p99_ms": 71.221495,
+            "ready_max_ms": 72.3111,
+            "warm_median_ms": 12.7546,
+            "warm_p95_ms": 18.30492,
+            "warm_p99_ms": 19.996890000000004,
+            "warm_max_ms": 21.0229,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.3194,
+                  "p95_ms": 4.787875,
+                  "p99_ms": 5.291015000000001
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 19.9283,
+                  "p95_ms": 33.975815,
+                  "p99_ms": 37.395803
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.2872,
+                  "p95_ms": 0.407765,
+                  "p99_ms": 0.419953
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0005,
+                  "p95_ms": 0.0006899999999999999,
+                  "p99_ms": 0.0007780000000000002
+                },
+                "extract_samples_ms": {
+                  "median_ms": 13.22695,
+                  "p95_ms": 22.338045,
+                  "p99_ms": 22.667209
+                },
+                "callback_samples_ms": {
+                  "median_ms": 6.9098500000000005,
+                  "p95_ms": 13.538489999999992,
+                  "p99_ms": 18.49033800000001
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 3.23505,
+                  "p95_ms": 4.35067,
+                  "p99_ms": 4.5445340000000005
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.12340000000000001,
+                  "p95_ms": 6.235264999999993,
+                  "p99_ms": 11.080413000000007
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.0628,
+                  "p95_ms": 0.11884999999999998,
+                  "p99_ms": 0.13073
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.20825,
+                  "p95_ms": 0.3205249999999999,
+                  "p99_ms": 0.3761850000000001
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.1476,
+                  "p95_ms": 0.34865499999999994,
+                  "p99_ms": 0.376771
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.72615,
+                  "p95_ms": 3.724355,
+                  "p99_ms": 4.621735000000002
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 9.5797,
+                  "p95_ms": 14.8767,
+                  "p99_ms": 15.853613000000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.20555,
+                  "p95_ms": 0.3751749999999999,
+                  "p99_ms": 0.6597200000000003
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0003,
+                  "p95_ms": 0.0005649999999999999,
+                  "p99_ms": 0.0007060000000000002
+                },
+                "extract_samples_ms": {
+                  "median_ms": 4.54535,
+                  "p95_ms": 6.511525,
+                  "p99_ms": 7.622542000000003
+                },
+                "callback_samples_ms": {
+                  "median_ms": 4.794449999999999,
+                  "p95_ms": 8.472415,
+                  "p99_ms": 10.830150000000001
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 2.6027,
+                  "p95_ms": 3.86358,
+                  "p99_ms": 4.5732560000000015
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.0932,
+                  "p95_ms": 0.136275,
+                  "p99_ms": 0.17296700000000004
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.0544,
+                  "p95_ms": 1.1435899999999994,
+                  "p99_ms": 1.871338000000001
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.16165,
+                  "p95_ms": 3.7180999999999993,
+                  "p99_ms": 5.9158550000000005
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.08385000000000001,
+                  "p95_ms": 0.14331,
+                  "p99_ms": 0.20841800000000002
+                }
+              }
+            }
+          }
+        ],
+        "full_size_gpu_first_under_15_ms": 11,
+        "full_size_gpu_first_samples": 36
+      },
+      "process": {
+        "schema": 1,
+        "child_pid": 55576,
+        "exit_signed": 0,
+        "exit_hex": "0x00000000",
+        "last_progress": "movement_complete",
+        "wrapper_failure": null,
+        "debugger_requested": false,
+        "debugger_error": null,
+        "crash_dumps": 0,
+        "host_sha256": "54922701a5575d6ff44184602b442f0d82a3fd4d0911ccc5bbe678da3e125f30",
+        "module_sha256": "1b0c0075203fb79c81cacccc17c7e8cca5ccc0460628a8782d4aae1179280d9c",
+        "ncmm_commit": "f9a6c95e9cff4edc51a92d63cac4fb98c8df4b3a",
+        "engine_commit": "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83",
+        "focused_gpu": false,
+        "movement": true
+      },
+      "report_sha256": "522cfa89608cf62e868f7aac343160509c8616427fc31e0707c8fd09b26b1a8f"
+    },
+    "before2": {
+      "identity": {
+        "source_commit": "c7095aa77298e08223ae2f1eb2b3c817217443ec",
+        "host_sha256": "54922701a5575d6ff44184602b442f0d82a3fd4d0911ccc5bbe678da3e125f30",
+        "module_sha256": "70afb70067ef51619a8807ff75d5f4b23b8c3fabf408fdebecd0f5a39fa5b554",
+        "installer_revision": "diagnostic component snapshot; not a qualified installer",
+        "host_source_commit": "f9a6c95e9cff4edc51a92d63cac4fb98c8df4b3a"
+      },
+      "run": {
+        "weather": "clear",
+        "process_exit": 0,
+        "records": [
+          {
+            "scene": "street",
+            "renderer": "cpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 26.018700000000003,
+            "first_p95_ms": 40.80496499999998,
+            "first_p99_ms": 50.84211300000001,
+            "first_max_ms": 53.3514,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 45.837599999999995,
+            "ready_p95_ms": 74.30837999999997,
+            "ready_p99_ms": 91.61199600000002,
+            "ready_max_ms": 95.9379,
+            "warm_median_ms": 18.727899999999998,
+            "warm_p95_ms": 29.652095,
+            "warm_p99_ms": 39.918677,
+            "warm_max_ms": 40.6006,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.08035,
+                  "p95_ms": 5.686724999999998,
+                  "p99_ms": 6.776385000000001
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 22.38475,
+                  "p95_ms": 35.89483999999998,
+                  "p99_ms": 46.18608800000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.5205500000000001,
+                  "p95_ms": 0.7682999999999999,
+                  "p99_ms": 0.8695000000000002
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.00035,
+                  "p95_ms": 0.0005,
+                  "p99_ms": 0.0005
+                },
+                "extract_samples_ms": {
+                  "median_ms": 7.246550000000001,
+                  "p95_ms": 11.800819999999998,
+                  "p99_ms": 12.600564
+                },
+                "callback_samples_ms": {
+                  "median_ms": 12.29945,
+                  "p95_ms": 26.225214999999988,
+                  "p99_ms": 33.64128300000001
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.3579999999999997,
+                  "p95_ms": 4.395895,
+                  "p99_ms": 6.997192000000002
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 14.824,
+                  "p95_ms": 24.967075,
+                  "p99_ms": 32.060487
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.5332,
+                  "p95_ms": 0.7959849999999999,
+                  "p99_ms": 1.0969870000000006
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.00045,
+                  "p95_ms": 0.001365,
+                  "p99_ms": 0.001453
+                },
+                "extract_samples_ms": {
+                  "median_ms": 3.1717500000000003,
+                  "p95_ms": 4.57904,
+                  "p99_ms": 5.252321000000001
+                },
+                "callback_samples_ms": {
+                  "median_ms": 10.95805,
+                  "p95_ms": 20.073565,
+                  "p99_ms": 26.553318
+                }
+              }
+            }
+          },
+          {
+            "scene": "street",
+            "renderer": "gpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 12.6543,
+            "first_p95_ms": 29.539804999999987,
+            "first_p99_ms": 37.65908100000001,
+            "first_max_ms": 39.6889,
+            "first_under_15_ms": 8,
+            "first_samples": 12,
+            "ready_median_ms": 31.0709,
+            "ready_p95_ms": 57.32827999999999,
+            "ready_p99_ms": 63.498136,
+            "ready_max_ms": 65.0406,
+            "warm_median_ms": 9.51225,
+            "warm_p95_ms": 11.29288,
+            "warm_p99_ms": 11.703203,
+            "warm_max_ms": 11.715,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.03255,
+                  "p95_ms": 3.5215899999999998,
+                  "p99_ms": 3.657198
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 9.463750000000001,
+                  "p95_ms": 25.681364999999985,
+                  "p99_ms": 34.21899300000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.2394,
+                  "p95_ms": 0.6067599999999999,
+                  "p99_ms": 0.7153520000000002
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.00025,
+                  "p95_ms": 0.0005899999999999998,
+                  "p99_ms": 0.0006780000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 6.4075,
+                  "p95_ms": 11.008925,
+                  "p99_ms": 11.097145
+                },
+                "callback_samples_ms": {
+                  "median_ms": 3.41605,
+                  "p95_ms": 15.017044999999985,
+                  "p99_ms": 23.54164900000001
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.4755,
+                  "p95_ms": 4.38596,
+                  "p99_ms": 4.605432
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.519,
+                  "p95_ms": 9.342459999999987,
+                  "p99_ms": 17.28393200000001
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.03005,
+                  "p95_ms": 0.04058,
+                  "p99_ms": 0.042516
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.0966,
+                  "p95_ms": 0.16043999999999997,
+                  "p99_ms": 0.17416800000000002
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.192,
+                  "p95_ms": 0.25190999999999997,
+                  "p99_ms": 0.27118200000000003
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.22835,
+                  "p95_ms": 3.737475,
+                  "p99_ms": 3.8864300000000003
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 6.0703499999999995,
+                  "p95_ms": 7.24111,
+                  "p99_ms": 7.746887000000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.32785,
+                  "p95_ms": 0.507805,
+                  "p99_ms": 0.5359590000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0002,
+                  "p95_ms": 0.0003,
+                  "p99_ms": 0.0004
+                },
+                "extract_samples_ms": {
+                  "median_ms": 2.9295999999999998,
+                  "p95_ms": 3.673005,
+                  "p99_ms": 3.935682
+                },
+                "callback_samples_ms": {
+                  "median_ms": 3.0463500000000003,
+                  "p95_ms": 3.7716049999999997,
+                  "p99_ms": 3.959388
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.53255,
+                  "p95_ms": 1.9941849999999999,
+                  "p99_ms": 2.123944
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.37695,
+                  "p95_ms": 0.516245,
+                  "p99_ms": 0.6359690000000002
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.02595,
+                  "p95_ms": 0.033465,
+                  "p99_ms": 0.09059700000000012
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.07135,
+                  "p95_ms": 0.107365,
+                  "p99_ms": 0.126277
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.1838,
+                  "p95_ms": 0.244985,
+                  "p99_ms": 0.3532830000000002
+                }
+              }
+            }
+          },
+          {
+            "scene": "street",
+            "renderer": "cpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 23.6052,
+            "first_p95_ms": 31.56906,
+            "first_p99_ms": 31.594052,
+            "first_max_ms": 31.6003,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 42.31085,
+            "ready_p95_ms": 57.839589999999994,
+            "ready_p99_ms": 59.164958,
+            "ready_max_ms": 59.4963,
+            "warm_median_ms": 17.453200000000002,
+            "warm_p95_ms": 20.030295,
+            "warm_p99_ms": 21.603915999999998,
+            "warm_max_ms": 21.6684,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 5.3651,
+                  "p95_ms": 6.1239349999999995,
+                  "p99_ms": 6.483107
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 18.05,
+                  "p95_ms": 23.45724,
+                  "p99_ms": 24.108968
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.4879,
+                  "p95_ms": 2.85296,
+                  "p99_ms": 3.0125920000000006
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0003,
+                  "p95_ms": 0.0006899999999999999,
+                  "p99_ms": 0.0007780000000000002
+                },
+                "extract_samples_ms": {
+                  "median_ms": 6.8563,
+                  "p95_ms": 10.897265,
+                  "p99_ms": 11.105693
+                },
+                "callback_samples_ms": {
+                  "median_ms": 10.55865,
+                  "p95_ms": 12.267365,
+                  "p99_ms": 12.368433000000001
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 4.90545,
+                  "p95_ms": 5.73527,
+                  "p99_ms": 6.294505
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 11.88205,
+                  "p95_ms": 14.134945,
+                  "p99_ms": 14.748775
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.4274,
+                  "p95_ms": 0.6228449999999999,
+                  "p99_ms": 0.6845990000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0003,
+                  "p95_ms": 0.0005649999999999999,
+                  "p99_ms": 0.000653
+                },
+                "extract_samples_ms": {
+                  "median_ms": 2.7508,
+                  "p95_ms": 3.4182149999999996,
+                  "p99_ms": 3.816764
+                },
+                "callback_samples_ms": {
+                  "median_ms": 8.7019,
+                  "p95_ms": 10.53321,
+                  "p99_ms": 11.195522
+                }
+              }
+            }
+          },
+          {
+            "scene": "street",
+            "renderer": "gpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 15.260750000000002,
+            "first_p95_ms": 30.782374999999988,
+            "first_p99_ms": 39.71591500000001,
+            "first_max_ms": 41.9493,
+            "first_under_15_ms": 6,
+            "first_samples": 12,
+            "ready_median_ms": 34.663199999999996,
+            "ready_p95_ms": 56.58204999999998,
+            "ready_p99_ms": 65.02345,
+            "ready_max_ms": 67.1338,
+            "warm_median_ms": 10.8593,
+            "warm_p95_ms": 12.484095,
+            "warm_p99_ms": 13.399763000000002,
+            "warm_max_ms": 14.1222,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 5.18535,
+                  "p95_ms": 6.078564999999999,
+                  "p99_ms": 6.280833
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 10.005849999999999,
+                  "p95_ms": 25.455894999999984,
+                  "p99_ms": 34.10413900000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.21265,
+                  "p95_ms": 0.3750549999999999,
+                  "p99_ms": 0.43221100000000007
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.00025,
+                  "p95_ms": 0.0005799999999999998,
+                  "p99_ms": 0.0007560000000000003
+                },
+                "extract_samples_ms": {
+                  "median_ms": 6.317499999999999,
+                  "p95_ms": 10.40596,
+                  "p99_ms": 10.689672
+                },
+                "callback_samples_ms": {
+                  "median_ms": 3.3824500000000004,
+                  "p95_ms": 15.185924999999985,
+                  "p99_ms": 23.892865000000008
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.4273500000000001,
+                  "p95_ms": 4.03069,
+                  "p99_ms": 4.263978000000001
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.47204999999999997,
+                  "p95_ms": 10.028014999999986,
+                  "p99_ms": 18.691923000000013
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.0298,
+                  "p95_ms": 0.048574999999999986,
+                  "p99_ms": 0.06067500000000002
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.09620000000000001,
+                  "p95_ms": 0.13637,
+                  "p99_ms": 0.14983400000000002
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.21205,
+                  "p95_ms": 0.27895,
+                  "p99_ms": 0.28291
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 4.7633,
+                  "p95_ms": 5.963255,
+                  "p99_ms": 6.323714
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 5.80335,
+                  "p95_ms": 7.11289,
+                  "p99_ms": 7.426760000000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.18875,
+                  "p95_ms": 0.36624500000000004,
+                  "p99_ms": 0.40023
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0002,
+                  "p95_ms": 0.0003649999999999999,
+                  "p99_ms": 0.0004
+                },
+                "extract_samples_ms": {
+                  "median_ms": 2.71895,
+                  "p95_ms": 3.7533449999999995,
+                  "p99_ms": 4.058197
+                },
+                "callback_samples_ms": {
+                  "median_ms": 2.9189499999999997,
+                  "p95_ms": 3.4897650000000002,
+                  "p99_ms": 3.6185620000000003
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.48655,
+                  "p95_ms": 1.915805,
+                  "p99_ms": 1.997907
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.38115,
+                  "p95_ms": 0.494995,
+                  "p99_ms": 0.568775
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.0228,
+                  "p95_ms": 0.028689999999999997,
+                  "p99_ms": 0.04022300000000002
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.06575,
+                  "p95_ms": 0.1098,
+                  "p99_ms": 0.13656300000000005
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.1619,
+                  "p95_ms": 0.26098999999999994,
+                  "p99_ms": 0.299169
+                }
+              }
+            }
+          },
+          {
+            "scene": "multi_level_horde",
+            "renderer": "cpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 26.1368,
+            "first_p95_ms": 32.187295,
+            "first_p99_ms": 33.173379,
+            "first_max_ms": 33.4199,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 47.0122,
+            "ready_p95_ms": 59.73027,
+            "ready_p99_ms": 61.985094000000004,
+            "ready_max_ms": 62.5488,
+            "warm_median_ms": 19.43055,
+            "warm_p95_ms": 23.50781,
+            "warm_p99_ms": 23.896352,
+            "warm_max_ms": 24.0554,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.4627,
+                  "p95_ms": 2.977515,
+                  "p99_ms": 3.1327030000000002
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 23.111150000000002,
+                  "p95_ms": 29.106894999999998,
+                  "p99_ms": 29.900259000000002
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.47625,
+                  "p95_ms": 0.7714549999999998,
+                  "p99_ms": 0.8963710000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.00035,
+                  "p95_ms": 0.0004,
+                  "p99_ms": 0.0004
+                },
+                "extract_samples_ms": {
+                  "median_ms": 6.35355,
+                  "p95_ms": 11.947724999999998,
+                  "p99_ms": 12.709145000000001
+                },
+                "callback_samples_ms": {
+                  "median_ms": 16.22115,
+                  "p95_ms": 17.46244,
+                  "p99_ms": 17.465608
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.36365,
+                  "p95_ms": 2.803925,
+                  "p99_ms": 2.9834840000000002
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 16.70715,
+                  "p95_ms": 20.519945,
+                  "p99_ms": 20.935976
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.371,
+                  "p95_ms": 0.5555899999999999,
+                  "p99_ms": 0.60901
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0002,
+                  "p95_ms": 0.0004,
+                  "p99_ms": 0.0004
+                },
+                "extract_samples_ms": {
+                  "median_ms": 2.90335,
+                  "p95_ms": 3.6994849999999997,
+                  "p99_ms": 3.952993
+                },
+                "callback_samples_ms": {
+                  "median_ms": 13.27995,
+                  "p95_ms": 16.89455,
+                  "p99_ms": 17.534800999999998
+                }
+              }
+            }
+          },
+          {
+            "scene": "multi_level_horde",
+            "renderer": "gpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 13.82125,
+            "first_p95_ms": 26.652734999999993,
+            "first_p99_ms": 30.962227000000006,
+            "first_max_ms": 32.0396,
+            "first_under_15_ms": 6,
+            "first_samples": 12,
+            "ready_median_ms": 34.0944,
+            "ready_p95_ms": 56.510799999999996,
+            "ready_p99_ms": 58.56648,
+            "ready_max_ms": 59.0804,
+            "warm_median_ms": 8.6023,
+            "warm_p95_ms": 10.05136,
+            "warm_p99_ms": 11.251164000000003,
+            "warm_max_ms": 12.1201,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.3606,
+                  "p95_ms": 3.151665,
+                  "p99_ms": 3.175293
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 11.208950000000002,
+                  "p95_ms": 23.647834999999993,
+                  "p99_ms": 28.310207000000005
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.22644999999999998,
+                  "p95_ms": 0.29066,
+                  "p99_ms": 0.32269200000000003
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0003,
+                  "p95_ms": 0.0003,
+                  "p99_ms": 0.0003
+                },
+                "extract_samples_ms": {
+                  "median_ms": 6.89715,
+                  "p95_ms": 12.162999999999998,
+                  "p99_ms": 12.3742
+                },
+                "callback_samples_ms": {
+                  "median_ms": 4.0981000000000005,
+                  "p95_ms": 11.656729999999992,
+                  "p99_ms": 16.823826000000007
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 2.0155000000000003,
+                  "p95_ms": 3.6536599999999995,
+                  "p99_ms": 3.8819320000000004
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.4787,
+                  "p95_ms": 6.9320699999999915,
+                  "p99_ms": 11.966814000000007
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.032600000000000004,
+                  "p95_ms": 0.041035,
+                  "p99_ms": 0.041167
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.1049,
+                  "p95_ms": 0.147755,
+                  "p99_ms": 0.152111
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.1879,
+                  "p95_ms": 0.37882499999999997,
+                  "p99_ms": 0.41600500000000007
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.26685,
+                  "p95_ms": 2.74339,
+                  "p99_ms": 2.7844320000000002
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 6.0939499999999995,
+                  "p95_ms": 7.448729999999999,
+                  "p99_ms": 8.443643000000002
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.18355,
+                  "p95_ms": 0.23012,
+                  "p99_ms": 0.3344900000000002
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0002,
+                  "p95_ms": 0.0003,
+                  "p99_ms": 0.0003
+                },
+                "extract_samples_ms": {
+                  "median_ms": 2.86745,
+                  "p95_ms": 3.57115,
+                  "p99_ms": 3.990298
+                },
+                "callback_samples_ms": {
+                  "median_ms": 3.1676,
+                  "p95_ms": 3.8481899999999998,
+                  "p99_ms": 4.516275000000001
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.7336999999999998,
+                  "p95_ms": 2.1645299999999996,
+                  "p99_ms": 2.4609390000000007
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.3671,
+                  "p95_ms": 0.5143949999999999,
+                  "p99_ms": 0.6687770000000002
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.02385,
+                  "p95_ms": 0.03254,
+                  "p99_ms": 0.034625
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.06985,
+                  "p95_ms": 0.0924,
+                  "p99_ms": 0.10842700000000002
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.16249999999999998,
+                  "p95_ms": 0.22111,
+                  "p99_ms": 0.252045
+                }
+              }
+            }
+          },
+          {
+            "scene": "multi_level_horde",
+            "renderer": "cpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 27.67635,
+            "first_p95_ms": 31.499095,
+            "first_p99_ms": 31.685259,
+            "first_max_ms": 31.7318,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 46.56055,
+            "ready_p95_ms": 58.041775,
+            "ready_p99_ms": 58.081155,
+            "ready_max_ms": 58.091,
+            "warm_median_ms": 19.309,
+            "warm_p95_ms": 22.86326,
+            "warm_p99_ms": 23.55799,
+            "warm_max_ms": 23.7239,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 4.31835,
+                  "p95_ms": 5.3062249999999995,
+                  "p99_ms": 5.461325
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 22.6789,
+                  "p95_ms": 26.4519,
+                  "p99_ms": 26.90422
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.4905,
+                  "p95_ms": 0.7474299999999999,
+                  "p99_ms": 0.777966
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0003,
+                  "p95_ms": 0.0005,
+                  "p99_ms": 0.0005
+                },
+                "extract_samples_ms": {
+                  "median_ms": 6.864050000000001,
+                  "p95_ms": 10.341365,
+                  "p99_ms": 10.842833
+                },
+                "callback_samples_ms": {
+                  "median_ms": 14.3265,
+                  "p95_ms": 17.418329999999997,
+                  "p99_ms": 17.971586000000002
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 4.104699999999999,
+                  "p95_ms": 5.174605,
+                  "p99_ms": 5.902142
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 14.6553,
+                  "p95_ms": 17.98758,
+                  "p99_ms": 18.421972
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.38534999999999997,
+                  "p95_ms": 0.7331749999999999,
+                  "p99_ms": 1.2394360000000004
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0003,
+                  "p95_ms": 0.00046499999999999986,
+                  "p99_ms": 0.0005530000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 2.7964,
+                  "p95_ms": 3.560805,
+                  "p99_ms": 3.7737300000000005
+                },
+                "callback_samples_ms": {
+                  "median_ms": 10.989,
+                  "p95_ms": 14.34909,
+                  "p99_ms": 14.618243999999999
+                }
+              }
+            }
+          },
+          {
+            "scene": "multi_level_horde",
+            "renderer": "gpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 15.81435,
+            "first_p95_ms": 26.82273999999999,
+            "first_p99_ms": 32.80638800000001,
+            "first_max_ms": 34.3023,
+            "first_under_15_ms": 6,
+            "first_samples": 12,
+            "ready_median_ms": 34.1385,
+            "ready_p95_ms": 52.12718999999999,
+            "ready_p99_ms": 58.13591800000001,
+            "ready_max_ms": 59.6381,
+            "warm_median_ms": 10.648299999999999,
+            "warm_p95_ms": 12.13933,
+            "warm_p99_ms": 13.868675,
+            "warm_max_ms": 14.0602,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 4.2515,
+                  "p95_ms": 4.76421,
+                  "p99_ms": 4.790522
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 11.05715,
+                  "p95_ms": 22.30410999999999,
+                  "p99_ms": 28.225542000000008
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.2082,
+                  "p95_ms": 0.35126999999999997,
+                  "p99_ms": 0.370014
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0002,
+                  "p95_ms": 0.00034499999999999993,
+                  "p99_ms": 0.0003890000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 6.72905,
+                  "p95_ms": 10.60693,
+                  "p99_ms": 10.677066
+                },
+                "callback_samples_ms": {
+                  "median_ms": 4.2425,
+                  "p95_ms": 11.63187499999999,
+                  "p99_ms": 17.58397500000001
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 2.11705,
+                  "p95_ms": 3.63752,
+                  "p99_ms": 3.6417439999999996
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.4697,
+                  "p95_ms": 7.217309999999992,
+                  "p99_ms": 12.629222000000007
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.028499999999999998,
+                  "p95_ms": 0.032325,
+                  "p99_ms": 0.032545
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.09054999999999999,
+                  "p95_ms": 0.107115,
+                  "p99_ms": 0.109183
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.18409999999999999,
+                  "p95_ms": 0.26571999999999996,
+                  "p99_ms": 0.278744
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 4.10115,
+                  "p95_ms": 5.359405,
+                  "p99_ms": 5.649831
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 6.2607,
+                  "p95_ms": 7.0636,
+                  "p99_ms": 8.030614
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.18385,
+                  "p95_ms": 0.29692999999999997,
+                  "p99_ms": 0.4630960000000002
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0002,
+                  "p95_ms": 0.0003649999999999999,
+                  "p99_ms": 0.0004
+                },
+                "extract_samples_ms": {
+                  "median_ms": 2.9364,
+                  "p95_ms": 3.420525,
+                  "p99_ms": 4.340258
+                },
+                "callback_samples_ms": {
+                  "median_ms": 3.19795,
+                  "p95_ms": 3.777615,
+                  "p99_ms": 3.923153
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 1.706,
+                  "p95_ms": 2.2399799999999996,
+                  "p99_ms": 2.4247170000000002
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.36765000000000003,
+                  "p95_ms": 0.53501,
+                  "p99_ms": 0.595473
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.02345,
+                  "p95_ms": 0.031065,
+                  "p99_ms": 0.033142
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.06695000000000001,
+                  "p95_ms": 0.11486999999999996,
+                  "p99_ms": 0.15096800000000002
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.1517,
+                  "p95_ms": 0.25408499999999995,
+                  "p99_ms": 0.28440400000000005
+                }
+              }
+            }
+          },
+          {
+            "scene": "city_blocks",
+            "renderer": "cpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 33.8538,
+            "first_p95_ms": 50.94657499999999,
+            "first_p99_ms": 58.426355000000015,
+            "first_max_ms": 60.2963,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 56.0038,
+            "ready_p95_ms": 83.64287499999999,
+            "ready_p99_ms": 90.51633500000001,
+            "ready_max_ms": 92.2347,
+            "warm_median_ms": 30.125999999999998,
+            "warm_p95_ms": 35.335555,
+            "warm_p99_ms": 36.179971,
+            "warm_max_ms": 36.4388,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 1.4775,
+                  "p95_ms": 1.8867399999999999,
+                  "p99_ms": 2.007828
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 31.865650000000002,
+                  "p95_ms": 48.559319999999985,
+                  "p99_ms": 56.30050400000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.5266,
+                  "p95_ms": 0.657535,
+                  "p99_ms": 0.6981470000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0005,
+                  "p95_ms": 0.001045,
+                  "p99_ms": 0.0010890000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 9.4906,
+                  "p95_ms": 13.52101,
+                  "p99_ms": 13.764682
+                },
+                "callback_samples_ms": {
+                  "median_ms": 23.305100000000003,
+                  "p95_ms": 26.61047,
+                  "p99_ms": 26.876494
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 1.40175,
+                  "p95_ms": 1.8937599999999999,
+                  "p99_ms": 2.1475570000000004
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 28.23685,
+                  "p95_ms": 33.215484999999994,
+                  "p99_ms": 34.053468
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.48895,
+                  "p95_ms": 0.6939699999999999,
+                  "p99_ms": 0.7721240000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0006,
+                  "p95_ms": 0.0010949999999999994,
+                  "p99_ms": 0.0014650000000000006
+                },
+                "extract_samples_ms": {
+                  "median_ms": 4.6239,
+                  "p95_ms": 6.376164999999999,
+                  "p99_ms": 6.6294200000000005
+                },
+                "callback_samples_ms": {
+                  "median_ms": 22.7941,
+                  "p95_ms": 27.199945,
+                  "p99_ms": 28.176043
+                }
+              }
+            }
+          },
+          {
+            "scene": "city_blocks",
+            "renderer": "gpu",
+            "viewport": [
+              640,
+              480
+            ],
+            "first_median_ms": 15.79525,
+            "first_p95_ms": 26.128054999999993,
+            "first_p99_ms": 31.285691000000007,
+            "first_max_ms": 32.5751,
+            "first_under_15_ms": 5,
+            "first_samples": 12,
+            "ready_median_ms": 37.0843,
+            "ready_p95_ms": 55.286784999999995,
+            "ready_p99_ms": 59.836957000000005,
+            "ready_max_ms": 60.9745,
+            "warm_median_ms": 15.49805,
+            "warm_p95_ms": 17.061754999999998,
+            "warm_p99_ms": 18.322638,
+            "warm_max_ms": 18.7478,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 1.3220999999999998,
+                  "p95_ms": 1.569785,
+                  "p99_ms": 1.572997
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 14.0734,
+                  "p95_ms": 24.56568499999999,
+                  "p99_ms": 29.71073700000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.25739999999999996,
+                  "p95_ms": 0.327535,
+                  "p99_ms": 0.330307
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0003,
+                  "p95_ms": 0.00034499999999999993,
+                  "p99_ms": 0.0003890000000000001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 8.3195,
+                  "p95_ms": 11.898719999999999,
+                  "p99_ms": 12.012064
+                },
+                "callback_samples_ms": {
+                  "median_ms": 6.3057,
+                  "p95_ms": 12.499259999999992,
+                  "p99_ms": 17.75057200000001
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 2.87255,
+                  "p95_ms": 4.200475,
+                  "p99_ms": 4.231055
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.54285,
+                  "p95_ms": 6.129349999999992,
+                  "p99_ms": 10.892350000000006
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.0407,
+                  "p95_ms": 0.04631999999999999,
+                  "p99_ms": 0.048784
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.1356,
+                  "p95_ms": 0.23904499999999992,
+                  "p99_ms": 0.27780900000000003
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.22415000000000002,
+                  "p95_ms": 0.3475199999999999,
+                  "p99_ms": 0.4195040000000001
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 1.47445,
+                  "p95_ms": 1.8901999999999997,
+                  "p99_ms": 2.163719
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 9.38715,
+                  "p95_ms": 12.349039999999997,
+                  "p99_ms": 13.127166
+                },
+                "present_samples_ms": {
+                  "median_ms": 4.67745,
+                  "p95_ms": 6.350555,
+                  "p99_ms": 7.077134000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0002,
+                  "p95_ms": 0.0005,
+                  "p99_ms": 0.000653
+                },
+                "extract_samples_ms": {
+                  "median_ms": 4.0316,
+                  "p95_ms": 5.493949999999998,
+                  "p99_ms": 6.265941
+                },
+                "callback_samples_ms": {
+                  "median_ms": 5.2440999999999995,
+                  "p95_ms": 6.621245,
+                  "p99_ms": 6.909330000000001
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 3.032,
+                  "p95_ms": 3.8237599999999996,
+                  "p99_ms": 4.015642
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.4224,
+                  "p95_ms": 0.6481699999999999,
+                  "p99_ms": 0.708434
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.0432,
+                  "p95_ms": 0.075295,
+                  "p99_ms": 0.08300199999999999
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.13215,
+                  "p95_ms": 0.22490999999999992,
+                  "p99_ms": 0.26155300000000004
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.0451,
+                  "p95_ms": 0.09095999999999997,
+                  "p99_ms": 0.2613650000000001
+                }
+              }
+            }
+          },
+          {
+            "scene": "city_blocks",
+            "renderer": "cpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 31.829250000000002,
+            "first_p95_ms": 38.541375,
+            "first_p99_ms": 38.725955,
+            "first_max_ms": 38.7721,
+            "first_under_15_ms": 0,
+            "first_samples": 12,
+            "ready_median_ms": 52.770399999999995,
+            "ready_p95_ms": 68.13164499999999,
+            "ready_p99_ms": 68.620089,
+            "ready_max_ms": 68.7422,
+            "warm_median_ms": 25.93935,
+            "warm_p95_ms": 27.40579,
+            "warm_p99_ms": 28.713561000000002,
+            "warm_max_ms": 29.378,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.11225,
+                  "p95_ms": 4.09404,
+                  "p99_ms": 4.311928
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 27.7108,
+                  "p95_ms": 34.205974999999995,
+                  "p99_ms": 34.956395
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.57555,
+                  "p95_ms": 2.433395,
+                  "p99_ms": 2.5113190000000003
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.0006449999999999998,
+                  "p99_ms": 0.000689
+                },
+                "extract_samples_ms": {
+                  "median_ms": 7.9830000000000005,
+                  "p95_ms": 12.510525,
+                  "p99_ms": 12.753625
+                },
+                "callback_samples_ms": {
+                  "median_ms": 19.0574,
+                  "p95_ms": 20.90542,
+                  "p99_ms": 21.276604
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.6421,
+                  "p95_ms": 2.9074649999999997,
+                  "p99_ms": 3.7759560000000016
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 22.81175,
+                  "p95_ms": 24.439104999999998,
+                  "p99_ms": 25.622628000000002
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.42169999999999996,
+                  "p95_ms": 0.55545,
+                  "p99_ms": 0.6702930000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0003,
+                  "p95_ms": 0.0007649999999999998,
+                  "p99_ms": 0.001
+                },
+                "extract_samples_ms": {
+                  "median_ms": 4.12525,
+                  "p95_ms": 4.579655,
+                  "p99_ms": 5.550199000000001
+                },
+                "callback_samples_ms": {
+                  "median_ms": 18.02825,
+                  "p95_ms": 19.640929999999997,
+                  "p99_ms": 20.710122000000002
+                }
+              }
+            }
+          },
+          {
+            "scene": "city_blocks",
+            "renderer": "gpu",
+            "viewport": [
+              1768,
+              1084
+            ],
+            "first_median_ms": 19.60755,
+            "first_p95_ms": 35.64164499999999,
+            "first_p99_ms": 40.678809,
+            "first_max_ms": 41.9381,
+            "first_under_15_ms": 2,
+            "first_samples": 12,
+            "ready_median_ms": 40.2605,
+            "ready_p95_ms": 66.568845,
+            "ready_p99_ms": 72.03104900000001,
+            "ready_max_ms": 73.3966,
+            "warm_median_ms": 13.137699999999999,
+            "warm_p95_ms": 18.713964999999998,
+            "warm_p99_ms": 19.369888000000003,
+            "warm_max_ms": 19.7175,
+            "source_cache_bytes_peak": 6907798,
+            "phases": {
+              "first_after_step": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 3.0946,
+                  "p95_ms": 4.2337299999999995,
+                  "p99_ms": 4.434986
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 15.74815,
+                  "p95_ms": 31.36637499999999,
+                  "p99_ms": 36.88903500000001
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.4047,
+                  "p95_ms": 0.7797199999999999,
+                  "p99_ms": 0.8657840000000001
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0004,
+                  "p95_ms": 0.016534999999999977,
+                  "p99_ms": 0.03162700000000002
+                },
+                "extract_samples_ms": {
+                  "median_ms": 8.12005,
+                  "p95_ms": 15.655175,
+                  "p99_ms": 16.252475
+                },
+                "callback_samples_ms": {
+                  "median_ms": 6.755,
+                  "p95_ms": 15.446279999999991,
+                  "p99_ms": 21.543976000000008
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 3.05545,
+                  "p95_ms": 5.483034999999999,
+                  "p99_ms": 5.830767000000001
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.68525,
+                  "p95_ms": 6.640544999999992,
+                  "p99_ms": 11.778029000000007
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.045200000000000004,
+                  "p95_ms": 0.06942,
+                  "p99_ms": 0.07100400000000001
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.19125,
+                  "p95_ms": 0.3367849999999999,
+                  "p99_ms": 0.39895700000000006
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.26465,
+                  "p95_ms": 0.4917849999999999,
+                  "p99_ms": 0.5513170000000001
+                }
+              },
+              "warm_rotation": {
+                "native_tiles_samples_ms": {
+                  "median_ms": 2.73675,
+                  "p95_ms": 3.646575,
+                  "p99_ms": 4.946284000000001
+                },
+                "perspective_samples_ms": {
+                  "median_ms": 10.17365,
+                  "p95_ms": 14.494869999999999,
+                  "p99_ms": 14.904514
+                },
+                "present_samples_ms": {
+                  "median_ms": 0.2259,
+                  "p95_ms": 0.5661499999999999,
+                  "p99_ms": 0.7563380000000004
+                },
+                "unattributed_samples_ms": {
+                  "median_ms": 0.0003,
+                  "p95_ms": 0.0007299999999999997,
+                  "p99_ms": 0.0011120000000000004
+                },
+                "extract_samples_ms": {
+                  "median_ms": 4.55215,
+                  "p95_ms": 5.99446,
+                  "p99_ms": 6.728877000000001
+                },
+                "callback_samples_ms": {
+                  "median_ms": 5.535349999999999,
+                  "p95_ms": 8.28838,
+                  "p99_ms": 8.599292
+                },
+                "gpu_geometry_samples_ms": {
+                  "median_ms": 3.2192499999999997,
+                  "p95_ms": 4.198535,
+                  "p99_ms": 4.975963000000001
+                },
+                "gpu_resource_samples_ms": {
+                  "median_ms": 0.4437,
+                  "p95_ms": 0.6148099999999999,
+                  "p99_ms": 0.7739740000000002
+                },
+                "gpu_upload_samples_ms": {
+                  "median_ms": 0.03705,
+                  "p95_ms": 0.05687,
+                  "p99_ms": 0.067466
+                },
+                "gpu_record_samples_ms": {
+                  "median_ms": 0.11375,
+                  "p95_ms": 0.21067999999999998,
+                  "p99_ms": 0.24783100000000008
+                },
+                "gpu_submit_samples_ms": {
+                  "median_ms": 0.18575,
+                  "p95_ms": 0.3313299999999999,
+                  "p99_ms": 0.4435670000000001
+                }
+              }
+            }
+          }
+        ],
+        "full_size_gpu_first_under_15_ms": 14,
+        "full_size_gpu_first_samples": 36
+      },
+      "process": {
+        "schema": 1,
+        "child_pid": 64200,
+        "exit_signed": 0,
+        "exit_hex": "0x00000000",
+        "last_progress": "movement_complete",
+        "wrapper_failure": null,
+        "debugger_requested": false,
+        "debugger_error": null,
+        "crash_dumps": 0,
+        "host_sha256": "54922701a5575d6ff44184602b442f0d82a3fd4d0911ccc5bbe678da3e125f30",
+        "module_sha256": "70afb70067ef51619a8807ff75d5f4b23b8c3fabf408fdebecd0f5a39fa5b554",
+        "ncmm_commit": "c7095aa77298e08223ae2f1eb2b3c817217443ec",
+        "engine_commit": "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83",
+        "focused_gpu": false,
+        "movement": true
+      },
+      "report_sha256": "56fccee7bd87106b37c61c549daf1a22517ceaab00a60270d49484e60a85e887"
+    }
+  }
+}

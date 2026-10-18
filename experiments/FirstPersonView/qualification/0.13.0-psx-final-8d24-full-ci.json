@@ -1,0 +1,1279 @@
+{
+  "conclusion": "success",
+  "createdAt": "2026-10-18T09:41:51Z",
+  "databaseId": 39116354078,
+  "event": "pull_request",
+  "headBranch": "codex/fpv-013-psx-20261018",
+  "headSha": "8d24cc2b8df4ccd6574e1f2f61108baf24f4bcf9",
+  "jobs": [
+    {
+      "completedAt": "2026-10-18T09:42:04Z",
+      "conclusion": "success",
+      "databaseId": 117642830178,
+      "name": "qualification_plan",
+      "startedAt": "2026-10-18T09:41:54Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-18T09:41:56Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-18T09:41:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:00Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-18T09:41:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:02Z",
+          "conclusion": "success",
+          "name": "Run actions/github-script@v7",
+          "number": 3,
+          "startedAt": "2026-10-18T09:42:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:02Z",
+          "conclusion": "success",
+          "name": "Qualification policy negative tests",
+          "number": 4,
+          "startedAt": "2026-10-18T09:42:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:02Z",
+          "conclusion": "success",
+          "name": "Run python ci/fpv_qualification.py --files fpv-changes.json",
+          "number": 5,
+          "startedAt": "2026-10-18T09:42:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:02Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 10,
+          "startedAt": "2026-10-18T09:42:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:02Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-18T09:42:02Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Neversalimus/NCMM/actions/runs/39116354078/job/117642830178"
+    },
+    {
+      "completedAt": "2026-10-18T09:56:01Z",
+      "conclusion": "success",
+      "databaseId": 117642870896,
+      "name": "Renderer and module - ubuntu-latest",
+      "startedAt": "2026-10-18T09:42:06Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-18T09:42:08Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-18T09:42:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:14Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-18T09:42:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:14Z",
+          "conclusion": "success",
+          "name": "Verify shipping shader source identity before compilation",
+          "number": 3,
+          "startedAt": "2026-10-18T09:42:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:14Z",
+          "conclusion": "success",
+          "name": "Check release verifier syntax",
+          "number": 4,
+          "startedAt": "2026-10-18T09:42:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:14Z",
+          "conclusion": "success",
+          "name": "Reject invalid first-frame phase accounting",
+          "number": 5,
+          "startedAt": "2026-10-18T09:42:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:16Z",
+          "conclusion": "success",
+          "name": "Reject incomplete or mismatched packaged hardware evidence",
+          "number": 6,
+          "startedAt": "2026-10-18T09:42:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:21Z",
+          "conclusion": "success",
+          "name": "Diagnostic environment isolation on PowerShell Core",
+          "number": 7,
+          "startedAt": "2026-10-18T09:42:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:21Z",
+          "conclusion": "skipped",
+          "name": "Diagnostic environment isolation on Windows PowerShell",
+          "number": 8,
+          "startedAt": "2026-10-18T09:42:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:23Z",
+          "conclusion": "success",
+          "name": "Configure isolated module",
+          "number": 9,
+          "startedAt": "2026-10-18T09:42:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:20Z",
+          "conclusion": "success",
+          "name": "Build prototype and contract tests",
+          "number": 10,
+          "startedAt": "2026-10-18T09:42:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:27Z",
+          "conclusion": "success",
+          "name": "Renderer, occlusion, fog, ABI and toggle lifecycle",
+          "number": 11,
+          "startedAt": "2026-10-18T09:45:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:27Z",
+          "conclusion": "success",
+          "name": "Offline PSX importer malformed-input and determinism checks",
+          "number": 12,
+          "startedAt": "2026-10-18T09:45:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:30Z",
+          "conclusion": "success",
+          "name": "Record renderer timing and work counters (no FPS threshold)",
+          "number": 13,
+          "startedAt": "2026-10-18T09:45:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:31Z",
+          "conclusion": "success",
+          "name": "Configure focused cache and facade sanitizers",
+          "number": 14,
+          "startedAt": "2026-10-18T09:45:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:47:48Z",
+          "conclusion": "success",
+          "name": "Build focused cache and facade sanitizers",
+          "number": 15,
+          "startedAt": "2026-10-18T09:45:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:47:52Z",
+          "conclusion": "success",
+          "name": "ASan and UBSan sparse coordinates, face masks and facade continuity",
+          "number": 16,
+          "startedAt": "2026-10-18T09:47:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:47:53Z",
+          "conclusion": "success",
+          "name": "Configure sanitizer coverage",
+          "number": 17,
+          "startedAt": "2026-10-18T09:47:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:55:34Z",
+          "conclusion": "success",
+          "name": "Build sanitizer geometry and shared-module tests",
+          "number": 18,
+          "startedAt": "2026-10-18T09:47:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:55:57Z",
+          "conclusion": "success",
+          "name": "ASan and UBSan camera, volume and DLL lifecycle coverage",
+          "number": 19,
+          "startedAt": "2026-10-18T09:55:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:55:57Z",
+          "conclusion": "success",
+          "name": "Atomic source-transform negative tests",
+          "number": 20,
+          "startedAt": "2026-10-18T09:55:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:55:59Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 21,
+          "startedAt": "2026-10-18T09:55:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:55:59Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 42,
+          "startedAt": "2026-10-18T09:55:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:55:59Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 43,
+          "startedAt": "2026-10-18T09:55:59Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Neversalimus/NCMM/actions/runs/39116354078/job/117642870896"
+    },
+    {
+      "completedAt": "2026-10-18T09:45:22Z",
+      "conclusion": "success",
+      "databaseId": 117642870927,
+      "name": "Renderer and module - windows-2022",
+      "startedAt": "2026-10-18T09:42:06Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-18T09:42:07Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-18T09:42:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:16Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-18T09:42:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:17Z",
+          "conclusion": "success",
+          "name": "Verify shipping shader source identity before compilation",
+          "number": 3,
+          "startedAt": "2026-10-18T09:42:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:18Z",
+          "conclusion": "success",
+          "name": "Check release verifier syntax",
+          "number": 4,
+          "startedAt": "2026-10-18T09:42:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:18Z",
+          "conclusion": "success",
+          "name": "Reject invalid first-frame phase accounting",
+          "number": 5,
+          "startedAt": "2026-10-18T09:42:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:21Z",
+          "conclusion": "success",
+          "name": "Reject incomplete or mismatched packaged hardware evidence",
+          "number": 6,
+          "startedAt": "2026-10-18T09:42:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:27Z",
+          "conclusion": "success",
+          "name": "Diagnostic environment isolation on PowerShell Core",
+          "number": 7,
+          "startedAt": "2026-10-18T09:42:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:32Z",
+          "conclusion": "success",
+          "name": "Diagnostic environment isolation on Windows PowerShell",
+          "number": 8,
+          "startedAt": "2026-10-18T09:42:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:42:48Z",
+          "conclusion": "success",
+          "name": "Configure isolated module",
+          "number": 9,
+          "startedAt": "2026-10-18T09:42:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:03Z",
+          "conclusion": "success",
+          "name": "Build prototype and contract tests",
+          "number": 10,
+          "startedAt": "2026-10-18T09:42:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:12Z",
+          "conclusion": "success",
+          "name": "Renderer, occlusion, fog, ABI and toggle lifecycle",
+          "number": 11,
+          "startedAt": "2026-10-18T09:45:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:12Z",
+          "conclusion": "success",
+          "name": "Offline PSX importer malformed-input and determinism checks",
+          "number": 12,
+          "startedAt": "2026-10-18T09:45:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:17Z",
+          "conclusion": "success",
+          "name": "Record renderer timing and work counters (no FPS threshold)",
+          "number": 13,
+          "startedAt": "2026-10-18T09:45:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:17Z",
+          "conclusion": "skipped",
+          "name": "Configure focused cache and facade sanitizers",
+          "number": 14,
+          "startedAt": "2026-10-18T09:45:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:17Z",
+          "conclusion": "skipped",
+          "name": "Build focused cache and facade sanitizers",
+          "number": 15,
+          "startedAt": "2026-10-18T09:45:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:17Z",
+          "conclusion": "skipped",
+          "name": "ASan and UBSan sparse coordinates, face masks and facade continuity",
+          "number": 16,
+          "startedAt": "2026-10-18T09:45:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:17Z",
+          "conclusion": "skipped",
+          "name": "Configure sanitizer coverage",
+          "number": 17,
+          "startedAt": "2026-10-18T09:45:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:17Z",
+          "conclusion": "skipped",
+          "name": "Build sanitizer geometry and shared-module tests",
+          "number": 18,
+          "startedAt": "2026-10-18T09:45:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:17Z",
+          "conclusion": "skipped",
+          "name": "ASan and UBSan camera, volume and DLL lifecycle coverage",
+          "number": 19,
+          "startedAt": "2026-10-18T09:45:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:18Z",
+          "conclusion": "success",
+          "name": "Atomic source-transform negative tests",
+          "number": 20,
+          "startedAt": "2026-10-18T09:45:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:19Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 21,
+          "startedAt": "2026-10-18T09:45:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:20Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 42,
+          "startedAt": "2026-10-18T09:45:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:45:20Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 43,
+          "startedAt": "2026-10-18T09:45:20Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Neversalimus/NCMM/actions/runs/39116354078/job/117642870927"
+    },
+    {
+      "completedAt": "2026-10-18T13:23:37Z",
+      "conclusion": "success",
+      "databaseId": 117645482020,
+      "name": "Experimental MSVC Host - 1807",
+      "startedAt": "2026-10-18T09:56:03Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-18T09:56:06Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-18T09:56:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:56:13Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-18T09:56:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:56:21Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 3,
+          "startedAt": "2026-10-18T09:56:13Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:56:33Z",
+          "conclusion": "success",
+          "name": "Prepare canonical NCMM plus optional graphics bridge",
+          "number": 4,
+          "startedAt": "2026-10-18T09:56:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:56:33Z",
+          "conclusion": "success",
+          "name": "Run microsoft/setup-msbuild@v2",
+          "number": 5,
+          "startedAt": "2026-10-18T09:56:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:56:47Z",
+          "conclusion": "success",
+          "name": "Run lukka/run-vcpkg@v11",
+          "number": 6,
+          "startedAt": "2026-10-18T09:56:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:56:48Z",
+          "conclusion": "success",
+          "name": "Integrate pinned vcpkg",
+          "number": 7,
+          "startedAt": "2026-10-18T09:56:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:57:01Z",
+          "conclusion": "success",
+          "name": "Run msys2/setup-msys2@v2",
+          "number": 8,
+          "startedAt": "2026-10-18T09:56:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:57:03Z",
+          "conclusion": "success",
+          "name": "Run actions/cache@v4",
+          "number": 9,
+          "startedAt": "2026-10-18T09:57:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:57:04Z",
+          "conclusion": "success",
+          "name": "Run mozilla-actions/sccache-action@v0.0.11",
+          "number": 10,
+          "startedAt": "2026-10-18T09:57:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:57:04Z",
+          "conclusion": "success",
+          "name": "Configure the canonical compiler cache wrapper",
+          "number": 11,
+          "startedAt": "2026-10-18T09:57:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:57:06Z",
+          "conclusion": "success",
+          "name": "Run actions/cache/restore@v4",
+          "number": 12,
+          "startedAt": "2026-10-18T09:57:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:16:51Z",
+          "conclusion": "success",
+          "name": "Compile actual experimental engine (no certification/publication)",
+          "number": 13,
+          "startedAt": "2026-10-18T09:57:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:16:52Z",
+          "conclusion": "success",
+          "name": "Record effective compiler cache coverage",
+          "number": 14,
+          "startedAt": "2026-10-18T10:16:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:16:54Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 15,
+          "startedAt": "2026-10-18T10:16:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:16:54Z",
+          "conclusion": "success",
+          "name": "Preserve complete failed compiler diagnostics",
+          "number": 16,
+          "startedAt": "2026-10-18T10:16:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:16:54Z",
+          "conclusion": "success",
+          "name": "Verify compiled or cached engine identity",
+          "number": 17,
+          "startedAt": "2026-10-18T10:16:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:16:59Z",
+          "conclusion": "success",
+          "name": "Run actions/cache/save@v4",
+          "number": 18,
+          "startedAt": "2026-10-18T10:16:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:17:11Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 19,
+          "startedAt": "2026-10-18T10:16:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:17:28Z",
+          "conclusion": "success",
+          "name": "Download SHA256-verified official Windows 1807 graphics and sounds packages",
+          "number": 20,
+          "startedAt": "2026-10-18T10:17:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:17:32Z",
+          "conclusion": "success",
+          "name": "Acquire SHA256-verified exact 0.12 main baseline Host and DLL",
+          "number": 21,
+          "startedAt": "2026-10-18T10:17:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:23:41Z",
+          "conclusion": "success",
+          "name": "Build preview installer and verify transactions with Windows long paths disabled",
+          "number": 22,
+          "startedAt": "2026-10-18T10:17:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:23:43Z",
+          "conclusion": "success",
+          "name": "Preserve candidate installer before native qualification",
+          "number": 23,
+          "startedAt": "2026-10-18T10:23:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:23:45Z",
+          "conclusion": "success",
+          "name": "Launch both official package installations twice through the actual preview bootstrap",
+          "number": 24,
+          "startedAt": "2026-10-18T10:23:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:24:53Z",
+          "conclusion": "success",
+          "name": "Fast native multi-Z save-load gate before the full gallery",
+          "number": 25,
+          "startedAt": "2026-10-18T10:23:45Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:24:59Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 26,
+          "startedAt": "2026-10-18T10:24:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T11:00:22Z",
+          "conclusion": "success",
+          "name": "Automated native gameplay, CPU/GPU profiling and actual UDP Hybrid v3",
+          "number": 27,
+          "startedAt": "2026-10-18T10:24:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T11:09:13Z",
+          "conclusion": "success",
+          "name": "Focused GPU phases and eight clean process teardowns",
+          "number": 28,
+          "startedAt": "2026-10-18T11:00:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T11:13:21Z",
+          "conclusion": "success",
+          "name": "Native walking, camera easing and full-size UDP viewport",
+          "number": 29,
+          "startedAt": "2026-10-18T11:09:13Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T12:15:58Z",
+          "conclusion": "success",
+          "name": "Actual SDL controls, appearance, geometry, RGB light, sky, weather and held items",
+          "number": 30,
+          "startedAt": "2026-10-18T11:13:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:09:40Z",
+          "conclusion": "success",
+          "name": "Paired exact 0.12 Host and module world benchmark",
+          "number": 31,
+          "startedAt": "2026-10-18T12:15:58Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:09:42Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v5",
+          "number": 32,
+          "startedAt": "2026-10-18T13:09:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:09:51Z",
+          "conclusion": "success",
+          "name": "Install image qualification tools",
+          "number": 33,
+          "startedAt": "2026-10-18T13:09:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:09:52Z",
+          "conclusion": "success",
+          "name": "Verify exact installer, movement samples and distant horizon",
+          "number": 34,
+          "startedAt": "2026-10-18T13:09:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:10:47Z",
+          "conclusion": "success",
+          "name": "Verify paired camera, pose, lighting, pixels and image provenance",
+          "number": 35,
+          "startedAt": "2026-10-18T13:09:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:11:30Z",
+          "conclusion": "success",
+          "name": "Collect runtime evidence",
+          "number": 36,
+          "startedAt": "2026-10-18T13:10:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:17:22Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 37,
+          "startedAt": "2026-10-18T13:11:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:23:01Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 38,
+          "startedAt": "2026-10-18T13:17:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:23:03Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 39,
+          "startedAt": "2026-10-18T13:23:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:23:19Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 40,
+          "startedAt": "2026-10-18T13:23:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:23:19Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v5",
+          "number": 75,
+          "startedAt": "2026-10-18T13:23:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:23:21Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 76,
+          "startedAt": "2026-10-18T13:23:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:23:21Z",
+          "conclusion": "success",
+          "name": "Post Run mozilla-actions/sccache-action@v0.0.11",
+          "number": 77,
+          "startedAt": "2026-10-18T13:23:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:23:22Z",
+          "conclusion": "success",
+          "name": "Post Run actions/cache@v4",
+          "number": 78,
+          "startedAt": "2026-10-18T13:23:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:23:23Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 79,
+          "startedAt": "2026-10-18T13:23:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:23:25Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 80,
+          "startedAt": "2026-10-18T13:23:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:23:25Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 81,
+          "startedAt": "2026-10-18T13:23:25Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Neversalimus/NCMM/actions/runs/39116354078/job/117645482020"
+    },
+    {
+      "completedAt": "2026-10-18T13:21:23Z",
+      "conclusion": "success",
+      "databaseId": 117645482136,
+      "name": "Experimental MSVC Host - 1040",
+      "startedAt": "2026-10-18T09:56:04Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-18T09:56:07Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-18T09:56:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:56:15Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-18T09:56:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:56:24Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 3,
+          "startedAt": "2026-10-18T09:56:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:56:34Z",
+          "conclusion": "success",
+          "name": "Prepare canonical NCMM plus optional graphics bridge",
+          "number": 4,
+          "startedAt": "2026-10-18T09:56:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:56:35Z",
+          "conclusion": "success",
+          "name": "Run microsoft/setup-msbuild@v2",
+          "number": 5,
+          "startedAt": "2026-10-18T09:56:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:56:52Z",
+          "conclusion": "success",
+          "name": "Run lukka/run-vcpkg@v11",
+          "number": 6,
+          "startedAt": "2026-10-18T09:56:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:56:52Z",
+          "conclusion": "success",
+          "name": "Integrate pinned vcpkg",
+          "number": 7,
+          "startedAt": "2026-10-18T09:56:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:57:04Z",
+          "conclusion": "success",
+          "name": "Run msys2/setup-msys2@v2",
+          "number": 8,
+          "startedAt": "2026-10-18T09:56:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:57:07Z",
+          "conclusion": "success",
+          "name": "Run actions/cache@v4",
+          "number": 9,
+          "startedAt": "2026-10-18T09:57:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:57:08Z",
+          "conclusion": "success",
+          "name": "Run mozilla-actions/sccache-action@v0.0.11",
+          "number": 10,
+          "startedAt": "2026-10-18T09:57:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:57:09Z",
+          "conclusion": "success",
+          "name": "Configure the canonical compiler cache wrapper",
+          "number": 11,
+          "startedAt": "2026-10-18T09:57:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T09:57:12Z",
+          "conclusion": "success",
+          "name": "Run actions/cache/restore@v4",
+          "number": 12,
+          "startedAt": "2026-10-18T09:57:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:20:30Z",
+          "conclusion": "success",
+          "name": "Compile actual experimental engine (no certification/publication)",
+          "number": 13,
+          "startedAt": "2026-10-18T09:57:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:20:31Z",
+          "conclusion": "success",
+          "name": "Record effective compiler cache coverage",
+          "number": 14,
+          "startedAt": "2026-10-18T10:20:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:20:32Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 15,
+          "startedAt": "2026-10-18T10:20:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:20:32Z",
+          "conclusion": "success",
+          "name": "Preserve complete failed compiler diagnostics",
+          "number": 16,
+          "startedAt": "2026-10-18T10:20:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:20:33Z",
+          "conclusion": "success",
+          "name": "Verify compiled or cached engine identity",
+          "number": 17,
+          "startedAt": "2026-10-18T10:20:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:20:38Z",
+          "conclusion": "success",
+          "name": "Run actions/cache/save@v4",
+          "number": 18,
+          "startedAt": "2026-10-18T10:20:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:20:53Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 19,
+          "startedAt": "2026-10-18T10:20:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:21:14Z",
+          "conclusion": "success",
+          "name": "Download SHA256-verified official Windows 1040 graphics and sounds packages",
+          "number": 20,
+          "startedAt": "2026-10-18T10:20:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:21:21Z",
+          "conclusion": "success",
+          "name": "Acquire SHA256-verified exact 0.12 main baseline Host and DLL",
+          "number": 21,
+          "startedAt": "2026-10-18T10:21:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:28:37Z",
+          "conclusion": "success",
+          "name": "Build preview installer and verify transactions with Windows long paths disabled",
+          "number": 22,
+          "startedAt": "2026-10-18T10:21:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:28:40Z",
+          "conclusion": "success",
+          "name": "Preserve candidate installer before native qualification",
+          "number": 23,
+          "startedAt": "2026-10-18T10:28:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:28:42Z",
+          "conclusion": "success",
+          "name": "Launch both official package installations twice through the actual preview bootstrap",
+          "number": 24,
+          "startedAt": "2026-10-18T10:28:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:30:07Z",
+          "conclusion": "success",
+          "name": "Fast native multi-Z save-load gate before the full gallery",
+          "number": 25,
+          "startedAt": "2026-10-18T10:28:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:30:13Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 26,
+          "startedAt": "2026-10-18T10:30:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:36:34Z",
+          "conclusion": "success",
+          "name": "Automated native gameplay, CPU/GPU profiling and actual UDP Hybrid v3",
+          "number": 27,
+          "startedAt": "2026-10-18T10:30:13Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:46:34Z",
+          "conclusion": "success",
+          "name": "Focused GPU phases and eight clean process teardowns",
+          "number": 28,
+          "startedAt": "2026-10-18T10:36:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T10:51:15Z",
+          "conclusion": "success",
+          "name": "Native walking, camera easing and full-size UDP viewport",
+          "number": 29,
+          "startedAt": "2026-10-18T10:46:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T12:01:53Z",
+          "conclusion": "success",
+          "name": "Actual SDL controls, appearance, geometry, RGB light, sky, weather and held items",
+          "number": 30,
+          "startedAt": "2026-10-18T10:51:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:03:17Z",
+          "conclusion": "success",
+          "name": "Paired exact 0.12 Host and module world benchmark",
+          "number": 31,
+          "startedAt": "2026-10-18T12:01:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:03:19Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v5",
+          "number": 32,
+          "startedAt": "2026-10-18T13:03:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:03:29Z",
+          "conclusion": "success",
+          "name": "Install image qualification tools",
+          "number": 33,
+          "startedAt": "2026-10-18T13:03:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:03:32Z",
+          "conclusion": "success",
+          "name": "Verify exact installer, movement samples and distant horizon",
+          "number": 34,
+          "startedAt": "2026-10-18T13:03:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:04:46Z",
+          "conclusion": "success",
+          "name": "Verify paired camera, pose, lighting, pixels and image provenance",
+          "number": 35,
+          "startedAt": "2026-10-18T13:03:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:06:38Z",
+          "conclusion": "success",
+          "name": "Collect runtime evidence",
+          "number": 36,
+          "startedAt": "2026-10-18T13:04:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:13:46Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 37,
+          "startedAt": "2026-10-18T13:06:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:20:38Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 38,
+          "startedAt": "2026-10-18T13:13:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:20:41Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 39,
+          "startedAt": "2026-10-18T13:20:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:21:00Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 40,
+          "startedAt": "2026-10-18T13:20:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:21:01Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v5",
+          "number": 75,
+          "startedAt": "2026-10-18T13:21:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:21:03Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 76,
+          "startedAt": "2026-10-18T13:21:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:21:03Z",
+          "conclusion": "success",
+          "name": "Post Run mozilla-actions/sccache-action@v0.0.11",
+          "number": 77,
+          "startedAt": "2026-10-18T13:21:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:21:03Z",
+          "conclusion": "success",
+          "name": "Post Run actions/cache@v4",
+          "number": 78,
+          "startedAt": "2026-10-18T13:21:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:21:05Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 79,
+          "startedAt": "2026-10-18T13:21:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:21:07Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 80,
+          "startedAt": "2026-10-18T13:21:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:21:07Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 81,
+          "startedAt": "2026-10-18T13:21:07Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Neversalimus/NCMM/actions/runs/39116354078/job/117645482136"
+    },
+    {
+      "completedAt": "2026-10-18T13:23:41Z",
+      "conclusion": "success",
+      "databaseId": 117686991946,
+      "name": "First Person required qualification",
+      "startedAt": "2026-10-18T13:23:39Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-18T13:23:39Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-18T13:23:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:23:39Z",
+          "conclusion": "success",
+          "name": "Require the selected tier and all relevant gates",
+          "number": 2,
+          "startedAt": "2026-10-18T13:23:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-18T13:23:39Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 3,
+          "startedAt": "2026-10-18T13:23:39Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Neversalimus/NCMM/actions/runs/39116354078/job/117686991946"
+    }
+  ],
+  "status": "completed",
+  "updatedAt": "2026-10-18T13:23:42Z",
+  "url": "https://github.com/Neversalimus/NCMM/actions/runs/39116354078"
+}

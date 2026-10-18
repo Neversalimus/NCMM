@@ -1,0 +1,221 @@
+{
+  "schema": 1,
+  "verification_success": true,
+  "source": "f9a6c95e9cff4edc51a92d63cac4fb98c8df4b3a",
+  "reviewed_head": "8d24cc2b8df4ccd6574e1f2f61108baf24f4bcf9",
+  "manual_playthrough": false,
+  "logs": {
+    "final-gallery-before-8d24": {
+      "process": {
+        "schema": 1,
+        "child_pid": 60172,
+        "exit_signed": 0,
+        "exit_hex": "0x00000000",
+        "last_progress": "201\ufffd559 native_multilevel_save_load_next frames=1\ufffd796",
+        "wrapper_failure": null,
+        "debugger_requested": true,
+        "debugger_error": null,
+        "crash_dumps": 0,
+        "host_sha256": "54922701a5575d6ff44184602b442f0d82a3fd4d0911ccc5bbe678da3e125f30",
+        "module_sha256": "70afb70067ef51619a8807ff75d5f4b23b8c3fabf408fdebecd0f5a39fa5b554",
+        "ncmm_commit": "c7095aa77298e08223ae2f1eb2b3c817217443ec",
+        "engine_commit": "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83",
+        "focused_gpu": false,
+        "movement": false
+      },
+      "debug_log_sha256": "184d3f4d61c90fc99ce6a043afb58ae3b54c30947a228f8ea9285734379acf36",
+      "error_or_corruption_messages": 0,
+      "warning_classes": [
+        {
+          "id": "695",
+          "name": "DRAW_EMPTY_SCISSOR_RECTANGLE",
+          "count": 36
+        },
+        {
+          "id": "820",
+          "name": "CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE",
+          "count": 636
+        },
+        {
+          "id": "821",
+          "name": "CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE",
+          "count": 324
+        }
+      ],
+      "scope": "Actual owned native debug-event log; known baseline warnings remain, not a zero-warning claim"
+    },
+    "final-gallery-after-8d24": {
+      "process": {
+        "schema": 1,
+        "child_pid": 61260,
+        "exit_signed": 0,
+        "exit_hex": "0x00000000",
+        "last_progress": "1\ufffd997\ufffd762 native_multilevel_save_load_next frames=27\ufffd145",
+        "wrapper_failure": null,
+        "debugger_requested": true,
+        "debugger_error": null,
+        "crash_dumps": 0,
+        "host_sha256": "54922701a5575d6ff44184602b442f0d82a3fd4d0911ccc5bbe678da3e125f30",
+        "module_sha256": "1b0c0075203fb79c81cacccc17c7e8cca5ccc0460628a8782d4aae1179280d9c",
+        "ncmm_commit": "f9a6c95e9cff4edc51a92d63cac4fb98c8df4b3a",
+        "engine_commit": "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83",
+        "focused_gpu": false,
+        "movement": false
+      },
+      "debug_log_sha256": "13e78b9e2afba14a8eb1c4be93520aed966dff0eb81898920c0db5be046394b2",
+      "error_or_corruption_messages": 0,
+      "warning_classes": [
+        {
+          "id": "695",
+          "name": "DRAW_EMPTY_SCISSOR_RECTANGLE",
+          "count": 72
+        },
+        {
+          "id": "820",
+          "name": "CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE",
+          "count": 608
+        },
+        {
+          "id": "821",
+          "name": "CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE",
+          "count": 314
+        }
+      ],
+      "scope": "Actual owned native debug-event log; known baseline warnings remain, not a zero-warning claim"
+    },
+    "final-focused-1040-8d24": {
+      "process": {
+        "schema": 1,
+        "child_pid": 55368,
+        "exit_signed": 0,
+        "exit_hex": "0x00000000",
+        "last_progress": "gpu_benchmark_creatures-1_gpu_frame_95",
+        "wrapper_failure": null,
+        "debugger_requested": true,
+        "debugger_error": null,
+        "crash_dumps": 0,
+        "host_sha256": "54922701a5575d6ff44184602b442f0d82a3fd4d0911ccc5bbe678da3e125f30",
+        "module_sha256": "1b0c0075203fb79c81cacccc17c7e8cca5ccc0460628a8782d4aae1179280d9c",
+        "ncmm_commit": "f9a6c95e9cff4edc51a92d63cac4fb98c8df4b3a",
+        "engine_commit": "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83",
+        "focused_gpu": true,
+        "movement": false
+      },
+      "debug_log_sha256": "c5abb2fa974e1d552645f510e3c222883790b412ab93829325ddeb607cd59d0a",
+      "error_or_corruption_messages": 0,
+      "warning_classes": [
+        {
+          "id": "820",
+          "name": "CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE",
+          "count": 408
+        },
+        {
+          "id": "821",
+          "name": "CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE",
+          "count": 392
+        }
+      ],
+      "scope": "Actual owned native debug-event log; known baseline warnings remain, not a zero-warning claim"
+    },
+    "final-focused-1807-8d24": {
+      "process": {
+        "schema": 1,
+        "child_pid": 68068,
+        "exit_signed": 0,
+        "exit_hex": "0x00000000",
+        "last_progress": "gpu_benchmark_creatures-1_gpu_frame_95",
+        "wrapper_failure": null,
+        "debugger_requested": true,
+        "debugger_error": null,
+        "crash_dumps": 0,
+        "host_sha256": "19a46462eda8a224793d926aae46f8d20a1addc7f90a979831003e67c9b2c5c1",
+        "module_sha256": "378788b72c7547405df9723c02866db047af5e79f16099201fc7fdbfe9283cc6",
+        "ncmm_commit": "f9a6c95e9cff4edc51a92d63cac4fb98c8df4b3a",
+        "engine_commit": "074aa98bd5be3de4c35f154082db32a0e63bb0f1",
+        "focused_gpu": true,
+        "movement": false
+      },
+      "debug_log_sha256": "95021e19cf97075002369c3687750f76215f7cc89efe663efda22f4b2e3cfb10",
+      "error_or_corruption_messages": 0,
+      "warning_classes": [
+        {
+          "id": "820",
+          "name": "CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE",
+          "count": 428
+        },
+        {
+          "id": "821",
+          "name": "CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE",
+          "count": 392
+        }
+      ],
+      "scope": "Actual owned native debug-event log; known baseline warnings remain, not a zero-warning claim"
+    }
+  },
+  "soak": {
+    "requested_seconds": 1800,
+    "actual_wall_seconds": 1800.027779,
+    "frames": 25349,
+    "f6_cycles": 396,
+    "f12_switches": 264,
+    "map_loads": 99,
+    "native_saves": 49,
+    "process_rss_begin": 1986404352,
+    "process_rss_end": 1712332800,
+    "process_rss_peak": 2150834176,
+    "gpu_resource_peak": 30767160,
+    "sprite_cache_peak": 947328,
+    "world_cache_peak": 4346958
+  },
+  "focused_memory": {
+    "1040": [
+      {
+        "scene": "smoke-gas",
+        "gpu_resource_bytes_peak": 8911900,
+        "process_resident_bytes": 1924993024,
+        "dxgi_process_local_available": true,
+        "dxgi_process_local_before": 217608192,
+        "dxgi_process_local_after": 441737216,
+        "backend": "direct3d12",
+        "device": "NVIDIA GeForce RTX 4090",
+        "software_device": false
+      },
+      {
+        "scene": "creatures-1",
+        "gpu_resource_bytes_peak": 8957936,
+        "process_resident_bytes": 1927917568,
+        "dxgi_process_local_available": true,
+        "dxgi_process_local_before": 266338304,
+        "dxgi_process_local_after": 274305024,
+        "backend": "direct3d12",
+        "device": "NVIDIA GeForce RTX 4090",
+        "software_device": false
+      }
+    ],
+    "1807": [
+      {
+        "scene": "smoke-gas",
+        "gpu_resource_bytes_peak": 8911900,
+        "process_resident_bytes": 1923579904,
+        "dxgi_process_local_available": true,
+        "dxgi_process_local_before": 213221376,
+        "dxgi_process_local_after": 427888640,
+        "backend": "direct3d12",
+        "device": "NVIDIA GeForce RTX 4090",
+        "software_device": false
+      },
+      {
+        "scene": "creatures-1",
+        "gpu_resource_bytes_peak": 8957936,
+        "process_resident_bytes": 1927962624,
+        "dxgi_process_local_available": true,
+        "dxgi_process_local_before": 267046912,
+        "dxgi_process_local_after": 275013632,
+        "backend": "direct3d12",
+        "device": "NVIDIA GeForce RTX 4090",
+        "software_device": false
+      }
+    ]
+  },
+  "limits": "Warnings820/821 for optimized-clear metadata and695 for empty scissors also occur with the original module on the same final Host. All actual completed logs have zero D3D12/DXGI ERROR or CORRUPTION severity messages and no other warning classes. Logical GPU counters, whole-process RSS and optional DXGI process-local usage measure different quantities; none isolates PSX model cost or GPU execution time. Full CI/artifact byte qualification remains separately checked."
+}
