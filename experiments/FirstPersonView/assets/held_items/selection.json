@@ -1643,7 +1643,7 @@
       "source_pack": "pich_attachments",
       "family": "optic",
       "native_fixture": "red_dot_sight",
-      "nominal_length": 0.075,
+      "nominal_length": 0.04,
       "length_axis": 2,
       "rotation": [
         0,
@@ -1701,7 +1701,7 @@
       "source_pack": "pich_attachments",
       "family": "suppressor",
       "native_fixture": "suppressor",
-      "nominal_length": 0.18,
+      "nominal_length": 0.198,
       "length_axis": 2,
       "rotation": [
         0,
@@ -1759,7 +1759,7 @@
       "source_pack": "pich_attachments",
       "family": "foregrip",
       "native_fixture": "grip",
-      "nominal_length": 0.12,
+      "nominal_length": 0.05,
       "length_axis": 1,
       "rotation": [
         0,
@@ -1817,7 +1817,7 @@
       "source_pack": "pich_attachments",
       "family": "gun_light",
       "native_fixture": "mounted_flashlight",
-      "nominal_length": 0.095,
+      "nominal_length": 0.063,
       "length_axis": 2,
       "rotation": [
         0,

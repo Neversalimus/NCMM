@@ -587,7 +587,7 @@ part::body,part::body,part::body,part::body,part::body,part::body,part::body,par
 };
 static const viewmodel::node nodes[]={
 {"Suppressor_West",1,{{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f,1.0f},{1.0f,1.0f,1.0f}}},
-{"NCMM_units_axes_grip",-1,{{-0.0f,-0.0f,-0.0f},{0.0f,1.0f,0.0f,0.0f},{1.25508048f,1.25508048f,1.25508048f}}},
+{"NCMM_units_axes_grip",-1,{{-0.0f,-0.0f,-0.0f},{0.0f,1.0f,0.0f,0.0f},{1.38058853f,1.38058853f,1.38058853f}}},
 };
 static const uint16_t order[]={
 1,0,
@@ -607,10 +607,10 @@ static const material materials[]={
 {{0.298039252f,0.298039252f,0.298039252f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"suppressor",8966731271203231410ull,family::suppressor,
+1,"suppressor",6663305502384892518ull,family::suppressor,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
 vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,0.0f,0.0f}},{0,{0.0f,-4.3772161e-08f,-0.0638212412f}},{0,{0.0f,-4.3772161e-08f,-0.111148883f}},{0,{0.0f,-4.28408384e-08f,0.0035847947f}},{0,{0.0f,-4.28408384e-08f,0.0035847947f}},{0,{0.0f,0.0f,0.0f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f}},
--1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.18f,false
+-1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.198f,false
 };
 const model &asset_suppressor() noexcept {return value;}
 }

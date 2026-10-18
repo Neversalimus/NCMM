@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "converter": "import_held_items.py/v1",
-  "selection_sha256": "760e74e3bfac2fcc789565bf9cf51d8d0c02c5402b913a358b99ae2e73cc11db",
+  "selection_sha256": "0fcf7e5a99b14ff735c8ba48b7a02ed7e56e45922094423061a2c56685ad9c8a",
   "models": [
     {
       "id": "pistol",
@@ -889,7 +889,7 @@
     },
     {
       "id": "red_dot",
-      "identity": 17638761472965855497,
+      "identity": 15019124026981291296,
       "vertices": 1243,
       "triangles": 436,
       "source_nodes": 1,
@@ -897,7 +897,7 @@
       "palettes": 1,
       "source_clips": 0,
       "materials": 4,
-      "nominal_length_m": 0.075,
+      "nominal_length_m": 0.04,
       "removed_zero_area_faces": 0,
       "material_adaptations": [
         {
@@ -908,17 +908,17 @@
         }
       ],
       "normalization_matrix": [
-        -1.3454998573477344,
+        -0.7175999239187918,
         0.0,
         0.0,
         0,
         0.0,
-        1.3454998573477344,
+        0.7175999239187918,
         0.0,
         0,
         0.0,
         0.0,
-        -1.3454998573477344,
+        -0.7175999239187918,
         0,
         -0.0,
         -0.0,
@@ -926,11 +926,11 @@
         1
       ],
       "generated": "red_dot.generated.cpp",
-      "sha256": "3f15c9d328751ae73ca7a0dffc723440aef255256a7785e808012326d6d0f47c"
+      "sha256": "1c82b4ad982e318b732e0dc96e002f51ac69b08cfd657441c55ce61f2396bfa6"
     },
     {
       "id": "suppressor",
-      "identity": 8966731271203231410,
+      "identity": 6663305502384892518,
       "vertices": 527,
       "triangles": 192,
       "source_nodes": 1,
@@ -938,21 +938,21 @@
       "palettes": 1,
       "source_clips": 0,
       "materials": 3,
-      "nominal_length_m": 0.18,
+      "nominal_length_m": 0.198,
       "removed_zero_area_faces": 0,
       "material_adaptations": [],
       "normalization_matrix": [
-        -1.2550804818735322,
+        -1.3805885300608856,
         0.0,
         0.0,
         0,
         0.0,
-        1.2550804818735322,
+        1.3805885300608856,
         0.0,
         0,
         0.0,
         0.0,
-        -1.2550804818735322,
+        -1.3805885300608856,
         0,
         -0.0,
         -0.0,
@@ -960,11 +960,11 @@
         1
       ],
       "generated": "suppressor.generated.cpp",
-      "sha256": "077e9c23da75f7755deed2aeb076990e7ddddc01942e7ed43abe49cbf7afcb12"
+      "sha256": "e1266d02b7594232e9e33070103353c1c33ba313fb14a633075c0b7a5545c02c"
     },
     {
       "id": "foregrip",
-      "identity": 17246059182152631225,
+      "identity": 10185762553167938456,
       "vertices": 565,
       "triangles": 196,
       "source_nodes": 1,
@@ -972,33 +972,33 @@
       "palettes": 1,
       "source_clips": 0,
       "materials": 2,
-      "nominal_length_m": 0.12,
+      "nominal_length_m": 0.05,
       "removed_zero_area_faces": 0,
       "material_adaptations": [],
       "normalization_matrix": [
-        -1.7682069183156013,
+        -0.7367528826315006,
         0.0,
         0.0,
         0,
         0.0,
-        1.7682069183156013,
+        0.7367528826315006,
         0.0,
         0,
         0.0,
         0.0,
-        -1.7682069183156013,
+        -0.7367528826315006,
         0,
         -0.0,
-        0.05658262138609924,
+        0.023576092244208022,
         -0.0,
         1
       ],
       "generated": "foregrip.generated.cpp",
-      "sha256": "b6e3c1350996e65cc174e709afe4b495e7e8862f0b939cbfdaa426df40ea691a"
+      "sha256": "8df322a5597adb4a1b3ed06ec66ed0e5a0d5406169202812fa7fa37c9b194254"
     },
     {
       "id": "gun_light",
-      "identity": 7796318741548692455,
+      "identity": 2907981694104588781,
       "vertices": 1011,
       "triangles": 360,
       "source_nodes": 1,
@@ -1006,21 +1006,21 @@
       "palettes": 1,
       "source_clips": 0,
       "materials": 3,
-      "nominal_length_m": 0.095,
+      "nominal_length_m": 0.063,
       "removed_zero_area_faces": 0,
       "material_adaptations": [],
       "normalization_matrix": [
-        -0.6919876691700352,
+        -0.4588970858706549,
         0.0,
         0.0,
         0,
         0.0,
-        0.6919876691700352,
+        0.4588970858706549,
         0.0,
         0,
         0.0,
         0.0,
-        -0.6919876691700352,
+        -0.4588970858706549,
         0,
         -0.0,
         -0.0,
@@ -1028,7 +1028,7 @@
         1
       ],
       "generated": "gun_light.generated.cpp",
-      "sha256": "af3ae10649bc75dadf4e5743f608c4ce5f9495f73bf47453414aefdc18625741"
+      "sha256": "d46ec1349831df264c9ccd89fd506bb366aedfa36d4ebc72ccc6788ce67d9a84"
     }
   ],
   "files": {
@@ -1040,9 +1040,9 @@
     "crowbar.generated.cpp": "ee0af7dfd1b737c6e8118484d6e1987b14c8a49118020f07f0a40e27915445ab",
     "fire_axe.generated.cpp": "d3309ab12071ef4e25ea394b30f3311051e8830c4d89a8198ae2da77fe3546b9",
     "flashlight.generated.cpp": "99f17cded2a3ee2fb1d49a6021118e4ec15f8e2d5ba45b6f48ce62166969d83a",
-    "foregrip.generated.cpp": "b6e3c1350996e65cc174e709afe4b495e7e8862f0b939cbfdaa426df40ea691a",
+    "foregrip.generated.cpp": "8df322a5597adb4a1b3ed06ec66ed0e5a0d5406169202812fa7fa37c9b194254",
     "gas_can.generated.cpp": "ecd25c00e36b2368aa566a0f8e7159224285194a7e7f4d23315a679f4ed55241",
-    "gun_light.generated.cpp": "af3ae10649bc75dadf4e5743f608c4ce5f9495f73bf47453414aefdc18625741",
+    "gun_light.generated.cpp": "d46ec1349831df264c9ccd89fd506bb366aedfa36d4ebc72ccc6788ce67d9a84",
     "hammer.generated.cpp": "9985b5bc5006328455bde2e55597c7efc2569ae7cf2c6bac298e7036649bb5ce",
     "hatchet.generated.cpp": "69139f9717bd0cdb79f8bfb90ca9b3436838a5010703075f159cb9c8e92f39a3",
     "inventory.generated.cpp": "07d1d36871106818cf0e31e809ccee5e1c9e91aa086ae2e57d9914db6cbab986",
@@ -1053,7 +1053,7 @@
     "pistol.generated.cpp": "07b23832a31bbde18e951f225e39edca840d0ab2de4a2a27f5ba1e910b91057c",
     "pliers.generated.cpp": "ae617a6766a2cdf93c6e74bb5433ecb310387d9dc15d0ca45f7b8124585e81bd",
     "pump.generated.cpp": "a3dcdb661aa47728ce10e50bd0ac038bcebe2a542b7cbd81a5efd11bfaa28775",
-    "red_dot.generated.cpp": "3f15c9d328751ae73ca7a0dffc723440aef255256a7785e808012326d6d0f47c",
+    "red_dot.generated.cpp": "1c82b4ad982e318b732e0dc96e002f51ac69b08cfd657441c55ce61f2396bfa6",
     "revolver.generated.cpp": "ecf296dd28ddca92665a44495be47fb4b2813f1f0d9e676c0ce570fc233bcbe0",
     "saw.generated.cpp": "35bf05c32c27f375e22c619dc0da7f8f908f17a7ccee93b67c8ba56c76986fca",
     "screwdriver.generated.cpp": "995432ded34c7cd571253718bb087990e3f3a87a980e9fda72ac58bb90868c08",
@@ -1061,7 +1061,7 @@
     "sledge.generated.cpp": "830712aca039fc2697c262c0b67123cfae1fb0ae47c16dd3e6199c36d2933ca9",
     "smg.generated.cpp": "140d201c8f618652a22f55771a06f144d3fc5ea74c783812f27db5ca0d5298d8",
     "spear.generated.cpp": "1e2edfa459f65333332a1c5110d2eb3ebaec455aa6cbc3254944b89cafc87f52",
-    "suppressor.generated.cpp": "077e9c23da75f7755deed2aeb076990e7ddddc01942e7ed43abe49cbf7afcb12",
+    "suppressor.generated.cpp": "e1266d02b7594232e9e33070103353c1c33ba313fb14a633075c0b7a5545c02c",
     "textures.generated.cpp": "6db07dfd7619dbbd8f1f18aa37a101a04b582565c02a005a237bad9bcbc85f83",
     "wrench.generated.cpp": "19aa259e4556d064baf40d2ba5490f91cbe82fdb2a89de4b0df53725dc059318"
   },

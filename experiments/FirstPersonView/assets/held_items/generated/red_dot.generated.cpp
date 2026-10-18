@@ -1367,7 +1367,7 @@ part::body,part::body,part::body,part::body,
 };
 static const viewmodel::node nodes[]={
 {"RedDot_West",1,{{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f,1.0f},{1.0f,1.0f,1.0f}}},
-{"NCMM_units_axes_grip",-1,{{-0.0f,-0.0f,-0.0f},{0.0f,1.0f,0.0f,0.0f},{1.34549986f,1.34549986f,1.34549986f}}},
+{"NCMM_units_axes_grip",-1,{{-0.0f,-0.0f,-0.0f},{0.0f,1.0f,0.0f,0.0f},{0.717599924f,0.717599924f,0.717599924f}}},
 };
 static const uint16_t order[]={
 1,0,
@@ -1388,10 +1388,10 @@ static const material materials[]={
 {{0.735356983f,0.735356983f,0.735356983f,0.18f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"red_dot",17638761472965855497ull,family::optic,
+1,"red_dot",15019124026981291296ull,family::optic,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
 vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0f,0.0f,0.0f}},{0,{-7.91624188e-09f,0.0171800908f,0.00896631282f}},{0,{-7.91624188e-09f,0.0171800908f,-0.00942833796f}},{0,{-0.00586564559f,0.0185125414f,0.0351647548f}},{0,{-0.00586564559f,0.0185125414f,0.0351647548f}},{0,{0.0f,0.0f,0.0f}},{0.0f,1.0f,0.0f},{0.0f,1.0f,0.0f}},
--1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.075f,false
+-1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.04f,false
 };
 const model &asset_red_dot() noexcept {return value;}
 }
