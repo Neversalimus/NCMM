@@ -6,6 +6,8 @@ param(
     [ValidateRange(0,3600)][int]$SoakSeconds=1800,
     [switch]$FocusedGpuBenchmark,
     [switch]$MovementBenchmark,
+    [switch]$Extended,
+    [switch]$ViewmodelGallery,
     [switch]$CaptureCrashDump,
     [switch]$GpuDebug,
     [string]$DumpAnalyzer
@@ -50,6 +52,8 @@ function Read-NativeBenchmarkProgress([string]$Path){
 if(-not $BundleRoot){$BundleRoot=$PSScriptRoot}
 if(-not $DumpAnalyzer){$DumpAnalyzer=Join-Path $PSScriptRoot 'ncmm_native_dump_analyzer.exe'}
 if($MovementBenchmark -and $FocusedGpuBenchmark){throw 'Choose one focused benchmark.'}
+if($Extended -and -not $MovementBenchmark){throw 'Extended requires MovementBenchmark.'}
+if($ViewmodelGallery -and ($MovementBenchmark -or $FocusedGpuBenchmark)){throw 'ViewmodelGallery belongs to the gameplay audit.'}
 if($MovementBenchmark -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the gameplay audit.'}
 if($FocusedGpuBenchmark -and $TilesetRoot){throw 'Focused GPU reproduction uses the official tileset; use the gameplay audit for UDP coverage.'}
 if($FocusedGpuBenchmark -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the gameplay audit, not focused GPU reproduction.'}
@@ -145,7 +149,7 @@ public static class NCMMNativeCrashDialog {
 }
 '@
 }
-$names=@('NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT')
+$names=@('NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT')
 $prior=@{}
 # Modern .NET preserves an empty environment variable. PowerShell can convert
 # $null to that empty string at the .NET call boundary, and native getenv then
@@ -158,6 +162,8 @@ $process=$null
 $lastProgress='native startup'
 try {
     if($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
+    if($Extended){$env:NCMM_FP_EXTENDED='1'}
+    if($ViewmodelGallery){$env:NCMM_FP_VIEWMODEL_GALLERY='1'}
     if($GpuDebug){$env:SDL_RENDER_GPU_DEBUG='1'}
     $env:SDL_ASSERT='abort' # Diagnostic child must fail with evidence, never wait in SDL's assertion modal.
     $env:NCMM_FP_APPEARANCE_SMOKE='1' # Stable monster atlas variants in this diagnostic only.
@@ -170,7 +176,7 @@ try {
         if(-not ('NCMMNativeDebugger' -as [type])){Add-Type -Path (Join-Path $PSScriptRoot 'NativeDiagnosticDebugger.cs')}
         $debugger=[NCMMNativeDebugger]::Start([uint32]$process.Id,$evidence)
     }
-    $deadline=[DateTime]::UtcNow.AddSeconds($(if($FocusedGpuBenchmark){600}else{$SoakSeconds+1200}))
+    $deadline=[DateTime]::UtcNow.AddSeconds($(if($Extended){7200}elseif($FocusedGpuBenchmark){600}else{$SoakSeconds+1200}))
     $progressPath=Join-Path $test 'ncmm/first-person-audit-progress.txt'
     $lastProgress='native startup'
     $lastAdvance=[DateTime]::UtcNow
@@ -305,14 +311,16 @@ $auditName=if($MovementBenchmark){'first-person-movement-benchmark.json'}elseif(
 if(-not (Test-Path -LiteralPath (Join-Path $evidence $auditName))){throw "Requested native benchmark report is missing: $auditName; final phase=$lastProgress"}
 if($MovementBenchmark){
     $audit=Get-Content (Join-Path $evidence 'first-person-movement-benchmark.json') -Raw | ConvertFrom-Json
-    if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.simulation_turns_advanced -ne 0 -or @($audit.records).Count -ne 12){throw 'Native movement benchmark is incomplete.'}
+    $expectedRecords=if($Extended){80}else{12};$expectedSteps=if($Extended){64}else{12};$expectedRotations=if($Extended){96}else{48}
+    if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.simulation_turns_advanced -ne 0 -or @($audit.records).Count -ne $expectedRecords){throw 'Native movement benchmark is incomplete.'}
     foreach($record in $audit.records){
-        if($record.native_steps -ne 12 -or @($record.first_ready_samples_ms).Count -ne 12 -or @($record.easing_frame_samples_ms).Count -eq 0){throw 'Native steps or easing samples are incomplete.'}
-        if(@($record.cold_rotation_samples_ms).Count -ne 48 -or @($record.warm_rotation_samples_ms).Count -ne 48){throw 'Continuous cold/warm rotation samples are incomplete.'}
+        if($record.native_steps -ne $expectedSteps -or @($record.first_ready_samples_ms).Count -ne $expectedSteps -or @($record.easing_frame_samples_ms).Count -eq 0){throw 'Native steps or easing samples are incomplete.'}
+        if(@($record.cold_rotation_samples_ms).Count -ne $expectedRotations -or @($record.warm_rotation_samples_ms).Count -ne $expectedRotations){throw 'Continuous cold/warm rotation samples are incomplete.'}
+        if($Extended -and ($record.extended_matrix -ne $true -or $record.internal_width -le 0 -or $record.internal_height -le 0)){throw 'Extended resolution evidence is missing.'}
         if($record.renderer -eq 'gpu' -and @($record.frame_renderers_gpu | Where-Object {$_ -ne 1}).Count){throw 'A walking GPU frame fell back to CPU.'}
     }
     foreach($record in $audit.records){
-        if(@($record.first_frame_after_step_samples_ms).Count -ne 12){throw 'First rendered-frame samples are incomplete.'}
+        if(@($record.first_frame_after_step_samples_ms).Count -ne $expectedSteps){throw 'First rendered-frame samples are incomplete.'}
     }
     if($audit.facade_regression.normal_vision -ne $true -or $audit.facade_regression.connected_front_wall_cells -ne 18 -or $audit.facade_regression.slabs_connected -ne $true){throw 'Ordinary-vision facade continuity failed.'}
     $horizon=$audit.horizon_regression
@@ -325,6 +333,15 @@ if($MovementBenchmark){
 }else{
     $audit=Get-Content (Join-Path $evidence 'first-person-gameplay-audit.json') -Raw | ConvertFrom-Json
     if($audit.success -ne $true -or $audit.manual_playthrough -ne $false -or $audit.soak.actual_wall_seconds -lt $SoakSeconds){throw 'Native audit is incomplete.'}
+    if($ViewmodelGallery){foreach($tileset in $audit.tilesets){
+        $requiredStates=@('bare','black_gloves','sleeves','pistol','revolver','rifle','shotgun','knife','pole','flashlight','umbrella','torch','rifle_attachments','unarmed_attack','shot_recoil','item_switch','camera_turn','look_up','look_down','vehicle','near_wall','mutation_FUR','mutation_SCALES','mutation_CHITIN','mutation_CLAWS','mutation_WEBBED','bionic')
+        if(@($tileset.viewmodel_gallery).Count -ne $requiredStates.Count*2){throw 'Viewmodel gallery is incomplete.'}
+        foreach($state in $requiredStates){foreach($mode in @('cpu','gpu')){
+            $matches=@($tileset.viewmodel_gallery | Where-Object {$_.name -eq $state -and $_.renderer -eq $mode})
+            if($matches.Count -ne 1 -or $matches[0].width -ne 1280 -or $matches[0].height -ne 800 -or -not (Test-Path -LiteralPath (Join-Path $evidence $matches[0].capture))){throw "Missing native gallery state: $state $mode"}
+            if($mode -eq 'gpu' -and $matches[0].gpu -ne $true){throw "GPU gallery frame fell back: $state"}
+        }}
+    }}
     $soaked=$audit.soak.actual_wall_seconds
 }
 $result=[ordered]@{success=$true;source_commit=$bundle.source_commit;ncmm_commit=$bundle.ncmm_source_commit;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';manual_playthrough=$false;focused_gpu_benchmark=[bool]$FocusedGpuBenchmark;movement_benchmark=[bool]$MovementBenchmark;udp_requested=$udp;soak_seconds=$soaked;evidence=$evidence}

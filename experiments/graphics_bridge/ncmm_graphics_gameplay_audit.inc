@@ -9,7 +9,9 @@
     g->ncmm_graphics_smoke_prepare_turns();
     const auto native_ui=g->create_or_get_main_ui_adaptor();ui_manager::redraw();
     SDL_Renderer *renderer=get_sdl_renderer().get();SDL_Texture *previous_target=SDL_GetRenderTarget(renderer);
-    SDL_Texture *canvas=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,640,480);
+    const bool viewmodel_gallery=std::getenv("NCMM_FP_VIEWMODEL_GALLERY")!=nullptr;
+    const point audit_viewport=viewmodel_gallery?point(1280,800):point(640,480);
+    SDL_Texture *canvas=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,audit_viewport.x,audit_viewport.y);
     require(canvas!=nullptr,"audit_canvas_failed");
     struct audit_canvas_guard {SDL_Renderer *renderer;SDL_Texture *canvas,*previous;
         ~audit_canvas_guard(){SDL_SetRenderTarget(renderer,previous);SDL_DestroyTexture(canvas);if(graphics_gpu_engine)graphics_gpu_engine->profile(false);}
@@ -54,10 +56,10 @@
         const auto pos=you.pos_abs();const auto turn=calendar::turn;const int moves=you.get_moves(),hp=you.get_part_hp_cur(bodypart_id("torso"));
         const auto begin=audit_clock::now();refresh();const double native_cache=milliseconds(begin);
         std::multimap<point,formatted_text> overlays;color_block_overlay_container blocks;
-        const auto tiles=audit_clock::now();tilecontext->draw(point::zero,you.pos_bub(),640,480,overlays,blocks);const double native_tiles=milliseconds(tiles);
+        const auto tiles=audit_clock::now();tilecontext->draw(point::zero,you.pos_bub(),audit_viewport.x,audit_viewport.y,overlays,blocks);const double native_tiles=milliseconds(tiles);
         require(SDL_SetRenderTarget(renderer,canvas)&&SDL_SetRenderLogicalPresentation(renderer,0,0,SDL_LOGICAL_PRESENTATION_DISABLED)&&SDL_SetRenderScale(renderer,1,1)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"audit_canvas_rebind_failed");
         if(graphics_gpu_engine)graphics_gpu_engine->profile();
-        const auto overlay=audit_clock::now();require(graphics_draw(0,0,640,480),"audit_real_render_failed");const double overlay_ms=milliseconds(overlay);
+        const auto overlay=audit_clock::now();require(graphics_draw(0,0,audit_viewport.x,audit_viewport.y),"audit_real_render_failed");const double overlay_ms=milliseconds(overlay);
         if(!capture_name.empty()){auto *image=SDL_RenderReadPixels(renderer,nullptr);require(image!=nullptr,"audit_capture_failed");const bool saved=SDL_SaveBMP(image,(game_root()/"ncmm"/capture_name).string().c_str());SDL_DestroySurface(image);require(saved,"audit_capture_write_failed");capture_name.clear();}
         const auto present=audit_clock::now();require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr)&&SDL_RenderTexture(renderer,canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"audit_actual_present_failed");graphics_world_frame_presented();
         if(graphics_gpu_frame&&graphics_gpu_engine){const auto m=graphics_gpu_engine->metrics();require(m.active&&!m.cpu_raster_calls,"audit_gpu_used_cpu_raster");resource_peak=std::max(resource_peak,m.resource_bytes);}
@@ -182,7 +184,54 @@
     report.member("tilesets");report.start_array();
     for(size_t ti=0;ti<tilesets.size();++ti){const auto &tileset=tilesets[ti];checkpoint("load_tileset_"+tileset);const auto reload_begin=audit_clock::now();get_options().get_option("TILES").setValue(tileset);tilecontext->load_tileset(tileset,false,true);
         require(tilecontext->is_valid()&&tilecontext->ncmm_graphics_tileset_id()==tileset,"audit_wrong_loaded_tileset");const double reload_ms=milliseconds(reload_begin);floor();
-        report.start_object();report.member("id",tileset);report.member("reload_wall_ms",reload_ms);report.member("actual_loaded_id",tilecontext->ncmm_graphics_tileset_id());report.member("cases");report.start_array();
+        report.start_object();report.member("id",tileset);report.member("reload_wall_ms",reload_ms);report.member("actual_loaded_id",tilecontext->ncmm_graphics_tileset_id());
+        if(viewmodel_gallery){
+            report.member("viewmodel_gallery");report.start_array();
+            const std::vector<std::string> mutations={"FUR","SCALES","CHITIN","CLAWS","WEBBED"};
+            auto gallery=[&](const std::string &name,const std::function<void(const char *)> &setup,int delay=300){
+                for(const char *mode:{"cpu","gpu"}){checkpoint(tileset+"_gallery_"+name+"_"+mode);
+                    if(you.in_vehicle)here.unboard_vehicle(you.pos_bub());you.clear_worn();you.clear_bionics();
+                    for(const auto &id:mutations){const trait_id trait(id);require(trait.is_valid(),"gallery_mutation_id_invalid");if(you.has_trait(trait))you.toggle_trait(trait);}
+                    floor();you.set_wielded_item(item());get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);setup(mode);warm(mode);SDL_Delay(delay);
+                    const std::string stem="gallery-"+std::to_string(ti)+"-"+name+"-"+mode;capture(stem);
+                    require(std::string(mode)!="gpu"||graphics_gpu_frame,"gallery_gpu_fell_back");
+                    report.start_object();report.member("name",name);report.member("renderer",mode);report.member("capture","first-person-audit-"+stem+".bmp");
+                    report.member("width",audit_viewport.x);report.member("height",audit_viewport.y);report.member("internal_width",graphics_hybrid_width);report.member("internal_height",graphics_hybrid_height);
+                    report.member("held",graphics_hybrid_last_environment.held_item);report.member("gun_kind",graphics_presentation.gun_kind);report.member("gunmods",graphics_presentation.gunmods);
+                    report.member("left_glove",graphics_presentation.glove[0]);report.member("right_glove",graphics_presentation.glove[1]);report.member("left_sleeve",graphics_presentation.sleeve[0]);report.member("right_sleeve",graphics_presentation.sleeve[1]);
+                    report.member("hand_features",graphics_presentation.hand_features);report.member("arm_features",graphics_presentation.arm_features);report.member("attack_serial",graphics_attack_serial);report.member("attack_kind",graphics_attack_kind);
+                    report.member("occupied_vehicle",bool(graphics_presentation.occupied_vehicle));report.member("pitch",graphics_camera_pitch);report.member("yaw",graphics_camera_yaw);
+                    const auto m=graphics_gpu_engine?graphics_gpu_engine->metrics():ncmm_gpu_metrics_v1{};
+                    report.member("device",m.device);report.member("backend",m.backend);report.member("software_device",bool(m.software_device));report.member("gpu",graphics_gpu_frame);report.end_object();stream.flush();}}
+            ;
+            auto wield=[&](const char *id){const itype_id type(id);require(type.is_valid(),"gallery_item_id_invalid");you.set_wielded_item(item(type,calendar::turn));};
+            gallery("bare",[&](const char *){});
+            gallery("black_gloves",[&](const char *){require(you.wear_item(item(itype_id("gloves_tactical"),calendar::turn),false).has_value(),"gallery_gloves_failed");});
+            gallery("sleeves",[&](const char *){require(you.wear_item(item(itype_id("jacket_leather"),calendar::turn),false).has_value(),"gallery_sleeves_failed");});
+            for(const auto &entry:std::vector<std::pair<std::string,std::string>>{{"pistol","glock_19"},{"revolver","sw_619"},{"rifle","modular_m27_assault_rifle"},{"shotgun","remington_870"},{"knife","knife_combat"},{"pole","naginata"},{"flashlight","flashlight"},{"umbrella","umbrella"},{"torch","torch"}})
+                gallery(entry.first,[&](const char *){wield(entry.second.c_str());});
+            gallery("rifle_attachments",[&](const char *){wield("modular_m27_assault_rifle");auto held=you.get_wielded_item();
+                for(const char *id:{"rifle_scope","suppressor","grip"})held->force_insert_item(item(itype_id(id),calendar::turn),pocket_type::MOD);});
+            gallery("unarmed_attack",[&](const char *mode){monster *target=g->place_critter_at(mtype_id("mon_zombie"),point_at(-1,-1));require(target,"gallery_punch_target_missing");warm(mode);
+                const auto serial=graphics_attack_serial;you.melee_attack(*target,false);require(graphics_attack_serial>serial&&graphics_attack_kind==1,"gallery_native_punch_missing");},110);
+            gallery("shot_recoil",[&](const char *mode){wield("sw_619");auto gun=you.get_wielded_item();gun->ammo_set(itype_id("38_special"),3);
+                monster *target=g->place_critter_at(mtype_id("mon_zombie"),point_at(0,-4));require(target,"gallery_shot_target_missing");warm(mode);
+                const auto serial=graphics_attack_serial;const int ammo=gun->ammo_remaining();require(you.fire_gun(here,target->pos_bub(),1,*gun)==1&&gun->ammo_remaining()==ammo-1&&graphics_attack_serial>serial&&graphics_attack_kind==2,"gallery_native_shot_missing");},80);
+            gallery("item_switch",[&](const char *mode){wield("knife_combat");warm(mode);SDL_Delay(260);render();wield("modular_m27_assault_rifle");},100);
+            gallery("camera_turn",[&](const char *){wield("glock_19");camera(-.45f,.1f);});
+            gallery("look_up",[&](const char *){wield("glock_19");camera(-ncmm_graphics_camera::pi*.5f,1.f);});
+            gallery("look_down",[&](const char *){wield("glock_19");camera(-ncmm_graphics_camera::pi*.5f,-1.f);});
+            gallery("vehicle",[&](const char *){vehicle *car=here.add_vehicle(vproto_id("car"),point_at(5,-4),0_degrees,100,veh_spawn_status::UNDAMAGED,false);require(car,"gallery_car_missing");bool boarded=false;
+                for(const auto &part:car->get_all_parts())if(part.has_feature("SEAT")&&car->avail_part_with_feature(part.mount_pos(),"CONTROLS")>=0){const auto seat=part.pos_bub(here);you.setpos(here,seat,false);here.board_vehicle(seat,&you);boarded=true;break;}
+                require(boarded&&you.in_vehicle,"gallery_board_failed");wield("glock_19");});
+            gallery("near_wall",[&](const char *){wield("knife_combat");for(int x=-1;x<=1;++x)here.ter_set(point_at(x,-1),ter_id("t_wall"));here.ter_set(point_at(-1,0),ter_id("t_wall"));here.ter_set(point_at(1,0),ter_id("t_wall"));});
+            for(const auto &id:mutations)gallery("mutation_"+id,[&](const char *){you.toggle_trait(trait_id(id));});
+            gallery("bionic",[&](const char *){you.add_bionic(bionic_id("bio_armor_arms"));you.add_bionic(bionic_id("bio_razors"));});
+            if(you.in_vehicle)here.unboard_vehicle(you.pos_bub());you.clear_worn();you.clear_bionics();
+            for(const auto &id:mutations)if(you.has_trait(trait_id(id)))you.toggle_trait(trait_id(id));
+            you.set_wielded_item(item());floor();report.end_array();
+        }
+        report.member("cases");report.start_array();
         for(const auto &name:std::vector<std::string>{"city","dense_smoke","multi_level","creatures_1","creatures_5","creatures_20","creatures_50","creatures_100","large_and_flying","lod_distances","unknown_mod_objects","rotation"}){
             floor();
             if(name=="city"||name=="multi_level")for(int z=0;z<(name=="multi_level"?3:1);++z)for(int y=-20;y<=-4;++y)for(int x=-15;x<=15;++x){const auto p=point_at(x,y,z);here.ter_set(p,ter_id((x%10==0||y%8==0)?"t_wall":"t_floor"));if(x%10==0&&y%8==4)here.ter_set(p,ter_id("t_window"));}

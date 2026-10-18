@@ -1,5 +1,28 @@
 # First Person diagnostics
 
+For 0.13 development, the existing runner also accepts `-MovementBenchmark -Extended`.
+This opt-in matrix records 10 scenes at 640x480, 1280x800, 1768x1084 and 1920x1080,
+on CPU and GPU, with 64 actual native steps and 96 cold/warm turns per record.
+It retains the existing raw exclusive frame phases and move-to-first-ready scope,
+and adds actual internal dimensions, process RSS, static/dynamic geometry uploads,
+draw calls, palette matrices and Host/GPU cache bytes. These counters measure CPU
+preparation/command submission; they are not GPU execution timestamps. A 64-step
+p99 still cannot establish the frequency of very rare stalls.
+
+`-ViewmodelGallery` belongs to the gameplay audit and captures 27 native states
+on both renderers and both tilesets, at a 1280x800 viewport. Garments, mutations,
+CBMs, weapon geometry, boarding and attacks come from the disposable avatar's
+real CDDA state. Attacks must advance the confirmed native serial; no fabricated
+reload/use event is injected. Pair this mode with the exact same instrumented
+Host and game data when comparing an old and a new DLL. Record any mixed source
+components explicitly: this development comparison does not qualify a release.
+For a quick visual pass use `-SoakSeconds 0`; that is deliberately not a long-soak
+qualification and the ordinary long-audit verifier continues to reject it.
+
+The new modes are opt-in only. The standard qualification matrix and normal
+gameplay remain unchanged. All diagnostic environment flags are isolated and
+restored by the existing runner.
+
 The diagnostic runner uses a fresh copy of installation assets. It does not copy player saves or configuration. Game data and the installer Host must have the same supported engine pin. The output directory must be new and outside both source directories. The runner rejects OutputRoot paths longer than 80 characters before copying a game. This conservative harness budget leaves room for encoded avatar names and nested memory archives; it is not an upstream native-save long-path fix. Use a short path such as `C:\ncmm-test\run-1`.
 
 Windows PowerShell 5.1 and PowerShell 7 are supported. Before launch, competing diagnostic environment flags are removed rather than assigned an empty value: native `getenv` treats an empty flag as enabled. The caller's absent, empty or populated environment is restored even when the child fails. `tests/Test-BenchmarkEnvironment.ps1` checks the actual isolation and restoration code without starting the game.
