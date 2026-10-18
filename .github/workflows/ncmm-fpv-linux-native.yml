@@ -2,10 +2,6 @@ name: First Person View - actual Linux Native
 on:
   workflow_dispatch:
   workflow_call:
-  # Temporary trial on the owned integration branch; remove before final qualification.
-  push:
-    branches: [codex/fpv-next-combined-20261019]
-    paths: ['.github/workflows/ncmm-fpv-linux-native.yml']
 permissions:
   contents: read
 jobs:
