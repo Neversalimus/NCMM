@@ -56,6 +56,11 @@ std::optional<texture_draw_data> cata_tiles::get_texture_draw_data( const std::s
     const std::vector<int> *indices = ttype.fg.pick( seed );
 }
 std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids() {}
+bool cata_tiles::draw_sprite_at() {
+    const texture *sprite_tex = tileset_ptr->get_tile( sprite_index );
+    height_3d += tile.height_3d;
+    return true;
+}
 """)
     def fingerprint(self, root):
         return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob("*") if p.is_file()}
@@ -81,6 +86,8 @@ std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids() {}
                 self.assertTrue((root / "first-person-source.json").is_file())
                 self.assertIn("draw_graphics_view", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_requires_terrain_pass", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
+                self.assertIn("tilecontext->ncmm_prepare_perspective(", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
+                self.assertIn(SDL_ANCHOR, (root / "src/sdltiles.cpp").read_text(encoding="utf-8")) # Full native fallback remains available.
                 self.assertIn('if( !printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" ) )', (root / "src/sdl_wrappers.cpp").read_text(encoding="utf-8"))
                 self.assertEqual((root / "src/sdl_wrappers.cpp").read_text(encoding="utf-8").count("ncmm::graphics_frame_presented();"), 1)
                 self.assertIn("graphics_erase( module_id )", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
@@ -90,6 +97,8 @@ std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids() {}
                 tiles = (root / "src/cata_tiles.cpp").read_text(encoding="utf-8")
                 self.assertEqual(tiles.count("if( stable && ttype.animated ) seed = 0;"), 1)
                 self.assertIn("cata_tiles::get_texture_draw_data", tiles)
+                self.assertIn("~restore_flag() { flag = previous; }", tiles)
+                self.assertEqual(tiles.count("if( ncmm_perspective_prepass )"),1)
                 before = self.fingerprint(root)
                 with self.assertRaises(ValueError): bridge.apply(root)
                 self.assertEqual(before, self.fingerprint(root))
@@ -130,6 +139,15 @@ std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids() {}
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);self.fixture(root);path=root/'src/sdl_wrappers.cpp'
             path.write_text(path.read_text().replace('SDL_RenderPresent( renderer.get() )','changed_present( renderer.get() )'))
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
+
+    def test_changed_native_sprite_anchor_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root);path=root/'src/cata_tiles.cpp'
+            path.write_text(path.read_text().replace('tileset_ptr->get_tile( sprite_index )','changed_native_sprite_lookup()'))
             before=self.fingerprint(root)
             with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
                 with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)

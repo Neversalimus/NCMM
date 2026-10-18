@@ -122,8 +122,9 @@ def apply(root: Path):
     sdl = read("sdltiles.cpp")
     anchor = "        tilecontext->draw(\n            point( win->pos.x * fontwidth, win->pos.y * fontheight ),\n            g->ter_view_p,\n            TERRAIN_WINDOW_TERM_WIDTH * font->width,\n            TERRAIN_WINDOW_TERM_HEIGHT * font->height,\n            overlay_strings,\n            color_blocks );"
     updates["sdltiles.cpp"] = replace(sdl, anchor,
-        "        // Keep vanilla visibility, animation and map-memory updates before the perspective overlay.\n"+
-        "        if( ncmm::graphics_requires_terrain_pass() ) {\n"+anchor+"\n        }\n"+
+        "        // Keep vanilla visibility, animation and map memory. The opaque\n"+
+        "        // perspective frame replaces only the hidden 2D sprite submissions.\n"+
+        "        if( ncmm::graphics_requires_terrain_pass() ) {\n"+anchor.replace('tilecontext->draw(', 'tilecontext->ncmm_prepare_perspective(')+"\n        }\n"+
         "        if( !ncmm::draw_graphics_view( win->pos.x * fontwidth, win->pos.y * fontheight,\n"+
         "                TERRAIN_WINDOW_TERM_WIDTH * font->width, TERRAIN_WINDOW_TERM_HEIGHT * font->height ) ) {\n"+
         anchor+"\n        }")
@@ -180,9 +181,33 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     tiles_h = read("cata_tiles.h")
     tiles_declaration = "        std::optional<texture_draw_data> get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p );"
     updates["cata_tiles.h"] = replace(tiles_h, tiles_declaration, tiles_declaration +
+        "\n        void ncmm_prepare_perspective( const point &dest, const tripoint_bub_ms &center, int width, int height,\n"
+        "                std::multimap<point, formatted_text> &overlays, color_block_overlay_container &blocks );\n"
+        "    private:\n        bool ncmm_perspective_prepass = false;\n    public:\n" +
         "\n        std::optional<texture_draw_data> ncmm_get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p, bool background, bool stable = false );\n"
         "        bool ncmm_find_overlay( bool male, const std::string &overlay, const std::string &variant, std::string &id ) { return find_overlay_looks_like( male, overlay, variant, id ); }\n        void ncmm_unbind_gpu_state() { flush_sprite_shader_for_untextured_draw(); }\n        uint64_t ncmm_graphics_epoch = 0;\n        uint64_t ncmm_graphics_tileset_epoch() const { return ncmm_graphics_epoch; }\n        const std::string &ncmm_graphics_tileset_id() const { return tileset_ptr->get_tileset_id(); }")
     tiles_cpp = read("cata_tiles.cpp")
+    sprite_anchor = "    const texture *sprite_tex = tileset_ptr->get_tile( sprite_index );"
+    tiles_cpp = replace(tiles_cpp, sprite_anchor, sprite_anchor +
+        "\n    // The ordinary native layer walk still performs perception, animation,\n"
+        "    // stacking and map memory. Only pixels hidden by the next opaque\n"
+        "    // perspective image omit filtered-texture/shader/sprite submission.\n"
+        "    if( ncmm_perspective_prepass ) {\n"
+        "        height_3d += tile.height_3d;\n        return true;\n    }\n")
+    prepare = """void cata_tiles::ncmm_prepare_perspective( const point &dest, const tripoint_bub_ms &center,
+        int width, int height, std::multimap<point, formatted_text> &overlays,
+        color_block_overlay_container &blocks )
+{
+    struct restore_flag {
+        bool &flag;
+        bool previous;
+        ~restore_flag() { flag = previous; }
+    } restore{ ncmm_perspective_prepass, ncmm_perspective_prepass };
+    ncmm_perspective_prepass = true;
+    draw( dest, center, width, height, overlays, blocks );
+}
+
+"""
     start = tiles_cpp.index("std::optional<texture_draw_data> cata_tiles::get_texture_draw_data(")
     end = tiles_cpp.index("std::unordered_set<std::string> cata_tiles::get_all_portrait_tile_ids", start)
     lookup = tiles_cpp[start:end]
@@ -195,7 +220,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "    if( stable && category == TILE_CATEGORY::MONSTER && std::getenv( \"NCMM_FP_APPEARANCE_SMOKE\" ) ) seed = 0;\n"
         "    const std::vector<int> *indices = background ? ttype.bg.pick( seed ) : ttype.fg.pick( seed );\n"
         "    if( background && !indices ) indices = ttype.fg.pick( seed );")
-    tiles_cpp = tiles_cpp[:start] + lookup + tiles_cpp[start:]
+    tiles_cpp = tiles_cpp[:start] + prepare + lookup + tiles_cpp[start:]
     load_anchor = "                               const bool force, const bool pump_events, const bool terrain )\n{"
     updates["cata_tiles.cpp"] = replace(tiles_cpp, load_anchor, load_anchor + "\n    ++ncmm_graphics_epoch;")
     for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_controls.h", "ncmm_graphics_camera.hpp", "ncmm_graphics_controls.inc", "ncmm_graphics_presentation.h", "ncmm_graphics_presentation_policy.hpp", "ncmm_graphics_presentation.inc", "ncmm_graphics_creatures.h", "ncmm_graphics_creature_policy.hpp", "ncmm_graphics_performance.hpp", "ncmm_graphics_creatures.inc", "ncmm_graphics_creature_smoke.inc", "ncmm_graphics_appearance_smoke.inc", "ncmm_graphics_composite.hpp", "ncmm_graphics_gpu.h", "ncmm_gpu_validation.hpp", "ncmm_gpu_device.hpp", "ncmm_gpu_shader_bytes.hpp", "ncmm_gpu_probe.hpp", "ncmm_gpu_probe_smoke.inc", "ncmm_gpu_game_smoke.inc", "ncmm_gpu_benchmark.inc", "ncmm_gpu_backend.hpp", "ncmm_gpu_geometry.hpp", "ncmm_gpu_programs.hpp", "ncmm_gpu_resources.hpp", "ncmm_graphics_gpu.inc", "ncmm_graphics_effects.inc", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_smoke.inc"):
