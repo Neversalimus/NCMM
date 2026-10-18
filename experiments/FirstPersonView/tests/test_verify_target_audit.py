@@ -33,7 +33,7 @@ class TargetEvidenceTests(unittest.TestCase):
         return next(c for c in self.report['cases'] if c['phase'] == phase)
 
     def test_complete_synthetic_fixture(self):
-        self.assertEqual(self.run_report()['native_cases'], 26)
+        self.assertEqual(self.run_report()['native_cases'], 30)
 
     def test_replacement_cannot_reuse_identity(self):
         self.case('replaced-same-cell')['entity'] = self.case('full')['entity']

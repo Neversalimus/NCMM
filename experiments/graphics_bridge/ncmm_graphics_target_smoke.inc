@@ -2,6 +2,7 @@
 {
     require(get_options().has_option("NCMM_FIRST_PERSON_TARGET_HUD"),"target_hud_setting_missing");
     const bool previous=get_option<bool>("NCMM_FIRST_PERSON_TARGET_HUD");
+    const std::string original_renderer=get_option<std::string>("NCMM_FIRST_PERSON_RENDERER");
     const auto original_time=calendar::turn;
     const bool original_night_vision=you.has_trait(trait_id("DEBUG_NIGHTVISION"));
     struct restore_target_vision {avatar &observer;bool vision;time_point clock;
@@ -19,7 +20,15 @@
             require(value&&!value->is_dead_state(),"target_hud_native_subject_missing");return value;};
         monster *target=spawn_target();Creature *subject=target;camera(-ncmm_graphics_camera::pi*.5f,-.10f);warm(mode);
         auto record=[&](const char *phase,bool selected,bool hostile,int hp=-1,int maximum=-1){
-            render();require(bool(graphics_aim)==selected,"target_hud_native_selection_wrong");
+            checkpoint(std::string("target_hud_")+phase+"_"+mode);
+            render();
+            if(bool(graphics_aim)!=selected){
+                log_line(NCMM_LOG_ERROR,(std::string("Target HUD selection: ")+phase+" renderer="+mode+
+                    " expected="+std::to_string(selected)+" actual="+std::to_string(bool(graphics_aim))+
+                    " native_visible="+std::to_string(you.sees(here,*subject))).c_str());
+                capture(std::string("target-hud-unexpected-")+phase+"-"+mode);
+            }
+            require(bool(graphics_aim)==selected,"target_hud_native_selection_wrong");
             if(selected){require(graphics_aim_reference.entity==subject->ncmm_graphics_entity_id()&&
                 graphics_aim_reference.world==graphics_creature_world_epoch&&graphics_aim_reference.frame==graphics_target_frame_sequence,
                 "target_hud_identity_or_generation_wrong");require(graphics_aim_hostile==hostile,"target_hud_native_attitude_wrong");}
@@ -46,7 +55,13 @@
         record("replaced-same-cell",true,true,target->get_hp(),target->get_hp_max());
         target->set_hp(0);record("dead",false,false);clear_monsters();target=spawn_target();subject=target;
         here.ter_set(blocker,ter_id("t_wall"));record("opaque-wall",false,false);
-        here.ter_set(blocker,ter_id("t_window"));record("glass",true,true,target->get_hp(),target->get_hp_max());
+        // The central wooden mullion is opaque geometry. Aim beside it for
+        // the pane test instead of weakening pixel ownership/occlusion.
+        here.ter_set(blocker,ter_id("t_window"));record("window-mullion",false,false);
+        camera(-ncmm_graphics_camera::pi*.5f+.03f,-.10f);
+        record("glass",true,true,target->get_hp(),target->get_hp_max());
+        camera(-ncmm_graphics_camera::pi*.5f,-.10f);
+        here.ter_set(blocker,ter_id("t_reinforced_glass"));record("full-height-glass",true,true,target->get_hp(),target->get_hp_max());
         here.ter_set(blocker,ter_id("t_floor"));target->friendly=-1;record("friendly-name-only",true,false);
         target->friendly=0;calendar::turn=original_time+12_hours;record("night",true,true,target->get_hp(),target->get_hp_max());calendar::turn=original_time;
         camera(ncmm_graphics_camera::pi*.5f,-.10f);record("lost-aim",false,false);
@@ -60,5 +75,5 @@
         require(!graphics_view.enabled&&!graphics_aim&&graphics_aim_name.empty()&&!graphics_draw(0,0,640,480),"target_hud_survived_explicit_2d_switch");
         press_f6();ncmm::graphics_note_input_context("DEFAULTMODE");
     }
-    target_report.end_array();target_report.member("success",true);target_report.end_object();target_stream.flush();floor();
+    target_report.end_array();target_report.member("success",true);target_report.end_object();target_stream.flush();floor();warm(original_renderer.c_str());
 }

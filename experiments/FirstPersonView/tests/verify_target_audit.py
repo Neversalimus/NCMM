@@ -9,8 +9,8 @@ import struct
 
 
 PHASES = {'full', 'damaged', 'cyrillic-long', 'disabled-name-only', 'replaced-same-cell',
-          'dead', 'opaque-wall', 'glass', 'friendly-name-only', 'lost-aim', 'night', 'npc-native-summary', 'npc-damaged'}
-HIDDEN = {'dead', 'opaque-wall', 'lost-aim'}
+          'dead', 'opaque-wall', 'window-mullion', 'glass', 'full-height-glass', 'friendly-name-only', 'lost-aim', 'night', 'npc-native-summary', 'npc-damaged'}
+HIDDEN = {'dead', 'opaque-wall', 'window-mullion', 'lost-aim'}
 
 
 def verify(root):
