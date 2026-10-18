@@ -165,6 +165,9 @@ struct graphics_fire_capture_state {
     std::string native_command;
     std::vector<graphics_fire_frame> frames;
 } graphics_fire_capture;
+// Only the opt-in scripted native test reads this from its SDL event worker.
+// No game object or non-atomic capture field is read off the native thread.
+std::atomic<uint32_t> graphics_fire_input_context{0};
 void graphics_capture_before_present()
 {
     if(!graphics_fire_capture.active)return;
