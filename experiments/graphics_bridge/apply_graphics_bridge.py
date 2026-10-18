@@ -147,7 +147,7 @@ void initialize();''')
         '    ncmm::graphics_note_input_result( category, *result );\n    return *result;')
     updates["input_context.cpp"] = replace(updates["input_context.cpp"],
         '        next_action = inp_mngr.get_input_event( preferred_keyboard_mode );',
-        '        ncmm::graphics_note_input_wait( category );\n        next_action = inp_mngr.get_input_event( preferred_keyboard_mode );')
+        '        ncmm::graphics_note_input_wait( category, input_manager::actual_keyboard_mode( preferred_keyboard_mode ) == keyboard_mode::keychar );\n        next_action = inp_mngr.get_input_event( preferred_keyboard_mode );')
     sdl = read("sdltiles.cpp")
     anchor = "        tilecontext->draw(\n            point( win->pos.x * fontwidth, win->pos.y * fontheight ),\n            g->ter_view_p,\n            TERRAIN_WINDOW_TERM_WIDTH * font->width,\n            TERRAIN_WINDOW_TERM_HEIGHT * font->height,\n            overlay_strings,\n            color_blocks );"
     updates["sdltiles.cpp"] = replace(sdl, anchor,
@@ -262,15 +262,15 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         '    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_GPU_ID ) {')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
         "bool graphics_requires_terrain_pass()\n{",
-        "void graphics_note_input_wait( const std::string &category )\n{\n#if defined(TILES)\n"
-        "    if( graphics_fire_capture.active ) graphics_fire_input_context.store( category == \"DEFAULTMODE\" ? 1u : category == \"TARGET\" ? 2u : 3u );\n"
-        "#else\n    (void)category;\n#endif\n}\n"
+        "void graphics_note_input_wait( const std::string &category, bool text )\n{\n#if defined(TILES)\n"
+        "    if( graphics_fire_capture.active ) graphics_fire_input_context.store( (category == \"DEFAULTMODE\" ? 1u : category == \"TARGET\" ? 2u : 3u) | (text ? 4u : 0u) );\n"
+        "#else\n    (void)category; (void)text;\n#endif\n}\n"
         "void graphics_note_input_result( const std::string &category, const std::string &action )\n{\n#if defined(TILES)\n"
-        "    if( graphics_fire_capture.active ) graphics_fire_input_context.store( 0 );\n"
+        "    const auto waiting = graphics_fire_capture.active ? graphics_fire_input_context.exchange( 0 ) : 0u;\n"
         "    if( graphics_fire_capture.active && action != \"TIMEOUT\" ) {\n"
         "        std::ofstream journal( game_root() / \"ncmm\" / \"first-person-fire-inputs.jsonl\", std::ios::app );\n"
         "        JsonOut out( journal ); out.start_object(); out.member( \"ticks\", SDL_GetTicks() );\n"
-        "        out.member( \"category\", category ); out.member( \"action\", action ); out.end_object(); journal << '\\n';\n    }\n"
+        "        out.member( \"category\", category ); out.member( \"action\", action ); out.member( \"text_input\", bool(waiting & 4u) ); out.end_object(); journal << '\\n';\n    }\n"
         "    if( graphics_fire_capture.active && category == \"DEFAULTMODE\" && action != \"TIMEOUT\" ) {\n"
         "        graphics_fire_capture.native_command = action; ++graphics_fire_capture.native_command_sequence;\n    }\n"
         "#else\n    (void)category; (void)action;\n#endif\n}\n"
@@ -284,7 +284,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "bool graphics_requires_terrain_pass()\n{")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "class input_context;", "class map;\nclass input_context;")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();",
-        "void graphics_note_input_wait( const std::string & );\nvoid graphics_note_input_result( const std::string &, const std::string & );\nvoid graphics_note_terrain_composed( bool perspective );\nvoid graphics_world_changed( const map *, int z );\nvoid initialize();")
+        "void graphics_note_input_wait( const std::string &, bool text );\nvoid graphics_note_input_result( const std::string &, const std::string & );\nvoid graphics_note_terrain_composed( bool perspective );\nvoid graphics_world_changed( const map *, int z );\nvoid initialize();")
     updates["game.h"]=replace(read("game.h"), "        bool save();",
         "        bool save();\n"
         "        // Isolated qualification gateway; not part of a module API.\n"
