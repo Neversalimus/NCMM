@@ -11,6 +11,14 @@ struct graphics_view_state {
 };
 graphics_view_state graphics_view;
 ncmm_graphics_context::state graphics_context;
+ncmm_graphics_snapshot::input_lease graphics_snapshot_lease;
+ncmm_graphics_snapshot::cache graphics_camera_cache;
+void graphics_snapshot_external_callback(const char *module_id)
+{
+    // Other modules may change items/actors even without advancing calendar::turn.
+    // Never assume their UI callbacks are read-only or change their behaviour.
+    if(!module_id||graphics_view.owner!=module_id){graphics_snapshot_lease.invalidate();graphics_camera_cache.suspend();}
+}
 bool &graphics_gameplay_context = graphics_context.perspective;
 // Set only by the opt-in native firing audit to reproduce the original policy.
 bool graphics_fire_audit_legacy_context = false;

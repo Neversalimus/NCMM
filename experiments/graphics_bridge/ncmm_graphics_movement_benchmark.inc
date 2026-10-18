@@ -82,16 +82,20 @@
             std::vector<uint64_t> frame_upload_capacity,frame_upload_creations;
             std::vector<double> cell_prepare_ms;
             std::vector<uint64_t> cell_upload_bytes,cell_cache_bytes;
+            std::vector<uint64_t> snapshot_hits,snapshot_empty_hits,snapshot_detail_hits,snapshot_presentation_hits,snapshot_misses,snapshot_bytes,snapshot_generations,snapshot_verification_checks;
             bool thread_cpu_available=true;
             std::vector<uint32_t> renderers;uint64_t cache_peak=0;
             std::vector<uint64_t> uploads,static_uploads,dynamic_geometry,draw_calls,bones,held_bones,resource_bytes,host_bytes,rss;
             uint32_t actual_width=0,actual_height=0,attacks=0;
             auto render=[&](bool measured){const auto begin=clock::now();const auto pos=you.pos_abs();const auto moves=you.get_moves();
+                const auto snapshot_before=graphics_camera_cache.totals;
                 const double thread_begin=extended?ncmm_graphics_performance::thread_cpu_seconds():-1;
                 const double process_begin=extended?ncmm_graphics_performance::cpu_seconds():0;
                 if(extended){graphics_sprite_readbacks.attempts=0;graphics_sprite_readbacks.ms=0;}
                 std::multimap<point,formatted_text> overlays;color_block_overlay_container blocks;
+                ncmm_graphics_trace::cpu_zone native_tiles_zone("Native 2D");
                 tilecontext->draw(point::zero,you.pos_bub(),viewport.x,viewport.y,overlays,blocks);
+                native_tiles_zone.stop();
                 const double native_tiles_wall=elapsed(begin);
                 const auto perspective_begin=clock::now();
                 require(SDL_SetRenderTarget(renderer,guard.canvas)&&SDL_SetRenderLogicalPresentation(renderer,0,0,SDL_LOGICAL_PRESENTATION_DISABLED)&&SDL_SetRenderScale(renderer,1,1)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"movement_canvas_rebind_failed");
@@ -99,12 +103,20 @@
                 require(graphics_draw(0,0,viewport.x,viewport.y),"movement_render_failed");
                 if(std::string(mode)=="gpu")require(graphics_gpu_frame,"movement_gpu_frame_fell_back");
                 const double perspective_wall=elapsed(perspective_begin);const auto present_begin=clock::now();
+                ncmm_graphics_trace::cpu_zone present_zone("Present");
                 require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr)&&SDL_RenderTexture(renderer,guard.canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"movement_present_failed");graphics_world_frame_presented();++frames;
+                present_zone.stop();
                 const double present_wall=elapsed(present_begin);
                 const double thread_end=extended?ncmm_graphics_performance::thread_cpu_seconds():-1;
                 const double process_end=extended?ncmm_graphics_performance::cpu_seconds():0;
                 require(you.pos_abs()==pos&&you.get_moves()==moves&&calendar::turn==original_time,"movement_renderer_changed_simulation");
                 if(measured){const double wall=elapsed(begin);const double accounted=native_tiles_wall+perspective_wall+present_wall;
+                    const auto &snapshot_after=graphics_camera_cache.totals;
+                    snapshot_hits.push_back(snapshot_after.hits-snapshot_before.hits);snapshot_empty_hits.push_back(snapshot_after.empty_hits-snapshot_before.empty_hits);
+                    snapshot_detail_hits.push_back(snapshot_after.detail_hits-snapshot_before.detail_hits);snapshot_presentation_hits.push_back(snapshot_after.presentation_hits-snapshot_before.presentation_hits);
+                    snapshot_misses.push_back(snapshot_after.misses-snapshot_before.misses);snapshot_generations.push_back(snapshot_after.generations);snapshot_bytes.push_back(graphics_camera_cache.bytes());
+                    snapshot_verification_checks.push_back(snapshot_after.verification_checks-snapshot_before.verification_checks);
+                    require(snapshot_after.verification_mismatches==0,"movement_native_snapshot_differential_failed");
                     require(accounted<=wall+.001,"movement_phase_accounting_overlaps");
                     frame_ms.push_back(wall);native_tiles_ms.push_back(native_tiles_wall);perspective_ms.push_back(perspective_wall);present_ms.push_back(present_wall);unattributed_ms.push_back(std::max(0.0,wall-accounted));
                     extract_ms.push_back(graphics_snapshot_ms);callback_ms.push_back(graphics_callback_ms);visibility_ms.push_back(graphics_world_metrics.visibility_ms);renderers.push_back(graphics_gpu_frame?1u:0u);cache_peak=std::max(cache_peak,graphics_world_metrics.source_cache_bytes);
@@ -129,6 +141,11 @@
             const std::string capture="first-person-movement-"+std::string(scene)+"-"+std::to_string(viewport.x)+"-"+mode+".bmp";
             require(SDL_SetRenderTarget(renderer,guard.canvas),"movement_capture_target_failed");auto *image=SDL_RenderReadPixels(renderer,nullptr);require(image,"movement_capture_failed");
             const bool saved=SDL_SaveBMP(image,(game_root()/"ncmm"/capture).string().c_str());SDL_DestroySurface(image);require(saved,"movement_capture_write_failed");
+            {
+            // Controlled immutable native fixture, using the same lease as the
+            // normal input loop. No simulation mutation occurs in these turns.
+            const auto token=graphics_snapshot_lease.begin("DEFAULTMODE");
+            struct snapshot_input_guard {uint64_t token;~snapshot_input_guard(){graphics_snapshot_lease.end(token,"");graphics_camera_cache.suspend();}} input_guard{token};
             for(int cycle=0;cycle<2;++cycle){
                 progress(std::string("movement_")+scene+"_"+std::to_string(viewport.x)+"_"+mode+(cycle?"_warm_turns":"_cold_turns"));
                 for(int n=0;n<rotations;++n){const auto begin=clock::now();
@@ -140,6 +157,7 @@
                     g->ter_view_p=you.pos_bub();here.build_map_cache(you.posz());here.update_visibility_cache(you.posz());render(true);
                     (cycle?warm_turn_ms:cold_turn_ms).push_back(elapsed(begin));
                 }
+            }
             }
             graphics_mouse_dx=std::remainder(-ncmm_graphics_camera::pi*.5f-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;
             graphics_mouse_dy=(graphics_camera_pitch+.08f)/.003f;require(graphics_action("ncmm.view.mouse_look"),"movement_reset_camera_failed");graphics_mouse_dx=graphics_mouse_dy=0;render(false);
@@ -155,6 +173,12 @@
             }
             const auto gpu_stats=graphics_gpu_frame&&graphics_gpu_engine?graphics_gpu_engine->metrics():ncmm_gpu_metrics_v1{};
             report.start_object();report.member("scene",scene);report.member("renderer",mode);report.member("width",viewport.x);report.member("height",viewport.y);
+            report.member("camera_snapshot_fixture_lease",true);
+            report.member("camera_snapshot_hits",snapshot_hits);report.member("camera_snapshot_empty_hits",snapshot_empty_hits);
+            report.member("camera_snapshot_detail_hits",snapshot_detail_hits);report.member("camera_snapshot_presentation_hits",snapshot_presentation_hits);
+            report.member("camera_snapshot_misses",snapshot_misses);report.member("camera_snapshot_bytes",snapshot_bytes);report.member("camera_snapshot_generations",snapshot_generations);
+            report.member("camera_snapshot_verification_checks",snapshot_verification_checks);
+            report.member("camera_snapshot_verification_mismatches",graphics_camera_cache.totals.verification_mismatches);
             report.member("tileset",get_option<std::string>("TILES"));
             report.member("native_steps",steps);report.member("first_ready_samples_ms",first_ms);report.member("easing_frame_samples_ms",easing_ms);report.member("frame_samples_ms",frame_ms);report.member("visibility_samples_ms",visibility_ms);report.member("frame_renderers_gpu",renderers);
             if(extended){report.member("extended_matrix",true);report.member("internal_width",actual_width);report.member("internal_height",actual_height);report.member("native_confirmed_attacks",attacks);report.member("native_weather_id",get_weather().weather_id.str());

@@ -153,6 +153,13 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
     for( size_t i=0; i<base.cell_count; ++i ) {
         if( !( base.cells[i].flags&NCMM_GFX_VISIBLE ) ) continue;
         auto &d=graphics_presentation_cells[i]; const auto &pos=positions[i];
+        auto *owned=world?graphics_camera_cache.find(world->coordinates[i].x,world->coordinates[i].y,world->coordinates[i].z):nullptr;
+        if(owned&&owned->presentation_ready&&!graphics_camera_cache.verify){d=owned->presentation;++graphics_camera_cache.totals.presentation_hits;continue;}
+        struct store_presentation {
+            ncmm_graphics_snapshot::entry *owned;ncmm_graphics_snapshot::cache &cache;ncmm_graphics_detail_v1 &value;
+            ~store_presentation(){if(!owned)return;if(owned->presentation_ready&&cache.verify){++cache.totals.verification_checks;if(std::memcmp(&owned->presentation,&value,sizeof(value)))++cache.totals.verification_mismatches;}
+                owned->presentation=value;owned->presentation_ready=true;}
+        } save_presentation{owned,graphics_camera_cache,d};
         if(world&&!(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)){
             d.terrain_material=material_for((world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE)?std::string_view(here.ter(pos).id().str()):std::string_view(base.cells[i].terrain));continue;
         }

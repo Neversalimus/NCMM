@@ -33,6 +33,10 @@ def apply(root: Path):
     event_helper = "\nvoid runtime_player_kill_notify()\n{\n    dispatch_event_v2( NCMM_EVENT_PLAYER_KILL_V2 );\n}\n"
     if loader.replace(event_helper, "") != (repo / "host_patch/ncmm_loader.cpp").read_text(encoding="utf-8-sig"):
         raise ValueError("Apply the current canonical NCMM Host first; loader identity differs")
+    loader = replace(loader, 'class module_call_scope\n{',
+        'void graphics_snapshot_external_callback( const char *module_id );\nclass module_call_scope\n{')
+    loader = replace(loader, '            active_module_id = module_id ? module_id : "";',
+        '            graphics_snapshot_external_callback( module_id );\n            active_module_id = module_id ? module_id : "";')
     # Keep the preview fixture independent of random quickstart enchantments.
     loader = replace(loader, '#include "mapdata.h"\n', '#include "mapdata.h"\n#include "magic_enchantment.h"\n')
     loader = replace(loader, '        const size_t suspension = find_perk_index( "mom_telekinetic_suspension" );\n        const auto suspension_fail = [&]() {\n            write_gameplay_smoke_result( false, "telekinetic_suspension_encumbrance",\n                                         aws_setting_count, aws_hook_count, survivor_perk_count );\n            return 153;\n        };\n        if( suspension >= survivor_perk_count || perk_max_rank( suspension ) != 3 ) {\n            return suspension_fail();\n        }\n        npc encumbrance_npc;\n        const auto body_parts = get_avatar().get_all_body_parts();\n        if( body_parts.empty() ) return suspension_fail();\n        for( int rank : { 0, 1, 2, 3, 0 } ) {\n            if( !perk_set_rank( suspension, rank ) || !perk_recalc() ||\n                std::abs( gameplay_modifier( "encumbrance_pct" ) + 5.0 * rank ) > 0.000001 ) {\n                return suspension_fail();\n            }\n            for( int base : { 0, 1, 7, 20, 40, 100 } ) {\n                encumbrance_data fixture;\n                fixture.encumbrance = base;\n                for( const bodypart_id &bp : body_parts ) {\n                    get_avatar().set_part_encumbrance_data( bp, fixture );\n                    const int expected = ( base * ( 100 - 5 * rank ) + 50 ) / 100;\n                    // Both action accessor and direct limb-score consumer, twice:\n                    // no stale equipment cache or repeated multiplicative reduction.\n                    for( int repeat = 0; repeat < 2; ++repeat ) {\n                        if( get_avatar().encumb( bp ) != expected ||\n                            get_avatar().get_part( bp )->get_final_encumbrance( get_avatar() ) != expected ) {\n                            return suspension_fail();\n                        }\n                    }\n                    if( encumbrance_npc.has_part( bp ) ) {\n                        encumbrance_npc.set_part_encumbrance_data( bp, fixture );\n                        if( encumbrance_npc.encumb( bp ) != base ) return suspension_fail();\n                    }\n                }\n            }\n        }\n        get_avatar().calc_encumbrance();\n        if( !perk_reset() || !perk_recalc() ) return suspension_fail();\n        log_line( NCMM_LOG_INFO, "Telekinetic Suspension: all body parts, ranks 0/1/2/3/reset, rounding and NPC isolation PASS." );\n\n',
@@ -79,7 +83,7 @@ def apply(root: Path):
         '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CREATURES_ID ) {\n        return min_major <= 1 && min_minor == 0 ? &graphics_creatures_api : nullptr;\n    }\n    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_PRESENTATION_ID ) {')
     loader = replace(loader, "bool graphics_requires_terrain_pass()\n{", "void graphics_note_creature( Creature *who, uint32_t event, float heading )\n{\n#if defined(TILES)\n    graphics_notify_creature( who, event, heading );\n#else\n    (void)who; (void)event; (void)heading;\n#endif\n}\nbool graphics_requires_terrain_pass()\n{")
     loader = replace(loader, '#include "ncmm_graphics_camera.hpp"',
-                     '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_context.hpp"\n#if defined(TILES)\n#include <SDL3_image/SDL_image.h>\n#endif')
+                     '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_context.hpp"\n#include "ncmm_graphics_snapshot_cache.hpp"\n#include "ncmm_graphics_trace.hpp"\n#if defined(TILES)\n#include <SDL3_image/SDL_image.h>\n#endif')
     loader = replace(loader, '    const bool gameplay = ncmm_graphics_shapes::stays_perspective( category );\n    if( gameplay != graphics_gameplay_context && g ) g->invalidate_main_ui_adaptor();\n    graphics_gameplay_context = gameplay;\n    graphics_control_context = category == "DEFAULTMODE";',
                      '    const bool previous = graphics_gameplay_context;\n    graphics_context.note( category );\n    if( previous != graphics_gameplay_context && g ) g->invalidate_main_ui_adaptor();')
     loader = replace(loader, '    graphics_gameplay_context = false;',
@@ -117,6 +121,10 @@ void initialize();''')
     action_anchor = "    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {\n        player_character.clear_destination();\n        destination_preview.clear();\n        return false;\n    }"
     updates["handle_action.cpp"] = replace(action, action_anchor,
         "    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {\n        if( !ncmm::graphics_preserves_destination( action ) ) {\n            player_character.clear_destination();\n            destination_preview.clear();\n        }\n        return false;\n    }")
+    updates["handle_action.cpp"] = replace(updates["handle_action.cpp"],
+        '    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {',
+        '    ncmm_graphics_trace::cpu_zone ncmm_action_zone( "Native Update" );\n    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {')
+    updates["handle_action.cpp"] = '#include "ncmm_graphics_trace.hpp"\n'+updates["handle_action.cpp"]
     updates["handle_action.cpp"] = replace(updates["handle_action.cpp"], "    if( act == ACTION_NULL ) {\n        act = look_up_action( action );", "    if( act == ACTION_NULL ) {\n        action = ncmm::graphics_relative_action( action, ctxt.get_raw_input(), veh_ctrl );\n        act = look_up_action( action );")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", "std::string graphics_click_action();\nbool graphics_consume_aimed_fire(int x,int y,int z);\nvoid initialize();")
     updates["handle_action.cpp"] = replace(updates["handle_action.cpp"], "        if( act == ACTION_SELECT || act == ACTION_SEC_SELECT ) {",
@@ -143,6 +151,16 @@ void initialize();''')
     context = replace(context, '#include "input_context.h"', '#include "input_context.h"\n#include "ncmm_loader.h"')
     updates["input_context.cpp"] = replace(context, "const std::string &input_context::handle_input( const int timeout )\n{",
         "const std::string &input_context::handle_input( const int timeout )\n{\n    ncmm::graphics_note_input_context( category );")
+    updates["input_context.cpp"] = replace(updates["input_context.cpp"],
+        '    ncmm::graphics_note_input_context( category );',
+        '    ncmm::graphics_note_input_context( category );\n    ncmm::graphics_input_wait_scope ncmm_wait( category );')
+    updates["input_context.cpp"] = '#include "ncmm_graphics_trace.hpp"\n'+updates["input_context.cpp"]
+    updates["input_context.cpp"] = replace(updates["input_context.cpp"],
+        '    ncmm::graphics_input_wait_scope ncmm_wait( category );',
+        '    ncmm::graphics_input_wait_scope ncmm_wait( category );\n    ncmm_graphics_trace::cpu_zone ncmm_input_zone( "Input Wait" );')
+    updates["input_context.cpp"] = replace(updates["input_context.cpp"],
+        '    inp_mngr.set_timeout( old_timeout );\n    return *result;',
+        '    inp_mngr.set_timeout( old_timeout );\n    ncmm_wait.completed( *result );\n    return *result;')
     sdl = read("sdltiles.cpp")
     anchor = "        tilecontext->draw(\n            point( win->pos.x * fontwidth, win->pos.y * fontheight ),\n            g->ter_view_p,\n            TERRAIN_WINDOW_TERM_WIDTH * font->width,\n            TERRAIN_WINDOW_TERM_HEIGHT * font->height,\n            overlay_strings,\n            color_blocks );"
     updates["sdltiles.cpp"] = replace(sdl, anchor,
@@ -156,6 +174,10 @@ void initialize();''')
     updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"],
         '        if( !ncmm::draw_graphics_view( win->pos.x * fontwidth, win->pos.y * fontheight,\n                TERRAIN_WINDOW_TERM_WIDTH * font->width, TERRAIN_WINDOW_TERM_HEIGHT * font->height ) && !ncmm_native_pixels_ready ) {',
         '        const bool ncmm_perspective_drawn = ncmm::draw_graphics_view( win->pos.x * fontwidth, win->pos.y * fontheight,\n                TERRAIN_WINDOW_TERM_WIDTH * font->width, TERRAIN_WINDOW_TERM_HEIGHT * font->height );\n        ncmm::graphics_note_terrain_composed( ncmm_perspective_drawn );\n        if( !ncmm_perspective_drawn && !ncmm_native_pixels_ready ) {')
+    if updates["sdltiles.cpp"].count(anchor) != 2:
+        raise ValueError("expected exactly two complete native tile paths")
+    updates["sdltiles.cpp"] = '#include "ncmm_graphics_trace.hpp"\n'+updates["sdltiles.cpp"].replace(anchor,
+        '        {\n        ncmm_graphics_trace::cpu_zone ncmm_tiles_zone( "Native 2D" );\n'+anchor+'\n        }')
     updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"], "static void CheckMessages()\n{", "static void CheckMessages()\n{\n    // Presentation redraws never return a gameplay TIMEOUT or advance a turn.\n    if( ncmm::graphics_animation_redraw_due() ) {\n        ui_manager::redraw_invalidated();\n        if( needupdate ) refresh_display();\n    }")
     wrappers = replace(read("sdl_wrappers.cpp"), '#include "sdl_wrappers.h"',
         '#include "sdl_wrappers.h"\n// Private presentation hooks; no shared engine header or module ABI change.\nnamespace ncmm { void graphics_frame_presented(); void graphics_before_present(); }')
@@ -163,6 +185,9 @@ void initialize();''')
         '    printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" );',
         '    ncmm::graphics_before_present();\n    if( !printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" ) ) {\n'
         '        ncmm::graphics_frame_presented();\n    }')
+    updates["sdl_wrappers.cpp"] = '#include "ncmm_graphics_trace.hpp"\n'+updates["sdl_wrappers.cpp"]
+    updates["sdl_wrappers.cpp"] = replace(updates["sdl_wrappers.cpp"], '    ncmm::graphics_before_present();',
+        '    ncmm_graphics_trace::cpu_zone ncmm_present_zone( "Present" );\n    ncmm::graphics_before_present();')
     # Every renderer teardown, including recovery and native test fixtures,
     # releases our children while the borrowed device is still alive.
     renderer_resets = updates["sdltiles.cpp"].count("renderer.reset();")
@@ -247,6 +272,8 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "void graphics_before_present()\n{\n#if defined(TILES)\n    graphics_capture_before_present();\n#endif\n}\n"
         "void graphics_world_changed( const map *source, int z )\n{\n"
         "    graphics_world_changed_impl( source, z );\n}\n"
+        "uint64_t graphics_input_wait_begin( const std::string &category )\n{\n    return graphics_snapshot_lease.begin( category );\n}\n"
+        "void graphics_input_wait_end( uint64_t token, const std::string &action )\n{\n    graphics_snapshot_lease.end( token, action );\n    graphics_camera_cache.suspend();\n}\n"
         "void graphics_frame_presented()\n{\n#if defined(TILES)\n"
         "    if( graphics_fire_capture.active && !graphics_fire_capture.frames.empty() ) graphics_fire_capture.frames.back().presented = true;\n"
         "    graphics_world_frame_presented();\n#endif\n}\n"
@@ -254,6 +281,20 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "class input_context;", "class map;\nclass input_context;")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();",
         "void graphics_note_terrain_composed( bool perspective );\nvoid graphics_world_changed( const map *, int z );\nvoid initialize();")
+    updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", '''// Main-thread input lifetime only; existing public module headers are unchanged.
+uint64_t graphics_input_wait_begin( const std::string &category );
+void graphics_input_wait_end( uint64_t token, const std::string &action );
+class graphics_input_wait_scope {
+    uint64_t token_;
+    std::string action_;
+public:
+    explicit graphics_input_wait_scope( const std::string &category ) : token_( graphics_input_wait_begin( category ) ) {}
+    ~graphics_input_wait_scope() { graphics_input_wait_end( token_, action_ ); }
+    void completed( const std::string &action ) { action_ = action; }
+    graphics_input_wait_scope( const graphics_input_wait_scope & ) = delete;
+    graphics_input_wait_scope &operator=( const graphics_input_wait_scope & ) = delete;
+};
+void initialize();''')
     updates["game.h"]=replace(read("game.h"), "        bool save();",
         "        bool save();\n"
         "        // Isolated qualification gateway; not part of a module API.\n"
@@ -292,13 +333,24 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     ):
         map_cpp=replace(map_cpp, signature+"\n{", signature+"\n{\n    ncmm::graphics_world_changed( this, "+level+" );")
     updates["map.cpp"]=map_cpp
-    for name in ("ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc"):
+    for name in ("ncmm_graphics_trace.hpp","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")
+    nvtx = bridge / "third_party/nvtx3"
+    nvtx_manifest = json.loads((nvtx / "manifest.json").read_text(encoding="utf-8"))
+    for record in nvtx_manifest["files"]:
+        name = "third_party/nvtx3/" + record["path"]
+        path = nvtx / record["path"]
+        if not path.resolve().is_relative_to(nvtx.resolve()) or hashlib.sha256(path.read_bytes()).hexdigest() != record["sha256"]:
+            raise ValueError("NVTX core source identity differs")
+        if (root / "src" / name).exists():
+            raise ValueError("Experimental source already exists: " + name)
+        updates[name] = path.read_text(encoding="utf-8")
 
     # No writes above this line. No save/installation/feed/catalog changes.
     for name, content in updates.items():
+        (root / "src" / name).parent.mkdir(parents=True,exist_ok=True)
         (root / "src" / name).write_text(content, encoding="utf-8", newline="\n")
     evidence = {"status": "experimental-not-certified", "source_commit": identity, "tag": SOURCES[identity],
         "inputs": {name: hashlib.sha256(content.encode()).hexdigest() for name, content in updates.items()}}

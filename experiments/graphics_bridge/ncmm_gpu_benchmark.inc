@@ -89,7 +89,8 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
                 double native_tiles_wall_ms=0,perspective_wall_ms=0,present_wall_ms=0;
                 auto render=[&](){require(SDL_SetRenderTarget(renderer,canvas)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"gpu_benchmark_viewport_failed");
                     const auto tiles_begin=benchmark_clock::now();
-                    std::multimap<point,formatted_text> overlays;color_block_overlay_container blocks;tilecontext->draw(point::zero,you.pos_bub(),resolution.x,resolution.y,overlays,blocks);
+                    std::multimap<point,formatted_text> overlays;color_block_overlay_container blocks;
+                    {ncmm_graphics_trace::cpu_zone native_tiles_zone("Native 2D");tilecontext->draw(point::zero,you.pos_bub(),resolution.x,resolution.y,overlays,blocks);}
                     native_tiles_wall_ms=elapsed(tiles_begin);
                     // cata_tiles::draw owns a display_buffer_draw_scope: it binds
                     // the game's display buffer and detaches to the window on
@@ -100,7 +101,7 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
                     const auto perspective_begin=benchmark_clock::now();
                     require(graphics_draw(0,0,resolution.x,resolution.y),"gpu_benchmark_game_render_failed");perspective_wall_ms=elapsed(perspective_begin);++frames;};
                 auto present=[&](){const auto present_begin=benchmark_clock::now();require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"gpu_benchmark_window_target_failed");
-                    require(SDL_RenderTexture(renderer,canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"gpu_benchmark_real_window_present_failed");
+                    {ncmm_graphics_trace::cpu_zone present_zone("Present");require(SDL_RenderTexture(renderer,canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"gpu_benchmark_real_window_present_failed");}
                     graphics_world_frame_presented();present_wall_ms=elapsed(present_begin);};
                 const auto cold=benchmark_clock::now();bool ready=false;std::vector<double> warming_samples;
                 for(int attempt=0;attempt<180;++attempt){const auto warm_begin=benchmark_clock::now();render();present();

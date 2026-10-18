@@ -337,6 +337,7 @@ uint32_t graphics_structure_connections(const tripoint_bub_ms &p,uint32_t shape,
 bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector<tripoint_bub_ms> &positions, int x, int y,
                            ncmm_graphics_multilevel_scene_v1 *world=nullptr,const std::vector<std::array<float,3>> *facade_lights=nullptr )
 {
+    ncmm_graphics_trace::cpu_zone snapshot_zone("Snapshot");
     avatar &you = get_avatar(); map &here = get_map();
     std::vector<ncmm_graphics_cell_v2> details( base.cell_count );
     std::map<const vehicle *, uint32_t> groups;
@@ -354,6 +355,22 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     for( size_t i = 0; i < base.cell_count; ++i ) {
         if( !( base.cells[i].flags & NCMM_GFX_VISIBLE ) ) continue;
         const auto &p = positions[i]; auto &d = details[i];
+        auto *owned=world?graphics_camera_cache.find(world->coordinates[i].x,world->coordinates[i].y,world->coordinates[i].z):nullptr;
+        if(owned&&owned->detail_ready&&!graphics_camera_cache.verify){
+            d=owned->detail;++graphics_camera_cache.totals.detail_hits;
+            if(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE){
+                ++graphics_hybrid_shape_counts[d.terrain_shape];
+                if(base.cells[i].furniture[0])++graphics_hybrid_shape_counts[d.furniture_shape];
+                if(owned->has_source_light)++graphics_hybrid_light_cells;
+                if(std::max({d.light_r,d.light_g,d.light_b})-std::min({d.light_r,d.light_g,d.light_b})>.05f)++graphics_hybrid_colored_cells;
+            }
+            continue;
+        }
+        struct store_detail {
+            ncmm_graphics_snapshot::entry *owned;ncmm_graphics_snapshot::cache &cache;ncmm_graphics_cell_v2 &value;
+            ~store_detail(){if(!owned)return;if(owned->detail_ready&&cache.verify){++cache.totals.verification_checks;if(std::memcmp(&owned->detail,&value,sizeof(value)))++cache.totals.verification_mismatches;}
+                owned->detail=value;owned->detail_ready=true;}
+        } save_detail{owned,graphics_camera_cache,d};
         const ter_t &ter = here.ter( p ).obj(); const furn_t &furn = here.furn( p ).obj();
         if(world&&!(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)){
             d.terrain_shape=d.furniture_shape=NCMM_SHAPE_FLAT;
@@ -398,6 +415,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         if( std::max( { d.light_r, d.light_g, d.light_b } ) - std::min( { d.light_r, d.light_g, d.light_b } ) > .05f ) ++graphics_hybrid_colored_cells;
         d.emission = float( std::max( ter.light_emitted, furn.light_emitted ) );
         if( maximum > 0 ) ++graphics_hybrid_light_cells;
+        if(owned)owned->has_source_light=maximum>0;
         if( base.cells[i].creature[0] ) {
             const monster *mon = get_creature_tracker().creature_at<monster>( p );
             if( mon && you.sees( here, *mon ) ) {
@@ -511,6 +529,10 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     }
     graphics_hybrid_last_environment = env;
     graphics_prepare_presentation( base,positions,details,world );
+    if(graphics_camera_cache.verify&&graphics_camera_cache.totals.verification_mismatches){
+        DebugLog(D_ERROR,DC_MAIN)<<"NCMM camera snapshot differential mismatch";
+        return false;
+    }
     const ncmm_graphics_scene_v2 scene = { sizeof( ncmm_graphics_scene_v2 ), base, details.data(), details.size(), env };
     if(world)world->appearance=scene;
     const uint64_t epoch = tilecontext->ncmm_graphics_tileset_epoch();
@@ -530,6 +552,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     graphics_multilevel_frame=world;
     graphics_render_active = true;
     bool ok = false;
+    snapshot_zone.stop();
     const auto callback_begun = std::chrono::steady_clock::now();
     try {
         module_call_scope scope( graphics_view.owner.c_str() );
@@ -577,8 +600,10 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         SDL_RenderLine( renderer,cx,cy-4,cx,cy-1 );SDL_RenderLine( renderer,cx,cy+1,cx,cy+4 );
         SDL_SetRenderDrawColor( renderer,r,g,b,a );
     }
+    ncmm_graphics_trace::cpu_zone target_hud_zone("Target HUD");
     if( ok && !graphics_aim_name.empty() ) ncmm_draw_perspective_label( graphics_aim_name,
         x+int( graphics_aim_x*base.pixel_width ), y+int( graphics_aim_y*base.pixel_height ), clip );
+    target_hud_zone.stop();
     ok = SDL_SetRenderClipRect( renderer, clipped ? &prior_clip : nullptr ) && ok;
     graphics_frame_pending_present=ok;
     if( !ok ) { graphics_clear_stream(); graphics_view.enabled = false; graphics_release_mouse(); }

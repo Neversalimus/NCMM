@@ -7,6 +7,8 @@ param(
     [switch]$FocusedGpuBenchmark,
     [switch]$MovementBenchmark,
     [switch]$Extended,
+    [switch]$CameraSnapshotVerify,
+    [switch]$DisableCameraSnapshot,
     [switch]$ViewmodelGallery,
     [switch]$CaptureCrashDump,
     [switch]$GpuDebug,
@@ -53,6 +55,7 @@ if(-not $BundleRoot){$BundleRoot=$PSScriptRoot}
 if(-not $DumpAnalyzer){$DumpAnalyzer=Join-Path $PSScriptRoot 'ncmm_native_dump_analyzer.exe'}
 if($MovementBenchmark -and $FocusedGpuBenchmark){throw 'Choose one focused benchmark.'}
 if($Extended -and -not $MovementBenchmark){throw 'Extended requires MovementBenchmark.'}
+if($CameraSnapshotVerify -and (-not $MovementBenchmark -or $DisableCameraSnapshot)){throw 'CameraSnapshotVerify requires an enabled movement snapshot run.'}
 if($ViewmodelGallery -and ($MovementBenchmark -or $FocusedGpuBenchmark)){throw 'ViewmodelGallery belongs to the gameplay audit.'}
 if($MovementBenchmark -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the gameplay audit.'}
 if($FocusedGpuBenchmark -and $TilesetRoot){throw 'Focused GPU reproduction uses the official tileset; use the gameplay audit for UDP coverage.'}
@@ -149,7 +152,7 @@ public static class NCMMNativeCrashDialog {
 }
 '@
 }
-$names=@('NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT')
+$names=@('NCMM_FP_CAMERA_CACHE','NCMM_FP_CAMERA_CACHE_VERIFY','NCMM_FP_TRACE_MARKERS','NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT')
 $prior=@{}
 # Modern .NET preserves an empty environment variable. PowerShell can convert
 # $null to that empty string at the .NET call boundary, and native getenv then
@@ -163,6 +166,8 @@ $lastProgress='native startup'
 try {
     if($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
     if($Extended){$env:NCMM_FP_EXTENDED='1'}
+    if($CameraSnapshotVerify){$env:NCMM_FP_CAMERA_CACHE_VERIFY='1'}
+    if($DisableCameraSnapshot){$env:NCMM_FP_CAMERA_CACHE='0'}
     if($ViewmodelGallery){$env:NCMM_FP_VIEWMODEL_GALLERY='1'}
     if($GpuDebug){$env:SDL_RENDER_GPU_DEBUG='1'}
     $env:SDL_ASSERT='abort' # Diagnostic child must fail with evidence, never wait in SDL's assertion modal.
@@ -317,6 +322,7 @@ if($MovementBenchmark){
         if($record.native_steps -ne $expectedSteps -or @($record.first_ready_samples_ms).Count -ne $expectedSteps -or @($record.easing_frame_samples_ms).Count -eq 0){throw 'Native steps or easing samples are incomplete.'}
         if(@($record.cold_rotation_samples_ms).Count -ne $expectedRotations -or @($record.warm_rotation_samples_ms).Count -ne $expectedRotations){throw 'Continuous cold/warm rotation samples are incomplete.'}
         if($Extended -and ($record.extended_matrix -ne $true -or $record.internal_width -le 0 -or $record.internal_height -le 0)){throw 'Extended resolution evidence is missing.'}
+        if($CameraSnapshotVerify -and ($record.camera_snapshot_fixture_lease -ne $true -or $record.camera_snapshot_verification_mismatches -ne 0 -or ($record.camera_snapshot_verification_checks | Measure-Object -Sum).Sum -lt 100)){throw 'Native snapshot differential did not compare enough actual cells, or found a mismatch.'}
         if($record.renderer -eq 'gpu' -and @($record.frame_renderers_gpu | Where-Object {$_ -ne 1}).Count){throw 'A walking GPU frame fell back to CPU.'}
     }
     foreach($record in $audit.records){

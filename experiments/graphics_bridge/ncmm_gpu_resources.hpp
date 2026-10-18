@@ -1,4 +1,5 @@
 #pragma once
+#include "ncmm_graphics_trace.hpp"
 #include "ncmm_gpu_device.hpp"
 #include <algorithm>
 #include <array>
@@ -141,6 +142,7 @@ public:
                 n=m.cpu_indices.size()*4;std::memcpy(data+offset,m.cpu_indices.data(),n);offset+=n;}
             SDL_UnmapGPUTransferBuffer(device_,transfer);auto *commands=SDL_AcquireGPUCommandBuffer(device_);
             if(!commands){SDL_ReleaseGPUTransferBuffer(device_,transfer);reason_="acquire resource upload commands: "+std::string(SDL_GetError());return false;}
+            if(ncmm_graphics_trace::enabled())SDL_PushGPUDebugGroup(commands,"Resource Preparation");
             auto *copy=SDL_BeginGPUCopyPass(commands);offset=0;
             if(!copy){SDL_CancelGPUCommandBuffer(commands);SDL_ReleaseGPUTransferBuffer(device_,transfer);reason_="begin resource upload pass: "+std::string(SDL_GetError());return false;}
             for(auto key:new_textures){auto &t=*texture(key);SDL_GPUTextureTransferInfo from{};from.transfer_buffer=transfer;from.offset=uint32_t(offset);from.pixels_per_row=t.width;from.rows_per_layer=t.height;
@@ -148,6 +150,7 @@ public:
             for(auto key:new_meshes){auto &m=*mesh(key);SDL_GPUTransferBufferLocation from{transfer,uint32_t(offset)};uint32_t n=uint32_t(m.cpu_vertices.size()*sizeof(ncmm_gpu_vertex_v1));
                 SDL_GPUBufferRegion to{m.vertices,0,n};SDL_UploadToGPUBuffer(copy,&from,&to,m.dynamic);offset+=n;from.offset=uint32_t(offset);n=uint32_t(m.cpu_indices.size()*4);to={m.indices,0,n};SDL_UploadToGPUBuffer(copy,&from,&to,m.dynamic);offset+=n;}
             SDL_EndGPUCopyPass(copy);for(auto key:new_textures)if(texture(key)->levels>1)SDL_GenerateMipmapsForGPUTexture(commands,texture(key)->texture);
+            if(ncmm_graphics_trace::enabled())SDL_PopGPUDebugGroup(commands);
             bool ok=SDL_SubmitGPUCommandBuffer(commands);SDL_ReleaseGPUTransferBuffer(device_,transfer);
             if(!ok){reason_="submit resource uploads: "+std::string(SDL_GetError());return false;}
             for(auto key:new_textures){auto &t=*texture(key);t.ready=true;static_upload_bytes_+=uint64_t(t.width)*t.height*4;}

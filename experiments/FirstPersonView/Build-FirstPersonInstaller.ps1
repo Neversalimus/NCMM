@@ -62,6 +62,8 @@ Copy-Item (Join-Path $HostRoot 'cataclysm-tiles.exe') (Join-Path $hostDest 'cata
 Copy-Item (Join-Path $HostRoot 'first-person-source.json') $hostDest
 Copy-Item (Join-Path $HostRoot 'LICENSE.txt') (Join-Path $stage 'CDDA-LICENSE.txt')
 Copy-Item (Join-Path $RepositoryRoot 'THIRD_PARTY_NOTICES.txt') $stage
+Copy-Item (Join-Path $RepositoryRoot 'experiments/graphics_bridge/third_party/nvtx3/LICENSE.txt') (Join-Path $stage 'NVTX-LICENSE.txt')
+Copy-Item (Join-Path $RepositoryRoot 'experiments/graphics_bridge/third_party/nvtx3/LICENSE.txt') (Join-Path $fp 'NVTX-LICENSE.txt')
 Copy-Item (Join-Path $PSScriptRoot 'Run-FirstPersonBenchmark.ps1') $stage
 Copy-Item (Join-Path $PSScriptRoot 'NativeDiagnosticDebugger.cs') $stage
 Copy-Item (Join-Path $fpBuild 'Release/ncmm_native_dump_analyzer.exe') $stage
