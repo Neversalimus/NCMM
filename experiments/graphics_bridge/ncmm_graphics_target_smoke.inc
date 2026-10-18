@@ -12,6 +12,7 @@
     get_options().get_option("NCMM_FIRST_PERSON_TARGET_HUD").setValue("true");
     std::ofstream target_stream(game_root()/"ncmm"/"first-person-target-audit.json");JsonOut target_report(target_stream);
     target_report.start_object();target_report.member("schema",1);target_report.member("actual_cdda_sdl",true);
+    target_report.member("base_viewport_width",audit_viewport.x);target_report.member("base_viewport_height",audit_viewport.y);
     target_report.member("manual_playthrough",false);target_report.member("cases");target_report.start_array();
     for(const char *mode:{"cpu","gpu"}){
         floor();you.set_wielded_item(item());
@@ -41,7 +42,13 @@
             target_report.member("hostile",graphics_aim_hostile);target_report.member("known",graphics_aim_health.known);
             target_report.member("fraction",graphics_aim_health.fraction);target_report.member("hp",hp);target_report.member("maximum",maximum);
             target_report.member("entity",graphics_aim_reference.entity);target_report.member("world",graphics_aim_reference.world);target_report.member("frame",graphics_aim_reference.frame);
-            target_report.member("gpu",graphics_gpu_frame);target_report.end_object();target_stream.flush();
+            target_report.member("gpu",graphics_gpu_frame);
+            const auto metrics=graphics_gpu_engine?graphics_gpu_engine->metrics():ncmm_gpu_metrics_v1{};
+            target_report.member("device",metrics.device);target_report.member("backend",metrics.backend);
+            target_report.member("software_device",bool(metrics.software_device));
+            target_report.member("viewport_width",audit_viewport.x);target_report.member("viewport_height",audit_viewport.y);
+            target_report.member("window_display_scale",SDL_GetWindowDisplayScale(get_sdl_window()));
+            target_report.end_object();target_stream.flush();
         };
         const int maximum=target->get_hp_max();require(maximum>1,"target_hud_native_max_hp_invalid");
         target->set_hp(maximum);record("full",true,true,maximum,maximum);
@@ -64,8 +71,41 @@
         here.ter_set(blocker,ter_id("t_reinforced_glass"));record("full-height-glass",true,true,target->get_hp(),target->get_hp_max());
         here.ter_set(blocker,ter_id("t_floor"));target->friendly=-1;record("friendly-name-only",true,false);
         target->friendly=0;calendar::turn=original_time+12_hours;record("night",true,true,target->get_hp(),target->get_hp_max());calendar::turn=original_time;
+        {
+            const bool night_vision=you.has_trait(trait_id("DEBUG_NIGHTVISION"));
+            require(!you.has_effect(efftype_id("blind")),"target_hud_blind_fixture_already_affected");
+            struct restore_target_blind {avatar &observer;bool night_vision;~restore_target_blind(){
+                observer.remove_effect(efftype_id("blind"));
+                if(observer.has_trait(trait_id("DEBUG_NIGHTVISION"))!=night_vision)observer.toggle_trait(trait_id("DEBUG_NIGHTVISION"));
+                observer.recalc_sight_limits();}} restore_blind{you,night_vision};
+            if(night_vision)you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));
+            you.add_effect(efftype_id("blind"),1_minutes);you.recalc_sight_limits();refresh();
+            require(!you.sees(here,*target),"target_hud_native_blindness_did_not_hide_subject");
+            record("blind-hidden",false,false);
+        }
+        refresh();record("vision-restored",true,true,target->get_hp(),target->get_hp_max());
         camera(ncmm_graphics_camera::pi*.5f,-.10f);record("lost-aim",false,false);
         camera(-ncmm_graphics_camera::pi*.5f,-.10f);clear_monsters();
+        target=g->place_critter_at(mtype_id("mon_zombie"),point_at(0,-5,-1));subject=target;
+        require(target!=nullptr,"target_hud_other_floor_subject_missing");
+        record("other-floor",false,false);clear_monsters();
+        target=g->place_critter_at(mtype_id("mon_zombie_hulk"),point_at(0,-2));subject=target;
+        require(target!=nullptr,"target_hud_huge_subject_missing");warm(mode);
+        record("huge-close",true,true,target->get_hp(),target->get_hp_max());clear_monsters();
+        target=g->place_critter_at(mtype_id("mon_flaming_eye"),goal);subject=target;
+        require(target!=nullptr,"target_hud_flying_subject_missing");target->anger=100;target->morale=100;warm(mode);
+        record("flying",true,true,target->get_hp(),target->get_hp_max());
+        {
+            SDL_Texture *wide=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,1280,720);
+            require(wide!=nullptr,"target_hud_wide_canvas_failed");
+            struct restore_target_canvas {SDL_Renderer *renderer;SDL_Texture *&canvas;point &viewport;
+                SDL_Texture *previous,*owned;point dimensions;
+                ~restore_target_canvas(){SDL_SetRenderTarget(renderer,previous);canvas=previous;viewport=dimensions;SDL_DestroyTexture(owned);}
+            } restore_canvas{renderer,canvas,audit_viewport,canvas,wide,audit_viewport};
+            canvas=wide;audit_viewport=point(1280,720);warm(mode);
+            record("wide",true,true,target->get_hp(),target->get_hp_max());
+        }
+        clear_monsters();
         auto person=make_shared_fast<npc>();person->normalize();person->name="Враждебный NPC";person->set_attitude(NPCATT_KILL);
         person->spawn_at_precise(here.get_abs(goal));overmap_buffer.insert_npc(person);g->load_npcs();person->setpos(here,goal,false);person->set_attitude(NPCATT_KILL);subject=person.get();
         warm(mode);record("npc-native-summary",true,true,person->get_hp(),person->get_hp_max());

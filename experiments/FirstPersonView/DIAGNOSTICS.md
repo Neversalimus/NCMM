@@ -1,5 +1,15 @@
 # First Person diagnostics
 
+`-TargetHudGallery` runs the same Native HP/picking/font cases as the gameplay
+audit in its own isolated process, before the long firing and soak gates. It is
+diagnostic correctness evidence and does not replace those gates or establish
+ordinary frame times. The 42 captures cover CPU/GPU, HP changes, identity
+replacement, Cyrillic, disable, walls/window mullions/glass, night, real Native
+blindness and restoration, another floor, a close huge target, a flying target,
+a 1280x720 viewport and Native NPC aggregate health. Each GPU record includes
+its actual backend/device and software-adapter status; the physical window's
+display scale is recorded rather than changed globally.
+
 ## Native firing UI context
 
 The gameplay audit now dispatches the ordinary game command through SDL input,

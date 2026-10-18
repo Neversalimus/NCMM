@@ -395,6 +395,24 @@ jobs:
               if(!(Test-Path (Join-Path $root 'ncmm/boot.ready')) -or (Test-Path (Join-Path $root 'ncmm/boot.pending'))){throw 'Bootstrap lifecycle markers inconsistent.'}
             }
           }
+      - name: Native target HP, visibility, large and flying creatures, wide viewport
+        timeout-minutes: 15
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $output=Join-Path $env:RUNNER_TEMP 'fp-target-gallery'
+          try {
+            ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -TargetHudGallery -CaptureCrashDump -GpuDebug
+            python -B ncmmrepo/experiments/FirstPersonView/tests/verify_target_audit.py --root (Join-Path $output 'evidence') --output (Join-Path $output 'evidence/first-person-target-verified.json')
+            if($LASTEXITCODE -ne 0){throw 'Native target HUD capture verification failed.'}
+          } finally {
+            $dest=Join-Path $PWD 'installer-result/target-gallery'
+            New-Item -ItemType Directory -Path $dest -Force | Out-Null
+            $evidence=Join-Path $output 'evidence'
+            if(Test-Path -LiteralPath $evidence){
+              Get-ChildItem -LiteralPath $evidence -File | Where-Object {$_.Name -like 'first-person-target-*' -or $_.Name -like 'first-person-audit-target-hud-*' -or $_.Name -eq 'first-person-process-result.json'} | Copy-Item -Destination $dest
+            }
+          }
       - name: Fast native multi-Z save-load gate before the full gallery
         timeout-minutes: 10
         shell: powershell
@@ -617,6 +635,8 @@ jobs:
             }}
             $movement=Join-Path $env:RUNNER_TEMP 'fp-movement/evidence'
             if($variant.name -eq 'graphics' -and (Test-Path $movement)){Copy-Item $movement (Join-Path fp-evidence 'movement') -Recurse -Force}
+            $targetGallery=Join-Path $env:RUNNER_TEMP 'fp-target-gallery/evidence'
+            if($variant.name -eq 'graphics' -and (Test-Path -LiteralPath $targetGallery)){Copy-Item -LiteralPath $targetGallery (Join-Path fp-evidence 'target-gallery') -Recurse -Force}
             $debug=Join-Path $env:RUNNER_TEMP ("fp-appearance-"+'${{ matrix.build }}'+'-'+$variant.name)
             if(Test-Path $debug){Copy-Item $debug (Join-Path fp-evidence ('appearance-debug-'+$variant.name)) -Recurse -Force}
           }
@@ -630,6 +650,7 @@ jobs:
             fp-evidence/gameplay-audit/**
             fp-evidence/focused-gpu*/**
             fp-evidence/movement/**
+            fp-evidence/target-gallery/**
           compression-level: 9
           retention-days: 7
       - uses: actions/upload-artifact@v4
@@ -653,6 +674,7 @@ jobs:
           name: first-person-qualification-${{ matrix.build }}
           path: |
             installer-result/first-person-release-verified.json
+            installer-result/target-gallery/**
             installer-result/first-person-movement-*.json
             installer-result/first-person-movement-*.bmp
             installer-result/first-person-gameplay*.json
