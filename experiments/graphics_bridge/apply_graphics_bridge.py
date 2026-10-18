@@ -251,6 +251,10 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
         "bool graphics_requires_terrain_pass()\n{",
         "void graphics_note_input_result( const std::string &category, const std::string &action )\n{\n#if defined(TILES)\n"
+        "    if( graphics_fire_capture.active && action != \"TIMEOUT\" ) {\n"
+        "        std::ofstream journal( game_root() / \"ncmm\" / \"first-person-fire-inputs.jsonl\", std::ios::app );\n"
+        "        JsonOut out( journal ); out.start_object(); out.member( \"ticks\", SDL_GetTicks() );\n"
+        "        out.member( \"category\", category ); out.member( \"action\", action ); out.end_object(); journal << '\\n';\n    }\n"
         "    if( graphics_fire_capture.active && category == \"DEFAULTMODE\" && action != \"TIMEOUT\" ) {\n"
         "        graphics_fire_capture.native_command = action; ++graphics_fire_capture.native_command_sequence;\n    }\n"
         "#else\n    (void)category; (void)action;\n#endif\n}\n"
@@ -262,6 +266,9 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "    if( graphics_fire_capture.active && !graphics_fire_capture.frames.empty() ) graphics_fire_capture.frames.back().presented = true;\n"
         "    graphics_world_frame_presented();\n#endif\n}\n"
         "bool graphics_requires_terrain_pass()\n{")
+    updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '    graphics_context.note( category );',
+        '    graphics_context.note( category );\n#if defined(TILES)\n'
+        '    if( graphics_fire_capture.active ) graphics_fire_input_context.store( category == "DEFAULTMODE" ? 1u : category == "TARGET" ? 2u : 3u );\n#endif')
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "class input_context;", "class map;\nclass input_context;")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();",
         "void graphics_note_input_result( const std::string &, const std::string & );\nvoid graphics_note_terrain_composed( bool perspective );\nvoid graphics_world_changed( const map *, int z );\nvoid initialize();")
