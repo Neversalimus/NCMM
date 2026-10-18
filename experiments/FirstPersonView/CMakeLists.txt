@@ -4,6 +4,12 @@ find_package(Threads REQUIRED)
 
 add_library(first_person_build_options INTERFACE)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/mod.json" first_person_manifest)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/mod.json"
+  "${CMAKE_CURRENT_SOURCE_DIR}/assets/psx_arms/manifest.json"
+  "${CMAKE_CURRENT_SOURCE_DIR}/assets/psx_arms/model.generated.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/assets/psx_arms/bare.rgba"
+  "${CMAKE_CURRENT_SOURCE_DIR}/assets/psx_arms/gloves.rgba")
 string(JSON first_person_version GET "${first_person_manifest}" version)
 target_compile_definitions(first_person_build_options INTERFACE FIRST_PERSON_VERSION="${first_person_version}")
 target_include_directories(first_person_build_options INTERFACE ../../sdk ../graphics_bridge src)
@@ -95,7 +101,11 @@ foreach(pair "camera_motion|camera_motion_test" "contract|renderer_test" "hybrid
   endif()
   add_executable(${target} tests/${source}.cpp)
   first_person_target(${target})
-  add_test(NAME first_person_${name} COMMAND ${target})
+  if(name STREQUAL "hybrid_module")
+    add_test(NAME first_person_${name} COMMAND ${target} "${CMAKE_CURRENT_SOURCE_DIR}/mod.json")
+  else()
+    add_test(NAME first_person_${name} COMMAND ${target})
+  endif()
 endforeach()
 option(FIRST_PERSON_BUILD_GPU_TESTS "Qualify actual shared-device SDL_GPU geometry and UI" OFF)
 add_executable(first_person_gpu_geometry_tests tests/gpu_geometry_test.cpp)
