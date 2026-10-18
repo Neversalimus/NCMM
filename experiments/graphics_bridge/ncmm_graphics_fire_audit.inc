@@ -13,11 +13,14 @@
         enum class kind { command, click, confirm, cancel };
         std::atomic<bool> stop{false};std::atomic<bool> escape_recovery{false};std::thread worker;
         input_feed(SDL_WindowID window,kind type,float mx=0,float my=0,bool cancel_target=false):worker([this,window,type,mx,my,cancel_target](){
-            for(int tick=0;tick<1500&&!stop.load();++tick){
-                SDL_Delay(10);if(tick%10!=9||stop.load())continue;
-                SDL_Event event={};
+            int waiting=0;uint32_t previous_context=0;
+            for(int tick=0;tick<3000&&!stop.load();++tick){
+                SDL_Delay(10);
                 const auto context=graphics_fire_input_context.load();
-                const bool recovering=tick>=1000;
+                if(!context){waiting=0;previous_context=0;continue;}
+                if(context!=previous_context){waiting=0;previous_context=context;}
+                ++waiting;if(tick%10!=9||stop.load())continue;
+                SDL_Event event={};const bool recovering=waiting>=1000;
                 if(recovering||((type==kind::cancel||cancel_target)&&context!=1)){
                     if(recovering)escape_recovery.store(true);
                     event.type=SDL_EVENT_KEY_DOWN;event.key.windowID=window;event.key.key=SDLK_ESCAPE;event.key.scancode=SDL_SCANCODE_ESCAPE;
@@ -77,8 +80,8 @@
             std::string(scenario)=="blocked_wall"?"t_wall":"t_floor"));
         monster *target=no_target?nullptr:g->place_critter_at(mtype_id("mon_zombie"),goal);
         require(no_target||target,"fire_audit_target_missing");
-        item gun(itype_id(burst?"m4a1":"sw_619"),calendar::turn);
-        if(!empty)gun.ammo_set(itype_id(burst?"223":"38_special"),burst?30:7);
+        item gun(itype_id(burst?"hk_mp5":"sw_619"),calendar::turn);
+        if(!empty)gun.ammo_set(itype_id(burst?"9mm":"38_special"),burst?30:7);
         if(burst)require(gun.gun_set_mode(gun_mode_id("AUTO"))||gun.gun_set_mode(gun_mode_id("BURST")),"fire_audit_native_automatic_mode_missing");
         you.set_wielded_item(gun);you.recoil=0;
         camera(-ncmm_graphics_camera::pi*.5f,-.10f);ncmm::graphics_note_input_context("DEFAULTMODE");refresh();warm(mode);
@@ -137,7 +140,9 @@
                 require(f.enabled&&f.perspective&&f.captured&&f.presented,"fire_audit_intermediate_native_map_flash");
                 require(f.gpu==(std::string(mode)=="gpu"),"fire_audit_unreported_cpu_fallback");}
             if(cancel||empty)require(result.attack_after==result.attack_before&&result.ammo_after==result.ammo_before,"fire_audit_cancel_or_failure_emitted_shot");
-            else {require(result.attack_after>result.attack_before&&result.ammo_after<result.ammo_before&&result.moves_after<result.moves_before,"fire_audit_confirmed_native_shot_missing");
+            else {const auto shots=result.attack_after-result.attack_before;const int spent=result.ammo_before-result.ammo_after;
+                require(shots>0&&spent>0&&shots==uint64_t(spent)&&result.moves_after<result.moves_before,"fire_audit_confirmed_native_shot_missing");
+                require(burst?shots>=2:shots==1,"fire_audit_native_shot_count_wrong");
                 require(!result.escape_recovery,"fire_audit_success_path_used_escape_watchdog");}
         }
         trials.push_back(std::move(result));ncmm::graphics_note_input_context("DEFAULTMODE");
