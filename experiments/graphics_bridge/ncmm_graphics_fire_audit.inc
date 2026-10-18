@@ -3,11 +3,13 @@
 {
     const bool old_aim_after=get_option<bool>("AIM_AFTER_FIRING");
     const std::string old_keyboard=get_option<std::string>("SDL_KEYBOARD_MODE");
+    const std::string old_renderer=get_option<std::string>("NCMM_FIRST_PERSON_RENDERER");
     struct fire_audit_guard {
-        bool aim_after;std::string keyboard;
+        bool aim_after;std::string keyboard,renderer;
         ~fire_audit_guard(){graphics_fire_capture.active=false;graphics_fire_audit_legacy_context=false;
-            graphics_release_mouse();get_options().get_option("AIM_AFTER_FIRING").setValue(aim_after?"true":"false");get_options().get_option("SDL_KEYBOARD_MODE").setValue(keyboard);options_manager::update_options_cache();}
-    } restoring_fire{old_aim_after,old_keyboard};
+            graphics_release_mouse();get_options().get_option("AIM_AFTER_FIRING").setValue(aim_after?"true":"false");get_options().get_option("SDL_KEYBOARD_MODE").setValue(keyboard);
+            get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(renderer);options_manager::update_options_cache();}
+    } restoring_fire{old_aim_after,old_keyboard,old_renderer};
     get_options().get_option("AIM_AFTER_FIRING").setValue("false");
     options_manager::update_options_cache();
     for(const char *id:{"BRAWLER","GUNSHY"})if(you.has_trait(trait_id(id)))you.toggle_trait(trait_id(id));
@@ -198,5 +200,7 @@
     for(const auto &f:graphics_fire_capture.frames){fire_report.start_object();fire_report.member("ticks",f.ticks);fire_report.member("file",f.file);fire_report.member("width",f.width);fire_report.member("height",f.height);
         fire_report.member("enabled",f.enabled);fire_report.member("perspective",f.perspective);fire_report.member("gpu",f.gpu);fire_report.member("captured",f.captured);fire_report.member("presented",f.presented);fire_report.end_object();}
     fire_report.end_array();fire_report.member("success",true);fire_report.end_object();fire_stream.flush();
-    floor();
+    // floor() invalidates the previous camera position. Establish the restored
+    // baseline before the following native walking test performs its first step.
+    floor();warm(old_renderer.c_str());
 }
