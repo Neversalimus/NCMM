@@ -6,12 +6,15 @@ The gameplay audit now dispatches the ordinary game command through SDL input,
 then processes the native aim activity and target UI. Its private qualification
 gateway calls `game::handle_action`; it does not fabricate an attack notification.
 One legacy-policy cancel trial must reproduce the old native-map presentation.
-The fixed policy then checks 126 attempts on CPU/GPU, including confirmed single
+The fixed policy then checks 186 attempts on CPU/GPU, including confirmed single
 and automatic shots, cancellation, an empty weapon, no target, a window, a blocked
 wall and a vertical cancellation. Each successful native window presentation
 has a lossless PNG, mode/backend state and a contiguous trial/frame receipt.
 `verify_fire_audit.py` checks image integrity and rejects any intermediate map
-frame or silent CPU fallback. These instrumented runs are not FPS measurements.
+frame or silent CPU fallback. The fixture alternates keychar/keycode through the
+native option cache update, records the resolved native mode, and counts actual
+DEFAULTMODE input results in each mode. Changing the option string alone cannot
+establish keyboard backend coverage. These instrumented runs are not FPS measurements.
 
 The initial LMB fixture holds RMB look and uses the real native picking/click
 path. Pointer-only LMB, a successful vertical shot, fault handling and vehicle
