@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "converter": "import_held_items.py/v1",
-  "selection_sha256": "e8852100fefecc7d894493c461900e384ba96d652daa9a961481efc6372bfd46",
+  "selection_sha256": "452f87c439f45f677c563ecd811a53121c1ba0b1406e592d6b613829fdc058bf",
   "models": [
     {
       "id": "pistol",
