@@ -1,0 +1,18 @@
+Author: Quaternius
+Version/publication: 2020-09 (individual source hashes)
+Author-published source: https://quaternius.com/packs/survival.html
+License: CC0-1.0
+Archive SHA256: Individual author file SHA256 values are pinned in selection.json
+
+------------------------------------------------------
+LowPoly Models by @Quaternius
+Consider supporting me on Patreon, even $1 helps me a lot!
+
+https://www.patreon.com/quaternius
+-------------------------------------------------------
+
+License:
+CC0 1.0 Universal (CC0 1.0) 
+Public Domain Dedication
+https://creativecommons.org/publicdomain/zero/1.0/
+
