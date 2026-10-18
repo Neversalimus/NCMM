@@ -290,6 +290,24 @@ class ExecutionScopeTests(unittest.TestCase):
         self.assertFalse(result['thread_cpu_available'])
         self.assertIsNone(result['gpu_generated_cells_total'])
 
+    def test_optional_cell_preparation_and_upload_accounting(self):
+        self.record.update(gpu_cell_prepare_samples_ms=[.1,.2,.1],gpu_cell_upload_bytes=[112,0,112],
+                           gpu_cell_cache_bytes=[112,112,112],gpu_upload_bytes=[128,16,128])
+        result=compare.execution_scopes(self.record)
+        self.assertEqual(result['prepared_cells']['upload_bytes'],224)
+        self.assertEqual(result['prepared_cells']['cpu_capacity_bytes_peak'],112)
+        del self.record['gpu_cell_cache_bytes']
+        with self.assertRaisesRegex(ValueError,'prepared cell evidence'):
+            compare.execution_scopes(self.record)
+
+    def test_impossible_cell_timings_and_uploads_rejected(self):
+        self.record.update(gpu_cell_prepare_samples_ms=[.1,.2,.1],gpu_cell_upload_bytes=[112,0,112],
+                           gpu_cell_cache_bytes=[112,112,112],gpu_upload_bytes=[128,16,128])
+        for name,value in [('gpu_cell_prepare_samples_ms',5),('gpu_cell_upload_bytes',129),('gpu_cell_cache_bytes',.5)]:
+            changed=copy.deepcopy(self.record);changed[name][0]=value
+            with self.subTest(name=name),self.assertRaises(ValueError):
+                compare.execution_scopes(changed)
+
     def test_incomplete_streams_and_invented_unavailable_ticks_rejected(self):
         for mutation in ('missing', 'short', 'unavailable'):
             r = copy.deepcopy(self.record)

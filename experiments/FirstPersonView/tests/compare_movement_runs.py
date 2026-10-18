@@ -43,6 +43,11 @@ def execution_scopes(record):
     if any(name in record for name in staging):
         require(all(name in record for name in staging), "Incomplete upload staging evidence")
         counts += staging
+    cell_streams=("gpu_cell_prepare_samples_ms","gpu_cell_upload_bytes","gpu_cell_cache_bytes")
+    if any(name in record for name in cell_streams):
+        require(all(name in record for name in cell_streams), "Incomplete prepared cell evidence")
+        timings += (cell_streams[0],)
+        counts += (*cell_streams[1:],"gpu_upload_bytes")
     names = (*timings, *counts, "thread_cpu_available", "frame_thread_cpu_samples_ms")
     if not any(name in record for name in names):
         return None
@@ -67,6 +72,9 @@ def execution_scopes(record):
             "Sprite readback exceeds its containing rendered frame")
     require(all(attempts or ms == 0 for attempts, ms in zip(record["sprite_readback_attempts"], record["sprite_readback_samples_ms"])),
             "Sprite readback time has no attempt")
+    if cell_streams[0] in record:
+        require(all(ms<=frame+.003 for ms,frame in zip(record[cell_streams[0]],wall)), "Cell preparation exceeds its rendered frame")
+        require(all(part<=total for part,total in zip(record[cell_streams[1]],record['gpu_upload_bytes'])), "Cell upload exceeds all frame uploads")
     return {"thread_cpu_available": record["thread_cpu_available"],
             "totals_ms": {name: sum(record[name]) for name in timings},
             "sprite_readback_attempts": sum(record["sprite_readback_attempts"]),
@@ -75,6 +83,8 @@ def execution_scopes(record):
                                "object_creations_peak": max(record[staging[1]])}
                               if staging[0] in record and record["renderer"] == "gpu" else None,
             "gpu_generated_cells_total": sum(record["gpu_generated_cells"]) if record["renderer"] == "gpu" else None,
+            "prepared_cells": {"cpu_prepare_ms":sum(record[cell_streams[0]]),"upload_bytes":sum(record[cell_streams[1]]),
+                               "cpu_capacity_bytes_peak":max(record[cell_streams[2]])} if cell_streams[0] in record else None,
             "scope": "CPU accounting has platform granularity; process CPU includes workers; readbacks overlap frame wall time, and these are not GPU execution timestamps."}
 
 

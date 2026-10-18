@@ -60,7 +60,8 @@ int main(int argc,char **argv){
     require(engine.recording().static_upload_bytes==engine.resources().static_upload_bytes(),"private static upload counters report the current frame");
     const auto staging_capacity=engine.recording().frame_upload_capacity_bytes;
     const auto staging_creations=engine.recording().frame_upload_creations;
-    require(staging_capacity>0&&staging_creations==1&&first.resource_bytes+staging_capacity<=NCMM_GPU_RESOURCE_LIMIT,"frame staging has an explicit bounded capacity");
+    require(staging_capacity>0&&staging_creations==1&&first.resource_bytes+staging_capacity+engine.recording().cell_cache_bytes<=NCMM_GPU_RESOURCE_LIMIT,"frame staging and source-cell snapshot have an explicit bounded capacity");
+    require(engine.recording().cell_upload_bytes==112&&engine.recording().cell_cache_bytes>=112,"first frame uploads the complete owned source-cell layout");
     auto capture=[&](const char *suffix){require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr),"GPU-to-GPU final composition");
         SDL_FRect strip{0,0,640,20};require(SDL_SetRenderDrawColor(renderer,0,0,255,255)&&SDL_RenderFillRect(renderer,&strip),"ordinary SDL UI");
         auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"test-only readback");auto *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);SDL_DestroySurface(raw);require(image!=nullptr,"capture format");
@@ -73,7 +74,8 @@ int main(int argc,char **argv){
     scene.mesh_count=0;scene.meshes=nullptr;scene.frame_serial=2;bones[1].columns[12]=5;
     require(engine.submit(scene),engine.metrics().reason);auto second=engine.metrics();require(second.active&&second.generated_meshes==0&&second.upload_bytes<1024,"only dynamic data uploaded for skeletal animation");
     require(engine.resources().static_upload_bytes()==0,"warm skeletal animation uploads no immutable resources");
-    require(second.upload_bytes+4==first.upload_bytes-first_static_upload,"neutral fallback texture uploads only on first use");
+    require(second.upload_bytes+116==first.upload_bytes-first_static_upload,"unchanged cells and neutral texture are not uploaded for bone animation");
+    require(engine.recording().cell_upload_bytes==0,"warm bone updates retain the unchanged source-cell buffer");
     require(engine.recording().static_upload_bytes==0,"private warm upload counters cannot underflow from the previous frame");
     require(engine.recording().frame_upload_capacity_bytes==staging_capacity&&engine.recording().frame_upload_creations==staging_creations,"bone updates reuse the same staging object");
     require(second.target_cell==-1,"bone animation updates exact picking without CPU pixel raster");center=capture("-skin");require(((center>>16)&255)>120&&(center>>24)<20,"GPU vertex skinning moves near mesh; far green becomes visible");
@@ -95,8 +97,30 @@ int main(int argc,char **argv){
             require(frame%2?((pixel>>16)&255)>120&&(pixel>>24)<20:(pixel>>24)>120&&((pixel>>16)&255)<20,"each queued frame retains its own bone upload");}
         SDL_DestroySurface(image);
     }
+    {
+        // Cell data may change independently of geometry or bone palettes.
+        const auto saved_cell=cell;bones[1].columns[12]=0;scene.frame_serial=200;
+        require(engine.submit(scene)&&engine.recording().cell_upload_bytes==0,"unchanged cells remain resident while a pose changes");
+        const auto bright=capture("-cell-bright");
+        cell.light[0]=cell.light[1]=cell.light[2]=.15f;++scene.frame_serial;
+        require(engine.submit(scene)&&engine.recording().cell_upload_bytes==112,"native lighting changes upload the complete source-cell record");
+        const auto dark=capture("-cell-dark");
+        require((bright>>24)>(dark>>24)+50,"changed source-cell lighting reaches actual GPU pixels");
+        ++scene.frame_serial;require(engine.submit(scene)&&engine.recording().cell_upload_bytes==0,"unchanged dark cells do not retransmit");
+        for(int frame=0;frame<4;++frame){cell.light[0]=cell.light[1]=cell.light[2]=frame%2?.15f:1.f;++scene.frame_serial;
+            require(engine.submit(scene)&&engine.recording().cell_upload_bytes==112,"each changed queued cell snapshot is uploaded");
+            SDL_FRect slot{float(frame%2*320),float(frame/2*240),320,240};
+            require(SDL_RenderTexture(renderer,engine.output(),nullptr,&slot),"queue distinct native lighting snapshots");}
+        auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"read queued source-cell snapshots once");
+        auto *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);SDL_DestroySurface(raw);require(image!=nullptr,"queued source-cell pixel format");
+        for(int frame=0;frame<4;++frame){const auto pixel=reinterpret_cast<const uint32_t *>(static_cast<const char *>(image->pixels)+(frame/2*240+120)*image->pitch)[frame%2*320+160];
+            const auto expected=frame%2?dark:bright;
+            require(std::abs(int(pixel>>24)-int(expected>>24))<=4,"each queued frame retains its own native cell lighting");}
+        SDL_DestroySurface(image);cell=saved_cell;
+    }
     scene.mode=NCMM_GPU_CPU;require(!engine.submit(scene)&&!engine.metrics().active,"explicit CPU selection never impersonates GPU");
     scene.mode=NCMM_GPU_FORCE;scene.frame_serial=3;bones[1].columns[12]=0;require(engine.submit(scene),engine.metrics().reason);require(engine.metrics().generated_meshes==0,"GPU resumes with cached geometry");
+    require(engine.recording().cell_upload_bytes==112,"resuming GPU applies lighting changed after the previous queued frame");
     std::array<ncmm_gpu_vertex_v1,3> glass_vertices{};for(int i=0;i<3;++i){glass_vertices[i]=vertices[i];glass_vertices[i].position[0]*=.5f;glass_vertices[i].position[1]=1;glass_vertices[i].position[2]*=.5f;glass_vertices[i].joint=0;glass_vertices[i].material=0;}
     ncmm_gpu_material_v1 glass{};glass.color[2]=.9f;glass.color[3]=.3f;const uint32_t glass_indices[]={0,1,2};
     ncmm_gpu_mesh_v1 dynamic{12,glass_vertices.data(),glass_indices,&glass,3,3,1,NCMM_GPU_DYNAMIC_MESH};
@@ -133,7 +157,7 @@ int main(int argc,char **argv){
         for(int frame=0;frame<2;++frame){++large.frame_serial;require(engine.submit(large),engine.metrics().reason);
             require(engine.metrics().upload_bytes>2*1024*1024&&engine.metrics().generated_meshes==0&&engine.resources().static_upload_bytes()==0,
                     "large dynamic transfer preserves the strict zero static upload gate");
-            const auto &recording=engine.recording();require(engine.metrics().resource_bytes+recording.frame_upload_capacity_bytes<=NCMM_GPU_RESOURCE_LIMIT,"large retained staging respects the combined resource budget");
+            const auto &recording=engine.recording();require(engine.metrics().resource_bytes+recording.frame_upload_capacity_bytes+recording.cell_cache_bytes<=NCMM_GPU_RESOURCE_LIMIT,"large retained staging and cell snapshot respect the combined resource budget");
             if(!frame){large_capacity=recording.frame_upload_capacity_bytes;large_creations=recording.frame_upload_creations;
                 require(large_capacity>staging_capacity&&large_creations>staging_creations,"large palettes grow staging capacity");}
             else require(recording.frame_upload_capacity_bytes==large_capacity&&recording.frame_upload_creations==large_creations,"repeated large palettes reuse staging storage");}
@@ -342,7 +366,7 @@ int main(int argc,char **argv){
         require(engine.bind(renderer,1),"teardown stress rebind");
         for(int frame=0;frame<4;++frame){scene.frame_serial=2000+lifecycle*4+frame;require(engine.submit(scene),engine.metrics().reason);
             require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr),"queue SDL sampling before teardown");}
-        engine.clear();require(!engine.metrics().active&&engine.resources().bytes()==0&&engine.recording().frame_upload_capacity_bytes==0,"in-flight teardown drains and clears resources including staging");
+        engine.clear();require(!engine.metrics().active&&engine.resources().bytes()==0&&engine.recording().frame_upload_capacity_bytes==0&&engine.recording().cell_cache_bytes==0,"in-flight teardown drains and clears resources including staging and source cells");
     }
     engine.clear();require(!engine.bind(nullptr,2)&&!engine.available(),"unsupported renderer fails closed without claiming GPU");
     require(engine.bind(renderer,3),"same owned device can recover after fallback");engine.clear();

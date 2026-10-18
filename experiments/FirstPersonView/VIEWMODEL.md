@@ -132,6 +132,13 @@ The neutral fallback texel is initialized once per target lifetime, rather than
 uploaded and cycled every frame. Successful queue submission marks it ready;
 target recreation and device cleanup reset that state. Pixel and upload checks
 cover warm animation, queued poses and viewport recreation.
+An owned cell snapshot compares the complete prepared GPU cell data, including
+multi-level origins and lower lighting. Identical cells keep their existing GPU
+buffer; changed cells use the existing cycling upload. No source pointer survives
+the callback. Comparison/preparation CPU time, actual cell uploads and retained
+CPU capacity are reported separately. The snapshot shares the bounded resource
+allowance and is released with the dynamic buffers. Shadows, lighting evaluation,
+world drawing and presentation continue on every frame.
 
 World distance, internal resolution caps, Z levels, creature detail, native
 perception, simulation and the established horizon LOD are preserved. Whether

@@ -159,4 +159,12 @@ This paired route requires the exact 1040 engine and RTX 4090 / Direct3D 12. It 
 
 The optional tests/cache_shift_benchmark.cpp in the source repository measures only source/geometry cache-window shifts. Build instructions are in its first lines. Its timings are not native frame latency or game FPS.
 
+Extended movement records optionally include `gpu_cell_prepare_samples_ms`,
+`gpu_cell_upload_bytes` and `gpu_cell_cache_bytes`. Preparation compares complete
+owned cell records on the CPU; it is nested in the callback, outside the upload
+timer. Upload bytes report actual cell transfers, while cache bytes report the
+retained CPU snapshot. The Host CPU cache total includes this snapshot. GPU
+targets/assets, staging capacity and the cell snapshot have separate counters;
+their combined budget is bounded. Older missing fields mean unavailable.
+
 Before each native renderer reset, the host drains the shared SDL GPU device even if module disable already cleared the private backend. This covers queued SDL presentation copies and swapchain release. It is a lifecycle boundary, not a new per-frame fence. The retained 0.12.7 WARP stacks and matching-image metadata are preserved in qualification/0.12.8-warp-stacks.json.gz.
