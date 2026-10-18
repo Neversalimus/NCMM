@@ -108,6 +108,9 @@ bool graphics_scene_smoke()
         require( graphics_view.enabled, "view_did_not_enable" );
         if( std::getenv( "NCMM_FP_SAVE_ONLY" ) ) {
             #include "ncmm_graphics_multilevel_save_smoke.inc"
+        } else if( std::getenv( "NCMM_FP_CAMERA_INPUT" ) ) {
+            #include "ncmm_graphics_camera_input.inc"
+            press_f6();require(!graphics_view.enabled,"camera_input_f6_restore_failed");
         } else if( std::getenv( "NCMM_FP_MOVEMENT_ONLY" ) ) {
             #include "ncmm_graphics_movement_benchmark.inc"
             press_f6();require(!graphics_view.enabled,"movement_benchmark_f6_restore_failed");

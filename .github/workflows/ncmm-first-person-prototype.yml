@@ -421,6 +421,20 @@ jobs:
           path: udp-resources
           persist-credentials: false
           sparse-checkout: mods/undeadpeople/content
+      - name: Actual SDL mouse rotation and native input snapshot reuse
+        timeout-minutes: 10
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $output=Join-Path $env:RUNNER_TEMP 'fp-camera-input'
+          try {
+            ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -CameraInputProbe -CaptureCrashDump -GpuDebug
+          } finally {
+            foreach($name in @('first-person-camera-input.json','first-person-process-result.json')){
+              $path=Join-Path $output ('evidence/'+$name)
+              if(Test-Path -LiteralPath $path){Copy-Item -LiteralPath $path -Destination (Join-Path $PWD ('installer-result/camera-input-'+$name))}
+            }
+          }
       - name: Automated native gameplay, CPU/GPU profiling and actual UDP Hybrid v3
         timeout-minutes: 95
         shell: powershell

@@ -13,6 +13,13 @@ graphics_view_state graphics_view;
 ncmm_graphics_context::state graphics_context;
 ncmm_graphics_snapshot::input_lease graphics_snapshot_lease;
 ncmm_graphics_snapshot::cache graphics_camera_cache;
+// Main-thread counters used only by the explicit native SDL input diagnostic.
+// Ordinary rendering retains no event/frame journal.
+struct {
+    bool active=false;
+    uint64_t mouse_events=0,presents=0,gpu_frames=0,cpu_frames=0,nonperspective_frames=0;
+    double rotation_radians=0;
+} graphics_camera_input_probe;
 void graphics_snapshot_external_callback(const char *module_id)
 {
     // Other modules may change items/actors even without advancing calendar::turn.

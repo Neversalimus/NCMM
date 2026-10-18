@@ -298,6 +298,11 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "void graphics_input_wait_end( uint64_t token, const std::string &action )\n{\n    graphics_snapshot_lease.end( token, action );\n    graphics_camera_cache.suspend();\n}\n"
         "void graphics_frame_presented()\n{\n#if defined(TILES)\n"
         "    ncmm_graphics_trace::note_present();\n"
+        "    if( graphics_camera_input_probe.active ) {\n"
+        "        ++graphics_camera_input_probe.presents;\n"
+        "        if( !graphics_frame_pending_present ) ++graphics_camera_input_probe.nonperspective_frames;\n"
+        "        else if( graphics_gpu_frame ) ++graphics_camera_input_probe.gpu_frames;\n"
+        "        else ++graphics_camera_input_probe.cpu_frames;\n    }\n"
         "    if( graphics_fire_capture.active && !graphics_fire_capture.frames.empty() ) graphics_fire_capture.frames.back().presented = true;\n"
         "    graphics_world_frame_presented();\n#endif\n}\n"
         "bool graphics_requires_terrain_pass()\n{")
@@ -357,7 +362,7 @@ void initialize();''')
     ):
         map_cpp=replace(map_cpp, signature+"\n{", signature+"\n{\n    ncmm::graphics_world_changed( this, "+level+" );")
     updates["map.cpp"]=map_cpp
-    for name in ("ncmm_graphics_trace.hpp","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc"):
+    for name in ("ncmm_graphics_trace.hpp","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")
