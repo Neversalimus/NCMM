@@ -29,6 +29,21 @@ double graphics_presentation_seconds()
     return 0;
 #endif
 }
+#if defined(TILES)
+uint64_t graphics_texture_identity(SDL_Texture *texture)
+{
+    if(!texture)return 0;
+    const auto properties=SDL_GetTextureProperties(texture);
+    if(!properties)return 0;
+    constexpr const char *key="ncmm.graphics.texture_lifetime";
+    const auto existing=SDL_GetNumberProperty(properties,key,0);
+    if(existing>0)return uint64_t(existing);
+    static uint64_t next=0;
+    if(next>=uint64_t(INT64_MAX))return 0;
+    const auto id=++next;
+    return SDL_SetNumberProperty(properties,key,Sint64(id))?id:0;
+}
+#endif
 #include "ncmm_graphics_presentation.inc"
 #include "ncmm_graphics_creatures.inc"
 #include "ncmm_graphics_gpu.inc"
@@ -38,7 +53,7 @@ struct graphics_cpu_sprite {
     uint32_t width = 0, height = 0;
     std::vector<uint32_t> pixels;
 };
-using graphics_sprite_key = std::tuple<uintptr_t, int, int, int, int>;
+using graphics_sprite_key = std::tuple<uint64_t, int, int, int, int>;
 std::map<graphics_sprite_key, graphics_cpu_sprite> graphics_cpu_sprites;
 std::map<uint64_t, graphics_cpu_sprite> graphics_creature_composites;
 SDL_Renderer *graphics_hybrid_renderer_identity = nullptr; // comparison only
@@ -132,7 +147,7 @@ void graphics_clear_hybrid()
     graphics_clear_creatures();
     graphics_hybrid_frame = nullptr; graphics_hybrid_positions = nullptr;
     graphics_hybrid_pixels.clear(); graphics_hybrid_width = graphics_hybrid_height = 0;
-    graphics_presentation_cells.clear(); graphics_effect_pixels.clear(); graphics_aim.reset(); graphics_aim_name.clear();
+    graphics_presentation_cells.clear(); graphics_effect_pixels.clear(); graphics_clear_target();
     graphics_hybrid_sprite_bytes = 0; graphics_hybrid_tileset_epoch = 0;
 #if defined(TILES)
     graphics_clear_stream();
@@ -199,7 +214,9 @@ int graphics_get_sprite( uint32_t index, uint32_t layer, ncmm_graphics_sprite_v2
     }
     if( !atlas ) return 0;
     const SDL_Rect &r = atlas->dimensions;
-    const graphics_sprite_key key{ reinterpret_cast<uintptr_t>( atlas->texture ), r.x, r.y, r.w, r.h };
+    const auto sheet=graphics_texture_identity(atlas->texture);
+    if(!sheet)return 0;
+    const graphics_sprite_key key{ sheet, r.x, r.y, r.w, r.h };
     auto found = graphics_cpu_sprites.find( key );
     if( found == graphics_cpu_sprites.end() ) {
         if( graphics_cpu_sprites.size() >= 1024 || r.w < 1 || r.h < 1 || r.w > 512 || r.h > 512 ||
@@ -228,7 +245,9 @@ int graphics_get_sprite( uint32_t index, uint32_t layer, ncmm_graphics_sprite_v2
                     auto source = tilecontext->ncmm_get_texture_draw_data( draw_id, TILE_CATEGORY::NONE, position, false, true );
                     if( !source ) continue;
                     const auto &rect = source->dimensions;
-                    const graphics_sprite_key overlay_key{ reinterpret_cast<uintptr_t>( source->texture ), rect.x, rect.y, rect.w, rect.h };
+                    const auto overlay_sheet=graphics_texture_identity(source->texture);
+                    if(!overlay_sheet)return 0;
+                    const graphics_sprite_key overlay_key{ overlay_sheet, rect.x, rect.y, rect.w, rect.h };
                     auto layer = graphics_cpu_sprites.find( overlay_key );
                     if( layer == graphics_cpu_sprites.end() ) {
                         if( rect.w < 1 || rect.h < 1 || rect.w > 512 || rect.h > 512 || graphics_cpu_sprites.size() >= 1024 ||
@@ -577,8 +596,12 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         SDL_RenderLine( renderer,cx,cy-4,cx,cy-1 );SDL_RenderLine( renderer,cx,cy+1,cx,cy+4 );
         SDL_SetRenderDrawColor( renderer,r,g,b,a );
     }
-    if( ok && !graphics_aim_name.empty() ) ncmm_draw_perspective_label( graphics_aim_name,
-        x+int( graphics_aim_x*base.pixel_width ), y+int( graphics_aim_y*base.pixel_height ), clip );
+    if( ok && !graphics_aim_name.empty() ) {
+        const int anchor_x=x+int(graphics_aim_x*base.pixel_width),anchor_y=y+int(graphics_aim_y*base.pixel_height);
+        if(graphics_aim_hostile&&world_setting_get_bool("NCMM_FIRST_PERSON_TARGET_HUD",1))
+            ncmm_draw_perspective_target(graphics_aim_name,anchor_x,anchor_y,clip,graphics_aim_health.known,graphics_aim_health.fraction);
+        else ncmm_draw_perspective_label(graphics_aim_name,anchor_x,anchor_y,clip);
+    }
     ok = SDL_SetRenderClipRect( renderer, clipped ? &prior_clip : nullptr ) && ok;
     graphics_frame_pending_present=ok;
     if( !ok ) { graphics_clear_stream(); graphics_view.enabled = false; graphics_release_mouse(); }
