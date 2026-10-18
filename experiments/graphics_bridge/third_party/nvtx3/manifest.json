@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "upstream": "https://github.com/NVIDIA/NVTX",
+  "source": "unmodified core headers from the signed NVIDIA Nsight Graphics 2026.3.1.26224 distribution",
+  "distribution_sha256": "be749dd4404cbc7540824944cb57dd9a241015848b64064a86cdfdf37da3c61c",
+  "license": "Apache-2.0 WITH LLVM-exception",
+  "header_only": true,
+  "linked_runtime_library": false,
+  "files": [
+    {
+      "path": "include/nvtx3/nvToolsExt.h",
+      "bytes": 60523,
+      "sha256": "6eca3c4968d92fa36fd6696be4f47a5a8c9730671119efb6bd1eabe4219c7082"
+    },
+    {
+      "path": "include/nvtx3/nvtxDetail/nvtxImpl.h",
+      "bytes": 20430,
+      "sha256": "3e4aef725abca9565d4954ea8b879a734d07e678d0ccb536de9dc7db2af81bce"
+    },
+    {
+      "path": "include/nvtx3/nvtxDetail/nvtxImplCore.h",
+      "bytes": 14452,
+      "sha256": "dcd6869d0d05bd70b65e97d6bdb6518e522c16f60d26c1559fcdbc0f0c61d806"
+    },
+    {
+      "path": "include/nvtx3/nvtxDetail/nvtxInit.h",
+      "bytes": 24662,
+      "sha256": "4278fdb1852912baaafcb46e6a342b84dde89388070e4fc106bffd550e32f01b"
+    },
+    {
+      "path": "include/nvtx3/nvtxDetail/nvtxInitDecls.h",
+      "bytes": 10592,
+      "sha256": "07c84310efc91f8d05b21b345b2d49f82cf688d6d61e70c6886a080fcf193b0b"
+    },
+    {
+      "path": "include/nvtx3/nvtxDetail/nvtxInitDefs.h",
+      "bytes": 37694,
+      "sha256": "8a00562898a8949e2fbc939cba897f7ba2dea5dd2cc0d725a05ea757bfe6b182"
+    },
+    {
+      "path": "include/nvtx3/nvtxDetail/nvtxLinkOnce.h",
+      "bytes": 4204,
+      "sha256": "7e2445007e19d38a72dd86ca85965370abede63f7d63c6d8310c674e2eeaa3cc"
+    },
+    {
+      "path": "include/nvtx3/nvtxDetail/nvtxTypes.h",
+      "bytes": 16921,
+      "sha256": "68ff50236c6665f4add4c6e6575ee1dcc47e208c720dafb64ba9df369a57a82c"
+    }
+  ]
+}
