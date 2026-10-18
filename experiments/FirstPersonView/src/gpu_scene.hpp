@@ -27,7 +27,37 @@ struct mesh_builder {
 };
 class scene_cache {
     using key=std::tuple<int32_t,int32_t,int32_t>;
-    struct chunk {uint64_t signature=0,touched=0;std::array<std::shared_ptr<const owned_mesh>,2> meshes;};
+    struct chunk {
+        struct variant {
+            uint64_t signature=0,touched=0;
+            std::array<std::weak_ptr<const owned_mesh>,2> meshes;
+            uint8_t populated=0;bool ready=false;
+        };
+        uint64_t signature=0,touched=0;bool ready=false;
+        std::array<std::shared_ptr<const owned_mesh>,2> meshes;
+        // Sparse camera-sector boundaries can change the adjacency signature
+        // without changing the world. Retain only four weak alternatives;
+        // the existing resource budget remains free to evict their geometry.
+        std::array<variant,4> alternatives;
+    };
+    void remember(chunk &value,chunk::variant *slot=nullptr){
+        if(!value.ready)return;
+        if(!slot){slot=&value.alternatives[0];for(auto &candidate:value.alternatives){
+                if(!candidate.ready){slot=&candidate;break;}
+                if(candidate.touched<slot->touched)slot=&candidate;}}
+        *slot={};slot->ready=true;slot->signature=value.signature;slot->touched=frame_serial;
+        for(size_t pass=0;pass<2;++pass)if(value.meshes[pass]){slot->populated|=uint8_t(1u<<pass);slot->meshes[pass]=value.meshes[pass];}
+    }
+    bool restore(chunk &value,uint64_t signature){
+        for(auto &candidate:value.alternatives)if(candidate.ready&&candidate.signature==signature){
+            std::array<std::shared_ptr<const owned_mesh>,2> meshes;
+            for(size_t pass=0;pass<2;++pass)if(candidate.populated&(1u<<pass)){
+                meshes[pass]=candidate.meshes[pass].lock();if(!meshes[pass]){candidate={};return false;}}
+            remember(value,&candidate);value.signature=signature;value.ready=true;value.meshes=std::move(meshes);
+            ++variant_reuses;return true;
+        }
+        return false;
+    }
     struct key_hash {
         size_t operator()(const key &value)const noexcept{
             const auto [x,y,z]=value;
@@ -79,7 +109,9 @@ class scene_cache {
         collector(scene_cache &owner,const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *data,packet &out,const ncmm_gpu_metrics_v1 &metrics,const std::vector<uint64_t> &hashes,const ncmm_graphics_multilevel_scene_v1 *multilevel,const ncmm_world::coordinates &indexed):
             cache(owner),scene(s),metadata(data),frame(out),host(metrics),levels(multilevel),xyz(indexed),signatures(hashes),dirty_cells(s.base.cell_count,false){
             for(int i=0;i<int(s.base.cell_count);++i)if(s.base.cells[i].flags&NCMM_GFX_VISIBLE){
-                auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()||found->second.signature!=signatures[i]){dirty_cells[size_t(i)]=true;++generated_cells;}}
+                auto found=cache.chunks.find(cell_key(i));
+                if(found==cache.chunks.end()||((!found->second.ready||found->second.signature!=signatures[i])&&!cache.restore(found->second,signatures[i]))){
+                    dirty_cells[size_t(i)]=true;++generated_cells;}}
             // The validated scene and resource caches already have hard
             // limits. A per-frame 512-cell limit forced a full software render
             // exactly when walking/turning invalidated many visible cells.
@@ -90,7 +122,8 @@ class scene_cache {
         void emit(const hybrid::triangle &value)override{uint32_t pass=value.m.overlay?NCMM_GPU_HELD:value.m.alpha<.99f&&!value.m.cutout?NCMM_GPU_TRANSPARENT:NCMM_GPU_OPAQUE;
             auto &builder=builders[{value.m.cell,pass}];auto m=material(value.m,builder);builder.triangle(value,builder.material(m),origin(value.m.cell));}
         void world_complete()override{
-            for(int i=0;i<int(scene.base.cell_count);++i)if(dirty(i)){auto &chunk=cache.chunks[cell_key(i)];chunk={};chunk.signature=signatures[i];
+            for(int i=0;i<int(scene.base.cell_count);++i)if(dirty(i)){auto &chunk=cache.chunks[cell_key(i)];cache.remember(chunk);
+                chunk.signature=signatures[i];chunk.ready=true;chunk.meshes={};
                 for(uint32_t pass=0;pass<2;++pass){auto found=builders.find({i,pass});if(found!=builders.end()){chunk.meshes[pass]=cache.assets.mesh(std::move(found->second.mesh));if(!chunk.meshes[pass])fail("GPU static scene mesh cache budget exceeded");}}}
             builders.clear();world=false;
             for(int i=0;i<int(scene.base.cell_count);++i)if(scene.base.cells[i].flags&NCMM_GFX_VISIBLE){auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()){warming=true;continue;}
@@ -294,10 +327,10 @@ class scene_cache {
     }
 public:
     explicit scene_cache(size_t mesh_budget=resources::mesh_limit,size_t texture_budget=resources::texture_limit):assets(mesh_budget,texture_budget){}
-    uint32_t generated_cells=0;uint64_t signature_reuses=0;double geometry_ms=0;
+    uint32_t generated_cells=0;uint64_t signature_reuses=0,variant_reuses=0;double geometry_ms=0;
     std::string last_reason;
     void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();arm_meshes={};item_meshes.clear();assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
-        signature_cached=false;signature_values=std::vector<uint64_t>{};signature_results=std::vector<uint64_t>{};signature_reuses=0;}
+        signature_cached=false;signature_values=std::vector<uint64_t>{};signature_results=std::vector<uint64_t>{};signature_reuses=variant_reuses=0;}
     size_t bytes()const{return assets.bytes()+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t);}
     bool build(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const hybrid::sprite_provider &provider,packet &out,
                hybrid::frame &statistics,const ncmm_gpu_metrics_v1 &host,animation::pose pose,const hybrid::presentation_data *metadata,creature::presentation *creatures,int width,int height,uint32_t mode,const ncmm_graphics_multilevel_scene_v1 *levels=nullptr){

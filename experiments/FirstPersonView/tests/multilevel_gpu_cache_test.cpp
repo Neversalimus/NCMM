@@ -57,5 +57,58 @@ int main(){try{
         coordinates.back().flags&=~NCMM_WORLD_FLOOR_BOTTOM;first_person::gpu::packet changed;
         check(build(changed)&&cache.generated_cells>0,"changed physical floor permissions invalidate neighbours");
     }
+    // A stationary camera revisits sparse sector boundaries during a full turn.
+    // Their neighbour signatures differ even when all actual world data is
+    // unchanged. Repeated sectors must reuse their exact geometry and remain
+    // equivalent to an independent fresh collector after real topology changes.
+    {
+        constexpr int side=9;
+        std::vector<ncmm_graphics_cell_v1> cells;
+        std::vector<ncmm_graphics_cell_v2> details;
+        std::vector<ncmm_world_cell_v1> coordinates;
+        ncmm_world_slice_v1 slice{};
+        ncmm_graphics_multilevel_scene_v1 world{};
+        world.struct_size=sizeof(world);world.version=1;world.world_epoch=world.revision=1;world.level_height=2.5f;
+        world.appearance.struct_size=sizeof(world.appearance);world.appearance.environment.daylight=1;world.appearance.environment.sun_z=1;
+        ncmm_gpu_metrics_v1 host{};host.resource_epoch=1;
+        first_person::gpu::scene_cache cache;
+        auto source=[&](bool half,bool changed){
+            coordinates.clear();
+            for(int y=0;y<side;++y)for(int x=0;x<side;++x)if(!half||x>=4){
+                uint32_t flags=NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM|NCMM_WORLD_BODY_VISIBLE;
+                if(changed&&x==4&&y==4)flags&=~NCMM_WORLD_FLOOR_BOTTOM;
+                coordinates.push_back({x,y,0,flags,0,0,1,{.2f,.2f,.2f}});
+            }
+            cells.assign(coordinates.size(),{});details.assign(coordinates.size(),{});
+            for(size_t i=0;i<cells.size();++i){cells[i].flags=NCMM_GFX_VISIBLE;cells[i].light=1;std::strcpy(cells[i].terrain,"t_floor");
+                std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=1;}
+            world.appearance.base={sizeof(ncmm_graphics_scene_v1),160,120,side,side,4.5f,4.5f,cells.data(),cells.size()};
+            world.appearance.details=details.data();world.appearance.detail_count=details.size();
+            world.coordinates=coordinates.data();world.cell_count=uint32_t(coordinates.size());
+            slice={0,0,world.cell_count,0,1,1};world.slices=&slice;world.slice_count=1;
+        };
+        auto topology=[&](const first_person::gpu::packet &packet){
+            std::map<std::tuple<int32_t,int32_t,int32_t,uint32_t>,uint64_t> result;
+            for(const auto &draw:packet.draws)if(draw.pass!=NCMM_GPU_HELD&&draw.cell<coordinates.size()){
+                const auto &cell=coordinates[draw.cell];result[{cell.x,cell.y,cell.z,draw.pass}]=draw.mesh_key;
+            }
+            return result;
+        };
+        auto build=[&](first_person::gpu::scene_cache &owner,first_person::gpu::packet &packet,float yaw){
+            first_person::hybrid::frame statistics;
+            return owner.build(world.appearance,yaw,-.4f,{},packet,statistics,host,{},nullptr,nullptr,160,120,NCMM_GPU_FORCE,&world);
+        };
+        for(int repeat=0;repeat<4;++repeat)for(bool half:{false,true}){
+            source(half,false);first_person::gpu::packet retained,fresh;first_person::gpu::scene_cache independent;
+            check(build(cache,retained,float(repeat)*1.7f)&&build(independent,fresh,float(repeat)*1.7f),"sparse sector collectors build");
+            check(topology(retained)==topology(fresh),"retained sparse sector exactly matches fresh physical meshes");
+            if(repeat)check(cache.generated_cells==0,"revisited unchanged sector does not regenerate static cells");
+        }
+        source(false,true);first_person::gpu::packet changed,fresh;first_person::gpu::scene_cache independent;
+        check(build(cache,changed,0)&&build(independent,fresh,0),"changed floor collectors build");
+        check(cache.generated_cells>0&&topology(changed)==topology(fresh),"real floor permission change invalidates geometry and matches fresh collection");
+        cache.clear();source(false,false);first_person::gpu::packet reset;
+        check(build(cache,reset,0)&&cache.generated_cells==world.cell_count,"world/device reset cannot revive a stale geometry variant");
+    }
     std::cout<<"Sparse multilevel GPU cache: "<<checks<<" checks passed\n";return 0;
 }catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}}
