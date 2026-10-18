@@ -62,6 +62,9 @@
         get_options().get_option("NCMM_FIRST_PERSON_CREATURE_ART").setValue("tileset");
         for(const point viewport:viewports)for(const char *mode:{"cpu","gpu"}){
             progress(std::string("movement_")+scene+"_"+std::to_string(viewport.x)+"_"+mode);
+            // Disposable diagnostic only: each matrix entry starts with the
+            // same stamina, rather than inheriting fatigue from earlier attacks.
+            if(extended)you.set_stamina(you.get_stamina_max());
             if(guard.canvas){SDL_SetRenderTarget(renderer,previous);SDL_DestroyTexture(guard.canvas);guard.canvas=nullptr;}
             guard.canvas=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,viewport.x,viewport.y);require(guard.canvas,"movement_canvas_failed");
             you.setpos(here,here.get_bub(original_position),false);you.set_moves(100000);g->set_safe_mode(SAFE_MODE_OFF);graphics_clear_world();graphics_clear_creatures();

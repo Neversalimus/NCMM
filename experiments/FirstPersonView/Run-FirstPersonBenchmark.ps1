@@ -344,7 +344,7 @@ if($MovementBenchmark){
     }}
     $soaked=$audit.soak.actual_wall_seconds
 }
-$result=[ordered]@{success=$true;source_commit=$bundle.source_commit;ncmm_commit=$bundle.ncmm_source_commit;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';manual_playthrough=$false;focused_gpu_benchmark=[bool]$FocusedGpuBenchmark;movement_benchmark=[bool]$MovementBenchmark;udp_requested=$udp;soak_seconds=$soaked;evidence=$evidence}
+$result=[ordered]@{success=$true;source_commit=$bundle.source_commit;ncmm_commit=$bundle.ncmm_source_commit;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';manual_playthrough=$false;focused_gpu_benchmark=[bool]$FocusedGpuBenchmark;movement_benchmark=[bool]$MovementBenchmark;extended_matrix=[bool]$Extended;viewmodel_gallery=[bool]$ViewmodelGallery;udp_requested=$udp;soak_seconds=$soaked;evidence=$evidence}
 $result | ConvertTo-Json | Set-Content (Join-Path $OutputRoot 'benchmark-provenance.json') -Encoding UTF8
 $result | ConvertTo-Json
 } catch {

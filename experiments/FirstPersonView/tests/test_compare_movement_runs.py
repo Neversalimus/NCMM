@@ -83,6 +83,70 @@ class HardwareEvidenceTests(unittest.TestCase):
     def read(self):
         return compare.read_run(self.run, self.identity, "clear", True)
 
+    def extended_fixture(self):
+        template = self.report["records"][0]
+        records = []
+        for scene in compare.EXTENDED_SCENES:
+            for renderer in ("cpu", "gpu"):
+                for width, height in compare.EXTENDED_VIEWPORTS:
+                    record = copy.deepcopy(template)
+                    for name, values in record.items():
+                        if isinstance(values, list):
+                            record[name] = [values[0]] * 256
+                    record.update(scene=scene, renderer=renderer, width=width, height=height,
+                                  native_steps=64, extended_matrix=True, internal_width=640, internal_height=480,
+                                  native_confirmed_attacks=16 if scene == "empty_attacks" else 0,
+                                  first_frame_indices=list(range(192, 256)),
+                                  first_frame_after_step_samples_ms=[4.0] * 64,
+                                  first_ready_samples_ms=[9.0] * 64,
+                                  warm_rotation_samples_ms=[4.0] * 96, cold_rotation_samples_ms=[4.0] * 96,
+                                  frame_renderers_gpu=[int(renderer == "gpu")] * 256)
+                    for name in compare.RESOURCE_STREAMS:
+                        record[name] = [0] * 256
+                    records.append(record)
+        self.report["records"] = records
+        self.persist()
+
+    def test_extended_matrix_is_explicit_and_preserves_legacy_gate(self):
+        self.extended_fixture()
+        result, _ = compare.read_run(self.run, self.identity, "clear", True, extended=True)
+        self.assertEqual(len(result["records"]), 80)
+        self.assertEqual(result["full_size_gpu_first_samples"], 640)
+        self.assertEqual(result["records"][0]["resources"]["gpu_held_bones"]["peak"], 0)
+        with self.assertRaisesRegex(ValueError, "movement matrix"):
+            self.read()
+        self.report["records"].pop()
+        self.persist()
+        with self.assertRaisesRegex(ValueError, "movement matrix"):
+            compare.read_run(self.run, self.identity, "clear", True, extended=True)
+
+    def test_extended_metrics_and_real_attack_evidence_required(self):
+        self.extended_fixture()
+        original = copy.deepcopy(self.report["records"][0])
+        for key, invalid in (("extended_matrix", False), ("internal_width", 2000),
+                             ("native_confirmed_attacks", 1), ("gpu_held_bones", [0] * 255),
+                             ("process_rss_bytes", [-1] * 256), ("cold_rotation_samples_ms", [float("nan")] * 96)):
+            with self.subTest(key=key):
+                self.report["records"][0] = dict(original, **{key: invalid})
+                self.persist()
+                with self.assertRaises(ValueError):
+                    compare.read_run(self.run, self.identity, "clear", True, extended=True)
+
+    def test_diagnostic_component_identity_is_explicit_and_not_release_identity(self):
+        source, host = "a" * 40, "b" * 40
+        manifest = compare.load(self.bundle / "payload/first-person-bundle.json")
+        manifest.update(ncmm_source_commit=source,
+                        diagnostic_mixed_components={"host_ncmm_commit": host, "module_ncmm_commit": source})
+        self.save(self.bundle / "payload/first-person-bundle.json", manifest)
+        result = compare.payload(self.bundle, source, diagnostic_host_source=host)
+        self.assertEqual(result["host_source_commit"], host)
+        self.assertIn("not a qualified installer", result["installer_revision"])
+        for expected in ("c" * 40, "short"):
+            with self.assertRaises(ValueError):
+                compare.payload(self.bundle, source, diagnostic_host_source=expected)
+        with self.assertRaisesRegex(ValueError, "packaged NCMM source"):
+            compare.payload(self.bundle, source)
+
     def test_complete_exact_package_and_run(self):
         self.assertEqual(compare.payload(self.bundle, "candidate"), self.identity)
         result, udp = self.read()
