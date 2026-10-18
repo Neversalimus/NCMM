@@ -358,6 +358,27 @@ int main(int argc,char **argv){
     }
     if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"psx_weighted_viewmodel\":true,\"impostor_colour_minification\":true,\"multilevel_depth_and_picking\":true,\"dynamic_upload_over_2mib_checked\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
     std::printf("Full GPU scene PASS: %s / %s; animation upload %llu bytes; CPU raster=0\n",second.backend,second.device,(unsigned long long)second.upload_bytes);
+    // The imported red-dot lens uses alpha, rather than an opaque stand-in.
+    // Two front lens surfaces precede an opaque held surface in material order:
+    // they must blend after it and must not reject one another by writing depth.
+    {
+        ncmm_gpu_scene_v1 lens_scene{};lens_scene.struct_size=sizeof(lens_scene);lens_scene.width=640;lens_scene.height=480;lens_scene.mode=NCMM_GPU_FORCE;lens_scene.frame_serial=1900;
+        auto &camera=lens_scene.camera;camera.right[0]=1;camera.up[2]=1;camera.forward[1]=1;
+        camera.projection[0]=640;camera.projection[1]=480;camera.projection[2]=457;camera.projection[3]=512;camera.sun[2]=camera.sun[3]=1;camera.grid[0]=camera.grid[1]=camera.grid[2]=1;
+        ncmm_gpu_cell_v1 lens_cell{};lens_cell.flags=1;lens_cell.light[0]=lens_cell.light[1]=lens_cell.light[2]=1;lens_scene.cells=&lens_cell;lens_scene.cell_count=1;
+        std::array<ncmm_gpu_vertex_v1,9> lens_vertices{};std::array<uint32_t,9> lens_indices{};
+        for(size_t i=0;i<9;++i){const size_t material=i/3,corner=i%3;const float depth=material==0?1.f:material==1?1.3f:2.f;
+            auto &vertex=lens_vertices[i];vertex.position[0]=(corner==0?-1.f:corner==1?1.f:0.f)*depth;vertex.position[1]=depth;vertex.position[2]=(corner==2?1.f:-1.f)*depth;
+            vertex.normal[1]=vertex.face_normal[1]=-1;vertex.material=uint32_t(material);lens_indices[i]=uint32_t(i);}
+        ncmm_gpu_material_v1 lens_materials[3]{};lens_materials[0].color[0]=.95f;lens_materials[1].color[2]=.95f;lens_materials[2].color[1]=.95f;
+        for(size_t i=0;i<3;++i){lens_materials[i].color[3]=i<2?.25f:1.f;lens_materials[i].flags=NCMM_GPU_HELD_MATERIAL|NCMM_GPU_SMOOTH;}
+        ncmm_gpu_mesh_v1 lens_mesh{0x48454c444c454e53ull,lens_vertices.data(),lens_indices.data(),lens_materials,9,9,3,0};lens_scene.meshes=&lens_mesh;lens_scene.mesh_count=1;lens_scene.textures=nullptr;lens_scene.texture_count=0;
+        const auto identity=first_person::gpu::identity();lens_scene.bones=&identity;lens_scene.bone_count=1;
+        ncmm_gpu_draw_v1 lens_draw{};lens_draw.mesh_key=lens_mesh.key;lens_draw.transform=identity;lens_draw.bone_count=1;lens_draw.pass=NCMM_GPU_HELD;lens_scene.draws=&lens_draw;lens_scene.draw_count=1;
+        require(engine.submit(lens_scene),engine.metrics().reason);const uint32_t pixel=capture("-held-lenses");
+        const auto red=pixel>>24,green=(pixel>>16)&255,blue=(pixel>>8)&255;
+        require(red>8&&blue>8&&green>red&&green>blue,"held glass blends both source layers over the visible opaque surface without writing depth");
+    }
     // Leave work and an SDL composition queued while replacing the backend.
     // No read-pixels or explicit fence wait may accidentally serialize this path.
     scene.meshes=&mesh;scene.mesh_count=1;scene.draws=&draw;scene.draw_count=1;scene.textures=nullptr;scene.texture_count=0;

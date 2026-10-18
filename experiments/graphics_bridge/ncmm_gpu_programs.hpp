@@ -34,12 +34,12 @@ class programs {
         return SDL_CreateGPUGraphicsPipeline(device_,&p);
     }
 public:
-    SDL_GPUGraphicsPipeline *opaque=nullptr,*transparent=nullptr,*held=nullptr,*sky=nullptr,*celestial=nullptr,*weather=nullptr,*volume=nullptr,*compose=nullptr;
+    SDL_GPUGraphicsPipeline *opaque=nullptr,*transparent=nullptr,*held=nullptr,*held_alpha=nullptr,*sky=nullptr,*celestial=nullptr,*weather=nullptr,*volume=nullptr,*compose=nullptr;
     SDL_GPUComputePipeline *shadow=nullptr,*count=nullptr;
     SDL_GPUSampler *linear=nullptr,*nearest=nullptr,*pixel_art=nullptr;
-    void clear(){if(device_){for(auto *p:{opaque,transparent,held,sky,celestial,weather,volume,compose})if(p)SDL_ReleaseGPUGraphicsPipeline(device_,p);
+    void clear(){if(device_){for(auto *p:{opaque,transparent,held,held_alpha,sky,celestial,weather,volume,compose})if(p)SDL_ReleaseGPUGraphicsPipeline(device_,p);
             for(auto *p:{shadow,count})if(p)SDL_ReleaseGPUComputePipeline(device_,p);if(linear)SDL_ReleaseGPUSampler(device_,linear);if(nearest)SDL_ReleaseGPUSampler(device_,nearest);if(pixel_art)SDL_ReleaseGPUSampler(device_,pixel_art);}
-        opaque=transparent=held=sky=celestial=weather=volume=compose=nullptr;shadow=count=nullptr;linear=nearest=pixel_art=nullptr;device_=nullptr;}
+        opaque=transparent=held=held_alpha=sky=celestial=weather=volume=compose=nullptr;shadow=count=nullptr;linear=nearest=pixel_art=nullptr;device_=nullptr;}
     void abandon(){device_=nullptr;clear();}
     bool create(device_context &context){if(opaque)return true;device_=context.device();
 #define NCMM_GPU_SHADER(NAME,STAGE,SAMPLERS,STORAGE,UNIFORMS) context.shader(shaders::NAME##_spv,sizeof(shaders::NAME##_spv),shaders::NAME##_dxil,sizeof(shaders::NAME##_dxil),STAGE,SAMPLERS,STORAGE,UNIFORMS)
@@ -53,6 +53,9 @@ public:
         const SDL_GPUTextureFormat effects[]={SDL_GPU_TEXTUREFORMAT_R16G16B16A16_FLOAT,SDL_GPU_TEXTUREFORMAT_R32_FLOAT};
         opaque=make(gv,gf,true,world,2,true,true,true,true);
         transparent=make(gv,gf,true,world,2,true,false,true,false);held=make(gv,gf,true,world,2,true,true,true,false);
+        // The imported optic lens uses the existing shader/blend contract.
+        // Draw it after all opaque hands/items without hiding geometry behind it.
+        held_alpha=make(gv,gf,true,world,2,true,false,true,false);
         sky=make(fv,sf,false,world,2,true,false,false,true);celestial=make(cv,cf,false,world,2,true,false,false,false);
         weather=make(wv,wf,false,world,2,true,false,true,false);volume=make(fv,vf,false,effects,2,false,false,false,true);compose=make(fv,pf,false,world,1,false,false,false,true);
         for(auto *s:{gv,gf,fv,sf,cv,cf,wv,wf,vf,pf})if(s)SDL_ReleaseGPUShader(device_,s);
@@ -65,7 +68,7 @@ public:
         sampler.max_lod=0;sampler.min_filter=sampler.mag_filter=SDL_GPU_FILTER_NEAREST;sampler.mipmap_mode=SDL_GPU_SAMPLERMIPMAPMODE_NEAREST;nearest=SDL_CreateGPUSampler(device_,&sampler);
         sampler.max_lod=10;
         sampler.min_filter=SDL_GPU_FILTER_LINEAR;sampler.mag_filter=SDL_GPU_FILTER_NEAREST;sampler.mipmap_mode=SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;pixel_art=SDL_CreateGPUSampler(device_,&sampler);
-        bool ok=opaque&&transparent&&held&&sky&&celestial&&weather&&volume&&compose&&shadow&&count&&linear&&nearest&&pixel_art;
+        bool ok=opaque&&transparent&&held&&held_alpha&&sky&&celestial&&weather&&volume&&compose&&shadow&&count&&linear&&nearest&&pixel_art;
         if(!ok){if(context.reason().empty())context.fail("create GPU render programs");clear();}return ok;
     }
 };

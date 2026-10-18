@@ -89,8 +89,9 @@ class backend {
         depth.stencil_load_op=SDL_GPU_LOADOP_DONT_CARE;depth.stencil_store_op=SDL_GPU_STOREOP_DONT_CARE;
         return SDL_BeginGPURenderPass(commands,colors,2,&depth);
     }
-    void draw_batches(SDL_GPUCommandBuffer *commands,SDL_GPURenderPass *pass,const std::vector<batch> &batches,uint32_t selected,const ncmm_gpu_scene_v1 &scene){
-        SDL_BindGPUGraphicsPipeline(pass,selected==NCMM_GPU_OPAQUE?programs_.opaque:selected==NCMM_GPU_TRANSPARENT?programs_.transparent:programs_.held);
+    bool draw_batches(SDL_GPUCommandBuffer *commands,SDL_GPURenderPass *pass,const std::vector<batch> &batches,uint32_t selected,const ncmm_gpu_scene_v1 &scene,bool alpha_only=false){
+        bool deferred_alpha=false;
+        SDL_BindGPUGraphicsPipeline(pass,selected==NCMM_GPU_OPAQUE?programs_.opaque:selected==NCMM_GPU_TRANSPARENT?programs_.transparent:alpha_only?programs_.held_alpha:programs_.held);
         SDL_GPUBuffer *vertex_storage[]={instances_,bones_};SDL_BindGPUVertexStorageBuffers(pass,0,vertex_storage,2);
         SDL_GPUBuffer *fragment_storage[]={cells_,shadows_};SDL_BindGPUFragmentStorageBuffers(pass,0,fragment_storage,2);
         SDL_PushGPUVertexUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_PushGPUFragmentUniformData(commands,0,&scene.camera,sizeof(scene.camera));
@@ -98,6 +99,7 @@ class backend {
             SDL_GPUBufferBinding vertex{mesh->vertices,0},index{mesh->indices,0};SDL_BindGPUVertexBuffers(pass,0,&vertex,1);SDL_BindGPUIndexBuffer(pass,&index,SDL_GPU_INDEXELEMENTSIZE_32BIT);
             const uint32_t command[]={b.first,0,0,0};SDL_PushGPUVertexUniformData(commands,1,command,sizeof(command));
             for(const auto &range:mesh->ranges){const auto &m=mesh->materials[range.material];
+                if(selected==NCMM_GPU_HELD&&(m.color[3]<.999f)!=alpha_only){deferred_alpha|=m.color[3]<.999f;continue;}
                 const auto draw_start=profiling_?clock::now():clock::time_point{};
                 struct material {float color[4];uint32_t state[4];float impostor[4];} uniform{};
                 std::copy_n(m.color,4,uniform.color);uniform.state[0]=m.flags;uniform.state[1]=m.finish;uniform.state[2]=m.liquid;uniform.state[3]=m.banks;
@@ -113,6 +115,7 @@ class backend {
                     else if(m.flags&NCMM_GPU_CREATURE_VISUAL)recording_.creature_ms+=took;
                     else recording_.world_ms+=took;}
             }}
+        return deferred_alpha;
     }
 public:
     backend(){metrics_.struct_size=sizeof(metrics_);metrics_.gpu_ms=-1;metrics_.target_cell=-1;}
@@ -244,7 +247,8 @@ public:
             SDL_PushGPUVertexUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DrawGPUPrimitives(pass,6,uint32_t(std::min(360.f,70+scene.camera.weather[1]*260)),0,0);++metrics_.draw_calls;}
         SDL_EndGPURenderPass(pass);
         pass=begin(commands,true,false);if(!pass){SDL_CancelGPUCommandBuffer(commands);context_.fail("begin held-item GPU pass");reason(context_.reason());return false;}
-        draw_batches(commands,pass,batches,NCMM_GPU_HELD,scene);SDL_EndGPURenderPass(pass);
+        if(draw_batches(commands,pass,batches,NCMM_GPU_HELD,scene))draw_batches(commands,pass,batches,NCMM_GPU_HELD,scene,true);
+        SDL_EndGPURenderPass(pass);
         const bool atmosphere=scene.camera.wind[2]>0||scene.camera.wind[3]>0||scene.camera.weather[2]>.025f;
         if(atmosphere){
         phase_start=profiling_?clock::now():clock::time_point{};

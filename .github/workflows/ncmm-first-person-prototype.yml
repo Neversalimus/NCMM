@@ -104,6 +104,11 @@ jobs:
         run: ctest --test-dir fp-build -C Release --output-on-failure
       - name: Offline PSX importer malformed-input and determinism checks
         run: python -B experiments/FirstPersonView/tests/test_import_psx_arms.py -v
+      - name: Offline held resource conversion and malformed-input checks
+        run: |
+          python -m pip install --disable-pip-version-check pillow==11.3.0
+          python -B experiments/FirstPersonView/tests/test_import_held_items.py -v
+          python -B experiments/FirstPersonView/tools/import_held_items.py --selection experiments/FirstPersonView/assets/held_items/selection.json --output experiments/FirstPersonView/assets/held_items/generated --check
       - name: Record renderer timing and work counters (no FPS threshold)
         run: cmake --build fp-build --config Release --target first_person_measure
       - name: Configure focused cache and facade sanitizers

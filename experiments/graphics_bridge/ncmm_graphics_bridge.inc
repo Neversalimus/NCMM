@@ -148,8 +148,10 @@ bool graphics_action( const std::string &action )
 
 bool graphics_world_needs_redraw();
 #include "ncmm_graphics_controls.inc"
+#include "ncmm_graphics_held.inc"
 #include "ncmm_graphics_hybrid.inc"
 #include "ncmm_graphics_world.inc"
+#include "ncmm_graphics_held_gallery.inc"
 
 #if defined(TILES)
 // Opt-in evidence for the real native UI. No readback/IO on the normal path.

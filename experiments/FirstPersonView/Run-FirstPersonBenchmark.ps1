@@ -8,6 +8,8 @@ param(
     [switch]$MovementBenchmark,
     [switch]$Extended,
     [switch]$ViewmodelGallery,
+    [switch]$HeldAssetGallery,
+    [switch]$DisableHeldAssets,
     [switch]$CaptureCrashDump,
     [switch]$GpuDebug,
     [string]$DumpAnalyzer
@@ -52,6 +54,8 @@ function Read-NativeBenchmarkProgress([string]$Path){
 if(-not $BundleRoot){$BundleRoot=$PSScriptRoot}
 if(-not $DumpAnalyzer){$DumpAnalyzer=Join-Path $PSScriptRoot 'ncmm_native_dump_analyzer.exe'}
 if($MovementBenchmark -and $FocusedGpuBenchmark){throw 'Choose one focused benchmark.'}
+if($HeldAssetGallery -and ($MovementBenchmark -or $FocusedGpuBenchmark -or $ViewmodelGallery -or $DisableHeldAssets)){throw 'HeldAssetGallery requires its own enabled native diagnostic run.'}
+if($HeldAssetGallery -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the gameplay audit.'}
 if($Extended -and -not $MovementBenchmark){throw 'Extended requires MovementBenchmark.'}
 if($ViewmodelGallery -and ($MovementBenchmark -or $FocusedGpuBenchmark)){throw 'ViewmodelGallery belongs to the gameplay audit.'}
 if($MovementBenchmark -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the gameplay audit.'}
@@ -149,7 +153,7 @@ public static class NCMMNativeCrashDialog {
 }
 '@
 }
-$names=@('NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT')
+$names=@('NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_HELD_GALLERY_ONLY','NCMM_FP_HELD_ASSETS','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT')
 $prior=@{}
 # Modern .NET preserves an empty environment variable. PowerShell can convert
 # $null to that empty string at the .NET call boundary, and native getenv then
@@ -161,7 +165,8 @@ $failure=$null
 $process=$null
 $lastProgress='native startup'
 try {
-    if($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
+    if($HeldAssetGallery){$env:NCMM_FP_HELD_GALLERY_ONLY='1'}elseif($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
+    if($DisableHeldAssets){$env:NCMM_FP_HELD_ASSETS='0'}
     if($Extended){$env:NCMM_FP_EXTENDED='1'}
     if($ViewmodelGallery){$env:NCMM_FP_VIEWMODEL_GALLERY='1'}
     if($GpuDebug){$env:SDL_RENDER_GPU_DEBUG='1'}
@@ -176,8 +181,9 @@ try {
         if(-not ('NCMMNativeDebugger' -as [type])){Add-Type -Path (Join-Path $PSScriptRoot 'NativeDiagnosticDebugger.cs')}
         $debugger=[NCMMNativeDebugger]::Start([uint32]$process.Id,$evidence)
     }
-    $deadline=[DateTime]::UtcNow.AddSeconds($(if($Extended){7200}elseif($FocusedGpuBenchmark){600}else{$SoakSeconds+1200}))
+    $deadline=[DateTime]::UtcNow.AddSeconds($(if($Extended){7200}elseif($FocusedGpuBenchmark -or $HeldAssetGallery){600}elseif($MovementBenchmark){1200}else{$SoakSeconds+3600}))
     $progressPath=Join-Path $test 'ncmm/first-person-audit-progress.txt'
+    if($HeldAssetGallery){$progressPath=Join-Path $test 'ncmm/first-person-held-gallery-progress.txt'}
     $lastProgress='native startup'
     $lastAdvance=[DateTime]::UtcNow
     while(-not $process.WaitForExit(20000)){
@@ -307,9 +313,18 @@ if($exitCode -ne 0){
 }
 if($debugger -and $debugger.Error){throw "Native diagnostic debugger failed: $($debugger.Error)"}
 if($debugger -and $debugger.Dumps -gt 0){throw 'Native diagnostic captured an access violation even though the process exited successfully.'}
-$auditName=if($MovementBenchmark){'first-person-movement-benchmark.json'}elseif($FocusedGpuBenchmark){'first-person-gpu-benchmark.json'}else{'first-person-gameplay-audit.json'}
+$auditName=if($HeldAssetGallery){'first-person-held-gallery.json'}elseif($MovementBenchmark){'first-person-movement-benchmark.json'}elseif($FocusedGpuBenchmark){'first-person-gpu-benchmark.json'}else{'first-person-gameplay-audit.json'}
 if(-not (Test-Path -LiteralPath (Join-Path $evidence $auditName))){throw "Requested native benchmark report is missing: $auditName; final phase=$lastProgress"}
-if($MovementBenchmark){
+if($HeldAssetGallery){
+    $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
+    if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.manual_playthrough -ne $false -or @($audit.records).Count -ne 60){throw 'Native held asset gallery is incomplete.'}
+    foreach($record in $audit.records){
+        if($record.fallback_reason -ne 0 -or $record.matched -ne 1 -or -not $record.identity -or -not $record.model -or $record.draws -lt $record.attachments+1){throw 'An installed authored model was not actually selected.'}
+        if($record.renderer -eq 'gpu' -and ($record.gpu -ne $true -or $record.static_builds -ne 0 -or $record.static_reuses -lt $record.attachments+1 -or $record.static_mesh_upload_bytes -ne 0 -or $record.dynamic_geometry_bytes -ne 0)){throw 'Held GPU residency or backend qualification failed.'}
+        if($record.width -ne 1280 -or $record.height -ne 800 -or -not (Test-Path -LiteralPath (Join-Path $evidence $record.capture))){throw 'A native held capture is missing.'}
+    }
+    $soaked=0
+}elseif($MovementBenchmark){
     $audit=Get-Content (Join-Path $evidence 'first-person-movement-benchmark.json') -Raw | ConvertFrom-Json
     $expectedRecords=if($Extended){80}else{12};$expectedSteps=if($Extended){64}else{12};$expectedRotations=if($Extended){96}else{48}
     if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.simulation_turns_advanced -ne 0 -or @($audit.records).Count -ne $expectedRecords){throw 'Native movement benchmark is incomplete.'}

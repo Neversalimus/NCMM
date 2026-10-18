@@ -510,6 +510,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         copy_id( env.held_item, held->typeId().str() ); env.held_kind = held->is_gun() ? 1u : held->is_melee() ? 2u : 3u;
     }
     graphics_hybrid_last_environment = env;
+    graphics_prepare_held();
     graphics_prepare_presentation( base,positions,details,world );
     const ncmm_graphics_scene_v2 scene = { sizeof( ncmm_graphics_scene_v2 ), base, details.data(), details.size(), env };
     if(world)world->appearance=scene;

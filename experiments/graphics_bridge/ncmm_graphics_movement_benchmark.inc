@@ -59,7 +59,7 @@
         if(scene=="creatures_20"||scene=="creatures_100")for(int n=0;n<(scene=="creatures_100"?100:20);++n)
             require(g->place_critter_at(mtype_id(n%2?"mon_zombie":"mon_dog"),at(-9+n%10*2,-3-n/10*2,0))!=nullptr,"movement_extended_creature_spawn_failed");
         if(scene=="smoke_rain")for(int y=-16;y<-2;++y)for(int x=-8;x<=8;++x)here.add_field(at(x,y,0),field_type_str_id("fd_smoke").id(),3);
-        if(scene=="armed")you.set_wielded_item(item(itype_id("modular_m27_assault_rifle"),calendar::turn));
+        if(scene=="armed")you.set_wielded_item(item(itype_id("scar_l"),calendar::turn));
         const std::string original_art=get_option<std::string>("NCMM_FIRST_PERSON_CREATURE_ART");
         get_options().get_option("NCMM_FIRST_PERSON_CREATURE_ART").setValue("tileset");
         for(const point viewport:viewports)for(const char *mode:{"cpu","gpu"}){
