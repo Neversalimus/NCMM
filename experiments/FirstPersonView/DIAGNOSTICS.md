@@ -236,6 +236,14 @@ viewport, renderer texture generation and tileset independently guard reuse.
 This is not a turn-number cache. Actors, death clips and vehicles continue on
 their live path. The complete native tile pass still runs on every redraw.
 
+The explicit `game::get_player_input` lifetime also owns its 125 ms Native
+animation polls. A TIMEOUT inside that exact loop preserves the generation;
+it does not advance the simulation. A TIMEOUT outside the owned loop, a real
+action, nested menu or recursive input loop still revokes reuse. This avoids
+discarding the static snapshot on every weather/animation poll. The actual
+SDL probe records revocation causes and saves any unclassified window present
+for pixel review; its no-fallback assertion remains strict.
+
 The existing sparse snapshot cache acquires a new side/back sector lazily.
 Frustum rejections never become cached native occlusion. Its owned cell,
 appearance and physical-light payload is capped at 96 MiB including capacity;
@@ -262,7 +270,8 @@ blocking menus/targeting separately. Native 2D, Snapshot, Visibility, Geometry,
 Resource Preparation, Upload, World, Creatures, Hands/Items, Effects, Target HUD
 and Present identify the remaining stages. Nested ranges are not additive.
 These annotations do not convert CPU submit/record timers into GPU execution
-time. Their actual presence in a live hardware capture must still be checked.
+time. Live seven-scene Graphics and supplemental Systems validation is recorded
+in `reports/nsight-16d-hardware.md`, including incomplete workload-event coverage.
 
 Nsight's CLI must receive `--platform="Windows (x86_64)"` as one argument.
 Passing `--platform` and its value as separate arguments lets Qt consume it as

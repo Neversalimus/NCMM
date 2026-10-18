@@ -424,7 +424,7 @@ jobs:
         with:
           name: first-person-camera-input-${{ matrix.build }}
           path: |
-            ${{ runner.temp }}/fp-camera-input/evidence/first-person-camera-input.json
+            ${{ runner.temp }}/fp-camera-input/evidence/first-person-camera-*.json
             ${{ runner.temp }}/fp-camera-input/evidence/first-person-camera-*.bmp
             ${{ runner.temp }}/fp-camera-input/evidence/first-person-process-result.json
             ${{ runner.temp }}/fp-camera-input/evidence/first-person-audit-progress.txt

@@ -227,6 +227,7 @@
             report.member("native_tiles_samples_ms",native_tiles_ms);report.member("perspective_samples_ms",perspective_ms);report.member("present_samples_ms",present_ms);report.member("unattributed_samples_ms",unattributed_ms);
             report.member("extract_samples_ms",extract_ms);report.member("callback_samples_ms",callback_ms);report.member("gpu_upload_samples_ms",upload_ms);report.member("gpu_record_samples_ms",record_ms);report.member("gpu_submit_samples_ms",submit_ms);
             report.member("source_cache_bytes_peak",cache_peak);report.member("creatures",graphics_creature_snapshots.size());report.member("native_art",true);report.member("capture",capture);
+            require(!full_size_gpu_matrix||(!gpu_stats.software_device&&actual_width>0&&actual_height>0&&std::all_of(renderers.begin(),renderers.end(),[](uint32_t value){return value==1;})),"full_size_gpu_matrix_requires_real_hardware");
             report.member("backend",gpu_stats.backend);report.member("device",gpu_stats.device);report.member("software_device",bool(gpu_stats.software_device));report.end_object();stream.flush();
             if(std::string(mode)=="gpu")require(std::all_of(renderers.begin(),renderers.end(),[](uint32_t value){return value==1;}),"movement_gpu_fell_back_during_walk");
         }

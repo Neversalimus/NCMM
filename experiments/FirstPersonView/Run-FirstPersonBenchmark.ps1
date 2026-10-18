@@ -362,7 +362,7 @@ if($TargetHudGallery){
     $soaked=0
 }elseif($CameraInputProbe){
     $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
-    if($audit.schema -ne 1 -or $audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.native_unchanged -ne $true -or $audit.fixture_input_lease -ne $false -or $audit.ordinary_performance_measurement -ne $false -or $audit.mouse_events -lt 400 -or $audit.rotation_radians -lt 12.566370614359 -or $audit.presented_frames -lt 16 -or $audit.gpu_frames -ne $audit.presented_frames -or $audit.cpu_frames -ne 0 -or $audit.nonperspective_frames -ne 0 -or $audit.snapshot_hits -le 1000 -or $audit.detail_hits -le 0 -or $audit.presentation_hits -le 0){throw 'Real native SDL camera reuse evidence is incomplete.'}
+    if($audit.schema -ne 1 -or $audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.native_unchanged -ne $true -or $audit.fixture_input_lease -ne $false -or $audit.ordinary_performance_measurement -ne $false -or $audit.mouse_events -lt 400 -or $audit.rotation_radians -lt 12.566370614359 -or $audit.presented_frames -lt 16 -or $audit.gpu_frames -ne $audit.presented_frames -or $audit.cpu_frames -ne 0 -or $audit.nonperspective_frames -ne 0 -or $audit.retained_pixels_verified -ne $true -or $audit.pixel_checks -ne $audit.presented_frames -or $audit.capture_failures -ne 0 -or ($audit.pixel_reference_frames + $audit.retained_perspective_frames) -ne $audit.presented_frames -or $audit.snapshot_hits -le 1000 -or $audit.detail_hits -le 0 -or $audit.presentation_hits -le 0){throw 'Real native SDL camera reuse evidence is incomplete.'}
     $soaked=0
 }elseif($TraceCaptureScene){
     $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
@@ -410,7 +410,7 @@ if($TargetHudGallery){
     }}
     $soaked=$audit.soak.actual_wall_seconds
 }
-$result=[ordered]@{success=$true;source_commit=$bundle.source_commit;ncmm_commit=$bundle.ncmm_source_commit;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';manual_playthrough=$false;focused_gpu_benchmark=[bool]$FocusedGpuBenchmark;movement_benchmark=[bool]$MovementBenchmark;extended_matrix=[bool]$Extended;viewmodel_gallery=[bool]$ViewmodelGallery;udp_requested=$udp;soak_seconds=$soaked;evidence=$evidence}
+$result=[ordered]@{success=$true;source_commit=$bundle.source_commit;ncmm_commit=$bundle.ncmm_source_commit;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';manual_playthrough=$false;focused_gpu_benchmark=[bool]$FocusedGpuBenchmark;movement_benchmark=[bool]$MovementBenchmark;extended_matrix=[bool]$Extended;full_size_gpu_matrix=[bool]$FullSizeGpuMatrix;viewmodel_gallery=[bool]$ViewmodelGallery;udp_requested=$udp;soak_seconds=$soaked;evidence=$evidence}
 $result['camera_input_probe']=[bool]$CameraInputProbe
 $result['trace_capture_scene']=$TraceCaptureScene
 $result.target_hud_gallery=[bool]$TargetHudGallery

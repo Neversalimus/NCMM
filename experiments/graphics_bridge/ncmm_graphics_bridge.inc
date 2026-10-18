@@ -21,6 +21,10 @@ struct {
     double rotation_radians=0;
     bool last_composed_perspective=false,last_composed_gpu=false;
     uint64_t retained_perspective_frames=0,unclassified_captures=0,capture_failures=0;
+    bool pending_retained_verified=false;
+    uint64_t pixel_checks=0,pixel_reference_frames=0;
+    std::array<int,4> reference_bounds{};
+    std::vector<uint32_t> reference_pixels;
     std::map<std::string,uint64_t> lease_invalidations;
 } graphics_camera_input_probe;
 void graphics_snapshot_external_callback(const char *module_id)
