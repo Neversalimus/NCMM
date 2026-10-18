@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "converter": "import_held_items.py/v1",
-  "selection_sha256": "ed47ecd1860859da2bae78432d84120faba751444b894c3d1bc3d48c10c4801c",
+  "selection_sha256": "760e74e3bfac2fcc789565bf9cf51d8d0c02c5402b913a358b99ae2e73cc11db",
   "models": [
     {
       "id": "pistol",
@@ -787,7 +787,7 @@
     },
     {
       "id": "medical",
-      "identity": 18435745973934988900,
+      "identity": 16171324316762266495,
       "vertices": 1404,
       "triangles": 754,
       "source_nodes": 0,
@@ -795,29 +795,29 @@
       "palettes": 1,
       "source_clips": 0,
       "materials": 3,
-      "nominal_length_m": 0.25,
+      "nominal_length_m": 0.14,
       "removed_zero_area_faces": 0,
       "material_adaptations": [],
       "normalization_matrix": [
-        0.15993745805640164,
+        0.08956497651158492,
         0.0,
         0.0,
         0,
         0.0,
-        0.15993745805640164,
+        0.08956497651158492,
         0.0,
         0,
         0.0,
         0.0,
-        0.15993745805640164,
+        0.08956497651158492,
         0,
-        -0.000141784556567002,
-        -0.10151277964264854,
+        -7.939935167752113e-05,
+        -0.05684715659988319,
         -0.0,
         1
       ],
       "generated": "medical.generated.cpp",
-      "sha256": "20ab216174f2ef8c090d29a77a93e58ab2eaa8177ed489a17a5af43d0535d444"
+      "sha256": "34c3a1855e504ea8a5570179f74b52b341af7082aae995cbe3509884c201c339"
     },
     {
       "id": "spear",
@@ -1048,7 +1048,7 @@
     "inventory.generated.cpp": "07d1d36871106818cf0e31e809ccee5e1c9e91aa086ae2e57d9914db6cbab986",
     "knife.generated.cpp": "fd7d6a9e6f0f5ccc53b592f8274cad0b80a67a8dfea6b5499fa49c1eb38c106c",
     "machete.generated.cpp": "58049cf8fdc4a989ed592da03a5fc4473c560433541789b0a0f955bc04b5b7bf",
-    "medical.generated.cpp": "20ab216174f2ef8c090d29a77a93e58ab2eaa8177ed489a17a5af43d0535d444",
+    "medical.generated.cpp": "34c3a1855e504ea8a5570179f74b52b341af7082aae995cbe3509884c201c339",
     "pickaxe.generated.cpp": "4fdf459358c985999279a9d62fd9ee6f13932730754b58885991547422d4f879",
     "pistol.generated.cpp": "07b23832a31bbde18e951f225e39edca840d0ab2de4a2a27f5ba1e910b91057c",
     "pliers.generated.cpp": "ae617a6766a2cdf93c6e74bb5433ecb310387d9dc15d0ca45f7b8124585e81bd",

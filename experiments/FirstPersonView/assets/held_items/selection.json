@@ -1469,7 +1469,7 @@
       "source_pack": "quaternius_survival",
       "family": "medical",
       "native_fixture": "1st_aid_box",
-      "nominal_length": 0.25,
+      "nominal_length": 0.14,
       "length_axis": 0,
       "rotation": [
         0,

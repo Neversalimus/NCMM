@@ -1586,7 +1586,7 @@ part::body,part::body,part::body,part::body,part::body,part::body,part::body,par
 };
 static const viewmodel::node nodes[]={
 {"Source",1,{{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f,1.0f},{1.0f,1.0f,1.0f}}},
-{"NCMM_units_axes_grip",-1,{{-0.000141784557f,-0.10151278f,-0.0f},{0.0f,0.0f,0.0f,1.0f},{0.159937458f,0.159937458f,0.159937458f}}},
+{"NCMM_units_axes_grip",-1,{{-7.93993517e-05f,-0.0568471566f,-0.0f},{0.0f,0.0f,0.0f,1.0f},{0.0895649765f,0.0895649765f,0.0895649765f}}},
 };
 static const uint16_t order[]={
 1,0,
@@ -1606,10 +1606,10 @@ static const material materials[]={
 {{0.177349523f,0.177349523f,0.177349523f,1.0f},0,nullptr,0,0,0ull},
 };
 static const model value={
-1,"medical",18435745973934988900ull,family::medical,
+1,"medical",16171324316762266495ull,family::medical,
 {vertices,std::size(vertices),indices,std::size(indices),nodes,order,std::size(nodes),joints,inverse_bind,std::size(joints),palettes,std::size(palettes),nullptr,0,nullptr,0,nullptr,0,nullptr,nullptr,0,0},
 vertex_material,triangle_part,materials,std::size(materials),{{0,{0.0008865f,0.63470297f,0.0f}},{0,{0.04777983f,0.0f,0.0f}},{0,{-0.4680468f,0.0f,0.0f}},{0,{0.782442f,0.0773625f,0.0f}},{0,{0.782442f,0.0773625f,0.0f}},{0,{0.0008865f,0.63470297f,0.0f}},{1.0f,0.0f,0.0f},{1.0f,0.0f,0.0f}},
--1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.25f,false
+-1,-1,-1,-1,-1,-1,{0.0f,0.0f,0.0f},0.14f,false
 };
 const model &asset_medical() noexcept {return value;}
 }
