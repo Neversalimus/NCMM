@@ -230,6 +230,12 @@ public:
         if(initialize_white){SDL_GPUTextureTransferInfo white{};white.transfer_buffer=transfer;white.offset=offset;white.pixels_per_row=white.rows_per_layer=1;
             SDL_GPUTextureRegion white_target{};white_target.texture=white_;white_target.w=white_target.h=white_target.d=1;SDL_UploadToGPUTexture(copy,&white,&white_target,false);}
         SDL_EndGPUCopyPass(copy);
+        // Match the existing resource uploader: queue transfers before recording
+        // their storage-buffer consumers. SDL cycling retains queued copy data;
+        // the later draw fence covers both submissions without a CPU wait.
+        if(!SDL_SubmitGPUCommandBuffer(commands)){context_.fail("submit frame upload commands");const std::string error=context_.reason();invalidate();reason(error);return false;}
+        commands=SDL_AcquireGPUCommandBuffer(context_.device());
+        if(!commands){context_.fail("acquire draw commands after frame upload");const std::string error=context_.reason();invalidate();reason(error);return false;}
         metrics_.upload_bytes+=upload_size;metrics_.upload_ms=ms(stage);
         auto phase_start=profiling_?clock::now():clock::time_point{};
         SDL_GPUStorageBufferReadWriteBinding shadow_binding{};shadow_binding.buffer=shadows_;shadow_binding.cycle=true;

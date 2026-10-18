@@ -128,6 +128,13 @@ Retained staging capacity shares the resource budget and is reported separately
 from GPU targets/assets; it is not measured VRAM. Creation/growth counters and
 queued distinct-pose pixel tests verify reuse and copy lifetime. Native timing
 must establish whether this removes the observed upload/recording delays.
+Required frame transfers are submitted before recording their draw consumers,
+following the existing resource uploader. This adds one GPU command submission;
+it does not resend immutable arm vertices, textures or UVs. The existing draw
+fence covers both ordered submissions, with no new CPU wait. Copy submission and
+draw-command acquisition remain inside the upload/recording timers and the full
+frame. The public submit timer still covers the final draw submission; phase
+medians must not be added. Native performance acceptance requires matched runs.
 The neutral fallback texel is initialized once per target lifetime, rather than
 uploaded and cycled every frame. Successful queue submission marks it ready;
 target recreation and device cleanup reset that state. Pixel and upload checks
