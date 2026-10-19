@@ -97,6 +97,9 @@
                 const double perspective_wall=elapsed(perspective_begin);const auto present_begin=clock::now();
                 require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr)&&SDL_RenderTexture(renderer,guard.canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"movement_present_failed");graphics_world_frame_presented();++frames;
                 const double present_wall=elapsed(present_begin);
+                // Fence/readback polling belongs inside the same complete-frame
+                // clock used for the repaired PSX reference. Renderer unchanged.
+                const auto metrics=graphics_gpu_frame&&graphics_gpu_engine?graphics_gpu_engine->metrics():ncmm_gpu_metrics_v1{};
                 const double process_end=extended?ncmm_graphics_performance::cpu_seconds():0;
                 require(you.pos_abs()==pos&&you.get_moves()==moves&&calendar::turn==original_time,"movement_renderer_changed_simulation");
                 if(measured){const double wall=elapsed(begin);const double accounted=native_tiles_wall+perspective_wall+present_wall;
@@ -105,7 +108,7 @@
                     extract_ms.push_back(graphics_snapshot_ms);callback_ms.push_back(graphics_callback_ms);visibility_ms.push_back(graphics_world_metrics.visibility_ms);renderers.push_back(graphics_gpu_frame?1u:0u);cache_peak=std::max(cache_peak,graphics_world_metrics.source_cache_bytes);
                     range_evaluations.push_back(graphics_world_range_evaluations);range_hits.push_back(graphics_world_range_hits);ray_hits.push_back(graphics_world_sources.ray_hits);ray_misses.push_back(graphics_world_sources.ray_misses);
                     geometry_hits.push_back(graphics_world_derived.hits);geometry_misses.push_back(graphics_world_derived.misses);roof_misses.push_back(graphics_world_roofs.misses);source_misses.push_back(graphics_world_sources.misses);geometry_revisions.push_back(graphics_world_revision);material_evaluations.push_back(graphics_world_material_evaluations);material_hits.push_back(graphics_world_material_hits);
-                    const auto metrics=graphics_gpu_frame&&graphics_gpu_engine?graphics_gpu_engine->metrics():ncmm_gpu_metrics_v1{};geometry_ms.push_back(metrics.geometry_ms);resource_ms.push_back(metrics.resource_ms);upload_ms.push_back(metrics.upload_ms);record_ms.push_back(metrics.render_record_ms);submit_ms.push_back(metrics.submit_ms);
+                    geometry_ms.push_back(metrics.geometry_ms);resource_ms.push_back(metrics.resource_ms);upload_ms.push_back(metrics.upload_ms);record_ms.push_back(metrics.render_record_ms);submit_ms.push_back(metrics.submit_ms);
                     if(extended){process_cpu_ms.push_back(std::max(0.0,(process_end-process_begin)*1000));
                         uploads.push_back(metrics.upload_bytes);draw_calls.push_back(metrics.draw_calls);
                         resource_bytes.push_back(metrics.resource_bytes);host_bytes.push_back(metrics.host_cpu_cache_bytes);
@@ -143,6 +146,7 @@
             }
             const auto gpu_stats=graphics_gpu_frame&&graphics_gpu_engine?graphics_gpu_engine->metrics():ncmm_gpu_metrics_v1{};
             report.start_object();report.member("scene",scene);report.member("renderer",mode);report.member("width",viewport.x);report.member("height",viewport.y);
+            report.member("gpu_metrics_in_frame",true);
             int native_vsync=0,window_width=0,window_height=0;
             const bool vsync_available=SDL_GetRenderVSync(renderer,&native_vsync);
             const bool window_size_available=SDL_GetWindowSizeInPixels(get_sdl_window(),&window_width,&window_height);
