@@ -28,7 +28,11 @@ def verify_spatial(root, trials, frames):
     # Prefer the left side of the world viewport, clear of native targeting UI.
     # Select only spatial points that actually distinguish this run's known
     # pre-input perspective from its observed legacy map flash.
-    candidates = [(x/100, y/100) for x in range(5, 61, 5) for y in [8, 15, 22]]
+    # At the fixture's 640-pixel Linux width the native aiming panel starts
+    # at x=203. Keep the fixed world grid inside the left 30%, including when
+    # a foreground window leaves fewer open-sky points. Denser columns retain
+    # the minimum independent discriminators without sampling that native UI.
+    candidates = [(x/100, y/100) for x in range(2, 31, 2) for y in [8, 15, 22]]
     reference = samples(image(first), candidates)
     legacy = [index for index in range(first, last) if not frames[index]['perspective']]
     assert legacy
