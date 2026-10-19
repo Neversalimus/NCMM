@@ -16,7 +16,10 @@
     report.start_object();report.member("schema",2);report.member("actual_cdda_sdl",true);report.member("manual_playthrough",false);
     report.member("profiler_markers_enabled",ncmm_graphics_trace::enabled());
     report.member("gpu_debug_requested",std::getenv("SDL_RENDER_GPU_DEBUG")!=nullptr);
-    report.member("distance_radius",NCMM_GRAPHICS_V2_RADIUS);report.member("fov_z_range_configured",get_option<int>("FOV_3D_Z_RANGE"));
+    report.member("distance_radius",NCMM_GRAPHICS_V2_RADIUS);
+    const bool legacy_z_option=get_options().has_option("FOV_3D_Z_RANGE");
+    report.member("legacy_fov_z_range_setting_available",legacy_z_option);
+    if(legacy_z_option)report.member("fov_z_range_configured",get_option<int>("FOV_3D_Z_RANGE"));
     report.member("native_pass_retained",true);
     report.member("simulation_turns_advanced",0);report.member("full_size_gpu_matrix",full_size_gpu_matrix);report.member("records");report.start_array();
     auto at=[&](int x,int y,int z){return here.get_bub(tripoint_abs_ms(original_position.x()+x,original_position.y()+y,z));};
