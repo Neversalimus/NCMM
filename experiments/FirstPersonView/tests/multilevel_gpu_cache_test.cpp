@@ -54,8 +54,25 @@ int main(){try{
         check(build(lit)&&!cache.generated_cells&&cache.signature_reuses==2,"live lighting updates reuse static adjacency without rebuilding geometry");
         check(lit.cells.back().light[0]==.7f,"retained geometry still publishes the current light buffer");
 
+        // Renderer identifiers end at NUL. Bytes after it are not an item,
+        // texture or shape change and must not force a static rebuild.
+        auto padding=[](auto &text){auto end=std::find(std::begin(text),std::end(text),'\0');
+            if(end!=std::end(text))std::fill(end+1,std::end(text),char(0x5a));};
+        for(size_t i=0;i<cells.size();++i){padding(cells[i].terrain);padding(cells[i].furniture);padding(cells[i].item);padding(cells[i].creature);
+            padding(details[i].ground);padding(details[i].field);}
+        first_person::gpu::packet padded;
+        check(build(padded)&&!cache.generated_cells,"unused identifier padding does not rebuild static geometry");
+        auto static_keys=[](const first_person::gpu::packet &packet){std::vector<std::tuple<uint64_t,uint32_t,uint32_t>> keys;
+            for(const auto &draw:packet.draws)if(draw.pass!=NCMM_GPU_HELD)keys.emplace_back(draw.mesh_key,draw.cell,draw.pass);
+            std::sort(keys.begin(),keys.end());return keys;};
+        first_person::gpu::scene_cache independent;first_person::gpu::packet fresh;
+        check(independent.build(world.appearance,0,-.4f,{},fresh,statistics,host,{},nullptr,nullptr,160,120,NCMM_GPU_FORCE,&world),"fresh padded source collection builds");
+        check(static_keys(lit)==static_keys(padded)&&static_keys(padded)==static_keys(fresh),"cached and independently rebuilt physical meshes ignore identifier padding identically");
+
         coordinates.back().flags&=~NCMM_WORLD_FLOOR_BOTTOM;first_person::gpu::packet changed;
         check(build(changed)&&cache.generated_cells>0,"changed physical floor permissions invalidate neighbours");
+        std::strcpy(cells.back().terrain,"t_grass");std::strcpy(details.back().ground,"t_grass");first_person::gpu::packet renamed;
+        check(build(renamed)&&cache.generated_cells>0,"actual identifier bytes still invalidate physical meshes");
     }
     std::cout<<"Sparse multilevel GPU cache: "<<checks<<" checks passed\n";return 0;
 }catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}}

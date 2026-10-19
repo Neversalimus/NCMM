@@ -3,6 +3,7 @@
 #include "hybrid_renderer.hpp"
 #include "gpu_packet.hpp"
 #include <chrono>
+#include <cstddef>
 #include <unordered_map>
 
 namespace first_person::gpu {
@@ -260,12 +261,34 @@ class scene_cache {
             frame.draw(mesh,place(at+vec{pose.offset.x,pose.offset.y,pose.offset.z}),uint32_t(cell),NCMM_GPU_OPAQUE,nullptr,pose.heading);
         }
     };
+    template<size_t Size> static uint64_t hash_identifier(uint64_t hash,const char (&value)[Size]){
+        const auto *end=static_cast<const char *>(std::memchr(value,0,Size));
+        const uint32_t length=uint32_t(end?size_t(end-value):Size);
+        // Length prefixes keep adjacent identifiers unambiguous. Never read
+        // beyond a bounded array, including an invisible unterminated cell.
+        hash=hash_bytes(hash,&length,sizeof(length));return hash_bytes(hash,value,length);
+    }
+    static uint64_t static_content_hash(const ncmm_graphics_cell_v1 &cell,const ncmm_graphics_cell_v2 &detail){
+        static_assert(offsetof(ncmm_graphics_cell_v1,furniture)==offsetof(ncmm_graphics_cell_v1,terrain)+sizeof(cell.terrain));
+        static_assert(offsetof(ncmm_graphics_cell_v1,item)==offsetof(ncmm_graphics_cell_v1,furniture)+sizeof(cell.furniture));
+        static_assert(offsetof(ncmm_graphics_cell_v1,creature)==offsetof(ncmm_graphics_cell_v1,item)+sizeof(cell.item));
+        static_assert(sizeof(cell)==offsetof(ncmm_graphics_cell_v1,creature)+sizeof(cell.creature));
+        static_assert(offsetof(ncmm_graphics_cell_v2,field)==offsetof(ncmm_graphics_cell_v2,ground)+sizeof(detail.ground));
+        static_assert(sizeof(detail)==offsetof(ncmm_graphics_cell_v2,field)+sizeof(detail.field));
+        // The same normalized numeric facts remain in the signature. All six
+        // renderer IDs are NUL-terminated strings, not 128 bytes of geometry.
+        uint64_t hash=hash_bytes(1469598103934665603ull,&cell,offsetof(ncmm_graphics_cell_v1,terrain));
+        hash=hash_identifier(hash,cell.terrain);hash=hash_identifier(hash,cell.furniture);
+        hash=hash_identifier(hash,cell.item);hash=hash_identifier(hash,cell.creature);
+        hash=hash_bytes(hash,&detail,offsetof(ncmm_graphics_cell_v2,ground));
+        hash=hash_identifier(hash,detail.ground);return hash_identifier(hash,detail.field);
+    }
     std::vector<uint64_t> signatures(const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *metadata,const ncmm_gpu_metrics_v1 &host,bool creatures,int width,const ncmm_graphics_multilevel_scene_v1 *levels,const ncmm_world::coordinates &xyz){
         std::vector<uint64_t> values(s.base.cell_count,0);
         for(int i=0;i<int(s.base.cell_count);++i){auto cell=s.base.cells[i];cell.light=0;if(creatures)std::memset(cell.creature,0,sizeof(cell.creature));auto detail=s.details[i];
             detail.light_r=detail.light_g=detail.light_b=detail.emission=0;if(detail.vehicle_features){const auto p=levels?xyz.origin(uint32_t(i)):ncmm_world::point{float(i%s.base.grid_width),float(i/s.base.grid_width),0};detail.vehicle_x-=p.x;detail.vehicle_y-=p.y;}
             if(creatures)detail.terrain_flags&=~(NCMM_CREATURE_TINY|NCMM_CREATURE_SMALL|NCMM_CREATURE_LARGE|NCMM_CREATURE_HUGE);
-            uint64_t hash=hash_bytes(1469598103934665603ull,&cell,sizeof(cell));hash=hash_bytes(hash,&detail,sizeof(detail));
+            uint64_t hash=static_content_hash(cell,detail);
             if(levels){const auto &c=levels->coordinates[i];hash=hash_bytes(hash,&c.x,sizeof(c.x)*3);hash=hash_bytes(hash,&c.flags,sizeof(c.flags));hash=hash_bytes(hash,&c.direction,sizeof(c.direction));}
             if(metadata){auto extra=metadata->cells[i];extra.source_light=extra.source_r=extra.source_g=extra.source_b=0;extra.hostile=0;if(creatures)extra.creature_height=extra.creature_width=extra.creature_elevation=0;
                 hash=hash_bytes(hash,&extra,sizeof(extra));hash=hash_bytes(hash,&metadata->view.occupied_vehicle,sizeof(metadata->view.occupied_vehicle));}
