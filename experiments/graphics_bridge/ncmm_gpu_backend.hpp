@@ -12,6 +12,7 @@ struct recording_metrics {
     double batching_pick_ms=0,shadow_ms=0,world_ms=0,creature_ms=0,held_ms=0,volume_ms=0,compose_ms=0;
     uint64_t bones=0,held_bones=0,static_upload_bytes=0,dynamic_geometry_bytes=0;
     uint64_t frame_upload_capacity_bytes=0,frame_upload_creations=0;
+    uint64_t static_index_creations=0,static_index_reuses=0,static_index_pool_bytes=0;
     double cell_prepare_ms=0;
     uint64_t cell_upload_bytes=0,cell_cache_bytes=0;
     double retirement_ms=0;uint64_t retirement_calls=0;
@@ -200,7 +201,8 @@ public:
         const uint64_t gpu_reserved=target_bytes()+dynamic_bytes(),reserved=gpu_reserved+frame_upload_size_+cell_cache_bytes;
         if(reserved>=NCMM_GPU_RESOURCE_LIMIT){reason("GPU targets, dynamic buffers, staging and cell snapshot exceed memory budget");return false;}
         auto stage=clock::now();bool ready=resources_.prepare(scene,NCMM_GPU_RESOURCE_LIMIT-reserved,metrics_);metrics_.resource_ms=ms(stage);
-        if(profiling_)recording_.static_upload_bytes=resources_.static_upload_bytes();
+        if(profiling_){recording_.static_upload_bytes=resources_.static_upload_bytes();
+            recording_.static_index_creations=resources_.static_index_creations();recording_.static_index_reuses=resources_.static_index_reuses();recording_.static_index_pool_bytes=resources_.static_index_pool_bytes();}
         // Staging capacity is reported separately; it is not measured VRAM.
         metrics_.resource_bytes=resources_.bytes()+gpu_reserved;metrics_.host_cpu_cache_bytes=resources_.cpu_bytes()+cell_cache_bytes;
         if(!ready){const std::string error=resources_.reason();reason(error);if(error!="warming bounded GPU resource cache"){invalidate();reason(error);}return false;}
