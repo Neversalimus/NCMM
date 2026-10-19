@@ -279,7 +279,7 @@ jobs:
             & ./ncmm_sdl_descriptor_repro.exe 4 *> stdout.log
             if($LASTEXITCODE -ne 0){Get-Content stdout.log;throw 'Actual SDL descriptor boundary/pixel regression failed.'}
             Get-Content stdout.log
-            $library=(Get-Content sdl-library-path.txt -Raw).Trim()
+            $library=[IO.Path]::GetFullPath((Get-Content sdl-library-path.txt -Raw).Trim())
             if(-not $library.StartsWith($libraryRoot,[StringComparison]::OrdinalIgnoreCase)){throw 'SDK test linked an unexpected SDL library.'}
             [ordered]@{sdl_dependency=$dependency;library_sha256=(Get-FileHash -LiteralPath $library -Algorithm SHA256).Hash.ToLowerInvariant();frames=4;draws=16384;pixels_checked=262144;ordinary_game_performance=$false;manual_playthrough=$false} | ConvertTo-Json -Depth 8 | Set-Content sdl-descriptor-identity.json -Encoding UTF8
           } finally {Pop-Location}
