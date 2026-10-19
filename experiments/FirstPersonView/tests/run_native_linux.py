@@ -76,6 +76,9 @@ def run(args):
         environment.update(NCMM_FP_APPEARANCE_SMOKE='1',SDL_ASSERT='abort',
                            SDL_RENDER_DRIVER='gpu',SDL_GPU_DRIVER='vulkan',SDL_AUDIODRIVER='dummy')
         environment.update(switches)
+        if mode=='controls':
+            from seed_deferred_options import seed
+            seed(game);environment['NCMM_FP_VERIFY_DEFERRED_OPTIONS']='1'
         started=time.time(); timed_out=False
         with (game/'stdout.log').open('wb') as stdout,(game/'stderr.log').open('wb') as stderr:
             process=subprocess.Popen([str(game/'cataclysm-tiles.ncmm'),'--ncmm-gameplay-smoke',
@@ -100,7 +103,10 @@ def run(args):
         smoke=json.loads((game/'ncmm/first-person-smoke.json').read_text())
         gameplay=json.loads((game/'ncmm/gameplay-smoke.json').read_text())
         assert smoke['success'] and gameplay['success']
-        if mode=='controls':assert smoke['sdl_frames']>=70
+        if mode=='controls':
+            assert smoke['sdl_frames']>=70
+            restored=json.loads((evidence/'first-person-deferred-options.json').read_text())
+            assert restored['success'] and restored['actual_cdda_configuration'] and restored['value_checks']==8
         if mode=='camera':
             camera=json.loads((game/'ncmm/first-person-camera-input.json').read_text())
             assert camera['success'] and camera['actual_cdda_sdl'] and camera['native_unchanged']

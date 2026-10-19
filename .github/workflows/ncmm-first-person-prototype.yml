@@ -480,9 +480,12 @@ jobs:
           $ErrorActionPreference='Stop'
           $root='${{ steps.game.outputs.root }}'
           $env:NCMM_FP_SAVE_ONLY='1'
+          $env:NCMM_FP_VERIFY_DEFERRED_OPTIONS='1'
           try {
             foreach($attempt in @(1,2)) {
               ./ncmmrepo/experiments/FirstPersonView/tests/Reset-SmokeWorld.ps1 -GameRoot $root
+              python -B ncmmrepo/experiments/FirstPersonView/tests/seed_deferred_options.py --game $root
+              if($LASTEXITCODE -ne 0){throw 'Saved setting fixture could not be seeded.'}
               $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-gameplay-smoke --seed ncmm-save-012' -WorkingDirectory $root -PassThru
               if(-not $p.WaitForExit(300000)){& taskkill.exe /pid $p.Id /t /f;throw 'Native save-load gate deadline exceeded.'}
               $p.Refresh()
@@ -490,10 +493,16 @@ jobs:
               if($p.ExitCode -ne 0 -or $smoke.success -ne $true){throw "Native save-load gate failed: $($smoke.reason), exit $($p.ExitCode)"}
               $save=Get-Content (Join-Path $root 'ncmm/first-person-multilevel-save-after.json') -Raw | ConvertFrom-Json
               if($save.success -ne $true -or @($save.levels).Count -ne 3){throw 'Native save-load gate is incomplete.'}
+              $restored=Get-Content (Join-Path $root 'ncmm/first-person-deferred-options.json') -Raw | ConvertFrom-Json
+              if($restored.success -ne $true -or $restored.actual_cdda_configuration -ne $true -or $restored.value_checks -ne 8){throw 'Serialized typed Native settings were not restored.'}
+              Copy-Item (Join-Path $root 'ncmm/first-person-deferred-options.json') ("installer-result/first-person-deferred-options-gate-"+$attempt+'.json')
               Copy-Item (Join-Path $root 'ncmm/first-person-multilevel-save-after.json') 'installer-result/first-person-multilevel-save-fast-gate.json'
               Copy-Item (Join-Path $root 'ncmm/first-person-multilevel-save-after.json') ("installer-result/first-person-multilevel-save-fast-gate-"+$attempt+'.json')
             }
-          } finally {Remove-Item Env:\NCMM_FP_SAVE_ONLY -ErrorAction SilentlyContinue}
+          } finally {
+            Remove-Item Env:\NCMM_FP_SAVE_ONLY -ErrorAction SilentlyContinue
+            Remove-Item Env:\NCMM_FP_VERIFY_DEFERRED_OPTIONS -ErrorAction SilentlyContinue
+          }
       - uses: actions/checkout@v4
         if: always() && steps.installer_gate.outcome == 'success'
         with:

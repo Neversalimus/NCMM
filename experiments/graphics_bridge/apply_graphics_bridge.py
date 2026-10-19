@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import subprocess
 from native_library_bridge import prepare as prepare_native_library
+from native_options_bridge import prepare as prepare_deferred_options
 
 SOURCES = {
     "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": "cdda-experimental-2026-10-01-1040",
@@ -34,6 +35,7 @@ def apply(root: Path):
     event_helper = "\nvoid runtime_player_kill_notify()\n{\n    dispatch_event_v2( NCMM_EVENT_PLAYER_KILL_V2 );\n}\n"
     if loader.replace(event_helper, "") != (repo / "host_patch/ncmm_loader.cpp").read_text(encoding="utf-8-sig"):
         raise ValueError("Apply the current canonical NCMM Host first; loader identity differs")
+    updates['options.cpp']=prepare_deferred_options(read('options.cpp'))
     loader = prepare_native_library(loader, replace)
     # The canonical report helper is used only in debug.cpp. GCC's strict
     # Native build correctly rejects accidental external linkage without a
@@ -410,7 +412,7 @@ void initialize();''')
     ):
         map_cpp=replace(map_cpp, signature+"\n{", signature+"\n{\n    ncmm::graphics_world_changed( this, "+level+" );")
     updates["map.cpp"]=map_cpp
-    for name in ("ncmm_graphics_trace.hpp","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
+    for name in ("ncmm_graphics_trace.hpp","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")
