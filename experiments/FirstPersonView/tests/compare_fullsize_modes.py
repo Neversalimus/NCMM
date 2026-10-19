@@ -21,7 +21,7 @@ BASELINE_FILES = {'experiments/graphics_bridge/ncmm_graphics_movement_benchmark.
                   'experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1',
                   'experiments/FirstPersonView/reports/baseline-8d24-matrix.md'}
 BASELINE_ORIGINAL_HARNESS='2bb3ec5a10ce2e22b11b537ec2fd5782518ee9f2'
-BASELINE_SDK_REFERENCE='13f3e3e3f8ceaa777b8ea325605ba22a5bfe5a72'
+BASELINE_SDK_REFERENCE='078ee4f86d1231683b3d05a2dd2254f76db44d3e'
 SDK_IDENTITY_FIELDS=('sdl_version','private_port_version','registry_commit','source_archive_sha512',
                      'port_manifest_sha256','patch_sha256','runtime_vendor')
 PINS = {'1040':'3f7fb352bf492ba521bd9408a0c9f6ce239e8d83',
