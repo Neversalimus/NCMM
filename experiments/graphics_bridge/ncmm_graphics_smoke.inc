@@ -16,6 +16,7 @@ bool graphics_scene_smoke()
         require( graphics_view.owner == "first_person_view" && (graphics_view.hybrid_render||graphics_view.world_render),
                  "graphics_provider_missing" );
         require( tilecontext && tilecontext->is_valid(), "tileset_unavailable" );
+        #include "ncmm_graphics_deferred_options_smoke.inc"
         // Keep the complete established CPU qualification on the same new Host.
         // The GPU equivalence matrix below explicitly selects GPU separately.
         if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) ) get_options().get_option( "NCMM_FIRST_PERSON_RENDERER" ).setValue( "cpu" );

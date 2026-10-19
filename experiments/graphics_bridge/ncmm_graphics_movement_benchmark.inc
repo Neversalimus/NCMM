@@ -16,7 +16,10 @@
     report.start_object();report.member("schema",2);report.member("actual_cdda_sdl",true);report.member("manual_playthrough",false);
     report.member("profiler_markers_enabled",ncmm_graphics_trace::enabled());
     report.member("gpu_debug_requested",std::getenv("SDL_RENDER_GPU_DEBUG")!=nullptr);
-    report.member("distance_radius",NCMM_GRAPHICS_V2_RADIUS);report.member("fov_z_range_configured",get_option<int>("FOV_3D_Z_RANGE"));
+    report.member("distance_radius",NCMM_GRAPHICS_V2_RADIUS);
+    const bool legacy_z_option=get_options().has_option("FOV_3D_Z_RANGE");
+    report.member("legacy_fov_z_range_setting_available",legacy_z_option);
+    if(legacy_z_option)report.member("fov_z_range_configured",get_option<int>("FOV_3D_Z_RANGE"));
     report.member("native_pass_retained",true);
     report.member("simulation_turns_advanced",0);report.member("full_size_gpu_matrix",full_size_gpu_matrix);report.member("records");report.start_array();
     auto at=[&](int x,int y,int z){return here.get_bub(tripoint_abs_ms(original_position.x()+x,original_position.y()+y,z));};
@@ -193,6 +196,8 @@
             const bool vsync_available=SDL_GetRenderVSync(renderer,&native_vsync);
             const bool window_size_available=SDL_GetWindowSizeInPixels(get_sdl_window(),&window_width,&window_height);
             report.member("native_renderer_vsync_available",vsync_available);report.member("native_renderer_vsync",native_vsync);
+            report.member("loaded_min_z",graphics_world_cached_low);report.member("loaded_max_z",graphics_world_cached_high);
+            report.member("available_z_slices",graphics_world_metrics.available_slices);
             report.member("native_window_size_available",window_size_available);report.member("native_window_pixel_width",window_width);report.member("native_window_pixel_height",window_height);
             report.member("window_display_scale",SDL_GetWindowDisplayScale(get_sdl_window()));report.member("sdl_runtime_version",SDL_GetVersion());
             report.member("camera_snapshot_fixture_lease",true);

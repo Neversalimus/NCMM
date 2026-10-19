@@ -63,7 +63,8 @@ jobs:
         run: |
           ccache --max-size=2G
           cmake -S upstream -B upstream/build -GNinja -DCMAKE_BUILD_TYPE=Release -DTILES=ON -DCURSES=OFF -DSOUND=ON -DTESTS=OFF -DUSE_HOME_DIR=OFF -DLOCALIZE=ON -DLANGUAGES=none -DDYNAMIC_LINKING=ON -DCATA_CCACHE=ON -DCMAKE_EXE_LINKER_FLAGS=-ldl
-          # Surface bridge portability errors before compiling all other Native units.
+          # Surface patched settings/bridge errors before compiling other Native units.
+          cmake --build upstream/build --parallel 2 --target src/CMakeFiles/cataclysm-tiles-common.dir/options.cpp.o
           cmake --build upstream/build --parallel 2 --target src/CMakeFiles/cataclysm-tiles-common.dir/ncmm_loader.cpp.o
           cmake --build upstream/build --parallel 2 --target cataclysm-tiles
           ccache --show-stats
@@ -135,6 +136,8 @@ jobs:
             linux-native-results/linux-native-verified.json
             upstream/first-person-source.json
             upstream/build/CMakeCache.txt
+            upstream/src/options.cpp
+            upstream/src/options.h
             linux-compiler-cache.txt
             official-data-identity.json
           if-no-files-found: warn
