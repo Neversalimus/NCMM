@@ -29,9 +29,14 @@ public:
     template<class Read> uint32_t get(std::uintptr_t terrain,std::uintptr_t furniture,bool normal_floor,Read read){
         uint64_t key=(uint64_t(terrain)>>3)^(uint64_t(furniture)<<1);
         key^=key>>33;key*=0xff51afd7ed558ccdull;key^=key>>33;
-        auto &slot=entries[(key^(normal_floor?0x9e3779b9u:0u))&(entries.size()-1)];
-        if(slot.valid&&slot.terrain==terrain&&slot.furniture==furniture&&slot.normal_floor==normal_floor){++hits;return slot.value;}
-        const uint32_t value=read();++evaluations;slot={terrain,furniture,value,normal_floor,true};return value;
+        const size_t first=(key^(normal_floor?0x9e3779b9u:0u))&(entries.size()-1);
+        auto *replace=&entries[first];
+        // Native allocation/ASLR placement can alias even two common materials.
+        // Keep a small collision cluster in the same bounded, draw-local array.
+        for(size_t probe=0;probe<8;++probe){auto &slot=entries[(first+probe)&(entries.size()-1)];
+            if(!slot.valid){replace=&slot;break;}
+            if(slot.terrain==terrain&&slot.furniture==furniture&&slot.normal_floor==normal_floor){++hits;return slot.value;}}
+        const uint32_t value=read();++evaluations;*replace={terrain,furniture,value,normal_floor,true};return value;
     }
 };
 // Immutable definition results live for one main-thread extraction only.
@@ -43,9 +48,11 @@ public:
     uint64_t evaluations=0,hits=0;
     template<class Read> uint32_t get(std::uintptr_t key,Read read){
         uint64_t hash=uint64_t(key);hash^=hash>>33;hash*=0xff51afd7ed558ccdull;hash^=hash>>33;
-        auto &slot=entries[hash&(entries.size()-1)];
-        if(slot.valid&&slot.key==key){++hits;return slot.value;}
-        const uint32_t value=read();++evaluations;slot={key,value,true};return value;
+        const size_t first=hash&(entries.size()-1);auto *replace=&entries[first];
+        for(size_t probe=0;probe<8;++probe){auto &slot=entries[(first+probe)&(entries.size()-1)];
+            if(!slot.valid){replace=&slot;break;}
+            if(slot.key==key){++hits;return slot.value;}}
+        const uint32_t value=read();++evaluations;*replace={key,value,true};return value;
     }
 };
 // A closed plane is a geometric proof only when every tile in the bounded
