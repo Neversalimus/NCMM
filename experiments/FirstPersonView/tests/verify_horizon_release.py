@@ -5,6 +5,8 @@ import hashlib
 import io
 import json
 import math
+import re
+import subprocess
 from pathlib import Path, PurePosixPath
 import zipfile
 
@@ -20,6 +22,44 @@ def digest(data):
 
 def load_json(path):
     return json.loads(Path(path).read_text(encoding="utf-8-sig"))
+
+
+def expected_payload_files(source_paths):
+    """Exact package contract, including resources owned by this source tree."""
+    modules = ("AdvancedWorldSettings", "BallisticHitChance", "EquipmentBodyMap",
+               "ItemGlyphs", "LegacyCharacterPoints", "SurvivorProgression")
+    expected = {f"code_mods/{module}/{name}" for module in modules
+                for name in ("about.en.txt", "about.ru.txt", "mod.json", "ncmm_mod.dll")}
+    expected.update(("cataclysm-tiles.ncmm-bootstrap.exe", "host/cataclysm-tiles.ncmm.exe",
+                     "host/first-person-source.json", "code_mods/FirstPersonView/mod.json",
+                     "code_mods/FirstPersonView/ncmm_mod.dll",
+                     "code_mods/SurvivorProgression/data/respec.json",
+                     "code_mods/SurvivorProgression/persistent_data/dimensional_pouch.json",
+                     "code_mods/SurvivorProgression/persistent_data/mana_hand_carrier.json"))
+    source_paths = set(source_paths)
+    if "experiments/FirstPersonView/assets/held_items/selection.json" in source_paths:
+        expected.update(("code_mods/FirstPersonView/held-assets.manifest.json",
+                         "code_mods/FirstPersonView/held-assets-licenses.txt"))
+    if "experiments/graphics_bridge/third_party/nvtx3/LICENSE.txt" in source_paths:
+        expected.add("code_mods/FirstPersonView/NVTX-LICENSE.txt")
+    return expected
+
+
+def verify_payload_file_matrix(files, archive_entries, source_paths):
+    expected = expected_payload_files(source_paths)
+    require(set(files) == expected, "Payload file matrix differs from trusted source: "
+            f"missing={sorted(expected-set(files))}; unexpected={sorted(set(files)-expected)}")
+    archived = {name.removeprefix("payload/") for name in archive_entries
+                if name.startswith("payload/") and name != "payload/first-person-bundle.json"}
+    require(archived == expected, "Archive payload matrix differs from declared source contract")
+
+
+def source_tree_paths(commit):
+    require(re.fullmatch(r"[0-9a-f]{40}", commit), "Expected an exact source commit")
+    repo = Path(__file__).resolve().parents[3]
+    return subprocess.check_output(["git", "-c", "safe.directory="+repo.as_posix(),
+                                    "-C", str(repo), "ls-tree", "-r", "--name-only", commit],
+                                   text=True, encoding="utf-8").splitlines()
 
 
 def percentile(values, q):
@@ -95,7 +135,7 @@ def verify(args):
                 "Wrong engine pin")
         mod = json.loads(read("payload/code_mods/FirstPersonView/mod.json").decode("utf-8-sig"))
         require(mod["version"] == args.expected_version + "-dev", "Wrong module version")
-        require(len(bundle["files"]) == 32, "Incomplete payload file matrix")
+        verify_payload_file_matrix(bundle["files"], entries, source_tree_paths(args.expected_source))
         for name, expected in bundle["files"].items():
             require(digest(read("payload/" + name)) == expected, "Payload hash mismatch: " + name)
         require(digest(read("NCMM_Setup_FirstPerson_TEST.exe")) == release["installer_sha256"],
