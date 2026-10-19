@@ -122,9 +122,12 @@ jobs:
           PY
       - name: Actual Native controls, camera and every compiled gameplay feature
         run: |
-          export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+          mapfile -t lavapipe_icds < <(dpkg-query -L mesa-vulkan-drivers:amd64 | awk '/\/lvp_icd[^/]*\.json$/')
+          test "${#lavapipe_icds[@]}" -eq 1
+          export VK_DRIVER_FILES="${lavapipe_icds[0]}"
           test -f "$VK_DRIVER_FILES"
-          vulkaninfo --summary
+          sha256sum "$VK_DRIVER_FILES"
+          xvfb-run -a -s '-screen 0 1920x1200x24' vulkaninfo --summary
           xvfb-run -a -s '-screen 0 1920x1200x24' python3 -B ncmmrepo/experiments/FirstPersonView/tests/run_native_linux.py --engine upstream --data official-data --modules linux-modules --output linux-native-results --build '${{ matrix.build }}'
       - name: Preserve Linux Native evidence even after failure
         if: always()
