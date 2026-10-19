@@ -36,6 +36,20 @@ def seed_linux_configuration(game):
     path.write_text(json.dumps([{'name':'USE_LANG','value':'en'}],indent=2)+'\n',encoding='utf-8')
 
 
+def install_linux_fixtures(game, tests=None):
+    tests=Path(tests) if tests is not None else Path(__file__).resolve().parent
+    fixtures={
+        'data/json/furniture_and_terrain/ncmm_multilevel_qualification.json':'multilevel_fixture.json',
+        'data/json/monsters/ncmm_appearance_qualification.json':'creature_appearance_fixture.json',
+    }
+    planned=[(Path(game)/relative,(tests/name).read_bytes(),relative) for relative,name in fixtures.items()]
+    if any(target.exists() for target,_,_ in planned):
+        raise ValueError('Linux fixtures require fresh owned test data')
+    for target,data,_ in planned:
+        target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(data)
+    return {relative:hashlib.sha256(data).hexdigest() for _,data,relative in planned}
+
+
 def run(args):
     assert sys.platform=='linux'
     repo=Path(__file__).resolve().parents[3]
@@ -81,8 +95,7 @@ def run(args):
                 shutil.copytree(data/folder,game/folder,ignore=shutil.ignore_patterns('cache'))
         # Linux SPIR-V comes from this exact source build, not the Windows data archive.
         shutil.copytree(engine/'data/shaders',game/'data/shaders',dirs_exist_ok=True)
-        shutil.copy2(repo/'experiments/FirstPersonView/tests/multilevel_fixture.json',
-                     game/'data/json/furniture_and_terrain/ncmm_multilevel_qualification.json')
+        fixture_inputs=install_linux_fixtures(game)
         for folder,module_source in module_sources.items():
             target=game/'code_mods'/folder;target.mkdir(parents=True)
             shutil.copy2(args.modules/folder/'ncmm_mod.so',target/'ncmm_mod.so')
@@ -123,6 +136,7 @@ def run(args):
         (output/'process-results.json').write_text(json.dumps(results,indent=2)+'\n')
         evidence=output/'evidence'/mode;evidence.mkdir(parents=True)
         (evidence/'fixture-options-before-launch.json').write_bytes(initial_options)
+        (evidence/'fixture-inputs-before-launch.json').write_text(json.dumps(fixture_inputs,indent=2)+'\n',encoding='utf-8')
         for file in list((game/'ncmm').glob('*'))+list((game/'config').glob('*.log'))+[game/'stdout.log',game/'stderr.log']:
             if file.is_file():shutil.copy2(file,evidence/file.name)
         print(json.dumps(result),flush=True)

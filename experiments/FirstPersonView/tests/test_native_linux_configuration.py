@@ -1,8 +1,9 @@
 import json
+import hashlib
 from pathlib import Path
 import tempfile
 import unittest
-from run_native_linux import seed_linux_configuration
+from run_native_linux import seed_linux_configuration,install_linux_fixtures
 from seed_deferred_options import seed
 
 
@@ -26,5 +27,29 @@ class LinuxConfigurationTests(unittest.TestCase):
             self.assertEqual(values['USE_LANG'],'en')
             self.assertEqual(len(values),5)
             self.assertTrue(all(values[v['name']]==v['value'] for v in fixture))
+
+    def test_isolated_data_includes_the_actual_unknown_mod_appearance_definition(self):
+        with tempfile.TemporaryDirectory() as folder:
+            game=Path(folder);inventory=install_linux_fixtures(game)
+            self.assertEqual(len(inventory),2)
+            for relative,expected in inventory.items():
+                self.assertEqual(hashlib.sha256((game/relative).read_bytes()).hexdigest(),expected)
+            definitions=json.loads((game/'data/json/monsters/ncmm_appearance_qualification.json').read_text())
+            self.assertTrue(any(item.get('id')=='mon_ncmm_appearance_unknown' for item in definitions))
+
+    def test_missing_required_fixture_fails_before_copying_any_data(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);source=root/'sources';source.mkdir();game=root/'game';game.mkdir()
+            (source/'multilevel_fixture.json').write_text('[]')
+            with self.assertRaises(FileNotFoundError):install_linux_fixtures(game,source)
+            self.assertEqual(list(game.rglob('*')),[])
+
+    def test_existing_fixture_is_never_replaced_or_partly_overwritten(self):
+        with tempfile.TemporaryDirectory() as folder:
+            game=Path(folder);path=game/'data/json/monsters/ncmm_appearance_qualification.json'
+            path.parent.mkdir(parents=True);path.write_text('[{"owned":true}]')
+            with self.assertRaisesRegex(ValueError,'fresh owned'):install_linux_fixtures(game)
+            self.assertEqual(path.read_text(),'[{"owned":true}]')
+            self.assertFalse((game/'data/json/furniture_and_terrain/ncmm_multilevel_qualification.json').exists())
 
 if __name__=='__main__':unittest.main()
