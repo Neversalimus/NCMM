@@ -1,0 +1,11 @@
+cmake_minimum_required(VERSION 3.22)
+project(ncmm_sdl_descriptor_repro LANGUAGES CXX)
+if(NOT WIN32)
+  message(FATAL_ERROR "This isolated regression exercises only the Windows D3D12 backend")
+endif()
+find_package(SDL3 CONFIG REQUIRED)
+add_executable(ncmm_sdl_descriptor_repro main.cpp)
+target_link_libraries(ncmm_sdl_descriptor_repro PRIVATE SDL3::SDL3)
+target_compile_features(ncmm_sdl_descriptor_repro PRIVATE cxx_std_17)
+file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/sdl-library-path.txt" CONTENT "$<TARGET_FILE:SDL3::SDL3>")
+

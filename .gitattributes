@@ -5,3 +5,4 @@
 *.zip binary
 *.exe binary
 *.dll binary
+experiments/graphics_bridge/third_party/sdl3-port/** -text
