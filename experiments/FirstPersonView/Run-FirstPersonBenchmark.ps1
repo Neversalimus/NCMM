@@ -19,7 +19,7 @@ param(
     [switch]$DisableTargetHud,
     [switch]$CaptureCrashDump,
     [switch]$GpuDebug,
-    [ValidateSet('retained','fresh','early_cleanup')][string]$GpuResourceDiagnostic='retained',
+    [ValidateSet('retained','fresh','early_cleanup','submit_cleanup')][string]$GpuResourceDiagnostic='retained',
     [string]$DumpAnalyzer
 )
 $ErrorActionPreference='Stop'

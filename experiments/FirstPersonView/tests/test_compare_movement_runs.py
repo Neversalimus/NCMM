@@ -317,6 +317,21 @@ class ExecutionScopeTests(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 compare.execution_scopes(r)
 
+    def test_retirement_is_complete_and_inside_the_rendered_frame(self):
+        self.record.update(gpu_metrics_in_frame=True,gpu_retirement_samples_ms=[0,.2,0],
+                           gpu_post_present_metrics_samples_ms=[.1,.1,.1],gpu_retirement_calls=[0,1,0])
+        result=compare.execution_scopes(self.record)
+        self.assertEqual(result['totals_ms']['gpu_retirement_samples_ms'],.2)
+        for mutation in ['out_of_frame','missing','too_long','no_call','fractional_calls']:
+            changed=copy.deepcopy(self.record)
+            if mutation=='out_of_frame':changed['gpu_metrics_in_frame']=False
+            if mutation=='missing':del changed['gpu_post_present_metrics_samples_ms']
+            if mutation=='too_long':changed['gpu_retirement_samples_ms'][1]=5
+            if mutation=='no_call':changed['gpu_retirement_calls'][1]=0
+            if mutation=='fractional_calls':changed['gpu_retirement_calls'][1]=.5
+            with self.subTest(mutation=mutation),self.assertRaises(ValueError):
+                compare.execution_scopes(changed)
+
     def test_invalid_numbers_and_impossible_readbacks_rejected(self):
         for name, value in [('frame_thread_cpu_samples_ms', float('nan')),
                             ('frame_process_cpu_samples_ms', -1),

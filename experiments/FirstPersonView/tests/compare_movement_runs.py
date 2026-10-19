@@ -48,6 +48,12 @@ def execution_scopes(record):
         require(all(name in record for name in cell_streams), "Incomplete prepared cell evidence")
         timings += (cell_streams[0],)
         counts += (*cell_streams[1:],"gpu_upload_bytes")
+    retirement=("gpu_retirement_samples_ms","gpu_post_present_metrics_samples_ms","gpu_retirement_calls")
+    if any(name in record for name in retirement):
+        require(all(name in record for name in retirement) and record.get('gpu_metrics_in_frame') is True,
+                "Incomplete or out-of-frame resource retirement evidence")
+        timings += retirement[:2]
+        counts += (retirement[2],)
     names = (*timings, *counts, "thread_cpu_available", "frame_thread_cpu_samples_ms")
     if not any(name in record for name in names):
         return None
@@ -75,6 +81,11 @@ def execution_scopes(record):
     if cell_streams[0] in record:
         require(all(ms<=frame+.003 for ms,frame in zip(record[cell_streams[0]],wall)), "Cell preparation exceeds its rendered frame")
         require(all(part<=total for part,total in zip(record[cell_streams[1]],record['gpu_upload_bytes'])), "Cell upload exceeds all frame uploads")
+    if retirement[0] in record:
+        require(all(ms<=frame+.003 for name in retirement[:2] for ms,frame in zip(record[name],wall)),
+                "Resource retirement or metrics collection exceeds its rendered frame")
+        require(all(calls or ms==0 for calls,ms in zip(record[retirement[2]],record[retirement[0]])),
+                "Resource retirement time has no call")
     return {"thread_cpu_available": record["thread_cpu_available"],
             "totals_ms": {name: sum(record[name]) for name in timings},
             "sprite_readback_attempts": sum(record["sprite_readback_attempts"]),

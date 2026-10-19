@@ -4,16 +4,18 @@
 #include "ncmm_gpu_programs.hpp"
 #include "ncmm_gpu_geometry.hpp"
 #include <chrono>
+#include <cstdlib>
 #include <tuple>
 
 namespace ncmm_gpu {
 // Temporary private experiment. Unset/unknown values preserve the shipping path.
 // The isolated benchmark wrapper records and restores this setting explicitly.
-enum class resource_diagnostic {retained,fresh,early_cleanup};
+enum class resource_diagnostic {retained,fresh,early_cleanup,submit_cleanup};
 inline resource_diagnostic resource_diagnostic_mode(){
     static const auto mode=[](){const char *value=std::getenv("NCMM_FP_RESOURCE_DIAGNOSTIC");
         return value&&std::strcmp(value,"fresh")==0?resource_diagnostic::fresh:
-            value&&std::strcmp(value,"early_cleanup")==0?resource_diagnostic::early_cleanup:resource_diagnostic::retained; }();
+            value&&std::strcmp(value,"early_cleanup")==0?resource_diagnostic::early_cleanup:
+            value&&std::strcmp(value,"submit_cleanup")==0?resource_diagnostic::submit_cleanup:resource_diagnostic::retained; }();
     return mode;
 }
 // Private diagnostics: CPU time spent preparing/recording commands, never GPU
@@ -24,6 +26,7 @@ struct recording_metrics {
     uint64_t frame_upload_capacity_bytes=0,frame_upload_creations=0;
     double cell_prepare_ms=0;
     uint64_t cell_upload_bytes=0,cell_cache_bytes=0;
+    double retirement_ms=0;uint64_t retirement_calls=0;
 };
 class backend {
     device_context context_;
@@ -32,6 +35,7 @@ class backend {
     SDL_GPUTexture *world_=nullptr,*id_=nullptr,*held_depth_=nullptr,*effects_=nullptr,*effect_depth_=nullptr,*white_=nullptr;
     SDL_GPUBuffer *instances_=nullptr,*bones_=nullptr,*cells_=nullptr,*shadows_=nullptr,*counter_=nullptr;
     SDL_GPUTransferBuffer *frame_upload_=nullptr;
+    SDL_GPUFence *completed_retirement_=nullptr;
     uint32_t frame_upload_size_=0;uint64_t frame_upload_creations_=0;
     uint32_t instance_size_=0,bone_size_=0,cell_size_=0,shadow_size_=0,width_=0,height_=0;
     uint64_t generation_=0,resource_epoch_=1,world_epoch_=0,last_serial_=0,readback_generation_=1;
@@ -53,6 +57,8 @@ class backend {
     void release_buffers(){auto *d=context_.device();if(d){for(auto *b:{instances_,bones_,cells_,shadows_,counter_})if(b)SDL_ReleaseGPUBuffer(d,b);
             for(auto &r:readbacks_){if(r.fence)SDL_ReleaseGPUFence(d,r.fence);if(r.transfer)SDL_ReleaseGPUTransferBuffer(d,r.transfer);}
             if(frame_upload_)SDL_ReleaseGPUTransferBuffer(d,frame_upload_);}
+        if(d&&completed_retirement_)SDL_ReleaseGPUFence(d,completed_retirement_);
+        completed_retirement_=nullptr;
         instances_=bones_=cells_=shadows_=counter_=nullptr;instance_size_=bone_size_=cell_size_=shadow_size_=0;readbacks_={};
         frame_upload_=nullptr;frame_upload_size_=0;frame_upload_creations_=0;
         std::vector<gpu_cell>{}.swap(cell_snapshot_);cells_ready_=false;}
@@ -88,15 +94,28 @@ class backend {
     uint64_t target_bytes()const{if(!width_)return 0;const uint32_t step=std::max(4u,(width_+255)/256);
         return uint64_t(width_)*height_*20+uint64_t((width_+step-1)/step)*((height_+step-1)/step)*12+4;}
     uint64_t dynamic_bytes()const{return uint64_t(instance_size_)+bone_size_+cell_size_+shadow_size_+64+3*64;}
+    bool retire(SDL_GPUFence *fence){
+        ncmm_graphics_trace::cpu_zone retirement_zone("Resource Retirement");
+        const auto begin=profiling_?clock::now():clock::time_point{};
+        // The caller owns this already-signalled fence. Never drain unfinished GPU work.
+        const bool ok=SDL_QueryGPUFence(context_.device(),fence)&&SDL_WaitForGPUFences(context_.device(),true,&fence,1);
+        if(profiling_){recording_.retirement_ms+=ms(begin);++recording_.retirement_calls;}
+        if(!ok){context_.fail("diagnostic completed-resource retirement");reason(context_.reason());metrics_.active=0;retirement_failed_=true;}
+        return ok;
+    }
     void poll(){auto *device=context_.device();if(!device)return;
         for(auto &r:readbacks_)if(r.fence&&SDL_QueryGPUFence(device,r.fence)){
             // Only an already-signalled fence is eligible. The experiment asks
             // SDL to retire completed command resources before the next upload.
-            if(resource_diagnostic_mode()==resource_diagnostic::early_cleanup&&!SDL_WaitForGPUFences(device,true,&r.fence,1)){
-                context_.fail("diagnostic completed-resource retirement");reason(context_.reason());metrics_.active=0;retirement_failed_=true;return;}
+            if(resource_diagnostic_mode()==resource_diagnostic::early_cleanup&&!retire(r.fence))return;
             auto *data=static_cast<uint32_t *>(SDL_MapGPUTransferBuffer(device,r.transfer,false));
             if(data){if(r.generation==readback_generation_&&r.serial>=metrics_.completed_frame_serial){metrics_.visible_creature_pixels=data[0];metrics_.completed_frame_serial=r.serial;}SDL_UnmapGPUTransferBuffer(device,r.transfer);}
-            SDL_ReleaseGPUFence(device,r.fence);r.fence=nullptr;}}
+            // metrics() must still advance the asynchronous counter without
+            // performing heavyweight retirement outside submit(). Hold at most
+            // one signalled fence until the next measured submission instead.
+            if(resource_diagnostic_mode()==resource_diagnostic::submit_cleanup&&!completed_retirement_)completed_retirement_=r.fence;
+            else SDL_ReleaseGPUFence(device,r.fence);
+            r.fence=nullptr;}}
     SDL_GPURenderPass *begin(SDL_GPUCommandBuffer *commands,bool held,bool clear){
         SDL_GPUColorTargetInfo colors[2]{};colors[0].texture=world_;colors[1].texture=id_;
         for(auto &c:colors){c.load_op=clear?SDL_GPU_LOADOP_CLEAR:SDL_GPU_LOADOP_LOAD;c.store_op=SDL_GPU_STOREOP_STORE;c.cycle=clear;}
@@ -170,6 +189,9 @@ public:
         if(world_epoch_!=scene.world_epoch||scene.frame_serial<last_serial_){++readback_generation_;metrics_.completed_frame_serial=metrics_.visible_creature_pixels=0;}
         world_epoch_=scene.world_epoch;last_serial_=scene.frame_serial;
         poll();if(retirement_failed_)return false;
+        if(resource_diagnostic_mode()==resource_diagnostic::submit_cleanup&&completed_retirement_){
+            const bool ok=retire(completed_retirement_);SDL_ReleaseGPUFence(context_.device(),completed_retirement_);completed_retirement_=nullptr;
+            if(!ok)return false;}
         auto completed=metrics_.completed_frame_serial,visible=metrics_.visible_creature_pixels;auto software=metrics_.software_device;
         metrics_={};metrics_.struct_size=sizeof(metrics_);metrics_.frame_serial=scene.frame_serial;metrics_.completed_frame_serial=completed;metrics_.visible_creature_pixels=visible;metrics_.software_device=software;metrics_.gpu_ms=-1;metrics_.target_cell=-1;
         metrics_.geometry_ms=scene.geometry_ms;metrics_.generated_cells=scene.generated_cells;metrics_.producer_cache_bytes=scene.producer_cache_bytes;

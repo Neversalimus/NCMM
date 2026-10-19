@@ -71,8 +71,18 @@ int main(int argc,char **argv){
     auto center=capture("-near");require((center>>24)>120&&((center>>16)&255)<20,"near red wins over later far green in full pipeline");
     require(first.draw_calls==4,"dry scene bypasses empty volume and post-composition passes");
     auto completed=engine.metrics();require(completed.completed_frame_serial>=1&&completed.visible_creature_pixels>1000,"fenced small GPU visibility counter");
+    if(ncmm_gpu::resource_diagnostic_mode()==ncmm_gpu::resource_diagnostic::submit_cleanup){
+        require(engine.recording().retirement_calls==0,"initial submit has no completed resources to retire");
+        for(int i=0;i<8;++i)require(engine.metrics().completed_frame_serial>=1&&engine.recording().retirement_calls==0,
+            "asynchronous metrics advance without retiring resources outside submit");
+    }
     scene.mesh_count=0;scene.meshes=nullptr;scene.frame_serial=2;bones[1].columns[12]=5;
     require(engine.submit(scene),engine.metrics().reason);auto second=engine.metrics();require(second.active&&second.generated_meshes==0&&second.upload_bytes<1024,"only dynamic data uploaded for skeletal animation");
+    if(ncmm_gpu::resource_diagnostic_mode()==ncmm_gpu::resource_diagnostic::submit_cleanup){
+        require(engine.recording().retirement_calls==1,"next submit retires the owned signalled fence once");
+        for(int i=0;i<8;++i){engine.metrics();require(engine.recording().retirement_calls==1,
+            "metrics calls cannot hide additional retirement after the measured submit");}
+    }
     require(engine.resources().static_upload_bytes()==0,"warm skeletal animation uploads no immutable resources");
     require(second.upload_bytes+116==first.upload_bytes-first_static_upload,"unchanged cells and neutral texture are not uploaded for bone animation");
     require(engine.recording().cell_upload_bytes==0,"warm bone updates retain the unchanged source-cell buffer");
