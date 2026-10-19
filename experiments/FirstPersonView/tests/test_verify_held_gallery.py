@@ -35,6 +35,9 @@ class HeldGalleryVerification(unittest.TestCase):
                     identity=self.ids[model],matched=1,fallback_reason=0,gpu=mode=='gpu',
                     attachments=len(attached),draws=2 if attached or phase=='pump-loaded' else 1,
                     pose_matrices=20,native_is_gun=gun,native_ammo_remaining=ammo,ammo_loaded=bool(ammo),
+                    first_render_after_equip_ms=2.0,first_gpu_frame=mode=='gpu',settled_render_samples_ms=[1.0,1.0],equip_settle_minimum_ms=280,
+                    capture_after_equip_ms=285.0,capture_presentation_seconds=12.0,first_static_builds=1,first_static_reuses=0,
+                    first_gpu_upload_bytes=100,first_gpu_static_upload_bytes=80,first_gpu_resource_bytes=1000,
                     accessory_models=attached,accessory_identities=[self.ids[n] for n in attached],
                     static_builds=0,static_reuses=1+len(attached),static_mesh_upload_bytes=0,
                     dynamic_geometry_bytes=0,gpu_draw_calls=10,backend='direct3d12',device='RTX test',
@@ -73,6 +76,8 @@ class HeldGalleryVerification(unittest.TestCase):
         with self.assertRaises(AssertionError):self.check()
         record['gpu']=True;record['software_device']=True
         with self.assertRaises(AssertionError):self.check()
+        record['software_device']=False;record['first_gpu_frame']=False
+        with self.assertRaises(AssertionError):self.check()
 
     def test_static_reupload_does_not_pass_pose_only_reuse(self):
         self.first('pistol')['static_mesh_upload_bytes']=128
@@ -96,6 +101,16 @@ class HeldGalleryVerification(unittest.TestCase):
             if record['renderer']=='gpu':record['backend']='vulkan'
         with self.assertRaises(AssertionError):self.check()
         self.assertEqual(verify(self.root,self.manifest,'RTX test',expected_backend='vulkan')['native_cases'],64)
+
+    def test_nonfinite_or_omitted_equip_timing_is_rejected(self):
+        record=self.first('pistol');record['first_render_after_equip_ms']=float('nan')
+        with self.assertRaises(AssertionError):self.check()
+        record.pop('first_render_after_equip_ms')
+        with self.assertRaises(KeyError):self.check()
+
+    def test_capture_before_the_declared_animation_settle_is_rejected(self):
+        self.first('pistol')['capture_after_equip_ms']=100
+        with self.assertRaises(AssertionError):self.check()
 
 
 if __name__=='__main__':unittest.main()

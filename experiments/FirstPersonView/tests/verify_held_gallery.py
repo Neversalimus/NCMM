@@ -7,6 +7,7 @@ import argparse
 from collections import Counter
 import hashlib
 import json
+import math
 from pathlib import Path
 import struct
 
@@ -21,7 +22,7 @@ PHASES = set(BODY) | set(ACCESSORIES) | {'pump-loaded', 'pump-empty'}
 DEFAULT_MANIFEST = Path(__file__).resolve().parents[1]/'assets/held_items/generated/manifest.json'
 
 
-def verify(root, manifest=DEFAULT_MANIFEST, expected_device=None, expected_backend='direct3d12'):
+def verify(root, manifest=DEFAULT_MANIFEST, expected_device=None, expected_backend='direct3d12', *, require_timing=True):
     root = Path(root).resolve()
     imported = json.loads(Path(manifest).read_text(encoding='utf-8-sig'))
     if 'imported' in imported:
@@ -34,7 +35,18 @@ def verify(root, manifest=DEFAULT_MANIFEST, expected_device=None, expected_backe
     assert Counter((r['renderer'],r['name']) for r in records) == Counter({(m,p):1 for m in ['cpu','gpu'] for p in PHASES})
     images = []; selected_models = set(); devices = set(); software_devices = set(); peak = 0
     for r in records:
+        if require_timing:
+            first=r['first_render_after_equip_ms'];settled=r['settled_render_samples_ms']
+            assert type(first) in (int,float) and math.isfinite(first) and first>0
+            assert len(settled)==2 and all(type(v) in (int,float) and math.isfinite(v) and v>0 for v in settled)
+            assert r['equip_settle_minimum_ms']==280
+            assert all(type(r[k]) in (int,float) and math.isfinite(r[k]) for k in ['capture_after_equip_ms','capture_presentation_seconds'])
+            assert r['capture_after_equip_ms']+.01>=first+280+sum(settled)
+            assert math.isfinite(r['capture_presentation_seconds']) and r['capture_presentation_seconds']>=0
+            assert all(type(r[k]) is int and r[k]>=0 for k in ['first_static_builds','first_static_reuses',
+                'first_gpu_upload_bytes','first_gpu_static_upload_bytes','first_gpu_resource_bytes'])
         phase, mode = r['name'], r['renderer']
+        if require_timing:assert r['first_gpu_frame']==(mode=='gpu')
         model = phase if phase in BODY else 'pump' if phase.startswith('pump-') else 'assault'
         native = BODY[model]
         assert r['canonical'] == native and r['model'] == model and r['identity'] == identities[model]
@@ -80,6 +92,7 @@ def verify(root, manifest=DEFAULT_MANIFEST, expected_device=None, expected_backe
         native_cases=len(records),compiled_models=len(selected_models),cpu_cases=32,gpu_cases=32,
         devices=sorted(devices),software_devices=sorted(software_devices),gpu_resource_peak_bytes=peak,
         manifest_sha256=hashlib.sha256(Path(manifest).read_bytes()).hexdigest(),images=images,
+        equip_timing_verified=require_timing,
         limitations=['Controlled Native gallery, not a manual equip/combat session',
             'Capture bytes and recorded state require separate visual review',
             'Does not establish installer provenance or final unchanged-binary qualification'])
@@ -91,8 +104,9 @@ if __name__ == '__main__':
     parser.add_argument('--manifest',type=Path,default=DEFAULT_MANIFEST)
     parser.add_argument('--expected-device')
     parser.add_argument('--expected-backend',choices=['direct3d12','vulkan'],default='direct3d12')
+    parser.add_argument('--allow-historical-without-timing',action='store_true')
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args()
-    result=verify(args.root,args.manifest,args.expected_device,args.expected_backend)
+    result=verify(args.root,args.manifest,args.expected_device,args.expected_backend,require_timing=not args.allow_historical_without_timing)
     args.output.write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
     print(json.dumps({k:v for k,v in result.items() if k!='images'}))
