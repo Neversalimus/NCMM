@@ -47,6 +47,47 @@ inline double cpu_seconds(){
 #endif
     return double(std::clock())/CLOCKS_PER_SEC;
 }
+
+// Private movement diagnosis only. Raw thread cycles cannot be converted to ms.
+struct thread_cycle_reading {uint64_t count=0;bool available=false;};
+inline thread_cycle_reading thread_cycles(){
+#if defined(_WIN32) && defined(_MSC_VER)
+    using query_cycles=BOOL(WINAPI *)(HANDLE,PULONG64);
+    static const auto query=[](){const auto library=GetModuleHandleW(L"kernel32.dll");
+        return library?reinterpret_cast<query_cycles>(GetProcAddress(library,"QueryThreadCycleTime")):nullptr;}();
+    ULONG64 cycles=0;if(query&&query(GetCurrentThread(),&cycles))return{cycles,true};
+#endif
+    return{};
+}
+inline thread_cycle_reading cycle_difference(thread_cycle_reading before,thread_cycle_reading after){
+    if(!before.available||!after.available||after.count<before.count)return{};
+    return{after.count-before.count,true};
+}
+struct movement_cycle_totals {
+    bool active=false,available=true;
+    uint64_t extraction=0,visibility=0,callback=0;
+};
+inline movement_cycle_totals movement_cycles;
+class movement_cycle_frame {
+public:
+    explicit movement_cycle_frame(bool active){movement_cycles={active,true,0,0,0};}
+    ~movement_cycle_frame(){movement_cycles.active=false;}
+    movement_cycle_frame(const movement_cycle_frame &)=delete;
+    movement_cycle_frame &operator=(const movement_cycle_frame &)=delete;
+};
+class movement_cycle_phase {
+    uint64_t *destination_=nullptr;thread_cycle_reading begin_;
+public:
+    explicit movement_cycle_phase(uint64_t &destination){if(movement_cycles.active){destination_=&destination;begin_=thread_cycles();}}
+    ~movement_cycle_phase(){stop();}
+    void stop(){if(!destination_)return;const auto delta=cycle_difference(begin_,thread_cycles());
+        movement_cycles.available=movement_cycles.available&&delta.available;
+        if(delta.available)*destination_+=delta.count;
+        destination_=nullptr;}
+    movement_cycle_phase(const movement_cycle_phase &)=delete;
+    movement_cycle_phase &operator=(const movement_cycle_phase &)=delete;
+};
+
 struct video_memory {bool available=false;uint64_t bytes=0;};
 inline video_memory vram(){
     video_memory result;

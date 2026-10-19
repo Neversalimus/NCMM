@@ -62,6 +62,7 @@ bool graphics_world_perception(const tripoint_bub_ms &p){return graphics_world_i
 bool graphics_draw_world(int x,int y,int width,int height)
 {
     const auto begun=std::chrono::steady_clock::now();avatar &you=get_avatar();map &here=get_map();
+    ncmm_graphics_performance::movement_cycle_phase extraction_cycles(ncmm_graphics_performance::movement_cycles.extraction);
     // Ordinary transient caches only. update_visibility_cache() writes discovery
     // and is not called to reveal additional levels for graphics.
     here.build_map_cache(you.posz());
@@ -208,6 +209,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
             observed_deaths.push_back({s.world_x,s.world_y,s.world_z});}
     std::sort(observed_deaths.begin(),observed_deaths.end());
     const auto visibility_started=std::chrono::steady_clock::now();
+    ncmm_graphics_performance::movement_cycle_phase visibility_cycles(ncmm_graphics_performance::movement_cycles.visibility);
     const int visual_maximum=std::max(you.sight_range(default_daylight_level()),you.sight_range(0));
     const bool visual_no_sight=you.has_effect(efftype_id("no_sight"));
     ncmm_world::light_range_cache visual_ranges;
@@ -341,6 +343,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         candidates.push_back(c);
     }
     graphics_world_metrics.visibility_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-visibility_started).count();
+    visibility_cycles.stop();
     graphics_world_range_evaluations=visual_ranges.evaluations;graphics_world_range_hits=visual_ranges.hits;
     graphics_world_material_evaluations=material_definitions.evaluations+elevated_material_definitions.evaluations;
     graphics_world_material_hits=material_definitions.hits+elevated_material_definitions.hits;
@@ -391,6 +394,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
     graphics_world_metrics.source_cache_hits=graphics_world_sources.hits;graphics_world_metrics.source_cache_misses=graphics_world_sources.misses;
     graphics_world_metrics.snapshot_bytes=cells.capacity()*sizeof(cells[0])+positions.capacity()*sizeof(positions[0])+coordinates.capacity()*sizeof(coordinates[0])+slices.capacity()*sizeof(slices[0]);
     graphics_world_metrics.extraction_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();
+    extraction_cycles.stop();
     graphics_build_lod(ox,oy,absolute.z(),side,!visual_no_sight&&visual_maximum>5);
     const bool presented=graphics_draw_hybrid(base,positions,x,y,&world,&facade_lights);
     graphics_world_pending_present=presented;
