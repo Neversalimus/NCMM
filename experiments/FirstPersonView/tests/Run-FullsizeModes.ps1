@@ -33,7 +33,7 @@ try {
         Write-Output ('Starting ordinary Native comparison '+$stem)
         try {
             & $runner @arguments *> $log
-            if($LASTEXITCODE -ne 0){throw 'Native process failed.'}
+            if(-not $?){throw 'Native benchmark wrapper failed.'}
             $provenance=Get-Content -LiteralPath (Join-Path $entry.root 'benchmark-provenance.json') -Raw | ConvertFrom-Json
             if($provenance.success -ne $true){throw 'Native wrapper did not verify the run.'}
             $stamp.wrapper_success=$true
