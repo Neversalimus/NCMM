@@ -285,8 +285,12 @@ jobs:
           if($dependency.sdl_version -ne '3.4.10' -or $dependency.private_port_version -ne 2 -or !$dependency.runtime_vendor){throw 'Pinned private SDL receipt missing.'}
           $env:NCMM_EXPECT_SDL_VENDOR=$dependency.runtime_vendor
           $build=Join-Path $PWD 'sdl-descriptor-${{ matrix.build }}'
-          $sdk=Join-Path $PWD 'upstream/msvc-full-features/vcpkg_installed/x64-windows-static/share/sdl3'
-          $libraryRoot=(Resolve-Path 'upstream/msvc-full-features/vcpkg_installed').Path.TrimEnd([char[]]@('\','/'))+[IO.Path]::DirectorySeparatorChar
+          # The canonical MSBuild integration installs the triplet inside its
+          # triplet-specific VcpkgInstalledDir; use that same library, not a search fallback.
+          $sdkRoot=Join-Path $PWD 'upstream/msvc-full-features/vcpkg_installed/x64-windows-static/x64-windows-static'
+          $sdk=Join-Path $sdkRoot 'share/sdl3'
+          if(!(Test-Path -LiteralPath (Join-Path $sdk 'SDL3Config.cmake') -PathType Leaf)){throw 'Canonical MSBuild SDL package configuration is missing.'}
+          $libraryRoot=(Resolve-Path $sdkRoot).Path.TrimEnd([char[]]@('\','/'))+[IO.Path]::DirectorySeparatorChar
           & cmake -S ncmmrepo/experiments/FirstPersonView/tests/sdl_descriptor -B $build -A x64 "-DSDL3_DIR=$sdk" -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
           if($LASTEXITCODE -ne 0){throw 'Pinned SDL descriptor regression configure failed.'}
           & cmake --build $build --config Release --parallel 2
