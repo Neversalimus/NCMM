@@ -2,7 +2,7 @@ name: First Person View - experimental prototype
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths: ['experiments/FirstPersonView/**', 'experiments/graphics_bridge/**', 'host_patch/**', 'sdk/**', 'runtime/**', 'ci/fpv_qualification.py', 'ci/test_fpv_qualification.py', '.github/workflows/ncmm-first-person-prototype.yml']
+    paths: ['experiments/FirstPersonView/**', 'experiments/graphics_bridge/**', 'host_patch/**', 'sdk/**', 'runtime/**', 'ci/fpv_qualification.py', 'ci/test_fpv_qualification.py', '.github/workflows/ncmm-first-person-prototype.yml', '.github/workflows/ncmm-fpv-linux-native.yml']
   workflow_dispatch:
     inputs:
       qualification:
