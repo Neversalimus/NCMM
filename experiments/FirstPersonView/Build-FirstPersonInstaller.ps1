@@ -233,6 +233,9 @@ Unusual anatomy and hidden surfaces are conservative reconstructions.
 Non-arrow movement bindings keep their world
 directions. Mouse capture releases when menus open, focus is lost, or F6 disables
 the view. Camera rotation does not spend a turn. Saves are unchanged.
+Aim at a visible hostile to see its name and Native health bar. Unknown health
+is marked as unknown. Disable target health in the first-person settings to
+return to the previous name display.
 GPU Balanced is capped at 1920x1080 and High at 2560x1440. CPU Balanced is
 capped at 960x600 and High at 1280x800. Software rendering uses up to four CPU row bands and caches identical
 redraws briefly. Hands and weather compose over an owned world frame, and the
