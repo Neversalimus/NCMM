@@ -38,7 +38,7 @@ required; this protocol contains no fabricated timing result.
 
 The original renderer baseline now uses the same pinned SDL 3.4.10 graphics
 descriptor correction as the component modes. Its immutable SDK recipe is
-`13f3e3e3f8ceaa777b8ea325605ba22a5bfe5a72`, derived from diagnostic harness
+`078ee4f86d1231683b3d05a2dd2254f76db44d3e`, derived from diagnostic harness
 `2bb3ec5a10ce2e22b11b537ec2fd5782518ee9f2`. The validator first rejects all
 runtime changes outside the original three diagnostic files and this exact
 SDK recipe, then compares every SDK/build/packaging file byte-for-byte against
