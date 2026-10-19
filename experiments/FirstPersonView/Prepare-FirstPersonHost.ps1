@@ -14,6 +14,8 @@ if(Test-Path (Join-Path $SourceRoot 'first-person-source.json')){
 }
 & python (Join-Path $PSScriptRoot 'compile_gpu_shaders.py') --verify --output (Join-Path $RepositoryRoot 'experiments/graphics_bridge/ncmm_gpu_shader_bytes.hpp')
 if($LASTEXITCODE -ne 0){throw 'Shipping GPU shaders are missing, uncompiled, or stale.'}
+& python (Join-Path $RepositoryRoot 'experiments/graphics_bridge/native_sdl_bridge.py') $SourceRoot --verify-only
+if($LASTEXITCODE -ne 0){throw 'Pinned private SDL graphics correction preflight failed.'}
 # Reuse the canonical importer and patch stack, without executing Build-HostPackage
 # or producing certification metadata/feed/release assets for this experiment.
 $tokens=$null;$errors=$null
@@ -33,4 +35,6 @@ Import-NcmmPayloadFunctions -PayloadPath (Join-Path $RepositoryRoot 'payload/SUR
 foreach($layer in $stack.layers){ & $layer $SourceRoot }
 & python (Join-Path $RepositoryRoot 'experiments/graphics_bridge/apply_graphics_bridge.py') $SourceRoot
 if($LASTEXITCODE -ne 0){throw 'Experimental graphics bridge preflight/apply failed.'}
+& python (Join-Path $RepositoryRoot 'experiments/graphics_bridge/native_sdl_bridge.py') $SourceRoot
+if($LASTEXITCODE -ne 0){throw 'Pinned private SDL graphics correction preparation failed.'}
 Write-Host 'Experimental source prepared. No certified Host or player installation was published.'

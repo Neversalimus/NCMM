@@ -28,6 +28,26 @@ def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def verify_sdl_dependency(native, source_bytes):
+    prefix='experiments/graphics_bridge/third_party/sdl3-port/'
+    raw=source_bytes(prefix+'manifest.json');manifest=json.loads(raw)
+    dependency=native.get('windows_sdl',{})
+    fields=['sdl_version','base_port_version','private_port_version','registry_commit',
+            'source_archive_sha512','runtime_vendor','original_d3d12_sha256','patched_d3d12_sha256']
+    require(all(dependency.get(key)==manifest[key] for key in fields), 'Private SDL dependency identity differs')
+    require(dependency.get('port_manifest_sha256')==sha256(raw) and
+            dependency.get('patch_sha256')==manifest['files']['overlay/sdl3/ncmm-graphics-descriptors.patch'] and
+            dependency.get('windows_build_only') is True and dependency.get('global_vcpkg_unchanged') is True,
+            'Private SDL correction receipt is incomplete')
+    expected={'msvc-full-features/vcpkg-configuration.json':sha256(b'{"overlay-ports":["ncmm-sdl-overlay"]}\n')}
+    for name,digest in manifest['files'].items():
+        require(sha256(source_bytes(prefix+name))==digest, 'Pinned SDL source differs: '+name)
+        if name.startswith('overlay/'):
+            expected['msvc-full-features/ncmm-sdl-overlay/'+name.removeprefix('overlay/')]=digest
+    require(dependency.get('files')==expected, 'Native SDK overlay inputs differ')
+    return dependency
+
+
 @functools.lru_cache(maxsize=None)
 def api(endpoint):
     result = subprocess.run(
@@ -173,6 +193,10 @@ def verify(build, artifact, args, repo):
         require(mod["version"] == args.version + "-dev", "Wrong module version")
         native = json.loads(read("payload/host/first-person-source.json").decode("utf-8-sig"))
         require(native["source_commit"] == PINS[build], "Native source receipt pin differs")
+        verify_sdl_dependency(native,lambda relative:subprocess.run(
+            ['git','show',args.runtime_head+':'+relative],check=True,capture_output=True).stdout)
+        require(subprocess.run(['git','show',args.runtime_head+':experiments/graphics_bridge/third_party/sdl3-port/SDL-LICENSE.txt'],
+                check=True,capture_output=True).stdout in read('THIRD_PARTY_NOTICES.txt'), 'SDL license notice is missing')
         checked_inputs = 0
         for filename, digest in native["inputs"].items():
             require(filename == pathlib.PurePosixPath(filename).name,
