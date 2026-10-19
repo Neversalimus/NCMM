@@ -72,7 +72,8 @@ public:
         ox=x;oy=y;low=minz;high=maxz;width=w;height=h;world=epoch;revision=changed;return true;
     }
     template<class Read> bool closed(int z,Read read){
-        if(!world||z<low||z>high)return false;auto &cached=state[size_t(z-low)];if(cached)return cached==2;
+        if(!world||z<low||z>high)return false;
+        auto &cached=state[size_t(z-low)];if(cached)return cached==2;
         for(int y=0;y<height;++y)for(int x=0;x<width;++x)if(!full_opaque_slab(read(ox+x,oy+y,z))){cached=1;return false;}
         cached=2;return true;
     }
@@ -168,6 +169,28 @@ class source_cache {
 public:
     uint64_t hits=0,misses=0,ray_hits=0,ray_misses=0,topology_revision=1;
     void clear(){*this=source_cache{};}
+    // Reloading a native submap replaces precisely its absolute XY rectangle
+    // on one Z level. Other native mutation notifications still change the
+    // authoritative level revision. Ring offsets must not change this region.
+    void invalidate(int32_t x,int32_t y,int z,int w,int h){
+        if(w<1||h<1){std::fill(revisions.begin(),revisions.end(),0);std::fill(ray_revisions.begin(),ray_revisions.end(),0);return;}
+        if(!identity||z<minz||z>maxz)return;
+        const int64_t left=std::max(int64_t(x),int64_t(ox)),right=std::min(int64_t(x)+w,int64_t(ox)+width),
+                      top=std::max(int64_t(y),int64_t(oy)),bottom=std::min(int64_t(y)+h,int64_t(oy)+height);
+        for(int64_t yy=top;yy<bottom;++yy)for(int64_t xx=left;xx<right;++xx){
+            const size_t at=relative_slot(int(xx-ox),int(yy-oy),z-minz);revisions[at]=0;ray_revisions[at]=0;}
+    }
+    // Functional diagnostics compare only entries which the next lookup could
+    // reuse. No oracle branch or extra native reads enter ordinary get().
+    template<class Revision,class Read> bool verify_cached(Revision revision,Read read,size_t &checked)const{
+        checked=0;
+        for(int z=minz;z<=maxz;++z)for(int y=0;y<height;++y)for(int x=0;x<width;++x){
+            const size_t at=relative_slot(x,y,z-minz);
+            if(!revisions[at]||revisions[at]!=revision(z))continue;
+            ++checked;if(facts[at]!=read(ox+x,oy+y,z))return false;
+        }
+        return true;
+    }
     bool prepare(int32_t x,int32_t y,int low,int high,int w,int h,uint64_t world){
         if(!world||w<1||h<1||w>97||h>97||low < -128||high > 128||low>high||int64_t(high)-low>=NCMM_WORLD_MAX_SLICES)return false;
         hits=misses=ray_hits=ray_misses=0;
