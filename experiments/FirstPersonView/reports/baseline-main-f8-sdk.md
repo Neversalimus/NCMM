@@ -7,10 +7,16 @@ remain unchanged. It adds the same private SDL 3.4.10 graphics descriptor fix
 used by all component modes, including its strict boundary/pixel test and source
 provenance. This prerequisite does not accept the PSX performance dependency.
 
-The existing Native movement harness and packaged wrapper are copied from
+The existing Native movement harness and packaged wrapper are based on
 `2bb3ec5a10ce2e22b11b537ec2fd5782518ee9f2` to expose the same eleven full-size GPU
 scenes, sample counts, actual window/display scale, backend and VSync telemetry.
-They are diagnostic-only changes. The original renderer is not replaced by a
+The 0.12.9 adaptation collects its existing total uploads, draws, memory,
+process CPU and exclusive frame phases. Later PSX-specific thread/readback,
+staging/cell, bone and static/dynamic upload counters are explicitly unavailable;
+they are omitted and listed, never fabricated as zero. The eleven scenes,
+Native actions, sample counts, resolution, weather, camera, actual window,
+VSync and complete-frame timers are preserved. The wrapper is byte-identical.
+These are diagnostic-only changes. The original renderer is not replaced by a
 newer DLL; the package builds its matched Host/module from this branch.
 
 Two additional ordinary main controls will bracket the eight component-mode
