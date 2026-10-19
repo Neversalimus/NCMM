@@ -55,3 +55,14 @@ the smoke dispatcher. Every fresh owned Linux fixture now explicitly selects
 the four serialized typed-value checks. Original user configuration is never
 read or overwritten; no gameplay dialog is automatically confirmed. Actual
 runtime completion after this fixture correction is still required.
+
+Run 39197367747 reached 1,938 real SDL frames and passed all eight deferred
+option checks on 1807, then exited 191 with `appearance_definition_missing`.
+The Linux harness omitted `creature_appearance_fixture.json`, which the Windows
+controls qualification copies before testing the unknown-mod anatomy case.
+Both fixtures are now copied with the same relative names as Windows, and
+their initial SHA-256 inventory is preserved per mode. Missing source files or
+existing destination fixtures fail before any copy. Six configuration/data
+checks pass. The large failed artifact is retained; selected members were
+verified by CRC/SHA only, not represented as a verified whole archive.
+Actual complete Linux runtime qualification remains required.
