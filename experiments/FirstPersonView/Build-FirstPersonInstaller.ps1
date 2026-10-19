@@ -172,6 +172,9 @@ attack/shot events drive clips; no unconfirmed reload animation is invented.
 Immutable GPU hand resources are retained while animation updates matrices.
 Actual worn gloves and sleeves select hand and forearm materials separately.
 See THIRD_PARTY_NOTICES.txt for the original archive hash and author's license.
+This preview includes 30 licensed held models for supported guns, tools,
+containers and accessories, using the original PSX hands. Items outside the
+supported authored families keep the established fallback.
 Native visibility, map memory and sprite/animation processing retain the complete
 established tile draw before perspective rendering.
 Use the qualification report for measured gains; this text makes no FPS claim.
@@ -247,8 +250,9 @@ Host updates are disabled in this preview. Use the normal NCMM installer to
 return to the current certified Host, or Restore vanilla EXE for vanilla play.
 Uncheck First Person View and install again to remove its managed DLL/manifest.
 
-Current limits: automatic coarse vehicle geometry, sprite-derived held items,
-generic environment dimensions and conservative hidden-surface reconstruction.
+Current limits: automatic coarse vehicle geometry, generic environment dimensions
+and conservative hidden-surface reconstruction. Unsupported held items use the
+existing fallback.
 The 0.12 world includes loaded Z-levels, floors, ceilings, stairs and shafts.
 Camera easing follows safe adjacent walking and stair movement visually after
 the first successful presentation; native movement remains turn-based.
