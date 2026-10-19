@@ -1,3 +1,4 @@
+#include "ncmm_graphics_held_before_gallery.inc"
 bool graphics_scene_smoke()
 {
 #if defined(TILES)
@@ -106,7 +107,10 @@ bool graphics_scene_smoke()
         require( !graphics_view.enabled, "view_not_initially_disabled" );
         press_f6();
         require( graphics_view.enabled, "view_did_not_enable" );
-        if( std::getenv( "NCMM_FP_SAVE_ONLY" ) ) {
+        if( std::getenv( "NCMM_FP_HELD_BEFORE_GALLERY" ) ) {
+            graphics_run_held_before_gallery(you,here,require,frames);
+            press_f6();require(!graphics_view.enabled,"held_before_f6_restore_failed");
+        } else if( std::getenv( "NCMM_FP_SAVE_ONLY" ) ) {
             #include "ncmm_graphics_multilevel_save_smoke.inc"
         } else if( std::getenv( "NCMM_FP_MOVEMENT_ONLY" ) ) {
             #include "ncmm_graphics_movement_benchmark.inc"
