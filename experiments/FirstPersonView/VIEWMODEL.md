@@ -181,6 +181,9 @@ retained. Selection is canonical ID, compatible appearance ancestry, conservativ
 native property family, then the established renderer. Unknown mechanisms,
 visible attachments, incompatible sizes and unreachable hands report a specific
 fallback reason. Localized item names are never used by this selection path.
+Canonical item assignments select compatible authored families; they do not
+claim an exact branded replica of every CDDA firearm. The Native identity,
+mechanism, dimensions and installed modifications still decide compatibility.
 The assault family includes the author's weighted extended Stock geometry;
 SCAR's exact native `high_end_folding_stock` default is represented by that body.
 A removed, folded or unsupported replacement stock selects the existing fallback
