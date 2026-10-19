@@ -2,7 +2,7 @@ name: First Person View - experimental prototype
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths: ['experiments/FirstPersonView/**', 'experiments/graphics_bridge/**', 'host_patch/**', 'sdk/**', 'runtime/**', 'ci/fpv_qualification.py', 'ci/test_fpv_qualification.py', '.github/workflows/ncmm-first-person-prototype.yml', '.github/workflows/ncmm-fpv-linux-native.yml']
+    paths: ['experiments/FirstPersonView/**', 'experiments/graphics_bridge/**', 'host_patch/**', 'sdk/**', 'runtime/**', 'ci/fpv_qualification.py', 'ci/test_fpv_qualification.py', 'ci/fpv_changed_paths.cjs', 'ci/test_fpv_changed_paths.cjs', '.github/workflows/ncmm-first-person-prototype.yml', '.github/workflows/ncmm-fpv-linux-native.yml']
   workflow_dispatch:
     inputs:
       qualification:
@@ -40,18 +40,19 @@ jobs:
                 owner: context.repo.owner, repo: context.repo.repo,
                 pull_number: context.payload.pull_request.number, per_page: 100
               });
+              if (files.length >= 3000) throw new Error('Potentially truncated PR file list; qualification must fail closed.');
               paths = files.flatMap(f => f.previous_filename ? [f.filename, f.previous_filename] : [f.filename]);
             } else {
               const comparison = await github.rest.repos.compareCommitsWithBasehead({
                 owner: context.repo.owner, repo: context.repo.repo,
                 basehead: `${context.payload.repository.default_branch}...${context.sha}`
               });
-              if (!comparison.data.files || comparison.data.files.length >= 300) {
-                throw new Error('Cannot classify a missing or truncated source comparison; qualification must fail closed.');
-              }
-              paths = comparison.data.files.flatMap(f => f.previous_filename ? [f.filename, f.previous_filename] : [f.filename]);
+              const {completeChangedPaths} = require('./ci/fpv_changed_paths.cjs');
+              paths = await completeChangedPaths(github, context.repo, comparison.data.merge_base_commit.sha, context.sha);
             }
             fs.writeFileSync('fpv-changes.json', JSON.stringify(paths));
+      - name: Complete Git tree classification negative tests
+        run: node --test ci/test_fpv_changed_paths.cjs
       - name: Qualification policy negative tests
         run: python -m unittest discover -s ci -p test_fpv_qualification.py -v
       - id: plan

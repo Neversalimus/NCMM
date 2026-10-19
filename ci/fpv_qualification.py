@@ -28,7 +28,8 @@ def tier(path):
         return "integration"
     if path in (".github/workflows/ncmm-first-person-prototype.yml",
                 ".github/workflows/ncmm-fpv-linux-native.yml",
-                ".github/workflows/ncmm-gpu-device.yml", "ci/fpv_qualification.py"):
+                ".github/workflows/ncmm-gpu-device.yml", "ci/fpv_qualification.py",
+                "ci/fpv_changed_paths.cjs", "ci/test_fpv_changed_paths.cjs"):
         return "full"
     return "quick"
 
