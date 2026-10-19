@@ -87,6 +87,9 @@ Copy-Item (Join-Path $HostRoot 'cataclysm-tiles.exe') (Join-Path $hostDest 'cata
 Copy-Item (Join-Path $HostRoot 'first-person-source.json') $hostDest
 Copy-Item (Join-Path $HostRoot 'LICENSE.txt') (Join-Path $stage 'CDDA-LICENSE.txt')
 Copy-Item (Join-Path $RepositoryRoot 'THIRD_PARTY_NOTICES.txt') $stage
+$sdlNotice=Join-Path $RepositoryRoot 'experiments/graphics_bridge/third_party/sdl3-port/SDL-LICENSE.txt'
+$sdlNoticeText="`nSDL 3.4.10: private NCMM D3D12 graphics descriptor reservation correction.`nOriginal source: https://github.com/libsdl-org/SDL/tree/release-3.4.10`nThe altered source and pinned port are in experiments/graphics_bridge/third_party/sdl3-port.`n`n"+[IO.File]::ReadAllText($sdlNotice)
+[IO.File]::AppendAllText((Join-Path $stage 'THIRD_PARTY_NOTICES.txt'),$sdlNoticeText,(New-Object Text.UTF8Encoding($false)))
 Copy-Item (Join-Path $PSScriptRoot 'Run-FirstPersonBenchmark.ps1') $stage
 Copy-Item (Join-Path $PSScriptRoot 'NativeDiagnosticDebugger.cs') $stage
 Copy-Item (Join-Path $fpBuild 'Release/ncmm_native_dump_analyzer.exe') $stage
