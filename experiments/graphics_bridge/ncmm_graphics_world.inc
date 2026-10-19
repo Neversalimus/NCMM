@@ -302,7 +302,8 @@ bool graphics_draw_world(int x,int y,int width,int height)
             const uint32_t basic=base_flags(ax,ay,z);bool possible_face=false;
             if(basic&graphics_world_architecture)for(unsigned face=0;face<4&&!possible_face;++face){
                 const bool facing=face==0?visibility_eye.x<gx:face==1?visibility_eye.x>gx+1:face==2?visibility_eye.y<gy:visibility_eye.y>gy+1;
-                if(!facing)continue;const auto adjacent=ncmm_world::facade_neighbor({ax,ay,z},face);
+                if(!facing)continue;
+                const auto adjacent=ncmm_world::facade_neighbor({ax,ay,z},face);
                 if(ncmm_world::structural_flags(base_flags(adjacent.x,adjacent.y,adjacent.z))&(NCMM_WORLD_OPAQUE|NCMM_WORLD_UNKNOWN))continue;
                 const auto lit=here.get_bub(tripoint_abs_ms(adjacent.x,adjacent.y,adjacent.z));
                 possible_face=graphics_world_in_visual_range(p,visual_maximum,visual_no_sight,&visual_ranges,&lit);
@@ -480,7 +481,6 @@ int graphics_get_world_metrics(ncmm_multilevel_metrics_v1 *out)
     if(!graphics_multilevel_frame||active_module_id!=graphics_view.owner||!out||out->struct_size<sizeof(*out))return 0;
     *out=graphics_world_metrics;return 1;
 }
-int graphics_gpu_submit_world(const ncmm_gpu_multilevel_scene_v1 *scene);
 const ncmm_host_graphics_multilevel_v1 graphics_world_api={1,sizeof(ncmm_host_graphics_multilevel_v1),1,1,
     graphics_register_world,graphics_enable,graphics_enabled,graphics_get_sprite,graphics_submit_frame,graphics_gpu_submit_world,graphics_get_world_metrics,graphics_get_lod};
 

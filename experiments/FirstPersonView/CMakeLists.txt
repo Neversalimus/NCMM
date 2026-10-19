@@ -154,6 +154,16 @@ foreach(target first_person_tests first_person_hybrid_module_tests first_person_
   target_link_libraries(${target} PRIVATE ncmm_mod)
 endforeach()
 
+add_library(first_person_native_library_fixture SHARED tests/native_library_fixture.cpp)
+target_link_libraries(first_person_native_library_fixture PRIVATE first_person_build_options)
+target_compile_definitions(first_person_native_library_fixture PRIVATE NCMM_MOD_BUILD)
+add_executable(first_person_native_library_tests tests/native_library_test.cpp)
+target_link_libraries(first_person_native_library_tests PRIVATE first_person_build_options ${CMAKE_DL_LIBS})
+add_test(NAME first_person_native_library COMMAND first_person_native_library_tests
+  $<TARGET_FILE_NAME:first_person_native_library_fixture> --ncmm-test-native)
+set_tests_properties(first_person_native_library PROPERTIES
+  WORKING_DIRECTORY "$<TARGET_FILE_DIR:first_person_native_library_fixture>")
+
 option(FIRST_PERSON_BUILD_BENCHMARK "Build the manual camera/composition benchmark" OFF)
 set(FIRST_PERSON_BENCHMARK_ROUNDS 5 CACHE STRING "Rounds for the non-gating timing artifact")
 if(FIRST_PERSON_BUILD_BENCHMARK)

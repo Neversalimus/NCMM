@@ -75,7 +75,8 @@ std::array<float,3> graphics_sample_rgb(const tripoint_bub_ms &p)
 float graphics_eye_height()
 {
     avatar &you=get_avatar();float height=std::clamp(you.height()*.00885f,.5f,3.5f);
-    if(you.is_crouching())height*=.72f;if(you.is_prone())height*=.25f;
+    if(you.is_crouching())height*=.72f;
+    if(you.is_prone())height*=.25f;
     if(you.in_vehicle&&get_map().veh_at(you.pos_bub()))height=std::min(height,1.18f);
     return height;
 }
@@ -221,7 +222,6 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
     }
     graphics_aim.reset(); graphics_aim_name.clear(); graphics_effect_pixels.clear();
 }
-bool graphics_world_target_visible(const tripoint_bub_ms &origin,const tripoint_bub_ms &target);
 std::string graphics_click_action_impl()
 {
     if( !graphics_view.enabled || !graphics_control_context || !graphics_aim || !character_state_available() ) return "";

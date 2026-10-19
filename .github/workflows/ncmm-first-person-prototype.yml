@@ -2,7 +2,7 @@ name: First Person View - experimental prototype
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths: ['experiments/FirstPersonView/**', 'experiments/graphics_bridge/**', 'host_patch/**', 'sdk/**', 'runtime/**', 'ci/fpv_qualification.py', 'ci/test_fpv_qualification.py', '.github/workflows/ncmm-first-person-prototype.yml']
+    paths: ['experiments/FirstPersonView/**', 'experiments/graphics_bridge/**', 'host_patch/**', 'sdk/**', 'runtime/**', 'ci/fpv_qualification.py', 'ci/test_fpv_qualification.py', '.github/workflows/ncmm-first-person-prototype.yml', '.github/workflows/ncmm-fpv-linux-native.yml']
   workflow_dispatch:
     inputs:
       qualification:
@@ -428,9 +428,12 @@ jobs:
           $ErrorActionPreference='Stop'
           $root='${{ steps.game.outputs.root }}'
           $env:NCMM_FP_SAVE_ONLY='1'
+          $env:NCMM_FP_VERIFY_DEFERRED_OPTIONS='1'
           try {
             foreach($attempt in @(1,2)) {
               ./ncmmrepo/experiments/FirstPersonView/tests/Reset-SmokeWorld.ps1 -GameRoot $root
+              python -B ncmmrepo/experiments/FirstPersonView/tests/seed_deferred_options.py --game $root
+              if($LASTEXITCODE -ne 0){throw 'Saved setting fixture could not be seeded.'}
               $p=Start-Process (Join-Path $root 'cataclysm-tiles.exe') -ArgumentList '--ncmm-gameplay-smoke --seed ncmm-save-012' -WorkingDirectory $root -PassThru
               if(-not $p.WaitForExit(300000)){& taskkill.exe /pid $p.Id /t /f;throw 'Native save-load gate deadline exceeded.'}
               $p.Refresh()
@@ -438,10 +441,16 @@ jobs:
               if($p.ExitCode -ne 0 -or $smoke.success -ne $true){throw "Native save-load gate failed: $($smoke.reason), exit $($p.ExitCode)"}
               $save=Get-Content (Join-Path $root 'ncmm/first-person-multilevel-save-after.json') -Raw | ConvertFrom-Json
               if($save.success -ne $true -or @($save.levels).Count -ne 3){throw 'Native save-load gate is incomplete.'}
+              $restored=Get-Content (Join-Path $root 'ncmm/first-person-deferred-options.json') -Raw | ConvertFrom-Json
+              if($restored.success -ne $true -or $restored.actual_cdda_configuration -ne $true -or $restored.value_checks -ne 8){throw 'Serialized typed Native settings were not restored.'}
+              Copy-Item (Join-Path $root 'ncmm/first-person-deferred-options.json') ("installer-result/first-person-deferred-options-gate-"+$attempt+'.json')
               Copy-Item (Join-Path $root 'ncmm/first-person-multilevel-save-after.json') 'installer-result/first-person-multilevel-save-fast-gate.json'
               Copy-Item (Join-Path $root 'ncmm/first-person-multilevel-save-after.json') ("installer-result/first-person-multilevel-save-fast-gate-"+$attempt+'.json')
             }
-          } finally {Remove-Item Env:\NCMM_FP_SAVE_ONLY -ErrorAction SilentlyContinue}
+          } finally {
+            Remove-Item Env:\NCMM_FP_SAVE_ONLY -ErrorAction SilentlyContinue
+            Remove-Item Env:\NCMM_FP_VERIFY_DEFERRED_OPTIONS -ErrorAction SilentlyContinue
+          }
       - uses: actions/checkout@v4
         if: always() && steps.installer_gate.outcome == 'success'
         with:
@@ -696,15 +705,20 @@ jobs:
             installer-result/first-person-appearance-*.json
           if-no-files-found: error
           retention-days: 7
+  native_linux:
+    if: needs.qualification_plan.outputs.native == 'true'
+    needs: [qualification_plan, module]
+    uses: ./.github/workflows/ncmm-fpv-linux-native.yml
   required_qualification:
     name: First Person required qualification
     if: always()
-    needs: [qualification_plan, module, host]
+    needs: [qualification_plan, module, host, native_linux]
     runs-on: ubuntu-latest
     env:
       PLAN_RESULT: ${{ needs.qualification_plan.result }}
       MODULE_RESULT: ${{ needs.module.result }}
       HOST_RESULT: ${{ needs.host.result }}
+      LINUX_NATIVE_RESULT: ${{ needs.native_linux.result }}
       SUFFICIENT: ${{ needs.qualification_plan.outputs.sufficient }}
       NATIVE_REQUIRED: ${{ needs.qualification_plan.outputs.native }}
       REQUIRED_TIER: ${{ needs.qualification_plan.outputs.required }}
@@ -719,5 +733,6 @@ jobs:
           assert os.environ['SUFFICIENT'] == 'true', f"Required {os.environ['REQUIRED_TIER']}; selected {os.environ['SELECTED_TIER']}"
           if os.environ['NATIVE_REQUIRED'] == 'true':
               assert os.environ['HOST_RESULT'] == 'success', 'Both exact native Host gates are required'
+              assert os.environ['LINUX_NATIVE_RESULT'] == 'success', 'Both exact actual Linux Native gates are required'
           print('Required First Person qualification passed')
           PY

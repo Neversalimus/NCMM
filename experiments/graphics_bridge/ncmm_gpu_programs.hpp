@@ -38,7 +38,10 @@ public:
     SDL_GPUComputePipeline *shadow=nullptr,*count=nullptr;
     SDL_GPUSampler *linear=nullptr,*nearest=nullptr,*pixel_art=nullptr;
     void clear(){if(device_){for(auto *p:{opaque,transparent,held,sky,celestial,weather,volume,compose})if(p)SDL_ReleaseGPUGraphicsPipeline(device_,p);
-            for(auto *p:{shadow,count})if(p)SDL_ReleaseGPUComputePipeline(device_,p);if(linear)SDL_ReleaseGPUSampler(device_,linear);if(nearest)SDL_ReleaseGPUSampler(device_,nearest);if(pixel_art)SDL_ReleaseGPUSampler(device_,pixel_art);}
+            for(auto *p:{shadow,count})if(p)SDL_ReleaseGPUComputePipeline(device_,p);
+            if(linear)SDL_ReleaseGPUSampler(device_,linear);
+            if(nearest)SDL_ReleaseGPUSampler(device_,nearest);
+            if(pixel_art)SDL_ReleaseGPUSampler(device_,pixel_art);}
         opaque=transparent=held=sky=celestial=weather=volume=compose=nullptr;shadow=count=nullptr;linear=nearest=pixel_art=nullptr;device_=nullptr;}
     void abandon(){device_=nullptr;clear();}
     bool create(device_context &context){if(opaque)return true;device_=context.device();

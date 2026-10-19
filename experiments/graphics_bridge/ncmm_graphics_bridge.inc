@@ -50,7 +50,6 @@ size_t graphics_snapshot_far_cells = 0;
 size_t graphics_snapshot_light_queries = 0;
 std::chrono::steady_clock::time_point graphics_snapshot_begun;
 double graphics_snapshot_ms = 0, graphics_callback_ms = 0, graphics_presentation_ms = 0;
-loaded_mod *find_loaded_by_id( const char *module_id );
 void graphics_clear_hybrid();
 void graphics_clear_gpu();
 void graphics_release_mouse();

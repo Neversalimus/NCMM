@@ -15,7 +15,7 @@ def tier(path):
         return "quick"
     if path.startswith(("host_patch/", "sdk/", "runtime/", "payload/")):
         return "full"
-    if path.startswith((BRIDGE + "ncmm_gpu", BRIDGE + "apply_graphics_bridge.py")):
+    if path.startswith((BRIDGE + "ncmm_gpu", BRIDGE + "apply_graphics_bridge.py", BRIDGE + "native_", BRIDGE + "ncmm_graphics_library.hpp")):
         return "full"
     if path.startswith(BRIDGE):
         return "quick" if path.startswith(BRIDGE + "test_") else "integration"
@@ -27,6 +27,7 @@ def tier(path):
             return "full"
         return "integration"
     if path in (".github/workflows/ncmm-first-person-prototype.yml",
+                ".github/workflows/ncmm-fpv-linux-native.yml",
                 ".github/workflows/ncmm-gpu-device.yml", "ci/fpv_qualification.py"):
         return "full"
     return "quick"

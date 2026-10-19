@@ -1,0 +1,147 @@
+name: First Person View - actual Linux Native
+on:
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  native:
+    name: Actual Linux Native - ${{ matrix.build }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - build: '1040'
+            source: 3f7fb352bf492ba521bd9408a0c9f6ce239e8d83
+            tag: cdda-experimental-2026-10-01-1040
+          - build: '1807'
+            source: 074aa98bd5be3de4c35f154082db32a0e63bb0f1
+            tag: cdda-experimental-2026-10-06-1807
+    runs-on: ubuntu-24.04
+    timeout-minutes: 270
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_NOHASHDIR: 'true'
+      CCACHE_COMPRESS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ncmmrepo
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: CleverRaven/Cataclysm-DDA
+          ref: ${{ matrix.source }}
+          path: upstream
+          persist-credentials: false
+      - name: Install Native Linux build and functional Vulkan dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build ccache gettext libncursesw5-dev glslang-tools xvfb xauth mesa-vulkan-drivers vulkan-tools
+          python3 -m pip install --disable-pip-version-check pillow==11.3.0
+      - name: Pinned upstream SDL 3.4.10 stack
+        uses: ./upstream/.github/actions/setup-sdl3-stack
+        with:
+          cache-key: ncmm-sdl3-stack-strict-3.4.10-image-3.4.4-ttf-3.2.2-mixer-3.2.4-ubuntu-24.04-v1
+          prefix: ${{ runner.workspace }}/ncmm_sdl3_prefix
+      - name: Preserve completed SDL stack before engine compilation
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.workspace }}/ncmm_sdl3_prefix
+          key: ncmm-sdl3-stack-strict-3.4.10-image-3.4.4-ttf-3.2.2-mixer-3.2.4-ubuntu-24.04-v1
+      - uses: actions/cache/restore@v4
+        id: compiler_cache
+        with:
+          path: ~/.cache/ccache
+          key: ncmm-fpv-linux-ccache-${{ matrix.build }}-${{ github.sha }}
+          restore-keys: ncmm-fpv-linux-ccache-${{ matrix.build }}-
+      - name: Prepare the same canonical stack and experimental bridge
+        shell: pwsh
+        run: ./ncmmrepo/experiments/FirstPersonView/Prepare-FirstPersonHost.ps1 -SourceRoot upstream
+      - name: Compile the real pinned Linux CDDA Host
+        run: |
+          ccache --max-size=2G
+          cmake -S upstream -B upstream/build -GNinja -DCMAKE_BUILD_TYPE=Release -DTILES=ON -DCURSES=OFF -DSOUND=ON -DTESTS=OFF -DUSE_HOME_DIR=OFF -DLOCALIZE=ON -DLANGUAGES=none -DDYNAMIC_LINKING=ON -DCATA_CCACHE=ON -DCMAKE_EXE_LINKER_FLAGS=-ldl
+          # Surface patched settings/bridge errors before compiling other Native units.
+          cmake --build upstream/build --parallel 2 --target src/CMakeFiles/cataclysm-tiles-common.dir/options.cpp.o
+          cmake --build upstream/build --parallel 2 --target src/CMakeFiles/cataclysm-tiles-common.dir/ncmm_loader.cpp.o
+          cmake --build upstream/build --parallel 2 --target src/CMakeFiles/cataclysm-tiles-common.dir/vehicle_use.cpp.o
+          cmake --build upstream/build --parallel 2 --target cataclysm-tiles
+          ccache --show-stats
+      - name: Preserve useful compiler cache after a failed Native build
+        if: always() && steps.compiler_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ccache
+          key: ncmm-fpv-linux-ccache-${{ matrix.build }}-${{ github.sha }}
+      - name: Record effective Linux compiler cache coverage
+        if: always()
+        run: ccache --show-stats --verbose > linux-compiler-cache.txt
+      - name: Build exact Linux modules and exercise private library lifecycle
+        run: |
+          python3 - <<'PY'
+          import json,pathlib,subprocess
+          repo=pathlib.Path('ncmmrepo').resolve()
+          sources={m['folder']:repo/'mods'/m['folder'] for m in json.loads((repo/'components/native-build.json').read_text())['modules']}
+          sources['FirstPersonView']=repo/'experiments/FirstPersonView'
+          for folder,source in sources.items():
+              build=pathlib.Path('linux-modules')/folder
+              subprocess.run(['cmake','-S',str(source),'-B',str(build),'-GNinja','-DCMAKE_BUILD_TYPE=Release'],check=True)
+              targets=['ncmm_mod']+(['first_person_native_library_tests','first_person_native_library_fixture'] if folder=='FirstPersonView' else [])
+              subprocess.run(['cmake','--build',str(build),'--parallel','2','--target',*targets],check=True)
+          subprocess.run(['ctest','--test-dir','linux-modules/FirstPersonView','-R','^first_person_native_library$','--output-on-failure'],check=True)
+          PY
+      - name: Verify exact official graphics data archive
+        env:
+          DATA_TAG: ${{ matrix.tag }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,subprocess,zipfile
+          tag=os.environ['DATA_TAG'];name='cdda-windows-with-graphics-x64-'+tag.removeprefix('cdda-experimental-')+'.zip'
+          release=json.loads(subprocess.check_output(['gh','api','repos/CleverRaven/Cataclysm-DDA/releases/tags/'+tag]))
+          matches=[a for a in release['assets'] if a['name']==name]
+          assert len(matches)==1 and matches[0]['digest'].startswith('sha256:')
+          subprocess.run(['gh','release','download',tag,'-R','CleverRaven/Cataclysm-DDA','-p',name,'-D',os.environ['RUNNER_TEMP']],check=True)
+          archive=pathlib.Path(os.environ['RUNNER_TEMP'])/name
+          with archive.open('rb') as stream:sha=hashlib.file_digest(stream,'sha256').hexdigest()
+          assert 'sha256:'+sha==matches[0]['digest']
+          dest=pathlib.Path('official-data');dest.mkdir()
+          with zipfile.ZipFile(archive) as zipped:
+              entries=zipped.infolist();versions=[pathlib.PurePosixPath(e.filename) for e in entries if pathlib.PurePosixPath(e.filename).name=='VERSION.txt']
+              assert len(versions)==1
+              prefix=versions[0].parent
+              for entry in entries:
+                  path=pathlib.PurePosixPath(entry.filename)
+                  assert not path.is_absolute() and '..' not in path.parts
+                  if entry.is_dir() or not path.is_relative_to(prefix):continue
+                  relative=path.relative_to(prefix)
+                  if relative.parts[0] not in ['data','gfx','font','sound','lang','VERSION.txt']:continue
+                  target=dest/pathlib.Path(relative);target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(zipped.read(entry))
+          pathlib.Path('official-data-identity.json').write_text(json.dumps(dict(tag=tag,archive=name,sha256=sha,only_data_used=True))+'\n')
+          PY
+      - name: Actual Native controls, camera and every compiled gameplay feature
+        run: |
+          export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+          test -f "$VK_DRIVER_FILES"
+          vulkaninfo --summary
+          xvfb-run -a -s '-screen 0 1920x1200x24' python3 -B ncmmrepo/experiments/FirstPersonView/tests/run_native_linux.py --engine upstream --data official-data --modules linux-modules --output linux-native-results --build '${{ matrix.build }}'
+      - name: Preserve Linux Native evidence even after failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-person-linux-native-${{ matrix.build }}
+          path: |
+            linux-native-results/evidence/**
+            linux-native-results/process-results.json
+            linux-native-results/linux-native-verified.json
+            upstream/first-person-source.json
+            upstream/build/CMakeCache.txt
+            upstream/src/options.cpp
+            upstream/src/options.h
+            upstream/src/vehicle_use.cpp
+            linux-compiler-cache.txt
+            official-data-identity.json
+          if-no-files-found: warn
+          compression-level: 9
+          retention-days: 7

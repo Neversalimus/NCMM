@@ -196,6 +196,8 @@
             const bool vsync_available=SDL_GetRenderVSync(renderer,&native_vsync);
             const bool window_size_available=SDL_GetWindowSizeInPixels(get_sdl_window(),&window_width,&window_height);
             report.member("native_renderer_vsync_available",vsync_available);report.member("native_renderer_vsync",native_vsync);
+            report.member("loaded_min_z",graphics_world_cached_low);report.member("loaded_max_z",graphics_world_cached_high);
+            report.member("available_z_slices",graphics_world_metrics.available_slices);
             report.member("native_window_size_available",window_size_available);report.member("native_window_pixel_width",window_width);report.member("native_window_pixel_height",window_height);
             report.member("window_display_scale",SDL_GetWindowDisplayScale(get_sdl_window()));report.member("sdl_runtime_version",SDL_GetVersion());
             report.member("camera_snapshot_fixture_lease",true);
@@ -410,7 +412,8 @@
     report.member("lattice_cells",geometry.lattice);report.member("canopy_without_slab",geometry.canopy);report.member("connected_fence_corners",geometry.corners);
     report.member("windows_without_door_model",geometry.windows);report.member("unseen_continuous_walls",geometry.unseen_walls);report.member("supported_item_cells",geometry.items);
     report.member("captures",8);report.end_object();
-    if(had_nightvision)you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));you.recalc_sight_limits();get_weather().weather_id=saved_weather;
+    if(had_nightvision)you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));
+    you.recalc_sight_limits();get_weather().weather_id=saved_weather;
     }
     report.member("success",true);report.end_object();stream.close();require(bool(stream),"movement_report_write_failed");
 
