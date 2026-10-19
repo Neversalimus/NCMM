@@ -37,6 +37,10 @@ The exact source-owned installer payload contract replaces the obsolete fixed
 
 This branch is an isolated build candidate. The independent four-run comparison
 of unchanged production Main (inclusive-clock harness 8c5c32f) and standalone
-PSX f22a8e7 is pending. Public Main, PR #218 and the four component PR heads are
-unchanged. Standalone acceptance, the new combined/component/Main matrix, final
-CI, both Native pins and the required hardware lifecycle checks remain gates.
+PSX f22a8e7 completed with thirteen repeated timing regressions; PSX remains
+unaccepted. Matching lookup counts exposed address-sensitive definition-cache
+collisions (roughly 600,000 evaluations versus 900–1,100 in the other repeats).
+The additional bounded collision fix is described in definition-cache-collisions.md.
+Public Main, PR #218 and the four component PR heads are unchanged. A fresh
+standalone comparison, the combined/component/Main matrix, final CI, both Native
+pins and the required hardware lifecycle checks remain gates.

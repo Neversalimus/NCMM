@@ -44,6 +44,16 @@ int main(){try{
             check(materials.get(terrain,furniture,normal,[&]{++calls;return expected;})==expected);
         }
         check(calls==12&&materials.evaluations==12&&materials.hits==119988);
+        // These opaque identities collide in the original single-slot hash.
+        // Repeated native definitions must coexist despite address placement.
+        const std::array<std::uintptr_t,9> aliases={0x8f0,0xb40,0x20d0,0x2320,0x2640,0x27f0,0x38b0,0x3e20,0x3fd0};
+        material_semantics_cache clustered;int clustered_reads=0;
+        for(int n=0;n<40000;++n){const auto id=aliases[size_t(n)%8];const auto expected=uint32_t(id*13+71);
+            check(clustered.get(id,32,false,[&]{++clustered_reads;return expected;})==expected);}
+        if(clustered_reads!=8)throw std::runtime_error("colliding material definitions are repeatedly recomputed");
+        check(clustered.evaluations==8&&clustered.hits==39992&&sizeof(clustered)<=9216);
+        for(int n=0;n<20000;++n){const auto id=aliases[size_t(n)%aliases.size()];const auto expected=uint32_t(id*13+71);
+            check(clustered.get(id,32,false,[&]{return expected;})==expected);}
         material_semantics_cache collisions;
         for(int n=0;n<4096;++n){const std::uintptr_t terrain=(std::uintptr_t(n)<<12)|16;
             check(collisions.get(terrain,32,false,[&]{return uint32_t(n+1000);})==uint32_t(n+1000));}
@@ -58,6 +68,14 @@ int main(){try{
         for(int n=0;n<120000;++n){const std::uintptr_t identity=16;
             check(shapes.get(identity,[&]{++calls;return uint32_t(identity*13);})==uint32_t(identity*13));}
         check(calls==1&&shapes.evaluations==1&&shapes.hits==119999);
+        const std::array<std::uintptr_t,9> aliases={0x120,0x1770,0x2000,0x2360,0x3650,0x39b0,0x4240,0x5890,0x5bf0};
+        definition_cache clustered;int clustered_reads=0;
+        for(int n=0;n<40000;++n){const auto id=aliases[size_t(n)%8];const auto expected=uint32_t(id*17+19);
+            check(clustered.get(id,[&]{++clustered_reads;return expected;})==expected);}
+        if(clustered_reads!=8)throw std::runtime_error("colliding shape definitions are repeatedly recomputed");
+        check(clustered.evaluations==8&&clustered.hits==39992&&sizeof(clustered)<=6144);
+        for(int n=0;n<20000;++n){const auto id=aliases[size_t(n)%aliases.size()];const auto expected=uint32_t(id*17+19);
+            check(clustered.get(id,[&]{return expected;})==expected);}
         // Force direct-map collisions and a reused address in the next draw.
         definition_cache collisions;
         for(std::uintptr_t n=0;n<8192;++n)check(collisions.get(n,[&]{return uint32_t(n+731);})==uint32_t(n+731));
