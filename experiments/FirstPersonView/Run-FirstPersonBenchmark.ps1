@@ -312,7 +312,7 @@ if($exitCode -ne 0){
 }
 if($debugger -and $debugger.Error){throw "Native diagnostic debugger failed: $($debugger.Error)"}
 if($debugger -and $debugger.Dumps -gt 0){throw 'Native diagnostic captured an access violation even though the process exited successfully.'}
-$auditName=if($MovementBenchmark){'first-person-movement-benchmark.json'}elseif($FocusedGpuBenchmark){'first-person-gpu-benchmark.json'}else{'first-person-gameplay-audit.json'}
+$auditName=if($HeldBeforeGallery){'first-person-held-before-gallery.json'}elseif($MovementBenchmark){'first-person-movement-benchmark.json'}elseif($FocusedGpuBenchmark){'first-person-gpu-benchmark.json'}else{'first-person-gameplay-audit.json'}
 if(-not (Test-Path -LiteralPath (Join-Path $evidence $auditName))){throw "Requested native benchmark report is missing: $auditName; final phase=$lastProgress"}
 if($HeldBeforeGallery){
     $audit=Get-Content (Join-Path $evidence 'first-person-held-before-gallery.json') -Raw | ConvertFrom-Json
