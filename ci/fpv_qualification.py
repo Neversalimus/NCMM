@@ -15,7 +15,7 @@ def tier(path):
         return "quick"
     if path.startswith(("host_patch/", "sdk/", "runtime/", "payload/")):
         return "full"
-    if path.startswith((BRIDGE + "ncmm_gpu", BRIDGE + "apply_graphics_bridge.py", BRIDGE + "native_")):
+    if path.startswith((BRIDGE + "ncmm_gpu", BRIDGE + "apply_graphics_bridge.py", BRIDGE + "native_", BRIDGE + "ncmm_graphics_library.hpp")):
         return "full"
     if path.startswith(BRIDGE):
         return "quick" if path.startswith(BRIDGE + "test_") else "integration"

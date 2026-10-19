@@ -66,6 +66,7 @@ jobs:
           # Surface patched settings/bridge errors before compiling other Native units.
           cmake --build upstream/build --parallel 2 --target src/CMakeFiles/cataclysm-tiles-common.dir/options.cpp.o
           cmake --build upstream/build --parallel 2 --target src/CMakeFiles/cataclysm-tiles-common.dir/ncmm_loader.cpp.o
+          cmake --build upstream/build --parallel 2 --target src/CMakeFiles/cataclysm-tiles-common.dir/vehicle_use.cpp.o
           cmake --build upstream/build --parallel 2 --target cataclysm-tiles
           ccache --show-stats
       - name: Preserve useful compiler cache after a failed Native build
@@ -119,7 +120,7 @@ jobs:
                   target=dest/pathlib.Path(relative);target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(zipped.read(entry))
           pathlib.Path('official-data-identity.json').write_text(json.dumps(dict(tag=tag,archive=name,sha256=sha,only_data_used=True))+'\n')
           PY
-      - name: Actual Native controls, rotation, 64 held cases, 42 targets and 192 firing attempts
+      - name: Actual Native controls, camera and every compiled gameplay feature
         run: |
           export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
           test -f "$VK_DRIVER_FILES"
@@ -138,6 +139,7 @@ jobs:
             upstream/build/CMakeCache.txt
             upstream/src/options.cpp
             upstream/src/options.h
+            upstream/src/vehicle_use.cpp
             linux-compiler-cache.txt
             official-data-identity.json
           if-no-files-found: warn

@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import apply_graphics_bridge as bridge
+from native_compiler_bridge import BEFORE as NATIVE_TOGGLE
 
 REPO = Path(__file__).resolve().parents[2]
 SDL_ANCHOR = """        tilecontext->draw(
@@ -20,6 +21,7 @@ class ApplyTests(unittest.TestCase):
         for name in ("ncmm_loader.cpp", "ncmm_loader.h"):
             (root / "src" / name).write_bytes((REPO / "host_patch" / name).read_bytes())
         (root / "src/game.h").write_text("        bool save();\n")
+        (root / "src/vehicle_use.cpp").write_text(NATIVE_TOGGLE)
         (root / "src/debug.cpp").write_text('\nstd::string ncmm_debug_report_text( const std::string &text )\n{ return text; }\n')
         options='static void ncmm_apply_deferred_option_value( const std::string &, options_manager::cOpt & );\n// NCMM v8.7.6.6 stale world-option repair:\n'
         for kind in ['bool','int','float','enum']:
@@ -126,6 +128,15 @@ bool cata_tiles::draw_sprite_at() {
                 before = self.fingerprint(root)
                 with self.assertRaises(ValueError): bridge.apply(root)
                 self.assertEqual(before, self.fingerprint(root))
+    def test_changed_native_compiler_predicate_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root)
+            (root/'src/vehicle_use.cpp').write_text('changed upstream predicate')
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'electronic-toggle predicate changed'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
+
     def test_missing_shutdown_anchor_no_partial_patch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); self.fixture(root)

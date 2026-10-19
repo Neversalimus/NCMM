@@ -11,6 +11,7 @@ from pathlib import Path
 import subprocess
 from native_library_bridge import prepare as prepare_native_library
 from native_options_bridge import prepare as prepare_deferred_options
+from native_compiler_bridge import prepare as prepare_native_compiler
 
 SOURCES = {
     "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": "cdda-experimental-2026-10-01-1040",
@@ -36,6 +37,7 @@ def apply(root: Path):
     if loader.replace(event_helper, "") != (repo / "host_patch/ncmm_loader.cpp").read_text(encoding="utf-8-sig"):
         raise ValueError("Apply the current canonical NCMM Host first; loader identity differs")
     updates['options.cpp']=prepare_deferred_options(read('options.cpp'))
+    updates['vehicle_use.cpp']=prepare_native_compiler(read('vehicle_use.cpp'))
     loader = prepare_native_library(loader, replace)
     # The canonical report helper is used only in debug.cpp. GCC's strict
     # Native build correctly rejects accidental external linkage without a

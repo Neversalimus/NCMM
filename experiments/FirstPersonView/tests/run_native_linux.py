@@ -30,6 +30,17 @@ def digest(path):
 def run(args):
     assert sys.platform=='linux'
     repo=Path(__file__).resolve().parents[3]
+    bridge=repo/'experiments/graphics_bridge'
+    # Logical PRs add these source hooks independently. Test every hook that is
+    # compiled in this exact source tree; the complete integration has all five
+    # modes. Missing data/verifiers for a present hook remain a hard failure.
+    features={'held':(bridge/'ncmm_graphics_held_gallery.inc').is_file(),
+              'target':(bridge/'ncmm_graphics_target_smoke.inc').is_file()}
+    for mode,present in features.items():
+        if present:
+            verifier='verify_held_gallery.py' if mode=='held' else 'verify_target_audit.py'
+            assert Path(__file__).with_name(verifier).is_file(), 'Compiled Native feature lacks its verifier'
+    modes={name:flags for name,flags in MODES.items() if name not in features or features[name]}
     engine=args.engine.resolve(); data=args.data.resolve(); output=args.output.resolve()
     assert not output.exists(), 'Preserve earlier Native evidence'
     output.mkdir(parents=True)
@@ -52,7 +63,7 @@ def run(args):
         assert library.is_file() and library.read_bytes()[:4]==b'\x7fELF'
         inventory[folder]=digest(library)
     results=[]
-    for mode,switches in MODES.items():
+    for mode,switches in modes.items():
         game=output/mode;game.mkdir()
         shutil.copy2(binary,game/'cataclysm-tiles.ncmm')
         shutil.copy2(data/'VERSION.txt',game/'VERSION.txt')
@@ -134,7 +145,8 @@ def run(args):
             if target.is_dir():shutil.rmtree(target)
     summary=dict(schema=1,success=True,ncmm_source=ncmm_source,engine_source=source,host_sha256=digest(binary),
                  module_sha256=inventory,actual_linux_native=True,software_vulkan_functional_only=True,
-                 hardware_performance_qualified=False,manual_playthrough=False,processes=results)
+                 hardware_performance_qualified=False,manual_playthrough=False,features=features,
+                 tested_modes=list(modes),processes=results)
     (output/'linux-native-verified.json').write_text(json.dumps(summary,indent=2)+'\n')
 
 
