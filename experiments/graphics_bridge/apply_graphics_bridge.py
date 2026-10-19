@@ -459,6 +459,12 @@ void initialize();''')
         map_cpp=replace(map_cpp,store,store+
             '\n    const tripoint_abs_ms ncmm_changed_cell = get_abs( p );'
             '\n    ncmm::graphics_world_region_changed( this, ncmm_changed_cell.x(), ncmm_changed_cell.y(), p.z(), 1, 1 );')
+    # Transparent fields may change the private renderable fact without dirtying
+    # Native transparency. All Native field processors already notify here.
+    field_modified="void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type )\n{"
+    map_cpp=replace(map_cpp,field_modified,field_modified+
+        '\n    const tripoint_abs_ms ncmm_changed_field = get_abs( p );'
+        '\n    ncmm::graphics_world_region_changed( this, ncmm_changed_field.x(), ncmm_changed_field.y(), p.z(), 1, 1 );')
     updates["map.cpp"]=map_cpp
     updates["game.cpp"]=game_cpp
     for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_trace.hpp","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
