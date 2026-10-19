@@ -102,6 +102,7 @@
             bool thread_cpu_available=true;
             std::vector<uint32_t> renderers;uint64_t cache_peak=0;
             std::vector<uint64_t> uploads,static_uploads,dynamic_geometry,draw_calls,bones,held_bones,resource_bytes,host_bytes,rss;
+            std::vector<uint64_t> static_index_creations,static_index_reuses,static_index_pool_bytes;
             uint32_t actual_width=0,actual_height=0,attacks=0;
             uint64_t source_oracle_cells=0,field_oracle_cases=0;
             auto render=[&](bool measured){const auto begin=clock::now();const auto pos=you.pos_abs();const auto moves=you.get_moves();
@@ -152,6 +153,7 @@
                         cell_prepare_ms.push_back(recorded.cell_prepare_ms);cell_upload_bytes.push_back(recorded.cell_upload_bytes);cell_cache_bytes.push_back(recorded.cell_cache_bytes);
                         retirement_ms.push_back(recorded.retirement_ms);retirement_calls.push_back(recorded.retirement_calls);post_present_metrics_ms.push_back(metrics_wall);
                         uploads.push_back(metrics.upload_bytes);static_uploads.push_back(recorded.static_upload_bytes);dynamic_geometry.push_back(recorded.dynamic_geometry_bytes);
+                        static_index_creations.push_back(recorded.static_index_creations);static_index_reuses.push_back(recorded.static_index_reuses);static_index_pool_bytes.push_back(recorded.static_index_pool_bytes);
                         draw_calls.push_back(metrics.draw_calls);bones.push_back(recorded.bones);held_bones.push_back(recorded.held_bones);resource_bytes.push_back(metrics.resource_bytes);host_bytes.push_back(metrics.host_cpu_cache_bytes);
                         rss.push_back(ncmm_graphics_performance::resident_bytes());actual_width=graphics_hybrid_width;actual_height=graphics_hybrid_height;}}
             };
@@ -250,6 +252,7 @@
                 report.member("initial_gpu_cell_prepare_ms",initial_recording.cell_prepare_ms);report.member("initial_gpu_cell_upload_bytes",initial_recording.cell_upload_bytes);report.member("initial_gpu_cell_cache_bytes",initial_recording.cell_cache_bytes);
                 report.member("initial_gpu_geometry_ms",initial_gpu.geometry_ms);report.member("initial_gpu_resource_ms",initial_gpu.resource_ms);report.member("initial_gpu_resource_bytes",initial_gpu.resource_bytes);
                 report.member("gpu_upload_bytes",uploads);report.member("gpu_static_upload_bytes",static_uploads);report.member("gpu_dynamic_geometry_bytes",dynamic_geometry);report.member("gpu_draw_calls",draw_calls);
+                report.member("gpu_static_index_buffer_creations",static_index_creations);report.member("gpu_static_index_buffer_reuses",static_index_reuses);report.member("gpu_static_index_pool_bytes",static_index_pool_bytes);
                 report.member("gpu_bones",bones);report.member("gpu_held_bones",held_bones);report.member("gpu_resource_bytes",resource_bytes);report.member("host_cpu_cache_bytes",host_bytes);report.member("process_rss_bytes",rss);}
             report.member("first_frame_after_step_samples_ms",first_frame_ms);report.member("first_frame_after_step_median_ms",percentile(first_frame_ms,.5));report.member("first_frame_after_step_p95_ms",percentile(first_frame_ms,.95));
             report.member("first_ready_median_ms",percentile(first_ms,.5));report.member("first_ready_p95_ms",percentile(first_ms,.95));report.member("easing_median_ms",percentile(easing_ms,.5));report.member("easing_p95_ms",percentile(easing_ms,.95));
