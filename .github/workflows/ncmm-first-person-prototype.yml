@@ -224,7 +224,7 @@ jobs:
             upstream/cataclysm-tiles.exe
             upstream/first-person-host.sha256
             upstream/*.pdb
-          key: ncmm-fp-host-${{ matrix.build }}-v3-nopch-${{ runner.os }}-${{ hashFiles('upstream/src/**', 'upstream/msvc-full-features/**', 'upstream/first-person-source.json', 'upstream/.github/vcpkg_triplets/**') }}
+          key: ncmm-fp-host-${{ matrix.build }}-v4-sdk-source-${{ runner.os }}-${{ hashFiles('upstream/src/**', 'upstream/msvc-full-features/**', 'upstream/first-person-source.json', 'upstream/.github/vcpkg_triplets/**', '!upstream/msvc-full-features/vcpkg_installed/**') }}
       - name: Compile actual experimental engine (no certification/publication)
         if: steps.engine_cache.outputs.cache-hit != 'true'
         shell: powershell
