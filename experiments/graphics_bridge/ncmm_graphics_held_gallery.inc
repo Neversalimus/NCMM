@@ -46,7 +46,17 @@ template<class Require> void graphics_run_held_gallery(avatar &you,map &here,Req
         get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);
         // Use real presentation time for equip interruptions; the fixture does
         // not invent an attack serial or advance the native simulation.
-        render();SDL_Delay(280);render();render();
+        const auto equip_begin=std::chrono::steady_clock::now();
+        auto elapsed=[](auto begin){return std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begin).count();};
+        render();const double first_render_ms=elapsed(equip_begin);const bool first_gpu_frame=graphics_gpu_frame;
+        if(std::string(mode)=="gpu")require(first_gpu_frame,"held_gallery_first_gpu_frame_fell_back");
+        const auto first_metrics=graphics_held_metrics;
+        const auto first_gpu=graphics_gpu_engine?graphics_gpu_engine->metrics():ncmm_gpu_metrics_v1{};
+        const uint64_t first_static_upload=graphics_gpu_frame&&graphics_gpu_engine?graphics_gpu_engine->recording().static_upload_bytes:0;
+        SDL_Delay(280);std::array<double,2> settled_render_ms{};
+        for(double &value:settled_render_ms){const auto begin=std::chrono::steady_clock::now();render();value=elapsed(begin);}
+        const double capture_after_equip_ms=elapsed(equip_begin);
+        const double capture_presentation_seconds=graphics_hybrid_last_environment.animation_seconds;
         if(std::string(mode)=="gpu")require(graphics_gpu_frame,"held_gallery_gpu_fell_back");
         const auto metrics=graphics_held_metrics;
         if(std::string(metrics.model)!=expected||metrics.fallback_reason){
@@ -68,6 +78,12 @@ template<class Require> void graphics_run_held_gallery(avatar &you,map &here,Req
         report.start_object();report.member("name",name);report.member("renderer",mode);report.member("gpu",graphics_gpu_frame);report.member("canonical",graphics_held_item.canonical);
         report.member("model",metrics.model);report.member("identity",metrics.model_identity);report.member("matched",metrics.matched);report.member("fallback_reason",metrics.fallback_reason);
         report.member("attachments",metrics.attachments);report.member("draws",metrics.draws);report.member("pose_matrices",metrics.pose_matrices);
+        report.member("first_render_after_equip_ms",first_render_ms);report.member("first_gpu_frame",first_gpu_frame);report.member("settled_render_samples_ms",settled_render_ms);
+        report.member("equip_settle_minimum_ms",280);report.member("capture_after_equip_ms",capture_after_equip_ms);
+        report.member("capture_presentation_seconds",capture_presentation_seconds);
+        report.member("first_static_builds",first_metrics.static_builds);report.member("first_static_reuses",first_metrics.static_reuses);
+        report.member("first_gpu_upload_bytes",graphics_gpu_frame?first_gpu.upload_bytes:0);report.member("first_gpu_static_upload_bytes",first_static_upload);
+        report.member("first_gpu_resource_bytes",graphics_gpu_frame?first_gpu.resource_bytes:0);
         report.member("native_ammo_remaining",you.get_wielded_item()?you.get_wielded_item()->ammo_remaining():0);
         report.member("native_is_gun",bool(graphics_held_item.flags&NCMM_HELD_GUN));
         report.member("ammo_loaded",bool(graphics_held_item.flags&NCMM_HELD_AMMO_LOADED));
