@@ -45,3 +45,13 @@ the upstream-supported empty `--basepath` argument to select its existing
 portable `data/` and `gfx/` layout. It records the complete argument vector and
 working directory and prints both output streams on failure. No production
 path or validation gate changes; actual successful gameplay remains required.
+
+The subsequent 1807 process in run 39190123525 loaded all seven ELF modules,
+then timed out before writing a smoke result. Its log reports `C.UTF-8` with
+an unset game language. The pinned `SystemLocale::Language` does not match
+that locale, so `select_initial_language()` opens an interactive picker before
+the smoke dispatcher. Every fresh owned Linux fixture now explicitly selects
+`USE_LANG=en` and preserves its initial options bytes as evidence. This retains
+the four serialized typed-value checks. Original user configuration is never
+read or overwritten; no gameplay dialog is automatically confirmed. Actual
+runtime completion after this fixture correction is still required.

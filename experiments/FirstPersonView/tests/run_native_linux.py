@@ -27,6 +27,15 @@ def digest(path):
     with Path(path).open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
 
 
+def seed_linux_configuration(game):
+    path=Path(game)/'config/options.json'
+    if path.exists():raise ValueError('Linux fixture requires a fresh owned configuration')
+    path.parent.mkdir(parents=True,exist_ok=True)
+    # C.UTF-8 does not match a supported game language. An empty USE_LANG then
+    # opens select_initial_language() before the Native smoke dispatcher runs.
+    path.write_text(json.dumps([{'name':'USE_LANG','value':'en'}],indent=2)+'\n',encoding='utf-8')
+
+
 def run(args):
     assert sys.platform=='linux'
     repo=Path(__file__).resolve().parents[3]
@@ -87,9 +96,11 @@ def run(args):
         environment.update(NCMM_FP_APPEARANCE_SMOKE='1',SDL_ASSERT='abort',
                            SDL_RENDER_DRIVER='gpu',SDL_GPU_DRIVER='vulkan',SDL_AUDIODRIVER='dummy')
         environment.update(switches)
+        seed_linux_configuration(game)
         if mode=='controls':
             from seed_deferred_options import seed
             seed(game);environment['NCMM_FP_VERIFY_DEFERRED_OPTIONS']='1'
+        initial_options=(game/'config/options.json').read_bytes()
         started=time.time(); timed_out=False
         # A distro-style Linux build defaults to PREFIX/share/cataclysm-dda.
         # The owned fixture uses the portable data/gfx layout in its cwd.
@@ -111,6 +122,7 @@ def run(args):
         results.append(result)
         (output/'process-results.json').write_text(json.dumps(results,indent=2)+'\n')
         evidence=output/'evidence'/mode;evidence.mkdir(parents=True)
+        (evidence/'fixture-options-before-launch.json').write_bytes(initial_options)
         for file in list((game/'ncmm').glob('*'))+list((game/'config').glob('*.log'))+[game/'stdout.log',game/'stderr.log']:
             if file.is_file():shutil.copy2(file,evidence/file.name)
         print(json.dumps(result),flush=True)

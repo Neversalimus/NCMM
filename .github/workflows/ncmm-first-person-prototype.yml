@@ -85,6 +85,8 @@ jobs:
         run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_target_audit.py -v
       - name: Reject changed or partial private SDL graphics dependencies
         run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_native_sdl_bridge.py -v
+      - name: Keep isolated Linux startup language and deferred values explicit
+        run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_native_linux_configuration.py -v
       - name: Diagnostic environment isolation on PowerShell Core
         shell: pwsh
         run: |
