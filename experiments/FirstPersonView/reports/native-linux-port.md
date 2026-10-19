@@ -36,3 +36,12 @@ that declaration for its target HUD. Reusing the integration's redundant-decl
 cleanup verbatim had removed the camera-only branch's sole declaration; actual
 Native CI 39183206827 caught the missing declaration on both compilers/pins.
 The independent branch now declares it once before the presentation caller.
+
+Both engines in run 39187622247 compiled and linked, loaded every ELF module
+through the eight-cycle library test and exposed Mesa software Vulkan. Their
+first game process exited before SDL because the Linux build's default data
+prefix was `/usr/local/share/cataclysm-dda/`. The isolated fixture now passes
+the upstream-supported empty `--basepath` argument to select its existing
+portable `data/` and `gfx/` layout. It records the complete argument vector and
+working directory and prints both output streams on failure. No production
+path or validation gate changes; actual successful gameplay remains required.

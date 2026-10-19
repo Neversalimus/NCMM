@@ -91,15 +91,21 @@ def run(args):
             from seed_deferred_options import seed
             seed(game);environment['NCMM_FP_VERIFY_DEFERRED_OPTIONS']='1'
         started=time.time(); timed_out=False
+        # A distro-style Linux build defaults to PREFIX/share/cataclysm-dda.
+        # The owned fixture uses the portable data/gfx layout in its cwd.
+        # An explicit empty base selects that upstream-supported layout;
+        # --datadir alone would incorrectly move gfx under data/gfx.
+        command=[str(game/'cataclysm-tiles.ncmm'),'--ncmm-gameplay-smoke',
+                 '--seed','ncmm-gameplay-0121','--basepath','', '--userdir',str(game)]
         with (game/'stdout.log').open('wb') as stdout,(game/'stderr.log').open('wb') as stderr:
-            process=subprocess.Popen([str(game/'cataclysm-tiles.ncmm'),'--ncmm-gameplay-smoke',
-                '--seed','ncmm-gameplay-0121','--userdir',str(game)],cwd=game,env=environment,
+            process=subprocess.Popen(command,cwd=game,env=environment,
                 stdout=stdout,stderr=stderr,start_new_session=True)
             try: code=process.wait(timeout=4200 if mode=='gameplay' else 1500)
             except subprocess.TimeoutExpired:
                 import signal
                 timed_out=True;os.killpg(process.pid,signal.SIGKILL);code=process.wait()
         result=dict(mode=mode,exit_code=code,timed_out=timed_out,elapsed_seconds=time.time()-started,
+                    command=command,working_directory=str(game),
                     host_sha256=digest(game/'cataclysm-tiles.ncmm'),module_sha256=inventory,
                     actual_linux_native=True,ordinary_performance_measurement=False,manual_playthrough=False)
         results.append(result)
@@ -108,7 +114,7 @@ def run(args):
         for file in list((game/'ncmm').glob('*'))+list((game/'config').glob('*.log'))+[game/'stdout.log',game/'stderr.log']:
             if file.is_file():shutil.copy2(file,evidence/file.name)
         print(json.dumps(result),flush=True)
-        for file in [game/'stderr.log',game/'ncmm/first-person-audit-progress.txt']:
+        for file in [game/'stdout.log',game/'stderr.log',game/'ncmm/first-person-audit-progress.txt']:
             if file.exists():print(file.read_text(errors='replace')[-12000:],flush=True)
         assert not timed_out and code==0, f'Actual Linux Native failed: {mode}, exit {code}'
         smoke=json.loads((game/'ncmm/first-person-smoke.json').read_text())
