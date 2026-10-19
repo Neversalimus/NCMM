@@ -92,6 +92,7 @@
             std::vector<double> geometry_ms,resource_ms;std::vector<uint64_t> range_evaluations,range_hits,ray_hits,ray_misses,geometry_hits,geometry_misses,roof_misses,source_misses,geometry_revisions,material_evaluations,material_hits;
             std::vector<double> native_tiles_ms,perspective_ms,present_ms,unattributed_ms,extract_ms,callback_ms,upload_ms,record_ms,submit_ms;
             std::vector<uint32_t> first_frame_indices;
+            std::vector<uint64_t> cycle_available,whole_cycles,native_cycles,perspective_cycles,present_cycles,extraction_cycles,visibility_cycles,callback_cycles,action_cycle_available,action_cycles;
             std::vector<double> thread_cpu_ms,process_cpu_ms,sprite_readback_ms;
             std::vector<uint64_t> sprite_readback_attempts,sprite_cache_bytes,gpu_generated_cells;
             std::vector<uint64_t> frame_upload_capacity,frame_upload_creations;
@@ -104,6 +105,8 @@
             std::vector<uint64_t> uploads,static_uploads,dynamic_geometry,draw_calls,bones,held_bones,resource_bytes,host_bytes,rss;
             uint32_t actual_width=0,actual_height=0,attacks=0;
             auto render=[&](bool measured){const auto begin=clock::now();const auto pos=you.pos_abs();const auto moves=you.get_moves();
+                ncmm_graphics_performance::movement_cycle_frame cycle_frame(extended);
+                const auto cycle_begin=extended?ncmm_graphics_performance::thread_cycles():ncmm_graphics_performance::thread_cycle_reading{};
                 const auto snapshot_before=graphics_camera_cache.totals;
                 const double thread_begin=extended?ncmm_graphics_performance::thread_cpu_seconds():-1;
                 const double process_begin=extended?ncmm_graphics_performance::cpu_seconds():0;
@@ -113,11 +116,13 @@
                 tilecontext->draw(point::zero,you.pos_bub(),viewport.x,viewport.y,overlays,blocks);
                 native_tiles_zone.stop();
                 const double native_tiles_wall=elapsed(begin);
+                const auto cycle_native=extended?ncmm_graphics_performance::thread_cycles():ncmm_graphics_performance::thread_cycle_reading{};
                 const auto perspective_begin=clock::now();
                 require(SDL_SetRenderTarget(renderer,guard.canvas)&&SDL_SetRenderLogicalPresentation(renderer,0,0,SDL_LOGICAL_PRESENTATION_DISABLED)&&SDL_SetRenderScale(renderer,1,1)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"movement_canvas_rebind_failed");
                 if(extended&&graphics_gpu_engine)graphics_gpu_engine->profile();
                 require(graphics_draw(0,0,viewport.x,viewport.y),"movement_render_failed");
                 if(std::string(mode)=="gpu")require(graphics_gpu_frame,"movement_gpu_frame_fell_back");
+                const auto cycle_perspective=extended?ncmm_graphics_performance::thread_cycles():ncmm_graphics_performance::thread_cycle_reading{};
                 const double perspective_wall=elapsed(perspective_begin);const auto present_begin=clock::now();
                 ncmm_graphics_trace::cpu_zone present_zone("Present");
                 require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr)&&SDL_RenderTexture(renderer,guard.canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"movement_present_failed");ncmm::graphics_frame_presented();++frames;
@@ -127,6 +132,7 @@
                 const auto metrics=graphics_gpu_frame&&graphics_gpu_engine?graphics_gpu_engine->metrics():ncmm_gpu_metrics_v1{};
                 const double metrics_wall=elapsed(metrics_begin);
                 const double thread_end=extended?ncmm_graphics_performance::thread_cpu_seconds():-1;
+                const auto cycle_end=extended?ncmm_graphics_performance::thread_cycles():ncmm_graphics_performance::thread_cycle_reading{};
                 const double process_end=extended?ncmm_graphics_performance::cpu_seconds():0;
                 require(you.pos_abs()==pos&&you.get_moves()==moves&&calendar::turn==original_time,"movement_renderer_changed_simulation");
                 if(measured){const double wall=elapsed(begin);const double accounted=native_tiles_wall+perspective_wall+present_wall;
@@ -138,6 +144,11 @@
                     require(snapshot_after.verification_mismatches==0,"movement_native_snapshot_differential_failed");
                     require(accounted<=wall+.001,"movement_phase_accounting_overlaps");
                     frame_ms.push_back(wall);native_tiles_ms.push_back(native_tiles_wall);perspective_ms.push_back(perspective_wall);present_ms.push_back(present_wall);unattributed_ms.push_back(std::max(0.0,wall-accounted));
+                    const auto whole=ncmm_graphics_performance::cycle_difference(cycle_begin,cycle_end),native=ncmm_graphics_performance::cycle_difference(cycle_begin,cycle_native),perspective=ncmm_graphics_performance::cycle_difference(cycle_native,cycle_perspective),present=ncmm_graphics_performance::cycle_difference(cycle_perspective,cycle_end);
+                    const auto &observed_cycles=ncmm_graphics_performance::movement_cycles;
+                    cycle_available.push_back(whole.available&&native.available&&perspective.available&&present.available&&observed_cycles.available);
+                    whole_cycles.push_back(whole.count);native_cycles.push_back(native.count);perspective_cycles.push_back(perspective.count);present_cycles.push_back(present.count);
+                    extraction_cycles.push_back(observed_cycles.extraction);visibility_cycles.push_back(observed_cycles.visibility);callback_cycles.push_back(observed_cycles.callback);
                     extract_ms.push_back(graphics_snapshot_ms);callback_ms.push_back(graphics_callback_ms);visibility_ms.push_back(graphics_world_metrics.visibility_ms);renderers.push_back(graphics_gpu_frame?1u:0u);cache_peak=std::max(cache_peak,graphics_world_metrics.source_cache_bytes);
                     range_evaluations.push_back(graphics_world_range_evaluations);range_hits.push_back(graphics_world_range_hits);ray_hits.push_back(graphics_world_sources.ray_hits);ray_misses.push_back(graphics_world_sources.ray_misses);
                     geometry_hits.push_back(graphics_world_derived.hits);geometry_misses.push_back(graphics_world_derived.misses);roof_misses.push_back(graphics_world_roofs.misses);source_misses.push_back(graphics_world_sources.misses);geometry_revisions.push_back(graphics_world_revision);material_evaluations.push_back(graphics_world_material_evaluations);material_hits.push_back(graphics_world_material_hits);
@@ -190,8 +201,8 @@
                     monster *target=g->place_critter_at(mtype_id("mon_zombie"),at(-1,-1,0));require(target!=nullptr,"movement_punch_target_missing");
                     const auto serial=graphics_attack_serial;you.melee_attack(*target,false);require(graphics_attack_serial>serial&&graphics_attack_kind==1,"movement_native_punch_not_confirmed");++attacks;}
                 first_frame_indices.push_back(uint32_t(frame_ms.size()));
-                const auto before=you.pos_abs();const int moves=you.get_moves();const auto begin=clock::now();require(avatar_action::move(you,here,route[step%4]),"movement_native_walk_failed");
-                require(you.pos_abs()!=before&&you.get_moves()<moves,"movement_native_cost_missing");refresh();render(true);first_ms.push_back(elapsed(begin));first_frame_ms.push_back(frame_ms.back());
+                const auto before=you.pos_abs();const int moves=you.get_moves();const auto begin=clock::now();const auto action_cycle_begin=extended?ncmm_graphics_performance::thread_cycles():ncmm_graphics_performance::thread_cycle_reading{};require(avatar_action::move(you,here,route[step%4]),"movement_native_walk_failed");
+                require(you.pos_abs()!=before&&you.get_moves()<moves,"movement_native_cost_missing");refresh();render(true);const auto action_cycle_end=extended?ncmm_graphics_performance::thread_cycles():ncmm_graphics_performance::thread_cycle_reading{};first_ms.push_back(elapsed(begin));first_frame_ms.push_back(frame_ms.back());const auto action_cycle=ncmm_graphics_performance::cycle_difference(action_cycle_begin,action_cycle_end);action_cycle_available.push_back(action_cycle.available);action_cycles.push_back(action_cycle.count);
                 int samples=0;while(graphics_world_transition_active&&samples++<100){SDL_Delay(17);const auto ease_begin=clock::now();render(true);easing_ms.push_back(elapsed(ease_begin));}
                 require(!graphics_world_transition_active,"movement_camera_did_not_settle");
             }
@@ -236,6 +247,11 @@
             report.member("geometry_cache_hits",geometry_hits);report.member("geometry_cache_misses",geometry_misses);report.member("roof_cache_misses",roof_misses);report.member("source_cache_misses",source_misses);report.member("geometry_revisions",geometry_revisions);
             report.member("gpu_geometry_samples_ms",geometry_ms);report.member("gpu_resource_samples_ms",resource_ms);
             report.member("first_frame_indices",first_frame_indices);report.member("exclusive_phases_available",true);
+            report.member("cpu_cycle_diagnostic",true);report.member("thread_cycles_are_elapsed_time",false);
+            report.member("thread_cycle_available",cycle_available);report.member("frame_thread_cycles",whole_cycles);report.member("native_tiles_thread_cycles",native_cycles);
+            report.member("perspective_thread_cycles",perspective_cycles);report.member("present_and_metrics_thread_cycles",present_cycles);
+            report.member("world_extraction_thread_cycles",extraction_cycles);report.member("visibility_thread_cycles",visibility_cycles);report.member("module_callback_thread_cycles",callback_cycles);
+            report.member("first_ready_thread_cycle_available",action_cycle_available);report.member("first_ready_thread_cycles",action_cycles);
             report.member("native_tiles_samples_ms",native_tiles_ms);report.member("perspective_samples_ms",perspective_ms);report.member("present_samples_ms",present_ms);report.member("unattributed_samples_ms",unattributed_ms);
             report.member("extract_samples_ms",extract_ms);report.member("callback_samples_ms",callback_ms);report.member("gpu_upload_samples_ms",upload_ms);report.member("gpu_record_samples_ms",record_ms);report.member("gpu_submit_samples_ms",submit_ms);
             report.member("source_cache_bytes_peak",cache_peak);report.member("creatures",graphics_creature_snapshots.size());report.member("native_art",true);report.member("capture",capture);
