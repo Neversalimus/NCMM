@@ -20,6 +20,10 @@ COMPONENTS = {'baseline':(False,False,False), 'assets_hud':(False,True,True),
 BASELINE_FILES = {'experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc',
                   'experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1',
                   'experiments/FirstPersonView/reports/baseline-8d24-matrix.md'}
+BASELINE_ORIGINAL_HARNESS='2bb3ec5a10ce2e22b11b537ec2fd5782518ee9f2'
+BASELINE_SDK_REFERENCE='13f3e3e3f8ceaa777b8ea325605ba22a5bfe5a72'
+SDK_IDENTITY_FIELDS=('sdl_version','private_port_version','registry_commit','source_archive_sha512',
+                     'port_manifest_sha256','patch_sha256','runtime_vendor')
 PINS = {'1040':'3f7fb352bf492ba521bd9408a0c9f6ce239e8d83',
         '1807':'074aa98bd5be3de4c35f154082db32a0e63bb0f1'}
 
@@ -50,10 +54,28 @@ def native_window(record):
 
 def baseline_equivalence(repo, production, harness):
     repo=Path(repo).resolve()
-    result=subprocess.check_output(['git','-c','safe.directory='+repo.as_posix(),'-C',str(repo),
-                                    'diff','--name-only',production,harness],text=True)
-    require(set(result.splitlines())<=BASELINE_FILES,'Baseline changes production sources outside its diagnostic harness')
+    command=['git','-c','safe.directory='+repo.as_posix(),'-C',str(repo)]
+    changed=set(subprocess.check_output(command+['diff','--name-only',production,harness],text=True).splitlines())
+    if changed-BASELINE_FILES:
+        # The independently pinned reference is the old harness plus only the
+        # same SDK correctness fix. It is not a blanket infrastructure exemption.
+        sdk_files=set(subprocess.check_output(command+['diff','--name-only',BASELINE_ORIGINAL_HARNESS,BASELINE_SDK_REFERENCE],text=True).splitlines())
+        require(changed<=BASELINE_FILES|sdk_files,'Baseline changes production sources outside its diagnostic harness/shared SDK')
+        for name in sdk_files:
+            expected=subprocess.check_output(command+['show',BASELINE_SDK_REFERENCE+':'+name])
+            actual=subprocess.check_output(command+['show',harness+':'+name])
+            require(actual==expected,'Baseline SDK recipe differs from its pinned reference: '+name)
     require(production=='8d24cc2b8df4ccd6574e1f2f61108baf24f4bcf9','Unexpected production baseline')
+
+
+def sdk_identity(native):
+    dependency=native.get('windows_sdl',{})
+    require(dependency.get('sdl_version')=='3.4.10' and dependency.get('private_port_version')==2 and
+            dependency.get('windows_build_only') is True and dependency.get('global_vcpkg_unchanged') is True,
+            'Shared corrected SDL dependency is missing')
+    require(all(isinstance(dependency.get(key),str) and len(dependency[key])==64 for key in ['port_manifest_sha256','patch_sha256']),
+            'Invalid shared SDK digest identity')
+    return {key:dependency[key] for key in SDK_IDENTITY_FIELDS}
 
 def inspect_run(entry, bundle, pin, expected_vsync, *, baseline=False, plan_sha256):
     root=Path(entry['root']).resolve();evidence=root/'evidence'
@@ -63,6 +85,7 @@ def inspect_run(entry, bundle, pin, expected_vsync, *, baseline=False, plan_sha2
     require(not manifest.get('diagnostic_mixed_components') and not manifest.get('diagnostic_module_source'),'Mixed components are not final four-mode evidence')
     identity={'ncmm_commit':receipt['source'],'host_sha256':receipt['host_sha256'],'module_sha256':receipt['module_sha256']}
     require(manifest['source_commit']==PINS[pin],'Candidate engine pin differs')
+    shared_sdk=sdk_identity(load(Path(bundle)/'payload/host/first-person-source.json'))
     provenance=load(root/'benchmark-provenance.json');process=load(evidence/'first-person-process-result.json')
     require(provenance['success'] and provenance['movement_benchmark'] and provenance['extended_matrix'] and
             provenance['full_size_gpu_matrix'] and provenance['udp_requested'] and not provenance['manual_playthrough'],'Incomplete full-size hardware provenance')
@@ -137,7 +160,7 @@ def inspect_run(entry, bundle, pin, expected_vsync, *, baseline=False, plan_sha2
     return dict(mode=entry['mode'],direction=entry['direction'],root=str(root),identity=identity,udp_inventory_sha256=udp_digest,
                 report_sha256=sha(evidence/'first-person-movement-benchmark.json'),scenes=summaries,
                 fov_z_range=report.get('fov_z_range_configured'),native_windows=windows,loaded_world_bounds=bounds,
-                sdl_runtime_versions=sorted({r['sdl_runtime_version'] for r in records}))
+                sdl_runtime_versions=sorted({r['sdl_runtime_version'] for r in records}),shared_sdk=shared_sdk)
 
 def compare(runs):
     require(len(runs)==8,'Both directions of all four modes are required')
@@ -145,6 +168,9 @@ def compare(runs):
         *[('forward',m) for m in COMPONENTS],*[('reverse',m) for m in reversed(COMPONENTS)]],'Run order differs from predeclared forward/reverse plan')
     require(len({r['udp_inventory_sha256'] for r in runs})==1,'Actually used UDP files differ')
     require(len({tuple(r['sdl_runtime_versions']) for r in runs})==1,'SDL versions differ')
+    require(all(isinstance(r.get('shared_sdk'),dict) and set(r['shared_sdk'])==set(SDK_IDENTITY_FIELDS) for r in runs),
+            'Shared SDK source identity missing')
+    require(len({json.dumps(r['shared_sdk'],sort_keys=True) for r in runs})==1,'Shared SDK differs between ordinary modes')
     require(len({r['fov_z_range'] for r in runs if r['mode']!='baseline'})==1,'Z range differs between component modes')
     require(len({json.dumps(r['native_windows'],sort_keys=True) for r in runs})==1,'Actual Native window size or display scale differs')
     require(len({json.dumps(r['loaded_world_bounds'],sort_keys=True) for r in runs if r['mode']!='baseline'})==1,'Loaded Native Z bounds differ')

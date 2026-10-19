@@ -34,3 +34,22 @@ Its p99/max estimates have limited precision at 64 first-frame samples per
 scene. A passing comparison gate alone does not prove a speedup or certify
 15 ms everywhere. Actual final Native runs and lifecycle qualification remain
 required; this protocol contains no fabricated timing result.
+# Shared SDK correctness prerequisite
+
+The original renderer baseline now uses the same pinned SDL 3.4.10 graphics
+descriptor correction as the component modes. Its immutable SDK recipe is
+`13f3e3e3f8ceaa777b8ea325605ba22a5bfe5a72`, derived from diagnostic harness
+`2bb3ec5a10ce2e22b11b537ec2fd5782518ee9f2`. The validator first rejects all
+runtime changes outside the original three diagnostic files and this exact
+SDK recipe, then compares every SDK/build/packaging file byte-for-byte against
+that reference. It also requires matching source/patch/vendor identities in
+all eight actual candidate receipts. The original uncorrected SDK cannot stand
+in for this baseline. Fetch the baseline SDK branch before reproducing the Git
+equivalence proof; a missing reference is an error, never an exemption.
+
+The combined manual Full exceeded GitHub's 300-file compare list. Classification
+now reads the complete Git trees of the exact merge base and requested commit,
+retains additions/deletions/modes/gitlinks and both names of a rename, and still
+rejects truncated trees. Its output matched the actual 309-file Git diff. Seven
+collector checks, nine qualification-policy tests and twelve four-mode checks
+pass. This changes evidence collection, not the required release tier or gates.

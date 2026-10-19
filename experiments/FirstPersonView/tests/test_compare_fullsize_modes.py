@@ -1,6 +1,6 @@
 import copy
 import unittest
-from compare_fullsize_modes import COMPONENTS,SCENES,compare,native_window,stats
+from compare_fullsize_modes import COMPONENTS,SCENES,SDK_IDENTITY_FIELDS,compare,native_window,stats
 
 
 def fixture():
@@ -8,6 +8,7 @@ def fixture():
     for direction,modes in [('forward',COMPONENTS),('reverse',reversed(COMPONENTS))]:
         for mode in modes:
             runs.append(dict(direction=direction,mode=mode,udp_inventory_sha256='a'*64,
+                shared_sdk={key:'same-corrected-sdk' for key in SDK_IDENTITY_FIELDS},
                 sdl_runtime_versions=[3004010],fov_z_range=None,
                 native_windows={s:(2560,1369,1.0) for s in SCENES},
                 loaded_world_bounds={} if mode=='baseline' else {s:(-1,1,3) for s in SCENES},
@@ -54,6 +55,14 @@ class ComparisonTests(unittest.TestCase):
     def test_sdl_mismatch_is_rejected(self):
         runs=fixture();runs[-1]['sdl_runtime_versions']=[3004000]
         with self.assertRaisesRegex(ValueError,'SDL'):compare(runs)
+
+    def test_shared_sdk_mismatch_is_rejected(self):
+        runs=fixture();runs[-1]['shared_sdk']['patch_sha256']='different-patch'
+        with self.assertRaisesRegex(ValueError,'Shared SDK differs'):compare(runs)
+
+    def test_old_uncorrected_sdk_cannot_masquerade_as_shared_baseline(self):
+        runs=fixture();runs[0].pop('shared_sdk')
+        with self.assertRaisesRegex(ValueError,'Shared SDK source identity missing'):compare(runs)
 
     def test_native_window_or_dpi_mismatch_is_rejected(self):
         for value in [(1920,1080,1.0),(2560,1369,1.5)]:
