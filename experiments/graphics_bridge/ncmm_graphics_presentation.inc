@@ -11,6 +11,7 @@ uint32_t graphics_effect_width=0, graphics_effect_height=0;
 bool graphics_effect_failed=false,graphics_click_pending=false;
 uint64_t graphics_click_time=0;
 size_t graphics_effect_gpu_frames=0, graphics_effect_cpu_frames=0;
+bool graphics_world_target_visible(const tripoint_bub_ms &origin,const tripoint_bub_ms &target);
 
 int graphics_get_presentation( ncmm_graphics_presentation_v1 *out )
 {

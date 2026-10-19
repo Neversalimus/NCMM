@@ -29,3 +29,10 @@ remaining problem is reported before the full engine build.
 Local atomic source-transform tests, diagnostic environment isolation, module
 compilation and the actual Windows private library lifecycle pass. Actual
 Linux runtime qualification of these final bytes is still required.
+
+The independent camera branch also needs its world-visibility forward
+declaration in the presentation include. The complete integration already has
+that declaration for its target HUD. Reusing the integration's redundant-decl
+cleanup verbatim had removed the camera-only branch's sole declaration; actual
+Native CI 39183206827 caught the missing declaration on both compilers/pins.
+The independent branch now declares it once before the presentation caller.
