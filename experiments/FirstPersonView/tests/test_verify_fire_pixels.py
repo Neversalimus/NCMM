@@ -50,4 +50,22 @@ class FirePixelTests(unittest.TestCase):
         self.window_reference();self.paint(3,False)
         with self.assertRaisesRegex(AssertionError,'frame 3'):verify_spatial(self.root,self.trials,self.frames)
 
+    def target_panel(self):
+        with Image.open(self.root/'first-person-fire-frame-3.png') as image:
+            ImageDraw.Draw(image).rectangle((64,0,199,99),fill=(0,0,0))
+            image.save(self.root/'first-person-fire-frame-3.png')
+    def test_native_target_panel_over_foreground_window_preserves_world(self):
+        self.window_reference();self.target_panel()
+        result=verify_spatial(self.root,self.trials,self.frames)
+        self.assertEqual(result['records'][0]['minimum_reference_match'],1)
+        self.assertTrue(all(x<=.30 for x,_ in result['records'][0]['sample_coordinates']))
+    def test_actual_map_under_native_target_panel_still_fails(self):
+        self.window_reference();self.paint(3,False);self.target_panel()
+        with self.assertRaisesRegex(AssertionError,'frame 3'):verify_spatial(self.root,self.trials,self.frames)
+    def test_blank_world_under_native_target_panel_still_fails(self):
+        self.window_reference()
+        Image.new('RGB',(200,100)).save(self.root/'first-person-fire-frame-3.png')
+        self.target_panel()
+        with self.assertRaisesRegex(AssertionError,'frame 3'):verify_spatial(self.root,self.trials,self.frames)
+
 if __name__ == '__main__': unittest.main()
