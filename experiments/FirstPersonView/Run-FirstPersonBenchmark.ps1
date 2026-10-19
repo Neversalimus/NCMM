@@ -19,6 +19,7 @@ param(
     [switch]$DisableTargetHud,
     [switch]$CaptureCrashDump,
     [switch]$GpuDebug,
+    [ValidateSet('retained','fresh','early_cleanup')][string]$GpuResourceDiagnostic='retained',
     [string]$DumpAnalyzer
 )
 $ErrorActionPreference='Stop'
@@ -171,7 +172,7 @@ public static class NCMMNativeCrashDialog {
 }
 '@
 }
-$names=@('NCMM_FP_VERIFY_DEFERRED_OPTIONS','NCMM_FP_CAMERA_INPUT','NCMM_FP_CAMERA_CACHE','NCMM_FP_CAMERA_CACHE_VERIFY','NCMM_FP_TRACE_MARKERS','NCMM_FP_TRACE_CAPTURE_SCENE','NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT','NCMM_FP_HELD_GALLERY_ONLY','NCMM_FP_HELD_ASSETS','NCMM_FP_TARGET_HUD_ONLY','NCMM_FP_PERF_GPU_FULLSIZE','NCMM_FP_TARGET_HUD')
+$names=@('NCMM_FP_VERIFY_DEFERRED_OPTIONS','NCMM_FP_CAMERA_INPUT','NCMM_FP_CAMERA_CACHE','NCMM_FP_CAMERA_CACHE_VERIFY','NCMM_FP_TRACE_MARKERS','NCMM_FP_TRACE_CAPTURE_SCENE','NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT','NCMM_FP_HELD_GALLERY_ONLY','NCMM_FP_HELD_ASSETS','NCMM_FP_TARGET_HUD_ONLY','NCMM_FP_PERF_GPU_FULLSIZE','NCMM_FP_TARGET_HUD','NCMM_FP_RESOURCE_DIAGNOSTIC')
 $prior=@{}
 # Modern .NET preserves an empty environment variable. PowerShell can convert
 # $null to that empty string at the .NET call boundary, and native getenv then
@@ -183,6 +184,7 @@ $failure=$null
 $process=$null
 $lastProgress='native startup'
 try {
+    $env:NCMM_FP_RESOURCE_DIAGNOSTIC=$GpuResourceDiagnostic
     if($CameraInputProbe){$env:NCMM_FP_CAMERA_INPUT='1'}elseif($HeldAssetGallery){$env:NCMM_FP_HELD_GALLERY_ONLY='1'}elseif($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
     if($DisableHeldAssets){$env:NCMM_FP_HELD_ASSETS='0'}
     if($Extended){$env:NCMM_FP_EXTENDED='1'}
@@ -420,6 +422,7 @@ $result['gpu_debug_requested']=[bool]$GpuDebug
 $result['trace_markers_enabled']=[bool]$TraceCaptureScene
 $result['camera_snapshot_enabled']=(-not [bool]$DisableCameraSnapshot)
 $result['held_assets_enabled']=(-not [bool]$DisableHeldAssets)
+$result['gpu_resource_diagnostic']=$GpuResourceDiagnostic
 $result['controlled_without_ai_turn_loop']=$true
 $result | ConvertTo-Json | Set-Content (Join-Path $OutputRoot 'benchmark-provenance.json') -Encoding UTF8
 $result | ConvertTo-Json

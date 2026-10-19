@@ -7,6 +7,15 @@
 #include <tuple>
 
 namespace ncmm_gpu {
+// Temporary private experiment. Unset/unknown values preserve the shipping path.
+// The isolated benchmark wrapper records and restores this setting explicitly.
+enum class resource_diagnostic {retained,fresh,early_cleanup};
+inline resource_diagnostic resource_diagnostic_mode(){
+    static const auto mode=[](){const char *value=std::getenv("NCMM_FP_RESOURCE_DIAGNOSTIC");
+        return value&&std::strcmp(value,"fresh")==0?resource_diagnostic::fresh:
+            value&&std::strcmp(value,"early_cleanup")==0?resource_diagnostic::early_cleanup:resource_diagnostic::retained; }();
+    return mode;
+}
 // Private diagnostics: CPU time spent preparing/recording commands, never GPU
 // execution timestamps. The public metrics V1 layout remains unchanged.
 struct recording_metrics {
@@ -28,7 +37,7 @@ class backend {
     uint64_t generation_=0,resource_epoch_=1,world_epoch_=0,last_serial_=0,readback_generation_=1;
     ncmm_gpu_metrics_v1 metrics_{};
     recording_metrics recording_{};
-    bool profiling_=false,white_ready_=false,cells_ready_=false;
+    bool profiling_=false,white_ready_=false,cells_ready_=false,retirement_failed_=false;
     struct readback {SDL_GPUTransferBuffer *transfer=nullptr;SDL_GPUFence *fence=nullptr;uint64_t serial=0,generation=0;};
     std::array<readback,3> readbacks_{};
     struct instance {ncmm_gpu_matrix_v1 world;uint32_t bone_offset,bone_count,cell,reserved;};
@@ -80,7 +89,12 @@ class backend {
         return uint64_t(width_)*height_*20+uint64_t((width_+step-1)/step)*((height_+step-1)/step)*12+4;}
     uint64_t dynamic_bytes()const{return uint64_t(instance_size_)+bone_size_+cell_size_+shadow_size_+64+3*64;}
     void poll(){auto *device=context_.device();if(!device)return;
-        for(auto &r:readbacks_)if(r.fence&&SDL_QueryGPUFence(device,r.fence)){auto *data=static_cast<uint32_t *>(SDL_MapGPUTransferBuffer(device,r.transfer,false));
+        for(auto &r:readbacks_)if(r.fence&&SDL_QueryGPUFence(device,r.fence)){
+            // Only an already-signalled fence is eligible. The experiment asks
+            // SDL to retire completed command resources before the next upload.
+            if(resource_diagnostic_mode()==resource_diagnostic::early_cleanup&&!SDL_WaitForGPUFences(device,true,&r.fence,1)){
+                context_.fail("diagnostic completed-resource retirement");reason(context_.reason());metrics_.active=0;retirement_failed_=true;return;}
+            auto *data=static_cast<uint32_t *>(SDL_MapGPUTransferBuffer(device,r.transfer,false));
             if(data){if(r.generation==readback_generation_&&r.serial>=metrics_.completed_frame_serial){metrics_.visible_creature_pixels=data[0];metrics_.completed_frame_serial=r.serial;}SDL_UnmapGPUTransferBuffer(device,r.transfer);}
             SDL_ReleaseGPUFence(device,r.fence);r.fence=nullptr;}}
     SDL_GPURenderPass *begin(SDL_GPUCommandBuffer *commands,bool held,bool clear){
@@ -141,9 +155,9 @@ public:
             if(context_.renderer())SDL_FlushRenderer(context_.renderer());
             SDL_WaitForGPUIdle(context_.device());
         }
-        resources_.clear();programs_.clear();release_targets();release_buffers();context_.clear();recording_={};metrics_.active=0;++resource_epoch_;
+        resources_.clear();programs_.clear();release_targets();release_buffers();context_.clear();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;
     }
-    void abandon(){resources_.abandon();programs_.abandon();context_.abandon();release_targets();release_buffers();recording_={};metrics_.active=0;++resource_epoch_;}
+    void abandon(){resources_.abandon();programs_.abandon();context_.abandon();release_targets();release_buffers();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;}
     bool bind(SDL_Renderer *renderer,uint64_t generation){if(generation_&&generation_!=generation)abandon();generation_=generation;
         if(!context_.bind(renderer,generation)){reason(context_.reason());metrics_.active=0;return false;}resources_.bind(context_.device());context_.describe(metrics_);return true;}
     bool available(){return context_.device()!=nullptr;}
@@ -155,7 +169,8 @@ public:
         // from an older scene must never describe the new scene's visibility.
         if(world_epoch_!=scene.world_epoch||scene.frame_serial<last_serial_){++readback_generation_;metrics_.completed_frame_serial=metrics_.visible_creature_pixels=0;}
         world_epoch_=scene.world_epoch;last_serial_=scene.frame_serial;
-        poll();auto completed=metrics_.completed_frame_serial,visible=metrics_.visible_creature_pixels;auto software=metrics_.software_device;
+        poll();if(retirement_failed_)return false;
+        auto completed=metrics_.completed_frame_serial,visible=metrics_.visible_creature_pixels;auto software=metrics_.software_device;
         metrics_={};metrics_.struct_size=sizeof(metrics_);metrics_.frame_serial=scene.frame_serial;metrics_.completed_frame_serial=completed;metrics_.visible_creature_pixels=visible;metrics_.software_device=software;metrics_.gpu_ms=-1;metrics_.target_cell=-1;
         metrics_.geometry_ms=scene.geometry_ms;metrics_.generated_cells=scene.generated_cells;metrics_.producer_cache_bytes=scene.producer_cache_bytes;
         context_.describe(metrics_);if(const char *error=validate(scene,world)){reason(error);return false;}
@@ -223,7 +238,13 @@ public:
         const uint32_t upload_size=uint32_t(instances.size()*sizeof(instance)+scene.bone_count*sizeof(ncmm_gpu_matrix_v1)+cell_upload_size+64+(initialize_white?4:0));
         ncmm_graphics_trace::cpu_zone upload_zone("Upload");
         auto *transfer=frame_upload_;
-        auto *mapped=static_cast<unsigned char *>(SDL_MapGPUTransferBuffer(context_.device(),transfer,true));if(!mapped){context_.fail("map frame transfer");reason(context_.reason());return false;}
+        struct transient_upload {SDL_GPUDevice *device;SDL_GPUTransferBuffer *value=nullptr;
+            ~transient_upload(){if(value)SDL_ReleaseGPUTransferBuffer(device,value);}} fresh_scope{context_.device()};
+        const bool fresh=resource_diagnostic_mode()==resource_diagnostic::fresh;
+        if(fresh){SDL_GPUTransferBufferCreateInfo info{};info.usage=SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;info.size=upload_size;
+            transfer=SDL_CreateGPUTransferBuffer(context_.device(),&info);fresh_scope.value=transfer;
+            if(!transfer){context_.fail("diagnostic fresh frame transfer");reason(context_.reason());return false;}}
+        auto *mapped=static_cast<unsigned char *>(SDL_MapGPUTransferBuffer(context_.device(),transfer,!fresh));if(!mapped){context_.fail("map frame transfer");reason(context_.reason());return false;}
         stage=clock::now();uint32_t offset=0;std::memcpy(mapped+offset,instances.data(),instances.size()*sizeof(instance));offset+=uint32_t(instances.size()*sizeof(instance));
         std::memcpy(mapped+offset,scene.bones,scene.bone_count*sizeof(ncmm_gpu_matrix_v1));offset+=scene.bone_count*sizeof(ncmm_gpu_matrix_v1);
         if(cell_upload_size)std::memcpy(mapped+offset,cell_snapshot_.data(),cell_upload_size);
