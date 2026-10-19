@@ -241,8 +241,8 @@ Both hands grip the generated polearm shaft and move with the weapon.
 Actual melee attacks trigger a swing or polearm thrust; shots trigger recoil.
 Boulders have irregular faceted geometry. Forward terrain is no longer covered
 by black unknown-tile planes; real light and opaque walls still govern the view.
-Ordinary commands and inventory retain the perspective backdrop. Coordinate
-look/targeting and the overmap temporarily use the normal map.
+Ordinary commands, inventory and Native aiming retain the selected perspective
+backdrop. Coordinate look and the overmap temporarily use the normal map.
 Long CatLauncher paths and Cyrillic folder names are supported during install,
 rollback and restore, including existing nested Host backup history.
 This is an experimental build with a locally bundled Host. Automatic stable
