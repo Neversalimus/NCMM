@@ -201,7 +201,7 @@ def verify(args):
               "source_commit": args.expected_source, "workflow_run": args.expected_run,
               "installer": archive.name, "installer_sha256": digest(raw),
               "host_sha256": release["host_sha256"], "module_sha256": release["module_sha256"],
-              "verified_payload_files": 32, "manual_playthrough": False,
+              "verified_payload_files": len(bundle["files"]), "manual_playthrough": False,
               "facade": facade, "horizon": horizon, "geometry": geometry, "gpu_timings": timings,
               "clean_focused_process_exits": len(stress), "exclusive_movement_phases_verified": True,
               "timing_scope": "CI device; first_render_frame excludes native avatar_action/refresh; native_move_to_first_ready includes both"}
