@@ -148,6 +148,13 @@ public:
         entries.push_back({});auto &out=entries.back();out.world=world;out.facade_light=light;
         slots[at]=uint32_t(entries.size());++totals.stored;return &out;
     }
+    // Native eligibility can require a vehicle lookup. A suspended snapshot
+    // cannot store anything, so do not query Native merely to discard it.
+    template<class Eligible> entry *store_if(const ncmm_world_cell_v1 &world,const std::array<float,3> &light,Eligible eligible){
+        if(!enabled)return nullptr;
+        if(!eligible())return nullptr;
+        return store(world,light);
+    }
     size_t bytes()const noexcept{return slots.capacity()*sizeof(uint32_t)+entries.capacity()*sizeof(entry);}
     size_t size()const noexcept{return entries.size();}
 };

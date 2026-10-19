@@ -46,6 +46,30 @@ int main(){
     const auto current=lease.begin("DEFAULTMODE");lease.end(stale,"UP");require(lease.active(),"stale world guard cannot close new lease");
     lease.end(current,"UP");
     cache data;key identity{};identity[0]=lease.generation();
+    {
+        cache admission;unsigned native_queries=0;
+        ncmm_world_cell_v1 cell{0,0,0,NCMM_WORLD_FLOOR|NCMM_WORLD_BODY_VISIBLE,0,0,1,{}};
+        const std::array<float,3> light{.2f,.3f,.4f};
+        auto eligible=[&]{++native_queries;return true;};
+        require(!admission.store_if(cell,light,eligible)&&native_queries==0&&admission.size()==0,
+            "inactive snapshot performs no Native eligibility work");
+        require(admission.prepare(identity,-1,-1,0,0,3),"enable bounded admission window");
+        require(!admission.store_if(cell,light,[&]{++native_queries;return false;})&&native_queries==1&&admission.size()==0,
+            "active snapshot rejects dynamic/vehicle contents without storing them");
+        auto *owned=admission.store_if(cell,light,eligible);
+        require(owned&&native_queries==2&&owned->world.flags==cell.flags&&owned->facade_light==light,
+            "active snapshot preserves exact source and light after eligibility");
+        require(admission.store_if(cell,light,eligible)==owned&&native_queries==3&&admission.size()==1,
+            "active eligibility remains checked when reusing an entry");
+        admission.suspend();
+        require(!admission.store_if(cell,light,[&]()->bool{std::abort();})&&native_queries==3&&admission.size()==1,
+            "suspended snapshot cannot enter Native query even with retained storage");
+        require(admission.prepare(identity,-1,-1,0,0,3)&&admission.find(0,0,0)==owned,
+            "inactive admission does not change retained immutable data");
+        admission.clear();
+        require(!admission.store_if(cell,light,eligible)&&native_queries==3&&admission.size()==0,
+            "lifecycle cleanup leaves Native admission inactive");
+    }
     require(data.prepare(identity,-48,-48,-1,1,97),"bounded loaded XYZ window");
     require(!data.known(0,-30,0)&&!data.known(0,30,0),"front and back initially unacquired");
     // Model the collector's camera-dependent acquisition in every direction.

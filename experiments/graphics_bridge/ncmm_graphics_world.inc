@@ -375,11 +375,9 @@ bool graphics_draw_world(int x,int y,int width,int height)
             if(!(semantic&NCMM_WORLD_RAMP)&&!(next&(NCMM_WORLD_UNKNOWN|NCMM_WORLD_OPAQUE))){c.world.direction=direction;break;}}
         candidates.push_back(c);
         rejected.remember=false;
-        if(!entity&&!observed_death&&!here.veh_at(p)){
-            if(auto *owned=graphics_camera_cache.store(c.world,c.facade_light)){
-                if(graphics_camera_cache.verify&&owned->base_ready){++graphics_camera_cache.totals.verification_checks;
-                    if(!ncmm_graphics_snapshot::same_world_cell(owned->world,c.world)||owned->facade_light!=c.facade_light)++graphics_camera_cache.totals.verification_mismatches;}
-            }
+        if(auto *owned=graphics_camera_cache.store_if(c.world,c.facade_light,[&]{return !entity&&!observed_death&&!here.veh_at(p);})){
+            if(graphics_camera_cache.verify&&owned->base_ready){++graphics_camera_cache.totals.verification_checks;
+                if(!ncmm_graphics_snapshot::same_world_cell(owned->world,c.world)||owned->facade_light!=c.facade_light)++graphics_camera_cache.totals.verification_mismatches;}
         }
     }
     graphics_world_metrics.visibility_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-visibility_started).count();
