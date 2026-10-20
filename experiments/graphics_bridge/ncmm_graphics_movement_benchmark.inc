@@ -92,6 +92,7 @@
             std::vector<uint32_t> renderers;uint64_t cache_peak=0;
             std::vector<uint64_t> uploads,static_uploads,dynamic_geometry,draw_calls,bones,held_bones,resource_bytes,host_bytes,rss;
             std::vector<uint64_t> static_index_creations,static_index_reuses,static_index_pool_bytes;
+            std::vector<uint64_t> snapshot_growths,snapshot_reuses,snapshot_retained_bytes,snapshot_candidates;
             uint32_t actual_width=0,actual_height=0,attacks=0;
             uint64_t source_oracle_cells=0,field_oracle_cases=0;
             auto render=[&](bool measured){const auto begin=clock::now();const auto pos=you.pos_abs();const auto moves=you.get_moves();
@@ -132,6 +133,8 @@
                         retirement_ms.push_back(recorded.retirement_ms);retirement_calls.push_back(recorded.retirement_calls);post_present_metrics_ms.push_back(metrics_wall);
                         uploads.push_back(metrics.upload_bytes);static_uploads.push_back(recorded.static_upload_bytes);dynamic_geometry.push_back(recorded.dynamic_geometry_bytes);
                         static_index_creations.push_back(recorded.static_index_creations);static_index_reuses.push_back(recorded.static_index_reuses);static_index_pool_bytes.push_back(recorded.static_index_pool_bytes);
+                        snapshot_growths.push_back(graphics_world_snapshot_growths);snapshot_reuses.push_back(graphics_world_snapshot_reuses);
+                        snapshot_retained_bytes.push_back(graphics_world_snapshot_storage_bytes());snapshot_candidates.push_back(graphics_world_snapshot_candidates);
                         draw_calls.push_back(metrics.draw_calls);bones.push_back(recorded.bones);held_bones.push_back(recorded.held_bones);resource_bytes.push_back(metrics.resource_bytes);host_bytes.push_back(metrics.host_cpu_cache_bytes);
                         rss.push_back(ncmm_graphics_performance::resident_bytes());actual_width=graphics_hybrid_width;actual_height=graphics_hybrid_height;}}
             };
@@ -213,6 +216,8 @@
                 report.member("initial_gpu_geometry_ms",initial_gpu.geometry_ms);report.member("initial_gpu_resource_ms",initial_gpu.resource_ms);report.member("initial_gpu_resource_bytes",initial_gpu.resource_bytes);
                 report.member("gpu_upload_bytes",uploads);report.member("gpu_static_upload_bytes",static_uploads);report.member("gpu_dynamic_geometry_bytes",dynamic_geometry);report.member("gpu_draw_calls",draw_calls);
                 report.member("gpu_static_index_buffer_creations",static_index_creations);report.member("gpu_static_index_buffer_reuses",static_index_reuses);report.member("gpu_static_index_pool_bytes",static_index_pool_bytes);
+                report.member("snapshot_buffer_capacity_growths",snapshot_growths);report.member("snapshot_buffer_reuses",snapshot_reuses);
+                report.member("snapshot_retained_capacity_bytes",snapshot_retained_bytes);report.member("snapshot_candidate_counts",snapshot_candidates);
                 report.member("gpu_bones",bones);report.member("gpu_held_bones",held_bones);report.member("gpu_resource_bytes",resource_bytes);report.member("host_cpu_cache_bytes",host_bytes);report.member("process_rss_bytes",rss);}
             report.member("first_frame_after_step_samples_ms",first_frame_ms);report.member("first_frame_after_step_median_ms",percentile(first_frame_ms,.5));report.member("first_frame_after_step_p95_ms",percentile(first_frame_ms,.95));
             report.member("first_ready_median_ms",percentile(first_ms,.5));report.member("first_ready_p95_ms",percentile(first_ms,.95));report.member("easing_median_ms",percentile(easing_ms,.5));report.member("easing_p95_ms",percentile(easing_ms,.95));
