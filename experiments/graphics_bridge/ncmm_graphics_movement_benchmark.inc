@@ -86,6 +86,10 @@
             std::vector<uint64_t> sprite_readback_attempts,sprite_cache_bytes,gpu_generated_cells;
             std::vector<uint64_t> frame_upload_capacity,frame_upload_creations;
             std::vector<double> cell_prepare_ms;
+            // Nested CPU recording scopes. The world/held begin scopes and
+            // per-material draw scopes are subsets of their complete passes.
+            std::vector<double> copy_commands_ms,shadow_commands_ms,world_commands_ms,world_begin_ms,held_commands_ms,held_begin_ms;
+            std::vector<double> world_draw_ms,creature_draw_ms,held_draw_ms,volume_commands_ms,compose_commands_ms,visibility_commands_ms,batching_pick_ms;
             std::vector<double> retirement_ms,post_present_metrics_ms;std::vector<uint64_t> retirement_calls;
             std::vector<uint64_t> cell_upload_bytes,cell_cache_bytes;
             bool thread_cpu_available=true;
@@ -130,6 +134,12 @@
                         sprite_cache_bytes.push_back(graphics_hybrid_sprite_bytes);gpu_generated_cells.push_back(metrics.generated_cells);
                         frame_upload_capacity.push_back(recorded.frame_upload_capacity_bytes);frame_upload_creations.push_back(recorded.frame_upload_creations);
                         cell_prepare_ms.push_back(recorded.cell_prepare_ms);cell_upload_bytes.push_back(recorded.cell_upload_bytes);cell_cache_bytes.push_back(recorded.cell_cache_bytes);
+                        copy_commands_ms.push_back(recorded.copy_ms);shadow_commands_ms.push_back(recorded.shadow_ms);
+                        world_commands_ms.push_back(recorded.world_pass_ms);world_begin_ms.push_back(recorded.world_begin_ms);
+                        held_commands_ms.push_back(recorded.held_pass_ms);held_begin_ms.push_back(recorded.held_begin_ms);
+                        world_draw_ms.push_back(recorded.world_ms);creature_draw_ms.push_back(recorded.creature_ms);held_draw_ms.push_back(recorded.held_ms);
+                        volume_commands_ms.push_back(recorded.volume_ms);compose_commands_ms.push_back(recorded.compose_ms);
+                        visibility_commands_ms.push_back(recorded.visibility_ms);batching_pick_ms.push_back(recorded.batching_pick_ms);
                         retirement_ms.push_back(recorded.retirement_ms);retirement_calls.push_back(recorded.retirement_calls);post_present_metrics_ms.push_back(metrics_wall);
                         uploads.push_back(metrics.upload_bytes);static_uploads.push_back(recorded.static_upload_bytes);dynamic_geometry.push_back(recorded.dynamic_geometry_bytes);
                         static_index_creations.push_back(recorded.static_index_creations);static_index_reuses.push_back(recorded.static_index_reuses);static_index_pool_bytes.push_back(recorded.static_index_pool_bytes);
@@ -209,6 +219,13 @@
                 report.member("sprite_readback_attempts",sprite_readback_attempts);report.member("sprite_cache_bytes",sprite_cache_bytes);report.member("gpu_generated_cells",gpu_generated_cells);
                 report.member("gpu_frame_upload_capacity_bytes",frame_upload_capacity);report.member("gpu_frame_upload_creations",frame_upload_creations);
                 report.member("gpu_cell_prepare_samples_ms",cell_prepare_ms);report.member("gpu_cell_upload_bytes",cell_upload_bytes);report.member("gpu_cell_cache_bytes",cell_cache_bytes);
+                report.member("gpu_recording_scopes_are_cpu_wall",true);report.member("gpu_recording_scopes_nested",true);
+                report.member("gpu_copy_commands_samples_ms",copy_commands_ms);report.member("gpu_shadow_commands_samples_ms",shadow_commands_ms);
+                report.member("gpu_world_commands_samples_ms",world_commands_ms);report.member("gpu_world_begin_samples_ms",world_begin_ms);
+                report.member("gpu_held_commands_samples_ms",held_commands_ms);report.member("gpu_held_begin_samples_ms",held_begin_ms);
+                report.member("gpu_world_draw_samples_ms",world_draw_ms);report.member("gpu_creature_draw_samples_ms",creature_draw_ms);report.member("gpu_held_draw_samples_ms",held_draw_ms);
+                report.member("gpu_volume_commands_samples_ms",volume_commands_ms);report.member("gpu_compose_commands_samples_ms",compose_commands_ms);
+                report.member("gpu_visibility_commands_samples_ms",visibility_commands_ms);report.member("gpu_batching_pick_samples_ms",batching_pick_ms);
                 report.member("gpu_metrics_in_frame",true);report.member("gpu_post_present_metrics_samples_ms",post_present_metrics_ms);
                 report.member("gpu_retirement_samples_ms",retirement_ms);report.member("gpu_retirement_calls",retirement_calls);
                 report.member("initial_render_ready_ms",initial_render_ready_ms);report.member("initial_gpu_static_upload_bytes",initial_recording.static_upload_bytes);report.member("initial_gpu_upload_bytes",initial_gpu.upload_bytes);

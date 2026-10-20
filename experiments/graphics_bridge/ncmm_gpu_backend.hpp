@@ -10,6 +10,7 @@ namespace ncmm_gpu {
 // execution timestamps. The public metrics V1 layout remains unchanged.
 struct recording_metrics {
     double batching_pick_ms=0,shadow_ms=0,world_ms=0,creature_ms=0,held_ms=0,volume_ms=0,compose_ms=0;
+    double copy_ms=0,world_pass_ms=0,world_begin_ms=0,held_pass_ms=0,held_begin_ms=0,visibility_ms=0;
     uint64_t bones=0,held_bones=0,static_upload_bytes=0,dynamic_geometry_bytes=0;
     uint64_t frame_upload_capacity_bytes=0,frame_upload_creations=0;
     uint64_t static_index_creations=0,static_index_reuses=0,static_index_pool_bytes=0;
@@ -250,21 +251,28 @@ public:
         if(initialize_white){SDL_GPUTextureTransferInfo white{};white.transfer_buffer=transfer;white.offset=offset;white.pixels_per_row=white.rows_per_layer=1;
             SDL_GPUTextureRegion white_target{};white_target.texture=white_;white_target.w=white_target.h=white_target.d=1;SDL_UploadToGPUTexture(copy,&white,&white_target,false);}
         SDL_EndGPUCopyPass(copy);
+        if(profiling_)recording_.copy_ms=ms(record_start);
         metrics_.upload_bytes+=upload_size;metrics_.upload_ms=ms(stage);
         auto phase_start=profiling_?clock::now():clock::time_point{};
         SDL_GPUStorageBufferReadWriteBinding shadow_binding{};shadow_binding.buffer=shadows_;shadow_binding.cycle=true;
         auto *compute=SDL_BeginGPUComputePass(commands,nullptr,0,&shadow_binding,1);if(!compute)return stop("begin shadow compute pass");SDL_BindGPUComputePipeline(compute,programs_.shadow);
         SDL_BindGPUComputeStorageBuffers(compute,0,&cells_,1);SDL_PushGPUComputeUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DispatchGPUCompute(compute,(scene.cell_count+63)/64,1,1);SDL_EndGPUComputePass(compute);
         if(profiling_)recording_.shadow_ms=ms(phase_start);
+        phase_start=profiling_?clock::now():clock::time_point{};
         auto *pass=begin(commands,false,true);if(!pass){SDL_CancelGPUCommandBuffer(commands);context_.fail("begin world GPU pass");reason(context_.reason());return false;}
+        if(profiling_)recording_.world_begin_ms=ms(phase_start);
         SDL_BindGPUGraphicsPipeline(pass,programs_.sky);SDL_PushGPUFragmentUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DrawGPUPrimitives(pass,3,1,0,0);++metrics_.draw_calls;
         SDL_BindGPUGraphicsPipeline(pass,programs_.celestial);SDL_PushGPUVertexUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DrawGPUPrimitives(pass,6,852,0,0);++metrics_.draw_calls;
         draw_batches(commands,pass,batches,NCMM_GPU_OPAQUE,scene);draw_batches(commands,pass,batches,NCMM_GPU_TRANSPARENT,scene);
         if(scene.camera.weather[0]>0&&scene.camera.weather[1]>0){SDL_BindGPUGraphicsPipeline(pass,programs_.weather);SDL_BindGPUVertexStorageBuffers(pass,0,&cells_,1);
             SDL_PushGPUVertexUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DrawGPUPrimitives(pass,6,uint32_t(std::min(360.f,70+scene.camera.weather[1]*260)),0,0);++metrics_.draw_calls;}
         SDL_EndGPURenderPass(pass);
+        if(profiling_)recording_.world_pass_ms=ms(phase_start);
+        phase_start=profiling_?clock::now():clock::time_point{};
         pass=begin(commands,true,false);if(!pass){SDL_CancelGPUCommandBuffer(commands);context_.fail("begin held-item GPU pass");reason(context_.reason());return false;}
+        if(profiling_)recording_.held_begin_ms=ms(phase_start);
         draw_batches(commands,pass,batches,NCMM_GPU_HELD,scene);SDL_EndGPURenderPass(pass);
+        if(profiling_)recording_.held_pass_ms=ms(phase_start);
         const bool atmosphere=scene.camera.wind[2]>0||scene.camera.wind[3]>0||scene.camera.weather[2]>.025f;
         if(atmosphere){
         phase_start=profiling_?clock::now():clock::time_point{};
@@ -291,9 +299,11 @@ public:
             blit.load_op=SDL_GPU_LOADOP_DONT_CARE;blit.filter=SDL_GPU_FILTER_NEAREST;blit.cycle=true;SDL_BlitGPUTexture(commands,&blit);
             if(profiling_)recording_.compose_ms=ms(phase_start);
         }
+        phase_start=profiling_?clock::now():clock::time_point{};
         if(read){SDL_GPUStorageBufferReadWriteBinding binding{};binding.buffer=counter_;compute=SDL_BeginGPUComputePass(commands,nullptr,0,&binding,1);if(!compute)return stop("begin visibility compute pass");SDL_BindGPUComputePipeline(compute,programs_.count);
             SDL_BindGPUComputeStorageTextures(compute,0,&id_,1);SDL_DispatchGPUCompute(compute,(scene.width+15)/16,(scene.height+15)/16,1);SDL_EndGPUComputePass(compute);
             copy=SDL_BeginGPUCopyPass(commands);if(!copy)return stop("begin visibility counter copy pass");SDL_GPUBufferRegion from{counter_,0,64};SDL_GPUTransferBufferLocation to{read->transfer,0};SDL_DownloadFromGPUBuffer(copy,&from,&to);SDL_EndGPUCopyPass(copy);}
+        if(profiling_)recording_.visibility_ms=ms(phase_start);
         metrics_.render_record_ms=ms(record_start);stage=clock::now();bool success;
         if(read){read->serial=scene.frame_serial;read->generation=readback_generation_;read->fence=SDL_SubmitGPUCommandBufferAndAcquireFence(commands);success=read->fence!=nullptr;}else success=SDL_SubmitGPUCommandBuffer(commands);
         metrics_.submit_ms=ms(stage);

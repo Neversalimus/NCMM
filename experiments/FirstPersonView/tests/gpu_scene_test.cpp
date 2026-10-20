@@ -41,6 +41,15 @@ int main(int argc,char **argv){
     auto *renderer=SDL_CreateGPURenderer(device,window);require(renderer!=nullptr,"shared SDL renderer");
     auto *ui=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_ABGR8888,SDL_TEXTUREACCESS_TARGET,640,480);require(ui&&SDL_SetRenderTarget(renderer,ui),"SDL UI target");
     ncmm_gpu::backend engine;require(engine.bind(renderer,1),"borrow existing device");engine.profile();
+    auto recording_accounting=[&]{const auto &p=engine.recording();const auto m=engine.metrics();
+        const double complete=p.copy_ms+p.shadow_ms+p.world_pass_ms+p.held_pass_ms+p.volume_ms+p.compose_ms+p.visibility_ms;
+        require(p.copy_ms>=0&&p.shadow_ms>=0&&p.world_pass_ms>=0&&p.held_pass_ms>=0&&p.volume_ms>=0&&p.compose_ms>=0&&p.visibility_ms>=0,
+                "CPU recording scopes are nonnegative");
+        require(complete<=m.render_record_ms+.001,"disjoint CPU recording scopes fit the inclusive recording clock");
+        require(p.world_begin_ms<=p.world_pass_ms+.001&&p.held_begin_ms<=p.held_pass_ms+.001,
+                "render-pass begin scopes remain nested within complete passes");
+        require(p.world_ms+p.creature_ms<=p.world_pass_ms+.001&&p.held_ms<=p.held_pass_ms+.001,
+                "per-material CPU draw scopes remain nested within their passes");};
     ncmm_gpu_scene_v1 scene{};scene.struct_size=sizeof(scene);scene.width=640;scene.height=480;scene.mode=NCMM_GPU_FORCE;scene.frame_serial=1;
     auto &camera=scene.camera;camera.right[0]=1;camera.up[2]=1;camera.forward[1]=1;camera.projection[0]=640;camera.projection[1]=480;camera.projection[2]=457;camera.projection[3]=512;
     camera.sun[2]=1;camera.sun[3]=1;camera.sky_top[2]=.4f;camera.sky_bottom[0]=.3f;camera.sky_bottom[1]=.4f;camera.sky_bottom[2]=.5f;camera.grid[0]=camera.grid[1]=camera.grid[2]=1;
@@ -54,6 +63,7 @@ int main(int argc,char **argv){
     ncmm_gpu_matrix_v1 bones[2]{};for(auto &b:bones)for(int i=0;i<4;++i)b.columns[i*5]=1;scene.bones=bones;scene.bone_count=2;
     ncmm_gpu_draw_v1 draw{};draw.mesh_key=11;draw.transform=bones[0];draw.bone_count=2;scene.draws=&draw;scene.draw_count=1;
     require(engine.submit(scene),engine.metrics().reason);auto first=engine.metrics();require(first.active&&first.triangles==2&&first.cpu_raster_calls==0,"GPU triangles, hardware depth, CPU raster excluded");
+    recording_accounting();
     require(engine.has(11,0),"persistent GPU mesh resource");require(first.target_cell==0,"geometric picking matches visible near creature");
     require(engine.resources().static_upload_bytes()>0,"initial immutable mesh upload is accounted separately");
     const auto first_static_upload=engine.resources().static_upload_bytes();
@@ -62,7 +72,7 @@ int main(int argc,char **argv){
     const auto staging_creations=engine.recording().frame_upload_creations;
     require(staging_capacity>0&&staging_creations==1&&first.resource_bytes+staging_capacity+engine.recording().cell_cache_bytes<=NCMM_GPU_RESOURCE_LIMIT,"frame staging and source-cell snapshot have an explicit bounded capacity");
     require(engine.recording().cell_upload_bytes==112&&engine.recording().cell_cache_bytes>=112,"first frame uploads the complete owned source-cell layout");
-    auto capture=[&](const char *suffix){require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr),"GPU-to-GPU final composition");
+    auto capture=[&](const char *suffix){recording_accounting();require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr),"GPU-to-GPU final composition");
         SDL_FRect strip{0,0,640,20};require(SDL_SetRenderDrawColor(renderer,0,0,255,255)&&SDL_RenderFillRect(renderer,&strip),"ordinary SDL UI");
         auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"test-only readback");auto *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);SDL_DestroySurface(raw);require(image!=nullptr,"capture format");
         if(argc>1)require(SDL_SaveBMP(image,(std::string(argv[1])+suffix+".bmp").c_str()),"save real GPU scene");
