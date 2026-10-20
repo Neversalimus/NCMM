@@ -25,7 +25,9 @@ struct mesh_builder {
         mesh.indices.insert(mesh.indices.end(),{first,first+1,first+2});}
 };
 class scene_cache {
+    friend struct scene_signature_probe;
     using key=std::tuple<int32_t,int32_t,int32_t>;
+    using signature_position=std::array<int32_t,3>; // canonical z/y/x, owned values only
     struct chunk {uint64_t signature=0,touched=0;std::array<std::shared_ptr<const owned_mesh>,2> meshes;};
     struct key_hash {
         size_t operator()(const key &value)const noexcept{
@@ -38,6 +40,8 @@ class scene_cache {
     bool signature_cached=false;
     std::array<int64_t,8> signature_layout{};
     std::vector<uint64_t> signature_values,signature_results;
+    std::vector<signature_position> signature_positions;
+    std::vector<uint8_t> signature_dirty_slots;
     std::map<std::tuple<uint64_t,int,bool,bool>,std::weak_ptr<const owned_mesh>> skins;
     std::map<std::tuple<uint64_t,int,int,bool>,std::weak_ptr<const owned_mesh>> impostors;
     resources assets;
@@ -211,6 +215,7 @@ class scene_cache {
         }
     };
     std::vector<uint64_t> signatures(const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *metadata,const ncmm_gpu_metrics_v1 &host,bool creatures,int width,const ncmm_graphics_multilevel_scene_v1 *levels,const ncmm_world::coordinates &xyz){
+        signature_neighbor_queries=signature_reused_cells=signature_neighborhood_marks=0;
         std::vector<uint64_t> values(s.base.cell_count,0);
         for(int i=0;i<int(s.base.cell_count);++i){auto cell=s.base.cells[i];cell.light=0;if(creatures)std::memset(cell.creature,0,sizeof(cell.creature));auto detail=s.details[i];
             detail.light_r=detail.light_g=detail.light_b=detail.emission=0;if(detail.vehicle_features){const auto p=levels?xyz.origin(uint32_t(i)):ncmm_world::point{float(i%s.base.grid_width),float(i/s.base.grid_width),0};detail.vehicle_x-=p.x;detail.vehicle_y-=p.y;}
@@ -232,23 +237,62 @@ class scene_cache {
         // Revisions can change for an actor move or light refresh while every
         // normalized static cell stays identical. Compare the entire ordered
         // content digest before walking 27 neighbours per cell again.
-        if(signature_cached&&layout==signature_layout&&values==signature_values){++signature_reuses;return signature_results;}
+        auto position=[&](size_t i){const auto &c=levels->coordinates[i];return signature_position{c.z,c.y,c.x};};
+        if(signature_cached&&layout==signature_layout&&values==signature_values){
+            bool same_positions=!levels;
+            if(levels&&signature_positions.size()==values.size()){
+                same_positions=true;for(size_t i=0;i<values.size();++i)if(position(i)!=signature_positions[i]){same_positions=false;break;}}
+            if(same_positions){++signature_reuses;signature_reused_cells=values.size();return signature_results;}}
         std::vector<uint64_t> result(values.size());
+        std::vector<signature_position> positions,changes;
+        if(levels){positions.reserve(values.size());for(size_t i=0;i<values.size();++i)positions.push_back(position(i));}
+        // A changed/added/removed cell can affect only the same 3x3x3
+        // neighbourhood already hashed below. Merge canonical absolute keys;
+        // frame indices and callback pointers never become persistent identity.
+        bool incremental=levels&&signature_cached&&signature_layout[0]==1&&values.size()>=256&&
+            signature_positions.size()==signature_values.size()&&signature_results.size()==signature_values.size();
+        if(incremental){
+            const size_t limit=values.size()/4;size_t old=0,current=0;
+            while((old<signature_positions.size()||current<positions.size())&&changes.size()<=limit){
+                if(current==positions.size()||(old<signature_positions.size()&&signature_positions[old]<positions[current]))changes.push_back(signature_positions[old++]);
+                else if(old==signature_positions.size()||positions[current]<signature_positions[old])changes.push_back(positions[current++]);
+                else{result[current]=signature_results[old];if(values[current]!=signature_values[old])changes.push_back(positions[current]);++old;++current;}}
+            // Large changes use the original full pass. Avoid building a
+            // sparse-change mask for a scene-wide appearance replacement.
+            if(changes.size()>limit)incremental=false;
+        }
+        if(incremental&&!changes.empty()){
+            const auto w=size_t(s.base.grid_width),h=size_t(s.base.grid_height);
+            const size_t slots=size_t(levels->loaded_max_z-levels->loaded_min_z+1)*w*h;
+            if(slots>signature_dirty_slots.capacity())std::vector<uint8_t>(slots,0).swap(signature_dirty_slots);
+            else signature_dirty_slots.assign(slots,0);
+            for(const auto &p:changes){
+                const int64_t cx=int64_t(p[2])-levels->origin_x,cy=int64_t(p[1])-levels->origin_y,cz=p[0];
+                for(int64_t z=std::max<int64_t>(levels->loaded_min_z,cz-1);z<=std::min<int64_t>(levels->loaded_max_z,cz+1);++z)
+                    for(int64_t y=std::max<int64_t>(0,cy-1);y<=std::min<int64_t>(int64_t(h)-1,cy+1);++y)
+                        for(int64_t x=std::max<int64_t>(0,cx-1);x<=std::min<int64_t>(int64_t(w)-1,cx+1);++x){
+                            signature_dirty_slots[(size_t(z-levels->loaded_min_z)*h+size_t(y))*w+size_t(x)]=1;++signature_neighborhood_marks;}}
+        }
         for(int i=0;i<int(values.size());++i){uint64_t h=values[i];
-            if(levels){for(int dz=-1;dz<=1;++dz)for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int at=xyz.neighbor(uint32_t(i),dx,dy,dz);const uint64_t neighbor=at<0?0:values[size_t(at)];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}
+            if(incremental){const auto &p=positions[size_t(i)];
+                const size_t at=(size_t(p[0]-levels->loaded_min_z)*size_t(s.base.grid_height)+size_t(int64_t(p[1])-levels->origin_y))*size_t(s.base.grid_width)+size_t(int64_t(p[2])-levels->origin_x);
+                if(changes.empty()||!signature_dirty_slots[at]){++signature_reused_cells;continue;}}
+            if(levels){for(int dz=-1;dz<=1;++dz)for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){++signature_neighbor_queries;const int at=xyz.neighbor(uint32_t(i),dx,dy,dz);const uint64_t neighbor=at<0?0:values[size_t(at)];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}
             else{const int x=i%s.base.grid_width,y=i/s.base.grid_width;
                 for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int xx=x+dx,yy=y+dy;const uint64_t neighbor=xx<0||yy<0||xx>=s.base.grid_width||yy>=s.base.grid_height?0:values[size_t(yy)*s.base.grid_width+xx];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}
             result[i]=h;}
-        signature_layout=layout;signature_values=std::move(values);signature_results=result;signature_cached=true;
+        signature_layout=layout;signature_values=std::move(values);signature_results=result;signature_positions=std::move(positions);signature_cached=true;
         return result;
     }
 public:
     explicit scene_cache(size_t mesh_budget=resources::mesh_limit,size_t texture_budget=resources::texture_limit):assets(mesh_budget,texture_budget){}
     uint32_t generated_cells=0;uint64_t signature_reuses=0;double geometry_ms=0;
+    uint64_t signature_neighbor_queries=0,signature_reused_cells=0,signature_neighborhood_marks=0;
     std::string last_reason;
     void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();arm_meshes={};assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
-        signature_cached=false;signature_values=std::vector<uint64_t>{};signature_results=std::vector<uint64_t>{};signature_reuses=0;}
-    size_t bytes()const{return assets.bytes()+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t);}
+        signature_cached=false;signature_values=std::vector<uint64_t>{};signature_results=std::vector<uint64_t>{};signature_positions=std::vector<signature_position>{};signature_dirty_slots=std::vector<uint8_t>{};signature_reuses=0;
+        signature_neighbor_queries=signature_reused_cells=signature_neighborhood_marks=0;}
+    size_t bytes()const{return assets.bytes()+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t)+signature_positions.capacity()*sizeof(signature_position)+signature_dirty_slots.capacity();}
     bool build(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const hybrid::sprite_provider &provider,packet &out,
                hybrid::frame &statistics,const ncmm_gpu_metrics_v1 &host,animation::pose pose,const hybrid::presentation_data *metadata,creature::presentation *creatures,int width,int height,uint32_t mode,const ncmm_graphics_multilevel_scene_v1 *levels=nullptr){
         last_reason.clear();
