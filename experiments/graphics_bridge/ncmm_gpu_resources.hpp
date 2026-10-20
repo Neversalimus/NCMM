@@ -160,7 +160,12 @@ public:
             if(present&&source.vertex_count*sizeof(ncmm_gpu_vertex_v1)<=present->vertex_capacity&&source.index_count*4<=present->index_capacity){
                 if(!mesh_data(source,*present))return false;present->touched=++clock_;new_meshes.push_back(source.key);upload_bytes+=size;++metrics.dynamic_mesh_updates;continue;}
             if(present){auto old=meshes_.find(source.key);release(old->second);meshes_.erase(old);}
-            mesh_resource m;m.touched=++clock_;m.dynamic=source.reserved&NCMM_GPU_DYNAMIC_MESH;if(!mesh_data(source,m))return false;
+            mesh_resource m;
+            struct pending_mesh {
+                resource_cache &owner;mesh_resource &mesh;bool pending=true;
+                ~pending_mesh(){if(pending)owner.release(mesh);}
+            } rollback{*this,m};
+            m.touched=++clock_;m.dynamic=source.reserved&NCMM_GPU_DYNAMIC_MESH;if(!mesh_data(source,m))return false;
             const uint64_t vertex_bytes=uint64_t(source.vertex_count)*sizeof(ncmm_gpu_vertex_v1),index_bytes=uint64_t(source.index_count)*4;
             auto required=[&]{return m.dynamic?size:
                 (immutable_vertices_.count(m.cpu_vertices)?0:vertex_bytes)+(immutable_indices_.count(m.cpu_indices)?0:index_bytes);};
@@ -184,11 +189,14 @@ public:
                 m.indices=shared->second.buffer;++shared->second.references;m.shared_indices=true;m.upload_indices=false;++static_index_reuses_;
             }else{
                 info.usage=SDL_GPU_BUFFERUSAGE_INDEX;info.size=source.index_count*4;m.indices=SDL_CreateGPUBuffer(device_,&info);
-                if(!m.indices){release(m);reason_="create vertex/index buffers: "+std::string(SDL_GetError());return false;}
+                if(!m.indices){reason_="create vertex/index buffers: "+std::string(SDL_GetError());return false;}
                 if(!m.dynamic){immutable_indices_.emplace(m.cpu_indices,immutable_index{m.indices,1,index_bytes});bytes_+=index_bytes;m.shared_indices=true;++static_index_creations_;}}
             m.bytes=(m.static_vertices?0:vertex_bytes)+(m.shared_indices?0:index_bytes);
             m.ready=!m.upload_vertices&&!m.upload_indices;
-            bytes_+=m.bytes;upload_bytes+=(m.upload_vertices?vertex_bytes:0)+(m.upload_indices?index_bytes:0);new_meshes.push_back(source.key);meshes_.emplace(source.key,std::move(m));++metrics.generated_meshes;
+            bytes_+=m.bytes;upload_bytes+=(m.upload_vertices?vertex_bytes:0)+(m.upload_indices?index_bytes:0);new_meshes.push_back(source.key);
+            const auto inserted=meshes_.try_emplace(source.key,std::move(m));
+            if(!inserted.second){reason_="duplicate mesh during resource preparation";return false;}
+            rollback.pending=false;++metrics.generated_meshes;
         }
         if(upload_bytes){
             SDL_GPUTransferBufferCreateInfo info{};info.usage=SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;info.size=uint32_t(upload_bytes);

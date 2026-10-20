@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "status": "corrected_candidate_requires_fresh_native_oracle_and_balanced_comparison",
+  "source_parent": "2869ce816486040ea3b0962009c98ed65cc21eeb",
+  "failure": "A C++ allocation could throw after GPU buffers or shared leases were acquired but before the mesh entered the owning map. Cache invalidation then had no mesh from which to release those leases.",
+  "repair": "A local pending mesh owns all new buffer handles, shared leases and accounting until try_emplace succeeds. Returns and exceptions release it once. Existing Host exception handling still invalidates and falls back safely.",
+  "negative_control": {
+    "source": "2869ce816486040ea3b0962009c98ed65cc21eeb",
+    "reachable_mesh_cpp_failure_points": 13,
+    "leaking_cases": 5,
+    "orphan_application_buffer_handles": 9,
+    "log_sha256": "62dac0e0408a6850c5c5d309d36b752980fb73413487d950cd0e933ec239cd07",
+    "test_explicitly_released_observed_orphans": true,
+    "native_game_or_performance_measurement": false
+  },
+  "validation": {
+    "success": true,
+    "created_utc": "2026-10-20T19:33:30.848531+00:00",
+    "source_parent": "2869ce816486040ea3b0962009c98ed65cc21eeb",
+    "header_sha256": "023100f2d67d8cf21c1aa6fb20ed4d812ca85909b08ea97b627a4316432d1e8c",
+    "normal_and_asan": true,
+    "compiler": "MSVC14.38.33130",
+    "asan_runtime_sha256": "b82747d451a43729f57994d1725951b7dfa8c1a615b91cf8157b907f9f4016d1",
+    "sanitizer_suppressions": false,
+    "actual_gpu": "NVIDIA GeForce RTX 4090",
+    "backend": "direct3d12",
+    "mesh_cpp_allocation_failure_points": 13,
+    "original_leaking_points": 5,
+    "original_leaked_buffer_handles": 9,
+    "repaired_leaking_points": 0,
+    "repaired_leaked_buffer_handles": 0,
+    "cache_checks_each": 643,
+    "edge_checks_each": 16,
+    "full_scene_pass_each": true,
+    "native_game_launches": 0,
+    "ordinary_performance_accepted": false,
+    "original_negative_sha256": "62dac0e0408a6850c5c5d309d36b752980fb73413487d950cd0e933ec239cd07",
+    "logs_sha256": {
+      "allocation-failure-fixed.log": "b18bc0d991ede80cc1c448b4f378cdd40ea74f9ca1b4a38aa84580c6c622421b",
+      "asan-allocation-failure-fixed.log": "b18bc0d991ede80cc1c448b4f378cdd40ea74f9ca1b4a38aa84580c6c622421b",
+      "resource-cache-gpu.log": "601f87cf5366cb2914cf319aba7f8773bc74148c191c7b1d156b02bb855c3f5c",
+      "asan-resource-cache-gpu.log": "601f87cf5366cb2914cf319aba7f8773bc74148c191c7b1d156b02bb855c3f5c",
+      "lease-edge-gpu.log": "e531ba01acdc8bbfc939d24c3458fb70c295b507fe3f9a2b5969960dff5b6835",
+      "asan-lease-edge-gpu.log": "e531ba01acdc8bbfc939d24c3458fb70c295b507fe3f9a2b5969960dff5b6835",
+      "full-scene-gpu.log": "fa8865163ee8f49088838b1c0268284b9a833d76fc93f908e35cb41c287f9689",
+      "asan-full-scene-gpu.log": "fa8865163ee8f49088838b1c0268284b9a833d76fc93f908e35cb41c287f9689"
+    },
+    "files_sha256": {
+      "experiments/graphics_bridge/ncmm_gpu_resources.hpp": "023100f2d67d8cf21c1aa6fb20ed4d812ca85909b08ea97b627a4316432d1e8c",
+      "experiments/FirstPersonView/CMakeLists.txt": "07f6577a6f0de1204913d9279f0d85e074bf784e8e1ad808274128b86aab6907",
+      "experiments/FirstPersonView/tests/gpu_vertex_lease_edge_test.cpp": "f4d63a3d214af23d48000bd919da261a946c7f55c30720ef9f5bd41a35cb4a0b",
+      "experiments/FirstPersonView/tests/gpu_resource_failure_test.cpp": "d1f3ca167b1639d8be40ec0dcff5d43ae612ff0baf89fe003fc1532418160597"
+    }
+  },
+  "scope": "One-shot C++ allocation failures while creating a mesh, including both shared pools. No claim about continuous system exhaustion or unrelated texture paths.",
+  "unchanged": [
+    "GPU geometry and materials",
+    "dynamic isolation",
+    "public ABI",
+    "private SDL source",
+    "shader source",
+    "quality and resolution",
+    "original numerical performance gates"
+  ],
+  "previous_core650_ordinary_result": "REJECTED:4 repeated regressions/145 improvements; retained",
+  "performance_accepted": false
+}
