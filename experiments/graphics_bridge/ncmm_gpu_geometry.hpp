@@ -52,7 +52,7 @@ inline void pick(resource_cache &resources,const ncmm_gpu_scene_v1 &scene,ncmm_g
     for(uint32_t i=0;i<scene.draw_count;++i){const auto &draw=scene.draws[i];if(draw.pass==NCMM_GPU_HELD)continue;auto *mesh=resources.mesh(draw.mesh_key);if(!mesh)continue;
         const auto bounds=prepared?(*prepared)[i]:draw_bounds(*mesh,draw,scene);if(!ray_bounds(eye,direction,bounds,nearest))continue;
         for(const auto &range:mesh->ranges){const auto &material=mesh->materials[range.material];if(material.color[3]<.99f&&!(material.flags&NCMM_GPU_CUTOUT))continue;
-            for(uint32_t j=range.first;j<range.first+range.count;j+=3){const auto &va=mesh->cpu_vertices[mesh->cpu_indices[j]],&vb=mesh->cpu_vertices[mesh->cpu_indices[j+1]],&vc=mesh->cpu_vertices[mesh->cpu_indices[j+2]];
+            for(uint32_t j=range.first;j<range.first+range.count;j+=3){const auto &vertices=mesh->vertex_data();const auto &va=vertices[mesh->cpu_indices[j]],&vb=vertices[mesh->cpu_indices[j+1]],&vc=vertices[mesh->cpu_indices[j+2]];
                 const auto a=posed_vertex(va,draw,scene),b=posed_vertex(vb,draw,scene),c=posed_vertex(vc,draw,scene),e1=b-a,e2=c-a,p=cross(direction,e2);float determinant=dot(e1,p);
                 if(std::abs(determinant)<1e-8f)continue;float inverse=1/determinant;const auto delta=eye-a;float u=dot(delta,p)*inverse;if(u<0||u>1)continue;const auto q=cross(delta,e1);float v=dot(direction,q)*inverse;if(v<0||u+v>1)continue;
                 float distance=dot(e2,q)*inverse;if(distance<.08f||distance>nearest+.0002f)continue;

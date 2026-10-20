@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "status": "candidate_requires_fresh_native_performance_comparison",
+  "runtime_parent": "650af5660507c87e6d14f825753e3d2627fd4434",
+  "problem": "A new immutable mesh previously allocated its own vertex buffer even when only its materials or index order differed from an existing mesh.",
+  "change": "Exact complete vertex bytes identify one immutable GPU allocation and one owned CPU copy. Materials, index order, bounds and per-mesh draw commands stay independent. Dynamic meshes always retain their own writable storage.",
+  "ownership": "A stable Host-owned map key retains bytes until the last mesh lease. No Native scene or atlas pointers survive callbacks. SDL continues to retain queued GPU uses after the final application release.",
+  "budget": "Charge shared GPU bytes once; recalculate both vertex and index requirements if reserve evicts their last old lease. CPU memory counts the unique owned vertex key once. No new budget or quality reduction.",
+  "observation": "Private benchmark arrays record actual static vertex allocations, reuses and pool bytes, including initialization. Existing complete frame clocks and numerical gates are unchanged.",
+  "focused_validation": {
+    "actual_gpu": "NVIDIA GeForce RTX 4090",
+    "backend": "direct3d12",
+    "normal_cache_checks": 643,
+    "address_sanitizer_cache_checks": 643,
+    "normal_and_asan_full_gpu_scene_pass": true,
+    "checks": [
+      "byte-exact GPU readback",
+      "different materials and index order",
+      "source ownership",
+      "first and final lease eviction",
+      "same-size different vertex bytes",
+      "dynamic isolation",
+      "budget recheck after eviction",
+      "CPU/GPU picking and multi-Z occlusion"
+    ],
+    "atomic_transform_tests": 14,
+    "private_sdk_guards": 16,
+    "compiler": "MSVC14.38.33130",
+    "asan_runtime_sha256": "b82747d451a43729f57994d1725951b7dfa8c1a615b91cf8157b907f9f4016d1",
+    "proof_sha256": "4384521dea8f3775e3023ad0e631bc547d06239b42f03860714a8d0b634b98ce",
+    "logs_sha256": {
+      "atomic-candidate-tests.log": "d47411f7b2da8d892bfba9ce4c70a09d322163bb94b5ed002706aadc7a94373d",
+      "sdk-candidate-tests.log": "fc65313ab22ef35c7858880322e0b5ca2184b4c4a1799b50414ca4b093a98a9a",
+      "final-counters-build.log": "db9b558a062e4648dc2bae5717e65d1c64fb77e1317b5bd3db256ab3d8884895",
+      "final-counters-asan-build.log": "c687555fa7f1a28aa9081f2fe6517d97388b6293c5129be8c0f2c39664f1531b",
+      "final-counters-full-scene-gpu.log": "fa8865163ee8f49088838b1c0268284b9a833d76fc93f908e35cb41c287f9689",
+      "final-counters-asan-full-scene-gpu.log": "fa8865163ee8f49088838b1c0268284b9a833d76fc93f908e35cb41c287f9689"
+    }
+  },
+  "performance": {
+    "accepted": false,
+    "fresh_native_comparison": "pending",
+    "no_frame_time_claim": true,
+    "previous_core650_ordinary_four": "REJECTED: 4 repeated metric regressions /145 improvements",
+    "previous_result_sha256": "6e6df03622cd11877a249fe58c3985065721136fcf17c90cb11a1bb67fc357e1",
+    "previous_negative_results_retained": true,
+    "original_regression_thresholds_unchanged": true
+  },
+  "limitations": [
+    "Focused tests are not a Native game timing or a manual playthrough.",
+    "Full Windows1040/1807 CI, fresh balanced ordinary comparison and final unchanged binary qualification remain required.",
+    "This branch does not import the separate static SDL observer or its QPC wrappers."
+  ]
+}
