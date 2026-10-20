@@ -1,4 +1,12 @@
+#include <SDL3/SDL.h>
+#pragma push_macro("FAR")
+#undef FAR
+#define FAR far
 #include "ncmm_native_atlas_pixels.hpp"
+#define far 123
+static_assert(FAR==123,"Native FAR compatibility macro is preserved");
+#undef far
+#pragma pop_macro("FAR")
 #include <array>
 #include <cstdio>
 #include <cstdlib>

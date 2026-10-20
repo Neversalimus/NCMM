@@ -3,7 +3,17 @@
 // texture owns compressed CPU data; no renderer or texture pointer is retained.
 // Zlib is already a required dependency of both pinned Native Hosts.
 #include <SDL3/SDL.h>
+#if defined(FAR)
+// Native Windows headers can leave FAR expanding to an undefined `far` token.
+// Keep that compatibility macro out of zconf's typedefs and preserve the
+// caller's original macro afterwards.
+#pragma push_macro("FAR")
+#undef FAR
 #include <zlib.h>
+#pragma pop_macro("FAR")
+#else
+#include <zlib.h>
+#endif
 #include <algorithm>
 #include <atomic>
 #include <chrono>
