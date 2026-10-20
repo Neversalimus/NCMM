@@ -1,7 +1,329 @@
 --- a/src/gpu/d3d12/SDL_gpu_d3d12.c
 +++ b/src/gpu/d3d12/SDL_gpu_d3d12.c
-@@ -5057,9 +5057,27 @@
+@@ -1757,7 +1757,64 @@
+     SDL_free(renderer);
+ }
+ 
++
++/* LOCAL DIAGNOSTIC ONLY. Fixed bounded storage, no per-call file I/O.
++ * Nested CPU wall scopes are not GPU execution measurements. */
++typedef struct {
++    Uint64 begin, end, thread;
++    const char *name;
++} NCMMRecordProbeEvent;
++#define NCMM_RECORD_PROBE_CAPACITY 262144
++static NCMMRecordProbeEvent ncmm_record_probe_events[NCMM_RECORD_PROBE_CAPACITY];
++static SDL_AtomicInt ncmm_record_probe_count;
++static void NCMMRecordProbe(const char *name, Uint64 begin, bool always)
++{
++    const Uint64 end = SDL_GetPerformanceCounter();
++    if (always || end - begin >= SDL_GetPerformanceFrequency() / 10000) {
++        const int index = SDL_AddAtomicInt(&ncmm_record_probe_count, 1);
++        if (index >= 0 && index < NCMM_RECORD_PROBE_CAPACITY) {
++            NCMMRecordProbeEvent *event = &ncmm_record_probe_events[index];
++            event->begin = begin; event->end = end;
++            event->thread = (Uint64)SDL_GetCurrentThreadID(); event->name = name;
++        }
++    }
++}
++
++/* Destroy may run for several Native GPU devices. Keep every completed segment. */
++static int ncmm_record_probe_dumped;
++static SDL_SpinLock ncmm_record_probe_dump_lock;
++static void NCMMRecordProbeDump(void)
++{
++    SDL_LockSpinlock(&ncmm_record_probe_dump_lock);
++    SDL_IOStream *file = SDL_IOFromFile("ncmm-sdl-record-probe.tsv", "ab");
++    if (!file) { SDL_UnlockSpinlock(&ncmm_record_probe_dump_lock); return; }
++    const int total = SDL_GetAtomicInt(&ncmm_record_probe_count);
++    const int end = total < NCMM_RECORD_PROBE_CAPACITY ? total : NCMM_RECORD_PROBE_CAPACITY;
++    SDL_IOprintf(file, "# Native diagnostic, CPU wall only; frequency=%llu; total=%d; capacity=%d; start=%d; end=%d\n",
++        (unsigned long long)SDL_GetPerformanceFrequency(), total, NCMM_RECORD_PROBE_CAPACITY,
++        ncmm_record_probe_dumped, end);
++    SDL_IOprintf(file, "index\tname\tthread\tbegin\tend\n");
++    for (int i = ncmm_record_probe_dumped; i < end; ++i) {
++        const NCMMRecordProbeEvent *event = &ncmm_record_probe_events[i];
++        if (event->name) {
++            SDL_IOprintf(file, "%d\t%s\t%llu\t%llu\t%llu\n", i, event->name,
++                (unsigned long long)event->thread,
++                (unsigned long long)event->begin, (unsigned long long)event->end);
++        }
++    }
++    ncmm_record_probe_dumped = end;
++    SDL_CloseIO(file);
++    SDL_UnlockSpinlock(&ncmm_record_probe_dump_lock);
++}
++static void D3D12_DestroyDevice__ncmm_probe_impl(SDL_GPUDevice *device);
+ static void D3D12_DestroyDevice(SDL_GPUDevice *device)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12_DestroyDevice__ncmm_probe_impl(device);
++    NCMMRecordProbe("D3D12_DestroyDevice", ncmm_begin, false);
++    NCMMRecordProbeDump();
++}
++static void D3D12_DestroyDevice__ncmm_probe_impl(SDL_GPUDevice *device)
  {
+     D3D12Renderer *renderer = (D3D12Renderer *)device->driverData;
+ 
+@@ -2244,7 +2301,23 @@
+ 
+ // State Creation
+ 
+-static D3D12DescriptorHeap *D3D12_INTERNAL_CreateDescriptorHeap(
++static D3D12DescriptorHeap * D3D12_INTERNAL_CreateDescriptorHeap__ncmm_probe_impl(
++    D3D12Renderer *renderer,
++    D3D12_DESCRIPTOR_HEAP_TYPE type,
++    Uint32 descriptorCount,
++    bool staging);
++static D3D12DescriptorHeap * D3D12_INTERNAL_CreateDescriptorHeap(
++    D3D12Renderer *renderer,
++    D3D12_DESCRIPTOR_HEAP_TYPE type,
++    Uint32 descriptorCount,
++    bool staging)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12DescriptorHeap * ncmm_result = D3D12_INTERNAL_CreateDescriptorHeap__ncmm_probe_impl(renderer, type, descriptorCount, staging);
++    NCMMRecordProbe("D3D12_INTERNAL_CreateDescriptorHeap", ncmm_begin, false);
++    return ncmm_result;
++}
++static D3D12DescriptorHeap * D3D12_INTERNAL_CreateDescriptorHeap__ncmm_probe_impl(
+     D3D12Renderer *renderer,
+     D3D12_DESCRIPTOR_HEAP_TYPE type,
+     Uint32 descriptorCount,
+@@ -2383,7 +2456,19 @@
+     commandBuffer->usedDescriptorHeapCount += 1;
+ }
+ 
+-static D3D12DescriptorHeap *D3D12_INTERNAL_AcquireGPUDescriptorHeapFromPool(
++static D3D12DescriptorHeap * D3D12_INTERNAL_AcquireGPUDescriptorHeapFromPool__ncmm_probe_impl(
++    D3D12CommandBuffer *commandBuffer,
++    D3D12_DESCRIPTOR_HEAP_TYPE descriptorHeapType);
++static D3D12DescriptorHeap * D3D12_INTERNAL_AcquireGPUDescriptorHeapFromPool(
++    D3D12CommandBuffer *commandBuffer,
++    D3D12_DESCRIPTOR_HEAP_TYPE descriptorHeapType)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12DescriptorHeap * ncmm_result = D3D12_INTERNAL_AcquireGPUDescriptorHeapFromPool__ncmm_probe_impl(commandBuffer, descriptorHeapType);
++    NCMMRecordProbe("D3D12_INTERNAL_AcquireGPUDescriptorHeapFromPool", ncmm_begin, false);
++    return ncmm_result;
++}
++static D3D12DescriptorHeap * D3D12_INTERNAL_AcquireGPUDescriptorHeapFromPool__ncmm_probe_impl(
+     D3D12CommandBuffer *commandBuffer,
+     D3D12_DESCRIPTOR_HEAP_TYPE descriptorHeapType)
+ {
+@@ -3388,7 +3473,23 @@
+     return (SDL_GPUShader *)shader;
+ }
+ 
+-static D3D12Texture *D3D12_INTERNAL_CreateTexture(
++static D3D12Texture * D3D12_INTERNAL_CreateTexture__ncmm_probe_impl(
++    D3D12Renderer *renderer,
++    const SDL_GPUTextureCreateInfo *createinfo,
++    bool isSwapchainTexture,
++    const char *debugName);
++static D3D12Texture * D3D12_INTERNAL_CreateTexture(
++    D3D12Renderer *renderer,
++    const SDL_GPUTextureCreateInfo *createinfo,
++    bool isSwapchainTexture,
++    const char *debugName)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12Texture * ncmm_result = D3D12_INTERNAL_CreateTexture__ncmm_probe_impl(renderer, createinfo, isSwapchainTexture, debugName);
++    NCMMRecordProbe("D3D12_INTERNAL_CreateTexture", ncmm_begin, false);
++    return ncmm_result;
++}
++static D3D12Texture * D3D12_INTERNAL_CreateTexture__ncmm_probe_impl(
+     D3D12Renderer *renderer,
+     const SDL_GPUTextureCreateInfo *createinfo,
+     bool isSwapchainTexture,
+@@ -3750,7 +3851,25 @@
+     return (SDL_GPUTexture *)container;
+ }
+ 
+-static D3D12Buffer *D3D12_INTERNAL_CreateBuffer(
++static D3D12Buffer * D3D12_INTERNAL_CreateBuffer__ncmm_probe_impl(
++    D3D12Renderer *renderer,
++    SDL_GPUBufferUsageFlags usageFlags,
++    Uint32 size,
++    D3D12BufferType type,
++    const char *debugName);
++static D3D12Buffer * D3D12_INTERNAL_CreateBuffer(
++    D3D12Renderer *renderer,
++    SDL_GPUBufferUsageFlags usageFlags,
++    Uint32 size,
++    D3D12BufferType type,
++    const char *debugName)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12Buffer * ncmm_result = D3D12_INTERNAL_CreateBuffer__ncmm_probe_impl(renderer, usageFlags, size, type, debugName);
++    NCMMRecordProbe("D3D12_INTERNAL_CreateBuffer", ncmm_begin, false);
++    return ncmm_result;
++}
++static D3D12Buffer * D3D12_INTERNAL_CreateBuffer__ncmm_probe_impl(
+     D3D12Renderer *renderer,
+     SDL_GPUBufferUsageFlags usageFlags,
+     Uint32 size,
+@@ -4230,7 +4349,18 @@
+     return &container->activeTexture->subresources[index];
+ }
+ 
++static void D3D12_INTERNAL_CycleActiveTexture__ncmm_probe_impl(
++    D3D12Renderer *renderer,
++    D3D12TextureContainer *container);
+ static void D3D12_INTERNAL_CycleActiveTexture(
++    D3D12Renderer *renderer,
++    D3D12TextureContainer *container)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12_INTERNAL_CycleActiveTexture__ncmm_probe_impl(renderer, container);
++    NCMMRecordProbe("D3D12_INTERNAL_CycleActiveTexture", ncmm_begin, false);
++}
++static void D3D12_INTERNAL_CycleActiveTexture__ncmm_probe_impl(
+     D3D12Renderer *renderer,
+     D3D12TextureContainer *container)
+ {
+@@ -4307,7 +4437,18 @@
+     return subresource;
+ }
+ 
++static void D3D12_INTERNAL_CycleActiveBuffer__ncmm_probe_impl(
++    D3D12Renderer *renderer,
++    D3D12BufferContainer *container);
+ static void D3D12_INTERNAL_CycleActiveBuffer(
++    D3D12Renderer *renderer,
++    D3D12BufferContainer *container)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12_INTERNAL_CycleActiveBuffer__ncmm_probe_impl(renderer, container);
++    NCMMRecordProbe("D3D12_INTERNAL_CycleActiveBuffer", ncmm_begin, false);
++}
++static void D3D12_INTERNAL_CycleActiveBuffer__ncmm_probe_impl(
+     D3D12Renderer *renderer,
+     D3D12BufferContainer *container)
+ {
+@@ -4376,7 +4517,22 @@
+     return container->activeBuffer;
+ }
+ 
++static void D3D12_BeginRenderPass__ncmm_probe_impl(
++    SDL_GPUCommandBuffer *commandBuffer,
++    const SDL_GPUColorTargetInfo *colorTargetInfos,
++    Uint32 numColorTargets,
++    const SDL_GPUDepthStencilTargetInfo *depthStencilTargetInfo);
+ static void D3D12_BeginRenderPass(
++    SDL_GPUCommandBuffer *commandBuffer,
++    const SDL_GPUColorTargetInfo *colorTargetInfos,
++    Uint32 numColorTargets,
++    const SDL_GPUDepthStencilTargetInfo *depthStencilTargetInfo)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12_BeginRenderPass__ncmm_probe_impl(commandBuffer, colorTargetInfos, numColorTargets, depthStencilTargetInfo);
++    NCMMRecordProbe("D3D12_BeginRenderPass", ncmm_begin, true);
++}
++static void D3D12_BeginRenderPass__ncmm_probe_impl(
+     SDL_GPUCommandBuffer *commandBuffer,
+     const SDL_GPUColorTargetInfo *colorTargetInfos,
+     Uint32 numColorTargets,
+@@ -4640,7 +4796,24 @@
+     renderer->uniformBufferPoolCount += 1;
+ }
+ 
++static void D3D12_INTERNAL_PushUniformData__ncmm_probe_impl(
++    D3D12CommandBuffer *commandBuffer,
++    SDL_GPUShaderStage shaderStage,
++    Uint32 slotIndex,
++    const void *data,
++    Uint32 length);
+ static void D3D12_INTERNAL_PushUniformData(
++    D3D12CommandBuffer *commandBuffer,
++    SDL_GPUShaderStage shaderStage,
++    Uint32 slotIndex,
++    const void *data,
++    Uint32 length)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12_INTERNAL_PushUniformData__ncmm_probe_impl(commandBuffer, shaderStage, slotIndex, data, length);
++    NCMMRecordProbe("D3D12_INTERNAL_PushUniformData", ncmm_begin, false);
++}
++static void D3D12_INTERNAL_PushUniformData__ncmm_probe_impl(
+     D3D12CommandBuffer *commandBuffer,
+     SDL_GPUShaderStage shaderStage,
+     Uint32 slotIndex,
+@@ -4722,7 +4895,18 @@
+     }
+ }
+ 
++static void D3D12_BindGraphicsPipeline__ncmm_probe_impl(
++    SDL_GPUCommandBuffer *commandBuffer,
++    SDL_GPUGraphicsPipeline *graphicsPipeline);
+ static void D3D12_BindGraphicsPipeline(
++    SDL_GPUCommandBuffer *commandBuffer,
++    SDL_GPUGraphicsPipeline *graphicsPipeline)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12_BindGraphicsPipeline__ncmm_probe_impl(commandBuffer, graphicsPipeline);
++    NCMMRecordProbe("D3D12_BindGraphicsPipeline", ncmm_begin, false);
++}
++static void D3D12_BindGraphicsPipeline__ncmm_probe_impl(
+     SDL_GPUCommandBuffer *commandBuffer,
+     SDL_GPUGraphicsPipeline *graphicsPipeline)
+ {
+@@ -4993,7 +5177,14 @@
+         length);
+ }
+ 
++static void D3D12_INTERNAL_SetGPUDescriptorHeaps__ncmm_probe_impl(D3D12CommandBuffer *commandBuffer);
+ static void D3D12_INTERNAL_SetGPUDescriptorHeaps(D3D12CommandBuffer *commandBuffer)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12_INTERNAL_SetGPUDescriptorHeaps__ncmm_probe_impl(commandBuffer);
++    NCMMRecordProbe("D3D12_INTERNAL_SetGPUDescriptorHeaps", ncmm_begin, false);
++}
++static void D3D12_INTERNAL_SetGPUDescriptorHeaps__ncmm_probe_impl(D3D12CommandBuffer *commandBuffer)
+ {
+     ID3D12DescriptorHeap *heaps[2];
+     D3D12DescriptorHeap *viewHeap;
+@@ -5014,7 +5205,24 @@
+         heaps);
+ }
+ 
++static void D3D12_INTERNAL_WriteGPUDescriptors__ncmm_probe_impl(
++    D3D12CommandBuffer *commandBuffer,
++    D3D12_DESCRIPTOR_HEAP_TYPE heapType,
++    D3D12_CPU_DESCRIPTOR_HANDLE *resourceDescriptorHandles,
++    Uint32 resourceHandleCount,
++    D3D12_GPU_DESCRIPTOR_HANDLE *gpuBaseDescriptor);
+ static void D3D12_INTERNAL_WriteGPUDescriptors(
++    D3D12CommandBuffer *commandBuffer,
++    D3D12_DESCRIPTOR_HEAP_TYPE heapType,
++    D3D12_CPU_DESCRIPTOR_HANDLE *resourceDescriptorHandles,
++    Uint32 resourceHandleCount,
++    D3D12_GPU_DESCRIPTOR_HANDLE *gpuBaseDescriptor)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12_INTERNAL_WriteGPUDescriptors__ncmm_probe_impl(commandBuffer, heapType, resourceDescriptorHandles, resourceHandleCount, gpuBaseDescriptor);
++    NCMMRecordProbe("D3D12_INTERNAL_WriteGPUDescriptors", ncmm_begin, false);
++}
++static void D3D12_INTERNAL_WriteGPUDescriptors__ncmm_probe_impl(
+     D3D12CommandBuffer *commandBuffer,
+     D3D12_DESCRIPTOR_HEAP_TYPE heapType,
+     D3D12_CPU_DESCRIPTOR_HANDLE *resourceDescriptorHandles,
+@@ -5052,14 +5260,41 @@
+     }
+ }
+ 
++static void D3D12_INTERNAL_BindGraphicsResources__ncmm_probe_impl(
++    D3D12CommandBuffer *commandBuffer);
+ static void D3D12_INTERNAL_BindGraphicsResources(
+     D3D12CommandBuffer *commandBuffer)
+ {
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12_INTERNAL_BindGraphicsResources__ncmm_probe_impl(commandBuffer);
++    NCMMRecordProbe("D3D12_INTERNAL_BindGraphicsResources", ncmm_begin, false);
++}
++static void D3D12_INTERNAL_BindGraphicsResources__ncmm_probe_impl(
++    D3D12CommandBuffer *commandBuffer)
++{
      D3D12GraphicsPipeline *graphicsPipeline = commandBuffer->currentGraphicsPipeline;
  
 -    /* Acquire GPU descriptor heaps if we haven't yet */
@@ -30,3 +352,193 @@
      }
  
      D3D12_CPU_DESCRIPTOR_HANDLE cpuHandles[MAX_TEXTURE_SAMPLERS_PER_STAGE];
+@@ -5265,6 +5500,13 @@
+     }
+ }
+ 
++static void D3D12_DrawIndexedPrimitives__ncmm_probe_impl(
++    SDL_GPUCommandBuffer *commandBuffer,
++    Uint32 numIndices,
++    Uint32 numInstances,
++    Uint32 firstIndex,
++    Sint32 vertexOffset,
++    Uint32 firstInstance);
+ static void D3D12_DrawIndexedPrimitives(
+     SDL_GPUCommandBuffer *commandBuffer,
+     Uint32 numIndices,
+@@ -5273,6 +5515,18 @@
+     Sint32 vertexOffset,
+     Uint32 firstInstance)
+ {
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12_DrawIndexedPrimitives__ncmm_probe_impl(commandBuffer, numIndices, numInstances, firstIndex, vertexOffset, firstInstance);
++    NCMMRecordProbe("D3D12_DrawIndexedPrimitives", ncmm_begin, false);
++}
++static void D3D12_DrawIndexedPrimitives__ncmm_probe_impl(
++    SDL_GPUCommandBuffer *commandBuffer,
++    Uint32 numIndices,
++    Uint32 numInstances,
++    Uint32 firstIndex,
++    Sint32 vertexOffset,
++    Uint32 firstInstance)
++{
+     D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
+     D3D12_INTERNAL_BindGraphicsResources(d3d12CommandBuffer);
+ 
+@@ -5285,7 +5539,24 @@
+         firstInstance);
+ }
+ 
++static void D3D12_DrawPrimitives__ncmm_probe_impl(
++    SDL_GPUCommandBuffer *commandBuffer,
++    Uint32 numVertices,
++    Uint32 numInstances,
++    Uint32 firstVertex,
++    Uint32 firstInstance);
+ static void D3D12_DrawPrimitives(
++    SDL_GPUCommandBuffer *commandBuffer,
++    Uint32 numVertices,
++    Uint32 numInstances,
++    Uint32 firstVertex,
++    Uint32 firstInstance)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12_DrawPrimitives__ncmm_probe_impl(commandBuffer, numVertices, numInstances, firstVertex, firstInstance);
++    NCMMRecordProbe("D3D12_DrawPrimitives", ncmm_begin, false);
++}
++static void D3D12_DrawPrimitives__ncmm_probe_impl(
+     SDL_GPUCommandBuffer *commandBuffer,
+     Uint32 numVertices,
+     Uint32 numInstances,
+@@ -5349,7 +5620,16 @@
+     D3D12_INTERNAL_TrackBuffer(d3d12CommandBuffer, d3d12Buffer);
+ }
+ 
++static void D3D12_EndRenderPass__ncmm_probe_impl(
++    SDL_GPUCommandBuffer *commandBuffer);
+ static void D3D12_EndRenderPass(
++    SDL_GPUCommandBuffer *commandBuffer)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12_EndRenderPass__ncmm_probe_impl(commandBuffer);
++    NCMMRecordProbe("D3D12_EndRenderPass", ncmm_begin, false);
++}
++static void D3D12_EndRenderPass__ncmm_probe_impl(
+     SDL_GPUCommandBuffer *commandBuffer)
+ {
+     D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
+@@ -5432,7 +5712,24 @@
+ 
+ // Compute Pass
+ 
++static void D3D12_BeginComputePass__ncmm_probe_impl(
++    SDL_GPUCommandBuffer *commandBuffer,
++    const SDL_GPUStorageTextureReadWriteBinding *storageTextureBindings,
++    Uint32 numStorageTextureBindings,
++    const SDL_GPUStorageBufferReadWriteBinding *storageBufferBindings,
++    Uint32 numStorageBufferBindings);
+ static void D3D12_BeginComputePass(
++    SDL_GPUCommandBuffer *commandBuffer,
++    const SDL_GPUStorageTextureReadWriteBinding *storageTextureBindings,
++    Uint32 numStorageTextureBindings,
++    const SDL_GPUStorageBufferReadWriteBinding *storageBufferBindings,
++    Uint32 numStorageBufferBindings)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12_BeginComputePass__ncmm_probe_impl(commandBuffer, storageTextureBindings, numStorageTextureBindings, storageBufferBindings, numStorageBufferBindings);
++    NCMMRecordProbe("D3D12_BeginComputePass", ncmm_begin, false);
++}
++static void D3D12_BeginComputePass__ncmm_probe_impl(
+     SDL_GPUCommandBuffer *commandBuffer,
+     const SDL_GPUStorageTextureReadWriteBinding *storageTextureBindings,
+     Uint32 numStorageTextureBindings,
+@@ -5692,7 +5989,16 @@
+         length);
+ }
+ 
++static void D3D12_INTERNAL_BindComputeResources__ncmm_probe_impl(
++    D3D12CommandBuffer *commandBuffer);
+ static void D3D12_INTERNAL_BindComputeResources(
++    D3D12CommandBuffer *commandBuffer)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12_INTERNAL_BindComputeResources__ncmm_probe_impl(commandBuffer);
++    NCMMRecordProbe("D3D12_INTERNAL_BindComputeResources", ncmm_begin, false);
++}
++static void D3D12_INTERNAL_BindComputeResources__ncmm_probe_impl(
+     D3D12CommandBuffer *commandBuffer)
+ {
+     D3D12ComputePipeline *computePipeline = commandBuffer->currentComputePipeline;
+@@ -5834,7 +6140,16 @@
+     D3D12_INTERNAL_TrackBuffer(d3d12CommandBuffer, d3d12Buffer);
+ }
+ 
++static void D3D12_EndComputePass__ncmm_probe_impl(
++    SDL_GPUCommandBuffer *commandBuffer);
+ static void D3D12_EndComputePass(
++    SDL_GPUCommandBuffer *commandBuffer)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12_EndComputePass__ncmm_probe_impl(commandBuffer);
++    NCMMRecordProbe("D3D12_EndComputePass", ncmm_begin, false);
++}
++static void D3D12_EndComputePass__ncmm_probe_impl(
+     SDL_GPUCommandBuffer *commandBuffer)
+ {
+     D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
+@@ -6549,7 +6864,18 @@
+     D3D12_INTERNAL_TrackTexture(d3d12CommandBuffer, container->activeTexture);
+ }
+ 
++static void D3D12_Blit__ncmm_probe_impl(
++    SDL_GPUCommandBuffer *commandBuffer,
++    const SDL_GPUBlitInfo *info);
+ static void D3D12_Blit(
++    SDL_GPUCommandBuffer *commandBuffer,
++    const SDL_GPUBlitInfo *info)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    D3D12_Blit__ncmm_probe_impl(commandBuffer, info);
++    NCMMRecordProbe("D3D12_Blit", ncmm_begin, false);
++}
++static void D3D12_Blit__ncmm_probe_impl(
+     SDL_GPUCommandBuffer *commandBuffer,
+     const SDL_GPUBlitInfo *info)
+ {
+@@ -7491,7 +7817,17 @@
+     return commandBuffer;
+ }
+ 
+-static SDL_GPUCommandBuffer *D3D12_AcquireCommandBuffer(
++static SDL_GPUCommandBuffer * D3D12_AcquireCommandBuffer__ncmm_probe_impl(
++    SDL_GPURenderer *driverData);
++static SDL_GPUCommandBuffer * D3D12_AcquireCommandBuffer(
++    SDL_GPURenderer *driverData)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    SDL_GPUCommandBuffer * ncmm_result = D3D12_AcquireCommandBuffer__ncmm_probe_impl(driverData);
++    NCMMRecordProbe("D3D12_AcquireCommandBuffer", ncmm_begin, true);
++    return ncmm_result;
++}
++static SDL_GPUCommandBuffer * D3D12_AcquireCommandBuffer__ncmm_probe_impl(
+     SDL_GPURenderer *driverData)
+ {
+     D3D12Renderer *renderer = (D3D12Renderer *)driverData;
+@@ -7941,7 +8277,17 @@
+     return true;
+ }
+ 
++static bool D3D12_Submit__ncmm_probe_impl(
++    SDL_GPUCommandBuffer *commandBuffer);
+ static bool D3D12_Submit(
++    SDL_GPUCommandBuffer *commandBuffer)
++{
++    const Uint64 ncmm_begin = SDL_GetPerformanceCounter();
++    bool ncmm_result = D3D12_Submit__ncmm_probe_impl(commandBuffer);
++    NCMMRecordProbe("D3D12_Submit", ncmm_begin, true);
++    return ncmm_result;
++}
++static bool D3D12_Submit__ncmm_probe_impl(
+     SDL_GPUCommandBuffer *commandBuffer)
+ {
+     D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;

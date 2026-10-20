@@ -78,6 +78,7 @@
             graphics_mouse_dx=std::remainder(-ncmm_graphics_camera::pi*.5f-graphics_camera_yaw,2*ncmm_graphics_camera::pi)/.003f;
             graphics_mouse_dy=(graphics_camera_pitch+.08f)/.003f;require(graphics_action("ncmm.view.mouse_look"),"movement_camera_failed");graphics_mouse_dx=graphics_mouse_dy=0;
             get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);refresh();
+            std::vector<uint64_t> diagnostic_qpc_begin,diagnostic_qpc_end;
             std::vector<double> frame_ms,visibility_ms,first_ms,first_frame_ms,easing_ms,cold_turn_ms,warm_turn_ms;
             std::vector<double> geometry_ms,resource_ms;std::vector<uint64_t> range_evaluations,range_hits,ray_hits,ray_misses,geometry_hits,geometry_misses,roof_misses,source_misses,geometry_revisions,material_evaluations,material_hits;
             std::vector<double> native_tiles_ms,perspective_ms,present_ms,unattributed_ms,extract_ms,callback_ms,upload_ms,record_ms,submit_ms;
@@ -99,7 +100,7 @@
             std::vector<uint64_t> snapshot_growths,snapshot_reuses,snapshot_retained_bytes,snapshot_candidates;
             uint32_t actual_width=0,actual_height=0,attacks=0;
             uint64_t source_oracle_cells=0,field_oracle_cases=0;
-            auto render=[&](bool measured){const auto begin=clock::now();const auto pos=you.pos_abs();const auto moves=you.get_moves();
+            auto render=[&](bool measured){const uint64_t diagnostic_begin=SDL_GetPerformanceCounter();const auto begin=clock::now();const auto pos=you.pos_abs();const auto moves=you.get_moves();
                 const double thread_begin=extended?ncmm_graphics_performance::thread_cpu_seconds():-1;
                 const double process_begin=extended?ncmm_graphics_performance::cpu_seconds():0;
                 if(extended){graphics_sprite_readbacks.attempts=0;graphics_sprite_readbacks.ms=0;}
@@ -120,7 +121,8 @@
                 const double thread_end=extended?ncmm_graphics_performance::thread_cpu_seconds():-1;
                 const double process_end=extended?ncmm_graphics_performance::cpu_seconds():0;
                 require(you.pos_abs()==pos&&you.get_moves()==moves&&calendar::turn==original_time,"movement_renderer_changed_simulation");
-                if(measured){const double wall=elapsed(begin);const double accounted=native_tiles_wall+perspective_wall+present_wall;
+                if(measured){const uint64_t diagnostic_end=SDL_GetPerformanceCounter();const double wall=elapsed(begin);
+                    diagnostic_qpc_begin.push_back(diagnostic_begin);diagnostic_qpc_end.push_back(diagnostic_end);const double accounted=native_tiles_wall+perspective_wall+present_wall;
                     require(accounted<=wall+.001,"movement_phase_accounting_overlaps");
                     frame_ms.push_back(wall);native_tiles_ms.push_back(native_tiles_wall);perspective_ms.push_back(perspective_wall);present_ms.push_back(present_wall);unattributed_ms.push_back(std::max(0.0,wall-accounted));
                     extract_ms.push_back(graphics_snapshot_ms);callback_ms.push_back(graphics_callback_ms);visibility_ms.push_back(graphics_world_metrics.visibility_ms);renderers.push_back(graphics_gpu_frame?1u:0u);cache_peak=std::max(cache_peak,graphics_world_metrics.source_cache_bytes);
@@ -212,6 +214,8 @@
             report.member("native_window_size_available",window_size_available);report.member("native_window_pixel_width",window_width);report.member("native_window_pixel_height",window_height);
             report.member("window_display_scale",SDL_GetWindowDisplayScale(get_sdl_window()));report.member("sdl_runtime_version",SDL_GetVersion());
             report.member("tileset",get_option<std::string>("TILES"));
+            report.member("diagnostic_qpc_observer",true);report.member("diagnostic_ordinary_performance_accepted",false);
+            report.member("diagnostic_qpc_frequency",SDL_GetPerformanceFrequency());report.member("diagnostic_frame_qpc_begin",diagnostic_qpc_begin);report.member("diagnostic_frame_qpc_end",diagnostic_qpc_end);
             report.member("native_steps",steps);report.member("source_facts_oracle_checked",source_oracle_cells>0);report.member("source_facts_oracle_cells",source_oracle_cells);report.member("field_mutations_oracle_checked",field_oracle_cases>0);report.member("field_mutations_oracle_cases",field_oracle_cases);report.member("first_ready_samples_ms",first_ms);report.member("easing_frame_samples_ms",easing_ms);report.member("frame_samples_ms",frame_ms);report.member("visibility_samples_ms",visibility_ms);report.member("frame_renderers_gpu",renderers);
             if(extended){report.member("extended_matrix",true);report.member("internal_width",actual_width);report.member("internal_height",actual_height);report.member("native_confirmed_attacks",attacks);report.member("native_weather_id",get_weather().weather_id.str());
                 report.member("thread_cpu_available",thread_cpu_available);if(thread_cpu_available)report.member("frame_thread_cpu_samples_ms",thread_cpu_ms);
