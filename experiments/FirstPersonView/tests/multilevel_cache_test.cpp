@@ -1,9 +1,66 @@
 #include "ncmm_world_cache.hpp"
+#include "ncmm_graphics_invalidation.hpp"
 #include <iostream>
+#include <map>
 #include <stdexcept>
+#include <thread>
 int main(){try{
-    using namespace ncmm_world;source_cache cache;int reads=0,checks=0;
+    using namespace ncmm_world;source_cache cache;int source_reads=0,checks=0;
     auto check=[&](bool v){++checks;if(!v)throw std::runtime_error("source cache invariant");};
+    {
+        int identities[2]{};
+        const auto *a=reinterpret_cast<const map *>(&identities[0]);
+        const auto *b=reinterpret_cast<const map *>(&identities[1]);
+        check(!ncmm::graphics_native_cache_reset::contains(a,0));
+        {
+            const ncmm::graphics_native_cache_reset outer(a,0);
+            check(ncmm::graphics_native_cache_reset::contains(a,0));
+            check(!ncmm::graphics_native_cache_reset::contains(a,1)&&!ncmm::graphics_native_cache_reset::contains(b,0));
+            {const ncmm::graphics_native_cache_reset inner(b,1);check(ncmm::graphics_native_cache_reset::contains(b,1)&&!ncmm::graphics_native_cache_reset::contains(a,0));}
+            check(ncmm::graphics_native_cache_reset::contains(a,0));
+            bool isolated=false;
+            std::thread worker([&]{const ncmm::graphics_native_cache_reset other(b,1);isolated=ncmm::graphics_native_cache_reset::contains(b,1)&&!ncmm::graphics_native_cache_reset::contains(a,0);});
+            worker.join();check(isolated&&ncmm::graphics_native_cache_reset::contains(a,0));
+            try{const ncmm::graphics_native_cache_reset nested(b,2);throw 1;}catch(int){}
+            check(ncmm::graphics_native_cache_reset::contains(a,0)&&!ncmm::graphics_native_cache_reset::contains(b,2));
+        }
+        check(!ncmm::graphics_native_cache_reset::contains(a,0));
+    }
+    {
+        source_cache region;std::map<std::tuple<int,int,int>,uint32_t> changes;
+        auto native=[&](int x,int y,int z){auto found=changes.find({x,y,z});return found==changes.end()?uint32_t((x*3+y*5+z*7)&1023):found->second;};
+        int ox=1000000,oy=-1000000;uint64_t revision=7;int native_reads=0,ray_reads=0;
+        auto draw=[&](){
+            check(region.prepare(ox,oy,-1,1,9,7,1));
+            for(int z=-1;z<=1;++z)for(int y=oy;y<oy+7;++y)for(int x=ox;x<ox+9;++x){
+                check(region.get(x,y,z,revision,[&]{++native_reads;return native(x,y,z);})==native(x,y,z));
+                check(region.visibility(x,y,z,revision,[&]{++ray_reads;return uint16_t(native(x,y,z)&1023);})==uint16_t(native(x,y,z)&1023));
+            }
+            size_t checked=0;check(region.verify_cached([&](int){return revision;},native,checked)&&checked==189);
+        };
+        draw();check(native_reads==189&&ray_reads==189);
+        changes[{ox+3,oy+2,0}]=777;
+        size_t checked=0;check(!region.verify_cached([&](int){return revision;},native,checked)&&checked>0);
+        region.invalidate(ox+3,oy+2,0,1,1);
+        native_reads=ray_reads=0;draw();check(native_reads==1&&ray_reads==1);
+        uint32_t random=0x42536177u;auto next=[&](){random=random*1664525u+1013904223u;return random;};
+        for(int move=0;move<64;++move){
+            ox+=int(next()%5)-2;oy+=int(next()%5)-2;draw();
+            const int left=ox+int(next()%13)-3,top=oy+int(next()%11)-3,z=int(next()%3)-1;
+            const int w=1+int(next()%5),h=1+int(next()%4);
+            for(int y=top;y<top+h;++y)for(int x=left;x<left+w;++x)changes[{x,y,z}]=uint32_t(100+move);
+            region.invalidate(left,top,z,w,h);native_reads=ray_reads=0;draw();
+            const int overlap=std::max(0,std::min(ox+9,left+w)-std::max(ox,left))*std::max(0,std::min(oy+7,top+h)-std::max(oy,top));
+            check(native_reads==overlap&&ray_reads==overlap);
+        }
+        region.invalidate(INT32_MAX,INT32_MAX,0,INT32_MAX,INT32_MAX);
+        region.invalidate(INT32_MIN,INT32_MIN,0,INT32_MAX,INT32_MAX);
+        region.invalidate(ox,oy,128,9,7);native_reads=ray_reads=0;draw();check(native_reads==0&&ray_reads==0);
+        ++revision;native_reads=ray_reads=0;draw();check(native_reads==189&&ray_reads==189);
+        region.invalidate(ox,oy,0,0,1);native_reads=ray_reads=0;draw();check(native_reads==189&&ray_reads==189);
+        source_cache empty;checked=42;
+        check(empty.verify_cached([](int){return uint64_t(1);},[](int,int,int){throw std::runtime_error("empty native oracle");return 0u;},checked)&&checked==0);
+    }
     {
         geometry_cache memo;check(memo.prepare(1000000,-1000000,-2,3,17,17,1));int calls=0;
         auto facts=[](voxel p){return uint32_t((p.x==9&&p.y!=8?NCMM_WORLD_OPAQUE:0)|((p.z<=0||((p.x+p.y)%7==0))?NCMM_WORLD_FLOOR:0)|(p.x==4&&p.y==4?opaque_field_fact:0));};
@@ -44,6 +101,16 @@ int main(){try{
             check(materials.get(terrain,furniture,normal,[&]{++calls;return expected;})==expected);
         }
         check(calls==12&&materials.evaluations==12&&materials.hits==119988);
+        // These opaque identities collide in the original single-slot hash.
+        // Repeated native definitions must coexist despite address placement.
+        const std::array<std::uintptr_t,9> aliases={0x8f0,0xb40,0x20d0,0x2320,0x2640,0x27f0,0x38b0,0x3e20,0x3fd0};
+        material_semantics_cache clustered;int clustered_reads=0;
+        for(int n=0;n<40000;++n){const auto id=aliases[size_t(n)%8];const auto expected=uint32_t(id*13+71);
+            check(clustered.get(id,32,false,[&]{++clustered_reads;return expected;})==expected);}
+        if(clustered_reads!=8)throw std::runtime_error("colliding material definitions are repeatedly recomputed");
+        check(clustered.evaluations==8&&clustered.hits==39992&&sizeof(clustered)<=9216);
+        for(int n=0;n<20000;++n){const auto id=aliases[size_t(n)%aliases.size()];const auto expected=uint32_t(id*13+71);
+            check(clustered.get(id,32,false,[&]{return expected;})==expected);}
         material_semantics_cache collisions;
         for(int n=0;n<4096;++n){const std::uintptr_t terrain=(std::uintptr_t(n)<<12)|16;
             check(collisions.get(terrain,32,false,[&]{return uint32_t(n+1000);})==uint32_t(n+1000));}
@@ -58,6 +125,14 @@ int main(){try{
         for(int n=0;n<120000;++n){const std::uintptr_t identity=16;
             check(shapes.get(identity,[&]{++calls;return uint32_t(identity*13);})==uint32_t(identity*13));}
         check(calls==1&&shapes.evaluations==1&&shapes.hits==119999);
+        const std::array<std::uintptr_t,9> aliases={0x120,0x1770,0x2000,0x2360,0x3650,0x39b0,0x4240,0x5890,0x5bf0};
+        definition_cache clustered;int clustered_reads=0;
+        for(int n=0;n<40000;++n){const auto id=aliases[size_t(n)%8];const auto expected=uint32_t(id*17+19);
+            check(clustered.get(id,[&]{++clustered_reads;return expected;})==expected);}
+        if(clustered_reads!=8)throw std::runtime_error("colliding shape definitions are repeatedly recomputed");
+        check(clustered.evaluations==8&&clustered.hits==39992&&sizeof(clustered)<=6144);
+        for(int n=0;n<20000;++n){const auto id=aliases[size_t(n)%aliases.size()];const auto expected=uint32_t(id*17+19);
+            check(clustered.get(id,[&]{return expected;})==expected);}
         // Force direct-map collisions and a reused address in the next draw.
         definition_cache collisions;
         for(std::uintptr_t n=0;n<8192;++n)check(collisions.get(n,[&]{return uint32_t(n+731);})==uint32_t(n+731));
@@ -161,16 +236,16 @@ int main(){try{
     }
     check(cache.prepare(1000000,-1000000,-4,4,3,3,1));
     for(int z=-4;z<=4;++z)for(int y=0;y<3;++y)for(int x=0;x<3;++x){const uint32_t expected=uint32_t((z+4)*9+y*3+x);
-        check(cache.get(1000000+x,-1000000+y,z,1,[&]{++reads;return expected;})==expected);}
-    check(reads==81);
+        check(cache.get(1000000+x,-1000000+y,z,1,[&]{++source_reads;return expected;})==expected);}
+    check(source_reads==81);
     check(cache.prepare(1000001,-1000000,-4,4,3,3,1));
     for(int z=-4;z<=4;++z)for(int y=0;y<3;++y)for(int x=1;x<4;++x){const uint32_t expected=uint32_t((z+4)*9+y*3+x);
-        check(cache.get(1000000+x,-1000000+y,z,1,[&]{++reads;return expected;})==expected);}
-    check(reads==108); // 54 canonical cells reused, only the new strip read.
-    check(cache.get(1000001,-1000000,0,2,[&]{++reads;return 999u;})==999);
+        check(cache.get(1000000+x,-1000000+y,z,1,[&]{++source_reads;return expected;})==expected);}
+    check(source_reads==108); // 54 canonical cells reused, only the new strip read.
+    check(cache.get(1000001,-1000000,0,2,[&]{++source_reads;return 999u;})==999);
     const auto topology=cache.topology_revision;
-    check(cache.get(1000001,-1000000,0,3,[&]{++reads;return 999u;})==999&&cache.topology_revision==topology);
-    check(cache.get(1000001,-1000000,0,4,[&]{++reads;return 998u;})==998&&cache.topology_revision==topology+1);
+    check(cache.get(1000001,-1000000,0,3,[&]{++source_reads;return 999u;})==999&&cache.topology_revision==topology);
+    check(cache.get(1000001,-1000000,0,4,[&]{++source_reads;return 998u;})==998&&cache.topology_revision==topology+1);
     check(cache.get(1000001,-1000000,-1,1,[&]{throw std::runtime_error("other floor invalidated");return 0u;})!=999);
     int face_mask_reads=0;check(cache.visibility(1000001,-1000000,0,77,[&]{++face_mask_reads;return uint16_t(0x3ff);})==0x3ff);
     check(cache.visibility(1000001,-1000000,0,77,[&]{++face_mask_reads;return uint16_t(0);})==0x3ff&&face_mask_reads==1);
@@ -178,7 +253,7 @@ int main(){try{
     check(cache.visibility(1000001,-1000000,0,1,[&]{++rays;return uint8_t(0);})==7&&rays==1);
     check(cache.visibility(1000001,-1000000,0,2,[&]{++rays;return uint8_t(0);})==0&&rays==2);
     check(cache.prepare(1000001,-1000000,-4,4,3,3,2));
-    check(cache.get(1000001,-1000000,0,1,[&]{++reads;return 42u;})==42); // dimensions cannot share data by Z.
+    check(cache.get(1000001,-1000000,0,1,[&]{++source_reads;return 42u;})==42); // dimensions cannot share data by Z.
     check(cache.get(INT32_MIN,INT32_MAX,0,1,[]{throw std::runtime_error("out of bounds read");return 0u;})&NCMM_WORLD_UNKNOWN);
     check(cache.prepare(0,0,-10,10,97,97,3));check(cache.bytes()<8u*1024u*1024u);
     check(!cache.prepare(0,0,0,32,97,97,3));check(!cache.prepare(0,0,INT32_MIN,INT32_MAX,3,3,3));

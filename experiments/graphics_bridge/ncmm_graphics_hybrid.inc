@@ -307,7 +307,7 @@ ncmm_graphics_shapes::traits graphics_traits( const map_data_common_t &t, bool o
 
 // Physical terrain adjacency is independent of sparse snapshot/FOV membership.
 // The four bits also retain corners and T junctions which a single axis loses.
-uint32_t graphics_structure_connections(const tripoint_bub_ms &p,uint32_t shape,uint32_t &orientation)
+template<class Shape> uint32_t graphics_structure_connections(const tripoint_bub_ms &p,uint32_t shape,uint32_t &orientation,Shape shape_of)
 {
     switch(shape){
         case NCMM_SHAPE_DOOR_CLOSED:case NCMM_SHAPE_DOOR_OPEN:case NCMM_SHAPE_DOOR_FRAME:
@@ -322,7 +322,7 @@ uint32_t graphics_structure_connections(const tripoint_bub_ms &p,uint32_t shape,
         const tripoint_bub_ms next(p.x()+dx,p.y()+dy,p.z());
         if(!get_map().ncmm_graphics_loaded(next))continue;
         const auto &ter=get_map().ter(next).obj();
-        const auto other=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
+        const auto other=shape_of(ter);
         const bool connected=ncmm_graphics_shapes::fence_shape(shape)?
             (ncmm_graphics_shapes::fence_shape(other)||other==NCMM_SHAPE_WALL):
             ncmm_graphics_shapes::structural_surface(other);
@@ -368,7 +368,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
                 // Opaque furniture/gas in this voxel is not an opaque window
                 // panel. The terrain itself owns its opening and cover state.
                 d.terrain_flags=ter.transparent?uint32_t(NCMM_SURFACE_TRANSPARENT):0u;
-                d.terrain_flags|=graphics_structure_connections(p,d.terrain_shape,d.orientation);
+                d.terrain_flags|=graphics_structure_connections(p,d.terrain_shape,d.orientation,terrain_shape);
                 copy_id(d.ground,"t_floor");
             }
             continue;
@@ -384,7 +384,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         d.furniture_shape = furniture_shape(furn);
         ++graphics_hybrid_shape_counts[d.terrain_shape];
         if( here.has_furn( p ) ) ++graphics_hybrid_shape_counts[d.furniture_shape];
-        d.terrain_flags|=graphics_structure_connections(p,d.terrain_shape,d.orientation);
+        d.terrain_flags|=graphics_structure_connections(p,d.terrain_shape,d.orientation,terrain_shape);
         if( !ncmm_graphics_shapes::vertical( d.terrain_shape ) ) copy_id( d.ground, ter.id.str() );
         else copy_id( d.ground, d.terrain_shape == NCMM_SHAPE_TREE || d.terrain_shape == NCMM_SHAPE_SHRUB || d.terrain_shape == NCMM_SHAPE_PLANT ? "t_dirt" : "t_floor" );
         const float raw = std::max( 0.0f, here.ambient_light_at( p ) );
