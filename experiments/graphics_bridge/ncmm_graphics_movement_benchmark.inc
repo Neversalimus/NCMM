@@ -23,12 +23,11 @@
     require(!full_size_gpu_matrix||extended,"full_size_gpu_matrix_requires_extended");
     struct readback_profile_guard {bool previous;~readback_profile_guard(){graphics_sprite_readbacks.enabled=previous;}} readback_guard{graphics_sprite_readbacks.enabled};
     graphics_sprite_readbacks.enabled=extended;
-    // The existing isolated cached-vs-Native verification also compares every
-    // new CPU source crop against the original GPU sprite path. Ordinary frame
-    // measurements never enable this additional readback or equality check.
-    const char *atlas_verify=std::getenv("NCMM_FP_CAMERA_CACHE_VERIFY");
+    // Short functional/source-oracle runs compare every new CPU source crop
+    // with the original GPU path. Core has no camera-cache diagnostic option;
+    // ordinary Extended timings cannot inherit such a flag from the caller.
     struct atlas_verify_guard {bool prior;~atlas_verify_guard(){graphics_native_atlas_verify=prior;}} atlas_guard{graphics_native_atlas_verify};
-    graphics_native_atlas_verify=atlas_verify&&std::string(atlas_verify)=="1";
+    graphics_native_atlas_verify=!extended;
     graphics_native_atlas_verified=graphics_native_atlas_mismatches=0;
     const int steps=extended?64:12,rotations=extended?96:48;
     const auto benchmark_weather=get_weather().weather_id;
