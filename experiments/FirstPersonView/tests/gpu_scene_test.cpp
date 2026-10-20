@@ -40,6 +40,20 @@ int main(int argc,char **argv){
     auto *device=SDL_CreateGPUDeviceWithProperties(gpu_properties);SDL_DestroyProperties(gpu_properties);require(device!=nullptr,"real GPU API device; fallback prohibited");
     auto *renderer=SDL_CreateGPURenderer(device,window);require(renderer!=nullptr,"shared SDL renderer");
     auto *ui=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_ABGR8888,SDL_TEXTUREACCESS_TARGET,640,480);require(ui&&SDL_SetRenderTarget(renderer,ui),"SDL UI target");
+    // An owned signalled fence remains valid while command buffers are reused.
+    // The initial fixture wait is not part of the ordinary renderer path.
+    {
+        auto *device=SDL_GetGPURendererDevice(renderer);
+        auto *commands=SDL_AcquireGPUCommandBuffer(device);require(commands!=nullptr,"acquire fence lifetime fixture");
+        auto *fence=SDL_SubmitGPUCommandBufferAndAcquireFence(commands);require(fence!=nullptr,"own fixture fence");
+        require(SDL_WaitForGPUFences(device,true,&fence,1)&&SDL_QueryGPUFence(device,fence),"fixture fence completes");
+        for(int reuse=0;reuse<64;++reuse){
+            commands=SDL_AcquireGPUCommandBuffer(device);require(commands&&SDL_SubmitGPUCommandBuffer(commands),"reuse command-buffer pool independently");
+            require(SDL_QueryGPUFence(device,fence)&&SDL_WaitForGPUFences(device,true,&fence,1)&&SDL_QueryGPUFence(device,fence),
+                "owned completed fence survives repeated SDK cleanup and command-buffer reuse");
+        }
+        SDL_ReleaseGPUFence(device,fence);
+    }
     ncmm_gpu::backend engine;require(engine.bind(renderer,1),"borrow existing device");engine.profile();
     ncmm_gpu_scene_v1 scene{};scene.struct_size=sizeof(scene);scene.width=640;scene.height=480;scene.mode=NCMM_GPU_FORCE;scene.frame_serial=1;
     auto &camera=scene.camera;camera.right[0]=1;camera.up[2]=1;camera.forward[1]=1;camera.projection[0]=640;camera.projection[1]=480;camera.projection[2]=457;camera.projection[3]=512;
@@ -71,8 +85,13 @@ int main(int argc,char **argv){
     auto center=capture("-near");require((center>>24)>120&&((center>>16)&255)<20,"near red wins over later far green in full pipeline");
     require(first.draw_calls==4,"dry scene bypasses empty volume and post-composition passes");
     auto completed=engine.metrics();require(completed.completed_frame_serial>=1&&completed.visible_creature_pixels>1000,"fenced small GPU visibility counter");
+    require(engine.recording().retirement_calls==0,"initial frame has no completed resources to retire");
+    for(int i=0;i<8;++i)require(engine.metrics().completed_frame_serial>=1&&engine.recording().retirement_calls==0,
+        "asynchronous metrics never retire resources outside a submission");
     scene.mesh_count=0;scene.meshes=nullptr;scene.frame_serial=2;bones[1].columns[12]=5;
     require(engine.submit(scene),engine.metrics().reason);auto second=engine.metrics();require(second.active&&second.generated_meshes==0&&second.upload_bytes<1024,"only dynamic data uploaded for skeletal animation");
+    require(engine.recording().retirement_calls==1,"next submission retires completed resources once");
+    for(int i=0;i<8;++i){engine.metrics();require(engine.recording().retirement_calls==1,"metrics cannot hide more retirement work");}
     require(engine.resources().static_upload_bytes()==0,"warm skeletal animation uploads no immutable resources");
     require(second.upload_bytes+116==first.upload_bytes-first_static_upload,"unchanged cells and neutral texture are not uploaded for bone animation");
     require(engine.recording().cell_upload_bytes==0,"warm bone updates retain the unchanged source-cell buffer");
@@ -87,6 +106,7 @@ int main(int argc,char **argv){
         require(engine.submit(scene),engine.metrics().reason);
         require(engine.metrics().upload_bytes==second.upload_bytes,"queued poses preserve the immutable neutral texture");
         require(engine.recording().frame_upload_creations==staging_creations,"queued poses retain one staging object");
+        require(engine.recording().retirement_calls==1,"retained completed fence permits one cleanup even when newer readbacks are pending");
         SDL_FRect slot{float(frame%4*160),float(frame/4*120),160,120};
         require(SDL_RenderTexture(renderer,engine.output(),nullptr,&slot),"queue a distinct pose snapshot");
     }
