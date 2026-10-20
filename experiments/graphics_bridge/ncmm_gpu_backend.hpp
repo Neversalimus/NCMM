@@ -84,8 +84,9 @@ class backend {
     void poll(){auto *device=context_.device();if(!device)return;
         for(auto &r:readbacks_)if(r.fence&&SDL_QueryGPUFence(device,r.fence)){auto *data=static_cast<uint32_t *>(SDL_MapGPUTransferBuffer(device,r.transfer,false));
             if(data){if(r.generation==readback_generation_&&r.serial>=metrics_.completed_frame_serial){metrics_.visible_creature_pixels=data[0];metrics_.completed_frame_serial=r.serial;}SDL_UnmapGPUTransferBuffer(device,r.transfer);}
-            // Readback queries stay asynchronous. Retain one completed fence
-            // until submit can retire finished resources before new allocations.
+            // Readback queries stay asynchronous. Keep one owned completed
+            // fence until lifecycle reset so the existing submit cleanup can
+            // reclaim other finished work even without a new ready readback.
             if(!completed_retirement_)completed_retirement_=r.fence;
             else SDL_ReleaseGPUFence(device,r.fence);
             r.fence=nullptr;}}
@@ -224,8 +225,9 @@ public:
             // before cycling buffers/textures. Never wait for unfinished work.
             const bool ok=SDL_QueryGPUFence(context_.device(),completed_retirement_)&&SDL_WaitForGPUFences(context_.device(),true,&completed_retirement_,1);
             if(profiling_){recording_.retirement_ms+=ms(begin);++recording_.retirement_calls;}
-            SDL_ReleaseGPUFence(context_.device(),completed_retirement_);completed_retirement_=nullptr;
-            if(!ok){context_.fail("completed GPU resource retirement");reason(context_.reason());metrics_.active=0;retirement_failed_=true;return false;}}
+            // Keep the signalled fence; never wait on an unfinished fence.
+            if(!ok){SDL_ReleaseGPUFence(context_.device(),completed_retirement_);completed_retirement_=nullptr;
+                context_.fail("completed GPU resource retirement");reason(context_.reason());metrics_.active=0;retirement_failed_=true;return false;}}
         readback *read=nullptr;for(auto &r:readbacks_)if(!r.fence){read=&r;break;}
         if(read&&!read->transfer){SDL_GPUTransferBufferCreateInfo info{};info.usage=SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;info.size=64;read->transfer=SDL_CreateGPUTransferBuffer(context_.device(),&info);if(!read->transfer)read=nullptr;}
         const bool initialize_white=!white_ready_;

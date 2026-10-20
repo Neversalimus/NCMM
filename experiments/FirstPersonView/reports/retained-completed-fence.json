@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "created_utc": "2026-10-20T09:24:38.357619+00:00",
+  "parent": "4147ec2cc6d2f8d4010f89460eeea9d9a243dbb6",
+  "runtime_parent": "daecb21f6051cd4eb08558ed4cd6fbb3098f4213",
+  "performance_accepted": false,
+  "actual_native_tested": false,
+  "exact_other_backend_recovered": true,
+  "existing_query_and_wait_body_preserved": true,
+  "no_new_poll_wait_or_cleanup_callsite": true,
+  "dynamic_cleanup_calls_now_once_per_submit_after_first_completed_fence": true,
+  "retained_owned_fences_maximum": 1,
+  "release_on_error_and_lifecycle_reset": true,
+  "production_sdk_unchanged": true,
+  "shader_abi_quality_and_render_commands_unchanged": true,
+  "backend_sha256": "5a5b8e301a493ae4bab9b69e400ef3ad2776776a0226cb61e8a2d9f15df84ad0",
+  "gpu_scene_test_sha256": "95cd69ffbb32d11167da2f3ef77e87c06da8abbc3e0cf0c336a600283f23fc93",
+  "sdk_manifest_sha256": "4510d96c09bbc863570ccbb051f47f75d561ec0d5d05d8a4f50c79ce889993b0",
+  "local_atomic_tests": 12,
+  "local_policy_tests": 8,
+  "local_gpu_tests_pending": true,
+  "gpu_test_deferred_for_active_sdk_diagnostic_controller": 34698,
+  "evidence_sha256": "0f5787558526c09973f56fad8284b0e3cda91579ce4bc5a9946280dd0de8ab7a",
+  "hypothesis": "Both failedDAE street peaks recordzero cleanup calls. The sole completed fence was previously released after one cleanup; without a new completed readback the next cleanup was skipped. Retain one already-signalled owned fence so the same guarded call can reclaim any other completed SDK work each submit. No unfinished fence wait, GPU idle, SDK change, cycling disable, ring or prewarm.",
+  "docs": [
+    "https://wiki.libsdl.org/SDL3/SDL_WaitForGPUFences",
+    "https://wiki.libsdl.org/SDL3/SDL_ReleaseGPUFence",
+    "https://wiki.libsdl.org/SDL3/SDL_QueryGPUFence"
+  ]
+}
