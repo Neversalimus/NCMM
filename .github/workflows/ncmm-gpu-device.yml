@@ -116,7 +116,7 @@ jobs:
           from pathlib import Path
           import hashlib,json
           files={
-            'experiments/FirstPersonView/CMakeLists.txt':'07f6577a6f0de1204913d9279f0d85e074bf784e8e1ad808274128b86aab6907',
+            'experiments/FirstPersonView/CMakeLists.txt':'800746b044811fc68e1279c6a5a93bcd846ddbe9280b6318edaedf1a5ea80e8a',
             'experiments/FirstPersonView/tests/gpu_resource_failure_test.cpp':'d1f3ca167b1639d8be40ec0dcff5d43ae612ff0baf89fe003fc1532418160597',
             'experiments/FirstPersonView/tests/gpu_vertex_lease_edge_test.cpp':'f4d63a3d214af23d48000bd919da261a946c7f55c30720ef9f5bd41a35cb4a0b',
             'experiments/graphics_bridge/ncmm_gpu_resources.hpp':'023100f2d67d8cf21c1aa6fb20ed4d812ca85909b08ea97b627a4316432d1e8c',
@@ -154,6 +154,27 @@ jobs:
           cmake --build vertex-asan --parallel 2 --target first_person_gpu_scene_tests
           cd vertex-asan
           ./first_person_gpu_scene_tests gpu-scene-lsan-context > lsan-context-run.log 2>&1
+      - name: Independent SDL device and rectangle controls with all-driver and exact-lvp discovery
+        if: always()
+        run: |
+          cmake --build vertex-asan --parallel 2 --target sdl_minimal_leak_probe
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,subprocess,json,hashlib
+          manifests=list(Path('/usr/share/vulkan/icd.d').glob('lvp_icd*.json'));assert len(manifests)==1
+          rows=[]
+          for discovery in ('default','lvp-only'):
+              for mode in ('device','render'):
+                  env=os.environ.copy()
+                  env.pop('VK_DRIVER_FILES',None);env.pop('VK_ICD_FILENAMES',None)
+                  if discovery=='lvp-only':env['VK_DRIVER_FILES']=str(manifests[0])
+                  prefix='minimal-'+discovery+'-'+mode
+                  with (Path('vertex-asan')/(prefix+'.log')).open('wb') as out:
+                      result=subprocess.run(['./sdl_minimal_leak_probe',mode,prefix],cwd='vertex-asan',env=env,stdout=out,stderr=subprocess.STDOUT)
+                  rows.append(dict(discovery=discovery,mode=mode,exit=result.returncode,prefix=prefix,asan_options=env['ASAN_OPTIONS'],ubsan_options=env['UBSAN_OPTIONS']))
+          Path('vertex-asan/minimal-controls.json').write_text(json.dumps(dict(diagnostic_only=True,fpv_code_used=False,original_failed_gates_not_waived=True,lvp_manifest=str(manifests[0]),lvp_manifest_sha256=hashlib.sha256(manifests[0].read_bytes()).hexdigest(),runs=rows),indent=2)+'\n')
+          print(json.dumps(rows))
+          PY
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -164,6 +185,7 @@ jobs:
             vertex-asan/Testing/Temporary/LastTest.log
             vertex-asan/CMakeCache.txt
             vertex-asan/lsan-context-*
+            vertex-asan/minimal-*
             vertex-asan/first_person_gpu_scene_tests
             vertex-asan/gpu-scene*
             gpu-shader-bytes.hpp

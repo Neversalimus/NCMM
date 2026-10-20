@@ -121,6 +121,8 @@ set(FIRST_PERSON_GPU_SHADER_HEADER "" CACHE FILEPATH "Compiled SPIR-V/DXIL shade
 if(FIRST_PERSON_BUILD_GPU_TESTS)
   find_package(SDL3 3.4 CONFIG REQUIRED)
   find_package(ZLIB REQUIRED)
+  add_executable(sdl_minimal_leak_probe tests/sdl_minimal_leak_probe.cpp)
+  target_link_libraries(sdl_minimal_leak_probe PRIVATE SDL3::SDL3 first_person_build_options)
   add_executable(first_person_native_atlas_pixels_tests tests/native_atlas_pixels_test.cpp)
   first_person_target(first_person_native_atlas_pixels_tests)
   target_link_libraries(first_person_native_atlas_pixels_tests PRIVATE SDL3::SDL3 ZLIB::ZLIB)
