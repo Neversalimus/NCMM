@@ -29,6 +29,7 @@ class ApplyTests(unittest.TestCase):
         options+='\nvoid options_manager::update_global_locale() { }\n'
         (root/'src/options.cpp').write_text(options)
         (root / "src/creature.h").write_text('#include <array>\nclass Creature {\n    public:\n        ~Creature() override;\n};\n')
+        (root / "src/game.cpp").write_text('#include "game.h"\n'+bridge.REBASE_CACHE_RESET+'\n')
         (root / "src/overmapbuffer.h").write_text("        bool has( const point_abs_om &p );\n")
         (root / "src/map.h").write_text("        int supports_zlevels() const {\n            return zlevels;\n        }\n")
         map_cpp='#include "map.h"\n'
@@ -37,7 +38,7 @@ class ApplyTests(unittest.TestCase):
                           "void map::set_outside_cache_dirty( const int zlev )",
                           "void map::set_floor_cache_dirty( const int zlev )"):
             map_cpp+=signature+"\n{\n}\n"
-        (root / "src/map.cpp").write_text(map_cpp)
+        (root / "src/map.cpp").write_text(map_cpp+bridge.SUBMAP_CACHE_RESET+'\n    current_submap->set_ter( l, new_terrain );\n    current_submap->set_furn( l, new_target_furniture );\n'+'void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type )\n{\n}\n')
         (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n        next_action = inp_mngr.get_input_event( preferred_keyboard_mode );\n    inp_mngr.set_timeout( old_timeout );\n    return *result;\n}\n')
         (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR+'\nstatic void CheckMessages()\n{\n        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n}\n')
         (root / "src/sdl_wrappers.cpp").write_text('#include "sdl_wrappers.h"\nvoid RenderPresent() {\n    printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" );\n}\n')
@@ -79,6 +80,30 @@ bool cata_tiles::draw_sprite_at() {
             with patch.object(bridge.subprocess, "check_output", return_value="a" * 40):
                 with self.assertRaisesRegex(ValueError, "Unqualified"): bridge.apply(root)
             self.assertEqual(before, self.fingerprint(root))
+    def test_changed_submap_cache_reset_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root)
+            target=root/'src/map.cpp';target.write_text(target.read_text().replace('set_pathfinding_cache_dirty( z );','changed_native_cache_reset();'))
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
+    def test_changed_rebase_cache_reset_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root)
+            (root/'src/game.cpp').write_text('#include "game.h"\nchanged_native_cache_reset();')
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
+    def test_missing_field_notification_anchor_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root)
+            target=root/'src/map.cpp';target.write_text(target.read_text().replace('void map::on_field_modified(', 'void changed_field_notification('))
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
     def test_missing_late_anchor_no_partial_patch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); self.fixture(root)
@@ -118,6 +143,8 @@ bool cata_tiles::draw_sprite_at() {
                 self.assertTrue((root / "src/ncmm_graphics_snapshot_cache.hpp").is_file())
                 self.assertIn('ncmm_wait.completed( *result );', (root / "src/input_context.cpp").read_text())
                 self.assertIn('graphics_snapshot_external_callback( module_id );', (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
+                self.assertIn('#include "ncmm_graphics_scratch.hpp"', (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
+                self.assertEqual((root / "src/ncmm_graphics_scratch.hpp").read_bytes(), Path(bridge.__file__).with_name("ncmm_graphics_scratch.hpp").read_bytes())
                 self.assertIn("graphics.creatures.v1", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_note_creature( this, 4 )", (root / "src/monster.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_note_creature( origin, 2", (root / "src/ballistics.cpp").read_text(encoding="utf-8"))

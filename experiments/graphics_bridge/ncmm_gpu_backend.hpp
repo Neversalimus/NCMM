@@ -13,8 +13,10 @@ struct recording_metrics {
     double batching_pick_ms=0,shadow_ms=0,world_ms=0,creature_ms=0,held_ms=0,volume_ms=0,compose_ms=0;
     uint64_t bones=0,held_bones=0,static_upload_bytes=0,dynamic_geometry_bytes=0;
     uint64_t frame_upload_capacity_bytes=0,frame_upload_creations=0;
+    uint64_t static_index_creations=0,static_index_reuses=0,static_index_pool_bytes=0;
     double cell_prepare_ms=0;
     uint64_t cell_upload_bytes=0,cell_cache_bytes=0;
+    double retirement_ms=0;uint64_t retirement_calls=0;
 };
 class backend {
     device_context context_;
@@ -23,12 +25,13 @@ class backend {
     SDL_GPUTexture *world_=nullptr,*id_=nullptr,*held_depth_=nullptr,*effects_=nullptr,*effect_depth_=nullptr,*white_=nullptr;
     SDL_GPUBuffer *instances_=nullptr,*bones_=nullptr,*cells_=nullptr,*shadows_=nullptr,*counter_=nullptr;
     SDL_GPUTransferBuffer *frame_upload_=nullptr;
+    SDL_GPUFence *completed_retirement_=nullptr;
     uint32_t frame_upload_size_=0;uint64_t frame_upload_creations_=0;
     uint32_t instance_size_=0,bone_size_=0,cell_size_=0,shadow_size_=0,width_=0,height_=0;
     uint64_t generation_=0,resource_epoch_=1,world_epoch_=0,last_serial_=0,readback_generation_=1;
     ncmm_gpu_metrics_v1 metrics_{};
     recording_metrics recording_{};
-    bool profiling_=false,white_ready_=false,cells_ready_=false;
+    bool profiling_=false,white_ready_=false,cells_ready_=false,retirement_failed_=false;
     struct readback {SDL_GPUTransferBuffer *transfer=nullptr;SDL_GPUFence *fence=nullptr;uint64_t serial=0,generation=0;};
     std::array<readback,3> readbacks_{};
     struct instance {ncmm_gpu_matrix_v1 world;uint32_t bone_offset,bone_count,cell,reserved;};
@@ -44,6 +47,8 @@ class backend {
     void release_buffers(){auto *d=context_.device();if(d){for(auto *b:{instances_,bones_,cells_,shadows_,counter_})if(b)SDL_ReleaseGPUBuffer(d,b);
             for(auto &r:readbacks_){if(r.fence)SDL_ReleaseGPUFence(d,r.fence);if(r.transfer)SDL_ReleaseGPUTransferBuffer(d,r.transfer);}
             if(frame_upload_)SDL_ReleaseGPUTransferBuffer(d,frame_upload_);}
+        if(d&&completed_retirement_)SDL_ReleaseGPUFence(d,completed_retirement_);
+        completed_retirement_=nullptr;
         instances_=bones_=cells_=shadows_=counter_=nullptr;instance_size_=bone_size_=cell_size_=shadow_size_=0;readbacks_={};
         frame_upload_=nullptr;frame_upload_size_=0;frame_upload_creations_=0;
         std::vector<gpu_cell>{}.swap(cell_snapshot_);cells_ready_=false;}
@@ -82,7 +87,12 @@ class backend {
     void poll(){auto *device=context_.device();if(!device)return;
         for(auto &r:readbacks_)if(r.fence&&SDL_QueryGPUFence(device,r.fence)){auto *data=static_cast<uint32_t *>(SDL_MapGPUTransferBuffer(device,r.transfer,false));
             if(data){if(r.generation==readback_generation_&&r.serial>=metrics_.completed_frame_serial){metrics_.visible_creature_pixels=data[0];metrics_.completed_frame_serial=r.serial;}SDL_UnmapGPUTransferBuffer(device,r.transfer);}
-            SDL_ReleaseGPUFence(device,r.fence);r.fence=nullptr;}}
+            // Readback queries stay asynchronous. Keep one owned completed
+            // fence until lifecycle reset so the existing submit cleanup can
+            // reclaim other finished work even without a new ready readback.
+            if(!completed_retirement_)completed_retirement_=r.fence;
+            else SDL_ReleaseGPUFence(device,r.fence);
+            r.fence=nullptr;}}
     SDL_GPURenderPass *begin(SDL_GPUCommandBuffer *commands,bool held,bool clear){
         SDL_GPUColorTargetInfo colors[2]{};colors[0].texture=world_;colors[1].texture=id_;
         for(auto &c:colors){c.load_op=clear?SDL_GPU_LOADOP_CLEAR:SDL_GPU_LOADOP_LOAD;c.store_op=SDL_GPU_STOREOP_STORE;c.cycle=clear;}
@@ -138,9 +148,9 @@ public:
             if(context_.renderer())SDL_FlushRenderer(context_.renderer());
             SDL_WaitForGPUIdle(context_.device());
         }
-        resources_.clear();programs_.clear();release_targets();release_buffers();context_.clear();recording_={};metrics_.active=0;++resource_epoch_;
+        resources_.clear();programs_.clear();release_targets();release_buffers();context_.clear();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;
     }
-    void abandon(){resources_.abandon();programs_.abandon();context_.abandon();release_targets();release_buffers();recording_={};metrics_.active=0;++resource_epoch_;}
+    void abandon(){resources_.abandon();programs_.abandon();context_.abandon();release_targets();release_buffers();recording_={};retirement_failed_=false;metrics_.active=0;++resource_epoch_;}
     bool bind(SDL_Renderer *renderer,uint64_t generation){if(generation_&&generation_!=generation)abandon();generation_=generation;
         if(!context_.bind(renderer,generation)){reason(context_.reason());metrics_.active=0;return false;}resources_.bind(context_.device());context_.describe(metrics_);return true;}
     bool available(){return context_.device()!=nullptr;}
@@ -152,7 +162,8 @@ public:
         // from an older scene must never describe the new scene's visibility.
         if(world_epoch_!=scene.world_epoch||scene.frame_serial<last_serial_){++readback_generation_;metrics_.completed_frame_serial=metrics_.visible_creature_pixels=0;}
         world_epoch_=scene.world_epoch;last_serial_=scene.frame_serial;
-        poll();auto completed=metrics_.completed_frame_serial,visible=metrics_.visible_creature_pixels;auto software=metrics_.software_device;
+        if(retirement_failed_)return false;
+        auto completed=metrics_.completed_frame_serial,visible=metrics_.visible_creature_pixels;auto software=metrics_.software_device;
         metrics_={};metrics_.struct_size=sizeof(metrics_);metrics_.frame_serial=scene.frame_serial;metrics_.completed_frame_serial=completed;metrics_.visible_creature_pixels=visible;metrics_.software_device=software;metrics_.gpu_ms=-1;metrics_.target_cell=-1;
         metrics_.geometry_ms=scene.geometry_ms;metrics_.generated_cells=scene.generated_cells;metrics_.producer_cache_bytes=scene.producer_cache_bytes;
         context_.describe(metrics_);if(const char *error=validate(scene,world)){reason(error);return false;}
@@ -189,7 +200,8 @@ public:
         if(reserved>=NCMM_GPU_RESOURCE_LIMIT){reason("GPU targets, dynamic buffers, staging and cell snapshot exceed memory budget");return false;}
         auto stage=clock::now();bool ready;
         {ncmm_graphics_trace::cpu_zone resource_zone("Resource Preparation");ready=resources_.prepare(scene,NCMM_GPU_RESOURCE_LIMIT-reserved,metrics_);}metrics_.resource_ms=ms(stage);
-        if(profiling_)recording_.static_upload_bytes=resources_.static_upload_bytes();
+        if(profiling_){recording_.static_upload_bytes=resources_.static_upload_bytes();
+            recording_.static_index_creations=resources_.static_index_creations();recording_.static_index_reuses=resources_.static_index_reuses();recording_.static_index_pool_bytes=resources_.static_index_pool_bytes();}
         // Staging capacity is reported separately; it is not measured VRAM.
         metrics_.resource_bytes=resources_.bytes()+gpu_reserved;metrics_.host_cpu_cache_bytes=resources_.cpu_bytes()+cell_cache_bytes;
         if(!ready){const std::string error=resources_.reason();reason(error);if(error!="warming bounded GPU resource cache"){invalidate();reason(error);}return false;}
@@ -214,6 +226,17 @@ public:
         pick_zone.stop();
         if(profiling_)recording_.batching_pick_ms=ms(batching_start);
         if(!counter_){uint32_t ignored=0;if(!buffer(counter_,ignored,64,SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE)){reason(context_.reason());return false;}}
+        poll();if(retirement_failed_)return false;
+        if(completed_retirement_){
+            const auto begin=profiling_?clock::now():clock::time_point{};
+            // This owned fence was already signalled before poll retained it.
+            // Retire completed command resources here, inside frame recording,
+            // before cycling buffers/textures. Never wait for unfinished work.
+            const bool ok=SDL_QueryGPUFence(context_.device(),completed_retirement_)&&SDL_WaitForGPUFences(context_.device(),true,&completed_retirement_,1);
+            if(profiling_){recording_.retirement_ms+=ms(begin);++recording_.retirement_calls;}
+            // Keep the signalled fence; never wait on an unfinished fence.
+            if(!ok){SDL_ReleaseGPUFence(context_.device(),completed_retirement_);completed_retirement_=nullptr;
+                context_.fail("completed GPU resource retirement");reason(context_.reason());metrics_.active=0;retirement_failed_=true;return false;}}
         readback *read=nullptr;for(auto &r:readbacks_)if(!r.fence){read=&r;break;}
         if(read&&!read->transfer){SDL_GPUTransferBufferCreateInfo info{};info.usage=SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;info.size=64;read->transfer=SDL_CreateGPUTransferBuffer(context_.device(),&info);if(!read->transfer)read=nullptr;}
         const bool initialize_white=!white_ready_;
