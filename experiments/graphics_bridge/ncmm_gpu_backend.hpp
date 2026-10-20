@@ -166,6 +166,13 @@ public:
                 uint64_t(scene.meshes[i].vertex_count)*sizeof(ncmm_gpu_vertex_v1)+uint64_t(scene.meshes[i].index_count)*4;}
         if(scene.mode==NCMM_GPU_CPU){reason("CPU renderer selected");return false;}if(!available()){reason(context_.reason());return false;}
         if(!programs_.create(context_)||!targets(scene.width,scene.height)){reason(context_.reason());return false;}
+        // Submit the queued Native 2D work while CPU scene preparation runs.
+        // The existing completed-fence cleanup below can then reclaim finished
+        // SDL submissions before this frame starts cycling its own resources.
+        // This submits commands without presenting or waiting for GPU work.
+        const auto renderer_flush_begin=clock::now();
+        if(!SDL_FlushRenderer(context_.renderer())){context_.fail("flush SDL GPU state");reason(context_.reason());return false;}
+        const double renderer_flush_ms=ms(renderer_flush_begin);
         if(!cells_||cell_size_<scene.cell_count*sizeof(gpu_cell))cells_ready_=false;
         if(!buffer(instances_,instance_size_,uint32_t(scene.draw_count*sizeof(instance)),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
            !buffer(bones_,bone_size_,scene.bone_count*sizeof(ncmm_gpu_matrix_v1),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
@@ -239,7 +246,6 @@ public:
         if(cell_upload_size)std::memcpy(mapped+offset,cell_snapshot_.data(),cell_upload_size);offset+=cell_upload_size;
 
         std::memset(mapped+offset,0,64);if(initialize_white)std::memset(mapped+offset+64,255,4);SDL_UnmapGPUTransferBuffer(context_.device(),transfer);
-        if(!SDL_FlushRenderer(context_.renderer())){context_.fail("flush SDL GPU state");reason(context_.reason());return false;}
         auto *commands=SDL_AcquireGPUCommandBuffer(context_.device());if(!commands){context_.fail("acquire frame commands");reason(context_.reason());return false;}
         auto stop=[&](const char *operation){SDL_CancelGPUCommandBuffer(commands);
             context_.fail(operation);const std::string error=context_.reason();invalidate();reason(error);return false;};
@@ -253,7 +259,9 @@ public:
         if(initialize_white){SDL_GPUTextureTransferInfo white{};white.transfer_buffer=transfer;white.offset=offset;white.pixels_per_row=white.rows_per_layer=1;
             SDL_GPUTextureRegion white_target{};white_target.texture=white_;white_target.w=white_target.h=white_target.d=1;SDL_UploadToGPUTexture(copy,&white,&white_target,false);}
         SDL_EndGPUCopyPass(copy);
-        metrics_.upload_bytes+=upload_size;metrics_.upload_ms=ms(stage);
+        // Retain the earlier flush in CPU upload accounting as well as in the
+        // unchanged whole-frame clock; moving a phase is not a measured gain.
+        metrics_.upload_bytes+=upload_size;metrics_.upload_ms=ms(stage)+renderer_flush_ms;
         auto phase_start=profiling_?clock::now():clock::time_point{};
         SDL_GPUStorageBufferReadWriteBinding shadow_binding{};shadow_binding.buffer=shadows_;shadow_binding.cycle=true;
         auto *compute=SDL_BeginGPUComputePass(commands,nullptr,0,&shadow_binding,1);if(!compute)return stop("begin shadow compute pass");SDL_BindGPUComputePipeline(compute,programs_.shadow);

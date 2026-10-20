@@ -67,7 +67,21 @@ int main(int argc,char **argv){
     ncmm_gpu_mesh_v1 mesh{11,vertices.data(),indices,materials,6,6,2,0};scene.meshes=&mesh;scene.mesh_count=1;
     ncmm_gpu_matrix_v1 bones[2]{};for(auto &b:bones)for(int i=0;i<4;++i)b.columns[i*5]=1;scene.bones=bones;scene.bone_count=2;
     ncmm_gpu_draw_v1 draw{};draw.mesh_key=11;draw.transform=bones[0];draw.bone_count=2;scene.draws=&draw;scene.draw_count=1;
+    // A Native SDL pass may already be queued on the borrowed renderer. Its
+    // target and pixels must survive early submission and the independent 3D
+    // commands before the final GPU-to-GPU scene composition.
+    SDL_FRect native_background{0,0,640,480};
+    require(SDL_SetRenderDrawColor(renderer,23,117,211,255)&&SDL_RenderFillRect(renderer,&native_background),"queue Native 2D before scene preparation");
     require(engine.submit(scene),engine.metrics().reason);auto first=engine.metrics();require(first.active&&first.triangles==2&&first.cpu_raster_calls==0,"GPU triangles, hardware depth, CPU raster excluded");
+    {
+        auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"Native 2D survives scene submission");
+        auto *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);SDL_DestroySurface(raw);require(image!=nullptr,"Native 2D reference format");
+        for(const auto position:std::array<std::array<int,2>,2>{{{{3,3}},{{636,476}}}}){
+            const auto pixel=reinterpret_cast<const uint32_t *>(static_cast<const char *>(image->pixels)+position[1]*image->pitch)[position[0]];
+            require((pixel>>24)==23&&((pixel>>16)&255)==117&&((pixel>>8)&255)==211,"queued Native 2D target and complete colour are preserved");
+        }
+        SDL_DestroySurface(image);
+    }
     require(engine.has(11,0),"persistent GPU mesh resource");require(first.target_cell==0,"geometric picking matches visible near creature");
     require(engine.resources().static_upload_bytes()>0,"initial immutable mesh upload is accounted separately");
     const auto first_static_upload=engine.resources().static_upload_bytes();
