@@ -135,6 +135,17 @@ jobs:
           path: gpu-sdl
       - name: Install software Vulkan and shader compiler
         run: sudo apt-get update && sudo apt-get install -y clang mesa-vulkan-drivers glslang-tools libvulkan-dev zlib1g-dev
+      - name: Bind the declared software device without unrelated ICD enumeration
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,json,hashlib
+          assert os.geteuid()!=0
+          manifests=list(Path('/usr/share/vulkan/icd.d').glob('lvp_icd*.json'));assert len(manifests)==1
+          path=manifests[0].resolve()
+          with Path(os.environ['GITHUB_ENV']).open('a') as stream:stream.write('VK_DRIVER_FILES='+str(path)+'\n')
+          Path('lvp-fixture.json').write_text(json.dumps(dict(device_policy='same llvmpipe software adapter as original runs; restrict discovery to its ICD',manifest=str(path),sha256=hashlib.sha256(path.read_bytes()).hexdigest(),euid=os.geteuid(),asan_options=os.environ['ASAN_OPTIONS'],ubsan_options=os.environ['UBSAN_OPTIONS'],no_suppressions=True,original_default_driver_failures_retained=True,ordinary_performance=False),indent=2)+'\n')
+          PY
       - name: Build pinned SDL3.4.10 offscreen Vulkan
         run: |
           cmake -S gpu-sdl -B gpu-sdl-build -DCMAKE_BUILD_TYPE=Release -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_UNIX_CONSOLE_BUILD=ON -DSDL_X11=OFF -DSDL_WAYLAND=OFF -DSDL_AUDIO=OFF -DSDL_JOYSTICK=OFF -DSDL_HAPTIC=OFF -DSDL_SENSOR=OFF -DSDL_OPENGL=OFF -DSDL_OPENGLES=OFF -DSDL_VULKAN=ON -DSDL_GPU=ON -DSDL_TESTS=OFF
@@ -153,6 +164,7 @@ jobs:
           name: exact-vertex-linux-asan-ubsan
           path: |
             vertex-source-proof.json
+            lvp-fixture.json
             vertex-asan/Testing/Temporary/LastTest.log
             vertex-asan/CMakeCache.txt
             vertex-asan/gpu-scene*
