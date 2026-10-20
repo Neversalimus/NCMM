@@ -99,3 +99,51 @@ jobs:
             gpu-build/gpu-probe.*
             gpu-build/gpu-scene*
           retention-days: 14
+  atlas_memory_sanitizers:
+    name: Exact atlas CPU pixels - Linux ASan and UBSan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      SDL_ASSERT: abort
+      SDL_VIDEODRIVER: dummy
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Neversalimus/NCMM
+          ref: 50e40e316280eea41883b40313f46ade3fba2c6a
+          path: atlas-code
+          sparse-checkout: experiments/graphics_bridge/ncmm_native_atlas_pixels.hpp
+          sparse-checkout-cone-mode: false
+      - name: Verify the exact helper tested on RTX 4090
+        run: |
+          python3 - <<'PY'
+          import hashlib,pathlib
+          p=pathlib.Path('atlas-code/experiments/graphics_bridge/ncmm_native_atlas_pixels.hpp')
+          assert hashlib.sha256(p.read_bytes()).hexdigest()=='822718b79402b22c8b277a9d70a372bda263f1aead90d1d38347964e7fc9a62e'
+          print('Exact Core39/Common50 pixel helper verified; CPU sanitizer job, no GPU execution/performance claim')
+          PY
+      - uses: actions/checkout@v4
+        with:
+          repository: libsdl-org/SDL
+          ref: 8e37db5e797b6167f3a00d697d816a684bd259c7
+          path: atlas-sdl
+      - name: Install compiler and existing Native zlib dependency
+        run: sudo apt-get update && sudo apt-get install -y clang ninja-build zlib1g-dev
+      - name: Build pinned SDL 3.4.10 software renderer
+        run: |
+          cmake -S atlas-sdl -B atlas-sdl-build -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_UNIX_CONSOLE_BUILD=ON -DSDL_X11=OFF -DSDL_WAYLAND=OFF -DSDL_AUDIO=OFF -DSDL_JOYSTICK=OFF -DSDL_HAPTIC=OFF -DSDL_SENSOR=OFF -DSDL_OPENGL=OFF -DSDL_OPENGLES=OFF -DSDL_VULKAN=OFF -DSDL_GPU=OFF -DSDL_TESTS=OFF
+          cmake --build atlas-sdl-build --parallel 2
+      - name: Build and require exact pixels, safe bounds and released ownership
+        run: |
+          cmake -S .github/tests -B atlas-memory-build -GNinja -DCMAKE_CXX_COMPILER=clang++ -DSDL3_DIR="$PWD/atlas-sdl-build" -DATLAS_HEADER_DIR="$PWD/atlas-code/experiments/graphics_bridge"
+          cmake --build atlas-memory-build --parallel 2
+          ./atlas-memory-build/atlas_memory_sanitizers | tee atlas-memory-sanitizers.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-memory-sanitizers-linux
+          path: atlas-memory-sanitizers.log
+          retention-days: 14
