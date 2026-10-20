@@ -155,16 +155,7 @@ public:
         // from an older scene must never describe the new scene's visibility.
         if(world_epoch_!=scene.world_epoch||scene.frame_serial<last_serial_){++readback_generation_;metrics_.completed_frame_serial=metrics_.visible_creature_pixels=0;}
         world_epoch_=scene.world_epoch;last_serial_=scene.frame_serial;
-        poll();if(retirement_failed_)return false;
-        if(completed_retirement_){
-            const auto begin=profiling_?clock::now():clock::time_point{};
-            // This owned fence was already signalled before poll retained it.
-            // Retire completed command resources here, inside frame recording,
-            // before cycling buffers/textures. Never wait for unfinished work.
-            const bool ok=SDL_QueryGPUFence(context_.device(),completed_retirement_)&&SDL_WaitForGPUFences(context_.device(),true,&completed_retirement_,1);
-            if(profiling_){recording_.retirement_ms+=ms(begin);++recording_.retirement_calls;}
-            SDL_ReleaseGPUFence(context_.device(),completed_retirement_);completed_retirement_=nullptr;
-            if(!ok){context_.fail("completed GPU resource retirement");reason(context_.reason());metrics_.active=0;retirement_failed_=true;return false;}}
+        if(retirement_failed_)return false;
         auto completed=metrics_.completed_frame_serial,visible=metrics_.visible_creature_pixels;auto software=metrics_.software_device;
         metrics_={};metrics_.struct_size=sizeof(metrics_);metrics_.frame_serial=scene.frame_serial;metrics_.completed_frame_serial=completed;metrics_.visible_creature_pixels=visible;metrics_.software_device=software;metrics_.gpu_ms=-1;metrics_.target_cell=-1;
         metrics_.geometry_ms=scene.geometry_ms;metrics_.generated_cells=scene.generated_cells;metrics_.producer_cache_bytes=scene.producer_cache_bytes;
@@ -225,6 +216,16 @@ public:
         pick(resources_,scene,metrics_,world,&posed_bounds);
         if(profiling_)recording_.batching_pick_ms=ms(batching_start);
         if(!counter_){uint32_t ignored=0;if(!buffer(counter_,ignored,64,SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE)){reason(context_.reason());return false;}}
+        poll();if(retirement_failed_)return false;
+        if(completed_retirement_){
+            const auto begin=profiling_?clock::now():clock::time_point{};
+            // This owned fence was already signalled before poll retained it.
+            // Retire completed command resources here, inside frame recording,
+            // before cycling buffers/textures. Never wait for unfinished work.
+            const bool ok=SDL_QueryGPUFence(context_.device(),completed_retirement_)&&SDL_WaitForGPUFences(context_.device(),true,&completed_retirement_,1);
+            if(profiling_){recording_.retirement_ms+=ms(begin);++recording_.retirement_calls;}
+            SDL_ReleaseGPUFence(context_.device(),completed_retirement_);completed_retirement_=nullptr;
+            if(!ok){context_.fail("completed GPU resource retirement");reason(context_.reason());metrics_.active=0;retirement_failed_=true;return false;}}
         readback *read=nullptr;for(auto &r:readbacks_)if(!r.fence){read=&r;break;}
         if(read&&!read->transfer){SDL_GPUTransferBufferCreateInfo info{};info.usage=SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;info.size=64;read->transfer=SDL_CreateGPUTransferBuffer(context_.device(),&info);if(!read->transfer)read=nullptr;}
         const bool initialize_white=!white_ready_;

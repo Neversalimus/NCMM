@@ -14,6 +14,7 @@
     auto progress=[&](const std::string &name){progress_stream<<name<<'\n';progress_stream.flush();};
     std::ofstream stream(game_root()/"ncmm"/"first-person-movement-benchmark.json");JsonOut report(stream);
     report.start_object();report.member("schema",2);report.member("actual_cdda_sdl",true);report.member("manual_playthrough",false);
+    report.member("distance_radius",NCMM_GRAPHICS_V2_RADIUS);report.member("native_pass_retained",true);
     report.member("simulation_turns_advanced",0);report.member("full_size_gpu_matrix",full_size_gpu_matrix);report.member("records");report.start_array();
     auto at=[&](int x,int y,int z){return here.get_bub(tripoint_abs_ms(original_position.x()+x,original_position.y()+y,z));};
     auto refresh=[&](){g->ter_view_p=you.pos_bub();g->reset_light_level();here.build_map_cache(you.posz());here.invalidate_visibility_cache();here.update_visibility_cache(you.posz());};
@@ -202,6 +203,7 @@
             report.member("native_window_size_available",window_size_available);report.member("native_window_pixel_width",window_width);report.member("native_window_pixel_height",window_height);
             report.member("window_display_scale",SDL_GetWindowDisplayScale(get_sdl_window()));report.member("sdl_runtime_version",SDL_GetVersion());
             report.member("tileset",get_option<std::string>("TILES"));
+            report.member("loaded_min_z",graphics_world_cached_low);report.member("loaded_max_z",graphics_world_cached_high);report.member("available_z_slices",graphics_world_metrics.available_slices);
             report.member("native_steps",steps);report.member("source_facts_oracle_checked",source_oracle_cells>0);report.member("source_facts_oracle_cells",source_oracle_cells);report.member("field_mutations_oracle_checked",field_oracle_cases>0);report.member("field_mutations_oracle_cases",field_oracle_cases);report.member("first_ready_samples_ms",first_ms);report.member("easing_frame_samples_ms",easing_ms);report.member("frame_samples_ms",frame_ms);report.member("visibility_samples_ms",visibility_ms);report.member("frame_renderers_gpu",renderers);
             if(extended){report.member("extended_matrix",true);report.member("internal_width",actual_width);report.member("internal_height",actual_height);report.member("native_confirmed_attacks",attacks);report.member("native_weather_id",get_weather().weather_id.str());
                 report.member("thread_cpu_available",thread_cpu_available);if(thread_cpu_available)report.member("frame_thread_cpu_samples_ms",thread_cpu_ms);

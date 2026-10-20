@@ -1,0 +1,34 @@
+{
+  "success": true,
+  "parent": "51260b3bb356953760c08ef2f09f66cf916d0aa8",
+  "created_utc": "2026-10-20T07:05:36.009063+00:00",
+  "performance_accepted": false,
+  "actual_native_tested": false,
+  "local_gpu_tests_pending": false,
+  "existing_poll_and_retirement_moved_once": true,
+  "existing_completed_query_and_wait_body_identical": true,
+  "no_extra_poll_or_wait_or_cleanup_callsite": true,
+  "first_frame_transfer_cycle_follows_retirement": true,
+  "readback_slot_selection_after_poll": true,
+  "entire_other_backend_recovered_exactly": true,
+  "production_sdk_unchanged": true,
+  "native_diagnostic_metadata_only": true,
+  "native_inclusive_clocks_unchanged": true,
+  "runtime_files_sha256": {
+    "experiments/graphics_bridge/ncmm_gpu_backend.hpp": "c4acb9a284f05fb0e1ade575253c953235d32cc03eb9597ffe4c88f737ed6f6d",
+    "experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc": "52a9c9a3a3406b5f6011e1cd3131450cb82d9bd093cf77e006aba4c68e00be7a"
+  },
+  "native_sdk_evidence_sha256": "1cd85b57407d0b228204b0b6de19e1644f3e3951e19f539f3a69a041f475af86",
+  "hypothesis": "A fence incomplete at submit entry may complete during CPU validation/preparation/batching. The exact existing completed-only cleanup can then reclaim resources just before the first frame-transfer cycle and command recording. No gain claimed until local lifecycle and fresh Native comparisons.",
+  "limitation": "Resource preparation can still allocate before this point; an unfinished fence remains untouched. No prewarm, ring, cycling disable, queue reorder or GPU-idle/per-frame unfinished wait.",
+  "local_ctest_passed": 33,
+  "atomic_source_tests_passed": 12,
+  "qualification_policy_tests_passed": 8,
+  "shader_abi_scene_quality_and_gpu_command_statement_order_unchanged": true,
+  "readback_slot_availability_can_be_newer_after_late_poll": true,
+  "local_evidence_sha256": {
+    "late-retirement-configure.log": "5218adb3f6b8077a82a6caff6729c1e30bb16ede4f41b813faf09c6fb44d3810",
+    "late-retirement-build.log": "278ab4b6c30fbc7f1375464e20b1443a6499752ea00e7bb7e66145381b89fc15",
+    "late-retirement-ctest.log": "237f04b479f1bca6d69f6320880e49be75536a647e0af8aeee9b02f0c0caa875"
+  }
+}
