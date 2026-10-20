@@ -15,6 +15,33 @@ SOURCES = {
     "074aa98bd5be3de4c35f154082db32a0e63bb0f1": "cdda-experimental-2026-10-06-1807",
 }
 
+SUBMAP_CACHE_RESET = """        // New submap changes the content of the map and all caches must be recalculated
+        set_transparency_cache_dirty( z );
+        set_seen_cache_dirty( z );
+        set_outside_cache_dirty( z );
+        set_floor_cache_dirty( z );
+        set_pathfinding_cache_dirty( z );"""
+REBASE_CACHE_RESET = """    // Make sure map cache is consistent since it may have shifted.
+    for( int zlev = -OVERMAP_DEPTH; zlev <= OVERMAP_HEIGHT; ++zlev ) {
+        here.invalidate_map_cache( zlev );
+    }"""
+
+
+def patch_native_cache_resets(map_cpp, game_cpp):
+    # Scope only pure native cache-flag writes, never submap lookup, mapgen,
+    # actualize, terrain/field edits, NPC loading or vehicle updates.
+    if map_cpp.count(SUBMAP_CACHE_RESET) != 1 or game_cpp.count(REBASE_CACHE_RESET) != 1:
+        raise ValueError("Experimental bridge requires one exact anchor: Native source cache reset")
+    flags = SUBMAP_CACHE_RESET.splitlines()[1:]
+    region = ("        const tripoint_abs_ms ncmm_source_origin = coords::project_to<coords::ms>( pos );\n"
+              "        ncmm::graphics_world_region_changed( this, ncmm_source_origin.x(), ncmm_source_origin.y(), z, SEEX, SEEY );\n"
+              "        {\n            const ncmm::graphics_native_cache_reset ncmm_source_reset( this, z );\n" +
+              '\n'.join('    ' + line for line in flags) + "\n        }")
+    rebase = REBASE_CACHE_RESET.replace('        here.invalidate_map_cache( zlev );',
+        '        const ncmm::graphics_native_cache_reset ncmm_source_reset( &here, zlev );\n        here.invalidate_map_cache( zlev );')
+    return map_cpp.replace(SUBMAP_CACHE_RESET, region, 1), game_cpp.replace(REBASE_CACHE_RESET, rebase, 1)
+
+
 def apply(root: Path):
     bridge = Path(__file__).resolve().parent
     repo = bridge.parents[1]
@@ -243,7 +270,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         updates[name] = (bridge / name).read_text(encoding="utf-8")
     # Optional world-space interface, independent of the old V1/V2 layouts.
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '#include "ncmm_graphics_v2.h"',
-        '#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_multilevel.h"\n#include "ncmm_world_cache.hpp"\n#include "ncmm_world_lod.hpp"\n#include "overmap.h"\n#include "overmapbuffer.h"\n#include "omdata.h"\n#include "avatar_action.h"\n#include "game_inventory.h"\n#include "pickup.h"\n#include "visitable.h"\n#include "debug.h"\n#include "gamemode.h"\n#include <functional>\n#include <atomic>\n#include <thread>\n#include <unordered_map>\n#include <string_view>\n#include <locale>')
+        '#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_multilevel.h"\n#include "ncmm_world_cache.hpp"\n#include "ncmm_graphics_scratch.hpp"\n#include "ncmm_world_lod.hpp"\n#include "overmap.h"\n#include "overmapbuffer.h"\n#include "omdata.h"\n#include "avatar_action.h"\n#include "game_inventory.h"\n#include "pickup.h"\n#include "visitable.h"\n#include "debug.h"\n#include "gamemode.h"\n#include <functional>\n#include <atomic>\n#include <thread>\n#include <unordered_map>\n#include <string_view>\n#include <locale>')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '    "graphics.viewport.v2",',
         '    "graphics.viewport.v2",\n    "graphics.multilevel.v1",')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
@@ -277,7 +304,15 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "bool graphics_requires_terrain_pass()\n{")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "class input_context;", "class map;\nclass input_context;")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();",
-        "void graphics_note_input_wait( const std::string &, bool text );\nvoid graphics_note_input_result( const std::string &, const std::string & );\nvoid graphics_note_terrain_composed( bool perspective );\nvoid graphics_world_changed( const map *, int z );\nvoid initialize();")
+        "void graphics_note_input_wait( const std::string &, bool text );\nvoid graphics_note_input_result( const std::string &, const std::string & );\nvoid graphics_note_terrain_composed( bool perspective );\nvoid graphics_world_changed( const map *, int z );\n"
+        "void graphics_world_region_changed( const map *, int32_t x, int32_t y, int z, int width, int height );\nvoid initialize();")
+    updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], '#include <cstdint>',
+        '#include <cstdint>\n#include "ncmm_graphics_invalidation.hpp"')
+    updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
+        "void graphics_world_changed( const map *source, int z )\n{",
+        "void graphics_world_region_changed( const map *source, int32_t x, int32_t y, int z, int width, int height )\n{\n"
+        "    graphics_world_region_changed_impl( source, x, y, z, width, height );\n}\n"
+        "void graphics_world_changed( const map *source, int z )\n{")
     updates["game.h"]=replace(read("game.h"), "        bool save();",
         "        bool save();\n"
         "        // Isolated qualification gateway; not part of a module API.\n"
@@ -315,8 +350,27 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         ("void map::set_floor_cache_dirty( const int zlev )", "zlev"),
     ):
         map_cpp=replace(map_cpp, signature+"\n{", signature+"\n{\n    ncmm::graphics_world_changed( this, "+level+" );")
+    game_cpp=read("game.cpp")
+    if '#include "ncmm_loader.h"' not in game_cpp:
+        game_cpp=replace(game_cpp,'#include "game.h"','#include "game.h"\n#include "ncmm_loader.h"')
+    map_cpp,game_cpp=patch_native_cache_resets(map_cpp,game_cpp)
+    # Identifier-based graphics semantics can change even when Native lighting
+    # flags stay equal. These calls follow the actual changed-definition stores;
+    # the Native equal-ID early returns still perform no graphics invalidation.
+    for store in ('    current_submap->set_ter( l, new_terrain );',
+                  '    current_submap->set_furn( l, new_target_furniture );'):
+        map_cpp=replace(map_cpp,store,store+
+            '\n    const tripoint_abs_ms ncmm_changed_cell = get_abs( p );'
+            '\n    ncmm::graphics_world_region_changed( this, ncmm_changed_cell.x(), ncmm_changed_cell.y(), p.z(), 1, 1 );')
+    # Transparent fields may change the private renderable fact without dirtying
+    # Native transparency. All Native field processors already notify here.
+    field_modified="void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type )\n{"
+    map_cpp=replace(map_cpp,field_modified,field_modified+
+        '\n    const tripoint_abs_ms ncmm_changed_field = get_abs( p );'
+        '\n    ncmm::graphics_world_region_changed( this, ncmm_changed_field.x(), ncmm_changed_field.y(), p.z(), 1, 1 );')
     updates["map.cpp"]=map_cpp
-    for name in ("ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc"):
+    updates["game.cpp"]=game_cpp
+    for name in ("ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_invalidation.hpp","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")

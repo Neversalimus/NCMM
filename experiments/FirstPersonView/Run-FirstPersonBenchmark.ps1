@@ -7,6 +7,7 @@ param(
     [switch]$FocusedGpuBenchmark,
     [switch]$MovementBenchmark,
     [switch]$Extended,
+    [switch]$FullSizeGpuMatrix,
     [switch]$ViewmodelGallery,
     [switch]$TargetHudGallery,
     [switch]$CaptureCrashDump,
@@ -54,6 +55,7 @@ if(-not $BundleRoot){$BundleRoot=$PSScriptRoot}
 if(-not $DumpAnalyzer){$DumpAnalyzer=Join-Path $PSScriptRoot 'ncmm_native_dump_analyzer.exe'}
 if($MovementBenchmark -and $FocusedGpuBenchmark){throw 'Choose one focused benchmark.'}
 if($Extended -and -not $MovementBenchmark){throw 'Extended requires MovementBenchmark.'}
+if($FullSizeGpuMatrix -and (-not $MovementBenchmark -or -not $Extended -or $GpuDebug)){throw 'FullSizeGpuMatrix requires ordinary Extended MovementBenchmark without GPU debug.'}
 if($ViewmodelGallery -and ($MovementBenchmark -or $FocusedGpuBenchmark)){throw 'ViewmodelGallery belongs to the gameplay audit.'}
 if($TargetHudGallery -and ($MovementBenchmark -or $FocusedGpuBenchmark -or $ViewmodelGallery -or $TilesetRoot)){throw 'TargetHudGallery requires its own official-tileset native diagnostic run.'}
 if($TargetHudGallery -and $PSBoundParameters.ContainsKey('SoakSeconds')){throw 'SoakSeconds belongs to the full gameplay audit.'}
@@ -152,7 +154,7 @@ public static class NCMMNativeCrashDialog {
 }
 '@
 }
-$names=@('NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_TARGET_HUD_ONLY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT')
+$names=@('NCMM_FP_MOVEMENT_ONLY','NCMM_FP_GAMEPLAY_AUDIT','NCMM_FP_GPU_BENCHMARK_ONLY','NCMM_FP_EXTENDED','NCMM_FP_PERF_GPU_FULLSIZE','NCMM_FP_VIEWMODEL_GALLERY','NCMM_FP_TARGET_HUD_ONLY','NCMM_FP_UDP','NCMM_FP_SOAK_SECONDS','NCMM_FP_SAVE_ONLY','NCMM_FP_APPEARANCE_SMOKE','NCMM_FP_APPEARANCE_BEFORE','NCMM_FP_MULTILEVEL_BEFORE','NCMM_FP_STABLE_CPU_BASELINE','SDL_RENDER_GPU_DEBUG','SDL_ASSERT')
 $prior=@{}
 # Modern .NET preserves an empty environment variable. PowerShell can convert
 # $null to that empty string at the .NET call boundary, and native getenv then
@@ -166,6 +168,7 @@ $lastProgress='native startup'
 try {
     if($MovementBenchmark){$env:NCMM_FP_MOVEMENT_ONLY='1'}elseif($FocusedGpuBenchmark){$env:NCMM_FP_GPU_BENCHMARK_ONLY='1'}else{$env:NCMM_FP_GAMEPLAY_AUDIT='1'}
     if($Extended){$env:NCMM_FP_EXTENDED='1'}
+    if($FullSizeGpuMatrix){$env:NCMM_FP_PERF_GPU_FULLSIZE='1'}
     if($ViewmodelGallery){$env:NCMM_FP_VIEWMODEL_GALLERY='1'}
     if($TargetHudGallery){$env:NCMM_FP_TARGET_HUD_ONLY='1'}
     if($GpuDebug){$env:SDL_RENDER_GPU_DEBUG='1'}
@@ -326,7 +329,8 @@ if($TargetHudGallery){
     $soaked=0
 }elseif($MovementBenchmark){
     $audit=Get-Content (Join-Path $evidence 'first-person-movement-benchmark.json') -Raw | ConvertFrom-Json
-    $expectedRecords=if($Extended){80}else{12};$expectedSteps=if($Extended){64}else{12};$expectedRotations=if($Extended){96}else{48}
+    if($FullSizeGpuMatrix -and $audit.full_size_gpu_matrix -ne $true){throw 'Full-size GPU descriptor missing.'}
+    $expectedRecords=if($FullSizeGpuMatrix){11}elseif($Extended){80}else{12};$expectedSteps=if($Extended){64}else{12};$expectedRotations=if($Extended){96}else{48}
     if($audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.simulation_turns_advanced -ne 0 -or @($audit.records).Count -ne $expectedRecords){throw 'Native movement benchmark is incomplete.'}
     foreach($record in $audit.records){
         if($record.native_steps -ne $expectedSteps -or @($record.first_ready_samples_ms).Count -ne $expectedSteps -or @($record.easing_frame_samples_ms).Count -eq 0){throw 'Native steps or easing samples are incomplete.'}
@@ -359,7 +363,7 @@ if($TargetHudGallery){
     }}
     $soaked=$audit.soak.actual_wall_seconds
 }
-$result=[ordered]@{success=$true;source_commit=$bundle.source_commit;ncmm_commit=$bundle.ncmm_source_commit;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';manual_playthrough=$false;focused_gpu_benchmark=[bool]$FocusedGpuBenchmark;movement_benchmark=[bool]$MovementBenchmark;extended_matrix=[bool]$Extended;viewmodel_gallery=[bool]$ViewmodelGallery;udp_requested=$udp;soak_seconds=$soaked;evidence=$evidence}
+$result=[ordered]@{success=$true;source_commit=$bundle.source_commit;ncmm_commit=$bundle.ncmm_source_commit;host_sha256=$bundle.host_sha256;module_sha256=$bundle.files.'code_mods/FirstPersonView/ncmm_mod.dll';manual_playthrough=$false;focused_gpu_benchmark=[bool]$FocusedGpuBenchmark;movement_benchmark=[bool]$MovementBenchmark;extended_matrix=[bool]$Extended;full_size_gpu_matrix=[bool]$FullSizeGpuMatrix;viewmodel_gallery=[bool]$ViewmodelGallery;udp_requested=$udp;soak_seconds=$soaked;evidence=$evidence}
 $result.target_hud_gallery=[bool]$TargetHudGallery
 $result | ConvertTo-Json | Set-Content (Join-Path $OutputRoot 'benchmark-provenance.json') -Encoding UTF8
 $result | ConvertTo-Json
