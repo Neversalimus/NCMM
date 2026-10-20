@@ -175,6 +175,13 @@ public:
                 uint64_t(scene.meshes[i].vertex_count)*sizeof(ncmm_gpu_vertex_v1)+uint64_t(scene.meshes[i].index_count)*4;}
         if(scene.mode==NCMM_GPU_CPU){reason("CPU renderer selected");return false;}if(!available()){reason(context_.reason());return false;}
         if(!programs_.create(context_)||!targets(scene.width,scene.height)){reason(context_.reason());return false;}
+        // Submit the queued Native 2D work while CPU scene preparation runs.
+        // The existing completed-fence cleanup below can then reclaim finished
+        // SDL submissions before this frame starts cycling its own resources.
+        // This submits commands without presenting or waiting for GPU work.
+        const auto renderer_flush_begin=clock::now();
+        if(!SDL_FlushRenderer(context_.renderer())){context_.fail("flush SDL GPU state");reason(context_.reason());return false;}
+        const double renderer_flush_ms=ms(renderer_flush_begin);
         if(!cells_||cell_size_<scene.cell_count*sizeof(gpu_cell))cells_ready_=false;
         if(!buffer(instances_,instance_size_,uint32_t(scene.draw_count*sizeof(instance)),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
            !buffer(bones_,bone_size_,scene.bone_count*sizeof(ncmm_gpu_matrix_v1),SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ)||
@@ -253,7 +260,6 @@ public:
         offset+=cell_upload_size;
 
         std::memset(mapped+offset,0,64);if(initialize_white)std::memset(mapped+offset+64,255,4);SDL_UnmapGPUTransferBuffer(context_.device(),transfer);
-        if(!SDL_FlushRenderer(context_.renderer())){context_.fail("flush SDL GPU state");reason(context_.reason());return false;}
         auto *commands=SDL_AcquireGPUCommandBuffer(context_.device());if(!commands){context_.fail("acquire frame commands");reason(context_.reason());return false;}
         auto stop=[&](const char *operation){SDL_CancelGPUCommandBuffer(commands);
             context_.fail(operation);const std::string error=context_.reason();invalidate();reason(error);return false;};
@@ -272,7 +278,9 @@ public:
         SDL_EndGPUCopyPass(copy);
         if(trace)SDL_PopGPUDebugGroup(commands);
         upload_zone.stop();
-        metrics_.upload_bytes+=upload_size;metrics_.upload_ms=ms(stage);
+        // Retain the earlier flush in CPU upload accounting as well as in the
+        // unchanged whole-frame clock; moving a phase is not a measured gain.
+        metrics_.upload_bytes+=upload_size;metrics_.upload_ms=ms(stage)+renderer_flush_ms;
         auto phase_start=profiling_?clock::now():clock::time_point{};
         ncmm_graphics_trace::cpu_zone world_zone("World");
         if(trace)SDL_PushGPUDebugGroup(commands,"World");
