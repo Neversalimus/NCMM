@@ -27,8 +27,10 @@ def main():
     assert args.sdl_dir or args.toolchain_file,'Use the same explicit SDL configuration as the original GPU fixture'
     parent=repo/'experiments/FirstPersonView';backend=repo/'experiments/graphics_bridge/ncmm_gpu_backend.hpp'
     candidate=backend.read_text(encoding='utf-8').replace('\r\n','\n');reference=candidate
-    replacements=[('c.cycle=false;','c.cycle=clear;'),('depth.cycle=false;','depth.cycle=clear||held;'),
-                  ('shadow_binding.cycle=false;','shadow_binding.cycle=true;'),('e.cycle=false;','e.cycle=true;')]
+    policy='    // Scratch reuse is currently pixel-qualified on Direct3D 12.\n    bool cycle_private_scratch()const{\n        auto *device=context_.device();\n        const char *driver=device?SDL_GetGPUDeviceDriver(device):nullptr;\n        return !driver||std::strcmp(driver,"direct3d12")!=0;\n    }\n'
+    assert reference.count(policy)==1
+    reference=reference.replace(policy,'')
+    replacements=[('c.cycle=clear&&cycle_private_scratch();', 'c.cycle=clear;'), ('depth.cycle=(clear||held)&&cycle_private_scratch();', 'depth.cycle=clear||held;'), ('shadow_binding.cycle=cycle_private_scratch();', 'shadow_binding.cycle=true;'), ('e.cycle=cycle_private_scratch();', 'e.cycle=true;')]
     for before,after in replacements:
         assert reference.count(before)==1,before;reference=reference.replace(before,after)
     assert hashlib.sha256(reference.encode()).hexdigest()==REFERENCE_SHA256,'Unreviewed reference reconstruction'

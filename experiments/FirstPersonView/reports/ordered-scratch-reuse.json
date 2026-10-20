@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "status": "private candidate; fresh Native performance validation pending",
-  "source_parent": "06cefa5004d52bf9fd2c6b7d390a6cbcbc248d02",
+  "status": "private D3D12-only candidate; exact local GPU and ASan checks passed; CI and Native validation pending",
+  "source_parent": "7a2dde1083e03f5abf9ad1ae3452ba2d462a902c",
   "problem": "Repeated CPU recording spikes remain after immutable vertex sharing; the new Native CPU observer locates a forest spike inside Host submission/recording.",
   "hypothesis": "Reuse private scratch images and shadow-write storage on the ordered GPU command stream, avoiding optional physical cycling. Preserve the separately exposed SDL output cycling.",
-  "backend_sha256": "c592e9478ed13f047a02e64029b9ffae0baa35388857b7360251806309c81bf6",
+  "backend_sha256": "3d0791e51199460c93e09ccba4022edf5182c0cd93fb92132dda8d037bb9ada3",
   "reference_backend_sha256": "b1a93d777cc669ce98ee958712060fe7eceb8f66cffa27a0fce2b246c5b80e23",
   "changed_cycle_hints": 4,
   "uniform_calls_unchanged": true,
@@ -16,12 +16,12 @@
   "before_after_normalized_images_each": 134,
   "before_after_bytes_each": 164660808,
   "all_pixels_equal_normal_and_asan": true,
-  "normal_gpu_receipt_sha256": "2f5cfcb814177795b8aced9faaa8b7efd55dc5f26d4c7e0f505003e0a79a7a58",
-  "asan_gpu_receipt_sha256": "e23f98482aff54625f27064016a37027351d22cb9512ebe6477ee68797da57ce",
+  "normal_gpu_receipt_sha256": "35eec8ea865d8d49b24afc08907bbdca0aa09a26c325a11951202237ad9e08cd",
+  "asan_gpu_receipt_sha256": "4376d6d4aa8d0f227a8336d1608b7f33ba6770763ac833ceab7a14c3c09c321d",
   "asan_compiler": "MSVC14.38.33130",
   "asan_runtime_sha256": "b82747d451a43729f57994d1725951b7dfa8c1a615b91cf8157b907f9f4016d1",
   "sanitizer_suppressions": false,
-  "local_raw_evidence_root": "C:\\Users\\\u0410\u043b\u0435\u043a\u0441\u0435\u0439\u0446\\.codex\\.chatgpt-projects\\g-p-6ab1237d295481919662599e9f24ab61\\fpv-next-evidence\\scratch-reuse-prototype",
+  "local_raw_evidence_root": "C:\\Users\\\u0410\u043b\u0435\u043a\u0441\u0435\u0439\u0446\\.codex\\.chatgpt-projects\\g-p-6ab1237d295481919662599e9f24ab61\\fpv-next-evidence\\d3d12-scratch-prototype",
   "fresh_cpu_observer_receipt_sha256": "af0cfa6f5dce1c56b436d2d4b9c9d6cfcef0bee7bcc2d61aa524f156003ca6b4",
   "fresh_cpu_observer": {
     "native_frames": 6988,
@@ -61,5 +61,24 @@
     "https://wiki.libsdl.org/SDL3/SDL_GPUStorageBufferReadWriteBinding"
   ],
   "new_explicit_wait_calls": false,
-  "gpu_dependency_overlap_requires_fresh_full_frame_validation": true
+  "gpu_dependency_overlap_requires_fresh_full_frame_validation": true,
+  "reuse_scope": "Only direct3d12; Vulkan, unknown and all other drivers retain the exact reference cycle hints.",
+  "unrestricted_source_rejected": "7a2dde1083e03f5abf9ad1ae3452ba2d462a902c",
+  "unrestricted_vulkan_difference": {
+    "normal_images": 65,
+    "asan_images": 65,
+    "images_each": 134,
+    "maximum_channel_delta": 63
+  },
+  "unrestricted_difference_receipt_sha256": "eecfd7fa8c4557bc0489b386be244faf9e53e8a2552b5b34f3f9396f5b057efd",
+  "new_driver_scoped_local_validation_pending": false,
+  "prior_unrestricted_local_validation": {
+    "normal_gpu_receipt_sha256": "2f5cfcb814177795b8aced9faaa8b7efd55dc5f26d4c7e0f505003e0a79a7a58",
+    "asan_gpu_receipt_sha256": "e23f98482aff54625f27064016a37027351d22cb9512ebe6477ee68797da57ce",
+    "local_raw_evidence_root": "C:\\Users\\\u0410\u043b\u0435\u043a\u0441\u0435\u0439\u0446\\.codex\\.chatgpt-projects\\g-p-6ab1237d295481919662599e9f24ab61\\fpv-next-evidence\\scratch-reuse-prototype",
+    "all_pixels_equal_normal_and_asan": true,
+    "source": "7a2dde1083e03f5abf9ad1ae3452ba2d462a902c"
+  },
+  "local_validation_receipt_sha256": "d4e885cdb448ca18472d162d3a7386b17e931c98de1b2032ddcdc47412f455da",
+  "shipping_helper_comparison_sha256": "7068b66bcec31b4dfd42dd1cba4d249782023ce18a287996938e1f6a1212351b"
 }
