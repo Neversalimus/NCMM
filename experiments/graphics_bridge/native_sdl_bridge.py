@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 
 PINS={'3f7fb352bf492ba521bd9408a0c9f6ce239e8d83','074aa98bd5be3de4c35f154082db32a0e63bb0f1'}
-PORT_MANIFEST_SHA256='4510d96c09bbc863570ccbb051f47f75d561ec0d5d05d8a4f50c79ce889993b0'
+PORT_MANIFEST_SHA256='281c3e12cf9040b1c2edbf0a7a3547aafa2de26ec0f0dbe62b676b1baf0748f7'
 ENGINE_MANIFEST_SHA256='f523e20ad567b7cf62e1e4eed4f3a5d54d2670a6177a4cb4e406cfdb814ba6af'
 VENDOR=Path(__file__).resolve().parent/'third_party/sdl3-port'
 

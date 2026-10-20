@@ -7,13 +7,13 @@
   "upstream_issue": "https://github.com/libsdl-org/SDL/issues/16369",
   "source_archive_url": "https://github.com/libsdl-org/SDL/archive/release-3.4.10.tar.gz",
   "source_archive_sha512": "10a9c1fa4d6891c7387fa694b786a168f86b6e5447c6c522f85b739e33720e106ee879dfa9e6e537d5521b983cfbd4908927c555c4d3412735129a4231e16fe6",
-  "patch_scope": "D3D12 graphics descriptor reservation and root-table restoration; SDL compute and other backends unchanged",
+  "patch_scope": "DIAGNOSTIC ONLY: existing descriptor correctness plus bounded forwarding CPU wall scopes; no GPU execution or performance acceptance",
   "original_d3d12_sha256": "54e648a8dd41981f988927144236f61abcbb2e6615f32d75b698f59a2a64da1c",
-  "patched_d3d12_sha256": "e0a9f3fd47a05f529654ba6059f1112fe290a09e26a203b3f6cab1626b4e9129",
+  "patched_d3d12_sha256": "3a297468f23c46c26037bdf37c47a23efc8ca14a4299a2b5657c972cf26f4c63",
   "files": {
     "overlay/sdl3/fix-freebsd.patch": "b48ed962d22873d896f1f09800b3a781428a8425d912631a477f8669408b9d15",
-    "overlay/sdl3/ncmm-graphics-descriptors.patch": "982e080b2c8a2bcd6ee1e8cf8c105750633c0d9810f43681f40f858a34644162",
-    "overlay/sdl3/portfile.cmake": "8e367b8c26a3495b604d7a5d4a019738bcb421e2948018555786081637c217d8",
+    "overlay/sdl3/ncmm-graphics-descriptors.patch": "9483e989c9af1aa8f2cdc4e2e5ac7d75d103358aadfd7ec7fd92a17182ae3d7e",
+    "overlay/sdl3/portfile.cmake": "26ae20db2474b8ea737f8d3ed5f021a5effbb48100a88747b844835f3f11373c",
     "overlay/sdl3/usage": "8ce24feae5e34974279849a684f59ec0ab04b93aef667ea5b53f9acff3ee48a8",
     "overlay/sdl3/vcpkg.json": "159eaec4a9595f06e37c011da7a2fefeb3677e97bb6d430b1ed13084ee48e9f5",
     "SDL-LICENSE.txt": "1c040b8271b37e5076359f8fd54240e371114112924d2df81ef87c7d6a1dfdfd",
@@ -50,5 +50,5 @@
       "sha256": "1ee376fc340e0aa6ad6a3581c94126e741468705096ac92263048a21daa86460"
     }
   ],
-  "runtime_vendor": "NCMM-graphics-descriptors-982e080b2c8a"
+  "runtime_vendor": "NCMM-graphics-descriptors-982e080b2c8a-cpu-wall-diag"
 }
