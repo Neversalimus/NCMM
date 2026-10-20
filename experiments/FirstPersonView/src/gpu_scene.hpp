@@ -2,6 +2,7 @@
 #include "hybrid_renderer.hpp"
 #include "gpu_packet.hpp"
 #include <chrono>
+#include <memory>
 #include <unordered_map>
 
 namespace first_person::gpu {
@@ -42,6 +43,28 @@ class scene_cache {
     std::vector<uint64_t> signature_values,signature_results;
     std::vector<signature_position> signature_positions;
     std::vector<uint8_t> signature_dirty_slots;
+    struct normalized_record {
+        std::array<unsigned char,sizeof(ncmm_graphics_cell_v1)> cell;
+        std::array<unsigned char,sizeof(ncmm_graphics_cell_v2)> detail;
+        std::array<unsigned char,sizeof(ncmm_graphics_detail_v1)> extra;
+        signature_position position;
+        uint64_t hash;
+        uint32_t flags,direction,detail_band,occupied_vehicle;
+        bool metadata;
+        // Every used field is written before publication. Avoid zeroing the
+        // scratch allocation before immediately copying the complete records.
+        normalized_record(){}
+    };
+    static constexpr size_t normalized_budget=32u*1024u*1024u;
+    static constexpr size_t normalized_update_budget=512u*1024u;
+    static constexpr size_t normalized_page_cells=128;
+    static constexpr size_t normalized_page_bytes=normalized_page_cells*sizeof(normalized_record);
+    std::vector<std::unique_ptr<normalized_record[]>> normalized_records;
+    std::vector<uint8_t> normalized_valid;
+    std::array<size_t,3> normalized_dimensions{};
+    size_t normalized_allocated_pages=0;bool normalized_levels=false;
+    size_t normalized_bytes()const{return normalized_allocated_pages*normalized_page_bytes+
+        normalized_records.capacity()*sizeof(normalized_records[0])+normalized_valid.capacity();}
     std::map<std::tuple<uint64_t,int,bool,bool>,std::weak_ptr<const owned_mesh>> skins;
     std::map<std::tuple<uint64_t,int,int,bool>,std::weak_ptr<const owned_mesh>> impostors;
     resources assets;
@@ -216,21 +239,79 @@ class scene_cache {
     };
     std::vector<uint64_t> signatures(const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *metadata,const ncmm_gpu_metrics_v1 &host,bool creatures,int width,const ncmm_graphics_multilevel_scene_v1 *levels,const ncmm_world::coordinates &xyz){
         signature_neighbor_queries=signature_reused_cells=signature_neighborhood_marks=0;
+        signature_content_reuses=signature_content_hashes=signature_content_updates=signature_content_allocation_bytes=0;
+        const size_t count=s.base.cell_count;
+        const size_t columns=size_t(s.base.grid_width),rows=size_t(s.base.grid_height);
+        const size_t depth=levels?size_t(int64_t(levels->loaded_max_z)-levels->loaded_min_z+1):1;
+        const size_t page_limit=normalized_budget/(normalized_page_bytes+normalized_page_cells+sizeof(normalized_records[0]));
+        const size_t cell_limit=page_limit*normalized_page_cells;
+        const bool retain=count>=256&&columns&&rows&&depth&&columns<=cell_limit/rows&&columns*rows<=cell_limit/depth;
+        const size_t slots=retain?columns*rows*depth:0;
+        const std::array<size_t,3> dimensions{{columns,rows,depth}};
+        if(retain){
+            const size_t pages=(slots+normalized_page_cells-1)/normalized_page_cells;
+            if(pages>normalized_records.size()){
+                std::vector<std::unique_ptr<normalized_record[]>> next(pages);
+                for(size_t i=0;i<normalized_records.size();++i)next[i]=std::move(normalized_records[i]);
+                normalized_records.swap(next);}
+            if(normalized_dimensions!=dimensions||normalized_levels!=bool(levels)||normalized_valid.size()!=slots){
+                if(slots>normalized_valid.capacity())std::vector<uint8_t>(slots,0).swap(normalized_valid);
+                else normalized_valid.assign(slots,0);}
+            normalized_dimensions=dimensions;normalized_levels=bool(levels);
+        }else{decltype(normalized_records){}.swap(normalized_records);normalized_allocated_pages=0;std::vector<uint8_t>{}.swap(normalized_valid);normalized_dimensions={};}
+        auto content_position=[&](size_t i){if(!levels)return signature_position{0,int32_t(i/columns),int32_t(i%columns)};
+            const auto &c=levels->coordinates[i];return signature_position{c.z,c.y,c.x};};
+        auto residue=[](int32_t value,size_t dimension){const int64_t d=int64_t(dimension),r=int64_t(value)%d;return size_t(r<0?r+d:r);};
+        const std::array<size_t,3> origin{{retain&&levels?residue(levels->origin_x,columns):0,
+            retain&&levels?residue(levels->origin_y,rows):0,retain&&levels?residue(levels->loaded_min_z,depth):0}};
+        auto content_slot=[&](const signature_position &p){
+            size_t x=size_t(levels?int64_t(p[2])-levels->origin_x:p[2])+origin[0];
+            size_t y=size_t(levels?int64_t(p[1])-levels->origin_y:p[1])+origin[1];
+            size_t z=size_t(levels?int64_t(p[0])-levels->loaded_min_z:0)+origin[2];
+            if(x>=columns)x-=columns;if(y>=rows)y-=rows;if(z>=depth)z-=depth;
+            return (z*rows+y)*columns+x;};
+        const size_t update_limit=normalized_update_budget/sizeof(normalized_record);
         std::vector<uint64_t> values(s.base.cell_count,0);
         for(int i=0;i<int(s.base.cell_count);++i){auto cell=s.base.cells[i];cell.light=0;if(creatures)std::memset(cell.creature,0,sizeof(cell.creature));auto detail=s.details[i];
             detail.light_r=detail.light_g=detail.light_b=detail.emission=0;if(detail.vehicle_features){const auto p=levels?xyz.origin(uint32_t(i)):ncmm_world::point{float(i%s.base.grid_width),float(i/s.base.grid_width),0};detail.vehicle_x-=p.x;detail.vehicle_y-=p.y;}
             if(creatures)detail.terrain_flags&=~(NCMM_CREATURE_TINY|NCMM_CREATURE_SMALL|NCMM_CREATURE_LARGE|NCMM_CREATURE_HUGE);
-            uint64_t hash=hash_bytes(1469598103934665603ull,&cell,sizeof(cell));hash=hash_bytes(hash,&detail,sizeof(detail));
-            if(levels){const auto &c=levels->coordinates[i];hash=hash_bytes(hash,&c.x,sizeof(c.x)*3);hash=hash_bytes(hash,&c.flags,sizeof(c.flags));hash=hash_bytes(hash,&c.direction,sizeof(c.direction));}
-            if(metadata){auto extra=metadata->cells[i];extra.source_light=extra.source_r=extra.source_g=extra.source_b=0;extra.hostile=0;if(creatures)extra.creature_height=extra.creature_width=extra.creature_elevation=0;
-                hash=hash_bytes(hash,&extra,sizeof(extra));hash=hash_bytes(hash,&metadata->view.occupied_vehicle,sizeof(metadata->view.occupied_vehicle));}
+            ncmm_graphics_detail_v1 extra{};
+            if(metadata){extra=metadata->cells[i];extra.source_light=extra.source_r=extra.source_g=extra.source_b=0;extra.hostile=0;if(creatures)extra.creature_height=extra.creature_width=extra.creature_elevation=0;}
             float distance=0;
             if(s.details[i].vehicle_features){const auto &d=s.details[i];const float c=std::cos(d.vehicle_yaw),sn=std::sin(d.vehicle_yaw);
                 const float x=d.vehicle_x+d.mount_x*c-d.mount_y*sn-s.base.camera_x,y=d.vehicle_y+d.mount_x*sn+d.mount_y*c-s.base.camera_y;
                 const float eye_height=metadata?metadata->view.eye_height:1.55f;distance=std::sqrt(x*x+y*y+eye_height*eye_height);}
             // Distance-only vehicle detail bands are stable across camera turns.
             const uint32_t detail_band=s.details[i].vehicle_features?(width/(2*std::tan(70*hybrid::pi/360))/std::max(.1f,distance)<28?2:distance>8?1:0):0;
-            hash=hash_bytes(hash,&detail_band,sizeof(detail_band));values[i]=hash;}
+            const auto key=content_position(size_t(i));
+            const uint32_t flags=levels?levels->coordinates[i].flags:0,direction=levels?levels->coordinates[i].direction:0;
+            const normalized_record *old=nullptr;
+            const size_t slot=retain?content_slot(key):0;
+            const size_t page_index=slot/normalized_page_cells,offset=slot%normalized_page_cells;
+            auto *page=retain?normalized_records[page_index].get():nullptr;
+            if(page&&signature_cached&&normalized_valid[slot]&&page[offset].position==key)old=&page[offset];
+            const bool same=old&&old->metadata==bool(metadata)&&old->flags==flags&&old->direction==direction&&old->detail_band==detail_band&&
+                !std::memcmp(old->cell.data(),&cell,sizeof(cell))&&!std::memcmp(old->detail.data(),&detail,sizeof(detail))&&
+                (!metadata||(old->occupied_vehicle==metadata->view.occupied_vehicle&&!std::memcmp(old->extra.data(),&extra,sizeof(extra))));
+            uint64_t hash;
+            if(same){hash=old->hash;++signature_content_reuses;}
+            else{
+                ++signature_content_hashes;hash=hash_bytes(1469598103934665603ull,&cell,sizeof(cell));hash=hash_bytes(hash,&detail,sizeof(detail));
+                if(levels){const auto &c=levels->coordinates[i];hash=hash_bytes(hash,&c.x,sizeof(c.x)*3);hash=hash_bytes(hash,&c.flags,sizeof(c.flags));hash=hash_bytes(hash,&c.direction,sizeof(c.direction));}
+                if(metadata){hash=hash_bytes(hash,&extra,sizeof(extra));hash=hash_bytes(hash,&metadata->view.occupied_vehicle,sizeof(metadata->view.occupied_vehicle));}
+                hash=hash_bytes(hash,&detail_band,sizeof(detail_band));}
+            values[i]=hash;
+            if(retain&&!same&&signature_content_updates<update_limit){
+                if(!page&&signature_content_allocation_bytes+normalized_page_bytes<=normalized_update_budget){
+                    normalized_records[page_index]=std::make_unique<normalized_record[]>(normalized_page_cells);
+                    page=normalized_records[page_index].get();++normalized_allocated_pages;signature_content_allocation_bytes+=normalized_page_bytes;}
+                if(!page)continue;
+                auto &entry=page[offset];
+                std::memcpy(entry.cell.data(),&cell,sizeof(cell));std::memcpy(entry.detail.data(),&detail,sizeof(detail));
+                if(metadata)std::memcpy(entry.extra.data(),&extra,sizeof(extra));
+                entry.position=key;entry.hash=hash;entry.flags=flags;entry.direction=direction;entry.detail_band=detail_band;
+                entry.metadata=bool(metadata);entry.occupied_vehicle=metadata?metadata->view.occupied_vehicle:0;
+                normalized_valid[slot]=1;++signature_content_updates;}}
         const std::array<int64_t,8> layout{{levels?1:0,s.base.grid_width,s.base.grid_height,
             levels?levels->origin_x:host.world_origin_x,levels?levels->origin_y:host.world_origin_y,
             levels?levels->origin_z:host.world_origin_z,levels?levels->loaded_min_z:host.world_origin_z,levels?levels->loaded_max_z:host.world_origin_z}};
@@ -288,11 +369,13 @@ public:
     explicit scene_cache(size_t mesh_budget=resources::mesh_limit,size_t texture_budget=resources::texture_limit):assets(mesh_budget,texture_budget){}
     uint32_t generated_cells=0;uint64_t signature_reuses=0;double geometry_ms=0;
     uint64_t signature_neighbor_queries=0,signature_reused_cells=0,signature_neighborhood_marks=0;
+    uint64_t signature_content_reuses=0,signature_content_hashes=0,signature_content_updates=0,signature_content_allocation_bytes=0;
     std::string last_reason;
     void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();arm_meshes={};assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
         signature_cached=false;signature_values=std::vector<uint64_t>{};signature_results=std::vector<uint64_t>{};signature_positions=std::vector<signature_position>{};signature_dirty_slots=std::vector<uint8_t>{};signature_reuses=0;
-        signature_neighbor_queries=signature_reused_cells=signature_neighborhood_marks=0;}
-    size_t bytes()const{return assets.bytes()+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t)+signature_positions.capacity()*sizeof(signature_position)+signature_dirty_slots.capacity();}
+        decltype(normalized_records){}.swap(normalized_records);normalized_allocated_pages=0;std::vector<uint8_t>{}.swap(normalized_valid);normalized_dimensions={};normalized_levels=false;
+        signature_neighbor_queries=signature_reused_cells=signature_neighborhood_marks=0;signature_content_reuses=signature_content_hashes=signature_content_updates=signature_content_allocation_bytes=0;}
+    size_t bytes()const{return assets.bytes()+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t)+signature_positions.capacity()*sizeof(signature_position)+signature_dirty_slots.capacity()+normalized_bytes();}
     bool build(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const hybrid::sprite_provider &provider,packet &out,
                hybrid::frame &statistics,const ncmm_gpu_metrics_v1 &host,animation::pose pose,const hybrid::presentation_data *metadata,creature::presentation *creatures,int width,int height,uint32_t mode,const ncmm_graphics_multilevel_scene_v1 *levels=nullptr){
         last_reason.clear();

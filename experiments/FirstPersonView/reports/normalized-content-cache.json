@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "parent_source": "9c00cd80d22d2351d4ff0eb072bf64f65e9043aa",
+  "runtime_header_sha256": "ad24d560d21b5ea0ead3eaada894f105d7832ed38732c656c1c650ddda57b808",
+  "performance_accepted": false,
+  "native_measurement_complete": false,
+  "old_b19_negative_verdict_remains_authoritative": true,
+  "retained_content_budget_bytes": 33554432,
+  "per_call_copy_budget_bytes": 524288,
+  "per_call_allocation_budget_bytes": 524288,
+  "normalized_page_records": 128,
+  "local_ctest_passed": 33,
+  "atomic_source_tests_passed": 12,
+  "qualification_policy_tests_passed": 8,
+  "exact_original_oracle_bytes": 20103528,
+  "exact_original_oracle_sha256": "2be4355d73b576f0b11e8244b849409125df820896a54353dc1d4ed187b0ca0b",
+  "exact_benchmark_bytes": 47876496,
+  "exact_benchmark_sha256": "49d945f3715a6ea78119ea42d40ec522850df6f286881d068747ef59422296d0",
+  "evidence_local_workspace": "fpv-next-evidence beside the candidate checkout; complete raw files remain local",
+  "evidence_sha256": {
+    "content-cache-bench-r4/plan.json": "89b4ce8ec50a6bb6aa21a7c8f87aec6f2ee245a340bccae12f15cf5969815cbf",
+    "content-cache-bench-r4/result.json": "4b75fb5eb1dbae4665a6582f5a98f1f78d3e0b4ee79b25d4060f80c8039788c2",
+    "content-cache-oracle-r3/verified.json": "51aa7319ac4da901e5d70f60fa20837a6ff0a65cfa8c76c02ae5aca112d5bbd8",
+    "content-cache-page-all-build.log": "ea8377a55004bcd04a7f5193745fb10403721b1448f67914eb2d43c93d415dde",
+    "content-cache-page-all-ctest.log": "b7bde067c7a0aad655eb142294c148ea155ea2e0d14a3b03146bbad56e74003a",
+    "content-cache-atomic-tests.log": "a71b91f38279ae5bc356ed90666e1e2c0701a5abee77f85a08333a7328152ec4",
+    "content-cache-qualification-tests.log": "44e5c4f9428b34d862531feb9e9caf82aa6ab93936111bd825530f0a719bbfde"
+  },
+  "limitation": "Synthetic content hashing function only. Cold initialization remains slower in several cases; full Native ordinary comparisons, both pins/platforms, sanitizer CI and unchanged final hardware/lifecycle runs are required. No 15ms/frame or GPU-speed claim."
+}

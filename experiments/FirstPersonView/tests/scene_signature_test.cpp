@@ -5,6 +5,10 @@
 
 namespace first_person::gpu {
 struct scene_signature_probe {
+    static size_t retained_content_bytes(const scene_cache &cache){return cache.normalized_bytes();}
+    static size_t content_cell_limit(){return scene_cache::normalized_budget/(scene_cache::normalized_page_bytes+scene_cache::normalized_page_cells+sizeof(cache_record_pointer))*scene_cache::normalized_page_cells;}
+    using cache_record_pointer=std::unique_ptr<scene_cache::normalized_record[]>;
+    static size_t content_update_bytes(const scene_cache &cache){return cache.signature_content_updates*sizeof(scene_cache::normalized_record);}
     static std::vector<uint64_t> run(scene_cache &cache,const ncmm_graphics_scene_v2 &s,
         const ncmm_graphics_multilevel_scene_v1 *world,bool reference=false,bool creatures=true,int width=1768,const hybrid::presentation_data *metadata=nullptr){
         if(reference)cache.signature_cached=false; // original full 27/9-neighbour oracle
@@ -63,26 +67,36 @@ int main(){try{
         const auto expected=scene_signature_probe::run(reference,f.world.appearance,world,true,creatures,width,extra);
         check(actual==expected,"incremental result must match the original full ordered hash, including missing neighbours");
         check(actual.size()==f.cells.size(),"all current cells retain an index");
+        check(scene_signature_probe::content_update_bytes(cached)<=512u*1024u,"cold and changed content updates stay within the same per-call byte budget");
+        check(cached.signature_content_allocation_bytes<=512u*1024u,"page allocations have the same explicit per-call byte limit");
     };
+    auto warm=[&](){for(int round=0;round<96;++round){compare();if(cached.signature_content_hashes==0)return;}throw std::runtime_error("bounded content cache did not warm");};
     f.make(97,97,0,0,10000,-20000);compare();
+    check(cached.signature_content_hashes==9409&&cached.signature_content_reuses==0,"cold content is fully hashed before retention");
     const auto full_queries=cached.signature_neighbor_queries;check(full_queries==27*9409,"cold path is the original full pass");
+    warm();
     compare();check(cached.signature_neighbor_queries==0&&cached.signature_reused_cells==9409,"unchanged snapshot reuses all exact signatures");
+    check(cached.signature_content_hashes==0&&cached.signature_content_reuses==9409,"unchanged owned bytes avoid all content rehashing");
     f.cells[48*97+48].flags|=NCMM_GFX_WALL;compare();
     check(cached.signature_neighbor_queries==27*9&&cached.signature_reused_cells==9400,"one changed cell rehashes exactly its present neighbours");
     check(cached.signature_neighborhood_marks==9,"one-storey invalidation marks its bounded present plane");
+    check(cached.signature_content_hashes==1&&cached.signature_content_reuses==9408,"one static edit rehashes only its changed content");
     f.make(97,97,0,0,10000,-20000);compare();
     f.make(97,97,0,0,10001,-20000);compare();
     const auto shifted_queries=cached.signature_neighbor_queries;
     check(shifted_queries<full_queries/8,"one-tile viewport shift avoids most neighbour lookups");
+    check(cached.signature_content_hashes==97&&cached.signature_content_reuses==97*96,"viewport shift retains content only by the exact owned absolute position");
     for(auto &cell:f.cells)cell.flags|=NCMM_GFX_WALL;
     compare();check(cached.signature_neighbor_queries==full_queries,"scene-wide edits use the original full pass");
+    warm();
     for(auto &cell:f.cells)cell.light=.15f;
     for(auto &detail:f.details){detail.light_r=.1f;detail.light_g=.2f;detail.light_b=.3f;detail.emission=.5f;}
     compare();check(cached.signature_neighbor_queries==0,"lighting changes keep existing normalized static semantics");
+    check(cached.signature_content_hashes==0&&cached.signature_content_reuses==9409,"normalized dynamic lighting does not rehash static content");
     // Retained state is owned data. Replace every input allocation and object.
     f=fixture{};f.make(97,97,0,0,10001,-20000);for(auto &cell:f.cells)cell.flags|=NCMM_GFX_WALL;compare();
     check(cached.signature_neighbor_queries==0,"cache never depends on old callback addresses");
-    with_metadata=true;compare();
+    with_metadata=true;compare();warm();
     auto &middle=metadata.cells[48*97+48];middle.terrain_material=NCMM_MAT_WOOD;compare();
     check(cached.signature_neighbor_queries==27*9,"presentation material invalidates only its old exact neighbourhood");
     middle.source_light=15;middle.source_r=.3f;middle.hostile=1;middle.creature_height=2;compare();
@@ -91,6 +105,9 @@ int main(){try{
     middle.ceiling[127]='x';compare();
     ++metadata.view.occupied_vehicle;compare();
     check(cached.signature_neighbor_queries==full_queries,"occupied-vehicle changes preserve the full reference invalidation");
+    check(cached.signature_content_hashes==9409,"occupied-vehicle identity participates in every retained metadata record");
+    with_metadata=false;compare();with_metadata=true;compare();warm();compare();
+    check(cached.signature_content_hashes==0&&cached.signature_content_reuses==9409,"metadata presence transitions never reuse an incompatible content hash");
     for(int levels:{1,3,21,32}){
         cached.clear();reference.clear();
         const int low=-1,high=low+levels-1;
@@ -133,6 +150,15 @@ int main(){try{
     // Legacy dense-grid and sparse XYZ modes cannot share identity accidentally.
     for(int frame=0;frame<20;++frame){f.make(17,19,0,0,frame,-frame);compare(true,1768,frame%2==0);}
     f.make(3,3,0,0,0,0);compare();f.cells[4].flags|=NCMM_GFX_WALL;compare();
+    check(scene_signature_probe::retained_content_bytes(cached)==0,"small scenes release the optional content storage");
+    const int tall=int(scene_signature_probe::content_cell_limit()/(97*97))+1;
+    f.make(97,97,0,tall-1,0,0);compare();
+    check(cached.signature_content_reuses==0&&cached.signature_content_hashes==f.cells.size(),"over-budget scenes use the complete original content hashing path");
+    check(scene_signature_probe::retained_content_bytes(cached)==0,"large scenes release content storage instead of exceeding its budget");
+    f.make(97,97,0,0,0,0);compare();warm();compare();
+    check(scene_signature_probe::retained_content_bytes(cached)<=32u*1024u*1024u&&cached.signature_content_hashes==0,"retention can resume after a bounded fallback");
+    for(int height:{53,54}){f.make(92,height,0,5,-10000,-20000);compare();
+        check(scene_signature_probe::retained_content_bytes(cached)<=32u*1024u*1024u,"validity-mask capacity growth is included in the strict owned-byte limit");}
     cached.clear();check(cached.bytes()==0,"world/resource clear releases every added owned array");
     std::cout<<"Scene signature differential checks="<<checks<<"; 97x97 first="<<full_queries
         <<" lookups, one-column shift="<<shifted_queries<<"; full hashes identical\n";
