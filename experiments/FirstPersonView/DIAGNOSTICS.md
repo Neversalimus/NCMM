@@ -1,5 +1,62 @@
 # First Person diagnostics
 
+`-MovementBenchmark -Extended -FullSizeGpuMatrix` is an explicitly selected
+hardware performance comparison: the same ten extended scenes, 64 Native
+steps and 96 cold plus 96 warm camera frames per scene at 1768x1084. It changes
+neither quality, draw distance nor loaded levels. Normal CPU/GPU release gates
+and the 80-record extended matrix remain unchanged when this flag is absent.
+The runner rejects profiler/debug/differential modes and software adapters in
+this performance mode. Configured Native renderer VSync, physical window size,
+display scale and the runtime SDL version are recorded separately from the
+offscreen scene dimensions.
+
+For component comparisons, `-DisableHeldAssets`, `-DisableTargetHud` and
+`-DisableCameraSnapshot` affect only the diagnostic child. They are separate
+from the one player-facing HUD option. A disabled-components run is an
+ablation of the combined Host, not an unchanged historical installer; keep
+the exact historical baseline and its provenance separate. Run the four modes
+in forward and reverse order and retain unsuccessful/regressing samples.
+
+`-TargetHudGallery` runs the same Native HP/picking/font cases as the gameplay
+audit in its own isolated process, before the long firing and soak gates. It is
+diagnostic correctness evidence and does not replace those gates or establish
+ordinary frame times. The 42 captures cover CPU/GPU, HP changes, identity
+replacement, Cyrillic, disable, walls/window mullions/glass, night, real Native
+blindness and restoration, another floor, a close huge target, a flying target,
+a 1280x720 viewport and Native NPC aggregate health. Each GPU record includes
+its actual backend/device and software-adapter status; the physical window's
+display scale is recorded rather than changed globally.
+
+## Native firing UI context
+
+The gameplay audit now dispatches the ordinary game command through SDL input,
+then processes the native aim activity and target UI. Its private qualification
+gateway calls `game::handle_action`; it does not fabricate an attack notification.
+One legacy-policy cancel trial must reproduce the old native-map presentation.
+The current fixed-policy fixture requires 192 attempts on CPU/GPU, including confirmed single
+and automatic shots, cancellation, an empty weapon, no target, a window, a blocked
+wall, a dead target, a changed weapon, pointer-only LMB and a vertical cancellation. Each successful native window presentation
+has a lossless PNG, mode/backend state and a contiguous trial/frame receipt.
+`verify_fire_audit.py` checks image integrity and rejects any intermediate map
+frame or silent CPU fallback. The fixture alternates keychar/keycode through the
+native option cache update, records the resolved native mode, and counts actual
+DEFAULTMODE input results in each mode. Changing the option string alone cannot
+establish keyboard backend coverage. These instrumented runs are not FPS measurements.
+
+`verify_fire_pixels.py` additionally compares actual decoded window pixels. It
+selects spatial patches that distinguish the legacy trial's initial perspective
+from its observed map frame, then compares every fixed trial with that trial's
+own pre-input image. Each reference must also distinguish the map. This paired,
+fixed-camera fixture check cannot classify arbitrary gameplay or replace manual
+visual review. Synthetic negative verifier tests are not native evidence.
+
+The initial LMB fixture holds RMB look and uses the real native picking/click
+path. Pointer-only LMB, a successful vertical shot, fault handling and vehicle
+fire require additional cases. The controlled series advances native move/ammo
+costs but not ordinary enemy AI. The existing combat/turn audit remains separate.
+Successful compilation or context unit tests do not qualify this native series;
+its completed process, captures and verifier must pass on both pinned Hosts.
+
 For 0.13 development, the existing runner also accepts `-MovementBenchmark -Extended`.
 This opt-in matrix records 10 scenes at 640x480, 1280x800, 1768x1084 and 1920x1080,
 on CPU and GPU, with 64 actual native steps and 96 cold/warm turns per record.
@@ -168,3 +225,79 @@ targets/assets, staging capacity and the cell snapshot have separate counters;
 their combined budget is bounded. Older missing fields mean unavailable.
 
 Before each native renderer reset, the host drains the shared SDL GPU device even if module disable already cleared the private backend. This covers queued SDL presentation copies and swapchain release. It is a lifecycle boundary, not a new per-frame fence. The retained 0.12.7 WARP stacks and matching-image metadata are preserved in qualification/0.12.8-warp-stacks.json.gz.
+
+## Camera snapshot experiment and live tracing
+
+The Host may reuse owned, camera-independent cell data only while CDDA's main
+thread is blocked in the ordinary input loop. Camera actions preserve this
+lease. Unknown/native actions, nested UI, other module callbacks and native map
+changes revoke its generation. Position/eye, source revisions, loaded Z range,
+viewport, renderer texture generation and tileset independently guard reuse.
+This is not a turn-number cache. Actors, death clips and vehicles continue on
+their live path. The complete native tile pass still runs on every redraw.
+
+The explicit `game::get_player_input` lifetime also owns its 125 ms Native
+animation polls. A TIMEOUT inside that exact loop preserves the generation;
+it does not advance the simulation. A TIMEOUT outside the owned loop, a real
+action, nested menu or recursive input loop still revokes reuse. This avoids
+discarding the static snapshot on every weather/animation poll. The actual
+SDL probe records revocation causes and saves any unclassified window present
+for pixel review; its no-fallback assertion remains strict.
+
+The existing sparse snapshot cache acquires a new side/back sector lazily.
+Frustum rejections never become cached native occlusion. Its owned cell,
+appearance and physical-light payload is capped at 96 MiB including capacity;
+no item, Creature or atlas pointer is added to it. Substrate matching and camera
+culling still run against the current submitted cells. Existing GPU mesh/resource
+caches remain authoritative for their own geometry and upload lifetimes.
+
+`Run-FirstPersonBenchmark.ps1 -MovementBenchmark -CameraSnapshotVerify` repeats
+native extraction and compares permissions, IDs, lights, shape/detail and
+presentation against the owned data. Each record must contain at least 100
+actual comparisons and zero mismatches. This diagnostic is intentionally slow.
+`-DisableCameraSnapshot` supplies the same-binary control. Both switches are
+temporary diagnostics and their environment is restored, including on failure.
+Movement records identify their controlled immutable-fixture input lease and
+retain per-frame hit/miss, comparison, generation and byte counters. This is
+automated qualification, not a manual combat session.
+
+For profiling only, `NCMM_FP_TRACE_MARKERS=1` enables CPU NVTX ranges and SDL GPU
+debug groups. The unmodified NVTX core is header-only and pinned under
+`graphics_bridge/third_party/nvtx3`; no installed SDK or additional profiler DLL
+is required to build or run the game. Profiler-off measurements leave markers
+disabled. Native Update covers resolved action dispatch; Input Wait identifies
+blocking menus/targeting separately. Native 2D, Snapshot, Visibility, Geometry,
+Resource Preparation, Upload, World, Creatures, Hands/Items, Effects, Target HUD
+and Present identify the remaining stages. Nested ranges are not additive.
+These annotations do not convert CPU submit/record timers into GPU execution
+time. Live seven-scene Graphics and supplemental Systems validation is recorded
+in `reports/nsight-16d-hardware.md`, including incomplete workload-event coverage.
+
+Nsight's CLI must receive `--platform="Windows (x86_64)"` as one argument.
+Passing `--platform` and its value as separate arguments lets Qt consume it as
+its own QPA plugin selection. Omit `--hostname` for a local launch. Capture
+settings (including Nsight's enforced VSync-off default and clock mode) must be
+recorded separately from ordinary profiler-off timings. A startup capture is
+only connection validation and does not qualify a first-person scene.
+
+## Actual Linux Native qualification
+
+`ncmm-fpv-linux-native.yml` builds the exact 1040 and 1807 CDDA sources with
+the same canonical stack and experimental graphics bridge, upstream SDL 3.4.10,
+and the real `.so` modules. The private experimental loader uses `dlopen` with
+local symbol visibility and retains the existing descriptor, capability,
+migration, failure and shutdown checks. Public module interfaces and the
+canonical shipping Windows Host are unchanged. The normal Windows experimental
+loader still uses wide paths and the same LoadLibrary/GetProcAddress behavior.
+
+The Linux runner uses fresh owned worlds under Xvfb and explicit Mesa software
+Vulkan. It exercises Native controls, camera input, held-model captures, target
+HUD captures, actual firing pixels and Native save/reload. It records hashes
+and real child exit status and preserves failed evidence. It must not be cited
+as RTX 4090, ordinary frame-time or Linux installer qualification. The official
+Windows graphics archive supplies digest-checked common game data only; the
+executable and Linux SPIR-V are built from the exact Linux source. No Windows
+binary is executed there. Full qualification also requires this Linux gate.
+
+This new gate is pending its first actual CI run; a compiled module alone does
+not establish that the Host can load it or display a Native frame.

@@ -56,12 +56,39 @@ $fp=Join-Path $payload 'code_mods/FirstPersonView'
 New-Item -ItemType Directory -Force $fp | Out-Null
 Copy-Item (Join-Path $fpBuild 'Release/ncmm_mod.dll') $fp
 Copy-Item (Join-Path $PSScriptRoot 'mod.json') $fp
+$heldRoot=Join-Path $PSScriptRoot 'assets/held_items'
+$heldSelectionPath=Join-Path $heldRoot 'selection.json'
+$heldImportPath=Join-Path $heldRoot 'generated/manifest.json'
+$heldSelectionText=Get-Content -LiteralPath $heldSelectionPath -Raw -Encoding UTF8
+$heldImportText=Get-Content -LiteralPath $heldImportPath -Raw -Encoding UTF8
+$heldSelection=$heldSelectionText | ConvertFrom-Json
+$heldImport=$heldImportText | ConvertFrom-Json
+if($heldSelection.schema -ne 1 -or $heldImport.schema -ne 1 -or $heldSelection.models.Count -ne 30 -or $heldImport.models.Count -ne 30){throw 'Held resource inventory differs.'}
+$heldLicenseParts=@()
+foreach($entry in $heldSelection.files.PSObject.Properties){
+    if($entry.Name -notmatch '^source/[a-z_]+/[A-Za-z0-9_ ./-]+$' -or $entry.Name.Contains('..')){throw 'Unsafe held provenance path.'}
+    $path=Join-Path $heldRoot $entry.Name
+    if((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.Value){throw 'Authored held resource differs from its pinned bytes.'}
+}
+foreach($heldSource in $heldSelection.sources){
+    if($heldSource.license -ne 'CC0-1.0' -or -not $heldSelection.files.($heldSource.license_evidence)){throw 'Held source license evidence is missing.'}
+    $heldLicenseParts+=Get-Content -LiteralPath (Join-Path $heldRoot $heldSource.license_evidence) -Raw -Encoding UTF8
+}
+$heldRuntimePrefix=[ordered]@{schema=1;runtime_importer=$false;selection_sha256=(Get-FileHash -LiteralPath $heldSelectionPath -Algorithm SHA256).Hash.ToLowerInvariant();
+    generated_manifest_sha256=(Get-FileHash -LiteralPath $heldImportPath -Algorithm SHA256).Hash.ToLowerInvariant()} | ConvertTo-Json -Compress
+# Preserve original JSON number tokens: Windows PowerShell 5 otherwise rounds
+# unsigned 64-bit offline mesh identities while reserializing the source data.
+$heldRuntime=$heldRuntimePrefix.Substring(0,$heldRuntimePrefix.Length-1)+',"selection":'+$heldSelectionText.Trim()+',"imported":'+$heldImportText.Trim()+'}'
+[IO.File]::WriteAllText((Join-Path $fp 'held-assets.manifest.json'),$heldRuntime,(New-Object Text.UTF8Encoding($false)))
+[IO.File]::WriteAllText((Join-Path $fp 'held-assets-licenses.txt'),($heldLicenseParts -join "`n"),(New-Object Text.UTF8Encoding($false)))
 $hostDest=Join-Path $payload 'host'
 New-Item -ItemType Directory -Force $hostDest | Out-Null
 Copy-Item (Join-Path $HostRoot 'cataclysm-tiles.exe') (Join-Path $hostDest 'cataclysm-tiles.ncmm.exe')
 Copy-Item (Join-Path $HostRoot 'first-person-source.json') $hostDest
 Copy-Item (Join-Path $HostRoot 'LICENSE.txt') (Join-Path $stage 'CDDA-LICENSE.txt')
 Copy-Item (Join-Path $RepositoryRoot 'THIRD_PARTY_NOTICES.txt') $stage
+Copy-Item (Join-Path $RepositoryRoot 'experiments/graphics_bridge/third_party/nvtx3/LICENSE.txt') (Join-Path $stage 'NVTX-LICENSE.txt')
+Copy-Item (Join-Path $RepositoryRoot 'experiments/graphics_bridge/third_party/nvtx3/LICENSE.txt') (Join-Path $fp 'NVTX-LICENSE.txt')
 $sdlNotice=Join-Path $RepositoryRoot 'experiments/graphics_bridge/third_party/sdl3-port/SDL-LICENSE.txt'
 $sdlNoticeText="`nSDL 3.4.10: private NCMM D3D12 graphics descriptor reservation correction.`nOriginal source: https://github.com/libsdl-org/SDL/tree/release-3.4.10`nThe altered source and pinned port are in experiments/graphics_bridge/third_party/sdl3-port.`n`n"+[IO.File]::ReadAllText($sdlNotice)
 [IO.File]::AppendAllText((Join-Path $stage 'THIRD_PARTY_NOTICES.txt'),$sdlNoticeText,(New-Object Text.UTF8Encoding($false)))
@@ -106,7 +133,7 @@ foreach($file in Get-ChildItem $payload -Recurse -File | Sort-Object FullName){
     $rel=$file.FullName.Substring($payload.Length+1).Replace('\','/')
     $files[$rel]=(Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 }
-$revisionParts=@(@(Get-ChildItem (Join-Path $PSScriptRoot 'src') -File | Sort-Object Name | ForEach-Object {$_.FullName})+(Join-Path $HostRoot 'first-person-source.json')) | ForEach-Object {(Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant()}
+$revisionParts=@(@(Get-ChildItem (Join-Path $PSScriptRoot 'src') -File | Sort-Object Name | ForEach-Object {$_.FullName})+(Join-Path $HostRoot 'first-person-source.json')+$heldSelectionPath+$heldImportPath) | ForEach-Object {(Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant()}
 $digest=[Security.Cryptography.SHA256]::Create()
 try{$revision='fp-'+([BitConverter]::ToString($digest.ComputeHash([Text.Encoding]::UTF8.GetBytes(($revisionParts -join '-'))))).Replace('-','').ToLowerInvariant()}finally{$digest.Dispose()}
 $bundle=[ordered]@{
@@ -147,6 +174,9 @@ attack/shot events drive clips; no unconfirmed reload animation is invented.
 Immutable GPU hand resources are retained while animation updates matrices.
 Actual worn gloves and sleeves select hand and forearm materials separately.
 See THIRD_PARTY_NOTICES.txt for the original archive hash and author's license.
+This preview includes 30 licensed held models for supported guns, tools,
+containers and accessories, using the original PSX hands. Items outside the
+supported authored families keep the established fallback.
 Native visibility, map memory and sprite/animation processing retain the complete
 established tile draw before perspective rendering.
 Use the qualification report for measured gains; this text makes no FPS claim.
@@ -213,8 +243,8 @@ Both hands grip the generated polearm shaft and move with the weapon.
 Actual melee attacks trigger a swing or polearm thrust; shots trigger recoil.
 Boulders have irregular faceted geometry. Forward terrain is no longer covered
 by black unknown-tile planes; real light and opaque walls still govern the view.
-Ordinary commands and inventory retain the perspective backdrop. Coordinate
-look/targeting and the overmap temporarily use the normal map.
+Ordinary commands, inventory and Native aiming retain the selected perspective
+backdrop. Coordinate look and the overmap temporarily use the normal map.
 Long CatLauncher paths and Cyrillic folder names are supported during install,
 rollback and restore, including existing nested Host backup history.
 This is an experimental build with a locally bundled Host. Automatic stable
@@ -222,8 +252,9 @@ Host updates are disabled in this preview. Use the normal NCMM installer to
 return to the current certified Host, or Restore vanilla EXE for vanilla play.
 Uncheck First Person View and install again to remove its managed DLL/manifest.
 
-Current limits: automatic coarse vehicle geometry, sprite-derived held items,
-generic environment dimensions and conservative hidden-surface reconstruction.
+Current limits: automatic coarse vehicle geometry, generic environment dimensions
+and conservative hidden-surface reconstruction. Unsupported held items use the
+existing fallback.
 The 0.12 world includes loaded Z-levels, floors, ceilings, stairs and shafts.
 Camera easing follows safe adjacent walking and stair movement visually after
 the first successful presentation; native movement remains turn-based.
@@ -233,6 +264,9 @@ Unusual anatomy and hidden surfaces are conservative reconstructions.
 Non-arrow movement bindings keep their world
 directions. Mouse capture releases when menus open, focus is lost, or F6 disables
 the view. Camera rotation does not spend a turn. Saves are unchanged.
+Aim at a visible hostile to see its name and Native health bar. Unknown health
+is marked as unknown. Disable target health in the first-person settings to
+return to the previous name display.
 GPU Balanced is capped at 1920x1080 and High at 2560x1440. CPU Balanced is
 capped at 960x600 and High at 1280x800. Software rendering uses up to four CPU row bands and caches identical
 redraws briefly. Hands and weather compose over an owned world frame, and the

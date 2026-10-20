@@ -1,7 +1,7 @@
 import copy
 import math
 import unittest
-from verify_horizon_release import frame_phases
+from verify_horizon_release import frame_phases, expected_payload_files, verify_payload_file_matrix
 
 class FramePhaseTests(unittest.TestCase):
     def valid_record(self):
@@ -44,5 +44,41 @@ class FramePhaseTests(unittest.TestCase):
     def test_no_claim_without_exclusive_measurement(self):
         r=self.valid_record();r['exclusive_phases_available']=False
         with self.assertRaisesRegex(ValueError,'missing'):frame_phases(r)
+
+class PayloadMatrixTests(unittest.TestCase):
+    held='experiments/FirstPersonView/assets/held_items/selection.json'
+    nvtx='experiments/graphics_bridge/third_party/nvtx3/LICENSE.txt'
+    def entries(self,files):
+        return {'payload/'+name for name in files}|{'payload/first-person-bundle.json'}
+    def test_exact_base_camera_assets_and_combined_contracts(self):
+        for paths,count in (([],32),([self.nvtx],33),([self.held],34),([self.held,self.nvtx],35)):
+            with self.subTest(paths=paths):
+                files=expected_payload_files(paths)
+                self.assertEqual(len(files),count)
+                verify_payload_file_matrix(files,self.entries(files),paths)
+    def test_missing_asset_metadata_and_license_rejected(self):
+        paths=[self.held,self.nvtx];expected=expected_payload_files(paths)
+        for name in ('held-assets.manifest.json','held-assets-licenses.txt','NVTX-LICENSE.txt'):
+            files=expected-{'code_mods/FirstPersonView/'+name}
+            with self.subTest(name=name),self.assertRaisesRegex(ValueError,'trusted source'):
+                verify_payload_file_matrix(files,self.entries(files),paths)
+    def test_same_count_wrong_file_is_rejected(self):
+        paths=[self.held];files=expected_payload_files(paths)
+        files.remove('code_mods/FirstPersonView/held-assets-licenses.txt')
+        files.add('code_mods/FirstPersonView/unreviewed.bin')
+        self.assertEqual(len(files),34)
+        with self.assertRaisesRegex(ValueError,'trusted source'):
+            verify_payload_file_matrix(files,self.entries(files),paths)
+    def test_unlisted_archive_file_and_missing_archive_file_are_rejected(self):
+        paths=[self.held,self.nvtx];files=expected_payload_files(paths)
+        for entries in (self.entries(files)|{'payload/extra.bin'},self.entries(files)-{'payload/host/first-person-source.json'}):
+            with self.assertRaisesRegex(ValueError,'Archive payload'):
+                verify_payload_file_matrix(files,entries,paths)
+    def test_runtime_module_or_persistent_data_cannot_disappear(self):
+        expected=expected_payload_files([])
+        for name in ('code_mods/EquipmentBodyMap/ncmm_mod.dll','code_mods/SurvivorProgression/persistent_data/mana_hand_carrier.json'):
+            files=expected-{name}
+            with self.assertRaisesRegex(ValueError,'trusted source'):
+                verify_payload_file_matrix(files,self.entries(files),[])
 
 if __name__=='__main__':unittest.main()

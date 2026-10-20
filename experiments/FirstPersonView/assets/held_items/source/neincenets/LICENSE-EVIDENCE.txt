@@ -1,0 +1,6 @@
+Author: neincenets
+Version/publication: 2024-10-14
+Author-published source: https://opengameart.org/content/low-quality-flashlight
+License: CC0-1.0
+Archive SHA256: 477d631bc85f5046caf3ef95362d446c652d30445ac56976b58798830148ddfb
+The saved publishing-author page explicitly identifies this package as CC0. No separate license text is present in the archive.

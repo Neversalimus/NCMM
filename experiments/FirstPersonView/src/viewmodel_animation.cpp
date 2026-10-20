@@ -60,16 +60,19 @@ namespace {
 bool finite(point p) noexcept {return std::isfinite(p.x)&&std::isfinite(p.y)&&std::isfinite(p.z);}
 bool finite(quaternion q) noexcept {return std::isfinite(q.x)&&std::isfinite(q.y)&&std::isfinite(q.z)&&std::isfinite(q.w);}
 bool finite(const matrix &m) noexcept {return std::all_of(std::begin(m.columns),std::end(m.columns),[](float v){return std::isfinite(v);});}
-bool shape(const asset &a) noexcept {
-    return a.vertices&&a.indices&&a.nodes&&a.order&&a.joints&&a.inverse_bind&&a.palettes&&a.keys&&a.tracks&&a.clips&&a.bare_pixels&&a.glove_pixels&&
+bool rig_shape(const asset &a) noexcept {
+    return a.vertices&&a.indices&&a.nodes&&a.order&&a.joints&&a.inverse_bind&&a.palettes&&
         a.vertex_count>0&&a.vertex_count<=16384&&a.index_count>0&&a.index_count<=98304&&a.index_count%3==0&&
         a.node_count>0&&a.node_count<=maximum_nodes&&a.joint_count>0&&a.joint_count<=maximum_nodes&&
-        a.palette_count>0&&a.palette_count<=maximum_palettes&&a.key_count>0&&a.key_count<=200000&&
+        a.palette_count>0&&a.palette_count<=maximum_palettes;
+}
+bool shape(const asset &a) noexcept {
+    return rig_shape(a)&&a.keys&&a.tracks&&a.clips&&a.bare_pixels&&a.glove_pixels&&a.key_count>0&&a.key_count<=200000&&
         a.track_count>0&&a.track_count<=16384&&a.clip_count>0&&a.clip_count<=64&&a.texture_width==512&&a.texture_height==512;
 }
 }
-bool valid_asset(const asset &a) noexcept {
-    if(!shape(a))return false;
+bool valid_rigged_mesh(const asset &a) noexcept {
+    if(!rig_shape(a))return false;
     std::array<bool,maximum_nodes> seen{};
     for(size_t at=0;at<a.node_count;++at){const auto i=a.order[at];if(i>=a.node_count||seen[i])return false;
         const auto &n=a.nodes[i];if(!n.name||n.parent < -1||n.parent>=int(a.node_count)||(n.parent>=0&&!seen[size_t(n.parent)]))return false;
@@ -79,8 +82,13 @@ bool valid_asset(const asset &a) noexcept {
         for(size_t j=0;j<4;++j){const auto w=a.palettes[i].values[j];if(a.palettes[i].joints[j]>=a.joint_count||!std::isfinite(w)||w<0||w>1)return false;sum+=w;}
         if(std::abs(sum-1)>2e-5f)return false;}
     for(size_t i=0;i<a.vertex_count;++i){const auto &v=a.vertices[i];if(!finite(v.position)||!finite(v.normal)||!std::isfinite(v.u)||!std::isfinite(v.v)||
-        v.u<0||v.u>1||v.v<0||v.v>1||v.palette>=a.palette_count||v.side>1||v.region>1)return false;}
+        std::abs(v.u)>1000000||std::abs(v.v)>1000000||v.palette>=a.palette_count||v.side>1||v.region>1)return false;}
     for(size_t i=0;i<a.index_count;++i)if(a.indices[i]>=a.vertex_count)return false;
+    return true;
+}
+bool valid_asset(const asset &a) noexcept {
+    if(!shape(a)||!valid_rigged_mesh(a))return false;
+    for(size_t i=0;i<a.vertex_count;++i){const auto &v=a.vertices[i];if(v.u<0||v.u>1||v.v<0||v.v>1)return false;}
     for(size_t i=0;i<a.key_count;++i)if(!std::isfinite(a.keys[i].time)||!std::all_of(a.keys[i].value.begin(),a.keys[i].value.end(),[](float v){return std::isfinite(v);}))return false;
     for(size_t i=0;i<a.track_count;++i){const auto &t=a.tracks[i];if(t.target>=a.node_count||uint8_t(t.property)>2||uint8_t(t.mode)>1||!t.count||t.first>a.key_count||t.count>a.key_count-t.first)return false;
         for(uint32_t k=1;k<t.count;++k)if(a.keys[t.first+k].time<=a.keys[t.first+k-1].time)return false;}
@@ -112,7 +120,7 @@ void blend_locals(const asset &a,const std::array<local_pose,maximum_nodes> &fro
         to[i].scale=from[i].scale+(to[i].scale-from[i].scale)*alpha;to[i].rotation=slerp(from[i].rotation,to[i].rotation,alpha);}
 }
 bool evaluate_globals(const asset &a,const std::array<local_pose,maximum_nodes> &local,std::array<matrix,maximum_nodes> &global) noexcept {
-    if(!shape(a))return false;
+    if(!rig_shape(a))return false;
     for(size_t at=0;at<a.node_count;++at){const auto i=a.order[at];const auto &n=a.nodes[i];const auto &p=local[i];
         if(!finite(p.translation)||!finite(p.rotation)||!finite(p.scale))return false;
         const auto matrix=transform(p);global[i]=n.parent<0?matrix:multiply(global[size_t(n.parent)],matrix);}
@@ -127,6 +135,6 @@ bool evaluate(const asset &a,pose_buffer &out) noexcept {
         if(!finite(value))return false;out.palette[i]=value;}
     return true;
 }
-bool bind_pose(const asset &a,pose_buffer &out) noexcept {if(!shape(a))return false;for(size_t i=0;i<a.node_count;++i)out.local[i]=a.nodes[i].bind;return evaluate(a,out);}
+bool bind_pose(const asset &a,pose_buffer &out) noexcept {if(!rig_shape(a))return false;for(size_t i=0;i<a.node_count;++i)out.local[i]=a.nodes[i].bind;return evaluate(a,out);}
 bool sample(const asset &a,size_t index,double seconds,bool loop,pose_buffer &out) noexcept {return sample_locals(a,index,seconds,loop,out.local)&&evaluate(a,out);}
 }

@@ -23,7 +23,8 @@
         for(uint32_t i=0;i<world.cell_count;++i){const auto &c=world.coordinates[i];const auto &a=world.appearance.base.cells[i];
             if(!(c.flags&NCMM_WORLD_FLOOR_BOTTOM))require(c.lower_light[0]==0&&c.lower_light[1]==0&&c.lower_light[2]==0,"multilevel_unseen_lower_room_light_published");
             if(a.item[0]&&std::strcmp(a.item,"rock")==0)observed.rock_levels.push_back(c.z);
-            if(c.flags&NCMM_WORLD_FLOOR_TOP)++observed.floors;if(c.flags&NCMM_WORLD_FLOOR_BOTTOM)++observed.bottoms;
+            if(c.flags&NCMM_WORLD_FLOOR_TOP)++observed.floors;
+            if(c.flags&NCMM_WORLD_FLOOR_BOTTOM)++observed.bottoms;
             if((c.flags&NCMM_WORLD_FLOOR_TOP)&&!(c.flags&NCMM_WORLD_BODY_VISIBLE))++observed.neutral_tops;
             if(c.flags&NCMM_WORLD_STRUCTURE_VISIBLE){++observed.facades;observed.facade_levels.push_back(c.z);
                 require(ncmm_graphics_shapes::structural_surface(world.appearance.details[i].terrain_shape),"multilevel_facade_permission_has_no_architecture");
@@ -43,7 +44,8 @@
     auto terrain=[&](int x,int y,int z,const char *id){const tripoint_bub_ms p(center.x()+x,center.y()+y,z);require(here.ncmm_graphics_loaded(p),"multilevel_fixture_outside_loaded_map");require(ter_str_id(id).is_valid(),"multilevel_fixture_unknown_terrain");here.ter_set(p,ter_id(id));};
     auto spawn=[&](const char *id,int x,int y,int z){auto mon=make_shared_fast<monster>(mtype_id(id));require(g->place_critter_around(mon,tripoint_bub_ms(center.x()+x,center.y()+y,z),0,true)!=nullptr,"multilevel_fixture_creature_spawn_failed");};
     you.clear_mutations();you.clear_effects();you.set_underwater(false);you.set_base_height(175);you.set_movement_mode(move_mode_id("walk"));
-    if(!you.has_trait(trait_id("DEBUG_NIGHTVISION")))you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));you.recalc_sight_limits();
+    if(!you.has_trait(trait_id("DEBUG_NIGHTVISION")))you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));
+    you.recalc_sight_limits();
     auto reset=[&](){clear_monsters();for(const auto &vehicle:here.get_vehicles())here.destroy_vehicle(vehicle.v);
         you.setpos(here,here.get_bub(original_position),false);calendar::turn=original_time;get_weather().weather_id=weather_type_id("sunny");
         for(int z=-OVERMAP_DEPTH;z<=OVERMAP_HEIGHT;++z)for(int y=-48;y<=48;++y)for(int x=-48;x<=48;++x){const tripoint_bub_ms p(center.x()+x,center.y()+y,z);if(!here.ncmm_graphics_loaded(p))continue;
@@ -98,7 +100,8 @@
     auto capture=[&](const std::string &filename,bool save_image){
         auto *raw=SDL_RenderReadPixels(renderer,nullptr);auto *image=raw?SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888):nullptr;require(image!=nullptr,"multilevel_capture_failed");if(raw)SDL_DestroySurface(raw);
         uint64_t fingerprint=1469598103934665603ull;for(int y=0;y<image->h;++y){const auto *row=reinterpret_cast<const uint32_t *>(static_cast<const char *>(image->pixels)+y*image->pitch);for(int x=0;x<image->w;++x){fingerprint^=row[x];fingerprint*=1099511628211ull;}}
-        if(save_image)require(SDL_SaveBMP(image,(game_root()/"ncmm"/filename).string().c_str()),"multilevel_capture_save_failed");SDL_DestroySurface(image);return fingerprint;
+        if(save_image)require(SDL_SaveBMP(image,(game_root()/"ncmm"/filename).string().c_str()),"multilevel_capture_save_failed");
+        SDL_DestroySurface(image);return fingerprint;
     };
     auto qualify=[&](const std::string &name,int layers,int theme,point resolution,bool gallery){
         canvas=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,resolution.x,resolution.y);require(canvas!=nullptr,"multilevel_canvas_allocation_failed");
@@ -108,7 +111,8 @@
             for(int z=-OVERMAP_DEPTH;z<=OVERMAP_HEIGHT;++z){const auto p=project_to<coords::omt>(pos);const tripoint_abs_omt tile(p.xy(),z);discovery.emplace_back(tile,overmap_buffer.seen(tile));}
             const auto cold=clock::now();bool ready=false;
             for(int attempt=0;attempt<160;++attempt){render(resolution);present();ready=std::string(mode)=="cpu"||graphics_gpu_frame;
-                if(ready&&(!graphics_creature_metrics.queued||!observed.actors))break;SDL_Delay(2);}
+                if(ready&&(!graphics_creature_metrics.queued||!observed.actors))break;
+                SDL_Delay(2);}
             require(ready,"multilevel_gpu_fell_back_to_cpu");
             if(std::string(mode)=="cpu"&&resolution.x>1280&&graphics_cpu_metrics.width<1281){require(graphics_action("ncmm.view.quality"),"multilevel_native_quality_switch_failed");render(resolution);present();}
             const double first_ready=std::chrono::duration<double,std::milli>(clock::now()-cold).count();

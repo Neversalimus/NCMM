@@ -1,0 +1,1954 @@
+{
+  "schema": 1,
+  "sources": [
+    {
+      "id": "pich_guns",
+      "author": "Pichuliru",
+      "version": "2022-02-10",
+      "url": "https://opengameart.org/content/cc0-flat-guns-west",
+      "license": "CC0-1.0",
+      "archive_sha256": "0e83e670f7c85a2c024887662f5f6ab584daceb5c8a38bac5a3f14a0397a1d29",
+      "download_url": "https://opengameart.org/sites/default/files/flat_guns_west.zip",
+      "license_evidence": "source/pich_guns/LICENSE-EVIDENCE.txt"
+    },
+    {
+      "id": "pich_melee",
+      "author": "Pichuliru",
+      "version": "2022-01-16",
+      "url": "https://opengameart.org/content/cc0-flat-shaded-melee-weapons",
+      "license": "CC0-1.0",
+      "archive_sha256": "ef2c9a54df7ea021432756d1400ff8d1ea538fec51ae471780781cebb2bde56c",
+      "download_url": "https://opengameart.org/sites/default/files/flatshadedmelee.zip",
+      "license_evidence": "source/pich_melee/LICENSE-EVIDENCE.txt"
+    },
+    {
+      "id": "pich_attachments",
+      "author": "Pichuliru",
+      "version": "2022-03-21",
+      "url": "https://opengameart.org/content/cc0-flat-gun-attachments",
+      "license": "CC0-1.0",
+      "archive_sha256": "b8831bd8bb26bae1a84a4df2a8c1c3c0ad770909a5ca058a6c44497c5a62bcc1",
+      "download_url": "https://opengameart.org/sites/default/files/flat_attachments.zip",
+      "license_evidence": "source/pich_attachments/LICENSE-EVIDENCE.txt"
+    },
+    {
+      "id": "kenney",
+      "author": "Kenney",
+      "version": "2.0 / 2024-04-03",
+      "url": "https://kenney.nl/assets/survival-kit",
+      "license": "CC0-1.0",
+      "archive_sha256": "c3586341b5932c87eb43d75d915434f47daed168b17ed36a03e8ca9977c7443e",
+      "download_url": "https://kenney.nl/media/pages/assets/survival-kit/4065a8185b-1712149243/kenney_survival-kit.zip",
+      "license_evidence": "source/kenney/LICENSE-EVIDENCE.txt"
+    },
+    {
+      "id": "sjolle",
+      "author": "sjolle",
+      "version": "2020-12-26",
+      "url": "https://opengameart.org/content/low-poly-tools",
+      "license": "CC0-1.0",
+      "archive_sha256": "093b45f4af3130d963e3ce1262042653bd1ca281476961696baef44daa5aa9f7",
+      "download_url": "https://opengameart.org/sites/default/files/low_poly_tools.zip",
+      "license_evidence": "source/sjolle/LICENSE-EVIDENCE.txt"
+    },
+    {
+      "id": "quaternius_guns",
+      "author": "Quaternius",
+      "version": "2019-07 (individual source hashes)",
+      "url": "https://quaternius.com/packs/ultimategun.html",
+      "license": "CC0-1.0",
+      "archive_sha256": null,
+      "individual_files": [
+        {
+          "path": "source/quaternius_guns/Revolver_1.obj",
+          "url": "https://drive.usercontent.google.com/download?id=1hgeIaNjND3Hi239KZxF5lJWClNxczik3&export=download&authuser=0&confirm=t",
+          "sha256": "48096f6624d807ecbea5a1fd14b205ad424c4a10a7b490e32c5b93c7798c97f0"
+        },
+        {
+          "path": "source/quaternius_guns/Revolver_1.mtl",
+          "url": "https://drive.usercontent.google.com/download?id=1nk1EmO88xKz4ecitQPWgCm1-bC3zn427&export=download&authuser=0&confirm=t",
+          "sha256": "9735ce4b989c46761734201b2794445a72681976cccd5971e770c960b8b6e61b"
+        }
+      ],
+      "license_evidence": "source/quaternius_guns/LICENSE-EVIDENCE.txt"
+    },
+    {
+      "id": "quaternius_survival",
+      "author": "Quaternius",
+      "version": "2020-09 (individual source hashes)",
+      "url": "https://quaternius.com/packs/survival.html",
+      "license": "CC0-1.0",
+      "archive_sha256": null,
+      "individual_files": [
+        {
+          "path": "source/quaternius_survival/GasCan.obj",
+          "url": "https://drive.usercontent.google.com/download?id=1zTUlgRcYurnmPmtzaSGevKA-w1JbFLur&export=download&authuser=0&confirm=t",
+          "sha256": "a410ef9880e6752470b87c031af71720446ec40a28f0730879286fb3a381a477"
+        },
+        {
+          "path": "source/quaternius_survival/GasCan.mtl",
+          "url": "https://drive.usercontent.google.com/download?id=1qVLvu5a_yuoHViPvgT5z9Zbh3EGGoMAM&export=download&authuser=0&confirm=t",
+          "sha256": "4e36771cec8623447ff3d9cd36b68f6050b92b8961fa2e8edb8edcf7aa705961"
+        },
+        {
+          "path": "source/quaternius_survival/FirstAidKit.obj",
+          "url": "https://drive.usercontent.google.com/download?id=1ngDWPJ6BQbAO2gWT7vCdhlx2c77qJzyN&export=download&authuser=0&confirm=t",
+          "sha256": "345135876d67433e93b5d9cb961dcb067248b85bd00ecf8e10021adec0a241e5"
+        },
+        {
+          "path": "source/quaternius_survival/FirstAidKit.mtl",
+          "url": "https://drive.usercontent.google.com/download?id=1JPo3WNTCrxPM85sdsUBwqZMlehOEjDsY&export=download&authuser=0&confirm=t",
+          "sha256": "82b297b6ce866cfbe6fc38ff9e79f8486951610d66de112349d3014f40e014f9"
+        }
+      ],
+      "license_evidence": "source/quaternius_survival/LICENSE-EVIDENCE.txt"
+    },
+    {
+      "id": "hernandack",
+      "author": "Hernandack",
+      "version": "2023-02-25",
+      "url": "https://opengameart.org/content/low-poly-survival-toolkit-weapon",
+      "license": "CC0-1.0",
+      "archive_sha256": "34dd064a7957fb2acb274a9794aa1c1b8ef8f58ac965d73e7ae385fa6571f86b",
+      "download_url": "https://opengameart.org/sites/default/files/survival_toolkit_-_hernandack.zip",
+      "license_evidence": "source/hernandack/LICENSE-EVIDENCE.txt"
+    },
+    {
+      "id": "neincenets",
+      "author": "neincenets",
+      "version": "2024-10-14",
+      "url": "https://opengameart.org/content/low-quality-flashlight",
+      "license": "CC0-1.0",
+      "archive_sha256": "477d631bc85f5046caf3ef95362d446c652d30445ac56976b58798830148ddfb",
+      "download_url": "https://opengameart.org/sites/default/files/flashlight.zip",
+      "license_evidence": "source/neincenets/LICENSE-EVIDENCE.txt"
+    }
+  ],
+  "models": [
+    {
+      "id": "pistol",
+      "source": "source/pich_guns/Pistol_Full_West.glb",
+      "source_pack": "pich_guns",
+      "family": "pistol",
+      "native_fixture": "glock_17",
+      "nominal_length": 0.233,
+      "length_axis": 2,
+      "rotation": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "contacts": {
+        "primary": [
+          -1.6173734805626628e-16,
+          -0.01690510615859047,
+          0.02709885684766767
+        ],
+        "secondary": [
+          0.022,
+          -0.02490510615859047,
+          0.02209885684766767
+        ],
+        "trigger": {
+          "node": "Trigger",
+          "world": [
+            -1.6173734805626628e-16,
+            -0.01390510615859047,
+            -0.007901143152332335
+          ]
+        },
+        "muzzle": {
+          "node": "Attach_Muzzle"
+        },
+        "sight": {
+          "node": "Attach_Scope"
+        },
+        "pivot": [
+          -1.6173734805626628e-16,
+          -0.01690510615859047,
+          0.02709885684766767
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        -0.25
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        -0.25
+      ],
+      "two_handed": false,
+      "slide_node": "Slide"
+    },
+    {
+      "id": "revolver",
+      "source": "source/quaternius_guns/Revolver_1.obj",
+      "source_pack": "quaternius_guns",
+      "family": "revolver",
+      "native_fixture": "sw_619",
+      "nominal_length": 0.3,
+      "length_axis": 0,
+      "rotation": [
+        0,
+        -0.7071067811865476,
+        0,
+        0.7071067811865476
+      ],
+      "contacts": {
+        "primary": [
+          0,
+          -0.1,
+          0
+        ],
+        "secondary": [
+          0,
+          -0.13,
+          0.18
+        ],
+        "trigger": [
+          0.34,
+          -0.045,
+          0
+        ],
+        "muzzle": [
+          1.739905,
+          0.34,
+          0
+        ],
+        "sight": [
+          1.689905,
+          0.47,
+          0
+        ],
+        "pivot": [
+          0,
+          -0.1,
+          0
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": false
+    },
+    {
+      "id": "smg",
+      "source": "source/pich_guns/SMG_Full_West.glb",
+      "source_pack": "pich_guns",
+      "family": "smg",
+      "native_fixture": "hk_mp5",
+      "nominal_length": 0.682,
+      "length_axis": 2,
+      "rotation": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "contacts": {
+        "primary": [
+          -4.585694320508546e-17,
+          -0.03228964181998485,
+          0.07961187498307398
+        ],
+        "secondary": [
+          0,
+          -0.04426071935593276,
+          -0.08160514328372948
+        ],
+        "trigger": {
+          "node": "Trigger",
+          "world": [
+            -4.585694320508546e-17,
+            -0.02928964181998485,
+            0.04461187498307397
+          ]
+        },
+        "muzzle": {
+          "node": "Attach_Muzzle"
+        },
+        "sight": {
+          "node": "Attach_Scope"
+        },
+        "pivot": [
+          -4.585694320508546e-17,
+          -0.03228964181998485,
+          0.07961187498307398
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        -0.25
+      ],
+      "secondary_axis": [
+        0,
+        0,
+        -1
+      ],
+      "two_handed": true,
+      "slide_node": "Bolt"
+    },
+    {
+      "id": "assault",
+      "source": "source/pich_guns/Rifle_Assault_West.glb",
+      "source_pack": "pich_guns",
+      "family": "assault",
+      "native_fixture": "scar_l",
+      "nominal_length": 0.798,
+      "length_axis": 2,
+      "rotation": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "contacts": {
+        "primary": [
+          -1.385617487722794e-16,
+          -0.040147356014357344,
+          0.09909955029379833
+        ],
+        "secondary": [
+          0,
+          -0.0385607373496038,
+          -0.16422296347828924
+        ],
+        "trigger": {
+          "node": "Trigger",
+          "world": [
+            -1.385617487722794e-16,
+            -0.03714735601435734,
+            0.06409955029379832
+          ]
+        },
+        "muzzle": {
+          "node": "Attach_Muzzle"
+        },
+        "sight": {
+          "node": "Attach_Scope"
+        },
+        "pivot": [
+          -1.385617487722794e-16,
+          -0.040147356014357344,
+          0.09909955029379833
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        -0.25
+      ],
+      "secondary_axis": [
+        0,
+        0,
+        -1
+      ],
+      "two_handed": true,
+      "slide_node": "Bolt"
+    },
+    {
+      "id": "battle",
+      "source": "source/pich_guns/Rifle_Battle_West.glb",
+      "source_pack": "pich_guns",
+      "family": "battle",
+      "native_fixture": "fn_fal_semi",
+      "nominal_length": 1.09,
+      "length_axis": 2,
+      "rotation": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "contacts": {
+        "primary": [
+          -1.2776404389971275e-16,
+          -0.05287181783296638,
+          0.1107435774808363
+        ],
+        "secondary": [
+          0,
+          -0.014278871147907657,
+          -0.24145697715100195
+        ],
+        "trigger": {
+          "node": "Trigger",
+          "world": [
+            -1.2776404389971275e-16,
+            -0.049871817832966375,
+            0.0757435774808363
+          ]
+        },
+        "muzzle": {
+          "node": "Attach_Muzzle"
+        },
+        "sight": {
+          "node": "Attach_Scope"
+        },
+        "pivot": [
+          -1.2776404389971275e-16,
+          -0.05287181783296638,
+          0.1107435774808363
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        -0.25
+      ],
+      "secondary_axis": [
+        0,
+        0,
+        -1
+      ],
+      "two_handed": true,
+      "slide_node": "Bolt"
+    },
+    {
+      "id": "pump",
+      "source": "source/pich_guns/Shotgun_Pump_West.glb",
+      "source_pack": "pich_guns",
+      "family": "pump",
+      "native_fixture": "remington_870",
+      "nominal_length": 1.2,
+      "length_axis": 2,
+      "rotation": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "contacts": {
+        "primary": [
+          -0.0029999999999999944,
+          -0.02705197629717604,
+          0.19107669965738838
+        ],
+        "secondary": [
+          0,
+          -0.0035403778716524698,
+          -0.12827853557272584
+        ],
+        "trigger": {
+          "node": "Trigger",
+          "world": [
+            5.439042857266181e-18,
+            -0.024051976297176036,
+            0.1660766996573884
+          ]
+        },
+        "muzzle": [
+          0,
+          0.038416957670153296,
+          -0.27743762550028533
+        ],
+        "sight": [
+          0,
+          0.053416957670153295,
+          -0.2574376255002853
+        ],
+        "pivot": [
+          -0.0029999999999999944,
+          -0.02705197629717604,
+          0.19107669965738838
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        -0.25
+      ],
+      "secondary_axis": [
+        0,
+        0,
+        -1
+      ],
+      "two_handed": true,
+      "slide_node": ""
+    },
+    {
+      "id": "auto_shotgun",
+      "source": "source/pich_guns/Shotgun_Auto_West.glb",
+      "source_pack": "pich_guns",
+      "family": "auto_shotgun",
+      "native_fixture": "saiga_12",
+      "nominal_length": 1.068,
+      "length_axis": 2,
+      "rotation": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "contacts": {
+        "primary": [
+          -1.7507113734192875e-17,
+          -0.04478888294742517,
+          0.15446977002822176
+        ],
+        "secondary": [
+          0,
+          -0.029126574650175263,
+          -0.17581608782722558
+        ],
+        "trigger": {
+          "node": "Trigger",
+          "world": [
+            -1.7507113734192875e-17,
+            -0.04178888294742517,
+            0.11946977002822175
+          ]
+        },
+        "muzzle": {
+          "node": "Attach_Muzzle"
+        },
+        "sight": {
+          "node": "Attach_Scope"
+        },
+        "pivot": [
+          -1.7507113734192875e-17,
+          -0.04478888294742517,
+          0.15446977002822176
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        -0.25
+      ],
+      "secondary_axis": [
+        0,
+        0,
+        -1
+      ],
+      "two_handed": true,
+      "slide_node": "Bolt"
+    },
+    {
+      "id": "knife",
+      "source": "source/pich_melee/GLB/KABAR.glb",
+      "source_pack": "pich_melee",
+      "family": "knife",
+      "native_fixture": "knife_combat",
+      "nominal_length": 0.3,
+      "length_axis": 1,
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "contacts": {
+        "primary": [
+          0.0,
+          -0.06181977391242981,
+          -0.0004116157069802284
+        ],
+        "secondary": [
+          0.0,
+          0.05462669253349306,
+          -0.0004116157069802284
+        ],
+        "trigger": [
+          0.0,
+          -0.06181977391242981,
+          -0.0004116157069802284
+        ],
+        "muzzle": [
+          0.0,
+          0.22047469019889832,
+          -0.0004116017371416092
+        ],
+        "sight": [
+          0.0,
+          0.22047469019889832,
+          -0.0004116017371416092
+        ],
+        "pivot": [
+          0.0,
+          -0.06181977391242981,
+          -0.0004116157069802284
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": false
+    },
+    {
+      "id": "machete",
+      "source": "source/pich_melee/GLB/Machete.glb",
+      "source_pack": "pich_melee",
+      "family": "machete",
+      "native_fixture": "machete",
+      "nominal_length": 0.61,
+      "length_axis": 1,
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "contacts": {
+        "primary": [
+          9.313225746154785e-10,
+          -0.17022088468074797,
+          0.017640150152146816
+        ],
+        "secondary": [
+          9.313225746154785e-10,
+          0.0009527276456356426,
+          0.017640150152146816
+        ],
+        "trigger": [
+          9.313225746154785e-10,
+          -0.17022088468074797,
+          0.017640150152146816
+        ],
+        "muzzle": [
+          9.313225746154785e-10,
+          0.24474544823169708,
+          0.010666458867490292
+        ],
+        "sight": [
+          9.313225746154785e-10,
+          0.24474544823169708,
+          0.010666458867490292
+        ],
+        "pivot": [
+          9.313225746154785e-10,
+          -0.17022088468074797,
+          0.017640150152146816
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": false
+    },
+    {
+      "id": "bat",
+      "source": "source/pich_melee/GLB/Baseball Bat.glb",
+      "source_pack": "pich_melee",
+      "family": "bat",
+      "native_fixture": "bat",
+      "nominal_length": 0.864,
+      "length_axis": 1,
+      "rotation": [
+        0.3894183423086505,
+        0,
+        0,
+        0.9210609940028851
+      ],
+      "contacts": {
+        "primary": [
+          0.0,
+          -0.19601736068725584,
+          -1.862645149230957e-09
+        ],
+        "secondary": [
+          0.0,
+          0.020425308744112664,
+          -1.862645149230957e-09
+        ],
+        "trigger": [
+          0.0,
+          -0.19601736068725584,
+          -1.862645149230957e-09
+        ],
+        "muzzle": [
+          0.0,
+          0.42733752727508545,
+          -3.725290298461914e-09
+        ],
+        "sight": [
+          0.0,
+          0.42733752727508545,
+          -3.725290298461914e-09
+        ],
+        "pivot": [
+          0.0,
+          -0.19601736068725584,
+          -1.862645149230957e-09
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": true
+    },
+    {
+      "id": "fire_axe",
+      "source": "source/pich_melee/GLB/Fire Axe.glb",
+      "source_pack": "pich_melee",
+      "family": "axe",
+      "native_fixture": "fire_ax",
+      "nominal_length": 0.9,
+      "length_axis": 1,
+      "rotation": [
+        0.3894183423086505,
+        0,
+        0,
+        0.9210609940028851
+      ],
+      "contacts": {
+        "primary": [
+          3.259629011154175e-09,
+          -0.3577706336975097,
+          -0.007828030735254288
+        ],
+        "secondary": [
+          3.259629011154175e-09,
+          -0.1327266375223795,
+          -0.007828030735254288
+        ],
+        "trigger": [
+          3.259629011154175e-09,
+          -0.3577706336975097,
+          -0.007828030735254288
+        ],
+        "muzzle": [
+          3.259629011154175e-09,
+          0.31736135482788086,
+          0.0028013810515403748
+        ],
+        "sight": [
+          3.259629011154175e-09,
+          0.31736135482788086,
+          0.0028013810515403748
+        ],
+        "pivot": [
+          3.259629011154175e-09,
+          -0.3577706336975097,
+          -0.007828030735254288
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": true
+    },
+    {
+      "id": "sledge",
+      "source": "source/pich_melee/GLB/Sledgehammer.glb",
+      "source_pack": "pich_melee",
+      "family": "sledge",
+      "native_fixture": "hammer_sledge",
+      "nominal_length": 0.8,
+      "length_axis": 1,
+      "rotation": [
+        0.3894183423086505,
+        0,
+        0,
+        0.9210609940028851
+      ],
+      "contacts": {
+        "primary": [
+          -8.381903171539307e-09,
+          -0.38969849348068236,
+          4.6566128730773926e-09
+        ],
+        "secondary": [
+          -8.381903171539307e-09,
+          -0.14113610982894897,
+          4.6566128730773926e-09
+        ],
+        "trigger": [
+          -8.381903171539307e-09,
+          -0.38969849348068236,
+          4.6566128730773926e-09
+        ],
+        "muzzle": [
+          7.450580596923828e-09,
+          0.2731345295906067,
+          -1.4901161193847656e-08
+        ],
+        "sight": [
+          7.450580596923828e-09,
+          0.2731345295906067,
+          -1.4901161193847656e-08
+        ],
+        "pivot": [
+          -8.381903171539307e-09,
+          -0.38969849348068236,
+          4.6566128730773926e-09
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": true
+    },
+    {
+      "id": "crowbar",
+      "source": "source/pich_melee/GLB/Crowbar.glb",
+      "source_pack": "pich_melee",
+      "family": "crowbar",
+      "native_fixture": "crowbar",
+      "nominal_length": 0.46,
+      "length_axis": 1,
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "contacts": {
+        "primary": [
+          -3.725290298461914e-09,
+          -0.30416616797447205,
+          -0.08342565968632698
+        ],
+        "secondary": [
+          -3.725290298461914e-09,
+          -0.08358642160892482,
+          -0.08342565968632698
+        ],
+        "trigger": [
+          -3.725290298461914e-09,
+          -0.30416616797447205,
+          -0.08342565968632698
+        ],
+        "muzzle": [
+          -3.725290298461914e-09,
+          0.23057261109352112,
+          0.007662884891033173
+        ],
+        "sight": [
+          -3.725290298461914e-09,
+          0.23057261109352112,
+          0.007662884891033173
+        ],
+        "pivot": [
+          -3.725290298461914e-09,
+          -0.30416616797447205,
+          -0.08342565968632698
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": false
+    },
+    {
+      "id": "hatchet",
+      "source": "source/kenney/tool-axe.obj",
+      "source_pack": "kenney",
+      "family": "hatchet",
+      "native_fixture": "hatchet",
+      "nominal_length": 0.38,
+      "length_axis": 1,
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "contacts": {
+        "primary": [
+          0.0,
+          0.0512,
+          0.0
+        ],
+        "secondary": [
+          0.0,
+          0.13568000000000002,
+          0.0
+        ],
+        "trigger": [
+          0.0,
+          0.0512,
+          0.0
+        ],
+        "muzzle": [
+          -0.01607353,
+          0.256,
+          0.0
+        ],
+        "sight": [
+          -0.01607353,
+          0.256,
+          0.0
+        ],
+        "pivot": [
+          0.0,
+          0.0512,
+          0.0
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": false
+    },
+    {
+      "id": "hammer",
+      "source": "source/kenney/tool-hammer.obj",
+      "source_pack": "kenney",
+      "family": "hammer",
+      "native_fixture": "hammer",
+      "nominal_length": 0.25,
+      "length_axis": 1,
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "contacts": {
+        "primary": [
+          0.0015999999999999999,
+          0.030696,
+          0.0015999999999999999
+        ],
+        "secondary": [
+          0.0015999999999999999,
+          0.08134440000000001,
+          0.0015999999999999999
+        ],
+        "trigger": [
+          0.0015999999999999999,
+          0.030696,
+          0.0015999999999999999
+        ],
+        "muzzle": [
+          0.0,
+          0.15348,
+          0.0
+        ],
+        "sight": [
+          0.0,
+          0.15348,
+          0.0
+        ],
+        "pivot": [
+          0.0015999999999999999,
+          0.030696,
+          0.0015999999999999999
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": false
+    },
+    {
+      "id": "shovel",
+      "source": "source/kenney/tool-shovel.obj",
+      "source_pack": "kenney",
+      "family": "shovel",
+      "native_fixture": "shovel",
+      "nominal_length": 1.4,
+      "length_axis": 1,
+      "rotation": [
+        0.3894183423086505,
+        0,
+        0,
+        0.9210609940028851
+      ],
+      "contacts": {
+        "primary": [
+          0.0,
+          0.010150000000000001,
+          0.0
+        ],
+        "secondary": [
+          0.0,
+          0.05986428571428571,
+          0.0
+        ],
+        "trigger": [
+          0.0,
+          0.010150000000000001,
+          0.0
+        ],
+        "muzzle": [
+          0.0,
+          0.29,
+          0.0
+        ],
+        "sight": [
+          0.0,
+          0.29,
+          0.0
+        ],
+        "pivot": [
+          0.0,
+          0.010150000000000001,
+          0.0
+        ]
+      },
+      "primary_axis": [
+        1,
+        0,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": true
+    },
+    {
+      "id": "pickaxe",
+      "source": "source/kenney/tool-pickaxe.obj",
+      "source_pack": "kenney",
+      "family": "pickaxe",
+      "native_fixture": "pickaxe",
+      "nominal_length": 0.91,
+      "length_axis": 1,
+      "rotation": [
+        0.3894183423086505,
+        0,
+        0,
+        0.9210609940028851
+      ],
+      "contacts": {
+        "primary": [
+          0.0,
+          0.048,
+          0.0
+        ],
+        "secondary": [
+          0.0,
+          0.1112967032967033,
+          0.0
+        ],
+        "trigger": [
+          0.0,
+          0.048,
+          0.0
+        ],
+        "muzzle": [
+          0.0,
+          0.24,
+          0.0
+        ],
+        "sight": [
+          0.0,
+          0.24,
+          0.0
+        ],
+        "pivot": [
+          0.0,
+          0.048,
+          0.0
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": true
+    },
+    {
+      "id": "bottle",
+      "source": "source/kenney/bottle.obj",
+      "source_pack": "kenney",
+      "family": "bottle",
+      "native_fixture": "bottle_plastic",
+      "nominal_length": 0.22,
+      "length_axis": 1,
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "contacts": {
+        "primary": [
+          0.0,
+          0.03077372,
+          0.0
+        ],
+        "secondary": [
+          0.0,
+          0.081550358,
+          0.0
+        ],
+        "trigger": [
+          0.0,
+          0.03077372,
+          0.0
+        ],
+        "muzzle": [
+          0.0,
+          0.1538686,
+          0.0
+        ],
+        "sight": [
+          0.0,
+          0.1538686,
+          0.0
+        ],
+        "pivot": [
+          0.0,
+          0.03077372,
+          0.0
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": false
+    },
+    {
+      "id": "saw",
+      "source": "source/sjolle/obj/handsaw01.obj",
+      "source_pack": "sjolle",
+      "family": "saw",
+      "native_fixture": "saw",
+      "nominal_length": 0.46,
+      "length_axis": 2,
+      "rotation": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "contacts": {
+        "primary": [
+          0.0,
+          0.06309100000000001,
+          0.14161441999999996
+        ],
+        "secondary": [
+          0.0,
+          0.0907,
+          -0.10245258999999995
+        ],
+        "trigger": [
+          0.0,
+          0.0907,
+          -0.34651960000000004
+        ],
+        "muzzle": [
+          0.0,
+          0.06309100000000001,
+          0.245158
+        ],
+        "sight": [
+          0.0,
+          0.06309100000000001,
+          0.245158
+        ],
+        "pivot": [
+          0.0,
+          0.06309100000000001,
+          0.14161441999999996
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        0,
+        1
+      ],
+      "two_handed": false
+    },
+    {
+      "id": "wrench",
+      "source": "source/sjolle/obj/wrench01.obj",
+      "source_pack": "sjolle",
+      "family": "wrench",
+      "native_fixture": "wrench",
+      "nominal_length": 0.25,
+      "length_axis": 1,
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "contacts": {
+        "primary": [
+          0.0,
+          -0.0290126,
+          0.0
+        ],
+        "secondary": [
+          0.0,
+          0.034117060000000005,
+          0.0
+        ],
+        "trigger": [
+          0.0,
+          -0.0290126,
+          0.0
+        ],
+        "muzzle": [
+          0.0025885000000000005,
+          0.124029,
+          0.00022849999999999997
+        ],
+        "sight": [
+          0.0025885000000000005,
+          0.124029,
+          0.00022849999999999997
+        ],
+        "pivot": [
+          0.0,
+          -0.0290126,
+          0.0
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": false
+    },
+    {
+      "id": "screwdriver",
+      "source": "source/sjolle/obj/screwdriver01.obj",
+      "source_pack": "sjolle",
+      "family": "screwdriver",
+      "native_fixture": "screwdriver",
+      "nominal_length": 0.12,
+      "length_axis": 1,
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "contacts": {
+        "primary": [
+          0.0,
+          0.007591800000000003,
+          0.0
+        ],
+        "secondary": [
+          0.0,
+          0.07258002,
+          0.0
+        ],
+        "trigger": [
+          0.0,
+          0.007591800000000003,
+          0.0
+        ],
+        "muzzle": [
+          0.0,
+          0.165139,
+          0.0
+        ],
+        "sight": [
+          0.0,
+          0.165139,
+          0.0
+        ],
+        "pivot": [
+          0.0,
+          0.007591800000000003,
+          0.0
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": false
+    },
+    {
+      "id": "pliers",
+      "source": "source/sjolle/obj/plier01.obj",
+      "source_pack": "sjolle",
+      "family": "pliers",
+      "native_fixture": "pliers",
+      "nominal_length": 0.17,
+      "length_axis": 1,
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "contacts": {
+        "primary": [
+          0.0,
+          0.027017400000000004,
+          2.6500000000002216e-05
+        ],
+        "secondary": [
+          0.0,
+          0.09222606,
+          2.6500000000002216e-05
+        ],
+        "trigger": [
+          0.0,
+          0.027017400000000004,
+          2.6500000000002216e-05
+        ],
+        "muzzle": [
+          0.0,
+          0.185099,
+          2.6499999999998747e-05
+        ],
+        "sight": [
+          0.0,
+          0.185099,
+          2.6499999999998747e-05
+        ],
+        "pivot": [
+          0.0,
+          0.027017400000000004,
+          2.6500000000002216e-05
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": false
+    },
+    {
+      "id": "gas_can",
+      "source": "source/quaternius_survival/GasCan.obj",
+      "source_pack": "quaternius_survival",
+      "family": "gas_can",
+      "native_fixture": "jerrycan",
+      "nominal_length": 0.33,
+      "length_axis": 1,
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "contacts": {
+        "primary": [
+          0.037750000000000006,
+          2.24690813,
+          0.0
+        ],
+        "secondary": [
+          0.04405300000000001,
+          1.30718979,
+          0.0
+        ],
+        "trigger": [
+          0.04405300000000001,
+          0.4911186,
+          0.0
+        ],
+        "muzzle": [
+          0.037750000000000006,
+          2.469473,
+          0.0
+        ],
+        "sight": [
+          0.037750000000000006,
+          2.469473,
+          0.0
+        ],
+        "pivot": [
+          0.037750000000000006,
+          2.24690813,
+          0.0
+        ]
+      },
+      "primary_axis": [
+        1,
+        0,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": false
+    },
+    {
+      "id": "medical",
+      "source": "source/quaternius_survival/FirstAidKit.obj",
+      "source_pack": "quaternius_survival",
+      "family": "medical",
+      "native_fixture": "1st_aid_box",
+      "nominal_length": 0.14,
+      "length_axis": 0,
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "contacts": {
+        "primary": [
+          0.0008865000000000123,
+          0.63470297,
+          0.0
+        ],
+        "secondary": [
+          0.04777983000000008,
+          0.0,
+          0.0
+        ],
+        "trigger": [
+          -0.46804679999999993,
+          0.0,
+          0.0
+        ],
+        "muzzle": [
+          0.782442,
+          0.0773625,
+          0.0
+        ],
+        "sight": [
+          0.782442,
+          0.0773625,
+          0.0
+        ],
+        "pivot": [
+          0.0008865000000000123,
+          0.63470297,
+          0.0
+        ]
+      },
+      "primary_axis": [
+        1,
+        0,
+        0
+      ],
+      "secondary_axis": [
+        1,
+        0,
+        0
+      ],
+      "two_handed": false
+    },
+    {
+      "id": "spear",
+      "source": "source/hernandack/survival-spear-head.obj",
+      "source_pack": "hernandack",
+      "family": "spear",
+      "native_fixture": "spear_steel",
+      "nominal_length": 1.8,
+      "length_axis": 1,
+      "rotation": [
+        0.3894183423086505,
+        0,
+        0,
+        0.9210609940028851
+      ],
+      "contacts": {
+        "primary": [
+          0.0,
+          1.642441,
+          3.2363825000000004
+        ],
+        "secondary": [
+          0.0,
+          2.710482333333333,
+          3.2363825000000004
+        ],
+        "trigger": [
+          0.0,
+          1.642441,
+          3.2363825000000004
+        ],
+        "muzzle": [
+          0.0,
+          8.050689,
+          3.2363825
+        ],
+        "sight": [
+          0.0,
+          8.050689,
+          3.2363825
+        ],
+        "pivot": [
+          0.0,
+          1.642441,
+          3.2363825000000004
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": true
+    },
+    {
+      "id": "flashlight",
+      "source": "source/neincenets/flashli.obj",
+      "source_pack": "neincenets",
+      "family": "flashlight",
+      "native_fixture": "flashlight",
+      "nominal_length": 0.136,
+      "length_axis": 1,
+      "rotation": [
+        0.7071067811865476,
+        0,
+        0,
+        0.7071067811865476
+      ],
+      "contacts": {
+        "primary": [
+          0.0,
+          -0.5680194000000001,
+          0.0
+        ],
+        "secondary": [
+          0.0,
+          0.14474859000000007,
+          0.0
+        ],
+        "trigger": [
+          0.0,
+          -0.5680194000000001,
+          0.0
+        ],
+        "muzzle": [
+          0.0,
+          1.159903,
+          0.0
+        ],
+        "sight": [
+          0.0,
+          1.159903,
+          0.0
+        ],
+        "pivot": [
+          0.0,
+          -0.5680194000000001,
+          0.0
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": false
+    },
+    {
+      "id": "red_dot",
+      "source": "source/pich_attachments/RedDot_West.glb",
+      "source_pack": "pich_attachments",
+      "family": "optic",
+      "native_fixture": "red_dot_sight",
+      "nominal_length": 0.04,
+      "length_axis": 2,
+      "rotation": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "contacts": {
+        "primary": [
+          0,
+          0,
+          0
+        ],
+        "secondary": [
+          -7.916241884231567e-09,
+          0.01718009077012539,
+          0.0089663128182292
+        ],
+        "trigger": [
+          -7.916241884231567e-09,
+          0.01718009077012539,
+          -0.009428337961435317
+        ],
+        "muzzle": [
+          -0.005865645594894886,
+          0.01851254142820835,
+          0.03516475483775139
+        ],
+        "sight": [
+          -0.005865645594894886,
+          0.01851254142820835,
+          0.03516475483775139
+        ],
+        "pivot": [
+          0,
+          0,
+          0
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": false,
+      "mount_rotation": [
+        0.7071067811865476,
+        0,
+        0,
+        0.7071067811865476
+      ]
+    },
+    {
+      "id": "suppressor",
+      "source": "source/pich_attachments/Suppressor_West.glb",
+      "source_pack": "pich_attachments",
+      "family": "suppressor",
+      "native_fixture": "suppressor",
+      "nominal_length": 0.198,
+      "length_axis": 2,
+      "rotation": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "contacts": {
+        "primary": [
+          0,
+          0,
+          0
+        ],
+        "secondary": [
+          0.0,
+          -4.377216100692749e-08,
+          -0.06382124118506909
+        ],
+        "trigger": [
+          0.0,
+          -4.377216100692749e-08,
+          -0.11114888340234756
+        ],
+        "muzzle": [
+          0.0,
+          -4.284083843231201e-08,
+          0.0035847947001457214
+        ],
+        "sight": [
+          0.0,
+          -4.284083843231201e-08,
+          0.0035847947001457214
+        ],
+        "pivot": [
+          0,
+          0,
+          0
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": false,
+      "mount_rotation": [
+        0.7071067811865476,
+        0,
+        0,
+        0.7071067811865476
+      ]
+    },
+    {
+      "id": "foregrip",
+      "source": "source/pich_attachments/Foregrip_West.glb",
+      "source_pack": "pich_attachments",
+      "family": "foregrip",
+      "native_fixture": "grip",
+      "nominal_length": 0.05,
+      "length_axis": 1,
+      "rotation": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "contacts": {
+        "primary": [
+          0,
+          -0.032,
+          0
+        ],
+        "secondary": [
+          0.0,
+          -0.028645938001573085,
+          0.0004287431947886944
+        ],
+        "trigger": [
+          0.0,
+          -0.0510415069758892,
+          0.0004287431947886944
+        ],
+        "muzzle": [
+          -2.3283064365386963e-09,
+          0.0032507814466953278,
+          0.0004287445917725563
+        ],
+        "sight": [
+          -2.3283064365386963e-09,
+          0.0032507814466953278,
+          0.0004287445917725563
+        ],
+        "pivot": [
+          0,
+          0,
+          0
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": false,
+      "mount_rotation": [
+        0.7071067811865476,
+        0,
+        0,
+        0.7071067811865476
+      ]
+    },
+    {
+      "id": "gun_light",
+      "source": "source/pich_attachments/Flashlight_West.glb",
+      "source_pack": "pich_attachments",
+      "family": "gun_light",
+      "native_fixture": "mounted_flashlight",
+      "nominal_length": 0.063,
+      "length_axis": 2,
+      "rotation": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "contacts": {
+        "primary": [
+          0,
+          0,
+          0
+        ],
+        "secondary": [
+          -0.0010760528966784477,
+          -0.03698036726564169,
+          -0.0044136239215731565
+        ],
+        "trigger": [
+          -0.0010760528966784477,
+          -0.03698036726564169,
+          -0.04971789941191673
+        ],
+        "muzzle": [
+          -0.0008914414793252945,
+          -0.029415358556434512,
+          0.06011064723134041
+        ],
+        "sight": [
+          -0.0008914414793252945,
+          -0.029415358556434512,
+          0.06011064723134041
+        ],
+        "pivot": [
+          0,
+          0,
+          0
+        ]
+      },
+      "primary_axis": [
+        0,
+        1,
+        0
+      ],
+      "secondary_axis": [
+        0,
+        1,
+        0
+      ],
+      "two_handed": false,
+      "mount_rotation": [
+        0.7071067811865476,
+        0,
+        0,
+        0.7071067811865476
+      ]
+    }
+  ],
+  "files": {
+    "source/hernandack/LICENSE-EVIDENCE.txt": "695487fc5fe830d78857216a1e02e5b102343a0646ecc3dc1ef56529a2d7e22f",
+    "source/hernandack/survival-spear-head.mtl": "600df7b40c3e5aeb3358c0ef95630d8fbf64e72cac24b1aa6534b2d24d2e534c",
+    "source/hernandack/survival-spear-head.obj": "b998964714864229fec5b2f5001662f5a548ea6db7663c694258aceb72bc2d3e",
+    "source/kenney/LICENSE-EVIDENCE.txt": "5e9d20cdbfb0cc92ca998a3497238d0b76dbcf5d54cdfd77ae6e034e1a730c52",
+    "source/kenney/Textures/colormap.png": "6ca023be9f12e8c2358fcf94320c8a894b4c05a3dd0bad1f5c268312053caca1",
+    "source/kenney/bottle.mtl": "45a6736aa344a0c7e286b9c43c6a48f25b6a2f78d8c5949e430c3b4a93b4e060",
+    "source/kenney/bottle.obj": "eeff2dd611663857af7c85808f807d87e21e4ac6346bc55178dce60fc34a6bee",
+    "source/kenney/tool-axe.mtl": "45a6736aa344a0c7e286b9c43c6a48f25b6a2f78d8c5949e430c3b4a93b4e060",
+    "source/kenney/tool-axe.obj": "3179854d07641ada9c56624557e6141342e6903efd008d4d71315d4af48122c0",
+    "source/kenney/tool-hammer.mtl": "45a6736aa344a0c7e286b9c43c6a48f25b6a2f78d8c5949e430c3b4a93b4e060",
+    "source/kenney/tool-hammer.obj": "448b531208ab7fa1d4c44041a6ca26734e8c805f8284d39f8e72c863f30f55d6",
+    "source/kenney/tool-pickaxe.mtl": "45a6736aa344a0c7e286b9c43c6a48f25b6a2f78d8c5949e430c3b4a93b4e060",
+    "source/kenney/tool-pickaxe.obj": "6b4525eaf713eb528887d5a13f5293a0b29673f903ba4e1d049ad1384a93d74d",
+    "source/kenney/tool-shovel.mtl": "45a6736aa344a0c7e286b9c43c6a48f25b6a2f78d8c5949e430c3b4a93b4e060",
+    "source/kenney/tool-shovel.obj": "63b2b25dcbf0eae7481888de41a018a5c00e20e294301fdc4b4380f84746e38b",
+    "source/neincenets/LICENSE-EVIDENCE.txt": "f0951d6843e8228b76c9e2af0eed84cc918d41c8176baa65ba36d40c80dd1a6b",
+    "source/neincenets/flashli.mtl": "93df6fc2ad6d3f49ce4dda7186881caa93bdf5424e05ca41e6d3650621523ff9",
+    "source/neincenets/flashli.obj": "fcbf3851935dc47c2188ccaaf309ee1cfe80c18103910356cd97b4f4ccb15c75",
+    "source/pich_attachments/Flashlight_West.glb": "bc25648ea10e1cc86011a712c6b651fd5051cf25962c932907467269e5b039c7",
+    "source/pich_attachments/Foregrip_West.glb": "0980af948e14a6023c2e0752bbf2cdc4ed3c57a44c21adb484b6b73322f4fbb8",
+    "source/pich_attachments/LICENSE-EVIDENCE.txt": "15db3e82fb84683d4f2d33efa9361141789235e00ea94ef5d061df2c2ae844ef",
+    "source/pich_attachments/RedDot_West.glb": "7323086bb4503830cb33765e96e185f61ceb54bb6d8e9807f0b1b33b5b1b03b9",
+    "source/pich_attachments/Suppressor_West.glb": "0b7a598791ae01f212efd1df9817227b6514c52287c870bc72639dfff83897a4",
+    "source/pich_guns/LICENSE-EVIDENCE.txt": "ffeeef8af1407d148a899099e1d15b41c7abbb06f557d72f22eaa8ce500715c1",
+    "source/pich_guns/Pistol_Full_West.glb": "d8a284503309a7fcb215326034db5b0b2151a9b6920c39d018f975ff4b6fd84b",
+    "source/pich_guns/Rifle_Assault_West.glb": "0d80dd2118c884172a856455968be14eadc97f041d27d52bfa75fedb708fa486",
+    "source/pich_guns/Rifle_Battle_West.glb": "69d2db533e9eeee80a4bc27f32a9bcbde36e66b2ec4adf82db53334687a625e1",
+    "source/pich_guns/SMG_Full_West.glb": "844bcd58125cd874951fb9c79b759fbd39282ab56a25a8c0598c4f9f25dd1ad8",
+    "source/pich_guns/Shotgun_Auto_West.glb": "74f3c88add8079acd744ae2851f215a4c2d05a7ac60c53e84f116131a7d8d67a",
+    "source/pich_guns/Shotgun_Pump_West.glb": "f36f28ab6500f91e7c844302aaae843fdf150c1efde161c1dc15f0e39e16aa07",
+    "source/pich_melee/GLB/Baseball Bat.glb": "f66745e781151e48a8385f9fc3edfd0f1894067d86dd7d38a511f36a02e8f208",
+    "source/pich_melee/GLB/Crowbar.glb": "689e6ed1372f8b10d4a9fdbbe263dfdea36270bc9feef87294870cb93a2ab651",
+    "source/pich_melee/GLB/Fire Axe.glb": "2d608cf62779c083059e94e8d27bd20b0a6b3b17a6c4825b2f17e596249a7a79",
+    "source/pich_melee/GLB/KABAR.glb": "dc338c0423cbd0e5c15330f0c5f48d90febe13274b248c281ebedd7e97a46a59",
+    "source/pich_melee/GLB/Machete.glb": "6d3ae0b3a408ca4f899843b89bed3d5d921b180d0768a930810678deedca1f1d",
+    "source/pich_melee/GLB/Sledgehammer.glb": "3838b9990adf1389fc45c0828e0d5d76ba52f1f0d53b5b3e4ed7b0a8892e52db",
+    "source/pich_melee/LICENSE-EVIDENCE.txt": "7ded3f839de1b044627d5cac14a75aeda50e1c235e522702010eba8ffb353282",
+    "source/quaternius_guns/LICENSE-EVIDENCE.txt": "5083fbe4a3e9958329b280f7e97eff7d7ea00f66ee940325f783bba42f8d5fa7",
+    "source/quaternius_guns/Revolver_1.mtl": "9735ce4b989c46761734201b2794445a72681976cccd5971e770c960b8b6e61b",
+    "source/quaternius_guns/Revolver_1.obj": "48096f6624d807ecbea5a1fd14b205ad424c4a10a7b490e32c5b93c7798c97f0",
+    "source/quaternius_survival/FirstAidKit.mtl": "82b297b6ce866cfbe6fc38ff9e79f8486951610d66de112349d3014f40e014f9",
+    "source/quaternius_survival/FirstAidKit.obj": "345135876d67433e93b5d9cb961dcb067248b85bd00ecf8e10021adec0a241e5",
+    "source/quaternius_survival/GasCan.mtl": "4e36771cec8623447ff3d9cd36b68f6050b92b8961fa2e8edb8edcf7aa705961",
+    "source/quaternius_survival/GasCan.obj": "a410ef9880e6752470b87c031af71720446ec40a28f0730879286fb3a381a477",
+    "source/quaternius_survival/LICENSE-EVIDENCE.txt": "85624be89b610260294c2160daa897d0ac27bee5c51a0874b84636a931ac77f1",
+    "source/sjolle/LICENSE-EVIDENCE.txt": "e4b75f05121648a9539895141a1316e131fdad3c9a99e8aaa8dc7bc294bc761b",
+    "source/sjolle/obj/handsaw01.mtl": "a46189171aafb4d26d6b4026252441f2994c9fee5d1906919593025c4d6e059d",
+    "source/sjolle/obj/handsaw01.obj": "40c962572c6cffde68e757576187a3e02c4f7065b7b2f5423ffe6c8a9cde40ed",
+    "source/sjolle/obj/matsimple.png": "2730db0bbad0c29b9a828af922dfc91d8ece4f6ac5fe2d5c89ab9968f9473138",
+    "source/sjolle/obj/plier01.mtl": "e53384e38b2995cc1ac7b9f6688593d3c27593a23a0e0c86d3b4d4f2c638a711",
+    "source/sjolle/obj/plier01.obj": "3c5bd10de17a50526b181c275664f77bdcb611836793ac7f8660cfb8ffec82b6",
+    "source/sjolle/obj/screwdriver01.mtl": "74c9df1e6d47aee42aba2c98beb2bce96a5cd171a0944b808c28c8f2c6b75634",
+    "source/sjolle/obj/screwdriver01.obj": "ca6235f68b2a5e8a73a3631e4dc94b7dac39046eaf3e4881d9b0200d8718a207",
+    "source/sjolle/obj/wrench01.mtl": "4aa7260263971568f77f7d04094e96d3e74ed30a74d4790f50044ca0a943ddd9",
+    "source/sjolle/obj/wrench01.obj": "b02a13a0873bd2584aa516030eeffd2dea3cb9b240c95767ebec08845727922d"
+  }
+}

@@ -1,0 +1,6 @@
+Author: sjolle
+Version/publication: 2020-12-26
+Author-published source: https://opengameart.org/content/low-poly-tools
+License: CC0-1.0
+Archive SHA256: 093b45f4af3130d963e3ce1262042653bd1ca281476961696baef44daa5aa9f7
+The saved publishing-author page explicitly identifies this package as CC0. No separate license text is present in the archive.

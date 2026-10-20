@@ -1,7 +1,8 @@
 // Host-owned input and presentation state; this extension never moves an avatar.
 float graphics_camera_yaw = -ncmm_graphics_camera::pi * .5f;
 float graphics_camera_pitch = 0;
-bool graphics_control_context = false, graphics_mouse_drag = false, graphics_mouse_dirty = false;
+bool &graphics_control_context = graphics_context.controls;
+bool graphics_mouse_drag = false, graphics_mouse_dirty = false;
 bool graphics_attack_pending = false;
 bool graphics_frame_pending_present = false;
 bool graphics_cursor_was_visible = true;
@@ -146,8 +147,11 @@ bool graphics_process_mouse( uint32_t kind, float x, float y, float dx, float dy
     }
     if( kind == 2 ) { const bool was_dragging = graphics_mouse_drag; graphics_release_mouse(); return was_dragging; }
     if( kind == 3 && graphics_mouse_drag && std::isfinite( dx ) && std::isfinite( dy ) ) {
+        const float previous_yaw=graphics_camera_yaw;
         graphics_mouse_dx = std::clamp( dx, -2000.0f, 2000.0f ); graphics_mouse_dy = std::clamp( dy, -2000.0f, 2000.0f );
         graphics_action( "ncmm.view.mouse_look" ); graphics_mouse_dx = graphics_mouse_dy = 0;
+        if(graphics_camera_input_probe.active){++graphics_camera_input_probe.mouse_events;
+            graphics_camera_input_probe.rotation_radians+=std::abs(std::remainder(graphics_camera_yaw-previous_yaw,2*ncmm_graphics_camera::pi));}
         graphics_mouse_dirty = true; return true;
     }
 #else

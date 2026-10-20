@@ -24,7 +24,8 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
         for(const auto &mon:monsters)get_creature_tracker().remove(*mon);
         require(get_creature_tracker().get_monsters_list().empty(),"gpu_benchmark_creature_reset_incomplete");};
     you.clear_mutations();you.clear_effects();you.set_underwater(false);you.set_base_height(175);you.set_movement_mode(move_mode_id("walk"));
-    if(!you.has_trait(trait_id("DEBUG_NIGHTVISION")))you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));you.recalc_sight_limits();require(you.unimpaired_range()>=48,"gpu_benchmark_sight_limited");
+    if(!you.has_trait(trait_id("DEBUG_NIGHTVISION")))you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));
+    you.recalc_sight_limits();require(you.unimpaired_range()>=48,"gpu_benchmark_sight_limited");
     auto reset_scene=[&](){clear_monsters();for(const auto &car:here.get_vehicles())here.destroy_vehicle(car.v);
         you.setpos(here,center,false);g->ter_view_p=center;calendar::turn=start_time;get_weather().weather_id=weather_type_id("sunny");
         for(int y=-48;y<=48;++y)for(int x=-48;x<=48;++x){tripoint_bub_ms p(center.x()+x,center.y()+y,0);
@@ -62,7 +63,8 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
         const std::string name=scenario<10?environments[scenario]:"creatures-"+std::to_string(std::array<int,4>{1,10,50,100}[size_t(scenario-10)]);
         if(scenario==1){for(int y=-46;y<-3;y+=3)for(int x=-45;x<=45;x+=3)if(std::abs(x)>1)here.ter_set(tripoint_bub_ms(center.x()+x,center.y()+y,0),ter_id("t_tree"));}
         if(scenario==2){for(int by=-44;by<=-8;by+=12)for(int bx=-36;bx<=36;bx+=12)for(int y=0;y<8;++y)for(int x=0;x<8;++x){
-                if(std::abs(bx+x)<2)continue;const bool edge=x==0||y==0||x==7||y==7;const char *id=!edge?"t_floor":y==7&&x==3?"t_door_o":x==3?"t_window":"t_brick_wall";
+                if(std::abs(bx+x)<2)continue;
+                const bool edge=x==0||y==0||x==7||y==7;const char *id=!edge?"t_floor":y==7&&x==3?"t_door_o":x==3?"t_window":"t_brick_wall";
                 here.ter_set(tripoint_bub_ms(center.x()+bx+x,center.y()+by+y,0),ter_id(id));}}
         if(scenario==3){for(int y=-28;y<=28;++y)for(int x=-28;x<=28;++x){here.ter_set(tripoint_bub_ms(center.x()+x,center.y()+y,0),ter_id(std::abs(x)==28||std::abs(y)==28?"t_wall":"t_floor"));
                 here.ter_set(tripoint_bub_ms(center.x()+x,center.y()+y,1),ter_id("t_floor"));}}
@@ -71,7 +73,8 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
         if(scenario==6){calendar::turn=start_time+12_hours;lamp->light_emitted=60;lamp->light_color={.05f,.25f,1.0f};
             for(int y=-3;y>=-27;y-=4)for(int x=-12;x<=12;x+=4){const tripoint_bub_ms p(center.x()+x,center.y()+y,0);
                 if((x/4-y/4)%2)here.furn_set(p,lamp->id);else here.add_field(p,field_type_str_id("fd_fire").id(),2);}}
-        if(scenario==7)get_weather().weather_id=weather_type_id("rain");if(scenario==8)get_weather().weather_id=weather_type_id("snowing");
+        if(scenario==7)get_weather().weather_id=weather_type_id("rain");
+        if(scenario==8)get_weather().weather_id=weather_type_id("snowing");
         if(scenario==9){for(int y=-3;y>=-13;--y)for(int x=-5;x<=5;++x)here.add_field(tripoint_bub_ms(center.x()+x,center.y()+y,0),field_type_str_id(x<0?"fd_smoke":"fd_toxic_gas").id(),3);}
         if(scenario>=10){const int count=std::array<int,4>{1,10,50,100}[size_t(scenario-10)];you.setpos(here,tripoint_bub_ms(center.x(),center.y()+25,0),false);g->ter_view_p=you.pos_bub();
             for(int n=0;n<count;++n)group.push_back(spawn(species[n%8],tripoint_bub_ms(center.x()-9+(n%10)*2,center.y()+7-(n/10)*2,0)));}
@@ -89,7 +92,8 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
                 double native_tiles_wall_ms=0,perspective_wall_ms=0,present_wall_ms=0;
                 auto render=[&](){require(SDL_SetRenderTarget(renderer,canvas)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"gpu_benchmark_viewport_failed");
                     const auto tiles_begin=benchmark_clock::now();
-                    std::multimap<point,formatted_text> overlays;color_block_overlay_container blocks;tilecontext->draw(point::zero,you.pos_bub(),resolution.x,resolution.y,overlays,blocks);
+                    std::multimap<point,formatted_text> overlays;color_block_overlay_container blocks;
+                    {ncmm_graphics_trace::cpu_zone native_tiles_zone("Native 2D");tilecontext->draw(point::zero,you.pos_bub(),resolution.x,resolution.y,overlays,blocks);}
                     native_tiles_wall_ms=elapsed(tiles_begin);
                     // cata_tiles::draw owns a display_buffer_draw_scope: it binds
                     // the game's display buffer and detaches to the window on
@@ -100,13 +104,14 @@ if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) || std::getenv("NCM
                     const auto perspective_begin=benchmark_clock::now();
                     require(graphics_draw(0,0,resolution.x,resolution.y),"gpu_benchmark_game_render_failed");perspective_wall_ms=elapsed(perspective_begin);++frames;};
                 auto present=[&](){const auto present_begin=benchmark_clock::now();require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"gpu_benchmark_window_target_failed");
-                    require(SDL_RenderTexture(renderer,canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"gpu_benchmark_real_window_present_failed");
+                    {ncmm_graphics_trace::cpu_zone present_zone("Present");require(SDL_RenderTexture(renderer,canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"gpu_benchmark_real_window_present_failed");}
                     graphics_world_frame_presented();present_wall_ms=elapsed(present_begin);};
                 const auto cold=benchmark_clock::now();bool ready=false;std::vector<double> warming_samples;
                 for(int attempt=0;attempt<180;++attempt){const auto warm_begin=benchmark_clock::now();render();present();
                     warming_samples.push_back(elapsed(warm_begin));
                     ready=std::string(mode)=="cpu"||graphics_gpu_frame;
-                    if(ready&&(!group.size()||(!graphics_creature_metrics.queued&&!graphics_creature_metrics.fallback)))break;SDL_Delay(2);}
+                    if(ready&&(!group.size()||(!graphics_creature_metrics.queued&&!graphics_creature_metrics.fallback)))break;
+                    SDL_Delay(2);}
                 require(ready,"gpu_benchmark_gpu_fallback_not_allowed");const double first_ready_ms=elapsed(cold);
                 render();require(SDL_GetRenderTarget(renderer)==canvas,"gpu_benchmark_capture_target_wrong");
                 auto *raw=SDL_RenderReadPixels(renderer,nullptr);auto *rgba=raw?SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888):nullptr;

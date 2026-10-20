@@ -3,6 +3,8 @@
 #include "hybrid_renderer.hpp"
 #include "scene_hash.hpp"
 #include "gpu_scene.hpp"
+#include "held_pose.hpp"
+#include <cstdlib>
 #include <chrono>
 namespace {
 constexpr const char *id="first_person_view";
@@ -12,6 +14,20 @@ const ncmm_host_graphics_v2 *hybrid=nullptr;
 const ncmm_host_graphics_multilevel_v1 *multilevel=nullptr;
 const ncmm_graphics_multilevel_scene_v1 *active_world=nullptr;
 const ncmm_host_graphics_controls_v1 *controls=nullptr;
+const ncmm_host_graphics_held_v1 *held_api=nullptr;
+std::unique_ptr<first_person::held::prepared> held_state;
+bool held_assets_enabled=true;
+struct held_metrics_guard {
+    ~held_metrics_guard(){if(!held_api||!held_state||!held_api->submit_metrics)return;
+        const auto &state=*held_state;ncmm_held_metrics_v1 metrics{};metrics.struct_size=sizeof(metrics);metrics.version=1;
+        metrics.matched=uint32_t(state.selected.matched);metrics.fallback_reason=uint32_t(state.selected.reason);
+        if(state.selected.body){metrics.model_identity=state.selected.body->identity;std::strncpy(metrics.model,state.selected.body->id,sizeof(metrics.model)-1);metrics.attachments=state.selected.attachment_count;}
+        for(size_t i=0;i<metrics.attachments;++i){const auto &asset=*state.selected.attachments[i].geometry;metrics.accessory_identities[i]=asset.identity;std::strncpy(metrics.accessories[i],asset.id,sizeof(metrics.accessories[i])-1);}
+        for(size_t i=0;i<state.count;++i){metrics.draws+=state.entries[i].draws;metrics.pose_matrices+=state.entries[i].palette_matrices;
+            metrics.static_builds+=state.entries[i].static_builds;metrics.static_reuses+=state.entries[i].static_reuses;}
+        held_api->submit_metrics(&metrics);
+    }
+};
 const ncmm_host_graphics_presentation_v1 *presentation=nullptr;
 const ncmm_host_graphics_gpu_v1 *gpu=nullptr;
 const ncmm_host_api_v2_core *settings=nullptr;
@@ -117,6 +133,10 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         pose.sway_x=std::sin(t*1.4f)*.0022f+std::sin(t*8)*metadata.view.movement*.008f+look_sway_x*lag;
         pose.sway_y=std::sin(t*2.2f)*.0032f+std::abs(std::sin(t*10))*metadata.view.movement*.010f+look_sway_y*lag;}
     pose.prepared_frame=&hand_animator.prepare(pose,!scene->environment.held_item[0],pose.grip==NCMM_GRIP_GUN&&(!has_metadata||metadata.view.gun_kind!=NCMM_GUN_BOW));
+    if(held_api&&held_state&&held_assets_enabled){ncmm_held_item_v1 item{};item.struct_size=sizeof(item);
+        if(held_api->get_item(&item))held_state->prepare(item,pose);else held_state->reset();pose.prepared_item=held_state.get();}
+    else if(held_state)held_state->reset();
+    held_metrics_guard held_report;
     if(settings){const char *value=settings->world_setting_get_string("NCMM_FIRST_PERSON_RENDERER","auto");
         const std::string selected=value?value:"auto";if(selected!=last_setting){last_setting=selected;mode_override=false;}
         if(!mode_override)select_renderer(selected=="cpu"?NCMM_GPU_CPU:selected=="gpu"?NCMM_GPU_FORCE:NCMM_GPU_AUTO);}
@@ -138,8 +158,9 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
                     submitted=multilevel&&multilevel->submit_gpu(&world);}
                 else submitted=gpu->submit_scene(&base);}
             if(submitted){
-                ncmm_gpu_metrics_v1 result{};result.struct_size=sizeof(result);gpu->metrics(&result);
-                if(presentation)presentation->set_target(result.target_cell,result.label_x,result.label_y);
+                ncmm_gpu_metrics_v1 result{};result.struct_size=sizeof(result);
+                const bool current_pick=gpu->metrics(&result)&&result.active&&result.frame_serial==packet.scene.frame_serial;
+                if(presentation)presentation->set_target(current_pick?result.target_cell:-1,result.label_x,result.label_y);
                 if(has_creatures)submit_creature_metrics(statistics,result.visible_creature_pixels);
                 frame_valid=false;last_gpu_reason.clear();return 1;
             }
@@ -218,6 +239,7 @@ void input(uint32_t action,void *) {
 }
 int init(const ncmm_host_api_v1 *api) {
     hand_timeline.reset();hand_animator.reset();
+    held_api=nullptr;held_state.reset();const char *held_switch=std::getenv("NCMM_FP_HELD_ASSETS");held_assets_enabled=!held_switch||std::strcmp(held_switch,"0")!=0;
     first_person::viewmodel::clear_textures();
     graphics=nullptr;
     hybrid=nullptr;multilevel=nullptr;active_world=nullptr;
@@ -226,6 +248,10 @@ int init(const ncmm_host_api_v1 *api) {
     const auto core=ncmm::sdk::require_core(api,caps,sizeof(caps)/sizeof(caps[0]),NCMM_SDK_CORE_FIELD_END(api_minor));
     if(!core) return 0;
     diagnostic_log=core.core->struct_size>=NCMM_SDK_CORE_FIELD_END(log)?core.core->log:api->log;
+    if(core.core->struct_size>=NCMM_SDK_CORE_FIELD_END(world_setting_get_bool)&&
+        core.core->world_setting_register_bool&&core.core->world_setting_get_bool)
+        core.core->world_setting_register_bool(id,"NCMM_FIRST_PERSON_TARGET_HUD","Target health bar / Здоровье цели",
+            "Show health under the current visible hostile's name. / Полоса здоровья под именем видимого противника в прицеле.",1,NCMM_WORLD_SETTING_LIVE);
     if(core.core->struct_size>=NCMM_SDK_CORE_FIELD_END(world_setting_get_string)&&core.core->world_setting_register_enum&&core.core->world_setting_get_string){
         const char *values[]={"auto","gpu","cpu"},*labels[]={"Auto","GPU","CPU"};
         if(core.core->world_setting_register_enum(id,"NCMM_FIRST_PERSON_RENDERER","First Person renderer / Рендерер первого лица","Auto uses a hardware SDL GPU and chooses CPU for software adapters. / Auto: аппаратный GPU; при программном адаптере используется CPU. F12: Auto → CPU → GPU → Auto.",values,labels,3,"auto",NCMM_WORLD_SETTING_LIVE))settings=core.core;}
@@ -253,6 +279,9 @@ int init(const ncmm_host_api_v1 *api) {
         if(api->has_capability(NCMM_GRAPHICS_CONTROLS_CAP)){
             auto *c=static_cast<const ncmm_host_graphics_controls_v1 *>(api->query_interface(NCMM_GRAPHICS_CONTROLS_ID,1,0));
             if(c&&c->abi_version==1&&c->major==1&&c->struct_size>=sizeof(*c)&&c->get_state&&c->set_camera){controls=c;controls->set_camera(float(yaw),pitch);}}
+        if(api->has_capability(NCMM_GRAPHICS_HELD_CAP)){
+            const auto *candidate=static_cast<const ncmm_host_graphics_held_v1 *>(api->query_interface(NCMM_GRAPHICS_HELD_ID,1,0));
+            if(candidate&&candidate->version==1&&candidate->major==1&&candidate->struct_size>=sizeof(*candidate)&&candidate->get_item){held_api=candidate;held_state=std::make_unique<first_person::held::prepared>();}}
         return 1;
     }
     const auto *candidate=static_cast<const ncmm_host_graphics_v1 *>(api->query_interface(NCMM_GRAPHICS_ID,1,0));
@@ -266,6 +295,7 @@ int init(const ncmm_host_api_v1 *api) {
 }
 void shutdown() {
     hand_timeline.reset();hand_animator.reset();
+    held_api=nullptr;held_state.reset();
     if(multilevel)multilevel->set_enabled(id,0);
     else if(hybrid) hybrid->set_enabled(id,0);
     if(graphics) graphics->set_enabled(id,0);

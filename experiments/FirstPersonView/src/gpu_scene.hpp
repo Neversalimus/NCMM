@@ -1,4 +1,5 @@
 #pragma once
+#include "ncmm_graphics_trace.hpp"
 #include "hybrid_renderer.hpp"
 #include "gpu_packet.hpp"
 #include <chrono>
@@ -87,6 +88,9 @@ class scene_cache {
     struct arm_chunk {std::shared_ptr<const owned_mesh> mesh;std::vector<uint16_t> palettes;};
     struct arm_entry {std::array<uint32_t,11> appearance{};std::vector<arm_chunk> chunks;};
     std::array<arm_entry,2> arm_meshes;
+    struct item_chunk {std::shared_ptr<const owned_mesh> mesh;std::vector<uint16_t> palettes;held::part part=held::part::body;};
+    struct item_entry {std::vector<item_chunk> chunks;};
+    std::unordered_map<uint64_t,item_entry> item_meshes;
     uint64_t horizon_signature=0;std::shared_ptr<const owned_mesh> horizon_mesh;
     uint64_t world_epoch=0,tileset_epoch=0,frame_serial=0;
     static uint64_t model_key(const creature::model &model){uint64_t h=hash_bytes(1469598103934665603ull,&model.colors.fingerprint,sizeof(model.colors.fingerprint));
@@ -151,6 +155,52 @@ class scene_cache {
                 if(key.second==NCMM_GPU_HELD){builder.mesh.key=0xfefd48454c445631ull;builder.mesh.flags=NCMM_GPU_DYNAMIC_MESH;mesh=std::make_shared<owned_mesh>(std::move(builder.mesh));}
                 else mesh=cache.assets.mesh(std::move(builder.mesh));
                 if(!mesh){fail("GPU dynamic scene mesh cache budget exceeded");continue;}frame.draw(mesh,place(origin(key.first)),key.first<0?UINT32_MAX:uint32_t(key.first),key.second);}}
+        bool item(const held::submission &value)override{
+            auto &observed=value.value;const auto &model=*observed.geometry;const auto &source=model.geometry;
+            auto found=cache.item_meshes.find(model.identity);
+            if(found==cache.item_meshes.end()){
+                if(cache.item_meshes.size()>=40){fail("GPU held inventory limit exceeded");return true;}
+                item_entry entry;mesh_builder builder;std::array<uint32_t,16> materials{};
+                for(size_t i=0;i<model.material_count;++i){const auto &source_material=model.materials[i];ncmm_gpu_material_v1 material{};
+                    std::copy_n(source_material.color,4,material.color);material.finish=source_material.finish;
+                    material.flags=NCMM_GPU_HELD_MATERIAL|NCMM_GPU_SMOOTH;
+                    std::shared_ptr<const owned_texture> texture;
+                    if(source_material.pixels){texture=cache.assets.texture(source_material.width,source_material.height,source_material.width,source_material.pixels);
+                        if(!texture){fail("GPU held texture cache budget exceeded");return true;}
+                        material.texture_key=texture->key;material.flags|=NCMM_GPU_TEXTURED;}
+                    materials[i]=builder.material(material,texture);
+                }
+                for(held::part kind:{held::part::body,held::part::magazine,held::part::round}){
+                    owned_mesh mesh;std::vector<uint16_t> palettes;std::array<uint16_t,viewmodel::maximum_palettes> palette_map;palette_map.fill(UINT16_MAX);
+                    std::vector<uint32_t> vertex_map(source.vertex_count,UINT32_MAX);
+                    auto flush=[&](){if(mesh.indices.empty())return true;mesh.materials=builder.mesh.materials;mesh.textures=builder.mesh.textures;
+                        auto owned=cache.assets.mesh(std::move(mesh));if(!owned)return false;entry.chunks.push_back({std::move(owned),std::move(palettes),kind});
+                        mesh={};palettes={};palette_map.fill(UINT16_MAX);std::fill(vertex_map.begin(),vertex_map.end(),UINT32_MAX);return true;};
+                    for(size_t at=0;at<source.index_count;at+=3){if(model.triangle_part[at/3]!=kind)continue;
+                        size_t needed=0;for(size_t j=0;j<3;++j){const auto palette=source.vertices[source.indices[at+j]].palette;
+                            bool duplicate=false;for(size_t k=0;k<j;++k)duplicate|=palette==source.vertices[source.indices[at+k]].palette;
+                            needed+=!duplicate&&palette_map[palette]==UINT16_MAX;}
+                        if(palettes.size()+needed>128&&!flush()){fail("GPU held mesh cache budget exceeded");return true;}
+                        for(size_t j=0;j<3;++j){const auto index=source.indices[at+j];const auto &vertex=source.vertices[index];
+                            if(palette_map[vertex.palette]==UINT16_MAX){palette_map[vertex.palette]=uint16_t(palettes.size());palettes.push_back(vertex.palette);}
+                            if(vertex_map[index]==UINT32_MAX){ncmm_gpu_vertex_v1 out{};
+                                out.position[0]=vertex.position.x;out.position[1]=vertex.position.y;out.position[2]=vertex.position.z;
+                                out.normal[0]=out.face_normal[0]=vertex.normal.x;out.normal[1]=out.face_normal[1]=vertex.normal.y;out.normal[2]=out.face_normal[2]=vertex.normal.z;
+                                out.uv[0]=vertex.u;out.uv[1]=vertex.v;out.joint=palette_map[vertex.palette];out.material=materials[model.vertex_material[index]];
+                                vertex_map[index]=uint32_t(mesh.vertices.size());mesh.vertices.push_back(out);}
+                            mesh.indices.push_back(vertex_map[index]);}
+                    }
+                    if(!flush()){fail("GPU held mesh cache budget exceeded");return true;}
+                }
+                found=cache.item_meshes.emplace(model.identity,std::move(entry)).first;++observed.static_builds;
+            }else ++observed.static_reuses;
+            std::array<ncmm_gpu_matrix_v1,128> matrices;
+            for(const auto &chunk:found->second.chunks){if(!observed.visible(chunk.part))continue;
+                for(size_t i=0;i<chunk.palettes.size();++i)matrices[i]=observed.bones.palette[chunk.palettes[i]];
+                frame.draw_skinned(chunk.mesh,value.world,UINT32_MAX,NCMM_GPU_HELD,matrices.data(),chunk.palettes.size());
+                ++observed.draws;observed.palette_matrices+=uint32_t(chunk.palettes.size());}
+            return true;
+        }
         bool arms(const viewmodel::submission &value)override{
             std::array<uint32_t,11> identity{};size_t at=0;
             for(const auto &style:value.style.regions){for(float component:{style.color.x,style.color.y,style.color.z})std::memcpy(&identity[at++],&component,sizeof(component));
@@ -386,7 +436,7 @@ public:
     uint64_t signature_neighbor_queries=0,signature_reused_cells=0,signature_neighborhood_marks=0;
     uint64_t signature_content_reuses=0,signature_content_hashes=0,signature_content_updates=0,signature_content_allocation_bytes=0;
     std::string last_reason;
-    void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();arm_meshes={};assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
+    void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();arm_meshes={};item_meshes.clear();assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
         signature_cached=false;signature_values=std::vector<uint64_t>{};signature_results=std::vector<uint64_t>{};signature_positions=std::vector<signature_position>{};signature_dirty_slots=std::vector<uint8_t>{};signature_reuses=0;
         clear_normalized();
         signature_neighbor_queries=signature_reused_cells=signature_neighborhood_marks=0;signature_content_reuses=signature_content_hashes=signature_content_updates=signature_content_allocation_bytes=0;}
@@ -411,11 +461,13 @@ public:
         set(camera.time,{float(std::fmod(e.animation_seconds,100000.0)),float(e.moon_phase),float(metadata?metadata->view.sky_style:NCMM_SKY_EARTH)},float(e.lightning));set(camera.grid,{float(s.base.grid_width),float(s.base.grid_height),float(s.base.cell_count)},levels?1.f:0.f);
         // A single callback-owned index serves signatures and both geometry
         // consumers. No scene pointer or lookup allocation survives build().
+        ncmm_graphics_trace::cpu_zone geometry_zone("Geometry");
         const auto start=std::chrono::steady_clock::now();ncmm_world::coordinates indexed(levels,true);
         auto hashes=signatures(s,metadata,host,creatures!=nullptr,width,levels,indexed);collector sink(*this,s,metadata,out,host,hashes,levels,indexed);
         hybrid::renderer(s,yaw,pitch,provider,statistics,pose,metadata,{},creatures,levels,&indexed).collect(sink,width,height);sink.finish();generated_cells=sink.generated_cells;
         if(statistics.viewmodel_errors){last_reason="PSX viewmodel grip could not be attached safely";return false;}
         geometry_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();set(camera.sky_bottom,statistics.sky_horizon);
+        geometry_zone.stop();
         // Palette-only CPU work: derive the exact established sky endpoints by
         // collecting above; the complete sky raster remains in the GPU shader.
         camera.sky_top[0]=statistics.sky_top.x;camera.sky_top[1]=statistics.sky_top.y;camera.sky_top[2]=statistics.sky_top.z;camera.sky_top[3]=metadata&&metadata->horizon_enabled?1.f:0.f;
