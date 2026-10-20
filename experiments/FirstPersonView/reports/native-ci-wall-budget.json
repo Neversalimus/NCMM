@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "created_utc": "2026-10-20T08:42:36.741065+00:00",
+  "parent": "daecb21f6051cd4eb08558ed4cd6fbb3098f4213",
+  "old_total_windows_job_minutes": 270,
+  "new_total_windows_job_minutes": 360,
+  "only_existing_job_timeout_changed": true,
+  "all_step_bodies_and_timeouts_byte_identical": true,
+  "runtime_unchanged": true,
+  "public_abi_shaders_quality_unchanged": true,
+  "workflow_before_sha256": "1643fa06c9fb98fd80582f06e1d2843ed47db2b33a3fe80ee4c8ee8592de6276",
+  "workflow_after_sha256": "423562c05c0ad8840741311841b28113476943f43d88fc57ee04d09da4e6aa45",
+  "qualification_policy_tests_passed": 8,
+  "audit_sha256": "3a3cf4e0233f44c02a67816246112cf1d667b435874484eca805ceb27966ba78",
+  "previous_core_full_qualified": false,
+  "previous_common_full_qualified": false,
+  "full_qualification_accepted": false,
+  "performance_accepted": false,
+  "merge_allowed": false,
+  "evidence_runs": [
+    39350962019,
+    39352183335
+  ],
+  "docs": [
+    "https://docs.github.com/en/actions/reference/limits",
+    "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax"
+  ]
+}
