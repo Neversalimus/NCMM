@@ -70,7 +70,7 @@ vcpkg_cmake_configure(
         -DSDL_INSTALL_CMAKEDIR_ROOT=share/${PORT}
         # Specifying the revision skips the need to use git to determine a version
         -DSDL_REVISION=vcpkg
-        -DSDL_VENDOR_INFO=NCMM-graphics-descriptors-982e080b2c8a
+        -DSDL_VENDOR_INFO=NCMM-graphics-descriptors-982e080b2c8a-cpu-wall-diag
     MAYBE_UNUSED_VARIABLES
         SDL_FORCE_STATIC_VCRT
 )

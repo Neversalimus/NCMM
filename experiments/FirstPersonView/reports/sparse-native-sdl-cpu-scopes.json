@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "success": true,
+  "diagnostic_only": true,
+  "native_tested": false,
+  "performance_accepted": false,
+  "merge_allowed": false,
+  "created_utc": "2026-10-20T08:45:21.862364+00:00",
+  "parent": "4147ec2cc6d2f8d4010f89460eeea9d9a243dbb6",
+  "runtime_parent": "daecb21f6051cd4eb08558ed4cd6fbb3098f4213",
+  "failed_ordinary_result_sha256": "1b14301ab439e4eee9549415f6dcfe8814f7e6b93214273b763e9be204b5f965",
+  "failed_ordinary_regressions": 1,
+  "failed_ordinary_improvements": 161,
+  "exact_failed_sparse_runtime_files": {
+    "experiments/FirstPersonView/src/gpu_scene.hpp": "9797cf14b8c088c169beaf2b07933939f4dae82909eb8ac20391681260cd82f1",
+    "experiments/graphics_bridge/ncmm_gpu_backend.hpp": "c4acb9a284f05fb0e1ade575253c953235d32cc03eb9597ffe4c88f737ed6f6d",
+    "experiments/graphics_bridge/ncmm_graphics_world.inc": "31f0f2b248f69a0c16fe4295aa53aa4e4b271cad7e7855aa130f67658ddc796a",
+    "experiments/graphics_bridge/ncmm_graphics_v2.h": "9eb02bf6e0106227c3da74d37ec9623cf6f14503c0b84fbe770bd8723bf70107",
+    "experiments/graphics_bridge/ncmm_world_policy.hpp": "85b066dbb6053f161fedab24a81a363e8266f85521337f69069a7b3b1c985e14"
+  },
+  "diagnostic_sdk_files": {
+    "experiments/graphics_bridge/native_sdl_bridge.py": "e78ec7ca2c205f1ca770b7e93b32cd307aa67c9bda28191d89fabd44588dc4f3",
+    "experiments/graphics_bridge/third_party/sdl3-port/manifest.json": "281c3e12cf9040b1c2edbf0a7a3547aafa2de26ec0f0dbe62b676b1baf0748f7",
+    "experiments/graphics_bridge/third_party/sdl3-port/overlay/sdl3/ncmm-graphics-descriptors.patch": "9483e989c9af1aa8f2cdc4e2e5ac7d75d103358aadfd7ec7fd92a17182ae3d7e",
+    "experiments/graphics_bridge/third_party/sdl3-port/overlay/sdl3/portfile.cmake": "26ae20db2474b8ea737f8d3ed5f021a5effbb48100a88747b844835f3f11373c"
+  },
+  "sdk_manifest_sha256": "281c3e12cf9040b1c2edbf0a7a3547aafa2de26ec0f0dbe62b676b1baf0748f7",
+  "sdk_c_sha256": "3a297468f23c46c26037bdf37c47a23efc8ca14a4299a2b5657c972cf26f4c63",
+  "reused_unchanged_sdk_source_proof_sha256": "5a1af4b5c2b67869f44c4545c656ac77f512c8eacf0fdd87781d895e68b47bc5",
+  "reused_unchanged_local_sdk_compile_sha256": "006a11076550d1785bdc42f24407e98ef0d464da616a34cb0385d6126c1e1531",
+  "reused_unchanged_local_two_device_probe_sha256": "978c3c86f5bd8e6a2b70e704afefb68ab0aff49eab1db0ad6b3d29d0824236c3",
+  "local_sdk_guards": 16,
+  "local_atomic_tests": 12,
+  "local_policy_tests": 8,
+  "exact_four_anchor_replacements_recover_parent": true,
+  "real_radius_z_and_producer_stream_retained": true,
+  "bounded_events": 262144,
+  "slow_threshold_us": 100,
+  "per_call_file_io": false,
+  "nsight_or_uac_launches": 0,
+  "note": "Reuse is explicit: SDK bytes and its previous compile/two-device validation are identical. Only fresh SDK guards/source transforms/policy tests ran here; no new GPU test or Native result is claimed. Runtime/collector/cache/shaders/ABI/quality/order remain the failedDAE code. New actualNative package/frame correlation required; observer never accepts performance."
+}
