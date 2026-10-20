@@ -47,6 +47,7 @@ ncmm_world::source_cache graphics_world_sources;
 void graphics_world_region_changed_impl(const map *source,int32_t x,int32_t y,int z,int w,int h)
 {
     if(!g||source!=&get_map())return;
+    graphics_snapshot_lease.invalidate();
     ++graphics_world_revision;
     if(z>=-128&&z<=128)++graphics_world_level_revisions[size_t(z+128)];
     graphics_world_sources.invalidate(x,y,z,w,h);
@@ -306,9 +307,9 @@ bool graphics_draw_world(int x,int y,int width,int height)
                     // Static cached cells use the original narrow margin. Actors
                     // and their death clips always take the live bounded path.
                     if(!close_to_eye&&outside(5.f)){++graphics_world_metrics.frustum_rejected;continue;}
-                    candidate c{};c.world=owned->world;c.pos=here.get_bub(tripoint_abs_ms(ax,ay,z));
+                    graphics_world_candidate c{};c.world=owned->world;c.pos=here.get_bub(tripoint_abs_ms(ax,ay,z));
                     c.permission=c.world.flags&(NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_STRUCTURE_VISIBLE|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM);
-                    c.distance=dx*dx+dy*dy+dz*dz;c.facade_light=owned->facade_light;candidates.push_back(c);
+                    c.distance=dx*dx+dy*dy+dz*dz;c.facade_light=owned->facade_light;candidate_loan.push_back(c);
                 }else ++graphics_camera_cache.totals.empty_hits;
                 continue;
             }

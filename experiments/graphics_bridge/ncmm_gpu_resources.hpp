@@ -94,7 +94,8 @@ public:
     uint64_t static_index_pool_bytes()const{uint64_t n=0;for(const auto &[key,index]:immutable_indices_)n+=index.bytes;return n;}
     uint64_t cpu_bytes()const{uint64_t n=0;for(const auto &[k,m]:meshes_)n+=sizeof(mesh_resource)+m.cpu_vertices.capacity()*sizeof(ncmm_gpu_vertex_v1)+m.cpu_indices.capacity()*4+m.materials.capacity()*sizeof(ncmm_gpu_material_v1)+m.joints.capacity()*sizeof(bounds)+m.ranges.capacity()*sizeof(mesh_range);
         for(const auto &[k,t]:textures_)n+=t.pixels.capacity()*4;
-        for(const auto &[key,index]:immutable_indices_)n+=sizeof(immutable_index)+key.capacity()*4;return n;}
+        for(const auto &[key,index]:immutable_indices_)n+=sizeof(immutable_index)+key.capacity()*4;
+        return n;}
     void bind(SDL_GPUDevice *device){device_=device;}
     void clear(){for(auto &[k,m]:meshes_)release(m);for(auto &[k,t]:textures_)release(t);meshes_.clear();textures_.clear();immutable_indices_.clear();used_meshes_.clear();used_textures_.clear();bytes_=static_upload_bytes_=static_index_creations_=static_index_reuses_=0;}
     void abandon(){device_=nullptr;clear();}
