@@ -99,3 +99,62 @@ jobs:
             gpu-build/gpu-probe.*
             gpu-build/gpu-scene*
           retention-days: 14
+  clang_asan_ubsan_vulkan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      SDL_ASSERT: abort
+      SDL_VIDEODRIVER: offscreen
+      SDL_GPU_DRIVER: vulkan
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require exact candidate runtime bytes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json
+          files={
+            'experiments/FirstPersonView/CMakeLists.txt':'07f6577a6f0de1204913d9279f0d85e074bf784e8e1ad808274128b86aab6907',
+            'experiments/FirstPersonView/tests/gpu_resource_failure_test.cpp':'d1f3ca167b1639d8be40ec0dcff5d43ae612ff0baf89fe003fc1532418160597',
+            'experiments/FirstPersonView/tests/gpu_vertex_lease_edge_test.cpp':'f4d63a3d214af23d48000bd919da261a946c7f55c30720ef9f5bd41a35cb4a0b',
+            'experiments/graphics_bridge/ncmm_gpu_resources.hpp':'023100f2d67d8cf21c1aa6fb20ed4d812ca85909b08ea97b627a4316432d1e8c',
+            'experiments/graphics_bridge/ncmm_gpu_geometry.hpp':'ab49271f96bea83eb2ed354c3c86c723a16c2b52d45e6150ace1775f349cbdf5',
+            'experiments/graphics_bridge/ncmm_gpu_backend.hpp':'b1a93d777cc669ce98ee958712060fe7eceb8f66cffa27a0fce2b246c5b80e23',
+            'experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc':'f80d7053ec16b9f261292724c60fa61b0c4a2934b8d4a50a95baaf186514d739',
+            'experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp':'0c8d4687aef0ffb225a25daaa14d693296c45ef754889962a8e468f92d9cdc8d'}
+          for name,expected in files.items():
+              assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
+          Path('vertex-source-proof.json').write_text(json.dumps(dict(runtime_source='06cefa5004d52bf9fd2c6b7d390a6cbcbc248d02',files=files,ordinary_performance=False,actual_native_game=False,device='offscreen software Vulkan; not RTX4090'),indent=2)+'\n')
+          PY
+      - uses: actions/checkout@v4
+        with:
+          repository: libsdl-org/SDL
+          ref: 8e37db5e797b6167f3a00d697d816a684bd259c7
+          path: gpu-sdl
+      - name: Install software Vulkan and shader compiler
+        run: sudo apt-get update && sudo apt-get install -y clang mesa-vulkan-drivers glslang-tools libvulkan-dev zlib1g-dev
+      - name: Build pinned SDL3.4.10 offscreen Vulkan
+        run: |
+          cmake -S gpu-sdl -B gpu-sdl-build -DCMAKE_BUILD_TYPE=Release -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_UNIX_CONSOLE_BUILD=ON -DSDL_X11=OFF -DSDL_WAYLAND=OFF -DSDL_AUDIO=OFF -DSDL_JOYSTICK=OFF -DSDL_HAPTIC=OFF -DSDL_SENSOR=OFF -DSDL_OPENGL=OFF -DSDL_OPENGLES=OFF -DSDL_VULKAN=ON -DSDL_GPU=ON -DSDL_TESTS=OFF
+          cmake --build gpu-sdl-build --parallel 2
+      - name: Compile unchanged shipping shaders to SPIR-V
+        run: python3 experiments/FirstPersonView/compile_gpu_shaders.py --glslang /usr/bin/glslangValidator --output "$PWD/gpu-shader-bytes.hpp"
+      - name: Build actual GPU resource and scene tests with ASan and UBSan
+        run: |
+          cmake -S experiments/FirstPersonView -B vertex-asan -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_COMPILER=clang++ -DSDL3_DIR="$PWD/gpu-sdl-build" -DFIRST_PERSON_BUILD_GPU_TESTS=ON -DFIRST_PERSON_SANITIZE=ON -DFIRST_PERSON_GPU_SHADER_HEADER="$PWD/gpu-shader-bytes.hpp"
+          cmake --build vertex-asan --parallel 2 --target first_person_gpu_resource_cache_tests first_person_gpu_scene_tests first_person_gpu_vertex_lease_edge_tests first_person_gpu_resource_failure_tests
+      - name: Verify exact GPU bytes, lease lifetime, picking and depth without suppressions
+        run: ctest --test-dir vertex-asan -R '^first_person_gpu_(resource_cache|scene|vertex_lease_edge|resource_failure)$' --output-on-failure -V
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: exact-vertex-linux-asan-ubsan
+          path: |
+            vertex-source-proof.json
+            vertex-asan/Testing/Temporary/LastTest.log
+            vertex-asan/CMakeCache.txt
+            vertex-asan/gpu-scene*
+            gpu-shader-bytes.hpp
+          retention-days: 14
