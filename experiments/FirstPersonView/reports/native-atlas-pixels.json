@@ -1,0 +1,46 @@
+{
+  "status": "candidate-not-performance-accepted",
+  "source_parent": "4ea948ff7f4922647169bf2d8adef2b786a43a48",
+  "problem": {
+    "observer_module": "ec034ed941eb3e469b027bcf2618f6dcb7e27703",
+    "native_host": "4ea948ff7f4922647169bf2d8adef2b786a43a48",
+    "street_raw67_geometry_ms": 11.2752,
+    "renderer_collect_ms": 11.038,
+    "single_sprite_readback_ms": 10.1863,
+    "evidence_sha256": "96dbeb1ac291300a8c1377eff1a698b8ffabfd04e6c3c0facc25feeb4a0b33c4",
+    "diagnostic_timing_only": true
+  },
+  "change": "Compress exact decoded normal atlas pixels during existing Native upload; own them through an SDL texture cleanup property; decode only intersecting 32-row bands for a first sprite request; keep the original GPU readback on unsupported/missing/over-budget data.",
+  "memory": {
+    "extra_source_limit_bytes": 67108864,
+    "existing_resolved_sprite_limit_bytes": 67108864,
+    "existing_limits_unchanged": true,
+    "total_sprite_and_source_payload_upper_bound_bytes": 134217728,
+    "extra_source_memory_is_not_free": true
+  },
+  "startup_cost": "Compression adds Native tileset-load CPU work. New Native reports expose cumulative encoding milliseconds and retained source bytes. Measure actual loading and RSS on the final Host; no startup or frame-time gain is claimed.",
+  "local": {
+    "full_registered_ctest_passed": 42,
+    "actual_gpu_pixel_lifetime_checks": 162,
+    "source_transform_tests": 19,
+    "gpu": "NVIDIA GeForce RTX 4090",
+    "backend": "direct3d12",
+    "native_pins": [
+      "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83",
+      "074aa98bd5be3de4c35f154082db32a0e63bb0f1"
+    ],
+    "source_proof_sha256": "8f94bee741e2902aebcfcc6cbe39d605d0c3b499df1a9296e77731e7ec23df59",
+    "shipping_sdl_sha256": "ca049b29bd5934f68ca1f1d67ab9e16eed56b7200b72d5aae7272afa1d12a51d",
+    "native_host_differential_glue_added_after_full42_not_compiled_locally": true
+  },
+  "dependency": "Uses zlib, already REQUIRED by both pinned Native CMake configurations. No new module/Host ABI or shipping dependency.",
+  "pending": [
+    "Full native Windows/Linux1040/1807 builds",
+    "fresh Native source/visibility and newly instrumented actual atlas sprite differential",
+    "ordinary balanced full-frame comparisons including all old negative tails",
+    "unchanged final hardware/debug/lifecycle and >=1800s soak"
+  ],
+  "previous_final_matrix_preserved": "b6e/4ea REJECTED53 repeated metric regressions; no promotion or gate waiver",
+  "merge_allowed": false,
+  "native_differential": "The existing isolated CameraSnapshotVerify benchmark now compares every CPU atlas miss with the original GPU path, requires at least one comparison and zero mismatches, and exports counts. Ordinary timings leave it disabled; no new option or diagnostic environment key."
+}

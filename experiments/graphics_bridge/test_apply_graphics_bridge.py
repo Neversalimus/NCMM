@@ -47,6 +47,11 @@ class ApplyTests(unittest.TestCase):
         (root / "src/monster.cpp").write_text("    // We were carrying a creature, deposit the rider")
         (root / "src/npc.cpp").write_text("    prevent_death_reminder = false;\n    dialogue d( get_talker_for( this ),")
         (root / "src/cata_tiles.h").write_text("        std::optional<texture_draw_data> get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p );")
+        (root / "src/tileset_loader.h").write_text("                                      const atlas_replay_quarantine::gate &abandon_gate );\n        void create_textures_from_tile_atlas")
+        (root / "src/tileset_loader.cpp").write_text('#include "tileset_loader.h"\n'
+            '        const std::vector<SDL_Rect> &opaque_bounds,\n        const atlas_replay_quarantine::gate &abandon_gate )\n'
+            '    cata_assert( texture_ptr );\n    ++texture_count;\n'
+            '            copy_surface_to_texture( scan_surf, offset, *tile_values, opaque_bounds, abandon_gate );\n')
         (root / "src/cata_tiles.cpp").write_text("""void cata_tiles::load_tileset( const std::string &tileset_id, const bool precheck,
                                const bool force, const bool pump_events, const bool terrain )
 {
@@ -119,6 +124,8 @@ bool cata_tiles::draw_sprite_at() {
                 self.assertIn("graphics_erase( module_id )", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
                 self.assertIn('#include "ncmm_graphics_scratch.hpp"', (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
                 self.assertEqual((root / "src/ncmm_graphics_scratch.hpp").read_bytes(), Path(bridge.__file__).with_name("ncmm_graphics_scratch.hpp").read_bytes())
+                self.assertEqual((root / "src/ncmm_native_atlas_pixels.hpp").read_bytes(), Path(bridge.__file__).with_name("ncmm_native_atlas_pixels.hpp").read_bytes())
+                self.assertIn("tile_values == targets.normal", (root / "src/tileset_loader.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics.creatures.v1", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_note_creature( this, 4 )", (root / "src/monster.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_note_creature( origin, 2", (root / "src/ballistics.cpp").read_text(encoding="utf-8"))
@@ -129,6 +136,24 @@ bool cata_tiles::draw_sprite_at() {
                 before = self.fingerprint(root)
                 with self.assertRaises(ValueError): bridge.apply(root)
                 self.assertEqual(before, self.fingerprint(root))
+    def test_changed_native_atlas_upload_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root)
+            (root/'src/tileset_loader.cpp').write_text('changed Native upload')
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'Native atlas anchor differs'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
+
+    def test_ambiguous_native_atlas_upload_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root)
+            p=root/'src/tileset_loader.cpp';p.write_text(p.read_text()*2)
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'Native atlas anchor differs'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
+
     def test_missing_shutdown_anchor_no_partial_patch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); self.fixture(root)
