@@ -113,7 +113,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: Neversalimus/NCMM
-          ref: 50e40e316280eea41883b40313f46ade3fba2c6a
+          ref: 8f404d9eff1d80ec66526ee122ea3d08f83f8d0b
           path: atlas-code
           sparse-checkout: experiments/graphics_bridge/ncmm_native_atlas_pixels.hpp
           sparse-checkout-cone-mode: false
@@ -122,8 +122,8 @@ jobs:
           python3 - <<'PY'
           import hashlib,pathlib
           p=pathlib.Path('atlas-code/experiments/graphics_bridge/ncmm_native_atlas_pixels.hpp')
-          assert hashlib.sha256(p.read_bytes()).hexdigest()=='822718b79402b22c8b277a9d70a372bda263f1aead90d1d38347964e7fc9a62e'
-          print('Exact Core39/Common50 pixel helper verified; CPU sanitizer job, no GPU execution/performance claim')
+          assert hashlib.sha256(p.read_bytes()).hexdigest()=='02637caf9f210e0b89c097df3b5f3ad7e40fd7b12bb3f9ee528b5d667d78089b'
+          print('Exact FAR-fixed Core/Common pixel helper verified; CPU sanitizer job, no GPU execution/performance claim')
           PY
       - uses: actions/checkout@v4
         with:
