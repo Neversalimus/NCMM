@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "parent_source": "9c00cd80d22d2351d4ff0eb072bf64f65e9043aa",
+  "runtime_header_sha256": "9797cf14b8c088c169beaf2b07933939f4dae82909eb8ac20391681260cd82f1",
+  "performance_accepted": false,
+  "actual_native_tested": false,
+  "local_ctest_passed": 33,
+  "expanded_signature_checks": 9138,
+  "atomic_tests": 12,
+  "qualification_tests": 8,
+  "exact_original_oracle_bytes": 20103528,
+  "exact_original_oracle_sha256": "2be4355d73b576f0b11e8244b849409125df820896a54353dc1d4ed187b0ca0b",
+  "exact_balanced_signature_bytes": 69857216,
+  "exact_balanced_signature_sha256": "736111d7c851d8d1c63050e0d6eb13d25991b01901ec33d1d710c8314792ec08",
+  "cache_total_budget_bytes": 33554432,
+  "record_copy_budget_per_call": 524288,
+  "page_allocation_budget_per_call": 524288,
+  "scope": "Sparse actual positions/slot indices with one owned record pool. Complete old hash sequence/neighbour/collector/build/ABI/SDL/shaders/quality retained. Native adds only producer-byte diagnostics inside the unchanged inclusive clock.",
+  "obsolete_dense_candidate": "B82C rejected before any Native launch: dense loaded-Z storage disabled caching at native97x97/21available levels. Its completed module CI and local evidence remain; obsolete Full run cancelled.",
+  "old_b19_rejection_remains_authoritative": true,
+  "baseline_missing_producer_counter_is_unknown_not_zero": true,
+  "evidence_local_workspace": "fpv-next-evidence beside this checkout; raw signatures/timings/sources remain local",
+  "evidence_sha256": {
+    "sparse-content-bench-r2/plan.json": "33793719e6151a1e31daaf7881333580c53db9d29d69a515b2fc94518ecbce15",
+    "sparse-content-bench-r2/result.json": "edcd8bf41d131096036d09060660108bf1d32b39a7b39919c39d330e9d3b3f59",
+    "sparse-content-oracle-r1/verified.json": "09b1ee1a13e1f57f5646cbb391b8c57ff12b5259dd456aec2715a4a2c84f9c67",
+    "sparse-content-all-build.log": "7df64e56a560db478db829c328aa747e37636cd9f9ffd65ffcef6f5b628aae54",
+    "sparse-content-all-ctest.log": "c99e19c7ab854cece004b4c305c51c851e301a2b9005f5aeba513b635835ed78",
+    "sparse-content-atomic-tests.log": "af510bb677a8918fb4e1c576678b70a801372e1e57878e048a6f1491473255ef",
+    "sparse-content-qualification-tests.log": "44e5c4f9428b34d862531feb9e9caf82aa6ab93936111bd825530f0a719bbfde",
+    "standalone-psx-b82c382/controller-stopped-before-native.json": "46e9fa42aa9305f6ff961eae9203ef9d3b799cf464c7c66fbea6df9fa5ea1740"
+  }
+}
