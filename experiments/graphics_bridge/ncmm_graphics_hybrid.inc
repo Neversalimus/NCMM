@@ -72,7 +72,10 @@ void graphics_clear_stream()
 
 #include "ncmm_graphics_effects.inc"
 
-bool graphics_read_sprite( const texture_draw_data &atlas, graphics_cpu_sprite &out )
+bool graphics_native_atlas_verify = false;
+uint64_t graphics_native_atlas_verified = 0, graphics_native_atlas_mismatches = 0;
+
+bool graphics_read_sprite_gpu( const texture_draw_data &atlas, graphics_cpu_sprite &out )
 {
     SDL_Renderer *renderer = get_sdl_renderer().get();
     const SDL_Rect rect = atlas.dimensions;
@@ -137,6 +140,21 @@ bool graphics_read_sprite( const texture_draw_data &atlas, graphics_cpu_sprite &
     ok = SDL_SetRenderDrawColor( renderer, dr, dg, db, da ) && ok;
     SDL_DestroyTexture( target );
     return ok;
+}
+
+bool graphics_read_sprite( const texture_draw_data &atlas, graphics_cpu_sprite &out )
+{
+    if( !ncmm_native_atlas::copy( atlas.texture, atlas.dimensions, out.pixels ) ) return graphics_read_sprite_gpu( atlas, out );
+    out.width=uint32_t(atlas.dimensions.w);out.height=uint32_t(atlas.dimensions.h);
+    if( graphics_native_atlas_verify ) {
+        graphics_cpu_sprite reference;
+        ++graphics_native_atlas_verified;
+        if( !graphics_read_sprite_gpu( atlas, reference ) || out.width!=reference.width ||
+            out.height!=reference.height || out.pixels!=reference.pixels ) {
+            ++graphics_native_atlas_mismatches;return false;
+        }
+    }
+    return true;
 }
 #endif
 

@@ -32,6 +32,13 @@
     require(!full_size_gpu_matrix||(extended&&!trace_capture),"full_size_gpu_matrix_requires_ordinary_extended_run");
     struct readback_profile_guard {bool previous;~readback_profile_guard(){graphics_sprite_readbacks.enabled=previous;}} readback_guard{graphics_sprite_readbacks.enabled};
     graphics_sprite_readbacks.enabled=extended;
+    // The existing isolated cached-vs-Native verification also compares every
+    // new CPU source crop against the original GPU sprite path. Ordinary frame
+    // measurements never enable this additional readback or equality check.
+    const char *atlas_verify=std::getenv("NCMM_FP_CAMERA_CACHE_VERIFY");
+    struct atlas_verify_guard {bool prior;~atlas_verify_guard(){graphics_native_atlas_verify=prior;}} atlas_guard{graphics_native_atlas_verify};
+    graphics_native_atlas_verify=atlas_verify&&std::string(atlas_verify)=="1";
+    graphics_native_atlas_verified=graphics_native_atlas_mismatches=0;
     const int steps=extended?64:12,rotations=extended?96:48;
     const auto benchmark_weather=get_weather().weather_id;
     std::vector<std::string> scenes=trace_capture?std::vector<std::string>{trace_scene=="city"?"city_blocks":trace_scene=="smoke"?"smoke_rain":trace_scene=="hands"||trace_scene=="shot"?"armed":"street"}:extended?std::vector<std::string>{"street","city_blocks","dense_city","forest","multi_level_horde","creatures_20","creatures_100","smoke_rain","armed","empty_attacks"}:
@@ -93,7 +100,7 @@
             std::vector<double> native_tiles_ms,perspective_ms,present_ms,unattributed_ms,extract_ms,callback_ms,upload_ms,record_ms,submit_ms;
             std::vector<uint32_t> first_frame_indices;
             std::vector<double> thread_cpu_ms,process_cpu_ms,sprite_readback_ms;
-            std::vector<uint64_t> sprite_readback_attempts,sprite_cache_bytes,gpu_generated_cells;
+            std::vector<uint64_t> sprite_readback_attempts,sprite_cache_bytes,gpu_generated_cells,native_atlas_cache_bytes;
             std::vector<uint64_t> frame_upload_capacity,frame_upload_creations;
             std::vector<double> cell_prepare_ms;
             std::vector<double> retirement_ms,post_present_metrics_ms;std::vector<uint64_t> retirement_calls;
@@ -153,6 +160,7 @@
                         thread_cpu_ms.push_back(std::max(0.0,(thread_end-thread_begin)*1000));process_cpu_ms.push_back(std::max(0.0,(process_end-process_begin)*1000));
                         sprite_readback_ms.push_back(graphics_sprite_readbacks.ms);sprite_readback_attempts.push_back(graphics_sprite_readbacks.attempts);
                         sprite_cache_bytes.push_back(graphics_hybrid_sprite_bytes);gpu_generated_cells.push_back(metrics.generated_cells);
+                        native_atlas_cache_bytes.push_back(ncmm_native_atlas::retained_bytes());
                         frame_upload_capacity.push_back(recorded.frame_upload_capacity_bytes);frame_upload_creations.push_back(recorded.frame_upload_creations);
                         cell_prepare_ms.push_back(recorded.cell_prepare_ms);cell_upload_bytes.push_back(recorded.cell_upload_bytes);cell_cache_bytes.push_back(recorded.cell_cache_bytes);
                         retirement_ms.push_back(recorded.retirement_ms);retirement_calls.push_back(recorded.retirement_calls);post_present_metrics_ms.push_back(metrics_wall);
@@ -250,6 +258,9 @@
                 report.member("thread_cpu_available",thread_cpu_available);if(thread_cpu_available)report.member("frame_thread_cpu_samples_ms",thread_cpu_ms);
                 report.member("frame_process_cpu_samples_ms",process_cpu_ms);report.member("sprite_readback_samples_ms",sprite_readback_ms);
                 report.member("sprite_readback_attempts",sprite_readback_attempts);report.member("sprite_cache_bytes",sprite_cache_bytes);report.member("gpu_generated_cells",gpu_generated_cells);
+                report.member("native_atlas_cache_bytes",native_atlas_cache_bytes);report.member("native_atlas_cache_limit_bytes",ncmm_native_atlas::byte_limit);
+                report.member("native_atlas_encoding_ms_cumulative",ncmm_native_atlas::encoding_ms());
+                report.member("native_atlas_cpu_copies_cumulative",ncmm_native_atlas::cpu_copies.load(std::memory_order_relaxed));
                 report.member("gpu_frame_upload_capacity_bytes",frame_upload_capacity);report.member("gpu_frame_upload_creations",frame_upload_creations);
                 report.member("gpu_cell_prepare_samples_ms",cell_prepare_ms);report.member("gpu_cell_upload_bytes",cell_upload_bytes);report.member("gpu_cell_cache_bytes",cell_cache_bytes);
                 report.member("gpu_metrics_in_frame",true);report.member("gpu_post_present_metrics_samples_ms",post_present_metrics_ms);
@@ -458,6 +469,9 @@
     if(had_nightvision)you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));
     you.recalc_sight_limits();get_weather().weather_id=saved_weather;
     }
+    require(!graphics_native_atlas_verify||(graphics_native_atlas_verified>0&&graphics_native_atlas_mismatches==0),"movement_native_atlas_pixel_differential_failed");
+    report.member("native_atlas_differential");report.start_object();report.member("enabled",graphics_native_atlas_verify);
+    report.member("checked",graphics_native_atlas_verified);report.member("mismatches",graphics_native_atlas_mismatches);report.end_object();
     report.member("success",true);report.end_object();stream.close();require(bool(stream),"movement_report_write_failed");
 
     you.setpos(here,here.get_bub(original_position),false);you.set_moves(original_moves);progress("movement_complete");

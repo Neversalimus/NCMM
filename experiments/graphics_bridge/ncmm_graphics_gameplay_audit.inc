@@ -50,7 +50,7 @@
     auto write_stages=[&](const std::map<std::string,std::vector<double>> &measurements){report.start_object();for(const auto &[name,samples]:measurements){if(samples.empty())continue;report.member(name);report.start_object();report.member("samples",samples.size());report.member("median",percentile(samples,.5));report.member("p95",percentile(samples,.95));report.member("p99",percentile(samples,.99));report.member("max",*std::max_element(samples.begin(),samples.end()));report.end_object();}report.end_object();};
     std::map<std::string,std::vector<double>> stages;bool audit_measurements=true;
     struct combat_trial {int spawned=0,turns=0,shots=0,melee=0,observed_enemy_attacks=0;};std::vector<combat_trial> combat_trials;
-    uint64_t resource_peak=0,sprite_peak=0,world_peak=0,rss_peak=0;std::string capture_name;
+    uint64_t resource_peak=0,sprite_peak=0,world_peak=0,rss_peak=0,native_atlas_peak=0;std::string capture_name;
     auto render=[&](){
         const bool measured=capture_name.empty()&&audit_measurements;
         const auto pos=you.pos_abs();const auto turn=calendar::turn;const int moves=you.get_moves(),hp=you.get_part_hp_cur(bodypart_id("torso"));
@@ -75,6 +75,8 @@
         }
         sprite_peak=std::max(sprite_peak,uint64_t(graphics_hybrid_sprite_bytes));world_peak=std::max(world_peak,graphics_world_sources.bytes());
         require(graphics_hybrid_sprite_bytes<=64*1024*1024&&graphics_world_sources.bytes()<8*1024*1024&&resource_peak<=NCMM_GPU_RESOURCE_LIMIT,"audit_renderer_memory_budget_exceeded");
+        require(ncmm_native_atlas::retained_bytes()<=ncmm_native_atlas::byte_limit,"audit_native_atlas_memory_budget_exceeded");
+        native_atlas_peak=std::max(native_atlas_peak,uint64_t(ncmm_native_atlas::retained_bytes()));
         require(you.pos_abs()==pos&&you.get_moves()==moves&&calendar::turn==turn&&you.get_part_hp_cur(bodypart_id("torso"))==hp,"audit_renderer_changed_native_state");++frames;
         if(frames%32==0)checkpoint(phase);
     };
@@ -303,7 +305,7 @@
         if(soak_frames%32==0){const auto rss=ncmm_graphics_performance::resident_bytes();rss_samples.push_back(rss);rss_peak=std::max(rss_peak,rss);}
         stages["soak_loop_with_native_work_wall_ms"].push_back(milliseconds(loop_begin));++soak_frames;SDL_Delay(10);
     }
-    report.member("soak");report.start_object();report.member("automated",true);report.member("requested_seconds",soak_seconds);report.member("actual_wall_seconds",milliseconds(soak_begin)/1000);report.member("frames",soak_frames);report.member("f6_cycles",toggles);report.member("f12_switches",switches);report.member("map_loads",map_loads);report.member("native_saves",saves);report.member("process_rss_begin",rss_begin);report.member("process_rss_end",ncmm_graphics_performance::resident_bytes());report.member("process_rss_peak",rss_peak);report.member("rss_samples",rss_samples);report.member("frame_wall_samples",stages["full_frame_wall_ms"]);report.member("loop_wall_samples",stages["soak_loop_with_native_work_wall_ms"]);report.member("frame_renderers_gpu",frame_renderers);report.member("gpu_resource_peak",resource_peak);report.member("sprite_cache_peak",sprite_peak);report.member("world_cache_peak",world_peak);report.member("stages");write_stages(stages);report.end_object();
+    report.member("soak");report.start_object();report.member("automated",true);report.member("requested_seconds",soak_seconds);report.member("actual_wall_seconds",milliseconds(soak_begin)/1000);report.member("frames",soak_frames);report.member("f6_cycles",toggles);report.member("f12_switches",switches);report.member("map_loads",map_loads);report.member("native_saves",saves);report.member("process_rss_begin",rss_begin);report.member("process_rss_end",ncmm_graphics_performance::resident_bytes());report.member("process_rss_peak",rss_peak);report.member("rss_samples",rss_samples);report.member("frame_wall_samples",stages["full_frame_wall_ms"]);report.member("loop_wall_samples",stages["soak_loop_with_native_work_wall_ms"]);report.member("frame_renderers_gpu",frame_renderers);report.member("gpu_resource_peak",resource_peak);report.member("sprite_cache_peak",sprite_peak);report.member("native_atlas_cache_peak",native_atlas_peak);report.member("native_atlas_encoding_ms_cumulative",ncmm_native_atlas::encoding_ms());report.member("world_cache_peak",world_peak);report.member("stages");write_stages(stages);report.end_object();
     calendar::turn=simulation_time;here.load(original_origin,true);g->vertical_shift(original_position.z());you.setpos(here,here.get_bub(original_position),false);you.set_moves(original_moves);camera(original_yaw,original_pitch);clear_monsters();graphics_clear_world();
     get_options().get_option("TILES").setValue(original_tileset);tilecontext->load_tileset(original_tileset,false,true);ncmm::graphics_note_input_context("DEFAULTMODE");get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue("cpu");
     report.member("success",true);report.end_object();stream.close();require(bool(stream),"audit_report_write_failed");checkpoint("native_multilevel_save_load_next");
