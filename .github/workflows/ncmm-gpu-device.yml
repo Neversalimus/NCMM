@@ -147,6 +147,14 @@ jobs:
           cmake --build vertex-asan --parallel 2 --target first_person_gpu_resource_cache_tests first_person_gpu_scene_tests first_person_gpu_vertex_lease_edge_tests first_person_gpu_resource_failure_tests
       - name: Verify exact GPU bytes, lease lifetime, picking and depth without suppressions
         run: ctest --test-dir vertex-asan -R '^first_person_gpu_(resource_cache|scene|vertex_lease_edge|resource_failure)$' --output-on-failure -V
+      - name: Observe leak stages with automatic leak detection still enabled
+        if: always()
+        run: |
+          cmake -S experiments/FirstPersonView -B vertex-asan -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_COMPILER=clang++ -DSDL3_DIR="$PWD/gpu-sdl-build" -DFIRST_PERSON_BUILD_GPU_TESTS=ON -DFIRST_PERSON_SANITIZE=ON -DFIRST_PERSON_GPU_SHADER_HEADER="$PWD/gpu-shader-bytes.hpp" -DCMAKE_CXX_FLAGS=-DNCMM_GPU_LSAN_CONTEXT=1
+          cmake --build vertex-asan --parallel 2 --target first_person_gpu_scene_tests
+          cd vertex-asan
+          ./first_person_gpu_scene_tests gpu-scene-lsan-context > lsan-context-run.log 2>&1
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -155,6 +163,8 @@ jobs:
             vertex-source-proof.json
             vertex-asan/Testing/Temporary/LastTest.log
             vertex-asan/CMakeCache.txt
+            vertex-asan/lsan-context-*
+            vertex-asan/first_person_gpu_scene_tests
             vertex-asan/gpu-scene*
             gpu-shader-bytes.hpp
           retention-days: 14

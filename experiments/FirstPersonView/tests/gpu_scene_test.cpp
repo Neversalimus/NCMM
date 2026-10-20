@@ -7,6 +7,17 @@
 #include <fstream>
 #include <string>
 
+
+#if defined(NCMM_GPU_LSAN_CONTEXT) && defined(__linux__)
+#include <sanitizer/lsan_interface.h>
+static void gpu_lsan_context(const char *stage){
+    {std::ifstream maps("/proc/self/maps");std::ofstream out(std::string("lsan-context-")+stage+".maps");out<<maps.rdbuf();}
+    std::fflush(stdout);std::fprintf(stderr,"LSAN_CONTEXT_BEGIN %s\n",stage);
+    const int leaks=__lsan_do_recoverable_leak_check();
+    std::fprintf(stderr,"LSAN_CONTEXT_END %s leaks=%d\n",stage,leaks);std::fflush(stderr);
+}
+#endif
+
 int main(int argc,char **argv){
     auto require=[](bool ok,const char *why){if(!ok){std::fprintf(stderr,"Full GPU scene failed: %s (%s)\n",why,SDL_GetError());std::exit(1);}};
     // Exact affine AABB agrees with the eight-corner reference for reflection,
@@ -404,5 +415,16 @@ int main(int argc,char **argv){
     }
     engine.clear();require(!engine.bind(nullptr,2)&&!engine.available(),"unsupported renderer fails closed without claiming GPU");
     require(engine.bind(renderer,3),"same owned device can recover after fallback");engine.clear();
-    SDL_DestroyTexture(ui);SDL_DestroyRenderer(renderer);SDL_DestroyGPUDevice(device);if(window)SDL_DestroyWindow(window);SDL_Quit();
+
+#if defined(NCMM_GPU_LSAN_CONTEXT) && defined(__linux__)
+    gpu_lsan_context("before-device-destroy");
+#endif
+    SDL_DestroyTexture(ui);SDL_DestroyRenderer(renderer);SDL_DestroyGPUDevice(device);if(window)SDL_DestroyWindow(window);
+#if defined(NCMM_GPU_LSAN_CONTEXT) && defined(__linux__)
+    gpu_lsan_context("after-device-destroy");
+#endif
+    SDL_Quit();
+#if defined(NCMM_GPU_LSAN_CONTEXT) && defined(__linux__)
+    gpu_lsan_context("after-sdl-quit");
+#endif
 }
