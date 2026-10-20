@@ -374,7 +374,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
     for( size_t i = 0; i < base.cell_count; ++i ) {
         if( !( base.cells[i].flags & NCMM_GFX_VISIBLE ) ) continue;
         const auto &p = positions[i]; auto &d = details[i];
-        auto *owned=world?graphics_camera_cache.find(world->coordinates[i].x,world->coordinates[i].y,world->coordinates[i].z):nullptr;
+        auto *owned=world&&graphics_camera_cache.enabled?graphics_camera_cache.find(world->coordinates[i].x,world->coordinates[i].y,world->coordinates[i].z):nullptr;
         if(owned&&owned->detail_ready&&!graphics_camera_cache.verify){
             d=owned->detail;++graphics_camera_cache.totals.detail_hits;
             if(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE){

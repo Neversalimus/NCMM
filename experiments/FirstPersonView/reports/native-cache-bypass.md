@@ -1,0 +1,9 @@
+# Skip optional Native work when the camera cache is disabled
+
+The optional snapshot cache already rejects every lookup/store/rejection while `enabled` is false. The caller nevertheless queried `here.veh_at(p)` for every non-actor candidate before attempting a store. This Native query is used solely to decide whether the optional cache may retain that cell; it has no consumer when the cache is disabled.
+
+Five guards bypass this unused work: the vehicle/store predicate checks `enabled` first, the rejection observer receives no owner, and base/detail/presentation extraction skips disabled-cache lookups. The enabled-cache path keeps the same predicates and order. The existing Native cell extraction, physical visibility, actors/vehicles, source-fact cache, Native tile pass, rendering and complete frame clocks remain in place.
+
+The closed B19 matrix provides the hypothesis. In city cold rotation, all seven recorded work arrays match exactly for 96 observations in each direction between PSX and assets/HUD: source/geometry misses, Native sight hits, generated cells, draws, upload bytes and owned CPU bytes. Extraction nevertheless rises from 3.5260/3.5495 ms to 3.9513/4.2098 ms. This does not establish the precise cost of the extra query or make it the only cause.
+
+The local source proof reconstructs all three changed runtime files using only these five guards. Seventeen atomic source-transform and nine qualification-policy tests pass. Fresh pinned Native compilation, source-fact/field/visibility oracle, comparison and final qualification are pending. No measured performance gain or acceptance is claimed. The original 45 B19 regressions remain blocking; a green Integration job will not waive them. The adjacent JSON binds the exact source and local evidence hashes. All raw B19 data remain unchanged beside the checkout.

@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "parent": "b19c7220d3202cd3d4c6cc6424c1801598983b13",
+  "performance_accepted": false,
+  "actual_native_tested": false,
+  "runtime_files_sha256": {
+    "experiments/graphics_bridge/ncmm_graphics_world.inc": "051ba57c42646b84439a0a66765394b8625b6050a3ebca419ee842701e37f249",
+    "experiments/graphics_bridge/ncmm_graphics_hybrid.inc": "54f2ddaacc76b1f07fe0a3f6cd357e029913b05368df9d293e5b352a6f092ee5",
+    "experiments/graphics_bridge/ncmm_graphics_presentation.inc": "17e243c4d33ca57834f90e8988a7b1dcbd69351a3d214505a83f3233b3808206"
+  },
+  "local_source_transform_tests_passed": 17,
+  "qualification_policy_tests_passed": 9,
+  "evidence_sha256": {
+    "cache-bypass-source-proof.json": "f23731b67536d8ce623cc5cf3f01c95bc36388f640b2c4221c98aa5edde992d2",
+    "cache-bypass-atomic-tests.log": "fab39b37be9045fe7ac478e6718390a2606a75b06d7a78abb85259e661c1c600",
+    "cache-bypass-qualification-tests.log": "55dff4e9ef628021ff7d2ea69813a6910e8fd48f16e10ccadcb1f92df4b70bf3"
+  },
+  "old_b19_result_sha256": "bedd0187257f759a8e33bc03e1c13b1c75b85051241b0877f10787ef99bdd9a7",
+  "old_negative_verdict_preserved": true
+}

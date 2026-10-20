@@ -323,7 +323,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         const float margin=entity||observed_death?20.f:5.f;
         if(!close_to_eye&&outside(margin)){
             ++graphics_world_metrics.frustum_rejected;continue;}
-        ncmm_graphics_snapshot::rejected_probe rejected{&graphics_camera_cache,ax,ay,z,!entity&&!observed_death};
+        ncmm_graphics_snapshot::rejected_probe rejected{graphics_camera_cache.enabled?&graphics_camera_cache:nullptr,ax,ay,z,!entity&&!observed_death};
         // Tall/airborne entities can extend beyond a source voxel. Leave their
         // normal native/body visibility path authoritative.
         if(!entity&&!observed_death&&(z<eye_level||z>eye_level+1)&&graphics_world_sealed.closed_rectangle(z<eye_level?eye_level:eye_level+1,
@@ -422,7 +422,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
             if(!(semantic&NCMM_WORLD_RAMP)&&!(next&(NCMM_WORLD_UNKNOWN|NCMM_WORLD_OPAQUE))){c.world.direction=direction;break;}}
         candidate_loan.push_back(c);
         rejected.remember=false;
-        if(!entity&&!observed_death&&!here.veh_at(p)){
+        if(graphics_camera_cache.enabled&&!entity&&!observed_death&&!here.veh_at(p)){
             if(auto *owned=graphics_camera_cache.store(c.world,c.facade_light)){
                 if(graphics_camera_cache.verify&&owned->base_ready){++graphics_camera_cache.totals.verification_checks;
                     if(!ncmm_graphics_snapshot::same_world_cell(owned->world,c.world)||owned->facade_light!=c.facade_light)++graphics_camera_cache.totals.verification_mismatches;}
@@ -450,7 +450,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         positions.push_back(p);coordinates.push_back(source.world);facade_lights.push_back(source.facade_light);c.flags=NCMM_GFX_VISIBLE;c.light=1;
         if(source.world.flags&NCMM_WORLD_FLOOR_BOTTOM)++graphics_ceiling_cells;
         if(std::max(std::abs(p.x()-you.pos_bub().x()),std::abs(p.y()-you.pos_bub().y()))>NCMM_GRAPHICS_RADIUS)++graphics_snapshot_far_cells;
-        auto *owned=graphics_camera_cache.find(source.world.x,source.world.y,source.world.z);
+        auto *owned=graphics_camera_cache.enabled?graphics_camera_cache.find(source.world.x,source.world.y,source.world.z):nullptr;
         if(owned&&owned->base_ready&&!graphics_camera_cache.verify){c=owned->cell;continue;}
         struct store_base {
             ncmm_graphics_snapshot::entry *owned;ncmm_graphics_snapshot::cache &cache;ncmm_graphics_cell_v1 &value;
