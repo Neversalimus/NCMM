@@ -67,7 +67,10 @@ constexpr uint32_t graphics_world_architecture=1u<<28,graphics_world_renderable=
 uint32_t graphics_world_read_source(map &here,int ax,int ay,int z,ncmm_world::material_semantics_cache &material_definitions,ncmm_world::material_semantics_cache &elevated_material_definitions)
 {
     const auto p=here.get_bub(tripoint_abs_ms(ax,ay,z));if(!here.ncmm_graphics_loaded(p))return uint32_t(NCMM_WORLD_UNKNOWN|NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE);
-    const auto &ter=here.ter(p).obj();const auto &furn=here.furn(p).obj();
+    // This view owns no data and never survives this source read. The loaded
+    // probe above preserves the existing unloaded/out-of-bounds behavior.
+    const auto tile=std::as_const(here).maptile_at(p);const auto furniture=tile.get_furn();
+    const auto &ter=tile.get_ter_t();const auto &furn=furniture.obj();
     const bool normal_floor=here.supports_zlevels()&&z>=-OVERMAP_DEPTH+1;
     // A tower keeps its native foundation floor, while upper lattice
     // cells are open. Keep those two material contexts in separate caches.
@@ -93,21 +96,40 @@ uint32_t graphics_world_read_source(map &here,int ax,int ay,int z,ncmm_world::ma
         return flags;
     });
     const bool solid_architecture=(value&NCMM_WORLD_OPAQUE)!=0;bool opaque_field=false;
-    const auto &fields=here.field_at(p);
+    const auto &fields=tile.get_field();
     for(const auto &field:fields){const auto &level=field.second.get_intensity_level();
         if(!level.transparent&&level.translucency<=LIGHT_TRANSPARENCY_SOLID)opaque_field=true;}
     if(opaque_field){value|=NCMM_WORLD_OPAQUE;if(!solid_architecture)value|=ncmm_world::opaque_field_fact;}
-    if(here.has_furn(p)||fields.field_count())value|=graphics_world_renderable;
+    if(furniture!=furn_str_id::NULL_ID()||fields.field_count())value|=graphics_world_renderable;
     if(const auto vp=here.veh_at(p)){value|=graphics_world_renderable;if(vp->part_with_feature("ROOF",false))value|=graphics_world_vehicle_roof;}
     return value;
 }
-// A diagnostic oracle over usable cached facts, outside ordinary draw clocks.
-bool graphics_verify_world_sources(size_t &checked)
+// Compare the const view with canonical Native accessors only in diagnostics.
+// Nonempty fields/items must be the same Native objects; uniform empty submaps
+// deliberately use distinct const/non-const empty sentinels in upstream CDDA.
+bool graphics_verify_world_tile(map &here,const tripoint_bub_ms &p)
 {
-    ncmm_world::material_semantics_cache materials,elevated;
-    return graphics_world_sources.verify_cached(
+    if(!here.ncmm_graphics_loaded(p))return false;
+    const auto tile=std::as_const(here).maptile_at(p);
+    if(tile.get_ter()!=here.ter(p)||tile.get_furn()!=here.furn(p))return false;
+    if((tile.get_furn()!=furn_str_id::NULL_ID())!=here.has_furn(p))return false;
+    const auto &fields=tile.get_field();const auto &native_fields=here.field_at(p);
+    if(fields.field_count()!=native_fields.field_count()||(fields.field_count()&&&fields!=&native_fields))return false;
+    const auto &items=tile.get_items();const auto native_items=here.i_at(p);
+    return items.size()==native_items.size()&&(items.empty()||&*items.begin()==&*native_items.begin());
+}
+// A diagnostic oracle over usable cached facts, outside ordinary draw clocks.
+bool graphics_verify_world_sources(size_t &checked,size_t *tile_checked=nullptr)
+{
+    ncmm_world::material_semantics_cache materials,elevated;map &here=get_map();
+    bool tile_matches=true;size_t native_tiles=0;
+    const bool cache_matches=graphics_world_sources.verify_cached(
         [&](int z){return graphics_world_source_revisions[size_t(z+128)]+1;},
-        [&](int x,int y,int z){return graphics_world_read_source(get_map(),x,y,z,materials,elevated);},checked);
+        [&](int x,int y,int z){const auto p=here.get_bub(tripoint_abs_ms(x,y,z));
+            if(here.ncmm_graphics_loaded(p)){++native_tiles;if(!graphics_verify_world_tile(here,p))tile_matches=false;}
+            return graphics_world_read_source(here,x,y,z,materials,elevated);},checked);
+    if(tile_checked)*tile_checked=native_tiles;
+    return cache_matches&&tile_matches;
 }
 void graphics_clear_world()
 {
@@ -332,7 +354,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         }
         uint32_t semantic=flags(ax,ay,z);
         const bool air=!(semantic&(NCMM_WORLD_FLOOR|NCMM_WORLD_WATER|NCMM_WORLD_DOWN|NCMM_WORLD_UP|NCMM_WORLD_CANOPY|graphics_world_renderable));
-        const bool local_air=air&&!entity&&!observed_death&&here.i_at(p).empty();
+        const bool local_air=air&&!entity&&!observed_death&&std::as_const(here).maptile_at(p).get_items().empty();
         // Frustum and local-air rejection precede native light/perception work.
         if(local_air&&(!atmosphere||dx*dx+dy*dy>16.f*16.f||z<eye_level||z>eye_level+2))continue;
         const auto below=tripoint_bub_ms(p.xy(),z-1);
@@ -389,7 +411,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
             // Bodies/loot retain exact 3D occlusion and native sight, including
             // glass, stairs, smoke and blindness. Empty structural slabs do not
             // need body rays merely to provide a ground/ceiling surface.
-            const bool contents=(semantic&graphics_world_renderable)||entity||observed_death||!here.i_at(p).empty();
+            const bool contents=(semantic&graphics_world_renderable)||entity||observed_death||!std::as_const(here).maptile_at(p).get_items().empty();
             const bool perceived=!contents||graphics_world_sources.visibility(ax,ay,z,graphics_world_ray_epoch,[&]{
                 for(const auto &offset:probes)if(ncmm_world::visible(visibility_eye,{gx+offset[0],gy+offset[1],level+1.25f},query))return uint16_t(1);
                 return uint16_t(0);
@@ -459,20 +481,24 @@ bool graphics_draw_world(int x,int y,int width,int height)
         } save_base{owned,graphics_camera_cache,c};
         if(!(source.world.flags&NCMM_WORLD_FLOOR))c.flags|=NCMM_GFX_NO_FLOOR;
         if(source.world.flags&NCMM_WORLD_ROOFED)c.flags|=NCMM_GFX_CEILING;
-        if(source.permission&NCMM_WORLD_BODY_VISIBLE)copy(c.terrain,here.ter(p).id().str());
+        // Candidates have already passed the loaded check; reuse one const
+        // view for this cell without retaining a Native pointer in scratch.
+        const auto tile=std::as_const(here).maptile_at(p);const auto terrain=tile.get_ter();
+        if(source.permission&NCMM_WORLD_BODY_VISIBLE)copy(c.terrain,terrain.id().str());
         else if(source.permission&NCMM_WORLD_STRUCTURE_VISIBLE){
-            const auto &ter=here.ter(p).obj();
+            const auto &ter=terrain.obj();
             copy(c.terrain,ter.id.str()); // Same physical facade before/after 2D discovery.
             if(source.world.flags&NCMM_WORLD_OPAQUE)c.flags|=NCMM_GFX_WALL;
         }
-        else{const auto kind=ncmm_graphics_presentation_policy::material(here.ter(p).id().str());
+        else{const auto kind=ncmm_graphics_presentation_policy::material(terrain.id().str());
             copy(c.terrain,kind==NCMM_MAT_WOOD?"t_floor_wood":kind==NCMM_MAT_METAL?"t_floor_metal":"t_floor");}
         if(!(source.permission&NCMM_WORLD_BODY_VISIBLE))continue;
         if(source.world.flags&NCMM_WORLD_OPAQUE)c.flags|=NCMM_GFX_WALL;
-        if(here.has_furn(p))copy(c.furniture,here.furn(p).id().str());
-        if(const auto vp=here.veh_at(p))if(const auto displayed=vp->part_displayed()){
+        const auto furniture=tile.get_furn();const bool has_furniture=furniture!=furn_str_id::NULL_ID();
+        if(has_furniture)copy(c.furniture,furniture.id().str());
+        const auto vp=here.veh_at(p);if(vp)if(const auto displayed=vp->part_displayed()){
             c.flags|=NCMM_GFX_VEHICLE;std::fill(std::begin(c.furniture),std::end(c.furniture),'\0');copy(c.furniture,vpart_display(displayed->part()).get_tileset_id());}
-        if(ncmm_world::supported_item(source.world.flags,here.has_furn(p)||bool(here.veh_at(p)))&&here.sees_some_items(p,you)&&you.sees(here,p)){const auto items=here.i_at(p);if(!items.empty())copy(c.item,items.begin()->typeId().str());}
+        if(ncmm_world::supported_item(source.world.flags,has_furniture||bool(vp))&&here.sees_some_items(p,you)&&you.sees(here,p)){const auto &items=tile.get_items();if(!items.empty())copy(c.item,items.begin()->typeId().str());}
         if(const auto *cr=get_creature_tracker().creature_at<Creature>(p))if(!cr->is_avatar()&&!cr->is_dead_state()&&you.sees(here,*cr)){
             if(const auto *mon=cr->as_monster())copy(c.creature,mon->type->id.str());
             else if(const auto *ch=cr->as_character())if(cr->is_npc())copy(c.creature,ch->male?"npc_male":"npc_female");}
