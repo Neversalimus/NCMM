@@ -84,6 +84,7 @@ jobs:
           ./experiments/FirstPersonView/tests/Test-BenchmarkPaths.ps1
           ./experiments/FirstPersonView/tests/Test-BenchmarkCapture.ps1
           ./experiments/FirstPersonView/tests/Test-BenchmarkDataCopy.ps1
+          ./experiments/FirstPersonView/tests/Test-CompilerWrapper.ps1
       - name: Diagnostic environment isolation on Windows PowerShell
         if: runner.os == 'Windows'
         shell: powershell
@@ -99,6 +100,8 @@ jobs:
         run: cmake --build fp-build --config Release
       - name: Renderer, occlusion, fog, ABI and toggle lifecycle
         run: ctest --test-dir fp-build -C Release --output-on-failure
+      - name: Offline PSX importer malformed-input and determinism checks
+        run: python -B experiments/FirstPersonView/tests/test_import_psx_arms.py -v
       - name: Record renderer timing and work counters (no FPS threshold)
         run: cmake --build fp-build --config Release --target first_person_measure
       - name: Configure focused cache and facade sanitizers
@@ -106,10 +109,10 @@ jobs:
         run: cmake -S experiments/FirstPersonView -B fp-cache-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
       - name: Build focused cache and facade sanitizers
         if: runner.os == 'Linux'
-        run: cmake --build fp-cache-sanitize --parallel 2 --target first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_gpu_cache_tests first_person_facade_continuity_tests
+        run: cmake --build fp-cache-sanitize --parallel 2 --target first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_gpu_cache_tests first_person_facade_continuity_tests first_person_viewmodel_asset_tests first_person_viewmodel_rig_tests first_person_viewmodel_gpu_tests
       - name: ASan and UBSan sparse coordinates, face masks and facade continuity
         if: runner.os == 'Linux'
-        run: ctest --test-dir fp-cache-sanitize -R "^first_person_(multilevel_(policy|cache|gpu_cache)|facade_continuity)$" --output-on-failure
+        run: ctest --test-dir fp-cache-sanitize -R "^first_person_(multilevel_(policy|cache|gpu_cache)|facade_continuity|viewmodel_(asset|rig|gpu))$" --output-on-failure
       - name: Configure sanitizer coverage
         if: runner.os == 'Linux' && needs.qualification_plan.outputs.full == 'true'
         run: cmake -S experiments/FirstPersonView -B fp-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
@@ -191,13 +194,8 @@ jobs:
         shell: powershell
         run: |
           $dir=Join-Path $env:RUNNER_TEMP 'ncmm-fp-sccache'
-          New-Item -ItemType Directory -Force $dir | Out-Null
-          @'
-          @echo off
-          setlocal
-          sccache.exe cl.exe %*
-          exit /b %ERRORLEVEL%
-          '@ | Set-Content (Join-Path $dir 'cl.bat') -Encoding Ascii
+          New-Item -ItemType Directory -Force $dir,(Join-Path $dir 'logs') | Out-Null
+          Copy-Item -LiteralPath 'ncmmrepo/experiments/FirstPersonView/tools/compile_cached.cmd' -Destination (Join-Path $dir 'cl.bat')
           "NCMM_SCCACHE_WRAPPER_DIR=$dir" >> $env:GITHUB_ENV
           $props='upstream/msvc-full-features/Cataclysm-common.props'
           $text=[IO.File]::ReadAllText((Join-Path $PWD $props))
@@ -250,6 +248,14 @@ jobs:
         with:
           name: first-person-compiler-cache-${{ matrix.build }}
           path: compiler-cache.json
+          retention-days: 7
+      - name: Preserve complete failed compiler diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-person-compiler-failures-${{ matrix.build }}
+          path: ${{ runner.temp }}/ncmm-fp-sccache/logs/*.failed.log
+          if-no-files-found: ignore
           retention-days: 7
       - name: Verify compiled or cached engine identity
         shell: powershell
@@ -560,7 +566,8 @@ jobs:
       - name: Verify exact installer, movement samples and distant horizon
         shell: powershell
         run: |
-          python ncmmrepo/experiments/FirstPersonView/tests/verify_horizon_release.py --installer-root installer-result --evidence-root (Join-Path $env:RUNNER_TEMP 'fp-movement/evidence') --build '${{ matrix.build }}' --expected-run '${{ github.run_id }}' --expected-source '${{ github.sha }}' --output installer-result/first-person-release-verified.json --log-preview
+          $expectedVersion=([string](Get-Content ncmmrepo/experiments/FirstPersonView/mod.json -Raw | ConvertFrom-Json).version) -replace '-dev$',''
+          python ncmmrepo/experiments/FirstPersonView/tests/verify_horizon_release.py --installer-root installer-result --evidence-root (Join-Path $env:RUNNER_TEMP 'fp-movement/evidence') --build '${{ matrix.build }}' --expected-run '${{ github.run_id }}' --expected-source '${{ github.sha }}' --expected-version $expectedVersion --output installer-result/first-person-release-verified.json --log-preview
           if($LASTEXITCODE -ne 0){throw 'Exact installer or horizon release verification failed.'}
       - name: Verify paired camera, pose, lighting, pixels and image provenance
         if: env.FP_FULL_QUALIFICATION == 'true'

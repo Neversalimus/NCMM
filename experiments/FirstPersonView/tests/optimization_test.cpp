@@ -81,5 +81,25 @@ int main(){try{
     const auto hash=[&]{return first_person::hash_bytes(seed,bytes.data()+1,33);};const auto original=hash();
     for(size_t i=1;i<34;++i){bytes[i]=1;check(hash()!=original,"every scene byte participates in cache invalidation");bytes[i]=0;}
     check(first_person::hash_bytes(seed,nullptr,0)==seed,"empty hash never dereferences a pointer");
+    std::array<unsigned char,257> source{};std::array<unsigned char,264> shifted{};
+    for(size_t i=0;i<source.size();++i)source[i]=static_cast<unsigned char>(17+i*31);
+    for(size_t size:{31u,32u,33u,63u,64u,65u,127u,128u,129u,255u,256u,257u}){
+        const auto expected=first_person::hash_bytes(seed,source.data(),size);
+        for(size_t offset=0;offset<8;++offset){
+            std::copy_n(source.data(),size,shifted.data()+offset);
+            check(first_person::hash_bytes(seed,shifted.data()+offset,size)==expected,"scene hash is independent of pointer alignment");
+        }
+        for(size_t i=0;i<size;++i)for(unsigned char bit:{1u,128u}){
+            source[i]^=bit;
+            check(first_person::hash_bytes(seed,source.data(),size)!=expected,"every lane, full block and tail byte invalidates the scene");
+            source[i]^=bit;
+        }
+    }
+    const auto ordered=first_person::hash_bytes(seed,source.data(),64);
+    for(size_t i=0;i<8;++i)std::swap(source[i],source[i+8]);
+    check(first_person::hash_bytes(seed,source.data(),64)!=ordered,"word order participates in scene identity");
+    for(size_t i=0;i<8;++i)std::swap(source[i],source[i+8]);
+    for(size_t i=0;i<32;++i)std::swap(source[i],source[i+32]);
+    check(first_person::hash_bytes(seed,source.data(),64)!=ordered,"full block order participates in scene identity");
     std::cout<<"First person optimization tests: "<<checks<<" checks passed\n";return 0;
 }catch(const std::exception &e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}}

@@ -122,10 +122,12 @@ def apply(root: Path):
     sdl = read("sdltiles.cpp")
     anchor = "        tilecontext->draw(\n            point( win->pos.x * fontwidth, win->pos.y * fontheight ),\n            g->ter_view_p,\n            TERRAIN_WINDOW_TERM_WIDTH * font->width,\n            TERRAIN_WINDOW_TERM_HEIGHT * font->height,\n            overlay_strings,\n            color_blocks );"
     updates["sdltiles.cpp"] = replace(sdl, anchor,
-        "        // Keep vanilla visibility, animation and map-memory updates before the perspective overlay.\n"+
-        "        if( ncmm::graphics_requires_terrain_pass() ) {\n"+anchor+"\n        }\n"+
+        "        // Retain the full native pass and its one-shot animation pixels.\n"+
+        "        // A failed perspective callback must not consume those queues twice.\n"+
+        "        bool ncmm_native_pixels_ready = false;\n"
+        "        if( ncmm::graphics_requires_terrain_pass() ) {\n"+anchor+"\n            ncmm_native_pixels_ready = true;\n        }\n"+
         "        if( !ncmm::draw_graphics_view( win->pos.x * fontwidth, win->pos.y * fontheight,\n"+
-        "                TERRAIN_WINDOW_TERM_WIDTH * font->width, TERRAIN_WINDOW_TERM_HEIGHT * font->height ) ) {\n"+
+        "                TERRAIN_WINDOW_TERM_WIDTH * font->width, TERRAIN_WINDOW_TERM_HEIGHT * font->height ) && !ncmm_native_pixels_ready ) {\n"+
         anchor+"\n        }")
     updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"], "static void CheckMessages()\n{", "static void CheckMessages()\n{\n    // Presentation redraws never return a gameplay TIMEOUT or advance a turn.\n    if( ncmm::graphics_animation_redraw_due() ) {\n        ui_manager::redraw_invalidated();\n        if( needupdate ) refresh_display();\n    }")
     wrappers = replace(read("sdl_wrappers.cpp"), '#include "sdl_wrappers.h"',

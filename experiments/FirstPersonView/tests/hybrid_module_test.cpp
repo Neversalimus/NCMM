@@ -4,6 +4,8 @@
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <fstream>
+#include <regex>
 #include <stdexcept>
 #include <vector>
 extern "C" const ncmm_mod_descriptor_v1 *ncmm_get_descriptor_v1();
@@ -31,10 +33,12 @@ int has(const char *cap){if(!std::strcmp(cap,NCMM_GRAPHICS_CONTROLS_CAP))return 
 uint32_t major(){return 1;}uint32_t minor(){return 9;}
 const void *query(const char *id,uint32_t,uint32_t){if(!std::strcmp(id,NCMM_GRAPHICS_CONTROLS_ID))return &controls;return std::strcmp(id,NCMM_GRAPHICS_V2_ID)==0?static_cast<const void *>(&graphics):static_cast<const void *>(&core);}
 }
-int main(){try{
+int main(int argc,char **argv){try{
     core.struct_size=sizeof(core);core.abi_version=2;core.api_major=2;core.api_minor=3;
     ncmm_host_api_v1 api{};api.abi_version=1;api.has_capability=has;api.get_api_version_major=major;api.get_api_version_minor=minor;api.query_interface=query;
     const auto *mod=ncmm_get_descriptor_v1();check(!std::strcmp(mod->version,FIRST_PERSON_VERSION),"hybrid module version");
+    if(argc>1){std::ifstream input(argv[1]);const std::string manifest((std::istreambuf_iterator<char>(input)),{});std::smatch version;
+        check(std::regex_search(manifest,version,std::regex("\"version\"\\s*:\\s*\"([^\"]+)\""))&&version[1].str()==mod->version,"actual manifest and built DLL descriptor versions agree");}
     capability=false;check(!mod->init(&api)&&registrations==0,"missing graphics capability rejected");capability=true;
     graphics.struct_size=sizeof(graphics)-1;check(!mod->init(&api)&&registrations==0,"truncated v2 table rejected");graphics.struct_size=sizeof(graphics);
     graphics.abi_version=3;check(!mod->init(&api)&&registrations==0,"unknown v2 ABI rejected");graphics.abi_version=2;
@@ -86,7 +90,9 @@ int main(){try{
     s.environment.animation_seconds=10;check(callback(&s,nullptr)&&world_sprite_calls==world_calls,"changing held equipment composes without rebuilding world geometry");
     const uint64_t idle_pixels=last_pixels;state.attack_serial=1;state.attack_kind=1;state.attack_started=10;s.environment.animation_seconds=10.12;
     check(callback(&s,nullptr)&&last_pixels!=idle_pixels&&world_sprite_calls==world_calls,"attack changes the held pose over the retained world");
-    s.environment.animation_seconds=10.6;check(callback(&s,nullptr)&&last_pixels==idle_pixels&&world_sprite_calls==world_calls,"attack recovery restores the exact idle frame");
+    s.environment.animation_seconds=10.6;check(callback(&s,nullptr)&&world_sprite_calls==world_calls,"attack recovery composes over the retained world");
+    const auto recovered=last_pixels;state.attack_serial=0;
+    check(callback(&s,nullptr)&&last_pixels==recovered,"attack recovery restores the exact same-time breathing frame");
     s.environment.precipitation=.7f;s.environment.weather_kind=NCMM_WEATHER_RAIN;s.environment.outdoors=1;
     check(callback(&s,nullptr),"weather begins over the retained world");const int weather_calls=world_sprite_calls;
     s.environment.animation_seconds=10.7;check(callback(&s,nullptr)&&world_sprite_calls==weather_calls,"weather animation reuses world geometry");

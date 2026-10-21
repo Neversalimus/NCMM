@@ -1,0 +1,4 @@
+*.rgba binary
+model.generated.cpp linguist-generated=true
+model.generated.cpp text eol=lf
+manifest.json text eol=lf

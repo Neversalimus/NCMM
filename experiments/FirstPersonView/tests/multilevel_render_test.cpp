@@ -39,6 +39,7 @@ struct collector:geometry_sink {
     std::vector<triangle> triangles;
     bool dirty(int)const override{return true;}
     void emit(const triangle &t)override{triangles.push_back(t);}
+    bool arms(const first_person::viewmodel::submission &)override{return true;} // This collector audits world slabs only.
     void skin(const first_person::creature::model &,const first_person::creature::skeleton_pose &,int,vec,int,vec,bool,bool,float,vec)override{}
     void impostor(const first_person::creature::asset &,const first_person::creature::pose_state &,vec,int,int,bool)override{}
 };
@@ -81,7 +82,7 @@ int main(){try{
         ncmm_gpu_multilevel_scene_v1 gpu{};gpu.struct_size=sizeof(gpu);gpu.version=1;gpu.base=packet.finish(nullptr);
         gpu.coordinates=world.world.coordinates;gpu.cell_count=world.world.cell_count;gpu.origin_x=world.world.origin_x;gpu.origin_y=world.world.origin_y;gpu.level_height=world.world.level_height;
         check(!ncmm_gpu::validate(gpu.base,&gpu),"sparse XYZ GPU wrapper validates without changing legacy cell ABI");
-        for(const auto &draw:packet.draws){check(draw.cell<world.positions.size(),"GPU draw preserves sparse source cell");
+        for(const auto &draw:packet.draws){if(draw.pass==NCMM_GPU_HELD)continue;check(draw.cell<world.positions.size(),"GPU draw preserves sparse source cell");
             check(std::abs(draw.transform.columns[14]-world.positions[draw.cell].z*2.5f)<.0001f,"GPU mesh instance carries actual physical Z");}
         bool lower=false;for(uint32_t m=0;m<gpu.base.mesh_count;++m)for(uint32_t i=0;i<gpu.base.meshes[m].material_count;++i)lower|=(gpu.base.meshes[m].materials[i].flags&NCMM_GPU_SLAB_UNDERSIDE)!=0;
         check(lower,"GPU underside chooses separate lower-room RGB");
@@ -104,8 +105,13 @@ int main(){try{
     check(std::all_of(image.depth.begin(),image.depth.begin()+image.width*image.height/2,[](float z){return !std::isfinite(z);}),"inside flag cannot create phantom ceiling");
     check(empty.draw(image,-1.2f),"empty downward world renders without invented geometry");
     check(std::all_of(image.depth.begin(),image.depth.end(),[](float z){return !std::isfinite(z);}),"unseen space is not a fake floor or ceiling");
-    const auto dark_pixels=std::count_if(image.pixels.begin(),image.pixels.end(),[](uint32_t p){return (p>>24)<32&&((p>>16)&255)<32&&((p>>8)&255)<32;});
-    check(dark_pixels>image.pixels.size()*.99,"downward unseen space is dark, apart from the UI crosshair");
+    // The visible PSX hands have their own depth pass. Audit unseen world
+    // pixels independently so a correctly framed hand cannot imitate a floor.
+    size_t background=0,dark_pixels=0,held_pixels=0;
+    for(size_t i=0;i<image.pixels.size();++i){if(std::isfinite(image.held_depth[i])){++held_pixels;continue;}
+        ++background;const auto p=image.pixels[i];dark_pixels+=(p>>24)<32&&((p>>16)&255)<32&&((p>>8)&255)<32;}
+    check(held_pixels>0&&image.viewmodel_draws==2,"both real hands remain visible over unseen space");
+    check(background>0&&dark_pixels>background*.99,"downward unseen world is dark, apart from the UI crosshair");
     empty.positions[empty.cell(4,1,0)].flags|=NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP;
     collector stairs;frame statistics;renderer(empty.world.appearance,0,0,{},statistics,{},nullptr,{},nullptr,&empty.world).collect(stairs,400,260);
     check(stairs.triangles.size()>80,"semantic staircase is stepped volume, not a floor square");

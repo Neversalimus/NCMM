@@ -40,7 +40,7 @@ int main(int argc,char **argv){
     auto *device=SDL_CreateGPUDeviceWithProperties(gpu_properties);SDL_DestroyProperties(gpu_properties);require(device!=nullptr,"real GPU API device; fallback prohibited");
     auto *renderer=SDL_CreateGPURenderer(device,window);require(renderer!=nullptr,"shared SDL renderer");
     auto *ui=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_ABGR8888,SDL_TEXTUREACCESS_TARGET,640,480);require(ui&&SDL_SetRenderTarget(renderer,ui),"SDL UI target");
-    ncmm_gpu::backend engine;require(engine.bind(renderer,1),"borrow existing device");
+    ncmm_gpu::backend engine;require(engine.bind(renderer,1),"borrow existing device");engine.profile();
     ncmm_gpu_scene_v1 scene{};scene.struct_size=sizeof(scene);scene.width=640;scene.height=480;scene.mode=NCMM_GPU_FORCE;scene.frame_serial=1;
     auto &camera=scene.camera;camera.right[0]=1;camera.up[2]=1;camera.forward[1]=1;camera.projection[0]=640;camera.projection[1]=480;camera.projection[2]=457;camera.projection[3]=512;
     camera.sun[2]=1;camera.sun[3]=1;camera.sky_top[2]=.4f;camera.sky_bottom[0]=.3f;camera.sky_bottom[1]=.4f;camera.sky_bottom[2]=.5f;camera.grid[0]=camera.grid[1]=camera.grid[2]=1;
@@ -56,6 +56,12 @@ int main(int argc,char **argv){
     require(engine.submit(scene),engine.metrics().reason);auto first=engine.metrics();require(first.active&&first.triangles==2&&first.cpu_raster_calls==0,"GPU triangles, hardware depth, CPU raster excluded");
     require(engine.has(11,0),"persistent GPU mesh resource");require(first.target_cell==0,"geometric picking matches visible near creature");
     require(engine.resources().static_upload_bytes()>0,"initial immutable mesh upload is accounted separately");
+    const auto first_static_upload=engine.resources().static_upload_bytes();
+    require(engine.recording().static_upload_bytes==engine.resources().static_upload_bytes(),"private static upload counters report the current frame");
+    const auto staging_capacity=engine.recording().frame_upload_capacity_bytes;
+    const auto staging_creations=engine.recording().frame_upload_creations;
+    require(staging_capacity>0&&staging_creations==1&&first.resource_bytes+staging_capacity+engine.recording().cell_cache_bytes<=NCMM_GPU_RESOURCE_LIMIT,"frame staging and source-cell snapshot have an explicit bounded capacity");
+    require(engine.recording().cell_upload_bytes==112&&engine.recording().cell_cache_bytes>=112,"first frame uploads the complete owned source-cell layout");
     auto capture=[&](const char *suffix){require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr),"GPU-to-GPU final composition");
         SDL_FRect strip{0,0,640,20};require(SDL_SetRenderDrawColor(renderer,0,0,255,255)&&SDL_RenderFillRect(renderer,&strip),"ordinary SDL UI");
         auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"test-only readback");auto *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);SDL_DestroySurface(raw);require(image!=nullptr,"capture format");
@@ -68,10 +74,53 @@ int main(int argc,char **argv){
     scene.mesh_count=0;scene.meshes=nullptr;scene.frame_serial=2;bones[1].columns[12]=5;
     require(engine.submit(scene),engine.metrics().reason);auto second=engine.metrics();require(second.active&&second.generated_meshes==0&&second.upload_bytes<1024,"only dynamic data uploaded for skeletal animation");
     require(engine.resources().static_upload_bytes()==0,"warm skeletal animation uploads no immutable resources");
+    require(second.upload_bytes+116==first.upload_bytes-first_static_upload,"unchanged cells and neutral texture are not uploaded for bone animation");
+    require(engine.recording().cell_upload_bytes==0,"warm bone updates retain the unchanged source-cell buffer");
+    require(engine.recording().static_upload_bytes==0,"private warm upload counters cannot underflow from the previous frame");
+    require(engine.recording().frame_upload_capacity_bytes==staging_capacity&&engine.recording().frame_upload_creations==staging_creations,"bone updates reuse the same staging object");
     require(second.target_cell==-1,"bone animation updates exact picking without CPU pixel raster");center=capture("-skin");require(((center>>16)&255)>120&&(center>>24)<20,"GPU vertex skinning moves near mesh; far green becomes visible");
     require(engine.metrics().completed_frame_serial>=2,"animated frame fence completes without a main-path wait");
+    // Queue distinct snapshots without any read-pixels/fence wait between them.
+    // A non-cycling mapped buffer can overwrite poses still awaiting GPU copies.
+    for(int frame=0;frame<16;++frame){
+        scene.frame_serial=100+frame;bones[1].columns[12]=frame%2?5.f:0.f;
+        require(engine.submit(scene),engine.metrics().reason);
+        require(engine.metrics().upload_bytes==second.upload_bytes,"queued poses preserve the immutable neutral texture");
+        require(engine.recording().frame_upload_creations==staging_creations,"queued poses retain one staging object");
+        SDL_FRect slot{float(frame%4*160),float(frame/4*120),160,120};
+        require(SDL_RenderTexture(renderer,engine.output(),nullptr,&slot),"queue a distinct pose snapshot");
+    }
+    {
+        auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"read all queued poses once");
+        auto *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);SDL_DestroySurface(raw);require(image!=nullptr,"queued pose format");
+        for(int frame=0;frame<16;++frame){const auto pixel=reinterpret_cast<const uint32_t *>(static_cast<const char *>(image->pixels)+(frame/4*120+60)*image->pitch)[frame%4*160+80];
+            require(frame%2?((pixel>>16)&255)>120&&(pixel>>24)<20:(pixel>>24)>120&&((pixel>>16)&255)<20,"each queued frame retains its own bone upload");}
+        SDL_DestroySurface(image);
+    }
+    {
+        // Cell data may change independently of geometry or bone palettes.
+        const auto saved_cell=cell;bones[1].columns[12]=0;scene.frame_serial=200;
+        require(engine.submit(scene)&&engine.recording().cell_upload_bytes==0,"unchanged cells remain resident while a pose changes");
+        const auto bright=capture("-cell-bright");
+        cell.light[0]=cell.light[1]=cell.light[2]=.15f;++scene.frame_serial;
+        require(engine.submit(scene)&&engine.recording().cell_upload_bytes==112,"native lighting changes upload the complete source-cell record");
+        const auto dark=capture("-cell-dark");
+        require((bright>>24)>(dark>>24)+50,"changed source-cell lighting reaches actual GPU pixels");
+        ++scene.frame_serial;require(engine.submit(scene)&&engine.recording().cell_upload_bytes==0,"unchanged dark cells do not retransmit");
+        for(int frame=0;frame<4;++frame){cell.light[0]=cell.light[1]=cell.light[2]=frame%2?.15f:1.f;++scene.frame_serial;
+            require(engine.submit(scene)&&engine.recording().cell_upload_bytes==112,"each changed queued cell snapshot is uploaded");
+            SDL_FRect slot{float(frame%2*320),float(frame/2*240),320,240};
+            require(SDL_RenderTexture(renderer,engine.output(),nullptr,&slot),"queue distinct native lighting snapshots");}
+        auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"read queued source-cell snapshots once");
+        auto *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);SDL_DestroySurface(raw);require(image!=nullptr,"queued source-cell pixel format");
+        for(int frame=0;frame<4;++frame){const auto pixel=reinterpret_cast<const uint32_t *>(static_cast<const char *>(image->pixels)+(frame/2*240+120)*image->pitch)[frame%2*320+160];
+            const auto expected=frame%2?dark:bright;
+            require(std::abs(int(pixel>>24)-int(expected>>24))<=4,"each queued frame retains its own native cell lighting");}
+        SDL_DestroySurface(image);cell=saved_cell;
+    }
     scene.mode=NCMM_GPU_CPU;require(!engine.submit(scene)&&!engine.metrics().active,"explicit CPU selection never impersonates GPU");
     scene.mode=NCMM_GPU_FORCE;scene.frame_serial=3;bones[1].columns[12]=0;require(engine.submit(scene),engine.metrics().reason);require(engine.metrics().generated_meshes==0,"GPU resumes with cached geometry");
+    require(engine.recording().cell_upload_bytes==112,"resuming GPU applies lighting changed after the previous queued frame");
     std::array<ncmm_gpu_vertex_v1,3> glass_vertices{};for(int i=0;i<3;++i){glass_vertices[i]=vertices[i];glass_vertices[i].position[0]*=.5f;glass_vertices[i].position[1]=1;glass_vertices[i].position[2]*=.5f;glass_vertices[i].joint=0;glass_vertices[i].material=0;}
     ncmm_gpu_material_v1 glass{};glass.color[2]=.9f;glass.color[3]=.3f;const uint32_t glass_indices[]={0,1,2};
     ncmm_gpu_mesh_v1 dynamic{12,glass_vertices.data(),glass_indices,&glass,3,3,1,NCMM_GPU_DYNAMIC_MESH};
@@ -83,6 +132,7 @@ int main(int argc,char **argv){
     for(auto &vertex:glass_vertices)vertex.position[0]+=5;scene.frame_serial=5;require(engine.submit(scene),engine.metrics().reason);
     auto dynamic_stats=engine.metrics();require(dynamic_stats.dynamic_mesh_updates==1&&dynamic_stats.generated_meshes==0,"dynamic buffer cycles without recreating world geometry");
     require(engine.resources().static_upload_bytes()==0,"explicit dynamic mesh updates are not static uploads");
+    require(engine.recording().dynamic_geometry_bytes==sizeof(glass_vertices)+sizeof(glass_indices),"private dynamic upload classification uses the existing mesh contract");
     center=capture("-dynamic");require((center>>24)>120&&((center>>8)&255)<20,"updated dynamic buffer moves transparent geometry");
     for(auto &vertex:glass_vertices)vertex.position[0]-=5;scene.frame_serial=6;require(engine.submit(scene),engine.metrics().reason);
     center=capture("-return");require((center>>24)>80&&(center>>24)<135&&((center>>8)&255)>30,"current dynamic bounds restore geometry entering the frustum");
@@ -94,6 +144,8 @@ int main(int argc,char **argv){
     // Dynamic meshes are still supplied after resizing; immutable world stays cached.
     scene.meshes=&dynamic;scene.mesh_count=1;
     require(engine.submit(scene)&&engine.metrics().generated_meshes==0&&engine.metrics().resource_bytes<=NCMM_GPU_RESOURCE_LIMIT,"viewport resize preserves world cache and allocation budget");
+    const auto resized_upload=engine.metrics().upload_bytes;++scene.frame_serial;
+    require(engine.submit(scene)&&engine.metrics().upload_bytes+4==resized_upload,"resized target initializes its neutral texture once");
     {
         // A valid frame-only transfer can exceed the old native smoke's 2 MiB
         // threshold without rebuilding or uploading any immutable geometry.
@@ -101,9 +153,14 @@ int main(int argc,char **argv){
         auto large=scene;large.width=640;large.height=480;large.camera.projection[0]=640;large.camera.projection[1]=480;large.camera.projection[2]=457;
         large.meshes=nullptr;large.mesh_count=0;large.draws=&draw;large.draw_count=1;
         large.bones=palette.data();large.bone_count=uint32_t(palette.size());large.frame_serial=900;
+        uint64_t large_capacity=0,large_creations=0;
         for(int frame=0;frame<2;++frame){++large.frame_serial;require(engine.submit(large),engine.metrics().reason);
             require(engine.metrics().upload_bytes>2*1024*1024&&engine.metrics().generated_meshes==0&&engine.resources().static_upload_bytes()==0,
-                    "large dynamic transfer preserves the strict zero static upload gate");}
+                    "large dynamic transfer preserves the strict zero static upload gate");
+            const auto &recording=engine.recording();require(engine.metrics().resource_bytes+recording.frame_upload_capacity_bytes+recording.cell_cache_bytes<=NCMM_GPU_RESOURCE_LIMIT,"large retained staging and cell snapshot respect the combined resource budget");
+            if(!frame){large_capacity=recording.frame_upload_capacity_bytes;large_creations=recording.frame_upload_creations;
+                require(large_capacity>staging_capacity&&large_creations>staging_creations,"large palettes grow staging capacity");}
+            else require(recording.frame_upload_capacity_bytes==large_capacity&&recording.frame_upload_creations==large_creations,"repeated large palettes reuse staging storage");}
         // Complete this fixture before the next producer restarts its serial;
         // old-generation readbacks must not occupy all slots for its first frame.
         capture("-large-frame-data");
@@ -257,18 +314,59 @@ int main(int argc,char **argv){
         require(engine.submit(dark_world.base,&dark_world),engine.metrics().reason);const auto dark_pixel=capture("-world-unseen-down");
         require((dark_pixel>>24)<32&&((dark_pixel>>16)&255)<32&&((dark_pixel>>8)&255)<32,"real GPU downward unseen space is dark rather than sky");
         require(fp::hybrid::build_frame(world.appearance,-fp::hybrid::pi*.5f,-1.2f,{},dark_reference,640,480,{},nullptr,nullptr,nullptr,{},nullptr,&world),"downward CPU reference");
-        require(std::all_of(dark_reference.depth.begin(),dark_reference.depth.end(),[](float d){return !std::isfinite(d);})&&engine.metrics().triangles==0,"CPU and GPU do not conceal a hole with invented geometry");
+        require(std::all_of(dark_reference.depth.begin(),dark_reference.depth.end(),[](float d){return !std::isfinite(d);})&&
+                std::all_of(dark_packet.draws.begin(),dark_packet.draws.end(),[](const auto &d){return d.pass==NCMM_GPU_HELD;}),
+                "CPU and GPU do not conceal a hole with invented world geometry; hands keep their independent pass");
     }
-    if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"impostor_colour_minification\":true,\"multilevel_depth_and_picking\":true,\"dynamic_upload_over_2mib_checked\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
+    {
+        // Run the actual weighted PSX packets through the shared device, rather
+        // than inferring GPU skinning from the producer's matrix unit test.
+        namespace fp=first_person;
+        std::array<ncmm_graphics_cell_v1,9> cells{};std::array<ncmm_graphics_cell_v2,9> details{};
+        for(size_t i=0;i<cells.size();++i){cells[i].flags=NCMM_GFX_VISIBLE;std::strcpy(cells[i].terrain,"t_floor");
+            std::strcpy(details[i].ground,"t_floor");details[i].light_r=details[i].light_g=details[i].light_b=1;}
+        ncmm_graphics_scene_v2 source{};source.struct_size=sizeof(source);source.base={sizeof(source.base),640,480,3,3,1.5f,1.5f,cells.data(),cells.size()};
+        source.details=details.data();source.detail_count=details.size();source.environment.daylight=1;source.environment.sun_z=1;
+        fp::hybrid::presentation_data appearance;appearance.view.struct_size=sizeof(appearance.view);appearance.view.eye_height=1.55f;appearance.view.body_scale=1;appearance.view.held_length=.6f;appearance.cells.resize(9);
+        uint32_t art=0x17202aff;auto provider=[&](uint32_t,uint32_t,ncmm_graphics_sprite_v2 &sprite){sprite={sizeof(sprite),1,1,1,&art};return true;};
+        fp::gpu::scene_cache cache;fp::hybrid::frame statistics;
+        static ncmm_gpu::backend *resident_backend=nullptr;resident_backend=&engine;
+        ncmm_host_graphics_gpu_v1 api{};api.has_resource=[](uint64_t key,uint32_t kind){return resident_backend->has(key,kind)?1:0;};
+        std::vector<uint32_t> previous;
+        engine.profile();
+        for(int n=0;n<2;++n){fp::gpu::packet packet;fp::animation::pose pose;pose.seconds=n?.15:0;pose.attack_serial=n;pose.attack_kind=n;pose.attack_phase=n?.31f:-1;
+            const bool built=cache.build(source,0,0,provider,packet,statistics,engine.metrics(),pose,&appearance,nullptr,640,480,NCMM_GPU_FORCE);
+            require(built,cache.last_reason.c_str());
+            const auto &submission=packet.finish(&api);
+            if(n)require(submission.mesh_count==0&&submission.texture_count==0,"warm PSX packet sends only bone/instance data");
+            require(engine.submit(submission),engine.metrics().reason);
+            require(statistics.viewmodel_draws==2&&!statistics.viewmodel_errors&&engine.recording().held_bones==554&&engine.metrics().cpu_raster_calls==0,
+                    "both source-weighted hands execute the actual GPU held pass");
+            if(n)require(engine.resources().static_upload_bytes()==0&&engine.metrics().generated_meshes==0,"animated PSX arms never retransmit static resources");
+            capture(n?"-psx-attack":"-psx-idle");
+            auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"PSX animation pixel capture");
+            auto *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);SDL_DestroySurface(raw);require(image!=nullptr,"PSX capture pixels");
+            std::vector<uint32_t> pixels(640*480);
+            for(int y=0;y<480;++y)std::memcpy(pixels.data()+y*640,static_cast<const char *>(image->pixels)+y*image->pitch,640*sizeof(uint32_t));
+            SDL_DestroySurface(image);
+            if(n){size_t changed=0;for(size_t i=640*240;i<pixels.size();++i)changed+=pixels[i]!=previous[i];require(changed>100,"source bone animation changes real GPU hand pixels");}
+            previous=std::move(pixels);
+        }
+        ncmm_gpu_scene_v1 missing{};missing.struct_size=sizeof(missing);missing.width=640;missing.height=480;missing.mesh_count=1;
+        require(!engine.submit(missing)&&engine.recording().bones==0,"profiling validates a missing array before inspecting its elements");
+        engine.profile(false);resident_backend=nullptr;
+    }
+    if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"psx_weighted_viewmodel\":true,\"impostor_colour_minification\":true,\"multilevel_depth_and_picking\":true,\"dynamic_upload_over_2mib_checked\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
     std::printf("Full GPU scene PASS: %s / %s; animation upload %llu bytes; CPU raster=0\n",second.backend,second.device,(unsigned long long)second.upload_bytes);
     // Leave work and an SDL composition queued while replacing the backend.
     // No read-pixels or explicit fence wait may accidentally serialize this path.
     scene.meshes=&mesh;scene.mesh_count=1;scene.draws=&draw;scene.draw_count=1;scene.textures=nullptr;scene.texture_count=0;
+    engine.profile();
     for(int lifecycle=0;lifecycle<32;++lifecycle){
         require(engine.bind(renderer,1),"teardown stress rebind");
         for(int frame=0;frame<4;++frame){scene.frame_serial=2000+lifecycle*4+frame;require(engine.submit(scene),engine.metrics().reason);
             require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr),"queue SDL sampling before teardown");}
-        engine.clear();require(!engine.metrics().active&&engine.resources().bytes()==0,"in-flight teardown drains and clears resources");
+        engine.clear();require(!engine.metrics().active&&engine.resources().bytes()==0&&engine.recording().frame_upload_capacity_bytes==0&&engine.recording().cell_cache_bytes==0,"in-flight teardown drains and clears resources including staging and source cells");
     }
     engine.clear();require(!engine.bind(nullptr,2)&&!engine.available(),"unsupported renderer fails closed without claiming GPU");
     require(engine.bind(renderer,3),"same owned device can recover after fallback");engine.clear();

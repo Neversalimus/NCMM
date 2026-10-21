@@ -41,27 +41,29 @@ def samples(record, name, count):
     return {"median_ms": percentile(values, .5), "p95_ms": percentile(values, .95)}
 
 
-def frame_phases(record):
+def frame_phases(record, *, extended=False):
+    steps, rotations = (64, 96) if extended else (12, 48)
     require(record.get("exclusive_phases_available") is True, "Movement frame phases missing")
     wall = record["frame_samples_ms"]
     phases = ("native_tiles_samples_ms", "perspective_samples_ms", "present_samples_ms", "unattributed_samples_ms")
     nested = ("extract_samples_ms", "callback_samples_ms", "gpu_geometry_samples_ms", "gpu_resource_samples_ms", "gpu_upload_samples_ms", "gpu_record_samples_ms", "gpu_submit_samples_ms")
-    require(len(wall) >= 108, "Movement frame sequence incomplete")
+    require(len(wall) >= rotations * 2 + steps, "Movement frame sequence incomplete")
     for name in ("frame_samples_ms",) + phases + nested:
         values = record[name]
         require(len(values) == len(wall) and all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in values), "Invalid movement phase samples: " + name)
     for i, total in enumerate(wall):
         require(abs(total - sum(record[name][i] for name in phases)) <= .003, "Movement phases overlap or omit frame work")
     indices = record["first_frame_indices"]
-    require(len(indices) == 12 and all(type(i) is int and 96 <= i < len(wall) for i in indices)
+    require(len(indices) == steps and all(type(i) is int and rotations * 2 <= i < len(wall) for i in indices)
             and all(a < b for a, b in zip(indices, indices[1:])), "Invalid native-step frame indices")
+    require(len(record["first_frame_after_step_samples_ms"]) == steps, "Native-step samples missing")
     require(all(abs(record["first_frame_after_step_samples_ms"][n] - wall[i]) <= .0001 for n, i in enumerate(indices)), "Native-step frames differ from measured frame stream")
     return {"first_after_step": {name: {"median_ms": percentile([record[name][i] for i in indices], .5),
                                      "p95_ms": percentile([record[name][i] for i in indices], .95),
                                      "p99_ms": percentile([record[name][i] for i in indices], .99)} for name in phases + nested},
-            "warm_rotation": {name: {"median_ms": percentile(record[name][48:96], .5),
-                                    "p95_ms": percentile(record[name][48:96], .95),
-                                    "p99_ms": percentile(record[name][48:96], .99)} for name in phases + nested}}
+            "warm_rotation": {name: {"median_ms": percentile(record[name][rotations:rotations*2], .5),
+                                    "p95_ms": percentile(record[name][rotations:rotations*2], .95),
+                                    "p99_ms": percentile(record[name][rotations:rotations*2], .99)} for name in phases + nested}}
 
 
 def verify(args):

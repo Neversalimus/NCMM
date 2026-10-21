@@ -15,6 +15,18 @@ class FramePhaseTests(unittest.TestCase):
     def test_complete_exclusive_phases(self):
         result=frame_phases(self.valid_record())
         self.assertEqual(result['first_after_step']['perspective_samples_ms']['median_ms'],1.0)
+    def test_extended_warm_slice_and_step_indices(self):
+        r=self.valid_record()
+        for name,values in r.items():
+            if isinstance(values,list):r[name]=[values[0]]*256
+        r['first_frame_indices']=list(range(192,256))
+        r['first_frame_after_step_samples_ms']=[4.0]*64
+        r['present_samples_ms'][96:192]=[2.0]*96
+        r['native_tiles_samples_ms'][96:192]=[0.0]*96
+        result=frame_phases(r,extended=True)
+        self.assertEqual(result['warm_rotation']['present_samples_ms']['median_ms'],2.0)
+        self.assertEqual(result['first_after_step']['present_samples_ms']['median_ms'],1.0)
+        with self.assertRaises(ValueError):frame_phases(r)
     def test_overlap_and_missing_work_rejected(self):
         for value in (0.0, 2.0):
             r=self.valid_record();r['present_samples_ms'][99]=value

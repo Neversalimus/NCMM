@@ -1,0 +1,161 @@
+# PSX viewmodel implementation and qualification
+
+This document describes the 0.13 development implementation. Native hardware
+qualification and installer results must be reported separately from the
+implementation and numerical equivalence checks.
+
+## Source asset
+
+Drillimpact's [PSX First Person Arms](https://drillimpact.itch.io/psx-first-person-arms-free),
+version 1.1.0, is distributed by its author under CC0. The exact official ZIP
+has SHA256 `13689348acce167599db2b7190214aa4dbe914f5547f74e1877ff61361fc8cb8`.
+The repository notice and `assets/psx_arms/manifest.json` retain attribution,
+input/output hashes, converter identity and the author's license declaration.
+The converter uses the root `arms_rig.glb`; it does not execute Blender or FBX.
+
+`tools/import_psx_arms.py` validates the pinned archive, paths, accessors, node
+hierarchy, bind transforms, channels, textures and all source weights. It emits
+immutable typed tables. Runtime has no glTF parser, decoder, Python dependency
+or network request. CMake checks generated resource hashes and watches the
+asset manifest and module version when configuring an incremental build.
+
+The model has 758 source vertices, 1,176 triangles, 52 skin joints and 18 clips.
+Hand/forearm material seams produce 790 prepared vertices without altering
+positions, UVs or weights. Both 512x512 textures keep their original dimensions;
+the source PNGs' 16-bit channels are converted to the existing RGBA8 texture API.
+No source influence is discarded. Constant animation tracks are compacted
+without resampling moving tracks.
+
+## Existing rendering pipeline
+
+`viewmodel_animation` samples source TRS tracks and evaluates the source hierarchy
+and inverse bind transforms. For each distinct original weight tuple, it forms
+the weighted affine skin matrix. A vertex refers to that matrix using the
+existing single-joint GPU field. This evaluates the original linear blend
+skinning while preserving the public GPU vertex ABI.
+
+The original 494 weight tuples exceed the existing limit of 128 matrices per
+draw. Immutable mesh partitions respect that limit. An offline opaque-triangle
+ordering groups the same oriented triangles by side, material region and bone
+locality: six partitions use 554 uploaded palette matrices in total, plus the
+existing identity transform. The sorting key never replaces the weights.
+Transparent source material is rejected rather than reordered unsafely.
+
+`viewmodel::frame` is shared by the GPU attempt and CPU fallback in one render
+callback. Two-bone IK preserves authored arm lengths and places the palm on the
+same physical grip used by the procedural item. Fingers preserve source clips;
+the firearm index finger also uses the modeled trigger point. Shoulder roots
+remain outside the lower view plane. Unsafe or non-finite grips reject the
+perspective callback and preserve the ordinary fallback.
+Empty idle contacts follow the viewport's lower edge, keeping both hands visible
+at wide aspect ratios. Empty strikes use the source clip without a second
+primitive-hand swing. The shoulder constraint includes the actual held transform,
+so item swing, equip movement and body scaling cannot expose the upper-arm roots.
+
+GPU resources use the existing mesh cache and `NCMM_GPU_HELD` pass, with its
+existing depth rules and shared SDL device. Static mesh, normals, UVs, hashes
+and textures are prepared on cache creation; animation updates matrices.
+CPU rasterization uses the same weighted geometry, pose and textured materials.
+It retains texture owners while rasterizing, including after an appearance
+cache entry has been evicted.
+
+## Contacts and appearance
+
+Canonical item properties and Graphics Controls/Presentation fields choose
+empty, single, two-hand, pole, bow and firearm grips. Existing firearm geometry
+defines primary/secondary contacts, trigger, item pivot and sight locations.
+Foregrips change both geometry and the support-hand contact. Revolvers use
+canonical IDs, not translated names. Unknown items keep the existing semantic
+fallback and bounded physical length.
+
+Bare hands select the author's skin texture. Actual worn gloves select the
+glove texture only on the hand; sleeves affect the forearm region. A bounded
+eight-entry texture cache applies garment/mutation color while retaining the
+author's painted luminance detail. Mutations and CBMs use existing presentation
+flags and material finishes. Claws and webbing are small cached overlays bound
+to the source finger joints. Fur, scales and chitin retain this human arm
+topology; they do not claim distinct anatomical meshes or bespoke fur geometry.
+CDDA's canonical `integrated_*` mutation armor can also occupy the glove/sleeve
+metadata slots. It keeps the body feature materials and skeletal overlays;
+ordinary worn garments retain their separate hand/forearm coverage.
+
+No runtime pointer to a scene, item, atlas or GPU resource is retained by the
+animator. Appearance pixel owners and GPU cache entries follow their existing
+lifecycle rules. F6, module initialization and shutdown reset the timeline and
+pose snapshot. World/clock changes suppress old confirmed attack serials.
+
+## Events and animation
+
+| Presentation state | Source clip or adaptation | Event boundary |
+| --- | --- | --- |
+| Empty idle | `relax` | No wielded item |
+| Generic held grip | `knife_idle`, source grip fingers | Actual item/grip metadata |
+| Firearm grip | `finger_gun_idle` wrist; closed source fingers | Native firearm metadata |
+| Walking and camera motion | Existing sway layered on the source pose | Actual movement and look metadata |
+| Item change | `knife_draw` / `guard_draw`, 0.24 s transition | Changed canonical held identity |
+| Empty strike | Alternating `jab.R` / `jab.L` | New confirmed native melee serial |
+| Held strike | `knife_hit_01` / `knife_hit_02` plus existing item motion | New confirmed native melee serial |
+| Shot recoil | `finger_gun_fire`, wrist/grip constrained to the real gun | New confirmed native shot serial |
+| Rapid repeated attacks | 0.08 s smooth blend from one local-pose snapshot | New confirmed serial during an active clip |
+| Reload, magazine, bolt or distinct use action | No invented source clip | Current Controls API has no confirmed event for these actions |
+
+All clip times use the Host's absolute presentation clock. Successful native
+actions and the existing first-visible-presentation boundary control attack
+starts. UI redraws cannot restart an action. Repeated interruptions use one
+fixed-size pose snapshot rather than a growing clip history. Changing items,
+returning to 2D, changing worlds or unloading cannot replay an old attack.
+The viewmodel never changes damage, accuracy, native moves or action duration.
+
+## First-frame work
+
+The complete native tile draw remains in both gameplay and diagnostics,
+including perception, light, layers, animation, map memory and stack heights.
+An evaluated shortcut for hidden 2D submissions was removed: its small native
+phase savings did not establish a stable full-frame win, and city rotation
+regressed in the measured runs. Existing native pixels remain available when
+perspective fails, without consuming one-shot native animation queues twice.
+
+Internal scene/mesh cache fingerprints process longer records in four independent
+word streams instead of one serialized multiply chain. Every byte, order and
+unaligned tail still participates. These are transient invalidation keys, not
+integrity hashes or save data; the public key representation and API layouts are unchanged.
+The isolated hashing experiment is separate from native frame measurements.
+
+The native backend retains one frame-upload transfer object with bounded,
+growing capacity. SDL's existing cycling mechanism preserves storage still
+referenced by queued copies. The established lifecycle drain precedes its release.
+Retained staging capacity shares the resource budget and is reported separately
+from GPU targets/assets; it is not measured VRAM. Creation/growth counters and
+queued distinct-pose pixel tests verify reuse and copy lifetime. Native timing
+must establish whether this removes the observed upload/recording delays.
+The neutral fallback texel is initialized once per target lifetime, rather than
+uploaded and cycled every frame. Successful queue submission marks it ready;
+target recreation and device cleanup reset that state. Pixel and upload checks
+cover warm animation, queued poses and viewport recreation.
+An owned cell snapshot compares the complete prepared GPU cell data, including
+multi-level origins and lower lighting. Identical cells keep their existing GPU
+buffer; changed cells use the existing cycling upload. No source pointer survives
+the callback. Comparison/preparation CPU time, actual cell uploads and retained
+CPU capacity are reported separately. The snapshot shares the bounded resource
+allowance and is released with the dynamic buffers. Shadows, lighting evaluation,
+world drawing and presentation continue on every frame.
+
+World distance, internal resolution caps, Z levels, creature detail, native
+perception, simulation and the established horizon LOD are preserved. Whether
+this reduces native frame latency must be established by matched hardware runs.
+
+## Verification and remaining release work
+
+Asset tests compare all imported weights, source skinning, UVs and animation
+samples. GPU packet tests reconstruct the weighted CPU positions, enforce the
+128-matrix limit, preserve the complete oriented triangle multiset and reject
+static mesh/texture retransmission during bone changes. Rig tests cover finite
+contacts, source lengths, hidden roots, 30/60 Hz cadence, resets and repeated
+interruptions. These checks establish numerical contracts, not visual quality
+or gameplay FPS.
+
+Use Quick/Integration during development; run Full only on the final candidate.
+The expanded diagnostic matrix and 27-state native SDL gallery are opt-in;
+default release gates keep their existing strict matrix. Both pinned Hosts,
+install/repair/rollback, native debug-device lifecycle and the final hardware
+comparison must qualify before merging. See [DIAGNOSTICS.md](DIAGNOSTICS.md).
