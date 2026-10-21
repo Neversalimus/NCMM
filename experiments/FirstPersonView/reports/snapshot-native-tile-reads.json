@@ -1,0 +1,144 @@
+{
+  "schema": 1,
+  "status": "private candidate: source preparation tests passed; actual Native correctness and ordinary performance unqualified",
+  "parent": "7baa08ba995322ae0e4c2b080902092a78c9b314",
+  "main": "f8affe5570b632178eb3c9ad9d103c40701e0eb8",
+  "hypothesis": "Reuse existing callback-local const_maptile reads for terrain/furniture/fields/items and one per-cell vehicle lookup. Remove repeated coordinate/submap lookup and map_stack construction without changing visibility or published facts.",
+  "scope": "Native snapshot reads only; callback-local const_maptile, no retained Native pointers or new public API",
+  "source_transform_tests_passed": 14,
+  "source_transform_log_sha256": "89b96780b7501c945b427ce04099ee90673a5360c08a58e5d830c5316358bb3c",
+  "pinned_native_reference_files": {
+    "074aa98bd5be3de4c35f154082db32a0e63bb0f1": {
+      "map.cpp": {
+        "git_blob": "532506e68bc794b0f096b3222b2d641f40f18add",
+        "sha256": "b43681f47172038848d456a2ffd72d2637808f078c2037fd189bc5df9cc3b458"
+      },
+      "map.h": {
+        "git_blob": "5c5162fae3393b8a9d45ecf2ac24842aae52dd3d",
+        "sha256": "3a07615f14c6178d1d4b0e6d069ba973a790b737067c98a328d377ce04e04dc2"
+      },
+      "submap.h": {
+        "git_blob": "678940352cdd3fbf14bb65dcc0337f913223672d",
+        "sha256": "29b49c2ffea4305bfa22ff2441385d06f53493a73d6cdae09c05dd6229d7a257"
+      }
+    },
+    "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": {
+      "map.cpp": {
+        "git_blob": "845bfeef333aeab733e031fdb52f13a1324b1904",
+        "sha256": "5c653ab5430340c55bf64fb00e85cd82a43690e407716cb39f326325e81eab46"
+      },
+      "map.h": {
+        "git_blob": "dd372d0e2fa95772ced129dc02ebf0772d19120c",
+        "sha256": "12a1f7760c176e5df33165b8d82e09ed4f2a4d86cd4d51b7a6339e7f5976cd40"
+      },
+      "submap.h": {
+        "git_blob": "678940352cdd3fbf14bb65dcc0337f913223672d",
+        "sha256": "29b49c2ffea4305bfa22ff2441385d06f53493a73d6cdae09c05dd6229d7a257"
+      }
+    }
+  },
+  "cpu_evidence": {
+    "pair_proof_sha256": "82aa0c1c2e554721575b517ac402ee2699644d18f2a1cc1f97b5dbad8bd57063",
+    "attribution_sha256": "8e5da0b9ca6c8e2636edc5a5c9cbe155a3e90b0e9b3ed6b74f9292b29e8e5b81",
+    "raw_storage_root": "G:/ncmm-fpv-next-20261018/nsys-7baa-cpu-pair-closed-main-storage",
+    "raw_profiles": [
+      {
+        "role": "main",
+        "source": "8c5c32fbd58e707e058343b9fb54e246f4e90d4d",
+        "host_sha256": "486fcecd53ee70eff98b4fac1c9a2f176345151d76e08f48e9abab64af31e600",
+        "module_sha256": "4abb14111eab6bc2f36425f0339570c9183bc357262bdcd072e0b35d26d26666",
+        "files": [
+          {
+            "path": "G:\\ncmm-fpv-next-20261018\\nsys-7baa-cpu-pair-closed-main-storage\\main-captures\\main.nsys-rep",
+            "bytes": 304062655,
+            "sha256": "118d09dafab0d514d15639f68047c552f586a8f6671b87e28f38daafdbb27556"
+          },
+          {
+            "path": "G:\\ncmm-fpv-next-20261018\\nsys-7baa-cpu-pair-closed-main-storage\\main-captures\\main.sqlite",
+            "bytes": 4215668736,
+            "sha256": "64a66696c2d00b3c07918bac2e6118631998222d7584cfaa0370d07b3936948a"
+          }
+        ]
+      },
+      {
+        "role": "candidate",
+        "source": "7baa08ba995322ae0e4c2b080902092a78c9b314",
+        "host_sha256": "807c1b3896e67bd7c3b189d0a62d4b3bb13da0bcaeba230ecbe61da4bc3be046",
+        "module_sha256": "e58f8ab64d052db5b10fdbdf8414658701a50dacec36139125b49bd231381602",
+        "files": [
+          {
+            "path": "G:\\ncmm-fpv-next-20261018\\nsys-7baa-cpu-pair-closed-main-storage\\candidate-captures\\candidate.nsys-rep",
+            "bytes": 252194138,
+            "sha256": "5992e57b581c21a83bdb57b12a3a6f8a7674016ef71f8ca9e6b0930759aa153f"
+          },
+          {
+            "path": "G:\\ncmm-fpv-next-20261018\\nsys-7baa-cpu-pair-closed-main-storage\\candidate-captures\\candidate.sqlite",
+            "bytes": 3371966464,
+            "sha256": "5c2f1f7bda7d3cb636ac3cb4bc9c0d7942f1973a673f0f56cfc36f02478ebbc5"
+          }
+        ]
+      }
+    ],
+    "primary_periodic_subtrees": [
+      {
+        "role": "main",
+        "samples": 28715,
+        "groups": {
+          "snapshot_preparation": 7135,
+          "native_2d_draw": 4827,
+          "outside_fixture_or_unwound": 649,
+          "native_movement": 2226,
+          "fixture_other": 2632,
+          "host_gpu_submit": 2768,
+          "hybrid_module_callback": 8478
+        }
+      },
+      {
+        "role": "candidate",
+        "samples": 24843,
+        "groups": {
+          "snapshot_preparation": 5571,
+          "outside_fixture_or_unwound": 374,
+          "hybrid_module_callback": 7214,
+          "native_2d_draw": 4769,
+          "fixture_other": 2464,
+          "host_gpu_submit": 2264,
+          "native_movement": 2187
+        }
+      }
+    ],
+    "actual_live_bases_and_matching_pdbs_verified": true,
+    "sample_counts_are_not_milliseconds": true,
+    "direct_profiled_speed_comparison_qualified": false,
+    "scheduling_cause_not_established": true,
+    "limitations": [
+      "Profiles separated by hours awaiting OS UAC; diagnostic distributions only.",
+      "No DXGI frame boundaries in CPU-only capture.",
+      "Nonalternating scheduling records prevent exact CPU-duration reconstruction.",
+      "First attribution reader missed qualified function names; superseded by namespace-aware v2 with nonempty subtree assertions."
+    ]
+  },
+  "correctness_oracle": "Real Native diagnostics compare tile IDs, furniture presence, field identity/count, item identity/count with canonical Native getters after loaded guards; source cache and field mutations remain separately verified. Ordinary Extended timings never execute this oracle.",
+  "parent_performance": {
+    "source": "7baa08ba995322ae0e4c2b080902092a78c9b314",
+    "mechanical_gate": "0 repeated regressions /153 improvements",
+    "retained_gate": "FAIL:6 recurring tails; all single-order negatives12 retained",
+    "retained_next_core_observations": 35,
+    "retained_next_core_keys": 27,
+    "retained_full_observations_before_new_core_singles": 88
+  },
+  "unchanged": [
+    "Native mandatory 2D and simulation",
+    "quality/radius/Z/resolution",
+    "public ABI",
+    "shaders",
+    "GPU/backend resources",
+    "cross-callback data ownership",
+    "original timing and retained-tail gates"
+  ],
+  "actual_native_validation_pending": true,
+  "ordinary_performance_accepted": false,
+  "requires_fresh_native_oracle_and_original_balanced_comparison": true,
+  "common_port_allowed": false,
+  "merge_allowed": false
+}
