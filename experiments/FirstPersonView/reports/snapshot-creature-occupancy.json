@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "status": "experimental-not-certified",
+  "parent": "68c0f2c1877ff0cf820ed11803c2ffd16f621e0c",
+  "measured_source": "7baa08ba995322ae0e4c2b080902092a78c9b314",
+  "snapshot_primary_periodic_samples": 5571,
+  "creature_query_subtree_samples": 1161,
+  "samples_are_not_milliseconds": true,
+  "hypothesis": "One callback-local conservative occupancy mask skips only provably empty canonical creature queries.",
+  "conservative_enumeration": "All monster location-map keys, all active NPC positions without filters, and avatar; Native remains authority for possible hits.",
+  "no_retained_native_pointers": true,
+  "no_scene_or_state_authority_added": true,
+  "unknown_bounds_or_incomplete_enumeration": "canonical lookup",
+  "radius_and_z_and_visibility_and_native_2d_unchanged": true,
+  "public_sdk_abi_backend_shaders_unchanged": true,
+  "references": {
+    "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": {
+      "creature_tracker.h": {
+        "git_blob": "c8466550c3f6c4c36421c63ff6a1a504f27654c3",
+        "sha256": "b112d3ea7c6fd3ea398a22d757d8e9e45579e3a5ff63037ae3d028dae7ad7029"
+      },
+      "creature_tracker.cpp": {
+        "git_blob": "4ee81a53eb10b10d6be5b3fc3180d377dba97f7c",
+        "sha256": "cbe542e6fb50470e5a121db7a6420100b95da11c8fb5aa8a680e6997f156abaa"
+      }
+    },
+    "074aa98bd5be3de4c35f154082db32a0e63bb0f1": {
+      "creature_tracker.h": {
+        "git_blob": "c8466550c3f6c4c36421c63ff6a1a504f27654c3",
+        "sha256": "b112d3ea7c6fd3ea398a22d757d8e9e45579e3a5ff63037ae3d028dae7ad7029"
+      },
+      "creature_tracker.cpp": {
+        "git_blob": "4ee81a53eb10b10d6be5b3fc3180d377dba97f7c",
+        "sha256": "cbe542e6fb50470e5a121db7a6420100b95da11c8fb5aa8a680e6997f156abaa"
+      }
+    }
+  },
+  "new_native_functional_oracle": true,
+  "ordinary_oracle_work_must_be_zero": true,
+  "performance_accepted": false,
+  "merge_allowed": false,
+  "local_source_transform_tests": 16,
+  "local_cpp_invariants": 787163,
+  "local_cpp_compiler": "MSVC14.38.33130",
+  "local_cpp_test_log_sha256": "0205ef14b48764e742d95fa06e0d19d3a26a4aa4270d0db8d13cff4bc034df5d",
+  "source_transform_log_sha256": "ff9bb7a3ae6f1c0e1f35a175f37b3e4794ddaa39b1964daa7f51005b5cadf651",
+  "unchanged_canonical_native_lookup_body_verified_on_both_pins": true,
+  "parent_original_mechanical_gate_pass": true,
+  "parent_retained_gate_pass": false,
+  "parent_retained_failures": 3,
+  "next_core_historical_observations": 38,
+  "next_core_historical_keys": 27,
+  "next_full_historical_observations_before_new_core_singles": 91,
+  "retained_consumer_tests_passed": 23,
+  "actual_native_correctness_pending": true,
+  "ordinary_performance_pending": true,
+  "cpu_evidence_sha256": "8f45356bed91edf1f83632640b21d2427e048da02b903727cf018a50215cc3b4",
+  "reason_for_separate_ci_ref": "Existing68 Full runtime jobs are still active; a separate ref preserves that qualification run."
+}

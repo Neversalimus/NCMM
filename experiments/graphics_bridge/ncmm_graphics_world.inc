@@ -28,6 +28,18 @@ void graphics_world_changed_impl(const map *source,int z)
 }
 #if defined(TILES)
 #include "ncmm_graphics_lod.inc"
+using graphics_world_entity_occupancy=ncmm_world::creature_occupancy<NCMM_GRAPHICS_V2_RADIUS*2+1,OVERMAP_DEPTH+OVERMAP_HEIGHT+1>;
+uint64_t graphics_world_entity_queries=0,graphics_world_entity_empty_skips=0,graphics_world_entity_occupancy_bytes=0;
+graphics_world_entity_occupancy graphics_world_build_entity_occupancy(int32_t ox,int32_t oy)
+{
+    graphics_world_entity_occupancy occupied(ox,oy,-OVERMAP_DEPTH);
+    get_creature_tracker().ncmm_graphics_visit_locations([](void *context,const tripoint_abs_ms &p){
+        static_cast<graphics_world_entity_occupancy *>(context)->mark(p.x(),p.y(),p.z());
+    },&occupied);
+    const auto avatar_position=get_avatar().pos_abs();
+    occupied.mark(avatar_position.x(),avatar_position.y(),avatar_position.z());occupied.finish();
+    return occupied;
+}
 struct graphics_world_candidate {
     ncmm_world_cell_v1 world{};tripoint_bub_ms pos;uint32_t permission=0;float distance=0;std::array<float,3> facade_light{};
 };
@@ -117,23 +129,31 @@ bool graphics_verify_world_tile(map &here,const tripoint_bub_ms &p)
     return items.size()==native_items.size()&&(items.empty()||&*items.begin()==&*native_items.begin());
 }
 // A diagnostic oracle over usable cached facts, outside ordinary draw clocks.
-bool graphics_verify_world_sources(size_t &checked,size_t *tile_checked=nullptr)
+bool graphics_verify_world_sources(size_t &checked,size_t *tile_checked=nullptr,size_t *entity_checked=nullptr)
 {
     ncmm_world::material_semantics_cache materials,elevated;map &here=get_map();
-    bool tile_matches=true;size_t native_tiles=0;
+    const auto absolute=get_avatar().pos_abs();
+    if(!ncmm_world::source_window_fits(absolute.x(),absolute.y(),NCMM_GRAPHICS_V2_RADIUS))return false;
+    const auto occupied=graphics_world_build_entity_occupancy(absolute.x()-NCMM_GRAPHICS_V2_RADIUS,absolute.y()-NCMM_GRAPHICS_V2_RADIUS);
+    bool tile_matches=true,entity_matches=true;size_t native_tiles=0,native_entities=0;
     const bool cache_matches=graphics_world_sources.verify_cached(
         [&](int z){return graphics_world_source_revisions[size_t(z+128)]+1;},
         [&](int x,int y,int z){const auto p=here.get_bub(tripoint_abs_ms(x,y,z));
-            if(here.ncmm_graphics_loaded(p)){++native_tiles;if(!graphics_verify_world_tile(here,p))tile_matches=false;}
+            if(here.ncmm_graphics_loaded(p)){++native_tiles;if(!graphics_verify_world_tile(here,p))tile_matches=false;
+                const auto *canonical=get_creature_tracker().creature_at<Creature>(p);
+                const auto *accelerated=occupied.possibly_occupied(x,y,z)?canonical:nullptr;
+                ++native_entities;if(accelerated!=canonical)entity_matches=false;}
             return graphics_world_read_source(here,x,y,z,materials,elevated);},checked);
     if(tile_checked)*tile_checked=native_tiles;
-    return cache_matches&&tile_matches;
+    if(entity_checked)*entity_checked=native_entities;
+    return cache_matches&&tile_matches&&entity_matches;
 }
 void graphics_clear_world()
 {
     graphics_world_candidate_storage.clear();graphics_world_cell_storage.clear();graphics_world_position_storage.clear();
     graphics_world_coordinate_storage.clear();graphics_world_slice_storage.clear();graphics_world_facade_storage.clear();
     graphics_world_snapshot_growths=graphics_world_snapshot_reuses=graphics_world_snapshot_candidates=0;
+    graphics_world_entity_queries=graphics_world_entity_empty_skips=graphics_world_entity_occupancy_bytes=0;
     graphics_world_sources.clear();graphics_world_roofs.clear();graphics_world_derived.clear();graphics_world_sealed.clear();graphics_world_map_identity=nullptr;graphics_world_realm.clear();
     graphics_world_previous_position.reset();graphics_world_ray_position.reset();graphics_world_camera_motion.reset();
     graphics_world_transition_active=graphics_world_vertical_transition_active=false;graphics_world_pending_present=false;graphics_multilevel_frame=nullptr;
@@ -186,6 +206,15 @@ bool graphics_draw_world(int x,int y,int width,int height)
        !graphics_world_derived.prepare(ox,oy,loaded.front(),loaded.back(),side,side,graphics_world_epoch)||
        !graphics_world_roofs.prepare(ox,oy,0,0,side,side,graphics_world_epoch)||
        !graphics_world_sealed.prepare(ox,oy,loaded.front(),loaded.back(),side,side,graphics_world_epoch,graphics_world_revision))return false;
+    // Native state cannot mutate during this main-thread callback. Rebuild
+    // from all tracker locations every time; retain only owned bits, never actors.
+    const auto entity_occupancy=graphics_world_build_entity_occupancy(ox,oy);
+    graphics_world_entity_queries=graphics_world_entity_empty_skips=0;
+    graphics_world_entity_occupancy_bytes=sizeof(entity_occupancy);
+    auto entity_at=[&](const tripoint_bub_ms &p,int32_t ax,int32_t ay,int32_t z)->const Creature *{
+        if(!entity_occupancy.possibly_occupied(ax,ay,z)){++graphics_world_entity_empty_skips;return nullptr;}
+        ++graphics_world_entity_queries;return get_creature_tracker().creature_at<Creature>(p);
+    };
     graphics_world_metrics={};graphics_world_metrics.struct_size=sizeof(graphics_world_metrics);
     graphics_world_metrics.available_slices=uint32_t(loaded.size());
     ncmm_world::material_semantics_cache material_definitions,elevated_material_definitions;
@@ -306,7 +335,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         // bubble conversion/loading probes for cells that cannot contribute.
         const int ax=ox+gx,ay=oy+gy;const auto p=here.get_bub(tripoint_abs_ms(ax,ay,z));
         if(!here.ncmm_graphics_loaded(p))continue;
-        const Creature *entity=get_creature_tracker().creature_at<Creature>(p);
+        const Creature *entity=entity_at(p,ax,ay,z);
         const bool observed_death=std::binary_search(observed_deaths.begin(),observed_deaths.end(),std::array<int32_t,3>{ax,ay,z});
         const float margin=entity||observed_death?20.f:5.f;
         if(!close_to_eye&&outside(margin)){
@@ -448,7 +477,7 @@ bool graphics_draw_world(int x,int y,int width,int height)
         const auto vp=here.veh_at(p);if(vp)if(const auto displayed=vp->part_displayed()){
             c.flags|=NCMM_GFX_VEHICLE;std::fill(std::begin(c.furniture),std::end(c.furniture),'\0');copy(c.furniture,vpart_display(displayed->part()).get_tileset_id());}
         if(ncmm_world::supported_item(source.world.flags,has_furniture||bool(vp))&&here.sees_some_items(p,you)&&you.sees(here,p)){const auto &items=tile.get_items();if(!items.empty())copy(c.item,items.begin()->typeId().str());}
-        if(const auto *cr=get_creature_tracker().creature_at<Creature>(p))if(!cr->is_avatar()&&!cr->is_dead_state()&&you.sees(here,*cr)){
+        if(const auto *cr=entity_at(p,source.world.x,source.world.y,source.world.z))if(!cr->is_avatar()&&!cr->is_dead_state()&&you.sees(here,*cr)){
             if(const auto *mon=cr->as_monster())copy(c.creature,mon->type->id.str());
             else if(const auto *ch=cr->as_character())if(cr->is_npc())copy(c.creature,ch->male?"npc_male":"npc_female");}
     }

@@ -20,6 +20,8 @@ class ApplyTests(unittest.TestCase):
         for name in ("ncmm_loader.cpp", "ncmm_loader.h"):
             (root / "src" / name).write_bytes((REPO / "host_patch" / name).read_bytes())
         (root / "src/game.h").write_text("        bool save();\n")
+        (root/"src/creature_tracker.h").write_text(bridge.TRACKER_DECLARATION_ANCHOR+"\n")
+        (root/"src/creature_tracker.cpp").write_text(bridge.TRACKER_DEFINITION_ANCHOR+"\n}\n")
         (root / "src/game.cpp").write_text('#include "game.h"\n'+bridge.REBASE_CACHE_RESET+'\n')
         (root / "src/overmapbuffer.h").write_text("        bool has( const point_abs_om &p );\n")
         (root / "src/map.h").write_text("        int supports_zlevels() const {\n            return zlevels;\n        }\n")
@@ -70,6 +72,24 @@ bool cata_tiles::draw_sprite_at() {
 """)
     def fingerprint(self, root):
         return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob("*") if p.is_file()}
+    def test_changed_native_creature_locations_no_partial_patch(self):
+        for name in ("creature_tracker.h","creature_tracker.cpp"):
+            with self.subTest(name=name),tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);self.fixture(root);(root/"src"/name).write_text("changed tracker anchor")
+                before=self.fingerprint(root)
+                with patch.object(bridge.subprocess,"check_output",return_value=next(iter(bridge.SOURCES))):
+                    with self.assertRaisesRegex(ValueError,"Native creature locations"):bridge.apply(root)
+                self.assertEqual(before,self.fingerprint(root))
+
+    def test_ambiguous_native_creature_locations_no_partial_patch(self):
+        for name in ("creature_tracker.h","creature_tracker.cpp"):
+            with self.subTest(name=name),tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);self.fixture(root);p=root/"src"/name;p.write_text(p.read_text()*2)
+                before=self.fingerprint(root)
+                with patch.object(bridge.subprocess,"check_output",return_value=next(iter(bridge.SOURCES))):
+                    with self.assertRaisesRegex(ValueError,"Native creature locations"):bridge.apply(root)
+                self.assertEqual(before,self.fingerprint(root))
+
     def test_unknown_identity_no_writes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); self.fixture(root); before = self.fingerprint(root)
@@ -114,6 +134,8 @@ bool cata_tiles::draw_sprite_at() {
             with patch.object(bridge.subprocess, "check_output", return_value=next(iter(bridge.SOURCES))):
                 bridge.apply(root)
                 self.assertTrue((root / "first-person-source.json").is_file())
+                self.assertIn("ncmm_graphics_visit_locations",(root/"src/creature_tracker.cpp").read_text())
+                self.assertEqual((root/"src/ncmm_world_occupancy.hpp").read_bytes(),Path(bridge.__file__).with_name("ncmm_world_occupancy.hpp").read_bytes())
                 self.assertIn("draw_graphics_view", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_requires_terrain_pass", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
                 self.assertIn("ncmm_native_pixels_ready = true;", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))

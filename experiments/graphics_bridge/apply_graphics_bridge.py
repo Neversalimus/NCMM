@@ -43,6 +43,34 @@ def patch_native_cache_resets(map_cpp, game_cpp):
     return map_cpp.replace(SUBMAP_CACHE_RESET, region, 1), game_cpp.replace(REBASE_CACHE_RESET, rebase, 1)
 
 
+TRACKER_DECLARATION_ANCHOR = "        shared_ptr_fast<monster> find( const tripoint_abs_ms &pos ) const;"
+TRACKER_DEFINITION_ANCHOR = "shared_ptr_fast<monster> creature_tracker::find( const tripoint_abs_ms &pos ) const\n{"
+
+def patch_native_creature_locations(header, implementation):
+    if header.count(TRACKER_DECLARATION_ANCHOR)!=1 or implementation.count(TRACKER_DEFINITION_ANCHOR)!=1:
+        raise ValueError("Experimental bridge requires one exact anchor: Native creature locations")
+    declaration = ("\n\n        // Experimental read-only visitor. No filtering, retained callback or pointers.\n"
+        "        void ncmm_graphics_visit_locations(\n"
+        "            void ( *visit )( void *, const tripoint_abs_ms & ), void *context ) const;")
+    definition = """void creature_tracker::ncmm_graphics_visit_locations(
+    void ( *visit )( void *, const tripoint_abs_ms & ), void *context ) const
+{
+    // A conservative superset of find()/creature_at(): include dead entries,
+    // hallucinations and riders. The caller adds the avatar, then still uses
+    // canonical creature_at() wherever a creature could possibly exist.
+    for( const auto &entry : monsters_by_location ) {
+        visit( context, entry.first );
+    }
+    for( const auto &cur_npc : active_npc ) {
+        visit( context, cur_npc->pos_abs() );
+    }
+}
+
+"""
+    return (header.replace(TRACKER_DECLARATION_ANCHOR,TRACKER_DECLARATION_ANCHOR+declaration,1),
+            implementation.replace(TRACKER_DEFINITION_ANCHOR,definition+TRACKER_DEFINITION_ANCHOR,1))
+
+
 def apply(root: Path):
     bridge = Path(__file__).resolve().parent
     repo = bridge.parents[1]
@@ -238,7 +266,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         updates[name] = (bridge / name).read_text(encoding="utf-8")
     # Optional world-space interface, independent of the old V1/V2 layouts.
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '#include "ncmm_graphics_v2.h"',
-        '#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_multilevel.h"\n#include "ncmm_world_cache.hpp"\n#include "ncmm_graphics_scratch.hpp"\n#include "ncmm_world_lod.hpp"\n#include "overmap.h"\n#include "overmapbuffer.h"\n#include "omdata.h"\n#include "submap.h"\n#include "avatar_action.h"\n#include "game_inventory.h"\n#include "pickup.h"\n#include "visitable.h"\n#include "debug.h"\n#include "gamemode.h"\n#include <functional>\n#include <atomic>\n#include <thread>\n#include <unordered_map>\n#include <string_view>\n#include <locale>')
+        '#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_multilevel.h"\n#include "ncmm_world_cache.hpp"\n#include "ncmm_world_occupancy.hpp"\n#include "ncmm_graphics_scratch.hpp"\n#include "ncmm_world_lod.hpp"\n#include "overmap.h"\n#include "overmapbuffer.h"\n#include "omdata.h"\n#include "submap.h"\n#include "avatar_action.h"\n#include "game_inventory.h"\n#include "pickup.h"\n#include "visitable.h"\n#include "debug.h"\n#include "gamemode.h"\n#include <functional>\n#include <atomic>\n#include <thread>\n#include <unordered_map>\n#include <string_view>\n#include <locale>')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '    "graphics.viewport.v2",',
         '    "graphics.viewport.v2",\n    "graphics.multilevel.v1",')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
@@ -286,6 +314,8 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         "        const overmap *ncmm_graphics_loaded_overmap( const point_abs_om &p ) const {\n"
         "            const auto found = overmaps.find( p );\n"
         "            return found == overmaps.end() ? nullptr : found->second.get();\n        }\n")
+    updates["creature_tracker.h"],updates["creature_tracker.cpp"]=patch_native_creature_locations(
+        read("creature_tracker.h"),read("creature_tracker.cpp"))
     map_h=read("map.h")
     updates["map.h"]=replace(map_h, "        int supports_zlevels() const {",
         "        // Read-only loaded-submap probe; never calls load or mapgen.\n"
@@ -320,7 +350,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
         '\n    ncmm::graphics_world_region_changed( this, ncmm_changed_field.x(), ncmm_changed_field.y(), p.z(), 1, 1 );')
     updates["map.cpp"]=map_cpp
     updates["game.cpp"]=game_cpp
-    for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc"):
+    for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_occupancy.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")

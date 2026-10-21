@@ -1,4 +1,5 @@
 #include "ncmm_world_cache.hpp"
+#include "ncmm_world_occupancy.hpp"
 #include "ncmm_graphics_invalidation.hpp"
 #include <iostream>
 #include <map>
@@ -7,6 +8,27 @@
 int main(){try{
     using namespace ncmm_world;source_cache cache;int source_reads=0,checks=0;
     auto check=[&](bool v){++checks;if(!v)throw std::runtime_error("source cache invariant");};
+    {
+        creature_occupancy<3,2> occupied(-3,7,-1);
+        check(occupied.possibly_occupied(-3,7,-1)); // Incomplete enumeration defers.
+        occupied.mark(-3,7,-1);occupied.mark(-1,9,0);occupied.mark(99,99,99);occupied.finish();
+        for(int z=-1;z<=0;++z)for(int y=7;y<=9;++y)for(int x=-3;x<=-1;++x)
+            check(occupied.possibly_occupied(x,y,z)==((x==-3&&y==7&&z==-1)||(x==-1&&y==9&&z==0)));
+        for(const auto &p:std::array<std::array<int32_t,3>,8>{{{{-4,7,-1}},{{0,7,-1}},{{-3,6,-1}},{{-3,10,-1}},{{-3,7,-2}},{{-3,7,1}},{{INT32_MIN,INT32_MAX,0}},{{INT32_MAX,INT32_MIN,0}}}})
+            check(occupied.possibly_occupied(p[0],p[1],p[2])); // Unknown bounds cannot prove empty.
+        occupied.invalidate();check(occupied.possibly_occupied(-2,8,0));
+        creature_occupancy<3,2> next_frame(-3,7,-1);next_frame.finish();
+        check(!next_frame.possibly_occupied(-3,7,-1)); // Removed/moved entities never persist.
+        creature_occupancy<3,2> extremes(INT32_MAX-2,INT32_MIN,INT32_MIN);
+        extremes.mark(INT32_MAX,INT32_MIN,INT32_MIN);extremes.finish();
+        check(extremes.possibly_occupied(INT32_MAX,INT32_MIN,INT32_MIN));
+        check(!extremes.possibly_occupied(INT32_MAX-1,INT32_MIN+1,INT32_MIN+1));
+        check(extremes.possibly_occupied(INT32_MIN,INT32_MAX,INT32_MAX));
+        creature_occupancy<97,21> maximum(-48,-48,-10);maximum.mark(48,48,10);maximum.finish();
+        check(maximum.possibly_occupied(48,48,10)&&!maximum.possibly_occupied(47,48,10));
+        check(sizeof(maximum)<25u*1024u);
+    }
+
     {
         int identities[2]{};
         const auto *a=reinterpret_cast<const map *>(&identities[0]);
