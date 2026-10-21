@@ -132,7 +132,7 @@ const frame &animator::prepare(const animation::pose &action,bool no_item,bool f
     serial=action.attack_serial;return *current;
 }
 bool frame::attach(point grip,bool left,float lower_view_slope,hand_pose &out,const point *trigger,
-                   const std::array<float,4> *lower_plane)const noexcept {
+                   const std::array<float,4> *lower_plane,const point *grip_axis)const noexcept {
     if(!ready||!std::isfinite(grip.x+grip.y+grip.z)||!std::isfinite(lower_view_slope))return false;
     const size_t side=left?1:0;const auto convert=camera_axes();
     for(size_t i=0;i<source.node_count;++i)out.joints[i]=multiply(convert,global[i]);
@@ -140,6 +140,15 @@ bool frame::attach(point grip,bool left,float lower_view_slope,hand_pose &out,co
     const auto authored_hand=out.joints[h],original_forearm=out.joints[e],original_upper=out.joints[u];auto original_hand=authored_hand;
     if(trigger&&gun&&!left){const auto basis=multiply(convert,grip_bases[side]);for(size_t column=0;column<3;++column)for(size_t row=0;row<3;++row)
         original_hand.columns[column*4+row]=basis.columns[column*4+row];}
+    if(grip_axis){
+        if(!std::isfinite(grip_axis->x+grip_axis->y+grip_axis->z)||length(*grip_axis)<.5f)return false;
+        static const std::array<int,2> index={node_index(imported_asset(),"f_index.01.R"),node_index(imported_asset(),"f_index.01.L")};
+        static const std::array<int,2> pinky={node_index(imported_asset(),"f_pinky.01.R"),node_index(imported_asset(),"f_pinky.01.L")};
+        if(index[side]<0||pinky[side]<0)return false;
+        matrix undo{};if(!inverse(authored_hand,undo))return false;
+        const auto row=direction(undo,origin(out.joints[size_t(index[side])])-origin(out.joints[size_t(pinky[side])]));
+        original_hand=orient(original_hand,direction(original_hand,row),*grip_axis,origin(original_hand));
+    }
     if(empty){const auto delta=direction(convert,origin(global[h])-idle_wrists[side]);grip=grip+delta*.7f;}
     // The grip is inside the curled palm, rather than at the wrist or outside
     // the model. Source finger transforms are kept under this wrist basis.

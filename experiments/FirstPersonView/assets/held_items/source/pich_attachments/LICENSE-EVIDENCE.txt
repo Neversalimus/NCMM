@@ -1,0 +1,6 @@
+Author: Pichuliru
+Version/publication: 2022-03-21
+Author-published source: https://opengameart.org/content/cc0-flat-gun-attachments
+License: CC0-1.0
+Archive SHA256: b8831bd8bb26bae1a84a4df2a8c1c3c0ad770909a5ca058a6c44497c5a62bcc1
+The saved publishing-author page explicitly identifies this package as CC0. No separate license text is present in the archive.

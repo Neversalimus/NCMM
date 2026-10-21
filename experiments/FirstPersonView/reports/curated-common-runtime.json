@@ -1,0 +1,48 @@
+{
+  "success": true,
+  "prepared_parent": "51666adf7ce4792dfb58b748b5fb49b3fa682a4c",
+  "clean_core": "b6e75e634f8bbd445db374a1c9a58588b48221e3",
+  "current_main": "f8affe5570b632178eb3c9ad9d103c40701e0eb8",
+  "all_current_public_feature_heads": {
+    "fire": "19346a75ee1bc82f5bf3e3a0f9a3b40cce291b34",
+    "camera": "4c540539fda1672ec9f22376905427b5df3fb2a8",
+    "held": "8bf56f44efb5f11a5e793fd7df498ea82c9c2c00",
+    "target": "442189bb57f5fd8ca31035945e581ba5d7b1b74a"
+  },
+  "all_heads_are_ancestors": true,
+  "selected_runtime_source": "8557b04ebb32ed1947d45a2abc64b3b06a1dd269",
+  "runtime_file_count": 649,
+  "runtime_manifest_sha256": "0fd90d0757a1df736fae1aa161fffb93115376d0ee3ee3123dc6571fc89013c3",
+  "all_code_assets_build_files_and_tests_byte_identical": true,
+  "current_main_feed_files_preserved": {
+    "feed/index.json": "b52bdfc793d5b4a6e09d42c6b3c51cabd7fb757c3788dc4349209064b2029973",
+    "feed/rejected.json": "fb62e1a741275551458fd43fbe385df1756fa26831573044ad6c96670e90a854"
+  },
+  "experimental_git_ancestry_not_imported": true,
+  "private_experimental_reports_not_imported": true,
+  "public_source_reports_preserved": true,
+  "current_installer_contract_documentation_preserved": true,
+  "local_tests_explicitly_reused_from_identical_source": {
+    "ctest": 41,
+    "atomic": 17,
+    "policy": 9,
+    "gpu_receipt_sha256": "7fbf794e4af6116a5f08532c1ec042587cbae651308ec378a38ec5b0a72b4a71",
+    "guard_receipt_sha256": "f4d25a67e1d7f33005ef2fd69cecb001b757c7e050bf8116eb854d39088269de"
+  },
+  "fresh_native_binaries_tested": false,
+  "performance_accepted": false,
+  "merge_allowed": false,
+  "detailed_local_proof_sha256": "345df474cdaf28acce7886beed8528e7dc1791b79e9d8508ce6d63c71193e41b",
+  "required": [
+    "Fresh Full Windows/Linux Native1040/1807",
+    "Fresh exact Native source/field oracle",
+    "Main/Core/four Common mode comparisons in both orders retaining all negatives",
+    "Unchanged-installer GPU debug/lifecycle and >=1800s load"
+  ],
+  "limitations": [
+    "Core standalone pass is not combined acceptance",
+    "No all-frame15ms guarantee",
+    "Controlled stress actions omit ordinary AI and OS input dispatch",
+    "Manual combat and physical high-DPI remain unverified"
+  ]
+}

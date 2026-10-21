@@ -40,6 +40,20 @@ int main(int argc,char **argv){
     auto *device=SDL_CreateGPUDeviceWithProperties(gpu_properties);SDL_DestroyProperties(gpu_properties);require(device!=nullptr,"real GPU API device; fallback prohibited");
     auto *renderer=SDL_CreateGPURenderer(device,window);require(renderer!=nullptr,"shared SDL renderer");
     auto *ui=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_ABGR8888,SDL_TEXTUREACCESS_TARGET,640,480);require(ui&&SDL_SetRenderTarget(renderer,ui),"SDL UI target");
+    // An owned signalled fence remains valid while command buffers are reused.
+    // The initial fixture wait is not part of the ordinary renderer path.
+    {
+        auto *device=SDL_GetGPURendererDevice(renderer);
+        auto *commands=SDL_AcquireGPUCommandBuffer(device);require(commands!=nullptr,"acquire fence lifetime fixture");
+        auto *fence=SDL_SubmitGPUCommandBufferAndAcquireFence(commands);require(fence!=nullptr,"own fixture fence");
+        require(SDL_WaitForGPUFences(device,true,&fence,1)&&SDL_QueryGPUFence(device,fence),"fixture fence completes");
+        for(int reuse=0;reuse<64;++reuse){
+            commands=SDL_AcquireGPUCommandBuffer(device);require(commands&&SDL_SubmitGPUCommandBuffer(commands),"reuse command-buffer pool independently");
+            require(SDL_QueryGPUFence(device,fence)&&SDL_WaitForGPUFences(device,true,&fence,1)&&SDL_QueryGPUFence(device,fence),
+                "owned completed fence survives repeated SDK cleanup and command-buffer reuse");
+        }
+        SDL_ReleaseGPUFence(device,fence);
+    }
     ncmm_gpu::backend engine;require(engine.bind(renderer,1),"borrow existing device");engine.profile();
     ncmm_gpu_scene_v1 scene{};scene.struct_size=sizeof(scene);scene.width=640;scene.height=480;scene.mode=NCMM_GPU_FORCE;scene.frame_serial=1;
     auto &camera=scene.camera;camera.right[0]=1;camera.up[2]=1;camera.forward[1]=1;camera.projection[0]=640;camera.projection[1]=480;camera.projection[2]=457;camera.projection[3]=512;
@@ -53,7 +67,21 @@ int main(int argc,char **argv){
     ncmm_gpu_mesh_v1 mesh{11,vertices.data(),indices,materials,6,6,2,0};scene.meshes=&mesh;scene.mesh_count=1;
     ncmm_gpu_matrix_v1 bones[2]{};for(auto &b:bones)for(int i=0;i<4;++i)b.columns[i*5]=1;scene.bones=bones;scene.bone_count=2;
     ncmm_gpu_draw_v1 draw{};draw.mesh_key=11;draw.transform=bones[0];draw.bone_count=2;scene.draws=&draw;scene.draw_count=1;
+    // A Native SDL pass may already be queued on the borrowed renderer. Its
+    // target and pixels must survive early submission and the independent 3D
+    // commands before the final GPU-to-GPU scene composition.
+    SDL_FRect native_background{0,0,640,480};
+    require(SDL_SetRenderDrawColor(renderer,23,117,211,255)&&SDL_RenderFillRect(renderer,&native_background),"queue Native 2D before scene preparation");
     require(engine.submit(scene),engine.metrics().reason);auto first=engine.metrics();require(first.active&&first.triangles==2&&first.cpu_raster_calls==0,"GPU triangles, hardware depth, CPU raster excluded");
+    {
+        auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"Native 2D survives scene submission");
+        auto *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);SDL_DestroySurface(raw);require(image!=nullptr,"Native 2D reference format");
+        for(const auto position:std::array<std::array<int,2>,2>{{{{3,3}},{{636,476}}}}){
+            const auto pixel=reinterpret_cast<const uint32_t *>(static_cast<const char *>(image->pixels)+position[1]*image->pitch)[position[0]];
+            require((pixel>>24)==23&&((pixel>>16)&255)==117&&((pixel>>8)&255)==211,"queued Native 2D target and complete colour are preserved");
+        }
+        SDL_DestroySurface(image);
+    }
     require(engine.has(11,0),"persistent GPU mesh resource");require(first.target_cell==0,"geometric picking matches visible near creature");
     require(engine.resources().static_upload_bytes()>0,"initial immutable mesh upload is accounted separately");
     const auto first_static_upload=engine.resources().static_upload_bytes();
@@ -71,8 +99,13 @@ int main(int argc,char **argv){
     auto center=capture("-near");require((center>>24)>120&&((center>>16)&255)<20,"near red wins over later far green in full pipeline");
     require(first.draw_calls==4,"dry scene bypasses empty volume and post-composition passes");
     auto completed=engine.metrics();require(completed.completed_frame_serial>=1&&completed.visible_creature_pixels>1000,"fenced small GPU visibility counter");
+    require(engine.recording().retirement_calls==0,"initial frame has no completed resources to retire");
+    for(int i=0;i<8;++i)require(engine.metrics().completed_frame_serial>=1&&engine.recording().retirement_calls==0,
+        "asynchronous metrics never retire resources outside a submission");
     scene.mesh_count=0;scene.meshes=nullptr;scene.frame_serial=2;bones[1].columns[12]=5;
     require(engine.submit(scene),engine.metrics().reason);auto second=engine.metrics();require(second.active&&second.generated_meshes==0&&second.upload_bytes<1024,"only dynamic data uploaded for skeletal animation");
+    require(engine.recording().retirement_calls==1,"next submission retires completed resources once");
+    for(int i=0;i<8;++i){engine.metrics();require(engine.recording().retirement_calls==1,"metrics cannot hide more retirement work");}
     require(engine.resources().static_upload_bytes()==0,"warm skeletal animation uploads no immutable resources");
     require(second.upload_bytes+116==first.upload_bytes-first_static_upload,"unchanged cells and neutral texture are not uploaded for bone animation");
     require(engine.recording().cell_upload_bytes==0,"warm bone updates retain the unchanged source-cell buffer");
@@ -87,6 +120,7 @@ int main(int argc,char **argv){
         require(engine.submit(scene),engine.metrics().reason);
         require(engine.metrics().upload_bytes==second.upload_bytes,"queued poses preserve the immutable neutral texture");
         require(engine.recording().frame_upload_creations==staging_creations,"queued poses retain one staging object");
+        require(engine.recording().retirement_calls==1,"retained completed fence permits one cleanup even when newer readbacks are pending");
         SDL_FRect slot{float(frame%4*160),float(frame/4*120),160,120};
         require(SDL_RenderTexture(renderer,engine.output(),nullptr,&slot),"queue a distinct pose snapshot");
     }
@@ -358,6 +392,27 @@ int main(int argc,char **argv){
     }
     if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"psx_weighted_viewmodel\":true,\"impostor_colour_minification\":true,\"multilevel_depth_and_picking\":true,\"dynamic_upload_over_2mib_checked\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
     std::printf("Full GPU scene PASS: %s / %s; animation upload %llu bytes; CPU raster=0\n",second.backend,second.device,(unsigned long long)second.upload_bytes);
+    // The imported red-dot lens uses alpha, rather than an opaque stand-in.
+    // Two front lens surfaces precede an opaque held surface in material order:
+    // they must blend after it and must not reject one another by writing depth.
+    {
+        ncmm_gpu_scene_v1 lens_scene{};lens_scene.struct_size=sizeof(lens_scene);lens_scene.width=640;lens_scene.height=480;lens_scene.mode=NCMM_GPU_FORCE;lens_scene.frame_serial=1900;
+        auto &camera=lens_scene.camera;camera.right[0]=1;camera.up[2]=1;camera.forward[1]=1;
+        camera.projection[0]=640;camera.projection[1]=480;camera.projection[2]=457;camera.projection[3]=512;camera.sun[2]=camera.sun[3]=1;camera.grid[0]=camera.grid[1]=camera.grid[2]=1;
+        ncmm_gpu_cell_v1 lens_cell{};lens_cell.flags=1;lens_cell.light[0]=lens_cell.light[1]=lens_cell.light[2]=1;lens_scene.cells=&lens_cell;lens_scene.cell_count=1;
+        std::array<ncmm_gpu_vertex_v1,9> lens_vertices{};std::array<uint32_t,9> lens_indices{};
+        for(size_t i=0;i<9;++i){const size_t material=i/3,corner=i%3;const float depth=material==0?1.f:material==1?1.3f:2.f;
+            auto &vertex=lens_vertices[i];vertex.position[0]=(corner==0?-1.f:corner==1?1.f:0.f)*depth;vertex.position[1]=depth;vertex.position[2]=(corner==2?1.f:-1.f)*depth;
+            vertex.normal[1]=vertex.face_normal[1]=-1;vertex.material=uint32_t(material);lens_indices[i]=uint32_t(i);}
+        ncmm_gpu_material_v1 lens_materials[3]{};lens_materials[0].color[0]=.95f;lens_materials[1].color[2]=.95f;lens_materials[2].color[1]=.95f;
+        for(size_t i=0;i<3;++i){lens_materials[i].color[3]=i<2?.25f:1.f;lens_materials[i].flags=NCMM_GPU_HELD_MATERIAL|NCMM_GPU_SMOOTH;}
+        ncmm_gpu_mesh_v1 lens_mesh{0x48454c444c454e53ull,lens_vertices.data(),lens_indices.data(),lens_materials,9,9,3,0};lens_scene.meshes=&lens_mesh;lens_scene.mesh_count=1;lens_scene.textures=nullptr;lens_scene.texture_count=0;
+        const auto identity=first_person::gpu::identity();lens_scene.bones=&identity;lens_scene.bone_count=1;
+        ncmm_gpu_draw_v1 lens_draw{};lens_draw.mesh_key=lens_mesh.key;lens_draw.transform=identity;lens_draw.bone_count=1;lens_draw.pass=NCMM_GPU_HELD;lens_scene.draws=&lens_draw;lens_scene.draw_count=1;
+        require(engine.submit(lens_scene),engine.metrics().reason);const uint32_t pixel=capture("-held-lenses");
+        const auto red=pixel>>24,green=(pixel>>16)&255,blue=(pixel>>8)&255;
+        require(red>8&&blue>8&&green>red&&green>blue,"held glass blends both source layers over the visible opaque surface without writing depth");
+    }
     // Leave work and an SDL composition queued while replacing the backend.
     // No read-pixels or explicit fence wait may accidentally serialize this path.
     scene.meshes=&mesh;scene.mesh_count=1;scene.draws=&draw;scene.draw_count=1;scene.textures=nullptr;scene.texture_count=0;

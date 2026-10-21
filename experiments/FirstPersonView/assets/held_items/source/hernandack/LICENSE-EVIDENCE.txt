@@ -1,0 +1,15 @@
+Author: Hernandack
+Version/publication: 2023-02-25
+Author-published source: https://opengameart.org/content/low-poly-survival-toolkit-weapon
+License: CC0-1.0
+Archive SHA256: 34dd064a7957fb2acb274a9794aa1c1b8ef8f58ac965d73e7ae385fa6571f86b
+
+Low Poly Survival Toolkit (weapon)
+Created in Blender 2.8x
+By Hernandack (www.hernandack.com / hernandack.itch.io)
+
+CC-0
+Free for personal and commercial use
+
+For the materials basically just 2, Metal and Handle (wood), use accordingly (obvious).
+Thanks.

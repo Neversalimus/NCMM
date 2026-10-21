@@ -12,11 +12,39 @@ import subprocess
 from native_library_bridge import prepare as prepare_native_library
 from native_options_bridge import prepare as prepare_deferred_options
 from native_compiler_bridge import prepare as prepare_native_compiler
+from native_atlas_bridge import prepare as prepare_native_atlas
 
 SOURCES = {
     "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83": "cdda-experimental-2026-10-01-1040",
     "074aa98bd5be3de4c35f154082db32a0e63bb0f1": "cdda-experimental-2026-10-06-1807",
 }
+
+SUBMAP_CACHE_RESET = """        // New submap changes the content of the map and all caches must be recalculated
+        set_transparency_cache_dirty( z );
+        set_seen_cache_dirty( z );
+        set_outside_cache_dirty( z );
+        set_floor_cache_dirty( z );
+        set_pathfinding_cache_dirty( z );"""
+REBASE_CACHE_RESET = """    // Make sure map cache is consistent since it may have shifted.
+    for( int zlev = -OVERMAP_DEPTH; zlev <= OVERMAP_HEIGHT; ++zlev ) {
+        here.invalidate_map_cache( zlev );
+    }"""
+
+
+def patch_native_cache_resets(map_cpp, game_cpp):
+    # Scope only pure native cache-flag writes, never submap lookup, mapgen,
+    # actualize, terrain/field edits, NPC loading or vehicle updates.
+    if map_cpp.count(SUBMAP_CACHE_RESET) != 1 or game_cpp.count(REBASE_CACHE_RESET) != 1:
+        raise ValueError("Experimental bridge requires one exact anchor: Native source cache reset")
+    flags = SUBMAP_CACHE_RESET.splitlines()[1:]
+    region = ("        const tripoint_abs_ms ncmm_source_origin = coords::project_to<coords::ms>( pos );\n"
+              "        ncmm::graphics_world_region_changed( this, ncmm_source_origin.x(), ncmm_source_origin.y(), z, SEEX, SEEY );\n"
+              "        {\n            const ncmm::graphics_native_cache_reset ncmm_source_reset( this, z );\n" +
+              '\n'.join('    ' + line for line in flags) + "\n        }")
+    rebase = REBASE_CACHE_RESET.replace('        here.invalidate_map_cache( zlev );',
+        '        const ncmm::graphics_native_cache_reset ncmm_source_reset( &here, zlev );\n        here.invalidate_map_cache( zlev );')
+    return map_cpp.replace(SUBMAP_CACHE_RESET, region, 1), game_cpp.replace(REBASE_CACHE_RESET, rebase, 1)
+
 
 def apply(root: Path):
     bridge = Path(__file__).resolve().parent
@@ -57,7 +85,7 @@ def apply(root: Path):
     loader = replace(loader, '        const size_t suspension = find_perk_index( "mom_telekinetic_suspension" );\n        const auto suspension_fail = [&]() {\n            write_gameplay_smoke_result( false, "telekinetic_suspension_encumbrance",\n                                         aws_setting_count, aws_hook_count, survivor_perk_count );\n            return 153;\n        };\n        if( suspension >= survivor_perk_count || perk_max_rank( suspension ) != 3 ) {\n            return suspension_fail();\n        }\n        npc encumbrance_npc;\n        const auto body_parts = get_avatar().get_all_body_parts();\n        if( body_parts.empty() ) return suspension_fail();\n        for( int rank : { 0, 1, 2, 3, 0 } ) {\n            if( !perk_set_rank( suspension, rank ) || !perk_recalc() ||\n                std::abs( gameplay_modifier( "encumbrance_pct" ) + 5.0 * rank ) > 0.000001 ) {\n                return suspension_fail();\n            }\n            for( int base : { 0, 1, 7, 20, 40, 100 } ) {\n                encumbrance_data fixture;\n                fixture.encumbrance = base;\n                for( const bodypart_id &bp : body_parts ) {\n                    get_avatar().set_part_encumbrance_data( bp, fixture );\n                    const int expected = ( base * ( 100 - 5 * rank ) + 50 ) / 100;\n                    // Both action accessor and direct limb-score consumer, twice:\n                    // no stale equipment cache or repeated multiplicative reduction.\n                    for( int repeat = 0; repeat < 2; ++repeat ) {\n                        if( get_avatar().encumb( bp ) != expected ||\n                            get_avatar().get_part( bp )->get_final_encumbrance( get_avatar() ) != expected ) {\n                            return suspension_fail();\n                        }\n                    }\n                    if( encumbrance_npc.has_part( bp ) ) {\n                        encumbrance_npc.set_part_encumbrance_data( bp, fixture );\n                        if( encumbrance_npc.encumb( bp ) != base ) return suspension_fail();\n                    }\n                }\n            }\n        }\n        get_avatar().calc_encumbrance();\n        if( !perk_reset() || !perk_recalc() ) return suspension_fail();\n        log_line( NCMM_LOG_INFO, "Telekinetic Suspension: all body parts, ranks 0/1/2/3/reset, rounding and NPC isolation PASS." );\n\n',
         '        const size_t suspension = find_perk_index( "mom_telekinetic_suspension" );\n        const auto suspension_fail = [&]() {\n            write_gameplay_smoke_result( false, "telekinetic_suspension_encumbrance",\n                                         aws_setting_count, aws_hook_count, survivor_perk_count );\n            return 153;\n        };\n        if( suspension >= survivor_perk_count || perk_max_rank( suspension ) != 3 ) {\n            return suspension_fail();\n        }\n        npc encumbrance_npc;\n        const auto body_parts = get_avatar().get_all_body_parts();\n        if( body_parts.empty() ) return suspension_fail();\n        for( int rank : { 0, 1, 2, 3, 0 } ) {\n            if( !perk_set_rank( suspension, rank ) || !perk_recalc() ||\n                std::abs( gameplay_modifier( "encumbrance_pct" ) + 5.0 * rank ) > 0.000001 ) {\n                return suspension_fail();\n            }\n            for( int base : { 0, 1, 7, 20, 40, 100 } ) {\n                encumbrance_data fixture;\n                fixture.encumbrance = base;\n                for( const bodypart_id &bp : body_parts ) {\n                    get_avatar().set_part_encumbrance_data( bp, fixture );\n                    // Quickstart generates a random avatar, whose mutations or\n                    // equipment can modify vanilla encumbrance before our perk.\n                    const int vanilla = static_cast<int>( std::max( 0.0,\n                                        get_avatar().enchantment_cache->modify_encumbrance( bp.id(), base ) ) );\n                    const int expected = ( vanilla * ( 100 - 5 * rank ) + 50 ) / 100;\n                    // Both action accessor and direct limb-score consumer, twice:\n                    // no stale equipment cache or repeated multiplicative reduction.\n                    for( int repeat = 0; repeat < 2; ++repeat ) {\n                        if( get_avatar().encumb( bp ) != expected ||\n                            get_avatar().get_part( bp )->get_final_encumbrance( get_avatar() ) != expected ) {\n                            log_line( NCMM_LOG_ERROR, ( "Suspension fixture mismatch: " + bp.id().str() +\n                                      " rank=" + std::to_string( rank ) + " vanilla=" + std::to_string( vanilla ) +\n                                      " expected=" + std::to_string( expected ) +\n                                      " actual=" + std::to_string( get_avatar().encumb( bp ) ) ).c_str() );\n                            return suspension_fail();\n                        }\n                    }\n                    if( encumbrance_npc.has_part( bp ) ) {\n                        encumbrance_npc.set_part_encumbrance_data( bp, fixture );\n                        const int npc_vanilla = static_cast<int>( std::max( 0.0,\n                                                encumbrance_npc.enchantment_cache->modify_encumbrance( bp.id(), base ) ) );\n                        if( encumbrance_npc.encumb( bp ) != npc_vanilla ) return suspension_fail();\n                    }\n                }\n            }\n        }\n        get_avatar().calc_encumbrance();\n        if( !perk_reset() || !perk_recalc() ) return suspension_fail();\n        log_line( NCMM_LOG_INFO, "Telekinetic Suspension: all body parts, ranks 0/1/2/3/reset, rounding and NPC isolation PASS." );\n\n')
     loader = replace(loader, '#include "ncmm_loader.h"', '#include "ncmm_loader.h"\n#include "ncmm_graphics.h"\n#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_shapes.hpp"\n#include "ncmm_graphics_policy.hpp"\n#if defined(TILES)\n#include "cata_tiles.h"\n#include "sdltiles.h"\n#include "monster.h"\n#include "mtype.h"\n#include "creature_tracker.h"\n#include "lightmap.h"\n#include "level_cache.h"\n#include "map_memory.h"\n#include "mapdata.h"\n#include "weather.h"\n#include "weather_type.h"\n#include "field.h"\n#include "item.h"\n#include "item_location.h"\n#include "vehicle.h"\n#include "veh_type.h"\n#include "vpart_position.h"\n#include "messages.h"\n#endif')
-    loader = replace(loader, '#include "ncmm_graphics_v2.h"', '#include "ncmm_graphics_v2.h"\n#include "generic_factory.h"')
+    loader = replace(loader, '#include "ncmm_graphics_v2.h"', '#include "ncmm_graphics_v2.h"\n#include "generic_factory.h"\n#if defined(TILES)\n#include "ncmm_native_atlas_pixels.hpp"\n#endif')
     loader = replace(loader, "struct loaded_mod {", "void graphics_erase( const std::string &id );\nstruct loaded_mod {")
     loader = replace(loader, '    "core.v1",', '#if defined(TILES)\n    "graphics.viewport.v1",\n    "graphics.viewport.v2",\n#endif\n    "core.v1",')
     loader = replace(loader, "const void *query_interface_v2( const char *interface_id, uint32_t min_major, uint32_t min_minor )\n{",
@@ -160,6 +188,11 @@ void initialize();''')
     # Observe successful game pathways only. No move costs, targets, damage,
     # AI, saves or return values are modified by presentation hooks.
     creature = read("creature.cpp")
+    creature_h = replace(read("creature.h"), '#include <array>', '#include <array>\n#include "ncmm_graphics_identity.hpp"')
+    updates["creature.h"] = replace(creature_h, '        ~Creature() override;',
+        '        ~Creature() override;\n'
+        '        uint64_t ncmm_graphics_entity_id() const noexcept { return ncmm_graphics_identity_.value(); }\n'
+        '    private:\n        ncmm_graphics_identity::lifetime ncmm_graphics_identity_;\n    public:')
     creature = replace(creature, "int Creature::deal_melee_attack( Creature *source, int hitroll )\n{", "int Creature::deal_melee_attack( Creature *source, int hitroll )\n{\n    if( source ) ncmm::graphics_note_creature( source, 1, std::atan2( float( pos_abs().y() - source->pos_abs().y() ), float( pos_abs().x() - source->pos_abs().x() ) ) );")
     updates["creature.cpp"] = replace(creature, "    apply_damage( source, bp, total_damage );", "    apply_damage( source, bp, total_damage );\n    if( total_damage > 0 ) ncmm::graphics_note_creature( this, 3 );")
     ballistic = read("ballistics.cpp")
@@ -221,7 +254,7 @@ void initialize();''')
     import re
     updates["sdltiles.cpp"] = re.sub(r'(?m)^(\s*)renderer\.reset\(\);', r'\1ncmm::graphics_release_gpu();\n\1renderer.reset();', updates["sdltiles.cpp"])
     updates["sdltiles.cpp"] = replace(updates["sdltiles.cpp"], "        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );", "        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n        const bool ncmm_mouse_allowed = !cataimgui::client::want_capture_mouse();\n        if( ev.type == SDL_EVENT_WINDOW_FOCUS_LOST ) ncmm::graphics_mouse_event( 4, 0, 0, 0, 0, false );\n        if( ev.type == SDL_EVENT_MOUSE_MOTION && ncmm::graphics_mouse_event( 3, ev_display.motion.x, ev_display.motion.y, ev.motion.xrel, ev.motion.yrel, ncmm_mouse_allowed ) ) continue;\n        if( ( ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN || ev.type == SDL_EVENT_MOUSE_BUTTON_UP ) && ev.button.button == SDL_BUTTON_RIGHT &&\n            ncmm::graphics_mouse_event( ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? 1u : 2u, ev_display.button.x, ev_display.button.y, 0, 0, ncmm_mouse_allowed ) ) continue;")
-    updates["sdltiles.h"] = replace(read("sdltiles.h"), "SDL_Window *get_sdl_window();", "SDL_Window *get_sdl_window();\nvoid ncmm_draw_perspective_label( const std::string &, int, int, const SDL_Rect & );")
+    updates["sdltiles.h"] = replace(read("sdltiles.h"), "SDL_Window *get_sdl_window();", "SDL_Window *get_sdl_window();\nvoid ncmm_draw_perspective_label( const std::string &, int, int, const SDL_Rect & );\nvoid ncmm_draw_perspective_target( const std::string &, int, int, const SDL_Rect &, bool, float );")
     updates["sdltiles.cpp"] += """
 #if defined(TILES)
 // Reuse CDDA's configured font and Unicode fallback list, not a Latin-only bitmap.
@@ -277,6 +310,10 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     tiles_cpp = tiles_cpp[:start] + lookup + tiles_cpp[start:]
     load_anchor = "                               const bool force, const bool pump_events, const bool terrain )\n{"
     updates["cata_tiles.cpp"] = replace(tiles_cpp, load_anchor, load_anchor + "\n    ++ncmm_graphics_epoch;")
+    updates["tileset_loader.h"],updates["tileset_loader.cpp"] = prepare_native_atlas(read("tileset_loader.h"),read("tileset_loader.cpp"))
+    if (root/"src/ncmm_native_atlas_pixels.hpp").exists():
+        raise ValueError("Experimental source already exists: ncmm_native_atlas_pixels.hpp")
+    updates["ncmm_native_atlas_pixels.hpp"] = (bridge/"ncmm_native_atlas_pixels.hpp").read_text(encoding="utf-8")
     for name in ("ncmm_graphics.h", "ncmm_graphics_v2.h", "ncmm_graphics_shapes.hpp", "ncmm_graphics_policy.hpp", "ncmm_graphics_controls.h", "ncmm_graphics_camera.hpp", "ncmm_graphics_controls.inc", "ncmm_graphics_presentation.h", "ncmm_graphics_presentation_policy.hpp", "ncmm_graphics_presentation.inc", "ncmm_graphics_creatures.h", "ncmm_graphics_creature_policy.hpp", "ncmm_graphics_performance.hpp", "ncmm_graphics_creatures.inc", "ncmm_graphics_creature_smoke.inc", "ncmm_graphics_appearance_smoke.inc", "ncmm_graphics_composite.hpp", "ncmm_graphics_gpu.h", "ncmm_gpu_validation.hpp", "ncmm_gpu_device.hpp", "ncmm_gpu_shader_bytes.hpp", "ncmm_gpu_probe.hpp", "ncmm_gpu_probe_smoke.inc", "ncmm_gpu_game_smoke.inc", "ncmm_gpu_benchmark.inc", "ncmm_gpu_backend.hpp", "ncmm_gpu_geometry.hpp", "ncmm_gpu_programs.hpp", "ncmm_gpu_resources.hpp", "ncmm_graphics_gpu.inc", "ncmm_graphics_effects.inc", "ncmm_graphics_bridge.inc", "ncmm_graphics_hybrid.inc", "ncmm_graphics_smoke.inc"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
@@ -284,9 +321,23 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     if (root / "src/ncmm_graphics_trace_capture.inc").exists():
         raise ValueError("Experimental trace fixture already exists")
     updates["ncmm_graphics_trace_capture.inc"] = (bridge / "ncmm_graphics_trace_capture.inc").read_text(encoding="utf-8")
+    # Owned held-item metadata is optional; existing public interfaces retain their layouts.
+    for name in ("ncmm_graphics_held.h", "ncmm_graphics_held.inc", "ncmm_graphics_held_gallery.inc"):
+        if (root / "src" / name).exists():
+            raise ValueError("Experimental source already exists: " + name)
+        updates[name] = (bridge / name).read_text(encoding="utf-8")
+    updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '#include "ncmm_graphics_v2.h"',
+        '#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_held.h"')
+    updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '    "graphics.controls.v1",',
+        '    "graphics.controls.v1",\n    "graphics.held.v1",')
+    updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
+        '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CONTROLS_ID ) {',
+        '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_HELD_ID ) {\n'
+        '        return min_major <= 1 && min_minor == 0 ? &graphics_held_api : nullptr;\n    }\n'
+        '    if( interface_id && std::string( interface_id ) == NCMM_GRAPHICS_CONTROLS_ID ) {')
     # Optional world-space interface, independent of the old V1/V2 layouts.
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '#include "ncmm_graphics_v2.h"',
-        '#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_multilevel.h"\n#include "ncmm_world_cache.hpp"\n#include "ncmm_world_lod.hpp"\n#include "overmap.h"\n#include "overmapbuffer.h"\n#include "omdata.h"\n#include "avatar_action.h"\n#include "game_inventory.h"\n#include "pickup.h"\n#include "visitable.h"\n#include "debug.h"\n#include "gamemode.h"\n#include <functional>\n#include <atomic>\n#include <thread>\n#include <unordered_map>\n#include <string_view>\n#include <locale>')
+        '#include "ncmm_graphics_v2.h"\n#include "ncmm_graphics_multilevel.h"\n#include "ncmm_world_cache.hpp"\n#include "ncmm_graphics_scratch.hpp"\n#include "ncmm_world_lod.hpp"\n#include "overmap.h"\n#include "overmapbuffer.h"\n#include "omdata.h"\n#include "avatar_action.h"\n#include "game_inventory.h"\n#include "pickup.h"\n#include "visitable.h"\n#include "debug.h"\n#include "gamemode.h"\n#include <functional>\n#include <atomic>\n#include <thread>\n#include <unordered_map>\n#include <string_view>\n#include <locale>')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '    "graphics.viewport.v2",',
         '    "graphics.viewport.v2",\n    "graphics.multilevel.v1",')
     updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
@@ -340,7 +391,7 @@ void ncmm_draw_perspective_label( const std::string &text, int x, int y, const S
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "class input_context;", "class map;\nclass input_context;")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", "void graphics_before_present();\nvoid graphics_frame_presented();\nvoid initialize();")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();",
-        "void graphics_note_input_wait( const std::string &, bool text );\nvoid graphics_note_input_result( const std::string &, const std::string & );\nvoid graphics_note_terrain_composed( bool perspective );\nvoid graphics_world_changed( const map *, int z );\nvoid initialize();")
+        "void graphics_note_input_wait( const std::string &, bool text );\nvoid graphics_note_input_result( const std::string &, const std::string & );\nvoid graphics_note_terrain_composed( bool perspective );\nvoid graphics_world_changed( const map *, int z );\nvoid graphics_world_region_changed( const map *, int32_t x, int32_t y, int z, int width, int height );\nvoid initialize();")
     updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], "void initialize();", '''// Main-thread input lifetime only; existing public module headers are unchanged.
 uint64_t graphics_input_wait_begin( const std::string &category );
 uint64_t graphics_native_input_loop_begin();
@@ -357,6 +408,13 @@ public:
     graphics_input_wait_scope &operator=( const graphics_input_wait_scope & ) = delete;
 };
 void initialize();''')
+    updates["ncmm_loader.h"] = replace(updates["ncmm_loader.h"], '#include <cstdint>',
+        '#include <cstdint>\n#include "ncmm_graphics_invalidation.hpp"')
+    updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"],
+        "void graphics_world_changed( const map *source, int z )\n{",
+        "void graphics_world_region_changed( const map *source, int32_t x, int32_t y, int z, int width, int height )\n{\n"
+        "    graphics_world_region_changed_impl( source, x, y, z, width, height );\n}\n"
+        "void graphics_world_changed( const map *source, int z )\n{")
     updates["game.h"]=replace(read("game.h"), "        bool save();",
         "        bool save();\n"
         "        // Isolated qualification gateway; not part of a module API.\n"
@@ -394,8 +452,27 @@ void initialize();''')
         ("void map::set_floor_cache_dirty( const int zlev )", "zlev"),
     ):
         map_cpp=replace(map_cpp, signature+"\n{", signature+"\n{\n    ncmm::graphics_world_changed( this, "+level+" );")
+    game_cpp=updates["game.cpp"] if "game.cpp" in updates else read("game.cpp")
+    if '#include "ncmm_loader.h"' not in game_cpp:
+        game_cpp=replace(game_cpp,'#include "game.h"','#include "game.h"\n#include "ncmm_loader.h"')
+    map_cpp,game_cpp=patch_native_cache_resets(map_cpp,game_cpp)
+    # Identifier-based graphics semantics can change even when Native lighting
+    # flags stay equal. These calls follow the actual changed-definition stores;
+    # the Native equal-ID early returns still perform no graphics invalidation.
+    for store in ('    current_submap->set_ter( l, new_terrain );',
+                  '    current_submap->set_furn( l, new_target_furniture );'):
+        map_cpp=replace(map_cpp,store,store+
+            '\n    const tripoint_abs_ms ncmm_changed_cell = get_abs( p );'
+            '\n    ncmm::graphics_world_region_changed( this, ncmm_changed_cell.x(), ncmm_changed_cell.y(), p.z(), 1, 1 );')
+    # Transparent fields may change the private renderable fact without dirtying
+    # Native transparency. All Native field processors already notify here.
+    field_modified="void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type )\n{"
+    map_cpp=replace(map_cpp,field_modified,field_modified+
+        '\n    const tripoint_abs_ms ncmm_changed_field = get_abs( p );'
+        '\n    ncmm::graphics_world_region_changed( this, ncmm_changed_field.x(), ncmm_changed_field.y(), p.z(), 1, 1 );')
     updates["map.cpp"]=map_cpp
-    for name in ("ncmm_graphics_trace.hpp","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc"):
+    updates["game.cpp"]=game_cpp
+    for name in ("ncmm_graphics_invalidation.hpp","ncmm_graphics_trace.hpp","ncmm_graphics_snapshot_cache.hpp","ncmm_graphics_camera_input.inc","ncmm_graphics_camera_pixels.inc","ncmm_graphics_deferred_options_smoke.inc","ncmm_graphics_context.hpp","ncmm_graphics_fire_audit.inc","ncmm_graphics_multilevel.h","ncmm_world_policy.hpp","ncmm_world_cache.hpp","ncmm_world_lod.hpp","ncmm_graphics_scratch.hpp","ncmm_graphics_lod.inc","ncmm_graphics_world.inc","ncmm_graphics_multilevel_smoke.inc","ncmm_graphics_multilevel_save_smoke.inc","ncmm_graphics_gameplay_audit.inc","ncmm_graphics_movement_benchmark.inc","ncmm_graphics_identity.hpp","ncmm_graphics_target.hpp"):
         if (root / "src" / name).exists():
             raise ValueError("Experimental source already exists: " + name)
         updates[name]=(bridge/name).read_text(encoding="utf-8")
@@ -410,6 +487,15 @@ void initialize();''')
             raise ValueError("Experimental source already exists: " + name)
         updates[name] = path.read_text(encoding="utf-8")
 
+    updates["ncmm_loader.cpp"] = replace(updates["ncmm_loader.cpp"], '#include "ncmm_graphics_context.hpp"',
+        '#include "ncmm_graphics_context.hpp"\n#include "ncmm_graphics_target.hpp"')
+    updates["sdltiles.cpp"] += '\n#include "ncmm_graphics_target_sdl.inc"\n'
+    if (root / "src/ncmm_graphics_target_sdl.inc").exists():
+        raise ValueError("Experimental source already exists: ncmm_graphics_target_sdl.inc")
+    updates["ncmm_graphics_target_sdl.inc"]=(bridge/"ncmm_graphics_target_sdl.inc").read_text(encoding="utf-8")
+    if (root / "src/ncmm_graphics_target_smoke.inc").exists():
+        raise ValueError("Experimental source already exists: ncmm_graphics_target_smoke.inc")
+    updates["ncmm_graphics_target_smoke.inc"]=(bridge/"ncmm_graphics_target_smoke.inc").read_text(encoding="utf-8")
     # No writes above this line. No save/installation/feed/catalog changes.
     for name, content in updates.items():
         (root / "src" / name).parent.mkdir(parents=True,exist_ok=True)

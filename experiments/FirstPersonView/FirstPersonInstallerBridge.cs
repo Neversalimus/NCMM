@@ -69,7 +69,9 @@ internal static partial class SetupCore
         if (!bundle.files.TryGetValue("host/cataclysm-tiles.ncmm.exe", out recordedHost) || recordedHost != bundle.host_sha256 ||
             !bundle.files.ContainsKey("cataclysm-tiles.ncmm-bootstrap.exe") ||
             !bundle.files.ContainsKey("code_mods/FirstPersonView/ncmm_mod.dll") ||
-            !bundle.files.ContainsKey("code_mods/FirstPersonView/mod.json"))
+            !bundle.files.ContainsKey("code_mods/FirstPersonView/mod.json") ||
+            !bundle.files.ContainsKey("code_mods/FirstPersonView/held-assets.manifest.json") ||
+            !bundle.files.ContainsKey("code_mods/FirstPersonView/held-assets-licenses.txt"))
             throw new InvalidOperationException("First Person View package inventory is incomplete.");
         return bundle;
     }

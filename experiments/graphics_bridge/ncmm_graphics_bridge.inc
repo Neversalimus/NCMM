@@ -51,6 +51,7 @@ size_t graphics_snapshot_light_queries = 0;
 std::chrono::steady_clock::time_point graphics_snapshot_begun;
 double graphics_snapshot_ms = 0, graphics_callback_ms = 0, graphics_presentation_ms = 0;
 void graphics_clear_hybrid();
+void graphics_clear_target();
 void graphics_clear_gpu();
 void graphics_release_mouse();
 void graphics_cancel_animation();
@@ -78,7 +79,7 @@ int graphics_enable( const char *id, int enabled )
     const bool changed = graphics_view.enabled != ( enabled != 0 );
     graphics_view.enabled = enabled != 0;
     if( changed || !graphics_view.enabled ) graphics_cancel_animation();
-    if( !graphics_view.enabled ) { graphics_release_mouse(); graphics_clear_gpu(); graphics_clear_world(); }
+    if( !graphics_view.enabled ) { graphics_clear_target(); graphics_release_mouse(); graphics_clear_gpu(); graphics_clear_world(); }
 #if defined(TILES)
     if( changed && character_state_available() ) {
         add_msg( m_info, "%s", graphics_view.enabled ?
@@ -171,6 +172,7 @@ bool graphics_action( const std::string &action )
 
 bool graphics_world_needs_redraw();
 #include "ncmm_graphics_controls.inc"
+#include "ncmm_graphics_held.inc"
 #include "ncmm_graphics_hybrid.inc"
 #include "ncmm_graphics_world.inc"
 
@@ -405,4 +407,5 @@ bool graphics_draw( int x, int y, int width, int height )
 
 // Only the existing explicit --ncmm-gameplay-smoke path invokes this fixture.
 // It runs in a disposable CI game copy, after the real world/avatar are loaded.
+#include "ncmm_graphics_held_gallery.inc"
 #include "ncmm_graphics_smoke.inc"

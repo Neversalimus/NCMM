@@ -81,6 +81,8 @@ jobs:
         run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_compare_fullsize_modes.py -v
       - name: Reject hidden native map flashes, CPU fallback and corrupt firing captures
         run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_fire_audit.py -v
+      - name: Reject stale target identities, invented HP and hidden targets
+        run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_target_audit.py -v
       - name: Reject changed or partial private SDL graphics dependencies
         run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_native_sdl_bridge.py -v
       - name: Keep isolated Linux startup language and deferred values explicit
@@ -94,6 +96,7 @@ jobs:
           ./experiments/FirstPersonView/tests/Test-BenchmarkCapture.ps1
           ./experiments/FirstPersonView/tests/Test-BenchmarkDataCopy.ps1
           ./experiments/FirstPersonView/tests/Test-CompilerWrapper.ps1
+          ./experiments/FirstPersonView/tests/Test-HeldPackage.ps1
       - name: Diagnostic environment isolation on Windows PowerShell
         if: runner.os == 'Windows'
         shell: powershell
@@ -103,6 +106,7 @@ jobs:
           ./experiments/FirstPersonView/tests/Test-BenchmarkPaths.ps1
           ./experiments/FirstPersonView/tests/Test-BenchmarkCapture.ps1
           ./experiments/FirstPersonView/tests/Test-BenchmarkDataCopy.ps1
+          ./experiments/FirstPersonView/tests/Test-HeldPackage.ps1
       - name: Configure isolated module
         run: cmake -S experiments/FirstPersonView -B fp-build -DCMAKE_BUILD_TYPE=Release -DFIRST_PERSON_BUILD_BENCHMARK=ON
       - name: Build prototype and contract tests
@@ -111,9 +115,14 @@ jobs:
         run: ctest --test-dir fp-build -C Release --output-on-failure
       - name: Offline PSX importer malformed-input and determinism checks
         run: python -B experiments/FirstPersonView/tests/test_import_psx_arms.py -v
-      - name: Native firing pixel verifier negative tests
+      - name: Offline held resource conversion and malformed-input checks
         run: |
           python -m pip install --disable-pip-version-check pillow==11.3.0
+          python -B experiments/FirstPersonView/tests/test_import_held_items.py -v
+          python -B experiments/FirstPersonView/tests/test_verify_held_gallery.py -v
+          python -B experiments/FirstPersonView/tools/import_held_items.py --selection experiments/FirstPersonView/assets/held_items/selection.json --output experiments/FirstPersonView/assets/held_items/generated --check
+      - name: Native firing pixel verifier negative tests
+        run: |
           python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_fire_pixels.py -v
       - name: Record renderer timing and work counters (no FPS threshold)
         run: cmake --build fp-build --config Release --target first_person_measure
@@ -122,19 +131,19 @@ jobs:
         run: cmake -S experiments/FirstPersonView -B fp-cache-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
       - name: Build focused cache and facade sanitizers
         if: runner.os == 'Linux'
-        run: cmake --build fp-cache-sanitize --parallel 2 --target first_person_snapshot_cache_tests first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_gpu_cache_tests first_person_facade_continuity_tests first_person_viewmodel_asset_tests first_person_viewmodel_rig_tests first_person_viewmodel_gpu_tests
+        run: cmake --build fp-cache-sanitize --parallel 2 --target first_person_snapshot_cache_tests first_person_scene_signature_tests first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_gpu_cache_tests first_person_facade_continuity_tests first_person_viewmodel_asset_tests first_person_viewmodel_rig_tests first_person_viewmodel_gpu_tests
       - name: ASan and UBSan sparse coordinates, face masks and facade continuity
         if: runner.os == 'Linux'
-        run: ctest --test-dir fp-cache-sanitize -R "^first_person_(snapshot_cache|multilevel_(policy|cache|gpu_cache)|facade_continuity|viewmodel_(asset|rig|gpu))$" --output-on-failure
+        run: ctest --test-dir fp-cache-sanitize -R "^first_person_(snapshot_cache|scene_signature|multilevel_(policy|cache|gpu_cache)|facade_continuity|viewmodel_(asset|rig|gpu))$" --output-on-failure
       - name: Configure sanitizer coverage
         if: runner.os == 'Linux' && needs.qualification_plan.outputs.full == 'true'
         run: cmake -S experiments/FirstPersonView -B fp-sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIRST_PERSON_SANITIZE=ON
       - name: Build sanitizer geometry and shared-module tests
         if: runner.os == 'Linux' && needs.qualification_plan.outputs.full == 'true'
-        run: cmake --build fp-sanitize --parallel 2 --target first_person_camera_motion_tests first_person_optimization_tests first_person_hybrid_module_tests first_person_creature_semantics_tests first_person_creature_mesh_tests first_person_creature_appearance_tests first_person_creature_animation_tests first_person_creature_lod_tests first_person_creature_cache_tests first_person_creature_render_tests first_person_creature_module_tests first_person_gpu_contract_tests first_person_gpu_geometry_tests first_person_gpu_module_tests first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_render_tests first_person_multilevel_module_tests first_person_multilevel_gpu_cache_tests
+        run: cmake --build fp-sanitize --parallel 2 --target first_person_camera_motion_tests first_person_target_hud_tests first_person_optimization_tests first_person_hybrid_module_tests first_person_creature_semantics_tests first_person_creature_mesh_tests first_person_creature_appearance_tests first_person_creature_animation_tests first_person_creature_lod_tests first_person_creature_cache_tests first_person_creature_render_tests first_person_creature_module_tests first_person_gpu_contract_tests first_person_gpu_geometry_tests first_person_gpu_module_tests first_person_multilevel_policy_tests first_person_multilevel_cache_tests first_person_multilevel_render_tests first_person_multilevel_module_tests first_person_multilevel_gpu_cache_tests
       - name: ASan and UBSan camera, volume and DLL lifecycle coverage
         if: runner.os == 'Linux' && needs.qualification_plan.outputs.full == 'true'
-        run: ctest --test-dir fp-sanitize -R "camera_motion|optimization|hybrid_module|creature_|gpu_|multilevel_" --output-on-failure
+        run: ctest --test-dir fp-sanitize -R "camera_motion|target_hud|optimization|hybrid_module|creature_|gpu_|multilevel_" --output-on-failure
       - name: Atomic source-transform negative tests
         run: python -m unittest discover -s experiments/graphics_bridge -p test_apply_graphics_bridge.py -v
       - uses: actions/upload-artifact@v4
@@ -161,7 +170,7 @@ jobs:
             source: 074aa98bd5be3de4c35f154082db32a0e63bb0f1
             tag: cdda-experimental-2026-10-06-1807
     runs-on: windows-2022
-    timeout-minutes: 270
+    timeout-minutes: 360
     env:
       FP_FULL_QUALIFICATION: ${{ needs.qualification_plan.outputs.full }}
       GH_TOKEN: ${{ github.token }}
@@ -471,6 +480,49 @@ jobs:
             ${{ runner.temp }}/fp-camera-input/evidence/first-person-audit-progress.txt
           if-no-files-found: ignore
           retention-days: 7
+      - name: Native held models, actual attachments, ammunition and CPU/GPU captures
+        timeout-minutes: 15
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $output=Join-Path $env:RUNNER_TEMP 'fp-held-gallery'
+          try {
+            ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -HeldAssetGallery -CaptureCrashDump -GpuDebug
+            python -B ncmmrepo/experiments/FirstPersonView/tests/verify_held_gallery.py --root (Join-Path $output 'evidence') --output (Join-Path $output 'evidence/first-person-held-gallery-verified.json')
+            if($LASTEXITCODE -ne 0){throw 'Native held model/state/capture verification failed.'}
+          } finally {
+            $dest=Join-Path $PWD 'installer-result/held-gallery'
+            New-Item -ItemType Directory -Path $dest -Force | Out-Null
+            $evidence=Join-Path $output 'evidence'
+            if(Test-Path -LiteralPath $evidence){
+              Get-ChildItem -LiteralPath $evidence -File | Where-Object {$_.Name -like 'first-person-held-*' -or $_.Name -eq 'first-person-process-result.json'} | Copy-Item -Destination $dest
+            }
+          }
+      - name: Native target HP, visibility, large and flying creatures, wide viewport
+        timeout-minutes: 15
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $output=Join-Path $env:RUNNER_TEMP 'fp-target-gallery'
+          try {
+            ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -TargetHudGallery -CaptureCrashDump -GpuDebug
+            python -B ncmmrepo/experiments/FirstPersonView/tests/verify_target_audit.py --root (Join-Path $output 'evidence') --output (Join-Path $output 'evidence/first-person-target-verified.json')
+            if($LASTEXITCODE -ne 0){throw 'Native target HUD capture verification failed.'}
+          } finally {
+            $dest=Join-Path $PWD 'installer-result/target-gallery'
+            New-Item -ItemType Directory -Path $dest -Force | Out-Null
+            $evidence=Join-Path $output 'evidence'
+            if(Test-Path -LiteralPath $evidence){
+              Get-ChildItem -LiteralPath $evidence -File | Where-Object {$_.Name -like 'first-person-target-*' -or $_.Name -like 'first-person-audit-target-hud-*' -or $_.Name -eq 'first-person-process-result.json'} | Copy-Item -Destination $dest
+            }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: first-person-target-gallery-${{ matrix.build }}
+          path: ${{ runner.temp }}/fp-target-gallery/evidence/**
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Fast native multi-Z save-load gate before the full gallery
         timeout-minutes: 10
         shell: powershell
@@ -529,6 +581,9 @@ jobs:
           python -m pip install --disable-pip-version-check pillow==11.3.0
           python ncmmrepo/experiments/FirstPersonView/tests/verify_fire_pixels.py --root $evidence --output installer-result/first-person-fire-pixels-verified.json
           if($LASTEXITCODE -ne 0){throw 'Native firing UI/presented-frame verification failed.'}
+          python ncmmrepo/experiments/FirstPersonView/tests/verify_target_audit.py --root $evidence --output installer-result/first-person-target-verified.json
+          if($LASTEXITCODE -ne 0){throw 'Native target HUD verification failed.'}
+          Copy-Item (Join-Path $evidence 'first-person-target-audit.json') installer-result/first-person-target-audit.json
           Copy-Item (Join-Path $evidence 'first-person-fire-audit.json') installer-result/first-person-fire-audit.json
           $fireImages=Join-Path $PWD 'installer-result/fire-ui'
           New-Item -ItemType Directory -Path $fireImages | Out-Null
@@ -702,6 +757,10 @@ jobs:
             if($variant.name -eq 'graphics' -and (Test-Path $movement)){Copy-Item $movement (Join-Path fp-evidence 'movement') -Recurse -Force}
             $cameraInput=Join-Path $env:RUNNER_TEMP 'fp-camera-input/evidence'
             if($variant.name -eq 'graphics' -and (Test-Path -LiteralPath $cameraInput)){Copy-Item -LiteralPath $cameraInput (Join-Path fp-evidence 'camera-input') -Recurse -Force}
+            $heldGallery=Join-Path $env:RUNNER_TEMP 'fp-held-gallery/evidence'
+            if($variant.name -eq 'graphics' -and (Test-Path -LiteralPath $heldGallery)){Copy-Item -LiteralPath $heldGallery (Join-Path fp-evidence 'held-gallery') -Recurse -Force}
+            $targetGallery=Join-Path $env:RUNNER_TEMP 'fp-target-gallery/evidence'
+            if($variant.name -eq 'graphics' -and (Test-Path -LiteralPath $targetGallery)){Copy-Item -LiteralPath $targetGallery (Join-Path fp-evidence 'target-gallery') -Recurse -Force}
             $debug=Join-Path $env:RUNNER_TEMP ("fp-appearance-"+'${{ matrix.build }}'+'-'+$variant.name)
             if(Test-Path $debug){Copy-Item $debug (Join-Path fp-evidence ('appearance-debug-'+$variant.name)) -Recurse -Force}
           }
@@ -716,6 +775,8 @@ jobs:
             fp-evidence/focused-gpu*/**
             fp-evidence/movement/**
             fp-evidence/camera-input/**
+            fp-evidence/held-gallery/**
+            fp-evidence/target-gallery/**
           compression-level: 9
           retention-days: 7
       - uses: actions/upload-artifact@v4
@@ -740,9 +801,12 @@ jobs:
           path: |
             installer-result/first-person-release-verified.json
             installer-result/camera-input-*.json
+            installer-result/held-gallery/**
+            installer-result/target-gallery/**
             installer-result/first-person-movement-*.json
             installer-result/first-person-movement-*.bmp
             installer-result/first-person-gameplay*.json
+            installer-result/first-person-target*.json
             installer-result/first-person-audit*.bmp
             installer-result/first-person-baseline-provenance.json
             installer-result/first-person-multilevel*.json

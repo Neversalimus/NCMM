@@ -576,8 +576,8 @@
                   },
                   {
                       "path":  "THIRD_PARTY_NOTICES.txt",
-                      "sha256":  "2b3786596cdb0d18fa1fa0381acccd38b681205b9900ff6564325aaf7994cd78",
-                      "bytes":  5011
+                      "sha256":  "c677cb20e81290868d03586f1314839de1199398fca4d153934769343edca86e",
+                      "bytes":  7195
                   },
                   {
                       "path":  "tools\\Collect-NCMMDiagnostics.ps1",

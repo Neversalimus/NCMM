@@ -1,0 +1,73 @@
+{
+  "schema": 1,
+  "prepared_parent": "b19c7220d3202cd3d4c6cc6424c1801598983b13",
+  "selected_core": "16914b97c8e57e32207266d098c250258db936ea",
+  "runtime_files": {
+    ".github/workflows/ncmm-first-person-prototype.yml": "a614b4ef6371d98f5e0febd24be598fd0dac0b2f49921d3f5c23596389e7fa2e",
+    "experiments/FirstPersonView/src/gpu_scene.hpp": "0092a9f0c9780a2a4e81b1060780929266ecee3faa13017e8b86e5a29c45d264",
+    "experiments/FirstPersonView/tests/gpu_scene_test.cpp": "af7cb07f05800fb9a2e5e22762b82031e79a26ea085e331833695716c9ceb50c",
+    "experiments/FirstPersonView/tests/scene_signature_test.cpp": "d35a35871d99df9729819cccd22a9b3f1e94c1d9543fe70d4a428494016e6414",
+    "experiments/graphics_bridge/ncmm_gpu_backend.hpp": "fbb2f7466db05bbd07363cefbb1ad03f334fb0e0f27a01aeb4aed7f3e2163a94",
+    "experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc": "3ae6b7e1b41ea527d5e7b6bea48e92fa36e68a297b797812c3e01545fd511b6f"
+  },
+  "source_proof_sha256": "9672dee797828ac0e732d1c72ecb9b6b7c9de0de998f2efc4821202b11b0a553",
+  "common_feature_preservation": "Four automatic files reverse-merge to original Common bytes. Harness uses exactly three producer stream edits; workflow unions sanitizer coverage and only extends Windows total timeout.",
+  "local_tests": {
+    "ctest": 41,
+    "atomic": 17,
+    "qualification_policy": 9,
+    "all_registered_ctests_run": true,
+    "gpu_receipt_sha256": "7fbf794e4af6116a5f08532c1ec042587cbae651308ec378a38ec5b0a72b4a71",
+    "guard_receipt_sha256": "f4d25a67e1d7f33005ef2fd69cecb001b757c7e050bf8116eb854d39088269de",
+    "logs_sha256": {
+      "configure.log": "82467105a3e7e05a5f361401c4344d7481b1b73fef991aeee43785d76b305632",
+      "build.log": "4439769fbe0892df40a15b61bc7d654bfdaa0d022e0447ad80ac140f0665e7a2",
+      "ctest.log": "7a70b156d7f24395d54ccd5baeae430151f37b9c097d46774724523ca52e0a4c",
+      "ctest-catalog.json": "857bab03303797a2fb320e6701a147d309d8d01fccb7ced1002b4e8ded4e85e1"
+    }
+  },
+  "production_sdk_manifest_sha256": "4510d96c09bbc863570ccbb051f47f75d561ec0d5d05d8a4f50c79ce889993b0",
+  "core_standalone_only": {
+    "source": "16914b97c8e57e32207266d098c250258db936ea",
+    "plan_sha256": "e65c89d24504df63342930bc082d48731a3f12607cc38d2bcf2b1d971c52c161",
+    "result_sha256": "dc41bff62d25545b068db11076d50a632dc3cd7d270f73a412ae75cb93d47daf",
+    "report_sha256": "ec3c149d7865ce2a73f3fdea2e5cc6e7d2b02ab63483245913f9c8e5b043b299",
+    "repeated_regressions": 0,
+    "repeated_improvements": 128,
+    "first_observations": 2816,
+    "camera_observations": 8448,
+    "candidate_first_median_range_ms": [
+      9.4702,
+      15.003499999999999
+    ],
+    "candidate_first_within_15ms": 1277,
+    "candidate_first_samples": 1408,
+    "candidate_first_maximum_ms": 47.1147,
+    "single_direction_negatives": 17,
+    "tail_audit_sha256": "6adbb021caf50a23fdc80719ea2b197f3c838274d9df9bcd4c7ce3d02821cbe0",
+    "all_candidate_warm_cleanup_calls": 1,
+    "candidate_warm_samples": 2112
+  },
+  "earlier_common_negative": {
+    "source": "b19c7220d3202cd3d4c6cc6424c1801598983b13",
+    "result_sha256": "bedd0187257f759a8e33bc03e1c13b1c75b85051241b0877f10787ef99bdd9a7",
+    "repeated_regressions": 45,
+    "repeated_improvements": 698
+  },
+  "actual_common_native_tested": false,
+  "common_performance_accepted": false,
+  "final_qualification_complete": false,
+  "merge_allowed": false,
+  "pending": [
+    "Full Windows and actual Linux Native1040/1807",
+    "Fresh exact-package source/field oracle",
+    "Complete Main/Core/four Common modes in both orders, retaining all tails",
+    "Unchanged-binary GPU debug/lifecycle, galleries, maps/saves and >=1800s load"
+  ],
+  "limits": [
+    "Controlled render/action timings omit ordinary AI and OS input dispatch",
+    "CPU wall is not GPU execution",
+    "No all-frame15ms guarantee",
+    "Manual battle and physical high-DPI remain unverified"
+  ]
+}

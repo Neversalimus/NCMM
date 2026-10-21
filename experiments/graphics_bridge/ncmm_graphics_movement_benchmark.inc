@@ -32,6 +32,13 @@
     require(!full_size_gpu_matrix||(extended&&!trace_capture),"full_size_gpu_matrix_requires_ordinary_extended_run");
     struct readback_profile_guard {bool previous;~readback_profile_guard(){graphics_sprite_readbacks.enabled=previous;}} readback_guard{graphics_sprite_readbacks.enabled};
     graphics_sprite_readbacks.enabled=extended;
+    // Short functional/source-oracle runs compare every new CPU source crop
+    // with the original GPU path. The existing explicit cache differential
+    // does too. Ordinary Extended timings never enable these extra checks.
+    const char *atlas_verify=std::getenv("NCMM_FP_CAMERA_CACHE_VERIFY");
+    struct atlas_verify_guard {bool prior;~atlas_verify_guard(){graphics_native_atlas_verify=prior;}} atlas_guard{graphics_native_atlas_verify};
+    graphics_native_atlas_verify=!extended||(atlas_verify&&std::string(atlas_verify)=="1");
+    graphics_native_atlas_verified=graphics_native_atlas_mismatches=0;
     const int steps=extended?64:12,rotations=extended?96:48;
     const auto benchmark_weather=get_weather().weather_id;
     std::vector<std::string> scenes=trace_capture?std::vector<std::string>{trace_scene=="city"?"city_blocks":trace_scene=="smoke"?"smoke_rain":trace_scene=="hands"||trace_scene=="shot"?"armed":"street"}:extended?std::vector<std::string>{"street","city_blocks","dense_city","forest","multi_level_horde","creatures_20","creatures_100","smoke_rain","armed","empty_attacks"}:
@@ -93,15 +100,19 @@
             std::vector<double> native_tiles_ms,perspective_ms,present_ms,unattributed_ms,extract_ms,callback_ms,upload_ms,record_ms,submit_ms;
             std::vector<uint32_t> first_frame_indices;
             std::vector<double> thread_cpu_ms,process_cpu_ms,sprite_readback_ms;
-            std::vector<uint64_t> sprite_readback_attempts,sprite_cache_bytes,gpu_generated_cells;
+            std::vector<uint64_t> sprite_readback_attempts,sprite_cache_bytes,gpu_generated_cells,native_atlas_cache_bytes;
             std::vector<uint64_t> frame_upload_capacity,frame_upload_creations;
             std::vector<double> cell_prepare_ms;
+            std::vector<double> retirement_ms,post_present_metrics_ms;std::vector<uint64_t> retirement_calls;
             std::vector<uint64_t> cell_upload_bytes,cell_cache_bytes;
             std::vector<uint64_t> snapshot_hits,snapshot_empty_hits,snapshot_detail_hits,snapshot_presentation_hits,snapshot_misses,snapshot_bytes,snapshot_generations,snapshot_verification_checks;
             bool thread_cpu_available=true;
             std::vector<uint32_t> renderers;uint64_t cache_peak=0;
-            std::vector<uint64_t> uploads,static_uploads,dynamic_geometry,draw_calls,bones,held_bones,resource_bytes,host_bytes,rss;
+            std::vector<uint64_t> uploads,static_uploads,dynamic_geometry,draw_calls,bones,held_bones,resource_bytes,host_bytes,producer_bytes,rss;
+            std::vector<uint64_t> static_index_creations,static_index_reuses,static_index_pool_bytes;
+            std::vector<uint64_t> snapshot_growths,snapshot_reuses,snapshot_retained_bytes,snapshot_candidates;
             uint32_t actual_width=0,actual_height=0,attacks=0;
+            uint64_t source_oracle_cells=0,field_oracle_cases=0;
             auto render=[&](bool measured){const auto begin=clock::now();const auto pos=you.pos_abs();const auto moves=you.get_moves();
                 const auto snapshot_before=graphics_camera_cache.totals;
                 const double thread_begin=extended?ncmm_graphics_performance::thread_cpu_seconds():-1;
@@ -115,6 +126,9 @@
                 const auto perspective_begin=clock::now();
                 require(SDL_SetRenderTarget(renderer,guard.canvas)&&SDL_SetRenderLogicalPresentation(renderer,0,0,SDL_LOGICAL_PRESENTATION_DISABLED)&&SDL_SetRenderScale(renderer,1,1)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr),"movement_canvas_rebind_failed");
                 if(extended&&graphics_gpu_engine)graphics_gpu_engine->profile();
+                // A Common snapshot lease can bypass extraction entirely.
+                // Do not repeat the previous frame's private allocation counts.
+                graphics_world_snapshot_growths=graphics_world_snapshot_reuses=graphics_world_snapshot_candidates=0;
                 require(graphics_draw(0,0,viewport.x,viewport.y),"movement_render_failed");
                 if(std::string(mode)=="gpu")require(graphics_gpu_frame,"movement_gpu_frame_fell_back");
                 const double perspective_wall=elapsed(perspective_begin);const auto present_begin=clock::now();
@@ -122,6 +136,9 @@
                 require(SDL_SetRenderTarget(renderer,nullptr)&&SDL_SetRenderViewport(renderer,nullptr)&&SDL_SetRenderClipRect(renderer,nullptr)&&SDL_RenderTexture(renderer,guard.canvas,nullptr,nullptr)&&SDL_RenderPresent(renderer),"movement_present_failed");ncmm::graphics_frame_presented();++frames;
                 present_zone.stop();
                 const double present_wall=elapsed(present_begin);
+                const auto metrics_begin=clock::now();
+                const auto metrics=graphics_gpu_frame&&graphics_gpu_engine?graphics_gpu_engine->metrics():ncmm_gpu_metrics_v1{};
+                const double metrics_wall=elapsed(metrics_begin);
                 const double thread_end=extended?ncmm_graphics_performance::thread_cpu_seconds():-1;
                 const double process_end=extended?ncmm_graphics_performance::cpu_seconds():0;
                 require(you.pos_abs()==pos&&you.get_moves()==moves&&calendar::turn==original_time,"movement_renderer_changed_simulation");
@@ -137,16 +154,21 @@
                     extract_ms.push_back(graphics_snapshot_ms);callback_ms.push_back(graphics_callback_ms);visibility_ms.push_back(graphics_world_metrics.visibility_ms);renderers.push_back(graphics_gpu_frame?1u:0u);cache_peak=std::max(cache_peak,graphics_world_metrics.source_cache_bytes);
                     range_evaluations.push_back(graphics_world_range_evaluations);range_hits.push_back(graphics_world_range_hits);ray_hits.push_back(graphics_world_sources.ray_hits);ray_misses.push_back(graphics_world_sources.ray_misses);
                     geometry_hits.push_back(graphics_world_derived.hits);geometry_misses.push_back(graphics_world_derived.misses);roof_misses.push_back(graphics_world_roofs.misses);source_misses.push_back(graphics_world_sources.misses);geometry_revisions.push_back(graphics_world_revision);material_evaluations.push_back(graphics_world_material_evaluations);material_hits.push_back(graphics_world_material_hits);
-                    const auto metrics=graphics_gpu_frame&&graphics_gpu_engine?graphics_gpu_engine->metrics():ncmm_gpu_metrics_v1{};geometry_ms.push_back(metrics.geometry_ms);resource_ms.push_back(metrics.resource_ms);upload_ms.push_back(metrics.upload_ms);record_ms.push_back(metrics.render_record_ms);submit_ms.push_back(metrics.submit_ms);
+                    geometry_ms.push_back(metrics.geometry_ms);resource_ms.push_back(metrics.resource_ms);upload_ms.push_back(metrics.upload_ms);record_ms.push_back(metrics.render_record_ms);submit_ms.push_back(metrics.submit_ms);
                     if(extended){const auto recorded=graphics_gpu_frame&&graphics_gpu_engine?graphics_gpu_engine->recording():ncmm_gpu::recording_metrics{};
                         thread_cpu_available=thread_cpu_available&&thread_begin>=0&&thread_end>=thread_begin;
                         thread_cpu_ms.push_back(std::max(0.0,(thread_end-thread_begin)*1000));process_cpu_ms.push_back(std::max(0.0,(process_end-process_begin)*1000));
                         sprite_readback_ms.push_back(graphics_sprite_readbacks.ms);sprite_readback_attempts.push_back(graphics_sprite_readbacks.attempts);
                         sprite_cache_bytes.push_back(graphics_hybrid_sprite_bytes);gpu_generated_cells.push_back(metrics.generated_cells);
+                        native_atlas_cache_bytes.push_back(ncmm_native_atlas::retained_bytes());
                         frame_upload_capacity.push_back(recorded.frame_upload_capacity_bytes);frame_upload_creations.push_back(recorded.frame_upload_creations);
                         cell_prepare_ms.push_back(recorded.cell_prepare_ms);cell_upload_bytes.push_back(recorded.cell_upload_bytes);cell_cache_bytes.push_back(recorded.cell_cache_bytes);
+                        retirement_ms.push_back(recorded.retirement_ms);retirement_calls.push_back(recorded.retirement_calls);post_present_metrics_ms.push_back(metrics_wall);
                         uploads.push_back(metrics.upload_bytes);static_uploads.push_back(recorded.static_upload_bytes);dynamic_geometry.push_back(recorded.dynamic_geometry_bytes);
-                        draw_calls.push_back(metrics.draw_calls);bones.push_back(recorded.bones);held_bones.push_back(recorded.held_bones);resource_bytes.push_back(metrics.resource_bytes);host_bytes.push_back(metrics.host_cpu_cache_bytes);
+                        static_index_creations.push_back(recorded.static_index_creations);static_index_reuses.push_back(recorded.static_index_reuses);static_index_pool_bytes.push_back(recorded.static_index_pool_bytes);
+                        snapshot_growths.push_back(graphics_world_snapshot_growths);snapshot_reuses.push_back(graphics_world_snapshot_reuses);
+                        snapshot_retained_bytes.push_back(graphics_world_snapshot_storage_bytes());snapshot_candidates.push_back(graphics_world_snapshot_candidates);
+                        draw_calls.push_back(metrics.draw_calls);bones.push_back(recorded.bones);held_bones.push_back(recorded.held_bones);resource_bytes.push_back(metrics.resource_bytes);host_bytes.push_back(metrics.host_cpu_cache_bytes);producer_bytes.push_back(metrics.producer_cache_bytes);
                         rss.push_back(ncmm_graphics_performance::resident_bytes());actual_width=graphics_hybrid_width;actual_height=graphics_hybrid_height;}}
             };
             const auto initial_begin=clock::now();render(false);const double initial_render_ready_ms=elapsed(initial_begin);
@@ -189,6 +211,30 @@
                 require(you.pos_abs()!=before&&you.get_moves()<moves,"movement_native_cost_missing");refresh();render(true);first_ms.push_back(elapsed(begin));first_frame_ms.push_back(frame_ms.back());
                 int samples=0;while(graphics_world_transition_active&&samples++<100){SDL_Delay(17);const auto ease_begin=clock::now();render(true);easing_ms.push_back(elapsed(ease_begin));}
                 require(!graphics_world_transition_active,"movement_camera_did_not_settle");
+                // Only the short functional route runs the Native source oracle.
+                // Full-size Extended ordinary timings never perform this extra work.
+                if(!extended&&graphics_view.world_render){
+                    size_t checked=0;require(graphics_verify_world_sources(checked)&&checked>0,"movement_source_cache_native_oracle_failed");source_oracle_cells+=checked;
+                    if(step==0){
+                        const auto probe=you.pos_bub()+tripoint_rel_ms(1,0,0);const auto absolute=here.get_abs(probe);
+                        require(here.field_at(probe).field_count()==0,"movement_field_probe_not_empty");
+                        auto source_fact=[&](){ncmm_world::material_semantics_cache materials,elevated;
+                            return graphics_world_sources.get(absolute.x(),absolute.y(),absolute.z(),graphics_world_source_revisions[size_t(absolute.z()+128)]+1,[&]{
+                                return graphics_world_read_source(here,absolute.x(),absolute.y(),absolute.z(),materials,elevated);});};
+                        auto verify_fact=[&](){ncmm_world::material_semantics_cache materials,elevated;
+                            require(source_fact()==graphics_world_read_source(here,absolute.x(),absolute.y(),absolute.z(),materials,elevated),"movement_field_source_cache_stale");++field_oracle_cases;};
+                        (void)source_fact();
+                        const auto blood=field_type_str_id("fd_blood").id();
+                        require(here.add_field(probe,blood,1),"movement_transparent_field_add_failed");verify_fact();
+                        here.set_field_intensity(probe,blood,2);verify_fact();
+                        here.delete_field(probe,blood);verify_fact();
+                        const auto smoke=field_type_str_id("fd_smoke").id();
+                        require(here.add_field(probe,smoke,1),"movement_smoke_field_add_failed");verify_fact();
+                        here.set_field_intensity(probe,smoke,3);verify_fact();
+                        here.clear_fields(probe);verify_fact();
+                        require(here.field_at(probe).field_count()==0,"movement_field_probe_not_restored");
+                    }
+                }
             }
             const auto gpu_stats=graphics_gpu_frame&&graphics_gpu_engine?graphics_gpu_engine->metrics():ncmm_gpu_metrics_v1{};
             report.start_object();report.member("scene",scene);report.member("renderer",mode);report.member("width",viewport.x);report.member("height",viewport.y);
@@ -207,18 +253,26 @@
             report.member("camera_snapshot_verification_checks",snapshot_verification_checks);
             report.member("camera_snapshot_verification_mismatches",graphics_camera_cache.totals.verification_mismatches);
             report.member("tileset",get_option<std::string>("TILES"));
-            report.member("native_steps",steps);report.member("first_ready_samples_ms",first_ms);report.member("easing_frame_samples_ms",easing_ms);report.member("frame_samples_ms",frame_ms);report.member("visibility_samples_ms",visibility_ms);report.member("frame_renderers_gpu",renderers);
+            report.member("native_steps",steps);report.member("source_facts_oracle_checked",source_oracle_cells>0);report.member("source_facts_oracle_cells",source_oracle_cells);report.member("field_mutations_oracle_checked",field_oracle_cases>0);report.member("field_mutations_oracle_cases",field_oracle_cases);report.member("first_ready_samples_ms",first_ms);report.member("easing_frame_samples_ms",easing_ms);report.member("frame_samples_ms",frame_ms);report.member("visibility_samples_ms",visibility_ms);report.member("frame_renderers_gpu",renderers);
             if(extended){report.member("extended_matrix",true);report.member("internal_width",actual_width);report.member("internal_height",actual_height);report.member("native_confirmed_attacks",attacks);report.member("native_weather_id",get_weather().weather_id.str());
                 report.member("thread_cpu_available",thread_cpu_available);if(thread_cpu_available)report.member("frame_thread_cpu_samples_ms",thread_cpu_ms);
                 report.member("frame_process_cpu_samples_ms",process_cpu_ms);report.member("sprite_readback_samples_ms",sprite_readback_ms);
                 report.member("sprite_readback_attempts",sprite_readback_attempts);report.member("sprite_cache_bytes",sprite_cache_bytes);report.member("gpu_generated_cells",gpu_generated_cells);
+                report.member("native_atlas_cache_bytes",native_atlas_cache_bytes);report.member("native_atlas_cache_limit_bytes",ncmm_native_atlas::byte_limit);
+                report.member("native_atlas_encoding_ms_cumulative",ncmm_native_atlas::encoding_ms());
+                report.member("native_atlas_cpu_copies_cumulative",ncmm_native_atlas::cpu_copies.load(std::memory_order_relaxed));
                 report.member("gpu_frame_upload_capacity_bytes",frame_upload_capacity);report.member("gpu_frame_upload_creations",frame_upload_creations);
                 report.member("gpu_cell_prepare_samples_ms",cell_prepare_ms);report.member("gpu_cell_upload_bytes",cell_upload_bytes);report.member("gpu_cell_cache_bytes",cell_cache_bytes);
+                report.member("gpu_metrics_in_frame",true);report.member("gpu_post_present_metrics_samples_ms",post_present_metrics_ms);
+                report.member("gpu_retirement_samples_ms",retirement_ms);report.member("gpu_retirement_calls",retirement_calls);
                 report.member("initial_render_ready_ms",initial_render_ready_ms);report.member("initial_gpu_static_upload_bytes",initial_recording.static_upload_bytes);report.member("initial_gpu_upload_bytes",initial_gpu.upload_bytes);
                 report.member("initial_gpu_cell_prepare_ms",initial_recording.cell_prepare_ms);report.member("initial_gpu_cell_upload_bytes",initial_recording.cell_upload_bytes);report.member("initial_gpu_cell_cache_bytes",initial_recording.cell_cache_bytes);
                 report.member("initial_gpu_geometry_ms",initial_gpu.geometry_ms);report.member("initial_gpu_resource_ms",initial_gpu.resource_ms);report.member("initial_gpu_resource_bytes",initial_gpu.resource_bytes);
                 report.member("gpu_upload_bytes",uploads);report.member("gpu_static_upload_bytes",static_uploads);report.member("gpu_dynamic_geometry_bytes",dynamic_geometry);report.member("gpu_draw_calls",draw_calls);
-                report.member("gpu_bones",bones);report.member("gpu_held_bones",held_bones);report.member("gpu_resource_bytes",resource_bytes);report.member("host_cpu_cache_bytes",host_bytes);report.member("process_rss_bytes",rss);}
+                report.member("gpu_static_index_buffer_creations",static_index_creations);report.member("gpu_static_index_buffer_reuses",static_index_reuses);report.member("gpu_static_index_pool_bytes",static_index_pool_bytes);
+                report.member("snapshot_buffer_capacity_growths",snapshot_growths);report.member("snapshot_buffer_reuses",snapshot_reuses);
+                report.member("snapshot_retained_capacity_bytes",snapshot_retained_bytes);report.member("snapshot_candidate_counts",snapshot_candidates);
+                report.member("gpu_bones",bones);report.member("gpu_held_bones",held_bones);report.member("gpu_resource_bytes",resource_bytes);report.member("host_cpu_cache_bytes",host_bytes);report.member("gpu_producer_cache_bytes",producer_bytes);report.member("process_rss_bytes",rss);}
             report.member("first_frame_after_step_samples_ms",first_frame_ms);report.member("first_frame_after_step_median_ms",percentile(first_frame_ms,.5));report.member("first_frame_after_step_p95_ms",percentile(first_frame_ms,.95));
             report.member("first_ready_median_ms",percentile(first_ms,.5));report.member("first_ready_p95_ms",percentile(first_ms,.95));report.member("easing_median_ms",percentile(easing_ms,.5));report.member("easing_p95_ms",percentile(easing_ms,.95));
             report.member("cold_rotation_samples_ms",cold_turn_ms);report.member("warm_rotation_samples_ms",warm_turn_ms);
@@ -415,6 +469,9 @@
     if(had_nightvision)you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));
     you.recalc_sight_limits();get_weather().weather_id=saved_weather;
     }
+    require(!graphics_native_atlas_verify||(graphics_native_atlas_verified>0&&graphics_native_atlas_mismatches==0),"movement_native_atlas_pixel_differential_failed");
+    report.member("native_atlas_differential");report.start_object();report.member("enabled",graphics_native_atlas_verify);
+    report.member("checked",graphics_native_atlas_verified);report.member("mismatches",graphics_native_atlas_mismatches);report.end_object();
     report.member("success",true);report.end_object();stream.close();require(bool(stream),"movement_report_write_failed");
 
     you.setpos(here,here.get_bub(original_position),false);you.set_moves(original_moves);progress("movement_complete");

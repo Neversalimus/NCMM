@@ -112,6 +112,9 @@ bool graphics_scene_smoke()
         } else if( std::getenv( "NCMM_FP_CAMERA_INPUT" ) ) {
             #include "ncmm_graphics_camera_input.inc"
             press_f6();require(!graphics_view.enabled,"camera_input_f6_restore_failed");
+        } else if( std::getenv( "NCMM_FP_HELD_GALLERY_ONLY" ) ) {
+            graphics_run_held_gallery(you,here,require,frames);
+            press_f6();require(!graphics_view.enabled,"held_gallery_f6_restore_failed");
         } else if( std::getenv( "NCMM_FP_MOVEMENT_ONLY" ) ) {
             #include "ncmm_graphics_movement_benchmark.inc"
             press_f6();require(!graphics_view.enabled,"movement_benchmark_f6_restore_failed");
@@ -537,8 +540,10 @@ bool graphics_scene_smoke()
         capture_frame("first-person-rifle-attachments.bmp");
         ncmm_draw_perspective_label(u8"Зомби / zombie / 僵尸",320,80,capture);SDL_FlushRenderer(renderer);capture_frame("first-person-unicode-label.bmp");
         you.set_wielded_item( item( itype_id( "knife_combat" ), calendar::turn ) ); draw();
-        require( graphics_hybrid_held_sprites > 0 && std::string( graphics_hybrid_last_environment.held_item ) == "knife_combat",
-                 "wielded_item_sprite_stale" );
+        require( std::string( graphics_hybrid_last_environment.held_item ) == "knife_combat" &&
+                 std::string( graphics_held_metrics.model ) == "knife" && graphics_held_metrics.matched == 1 &&
+                 graphics_held_metrics.fallback_reason == 0 && graphics_held_metrics.draws >= 1,
+                 "wielded_authored_knife_stale" );
         capture_frame( "first-person-held.bmp" );
         for( int i = 0; i < 6; ++i ) require( ncmm::handle_gameplay_action( "ncmm.view.look_up" ), "look_up_missing" );
         draw(); capture_frame( "first-person-sky.bmp" );
@@ -609,7 +614,8 @@ bool graphics_scene_smoke()
         #include "ncmm_graphics_multilevel_save_smoke.inc"
         }
         require(view_key_discarded[0]==1&&view_key_requeued[0]>0,"f6_pre_poll_drain_regression_not_exercised");
-        if(std::getenv("NCMM_FP_GAMEPLAY_AUDIT"))require(view_key_discarded[1]==1&&view_key_requeued[1]>0,"f12_pre_poll_drain_regression_not_exercised");
+        // The isolated HUD gallery never enters the firing audit's F12 path.
+        if(std::getenv("NCMM_FP_GAMEPLAY_AUDIT")&&!std::getenv("NCMM_FP_TARGET_HUD_ONLY"))require(view_key_discarded[1]==1&&view_key_requeued[1]>0,"f12_pre_poll_drain_regression_not_exercised");
     } catch( const std::exception &err ) {
         reason = err.what();
         graphics_view.enabled = false;

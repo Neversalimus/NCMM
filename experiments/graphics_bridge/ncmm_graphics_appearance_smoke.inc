@@ -4,7 +4,6 @@ if( std::getenv( "NCMM_FP_APPEARANCE_SMOKE" ) ) {
     const bool before = std::getenv( "NCMM_FP_APPEARANCE_BEFORE" ) != nullptr;
     const std::string appearance_mode = before ? "before-cpu" : gpu_gallery ? "after-gpu" : "after-cpu";
     const auto saved_clock = graphics_smoke_seconds;
-    const uint64_t saved_identity = graphics_creature_next_id;
     const tripoint_bub_ms saved_position = you.pos_bub();
     const float saved_appearance_yaw = graphics_camera_yaw, saved_appearance_pitch = graphics_camera_pitch;
     // Fish WATER_CAMOUFLAGE is gated by the observer's randomized perception
@@ -78,9 +77,9 @@ if( std::getenv( "NCMM_FP_APPEARANCE_SMOKE" ) ) {
             const tripoint_bub_ms view_position( center.x() + d.x * distance, center.y() + d.y * distance, 0 );
             appearance_case = std::string( id ) + "-d" + std::to_string( distance_band ) +
                               "-l" + std::to_string( lighting ) + "-a" + std::to_string( direction );
-            // Repeat the exact observed state with one stable entity identity.
-            // Resources remain warm: this does not reset the world/cache epoch.
-            clear_monsters(); graphics_creature_records.clear(); graphics_creature_next_id = 0;
+            // Repeat the observed pose while retaining lifetime-bound native
+            // identities. Resources remain warm; no world/cache epoch reset.
+            clear_monsters(); graphics_creature_records.clear();
             graphics_smoke_seconds = 2.0; calendar::turn = lighting ? start_time + 12_hours : start_time;
             lamp->light_emitted = 60; lamp->light_color = { .05f, .25f, 1.f };
             const tripoint_bub_ms light_position( center.x() + 1, center.y() - 1, 0 );
@@ -124,7 +123,7 @@ if( std::getenv( "NCMM_FP_APPEARANCE_SMOKE" ) ) {
                 auto atlas = tilecontext->ncmm_get_texture_draw_data( observed.type_id, category, source_position, false, true );
                 if( atlas ) {
                     const auto &r = atlas->dimensions;
-                    const graphics_sprite_key key{ reinterpret_cast<uintptr_t>( atlas->texture ), r.x, r.y, r.w, r.h };
+                    const graphics_sprite_key key{ graphics_texture_identity(atlas->texture), r.x, r.y, r.w, r.h };
                     auto cached = graphics_cpu_sprites.find( key );
                     if( cached != graphics_cpu_sprites.end() ) {
                         const graphics_cpu_sprite *source = &cached->second;
@@ -161,7 +160,7 @@ if( std::getenv( "NCMM_FP_APPEARANCE_SMOKE" ) ) {
     }
     appearance_report.end_array(); appearance_report.end_object();
     lamp->light_emitted = restore.emission; lamp->light_color = restore.color; calendar::turn = start_time;
-    graphics_smoke_seconds = saved_clock; graphics_creature_records.clear(); graphics_creature_next_id = std::max( graphics_creature_next_id, saved_identity );
+    graphics_smoke_seconds = saved_clock; graphics_creature_records.clear();
     you.setpos( here, saved_position, false ); g->ter_view_p = saved_position; camera( saved_appearance_yaw, saved_appearance_pitch );
     log_line( NCMM_LOG_INFO, ( "Paired creature appearance matrix completed: " + appearance_mode ).c_str() );
 }

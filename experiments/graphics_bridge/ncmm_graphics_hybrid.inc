@@ -29,6 +29,21 @@ double graphics_presentation_seconds()
     return 0;
 #endif
 }
+#if defined(TILES)
+uint64_t graphics_texture_identity(SDL_Texture *texture)
+{
+    if(!texture)return 0;
+    const auto properties=SDL_GetTextureProperties(texture);
+    if(!properties)return 0;
+    constexpr const char *key="ncmm.graphics.texture_lifetime";
+    const auto existing=SDL_GetNumberProperty(properties,key,0);
+    if(existing>0)return uint64_t(existing);
+    static uint64_t next=0;
+    if(next>=uint64_t(INT64_MAX))return 0;
+    const auto id=++next;
+    return SDL_SetNumberProperty(properties,key,Sint64(id))?id:0;
+}
+#endif
 #include "ncmm_graphics_presentation.inc"
 #include "ncmm_graphics_creatures.inc"
 #include "ncmm_graphics_gpu.inc"
@@ -38,7 +53,7 @@ struct graphics_cpu_sprite {
     uint32_t width = 0, height = 0;
     std::vector<uint32_t> pixels;
 };
-using graphics_sprite_key = std::tuple<uintptr_t, int, int, int, int>;
+using graphics_sprite_key = std::tuple<uint64_t, int, int, int, int>;
 std::map<graphics_sprite_key, graphics_cpu_sprite> graphics_cpu_sprites;
 std::map<uint64_t, graphics_cpu_sprite> graphics_creature_composites;
 SDL_Renderer *graphics_hybrid_renderer_identity = nullptr; // comparison only
@@ -57,7 +72,10 @@ void graphics_clear_stream()
 
 #include "ncmm_graphics_effects.inc"
 
-bool graphics_read_sprite( const texture_draw_data &atlas, graphics_cpu_sprite &out )
+bool graphics_native_atlas_verify = false;
+uint64_t graphics_native_atlas_verified = 0, graphics_native_atlas_mismatches = 0;
+
+bool graphics_read_sprite_gpu( const texture_draw_data &atlas, graphics_cpu_sprite &out )
 {
     SDL_Renderer *renderer = get_sdl_renderer().get();
     const SDL_Rect rect = atlas.dimensions;
@@ -123,6 +141,21 @@ bool graphics_read_sprite( const texture_draw_data &atlas, graphics_cpu_sprite &
     SDL_DestroyTexture( target );
     return ok;
 }
+
+bool graphics_read_sprite( const texture_draw_data &atlas, graphics_cpu_sprite &out )
+{
+    if( !ncmm_native_atlas::copy( atlas.texture, atlas.dimensions, out.pixels ) ) return graphics_read_sprite_gpu( atlas, out );
+    out.width=uint32_t(atlas.dimensions.w);out.height=uint32_t(atlas.dimensions.h);
+    if( graphics_native_atlas_verify ) {
+        graphics_cpu_sprite reference;
+        ++graphics_native_atlas_verified;
+        if( !graphics_read_sprite_gpu( atlas, reference ) || out.width!=reference.width ||
+            out.height!=reference.height || out.pixels!=reference.pixels ) {
+            ++graphics_native_atlas_mismatches;return false;
+        }
+    }
+    return true;
+}
 #endif
 
 void graphics_clear_hybrid()
@@ -132,7 +165,7 @@ void graphics_clear_hybrid()
     graphics_clear_creatures();
     graphics_hybrid_frame = nullptr; graphics_hybrid_positions = nullptr;
     graphics_hybrid_pixels.clear(); graphics_hybrid_width = graphics_hybrid_height = 0;
-    graphics_presentation_cells.clear(); graphics_effect_pixels.clear(); graphics_aim.reset(); graphics_aim_name.clear();
+    graphics_presentation_cells.clear(); graphics_effect_pixels.clear(); graphics_clear_target();
     graphics_hybrid_sprite_bytes = 0; graphics_hybrid_tileset_epoch = 0;
 #if defined(TILES)
     graphics_clear_stream();
@@ -199,7 +232,9 @@ int graphics_get_sprite( uint32_t index, uint32_t layer, ncmm_graphics_sprite_v2
     }
     if( !atlas ) return 0;
     const SDL_Rect &r = atlas->dimensions;
-    const graphics_sprite_key key{ reinterpret_cast<uintptr_t>( atlas->texture ), r.x, r.y, r.w, r.h };
+    const auto sheet=graphics_texture_identity(atlas->texture);
+    if(!sheet)return 0;
+    const graphics_sprite_key key{ sheet, r.x, r.y, r.w, r.h };
     auto found = graphics_cpu_sprites.find( key );
     if( found == graphics_cpu_sprites.end() ) {
         if( graphics_cpu_sprites.size() >= 1024 || r.w < 1 || r.h < 1 || r.w > 512 || r.h > 512 ||
@@ -228,7 +263,9 @@ int graphics_get_sprite( uint32_t index, uint32_t layer, ncmm_graphics_sprite_v2
                     auto source = tilecontext->ncmm_get_texture_draw_data( draw_id, TILE_CATEGORY::NONE, position, false, true );
                     if( !source ) continue;
                     const auto &rect = source->dimensions;
-                    const graphics_sprite_key overlay_key{ reinterpret_cast<uintptr_t>( source->texture ), rect.x, rect.y, rect.w, rect.h };
+                    const auto overlay_sheet=graphics_texture_identity(source->texture);
+                    if(!overlay_sheet)return 0;
+                    const graphics_sprite_key overlay_key{ overlay_sheet, rect.x, rect.y, rect.w, rect.h };
                     auto layer = graphics_cpu_sprites.find( overlay_key );
                     if( layer == graphics_cpu_sprites.end() ) {
                         if( rect.w < 1 || rect.h < 1 || rect.w > 512 || rect.h > 512 || graphics_cpu_sprites.size() >= 1024 ||
@@ -307,7 +344,7 @@ ncmm_graphics_shapes::traits graphics_traits( const map_data_common_t &t, bool o
 
 // Physical terrain adjacency is independent of sparse snapshot/FOV membership.
 // The four bits also retain corners and T junctions which a single axis loses.
-uint32_t graphics_structure_connections(const tripoint_bub_ms &p,uint32_t shape,uint32_t &orientation)
+template<class Shape> uint32_t graphics_structure_connections(const tripoint_bub_ms &p,uint32_t shape,uint32_t &orientation,Shape shape_of)
 {
     switch(shape){
         case NCMM_SHAPE_DOOR_CLOSED:case NCMM_SHAPE_DOOR_OPEN:case NCMM_SHAPE_DOOR_FRAME:
@@ -322,7 +359,7 @@ uint32_t graphics_structure_connections(const tripoint_bub_ms &p,uint32_t shape,
         const tripoint_bub_ms next(p.x()+dx,p.y()+dy,p.z());
         if(!get_map().ncmm_graphics_loaded(next))continue;
         const auto &ter=get_map().ter(next).obj();
-        const auto other=ncmm_graphics_shapes::terrain(ter.id.str()+" "+ter.looks_like,graphics_traits(ter,!ter.close.is_null()));
+        const auto other=shape_of(ter);
         const bool connected=ncmm_graphics_shapes::fence_shape(shape)?
             (ncmm_graphics_shapes::fence_shape(other)||other==NCMM_SHAPE_WALL):
             ncmm_graphics_shapes::structural_surface(other);
@@ -385,7 +422,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
                 // Opaque furniture/gas in this voxel is not an opaque window
                 // panel. The terrain itself owns its opening and cover state.
                 d.terrain_flags=ter.transparent?uint32_t(NCMM_SURFACE_TRANSPARENT):0u;
-                d.terrain_flags|=graphics_structure_connections(p,d.terrain_shape,d.orientation);
+                d.terrain_flags|=graphics_structure_connections(p,d.terrain_shape,d.orientation,terrain_shape);
                 copy_id(d.ground,"t_floor");
             }
             continue;
@@ -401,7 +438,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         d.furniture_shape = furniture_shape(furn);
         ++graphics_hybrid_shape_counts[d.terrain_shape];
         if( here.has_furn( p ) ) ++graphics_hybrid_shape_counts[d.furniture_shape];
-        d.terrain_flags|=graphics_structure_connections(p,d.terrain_shape,d.orientation);
+        d.terrain_flags|=graphics_structure_connections(p,d.terrain_shape,d.orientation,terrain_shape);
         if( !ncmm_graphics_shapes::vertical( d.terrain_shape ) ) copy_id( d.ground, ter.id.str() );
         else copy_id( d.ground, d.terrain_shape == NCMM_SHAPE_TREE || d.terrain_shape == NCMM_SHAPE_SHRUB || d.terrain_shape == NCMM_SHAPE_PLANT ? "t_dirt" : "t_floor" );
         const float raw = std::max( 0.0f, here.ambient_light_at( p ) );
@@ -528,6 +565,7 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         copy_id( env.held_item, held->typeId().str() ); env.held_kind = held->is_gun() ? 1u : held->is_melee() ? 2u : 3u;
     }
     graphics_hybrid_last_environment = env;
+    graphics_prepare_held();
     graphics_prepare_presentation( base,positions,details,world );
     if(graphics_camera_cache.verify&&graphics_camera_cache.totals.verification_mismatches){
         log_line(NCMM_LOG_ERROR,"NCMM camera snapshot differential mismatch");
@@ -601,8 +639,15 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         SDL_SetRenderDrawColor( renderer,r,g,b,a );
     }
     ncmm_graphics_trace::cpu_zone target_hud_zone("Target HUD");
-    if( ok && !graphics_aim_name.empty() ) ncmm_draw_perspective_label( graphics_aim_name,
-        x+int( graphics_aim_x*base.pixel_width ), y+int( graphics_aim_y*base.pixel_height ), clip );
+    if( ok && !graphics_aim_name.empty() ) {
+        const int anchor_x=x+int(graphics_aim_x*base.pixel_width),anchor_y=y+int(graphics_aim_y*base.pixel_height);
+        // Process-only ablation in owned diagnostics; the ordinary world
+        // setting remains the sole player-facing switch.
+        static const bool diagnostic_hide_hud=[](){const auto *value=std::getenv("NCMM_FP_TARGET_HUD");return value&&std::strcmp(value,"0")==0;}();
+        if(graphics_aim_hostile&&!diagnostic_hide_hud&&world_setting_get_bool("NCMM_FIRST_PERSON_TARGET_HUD",1))
+            ncmm_draw_perspective_target(graphics_aim_name,anchor_x,anchor_y,clip,graphics_aim_health.known,graphics_aim_health.fraction);
+        else ncmm_draw_perspective_label(graphics_aim_name,anchor_x,anchor_y,clip);
+    }
     target_hud_zone.stop();
     ok = SDL_SetRenderClipRect( renderer, clipped ? &prior_clip : nullptr ) && ok;
     graphics_frame_pending_present=ok;

@@ -21,6 +21,7 @@ class ApplyTests(unittest.TestCase):
         for name in ("ncmm_loader.cpp", "ncmm_loader.h"):
             (root / "src" / name).write_bytes((REPO / "host_patch" / name).read_bytes())
         (root / "src/game.h").write_text("        bool save();\n")
+        (root / "src/game.cpp").write_text('#include "game.h"\n'+bridge.REBASE_CACHE_RESET+'\n')
         (root / "src/vehicle_use.cpp").write_text(NATIVE_TOGGLE)
         (root / "src/debug.cpp").write_text('\nstd::string ncmm_debug_report_text( const std::string &text )\n{ return text; }\n')
         options='static void ncmm_apply_deferred_option_value( const std::string &, options_manager::cOpt & );\n// NCMM v8.7.6.6 stale world-option repair:\n'
@@ -37,7 +38,7 @@ class ApplyTests(unittest.TestCase):
                           "void map::set_outside_cache_dirty( const int zlev )",
                           "void map::set_floor_cache_dirty( const int zlev )"):
             map_cpp+=signature+"\n{\n}\n"
-        (root / "src/map.cpp").write_text(map_cpp)
+        (root / "src/map.cpp").write_text(map_cpp+bridge.SUBMAP_CACHE_RESET+'\n    current_submap->set_ter( l, new_terrain );\n    current_submap->set_furn( l, new_target_furniture );\n'+'void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type )\n{\n}\n')
         (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n        next_action = inp_mngr.get_input_event( preferred_keyboard_mode );\n    inp_mngr.set_timeout( old_timeout );\n    return *result;\n}\n')
         (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR+'\nstatic void CheckMessages()\n{\n        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n}\n')
         (root / "src/sdl_wrappers.cpp").write_text('#include "sdl_wrappers.h"\nvoid RenderPresent() {\n    printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" );\n}\n')
@@ -55,6 +56,11 @@ class ApplyTests(unittest.TestCase):
         (root / "src/monster.cpp").write_text("    // We were carrying a creature, deposit the rider")
         (root / "src/npc.cpp").write_text("    prevent_death_reminder = false;\n    dialogue d( get_talker_for( this ),")
         (root / "src/cata_tiles.h").write_text("        std::optional<texture_draw_data> get_texture_draw_data( const std::string &id,\n                TILE_CATEGORY category, const tripoint_bub_ms &p );")
+        (root / "src/tileset_loader.h").write_text("                                      const atlas_replay_quarantine::gate &abandon_gate );\n        void create_textures_from_tile_atlas")
+        (root / "src/tileset_loader.cpp").write_text('#include "tileset_loader.h"\n'
+            '        const std::vector<SDL_Rect> &opaque_bounds,\n        const atlas_replay_quarantine::gate &abandon_gate )\n'
+            '    cata_assert( texture_ptr );\n    ++texture_count;\n'
+            '            copy_surface_to_texture( scan_surf, offset, *tile_values, opaque_bounds, abandon_gate );\n')
         (root / "src/cata_tiles.cpp").write_text("""void cata_tiles::load_tileset( const std::string &tileset_id, const bool precheck,
                                const bool force, const bool pump_events, const bool terrain )
 {
@@ -79,6 +85,30 @@ bool cata_tiles::draw_sprite_at() {
             with patch.object(bridge.subprocess, "check_output", return_value="a" * 40):
                 with self.assertRaisesRegex(ValueError, "Unqualified"): bridge.apply(root)
             self.assertEqual(before, self.fingerprint(root))
+    def test_changed_submap_cache_reset_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root)
+            target=root/'src/map.cpp';target.write_text(target.read_text().replace('set_pathfinding_cache_dirty( z );','changed_native_cache_reset();'))
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
+    def test_changed_rebase_cache_reset_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root)
+            (root/'src/game.cpp').write_text('#include "game.h"\nchanged_native_cache_reset();')
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
+    def test_missing_field_notification_anchor_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root)
+            target=root/'src/map.cpp';target.write_text(target.read_text().replace('void map::on_field_modified(', 'void changed_field_notification('))
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
     def test_missing_late_anchor_no_partial_patch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); self.fixture(root)
@@ -118,6 +148,10 @@ bool cata_tiles::draw_sprite_at() {
                 self.assertTrue((root / "src/ncmm_graphics_snapshot_cache.hpp").is_file())
                 self.assertIn('ncmm_wait.completed( *result );', (root / "src/input_context.cpp").read_text())
                 self.assertIn('graphics_snapshot_external_callback( module_id );', (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
+                self.assertIn('#include "ncmm_graphics_scratch.hpp"', (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
+                self.assertEqual((root / "src/ncmm_graphics_scratch.hpp").read_bytes(), Path(bridge.__file__).with_name("ncmm_graphics_scratch.hpp").read_bytes())
+                self.assertEqual((root / "src/ncmm_native_atlas_pixels.hpp").read_bytes(), Path(bridge.__file__).with_name("ncmm_native_atlas_pixels.hpp").read_bytes())
+                self.assertIn("tile_values == targets.normal", (root / "src/tileset_loader.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics.creatures.v1", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_note_creature( this, 4 )", (root / "src/monster.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_note_creature( origin, 2", (root / "src/ballistics.cpp").read_text(encoding="utf-8"))
@@ -128,6 +162,24 @@ bool cata_tiles::draw_sprite_at() {
                 before = self.fingerprint(root)
                 with self.assertRaises(ValueError): bridge.apply(root)
                 self.assertEqual(before, self.fingerprint(root))
+    def test_changed_native_atlas_upload_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root)
+            (root/'src/tileset_loader.cpp').write_text('changed Native upload')
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'Native atlas anchor differs'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
+
+    def test_ambiguous_native_atlas_upload_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root)
+            p=root/'src/tileset_loader.cpp';p.write_text(p.read_text()*2)
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'Native atlas anchor differs'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
+
     def test_changed_native_compiler_predicate_no_partial_patch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);self.fixture(root)
@@ -170,7 +222,7 @@ bool cata_tiles::draw_sprite_at() {
                 with self.assertRaisesRegex(ValueError,'four exact Native'):bridge.apply(root)
             self.assertEqual(before,self.fingerprint(root))
     def test_changed_creature_hook_no_partial_patch(self):
-        for name in ("creature.cpp", "ballistics.cpp", "monster.cpp", "npc.cpp"):
+        for name in ("creature.h", "creature.cpp", "ballistics.cpp", "monster.cpp", "npc.cpp"):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp); self.fixture(root)
                 (root / "src" / name).write_text("changed creature event pathway")

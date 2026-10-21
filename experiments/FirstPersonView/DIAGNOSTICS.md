@@ -1,5 +1,32 @@
 # First Person diagnostics
 
+`-MovementBenchmark -Extended -FullSizeGpuMatrix` is an explicitly selected
+hardware performance comparison: the same ten extended scenes, 64 Native
+steps and 96 cold plus 96 warm camera frames per scene at 1768x1084. It changes
+neither quality, draw distance nor loaded levels. Normal CPU/GPU release gates
+and the 80-record extended matrix remain unchanged when this flag is absent.
+The runner rejects profiler/debug/differential modes and software adapters in
+this performance mode. Configured Native renderer VSync, physical window size,
+display scale and the runtime SDL version are recorded separately from the
+offscreen scene dimensions.
+
+For component comparisons, `-DisableHeldAssets`, `-DisableTargetHud` and
+`-DisableCameraSnapshot` affect only the diagnostic child. They are separate
+from the one player-facing HUD option. A disabled-components run is an
+ablation of the combined Host, not an unchanged historical installer; keep
+the exact historical baseline and its provenance separate. Run the four modes
+in forward and reverse order and retain unsuccessful/regressing samples.
+
+`-TargetHudGallery` runs the same Native HP/picking/font cases as the gameplay
+audit in its own isolated process, before the long firing and soak gates. It is
+diagnostic correctness evidence and does not replace those gates or establish
+ordinary frame times. The 42 captures cover CPU/GPU, HP changes, identity
+replacement, Cyrillic, disable, walls/window mullions/glass, night, real Native
+blindness and restoration, another floor, a close huge target, a flying target,
+a 1280x720 viewport and Native NPC aggregate health. Each GPU record includes
+its actual backend/device and software-adapter status; the physical window's
+display scale is recorded rather than changed globally.
+
 ## Native firing UI context
 
 The gameplay audit now dispatches the ordinary game command through SDL input,
@@ -252,3 +279,25 @@ its own QPA plugin selection. Omit `--hostname` for a local launch. Capture
 settings (including Nsight's enforced VSync-off default and clock mode) must be
 recorded separately from ordinary profiler-off timings. A startup capture is
 only connection validation and does not qualify a first-person scene.
+
+## Actual Linux Native qualification
+
+`ncmm-fpv-linux-native.yml` builds the exact 1040 and 1807 CDDA sources with
+the same canonical stack and experimental graphics bridge, upstream SDL 3.4.10,
+and the real `.so` modules. The private experimental loader uses `dlopen` with
+local symbol visibility and retains the existing descriptor, capability,
+migration, failure and shutdown checks. Public module interfaces and the
+canonical shipping Windows Host are unchanged. The normal Windows experimental
+loader still uses wide paths and the same LoadLibrary/GetProcAddress behavior.
+
+The Linux runner uses fresh owned worlds under Xvfb and explicit Mesa software
+Vulkan. It exercises Native controls, camera input, held-model captures, target
+HUD captures, actual firing pixels and Native save/reload. It records hashes
+and real child exit status and preserves failed evidence. It must not be cited
+as RTX 4090, ordinary frame-time or Linux installer qualification. The official
+Windows graphics archive supplies digest-checked common game data only; the
+executable and Linux SPIR-V are built from the exact Linux source. No Windows
+binary is executed there. Full qualification also requires this Linux gate.
+
+This new gate is pending its first actual CI run; a compiled module alone does
+not establish that the Host can load it or display a Native frame.

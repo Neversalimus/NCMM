@@ -1,0 +1,6 @@
+Author: Pichuliru
+Version/publication: 2022-01-16
+Author-published source: https://opengameart.org/content/cc0-flat-shaded-melee-weapons
+License: CC0-1.0
+Archive SHA256: ef2c9a54df7ea021432756d1400ff8d1ea538fec51ae471780781cebb2bde56c
+The saved publishing-author page explicitly identifies this package as CC0. No separate license text is present in the archive.

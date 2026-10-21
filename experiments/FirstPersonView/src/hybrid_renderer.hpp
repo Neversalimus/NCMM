@@ -5,6 +5,7 @@
 #include "ncmm_graphics_shapes.hpp"
 #include "animation.hpp"
 #include "viewmodel.hpp"
+#include "held_pose.hpp"
 #include "creature_scene.hpp"
 #include "effects.hpp"
 #include "liquid_surface.hpp"
@@ -199,6 +200,7 @@ struct geometry_sink {
     virtual bool horizon_dirty()const{return true;}
     virtual void horizon_complete(){}
     virtual bool arms(const viewmodel::submission &){return false;}
+    virtual bool item(const held::submission &){return false;}
     virtual void skin(const creature::model &model,const creature::skeleton_pose &pose,int lod,
                       vec origin,int cell,vec scale,bool fallback,bool targetable,float heading,vec offset)=0;
     virtual void impostor(const creature::asset &asset,const creature::pose_state &pose,vec origin,int cell,int lod,bool targetable)=0;
@@ -230,6 +232,8 @@ class renderer {
     geometry_sink *gpu_sink=nullptr;
     std::vector<std::shared_ptr<const creature::asset>> creature_assets;
     std::array<image,4> arm_images;
+    std::array<image,80> item_images;
+    bool held_lenses=false;
     std::array<std::shared_ptr<const viewmodel::texture_pixels>,4> arm_pixels;
     ncmm_graphics_detail_v1 empty_detail{};
     const ncmm_graphics_detail_v1 &extra(int i)const{return metadata&&i>=0&&size_t(i)<metadata->cells.size()?metadata->cells[i]:empty_detail;}
@@ -1084,7 +1088,7 @@ class renderer {
     void held(){
         f.viewmodel_draws=f.viewmodel_errors=0;
         const bool empty=!s.environment.held_item[0];
-        image *img=empty?nullptr:texture(UINT32_MAX,NCMM_GFX_HELD_ITEM);
+        image *img=nullptr;
         held_light=light(index(int(std::floor(base.camera_x)),int(std::floor(base.camera_y))),{0,0,1});
         held_light={std::max(.04f,held_light.x),std::max(.04f,held_light.y),std::max(.04f,held_light.z)};
         const float hud_scale=std::min(1.0f,float(f.height)/f.width*1.6f)*(metadata?std::clamp(metadata->view.body_scale,.70f,1.25f):1.0f);
@@ -1111,7 +1115,7 @@ class renderer {
         std::optional<viewmodel::frame> sampled;
         if(!pose.prepared_frame)sampled.emplace(pose,empty,pose.grip==NCMM_GRIP_GUN&&(!metadata||metadata->view.gun_kind!=NCMM_GUN_BOW));
         const auto &arms=pose.prepared_frame?*pose.prepared_frame:*sampled;
-        viewmodel::hand_pose arm_pose;
+        viewmodel::hand_pose fallback_arm_pose;
         viewmodel::matrix model_to_world{};
         const auto zero=hud({0,0,0});const vec columns[]={hud({1,0,0})-zero,hud({0,1,0})-zero,hud({0,0,1})-zero,zero};
         for(int column=0;column<4;++column){model_to_world.columns[column*4]=columns[column].x;model_to_world.columns[column*4+1]=columns[column].y;model_to_world.columns[column*4+2]=columns[column].z;}model_to_world.columns[15]=1;
@@ -1123,8 +1127,9 @@ class renderer {
         const std::array<float,4> lower_plane={(view_columns[0].y+screen_slope*view_columns[0].z)/hud_scale,
             (view_columns[1].y+screen_slope*view_columns[1].z)/hud_scale,(view_columns[2].y+screen_slope*view_columns[2].z)/hud_scale,
             (view_zero.y+screen_slope*view_zero.z)/hud_scale};
-        auto hand=[&](vec grip,bool left,const viewmodel::point *trigger=nullptr){
-            if(!arms.attach({grip.x,grip.y,grip.z},left,lower_view_slope,arm_pose,trigger,&lower_plane)){++f.viewmodel_errors;return;}
+        auto hand=[&](vec grip,bool left,const viewmodel::point *trigger=nullptr,const viewmodel::hand_pose *prepared=nullptr){
+            if(!prepared&&!arms.attach({grip.x,grip.y,grip.z},left,lower_view_slope,fallback_arm_pose,trigger,&lower_plane)){++f.viewmodel_errors;return;}
+            const auto &arm_pose=prepared?*prepared:fallback_arm_pose;
             const int side=left?0:1;
             viewmodel::appearance appearance;
             for(auto &region:appearance.regions)region.finish=uint32_t(surface::skin);
@@ -1173,7 +1178,51 @@ class renderer {
                     t.v[j]=placed_vertex(viewmodel::position(joint,v.position),viewmodel::direction(joint,v.normal));}
                 t.normal=normalize(cross(t.v[1].p-t.v[0].p,t.v[2].p-t.v[0].p));if(gpu_sink)gpu_sink->emit(t);else overlay.push_back(t);}
         };
+        if(pose.prepared_item&&pose.prepared_item->selected.body&&pose.prepared_item->count){
+            auto &prepared=*pose.prepared_item;auto &body=prepared.entries[0];const auto &model=*body.geometry;
+            auto contact=[&](const held::posed &entry,const held::contact &point){return viewmodel::position(entry.local,viewmodel::position(entry.bones.global[point.node],point.point));};
+            const auto primary=contact(body,model.grips.primary),trigger=contact(body,model.grips.trigger);
+            auto secondary=contact(body,model.grips.secondary);
+            auto primary_axis=viewmodel::unit(viewmodel::direction(body.local,model.grips.primary_axis));
+            auto secondary_axis=viewmodel::unit(viewmodel::direction(body.local,model.grips.secondary_axis));
+            bool both=model.two_handed||model.kind==held::family::pistol;
+            for(size_t i=1;i<prepared.count;++i)if(prepared.entries[i].geometry->kind==held::family::foregrip){const auto &entry=prepared.entries[i];
+                secondary=contact(entry,entry.geometry->grips.primary);secondary_axis=viewmodel::unit(viewmodel::direction(entry.local,entry.geometry->grips.primary_axis));both=true;}
+            const auto *trigger_contact=pose.grip==NCMM_GRIP_GUN?&trigger:nullptr;
+            bool attached=arms.attach(primary,false,lower_view_slope,prepared.hands[0],trigger_contact,&lower_plane,&primary_axis);
+            if(both)attached=attached&&arms.attach(secondary,true,lower_view_slope,prepared.hands[1],nullptr,&lower_plane,&secondary_axis);
+            if(attached){
+                hand({primary.x,primary.y,primary.z},false,trigger_contact,&prepared.hands[0]);
+                if(both)hand({secondary.x,secondary.y,secondary.z},true,nullptr,&prepared.hands[1]);
+                else hand({-.23f,-.76f*lower_view_slope*.74f,.74f},true);
+                for(size_t entry_index=0;entry_index<prepared.count;++entry_index){auto &entry=prepared.entries[entry_index];const auto &source=entry.geometry->geometry;
+                    const auto world=viewmodel::multiply(model_to_world,entry.local);
+                    if(gpu_sink&&gpu_sink->item({entry,world}))continue;
+                    ++entry.draws;entry.palette_matrices+=uint32_t(source.palette_count);
+                    for(size_t material_index=0;material_index<entry.geometry->material_count;++material_index){const auto &material=entry.geometry->materials[material_index];
+                        auto &image=item_images[entry_index*16+material_index];if(material.pixels){image.data={sizeof(image.data),material.width,material.height,material.width,material.pixels};image.prepared=image.data.rgba;image.right=int(material.width);image.bottom=int(material.height);}}
+                    for(size_t at=0;at<source.index_count;at+=3){if(!entry.visible(entry.geometry->triangle_part[at/3]))continue;
+                        const auto material_index=entry.geometry->vertex_material[source.indices[at]];const auto &source_material=entry.geometry->materials[material_index];
+                        triangle triangle{};auto &material=triangle.m;material.color={source_material.color[0],source_material.color[1],source_material.color[2]};material.alpha=source_material.color[3];
+                        material.finish=surface(source_material.finish);material.overlay=material.smooth=true;material.texture=source_material.pixels?&item_images[entry_index*16+material_index]:nullptr;
+                        held_lenses|=material.alpha<.99f;
+                        for(size_t j=0;j<3;++j){const auto &vertex=source.vertices[source.indices[at+j]];const auto &skin=entry.bones.palette[vertex.palette];
+                            const auto point=viewmodel::position(world,viewmodel::position(skin,vertex.position));
+                            const auto normal0=viewmodel::direction(world,viewmodel::direction(skin,vertex.normal));auto normal=normalize(vec{normal0.x,normal0.y,normal0.z});
+                            if(dot(normal,eye-vec{point.x,point.y,point.z})<0)normal=normal*-1;
+                            const auto key=normalize(vec{sy*.4f-cy*.3f,-cy*.4f-sy*.3f,.85f});
+                            triangle.v[j]={{point.x,point.y,point.z},vertex.u,vertex.v,held_light*(.66f+.34f*std::max(0.f,dot(normal,key)))};
+                        }
+                        triangle.normal=normalize(cross(triangle.v[1].p-triangle.v[0].p,triangle.v[2].p-triangle.v[0].p));
+                        if(gpu_sink)gpu_sink->emit(triangle);else overlay.push_back(triangle);
+                    }
+                }
+                f.held_pixels=1;return;
+            }
+            prepared.selected.reason=held::failure::unreachable_hand;prepared.selected.body=nullptr;
+        }
         if(empty){hand({.27f,-.70f*lower_view_slope*.70f,.70f},false);hand({-.23f,-.76f*lower_view_slope*.74f,.74f},true);return;}
+        img=texture(UINT32_MAX,NCMM_GFX_HELD_ITEM);
         const bool valid=img&&img->valid();
         #include "firearm.inc"
         if(pose.grip==NCMM_GRIP_POLE){
@@ -1274,6 +1323,9 @@ public:
         f.weather_particles=f.held_pixels=0;auto effect_begun=std::chrono::steady_clock::now();weather();
         f.effects_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-effect_begun).count();
         auto held_begun=std::chrono::steady_clock::now();held();f.geometry_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-held_begun).count();
+        // Held lenses blend after all opaque hands and item surfaces. They
+        // test the existing held depth without writing their own depth.
+        if(held_lenses)std::stable_partition(overlay.begin(),overlay.end(),[](const triangle &value){return value.m.alpha>=.99f||value.m.cutout;});
         paint(overlay);effect_begun=std::chrono::steady_clock::now();atmosphere();
         f.effects_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-effect_begun).count();
         if(!metadata&&f.width>=320&&f.height>=240){int x=f.width/2,y=f.height/2;for(int d=-3;d<=3;++d){if(d==0)continue;f.pixels[size_t(y)*f.width+x+d]=0xd8e0e0ff;f.pixels[size_t(y+d)*f.width+x]=0xd8e0e0ff;}}
