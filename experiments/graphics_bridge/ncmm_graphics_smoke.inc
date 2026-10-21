@@ -233,8 +233,17 @@ bool graphics_scene_smoke()
         ncmm::graphics_note_input_context( "INVENTORY" );
         require( graphics_draw( 0, 0, 640, 480 ) && graphics_view.enabled, "inventory_backdrop_changed_to_map" );
         ncmm::graphics_note_input_context( "TARGETING" );
-        require( !graphics_draw( 0, 0, 640, 480 ), "targeting_did_not_suspend_view" );
+        require( !graphics_draw( 0, 0, 640, 480 ), "coordinate_picker_did_not_suspend_view" );
         ncmm::graphics_note_input_context( "DEFAULTMODE" );
+        {
+            ncmm::graphics_targeting_scope aiming( true );
+            require( graphics_gameplay_context && !graphics_control_context, "aim_first_redraw_lost_backdrop" );
+            ncmm::graphics_note_input_context( "TARGET" );
+            draw();
+            require( graphics_view.enabled && graphics_gameplay_context && !graphics_control_context,
+                     "native_aim_context_changed_user_mode" );
+        }
+        require( graphics_control_context, "aim_exit_did_not_restore_gameplay_context" );
         draw();
         require( here.open_door( you, door, true ), "real_door_did_not_open" );
         require( here.ter( door ).id().str() == "t_door_o", "door_terrain_not_updated" );

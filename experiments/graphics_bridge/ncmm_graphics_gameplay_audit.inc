@@ -92,6 +92,9 @@
         if(!native_errors.empty())log_line(NCMM_LOG_ERROR,("Native audit diagnostic: "+native_errors).c_str());
         require(native_errors.empty(),"audit_native_debug_message");
         report.start_object();report.member("name",name);report.member("native_action_wall_ms",milliseconds(begin));report.member("success",true);report.end_object();stream.flush();checkpoint(std::string(name)+" PASS");};
+    action("native_firing_ui_context_and_presented_frames",[&](){
+        #include "ncmm_graphics_fire_audit.inc"
+    });
     action("native_walk_and_visual_continuity",[&](){
         for(const tripoint_rel_ms step:{tripoint_rel_ms(1,0,0),tripoint_rel_ms(0,-1,0),tripoint_rel_ms(-1,0,0),tripoint_rel_ms(0,1,0)}){
             const auto before=you.pos_abs();const int moves=you.get_moves();require(avatar_action::move(you,here,step),"audit_native_walk_failed");const auto after=you.pos_abs();const int spent=moves-you.get_moves();
@@ -139,6 +142,11 @@
         settle();you.set_base_height(175);here.ter_set(point_at(0,0),ter_id("t_floor"));for(int z:{1,2,3})here.ter_set(point_at(0,0,z),ter_id("t_open_air"));graphics_clear_world();render();
     });
     action("native_vehicle_board_controls_displacement_and_exit",[&](){you.set_wielded_item(item());vehicle *car=here.add_vehicle(vproto_id("car"),point_at(5,-4),0_degrees,100,veh_spawn_status::UNDAMAGED,false);require(car!=nullptr,"audit_vehicle_spawn_failed");car->set_owner(you);car->engine_on=true;bool checked=false;
+        // The spawned car's random lock state depends on preceding combat RNG.
+        // This fixture tests Native driving, not the hotwire menu. The ordinary
+        // control_vehicle pathway still has to grant control itself.
+        checkpoint(std::string("native_vehicle_fixture_initially_locked_")+std::to_string(car->is_locked));
+        car->is_locked=false;car->is_alarm_on=false;
         for(const vpart_reference &part:car->get_all_parts())if(part.has_feature("SEAT")&&car->avail_part_with_feature(part.mount_pos(),"CONTROLS")>=0){const auto seat=part.pos_bub(here);you.setpos(here,seat,false);here.board_vehicle(seat,&you);render();require(you.in_vehicle&&graphics_presentation.occupied_vehicle&&graphics_presentation.eye_height<=1.18f,"audit_vehicle_eye_or_boarding_failed");
             {cancel_native_ui cancel(SDL_GetWindowID(get_sdl_window()));g->ncmm_graphics_smoke_controls(you.pos_bub());}require(you.controlling_vehicle,"audit_native_vehicle_controls_failed");
             // Match map::move_vehicle's mount/pivot preparation before using

@@ -10,7 +10,10 @@ struct graphics_view_state {
     ncmm_graphics_render_multilevel_v1 world_render = nullptr;
 };
 graphics_view_state graphics_view;
-bool graphics_gameplay_context = false;
+ncmm_graphics_context::state graphics_context;
+bool &graphics_gameplay_context = graphics_context.perspective;
+// Set only by the opt-in native firing audit to reproduce the original policy.
+bool graphics_fire_audit_legacy_context = false;
 const ncmm_graphics_scene_v1 *graphics_frame = nullptr;
 bool graphics_frame_invalid = false;
 bool graphics_render_active = false;
@@ -32,7 +35,7 @@ void graphics_clear_world();
 
 void graphics_erase( const std::string &id )
 {
-    if( graphics_view.owner == id ) { graphics_release_mouse(); graphics_cancel_animation(); graphics_view = {}; graphics_clear_hybrid(); }
+    if( graphics_view.owner == id ) { graphics_release_mouse(); graphics_cancel_animation(); graphics_context.reset(); graphics_view = {}; graphics_clear_hybrid(); }
 }
 
 int graphics_register( const char *id, ncmm_graphics_render_v1 render,
@@ -147,6 +150,42 @@ bool graphics_world_needs_redraw();
 #include "ncmm_graphics_controls.inc"
 #include "ncmm_graphics_hybrid.inc"
 #include "ncmm_graphics_world.inc"
+
+#if defined(TILES)
+// Opt-in evidence for the real native UI. No readback/IO on the normal path.
+struct graphics_fire_frame {
+    uint64_t ticks=0;
+    bool enabled=false,perspective=false,gpu=false,captured=false,presented=false;
+    int width=0,height=0;
+    std::string file;
+};
+struct graphics_fire_capture_state {
+    bool active=false,last_perspective=false,last_gpu=false,failed=false;
+    uint64_t native_command_sequence=0;
+    uint64_t default_keychar_inputs=0,default_keycode_inputs=0;
+    std::string native_command;
+    std::vector<graphics_fire_frame> frames;
+} graphics_fire_capture;
+// Only the opt-in scripted native test reads this from its SDL event worker.
+// No game object or non-atomic capture field is read off the native thread.
+std::atomic<uint32_t> graphics_fire_input_context{0};
+void graphics_capture_before_present()
+{
+    if(!graphics_fire_capture.active)return;
+    if(graphics_fire_capture.frames.size()>=4096){graphics_fire_capture.failed=true;return;}
+    graphics_fire_frame frame;
+    frame.ticks=SDL_GetTicks();frame.enabled=graphics_view.enabled;
+    frame.perspective=graphics_fire_capture.last_perspective;frame.gpu=graphics_fire_capture.last_gpu;
+    frame.file="first-person-fire-frame-"+std::to_string(graphics_fire_capture.frames.size())+".png";
+    if(auto *image=SDL_RenderReadPixels(get_sdl_renderer().get(),nullptr)){
+        frame.width=image->w;frame.height=image->h;
+        frame.captured=IMG_SavePNG(image,(game_root()/"ncmm"/frame.file).string().c_str());
+        SDL_DestroySurface(image);
+    }
+    if(!frame.captured)graphics_fire_capture.failed=true;
+    graphics_fire_capture.frames.push_back(std::move(frame));
+}
+#endif
 
 bool graphics_draw( int x, int y, int width, int height )
 {

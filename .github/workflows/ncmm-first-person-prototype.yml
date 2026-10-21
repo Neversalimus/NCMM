@@ -76,6 +76,10 @@ jobs:
         run: python -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_movement_phases.py -v
       - name: Reject incomplete or mismatched packaged hardware evidence
         run: python -m unittest discover -s experiments/FirstPersonView/tests -p test_compare_movement_runs.py -v
+      - name: Reject hidden native map flashes, CPU fallback and corrupt firing captures
+        run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_fire_audit.py -v
+      - name: Reject changed or partial private SDL graphics dependencies
+        run: python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_native_sdl_bridge.py -v
       - name: Diagnostic environment isolation on PowerShell Core
         shell: pwsh
         run: |
@@ -102,6 +106,10 @@ jobs:
         run: ctest --test-dir fp-build -C Release --output-on-failure
       - name: Offline PSX importer malformed-input and determinism checks
         run: python -B experiments/FirstPersonView/tests/test_import_psx_arms.py -v
+      - name: Native firing pixel verifier negative tests
+        run: |
+          python -m pip install --disable-pip-version-check pillow==11.3.0
+          python -B -m unittest discover -s experiments/FirstPersonView/tests -p test_verify_fire_pixels.py -v
       - name: Record renderer timing and work counters (no FPS threshold)
         run: cmake --build fp-build --config Release --target first_person_measure
       - name: Configure focused cache and facade sanitizers
@@ -184,9 +192,10 @@ jobs:
           msystem: mingw64
           install: gettext make
       - uses: actions/cache@v4
+        id: sdk_cache
         with:
           path: upstream/msvc-full-features/vcpkg_installed
-          key: ncmm-vcpkg-${{ runner.os }}-f6672d8e480ccdecddfad3fd1b838ba369ffe6cd-${{ hashFiles('upstream/msvc-full-features/vcpkg.json', 'upstream/.github/vcpkg_triplets/x64-windows-static.cmake') }}
+          key: ncmm-vcpkg-${{ runner.os }}-f6672d8e480ccdecddfad3fd1b838ba369ffe6cd-${{ hashFiles('upstream/msvc-full-features/vcpkg.json', 'upstream/msvc-full-features/vcpkg-configuration.json', 'upstream/msvc-full-features/ncmm-sdl-overlay/**', 'upstream/.github/vcpkg_triplets/x64-windows-static.cmake') }}
       - uses: mozilla-actions/sccache-action@v0.0.11
         with:
           version: v0.16.0
@@ -215,7 +224,7 @@ jobs:
             upstream/cataclysm-tiles.exe
             upstream/first-person-host.sha256
             upstream/*.pdb
-          key: ncmm-fp-host-${{ matrix.build }}-v3-nopch-${{ runner.os }}-${{ hashFiles('upstream/src/**', 'upstream/msvc-full-features/**', 'upstream/first-person-source.json', 'upstream/.github/vcpkg_triplets/**') }}
+          key: ncmm-fp-host-${{ matrix.build }}-v4-sdk-source-${{ runner.os }}-${{ hashFiles('upstream/src/**', 'upstream/msvc-full-features/**', 'upstream/first-person-source.json', 'upstream/.github/vcpkg_triplets/**', '!upstream/msvc-full-features/vcpkg_installed/**') }}
       - name: Compile actual experimental engine (no certification/publication)
         if: steps.engine_cache.outputs.cache-hit != 'true'
         shell: powershell
@@ -263,6 +272,48 @@ jobs:
         run: |
           $expected=(Get-Content first-person-host.sha256 -Raw).Trim()
           if($expected -notmatch '^[0-9a-f]{64}$' -or (Get-FileHash cataclysm-tiles.exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected){throw 'Experimental Host cache identity mismatch.'}
+      - name: Exercise pinned SDL graphics descriptor boundaries and pixel restoration
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $dependency=(Get-Content upstream/first-person-source.json -Raw | ConvertFrom-Json).windows_sdl
+          if($dependency.sdl_version -ne '3.4.10' -or $dependency.private_port_version -ne 2 -or !$dependency.runtime_vendor){throw 'Pinned private SDL receipt missing.'}
+          $env:NCMM_EXPECT_SDL_VENDOR=$dependency.runtime_vendor
+          $build=Join-Path $PWD 'sdl-descriptor-${{ matrix.build }}'
+          # The canonical MSBuild integration installs the triplet inside its
+          # triplet-specific VcpkgInstalledDir; use that same library, not a search fallback.
+          $sdkRoot=Join-Path $PWD 'upstream/msvc-full-features/vcpkg_installed/x64-windows-static/x64-windows-static'
+          $sdk=Join-Path $sdkRoot 'share/sdl3'
+          if(!(Test-Path -LiteralPath (Join-Path $sdk 'SDL3Config.cmake') -PathType Leaf)){throw 'Canonical MSBuild SDL package configuration is missing.'}
+          $libraryRoot=(Resolve-Path $sdkRoot).Path.TrimEnd([char[]]@('\','/'))+[IO.Path]::DirectorySeparatorChar
+          & cmake -S ncmmrepo/experiments/FirstPersonView/tests/sdl_descriptor -B $build -A x64 "-DSDL3_DIR=$sdk" -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+          if($LASTEXITCODE -ne 0){throw 'Pinned SDL descriptor regression configure failed.'}
+          & cmake --build $build --config Release --parallel 2
+          if($LASTEXITCODE -ne 0){throw 'Pinned SDL descriptor regression compile failed.'}
+          Push-Location (Join-Path $build 'Release')
+          try {
+            & ./ncmm_sdl_descriptor_repro.exe 4 *> stdout.log
+            if($LASTEXITCODE -ne 0){Get-Content stdout.log;throw 'Actual SDL descriptor boundary/pixel regression failed.'}
+            Get-Content stdout.log
+            $library=[IO.Path]::GetFullPath((Get-Content sdl-library-path.txt -Raw).Trim())
+            if(-not $library.StartsWith($libraryRoot,[StringComparison]::OrdinalIgnoreCase)){throw 'SDK test linked an unexpected SDL library.'}
+            [ordered]@{sdl_dependency=$dependency;library_sha256=(Get-FileHash -LiteralPath $library -Algorithm SHA256).Hash.ToLowerInvariant();frames=4;draws=16384;pixels_checked=262144;ordinary_game_performance=$false;manual_playthrough=$false} | ConvertTo-Json -Depth 8 | Set-Content sdl-descriptor-identity.json -Encoding UTF8
+          } finally {Pop-Location}
+      - name: Preserve the verified private SDK before long Native gameplay
+        if: steps.sdk_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: upstream/msvc-full-features/vcpkg_installed
+          key: ncmm-vcpkg-${{ runner.os }}-f6672d8e480ccdecddfad3fd1b838ba369ffe6cd-${{ hashFiles('upstream/msvc-full-features/vcpkg.json', 'upstream/msvc-full-features/vcpkg-configuration.json', 'upstream/msvc-full-features/ncmm-sdl-overlay/**', 'upstream/.github/vcpkg_triplets/x64-windows-static.cmake') }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: first-person-sdl-descriptors-${{ matrix.build }}
+          path: |
+            sdl-descriptor-${{ matrix.build }}/Release/stdout.log
+            sdl-descriptor-${{ matrix.build }}/Release/descriptor-boundary-last.bmp
+            sdl-descriptor-${{ matrix.build }}/Release/sdl-descriptor-identity.json
+            sdl-descriptor-${{ matrix.build }}/CMakeCache.txt
+          retention-days: 7
       - uses: actions/cache/save@v4
         if: steps.engine_cache.outputs.cache-hit != 'true'
         with:
@@ -416,7 +467,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: mods/undeadpeople/content
       - name: Automated native gameplay, CPU/GPU profiling and actual UDP Hybrid v3
-        timeout-minutes: 55
+        timeout-minutes: 95
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
@@ -430,6 +481,15 @@ jobs:
           if(@($audit.tilesets).Count -ne 2){throw 'Actual UDP Hybrid v3 evidence is incomplete.'}
           python ncmmrepo/experiments/FirstPersonView/tests/verify_gameplay_audit.py --root $evidence --minimum-soak-seconds $duration --output installer-result/first-person-gameplay-verified.json
           if($LASTEXITCODE -ne 0){throw 'Native gameplay evidence verification failed.'}
+          python ncmmrepo/experiments/FirstPersonView/tests/verify_fire_audit.py --root $evidence --output installer-result/first-person-fire-verified.json
+          if($LASTEXITCODE -ne 0){throw 'Native firing metadata/command qualification failed.'}
+          python -m pip install --disable-pip-version-check pillow==11.3.0
+          python ncmmrepo/experiments/FirstPersonView/tests/verify_fire_pixels.py --root $evidence --output installer-result/first-person-fire-pixels-verified.json
+          if($LASTEXITCODE -ne 0){throw 'Native firing UI/presented-frame verification failed.'}
+          Copy-Item (Join-Path $evidence 'first-person-fire-audit.json') installer-result/first-person-fire-audit.json
+          $fireImages=Join-Path $PWD 'installer-result/fire-ui'
+          New-Item -ItemType Directory -Path $fireImages | Out-Null
+          Get-ChildItem $evidence -Filter 'first-person-fire-frame-*.png' | Copy-Item -Destination $fireImages
           Copy-Item (Join-Path $output 'benchmark-provenance.json') 'installer-result/first-person-gameplay-provenance.json'
           Copy-Item (Join-Path $evidence 'first-person-gameplay-audit.json') 'installer-result/first-person-gameplay-audit.json'
           Copy-Item (Join-Path $evidence 'first-person-multilevel-save-after.json') 'installer-result/first-person-gameplay-save-load.json'

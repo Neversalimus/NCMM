@@ -29,7 +29,7 @@ class ApplyTests(unittest.TestCase):
                           "void map::set_floor_cache_dirty( const int zlev )"):
             map_cpp+=signature+"\n{\n}\n"
         (root / "src/map.cpp").write_text(map_cpp)
-        (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n}\n')
+        (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n        next_action = inp_mngr.get_input_event( preferred_keyboard_mode );\n    inp_mngr.set_timeout( old_timeout );\n    return *result;\n}\n')
         (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR+'\nstatic void CheckMessages()\n{\n        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n}\n')
         (root / "src/sdl_wrappers.cpp").write_text('#include "sdl_wrappers.h"\nvoid RenderPresent() {\n    printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" );\n}\n')
         with (root / "src/sdltiles.cpp").open('a') as f:
@@ -40,7 +40,7 @@ class ApplyTests(unittest.TestCase):
         with (root / "src/handle_action.cpp").open('a') as f: f.write('\n    if( act == ACTION_NULL ) {\n        act = look_up_action( action );\n    }')
         with (root / "src/handle_action.cpp").open('a') as f: f.write('\n        if( act == ACTION_SELECT || act == ACTION_SEC_SELECT ) {}')
         (root / "src/melee.cpp").write_text('    const bool hits = hit_spread >= 0;')
-        (root / "src/ranged.cpp").write_text('        curshot++;\n\n        if( !gun.is_gun() ) {}\n    bool skip_redraw = false;')
+        (root / "src/ranged.cpp").write_text('target_handler::trajectory target_ui::run()\n{\n}\n        curshot++;\n\n        if( !gun.is_gun() ) {}\n    bool skip_redraw = false;')
         (root / "src/creature.cpp").write_text("int Creature::deal_melee_attack( Creature *source, int hitroll )\n{\n}\n    apply_damage( source, bp, total_damage );")
         (root / "src/ballistics.cpp").write_text('#include "ballistics.h"\n    const bool do_animation = get_option<bool>( "ANIMATION_PROJECTILES" );')
         (root / "src/monster.cpp").write_text("    // We were carrying a creature, deposit the rider")
@@ -92,6 +92,11 @@ bool cata_tiles::draw_sprite_at() {
                 self.assertIn('if( !printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" ) )', (root / "src/sdl_wrappers.cpp").read_text(encoding="utf-8"))
                 self.assertEqual((root / "src/sdl_wrappers.cpp").read_text(encoding="utf-8").count("ncmm::graphics_frame_presented();"), 1)
                 self.assertIn("graphics_erase( module_id )", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
+                self.assertIn("graphics_context.note( category );", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
+                self.assertIn("graphics_targeting_scope ncmm_aiming", (root / "src/ranged.cpp").read_text(encoding="utf-8"))
+                self.assertIn("graphics_note_input_wait( category, input_manager::actual_keyboard_mode( preferred_keyboard_mode ) == keyboard_mode::keychar )", (root / "src/input_context.cpp").read_text(encoding="utf-8"))
+                self.assertIn("graphics_note_input_wait( const std::string &, bool text )", (root / "src/ncmm_loader.h").read_text(encoding="utf-8"))
+                self.assertTrue((root / "src/ncmm_graphics_context.hpp").is_file())
                 self.assertIn("graphics.creatures.v1", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_note_creature( this, 4 )", (root / "src/monster.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_note_creature( origin, 2", (root / "src/ballistics.cpp").read_text(encoding="utf-8"))

@@ -1,0 +1,165 @@
+{
+  "schema": 1,
+  "recorded_utc": "2026-10-19T03:12:21.902113+00:00",
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 4090",
+    "driver": "610.47",
+    "backend": "direct3d12",
+    "sdl": "3.4.10"
+  },
+  "native": {
+    "source": "e8e4125ef9f1d50c9b9689ad1b5d4d25069d4a05",
+    "reviewed_head": "e0393ed5626cef910d8ef98c46fa1dd0e62935c8",
+    "host_sha256": "89468a5a6b841ef9c1e22ee93f7f52d4fe024ef9112cbc5014fe0f40a8cacc1e",
+    "module_sha256": "bb529873ddb36dc44f1c131de3920f1966b3255ddf82eca08a431685e3ac33d6",
+    "attempts": 192,
+    "confirmed_shots": 132,
+    "png_integrity_checked": 2915,
+    "fixed_presented_pixels_checked": 2910,
+    "p0_pixels_passed": true,
+    "complete_gameplay_audit_passed": false,
+    "exit_code": 2173,
+    "failure": "D3D12 validation #646 INVALID_DESCRIPTOR_HANDLE; sampler heap current index and capacity both 2048; attempted destination is outside the heap",
+    "stack": [
+      "D3D12_INTERNAL_WriteGPUDescriptors",
+      "D3D12_INTERNAL_BindGraphicsResources",
+      "GPU_RunCommandQueue",
+      "cata_tiles::draw"
+    ]
+  },
+  "isolated_repro": {
+    "unpatched": {
+      "label": "unpatched",
+      "exit_code": 2173,
+      "gpu_debug_requested": true,
+      "manual_playthrough": false,
+      "ordinary_game_performance": false,
+      "frames_requested": 16,
+      "debugger_error": null,
+      "crash_dumps": 1,
+      "runtime": {
+        "ncmm_sdl_descriptor_repro.exe": "7009eefada62bbc04ca3a03541f9a960186dbac6fd1d389aac76708c6ce39857",
+        "SDL3.dll": "c64ae45906abdf2dc3c6c2730e3b5a4a28aa05fae33ed9217db4ee146cb8ba0b"
+      }
+    },
+    "patched_same_executable": {
+      "label": "graphics-reservation",
+      "exit_code": 0,
+      "gpu_debug_requested": true,
+      "manual_playthrough": false,
+      "ordinary_game_performance": false,
+      "frames_requested": 16,
+      "debugger_error": null,
+      "crash_dumps": 0,
+      "runtime": {
+        "SDL3.dll": "95e4bb11a306c3a9c0dd0eaab5354e49005352fdeb20bb273dbe743fc839a265",
+        "ncmm_sdl_descriptor_repro.exe": "7009eefada62bbc04ca3a03541f9a960186dbac6fd1d389aac76708c6ce39857"
+      }
+    },
+    "shipping_test": {
+      "label": "shipping-vendor-graphics-reservation",
+      "exit_code": 0,
+      "gpu_debug_requested": true,
+      "manual_playthrough": false,
+      "ordinary_game_performance": false,
+      "frames_requested": 16,
+      "debugger_error": null,
+      "crash_dumps": 0,
+      "runtime": {
+        "SDL3.dll": "ca049b29bd5934f68ca1f1d67ab9e16eed56b7200b72d5aae7272afa1d12a51d",
+        "ncmm_sdl_descriptor_repro.exe": "4b88944cf1e6324e857641f8afddfd23c3f19546ccd423282c34850bad2dc700"
+      }
+    },
+    "frames_per_pass": 16,
+    "advanced_draws_per_pass": 65536,
+    "exact_pixels_checked_per_pass": 1048576,
+    "debug_layer_errors_after_fix": 0,
+    "metadata_only_failed_attempt_preserved": "C:\\workspace\\fpv013-sdl3410-descriptor-repro\\shipping-graphics-reservation\\process-result.json"
+  },
+  "correction": {
+    "port_manifest_sha256": "4510d96c09bbc863570ccbb051f47f75d561ec0d5d05d8a4f50c79ce889993b0",
+    "patch_sha256": "982e080b2c8a2bcd6ee1e8cf8c105750633c0d9810f43681f40f858a34644162",
+    "runtime_vendor": "NCMM-graphics-descriptors-982e080b2c8a",
+    "scope": "D3D12 graphics descriptor reservation and root-table restoration; SDL compute and other backends unchanged",
+    "upstream_issue": "https://github.com/libsdl-org/SDL/issues/16369",
+    "source_archive_sha512": "10a9c1fa4d6891c7387fa694b786a168f86b6e5447c6c522f85b739e33720e106ee879dfa9e6e537d5521b983cfbd4908927c555c4d3412735129a4231e16fe6"
+  },
+  "qualification": {
+    "actual_modified_native_host_passed": false,
+    "final_unchanged_30_minute_passed": false,
+    "ordinary_game_performance_measured": false,
+    "manual_playthrough": false
+  },
+  "raw_evidence": [
+    {
+      "path": "C:\\workspace\\fpv013-fire-e039-rtx-1807-1\\evidence\\first-person-process-result.json",
+      "bytes": 856,
+      "sha256": "90a1b6b1df97059609dc745f4f822bfd9d4259e523696f57abd91b76a4e46d6b"
+    },
+    {
+      "path": "local-evidence/fire-e039-rtx-1807-pixels-runtime-verified.json",
+      "bytes": 232042,
+      "sha256": "a0bdd8a9aa50fcd45a82012f920ed6c61ab2535462cefe7df54ca6f64659c31b"
+    },
+    {
+      "path": "local-evidence/fire-e039-87d-symbolized-stack.txt",
+      "bytes": 56081,
+      "sha256": "4d15ad021449e18ad0c0fe6673b318cfcc048cf0313daeda447540f6a787a30d"
+    },
+    {
+      "path": "local-evidence/fire-e039-87d-descriptor-capacity.txt",
+      "bytes": 3274,
+      "sha256": "eb9d5057980cf7c5a6b1eee4accd839c2f511d02f1098f896e88ef937bcbcc4b"
+    },
+    {
+      "path": "C:\\workspace\\fpv013-fire-e039-rtx-1807-1\\evidence\\first-person-crash-7920-0000087D-0.dmp",
+      "bytes": 1522241,
+      "sha256": "82b6d0ce4945d7802170b7cd16d406da7c146e33881aefc0faad88722544ff2f"
+    },
+    {
+      "path": "C:\\workspace\\fpv013-sdl3410-descriptor-repro\\unpatched\\process-result.json",
+      "bytes": 442,
+      "sha256": "233959356782c64d35e3070394742cd28642554dce1f79949d83d1f30ab922fd"
+    },
+    {
+      "path": "C:\\workspace\\fpv013-sdl3410-descriptor-repro\\unpatched\\stdout.log",
+      "bytes": 92,
+      "sha256": "ea841b1918d4c08c0ac34ca366f48e287ecc07f74fd98ad198a874c5f3f18db3"
+    },
+    {
+      "path": "C:\\workspace\\fpv013-sdl3410-descriptor-repro\\unpatched\\first-person-debug-events.log",
+      "bytes": 10312,
+      "sha256": "044019d0f24b3ddc5467b4ec7d701385b686bb293c44ea8ed63cd6d0bc5a28de"
+    },
+    {
+      "path": "C:\\workspace\\fpv013-sdl3410-descriptor-repro\\graphics-reservation\\process-result.json",
+      "bytes": 450,
+      "sha256": "16b4615cbcdd96603f83af2481a840a0af837710d0dc99667c15a86319a35edd"
+    },
+    {
+      "path": "C:\\workspace\\fpv013-sdl3410-descriptor-repro\\graphics-reservation\\stdout.log",
+      "bytes": 610,
+      "sha256": "f3b4b376680c008f11fa191a8a7b2f06ba600dcf972459d8aaa2ba71b23eccc0"
+    },
+    {
+      "path": "C:\\workspace\\fpv013-sdl3410-descriptor-repro\\graphics-reservation\\first-person-debug-events.log",
+      "bytes": 14961,
+      "sha256": "0bdb91772dee26aa9d315610bd8a023896c8330bf76e1fae1e1bf767400be2c8"
+    },
+    {
+      "path": "C:\\workspace\\fpv013-sdl3410-descriptor-repro\\shipping-vendor-graphics-reservation\\process-result.json",
+      "bytes": 466,
+      "sha256": "1ba912efd1d4e71754e7d343ff9b1fa721b8ff1983e1949dd3fdc918e363ba66"
+    },
+    {
+      "path": "C:\\workspace\\fpv013-sdl3410-descriptor-repro\\shipping-vendor-graphics-reservation\\stdout.log",
+      "bytes": 671,
+      "sha256": "ee4edc899fb6dcdae4eb2e1c8fbe7551804afffaeeb8b229d8d6e804946d3eca"
+    },
+    {
+      "path": "C:\\workspace\\fpv013-sdl3410-descriptor-repro\\shipping-vendor-graphics-reservation\\first-person-debug-events.log",
+      "bytes": 14993,
+      "sha256": "cca685684cc8702b479996f0698c07f534dc67807ba731dc50f90766e314b49e"
+    }
+  ]
+}
