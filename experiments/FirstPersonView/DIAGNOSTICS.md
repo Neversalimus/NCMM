@@ -198,3 +198,57 @@ targets/assets, staging capacity and the cell snapshot have separate counters;
 their combined budget is bounded. Older missing fields mean unavailable.
 
 Before each native renderer reset, the host drains the shared SDL GPU device even if module disable already cleared the private backend. This covers queued SDL presentation copies and swapchain release. It is a lifecycle boundary, not a new per-frame fence. The retained 0.12.7 WARP stacks and matching-image metadata are preserved in qualification/0.12.8-warp-stacks.json.gz.
+
+## Camera snapshot experiment and live tracing
+
+The Host may reuse owned, camera-independent cell data only while CDDA's main
+thread is blocked in the ordinary input loop. Camera actions preserve this
+lease. Unknown/native actions, nested UI, other module callbacks and native map
+changes revoke its generation. Position/eye, source revisions, loaded Z range,
+viewport, renderer texture generation and tileset independently guard reuse.
+This is not a turn-number cache. Actors, death clips and vehicles continue on
+their live path. The complete native tile pass still runs on every redraw.
+
+The explicit `game::get_player_input` lifetime also owns its 125 ms Native
+animation polls. A TIMEOUT inside that exact loop preserves the generation;
+it does not advance the simulation. A TIMEOUT outside the owned loop, a real
+action, nested menu or recursive input loop still revokes reuse. This avoids
+discarding the static snapshot on every weather/animation poll. The actual
+SDL probe records revocation causes and saves any unclassified window present
+for pixel review; its no-fallback assertion remains strict.
+
+The existing sparse snapshot cache acquires a new side/back sector lazily.
+Frustum rejections never become cached native occlusion. Its owned cell,
+appearance and physical-light payload is capped at 96 MiB including capacity;
+no item, Creature or atlas pointer is added to it. Substrate matching and camera
+culling still run against the current submitted cells. Existing GPU mesh/resource
+caches remain authoritative for their own geometry and upload lifetimes.
+
+`Run-FirstPersonBenchmark.ps1 -MovementBenchmark -CameraSnapshotVerify` repeats
+native extraction and compares permissions, IDs, lights, shape/detail and
+presentation against the owned data. Each record must contain at least 100
+actual comparisons and zero mismatches. This diagnostic is intentionally slow.
+`-DisableCameraSnapshot` supplies the same-binary control. Both switches are
+temporary diagnostics and their environment is restored, including on failure.
+Movement records identify their controlled immutable-fixture input lease and
+retain per-frame hit/miss, comparison, generation and byte counters. This is
+automated qualification, not a manual combat session.
+
+For profiling only, `NCMM_FP_TRACE_MARKERS=1` enables CPU NVTX ranges and SDL GPU
+debug groups. The unmodified NVTX core is header-only and pinned under
+`graphics_bridge/third_party/nvtx3`; no installed SDK or additional profiler DLL
+is required to build or run the game. Profiler-off measurements leave markers
+disabled. Native Update covers resolved action dispatch; Input Wait identifies
+blocking menus/targeting separately. Native 2D, Snapshot, Visibility, Geometry,
+Resource Preparation, Upload, World, Creatures, Hands/Items, Effects, Target HUD
+and Present identify the remaining stages. Nested ranges are not additive.
+These annotations do not convert CPU submit/record timers into GPU execution
+time. Live seven-scene Graphics and supplemental Systems validation is recorded
+in `reports/nsight-16d-hardware.md`, including incomplete workload-event coverage.
+
+Nsight's CLI must receive `--platform="Windows (x86_64)"` as one argument.
+Passing `--platform` and its value as separate arguments lets Qt consume it as
+its own QPA plugin selection. Omit `--hostname` for a local launch. Capture
+settings (including Nsight's enforced VSync-off default and clock mode) must be
+recorded separately from ordinary profiler-off timings. A startup capture is
+only connection validation and does not qualify a first-person scene.

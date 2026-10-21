@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import apply_graphics_bridge as bridge
+from native_compiler_bridge import BEFORE as NATIVE_TOGGLE
 
 REPO = Path(__file__).resolve().parents[2]
 SDL_ANCHOR = """        tilecontext->draw(
@@ -20,6 +21,14 @@ class ApplyTests(unittest.TestCase):
         for name in ("ncmm_loader.cpp", "ncmm_loader.h"):
             (root / "src" / name).write_bytes((REPO / "host_patch" / name).read_bytes())
         (root / "src/game.h").write_text("        bool save();\n")
+        (root / "src/vehicle_use.cpp").write_text(NATIVE_TOGGLE)
+        (root / "src/debug.cpp").write_text('\nstd::string ncmm_debug_report_text( const std::string &text )\n{ return text; }\n')
+        options='static void ncmm_apply_deferred_option_value( const std::string &, options_manager::cOpt & );\n// NCMM v8.7.6.6 stale world-option repair:\n'
+        for kind in ['bool','int','float','enum']:
+            options+='bool options_manager::ncmm_register_world_'+kind+'()\n{\n    if( missing ) {\n        return true;\n    }\n    cOpt &opt = it->second;\n    if( world_options.has_value() ) { }\n    return true;\n}\n'
+        options+='\nvoid options_manager::update_global_locale() { }\n'
+        (root/'src/options.cpp').write_text(options)
+        (root / "src/creature.h").write_text('#include <array>\nclass Creature {\n    public:\n        ~Creature() override;\n};\n')
         (root / "src/overmapbuffer.h").write_text("        bool has( const point_abs_om &p );\n")
         (root / "src/map.h").write_text("        int supports_zlevels() const {\n            return zlevels;\n        }\n")
         map_cpp='#include "map.h"\n'
@@ -38,7 +47,7 @@ class ApplyTests(unittest.TestCase):
         (root / "src/sdltiles.h").write_text("SDL_Window *get_sdl_window();")
         (root / "src/handle_action.cpp").write_text("    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {\n        player_character.clear_destination();\n        destination_preview.clear();\n        return false;\n    }")
         with (root / "src/handle_action.cpp").open('a') as f: f.write('\n    if( act == ACTION_NULL ) {\n        act = look_up_action( action );\n    }')
-        with (root / "src/handle_action.cpp").open('a') as f: f.write('\n        if( act == ACTION_SELECT || act == ACTION_SEC_SELECT ) {}')
+        with (root / "src/handle_action.cpp").open('a') as f: f.write('\n        if( act == ACTION_SELECT || act == ACTION_SEC_SELECT ) {}\ninput_context game::get_player_input( std::string &action )\n{\n    return ctxt;\n}\n\nstatic void rcdrive( ) {}')
         (root / "src/melee.cpp").write_text('    const bool hits = hit_spread >= 0;')
         (root / "src/ranged.cpp").write_text('target_handler::trajectory target_ui::run()\n{\n}\n        curshot++;\n\n        if( !gun.is_gun() ) {}\n    bool skip_redraw = false;')
         (root / "src/creature.cpp").write_text("int Creature::deal_melee_attack( Creature *source, int hitroll )\n{\n}\n    apply_damage( source, bp, total_damage );")
@@ -78,6 +87,15 @@ bool cata_tiles::draw_sprite_at() {
             with patch.object(bridge.subprocess, "check_output", return_value=next(iter(bridge.SOURCES))):
                 with self.assertRaisesRegex(ValueError, "one exact anchor"): bridge.apply(root)
             self.assertEqual(before, self.fingerprint(root))
+    def test_changed_input_return_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root)
+            path=root/'src/input_context.cpp'
+            path.write_text(path.read_text().replace('return *result;', 'return modified_result;'))
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
     def test_success_and_reapply_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); self.fixture(root)
@@ -97,6 +115,9 @@ bool cata_tiles::draw_sprite_at() {
                 self.assertIn("graphics_note_input_wait( category, input_manager::actual_keyboard_mode( preferred_keyboard_mode ) == keyboard_mode::keychar )", (root / "src/input_context.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_note_input_wait( const std::string &, bool text )", (root / "src/ncmm_loader.h").read_text(encoding="utf-8"))
                 self.assertTrue((root / "src/ncmm_graphics_context.hpp").is_file())
+                self.assertTrue((root / "src/ncmm_graphics_snapshot_cache.hpp").is_file())
+                self.assertIn('ncmm_wait.completed( *result );', (root / "src/input_context.cpp").read_text())
+                self.assertIn('graphics_snapshot_external_callback( module_id );', (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics.creatures.v1", (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_note_creature( this, 4 )", (root / "src/monster.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_note_creature( origin, 2", (root / "src/ballistics.cpp").read_text(encoding="utf-8"))
@@ -107,6 +128,15 @@ bool cata_tiles::draw_sprite_at() {
                 before = self.fingerprint(root)
                 with self.assertRaises(ValueError): bridge.apply(root)
                 self.assertEqual(before, self.fingerprint(root))
+    def test_changed_native_compiler_predicate_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root)
+            (root/'src/vehicle_use.cpp').write_text('changed upstream predicate')
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'electronic-toggle predicate changed'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
+
     def test_missing_shutdown_anchor_no_partial_patch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); self.fixture(root)
@@ -115,6 +145,30 @@ bool cata_tiles::draw_sprite_at() {
             with patch.object(bridge.subprocess, "check_output", return_value=next(iter(bridge.SOURCES))):
                 with self.assertRaisesRegex(ValueError, "one exact anchor"): bridge.apply(root)
             self.assertEqual(before, self.fingerprint(root))
+    def test_changed_native_animation_input_loop_no_partial_patch(self):
+        for anchor in ['input_context game::get_player_input(', 'static void rcdrive(']:
+            with self.subTest(anchor=anchor), tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);self.fixture(root);path=root/'src/handle_action.cpp'
+                path.write_text(path.read_text().replace(anchor,'changed_native_input_loop('))
+                before=self.fingerprint(root)
+                with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                    with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
+                self.assertEqual(before,self.fingerprint(root))
+    def test_changed_native_debug_helper_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root);(root/'src/debug.cpp').write_text('changed Native report helper')
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
+    def test_changed_deferred_setting_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root);path=root/'src/options.cpp'
+            path.write_text(path.read_text().replace('ncmm_register_world_enum(', 'changed_native_registration('))
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'four exact Native'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
     def test_changed_creature_hook_no_partial_patch(self):
         for name in ("creature.cpp", "ballistics.cpp", "monster.cpp", "npc.cpp"):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:

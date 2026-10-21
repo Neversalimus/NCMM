@@ -1,0 +1,293 @@
+{
+  "schema": 1,
+  "ncmm_source": "16d111aba43d5fe2126260788e9a7d1d4bb0d81a",
+  "engine_source": "3f7fb352bf492ba521bd9408a0c9f6ce239e8d83",
+  "host_sha256": "1feb9dcfdeb808a9f065a0b000401de9050c19d64ff2df622bf845489164e58a",
+  "module_sha256": "4423d061380446d20daaa6fd17ea6aafabf5c76a03c48bfaa232c45b7b6484e3",
+  "nsys_cli_sha256": "e597347ef6cb45456612c0c9593401bb6d1b85497bb18534968f309955831291",
+  "manifest_sha256": "bf3f5c3d94c8eb0bae712c1d1e3f533bc99e0716a878b7735adb5aecb60424ed",
+  "retry_manifest_sha256": "d27e3b1f8da5bbc67f5e46a0235e7477ab90456ff459bf4bf4e6123e25e439ba",
+  "immutable_static_files_verified": 8599,
+  "static_inventory_sha256": "305442af89055b72d1e28597da022994753159b5bca22ba7643f9cc909a8b31d",
+  "actual_cdda_sdl": true,
+  "device": "NVIDIA GeForce RTX 4090",
+  "driver": "610.47",
+  "backend": "direct3d12",
+  "sdl_version": "3.4.10 (static)",
+  "viewport": [
+    1768,
+    1084
+  ],
+  "internal_resolution": [
+    1761,
+    1080
+  ],
+  "gpu_capture_manifest_sha256": "ade30fa63ba1561a6ee8870f9ee9706a78523b81ecc48be768fa59d6fb5e12aa",
+  "cpu_verified_report_sha256": "860f2856d913f8c893ec78603f52dc479107c8ed1251f2c06f92b39d1c5bc359",
+  "gpu_verified_report_sha256": "7ea5ba52b86f01b84c3687de9e601b7ddf7c9860e4a660c70becfbc0b0d46b74",
+  "ordinary_performance_measurement": false,
+  "performance_accepted": false,
+  "manual_playthrough": false,
+  "global_settings_changed": false,
+  "scenes": [
+    {
+      "scene": "quiet",
+      "cpu_logical_ranges": 16,
+      "gpu_present_ranges": 16,
+      "cpu_whole_logical_range_ms": {
+        "count": 16,
+        "median": 8.8932805,
+        "p95": 10.82134875,
+        "p99": 11.17870815,
+        "maximum": 11.268048
+      },
+      "cpu_first_logical_range_ms": 9.021762,
+      "cpu_phase_wall_median_ms": {
+        "Native Update": 0.001545,
+        "Native 2D": 4.839812,
+        "Snapshot": 1.633002,
+        "Visibility": 1.109447,
+        "Geometry": 0.420681,
+        "Resource Preparation": 0.022365,
+        "Upload": 0.03576,
+        "World": 0.092886,
+        "Creatures": 0.0,
+        "Hands/Items": 0.01106,
+        "Effects": 0.007775,
+        "Target HUD": 0.000365,
+        "Present": 0.280396
+      },
+      "gpu_offscreen_execution_median_ms": 0.113888,
+      "gpu_profiler_frame_span_ms": {
+        "n": 16,
+        "median": 7.51211,
+        "p95": 10.430925,
+        "maximum": 14.6946
+      },
+      "nsys_gpu_workload_ranges_available": 1,
+      "nsys_unmatched_submits": 0
+    },
+    {
+      "scene": "rotate",
+      "cpu_logical_ranges": 16,
+      "gpu_present_ranges": 16,
+      "cpu_whole_logical_range_ms": {
+        "count": 16,
+        "median": 10.513017999999999,
+        "p95": 13.694330749999999,
+        "p99": 13.84267175,
+        "maximum": 13.879757
+      },
+      "cpu_first_logical_range_ms": 13.632522,
+      "cpu_phase_wall_median_ms": {
+        "Native Update": 0.034799,
+        "Native 2D": 4.984415,
+        "Snapshot": 1.772829,
+        "Visibility": 1.25733,
+        "Geometry": 1.240916,
+        "Resource Preparation": 0.034675,
+        "Upload": 0.053425,
+        "World": 0.0959,
+        "Creatures": 0.0,
+        "Hands/Items": 0.011565,
+        "Effects": 0.007445,
+        "Target HUD": 0.00033,
+        "Present": 0.28837
+      },
+      "gpu_offscreen_execution_median_ms": 0.141488,
+      "gpu_profiler_frame_span_ms": {
+        "n": 16,
+        "median": 9.196159999999999,
+        "p95": 12.512450000000001,
+        "maximum": 14.6978
+      },
+      "nsys_gpu_workload_ranges_available": 1,
+      "nsys_unmatched_submits": 0
+    },
+    {
+      "scene": "step",
+      "cpu_logical_ranges": 16,
+      "gpu_present_ranges": 16,
+      "cpu_whole_logical_range_ms": {
+        "count": 16,
+        "median": 9.657070999999998,
+        "p95": 17.76872525,
+        "p99": 25.49821865,
+        "maximum": 27.430592
+      },
+      "cpu_first_logical_range_ms": 27.430592,
+      "cpu_phase_wall_median_ms": {
+        "Native Update": 0.00217,
+        "Native 2D": 4.928672,
+        "Snapshot": 2.088183,
+        "Visibility": 1.697474,
+        "Geometry": 0.433936,
+        "Resource Preparation": 0.02267,
+        "Upload": 0.03708,
+        "World": 0.092045,
+        "Creatures": 0.0,
+        "Hands/Items": 0.01226,
+        "Effects": 0.008705,
+        "Target HUD": 0.000495,
+        "Present": 0.31753
+      },
+      "gpu_offscreen_execution_median_ms": 0.135248,
+      "gpu_profiler_frame_span_ms": {
+        "n": 16,
+        "median": 10.218,
+        "p95": 14.904375,
+        "maximum": 25.9062
+      },
+      "nsys_gpu_workload_ranges_available": 1,
+      "nsys_unmatched_submits": 0
+    },
+    {
+      "scene": "shot",
+      "cpu_logical_ranges": 16,
+      "gpu_present_ranges": 16,
+      "cpu_whole_logical_range_ms": {
+        "count": 16,
+        "median": 10.225045999999999,
+        "p95": 66.931198,
+        "p99": 198.40132599999993,
+        "maximum": 231.268858
+      },
+      "cpu_first_logical_range_ms": 231.268858,
+      "cpu_phase_wall_median_ms": {
+        "Native Update": 0.00169,
+        "Native 2D": 4.830149,
+        "Snapshot": 1.833122,
+        "Visibility": 1.39271,
+        "Geometry": 0.488707,
+        "Resource Preparation": 0.502923,
+        "Upload": 0.024,
+        "World": 0.092445,
+        "Creatures": 0.00349,
+        "Hands/Items": 0.01214,
+        "Effects": 0.0079,
+        "Target HUD": 0.01174,
+        "Present": 0.33873
+      },
+      "gpu_offscreen_execution_median_ms": 0.144256,
+      "gpu_profiler_frame_span_ms": {
+        "n": 16,
+        "median": 13.2072,
+        "p95": 29.98695,
+        "maximum": 35.3964
+      },
+      "nsys_gpu_workload_ranges_available": 1,
+      "nsys_unmatched_submits": 0
+    },
+    {
+      "scene": "hands",
+      "cpu_logical_ranges": 16,
+      "gpu_present_ranges": 16,
+      "cpu_whole_logical_range_ms": {
+        "count": 16,
+        "median": 9.877831,
+        "p95": 11.8174435,
+        "p99": 11.8882783,
+        "maximum": 11.905987
+      },
+      "cpu_first_logical_range_ms": 11.683234,
+      "cpu_phase_wall_median_ms": {
+        "Native Update": 0.00152,
+        "Native 2D": 4.815213,
+        "Snapshot": 1.721601,
+        "Visibility": 1.229545,
+        "Geometry": 0.5006,
+        "Resource Preparation": 0.522542,
+        "Upload": 0.027205,
+        "World": 0.0952,
+        "Creatures": 0.0,
+        "Hands/Items": 0.01286,
+        "Effects": 0.007555,
+        "Target HUD": 0.001095,
+        "Present": 0.339379
+      },
+      "gpu_offscreen_execution_median_ms": 0.130448,
+      "gpu_profiler_frame_span_ms": {
+        "n": 16,
+        "median": 9.506305000000001,
+        "p95": 10.93375,
+        "maximum": 11.0182
+      },
+      "nsys_gpu_workload_ranges_available": 1,
+      "nsys_unmatched_submits": 0
+    },
+    {
+      "scene": "smoke",
+      "cpu_logical_ranges": 16,
+      "gpu_present_ranges": 16,
+      "cpu_whole_logical_range_ms": {
+        "count": 16,
+        "median": 8.0003315,
+        "p95": 15.3314325,
+        "p99": 18.141252899999998,
+        "maximum": 18.843708
+      },
+      "cpu_first_logical_range_ms": 8.966399,
+      "cpu_phase_wall_median_ms": {
+        "Native Update": 0.00176,
+        "Native 2D": 2.963773,
+        "Snapshot": 2.062116,
+        "Visibility": 1.312773,
+        "Geometry": 0.584102,
+        "Resource Preparation": 0.02637,
+        "Upload": 0.059705,
+        "World": 0.112671,
+        "Creatures": 0.0,
+        "Hands/Items": 0.012705,
+        "Effects": 0.01985,
+        "Target HUD": 0.000445,
+        "Present": 0.30063
+      },
+      "gpu_offscreen_execution_median_ms": 0.500976,
+      "gpu_profiler_frame_span_ms": {
+        "n": 16,
+        "median": 7.448785,
+        "p95": 14.927150000000001,
+        "maximum": 15.3587
+      },
+      "nsys_gpu_workload_ranges_available": 1,
+      "nsys_unmatched_submits": 2
+    },
+    {
+      "scene": "city",
+      "cpu_logical_ranges": 16,
+      "gpu_present_ranges": 16,
+      "cpu_whole_logical_range_ms": {
+        "count": 16,
+        "median": 8.9319895,
+        "p95": 11.462747,
+        "p99": 14.970481399999997,
+        "maximum": 15.847415
+      },
+      "cpu_first_logical_range_ms": 8.751158,
+      "cpu_phase_wall_median_ms": {
+        "Native Update": 0.00159,
+        "Native 2D": 2.395469,
+        "Snapshot": 2.844786,
+        "Visibility": 1.878101,
+        "Geometry": 0.886637,
+        "Resource Preparation": 0.072961,
+        "Upload": 0.04408,
+        "World": 0.148601,
+        "Creatures": 0.0017,
+        "Hands/Items": 0.01146,
+        "Effects": 0.007395,
+        "Target HUD": 0.011275,
+        "Present": 0.34084
+      },
+      "gpu_offscreen_execution_median_ms": 0.19368,
+      "gpu_profiler_frame_span_ms": {
+        "n": 16,
+        "median": 7.802849999999999,
+        "p95": 15.688625,
+        "maximum": 16.1015
+      },
+      "nsys_gpu_workload_ranges_available": 1,
+      "nsys_unmatched_submits": 0
+    }
+  ]
+}

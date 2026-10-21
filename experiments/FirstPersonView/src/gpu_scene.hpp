@@ -1,4 +1,5 @@
 #pragma once
+#include "ncmm_graphics_trace.hpp"
 #include "hybrid_renderer.hpp"
 #include "gpu_packet.hpp"
 #include <chrono>
@@ -269,11 +270,13 @@ public:
         set(camera.time,{float(std::fmod(e.animation_seconds,100000.0)),float(e.moon_phase),float(metadata?metadata->view.sky_style:NCMM_SKY_EARTH)},float(e.lightning));set(camera.grid,{float(s.base.grid_width),float(s.base.grid_height),float(s.base.cell_count)},levels?1.f:0.f);
         // A single callback-owned index serves signatures and both geometry
         // consumers. No scene pointer or lookup allocation survives build().
+        ncmm_graphics_trace::cpu_zone geometry_zone("Geometry");
         const auto start=std::chrono::steady_clock::now();ncmm_world::coordinates indexed(levels,true);
         auto hashes=signatures(s,metadata,host,creatures!=nullptr,width,levels,indexed);collector sink(*this,s,metadata,out,host,hashes,levels,indexed);
         hybrid::renderer(s,yaw,pitch,provider,statistics,pose,metadata,{},creatures,levels,&indexed).collect(sink,width,height);sink.finish();generated_cells=sink.generated_cells;
         if(statistics.viewmodel_errors){last_reason="PSX viewmodel grip could not be attached safely";return false;}
         geometry_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();set(camera.sky_bottom,statistics.sky_horizon);
+        geometry_zone.stop();
         // Palette-only CPU work: derive the exact established sky endpoints by
         // collecting above; the complete sky raster remains in the GPU shader.
         camera.sky_top[0]=statistics.sky_top.x;camera.sky_top[1]=statistics.sky_top.y;camera.sky_top[2]=statistics.sky_top.z;camera.sky_top[3]=metadata&&metadata->horizon_enabled?1.f:0.f;

@@ -18,7 +18,8 @@ inline bool probe(device_context &context,ncmm_gpu_metrics_v1 &metrics) {
         if(vertices)SDL_ReleaseGPUBuffer(device,vertices);
         if(indices)SDL_ReleaseGPUBuffer(device,indices);
         if(pipeline)SDL_ReleaseGPUGraphicsPipeline(device,pipeline);
-        if(vs)SDL_ReleaseGPUShader(device,vs);if(fs)SDL_ReleaseGPUShader(device,fs);
+        if(vs)SDL_ReleaseGPUShader(device,vs);
+        if(fs)SDL_ReleaseGPUShader(device,fs);
     };
     if(!vs||!fs){release();return false;}
     SDL_GPUVertexBufferDescription layout{};layout.slot=0;layout.pitch=sizeof(ncmm_gpu_vertex_v1);layout.input_rate=SDL_GPU_VERTEXINPUTRATE_VERTEX;

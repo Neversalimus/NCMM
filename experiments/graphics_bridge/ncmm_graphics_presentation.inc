@@ -11,6 +11,7 @@ uint32_t graphics_effect_width=0, graphics_effect_height=0;
 bool graphics_effect_failed=false,graphics_click_pending=false;
 uint64_t graphics_click_time=0;
 size_t graphics_effect_gpu_frames=0, graphics_effect_cpu_frames=0;
+bool graphics_world_target_visible(const tripoint_bub_ms &origin,const tripoint_bub_ms &target);
 
 int graphics_get_presentation( ncmm_graphics_presentation_v1 *out )
 {
@@ -75,7 +76,8 @@ std::array<float,3> graphics_sample_rgb(const tripoint_bub_ms &p)
 float graphics_eye_height()
 {
     avatar &you=get_avatar();float height=std::clamp(you.height()*.00885f,.5f,3.5f);
-    if(you.is_crouching())height*=.72f;if(you.is_prone())height*=.25f;
+    if(you.is_crouching())height*=.72f;
+    if(you.is_prone())height*=.25f;
     if(you.in_vehicle&&get_map().veh_at(you.pos_bub()))height=std::min(height,1.18f);
     return height;
 }
@@ -153,6 +155,13 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
     for( size_t i=0; i<base.cell_count; ++i ) {
         if( !( base.cells[i].flags&NCMM_GFX_VISIBLE ) ) continue;
         auto &d=graphics_presentation_cells[i]; const auto &pos=positions[i];
+        auto *owned=world?graphics_camera_cache.find(world->coordinates[i].x,world->coordinates[i].y,world->coordinates[i].z):nullptr;
+        if(owned&&owned->presentation_ready&&!graphics_camera_cache.verify){d=owned->presentation;++graphics_camera_cache.totals.presentation_hits;continue;}
+        struct store_presentation {
+            ncmm_graphics_snapshot::entry *owned;ncmm_graphics_snapshot::cache &cache;ncmm_graphics_detail_v1 &value;
+            ~store_presentation(){if(!owned)return;if(owned->presentation_ready&&cache.verify){++cache.totals.verification_checks;if(std::memcmp(&owned->presentation,&value,sizeof(value)))++cache.totals.verification_mismatches;}
+                owned->presentation=value;owned->presentation_ready=true;}
+        } save_presentation{owned,graphics_camera_cache,d};
         if(world&&!(world->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)){
             d.terrain_material=material_for((world->coordinates[i].flags&NCMM_WORLD_STRUCTURE_VISIBLE)?std::string_view(here.ter(pos).id().str()):std::string_view(base.cells[i].terrain));continue;
         }
@@ -214,7 +223,6 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
     }
     graphics_aim.reset(); graphics_aim_name.clear(); graphics_effect_pixels.clear();
 }
-bool graphics_world_target_visible(const tripoint_bub_ms &origin,const tripoint_bub_ms &target);
 std::string graphics_click_action_impl()
 {
     if( !graphics_view.enabled || !graphics_control_context || !graphics_aim || !character_state_available() ) return "";

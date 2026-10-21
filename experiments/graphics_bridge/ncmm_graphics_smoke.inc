@@ -16,6 +16,7 @@ bool graphics_scene_smoke()
         require( graphics_view.owner == "first_person_view" && (graphics_view.hybrid_render||graphics_view.world_render),
                  "graphics_provider_missing" );
         require( tilecontext && tilecontext->is_valid(), "tileset_unavailable" );
+        #include "ncmm_graphics_deferred_options_smoke.inc"
         // Keep the complete established CPU qualification on the same new Host.
         // The GPU equivalence matrix below explicitly selects GPU separately.
         if( get_options().has_option( "NCMM_FIRST_PERSON_RENDERER" ) ) get_options().get_option( "NCMM_FIRST_PERSON_RENDERER" ).setValue( "cpu" );
@@ -108,6 +109,9 @@ bool graphics_scene_smoke()
         require( graphics_view.enabled, "view_did_not_enable" );
         if( std::getenv( "NCMM_FP_SAVE_ONLY" ) ) {
             #include "ncmm_graphics_multilevel_save_smoke.inc"
+        } else if( std::getenv( "NCMM_FP_CAMERA_INPUT" ) ) {
+            #include "ncmm_graphics_camera_input.inc"
+            press_f6();require(!graphics_view.enabled,"camera_input_f6_restore_failed");
         } else if( std::getenv( "NCMM_FP_MOVEMENT_ONLY" ) ) {
             #include "ncmm_graphics_movement_benchmark.inc"
             press_f6();require(!graphics_view.enabled,"movement_benchmark_f6_restore_failed");
@@ -568,7 +572,7 @@ bool graphics_scene_smoke()
         here.furn_set( lamp_pos, furn_id( "f_null" ) );
         lamp->light_emitted = restore.emission; lamp->light_color = restore.color;
         calendar::turn = start_time;
-        for( const std::pair<const char *, uint32_t> weather_case : {
+        for( const std::pair<const char *, uint32_t> &weather_case : {
                  std::pair<const char *, uint32_t>( "rain", NCMM_WEATHER_RAIN ),
                  { "snowstorm", NCMM_WEATHER_SNOW }, { "portal_storm", NCMM_WEATHER_PORTAL } } ) {
             get_weather().weather_id = weather_type_id( weather_case.first );

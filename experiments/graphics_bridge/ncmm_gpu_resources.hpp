@@ -1,4 +1,5 @@
 #pragma once
+#include "ncmm_graphics_trace.hpp"
 #include "ncmm_gpu_device.hpp"
 #include <algorithm>
 #include <array>
@@ -76,7 +77,8 @@ public:
     // Per-frame cells, instances, bones and explicit dynamic meshes are separate.
     uint64_t static_upload_bytes()const{return static_upload_bytes_;}
     uint64_t cpu_bytes()const{uint64_t n=0;for(const auto &[k,m]:meshes_)n+=sizeof(mesh_resource)+m.cpu_vertices.capacity()*sizeof(ncmm_gpu_vertex_v1)+m.cpu_indices.capacity()*4+m.materials.capacity()*sizeof(ncmm_gpu_material_v1)+m.joints.capacity()*sizeof(bounds)+m.ranges.capacity()*sizeof(mesh_range);
-        for(const auto &[k,t]:textures_)n+=t.pixels.capacity()*4;return n;}
+        for(const auto &[k,t]:textures_)n+=t.pixels.capacity()*4;
+        return n;}
     void bind(SDL_GPUDevice *device){device_=device;}
     void clear(){for(auto &[k,m]:meshes_)release(m);for(auto &[k,t]:textures_)release(t);meshes_.clear();textures_.clear();used_meshes_.clear();used_textures_.clear();bytes_=static_upload_bytes_=0;}
     void abandon(){device_=nullptr;clear();}
@@ -116,7 +118,8 @@ public:
             if(size>upload_limit){reason_="single mesh exceeds bounded upload budget";return false;}
             if(upload_bytes+size>upload_limit)continue;
             if(present&&source.vertex_count*sizeof(ncmm_gpu_vertex_v1)<=present->vertex_capacity&&source.index_count*4<=present->index_capacity){
-                if(!mesh_data(source,*present))return false;present->touched=++clock_;new_meshes.push_back(source.key);upload_bytes+=size;++metrics.dynamic_mesh_updates;continue;}
+                if(!mesh_data(source,*present))return false;
+                present->touched=++clock_;new_meshes.push_back(source.key);upload_bytes+=size;++metrics.dynamic_mesh_updates;continue;}
             if(present){auto old=meshes_.find(source.key);release(old->second);meshes_.erase(old);}
             mesh_resource m;m.bytes=size;m.touched=++clock_;m.dynamic=source.reserved&NCMM_GPU_DYNAMIC_MESH;if(!reserve(size,limit)||!mesh_data(source,m))return false;
             m.vertex_capacity=source.vertex_count*sizeof(ncmm_gpu_vertex_v1);m.index_capacity=source.index_count*4;
@@ -141,6 +144,7 @@ public:
                 n=m.cpu_indices.size()*4;std::memcpy(data+offset,m.cpu_indices.data(),n);offset+=n;}
             SDL_UnmapGPUTransferBuffer(device_,transfer);auto *commands=SDL_AcquireGPUCommandBuffer(device_);
             if(!commands){SDL_ReleaseGPUTransferBuffer(device_,transfer);reason_="acquire resource upload commands: "+std::string(SDL_GetError());return false;}
+            if(ncmm_graphics_trace::enabled())SDL_PushGPUDebugGroup(commands,"Resource Preparation");
             auto *copy=SDL_BeginGPUCopyPass(commands);offset=0;
             if(!copy){SDL_CancelGPUCommandBuffer(commands);SDL_ReleaseGPUTransferBuffer(device_,transfer);reason_="begin resource upload pass: "+std::string(SDL_GetError());return false;}
             for(auto key:new_textures){auto &t=*texture(key);SDL_GPUTextureTransferInfo from{};from.transfer_buffer=transfer;from.offset=uint32_t(offset);from.pixels_per_row=t.width;from.rows_per_layer=t.height;
@@ -148,6 +152,7 @@ public:
             for(auto key:new_meshes){auto &m=*mesh(key);SDL_GPUTransferBufferLocation from{transfer,uint32_t(offset)};uint32_t n=uint32_t(m.cpu_vertices.size()*sizeof(ncmm_gpu_vertex_v1));
                 SDL_GPUBufferRegion to{m.vertices,0,n};SDL_UploadToGPUBuffer(copy,&from,&to,m.dynamic);offset+=n;from.offset=uint32_t(offset);n=uint32_t(m.cpu_indices.size()*4);to={m.indices,0,n};SDL_UploadToGPUBuffer(copy,&from,&to,m.dynamic);offset+=n;}
             SDL_EndGPUCopyPass(copy);for(auto key:new_textures)if(texture(key)->levels>1)SDL_GenerateMipmapsForGPUTexture(commands,texture(key)->texture);
+            if(ncmm_graphics_trace::enabled())SDL_PopGPUDebugGroup(commands);
             bool ok=SDL_SubmitGPUCommandBuffer(commands);SDL_ReleaseGPUTransferBuffer(device_,transfer);
             if(!ok){reason_="submit resource uploads: "+std::string(SDL_GetError());return false;}
             for(auto key:new_textures){auto &t=*texture(key);t.ready=true;static_upload_bytes_+=uint64_t(t.width)*t.height*4;}
