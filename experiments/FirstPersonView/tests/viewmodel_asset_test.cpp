@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <vector>
 
 using namespace first_person::viewmodel;
@@ -17,6 +18,10 @@ float error(point a,point b){const auto d=a-b;return std::max({std::abs(d.x),std
 int main(int argc,char **argv){
     const auto &source=imported_asset();
     CHECK(valid_asset(source));CHECK(source.vertex_count==790);CHECK(source.index_count==3528);
+    auto mesh_only=source;mesh_only.keys=nullptr;mesh_only.key_count=0;mesh_only.tracks=nullptr;mesh_only.track_count=0;
+    mesh_only.clips=nullptr;mesh_only.clip_count=0;mesh_only.bare_pixels=mesh_only.glove_pixels=nullptr;mesh_only.texture_width=mesh_only.texture_height=0;
+    CHECK(valid_rigged_mesh(mesh_only));CHECK(!valid_asset(mesh_only));
+    auto mesh_pose=std::make_unique<pose_buffer>();CHECK(bind_pose(mesh_only,*mesh_pose));
     CHECK(source.joint_count==52);CHECK(source.palette_count==494);CHECK(source.clip_count==18);
     CHECK(node_index(source,"hand.R")>=0&&node_index(source,"hand.L")>=0);
     CHECK(clip_index(source,"missing")==-1&&node_index(source,nullptr)==-1);

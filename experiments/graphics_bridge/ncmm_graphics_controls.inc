@@ -147,8 +147,11 @@ bool graphics_process_mouse( uint32_t kind, float x, float y, float dx, float dy
     }
     if( kind == 2 ) { const bool was_dragging = graphics_mouse_drag; graphics_release_mouse(); return was_dragging; }
     if( kind == 3 && graphics_mouse_drag && std::isfinite( dx ) && std::isfinite( dy ) ) {
+        const float previous_yaw=graphics_camera_yaw;
         graphics_mouse_dx = std::clamp( dx, -2000.0f, 2000.0f ); graphics_mouse_dy = std::clamp( dy, -2000.0f, 2000.0f );
         graphics_action( "ncmm.view.mouse_look" ); graphics_mouse_dx = graphics_mouse_dy = 0;
+        if(graphics_camera_input_probe.active){++graphics_camera_input_probe.mouse_events;
+            graphics_camera_input_probe.rotation_radians+=std::abs(std::remainder(graphics_camera_yaw-previous_yaw,2*ncmm_graphics_camera::pi));}
         graphics_mouse_dirty = true; return true;
     }
 #else

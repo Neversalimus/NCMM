@@ -51,8 +51,10 @@ public:
     bool targets(uint32_t width,uint32_t height) {
         if(!device_||!width||!height||width>3840||height>2160)return false;
         if(output_&&width_==width&&height_==height)return true;
-        if(output_)SDL_DestroyTexture(output_);output_=nullptr;
-        if(depth_)SDL_ReleaseGPUTexture(device_,depth_);depth_=nullptr;
+        if(output_)SDL_DestroyTexture(output_);
+        output_=nullptr;
+        if(depth_)SDL_ReleaseGPUTexture(device_,depth_);
+        depth_=nullptr;
         output_=SDL_CreateTexture(renderer_,SDL_PIXELFORMAT_ABGR8888,SDL_TEXTUREACCESS_TARGET,int(width),int(height));
         if(!output_||!color())return fail("create GPU output texture");
         SDL_GPUTextureCreateInfo info{};info.type=SDL_GPU_TEXTURETYPE_2D;

@@ -10,7 +10,8 @@ inline point cross(point a,point b){return{a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b
 inline point from(const float *p){return{p[0],p[1],p[2]};}
 inline point transform(const ncmm_gpu_matrix_v1 &m,point p,bool vector=false){const auto *v=m.columns;return{p.x*v[0]+p.y*v[4]+p.z*v[8]+(vector?0:v[12]),p.x*v[1]+p.y*v[5]+p.z*v[9]+(vector?0:v[13]),p.x*v[2]+p.y*v[6]+p.z*v[10]+(vector?0:v[14])};}
 inline ncmm_gpu_matrix_v1 multiply(const ncmm_gpu_matrix_v1 &a,const ncmm_gpu_matrix_v1 &b){ncmm_gpu_matrix_v1 m{};
-    for(int c=0;c<4;++c)for(int r=0;r<4;++r)for(int k=0;k<4;++k)m.columns[c*4+r]+=a.columns[k*4+r]*b.columns[c*4+k];return m;}
+    for(int c=0;c<4;++c)for(int r=0;r<4;++r)for(int k=0;k<4;++k)m.columns[c*4+r]+=a.columns[k*4+r]*b.columns[c*4+k];
+    return m;}
 inline bounds transform_bounds(const bounds &b,const ncmm_gpu_matrix_v1 &matrix){
     bounds out;if(!b.valid())return out;point center{(b.lo[0]+b.hi[0])*.5f,(b.lo[1]+b.hi[1])*.5f,(b.lo[2]+b.hi[2])*.5f};
     const point extent{(b.hi[0]-b.lo[0])*.5f,(b.hi[1]-b.lo[1])*.5f,(b.hi[2]-b.lo[2])*.5f};center=transform(matrix,center);const auto *m=matrix.columns;
@@ -52,9 +53,10 @@ inline void pick(resource_cache &resources,const ncmm_gpu_scene_v1 &scene,ncmm_g
     for(uint32_t i=0;i<scene.draw_count;++i){const auto &draw=scene.draws[i];if(draw.pass==NCMM_GPU_HELD)continue;auto *mesh=resources.mesh(draw.mesh_key);if(!mesh)continue;
         const auto bounds=prepared?(*prepared)[i]:draw_bounds(*mesh,draw,scene);if(!ray_bounds(eye,direction,bounds,nearest))continue;
         for(const auto &range:mesh->ranges){const auto &material=mesh->materials[range.material];if(material.color[3]<.99f&&!(material.flags&NCMM_GPU_CUTOUT))continue;
-            for(uint32_t j=range.first;j<range.first+range.count;j+=3){const auto &va=mesh->cpu_vertices[mesh->cpu_indices[j]],&vb=mesh->cpu_vertices[mesh->cpu_indices[j+1]],&vc=mesh->cpu_vertices[mesh->cpu_indices[j+2]];
+            for(uint32_t j=range.first;j<range.first+range.count;j+=3){const auto &va=mesh->vertex_data()[mesh->cpu_indices[j]],&vb=mesh->vertex_data()[mesh->cpu_indices[j+1]],&vc=mesh->vertex_data()[mesh->cpu_indices[j+2]];
                 const auto a=posed_vertex(va,draw,scene),b=posed_vertex(vb,draw,scene),c=posed_vertex(vc,draw,scene),e1=b-a,e2=c-a,p=cross(direction,e2);float determinant=dot(e1,p);
-                if(std::abs(determinant)<1e-8f)continue;float inverse=1/determinant;const auto delta=eye-a;float u=dot(delta,p)*inverse;if(u<0||u>1)continue;const auto q=cross(delta,e1);float v=dot(direction,q)*inverse;if(v<0||u+v>1)continue;
+                if(std::abs(determinant)<1e-8f)continue;
+                float inverse=1/determinant;const auto delta=eye-a;float u=dot(delta,p)*inverse;if(u<0||u>1)continue;const auto q=cross(delta,e1);float v=dot(direction,q)*inverse;if(v<0||u+v>1)continue;
                 float distance=dot(e2,q)*inverse;if(distance<.08f||distance>nearest+.0002f)continue;
                 if((material.flags&NCMM_GPU_CULL_BACK)&&dot(cross(e1,e2),eye-a)<=0)continue;
                 const float tu=va.uv[0]*(1-u-v)+vb.uv[0]*u+vc.uv[0]*v,tv=va.uv[1]*(1-u-v)+vb.uv[1]*u+vc.uv[1]*v;

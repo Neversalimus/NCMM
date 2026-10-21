@@ -1,0 +1,3 @@
+# Preserve the exact signed-distribution input hashes on every platform.
+/include/** -text
+/LICENSE.txt -text

@@ -78,3 +78,52 @@ are retained. Blender files and their scripts are not executed. The asset
 manifest records input/output hashes and the deterministic conversion tool.
 This CC0 attribution concerns the imported model, textures and animations;
 it does not change the terms of CDDA or independently authored NCMM code.
+
+5. NVIDIA - NVTX core headers (optional diagnostic annotations)
+-------------------------------------------------------------
+Source: https://github.com/NVIDIA/NVTX
+License: Apache License 2.0 with LLVM Exceptions
+Unmodified core headers from the signed NVIDIA Nsight Graphics
+2026.3.1.26224 Windows distribution; individual source hashes are recorded in
+experiments/graphics_bridge/third_party/nvtx3/manifest.json.
+This is a header-only library. NCMM does not link or require a separate NVTX or
+NGFX runtime DLL. Calls are disabled during ordinary performance measurements.
+The complete license is supplied as NVTX-LICENSE.txt in the preview package.
+
+CC0 held item meshes and material palettes
+----------------------------------------
+The First Person TEST module compiles 30 distinct author models from the
+following CC0 packs. Their pinned author files, exact versions, SHA256 values,
+offline calibration and conversion results are recorded in
+experiments/FirstPersonView/assets/held_items/selection.json and generated/manifest.json.
+The installer carries held-assets.manifest.json and held-assets-licenses.txt.
+All author GLB/OBJ/MTL/PNG files remain unchanged in the repository; Blender
+files and scripts are not executed. The game needs no runtime importer,
+Blender, Python, network download or external model installation.
+
+Pichuliru: Flat Guns West (2022-02-10), Flat Shaded Melee Weapons (2022-01-16),
+and Flat Gun Attachments (2022-03-21):
+  https://opengameart.org/content/cc0-flat-guns-west
+  https://opengameart.org/content/cc0-flat-shaded-melee-weapons
+  https://opengameart.org/content/cc0-flat-gun-attachments
+Kenney: Survival Kit 2.0 (2024-04-03):
+  https://kenney.nl/assets/survival-kit
+Quaternius: Ultimate Gun Pack (2019-07) and Ultimate Survival Pack (2020-09):
+  https://quaternius.com/packs/ultimategun.html
+  https://quaternius.com/packs/survival.html
+sjolle: Low Poly Tools (2020-12-26):
+  https://opengameart.org/content/low-poly-tools
+Hernandack: Low Poly Survival Toolkit Weapon (2023-02-25):
+  https://opengameart.org/content/low-poly-survival-toolkit-weapon
+neincenets: Low Quality Flashlight (2024-10-14):
+  https://opengameart.org/content/low-quality-flashlight
+
+All selected packs are published by their authors under CC0 1.0 Universal:
+  https://creativecommons.org/publicdomain/zero/1.0/
+Pack-provided license/readme text is included where available. Other packs'
+publishing-author CC0 declarations are recorded as license evidence, without
+claiming that those archives contain a separate license file. The selected
+gun and attachment files contain zero authored animation clips; their authored
+nodes, joint influences, material groups, UVs and mechanism nodes are retained.
+The red-dot lens transmission material is adapted to tinted alpha blending;
+the renderer does not claim physical refraction.

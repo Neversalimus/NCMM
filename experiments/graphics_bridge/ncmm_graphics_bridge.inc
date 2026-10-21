@@ -11,6 +11,30 @@ struct graphics_view_state {
 };
 graphics_view_state graphics_view;
 ncmm_graphics_context::state graphics_context;
+ncmm_graphics_snapshot::input_lease graphics_snapshot_lease;
+ncmm_graphics_snapshot::cache graphics_camera_cache;
+// Main-thread counters used only by the explicit native SDL input diagnostic.
+// Ordinary rendering retains no event/frame journal.
+struct {
+    bool active=false;
+    uint64_t mouse_events=0,presents=0,gpu_frames=0,cpu_frames=0,nonperspective_frames=0;
+    double rotation_radians=0;
+    bool last_composed_perspective=false,last_composed_gpu=false;
+    uint64_t retained_perspective_frames=0,unclassified_captures=0,capture_failures=0;
+    bool pending_retained_verified=false;
+    uint64_t pixel_checks=0,pixel_reference_frames=0;
+    std::array<int,4> reference_bounds{};
+    std::vector<uint32_t> reference_pixels;
+    std::map<std::string,uint64_t> lease_invalidations;
+} graphics_camera_input_probe;
+void graphics_snapshot_external_callback(const char *module_id)
+{
+    // Other modules may change items/actors even without advancing calendar::turn.
+    // Never assume their UI callbacks are read-only or change their behaviour.
+    if(!module_id||graphics_view.owner!=module_id){
+        if(graphics_camera_input_probe.active)++graphics_camera_input_probe.lease_invalidations["callback:"+std::string(module_id?module_id:"unknown")];
+        graphics_snapshot_lease.invalidate();graphics_camera_cache.suspend();}
+}
 bool &graphics_gameplay_context = graphics_context.perspective;
 // Set only by the opt-in native firing audit to reproduce the original policy.
 bool graphics_fire_audit_legacy_context = false;
@@ -26,8 +50,8 @@ size_t graphics_snapshot_far_cells = 0;
 size_t graphics_snapshot_light_queries = 0;
 std::chrono::steady_clock::time_point graphics_snapshot_begun;
 double graphics_snapshot_ms = 0, graphics_callback_ms = 0, graphics_presentation_ms = 0;
-loaded_mod *find_loaded_by_id( const char *module_id );
 void graphics_clear_hybrid();
+void graphics_clear_target();
 void graphics_clear_gpu();
 void graphics_release_mouse();
 void graphics_cancel_animation();
@@ -55,7 +79,7 @@ int graphics_enable( const char *id, int enabled )
     const bool changed = graphics_view.enabled != ( enabled != 0 );
     graphics_view.enabled = enabled != 0;
     if( changed || !graphics_view.enabled ) graphics_cancel_animation();
-    if( !graphics_view.enabled ) { graphics_release_mouse(); graphics_clear_gpu(); graphics_clear_world(); }
+    if( !graphics_view.enabled ) { graphics_clear_target(); graphics_release_mouse(); graphics_clear_gpu(); graphics_clear_world(); }
 #if defined(TILES)
     if( changed && character_state_available() ) {
         add_msg( m_info, "%s", graphics_view.enabled ?
@@ -148,6 +172,7 @@ bool graphics_action( const std::string &action )
 
 bool graphics_world_needs_redraw();
 #include "ncmm_graphics_controls.inc"
+#include "ncmm_graphics_held.inc"
 #include "ncmm_graphics_hybrid.inc"
 #include "ncmm_graphics_world.inc"
 
@@ -382,4 +407,5 @@ bool graphics_draw( int x, int y, int width, int height )
 
 // Only the existing explicit --ncmm-gameplay-smoke path invokes this fixture.
 // It runs in a disposable CI game copy, after the real world/avatar are loaded.
+#include "ncmm_graphics_held_gallery.inc"
 #include "ncmm_graphics_smoke.inc"

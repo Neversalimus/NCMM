@@ -1,0 +1,6 @@
+[
+  {"name":"NCMM_FP_AUDIT_SAVED_BOOL","value":"true"},
+  {"name":"NCMM_FP_AUDIT_SAVED_INT","value":"17"},
+  {"name":"NCMM_FP_AUDIT_SAVED_FLOAT","value":"1.25"},
+  {"name":"NCMM_FP_AUDIT_SAVED_ENUM","value":"second"}
+]

@@ -23,7 +23,8 @@
         for(uint32_t i=0;i<world.cell_count;++i){const auto &c=world.coordinates[i];const auto &a=world.appearance.base.cells[i];
             if(!(c.flags&NCMM_WORLD_FLOOR_BOTTOM))require(c.lower_light[0]==0&&c.lower_light[1]==0&&c.lower_light[2]==0,"multilevel_unseen_lower_room_light_published");
             if(a.item[0]&&std::strcmp(a.item,"rock")==0)observed.rock_levels.push_back(c.z);
-            if(c.flags&NCMM_WORLD_FLOOR_TOP)++observed.floors;if(c.flags&NCMM_WORLD_FLOOR_BOTTOM)++observed.bottoms;
+            if(c.flags&NCMM_WORLD_FLOOR_TOP)++observed.floors;
+            if(c.flags&NCMM_WORLD_FLOOR_BOTTOM)++observed.bottoms;
             if((c.flags&NCMM_WORLD_FLOOR_TOP)&&!(c.flags&NCMM_WORLD_BODY_VISIBLE))++observed.neutral_tops;
             if(c.flags&NCMM_WORLD_STRUCTURE_VISIBLE){++observed.facades;observed.facade_levels.push_back(c.z);
                 require(ncmm_graphics_shapes::structural_surface(world.appearance.details[i].terrain_shape),"multilevel_facade_permission_has_no_architecture");
@@ -43,7 +44,8 @@
     auto terrain=[&](int x,int y,int z,const char *id){const tripoint_bub_ms p(center.x()+x,center.y()+y,z);require(here.ncmm_graphics_loaded(p),"multilevel_fixture_outside_loaded_map");require(ter_str_id(id).is_valid(),"multilevel_fixture_unknown_terrain");here.ter_set(p,ter_id(id));};
     auto spawn=[&](const char *id,int x,int y,int z){auto mon=make_shared_fast<monster>(mtype_id(id));require(g->place_critter_around(mon,tripoint_bub_ms(center.x()+x,center.y()+y,z),0,true)!=nullptr,"multilevel_fixture_creature_spawn_failed");};
     you.clear_mutations();you.clear_effects();you.set_underwater(false);you.set_base_height(175);you.set_movement_mode(move_mode_id("walk"));
-    if(!you.has_trait(trait_id("DEBUG_NIGHTVISION")))you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));you.recalc_sight_limits();
+    if(!you.has_trait(trait_id("DEBUG_NIGHTVISION")))you.toggle_trait(trait_id("DEBUG_NIGHTVISION"));
+    you.recalc_sight_limits();
     auto reset=[&](){clear_monsters();for(const auto &vehicle:here.get_vehicles())here.destroy_vehicle(vehicle.v);
         you.setpos(here,here.get_bub(original_position),false);calendar::turn=original_time;get_weather().weather_id=weather_type_id("sunny");
         for(int z=-OVERMAP_DEPTH;z<=OVERMAP_HEIGHT;++z)for(int y=-48;y<=48;++y)for(int x=-48;x<=48;++x){const tripoint_bub_ms p(center.x()+x,center.y()+y,z);if(!here.ncmm_graphics_loaded(p))continue;
@@ -98,7 +100,8 @@
     auto capture=[&](const std::string &filename,bool save_image){
         auto *raw=SDL_RenderReadPixels(renderer,nullptr);auto *image=raw?SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888):nullptr;require(image!=nullptr,"multilevel_capture_failed");if(raw)SDL_DestroySurface(raw);
         uint64_t fingerprint=1469598103934665603ull;for(int y=0;y<image->h;++y){const auto *row=reinterpret_cast<const uint32_t *>(static_cast<const char *>(image->pixels)+y*image->pitch);for(int x=0;x<image->w;++x){fingerprint^=row[x];fingerprint*=1099511628211ull;}}
-        if(save_image)require(SDL_SaveBMP(image,(game_root()/"ncmm"/filename).string().c_str()),"multilevel_capture_save_failed");SDL_DestroySurface(image);return fingerprint;
+        if(save_image)require(SDL_SaveBMP(image,(game_root()/"ncmm"/filename).string().c_str()),"multilevel_capture_save_failed");
+        SDL_DestroySurface(image);return fingerprint;
     };
     auto qualify=[&](const std::string &name,int layers,int theme,point resolution,bool gallery){
         canvas=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,resolution.x,resolution.y);require(canvas!=nullptr,"multilevel_canvas_allocation_failed");
@@ -108,7 +111,8 @@
             for(int z=-OVERMAP_DEPTH;z<=OVERMAP_HEIGHT;++z){const auto p=project_to<coords::omt>(pos);const tripoint_abs_omt tile(p.xy(),z);discovery.emplace_back(tile,overmap_buffer.seen(tile));}
             const auto cold=clock::now();bool ready=false;
             for(int attempt=0;attempt<160;++attempt){render(resolution);present();ready=std::string(mode)=="cpu"||graphics_gpu_frame;
-                if(ready&&(!graphics_creature_metrics.queued||!observed.actors))break;SDL_Delay(2);}
+                if(ready&&(!graphics_creature_metrics.queued||!observed.actors))break;
+                SDL_Delay(2);}
             require(ready,"multilevel_gpu_fell_back_to_cpu");
             if(std::string(mode)=="cpu"&&resolution.x>1280&&graphics_cpu_metrics.width<1281){require(graphics_action("ncmm.view.quality"),"multilevel_native_quality_switch_failed");render(resolution);present();}
             const double first_ready=std::chrono::duration<double,std::milli>(clock::now()-cold).count();
@@ -134,7 +138,8 @@
             if(observed.provider&&gallery&&(name.find("house")!=std::string::npos||name=="high_building"))
                 for(int z=0;z<layers;++z)require(std::find(observed.facade_levels.begin(),observed.facade_levels.end(),z)!=observed.facade_levels.end(),"multilevel_upper_facade_missing");
             for(const auto &entry:discovery)require(overmap_buffer.seen(entry.first)==entry.second,"multilevel_render_revealed_overmap_discovery");
-            report.start_object();report.member("name",name);report.member("constructed_levels",layers);report.member("theme",theme);report.member("width",resolution.x);report.member("height",resolution.y);report.member("renderer",mode);report.member("gallery",gallery);report.member("file",gallery?filename:std::string{});report.member("pixel_fingerprint",fingerprint);
+            size_t source_checks=0,tile_checks=0;if(observed.provider)require(graphics_verify_world_sources(source_checks,&tile_checks)&&source_checks>0&&tile_checks>0,"multilevel_source_cache_native_oracle_failed");
+            report.start_object();report.member("name",name);report.member("source_facts_oracle_cells",source_checks);report.member("native_tile_read_oracle_cells",tile_checks);report.member("constructed_levels",layers);report.member("theme",theme);report.member("width",resolution.x);report.member("height",resolution.y);report.member("renderer",mode);report.member("gallery",gallery);report.member("file",gallery?filename:std::string{});report.member("pixel_fingerprint",fingerprint);
             report.member("views");report.start_array();for(const auto &view:views){report.start_object();report.member("name",view.name);report.member("pitch",view.pitch);report.member("file",view.file);report.member("pixel_fingerprint",view.fingerprint);report.member("submitted_levels",view.levels);report.member("submitted_cells",view.cells);report.member("floor_undersides",view.undersides);report.end_object();}report.end_array();
             report.member("median_ms",percentile(elapsed,.5));report.member("p95_ms",percentile(elapsed,.95));report.member("p99_ms",percentile(elapsed,.99));report.member("first_ready_ms",first_ready);report.member("extraction_median_ms",percentile(extraction,.5));report.member("visibility_median_ms",percentile(visibility,.5));report.member("geometry_median_ms",percentile(geometry,.5));report.member("cpu_raster_median_ms",percentile(raster,.5));report.member("gpu_submit_median_ms",percentile(submit,.5));
             report.member("available_levels",graphics_world_metrics.available_slices);report.member("submitted_levels",observed.levels);report.member("submitted_cells",graphics_world_metrics.submitted_cells);report.member("processed_cells",observed.provider?graphics_world_metrics.processed_cells:uint64_t((graphics_snapshot_radius*2+1)*(graphics_snapshot_radius*2+1)));report.member("frustum_rejected",graphics_world_metrics.frustum_rejected);report.member("occlusion_rejected",graphics_world_metrics.occlusion_rejected);report.member("budget_rejected",graphics_world_metrics.budget_rejected);report.member("source_cache_bytes",graphics_world_metrics.source_cache_bytes);report.member("source_cache_hits",graphics_world_metrics.source_cache_hits);report.member("source_cache_misses",graphics_world_metrics.source_cache_misses);report.member("snapshot_bytes",graphics_world_metrics.snapshot_bytes);report.member("cache_peak_bytes",cache_peak);

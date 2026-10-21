@@ -1,7 +1,10 @@
 #pragma once
+#include "ncmm_graphics_trace.hpp"
 #include "hybrid_renderer.hpp"
 #include "gpu_packet.hpp"
 #include <chrono>
+#include <memory>
+#include <new>
 #include <unordered_map>
 
 namespace first_person::gpu {
@@ -25,7 +28,9 @@ struct mesh_builder {
         mesh.indices.insert(mesh.indices.end(),{first,first+1,first+2});}
 };
 class scene_cache {
+    friend struct scene_signature_probe;
     using key=std::tuple<int32_t,int32_t,int32_t>;
+    using signature_position=std::array<int32_t,3>; // canonical z/y/x, owned values only
     struct chunk {uint64_t signature=0,touched=0;std::array<std::shared_ptr<const owned_mesh>,2> meshes;};
     struct key_hash {
         size_t operator()(const key &value)const noexcept{
@@ -38,12 +43,54 @@ class scene_cache {
     bool signature_cached=false;
     std::array<int64_t,8> signature_layout{};
     std::vector<uint64_t> signature_values,signature_results;
+    std::vector<signature_position> signature_positions;
+    std::vector<uint8_t> signature_dirty_slots;
+    struct normalized_record {
+        std::array<unsigned char,sizeof(ncmm_graphics_cell_v1)> cell;
+        std::array<unsigned char,sizeof(ncmm_graphics_cell_v2)> detail;
+        std::array<unsigned char,sizeof(ncmm_graphics_detail_v1)> extra;
+        signature_position position;
+        uint64_t hash;
+        uint32_t flags,direction,detail_band,occupied_vehicle;
+        bool metadata;
+        // Every used field is written before publication. Avoid zeroing the
+        // scratch allocation before immediately copying the complete records.
+        normalized_record()noexcept{}
+    };
+    static constexpr size_t normalized_budget=32u*1024u*1024u;
+    static constexpr size_t normalized_update_budget=512u*1024u;
+    static constexpr size_t normalized_page_cells=128;
+    static constexpr size_t normalized_page_bytes=normalized_page_cells*sizeof(normalized_record);
+    // Two small position/index buffers and the free list are included. Capacity
+    // follows actual sparse cells, never the full loaded-Z bounding volume.
+    static constexpr size_t normalized_page_limit=normalized_budget/(normalized_page_bytes+
+        normalized_page_cells*(2*sizeof(signature_position)+3*sizeof(uint32_t))+sizeof(std::unique_ptr<normalized_record[]>));
+    static constexpr size_t normalized_cell_limit=normalized_page_limit*normalized_page_cells;
+    static constexpr uint32_t normalized_missing=UINT32_MAX;
+    std::vector<std::unique_ptr<normalized_record[]>> normalized_records;
+    std::vector<signature_position> normalized_positions,normalized_next_positions;
+    std::vector<uint32_t> normalized_slots,normalized_next_slots,normalized_free;
+    size_t normalized_allocated_pages=0;uint32_t normalized_size=0;bool normalized_levels=false;
+    size_t normalized_bytes()const{return normalized_allocated_pages*normalized_page_bytes+
+        normalized_records.capacity()*sizeof(normalized_records[0])+
+        (normalized_positions.capacity()+normalized_next_positions.capacity())*sizeof(signature_position)+
+        (normalized_slots.capacity()+normalized_next_slots.capacity()+normalized_free.capacity())*sizeof(uint32_t);}
+    void clear_normalized()noexcept{
+        decltype(normalized_records){}.swap(normalized_records);
+        decltype(normalized_positions){}.swap(normalized_positions);decltype(normalized_next_positions){}.swap(normalized_next_positions);
+        decltype(normalized_slots){}.swap(normalized_slots);decltype(normalized_next_slots){}.swap(normalized_next_slots);decltype(normalized_free){}.swap(normalized_free);
+        normalized_allocated_pages=normalized_size=0;normalized_levels=false;
+    }
+    normalized_record &normalized_at(uint32_t slot)noexcept{return normalized_records[slot/normalized_page_cells][slot%normalized_page_cells];}
     std::map<std::tuple<uint64_t,int,bool,bool>,std::weak_ptr<const owned_mesh>> skins;
     std::map<std::tuple<uint64_t,int,int,bool>,std::weak_ptr<const owned_mesh>> impostors;
     resources assets;
     struct arm_chunk {std::shared_ptr<const owned_mesh> mesh;std::vector<uint16_t> palettes;};
     struct arm_entry {std::array<uint32_t,11> appearance{};std::vector<arm_chunk> chunks;};
     std::array<arm_entry,2> arm_meshes;
+    struct item_chunk {std::shared_ptr<const owned_mesh> mesh;std::vector<uint16_t> palettes;held::part part=held::part::body;};
+    struct item_entry {std::vector<item_chunk> chunks;};
+    std::unordered_map<uint64_t,item_entry> item_meshes;
     uint64_t horizon_signature=0;std::shared_ptr<const owned_mesh> horizon_mesh;
     uint64_t world_epoch=0,tileset_epoch=0,frame_serial=0;
     static uint64_t model_key(const creature::model &model){uint64_t h=hash_bytes(1469598103934665603ull,&model.colors.fingerprint,sizeof(model.colors.fingerprint));
@@ -108,6 +155,52 @@ class scene_cache {
                 if(key.second==NCMM_GPU_HELD){builder.mesh.key=0xfefd48454c445631ull;builder.mesh.flags=NCMM_GPU_DYNAMIC_MESH;mesh=std::make_shared<owned_mesh>(std::move(builder.mesh));}
                 else mesh=cache.assets.mesh(std::move(builder.mesh));
                 if(!mesh){fail("GPU dynamic scene mesh cache budget exceeded");continue;}frame.draw(mesh,place(origin(key.first)),key.first<0?UINT32_MAX:uint32_t(key.first),key.second);}}
+        bool item(const held::submission &value)override{
+            auto &observed=value.value;const auto &model=*observed.geometry;const auto &source=model.geometry;
+            auto found=cache.item_meshes.find(model.identity);
+            if(found==cache.item_meshes.end()){
+                if(cache.item_meshes.size()>=40){fail("GPU held inventory limit exceeded");return true;}
+                item_entry entry;mesh_builder builder;std::array<uint32_t,16> materials{};
+                for(size_t i=0;i<model.material_count;++i){const auto &source_material=model.materials[i];ncmm_gpu_material_v1 material{};
+                    std::copy_n(source_material.color,4,material.color);material.finish=source_material.finish;
+                    material.flags=NCMM_GPU_HELD_MATERIAL|NCMM_GPU_SMOOTH;
+                    std::shared_ptr<const owned_texture> texture;
+                    if(source_material.pixels){texture=cache.assets.texture(source_material.width,source_material.height,source_material.width,source_material.pixels);
+                        if(!texture){fail("GPU held texture cache budget exceeded");return true;}
+                        material.texture_key=texture->key;material.flags|=NCMM_GPU_TEXTURED;}
+                    materials[i]=builder.material(material,texture);
+                }
+                for(held::part kind:{held::part::body,held::part::magazine,held::part::round}){
+                    owned_mesh mesh;std::vector<uint16_t> palettes;std::array<uint16_t,viewmodel::maximum_palettes> palette_map;palette_map.fill(UINT16_MAX);
+                    std::vector<uint32_t> vertex_map(source.vertex_count,UINT32_MAX);
+                    auto flush=[&](){if(mesh.indices.empty())return true;mesh.materials=builder.mesh.materials;mesh.textures=builder.mesh.textures;
+                        auto owned=cache.assets.mesh(std::move(mesh));if(!owned)return false;entry.chunks.push_back({std::move(owned),std::move(palettes),kind});
+                        mesh={};palettes={};palette_map.fill(UINT16_MAX);std::fill(vertex_map.begin(),vertex_map.end(),UINT32_MAX);return true;};
+                    for(size_t at=0;at<source.index_count;at+=3){if(model.triangle_part[at/3]!=kind)continue;
+                        size_t needed=0;for(size_t j=0;j<3;++j){const auto palette=source.vertices[source.indices[at+j]].palette;
+                            bool duplicate=false;for(size_t k=0;k<j;++k)duplicate|=palette==source.vertices[source.indices[at+k]].palette;
+                            needed+=!duplicate&&palette_map[palette]==UINT16_MAX;}
+                        if(palettes.size()+needed>128&&!flush()){fail("GPU held mesh cache budget exceeded");return true;}
+                        for(size_t j=0;j<3;++j){const auto index=source.indices[at+j];const auto &vertex=source.vertices[index];
+                            if(palette_map[vertex.palette]==UINT16_MAX){palette_map[vertex.palette]=uint16_t(palettes.size());palettes.push_back(vertex.palette);}
+                            if(vertex_map[index]==UINT32_MAX){ncmm_gpu_vertex_v1 out{};
+                                out.position[0]=vertex.position.x;out.position[1]=vertex.position.y;out.position[2]=vertex.position.z;
+                                out.normal[0]=out.face_normal[0]=vertex.normal.x;out.normal[1]=out.face_normal[1]=vertex.normal.y;out.normal[2]=out.face_normal[2]=vertex.normal.z;
+                                out.uv[0]=vertex.u;out.uv[1]=vertex.v;out.joint=palette_map[vertex.palette];out.material=materials[model.vertex_material[index]];
+                                vertex_map[index]=uint32_t(mesh.vertices.size());mesh.vertices.push_back(out);}
+                            mesh.indices.push_back(vertex_map[index]);}
+                    }
+                    if(!flush()){fail("GPU held mesh cache budget exceeded");return true;}
+                }
+                found=cache.item_meshes.emplace(model.identity,std::move(entry)).first;++observed.static_builds;
+            }else ++observed.static_reuses;
+            std::array<ncmm_gpu_matrix_v1,128> matrices;
+            for(const auto &chunk:found->second.chunks){if(!observed.visible(chunk.part))continue;
+                for(size_t i=0;i<chunk.palettes.size();++i)matrices[i]=observed.bones.palette[chunk.palettes[i]];
+                frame.draw_skinned(chunk.mesh,value.world,UINT32_MAX,NCMM_GPU_HELD,matrices.data(),chunk.palettes.size());
+                ++observed.draws;observed.palette_matrices+=uint32_t(chunk.palettes.size());}
+            return true;
+        }
         bool arms(const viewmodel::submission &value)override{
             std::array<uint32_t,11> identity{};size_t at=0;
             for(const auto &style:value.style.regions){for(float component:{style.color.x,style.color.y,style.color.z})std::memcpy(&identity[at++],&component,sizeof(component));
@@ -211,44 +304,143 @@ class scene_cache {
         }
     };
     std::vector<uint64_t> signatures(const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *metadata,const ncmm_gpu_metrics_v1 &host,bool creatures,int width,const ncmm_graphics_multilevel_scene_v1 *levels,const ncmm_world::coordinates &xyz){
+        signature_neighbor_queries=signature_reused_cells=signature_neighborhood_marks=0;
+        signature_content_reuses=signature_content_hashes=signature_content_updates=signature_content_allocation_bytes=0;
+        const size_t count=s.base.cell_count;
+        const size_t columns=size_t(s.base.grid_width);
+        bool retain=count>=256&&count<=normalized_cell_limit;
+        if(!retain||normalized_levels!=bool(levels))clear_normalized();
+        if(retain)try{
+            if(normalized_records.empty()){
+                decltype(normalized_records)(normalized_page_limit).swap(normalized_records);
+                normalized_free.reserve(normalized_cell_limit);}
+            if(count>normalized_next_positions.capacity())std::vector<signature_position>(count).swap(normalized_next_positions);
+            else normalized_next_positions.resize(count);
+            if(count>normalized_next_slots.capacity())std::vector<uint32_t>(count,normalized_missing).swap(normalized_next_slots);
+            else normalized_next_slots.assign(count,normalized_missing);
+            normalized_levels=bool(levels);
+        }catch(const std::bad_alloc &){clear_normalized();retain=false;}
+        auto content_position=[&](size_t i){if(!levels)return signature_position{0,int32_t(i/columns),int32_t(i%columns)};
+            const auto &c=levels->coordinates[i];return signature_position{c.z,c.y,c.x};};
+        size_t previous=0;
+        auto release_old=[&](size_t index){const auto slot=normalized_slots[index];if(slot!=normalized_missing)normalized_free.push_back(slot);};
+        const size_t update_limit=normalized_update_budget/sizeof(normalized_record);
         std::vector<uint64_t> values(s.base.cell_count,0);
         for(int i=0;i<int(s.base.cell_count);++i){auto cell=s.base.cells[i];cell.light=0;if(creatures)std::memset(cell.creature,0,sizeof(cell.creature));auto detail=s.details[i];
             detail.light_r=detail.light_g=detail.light_b=detail.emission=0;if(detail.vehicle_features){const auto p=levels?xyz.origin(uint32_t(i)):ncmm_world::point{float(i%s.base.grid_width),float(i/s.base.grid_width),0};detail.vehicle_x-=p.x;detail.vehicle_y-=p.y;}
             if(creatures)detail.terrain_flags&=~(NCMM_CREATURE_TINY|NCMM_CREATURE_SMALL|NCMM_CREATURE_LARGE|NCMM_CREATURE_HUGE);
-            uint64_t hash=hash_bytes(1469598103934665603ull,&cell,sizeof(cell));hash=hash_bytes(hash,&detail,sizeof(detail));
-            if(levels){const auto &c=levels->coordinates[i];hash=hash_bytes(hash,&c.x,sizeof(c.x)*3);hash=hash_bytes(hash,&c.flags,sizeof(c.flags));hash=hash_bytes(hash,&c.direction,sizeof(c.direction));}
-            if(metadata){auto extra=metadata->cells[i];extra.source_light=extra.source_r=extra.source_g=extra.source_b=0;extra.hostile=0;if(creatures)extra.creature_height=extra.creature_width=extra.creature_elevation=0;
-                hash=hash_bytes(hash,&extra,sizeof(extra));hash=hash_bytes(hash,&metadata->view.occupied_vehicle,sizeof(metadata->view.occupied_vehicle));}
+            ncmm_graphics_detail_v1 extra{};
+            if(metadata){extra=metadata->cells[i];extra.source_light=extra.source_r=extra.source_g=extra.source_b=0;extra.hostile=0;if(creatures)extra.creature_height=extra.creature_width=extra.creature_elevation=0;}
             float distance=0;
             if(s.details[i].vehicle_features){const auto &d=s.details[i];const float c=std::cos(d.vehicle_yaw),sn=std::sin(d.vehicle_yaw);
                 const float x=d.vehicle_x+d.mount_x*c-d.mount_y*sn-s.base.camera_x,y=d.vehicle_y+d.mount_x*sn+d.mount_y*c-s.base.camera_y;
                 const float eye_height=metadata?metadata->view.eye_height:1.55f;distance=std::sqrt(x*x+y*y+eye_height*eye_height);}
             // Distance-only vehicle detail bands are stable across camera turns.
             const uint32_t detail_band=s.details[i].vehicle_features?(width/(2*std::tan(70*hybrid::pi/360))/std::max(.1f,distance)<28?2:distance>8?1:0):0;
-            hash=hash_bytes(hash,&detail_band,sizeof(detail_band));values[i]=hash;}
+            const auto key=content_position(size_t(i));
+            const uint32_t flags=levels?levels->coordinates[i].flags:0,direction=levels?levels->coordinates[i].direction:0;
+            const normalized_record *old=nullptr;
+            uint32_t slot=normalized_missing;
+            if(retain){
+                normalized_next_positions[i]=key;
+                while(previous<normalized_positions.size()&&normalized_positions[previous]<key)release_old(previous++);
+                if(previous<normalized_positions.size()&&normalized_positions[previous]==key){slot=normalized_slots[previous++];
+                    if(slot!=normalized_missing)old=&normalized_at(slot);}}
+            const bool same=signature_cached&&old&&old->position==key&&old->metadata==bool(metadata)&&old->flags==flags&&old->direction==direction&&old->detail_band==detail_band&&
+                !std::memcmp(old->cell.data(),&cell,sizeof(cell))&&!std::memcmp(old->detail.data(),&detail,sizeof(detail))&&
+                (!metadata||(old->occupied_vehicle==metadata->view.occupied_vehicle&&!std::memcmp(old->extra.data(),&extra,sizeof(extra))));
+            uint64_t hash;
+            if(same){hash=old->hash;++signature_content_reuses;}
+            else{
+                ++signature_content_hashes;hash=hash_bytes(1469598103934665603ull,&cell,sizeof(cell));hash=hash_bytes(hash,&detail,sizeof(detail));
+                if(levels){const auto &c=levels->coordinates[i];hash=hash_bytes(hash,&c.x,sizeof(c.x)*3);hash=hash_bytes(hash,&c.flags,sizeof(c.flags));hash=hash_bytes(hash,&c.direction,sizeof(c.direction));}
+                if(metadata){hash=hash_bytes(hash,&extra,sizeof(extra));hash=hash_bytes(hash,&metadata->view.occupied_vehicle,sizeof(metadata->view.occupied_vehicle));}
+                hash=hash_bytes(hash,&detail_band,sizeof(detail_band));}
+            values[i]=hash;
+            if(retain&&!same&&signature_content_updates<update_limit){
+                if(slot==normalized_missing){
+                    if(!normalized_free.empty()){slot=normalized_free.back();normalized_free.pop_back();}
+                    else if(normalized_size<normalized_cell_limit){
+                        auto &page=normalized_records[normalized_size/normalized_page_cells];
+                        if(!page&&signature_content_allocation_bytes+normalized_page_bytes<=normalized_update_budget){
+                            page.reset(new(std::nothrow) normalized_record[normalized_page_cells]);
+                            if(page){++normalized_allocated_pages;signature_content_allocation_bytes+=normalized_page_bytes;}}
+                        if(page)slot=normalized_size++;
+                    }}
+                if(slot!=normalized_missing){auto &entry=normalized_at(slot);
+                std::memcpy(entry.cell.data(),&cell,sizeof(cell));std::memcpy(entry.detail.data(),&detail,sizeof(detail));
+                if(metadata)std::memcpy(entry.extra.data(),&extra,sizeof(extra));
+                entry.position=key;entry.hash=hash;entry.flags=flags;entry.direction=direction;entry.detail_band=detail_band;
+                entry.metadata=bool(metadata);entry.occupied_vehicle=metadata?metadata->view.occupied_vehicle:0;
+                ++signature_content_updates;}}
+            if(retain)normalized_next_slots[i]=slot;}
+        if(retain){
+            while(previous<normalized_positions.size())release_old(previous++);
+            normalized_positions.swap(normalized_next_positions);normalized_slots.swap(normalized_next_slots);}
         const std::array<int64_t,8> layout{{levels?1:0,s.base.grid_width,s.base.grid_height,
             levels?levels->origin_x:host.world_origin_x,levels?levels->origin_y:host.world_origin_y,
             levels?levels->origin_z:host.world_origin_z,levels?levels->loaded_min_z:host.world_origin_z,levels?levels->loaded_max_z:host.world_origin_z}};
         // Revisions can change for an actor move or light refresh while every
         // normalized static cell stays identical. Compare the entire ordered
         // content digest before walking 27 neighbours per cell again.
-        if(signature_cached&&layout==signature_layout&&values==signature_values){++signature_reuses;return signature_results;}
+        auto position=[&](size_t i){const auto &c=levels->coordinates[i];return signature_position{c.z,c.y,c.x};};
+        if(signature_cached&&layout==signature_layout&&values==signature_values){
+            bool same_positions=!levels;
+            if(levels&&signature_positions.size()==values.size()){
+                same_positions=true;for(size_t i=0;i<values.size();++i)if(position(i)!=signature_positions[i]){same_positions=false;break;}}
+            if(same_positions){++signature_reuses;signature_reused_cells=values.size();return signature_results;}}
         std::vector<uint64_t> result(values.size());
+        std::vector<signature_position> positions,changes;
+        if(levels){positions.reserve(values.size());for(size_t i=0;i<values.size();++i)positions.push_back(position(i));}
+        // A changed/added/removed cell can affect only the same 3x3x3
+        // neighbourhood already hashed below. Merge canonical absolute keys;
+        // frame indices and callback pointers never become persistent identity.
+        bool incremental=levels&&signature_cached&&signature_layout[0]==1&&values.size()>=256&&
+            signature_positions.size()==signature_values.size()&&signature_results.size()==signature_values.size();
+        if(incremental){
+            const size_t limit=values.size()/4;size_t old=0,current=0;
+            while((old<signature_positions.size()||current<positions.size())&&changes.size()<=limit){
+                if(current==positions.size()||(old<signature_positions.size()&&signature_positions[old]<positions[current]))changes.push_back(signature_positions[old++]);
+                else if(old==signature_positions.size()||positions[current]<signature_positions[old])changes.push_back(positions[current++]);
+                else{result[current]=signature_results[old];if(values[current]!=signature_values[old])changes.push_back(positions[current]);++old;++current;}}
+            // Large changes use the original full pass. Avoid building a
+            // sparse-change mask for a scene-wide appearance replacement.
+            if(changes.size()>limit)incremental=false;
+        }
+        if(incremental&&!changes.empty()){
+            const auto w=size_t(s.base.grid_width),h=size_t(s.base.grid_height);
+            const size_t slots=size_t(levels->loaded_max_z-levels->loaded_min_z+1)*w*h;
+            if(slots>signature_dirty_slots.capacity())std::vector<uint8_t>(slots,0).swap(signature_dirty_slots);
+            else signature_dirty_slots.assign(slots,0);
+            for(const auto &p:changes){
+                const int64_t cx=int64_t(p[2])-levels->origin_x,cy=int64_t(p[1])-levels->origin_y,cz=p[0];
+                for(int64_t z=std::max<int64_t>(levels->loaded_min_z,cz-1);z<=std::min<int64_t>(levels->loaded_max_z,cz+1);++z)
+                    for(int64_t y=std::max<int64_t>(0,cy-1);y<=std::min<int64_t>(int64_t(h)-1,cy+1);++y)
+                        for(int64_t x=std::max<int64_t>(0,cx-1);x<=std::min<int64_t>(int64_t(w)-1,cx+1);++x){
+                            signature_dirty_slots[(size_t(z-levels->loaded_min_z)*h+size_t(y))*w+size_t(x)]=1;++signature_neighborhood_marks;}}
+        }
         for(int i=0;i<int(values.size());++i){uint64_t h=values[i];
-            if(levels){for(int dz=-1;dz<=1;++dz)for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int at=xyz.neighbor(uint32_t(i),dx,dy,dz);const uint64_t neighbor=at<0?0:values[size_t(at)];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}
+            if(incremental){const auto &p=positions[size_t(i)];
+                const size_t at=(size_t(p[0]-levels->loaded_min_z)*size_t(s.base.grid_height)+size_t(int64_t(p[1])-levels->origin_y))*size_t(s.base.grid_width)+size_t(int64_t(p[2])-levels->origin_x);
+                if(changes.empty()||!signature_dirty_slots[at]){++signature_reused_cells;continue;}}
+            if(levels){for(int dz=-1;dz<=1;++dz)for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){++signature_neighbor_queries;const int at=xyz.neighbor(uint32_t(i),dx,dy,dz);const uint64_t neighbor=at<0?0:values[size_t(at)];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}
             else{const int x=i%s.base.grid_width,y=i/s.base.grid_width;
                 for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){const int xx=x+dx,yy=y+dy;const uint64_t neighbor=xx<0||yy<0||xx>=s.base.grid_width||yy>=s.base.grid_height?0:values[size_t(yy)*s.base.grid_width+xx];h=hash_bytes(h,&neighbor,sizeof(neighbor));}}
             result[i]=h;}
-        signature_layout=layout;signature_values=std::move(values);signature_results=result;signature_cached=true;
+        signature_layout=layout;signature_values=std::move(values);signature_results=result;signature_positions=std::move(positions);signature_cached=true;
         return result;
     }
 public:
     explicit scene_cache(size_t mesh_budget=resources::mesh_limit,size_t texture_budget=resources::texture_limit):assets(mesh_budget,texture_budget){}
     uint32_t generated_cells=0;uint64_t signature_reuses=0;double geometry_ms=0;
+    uint64_t signature_neighbor_queries=0,signature_reused_cells=0,signature_neighborhood_marks=0;
+    uint64_t signature_content_reuses=0,signature_content_hashes=0,signature_content_updates=0,signature_content_allocation_bytes=0;
     std::string last_reason;
-    void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();arm_meshes={};assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
-        signature_cached=false;signature_values=std::vector<uint64_t>{};signature_results=std::vector<uint64_t>{};signature_reuses=0;}
-    size_t bytes()const{return assets.bytes()+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t);}
+    void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();arm_meshes={};item_meshes.clear();assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
+        signature_cached=false;signature_values=std::vector<uint64_t>{};signature_results=std::vector<uint64_t>{};signature_positions=std::vector<signature_position>{};signature_dirty_slots=std::vector<uint8_t>{};signature_reuses=0;
+        clear_normalized();
+        signature_neighbor_queries=signature_reused_cells=signature_neighborhood_marks=0;signature_content_reuses=signature_content_hashes=signature_content_updates=signature_content_allocation_bytes=0;}
+    size_t bytes()const{return assets.bytes()+chunks.size()*(sizeof(chunk)+sizeof(key)+2*sizeof(void *))+(chunks.empty()?0:chunks.bucket_count()*sizeof(void *))+(signature_values.capacity()+signature_results.capacity())*sizeof(uint64_t)+signature_positions.capacity()*sizeof(signature_position)+signature_dirty_slots.capacity()+normalized_bytes();}
     bool build(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,const hybrid::sprite_provider &provider,packet &out,
                hybrid::frame &statistics,const ncmm_gpu_metrics_v1 &host,animation::pose pose,const hybrid::presentation_data *metadata,creature::presentation *creatures,int width,int height,uint32_t mode,const ncmm_graphics_multilevel_scene_v1 *levels=nullptr){
         last_reason.clear();
@@ -269,11 +461,13 @@ public:
         set(camera.time,{float(std::fmod(e.animation_seconds,100000.0)),float(e.moon_phase),float(metadata?metadata->view.sky_style:NCMM_SKY_EARTH)},float(e.lightning));set(camera.grid,{float(s.base.grid_width),float(s.base.grid_height),float(s.base.cell_count)},levels?1.f:0.f);
         // A single callback-owned index serves signatures and both geometry
         // consumers. No scene pointer or lookup allocation survives build().
+        ncmm_graphics_trace::cpu_zone geometry_zone("Geometry");
         const auto start=std::chrono::steady_clock::now();ncmm_world::coordinates indexed(levels,true);
         auto hashes=signatures(s,metadata,host,creatures!=nullptr,width,levels,indexed);collector sink(*this,s,metadata,out,host,hashes,levels,indexed);
         hybrid::renderer(s,yaw,pitch,provider,statistics,pose,metadata,{},creatures,levels,&indexed).collect(sink,width,height);sink.finish();generated_cells=sink.generated_cells;
         if(statistics.viewmodel_errors){last_reason="PSX viewmodel grip could not be attached safely";return false;}
         geometry_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();set(camera.sky_bottom,statistics.sky_horizon);
+        geometry_zone.stop();
         // Palette-only CPU work: derive the exact established sky endpoints by
         // collecting above; the complete sky raster remains in the GPU shader.
         camera.sky_top[0]=statistics.sky_top.x;camera.sky_top[1]=statistics.sky_top.y;camera.sky_top[2]=statistics.sky_top.z;camera.sky_top[3]=metadata&&metadata->horizon_enabled?1.f:0.f;

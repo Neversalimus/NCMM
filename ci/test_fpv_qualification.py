@@ -18,9 +18,17 @@ class QualificationPolicyTests(unittest.TestCase):
                      "experiments/graphics_bridge/ncmm_gpu_resources.hpp",
                      "experiments/FirstPersonView/shaders/world.frag",
                      "experiments/FirstPersonView/Build-FirstPersonInstaller.ps1",
-                     "experiments/FirstPersonView/CMakeLists.txt"):
+                     "experiments/FirstPersonView/CMakeLists.txt",
+                     ".github/workflows/ncmm-fpv-linux-native.yml",
+                     "experiments/graphics_bridge/native_library_bridge.py",
+                     "experiments/graphics_bridge/ncmm_graphics_library.hpp",
+                     "experiments/graphics_bridge/native_options_bridge.py"):
             with self.subTest(path=path):
                 self.assertEqual(plan([path])["full"], "true")
+
+    def test_changed_path_collection_itself_requires_full(self):
+        for path in ['ci/fpv_changed_paths.cjs','ci/test_fpv_changed_paths.cjs']:
+            self.assertEqual(plan([path])['full'],'true')
 
     def test_tests_only_do_not_compile_native_hosts(self):
         self.assertEqual(plan(["experiments/FirstPersonView/tests/camera_motion_test.cpp"])["native"], "false")
