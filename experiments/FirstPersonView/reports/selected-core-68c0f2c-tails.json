@@ -1,0 +1,47 @@
+{
+  "success": true,
+  "source": "68c0f2c1877ff0cf820ed11803c2ffd16f621e0c",
+  "result_sha256": "e3492e136440fad26db135b22b3c17d78eba207bc80430296cd5beeb64b8af32",
+  "retained_review_sha256": "2b8599dca0829d2546283730fbee55da25db8f8547fe75464cd1695c2d45dae1",
+  "all_one_order_negatives": [
+    {
+      "scene": "city_blocks",
+      "group": "native_action_to_ready",
+      "metric": "maximum_ms",
+      "direction": "forward",
+      "before_ms": 62.9207,
+      "after_ms": 66.3455,
+      "delta_ms": 3.4248000000000047,
+      "delta_percent": 5.443041797055659,
+      "already_in_retained_27_keys": true
+    },
+    {
+      "scene": "forest",
+      "group": "cold_rotation",
+      "metric": "maximum_ms",
+      "direction": "forward",
+      "before_ms": 10.6073,
+      "after_ms": 11.2964,
+      "delta_ms": 0.6890999999999998,
+      "delta_percent": 6.496469412574357,
+      "already_in_retained_27_keys": true
+    },
+    {
+      "scene": "empty_attacks",
+      "group": "cold_rotation",
+      "metric": "maximum_ms",
+      "direction": "reverse",
+      "before_ms": 10.1343,
+      "after_ms": 10.6546,
+      "delta_ms": 0.5203000000000007,
+      "delta_percent": 5.134049712362976,
+      "already_in_retained_27_keys": true
+    }
+  ],
+  "observations": 3,
+  "additional_issue_keys": [],
+  "original_gate_unchanged": true,
+  "core_consistency_accepted": false,
+  "independent_production_or_merge_acceptance": false,
+  "new_negatives_must_enter_any_future_full_matrix": true
+}

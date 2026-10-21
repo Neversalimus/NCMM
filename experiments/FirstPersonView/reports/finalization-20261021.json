@@ -1,0 +1,96 @@
+{
+  "schema": 1,
+  "created_utc": "2026-10-21T15:45:20.046283+00:00",
+  "feature_parent": "8f404d9eff1d80ec66526ee122ea3d08f83f8d0b",
+  "selected_measured_core": "68c0f2c1877ff0cf820ed11803c2ffd16f621e0c",
+  "scope": "Owner requested best available finalization and merge before background load; exhaustive new hardware matrix deferred.",
+  "final_combined_native_performance_qualified": false,
+  "perfect_no_regression_acceptance": false,
+  "unmeasured_entity_occupancy_5b98220_excluded": true,
+  "inherited_full_feature_ci": {
+    "run": 39455408174,
+    "head": "8f404d9eff1d80ec66526ee122ea3d08f83f8d0b",
+    "jobs_passed": 8,
+    "native_pins": [
+      "1040",
+      "1807"
+    ],
+    "native_platforms": [
+      "Windows",
+      "Linux"
+    ]
+  },
+  "fresh_integrated_local_validation": {
+    "cpp_ctest_passed": 44,
+    "cpp_ctest_failed": 0,
+    "python_passed": 144,
+    "atomic_native_transform_passed": 19,
+    "device": "NVIDIA GeForce RTX 4090",
+    "backend": "direct3d12",
+    "complete_images_compared": 135,
+    "normalized_image_bytes": 165889620,
+    "complete_pixel_equality": true,
+    "allocation_failure_test_passed": true,
+    "vertex_lease_edge_test_passed": true,
+    "gpu_comparison_is_not_native_game_or_performance_evidence": true
+  },
+  "selected_core_ordinary_comparison": {
+    "runs": 4,
+    "order": "Main/PSX/PSX/Main",
+    "first_frame_observations": 2816,
+    "camera_observations": 8448,
+    "original_two_order_gate_passed": true,
+    "repeated_improvements": 164,
+    "repeated_regressions": 0,
+    "retained_single_order_regressions": 3,
+    "result_sha256": "e3492e136440fad26db135b22b3c17d78eba207bc80430296cd5beeb64b8af32",
+    "retained_inventory_sha256": "2e293ed518e7c69ede49da170d6579666dc31020d8fbf85b440775dba0379b7e",
+    "features_disabled": [
+      "camera_snapshot_cache",
+      "imported_held_assets",
+      "target_hud"
+    ],
+    "controlled_scene_uses_debug_nightvision_and_omits_ordinary_ai_turns": true
+  },
+  "unchanged": [
+    "public ABI",
+    "native ballistics and simulation",
+    "mandatory Native 2D",
+    "R48 and Z visibility",
+    "quality and resolution",
+    "shipping shaders",
+    "final output cycling"
+  ],
+  "preservation": [
+    "native firing preference and overlays",
+    "owned XYZ camera cache and invalidations",
+    "held transparent second pass",
+    "CC0 resources and provenance",
+    "guarded target HP",
+    "all Common NVTX zones"
+  ],
+  "source_port_receipt_sha256": "a9d5b45dc08bceab0d9ea17f9130a0a61bbd26d9495f8d1f4f65188531d653db",
+  "source_files_sha256": {
+    ".github/workflows/ncmm-gpu-device.yml": "d39f9b4b4377520fcea63a67aa760e662984d8e03c09e180d8b651210d0a8777",
+    "experiments/FirstPersonView/CMakeLists.txt": "c1465e29ec0cf23919c8abecce8a3d426a7dee11697bebeea8510f6300017327",
+    "experiments/FirstPersonView/tests/compare_scratch_reuse.py": "38ef793ed98735516f4c0fed759bb68c559f7db2991cbfca61ecfdfa8652073d",
+    "experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp": "0c8d4687aef0ffb225a25daaa14d693296c45ef754889962a8e468f92d9cdc8d",
+    "experiments/FirstPersonView/tests/gpu_resource_failure_test.cpp": "d1f3ca167b1639d8be40ec0dcff5d43ae612ff0baf89fe003fc1532418160597",
+    "experiments/FirstPersonView/tests/gpu_vertex_lease_edge_test.cpp": "f4d63a3d214af23d48000bd919da261a946c7f55c30720ef9f5bd41a35cb4a0b",
+    "experiments/graphics_bridge/apply_graphics_bridge.py": "a38c3e3038b3f067ef01f5b9bf60ac75f769999abb0c984e1533fa5b0a1c5c72",
+    "experiments/graphics_bridge/ncmm_gpu_backend.hpp": "64428a0c5d5724057307167e9985b78898e247a4441b5443849d140a0cfe26a9",
+    "experiments/graphics_bridge/ncmm_gpu_geometry.hpp": "a6b79cf0ffcd9e0980798660c530d7861ee417ef642403a353a80c2fd30396ca",
+    "experiments/graphics_bridge/ncmm_gpu_resources.hpp": "46879d89e0dac1dcd76a28470e393ae67935fa8c2e761872907096cb72214e0c",
+    "experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc": "bb4099d9eb5802d0e173ce9d7b21d5756643ca3ef9e7927c6cf223f23244a8ba",
+    "experiments/graphics_bridge/ncmm_graphics_multilevel_smoke.inc": "e5adc28d303bee2b648d53806156b61f4141d0a25c854f4ab8f28a4ec23b4c74",
+    "experiments/graphics_bridge/ncmm_graphics_world.inc": "97a80b5fc28386a3b34b3e5653fd6f39266a28850b3afe5d47702a50b722ee3a"
+  },
+  "local_logs_sha256": {
+    "configure-short.log": "b8303439b563af4deb8176b957915e85d36cd855a083a24f9438794b5f15c5bc",
+    "build-short.log": "211073c47523a36476848d6c134ca363ecd5fe08784d3613fb7351bca56459dd",
+    "ctest.log": "56fff2c671fa806b6de6a08161b034ce033cd608e81b98c5f4f96f1c313bb43f",
+    "python-tests.log": "946fe75fe8e22570f56ed5b135f788afa64184009ec97a751a3f391b812f2988"
+  },
+  "local_module_sha256": "82c95609d23841b50892d392e9b031ba2f7e4d1eaa470e4e038874b9eb634c67",
+  "manual_combat_and_high_dpi_unverified": true
+}

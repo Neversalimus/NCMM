@@ -14,6 +14,7 @@ struct recording_metrics {
     uint64_t bones=0,held_bones=0,static_upload_bytes=0,dynamic_geometry_bytes=0;
     uint64_t frame_upload_capacity_bytes=0,frame_upload_creations=0;
     uint64_t static_index_creations=0,static_index_reuses=0,static_index_pool_bytes=0;
+    uint64_t static_vertex_creations=0,static_vertex_reuses=0,static_vertex_pool_bytes=0;
     double cell_prepare_ms=0;
     uint64_t cell_upload_bytes=0,cell_cache_bytes=0;
     double retirement_ms=0;uint64_t retirement_calls=0;
@@ -93,12 +94,18 @@ class backend {
             if(!completed_retirement_)completed_retirement_=r.fence;
             else SDL_ReleaseGPUFence(device,r.fence);
             r.fence=nullptr;}}
+    // Scratch reuse is currently pixel-qualified on Direct3D 12.
+    bool cycle_private_scratch()const{
+        auto *device=context_.device();
+        const char *driver=device?SDL_GetGPUDeviceDriver(device):nullptr;
+        return !driver||std::strcmp(driver,"direct3d12")!=0;
+    }
     SDL_GPURenderPass *begin(SDL_GPUCommandBuffer *commands,bool held,bool clear){
         SDL_GPUColorTargetInfo colors[2]{};colors[0].texture=world_;colors[1].texture=id_;
-        for(auto &c:colors){c.load_op=clear?SDL_GPU_LOADOP_CLEAR:SDL_GPU_LOADOP_LOAD;c.store_op=SDL_GPU_STOREOP_STORE;c.cycle=clear;}
+        for(auto &c:colors){c.load_op=clear?SDL_GPU_LOADOP_CLEAR:SDL_GPU_LOADOP_LOAD;c.store_op=SDL_GPU_STOREOP_STORE;c.cycle=clear&&cycle_private_scratch();}
         colors[0].clear_color={0,0,0,1};colors[1].clear_color={0,0,0,0};
         SDL_GPUDepthStencilTargetInfo depth{};depth.texture=held?held_depth_:context_.depth();depth.load_op=(clear||held)?SDL_GPU_LOADOP_CLEAR:SDL_GPU_LOADOP_LOAD;
-        depth.store_op=SDL_GPU_STOREOP_STORE;depth.clear_depth=1;depth.cycle=clear||held;
+        depth.store_op=SDL_GPU_STOREOP_STORE;depth.clear_depth=1;depth.cycle=(clear||held)&&cycle_private_scratch();
         depth.stencil_load_op=SDL_GPU_LOADOP_DONT_CARE;depth.stencil_store_op=SDL_GPU_STOREOP_DONT_CARE;
         return SDL_BeginGPURenderPass(commands,colors,2,&depth);
     }
@@ -211,7 +218,8 @@ public:
         auto stage=clock::now();bool ready;
         {ncmm_graphics_trace::cpu_zone resource_zone("Resource Preparation");ready=resources_.prepare(scene,NCMM_GPU_RESOURCE_LIMIT-reserved,metrics_);}metrics_.resource_ms=ms(stage);
         if(profiling_){recording_.static_upload_bytes=resources_.static_upload_bytes();
-            recording_.static_index_creations=resources_.static_index_creations();recording_.static_index_reuses=resources_.static_index_reuses();recording_.static_index_pool_bytes=resources_.static_index_pool_bytes();}
+            recording_.static_index_creations=resources_.static_index_creations();recording_.static_index_reuses=resources_.static_index_reuses();recording_.static_index_pool_bytes=resources_.static_index_pool_bytes();
+            recording_.static_vertex_creations=resources_.static_vertex_creations();recording_.static_vertex_reuses=resources_.static_vertex_reuses();recording_.static_vertex_pool_bytes=resources_.static_vertex_pool_bytes();}
         // Staging capacity is reported separately; it is not measured VRAM.
         metrics_.resource_bytes=resources_.bytes()+gpu_reserved;metrics_.host_cpu_cache_bytes=resources_.cpu_bytes()+cell_cache_bytes;
         if(!ready){const std::string error=resources_.reason();reason(error);if(error!="warming bounded GPU resource cache"){invalidate();reason(error);}return false;}
@@ -284,7 +292,7 @@ public:
         auto phase_start=profiling_?clock::now():clock::time_point{};
         ncmm_graphics_trace::cpu_zone world_zone("World");
         if(trace)SDL_PushGPUDebugGroup(commands,"World");
-        SDL_GPUStorageBufferReadWriteBinding shadow_binding{};shadow_binding.buffer=shadows_;shadow_binding.cycle=true;
+        SDL_GPUStorageBufferReadWriteBinding shadow_binding{};shadow_binding.buffer=shadows_;shadow_binding.cycle=cycle_private_scratch();
         auto *compute=SDL_BeginGPUComputePass(commands,nullptr,0,&shadow_binding,1);if(!compute)return stop("begin shadow compute pass");SDL_BindGPUComputePipeline(compute,programs_.shadow);
         SDL_BindGPUComputeStorageBuffers(compute,0,&cells_,1);SDL_PushGPUComputeUniformData(commands,0,&scene.camera,sizeof(scene.camera));SDL_DispatchGPUCompute(compute,(scene.cell_count+63)/64,1,1);SDL_EndGPUComputePass(compute);
         if(profiling_)recording_.shadow_ms=ms(phase_start);
@@ -309,7 +317,7 @@ public:
         const bool atmosphere=scene.camera.wind[2]>0||scene.camera.wind[3]>0||scene.camera.weather[2]>.025f;
         if(atmosphere){
         phase_start=profiling_?clock::now():clock::time_point{};
-        SDL_GPUColorTargetInfo effects[2]{};effects[0].texture=effects_;effects[1].texture=effect_depth_;for(auto &e:effects){e.load_op=SDL_GPU_LOADOP_CLEAR;e.store_op=SDL_GPU_STOREOP_STORE;e.cycle=true;}
+        SDL_GPUColorTargetInfo effects[2]{};effects[0].texture=effects_;effects[1].texture=effect_depth_;for(auto &e:effects){e.load_op=SDL_GPU_LOADOP_CLEAR;e.store_op=SDL_GPU_STOREOP_STORE;e.cycle=cycle_private_scratch();}
         pass=SDL_BeginGPURenderPass(commands,effects,2,nullptr);if(!pass)return stop("begin volume GPU pass");SDL_BindGPUGraphicsPipeline(pass,programs_.volume);
         SDL_GPUTextureSamplerBinding depths[]={{context_.depth(),programs_.nearest},{held_depth_,programs_.nearest}};SDL_BindGPUFragmentSamplers(pass,0,depths,2);SDL_BindGPUFragmentStorageBuffers(pass,0,&cells_,1);
         SDL_PushGPUFragmentUniformData(commands,0,&scene.camera,sizeof(scene.camera));std::vector<uint32_t> sources;
