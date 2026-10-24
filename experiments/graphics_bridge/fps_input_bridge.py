@@ -10,7 +10,7 @@ def prepare(root,updates,bridge):
     # The existing manager helpers live in ncmm, outside the loader's anonymous
     # namespace. Forward-declare there, using the same private metadata type.
     loader=once(loader,'namespace ncmm\n{\nnamespace\n{',
-        'namespace ncmm\n{\nnamespace { struct module_setting_meta; }\n'
+        'namespace ncmm\n{\nvoid graphics_fps_poll();\nnamespace { struct module_setting_meta; }\n'
         'static std::string manager_setting_value(const module_setting_meta &);\n'
         'static bool manager_adjust_setting(const module_setting_meta &,int);\n'
         'static bool manager_persist_settings();\n'
@@ -66,9 +66,8 @@ def prepare(root,updates,bridge):
     # A private diagnostic acknowledgement after Native's pre-poll redraw,
     # without another shared-header dependency or another SDL loop.
     sdl='namespace ncmm { void graphics_fps_poll(); }\n'+sdl
-    sdl=once(sdl,'#if defined(EMSCRIPTEN)\n    // emscripten must yield to the browser through Asyncify, which SDL_Delay does',
-        '    ncmm::graphics_fps_poll();\n\n#if defined(EMSCRIPTEN)\n'
-        '    // emscripten must yield to the browser through Asyncify, which SDL_Delay does')
+    poll_anchor='    } else if( ui_adaptor::has_imgui() ) {\n        try_sdl_update();\n    }'
+    sdl=once(sdl,poll_anchor,poll_anchor+'\n    ncmm::graphics_fps_poll();')
     legacy='''        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );
         const bool ncmm_mouse_allowed = !cataimgui::client::want_capture_mouse();
         if( ev.type == SDL_EVENT_WINDOW_FOCUS_LOST ) ncmm::graphics_mouse_event( 4, 0, 0, 0, 0, false );

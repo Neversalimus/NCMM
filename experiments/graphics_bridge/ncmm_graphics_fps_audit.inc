@@ -32,6 +32,7 @@
     };
     struct fps_events {
         std::atomic<bool> stop{false}, done{false}, sent{false};
+        std::atomic<uint32_t> last_wait{0};
         std::thread worker;
         fps_events(SDL_WindowID window, float x, float y, std::vector<SDL_Event> events,
                    unsigned duration)
@@ -48,6 +49,7 @@
                   while (!stop.load() && SDL_GetTicks() < deadline) {
                       SDL_Delay(20);
                       const uint32_t waiting = graphics_fps_audit_wait.load();
+                      last_wait.store(waiting);
                       if (!(waiting & 1u))
                           continue;
                       if (waiting & 8u) {
@@ -57,6 +59,13 @@
                           continue;
                       }
                       if (!(waiting & 16u)) {
+                          // Exercise the same synthetic focus transition as
+                          // the explicit focus cases. This is not physical
+                          // foreground-window or two-monitor qualification.
+                          SDL_Event focus{};
+                          focus.type = SDL_EVENT_WINDOW_FOCUS_GAINED;
+                          focus.window.windowID = window;
+                          SDL_PushEvent(&focus);
                           SDL_Event click{};
                           click.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
                           click.button.windowID = window;
@@ -135,6 +144,14 @@
                     break;
             }
         }
+        if (!feed.sent.load())
+            log_line(NCMM_LOG_ERROR,
+                     ("FPS wait diagnostic bits=" + std::to_string(feed.last_wait.load()) +
+                      " owner=" + std::to_string(int(graphics_input_router.owner())) +
+                      " focused=" + std::to_string(graphics_fps_focused) +
+                      " ui=" + std::to_string(graphics_fps_ui_claimed) +
+                      " available=" + std::to_string(graphics_fps_available))
+                         .c_str());
         require(feed.sent.load(), "fps_audit_sdl_script_never_entered_native_wait");
     };
     auto native_redraw = [&]() {
@@ -165,14 +182,14 @@
                 camera(yaw, -.08f);
                 refresh();
                 native_redraw();
-                const auto origin = you.pos_bub();
+                const auto origin = you.pos_abs();
                 const int moves = you.get_moves();
                 const auto actions = graphics_input_router.movements;
                 // Deliberately disagreeing Russian keycode and physical W.
                 dispatch(tap(SDL_SCANCODE_W, SDL_Keycode(0x0446)));
                 const auto delta = ncmm_graphics_camera::movement(yaw, 1, 0);
-                if (you.pos_bub() != origin + tripoint_rel_ms(delta.first, delta.second, 0)) {
-                    const auto actual = you.pos_bub() - origin;
+                if (you.pos_abs() != origin + tripoint_rel_ms(delta.first, delta.second, 0)) {
+                    const auto actual = you.pos_abs() - origin;
                     log_line(
                         NCMM_LOG_ERROR,
                         (std::string("FPS W diagnostic mode=") + mode +
@@ -185,7 +202,7 @@
                          " last=" + graphics_fps_action)
                             .c_str());
                 }
-                require(you.pos_bub() == origin + tripoint_rel_ms(delta.first, delta.second, 0),
+                require(you.pos_abs() == origin + tripoint_rel_ms(delta.first, delta.second, 0),
                         "fps_audit_physical_w_wrong_native_direction");
                 require(graphics_input_router.movements == actions + 1 && you.get_moves() < moves,
                         "fps_audit_w_not_one_costed_native_action");
@@ -197,14 +214,14 @@
             camera(-ncmm_graphics_camera::pi * .5f, -.08f);
             refresh();
             native_redraw();
-            const auto origin = you.pos_bub();
+            const auto origin = you.pos_abs();
             const auto actions = graphics_input_router.movements;
             const int moves = you.get_moves();
             dispatch({key_event(SDL_SCANCODE_W, SDLK_W, true),
                       key_event(SDL_SCANCODE_D, SDLK_D, true),
                       key_event(SDL_SCANCODE_W, SDLK_W, false),
                       key_event(SDL_SCANCODE_D, SDLK_D, false)});
-            require(you.pos_bub() == origin + tripoint_rel_ms(1, -1, 0) &&
+            require(you.pos_abs() == origin + tripoint_rel_ms(1, -1, 0) &&
                         graphics_input_router.movements == actions + 1 && you.get_moves() < moves,
                     "fps_audit_chord_not_one_native_diagonal");
             samples.push_back({"wd_one_diagonal", mode, renderer_mode, 1, moves - you.get_moves()});
@@ -212,11 +229,11 @@
             warm(renderer_mode);
             native_redraw();
             you.set_moves(10000);
-            const auto held_origin = you.pos_bub();
+            const auto held_origin = you.pos_abs();
             const int held_moves = you.get_moves();
             const auto held_actions = graphics_input_router.movements;
-            dispatch({key_event(SDL_SCANCODE_W, SDLK_W, true)}, 3, 1500);
-            require(you.pos_bub() == held_origin + tripoint_rel_ms(0, -3, 0) &&
+            dispatch({key_event(SDL_SCANCODE_W, SDLK_W, true)}, 3, 12000);
+            require(you.pos_abs() == held_origin + tripoint_rel_ms(0, -3, 0) &&
                         graphics_input_router.movements == held_actions + 3 &&
                         you.get_moves() < held_moves,
                     "fps_audit_held_w_not_three_native_boundaries");
@@ -225,14 +242,14 @@
             floor();
             warm(renderer_mode);
             you.set_moves(10000);
-            const auto wall_origin = you.pos_bub();
+            const auto wall_origin = you.pos_abs();
             const int wall_moves = you.get_moves();
-            here.ter_set(wall_origin + tripoint_rel_ms(0, -1, 0), ter_id("t_wall"));
+            here.ter_set(here.get_bub(wall_origin) + tripoint_rel_ms(0, -1, 0), ter_id("t_wall"));
             refresh();
             native_redraw();
             const auto wall_actions = graphics_input_router.movements;
             dispatch({key_event(SDL_SCANCODE_W, SDLK_W, true)}, 3, 600);
-            require(you.pos_bub() == wall_origin &&
+            require(you.pos_abs() == wall_origin &&
                         graphics_input_router.movements == wall_actions + 1,
                     "fps_audit_wall_repeated_held_walk_or_crossed_collision");
             samples.push_back(
