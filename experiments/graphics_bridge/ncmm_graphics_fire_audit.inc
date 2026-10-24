@@ -29,6 +29,11 @@
                     if(recovering)escape_recovery.store(true);
                     event.type=SDL_EVENT_KEY_DOWN;event.key.windowID=window;event.key.key=SDLK_ESCAPE;event.key.scancode=SDL_SCANCODE_ESCAPE;
                     SDL_PushEvent(&event);event.type=SDL_EVENT_KEY_UP;SDL_PushEvent(&event);
+                }else if(context==1&&((type==kind::command)!=bool(waiting_input&8u))){
+                    // The real Tab transition is part of the tested command
+                    // path. Never inject an internal router state from worker.
+                    event.type=SDL_EVENT_KEY_DOWN;event.key.windowID=window;event.key.key=SDLK_TAB;event.key.scancode=SDL_SCANCODE_TAB;
+                    SDL_PushEvent(&event);event.type=SDL_EVENT_KEY_UP;SDL_PushEvent(&event);
                 }else if(context==2||(context==1&&type==kind::command)){
                     // Respect the actual native wait's character/keycode mode.
                     // SDL_PushEvent(KEY_DOWN) does not synthesize TEXT_INPUT.
@@ -36,11 +41,11 @@
                     else {event.type=SDL_EVENT_KEY_DOWN;event.key.windowID=window;event.key.key=SDLK_F;event.key.scancode=SDL_SCANCODE_F;
                         SDL_PushEvent(&event);event.type=SDL_EVENT_KEY_UP;SDL_PushEvent(&event);}
                 }else if(context==1&&(type==kind::click||type==kind::pointer_click)){
-                    // Exercise the real SDL RMB-look + LMB command dispatch.
+                    // Exercise constant-look FPS LMB (including a fresh
+                    // viewport capture after Esc/menu/Native command mode).
                     // The ordinary click handler revalidates picked identity,
                     // visibility, origin, camera, range and native readiness.
                     event.type=SDL_EVENT_MOUSE_BUTTON_DOWN;event.button.windowID=window;event.button.x=mx;event.button.y=my;
-                    if(type==kind::click){event.button.button=SDL_BUTTON_RIGHT;SDL_PushEvent(&event);}
                     event.button.button=SDL_BUTTON_LEFT;SDL_PushEvent(&event);
                     event.type=SDL_EVENT_MOUSE_BUTTON_UP;SDL_PushEvent(&event);
                 }
@@ -52,6 +57,7 @@
     struct trial {
         std::string scenario,renderer,keyboard,native_keyboard;bool legacy=false,visible=false,escape_recovery=false;
         uint64_t default_keychar_inputs=0,default_keycode_inputs=0;
+        uint64_t fps_attack_intents=0;
         int ammo_before=0,ammo_after=0,moves_before=0,moves_after=0;
         uint64_t attack_before=0,attack_after=0;size_t first=0,last=0;
         float yaw_before=0,pitch_before=0,yaw_after=0,pitch_after=0;
@@ -70,6 +76,7 @@
         result.native_keyboard=inp_mngr.actual_keyboard_mode(keyboard_mode::keycode)==keyboard_mode::keychar?"keychar":"keycode";
         require(result.native_keyboard==result.keyboard,"fire_audit_option_cache_not_applied");
         const auto chars_before=graphics_fire_capture.default_keychar_inputs,codes_before=graphics_fire_capture.default_keycode_inputs;
+        const auto fps_attacks_before=graphics_input_router.attack_intents;
         checkpoint(std::string("native_fire_")+mode+"_"+scenario+"_"+std::to_string(trials.size()));
         clear_monsters();graphics_clear_creatures();you.cancel_activity();you.clear_effects();you.set_moves(10000);
         you.set_stamina(you.get_stamina_max());
@@ -115,12 +122,14 @@
         }
         {
             graphics_fire_input_context.store(0);
+            int ww=0,wh=0,pw=0,ph=0;SDL_GetWindowSize(get_sdl_window(),&ww,&wh);SDL_GetWindowSizeInPixels(get_sdl_window(),&pw,&ph);
+            require(ww>0&&wh>0&&pw>0&&ph>0,"fire_audit_event_window_dimensions_missing");
             input_feed feed(window,pointer_click?input_feed::kind::pointer_click:click?input_feed::kind::click:input_feed::kind::command,
-                float(graphics_viewport.x+graphics_viewport.w/2),float(graphics_viewport.y+graphics_viewport.h/2),cancel||empty);
+                float(graphics_viewport.x+graphics_viewport.w/2)*ww/pw,float(graphics_viewport.y+graphics_viewport.h/2)*wh/ph,cancel||empty);
             // The normal game retries handle_action after TIMEOUT. A single
             // diagnostic call can return before the delayed SDL event arrives.
             const auto before=graphics_fire_capture.native_command_sequence;
-            const std::string expected=click?"SELECT":"fire";
+            const std::string expected="fire";
             for(int retry=0;retry<128;++retry){
                 g->ncmm_graphics_smoke_handle_action();++result.dispatch_calls;
                 // Mouse movement and TIMEOUT can return from the normal input
@@ -149,6 +158,8 @@
         result.last=graphics_fire_capture.frames.size();graphics_fire_capture.active=false;graphics_fire_audit_legacy_context=false;
         result.default_keychar_inputs=graphics_fire_capture.default_keychar_inputs-chars_before;
         result.default_keycode_inputs=graphics_fire_capture.default_keycode_inputs-codes_before;
+        result.fps_attack_intents=graphics_input_router.attack_intents-fps_attacks_before;
+        require(result.fps_attack_intents==uint64_t(click),"fire_audit_wrong_fps_mouse_ownership");
         {std::ofstream progress(game_root()/"ncmm"/"first-person-fire-trials.jsonl",std::ios::app);JsonOut out(progress);
             out.start_object();out.member("scenario",result.scenario);out.member("renderer",result.renderer);out.member("legacy",result.legacy);out.member("keyboard_mode",result.keyboard);
             out.member("native_keyboard_mode",result.native_keyboard);out.member("default_keychar_inputs",result.default_keychar_inputs);out.member("default_keycode_inputs",result.default_keycode_inputs);
@@ -198,11 +209,13 @@
     fire_report.start_object();fire_report.member("schema",1);fire_report.member("actual_cdda_sdl",true);fire_report.member("manual_playthrough",false);
     fire_report.member("normal_game_command_dispatch",true);fire_report.member("native_activity_and_target_ui",true);
     fire_report.member("synthetic_attack_notifications",false);fire_report.member("ordinary_ai_turns",false);
-    fire_report.member("lmb_path","real SDL RMB-look plus LMB and a separate pointer-only LMB case, native picking and click dispatch");
+    fire_report.member("fps_input_router",true);
+    fire_report.member("lmb_path","real SDL FPS LMB, viewport recapture, physical Tab Native-command mode, native picking and dispatch");
     fire_report.member("trials");fire_report.start_array();
     for(const auto &t:trials){fire_report.start_object();fire_report.member("scenario",t.scenario);fire_report.member("renderer",t.renderer);fire_report.member("legacy_control",t.legacy);
         fire_report.member("target_native_visible",t.visible);fire_report.member("escape_recovery",t.escape_recovery);
         fire_report.member("native_command",t.native_command);fire_report.member("dispatch_calls",t.dispatch_calls);fire_report.member("keyboard_mode",t.keyboard);
+        fire_report.member("fps_attack_intents",t.fps_attack_intents);
         fire_report.member("native_keyboard_mode",t.native_keyboard);fire_report.member("default_keychar_inputs",t.default_keychar_inputs);fire_report.member("default_keycode_inputs",t.default_keycode_inputs);
         fire_report.member("ammo_before",t.ammo_before);fire_report.member("ammo_after",t.ammo_after);fire_report.member("moves_before",t.moves_before);fire_report.member("moves_after",t.moves_after);
         fire_report.member("attack_serial_before",t.attack_before);fire_report.member("attack_serial_after",t.attack_after);

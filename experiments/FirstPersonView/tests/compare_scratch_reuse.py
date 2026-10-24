@@ -5,7 +5,7 @@ This is a GPU unit fixture. It does not measure Native game performance.
 from pathlib import Path
 import argparse,hashlib,json,os,shutil,subprocess,sys
 
-REFERENCE_SHA256='679467d4f8a557b298cc83dcb83636dc66b17ddce3fa65a0ed87eb866cdd63c6'
+REFERENCE_SHA256='a0dd1aa83c05e1a51ac33854dedb54696e85616857d9da1f68bb30ee7fe9662a'
 
 
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()

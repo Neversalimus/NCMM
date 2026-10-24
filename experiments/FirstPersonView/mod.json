@@ -1,7 +1,7 @@
 {
   "id": "first_person_view",
   "name": "First Person View",
-  "version": "0.13.0-dev",
+  "version": "0.13.1",
   "loader_api": 1,
   "api_major": 1,
   "api_min_minor": 9,

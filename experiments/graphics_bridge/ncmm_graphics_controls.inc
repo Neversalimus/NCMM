@@ -7,6 +7,7 @@ bool graphics_attack_pending = false;
 bool graphics_frame_pending_present = false;
 bool graphics_cursor_was_visible = true;
 float graphics_mouse_dx = 0, graphics_mouse_dy = 0;
+float graphics_deferred_dx = 0, graphics_deferred_dy = 0;
 uint64_t graphics_attack_serial = 0, graphics_last_redraw = 0;
 uint32_t graphics_attack_kind = 0;
 double graphics_attack_started = 0;
@@ -18,15 +19,25 @@ void graphics_cancel_animation()
     graphics_attack_pending = false; graphics_frame_pending_present=false;graphics_attack_started = -1;graphics_click_pending=false;
 }
 
-void graphics_release_mouse()
+bool graphics_apply_mouse_capture(bool capture)
 {
 #if defined(TILES)
-    if( graphics_mouse_drag ) {
-        SDL_SetWindowRelativeMouseMode( get_sdl_window(), false );
-        if( graphics_cursor_was_visible ) SDL_ShowCursor();
+    if(capture==graphics_mouse_drag)return true;
+    if(capture) {
+        graphics_cursor_was_visible=SDL_CursorVisible();
+        if(!SDL_SetWindowRelativeMouseMode(get_sdl_window(),true))return false;
+        SDL_HideCursor();
+    } else {
+        SDL_SetWindowRelativeMouseMode(get_sdl_window(),false);
+        if(graphics_cursor_was_visible)SDL_ShowCursor();
     }
 #endif
-    graphics_mouse_drag = false; graphics_mouse_dx = graphics_mouse_dy = 0;
+    graphics_mouse_drag=capture;graphics_mouse_dx=graphics_mouse_dy=0;graphics_deferred_dx=graphics_deferred_dy=0;return true;
+}
+void graphics_release_mouse()
+{
+    graphics_input_router.release();
+    graphics_apply_mouse_capture(false);
 }
 
 int graphics_set_camera( float yaw, float pitch )
@@ -104,7 +115,7 @@ bool graphics_forward_visible( const tripoint_bub_ms &origin, const tripoint_bub
 
 std::string graphics_map_relative_action( const std::string &action, const input_event &event, bool vehicle_control )
 {
-    if( !graphics_view.enabled || !graphics_control_context || vehicle_control ||
+    if( !graphics_view.enabled || !graphics_control_context || vehicle_control || !graphics_fps_enabled || graphics_input_router.command_mode() ||
         event.modifiers.size() || ( event.type != input_event_t::keyboard_code && event.type != input_event_t::keyboard_char ) ) return action;
     int forward = 0, right = 0;
     const int key = event.get_first_input();
@@ -142,13 +153,20 @@ bool graphics_process_mouse( uint32_t kind, float x, float y, float dx, float dy
     if( kind == 1 ) {
         if( x < graphics_viewport.x || y < graphics_viewport.y || x >= graphics_viewport.x + graphics_viewport.w ||
             y >= graphics_viewport.y + graphics_viewport.h ) return false;
-        graphics_cursor_was_visible = SDL_CursorVisible(); graphics_mouse_drag = true;
-        SDL_SetWindowRelativeMouseMode( get_sdl_window(), true ); SDL_HideCursor(); return true;
+        return graphics_apply_mouse_capture(true);
     }
     if( kind == 2 ) { const bool was_dragging = graphics_mouse_drag; graphics_release_mouse(); return was_dragging; }
     if( kind == 3 && graphics_mouse_drag && std::isfinite( dx ) && std::isfinite( dy ) ) {
+        // SDL can be pumped during presentation. Never re-enter a module's
+        // input callback while its render callback owns borrowed scene data.
+        if(graphics_render_active){
+            graphics_deferred_dx=std::clamp(graphics_deferred_dx+dx,-32000.f,32000.f);
+            graphics_deferred_dy=std::clamp(graphics_deferred_dy+dy,-32000.f,32000.f);
+            return true;
+        }
         const float previous_yaw=graphics_camera_yaw;
-        graphics_mouse_dx = std::clamp( dx, -2000.0f, 2000.0f ); graphics_mouse_dy = std::clamp( dy, -2000.0f, 2000.0f );
+        graphics_mouse_dx = std::clamp( dx, -2000.0f, 2000.0f )*float(graphics_fps_sensitivity);
+        graphics_mouse_dy = std::clamp( dy, -2000.0f, 2000.0f )*float(graphics_fps_sensitivity)*(graphics_fps_invert?-1.f:1.f);
         graphics_action( "ncmm.view.mouse_look" ); graphics_mouse_dx = graphics_mouse_dy = 0;
         if(graphics_camera_input_probe.active){++graphics_camera_input_probe.mouse_events;
             graphics_camera_input_probe.rotation_radians+=std::abs(std::remainder(graphics_camera_yaw-previous_yaw,2*ncmm_graphics_camera::pi));}

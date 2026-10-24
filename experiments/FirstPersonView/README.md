@@ -1,4 +1,10 @@
-# First Person View 0.13 — PSX arms and frame preparation (development)
+# First Person View 0.13.1 — FPS controls (development)
+
+The Host now owns one physical-key input router: continuous relative mouse
+look, WASD chords and bounded held movement, centre-reticle interaction, and
+an explicit Native command mode. Every gameplay intent goes through CDDA's
+existing action dispatcher. See [CONTROLS.md](CONTROLS.md) for keys, settings,
+ownership, vehicle fallback and the qualification limits.
 
 The experimental viewmodel uses Drillimpact's real PSX First Person Arms 1.1.0:
 authored textured geometry, its complete weighted skeleton and source animation
@@ -233,16 +239,24 @@ original game backup when upgrading ordinary NCMM, preview NCMM or legacy CML.
 
 | Key | Action |
 | --- | --- |
+| Mouse | Continuous look while the viewport owns the cursor |
+| W / A / S / D, including chords | Camera-relative Native walking, physical keys in either layout |
+| Left mouse button | Native melee/reach/fire; first click after release only captures the viewport |
+| Right mouse button | Native aiming for a gun or reach weapon |
+| E | Interact with the reachable object under the centre reticle |
+| R / G / I / U | Native reload / pickup / inventory / use wielded item |
+| Shift / Ctrl or C / Space | Native run toggle / crouch toggle / wait |
+| Tab | Native command mode, then return to FPS; click to recapture |
+| Esc | Native dialog cancel; release cursor in gameplay |
+| F5 | Compact FPS control settings using existing NCMM world options |
 | F6 | Toggle first person / map, with a message-log confirmation |
 | F7 / F8 | Rotate left / right |
 | F9 / F10 | Look up / down, including the sky |
 | F11 | Balanced / high quality |
 | F12 | Auto → CPU → GPU → Auto renderer |
-| Left mouse button over the viewport | Attack the visible hostile creature under the centre reticle |
-| Hold right mouse button in the viewport | Free horizontal/vertical look |
 | ↑ / ↓ in first person | Forward / backward relative to the camera |
 | ← / → in first person | Strafe left / right relative to the camera |
-| Other movement bindings; arrows in map/menus/vehicle control | Existing directions |
+| Native command mode; map/menus/vehicle keys | Original CDDA bindings and text input |
 
 Camera controls preserve the avatar's position, moves, time and destination.
 Version 0.8 expands the first-person environment radius from 16 to 48 map cells:
@@ -253,7 +267,8 @@ creatures/items retain CDDA's normal visibility rules. A per-frame transparency
 grid and allocation-free engine Bresenham traversal reduce repeated map lookups.
 The legacy Graphics V1 path retains its original radius and table layout.
 Ordinary commands, adjacent selection and inventory keep the perspective
-backdrop. Coordinate look, targeting and the overmap use their normal map view
+backdrop. Qualified Native weapon targeting retains perspective; coordinate
+look and the overmap use their normal map view
 and restore perspective on return to gameplay. No command-driven temporary
 view cancellation remains. Mouse capture releases on menus, focus loss, F6 and
 module unload. Camera pitch affects the view; walking stays on the CDDA map grid,

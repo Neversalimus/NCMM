@@ -649,6 +649,10 @@ bool graphics_draw_hybrid( const ncmm_graphics_scene_v1 &base, const std::vector
         else ncmm_draw_perspective_label(graphics_aim_name,anchor_x,anchor_y,clip);
     }
     target_hud_zone.stop();
+    if(ok) {
+        const auto hint=graphics_fps_hint();
+        if(!hint.empty())ncmm_draw_perspective_label(hint,x+base.pixel_width/2,y+base.pixel_height/2+24,SDL_Rect{x,y,base.pixel_width,base.pixel_height});
+    }
     ok = SDL_SetRenderClipRect( renderer, clipped ? &prior_clip : nullptr ) && ok;
     graphics_frame_pending_present=ok;
     if( !ok ) { graphics_clear_stream(); graphics_view.enabled = false; graphics_release_mouse(); }

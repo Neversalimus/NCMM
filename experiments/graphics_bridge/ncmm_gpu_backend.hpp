@@ -20,6 +20,7 @@ struct recording_metrics {
     double retirement_ms=0;uint64_t retirement_calls=0;
 };
 class backend {
+    int32_t focus_cell_=-1;
     device_context context_;
     resource_cache resources_;
     programs programs_;
@@ -147,6 +148,7 @@ public:
     resource_cache &resources(){return resources_;}
     bool has(uint64_t key,uint32_t kind){return kind<=1&&resources_.has(key,kind==1);}
     ncmm_gpu_metrics_v1 metrics(){poll();metrics_.resource_epoch=resource_epoch_;return metrics_;}
+    int32_t focus_cell()const{return focus_cell_;}
     void profile(bool enabled=true){profiling_=enabled;}
     const recording_metrics &recording()const{return recording_;}
     void clear(){
@@ -240,7 +242,7 @@ public:
         std::stable_sort(transparent.begin(),transparent.end(),[](const auto &a,const auto &b){return a.distance>b.distance;});
         for(const auto &t:transparent){const auto &d=scene.draws[t.index];auto *mesh=resources_.mesh(d.mesh_key);if(mesh&&mesh->joint_count<=d.bone_count&&!in_frustum(posed_bounds[t.index],scene.camera))continue;
             uint32_t heading;std::memcpy(&heading,&d.creature_yaw,4);batches.push_back({d.mesh_key,d.pass,uint32_t(instances.size()),1});instances.push_back({d.transform,d.bone_offset,d.bone_count,d.cell,heading});}
-        pick(resources_,scene,metrics_,world,&posed_bounds);
+        pick(resources_,scene,metrics_,world,&posed_bounds,&focus_cell_);
         pick_zone.stop();
         if(profiling_)recording_.batching_pick_ms=ms(batching_start);
         if(!counter_){uint32_t ignored=0;if(!buffer(counter_,ignored,64,SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE)){reason(context_.reason());return false;}}

@@ -1,0 +1,42 @@
+"""Fail closed on missing Native FPS controls evidence, without certifying manual play."""
+from collections import Counter
+import argparse,json
+from pathlib import Path
+
+COUNTS={'physical_w_8_yaws':8,'wd_one_diagonal':1,'held_w_three_native_boundaries':1,
+        'wall_fences_held_w':1,'inventory_held_w_cancel':1,'focus_resize_dpi_release':3,
+        'e_native_open':1,'lmb_native_melee':2,'native_run_crouch_wait':1}
+ACTIONS={'held_w_three_native_boundaries':3,'native_run_crouch_wait':3,
+         'focus_resize_dpi_release':0}
+FREE={'inventory_held_w_cancel','focus_resize_dpi_release'}
+
+def verify(root):
+    report=json.loads((root/'first-person-fps-input.json').read_text(encoding='utf-8-sig'))
+    assert report['schema']==1 and report['success'] is True and report['actual_cdda_sdl'] is True
+    assert report['manual_playthrough'] is False and report['physical_two_monitor_session'] is False
+    samples=report['samples']
+    assert len(samples)==4*sum(COUNTS.values()),'Missing or extra Native FPS cases'
+    for mode in ('keychar','keycode'):
+        for renderer in ('cpu','gpu'):
+            selected=[s for s in samples if s['keyboard_mode']==mode and s['renderer']==renderer]
+            assert Counter(s['scenario'] for s in selected)==COUNTS,'Incomplete keyboard/renderer matrix'
+            assert sorted(s['direction'] for s in selected if s['scenario']=='physical_w_8_yaws')==list(range(8))
+            for sample in selected:
+                case=sample['scenario'];cost=sample['native_move_cost']
+                assert type(cost) is int and cost>=0
+                assert sample['native_actions']==ACTIONS.get(case,1),'Queued or missing Native action'
+                if case in FREE:assert cost==0,'UI/focus event spent Native moves'
+                elif case!='wall_fences_held_w':assert cost>0,'Gameplay action did not spend Native moves'
+    return dict(success=True,actual_cdda_sdl=True,samples=len(samples),manual_playthrough=False,
+                native_action_costs_verified=True,
+                limitations=['Controlled isolated world; ordinary AI turns are covered by the separate gameplay audit',
+                             'Synthetic window events; physical DPI/two-monitor and manual sessions remain unverified',
+                             'These cases do not alone qualify every interaction category or performance'])
+
+if __name__=='__main__':
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--root',type=Path,required=True)
+    parser.add_argument('--output',type=Path,required=True)
+    args=parser.parse_args();result=verify(args.root)
+    args.output.write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
+    print(json.dumps({key:result[key] for key in ('success','samples','native_action_costs_verified')}))

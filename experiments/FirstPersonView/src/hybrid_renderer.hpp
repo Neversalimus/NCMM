@@ -59,7 +59,7 @@ struct frame {
     int width=0,height=0;std::vector<uint32_t> pixels;std::vector<float> depth;
     std::vector<int32_t> creatures;
     std::vector<uint32_t> effects;int effect_width=0,effect_height=0;
-    int32_t aimed=-1;float label_x=.5f,label_y=.4f;vec sky_horizon{},sky_top{};
+    int32_t aimed=-1,focus=-1;float focus_depth=std::numeric_limits<float>::infinity();float label_x=.5f,label_y=.4f;vec sky_horizon{},sky_top{};
     std::vector<float> held_depth;
     std::vector<float> sun_shadows;
     std::vector<int32_t> owners;uint32_t triangles=0,vehicle_parts=0,weather_particles=0,held_pixels=0;
@@ -478,6 +478,9 @@ class renderer {
                     const float fade=clamp(1-4*(u*u+vv0*vv0));alpha*=fade*fade;
                 }
                 if(alpha<.01f)continue;
+                // One writer owns the centre pixel. Transparent glass blocks
+                // interaction picking without changing colour or opaque depth.
+                if(!t.m.overlay&&x==f.width/2&&y==f.height/2&&z<f.focus_depth){f.focus_depth=z;f.focus=t.m.cell;}
                 if(detailed){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;
                     const vec pos=v[0].p*a+v[1].p*b+v[2].p*cw;
                     c=surface_color(c,t.m,pos,t.normal,z,fine[0]*a+fine[1]*b+fine[2]*cw,medium[0]*a+medium[1]*b+medium[2]*cw);}
@@ -1299,6 +1302,7 @@ public:
             f.geometry_cells=f.culled_cells=f.culled_quads=f.sky_pixels=0;
             f.geometry_ms=f.raster_ms=f.effects_ms=0;f.raster_calls=0;f.submitted_triangles=0;
             f.transparency.reset();f.dynamic_world=bool(creature_data);
+            f.focus=-1;f.focus_depth=std::numeric_limits<float>::infinity();
             sky_palette();if(!options.skip_hidden_sky)sky();
             const auto geometry_begun=std::chrono::steady_clock::now();shadows_build();vehicles_build();world();horizon();
             f.geometry_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-geometry_begun).count();paint(opaque);

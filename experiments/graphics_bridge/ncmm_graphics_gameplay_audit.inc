@@ -105,10 +105,21 @@
         report.member("ordinary_performance_measurement",false);report.member("success",true);report.end_object();
         stream.close();require(bool(stream),"target_hud_probe_report_write_failed");checkpoint("target_hud_gallery_complete");return;
     }
+    auto fps_cases = [&]() {
+        #include "ncmm_graphics_fps_audit.inc"
+    };
+    if(std::getenv("NCMM_FP_FPS_INPUT_ONLY")) {
+        action("native_fps_input_and_actions",fps_cases);report.end_array();
+        you.set_moves(original_moves);camera(original_yaw,original_pitch);clear_monsters();graphics_clear_world();
+        report.member("diagnostic_only",true);report.member("ordinary_performance_measurement",false);
+        report.member("success",true);report.end_object();stream.close();
+        require(bool(stream),"fps_input_only_report_write");return;
+    }
     action("native_held_assets_and_shared_psx_contacts",[&](){graphics_run_held_gallery(you,here,require,frames);floor();warm("cpu");});
     action("native_firing_ui_context_and_presented_frames",[&](){
         #include "ncmm_graphics_fire_audit.inc"
     });
+    action("native_fps_input_and_actions",fps_cases);
     action("native_target_health_identity_visibility_and_font",target_cases);
     action("native_walk_and_visual_continuity",[&](){
         for(const tripoint_rel_ms step:{tripoint_rel_ms(1,0,0),tripoint_rel_ms(0,-1,0),tripoint_rel_ms(-1,0,0),tripoint_rel_ms(0,1,0)}){

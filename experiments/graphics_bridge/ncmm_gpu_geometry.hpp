@@ -47,23 +47,28 @@ inline float texture_alpha(const texture_resource *t,float u,float v,bool neares
 }
 // Picking uses a narrow ray query over retained meshes. It does not render a
 // pixel, read the full framebuffer or run the former software raster loop.
-inline void pick(resource_cache &resources,const ncmm_gpu_scene_v1 &scene,ncmm_gpu_metrics_v1 &metrics,const ncmm_gpu_multilevel_scene_v1 *world=nullptr,const std::vector<bounds> *prepared=nullptr){
-    metrics.target_cell=-1;metrics.label_x=.5f;metrics.label_y=.4f;float nearest=scene.camera.projection[3];point target_top{};
+inline void pick(resource_cache &resources,const ncmm_gpu_scene_v1 &scene,ncmm_gpu_metrics_v1 &metrics,const ncmm_gpu_multilevel_scene_v1 *world=nullptr,const std::vector<bounds> *prepared=nullptr,int32_t *focus=nullptr){
+    if(focus)*focus=-1;
+    metrics.target_cell=-1;metrics.label_x=.5f;metrics.label_y=.4f;float nearest=scene.camera.projection[3],focus_nearest=nearest;point target_top{};
     const auto eye=from(scene.camera.eye),direction=from(scene.camera.forward);
     for(uint32_t i=0;i<scene.draw_count;++i){const auto &draw=scene.draws[i];if(draw.pass==NCMM_GPU_HELD)continue;auto *mesh=resources.mesh(draw.mesh_key);if(!mesh)continue;
-        const auto bounds=prepared?(*prepared)[i]:draw_bounds(*mesh,draw,scene);if(!ray_bounds(eye,direction,bounds,nearest))continue;
-        for(const auto &range:mesh->ranges){const auto &material=mesh->materials[range.material];if(material.color[3]<.99f&&!(material.flags&NCMM_GPU_CUTOUT))continue;
+        const auto bounds=prepared?(*prepared)[i]:draw_bounds(*mesh,draw,scene);if(!ray_bounds(eye,direction,bounds,focus?std::max(nearest,focus_nearest):nearest))continue;
+        for(const auto &range:mesh->ranges){const auto &material=mesh->materials[range.material];const bool opaque=material.color[3]>=.99f||(material.flags&NCMM_GPU_CUTOUT);
+            if(!opaque&&(!focus||material.color[3]<.01f))continue;
             for(uint32_t j=range.first;j<range.first+range.count;j+=3){const auto &va=mesh->vertex_data()[mesh->cpu_indices[j]],&vb=mesh->vertex_data()[mesh->cpu_indices[j+1]],&vc=mesh->vertex_data()[mesh->cpu_indices[j+2]];
                 const auto a=posed_vertex(va,draw,scene),b=posed_vertex(vb,draw,scene),c=posed_vertex(vc,draw,scene),e1=b-a,e2=c-a,p=cross(direction,e2);float determinant=dot(e1,p);
                 if(std::abs(determinant)<1e-8f)continue;
                 float inverse=1/determinant;const auto delta=eye-a;float u=dot(delta,p)*inverse;if(u<0||u>1)continue;const auto q=cross(delta,e1);float v=dot(direction,q)*inverse;if(v<0||u+v>1)continue;
-                float distance=dot(e2,q)*inverse;if(distance<.08f||distance>nearest+.0002f)continue;
+                float distance=dot(e2,q)*inverse;if(distance<.08f||distance>(focus?std::max(nearest,focus_nearest):nearest)+.0002f)continue;
                 if((material.flags&NCMM_GPU_CULL_BACK)&&dot(cross(e1,e2),eye-a)<=0)continue;
                 const float tu=va.uv[0]*(1-u-v)+vb.uv[0]*u+vc.uv[0]*v,tv=va.uv[1]*(1-u-v)+vb.uv[1]*u+vc.uv[1]*v;
                 if((material.flags&(NCMM_GPU_CUTOUT|NCMM_GPU_IMPOSTOR))&&texture_alpha(resources.texture(material.texture_key),tu,tv,material.flags&NCMM_GPU_IMPOSTOR)<((material.flags&NCMM_GPU_IMPOSTOR)?1.f/255:.25f))continue;
+                if(!opaque&&material.color[3]*texture_alpha(resources.texture(material.texture_key),tu,tv)<.01f)continue;
                 if(material.flags&NCMM_GPU_IMPOSTOR){auto *depth=resources.texture(material.depth_key);if(depth){const int x=std::clamp(int(tu*depth->width),0,int(depth->width)-1),y=std::clamp(int(tv*depth->height),0,int(depth->height)-1);
                         const uint32_t pixel=depth->pixels[size_t(y)*depth->width+x];const int16_t value=int16_t(uint16_t(((pixel>>24)<<8)|((pixel>>16)&255)));
-                        distance+=value*material.impostor_span/32760*std::hypot(scene.camera.forward[0],scene.camera.forward[1]);if(distance<.08f||distance>nearest+.0002f)continue;}}
+                        distance+=value*material.impostor_span/32760*std::hypot(scene.camera.forward[0],scene.camera.forward[1]);if(distance<.08f||distance>(focus?std::max(nearest,focus_nearest):nearest)+.0002f)continue;}}
+                if(focus&&distance<=focus_nearest+.0002f){focus_nearest=distance;*focus=int32_t(draw.cell);}
+                if(!opaque||distance>nearest+.0002f)continue;
                 nearest=distance;metrics.target_cell=(material.flags&NCMM_GPU_CREATURE)?int32_t(draw.cell):-1;
                 target_top={(bounds.lo[0]+bounds.hi[0])*.5f,(bounds.lo[1]+bounds.hi[1])*.5f,bounds.hi[2]+.06f};
             }}

@@ -4,6 +4,7 @@
 #include "scene_hash.hpp"
 #include "gpu_scene.hpp"
 #include "held_pose.hpp"
+#include "ncmm_graphics_focus.h"
 #include <cstdlib>
 #include <chrono>
 namespace {
@@ -14,6 +15,7 @@ const ncmm_host_graphics_v2 *hybrid=nullptr;
 const ncmm_host_graphics_multilevel_v1 *multilevel=nullptr;
 const ncmm_graphics_multilevel_scene_v1 *active_world=nullptr;
 const ncmm_host_graphics_controls_v1 *controls=nullptr;
+const ncmm_host_graphics_focus_v1 *focus=nullptr;
 const ncmm_host_graphics_held_v1 *held_api=nullptr;
 std::unique_ptr<first_person::held::prepared> held_state;
 bool held_assets_enabled=true;
@@ -199,6 +201,7 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         frame_key=key;frame_built=now;frame_valid=true;
     }
     if(has_creatures)submit_creature_metrics(pixels,std::count_if(pixels.creatures.begin(),pixels.creatures.end(),[](int32_t cell){return cell!=-1;}));
+    if(focus)focus->set_focus(pixels.focus);
     if(presentation){presentation->set_target(pixels.aimed,pixels.label_x,pixels.label_y);
         if(!pixels.effects.empty()&&!presentation->submit_effects(pixels.effects.data(),pixels.effect_width,pixels.effect_height,pixels.effect_width)){
             ncmm_graphics_composite::blend(pixels.pixels,pixels.width,pixels.height,pixels.effects,pixels.effect_width,pixels.effect_height);frame_valid=false;}}
@@ -244,7 +247,7 @@ int init(const ncmm_host_api_v1 *api) {
     graphics=nullptr;
     hybrid=nullptr;multilevel=nullptr;active_world=nullptr;
     gpu=nullptr;settings=nullptr;diagnostic_log=nullptr;gpu_world.reset();renderer_mode=NCMM_GPU_AUTO;last_setting="auto";mode_override=false;last_gpu_reason.clear();
-    controls=nullptr;presentation=nullptr;metadata={};creatures=nullptr;creature_state.reset();look_sway_x=look_sway_y=0;look_sway_started=last_scene_seconds=0;frame_valid=world_valid=false;high_quality=false;gpu_effects=true;
+    controls=nullptr;focus=nullptr;presentation=nullptr;metadata={};creatures=nullptr;creature_state.reset();look_sway_x=look_sway_y=0;look_sway_started=last_scene_seconds=0;frame_valid=world_valid=false;high_quality=false;gpu_effects=true;
     const auto core=ncmm::sdk::require_core(api,caps,sizeof(caps)/sizeof(caps[0]),NCMM_SDK_CORE_FIELD_END(api_minor));
     if(!core) return 0;
     diagnostic_log=core.core->struct_size>=NCMM_SDK_CORE_FIELD_END(log)?core.core->log:api->log;
@@ -255,6 +258,23 @@ int init(const ncmm_host_api_v1 *api) {
     if(core.core->struct_size>=NCMM_SDK_CORE_FIELD_END(world_setting_get_string)&&core.core->world_setting_register_enum&&core.core->world_setting_get_string){
         const char *values[]={"auto","gpu","cpu"},*labels[]={"Auto","GPU","CPU"};
         if(core.core->world_setting_register_enum(id,"NCMM_FIRST_PERSON_RENDERER","First Person renderer / Рендерер первого лица","Auto uses a hardware SDL GPU and chooses CPU for software adapters. / Auto: аппаратный GPU; при программном адаптере используется CPU. F12: Auto → CPU → GPU → Auto.",values,labels,3,"auto",NCMM_WORLD_SETTING_LIVE))settings=core.core;}
+    if(settings&&settings->world_setting_register_bool&&settings->world_setting_register_float&&settings->world_setting_register_int){
+        settings->world_setting_register_bool(id,"NCMM_FP_ENABLED","FPS controls / FPS-управление","Physical keys and relative mouse. Tab restores Native commands. / Физические клавиши и мышь. Tab возвращает штатные команды.",1,NCMM_WORLD_SETTING_LIVE);
+        settings->world_setting_register_float(id,"NCMM_FP_SENSITIVITY","Mouse sensitivity / Чувствительность мыши","Linear multiplier; no added acceleration. / Линейный множитель без дополнительного ускорения.",.05,4,1,.05,NCMM_WORLD_SETTING_LIVE);
+        settings->world_setting_register_bool(id,"NCMM_FP_INVERT_Y","Invert mouse Y / Инверсия мыши по вертикали","Invert vertical look. / Инвертировать вертикальный осмотр.",0,NCMM_WORLD_SETTING_LIVE);
+        settings->world_setting_register_int(id,"NCMM_FP_REPEAT_MS","Held movement interval / Интервал удерживаемого движения","Milliseconds; at most one action when Native is ready. / Миллисекунды; одно действие только при готовности игры.",100,400,140,NCMM_WORLD_SETTING_LIVE);
+        settings->world_setting_register_bool(id,"NCMM_FP_HELP","Show FPS help once / Показать подсказку FPS один раз","Cleared after showing; enable to show again. / Выключается после показа; включите для повторной подсказки.",1,NCMM_WORLD_SETTING_LIVE);
+        const char *keys[]={"A","B","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","Tab","Up","Down","Left","Right"};
+        struct binding {const char *id,*name,*key;};
+        const binding bindings[]={
+            {"NCMM_FP_FORWARD","Forward / Вперёд","W"},{"NCMM_FP_BACK","Back / Назад","S"},
+            {"NCMM_FP_LEFT","Strafe left / Влево","A"},{"NCMM_FP_RIGHT","Strafe right / Вправо","D"},
+            {"NCMM_FP_INTERACT","Interact / Взаимодействие","E"},{"NCMM_FP_RELOAD","Reload / Перезарядка","R"},
+            {"NCMM_FP_PICKUP","Pick up / Подобрать","G"},{"NCMM_FP_INVENTORY","Inventory / Инвентарь","I"},
+            {"NCMM_FP_COMMANDS","Native commands / Штатные команды","Tab"},{"NCMM_FP_USE","Use held item / Применить предмет в руках","U"}};
+        for(const auto &binding:bindings)settings->world_setting_register_enum(id,binding.id,binding.name,
+            "Physical US key position, independent of text layout. / Физическая позиция клавиши, независимо от языка ввода.",keys,keys,sizeof(keys)/sizeof(keys[0]),binding.key,NCMM_WORLD_SETTING_LIVE);
+    }
     if(api->has_capability(NCMM_GRAPHICS_V2_CAP)) {
         auto *candidate=static_cast<const ncmm_host_graphics_v2 *>(api->query_interface(NCMM_GRAPHICS_V2_ID,2,0));
         if(!candidate || candidate->abi_version!=2 || candidate->major!=2 || candidate->struct_size<sizeof(ncmm_host_graphics_v2) ||
@@ -266,6 +286,8 @@ int init(const ncmm_host_api_v1 *api) {
         if(multilevel){if(!multilevel->register_view(id,render_multilevel,input,nullptr))return 0;}
         else if(!candidate->register_view(id,render_hybrid,input,nullptr))return 0;
         hybrid=candidate;yaw=-first_person::pi*.5;pitch=0;
+        const auto *f=static_cast<const ncmm_host_graphics_focus_v1 *>(api->query_interface(NCMM_GRAPHICS_FOCUS_ID,1,0));
+        if(f&&f->abi_version==1&&f->major==1&&f->struct_size>=sizeof(*f)&&f->set_focus)focus=f;
         auto *g=static_cast<const ncmm_host_graphics_gpu_v1 *>(api->query_interface(NCMM_GRAPHICS_GPU_ID,1,0));
         if(g&&g->version==1&&g->api_major==1&&g->struct_size>=offsetof(ncmm_host_graphics_gpu_v1,has_resource)+sizeof(g->has_resource)&&g->available&&g->submit_scene&&g->metrics&&g->invalidate&&g->has_resource){gpu=g;gpu_world=std::make_unique<first_person::gpu::scene_cache>();}
         if(api->has_capability(NCMM_GRAPHICS_PRESENTATION_CAP)){
@@ -302,7 +324,7 @@ void shutdown() {
     gpu=nullptr;settings=nullptr;diagnostic_log=nullptr;gpu_world.reset();
     first_person::viewmodel::clear_textures();
     hybrid=nullptr;multilevel=nullptr;active_world=nullptr;
-    controls=nullptr;
+    controls=nullptr;focus=nullptr;
     presentation=nullptr;metadata={};creatures=nullptr;creature_state.reset();
     graphics=nullptr;
     commands.clear();

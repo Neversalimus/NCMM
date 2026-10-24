@@ -39,8 +39,8 @@ class ApplyTests(unittest.TestCase):
                           "void map::set_floor_cache_dirty( const int zlev )"):
             map_cpp+=signature+"\n{\n}\n"
         (root / "src/map.cpp").write_text(map_cpp+bridge.SUBMAP_CACHE_RESET+'\n    current_submap->set_ter( l, new_terrain );\n    current_submap->set_furn( l, new_target_furniture );\n'+'void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type )\n{\n}\n')
-        (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n        next_action = inp_mngr.get_input_event( preferred_keyboard_mode );\n    inp_mngr.set_timeout( old_timeout );\n    return *result;\n}\n')
-        (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR+'\nstatic void CheckMessages()\n{\n        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n}\n')
+        (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n        next_action = inp_mngr.get_input_event( preferred_keyboard_mode );\n        if( next_action.type == input_event_t::timeout ) {\n        }\n    inp_mngr.set_timeout( old_timeout );\n    return *result;\n}\n')
+        (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR+'\nstatic void CheckMessages()\n{\n        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n    if( needupdate ) {\n        try_sdl_update();\n    }\n}\n')
         (root / "src/sdl_wrappers.cpp").write_text('#include "sdl_wrappers.h"\nvoid RenderPresent() {\n    printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" );\n}\n')
         with (root / "src/sdltiles.cpp").open('a') as f:
             f.write('\n'.join('void teardown_'+str(i)+'() {\n    renderer.reset();\n}' for i in range(4))+'\n')
@@ -49,6 +49,7 @@ class ApplyTests(unittest.TestCase):
         (root / "src/handle_action.cpp").write_text("    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {\n        player_character.clear_destination();\n        destination_preview.clear();\n        return false;\n    }")
         with (root / "src/handle_action.cpp").open('a') as f: f.write('\n    if( act == ACTION_NULL ) {\n        act = look_up_action( action );\n    }')
         with (root / "src/handle_action.cpp").open('a') as f: f.write('\n        if( act == ACTION_SELECT || act == ACTION_SEC_SELECT ) {}\ninput_context game::get_player_input( std::string &action )\n{\n    return ctxt;\n}\n\nstatic void rcdrive( ) {}')
+        with (root / "src/handle_action.cpp").open('a') as f:f.write('\n        if( act == ACTION_INTERACT ) {}\nplayer_character.assign_activity( open_tile_activity_actor( std::nullopt ) );\n')
         (root / "src/melee.cpp").write_text('    const bool hits = hit_spread >= 0;')
         (root / "src/ranged.cpp").write_text('target_handler::trajectory target_ui::run()\n{\n}\n        curshot++;\n\n        if( !gun.is_gun() ) {}\n    bool skip_redraw = false;')
         (root / "src/creature.cpp").write_text("int Creature::deal_melee_attack( Creature *source, int hitroll )\n{\n}\n    apply_damage( source, bp, total_damage );")
@@ -254,6 +255,22 @@ bool cata_tiles::draw_sprite_at() {
             with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
                 with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
             self.assertEqual(before,self.fingerprint(root))
+
+    def test_changed_fps_native_input_anchors_no_partial_patch(self):
+        for name,anchor in [
+            ('input_context.cpp','        if( next_action.type == input_event_t::timeout ) {'),
+            ('handle_action.cpp','        if( act == ACTION_INTERACT ) {'),
+            ('handle_action.cpp','player_character.assign_activity( open_tile_activity_actor( std::nullopt ) );'),
+            ('sdltiles.cpp','    if( needupdate ) {\n        try_sdl_update();')]:
+            for ambiguous in [False,True]:
+                with self.subTest(name=name,anchor=anchor,ambiguous=ambiguous), tempfile.TemporaryDirectory() as tmp:
+                    root=Path(tmp);self.fixture(root);path=root/'src'/name
+                    source=path.read_text();self.assertEqual(source.count(anchor),1)
+                    path.write_text(source.replace(anchor,anchor*2 if ambiguous else 'changed_fps_anchor'))
+                    before=self.fingerprint(root)
+                    with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                        with self.assertRaisesRegex(ValueError,'FPS input requires one exact anchor'):bridge.apply(root)
+                    self.assertEqual(before,self.fingerprint(root))
 
     def test_native_sprite_path_is_preserved(self):
         with tempfile.TemporaryDirectory() as tmp:

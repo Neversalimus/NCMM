@@ -92,6 +92,7 @@ int main(int argc,char **argv){try{
     world.shape(7,7,NCMM_SHAPE_DOOR_CLOSED);draw();auto closed=digest(f);int at=250*800+400;check(f.owners[at]==7*15+7,"closed vertical door blocks center");
     world.shape(7,7,NCMM_SHAPE_DOOR_OPEN);draw();check(digest(f)!=closed&&f.owners[at]!=7*15+7,"open hinged door reveals space");check(f.vertical_doors>0,"open door retains frame and panel");
     world.shape(7,7,NCMM_SHAPE_WINDOW);draw();check(f.vertical_windows>0&&f.owners[at+25]!=7*15+7,"window glass preserves sight through aperture");
+    check(f.focus==7*15+7,"centre interaction focus stops at transparent window glass");
     world.shape(7,7,NCMM_SHAPE_WINDOW_COVERED);draw();check(f.owners[at+25]==7*15+7,"covered window remains opaque and vertical");
     world.shape(7,7,NCMM_SHAPE_DOOR_FRAME);draw();check(f.owners[at]!=7*15+7,"destroyed door retains an open frame");
     world.shape(7,7,NCMM_SHAPE_WINDOW_BROKEN);draw();check(f.vertical_windows>0,"broken window remains vertical");

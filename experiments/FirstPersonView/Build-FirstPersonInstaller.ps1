@@ -177,6 +177,11 @@ See THIRD_PARTY_NOTICES.txt for the original archive hash and author's license.
 This preview includes 30 licensed held models for supported guns, tools,
 containers and accessories, using the original PSX hands. Items outside the
 supported authored families keep the established fallback.
+FPS controls: continuous mouse look, WASD walking, LMB attack, RMB Native aim,
+E interact, R reload, G pickup, I inventory, U use wielded item, Shift/Ctrl run/
+crouch, Space wait. Tab restores Native commands; Esc releases the cursor;
+F5 opens control settings and F6 returns to the map. Vehicle controls remain
+Native, with independent mouse look. The first viewport click only captures.
 Native visibility, map memory and sprite/animation processing retain the complete
 established tile draw before perspective rendering.
 Use the qualification report for measured gains; this text makes no FPS claim.

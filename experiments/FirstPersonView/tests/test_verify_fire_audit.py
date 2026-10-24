@@ -51,6 +51,33 @@ class FireEvidenceTests(unittest.TestCase):
     def test_complete_synthetic_fixture(self):
         self.assertEqual(self.run_report()['normal_native_ui_attempts'], 192)
 
+    def fps_fixture(self):
+        self.report['fps_input_router'] = True
+        for trial in self.report['trials']:
+            trial['native_command'] = 'fire'
+            trial['fps_attack_intents'] = int(trial['scenario'] in {'lmb_single', 'pointer_only'})
+
+    def test_complete_fps_synthetic_fixture(self):
+        self.fps_fixture()
+        self.assertEqual(self.run_report()['normal_native_ui_attempts'], 192)
+
+    def test_fps_click_cannot_bypass_router(self):
+        self.fps_fixture()
+        trial = next(t for t in self.report['trials'] if t['scenario'] == 'lmb_single')
+        trial['fps_attack_intents'] = 0
+        with self.assertRaises(AssertionError): self.run_report()
+
+    def test_fps_click_cannot_create_two_intents(self):
+        self.fps_fixture()
+        trial = next(t for t in self.report['trials'] if t['scenario'] == 'lmb_single')
+        trial['fps_attack_intents'] = 2
+        with self.assertRaises(AssertionError): self.run_report()
+
+    def test_native_keyboard_cannot_be_reported_as_fps_click(self):
+        self.fps_fixture()
+        self.report['trials'][0]['fps_attack_intents'] = 1
+        with self.assertRaises(AssertionError): self.run_report()
+
     def test_undispatched_command_rejected(self):
         self.report['trials'][2]['dispatch_calls'] = 0
         with self.assertRaises(AssertionError): self.run_report()

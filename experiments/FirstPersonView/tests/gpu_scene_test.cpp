@@ -413,6 +413,39 @@ int main(int argc,char **argv){
         const auto red=pixel>>24,green=(pixel>>16)&255,blue=(pixel>>8)&255;
         require(red>8&&blue>8&&green>red&&green>blue,"held glass blends both source layers over the visible opaque surface without writing depth");
     }
+    // The same retained-mesh ray has two contracts: Native combat can see a
+    // creature through glass; E must select the nearer interactive surface.
+    {
+        ncmm_gpu_scene_v1 focus_scene{};focus_scene.struct_size=sizeof(focus_scene);
+        focus_scene.width=640;focus_scene.height=480;focus_scene.mode=NCMM_GPU_FORCE;focus_scene.frame_serial=1950;
+        focus_scene.camera=camera;focus_scene.camera.projection[0]=640;focus_scene.camera.projection[1]=480;focus_scene.camera.projection[2]=457;
+        std::array<ncmm_gpu_cell_v1,2> focus_cells{};
+        for(auto &value:focus_cells){value.flags=1;value.light[0]=value.light[1]=value.light[2]=1;}
+        focus_scene.cells=focus_cells.data();focus_scene.cell_count=2;focus_scene.camera.grid[0]=focus_scene.camera.grid[2]=2;
+        auto near_vertices=vertices;for(auto &vertex:near_vertices){vertex.joint=0;vertex.material=0;vertex.position[1]=2;}
+        auto far_vertices=near_vertices;for(auto &vertex:far_vertices)vertex.position[1]=4;
+        ncmm_gpu_material_v1 glass{};glass.color[3]=.25f;
+        ncmm_gpu_material_v1 actor{};actor.color[3]=1;actor.flags=NCMM_GPU_CREATURE;
+        const ncmm_gpu_mesh_v1 focus_meshes[]={{0x46505301,near_vertices.data(),indices,&glass,3,3,1,0},
+            {0x46505302,far_vertices.data(),indices,&actor,3,3,1,0}};
+        focus_scene.meshes=focus_meshes;focus_scene.mesh_count=2;
+        const auto identity=first_person::gpu::identity();focus_scene.bones=&identity;focus_scene.bone_count=1;
+        ncmm_gpu_draw_v1 focus_draws[2]{};
+        for(int i=0;i<2;++i){focus_draws[i].mesh_key=focus_meshes[i].key;focus_draws[i].cell=i;
+            focus_draws[i].transform=identity;focus_draws[i].bone_count=1;}
+        focus_scene.draws=focus_draws;focus_scene.draw_count=2;
+        auto submit_focus=[&](){const bool accepted=engine.submit(focus_scene);require(accepted,engine.metrics().reason);};
+        submit_focus();
+        require(engine.focus_cell()==0&&engine.metrics().target_cell==1,"glass owns interaction focus without replacing the creature target");
+        glass.color[3]=1;focus_scene.frame_serial++;focus_scene.mesh_count=1;focus_scene.meshes=focus_meshes;
+        // A new immutable key is required when the material changes.
+        auto wall_mesh=focus_meshes[0];wall_mesh.key=0x46505303;focus_scene.meshes=&wall_mesh;focus_draws[0].mesh_key=wall_mesh.key;
+        submit_focus();
+        require(engine.focus_cell()==0&&engine.metrics().target_cell==-1,"opaque wall blocks both Native combat picking and interaction picking");
+        focus_draws[0].pass=NCMM_GPU_HELD;focus_scene.mesh_count=0;focus_scene.meshes=nullptr;focus_scene.frame_serial++;
+        submit_focus();
+        require(engine.focus_cell()==1&&engine.metrics().target_cell==1,"held overlays never steal the world interaction target");
+    }
     // Leave work and an SDL composition queued while replacing the backend.
     // No read-pixels or explicit fence wait may accidentally serialize this path.
     scene.meshes=&mesh;scene.mesh_count=1;scene.draws=&draw;scene.draw_count=1;scene.textures=nullptr;scene.texture_count=0;

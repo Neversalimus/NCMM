@@ -91,7 +91,8 @@ int graphics_gpu_submit_impl( const ncmm_gpu_scene_v1 *scene,const ncmm_gpu_mult
         graphics_gpu_last_reason = metrics.reason;
         log_line( NCMM_LOG_WARN, ( "First Person GPU fallback: " + graphics_gpu_last_reason ).c_str() );
     }
-    if( graphics_gpu_frame ) { graphics_hybrid_width = scene->width; graphics_hybrid_height = scene->height; graphics_gpu_last_reason.clear(); }
+    if( graphics_gpu_frame ) { graphics_hybrid_width = scene->width; graphics_hybrid_height = scene->height; graphics_gpu_last_reason.clear();
+        graphics_set_focus(graphics_gpu_engine->focus_cell()); }
     return graphics_gpu_frame;
 #else
     (void)scene; (void)world; return 0;

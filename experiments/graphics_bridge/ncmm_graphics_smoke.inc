@@ -198,6 +198,7 @@ bool graphics_scene_smoke()
         ncmm::graphics_note_input_context( "DEFAULTMODE" );
         for( int i = 0; i < 6; ++i ) ncmm::handle_gameplay_action( "ncmm.view.turn_left" );
         require( ncmm::graphics_mouse_event( 1, 320, 240, 0, 0, true ), "mouse_drag_did_not_capture" );
+        graphics_fps_initial_capture=true;graphics_fps_input_begin("DEFAULTMODE");
         const float before_mouse_yaw = graphics_camera_yaw;
         SDL_Event motion = {}; motion.type = SDL_EVENT_MOUSE_MOTION;
         motion.motion.windowID = SDL_GetWindowID( get_sdl_window() );

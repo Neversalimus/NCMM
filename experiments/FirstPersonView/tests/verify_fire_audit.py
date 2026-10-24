@@ -74,7 +74,11 @@ def verify(root):
         cursor = last
         selected = frames[first:last]
         assert 1 <= trial['dispatch_calls'] <= 128
-        assert trial['native_command'] == ('SELECT' if trial['scenario'] in {'lmb_single', 'pointer_only'} else 'fire')
+        expected_command='fire' if report.get('fps_input_router') else ('SELECT' if trial['scenario'] in {'lmb_single', 'pointer_only'} else 'fire')
+        assert trial['native_command'] == expected_command
+        if report.get('fps_input_router'):
+            assert report['fps_input_router'] is True
+            assert trial['fps_attack_intents'] == int(trial['scenario'] in {'lmb_single', 'pointer_only'}), 'FPS mouse input ownership mismatch'
         assert trial['native_keyboard_mode'] == trial['keyboard_mode'], 'Native cached keyboard mode differs from the requested option'
         chars, codes = trial['default_keychar_inputs'], trial['default_keycode_inputs']
         assert (chars > 0 and codes == 0) if trial['native_keyboard_mode'] == 'keychar' else (codes > 0 and chars == 0)

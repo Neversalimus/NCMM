@@ -8,6 +8,7 @@
         get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(mode);}} restoring{old_renderer};
     get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue("gpu");
     ncmm::graphics_note_input_context("DEFAULTMODE");
+    graphics_fps_initial_capture=true;
     require(SDL_SetRenderTarget(get_sdl_renderer().get(),nullptr),"camera_input_window_target_failed");
     graphics_camera_input_probe={};graphics_camera_input_probe.active=true;
     g->invalidate_main_ui_adaptor();ui_manager::redraw();refresh_display();
@@ -31,14 +32,10 @@
             SDL_Delay(100);
             for(int sample=0;sample<480&&!stop.load();++sample){
                 SDL_Event event={};
-                if(sample%32==0){event.type=SDL_EVENT_MOUSE_BUTTON_DOWN;event.button.windowID=window;
-                    event.button.button=SDL_BUTTON_RIGHT;event.button.x=x;event.button.y=y;SDL_PushEvent(&event);}
                 event={};event.type=SDL_EVENT_MOUSE_MOTION;event.motion.windowID=window;
-                event.motion.state=SDL_BUTTON_RMASK;event.motion.x=x;event.motion.y=y;event.motion.xrel=10;event.motion.yrel=0;
+                event.motion.state=0;event.motion.x=x;event.motion.y=y;event.motion.xrel=10;event.motion.yrel=0;
                 SDL_PushEvent(&event);SDL_Delay(20);
             }
-            SDL_Event release={};release.type=SDL_EVENT_MOUSE_BUTTON_UP;release.button.windowID=window;
-            release.button.button=SDL_BUTTON_RIGHT;release.button.x=x;release.button.y=y;SDL_PushEvent(&release);
             // A real registered camera hotkey releases the ordinary Native
             // input wait without moving an avatar or opening another UI.
             SDL_Event key={};key.type=SDL_EVENT_KEY_DOWN;key.key.windowID=window;key.key.key=SDLK_F8;key.key.scancode=SDL_SCANCODE_F8;
