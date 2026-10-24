@@ -35,6 +35,7 @@ def prepare(root,updates,bridge):
     loader=loader.replace('    graphics_context.reset();','    graphics_fps_reset();\n    graphics_context.reset();')
     updates['ncmm_loader.cpp']=loader
     loader=once(loader,'std::string graphics_click_action()\n{',
+        'void graphics_fps_poll()\n{\n    graphics_fps_poll_impl();\n}\n'
         'bool graphics_route_sdl(const SDL_Event &event,const SDL_Event &display,bool allowed)\n{\n'
         '    return graphics_route_sdl_impl(event,display,allowed);\n}\n'
         'bool graphics_fps_pending()\n{\n    return graphics_fps_pending_impl();\n}\n'
@@ -62,6 +63,12 @@ def prepare(root,updates,bridge):
         '            if(const auto *fps=ncmm::graphics_fps_take_action(category)){result=fps;break;}')
     updates['input_context.cpp']=context
     sdl=updates['sdltiles.cpp']
+    # A private diagnostic acknowledgement after Native's pre-poll redraw,
+    # without another shared-header dependency or another SDL loop.
+    sdl='namespace ncmm { void graphics_fps_poll(); }\n'+sdl
+    sdl=once(sdl,'#if defined(EMSCRIPTEN)\n    // emscripten must yield to the browser through Asyncify, which SDL_Delay does',
+        '    ncmm::graphics_fps_poll();\n\n#if defined(EMSCRIPTEN)\n'
+        '    // emscripten must yield to the browser through Asyncify, which SDL_Delay does')
     legacy='''        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );
         const bool ncmm_mouse_allowed = !cataimgui::client::want_capture_mouse();
         if( ev.type == SDL_EVENT_WINDOW_FOCUS_LOST ) ncmm::graphics_mouse_event( 4, 0, 0, 0, 0, false );

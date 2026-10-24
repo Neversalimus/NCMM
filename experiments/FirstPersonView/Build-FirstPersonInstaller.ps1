@@ -164,8 +164,8 @@ NCMM First Person View installer $releaseVersion TEST / CDDA $build / Windows x6
    F12 cycles Auto -> CPU -> GPU -> Auto. Auto uses hardware acceleration and
    selects CPU when SDL exposes a software adapter.
    NCMM module settings also offer the First Person renderer selector.
-   Hold the right mouse button over the viewport to look around.
-   In first person, arrows move forward/backward and strafe relative to the gaze.
+   The captured mouse continuously looks around. WASD and arrows move relative
+   to the gaze. Tab returns the original Native command bindings and cursor.
 
 Version $releaseVersion uses Drillimpact's authored PSX First Person Arms 1.1.0
 (CC0), including source textures, all skin weights and skeleton animation.
@@ -266,8 +266,8 @@ the first successful presentation; native movement remains turn-based.
 Manual gameplay comfort remains unqualified. The qualification report records
 measured hardware rendering results and the controlled fixture limits.
 Unusual anatomy and hidden surfaces are conservative reconstructions.
-Non-arrow movement bindings keep their world
-directions. Mouse capture releases when menus open, focus is lost, or F6 disables
+Original Native movement bindings keep their world directions in command mode.
+Mouse capture releases when menus open, focus is lost, or F6 disables
 the view. Camera rotation does not spend a turn. Saves are unchanged.
 Aim at a visible hostile to see its name and Native health bar. Unknown health
 is marked as unknown. Disable target health in the first-person settings to

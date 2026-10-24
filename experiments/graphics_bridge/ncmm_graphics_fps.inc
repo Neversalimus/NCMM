@@ -21,15 +21,23 @@ bool graphics_fps_outgoing_owned = false;
 // Opt-in Native fixture signalling only. A worker may enqueue SDL events; it
 // never reads Native objects or polls hardware button state.
 bool graphics_fps_audit_active = false, graphics_fps_audit_default = false,
-     graphics_fps_audit_waiting = false;
+     graphics_fps_audit_waiting = false, graphics_fps_audit_polling = false;
 std::atomic<uint32_t> graphics_fps_audit_wait{0};
 void graphics_fps_publish_wait() {
     if (graphics_fps_audit_active)
-        graphics_fps_audit_wait.store(!graphics_fps_audit_waiting
+        graphics_fps_audit_wait.store(!graphics_fps_audit_waiting || !graphics_fps_audit_polling
                                           ? 0u
                                           : (graphics_fps_audit_default ? 1u : 2u) |
                                                 (graphics_input_router.command_mode() ? 8u : 0u) |
                                                 (graphics_input_router.captured() ? 16u : 0u));
+}
+void graphics_fps_poll_impl() {
+    // Only the opt-in event producer needs this acknowledgement. Native's
+    // pre-poll redraw can itself pump/discard queued diagnostic keys.
+    if (graphics_fps_audit_active) {
+        graphics_fps_audit_polling = true;
+        graphics_fps_publish_wait();
+    }
 }
 void graphics_fps_reset() {
     graphics_input_router.reset();
@@ -133,6 +141,7 @@ void graphics_fps_sync() {
     graphics_fps_publish_wait();
 }
 void graphics_fps_input_begin(const std::string &category) {
+    graphics_fps_audit_polling = false;
     graphics_input_router.native_wait(category == "DEFAULTMODE");
     graphics_fps_audit_default = category == "DEFAULTMODE";
     graphics_fps_audit_waiting = true;
@@ -151,6 +160,7 @@ void graphics_fps_input_begin(const std::string &category) {
     graphics_fps_sync();
 }
 void graphics_fps_input_end(const std::string &action) {
+    graphics_fps_audit_polling = false;
     graphics_input_router.native_wait(false);
     graphics_fps_audit_waiting = false;
     if (graphics_fps_audit_active)
@@ -535,6 +545,7 @@ void graphics_fps_on_enable() {}
 void graphics_fps_sync() {}
 void graphics_fps_settings() {}
 void graphics_fps_input_begin(const std::string &) {}
+void graphics_fps_poll_impl() {}
 void graphics_fps_input_end(const std::string &) {}
 void graphics_fps_native_begin() {}
 void graphics_fps_rendered(bool) {}

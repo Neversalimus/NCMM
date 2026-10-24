@@ -44,6 +44,7 @@ class ApplyTests(unittest.TestCase):
         (root / "src/sdl_wrappers.cpp").write_text('#include "sdl_wrappers.h"\nvoid RenderPresent() {\n    printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" );\n}\n')
         with (root / "src/sdltiles.cpp").open('a') as f:
             f.write('\n'.join('void teardown_'+str(i)+'() {\n    renderer.reset();\n}' for i in range(4))+'\n')
+            f.write('#if defined(EMSCRIPTEN)\n    // emscripten must yield to the browser through Asyncify, which SDL_Delay does\n#endif\n')
         (root / "src/main_menu.cpp").write_text("        std::exit( ncmm::run_gameplay_smoke() );")
         (root / "src/sdltiles.h").write_text("SDL_Window *get_sdl_window();")
         (root / "src/handle_action.cpp").write_text("    if( act == ACTION_NULL && ncmm::handle_gameplay_action( action ) ) {\n        player_character.clear_destination();\n        destination_preview.clear();\n        return false;\n    }")
@@ -263,6 +264,7 @@ bool cata_tiles::draw_sprite_at() {
             ('input_context.cpp','        if( next_action.type == input_event_t::timeout ) {'),
             ('handle_action.cpp','        if( act == ACTION_INTERACT ) {'),
             ('handle_action.cpp','player_character.assign_activity( open_tile_activity_actor( std::nullopt ) );'),
+            ('sdltiles.cpp','#if defined(EMSCRIPTEN)\n    // emscripten must yield to the browser through Asyncify, which SDL_Delay does'),
             ('sdltiles.cpp','    if( needupdate ) {\n        try_sdl_update();')]:
             for ambiguous in [False,True]:
                 with self.subTest(name=name,anchor=anchor,ambiguous=ambiguous), tempfile.TemporaryDirectory() as tmp:

@@ -166,6 +166,20 @@
                 // Deliberately disagreeing Russian keycode and physical W.
                 dispatch(tap(SDL_SCANCODE_W, SDL_Keycode(0x0446)));
                 const auto delta = ncmm_graphics_camera::movement(yaw, 1, 0);
+                if (you.pos_bub() != origin + tripoint_rel_ms(delta.first, delta.second, 0)) {
+                    const auto actual = you.pos_bub() - origin;
+                    log_line(
+                        NCMM_LOG_ERROR,
+                        (std::string("FPS W diagnostic mode=") + mode +
+                         " renderer=" + renderer_mode + " yaw=" + std::to_string(direction) +
+                         " expected=" + std::to_string(delta.first) + "," +
+                         std::to_string(delta.second) + " actual=" + std::to_string(actual.x()) +
+                         "," + std::to_string(actual.y()) +
+                         " actions=" + std::to_string(graphics_input_router.movements - actions) +
+                         " cost=" + std::to_string(moves - you.get_moves()) +
+                         " last=" + graphics_fps_action)
+                            .c_str());
+                }
                 require(you.pos_bub() == origin + tripoint_rel_ms(delta.first, delta.second, 0),
                         "fps_audit_physical_w_wrong_native_direction");
                 require(graphics_input_router.movements == actions + 1 && you.get_moves() < moves,

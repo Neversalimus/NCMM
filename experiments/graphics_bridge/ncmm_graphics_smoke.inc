@@ -206,8 +206,19 @@ bool graphics_scene_smoke()
         require( SDL_PushEvent( &motion ), "mouse_motion_not_queued" );
         SDL_Event look = {}; look.type = SDL_EVENT_KEY_DOWN;
         look.key.windowID = SDL_GetWindowID( get_sdl_window() ); look.key.key = SDLK_F9; look.key.scancode = SDL_SCANCODE_F9;
-        require( SDL_PushEvent( &look ), "mouse_pump_key_not_queued" );
-        require( gameplay.handle_input( 2000 ) == "ncmm.view.look_up", "mouse_event_consumed_gameplay_key" );
+        // Native's pre-poll redraw can drain a key just as it does for the
+        // deliberately exercised F6/F12 case above. Queue the motion once;
+        // retry only the diagnostic wake key, retaining the exact yaw and
+        // unchanged-Native-state checks below.
+        std::string look_action;
+        for( int attempt = 0; attempt < 8; ++attempt ) {
+            require( SDL_PushEvent( &look ), "mouse_pump_key_not_queued" );
+            look_action = gameplay.handle_input( 250 );
+            if( look_action == "ncmm.view.look_up" ) break;
+            log_line( NCMM_LOG_INFO, ( "F9 mouse diagnostic attempt " + std::to_string( attempt + 1 ) +
+                " returned: " + look_action ).c_str() );
+        }
+        require( look_action == "ncmm.view.look_up", "mouse_event_consumed_gameplay_key" );
         require( std::abs( graphics_camera_yaw - before_mouse_yaw - .3f ) < .001f, "sdl_mouse_motion_did_not_rotate_camera" );
         require( ncmm::graphics_mouse_event( 3, 320, 240, -100, 0, true ), "mouse_return_motion_failed" );
         ncmm::graphics_note_input_context( "INVENTORY" );

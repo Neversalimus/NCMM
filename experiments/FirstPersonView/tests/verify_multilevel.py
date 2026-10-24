@@ -3,15 +3,15 @@ import argparse,hashlib,json
 from pathlib import Path
 from PIL import Image
 import numpy as np
-p=argparse.ArgumentParser();p.add_argument('--root',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--baseline-version',choices=['0.11','0.12'],default='0.12');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--root',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--baseline-version',choices=['0.11','0.12','0.13'],default='0.12');a=p.parse_args()
 reports=[json.loads((a.root/f'first-person-multilevel-{mode}.json').read_text()) for mode in ['before','after']]
 scenes={'house_one','house_two','house_three','high_building','basement','stairs','stairs_down','stairwell','ramp','shaft','broken_floor','rooftop','bridge','lab','cave','enemy_above','enemy_below','flying','light_other_z','smoke','unknown_mod'}
 key=lambda r:(r['gallery'],r['name'],r['constructed_levels'],r['theme'],r['width'],r['height'],r['renderer'])
 matrices=[{key(r):r for r in report['frames']} for report in reports]
 assert all(r['success'] and r['actual_cdda_sdl'] and not r['gpu_timing_is_execution'] for r in reports)
 assert all(r['fixture_restored_absolute_position'] and r['fixture_restored_moves'] and r['fixture_restored_turn'] for r in reports), 'the visual fixture did not restore native gameplay state'
-assert reports[0]['world_api']==(a.baseline_version=='0.12') and reports[1]['world_api'], 'reference/current callback identities are wrong'
-assert reports[0]['floating_content_modes']==(2 if a.baseline_version=='0.12' else 0) and reports[1]['floating_content_modes']==2, 'floating items or observed flying death did not pass both renderers'
+assert reports[0]['world_api']==(a.baseline_version!='0.11') and reports[1]['world_api'], 'reference/current callback identities are wrong'
+assert reports[0]['floating_content_modes']==(2 if a.baseline_version!='0.11' else 0) and reports[1]['floating_content_modes']==2, 'floating items or observed flying death did not pass both renderers'
 assert len(reports[1]['transitions'])==2 and all(t['camera_continuous'] and t['renderer_preserved_moves'] for t in reports[1]['transitions'])
 for mode in ['before','after']:
  save=json.loads((a.root/f'first-person-multilevel-save-{mode}.json').read_text())
@@ -64,5 +64,6 @@ for case,current in matrices[1].items():
 assert any(r['floor_undersides']>0 for r in matrices[1].values() if r['gallery']), 'actual structural ceilings are absent'
 assert any(len(r['submitted_levels'])>=3 for r in matrices[1].values()), 'rendering never published three real Z levels'
 baseline='main 0.12 c5a0a0a5e12991df06ba000f80dd359f274b7f50, qualified Host and DLL from 9c3c69397bbb5ae9d3ec16f8ef21732e15e08b34' if a.baseline_version=='0.12' else 'main 0.11 module 9ee19bdd68e40a1677694187f85aa65bd4b52407 on the same pinned engine Host'
+if a.baseline_version=='0.13':baseline='main 0.13 5258e5313ad5deae23f967a4a7fc91c7554377f4, identical Host/module source from 9e3d6230f7adbd7462de80a665fb69e939cd81f1 (only certified feed files differ)'
 result={'schema':1,'success':True,'actual_cdda_sdl':True,'paired_records':len(records),'gallery_scenes':len(scenes),'gallery_views':len(scenes)*2*3,'baseline':baseline,'gpu_timing_is_execution':False,'records':records}
 a.output.write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n');print('Paired real CDDA multilevel evidence: 21 scenes, 224 load records PASS')
