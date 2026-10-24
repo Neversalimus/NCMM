@@ -7,6 +7,15 @@ def once(source,old,new):
 
 def prepare(root,updates,bridge):
     loader=updates['ncmm_loader.cpp']
+    # The existing manager helpers live in ncmm, outside the loader's anonymous
+    # namespace. Forward-declare there, using the same private metadata type.
+    loader=once(loader,'namespace ncmm\n{\nnamespace\n{',
+        'namespace ncmm\n{\nnamespace { struct module_setting_meta; }\n'
+        'static std::string manager_setting_value(const module_setting_meta &);\n'
+        'static bool manager_adjust_setting(const module_setting_meta &,int);\n'
+        'static bool manager_persist_settings();\n'
+        'static bool manager_reset_setting(const module_setting_meta &);\n'
+        'namespace\n{')
     loader=once(loader,'#include "ncmm_graphics_camera.hpp"',
         '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_input.hpp"\n#include "ncmm_graphics_focus.h"\n#include "action.h"')
     loader=once(loader,'    if( !graphics_control_context ) graphics_release_mouse();','    graphics_fps_sync();')

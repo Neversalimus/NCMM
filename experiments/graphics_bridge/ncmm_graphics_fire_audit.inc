@@ -115,17 +115,16 @@
             // SDL_PushEvent does not change SDL_GetMouseState. Position the
             // pointer in this owned test window on the main thread; no RMB or
             // synthetic gameplay/attack call is used for this case.
-            int ww=0,wh=0,pw=0,ph=0;SDL_GetWindowSize(get_sdl_window(),&ww,&wh);SDL_GetWindowSizeInPixels(get_sdl_window(),&pw,&ph);
-            require(ww>0&&wh>0&&pw>0&&ph>0,"fire_audit_pointer_window_dimensions_missing");
-            SDL_WarpMouseInWindow(get_sdl_window(),float(graphics_viewport.x+graphics_viewport.w/2)*ww/pw,
-                float(graphics_viewport.y+graphics_viewport.h/2)*wh/ph);
+            float x=0,y=0;require(SDL_RenderCoordinatesToWindow(renderer,float(graphics_viewport.x+graphics_viewport.w/2),
+                float(graphics_viewport.y+graphics_viewport.h/2),&x,&y),"fire_audit_pointer_coordinates_missing");
+            SDL_WarpMouseInWindow(get_sdl_window(),x,y);
         }
         {
             graphics_fire_input_context.store(0);
-            int ww=0,wh=0,pw=0,ph=0;SDL_GetWindowSize(get_sdl_window(),&ww,&wh);SDL_GetWindowSizeInPixels(get_sdl_window(),&pw,&ph);
-            require(ww>0&&wh>0&&pw>0&&ph>0,"fire_audit_event_window_dimensions_missing");
+            float x=0,y=0;require(SDL_RenderCoordinatesToWindow(renderer,float(graphics_viewport.x+graphics_viewport.w/2),
+                float(graphics_viewport.y+graphics_viewport.h/2),&x,&y),"fire_audit_event_coordinates_missing");
             input_feed feed(window,pointer_click?input_feed::kind::pointer_click:click?input_feed::kind::click:input_feed::kind::command,
-                float(graphics_viewport.x+graphics_viewport.w/2)*ww/pw,float(graphics_viewport.y+graphics_viewport.h/2)*wh/ph,cancel||empty);
+                x,y,cancel||empty);
             // The normal game retries handle_action after TIMEOUT. A single
             // diagnostic call can return before the delayed SDL event arrives.
             const auto before=graphics_fire_capture.native_command_sequence;

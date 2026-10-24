@@ -1,10 +1,5 @@
 // Included after the existing scene/control implementations in the Native Host.
 // SDL observation, action ownership and Native dispatch share the main thread.
-static std::string manager_setting_value(const module_setting_meta &);
-static bool manager_adjust_setting(const module_setting_meta &, int);
-static bool manager_persist_settings();
-static bool manager_reset_setting(const module_setting_meta &);
-
 double graphics_fps_sensitivity = 1;
 bool graphics_fps_invert = false;
 bool graphics_fps_enabled = true;
@@ -20,6 +15,7 @@ std::string graphics_fps_dispatch_action, graphics_fps_action;
 std::optional<tripoint_abs_ms> graphics_fps_move_origin;
 std::array<ncmm_graphics_input::button, SDL_SCANCODE_COUNT> graphics_fps_keys;
 bool graphics_fps_keys_ready = false, graphics_fps_focused = true, graphics_fps_available = true;
+bool graphics_fps_vehicle = false;
 bool graphics_fps_initial_capture = false, graphics_fps_ui_claimed = false;
 bool graphics_fps_outgoing_owned = false;
 // Opt-in Native fixture signalling only. A worker may enqueue SDL events; it
@@ -47,6 +43,7 @@ void graphics_fps_reset() {
     graphics_fps_keys_ready = false;
     graphics_fps_ui_claimed = false;
     graphics_fps_available = true;
+    graphics_fps_vehicle = false;
 }
 void graphics_fps_on_enable() {
     graphics_fps_initial_capture = true;
@@ -123,7 +120,8 @@ void graphics_fps_sync() {
     environment.aiming = graphics_context.aiming();
     environment.interacting =
         !graphics_control_context && graphics_fps_dispatch_action == "interact";
-    environment.vehicle = character_state_available() && get_avatar().controlling_vehicle;
+    environment.vehicle =
+        character_state_available() && (get_avatar().controlling_vehicle || graphics_fps_vehicle);
     graphics_input_router.update(environment);
     if (graphics_fps_initial_capture &&
         graphics_input_router.owner() == ncmm_graphics_input::context::gameplay) {
@@ -138,8 +136,15 @@ void graphics_fps_input_begin(const std::string &category) {
     graphics_input_router.native_wait(category == "DEFAULTMODE");
     graphics_fps_audit_default = category == "DEFAULTMODE";
     graphics_fps_audit_waiting = true;
-    if (category == "DEFAULTMODE")
+    if (category == "DEFAULTMODE") {
         graphics_fps_refresh_settings();
+        // Use the real Native remote-control state at the action boundary,
+        // never a vehicle lookup for every mouse event.
+        graphics_fps_vehicle =
+            graphics_view.enabled && character_state_available() &&
+            (get_avatar().controlling_vehicle || (g && g->remoteveh() != nullptr) ||
+             bool(get_avatar().maybe_get_value("remote_controlling")));
+    }
     graphics_fps_sync();
 }
 void graphics_fps_input_end(const std::string &action) {
@@ -334,12 +339,15 @@ std::vector<action_id> graphics_fps_interactions(const tripoint_bub_ms &p) {
 }
 std::string graphics_fps_hint() {
     if (graphics_input_router.owner() == ncmm_graphics_input::context::vehicle)
-        return tr_ui("Vehicle: Native controls; click for free look, Tab for pointer",
-                     "Транспорт: штатные команды; щелчок — осмотр, Tab — курсор");
+        return tr_ui("Vehicle: Native controls; click for free look; ",
+                     "Транспорт: штатные команды; щелчок — осмотр; ") +
+               std::string(world_setting_get_string("NCMM_FP_COMMANDS", "Tab")) +
+               tr_ui(" — pointer", " — курсор");
     if (graphics_input_router.owner() == ncmm_graphics_input::context::commands &&
         graphics_fps_enabled)
-        return tr_ui("Native commands — Tab returns to FPS",
-                     "Штатные команды — Tab возвращает FPS");
+        return tr_ui("Native commands — ", "Штатные команды — ") +
+               std::string(world_setting_get_string("NCMM_FP_COMMANDS", "Tab")) +
+               tr_ui(" returns to FPS", " возвращает FPS");
     if (!graphics_fps_enabled || !graphics_control_context || !graphics_input_router.captured())
         return {};
     // A camera-only frame may keep the same target. Native availability is

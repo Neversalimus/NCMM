@@ -108,17 +108,20 @@
         SDL_GetWindowSize(get_sdl_window(), &ww, &wh);
         SDL_GetWindowSizeInPixels(get_sdl_window(), &pw, &ph);
         require(ww > 0 && wh > 0 && pw > 0 && ph > 0, "fps_audit_window_dimensions");
+        float mouse_x = 0, mouse_y = 0;
+        require(SDL_RenderCoordinatesToWindow(
+                    renderer, float(graphics_viewport.x + graphics_viewport.w / 2),
+                    float(graphics_viewport.y + graphics_viewport.h / 2), &mouse_x, &mouse_y),
+                "fps_audit_display_to_window_coordinates");
         for (auto &event : events)
             if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
                 event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
                 event.button.windowID = window;
-                event.button.x = float(graphics_viewport.x + graphics_viewport.w / 2) * ww / pw;
-                event.button.y = float(graphics_viewport.y + graphics_viewport.h / 2) * wh / ph;
+                event.button.x = mouse_x;
+                event.button.y = mouse_y;
             }
         graphics_fps_audit_wait.store(0);
-        fps_events feed(window, float(graphics_viewport.x + graphics_viewport.w / 2) * ww / pw,
-                        float(graphics_viewport.y + graphics_viewport.h / 2) * wh / ph,
-                        std::move(events), duration);
+        fps_events feed(window, mouse_x, mouse_y, std::move(events), duration);
         for (int boundary = 0; boundary < boundaries; ++boundary) {
             const auto issued = graphics_input_router.issued;
             for (int retry = 0; retry < 64; ++retry) {
@@ -240,6 +243,9 @@
                 SDL_Event event{};
                 event.type = event_type;
                 event.window.windowID = window;
+                if (event_type == SDL_EVENT_WINDOW_RESIZED) {
+                    SDL_GetWindowSize(get_sdl_window(), &event.window.data1, &event.window.data2);
+                }
                 const auto position = you.pos_abs();
                 const int before_moves = you.get_moves();
                 std::vector<SDL_Event> events{event};

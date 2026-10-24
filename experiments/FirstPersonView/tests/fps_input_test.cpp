@@ -140,6 +140,16 @@ int main() {
             "first fresh W works after a missing outside KEY_UP");
     r.reconcile_focus(1u << unsigned(button::forward));
     require(r.capture() && !r.ready(10000), "a physically held key stays fenced on focus regain");
+    auto modal_return = gameplay();
+    modal_return.gameplay = false;
+    r.update(modal_return);
+    r.native_wait(false);
+    r.update(gameplay());
+    require(!r.captured(), "a modal cannot resume capture between Native waits");
+    r.native_wait(true);
+    r.update(gameplay());
+    require(r.captured() && !r.ready(10001),
+            "capture resumes at the next real Native wait with held input fenced");
     // Repeated transition stress checks absence of queued turns/shots, not a
     // mirrored implementation: every forbidden owner must consume zero actions.
     for (unsigned i = 0; i < 1000; ++i) {

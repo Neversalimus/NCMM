@@ -131,8 +131,11 @@ class router {
                        : (!e.fps || command_mode_) ? context::commands
                        : e.vehicle                 ? context::vehicle
                                                    : context::gameplay;
-        if (next == context_)
+        if (next == context_) {
+            if (next == context::gameplay && resume_ && waiting_)
+                capture();
             return;
+        }
         const bool can_resume =
             next == context::modal || next == context::aiming || next == context::interacting;
         if (captured_)
