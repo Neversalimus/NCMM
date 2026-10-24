@@ -159,7 +159,7 @@ jobs:
           retention-days: 7
   host:
     if: needs.qualification_plan.outputs.native == 'true'
-    needs: [qualification_plan, module]
+    needs: [qualification_plan]
     name: Experimental MSVC Host - ${{ matrix.build }}
     strategy:
       fail-fast: false
@@ -454,6 +454,25 @@ jobs:
               if(!(Test-Path (Join-Path $root 'ncmm/boot.ready')) -or (Test-Path (Join-Path $root 'ncmm/boot.pending'))){throw 'Bootstrap lifecycle markers inconsistent.'}
             }
           }
+      - name: Actual Native FPS input and actions before the long galleries
+        timeout-minutes: 12
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $output=Join-Path $env:RUNNER_TEMP 'fp-fps-input'
+          ./ncmmrepo/experiments/FirstPersonView/Run-FirstPersonBenchmark.ps1 -GameRoot '${{ steps.game.outputs.root }}' -BundleRoot (Join-Path $PWD 'installer-result/_first_person_installer') -OutputRoot $output -FpsInputProbe -CaptureCrashDump
+          python -B ncmmrepo/experiments/FirstPersonView/tests/verify_fps_audit.py --root (Join-Path $output 'evidence') --output installer-result/first-person-fps-early-verified.json
+          if($LASTEXITCODE -ne 0){throw 'Early Native FPS input/action qualification failed.'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: first-person-fps-input-${{ matrix.build }}
+          path: |
+            ${{ runner.temp }}/fp-fps-input/evidence/*.json
+            ${{ runner.temp }}/fp-fps-input/evidence/*.log
+            ${{ runner.temp }}/fp-fps-input/evidence/*.txt
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Actual SDL mouse rotation and native input snapshot reuse
         timeout-minutes: 10
         shell: powershell
@@ -828,7 +847,7 @@ jobs:
           retention-days: 7
   native_linux:
     if: needs.qualification_plan.outputs.native == 'true'
-    needs: [qualification_plan, module]
+    needs: [qualification_plan]
     uses: ./.github/workflows/ncmm-fpv-linux-native.yml
   required_qualification:
     name: First Person required qualification

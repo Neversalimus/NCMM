@@ -113,6 +113,11 @@
                     renderer, float(graphics_viewport.x + graphics_viewport.w / 2),
                     float(graphics_viewport.y + graphics_viewport.h / 2), &mouse_x, &mouse_y),
                 "fps_audit_display_to_window_coordinates");
+        // Settle real startup/resize events before the one-shot event script.
+        // A fresh viewport capture is itself routed through SDL below.
+        graphics_release_mouse();
+        SDL_WarpMouseInWindow(get_sdl_window(), mouse_x, mouse_y);
+        inp_mngr.pump_events();
         for (auto &event : events)
             if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
                 event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
