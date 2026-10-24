@@ -146,6 +146,8 @@ bool cata_tiles::draw_sprite_at() {
                 self.assertIn("graphics_note_input_wait( category, input_manager::actual_keyboard_mode( preferred_keyboard_mode ) == keyboard_mode::keychar )", (root / "src/input_context.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_note_input_wait( const std::string &, bool text )", (root / "src/ncmm_loader.h").read_text(encoding="utf-8"))
                 self.assertTrue((root / "src/ncmm_graphics_context.hpp").is_file())
+                self.assertNotIn('const std::string aimed = ncmm::graphics_click_action();',
+                                 (root / 'src/handle_action.cpp').read_text())
                 self.assertTrue((root / "src/ncmm_graphics_snapshot_cache.hpp").is_file())
                 self.assertIn('ncmm_wait.completed( *result );', (root / "src/input_context.cpp").read_text())
                 self.assertIn('graphics_snapshot_external_callback( module_id );', (root / "src/ncmm_loader.cpp").read_text(encoding="utf-8"))

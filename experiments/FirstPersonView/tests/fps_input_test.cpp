@@ -126,6 +126,20 @@ int main() {
     require(r.take(0).action == command::inventory && !r.ready(100000),
             "a pending menu action fences held movement before the modal opens");
     require(r.attack_intents == 2, "only the two consumed physical attack edges are counted");
+    r.reset();
+    start(r);
+    r.key(button::forward, true, false, 0);
+    auto lost_again = gameplay();
+    lost_again.focused = false;
+    r.update(lost_again);
+    r.reconcile_focus(0); // W released outside this window: no KEY_UP arrived.
+    r.update(gameplay());
+    require(!r.captured() && r.capture(), "focus regain still requires a viewport click");
+    r.key(button::forward, true, false, 1);
+    require(r.take(1).action == command::move,
+            "first fresh W works after a missing outside KEY_UP");
+    r.reconcile_focus(1u << unsigned(button::forward));
+    require(r.capture() && !r.ready(10000), "a physically held key stays fenced on focus regain");
     // Repeated transition stress checks absence of queued turns/shots, not a
     // mirrored implementation: every forbidden owner must consume zero actions.
     for (unsigned i = 0; i < 1000; ++i) {

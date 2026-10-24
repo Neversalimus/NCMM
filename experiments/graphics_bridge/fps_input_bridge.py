@@ -69,6 +69,14 @@ def prepare(root,updates,bridge):
         '    if( needupdate ) {\n        try_sdl_update();')
     updates['sdltiles.cpp']=sdl
     action=updates['handle_action.cpp']
+    # The SDL router is now the sole FPS mouse owner. Retaining the old late
+    # SELECT-to-fire adapter would reinterpret Native Command Mode clicks.
+    action=once(action,
+        '        if( act == ACTION_SELECT && ncmm::graphics_requires_terrain_pass() ) {\n'
+        '            const std::string aimed = ncmm::graphics_click_action();\n'
+        '            if( aimed.empty() ) return false;\n'
+        '            act = look_up_action( aimed );\n'
+        '        }\n','')
     action=once(action,'        if( act == ACTION_INTERACT ) {',
         '        if(const auto fps_target=ncmm::graphics_take_fps_target(action))mouse_target=fps_target;\n'
         '        if( act == ACTION_INTERACT ) {')

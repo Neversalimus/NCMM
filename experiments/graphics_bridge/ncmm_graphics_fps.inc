@@ -182,6 +182,16 @@ bool graphics_route_sdl_impl(const SDL_Event &event, const SDL_Event &display, b
     }
     if (event.type == SDL_EVENT_WINDOW_FOCUS_GAINED) {
         graphics_fps_focused = true;
+        graphics_fps_initial_capture = false;
+        if (!graphics_fps_keys_ready)
+            graphics_fps_refresh_settings();
+        int count = 0;
+        const bool *keys = SDL_GetKeyboardState(&count);
+        uint32_t held = 0;
+        for (int code = 1; keys && code < count && code < SDL_SCANCODE_COUNT; ++code)
+            if (keys[code] && graphics_fps_keys[code] != ncmm_graphics_input::button::none)
+                held |= uint32_t(1) << unsigned(graphics_fps_keys[code]);
+        graphics_input_router.reconcile_focus(held);
         graphics_fps_sync();
         return false;
     }

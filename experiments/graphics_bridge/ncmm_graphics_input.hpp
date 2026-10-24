@@ -93,6 +93,12 @@ class router {
     void repeat_ms(uint32_t value) { repeat_ms_ = std::clamp(value, 100u, 400u); }
     void native_wait(bool value) { waiting_ = value; }
     void interrupt() { clear_intent(); }
+    // The main SDL thread supplies one snapshot on focus regain. A release
+    // outside this window may have no KEY_UP event; a still-held key is fenced.
+    void reconcile_focus(uint32_t held) {
+        release();
+        observed_ = blocked_ = held & ((uint32_t(1) << unsigned(button::count)) - 1);
+    }
     void release(bool resume = false) {
         captured_ = false;
         resume_ = resume;
