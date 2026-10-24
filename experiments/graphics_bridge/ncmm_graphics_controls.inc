@@ -125,9 +125,7 @@ std::string graphics_map_relative_action( const std::string &action, const input
     else if( key == inp_mngr.get_keycode( event.type, "RIGHT" ) && action == "RIGHT" ) right = 1;
     else return action;
     const auto delta = ncmm_graphics_camera::movement( graphics_camera_yaw, forward, right );
-    if( delta.second < 0 ) return delta.first < 0 ? "LEFTUP" : delta.first > 0 ? "RIGHTUP" : "UP";
-    if( delta.second > 0 ) return delta.first < 0 ? "LEFTDOWN" : delta.first > 0 ? "RIGHTDOWN" : "DOWN";
-    return delta.first < 0 ? "LEFT" : "RIGHT";
+    return action_ident(get_movement_action_from_delta(tripoint_rel_ms(delta.first,delta.second,0),iso_rotate::yes));
 }
 
 void graphics_notify_attack( uint32_t kind )

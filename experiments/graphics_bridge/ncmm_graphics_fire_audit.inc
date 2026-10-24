@@ -17,7 +17,7 @@
         enum class kind { command, click, pointer_click, confirm, cancel };
         std::atomic<bool> stop{false};std::atomic<bool> escape_recovery{false};std::thread worker;
         input_feed(SDL_WindowID window,kind type,float mx=0,float my=0,bool cancel_target=false):worker([this,window,type,mx,my,cancel_target](){
-            int waiting=0;uint32_t previous_context=0;
+            int waiting=0;uint32_t previous_context=0;bool awaiting_mode_ack=false;
             for(int tick=0;tick<18000&&!stop.load();++tick){
                 SDL_Delay(10);
                 const auto waiting_input=graphics_fire_input_context.load();const auto context=waiting_input&3u;
@@ -30,17 +30,21 @@
                     event.type=SDL_EVENT_KEY_DOWN;event.key.windowID=window;event.key.key=SDLK_ESCAPE;event.key.scancode=SDL_SCANCODE_ESCAPE;
                     SDL_PushEvent(&event);event.type=SDL_EVENT_KEY_UP;SDL_PushEvent(&event);
                 }else if(context==1&&((type==kind::command)!=bool(waiting_input&8u))){
+                    if(awaiting_mode_ack)continue;
+                    awaiting_mode_ack=true;
                     // The real Tab transition is part of the tested command
                     // path. Never inject an internal router state from worker.
                     event.type=SDL_EVENT_KEY_DOWN;event.key.windowID=window;event.key.key=SDLK_TAB;event.key.scancode=SDL_SCANCODE_TAB;
                     SDL_PushEvent(&event);event.type=SDL_EVENT_KEY_UP;SDL_PushEvent(&event);
                 }else if(context==2||(context==1&&type==kind::command)){
+                    awaiting_mode_ack=false;
                     // Respect the actual native wait's character/keycode mode.
                     // SDL_PushEvent(KEY_DOWN) does not synthesize TEXT_INPUT.
                     if(waiting_input&4u){event.type=SDL_EVENT_TEXT_INPUT;event.text.windowID=window;event.text.text="f";SDL_PushEvent(&event);}
                     else {event.type=SDL_EVENT_KEY_DOWN;event.key.windowID=window;event.key.key=SDLK_F;event.key.scancode=SDL_SCANCODE_F;
                         SDL_PushEvent(&event);event.type=SDL_EVENT_KEY_UP;SDL_PushEvent(&event);}
                 }else if(context==1&&(type==kind::click||type==kind::pointer_click)){
+                    awaiting_mode_ack=false;
                     // Exercise constant-look FPS LMB (including a fresh
                     // viewport capture after Esc/menu/Native command mode).
                     // The ordinary click handler revalidates picked identity,

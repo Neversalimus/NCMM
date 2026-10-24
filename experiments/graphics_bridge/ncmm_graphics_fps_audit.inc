@@ -82,7 +82,7 @@
                           key(SDL_SCANCODE_ESCAPE, SDLK_ESCAPE, false);
                       }
                   }
-                  for (const auto pair : std::array<std::pair<SDL_Scancode, SDL_Keycode>, 4>{
+                  for (const auto &pair : std::array<std::pair<SDL_Scancode, SDL_Keycode>, 4>{
                            {{SDL_SCANCODE_W, SDLK_W},
                             {SDL_SCANCODE_A, SDLK_A},
                             {SDL_SCANCODE_S, SDLK_S},

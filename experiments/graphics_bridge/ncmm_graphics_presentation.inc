@@ -301,9 +301,7 @@ std::string graphics_click_action_impl()
     if(pos.z()!=you.posz())return ""; // An XY move is not a vertical melee action.
     const int dx=pos.x()-you.pos_bub().x(),dy=pos.y()-you.pos_bub().y();
     if( std::max( std::abs( dx ),std::abs( dy ) )!=1 ) return "";
-    if( dy<0 ) return dx<0 ? "LEFTUP" : dx>0 ? "RIGHTUP" : "UP";
-    if( dy>0 ) return dx<0 ? "LEFTDOWN" : dx>0 ? "RIGHTDOWN" : "DOWN";
-    return dx<0 ? "LEFT" : "RIGHT";
+    return action_ident(get_movement_action_from_delta(tripoint_rel_ms(dx,dy,0),iso_rotate::yes));
 }
 bool graphics_consume_click_impl(int x,int y,int z)
 {

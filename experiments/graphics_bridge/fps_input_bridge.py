@@ -17,7 +17,7 @@ def prepare(root,updates,bridge):
         'static bool manager_reset_setting(const module_setting_meta &);\n'
         'namespace\n{')
     loader=once(loader,'#include "ncmm_graphics_camera.hpp"',
-        '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_input.hpp"\n#include "ncmm_graphics_focus.h"\n#include "action.h"')
+        '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_input.hpp"\n#include "ncmm_graphics_focus.h"\n#include "action.h"\n#if defined(TILES)\n#include "cata_imgui.h"\n#endif')
     loader=once(loader,'    if( !graphics_control_context ) graphics_release_mouse();','    graphics_fps_sync();')
     loader=once(loader,'    if( graphics_fire_capture.active ) graphics_fire_input_context.store(',
         '    graphics_fps_input_begin(category);\n    if( graphics_fire_capture.active ) graphics_fire_input_context.store(')

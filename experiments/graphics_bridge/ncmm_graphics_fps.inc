@@ -136,6 +136,9 @@ void graphics_fps_input_begin(const std::string &category) {
     graphics_input_router.native_wait(category == "DEFAULTMODE");
     graphics_fps_audit_default = category == "DEFAULTMODE";
     graphics_fps_audit_waiting = true;
+    // A modal's last event is not the owner of the next Native wait.
+    graphics_fps_ui_claimed =
+        cataimgui::client::want_capture_mouse() || cataimgui::client::want_capture_keyboard();
     if (category == "DEFAULTMODE") {
         graphics_fps_refresh_settings();
         // Use the real Native remote-control state at the action boundary,
@@ -209,6 +212,7 @@ bool graphics_route_sdl_impl(const SDL_Event &event, const SDL_Event &display, b
     }
     if (!graphics_fps_keys_ready)
         graphics_fps_refresh_settings();
+    const bool captured_before = graphics_input_router.captured();
     graphics_fps_ui_claimed = !allowed;
     graphics_fps_sync();
     if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) {
@@ -240,9 +244,12 @@ bool graphics_route_sdl_impl(const SDL_Event &event, const SDL_Event &display, b
     if (event.type == SDL_EVENT_TEXT_INPUT && gameplay)
         return true; // no duplicate keychar/IME command
     if (event.type == SDL_EVENT_MOUSE_MOTION && (gameplay || vehicle) &&
-        graphics_input_router.captured())
+        graphics_input_router.captured()) {
+        if (!captured_before)
+            return true; // absolute motion cannot become a relative jump
         return graphics_process_mouse(3, display.motion.x, display.motion.y, event.motion.xrel,
                                       event.motion.yrel, allowed);
+    }
     if ((event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) &&
         (gameplay || vehicle) &&
         (event.button.button == SDL_BUTTON_LEFT || event.button.button == SDL_BUTTON_RIGHT)) {
@@ -458,14 +465,8 @@ const std::string *graphics_fps_take_action_impl(const std::string &category) {
     if (value.action == command::move) {
         const auto delta =
             ncmm_graphics_camera::movement(graphics_camera_yaw, value.forward, value.right);
-        graphics_fps_action = delta.second < 0   ? (delta.first < 0   ? "LEFTUP"
-                                                    : delta.first > 0 ? "RIGHTUP"
-                                                                      : "UP")
-                              : delta.second > 0 ? (delta.first < 0   ? "LEFTDOWN"
-                                                    : delta.first > 0 ? "RIGHTDOWN"
-                                                                      : "DOWN")
-                              : delta.first < 0  ? "LEFT"
-                                                 : "RIGHT";
+        graphics_fps_action = action_ident(get_movement_action_from_delta(
+            tripoint_rel_ms(delta.first, delta.second, 0), iso_rotate::yes));
         graphics_fps_move_origin = get_map().get_abs(get_avatar().pos_bub());
     } else if (value.action == command::attack)
         graphics_fps_action = graphics_click_action_impl();
