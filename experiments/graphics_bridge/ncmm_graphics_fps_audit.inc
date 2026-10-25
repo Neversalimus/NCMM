@@ -130,6 +130,7 @@
                   while (!stop.load() && SDL_GetTicks() < wake_deadline) {
                       const auto waiting = graphics_fps_audit_wait.load();
                       if (waiting & 2u) {
+                          modal_seen.store(true);
                           key(SDL_SCANCODE_ESCAPE, SDLK_ESCAPE, true);
                           key(SDL_SCANCODE_ESCAPE, SDLK_ESCAPE, false);
                       } else if (waiting & 1u) {
@@ -494,6 +495,21 @@
                 refresh();
                 warm(renderer_mode);
                 native_redraw();
+                if (graphics_fps_target(true) != target) {
+                    const auto expected = here.get_abs(target);
+                    const auto actual = graphics_fps_focus.target;
+                    log_line(NCMM_LOG_ERROR, (std::string("FPS interaction ray diagnostic case=") +
+                                              name + " expected=" + std::to_string(expected.x()) +
+                                              "," + std::to_string(expected.y()) + "," +
+                                              std::to_string(expected.z()) + " actual=" +
+                                              (actual ? std::to_string(actual->x()) + "," +
+                                                            std::to_string(actual->y()) + "," +
+                                                            std::to_string(actual->z())
+                                                      : "none") +
+                                              " eye=" + std::to_string(graphics_eye_height()) +
+                                              " pitch=" + std::to_string(graphics_camera_pitch))
+                                                 .c_str());
+                }
                 require(graphics_fps_target(true) == target,
                         (std::string("fps_audit_interaction_ray_missed:") + name).c_str());
                 const auto position = you.pos_abs();
@@ -513,7 +529,10 @@
             cancel_interaction("e_ground_item_cancel", ground, -.98f, SDL_SCANCODE_E, SDLK_E);
             require(!here.i_at(ground).empty(), "fps_audit_e_cancel_removed_item");
             here.furn_set(ground, furn_id("f_cupboard"));
-            cancel_interaction("e_container_cancel", ground, -.5f, SDL_SCANCODE_E, SDLK_E);
+            // The existing renderer classifies walkable FLAT_SURF furniture
+            // as a flat surface. Aim at that real surface, not an assumed
+            // tall cabinet; keep the exact centre-ray ownership requirement.
+            cancel_interaction("e_container_cancel", ground, -.98f, SDL_SCANCODE_E, SDLK_E);
             require(here.furn(ground) == furn_id("f_cupboard") && !here.i_at(ground).empty(),
                     "fps_audit_container_cancel_changed_contents");
 
