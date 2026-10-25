@@ -450,6 +450,7 @@ int main(int argc,char **argv){
         source.environment.daylight=1;source.environment.sun_z=.8f;source.environment.fog_density=.6f; // Surface weather must not fill a closed tunnel.
         fp::gpu::scene_cache cache;double brightness[3]{};
         for(int light=0;light<3;++light){
+            source.environment.lightning=light==1; // A surface storm cannot light a sealed tunnel.
             for(int i=0;i<int(cells.size());++i){const float value=light==0?.85f:light==1?0.f:std::max(0.f,1.f-std::hypot(float(xyz[i].x-4),float(xyz[i].y-5))/4.f);
                 details[i].light_r=value;details[i].light_g=value*.91f;details[i].light_b=value*.76f;
                 std::copy_n(&details[i].light_r,3,xyz[i].lower_light);}

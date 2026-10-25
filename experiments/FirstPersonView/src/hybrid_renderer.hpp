@@ -627,7 +627,7 @@ class renderer {
         else if(style==NCMM_SKY_HIGHLANDS){top=top*.62f+vec{.28f,.32f,.34f}*.38f;bottom=bottom*.62f+vec{.57f,.60f,.59f}*.38f;}
         else if(style==NCMM_SKY_RADIOSPHERE){top={.027f,.037f,.055f};bottom={.14f,.17f,.19f};}
         else if(style==NCMM_SKY_FUNGAL){top={.27f,.32f,.25f};bottom={.56f,.62f,.46f};}
-        if(e.lightning){top={.55f,.6f,.73f};bottom={.85f,.86f,.94f};}
+        if(e.lightning&&style!=NCMM_SKY_VOID){top={.55f,.6f,.73f};bottom={.85f,.86f,.94f};}
         fog_color=bottom;f.sky_horizon=bottom;f.sky_top=top;sky_top=top;sky_bottom=bottom;
     }
     void sky(){const auto &e=s.environment;const uint32_t style=sky_style();float day=clamp(e.daylight);
