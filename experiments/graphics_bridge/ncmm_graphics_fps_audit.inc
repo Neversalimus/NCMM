@@ -37,10 +37,11 @@
     struct fps_events {
         std::atomic<bool> stop{false}, done{false}, sent{false};
         std::atomic<uint32_t> last_wait{0};
+        std::atomic<int> queued{0};
         std::thread worker;
         fps_events(SDL_WindowID window, float x, float y, std::vector<SDL_Event> events,
                    unsigned duration)
-            : worker([this, window, x, y, events, duration]() {
+            : worker([this, window, x, y, events, duration]() mutable {
                   auto key = [window](SDL_Scancode code, SDL_Keycode value, bool down) {
                       SDL_Event event{};
                       event.type = down ? SDL_EVENT_KEY_DOWN : SDL_EVENT_KEY_UP;
@@ -82,9 +83,28 @@
                           SDL_Delay(160);
                           continue;
                       }
-                      for (auto event : events)
-                          SDL_PushEvent(&event);
-                      sent.store(true);
+                      const bool keyboard_only =
+                          std::all_of(events.begin(), events.end(), [](const SDL_Event &event) {
+                              return event.type == SDL_EVENT_KEY_DOWN ||
+                                     event.type == SDL_EVENT_KEY_UP;
+                          });
+                      if (keyboard_only) {
+                          // A scripted chord is one queue batch. Individual
+                          // PushEvent calls race the main thread's poll drain
+                          // and can submit W before D has even been queued.
+                          // SDL 3.4.10 adds this batch under one queue lock.
+                          queued.store(SDL_PeepEvents(events.data(), int(events.size()),
+                                                      SDL_ADDEVENT, SDL_EVENT_FIRST,
+                                                      SDL_EVENT_LAST));
+                      } else {
+                          // Keep real event filters/watches for window and
+                          // mouse fixtures (PeepEvents bypasses those hooks).
+                          for (auto event : events) {
+                              if (SDL_PushEvent(&event))
+                                  queued.fetch_add(1);
+                          }
+                      }
+                      sent.store(queued.load() == int(events.size()));
                       break;
                   }
                   const uint64_t finish = SDL_GetTicks() + duration;
@@ -171,7 +191,8 @@
                       " owner=" + std::to_string(int(graphics_input_router.owner())) +
                       " focused=" + std::to_string(graphics_fps_focused) +
                       " ui=" + std::to_string(graphics_fps_ui_claimed) +
-                      " available=" + std::to_string(graphics_fps_available))
+                      " available=" + std::to_string(graphics_fps_available) +
+                      " queued=" + std::to_string(feed.queued.load()))
                          .c_str());
         require(feed.sent.load(), "fps_audit_sdl_script_never_entered_native_wait");
     };
@@ -244,6 +265,18 @@
                       key_event(SDL_SCANCODE_D, SDLK_D, true),
                       key_event(SDL_SCANCODE_W, SDLK_W, false),
                       key_event(SDL_SCANCODE_D, SDLK_D, false)});
+            if (you.pos_abs() != origin + tripoint_rel_ms(1, -1, 0) ||
+                graphics_input_router.movements != actions + 1 || you.get_moves() >= moves) {
+                const auto actual = you.pos_abs() - origin;
+                log_line(NCMM_LOG_ERROR,
+                         (std::string("FPS chord diagnostic mode=") + mode +
+                          " renderer=" + renderer_mode + " actual=" + std::to_string(actual.x()) +
+                          "," + std::to_string(actual.y()) +
+                          " actions=" + std::to_string(graphics_input_router.movements - actions) +
+                          " cost=" + std::to_string(moves - you.get_moves()) +
+                          " last=" + graphics_fps_action)
+                             .c_str());
+            }
             require(you.pos_abs() == origin + tripoint_rel_ms(1, -1, 0) &&
                         graphics_input_router.movements == actions + 1 && you.get_moves() < moves,
                     "fps_audit_chord_not_one_native_diagonal");
