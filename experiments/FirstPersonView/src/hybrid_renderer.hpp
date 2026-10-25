@@ -1098,7 +1098,13 @@ class renderer {
         image *img=nullptr;
         held_light=light(index(int(std::floor(base.camera_x)),int(std::floor(base.camera_y))),{0,0,1});
         held_light={std::max(.04f,held_light.x),std::max(.04f,held_light.y),std::max(.04f,held_light.z)};
-        const float hud_scale=std::min(1.0f,float(f.height)/f.width*1.6f)*(metadata?std::clamp(metadata->view.body_scale,.70f,1.25f):1.0f);
+        const float aspect=float(f.height)/f.width;
+        // Keep the established vertical viewmodel FOV in portrait terrain
+        // viewports. With a fixed horizontal FOV, a distant pole grip otherwise
+        // becomes physically unreachable from a shoulder below the lower edge.
+        // Wide and 4:3 viewports retain their exact former scale.
+        const float hud_scale=std::max(1.0f,aspect/.75f)*std::min(1.0f,aspect*1.6f)*
+            (metadata?std::clamp(metadata->view.body_scale,.70f,1.25f):1.0f);
         auto animate=[&](vec p){
             // Empty strikes already move the source rig. Applying the former
             // primitive-hand swing again exposes the upper-arm root in view.

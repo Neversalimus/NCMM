@@ -196,7 +196,15 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
     if(!frame_valid||rebuild_world||key!=frame_key||now-frame_built>std::chrono::milliseconds(250)){
         cpu_built=true;
         const first_person::hybrid::sprite_provider provider=[](uint32_t i,uint32_t layer,ncmm_graphics_sprite_v2 &s){return hybrid&&hybrid->get_sprite(i,layer,&s)!=0;};
-        if(!first_person::hybrid::build_frame(*scene,float(yaw),pitch,provider,pixels,high_quality?1280:960,high_quality?800:600,pose,rebuild_world?nullptr:&world_pixels,rebuild_world?&world_pixels:nullptr,has_metadata?&metadata:nullptr,{},has_creatures?creature_state.get():nullptr,active_world)){frame_valid=world_valid=false;return 0;}
+        if(!first_person::hybrid::build_frame(*scene,float(yaw),pitch,provider,pixels,high_quality?1280:960,high_quality?800:600,pose,rebuild_world?nullptr:&world_pixels,rebuild_world?&world_pixels:nullptr,has_metadata?&metadata:nullptr,{},has_creatures?creature_state.get():nullptr,active_world)){
+            if(diagnostic_log)diagnostic_log(NCMM_LOG_ERROR,("First Person CPU frame rejected: scene="+
+                std::to_string(first_person::hybrid::valid_scene(*scene,float(yaw),pitch,active_world))+
+                " presentation="+std::to_string(!has_metadata||first_person::hybrid::valid_presentation(metadata,scene->base.cell_count))+
+                " creatures="+std::to_string(!has_creatures||first_person::creature::valid(creature_state->input,scene->base.cell_count))+
+                " viewmodel_errors="+std::to_string(pixels.viewmodel_errors)+" viewport="+std::to_string(scene->base.pixel_width)+"x"+std::to_string(scene->base.pixel_height)+
+                " pose="+std::to_string(pose.swing)+","+std::to_string(pose.thrust)+","+std::to_string(pose.equip_phase)).c_str());
+            frame_valid=world_valid=false;return 0;
+        }
         if(rebuild_world){world_key=wk;world_built=now;world_valid=true;}
         frame_key=key;frame_built=now;frame_valid=true;
     }
@@ -206,6 +214,9 @@ int render_hybrid(const ncmm_graphics_scene_v2 *scene,void *) {
         if(!pixels.effects.empty()&&!presentation->submit_effects(pixels.effects.data(),pixels.effect_width,pixels.effect_height,pixels.effect_width)){
             ncmm_graphics_composite::blend(pixels.pixels,pixels.width,pixels.height,pixels.effects,pixels.effect_width,pixels.effect_height);frame_valid=false;}}
     const int submitted=hybrid->submit_frame(pixels.pixels.data(),uint32_t(pixels.width),uint32_t(pixels.height),uint32_t(pixels.width));
+    if(!submitted&&diagnostic_log)diagnostic_log(NCMM_LOG_ERROR,("First Person CPU submission rejected: pixels="+
+        std::to_string(pixels.width)+"x"+std::to_string(pixels.height)+" viewport="+
+        std::to_string(scene->base.pixel_width)+"x"+std::to_string(scene->base.pixel_height)).c_str());
     if(gpu&&gpu->struct_size>=offsetof(ncmm_host_graphics_gpu_v1,submit_cpu_metrics)+sizeof(gpu->submit_cpu_metrics)&&gpu->submit_cpu_metrics){ncmm_gpu_cpu_metrics_v1 metrics{};metrics.struct_size=sizeof(metrics);metrics.width=pixels.width;metrics.height=pixels.height;
         metrics.frame_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-frame_begun).count();
         if(cpu_built){metrics.raster_calls=pixels.raster_calls;metrics.triangles=pixels.submitted_triangles;metrics.geometry_ms=pixels.geometry_ms;metrics.raster_ms=pixels.raster_ms;metrics.effects_ms=pixels.effects_ms;}
