@@ -155,7 +155,7 @@
     };
     size_t dispatch_number = 0;
     auto dispatch = [&](std::vector<SDL_Event> events, int boundaries = 1,
-                        unsigned duration = 2000, bool virtual_cursor_outside = false) {
+                        unsigned duration = 2000, bool virtual_cursor_outside = false, bool attack_boundary=false) {
         checkpoint("fps_input_" + get_option<std::string>("SDL_KEYBOARD_MODE") + "_" +
                    get_option<std::string>("NCMM_FIRST_PERSON_RENDERER") + "_" +
                    std::to_string(++dispatch_number));
@@ -183,10 +183,10 @@
         graphics_fps_audit_wait.store(0);
         fps_events feed(window, mouse_x, mouse_y, std::move(events), duration);
         for (int boundary = 0; boundary < boundaries; ++boundary) {
-            const auto issued = graphics_input_router.issued;
+            const auto issued = attack_boundary?graphics_input_router.attack_intents:graphics_input_router.issued;
             for (int retry = 0; retry < 64; ++retry) {
                 g->ncmm_graphics_smoke_handle_action();
-                if (feed.sent.load() && (graphics_input_router.issued > issued || feed.done.load()))
+                if (feed.sent.load() && ((attack_boundary?graphics_input_router.attack_intents:graphics_input_router.issued) > issued || feed.done.load()))
                     break;
             }
         }
@@ -525,8 +525,13 @@
                 // A fresh dispatch deliberately releases capture; restore ADS
                 // in the same SDL batch as the click to test simultaneous input.
                 if(shooting==2){SDL_Event aim=click;aim.button.button=SDL_BUTTON_RIGHT;SDL_Event aim_up=aim;aim_up.type=SDL_EVENT_MOUSE_BUTTON_UP;
-                    modal=dispatch({aim_up,aim,click,release});}
+                    modal=dispatch({aim_up,aim,click,release},1,2000,false,true);}
                 else modal=dispatch({click,release});
+                log_line(NCMM_LOG_INFO,(std::string("FPS gun diagnostic keyboard=")+mode+" renderer="+renderer_mode+" case="+std::to_string(shooting)+
+                    " modal="+std::to_string(modal)+" activity="+std::to_string(bool(you.activity))+" captured="+std::to_string(graphics_input_router.captured())+
+                    " owner="+std::to_string(int(graphics_input_router.owner()))+" pending="+std::to_string(graphics_fps_gunshot_pending)+
+                    " shots="+std::to_string(ammo-you.get_wielded_item()->ammo_remaining())+" serial="+std::to_string(graphics_attack_serial-serial)+
+                    " cost="+std::to_string(before-you.get_moves())).c_str());
                 require(!modal&&!you.activity&&graphics_input_router.captured(),"fps_gun_opened_selector_or_lost_capture");
                 const int shots=ammo-you.get_wielded_item()->ammo_remaining();
                 require(shooting==3?(shots==0&&graphics_attack_serial==serial&&you.get_moves()==before):

@@ -158,13 +158,20 @@ void initialize();''')
     if firing is None:firing=(root/'src/avatar_action.cpp').read_text(encoding='utf-8')
     if '#include "ncmm_loader.h"' not in firing:
         firing=once(firing,'#include "avatar_action.h"','#include "avatar_action.h"\n#include "ncmm_loader.h"')
-    firing=once(firing,'    you.assign_activity( aim_activity_actor::use_wielded() );', '''    // A consumed FPS request never falls through to a Native target selector,
+    entry='void avatar_action::fire_wielded_weapon( avatar &you )\n{'
+    firing=once(firing,entry,entry+'''
+    // This must precede NCMM's select_ranged_weapon, including Mana Hands.
+    // A consumed FPS request never falls through to a Native target selector,
     // including stale focus, empty weapons and AIM_AFTER_FIRING. Native F/Tab
     // still uses the ordinary activity below.
     std::optional<tripoint_bub_ms> fps_target;
     int fps_aim_moves = 0;
     if( ncmm::graphics_take_fps_gunshot( fps_target, fps_aim_moves ) ) {
         if( !fps_target ) return;
+        const item_location weapon = you.get_wielded_item();
+        if( !weapon || !weapon->is_gun() || weapon->is_gunmod() ) return;
+        if( !weapon->uses_firing_requirements() && weapon->has_ammo_data() &&
+            !weapon->ammo_types().count( weapon->loaded_ammo().ammo_type() ) ) return;
         map &here = get_map();
         gun_mode mode = weapon->gun_current_mode();
         if( !mode || mode.melee() ) return;
@@ -201,7 +208,7 @@ void initialize();''')
         you.fire_gun( here, *fps_target, mode.qty, *mode, reload_ammo );
         return;
     }
-    you.assign_activity( aim_activity_actor::use_wielded() );''')
+''')
     updates['avatar_action.cpp']=firing
     for name in ('ncmm_graphics_input.hpp','ncmm_graphics_grass.hpp','ncmm_graphics_focus.h','ncmm_graphics_fps.inc','ncmm_graphics_fps_audit.inc'):
         if (root/'src'/name).exists():raise ValueError('FPS experimental source already exists: '+name)
