@@ -15,7 +15,7 @@ a=p.parse_args()
 r=json.loads((a.root/'first-person-gameplay-audit.json').read_text(encoding='utf-8-sig'))
 assert r['success'] and r['actual_cdda_sdl'] and not r['manual_playthrough']
 assert not r['gpu_execution_timestamps_available']
-actions={'native_held_assets_and_shared_psx_contacts','native_target_health_identity_visibility_and_font','native_firing_ui_context_and_presented_frames','native_walk_and_visual_continuity','native_door_open_close_and_furniture',
+actions={'native_held_assets_and_shared_psx_contacts','native_target_health_identity_visibility_and_font','native_firing_ui_context_and_presented_frames','native_fps_input_and_actions','native_walk_and_visual_continuity','native_door_open_close_and_furniture',
          'native_pickup_inventory_cancel_and_item_use','native_melee_aim_fire_and_reload_completion',
          'native_stairs_and_basement','native_vehicle_board_controls_displacement_and_exit',
          'rapid_tall_avatar_stairs_respect_scene_bounds',
