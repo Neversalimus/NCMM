@@ -62,9 +62,9 @@ def prepare(root,updates,bridge):
 class graphics_raw_input_scope {
     graphics_input_wait_scope wait_{"NCMM_RAW_INPUT"};
 public:
-    graphics_raw_input_scope() {
+    explicit graphics_raw_input_scope(bool text) {
         graphics_note_input_context("NCMM_RAW_INPUT");
-        graphics_note_input_wait("NCMM_RAW_INPUT", false);
+        graphics_note_input_wait("NCMM_RAW_INPUT", text);
     }
     ~graphics_raw_input_scope() {
         graphics_note_input_result("NCMM_RAW_INPUT", "ANY_INPUT");
@@ -81,7 +81,8 @@ void initialize();''')
                           '#include "input.h"\n#include "ncmm_loader.h"')
     native_input=once(native_input,'void input_manager::wait_for_any_key()\n{',
                       'void input_manager::wait_for_any_key()\n{\n'
-                      '    ncmm::graphics_raw_input_scope ncmm_raw_input;')
+                      '    ncmm::graphics_raw_input_scope ncmm_raw_input(\n'
+                      '        actual_keyboard_mode(keyboard_mode::keycode) == keyboard_mode::keychar);')
     updates['input.cpp']=native_input
     context=updates['input_context.cpp']
     context=once(context,'        if( next_action.type == input_event_t::timeout ) {',
