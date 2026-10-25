@@ -84,6 +84,15 @@ void initialize();''')
                       '    ncmm::graphics_raw_input_scope ncmm_raw_input(\n'
                       '        actual_keyboard_mode(keyboard_mode::keycode) == keyboard_mode::keychar);')
     updates['input.cpp']=native_input
+    native_debug=updates['debug.cpp'] if 'debug.cpp' in updates else (root/'src/debug.cpp').read_text(encoding='utf-8')
+    if '#include "ncmm_loader.h"' not in native_debug:
+        native_debug=once(native_debug,'#include "debug.h"',
+                          '#include "debug.h"\n#include "ncmm_loader.h"')
+    native_debug=once(native_debug,'    for( bool stop = false; !stop; ) {',
+                      '    ncmm::graphics_raw_input_scope ncmm_raw_input(\n'
+                      '        input_manager::actual_keyboard_mode(keyboard_mode::keycode) == keyboard_mode::keychar);\n'
+                      '    for( bool stop = false; !stop; ) {')
+    updates['debug.cpp']=native_debug
     context=updates['input_context.cpp']
     context=once(context,'        if( next_action.type == input_event_t::timeout ) {',
         '        if( next_action.type == input_event_t::timeout ) {\n'

@@ -34,6 +34,7 @@ not a promise to advance the simulation at that frequency.
 Native menus, inventory, text fields, search and IME own their original events.
 Legacy "press any key" windows use the same modal input lease, including
 terminal login prompts that bypass `input_context::handle_input`.
+The Native error window also retains its original C/I/Space controls.
 Tab releases the cursor and restores original bindings while retaining the 3D
 backdrop where supported. Returning to FPS needs a viewport click; that click
 only captures and cannot attack. Esc, focus loss, resize/DPI changes, F6,

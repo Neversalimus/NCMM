@@ -23,7 +23,7 @@ class ApplyTests(unittest.TestCase):
         (root / "src/game.h").write_text("        bool save();\n")
         (root / "src/game.cpp").write_text('#include "game.h"\n'+bridge.REBASE_CACHE_RESET+'\n')
         (root / "src/vehicle_use.cpp").write_text(NATIVE_TOGGLE)
-        (root / "src/debug.cpp").write_text('\nstd::string ncmm_debug_report_text( const std::string &text )\n{ return text; }\n')
+        (root / "src/debug.cpp").write_text('#include "debug.h"\nstd::string ncmm_debug_report_text( const std::string &text )\n{ return text; }\nvoid native_debug_window() {\n    for( bool stop = false; !stop; ) {\n    }\n}\n')
         options='static void ncmm_apply_deferred_option_value( const std::string &, options_manager::cOpt & );\n// NCMM v8.7.6.6 stale world-option repair:\n'
         for kind in ['bool','int','float','enum']:
             options+='bool options_manager::ncmm_register_world_'+kind+'()\n{\n    if( missing ) {\n        return true;\n    }\n    cOpt &opt = it->second;\n    if( world_options.has_value() ) { }\n    return true;\n}\n'
@@ -264,6 +264,8 @@ bool cata_tiles::draw_sprite_at() {
         for name,anchor in [
             ('input.cpp','void input_manager::wait_for_any_key()\n{'),
             ('input.cpp','#include "input.h"'),
+            ('debug.cpp','    for( bool stop = false; !stop; ) {'),
+            ('debug.cpp','#include "debug.h"'),
             ('input_context.cpp','        if( next_action.type == input_event_t::timeout ) {'),
             ('handle_action.cpp','        if( act == ACTION_INTERACT ) {'),
             ('handle_action.cpp','player_character.assign_activity( open_tile_activity_actor( std::nullopt ) );'),
