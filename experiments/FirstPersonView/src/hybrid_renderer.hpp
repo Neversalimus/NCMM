@@ -1124,6 +1124,14 @@ class renderer {
         // Wide and 4:3 viewports retain their exact former scale.
         const float hud_scale=std::max(1.0f,aspect/.75f)*std::min(1.0f,aspect*1.6f)*
             (metadata?std::clamp(metadata->view.body_scale,.70f,1.25f):1.0f);
+        vec aim_offset{-.30f,.18f,-.24f};
+        if(pose.grip==NCMM_GRIP_GUN&&pose.prepared_item&&pose.prepared_item->selected.body&&pose.prepared_item->count){
+            const auto &prepared=*pose.prepared_item;const held::posed *sighted=&prepared.entries[0];
+            for(size_t i=1;i<prepared.count;++i)if(prepared.entries[i].geometry->kind==held::family::optic)sighted=&prepared.entries[i];
+            const auto &sight=sighted->geometry->grips.sight;
+            const auto point=viewmodel::position(sighted->local,viewmodel::position(sighted->bones.global[sight.node],sight.point));
+            aim_offset={-point.x,-point.y,-.24f};
+        }
         auto animate=[&](vec p){
             // Empty strikes already move the source rig. Applying the former
             // primitive-hand swing again exposes the upper-arm root in view.
@@ -1131,7 +1139,7 @@ class renderer {
             const vec pivot{.27f,-.28f,.84f};p=p-pivot;
             const float a=pose.swing,co=std::cos(a),sn=std::sin(a);
             p={p.x*co-p.y*sn,p.x*sn+p.y*co,p.z};
-            return p+pivot+vec{-.12f*pose.swing+pose.sway_x-.24f*pose.aim,.04f*pose.swing+pose.sway_y-.20f*(1-pose.equip_phase)+.16f*pose.aim,pose.thrust-pose.recoil-.06f*(1-pose.equip_phase)+.08f*pose.aim};};
+            return p+pivot+vec{-.12f*pose.swing+pose.sway_x,.04f*pose.swing+pose.sway_y-.20f*(1-pose.equip_phase),pose.thrust-pose.recoil-.06f*(1-pose.equip_phase)}+aim_offset*pose.aim;};
         auto held_view=[&](vec p){p=animate(p);p.x*=hud_scale;p.y*=hud_scale;return p;};
         auto hud=[&](vec p){return local(held_view(p));};
         auto face=[&](vec a,vec b,vec c,vec d,material m){a=hud(a);b=hud(b);c=hud(c);d=hud(d);quad(a,b,c,d,m,normalize(cross(b-a,d-a)));};

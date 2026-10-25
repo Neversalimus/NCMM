@@ -141,7 +141,7 @@ jobs:
             'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'c170dd70d01dfd4c5b9858aedb5bc558d013a2d768b3b1cc4b044241d74448ba',
             'experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp':'0c8d4687aef0ffb225a25daaa14d693296c45ef754889962a8e468f92d9cdc8d',
             'experiments/FirstPersonView/src/gpu_scene.hpp':'cdb2e55c5f53b0631d637c14d204c6c520c7210fdb1f51ac1e9d2ac369689e48',
-            'experiments/FirstPersonView/src/hybrid_renderer.hpp':'02735b0f021379598afd3db97954a087852dc38a135781453ae7c03feea3bd9e',
+            'experiments/FirstPersonView/src/hybrid_renderer.hpp':'667e2599bd1d026b2d0fc1662bc786eaa3b439bdf9efb902b8cd9311e4826391',
             'experiments/FirstPersonView/tests/viewmodel_gpu_test.cpp':'4297305f7cc2f99026373322b42b6bcc07ec97c01da8af706a564296608bd3ef',
             'experiments/FirstPersonView/src/multilevel_geometry.inc':'f9ea18b3a9f6e62ff6683bc16985a707256651093cc71ea91f0313538b216419',
             'experiments/FirstPersonView/src/grass.inc':'2adf955130f9e16d40ab965a98c5d4ce4e28ff6472982a577f17f75fa27889e3',
@@ -157,7 +157,8 @@ jobs:
             'experiments/graphics_bridge/ncmm_graphics_presentation.inc':'685045316fb9ed81ac96ec25f666d23dff6d3ccab2eb6268cff61e1fcf59d7cf',
             'experiments/graphics_bridge/ncmm_graphics_presentation.h':'cc7d7db6318db55c9408083ba1dcec29b2b13228f3d5f06097f1f4a70f6237fa',
             'experiments/FirstPersonView/src/animation.hpp':'1ba0c0b8cd919a41f03806e07bc6de5298063ca9cdfbc5d019344c3b4e9a6411',
-            'experiments/FirstPersonView/src/module.cpp':'8e7f2e7cdad16e3d7d665cf468026e01df11ec731df8b0d3f8da3c546c009d96'}
+            'experiments/FirstPersonView/src/module.cpp':'8e7f2e7cdad16e3d7d665cf468026e01df11ec731df8b0d3f8da3c546c009d96',
+            'experiments/FirstPersonView/tests/held_runtime_test.cpp':'dc6c490992358fb6a36b4577a879a2653e744d59808c4eeb8803ee70ea9bb5fa'}
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
           Path('vertex-source-proof.json').write_text(json.dumps(dict(runtime_source=os.environ['GITHUB_SHA'],files=files,ordinary_performance=False,actual_native_game=False,device='offscreen software Vulkan; not RTX4090'),indent=2)+'\n')
