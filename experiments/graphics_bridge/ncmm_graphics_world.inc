@@ -211,6 +211,10 @@ bool graphics_draw_world(int x,int y,int width,int height)
         if((value&NCMM_WORLD_GLASS_FLOOR)&&(below&NCMM_WORLD_UP)&&(below&NCMM_WORLD_RAMP))value&=~NCMM_WORLD_GLASS_FLOOR;
         if((value&NCMM_WORLD_UP)&&((above&NCMM_WORLD_OPEN_DOWN)||((above&NCMM_WORLD_DOWN)&&(above&NCMM_WORLD_RAMP))))value|=NCMM_WORLD_CONNECTED_UP;
         if((value&NCMM_WORLD_DOWN)&&(below&NCMM_WORLD_UP))value|=NCMM_WORLD_CONNECTED_DOWN;
+        if(!(value&(NCMM_WORLD_RAMP|NCMM_WORLD_LADDER))){
+            if((value&NCMM_WORLD_UP)&&ncmm_world::stair_partner(ax,ay,z,1,base_flags))value|=NCMM_WORLD_CONNECTED_UP;
+            if((value&NCMM_WORLD_DOWN)&&ncmm_world::stair_partner(ax,ay,z,-1,base_flags))value|=NCMM_WORLD_CONNECTED_DOWN;
+        }
         return value;
     };
     auto flags=[&](int ax,int ay,int z){

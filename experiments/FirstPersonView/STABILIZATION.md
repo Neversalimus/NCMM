@@ -13,16 +13,27 @@ Primary reach attacks now hand the validated reticle target to the existing
 Native reach attack after Native's ordinary fire-entry checks. A stale primary
 request is consumed without opening a new selector; RMB still opens Native
 aiming. The FPS matrix includes real LMB attacks with a naginata and a steel
-spear in both keyboard modes and both renderers, bringing it to 128 cases.
+spear in both keyboard modes and both renderers, plus an actual Native offset
+stair destination/render-snapshot check, bringing it to 132 cases.
 The cursor test redraws the actual interface with `HIDE_CURSOR=show` while
 captured, then checks that releasing capture restores Native cursor handling.
+Captured button ownership ignores the hidden absolute cursor position; one
+reach fixture sends its click outside the viewport after capture. Only the
+initial capture click checks viewport bounds.
 The same SDL owner and existing module interfaces are retained.
 
 Door identifiers match whole components, so `f_indoor_plant` and its yellow
 variant remain plants. Stair facing ranks the lower approach and upper landing
 together; a free lower neighbour is the foot of a flight, not its uphill end.
 Renderer slabs and visibility use the same aperture, which fits the top tread
-at all four facings. Ladders use an adjacent wall rather than the stair rule.
+at all four facings. The first rural-church basement stair is one tile away
+from its upper exit. Unambiguous adjacent pairs inside the same Native
+overmap tile extend the flight to the real exit and retain a solid lower
+wall support with an open upper stairwell lane. Native collision/visibility
+and the actual vertical-move destination remain authoritative. Competing
+or distant exits are not joined through rooms. Neighbour topology also
+invalidates the corresponding cached GPU meshes. Ladders use an adjacent
+wall rather than the stair rule.
 
 Grass uses original procedural blade geometry on visible, unoccupied Native
 `t_grass` variants. Pavement, bare soil, indoor plants and grass curtains are

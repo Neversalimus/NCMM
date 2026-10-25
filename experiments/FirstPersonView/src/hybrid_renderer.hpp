@@ -693,7 +693,8 @@ class renderer {
         material m=mat(i,layer,{.43f,.40f,.35f});material trim{nullptr,{.35f,.32f,.28f},1,false,false,false,i};
         trim.finish=surface::wood;
         if(ncmm_graphics_shapes::contains(base.cells[i].terrain,"metal")||ncmm_graphics_shapes::contains(base.cells[i].terrain,"steel"))trim.finish=surface::metal;
-        if(shape==NCMM_SHAPE_WALL){auto wall=wall_material(i,layer);box(center,{-.5f,-.5f,0},{.5f,.5f,2.5f},wall);return;}
+        if(shape==NCMM_SHAPE_WALL){if(layer==NCMM_GFX_TERRAIN&&world_stair_wall(i))return;
+            auto wall=wall_material(i,layer);box(center,{-.5f,-.5f,0},{.5f,.5f,2.5f},wall);return;}
         if(shape==NCMM_SHAPE_DOOR_CLOSED||shape==NCMM_SHAPE_DOOR_OPEN||shape==NCMM_SHAPE_DOOR_FRAME){door_model(i,shape,layer);return;}
         if(shape==NCMM_SHAPE_WINDOW||shape==NCMM_SHAPE_WINDOW_BROKEN||shape==NCMM_SHAPE_WINDOW_COVERED){++f.vertical_windows;
             const float depth=world_data&&layer==NCMM_GFX_TERRAIN?.5f:.13f;

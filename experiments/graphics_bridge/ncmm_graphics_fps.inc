@@ -277,9 +277,9 @@ bool graphics_route_sdl_impl(const SDL_Event &event, const SDL_Event &display, b
                             display.button.x < graphics_viewport.x + graphics_viewport.w &&
                             display.button.y >= graphics_viewport.y &&
                             display.button.y < graphics_viewport.y + graphics_viewport.h;
-        if (!inside)
-            return false;
         if (!graphics_input_router.captured()) {
+            if (!inside)
+                return false;
             if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
                 event.button.button == SDL_BUTTON_LEFT) {
                 graphics_input_router.capture();
@@ -290,6 +290,8 @@ bool graphics_route_sdl_impl(const SDL_Event &event, const SDL_Event &display, b
         }
         if (vehicle)
             return true; // Native keys drive; free look never sends a drive/attack action.
+        // Relative capture owns the buttons, even if SDL's hidden absolute
+        // position has drifted over the sidebar or outside the viewport.
         return graphics_input_router.key(
             event.button.button == SDL_BUTTON_LEFT ? ncmm_graphics_input::button::attack
                                                    : ncmm_graphics_input::button::aim,

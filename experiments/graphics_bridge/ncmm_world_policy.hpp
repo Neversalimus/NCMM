@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <tuple>
 #include <vector>
 #include <climits>
@@ -12,6 +13,44 @@
 namespace ncmm_world {
 struct point {float x=0,y=0,z=0;};
 struct voxel {int x=0,y=0,z=0;};
+inline int omt_axis(int value){return value>=0?value/24:int((int64_t(value)-23)/24);}
+template<class Sample> uint32_t stair_sample(int64_t x,int64_t y,int64_t z,Sample sample){
+    if(x<INT_MIN||x>INT_MAX||y<INT_MIN||y>INT_MAX||z<INT_MIN||z>INT_MAX)return NCMM_WORLD_UNKNOWN;
+    return sample(int(x),int(y),int(z));
+}
+// Native first accepts a connector at the same XY. A single neighbouring
+// connector inside the same overmap tile is also unambiguous (rural church).
+// Do not invent a long staircase or join two competing exits through rooms.
+template<class Sample> std::optional<voxel> stair_partner(int x,int y,int z,int dz,Sample sample){
+    const uint32_t needed=dz>0?NCMM_WORLD_DOWN:NCMM_WORLD_UP;
+    const int64_t target_z=int64_t(z)+dz;
+    auto match=[&](int64_t a,int64_t b){const auto f=stair_sample(a,b,target_z,sample);return !(f&(NCMM_WORLD_UNKNOWN|NCMM_WORLD_RAMP|NCMM_WORLD_LADDER))&&(f&needed);};
+    if(match(x,y))return voxel{x,y,int(target_z)};
+    std::optional<voxel> result;
+    for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){if(!dx&&!dy)continue;
+        const int64_t a=int64_t(x)+dx,b=int64_t(y)+dy;
+        if(!match(a,b)||omt_axis(int(a))!=omt_axis(x)||omt_axis(int(b))!=omt_axis(y))continue;
+        if(result)return std::nullopt;
+        result=voxel{int(a),int(b),int(target_z)};
+    }
+    return result&&std::abs(int64_t(result->x)-x)+std::abs(int64_t(result->y)-y)==1?result:std::nullopt;
+}
+template<class Sample> std::optional<voxel> stair_wall_root(int x,int y,int z,Sample sample){
+    if(!(stair_sample(x,y,int64_t(z)+1,sample)&NCMM_WORLD_DOWN))return std::nullopt;
+    std::optional<voxel> result;
+    for(unsigned d=0;d<4;++d){const int64_t a=int64_t(x)+(d==0?1:d==2?-1:0),b=int64_t(y)+(d==1?1:d==3?-1:0);const auto f=stair_sample(a,b,z,sample);
+        if(!(f&NCMM_WORLD_UP)||!(f&NCMM_WORLD_CONNECTED_UP)||(f&(NCMM_WORLD_UNKNOWN|NCMM_WORLD_RAMP|NCMM_WORLD_LADDER)))continue;
+        const auto target=stair_partner(int(a),int(b),z,1,sample);
+        if(target&&target->x==x&&target->y==y){if(result)return std::nullopt;result=voxel{int(a),int(b),z};}
+    }
+    return result;
+}
+template<class Sample> uint32_t stair_geometry_key(int x,int y,int z,Sample sample){
+    const auto f=sample(x,y,z);std::optional<voxel> link;
+    if((f&NCMM_WORLD_UP)&&!(f&(NCMM_WORLD_RAMP|NCMM_WORLD_LADDER)))link=stair_partner(x,y,z,1,sample);
+    else if(f&NCMM_WORLD_OPAQUE)link=stair_wall_root(x,y,z,sample);
+    return link?uint32_t((link->x-x+1)*3+link->y-y+2):0;
+}
 // A direction points uphill. The approach is at the opposite end of a
 // flight; choosing the first open neighbour as uphill puts its foot in a wall.
 // Native terrain has no authored facing, so rank both actual landings, with
@@ -21,9 +60,9 @@ template<class Sample> uint32_t stair_direction(int x,int y,int z,Sample sample)
         bool(f&(NCMM_WORLD_FLOOR|NCMM_WORLD_UP|NCMM_WORLD_DOWN|NCMM_WORLD_RAMP));};
     int best=-1;uint32_t chosen=0;
     for(uint32_t d=0;d<4;++d){const int dx=d==0?1:d==2?-1:0,dy=d==1?1:d==3?-1:0;
-        const bool entry=walk(sample(x-dx,y-dy,z)),exit=walk(sample(x+dx,y+dy,z+1));
+        const bool entry=walk(stair_sample(int64_t(x)-dx,int64_t(y)-dy,z,sample)),exit=walk(stair_sample(int64_t(x)+dx,int64_t(y)+dy,int64_t(z)+1,sample));
         const int score=(entry?16:0)+(exit?12:0)+(entry&&exit?16:0)+
-            (entry&&walk(sample(x-2*dx,y-2*dy,z))?2:0)+(exit&&walk(sample(x+2*dx,y+2*dy,z+1))?1:0);
+            (entry&&walk(stair_sample(int64_t(x)-2*dx,int64_t(y)-2*dy,z,sample))?2:0)+(exit&&walk(stair_sample(int64_t(x)+2*dx,int64_t(y)+2*dy,int64_t(z)+1,sample))?1:0);
         if(score>best){best=score;chosen=d;}
     }
     return chosen;

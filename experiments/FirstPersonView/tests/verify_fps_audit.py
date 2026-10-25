@@ -8,7 +8,7 @@ COUNTS={'physical_w_8_yaws':8,'wd_one_diagonal':1,'held_w_three_native_boundarie
         'e_native_open':1,'lmb_native_melee':2,'lmb_native_reach':2,'native_run_crouch_wait':1,
         'r_native_reload':1,'u_native_tool':1,'g_native_pickup_cancel':1,
         'e_ground_item_cancel':1,'e_container_cancel':1,'e_window_cancel':1,
-        'e_npc_cancel':1,'e_terminal_cancel':1,'e_native_stair':1,
+        'e_npc_cancel':1,'e_terminal_cancel':1,'e_native_stair':1,'native_offset_stair':1,
         'e_vehicle_cancel':1,'e_occluded_refusal':1}
 ACTIONS={'held_w_three_native_boundaries':3,'native_run_crouch_wait':4,
          'focus_resize_dpi_release':0,'e_occluded_refusal':0}
@@ -28,6 +28,7 @@ def verify(root):
             selected=[s for s in samples if s['keyboard_mode']==mode and s['renderer']==renderer]
             assert Counter(s['scenario'] for s in selected)==COUNTS,'Incomplete keyboard/renderer matrix'
             assert sorted(s['direction'] for s in selected if s['scenario']=='physical_w_8_yaws')==list(range(8))
+            assert sorted(s['direction'] for s in selected if s['scenario']=='lmb_native_reach')==[0,1],'Missing captured click with virtual cursor outside viewport'
             for sample in selected:
                 case=sample['scenario'];cost=sample['native_move_cost']
                 assert type(cost) is int and cost>=0

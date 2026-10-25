@@ -131,6 +131,33 @@ int main(){try{
         check(tread>0,"every staircase facing reaches its upper opening");
     }
     empty.positions[stair_cell].direction=0;
+    {
+        // The rural church's first basement UP is one tile away from its
+        // ground-floor DOWN; a rock-wall tile sits below that upper exit.
+        fixture shifted(2);shifted.slab(0);shifted.slab(1);
+        const int root=shifted.cell(4,1,0),wall=shifted.cell(5,1,0),upper=shifted.cell(5,1,1);
+        shifted.positions[root].flags|=NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP;
+        shifted.positions[wall].flags|=NCMM_WORLD_OPAQUE;shifted.details[wall].terrain_shape=NCMM_SHAPE_WALL;
+        std::strcpy(shifted.appearance[wall].terrain,"t_rock_wall");
+        shifted.positions[upper].flags=NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_DOWN|NCMM_WORLD_OPEN_DOWN|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM;
+        collector generated;renderer(shifted.world.appearance,0,.3f,{},statistics,{},nullptr,{},nullptr,&shifted.world).collect(generated,400,260);
+        unsigned top_steps=0,cut_wall=0;
+        for(const auto &t:generated.triangles){
+            if(t.m.cell==root&&t.normal.z>.9f&&std::abs(t.v[0].p.z-2.5f)<.0001f){++top_steps;
+                for(const auto &v:t.v)check(v.p.x>=5.0799f&&v.p.x<=5.9201f,"offset staircase ends in the actual upper stair tile");}
+            if(t.m.cell==wall){++cut_wall;for(const auto &v:t.v)if(v.p.z>1.1001f&&std::abs(v.p.y-1.5f)<.379f)
+                check(v.p.x>=5.9399f,"upper flight is not filled by the Native wall's assumed full-height cube");}
+        }
+        check(top_steps&&cut_wall,"offset staircase and its Native wall support both retain geometry");
+        first_person::gpu::scene_cache cache;first_person::gpu::packet a,b;ncmm_gpu_metrics_v1 host{};host.resource_epoch=1;
+        check(cache.build(shifted.world.appearance,0,.3f,{},a,statistics,host,{},nullptr,nullptr,400,260,NCMM_GPU_FORCE,&shifted.world),"offset stair GPU cache");
+        uint64_t old_mesh=0;for(const auto &draw:a.draws)if(draw.cell==unsigned(root))old_mesh=draw.mesh_key;
+        shifted.positions[upper].flags=NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM;
+        const int other=shifted.cell(3,1,1);shifted.positions[other].flags=NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_DOWN|NCMM_WORLD_OPEN_DOWN|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM;
+        check(cache.build(shifted.world.appearance,0,.3f,{},b,statistics,host,{},nullptr,nullptr,400,260,NCMM_GPU_FORCE,&shifted.world),"changed offset stair GPU cache");
+        uint64_t new_mesh=0;for(const auto &draw:b.draws)if(draw.cell==unsigned(root))new_mesh=draw.mesh_key;
+        check(old_mesh&&new_mesh&&old_mesh!=new_mesh,"neighbour exit changes invalidate the otherwise unchanged stair mesh");
+    }
     const int stair=empty.cell(4,1,0);empty.positions[stair].flags|=NCMM_WORLD_RAMP;
     collector ramp;renderer(empty.world.appearance,0,0,{},statistics,{},nullptr,{},nullptr,&empty.world).collect(ramp,400,260);
     bool slope=false;for(const auto &t:ramp.triangles)if(t.normal.z>.1f&&t.normal.z<.9f)slope=true;

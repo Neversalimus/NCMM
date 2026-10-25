@@ -50,9 +50,27 @@
             slab_piece(i,.08f,0,.92f,.08f);slab_piece(i,.08f,.92f,.92f,1);
         }
     }
+    auto world_stair_query()const{
+        return [this](int x,int y,int z){const int cell=world_coordinates.find(x-world_data->origin_x,y-world_data->origin_y,z);
+            return cell>=0?world_flags(cell):uint32_t(NCMM_WORLD_UNKNOWN);};
+    }
+    bool world_stair_wall(int i){
+        if(!world_data)return false;const auto &p=world_data->coordinates[i];
+        const auto root=ncmm_world::stair_wall_root(p.x,p.y,p.z,world_stair_query());if(!root)return false;
+        // A Native wall tile below an offset exit is the solid support of that
+        // stairwell, not a full-height cube across its upper flight. Ground
+        // collision/Native visibility remain unchanged; only its mesh is cut.
+        const float angle=std::atan2(float(p.y-root->y),float(p.x-root->x));
+        const vec center=cell_center(i);auto wall=wall_material(i,NCMM_GFX_TERRAIN);
+        box(center,{-.5f,-.5f,0},{.5f,.5f,1.10f},wall,angle);
+        box(center,{-.5f,-.5f,1.10f},{.5f,-.38f,NCMM_WORLD_LEVEL_HEIGHT},wall,angle);
+        box(center,{-.5f,.38f,1.10f},{.5f,.5f,NCMM_WORLD_LEVEL_HEIGHT},wall,angle);
+        box(center,{.44f,-.38f,1.10f},{.5f,.38f,NCMM_WORLD_LEVEL_HEIGHT},wall,angle);
+        return true;
+    }
     void world_transition(int i){
         const uint32_t flags=world_flags(i);if(!(flags&NCMM_WORLD_UP))return;
-        const vec center=cell_center(i);const float angle=world_data->coordinates[i].direction*pi*.5f;
+        vec center=cell_center(i);float angle=world_data->coordinates[i].direction*pi*.5f,span=.84f;
         material structure=slab_underside(i);structure.color=structure.color*.82f;
         const bool connected=(flags&NCMM_WORLD_CONNECTED_UP)!=0;
         const float height=(connected||(flags&NCMM_WORLD_RAMP_END))?world_data->level_height:std::min(1.1f,world_data->level_height);
@@ -79,14 +97,20 @@
             for(float side:{-.5f,.5f})quad(p(-.5f,side,0),p(.5f,side,0),p(.5f,side,height),p(-.5f,side,.02f),structure,rotate({0,side>0?1.f:-1.f,0},{},angle));
             quad(p(.5f,-.5f,0),p(.5f,.5f,0),p(.5f,.5f,height),p(.5f,-.5f,height),structure,rotate({1,0,0},{},angle));return;
         }
-        const int steps=std::max(5,int(std::ceil(height/.21f)));const float run=.84f/steps,rise=height/steps;
-        for(int n=0;n<steps;++n){const float x=-.42f+n*run;
+        const auto &origin=world_data->coordinates[i];
+        if(connected)if(const auto target=ncmm_world::stair_partner(origin.x,origin.y,origin.z,1,world_stair_query())){
+            const int dx=target->x-origin.x,dy=target->y-origin.y;
+            if(dx||dy){center=center+vec{dx*.5f,dy*.5f,0};angle=std::atan2(float(dy),float(dx));span=1.84f;}
+        }
+        const float half=span*.5f;
+        const int steps=std::max(5,int(std::ceil(height/.21f)));const float run=span/steps,rise=height/steps;
+        for(int n=0;n<steps;++n){const float x=-half+n*run;
             box(center,{x,-.32f,0},{x+run,.32f,(n+1)*rise},structure,angle);}
         material rail{nullptr,{.29f,.31f,.32f},1,false,false,false,i,surface::metal};
         for(float side:{-.35f,.35f}){
-            for(int n=0;n<=3;++n){const float x=-.42f+n*.84f/3,z=(x+.42f)*height/.84f;
+            for(int n=0;n<=3;++n){const float x=-half+n*span/3,z=(x+half)*height/span;
                 box(center,{x-.014f,side-.014f,z+.04f},{x+.014f,side+.014f,z+.75f},rail,angle);}
             auto p=[&](float x,float y,float z){return rotate({x,y,z},center,angle);};
-            quad(p(-.42f,side-.017f,.77f),p(.42f,side-.017f,height+.77f),p(.42f,side+.017f,height+.80f),p(-.42f,side+.017f,.80f),rail);
+            quad(p(-half,side-.017f,.77f),p(half,side-.017f,height+.77f),p(half,side+.017f,height+.80f),p(-half,side+.017f,.80f),rail);
         }
     }

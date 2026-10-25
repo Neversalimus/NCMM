@@ -348,6 +348,11 @@ class scene_cache {
                 const auto p=levels?xyz.origin(uint32_t(i)):ncmm_world::point{float(i%columns),float(i/columns),0};
                 detail_band=ncmm_grass::band(std::hypot(p.x+.5f-s.base.camera_x,p.y+.5f-s.base.camera_y));
             }
+            if(levels&&(levels->coordinates[i].flags&(NCMM_WORLD_UP|NCMM_WORLD_OPAQUE))){
+                const auto &p=levels->coordinates[i];const auto sample=[&](int x,int y,int z){const int at=xyz.find(x-levels->origin_x,y-levels->origin_y,z);
+                    return at>=0?levels->coordinates[at].flags:uint32_t(NCMM_WORLD_UNKNOWN);};
+                detail_band|=ncmm_world::stair_geometry_key(p.x,p.y,p.z,sample)<<8;
+            }
             const auto key=content_position(size_t(i));
             const uint32_t flags=levels?levels->coordinates[i].flags:0,direction=levels?levels->coordinates[i].direction:0;
             const normalized_record *old=nullptr;

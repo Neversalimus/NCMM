@@ -16,6 +16,25 @@ struct fixture {
 }
 int main(){
     using namespace ncmm_world;
+    for(int edge:{INT_MIN,INT_MAX}){
+        auto unknown=[](int,int,int)->uint32_t{return NCMM_WORLD_UNKNOWN;};
+        require(!stair_partner(edge,edge,edge,1,unknown)&&!stair_wall_root(edge,edge,edge,unknown),"unrepresentable stair neighbours remain unknown");
+        require(stair_direction(edge,edge,edge,unknown)<4,"stair facing does not overflow at coordinate limits");
+    }
+    for(unsigned d=0;d<4;++d){const int dx=d==0?1:d==2?-1:0,dy=d==1?1:d==3?-1:0;
+        auto shifted=[&](int x,int y,int z)->uint32_t{
+            if(x==12&&y==12&&z==0)return NCMM_WORLD_UP|NCMM_WORLD_CONNECTED_UP|NCMM_WORLD_FLOOR;
+            if(x==12+dx&&y==12+dy&&z==1)return NCMM_WORLD_DOWN|NCMM_WORLD_OPEN_DOWN;
+            return NCMM_WORLD_FLOOR;
+        };
+        const auto upper=stair_partner(12,12,0,1,shifted),lower=stair_partner(12+dx,12+dy,1,-1,shifted);
+        require(upper&&upper->x==12+dx&&upper->y==12+dy&&lower&&lower->x==12&&lower->y==12,"rural church offset connects the actual two Native stair tiles");
+        const auto root=stair_wall_root(12+dx,12+dy,0,shifted);
+        require(root&&root->x==12&&root->y==12,"offset exit identifies its lower stairwell support");
+    }
+    require(!stair_partner(23,12,0,1,[](int x,int y,int z)->uint32_t{return x==24&&y==12&&z==1?NCMM_WORLD_DOWN:0u;}),"adjacent stairs across a Native overmap boundary cannot be invented as a pair");
+    require(!stair_partner(12,12,0,1,[](int x,int y,int z)->uint32_t{return z==1&&y==12&&(x==11||x==13)?NCMM_WORLD_DOWN:0u;}),"ambiguous neighbouring exits do not invent a flight through a room");
+    require(!stair_partner(12,12,0,1,[](int x,int y,int z)->uint32_t{return z==1&&x==13&&(y==11||y==12)?NCMM_WORLD_DOWN:0u;}),"diagonal exits participate in Native ambiguity checks");
     // Rotated rural-church alcoves: a wall behind the flight is not an entry.
     for(uint32_t direction=0;direction<4;++direction){
         const int dx=direction==0?1:direction==2?-1:0,dy=direction==1?1:direction==3?-1:0;

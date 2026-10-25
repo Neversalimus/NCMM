@@ -152,7 +152,7 @@
     };
     size_t dispatch_number = 0;
     auto dispatch = [&](std::vector<SDL_Event> events, int boundaries = 1,
-                        unsigned duration = 2000) {
+                        unsigned duration = 2000, bool virtual_cursor_outside = false) {
         checkpoint("fps_input_" + get_option<std::string>("SDL_KEYBOARD_MODE") + "_" +
                    get_option<std::string>("NCMM_FIRST_PERSON_RENDERER") + "_" +
                    std::to_string(++dispatch_number));
@@ -174,8 +174,8 @@
             if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
                 event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
                 event.button.windowID = window;
-                event.button.x = mouse_x;
-                event.button.y = mouse_y;
+                event.button.x = virtual_cursor_outside?-16.f:mouse_x;
+                event.button.y = virtual_cursor_outside?-16.f:mouse_y;
             }
         graphics_fps_audit_wait.store(0);
         fps_events feed(window, mouse_x, mouse_y, std::move(events), duration);
@@ -433,7 +433,8 @@
                 const int before=you.get_moves();const auto position=you.pos_abs();const auto serial=graphics_attack_serial;
                 SDL_Event click{};click.type=SDL_EVENT_MOUSE_BUTTON_DOWN;click.button.button=SDL_BUTTON_LEFT;
                 SDL_Event release=click;release.type=SDL_EVENT_MOUSE_BUTTON_UP;
-                const bool modal=dispatch({click,release});
+                const bool outside=std::string(weapon)=="naginata";
+                const bool modal=dispatch({click,release},1,2000,outside);
                 require(!modal&&graphics_attack_serial==serial+1&&you.get_moves()<before&&you.pos_abs()==position&&!graphics_click_pending,
                         "fps_audit_lmb_reach_opened_selector_or_did_not_attack");
                 // Exercise the Native 'show' setting and a complete UI redraw,
@@ -445,7 +446,7 @@
                 graphics_release_mouse();::refresh_mouse_config();
                 require(SDL_CursorVisible(),"fps_audit_native_cursor_not_restored");
                 get_options().get_option("HIDE_CURSOR").setValue(hidden);::refresh_mouse_config();
-                samples.push_back({"lmb_native_reach",mode,renderer_mode,1,before-you.get_moves()});
+                samples.push_back({"lmb_native_reach",mode,renderer_mode,1,before-you.get_moves(),outside?1:0});
             }
             floor();warm(renderer_mode);native_redraw();
             you.set_desired_movement_mode(move_mode_id("walk"));
@@ -614,6 +615,37 @@
             you.set_movement_mode(move_mode_id("walk"));
             you.set_desired_movement_mode(move_mode_id("walk"));
 
+            floor();
+            {
+                const auto lower=you.pos_abs();const int dx=ncmm_world::omt_axis(lower.x())==ncmm_world::omt_axis(lower.x()+1)?1:-1;
+                const auto destination=lower+tripoint_rel_ms(dx,0,1);
+                here.ter_set(you.pos_bub(),ter_id("t_stairs_up"));
+                here.ter_set(here.get_bub(lower+tripoint_rel_ms(0,0,1)),ter_id("t_floor"));
+                here.ter_set(here.get_bub(lower+tripoint_rel_ms(dx,0,0)),ter_id("t_rock_wall"));
+                here.ter_set(here.get_bub(destination),ter_id("t_stairs_down"));
+                require(g->find_stairs(here,you.posz()+1,you.pos_bub())==here.get_bub(destination),"fps_audit_offset_fixture_not_native_stair_pair");
+                camera(dx>0?0:ncmm_graphics_camera::pi,.25f);refresh();warm(renderer_mode);
+                struct stair_observation {
+                    ncmm_graphics_render_multilevel_v1 provider;void *user;tripoint_abs_ms lower,upper;bool from=false,to=false;
+                    static int render(const ncmm_graphics_multilevel_scene_v1 *world,void *data){auto &self=*static_cast<stair_observation *>(data);
+                        for(uint32_t n=0;n<world->cell_count;++n){const auto &c=world->coordinates[n];
+                            if(c.x==self.lower.x()&&c.y==self.lower.y()&&c.z==self.lower.z())self.from|=bool(c.flags&NCMM_WORLD_CONNECTED_UP);
+                            if(c.x==self.upper.x()&&c.y==self.upper.y()&&c.z==self.upper.z())self.to|=bool(c.flags&NCMM_WORLD_DOWN);}
+                        return self.provider(world,self.user);}
+                } observed{graphics_view.world_render,graphics_view.user_data,lower,destination};
+                require(observed.provider!=nullptr,"fps_audit_offset_world_provider_missing");
+                {
+                    struct restore_callback {stair_observation &value;~restore_callback(){graphics_view.world_render=value.provider;graphics_view.user_data=value.user;}} restore{observed};
+                    graphics_view.world_render=&stair_observation::render;graphics_view.user_data=&observed;native_redraw();
+                }
+                require(observed.from&&observed.to,"fps_audit_offset_pair_not_in_actual_renderer_snapshot");
+                capture("offset-stair-lower-"+std::string(mode)+"-"+renderer_mode);
+                const int before=you.get_moves();g->vertical_move(1,false);
+                require(you.pos_abs()==destination&&you.get_moves()<before,"fps_audit_offset_native_destination_or_cost_changed");
+                camera(dx>0?ncmm_graphics_camera::pi:0,-.65f);
+                capture("offset-stair-upper-"+std::string(mode)+"-"+renderer_mode);
+                samples.push_back({"native_offset_stair",mode,renderer_mode,1,before-you.get_moves()});
+            }
             floor();
             vehicle *car = here.add_vehicle(vproto_id("car"), point_at(0, -3), 0_degrees, 100,
                                             veh_spawn_status::UNDAMAGED, false);
