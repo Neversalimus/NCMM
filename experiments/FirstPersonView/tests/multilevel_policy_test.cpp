@@ -16,6 +16,16 @@ struct fixture {
 }
 int main(){
     using namespace ncmm_world;
+    // Rotated rural-church alcoves: a wall behind the flight is not an entry.
+    for(uint32_t direction=0;direction<4;++direction){
+        const int dx=direction==0?1:direction==2?-1:0,dy=direction==1?1:direction==3?-1:0;
+        auto alcove=[&](int x,int y,int z)->uint32_t{
+            if(z==0&&x==-dx&&y==-dy)return NCMM_WORLD_FLOOR;
+            if(z==1&&x==dx&&y==dy)return NCMM_WORLD_FLOOR;
+            return NCMM_WORLD_FLOOR|NCMM_WORLD_OPAQUE;
+        };
+        require(stair_direction(0,0,0,alcove)==direction,"stair rises away from lower approach into the upper landing");
+    }
     for(int eye_z=-10;eye_z<=10;++eye_z)for(int range=0;range<=8;++range)for(int z=-15;z<=15;++z){
         const bool reference=std::abs(z-eye_z)<=range||std::abs(z-1-eye_z)<=range;
         require(candidate_level_in_range(z,eye_z,range)==reference,"candidate level pruning retains every body and lower-slab range");

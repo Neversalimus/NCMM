@@ -392,6 +392,38 @@ int main(int argc,char **argv){
     }
     if(argc>1){std::ofstream out(std::string(argv[1])+".json");out<<"{\"success\":true,\"full_gpu_pipeline\":true,\"hardware_depth\":true,\"gpu_skinning\":true,\"psx_weighted_viewmodel\":true,\"impostor_colour_minification\":true,\"multilevel_depth_and_picking\":true,\"dynamic_upload_over_2mib_checked\":true,\"cpu_raster_calls\":0,\"animation_upload_bytes\":"<<second.upload_bytes<<",\"resource_bytes\":"<<second.resource_bytes<<",\"software_device\":"<<second.software_device<<",\"backend\":\""<<second.backend<<"\",\"device\":\""<<second.device<<"\"}\n";require(bool(out),"device evidence");}
     std::printf("Full GPU scene PASS: %s / %s; animation upload %llu bytes; CPU raster=0\n",second.backend,second.device,(unsigned long long)second.upload_bytes);
+    {
+        namespace fp=first_person;
+        std::array<ncmm_graphics_cell_v1,17*17> cells{};std::array<ncmm_graphics_cell_v2,17*17> details{};
+        for(int y=0;y<17;++y)for(int x=0;x<17;++x){const int i=y*17+x;cells[i].flags=NCMM_GFX_VISIBLE;
+            const char *id=x==8?"t_pavement":y==8?"t_dirt":"t_grass";std::strcpy(cells[i].terrain,id);std::strcpy(details[i].ground,id);
+            details[i].light_r=details[i].light_g=details[i].light_b=1;}
+        ncmm_graphics_scene_v2 source{};source.struct_size=sizeof(source);source.base={sizeof(source.base),640,480,17,17,8.5f,13.5f,cells.data(),cells.size()};
+        source.details=details.data();source.detail_count=details.size();source.environment.daylight=1;source.environment.sun_z=.8f;source.environment.sun_x=.4f;source.environment.wind_x=20;source.environment.wind_y=7;
+        uint32_t green=0x3e5a23ff,brown=0x6b543aff,asphalt=0x494b4cff;
+        auto provider=[&](uint32_t i,uint32_t layer,ncmm_graphics_sprite_v2 &sprite){
+            if(layer!=NCMM_GFX_GROUND)return false;
+            const auto *art=std::strcmp(cells[i].terrain,"t_grass")==0?&green:std::strcmp(cells[i].terrain,"t_dirt")==0?&brown:&asphalt;
+            sprite={sizeof(sprite),1,1,1,art};return true;};
+        fp::gpu::scene_cache cache;fp::hybrid::frame statistics;
+        static ncmm_gpu::backend *lawn_backend=nullptr;lawn_backend=&engine;
+        ncmm_host_graphics_gpu_v1 api{};api.has_resource=[](uint64_t key,uint32_t kind){return lawn_backend->has(key,kind)?1:0;};
+        std::vector<uint32_t> previous;
+        for(int n=0;n<2;++n){source.environment.animation_seconds=n?1.6:1;
+            fp::gpu::packet packet;require(cache.build(source,-fp::hybrid::pi*.5f,-.45f,provider,packet,statistics,engine.metrics(),{},nullptr,nullptr,640,480,NCMM_GPU_FORCE),cache.last_reason.c_str());
+            const auto &submission=packet.finish(&api);
+            if(n)require(!submission.generated_cells&&!submission.mesh_count&&!submission.texture_count,"wind reuses every GPU lawn mesh and texture");
+            require(engine.submit(submission),engine.metrics().reason);
+            if(n)require(engine.resources().static_upload_bytes()==0&&engine.metrics().generated_meshes==0&&engine.metrics().cpu_raster_calls==0,"real GPU lawn animation uploads only dynamic transforms");
+            capture(n?"-grass-wind":"-grass-rest");
+            auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"lawn pixels");
+            auto *image=SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888);SDL_DestroySurface(raw);require(image!=nullptr,"lawn pixel format");
+            std::vector<uint32_t> pixels(640*480);for(int y=0;y<480;++y)std::memcpy(pixels.data()+y*640,static_cast<const char *>(image->pixels)+y*image->pitch,640*sizeof(uint32_t));SDL_DestroySurface(image);
+            if(n){size_t changed=0;for(size_t i=640*160;i<pixels.size();++i)changed+=pixels[i]!=previous[i];require(changed>100,"wind moves actual GPU grass pixels");std::printf("GPU lawn: %zu changed pixels, %llu triangles, no static upload\n",changed,(unsigned long long)engine.metrics().triangles);}
+            previous=std::move(pixels);
+        }
+        lawn_backend=nullptr;
+    }
     // The imported red-dot lens uses alpha, rather than an opaque stand-in.
     // Two front lens surfaces precede an opaque held surface in material order:
     // they must blend after it and must not reject one another by writing depth.

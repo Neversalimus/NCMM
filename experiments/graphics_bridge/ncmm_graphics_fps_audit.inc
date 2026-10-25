@@ -425,6 +425,29 @@
             warm(renderer_mode);
             native_redraw();
             you.set_movement_mode(move_mode_id("walk"));
+            for(const char *weapon:{"naginata","spear_steel"}) {
+                floor();you.set_moves(10000);you.set_wielded_item(item(itype_id(weapon),calendar::turn));
+                auto *enemy=g->place_critter_at(mtype_id("mon_zombie"),you.pos_bub()+tripoint_rel_ms(0,-2,0));
+                require(enemy&&you.get_wielded_item()->current_reach_range(you).first>1,"fps_audit_reach_fixture");
+                camera(-ncmm_graphics_camera::pi*.5f,-.3f);warm(renderer_mode);native_redraw();
+                const int before=you.get_moves();const auto position=you.pos_abs();const auto serial=graphics_attack_serial;
+                SDL_Event click{};click.type=SDL_EVENT_MOUSE_BUTTON_DOWN;click.button.button=SDL_BUTTON_LEFT;
+                SDL_Event release=click;release.type=SDL_EVENT_MOUSE_BUTTON_UP;
+                const bool modal=dispatch({click,release});
+                require(!modal&&graphics_attack_serial==serial+1&&you.get_moves()<before&&you.pos_abs()==position&&!graphics_click_pending,
+                        "fps_audit_lmb_reach_opened_selector_or_did_not_attack");
+                // Exercise the Native 'show' setting and a complete UI redraw,
+                // not just the instantaneous return value of SDL_HideCursor.
+                const std::string hidden=get_option<std::string>("HIDE_CURSOR");
+                get_options().get_option("HIDE_CURSOR").setValue("show");
+                ::refresh_mouse_config();native_redraw();
+                require(graphics_mouse_drag&&!SDL_CursorVisible(),"fps_audit_imgui_reshowed_captured_cursor");
+                graphics_release_mouse();::refresh_mouse_config();
+                require(SDL_CursorVisible(),"fps_audit_native_cursor_not_restored");
+                get_options().get_option("HIDE_CURSOR").setValue(hidden);::refresh_mouse_config();
+                samples.push_back({"lmb_native_reach",mode,renderer_mode,1,before-you.get_moves()});
+            }
+            floor();warm(renderer_mode);native_redraw();
             you.set_desired_movement_mode(move_mode_id("walk"));
             you.set_stamina(you.get_stamina_max());
             const int stance_moves = you.get_moves(), run_stamina = you.get_stamina();

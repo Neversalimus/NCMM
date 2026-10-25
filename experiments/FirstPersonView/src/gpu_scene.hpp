@@ -23,6 +23,7 @@ struct mesh_builder {
         const uint32_t first=uint32_t(mesh.vertices.size());for(const auto &v:value.v){ncmm_gpu_vertex_v1 out{};vec p=v.p-origin;
             out.position[0]=p.x;out.position[1]=p.y;out.position[2]=p.z;out.normal[0]=out.face_normal[0]=value.normal.x;out.normal[1]=out.face_normal[1]=value.normal.y;out.normal[2]=out.face_normal[2]=value.normal.z;
             out.uv[0]=v.u;out.uv[1]=v.v;out.material=material;
+            if(value.m.grass)out.joint=v.v>.8f?2u:v.v>.1f?1u:0u;
             if(value.m.gpu_billboard){out.flags=NCMM_GPU_BILLBOARD;auto pivot=value.m.gpu_pivot-origin;out.pivot[0]=pivot.x;out.pivot[1]=pivot.y;out.pivot[2]=pivot.z;}
             mesh.vertices.push_back(out);}
         mesh.indices.insert(mesh.indices.end(),{first,first+1,first+2});}
@@ -31,7 +32,7 @@ class scene_cache {
     friend struct scene_signature_probe;
     using key=std::tuple<int32_t,int32_t,int32_t>;
     using signature_position=std::array<int32_t,3>; // canonical z/y/x, owned values only
-    struct chunk {uint64_t signature=0,touched=0;std::array<std::shared_ptr<const owned_mesh>,2> meshes;};
+    struct chunk {uint64_t signature=0,touched=0;std::array<std::shared_ptr<const owned_mesh>,3> meshes;};
     struct key_hash {
         size_t operator()(const key &value)const noexcept{
             const auto [x,y,z]=value;
@@ -130,15 +131,21 @@ class scene_cache {
         }
         bool dirty(int cell)const override{return cell>=0&&size_t(cell)<dirty_cells.size()&&dirty_cells[cell];}
         bool any_dirty()const override{return generated_cells!=0;}
-        void emit(const hybrid::triangle &value)override{uint32_t pass=value.m.overlay?NCMM_GPU_HELD:value.m.alpha<.99f&&!value.m.cutout?NCMM_GPU_TRANSPARENT:NCMM_GPU_OPAQUE;
+        void emit(const hybrid::triangle &value)override{uint32_t pass=value.m.grass?3u:value.m.overlay?NCMM_GPU_HELD:value.m.alpha<.99f&&!value.m.cutout?NCMM_GPU_TRANSPARENT:NCMM_GPU_OPAQUE;
             auto &builder=builders[{value.m.cell,pass}];auto m=material(value.m,builder);builder.triangle(value,builder.material(m),origin(value.m.cell));}
         void world_complete()override{
             for(int i=0;i<int(scene.base.cell_count);++i)if(dirty(i)){auto &chunk=cache.chunks[cell_key(i)];chunk={};chunk.signature=signatures[i];
-                for(uint32_t pass=0;pass<2;++pass){auto found=builders.find({i,pass});if(found!=builders.end()){chunk.meshes[pass]=cache.assets.mesh(std::move(found->second.mesh));if(!chunk.meshes[pass])fail("GPU static scene mesh cache budget exceeded");}}}
+                for(uint32_t pass=0;pass<3;++pass){auto found=builders.find({i,pass==2?3:pass});if(found!=builders.end()){chunk.meshes[pass]=cache.assets.mesh(std::move(found->second.mesh));if(!chunk.meshes[pass])fail("GPU static scene mesh cache budget exceeded");}}}
             builders.clear();world=false;
             for(int i=0;i<int(scene.base.cell_count);++i)if(scene.base.cells[i].flags&NCMM_GFX_VISIBLE){auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()){warming=true;continue;}
                 if(found->second.signature!=signatures[i]){warming=true;continue;}
-                found->second.touched=cache.frame_serial;for(uint32_t pass=0;pass<2;++pass)frame.draw(found->second.meshes[pass],place(origin(i)),uint32_t(i),pass);}
+                found->second.touched=cache.frame_serial;for(uint32_t pass=0;pass<2;++pass)frame.draw(found->second.meshes[pass],place(origin(i)),uint32_t(i),pass);
+                if(found->second.meshes[2]){
+                    const auto [x,y,z]=cell_key(i);const auto &e=scene.environment;
+                    const auto bend=ncmm_grass::wind(ncmm_grass::seed(x,y,z),e.animation_seconds,e.wind_x,e.wind_y);
+                    const std::array<ncmm_gpu_matrix_v1,3> pose={identity(),place({bend.x*.30f,bend.y*.30f,0}),place({bend.x,bend.y,0})};
+                    frame.draw_skinned(found->second.meshes[2],place(origin(i)),uint32_t(i),NCMM_GPU_OPAQUE,pose.data(),pose.size());
+                }}
         }
         bool horizon_dirty()const override{return cache.horizon_signature!=(metadata&&metadata->horizon_enabled?metadata->horizon_revision:0);}
         void horizon_complete()override{
@@ -336,7 +343,11 @@ class scene_cache {
                 const float x=d.vehicle_x+d.mount_x*c-d.mount_y*sn-s.base.camera_x,y=d.vehicle_y+d.mount_x*sn+d.mount_y*c-s.base.camera_y;
                 const float eye_height=metadata?metadata->view.eye_height:1.55f;distance=std::sqrt(x*x+y*y+eye_height*eye_height);}
             // Distance-only vehicle detail bands are stable across camera turns.
-            const uint32_t detail_band=s.details[i].vehicle_features?(width/(2*std::tan(70*hybrid::pi/360))/std::max(.1f,distance)<28?2:distance>8?1:0):0;
+            uint32_t detail_band=s.details[i].vehicle_features?(width/(2*std::tan(70*hybrid::pi/360))/std::max(.1f,distance)<28?2:distance>8?1:0):0;
+            if(ncmm_grass::terrain(cell.terrain)){
+                const auto p=levels?xyz.origin(uint32_t(i)):ncmm_world::point{float(i%columns),float(i/columns),0};
+                detail_band=ncmm_grass::band(std::hypot(p.x+.5f-s.base.camera_x,p.y+.5f-s.base.camera_y));
+            }
             const auto key=content_position(size_t(i));
             const uint32_t flags=levels?levels->coordinates[i].flags:0,direction=levels?levels->coordinates[i].direction:0;
             const normalized_record *old=nullptr;

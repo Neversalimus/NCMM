@@ -121,6 +121,16 @@ int main(){try{
     empty.details[stair_cell].terrain_shape=NCMM_SHAPE_FLAT;
     float top=0;for(const auto &t:stairs.triangles)for(const auto &v:t.v)top=std::max(top,v.p.z);
     check(top>=NCMM_WORLD_LEVEL_HEIGHT,"staircase connects a full physical Z storey");
+    for(uint32_t facing=0;facing<4;++facing){
+        empty.positions[stair_cell].direction=facing;collector turned;
+        renderer(empty.world.appearance,0,0,{},statistics,{},nullptr,{},nullptr,&empty.world).collect(turned,400,260);
+        unsigned tread=0;
+        for(const auto &t:turned.triangles)if(t.m.cell==stair_cell&&t.normal.z>.9f&&std::abs(t.v[0].p.z-NCMM_WORLD_LEVEL_HEIGHT)<.0001f){
+            ++tread;for(const auto &v:t.v)check(v.p.x>=4.0799f&&v.p.x<=4.9201f&&v.p.y>=1.0799f&&v.p.y<=1.9201f,"rotated top tread fits the real stair aperture");
+        }
+        check(tread>0,"every staircase facing reaches its upper opening");
+    }
+    empty.positions[stair_cell].direction=0;
     const int stair=empty.cell(4,1,0);empty.positions[stair].flags|=NCMM_WORLD_RAMP;
     collector ramp;renderer(empty.world.appearance,0,0,{},statistics,{},nullptr,{},nullptr,&empty.world).collect(ramp,400,260);
     bool slope=false;for(const auto &t:ramp.triangles)if(t.normal.z>.1f&&t.normal.z<.9f)slope=true;

@@ -438,10 +438,16 @@ bool graphics_draw_world(int x,int y,int width,int height)
         graphics_world_candidate c{};c.world={ax,ay,z,semantic|permission,0,0,graphics_world_level_revisions[size_t(z+128)]+1,{0,0,0}};
         c.pos=p;c.permission=permission;c.distance=dx*dx+dy*dy+dz*dz;c.facade_light=facade_light;
         if(permission&NCMM_WORLD_FLOOR_BOTTOM){const auto rgb=graphics_world_rgb(below);std::copy(rgb.begin(),rgb.end(),c.world.lower_light);}
-        if((permission&NCMM_WORLD_BODY_VISIBLE)&&(semantic&(NCMM_WORLD_UP|NCMM_WORLD_RAMP|NCMM_WORLD_LADDER)))for(uint32_t direction=0;direction<4;++direction){const int nx=direction==0?1:direction==2?-1:0,ny=direction==1?1:direction==3?-1:0;
-            const uint32_t next=flags(ax+nx,ay+ny,z);
-            if((semantic&NCMM_WORLD_RAMP)&&(next&NCMM_WORLD_RAMP_END)){c.world.direction=direction;break;}
-            if(!(semantic&NCMM_WORLD_RAMP)&&!(next&(NCMM_WORLD_UNKNOWN|NCMM_WORLD_OPAQUE))){c.world.direction=direction;break;}}
+        if((permission&NCMM_WORLD_BODY_VISIBLE)&&(semantic&NCMM_WORLD_RAMP)) {
+            for(uint32_t direction=0;direction<4;++direction){const int nx=direction==0?1:direction==2?-1:0,ny=direction==1?1:direction==3?-1:0;
+                if(flags(ax+nx,ay+ny,z)&NCMM_WORLD_RAMP_END){c.world.direction=direction;break;}}
+        } else if((permission&NCMM_WORLD_BODY_VISIBLE)&&(semantic&NCMM_WORLD_LADDER)) {
+            for(uint32_t direction=0;direction<4;++direction){const int nx=direction==0?1:direction==2?-1:0,ny=direction==1?1:direction==3?-1:0;
+                if(flags(ax+nx,ay+ny,z)&NCMM_WORLD_OPAQUE){c.world.direction=(direction+2u)%4u;break;}}
+        } else if((permission&NCMM_WORLD_BODY_VISIBLE)&&(semantic&(NCMM_WORLD_UP|NCMM_WORLD_DOWN))) {
+            const int lower=(semantic&NCMM_WORLD_DOWN)&&!(semantic&NCMM_WORLD_UP)?z-1:z;
+            c.world.direction=ncmm_world::stair_direction(ax,ay,lower,flags);
+        }
         candidate_loan.push_back(c);
         rejected.remember=false;
         if(!entity&&!observed_death&&!here.veh_at(p)){

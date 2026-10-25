@@ -17,7 +17,7 @@ def prepare(root,updates,bridge):
         'static bool manager_reset_setting(const module_setting_meta &);\n'
         'namespace\n{')
     loader=once(loader,'#include "ncmm_graphics_camera.hpp"',
-        '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_input.hpp"\n#include "ncmm_graphics_focus.h"\n#include "action.h"\n#if defined(TILES)\n#include "cata_imgui.h"\n#endif')
+        '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_grass.hpp"\n#include "ncmm_graphics_input.hpp"\n#include "ncmm_graphics_focus.h"\n#include "action.h"\n#if defined(TILES)\n#include "cata_imgui.h"\nvoid refresh_mouse_config();\n#endif')
     loader=once(loader,'    if( !graphics_control_context ) graphics_release_mouse();','    graphics_fps_sync();')
     loader=once(loader,'    if( graphics_fire_capture.active ) graphics_fire_input_context.store( (category == "DEFAULTMODE" ? 1u : category == "TARGET" ? 2u : 3u) | (text ? 4u : 0u) );',
         '    graphics_fps_input_begin(category);\n'
@@ -36,6 +36,9 @@ def prepare(root,updates,bridge):
     loader=loader.replace('    graphics_context.reset();','    graphics_fps_reset();\n    graphics_context.reset();')
     updates['ncmm_loader.cpp']=loader
     loader=once(loader,'std::string graphics_click_action()\n{',
+        'bool graphics_cursor_captured()\n{\n    return graphics_mouse_drag;\n}\n'
+        'bool graphics_take_reach_target(std::optional<tripoint_bub_ms> &target)\n{\n'
+        '    return graphics_take_reach_target_impl(target);\n}\n'
         'void graphics_fps_poll()\n{\n    graphics_fps_poll_impl();\n}\n'
         'bool graphics_route_sdl(const SDL_Event &event,const SDL_Event &display,bool allowed)\n{\n'
         '    return graphics_route_sdl_impl(event,display,allowed);\n}\n'
@@ -51,6 +54,8 @@ def prepare(root,updates,bridge):
     header=updates['ncmm_loader.h']
     header=once(header,'#include <cstdint>','#include <cstdint>\n#include <optional>\n#include "coordinates.h"\nunion SDL_Event;')
     header=once(header,'void initialize();',
+        'bool graphics_cursor_captured();\n'
+        'bool graphics_take_reach_target(std::optional<tripoint_bub_ms> &);\n'
         'bool graphics_route_sdl(const SDL_Event &,const SDL_Event &,bool);\n'
         'bool graphics_fps_pending();\n'
         'const std::string *graphics_fps_take_action(const std::string &);\n'
@@ -113,6 +118,12 @@ void initialize();''')
     sdl=once(sdl,legacy,'''        // One owner before the event reaches ImGui or Native key translation.
         if(ncmm::graphics_route_sdl(ev,ev_display,!cataimgui::client::want_capture_mouse()&&!cataimgui::client::want_capture_keyboard()))continue;
         imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );''')
+    sdl=once(sdl,'    ImGuiIO &io = ImGui::GetIO();\n    if( !mouse.enabled ) {',
+        '    ImGuiIO &io = ImGui::GetIO();\n'
+        '    if(ncmm::graphics_cursor_captured()) {\n'
+        '        io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;\n'
+        '        HideCursor();\n        return;\n    }\n'
+        '    if( !mouse.enabled ) {')
     sdl=once(sdl,'    if( needupdate ) {\n        try_sdl_update();',
         '    // Drain the existing SDL batch before resolving held chords. A\n'
         '    // Native key (F6, menu, etc.) wins over our synthetic wakeup.\n'
@@ -120,6 +131,12 @@ void initialize();''')
         '    if( needupdate ) {\n        try_sdl_update();')
     updates['sdltiles.cpp']=sdl
     action=updates['handle_action.cpp']
+    action=once(action,'static void reach_attack( avatar &you )\n{\n',
+        'static void reach_attack( avatar &you )\n{\n'
+        '    std::optional<tripoint_bub_ms> fps_target;\n'
+        '    if(ncmm::graphics_take_reach_target(fps_target)) {\n'
+        '        if(fps_target)you.reach_attack(*fps_target);\n'
+        '        return;\n    }\n')
     # The SDL router is now the sole FPS mouse owner. Retaining the old late
     # SELECT-to-fire adapter would reinterpret Native Command Mode clicks.
     action=once(action,
@@ -134,6 +151,6 @@ void initialize();''')
     action=once(action,'player_character.assign_activity( open_tile_activity_actor( std::nullopt ) );',
         'player_character.assign_activity( open_tile_activity_actor( ncmm::graphics_targeted_open(mouse_target) ) );')
     updates['handle_action.cpp']=action
-    for name in ('ncmm_graphics_input.hpp','ncmm_graphics_focus.h','ncmm_graphics_fps.inc','ncmm_graphics_fps_audit.inc'):
+    for name in ('ncmm_graphics_input.hpp','ncmm_graphics_grass.hpp','ncmm_graphics_focus.h','ncmm_graphics_fps.inc','ncmm_graphics_fps_audit.inc'):
         if (root/'src'/name).exists():raise ValueError('FPS experimental source already exists: '+name)
         updates[name]=(bridge/name).read_text(encoding='utf-8')

@@ -18,7 +18,7 @@ class FpsEvidenceTests(unittest.TestCase):
     def run_report(self):
         (self.root/'first-person-fps-input.json').write_text(json.dumps(self.report))
         return verify(self.root)
-    def test_complete_fixture(self):self.assertEqual(self.run_report()['samples'],120)
+    def test_complete_fixture(self):self.assertEqual(self.run_report()['samples'],128)
     def test_missing_case_rejected(self):
         self.report['samples'].pop()
         with self.assertRaises(AssertionError):self.run_report()

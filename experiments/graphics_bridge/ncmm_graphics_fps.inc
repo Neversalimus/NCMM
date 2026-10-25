@@ -52,6 +52,7 @@ void graphics_fps_reset() {
     graphics_fps_open_target.reset();
     graphics_fps_move_origin.reset();
     graphics_fps_action.clear();
+    graphics_click_pending=false;
     graphics_fps_dispatch_action.clear();
     graphics_fps_initial_capture = false;
     graphics_fps_keys_ready = false;
@@ -480,6 +481,7 @@ const std::string *graphics_fps_take_action_impl(const std::string &category) {
     graphics_fps_action.clear();
     graphics_fps_dispatch_target.reset();
     graphics_fps_dispatch_action.clear();
+    graphics_click_pending=false;
     using command = ncmm_graphics_input::command;
     if (value.action == command::move) {
         const auto delta =

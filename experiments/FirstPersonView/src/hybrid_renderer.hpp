@@ -1,4 +1,5 @@
 #pragma once
+#include "ncmm_graphics_grass.hpp"
 #include "ncmm_graphics_v2.h"
 #include "ncmm_world_policy.hpp"
 #include "ncmm_world_lod.hpp"
@@ -186,7 +187,7 @@ inline surface ground_surface(const char *id){
 struct material {const image *texture=nullptr;vec color{0.45f,0.45f,0.45f};float alpha=1;
     bool cutout=false,opaque_texture=false,overlay=false;int cell=-1;surface finish=surface::none;bool creature=false,spill=false;uint32_t liquid=0,banks=0;
     bool smooth=false,silhouette=false,creature_visual=false;const creature::impostor *impostor=nullptr;float creature_yaw=0;
-    bool gpu_backface=false,gpu_billboard=false;vec gpu_pivot{};bool slab_lower=false,distance_lod=false;};
+    bool gpu_backface=false,gpu_billboard=false;vec gpu_pivot{};bool slab_lower=false,distance_lod=false,grass=false;};
 struct triangle {std::array<vertex,3> v;material m;vec normal{0,0,1};};
 
 // Geometry-only destination. The shared generator preserves the existing art
@@ -987,6 +988,7 @@ class renderer {
     }
     #include "creatures.inc"
     #include "multilevel_geometry.inc"
+    #include "grass.inc"
     void horizon(){
         if(!metadata||!metadata->horizon_enabled||!world_data)return;
         for(const auto &p:metadata->horizon){
@@ -1051,6 +1053,7 @@ class renderer {
                 continue;
             }
             contact_shadow(i,x,y);
+            if(gpu_sink)lawn(i);
             if(world_data)world_transition(i);
             architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
             if(d.vehicle_features)vehicle(i);else if(c.furniture[0])architecture(i,d.furniture_shape,NCMM_GFX_FURNITURE);
@@ -1308,17 +1311,24 @@ public:
             f.geometry_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-geometry_begun).count();paint(opaque);
             if(options.skip_hidden_sky)sky();
             std::stable_sort(transparent.begin(),transparent.end(),[&](const triangle &a,const triangle &b){return view(a.v[0].p+a.v[1].p+a.v[2].p).z>view(b.v[0].p+b.v[1].p+b.v[2].p).z;});
-            if(creature_data)f.transparency=std::make_shared<cached_transparency>(transparent);else paint(transparent);
+            f.transparency=std::make_shared<cached_transparency>(transparent);
             f.sun_shadows=shadows;
             if(world_output)*world_output=f;
         }
         f.creature_lods={};f.creature_culled=f.creature_fallback=0;
+        // Animate only these near-field blades. The floor, walls and distant
+        // world remain in the CPU cache; animation never changes Native time.
+        opaque.clear();transparent.clear();
+        for(int i=0;i<int(base.cell_count);++i)if(visible(i)&&
+            (!world_data||(world_flags(i)&NCMM_WORLD_BODY_VISIBLE)))lawn(i);
+        paint(opaque);
         if(creature_data){opaque.clear();transparent.clear();const auto begun=std::chrono::steady_clock::now();dynamic_creatures();
             f.geometry_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();paint(opaque);
             // Local contact shadows and cached glass both depth-test against the
             // current creature pass. Glass never becomes an opaque cache layer.
-            paint(transparent);if(f.transparency)paint(f.transparency->triangles);
+            paint(transparent);
         }
+        if(f.transparency)paint(f.transparency->triangles);
         f.aimed=-1;
         const int target=f.creatures[size_t(f.height/2)*f.width+f.width/2];
         if(target>=0){f.aimed=target;const float h=extra(target).creature_height>0?extra(target).creature_height:1.7f;

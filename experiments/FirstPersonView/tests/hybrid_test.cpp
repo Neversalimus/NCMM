@@ -49,6 +49,9 @@ int main(int argc,char **argv){try{
     check(ncmm_graphics_shapes::furniture("f_boulder_large",opaque_rock)==NCMM_SHAPE_ROCK,"large opaque boulders do not become wall cubes");
     check(ncmm_graphics_shapes::terrain("t_rock_wall",opaque_rock)==NCMM_SHAPE_WALL,"underground stone walls keep their wall geometry");
     ncmm_graphics_shapes::traits mesh_gate;mesh_gate.door=true;mesh_gate.impassable=true;
+    for(const char *id:{"f_indoor_plant","f_indoor_plant_y","f_indoor_plant f_indoor_plant_y"})
+        check(ncmm_graphics_shapes::furniture(id,{})==NCMM_SHAPE_PLANT,"Native indoor plant must not become a door");
+    check(ncmm_graphics_shapes::furniture("f_sliding_door_c",mesh_gate)==NCMM_SHAPE_DOOR_CLOSED,"real furniture doors retain their geometry");
     check(ncmm_graphics_shapes::terrain("t_chaingate_c",mesh_gate)==NCMM_SHAPE_FENCE,"closed chain gate retains mesh despite its DOOR flag");
     ncmm_graphics_shapes::traits radio;radio.transparent=true;radio.impassable=true;
     check(ncmm_graphics_shapes::terrain("t_radio_tower",radio)==NCMM_SHAPE_LATTICE_TOWER,"native radio tower uses steel lattice");

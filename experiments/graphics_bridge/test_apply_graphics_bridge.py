@@ -44,6 +44,7 @@ class ApplyTests(unittest.TestCase):
         (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR+'\nstatic void CheckMessages()\n{\n        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n    if( needupdate ) {\n        try_sdl_update();\n    }\n}\n')
         (root / "src/sdl_wrappers.cpp").write_text('#include "sdl_wrappers.h"\nvoid RenderPresent() {\n    printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" );\n}\n')
         with (root / "src/sdltiles.cpp").open('a') as f:
+            f.write('void refresh_mouse_config() {\n    ImGuiIO &io = ImGui::GetIO();\n    if( !mouse.enabled ) {}\n}\n')
             f.write('\n'.join('void teardown_'+str(i)+'() {\n    renderer.reset();\n}' for i in range(4))+'\n')
             f.write('    } else if( ui_adaptor::has_imgui() ) {\n        try_sdl_update();\n    }\n')
         (root / "src/main_menu.cpp").write_text("        std::exit( ncmm::run_gameplay_smoke() );")
@@ -52,6 +53,7 @@ class ApplyTests(unittest.TestCase):
         with (root / "src/handle_action.cpp").open('a') as f: f.write('\n    if( act == ACTION_NULL ) {\n        act = look_up_action( action );\n    }')
         with (root / "src/handle_action.cpp").open('a') as f: f.write('\n        if( act == ACTION_SELECT || act == ACTION_SEC_SELECT ) {}\ninput_context game::get_player_input( std::string &action )\n{\n    return ctxt;\n}\n\nstatic void rcdrive( ) {}')
         with (root / "src/handle_action.cpp").open('a') as f:f.write('\n        if( act == ACTION_INTERACT ) {}\nplayer_character.assign_activity( open_tile_activity_actor( std::nullopt ) );\n')
+        with (root / "src/handle_action.cpp").open('a') as f:f.write('\nstatic void reach_attack( avatar &you )\n{\n}\n')
         (root / "src/melee.cpp").write_text('    const bool hits = hit_spread >= 0;')
         (root / "src/ranged.cpp").write_text('target_handler::trajectory target_ui::run()\n{\n}\n        curshot++;\n\n        if( !gun.is_gun() ) {}\n    bool skip_redraw = false;')
         (root / "src/creature.cpp").write_text("int Creature::deal_melee_attack( Creature *source, int hitroll )\n{\n}\n    apply_damage( source, bp, total_damage );")
@@ -268,8 +270,10 @@ bool cata_tiles::draw_sprite_at() {
             ('debug.cpp','#include "debug.h"'),
             ('input_context.cpp','        if( next_action.type == input_event_t::timeout ) {'),
             ('handle_action.cpp','        if( act == ACTION_INTERACT ) {'),
+            ('handle_action.cpp','static void reach_attack( avatar &you )\n{\n'),
             ('handle_action.cpp','player_character.assign_activity( open_tile_activity_actor( std::nullopt ) );'),
             ('sdltiles.cpp','    } else if( ui_adaptor::has_imgui() ) {\n        try_sdl_update();\n    }'),
+            ('sdltiles.cpp','    ImGuiIO &io = ImGui::GetIO();\n    if( !mouse.enabled ) {'),
             ('sdltiles.cpp','    if( needupdate ) {\n        try_sdl_update();')]:
             for ambiguous in [False,True]:
                 with self.subTest(name=name,anchor=anchor,ambiguous=ambiguous), tempfile.TemporaryDirectory() as tmp:

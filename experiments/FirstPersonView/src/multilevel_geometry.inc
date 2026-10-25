@@ -44,8 +44,10 @@
             const vec at=cell_origin(i);quad(at,at+vec{1,0,0},at+vec{1,1,0},at+vec{0,1,0},water,{0,0,1});return;
         }
         if((flags&NCMM_WORLD_DOWN)&&!(flags&(NCMM_WORLD_LADDER|NCMM_WORLD_RAMP))){
-            slab_piece(i,0,0,.14f,1);slab_piece(i,.86f,0,1,1);
-            slab_piece(i,.14f,0,.86f,.08f);slab_piece(i,.14f,.92f,.86f,1);
+            // The same square aperture as floor_blocks() fits the complete
+            // flight and rails at every facing, including a rotated church.
+            slab_piece(i,0,0,.08f,1);slab_piece(i,.92f,0,1,1);
+            slab_piece(i,.08f,0,.92f,.08f);slab_piece(i,.08f,.92f,.92f,1);
         }
     }
     void world_transition(int i){
@@ -77,14 +79,14 @@
             for(float side:{-.5f,.5f})quad(p(-.5f,side,0),p(.5f,side,0),p(.5f,side,height),p(-.5f,side,.02f),structure,rotate({0,side>0?1.f:-1.f,0},{},angle));
             quad(p(.5f,-.5f,0),p(.5f,.5f,0),p(.5f,.5f,height),p(.5f,-.5f,height),structure,rotate({1,0,0},{},angle));return;
         }
-        const int steps=std::max(5,int(std::ceil(height/.21f)));const float run=.72f/steps,rise=height/steps;
-        for(int n=0;n<steps;++n){const float x=-.36f+n*run;
+        const int steps=std::max(5,int(std::ceil(height/.21f)));const float run=.84f/steps,rise=height/steps;
+        for(int n=0;n<steps;++n){const float x=-.42f+n*run;
             box(center,{x,-.32f,0},{x+run,.32f,(n+1)*rise},structure,angle);}
         material rail{nullptr,{.29f,.31f,.32f},1,false,false,false,i,surface::metal};
         for(float side:{-.35f,.35f}){
-            for(int n=0;n<=3;++n){const float x=-.36f+n*.72f/3,z=(x+.36f)*height/.72f;
+            for(int n=0;n<=3;++n){const float x=-.42f+n*.84f/3,z=(x+.42f)*height/.84f;
                 box(center,{x-.014f,side-.014f,z+.04f},{x+.014f,side+.014f,z+.75f},rail,angle);}
             auto p=[&](float x,float y,float z){return rotate({x,y,z},center,angle);};
-            quad(p(-.36f,side-.017f,.77f),p(.36f,side-.017f,height+.77f),p(.36f,side+.017f,height+.80f),p(-.36f,side+.017f,.80f),rail);
+            quad(p(-.42f,side-.017f,.77f),p(.42f,side-.017f,height+.77f),p(.42f,side+.017f,height+.80f),p(-.42f,side+.017f,.80f),rail);
         }
     }

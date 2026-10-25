@@ -8,6 +8,14 @@ struct traits {
          impassable=false,open=false,water=false,flat=false,bridge=false;
 };
 inline bool contains(const std::string &s,const char *part) { return s.find(part)!=std::string::npos; }
+// Match an identifier component, not the middle of an unrelated word:
+// f_indoor_plant is vegetation; its "indoor" is not a door alias.
+inline bool word(const std::string &id,const std::string &part) {
+    for(size_t at=id.find(part);at!=std::string::npos;at=id.find(part,at+1))
+        if((at==0||id[at-1]=='_'||id[at-1]==' ')&&
+           (at+part.size()==id.size()||id[at+part.size()]=='_'||id[at+part.size()]==' '))return true;
+    return false;
+}
 inline bool ending(const std::string &s,const std::string &tail){return s.size()>=tail.size()&&s.compare(s.size()-tail.size(),tail.size(),tail)==0;}
 // Enchantment grades can be foreground UI marks in layered tilesets. The
 // declared looks_like alias supplies physical weapon art while the snapshot
@@ -24,7 +32,7 @@ inline uint32_t terrain(const std::string &id,const traits &t) {
     if(contains(primary,"guardrail"))return NCMM_SHAPE_GUARDRAIL;
     if(contains(primary,"scrap_wall")||contains(primary,"scrap_barricade")||contains(primary,"scrap_fence"))return NCMM_SHAPE_SCRAP_FENCE;
     // A transparent glass wall is a full-height pane, not a window or an opaque cube.
-    if(t.transparent&&!t.door&&!contains(primary,"door")&&!contains(primary,"window")&&
+    if(t.transparent&&!t.door&&!word(primary,"door")&&!contains(primary,"window")&&
        (contains(primary,"glass")&&(t.wall||t.impassable)))return NCMM_SHAPE_GLASS_WALL;
     if(contains(primary,"doormat")||contains(primary,"door_mat")||contains(primary,"trapdoor")||
        (t.flat&&contains(primary,"hatch")))return NCMM_SHAPE_FLAT;
@@ -43,7 +51,7 @@ inline uint32_t terrain(const std::string &id,const traits &t) {
     // Mesh gates carry DOOR in CDDA; their physical material stays wire.
     if(contains(primary,"chaingate")||contains(primary,"chainfence_gate")||contains(primary,"screen_door"))
         return t.open||ending(primary,"_o")?NCMM_SHAPE_GATE_OPEN:NCMM_SHAPE_FENCE;
-    const bool door=(t.door&&!t.window)||contains(primary,"door");
+    const bool door=(t.door&&!t.window)||word(primary,"door");
     if(door&&!contains(primary,"screen_door")){
         if(contains(primary,"frame")||contains(primary,"broken")||ending(primary,"_b"))return NCMM_SHAPE_DOOR_FRAME;
         return t.open||ending(primary,"_o")||contains(primary,"_open")?NCMM_SHAPE_DOOR_OPEN:NCMM_SHAPE_DOOR_CLOSED;
@@ -57,7 +65,7 @@ inline uint32_t terrain(const std::string &id,const traits &t) {
     if(t.flat&&contains(primary,"grate"))return NCMM_SHAPE_FLAT;
     const bool fence=contains(id,"fence")||contains(id,"railing")||contains(id,"bars")||contains(id,"grate")||contains(id,"chaingate")||contains(id,"chickenwire")||contains(id,"screen_door");
     if(fence) return t.open||contains(id,"gate_o")||contains(id,"door_o") ? NCMM_SHAPE_GATE_OPEN:NCMM_SHAPE_FENCE;
-    if(t.door||contains(id,"door")) return t.open||contains(id,"door_o")||contains(id,"door_frame") ?
+    if(t.door||word(id,"door")) return t.open||contains(id,"door_o")||contains(id,"door_frame") ?
         NCMM_SHAPE_DOOR_OPEN:NCMM_SHAPE_DOOR_CLOSED;
     if(t.wall || (t.impassable&&!t.transparent)) return NCMM_SHAPE_WALL;
     if(contains(id,"flower")||contains(id,"plant")||contains(id,"sapling")||contains(id,"young")||

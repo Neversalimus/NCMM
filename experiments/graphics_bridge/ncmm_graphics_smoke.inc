@@ -496,6 +496,8 @@ bool graphics_scene_smoke()
             const auto traits = graphics_traits( furn, !furn.close.is_null() );
             const uint32_t shape = ncmm_graphics_shapes::furniture( furn.id.str() + " " + furn.looks_like, traits );
             require( shape < NCMM_SHAPE_COUNT, "furniture_shape_out_of_range" );
+            if(furn.id.str()=="f_indoor_plant"||furn.id.str()=="f_indoor_plant_y")
+                require(shape==NCMM_SHAPE_PLANT,"native_potted_plant_became_a_door");
             if( traits.tree || traits.shrub || traits.window || ( traits.door && !traits.flat && !ncmm_graphics_shapes::contains( furn.id.str(), "trapdoor" ) ) ) require( ncmm_graphics_shapes::vertical( shape ), "semantic_furniture_became_floor" );
             ++taxonomy[shape]; ++furniture_count;
         }

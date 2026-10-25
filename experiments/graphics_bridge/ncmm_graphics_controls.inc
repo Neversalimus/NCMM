@@ -14,6 +14,7 @@ double graphics_attack_started = 0;
 struct { int x=0,y=0,w=0,h=0; } graphics_viewport;
 
 extern bool graphics_click_pending;
+extern bool graphics_grass_active;
 void graphics_cancel_animation()
 {
     graphics_attack_pending = false; graphics_frame_pending_present=false;graphics_attack_started = -1;graphics_click_pending=false;
@@ -27,8 +28,12 @@ bool graphics_apply_mouse_capture(bool capture)
         graphics_cursor_was_visible=SDL_CursorVisible();
         if(!SDL_SetWindowRelativeMouseMode(get_sdl_window(),true))return false;
         SDL_HideCursor();
+        graphics_mouse_drag=true;
+        ::refresh_mouse_config(); // ImGui must not show it again on its next frame.
     } else {
         SDL_SetWindowRelativeMouseMode(get_sdl_window(),false);
+        graphics_mouse_drag=false;
+        ::refresh_mouse_config();
         if(graphics_cursor_was_visible)SDL_ShowCursor();
     }
 #endif
@@ -185,7 +190,7 @@ bool graphics_redraw_due()
     // One recovery frame after the last keyframe restores the idle pose.
     const bool attack = graphics_attack_serial && age >= 0 && age < .53;
     // Slow ambient animation while idle; simulation time still never advances.
-    if( now - graphics_last_redraw < ( graphics_mouse_dirty || attack || graphics_world_needs_redraw() ? 16u : 90u ) ) return false;
+    if( now - graphics_last_redraw < ( graphics_mouse_dirty || attack || graphics_world_needs_redraw() ? 16u : graphics_grass_active?33u:90u ) ) return false;
     graphics_last_redraw = now; graphics_mouse_dirty = false;
     if( g ) g->invalidate_main_ui_adaptor();
     return true;

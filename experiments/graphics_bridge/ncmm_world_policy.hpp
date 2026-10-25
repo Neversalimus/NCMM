@@ -12,6 +12,22 @@
 namespace ncmm_world {
 struct point {float x=0,y=0,z=0;};
 struct voxel {int x=0,y=0,z=0;};
+// A direction points uphill. The approach is at the opposite end of a
+// flight; choosing the first open neighbour as uphill puts its foot in a wall.
+// Native terrain has no authored facing, so rank both actual landings, with
+// a stable tie break. The same lower/upper pair supplies both endpoints.
+template<class Sample> uint32_t stair_direction(int x,int y,int z,Sample sample) {
+    auto walk=[](uint32_t f){return !(f&(NCMM_WORLD_UNKNOWN|NCMM_WORLD_OPAQUE|NCMM_WORLD_WATER))&&
+        bool(f&(NCMM_WORLD_FLOOR|NCMM_WORLD_UP|NCMM_WORLD_DOWN|NCMM_WORLD_RAMP));};
+    int best=-1;uint32_t chosen=0;
+    for(uint32_t d=0;d<4;++d){const int dx=d==0?1:d==2?-1:0,dy=d==1?1:d==3?-1:0;
+        const bool entry=walk(sample(x-dx,y-dy,z)),exit=walk(sample(x+dx,y+dy,z+1));
+        const int score=(entry?16:0)+(exit?12:0)+(entry&&exit?16:0)+
+            (entry&&walk(sample(x-2*dx,y-2*dy,z))?2:0)+(exit&&walk(sample(x+2*dx,y+2*dy,z+1))?1:0);
+        if(score>best){best=score;chosen=d;}
+    }
+    return chosen;
+}
 inline bool candidate_level_in_range(int z,int eye_z,int range){
     const int64_t dz=int64_t(z)-eye_z;
     // A slab may expose its underside from the in-range level immediately below.
@@ -135,7 +151,7 @@ inline bool floor_blocks(uint32_t flags,float x,float y){
     if(flags&NCMM_WORLD_FLOOR)return true;
     // Stair landing surrounds the actual opening. Ladders/shafts keep air open.
     if((flags&NCMM_WORLD_DOWN)&&!(flags&(NCMM_WORLD_LADDER|NCMM_WORLD_RAMP)))
-        return x<.14f||x>.86f||y<.08f||y>.92f;
+        return x<.08f||x>.92f||y<.08f||y>.92f;
     return false;
 }
 // Only a full opaque horizontal slab can prove an entire plane closed.
