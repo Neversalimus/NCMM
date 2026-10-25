@@ -109,7 +109,9 @@
         #include "ncmm_graphics_fps_audit.inc"
     };
     if(std::getenv("NCMM_FP_FPS_INPUT_ONLY")) {
-        action("native_fps_input_and_actions",fps_cases);report.end_array();
+        action("native_fps_input_and_actions",fps_cases);
+        action("native_fps_renderer_hotkey_cycle",[&](){for(int i=0;i<3;++i)f12();});
+        report.end_array();
         you.set_moves(original_moves);camera(original_yaw,original_pitch);clear_monsters();graphics_clear_world();
         report.member("diagnostic_only",true);report.member("ordinary_performance_measurement",false);
         report.member("success",true);report.end_object();stream.close();

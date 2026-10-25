@@ -315,6 +315,22 @@
                     events.push_back(gained);
                 }
                 dispatch(std::move(events));
+                if (graphics_input_router.captured() ||
+                    graphics_input_router.ready(SDL_GetTicks()) || you.pos_abs() != position ||
+                    you.get_moves() != before_moves) {
+                    const auto delta = you.pos_abs() - position;
+                    log_line(
+                        NCMM_LOG_ERROR,
+                        ("FPS window diagnostic type=" + std::to_string(event_type) +
+                         " captured=" + std::to_string(graphics_input_router.captured()) +
+                         " ready=" + std::to_string(graphics_input_router.ready(SDL_GetTicks())) +
+                         " delta=" + std::to_string(delta.x()) + "," + std::to_string(delta.y()) +
+                         " cost=" + std::to_string(before_moves - you.get_moves()) +
+                         " owner=" + std::to_string(int(graphics_input_router.owner())) +
+                         " initial=" + std::to_string(graphics_fps_initial_capture) +
+                         " last=" + graphics_fps_action)
+                            .c_str());
+                }
                 require(!graphics_input_router.captured() &&
                             !graphics_input_router.ready(SDL_GetTicks()) &&
                             you.pos_abs() == position && you.get_moves() == before_moves,
