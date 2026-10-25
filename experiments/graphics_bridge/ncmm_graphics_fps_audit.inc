@@ -530,6 +530,8 @@
                 log_line(NCMM_LOG_INFO,(std::string("FPS gun diagnostic keyboard=")+mode+" renderer="+renderer_mode+" case="+std::to_string(shooting)+
                     " modal="+std::to_string(modal)+" activity="+std::to_string(bool(you.activity))+" captured="+std::to_string(graphics_input_router.captured())+
                     " owner="+std::to_string(int(graphics_input_router.owner()))+" pending="+std::to_string(graphics_fps_gunshot_pending)+
+                    " controls="+std::to_string(graphics_control_context)+" ui_claimed="+std::to_string(graphics_fps_ui_claimed)+
+                    " imgui_mouse="+std::to_string(cataimgui::client::want_capture_mouse())+" imgui_keys="+std::to_string(cataimgui::client::want_capture_keyboard())+
                     " shots="+std::to_string(ammo-you.get_wielded_item()->ammo_remaining())+" serial="+std::to_string(graphics_attack_serial-serial)+
                     " cost="+std::to_string(before-you.get_moves())).c_str());
                 require(!modal&&!you.activity&&graphics_input_router.captured(),"fps_gun_opened_selector_or_lost_capture");

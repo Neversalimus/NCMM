@@ -55,6 +55,7 @@ class ApplyTests(unittest.TestCase):
         with (root / "src/handle_action.cpp").open('a') as f:f.write('\n        if( act == ACTION_INTERACT ) {}\nplayer_character.assign_activity( open_tile_activity_actor( std::nullopt ) );\n')
         with (root / "src/handle_action.cpp").open('a') as f:f.write('\nstatic void reach_attack( avatar &you )\n{\n}\n')
         (root / "src/melee.cpp").write_text('    const bool hits = hit_spread >= 0;')
+        (root / "src/animation.cpp").write_text('#include "animation.h"\nclass basic_animation {\n        void draw() const {\n            static_popup popup;\n        }\n};\n')
         (root / "src/avatar_action.cpp").write_text('#include "avatar_action.h"\nvoid avatar_action::fire_wielded_weapon( avatar &you )\n{\n    const item_location weapon = ncmm::select_ranged_weapon( you, ncmm::ranged_weapon_action::fire, "select", "select" );\n    if( weapon == you.get_wielded_item() ) {\n        you.assign_activity( aim_activity_actor::use_wielded() );\n    } else {\n        you.assign_activity( aim_activity_actor::use_item_location( weapon ) );\n    }\n}\n')
         (root / "src/ranged.cpp").write_text('target_handler::trajectory target_ui::run()\n{\n}\n        curshot++;\n\n        if( !gun.is_gun() ) {}\n    bool skip_redraw = false;')
         (root / "src/creature.cpp").write_text("int Creature::deal_melee_attack( Creature *source, int hitroll )\n{\n}\n    apply_damage( source, bp, total_damage );")
@@ -108,6 +109,14 @@ bool cata_tiles::draw_sprite_at() {
             with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
                 with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
             self.assertEqual(before,self.fingerprint(root))
+    def test_changed_native_animation_anchor_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root)
+            target=root/'src/animation.cpp';target.write_text(target.read_text().replace('static_popup popup;', 'changed_native_animation();'))
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
     def test_changed_rebase_cache_reset_no_partial_patch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);self.fixture(root)
@@ -150,6 +159,9 @@ bool cata_tiles::draw_sprite_at() {
                 firing=(root/'src/avatar_action.cpp').read_text(encoding='utf-8')
                 self.assertLess(firing.index('graphics_take_fps_gunshot'),firing.index('ncmm::select_ranged_weapon'))
                 self.assertIn('aim_activity_actor::use_item_location( weapon )',firing)
+                animation=(root/'src/animation.cpp').read_text(encoding='utf-8')
+                self.assertLess(animation.index('ncmm::graphics_cursor_captured()'),animation.index('static_popup popup;'))
+                self.assertIn('ui_manager::redraw_invalidated();',animation)
                 self.assertIn("draw_graphics_view", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
                 self.assertIn("graphics_requires_terrain_pass", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))
                 self.assertIn("ncmm_native_pixels_ready = true;", (root / "src/sdltiles.cpp").read_text(encoding="utf-8"))

@@ -210,6 +210,22 @@ void initialize();''')
     }
 ''')
     updates['avatar_action.cpp']=firing
+    animation=updates.get('animation.cpp')
+    if animation is None:animation=(root/'src/animation.cpp').read_text(encoding='utf-8')
+    if '#include "ncmm_loader.h"' not in animation:
+        animation=once(animation,'#include "animation.h"','#include "animation.h"\n#include "ncmm_loader.h"')
+    animation=once(animation,'        void draw() const {\n            static_popup popup;',
+        '        void draw() const {\n'
+        '            // Native wait_message is a passive animation overlay, but\n'
+        '            // its ImGui input claim can release the FPS cursor. Keep\n'
+        '            // the same redraw/presentation and timing without a popup.\n'
+        '            if( ncmm::graphics_cursor_captured() ) {\n'
+        '                g->invalidate_main_ui_adaptor();\n'
+        '                ui_manager::redraw_invalidated();\n'
+        '                refresh_display();\n'
+        '                return;\n            }\n'
+        '            static_popup popup;')
+    updates['animation.cpp']=animation
     for name in ('ncmm_graphics_input.hpp','ncmm_graphics_grass.hpp','ncmm_graphics_focus.h','ncmm_graphics_fps.inc','ncmm_graphics_fps_audit.inc'):
         if (root/'src'/name).exists():raise ValueError('FPS experimental source already exists: '+name)
         updates[name]=(bridge/name).read_text(encoding='utf-8')
