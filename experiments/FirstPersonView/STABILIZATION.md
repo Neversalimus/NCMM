@@ -14,7 +14,8 @@ Native reach attack after Native's ordinary fire-entry checks. A stale primary
 request is consumed without opening a new selector; RMB still opens Native
 aiming. The FPS matrix includes real LMB attacks with a naginata and a steel
 spear in both keyboard modes and both renderers, plus an actual Native offset
-stair destination/render-snapshot check, bringing it to 132 cases.
+stair destination/render-snapshot check and Native grass presentation checks,
+bringing it to 136 cases.
 The cursor test redraws the actual interface with `HIDE_CURSOR=show` while
 captured, then checks that releasing capture restores Native cursor handling.
 Captured button ownership ignores the hidden absolute cursor position; one
@@ -49,7 +50,14 @@ new shader/ABI is required.
 Local checks cover tile filtering, CPU animation over the world cache, fixed
 roots, GPU mesh reuse, LOD changes, real GPU pixel changes and all four stair
 facings. Native integration and exact installer qualification must be rerun
-for these bytes. Background games remain active by the user's instruction;
+for these bytes. The Native grass fixture checks real terrain variants,
+additional GPU blade geometry and unchanged Native position/moves/time, and
+captures both presentation-clock wind phases.
+Diagnostic scene reset also synchronizes Native's current map Z after a
+fixture teleport; Native vertical movement uses that value independently of
+the avatar Z. Unexpected Native prompts in the offset-stair check are cancelled
+by the existing bounded diagnostic guard and cannot silently qualify a failed move.
+Background games remain active by the user's instruction;
 local timings cannot certify a 15 ms frame budget or non-regression.
 
 ## 0.12.8 teardown diagnosis and first-frame preparation

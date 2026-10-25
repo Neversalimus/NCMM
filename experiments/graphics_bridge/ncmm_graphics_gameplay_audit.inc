@@ -28,7 +28,11 @@
         for(int z=-1;z<=2;++z)for(int y=-24;y<=24;++y)for(int x=-24;x<=24;++x){const auto p=point_at(x,y,z);if(!here.ncmm_graphics_loaded(p))continue;
             here.ter_set(p,ter_id(z<=0?"t_floor":"t_open_air"));here.furn_set(p,furn_id("f_null"));here.clear_fields(p);here.i_clear(p);here.remove_trap(p);
             if(npc *n=get_creature_tracker().creature_at<npc>(p)){const auto id=n->getID();g->remove_npc(id);overmap_buffer.remove_npc(id);}}
-        you.setpos(here,point_at(0,0),false);you.set_moves(10000);g->set_safe_mode(SAFE_MODE_OFF);graphics_clear_world();graphics_clear_creatures();camera(-ncmm_graphics_camera::pi*.5f,-.08f);refresh();};
+        you.setpos(here,point_at(0,0),false);
+        // Native vertical_move reads the map's current Z, not avatar.posz().
+        // Diagnostic teleport/setup after a stair must restore both domains.
+        if(here.get_abs_sub().z()!=you.posz())g->vertical_shift(you.posz());
+        you.set_moves(10000);g->set_safe_mode(SAFE_MODE_OFF);graphics_clear_world();graphics_clear_creatures();camera(-ncmm_graphics_camera::pi*.5f,-.08f);refresh();};
     // UI construction/redraw may pump and discard a prequeued key. Feed the
     // normal SDL queue after the menu has entered its own input loop instead.
     // The worker touches no game state and is joined before leaving the scope.

@@ -18,13 +18,16 @@ class FpsEvidenceTests(unittest.TestCase):
     def run_report(self):
         (self.root/'first-person-fps-input.json').write_text(json.dumps(self.report))
         return verify(self.root)
-    def test_complete_fixture(self):self.assertEqual(self.run_report()['samples'],132)
+    def test_complete_fixture(self):self.assertEqual(self.run_report()['samples'],136)
     def test_missing_case_rejected(self):
         self.report['samples'].pop()
         with self.assertRaises(AssertionError):self.run_report()
     def test_captured_outside_click_case_required(self):
         for sample in self.report['samples']:
             if sample['scenario']=='lmb_native_reach':sample['direction']=0
+        with self.assertRaises(AssertionError):self.run_report()
+    def test_grass_presentation_cannot_spend_moves(self):
+        next(s for s in self.report['samples'] if s['scenario']=='grass_native_presentation')['native_move_cost']=1
         with self.assertRaises(AssertionError):self.run_report()
     def test_one_layout_cannot_stand_for_both(self):
         for sample in self.report['samples']:sample['keyboard_mode']='keycode'

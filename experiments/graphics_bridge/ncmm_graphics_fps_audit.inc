@@ -623,6 +623,7 @@
                 here.ter_set(here.get_bub(lower+tripoint_rel_ms(0,0,1)),ter_id("t_floor"));
                 here.ter_set(here.get_bub(lower+tripoint_rel_ms(dx,0,0)),ter_id("t_rock_wall"));
                 here.ter_set(here.get_bub(destination),ter_id("t_stairs_down"));
+                require(here.get_abs_sub().z()==you.posz(),"fps_audit_offset_fixture_map_level_mismatch");
                 require(g->find_stairs(here,you.posz()+1,you.pos_bub())==here.get_bub(destination),"fps_audit_offset_fixture_not_native_stair_pair");
                 camera(dx>0?0:ncmm_graphics_camera::pi,.25f);refresh();warm(renderer_mode);
                 struct stair_observation {
@@ -640,7 +641,8 @@
                 }
                 require(observed.from&&observed.to,"fps_audit_offset_pair_not_in_actual_renderer_snapshot");
                 capture("offset-stair-lower-"+std::string(mode)+"-"+renderer_mode);
-                const int before=you.get_moves();g->vertical_move(1,false);
+                const int before=you.get_moves();
+                {cancel_native_ui cancel(window);g->vertical_move(1,false);}
                 require(you.pos_abs()==destination&&you.get_moves()<before,"fps_audit_offset_native_destination_or_cost_changed");
                 camera(dx>0?ncmm_graphics_camera::pi:0,-.65f);
                 capture("offset-stair-upper-"+std::string(mode)+"-"+renderer_mode);
@@ -683,6 +685,24 @@
             require(you.get_moves() == blocked_moves && here.ter(hidden_door) == ter_id("t_door_c"),
                     "fps_audit_e_interacted_through_wall");
             samples.push_back({"e_occluded_refusal", mode, renderer_mode, 0, 0});
+            floor();camera(-ncmm_graphics_camera::pi*.5f,-.35f);warm(renderer_mode);native_redraw();
+            const uint64_t ground_triangles=graphics_gpu_engine?graphics_gpu_engine->metrics().triangles:0;
+            const std::array<const char *,4> lawns={"t_grass","t_grass_long","t_grass_dead","t_grass_golf"};
+            for(int y=2;y<=5;++y)for(int x=-2;x<=2;++x)
+                here.ter_set(you.pos_bub()+tripoint_rel_ms(x,-y,0),ter_id(lawns[size_t(y-2)]));
+            const auto grass_position=you.pos_abs();const int grass_moves=you.get_moves();const auto grass_turn=calendar::turn;
+            refresh();warm(renderer_mode);native_redraw();
+            require(graphics_grass_active,"fps_audit_native_grass_not_visible_to_renderer");
+            if(std::string(renderer_mode)=="gpu")require(graphics_gpu_engine&&graphics_gpu_engine->metrics().triangles>ground_triangles+100,
+                    "fps_audit_native_grass_has_no_blade_geometry");
+            {
+                struct grass_clock {std::optional<double> previous;~grass_clock(){graphics_smoke_seconds=previous;}} grass_time_restore{graphics_smoke_seconds};
+                graphics_smoke_seconds=5.0;capture("grass-native-still-"+std::string(mode)+"-"+renderer_mode);
+                graphics_smoke_seconds=5.6;capture("grass-native-wind-"+std::string(mode)+"-"+renderer_mode);
+            }
+            require(you.pos_abs()==grass_position&&you.get_moves()==grass_moves&&calendar::turn==grass_turn,
+                    "fps_audit_grass_animation_advanced_native_state");
+            samples.push_back({"grass_native_presentation",mode,renderer_mode,0,0});
         }
     }
     std::ofstream output(game_root() / "ncmm" / "first-person-fps-input.json");

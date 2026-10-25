@@ -9,12 +9,12 @@ COUNTS={'physical_w_8_yaws':8,'wd_one_diagonal':1,'held_w_three_native_boundarie
         'r_native_reload':1,'u_native_tool':1,'g_native_pickup_cancel':1,
         'e_ground_item_cancel':1,'e_container_cancel':1,'e_window_cancel':1,
         'e_npc_cancel':1,'e_terminal_cancel':1,'e_native_stair':1,'native_offset_stair':1,
-        'e_vehicle_cancel':1,'e_occluded_refusal':1}
+        'e_vehicle_cancel':1,'e_occluded_refusal':1,'grass_native_presentation':1}
 ACTIONS={'held_w_three_native_boundaries':3,'native_run_crouch_wait':4,
-         'focus_resize_dpi_release':0,'e_occluded_refusal':0}
+         'focus_resize_dpi_release':0,'e_occluded_refusal':0,'grass_native_presentation':0}
 FREE={'inventory_held_w_cancel','focus_resize_dpi_release','g_native_pickup_cancel',
       'e_ground_item_cancel','e_container_cancel','e_window_cancel','e_npc_cancel',
-      'e_terminal_cancel','e_vehicle_cancel','e_occluded_refusal'}
+      'e_terminal_cancel','e_vehicle_cancel','e_occluded_refusal','grass_native_presentation'}
 ALLOW_ZERO={'u_native_tool'} # Native flashlight activation may have no move cost.
 
 def verify(root):
