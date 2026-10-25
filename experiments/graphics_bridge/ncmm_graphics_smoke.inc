@@ -196,10 +196,21 @@ bool graphics_scene_smoke()
         ncmm::graphics_note_input_context( "INVENTORY" );
         require( ncmm::graphics_relative_action( "UP", arrow( "UP" ), false ) == "UP", "menu_arrows_rotated" );
         ncmm::graphics_note_input_context( "DEFAULTMODE" );
-        for( int i = 0; i < 6; ++i ) ncmm::handle_gameplay_action( "ncmm.view.turn_left" );
+        for (int i = 0; i < 6; ++i)
+            ncmm::handle_gameplay_action("ncmm.view.turn_left");
+        // setup() alone leaves the startup menu's ImGui ownership behind.
+        // Use the actual gameplay UI before testing live SDL capture.
+        g->ncmm_graphics_smoke_prepare_turns();
+        const auto mouse_native_ui = g->create_or_get_main_ui_adaptor();
+        require(SDL_SetRenderTarget(smoke_renderer, nullptr), "mouse_native_ui_target");
+        g->invalidate_main_ui_adaptor();
+        ui_manager::redraw();
+        refresh_display();
         graphics_release_mouse();
-        float pointer_x=0,pointer_y=0;
-        require(SDL_RenderCoordinatesToWindow(smoke_renderer, 320, 240, &pointer_x, &pointer_y),
+        float pointer_x = 0, pointer_y = 0;
+        require(SDL_RenderCoordinatesToWindow(
+                    smoke_renderer, float(graphics_viewport.x + graphics_viewport.w / 2),
+                    float(graphics_viewport.y + graphics_viewport.h / 2), &pointer_x, &pointer_y),
                 "mouse_fixture_window_coordinates");
         SDL_WarpMouseInWindow(get_sdl_window(), pointer_x, pointer_y);
         inp_mngr.pump_events();
@@ -207,6 +218,7 @@ bool graphics_scene_smoke()
         {
             struct mouse_script {
                 std::atomic<bool> stop{false}, sent{false};
+                std::atomic<uint32_t> last_wait{0};
                 bool previous;
                 std::thread worker;
                 mouse_script(SDL_WindowID window, float x, float y)
@@ -216,6 +228,7 @@ bool graphics_scene_smoke()
                           while (!stop.load() && SDL_GetTicks() < deadline) {
                               SDL_Delay(20);
                               const auto waiting = graphics_fps_audit_wait.load();
+                              last_wait.store(waiting);
                               if (!(waiting & 1u))
                                   continue;
                               if (!(waiting & 16u)) {
@@ -278,6 +291,13 @@ bool graphics_scene_smoke()
                 if (look_action == "ncmm.view.look_up")
                     break;
             }
+            if (!feed.sent.load() || look_action != "ncmm.view.look_up")
+                log_line(NCMM_LOG_ERROR,
+                         ("Mouse wait diagnostic bits=" + std::to_string(feed.last_wait.load()) +
+                          " owner=" + std::to_string(int(graphics_input_router.owner())) +
+                          " ui=" + std::to_string(graphics_fps_ui_claimed) + " focused=" +
+                          std::to_string(graphics_fps_focused) + " action=" + look_action)
+                             .c_str());
             require(feed.sent.load() && look_action == "ncmm.view.look_up",
                     "mouse_event_consumed_gameplay_key");
         }
@@ -285,13 +305,22 @@ bool graphics_scene_smoke()
                 "sdl_mouse_motion_did_not_rotate_camera");
         require(ncmm::graphics_mouse_event(3, 320, 240, -100, 0, true),
                 "mouse_return_motion_failed");
+        require(SDL_SetRenderTarget(smoke_renderer, smoke_canvas) &&
+                    SDL_SetRenderLogicalPresentation(smoke_renderer, 0, 0,
+                                                     SDL_LOGICAL_PRESENTATION_DISABLED) &&
+                    SDL_SetRenderScale(smoke_renderer, 1, 1) &&
+                    SDL_SetRenderViewport(smoke_renderer, nullptr) &&
+                    SDL_SetRenderClipRect(smoke_renderer, nullptr),
+                "mouse_native_ui_canvas_restore");
         ncmm::graphics_note_input_context("INVENTORY");
-        require( !graphics_mouse_drag && !SDL_GetWindowRelativeMouseMode( get_sdl_window() ), "menu_did_not_release_cursor" );
-        ncmm::graphics_note_input_context( "DEFAULTMODE" );
-        require( you.pos_bub() == start_pos && you.get_moves() == start_moves && calendar::turn == start_time,
-                 "mouse_or_relative_camera_spent_turn" );
+        require(!graphics_mouse_drag && !SDL_GetWindowRelativeMouseMode(get_sdl_window()),
+                "menu_did_not_release_cursor");
+        ncmm::graphics_note_input_context("DEFAULTMODE");
+        require(you.pos_bub() == start_pos && you.get_moves() == start_moves &&
+                    calendar::turn == start_time,
+                "mouse_or_relative_camera_spent_turn");
         draw();
-        const float daytime_light = g->natural_light_level( 0 );
+        const float daytime_light = g->natural_light_level(0);
         require( you.get_memorized_tile( here.get_abs( door ) ).get_ter_id() == "t_door_c",
                  "closed_door_not_memorized" );
         SDL_Renderer *renderer = get_sdl_renderer().get();
