@@ -190,7 +190,6 @@ bool graphics_world_needs_redraw();
 #include "ncmm_graphics_held.inc"
 #include "ncmm_graphics_hybrid.inc"
 #include "ncmm_graphics_world.inc"
-#include "ncmm_graphics_fps.inc"
 
 #if defined(TILES)
 // Opt-in evidence for the real native UI. No readback/IO on the normal path.
@@ -227,6 +226,8 @@ void graphics_capture_before_present()
     graphics_fire_capture.frames.push_back(std::move(frame));
 }
 #endif
+
+#include "ncmm_graphics_fps.inc"
 
 bool graphics_draw( int x, int y, int width, int height )
 {

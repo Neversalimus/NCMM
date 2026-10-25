@@ -6,15 +6,19 @@
     const std::string previous_renderer = get_option<std::string>("NCMM_FIRST_PERSON_RENDERER");
     struct fps_audit_guard {
         std::string keyboard, renderer;
+        move_mode_id movement, desired;
         ~fps_audit_guard() {
             graphics_fps_audit_active = false;
             graphics_fps_audit_wait.store(0);
             graphics_release_mouse();
+            get_avatar().set_desired_movement_mode(desired);
+            get_avatar().set_movement_mode(movement);
             get_options().get_option("SDL_KEYBOARD_MODE").setValue(keyboard);
             get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(renderer);
             options_manager::update_options_cache();
         }
-    } restore_fps{previous_keyboard, previous_renderer};
+    } restore_fps{previous_keyboard, previous_renderer, you.current_movement_mode(),
+                  you.get_desired_move_mode()};
     graphics_fps_audit_active = true;
     const auto window = SDL_GetWindowID(get_sdl_window());
     auto key_event = [window](SDL_Scancode code, SDL_Keycode key, bool down,
@@ -97,9 +101,22 @@
                             {SDL_SCANCODE_S, SDLK_S},
                             {SDL_SCANCODE_D, SDLK_D}}})
                       key(pair.first, pair.second, false);
-                  key(SDL_SCANCODE_F8, SDLK_F8, true);
-                  key(SDL_SCANCODE_F8, SDLK_F8, false);
                   done.store(true);
+                  // UI redraws may drain a just-queued diagnostic key. Keep
+                  // cancel/wake delivery bounded and acknowledged by the main
+                  // thread's return; never enqueue gameplay movement here.
+                  const auto wake_deadline = SDL_GetTicks() + 12000;
+                  while (!stop.load() && SDL_GetTicks() < wake_deadline) {
+                      const auto waiting = graphics_fps_audit_wait.load();
+                      if (waiting & 2u) {
+                          key(SDL_SCANCODE_ESCAPE, SDLK_ESCAPE, true);
+                          key(SDL_SCANCODE_ESCAPE, SDLK_ESCAPE, false);
+                      } else if (waiting & 1u) {
+                          key(SDL_SCANCODE_F8, SDLK_F8, true);
+                          key(SDL_SCANCODE_F8, SDLK_F8, false);
+                      }
+                      SDL_Delay(100);
+                  }
               }) {}
         ~fps_events() {
             stop.store(true);
@@ -111,8 +128,12 @@
             SDL_FlushEvent(SDL_EVENT_MOUSE_BUTTON_UP);
         }
     };
+    size_t dispatch_number = 0;
     auto dispatch = [&](std::vector<SDL_Event> events, int boundaries = 1,
-                        unsigned duration = 200) {
+                        unsigned duration = 2000) {
+        checkpoint("fps_input_" + get_option<std::string>("SDL_KEYBOARD_MODE") + "_" +
+                   get_option<std::string>("NCMM_FIRST_PERSON_RENDERER") + "_" +
+                   std::to_string(++dispatch_number));
         int ww = 0, wh = 0, pw = 0, ph = 0;
         SDL_GetWindowSize(get_sdl_window(), &ww, &wh);
         SDL_GetWindowSizeInPixels(get_sdl_window(), &pw, &ph);
@@ -172,6 +193,8 @@
         get_options().get_option("SDL_KEYBOARD_MODE").setValue(mode);
         options_manager::update_options_cache();
         for (const char *renderer_mode : {"cpu", "gpu"}) {
+            you.set_desired_movement_mode(move_mode_id("walk"));
+            you.set_movement_mode(move_mode_id("walk"));
             floor();
             warm(renderer_mode);
             you.set_wielded_item(item());
@@ -264,7 +287,7 @@
             dispatch({key_event(SDL_SCANCODE_W, SDLK_W, true),
                       key_event(SDL_SCANCODE_I, SDLK_I, true),
                       key_event(SDL_SCANCODE_I, SDLK_I, false)},
-                     1, 500);
+                     1, 5000);
             require(you.pos_abs() == inventory_origin && you.get_moves() == inventory_moves,
                     "fps_audit_inventory_leaked_held_walk");
             require(!graphics_input_router.ready(SDL_GetTicks()),
@@ -350,16 +373,27 @@
             warm(renderer_mode);
             native_redraw();
             you.set_movement_mode(move_mode_id("walk"));
+            you.set_desired_movement_mode(move_mode_id("walk"));
+            you.set_stamina(you.get_stamina_max());
+            const int stance_moves = you.get_moves(), run_stamina = you.get_stamina();
             dispatch(tap(SDL_SCANCODE_LSHIFT, SDLK_LSHIFT));
-            require(you.is_running(), "fps_audit_shift_did_not_toggle_native_run");
+            require(you.is_run_mode_desired(), "fps_audit_shift_did_not_toggle_native_run");
+            // Native commits a requested movement mode on the next ordinary
+            // action. Verify real running and stamina through a real step.
+            dispatch(tap(SDL_SCANCODE_W, SDLK_W));
+            require(you.is_running() && you.get_stamina() < run_stamina,
+                    "fps_audit_run_step_did_not_use_native_stamina");
             dispatch(tap(SDL_SCANCODE_C, SDLK_C));
-            require(you.is_crouching(), "fps_audit_c_did_not_toggle_native_crouch");
+            require(you.is_running() && you.is_crouch_mode_desired(),
+                    "fps_audit_c_did_not_request_native_crouch");
             const int wait_moves = you.get_moves();
             dispatch(tap(SDL_SCANCODE_SPACE, SDLK_SPACE));
-            require(you.get_moves() < wait_moves, "fps_audit_space_did_not_spend_native_wait");
+            require(you.is_crouching() && you.get_moves() < wait_moves,
+                    "fps_audit_space_did_not_complete_native_pose_and_wait");
             samples.push_back(
-                {"native_run_crouch_wait", mode, renderer_mode, 3, wait_moves - you.get_moves()});
+                {"native_run_crouch_wait", mode, renderer_mode, 4, stance_moves - you.get_moves()});
             you.set_movement_mode(move_mode_id("walk"));
+            you.set_desired_movement_mode(move_mode_id("walk"));
         }
     }
     std::ofstream output(game_root() / "ncmm" / "first-person-fps-input.json");

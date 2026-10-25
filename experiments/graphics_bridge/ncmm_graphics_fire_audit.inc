@@ -17,7 +17,7 @@
         enum class kind { command, click, pointer_click, confirm, cancel };
         std::atomic<bool> stop{false};std::atomic<bool> escape_recovery{false};std::thread worker;
         input_feed(SDL_WindowID window,kind type,float mx=0,float my=0,bool cancel_target=false):worker([this,window,type,mx,my,cancel_target](){
-            int waiting=0;uint32_t previous_context=0;bool awaiting_mode_ack=false;
+            int waiting=0;uint32_t previous_context=0;bool awaiting_mode_ack=false,focus_requested=false;
             for(int tick=0;tick<18000&&!stop.load();++tick){
                 SDL_Delay(10);
                 const auto waiting_input=graphics_fire_input_context.load();const auto context=waiting_input&3u;
@@ -25,6 +25,13 @@
                 if(context!=previous_context){waiting=0;previous_context=context;}
                 ++waiting;if(tick%10!=9||stop.load())continue;
                 SDL_Event event={};const bool recovering=waiting>=1000;
+                if(context==1&&!focus_requested){
+                    // This controlled fixture owns synthetic focus, like the
+                    // dedicated focus cases. It does not claim foreground or
+                    // physical multi-monitor testing on the user's desktop.
+                    event.type=SDL_EVENT_WINDOW_FOCUS_GAINED;event.window.windowID=window;SDL_PushEvent(&event);
+                    focus_requested=true;continue;
+                }
                 if(recovering||((type==kind::cancel||cancel_target)&&context!=1)){
                     if(recovering)escape_recovery.store(true);
                     event.type=SDL_EVENT_KEY_DOWN;event.key.windowID=window;event.key.key=SDLK_ESCAPE;event.key.scancode=SDL_SCANCODE_ESCAPE;

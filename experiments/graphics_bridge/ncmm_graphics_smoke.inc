@@ -197,31 +197,95 @@ bool graphics_scene_smoke()
         require( ncmm::graphics_relative_action( "UP", arrow( "UP" ), false ) == "UP", "menu_arrows_rotated" );
         ncmm::graphics_note_input_context( "DEFAULTMODE" );
         for( int i = 0; i < 6; ++i ) ncmm::handle_gameplay_action( "ncmm.view.turn_left" );
-        require( ncmm::graphics_mouse_event( 1, 320, 240, 0, 0, true ), "mouse_drag_did_not_capture" );
-        graphics_fps_initial_capture=true;graphics_fps_input_begin("DEFAULTMODE");
+        graphics_release_mouse();
+        float pointer_x=0,pointer_y=0;
+        require(SDL_RenderCoordinatesToWindow(smoke_renderer, 320, 240, &pointer_x, &pointer_y),
+                "mouse_fixture_window_coordinates");
+        SDL_WarpMouseInWindow(get_sdl_window(), pointer_x, pointer_y);
+        inp_mngr.pump_events();
         const float before_mouse_yaw = graphics_camera_yaw;
-        SDL_Event motion = {}; motion.type = SDL_EVENT_MOUSE_MOTION;
-        motion.motion.windowID = SDL_GetWindowID( get_sdl_window() );
-        motion.motion.x = 320; motion.motion.y = 240; motion.motion.xrel = 100; motion.motion.yrel = 0;
-        require( SDL_PushEvent( &motion ), "mouse_motion_not_queued" );
-        SDL_Event look = {}; look.type = SDL_EVENT_KEY_DOWN;
-        look.key.windowID = SDL_GetWindowID( get_sdl_window() ); look.key.key = SDLK_F9; look.key.scancode = SDL_SCANCODE_F9;
-        // Native's pre-poll redraw can drain a key just as it does for the
-        // deliberately exercised F6/F12 case above. Queue the motion once;
-        // retry only the diagnostic wake key, retaining the exact yaw and
-        // unchanged-Native-state checks below.
-        std::string look_action;
-        for( int attempt = 0; attempt < 8; ++attempt ) {
-            require( SDL_PushEvent( &look ), "mouse_pump_key_not_queued" );
-            look_action = gameplay.handle_input( 250 );
-            if( look_action == "ncmm.view.look_up" ) break;
-            log_line( NCMM_LOG_INFO, ( "F9 mouse diagnostic attempt " + std::to_string( attempt + 1 ) +
-                " returned: " + look_action ).c_str() );
+        {
+            struct mouse_script {
+                std::atomic<bool> stop{false}, sent{false};
+                bool previous;
+                std::thread worker;
+                mouse_script(SDL_WindowID window, float x, float y)
+                    : previous(graphics_fps_audit_active), worker([this, window, x, y]() {
+                          const auto deadline = SDL_GetTicks() + 12000;
+                          uint64_t next_capture = 0;
+                          while (!stop.load() && SDL_GetTicks() < deadline) {
+                              SDL_Delay(20);
+                              const auto waiting = graphics_fps_audit_wait.load();
+                              if (!(waiting & 1u))
+                                  continue;
+                              if (!(waiting & 16u)) {
+                                  if (SDL_GetTicks() < next_capture)
+                                      continue;
+                                  next_capture = SDL_GetTicks() + 160;
+                                  SDL_Event focus{};
+                                  focus.type = SDL_EVENT_WINDOW_FOCUS_GAINED;
+                                  focus.window.windowID = window;
+                                  SDL_PushEvent(&focus);
+                                  SDL_Event click{};
+                                  click.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+                                  click.button.windowID = window;
+                                  click.button.button = SDL_BUTTON_LEFT;
+                                  click.button.x = x;
+                                  click.button.y = y;
+                                  SDL_PushEvent(&click);
+                                  click.type = SDL_EVENT_MOUSE_BUTTON_UP;
+                                  SDL_PushEvent(&click);
+                                  continue;
+                              }
+                              if (!sent.exchange(true)) {
+                                  SDL_Event motion{};
+                                  motion.type = SDL_EVENT_MOUSE_MOTION;
+                                  motion.motion.windowID = window;
+                                  motion.motion.x = x;
+                                  motion.motion.y = y;
+                                  motion.motion.xrel = 100;
+                                  SDL_PushEvent(&motion);
+                              }
+                              // The real hotkey acknowledges this diagnostic wait.
+                              // Only the wake key repeats; the relative delta does not.
+                              SDL_Event look{};
+                              look.type = SDL_EVENT_KEY_DOWN;
+                              look.key.windowID = window;
+                              look.key.key = SDLK_F9;
+                              look.key.scancode = SDL_SCANCODE_F9;
+                              SDL_PushEvent(&look);
+                              look.type = SDL_EVENT_KEY_UP;
+                              SDL_PushEvent(&look);
+                              SDL_Delay(100);
+                          }
+                      }) {
+                    graphics_fps_audit_active = true;
+                    graphics_fps_audit_wait.store(0);
+                }
+                ~mouse_script() {
+                    stop.store(true);
+                    worker.join();
+                    graphics_fps_audit_active = previous;
+                    graphics_fps_audit_wait.store(0);
+                    SDL_FlushEvent(SDL_EVENT_KEY_DOWN);
+                    SDL_FlushEvent(SDL_EVENT_MOUSE_BUTTON_DOWN);
+                    SDL_FlushEvent(SDL_EVENT_MOUSE_BUTTON_UP);
+                }
+            } feed(SDL_GetWindowID(get_sdl_window()), pointer_x, pointer_y);
+            std::string look_action;
+            for (int attempt = 0; attempt < 52; ++attempt) {
+                look_action = gameplay.handle_input(250);
+                if (look_action == "ncmm.view.look_up")
+                    break;
+            }
+            require(feed.sent.load() && look_action == "ncmm.view.look_up",
+                    "mouse_event_consumed_gameplay_key");
         }
-        require( look_action == "ncmm.view.look_up", "mouse_event_consumed_gameplay_key" );
-        require( std::abs( graphics_camera_yaw - before_mouse_yaw - .3f ) < .001f, "sdl_mouse_motion_did_not_rotate_camera" );
-        require( ncmm::graphics_mouse_event( 3, 320, 240, -100, 0, true ), "mouse_return_motion_failed" );
-        ncmm::graphics_note_input_context( "INVENTORY" );
+        require(std::abs(graphics_camera_yaw - before_mouse_yaw - .3f) < .001f,
+                "sdl_mouse_motion_did_not_rotate_camera");
+        require(ncmm::graphics_mouse_event(3, 320, 240, -100, 0, true),
+                "mouse_return_motion_failed");
+        ncmm::graphics_note_input_context("INVENTORY");
         require( !graphics_mouse_drag && !SDL_GetWindowRelativeMouseMode( get_sdl_window() ), "menu_did_not_release_cursor" );
         ncmm::graphics_note_input_context( "DEFAULTMODE" );
         require( you.pos_bub() == start_pos && you.get_moves() == start_moves && calendar::turn == start_time,

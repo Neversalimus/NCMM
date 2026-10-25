@@ -23,6 +23,7 @@ bool graphics_fps_outgoing_owned = false;
 bool graphics_fps_audit_active = false, graphics_fps_audit_default = false,
      graphics_fps_audit_waiting = false, graphics_fps_audit_polling = false;
 std::atomic<uint32_t> graphics_fps_audit_wait{0};
+uint32_t graphics_fire_wait_pending = 0;
 void graphics_fps_publish_wait() {
     if (graphics_fps_audit_active)
         graphics_fps_audit_wait.store(!graphics_fps_audit_waiting || !graphics_fps_audit_polling
@@ -30,11 +31,16 @@ void graphics_fps_publish_wait() {
                                           : (graphics_fps_audit_default ? 1u : 2u) |
                                                 (graphics_input_router.command_mode() ? 8u : 0u) |
                                                 (graphics_input_router.captured() ? 16u : 0u));
+    if (graphics_fire_capture.active)
+        graphics_fire_input_context.store(
+            !graphics_fps_audit_waiting || !graphics_fps_audit_polling
+                ? 0u
+                : graphics_fire_wait_pending | (graphics_input_router.command_mode() ? 8u : 0u));
 }
 void graphics_fps_poll_impl() {
     // Only the opt-in event producer needs this acknowledgement. Native's
     // pre-poll redraw can itself pump/discard queued diagnostic keys.
-    if (graphics_fps_audit_active) {
+    if (graphics_fps_audit_active || graphics_fire_capture.active) {
         graphics_fps_audit_polling = true;
         graphics_fps_publish_wait();
     }

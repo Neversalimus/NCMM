@@ -6,7 +6,7 @@ from pathlib import Path
 COUNTS={'physical_w_8_yaws':8,'wd_one_diagonal':1,'held_w_three_native_boundaries':1,
         'wall_fences_held_w':1,'inventory_held_w_cancel':1,'focus_resize_dpi_release':3,
         'e_native_open':1,'lmb_native_melee':2,'native_run_crouch_wait':1}
-ACTIONS={'held_w_three_native_boundaries':3,'native_run_crouch_wait':3,
+ACTIONS={'held_w_three_native_boundaries':3,'native_run_crouch_wait':4,
          'focus_resize_dpi_release':0}
 FREE={'inventory_held_w_cancel','focus_resize_dpi_release'}
 

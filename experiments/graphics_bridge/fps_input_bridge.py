@@ -19,11 +19,12 @@ def prepare(root,updates,bridge):
     loader=once(loader,'#include "ncmm_graphics_camera.hpp"',
         '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_input.hpp"\n#include "ncmm_graphics_focus.h"\n#include "action.h"\n#if defined(TILES)\n#include "cata_imgui.h"\n#endif')
     loader=once(loader,'    if( !graphics_control_context ) graphics_release_mouse();','    graphics_fps_sync();')
-    loader=once(loader,'    if( graphics_fire_capture.active ) graphics_fire_input_context.store(',
-        '    graphics_fps_input_begin(category);\n    if( graphics_fire_capture.active ) graphics_fire_input_context.store(')
+    loader=once(loader,'    if( graphics_fire_capture.active ) graphics_fire_input_context.store( (category == "DEFAULTMODE" ? 1u : category == "TARGET" ? 2u : 3u) | (text ? 4u : 0u) );',
+        '    graphics_fps_input_begin(category);\n'
+        '    graphics_fire_wait_pending=graphics_fire_capture.active?((category == "DEFAULTMODE" ? 1u : category == "TARGET" ? 2u : 3u) | (text ? 4u : 0u)):0u;\n'
+        '    if(graphics_fire_capture.active)graphics_fire_input_context.store(0);')
     loader=once(loader,'    const auto waiting = graphics_fire_capture.active ? graphics_fire_input_context.exchange( 0 ) : 0u;',
         '    graphics_fps_input_end(action);\n    const auto waiting = graphics_fire_capture.active ? graphics_fire_input_context.exchange( 0 ) : 0u;')
-    loader=once(loader,'(text ? 4u : 0u) );','(text ? 4u : 0u) | (graphics_input_router.command_mode()?8u:0u) );')
     loader=once(loader,'uint64_t graphics_native_input_loop_begin()\n{\n    return graphics_snapshot_lease.begin_native_loop();\n}',
         'uint64_t graphics_native_input_loop_begin()\n{\n    graphics_fps_native_begin();\n    return graphics_snapshot_lease.begin_native_loop();\n}')
     loader=once(loader,'    return graphics_draw( x, y, width, height );',
