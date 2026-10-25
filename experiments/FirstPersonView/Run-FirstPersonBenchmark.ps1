@@ -347,7 +347,7 @@ $auditName=if($FpsInputProbe){'first-person-fps-input.json'}elseif($TargetHudGal
 if(-not (Test-Path -LiteralPath (Join-Path $evidence $auditName))){throw "Requested native benchmark report is missing: $auditName; final phase=$lastProgress"}
 if($FpsInputProbe){
     $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json
-    if($audit.schema -ne 1 -or $audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.manual_playthrough -ne $false -or @($audit.samples).Count -ne 136){throw 'Native FPS input/action probe is incomplete.'}
+    if($audit.schema -ne 1 -or $audit.success -ne $true -or $audit.actual_cdda_sdl -ne $true -or $audit.manual_playthrough -ne $false -or @($audit.samples).Count -ne 144){throw 'Native FPS input/action probe is incomplete.'}
     $soaked=0
 }elseif($TargetHudGallery){
     $audit=Get-Content -LiteralPath (Join-Path $evidence $auditName) -Raw | ConvertFrom-Json

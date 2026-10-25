@@ -427,15 +427,30 @@
             you.set_movement_mode(move_mode_id("walk"));
             for(const char *weapon:{"naginata","spear_steel"}) {
                 floor();you.set_moves(10000);you.set_wielded_item(item(itype_id(weapon),calendar::turn));
+                // Previous keyboard/renderer matrices spend real stamina. A
+                // successful-attack fixture must not inherit a slow-attack
+                // confirmation; the production Native warning stays intact.
+                you.set_stamina(you.get_stamina_max());
                 auto *enemy=g->place_critter_at(mtype_id("mon_zombie"),you.pos_bub()+tripoint_rel_ms(0,-2,0));
                 require(enemy&&you.get_wielded_item()->current_reach_range(you).first>1,"fps_audit_reach_fixture");
+                const int attack_cost=you.attack_speed(*you.get_wielded_item());
+                log_line(NCMM_LOG_INFO,(std::string("FPS reach fixture weapon=")+weapon+" keyboard="+mode+
+                    " renderer="+renderer_mode+" native_attack_cost="+std::to_string(attack_cost)+
+                    " stamina="+std::to_string(you.get_stamina())+" max_stamina="+std::to_string(you.get_stamina_max())).c_str());
+                require(attack_cost<=300,"fps_audit_reach_fixture_requires_native_confirmation");
                 camera(-ncmm_graphics_camera::pi*.5f,-.3f);warm(renderer_mode);native_redraw();
                 const int before=you.get_moves();const auto position=you.pos_abs();const auto serial=graphics_attack_serial;
+                const auto intents=graphics_input_router.attack_intents;
                 SDL_Event click{};click.type=SDL_EVENT_MOUSE_BUTTON_DOWN;click.button.button=SDL_BUTTON_LEFT;
                 SDL_Event release=click;release.type=SDL_EVENT_MOUSE_BUTTON_UP;
                 const bool outside=std::string(weapon)=="naginata";
                 const bool modal=dispatch({click,release},1,2000,outside);
-                require(!modal&&graphics_attack_serial==serial+1&&you.get_moves()<before&&you.pos_abs()==position&&!graphics_click_pending,
+                log_line(NCMM_LOG_INFO,(std::string("FPS reach diagnostic weapon=")+weapon+" keyboard="+mode+
+                    " renderer="+renderer_mode+" native_attack_cost="+std::to_string(attack_cost)+
+                    " modal="+std::to_string(modal)+" attacks="+std::to_string(graphics_attack_serial-serial)+
+                    " intents="+std::to_string(graphics_input_router.attack_intents-intents)+
+                    " moves="+std::to_string(before-you.get_moves())+" pending="+std::to_string(graphics_click_pending)).c_str());
+                require(!modal&&graphics_input_router.attack_intents==intents+1&&graphics_attack_serial==serial+1&&you.get_moves()<before&&you.pos_abs()==position&&!graphics_click_pending,
                         "fps_audit_lmb_reach_opened_selector_or_did_not_attack");
                 // Exercise the Native 'show' setting and a complete UI redraw,
                 // not just the instantaneous return value of SDL_HideCursor.
@@ -447,6 +462,26 @@
                 require(SDL_CursorVisible(),"fps_audit_native_cursor_not_restored");
                 get_options().get_option("HIDE_CURSOR").setValue(hidden);::refresh_mouse_config();
                 samples.push_back({"lmb_native_reach",mode,renderer_mode,1,before-you.get_moves(),outside?1:0});
+            }
+            for(int direction=0;direction<2;++direction) {
+                floor();you.set_moves(10000);you.set_stamina(you.get_stamina_max());
+                you.set_wielded_item(item(itype_id("naginata"),calendar::turn));
+                const auto target=you.pos_bub()+tripoint_rel_ms(direction?3:0,-3,0);
+                auto *enemy=g->place_critter_at(mtype_id("mon_zombie"),target);
+                require(enemy&&you.get_wielded_item()->current_reach_range(you).first==2,
+                        "fps_audit_reach_range_fixture");
+                camera(direction?-ncmm_graphics_camera::pi*.25f:-ncmm_graphics_camera::pi*.5f,-.2f);
+                warm(renderer_mode);native_redraw();
+                require(graphics_aim==enemy->pos_abs(),"fps_audit_out_of_range_reticle_missing");
+                const int before=you.get_moves();const auto position=you.pos_abs();
+                const auto serial=graphics_attack_serial,intents=graphics_input_router.attack_intents;
+                SDL_Event click{};click.type=SDL_EVENT_MOUSE_BUTTON_DOWN;click.button.button=SDL_BUTTON_LEFT;
+                SDL_Event release=click;release.type=SDL_EVENT_MOUSE_BUTTON_UP;
+                const bool modal=dispatch({click,release});
+                require(!modal&&graphics_input_router.attack_intents==intents+1&&graphics_attack_serial==serial&&
+                        you.get_moves()==before&&you.pos_abs()==position&&!graphics_click_pending,
+                        "fps_audit_out_of_range_reach_attacked_or_opened_selector");
+                samples.push_back({"lmb_reach_out_of_range",mode,renderer_mode,0,0,direction});
             }
             floor();warm(renderer_mode);native_redraw();
             you.set_desired_movement_mode(move_mode_id("walk"));

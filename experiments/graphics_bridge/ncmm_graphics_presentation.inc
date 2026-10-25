@@ -266,6 +266,14 @@ void graphics_prepare_presentation( const ncmm_graphics_scene_v1 &base,
     }
     graphics_clear_target(); graphics_effect_pixels.clear();
 }
+bool graphics_reach_in_range(const avatar &you,const item &weapon,const tripoint_bub_ms &target)
+{
+    // Native can_reach_attack checks vertical reach only. The target UI owns
+    // the horizontal check; a direct primary click must apply the same rule.
+    const int reach=weapon.current_reach_range(you).first;
+    return reach>1&&target.z()==you.posz()&&
+        std::round(rl_dist_exact(you.pos_bub(),target))<=reach;
+}
 std::string graphics_click_action_impl()
 {
     if( !graphics_view.enabled || !graphics_control_context || !character_state_available() ) return "";
@@ -275,7 +283,7 @@ std::string graphics_click_action_impl()
         const auto focus=graphics_fps_target(false);const auto held=you.get_wielded_item();
         // The physical focus can remain valid while the optional HUD label is
         // absent. A hostile under this ray is still a primary reach target.
-        if(focus&&held&&!held->is_gun()&&held->current_reach_range(you).first>1) {
+        if(focus&&held&&!held->is_gun()&&graphics_reach_in_range(you,*held,*focus)) {
             const auto *cr=get_creature_tracker().creature_at<Creature>(*focus);
             if(cr&&!cr->is_dead_state()&&cr->attitude_to(you)==Creature::Attitude::HOSTILE&&you.can_reach_attack(*cr)) {
                 graphics_click_pending=true;graphics_click_time=SDL_GetTicks();
@@ -311,7 +319,7 @@ std::string graphics_click_action_impl()
     if( !cr || !graphics_aim_reference.matches(graphics_target_reference(*cr,pos)) || cr->is_dead_state() || cr->attitude_to( you )!=Creature::Attitude::HOSTILE || !you.sees( here,*cr ) ||
         !(graphics_view.world_render?graphics_world_target_visible(you.pos_bub(),pos):graphics_forward_visible(you.pos_bub(),pos)))return "";
     you.last_target=g->shared_from( *cr ); you.last_target_pos=*graphics_aim;
-    if( const auto held=you.get_wielded_item() ) if( held->is_gun() || ( held->current_reach_range( you ).first>1 && you.can_reach_attack( *cr ) ) ) {
+    if( const auto held=you.get_wielded_item() ) if( held->is_gun() || ( graphics_reach_in_range(you,*held,pos) && you.can_reach_attack( *cr ) ) ) {
         graphics_click_pending=true;graphics_click_time=SDL_GetTicks();
         graphics_click_request={*graphics_aim,here.get_abs(you.pos_bub()),cr->ncmm_graphics_entity_id(),graphics_creature_world_epoch,graphics_camera_yaw,graphics_camera_pitch};return "fire";}
     if(pos.z()!=you.posz())return ""; // An XY move is not a vertical melee action.
@@ -345,8 +353,8 @@ bool graphics_take_reach_target_impl(std::optional<tripoint_bub_ms> &out)
     if(!graphics_consume_click_impl(target.x(),target.y(),target.z()))return true;
     avatar &you=get_avatar();const auto weapon=you.get_wielded_item();
     const auto *cr=get_creature_tracker().creature_at<Creature>(target);
-    if(weapon&&!weapon->is_gun()&&weapon->current_reach_range(you).first>1&&
-       cr&&target.z()==you.posz()&&you.can_reach_attack(*cr))out=target;
+    if(weapon&&!weapon->is_gun()&&graphics_reach_in_range(you,*weapon,target)&&
+       cr&&you.can_reach_attack(*cr))out=target;
     return true;
 }
 #else

@@ -18,7 +18,17 @@ class FpsEvidenceTests(unittest.TestCase):
     def run_report(self):
         (self.root/'first-person-fps-input.json').write_text(json.dumps(self.report))
         return verify(self.root)
-    def test_complete_fixture(self):self.assertEqual(self.run_report()['samples'],136)
+    def test_complete_fixture(self):self.assertEqual(self.run_report()['samples'],144)
+    def test_out_of_range_reach_must_be_free(self):
+        next(s for s in self.report['samples'] if s['scenario']=='lmb_reach_out_of_range')['native_move_cost']=1
+        with self.assertRaises(AssertionError):self.run_report()
+    def test_out_of_range_reach_cannot_issue_attack(self):
+        next(s for s in self.report['samples'] if s['scenario']=='lmb_reach_out_of_range')['native_actions']=1
+        with self.assertRaises(AssertionError):self.run_report()
+    def test_both_out_of_range_directions_required(self):
+        for sample in self.report['samples']:
+            if sample['scenario']=='lmb_reach_out_of_range':sample['direction']=0
+        with self.assertRaises(AssertionError):self.run_report()
     def test_missing_case_rejected(self):
         self.report['samples'].pop()
         with self.assertRaises(AssertionError):self.run_report()
