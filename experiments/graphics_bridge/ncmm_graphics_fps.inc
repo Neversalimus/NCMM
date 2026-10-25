@@ -148,6 +148,9 @@ void graphics_fps_sync() {
 }
 void graphics_fps_input_begin(const std::string &category) {
     graphics_fps_audit_polling = false;
+    // A nested Native any-key window can change the current UI category.
+    // Reassert the actual caller before each subsequent Native wait.
+    ncmm::graphics_note_input_context(category);
     graphics_input_router.native_wait(category == "DEFAULTMODE");
     graphics_fps_audit_default = category == "DEFAULTMODE";
     graphics_fps_audit_waiting = true;

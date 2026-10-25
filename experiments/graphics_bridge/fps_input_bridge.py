@@ -57,7 +57,32 @@ def prepare(root,updates,bridge):
         'std::optional<tripoint_bub_ms> graphics_take_fps_target(const std::string &);\n'
         'std::optional<tripoint_bub_ms> graphics_targeted_open(const std::optional<tripoint_bub_ms> &);\n'
         'void initialize();')
+    header=once(header,'void initialize();', '''// Legacy Native any-key windows do not create input_context::handle_input.
+// Their existing wait still needs the same modal ownership and input lease.
+class graphics_raw_input_scope {
+    graphics_input_wait_scope wait_{"NCMM_RAW_INPUT"};
+public:
+    graphics_raw_input_scope() {
+        graphics_note_input_context("NCMM_RAW_INPUT");
+        graphics_note_input_wait("NCMM_RAW_INPUT", false);
+    }
+    ~graphics_raw_input_scope() {
+        graphics_note_input_result("NCMM_RAW_INPUT", "ANY_INPUT");
+        wait_.completed("ANY_INPUT");
+    }
+    graphics_raw_input_scope(const graphics_raw_input_scope &) = delete;
+    graphics_raw_input_scope &operator=(const graphics_raw_input_scope &) = delete;
+};
+void initialize();''')
     updates['ncmm_loader.h']=header
+    native_input=updates['input.cpp'] if 'input.cpp' in updates else (root/'src/input.cpp').read_text(encoding='utf-8')
+    if '#include "ncmm_loader.h"' not in native_input:
+        native_input=once(native_input,'#include "input.h"',
+                          '#include "input.h"\n#include "ncmm_loader.h"')
+    native_input=once(native_input,'void input_manager::wait_for_any_key()\n{',
+                      'void input_manager::wait_for_any_key()\n{\n'
+                      '    ncmm::graphics_raw_input_scope ncmm_raw_input;')
+    updates['input.cpp']=native_input
     context=updates['input_context.cpp']
     context=once(context,'        if( next_action.type == input_event_t::timeout ) {',
         '        if( next_action.type == input_event_t::timeout ) {\n'

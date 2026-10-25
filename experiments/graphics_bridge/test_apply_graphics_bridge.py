@@ -40,6 +40,7 @@ class ApplyTests(unittest.TestCase):
             map_cpp+=signature+"\n{\n}\n"
         (root / "src/map.cpp").write_text(map_cpp+bridge.SUBMAP_CACHE_RESET+'\n    current_submap->set_ter( l, new_terrain );\n    current_submap->set_furn( l, new_target_furniture );\n'+'void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type )\n{\n}\n')
         (root / "src/input_context.cpp").write_text('#include "input_context.h"\nconst std::string &input_context::handle_input( const int timeout )\n{\n        next_action = inp_mngr.get_input_event( preferred_keyboard_mode );\n        if( next_action.type == input_event_t::timeout ) {\n        }\n    inp_mngr.set_timeout( old_timeout );\n    return *result;\n}\n')
+        (root / "src/input.cpp").write_text('#include "input.h"\nvoid input_manager::wait_for_any_key()\n{\n}\n')
         (root / "src/sdltiles.cpp").write_text(SDL_ANCHOR+'\nstatic void CheckMessages()\n{\n        imclient->process_input( &ev_display, imgui_buf_w, imgui_buf_h, scaling_factor );\n    if( needupdate ) {\n        try_sdl_update();\n    }\n}\n')
         (root / "src/sdl_wrappers.cpp").write_text('#include "sdl_wrappers.h"\nvoid RenderPresent() {\n    printErrorIf( !SDL_RenderPresent( renderer.get() ), "SDL_RenderPresent failed" );\n}\n')
         with (root / "src/sdltiles.cpp").open('a') as f:
@@ -261,6 +262,8 @@ bool cata_tiles::draw_sprite_at() {
 
     def test_changed_fps_native_input_anchors_no_partial_patch(self):
         for name,anchor in [
+            ('input.cpp','void input_manager::wait_for_any_key()\n{'),
+            ('input.cpp','#include "input.h"'),
             ('input_context.cpp','        if( next_action.type == input_event_t::timeout ) {'),
             ('handle_action.cpp','        if( act == ACTION_INTERACT ) {'),
             ('handle_action.cpp','player_character.assign_activity( open_tile_activity_actor( std::nullopt ) );'),
