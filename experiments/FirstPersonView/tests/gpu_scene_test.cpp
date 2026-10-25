@@ -435,6 +435,40 @@ int main(int argc,char **argv){
         std::printf("GPU grass coverage: %zu / 108800 pixels above hands\n",covered);
         lawn_backend=nullptr;
     }
+    {
+        namespace fp=first_person;
+        constexpr int side=9,area=side*side;
+        std::vector<ncmm_graphics_cell_v1> cells(area*2);std::vector<ncmm_graphics_cell_v2> details(cells.size());std::vector<ncmm_world_cell_v1> xyz(cells.size());
+        for(int z=-1;z<=0;++z)for(int y=0;y<side;++y)for(int x=0;x<side;++x){const int i=(z+1)*area+y*side+x;
+            auto &a=cells[i];a.flags=NCMM_GFX_VISIBLE|NCMM_GFX_CEILING;std::strcpy(a.terrain,z==0?"t_floor":x==2||x==6?"t_railroad_track_on_tie_v":"t_railroad_rubble");
+            std::strcpy(details[i].ground,a.terrain);xyz[i]={x,y,z,NCMM_WORLD_BODY_VISIBLE|NCMM_WORLD_ROOFED|NCMM_WORLD_FLOOR|NCMM_WORLD_FLOOR_TOP|NCMM_WORLD_FLOOR_BOTTOM,0,0,1};
+            if(z==-1&&(x==0||x==8||y==0)){a.flags|=NCMM_GFX_WALL;details[i].terrain_shape=NCMM_SHAPE_WALL;std::strcpy(a.terrain,"t_concrete_wall");}}
+        ncmm_world_slice_v1 slices[]={{-1,0,area,0,1,1},{0,area,area,0,2,1}};
+        ncmm_graphics_multilevel_scene_v1 world{};world.struct_size=sizeof(world);world.version=1;world.world_epoch=1997;world.revision=1;
+        world.origin_z=world.loaded_min_z=-1;world.loaded_max_z=0;world.level_height=2.5f;world.coordinates=xyz.data();world.cell_count=uint32_t(xyz.size());world.slices=slices;world.slice_count=2;
+        auto &source=world.appearance;source.struct_size=sizeof(source);source.base={sizeof(source.base),640,480,side,side,4.5f,7.5f,cells.data(),cells.size()};source.details=details.data();source.detail_count=details.size();
+        source.environment.daylight=1;source.environment.sun_z=.8f;source.environment.fog_density=.6f; // Surface weather must not fill a closed tunnel.
+        fp::gpu::scene_cache cache;double brightness[3]{};
+        for(int light=0;light<3;++light){
+            for(int i=0;i<int(cells.size());++i){const float value=light==0?.85f:light==1?0.f:std::max(0.f,1.f-std::hypot(float(xyz[i].x-4),float(xyz[i].y-5))/4.f);
+                details[i].light_r=value;details[i].light_g=value*.91f;details[i].light_b=value*.76f;
+                std::copy_n(&details[i].light_r,3,xyz[i].lower_light);}
+            ++world.revision;fp::gpu::packet packet;fp::hybrid::frame stats,reference,opaque;
+            require(cache.build(source,-fp::hybrid::pi*.5f,-.2f,{},packet,stats,engine.metrics(),{},nullptr,nullptr,640,480,NCMM_GPU_FORCE,&world),cache.last_reason.c_str());
+            require(packet.scene.camera.time[2]==NCMM_SKY_VOID&&packet.scene.camera.sky_top[3]==1&&packet.scene.camera.sky_bottom[0]==0,"closed underground uses black sky on both hemispheres");
+            ncmm_gpu_multilevel_scene_v1 submitted{};submitted.struct_size=sizeof(submitted);submitted.version=1;submitted.base=packet.finish(nullptr);submitted.coordinates=xyz.data();submitted.cell_count=uint32_t(xyz.size());submitted.origin_z=-1;submitted.level_height=2.5f;
+            require(engine.submit(submitted.base,&submitted),engine.metrics().reason);capture(light==0?"-subway-lit":light==1?"-subway-dark":"-subway-local-light");
+            auto *raw=SDL_RenderReadPixels(renderer,nullptr);auto *image=raw?SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888):nullptr;SDL_DestroySurface(raw);require(image!=nullptr,"subway lighting capture");
+            // Compare the visible track bed, above the hands; the distant
+            // unlit wall deliberately remains black in the local-light case.
+            for(int y=250;y<355;++y){const auto *row=reinterpret_cast<const uint32_t *>(static_cast<const char *>(image->pixels)+y*image->pitch);for(int x=10;x<630;++x)brightness[light]+=(row[x]>>24)+((row[x]>>16)&255)+((row[x]>>8)&255);}
+            brightness[light]/=105*620*3;SDL_DestroySurface(image);
+            require(fp::hybrid::build_frame(source,-fp::hybrid::pi*.5f,-.2f,{},reference,640,480,{},nullptr,&opaque,nullptr,{},nullptr,&world),"subway CPU lighting reference");
+            if(light==1){for(size_t i=0;i<opaque.pixels.size();++i)require((opaque.pixels[i]>>24)<4&&((opaque.pixels[i]>>16)&255)<4&&((opaque.pixels[i]>>8)&255)<4,"CPU dark tunnel has no ambient floor or outdoor fog");}
+        }
+        std::printf("Subway actual GPU brightness: lit %.2f / dark %.2f / local %.2f\n",brightness[0],brightness[1],brightness[2]);
+        require(brightness[0]>35&&brightness[1]<2&&brightness[2]>brightness[1]+8&&brightness[2]<brightness[0],"real GPU tunnel preserves darkness and localized Native RGB contrast");
+    }
     if(argc>2&&std::strcmp(argv[2],"--grass-benchmark")==0){
         // Identical owned field/camera for before/after measurements. Readback
         // and screenshots are outside the timed loop; no Native simulation.

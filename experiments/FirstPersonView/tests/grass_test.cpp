@@ -66,6 +66,7 @@ int main(){try{
     gpu::packet field;check(cache.build(scene,-hybrid::pi*.5f,-.2f,{},field,statistics,host,{},nullptr,nullptr,480,320,NCMM_GPU_FORCE),"instanced meadow");
     const auto &field_scene=field.finish(nullptr);check(!ncmm_gpu::validate(field_scene),"instanced meadow packet");
     std::set<uint64_t> lawn_models;size_t lawn_instances=0;for(const auto &d:field.draws)if(d.bone_count==2){++lawn_instances;lawn_models.insert(d.mesh_key);check(d.cell<meadow.size(),"each instance retains its Native cell ID");}
-    check(lawn_instances==meadow.size()&&lawn_models.size()<=12,"hundreds of grass tiles use at most twelve shared models, not one model per tile");
+    check(lawn_instances>50&&lawn_instances<meadow.size()/2&&lawn_models.size()<=12,"only patches inside the conservative frustum allocate instances and wind palettes");
+    for(const auto &d:field.draws)if(d.bone_count==2)check(d.transform.columns[13]<=11.f,"patches wholly behind the camera allocate no grass draw");
     std::cout<<"Grass: Native tile filtering, fixed roots, CPU/GPU animation, immutable GPU meshes and distance LOD passed\n";return 0;
 }catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}}

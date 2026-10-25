@@ -29,6 +29,7 @@ std::vector<uint32_t> graphics_effect_pixels;
 uint32_t graphics_effect_width=0, graphics_effect_height=0;
 bool graphics_effect_failed=false,graphics_click_pending=false;
 bool graphics_grass_active=false;
+bool graphics_fps_ads_impl();
 uint64_t graphics_click_time=0;
 struct {
     std::optional<tripoint_abs_ms> target,origin;
@@ -40,7 +41,10 @@ size_t graphics_effect_gpu_frames=0, graphics_effect_cpu_frames=0;
 int graphics_get_presentation( ncmm_graphics_presentation_v1 *out )
 {
     if( !graphics_hybrid_frame || active_module_id != graphics_view.owner || !out || out->struct_size < sizeof( *out ) ) return 0;
-    *out = graphics_presentation; return 1;
+    *out = graphics_presentation;
+    if(graphics_fps_ads_impl())out->flags|=NCMM_PRESENT_AIMING;
+    else out->flags&=~NCMM_PRESENT_AIMING;
+    return 1;
 }
 int graphics_get_presentation_cells( ncmm_graphics_detail_v1 *out, size_t count )
 {
@@ -104,7 +108,9 @@ uint32_t graphics_item_material( const item &it )
 std::array<float,3> graphics_sample_rgb(const tripoint_bub_ms &p)
 {
     map &here=get_map();if(!here.ncmm_graphics_loaded(p))return{0,0,0};
-    const float raw=std::max(0.f,here.ambient_light_at(p)),level=std::clamp(.025f+std::sqrt(raw/(raw+24.f)),0.f,1.f);
+    // No invented ambient floor in sealed rooms. Preserve Native source RGB,
+    // with a smooth dark toe instead of lifting every unlit surface to grey.
+    const float raw=std::max(0.f,here.ambient_light_at(p)),level=std::clamp(std::sqrt(raw/(raw+24.f))*std::min(1.f,raw),0.f,1.f);
     const auto &color=here.get_cache_ref(p.z()).light_color_cache[p.x()][p.y()];
     const float maximum=std::max({color.r,color.g,color.b,0.f}),tint=std::clamp(maximum/std::max(raw,1.f),0.f,.9f);
     auto channel=[&](float c){return level*(1-tint+(maximum>0?tint*c/maximum:0));};

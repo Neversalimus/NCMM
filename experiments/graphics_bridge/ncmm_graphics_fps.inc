@@ -3,6 +3,9 @@
 double graphics_fps_sensitivity = 1;
 bool graphics_fps_invert = false;
 bool graphics_fps_enabled = true;
+bool graphics_fps_ads_active=false,graphics_fps_gunshot_pending=false;
+uint64_t graphics_fps_ads_since=0,graphics_fps_ads_changed=0;
+struct {std::optional<tripoint_abs_ms> target,origin;std::string weapon;uint64_t world=0,queued=0;float yaw=0,pitch=0;int aim_moves=0;} graphics_fps_gunshot;
 #if defined(TILES)
 
 struct graphics_fps_focus_state {
@@ -46,6 +49,7 @@ void graphics_fps_poll_impl() {
     }
 }
 void graphics_fps_reset() {
+    graphics_fps_ads_active=graphics_fps_gunshot_pending=false;graphics_fps_ads_since=graphics_fps_ads_changed=0;
     graphics_input_router.reset();
     graphics_fps_focus = {};
     graphics_fps_dispatch_target.reset();
@@ -181,6 +185,12 @@ void graphics_fps_input_end(const std::string &action) {
     graphics_fps_outgoing_owned = false;
 }
 void graphics_fps_native_begin() {
+    graphics_fps_gunshot_pending=false;
+    if(character_state_available()){
+        const auto weapon=get_avatar().get_wielded_item();
+        const auto mode=weapon&&weapon->is_gun()?weapon->gun_current_mode():gun_mode{};
+        graphics_input_router.automatic_fire(mode&&mode.qty>1&&!mode.melee(),mode?uint32_t(std::clamp(mode.qty,1,10))*100u:240u);
+    }
     if (graphics_fps_move_origin && character_state_available())
         graphics_input_router.completed_move(get_map().get_abs(get_avatar().pos_bub()) !=
                                              *graphics_fps_move_origin);
@@ -292,10 +302,12 @@ bool graphics_route_sdl_impl(const SDL_Event &event, const SDL_Event &display, b
             return true; // Native keys drive; free look never sends a drive/attack action.
         // Relative capture owns the buttons, even if SDL's hidden absolute
         // position has drifted over the sidebar or outside the viewport.
-        return graphics_input_router.key(
+        const bool consumed=graphics_input_router.key(
             event.button.button == SDL_BUTTON_LEFT ? ncmm_graphics_input::button::attack
                                                    : ncmm_graphics_input::button::aim,
             event.type == SDL_EVENT_MOUSE_BUTTON_DOWN, false, SDL_GetTicks());
+        if(event.button.button==SDL_BUTTON_RIGHT){graphics_mouse_dirty=true;graphics_fps_ads_impl();}
+        return consumed;
     }
     return false;
 }
@@ -474,6 +486,42 @@ void graphics_fps_settings() {
     graphics_fps_refresh_settings();
     graphics_fps_initial_capture = true;
 }
+bool graphics_fps_ads_impl(){
+    const auto weapon=character_state_available()?get_avatar().get_wielded_item():item_location();
+    const bool active=graphics_view.enabled&&graphics_fps_enabled&&graphics_input_router.aiming()&&weapon&&weapon->is_gun();
+    if(active!=graphics_fps_ads_active){graphics_fps_ads_active=active;graphics_fps_ads_changed=SDL_GetTicks();if(active)graphics_fps_ads_since=graphics_fps_ads_changed;}
+    return active;
+}
+bool graphics_fps_ads_animating_impl(){return graphics_fps_ads_changed&&SDL_GetTicks()-graphics_fps_ads_changed<220;}
+bool graphics_fps_queue_gunshot(){
+    avatar &you=get_avatar();map &here=get_map();const auto weapon=you.get_wielded_item();if(!weapon||!weapon->is_gun())return false;
+    graphics_fps_gunshot_pending=true;graphics_click_pending=false;graphics_fps_gunshot={};
+    graphics_fps_gunshot.origin=you.pos_abs();graphics_fps_gunshot.weapon=weapon->typeId().str();graphics_fps_gunshot.world=graphics_creature_world_epoch;
+    graphics_fps_gunshot.yaw=graphics_camera_yaw;graphics_fps_gunshot.pitch=graphics_camera_pitch;graphics_fps_gunshot.queued=SDL_GetTicks();
+    if(graphics_fps_ads_impl())graphics_fps_gunshot.aim_moves=std::clamp(int((SDL_GetTicks()-graphics_fps_ads_since)/3),10,100);
+    const int range=std::clamp(weapon->gun_range(&you),1,MAX_VIEW_DISTANCE);
+    auto target=graphics_fps_target(false);
+    if(target&&rl_dist(you.pos_bub(),*target)>range)target.reset();
+    if(!target){
+        const float cp=std::cos(graphics_camera_pitch),dx=std::cos(graphics_camera_yaw)*cp,dy=std::sin(graphics_camera_yaw)*cp;
+        for(int distance=range;distance>0;--distance){const auto p=you.pos_bub()+tripoint_rel_ms(int(std::round(dx*distance)),int(std::round(dy*distance)),int(std::round(std::sin(graphics_camera_pitch)*distance/NCMM_WORLD_LEVEL_HEIGHT)));
+            if(p!=you.pos_bub()&&here.ncmm_graphics_loaded(p)){target=p;break;}}
+    }
+    if(target){
+        const auto *cr=get_creature_tracker().creature_at<Creature>(*target);
+        if(cr&&cr->is_npc()&&cr->attitude_to(you)!=Creature::Attitude::HOSTILE){add_msg(m_info,"%s",tr_ui("Friendly in the sights.","В прицеле дружественный персонаж."));return true;}
+        graphics_fps_gunshot.target=here.get_abs(*target);
+    }
+    return true;
+}
+bool graphics_take_fps_gunshot_impl(std::optional<tripoint_bub_ms> &target,int &aim_moves){
+    target.reset();aim_moves=0;if(!graphics_fps_gunshot_pending)return false;graphics_fps_gunshot_pending=false;
+    const auto weapon=get_avatar().get_wielded_item();
+    if(!graphics_fps_gunshot.target||!graphics_view.enabled||!graphics_input_router.captured()||!weapon||!weapon->is_gun()||weapon->typeId().str()!=graphics_fps_gunshot.weapon||
+       !graphics_fps_gunshot.origin||get_avatar().pos_abs()!=*graphics_fps_gunshot.origin||graphics_creature_world_epoch!=graphics_fps_gunshot.world||SDL_GetTicks()-graphics_fps_gunshot.queued>5000||
+       std::abs(std::remainder(graphics_camera_yaw-graphics_fps_gunshot.yaw,6.2831853f))>.001f||std::abs(graphics_camera_pitch-graphics_fps_gunshot.pitch)>.001f)return true;
+    const auto p=get_map().get_bub(*graphics_fps_gunshot.target);if(get_map().ncmm_graphics_loaded(p)){target=p;aim_moves=graphics_fps_gunshot.aim_moves;}return true;
+}
 const std::string *graphics_fps_take_action_impl(const std::string &category) {
     if (category != "DEFAULTMODE")
         return nullptr;
@@ -492,11 +540,11 @@ const std::string *graphics_fps_take_action_impl(const std::string &category) {
             tripoint_rel_ms(delta.first, delta.second, 0), iso_rotate::yes));
         graphics_fps_move_origin = get_map().get_abs(get_avatar().pos_bub());
     } else if (value.action == command::attack)
-        graphics_fps_action = graphics_click_action_impl();
+        graphics_fps_action = graphics_fps_queue_gunshot()?"fire":graphics_click_action_impl();
     else if (value.action == command::aim) {
-        const auto held = get_avatar().get_wielded_item();
-        if (held && (held->is_gun() || held->reach_range(get_avatar()).first > 1))
-            graphics_fps_action = "fire";
+        graphics_fps_ads_impl();graphics_mouse_dirty=true;
+        // Presentation-only action; Native target selectors belong to Tab/F.
+        graphics_mouse_dx=graphics_mouse_dy=0;graphics_fps_action="ncmm.view.mouse_look";
     } else if (value.action == command::interact) {
         const auto target = graphics_fps_target(true);
         if (target && !graphics_fps_interactions(*target).empty()) {
@@ -551,6 +599,11 @@ graphics_targeted_open_impl(const std::optional<tripoint_bub_ms> &target) {
     return expected && target && get_map().get_abs(*target) == *expected ? target : std::nullopt;
 }
 #else
+bool graphics_fps_ads_impl() { return false; }
+bool graphics_fps_ads_animating_impl() { return false; }
+bool graphics_take_fps_gunshot_impl(std::optional<tripoint_bub_ms> &target,int &aim_moves) {
+    target.reset();aim_moves=0;return false;
+}
 void graphics_fps_reset() {
     graphics_input_router.reset();
 }

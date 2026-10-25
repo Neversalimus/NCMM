@@ -45,6 +45,16 @@ struct collector:geometry_sink {
 };
 }
 int main(){try{
+    for(const auto &test:{std::pair<const char *,unsigned>{"t_railroad_track_h",1},{"t_railroad_track_on_tie_v",2},{"t_railroad_track_d1",4},{"t_railroad_track_d2",8}}){
+        fixture rail(1);rail.slab(0);const int at=rail.cell(6,1,0);std::strcpy(rail.appearance[at].terrain,test.first);
+        check(ncmm_rail::track(test.first)&&ncmm_rail::axes(test.first)==test.second,"Native rail suffix selects its physical direction");
+        collector geometry;frame stats;renderer(rail.world.appearance,0,-.2f,{},stats,{},nullptr,{},nullptr,&rail.world).collect(geometry,400,260);
+        vec lo{100,100,100},hi{-100,-100,-100};size_t raised=0;
+        for(const auto &t:geometry.triangles)if(t.m.cell==at&&t.m.finish==surface::metal)for(const auto &v:t.v){++raised;
+            lo={std::min(lo.x,v.p.x),std::min(lo.y,v.p.y),std::min(lo.z,v.p.z)};hi={std::max(hi.x,v.p.x),std::max(hi.y,v.p.y),std::max(hi.z,v.p.z)};}
+        check(raised>50&&std::abs(hi.z-.19f)<.0001f&&lo.z>.06f,"rails have a raised web, foot and head rather than a floor decal");
+        check(test.second==1?hi.x-lo.x>.99f&&hi.y-lo.y<.16f:test.second==2?hi.y-lo.y>.99f&&hi.x-lo.x<.16f:true,"straight rails join the correct adjacent tiles");
+    }
     check(!std::strcmp(ncmm_graphics_shapes::facade_id(NCMM_SHAPE_WALL,"t_mod_secret_brick_partition"),"t_brick_wall"),"coarse upper brick finish matches the visible lower facade");
     check(!std::strcmp(ncmm_graphics_shapes::facade_id(NCMM_SHAPE_WALL,"t_hidden_material t_brick_wall"),"t_brick_wall"),"coarse facade respects declared material aliases");
     check(!std::strcmp(ncmm_graphics_shapes::facade_id(NCMM_SHAPE_DOOR_CLOSED,"t_hidden_brick_door"),"t_wall"),"coarse finish cannot publish the actual hidden terrain identity");

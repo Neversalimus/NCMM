@@ -122,6 +122,14 @@ class scene_cache {
         // Hash/copy each observed atlas image once, not once per triangle.
         std::map<const hybrid::image *,std::shared_ptr<const owned_texture>> prepared_textures;
         bool world=true;
+        std::array<vec,5> grass_planes{};vec grass_eye{};
+        bool grass_visible(vec at,float height)const{
+            const vec center=at+vec{.5f,.5f,height*.675f+.012f}-grass_eye,radius{.51f,.51f,height*.675f+.02f};
+            for(size_t i=0;i<grass_planes.size();++i){const auto n=grass_planes[i];
+                const float extent=std::abs(n.x)*radius.x+std::abs(n.y)*radius.y+std::abs(n.z)*radius.z;
+                if(hybrid::dot(n,center)+extent<(i==0?.079f:-.001f))return false;}
+            return true;
+        }
         vec origin(int cell)const{if(cell<0)return {};if(levels){const auto p=xyz.origin(uint32_t(cell));return {p.x,p.y,p.z};}return {float(cell%scene.base.grid_width),float(cell/scene.base.grid_width),0};}
         key cell_key(int cell)const{if(levels){const auto &c=levels->coordinates[cell];return {c.x,c.y,c.z};}return {host.world_origin_x+cell%scene.base.grid_width,host.world_origin_y+cell/scene.base.grid_width,host.world_origin_z};}
         ncmm_gpu_material_v1 material(const hybrid::material &m,mesh_builder &builder){ncmm_gpu_material_v1 result{};
@@ -137,6 +145,10 @@ class scene_cache {
         void fail(const char *reason){failed=true;if(cache.last_reason.empty())cache.last_reason=reason;}
         collector(scene_cache &owner,const ncmm_graphics_scene_v2 &s,const hybrid::presentation_data *data,packet &out,const ncmm_gpu_metrics_v1 &metrics,const std::vector<uint64_t> &hashes,const ncmm_graphics_multilevel_scene_v1 *multilevel,const ncmm_world::coordinates &indexed):
             cache(owner),scene(s),metadata(data),frame(out),host(metrics),levels(multilevel),xyz(indexed),signatures(hashes),dirty_cells(s.base.cell_count,false){
+            const auto &c=frame.scene.camera;grass_eye={c.eye[0],c.eye[1],c.eye[2]};
+            const vec forward{c.forward[0],c.forward[1],c.forward[2]},right{c.right[0],c.right[1],c.right[2]},up{c.up[0],c.up[1],c.up[2]};
+            const float h=c.projection[0]*.5f/c.projection[2],v=c.projection[1]*.5f/c.projection[2];
+            grass_planes={forward,forward*h+right,forward*h-right,forward*v+up,forward*v-up};
             for(int i=0;i<int(s.base.cell_count);++i)if(s.base.cells[i].flags&NCMM_GFX_VISIBLE){
                 auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()||found->second.signature!=signatures[i]){dirty_cells[size_t(i)]=true;++generated_cells;}}
             // The validated scene and resource caches already have hard
@@ -160,9 +172,10 @@ class scene_cache {
                 if(!ncmm_grass::terrain(cell.terrain)||cell.furniture[0]||detail.vehicle_features||detail.terrain_shape!=NCMM_SHAPE_FLAT||
                    cell.flags&NCMM_GFX_NO_FLOOR||(levels&&!(levels->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)))continue;
                 const auto at=origin(i);const unsigned lod=ncmm_grass::band(std::hypot(at.x+.5f-scene.base.camera_x,at.y+.5f-scene.base.camera_y));if(lod>=3)continue;
+                const float height=ncmm_grass::height(cell.terrain);if(!grass_visible(at,height))continue;
                 const auto [x,y,z]=cell_key(i);const auto key=ncmm_grass::seed(x,y,z);const auto &e=scene.environment;
                 auto mesh=cache.lawn_mesh(key&3u,lod,ncmm_grass::tint(cell.terrain));if(!mesh){fail("GPU shared grass mesh cache budget exceeded");continue;}
-                const float height=ncmm_grass::height(cell.terrain),flex=std::min(1.f,height/.25f);
+                const float flex=std::min(1.f,height/.25f);
                 const auto bend=ncmm_grass::wind(key,e.animation_seconds,e.wind_x,e.wind_y);
                 const std::array<ncmm_gpu_matrix_v1,2> pose={identity(),place({bend.x*flex,bend.y*flex,0})};
                 frame.draw_skinned(mesh,place(at+vec{0,0,.012f},{1,1,height}),uint32_t(i),NCMM_GPU_OPAQUE,pose.data(),pose.size());
@@ -501,10 +514,14 @@ public:
         hybrid::renderer(s,yaw,pitch,provider,statistics,pose,metadata,{},creatures,levels,&indexed).collect(sink,width,height);sink.finish();generated_cells=sink.generated_cells;
         if(statistics.viewmodel_errors){last_reason="PSX viewmodel grip could not be attached safely";return false;}
         geometry_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();set(camera.sky_bottom,statistics.sky_horizon);
+        camera.time[2]=float(statistics.sky_kind);
         geometry_zone.stop();
         // Palette-only CPU work: derive the exact established sky endpoints by
         // collecting above; the complete sky raster remains in the GPU shader.
-        camera.sky_top[0]=statistics.sky_top.x;camera.sky_top[1]=statistics.sky_top.y;camera.sky_top[2]=statistics.sky_top.z;camera.sky_top[3]=metadata&&metadata->horizon_enabled?1.f:0.f;
+        camera.sky_top[0]=statistics.sky_top.x;camera.sky_top[1]=statistics.sky_top.y;camera.sky_top[2]=statistics.sky_top.z;
+        // The existing sky shader selects this explicit horizon colour even
+        // below the eye, rather than its outdoor fallback beneath the map.
+        camera.sky_top[3]=statistics.sky_kind==NCMM_SKY_VOID||(metadata&&metadata->horizon_enabled)?1.f:0.f;
         out.cells.resize(s.base.cell_count);uint32_t sources=0,gases=0;
         for(int i=0;i<int(s.base.cell_count);++i){auto &cell=out.cells[i];const auto &d=s.details[i];cell.flags=s.base.cells[i].flags;
             set(cell.light,{d.light_r,d.light_g,d.light_b},std::max(ncmm_graphics_shapes::shadow_height(d.terrain_shape),ncmm_graphics_shapes::shadow_height(d.furniture_shape)));

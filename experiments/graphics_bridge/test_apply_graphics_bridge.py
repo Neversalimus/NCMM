@@ -55,6 +55,7 @@ class ApplyTests(unittest.TestCase):
         with (root / "src/handle_action.cpp").open('a') as f:f.write('\n        if( act == ACTION_INTERACT ) {}\nplayer_character.assign_activity( open_tile_activity_actor( std::nullopt ) );\n')
         with (root / "src/handle_action.cpp").open('a') as f:f.write('\nstatic void reach_attack( avatar &you )\n{\n}\n')
         (root / "src/melee.cpp").write_text('    const bool hits = hit_spread >= 0;')
+        (root / "src/avatar_action.cpp").write_text('#include "avatar_action.h"\nvoid avatar_action::fire_wielded_weapon( avatar &you )\n{\n    you.assign_activity( aim_activity_actor::use_wielded() );\n}\n')
         (root / "src/ranged.cpp").write_text('target_handler::trajectory target_ui::run()\n{\n}\n        curshot++;\n\n        if( !gun.is_gun() ) {}\n    bool skip_redraw = false;')
         (root / "src/creature.cpp").write_text("int Creature::deal_melee_attack( Creature *source, int hitroll )\n{\n}\n    apply_damage( source, bp, total_damage );")
         (root / "src/ballistics.cpp").write_text('#include "ballistics.h"\n    const bool do_animation = get_option<bool>( "ANIMATION_PROJECTILES" );')
@@ -94,6 +95,15 @@ bool cata_tiles::draw_sprite_at() {
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);self.fixture(root)
             target=root/'src/map.cpp';target.write_text(target.read_text().replace('set_pathfinding_cache_dirty( z );','changed_native_cache_reset();'))
+            before=self.fingerprint(root)
+            with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
+                with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)
+            self.assertEqual(before,self.fingerprint(root))
+    def test_changed_native_firing_anchor_no_partial_patch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);self.fixture(root)
+            target=root/'src/avatar_action.cpp'
+            target.write_text(target.read_text().replace('aim_activity_actor::use_wielded()', 'changed_native_firing()'))
             before=self.fingerprint(root)
             with patch.object(bridge.subprocess,'check_output',return_value=next(iter(bridge.SOURCES))):
                 with self.assertRaisesRegex(ValueError,'one exact anchor'):bridge.apply(root)

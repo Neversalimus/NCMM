@@ -1,5 +1,6 @@
 #pragma once
 #include "ncmm_graphics_grass.hpp"
+#include "ncmm_graphics_rail.hpp"
 #include "ncmm_graphics_v2.h"
 #include "ncmm_world_policy.hpp"
 #include "ncmm_world_lod.hpp"
@@ -55,7 +56,7 @@ struct frame {
     double geometry_ms=0,raster_ms=0,effects_ms=0;
     uint32_t raster_calls=0;uint64_t submitted_triangles=0;
     std::shared_ptr<const cached_transparency> transparency;
-    bool dynamic_world=false;
+    bool dynamic_world=false;uint32_t sky_kind=NCMM_SKY_EARTH;
     std::array<uint32_t,4> creature_lods{};uint32_t creature_culled=0,creature_fallback=0;
     int width=0,height=0;std::vector<uint32_t> pixels;std::vector<float> depth;
     std::vector<int32_t> creatures;
@@ -239,7 +240,12 @@ class renderer {
     std::array<std::shared_ptr<const viewmodel::texture_pixels>,4> arm_pixels;
     ncmm_graphics_detail_v1 empty_detail{};
     const ncmm_graphics_detail_v1 &extra(int i)const{return metadata&&i>=0&&size_t(i)<metadata->cells.size()?metadata->cells[i]:empty_detail;}
-    uint32_t sky_style()const{return metadata?metadata->view.sky_style:uint32_t(NCMM_SKY_EARTH);}
+    uint32_t sky_style()const{
+        if(world_data&&world_data->origin_z<0){const int i=index(int(base.camera_x),int(base.camera_y));
+            if(i<0||(world_flags(i)&NCMM_WORLD_ROOFED))return NCMM_SKY_VOID;}
+        return metadata?metadata->view.sky_style:uint32_t(NCMM_SKY_EARTH);
+    }
+    float fog_density(int i)const{return world_data&&(world_flags(i)&NCMM_WORLD_ROOFED)?0.f:s.environment.fog_density+.003f;}
     using sprite_key=std::tuple<uintptr_t,uint32_t,uint32_t,uint32_t>;
     std::vector<image *> image_refs;std::array<image *,NCMM_GFX_GLOVE_RIGHT+1> held_refs{};
     std::map<sprite_key,image> images;std::vector<triangle> transparent,opaque,overlay;
@@ -452,7 +458,7 @@ class renderer {
                 float recip=w0*iz[0]+w1*iz[1]+w2*iz[2];if(recip<=0)continue;float z=1/recip;size_t k=size_t(y)*f.width+x;
                 if(!t.m.impostor&&z>(t.m.overlay?f.held_depth[k]:f.depth[k])+.0002f)continue;
                 if(solid_grass){
-                    const float fog=clamp((z-2)*(s.environment.fog_density+.003f));
+                    const float fog=clamp((z-2)*fog_density(t.m.cell));
                     f.pixels[k]=pack(grass_color*(1-fog)+fog_color*fog);f.depth[k]=z;f.owners[k]=t.m.cell;f.creatures[k]=-1;
                     if(x==f.width/2&&y==f.height/2&&z<f.focus_depth){f.focus_depth=z;f.focus=t.m.cell;}
                     continue;
@@ -495,7 +501,7 @@ class renderer {
                     const vec pos=v[0].p*a+v[1].p*b+v[2].p*cw;
                     c=surface_color(c,t.m,pos,t.normal,z,fine[0]*a+fine[1]*b+fine[2]*cw,medium[0]*a+medium[1]*b+medium[2]*cw);}
                 c={c.x*pixel_light.x,c.y*pixel_light.y,c.z*pixel_light.z};
-                if(!t.m.overlay){float fog=clamp((z-2)*(s.environment.fog_density+.003f));c=c*(1-fog)+fog_color*fog;}
+                if(!t.m.overlay){float fog=clamp((z-2)*fog_density(t.m.cell));c=c*(1-fog)+fog_color*fog;}
                 if(alpha<.99f)c=c*alpha+unpack(f.pixels[k])*(1-alpha);
                 f.pixels[k]=pack(c);
                 if(alpha>=.99f||t.m.cutout){if(t.m.overlay)f.held_depth[k]=z;else f.depth[k]=z;f.owners[k]=t.m.cell;if(!t.m.overlay)f.creatures[k]=t.m.creature?t.m.cell:t.m.creature_visual?-2:-1;}
@@ -608,13 +614,13 @@ class renderer {
             const size_t at=size_t(y)*f.width+x;
             if(!options.skip_hidden_sky||!std::isfinite(f.depth[at]))f.pixels[at]=pack(color*lit);}
     }
-    void sky_palette(){const auto &e=s.environment;const uint32_t style=sky_style();float day=clamp(e.daylight);
+    void sky_palette(){const auto &e=s.environment;const uint32_t style=sky_style();f.sky_kind=style;float day=clamp(e.daylight);
         const bool celestial=style==NCMM_SKY_EARTH||style==NCMM_SKY_HIGHLANDS;
         if(style==NCMM_SKY_VOID||style==NCMM_SKY_STARS)day=0;vec top=vec{.018f,.026f,.065f}*(1-day)+vec{.17f,.40f,.72f}*day;
         vec bottom=vec{.06f,.07f,.12f}*(1-day)+vec{.61f,.75f,.88f}*day;float twilight=clamp(1-std::abs(e.sun_z)*6)*clamp(day*5)*(1-e.cloud_cover*.6f);
         bottom=bottom*(1-twilight*.4f)+vec{.92f,.47f,.23f}*(twilight*.4f);fog_color=bottom;
         if(e.sky_tint>0){vec tint{e.sky_r,e.sky_g,e.sky_b};top=top*(1-e.sky_tint*.7f)+tint*(e.sky_tint*.32f);bottom=bottom*(1-e.sky_tint*.7f)+tint*(e.sky_tint*.4f);fog_color=bottom;}
-        if(style==NCMM_SKY_VOID){top={.001f,.002f,.005f};bottom={.008f,.009f,.014f};}
+        if(style==NCMM_SKY_VOID){top={0,0,0};bottom={0,0,0};}
         else if(style==NCMM_SKY_GREY){top={.14f,.14f,.14f};bottom={.39f,.39f,.39f};}
         else if(style==NCMM_SKY_SCARLET){top={.16f,.014f,.025f};bottom={.45f,.065f,.054f};}
         else if(style==NCMM_SKY_STARS){top={.006f,.008f,.025f};bottom={.027f,.031f,.065f};}
@@ -635,7 +641,7 @@ class renderer {
             const float up=(f.height*.5f-y)/projection;
             const float elevation=std::atan2(sp+up*cp,std::abs(cp-up*sp));
             const float t=clamp(1-elevation/(pi*.5f));
-            const uint32_t c=pack(world_data&&elevation<0?(metadata&&metadata->horizon_enabled?bottom:vec{.012f,.016f,.024f}):top*(1-t)+bottom*t);
+            const uint32_t c=pack(style==NCMM_SKY_VOID?vec{}:world_data&&elevation<0?(metadata&&metadata->horizon_enabled?bottom:vec{.012f,.016f,.024f}):top*(1-t)+bottom*t);
             if(!options.skip_hidden_sky){std::fill_n(f.pixels.data()+size_t(y)*f.width,f.width,c);count+=f.width;}
             else for(int x=0;x<f.width;++x){const size_t at=size_t(y)*f.width+x;
                 if(!std::isfinite(f.depth[at])){f.pixels[at]=c;++count;}}
@@ -1000,6 +1006,7 @@ class renderer {
     #include "creatures.inc"
     #include "multilevel_geometry.inc"
     #include "grass.inc"
+    #include "rail.inc"
     void horizon(){
         if(!metadata||!metadata->horizon_enabled||!world_data)return;
         for(const auto &p:metadata->horizon){
@@ -1045,6 +1052,7 @@ class renderer {
             if(pass==1){
             if(world_data)world_slab(i);
             else if(!(c.flags&NCMM_GFX_NO_FLOOR)&&in_view({float(x),float(y),0},{float(x+1),float(y+1),0})){auto floor=mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f});floor.opaque_texture=true;floor.finish=ground_surface(d.ground);
+                if(ncmm_rail::bed(c.terrain))floor=rail_bed(i);
                 const uint32_t liquid=terrain_liquid(i);
                 if(liquid){floor.texture=nullptr;floor.color=liquid_color(liquid);floor.finish=surface::water;floor.liquid=liquid;floor.banks=liquid_banks(i);}
                 quad({float(x),float(y),0},{float(x+1),float(y),0},{float(x+1),float(y+1),0},{float(x),float(y+1),0},floor);
@@ -1065,6 +1073,7 @@ class renderer {
             }
             contact_shadow(i,x,y);
             if(gpu_sink&&gpu_sink->collects_grass())lawn(i);
+            railway(i);
             if(world_data)world_transition(i);
             architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
             if(d.vehicle_features)vehicle(i);else if(c.furniture[0])architecture(i,d.furniture_shape,NCMM_GFX_FURNITURE);
@@ -1122,7 +1131,7 @@ class renderer {
             const vec pivot{.27f,-.28f,.84f};p=p-pivot;
             const float a=pose.swing,co=std::cos(a),sn=std::sin(a);
             p={p.x*co-p.y*sn,p.x*sn+p.y*co,p.z};
-            return p+pivot+vec{-.12f*pose.swing+pose.sway_x,.04f*pose.swing+pose.sway_y-.20f*(1-pose.equip_phase),pose.thrust-pose.recoil-.06f*(1-pose.equip_phase)};};
+            return p+pivot+vec{-.12f*pose.swing+pose.sway_x-.24f*pose.aim,.04f*pose.swing+pose.sway_y-.20f*(1-pose.equip_phase)+.16f*pose.aim,pose.thrust-pose.recoil-.06f*(1-pose.equip_phase)+.08f*pose.aim};};
         auto held_view=[&](vec p){p=animate(p);p.x*=hud_scale;p.y*=hud_scale;return p;};
         auto hud=[&](vec p){return local(held_view(p));};
         auto face=[&](vec a,vec b,vec c,vec d,material m){a=hud(a);b=hud(b);c=hud(c);d=hud(d);quad(a,b,c,d,m,normalize(cross(b-a,d-a)));};
@@ -1339,7 +1348,8 @@ public:
         std::vector<int> lawns;
         for(int i=0;i<int(base.cell_count);++i)if(visible(i)&&ncmm_grass::terrain(base.cells[i].terrain)&&
             (!world_data||(world_flags(i)&NCMM_WORLD_BODY_VISIBLE))){const vec delta=cell_center(i)-eye;
-            if(delta.x*delta.x+delta.y*delta.y<22.f*22.f)lawns.push_back(i);}
+            if(delta.x*delta.x+delta.y*delta.y<22.f*22.f){const vec at=cell_origin(i);
+                if(in_view(at,at+vec{1,1,ncmm_grass::height(base.cells[i].terrain)*1.35f+.012f}))lawns.push_back(i);}}
         std::sort(lawns.begin(),lawns.end(),[&](int a,int b){const vec da=cell_center(a)-eye,db=cell_center(b)-eye;return dot(da,da)<dot(db,db);});
         // Opaque blades are depth-tested near first, so hidden layers never
         // shade over already covered grass in the software renderer.
@@ -1386,7 +1396,7 @@ inline bool valid_scene(const ncmm_graphics_scene_v2 &s,float yaw,float pitch,co
 }
 inline bool valid_presentation(const presentation_data &p,size_t count){
     const auto &v=p.view;
-    if(v.struct_size<sizeof(v)||p.cells.size()!=count||(v.flags&~NCMM_PRESENT_GPU_EFFECTS)||v.sky_style>NCMM_SKY_FUNGAL||v.gun_kind>NCMM_GUN_BOW||
+    if(v.struct_size<sizeof(v)||p.cells.size()!=count||(v.flags&~(NCMM_PRESENT_GPU_EFFECTS|NCMM_PRESENT_AIMING))||v.sky_style>NCMM_SKY_FUNGAL||v.gun_kind>NCMM_GUN_BOW||
        !terminated(v.dimension)||!std::isfinite(v.eye_height)||v.eye_height<.1f||v.eye_height>4||!std::isfinite(v.body_scale)||v.body_scale<.1f||v.body_scale>3||
        !std::isfinite(v.held_length)||v.held_length<.05f||v.held_length>4||!std::isfinite(v.movement)||v.movement<0||v.movement>1)return false;
     for(int n=0;n<2;++n)if(!terminated(v.sleeve[n])||!terminated(v.glove[n])||v.sleeve_material[n]>NCMM_MAT_CLOTH||v.glove_material[n]>NCMM_MAT_CLOTH)return false;

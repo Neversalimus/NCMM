@@ -140,14 +140,24 @@ jobs:
             'experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc':'bb4099d9eb5802d0e173ce9d7b21d5756643ca3ef9e7927c6cf223f23244a8ba',
             'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'c170dd70d01dfd4c5b9858aedb5bc558d013a2d768b3b1cc4b044241d74448ba',
             'experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp':'0c8d4687aef0ffb225a25daaa14d693296c45ef754889962a8e468f92d9cdc8d',
-            'experiments/FirstPersonView/src/gpu_scene.hpp':'13107ec14c6bf824552c4d78a22b4fa90a88a36d32491acbc56a8976a99d38f0',
-            'experiments/FirstPersonView/src/hybrid_renderer.hpp':'03cae8956b3af95eb424eb79a29953a36e0673953e1cda90e68b415c4cae1fa2',
+            'experiments/FirstPersonView/src/gpu_scene.hpp':'cdb2e55c5f53b0631d637c14d204c6c520c7210fdb1f51ac1e9d2ac369689e48',
+            'experiments/FirstPersonView/src/hybrid_renderer.hpp':'2b030d011c5fcd8e1ef326b201d05f3104a0146f2750e7bdfa98ba617b1901e0',
             'experiments/FirstPersonView/tests/viewmodel_gpu_test.cpp':'4297305f7cc2f99026373322b42b6bcc07ec97c01da8af706a564296608bd3ef',
-            'experiments/FirstPersonView/src/multilevel_geometry.inc':'badc2fb12ea7ca877949cafce6ad453d5c5faeb9096af447937225a82c75a26a',
+            'experiments/FirstPersonView/src/multilevel_geometry.inc':'f9ea18b3a9f6e62ff6683bc16985a707256651093cc71ea91f0313538b216419',
             'experiments/FirstPersonView/src/grass.inc':'2adf955130f9e16d40ab965a98c5d4ce4e28ff6472982a577f17f75fa27889e3',
-            'experiments/FirstPersonView/tests/gpu_scene_test.cpp':'cd4c2db9572c6ca4968f2e6c68fa00555079891a3d3affc6bac5b948c0f7a725',
+            'experiments/FirstPersonView/tests/gpu_scene_test.cpp':'aa00539c66967007c24bbd074f9cd7f668e0944e284099fb4ba232f17a8057af',
             'experiments/graphics_bridge/ncmm_graphics_grass.hpp':'aaa78c29550b06ab1ff24bf8c8eddc5d5572d9a4fbbf269ee40a15e4b4f3a825',
-            'experiments/graphics_bridge/ncmm_world_policy.hpp':'ffb3e6f3ce066293593dd7520048f2305291d6d524b0dc39affc529c91e342cb'}
+            'experiments/graphics_bridge/ncmm_world_policy.hpp':'ffb3e6f3ce066293593dd7520048f2305291d6d524b0dc39affc529c91e342cb',
+            'experiments/FirstPersonView/src/rail.inc':'701ca6374ab6c49a0c6700aa2a1d20f1fb63eb4787377cba344bd4f115ade0ad',
+            'experiments/graphics_bridge/ncmm_graphics_rail.hpp':'cc6add27ab26abc50af75cab79b89785d2f6707cf3b4a1ce2694fac779cec914',
+            'experiments/graphics_bridge/fps_input_bridge.py':'29a8e8209e993c499f3ae2d21ee1827bda4fc5c69bcd81f11036df8c19876876',
+            'experiments/graphics_bridge/ncmm_graphics_input.hpp':'34bf85d890aa2e2774ead961e4df03a74c8e291f7d82d8e7f05dc771bd88deb4',
+            'experiments/graphics_bridge/ncmm_graphics_fps.inc':'85ce095b3acecbe4539fbdb6dbe4dd28df091c632cf77a9b115bd6cb00dbd2b0',
+            'experiments/graphics_bridge/ncmm_graphics_controls.inc':'f8c13720258265e5a5e7ec2bdbdb30d8a3af0f0840c37192cf6df4c32727adbd',
+            'experiments/graphics_bridge/ncmm_graphics_presentation.inc':'685045316fb9ed81ac96ec25f666d23dff6d3ccab2eb6268cff61e1fcf59d7cf',
+            'experiments/graphics_bridge/ncmm_graphics_presentation.h':'cc7d7db6318db55c9408083ba1dcec29b2b13228f3d5f06097f1f4a70f6237fa',
+            'experiments/FirstPersonView/src/animation.hpp':'1ba0c0b8cd919a41f03806e07bc6de5298063ca9cdfbc5d019344c3b4e9a6411',
+            'experiments/FirstPersonView/src/module.cpp':'8e7f2e7cdad16e3d7d665cf468026e01df11ec731df8b0d3f8da3c546c009d96'}
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
           Path('vertex-source-proof.json').write_text(json.dumps(dict(runtime_source=os.environ['GITHUB_SHA'],files=files,ordinary_performance=False,actual_native_game=False,device='offscreen software Vulkan; not RTX4090'),indent=2)+'\n')

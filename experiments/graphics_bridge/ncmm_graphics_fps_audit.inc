@@ -4,8 +4,10 @@
     checkpoint("fps_controls_begin");
     const std::string previous_keyboard = get_option<std::string>("SDL_KEYBOARD_MODE");
     const std::string previous_renderer = get_option<std::string>("NCMM_FIRST_PERSON_RENDERER");
+    const bool previous_aim_after=get_option<bool>("AIM_AFTER_FIRING");
     struct fps_audit_guard {
         std::string keyboard, renderer;
+        bool aim_after;
         move_mode_id movement, desired;
         ~fps_audit_guard() {
             graphics_fps_audit_active = false;
@@ -15,9 +17,10 @@
             get_avatar().set_movement_mode(movement);
             get_options().get_option("SDL_KEYBOARD_MODE").setValue(keyboard);
             get_options().get_option("NCMM_FIRST_PERSON_RENDERER").setValue(renderer);
+            get_options().get_option("AIM_AFTER_FIRING").setValue(aim_after?"true":"false");
             options_manager::update_options_cache();
         }
-    } restore_fps{previous_keyboard, previous_renderer, you.current_movement_mode(),
+    } restore_fps{previous_keyboard, previous_renderer,previous_aim_after, you.current_movement_mode(),
                   you.get_desired_move_mode()};
     graphics_fps_audit_active = true;
     const auto window = SDL_GetWindowID(get_sdl_window());
@@ -499,6 +502,40 @@
                         "fps_audit_out_of_range_reach_attacked_or_opened_selector");
                 samples.push_back({"lmb_reach_out_of_range",mode,renderer_mode,0,0,direction});
             }
+            // Real Native shooting with the setting that normally reopens
+            // ACT_AIM after each shot. These FPS cases must never enter TARGET.
+            get_options().get_option("AIM_AFTER_FIRING").setValue("true");options_manager::update_options_cache();
+            for(int shooting=0;shooting<4;++shooting){
+                floor();you.set_moves(10000);you.recoil=6000;
+                item gun(itype_id("sw_619"),calendar::turn);
+                gun.set_flag(flag_id("WATERPROOF_GUN"));gun.set_flag(flag_id("NEVER_JAMS"));
+                if(shooting!=3)gun.ammo_set(itype_id("38_special"),7);
+                you.set_wielded_item(gun);
+                if(shooting==0)require(g->place_critter_at(mtype_id("mon_zombie"),you.pos_bub()+tripoint_rel_ms(0,-5,0))!=nullptr,"fps_gun_target_fixture");
+                camera(-ncmm_graphics_camera::pi*.5f,shooting==0?-.1f:0.f);warm(renderer_mode);native_redraw();
+                const int before=you.get_moves(),ammo=you.get_wielded_item()->ammo_remaining();const auto serial=graphics_attack_serial;
+                SDL_Event click{};click.type=SDL_EVENT_MOUSE_BUTTON_DOWN;click.button.button=SDL_BUTTON_LEFT;
+                SDL_Event release=click;release.type=SDL_EVENT_MOUSE_BUTTON_UP;
+                bool modal=false;
+                if(shooting==2){
+                    SDL_Event aim=click;aim.button.button=SDL_BUTTON_RIGHT;
+                    modal=dispatch({aim});
+                    require(!modal&&graphics_fps_ads_impl()&&you.get_moves()==before&&!you.activity,"fps_rmb_opened_native_selector");
+                }
+                // A fresh dispatch deliberately releases capture; restore ADS
+                // in the same SDL batch as the click to test simultaneous input.
+                if(shooting==2){SDL_Event aim=click;aim.button.button=SDL_BUTTON_RIGHT;SDL_Event aim_up=aim;aim_up.type=SDL_EVENT_MOUSE_BUTTON_UP;
+                    modal=dispatch({aim_up,aim,click,release});}
+                else modal=dispatch({click,release});
+                require(!modal&&!you.activity&&graphics_input_router.captured(),"fps_gun_opened_selector_or_lost_capture");
+                const int shots=ammo-you.get_wielded_item()->ammo_remaining();
+                require(shooting==3?(shots==0&&graphics_attack_serial==serial&&you.get_moves()==before):
+                        (shots==1&&graphics_attack_serial==serial+1&&you.get_moves()<before),"fps_gun_ammo_or_native_cost_wrong");
+                if(shooting==2){SDL_Event up=release;up.button.button=SDL_BUTTON_RIGHT;dispatch({up});require(!graphics_fps_ads_impl(),"fps_rmb_release_kept_ads");}
+                const char *name=shooting==0?"lmb_fps_gun":shooting==1?"lmb_fps_free_fire":shooting==2?"rmb_fps_ads_fire":"lmb_fps_empty";
+                samples.push_back({name,mode,renderer_mode,shooting==3?0:1,before-you.get_moves()});
+            }
+            get_options().get_option("AIM_AFTER_FIRING").setValue(previous_aim_after?"true":"false");options_manager::update_options_cache();
             floor();warm(renderer_mode);native_redraw();
             you.set_desired_movement_mode(move_mode_id("walk"));
             you.set_stamina(you.get_stamina_max());

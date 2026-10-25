@@ -18,7 +18,13 @@ class FpsEvidenceTests(unittest.TestCase):
     def run_report(self):
         (self.root/'first-person-fps-input.json').write_text(json.dumps(self.report))
         return verify(self.root)
-    def test_complete_fixture(self):self.assertEqual(self.run_report()['samples'],144)
+    def test_complete_fixture(self):self.assertEqual(self.run_report()['samples'],160)
+    def test_free_fire_requires_native_ammo_cost(self):
+        next(s for s in self.report['samples'] if s['scenario']=='lmb_fps_free_fire')['native_move_cost']=0
+        with self.assertRaises(AssertionError):self.run_report()
+    def test_empty_gun_cannot_issue_native_shot(self):
+        next(s for s in self.report['samples'] if s['scenario']=='lmb_fps_empty')['native_actions']=1
+        with self.assertRaises(AssertionError):self.run_report()
     def test_out_of_range_reach_must_be_free(self):
         next(s for s in self.report['samples'] if s['scenario']=='lmb_reach_out_of_range')['native_move_cost']=1
         with self.assertRaises(AssertionError):self.run_report()

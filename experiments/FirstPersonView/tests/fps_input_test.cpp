@@ -150,6 +150,25 @@ int main() {
     r.update(gameplay());
     require(r.captured() && !r.ready(10001),
             "capture resumes at the next real Native wait with held input fenced");
+    {
+        router gun;start(gun);gun.automatic_fire(true,240);
+        gun.key(button::forward,true,false,0);gun.key(button::aim,true,false,0);
+        require(gun.aiming()&&gun.take(0).action==command::aim,"RMB holds ADS without leaving gameplay");
+        gun.key(button::attack,true,false,1);
+        require(gun.take(1).action==command::attack&&gun.aiming(),"ADS accepts a simultaneous shot");
+        require(gun.take(2).action==command::move,"shooting and ADS preserve held walking");
+        require(gun.take(241).action==command::attack,"automatic mode repeats at a bounded action boundary");
+        gun.key(button::attack,false,false,242);gun.key(button::forward,false,false,242);
+        require(!gun.ready(10000),"LMB release immediately stops automatic fire");
+        gun.key(button::aim,false,false,10001);
+        require(!gun.aiming()&&gun.take(10001).action==command::aim,"RMB release wakes the return to hip pose");
+        gun.key(button::attack,true,false,10002);gun.take(10002);
+        auto menu=gameplay();menu.gameplay=false;gun.update(menu);gun.update(gameplay());
+        require(!gun.aiming()&&!gun.ready(100000),"return from a menu cannot restart held fire or ADS");
+        gun.key(button::attack,false,false,100001);gun.automatic_fire(false);
+        gun.key(button::attack,true,false,100002);require(gun.take(100002).action==command::attack,"fresh semiautomatic click fires once");
+        require(!gun.ready(200000),"semiautomatic mode never repeats while held");
+    }
     // Repeated transition stress checks absence of queued turns/shots, not a
     // mirrored implementation: every forbidden owner must consume zero actions.
     for (unsigned i = 0; i < 1000; ++i) {

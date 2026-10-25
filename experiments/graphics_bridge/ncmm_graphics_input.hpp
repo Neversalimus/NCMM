@@ -71,6 +71,7 @@ class router {
          move_issued_ = false;
     uint64_t next_move_ = 0;
     uint32_t repeat_ms_ = 140;
+    bool automatic_fire_=false;uint32_t fire_repeat_ms_=240;uint64_t next_fire_=0;
     static intent movement(uint32_t mask) {
         return {command::move,
                 int(bool(mask & bit(button::forward))) - int(bool(mask & bit(button::back))),
@@ -82,6 +83,7 @@ class router {
         pending_ = {};
         move_issued_ = false;
         next_move_ = 0;
+        next_fire_=0;
     }
 
   public:
@@ -90,6 +92,8 @@ class router {
     context owner() const { return context_; }
     bool captured() const { return captured_; }
     bool command_mode() const { return command_mode_; }
+    bool aiming()const{return captured_&&context_==context::gameplay&&(observed_&~blocked_&bit(button::aim));}
+    void automatic_fire(bool enabled,uint32_t interval=240){automatic_fire_=enabled;fire_repeat_ms_=std::clamp(interval,120u,1200u);}
     void repeat_ms(uint32_t value) { repeat_ms_ = std::clamp(value, 100u, 400u); }
     void native_wait(bool value) { waiting_ = value; }
     void interrupt() { clear_intent(); }
@@ -173,6 +177,7 @@ class router {
         }
         if (context_ != context::gameplay)
             return false;
+        if(b==button::aim&&!down&&was_down&&captured_&&pending_.action==command::none)pending_.action=command::aim;
         // Mapped FPS keys never accidentally become vanilla letter commands
         // while the cursor is released. Tab explicitly grants Native ownership.
         if (!down || repeat || was_down)
@@ -226,7 +231,9 @@ class router {
         default:
             break;
         }
-        if (pending_.action == command::none)
+        // ADS is live presentation state. A simultaneous LMB must not be
+        // swallowed by its zero-cost pose wakeup in the same SDL batch.
+        if (pending_.action == command::none || (action==command::attack&&pending_.action==command::aim))
             pending_.action = action;
         return true;
     }
@@ -235,6 +242,7 @@ class router {
             return false;
         if (pending_.action != command::none)
             return true;
+        if(automatic_fire_&&(observed_&~blocked_&bit(button::attack))&&now>=next_fire_)return true;
         const auto move = movement(observed_ & ~blocked_ & movement_mask);
         return now >= next_move_ &&
                ((move.forward || move.right) || (edge_.forward || edge_.right));
@@ -246,15 +254,17 @@ class router {
             const auto value = pending_;
             pending_ = {};
             edge_ = {};
-            if (value.action != command::run && value.action != command::crouch)
+            if (value.action != command::run && value.action != command::crouch&&value.action!=command::attack&&value.action!=command::aim)
                 blocked_ |= observed_ & movement_mask;
             if (value.action == command::attack)
-                ++attack_intents;
+                {++attack_intents;next_fire_=now+fire_repeat_ms_;}
             if (value.action == command::aim)
                 ++aim_intents;
             ++issued;
             return value;
         }
+        if(automatic_fire_&&(observed_&~blocked_&bit(button::attack))&&now>=next_fire_){
+            next_fire_=now+fire_repeat_ms_;++attack_intents;++issued;return {command::attack};}
         auto value = movement(observed_ & ~blocked_ & movement_mask);
         if (!value.forward && !value.right)
             value = edge_;

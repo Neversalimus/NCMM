@@ -1,0 +1,208 @@
+{
+  "schema": 1,
+  "created_utc": "2026-10-25T21:14:18.304480+00:00",
+  "baseline_source": "9bd5e66834f3740abb9a239efce440f8e90fb525",
+  "candidate_source_files": {
+    "experiments/FirstPersonView/CMakeLists.txt": "144be87ece70d7523619d42c9c540a1a3d2f5403e1014cd259ff7d9e4c2df2a0",
+    "experiments/FirstPersonView/tests/gpu_resource_failure_test.cpp": "d1f3ca167b1639d8be40ec0dcff5d43ae612ff0baf89fe003fc1532418160597",
+    "experiments/FirstPersonView/tests/gpu_vertex_lease_edge_test.cpp": "f4d63a3d214af23d48000bd919da261a946c7f55c30720ef9f5bd41a35cb4a0b",
+    "experiments/graphics_bridge/ncmm_gpu_resources.hpp": "967056405be15fc7dbf7e707bac9374346bc209a4630406fd40542bf2954f2e9",
+    "experiments/graphics_bridge/ncmm_gpu_geometry.hpp": "0b4908e30c9855d78466fad31f9c194a057268d4d2a82d1397fb57c504618e9d",
+    "experiments/graphics_bridge/ncmm_gpu_backend.hpp": "2c6a31754b82c6b1bec8b03efaffc97603132107d16b604b0ad60265bcc4f6d4",
+    "experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc": "bb4099d9eb5802d0e173ce9d7b21d5756643ca3ef9e7927c6cf223f23244a8ba",
+    "experiments/FirstPersonView/tests/compare_scratch_reuse.py": "c170dd70d01dfd4c5b9858aedb5bc558d013a2d768b3b1cc4b044241d74448ba",
+    "experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp": "0c8d4687aef0ffb225a25daaa14d693296c45ef754889962a8e468f92d9cdc8d",
+    "experiments/FirstPersonView/src/gpu_scene.hpp": "cdb2e55c5f53b0631d637c14d204c6c520c7210fdb1f51ac1e9d2ac369689e48",
+    "experiments/FirstPersonView/src/hybrid_renderer.hpp": "2b030d011c5fcd8e1ef326b201d05f3104a0146f2750e7bdfa98ba617b1901e0",
+    "experiments/FirstPersonView/tests/viewmodel_gpu_test.cpp": "4297305f7cc2f99026373322b42b6bcc07ec97c01da8af706a564296608bd3ef",
+    "experiments/FirstPersonView/src/multilevel_geometry.inc": "f9ea18b3a9f6e62ff6683bc16985a707256651093cc71ea91f0313538b216419",
+    "experiments/FirstPersonView/src/grass.inc": "2adf955130f9e16d40ab965a98c5d4ce4e28ff6472982a577f17f75fa27889e3",
+    "experiments/FirstPersonView/tests/gpu_scene_test.cpp": "aa00539c66967007c24bbd074f9cd7f668e0944e284099fb4ba232f17a8057af",
+    "experiments/graphics_bridge/ncmm_graphics_grass.hpp": "aaa78c29550b06ab1ff24bf8c8eddc5d5572d9a4fbbf269ee40a15e4b4f3a825",
+    "experiments/graphics_bridge/ncmm_world_policy.hpp": "ffb3e6f3ce066293593dd7520048f2305291d6d524b0dc39affc529c91e342cb",
+    "experiments/FirstPersonView/src/rail.inc": "701ca6374ab6c49a0c6700aa2a1d20f1fb63eb4787377cba344bd4f115ade0ad",
+    "experiments/graphics_bridge/ncmm_graphics_rail.hpp": "cc6add27ab26abc50af75cab79b89785d2f6707cf3b4a1ce2694fac779cec914",
+    "experiments/graphics_bridge/fps_input_bridge.py": "29a8e8209e993c499f3ae2d21ee1827bda4fc5c69bcd81f11036df8c19876876",
+    "experiments/graphics_bridge/ncmm_graphics_input.hpp": "34bf85d890aa2e2774ead961e4df03a74c8e291f7d82d8e7f05dc771bd88deb4",
+    "experiments/graphics_bridge/ncmm_graphics_fps.inc": "85ce095b3acecbe4539fbdb6dbe4dd28df091c632cf77a9b115bd6cb00dbd2b0",
+    "experiments/graphics_bridge/ncmm_graphics_controls.inc": "f8c13720258265e5a5e7ec2bdbdb30d8a3af0f0840c37192cf6df4c32727adbd",
+    "experiments/graphics_bridge/ncmm_graphics_presentation.inc": "685045316fb9ed81ac96ec25f666d23dff6d3ccab2eb6268cff61e1fcf59d7cf",
+    "experiments/graphics_bridge/ncmm_graphics_presentation.h": "cc7d7db6318db55c9408083ba1dcec29b2b13228f3d5f06097f1f4a70f6237fa",
+    "experiments/FirstPersonView/src/animation.hpp": "1ba0c0b8cd919a41f03806e07bc6de5298063ca9cdfbc5d019344c3b4e9a6411",
+    "experiments/FirstPersonView/src/module.cpp": "8e7f2e7cdad16e3d7d665cf468026e01df11ec731df8b0d3f8da3c546c009d96"
+  },
+  "device": "NVIDIA GeForce RTX 4090",
+  "backend": "Direct3D 12",
+  "hidden_sdl_render_test": true,
+  "native_game_started": false,
+  "mouse_capture_or_warp": false,
+  "background_games_running": true,
+  "gpu_duration_measured": false,
+  "ordinary_game_performance_qualified": false,
+  "manual_playthrough": false,
+  "samples_per_gpu_pair_side": 80,
+  "cpu_cached_samples_per_side": 6,
+  "alternating_order": [
+    "baseline",
+    "candidate",
+    "baseline",
+    "candidate"
+  ],
+  "pairs": [
+    {
+      "baseline": {
+        "samples": 80,
+        "width": 640,
+        "height": 480,
+        "field_tiles": 1681,
+        "prepare_median_ms": 0.4019,
+        "submit_median_ms": 1.2595,
+        "world_record_median_ms": 0.0846,
+        "draw_calls_max": 45,
+        "triangles_max": 8370,
+        "warm_meshes_max": 0,
+        "warm_static_upload_max": 0,
+        "warm_generated_cells_sum": 0,
+        "cpu_cached_median_ms": 6.0141,
+        "cpu_submitted_triangles": 7352,
+        "background_games_running": true,
+        "gpu_duration_measured": false
+      },
+      "candidate": {
+        "samples": 80,
+        "width": 640,
+        "height": 480,
+        "field_tiles": 1681,
+        "prepare_median_ms": 0.3187,
+        "submit_median_ms": 1.1072,
+        "world_record_median_ms": 0.0825,
+        "draw_calls_max": 45,
+        "triangles_max": 8370,
+        "warm_meshes_max": 0,
+        "warm_static_upload_max": 0,
+        "warm_generated_cells_sum": 0,
+        "cpu_cached_median_ms": 5.1827,
+        "cpu_submitted_triangles": 7352,
+        "background_games_running": true,
+        "gpu_duration_measured": false
+      },
+      "captures": [
+        {
+          "baseline": "metro-baseline-9bd5-field-rest.bmp",
+          "candidate": "metro-device-field-rest.bmp",
+          "baseline_sha256": "0747e60640242738979aee6fa98df12e9fbaafe93ae9003b4166f11e36da79ff",
+          "candidate_sha256": "0747e60640242738979aee6fa98df12e9fbaafe93ae9003b4166f11e36da79ff",
+          "pixels_identical": true
+        },
+        {
+          "baseline": "metro-baseline-9bd5-field-wind.bmp",
+          "candidate": "metro-device-field-wind.bmp",
+          "baseline_sha256": "e968b6d71515e43a377fab44a98d6a4960c8722d8e1b0576d6f11dc7483ba62e",
+          "candidate_sha256": "e968b6d71515e43a377fab44a98d6a4960c8722d8e1b0576d6f11dc7483ba62e",
+          "pixels_identical": true
+        }
+      ]
+    },
+    {
+      "baseline": {
+        "samples": 80,
+        "width": 640,
+        "height": 480,
+        "field_tiles": 1681,
+        "prepare_median_ms": 0.4356,
+        "submit_median_ms": 1.3352,
+        "world_record_median_ms": 0.0985,
+        "draw_calls_max": 45,
+        "triangles_max": 8370,
+        "warm_meshes_max": 0,
+        "warm_static_upload_max": 0,
+        "warm_generated_cells_sum": 0,
+        "cpu_cached_median_ms": 5.878,
+        "cpu_submitted_triangles": 7352,
+        "background_games_running": true,
+        "gpu_duration_measured": false
+      },
+      "candidate": {
+        "samples": 80,
+        "width": 640,
+        "height": 480,
+        "field_tiles": 1681,
+        "prepare_median_ms": 0.3397,
+        "submit_median_ms": 1.1789,
+        "world_record_median_ms": 0.0854,
+        "draw_calls_max": 45,
+        "triangles_max": 8370,
+        "warm_meshes_max": 0,
+        "warm_static_upload_max": 0,
+        "warm_generated_cells_sum": 0,
+        "cpu_cached_median_ms": 5.4805,
+        "cpu_submitted_triangles": 7352,
+        "background_games_running": true,
+        "gpu_duration_measured": false
+      },
+      "captures": [
+        {
+          "baseline": "metro-baseline-9bd5-b-field-rest.bmp",
+          "candidate": "metro-device-b-field-rest.bmp",
+          "baseline_sha256": "0747e60640242738979aee6fa98df12e9fbaafe93ae9003b4166f11e36da79ff",
+          "candidate_sha256": "0747e60640242738979aee6fa98df12e9fbaafe93ae9003b4166f11e36da79ff",
+          "pixels_identical": true
+        },
+        {
+          "baseline": "metro-baseline-9bd5-b-field-wind.bmp",
+          "candidate": "metro-device-b-field-wind.bmp",
+          "baseline_sha256": "e968b6d71515e43a377fab44a98d6a4960c8722d8e1b0576d6f11dc7483ba62e",
+          "candidate_sha256": "e968b6d71515e43a377fab44a98d6a4960c8722d8e1b0576d6f11dc7483ba62e",
+          "pixels_identical": true
+        }
+      ]
+    }
+  ],
+  "baseline_exe_sha256": "ee5a5691a3690cda7c29869d78194c3340a5524c694db42e4e372b7edda5c612",
+  "candidate_exe_sha256": "c2a54dd88a866869e123518f1c3e773a01f55c3070dd156b64e13b01db53661b",
+  "module_dll_sha256": "5eaf3f3449c4fb1d56b297d23a427beb57dfd5cab106a9dd4c6a4320168cf1a5",
+  "subway": {
+    "actual_gpu_frames": [
+      {
+        "file": "metro-device-subway-lit.bmp",
+        "sha256": "5ddc5c47645fc0193441b30474a50827a63bf3d837fa917216aa1e671c9ec3a8"
+      },
+      {
+        "file": "metro-device-subway-dark.bmp",
+        "sha256": "318746b0db4facf6e2edcceaf348e4418c4ff35f2067e389dec72c0d56d0f57d"
+      },
+      {
+        "file": "metro-device-subway-local-light.bmp",
+        "sha256": "028088dda12d2b485d4f2fefa89ee7a6b9f35bd2b2381140e7d9f18471ce0b4c"
+      }
+    ],
+    "mean_track_bed_rgb_0_to_255": {
+      "lit": 38.99,
+      "dark": 0,
+      "local_light": 10.99
+    },
+    "region": [
+      10,
+      250,
+      630,
+      355
+    ],
+    "native_rgb_simulated_in_owned_fixture": true,
+    "source_weather_fog_density": 0.6,
+    "cpu_world_darkness_checked": true
+  },
+  "tests": {
+    "cpp": 46,
+    "python_first_person": 170,
+    "python_bridge": 21,
+    "fps_router_checks": 3055,
+    "native_fps_matrix_cases_planned": 160,
+    "native_fps_matrix_status": "remote CI required; not run locally"
+  },
+  "limitations": [
+    "Owned fixture; not the user subway save",
+    "Background games affect CPU and GPU contention; no frame-time guarantee",
+    "Timing is CPU preparation/submission, not GPU timestamps",
+    "No local Native input tests; remote CI and manual play remain separate"
+  ]
+}

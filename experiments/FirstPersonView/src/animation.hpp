@@ -8,7 +8,7 @@ namespace first_person::viewmodel {class frame;}
 namespace first_person::held {struct prepared;}
 namespace first_person::animation {
 struct attack_sample {float phase=-1;uint64_t serial=0;uint32_t kind=0;};
-struct pose {float swing=0,thrust=0,recoil=0,sway_x=0,sway_y=0;uint32_t grip=NCMM_GRIP_SINGLE;float length=.6f;
+struct pose {float swing=0,thrust=0,recoil=0,sway_x=0,sway_y=0,aim=0;uint32_t grip=NCMM_GRIP_SINGLE;float length=.6f;
     double seconds=0;float attack_phase=-1,equip_phase=1;uint64_t attack_serial=0;uint32_t attack_kind=0;
     attack_sample interrupted;float attack_blend=1;
     const viewmodel::frame *prepared_frame=nullptr;

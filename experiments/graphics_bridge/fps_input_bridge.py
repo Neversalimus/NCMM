@@ -17,7 +17,7 @@ def prepare(root,updates,bridge):
         'static bool manager_reset_setting(const module_setting_meta &);\n'
         'namespace\n{')
     loader=once(loader,'#include "ncmm_graphics_camera.hpp"',
-        '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_grass.hpp"\n#include "ncmm_graphics_input.hpp"\n#include "ncmm_graphics_focus.h"\n#include "action.h"\n#if defined(TILES)\n#include "cata_imgui.h"\n#endif')
+        '#include "ncmm_graphics_camera.hpp"\n#include "ncmm_graphics_grass.hpp"\n#include "ncmm_graphics_input.hpp"\n#include "ncmm_graphics_focus.h"\n#include "action.h"\n#include "gun_mode.h"\n#if defined(TILES)\n#include "cata_imgui.h"\n#endif')
     loader=once(loader,'    if( !graphics_control_context ) graphics_release_mouse();','    graphics_fps_sync();')
     loader=once(loader,'    if( graphics_fire_capture.active ) graphics_fire_input_context.store( (category == "DEFAULTMODE" ? 1u : category == "TARGET" ? 2u : 3u) | (text ? 4u : 0u) );',
         '    graphics_fps_input_begin(category);\n'
@@ -39,6 +39,8 @@ def prepare(root,updates,bridge):
         'bool graphics_cursor_captured()\n{\n    return graphics_mouse_drag;\n}\n'
         'bool graphics_take_reach_target(std::optional<tripoint_bub_ms> &target)\n{\n'
         '    return graphics_take_reach_target_impl(target);\n}\n'
+        'bool graphics_take_fps_gunshot(std::optional<tripoint_bub_ms> &target,int &aim_moves)\n{\n'
+        '    return graphics_take_fps_gunshot_impl(target,aim_moves);\n}\n'
         'void graphics_fps_poll()\n{\n    graphics_fps_poll_impl();\n}\n'
         'bool graphics_route_sdl(const SDL_Event &event,const SDL_Event &display,bool allowed)\n{\n'
         '    return graphics_route_sdl_impl(event,display,allowed);\n}\n'
@@ -56,6 +58,7 @@ def prepare(root,updates,bridge):
     header=once(header,'void initialize();',
         'bool graphics_cursor_captured();\n'
         'bool graphics_take_reach_target(std::optional<tripoint_bub_ms> &);\n'
+        'bool graphics_take_fps_gunshot(std::optional<tripoint_bub_ms> &,int &);\n'
         'bool graphics_route_sdl(const SDL_Event &,const SDL_Event &,bool);\n'
         'bool graphics_fps_pending();\n'
         'const std::string *graphics_fps_take_action(const std::string &);\n'
@@ -151,6 +154,43 @@ void initialize();''')
     action=once(action,'player_character.assign_activity( open_tile_activity_actor( std::nullopt ) );',
         'player_character.assign_activity( open_tile_activity_actor( ncmm::graphics_targeted_open(mouse_target) ) );')
     updates['handle_action.cpp']=action
+    firing=updates.get('avatar_action.cpp')
+    if firing is None:firing=(root/'src/avatar_action.cpp').read_text(encoding='utf-8')
+    if '#include "ncmm_loader.h"' not in firing:
+        firing=once(firing,'#include "avatar_action.h"','#include "avatar_action.h"\n#include "ncmm_loader.h"')
+    firing=once(firing,'    you.assign_activity( aim_activity_actor::use_wielded() );', '''    // A consumed FPS request never falls through to a Native target selector,
+    // including stale focus, empty weapons and AIM_AFTER_FIRING. Native F/Tab
+    // still uses the ordinary activity below.
+    std::optional<tripoint_bub_ms> fps_target;
+    int fps_aim_moves = 0;
+    if( ncmm::graphics_take_fps_gunshot( fps_target, fps_aim_moves ) ) {
+        if( !fps_target ) return;
+        map &here = get_map();
+        gun_mode mode = weapon->gun_current_mode();
+        if( !mode || mode.melee() ) return;
+        std::vector<std::string> reasons;
+        const bool common = gunmode_checks_common( you, here, reasons, mode );
+        const bool ready = gunmode_checks_weapon( you, here, reasons, mode );
+        if( !common || !ready ) {
+            for( const auto &reason : reasons ) add_msg( m_info, reason );
+            return;
+        }
+        // RAS weapons must first be loaded with R. Calling fire_gun on an
+        // unloaded bow would produce a Native diagnostic popup.
+        if( !mode->ammo_sufficient( &you ) || !can_fire_weapon( you, here, *weapon ) ) return;
+        const Target_attributes attributes( you.pos_bub(), *fps_target );
+        const aim_mods_cache aim_cache = you.gen_aim_mods_cache( *mode );
+        for( int move = 0; move < fps_aim_moves && you.recoil > 0; ++move ) {
+            const double amount = you.aim_per_move( *mode, you.recoil, attributes, aim_cache );
+            if( amount <= 0 ) break;
+            you.recoil = std::max( 0.0, you.recoil - amount );
+            you.mod_moves( -1 );
+        }
+        you.fire_gun( here, *fps_target, mode.qty, *mode );
+        return;
+    }
+    you.assign_activity( aim_activity_actor::use_wielded() );''')
+    updates['avatar_action.cpp']=firing
     for name in ('ncmm_graphics_input.hpp','ncmm_graphics_grass.hpp','ncmm_graphics_focus.h','ncmm_graphics_fps.inc','ncmm_graphics_fps_audit.inc'):
         if (root/'src'/name).exists():raise ValueError('FPS experimental source already exists: '+name)
         updates[name]=(bridge/name).read_text(encoding='utf-8')

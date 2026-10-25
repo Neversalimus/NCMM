@@ -10,6 +10,7 @@
         const vec at=cell_origin(i);const uint32_t flags=world_flags(i);
         material bottom=slab_underside(i),top=bottom;
         if(flags&NCMM_WORLD_FLOOR_TOP){top=mat(i,NCMM_GFX_GROUND,{.27f,.28f,.24f});top.opaque_texture=true;top.finish=ground_surface(s.details[i].ground);}
+        if((flags&NCMM_WORLD_FLOOR_TOP)&&ncmm_rail::bed(base.cells[i].terrain))top=rail_bed(i);
         if(flags&NCMM_WORLD_GLASS_FLOOR){top=bottom={nullptr,{.37f,.58f,.63f},.22f,false,false,false,i};}
         bottom.slab_lower=true;
         auto point=[&](float x,float y,float z){return at+vec{x,y,z};};
