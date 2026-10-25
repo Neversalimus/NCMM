@@ -131,7 +131,7 @@ jobs:
           from pathlib import Path
           import hashlib,json,os
           files={
-            'experiments/FirstPersonView/CMakeLists.txt':'88eaae0d7323110f458ea66ff707abfcc09f0b357c5696b8f3f095d4748d4eef',
+            'experiments/FirstPersonView/CMakeLists.txt':'144be87ece70d7523619d42c9c540a1a3d2f5403e1014cd259ff7d9e4c2df2a0',
             'experiments/FirstPersonView/tests/gpu_resource_failure_test.cpp':'d1f3ca167b1639d8be40ec0dcff5d43ae612ff0baf89fe003fc1532418160597',
             'experiments/FirstPersonView/tests/gpu_vertex_lease_edge_test.cpp':'f4d63a3d214af23d48000bd919da261a946c7f55c30720ef9f5bd41a35cb4a0b',
             'experiments/graphics_bridge/ncmm_gpu_resources.hpp':'967056405be15fc7dbf7e707bac9374346bc209a4630406fd40542bf2954f2e9',
@@ -139,7 +139,14 @@ jobs:
             'experiments/graphics_bridge/ncmm_gpu_backend.hpp':'2c6a31754b82c6b1bec8b03efaffc97603132107d16b604b0ad60265bcc4f6d4',
             'experiments/graphics_bridge/ncmm_graphics_movement_benchmark.inc':'bb4099d9eb5802d0e173ce9d7b21d5756643ca3ef9e7927c6cf223f23244a8ba',
             'experiments/FirstPersonView/tests/compare_scratch_reuse.py':'c170dd70d01dfd4c5b9858aedb5bc558d013a2d768b3b1cc4b044241d74448ba',
-            'experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp':'0c8d4687aef0ffb225a25daaa14d693296c45ef754889962a8e468f92d9cdc8d'}
+            'experiments/FirstPersonView/tests/gpu_resource_cache_test.cpp':'0c8d4687aef0ffb225a25daaa14d693296c45ef754889962a8e468f92d9cdc8d',
+            'experiments/FirstPersonView/src/gpu_scene.hpp':'61caf29acbb5aec7b214c24d9909ceb06e37adc8115238c8c93bac9c0be93324',
+            'experiments/FirstPersonView/src/hybrid_renderer.hpp':'ffd2aeb1dc0e233eab32217df1bb0c77ac88b2aefa1887d2a8795414f9c8d432',
+            'experiments/FirstPersonView/src/multilevel_geometry.inc':'badc2fb12ea7ca877949cafce6ad453d5c5faeb9096af447937225a82c75a26a',
+            'experiments/FirstPersonView/src/grass.inc':'1363111c562ae0c0c7cc695f6584cf3db9ddd54e6bd9d875a3b058965efe24b0',
+            'experiments/FirstPersonView/tests/gpu_scene_test.cpp':'80322349a5b896b32c4f5672e3ba937ec0af210dbe7e1c2b9016ad8a565f3c6e',
+            'experiments/graphics_bridge/ncmm_graphics_grass.hpp':'a4bbe0015bd25391c319ecc2cc0552f91c8e6632cbe7619c59a145b86edc02e9',
+            'experiments/graphics_bridge/ncmm_world_policy.hpp':'ffb3e6f3ce066293593dd7520048f2305291d6d524b0dc39affc529c91e342cb'}
           for name,expected in files.items():
               assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
           Path('vertex-source-proof.json').write_text(json.dumps(dict(runtime_source=os.environ['GITHUB_SHA'],files=files,ordinary_performance=False,actual_native_game=False,device='offscreen software Vulkan; not RTX4090'),indent=2)+'\n')
