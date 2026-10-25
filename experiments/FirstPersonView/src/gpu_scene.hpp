@@ -23,7 +23,7 @@ struct mesh_builder {
         const uint32_t first=uint32_t(mesh.vertices.size());for(const auto &v:value.v){ncmm_gpu_vertex_v1 out{};vec p=v.p-origin;
             out.position[0]=p.x;out.position[1]=p.y;out.position[2]=p.z;out.normal[0]=out.face_normal[0]=value.normal.x;out.normal[1]=out.face_normal[1]=value.normal.y;out.normal[2]=out.face_normal[2]=value.normal.z;
             out.uv[0]=v.u;out.uv[1]=v.v;out.material=material;
-            if(value.m.grass)out.joint=v.v>.8f?2u:v.v>.1f?1u:0u;
+            if(value.m.grass)out.joint=v.v>.5f?1u:0u;
             if(value.m.gpu_billboard){out.flags=NCMM_GPU_BILLBOARD;auto pivot=value.m.gpu_pivot-origin;out.pivot[0]=pivot.x;out.pivot[1]=pivot.y;out.pivot[2]=pivot.z;}
             mesh.vertices.push_back(out);}
         mesh.indices.insert(mesh.indices.end(),{first,first+1,first+2});}
@@ -32,7 +32,7 @@ class scene_cache {
     friend struct scene_signature_probe;
     using key=std::tuple<int32_t,int32_t,int32_t>;
     using signature_position=std::array<int32_t,3>; // canonical z/y/x, owned values only
-    struct chunk {uint64_t signature=0,touched=0;std::array<std::shared_ptr<const owned_mesh>,3> meshes;};
+    struct chunk {uint64_t signature=0,touched=0;std::array<std::shared_ptr<const owned_mesh>,2> meshes;};
     struct key_hash {
         size_t operator()(const key &value)const noexcept{
             const auto [x,y,z]=value;
@@ -86,6 +86,21 @@ class scene_cache {
     std::map<std::tuple<uint64_t,int,bool,bool>,std::weak_ptr<const owned_mesh>> skins;
     std::map<std::tuple<uint64_t,int,int,bool>,std::weak_ptr<const owned_mesh>> impostors;
     resources assets;
+    std::array<std::shared_ptr<const owned_mesh>,4*3*4> lawns;
+    std::shared_ptr<const owned_mesh> lawn_mesh(unsigned variant,unsigned lod,unsigned tint){
+        auto &mesh=lawns[(variant*3+lod)*4+tint];if(mesh)return mesh;
+        mesh_builder builder;std::array<uint32_t,3> shades{};
+        for(unsigned i=0;i<3;++i){const auto c=ncmm_grass::color(tint,i);ncmm_gpu_material_v1 m{};
+            m.color[0]=c.r;m.color[1]=c.g;m.color[2]=c.b;m.color[3]=1;shades[i]=builder.material(m);}
+        for(const auto &b:ncmm_grass::pattern(variant,lod)){
+            const uint32_t first=uint32_t(builder.mesh.vertices.size());const auto n=hybrid::normalize(vec{b.nx,b.ny,.45f});
+            for(unsigned i=0;i<3;++i){ncmm_gpu_vertex_v1 v{};
+                v.position[0]=i==2?b.tx:b.x+(i?b.wx:-b.wx);v.position[1]=i==2?b.ty:b.y+(i?b.wy:-b.wy);v.position[2]=i==2?b.h:0;
+                v.normal[0]=v.face_normal[0]=n.x;v.normal[1]=v.face_normal[1]=n.y;v.normal[2]=v.face_normal[2]=n.z;
+                v.uv[0]=i==2?.5f:float(i);v.uv[1]=i==2?1.f:0.f;v.material=shades[b.shade];v.joint=i==2?1u:0u;builder.mesh.vertices.push_back(v);}
+            builder.mesh.indices.insert(builder.mesh.indices.end(),{first,first+1,first+2});}
+        mesh=assets.mesh(std::move(builder.mesh));return mesh;
+    }
     struct arm_chunk {std::shared_ptr<const owned_mesh> mesh;std::vector<uint16_t> palettes;};
     struct arm_entry {std::array<uint32_t,11> appearance{};std::vector<arm_chunk> chunks;};
     std::array<arm_entry,2> arm_meshes;
@@ -131,21 +146,27 @@ class scene_cache {
         }
         bool dirty(int cell)const override{return cell>=0&&size_t(cell)<dirty_cells.size()&&dirty_cells[cell];}
         bool any_dirty()const override{return generated_cells!=0;}
+        bool collects_grass()const override{return false;}
         void emit(const hybrid::triangle &value)override{uint32_t pass=value.m.grass?3u:value.m.overlay?NCMM_GPU_HELD:value.m.alpha<.99f&&!value.m.cutout?NCMM_GPU_TRANSPARENT:NCMM_GPU_OPAQUE;
             auto &builder=builders[{value.m.cell,pass}];auto m=material(value.m,builder);builder.triangle(value,builder.material(m),origin(value.m.cell));}
         void world_complete()override{
             for(int i=0;i<int(scene.base.cell_count);++i)if(dirty(i)){auto &chunk=cache.chunks[cell_key(i)];chunk={};chunk.signature=signatures[i];
-                for(uint32_t pass=0;pass<3;++pass){auto found=builders.find({i,pass==2?3:pass});if(found!=builders.end()){chunk.meshes[pass]=cache.assets.mesh(std::move(found->second.mesh));if(!chunk.meshes[pass])fail("GPU static scene mesh cache budget exceeded");}}}
+                for(uint32_t pass=0;pass<2;++pass){auto found=builders.find({i,pass});if(found!=builders.end()){chunk.meshes[pass]=cache.assets.mesh(std::move(found->second.mesh));if(!chunk.meshes[pass])fail("GPU static scene mesh cache budget exceeded");}}}
             builders.clear();world=false;
             for(int i=0;i<int(scene.base.cell_count);++i)if(scene.base.cells[i].flags&NCMM_GFX_VISIBLE){auto found=cache.chunks.find(cell_key(i));if(found==cache.chunks.end()){warming=true;continue;}
                 if(found->second.signature!=signatures[i]){warming=true;continue;}
                 found->second.touched=cache.frame_serial;for(uint32_t pass=0;pass<2;++pass)frame.draw(found->second.meshes[pass],place(origin(i)),uint32_t(i),pass);
-                if(found->second.meshes[2]){
-                    const auto [x,y,z]=cell_key(i);const auto &e=scene.environment;
-                    const auto bend=ncmm_grass::wind(ncmm_grass::seed(x,y,z),e.animation_seconds,e.wind_x,e.wind_y);
-                    const std::array<ncmm_gpu_matrix_v1,3> pose={identity(),place({bend.x*.30f,bend.y*.30f,0}),place({bend.x,bend.y,0})};
-                    frame.draw_skinned(found->second.meshes[2],place(origin(i)),uint32_t(i),NCMM_GPU_OPAQUE,pose.data(),pose.size());
-                }}
+                const auto &cell=scene.base.cells[i];const auto &detail=scene.details[i];
+                if(!ncmm_grass::terrain(cell.terrain)||cell.furniture[0]||detail.vehicle_features||detail.terrain_shape!=NCMM_SHAPE_FLAT||
+                   cell.flags&NCMM_GFX_NO_FLOOR||(levels&&!(levels->coordinates[i].flags&NCMM_WORLD_BODY_VISIBLE)))continue;
+                const auto at=origin(i);const unsigned lod=ncmm_grass::band(std::hypot(at.x+.5f-scene.base.camera_x,at.y+.5f-scene.base.camera_y));if(lod>=3)continue;
+                const auto [x,y,z]=cell_key(i);const auto key=ncmm_grass::seed(x,y,z);const auto &e=scene.environment;
+                auto mesh=cache.lawn_mesh(key&3u,lod,ncmm_grass::tint(cell.terrain));if(!mesh){fail("GPU shared grass mesh cache budget exceeded");continue;}
+                const float height=ncmm_grass::height(cell.terrain),flex=std::min(1.f,height/.25f);
+                const auto bend=ncmm_grass::wind(key,e.animation_seconds,e.wind_x,e.wind_y);
+                const std::array<ncmm_gpu_matrix_v1,2> pose={identity(),place({bend.x*flex,bend.y*flex,0})};
+                frame.draw_skinned(mesh,place(at+vec{0,0,.012f},{1,1,height}),uint32_t(i),NCMM_GPU_OPAQUE,pose.data(),pose.size());
+            }
         }
         bool horizon_dirty()const override{return cache.horizon_signature!=(metadata&&metadata->horizon_enabled?metadata->horizon_revision:0);}
         void horizon_complete()override{
@@ -344,10 +365,7 @@ class scene_cache {
                 const float eye_height=metadata?metadata->view.eye_height:1.55f;distance=std::sqrt(x*x+y*y+eye_height*eye_height);}
             // Distance-only vehicle detail bands are stable across camera turns.
             uint32_t detail_band=s.details[i].vehicle_features?(width/(2*std::tan(70*hybrid::pi/360))/std::max(.1f,distance)<28?2:distance>8?1:0):0;
-            if(ncmm_grass::terrain(cell.terrain)){
-                const auto p=levels?xyz.origin(uint32_t(i)):ncmm_world::point{float(i%columns),float(i/columns),0};
-                detail_band=ncmm_grass::band(std::hypot(p.x+.5f-s.base.camera_x,p.y+.5f-s.base.camera_y));
-            }
+            // Lawn LOD selects a shared instance, never a world-cell rebuild.
             if(levels&&(levels->coordinates[i].flags&(NCMM_WORLD_UP|NCMM_WORLD_OPAQUE))){
                 const auto &p=levels->coordinates[i];const auto sample=[&](int x,int y,int z){const int at=xyz.find(x-levels->origin_x,y-levels->origin_y,z);
                     return at>=0?levels->coordinates[at].flags:uint32_t(NCMM_WORLD_UNKNOWN);};
@@ -452,7 +470,7 @@ public:
     uint64_t signature_neighbor_queries=0,signature_reused_cells=0,signature_neighborhood_marks=0;
     uint64_t signature_content_reuses=0,signature_content_hashes=0,signature_content_updates=0,signature_content_allocation_bytes=0;
     std::string last_reason;
-    void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();arm_meshes={};item_meshes.clear();assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
+    void clear(){chunks=decltype(chunks){};skins.clear();impostors.clear();arm_meshes={};item_meshes.clear();lawns={};assets.clear();horizon_signature=0;horizon_mesh.reset();world_epoch=tileset_epoch=0;
         signature_cached=false;signature_values=std::vector<uint64_t>{};signature_results=std::vector<uint64_t>{};signature_positions=std::vector<signature_position>{};signature_dirty_slots=std::vector<uint8_t>{};signature_reuses=0;
         clear_normalized();
         signature_neighbor_queries=signature_reused_cells=signature_neighborhood_marks=0;signature_content_reuses=signature_content_hashes=signature_content_updates=signature_content_allocation_bytes=0;}

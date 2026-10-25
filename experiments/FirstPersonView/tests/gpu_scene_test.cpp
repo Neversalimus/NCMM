@@ -403,7 +403,7 @@ int main(int argc,char **argv){
         uint32_t green=0x3e5a23ff,brown=0x6b543aff,asphalt=0x494b4cff;
         auto provider=[&](uint32_t i,uint32_t layer,ncmm_graphics_sprite_v2 &sprite){
             if(layer!=NCMM_GFX_GROUND)return false;
-            const auto *art=std::strcmp(cells[i].terrain,"t_grass")==0?&green:std::strcmp(cells[i].terrain,"t_dirt")==0?&brown:&asphalt;
+            const auto *art=std::strcmp(details[i].ground,"t_grass")==0?&green:std::strcmp(details[i].ground,"t_dirt")==0?&brown:&asphalt;
             sprite={sizeof(sprite),1,1,1,art};return true;};
         fp::gpu::scene_cache cache;fp::hybrid::frame statistics;
         static ncmm_gpu::backend *lawn_backend=nullptr;lawn_backend=&engine;
@@ -414,6 +414,7 @@ int main(int argc,char **argv){
             const auto &submission=packet.finish(&api);
             if(n)require(!submission.generated_cells&&!submission.mesh_count&&!submission.texture_count,"wind reuses every GPU lawn mesh and texture");
             require(engine.submit(submission),engine.metrics().reason);
+            require(engine.metrics().draw_calls<=48,"grass field uses instanced three-shade models, not thousands of material draws");
             if(n)require(engine.resources().static_upload_bytes()==0&&engine.metrics().generated_meshes==0&&engine.metrics().cpu_raster_calls==0,"real GPU lawn animation uploads only dynamic transforms");
             capture(n?"-grass-wind":"-grass-rest");
             auto *raw=SDL_RenderReadPixels(renderer,nullptr);require(raw!=nullptr,"lawn pixels");
@@ -422,7 +423,60 @@ int main(int argc,char **argv){
             if(n){size_t changed=0;for(size_t i=640*160;i<pixels.size();++i)changed+=pixels[i]!=previous[i];require(changed>100,"wind moves actual GPU grass pixels");std::printf("GPU lawn: %zu changed pixels, %llu triangles, no static upload\n",changed,(unsigned long long)engine.metrics().triangles);}
             previous=std::move(pixels);
         }
+        // Keep the exact floor atlas and lighting while removing only blades.
+        // Count real covered pixels above the hands, not generated vertices.
+        for(auto &c:cells)if(std::strcmp(c.terrain,"t_grass")==0)std::strcpy(c.terrain,"t_dirt");
+        fp::gpu::packet flat;require(cache.build(source,-fp::hybrid::pi*.5f,-.45f,provider,flat,statistics,engine.metrics(),{},nullptr,nullptr,640,480,NCMM_GPU_FORCE),cache.last_reason.c_str());
+        require(engine.submit(flat.finish(&api)),engine.metrics().reason);capture("-grass-flat-reference");
+        auto *raw=SDL_RenderReadPixels(renderer,nullptr);auto *image=raw?SDL_ConvertSurface(raw,SDL_PIXELFORMAT_RGBA8888):nullptr;SDL_DestroySurface(raw);require(image!=nullptr,"grass coverage reference");
+        size_t covered=0;for(int y=160;y<330;++y){const auto *row=reinterpret_cast<const uint32_t *>(static_cast<const char *>(image->pixels)+y*image->pitch);
+            for(int x=0;x<640;++x)covered+=row[x]!=previous[y*640+x];}SDL_DestroySurface(image);
+        require(covered>30000,"dense GPU grass covers at least thirty thousand pixels above the held hands");
+        std::printf("GPU grass coverage: %zu / 108800 pixels above hands\n",covered);
         lawn_backend=nullptr;
+    }
+    if(argc>2&&std::strcmp(argv[2],"--grass-benchmark")==0){
+        // Identical owned field/camera for before/after measurements. Readback
+        // and screenshots are outside the timed loop; no Native simulation.
+        constexpr int side=41;
+        std::vector<ncmm_graphics_cell_v1> cells(side*side);std::vector<ncmm_graphics_cell_v2> details(cells.size());
+        for(int y=0;y<side;++y)for(int x=0;x<side;++x){const int i=y*side+x;cells[i].flags=NCMM_GFX_VISIBLE;
+            const char *id=x==20?"t_dirt":"t_grass";std::strcpy(cells[i].terrain,id);std::strcpy(details[i].ground,id);
+            details[i].light_r=details[i].light_g=details[i].light_b=1;}
+        ncmm_graphics_scene_v2 source{};source.struct_size=sizeof(source);source.base={sizeof(source.base),640,480,side,side,20.5f,32.5f,cells.data(),cells.size()};
+        source.details=details.data();source.detail_count=details.size();source.environment.daylight=1;source.environment.sun_z=.8f;source.environment.sun_x=.4f;source.environment.wind_x=20;source.environment.wind_y=7;
+        uint32_t green=0x3e5a23ff,brown=0x6b543aff;
+        auto provider=[&](uint32_t i,uint32_t layer,ncmm_graphics_sprite_v2 &sprite){if(layer!=NCMM_GFX_GROUND)return false;
+            sprite={sizeof(sprite),1,1,1,std::strcmp(cells[i].terrain,"t_grass")==0?&green:&brown};return true;};
+        first_person::gpu::scene_cache cache;first_person::hybrid::frame statistics;
+        static ncmm_gpu::backend *field_backend=nullptr;field_backend=&engine;
+        ncmm_host_graphics_gpu_v1 api{};api.has_resource=[](uint64_t key,uint32_t kind){return field_backend->has(key,kind)?1:0;};
+        std::vector<double> prepare,submit,record;uint64_t calls=0,triangles=0,meshes=0,upload=0,regenerated=0;engine.profile();
+        for(int n=0;n<88;++n){source.environment.animation_seconds=1+n/30.;
+            first_person::gpu::packet packet;const auto begun=std::chrono::steady_clock::now();
+            require(cache.build(source,-first_person::hybrid::pi*.5f,-.18f,provider,packet,statistics,engine.metrics(),{},nullptr,nullptr,640,480,NCMM_GPU_FORCE),cache.last_reason.c_str());
+            const auto &submission=packet.finish(&api);const auto prepared=std::chrono::steady_clock::now();
+            require(engine.submit(submission),engine.metrics().reason);const auto submitted=std::chrono::steady_clock::now();
+            if(n>=8){prepare.push_back(std::chrono::duration<double,std::milli>(prepared-begun).count());submit.push_back(std::chrono::duration<double,std::milli>(submitted-prepared).count());
+                record.push_back(engine.recording().world_ms);calls=std::max(calls,uint64_t(engine.metrics().draw_calls));triangles=std::max(triangles,uint64_t(engine.metrics().triangles));
+                meshes=std::max(meshes,uint64_t(submission.mesh_count));upload=std::max(upload,engine.resources().static_upload_bytes());regenerated+=submission.generated_cells;}
+            // Bound queued work equally in both revisions, outside CPU timings.
+            require(SDL_RenderTexture(renderer,engine.output(),nullptr,nullptr)&&SDL_FlushRenderer(renderer)&&SDL_WaitForGPUIdle(device),"bounded benchmark frame");
+            if(n==8||n==87)capture(n==8?"-field-rest":"-field-wind");
+        }
+        auto median=[](std::vector<double> v){std::sort(v.begin(),v.end());return v[v.size()/2];};
+        require(calls<=60&&regenerated==0&&upload==0&&meshes==0,"large warm grass field remains instanced with no geometry regeneration or static uploads");
+        first_person::hybrid::frame cpu_static,cpu_first,cpu;std::vector<double> cpu_times;
+        require(first_person::hybrid::build_frame(source,-first_person::hybrid::pi*.5f,-.18f,provider,cpu_first,640,480,{},nullptr,&cpu_static),"CPU benchmark world");
+        for(int n=0;n<8;++n){source.environment.animation_seconds=1+n/30.;const auto begun=std::chrono::steady_clock::now();
+            require(first_person::hybrid::build_frame(source,-first_person::hybrid::pi*.5f,-.18f,provider,cpu,640,480,{},&cpu_static),"CPU cached grass benchmark");
+            if(n>=2)cpu_times.push_back(std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count());}
+        std::ofstream report(std::string(argv[1])+"-grass-benchmark.json");
+        report<<"{\"samples\":80,\"width\":640,\"height\":480,\"field_tiles\":1681,\"prepare_median_ms\":"<<median(prepare)<<",\"submit_median_ms\":"<<median(submit)
+            <<",\"world_record_median_ms\":"<<median(record)<<",\"draw_calls_max\":"<<calls<<",\"triangles_max\":"<<triangles<<",\"warm_meshes_max\":"<<meshes
+            <<",\"warm_static_upload_max\":"<<upload<<",\"warm_generated_cells_sum\":"<<regenerated<<",\"cpu_cached_median_ms\":"<<median(cpu_times)<<",\"cpu_submitted_triangles\":"<<cpu.submitted_triangles
+            <<",\"background_games_running\":true,\"gpu_duration_measured\":false}\n";
+        require(bool(report),"grass benchmark receipt");field_backend=nullptr;engine.profile(false);
     }
     // The imported red-dot lens uses alpha, rather than an opaque stand-in.
     // Two front lens surfaces precede an opaque held surface in material order:

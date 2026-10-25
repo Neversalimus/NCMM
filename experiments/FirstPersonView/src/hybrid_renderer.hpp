@@ -196,6 +196,7 @@ struct geometry_sink {
     virtual ~geometry_sink()=default;
     virtual bool dirty(int cell)const=0;
     virtual bool any_dirty()const{return true;}
+    virtual bool collects_grass()const{return true;}
     virtual void emit(const triangle &value)=0;
     virtual void world_complete(){}
     virtual bool horizon_dirty()const{return true;}
@@ -396,7 +397,7 @@ class renderer {
             const bool reflective=t.m.finish==surface::paint||t.m.finish==surface::metal;
             const vec flat_color=reflective?surface_color(t.m.color,t.m,(v[0].p+v[1].p+v[2].p)*(1.0f/3),t.normal,(p[0].z+p[1].z+p[2].z)/3):t.m.color;
             std::array<float,3> fine{},medium{};
-            for(int n=0;n<3;++n){const float footprint=p[n].z/projection/std::max(.15f,std::abs(dot(t.normal,normalize(eye-v[n].p))));
+            for(int n=0;!t.m.grass&&n<3;++n){const float footprint=p[n].z/projection/std::max(.15f,std::abs(dot(t.normal,normalize(eye-v[n].p))));
                 fine[n]=clamp(1-footprint*80);medium[n]=clamp(1-footprint*18);}
             const bool detailed=t.m.finish==surface::water||(t.m.finish!=surface::none&&t.m.finish!=surface::contact&&!reflective&&std::max({medium[0],medium[1],medium[2]})>0);
             output.push_back({v,p,iz,uu,vv,fine,medium,t.m,t.normal,flat_light,flat_color,xmin,xmax,ymin,ymax,inv,dw0,dw1,coarse,detailed});
@@ -408,6 +409,8 @@ class renderer {
         const auto flat_light=t.flat_light,flat_color=t.flat_color;
         const int xmin=t.xmin,xmax=t.xmax,ymin=t.ymin,ymax=t.ymax;
         const float inv=t.inv,dw0=t.dw0,dw1=t.dw1;const bool coarse=t.coarse,detailed=t.detailed;
+        const bool solid_grass=t.m.grass&&!t.m.overlay&&!t.m.texture&&!t.m.smooth&&t.m.alpha>=.99f&&t.m.finish==surface::none;
+        const vec grass_color{flat_color.x*flat_light.x,flat_color.y*flat_light.y,flat_color.z*flat_light.z};
         float dux=0,duy=0,dvx=0,dvy=0,dzx=0,dzy=0;
         if(t.m.impostor||(t.m.texture&&t.m.texture->creature_skin)){
             const float dw0y=(p[2].x-p[1].x)*inv,dw1y=(p[0].x-p[2].x)*inv;
@@ -448,6 +451,12 @@ class renderer {
                 const float w2=1-w0-w1;
                 float recip=w0*iz[0]+w1*iz[1]+w2*iz[2];if(recip<=0)continue;float z=1/recip;size_t k=size_t(y)*f.width+x;
                 if(!t.m.impostor&&z>(t.m.overlay?f.held_depth[k]:f.depth[k])+.0002f)continue;
+                if(solid_grass){
+                    const float fog=clamp((z-2)*(s.environment.fog_density+.003f));
+                    f.pixels[k]=pack(grass_color*(1-fog)+fog_color*fog);f.depth[k]=z;f.owners[k]=t.m.cell;f.creatures[k]=-1;
+                    if(x==f.width/2&&y==f.height/2&&z<f.focus_depth){f.focus_depth=z;f.focus=t.m.cell;}
+                    continue;
+                }
                 vec c=flat_color;float alpha=t.m.alpha;vec pixel_light=flat_light;
                 if(t.m.smooth){const float a=w0*iz[0]*z,b=w1*iz[1]*z,cw=w2*iz[2]*z;pixel_light=v[0].light*a+v[1].light*b+v[2].light*cw;}
                 if(t.m.impostor){const auto &sprite=*t.m.impostor;
@@ -512,7 +521,8 @@ class renderer {
     void paint(const std::vector<triangle> &queue,const std::vector<triangle> *last=nullptr){
         if(queue.empty()&&(!last||last->empty()))return;
         const auto begun=std::chrono::steady_clock::now();++f.raster_calls;f.submitted_triangles+=queue.size()+(last?last->size():0);
-        const int count=size_t(f.width)*f.height>=500000?int(std::clamp(std::thread::hardware_concurrency(),1u,4u)):1;
+        const bool dense_grass=queue.size()>=2048&&queue.front().m.grass;
+        const int count=size_t(f.width)*f.height>=500000||dense_grass?int(std::clamp(std::thread::hardware_concurrency(),1u,4u)):1;
         std::vector<projected_triangle> projected;projected.reserve(queue.size()+(last?last->size():0));
         for(const auto &t:queue)project(t,projected);
         if(last)for(const auto &t:*last)project(t,projected);
@@ -1054,7 +1064,7 @@ class renderer {
                 continue;
             }
             contact_shadow(i,x,y);
-            if(gpu_sink)lawn(i);
+            if(gpu_sink&&gpu_sink->collects_grass())lawn(i);
             if(world_data)world_transition(i);
             architecture(i,d.terrain_shape,NCMM_GFX_TERRAIN);
             if(d.vehicle_features)vehicle(i);else if(c.furniture[0])architecture(i,d.furniture_shape,NCMM_GFX_FURNITURE);
@@ -1326,8 +1336,14 @@ public:
         // Animate only these near-field blades. The floor, walls and distant
         // world remain in the CPU cache; animation never changes Native time.
         opaque.clear();transparent.clear();
-        for(int i=0;i<int(base.cell_count);++i)if(visible(i)&&
-            (!world_data||(world_flags(i)&NCMM_WORLD_BODY_VISIBLE)))lawn(i);
+        std::vector<int> lawns;
+        for(int i=0;i<int(base.cell_count);++i)if(visible(i)&&ncmm_grass::terrain(base.cells[i].terrain)&&
+            (!world_data||(world_flags(i)&NCMM_WORLD_BODY_VISIBLE))){const vec delta=cell_center(i)-eye;
+            if(delta.x*delta.x+delta.y*delta.y<22.f*22.f)lawns.push_back(i);}
+        std::sort(lawns.begin(),lawns.end(),[&](int a,int b){const vec da=cell_center(a)-eye,db=cell_center(b)-eye;return dot(da,da)<dot(db,db);});
+        // Opaque blades are depth-tested near first, so hidden layers never
+        // shade over already covered grass in the software renderer.
+        for(int i:lawns)lawn(i);
         paint(opaque);
         if(creature_data){opaque.clear();transparent.clear();const auto begun=std::chrono::steady_clock::now();dynamic_creatures();
             f.geometry_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begun).count();paint(opaque);
