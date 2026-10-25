@@ -35,7 +35,7 @@
         return std::vector<SDL_Event>{key_event(code, key, true), key_event(code, key, false)};
     };
     struct fps_events {
-        std::atomic<bool> stop{false}, done{false}, sent{false};
+        std::atomic<bool> stop{false}, done{false}, sent{false}, modal_seen{false};
         std::atomic<uint32_t> last_wait{0};
         std::atomic<int> queued{0};
         std::thread worker;
@@ -111,6 +111,7 @@
                   while (!stop.load() && SDL_GetTicks() < finish) {
                       SDL_Delay(20);
                       if (graphics_fps_audit_wait.load() & 2u) {
+                          modal_seen.store(true);
                           key(SDL_SCANCODE_ESCAPE, SDLK_ESCAPE, true);
                           key(SDL_SCANCODE_ESCAPE, SDLK_ESCAPE, false);
                       }
@@ -195,6 +196,7 @@
                       " queued=" + std::to_string(feed.queued.load()))
                          .c_str());
         require(feed.sent.load(), "fps_audit_sdl_script_never_entered_native_wait");
+        return feed.modal_seen.load();
     };
     auto native_redraw = [&]() {
         ncmm::graphics_note_input_context("DEFAULTMODE");
@@ -443,6 +445,168 @@
                 {"native_run_crouch_wait", mode, renderer_mode, 4, stance_moves - you.get_moves()});
             you.set_movement_mode(move_mode_id("walk"));
             you.set_desired_movement_mode(move_mode_id("walk"));
+
+            floor();
+            item revolver(itype_id("sw_619"), calendar::turn);
+            revolver.ammo_unset();
+            you.set_wielded_item(revolver);
+            item rounds(itype_id("38_special"), calendar::turn);
+            rounds.charges = 2;
+            here.add_item_or_charges(you.pos_bub(), rounds);
+            warm(renderer_mode);
+            native_redraw();
+            const int reload_moves = you.get_moves();
+            dispatch(tap(SDL_SCANCODE_R, SDLK_R));
+            require(graphics_fps_action == "reload_weapon" && bool(you.activity),
+                    "fps_audit_r_did_not_start_native_reload");
+            for (int turn = 0; turn < 16 && you.activity; ++turn)
+                you.activity.do_turn(you);
+            require(you.get_wielded_item()->ammo_remaining() > 0 && you.get_moves() < reload_moves,
+                    "fps_audit_r_did_not_complete_costed_reload");
+            samples.push_back(
+                {"r_native_reload", mode, renderer_mode, 1, reload_moves - you.get_moves()});
+
+            floor();
+            item light(itype_id("flashlight"), calendar::turn);
+            item battery(itype_id("medium_battery_cell"), calendar::turn);
+            battery.ammo_set(battery.ammo_default(), 20);
+            require(light.put_in(battery, pocket_type::MAGAZINE_WELL).success(),
+                    "fps_audit_u_battery_fixture");
+            you.set_wielded_item(light);
+            warm(renderer_mode);
+            native_redraw();
+            const int use_moves = you.get_moves();
+            dispatch(tap(SDL_SCANCODE_U, SDLK_U));
+            require(graphics_fps_action == "apply_wielded" && you.get_wielded_item() &&
+                        you.get_wielded_item()->typeId() == itype_id("flashlight_on") &&
+                        you.get_moves() <= use_moves,
+                    "fps_audit_u_did_not_activate_native_tool");
+            samples.push_back(
+                {"u_native_tool", mode, renderer_mode, 1, use_moves - you.get_moves()});
+
+            // Real Native selectors own these waits. Cancellation must leave
+            // the world unchanged, including the items and the movement cost.
+            auto cancel_interaction = [&](const char *name, const tripoint_bub_ms &target,
+                                          float pitch, SDL_Scancode key, SDL_Keycode value) {
+                checkpoint(std::string("fps_interaction_") + mode + "_" + renderer_mode + "_" +
+                           name);
+                camera(-ncmm_graphics_camera::pi * .5f, pitch);
+                refresh();
+                warm(renderer_mode);
+                native_redraw();
+                require(graphics_fps_target(true) == target,
+                        (std::string("fps_audit_interaction_ray_missed:") + name).c_str());
+                const auto position = you.pos_abs();
+                const int before = you.get_moves();
+                const bool modal = dispatch(tap(key, value));
+                require(modal && you.pos_abs() == position && you.get_moves() == before &&
+                            graphics_fps_action == (key == SDL_SCANCODE_G ? "pickup" : "interact"),
+                        "fps_audit_interaction_cancel_not_native_or_changed_world");
+                samples.push_back({name, mode, renderer_mode, 1, 0});
+            };
+            floor();
+            you.set_wielded_item(item());
+            const auto ground = you.pos_bub() + tripoint_rel_ms(0, -1, 0);
+            here.add_item_or_charges(ground, item(itype_id("rock"), calendar::turn));
+            cancel_interaction("g_native_pickup_cancel", ground, -.98f, SDL_SCANCODE_G, SDLK_G);
+            require(!here.i_at(ground).empty(), "fps_audit_g_cancel_removed_item");
+            cancel_interaction("e_ground_item_cancel", ground, -.98f, SDL_SCANCODE_E, SDLK_E);
+            require(!here.i_at(ground).empty(), "fps_audit_e_cancel_removed_item");
+            here.furn_set(ground, furn_id("f_cupboard"));
+            cancel_interaction("e_container_cancel", ground, -.5f, SDL_SCANCODE_E, SDLK_E);
+            require(here.furn(ground) == furn_id("f_cupboard") && !here.i_at(ground).empty(),
+                    "fps_audit_container_cancel_changed_contents");
+
+            floor();
+            const auto window_tile = you.pos_bub() + tripoint_rel_ms(0, -1, 0);
+            here.ter_set(window_tile, ter_id("t_window_domestic"));
+            // Native window operations are inside-only. Give the fixture an
+            // actual roof rather than overriding Native availability checks.
+            for (int y = -2; y <= 1; ++y)
+                for (int x = -1; x <= 1; ++x)
+                    here.ter_set(you.pos_bub() + tripoint_rel_ms(x, y, 1), ter_id("t_floor"));
+            cancel_interaction("e_window_cancel", window_tile, -.08f, SDL_SCANCODE_E, SDLK_E);
+            require(here.ter(window_tile) == ter_id("t_window_domestic"),
+                    "fps_audit_window_cancel_changed_window");
+
+            floor();
+            const auto npc_tile = you.pos_bub() + tripoint_rel_ms(0, -1, 0);
+            auto person = make_shared_fast<npc>();
+            person->normalize();
+            person->name = "FPS interaction NPC";
+            person->set_base_height(175);
+            person->spawn_at_precise(here.get_abs(npc_tile));
+            overmap_buffer.insert_npc(person);
+            g->load_npcs();
+            person->setpos(here, npc_tile, false);
+            cancel_interaction("e_npc_cancel", npc_tile, -.3f, SDL_SCANCODE_E, SDLK_E);
+            require(get_creature_tracker().creature_at<npc>(npc_tile) == person.get(),
+                    "fps_audit_npc_cancel_changed_identity");
+
+            floor();
+            const auto terminal = you.pos_bub() + tripoint_rel_ms(0, -1, 0);
+            require(here.add_computer(terminal, "FPS input audit", 0) != nullptr,
+                    "fps_audit_terminal_fixture");
+            cancel_interaction("e_terminal_cancel", terminal, -.5f, SDL_SCANCODE_E, SDLK_E);
+
+            floor();
+            // At the existing pitch limit, crouching permits a real centre
+            // ray to hit the stair underfoot. Native still owns the Z move.
+            you.set_movement_mode(move_mode_id("crouch"));
+            you.set_desired_movement_mode(move_mode_id("crouch"));
+            here.ter_set(you.pos_bub(), ter_id("t_stairs_down"));
+            here.ter_set(you.pos_bub() + tripoint_rel_ms(0, 0, -1), ter_id("t_stairs_up"));
+            camera(-ncmm_graphics_camera::pi * .5f, -1.2f);
+            refresh();
+            warm(renderer_mode);
+            native_redraw();
+            require(graphics_fps_target(true) == you.pos_bub(), "fps_audit_stair_ray_missed");
+            const int stair_z = you.posz(), stair_moves = you.get_moves();
+            dispatch(tap(SDL_SCANCODE_E, SDLK_E));
+            require(you.posz() == stair_z - 1 && you.get_moves() < stair_moves,
+                    "fps_audit_e_did_not_use_native_vertical_move");
+            samples.push_back(
+                {"e_native_stair", mode, renderer_mode, 1, stair_moves - you.get_moves()});
+            you.set_movement_mode(move_mode_id("walk"));
+            you.set_desired_movement_mode(move_mode_id("walk"));
+
+            floor();
+            vehicle *car = here.add_vehicle(vproto_id("car"), point_at(0, -3), 0_degrees, 100,
+                                            veh_spawn_status::UNDAMAGED, false);
+            require(car != nullptr, "fps_audit_vehicle_fixture");
+            car->is_locked = false;
+            car->set_owner(you);
+            bool vehicle_checked = false;
+            for (const vpart_reference &part : car->get_all_parts()) {
+                if (!part.has_feature("OPENABLE"))
+                    continue;
+                const auto p = part.pos_bub(here);
+                const auto viewer = p + tripoint_rel_ms(0, 1, 0);
+                if (here.veh_at(viewer) || !here.passable(viewer))
+                    continue;
+                you.setpos(here, viewer, false);
+                cancel_interaction("e_vehicle_cancel", p, -.2f, SDL_SCANCODE_E, SDLK_E);
+                vehicle_checked = true;
+                break;
+            }
+            require(vehicle_checked, "fps_audit_no_exterior_vehicle_door");
+
+            floor();
+            const auto blocker = you.pos_bub() + tripoint_rel_ms(0, -1, 0);
+            const auto hidden_door = blocker + tripoint_rel_ms(0, -1, 0);
+            here.ter_set(blocker, ter_id("t_wall"));
+            here.ter_set(hidden_door, ter_id("t_door_c"));
+            camera(-ncmm_graphics_camera::pi * .5f, -.08f);
+            refresh();
+            warm(renderer_mode);
+            native_redraw();
+            require(graphics_fps_target(true) == blocker && graphics_fps_hint().empty(),
+                    "fps_audit_wall_did_not_hide_interaction");
+            const int blocked_moves = you.get_moves();
+            dispatch(tap(SDL_SCANCODE_E, SDLK_E));
+            require(you.get_moves() == blocked_moves && here.ter(hidden_door) == ter_id("t_door_c"),
+                    "fps_audit_e_interacted_through_wall");
+            samples.push_back({"e_occluded_refusal", mode, renderer_mode, 0, 0});
         }
     }
     std::ofstream output(game_root() / "ncmm" / "first-person-fps-input.json");

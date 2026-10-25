@@ -18,6 +18,7 @@ import time
 PINS = {'1040':'3f7fb352bf492ba521bd9408a0c9f6ce239e8d83',
         '1807':'074aa98bd5be3de4c35f154082db32a0e63bb0f1'}
 MODES = {'controls':{}, 'camera':{'NCMM_FP_CAMERA_INPUT':'1'},
+         'fps':{'NCMM_FP_GAMEPLAY_AUDIT':'1','NCMM_FP_FPS_INPUT_ONLY':'1'},
          'held':{'NCMM_FP_HELD_GALLERY_ONLY':'1'},
          'target':{'NCMM_FP_GAMEPLAY_AUDIT':'1','NCMM_FP_TARGET_HUD_ONLY':'1'},
          'gameplay':{'NCMM_FP_GAMEPLAY_AUDIT':'1'}}
@@ -55,7 +56,7 @@ def run(args):
     repo=Path(__file__).resolve().parents[3]
     bridge=repo/'experiments/graphics_bridge'
     # Logical PRs add these source hooks independently. Test every hook that is
-    # compiled in this exact source tree; the complete integration has all five
+    # compiled in this exact source tree; the complete integration has all six
     # modes. Missing data/verifiers for a present hook remain a hard failure.
     features={'held':(bridge/'ncmm_graphics_held_gallery.inc').is_file(),
               'target':(bridge/'ncmm_graphics_target_smoke.inc').is_file()}
@@ -170,6 +171,10 @@ def run(args):
             from verify_fire_pixels import verify
             verified=verify(game/'ncmm')
             (evidence/'fire-pixels-verified.json').write_text(json.dumps(verified,indent=2)+'\n')
+        if mode in {'fps','gameplay'}:
+            from verify_fps_audit import verify
+            verified=verify(game/'ncmm')
+            (evidence/'fps-input-verified.json').write_text(json.dumps(verified,indent=2)+'\n')
         # Only fresh, owned copies are removed; all evidence has been preserved.
         for folder in ['data','gfx','font','sound','lang','save','code_mods']:
             target=game/folder

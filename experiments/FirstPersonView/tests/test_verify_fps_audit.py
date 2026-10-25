@@ -18,7 +18,7 @@ class FpsEvidenceTests(unittest.TestCase):
     def run_report(self):
         (self.root/'first-person-fps-input.json').write_text(json.dumps(self.report))
         return verify(self.root)
-    def test_complete_fixture(self):self.assertEqual(self.run_report()['samples'],76)
+    def test_complete_fixture(self):self.assertEqual(self.run_report()['samples'],120)
     def test_missing_case_rejected(self):
         self.report['samples'].pop()
         with self.assertRaises(AssertionError):self.run_report()
@@ -36,6 +36,16 @@ class FpsEvidenceTests(unittest.TestCase):
         with self.assertRaises(AssertionError):self.run_report()
     def test_held_queue_rejected(self):
         next(s for s in self.report['samples'] if s['scenario']=='held_w_three_native_boundaries')['native_actions']=100
+        with self.assertRaises(AssertionError):self.run_report()
+    def test_missing_native_reload_cost_rejected(self):
+        next(s for s in self.report['samples'] if s['scenario']=='r_native_reload')['native_move_cost']=0
+        with self.assertRaises(AssertionError):self.run_report()
+    def test_native_tool_may_be_free(self):
+        for sample in self.report['samples']:
+            if sample['scenario']=='u_native_tool':sample['native_move_cost']=0
+        self.assertTrue(self.run_report()['success'])
+    def test_cancelled_interaction_cannot_spend_moves(self):
+        next(s for s in self.report['samples'] if s['scenario']=='e_npc_cancel')['native_move_cost']=100
         with self.assertRaises(AssertionError):self.run_report()
 
 if __name__=='__main__':unittest.main()

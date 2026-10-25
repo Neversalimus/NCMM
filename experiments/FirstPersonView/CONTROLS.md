@@ -44,7 +44,9 @@ entity pointer. Immediately before Native dispatch it rechecks the avatar
 origin, camera, world revision, entity, visibility and adjacent range. Native
 `handle_interact` selects the available door, furniture, item, device, NPC,
 vehicle or vertical action. Stair movement still originates at the avatar's
-actual stair tile. The reticle shows one localized available-action hint.
+actual stair tile. At the current pitch limit, crouch and look down to target
+the stair underfoot, or use its original command in Native mode.
+The reticle shows one localized available-action hint.
 Native legality and confirmation dialogs remain authoritative.
 
 Vehicle driving uses the existing Native bindings, including steering and
@@ -78,7 +80,8 @@ Tab возвращает оригинальные команды CDDA, F5 отк
 В машине сохраняются штатные команды, а обзор мышью независим от руля.
 
 Automated router and renderer checks are separate from real Native gameplay.
-The opt-in Native FPS audit writes `first-person-fps-input.json`; the retained
+The opt-in Native FPS audit prepares 120 controlled cases and writes
+`first-person-fps-input.json`; the retained
 firing audit checks 192 normal trials plus the historical negative control and
 every presented frame. Window-event injection is not a physical two-monitor or
 manual gameplay session. A release requires both pinned Native Hosts, actual

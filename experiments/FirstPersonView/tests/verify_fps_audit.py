@@ -5,10 +5,17 @@ from pathlib import Path
 
 COUNTS={'physical_w_8_yaws':8,'wd_one_diagonal':1,'held_w_three_native_boundaries':1,
         'wall_fences_held_w':1,'inventory_held_w_cancel':1,'focus_resize_dpi_release':3,
-        'e_native_open':1,'lmb_native_melee':2,'native_run_crouch_wait':1}
+        'e_native_open':1,'lmb_native_melee':2,'native_run_crouch_wait':1,
+        'r_native_reload':1,'u_native_tool':1,'g_native_pickup_cancel':1,
+        'e_ground_item_cancel':1,'e_container_cancel':1,'e_window_cancel':1,
+        'e_npc_cancel':1,'e_terminal_cancel':1,'e_native_stair':1,
+        'e_vehicle_cancel':1,'e_occluded_refusal':1}
 ACTIONS={'held_w_three_native_boundaries':3,'native_run_crouch_wait':4,
-         'focus_resize_dpi_release':0}
-FREE={'inventory_held_w_cancel','focus_resize_dpi_release'}
+         'focus_resize_dpi_release':0,'e_occluded_refusal':0}
+FREE={'inventory_held_w_cancel','focus_resize_dpi_release','g_native_pickup_cancel',
+      'e_ground_item_cancel','e_container_cancel','e_window_cancel','e_npc_cancel',
+      'e_terminal_cancel','e_vehicle_cancel','e_occluded_refusal'}
+ALLOW_ZERO={'u_native_tool'} # Native flashlight activation may have no move cost.
 
 def verify(root):
     report=json.loads((root/'first-person-fps-input.json').read_text(encoding='utf-8-sig'))
@@ -26,11 +33,14 @@ def verify(root):
                 assert type(cost) is int and cost>=0
                 assert sample['native_actions']==ACTIONS.get(case,1),'Queued or missing Native action'
                 if case in FREE:assert cost==0,'UI/focus event spent Native moves'
-                elif case!='wall_fences_held_w':assert cost>0,'Gameplay action did not spend Native moves'
+                elif case not in ALLOW_ZERO and case!='wall_fences_held_w':
+                    assert cost>0,'Gameplay action did not spend Native moves'
     return dict(success=True,actual_cdda_sdl=True,samples=len(samples),manual_playthrough=False,
                 native_action_costs_verified=True,
                 limitations=['Controlled isolated world; ordinary AI turns are covered by the separate gameplay audit',
                              'Synthetic window events; physical DPI/two-monitor and manual sessions remain unverified',
+                             'Selector cancellation verifies Native UI ownership, not completion of every menu branch',
+                             'The stair case looks down while crouching at the existing pitch limit',
                              'These cases do not alone qualify every interaction category or performance'])
 
 if __name__=='__main__':
